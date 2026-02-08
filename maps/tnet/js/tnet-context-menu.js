@@ -93,7 +93,7 @@ var clickedCoords = null; // {lv95: [E, N], wgs84: [lon, lat], pixel: [x, y]}
             return;
         }
         
-        console.log('Context Menu: Initialisiert auf', mapEl);
+        // console.log('Context Menu: Initialisiert auf', mapEl);
         
         // Event direkt auf das canvas Element mit capture
         function handleContextMenu(e) {
@@ -101,7 +101,7 @@ var clickedCoords = null; // {lv95: [E, N], wgs84: [lon, lat], pixel: [x, y]}
             e.stopPropagation();
             e.stopImmediatePropagation();
             
-            console.log('Context Menu: Rechtsklick bei', e.clientX, e.clientY);
+            // console.log('Context Menu: Rechtsklick bei', e.clientX, e.clientY);
             
             // Pixel-Koordinaten
             var rect = mapEl.getBoundingClientRect();
@@ -110,7 +110,7 @@ var clickedCoords = null; // {lv95: [E, N], wgs84: [lon, lat], pixel: [x, y]}
             // Koordinaten aus Map holen (LV95)
             var coord = map.getCoordinateFromPixel(pixel);
             if (!coord) {
-                console.log('Context Menu: Keine Koordinaten');
+                // console.log('Context Menu: Keine Koordinaten');
                 return false;
             }
             
@@ -128,7 +128,7 @@ var clickedCoords = null; // {lv95: [E, N], wgs84: [lon, lat], pixel: [x, y]}
                 ctxCoordsDisplay.textContent = lv95[0].toLocaleString('de-CH') + ' / ' + lv95[1].toLocaleString('de-CH');
             }
             
-            console.log('Context Menu: Koordinaten', lv95);
+            // console.log('Context Menu: Koordinaten', lv95);
             
             // Position des Menüs
             var menuWidth = 240;
@@ -149,7 +149,7 @@ var clickedCoords = null; // {lv95: [E, N], wgs84: [lon, lat], pixel: [x, y]}
             contextMenu.style.top = posY + 'px';
             contextMenu.classList.add('show');
             
-            console.log('Context Menu: Angezeigt');
+            // console.log('Context Menu: Angezeigt');
             return false;
         }
         

@@ -101,6 +101,13 @@ function initInfoPaneEnhancements() {
             if (mutation.type === 'childList' || mutation.type === 'attributes') {
                 var infoPane = document.getElementById('njs_info_pane');
                 if (infoPane && infoPane.style.visibility !== 'hidden') {
+
+                    // ÖREB-Modus: Info-Pane sofort schliessen (keine Objektinfo während ÖREB)
+                    if (window.isOerebActive) {
+                        infoPane.style.visibility = 'hidden';
+                        return;
+                    }
+
                     enhanceInfoPane();
 
                     // Falls angedockt, Position und Breite SOFORT wiederherstellen (verhindert Flackern)

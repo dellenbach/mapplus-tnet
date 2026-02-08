@@ -66,6 +66,11 @@ var isDrawing = false;
                     drawLayer.getSource().clear();
                 }
             } else {
+                // ÖREB-Modus deaktivieren falls aktiv
+                if (window.isOerebActive && typeof window.toggleOerebMode === 'function') {
+                    window.toggleOerebMode();
+                }
+
                 // Aktivieren
                 var layer = getDrawLayer(map);
                 layer.getSource().clear();
@@ -165,7 +170,7 @@ var isDrawing = false;
     // geo.admin.ch REST API Abfrage
     function queryGeoAdminLayer(layer, polygonCoords) {
         return new Promise(function(resolve, reject) {
-            console.log('geo.admin.ch REST API Query für:', layer.name, layer.wmsLayers);
+            // console.log('geo.admin.ch REST API Query für:', layer.name, layer.wmsLayers);
             
             // Layer-Name anpassen: ÖREB-Layer haben _v2_0.oereb Suffix, das muss entfernt werden
             // Beispiel: ch.astra.baulinien-nationalstrassen_v2_0.oereb → ch.astra.baulinien-nationalstrassen
@@ -174,11 +179,11 @@ var isDrawing = false;
                 // Entferne .oereb Suffix
                 if (layerName.endsWith('.oereb')) {
                     layerName = layerName.substring(0, layerName.length - 6);
-                    console.log('Nach Entfernung von .oereb:', layerName);
+                    // console.log('Nach Entfernung von .oereb:', layerName);
                 }
                 // Entferne _vX_Y Versions-Suffix (z.B. _v2_0, _v1_0)
                 layerName = layerName.replace(/_v\d+_\d+$/, '');
-                console.log('ÖREB Layer-Name für API:', layerName);
+                // console.log('ÖREB Layer-Name für API:', layerName);
             }
             
             // Polygon zu ESRI JSON Format konvertieren
@@ -196,7 +201,7 @@ var isDrawing = false;
             
             // Sprache fix auf Deutsch
             var lang = 'de';
-            console.log('API Sprache:', lang);
+            // console.log('API Sprache:', lang);
             
             // Parameter
             var params = new URLSearchParams({
@@ -213,12 +218,12 @@ var isDrawing = false;
             });
             
             var queryUrl = apiUrl + '?' + params.toString();
-            console.log('geo.admin.ch API URL:', queryUrl);
+            // console.log('geo.admin.ch API URL:', queryUrl);
             
             fetch(queryUrl)
                 .then(function(response) { return response.json(); })
                 .then(function(data) {
-                    console.log('geo.admin.ch Response:', data);
+                    // console.log('geo.admin.ch Response:', data);
                     
                     var features = [];
                     if (data.results && data.results.length > 0) {
@@ -252,7 +257,7 @@ var isDrawing = false;
                         });
                     }
                     
-                    console.log('geo.admin.ch Features:', features.length);
+                    // console.log('geo.admin.ch Features:', features.length);
                     
                     // Besseren Layer-Namen verwenden (wmsLayers statt layer.name)
                     var displayName = layer.wmsLayers || layer.name || 'Unbekannter Layer';
@@ -290,9 +295,9 @@ var isDrawing = false;
         // Aktive Layer aus dem Layer-Manager holen
         var visibleLayers = getVisibleQueryableLayers();
         
-        console.log('=== SPATIAL QUERY DEBUG ===');
-        console.log('Gefundene Layer:', visibleLayers);
-        console.log('Polygon Koordinaten:', polygonCoords);
+        // console.log('=== SPATIAL QUERY DEBUG ===');
+        // console.log('Gefundene Layer:', visibleLayers);
+        // console.log('Polygon Koordinaten:', polygonCoords);
         
         if (visibleLayers.length === 0) {
             statusEl.textContent = 'Keine abfragbaren Layer aktiv.';
@@ -321,8 +326,8 @@ var isDrawing = false;
             spatialReference: { wkid: 2056 }
         });
         
-        console.log('Geometry JSON:', geometryJson);
-        console.log('Polygon BBOX:', polygonBbox);
+        // console.log('Geometry JSON:', geometryJson);
+        // console.log('Polygon BBOX:', polygonBbox);
         
         statusEl.textContent = 'Abfrage von ' + visibleLayers.length + ' Layer(n)...';
         
@@ -335,7 +340,7 @@ var isDrawing = false;
         });
         
         Promise.all(promises).then(function(results) {
-            console.log('Query Results:', results);
+            // console.log('Query Results:', results);
             displayResults(results, visibleLayers);
         }).catch(function(err) {
             console.error('Spatial Query Error:', err);
@@ -348,7 +353,7 @@ var isDrawing = false;
     // HINWEIS: Bei MapServer kann der WFS TYPENAME vom WMS LAYERS abweichen
     function queryWfsLayer(layer, bbox, polygonCoords) {
         return new Promise(function(resolve, reject) {
-            console.log('Query für Layer:', layer.name, layer.url, layer.mapParam);
+            // console.log('Query für Layer:', layer.name, layer.url, layer.mapParam);
             
             // geo.admin.ch / Schweizer Bundesdienste: Verwende REST API statt WFS
             // Erkennung: URL enthält geo.admin.ch ODER Layer-Name beginnt mit "ch."
@@ -356,7 +361,7 @@ var isDrawing = false;
                              (layer.wmsLayers && layer.wmsLayers.indexOf('ch.') === 0);
             
             if (isGeoAdmin) {
-                console.log('Schweizer Bundeslayer erkannt (geo.admin.ch), verwende REST API');
+                // console.log('Schweizer Bundeslayer erkannt (geo.admin.ch), verwende REST API');
                 return queryGeoAdminLayer(layer, polygonCoords).then(resolve).catch(reject);
             }
             
@@ -377,7 +382,7 @@ var isDrawing = false;
                 }
             }
             
-            console.log('MapServer map Parameter:', mapParam);
+            // console.log('MapServer map Parameter:', mapParam);
             
             // Funktion um WFS GetFeature auszuführen
             function executeWfsQuery(typeName) {
@@ -395,9 +400,9 @@ var isDrawing = false;
                 }
                 
                 var queryUrl = wfsUrl + '?' + params.toString();
-                console.log('WFS 2.0 Query URL (BBOX):', queryUrl);
-                console.log('  TYPENAMES:', typeName);
-                console.log('  BBOX:', bbox.join(',') + ',EPSG:2056');
+                // console.log('WFS 2.0 Query URL (BBOX):', queryUrl);
+                // console.log('  TYPENAMES:', typeName);
+                // console.log('  BBOX:', bbox.join(',') + ',EPSG:2056');
                 
                 return fetch(queryUrl).then(function(response) {
                     return response.text();
@@ -412,7 +417,7 @@ var isDrawing = false;
             var isLiegenschaftenLayer = mapParam && mapParam.indexOf('av_ls_eigentuemer') > -1;
             
             if (isLiegenschaftenLayer) {
-                console.log('Liegenschaften-Layer erkannt (av_ls_eigentuemer.map), lade GetCapabilities für Multi-Kanton-Abfrage...');
+                // console.log('Liegenschaften-Layer erkannt (av_ls_eigentuemer.map), lade GetCapabilities für Multi-Kanton-Abfrage...');
                 
                 var capParams = new URLSearchParams({
                     SERVICE: 'WFS',
@@ -424,13 +429,13 @@ var isDrawing = false;
                 fetch(wfsUrl + '?' + capParams.toString())
                     .then(function(r) { return r.text(); })
                     .then(function(capText) {
-                        console.log('GetCapabilities Response (first 1000):', capText.substring(0, 1000));
+                        // console.log('GetCapabilities Response (first 1000):', capText.substring(0, 1000));
                         var parser = new DOMParser();
                         var capXml = parser.parseFromString(capText, 'text/xml');
                         var featureTypes = capXml.querySelectorAll('FeatureType Name, FeatureType > Name');
-                        console.log('FeatureType Elements gefunden:', featureTypes.length);
+                        // console.log('FeatureType Elements gefunden:', featureTypes.length);
                         var allTypes = Array.from(featureTypes).map(function(ft) { return ft.textContent.trim(); });
-                        console.log('Alle FeatureTypes:', allTypes);
+                        // console.log('Alle FeatureTypes:', allTypes);
                         
                         var liegenschaftenTypes = allTypes.filter(function(t) {
                             return t.indexOf('liegenschaften_') > -1;
@@ -443,20 +448,20 @@ var isDrawing = false;
                             return 0;
                         });
                         
-                        console.log('Liegenschaften-Kantone (NW zuerst):', liegenschaftenTypes.join(', '));
+                        // console.log('Liegenschaften-Kantone (NW zuerst):', liegenschaftenTypes.join(', '));
                         
                         // Abfrage alle Kantone parallel
                         var queries = liegenschaftenTypes.map(function(typeName) {
-                            console.log('Starte WFS Query für:', typeName);
+                            // console.log('Starte WFS Query für:', typeName);
                             return executeWfsQuery(typeName)
                                 .then(function(response) {
-                                    console.log('Response für ' + typeName + ':', response ? response.substring(0, 200) : 'null');
+                                    // console.log('Response für ' + typeName + ':', response ? response.substring(0, 200) : 'null');
                                     if (response && response.indexOf('FeatureCollection') > -1) {
                                         var parsed = parseWfsGmlResponse(response, typeName, polygonCoords);
-                                        console.log('Geparste Features für ' + typeName + ':', parsed.features ? parsed.features.length : 0);
+                                        // console.log('Geparste Features für ' + typeName + ':', parsed.features ? parsed.features.length : 0);
                                         return { typeName: typeName, data: parsed };
                                     }
-                                    console.log('Keine FeatureCollection für ' + typeName);
+                                    // console.log('Keine FeatureCollection für ' + typeName);
                                     return { typeName: typeName, data: { features: [] } };
                                 })
                                 .catch(function(err) {
@@ -472,7 +477,7 @@ var isDrawing = false;
                         var allFeatures = [];
                         results.forEach(function(result) {
                             if (result.data && result.data.features && result.data.features.length > 0) {
-                                console.log('Features von ' + result.typeName + ':', result.data.features.length);
+                                // console.log('Features von ' + result.typeName + ':', result.data.features.length);
                                 // Konvertiere Features in das erwartete Format
                                 result.data.features.forEach(function(f) {
                                     allFeatures.push({
@@ -483,7 +488,7 @@ var isDrawing = false;
                             }
                         });
                         
-                        console.log('Gesamt Features aus allen Kantonen:', allFeatures.length);
+                        // console.log('Gesamt Features aus allen Kantonen:', allFeatures.length);
                         
                         resolve({
                             layerName: layer.name + ' (WFS Multi-Kanton)',
@@ -508,7 +513,7 @@ var isDrawing = false;
                 .then(function(text) {
                     // Prüfe auf "TYPENAME doesn't exist" Fehler
                     if (text.indexOf("doesn't exist") > -1 || text.indexOf('does not exist') > -1) {
-                        console.log('TYPENAME "' + wmsLayerName + '" nicht gefunden, lade GetCapabilities...');
+                        // console.log('TYPENAME "' + wmsLayerName + '" nicht gefunden, lade GetCapabilities...');
                         // GetCapabilities abrufen um verfügbare Layer zu finden
                         var capParams = new URLSearchParams({
                             SERVICE: 'WFS',
@@ -527,7 +532,7 @@ var isDrawing = false;
                                 
                                 if (featureTypes.length > 0) {
                                     var allTypes = Array.from(featureTypes).map(function(ft) { return ft.textContent.trim(); });
-                                    console.log('Verfügbare FeatureTypes:', allTypes.join(', '));
+                                    // console.log('Verfügbare FeatureTypes:', allTypes.join(', '));
                                     
                                     // Suche nach passenden FeatureType basierend auf WMS Layer-Name
                                     var matchingType = null;
@@ -557,7 +562,7 @@ var isDrawing = false;
                                             matchingType = allTypes.find(function(t) { 
                                                 return t.toLowerCase().indexOf('_' + kanton) > -1 || t.toLowerCase().endsWith('_' + kanton);
                                             });
-                                            console.log('Suche nach Kanton "' + kanton + '" in FeatureTypes...');
+                                            // console.log('Suche nach Kanton "' + kanton + '" in FeatureTypes...');
                                         }
                                     }
                                     
@@ -566,7 +571,7 @@ var isDrawing = false;
                                         matchingType = allTypes[0];
                                         console.warn('Kein passender FeatureType gefunden, verwende ersten:', matchingType);
                                     } else {
-                                        console.log('Passender FeatureType gefunden:', matchingType);
+                                        // console.log('Passender FeatureType gefunden:', matchingType);
                                     }
                                     
                                     return executeWfsQuery(matchingType);
@@ -579,7 +584,7 @@ var isDrawing = false;
                 .then(function(textOrData) {
                     // Spezialfall: Kombinierte Daten (von Multi-Kanton-Abfrage)
                     if (textOrData && textOrData._combined) {
-                        console.log('Kombinierte Multi-Kanton-Daten erhalten:', textOrData.features.length, 'Features');
+                        // console.log('Kombinierte Multi-Kanton-Daten erhalten:', textOrData.features.length, 'Features');
                         return textOrData; // Bereits geparste Daten
                     }
                     
@@ -614,7 +619,7 @@ var isDrawing = false;
                         });
                     }
                     
-                    console.log('WFS Features nach BBOX-Filterung:', features.length);
+                    // console.log('WFS Features nach BBOX-Filterung:', features.length);
                     resolve({
                         layerName: layer.name + ' (WFS)',
                         features: features,
@@ -674,8 +679,8 @@ var isDrawing = false;
     function parseWfsGmlResponse(text, layerName, polygonCoords) {
         var features = [];
         
-        console.log('Parsing WFS Response, length:', text.length);
-        console.log('WFS Response (first 500):', text.substring(0, 500));
+        // console.log('Parsing WFS Response, length:', text.length);
+        // console.log('WFS Response (first 500):', text.substring(0, 500));
         
         // Versuche als JSON zu parsen (falls doch JSON)
         try {
@@ -692,7 +697,7 @@ var isDrawing = false;
         // Prüfe auf leere FeatureCollection
         if (text.indexOf('numberReturned="0"') > -1 || 
             (text.indexOf('FeatureCollection') > -1 && text.indexOf('member>') === -1 && text.indexOf('featureMember>') === -1)) {
-            console.log('Leere FeatureCollection');
+            // console.log('Leere FeatureCollection');
             return { features: [] };
         }
         
@@ -702,7 +707,7 @@ var isDrawing = false;
             var xml = parser.parseFromString(text, 'text/xml');
             
             // Debug: Log XML structure
-            console.log('XML Root:', xml.documentElement ? xml.documentElement.tagName : 'null');
+            // console.log('XML Root:', xml.documentElement ? xml.documentElement.tagName : 'null');
             
             // WFS 2.0: wfs:member
             var members = xml.getElementsByTagNameNS('http://www.opengis.net/wfs/2.0', 'member');
@@ -737,7 +742,7 @@ var isDrawing = false;
                 }
             }
             
-            console.log('Found', members.length, 'feature members');
+            // console.log('Found', members.length, 'feature members');
             
             Array.from(members).forEach(function(member) {
                 var feature = { properties: {}, geometry: null };
@@ -784,7 +789,7 @@ var isDrawing = false;
                 }
             });
             
-            console.log('Parsed', features.length, 'features from GML');
+            // console.log('Parsed', features.length, 'features from GML');
             
         } catch (e) {
             console.warn('GML Parse Error:', e);
@@ -1015,15 +1020,15 @@ var isDrawing = false;
                 // Proxy-URL mit Query-Parametern
                 var fullUrl = queryUrl + '?' + params.toString();
                 
-                console.log('Query URL für Layer "' + layer.name + '":', fullUrl);
+                // console.log('Query URL für Layer "' + layer.name + '":', fullUrl);
                 
                 fetch(fullUrl)
                     .then(function(response) { 
-                        console.log('Response Status:', response.status);
+                        // console.log('Response Status:', response.status);
                         return response.json(); 
                     })
                     .then(function(data) {
-                        console.log('Response Data für "' + layer.name + '":', data);
+                        // console.log('Response Data für "' + layer.name + '":', data);
                         resolve({
                             layerName: layer.name,
                             features: data.features || [],
@@ -1055,15 +1060,15 @@ var isDrawing = false;
                 
                 var proxyUrl = '/maps/agsproxy.php?' + encodeURIComponent(queryUrl + '?' + params.toString());
                 
-                console.log('Proxy Query URL für Layer "' + layer.name + '":', proxyUrl);
+                // console.log('Proxy Query URL für Layer "' + layer.name + '":', proxyUrl);
                 
                 fetch(proxyUrl)
                     .then(function(response) { 
-                        console.log('Response Status:', response.status);
+                        // console.log('Response Status:', response.status);
                         return response.json(); 
                     })
                     .then(function(data) {
-                        console.log('Response Data für "' + layer.name + '":', data);
+                        // console.log('Response Data für "' + layer.name + '":', data);
                         resolve({
                             layerName: layer.name,
                             features: data.features || [],
@@ -1086,23 +1091,23 @@ var isDrawing = false;
     function getVisibleQueryableLayers() {
         var layers = [];
         
-        console.log('=== LAYER DETECTION DEBUG ===');
+        // console.log('=== LAYER DETECTION DEBUG ===');
         
         // Versuche Layer aus dem njs Layer-Manager zu holen
         if (njs && njs.AppManager && njs.AppManager.Maps && njs.AppManager.Maps['main']) {
             var mapWrapper = njs.AppManager.Maps['main'];
             var map = mapWrapper.mapObj;
             
-            console.log('Map gefunden:', !!map);
+            // console.log('Map gefunden:', !!map);
             
             if (map) {
                 var allLayers = map.getLayers().getArray();
-                console.log('Anzahl Layer in Map:', allLayers.length);
+                // console.log('Anzahl Layer in Map:', allLayers.length);
                 
                 allLayers.forEach(function(layer, idx) {
                     // Prüfe ob es ein gültiger Layer mit getSource ist
                     if (!layer || typeof layer.getVisible !== 'function' || typeof layer.getSource !== 'function') {
-                        console.log('Layer ' + idx + ': Kein gültiger Layer (evtl. LayerGroup)');
+                        // console.log('Layer ' + idx + ': Kein gültiger Layer (evtl. LayerGroup)');
                         return;
                     }
                     
@@ -1111,14 +1116,14 @@ var isDrawing = false;
                     var name = layer.get('name') || layer.get('title') || 'Layer ' + idx;
                     var sourceType = source ? source.constructor.name : 'no source';
                     
-                    console.log('Layer ' + idx + ':', {
-                        name: name,
-                        visible: visible,
-                        sourceType: sourceType,
-                        hasGetUrl: !!(source && source.getUrl),
-                        hasGetUrls: !!(source && source.getUrls),
-                        hasParams: !!(source && source.getParams)
-                    });
+                    // console.log('Layer ' + idx + ':', {
+                    //     name: name,
+                    //     visible: visible,
+                    //     sourceType: sourceType,
+                    //     hasGetUrl: !!(source && source.getUrl),
+                    //     hasGetUrls: !!(source && source.getUrls),
+                    //     hasParams: !!(source && source.getParams)
+                    // });
                     
                     if (visible && source) {
                         var url = null;
@@ -1142,14 +1147,14 @@ var isDrawing = false;
                         }
                         
                         if (url) {
-                            console.log('  URL:', url);
+                            // console.log('  URL:', url);
                         }
                         
                         // Hole auch die Source-Parameter für zusätzliche Infos
                         var sourceParams = null;
                         if (typeof source.getParams === 'function') {
                             sourceParams = source.getParams();
-                            console.log('  Source Params:', sourceParams);
+                            // console.log('  Source Params:', sourceParams);
                         }
                         
                         // Prüfe ob es ein ArcGIS Layer ist (über Proxy oder direkt)
@@ -1175,14 +1180,14 @@ var isDrawing = false;
                             // Bundeslayer erkennen (ch.* Layer-Namen)
                             if (sourceParams && sourceParams.LAYERS && sourceParams.LAYERS.indexOf('ch.') === 0) {
                                 isWMS = true;
-                                console.log('  Schweizer Bundeslayer erkannt (ch.* Layer)');
+                                // console.log('  Schweizer Bundeslayer erkannt (ch.* Layer)');
                             }
                         }
                         
-                        console.log('  Layer-Typ:', isArcGIS ? 'ArcGIS' : (isWMS ? 'WMS/MapServer' : 'Unbekannt'));
+                        // console.log('  Layer-Typ:', isArcGIS ? 'ArcGIS' : (isWMS ? 'WMS/MapServer' : 'Unbekannt'));
                         
                         if (isArcGIS) {
-                            console.log('  ArcGIS Layer erkannt');
+                            // console.log('  ArcGIS Layer erkannt');
                             
                             // Extrahiere den Service-Pfad
                             var serviceUrl = url;
@@ -1208,7 +1213,7 @@ var isDrawing = false;
                                 // Für jeden Layer-ID einen Eintrag erstellen
                                 layerIds.forEach(function(lid) {
                                     var fullUrl = serviceUrl + '/' + lid.trim();
-                                    console.log('  -> Layer hinzugefügt:', fullUrl);
+                                    // console.log('  -> Layer hinzugefügt:', fullUrl);
                                     layers.push({
                                         name: name + ' (Layer ' + lid + ')',
                                         url: fullUrl,
@@ -1218,7 +1223,7 @@ var isDrawing = false;
                                 });
                             } else if (layerId) {
                                 // Einzelner Layer mit ID in URL
-                                console.log('  -> Layer hinzugefügt:', serviceUrl + '/' + layerId);
+                                // console.log('  -> Layer hinzugefügt:', serviceUrl + '/' + layerId);
                                 layers.push({
                                     name: name,
                                     url: serviceUrl + '/' + layerId,
@@ -1227,7 +1232,7 @@ var isDrawing = false;
                                 });
                             } else {
                                 // Fallback: Versuche alle Layer des Service abzufragen (Layer 0)
-                                console.log('  -> Fallback Layer 0:', serviceUrl + '/0');
+                                // console.log('  -> Fallback Layer 0:', serviceUrl + '/0');
                                 layers.push({
                                     name: name,
                                     url: serviceUrl + '/0',
@@ -1236,7 +1241,7 @@ var isDrawing = false;
                                 });
                             }
                         } else if (isWMS) {
-                            console.log('  WMS Layer erkannt');
+                            // console.log('  WMS Layer erkannt');
                             
                             // Extrahiere Basis-URL (ohne Query-Parameter)
                             var baseUrl = url.split('?')[0];
@@ -1246,7 +1251,7 @@ var isDrawing = false;
                             var urlMapMatch = url.match(/[?&]map=([^&]+)/i);
                             if (urlMapMatch) {
                                 mapParam = decodeURIComponent(urlMapMatch[1]);
-                                console.log('  MapServer map Parameter:', mapParam);
+                                // console.log('  MapServer map Parameter:', mapParam);
                             }
                             
                             // Hole LAYERS aus den Params
@@ -1254,7 +1259,7 @@ var isDrawing = false;
                             
                             // Filtere mask_layer aus (wird nicht abgefragt)
                             if (wmsLayers && wmsLayers !== 'mask_layer' && wmsLayers.toLowerCase() !== 'mask_layer') {
-                                console.log('  -> WMS Layer hinzugefügt:', baseUrl, 'LAYERS:', wmsLayers);
+                                // console.log('  -> WMS Layer hinzugefügt:', baseUrl, 'LAYERS:', wmsLayers);
                                 layers.push({
                                     name: name,
                                     url: baseUrl,
@@ -1264,7 +1269,7 @@ var isDrawing = false;
                                     mapParam: mapParam  // MapServer map-Parameter
                                 });
                             } else if (wmsLayers === 'mask_layer' || wmsLayers.toLowerCase() === 'mask_layer') {
-                                console.log('  -> mask_layer übersprungen (wird nicht abgefragt)');
+                                // console.log('  -> mask_layer übersprungen (wird nicht abgefragt)');
                             }
                         }
                     }
@@ -1272,7 +1277,7 @@ var isDrawing = false;
             }
         }
         
-        console.log('Gefundene abfragbare Layer:', layers);
+        // console.log('Gefundene abfragbare Layer:', layers);
         return layers;
     }
     
@@ -1319,14 +1324,14 @@ var isDrawing = false;
         layer.getSource().clear();
         
         // Feature aus gespeicherten Daten holen
-        console.log('highlightFeature:', layerIdx, featureIdx, allQueryFeatures);
+        // console.log('highlightFeature:', layerIdx, featureIdx, allQueryFeatures);
         
         if (allQueryFeatures[layerIdx] && allQueryFeatures[layerIdx][featureIdx]) {
             var featureData = allQueryFeatures[layerIdx][featureIdx];
             var geometry = featureData.geometry;
             
-            console.log('Feature data:', featureData);
-            console.log('Geometry:', geometry);
+            // console.log('Feature data:', featureData);
+            // console.log('Geometry:', geometry);
             
             if (geometry) {
                 var olGeom = null;
@@ -1364,34 +1369,32 @@ var isDrawing = false;
                     // Koordinatensystem erkennen und nach LV95 transformieren
                     var coords = olGeom.getFirstCoordinate();
                     
-                    // WGS84 → LV95: Lon ~5-11°, Lat ~45-49° (Schweiz + Umgebung)
-                    var isWGS84 = coords && 
+                    // WGS84 Erkennung: Schweiz liegt bei Lon ~5-11°, Lat ~45-49°
+                    // Koordinaten können als [lon, lat] ODER [lat, lon] kommen
+                    var isWGS84_lonlat = coords && 
                         coords[0] > 4 && coords[0] < 12 && 
                         coords[1] > 44 && coords[1] < 50;
-                    if (isWGS84) {
-                        console.log('WGS84 Koordinaten erkannt, konvertiere zu LV95:', coords);
-                        // Bevorzugt ol.proj.transform (nutzt proj4 wenn registriert)
-                        try {
-                            olGeom.transform('EPSG:4326', 'EPSG:2056');
-                        } catch(e) {
-                            // Fallback: proj4 direkt nutzen
-                            console.warn('ol.transform fehlgeschlagen, nutze proj4 direkt:', e);
-                            if (window.proj4) {
-                                olGeom.applyTransform(function(input, output, dim) {
-                                    var d = dim || 2;
-                                    for (var i = 0; i < input.length; i += d) {
-                                        var transformed = proj4('EPSG:4326', 'EPSG:2056', [input[i], input[i + 1]]);
-                                        output[i] = transformed[0];
-                                        output[i + 1] = transformed[1];
-                                        for (var j = 2; j < d; j++) {
-                                            output[i + j] = input[i + j];
-                                        }
-                                    }
-                                    return output;
-                                });
+                    var isWGS84_latlon = coords && 
+                        coords[0] > 44 && coords[0] < 50 && 
+                        coords[1] > 4 && coords[1] < 12;
+                    
+                    if ((isWGS84_lonlat || isWGS84_latlon) && window.proj4) {
+                        var axisOrder = isWGS84_latlon ? '[lat,lon]' : '[lon,lat]';
+                        // proj4 direkt nutzen: erwartet [lon, lat], liefert [E, N] in LV95
+                        olGeom.applyTransform(function(input, output, dim) {
+                            var d = dim || 2;
+                            for (var i = 0; i < input.length; i += d) {
+                                var lon = isWGS84_latlon ? input[i + 1] : input[i];
+                                var lat = isWGS84_latlon ? input[i] : input[i + 1];
+                                var lv95 = proj4('EPSG:4326', 'EPSG:2056', [lon, lat]);
+                                output[i] = lv95[0];
+                                output[i + 1] = lv95[1];
+                                for (var j = 2; j < d; j++) {
+                                    output[i + j] = input[i + j];
+                                }
                             }
-                        }
-                        console.log('Konvertiert zu LV95:', olGeom.getFirstCoordinate());
+                            return output;
+                        });
                     }
                     
                     // LV03 → LV95 Konvertierung falls nötig
@@ -1402,7 +1405,7 @@ var isDrawing = false;
                         coords[0] > 400000 && coords[0] < 900000 && 
                         coords[1] > 50000 && coords[1] < 400000;
                     if (isLV03) {
-                        console.log('LV03 Koordinaten erkannt, konvertiere zu LV95:', coords);
+                        // console.log('LV03 Koordinaten erkannt, konvertiere zu LV95:', coords);
                         olGeom.applyTransform(function(input, output, dim) {
                             var d = dim || 2;
                             for (var i = 0; i < input.length; i += d) {
@@ -1415,7 +1418,7 @@ var isDrawing = false;
                             }
                             return output;
                         });
-                        console.log('Konvertiert zu LV95:', olGeom.getFirstCoordinate());
+                        // console.log('Konvertiert zu LV95:', olGeom.getFirstCoordinate());
                     }
                     
                     var feature = new ol.Feature({ geometry: olGeom });

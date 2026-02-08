@@ -10,6 +10,17 @@
     <link rel="dns-prefetch" href="//www.gis-daten.ch">
     <link rel="dns-prefetch" href="//cdn.jsdelivr.net">
     <link rel="dns-prefetch" href="//cdnjs.cloudflare.com">
+    <!-- Preload: kritische Ressourcen sofort parallel downloaden -->
+    <link rel="preload" href="https://cdn.jsdelivr.net/npm/ol@v10.6.0/dist/ol.js" as="script">
+    <link rel="preload" href="https://cdnjs.cloudflare.com/ajax/libs/dojo/1.17.3/dojo.js" as="script">
+    <link rel="preload" href="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.12.1/proj4.min.js" as="script" crossorigin="anonymous">
+    <link rel="preload" href="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" as="script">
+    <link rel="preload" href="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js" as="script">
+    <link rel="preload" href="https://cdn.jsdelivr.net/npm/sortablejs@1.15.6/Sortable.min.js" as="script">
+    <link rel="preload" href="https://cdn.jsdelivr.net/npm/ol@v10.6.0/ol.css" as="style">
+    <link rel="preload" href="https://cdn.jsdelivr.net/npm/ol-ext/dist/ol-ext.min.js" as="script">
+    <link rel="preload" href="https://cdn.jsdelivr.net/npm/ol-ext/dist/ol-ext.min.css" as="style">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <title>MAP+ GIS Daten AG</title>
     
     <!-- Critical CSS für Splash Screen - inline für sofortige Anzeige -->
@@ -110,33 +121,34 @@
     <link rel="stylesheet" type="text/css"
         href="/mapplus-lib/dojo-release/dojo-release-1.17.3/dijit/themes/tundra/tundra.css" />
     <link rel="stylesheet" type="text/css"
-        href="/mapplus-lib/dojo-release/dojo-release-1.17.3/dojox/widget/ColorPicker/ColorPicker.css" />
+        href="/mapplus-lib/dojo-release/dojo-release-1.17.3/dojox/widget/ColorPicker/ColorPicker.css"
+        media="print" onload="this.media='all'" />
     <link rel="shortcut icon" href="favicon.png?" />
-    <!-- google fonts - Roboto als Hauptschrift -->
+    <!-- google fonts - Roboto als Hauptschrift (non-blocking) -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap"
+        rel="stylesheet" media="print" onload="this.media='all'" />
     <!--
 	Layout CSS dojo FloatingPane module
   -->
-    <link rel="stylesheet" href="../core/templates/nwow_floating/css/FloatingPane.css" />
+    <link rel="stylesheet" href="../core/templates/nwow_floating/css/FloatingPane.css" media="print" onload="this.media='all'" />
     
     <!--
 	Layout CSS dojo Dialog module
   -->
-    <link rel="stylesheet" href="../core/templates/nwow_floating/css/Dialog.css" />
+    <link rel="stylesheet" href="../core/templates/nwow_floating/css/Dialog.css" media="print" onload="this.media='all'" />
     <!--
 	Layout CSS Disclaimer module
   -->
-    <link rel="stylesheet" href="../core/templates/nwow_floating/css/Disclaimer.css" />
+    <link rel="stylesheet" href="../core/templates/nwow_floating/css/Disclaimer.css" media="print" onload="this.media='all'" />
     <!--
 	Layout CSS dojo checkboxtree module
   -->
-    <link rel="stylesheet" href="../core/templates/nwow_floating/css/InfoWindow.css" />
+    <link rel="stylesheet" href="../core/templates/nwow_floating/css/InfoWindow.css" media="print" onload="this.media='all'" />
     <!--
 	POI Manager CSS for icons
   -->
-    <link rel="stylesheet" href="../core/templates/nwow_floating/css/PoiManager.css" />
+    <link rel="stylesheet" href="../core/templates/nwow_floating/css/PoiManager.css" media="print" onload="this.media='all'" />
     <!--
 	Layout CSS classic Layermanager module
   -->
@@ -148,10 +160,11 @@
     <!--
 	Layout CSS for search params grids (EnhancedGrid/RTL via override.css)
   -->
-    <link rel="stylesheet" type="text/css" href="../core/templates/nwow_floating/css/tundraGrid.css" />
+    <link rel="stylesheet" type="text/css" href="../core/templates/nwow_floating/css/tundraGrid.css"
+        media="print" onload="this.media='all'" />
 
     <!-- load this javascript before dojo to avoid multidefine error -->
-    <!-- jspdf for preview-->
+    <!-- jspdf for preview -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <!-- filesaver-js -->
     <script type="text/javascript"
@@ -186,7 +199,7 @@
             }).play();
         }
     </script>
-    <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.6/Sortable.min.js"></script>
     <script>window.Sortable || document.write('<script src="/mapplus-lib/Sortable/1.15.0/Sortable.min.js">\x3C/script>')</script>
     <script
         data-dojo-config="packages:[{name:'dojo',location:'https://cdnjs.cloudflare.com/ajax/libs/dojo/1.17.3'},{name:'dijit',location:'/mapplus-lib/dojo-release/dojo-release-1.17.3/dijit'},{name:'dojox',location:'/mapplus-lib/dojo-release/dojo-release-1.17.3/dojox'}]"
@@ -258,6 +271,38 @@
     <!-- dojo modules and startup config-->
     <script type="text/javascript" src="public/config/modules.js?v=v4.0.0"></script>
     <!-- end modules load -->
+
+    <!-- Early Splash-Hide: Startet sofort, wartet nicht auf ES Modules -->
+    <script>
+    (function() {
+        var _t0 = Date.now();
+        window.hideSplashScreen = function() {
+            var splash = document.getElementById('splash-screen');
+            var preloader = document.getElementById('preloader');
+            if (preloader) preloader.style.display = 'none';
+            var streetview = document.getElementById('streetviewContainer');
+            if (streetview) streetview.style.display = 'none';
+            if (splash) {
+                splash.classList.add('hidden');
+                setTimeout(function() { splash.remove(); }, 1000);
+            }
+        };
+        function earlyCheckAppReady() {
+            // Map-Objekt bereit = Dojo parser.parse() + initApp() abgeschlossen
+            if (window.njs && njs.AppManager && njs.AppManager.Maps && njs.AppManager.Maps['main']) {
+                hideSplashScreen();
+                return;
+            }
+            // Fallback: Maximal 8 Sekunden warten
+            if (Date.now() - _t0 > 8000) {
+                hideSplashScreen();
+                return;
+            }
+            setTimeout(earlyCheckAppReady, 80);
+        }
+        earlyCheckAppReady();
+    })();
+    </script>
 
 
     <div id="disclaimer_copyright" class="njsDisclaimer"></div>
@@ -523,7 +568,16 @@
                             <circle fill="currentColor" cx="8" cy="20" r="2"/>
                         </svg>
                     </div>
-                    
+
+                    <!-- ÖREB Grundstückabfrage Button -->
+                    <div id="oereb-tool-btn" onclick="toggleOerebMode()" title="ÖREB Grundstückabfrage">
+                        <svg viewBox="0 0 24 24" width="20" height="20">
+                            <rect x="3" y="3" width="18" height="18" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/>
+                            <path fill="currentColor" d="M7 7h4v4H7zM13 7h4v2h-4zM7 13h4v2H7zM13 13h4v4h-4z"/>
+                            <circle fill="currentColor" cx="17" cy="7" r="1.5"/>
+                        </svg>
+                    </div>
+
                     <!-- Rechtsklick-Kontextmenü -->
                     <div id="map-context-menu" class="context-menu">
                         <div class="context-menu-header">
@@ -791,13 +845,13 @@
     <script type="module" src="/maps/tnet/js/tnet-utils.js"></script>
 
     <!-- TNET helpers for bookmarks&Co. -->
-    <script type="text/javascript" src="/maps/tnet/tnet-mapplus-helpers.js"></script>
+    <script type="text/javascript" src="/maps/tnet/tnet-mapplus-helpers.js" defer></script>
     
     <!-- TNET Accordion/Tab-Konverter -->
     <link rel="stylesheet" href="/maps/tnet/css/tnet_toc.css" />
     <!-- TNET Komponenten: Kontextmenü, Footer, Kompass, Polygon-Tool, Spatial Query -->
     <link rel="stylesheet" href="/maps/tnet/css/tnet-components.css" />
-    <script type="text/javascript" src="/maps/tnet/tnet_toc.js"></script>
+    <script type="text/javascript" src="/maps/tnet/tnet_toc.js" defer></script>
 
     <!-- TNET App-Init: Panel-Schatten, Scroll-to-Top, Bookmark Auto-Start -->
     <script type="module" src="/maps/tnet/js/tnet-app.js"></script>
@@ -820,6 +874,9 @@
 
     <!-- TNET Split-Screen: Layer-Vergleich mit geteilter Karte -->
     <script src="/maps/tnet/js/tnet-splitscreen.js"></script>
+
+    <!-- TNET ÖREB: Grundstückabfrage, EGRID, Katasterauszug -->
+    <script type="module" src="/maps/tnet/js/tnet-oereb.js"></script>
 
     <!-- Ergebnis-Panel für räumliche Abfrage (ausserhalb mapContainer für korrekte Pointer-Events) -->
     <div id="spatial-query-panel" class="spatial-query-panel hidden">
@@ -845,6 +902,31 @@
         </div>
         <div class="spatial-query-status" id="spatial-query-status">Zeichnen Sie ein Polygon auf der Karte...</div>
         <div class="spatial-query-results" id="spatial-query-results"></div>
+    </div>
+
+    <!-- ÖREB Dock-Panel (ab-/andockbar rechts, mit iframe für ÖREB-Auszug) -->
+    <div id="oereb-dock-panel" class="oereb-dock-panel docked-right hidden">
+        <div class="oereb-resize-top" id="oereb-resize-top"></div>
+        <div class="oereb-resize-left" id="oereb-resize-left"></div>
+        <div class="oereb-resize-right" id="oereb-resize-right"></div>
+        <div class="oereb-resize-bottom" id="oereb-resize-bottom"></div>
+        <div class="oereb-resize-corner-tl" id="oereb-resize-corner-tl"></div>
+        <div class="oereb-resize-corner-tr" id="oereb-resize-corner-tr"></div>
+        <div class="oereb-resize-corner-bl" id="oereb-resize-corner-bl"></div>
+        <div class="oereb-resize-corner-br" id="oereb-resize-corner-br"></div>
+        <div class="oereb-dock-header" id="oereb-dock-header">
+            <span class="oereb-dock-title">ÖREB Grundstückabfrage</span>
+            <div class="oereb-dock-actions">
+                <button class="oereb-dock-btn" onclick="toggleOerebDock()" title="Floating" id="oereb-dock-btn">
+                    <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M19 11h-8v6h8v-6zm4 8V4.98C23 3.88 22.1 3 21 3H3c-1.1 0-2 .88-2 1.98V19c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2zm-2 .02H3V4.97h18v14.05z"/></svg>
+                </button>
+                <button class="oereb-dock-close" onclick="closeOerebPanel()">&times;</button>
+            </div>
+        </div>
+        <div id="oereb-selection" class="oereb-selection"></div>
+        <div class="oereb-iframe-container">
+            <iframe id="oereb-iframe" src="about:blank" style="border:none;width:100%;height:100%;display:block;"></iframe>
+        </div>
     </div>
 
     <!-- TNET Panel Drag & Resize: Verschieben und Größe ändern des Spatial Query Panels -->

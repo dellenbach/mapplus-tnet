@@ -29,7 +29,7 @@ window.setupIframeMonitoring = function() {
                     iframeHistoryIndex = iframeHistory.length - 1;
                 }
             } catch(e) {
-                console.log("Iframe URL nicht zugänglich (cross-origin)");
+                // console.log("Iframe URL nicht zugänglich (cross-origin)");
             }
         });
     }
@@ -80,7 +80,7 @@ window.goBackInIframe = function() {
             iframeHistoryIndex--;
             iframe.src = iframeHistory[iframeHistoryIndex];
         } else {
-            console.log("Keine vorherige Seite in der History");
+            // console.log("Keine vorherige Seite in der History");
         }
     }
 };
@@ -155,36 +155,16 @@ document.addEventListener('click', function(e) {
 });
 
 // ===== SPLASH SCREEN =====
-window.hideSplashScreen = function() {
-    var splash = document.getElementById('splash-screen');
-    // Anderen Preloader verstecken
-    var preloader = document.getElementById('preloader');
-    if (preloader) preloader.style.display = 'none';
-    
-    // streetviewContainer sicher verstecken
-    var streetview = document.getElementById('streetviewContainer');
-    if (streetview) streetview.style.display = 'none';
-    
-    if (splash) {
-        splash.classList.add('hidden');
-        // Nach Animation entfernen
-        setTimeout(function() {
-            splash.remove();
-        }, 1000);
-    }
-};
-
-// Login-Status beim Laden prüfen und Splash ausblenden
-function checkAppReady() {
+// hideSplashScreen + checkAppReady sind jetzt als Early-Inline-Script
+// direkt in index_de.htm, damit sie SOFORT starten (nicht erst nach Module-Load).
+// Login-Status wird hier nachgeholt sobald das Module läuft:
+(function lateLoginCheck() {
     if (window.njs && njs.AppManager && njs.AppManager.Maps && njs.AppManager.Maps['main']) {
         updateLoginStatus();
-        // App ist bereit - Splash ausblenden
-        hideSplashScreen();
     } else {
-        setTimeout(checkAppReady, 300);
+        setTimeout(lateLoginCheck, 300);
     }
-}
-checkAppReady();
+})();
 
 // ===== BASEMAP WIDGET INTERAKTION =====
 document.addEventListener('DOMContentLoaded', function() {
@@ -197,7 +177,7 @@ document.addEventListener('DOMContentLoaded', function() {
             });
             this.classList.add('active');
             // TODO: Hier Layer ein/ausschalten
-            console.log('Layer:', this.dataset.layer, 'Value:', this.dataset.value);
+            // console.log('Layer:', this.dataset.layer, 'Value:', this.dataset.value);
         });
     });
 

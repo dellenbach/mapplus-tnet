@@ -11,7 +11,7 @@
  */
 
 // ===== KOORDINATEN-LEISTE AUF DER KARTE =====
-console.log('Footer Bar Script gestartet');
+// console.log('Footer Bar Script gestartet');
 var currentCoordSystem = 'lv95';
 
 // Koordinaten-System umschalten
@@ -91,20 +91,36 @@ function updateAltitudeDisplay() {
     }
 }
 
+// Originales Koordinaten-Widget verstecken (ersetzt durch eigene Footer-Leiste)
+function hideOriginalCoordWidget() {
+    var wrapper = document.getElementById('njs_coordinates_wrapper');
+    if (wrapper) {
+        wrapper.style.display = 'none';
+    }
+
+    var lv95Input = document.getElementById('xy_coord2');
+    if (lv95Input && typeof lv95Input.closest === 'function') {
+        var pane = lv95Input.closest('.dojoxFloatingPane') || lv95Input.closest('.dojoxFloatingPaneContent') || lv95Input.closest('.dijitFloatingPane');
+        if (pane) {
+            pane.style.display = 'none';
+        }
+    }
+}
+
 // Observer für Änderungen an den Original-Inputs
 function setupObservers() {
-    console.log('Footer Bar: setupObservers aufgerufen');
+    // console.log('Footer Bar: setupObservers aufgerufen');
 
     // Debug: Was ist verfügbar?
-    console.log('njs:', typeof njs);
+    // console.log('njs:', typeof njs);
     if (njs) {
-        console.log('njs.AppManager:', typeof njs.AppManager);
+        // console.log('njs.AppManager:', typeof njs.AppManager);
         if (njs.AppManager) {
-            console.log('njs.AppManager.Maps:', njs.AppManager.Maps);
+            // console.log('njs.AppManager.Maps:', njs.AppManager.Maps);
             if (njs.AppManager.Maps && njs.AppManager.Maps['main']) {
-                console.log('Maps[main]:', njs.AppManager.Maps['main']);
-                console.log('Maps[main].map:', njs.AppManager.Maps['main'].map);
-                console.log('Maps[main] keys:', Object.keys(njs.AppManager.Maps['main']));
+                // console.log('Maps[main]:', njs.AppManager.Maps['main']);
+                // console.log('Maps[main].map:', njs.AppManager.Maps['main'].map);
+                // console.log('Maps[main] keys:', Object.keys(njs.AppManager.Maps['main']));
             }
         }
     }
@@ -116,15 +132,18 @@ function setupObservers() {
     // Warte auf Map statt auf Inputs
     if (!njs || !njs.AppManager || !njs.AppManager.Maps || !njs.AppManager.Maps['main'] || !njs.AppManager.Maps['main'].mapObj) {
         // Map noch nicht da, später nochmal versuchen
-        console.log('Footer Bar: Map noch nicht bereit, warte 500ms...');
+        // console.log('Footer Bar: Map noch nicht bereit, warte 500ms...');
         setTimeout(setupObservers, 500);
         return;
     }
 
-    console.log('Footer Bar: Map gefunden!');
+    // console.log('Footer Bar: Map gefunden!');
     var map = njs.AppManager.Maps['main'].mapObj;
     var view = map.getView();
-    console.log('Footer Bar: View:', view);
+    // console.log('Footer Bar: View:', view);
+
+    // Originales Koordinaten-Widget verstecken
+    hideOriginalCoordWidget();
 
     // Initialen Picker-Status synchronisieren
     syncPickerStatus();
@@ -139,7 +158,7 @@ function setupObservers() {
     // Auch bei Bewegung aktualisieren (für den Fall)
     map.on('moveend', updateScaleDisplay);
 
-    console.log('Map Footer Bar: Scale Listener registriert auf View', view);
+    // console.log('Map Footer Bar: Scale Listener registriert auf View', view);
 
     // Polling für Koordinaten und andere Updates (nur wenn Picker nicht fixiert)
     setInterval(function() {
@@ -148,7 +167,7 @@ function setupObservers() {
         syncPickerStatus();
     }, 500);
 
-    console.log('Map Footer Bar: Initialisiert');
+    // console.log('Map Footer Bar: Initialisiert');
 }
 
 // Maßstab berechnen (korrekt mit Projektion)
@@ -228,7 +247,7 @@ function findClosestScale(actualScale) {
 function updateScaleDisplay() {
     var scaleSelect = document.getElementById('map-scale-select');
     if (!scaleSelect) {
-        console.log('Scale: Element #map-scale-select nicht gefunden');
+        // console.log('Scale: Element #map-scale-select nicht gefunden');
         return;
     }
 
@@ -237,7 +256,7 @@ function updateScaleDisplay() {
         var scale = getMapScale(map);
 
         if (!scale) {
-            console.log('Scale: Konnte Maßstab nicht berechnen');
+            // console.log('Scale: Konnte Maßstab nicht berechnen');
             return;
         }
 
@@ -245,7 +264,7 @@ function updateScaleDisplay() {
         var closestScale = findClosestScale(scale);
         scaleSelect.value = closestScale.toString();
     } else {
-        console.log('Scale: Map nicht verfügbar');
+        // console.log('Scale: Map nicht verfügbar');
     }
 }
 
@@ -260,13 +279,13 @@ function updateCopyrightDisplay() {
 }
 
 // Initialisieren wenn DOM bereit
-console.log('Footer Bar: Warte auf DOM...');
+// console.log('Footer Bar: Warte auf DOM...');
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', function() {
-        console.log('Footer Bar: DOMContentLoaded');
+        // console.log('Footer Bar: DOMContentLoaded');
         setupObservers();
     });
 } else {
-    console.log('Footer Bar: DOM bereits geladen');
+    // console.log('Footer Bar: DOM bereits geladen');
     setupObservers();
 }
