@@ -208,8 +208,6 @@
     <script>window.define || document.write('<script data-dojo-config= \'packages:[{name:"dojo",location:"/mapplus-lib/dojo-release/dojo-release-1.17.3/dojo"},{name:"dijit",location:"/mapplus-lib/dojo-release/dojo-release-1.17.3/dijit"},{name:"dojox",location:"/mapplus-lib/dojo-release/dojo-release-1.17.3/dojox"}],mblAlwaysHideAddressBar:true\' src="/mapplus-lib/dojo-release/dojo-release-1.17.3/dojo/dojo.js">\x3C/script>')</script>
 
     <link rel="stylesheet" href="public/css/override.css" />
-    <!-- Split-screen CSS -->
-    <link rel="stylesheet" href="../tnet/css/tnet-splitscreen.css" />
     <script>
         var isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
         if ((navigator.userAgent.indexOf("iPad") > -1) || (navigator.platform.indexOf('Mac') > -1)) {
@@ -372,6 +370,14 @@
             <svg viewBox="0 0 24 24"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg>
             <!-- Dropdown Menü -->
             <div id="header_menu_dropdown" class="menu-dropdown">
+                <div class="menu-item" onclick="event.stopPropagation(); toggleSplitScreen();">
+                    <svg viewBox="0 0 24 24">
+                        <rect x="2" y="3" width="9" height="18" fill="none" stroke="currentColor" stroke-width="2" rx="1"/>
+                        <rect x="13" y="3" width="9" height="18" fill="none" stroke="currentColor" stroke-width="2" rx="1"/>
+                        <line x1="11.5" y1="3" x2="11.5" y2="21" stroke="currentColor" stroke-width="2"/>
+                    </svg>
+                    <span>Split-Screen</span>
+                </div>
                 <div class="menu-item" onclick="event.stopPropagation(); openHelp();">
                     <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17h-2v-2h2v2zm2.07-7.75l-.9.92C13.45 12.9 13 13.5 13 15h-2v-.5c0-1.1.45-2.1 1.17-2.83l1.24-1.26c.37-.36.59-.86.59-1.41 0-1.1-.9-2-2-2s-2 .9-2 2H8c0-2.21 1.79-4 4-4s4 1.79 4 4c0 .88-.36 1.68-.93 2.25z"/></svg>
                     <span>Hilfe</span>
@@ -548,15 +554,6 @@
                     <div id="njs_main_shop_wrapper" style="display:none"></div>
                     <div id="map" class="map-cont" style="height:100%;"></div>
                     
-                    <!-- Split-Screen Toggle Button -->
-                    <button id="split-screen-btn" onclick="toggleSplitScreen()" title="Split-Screen für Layer-Vergleich">
-                        <svg viewBox="0 0 24 24" width="24" height="24">
-                            <rect x="2" y="3" width="9" height="18" fill="none" stroke="currentColor" stroke-width="1.5"/>
-                            <rect x="13" y="3" width="9" height="18" fill="none" stroke="currentColor" stroke-width="1.5"/>
-                            <line x1="11.5" y1="3" x2="11.5" y2="21" stroke="currentColor" stroke-width="2"/>
-                        </svg>
-                    </button>
-                    
                     <!-- Polygon-Zeichnen Button -->
                     <div id="polygon-tool-btn" class="map-tool-btn" onclick="togglePolygonDraw()" title="Flächenanalyse - Polygon zeichnen">
                         <svg viewBox="0 0 24 24" width="20" height="20">
@@ -721,8 +718,8 @@
                                     <span class="layer-icon">〰</span>
                                     <span class="layer-label">Höhenkurven</span>
                                     <div class="layer-toggle">
-                                        <button class="toggle-btn active" data-layer="hoehenkurven" data-value="on">EIN</button>
-                                        <button class="toggle-btn" data-layer="hoehenkurven" data-value="off">AUS</button>
+                                        <button class="toggle-btn" data-layer="hoehenkurven" data-value="on">EIN</button>
+                                        <button class="toggle-btn active" data-layer="hoehenkurven" data-value="off">AUS</button>
                                     </div>
                                 </div>
                                 <div class="basemap-layer-row">
@@ -737,8 +734,8 @@
                                     <span class="layer-icon">◯</span>
                                     <span class="layer-label">Gemeindegrenzen</span>
                                     <div class="layer-toggle">
-                                        <button class="toggle-btn active" data-layer="gemeindegrenzen" data-value="on">EIN</button>
-                                        <button class="toggle-btn" data-layer="gemeindegrenzen" data-value="off">AUS</button>
+                                        <button class="toggle-btn" data-layer="gemeindegrenzen" data-value="on">EIN</button>
+                                        <button class="toggle-btn active" data-layer="gemeindegrenzen" data-value="off">AUS</button>
                                     </div>
                                 </div>
                                 <div class="basemap-layer-row">
@@ -851,6 +848,8 @@
     <link rel="stylesheet" href="/maps/tnet/css/tnet_toc.css" />
     <!-- TNET Komponenten: Kontextmenü, Footer, Kompass, Polygon-Tool, Spatial Query -->
     <link rel="stylesheet" href="/maps/tnet/css/tnet-components.css" />
+    <!-- TNET Split-Screen CSS -->
+    <link rel="stylesheet" href="/maps/tnet/css/tnet-splitscreen.css" />
     <script type="text/javascript" src="/maps/tnet/tnet_toc.js" defer></script>
 
     <!-- TNET App-Init: Panel-Schatten, Scroll-to-Top, Bookmark Auto-Start -->
@@ -874,6 +873,9 @@
 
     <!-- TNET Split-Screen: Layer-Vergleich mit geteilter Karte -->
     <script src="/maps/tnet/js/tnet-splitscreen.js"></script>
+    
+    <!-- TNET Split-Screen Catalog: Hierarchischer Layer-Katalog für Karte B -->
+    <script src="/maps/tnet/js/tnet-splitscreen-catalog.js"></script>
 
     <!-- TNET ÖREB: Grundstückabfrage, EGRID, Katasterauszug -->
     <script type="module" src="/maps/tnet/js/tnet-oereb.js"></script>

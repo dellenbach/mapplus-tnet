@@ -1,3 +1,137 @@
+// --- Grundkarten-Layer beim Laden standardmäßig aus ---
+document.addEventListener('DOMContentLoaded', function() {
+    try {
+        // Warte bis AppManager verfügbar ist
+        var trySet = function() {
+            if (!window.njs || !njs.AppManager || !njs.AppManager.setMapBookmark) {
+                setTimeout(trySet, 200);
+                return;
+            }
+            
+            // Alle Grundkarten-Layer auf aus (via setMapBookmark wie bei Bookmarks)
+            ['gis_basis/nw_basisplan_gis_dynamisch/hoehenlinien',
+             'gis_basis/nw_basisplan_gis_dynamisch/grundbuchplan_projektierte_objekte',
+             'gis_basis/nw_basisplan_gis_dynamisch/gemeindegrenzen'].forEach(function(layerName) {
+                try {
+                    var params = 'layers=-' + layerName;
+                    window.top.njs.AppManager.setMapBookmark(['main'], params);
+                    console.log('[GrundkartenSync] Layer beim Start ausgeschaltet:', layerName);
+                } catch(e) {
+                    console.warn('[GrundkartenSync] Fehler beim Ausschalten:', layerName, e);
+                }
+            });
+            
+            // Initialisiere Button-Event-Handler
+            var map = (njs.AppManager.Maps && njs.AppManager.Maps.main && njs.AppManager.Maps.main.mapObj) ? njs.AppManager.Maps.main.mapObj : null;
+            if (typeof initGrundkartenLayerSync === 'function') {
+                initGrundkartenLayerSync(map);
+            }
+        };
+        trySet();
+    } catch(e) {
+        console.warn('Grundkarten-Layer-Default-Aus Fehler:', e);
+    }
+});
+// Setzt alle Grundkarten-Buttons auf AUS (optisch und technisch)
+window.setGrundkartenButtonsDefaultAus = function() {
+    Object.keys(GRUNDKARTEN_LAYER_MAPPING).forEach(function(btnId) {
+        var btnEin = document.getElementById('btn-' + btnId + '-ein');
+        var btnAus = document.getElementById('btn-' + btnId + '-aus');
+        if (btnEin && btnAus) {
+            btnEin.classList.remove('active');
+            btnAus.classList.add('active');
+            // Optional: aria-pressed setzen
+            btnEin.setAttribute('aria-pressed', 'false');
+            btnAus.setAttribute('aria-pressed', 'true');
+        }
+    });
+};
+// === GRUNDKARTEN-LAYER-SYNC ===
+// Mapping: Button-ID (oder data-layer) → OL-Layername (vollständiger Pfad)
+window.GRUNDKARTEN_LAYER_MAPPING = {
+    'hoehenkurven': 'gis_basis/nw_basisplan_gis_dynamisch/hoehenlinien',
+    'projektebene': 'gis_basis/nw_basisplan_gis_dynamisch/grundbuchplan_projektierte_objekte',
+    'gemeindegrenzen': 'gis_basis/nw_basisplan_gis_dynamisch/gemeindegrenzen'
+};
+
+// Initialisiert die Grundkarten-Button-Logik mit Event-Listenern
+window.initGrundkartenLayerSync = function(map) {
+    console.log('[GrundkartenSync] Initialisiere Layer-Schaltung');
+    
+    // State: Welche Grundkarten-Layer sind eingeschaltet
+    var layerState = {
+        'gis_basis/nw_basisplan_gis_dynamisch/hoehenlinien': false,
+        'gis_basis/nw_basisplan_gis_dynamisch/grundbuchplan_projektierte_objekte': false,
+        'gis_basis/nw_basisplan_gis_dynamisch/gemeindegrenzen': false
+    };
+    
+    // Hilfsfunktion: Hole alle aktuell sichtbaren Layer (außer Grundkarten)
+    function getNonGrundkartenLayers() {
+        if (!map) return [];
+        var visibleLayers = [];
+        var grundkartenLayerNames = Object.keys(layerState);
+        
+        map.getLayers().forEach(function(layer) {
+            if (layer.getVisible()) {
+                var name = layer.get('name') || layer.get('title');
+                if (name && grundkartenLayerNames.indexOf(name) === -1) {
+                    visibleLayers.push(name);
+                }
+            }
+        });
+        return visibleLayers;
+    }
+    
+    // Event-Handler für alle Toggle-Buttons
+    var buttons = document.querySelectorAll('.toggle-btn[data-layer]');
+    buttons.forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var layerId = this.getAttribute('data-layer');
+            var value = this.getAttribute('data-value');
+            
+            // Finde den Layer-Namen aus dem Mapping
+            var layerName = GRUNDKARTEN_LAYER_MAPPING[layerId];
+            if (!layerName) {
+                console.warn('[GrundkartenSync] Kein Mapping für:', layerId);
+                return;
+            }
+            
+            // Schalte Layer ein/aus via setMapBookmark (wie bei Bookmarks)
+            try {
+                var visible = (value === 'on');
+                
+                // Aktualisiere den State
+                layerState[layerName] = visible;
+                console.log('[GrundkartenSync] Layer ' + (visible ? 'EIN' : 'AUS') + ':', layerName);
+                
+                // Sammle alle Layer die sichtbar sein sollen
+                var allLayers = getNonGrundkartenLayers(); // Andere Layer
+                
+                // Füge aktivierte Grundkarten-Layer hinzu
+                Object.keys(layerState).forEach(function(name) {
+                    if (layerState[name]) {
+                        allLayers.push(name);
+                    }
+                });
+                
+                console.log('[GrundkartenSync] Setze Layer-Liste:', allLayers);
+                
+                // Baue Parameter-String mit allen Layern
+                var params = 'layers=' + allLayers.join('|');
+                window.top.njs.AppManager.setMapBookmark(['main'], params);
+                
+                // Wechsle active-Klasse zwischen EIN/AUS
+                var siblings = this.parentElement.querySelectorAll('.toggle-btn');
+                siblings.forEach(function(s) { s.classList.remove('active'); });
+                this.classList.add('active');
+            } catch(e) {
+                console.error('[GrundkartenSync] Fehler beim Schalten:', e);
+            }
+        });
+    });
+    
+    console.log('[GrundkartenSync]', buttons.length, 'Buttons registriert');
+};
 /**
  * tnet-app.js (ES Module) - App-Initialisierung und UI-Helfer
  * 
