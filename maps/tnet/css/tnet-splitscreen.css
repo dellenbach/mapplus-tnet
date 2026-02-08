@@ -195,3 +195,59 @@
 #split-wrapper .ol-popup {
     z-index: 1001;
 }
+/* Layer control panel */
+#splitscreen-layer-control {
+    scrollbar-width: thin;
+    scrollbar-color: #ccc #f0f0f0;
+}
+
+#splitscreen-layer-control::-webkit-scrollbar {
+    width: 6px;
+}
+
+#splitscreen-layer-control::-webkit-scrollbar-track {
+    background: #f0f0f0;
+}
+
+#splitscreen-layer-control::-webkit-scrollbar-thumb {
+    background: #ccc;
+    border-radius: 3px;
+}
+
+#splitscreen-layer-control::-webkit-scrollbar-thumb:hover {
+    background: #999;
+}
+
+#splitscreen-layer-list {
+    scrollbar-width: thin;
+    scrollbar-color: #ccc #f0f0f0;
+}
+
+#splitscreen-layer-list::-webkit-scrollbar {
+    width: 6px;
+}
+
+#splitscreen-layer-list::-webkit-scrollbar-track {
+    background: #f0f0f0;
+}
+
+#splitscreen-layer-list::-webkit-scrollbar-thumb {
+    background: #ccc;
+    border-radius: 3px;
+}
+
+#splitscreen-layer-list::-webkit-scrollbar-thumb:hover {
+    background: #999;
+}
+
+#splitscreen-layer-list > div:hover {
+    background: #f5f5f5;
+}
+
+#splitscreen-layer-list input[type="checkbox"] {
+    cursor: pointer;
+}
+
+#splitscreen-layer-list label {
+    user-select: none;
+}
