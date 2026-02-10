@@ -277,6 +277,19 @@
 .map-footer-right {
   font-size: 10px;
   color: rgba(255,255,255,0.8);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 50%;
+}
+
+.map-footer-right a {
+  color: rgba(255,255,255,0.9);
+  text-decoration: none;
+}
+
+.map-footer-right a:hover {
+  text-decoration: underline;
 }
 
 /* Hide original scale-line if outside footer */
@@ -285,63 +298,28 @@
   display: none !important;
 }
 
+/* OL-Attribution visuell verstecken aber im DOM belassen,
+   damit der Inhalt dynamisch ausgelesen werden kann */
+.ol-attribution {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  overflow: hidden !important;
+  clip: rect(0,0,0,0) !important;
+  white-space: nowrap !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
 /* Mapcontrols ausblenden (S/W Button, Opacity Slider) */
 #mapcontrols_div {
   display: none !important;
 }
 
 /* ===== KOMPASS / NORTH ARROW ===== */
+/* OL Rotate-Control komplett ausblenden */
 .ol-rotate {
-  opacity: 1 !important;
-  visibility: visible !important;
-  top: auto !important;
-  right: auto !important;
-  bottom: 60px !important;
-  left: 20px !important;
-  background: transparent !important;
-  z-index: 1001 !important;
-}
-
-.ol-rotate.ol-hidden {
-  opacity: 1 !important;
-  visibility: visible !important;
-}
-
-/* Button-Styling entfernen - standalone Pfeil */
-.ol-rotate-reset {
-  width: 32px !important;
-  height: 40px !important;
-  background: transparent !important;
-  border: none !important;
-  border-radius: 0 !important;
-  box-shadow: none !important;
-  cursor: pointer !important;
-  padding: 0 !important;
-}
-
-.ol-rotate-reset:hover {
-  background: transparent !important;
-  box-shadow: none !important;
-}
-
-.ol-rotate-reset:focus {
-  outline: none !important;
-}
-
-/* Original OpenLayers Kompass-Zeichen ausblenden */
-.ol-rotate-reset span,
-.ol-rotate-reset::before,
-.ol-rotate-reset::after {
   display: none !important;
-}
-
-/* Nordpfeil als SVG - minimalistisch wie Vorlage */
-.ol-compass {
-  display: none !important;
-}
-
-.ol-rotate-reset {
-  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 32'%3E%3Cpath fill='%23333' d='M12 0L24 24L12 18L12 0z'/%3E%3Cpath fill='%23888' d='M12 0L0 24L12 18L12 0z'/%3E%3C/svg%3E") center/contain no-repeat !important;
 }
 
 /* ===== POLYGON-TOOL BUTTON ===== */

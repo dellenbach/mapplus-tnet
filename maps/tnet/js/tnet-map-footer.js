@@ -158,6 +158,19 @@ function setupObservers() {
     // Auch bei Bewegung aktualisieren (für den Fall)
     map.on('moveend', updateScaleDisplay);
 
+    // Copyright bei Layer-Änderung aktualisieren
+    map.on('moveend', updateCopyrightDisplay);
+    map.getLayers().on(['add', 'remove'], updateCopyrightDisplay);
+
+    // MutationObserver: wenn OL die Attribution-UL ändert, Copyright aktualisieren
+    setTimeout(function() {
+        var attrUl = document.querySelector('.ol-attribution ul');
+        if (attrUl) {
+            new MutationObserver(updateCopyrightDisplay)
+                .observe(attrUl, { childList: true, subtree: true, characterData: true });
+        }
+    }, 2000);
+
     // console.log('Map Footer Bar: Scale Listener registriert auf View', view);
 
     // Polling für Koordinaten und andere Updates (nur wenn Picker nicht fixiert)
@@ -268,24 +281,45 @@ function updateScaleDisplay() {
     }
 }
 
-// Copyright aus disclaimer_copyright übernehmen
+// Copyright aus OL-Attribution übernehmen
 function updateCopyrightDisplay() {
-    var copyrightTarget = document.getElementById('map-footer-copyright');
-    var copyrightSource = document.getElementById('disclaimer_copyright');
+    var target = document.getElementById('map-footer-copyright');
+    if (!target) return;
 
-    if (copyrightTarget && copyrightSource && copyrightSource.textContent.trim()) {
-        copyrightTarget.textContent = copyrightSource.textContent.trim();
+    // 1) Versuche OL-Attribution auszulesen
+    var olAttr = document.querySelector('.ol-attribution ul');
+    if (olAttr && olAttr.innerHTML.trim()) {
+        // Alle <li>-Texte sammeln, Links beibehalten
+        var items = olAttr.querySelectorAll('li');
+        var parts = [];
+        for (var i = 0; i < items.length; i++) {
+            var html = items[i].innerHTML.trim();
+            if (html && parts.indexOf(html) === -1) {
+                parts.push(html);
+            }
+        }
+        if (parts.length > 0) {
+            target.innerHTML = parts.join(' | ');
+            return;
+        }
     }
+
+    // 2) Fallback: disclaimer_copyright
+    var fallback = document.getElementById('disclaimer_copyright');
+    if (fallback && fallback.textContent.trim()) {
+        target.textContent = fallback.textContent.trim();
+        return;
+    }
+
+    // 3) Wenn noch nichts da, später nochmal versuchen
+    setTimeout(updateCopyrightDisplay, 1000);
 }
 
 // Initialisieren wenn DOM bereit
-// console.log('Footer Bar: Warte auf DOM...');
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', function() {
-        // console.log('Footer Bar: DOMContentLoaded');
         setupObservers();
     });
 } else {
-    // console.log('Footer Bar: DOM bereits geladen');
     setupObservers();
 }

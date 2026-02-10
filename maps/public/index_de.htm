@@ -169,6 +169,18 @@
     <!-- filesaver-js -->
     <script type="text/javascript"
         src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    
+    <!-- Stelle sicher dass jsPDF verfügbar ist -->
+    <script>
+        (function waitForJsPDF() {
+            if (typeof window.jspdf !== 'undefined') {
+                window.jsPDFReady = true;
+                console.log('[PDF] jsPDF geladen und bereit');
+                return;
+            }
+            setTimeout(waitForJsPDF, 50);
+        })();
+    </script>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.12.1/proj4.min.js" crossorigin="anonymous"
         referrerpolicy="no-referrer"></script>
@@ -672,7 +684,7 @@
                             </div>
                         </div>
                         <div class="map-footer-right">
-                            <span id="map-footer-copyright">© LK / Swissimage: swisstopo, Übrige Daten GIS Daten AG</span>
+                            <span id="map-footer-copyright"></span>
                         </div>
                     </div>
                     

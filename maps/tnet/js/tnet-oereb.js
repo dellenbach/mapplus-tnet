@@ -11,6 +11,7 @@
  */
 
 import { waitForMap, getMainMap, showToast } from './tnet-utils.js';
+import { isEmpty as extentIsEmpty } from 'https://cdn.jsdelivr.net/npm/ol@v10.6.0/extent.js';
 
 // ===== CONFIG =====
 var OEREB_IFRAME_BASE = 'https://www.gis-daten.ch/app/oereb/graphicsLayerOereb-nw.html';
@@ -485,12 +486,23 @@ function highlightOerebParcel(geojsonGeom, map) {
 
     // Auf Parzelle zoomen/pannen
     var extent = feature.getGeometry().getExtent();
-    if (extent && !ol.extent.isEmpty(extent)) {
+    if (extent && !extentIsEmpty(extent)) {
+        // Zuerst auf Extent fitten mit padding
         map.getView().fit(extent, {
-            padding: [60, 60, 60, 60],
-            duration: 600,
-            maxZoom: 18
+            padding: [80, 80, 80, 80],
+            duration: 600
         });
+        
+        // Dann Zoom-Level begrenzen falls zu nah
+        setTimeout(function() {
+            var currentZoom = map.getView().getZoom();
+            if (currentZoom > 18) {
+                map.getView().animate({
+                    zoom: 18,
+                    duration: 300
+                });
+            }
+        }, 100);
     }
 }
 
