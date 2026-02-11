@@ -971,21 +971,7 @@
     <!-- TNET Panel Drag & Resize: Verschieben und Größe ändern des Spatial Query Panels -->
     <script type="module" src="/maps/tnet/js/tnet-panel-drag-resize.js"></script>
 
-    <!-- ============================================================
-         Drucken / PDF-Export (QGIS-Template-basiert)
-         ============================================================ -->
-    <script>window.__define2 = window.define; window.define = undefined;</script>
-    <script src="/maps/tnet/ol-pdf-printer/js/jspdf.umd.min.js"></script>
-    <script src="/maps/tnet/ol-pdf-printer/js/svg2pdf.umd.min.js"></script>
-    <script src="/maps/tnet/ol-pdf-printer/js/template-pdf-export.js"></script>
-    <script>
-      window._pdfPrinterConfig = {
-        filename: 'tnet_Kartenexport',
-        templatesBasePath: '/maps/tnet/ol-pdf-printer/templates/svg'
-      };
-    </script>
-    <script src="/maps/tnet/ol-pdf-printer/js/pdf-printer-init.js"></script>
-    <script>window.define = window.__define2; delete window.__define2;</script>
+    <!-- Drucken / PDF-Export (Libraries werden dynamisch in tnet-print.js geladen) -->
     <link rel="stylesheet" href="/maps/tnet/css/tnet-print.css">
     <script src="/maps/tnet/js/tnet-print.js"></script>
 

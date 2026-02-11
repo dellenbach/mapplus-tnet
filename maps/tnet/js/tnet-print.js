@@ -33,6 +33,65 @@
   };
 
   // ================================================================
+  //  Library-Loader — lädt UMD-Scripts per fetch+eval,
+  //  sodass «define» nur während der Ausführung versteckt ist
+  //  und Dojos AMD-Loader nicht gestört wird.
+  // ================================================================
+  var _libsReady = false;
+  var _libsPromise = null;
+  var LIB_BASE = '/maps/tnet/ol-pdf-printer/js/';
+  var LIBS = [
+    LIB_BASE + 'jspdf.umd.min.js',
+    LIB_BASE + 'svg2pdf.umd.min.js',
+    LIB_BASE + 'template-pdf-export.js',
+    LIB_BASE + 'pdf-printer-init.js'
+  ];
+
+  /**
+   * Lädt ein Script per fetch(), versteckt «define» nur
+   * für den synchronen eval-Aufruf und stellt es danach
+   * sofort wieder her.
+   */
+  function loadScriptSafe(src) {
+    return fetch(src).then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status + ' beim Laden von ' + src);
+      return r.text();
+    }).then(function (code) {
+      var saved = window.define;
+      window.define = undefined;
+      try {
+        // indirect eval → globaler Scope
+        (0, eval)(code);   // jshint ignore:line
+      } finally {
+        window.define = saved;
+      }
+    });
+  }
+
+  /**
+   * Lädt alle PDF-Libraries sequenziell.
+   * Gibt ein Promise zurück, das resolved wenn alle bereit sind.
+   */
+  function loadLibraries() {
+    if (_libsPromise) return _libsPromise;
+
+    // Config muss gesetzt sein BEVOR pdf-printer-init.js geladen wird
+    window._pdfPrinterConfig = {
+      filename: 'tnet_Kartenexport',
+      templatesBasePath: '/maps/tnet/ol-pdf-printer/templates/svg'
+    };
+
+    _libsPromise = LIBS.reduce(function (chain, src) {
+      return chain.then(function () { return loadScriptSafe(src); });
+    }, Promise.resolve()).then(function () {
+      _libsReady = true;
+      console.log('[Drucken] PDF-Libraries geladen ✓');
+    });
+
+    return _libsPromise;
+  }
+
+  // ================================================================
   //  Panel-HTML erzeugen
   // ================================================================
   function createPanelHTML() {
@@ -300,19 +359,30 @@
       alert('Drucken ist erst verfügbar, wenn die Karte vollständig geladen ist.');
       return;
     }
-    loadLayouts();
 
-    // Aktuellen Massstab übernehmen
-    var map = getMap();
-    if (map) {
-      var mpu = map.getView().getProjection().getMetersPerUnit() || 1;
-      var currentScale = Math.round(map.getView().getResolution() * mpu / 0.00028);
-      document.getElementById('print-scale').value = currentScale;
+    // Libraries bei Bedarf laden, dann Layouts holen
+    var doOpen = function () {
+      loadLayouts();
+      // Aktuellen Massstab übernehmen
+      var map = getMap();
+      if (map) {
+        var mpu = map.getView().getProjection().getMetersPerUnit() || 1;
+        var currentScale = Math.round(map.getView().getResolution() * mpu / 0.00028);
+        document.getElementById('print-scale').value = currentScale;
+      }
+      syncRotationUI();
+      document.getElementById('print-panel').classList.remove('hidden');
+      showPrintFrame();
+    };
+
+    if (_libsReady) {
+      doOpen();
+    } else {
+      loadLibraries().then(doOpen).catch(function (err) {
+        console.error('[Drucken] Libraries konnten nicht geladen werden:', err);
+        alert('PDF-Export konnte nicht initialisiert werden.\n' + err.message);
+      });
     }
-
-    syncRotationUI();
-    document.getElementById('print-panel').classList.remove('hidden');
-    showPrintFrame();
   };
 
   window.closePrintPanel = function () {
@@ -473,6 +543,11 @@
     });
 
     console.log('[Drucken] tnet-print.js initialisiert');
+
+    // Libraries im Hintergrund vorladen (kein Blockieren)
+    loadLibraries().catch(function (err) {
+      console.warn('[Drucken] Vorladen der PDF-Libraries fehlgeschlagen:', err);
+    });
   }
 
   // Auto-Init bei DOMContentLoaded oder sofort falls DOM schon bereit
