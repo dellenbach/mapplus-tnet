@@ -971,88 +971,114 @@
     <!-- TNET Panel Drag & Resize: Verschieben und Größe ändern des Spatial Query Panels -->
     <script type="module" src="/maps/tnet/js/tnet-panel-drag-resize.js"></script>
 
-    <!-- ol-pdf-printer: Karten-Export als PDF/PNG/JPEG -->
-    <!-- define verstecken, damit UMD-Wrapper nicht Dojos AMD-Loader stört -->
+    <!-- ============================================================
+         QGIS-Template PDF-Export
+         Reihenfolge: jsPDF → svg2pdf → Engine → API
+         ============================================================ -->
     <script>window.__define2 = window.define; window.define = undefined;</script>
-    <script src="/maps/tnet/ol-pdf-printer/js/ol-pdf-printer.js"></script>
+    <script src="/maps/tnet/ol-pdf-printer/js/jspdf.umd.min.js"></script>
+    <script src="/maps/tnet/ol-pdf-printer/js/svg2pdf.umd.min.js"></script>
+    <script src="/maps/tnet/ol-pdf-printer/js/template-pdf-export.js"></script>
+    <script>
+      window._pdfPrinterConfig = {
+        filename: 'tnet_Kartenexport',
+        templatesBasePath: '/maps/tnet/ol-pdf-printer/templates/svg'
+      };
+    </script>
+    <script src="/maps/tnet/ol-pdf-printer/js/pdf-printer-init.js"></script>
     <script>window.define = window.__define2; delete window.__define2;</script>
 
     <!-- ============================================================
-         Drucken Side-Panel: Einstellungen + Druckrahmen + Downloads
+         Drucken Side-Panel: Layout + Massstab + Druckrahmen + Downloads
          ============================================================ -->
-    <!-- Drucken Side-Panel HTML -->
     <div id="print-panel" class="print-panel hidden">
       <div class="print-panel-header">
         <span class="print-panel-title">🖨 Drucken / Export</span>
         <button class="print-panel-close" onclick="closePrintPanel()">&times;</button>
       </div>
       <div class="print-panel-body">
-        <!-- Einstellungen -->
+
+        <!-- Layout (dynamisch aus Templates) -->
         <div class="print-section">
-          <label>Papierformat</label>
-          <select id="print-format">
-            <option value="A2">A2</option>
-            <option value="A3">A3</option>
-            <option value="A4" selected>A4</option>
-            <option value="A5">A5</option>
+          <label>Layout</label>
+          <select id="print-layout">
+            <option value="">Wird geladen...</option>
           </select>
-        </div>
-        <div class="print-section print-row">
-          <div class="print-field">
-            <label>Orientierung</label>
-            <select id="print-orientation">
-              <option value="landscape" selected>Querformat</option>
-              <option value="portrait">Hochformat</option>
-            </select>
-          </div>
-          <div class="print-field">
-            <label>Auflösung</label>
-            <select id="print-resolution">
-              <option value="96">96 dpi</option>
-              <option value="150" selected>150 dpi</option>
-              <option value="200">200 dpi</option>
-              <option value="300">300 dpi</option>
-            </select>
-          </div>
-        </div>
-        <div class="print-section">
-          <label>Exportformat</label>
-          <select id="print-type-export">
-            <option value="pdf" selected>PDF</option>
-            <option value="png">PNG</option>
-            <option value="jpeg">JPEG</option>
-          </select>
-        </div>
-        <div class="print-section">
-          <label>Beschreibung (optional)</label>
-          <textarea id="print-description" rows="2" placeholder="Notiz zum Kartenexport..."></textarea>
-        </div>
-        <div class="print-section print-checks">
-          <label><input type="checkbox" id="print-compass" checked> Kompass</label>
-          <label><input type="checkbox" id="print-scalebar" checked> Massstab</label>
-          <label><input type="checkbox" id="print-legends" checked> Legende</label>
-          <label><input type="checkbox" id="print-attributions" checked> Quellen</label>
-          <label><input type="checkbox" id="print-date" checked> Datum</label>
         </div>
 
-        <!-- Rahmen-Steuerung -->
+        <!-- Massstab -->
+        <div class="print-section">
+          <label>Massstab</label>
+          <div class="print-scale-row">
+            <span class="print-scale-prefix">1 :</span>
+            <input type="number" id="print-scale" value="10000" min="100" max="500000" step="500">
+            <div class="print-scale-presets">
+              <button class="print-preset-btn" onclick="setScale(500)">500</button>
+              <button class="print-preset-btn" onclick="setScale(1000)">1k</button>
+              <button class="print-preset-btn" onclick="setScale(2500)">2.5k</button>
+              <button class="print-preset-btn" onclick="setScale(5000)">5k</button>
+              <button class="print-preset-btn" onclick="setScale(10000)">10k</button>
+              <button class="print-preset-btn" onclick="setScale(25000)">25k</button>
+              <button class="print-preset-btn" onclick="setScale(50000)">50k</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Auflösung -->
+        <div class="print-section">
+          <label>Auflösung</label>
+          <div class="print-radio-row">
+            <label class="print-radio"><input type="radio" name="print-dpi" value="150" checked> 150 dpi</label>
+            <label class="print-radio"><input type="radio" name="print-dpi" value="300"> 300 dpi</label>
+          </div>
+        </div>
+
+        <!-- Kartentitel -->
+        <div class="print-section">
+          <label>Kartentitel</label>
+          <input type="text" id="print-title" placeholder="Situation" value="">
+        </div>
+
+        <!-- Koordinatennetz -->
+        <div class="print-section print-checks">
+          <label><input type="checkbox" id="print-grid"> Koordinatennetz</label>
+          <div id="print-grid-color" class="print-grid-colors" style="display:none">
+            <label class="print-radio"><input type="radio" name="print-gridcolor" value="schwarz" checked> Schwarz</label>
+            <label class="print-radio"><input type="radio" name="print-gridcolor" value="weiss"> Weiss</label>
+          </div>
+        </div>
+
+        <!-- Rotation -->
         <div class="print-section print-frame-info">
-          <div class="print-frame-hint">
-            ↕↔ Karte verschieben/zoomen zum Anpassen des Druckbereichs
+          <label>Kartenrotation</label>
+          <div class="print-rotation-row">
+            <input type="range" id="print-rotation" min="-180" max="180" value="0" step="1">
+            <span id="print-rotation-val">0°</span>
           </div>
           <div class="print-frame-controls">
-            <button class="print-ctrl-btn" onclick="printRotateLeft()" title="Links drehen">↺</button>
-            <button class="print-ctrl-btn" onclick="printRotateRight()" title="Rechts drehen">↻</button>
-            <button class="print-ctrl-btn" onclick="printResetRotation()" title="Rotation zurücksetzen">⟳</button>
+            <button class="print-ctrl-btn" onclick="printRotateBy(-15)" title="-15°">↺ 15°</button>
+            <button class="print-ctrl-btn" onclick="printRotateBy(15)" title="+15°">↻ 15°</button>
+            <button class="print-ctrl-btn" onclick="printResetRotation()" title="Auf 0° zurücksetzen">⟳ 0°</button>
           </div>
+        </div>
+
+        <!-- Rahmen-Info -->
+        <div class="print-section print-hint-box">
+          Karte verschieben/zoomen, um den Druckbereich anzupassen. Der Rahmen zeigt den exportierten Ausschnitt.
         </div>
 
         <!-- DRUCKEN Button -->
         <div class="print-section">
           <button class="print-action-btn" id="print-exec-btn" onclick="executePrint()">
             <svg viewBox="0 0 24 24" width="18" height="18"><path d="M19 8H5c-1.66 0-3 1.34-3 3v6h4v4h12v-4h4v-6c0-1.66-1.34-3-3-3zm-3 11H8v-5h8v5zm3-7c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm-1-9H6v4h12V3z" fill="currentColor"/></svg>
-            Drucken
+            PDF erstellen
           </button>
+        </div>
+
+        <!-- Fortschritt -->
+        <div class="print-section print-progress" id="print-progress" style="display:none">
+          <div class="print-progress-bar"><div class="print-progress-fill" id="print-progress-fill"></div></div>
+          <div class="print-progress-text" id="print-progress-text">Wird erstellt...</div>
         </div>
 
         <!-- Downloads -->
@@ -1081,221 +1107,137 @@
         flex-direction: column;
         font-family: 'Roboto', Arial, sans-serif;
         font-size: 13px;
-        transition: transform 0.25s ease;
       }
-      .print-panel.hidden {
-        display: none !important;
-      }
+      .print-panel.hidden { display: none !important; }
       .print-panel-header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 10px 14px;
-        background: #4b7b81;
-        color: white;
-        font-weight: 500;
-        font-size: 14px;
-        flex-shrink: 0;
-        min-height: 42px;
-        box-sizing: border-box;
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 10px 14px; background: #4b7b81; color: white;
+        font-weight: 500; font-size: 14px; flex-shrink: 0;
+        min-height: 42px; box-sizing: border-box;
       }
       .print-panel-close {
-        background: transparent;
-        border: none;
-        color: white;
-        font-size: 22px;
-        cursor: pointer;
-        opacity: 0.8;
-        padding: 0 4px;
-        line-height: 1;
+        background: transparent; border: none; color: white;
+        font-size: 22px; cursor: pointer; opacity: 0.8; padding: 0 4px; line-height: 1;
       }
       .print-panel-close:hover { opacity: 1; }
-      .print-panel-body {
-        flex: 1;
-        overflow-y: auto;
-        padding: 12px 14px;
-      }
-      .print-section {
-        margin-bottom: 12px;
-      }
-      .print-section label {
-        display: block;
-        font-size: 11px;
-        color: #666;
-        margin-bottom: 3px;
-        font-weight: 500;
+      .print-panel-body { flex: 1; overflow-y: auto; padding: 12px 14px; }
+      .print-section { margin-bottom: 14px; }
+      .print-section > label {
+        display: block; font-size: 11px; color: #666;
+        margin-bottom: 3px; font-weight: 500;
       }
       .print-section select,
-      .print-section textarea {
-        width: 100%;
-        padding: 6px 8px;
-        border: 1px solid #bbb;
-        border-radius: 4px;
-        font-size: 13px;
-        box-sizing: border-box;
-        font-family: inherit;
+      .print-section input[type="text"],
+      .print-section input[type="number"] {
+        width: 100%; padding: 6px 8px; border: 1px solid #bbb;
+        border-radius: 4px; font-size: 13px; box-sizing: border-box; font-family: inherit;
       }
       .print-section select:focus,
-      .print-section textarea:focus {
-        outline: none;
-        border-color: #4b7b81;
-      }
-      .print-row {
-        display: flex;
-        gap: 10px;
-      }
-      .print-row .print-field {
-        flex: 1;
-      }
-      .print-checks {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 4px 14px;
-      }
-      .print-checks label {
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
-        font-size: 12px;
-        color: #444;
-        cursor: pointer;
-        font-weight: 400;
-      }
-      .print-checks input[type="checkbox"] {
-        margin: 0;
-      }
+      .print-section input:focus { outline: none; border-color: #4b7b81; }
 
-      /* Rahmen-Info / Controls */
+      /* Massstab */
+      .print-scale-row { display: flex; flex-direction: column; gap: 6px; }
+      .print-scale-row > .print-scale-prefix { display: none; }
+      .print-scale-row { position: relative; }
+      .print-scale-prefix {
+        position: absolute; left: 10px; top: 8px; font-size: 13px; color: #666; z-index: 1;
+      }
+      .print-scale-row input[type="number"] { padding-left: 28px; }
+      .print-scale-presets { display: flex; flex-wrap: wrap; gap: 4px; }
+      .print-preset-btn {
+        padding: 3px 8px; background: #f0f0f0; border: 1px solid #ccc;
+        border-radius: 3px; font-size: 11px; cursor: pointer; font-family: inherit;
+      }
+      .print-preset-btn:hover { background: #e0eded; border-color: #4b7b81; }
+
+      /* Radio-Gruppen */
+      .print-radio-row { display: flex; gap: 14px; }
+      .print-radio, .print-checks label {
+        display: inline-flex; align-items: center; gap: 4px;
+        font-size: 12px; color: #444; cursor: pointer; font-weight: 400;
+      }
+      .print-checks input[type="checkbox"],
+      .print-radio input[type="radio"] { margin: 0; }
+      .print-grid-colors { margin-top: 6px; display: flex; gap: 14px; padding-left: 4px; }
+
+      /* Rotation */
+      .print-rotation-row {
+        display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
+      }
+      .print-rotation-row input[type="range"] { flex: 1; }
+      #print-rotation-val { font-size: 12px; color: #444; min-width: 36px; text-align: right; }
+
+      /* Rahmen-Steuerung */
       .print-frame-info {
-        background: #f0f6f6;
-        border: 1px solid #d0e0e0;
-        border-radius: 6px;
-        padding: 10px;
+        background: #f0f6f6; border: 1px solid #d0e0e0; border-radius: 6px; padding: 10px;
       }
-      .print-frame-hint {
-        font-size: 11px;
-        color: #555;
-        margin-bottom: 8px;
-        line-height: 1.4;
-      }
-      .print-frame-controls {
-        display: flex;
-        gap: 6px;
-      }
+      .print-frame-info > label { margin-bottom: 6px; }
+      .print-frame-controls { display: flex; gap: 6px; }
       .print-ctrl-btn {
-        flex: 1;
-        padding: 6px;
-        background: white;
-        border: 1px solid #bbb;
-        border-radius: 4px;
-        font-size: 16px;
-        cursor: pointer;
-        transition: background 0.15s;
+        flex: 1; padding: 5px; background: white; border: 1px solid #bbb;
+        border-radius: 4px; font-size: 12px; cursor: pointer; font-family: inherit;
       }
-      .print-ctrl-btn:hover {
-        background: #e8f0f0;
-        border-color: #4b7b81;
+      .print-ctrl-btn:hover { background: #e8f0f0; border-color: #4b7b81; }
+
+      /* Hinweis-Box */
+      .print-hint-box {
+        background: #fffce6; border: 1px solid #e8dfa0; border-radius: 4px;
+        padding: 8px 10px; font-size: 11px; color: #666; line-height: 1.4;
       }
 
       /* Drucken Button */
       .print-action-btn {
-        width: 100%;
-        padding: 10px 16px;
-        background: #4b7b81;
-        color: white;
-        border: none;
-        border-radius: 6px;
-        font-size: 15px;
-        font-weight: 500;
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 8px;
-        transition: background 0.15s;
-        font-family: inherit;
+        width: 100%; padding: 10px 16px; background: #4b7b81; color: white;
+        border: none; border-radius: 6px; font-size: 15px; font-weight: 500;
+        cursor: pointer; display: flex; align-items: center; justify-content: center;
+        gap: 8px; transition: background 0.15s; font-family: inherit;
       }
-      .print-action-btn:hover {
-        background: #3a6268;
+      .print-action-btn:hover { background: #3a6268; }
+      .print-action-btn:disabled { background: #999; cursor: not-allowed; }
+      .print-action-btn.printing { background: #c0392b; }
+
+      /* Fortschrittsanzeige */
+      .print-progress-bar {
+        height: 6px; background: #e0e0e0; border-radius: 3px; overflow: hidden; margin-bottom: 4px;
       }
-      .print-action-btn:disabled {
-        background: #999;
-        cursor: not-allowed;
+      .print-progress-fill {
+        height: 100%; background: #4b7b81; border-radius: 3px; width: 0%;
+        transition: width 0.3s ease;
       }
-      .print-action-btn.printing {
-        background: #c0392b;
-      }
+      .print-progress-text { font-size: 11px; color: #666; }
 
       /* Downloads-Box */
-      .print-downloads {
-        border-top: 1px solid #ddd;
-        padding-top: 10px;
-      }
+      .print-downloads { border-top: 1px solid #ddd; padding-top: 10px; }
       .print-downloads-title {
-        font-size: 12px !important;
-        font-weight: 600 !important;
-        color: #333 !important;
-        margin-bottom: 6px !important;
+        font-size: 12px !important; font-weight: 600 !important;
+        color: #333 !important; margin-bottom: 6px !important;
       }
       .print-dl-item {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 6px 8px;
-        background: #f8f8f8;
-        border: 1px solid #e0e0e0;
-        border-radius: 4px;
-        margin-bottom: 4px;
-        font-size: 12px;
+        display: flex; align-items: center; gap: 8px;
+        padding: 6px 8px; background: #f8f8f8; border: 1px solid #e0e0e0;
+        border-radius: 4px; margin-bottom: 4px; font-size: 12px;
       }
-      .print-dl-item a {
-        color: #4b7b81;
-        text-decoration: none;
-        font-weight: 500;
-      }
-      .print-dl-item a:hover {
-        text-decoration: underline;
-      }
-      .print-dl-item .dl-info {
-        color: #888;
-        font-size: 11px;
-      }
+      .print-dl-item a { color: #4b7b81; text-decoration: none; font-weight: 500; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .print-dl-item a:hover { text-decoration: underline; }
+      .print-dl-item .dl-info { color: #888; font-size: 11px; flex-shrink: 0; }
       .print-dl-item .dl-remove {
-        background: transparent;
-        border: none;
-        color: #999;
-        cursor: pointer;
-        font-size: 16px;
-        padding: 0 4px;
+        background: transparent; border: none; color: #999;
+        cursor: pointer; font-size: 16px; padding: 0 4px; flex-shrink: 0;
       }
-      .print-dl-item .dl-remove:hover {
-        color: #c0392b;
-      }
+      .print-dl-item .dl-remove:hover { color: #c0392b; }
 
       /* ==============================
          Druckrahmen auf der Karte (OL Overlay)
          ============================== */
-      #print-frame-overlay {
-        position: absolute;
-        pointer-events: none;
-        z-index: 500;
-      }
       .print-frame-rect {
         border: 3px solid #333;
         box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.3);
-        position: relative;
-        box-sizing: border-box;
+        position: relative; box-sizing: border-box;
       }
-      /* Rote Griffe an Ecken und Kanten */
       .print-frame-handle {
-        position: absolute;
-        width: 14px;
-        height: 14px;
-        background: #d54b4b;
-        border: 2px solid white;
-        border-radius: 50%;
-        pointer-events: none;
-        box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+        position: absolute; width: 14px; height: 14px;
+        background: #d54b4b; border: 2px solid white; border-radius: 50%;
+        pointer-events: none; box-shadow: 0 1px 4px rgba(0,0,0,0.4);
       }
       .print-frame-handle.tl { top: -8px; left: -8px; }
       .print-frame-handle.tr { top: -8px; right: -8px; }
@@ -1305,109 +1247,88 @@
       .print-frame-handle.bm { bottom: -8px; left: calc(50% - 7px); }
       .print-frame-handle.ml { top: calc(50% - 7px); left: -8px; }
       .print-frame-handle.mr { top: calc(50% - 7px); right: -8px; }
-
-      /* Processing Modal (ol-pdf-printer intern) — alles versteckt, wir zeigen eigene UI */
-      .settingsModal.modal,
-      .processingModal.modal,
-      body > .modal-backdrop {
-        display: none !important;
-      }
     </style>
 
     <script>
       // ============================================================
-      // Drucken: Eigenes Side-Panel mit Druckrahmen + Download-Box
+      // Drucken Side-Panel — QGIS-Template PDF-Export
+      // Nutzt templatePdfPrint() API aus pdf-printer-init.js
       // ============================================================
       (function() {
         'use strict';
 
-        var _printer = null;       // PdfPrinter-Instanz
-        var _map = null;           // OL Map
-        var _frameOverlay = null;  // OL Overlay für Druckrahmen
-        var _frameEl = null;       // DOM-Element des Rahmens
+        var _map = null;
+        var _frameOverlay = null;
+        var _frameEl = null;
         var _isPrinting = false;
-        var _downloads = [];       // Gesammelte Downloads [{name, url, type, date}]
+        var _downloads = [];
+        var _layouts = [];           // Verfügbare Layouts aus manifest.json
 
-        // --- Papierformat-Dimensionen (mm) ---
+        // ---- Papierformat-Grössen (mm, Landscape) ----
         var PAPER_SIZES = {
-          'A2': [594, 420],
-          'A3': [420, 297],
-          'A4': [297, 210],
-          'A5': [210, 148]
+          'A0': [1189, 841], 'A1': [841, 594], 'A2': [594, 420],
+          'A3': [420, 297], 'A4': [297, 210], 'A5': [210, 148]
         };
 
-        // --- OL Map holen ---
+        // ---- Map holen ----
         function getMap() {
           if (_map) return _map;
           try {
             _map = window._olMap ||
-              (njs.AppManager.Maps && njs.AppManager.Maps.main && njs.AppManager.Maps.main.mapObj) ||
-              null;
+              (njs.AppManager.Maps && njs.AppManager.Maps.main && njs.AppManager.Maps.main.mapObj) || null;
           } catch(e) {}
           if (_map && !window._olMap) window._olMap = _map;
           return _map;
         }
 
-        // --- PdfPrinter on-demand init ---
-        function ensurePrinter() {
-          if (_printer) return _printer;
-          var map = getMap();
-          if (!map || typeof PdfPrinter === 'undefined') return null;
-
-          // crossOrigin-Fix
-          try {
-            map.getLayers().forEach(function(layer) {
-              var source = layer.getSource && layer.getSource();
-              if (source && typeof source.setTileLoadFunction === 'function') {
-                var origLoad = source.getTileLoadFunction();
-                source.setTileLoadFunction(function(tile, src) {
-                  var img = tile.getImage();
-                  if (img) img.crossOrigin = 'anonymous';
-                  origLoad(tile, src);
-                });
-              }
+        // ============================================================
+        // Layout-Dropdown dynamisch befüllen
+        // ============================================================
+        function loadLayouts() {
+          if (typeof getAvailableLayouts !== 'function') {
+            console.warn('[Drucken] getAvailableLayouts() nicht verfügbar');
+            return;
+          }
+          getAvailableLayouts().then(function(layouts) {
+            _layouts = layouts;
+            var select = document.getElementById('print-layout');
+            if (!select) return;
+            select.innerHTML = '';
+            if (layouts.length === 0) {
+              select.innerHTML = '<option value="">Keine Layouts verfügbar</option>';
+              return;
+            }
+            layouts.forEach(function(l, idx) {
+              var opt = document.createElement('option');
+              opt.value = l.value;
+              opt.textContent = l.label;
+              if (idx === 0) opt.selected = true;
+              select.appendChild(opt);
             });
-          } catch(e) {}
-
-          _printer = new PdfPrinter({
-            filename: 'tnet_Kartenexport',
-            language: 'en',
-            showControlBtn: false,
-            allowReframeRegionOfInterest: false,  // Wir machen eigenen Rahmen
-            units: 'metric',
-            description: true,
-            extraInfo: { date: true, url: false, specs: true },
-            mapElements: { attributions: true, scalebar: true, compass: true, legends: true },
-            watermark: { title: 'Kartenexport', subtitle: 'www.gis-daten.ch', logo: false },
-            modal: { backdrop: false, transition: 0, backdropTransition: 0 }
+            // Rahmen aktualisieren
+            updateFrameSize();
+            console.log('[Drucken] ' + layouts.length + ' Layouts geladen ✓');
           });
-          map.addControl(_printer);
-          window._pdfPrinter = _printer;
-          console.log('[Drucken] PdfPrinter initialisiert ✓');
-          return _printer;
         }
 
         // ============================================================
-        // Druckrahmen (OL Overlay auf der Karte)
+        // Druckrahmen (OL Overlay)
         // ============================================================
         function showPrintFrame() {
           var map = getMap();
           if (!map) return;
           removePrintFrame();
 
-          // Rahmen-Element
           _frameEl = document.createElement('div');
           _frameEl.className = 'print-frame-rect';
           updateFrameSize();
 
-          // Handles
           ['tl','tr','bl','br','tm','bm','ml','mr'].forEach(function(pos) {
             var h = document.createElement('div');
             h.className = 'print-frame-handle ' + pos;
             _frameEl.appendChild(h);
           });
 
-          // OL Overlay (zentriert auf Kartenmitte)
           _frameOverlay = new ol.Overlay({
             element: _frameEl,
             positioning: 'center-center',
@@ -1417,48 +1338,38 @@
           });
           map.addOverlay(_frameOverlay);
 
-          // Rahmen mitbewegen bei Kamera-Änderung
           map.getView().on('change:center', _updateFramePosition);
           map.getView().on('change:resolution', _onViewChange);
           map.getView().on('change:rotation', _onViewChange);
-
-          console.log('[Drucken] Druckrahmen angezeigt ✓');
         }
 
         function _updateFramePosition() {
-          if (_frameOverlay && _map) {
-            _frameOverlay.setPosition(_map.getView().getCenter());
-          }
+          if (_frameOverlay && _map) _frameOverlay.setPosition(_map.getView().getCenter());
         }
-
-        function _onViewChange() {
-          updateFrameSize();
-          _updateFramePosition();
-        }
+        function _onViewChange() { updateFrameSize(); _updateFramePosition(); }
 
         function updateFrameSize() {
           if (!_frameEl || !_map) return;
-          var format = document.getElementById('print-format').value;
-          var orientation = document.getElementById('print-orientation').value;
-          var dim = PAPER_SIZES[format] || PAPER_SIZES['A4'];
-          if (orientation === 'portrait') dim = [dim[1], dim[0]];
 
-          // Berechne Pixel-Grösse basierend auf Viewport
-          // Rahmen soll ~70% des Viewports einnehmen
+          // Dimensionen aus gewähltem Layout-Template ermitteln
+          var layoutVal = document.getElementById('print-layout').value || '';
+          var layout = _layouts.find(function(l) { return l.value === layoutVal; });
+          var dim;
+          if (layout) {
+            var paper = PAPER_SIZES[layout.paper] || PAPER_SIZES['A4'];
+            dim = (layout.orientation === 'landscape') ? [paper[0], paper[1]] : [paper[1], paper[0]];
+          } else {
+            dim = [297, 210]; // A4 Portrait fallback
+          }
+
           var viewportW = _map.getSize()[0];
           var viewportH = _map.getSize()[1];
           var aspect = dim[0] / dim[1];
-          var maxW = viewportW * 0.70;
-          var maxH = viewportH * 0.70;
-
+          var maxW = viewportW * 0.65;
+          var maxH = viewportH * 0.65;
           var w, h;
-          if (maxW / maxH > aspect) {
-            h = maxH;
-            w = h * aspect;
-          } else {
-            w = maxW;
-            h = w / aspect;
-          }
+          if (maxW / maxH > aspect) { h = maxH; w = h * aspect; }
+          else { w = maxW; h = w / aspect; }
 
           _frameEl.style.width = Math.round(w) + 'px';
           _frameEl.style.height = Math.round(h) + 'px';
@@ -1477,36 +1388,35 @@
           _frameEl = null;
         }
 
-        // Extent des Rahmens berechnen (für regionOfInterest)
-        function getFrameExtent() {
-          if (!_frameEl || !_map) return null;
-          var mapEl = _map.getTargetElement();
-          var mapBounds = mapEl.getBoundingClientRect();
-          var frameBounds = _frameEl.getBoundingClientRect();
-          var left = frameBounds.left - mapBounds.left;
-          var top = frameBounds.top - mapBounds.top;
-          var topLeft = _map.getCoordinateFromPixel([left, top]);
-          var topRight = _map.getCoordinateFromPixel([left + frameBounds.width, top]);
-          var bottomLeft = _map.getCoordinateFromPixel([left, top + frameBounds.height]);
-          var bottomRight = _map.getCoordinateFromPixel([left + frameBounds.width, top + frameBounds.height]);
-          // ol/geom/Polygon
-          return new ol.geom.Polygon([[topLeft, topRight, bottomRight, bottomLeft, topLeft]]);
+        // ============================================================
+        // Rotation
+        // ============================================================
+        function syncRotationUI() {
+          var map = getMap();
+          if (!map) return;
+          var deg = Math.round(map.getView().getRotation() * 180 / Math.PI);
+          document.getElementById('print-rotation').value = deg;
+          document.getElementById('print-rotation-val').textContent = deg + '°';
         }
 
-        // ============================================================
-        // Rotation Controls
-        // ============================================================
-        window.printRotateLeft = function() {
+        window.printRotateBy = function(deg) {
           var map = getMap();
-          if (map) map.getView().adjustRotation(0.261799);
-        };
-        window.printRotateRight = function() {
-          var map = getMap();
-          if (map) map.getView().adjustRotation(-0.261799);
+          if (!map) return;
+          map.getView().adjustRotation(deg * Math.PI / 180);
+          syncRotationUI();
         };
         window.printResetRotation = function() {
           var map = getMap();
-          if (map) map.getView().setRotation(0);
+          if (!map) return;
+          map.getView().setRotation(0);
+          syncRotationUI();
+        };
+
+        // ============================================================
+        // Massstab-Preset
+        // ============================================================
+        window.setScale = function(val) {
+          document.getElementById('print-scale').value = val;
         };
 
         // ============================================================
@@ -1514,13 +1424,21 @@
         // ============================================================
         window.openPdfPrinter = function() {
           if (typeof toggleHeaderMenu === 'function') toggleHeaderMenu();
-
           if (!getMap()) {
             alert('Drucken ist erst verfügbar, wenn die Karte vollständig geladen ist.');
             return;
           }
-          ensurePrinter();
+          loadLayouts();
 
+          // Aktuellen Massstab in Feld schreiben
+          var map = getMap();
+          if (map) {
+            var mpu = map.getView().getProjection().getMetersPerUnit() || 1;
+            var currentScale = Math.round(map.getView().getResolution() * mpu / 0.00028);
+            document.getElementById('print-scale').value = currentScale;
+          }
+
+          syncRotationUI();
           document.getElementById('print-panel').classList.remove('hidden');
           showPrintFrame();
         };
@@ -1528,143 +1446,118 @@
         window.closePrintPanel = function() {
           document.getElementById('print-panel').classList.add('hidden');
           removePrintFrame();
-          // Rotation zurücksetzen
           var map = getMap();
           if (map) map.getView().setRotation(0);
         };
 
-        // Einstellungen → Rahmen aktualisieren
+        // ============================================================
+        // Event-Listener
+        // ============================================================
         document.addEventListener('DOMContentLoaded', function() {
-          ['print-format', 'print-orientation'].forEach(function(id) {
-            var el = document.getElementById(id);
-            if (el) el.addEventListener('change', function() {
-              updateFrameSize();
-            });
+          // Layout-Wechsel → Rahmen anpassen
+          var layoutSel = document.getElementById('print-layout');
+          if (layoutSel) layoutSel.addEventListener('change', updateFrameSize);
+
+          // Koordinatennetz Checkbox → Farbwahl ein-/ausblenden
+          var gridCb = document.getElementById('print-grid');
+          if (gridCb) gridCb.addEventListener('change', function() {
+            document.getElementById('print-grid-color').style.display = gridCb.checked ? 'flex' : 'none';
+          });
+
+          // Rotation-Slider
+          var rotSlider = document.getElementById('print-rotation');
+          if (rotSlider) rotSlider.addEventListener('input', function() {
+            var deg = parseInt(rotSlider.value);
+            document.getElementById('print-rotation-val').textContent = deg + '°';
+            var map = getMap();
+            if (map) map.getView().setRotation(deg * Math.PI / 180);
           });
         });
 
         // ============================================================
-        // Druck ausführen
+        // PDF erstellen — ruft templatePdfPrint() API auf
         // ============================================================
         window.executePrint = function() {
           if (_isPrinting) return;
-          var printer = ensurePrinter();
           var map = getMap();
-          if (!printer || !map) {
-            alert('Drucken nicht bereit.');
-            return;
-          }
+          if (!map) { alert('Karte nicht bereit.'); return; }
+          if (typeof templatePdfPrint !== 'function') { alert('PDF-Export-API nicht geladen.'); return; }
 
-          var format = document.getElementById('print-format').value;
-          var orientation = document.getElementById('print-orientation').value;
-          var resolution = parseInt(document.getElementById('print-resolution').value);
-          var typeExport = document.getElementById('print-type-export').value;
-          var description = document.getElementById('print-description').value;
+          var layout = document.getElementById('print-layout').value;
+          var massstab = parseInt(document.getElementById('print-scale').value) || 10000;
+          var dpiEl = document.querySelector('input[name="print-dpi"]:checked');
+          var aufloesung = dpiEl ? parseInt(dpiEl.value) : 150;
+          var kartentitel = document.getElementById('print-title').value || '';
+          var koordinatennetz = document.getElementById('print-grid').checked;
+          var netzfarbeEl = document.querySelector('input[name="print-gridcolor"]:checked');
+          var netzfarbe = netzfarbeEl ? netzfarbeEl.value : 'schwarz';
+          var rotation = parseInt(document.getElementById('print-rotation').value) || 0;
 
-          // Region of Interest vom Rahmen
-          var roi = getFrameExtent();
-
+          // UI: Drucken-Status
           _isPrinting = true;
           var btn = document.getElementById('print-exec-btn');
           btn.disabled = true;
           btn.classList.add('printing');
           btn.innerHTML = '⏳ Wird erstellt...';
+          var progressDiv = document.getElementById('print-progress');
+          progressDiv.style.display = 'block';
 
-          // Rahmen ausblenden während dem Druck
+          // Rahmen ausblenden während Export
           if (_frameEl) _frameEl.style.display = 'none';
 
-          // Monkey-Patch: savePdf abfangen um Download-URL zu sammeln
-          var origSavePdf = null;
-          if (printer._pdf) {
-            // Wird erst in rendercomplete gesetzt, also patchen wir _printMap callback
-          }
+          templatePdfPrint({
+            massstab: massstab,
+            layout: layout,
+            aufloesung: aufloesung,
+            rotation: rotation,
+            kartentitel: kartentitel,
+            koordinatennetz: koordinatennetz,
+            netzfarbe: netzfarbe,
 
-          // _printMap direkt aufrufen (createPdf hat Bug)
-          var form = {
-            format: format,
-            orientation: orientation,
-            resolution: resolution,
-            description: description || '',
-            compass: document.getElementById('print-compass').checked ? 'on' : null,
-            scalebar: document.getElementById('print-scalebar').checked ? 'on' : null,
-            legends: document.getElementById('print-legends').checked ? 'on' : null,
-            attributions: document.getElementById('print-attributions').checked ? 'on' : null,
-            date: document.getElementById('print-date').checked ? 'on' : null,
-            specs: 'on',
-            url: null,
-            safeMargins: null,
-            typeExport: typeExport,
-            regionOfInterest: roi
-          };
+            onProgress: function(step, msg) {
+              var pct = Math.round((step / 7) * 100);
+              document.getElementById('print-progress-fill').style.width = pct + '%';
+              document.getElementById('print-progress-text').textContent = msg;
+            },
 
-          // Original _onEndPrint abfangen um Download zu sammeln
-          var origOnEndPrint = printer._onEndPrint.bind(printer);
-          var patchApplied = false;
+            onSuccess: function() {
+              finishPrint(true);
+              // PDF wurde automatisch heruntergeladen, in Download-Liste aufnehmen
+              var ts = formatTimestamp();
+              var name = (window._pdfPrinterConfig.filename || 'Kartenexport') + '.pdf';
+              addDownload(name, null, 'pdf');
+            },
 
-          // Beobachte ob PDF-Instanz erzeugt wird
-          var checkPdfInterval = setInterval(function() {
-            if (printer._pdf && !patchApplied) {
-              patchApplied = true;
-              var origSave = printer._pdf.savePdf.bind(printer._pdf);
-              printer._pdf.savePdf = function() {
-                // PDF als Blob abfangen statt direkt downloaden
-                return interceptSave(printer._pdf, form.typeExport).then(function() {
-                  return origSave();
-                }).catch(function(err) {
-                  console.warn('[Drucken] Download-Intercept fehlgeschlagen, Fallback:', err);
-                  return origSave();
-                });
-              };
+            onError: function(err) {
+              finishPrint(false);
+              alert('Fehler beim PDF-Export:\n' + err.message);
             }
-          }, 50);
-
-          // Timeout: Check-Interval nach 30s aufräumen
-          setTimeout(function() { clearInterval(checkPdfInterval); }, 30000);
-
-          // rendercomplete-Listener: Aufräumen nach Print
-          var origRenderKey = null;
-          map.once('rendercomplete', function() {
-            // Etwas verzögert aufräumen (Druck braucht Zeit)
-            setTimeout(function() {
-              clearInterval(checkPdfInterval);
-              _isPrinting = false;
-              btn.disabled = false;
-              btn.classList.remove('printing');
-              btn.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18"><path d="M19 8H5c-1.66 0-3 1.34-3 3v6h4v4h12v-4h4v-6c0-1.66-1.34-3-3-3zm-3 11H8v-5h8v5zm3-7c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm-1-9H6v4h12V3z" fill="currentColor"/></svg> Drucken';
-              if (_frameEl) _frameEl.style.display = '';
-              // Rahmen wieder anzeigen
-              if (document.getElementById('print-panel') && !document.getElementById('print-panel').classList.contains('hidden')) {
-                showPrintFrame();
-              }
-            }, 2000);
           });
-
-          // Druck starten
-          printer._printMap(form, false, 0);
         };
 
-        // Download-Intercept: PDF/Bild als Blob-URL sammeln
-        function interceptSave(pdfInstance, typeExport) {
-          return new Promise(function(resolve) {
-            try {
-              var filename = (pdfInstance._config ? pdfInstance._config.filename : 'Kartenexport') || 'Kartenexport';
-              var ext = typeExport === 'pdf' ? '.pdf' : '.' + typeExport;
-              var fullName = filename + '_' + formatTimestamp() + ext;
+        function finishPrint(success) {
+          _isPrinting = false;
+          var btn = document.getElementById('print-exec-btn');
+          btn.disabled = false;
+          btn.classList.remove('printing');
+          btn.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18"><path d="M19 8H5c-1.66 0-3 1.34-3 3v6h4v4h12v-4h4v-6c0-1.66-1.34-3-3-3zm-3 11H8v-5h8v5zm3-7c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm-1-9H6v4h12V3z" fill="currentColor"/></svg> PDF erstellen';
 
-              if (typeExport === 'pdf') {
-                var blob = pdfInstance._pdf.doc.output('blob');
-                var url = URL.createObjectURL(blob);
-                addDownload(fullName, url, typeExport);
-              }
-              // Für Bild-Exporte wird der Download über downloadURI ausgelöst
-              // Die sammeln wir über einen MutationObserver auf <a download>
-            } catch(e) {
-              console.warn('[Drucken] Intercept-Fehler:', e);
-            }
-            resolve();
-          });
+          // Fortschrittsanzeige nach kurzer Pause ausblenden
+          setTimeout(function() {
+            document.getElementById('print-progress').style.display = 'none';
+            document.getElementById('print-progress-fill').style.width = '0%';
+          }, success ? 2000 : 500);
+
+          // Rahmen wieder anzeigen
+          if (_frameEl) _frameEl.style.display = '';
+          if (!document.getElementById('print-panel').classList.contains('hidden')) {
+            if (!_frameOverlay) showPrintFrame();
+          }
         }
 
+        // ============================================================
+        // Download-Liste
+        // ============================================================
         function formatTimestamp() {
           var d = new Date();
           return d.getFullYear() +
@@ -1675,54 +1568,38 @@
         }
 
         function addDownload(name, url, type) {
-          _downloads.push({ name: name, url: url, type: type, date: new Date() });
+          var ts = new Date();
+          _downloads.push({ name: name, url: url, type: type, date: ts });
           renderDownloads();
-          console.log('[Drucken] Download bereit:', name);
         }
 
         function renderDownloads() {
           var container = document.getElementById('print-downloads');
           var list = document.getElementById('print-download-list');
           if (!container || !list) return;
-
           container.style.display = _downloads.length > 0 ? 'block' : 'none';
           list.innerHTML = '';
-
           _downloads.forEach(function(dl, idx) {
             var item = document.createElement('div');
             item.className = 'print-dl-item';
             var time = String(dl.date.getHours()).padStart(2,'0') + ':' + String(dl.date.getMinutes()).padStart(2,'0');
-            item.innerHTML =
-              '<a href="' + dl.url + '" download="' + dl.name + '" title="Herunterladen">' + dl.name + '</a>' +
+            var linkHtml = dl.url
+              ? '<a href="' + dl.url + '" download="' + dl.name + '">' + dl.name + '</a>'
+              : '<span style="color:#333">' + dl.name + '</span>';
+            item.innerHTML = linkHtml +
               '<span class="dl-info">' + time + '</span>' +
-              '<button class="dl-remove" onclick="removePrintDownload(' + idx + ')" title="Entfernen">&times;</button>';
+              '<button class="dl-remove" onclick="removePrintDownload(' + idx + ')">&times;</button>';
             list.appendChild(item);
           });
         }
 
         window.removePrintDownload = function(idx) {
           if (_downloads[idx]) {
-            try { URL.revokeObjectURL(_downloads[idx].url); } catch(e) {}
+            if (_downloads[idx].url) try { URL.revokeObjectURL(_downloads[idx].url); } catch(e) {}
             _downloads.splice(idx, 1);
             renderDownloads();
           }
         };
-
-        // Auch native downloads des Printers abfangen (Link-Click Detection)
-        var linkObserver = new MutationObserver(function(mutations) {
-          mutations.forEach(function(m) {
-            m.addedNodes.forEach(function(node) {
-              if (node.tagName === 'A' && node.hasAttribute('download') && node.href) {
-                var name = node.getAttribute('download') || 'Export';
-                // Nur printer-bezogene Links (enthalten 'Kartenexport' oder 'tnet')
-                if (name.indexOf('Kartenexport') > -1 || name.indexOf('tnet') > -1) {
-                  addDownload(name, node.href, name.split('.').pop());
-                }
-              }
-            });
-          });
-        });
-        linkObserver.observe(document.body, { childList: true });
 
       })();
     </script>

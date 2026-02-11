@@ -1,0 +1,30 @@
+{
+  "version": "1.0",
+  "generated": "2026-02-11T17:17:55",
+  "templates": [
+    {
+      "name": "layout_a3_hoch_portrait",
+      "paper": "A3",
+      "orientation": "portrait",
+      "width_mm": 297.0,
+      "height_mm": 420.0,
+      "source": "qgis_project",
+      "files": {
+        "svg": "svg/layout_a3_hoch_portrait.svg",
+        "pdf": "svg/layout_a3_hoch_portrait.pdf"
+      }
+    },
+    {
+      "name": "layout_a4_hoch_portrait",
+      "paper": "A4",
+      "orientation": "portrait",
+      "width_mm": 210.0,
+      "height_mm": 297.0,
+      "source": "qgis_project",
+      "files": {
+        "svg": "svg/layout_a4_hoch_portrait.svg",
+        "pdf": "svg/layout_a4_hoch_portrait.pdf"
+      }
+    }
+  ]
+}
