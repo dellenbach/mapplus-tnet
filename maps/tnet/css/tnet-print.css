@@ -1,0 +1,184 @@
+/* ================================================================
+   tnet-print.css
+   Drucken Side-Panel + Druckrahmen (OL Overlay)
+   ================================================================ */
+
+/* ==============================
+   Side-Panel
+   ============================== */
+.print-panel {
+  position: fixed;
+  top: 60px;
+  right: 0;
+  width: 340px;
+  max-width: 90vw;
+  height: calc(100vh - 60px);
+  background: white;
+  box-shadow: -4px 0 16px rgba(0,0,0,0.2);
+  z-index: 1002;
+  display: flex;
+  flex-direction: column;
+  font-family: 'Roboto', Arial, sans-serif;
+  font-size: 13px;
+}
+.print-panel.hidden { display: none !important; }
+
+.print-panel-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 14px; background: #4b7b81; color: white;
+  font-weight: 500; font-size: 14px; flex-shrink: 0;
+  min-height: 42px; box-sizing: border-box;
+}
+.print-panel-close {
+  background: transparent; border: none; color: white;
+  font-size: 22px; cursor: pointer; opacity: 0.8; padding: 0 4px; line-height: 1;
+}
+.print-panel-close:hover { opacity: 1; }
+
+.print-panel-body { flex: 1; overflow-y: auto; padding: 12px 14px; }
+
+.print-section { margin-bottom: 14px; }
+.print-section > label {
+  display: block; font-size: 11px; color: #666;
+  margin-bottom: 3px; font-weight: 500;
+}
+.print-section select,
+.print-section input[type="text"],
+.print-section input[type="number"] {
+  width: 100%; padding: 6px 8px; border: 1px solid #bbb;
+  border-radius: 4px; font-size: 13px; box-sizing: border-box; font-family: inherit;
+}
+.print-section select:focus,
+.print-section input:focus { outline: none; border-color: #4b7b81; }
+
+/* ==============================
+   Massstab
+   ============================== */
+.print-scale-row {
+  display: flex; flex-direction: column; gap: 6px; position: relative;
+}
+.print-scale-prefix {
+  position: absolute; left: 10px; top: 8px;
+  font-size: 13px; color: #666; z-index: 1;
+}
+.print-scale-row input[type="number"] { padding-left: 28px; }
+.print-scale-presets { display: flex; flex-wrap: wrap; gap: 4px; }
+.print-preset-btn {
+  padding: 3px 8px; background: #f0f0f0; border: 1px solid #ccc;
+  border-radius: 3px; font-size: 11px; cursor: pointer; font-family: inherit;
+}
+.print-preset-btn:hover { background: #e0eded; border-color: #4b7b81; }
+
+/* ==============================
+   Radio-Gruppen / Checkboxen
+   ============================== */
+.print-radio-row { display: flex; gap: 14px; }
+.print-radio, .print-checks label {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 12px; color: #444; cursor: pointer; font-weight: 400;
+}
+.print-checks input[type="checkbox"],
+.print-radio input[type="radio"] { margin: 0; }
+.print-grid-colors { margin-top: 6px; display: flex; gap: 14px; padding-left: 4px; }
+
+/* ==============================
+   Rotation
+   ============================== */
+.print-rotation-row {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
+}
+.print-rotation-row input[type="range"] { flex: 1; }
+#print-rotation-val { font-size: 12px; color: #444; min-width: 36px; text-align: right; }
+
+/* Rahmen-Steuerung */
+.print-frame-info {
+  background: #f0f6f6; border: 1px solid #d0e0e0; border-radius: 6px; padding: 10px;
+}
+.print-frame-info > label { margin-bottom: 6px; }
+.print-frame-controls { display: flex; gap: 6px; }
+.print-ctrl-btn {
+  flex: 1; padding: 5px; background: white; border: 1px solid #bbb;
+  border-radius: 4px; font-size: 12px; cursor: pointer; font-family: inherit;
+}
+.print-ctrl-btn:hover { background: #e8f0f0; border-color: #4b7b81; }
+
+/* ==============================
+   Hinweis-Box
+   ============================== */
+.print-hint-box {
+  background: #fffce6; border: 1px solid #e8dfa0; border-radius: 4px;
+  padding: 8px 10px; font-size: 11px; color: #666; line-height: 1.4;
+}
+
+/* ==============================
+   Drucken-Button
+   ============================== */
+.print-action-btn {
+  width: 100%; padding: 10px 16px; background: #4b7b81; color: white;
+  border: none; border-radius: 6px; font-size: 15px; font-weight: 500;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  gap: 8px; transition: background 0.15s; font-family: inherit;
+}
+.print-action-btn:hover { background: #3a6268; }
+.print-action-btn:disabled { background: #999; cursor: not-allowed; }
+.print-action-btn.printing { background: #c0392b; }
+
+/* ==============================
+   Fortschrittsanzeige
+   ============================== */
+.print-progress-bar {
+  height: 6px; background: #e0e0e0; border-radius: 3px;
+  overflow: hidden; margin-bottom: 4px;
+}
+.print-progress-fill {
+  height: 100%; background: #4b7b81; border-radius: 3px;
+  width: 0%; transition: width 0.3s ease;
+}
+.print-progress-text { font-size: 11px; color: #666; }
+
+/* ==============================
+   Downloads-Box
+   ============================== */
+.print-downloads { border-top: 1px solid #ddd; padding-top: 10px; }
+.print-downloads-title {
+  font-size: 12px !important; font-weight: 600 !important;
+  color: #333 !important; margin-bottom: 6px !important;
+}
+.print-dl-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 8px; background: #f8f8f8; border: 1px solid #e0e0e0;
+  border-radius: 4px; margin-bottom: 4px; font-size: 12px;
+}
+.print-dl-item a {
+  color: #4b7b81; text-decoration: none; font-weight: 500;
+  flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.print-dl-item a:hover { text-decoration: underline; }
+.print-dl-item .dl-info { color: #888; font-size: 11px; flex-shrink: 0; }
+.print-dl-item .dl-remove {
+  background: transparent; border: none; color: #999;
+  cursor: pointer; font-size: 16px; padding: 0 4px; flex-shrink: 0;
+}
+.print-dl-item .dl-remove:hover { color: #c0392b; }
+
+/* ==============================
+   Druckrahmen auf der Karte (OL Overlay)
+   ============================== */
+.print-frame-rect {
+  border: 3px solid #333;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.3);
+  position: relative; box-sizing: border-box;
+}
+.print-frame-handle {
+  position: absolute; width: 14px; height: 14px;
+  background: #d54b4b; border: 2px solid white; border-radius: 50%;
+  pointer-events: none; box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+}
+.print-frame-handle.tl { top: -8px; left: -8px; }
+.print-frame-handle.tr { top: -8px; right: -8px; }
+.print-frame-handle.bl { bottom: -8px; left: -8px; }
+.print-frame-handle.br { bottom: -8px; right: -8px; }
+.print-frame-handle.tm { top: -8px; left: calc(50% - 7px); }
+.print-frame-handle.bm { bottom: -8px; left: calc(50% - 7px); }
+.print-frame-handle.ml { top: calc(50% - 7px); left: -8px; }
+.print-frame-handle.mr { top: calc(50% - 7px); right: -8px; }
