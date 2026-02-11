@@ -3,7 +3,7 @@ document.addEventListener('DOMContentLoaded', function() {
     try {
         // Warte bis AppManager verfügbar ist
         var trySet = function() {
-            if (!window.njs || !njs.AppManager || !njs.AppManager.setMapBookmark) {
+            if (!window.njs || !njs.AppManager || !njs.AppManager.setMapBookmark || !njs.AppManager.infoFloatWinRemoveallItems) {
                 setTimeout(trySet, 200);
                 return;
             }

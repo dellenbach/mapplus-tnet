@@ -1,0 +1,190 @@
+{
+  // Zentrale Konfiguration für TNET MapPlus Erweiterungen
+  // JSON5 Format: Kommentare, trailing commas, unquoted keys erlaubt
+  
+  // Log-Level für Konsolenausgaben (gilt für alle Module):
+  // 'none' = aus | 'error' = nur Fehler | 'warn' = + Warnungen | 'info' = + Info | 'debug' = alles
+  logLevel: 'warn',
+  
+  // ============================================================
+  // 3D LANDSCAPE / SPLITSCREEN
+  // ============================================================
+  "3d-landscape": {
+    // WebScene ID vom ESRI Portal (NICHT die App-ID!)
+    // App: 4fb284b0495643de8bc05c8792706d78 → WebScene: cad01fff18f44a0787e544be0e48339f
+    defaultWebSceneId: "cad01fff18f44a0787e544be0e48339f",
+    
+    // Alternative Szenen für schnellen Wechsel
+    availableScenes: [
+      {
+        name: "3D Nidwalden / Obwalden",
+        id: "cad01fff18f44a0787e544be0e48339f",
+      },
+      {
+        name: "Terrain + Topo (ohne WebScene)",
+        id: "__terrain__",
+      },
+      {
+        name: "Swiss Mountain Summits",
+        id: "ac98048566114b83807f8e0aec9332a4",
+      },
+    ],
+    
+    // 3D SceneView Einstellungen
+    sceneViewOptions: {
+      qualityProfile: 'high',  // 'low', 'medium', 'high'
+      ui: {
+        components: ['zoom', 'compass', 'attribution'],
+      },
+      environment: {
+        lighting: {
+          type: 'sun',  // 'virtual', 'sun', 'none'
+          directShadowsEnabled: true,
+          ambientOcclusionEnabled: true,
+        },
+        atmosphere: {
+          quality: 'high',
+        },
+      },
+    },
+    
+    // Split-Screen Layout
+    layout: {
+      defaultDividerPosition: 50,  // Prozent (0-100)
+      minPanelWidth: 20,            // Minimale Panelbreite in %
+      maxPanelWidth: 80,            // Maximale Panelbreite in %
+    },
+    
+    // Kamera-Synchronisation zwischen 2D und 3D
+    synchronization: {
+      enabledByDefault: true,       // Sync standardmäßig aktiv
+      syncDelay: 100,               // Verzögerung in ms
+      sourceProjection: "EPSG:2056", // LV95 (Schweizer Koordinatensystem)
+      
+      // Massstab → Kamerahöhe Lookup-Tabelle
+      // Bei 2D-Pan wird die Kamerahöhe NICHT geändert, nur die Position.
+      // Bei 2D-Zoom wird der 2D-Massstab in eine 3D-Kamerahöhe umgerechnet.
+      scaleToCameraHeight: [
+        { scale:    100, height:    10 },
+        { scale:    250, height:    25 },
+        { scale:    500, height:    50 },
+        { scale:   1000, height:   100 },
+        { scale:   2500, height:   250 },
+        { scale:   5000, height:   500 },
+        { scale:  10000, height:  800 },
+        { scale:  25000, height:  1000 },
+        { scale:  50000, height:  1500 },
+        { scale:  75000, height:  2000 },
+        { scale: 100000, height: 3000 },
+        { scale: 250000, height: 4000 },
+        { scale: 500000, height: 5000 },
+        { scale: 750000, height: 7500 },
+        { scale: 1000000, height: 10000 },
+      ],
+    },
+    
+    // GeoAdmin API für Höhenabfragen
+    geoAdmin: {
+      heightApiUrl: "https://api3.geo.admin.ch/rest/services/height",
+      heightApiTimeout: 3000,       // Timeout in ms
+      coordinateSystem: "2056",     // LV95
+    },
+    
+    // Kamera & Terrain
+    camera: {
+      terrainHeightOffset: 200,     // Kamerahöhe über Terrain (m)
+      fallbackTerrainHeight: 600,   // Fallback wenn API fehlschlägt (m ü.M.)
+      defaultHeading: 0,            // Ausrichtung (0 = Nord)
+      defaultTilt: 60,              // Neigung (0 = senkrecht nach unten, 90 = horizontal)
+      defaultFov: 55,               // Field of View (Grad)
+    },
+    
+    // Highlight-Styling (Hervorhebung bei Klick/Hover auf Abfrage-Ergebnisse)
+    highlight: {
+      point: {
+        color: [0, 255, 0, 0.7],             // Giftgrün, 70% deckend
+        size: 14,
+        outlineColor: [0, 220, 0, 1],
+        outlineWidth: 3,
+      },
+      line: {
+        color: [0, 220, 0, 1],               // Giftgrün, voll deckend
+        width: 4,
+      },
+      fill: {
+        color: [0, 255, 0, 0.55],            // Giftgrün, 55% deckend
+        outlineColor: [0, 220, 0, 1],        // Giftgrüner Rand, deckend
+        outlineWidth: 4,
+      },
+    },
+    
+    // Frustum (Sichtfeld-Indikator in 2D-Karte)
+    frustum: {
+      // Styling
+      style: {
+        fillColor: "rgba(0, 120, 255, 0.15)",      // Füllung (wird nicht mehr verwendet)
+        strokeColor: "rgba(0, 120, 255, 0.75)",    // Umrandung
+        strokeWidth: 3,
+        sideLineColor: "rgba(0, 120, 255, 0.8)",   // Schenkel-Farbe
+        sideLineWidth: 5,                           // Schenkel-Breite
+        farEdgeColor: "rgba(0, 120, 255, 0.6)",    // Ferne Kante (wird nicht mehr verwendet)
+        farEdgeWidth: 4,
+        cameraMarkerRadius: 10,                     // Radius Kamera-Punkt
+        cameraMarkerFill: "rgba(0, 120, 255, 0.95)",
+        cameraMarkerStroke: "white",
+        cameraMarkerStrokeWidth: 3,
+        cornerRadius: 7,                            // Radius Eck-Griffe
+        cornerFill: "rgba(255, 255, 255, 0.95)",
+        cornerStroke: "rgba(220, 50, 50, 0.9)",
+        cornerStrokeWidth: 2.5,
+      },
+      
+      // Geometrie
+      geometry: {
+        maxVisibleDistance: 30,    // Max. Sichtweite = altitude × dieser Faktor
+        minVisibleDistance: 500,   // Mindest-Sichtweite (m)
+        hitTolerance: 10,          // Pixel-Toleranz für Klick-Erkennung
+      },
+      
+      zIndex: 9999,                // Layer z-Index (sehr hoch = immer oben)
+    },
+  },
+  
+  // ============================================================
+  // 2D SPLITSCREEN (LAYER-VERGLEICH)
+  // ============================================================
+  splitscreen: {
+    _description: "2D Splitscreen / Layer-Vergleich Konfiguration",
+    enabled: true,
+    defaultDividerPosition: 50,
+  },
+  
+  // ============================================================
+  // LAYER CATALOG
+  // ============================================================
+  layerCatalog: {
+    _description: "Layer Catalog Konfiguration",
+    enabled: true,
+    searchEnabled: true,
+    maxResults: 50,
+  },
+  
+  // ============================================================
+  // ÖREB KATASTER
+  // ============================================================
+  oereb: {
+    _description: "ÖREB Kataster Integration",
+    enabled: true,
+    apiUrl: "https://api.geo.admin.ch/rest/services/api/MapServer",
+    timeout: 5000,
+  },
+  
+  // ============================================================
+  // SPATIAL QUERY
+  // ============================================================
+  spatialQuery: {
+    _description: "Räumliche Abfragen",
+    enabled: true,
+    bufferDistances: [10, 25, 50, 100, 250, 500, 1000],  // Puffer-Distanzen in Metern
+  },
+}
