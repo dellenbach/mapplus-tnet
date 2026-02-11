@@ -464,13 +464,15 @@
             var mapDataUrl = mapCanvas.toDataURL('image/png');
             pdf.addImage(mapDataUrl, 'PNG', mapX, mapY, mapW, mapH);
 
-            onProgress(6, 'Speichere PDF...');
+            onProgress(6, 'PDF erzeugt...');
 
-            // PDF herunterladen
-            pdf.save(filename);
+            // PDF als Blob zurückgeben (KEIN automatischer Download)
+            var pdfBlob = pdf.output('blob');
 
             onProgress(7, 'Fertig!');
             console.log('[TemplatePDF] Export abgeschlossen:', filename);
+
+            return { blob: pdfBlob, filename: filename + '.pdf' };
           });
         });
       });

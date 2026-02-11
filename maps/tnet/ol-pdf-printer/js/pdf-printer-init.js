@@ -371,9 +371,10 @@
           onProgress: onProgress
         });
       })
-      .then(function () {
+      .then(function (result) {
         restoreState();
-        if (opts.onSuccess) opts.onSuccess();
+        // result = { blob: Blob, filename: 'xxx.pdf' }
+        if (opts.onSuccess) opts.onSuccess(result);
       })
       .catch(function (error) {
         restoreState();

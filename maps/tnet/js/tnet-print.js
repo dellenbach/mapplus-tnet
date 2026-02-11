@@ -24,6 +24,7 @@
   var _frameEl = null;
   var _isPrinting = false;
   var _downloads = [];
+  var PDF_SAVE_URL = '/maps/tnet/php/pdf-save.php';
   var _layouts = [];
 
   // Papierformat-Grössen (mm, Landscape-first)
@@ -184,9 +185,18 @@
             '<div class="print-progress-text" id="print-progress-text">Wird erstellt...</div>' +
           '</div>' +
 
+          // PDF-Vorschau (iframe)
+          '<div class="print-section print-preview" id="print-preview" style="display:none">' +
+            '<div class="print-preview-header">' +
+              '<label class="print-preview-title">Vorschau</label>' +
+              '<button class="print-preview-close" onclick="closePrintPreview()">&times;</button>' +
+            '</div>' +
+            '<iframe id="print-preview-frame" class="print-preview-frame"></iframe>' +
+          '</div>' +
+
           // Downloads
           '<div class="print-section print-downloads" id="print-downloads" style="display:none">' +
-            '<label class="print-downloads-title">\uD83D\uDCE5 Downloads</label>' +
+            '<label class="print-downloads-title">\uD83D\uDCE5 Erzeugte PDFs</label>' +
             '<div id="print-download-list"></div>' +
           '</div>' +
 
@@ -435,10 +445,14 @@
         document.getElementById('print-progress-text').textContent = msg;
       },
 
-      onSuccess: function () {
+      onSuccess: function (result) {
         finishPrint(true);
-        var name = (window._pdfPrinterConfig && window._pdfPrinterConfig.filename || 'Kartenexport') + '.pdf';
-        addDownload(name, null, 'pdf');
+        if (!result || !result.blob) {
+          console.warn('[Drucken] Kein PDF-Blob erhalten');
+          return;
+        }
+        // PDF an Server senden
+        uploadPdfToServer(result.blob, result.filename);
       },
 
       onError: function (err) {
@@ -468,19 +482,87 @@
   }
 
   // ================================================================
-  //  Download-Liste
+  //  PDF an Server senden
   // ================================================================
-  function formatTimestamp() {
-    var d = new Date();
-    return d.getFullYear() +
-      String(d.getMonth() + 1).padStart(2, '0') +
-      String(d.getDate()).padStart(2, '0') + '_' +
-      String(d.getHours()).padStart(2, '0') +
-      String(d.getMinutes()).padStart(2, '0');
+  function uploadPdfToServer(blob, filename) {
+    var formData = new FormData();
+    formData.append('pdf', blob, filename);
+    formData.append('filename', filename);
+
+    // Fortschritt: "Wird hochgeladen..."
+    var progText = document.getElementById('print-progress-text');
+    if (progText) progText.textContent = 'Wird hochgeladen...';
+    document.getElementById('print-progress').style.display = 'block';
+    document.getElementById('print-progress-fill').style.width = '90%';
+
+    fetch(PDF_SAVE_URL, { method: 'POST', body: formData })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        document.getElementById('print-progress').style.display = 'none';
+        document.getElementById('print-progress-fill').style.width = '0%';
+
+        if (!data.ok) {
+          alert('Fehler beim Speichern: ' + (data.error || 'Unbekannt'));
+          return;
+        }
+
+        // In Download-Liste aufnehmen
+        addDownload(filename, data.url, data.size);
+
+        // Vorschau sofort anzeigen
+        showPdfPreview(data.url);
+
+        console.log('[Drucken] PDF auf Server gespeichert:', data.url);
+      })
+      .catch(function (err) {
+        document.getElementById('print-progress').style.display = 'none';
+        console.error('[Drucken] Upload fehlgeschlagen:', err);
+        // Fallback: lokaler Blob-Download
+        var blobUrl = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = blobUrl; a.download = filename; a.click();
+        addDownload(filename, blobUrl, blob.size);
+      });
   }
 
-  function addDownload(name, url, type) {
-    _downloads.push({ name: name, url: url, type: type, date: new Date() });
+  // ================================================================
+  //  PDF-Vorschau (iframe)
+  // ================================================================
+  function showPdfPreview(url) {
+    var previewDiv = document.getElementById('print-preview');
+    var iframe = document.getElementById('print-preview-frame');
+    if (!previewDiv || !iframe) return;
+    iframe.src = url;
+    previewDiv.style.display = 'block';
+    // Zum Vorschau-Bereich scrollen
+    previewDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  window.closePrintPreview = function () {
+    var previewDiv = document.getElementById('print-preview');
+    var iframe = document.getElementById('print-preview-frame');
+    if (previewDiv) previewDiv.style.display = 'none';
+    if (iframe) iframe.src = 'about:blank';
+  };
+
+  window.previewPrintDownload = function (idx) {
+    if (_downloads[idx] && _downloads[idx].url) {
+      showPdfPreview(_downloads[idx].url);
+    }
+  };
+
+  // ================================================================
+  //  Download-Liste
+  // ================================================================
+  function formatFileSize(bytes) {
+    if (!bytes) return '';
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1048576) return (bytes / 1024).toFixed(0) + ' KB';
+    return (bytes / 1048576).toFixed(1) + ' MB';
+  }
+
+  function addDownload(name, url, size) {
+    _downloads.push({ name: name, url: url, size: size, date: new Date() });
     renderDownloads();
   }
 
@@ -495,21 +577,27 @@
       item.className = 'print-dl-item';
       var time = String(dl.date.getHours()).padStart(2, '0') + ':' +
                  String(dl.date.getMinutes()).padStart(2, '0');
-      var linkHtml = dl.url
-        ? '<a href="' + dl.url + '" download="' + dl.name + '">' + dl.name + '</a>'
-        : '<span style="color:#333">' + dl.name + '</span>';
-      item.innerHTML = linkHtml +
-        '<span class="dl-info">' + time + '</span>' +
-        '<button class="dl-remove" onclick="removePrintDownload(' + idx + ')">&times;</button>';
+      var sizeStr = formatFileSize(dl.size);
+      item.innerHTML =
+        '<div class="print-dl-main">' +
+          '<a href="' + dl.url + '" download="' + dl.name + '" title="Herunterladen">' + dl.name + '</a>' +
+          '<span class="dl-meta">' + time + (sizeStr ? ' \u00b7 ' + sizeStr : '') + '</span>' +
+        '</div>' +
+        '<div class="print-dl-actions">' +
+          '<button class="dl-preview-btn" onclick="previewPrintDownload(' + idx + ')" title="Vorschau">\uD83D\uDD0D</button>' +
+          '<a class="dl-download-btn" href="' + dl.url + '" download="' + dl.name + '" title="Herunterladen">\u2B07</a>' +
+          '<button class="dl-remove" onclick="removePrintDownload(' + idx + ')" title="Entfernen">&times;</button>' +
+        '</div>';
       list.appendChild(item);
     });
   }
 
   window.removePrintDownload = function (idx) {
     if (_downloads[idx]) {
-      if (_downloads[idx].url) try { URL.revokeObjectURL(_downloads[idx].url); } catch (e) { /* noop */ }
       _downloads.splice(idx, 1);
       renderDownloads();
+      // Vorschau schliessen falls leer
+      if (_downloads.length === 0) window.closePrintPreview();
     }
   };
 
