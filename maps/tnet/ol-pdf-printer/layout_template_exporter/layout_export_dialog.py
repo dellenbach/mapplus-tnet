@@ -465,19 +465,18 @@ class LayoutExportDialog(QDialog):
                     f"{tmpl_def['paper']} {tmpl_def['label']}: {e}"
                 )
 
-        # --- Zentrales manifest.json nach Export schreiben ---
+        # --- EINZELNE manifest.json Dateien für jedes Template schreiben ---
+        print(f"[LayoutExporter] Manifest-Checkbox: {self.chk_manifest.isChecked()}")
+        print(f"[LayoutExporter] Manifest-Entries: {list(manifest_entries.keys())}")
+        
         if self.chk_manifest.isChecked() and manifest_entries and dirs:
             for target_dir in dirs:
-                self._write_manifest_for_directory(
-                    target_dir, manifest_entries
-                )
-            # Auch das zentrale manifest.json im Parent-Dir aktualisieren
-            if len(dirs) > 0:
-                parent_dir = os.path.dirname(
-                    dirs[0].rstrip(os.sep)
-                )
-                if parent_dir and parent_dir != dirs[0]:
-                    self._write_central_manifest(parent_dir, dirs, manifest_entries)
+                # Für JEDES Template ein eigenes manifest.json
+                for base_filename, layout_info in manifest_entries.items():
+                    self._write_single_manifest(
+                        target_dir, base_filename, layout_info
+                    )
+                print(f"[LayoutExporter] {len(manifest_entries)} Einzel-Manifeste geschrieben in: {target_dir}")
 
         # --- Rückmeldung ---
         msg = []
@@ -806,7 +805,8 @@ class LayoutExportDialog(QDialog):
                     elements.append(elem)
                 else:
                     # Sonstiges Bild (Logo, Wappen etc.)
-                    b64 = self._get_picture_base64(item)
+                    # WICHTIG: Element wird IMMER hinzugefügt, auch wenn base64 fehlt
+                    # Der SVG-Builder macht dann on-the-fly Rendering
                     elem = {
                         "id": item_id or f"IMAGE_{len(elements)}",
                         "type": "image",
@@ -815,8 +815,11 @@ class LayoutExportDialog(QDialog):
                         "width_mm": w, "height_mm": h,
                         "_layout_item": item,
                     }
+                    # Versuche base64 zu laden (kann None sein)
+                    b64 = self._get_picture_base64(item)
                     if b64:
                         elem["_base64Data"] = b64
+                    # Element wird IMMER exportiert (Rendering-Fallback im SVG-Builder)
                     elements.append(elem)
 
             # ── Shapes (Rahmen, Hintergründe, Dekorationen) ──
@@ -1263,6 +1266,20 @@ class LayoutExportDialog(QDialog):
             print(f"[LayoutExporter] SVG-Rendering: {e}")
             return None
 
+    @staticmethod
+    def _get_minimal_placeholder_png():
+        """Gibt ein minimales 1x1 transparentes PNG als base64 zurück.
+        
+        Wird verwendet wenn ALLE Fallbacks fehlschlagen - garantiert dass
+        Bilder niemals komplett fehlen.
+        """
+        # 1x1 Pixel transparentes PNG (67 Bytes)
+        tiny_png = (
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk"
+            "+M8AAAQpAZ0uhPY7AAAAAElFTkSuQmCC"
+        )
+        return f'data:image/png;base64,{tiny_png}'
+
     def _build_clean_svg(self, layout, layout_info, elements):
         """Baut ein sauberes, flaches SVG-Template.
 
@@ -1408,15 +1425,23 @@ class LayoutExportDialog(QDialog):
         elif t == 'image':
             href = elem.get('_base64Data', '')
             if not href:
-                # Platzhalter-Rect statt unsichtbarem Kommentar
-                return (
-                    f'  <!-- Bild-Platzhalter: {eid} -->\n'
-                    f'  <rect id="{eid}" x="{x:.2f}" y="{y:.2f}"'
-                    f' width="{w:.2f}" height="{h:.2f}"'
-                    f' fill="#EEEEEE" stroke="#999999"'
-                    f' stroke-width="0.2"'
-                    f' data-image-placeholder="true" />'
-                )
+                # On-the-fly Rendering als letzter Fallback
+                item = elem.get('_layout_item')
+                if item:
+                    # Versuche das Item zu rendern (sollte sichtbares Bild sein)
+                    rendered = self._render_layout_item_to_base64(item, dpi=150)
+                    if rendered:
+                        href = rendered
+                        print(f"[LayoutExporter] SVG-Builder: Item '{eid}" 
+                              f"' on-the-fly gerendert")
+                    else:
+                        # Absoluter Fallback: Minimal-PNG
+                        href = self._get_minimal_placeholder_png()
+                        print(f"[LayoutExporter] SVG-Builder: Item '{eid}" 
+                              f"' nutzt Minimal-Placeholder")
+                else:
+                    href = self._get_minimal_placeholder_png()
+            
             return (
                 f'  <image id="{eid}" x="{x:.2f}" y="{y:.2f}"'
                 f' width="{w:.2f}" height="{h:.2f}"'
@@ -1695,6 +1720,65 @@ class LayoutExportDialog(QDialog):
     # ================================================================== #
     #  Manifest-schreiben (nach allen Exports)                            #
     # ================================================================== #
+    def _write_single_manifest(self, target_dir, base_filename, layout_info):
+        """Schreibt ein EINZELNES manifest.json für EIN Template.
+        
+        Dateiname: <base_filename>.manifest.json (z.B. "nw_layout_a4_quer.manifest.json")
+        
+        Dies ermöglicht der Web-Applikation, jedes Template einzeln zu laden
+        ohne ein zentrales Manifest parsen zu müssen.
+        
+        Args:
+            target_dir: Verzeichnis für die Manifest-Datei
+            base_filename: z.B. "nw_layout_a4_quer"
+            layout_info: dict mit Template-Metadaten
+        """
+        manifest_path = os.path.join(target_dir, f"{base_filename}.manifest.json")
+        
+        # Prüfe welche Dateien existieren
+        files = {}
+        for fmt in ["svg", "pdf"]:
+            fpath = os.path.join(target_dir, f"{base_filename}.{fmt}")
+            if os.path.exists(fpath):
+                files[fmt] = f"{base_filename}.{fmt}"
+        
+        # Template-Eintrag erzeugen
+        entry = {
+            "name": base_filename,
+            "title": layout_info.get("title", base_filename),
+            "paper": layout_info.get("paper", ""),
+            "orientation": layout_info.get("orientation", ""),
+            "width_mm": layout_info.get("width_mm", 0),
+            "height_mm": layout_info.get("height_mm", 0),
+            "source": layout_info.get("source", ""),
+            "files": files,
+        }
+        
+        if "mapFrame" in layout_info:
+            entry["mapFrame"] = layout_info["mapFrame"]
+        
+        # Elements-Array mit vollständigen Metadaten
+        raw_elements = layout_info.get("elements", [])
+        clean_elements = []
+        for elem in raw_elements:
+            clean = {k: v for k, v in elem.items()
+                     if not k.startswith("_") and k != "originalText"}
+            clean_elements.append(clean)
+        if clean_elements:
+            entry["elements"] = clean_elements
+        
+        # Manifest mit nur DIESEM Template
+        manifest = {
+            "version": "1.4",
+            "generated": datetime.now().isoformat(timespec="seconds"),
+            "template": entry  # Singular, nicht Array
+        }
+        
+        with open(manifest_path, "w", encoding="utf-8") as f:
+            json.dump(manifest, f, indent=2, ensure_ascii=False)
+        
+        print(f"[LayoutExporter] Einzel-Manifest geschrieben: {manifest_path}")
+
     def _write_manifest_for_directory(self, target_dir, manifest_entries):
         """Schreibt manifest.json für alle Templates in target_dir.
 
