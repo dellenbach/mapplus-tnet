@@ -378,15 +378,20 @@
     scale = scale || 1;
     options = options || {};
     return new Promise(function (resolve) {
-      // Alle sichtbaren Quellen aktualisieren (WMS, WMTS, Tiles)
-      // damit sie den neuen Viewport-Extent anfragen
+      // Alle sichtbaren Tile-/WMS-Quellen aktualisieren,
+      // damit sie den neuen Viewport-Extent anfragen.
+      // VectorSource NICHT refreshen — sonst werden manuell
+      // gezeichnete Features (Redlining, Bemassungen) gelöscht!
       map.getLayers().forEach(function (layer) {
         if (layer.getVisible && layer.getVisible()) {
           var src = layer.getSource && layer.getSource();
-          if (src && typeof src.refresh === 'function') {
-            src.refresh();
-          } else if (src && typeof src.updateParams === 'function') {
+          if (!src) return;
+          // VectorSource hat getFeatures() — diese überspringen
+          if (typeof src.getFeatures === 'function') return;
+          if (typeof src.updateParams === 'function') {
             src.updateParams(src.getParams());
+          } else if (typeof src.refresh === 'function') {
+            src.refresh();
           }
         }
       });
