@@ -471,6 +471,13 @@ class LayoutExportDialog(QDialog):
                 self._write_manifest_for_directory(
                     target_dir, manifest_entries
                 )
+            # Auch das zentrale manifest.json im Parent-Dir aktualisieren
+            if len(dirs) > 0:
+                parent_dir = os.path.dirname(
+                    dirs[0].rstrip(os.sep)
+                )
+                if parent_dir and parent_dir != dirs[0]:
+                    self._write_central_manifest(parent_dir, dirs, manifest_entries)
 
         # --- Rückmeldung ---
         msg = []
@@ -1617,22 +1624,14 @@ class LayoutExportDialog(QDialog):
     def _write_manifest_for_directory(self, target_dir, manifest_entries):
         """Schreibt manifest.json für alle Templates in target_dir.
 
+        Das manifest.json wird **im selben Verzeichnis wie die SVG/PDF-Dateien**
+        geschrieben (nicht im Parent-Dir).
+
         target_dir: z.B. 'qgis-templates/' oder 'templates/'
         manifest_entries: dict base_filename → layout_info
         """
-        # Manifest kommt ins Eltern-Verzeichnis
-        manifest_dir = os.path.dirname(target_dir.rstrip(os.sep))
-        if not manifest_dir or manifest_dir == target_dir:
-            manifest_dir = os.path.dirname(
-                os.path.dirname(target_dir.rstrip(os.sep))
-            )
-        if not manifest_dir:
-            print(f"[LayoutExporter] Manifest-Verzeichnis ungültig: "
-                  f"{target_dir}")
-            return
-
-        rel_prefix = os.path.basename(target_dir.rstrip(os.sep))
-        manifest_path = os.path.join(manifest_dir, "manifest.json")
+        # Manifest kommt ins gleiche Verzeichnis wie SVG/PDF
+        manifest_path = os.path.join(target_dir, "manifest.json")
 
         manifest = {"version": "1.4", "generated": "", "templates": []}
         if os.path.exists(manifest_path):
@@ -1654,17 +1653,14 @@ class LayoutExportDialog(QDialog):
                     existing_idx = i
                     break
 
-            # Dateien die existieren
+            # Dateien die existieren (simple Dateinamen, keine Unterordner-Prefix)
             files = {}
             for fmt in ["svg", "pdf"]:
                 fpath = os.path.join(
                     target_dir, f"{base_filename}.{fmt}"
                 )
                 if os.path.exists(fpath):
-                    fname = f"{base_filename}.{fmt}"
-                    if rel_prefix:
-                        fname = f"{rel_prefix}/{fname}"
-                    files[fmt] = fname
+                    files[fmt] = f"{base_filename}.{fmt}"
 
             entry = {
                 "name": base_filename,
@@ -1697,6 +1693,74 @@ class LayoutExportDialog(QDialog):
         with open(manifest_path, "w", encoding="utf-8") as f:
             json.dump(manifest, f, indent=2, ensure_ascii=False)
         print(f"[LayoutExporter] manifest.json geschrieben: {manifest_path}")
+
+    def _write_central_manifest(self, manifest_dir, dirs, manifest_entries):
+        """Schreibt ein zentrales manifest.json im Parent-Dir.
+
+        Aggregiert alle Vorlagen mit relativen Pfaden zu den Sub-Verzeichnissen.
+        """
+        manifest_path = os.path.join(manifest_dir, "manifest.json")
+
+        manifest = {"version": "1.4", "generated": "", "templates": []}
+        if os.path.exists(manifest_path):
+            try:
+                with open(manifest_path, "r", encoding="utf-8") as f:
+                    manifest = json.load(f)
+            except (json.JSONDecodeError, IOError):
+                pass
+
+        manifest["version"] = "1.4"
+        manifest["generated"] = datetime.now().isoformat(timespec="seconds")
+
+        # Für jeden Base-Filename mit relativen Pfaden zu den Sub-Dirs
+        for base_filename, layout_info in manifest_entries.items():
+            existing_idx = None
+            for i, t in enumerate(manifest.get("templates", [])):
+                if t.get("name") == base_filename:
+                    existing_idx = i
+                    break
+
+            # Dateien mit relativen Pfaden zu den Sub-Verzeichnissen
+            files = {}
+            for target_dir in dirs:
+                dir_name = os.path.basename(target_dir.rstrip(os.sep))
+                for fmt in ["svg", "pdf"]:
+                    fpath = os.path.join(
+                        target_dir, f"{base_filename}.{fmt}"
+                    )
+                    if os.path.exists(fpath):
+                        files[fmt] = f"{dir_name}/{base_filename}.{fmt}"
+
+            entry = {
+                "name": base_filename,
+                "title": layout_info.get("title", base_filename),
+                "paper": layout_info.get("paper", ""),
+                "orientation": layout_info.get("orientation", ""),
+                "width_mm": layout_info.get("width_mm", 0),
+                "height_mm": layout_info.get("height_mm", 0),
+                "source": layout_info.get("source", ""),
+                "files": files,
+            }
+            if "mapFrame" in layout_info:
+                entry["mapFrame"] = layout_info["mapFrame"]
+
+            raw_elements = layout_info.get("elements", [])
+            clean_elements = []
+            for elem in raw_elements:
+                clean = {k: v for k, v in elem.items()
+                         if not k.startswith("_") and k != "originalText"}
+                clean_elements.append(clean)
+            if clean_elements:
+                entry["elements"] = clean_elements
+
+            if existing_idx is not None:
+                manifest["templates"][existing_idx] = entry
+            else:
+                manifest["templates"].append(entry)
+
+        with open(manifest_path, "w", encoding="utf-8") as f:
+            json.dump(manifest, f, indent=2, ensure_ascii=False)
+        print(f"[LayoutExporter] Zentrales manifest.json: {manifest_path}")
 
     # ================================================================== #
     #  Platzhalter-Elemente (neues Template)                              #
