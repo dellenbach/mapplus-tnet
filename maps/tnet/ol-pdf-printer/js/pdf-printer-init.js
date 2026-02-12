@@ -290,6 +290,7 @@
    * @param {string}   [opts.kartentitel]    - Titel im Titelblock
    * @param {boolean}  [opts.koordinatennetz=false] - Koordinatennetz?
    * @param {string}   [opts.netzfarbe='schwarz']   - 'schwarz' oder 'weiss'
+   * @param {boolean}  [opts.serverRender=false] - Bilder direkt vom Mapserver?
    * @param {Function} [opts.onProgress]     - Callback(step, message)
    * @param {Function} [opts.onSuccess]      - Callback() bei Erfolg
    * @param {Function} [opts.onError]        - Callback(error) bei Fehler
@@ -403,6 +404,7 @@
           rotation:  rotationDeg,
           printCenter: centerNative,  // Exaktes Zentrum durchreichen
           jpegQuality: opts.jpegQuality || 0.7,  // JPEG-Qualität durchreichen
+          serverRender: !!opts.serverRender,  // Server-Rendering durchreichen
           onProgress: onProgress
         });
       })

@@ -189,6 +189,12 @@
             '<input type="text" id="print-title" placeholder="Kartentitel" value="Situationsplan">' +
           '</div>' +
 
+          // Server-Rendering
+          '<div class="print-section print-checks">' +
+            '<label class="print-check"><input type="checkbox" id="print-server-render"> ' +
+            'Server-Rendering <span style="color:#888;font-size:11px">(Bilder direkt vom Mapserver)</span></label>' +
+          '</div>' +
+
           // Koordinatennetz (vorerst deaktiviert)
           // '<div class="print-section print-checks">' +
           //   '<label><input type="checkbox" id="print-grid"> Koordinatennetz</label>' +
@@ -548,6 +554,8 @@
     var netzfarbeEl    = document.querySelector('input[name="print-gridcolor"]:checked');
     var netzfarbe      = netzfarbeEl ? netzfarbeEl.value : 'schwarz';
     var rotation       = parseInt(document.getElementById('print-rotation').value) || 0;
+    var serverRenderEl  = document.getElementById('print-server-render');
+    var serverRender    = serverRenderEl ? serverRenderEl.checked : false;
 
     _isPrinting = true;
     var btn = document.getElementById('print-exec-btn');
@@ -571,6 +579,7 @@
       koordinatennetz: koordinatennetz,
       netzfarbe:       netzfarbe,
       printCenter:     printCenter,
+      serverRender:    serverRender,
       jpegQuality:     (_globalConfig.print && _globalConfig.print.jpegQuality) || 0.7,
 
       onProgress: function (step, msg) {
@@ -766,6 +775,12 @@
     if (gridCb) gridCb.addEventListener('change', function () {
       document.getElementById('print-grid-color').style.display = gridCb.checked ? 'flex' : 'none';
     });
+
+    // Server-Rendering Checkbox: Default aus Config
+    var srCb = document.getElementById('print-server-render');
+    if (srCb && _globalConfig.print && _globalConfig.print.serverRenderDefault) {
+      srCb.checked = true;
+    }
 
     // Rotation-Slider
     var rotSlider = document.getElementById('print-rotation');

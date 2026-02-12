@@ -443,6 +443,338 @@
   }
 
   // ---------------------------------------------------------------- //
+  //  Server-Rendering: Kartenbilder direkt von Mapservern anfordern   //
+  // ---------------------------------------------------------------- //
+
+  /**
+   * Sammelt Infos über alle sichtbaren WMS-/ArcGIS-Layer.
+   * Gibt ein Array zurück mit {type, url, layers, opacity, params}.
+   *
+   * @param {ol.Map} map - OpenLayers Map
+   * @returns {Array<Object>}
+   */
+  function collectLayerInfos(map) {
+    var infos = [];
+    map.getLayers().forEach(function (layer) {
+      if (!layer.getVisible || !layer.getVisible()) return;
+      var src = layer.getSource && layer.getSource();
+      if (!src) return;
+      // VectorSource (Redlining) überspringen
+      if (typeof src.getFeatures === 'function') return;
+
+      var url = '';
+      var params = {};
+      var layerType = 'unknown';
+
+      if (typeof src.getUrl === 'function') {
+        url = src.getUrl() || '';
+      } else if (typeof src.getUrls === 'function') {
+        var urls = src.getUrls();
+        url = (urls && urls.length > 0) ? urls[0] : '';
+      }
+      if (!url) return;
+
+      if (typeof src.getParams === 'function') {
+        params = Object.assign({}, src.getParams() || {});
+      }
+
+      // Typ erkennen
+      var urlLower = url.toLowerCase();
+      var isArcGIS = (
+        urlLower.indexOf('arcgis/rest') > -1 ||
+        urlLower.indexOf('agsproxy') > -1 ||
+        (urlLower.indexOf('mapserver') > -1 &&
+         urlLower.indexOf('cgi-bin') === -1 &&
+         !/mapserv(?!e)/.test(urlLower) &&
+         urlLower.indexOf('qgis') === -1)
+      );
+
+      if (isArcGIS) {
+        layerType = 'arcgis';
+      } else if (params.LAYERS || params.layers ||
+                 urlLower.indexOf('wms') > -1 ||
+                 urlLower.indexOf('mapserv') > -1) {
+        layerType = 'wms';
+      } else {
+        return; // XYZ-Tiles etc. → Server-Rendering nicht möglich
+      }
+
+      // Absolute URL
+      if (url.indexOf('//') === -1) {
+        url = window.location.origin + (url.charAt(0) === '/' ? '' : '/') + url;
+      }
+
+      infos.push({
+        type:    layerType,
+        url:     url,
+        layers:  params.LAYERS || params.layers || '',
+        opacity: layer.getOpacity(),
+        params:  params,
+        name:    layer.get('name') || layer.get('title') || ''
+      });
+    });
+    return infos;
+  }
+
+  /**
+   * Baut eine WMS-GetMap-URL mit exakten Parametern.
+   *
+   * @param {Object} info     - Layer-Info aus collectLayerInfos
+   * @param {Array}  bbox     - [minX, minY, maxX, maxY] in LV95
+   * @param {number} widthPx  - Bildbreite in Pixel
+   * @param {number} heightPx - Bildhöhe in Pixel
+   * @param {number} dpi      - Druckauflösung
+   * @param {string} format   - 'image/png' oder 'image/jpeg'
+   * @returns {string}
+   */
+  function buildWmsGetMapUrl(info, bbox, widthPx, heightPx, dpi, format) {
+    var base = info.url.split('?')[0];
+    var p = {
+      SERVICE:     'WMS',
+      VERSION:     info.params.VERSION || '1.3.0',
+      REQUEST:     'GetMap',
+      LAYERS:      info.layers,
+      CRS:         'EPSG:2056',
+      BBOX:        bbox.join(','),
+      WIDTH:       widthPx,
+      HEIGHT:      heightPx,
+      FORMAT:      format || 'image/png',
+      TRANSPARENT: 'TRUE',
+      DPI:         dpi,
+      FORMAT_OPTIONS: 'dpi:' + dpi
+    };
+    // Styles übernehmen falls vorhanden
+    if (info.params.STYLES !== undefined) p.STYLES = info.params.STYLES;
+    if (info.params.SLD_BODY) p.SLD_BODY = info.params.SLD_BODY;
+
+    var qs = Object.keys(p).map(function (k) {
+      return encodeURIComponent(k) + '=' + encodeURIComponent(p[k]);
+    }).join('&');
+    return base + '?' + qs;
+  }
+
+  /**
+   * Baut eine ArcGIS REST export-URL mit exakten Parametern.
+   *
+   * @param {Object} info     - Layer-Info aus collectLayerInfos
+   * @param {Array}  bbox     - [minX, minY, maxX, maxY] in LV95
+   * @param {number} widthPx  - Bildbreite in Pixel
+   * @param {number} heightPx - Bildhöhe in Pixel
+   * @param {number} dpi      - Druckauflösung
+   * @param {string} format   - 'png' oder 'jpg'
+   * @returns {string}
+   */
+  function buildArcGISExportUrl(info, bbox, widthPx, heightPx, dpi, format) {
+    // /MapServer → /MapServer/export
+    var base = info.url.replace(/\/?$/, '');
+    if (base.toLowerCase().indexOf('/export') === -1) {
+      base += '/export';
+    }
+    var layers = info.layers;
+    var layerParam = layers ? ('show:' + layers) : '';
+    var p = {
+      bbox:           bbox.join(','),
+      bboxSR:         '2056',
+      imageSR:        '2056',
+      size:           widthPx + ',' + heightPx,
+      dpi:            dpi,
+      format:         format || 'png32',
+      transparent:    'true',
+      f:              'image',
+      layers:         layerParam
+    };
+    var qs = Object.keys(p).map(function (k) {
+      return encodeURIComponent(k) + '=' + encodeURIComponent(p[k]);
+    }).join('&');
+    return base + '?' + qs;
+  }
+
+  /**
+   * Fordert Kartenbilder direkt von den Mapservern an und
+   * merged sie auf einem Canvas zusammen.
+   *
+   * @param {ol.Map}  map           - OpenLayers Map
+   * @param {Array}   bbox          - [minX, minY, maxX, maxY] in LV95
+   * @param {number}  widthPx       - Bildbreite in Pixel
+   * @param {number}  heightPx      - Bildhöhe in Pixel
+   * @param {number}  dpi           - Druckauflösung
+   * @param {Object}  [opts]        - {format:'image/png'|'image/jpeg'}
+   * @param {Function} [onProgress] - Fortschritts-Callback
+   * @returns {Promise<HTMLCanvasElement>}
+   */
+  function renderServerImages(map, bbox, widthPx, heightPx, dpi, opts, onProgress) {
+    opts = opts || {};
+    var format = opts.format || 'image/png';
+    var layerInfos = collectLayerInfos(map);
+
+    if (layerInfos.length === 0) {
+      console.warn('[ServerRender] Keine WMS/ArcGIS-Layer gefunden');
+      // Leeres transparentes Canvas zurückgeben
+      var empty = document.createElement('canvas');
+      empty.width = widthPx; empty.height = heightPx;
+      return Promise.resolve(empty);
+    }
+
+    console.log('[ServerRender] Starte direktes Server-Rendering:',
+      layerInfos.length, 'Layer,',
+      widthPx + '×' + heightPx, 'px, DPI:', dpi,
+      'BBOX:', bbox.map(function(v){return v.toFixed(1)}).join(', '));
+
+    // Bild-URLs generieren
+    var requests = layerInfos.map(function (info, idx) {
+      var url;
+      if (info.type === 'arcgis') {
+        var agsFmt = (format === 'image/jpeg') ? 'jpg' : 'png32';
+        url = buildArcGISExportUrl(info, bbox, widthPx, heightPx, dpi, agsFmt);
+      } else {
+        url = buildWmsGetMapUrl(info, bbox, widthPx, heightPx, dpi, format);
+      }
+      console.log('[ServerRender] Layer', idx, info.name || info.layers,
+        '(' + info.type + '):', url.substring(0, 120) + '...');
+      return { info: info, url: url, index: idx };
+    });
+
+    // Alle Bilder parallel laden
+    var promises = requests.map(function (req) {
+      return new Promise(function (resolve) {
+        var img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = function () {
+          console.log('[ServerRender] ✓ Layer', req.index, req.info.name || req.info.layers,
+            img.naturalWidth + '×' + img.naturalHeight);
+          resolve({ img: img, info: req.info, ok: true });
+        };
+        img.onerror = function (e) {
+          console.error('[ServerRender] ✗ Layer', req.index, req.info.name || req.info.layers,
+            'Fehler:', e.type || e);
+          resolve({ img: null, info: req.info, ok: false });
+        };
+        img.src = req.url;
+      });
+    });
+
+    return Promise.all(promises).then(function (results) {
+      // Canvas erstellen und Layer zusammenführen
+      var canvas = document.createElement('canvas');
+      canvas.width = widthPx;
+      canvas.height = heightPx;
+      var ctx = canvas.getContext('2d');
+      // Weisser Hintergrund
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, widthPx, heightPx);
+
+      var drawn = 0;
+      var failed = 0;
+      results.forEach(function (r) {
+        if (!r.ok || !r.img) {
+          failed++;
+          return;
+        }
+        ctx.globalAlpha = r.info.opacity !== undefined ? r.info.opacity : 1;
+        ctx.drawImage(r.img, 0, 0, widthPx, heightPx);
+        drawn++;
+      });
+      ctx.globalAlpha = 1;
+
+      console.log('[ServerRender] Merge-Ergebnis:',
+        drawn, 'Layer gezeichnet,', failed, 'fehlgeschlagen,',
+        canvas.width + '×' + canvas.height, 'px');
+
+      // Vector-Overlay (Redlining) vom OL-Canvas holen
+      var vectorCanvas = renderVectorOverlay(map, bbox, widthPx, heightPx);
+      if (vectorCanvas) {
+        ctx.drawImage(vectorCanvas, 0, 0);
+        console.log('[ServerRender] Vector-Overlay hinzugefügt');
+      }
+
+      if (onProgress) onProgress(4, 'Server-Bilder geladen');
+      return canvas;
+    });
+  }
+
+  /**
+   * Rendert nur die Vector-Layer (Redlining, Bemassungen) auf ein separates Canvas.
+   * Braucht eine temporäre OL-Map-Instanz mit den gleichen Vector-Layern.
+   *
+   * @param {ol.Map}  map      - OpenLayers Map
+   * @param {Array}   bbox     - [minX, minY, maxX, maxY]
+   * @param {number}  widthPx  - Bildbreite
+   * @param {number}  heightPx - Bildhöhe
+   * @returns {HTMLCanvasElement|null}
+   */
+  function renderVectorOverlay(map, bbox, widthPx, heightPx) {
+    // Prüfen ob Vector-Layer mit Features vorhanden
+    var hasVectors = false;
+    map.getLayers().forEach(function (layer) {
+      if (!layer.getVisible || !layer.getVisible()) return;
+      var src = layer.getSource && layer.getSource();
+      if (src && typeof src.getFeatures === 'function' && src.getFeatures().length > 0) {
+        hasVectors = true;
+      }
+    });
+    if (!hasVectors) return null;
+
+    // OL rendert Vektoren direkt auf Canvas im DOM.
+    // Wir lesen die bestehenden Canvas-Elemente der Vector-Layer.
+    // Da der Viewport ggf. andere Dimensionen hat, skalieren wir.
+    try {
+      var vpSize = map.getSize();
+      if (!vpSize || vpSize[0] === 0) return null;
+
+      var canvas = document.createElement('canvas');
+      canvas.width = widthPx;
+      canvas.height = heightPx;
+      var ctx = canvas.getContext('2d');
+      var scaleX = widthPx / vpSize[0];
+      var scaleY = heightPx / vpSize[1];
+
+      // Nur Vector-Layer-Canvas kopieren
+      var vectorLayers = document.querySelectorAll('.ol-layer canvas');
+      var found = false;
+      for (var i = 0; i < vectorLayers.length; i++) {
+        var lc = vectorLayers[i];
+        // OL vector layers: der Layer muss ein VectorLayer sein
+        // Heuristik: Prüfe ob der Canvas tatsächlich sichtbare Pixel hat
+        // (Raster-Canvas haben Pixel, Vector-Canvas nur wenn Features da sind)
+        // → Wir setzen auf die bekannte Layer-Reihenfolge in OL
+        if (lc.width > 0 && lc.height > 0) {
+          // Prüfe ob das zugehörige OL-Layer ein VectorLayer ist
+          var parentLayer = lc.closest && lc.closest('.ol-layer');
+          if (parentLayer) {
+            var layerIndex = Array.from(
+              document.querySelectorAll('.ol-layer')
+            ).indexOf(parentLayer);
+            var olLayers = map.getLayers().getArray();
+            if (layerIndex >= 0 && layerIndex < olLayers.length) {
+              var olLayer = olLayers[layerIndex];
+              var src = olLayer.getSource && olLayer.getSource();
+              if (src && typeof src.getFeatures === 'function') {
+                ctx.save();
+                ctx.scale(scaleX, scaleY);
+                var op = parentLayer.style.opacity;
+                ctx.globalAlpha = op === '' ? 1 : Number(op);
+                var tf = lc.style.transform;
+                var m = tf && tf.match(/matrix\(([^)]+)\)/);
+                if (m) {
+                  var mx = m[1].split(',').map(Number);
+                  ctx.transform(mx[0], mx[1], mx[2], mx[3], mx[4], mx[5]);
+                }
+                ctx.drawImage(lc, 0, 0);
+                ctx.restore();
+                found = true;
+              }
+            }
+          }
+        }
+      }
+      return found ? canvas : null;
+    } catch (e) {
+      console.warn('[ServerRender] Vector-Overlay Fehler:', e);
+      return null;
+    }
+  }
+
+  // ---------------------------------------------------------------- //
   //  OL Map → Canvas                                                  //
   // ---------------------------------------------------------------- //
 
@@ -1100,7 +1432,7 @@
           console.warn('[TemplatePDF] Nicht alle Platzhalter ersetzt → PDF-Overlay');
         }
 
-        onProgress(3, 'Rendere Karte...');
+        onProgress(3, options.serverRender ? 'Lade Kartenbilder von Server...' : 'Rendere Karte...');
 
         // ── OL-Viewport: EXAKT mit Landeskoordinaten (LV95) rechnen ──
         // Kein OGC-Pixel-Constant (0.28mm) — direkte Berechnung
@@ -1160,46 +1492,76 @@
         var origH = mapTarget.style.height;
         var origOF = mapTarget.style.overflow;
 
-        mapTarget.style.width = targetVpW + 'px';
-        mapTarget.style.height = targetVpH + 'px';
-        mapTarget.style.overflow = 'hidden';
-        map.updateSize();
+        // ── Render-Methode wählen ──
+        var useServerRender = !!options.serverRender && scaleNumber > 0;
+        var renderPromise;
 
-        // Center + Resolution EXAKT erzwingen — verhindert jeglichen Drift
-        map.getView().setCenter(desiredCenter);
-        map.getView().setResolution(desiredRes);
+        if (useServerRender) {
+          // ── Server-Rendering: Bilder direkt vom Mapserver ──
+          var printBbox = [
+            desiredCenter[0] - halfW,  // minX
+            desiredCenter[1] - halfH,  // minY
+            desiredCenter[0] + halfW,  // maxX
+            desiredCenter[1] + halfH   // maxY
+          ];
+          var imgW = Math.round(baseVpW);
+          var imgH = Math.round(baseVpH);
 
-        console.log('[TemplatePDF] Nach Resize — Resolution:',
-          map.getView().getResolution().toFixed(6),
-          '(Soll:', desiredRes.toFixed(6) + ')',
-          'Center:', map.getView().getCenter()[0].toFixed(1) +
-          ' / ' + map.getView().getCenter()[1].toFixed(1));
+          console.log('[TemplatePDF] Server-Rendering:',
+            imgW + '×' + imgH, 'px, DPI:', dpi,
+            'BBOX:', printBbox.map(function(v){return v.toFixed(1)}).join(', '));
 
-        // Kein Skalierungsfaktor — Viewport ist bereits in Zielauflösung
-        var scaleFactor = 1;
-
-        return renderMapCanvas(map, scaleFactor, {
-          center: desiredCenter,
-          resolution: desiredRes,
-          dpi: dpi
-        }).then(function (mapCanvas) {
-          // Viewport wiederherstellen
-          mapTarget.style.width = origW;
-          mapTarget.style.height = origH;
-          mapTarget.style.overflow = origOF;
+          renderPromise = renderServerImages(
+            map, printBbox, imgW, imgH, dpi,
+            { format: 'image/png' }, onProgress
+          ).then(function (serverCanvas) {
+            return { canvas: serverCanvas, needsRestore: false };
+          });
+        } else {
+          // ── Client-Rendering: OL-Viewport resizen + Canvas holen ──
+          mapTarget.style.width = targetVpW + 'px';
+          mapTarget.style.height = targetVpH + 'px';
+          mapTarget.style.overflow = 'hidden';
           map.updateSize();
+          map.getView().setCenter(desiredCenter);
+          map.getView().setResolution(desiredRes);
+
+          console.log('[TemplatePDF] Client-Rendering — Resolution:',
+            map.getView().getResolution().toFixed(6),
+            '(Soll:', desiredRes.toFixed(6) + ')',
+            'Center:', map.getView().getCenter()[0].toFixed(1) +
+            ' / ' + map.getView().getCenter()[1].toFixed(1));
+
+          var scaleFactor = 1;
+          renderPromise = renderMapCanvas(map, scaleFactor, {
+            center: desiredCenter,
+            resolution: desiredRes,
+            dpi: dpi
+          }).then(function (mapCanvas) {
+            return { canvas: mapCanvas, needsRestore: true };
+          });
+        }
+
+        return renderPromise.then(function (renderResult) {
+          var mapCanvas = renderResult.canvas;
+
+          // Viewport wiederherstellen (nur bei Client-Rendering)
+          if (renderResult.needsRestore) {
+            mapTarget.style.width = origW;
+            mapTarget.style.height = origH;
+            mapTarget.style.overflow = origOF;
+            map.updateSize();
+          }
 
           // ── Bei Rotation: Canvas auf den Druckbereich zuschneiden ──
           var finalCanvas;
-          if (Math.abs(rotRad) > 0.001) {
-            // Zielgrösse des nicht-rotierten Kartenbildes
-            var cropW = Math.round(baseVpW * scaleFactor);
-            var cropH = Math.round(baseVpH * scaleFactor);
+          if (!useServerRender && Math.abs(rotRad) > 0.001) {
+            var cropW = Math.round(baseVpW);
+            var cropH = Math.round(baseVpH);
             finalCanvas = document.createElement('canvas');
             finalCanvas.width = cropW;
             finalCanvas.height = cropH;
             var cropCtx = finalCanvas.getContext('2d');
-            // Aus der Mitte des grösseren Canvas ausschneiden
             var sx = Math.round((mapCanvas.width - cropW) / 2);
             var sy = Math.round((mapCanvas.height - cropH) / 2);
             cropCtx.drawImage(mapCanvas, sx, sy, cropW, cropH, 0, 0, cropW, cropH);
@@ -1284,7 +1646,9 @@
     loadTemplateSvg: loadTemplateSvg,
     parseMapArea: parseMapArea,
     exportPdf: exportPdf,
-    renderMapCanvas: renderMapCanvas
+    renderMapCanvas: renderMapCanvas,
+    renderServerImages: renderServerImages,
+    collectLayerInfos: collectLayerInfos
   };
 
   console.log('[TemplatePDF] Template-PDF-Export Engine v1.3 geladen ✓');

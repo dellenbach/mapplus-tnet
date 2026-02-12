@@ -206,5 +206,11 @@
     // Niedriger = kleinere Datei, etwas unschärfer
     // 0.7 = guter Kompromiss, 0.85 = hohe Qualität, 0.5 = sehr klein
     jpegQuality: 0.85,
+    // Server-Rendering: Kartenbilder direkt vom Mapserver anfordern
+    // statt OL-Viewport zu resizen. Genauere Massstäbe, kein
+    // Viewport-Resize, aber kein Rotation-Support und VectorSource
+    // (Redlining) wird als Overlay darübergelegt.
+    // false = Standard (OL-Canvas), true = Server-Rendering Default
+    serverRenderDefault: false,
   },
 }
