@@ -1072,7 +1072,8 @@ class LayoutExportDialog(QDialog):
         """Liest Bilddaten eines QgsLayoutItemPicture als base64.
 
         Versucht: 1) Datei direkt lesen, 2) SVG rendern,
-        3) Fallback: Item über QGIS-Layout-Region rendern.
+        3) Fallback: Item über QGIS-Layout-Region rendern,
+        4) Letzter Fallback: Weiße Box mit Fehler-Info.
 
         Returns: 'data:image/...;base64,...' oder None
         """
@@ -1080,12 +1081,15 @@ class LayoutExportDialog(QDialog):
         if hasattr(item, 'picturePath'):
             pic_path = item.picturePath() or ''
 
+        item_id = item.id() if hasattr(item, 'id') else ''
+        
         resolved = self._resolve_picture_path(pic_path)
         if resolved:
             ext = os.path.splitext(resolved)[1].lower()
             if ext == '.svg':
                 result = self._render_svg_to_png_base64(resolved, item)
                 if result:
+                    print(f"[LayoutExporter] SVG-Bild erfolgreich: {item_id}")
                     return result
             else:
                 try:
@@ -1095,18 +1099,88 @@ class LayoutExportDialog(QDialog):
                         'image/jpeg' if ext in ('.jpg', '.jpeg')
                         else 'image/png'
                     )
-                    return (
+                    result = (
                         f'data:{mime};base64,'
                         + base64.b64encode(raw).decode('ascii')
                     )
+                    print(f"[LayoutExporter] Raster-Bild erfolgreich: "
+                          f"{item_id} ({ext}) - {len(raw)} bytes")
+                    return result
                 except IOError as e:
-                    print(f"[LayoutExporter] Bild lesen fehlgeschlagen: "
-                          f"{e}")
+                    print(f"[LayoutExporter] Raster-Bild lesen fehlgeschlagen: "
+                          f"{item_id}: {e}")
 
-        # Fallback: Item direkt über Layout-Region rendern
+        # Fallback 1: Item direkt über Layout-Region rendern
         print(f"[LayoutExporter] Bild nicht gefunden: {pic_path} "
-              f"→ Fallback-Rendering")
-        return self._render_layout_item_to_base64(item)
+              f"({item_id}) → Fallback-Rendering versuchen")
+        
+        result = self._render_layout_item_to_base64(item)
+        if result:
+            print(f"[LayoutExporter] Fallback-Rendering erfolgreich: {item_id}")
+            return result
+        
+        # Fallback 2: Fehlgeschlagen - trotzdem ein sichtbares Placeholder-PNG erzeugen
+        print(f"[LayoutExporter] Auch Fallback-Rendering fehlgeschlagen: "
+              f"{item_id} - erzeuge Placeholder-PNG")
+        return self._create_missing_image_placeholder(item, item_id, pic_path)
+
+    def _create_missing_image_placeholder(self, item, item_id, pic_path):
+        """Erzeugt ein Placeholder-PNG wenn das Bild nicht vorhanden ist.
+        
+        So bleibt wenigstens eine sichtbare Box, statt unsichtbarem fehlen.
+        """
+        try:
+            from qgis.PyQt.QtGui import QImage, QPainter, QColor, QFont
+            from qgis.PyQt.QtCore import Qt, QBuffer, QByteArray
+            
+            # Aufgrund des Items dimensionen eruire
+            sz = item.sizeWithUnits()
+            w_mm = self._to_mm(sz.width(), sz.units())
+            h_mm = self._to_mm(sz.height(), sz.units())
+            
+            # Minimal 20x20 mm, maximal 100x100 mm für Lesbarkeit  
+            w_mm = max(20, min(w_mm, 100))
+            h_mm = max(20, min(h_mm, 100))
+            
+            dpi = 150
+            w_px = max(10, int(w_mm / 25.4 * dpi))
+            h_px = max(10, int(h_mm / 25.4 * dpi))
+            
+            # Bild erzeugen: Grauer Hintergrund mit Label
+            img = QImage(w_px, h_px, QImage.Format_ARGB32_Premultiplied)
+            img.fill(QColor(220, 220, 220))  # Hellgrau
+            
+            painter = QPainter(img)
+            painter.setRenderHint(QPainter.SmoothPixmapTransform)
+            
+            # Rahmen
+            painter.drawRect(0, 0, w_px - 1, h_px - 1)
+            
+            # Kurzer Fehler-Text
+            font = QFont("Arial", max(4, w_px // 20))
+            painter.setFont(font)
+            painter.drawText(
+                2, 2, w_px - 4, h_px - 4,
+                Qt.AlignCenter | Qt.TextWordWrap,
+                "Missing\nImage"
+            )
+            painter.end()
+            
+            # PNG als base64
+            ba = QByteArray()
+            buf = QBuffer(ba)
+            buf.open(QBuffer.WriteOnly)
+            img.save(buf, 'PNG')
+            buf.close()
+            
+            b64 = base64.b64encode(bytes(ba)).decode('ascii')
+            print(f"[LayoutExporter] Placeholder-PNG erzeugt: {item_id}")
+            return f'data:image/png;base64,{b64}'
+            
+        except Exception as e:
+            print(f"[LayoutExporter] Auch Placeholder-PNG fehlgeschlagen: "
+                  f"{item_id}: {e}")
+            return None
 
     def _render_layout_item_to_base64(self, item, dpi=150):
         """Fallback: Rendert ein QgsLayoutItem über renderRegionToImage.
