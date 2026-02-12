@@ -248,7 +248,7 @@
 
     var mapping = {
       'TITLE_TEXT':       values.title || '',
-      'SCALE_TEXT':       '',  // Wird dynamisch als SCALE_LABEL gezeichnet
+      'SCALE_TEXT':       values.scaleText || '',  // Massstabstext beibehalten
       'COORDINATES_TEXT': values.coords ? ('LV95: ' + values.coords) : '',
       'DATE_TEXT':        values.date ? ('Erstellt am: ' + values.date) : ''
     };
@@ -1015,10 +1015,16 @@
         var origH = mapTarget.style.height;
         var origOF = mapTarget.style.overflow;
 
-        // Resolution + Center VORHER merken (wird nach updateSize erzwungen)
-        var desiredRes = map.getView().getResolution();
+        // Resolution EXAKT aus Massstab berechnen (nicht aus View lesen,
+        // da OL die Resolution constrainen/snappen kann)
+        var mpu = map.getView().getProjection().getMetersPerUnit() || 1;
+        var desiredRes = options.scaleNumber
+          ? (options.scaleNumber * 0.00028 / mpu)
+          : map.getView().getResolution();
         var desiredCenter = options.printCenter || map.getView().getCenter();
         console.log('[TemplatePDF] Vor Resize — Resolution:', desiredRes,
+          '(exakt aus Massstab:', options.scaleNumber, ')',
+          'View-Resolution:', map.getView().getResolution(),
           'Center:', desiredCenter[0].toFixed(1) + '/' + desiredCenter[1].toFixed(1),
           'Viewport:', targetVpW + 'x' + targetVpH,
           'Rotation:', Math.round(rotRad * 180 / Math.PI) + '°');

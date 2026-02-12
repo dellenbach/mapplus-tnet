@@ -47,8 +47,8 @@
     },
     {
       "id": "Massstab",
-      "type": "scaleBar",
-      "variable": "scaleBar",
+      "type": "scaleLabel",
+      "variable": "scaleLabel",
       "x_mm": 21.58,
       "y_mm": 409.9,
       "width_mm": 22.09,

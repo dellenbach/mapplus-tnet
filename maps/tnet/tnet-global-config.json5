@@ -201,7 +201,7 @@
     // Automatisch Zoom anpassen beim Öffnen des Druckpanels
     autoAdjustZoom: true,
     // Ziel: Frame soll ca. X% des Viewports füllen (50-90)
-    targetFramePercent: 70,
+    targetFramePercent: 50,
     // JPEG-Qualität für Kartenbild im PDF (0.0 - 1.0)
     // Niedriger = kleinere Datei, etwas unschärfer
     // 0.7 = guter Kompromiss, 0.85 = hohe Qualität, 0.5 = sehr klein

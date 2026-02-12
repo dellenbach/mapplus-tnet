@@ -122,6 +122,7 @@
  </metadata>
 
   <!-- Dynamic element bboxes (OL-Printer) -->
-  <rect id="Massstab" x="254.82" y="4840.72" width="260.37" height="65.19" fill="none" stroke="#FF0000" stroke-width="2" data-dynamic-type="scaleBar" />
+  <rect id="Massstab" x="254.82" y="4840.72" width="260.37" height="65.19" fill="none" stroke="#FF0000" stroke-width="2" data-dynamic-type="scaleLabel" />
   <rect id="Massstabsbalken" x="391.56" y="4829.50" width="648.62" height="41.10" fill="none" stroke="#FF0000" stroke-width="2" data-dynamic-type="scaleBar" />
+  <rect id="NORTH_ARROW" x="228" y="4608" width="54" height="120" fill="none" stroke="#FF0000" stroke-width="2" data-dynamic-type="northArrow" />
 </svg>
