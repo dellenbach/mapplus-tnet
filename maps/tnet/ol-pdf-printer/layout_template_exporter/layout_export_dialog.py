@@ -423,6 +423,7 @@ class LayoutExportDialog(QDialog):
 
         project = QgsProject.instance()
         exported_files = []
+        manifest_entries = {}  # base_filename → layout_info
         errors = []
 
         # --- Bestehende Layouts exportieren ---
@@ -433,9 +434,11 @@ class LayoutExportDialog(QDialog):
                 if layout is None:
                     errors.append(f"{layout_name}: Layout nicht gefunden")
                     continue
+                manifest_entries[base_filename] = layout_info
                 for target_dir in dirs:
                     files = self._export_to_directory(
-                        layout, base_filename, layout_info, target_dir
+                        layout, base_filename, layout_info, target_dir,
+                        write_manifest=False
                     )
                     exported_files.extend(files)
             except Exception as e:
@@ -450,14 +453,23 @@ class LayoutExportDialog(QDialog):
                         tmpl_def["paper"],
                         tmpl_def["orientation"] == "landscape",
                     )
+                manifest_entries[base_filename] = layout_info
                 for target_dir in dirs:
                     files = self._export_to_directory(
-                        layout, base_filename, layout_info, target_dir
+                        layout, base_filename, layout_info, target_dir,
+                        write_manifest=False
                     )
                     exported_files.extend(files)
             except Exception as e:
                 errors.append(
                     f"{tmpl_def['paper']} {tmpl_def['label']}: {e}"
+                )
+
+        # --- Zentrales manifest.json nach Export schreiben ---
+        if self.chk_manifest.isChecked() and manifest_entries and dirs:
+            for target_dir in dirs:
+                self._write_manifest_for_directory(
+                    target_dir, manifest_entries
                 )
 
         # --- Rückmeldung ---
@@ -1518,8 +1530,8 @@ class LayoutExportDialog(QDialog):
     #  Export: ein Zielordner  →  <ziel>/                                #
     # ================================================================== #
     def _export_to_directory(self, layout, base_filename, layout_info,
-                             target_dir):
-        """Exportiert Layout + manifest.json direkt in target_dir/.
+                             target_dir, write_manifest=True):
+        """Exportiert Layout + Dateien direkt in target_dir/.
 
         Ablauf für SVG:
           1. Grafische Elemente (Nordpfeil, Massstabsbalken) verstecken
@@ -1581,34 +1593,104 @@ class LayoutExportDialog(QDialog):
             # Grafische Elemente wieder einblenden
             self._restore_graphic_elements(hidden_graphics)
 
-        if self.chk_manifest.isChecked():
-            # Zentrales manifest.json im übergeordneten Verzeichnis
-            manifest_base = os.path.dirname(target_dir)
-            rel_prefix = os.path.basename(target_dir)
-            self._write_manifest(manifest_base, base_filename,
-                                 layout_info, target_dir, rel_prefix)
-
         return exported
 
     # ================================================================== #
-    #  manifest.json                                                       #
+    #  Manifest-schreiben (nach allen Exports)                            #
     # ================================================================== #
-    def _write_manifest(self, manifest_dir, base_filename, layout_info,
-                        files_dir, rel_prefix=""):
-        """Erzeugt / aktualisiert EIN zentrales manifest.json.
+    def _write_manifest_for_directory(self, target_dir, manifest_entries):
+        """Schreibt manifest.json für alle Templates in target_dir.
 
-        Version 1.4: Schreibt manifest.json ins übergeordnete Verzeichnis
-        (z.B. ol-pdf-printer/) statt pro Template-Ordner.  Dateipfade
-        enthalten den relativen Unterordner-Prefix.
+        target_dir: z.B. 'qgis-templates/' oder 'templates/'
+        manifest_entries: dict base_filename → layout_info
+        """
+        # Manifest kommt ins Eltern-Verzeichnis
+        manifest_dir = os.path.dirname(target_dir.rstrip(os.sep))
+        if not manifest_dir or manifest_dir == target_dir:
+            manifest_dir = os.path.dirname(
+                os.path.dirname(target_dir.rstrip(os.sep))
+            )
+        if not manifest_dir:
+            print(f"[LayoutExporter] Manifest-Verzeichnis ungültig: "
+                  f"{target_dir}")
+            return
 
-        manifest_dir : Verzeichnis für manifest.json (z.B. ol-pdf-printer/)
-        files_dir    : Verzeichnis mit den SVG/PDF-Dateien
-        rel_prefix   : Unterordner (z.B. 'qgis-templates')
+        rel_prefix = os.path.basename(target_dir.rstrip(os.sep))
+        manifest_path = os.path.join(manifest_dir, "manifest.json")
 
-        {
-          "version": "1.4",
-          "generated": "2026-02-13T…",
-          "templates": [{
+        manifest = {"version": "1.4", "generated": "", "templates": []}
+        if os.path.exists(manifest_path):
+            try:
+                with open(manifest_path, "r", encoding="utf-8") as f:
+                    manifest = json.load(f)
+            except (json.JSONDecodeError, IOError):
+                pass
+
+        manifest["version"] = "1.4"
+        manifest["generated"] = datetime.now().isoformat(timespec="seconds")
+
+        # Für jeden Base-Filename ein Template-Eintrag
+        for base_filename, layout_info in manifest_entries.items():
+            # Bestehendes Update oder Neu
+            existing_idx = None
+            for i, t in enumerate(manifest.get("templates", [])):
+                if t.get("name") == base_filename:
+                    existing_idx = i
+                    break
+
+            # Dateien die existieren
+            files = {}
+            for fmt in ["svg", "pdf"]:
+                fpath = os.path.join(
+                    target_dir, f"{base_filename}.{fmt}"
+                )
+                if os.path.exists(fpath):
+                    fname = f"{base_filename}.{fmt}"
+                    if rel_prefix:
+                        fname = f"{rel_prefix}/{fname}"
+                    files[fmt] = fname
+
+            entry = {
+                "name": base_filename,
+                "title": layout_info.get("title", base_filename),
+                "paper": layout_info.get("paper", ""),
+                "orientation": layout_info.get("orientation", ""),
+                "width_mm": layout_info.get("width_mm", 0),
+                "height_mm": layout_info.get("height_mm", 0),
+                "source": layout_info.get("source", ""),
+                "files": files,
+            }
+            if "mapFrame" in layout_info:
+                entry["mapFrame"] = layout_info["mapFrame"]
+
+            # Elements-Array mit vollständigen Metadaten
+            raw_elements = layout_info.get("elements", [])
+            clean_elements = []
+            for elem in raw_elements:
+                clean = {k: v for k, v in elem.items()
+                         if not k.startswith("_") and k != "originalText"}
+                clean_elements.append(clean)
+            if clean_elements:
+                entry["elements"] = clean_elements
+
+            if existing_idx is not None:
+                manifest["templates"][existing_idx] = entry
+            else:
+                manifest["templates"].append(entry)
+
+        with open(manifest_path, "w", encoding="utf-8") as f:
+            json.dump(manifest, f, indent=2, ensure_ascii=False)
+        print(f"[LayoutExporter] manifest.json geschrieben: {manifest_path}")
+
+    # ================================================================== #
+    #  manifest.json (Legacy - nicht mehr verwendet)                      #
+    # ================================================================== #
+    def _write_manifest_deprecated(self, manifest_dir, base_filename, layout_info,
+                                    files_dir, rel_prefix=""):
+        """DEPRECATED v1.4: Alte Funktion für Rückwärtskompatibilität.
+        
+        Verwende stattdessen _write_manifest_for_directory()
+        """
             "name": "layout_a4_portrait",
             "title": "A4 Hoch",
             "paper": "A4", "orientation": "portrait",
