@@ -892,7 +892,7 @@
     var jsPDF = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
     if (!jsPDF) return Promise.reject(new Error('jsPDF nicht geladen'));
 
-    // ── Dateiname: <Titel>_YYYYMMDD_HHMM.pdf ──
+    // ── Dateiname: <Titel>_<Format>_YYYYMMDD_HHMM.pdf ──
     var now = new Date();
     var ts = now.getFullYear() +
       String(now.getMonth() + 1).padStart(2, '0') +
@@ -901,7 +901,10 @@
       String(now.getMinutes()).padStart(2, '0');
     var safeTitle = (title || 'Kartenexport')
       .replace(/[<>:"/\\|?*]/g, '').replace(/\s+/g, '_').substring(0, 50);
-    var filename = options.filename || (safeTitle + '_' + ts);
+    var paperInfo = template.paper || '';
+    if (template.orientation === 'landscape') paperInfo += '_quer';
+    else if (template.orientation === 'portrait') paperInfo += '_hoch';
+    var filename = options.filename || (safeTitle + '_' + paperInfo + '_' + ts);
 
     onProgress(1, 'Lade Template...');
 
