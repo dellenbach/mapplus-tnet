@@ -1102,16 +1102,36 @@
 
         onProgress(3, 'Rendere Karte...');
 
-        // ── OL-Viewport temporär auf MAP_AREA-Proportionen anpassen ──
-        // OGC-Standard: 1 px = 0.28 mm
-        var baseVpW = mapAreaW / 0.28;
-        var baseVpH = mapAreaH / 0.28;
+        // ── OL-Viewport: EXAKT mit Landeskoordinaten (LV95) rechnen ──
+        // Kein OGC-Pixel-Constant (0.28mm) — direkte Berechnung
+        // aus Papiermassen, Massstab und Druck-DPI.
+        var scaleNumber = options.scaleNumber || 0;
+        var mpu = map.getView().getProjection().getMetersPerUnit() || 1;
+        var desiredCenter = options.printCenter || map.getView().getCenter();
 
-        // Bei gedrehter Ansicht muss der Viewport die Bounding Box
-        // des rotierten Rechtecks abdecken, damit der gesamte
-        // Druckbereich in der gerenderten Karte enthalten ist.
-        // Zusätzlich 15% Puffer, damit alle Kachel-/WMS-Quellen
-        // den vollständigen Bereich liefern.
+        // 1. Geographische Ausdehnung in Landeskoordinaten (LV95 = Meter)
+        //    Massstab 1:S → 1 mm Papier = S/1000 Meter Realwelt
+        var extentW_m = mapAreaW * scaleNumber / 1000;   // mm × S / 1000 → m
+        var extentH_m = mapAreaH * scaleNumber / 1000;
+
+        // 2. Viewport-Pixel = Papiermasse bei Ziel-DPI
+        //    mm / 25.4 × dpi = exakte Pixelzahl für Druckauflösung
+        var baseVpW = mapAreaW / 25.4 * dpi;
+        var baseVpH = mapAreaH / 25.4 * dpi;
+
+        // 3. OL-Resolution: exakt Meter pro Pixel
+        //    EPSG:2056 (mpu=1): z.B. 1:10'000, 150 dpi
+        //    → extent = 277mm × 10000 / 1000 = 2770 m
+        //    → vpW   = 277mm / 25.4 × 150   = 1635.8 px
+        //    → res   = 2770 / 1635.8         = 1.6932 m/px
+        var desiredRes;
+        if (scaleNumber > 0 && baseVpW > 0) {
+          desiredRes = extentW_m / baseVpW;
+        } else {
+          desiredRes = map.getView().getResolution();
+        }
+
+        // 4. Rotation: Viewport-Bounding-Box vergrössern
         var rotRad = map.getView().getRotation() || 0;
         var absC = Math.abs(Math.cos(rotRad));
         var absS = Math.abs(Math.sin(rotRad));
@@ -1119,24 +1139,26 @@
         var targetVpW = Math.round((baseVpW * absC + baseVpH * absS) * rotBuffer);
         var targetVpH = Math.round((baseVpW * absS + baseVpH * absC) * rotBuffer);
 
+        // 5. Kontrollausgabe: LV95-Eckkoordinaten des Druckbereichs
+        var halfW = extentW_m / (2 * mpu);
+        var halfH = extentH_m / (2 * mpu);
+        console.log('[TemplatePDF] LV95 Druckbereich:',
+          'Center:', desiredCenter[0].toFixed(1) + ' / ' + desiredCenter[1].toFixed(1),
+          'Ausdehnung:', extentW_m.toFixed(1) + ' × ' + extentH_m.toFixed(1), 'm',
+          'SW: [' + (desiredCenter[0] - halfW).toFixed(1) + ', ' +
+                    (desiredCenter[1] - halfH).toFixed(1) + ']',
+          'NE: [' + (desiredCenter[0] + halfW).toFixed(1) + ', ' +
+                    (desiredCenter[1] + halfH).toFixed(1) + ']',
+          'Resolution:', desiredRes.toFixed(6), 'm/px',
+          'Viewport:', targetVpW + '×' + targetVpH, 'px',
+          'Massstab: 1:' + scaleNumber,
+          'DPI:', dpi,
+          'Rotation:', Math.round(rotRad * 180 / Math.PI) + '°');
+
         var mapTarget = map.getTargetElement();
         var origW = mapTarget.style.width;
         var origH = mapTarget.style.height;
         var origOF = mapTarget.style.overflow;
-
-        // Resolution EXAKT aus Massstab berechnen (nicht aus View lesen,
-        // da OL die Resolution constrainen/snappen kann)
-        var mpu = map.getView().getProjection().getMetersPerUnit() || 1;
-        var desiredRes = options.scaleNumber
-          ? (options.scaleNumber * 0.00028 / mpu)
-          : map.getView().getResolution();
-        var desiredCenter = options.printCenter || map.getView().getCenter();
-        console.log('[TemplatePDF] Vor Resize — Resolution:', desiredRes,
-          '(exakt aus Massstab:', options.scaleNumber, ')',
-          'View-Resolution:', map.getView().getResolution(),
-          'Center:', desiredCenter[0].toFixed(1) + '/' + desiredCenter[1].toFixed(1),
-          'Viewport:', targetVpW + 'x' + targetVpH,
-          'Rotation:', Math.round(rotRad * 180 / Math.PI) + '°');
 
         mapTarget.style.width = targetVpW + 'px';
         mapTarget.style.height = targetVpH + 'px';
@@ -1147,10 +1169,14 @@
         map.getView().setCenter(desiredCenter);
         map.getView().setResolution(desiredRes);
 
-        console.log('[TemplatePDF] Nach Resize — Resolution:', map.getView().getResolution(),
-          'Center:', map.getView().getCenter()[0].toFixed(1) + '/' + map.getView().getCenter()[1].toFixed(1));
+        console.log('[TemplatePDF] Nach Resize — Resolution:',
+          map.getView().getResolution().toFixed(6),
+          '(Soll:', desiredRes.toFixed(6) + ')',
+          'Center:', map.getView().getCenter()[0].toFixed(1) +
+          ' / ' + map.getView().getCenter()[1].toFixed(1));
 
-        var scaleFactor = dpi / 96;
+        // Kein Skalierungsfaktor — Viewport ist bereits in Zielauflösung
+        var scaleFactor = 1;
 
         return renderMapCanvas(map, scaleFactor, {
           center: desiredCenter,

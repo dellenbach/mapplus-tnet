@@ -15,6 +15,7 @@ Erzeugte Struktur pro Zielordner:
 
 import json
 import os
+import base64
 import re
 from datetime import datetime
 
@@ -674,6 +675,7 @@ class LayoutExportDialog(QDialog):
                     "y_mm": round(self._to_mm(pos.y(), pos.units()), 2),
                     "width_mm": round(self._to_mm(sz.width(), sz.units()), 2),
                     "height_mm": round(self._to_mm(sz.height(), sz.units()), 2),
+                    "_layout_item": item,
                 })
 
             elif isinstance(item, QgsLayoutItemLabel):
@@ -758,21 +760,63 @@ class LayoutExportDialog(QDialog):
                     or 'north' in pic_path.lower()
                     or 'arrow' in pic_path.lower()
                 )
+                pos = item.positionWithUnits()
+                sz = item.sizeWithUnits()
+                x = round(self._to_mm(pos.x(), pos.units()), 2)
+                y = round(self._to_mm(pos.y(), pos.units()), 2)
+                w = round(self._to_mm(sz.width(), sz.units()), 2)
+                h = round(self._to_mm(sz.height(), sz.units()), 2)
                 if is_north:
-                    pos = item.positionWithUnits()
-                    sz = item.sizeWithUnits()
                     elem = {
                         "id": item_id or "NORTH_ARROW",
                         "type": "northArrow",
                         "variable": "northArrow",
-                        "x_mm": round(self._to_mm(pos.x(), pos.units()), 2),
-                        "y_mm": round(self._to_mm(pos.y(), pos.units()), 2),
-                        "width_mm": round(self._to_mm(sz.width(), sz.units()), 2),
-                        "height_mm": round(self._to_mm(sz.height(), sz.units()), 2),
+                        "x_mm": x, "y_mm": y,
+                        "width_mm": w, "height_mm": h,
                         "_layout_item": item,
                         "_is_graphic": True,
                     }
                     elements.append(elem)
+                else:
+                    # Sonstiges Bild (Logo, Wappen etc.)
+                    b64 = self._get_picture_base64(item)
+                    elem = {
+                        "id": item_id or f"IMAGE_{len(elements)}",
+                        "type": "image",
+                        "variable": "",
+                        "x_mm": x, "y_mm": y,
+                        "width_mm": w, "height_mm": h,
+                        "_layout_item": item,
+                    }
+                    if b64:
+                        elem["_base64Data"] = b64
+                    elements.append(elem)
+
+            # ── Shapes (Rahmen, Hintergründe, Dekorationen) ──
+            elif isinstance(item, QgsLayoutItemShape):
+                item_id = item.id() if callable(getattr(item, 'id', None)) else ''
+                pos = item.positionWithUnits()
+                sz = item.sizeWithUnits()
+                style = self._extract_symbol_style(item)
+                elem = {
+                    "id": item_id or f"SHAPE_{len(elements)}",
+                    "type": "shape",
+                    "x_mm": round(self._to_mm(pos.x(), pos.units()), 2),
+                    "y_mm": round(self._to_mm(pos.y(), pos.units()), 2),
+                    "width_mm": round(self._to_mm(sz.width(), sz.units()), 2),
+                    "height_mm": round(self._to_mm(sz.height(), sz.units()), 2),
+                    **style,
+                    "_layout_item": item,
+                }
+                elements.append(elem)
+
+        # Z-Order für alle Elemente ergänzen
+        for elem in elements:
+            li = elem.get("_layout_item")
+            if li and hasattr(li, 'zValue'):
+                elem["_zOrder"] = li.zValue()
+            else:
+                elem.setdefault("_zOrder", 0)
 
         return elements
 
@@ -868,6 +912,284 @@ class LayoutExportDialog(QDialog):
             "variable": "",
             "placeholder": "",
         }
+
+    # ================================================================== #
+    #  Clean SVG Builder                                                   #
+    # ================================================================== #
+
+    @staticmethod
+    def _rgba_to_css(rgba_str):
+        """Konvertiert QGIS-Farbstring 'r,g,b,a' in CSS hex oder 'none'."""
+        try:
+            parts = [int(x.strip()) for x in rgba_str.split(',')]
+            if len(parts) >= 4 and parts[3] == 0:
+                return 'none'
+            return f'#{parts[0]:02x}{parts[1]:02x}{parts[2]:02x}'
+        except (ValueError, IndexError):
+            return '#000000'
+
+    def _extract_symbol_style(self, item):
+        """Extrahiert Fill/Stroke-Eigenschaften aus QgsLayoutItemShape."""
+        result = {
+            'fillColor': 'none',
+            'strokeColor': '#000000',
+            'strokeWidth': 0.3,
+        }
+        symbol = item.symbol()
+        if not symbol or symbol.symbolLayerCount() == 0:
+            return result
+
+        sl = symbol.symbolLayer(0)
+        props = sl.properties() if hasattr(sl, 'properties') else {}
+
+        fill_style = props.get('style', 'solid')
+        result['fillColor'] = (
+            'none' if fill_style == 'no'
+            else self._rgba_to_css(props.get('color', '255,255,255,0'))
+        )
+
+        outline_style = props.get('outline_style', 'solid')
+        result['strokeColor'] = (
+            'none' if outline_style == 'no'
+            else self._rgba_to_css(
+                props.get('outline_color', '0,0,0,255'))
+        )
+        result['strokeWidth'] = float(
+            props.get('outline_width', '0.3'))
+
+        if outline_style == 'dash':
+            result['strokeDasharray'] = '4,2'
+        elif outline_style == 'dot':
+            result['strokeDasharray'] = '1,2'
+
+        return result
+
+    def _get_picture_base64(self, item):
+        """Liest Bilddaten eines QgsLayoutItemPicture als base64.
+
+        Returns: 'data:image/...;base64,...' oder None
+        """
+        pic_path = ''
+        if hasattr(item, 'picturePath'):
+            pic_path = item.picturePath() or ''
+        if not pic_path:
+            return None
+
+        # Relative Pfade auflösen
+        if not os.path.isabs(pic_path):
+            project_dir = os.path.dirname(
+                QgsProject.instance().fileName() or '')
+            if project_dir:
+                candidate = os.path.join(project_dir, pic_path)
+                if os.path.exists(candidate):
+                    pic_path = candidate
+
+        if not os.path.exists(pic_path):
+            # QGIS SVG-Suchpfade durchsuchen
+            from qgis.core import QgsApplication
+            for svg_dir in QgsApplication.svgPaths():
+                candidate = os.path.join(
+                    svg_dir, os.path.basename(pic_path))
+                if os.path.exists(candidate):
+                    pic_path = candidate
+                    break
+
+        if not os.path.exists(pic_path):
+            print(f"[LayoutExporter] Bild nicht gefunden: {pic_path}")
+            return None
+
+        ext = os.path.splitext(pic_path)[1].lower()
+        if ext == '.svg':
+            return self._render_svg_to_png_base64(pic_path, item)
+
+        # Raster (PNG, JPEG) direkt lesen
+        try:
+            with open(pic_path, 'rb') as f:
+                raw = f.read()
+            mime = (
+                'image/jpeg' if ext in ('.jpg', '.jpeg')
+                else 'image/png'
+            )
+            return (
+                f'data:{mime};base64,'
+                + base64.b64encode(raw).decode('ascii')
+            )
+        except IOError as e:
+            print(f"[LayoutExporter] Bild lesen fehlgeschlagen: {e}")
+            return None
+
+    def _render_svg_to_png_base64(self, svg_path, item, dpi=300):
+        """Rendert eine SVG-Bilddatei zu PNG und gibt base64 zurück."""
+        try:
+            from qgis.PyQt.QtSvg import QSvgRenderer
+            from qgis.PyQt.QtGui import QImage, QPainter
+            from qgis.PyQt.QtCore import QBuffer, QByteArray
+
+            sz = item.sizeWithUnits()
+            w_mm = self._to_mm(sz.width(), sz.units())
+            h_mm = self._to_mm(sz.height(), sz.units())
+            w_px = max(1, int(w_mm / 25.4 * dpi))
+            h_px = max(1, int(h_mm / 25.4 * dpi))
+
+            renderer = QSvgRenderer(svg_path)
+            img = QImage(w_px, h_px, QImage.Format_ARGB32_Premultiplied)
+            img.fill(0)  # transparent
+            painter = QPainter(img)
+            renderer.render(painter)
+            painter.end()
+
+            ba = QByteArray()
+            buf = QBuffer(ba)
+            buf.open(QBuffer.WriteOnly)
+            img.save(buf, 'PNG')
+            buf.close()
+
+            return (
+                'data:image/png;base64,'
+                + base64.b64encode(bytes(ba)).decode('ascii')
+            )
+        except Exception as e:
+            print(f"[LayoutExporter] SVG-Rendering: {e}")
+            return None
+
+    def _build_clean_svg(self, layout, layout_info, elements):
+        """Baut ein sauberes, flaches SVG-Template.
+
+        Jedes Layout-Element wird einzeln (ungruppiert) mit exaktem
+        Identifikator, Massen und Plazierung als SVG-Element exportiert.
+
+        ViewBox in mm — Positionen entsprechen direkt mm auf dem Papier.
+        """
+        w = layout_info['width_mm']
+        h = layout_info['height_mm']
+        font = "'Segoe UI', Arial, Helvetica, sans-serif"
+
+        lines = [
+            '<?xml version="1.0" encoding="UTF-8"?>',
+            f'<svg xmlns="http://www.w3.org/2000/svg"',
+            f'     xmlns:xlink="http://www.w3.org/1999/xlink"',
+            f'     width="{w}mm" height="{h}mm"',
+            f'     viewBox="0 0 {w} {h}"',
+            f'     version="1.1">',
+            f'  <!-- Generated by LayoutTemplateExporter v1.3 -->',
+            f'  <!-- Paper: {layout_info.get("paper", "?")} '
+            f'{layout_info.get("orientation", "?")} '
+            f'({w} x {h} mm) -->',
+            '',
+            f'  <!-- Seitenhintergrund -->',
+            f'  <rect id="PAGE_BG" x="0" y="0"'
+            f' width="{w}" height="{h}" fill="#ffffff" />',
+        ]
+
+        # Elemente nach Z-Order sortieren (niedrigste = Hintergrund)
+        sorted_elems = sorted(
+            elements,
+            key=lambda e: e.get('_zOrder', 0)
+        )
+
+        for elem in sorted_elems:
+            svg_el = self._element_to_svg(elem, font)
+            if svg_el:
+                lines.append('')
+                lines.append(svg_el)
+
+        lines.append('')
+        lines.append('</svg>')
+
+        svg_text = '\n'.join(lines)
+        print(f"[LayoutExporter] Clean SVG: {len(sorted_elems)} Elemente, "
+              f"{len(svg_text)} Bytes")
+        return svg_text
+
+    def _element_to_svg(self, elem, font_family):
+        """Konvertiert ein Element-Dict in SVG-Markup."""
+        t = elem.get('type', '')
+        eid = elem.get('id', '')
+        x = elem.get('x_mm', 0)
+        y = elem.get('y_mm', 0)
+        w = elem.get('width_mm', 0)
+        h = elem.get('height_mm', 0)
+
+        if t == 'map':
+            # Kartenrahmen
+            frame_stroke = '#000000'
+            frame_width = 0.3
+            item = elem.get('_layout_item')
+            if item and hasattr(item, 'frameEnabled') and item.frameEnabled():
+                fc = item.frameStrokeColor()
+                frame_stroke = (
+                    f'#{fc.red():02x}{fc.green():02x}{fc.blue():02x}'
+                )
+            return (
+                f'  <!-- Kartenbereich -->\n'
+                f'  <rect id="{eid}" x="{x:.2f}" y="{y:.2f}"'
+                f' width="{w:.2f}" height="{h:.2f}"'
+                f' fill="none" stroke="{frame_stroke}"'
+                f' stroke-width="{frame_width:.2f}" />'
+            )
+
+        elif t == 'text':
+            placeholder = elem.get('placeholder', '')
+            if not placeholder:
+                return None
+            fs_pt = elem.get('fontSize_pt', 10)
+            fw = elem.get('fontWeight', 'normal')
+            ha = elem.get('hAlign', 'left')
+            fs_mm = fs_pt * 0.3528  # 1pt = 0.3528mm
+
+            anchor = 'start'
+            tx = x + 1
+            if ha == 'center':
+                anchor = 'middle'
+                tx = x + w / 2
+            elif ha == 'right':
+                anchor = 'end'
+                tx = x + w - 1
+            ty = y + h * 0.75  # Baseline
+
+            return (
+                f'  <text id="{eid}" x="{tx:.2f}" y="{ty:.2f}"'
+                f' font-family="{font_family}" font-size="{fs_mm:.2f}"'
+                f' font-weight="{fw}" text-anchor="{anchor}"'
+                f' fill="#000000">{placeholder}</text>'
+            )
+
+        elif t in ('northArrow', 'scaleBar', 'scaleLabel'):
+            return (
+                f'  <!-- Dynamisch: {eid} ({t}) -->\n'
+                f'  <rect id="{eid}" x="{x:.2f}" y="{y:.2f}"'
+                f' width="{w:.2f}" height="{h:.2f}"'
+                f' fill="none" stroke="#FF0000" stroke-width="0.2"'
+                f' data-dynamic-type="{t}" />'
+            )
+
+        elif t == 'shape':
+            fill = elem.get('fillColor', 'none')
+            stroke = elem.get('strokeColor', '#000000')
+            sw = elem.get('strokeWidth', 0.3)
+            dash = elem.get('strokeDasharray', '')
+            s = (
+                f'  <rect id="{eid}" x="{x:.2f}" y="{y:.2f}"'
+                f' width="{w:.2f}" height="{h:.2f}"'
+                f' fill="{fill}" stroke="{stroke}"'
+                f' stroke-width="{sw:.2f}"'
+            )
+            if dash:
+                s += f' stroke-dasharray="{dash}"'
+            return s + ' />'
+
+        elif t == 'image':
+            href = elem.get('_base64Data', '')
+            if not href:
+                return f'  <!-- Bild ohne Daten: {eid} -->'
+            return (
+                f'  <image id="{eid}" x="{x:.2f}" y="{y:.2f}"'
+                f' width="{w:.2f}" height="{h:.2f}"'
+                f' preserveAspectRatio="xMidYMid meet"'
+                f' xlink:href="{href}" />'
+            )
+
+        return f'  <!-- Unbekannt: {eid} ({t}) -->'
 
     # ================================================================== #
     #  Platzhalter temporär setzen / wiederherstellen                      #
@@ -1104,35 +1426,19 @@ class LayoutExportDialog(QDialog):
                     continue
 
                 if fmt == "svg":
-                    s = QgsLayoutExporter.SvgExportSettings()
-                    s.dpi = 300
-                    s.exportAsLayers = False
-                    # ── Text als Text exportieren (NICHT als Pfade!) ──
-                    # Damit bleiben <text>/<tspan>-Elemente im SVG erhalten
-                    # und können vom WebGIS dynamisch ersetzt werden.
-                    try:
-                        s.textRenderFormat = QgsRenderContext.TextFormatAlwaysText
-                    except AttributeError:
-                        try:
-                            from qgis.core import Qgis
-                            s.textRenderFormat = Qgis.TextRenderFormat.AlwaysText
-                        except (ImportError, AttributeError):
-                            print("[LayoutExporter] WARNUNG: textRenderFormat "
-                                  "nicht verfügbar (QGIS < 3.12)")
-                    result = exporter.exportToSvg(filepath, s)
-                    if result == QgsLayoutExporter.Success:
-                        # SVG nachbearbeiten: IDs hinzufügen
-                        self._postprocess_svg(filepath, layout_info)
-                        # Rote Bbox-Rects für versteckte Elemente einfügen
-                        if hidden_graphics:
-                            self._inject_svg_bboxes(
-                                filepath, hidden_graphics, layout_info
-                            )
-                        exported.append(filepath)
-                    else:
-                        raise RuntimeError(
-                            f"{filename} fehlgeschlagen (Code {result})"
-                        )
+                    # ── Clean SVG direkt aus Layout-Elementen ──
+                    # Kein QgsLayoutExporter — alle Element-Eigenschaften
+                    # werden direkt aus dem QGIS-Layout gelesen und als
+                    # flache, ungruppierte SVG-Elemente mit exakten IDs,
+                    # Massen und Positionen geschrieben.
+                    svg_content = self._build_clean_svg(
+                        layout, layout_info, elements
+                    )
+                    with open(filepath, 'w', encoding='utf-8') as f:
+                        f.write(svg_content)
+                    exported.append(filepath)
+                    print(f"[LayoutExporter] Clean SVG: "
+                          f"{os.path.basename(filepath)}")
                 else:
                     s = QgsLayoutExporter.PdfExportSettings()
                     s.dpi = 300
