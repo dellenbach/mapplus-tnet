@@ -4,5 +4,6 @@
         "git commit": true,
         "git push": true
     },
-    "python-envs.pythonProjects": []
+    "python-envs.pythonProjects": [],
+    "chat.agent.maxRequests": 50
 }

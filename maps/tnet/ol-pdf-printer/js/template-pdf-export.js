@@ -370,6 +370,78 @@
     return svgText;
   }
 
+  /**
+   * Bereinigt QGIS-SVG-Export:
+   * - Entfernt leere <g>-Gruppen (QGIS-Rendering-Artefakte)
+   * - Normalisiert Schriftarten auf einheitliche sans-serif Familie
+   * - Entfernt überflüssige Font-Attribute von Container-Gruppen
+   *
+   * @param {string} svgText - SVG-Quelltext
+   * @returns {string} Bereinigter SVG-Text
+   */
+  function cleanupSvg(svgText) {
+    var parser = new DOMParser();
+    var doc = parser.parseFromString(svgText, 'image/svg+xml');
+    var changed = false;
+
+    // Einheitliche Schriftfamilie (serifenlos)
+    var targetFont = "'Segoe UI', Arial, Helvetica, sans-serif";
+
+    // 1. Leere <g>-Elemente entfernen (mehrere Durchläufe für Verschachtelung)
+    var removedCount = 0;
+    for (var pass = 0; pass < 5; pass++) {
+      var emptyGroups = doc.querySelectorAll('g');
+      var removedThisPass = 0;
+      for (var i = emptyGroups.length - 1; i >= 0; i--) {
+        var g = emptyGroups[i];
+        // Leer = keine Kind-Elemente (Text-Nodes zählen nicht)
+        if (g.children.length === 0 && g.childElementCount === 0) {
+          g.parentNode.removeChild(g);
+          removedThisPass++;
+          changed = true;
+        }
+      }
+      removedCount += removedThisPass;
+      if (removedThisPass === 0) break;
+    }
+    if (removedCount > 0) {
+      console.log('[TemplatePDF] SVG-Cleanup:', removedCount, 'leere <g>-Elemente entfernt');
+    }
+
+    // 2. Schriftarten normalisieren
+    var fontElements = doc.querySelectorAll('[font-family]');
+    for (var j = 0; j < fontElements.length; j++) {
+      var el = fontElements[j];
+      var ff = el.getAttribute('font-family');
+      // System-Fonts und generische Fonts ersetzen
+      if (ff && /MS Shell Dlg|Helvetica|Arial|sans-serif/i.test(ff)) {
+        el.setAttribute('font-family', targetFont);
+        changed = true;
+      }
+    }
+
+    // 3. font-family in style-Attributen normalisieren
+    var styledEls = doc.querySelectorAll('[style]');
+    for (var k = 0; k < styledEls.length; k++) {
+      var style = styledEls[k].getAttribute('style');
+      if (!style || style.indexOf('font-family') < 0) continue;
+      var newStyle = style.replace(
+        /font-family\s*:\s*(?:'[^']*'|"[^"]*"|[^;]+)/g,
+        'font-family: ' + targetFont
+      );
+      if (newStyle !== style) {
+        styledEls[k].setAttribute('style', newStyle);
+        changed = true;
+      }
+    }
+
+    if (changed) {
+      console.log('[TemplatePDF] SVG-Cleanup: Fonts normalisiert auf', targetFont);
+      return new XMLSerializer().serializeToString(doc);
+    }
+    return svgText;
+  }
+
   // ---------------------------------------------------------------- //
   //  OL Map → Canvas                                                  //
   // ---------------------------------------------------------------- //
@@ -377,7 +449,11 @@
   function renderMapCanvas(map, scale, options) {
     scale = scale || 1;
     options = options || {};
+    var printDpi = options.dpi || 150;
     return new Promise(function (resolve) {
+      // Originale DPI-Parameter merken (für spätere Wiederherstellung)
+      var origDpiParams = [];
+
       // Alle sichtbaren Tile-/WMS-Quellen aktualisieren,
       // damit sie den neuen Viewport-Extent anfragen.
       // VectorSource NICHT refreshen — sonst werden manuell
@@ -389,7 +465,27 @@
           // VectorSource hat getFeatures() — diese überspringen
           if (typeof src.getFeatures === 'function') return;
           if (typeof src.updateParams === 'function') {
-            src.updateParams(src.getParams());
+            // WMS/ArcGIS-Quelle: DPI-Parameter für hochauflösenden Druck
+            var params = src.getParams();
+            var origParams = Object.assign({}, params);
+            origDpiParams.push({ source: src, params: origParams });
+
+            // WMS: FORMAT_OPTIONS mit dpi
+            // ArcGIS MapServer (via WMS): DPI-Parameter
+            var newParams = Object.assign({}, params);
+            if (printDpi > 96) {
+              // GeoServer/MapServer WMS
+              newParams['FORMAT_OPTIONS'] = 'dpi:' + printDpi;
+              // QGIS Server
+              newParams['DPI'] = printDpi;
+              // ArcGIS MapServer (exportMap)
+              newParams['dpi'] = printDpi;
+              // Kartenbreite/-höhe skalieren falls vorhanden
+              if (newParams['WIDTH']) newParams['WIDTH'] = Math.round(newParams['WIDTH'] * printDpi / 96);
+              if (newParams['HEIGHT']) newParams['HEIGHT'] = Math.round(newParams['HEIGHT'] * printDpi / 96);
+            }
+            src.updateParams(newParams);
+            console.log('[TemplatePDF] Source DPI gesetzt:', printDpi, 'für', src.constructor.name || 'WMS');
           } else if (typeof src.refresh === 'function') {
             src.refresh();
           }
@@ -433,6 +529,16 @@
               ctx.drawImage(lc, 0, 0);
             }
           }
+
+          // DPI-Parameter der Quellen wiederherstellen
+          origDpiParams.forEach(function (entry) {
+            entry.source.updateParams(entry.params);
+          });
+          if (origDpiParams.length > 0) {
+            console.log('[TemplatePDF] Source DPI wiederhergestellt für',
+              origDpiParams.length, 'Quellen');
+          }
+
           resolve(canvas);
         });
         map.renderSync();
@@ -985,6 +1091,9 @@
         // 6. Font-Sizes normalisieren (QGIS SVG-px → pt)
         processedSvg = normalizeSvgFonts(processedSvg, paperW, paperH);
 
+        // 7. SVG-Cleanup: leere Gruppen entfernen, Fonts vereinheitlichen
+        processedSvg = cleanupSvg(processedSvg);
+
         // Prüfen ob noch unreplatzierte {{…}} vorhanden → PDF-Overlay nötig
         var needPdfOverlay = /\{\{(TITLE|SCALE|COORDINATES|DATE)\}\}/.test(processedSvg);
         if (needPdfOverlay) {
@@ -1045,7 +1154,8 @@
 
         return renderMapCanvas(map, scaleFactor, {
           center: desiredCenter,
-          resolution: desiredRes
+          resolution: desiredRes,
+          dpi: dpi
         }).then(function (mapCanvas) {
           // Viewport wiederherstellen
           mapTarget.style.width = origW;
