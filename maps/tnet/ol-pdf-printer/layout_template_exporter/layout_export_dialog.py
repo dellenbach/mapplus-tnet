@@ -1189,6 +1189,9 @@ class LayoutExportDialog(QDialog):
         Identifikator, Massen und Plazierung als SVG-Element exportiert.
 
         ViewBox in mm — Positionen entsprechen direkt mm auf dem Papier.
+        
+        SVG-Z-Order (Reihenfolge): Shapes/Borders → Map → Text → Images → 
+        Dynamic(northArrow/scaleBar/scaleLabel) — späte Elemente liegen oben.
         """
         w = layout_info['width_mm']
         h = layout_info['height_mm']
@@ -1211,11 +1214,24 @@ class LayoutExportDialog(QDialog):
             f' width="{w}" height="{h}" fill="#ffffff" />',
         ]
 
-        # Elemente nach Z-Order sortieren (niedrigste = Hintergrund)
-        sorted_elems = sorted(
-            elements,
-            key=lambda e: e.get('_zOrder', 0)
-        )
+        # ── Sortierung: Shapes → Map → Text → Images → Dynamic ──
+        # Damit überlagern später-definierte Elemente früher-definierte
+        order = {
+            'shape': 0,        # Rahmen/Hintergründe zuerst (unten)
+            'map': 1,          # Kartenfläche
+            'text': 2,         # Text-Platzhalter
+            'image': 3,        # Bilder/Logos
+            'scaleBar': 4,     # Dynamische Elemente
+            'scaleLabel': 5,
+            'northArrow': 6,
+        }
+        
+        def sort_key(elem):
+            t = elem.get('type', 'unknown')
+            # Sortiere nach type-Reihenfolge, dann nach _zOrder
+            return (order.get(t, 99), elem.get('_zOrder', 0))
+        
+        sorted_elems = sorted(elements, key=sort_key)
 
         for elem in sorted_elems:
             svg_el = self._element_to_svg(elem, font)
