@@ -48,13 +48,14 @@
 
   /**
    * Lädt Manifest-Daten:
-   * 1. Versuch: scan-manifests.php (rekursiv, einzelne *.manifest.json)
+   * 1. Versuch: php/scan-manifests.php (scannt einzelne *.manifest.json)
    * 2. Fallback: manifest.json (legacy, altes Gesamtmanifest)
    */
   function loadManifest() {
     if (_manifestCache) return Promise.resolve(_manifestCache);
 
-    var scanUrl = CONFIG.templatesBasePath + '/scan-manifests.php';
+    // PHP liegt in tnet/php/, nicht im Templates-Verzeichnis
+    var scanUrl = 'php/scan-manifests.php';
     var legacyUrl = CONFIG.templatesBasePath + '/manifest.json';
 
     return fetch(scanUrl)

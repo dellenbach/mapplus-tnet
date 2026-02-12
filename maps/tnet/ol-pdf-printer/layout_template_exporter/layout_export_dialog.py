@@ -671,6 +671,44 @@ class LayoutExportDialog(QDialog):
             return value * 0.352778
         return value  # Fallback: annehmen mm
 
+    def _get_item_rect_mm(self, item):
+        """Gibt (x, y, w, h) in mm zurück, immer bezogen auf TOP-LEFT.
+
+        Berücksichtigt den ReferencePoint des Items:
+        - UpperLeft/Middle/Right (0-2): y = pos_y
+        - MiddleLeft/Center/Right (3-5): y = pos_y - h/2
+        - LowerLeft/Center/Right (6-8): y = pos_y - h
+        Analog für x-Achse (Left/Center/Right).
+        """
+        pos = item.positionWithUnits()
+        sz = item.sizeWithUnits()
+        x = self._to_mm(pos.x(), pos.units())
+        y = self._to_mm(pos.y(), pos.units())
+        w = self._to_mm(sz.width(), sz.units())
+        h = self._to_mm(sz.height(), sz.units())
+
+        # ReferencePoint: 0=UL 1=UM 2=UR 3=ML 4=M 5=MR 6=LL 7=LM 8=LR
+        ref = 0
+        if hasattr(item, 'referencePoint'):
+            try:
+                ref = int(item.referencePoint())
+            except (ValueError, TypeError):
+                ref = 0
+
+        # X-Korrektur: Center(1,4,7) → -w/2, Right(2,5,8) → -w
+        if ref in (1, 4, 7):
+            x -= w / 2
+        elif ref in (2, 5, 8):
+            x -= w
+
+        # Y-Korrektur: Middle(3,4,5) → -h/2, Lower(6,7,8) → -h
+        if ref in (3, 4, 5):
+            y -= h / 2
+        elif ref in (6, 7, 8):
+            y -= h
+
+        return (round(x, 2), round(y, 2), round(w, 2), round(h, 2))
+
     # ================================================================== #
     #  Element-Scanning: Layout-Items analysieren                         #
     # ================================================================== #
@@ -688,28 +726,20 @@ class LayoutExportDialog(QDialog):
 
         for item in layout.items():
             if isinstance(item, QgsLayoutItemMap):
-                pos = item.positionWithUnits()
-                sz = item.sizeWithUnits()
+                x, y, w, h = self._get_item_rect_mm(item)
                 elements.append({
                     "id": "MAP_AREA",
                     "type": "map",
                     "variable": "map",
-                    "x_mm": round(self._to_mm(pos.x(), pos.units()), 2),
-                    "y_mm": round(self._to_mm(pos.y(), pos.units()), 2),
-                    "width_mm": round(self._to_mm(sz.width(), sz.units()), 2),
-                    "height_mm": round(self._to_mm(sz.height(), sz.units()), 2),
+                    "x_mm": x, "y_mm": y,
+                    "width_mm": w, "height_mm": h,
                     "_layout_item": item,
                 })
 
             elif isinstance(item, QgsLayoutItemLabel):
                 item_id = item.id() if callable(getattr(item, 'id', None)) else ''
                 text = item.text()
-                pos = item.positionWithUnits()
-                sz = item.sizeWithUnits()
-                x = round(self._to_mm(pos.x(), pos.units()), 2)
-                y = round(self._to_mm(pos.y(), pos.units()), 2)
-                w = round(self._to_mm(sz.width(), sz.units()), 2)
-                h = round(self._to_mm(sz.height(), sz.units()), 2)
+                x, y, w, h = self._get_item_rect_mm(item)
 
                 # Font-Informationen extrahieren
                 font = item.font()
@@ -755,16 +785,13 @@ class LayoutExportDialog(QDialog):
             # ── Massstabsbalken ──
             elif isinstance(item, QgsLayoutItemScaleBar):
                 item_id = item.id() if callable(getattr(item, 'id', None)) else ''
-                pos = item.positionWithUnits()
-                sz = item.sizeWithUnits()
+                x, y, w, h = self._get_item_rect_mm(item)
                 elem = {
                     "id": item_id or "SCALE_BAR",
                     "type": "scaleBar",
                     "variable": "scaleBar",
-                    "x_mm": round(self._to_mm(pos.x(), pos.units()), 2),
-                    "y_mm": round(self._to_mm(pos.y(), pos.units()), 2),
-                    "width_mm": round(self._to_mm(sz.width(), sz.units()), 2),
-                    "height_mm": round(self._to_mm(sz.height(), sz.units()), 2),
+                    "x_mm": x, "y_mm": y,
+                    "width_mm": w, "height_mm": h,
                     "_layout_item": item,
                     "_is_graphic": True,
                 }
@@ -786,12 +813,7 @@ class LayoutExportDialog(QDialog):
                     or (hasattr(item, 'linkedMap') and
                         item.linkedMap() is not None)
                 )
-                pos = item.positionWithUnits()
-                sz = item.sizeWithUnits()
-                x = round(self._to_mm(pos.x(), pos.units()), 2)
-                y = round(self._to_mm(pos.y(), pos.units()), 2)
-                w = round(self._to_mm(sz.width(), sz.units()), 2)
-                h = round(self._to_mm(sz.height(), sz.units()), 2)
+                x, y, w, h = self._get_item_rect_mm(item)
                 if is_north:
                     elem = {
                         "id": item_id or "NORTH_ARROW",
@@ -825,16 +847,13 @@ class LayoutExportDialog(QDialog):
             # ── Shapes (Rahmen, Hintergründe, Dekorationen) ──
             elif isinstance(item, QgsLayoutItemShape):
                 item_id = item.id() if callable(getattr(item, 'id', None)) else ''
-                pos = item.positionWithUnits()
-                sz = item.sizeWithUnits()
+                x, y, w, h = self._get_item_rect_mm(item)
                 style = self._extract_symbol_style(item)
                 elem = {
                     "id": item_id or f"SHAPE_{len(elements)}",
                     "type": "shape",
-                    "x_mm": round(self._to_mm(pos.x(), pos.units()), 2),
-                    "y_mm": round(self._to_mm(pos.y(), pos.units()), 2),
-                    "width_mm": round(self._to_mm(sz.width(), sz.units()), 2),
-                    "height_mm": round(self._to_mm(sz.height(), sz.units()), 2),
+                    "x_mm": x, "y_mm": y,
+                    "width_mm": w, "height_mm": h,
                     **style,
                     "_layout_item": item,
                 }
@@ -1188,7 +1207,8 @@ class LayoutExportDialog(QDialog):
     def _render_layout_item_to_base64(self, item, dpi=150):
         """Fallback: Rendert ein QgsLayoutItem über renderRegionToImage.
 
-        Extrahiert den Bereich des Items aus dem gerenderten Layout.
+        Verwendet _get_item_rect_mm für korrekte Top-Left-Koordinaten
+        (ReferencePoint-Korrektur).
         """
         try:
             from qgis.PyQt.QtCore import QRectF
@@ -1197,12 +1217,7 @@ class LayoutExportDialog(QDialog):
             if not layout:
                 return None
 
-            pos = item.positionWithUnits()
-            sz = item.sizeWithUnits()
-            x = self._to_mm(pos.x(), pos.units())
-            y = self._to_mm(pos.y(), pos.units())
-            w = self._to_mm(sz.width(), sz.units())
-            h = self._to_mm(sz.height(), sz.units())
+            x, y, w, h = self._get_item_rect_mm(item)
             if w < 0.5 or h < 0.5:
                 return None
 
@@ -1336,6 +1351,19 @@ class LayoutExportDialog(QDialog):
             if svg_el:
                 lines.append('')
                 lines.append(svg_el)
+
+        # ── Copyright-Zeile (unten rechts) ──
+        copyright_text = '\u00a9 Trigonet AG'
+        cr_fs = 1.6  # Font-size in mm (~4.5pt)
+        cr_x = w - 5  # 5mm vom rechten Rand
+        cr_y = h - 1.5  # 1.5mm vom unteren Rand
+        lines.append('')
+        lines.append(
+            f'  <text id="COPYRIGHT" x="{cr_x:.2f}" y="{cr_y:.2f}"'
+            f' font-family="{font}" font-size="{cr_fs:.2f}"'
+            f' text-anchor="end" fill="#666666"'
+            f' opacity="0.8">{copyright_text}</text>'
+        )
 
         lines.append('')
         lines.append('</svg>')
