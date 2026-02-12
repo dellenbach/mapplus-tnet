@@ -2,9 +2,9 @@
 name=Layout Template Exporter
 qgisMinimumVersion=3.0
 description=Exportiert leere Layout-Vorlagen (A4–A0) als SVG/PDF für Web-App-Templates (ol-pdf-printer).
-version=1.2.1
-author=OL-Printer Team
-email=info@example.com
+version=1.4.0
+author=Trigonet AG / Marco Dellenbach
+email=info@trigonet.ch
 
 about=Erzeugt leere QGIS-Layouts mit Platzhaltern (Kartenfläche, Titelblock, Legende, Logo, Maßstab) und exportiert diese als SVG oder PDF. Die Templates können anschließend in einer Web-App (z.B. ol-pdf-printer) als statische Vorlagen verwendet werden.
 
@@ -12,6 +12,15 @@ tracker=https://github.com/example/layout-template-exporter/issues
 repository=https://github.com/example/layout-template-exporter
 
 changelog=
+    1.4.0 - 13.02.2026
+        * Fix: Nordpfeil-Erkennung (linkedMap-Check für QGIS-Nordpfeile)
+        * Neu: Automatischer Nordpfeil-Platzhalter wenn keiner erkannt
+        * Fix: Logo/Bild-Export mit Rendering-Fallback (renderRegionToImage)
+        * Fix: Verbesserte Bildpfad-Auflösung (SVG-Suchpfade + pkgDataPath)
+        * Fix: Zentrale manifest.json im übergeordneten Verzeichnis
+        * Fix: Relative Dateipfade inkl. Unterordner-Prefix im Manifest
+        * Manifest-Version 1.4 (zentrales Format)
+        * Copyright: Trigonet AG
     1.2.1 - 11.02.2026
         * Fix: Syntax-Fehler in Koordinaten-Regex (Unicode-Apostroph)
         * Neu: {{SCALE_BAR}} Platzhalter für grafischen Massstabsbalken

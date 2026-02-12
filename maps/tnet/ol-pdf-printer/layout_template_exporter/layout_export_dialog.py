@@ -11,6 +11,11 @@ Erzeugte Struktur pro Zielordner:
     ├── layout_a3_landscape.svg
     ├── …
     └── manifest.json            ← Konfig für die Web-App
+
+@version    1.4
+@date       2026-02-13
+@copyright  Trigonet AG
+@author     Marco Dellenbach
 """
 
 import json
@@ -114,7 +119,7 @@ class LayoutExportDialog(QDialog):
         self.setWindowTitle(self.tr("Layout-Vorlagen für Druckdienst exportieren"))
         self.setMinimumWidth(580)
         self.setMinimumHeight(640)
-        self.plugin_version = "1.2.1"
+        self.plugin_version = "1.4.0"
         # Lokale Zeit automatisch setzen
         from datetime import datetime as _dt
         self.plugin_date = _dt.now().strftime("%d.%m.%Y %H:%M")
@@ -759,6 +764,9 @@ class LayoutExportDialog(QDialog):
                     or 'NORDPFEIL' in (item_id or '').upper()
                     or 'north' in pic_path.lower()
                     or 'arrow' in pic_path.lower()
+                    # Verknüpfung mit Kartenelement (QGIS-Nordpfeil)
+                    or (hasattr(item, 'linkedMap') and
+                        item.linkedMap() is not None)
                 )
                 pos = item.positionWithUnits()
                 sz = item.sizeWithUnits()
@@ -817,6 +825,31 @@ class LayoutExportDialog(QDialog):
                 elem["_zOrder"] = li.zValue()
             else:
                 elem.setdefault("_zOrder", 0)
+
+        # ── Nordpfeil-Fallback: wenn kein Nordpfeil erkannt wurde ──
+        has_north = any(
+            e.get('type') == 'northArrow' for e in elements
+        )
+        if not has_north:
+            # Nordpfeil links unten auf der Seite platzieren
+            # (ca. 30mm über dem unteren Seitenrand)
+            na_x = MARGIN + 5
+            na_y = h_mm - MARGIN - 30
+            na_w, na_h = 12.0, 15.0
+            elements.append({
+                "id": "NORTH_ARROW",
+                "type": "northArrow",
+                "variable": "northArrow",
+                "x_mm": round(na_x, 2),
+                "y_mm": round(na_y, 2),
+                "width_mm": na_w,
+                "height_mm": na_h,
+                "_is_graphic": True,
+                "_zOrder": 999,
+                "_auto_generated": True,
+            })
+            print(f"[LayoutExporter] Nordpfeil-Platzhalter "
+                  f"automatisch eingefügt @ ({na_x:.1f}, {na_y:.1f})")
 
         return elements
 
@@ -964,58 +997,143 @@ class LayoutExportDialog(QDialog):
 
         return result
 
-    def _get_picture_base64(self, item):
-        """Liest Bilddaten eines QgsLayoutItemPicture als base64.
+    def _resolve_picture_path(self, pic_path):
+        """Löst den Pfad eines QgsLayoutItemPicture auf.
 
-        Returns: 'data:image/...;base64,...' oder None
+        Durchsucht: absoluter Pfad → Projektverzeichnis → QGIS SVG-Pfade
+        → QGIS-Ressourcen (arrows/, symbols/) → pkgDataPath.
+
+        Returns: aufgelöster Pfad oder None
         """
-        pic_path = ''
-        if hasattr(item, 'picturePath'):
-            pic_path = item.picturePath() or ''
         if not pic_path:
             return None
 
-        # Relative Pfade auflösen
+        # 1. Absoluter Pfad direkt prüfen
+        if os.path.isabs(pic_path) and os.path.exists(pic_path):
+            return pic_path
+
+        # 2. Relativ zum QGIS-Projekt
         if not os.path.isabs(pic_path):
             project_dir = os.path.dirname(
                 QgsProject.instance().fileName() or '')
             if project_dir:
                 candidate = os.path.join(project_dir, pic_path)
                 if os.path.exists(candidate):
-                    pic_path = candidate
+                    return candidate
 
-        if not os.path.exists(pic_path):
-            # QGIS SVG-Suchpfade durchsuchen
-            from qgis.core import QgsApplication
-            for svg_dir in QgsApplication.svgPaths():
-                candidate = os.path.join(
-                    svg_dir, os.path.basename(pic_path))
+        # 3. QGIS SVG-Suchpfade
+        from qgis.core import QgsApplication
+        basename = os.path.basename(pic_path)
+        for svg_dir in QgsApplication.svgPaths():
+            candidate = os.path.join(svg_dir, basename)
+            if os.path.exists(candidate):
+                return candidate
+            # Auch in Unterverzeichnissen suchen (arrows/, symbols/)
+            for sub in ('arrows', 'symbols', 'sketches'):
+                candidate = os.path.join(svg_dir, sub, basename)
                 if os.path.exists(candidate):
-                    pic_path = candidate
-                    break
+                    return candidate
 
-        if not os.path.exists(pic_path):
-            print(f"[LayoutExporter] Bild nicht gefunden: {pic_path}")
-            return None
+        # 4. QGIS pkgDataPath/resources/
+        pkg_dir = QgsApplication.pkgDataPath()
+        if pkg_dir:
+            for sub in ('svg', 'svg/arrows', 'svg/symbols',
+                        'resources', 'resources/arrows'):
+                candidate = os.path.join(pkg_dir, sub, basename)
+                if os.path.exists(candidate):
+                    return candidate
 
-        ext = os.path.splitext(pic_path)[1].lower()
-        if ext == '.svg':
-            return self._render_svg_to_png_base64(pic_path, item)
+        # 5. Original-Pfad nochmals prüfen (falls doch existent)
+        if os.path.exists(pic_path):
+            return pic_path
 
-        # Raster (PNG, JPEG) direkt lesen
+        return None
+
+    def _get_picture_base64(self, item):
+        """Liest Bilddaten eines QgsLayoutItemPicture als base64.
+
+        Versucht: 1) Datei direkt lesen, 2) SVG rendern,
+        3) Fallback: Item über QGIS-Layout-Region rendern.
+
+        Returns: 'data:image/...;base64,...' oder None
+        """
+        pic_path = ''
+        if hasattr(item, 'picturePath'):
+            pic_path = item.picturePath() or ''
+
+        resolved = self._resolve_picture_path(pic_path)
+        if resolved:
+            ext = os.path.splitext(resolved)[1].lower()
+            if ext == '.svg':
+                result = self._render_svg_to_png_base64(resolved, item)
+                if result:
+                    return result
+            else:
+                try:
+                    with open(resolved, 'rb') as f:
+                        raw = f.read()
+                    mime = (
+                        'image/jpeg' if ext in ('.jpg', '.jpeg')
+                        else 'image/png'
+                    )
+                    return (
+                        f'data:{mime};base64,'
+                        + base64.b64encode(raw).decode('ascii')
+                    )
+                except IOError as e:
+                    print(f"[LayoutExporter] Bild lesen fehlgeschlagen: "
+                          f"{e}")
+
+        # Fallback: Item direkt über Layout-Region rendern
+        print(f"[LayoutExporter] Bild nicht gefunden: {pic_path} "
+              f"→ Fallback-Rendering")
+        return self._render_layout_item_to_base64(item)
+
+    def _render_layout_item_to_base64(self, item, dpi=150):
+        """Fallback: Rendert ein QgsLayoutItem über renderRegionToImage.
+
+        Extrahiert den Bereich des Items aus dem gerenderten Layout.
+        """
         try:
-            with open(pic_path, 'rb') as f:
-                raw = f.read()
-            mime = (
-                'image/jpeg' if ext in ('.jpg', '.jpeg')
-                else 'image/png'
-            )
-            return (
-                f'data:{mime};base64,'
-                + base64.b64encode(raw).decode('ascii')
-            )
-        except IOError as e:
-            print(f"[LayoutExporter] Bild lesen fehlgeschlagen: {e}")
+            from qgis.PyQt.QtCore import QRectF
+
+            layout = item.layout()
+            if not layout:
+                return None
+
+            pos = item.positionWithUnits()
+            sz = item.sizeWithUnits()
+            x = self._to_mm(pos.x(), pos.units())
+            y = self._to_mm(pos.y(), pos.units())
+            w = self._to_mm(sz.width(), sz.units())
+            h = self._to_mm(sz.height(), sz.units())
+            if w < 0.5 or h < 0.5:
+                return None
+
+            region = QRectF(x, y, w, h)
+            exporter = QgsLayoutExporter(layout)
+            img = exporter.renderRegionToImage(region, dpi=dpi)
+
+            if img is None or img.isNull():
+                print("[LayoutExporter] Fallback-Rendering: leeres Bild")
+                return None
+
+            from qgis.PyQt.QtCore import QBuffer, QByteArray
+            ba = QByteArray()
+            buf = QBuffer(ba)
+            buf.open(QBuffer.WriteOnly)
+            img.save(buf, 'PNG')
+            buf.close()
+
+            b64 = base64.b64encode(bytes(ba)).decode('ascii')
+            print(f"[LayoutExporter] Fallback-Rendering OK: "
+                  f"{img.width()}×{img.height()} px, "
+                  f"{len(b64)} Bytes base64")
+            return f'data:image/png;base64,{b64}'
+
+        except Exception as e:
+            print(f"[LayoutExporter] Fallback-Rendering fehlgeschlagen: "
+                  f"{e}")
             return None
 
     def _render_svg_to_png_base64(self, svg_path, item, dpi=300):
@@ -1071,7 +1189,7 @@ class LayoutExportDialog(QDialog):
             f'     width="{w}mm" height="{h}mm"',
             f'     viewBox="0 0 {w} {h}"',
             f'     version="1.1">',
-            f'  <!-- Generated by LayoutTemplateExporter v1.3 -->',
+            f'  <!-- Generated by LayoutTemplateExporter v1.4 -->',
             f'  <!-- Paper: {layout_info.get("paper", "?")} '
             f'{layout_info.get("orientation", "?")} '
             f'({w} x {h} mm) -->',
@@ -1181,7 +1299,15 @@ class LayoutExportDialog(QDialog):
         elif t == 'image':
             href = elem.get('_base64Data', '')
             if not href:
-                return f'  <!-- Bild ohne Daten: {eid} -->'
+                # Platzhalter-Rect statt unsichtbarem Kommentar
+                return (
+                    f'  <!-- Bild-Platzhalter: {eid} -->\n'
+                    f'  <rect id="{eid}" x="{x:.2f}" y="{y:.2f}"'
+                    f' width="{w:.2f}" height="{h:.2f}"'
+                    f' fill="#EEEEEE" stroke="#999999"'
+                    f' stroke-width="0.2"'
+                    f' data-image-placeholder="true" />'
+                )
             return (
                 f'  <image id="{eid}" x="{x:.2f}" y="{y:.2f}"'
                 f' width="{w:.2f}" height="{h:.2f}"'
@@ -1456,23 +1582,32 @@ class LayoutExportDialog(QDialog):
             self._restore_graphic_elements(hidden_graphics)
 
         if self.chk_manifest.isChecked():
-            self._write_manifest(target_dir, base_filename, layout_info)
+            # Zentrales manifest.json im übergeordneten Verzeichnis
+            manifest_base = os.path.dirname(target_dir)
+            rel_prefix = os.path.basename(target_dir)
+            self._write_manifest(manifest_base, base_filename,
+                                 layout_info, target_dir, rel_prefix)
 
         return exported
 
     # ================================================================== #
     #  manifest.json                                                       #
     # ================================================================== #
-    def _write_manifest(self, target_dir, base_filename, layout_info):
-        """Erzeugt / aktualisiert manifest.json im Zielordner.
+    def _write_manifest(self, manifest_dir, base_filename, layout_info,
+                        files_dir, rel_prefix=""):
+        """Erzeugt / aktualisiert EIN zentrales manifest.json.
 
-        Version 1.3: Enthält neu ein «elements»-Array pro Template mit
-        vollständigen Metadaten zu allen dynamischen Elementen (Position,
-        Grösse, Font, Variable, Platzhalter).
+        Version 1.4: Schreibt manifest.json ins übergeordnete Verzeichnis
+        (z.B. ol-pdf-printer/) statt pro Template-Ordner.  Dateipfade
+        enthalten den relativen Unterordner-Prefix.
+
+        manifest_dir : Verzeichnis für manifest.json (z.B. ol-pdf-printer/)
+        files_dir    : Verzeichnis mit den SVG/PDF-Dateien
+        rel_prefix   : Unterordner (z.B. 'qgis-templates')
 
         {
-          "version": "1.3",
-          "generated": "2026-02-11T…",
+          "version": "1.4",
+          "generated": "2026-02-13T…",
           "templates": [{
             "name": "layout_a4_portrait",
             "title": "A4 Hoch",
@@ -1488,13 +1623,13 @@ class LayoutExportDialog(QDialog):
                 "fontWeight": "bold", "hAlign": "center" },
               …
             ],
-            "files": { "svg": "layout_a4_portrait.svg" }
+            "files": { "svg": "qgis-templates/layout_a4_portrait.svg" }
           }]
         }
         """
-        manifest_path = os.path.join(target_dir, "manifest.json")
+        manifest_path = os.path.join(manifest_dir, "manifest.json")
 
-        manifest = {"version": "1.3", "generated": "", "templates": []}
+        manifest = {"version": "1.4", "generated": "", "templates": []}
         if os.path.exists(manifest_path):
             try:
                 with open(manifest_path, "r", encoding="utf-8") as f:
@@ -1502,6 +1637,7 @@ class LayoutExportDialog(QDialog):
             except (json.JSONDecodeError, IOError):
                 pass
 
+        manifest["version"] = "1.4"
         manifest["generated"] = datetime.now().isoformat(timespec="seconds")
 
         # Bestehendes Template aktualisieren oder neu einfügen
@@ -1511,12 +1647,15 @@ class LayoutExportDialog(QDialog):
                 existing_idx = i
                 break
 
-        svg_dir = target_dir
         files = {}
         for fmt in ["svg", "pdf"]:
-            fpath = os.path.join(svg_dir, f"{base_filename}.{fmt}")
+            fpath = os.path.join(files_dir, f"{base_filename}.{fmt}")
             if os.path.exists(fpath):
-                files[fmt] = f"{base_filename}.{fmt}"
+                # Pfad relativ zum Manifest-Verzeichnis
+                fname = f"{base_filename}.{fmt}"
+                if rel_prefix:
+                    fname = f"{rel_prefix}/{fname}"
+                files[fmt] = fname
 
         entry = {
             "name": base_filename,
