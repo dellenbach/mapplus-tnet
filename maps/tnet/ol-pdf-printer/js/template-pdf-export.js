@@ -20,6 +20,11 @@
  *      i) Gibt PDF als Blob zurück (kein Auto-Download)
  *
  * Benötigt: jsPDF (global: jspdf), svg2pdf.js, OpenLayers (global: ol)
+ *
+ * @version    1.3
+ * @date       2026-02-12
+ * @copyright  Trigonet AG
+ * @author     Marco Dellenbach
  */
 
 (function () {
@@ -829,8 +834,17 @@
       setTimeout(function () {
         // Center + Resolution nochmals erzwingen
         // (verhindert Drift während Tile-Refresh)
-        if (options.center) map.getView().setCenter(options.center);
-        if (options.resolution) map.getView().setResolution(options.resolution);
+        // view.fit() umgeht constrainResolution → exakte Resolution
+        if (options.fitExtent) {
+          map.getView().fit(options.fitExtent, {
+            size: map.getSize(),
+            constrainResolution: false,
+            nearest: false
+          });
+        } else if (options.center || options.resolution) {
+          if (options.center) map.getView().setCenter(options.center);
+          if (options.resolution) map.getView().setResolution(options.resolution);
+        }
 
         map.once('rendercomplete', function () {
           var size = map.getSize();
@@ -1523,19 +1537,43 @@
           mapTarget.style.height = targetVpH + 'px';
           mapTarget.style.overflow = 'hidden';
           map.updateSize();
-          map.getView().setCenter(desiredCenter);
-          map.getView().setResolution(desiredRes);
 
-          console.log('[TemplatePDF] Client-Rendering — Resolution:',
-            map.getView().getResolution().toFixed(6),
-            '(Soll:', desiredRes.toFixed(6) + ')',
+          // view.fit() mit constrainResolution:false umgeht View-Constraints
+          // (diskrete Zoom-Stufen), die view.setResolution() auf den naechsten
+          // erlaubten Wert snappen wuerden → exakter Massstab im PDF.
+          // Extent = Viewport-Groesse × desiredRes (bei Rotation: vergroessert)
+          var fitHalfW = targetVpW * desiredRes / (2 * mpu);
+          var fitHalfH = targetVpH * desiredRes / (2 * mpu);
+          var fitExtent = [
+            desiredCenter[0] - fitHalfW,
+            desiredCenter[1] - fitHalfH,
+            desiredCenter[0] + fitHalfW,
+            desiredCenter[1] + fitHalfH
+          ];
+          map.getView().fit(fitExtent, {
+            size: [targetVpW, targetVpH],
+            constrainResolution: false,
+            nearest: false
+          });
+
+          var actualRes = map.getView().getResolution();
+          var resDelta = Math.abs(actualRes - desiredRes);
+          console.log('[TemplatePDF] Client-Rendering — view.fit():',
+            'Resolution:', actualRes.toFixed(6),
+            '(Soll:', desiredRes.toFixed(6) + ',',
+            'Delta:', resDelta.toFixed(8) + ')',
             'Center:', map.getView().getCenter()[0].toFixed(1) +
-            ' / ' + map.getView().getCenter()[1].toFixed(1));
+            ' / ' + map.getView().getCenter()[1].toFixed(1),
+            'Extent:', (fitHalfW * 2).toFixed(1) + ' × ' + (fitHalfH * 2).toFixed(1), 'm');
+          if (resDelta > 1e-6) {
+            console.warn('[TemplatePDF] Resolution weicht ab! PDF-Massstab wird ungenau.');
+          }
 
           var scaleFactor = 1;
           renderPromise = renderMapCanvas(map, scaleFactor, {
             center: desiredCenter,
             resolution: desiredRes,
+            fitExtent: fitExtent,
             dpi: dpi
           }).then(function (mapCanvas) {
             return { canvas: mapCanvas, needsRestore: true };

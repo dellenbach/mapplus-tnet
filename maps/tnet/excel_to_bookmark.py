@@ -1,10 +1,17 @@
 #!/usr/bin/env python3
 """
+excel_to_bookmark.py
 Konvertiert Table2.xlsx in bookmark.json-Dateien
+
 Spalten in Excel:
 - Webkarte: Bookmarkname oder Aliases
 - Pfad_ArcGIS_Server: Layers (komma-separiert)
 - Optional: basemap, theme, subtheme
+
+@version    1.0
+@date       2026-02-12
+@copyright  Trigonet AG
+@author     Marco Dellenbach
 """
 
 import openpyxl

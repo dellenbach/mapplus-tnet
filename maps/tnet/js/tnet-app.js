@@ -1,3 +1,12 @@
+/**
+ * tnet-app.js
+ * Grundkarten- und AppManager-Initialisierung für TNET WebGIS
+ *
+ * @version    1.0
+ * @date       2026-02-12
+ * @copyright  Trigonet AG
+ * @author     Marco Dellenbach
+ */
 // --- Grundkarten-Layer beim Laden standardmäßig aus ---
 document.addEventListener('DOMContentLoaded', function() {
     try {

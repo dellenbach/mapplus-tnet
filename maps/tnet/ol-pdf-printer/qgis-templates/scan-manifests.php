@@ -8,6 +8,11 @@
  *
  * Aufruf: GET scan-manifests.php
  * Rückgabe: JSON { version, generated, templates: [...], count, source }
+ *
+ * @version    1.0
+ * @date       2026-02-12
+ * @copyright  Trigonet AG
+ * @author     Marco Dellenbach
  */
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-cache, no-store, must-revalidate');

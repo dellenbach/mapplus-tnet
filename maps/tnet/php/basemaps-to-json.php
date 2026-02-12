@@ -1,7 +1,13 @@
 <?php
 /**
+ * basemaps-to-json.php
  * Basemaps Configuration Service
  * Reads basemaps.conf and returns as JSON
+ *
+ * @version    1.0
+ * @date       2026-02-12
+ * @copyright  Trigonet AG
+ * @author     Marco Dellenbach
  */
 
 header('Content-Type: application/json; charset=utf-8');

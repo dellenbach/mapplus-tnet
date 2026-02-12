@@ -2,6 +2,11 @@
  * tnet-info-panel.js (ES Module)
  * Info-Panel Erweiterungen: Buttons (Clipboard, Dock, Close), Resize-Handles,
  * Dock/Undock-Logik mit mapContainer-Anpassung, MutationObserver
+ *
+ * @version    1.1
+ * @date       2026-02-12
+ * @copyright  Trigonet AG
+ * @author     Marco Dellenbach
  */
 
 // ===== INFO PANE ERWEITERUNGEN =====

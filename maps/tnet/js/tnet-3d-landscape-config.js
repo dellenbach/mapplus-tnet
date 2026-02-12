@@ -4,6 +4,11 @@
  * 
  * Lädt die zentrale Konfiguration aus tnet-global-config.json5
  * und stellt sie als window.Landscape3DConfig bereit.
+ *
+ * @version    1.0
+ * @date       2026-02-12
+ * @copyright  Trigonet AG
+ * @author     Marco Dellenbach
  */
 
 (function() {

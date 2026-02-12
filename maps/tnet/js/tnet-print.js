@@ -12,6 +12,11 @@
  * Einbindung in index_de.htm:
  *   <link rel="stylesheet" href="/maps/tnet/css/tnet-print.css">
  *   <script src="/maps/tnet/js/tnet-print.js"></script>
+ *
+ * @version    1.2
+ * @date       2026-02-12
+ * @copyright  Trigonet AG
+ * @author     Marco Dellenbach
  */
 (function () {
   'use strict';

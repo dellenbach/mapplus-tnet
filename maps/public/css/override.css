@@ -1,3 +1,12 @@
+/*
+ * override.css
+ * Haupt-CSS-Override für MapPlus WebGIS
+ *
+ * @version    1.1
+ * @date       2026-02-12
+ * @copyright  Trigonet AG
+ * @author     Marco Dellenbach
+ */
 /* Grid-CSS Imports (tundraGrid.css wird per <link> in index_de.htm geladen) */
 @import "/mapplus-lib/dojo-release/dojo-release-1.17.3/dojox/grid/enhanced/resources/tundra/EnhancedGrid.css";
 @import "/mapplus-lib/dojo-release/dojo-release-1.17.3/dojox/grid/enhanced/resources/EnhancedGrid_rtl.css";

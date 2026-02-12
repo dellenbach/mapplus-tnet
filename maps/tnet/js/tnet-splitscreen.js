@@ -1,9 +1,14 @@
 /**
  * tnet-splitscreen.js
  * Split-screen functionality for layer comparison
- * 
+ *
  * Enables side-by-side map view with synchronized navigation
  * and independent layer selection for each map panel.
+ *
+ * @version    1.3
+ * @date       2026-02-12
+ * @copyright  Trigonet AG
+ * @author     Marco Dellenbach
  */
 
 (function() {

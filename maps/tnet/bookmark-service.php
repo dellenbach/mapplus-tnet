@@ -1,11 +1,16 @@
 <?php
 /**
  * Map Bookmark Service
- * 
+ *
  * Nimmt einen Bookmark-Namen entgegen und liefert die zugehörigen
  * Kartenkonfigurationen zurück (basemap, layers, theme, subtheme)
- * 
+ *
  * Usage: bookmark-service.php?name=nw_nutzungsplanung
+ *
+ * @version    1.0
+ * @date       2026-02-12
+ * @copyright  Trigonet AG
+ * @author     Marco Dellenbach
  */
 
 header('Content-Type: application/json; charset=utf-8');

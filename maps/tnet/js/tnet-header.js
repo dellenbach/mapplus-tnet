@@ -11,6 +11,11 @@
  * - Basemap Widget Interaktion (Toggle Buttons, Cards, Expand)
  * - FloatingPane unter Header positionieren
  * - Iframe Preload bei erster Interaktion
+ *
+ * @version    1.0
+ * @date       2026-02-12
+ * @copyright  Trigonet AG
+ * @author     Marco Dellenbach
  */
 
 // ===== MAPS-INFO-DIALOG (IFRAME) =====

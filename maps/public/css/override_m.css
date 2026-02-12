@@ -1,3 +1,12 @@
+/*
+ * override_m.css
+ * CSS-Override für Mobile-Ansicht
+ *
+ * @version    1.0
+ * @date       2026-02-12
+ * @copyright  Trigonet AG
+ * @author     Marco Dellenbach
+ */
 body div[class^='btn'],
 body .ol-control {
     background-color: #4b7b81;

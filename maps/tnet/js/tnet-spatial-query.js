@@ -2,6 +2,11 @@
  * tnet-spatial-query.js (ES Module)
  * Polygon-Zeichnen und räumliche Abfrage: WFS, ArcGIS, geo.admin.ch
  * Layer-Erkennung, GML-Parsing, Feature-Highlighting, Ergebnis-Anzeige, Excel-Export
+ *
+ * @version    1.3
+ * @date       2026-02-12
+ * @copyright  Trigonet AG
+ * @author     Marco Dellenbach
  */
 
 import { waitForMap, getMainMap } from './tnet-utils.js';

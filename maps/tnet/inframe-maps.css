@@ -1,4 +1,12 @@
-/* External CSS for inframe maps (served via proxy) */
+/*
+ * inframe-maps.css
+ * External CSS for inframe maps (served via proxy)
+ *
+ * @version    1.0
+ * @date       2026-02-12
+ * @copyright  Trigonet AG
+ * @author     Marco Dellenbach
+ */
 /* Ziel: aktive Sidebar-Navigation nach vorn (höherer z-index) */
 
 /* Disable transitions and animations for performance */

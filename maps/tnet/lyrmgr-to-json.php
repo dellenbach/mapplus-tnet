@@ -2,6 +2,11 @@
 /**
  * lyrmgr-to-json.php
  * Converts lyrmgr.conf to a simplified JSON structure for JavaScript layer catalog
+ *
+ * @version    1.0
+ * @date       2026-02-12
+ * @copyright  Trigonet AG
+ * @author     Marco Dellenbach
  */
 
 header('Content-Type: application/json');

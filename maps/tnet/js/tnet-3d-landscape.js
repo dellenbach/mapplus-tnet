@@ -1,4 +1,4 @@
-﻿/**
+/**
  * tnet-3d-landscape.js
  * 3D Landscape Model Split-Screen functionality (iframe-based)
  * 
@@ -7,6 +7,11 @@
  * 
  * Communication between 2D map and 3D scene via postMessage.
  * Configuration loaded from tnet-global-config.json5.
+ *
+ * @version    1.2
+ * @date       2026-02-12
+ * @copyright  Trigonet AG
+ * @author     Marco Dellenbach
  */
 
 (function() {

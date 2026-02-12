@@ -2,6 +2,11 @@
  * tnet-panel-drag-resize.js (ES Module)
  * Drag & Resize für das Spatial Query Panel
  * Muss NACH dem Panel-Element im DOM geladen werden
+ *
+ * @version    1.0
+ * @date       2026-02-12
+ * @copyright  Trigonet AG
+ * @author     Marco Dellenbach
  */
 
 function initPanelDragResize() {

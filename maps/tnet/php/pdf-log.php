@@ -4,6 +4,11 @@
  *
  * Speichert PDFs im Log-Verzeichnis (gleicher Ort wie agsproxy.log).
  * Dient nur zur Archivierung — kein Response an Client nötig.
+ *
+ * @version    1.0
+ * @date       2026-02-12
+ * @copyright  Trigonet AG
+ * @author     Marco Dellenbach
  */
 
 header('Content-Type: application/json; charset=utf-8');

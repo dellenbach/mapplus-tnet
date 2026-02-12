@@ -1,9 +1,14 @@
 /**
  * tnet-layer-catalog.js
  * JavaScript-based layer catalog for Karte B (without Dojo)
- * 
+ *
  * Reads layer structure from PHP-generated JSON and creates
  * a simple, interactive layer tree.
+ *
+ * @version    1.0
+ * @date       2026-02-12
+ * @copyright  Trigonet AG
+ * @author     Marco Dellenbach
  */
 
 (function() {

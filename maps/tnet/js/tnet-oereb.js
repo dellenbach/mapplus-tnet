@@ -8,6 +8,11 @@
  * - Grundstück auf Karte hervorheben
  * - Dock-Panel rechts (ab-/andockbar) mit iframe (ÖREB-Auszug von gis-daten.ch)
  * - Interaktions-Unterdrückung während ÖREB-Modus
+ *
+ * @version    1.2
+ * @date       2026-02-12
+ * @copyright  Trigonet AG
+ * @author     Marco Dellenbach
  */
 
 import { waitForMap, getMainMap, showToast } from './tnet-utils.js';

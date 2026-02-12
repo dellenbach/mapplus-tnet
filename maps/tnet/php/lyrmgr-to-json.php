@@ -3,6 +3,11 @@
  * lyrmgr-to-json.php
  * Converts ALL layer managers from lyrmgr.conf to a hierarchical JSON structure
  * Uses lyrmgr-mapping.json to map layer managers to top-level categories
+ *
+ * @version    1.1
+ * @date       2026-02-12
+ * @copyright  Trigonet AG
+ * @author     Marco Dellenbach
  */
 
 header('Content-Type: application/json');

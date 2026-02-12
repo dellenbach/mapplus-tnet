@@ -1,6 +1,11 @@
 /**
  * Split-Screen Layer Catalog Integration
  * Erweitert tnet-splitscreen.js um hierarchischen Layer-Katalog
+ *
+ * @version    1.1
+ * @date       2026-02-12
+ * @copyright  Trigonet AG
+ * @author     Marco Dellenbach
  */
 
 (function() {

@@ -1,7 +1,14 @@
+//
+// tnet-global-config.json5
+// Zentrale Konfiguration für TNET MapPlus Erweiterungen
+// JSON5 Format: Kommentare, trailing commas, unquoted keys erlaubt
+//
+// @version    1.0
+// @date       2026-02-12
+// @copyright  Trigonet AG
+// @author     Marco Dellenbach
+//
 {
-  // Zentrale Konfiguration für TNET MapPlus Erweiterungen
-  // JSON5 Format: Kommentare, trailing commas, unquoted keys erlaubt
-  
   // Log-Level für Konsolenausgaben (gilt für alle Module):
   // 'none' = aus | 'error' = nur Fehler | 'warn' = + Warnungen | 'info' = + Info | 'debug' = alles
   logLevel: 'warn',

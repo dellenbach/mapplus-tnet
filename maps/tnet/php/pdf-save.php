@@ -13,6 +13,11 @@
  *   { "ok": true, "url": "/maps/tnet/php/pdf-tmp/abc123.pdf", "filename": "xxx.pdf" }
  *
  * Alte PDFs (> 2 Stunden) werden bei jedem Aufruf bereinigt.
+ *
+ * @version    1.0
+ * @date       2026-02-12
+ * @copyright  Trigonet AG
+ * @author     Marco Dellenbach
  */
 
 header('Content-Type: application/json; charset=utf-8');

@@ -1,7 +1,12 @@
 /**
  * tnet-components.css
  * TNET-spezifische UI-Komponenten Styles
- * 
+ *
+ * @version    1.1
+ * @date       2026-02-12
+ * @copyright  Trigonet AG
+ * @author     Marco Dellenbach
+ *
  * Extrahiert aus override.css - enthält:
  * - Rechtsklick-Kontextmenü
  * - Map Footer Bar (Koordinaten, Maßstab, Copyright)

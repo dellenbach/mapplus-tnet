@@ -1,10 +1,15 @@
 /**
  * tnet-context-menu.js - Rechtsklick-Kontextmenü auf der Karte (ES Module)
- * 
+ *
  * Enthält:
  * - Kontextmenü bei Rechtsklick (Koordinaten, Routing, StreetView, etc.)
  * - Marker-Funktion (Linksklick + Kontextmenü)
  * - Alle ctx*-Funktionen
+ *
+ * @version    1.0
+ * @date       2026-02-12
+ * @copyright  Trigonet AG
+ * @author     Marco Dellenbach
  */
 
 import { lv95ToWgs84, showToast, waitForMapAndDOM } from './tnet-utils.js';
