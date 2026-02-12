@@ -335,39 +335,46 @@
     var layoutVal = (document.getElementById('print-layout') || {}).value || '';
     var layout = _layouts.find(function (l) { return l.value === layoutVal; });
 
-    // Kartenbereich in mm aus dem Manifest (mapFrame)
-    var frameMm;
+    // mapFrame-Dimensionen aus dem Manifest (mm auf Papier)
+    var mapFrameW_mm, mapFrameH_mm;
     if (layout && layout.mapFrame) {
-      frameMm = [layout.mapFrame.width_mm, layout.mapFrame.height_mm];
-    } else if (layout) {
-      frameMm = [layout.width_mm || 210, layout.height_mm || 297];
+      mapFrameW_mm = layout.mapFrame.width_mm;
+      mapFrameH_mm = layout.mapFrame.height_mm;
     } else {
-      frameMm = [210, 297];
+      mapFrameW_mm = (layout && layout.width_mm) || 210;
+      mapFrameH_mm = (layout && layout.height_mm) || 297;
     }
 
     // Gewählter Druckmassstab
     var scaleVal = parseInt((document.getElementById('print-scale') || {}).value) || 10000;
 
-    // Geographische Ausdehnung des Druckbereichs berechnen
     var view = _map.getView();
-    var mpu = view.getProjection().getMetersPerUnit() || 1;
-    var currentRes = view.getResolution();
+    var mpu  = view.getProjection().getMetersPerUnit() || 1;
     var center = view.getCenter();
 
-    // Geographische Ausdehnung in Projektionseinheiten
-    var frameProjW = (frameMm[0] / 1000) * scaleVal / mpu;
-    var frameProjH = (frameMm[1] / 1000) * scaleVal / mpu;
+    // ── Geographische Ausdehnung in Projektionseinheiten (LV95: Meter) ──
+    // Identisch mit PDF-Export: extent_m = (papier_mm / 1000) × massstab / mpu
+    var halfW = (mapFrameW_mm / 1000) * scaleVal / (2 * mpu);
+    var halfH = (mapFrameH_mm / 1000) * scaleVal / (2 * mpu);
 
-    // Frame-Grösse in Bildschirmpixeln
-    var w = frameProjW / currentRes;
-    var h = frameProjH / currentRes;
+    // LV95-Eckpunkte des Druckbereichs
+    var topLeft     = [center[0] - halfW, center[1] + halfH];
+    var bottomRight = [center[0] + halfW, center[1] - halfH];
 
-    _frameEl.style.width  = Math.round(w) + 'px';
-    _frameEl.style.height = Math.round(h) + 'px';
+    // ── Pixelgrösse via OL-Koordinatentransformation ──
+    // Nutzt exakt denselben Pfad wie OL intern (inkl. Projektion/Rotation)
+    var pxTL = _map.getPixelFromCoordinate(topLeft);
+    var pxBR = _map.getPixelFromCoordinate(bottomRight);
+
+    if (pxTL && pxBR) {
+      var w = Math.abs(pxBR[0] - pxTL[0]);
+      var h = Math.abs(pxBR[1] - pxTL[1]);
+      _frameEl.style.width  = Math.round(w) + 'px';
+      _frameEl.style.height = Math.round(h) + 'px';
+    }
 
     // Overlay-Position = View-Center
-    // Mit positioning: 'center-center' zentriert OL das Element
-    // automatisch um -offsetWidth/2, -offsetHeight/2 → korrekt zentriert
+    // positioning: 'center-center' → OL zentriert Element-Mitte auf Koordinate
     if (_frameOverlay) {
       _frameOverlay.setPosition(center);
     }
