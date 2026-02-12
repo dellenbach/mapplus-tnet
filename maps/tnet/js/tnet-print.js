@@ -25,13 +25,11 @@
   var _isPrinting = false;
   var _downloads = [];
   var PDF_SAVE_URL = '/maps/tnet/php/pdf-save.php';
+  var PDF_LOG_URL = '/maps/tnet/php/pdf-log.php';  // Parallel-Logging
   var _layouts = [];
-
-  // Papierformat-Grössen (mm, Landscape-first)
-  var PAPER_SIZES = {
-    'A0': [1189, 841], 'A1': [841, 594], 'A2': [594, 420],
-    'A3': [420, 297],  'A4': [297, 210], 'A5': [210, 148]
-  };
+  var _globalConfig = {};  // Wird aus tnet-global-config.json5 befuellt
+  // Fallback Scales (werden aus tnet-global-config.json5 überschrieben)
+  var _scales = [100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 75000, 100000, 250000, 500000, 1000000];
 
   // ================================================================
   //  Library-Loader — lädt UMD-Scripts per fetch+eval,
@@ -79,7 +77,7 @@
     // Config muss gesetzt sein BEVOR pdf-printer-init.js geladen wird
     window._pdfPrinterConfig = {
       filename: 'tnet_Kartenexport',
-      templatesBasePath: '/maps/tnet/ol-pdf-printer/templates/svg'
+      templatesBasePath: '/maps/tnet/ol-pdf-printer/qgis-templates'
     };
 
     _libsPromise = LIBS.reduce(function (chain, src) {
@@ -90,6 +88,66 @@
     });
 
     return _libsPromise;
+  }
+
+  // ================================================================
+  //  Config laden (tnet-global-config.json5 → scales)
+  // ================================================================
+  function loadScalesFromConfig() {
+    try {
+      var xhr = new XMLHttpRequest();
+      xhr.open('GET', '/maps/tnet/tnet-global-config.json5', false);
+      xhr.send();
+      if (xhr.status === 200) {
+          var text = xhr.responseText;
+          // Einfacher JSON5-Parser: Kommentare + trailing commas + unquoted keys
+          var lines = text.split('\n');
+          var cleaned = [];
+          for (var j = 0; j < lines.length; j++) {
+            var line = lines[j];
+            var inStr = false, strCh = null, cp = -1;
+            for (var k = 0; k < line.length; k++) {
+              var c = line[k];
+              if ((c === '"' || c === "'") && (k === 0 || line[k - 1] !== '\\')) {
+                if (!inStr) { inStr = true; strCh = c; }
+                else if (c === strCh) { inStr = false; }
+              }
+              if (!inStr && k < line.length - 1 && line[k] === '/' && line[k + 1] === '/') { cp = k; break; }
+            }
+            if (cp > -1) line = line.substring(0, cp);
+            if (line.trim()) cleaned.push(line);
+          }
+          var jsonText = cleaned.join('\n')
+            .replace(/,(\s*[}\]])/g, '$1')
+            .replace(/((?:^|[{,])\s*)([a-zA-Z_][a-zA-Z0-9_-]*)\s*:/gm, '$1"$2":')
+            .replace(/'([^'\\]*(?:\\.[^'\\]*)*)'/g, '"$1"');
+        var config = JSON.parse(jsonText);
+        _globalConfig = config;  // Gesamte Config speichern (fuer print.pdfRetentionDays etc.)
+        if (config.scales && Array.isArray(config.scales)) {
+          _scales = config.scales;
+          window._tnetScales = _scales;
+          console.log('[Drucken] ' + _scales.length + ' Massstäbe aus Config geladen');
+        }
+      }
+    } catch (e) {
+      console.warn('[Drucken] Config nicht geladen:', e.message);
+    }
+  }
+
+  // ================================================================
+  //  Massstab-Dropdown dynamisch rendern
+  // ================================================================
+  function renderScaleDropdown() {
+    var select = document.getElementById('print-scale');
+    if (!select) return;
+    select.innerHTML = '';
+    _scales.forEach(function (s) {
+      var opt = document.createElement('option');
+      opt.value = s;
+      opt.textContent = '1 : ' + s.toLocaleString('de-CH');
+      if (s === 10000) opt.selected = true;
+      select.appendChild(opt);
+    });
   }
 
   // ================================================================
@@ -113,19 +171,7 @@
           // Massstab
           '<div class="print-section">' +
             '<label>Massstab</label>' +
-            '<div class="print-scale-row">' +
-              '<span class="print-scale-prefix">1 :</span>' +
-              '<input type="number" id="print-scale" value="10000" min="100" max="500000" step="500">' +
-              '<div class="print-scale-presets">' +
-                '<button class="print-preset-btn" onclick="setScale(500)">500</button>' +
-                '<button class="print-preset-btn" onclick="setScale(1000)">1k</button>' +
-                '<button class="print-preset-btn" onclick="setScale(2500)">2.5k</button>' +
-                '<button class="print-preset-btn" onclick="setScale(5000)">5k</button>' +
-                '<button class="print-preset-btn" onclick="setScale(10000)">10k</button>' +
-                '<button class="print-preset-btn" onclick="setScale(25000)">25k</button>' +
-                '<button class="print-preset-btn" onclick="setScale(50000)">50k</button>' +
-              '</div>' +
-            '</div>' +
+            '<select id="print-scale"></select>' +
           '</div>' +
 
           // Auflösung
@@ -140,17 +186,17 @@
           // Kartentitel
           '<div class="print-section">' +
             '<label>Kartentitel</label>' +
-            '<input type="text" id="print-title" placeholder="Situation" value="">' +
+            '<input type="text" id="print-title" placeholder="Kartentitel" value="Situationsplan">' +
           '</div>' +
 
-          // Koordinatennetz
-          '<div class="print-section print-checks">' +
-            '<label><input type="checkbox" id="print-grid"> Koordinatennetz</label>' +
-            '<div id="print-grid-color" class="print-grid-colors" style="display:none">' +
-              '<label class="print-radio"><input type="radio" name="print-gridcolor" value="schwarz" checked> Schwarz</label>' +
-              '<label class="print-radio"><input type="radio" name="print-gridcolor" value="weiss"> Weiss</label>' +
-            '</div>' +
-          '</div>' +
+          // Koordinatennetz (vorerst deaktiviert)
+          // '<div class="print-section print-checks">' +
+          //   '<label><input type="checkbox" id="print-grid"> Koordinatennetz</label>' +
+          //   '<div id="print-grid-color" class="print-grid-colors" style="display:none">' +
+          //     '<label class="print-radio"><input type="radio" name="print-gridcolor" value="schwarz" checked> Schwarz</label>' +
+          //     '<label class="print-radio"><input type="radio" name="print-gridcolor" value="weiss"> Weiss</label>' +
+          //   '</div>' +
+          // '</div>' +
 
           // Rotation
           '<div class="print-section print-frame-info">' +
@@ -256,7 +302,6 @@
 
     _frameEl = document.createElement('div');
     _frameEl.className = 'print-frame-rect';
-    updateFrameSize();
 
     ['tl', 'tr', 'bl', 'br', 'tm', 'bm', 'ml', 'mr'].forEach(function (pos) {
       var h = document.createElement('div');
@@ -273,51 +318,65 @@
     });
     map.addOverlay(_frameOverlay);
 
-    map.getView().on('change:center', _updateFramePosition);
+    // Initiale Grösse und Position berechnen
+    updateFrameSize();
+
+    map.getView().on('change:center', _onViewChange);
     map.getView().on('change:resolution', _onViewChange);
     map.getView().on('change:rotation', _onViewChange);
   }
 
-  function _updateFramePosition() {
-    if (_frameOverlay && _map) _frameOverlay.setPosition(_map.getView().getCenter());
-  }
-
   function _onViewChange() {
     updateFrameSize();
-    _updateFramePosition();
   }
 
   function updateFrameSize() {
     if (!_frameEl || !_map) return;
     var layoutVal = (document.getElementById('print-layout') || {}).value || '';
     var layout = _layouts.find(function (l) { return l.value === layoutVal; });
-    var dim;
-    if (layout) {
-      var paper = PAPER_SIZES[layout.paper] || PAPER_SIZES['A4'];
-      dim = (layout.orientation === 'landscape') ? [paper[0], paper[1]] : [paper[1], paper[0]];
+
+    // Kartenbereich in mm aus dem Manifest (mapFrame)
+    var frameMm;
+    if (layout && layout.mapFrame) {
+      frameMm = [layout.mapFrame.width_mm, layout.mapFrame.height_mm];
+    } else if (layout) {
+      frameMm = [layout.width_mm || 210, layout.height_mm || 297];
     } else {
-      dim = [297, 210];
+      frameMm = [210, 297];
     }
 
-    var viewportW = _map.getSize()[0];
-    var viewportH = _map.getSize()[1];
-    var aspect = dim[0] / dim[1];
-    var maxW = viewportW * 0.65;
-    var maxH = viewportH * 0.65;
-    var w, h;
-    if (maxW / maxH > aspect) { h = maxH; w = h * aspect; }
-    else { w = maxW; h = w / aspect; }
+    // Gewählter Druckmassstab
+    var scaleVal = parseInt((document.getElementById('print-scale') || {}).value) || 10000;
 
-    _frameEl.style.width = Math.round(w) + 'px';
+    // Geographische Ausdehnung des Druckbereichs berechnen
+    var view = _map.getView();
+    var mpu = view.getProjection().getMetersPerUnit() || 1;
+    var currentRes = view.getResolution();
+    var center = view.getCenter();
+
+    // Geographische Ausdehnung in Projektionseinheiten
+    var frameProjW = (frameMm[0] / 1000) * scaleVal / mpu;
+    var frameProjH = (frameMm[1] / 1000) * scaleVal / mpu;
+
+    // Frame-Grösse in Bildschirmpixeln
+    var w = frameProjW / currentRes;
+    var h = frameProjH / currentRes;
+
+    _frameEl.style.width  = Math.round(w) + 'px';
     _frameEl.style.height = Math.round(h) + 'px';
-    _frameEl.style.marginLeft = -Math.round(w / 2) + 'px';
-    _frameEl.style.marginTop = -Math.round(h / 2) + 'px';
+
+    // Overlay-Position = View-Center
+    // Mit positioning: 'center-center' zentriert OL das Element
+    // automatisch um -offsetWidth/2, -offsetHeight/2 → korrekt zentriert
+    if (_frameOverlay) {
+      _frameOverlay.setPosition(center);
+    }
   }
 
   function removePrintFrame() {
     if (_frameOverlay && _map) {
       _map.removeOverlay(_frameOverlay);
-      _map.getView().un('change:center', _updateFramePosition);
+      _map.getView().un('change:center', _onViewChange);
       _map.getView().un('change:resolution', _onViewChange);
       _map.getView().un('change:rotation', _onViewChange);
     }
@@ -361,6 +420,62 @@
   };
 
   // ================================================================
+  //  Zoom anpassen für Druckrahmen
+  // ================================================================
+  /**
+   * Passt den Kartenausschnitt an, damit der Druckrahmen ca. 70% des
+   * sichtbaren Viewports ausfüllt (nicht zu gross, nicht zu klein).
+   */
+  function adjustZoomForPrintFrame() {
+    var map = getMap();
+    if (!map || !_frameEl) return;
+
+    // Konfiguration aus Global Config
+    var autoAdjust = (_globalConfig.print && _globalConfig.print.autoAdjustZoom !== false);
+    if (!autoAdjust) return;
+    
+    var targetPercent = (_globalConfig.print && _globalConfig.print.targetFramePercent) || 70;
+    targetPercent = Math.max(40, Math.min(95, targetPercent)); // Clamp 40-95%
+
+    // Aktuelles Viewport ermitteln
+    var mapEl = map.getTargetElement();
+    if (!mapEl) return;
+    var vpW = mapEl.clientWidth;
+    var vpH = mapEl.clientHeight;
+
+    // Aktuelle Frame-Grösse berechnen
+    var frameW = parseFloat(_frameEl.style.width) || 0;
+    var frameH = parseFloat(_frameEl.style.height) || 0;
+    if (frameW <= 0 || frameH <= 0) return;
+
+    // Verhältnis: wie viel % des Viewports nimmt der Frame ein?
+    var ratioW = (frameW / vpW) * 100;
+    var ratioH = (frameH / vpH) * 100;
+    var currentRatio = Math.max(ratioW, ratioH);
+
+    // Abweichung vom Ziel berechnen
+    // Wenn Frame < 40% oder > 90% des Viewports, anpassen
+    if (currentRatio >= 40 && currentRatio <= 90) {
+      console.log('[Drucken] Frame-Grösse OK:', Math.round(currentRatio) + '% des Viewports');
+      return; // Passt schon
+    }
+
+    // Faktor berechnen: um wie viel muss Resolution geändert werden?
+    var scaleFactor = currentRatio / targetPercent;
+    var view = map.getView();
+    var currentRes = view.getResolution();
+    var newRes = currentRes * scaleFactor;
+
+    // Resolution setzen
+    view.animate({ resolution: newRes, duration: 300 });
+    console.log('[Drucken] Zoom angepasst:', Math.round(currentRatio) + '% → ' + 
+      targetPercent + '% (Resolution:', currentRes.toFixed(2), '→', newRes.toFixed(2) + ')');
+
+    // Nach Animation Frame-Grösse aktualisieren
+    setTimeout(updateFrameSize, 350);
+  }
+
+  // ================================================================
   //  Panel öffnen / schliessen
   // ================================================================
   window.openPdfPrinter = function () {
@@ -373,16 +488,21 @@
     // Libraries bei Bedarf laden, dann Layouts holen
     var doOpen = function () {
       loadLayouts();
-      // Aktuellen Massstab übernehmen
+      // Aktuellen Massstab im Dropdown auf nächsten Wert setzen
       var map = getMap();
       if (map) {
         var mpu = map.getView().getProjection().getMetersPerUnit() || 1;
         var currentScale = Math.round(map.getView().getResolution() * mpu / 0.00028);
-        document.getElementById('print-scale').value = currentScale;
+        var closest = _scales.reduce(function (prev, curr) {
+          return Math.abs(curr - currentScale) < Math.abs(prev - currentScale) ? curr : prev;
+        });
+        document.getElementById('print-scale').value = closest;
       }
       syncRotationUI();
       document.getElementById('print-panel').classList.remove('hidden');
       showPrintFrame();
+      // Kartenausschnitt anpassen: Frame sollte ca. 60-80% des Viewports füllen
+      adjustZoomForPrintFrame();
     };
 
     if (_libsReady) {
@@ -416,7 +536,8 @@
     var dpiEl          = document.querySelector('input[name="print-dpi"]:checked');
     var aufloesung     = dpiEl ? parseInt(dpiEl.value) : 150;
     var kartentitel    = document.getElementById('print-title').value || '';
-    var koordinatennetz = document.getElementById('print-grid').checked;
+    var gridEl          = document.getElementById('print-grid');
+    var koordinatennetz = gridEl ? gridEl.checked : false;
     var netzfarbeEl    = document.querySelector('input[name="print-gridcolor"]:checked');
     var netzfarbe      = netzfarbeEl ? netzfarbeEl.value : 'schwarz';
     var rotation       = parseInt(document.getElementById('print-rotation').value) || 0;
@@ -430,6 +551,10 @@
 
     if (_frameEl) _frameEl.style.display = 'none';
 
+    // Exaktes Kartenzentrum zum Zeitpunkt des Drucks erfassen
+    // (wird an den Export durchgereicht, um Drift beim Viewport-Resize zu verhindern)
+    var printCenter = map.getView().getCenter().slice();
+
     templatePdfPrint({
       massstab:        massstab,
       layout:          layout,
@@ -438,6 +563,8 @@
       kartentitel:     kartentitel,
       koordinatennetz: koordinatennetz,
       netzfarbe:       netzfarbe,
+      printCenter:     printCenter,
+      jpegQuality:     (_globalConfig.print && _globalConfig.print.jpegQuality) || 0.7,
 
       onProgress: function (step, msg) {
         var pct = Math.round((step / 7) * 100);
@@ -451,8 +578,8 @@
           console.warn('[Drucken] Kein PDF-Blob erhalten');
           return;
         }
-        // PDF an Server senden
-        uploadPdfToServer(result.blob, result.filename);
+        // PDF direkt im Memory verarbeiten (kein Server-Upload)
+        handlePdfResult(result.blob, result.filename);
       },
 
       onError: function (err) {
@@ -482,46 +609,48 @@
   }
 
   // ================================================================
-  //  PDF an Server senden
+  //  PDF im Memory behalten + parallel auf Server loggen
   // ================================================================
-  function uploadPdfToServer(blob, filename) {
+  function handlePdfResult(blob, filename) {
+    // Blob-URL erstellen
+    var blobUrl = URL.createObjectURL(blob);
+    
+    // In Download-Liste aufnehmen
+    addDownload(filename, blobUrl, blob.size);
+    
+    // Vorschau sofort anzeigen
+    showPdfPreview(blobUrl);
+    
+    console.log('[Drucken] PDF fertig:', filename, '(' + blob.size + ' Bytes)');
+    
+    // Parallel: PDF auf Server loggen (fire-and-forget)
+    logPdfToServer(blob, filename);
+  }
+  
+  /**
+   * Sendet PDF an Server zur Archivierung im Log-Verzeichnis.
+   * Fire-and-forget — Fehler werden nur geloggt, nicht dem User gezeigt.
+   */
+  function logPdfToServer(blob, filename) {
     var formData = new FormData();
     formData.append('pdf', blob, filename);
     formData.append('filename', filename);
-
-    // Fortschritt: "Wird hochgeladen..."
-    var progText = document.getElementById('print-progress-text');
-    if (progText) progText.textContent = 'Wird hochgeladen...';
-    document.getElementById('print-progress').style.display = 'block';
-    document.getElementById('print-progress-fill').style.width = '90%';
-
-    fetch(PDF_SAVE_URL, { method: 'POST', body: formData })
-      .then(function (r) { return r.json(); })
-      .then(function (data) {
-        document.getElementById('print-progress').style.display = 'none';
-        document.getElementById('print-progress-fill').style.width = '0%';
-
-        if (!data.ok) {
-          alert('Fehler beim Speichern: ' + (data.error || 'Unbekannt'));
-          return;
+    
+    // Retention aus Config (Default: 1 Tag)
+    var retentionDays = (_globalConfig.print && _globalConfig.print.pdfRetentionDays) || 1;
+    var url = PDF_LOG_URL + '?retention=' + retentionDays;
+    
+    fetch(url, { method: 'POST', body: formData })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (data.ok) {
+          console.log('[Drucken] PDF archiviert:', data.path);
+        } else {
+          console.warn('[Drucken] PDF-Archivierung fehlgeschlagen:', data.error);
         }
-
-        // In Download-Liste aufnehmen
-        addDownload(filename, data.url, data.size);
-
-        // Vorschau sofort anzeigen
-        showPdfPreview(data.url);
-
-        console.log('[Drucken] PDF auf Server gespeichert:', data.url);
       })
-      .catch(function (err) {
-        document.getElementById('print-progress').style.display = 'none';
-        console.error('[Drucken] Upload fehlgeschlagen:', err);
-        // Fallback: lokaler Blob-Download
-        var blobUrl = URL.createObjectURL(blob);
-        var a = document.createElement('a');
-        a.href = blobUrl; a.download = filename; a.click();
-        addDownload(filename, blobUrl, blob.size);
+      .catch(function(err) {
+        console.warn('[Drucken] PDF-Archivierung Fehler:', err.message);
       });
   }
 
@@ -605,15 +734,25 @@
   //  Init: Panel-HTML einfügen + Event-Listener
   // ================================================================
   function init() {
+    // Config laden (Massstäbe aus tnet-global-config.json5)
+    loadScalesFromConfig();
+
     // Panel-HTML vor </body> einfügen
     var container = document.createElement('div');
     container.innerHTML = createPanelHTML();
     var panel = container.firstElementChild;
     document.body.appendChild(panel);
 
+    // Massstab-Dropdown dynamisch aus Config rendern
+    renderScaleDropdown();
+
     // Layout-Wechsel → Rahmen anpassen
     var layoutSel = document.getElementById('print-layout');
     if (layoutSel) layoutSel.addEventListener('change', updateFrameSize);
+
+    // Massstab-Wechsel → Rahmen anpassen
+    var scaleSel = document.getElementById('print-scale');
+    if (scaleSel) scaleSel.addEventListener('change', updateFrameSize);
 
     // Koordinatennetz Checkbox → Farbwahl ein-/ausblenden
     var gridCb = document.getElementById('print-grid');

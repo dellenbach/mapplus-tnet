@@ -1,74 +1,42 @@
 <!-- ============================================================
-     QGIS-Template PDF-Export – Einbindung in tnet WebGIS
+     QGIS-Template PDF-Export – Einbindung in bestehendes WebGIS
      
-     Ordnerstruktur auf dem FTP-Server:
-       /maps/tnet/
-       /maps/tnet/ol-pdf-printer/             ← Diesen Ordner hochladen
-       /maps/tnet/ol-pdf-printer/js/          ← jsPDF + svg2pdf + Engine + API
-       /maps/tnet/ol-pdf-printer/svg/          ← QGIS-SVG-Templates hier!
-       /maps/tnet/ol-pdf-printer/manifest.json ← Vom QGIS-Plugin erzeugt
-
-     Kein eigenes UI! Passt sich an euer bestehendes Druck-Menü an.
+     Schnittstellendoku: siehe TEMPLATE_API.md
+     
+     Ordnerstruktur auf dem Server:
+       /maps/tnet/ol-pdf-printer/
+       ├── manifest.json
+       ├── qgis-templates/ ← QGIS-SVG-Templates
+       └── js/             ← Engine + Libs
      ============================================================ -->
 
-
-<!-- ==============================================================
-     VOR </body> EINFÜGEN – Reihenfolge ist wichtig!
-     ============================================================== -->
-
-<!-- 1. jsPDF (PDF-Erzeugung) -->
+<!-- VOR </body> – Reihenfolge wichtig! -->
 <script src="ol-pdf-printer/js/jspdf.umd.min.js"></script>
-
-<!-- 2. svg2pdf.js (SVG → PDF Rendering) -->
 <script src="ol-pdf-printer/js/svg2pdf.umd.min.js"></script>
-
-<!-- 3. Template-PDF-Engine -->
 <script src="ol-pdf-printer/js/template-pdf-export.js"></script>
-
-<!-- 4. Konfiguration (ANPASSEN!) -->
 <script>
   window._pdfPrinterConfig = {
     filename: 'tnet_Kartenexport',
-    templatesBasePath: 'ol-pdf-printer/svg'
+    templatesBasePath: 'ol-pdf-printer/qgis-templates'
   };
 </script>
-
-<!-- 5. API-Script (KEIN eigenes UI, nur Funktionen) -->
 <script src="ol-pdf-printer/js/pdf-printer-init.js"></script>
 
-
-<!-- ==============================================================
-     IN EUREM DOJO-CODE (1 Zeile!):
-     window._olMap = map;
-     ============================================================== -->
-
-
-<!-- ==============================================================
-     EUER "PDF erstellen"-BUTTON:
+<!-- ============================================================
+     In eurem Dojo-Code:  window._olMap = map;
      
-     Den bestehenden onClick-Handler anpassen – statt der alten
-     Druck-Logik die neue Funktion aufrufen:
-     ============================================================== -->
-
+     Euer "PDF erstellen" Button ruft auf:
+     ============================================================ -->
 <script>
-//
-// ===== Beispiel-Anbindung an euren bestehenden Druck-Dialog =====
-//
-// Euer bestehender Button "PDF erstellen" ruft z.B. eine Funktion auf.
-// Dort diese Zeilen einfügen:
-//
-
 function pdfErstellen() {
-  // Werte aus eurem bestehenden Formular lesen:
-  var massstab        = parseInt(document.getElementById('massstab').value, 10);        // 10000
-  var layout          = document.getElementById('layout').value;                        // "A4 Hoch"
-  var aufloesung      = document.querySelector('input[name="aufloesung"]:checked').value; // "150" oder "300"
-  var rotation        = parseFloat(document.getElementById('rotation').value) || 0;     // 0
-  var kartentitel     = document.getElementById('kartentitel').value;                    // "Situation"
-  var koordinatennetz = document.getElementById('koordinatennetz').checked;              // true/false
-  var netzfarbe       = document.querySelector('input[name="netzfarbe"]:checked');       // "schwarz"/"weiss"
+  var massstab        = parseInt(document.getElementById('massstab').value, 10);
+  var layout          = document.getElementById('layout').value;
+  var aufloesung      = document.querySelector('input[name="aufloesung"]:checked').value;
+  var rotation        = parseFloat(document.getElementById('rotation').value) || 0;
+  var kartentitel     = document.getElementById('kartentitel').value;
+  var koordinatennetz = document.getElementById('koordinatennetz').checked;
+  var netzfarbe       = document.querySelector('input[name="netzfarbe"]:checked');
 
-  // ---- Hier die neue API aufrufen: ----
   templatePdfPrint({
     massstab:        massstab,
     layout:          layout,
@@ -77,62 +45,21 @@ function pdfErstellen() {
     kartentitel:     kartentitel,
     koordinatennetz: koordinatennetz,
     netzfarbe:       netzfarbe ? netzfarbe.value : 'schwarz',
-
-    onProgress: function(step, msg) {
-      // Optional: Status in eurem UI anzeigen
-      console.log('PDF-Export: ' + msg + ' (' + step + '/7)');
-      // z.B.: document.getElementById('export-status').textContent = msg;
-    },
-
-    onSuccess: function() {
-      alert('PDF wurde erstellt!');
-      // Oder: showToast('PDF Export erfolgreich');
-    },
-
-    onError: function(err) {
-      alert('Fehler beim PDF-Export: ' + err.message);
-    }
+    onProgress: function(step, msg) { console.log('PDF: ' + msg + ' (' + step + '/7)'); },
+    onSuccess:  function() { alert('PDF erstellt!'); },
+    onError:    function(err) { alert('Fehler: ' + err.message); }
   });
 }
 
-//
-// ===== Optional: Layout-Dropdown dynamisch befüllen =====
-//
-// Falls ihr die Layouts aus den QGIS-Templates lesen wollt
-// statt sie fest im HTML zu haben:
-//
-
+// Optional: Layout-Dropdown dynamisch befüllen
 // getAvailableLayouts().then(function(layouts) {
-//   var select = document.getElementById('layout');
-//   select.innerHTML = '';
+//   var sel = document.getElementById('layout');
+//   sel.innerHTML = '';
 //   layouts.forEach(function(l) {
 //     var opt = document.createElement('option');
-//     opt.value = l.value;       // "A4 Hoch"
-//     opt.textContent = l.label; // "A4 Hoch"
-//     select.appendChild(opt);
+//     opt.value = l.value;
+//     opt.textContent = l.title;  // ← QGIS-Layoutname
+//     sel.appendChild(opt);
 //   });
 // });
 </script>
-
-
-<!-- ==============================================================
-     FORMULAR-REFERENZ (eure bestehenden Felder):
-     
-     Feld              | Typ       | Wert-Beispiel    | API-Parameter
-     ─────────────────────────────────────────────────────────────────
-     Massstab           | input     | 10000            | massstab
-     Layout             | select    | "A4 Hoch"        | layout
-     Auflösung          | radio     | 150 / 300        | aufloesung
-     Koordinatennetz    | checkbox  | true/false       | koordinatennetz
-     Netzfarbe          | radio     | schwarz/weiss    | netzfarbe
-     Rotation           | input     | 0                | rotation
-     Kartentitel        | input     | "Situation"      | kartentitel
-     
-     ════════════════════════════════════════════════════════════════
-     
-     Die API stellt den Massstab und die Rotation vor dem Export ein
-     und stellt danach den ursprünglichen Zustand wieder her.
-     
-     Koordinatennetz wird als ol.layer.Graticule hinzugefügt und
-     nach dem Export wieder entfernt.
-     ============================================================== -->

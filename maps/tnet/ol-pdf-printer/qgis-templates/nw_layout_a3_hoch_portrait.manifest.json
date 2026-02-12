@@ -1,0 +1,90 @@
+{
+  "name": "nw_layout_a3_hoch_portrait",
+  "title": "NW Layout A3 hoch",
+  "paper": "A3",
+  "orientation": "portrait",
+  "width_mm": 297.0,
+  "height_mm": 420.0,
+  "source": "qgis_project",
+  "files": {
+    "svg": "nw_layout_a3_hoch_portrait.svg",
+    "pdf": "nw_layout_a3_hoch_portrait.pdf"
+  },
+  "mapFrame": {
+    "x_mm": 10.22,
+    "y_mm": 24.09,
+    "width_mm": 277.0,
+    "height_mm": 386.67
+  },
+  "elements": [
+    {
+      "id": "TITLE_TEXT",
+      "type": "text",
+      "variable": "title",
+      "placeholder": "{{TITLE}}",
+      "x_mm": 26.0,
+      "y_mm": 12.87,
+      "width_mm": 130.0,
+      "height_mm": 5.5,
+      "hAlign": "left",
+      "fontFamily": "Arial",
+      "fontSize_pt": 14,
+      "fontWeight": "bold"
+    },
+    {
+      "id": "DATE_TEXT",
+      "type": "text",
+      "variable": "date",
+      "placeholder": "{{DATE}}",
+      "x_mm": 26.0,
+      "y_mm": 22.3,
+      "width_mm": 47.19,
+      "height_mm": 2.9,
+      "hAlign": "left",
+      "fontFamily": "Arial",
+      "fontSize_pt": 9,
+      "fontWeight": "normal"
+    },
+    {
+      "id": "Massstab",
+      "type": "scaleBar",
+      "variable": "scaleBar",
+      "x_mm": 21.58,
+      "y_mm": 409.9,
+      "width_mm": 22.09,
+      "height_mm": 5.52
+    },
+    {
+      "id": "Massstabsbalken",
+      "type": "scaleBar",
+      "variable": "scaleBar",
+      "x_mm": 33.16,
+      "y_mm": 408.95,
+      "width_mm": 55.11,
+      "height_mm": 3.48
+    },
+    {
+      "id": "SCALE_TEXT",
+      "type": "text",
+      "variable": "scale",
+      "placeholder": "{{SCALE}}",
+      "x_mm": 10.2,
+      "y_mm": 415.28,
+      "width_mm": 192.86,
+      "height_mm": 2.9,
+      "hAlign": "left",
+      "fontFamily": "Arial",
+      "fontSize_pt": 6,
+      "fontWeight": "normal"
+    },
+    {
+      "id": "MAP_AREA",
+      "type": "map",
+      "variable": "map",
+      "x_mm": 10.22,
+      "y_mm": 24.09,
+      "width_mm": 277.0,
+      "height_mm": 386.67
+    }
+  ]
+}

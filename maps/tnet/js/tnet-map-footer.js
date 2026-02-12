@@ -204,7 +204,10 @@ function getMapScale(map) {
 }
 
 // Vordefinierte Maßstäbe für die Auswahl
-var predefinedScales = [100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000, 200000, 500000, 1000000];
+// Quelle: tnet-global-config.json5 → scales (falls geladen), sonst Defaults
+var predefinedScales = (window._tnetScales && window._tnetScales.length)
+    ? window._tnetScales
+    : [100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 75000, 100000, 250000, 500000, 1000000];
 
 // Resolution aus Maßstab berechnen (umgekehrte Formel)
 function getResolutionFromScale(scale) {

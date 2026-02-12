@@ -5,7 +5,10 @@
   // Log-Level für Konsolenausgaben (gilt für alle Module):
   // 'none' = aus | 'error' = nur Fehler | 'warn' = + Warnungen | 'info' = + Info | 'debug' = alles
   logLevel: 'warn',
-  
+
+  // Vordefinierte Kartenmassstäbe (für Footer-Dropdown + Druck-Panel)
+  scales: [100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 75000, 100000, 250000, 500000, 1000000],
+
   // ============================================================
   // 3D LANDSCAPE / SPLITSCREEN
   // ============================================================
@@ -186,5 +189,22 @@
     _description: "Räumliche Abfragen",
     enabled: true,
     bufferDistances: [10, 25, 50, 100, 250, 500, 1000],  // Puffer-Distanzen in Metern
+  },
+  
+  // ============================================================
+  // DRUCK / PDF EXPORT
+  // ============================================================
+  print: {
+    _description: "PDF-Druck Einstellungen",
+    // Anzahl Tage, nach denen archivierte PDFs gelöscht werden
+    pdfRetentionDays: 1,
+    // Automatisch Zoom anpassen beim Öffnen des Druckpanels
+    autoAdjustZoom: true,
+    // Ziel: Frame soll ca. X% des Viewports füllen (50-90)
+    targetFramePercent: 70,
+    // JPEG-Qualität für Kartenbild im PDF (0.0 - 1.0)
+    // Niedriger = kleinere Datei, etwas unschärfer
+    // 0.7 = guter Kompromiss, 0.85 = hohe Qualität, 0.5 = sehr klein
+    jpegQuality: 0.7,
   },
 }

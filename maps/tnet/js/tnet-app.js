@@ -23,6 +23,13 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // Initialisiere Button-Event-Handler
             var map = (njs.AppManager.Maps && njs.AppManager.Maps.main && njs.AppManager.Maps.main.mapObj) ? njs.AppManager.Maps.main.mapObj : null;
+
+            // OL-Map global verfügbar machen (für ol-pdf-printer und andere Erweiterungen)
+            if (map) {
+                window._olMap = map;
+                console.log('[tnet-app] window._olMap gesetzt ✓');
+            }
+
             if (typeof initGrundkartenLayerSync === 'function') {
                 initGrundkartenLayerSync(map);
             }

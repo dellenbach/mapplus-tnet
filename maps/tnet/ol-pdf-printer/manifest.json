@@ -1,0 +1,194 @@
+{
+  "version": "1.3",
+  "generated": "2026-02-11T17:57:15",
+  "templates": [
+    {
+      "name": "gis_layout_a3_hoch_portrait",
+      "title": "GIS Layout A3 hoch",
+      "paper": "A3",
+      "orientation": "portrait",
+      "width_mm": 297.0,
+      "height_mm": 420.0,
+      "source": "qgis_project",
+      "files": {
+        "svg": "qgis-templates/gis_layout_a3_hoch_portrait.svg",
+        "pdf": "qgis-templates/gis_layout_a3_hoch_portrait.pdf"
+      },
+      "mapFrame": {
+        "x_mm": 10.22,
+        "y_mm": 24.09,
+        "width_mm": 277.0,
+        "height_mm": 386.67
+      },
+      "elements": [
+        {
+          "id": "TITLE_TEXT",
+          "type": "text",
+          "variable": "title",
+          "placeholder": "{{TITLE}}",
+          "x_mm": 26.0,
+          "y_mm": 12.87,
+          "width_mm": 80.0,
+          "height_mm": 8.0,
+          "fontSize_pt": 14,
+          "fontFamily": "Arial",
+          "fontWeight": "bold",
+          "hAlign": "left"
+        },
+        {
+          "id": "SCALE_TEXT",
+          "type": "text",
+          "variable": "scale",
+          "placeholder": "{{SCALE}}",
+          "x_mm": 10.2,
+          "y_mm": 413.0,
+          "width_mm": 50.0,
+          "height_mm": 5.0,
+          "fontSize_pt": 6,
+          "fontFamily": "Arial",
+          "fontWeight": "normal",
+          "hAlign": "left"
+        },
+        {
+          "id": "DATE_TEXT",
+          "type": "text",
+          "variable": "date",
+          "placeholder": "{{DATE}}",
+          "x_mm": 26.0,
+          "y_mm": 19.5,
+          "width_mm": 50.0,
+          "height_mm": 6.0,
+          "fontSize_pt": 6,
+          "fontFamily": "Arial",
+          "fontWeight": "normal",
+          "hAlign": "left"
+        },
+        {
+          "id": "NORTH_ARROW",
+          "type": "northArrow",
+          "variable": "northArrow",
+          "x_mm": 17.0,
+          "y_mm": 389.0,
+          "width_mm": 12.0,
+          "height_mm": 15.0
+        },
+        {
+          "id": "SCALE_BAR",
+          "type": "scaleBar",
+          "variable": "scaleBar",
+          "x_mm": 33.0,
+          "y_mm": 404.5,
+          "width_mm": 52.0,
+          "height_mm": 4.5
+        },
+        {
+          "id": "SCALE_LABEL",
+          "type": "scaleLabel",
+          "variable": "scaleLabel",
+          "x_mm": 10.2,
+          "y_mm": 408.0,
+          "width_mm": 25.0,
+          "height_mm": 5.0,
+          "fontSize_pt": 8,
+          "fontFamily": "Arial",
+          "fontWeight": "bold",
+          "hAlign": "left"
+        }
+      ]
+    },
+    {
+      "name": "gis_layout_a4_hoch_portrait",
+      "title": "GIS Layout A4 hoch",
+      "paper": "A4",
+      "orientation": "portrait",
+      "width_mm": 210.0,
+      "height_mm": 297.0,
+      "source": "qgis_project",
+      "files": {
+        "svg": "qgis-templates/gis_layout_a4_hoch_portrait.svg",
+        "pdf": "qgis-templates/gis_layout_a4_hoch_portrait.pdf"
+      },
+      "mapFrame": {
+        "x_mm": 10.22,
+        "y_mm": 287.76,
+        "width_mm": 190.0,
+        "height_mm": 263.67
+      },
+      "elements": [
+        {
+          "id": "TITLE_TEXT",
+          "type": "text",
+          "variable": "title",
+          "placeholder": "{{TITLE}}",
+          "x_mm": 26.0,
+          "y_mm": 12.87,
+          "width_mm": 60.0,
+          "height_mm": 8.0,
+          "fontSize_pt": 12,
+          "fontFamily": "Arial",
+          "fontWeight": "bold",
+          "hAlign": "left"
+        },
+        {
+          "id": "SCALE_TEXT",
+          "type": "text",
+          "variable": "scale",
+          "placeholder": "{{SCALE}}",
+          "x_mm": 10.2,
+          "y_mm": 290.0,
+          "width_mm": 40.0,
+          "height_mm": 5.0,
+          "fontSize_pt": 6,
+          "fontFamily": "Arial",
+          "fontWeight": "normal",
+          "hAlign": "left"
+        },
+        {
+          "id": "DATE_TEXT",
+          "type": "text",
+          "variable": "date",
+          "placeholder": "{{DATE}}",
+          "x_mm": 26.0,
+          "y_mm": 19.5,
+          "width_mm": 40.0,
+          "height_mm": 6.0,
+          "fontSize_pt": 6,
+          "fontFamily": "Arial",
+          "fontWeight": "normal",
+          "hAlign": "left"
+        },
+        {
+          "id": "NORTH_ARROW",
+          "type": "northArrow",
+          "variable": "northArrow",
+          "x_mm": 15.0,
+          "y_mm": 266.0,
+          "width_mm": 10.0,
+          "height_mm": 13.0
+        },
+        {
+          "id": "SCALE_BAR",
+          "type": "scaleBar",
+          "variable": "scaleBar",
+          "x_mm": 28.0,
+          "y_mm": 280.0,
+          "width_mm": 45.0,
+          "height_mm": 4.0
+        },
+        {
+          "id": "SCALE_LABEL",
+          "type": "scaleLabel",
+          "variable": "scaleLabel",
+          "x_mm": 10.2,
+          "y_mm": 283.5,
+          "width_mm": 22.0,
+          "height_mm": 4.5,
+          "fontSize_pt": 7,
+          "fontFamily": "Arial",
+          "fontWeight": "bold",
+          "hAlign": "left"
+        }
+      ]
+    }
+  ]
+}

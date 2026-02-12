@@ -51,7 +51,7 @@
   // ---------------------------------------------------------------- //
 
   var _config = {
-    templatesBasePath: 'ol-pdf-printer/svg',
+    templatesBasePath: 'ol-pdf-printer/qgis-templates',
     filename: 'Kartenexport'
   };
 
@@ -98,27 +98,41 @@
    */
   function findTemplate(layoutStr, templates) {
     var key = (layoutStr || '').trim().toLowerCase();
+
+    // 1. Exakter Title-Match (v1.2 Manifest: title-Feld)
+    for (var t = 0; t < templates.length; t++) {
+      if ((templates[t].title || '').toLowerCase() === key) return templates[t];
+    }
+
+    // 2. Exakter Name-Match
+    for (var n = 0; n < templates.length; n++) {
+      if ((templates[n].name || '').toLowerCase() === key) return templates[n];
+    }
+
+    // 3. LAYOUT_MAP Mapping (Legacy: "A4 Hoch" etc.)
     var mapping = LAYOUT_MAP[key];
-
-    if (!mapping) {
-      // Fallback: Direkt im Manifest nach ähnlichem Namen suchen
-      for (var i = 0; i < templates.length; i++) {
-        var tName = (templates[i].name || '').toLowerCase();
-        if (tName.indexOf(key.replace(/\s+/g, '_')) >= 0) return templates[i];
+    if (mapping) {
+      for (var j = 0; j < templates.length; j++) {
+        var tmpl = templates[j];
+        var name = (tmpl.name || '').toLowerCase();
+        if (name.indexOf(mapping.pattern) >= 0) return tmpl;
+        if (tmpl.paper === mapping.paper && tmpl.orientation === mapping.orientation) return tmpl;
       }
-      console.warn('[PdfPrinter] Layout "' + layoutStr + '" nicht erkannt, nehme erstes Template.');
-      return templates[0] || null;
     }
 
-    // Exakte Suche
-    for (var j = 0; j < templates.length; j++) {
-      var tmpl = templates[j];
-      var name = (tmpl.name || '').toLowerCase();
-      if (name.indexOf(mapping.pattern) >= 0) return tmpl;
-      if (tmpl.paper === mapping.paper && tmpl.orientation === mapping.orientation) return tmpl;
+    // 4. Fuzzy Name-Match
+    for (var i = 0; i < templates.length; i++) {
+      var tName = (templates[i].name || '').toLowerCase();
+      if (tName.indexOf(key.replace(/\s+/g, '_')) >= 0) return templates[i];
     }
 
-    console.warn('[PdfPrinter] Kein Template für "' + layoutStr + '" im Manifest.');
+    // 5. Fuzzy Title-Match
+    for (var m = 0; m < templates.length; m++) {
+      var tTitle = (templates[m].title || '').toLowerCase();
+      if (tTitle.indexOf(key) >= 0 || key.indexOf(tTitle) >= 0) return templates[m];
+    }
+
+    console.warn('[PdfPrinter] Layout "' + layoutStr + '" nicht erkannt, nehme erstes Template.');
     return templates[0] || null;
   }
 
@@ -331,8 +345,24 @@
     // ---- Texte vorbereiten ----
     var scaleNum  = opts.massstab || getMapScale(map);
     var scaleText = formatScale(scaleNum);
-    var center    = ol.proj.toLonLat(map.getView().getCenter());
-    var coordsText = center[1].toFixed(5) + '° N, ' + center[0].toFixed(5) + '° E';
+    // Print-Center: entweder explizit uebergeben oder aktuelles View-Center
+    var centerNative = opts.printCenter || map.getView().getCenter();  // Projektionskoordinaten (LV95)
+    // Center explizit setzen (verhindert Drift nach setMapScale)
+    map.getView().setCenter(centerNative);
+    var center    = ol.proj.toLonLat(centerNative);
+    // LV95-Koordinaten (EPSG:2056) für Schweizer Kontext
+    var coordsText = Math.round(centerNative[0]).toLocaleString('de-CH') + ' / ' +
+                     Math.round(centerNative[1]).toLocaleString('de-CH');
+    var dateText  = new Date().toLocaleDateString('de-CH');
+    var rotationDeg = Math.round((map.getView().getRotation() || 0) * 180 / Math.PI);
+
+    console.log('[PdfPrinter] Texte für Template:', {
+      scaleText: scaleText,
+      coordsText: coordsText,
+      dateText: dateText,
+      title: opts.kartentitel || _config.filename || 'Kartenexport',
+      rotation: rotationDeg
+    });
 
     // ---- Cleanup-Funktion (View + Graticule wiederherstellen) ----
     function restoreState() {
@@ -364,17 +394,24 @@
           map:       map,
           template:  template,
           title:     opts.kartentitel || _config.filename || 'Kartenexport',
-          filename:  _config.filename || 'Kartenexport',
+          // filename wird automatisch generiert: <Titel>_<Zeitstempel>.pdf
           dpi:       opts.aufloesung || 150,
-          scaleText: scaleText,
+          scaleText:   scaleText,
+          scaleNumber: scaleNum,
           coords:    coordsText,
+          date:      dateText,
+          rotation:  rotationDeg,
+          printCenter: centerNative,  // Exaktes Zentrum durchreichen
+          jpegQuality: opts.jpegQuality || 0.7,  // JPEG-Qualität durchreichen
           onProgress: onProgress
         });
       })
       .then(function (result) {
         restoreState();
+        console.log('[PdfPrinter] exportPdf() returned:', result);
         // result = { blob: Blob, filename: 'xxx.pdf' }
         if (opts.onSuccess) opts.onSuccess(result);
+        return result;
       })
       .catch(function (error) {
         restoreState();
@@ -403,12 +440,17 @@
     return TemplatePdfExport.getTemplates().then(function (templates) {
       return templates.map(function (t) {
         var orient = t.orientation === 'landscape' ? 'Quer' : 'Hoch';
+        var label = t.title || ((t.paper || '?') + ' ' + orient);
         return {
-          label:       (t.paper || '?') + ' ' + orient,
-          value:       (t.paper || '?') + ' ' + orient,
+          label:       label,
+          value:       label,
           name:        t.name,
+          title:       t.title,
           paper:       t.paper,
-          orientation: t.orientation
+          orientation: t.orientation,
+          width_mm:    t.width_mm,
+          height_mm:   t.height_mm,
+          mapFrame:    t.mapFrame || null
         };
       });
     });

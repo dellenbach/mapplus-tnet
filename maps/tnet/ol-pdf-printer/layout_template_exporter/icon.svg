@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- Hintergrund -->
+  <rect x="4" y="2" width="44" height="60" rx="3" ry="3"
+        fill="#ffffff" stroke="#333333" stroke-width="2"/>
+  <!-- Kartenfläche -->
+  <rect x="8" y="12" width="36" height="34" rx="1" ry="1"
+        fill="#e3f2fd" stroke="#2196f3" stroke-width="1.5"
+        stroke-dasharray="4,2"/>
+  <!-- Titelblock -->
+  <rect x="8" y="4" width="36" height="6" rx="1" ry="1"
+        fill="#f5f5f5" stroke="#666" stroke-width="1"/>
+  <!-- Legende -->
+  <rect x="48" y="12" width="12" height="20" rx="1" ry="1"
+        fill="#fafafa" stroke="#999" stroke-width="1"/>
+  <!-- Logo -->
+  <rect x="48" y="34" width="12" height="10" rx="1" ry="1"
+        fill="#eee" stroke="#999" stroke-width="1"/>
+  <!-- Maßstab -->
+  <rect x="8" y="48" width="36" height="6" rx="1" ry="1"
+        fill="#fafafa" stroke="#666" stroke-width="1"/>
+  <!-- Export-Pfeil -->
+  <polygon points="52,50 58,56 55,56 55,62 49,62 49,56 46,56"
+           fill="#4caf50" stroke="#388e3c" stroke-width="0.8"/>
+</svg>

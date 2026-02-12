@@ -1,0 +1,5 @@
+<RCC>
+  <qresource prefix="/plugins/layout_template_exporter">
+    <file>icon.png</file>
+  </qresource>
+</RCC>

@@ -52,22 +52,11 @@
 .print-section input:focus { outline: none; border-color: #4b7b81; }
 
 /* ==============================
-   Massstab
+   Massstab (Dropdown)
    ============================== */
-.print-scale-row {
-  display: flex; flex-direction: column; gap: 6px; position: relative;
+#print-scale {
+  appearance: auto; cursor: pointer;
 }
-.print-scale-prefix {
-  position: absolute; left: 10px; top: 8px;
-  font-size: 13px; color: #666; z-index: 1;
-}
-.print-scale-row input[type="number"] { padding-left: 28px; }
-.print-scale-presets { display: flex; flex-wrap: wrap; gap: 4px; }
-.print-preset-btn {
-  padding: 3px 8px; background: #f0f0f0; border: 1px solid #ccc;
-  border-radius: 3px; font-size: 11px; cursor: pointer; font-family: inherit;
-}
-.print-preset-btn:hover { background: #e0eded; border-color: #4b7b81; }
 
 /* ==============================
    Radio-Gruppen / Checkboxen
@@ -206,7 +195,9 @@
 .print-frame-rect {
   border: 3px solid #333;
   box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.3);
-  position: relative; box-sizing: border-box;
+  position: relative; box-sizing: content-box;
+  /* Kein margin nötig: positioning center-center + symmetrischer Border
+     → OL zentriert Element-Mitte = Content-Mitte am View-Center */
 }
 .print-frame-handle {
   position: absolute; width: 14px; height: 14px;
