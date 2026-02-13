@@ -6,11 +6,12 @@
  * Lädt die Frontpage von www.gis-daten.ch/?active-map={nw|ow} und:
  * - Entfernt den Site-Header serverseitig (preg_replace)
  * - Injiziert tnet-mapplus-helpers.js (Bookmark-Funktionen)
- * - Injiziert tnet-proxy-inject.js  (Auto-Init: Links, Buttons)
+ * - Injiziert tnet-proxy-inject.js  (Auto-Init: Links, Buttons, SSO)
+ * - Leitet Browser-Cookies an gis-daten.ch weiter (SSO pass-through)
  *
  * Läuft auf demselben Server (Loopback). cURL für Robustheit.
  *
- * @version    4.0
+ * @version    4.1
  * @date       2026-02-13
  * @copyright  Trigonet AG
  * @author     Marco Dellenbach
@@ -92,9 +93,20 @@ function fetchContent($url) {
             CURLOPT_MAXREDIRS => 5,
             CURLOPT_TIMEOUT => 15,
             CURLOPT_CONNECTTIMEOUT => 5,
-            CURLOPT_USERAGENT => 'Mozilla/5.0 (compatible; MapProxy/3.0)',
+            CURLOPT_USERAGENT => 'Mozilla/5.0 (compatible; MapProxy/4.1)',
             CURLOPT_SSL_VERIFYPEER => false, // Loopback, SSL nicht nötig
         ]);
+
+        // SSO pass-through: Browser-Cookies an gis-daten.ch weiterleiten
+        // Gleicher Server → Browser sendet WP-Session-Cookies an den Proxy
+        if (!empty($_COOKIE)) {
+            $cookies = [];
+            foreach ($_COOKIE as $name => $value) {
+                $cookies[] = $name . '=' . urlencode($value);
+            }
+            curl_setopt($ch, CURLOPT_COOKIE, implode('; ', $cookies));
+            error_log('Proxy: ' . count($cookies) . ' Cookies weitergeleitet');
+        }
         $result = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $error = curl_error($ch);
