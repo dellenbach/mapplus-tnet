@@ -82,10 +82,20 @@ if (strpos($content, '</head>') !== false) {
 $isMapPlusLoggedIn = !empty($_SESSION['OIDC_CLAIM_group']) || !empty($_SESSION['app_username']);
 
 if ($isMapPlusLoggedIn && strpos($content, 'oauthloginbutton') !== false) {
-    $autoLoginScript = '<script>document.addEventListener("DOMContentLoaded", function() {
-      var btn = document.querySelector("a.oauthloginbutton");
-      if (btn) { console.log("[proxy] Auto-SSO: mapplus angemeldet, klicke WP-Login"); btn.click(); }
-    });</script>';
+    $autoLoginScript = '<script>
+    // Auto-SSO: mapplus angemeldet, WP Login-Button gefunden
+    // Rufe moOAuthLoginNew direkt auf (mit Retry, da WP-Scripts spät laden)
+    (function autoSSO(attempt) {
+      if (typeof moOAuthLoginNew === "function") {
+        console.log("[proxy] Auto-SSO: rufe moOAuthLoginNew (Versuch " + attempt + ")");
+        moOAuthLoginNew("adfs", "");
+      } else if (attempt < 20) {
+        setTimeout(function() { autoSSO(attempt + 1); }, 500);
+      } else {
+        console.warn("[proxy] Auto-SSO: moOAuthLoginNew nach 10s nicht verfügbar");
+      }
+    })(1);
+    </script>';
     $content = str_replace('</body>', $autoLoginScript . '</body>', $content);
     error_log('Proxy: Auto-SSO Script injiziert (User: ' . ($_SESSION['app_username'] ?? 'unknown') . ')');
 } else {
