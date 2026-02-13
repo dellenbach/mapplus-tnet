@@ -18,8 +18,19 @@
  * @author     Marco Dellenbach
  */
 
-// Session starten um mapplus-Login zu prüfen (gleicher Server = gleiche Session)
+// Session starten um mapplus-Login zu prüfen
+// Muss gleiche Session-Config wie index.php verwenden (SameSite, Secure, Path)
+session_set_cookie_params([
+    'lifetime' => 0,
+    'path' => '/',
+    'domain' => '',
+    'secure' => true,
+    'httponly' => false,
+    'samesite' => 'None'
+]);
 session_start();
+
+error_log('Proxy: Session-ID=' . session_id() . ', OIDC_CLAIM_group=' . ($_SESSION['OIDC_CLAIM_group'] ?? 'LEER') . ', app_username=' . ($_SESSION['app_username'] ?? 'LEER'));
 
 header('Access-Control-Allow-Origin: *');
 header('Content-Type: text/html; charset=utf-8');
