@@ -51,7 +51,7 @@ window.openMapsInfoDialog = function() {
         dialog.show();
         var iframe = document.getElementById("mapsInfoFrame");
         if (iframe) {
-            var lazySrc = iframe.getAttribute('data-src') || '/maps/tnet/inframe-maps.html';
+            var lazySrc = iframe.getAttribute('data-src') || '/maps/tnet/views/inframe-maps.html';
             if (!iframe.getAttribute('src')) {
                 iframe.src = lazySrc;
             }
@@ -93,7 +93,7 @@ window.goBackInIframe = function() {
 window.refreshIframe = function() {
     var iframe = document.getElementById("mapsInfoFrame");
     if (!iframe) return;
-    var baseSrc = iframe.getAttribute('data-src') || '/maps/tnet/inframe-maps.html';
+    var baseSrc = iframe.getAttribute('data-src') || '/maps/tnet/views/inframe-maps.html';
     if (!iframe.getAttribute('src')) {
         iframe.src = baseSrc;
     } else {
@@ -260,7 +260,7 @@ function preloadMapsInfoIframe(){
     if (preloaded) return;
     var iframe = document.getElementById('mapsInfoFrame');
     if (!iframe) return;
-    var lazySrc = iframe.getAttribute('data-src') || '/maps/tnet/inframe-maps.html';
+    var lazySrc = iframe.getAttribute('data-src') || '/maps/tnet/views/inframe-maps.html';
     if (!iframe.getAttribute('src')) {
         iframe.src = lazySrc;
     }
