@@ -1,45 +1,36 @@
 <?php
 /**
  * active-maps-proxy.php
- * Proxy für die gis-daten.ch Kartenseite mit CSS/JS Injection
- * 
+ * Proxy für die gis-daten.ch Kartenseite
+ *
  * Lädt die Frontpage von www.gis-daten.ch/?active-map={nw|ow} und:
- * - Entfernt Header und Sidebar serverseitig
- * - Injiziert CSS/JS für Button-Interaktion und Layout
- * 
- * Hinweis: Läuft auf demselben Server (gis-daten.ch), daher ist
- * der Fetch ein Loopback-Request. cURL wird verwendet um
- * Timeout/Redirect-Probleme zu vermeiden.
- * 
- * @version    3.0
+ * - Entfernt den Site-Header serverseitig (preg_replace)
+ * - Injiziert tnet-mapplus-helpers.js (Bookmark-Funktionen)
+ * - Injiziert tnet-proxy-inject.js  (Auto-Init: Links, Buttons)
+ *
+ * Läuft auf demselben Server (Loopback). cURL für Robustheit.
+ *
+ * @version    4.0
  * @date       2026-02-13
  * @copyright  Trigonet AG
  * @author     Marco Dellenbach
  */
 
-// CORS Header
 header('Access-Control-Allow-Origin: *');
 header('Content-Type: text/html; charset=utf-8');
 
-// Get parameters
+// --- Parameter ---
 $group = isset($_GET['group']) ? sanitize($_GET['group']) : 'nw';
 $activeMap = ($group === 'ow' || strpos($group, 'ow') === 0) ? 'ow' : 'nw';
 
-// Korrekte URL: /?active-map={nw|ow} (nicht /nw/pub/)
 $externalUrl = 'https://www.gis-daten.ch/?active-map=' . $activeMap;
 if ($group !== 'nw' && $group !== 'ow' && $group !== 'none') {
     $externalUrl .= '&group=' . urlencode($group);
 }
 
-// Eigene Basis-URL für absolute Pfade der injizierten Assets
-$scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-$selfBase = $scheme . '://' . $_SERVER['HTTP_HOST'];
+error_log('Proxy v4: Lade ' . $externalUrl);
 
-error_log('Proxy v3: Lade ' . $externalUrl);
-
-// =========================================================
-// Content laden via cURL (robuster als file_get_contents für Loopback)
-// =========================================================
+// --- Content laden ---
 $content = fetchContent($externalUrl);
 
 if ($content === false) {
@@ -47,57 +38,40 @@ if ($content === false) {
     echo '<!DOCTYPE html><html><body>';
     echo '<h1>Fehler beim Laden der Kartenseite</h1>';
     echo '<p>URL: ' . htmlspecialchars($externalUrl) . '</p>';
-    echo '<p>Bitte prüfen Sie die Server-Logs für Details.</p>';
     echo '</body></html>';
-    error_log('Proxy Error: Konnte nicht laden: ' . $externalUrl);
+    error_log('Proxy Error: ' . $externalUrl);
     exit;
 }
 
-error_log('Proxy v3: Content geladen, Länge: ' . strlen($content));
+error_log('Proxy v4: Content geladen, Länge: ' . strlen($content));
 
-// =========================================================
-// 1. Server-seitige Entfernung: <header class="site-header">
-//    Zuverlässiger als CSS-Override gegen WordPress-Spezifität
-// =========================================================
+// --- Header entfernen (server-seitig, zuverlässiger als CSS) ---
 $content = preg_replace(
     '/<header[^>]*class="[^"]*site-header[^"]*"[^>]*>.*?<\/header>/si',
     '<!-- header removed by proxy -->',
     $content
 );
 
-// Sidebar bleibt sichtbar (gewünscht)
-
-// =========================================================
-// 3. CSS/JS Injection
-//    Pfade sind absolut (gleicher Server, aber sicherheitshalber)
-// =========================================================
-
-// Inline-Style als sofortiger Fallback
-$inlineStyle = '<style id="proxy-inline-overrides">
-  header.site-header { display:none!important; height:0!important; overflow:hidden!important; }
-  .cdt-frontpage-maps-header { z-index:999999!important; position:relative!important; }
-  .cdt-frontpage-maps-header-buttons { z-index:999999!important; position:relative!important; pointer-events:auto!important; }
-  .cdt-frontpage-maps-header-buttons button { z-index:999999!important; position:relative!important; pointer-events:auto!important; cursor:pointer!important; }
+// --- Minimales Inline-CSS (Backup + Layout) ---
+$inlineStyle = '<style id="proxy-overrides">
+  header.site-header { display:none!important; }
   body, main { padding-top:0!important; margin-top:0!important; }
 </style>';
 
-// Externes CSS + JS
-$cssInjection = '<link rel="stylesheet" href="/maps/tnet/css/proxy-overrides.css?v=' . time() . '">';
-$jsInjection = '<script src="/maps/tnet/js/proxy-button-handler.js?v=' . time() . '"></script>';
+// --- JS Injection: Helpers + Auto-Init ---
+$v = time();
+$jsHelpers = '<script src="/maps/tnet/js/tnet-mapplus-helpers.js?v=' . $v . '"></script>';
+$jsInject  = '<script src="/maps/tnet/js/tnet-proxy-inject.js?v=' . $v . '"></script>';
 
-// Injiziere vor </head>
-$injection = "\n" . $inlineStyle . "\n" . $cssInjection . "\n" . $jsInjection . "\n";
+$injection = "\n" . $inlineStyle . "\n" . $jsHelpers . "\n" . $jsInject . "\n";
 
 if (strpos($content, '</head>') !== false) {
     $content = str_replace('</head>', $injection . '</head>', $content);
 } else {
-    $pattern = '/(<body[^>]*>)/i';
-    $content = preg_replace($pattern, '$1' . $injection, $content);
+    $content = preg_replace('/(<body[^>]*>)/i', '$1' . $injection, $content);
 }
 
-// =========================================================
-// Output
-// =========================================================
+// --- Output ---
 echo $content;
 
 // =========================================================

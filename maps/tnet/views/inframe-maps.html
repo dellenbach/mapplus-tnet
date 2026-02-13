@@ -34,7 +34,6 @@
 </head>
 <body>
   <div id="loadingMessage">Wird geladen...</div>
-  <script src="../js/tnet-mapplus-helpers.js"></script>
   
   <!-- Sichtbares Karten-iframe -->
   <iframe id="mapFrame" src="" style="visibility:hidden;"></iframe>
@@ -107,7 +106,7 @@
     var lastMapType = mapType;
     var reloadTimeout = null;
     
-    log('=== INIT (Version 20260213-v3) ===');
+    log('=== INIT (Version 20260213-v4) ===');
     log('Group: ' + group);
     log('MapType: ' + mapType);
     log('Pre-Login sollte bereits in index_de.htm gestartet sein');
@@ -133,10 +132,8 @@
     mapFrame.onload = function() {
       log('iframe geladen');
       showFrame();
-      
-      // CSS/JS Injection und Button-Handler werden jetzt serverseitig
-      // durch active-maps-proxy.php erledigt (zuverlässiger als client-seitig)
-      log('Proxy übernimmt CSS/JS Injection und Button-Handler');
+      // Proxy v4 injiziert tnet-mapplus-helpers.js + tnet-proxy-inject.js
+      // → Links via processExtractedLinks(), NW/OW Buttons via proxy-inject
     };
     
     // Hilfsfunktion: Update parent URL mit neuem group
