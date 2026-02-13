@@ -79,23 +79,46 @@
     }
     
     // =============================================================
-    // HAUPTLOGIK - EINFACH
-    // Pre-Login passiert bereits in index_de.htm
+    // HAUPTLOGIK - MIT URL-MONITORING
+    // Überwacht Parent-URL auf group-Wechsel und lädt iframe neu
     // =============================================================
     var mapFrame = document.getElementById('mapFrame');
     var group = getGroup();
     var mapType = getMapType();
+    var lastGroup = group;
+    var lastMapType = mapType;
+    var reloadTimeout = null;
     
     log('=== INIT (Version 20260122-v7) ===');
     log('Group: ' + group);
     log('MapType: ' + mapType);
     log('Pre-Login sollte bereits in index_de.htm gestartet sein');
     
+    function reloadMapIfGroupChanged() {
+      var newGroup = getGroup();
+      var newMapType = getMapType();
+      
+      if (newGroup !== lastGroup || newMapType !== lastMapType) {
+        log('Group/MapType geändert: ' + lastGroup + ' -> ' + newGroup + ', MapType: ' + lastMapType + ' -> ' + newMapType);
+        lastGroup = newGroup;
+        lastMapType = newMapType;
+        group = newGroup;
+        mapType = newMapType;
+        
+        // Reload mit Cache-Busting
+        mapFrame.src = buildIframeSrc(group) + '&_t=' + Date.now();
+      }
+    }
+    
+    // Starte initiales Laden
     mapFrame.src = buildIframeSrc(group);
     mapFrame.onload = function() {
       log('iframe geladen');
       showFrame();
     };
+    
+    // URL-Monitoring: Prüfe auf group-Wechsel alle 500ms
+    setInterval(reloadMapIfGroupChanged, 500);
     
     // DEBUG
     window.reloadMap = function() {
