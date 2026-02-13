@@ -92,8 +92,7 @@
     }
     
     function buildIframeSrc(group) {
-      var mapType = getMapType();
-      // Nutze den neuen PHP-Proxy statt direkter externer URL
+      // PHP-Proxy lädt gis-daten.ch/?active-map={nw|ow} und injiziert CSS/JS
       return '/maps/tnet/php/active-maps-proxy.php?group=' + encodeURIComponent(group);
     }
     
@@ -108,7 +107,7 @@
     var lastMapType = mapType;
     var reloadTimeout = null;
     
-    log('=== INIT (Version 20260122-v7) ===');
+    log('=== INIT (Version 20260213-v3) ===');
     log('Group: ' + group);
     log('MapType: ' + mapType);
     log('Pre-Login sollte bereits in index_de.htm gestartet sein');
