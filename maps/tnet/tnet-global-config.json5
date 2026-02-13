@@ -223,6 +223,14 @@
     // Nur in Kombination mit Server-Rendering wirksam.
     // false = Standard (Raster PNG/JPEG), true = SVG Default
     svgFormatDefault: false,
+    // Server-DPI: Auflösung für Mapserver-Requests (Client-Rendering)
+    // Die Mapserver-Layer-Styles sind für 96 DPI optimiert.
+    // Dieser Wert sollte NIEDRIGER als die PDF-DPI-Einstellung sein,
+    // um zu enge Schraffuren bei hoher PDF-Auflösung zu vermeiden.
+    //   96  = Standard (empfohlen, lockere Schraffuren)
+    //   120 = mittlere Dichte
+    //   150 = hohe Dichte (bei PDF-DPI 300 evtl. zu eng)
+    serverDpi: 96,
     // Bildformat für Kartenbild im PDF:
     //   'image/jpeg' = kleinere Datei (Standard)
     //   'image/png'  = verlustfrei, transparente Bereiche bleiben weiss

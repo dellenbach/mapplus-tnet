@@ -453,6 +453,7 @@
           jpegQuality: opts.jpegQuality || 0.7,  // JPEG-Qualität durchreichen
           serverRender: !!opts.serverRender,  // Server-Rendering durchreichen
           svgFormat:    !!opts.svgFormat,      // SVG-Vektorgrafik durchreichen
+          serverDpi:    opts.serverDpi || 96,   // Server-DPI für Mapserver-Requests
           onProgress: onProgress
         });
       })

@@ -795,6 +795,7 @@
       serverRender:    serverRender,
       svgFormat:       svgFormat,
       jpegQuality:     (_globalConfig.print && _globalConfig.print.jpegQuality) || 0.7,
+      serverDpi:       (_globalConfig.print && _globalConfig.print.serverDpi) || 96,
 
       onProgress: function (step, msg) {
         var pct = Math.round((step / 7) * 100);

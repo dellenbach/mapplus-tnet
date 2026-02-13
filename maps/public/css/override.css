@@ -1114,7 +1114,7 @@ body.drawing-mode #freepane * {
   background: rgba(255, 255, 255, 0.15);
   border-radius: 4px;
   overflow: hidden;
-  margin-top: calc(1.5em + 50px);
+  margin-top: calc(1.5em + 130px);
   box-shadow: 0 0 10px rgba(255, 255, 255, 0.1);
 }
 

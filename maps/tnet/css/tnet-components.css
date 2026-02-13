@@ -1,4 +1,4 @@
-/**
+﻿/**
  * tnet-components.css
  * TNET-spezifische UI-Komponenten Styles
  *
@@ -26,7 +26,7 @@
   box-shadow: 0 4px 20px rgba(0,0,0,0.25), 0 0 1px rgba(0,0,0,0.1);
   min-width: 220px;
   padding: 6px 0;
-  font-family: 'Roboto', sans-serif;
+  font-family: 'Inter Tight', sans-serif;
   font-size: 13px;
   animation: ctxFadeIn 0.15s ease-out;
 }
@@ -123,7 +123,7 @@
   justify-content: space-between;
   height: 26px;
   background: rgba(120, 120, 120, 0.7);
-  font-family: 'Roboto', Arial, sans-serif;
+  font-family: 'Inter Tight', Arial, sans-serif;
   font-size: 11px;
   color: #fff;
   padding: 0 10px;
@@ -240,7 +240,7 @@
   -webkit-appearance: none;
   background: transparent url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24'%3E%3Cpath fill='white' d='M7 10l5 5 5-5z'/%3E%3C/svg%3E") no-repeat right center;
   border: none;
-  font-family: 'Roboto', Arial, sans-serif;
+  font-family: 'Inter Tight', Arial, sans-serif;
   font-size: 11px;
   font-weight: 500;
   color: #fff;
@@ -379,6 +379,8 @@
   flex-direction: column;
   overflow: hidden;
   resize: none !important; /* KEIN RESIZE */
+  font-family: 'Inter Tight', Arial, sans-serif;
+  line-height: 1.4;
 }
 
 .spatial-query-panel.hidden {
@@ -883,7 +885,7 @@
   flex-direction: column;
   overflow: hidden;
   resize: none !important;
-  font-family: 'Roboto', Arial, sans-serif;
+  font-family: 'Inter Tight', Arial, sans-serif;
   font-size: 13px;
 }
 /* Angedockt rechts (Position wird via JS gesetzt, identisch mit Objektinfo) */
@@ -1112,7 +1114,7 @@
   font-size: 11px;
   color: #4b7b81;
   cursor: pointer;
-  font-family: 'Roboto', Arial, sans-serif;
+  font-family: 'Inter Tight', Arial, sans-serif;
 }
 .oereb-back-btn:hover {
   background: #e8f0f1;

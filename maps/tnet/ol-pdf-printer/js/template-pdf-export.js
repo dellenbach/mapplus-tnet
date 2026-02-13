@@ -892,27 +892,29 @@
   function renderMapCanvas(map, center, resolution, pxW, pxH, opts) {
     opts = opts || {};
     var printDpi = opts.dpi || 150;
+    var serverDpi = opts.serverDpi || 96;  // DPI für Mapserver-Requests (Schraffuren)
     var rotation = opts.rotation || map.getView().getRotation() || 0;
 
     return new Promise(function (resolve, reject) {
 
-      // ── 1. Hilfs-Funktion: WMS-Source mit Druck-DPI klonen ──
-      // Erstellt eine NEUE Source-Instanz mit DPI-Params für den Druck.
+      // ── 1. Hilfs-Funktion: WMS-Source mit Server-DPI klonen ──
+      // Erstellt eine NEUE Source-Instanz mit DPI-Params für Mapserver.
+      // serverDpi (96) != printDpi (150/300) → scharfes PDF + korrekte Schraffuren
       // Original-Sources der On-Screen-Map werden NICHT verändert!
       var dpiClonedCount = 0;
       function cloneSourceWithDpi(src) {
         if (!src || typeof src.updateParams !== 'function') return src;
         // VectorSource NICHT anfassen (Redlining-Schutz)
         if (typeof src.getFeatures === 'function') return src;
-        if (printDpi <= 96) return src;
+        if (serverDpi <= 96) return src;
 
         var origParams = src.getParams();
         var newParams = Object.assign({}, origParams);
-        newParams['FORMAT_OPTIONS'] = 'dpi:' + printDpi;
-        newParams['DPI'] = printDpi;
-        newParams['dpi'] = printDpi;
-        if (newParams['WIDTH'])  newParams['WIDTH']  = Math.round(newParams['WIDTH']  * printDpi / 96);
-        if (newParams['HEIGHT']) newParams['HEIGHT'] = Math.round(newParams['HEIGHT'] * printDpi / 96);
+        newParams['FORMAT_OPTIONS'] = 'dpi:' + serverDpi;
+        newParams['DPI'] = serverDpi;
+        newParams['dpi'] = serverDpi;
+        if (newParams['WIDTH'])  newParams['WIDTH']  = Math.round(newParams['WIDTH']  * serverDpi / 96);
+        if (newParams['HEIGHT']) newParams['HEIGHT'] = Math.round(newParams['HEIGHT'] * serverDpi / 96);
 
         var clonedSrc;
         if (src instanceof ol.source.TileWMS) {
@@ -940,7 +942,7 @@
           return src;
         }
         dpiClonedCount++;
-        _dbg('[TemplatePDF] Source DPI-Klon erstellt:', printDpi,
+        _dbg('[TemplatePDF] Source DPI-Klon erstellt: serverDpi=' + serverDpi,
           'für', src.constructor.name || 'WMS');
         return clonedSrc;
       }
@@ -1033,7 +1035,7 @@
       console.log('│ Center:', center[0].toFixed(2) + ' / ' + center[1].toFixed(2));
       console.log('│ Resolution:', resolution.toFixed(10), 'm/px');
       console.log('│ Rotation:', (rotation * 180 / Math.PI).toFixed(1) + '°');
-      console.log('│ DPI:', printDpi);
+      console.log('│ PDF-DPI:', printDpi, ' / Server-DPI:', serverDpi);
       console.log('│ Sichtbare Layer:', printLayers.length);
       console.log('│ DPI-Quellen geklont:', dpiClonedCount);
       var expectedExtentW = pxW * resolution;
@@ -1956,7 +1958,7 @@
             desiredRes,
             Math.round(targetVpW),  // bei Rotation: mit Buffer
             Math.round(targetVpH),
-            { dpi: dpi, rotation: rotRad }
+            { dpi: dpi, rotation: rotRad, serverDpi: options.serverDpi || 96 }
           ).then(function (mapCanvas) {
             return { canvas: mapCanvas, needsRestore: false };
           });
