@@ -6,16 +6,20 @@
  * Lädt die Frontpage von www.gis-daten.ch/?active-map={nw|ow} und:
  * - Entfernt den Site-Header serverseitig (preg_replace)
  * - Injiziert tnet-mapplus-helpers.js (Bookmark-Funktionen)
- * - Injiziert tnet-proxy-inject.js  (Auto-Init: Links, Buttons, SSO)
+ * - Injiziert tnet-proxy-inject.js  (Auto-Init: Links, Buttons)
  * - Leitet Browser-Cookies an gis-daten.ch weiter (SSO pass-through)
+ * - SSO Auto-Login: Klickt WP-Login-Button wenn mapplus-Session existiert
  *
  * Läuft auf demselben Server (Loopback). cURL für Robustheit.
  *
- * @version    4.1
+ * @version    4.2
  * @date       2026-02-13
  * @copyright  Trigonet AG
  * @author     Marco Dellenbach
  */
+
+// Session starten um mapplus-Login zu prüfen (gleicher Server = gleiche Session)
+session_start();
 
 header('Access-Control-Allow-Origin: *');
 header('Content-Type: text/html; charset=utf-8');
@@ -70,6 +74,22 @@ if (strpos($content, '</head>') !== false) {
     $content = str_replace('</head>', $injection . '</head>', $content);
 } else {
     $content = preg_replace('/(<body[^>]*>)/i', '$1' . $injection, $content);
+}
+
+// --- SSO Auto-Login ---
+// Wenn mapplus-Session existiert UND gis-daten.ch zeigt Login-Button
+// → automatisch klicken. Gleicher IDP (ADFS) → SSO ohne Passwort.
+$isMapPlusLoggedIn = !empty($_SESSION['OIDC_CLAIM_group']) || !empty($_SESSION['app_username']);
+
+if ($isMapPlusLoggedIn && strpos($content, 'oauthloginbutton') !== false) {
+    $autoLoginScript = '<script>document.addEventListener("DOMContentLoaded", function() {
+      var btn = document.querySelector("a.oauthloginbutton");
+      if (btn) { console.log("[proxy] Auto-SSO: mapplus angemeldet, klicke WP-Login"); btn.click(); }
+    });</script>';
+    $content = str_replace('</body>', $autoLoginScript . '</body>', $content);
+    error_log('Proxy: Auto-SSO Script injiziert (User: ' . ($_SESSION['app_username'] ?? 'unknown') . ')');
+} else {
+    error_log('Proxy: SSO-Status: mapplus=' . ($isMapPlusLoggedIn ? 'ja' : 'nein') . ', WP-Login-Button=' . (strpos($content, 'oauthloginbutton') !== false ? 'ja' : 'nein'));
 }
 
 // --- Output ---

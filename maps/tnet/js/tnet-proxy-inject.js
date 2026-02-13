@@ -4,11 +4,11 @@
  * Wird zusammen mit tnet-mapplus-helpers.js vom Proxy injiziert.
  *
  * Aufgaben:
- * 1. SSO: Auto-Login via tryAutoLogin() wenn WP-Login-Button sichtbar
- * 2. Sidebar-Links umschreiben via processExtractedLinks()
- * 3. NW/OW Buttons abfangen und an Parent-Frame weiterleiten
+ * 1. Sidebar-Links umschreiben via processExtractedLinks()
+ * 2. NW/OW Buttons abfangen und an Parent-Frame weiterleiten
+ * (SSO Auto-Login wird serverseitig via active-maps-proxy.php erledigt)
  *
- * @version    1.1
+ * @version    1.2
  * @date       2026-02-13
  * @copyright  Trigonet AG
  * @author     Marco Dellenbach
@@ -20,30 +20,7 @@
   var TAG = '[proxy-inject]';
 
   // -----------------------------------------------------------
-  // 1. SSO: Auto-Login wenn WordPress Login-Button sichtbar
-  //    tryAutoLogin() stammt aus tnet-mapplus-helpers.js
-  //    Gleicher IDP (ADFS) → wenn am IDP angemeldet, SSO ohne Passwort
-  // -----------------------------------------------------------
-  function checkAutoLogin() {
-    if (typeof tryAutoLogin !== 'function') {
-      console.log(TAG, 'tryAutoLogin nicht verfügbar');
-      return;
-    }
-
-    // Suche nach WordPress-OAuth-Login-Button (miniOrange)
-    var loginBtn = document.querySelector('a.oauthloginbutton[onclick*="moOAuthLoginNew"]');
-    if (loginBtn) {
-      console.log(TAG, 'WP Login-Button gefunden → starte Auto-SSO');
-      // Nutze ein temporäres iframe-Objekt mit document als contentDocument
-      var fakeIframe = { contentDocument: document };
-      tryAutoLogin(fakeIframe);
-    } else {
-      console.log(TAG, 'Kein Login-Button → bereits angemeldet oder öffentlich');
-    }
-  }
-
-  // -----------------------------------------------------------
-  // 2. Sidebar-Links umschreiben (Bookmark-System)
+  // 1. Sidebar-Links umschreiben (Bookmark-System)
   //    processExtractedLinks() stammt aus tnet-mapplus-helpers.js
   // -----------------------------------------------------------
   function rewriteLinks() {
@@ -62,7 +39,7 @@
   }
 
   // -----------------------------------------------------------
-  // 3. NW/OW Button-Handler
+  // 2. NW/OW Button-Handler
   //    Klick → Parent-URL mit ?group=nw|ow aktualisieren
   //    inframe-maps.html erkennt den Wechsel via URL-Monitoring
   // -----------------------------------------------------------
@@ -110,7 +87,6 @@
   // -----------------------------------------------------------
   function init() {
     console.log(TAG, 'Init');
-    checkAutoLogin();
     rewriteLinks();
     setupButtonHandler();
   }
