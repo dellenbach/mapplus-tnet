@@ -28,17 +28,43 @@
 }
 .print-panel.hidden { display: none !important; }
 
+/* Angedockter Modus */
+.print-panel.docked-right {
+  position: fixed !important;
+  right: 0 !important;
+  box-shadow: -2px 0 8px rgba(0,0,0,0.15);
+  border-left: 1px solid #ccc;
+  max-width: none;
+}
+
 .print-panel-header {
   display: flex; align-items: center; justify-content: space-between;
   padding: 10px 14px; background: #4b7b81; color: white;
   font-weight: 500; font-size: 14px; flex-shrink: 0;
   min-height: 42px; box-sizing: border-box;
 }
-.print-panel-close {
-  background: transparent; border: none; color: white;
-  font-size: 22px; cursor: pointer; opacity: 0.8; padding: 0 4px; line-height: 1;
+.print-panel-actions {
+  display: flex; align-items: center; gap: 4px;
 }
-.print-panel-close:hover { opacity: 1; }
+.print-panel-btn {
+  background: transparent; border: none; color: white;
+  cursor: pointer; opacity: 0.8; padding: 2px 4px; line-height: 1;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 3px; transition: opacity 0.15s, background 0.15s;
+}
+.print-panel-btn:hover { opacity: 1; background: rgba(255,255,255,0.15); }
+.print-panel-close {
+  font-size: 22px; padding: 0 4px;
+}
+
+/* Resize-Handle (linker Rand im Dock-Modus) */
+.print-resize-handle {
+  position: absolute; left: 0; top: 0; bottom: 0; width: 6px;
+  cursor: ew-resize; z-index: 1003;
+  background: linear-gradient(to right, rgba(75,123,129,0.15), transparent);
+  display: none;
+}
+.print-panel.docked-right .print-resize-handle { display: block; }
 
 .print-panel-body { flex: 1; overflow-y: auto; padding: 12px 14px; }
 
@@ -131,13 +157,8 @@
 .print-progress-text { font-size: 11px; color: #666; }
 
 /* ==============================
-   Downloads-Box
+   Downloads-Box (im Accordion)
    ============================== */
-.print-downloads { border-top: 1px solid #ddd; padding-top: 10px; }
-.print-downloads-title {
-  font-size: 12px !important; font-weight: 600 !important;
-  color: #333 !important; margin-bottom: 6px !important;
-}
 .print-dl-item {
   display: flex; align-items: center; gap: 6px;
   padding: 8px 10px; background: #f8f8f8; border: 1px solid #e0e0e0;
@@ -171,24 +192,42 @@
 .print-dl-item .dl-remove:hover { color: #c0392b; }
 
 /* ==============================
-   PDF-Vorschau (iframe)
+   Accordion (Vorschau + Downloads)
    ============================== */
-.print-preview {
-  border-top: 1px solid #ddd; padding-top: 10px; margin-top: 4px;
+.print-accordion {
+  border: 1px solid #ddd; border-radius: 6px;
+  margin-bottom: 10px; overflow: hidden;
+  background: #fafafa;
 }
-.print-preview-header {
-  display: flex; align-items: center; justify-content: space-between;
-  margin-bottom: 6px;
+.print-acc-header {
+  display: flex; align-items: center; gap: 6px;
+  padding: 8px 12px; cursor: pointer;
+  font-size: 12px; font-weight: 600; color: #333;
+  background: #f0f0f0; user-select: none;
+  border-bottom: 1px solid transparent;
+  transition: background 0.15s;
 }
-.print-preview-title {
-  font-size: 12px !important; font-weight: 600 !important;
-  color: #333 !important;
+.print-acc-header:hover { background: #e8f0f0; }
+.print-acc-arrow {
+  display: inline-block; font-size: 10px;
+  transition: transform 0.2s;
 }
-.print-preview-close {
-  background: transparent; border: none; color: #999;
-  cursor: pointer; font-size: 18px; padding: 0 4px; line-height: 1;
+.print-accordion.is-open > .print-acc-header { border-bottom-color: #ddd; }
+.print-accordion.is-open > .print-acc-header .print-acc-arrow {
+  transform: rotate(90deg);
 }
-.print-preview-close:hover { color: #c0392b; }
+.print-acc-panel {
+  max-height: 0; overflow: hidden;
+  transition: max-height 0.25s ease;
+  padding: 0 10px;
+}
+.print-accordion.is-open > .print-acc-panel {
+  max-height: 600px; padding: 10px;
+}
+
+/* ==============================
+   PDF-Vorschau (iframe im Accordion)
+   ============================== */
 .print-preview-frame {
   width: 100%; height: 360px; border: 1px solid #ddd;
   border-radius: 4px; background: #f0f0f0;

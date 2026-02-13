@@ -219,6 +219,10 @@
     // (Redlining) wird als Overlay darübergelegt.
     // false = Standard (OL-Canvas), true = Server-Rendering Default
     serverRenderDefault: false,
+    // SVG-Format: Layer als Vektorgrafik (SVG) anfordern statt Raster.
+    // Nur in Kombination mit Server-Rendering wirksam.
+    // false = Standard (Raster PNG/JPEG), true = SVG Default
+    svgFormatDefault: false,
     // Bildformat für Kartenbild im PDF:
     //   'image/jpeg' = kleinere Datei (Standard)
     //   'image/png'  = verlustfrei, transparente Bereiche bleiben weiss

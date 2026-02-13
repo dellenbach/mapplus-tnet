@@ -37,6 +37,10 @@
   var _globalConfig = {};  // Wird aus tnet-global-config.json5 befuellt
   // Fallback Scales (werden aus tnet-global-config.json5 überschrieben)
   var _scales = [100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 75000, 100000, 250000, 500000, 1000000];
+  // Dock-State
+  var _isPrintPanelDocked = true;  // Default: angedockt
+  var _savedPrintDockedWidth = 380;
+  var _printResizeObserver = null;
 
   // ================================================================
   //  Library-Loader — lädt UMD-Scripts per fetch+eval,
@@ -166,7 +170,12 @@
       '<div id="print-panel" class="print-panel hidden">' +
         '<div class="print-panel-header">' +
           '<span class="print-panel-title">\uD83D\uDDA8 Drucken / Export</span>' +
-          '<button class="print-panel-close" onclick="closePrintPanel()">&times;</button>' +
+          '<div class="print-panel-actions">' +
+            '<button class="print-panel-btn" id="print-dock-btn" onclick="togglePrintPanelDock()" title="Floating">' +
+              '<svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M19 11h-8v6h8v-6zm4 8V4.98C23 3.88 22.1 3 21 3H3c-1.1 0-2 .88-2 1.98V19c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2zm-2 .02H3V4.97h18v14.05z"/></svg>' +
+            '</button>' +
+            '<button class="print-panel-btn print-panel-close" onclick="closePrintPanel()" title="Schliessen">&times;</button>' +
+          '</div>' +
         '</div>' +
         '<div class="print-panel-body">' +
 
@@ -201,6 +210,12 @@
           '<div class="print-section print-checks">' +
             '<label class="print-check"><input type="checkbox" id="print-server-render"> ' +
             'Server-Rendering <span style="color:#888;font-size:11px">(Bilder direkt vom Mapserver)</span></label>' +
+          '</div>' +
+
+          // SVG-Vektorgrafik
+          '<div class="print-section print-checks print-svg-section" id="print-svg-section">' +
+            '<label class="print-check"><input type="checkbox" id="print-svg-format"> ' +
+            'Vektorgrafik (SVG) <span style="color:#888;font-size:11px">(schärfer, grössere Datei)</span></label>' +
           '</div>' +
 
           // Koordinatennetz (vorerst deaktiviert)
@@ -245,19 +260,24 @@
             '<div class="print-progress-text" id="print-progress-text">Wird erstellt...</div>' +
           '</div>' +
 
-          // PDF-Vorschau (iframe)
-          '<div class="print-section print-preview" id="print-preview" style="display:none">' +
-            '<div class="print-preview-header">' +
-              '<label class="print-preview-title">Vorschau</label>' +
-              '<button class="print-preview-close" onclick="closePrintPreview()">&times;</button>' +
+          // PDF-Vorschau (Accordion)
+          '<div class="print-accordion" id="print-preview-acc" style="display:none">' +
+            '<div class="print-acc-header" onclick="togglePrintAccordion(\'print-preview-acc\')">' +
+              '<span class="print-acc-arrow">&#9654;</span> Vorschau' +
             '</div>' +
-            '<iframe id="print-preview-frame" class="print-preview-frame"></iframe>' +
+            '<div class="print-acc-panel">' +
+              '<iframe id="print-preview-frame" class="print-preview-frame"></iframe>' +
+            '</div>' +
           '</div>' +
 
-          // Downloads
-          '<div class="print-section print-downloads" id="print-downloads" style="display:none">' +
-            '<label class="print-downloads-title">\uD83D\uDCE5 Erzeugte PDFs</label>' +
-            '<div id="print-download-list"></div>' +
+          // Downloads (Accordion)
+          '<div class="print-accordion" id="print-downloads-acc" style="display:none">' +
+            '<div class="print-acc-header" onclick="togglePrintAccordion(\'print-downloads-acc\')">' +
+              '<span class="print-acc-arrow">&#9654;</span> \uD83D\uDCE5 Erzeugte PDFs' +
+            '</div>' +
+            '<div class="print-acc-panel">' +
+              '<div id="print-download-list"></div>' +
+            '</div>' +
           '</div>' +
 
         '</div>' +
@@ -690,6 +710,10 @@
       }
       syncRotationUI();
       document.getElementById('print-panel').classList.remove('hidden');
+      // Panel andocken (Default) oder floating
+      if (_isPrintPanelDocked) {
+        dockPrintPanel();
+      }
       showPrintFrame();
       // Kartenausschnitt anpassen: Frame sollte ca. 60-80% des Viewports füllen
       adjustZoomForPrintFrame();
@@ -706,10 +730,20 @@
   };
 
   window.closePrintPanel = function () {
-    document.getElementById('print-panel').classList.add('hidden');
+    var panel = document.getElementById('print-panel');
+    if (panel) panel.classList.add('hidden');
     removePrintFrame();
     var map = getMap();
     if (map) map.getView().setRotation(0);
+    // Falls angedockt: mapContainer zurücksetzen
+    if (_isPrintPanelDocked) {
+      var mapContainer = document.getElementById('mapContainer');
+      if (mapContainer) {
+        mapContainer.style.setProperty('width', '100%', 'important');
+        triggerPrintMapUpdate();
+      }
+      stopPrintObservers();
+    }
   };
 
   // ================================================================
@@ -733,6 +767,8 @@
     var rotation       = parseInt(document.getElementById('print-rotation').value) || 0;
     var serverRenderEl  = document.getElementById('print-server-render');
     var serverRender    = serverRenderEl ? serverRenderEl.checked : false;
+    var svgFormatEl     = document.getElementById('print-svg-format');
+    var svgFormat       = svgFormatEl ? svgFormatEl.checked : false;
 
     _isPrinting = true;
     var btn = document.getElementById('print-exec-btn');
@@ -757,6 +793,7 @@
       netzfarbe:       netzfarbe,
       printCenter:     printCenter,
       serverRender:    serverRender,
+      svgFormat:       svgFormat,
       jpegQuality:     (_globalConfig.print && _globalConfig.print.jpegQuality) || 0.7,
 
       onProgress: function (step, msg) {
@@ -848,19 +885,21 @@
   //  PDF-Vorschau (iframe)
   // ================================================================
   function showPdfPreview(url) {
-    var previewDiv = document.getElementById('print-preview');
+    var accDiv = document.getElementById('print-preview-acc');
     var iframe = document.getElementById('print-preview-frame');
-    if (!previewDiv || !iframe) return;
+    if (!accDiv || !iframe) return;
     iframe.src = url;
-    previewDiv.style.display = 'block';
+    accDiv.style.display = '';
+    // Accordion aufklappen
+    accDiv.classList.add('is-open');
     // Zum Vorschau-Bereich scrollen
-    previewDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    accDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
 
   window.closePrintPreview = function () {
-    var previewDiv = document.getElementById('print-preview');
+    var accDiv = document.getElementById('print-preview-acc');
     var iframe = document.getElementById('print-preview-frame');
-    if (previewDiv) previewDiv.style.display = 'none';
+    if (accDiv) { accDiv.style.display = 'none'; accDiv.classList.remove('is-open'); }
     if (iframe) iframe.src = 'about:blank';
   };
 
@@ -868,6 +907,15 @@
     if (_downloads[idx] && _downloads[idx].url) {
       showPdfPreview(_downloads[idx].url);
     }
+  };
+
+  // ================================================================
+  //  Accordion Toggle
+  // ================================================================
+  window.togglePrintAccordion = function (id) {
+    var acc = document.getElementById(id);
+    if (!acc) return;
+    acc.classList.toggle('is-open');
   };
 
   // ================================================================
@@ -886,10 +934,15 @@
   }
 
   function renderDownloads() {
-    var container = document.getElementById('print-downloads');
+    var accDiv = document.getElementById('print-downloads-acc');
     var list = document.getElementById('print-download-list');
-    if (!container || !list) return;
-    container.style.display = _downloads.length > 0 ? 'block' : 'none';
+    if (!accDiv || !list) return;
+    if (_downloads.length > 0) {
+      accDiv.style.display = '';
+      accDiv.classList.add('is-open');
+    } else {
+      accDiv.style.display = 'none';
+    }
     list.innerHTML = '';
     _downloads.forEach(function (dl, idx) {
       var item = document.createElement('div');
@@ -919,6 +972,192 @@
       if (_downloads.length === 0) window.closePrintPreview();
     }
   };
+
+  // ================================================================
+  //  Dock / Undock (analog Info-Panel + ÖREB)
+  // ================================================================
+  function triggerPrintMapUpdate() {
+    setTimeout(function () {
+      if (window.njs && njs.AppManager && njs.AppManager.Maps && njs.AppManager.Maps['main']) {
+        var mapObj = njs.AppManager.Maps['main'].mapObj;
+        if (mapObj && mapObj.updateSize) mapObj.updateSize();
+      }
+      if (typeof dijit !== 'undefined' && dijit.byId('NeapolisContainer')) {
+        dijit.byId('NeapolisContainer').resize();
+      }
+    }, 350);
+  }
+
+  function dockPrintPanel() {
+    var panel = document.getElementById('print-panel');
+    var dockBtn = document.getElementById('print-dock-btn');
+    var mapContainer = document.getElementById('mapContainer');
+    if (!panel) return;
+
+    panel.classList.add('docked-right');
+    _isPrintPanelDocked = true;
+
+    if (mapContainer) {
+      var panelWidth = _savedPrintDockedWidth || 380;
+      var centerPane = document.getElementById('centerPaneLayout');
+      var streetviewContainer = document.getElementById('streetviewContainer');
+      var streetviewWidth = 0;
+      if (streetviewContainer && streetviewContainer.offsetWidth > 0 && streetviewContainer.style.display !== 'none') {
+        streetviewWidth = streetviewContainer.offsetWidth;
+      }
+      var centerRect = centerPane ? centerPane.getBoundingClientRect() : mapContainer.getBoundingClientRect();
+      panel.style.setProperty('top', centerRect.top + 'px', 'important');
+      panel.style.setProperty('right', streetviewWidth + 'px', 'important');
+      panel.style.setProperty('bottom', (window.innerHeight - centerRect.bottom) + 'px', 'important');
+      panel.style.setProperty('left', 'auto', 'important');
+      panel.style.setProperty('width', panelWidth + 'px', 'important');
+      panel.style.setProperty('height', 'auto', 'important');
+
+      var centerPaneWidth = centerPane ? centerPane.offsetWidth : window.innerWidth;
+      var mapWidth = centerPaneWidth - streetviewWidth - panelWidth;
+      mapContainer.style.setProperty('width', mapWidth + 'px', 'important');
+      triggerPrintMapUpdate();
+    }
+
+    startPrintObservers();
+
+    if (dockBtn) {
+      dockBtn.title = 'Floating';
+      dockBtn.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M19 11h-8v6h8v-6zm4 8V4.98C23 3.88 22.1 3 21 3H3c-1.1 0-2 .88-2 1.98V19c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2zm-2 .02H3V4.97h18v14.05z"/></svg>';
+    }
+  }
+
+  function undockPrintPanel() {
+    var panel = document.getElementById('print-panel');
+    var dockBtn = document.getElementById('print-dock-btn');
+    var mapContainer = document.getElementById('mapContainer');
+    if (!panel) return;
+
+    panel.classList.remove('docked-right');
+    stopPrintObservers();
+    _isPrintPanelDocked = false;
+
+    if (mapContainer) {
+      mapContainer.style.setProperty('width', '100%', 'important');
+      setTimeout(function () { triggerPrintMapUpdate(); }, 100);
+    }
+
+    // Floating-Position
+    panel.style.setProperty('top', '80px', 'important');
+    panel.style.setProperty('left', 'calc(100vw - 420px)', 'important');
+    panel.style.setProperty('width', '380px', 'important');
+    panel.style.setProperty('height', 'calc(100vh - 160px)', 'important');
+    panel.style.setProperty('right', 'auto', 'important');
+    panel.style.setProperty('bottom', 'auto', 'important');
+    panel.style.maxHeight = '';
+
+    if (dockBtn) {
+      dockBtn.title = 'Rechts andocken';
+      dockBtn.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16h-4V5h4v14z"/></svg>';
+    }
+  }
+
+  window.togglePrintPanelDock = function () {
+    if (_isPrintPanelDocked) {
+      undockPrintPanel();
+    } else {
+      dockPrintPanel();
+    }
+  };
+
+  // ── Observers für Layout-Änderungen (StreetView, Fenster-Resize) ──
+  function startPrintObservers() {
+    stopPrintObservers();
+    var mapContainer = document.getElementById('mapContainer');
+    if (!mapContainer || !window.ResizeObserver) return;
+
+    _printResizeObserver = new ResizeObserver(function () {
+      if (!_isPrintPanelDocked) return;
+      updateDockedPrintPosition();
+    });
+    _printResizeObserver.observe(mapContainer);
+
+    var sv = document.getElementById('streetviewContainer');
+    if (sv) _printResizeObserver.observe(sv);
+
+    window.addEventListener('resize', updateDockedPrintPosition);
+  }
+
+  function stopPrintObservers() {
+    if (_printResizeObserver) {
+      _printResizeObserver.disconnect();
+      _printResizeObserver = null;
+    }
+    window.removeEventListener('resize', updateDockedPrintPosition);
+  }
+
+  function updateDockedPrintPosition() {
+    var panel = document.getElementById('print-panel');
+    var mapContainer = document.getElementById('mapContainer');
+    if (!panel || !_isPrintPanelDocked) return;
+
+    var panelWidth = panel.offsetWidth || _savedPrintDockedWidth;
+    var centerPane = document.getElementById('centerPaneLayout');
+    var streetviewContainer = document.getElementById('streetviewContainer');
+    var streetviewWidth = 0;
+    if (streetviewContainer && streetviewContainer.offsetWidth > 0 && streetviewContainer.style.display !== 'none') {
+      streetviewWidth = streetviewContainer.offsetWidth;
+    }
+    var centerRect = centerPane ? centerPane.getBoundingClientRect() : (mapContainer ? mapContainer.getBoundingClientRect() : { top: 60, bottom: window.innerHeight });
+    panel.style.setProperty('top', centerRect.top + 'px', 'important');
+    panel.style.setProperty('right', streetviewWidth + 'px', 'important');
+    panel.style.setProperty('bottom', (window.innerHeight - centerRect.bottom) + 'px', 'important');
+
+    if (mapContainer) {
+      var centerPaneWidth = centerPane ? centerPane.offsetWidth : window.innerWidth;
+      var mapWidth = centerPaneWidth - streetviewWidth - panelWidth;
+      mapContainer.style.setProperty('width', mapWidth + 'px', 'important');
+    }
+  }
+
+  // ── Resize-Handle (links) im angedockten Modus ──
+  function initPrintPanelResize() {
+    var panel = document.getElementById('print-panel');
+    if (!panel || panel.querySelector('.print-resize-handle')) return;
+
+    var handle = document.createElement('div');
+    handle.className = 'print-resize-handle';
+    panel.appendChild(handle);
+
+    var isResizing = false;
+    var startX, startWidth;
+
+    handle.addEventListener('mousedown', function (e) {
+      if (!_isPrintPanelDocked) return;
+      isResizing = true;
+      startX = e.clientX;
+      startWidth = panel.offsetWidth;
+      document.body.style.userSelect = 'none';
+      e.preventDefault();
+    });
+
+    document.addEventListener('mousemove', function (e) {
+      if (!isResizing) return;
+      var dx = e.clientX - startX;
+      var newWidth = Math.max(300, Math.min(startWidth - dx, window.innerWidth - 200));
+      panel.style.setProperty('width', newWidth + 'px', 'important');
+      _savedPrintDockedWidth = newWidth;
+
+      var mapContainer = document.getElementById('mapContainer');
+      if (mapContainer) {
+        mapContainer.style.setProperty('width', 'calc(100% - ' + newWidth + 'px)', 'important');
+      }
+      e.preventDefault();
+    });
+
+    document.addEventListener('mouseup', function () {
+      if (isResizing) {
+        isResizing = false;
+        document.body.style.userSelect = '';
+        triggerPrintMapUpdate();
+      }
+    });
+  }
 
   // ================================================================
   //  Init: Panel-HTML einfügen + Event-Listener
@@ -959,6 +1198,12 @@
       srCb.checked = true;
     }
 
+    // SVG-Format Checkbox: immer sichtbar (SVG auch ohne Server-Rendering nutzbar)
+    var svgCb = document.getElementById('print-svg-format');
+    if (svgCb && _globalConfig.print && _globalConfig.print.svgFormatDefault) {
+      svgCb.checked = true;
+    }
+
     // Rotation-Slider
     var rotSlider = document.getElementById('print-rotation');
     if (rotSlider) rotSlider.addEventListener('input', function () {
@@ -969,6 +1214,9 @@
     });
 
     console.log('[Drucken] tnet-print.js initialisiert');
+
+    // Resize-Handle für Dock-Modus
+    initPrintPanelResize();
 
     // Libraries im Hintergrund vorladen (kein Blockieren)
     loadLibraries().catch(function (err) {

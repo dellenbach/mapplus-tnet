@@ -506,20 +506,21 @@
         params = Object.assign({}, src.getParams() || {});
       }
 
-      // Typ erkennen: WMS hat Priorität wenn LAYERS-Param vorhanden
+      // Typ erkennen
       var urlLower = url.toLowerCase();
       var hasLayers = !!(params.LAYERS || params.layers);
 
-      // ArcGIS nur wenn typische REST-Pfade UND kein WMS LAYERS-Param
-      var isArcGIS = !hasLayers && (
-        urlLower.indexOf('arcgis/rest') > -1 ||
-        urlLower.indexOf('agsproxy') > -1
+      // agsproxy leitet an ArcGIS REST weiter – IMMER als arcgis behandeln,
+      // auch wenn LAYERS=show:… gesetzt ist (das ist ArcGIS-Syntax, kein WMS)
+      var isAgsproxy = urlLower.indexOf('agsproxy') > -1;
+      var isArcGIS = isAgsproxy || (
+        !hasLayers && urlLower.indexOf('arcgis/rest') > -1
       );
 
-      if (hasLayers || urlLower.indexOf('wms') > -1 || urlLower.indexOf('mapserv') > -1) {
-        layerType = 'wms';
-      } else if (isArcGIS) {
+      if (isArcGIS) {
         layerType = 'arcgis';
+      } else if (hasLayers || urlLower.indexOf('wms') > -1 || urlLower.indexOf('mapserv') > -1) {
+        layerType = 'wms';
       } else {
         return; // XYZ-Tiles etc. → Server-Rendering nicht möglich
       }
@@ -590,13 +591,36 @@
    * @returns {string}
    */
   function buildArcGISExportUrl(info, bbox, widthPx, heightPx, dpi, format) {
-    // /MapServer → /MapServer/export
-    var base = info.url.replace(/\/?$/, '');
-    if (base.toLowerCase().indexOf('/export') === -1) {
-      base += '/export';
+    // URL aufsplitten: agsproxy.php?path=... hat bereits Query-String
+    var url = info.url.replace(/\/?$/, '');
+    var qIdx = url.indexOf('?');
+    var base, existingQs;
+
+    if (qIdx > -1) {
+      base = url.substring(0, qIdx);
+      existingQs = url.substring(qIdx + 1);
+      // agsproxy: /export an den path-Parameter-Wert anhängen
+      if (existingQs.indexOf('path=') > -1) {
+        existingQs = existingQs.replace(/(path=[^&]*)/, function (m) {
+          return m.replace(/\/?$/, '') + '/export';
+        });
+      }
+    } else {
+      base = url;
+      existingQs = '';
+      // Direkte ArcGIS-URL: /export an Basis anhängen
+      if (base.toLowerCase().indexOf('/export') === -1) {
+        base += '/export';
+      }
     }
-    var layers = info.layers;
-    var layerParam = layers ? ('show:' + layers) : '';
+
+    // Doppeltes show:-Prefix vermeiden
+    var layers = info.layers ? String(info.layers) : '';
+    var layerParam = '';
+    if (layers) {
+      layerParam = layers.indexOf('show:') === 0 ? layers : ('show:' + layers);
+    }
+
     var p = {
       bbox:           bbox.join(','),
       bboxSR:         '2056',
@@ -611,6 +635,11 @@
     var qs = Object.keys(p).map(function (k) {
       return encodeURIComponent(k) + '=' + encodeURIComponent(p[k]);
     }).join('&');
+
+    // Bei vorhandenem Query-String mit & verbinden statt mit ?
+    if (existingQs) {
+      return base + '?' + existingQs + '&' + qs;
+    }
     return base + '?' + qs;
   }
 
@@ -630,6 +659,7 @@
   function renderServerImages(map, bbox, widthPx, heightPx, dpi, opts, onProgress) {
     opts = opts || {};
     var format = opts.format || 'image/png';
+    var useSvg = !!opts.svgFormat;
     var layerInfos = collectLayerInfos(map);
 
     if (layerInfos.length === 0) {
@@ -649,10 +679,11 @@
     var requests = layerInfos.map(function (info, idx) {
       var url;
       if (info.type === 'arcgis') {
-        var agsFmt = (format === 'image/jpeg') ? 'jpg' : 'png32';
+        var agsFmt = useSvg ? 'svg' : ((format === 'image/jpeg') ? 'jpg' : 'png32');
         url = buildArcGISExportUrl(info, bbox, widthPx, heightPx, dpi, agsFmt);
       } else {
-        url = buildWmsGetMapUrl(info, bbox, widthPx, heightPx, dpi, format);
+        var wmsFmt = useSvg ? 'image/svg+xml' : format;
+        url = buildWmsGetMapUrl(info, bbox, widthPx, heightPx, dpi, wmsFmt);
       }
       console.log('[ServerRender] Layer', idx, info.name || info.layers,
         '(' + info.type + '):', url.substring(0, 120) + '...');
@@ -690,9 +721,11 @@
 
       var drawn = 0;
       var failed = 0;
+      var failedNames = [];
       results.forEach(function (r) {
         if (!r.ok || !r.img) {
           failed++;
+          failedNames.push(r.info.name || r.info.layers || '(unbekannt)');
           return;
         }
         ctx.globalAlpha = r.info.opacity !== undefined ? r.info.opacity : 1;
@@ -704,6 +737,16 @@
       console.log('[ServerRender] Merge-Ergebnis:',
         drawn, 'Layer gezeichnet,', failed, 'fehlgeschlagen,',
         canvas.width + '×' + canvas.height, 'px');
+
+      // Warnung anzeigen wenn Layer fehlgeschlagen sind
+      if (failed > 0 && onProgress) {
+        var warnMsg = failed + ' von ' + results.length + ' Layern fehlgeschlagen';
+        if (failedNames.length > 0) warnMsg += ': ' + failedNames.join(', ');
+        onProgress(-1, warnMsg);
+      }
+      if (drawn === 0 && results.length > 0) {
+        console.error('[ServerRender] ALLE Layer fehlgeschlagen – Karte wird leer sein!');
+      }
 
       // Vector-Overlay (Redlining) vom OL-Canvas holen
       var vectorCanvas = renderVectorOverlay(map, bbox, widthPx, heightPx);
@@ -1892,7 +1935,7 @@
 
           renderPromise = renderServerImages(
             map, printBbox, imgW, imgH, dpi,
-            { format: 'image/png' }, onProgress
+            { format: 'image/png', svgFormat: !!options.svgFormat }, onProgress
           ).then(function (serverCanvas) {
             return { canvas: serverCanvas, needsRestore: false };
           });
