@@ -11,20 +11,13 @@ PASSWORD = "3Zs,k4%Un,<[W(Kx"
 REMOTE_BASE = "/www/maps"
 LOCAL_BASE = r"c:\_Daten\mapplus-exp\maps"
 
-# Files to upload
+# Files to upload - Roboto + Roboto Condensed Font
 FILES = [
+    "public/css/override.css",
     "public/index_de.htm",
+    "tnet/css/tnet-3d-landscape.css",
     "tnet/css/tnet-components.css",
-    "tnet/css/tnet-splitscreen.css",
-    "tnet/js/tnet-app.js",
-    "tnet/js/tnet-context-menu.js",
-    "tnet/js/tnet-header.js",
-    "tnet/js/tnet-info-panel.js",
-    "tnet/js/tnet-map-footer.js",
-    "tnet/js/tnet-oereb.js",
-    "tnet/js/tnet-panel-drag-resize.js",
-    "tnet/js/tnet-spatial-query.js",
-    "tnet/js/tnet-splitscreen.js"
+    "tnet/css/tnet-print.css"
 ]
 
 def upload_files():

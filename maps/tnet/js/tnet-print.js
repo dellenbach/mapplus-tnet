@@ -35,6 +35,11 @@
   var PDF_LOG_URL = '/maps/tnet/php/pdf-log.php';  // Parallel-Logging
   var _layouts = [];
   var _globalConfig = {};  // Wird aus tnet-global-config.json5 befuellt
+  // ── Print-Job-Queue (für Background-Processing) ──
+  var _printQueue = [];  // Array von Job-Objekten
+  var _currentJobId = null;  // Job-ID des aktuellen Jobs
+  var _jobIdCounter = 0;  // Für Job-ID-Generierung
+  var _queueWorkerScheduled = false;  // Flag für setTimeout
   // Fallback Scales (werden aus tnet-global-config.json5 überschrieben)
   var _scales = [100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 75000, 100000, 250000, 500000, 1000000];
   // Dock-State
@@ -258,6 +263,16 @@
           '<div class="print-section print-progress" id="print-progress" style="display:none">' +
             '<div class="print-progress-bar"><div class="print-progress-fill" id="print-progress-fill"></div></div>' +
             '<div class="print-progress-text" id="print-progress-text">Wird erstellt...</div>' +
+          '</div>' +
+
+          // Job-Queue-Status (Accordion)
+          '<div class="print-accordion" id="print-queue-acc" style="display:none">' +
+            '<div class="print-acc-header" onclick="togglePrintAccordion(\'print-queue-acc\')">' +
+              '<span class="print-acc-arrow">&#9654;</span> \u267B Druck-Warteschlange (<span id="print-queue-count">0</span>)' +
+            '</div>' +
+            '<div class="print-acc-panel">' +
+              '<div id="print-queue-list" class="print-queue-list"></div>' +
+            '</div>' +
           '</div>' +
 
           // PDF-Vorschau (Accordion)
@@ -747,10 +762,9 @@
   };
 
   // ================================================================
-  //  PDF erstellen
+  //  PDF erstellen (zur Queue hinzufügen)
   // ================================================================
   window.executePrint = function () {
-    if (_isPrinting) return;
     var map = getMap();
     if (!map) { alert('Karte nicht bereit.'); return; }
     if (typeof templatePdfPrint !== 'function') { alert('PDF-Export-API nicht geladen.'); return; }
@@ -770,58 +784,117 @@
     var svgFormatEl     = document.getElementById('print-svg-format');
     var svgFormat       = svgFormatEl ? svgFormatEl.checked : false;
 
-    _isPrinting = true;
-    var btn = document.getElementById('print-exec-btn');
-    btn.disabled = true;
-    btn.classList.add('printing');
-    btn.innerHTML = '\u23f3 Wird erstellt...';
-    document.getElementById('print-progress').style.display = 'block';
-
-    // Vorschaurahmen bleibt sichtbar — On-Screen-Map wird nicht verändert
-
-    // Exaktes Kartenzentrum zum Zeitpunkt des Drucks erfassen
-    // (wird an den Export durchgereicht, um Drift beim Viewport-Resize zu verhindern)
+    // ─ Neuer Job ─
+    var jobId = ++_jobIdCounter;
     var printCenter = map.getView().getCenter().slice();
+    var job = {
+      id: jobId,
+      status: 'pending',  // pending, processing, completed, failed
+      title: kartentitel || ('Druck #' + jobId),
+      progress: 0,
+      error: null,
+      blob: null,
+      filename: null,
+      timestamp: new Date().toLocaleString('de-CH'),
+      params: {
+        massstab: massstab,
+        layout: layout,
+        aufloesung: aufloesung,
+        rotation: rotation,
+        kartentitel: kartentitel,
+        koordinatennetz: koordinatennetz,
+        netzfarbe: netzfarbe,
+        printCenter: printCenter,
+        serverRender: serverRender,
+        svgFormat: svgFormat,
+        jpegQuality: (_globalConfig.print && _globalConfig.print.jpegQuality) || 0.7,
+        serverDpi: (_globalConfig.print && _globalConfig.print.serverDpi) || 96
+      }
+    };
+
+    _printQueue.push(job);
+    console.log('[Print-Queue] Job #' + jobId + ' hinzugefügt. Queue-Länge:', _printQueue.length);
+    updateQueueUI();
+    processNextQueueJob();
+  };
+
+  // ================================================================
+  //  Queue-Worker: Verarbeitet Jobs sequenziell
+  // ================================================================
+  function processNextQueueJob() {
+    if (_queueWorkerScheduled) return;
+    if (_currentJobId !== null) return;  // Job läuft bereits
+    
+    var job = _printQueue.find(function (j) { return j.status === 'pending'; });
+    if (!job) return;
+
+    _currentJobId = job.id;
+    job.status = 'processing';
+    updateQueueUI();
+
+    console.log('[Print-Queue] Starte Job #' + job.id + ': ' + job.title);
 
     templatePdfPrint({
-      massstab:        massstab,
-      layout:          layout,
-      aufloesung:      aufloesung,
-      rotation:        rotation,
-      kartentitel:     kartentitel,
-      koordinatennetz: koordinatennetz,
-      netzfarbe:       netzfarbe,
-      printCenter:     printCenter,
-      serverRender:    serverRender,
-      svgFormat:       svgFormat,
-      jpegQuality:     (_globalConfig.print && _globalConfig.print.jpegQuality) || 0.7,
-      serverDpi:       (_globalConfig.print && _globalConfig.print.serverDpi) || 96,
+      massstab:        job.params.massstab,
+      layout:          job.params.layout,
+      aufloesung:      job.params.aufloesung,
+      rotation:        job.params.rotation,
+      kartentitel:     job.params.kartentitel,
+      koordinatennetz: job.params.koordinatennetz,
+      netzfarbe:       job.params.netzfarbe,
+      printCenter:     job.params.printCenter,
+      serverRender:    job.params.serverRender,
+      svgFormat:       job.params.svgFormat,
+      jpegQuality:     job.params.jpegQuality,
+      serverDpi:       job.params.serverDpi,
 
       onProgress: function (step, msg) {
-        var pct = Math.round((step / 7) * 100);
-        document.getElementById('print-progress-fill').style.width = pct + '%';
-        document.getElementById('print-progress-text').textContent = msg;
+        job.progress = Math.round((step / 7) * 100);
+        updateQueueUI();
+        // UI-Update pro Job
+        if (job.id === _currentJobId) {
+          document.getElementById('print-progress-fill').style.width = job.progress + '%';
+          document.getElementById('print-progress-text').textContent = msg;
+        }
       },
 
       onSuccess: function (result) {
-        finishPrint(true);
-        if (!result || !result.blob) {
-          console.warn('[Drucken] Kein PDF-Blob erhalten');
-          return;
-        }
-        // PDF direkt im Memory verarbeiten (kein Server-Upload)
-        handlePdfResult(result.blob, result.filename);
+        job.blob = result.blob;
+        job.filename = result.filename;
+        job.status = 'completed';
+        job.progress = 100;
+        
+        handlePdfResult(job.blob, job.filename);
+        console.log('[Print-Queue] Job #' + job.id + ' abgeschlossen: ' + job.filename);
+        
+        finishQueueJobUI();
+        _currentJobId = null;
+        updateQueueUI();
+        
+        // Nächsten Job nach kurzer Verzögerung starten
+        setTimeout(function () {
+          processNextQueueJob();
+        }, 500);
       },
 
       onError: function (err) {
-        finishPrint(false);
-        alert('Fehler beim PDF-Export:\n' + err.message);
+        job.status = 'failed';
+        job.error = err.message;
+        console.error('[Print-Queue] Job #' + job.id + ' Fehler:', err);
+        
+        finishQueueJobUI();
+        _currentJobId = null;
+        updateQueueUI();
+        
+        // Nächsten Job starten trotz Fehler
+        setTimeout(function () {
+          processNextQueueJob();
+        }, 500);
       }
     });
-  };
+  }
 
-  function finishPrint(success) {
-    _isPrinting = false;
+  function finishQueueJobUI() {
     var btn = document.getElementById('print-exec-btn');
     btn.disabled = false;
     btn.classList.remove('printing');
@@ -831,10 +904,85 @@
     setTimeout(function () {
       document.getElementById('print-progress').style.display = 'none';
       document.getElementById('print-progress-fill').style.width = '0%';
-    }, success ? 2000 : 500);
-
-    // Vorschaurahmen ist durchgehend sichtbar geblieben — kein Restore nötig
+    }, 2000);
   }
+
+  function updateQueueUI() {
+    var queueList = document.getElementById('print-queue-list');
+    var queueAcc = document.getElementById('print-queue-acc');
+    var queueCount = document.getElementById('print-queue-count');
+    
+    if (!queueList) return;
+
+    var pendingCount = _printQueue.filter(function (j) { return j.status === 'pending'; }).length;
+    var processingJob = _printQueue.find(function (j) { return j.status === 'processing'; });
+    
+    queueCount.textContent = _printQueue.length;
+    
+    // Zeige Accordion wenn Jobs vorhanden
+    if (_printQueue.length > 0) {
+      queueAcc.style.display = 'block';
+    } else {
+      queueAcc.style.display = 'none';
+      return;
+    }
+
+    var html = '';
+    _printQueue.forEach(function (job) {
+      var statusClass = 'queue-job-' + job.status;
+      var statusLabel = {
+        pending: '⏳ In Warteschlange',
+        processing: '⚙ Wird verarbeitet',
+        completed: '✓ Fertig',
+        failed: '✕ Fehler'
+      }[job.status] || job.status;
+
+      html += 
+        '<div class="queue-job ' + statusClass + '">' +
+          '<div class="queue-job-header">' +
+            '<span class="queue-job-title">' + job.title + '</span>' +
+            '<span class="queue-job-status">' + statusLabel + '</span>' +
+          '</div>';
+      
+      if (job.status === 'processing') {
+        html += 
+          '<div class="queue-job-progress">' +
+            '<div class="queue-job-progress-bar"><div class="queue-job-progress-fill" style="width:' + job.progress + '%"></div></div>' +
+            '<span class="queue-job-progress-text">' + job.progress + '%</span>' +
+          '</div>';
+      }
+      
+      if (job.status === 'completed' && job.blob) {
+        html +=
+          '<div class="queue-job-actions">' +
+            '<button class="queue-job-btn" onclick="downloadJobPdf(' + job.id + ')">⬇ Download</button>' +
+          '</div>';
+      }
+      
+      if (job.status === 'failed') {
+        html +=
+          '<div class="queue-job-error">' + job.error + '</div>';
+      }
+      
+      html += '</div>';
+    });
+
+    queueList.innerHTML = html;
+  }
+
+  window.downloadJobPdf = function (jobId) {
+    var job = _printQueue.find(function (j) { return j.id === jobId; });
+    if (!job || !job.blob) return;
+    
+    var blobUrl = URL.createObjectURL(job.blob);
+    var link = document.createElement('a');
+    link.href = blobUrl;
+    link.download = job.filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(blobUrl);
+  };
 
   // ================================================================
   //  PDF im Memory behalten + parallel auf Server loggen

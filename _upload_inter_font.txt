@@ -1,0 +1,9 @@
+cd /www/maps/public/css
+put c:\_Daten\mapplus-exp\maps\public\css\override.css override.css
+cd /www/maps/public
+put c:\_Daten\mapplus-exp\maps\public\index_de.htm index_de.htm
+cd /www/maps/tnet/css
+put c:\_Daten\mapplus-exp\maps\tnet\css\tnet-3d-landscape.css tnet-3d-landscape.css
+put c:\_Daten\mapplus-exp\maps\tnet\css\tnet-components.css tnet-components.css
+put c:\_Daten\mapplus-exp\maps\tnet\css\tnet-print.css tnet-print.css
+bye
