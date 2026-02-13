@@ -1,7 +1,7 @@
 /**
  * template-pdf-export.js
  *
- * PDF-Export-Engine für QGIS-Layout-Templates (v1.3).
+ * PDF-Export-Engine für QGIS-Layout-Templates (v2.0).
  *
  * Workflow:
  *   1. QGIS-Plugin exportiert SVG-Templates mit {{PLACEHOLDER}}-Texten
@@ -21,7 +21,7 @@
  *
  * Benötigt: jsPDF (global: jspdf), svg2pdf.js, OpenLayers (global: ol)
  *
- * @version    1.3
+ * @version    2.0
  * @date       2026-02-12
  * @copyright  Trigonet AG
  * @author     Marco Dellenbach
@@ -35,10 +35,25 @@
   // ---------------------------------------------------------------- //
 
   var CONFIG = {
-    templatesBasePath: 'ol-pdf-printer/qgis-templates',
+    templatesBasePath: 'tnet/ol-pdf-printer/qgis-templates',
     defaultFilename: 'Kartenexport',
-    defaultDpi: 150
+    defaultDpi: 150,
+    // Bildformat: 'image/jpeg' (Standard) oder 'image/png'
+    imageFormat: 'image/jpeg',
+    // Debug-Flags (überschreibbar via tnet-global-config.json5)
+    debug: true,
+    debugTestLine: true,
+    debugLogMetrics: true
   };
+
+  /** Bedingte Konsolenausgabe: nur wenn CONFIG.debug === true */
+  function _dbg() {
+    if (CONFIG.debug) console.log.apply(console, arguments);
+  }
+  /** Metriken-Log: nur wenn CONFIG.debugLogMetrics === true */
+  function _metrics() {
+    if (CONFIG.debugLogMetrics) console.log.apply(console, arguments);
+  }
 
   // ---------------------------------------------------------------- //
   //  Manifest                                                         //
@@ -48,14 +63,14 @@
 
   /**
    * Lädt Manifest-Daten:
-   * 1. Versuch: php/scan-manifests.php (scannt einzelne *.manifest.json)
+   * 1. Versuch: tnet/php/scan-manifests.php (scannt einzelne *.manifest.json)
    * 2. Fallback: manifest.json (legacy, altes Gesamtmanifest)
    */
   function loadManifest() {
     if (_manifestCache) return Promise.resolve(_manifestCache);
 
-    // PHP liegt in tnet/php/, nicht im Templates-Verzeichnis
-    var scanUrl = 'php/scan-manifests.php';
+    // PHP liegt in tnet/php/ — relativ zur Seite /maps/
+    var scanUrl = 'tnet/php/scan-manifests.php';
     var legacyUrl = CONFIG.templatesBasePath + '/manifest.json';
 
     return fetch(scanUrl)
@@ -328,27 +343,29 @@
     var doc = parser.parseFromString(svgText, 'image/svg+xml');
     var changed = false;
 
-    // Gültige CSS font-weight: 100–900 in 100er-Schritten + 'normal'/'bold'
+    // Normalisiere ALLE font-weight Werte auf 'normal' (400) oder 'bold' (700),
+    // da jsPDF nur diese beiden Stile kennt. Schwelle: ≥600 → bold, sonst normal.
     var allWithWeight = doc.querySelectorAll('[font-weight]');
     for (var i = 0; i < allWithWeight.length; i++) {
       var el = allWithWeight[i];
       var fw = el.getAttribute('font-weight');
       if (!fw) continue;
 
-      // Bereits gültig?
-      if (/^(normal|bold|bolder|lighter)$/.test(fw)) continue;
-      var num = parseInt(fw, 10);
-      if (num >= 100 && num <= 900 && num % 100 === 0) continue;
-
-      // Ungültiger numerischer Wert → auf nächstes gültiges 100er runden
-      if (!isNaN(num)) {
-        var snapped = Math.round(Math.min(900, Math.max(100, num)) / 100) * 100;
-        el.setAttribute('font-weight', String(snapped));
-        changed = true;
+      var mapped;
+      if (fw === 'normal' || fw === '400') { continue; }
+      else if (fw === 'bold' || fw === '700') { continue; }
+      else if (fw === 'bolder' || fw === 'lighter') {
+        mapped = (fw === 'bolder') ? 'bold' : 'normal';
       } else {
-        el.setAttribute('font-weight', 'normal');
-        changed = true;
+        var num = parseInt(fw, 10);
+        if (!isNaN(num)) {
+          mapped = num >= 600 ? 'bold' : 'normal';
+        } else {
+          mapped = 'normal';
+        }
       }
+      el.setAttribute('font-weight', mapped);
+      changed = true;
     }
 
     // Auch font-weight in style-Attributen fixen
@@ -357,13 +374,17 @@
       var style = styled[j].getAttribute('style');
       if (!style || style.indexOf('font-weight') < 0) continue;
       var newStyle = style.replace(
-        /font-weight\s*:\s*(\d+)/g,
-        function (_, num) {
-          var n = parseInt(num, 10);
-          if (n >= 100 && n <= 900 && n % 100 === 0) return 'font-weight: ' + n;
-          var s = Math.round(Math.min(900, Math.max(100, n)) / 100) * 100;
+        /font-weight\s*:\s*(\w+|\d+)/g,
+        function (match, val) {
+          if (val === 'normal' || val === '400') return match;
+          if (val === 'bold' || val === '700') return match;
+          var n = parseInt(val, 10);
+          if (!isNaN(n)) {
+            changed = true;
+            return 'font-weight: ' + (n >= 600 ? 'bold' : 'normal');
+          }
           changed = true;
-          return 'font-weight: ' + s;
+          return 'font-weight: normal';
         }
       );
       if (newStyle !== style) styled[j].setAttribute('style', newStyle);
@@ -390,8 +411,9 @@
     var doc = parser.parseFromString(svgText, 'image/svg+xml');
     var changed = false;
 
-    // Einheitliche Schriftfamilie (serifenlos)
-    var targetFont = "'Segoe UI', Arial, Helvetica, sans-serif";
+    // Einheitliche Schriftfamilie — muss dem jsPDF-registrierten Namen entsprechen
+    // OHNE Quotes, damit svg2pdf den Namen 1:1 an pdf.setFont() weitergibt
+    var targetFont = "Inter";
 
     // 1. Leere <g>-Elemente entfernen (mehrere Durchläufe für Verschachtelung)
     var removedCount = 0;
@@ -484,23 +506,20 @@
         params = Object.assign({}, src.getParams() || {});
       }
 
-      // Typ erkennen
+      // Typ erkennen: WMS hat Priorität wenn LAYERS-Param vorhanden
       var urlLower = url.toLowerCase();
-      var isArcGIS = (
+      var hasLayers = !!(params.LAYERS || params.layers);
+
+      // ArcGIS nur wenn typische REST-Pfade UND kein WMS LAYERS-Param
+      var isArcGIS = !hasLayers && (
         urlLower.indexOf('arcgis/rest') > -1 ||
-        urlLower.indexOf('agsproxy') > -1 ||
-        (urlLower.indexOf('mapserver') > -1 &&
-         urlLower.indexOf('cgi-bin') === -1 &&
-         !/mapserv(?!e)/.test(urlLower) &&
-         urlLower.indexOf('qgis') === -1)
+        urlLower.indexOf('agsproxy') > -1
       );
 
-      if (isArcGIS) {
-        layerType = 'arcgis';
-      } else if (params.LAYERS || params.layers ||
-                 urlLower.indexOf('wms') > -1 ||
-                 urlLower.indexOf('mapserv') > -1) {
+      if (hasLayers || urlLower.indexOf('wms') > -1 || urlLower.indexOf('mapserv') > -1) {
         layerType = 'wms';
+      } else if (isArcGIS) {
+        layerType = 'arcgis';
       } else {
         return; // XYZ-Tiles etc. → Server-Rendering nicht möglich
       }
@@ -784,112 +803,296 @@
   //  OL Map → Canvas                                                  //
   // ---------------------------------------------------------------- //
 
-  function renderMapCanvas(map, scale, options) {
-    scale = scale || 1;
-    options = options || {};
-    var printDpi = options.dpi || 150;
-    return new Promise(function (resolve) {
-      // Originale DPI-Parameter merken (für spätere Wiederherstellung)
-      var origDpiParams = [];
+  /**
+   * Rendert die OL-Karte in ein Canvas mit exakten Druckpixel-Dimensionen.
+   *
+   * Verwendet map.setSize() um die OL-interne Grösse direkt auf die
+   * Druckpixel zu setzen — OHNE DOM-Manipulation. Dadurch entfällt:
+   * - CSS-Constraint-Workaround (position:fixed off-screen)
+   * - vpScale-Transformation (OL-Canvases sind bereits in Druckpixeln)
+   * - view.fit() (Resolution wird direkt gesetzt)
+   *
+   * Die Map wird nach dem Render auf die ursprüngliche Grösse/View
+   * zurückgesetzt (vollständig gekapselt).
+   *
+   * @param {ol.Map}    map     – OL-Karte
+   * @param {number[]}  center  – [x, y] in Kartenkoordinaten (z.B. LV95)
+   * @param {number}    resolution – Ziel-Resolution (m/px)
+   * @param {number}    pxW     – Canvas-Breite in Druckpixeln
+   * @param {number}    pxH     – Canvas-Höhe in Druckpixeln
+   * @param {Object}    [opts]  – { dpi }
+   * @returns {Promise<HTMLCanvasElement>}
+   */
+  /**
+   * Off-Screen-Rendering: Erzeugt ein Canvas mit dem Kartenausschnitt
+   * in exakter Druckauflösung.
+   *
+   * Ansatz (basierend auf dem offiziellen OL Export-PDF-Beispiel):
+   *   1. Unsichtbares DIV als Target
+   *   2. Neue ol.Map-Instanz mit pixelRatio:1 (kein DPR-Skalierung!)
+   *   3. Sichtbare Layer referenzieren (geteilte Sources)
+   *   4. View mit exaktem Center + Resolution
+   *   5. rendercomplete → Canvas-Compositing (CSS-Transform 1:1)
+   *   6. Off-Screen-Map zerstören, DPI-Params zurücksetzen
+   *
+   * Die On-Screen-Map wird NICHT verändert → kein ResizeObserver-Problem,
+   * kein State-Restore nötig.
+   *
+   * @param {ol.Map}    map        Die Haupt-Map (für Layer-Referenzen + Projection)
+   * @param {number[]}  center     Kartenzentrum [x, y] in Projektionskoordinaten
+   * @param {number}    resolution Ziel-Resolution in m/px
+   * @param {number}    pxW        Canvas-Breite in Pixel
+   * @param {number}    pxH        Canvas-Höhe in Pixel
+   * @param {Object}    opts       Optionen: { dpi, rotation }
+   * @returns {Promise<HTMLCanvasElement>}
+   */
+  function renderMapCanvas(map, center, resolution, pxW, pxH, opts) {
+    opts = opts || {};
+    var printDpi = opts.dpi || 150;
+    var rotation = opts.rotation || map.getView().getRotation() || 0;
 
-      // Alle sichtbaren Tile-/WMS-Quellen aktualisieren,
-      // damit sie den neuen Viewport-Extent anfragen.
-      // VectorSource NICHT refreshen — sonst werden manuell
-      // gezeichnete Features (Redlining, Bemassungen) gelöscht!
+    return new Promise(function (resolve, reject) {
+
+      // ── 1. Hilfs-Funktion: WMS-Source mit Druck-DPI klonen ──
+      // Erstellt eine NEUE Source-Instanz mit DPI-Params für den Druck.
+      // Original-Sources der On-Screen-Map werden NICHT verändert!
+      var dpiClonedCount = 0;
+      function cloneSourceWithDpi(src) {
+        if (!src || typeof src.updateParams !== 'function') return src;
+        // VectorSource NICHT anfassen (Redlining-Schutz)
+        if (typeof src.getFeatures === 'function') return src;
+        if (printDpi <= 96) return src;
+
+        var origParams = src.getParams();
+        var newParams = Object.assign({}, origParams);
+        newParams['FORMAT_OPTIONS'] = 'dpi:' + printDpi;
+        newParams['DPI'] = printDpi;
+        newParams['dpi'] = printDpi;
+        if (newParams['WIDTH'])  newParams['WIDTH']  = Math.round(newParams['WIDTH']  * printDpi / 96);
+        if (newParams['HEIGHT']) newParams['HEIGHT'] = Math.round(newParams['HEIGHT'] * printDpi / 96);
+
+        var clonedSrc;
+        if (src instanceof ol.source.TileWMS) {
+          clonedSrc = new ol.source.TileWMS({
+            url: src.getUrls ? src.getUrls()[0] : undefined,
+            params: newParams,
+            crossOrigin: 'anonymous',
+            transition: 0
+          });
+        } else if (src instanceof ol.source.ImageWMS) {
+          clonedSrc = new ol.source.ImageWMS({
+            url: src.getUrl(),
+            params: newParams,
+            crossOrigin: 'anonymous'
+          });
+        } else if (typeof ol.source.TileArcGISRest !== 'undefined' &&
+                   src instanceof ol.source.TileArcGISRest) {
+          clonedSrc = new ol.source.TileArcGISRest({
+            url: src.getUrls ? src.getUrls()[0] : undefined,
+            params: newParams,
+            crossOrigin: 'anonymous'
+          });
+        } else {
+          // Unbekannter Source-Typ mit updateParams → Original behalten
+          return src;
+        }
+        dpiClonedCount++;
+        _dbg('[TemplatePDF] Source DPI-Klon erstellt:', printDpi,
+          'für', src.constructor.name || 'WMS');
+        return clonedSrc;
+      }
+
+      // ── 2. Sichtbare Layer klonen (neue Instanz, geklonte Source) ──
+      //    OL-Layers können nur zu EINER Map gehören.
+      //    WMS-Sources werden mit Druck-DPI geklont → On-Screen unberührt.
+      function cloneLayerForPrint(layer) {
+        var src = layer.getSource ? layer.getSource() : null;
+        var printSrc = cloneSourceWithDpi(src);
+        var baseOpts = {
+          opacity: layer.getOpacity(),
+          visible: true,
+          zIndex: layer.getZIndex(),
+          minResolution: layer.getMinResolution(),
+          maxResolution: layer.getMaxResolution()
+        };
+        if (layer instanceof ol.layer.Group) {
+          var subLayers = [];
+          layer.getLayers().forEach(function (sub) {
+            if (sub.getVisible && sub.getVisible()) {
+              subLayers.push(cloneLayerForPrint(sub));
+            }
+          });
+          return new ol.layer.Group(Object.assign(baseOpts, { layers: subLayers }));
+        }
+        if (layer instanceof ol.layer.VectorTile) {
+          return new ol.layer.VectorTile(Object.assign(baseOpts, {
+            source: printSrc,
+            style: layer.getStyle ? layer.getStyle() : undefined
+          }));
+        }
+        if (layer instanceof ol.layer.Vector) {
+          return new ol.layer.Vector(Object.assign(baseOpts, {
+            source: printSrc,
+            style: layer.getStyle ? layer.getStyle() : undefined
+          }));
+        }
+        if (layer instanceof ol.layer.Tile) {
+          return new ol.layer.Tile(Object.assign(baseOpts, { source: printSrc }));
+        }
+        if (layer instanceof ol.layer.Image) {
+          return new ol.layer.Image(Object.assign(baseOpts, { source: printSrc }));
+        }
+        // Fallback: Tile-Layer
+        return new ol.layer.Tile(Object.assign(baseOpts, { source: printSrc }));
+      }
+
+      var printLayers = [];
       map.getLayers().forEach(function (layer) {
         if (layer.getVisible && layer.getVisible()) {
-          var src = layer.getSource && layer.getSource();
-          if (!src) return;
-          // VectorSource hat getFeatures() — diese überspringen
-          if (typeof src.getFeatures === 'function') return;
-          if (typeof src.updateParams === 'function') {
-            // WMS/ArcGIS-Quelle: DPI-Parameter für hochauflösenden Druck
-            var params = src.getParams();
-            var origParams = Object.assign({}, params);
-            origDpiParams.push({ source: src, params: origParams });
-
-            // WMS: FORMAT_OPTIONS mit dpi
-            // ArcGIS MapServer (via WMS): DPI-Parameter
-            var newParams = Object.assign({}, params);
-            if (printDpi > 96) {
-              // GeoServer/MapServer WMS
-              newParams['FORMAT_OPTIONS'] = 'dpi:' + printDpi;
-              // QGIS Server
-              newParams['DPI'] = printDpi;
-              // ArcGIS MapServer (exportMap)
-              newParams['dpi'] = printDpi;
-              // Kartenbreite/-höhe skalieren falls vorhanden
-              if (newParams['WIDTH']) newParams['WIDTH'] = Math.round(newParams['WIDTH'] * printDpi / 96);
-              if (newParams['HEIGHT']) newParams['HEIGHT'] = Math.round(newParams['HEIGHT'] * printDpi / 96);
-            }
-            src.updateParams(newParams);
-            console.log('[TemplatePDF] Source DPI gesetzt:', printDpi, 'für', src.constructor.name || 'WMS');
-          } else if (typeof src.refresh === 'function') {
-            src.refresh();
-          }
+          printLayers.push(cloneLayerForPrint(layer));
         }
       });
 
-      // Kurze Verzögerung, damit Tile-/WMS-Requests den neuen
-      // Viewport-Extent erhalten, bevor rendercomplete feuert
-      setTimeout(function () {
-        // Center + Resolution nochmals erzwingen
-        // (verhindert Drift während Tile-Refresh)
-        // view.fit() umgeht constrainResolution → exakte Resolution
-        if (options.fitExtent) {
-          map.getView().fit(options.fitExtent, {
-            size: map.getSize(),
-            constrainResolution: false,
-            nearest: false
-          });
-        } else if (options.center || options.resolution) {
-          if (options.center) map.getView().setCenter(options.center);
-          if (options.resolution) map.getView().setResolution(options.resolution);
-        }
+      // ── 3. Off-Screen-Target-DIV erstellen ──
+      var offDiv = document.createElement('div');
+      offDiv.style.cssText =
+        'position:absolute;left:-9999px;top:-9999px;' +
+        'width:' + pxW + 'px;height:' + pxH + 'px;' +
+        'overflow:hidden;';
+      document.body.appendChild(offDiv);
 
-        map.once('rendercomplete', function () {
-          var size = map.getSize();
+      // ── 4. Off-Screen-View + Map erstellen ──
+      var proj = map.getView().getProjection();
+
+      var offView = new ol.View({
+        projection: proj,
+        center: center,
+        resolution: resolution,
+        rotation: rotation
+      });
+
+      var offMap = new ol.Map({
+        target: offDiv,
+        pixelRatio: 1,       // KRITISCH: Kein DPR-Skalierung!
+        layers: printLayers,
+        view: offView,
+        controls: [],
+        interactions: []
+      });
+
+      // ── Logging ──
+      console.log('┌─────────────────────────────────────────────────────');
+      console.log('│ [RENDER] Off-Screen renderMapCanvas');
+      console.log('├─────────────────────────────────────────────────────');
+      console.log('│ Off-Screen-DIV:', pxW + '×' + pxH, 'px');
+      console.log('│ pixelRatio: 1 (window.devicePixelRatio=' + window.devicePixelRatio + ')');
+      console.log('│ Projektion:', proj.getCode(), 'mpu=' + proj.getMetersPerUnit());
+      console.log('│ Center:', center[0].toFixed(2) + ' / ' + center[1].toFixed(2));
+      console.log('│ Resolution:', resolution.toFixed(10), 'm/px');
+      console.log('│ Rotation:', (rotation * 180 / Math.PI).toFixed(1) + '°');
+      console.log('│ DPI:', printDpi);
+      console.log('│ Sichtbare Layer:', printLayers.length);
+      console.log('│ DPI-Quellen geklont:', dpiClonedCount);
+      var expectedExtentW = pxW * resolution;
+      var expectedExtentH = pxH * resolution;
+      console.log('│ Erwarteter Extent:', expectedExtentW.toFixed(2) + ' × ' +
+        expectedExtentH.toFixed(2), 'm');
+      console.log('│ Erwartete BBOX: [' +
+        (center[0] - expectedExtentW / 2).toFixed(2) + ', ' +
+        (center[1] - expectedExtentH / 2).toFixed(2) + ', ' +
+        (center[0] + expectedExtentW / 2).toFixed(2) + ', ' +
+        (center[1] + expectedExtentH / 2).toFixed(2) + ']');
+      console.log('└─────────────────────────────────────────────────────');
+
+      // ── 5. rendercomplete-Handler + renderSync ──
+      offMap.once('rendercomplete', function () {
+        try {
+          var size = offMap.getSize();
+          var rcRes = offView.getResolution();
+          var rcCtr = offView.getCenter();
+
+          console.log('┌─────────────────────────────────────────────────────');
+          console.log('│ [RENDER] Off-Screen rendercomplete');
+          console.log('├─────────────────────────────────────────────────────');
+          console.log('│ offMap.getSize():', JSON.stringify(size),
+            size[0] === pxW && size[1] === pxH ? '✓' : '✗ SOLL: [' + pxW + ',' + pxH + ']');
+          console.log('│ view.getResolution():', rcRes,
+            Math.abs(rcRes - resolution) < 1e-10 ? '✓' : '✗ SOLL: ' + resolution);
+          console.log('│ view.getCenter():', JSON.stringify(rcCtr));
+          console.log('│ Extent:', (size[0] * rcRes).toFixed(2) + ' × ' +
+            (size[1] * rcRes).toFixed(2), 'm');
+
+          // ── 6. Canvas-Compositing (OL-Referenz-Pattern) ──
           var canvas = document.createElement('canvas');
-          canvas.width = Math.round(size[0] * scale);
-          canvas.height = Math.round(size[1] * scale);
+          canvas.width  = pxW;
+          canvas.height = pxH;
           var ctx = canvas.getContext('2d');
-          ctx.scale(scale, scale);
 
-          var layers = document.querySelectorAll('.ol-layer canvas, #map canvas');
-          for (var i = 0; i < layers.length; i++) {
-            var lc = layers[i];
+          // Nur im Off-Screen-DIV suchen (nicht global im DOM!)
+          var layerCanvases = offDiv.querySelectorAll('.ol-layer canvas');
+          console.log('│ Layer-Canvases:', layerCanvases.length);
+
+          for (var i = 0; i < layerCanvases.length; i++) {
+            var lc = layerCanvases[i];
             if (lc.width > 0) {
               var op = lc.parentNode && lc.parentNode.style
                 ? lc.parentNode.style.opacity : '';
               ctx.globalAlpha = op === '' ? 1 : Number(op);
               var tf = lc.style.transform;
-              var m = tf && tf.match(/matrix\(([^)]+)\)/);
-              if (m) {
-                var mx = m[1].split(',').map(Number);
-                ctx.setTransform(
-                  mx[0] * scale, mx[1], mx[2],
-                  mx[3] * scale, mx[4] * scale, mx[5] * scale
-                );
+              var mat = tf && tf.match(/^matrix\(([^)]+)\)$/);
+
+              console.log('│ Layer[' + i + ']: ' + lc.width + '×' + lc.height +
+                ' (Soll: ' + pxW + '×' + pxH +
+                ', Ratio: ' + (lc.width / pxW).toFixed(4) + ')' +
+                ' transform: ' + (tf || 'keine'));
+
+              if (mat) {
+                var mx = mat[1].split(',').map(Number);
+                console.log('│   Matrix: [' +
+                  mx[0].toFixed(4) + ',' + mx[1].toFixed(4) + ',' +
+                  mx[2].toFixed(4) + ',' + mx[3].toFixed(4) + ',' +
+                  mx[4].toFixed(1) + ',' + mx[5].toFixed(1) + ']' +
+                  (Math.abs(mx[0] - 1.0) > 0.001 ? ' ⚠ scaleX≠1' : ''));
+                ctx.setTransform(mx[0], mx[1], mx[2], mx[3], mx[4], mx[5]);
               } else {
-                ctx.setTransform(scale, 0, 0, scale, 0, 0);
+                ctx.setTransform(1, 0, 0, 1, 0, 0);
               }
               ctx.drawImage(lc, 0, 0);
             }
           }
+          ctx.setTransform(1, 0, 0, 1, 0, 0);
+          ctx.globalAlpha = 1;
+          console.log('└─────────────────────────────────────────────────────');
 
-          // DPI-Parameter der Quellen wiederherstellen
-          origDpiParams.forEach(function (entry) {
-            entry.source.updateParams(entry.params);
-          });
-          if (origDpiParams.length > 0) {
-            console.log('[TemplatePDF] Source DPI wiederhergestellt für',
-              origDpiParams.length, 'Quellen');
+          // ── 7. Cleanup: Off-Screen-Map zerstören ──
+          // Geklonte Layer werden mit dispose() automatisch aufgeräumt
+          offMap.setTarget(null);
+          offMap.dispose();
+          if (offDiv.parentNode) {
+            offDiv.parentNode.removeChild(offDiv);
           }
 
+          // DPI: Kein Restore nötig — Sources wurden geklont, nicht modifiziert
+
+          _dbg('[TemplatePDF] Off-Screen-Map zerstört, Canvas:',
+            canvas.width + '×' + canvas.height);
+
           resolve(canvas);
-        });
-        map.renderSync();
-      }, 300);
+        } catch (err) {
+          // Bei Fehler trotzdem aufräumen
+          try {
+            offMap.setTarget(null);
+            offMap.dispose();
+          } catch (e) { /* ignore */ }
+          if (offDiv.parentNode) {
+            offDiv.parentNode.removeChild(offDiv);
+          }
+          // DPI: Kein Restore nötig — Sources wurden geklont, nicht modifiziert
+          reject(err);
+        }
+      });
+
+      offMap.renderSync();
     });
   }
 
@@ -928,7 +1131,11 @@
       pdf.setTextColor(0, 0, 0);
       var fs = elem.fontSize_pt || 10;
       pdf.setFontSize(fs);
-      pdf.setFont(undefined, elem.fontWeight === 'bold' ? 'bold' : 'normal');
+      var _fontName = (typeof window.mapFontFamily === 'function')
+        ? window.mapFontFamily(elem.fontFamily) : (elem.fontFamily || 'Inter');
+      var _fontStyle = (typeof window.mapFontWeight === 'function')
+        ? window.mapFontWeight(elem.fontWeight) : (elem.fontWeight === 'bold' ? 'bold' : 'normal');
+      pdf.setFont(_fontName, _fontStyle);
 
       // Textposition: vertikal zentriert
       var textY = elem.y_mm + elem.height_mm * 0.65;
@@ -947,7 +1154,7 @@
     });
 
     // Font zurücksetzen
-    pdf.setFont(undefined, 'normal');
+    pdf.setFont('Inter', 'normal');
     pdf.setFontSize(10);
   }
 
@@ -1193,7 +1400,7 @@
     // "N" Buchstabe — bleibt horizontal für Lesbarkeit
     var nPos = rot(cx, arrowCY - arrowH / 2 - h * 0.15);
     pdf.setFontSize(w * 0.55);
-    pdf.setFont('helvetica', 'bold');
+    pdf.setFont('Inter', 'bold');
     pdf.setTextColor(0, 0, 0);
     pdf.text('N', nPos[0], nPos[1] + 1, { align: 'center' });
 
@@ -1264,7 +1471,7 @@
 
     // Beschriftungen unter dem Balken (Stil wie "Situation")
     pdf.setFontSize(7);
-    pdf.setFont('helvetica', 'normal');
+    pdf.setFont('Inter', 'normal');
     pdf.setTextColor(0, 0, 0);
     var labelY = barY + barH + 3;
 
@@ -1303,12 +1510,91 @@
 
     // Text zeichnen (Stil wie "Situation")
     pdf.setFontSize(12);
-    pdf.setFont('helvetica', 'bold');
+    pdf.setFont('Inter', 'bold');
     pdf.setTextColor(0, 0, 0);
     var textY = elem.y_mm + elem.height_mm * 0.75;
     pdf.text(scaleText, elem.x_mm, textY);
 
     console.log('[TemplatePDF] Massstabstext:', scaleText);
+  }
+
+  // ---------------------------------------------------------------- //
+  //  Debug: 100 mm Kalibrier-Linie                                    //
+  // ---------------------------------------------------------------- //
+
+  /**
+   * Zeichnet die 100 mm Kalibrier-Linie + Metriken direkt ins MAP-CANVAS.
+   * Aktiviert via CONFIG.debugTestLine = true.
+   *
+   * Die Linie geht durch denselben Skalierungspfad wie der Karteninhalt
+   * (Canvas → addImage → PDF). Wenn die Linie im PDF genau 100 mm misst,
+   * ist die Canvas→PDF-Skalierung korrekt.
+   *
+   * @param {HTMLCanvasElement} canvas  - Das Map-Canvas (vor addImage)
+   * @param {Object} metrics  - { scale, dpi, resolution, extentW, extentH,
+   *                              mapAreaW_mm, mapAreaH_mm, canvasW, canvasH }
+   */
+  function drawDebugTestLine(canvas, metrics) {
+    if (!CONFIG.debugTestLine) return;
+
+    var ctx = canvas.getContext('2d');
+    var cw  = canvas.width;
+    var ch  = canvas.height;
+
+    // Umrechnung: mm → Canvas-Pixel
+    // Das Canvas hat cw Pixel für mapAreaW_mm Millimeter
+    var pxPerMm = cw / (metrics.mapAreaW_mm || 1);
+    var lineLen_px = 100 * pxPerMm;   // 100 mm in Pixel
+
+    // Position: unten links im Canvas, 8 mm Abstand vom Rand
+    var x0 = Math.round(8 * pxPerMm);
+    var y0 = Math.round(ch - 8 * pxPerMm);
+    var lineW = Math.max(1, Math.round(0.5 * pxPerMm));  // 0.5 mm Strich
+    var tickH = Math.round(2 * pxPerMm);
+
+    // Rote Linie
+    ctx.save();
+    ctx.strokeStyle = '#FF0000';
+    ctx.fillStyle   = '#FF0000';
+    ctx.lineWidth   = lineW;
+    ctx.beginPath();
+    ctx.moveTo(x0, y0);
+    ctx.lineTo(x0 + lineLen_px, y0);
+    ctx.stroke();
+
+    // Endmarken
+    ctx.beginPath();
+    ctx.moveTo(x0, y0 - tickH);
+    ctx.lineTo(x0, y0 + tickH);
+    ctx.moveTo(x0 + lineLen_px, y0 - tickH);
+    ctx.lineTo(x0 + lineLen_px, y0 + tickH);
+    ctx.stroke();
+
+    // Beschriftung
+    var fontSize = Math.max(10, Math.round(2 * pxPerMm));
+    ctx.font = fontSize + 'px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('← 100 mm Testlinie →', x0 + lineLen_px / 2, y0 - tickH - 2);
+
+    // Metriken-Text unter der Linie
+    ctx.font = Math.max(8, Math.round(1.5 * pxPerMm)) + 'px monospace';
+    ctx.textAlign = 'left';
+    var lines = [
+      '1:' + (metrics.scale || '?') +
+      '  DPI:' + (metrics.dpi || '?') +
+      '  Res:' + (metrics.resolution ? metrics.resolution.toFixed(6) : '?') + ' m/px',
+      'Extent:' + (metrics.extentW ? metrics.extentW.toFixed(1) : '?') + '×' +
+        (metrics.extentH ? metrics.extentH.toFixed(1) : '?') + 'm' +
+      '  Canvas:' + cw + '×' + ch + 'px' +
+      '  pxPerMm:' + pxPerMm.toFixed(2)
+    ];
+    for (var i = 0; i < lines.length; i++) {
+      ctx.fillText(lines[i], x0, y0 + tickH + fontSize + i * (fontSize + 2));
+    }
+    ctx.restore();
+
+    console.log('[TemplatePDF] Debug-Testlinie ins Canvas gezeichnet',
+      '(100 mm =', Math.round(lineLen_px), 'px, pxPerMm =', pxPerMm.toFixed(2) + ')');
   }
 
   // ---------------------------------------------------------------- //
@@ -1333,6 +1619,7 @@
    * @returns {Promise<{blob:Blob, filename:string}>}
    */
   function exportPdf(options) {
+    var _t0 = performance.now();
     var map = options.map;
     var template = options.template;
     var title = options.title || CONFIG.defaultFilename;
@@ -1368,6 +1655,22 @@
         // ── Papiergrösse ──
         var paperW = template.width_mm;
         var paperH = template.height_mm;
+
+        // ── SVG viewBox ↔ mm Konsistenzprüfung ──
+        var svgDims = parseSvgDimensions(svgText);
+        if (svgDims && paperW && paperH) {
+          // SVG-width/height in mm mit Manifest vergleichen
+          var wDelta = Math.abs(svgDims.width - paperW);
+          var hDelta = Math.abs(svgDims.height - paperH);
+          if (wDelta > 1 || hDelta > 1) {
+            console.warn('[TemplatePDF] SVG-Dimensionen weichen vom Manifest ab!',
+              'SVG:', svgDims.width.toFixed(1) + '×' + svgDims.height.toFixed(1) + ' mm',
+              'Manifest:', paperW.toFixed(1) + '×' + paperH.toFixed(1) + ' mm',
+              'Delta:', wDelta.toFixed(1) + '/' + hDelta.toFixed(1) + ' mm');
+          } else {
+            _dbg('[TemplatePDF] SVG ↔ Manifest Dimensionen konsistent ✓');
+          }
+        }
 
         // ── MAP_AREA-Position in mm ──
         var mapAreaX, mapAreaY, mapAreaW, mapAreaH;
@@ -1449,63 +1752,129 @@
 
         onProgress(3, options.serverRender ? 'Lade Kartenbilder von Server...' : 'Rendere Karte...');
 
-        // ── OL-Viewport: EXAKT mit Landeskoordinaten (LV95) rechnen ──
-        // Kein OGC-Pixel-Constant (0.28mm) — direkte Berechnung
-        // aus Papiermassen, Massstab und Druck-DPI.
+        // ── BBOX-first: Eckkoordinaten sind die Wahrheit ──
+        // Resolution wird aus BBOX + Pixelzahl abgeleitet.
+        // Keine GPR-Korrektur (EPSG:2056, mpu=1, Meter-Projektion).
         var scaleNumber = options.scaleNumber || 0;
         var mpu = map.getView().getProjection().getMetersPerUnit() || 1;
         var desiredCenter = options.printCenter || map.getView().getCenter();
 
-        // 1. Geographische Ausdehnung in Landeskoordinaten (LV95 = Meter)
-        //    Massstab 1:S → 1 mm Papier = S/1000 Meter Realwelt
-        var extentW_m = mapAreaW * scaleNumber / 1000;   // mm × S / 1000 → m
-        var extentH_m = mapAreaH * scaleNumber / 1000;
+        console.log('┌─────────────────────────────────────────────────────');
+        console.log('│ [PRINT] Schritt-für-Schritt Koordinatenberechnung');
+        console.log('├─────────────────────────────────────────────────────');
+        console.log('│ MANIFEST / EINGABE:');
+        console.log('│   Template:      ', template.paper || '?',
+          template.orientation || '', '(' + (template.name || template.file || '?') + ')');
+        console.log('│   Papier:        ', paperW.toFixed(1) + ' × ' + paperH.toFixed(1), 'mm');
+        console.log('│   MAP_AREA:      ', mapAreaW.toFixed(2) + ' × ' + mapAreaH.toFixed(2), 'mm',
+          'bei (' + mapAreaX.toFixed(2) + ', ' + mapAreaY.toFixed(2) + ')');
+        console.log('│   Massstab:       1:' + scaleNumber);
+        console.log('│   DPI:           ', dpi);
+        console.log('│   Projektion:    ', map.getView().getProjection().getCode(), ' mpu=' + mpu);
+        console.log('│   Center (View): ', map.getView().getCenter()[0].toFixed(2),
+          '/', map.getView().getCenter()[1].toFixed(2));
+        console.log('│   Center (Print):', desiredCenter[0].toFixed(2),
+          '/', desiredCenter[1].toFixed(2));
+        console.log('│   printCenter:   ', options.printCenter ? 'JA (explizit)' : 'NEIN (= View-Center)');
+        console.log('│   Bildformat:    ', CONFIG.imageFormat || 'image/jpeg');
+        console.log('├─────────────────────────────────────────────────────');
 
-        // 2. Viewport-Pixel = Papiermasse bei Ziel-DPI
-        //    mm / 25.4 × dpi = exakte Pixelzahl für Druckauflösung
+        // 1. Extent in Meter
+        var extentW_m = mapAreaW * scaleNumber / 1000;
+        var extentH_m = mapAreaH * scaleNumber / 1000;
+        console.log('│ SCHRITT 1: Kartenausschnitt (Extent) in Meter');
+        console.log('│   Formel:   mapAreaW_mm × Massstab / 1000');
+        console.log('│   Breite:  ', mapAreaW.toFixed(2), '×', scaleNumber, '/ 1000 =', extentW_m.toFixed(2), 'm');
+        console.log('│   Höhe:    ', mapAreaH.toFixed(2), '×', scaleNumber, '/ 1000 =', extentH_m.toFixed(2), 'm');
+        console.log('├─────────────────────────────────────────────────────');
+
+        // 2. BBOX (Eckkoordinaten)
+        var halfW = extentW_m / (2 * mpu);
+        var halfH = extentH_m / (2 * mpu);
+        var printBbox = [
+          desiredCenter[0] - halfW,
+          desiredCenter[1] - halfH,
+          desiredCenter[0] + halfW,
+          desiredCenter[1] + halfH
+        ];
+        console.log('│ SCHRITT 2: Eckkoordinaten (BBOX LV95)');
+        console.log('│   halfW:    extentW / (2 × mpu) =', extentW_m.toFixed(2), '/ (2 ×', mpu + ') =', halfW.toFixed(2), 'm');
+        console.log('│   halfH:    extentH / (2 × mpu) =', extentH_m.toFixed(2), '/ (2 ×', mpu + ') =', halfH.toFixed(2), 'm');
+        console.log('│');
+        console.log('│   Links-Unten (SW):  E ' + printBbox[0].toFixed(2) + '  /  N ' + printBbox[1].toFixed(2));
+        console.log('│   Rechts-Oben (NE):  E ' + printBbox[2].toFixed(2) + '  /  N ' + printBbox[3].toFixed(2));
+        console.log('│   Links-Oben  (NW):  E ' + printBbox[0].toFixed(2) + '  /  N ' + printBbox[3].toFixed(2));
+        console.log('│   Rechts-Unten (SE): E ' + printBbox[2].toFixed(2) + '  /  N ' + printBbox[1].toFixed(2));
+        console.log('│   Center:            E ' + desiredCenter[0].toFixed(2) + '  /  N ' + desiredCenter[1].toFixed(2));
+        console.log('│');
+        console.log('│   → BBOX: [' + printBbox.map(function(v){return v.toFixed(2)}).join(', ') + ']');
+        console.log('│   → Prüfung: ΔE=' + (printBbox[2]-printBbox[0]).toFixed(2) + 'm (soll ' + extentW_m.toFixed(2) + ')' +
+          '  ΔN=' + (printBbox[3]-printBbox[1]).toFixed(2) + 'm (soll ' + extentH_m.toFixed(2) + ')');
+        console.log('├─────────────────────────────────────────────────────');
+
+        // 3. Pixeldimensionen
         var baseVpW = mapAreaW / 25.4 * dpi;
         var baseVpH = mapAreaH / 25.4 * dpi;
+        console.log('│ SCHRITT 3: Pixeldimensionen');
+        console.log('│   Formel:   mapAreaW_mm / 25.4 × DPI');
+        console.log('│   Breite:  ', mapAreaW.toFixed(2), '/ 25.4 ×', dpi, '=', baseVpW.toFixed(2), 'px → gerundet:', Math.round(baseVpW));
+        console.log('│   Höhe:    ', mapAreaH.toFixed(2), '/ 25.4 ×', dpi, '=', baseVpH.toFixed(2), 'px → gerundet:', Math.round(baseVpH));
+        console.log('├─────────────────────────────────────────────────────');
 
-        // 3. OL-Resolution: exakt Meter pro Pixel
-        //    EPSG:2056 (mpu=1): z.B. 1:10'000, 150 dpi
-        //    → extent = 277mm × 10000 / 1000 = 2770 m
-        //    → vpW   = 277mm / 25.4 × 150   = 1635.8 px
-        //    → res   = 2770 / 1635.8         = 1.6932 m/px
+        // 4. Resolution
         var desiredRes;
         if (scaleNumber > 0 && baseVpW > 0) {
           desiredRes = extentW_m / baseVpW;
         } else {
           desiredRes = map.getView().getResolution();
         }
+        console.log('│ SCHRITT 4: Resolution (m/px)');
+        console.log('│   Formel:   extentW_m / baseVpW_px');
+        console.log('│  ', extentW_m.toFixed(4), '/', baseVpW.toFixed(4), '=', desiredRes.toFixed(10), 'm/px');
+        console.log('│   Alternativ: Massstab × 0.0254 / DPI =', (scaleNumber * 0.0254 / dpi).toFixed(10), 'm/px');
+        console.log('│   → Identisch?', Math.abs(desiredRes - scaleNumber * 0.0254 / dpi) < 1e-10 ? 'JA ✓' : 'NEIN ✗');
+        console.log('├─────────────────────────────────────────────────────');
 
-        // 4. Rotation: Viewport-Bounding-Box vergrössern
+        // 5. Rückrechnung → Verifikation
+        var checkExtentW = desiredRes * Math.round(baseVpW);
+        var checkExtentH = desiredRes * Math.round(baseVpH);
+        console.log('│ SCHRITT 5: Rückrechnung (Verifikation)');
+        console.log('│   res × round(pxW):', desiredRes.toFixed(10), '×', Math.round(baseVpW), '=', checkExtentW.toFixed(4), 'm (soll:', extentW_m.toFixed(4) + ')');
+        console.log('│   res × round(pxH):', desiredRes.toFixed(10), '×', Math.round(baseVpH), '=', checkExtentH.toFixed(4), 'm (soll:', extentH_m.toFixed(4) + ')');
+        console.log('│   ΔW:', Math.abs(checkExtentW - extentW_m).toFixed(6), 'm  ΔH:', Math.abs(checkExtentH - extentH_m).toFixed(6), 'm');
+        console.log('│   Massstab rückgerechnet: 1:' + Math.round(checkExtentW / (mapAreaW / 1000)),
+          '(soll: 1:' + scaleNumber + ')');
+        console.log('├─────────────────────────────────────────────────────');
+
+        // 6. Rotation + viewport
         var rotRad = map.getView().getRotation() || 0;
         var absC = Math.abs(Math.cos(rotRad));
         var absS = Math.abs(Math.sin(rotRad));
         var rotBuffer = Math.abs(rotRad) > 0.001 ? 1.15 : 1.0;
         var targetVpW = Math.round((baseVpW * absC + baseVpH * absS) * rotBuffer);
         var targetVpH = Math.round((baseVpW * absS + baseVpH * absC) * rotBuffer);
+        console.log('│ SCHRITT 6: Rotation');
+        console.log('│   Winkel:', (rotRad * 180 / Math.PI).toFixed(1) + '°',
+          rotBuffer > 1 ? '(+15% Buffer)' : '(kein Buffer)');
+        console.log('│   Base-Viewport:  ', Math.round(baseVpW) + ' × ' + Math.round(baseVpH), 'px');
+        console.log('│   Target-Viewport:', targetVpW + ' × ' + targetVpH, 'px');
+        console.log('├─────────────────────────────────────────────────────');
 
-        // 5. Kontrollausgabe: LV95-Eckkoordinaten des Druckbereichs
-        var halfW = extentW_m / (2 * mpu);
-        var halfH = extentH_m / (2 * mpu);
-        console.log('[TemplatePDF] LV95 Druckbereich:',
-          'Center:', desiredCenter[0].toFixed(1) + ' / ' + desiredCenter[1].toFixed(1),
-          'Ausdehnung:', extentW_m.toFixed(1) + ' × ' + extentH_m.toFixed(1), 'm',
-          'SW: [' + (desiredCenter[0] - halfW).toFixed(1) + ', ' +
-                    (desiredCenter[1] - halfH).toFixed(1) + ']',
-          'NE: [' + (desiredCenter[0] + halfW).toFixed(1) + ', ' +
-                    (desiredCenter[1] + halfH).toFixed(1) + ']',
-          'Resolution:', desiredRes.toFixed(6), 'm/px',
-          'Viewport:', targetVpW + '×' + targetVpH, 'px',
-          'Massstab: 1:' + scaleNumber,
-          'DPI:', dpi,
-          'Rotation:', Math.round(rotRad * 180 / Math.PI) + '°');
-
-        var mapTarget = map.getTargetElement();
-        var origW = mapTarget.style.width;
-        var origH = mapTarget.style.height;
-        var origOF = mapTarget.style.overflow;
+        // 7. Aktueller View vs. Print
+        var curViewRes = map.getView().getResolution();
+        var curViewCtr = map.getView().getCenter();
+        var curViewSize = map.getSize();
+        console.log('│ AKTUELLER VIEW (On-Screen):');
+        console.log('│   Size:       ', curViewSize ? (curViewSize[0] + '×' + curViewSize[1] + ' px') : 'undefined');
+        console.log('│   Resolution: ', curViewRes ? curViewRes.toFixed(8) + ' m/px' : 'undefined');
+        console.log('│   Center:      E ' + (curViewCtr ? curViewCtr[0].toFixed(2) : '?') + '  /  N ' + (curViewCtr ? curViewCtr[1].toFixed(2) : '?'));
+        if (curViewRes && curViewSize) {
+          console.log('│   View-Extent:', (curViewRes * curViewSize[0]).toFixed(1) + ' × ' +
+            (curViewRes * curViewSize[1]).toFixed(1), 'm');
+          console.log('│   View-Scale:  ~1:' + Math.round(curViewRes / 0.00028));
+        }
+        console.log('│   devicePixelRatio:', window.devicePixelRatio);
+        console.log('└─────────────────────────────────────────────────────');
 
         // ── Render-Methode wählen ──
         var useServerRender = !!options.serverRender && scaleNumber > 0;
@@ -1513,12 +1882,7 @@
 
         if (useServerRender) {
           // ── Server-Rendering: Bilder direkt vom Mapserver ──
-          var printBbox = [
-            desiredCenter[0] - halfW,  // minX
-            desiredCenter[1] - halfH,  // minY
-            desiredCenter[0] + halfW,  // maxX
-            desiredCenter[1] + halfH   // maxY
-          ];
+          // printBbox ist bereits oben berechnet (BBOX-first)
           var imgW = Math.round(baseVpW);
           var imgH = Math.round(baseVpH);
 
@@ -1533,64 +1897,30 @@
             return { canvas: serverCanvas, needsRestore: false };
           });
         } else {
-          // ── Client-Rendering: OL-Viewport resizen + Canvas holen ──
-          mapTarget.style.width = targetVpW + 'px';
-          mapTarget.style.height = targetVpH + 'px';
-          mapTarget.style.overflow = 'hidden';
-          map.updateSize();
+          // ── Client-Rendering via Off-Screen-Map ──
+          // Separate ol.Map-Instanz mit pixelRatio:1 → kein DPR-Problem,
+          // kein ResizeObserver, On-Screen-Map bleibt unverändert.
+          console.log('[TemplatePDF] Client-Rendering (Off-Screen):',
+            'Druckpixel:', Math.round(targetVpW) + '×' + Math.round(targetVpH),
+            '(Basis:', Math.round(baseVpW) + '×' + Math.round(baseVpH) + ')',
+            'Resolution:', desiredRes.toFixed(8), 'm/px',
+            'Center:', desiredCenter[0].toFixed(1) + '/' + desiredCenter[1].toFixed(1),
+            'Rotation:', (rotRad * 180 / Math.PI).toFixed(1) + '°');
 
-          // view.fit() mit constrainResolution:false umgeht View-Constraints
-          // (diskrete Zoom-Stufen), die view.setResolution() auf den naechsten
-          // erlaubten Wert snappen wuerden → exakter Massstab im PDF.
-          // Extent = Viewport-Groesse × desiredRes (bei Rotation: vergroessert)
-          var fitHalfW = targetVpW * desiredRes / (2 * mpu);
-          var fitHalfH = targetVpH * desiredRes / (2 * mpu);
-          var fitExtent = [
-            desiredCenter[0] - fitHalfW,
-            desiredCenter[1] - fitHalfH,
-            desiredCenter[0] + fitHalfW,
-            desiredCenter[1] + fitHalfH
-          ];
-          map.getView().fit(fitExtent, {
-            size: [targetVpW, targetVpH],
-            constrainResolution: false,
-            nearest: false
-          });
-
-          var actualRes = map.getView().getResolution();
-          var resDelta = Math.abs(actualRes - desiredRes);
-          console.log('[TemplatePDF] Client-Rendering — view.fit():',
-            'Resolution:', actualRes.toFixed(6),
-            '(Soll:', desiredRes.toFixed(6) + ',',
-            'Delta:', resDelta.toFixed(8) + ')',
-            'Center:', map.getView().getCenter()[0].toFixed(1) +
-            ' / ' + map.getView().getCenter()[1].toFixed(1),
-            'Extent:', (fitHalfW * 2).toFixed(1) + ' × ' + (fitHalfH * 2).toFixed(1), 'm');
-          if (resDelta > 1e-6) {
-            console.warn('[TemplatePDF] Resolution weicht ab! PDF-Massstab wird ungenau.');
-          }
-
-          var scaleFactor = 1;
-          renderPromise = renderMapCanvas(map, scaleFactor, {
-            center: desiredCenter,
-            resolution: desiredRes,
-            fitExtent: fitExtent,
-            dpi: dpi
-          }).then(function (mapCanvas) {
-            return { canvas: mapCanvas, needsRestore: true };
+          renderPromise = renderMapCanvas(
+            map,
+            desiredCenter,
+            desiredRes,
+            Math.round(targetVpW),  // bei Rotation: mit Buffer
+            Math.round(targetVpH),
+            { dpi: dpi, rotation: rotRad }
+          ).then(function (mapCanvas) {
+            return { canvas: mapCanvas, needsRestore: false };
           });
         }
 
         return renderPromise.then(function (renderResult) {
           var mapCanvas = renderResult.canvas;
-
-          // Viewport wiederherstellen (nur bei Client-Rendering)
-          if (renderResult.needsRestore) {
-            mapTarget.style.width = origW;
-            mapTarget.style.height = origH;
-            mapTarget.style.overflow = origOF;
-            map.updateSize();
-          }
 
           // ── Bei Rotation: Canvas auf den Druckbereich zuschneiden ──
           var finalCanvas;
@@ -1620,6 +1950,13 @@
             compress: true  // PDF-Stream-Komprimierung aktivieren
           });
 
+          // ── Custom Fonts registrieren (Inter) ──
+          var fontPromise = (typeof window.registerPdfFonts === 'function')
+            ? window.registerPdfFonts(pdf)
+            : Promise.resolve();
+
+          return fontPromise.then(function () {
+
           var pdfW = pdf.internal.pageSize.getWidth();
           var pdfH = pdf.internal.pageSize.getHeight();
 
@@ -1640,12 +1977,62 @@
 
             // ── OL-Map-Canvas in MAP_AREA platzieren ──
             // mapAreaX/Y/W/H sind DIREKT in mm (kein Skalierungsfaktor!)
-            // JPEG-Qualität konfigurierbar (Default 0.7 – guter Kompromiss)
-            var jpegQuality = options.jpegQuality || 0.7;
-            var mapDataUrl = finalCanvas.toDataURL('image/jpeg', jpegQuality);
-            pdf.addImage(mapDataUrl, 'JPEG',
+            var imgFormat = (CONFIG.imageFormat || 'image/jpeg').toLowerCase();
+            var isJpeg    = imgFormat.indexOf('jpeg') > -1 || imgFormat.indexOf('jpg') > -1;
+            var jpegQuality = options.jpegQuality || CONFIG.jpegQuality || 0.7;
+
+            // Bei JPEG: Canvas auf weissem Hintergrund rendern,
+            // damit transparente Pixel nicht schwarz werden.
+            var exportCanvas = finalCanvas;
+            if (isJpeg) {
+              var bgCanvas = document.createElement('canvas');
+              bgCanvas.width  = finalCanvas.width;
+              bgCanvas.height = finalCanvas.height;
+              var bgCtx = bgCanvas.getContext('2d');
+              bgCtx.fillStyle = '#ffffff';
+              bgCtx.fillRect(0, 0, bgCanvas.width, bgCanvas.height);
+              bgCtx.drawImage(finalCanvas, 0, 0);
+              exportCanvas = bgCanvas;
+            }
+
+            // ── Debug: 100 mm Kalibrier-Linie ins CANVAS ──
+            // VOR toDataURL → gleicher Skalierungspfad wie Karteninhalt.
+            drawDebugTestLine(exportCanvas, {
+              scale:       scaleNumber,
+              dpi:         dpi,
+              resolution:  desiredRes,
+              extentW:     extentW_m,
+              extentH:     extentH_m,
+              mapAreaW_mm: mapAreaW,
+              mapAreaH_mm: mapAreaH,
+              canvasW:     exportCanvas.width,
+              canvasH:     exportCanvas.height
+            });
+
+            var mapDataUrl;
+            var pdfImgType;
+            try {
+              if (isJpeg) {
+                mapDataUrl = exportCanvas.toDataURL('image/jpeg', jpegQuality);
+                pdfImgType = 'JPEG';
+              } else {
+                mapDataUrl = exportCanvas.toDataURL('image/png');
+                pdfImgType = 'PNG';
+              }
+            } catch (secErr) {
+              // Tainted Canvas: CORS-Header fehlen auf Kartendienst
+              console.error('[TemplatePDF] Canvas tainted – CORS-Header fehlen!', secErr);
+              throw new Error(
+                'Das Kartenbild konnte nicht exportiert werden (Tainted Canvas). ' +
+                'Ursache: Ein Kartendienst liefert keinen CORS-Header (Access-Control-Allow-Origin). ' +
+                'Versuchen Sie Server-Rendering oder kontaktieren Sie den Administrator.'
+              );
+            }
+            pdf.addImage(mapDataUrl, pdfImgType,
               mapAreaX, mapAreaY, mapAreaW, mapAreaH, undefined, 'FAST');
-            console.log('[TemplatePDF] JPEG-Qualität:', jpegQuality);
+
+            console.log('[TemplatePDF] Bildformat:', pdfImgType,
+              isJpeg ? ('Qualität: ' + jpegQuality) : '(verlustfrei)');
 
             console.log('[TemplatePDF] Karte platziert bei:',
               { x: mapAreaX, y: mapAreaY, w: mapAreaW, h: mapAreaH });
@@ -1658,6 +2045,11 @@
               drawPdfTextOverlays(pdf, template.elements, dynValues);
             }
 
+            // ── Rahmen um MAP_AREA (zuletzt → liegt über allem) ──
+            pdf.setDrawColor(0, 0, 0);
+            pdf.setLineWidth(0.4);
+            pdf.rect(mapAreaX, mapAreaY, mapAreaW, mapAreaH, 'S');
+
             onProgress(6, 'PDF erzeugt...');
 
             // Als Blob zurückgeben (KEIN automatischer Download)
@@ -1665,11 +2057,63 @@
             var pdfFilename = filename.replace(/\.pdf$/i, '') + '.pdf';
 
             onProgress(7, 'Fertig!');
+
+            // ── Druckzeit & Logging ──
+            var _duration = ((performance.now() - _t0) / 1000).toFixed(1);
+            var _extent = map.getView().calculateExtent(map.getSize());
+            var _layerInfos = collectLayerInfos(map);
+            var _layerNames = _layerInfos.map(function (l) { return l.name || l.layers || '?'; });
+
             console.log('[TemplatePDF] Export:', pdfFilename,
-              '(' + pdfBlob.size + ' Bytes)');
+              '(' + pdfBlob.size + ' Bytes)',
+              '| Dauer:', _duration + 's',
+              '| DPI:', dpi,
+              '| Template:', (template.name || template.title || '?'),
+              '| Extent:', _extent.map(function (v) { return Math.round(v); }).join(', '),
+              '| Layer:', _layerNames.join(', '));
+
+            // Server-Log: Metadaten + PDF archivieren (fire & forget)
+            try {
+              var _logUrl = (CONFIG.templatesBasePath || '').replace(/\/qgis-templates\/?$/, '/php/pdf-log.php');
+              if (!_logUrl || _logUrl === CONFIG.templatesBasePath) {
+                _logUrl = 'php/pdf-log.php';
+              }
+
+              // 1) Metadaten ins Drucklog
+              var _logData = {
+                timestamp: new Date().toISOString(),
+                filename: pdfFilename,
+                template: template.name || template.title || '?',
+                paper: (template.paper || '?') + ' ' + (template.orientation || '?'),
+                dpi: dpi,
+                extent: _extent.map(function (v) { return Math.round(v); }),
+                center: [Math.round((_extent[0] + _extent[2]) / 2), Math.round((_extent[1] + _extent[3]) / 2)],
+                scale: options.scaleText || '',
+                rotation: options.rotation || 0,
+                duration_s: parseFloat(_duration),
+                size_bytes: pdfBlob.size,
+                layers: _layerNames,
+                title: title
+              };
+              fetch(_logUrl + '?action=log', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(_logData)
+              }).catch(function () { /* ignore */ });
+
+              // 2) PDF-Datei archivieren
+              var _formData = new FormData();
+              _formData.append('pdf', pdfBlob, pdfFilename);
+              _formData.append('filename', pdfFilename);
+              fetch(_logUrl, {
+                method: 'POST',
+                body: _formData
+              }).catch(function () { /* ignore */ });
+            } catch (e) { /* ignore */ }
 
             return { blob: pdfBlob, filename: pdfFilename };
           });
+          }); // fontPromise.then
         });
       });
   }
@@ -1690,6 +2134,6 @@
     collectLayerInfos: collectLayerInfos
   };
 
-  console.log('[TemplatePDF] Template-PDF-Export Engine v1.3 geladen ✓');
+  console.log('[TemplatePDF] Template-PDF-Export Engine v2.0 geladen ✓');
 
 })();

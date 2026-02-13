@@ -5,5 +5,8 @@
         "git push": true
     },
     "python-envs.pythonProjects": [],
-    "chat.agent.maxRequests": 50
+    "chat.agent.maxRequests": 100,
+    "diffEditor.maxComputationTime": 0,
+    "diffEditor.maxFileSize": 0,
+    "diffEditor.ignoreTrimWhitespace": false
 }

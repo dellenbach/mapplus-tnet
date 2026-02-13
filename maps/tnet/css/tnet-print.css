@@ -201,19 +201,14 @@
   border: 3px solid #333;
   box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.3);
   position: relative; box-sizing: content-box;
-  /* Kein margin nötig: positioning center-center + symmetrischer Border
-     → OL zentriert Element-Mitte = Content-Mitte am View-Center */
+  transform-origin: center center;
+  overflow: visible;
 }
-.print-frame-handle {
-  position: absolute; width: 14px; height: 14px;
-  background: #d54b4b; border: 2px solid white; border-radius: 50%;
-  pointer-events: none; box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+
+/* SVG-Template-Vorschau im Druckrahmen */
+.print-frame-svg-preview {
+  position: absolute;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
 }
-.print-frame-handle.tl { top: -8px; left: -8px; }
-.print-frame-handle.tr { top: -8px; right: -8px; }
-.print-frame-handle.bl { bottom: -8px; left: -8px; }
-.print-frame-handle.br { bottom: -8px; right: -8px; }
-.print-frame-handle.tm { top: -8px; left: calc(50% - 7px); }
-.print-frame-handle.bm { bottom: -8px; left: calc(50% - 7px); }
-.print-frame-handle.ml { top: calc(50% - 7px); left: -8px; }
-.print-frame-handle.mr { top: calc(50% - 7px); right: -8px; }

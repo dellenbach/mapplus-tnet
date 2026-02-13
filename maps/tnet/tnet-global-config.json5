@@ -219,5 +219,16 @@
     // (Redlining) wird als Overlay darübergelegt.
     // false = Standard (OL-Canvas), true = Server-Rendering Default
     serverRenderDefault: false,
+    // Bildformat für Kartenbild im PDF:
+    //   'image/jpeg' = kleinere Datei (Standard)
+    //   'image/png'  = verlustfrei, transparente Bereiche bleiben weiss
+    imageFormat: 'image/jpeg',
+    // ── Debug-Optionen ──
+    // Erweiterte Konsolenausgaben (Massstab, DPI, Pixel, Extent etc.)
+    debug: false,
+    // 100 mm Kalibrier-Linie im PDF zeichnen (zum Nachmessen mit Lineal)
+    debugTestLine: false,
+    // Alle Metriken (Scale, Resolution, DPI, Pixel, Extent) in Konsole loggen
+    debugLogMetrics: false,
   },
 }

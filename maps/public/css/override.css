@@ -1070,6 +1070,120 @@ body.drawing-mode #freepane * {
   transform: rotate(180deg);
 }
 
+/* ============================================================
+   SPLASH SCREEN
+   ============================================================ */
+:root {
+  --cube-size: 30px;
+  --cube-half: calc(var(--cube-size) / 2);
+  --cube-speed: 1s;
+}
+
+#splash-screen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, #4b7b81 0%, #3a6268 100%);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  z-index: 99999;
+  transition: opacity 1s ease, visibility 1s ease, transform 1s ease;
+}
+
+#splash-screen.hidden {
+  opacity: 0;
+  visibility: hidden;
+  transform: scale(1.05);
+}
+
+#splash-logo {
+  position: relative;
+  width: 15em;
+  height: 12em;
+  background-image: url(/maps/tnet/resources/Logo-GIS-Daten-AG.svg);
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: 15em;
+  filter: brightness(0) invert(1);
+}
+
+/* Drehender Cube auf dem I von GIS – ausserhalb #splash-logo damit filter:invert nicht greift */
+#splash-cube-container {
+  width: var(--cube-size);
+  height: var(--cube-size);
+  perspective: 300px;
+  margin-top: -11.5em;
+}
+
+#splash-cube {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  transform-style: preserve-3d;
+  animation: splashRotate var(--cube-speed) infinite linear;
+}
+
+#splash-cube .cube-face {
+  width: var(--cube-size);
+  height: var(--cube-size);
+  display: block;
+  position: absolute;
+  border: none;
+  line-height: var(--cube-size);
+}
+
+#splash-cube .cube-face.cube-back,
+#splash-cube .cube-face.cube-right,
+#splash-cube .cube-face.cube-left,
+#splash-cube .cube-face.cube-front,
+#splash-cube .cube-face.cube-bottom {
+  background: hsl(357deg 64% 51%);
+}
+
+#splash-cube .cube-face.cube-top {
+  background: hsl(11deg 73% 72%);
+}
+
+#splash-cube .cube-face.cube-front  { transform: rotateY(0deg) translateZ(var(--cube-half)); }
+#splash-cube .cube-face.cube-back   { transform: rotateX(180deg) translateZ(var(--cube-half)); }
+#splash-cube .cube-face.cube-right  { transform: rotateY(90deg) translateZ(var(--cube-half)); }
+#splash-cube .cube-face.cube-left   { transform: rotateY(-90deg) translateZ(var(--cube-half)); }
+#splash-cube .cube-face.cube-top    { transform: rotateX(90deg) translateZ(var(--cube-half)); }
+#splash-cube .cube-face.cube-bottom { transform: rotateX(-90deg) translateZ(var(--cube-half)); }
+
+@keyframes splashRotate {
+  0%   { transform: rotateX(-22deg) rotateY(0deg) rotateZ(0deg); }
+  100% { transform: rotateX(-22deg) rotateY(-90deg) rotateZ(0deg); }
+}
+
+#splash-loader {
+  width: 200px;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-top: 160px;
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.1);
+}
+
+#splash-loader-bar {
+  width: 30%;
+  height: 100%;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.3), white, rgba(255, 255, 255, 0.3));
+  border-radius: 4px;
+  animation: splashLoading 1.5s ease-in-out infinite;
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.5);
+}
+
+@keyframes splashLoading {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(400%); }
+}
+
 /* Kartenauswahl Button links oben */
 #header_maps_select {
   position: fixed;
@@ -1127,9 +1241,9 @@ body.drawing-mode #freepane * {
 
 #gis_logo_container .gis-logo-cube {
   position: absolute;
-  height: 18px;
+  height: 16px;
   width: auto;
-  top: -3px;
+  top: 0px;
   left: 30px;
 }
 

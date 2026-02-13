@@ -322,10 +322,8 @@
 }
 
 /* ===== KOMPASS / NORTH ARROW ===== */
-/* OL Rotate-Control komplett ausblenden */
-.ol-rotate {
-  display: none !important;
-}
+/* OL Rotate-Control: Standardverhalten (autoHide) beibehalten,
+   damit der Nordpfeil bei Rotation sichtbar wird */
 
 /* ===== POLYGON-TOOL BUTTON ===== */
 #polygon-tool-btn {

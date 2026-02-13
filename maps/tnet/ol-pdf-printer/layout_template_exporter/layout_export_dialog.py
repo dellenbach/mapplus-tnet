@@ -909,7 +909,21 @@ class LayoutExportDialog(QDialog):
                 "placeholder": info["placeholder"],
             }
 
-        # 2. Text enthält bereits einen {{PLACEHOLDER}}
+        # 2. Explizite QGIS-Item-ID vorhanden → statisches Element
+        #    Wenn der Benutzer in QGIS eine Item-ID vergeben hat (z.B.
+        #    "Copyright"), aber diese ID nicht in PLACEHOLDER_MAP steht,
+        #    handelt es sich um ein statisches Element, das 1:1 im SVG
+        #    erhalten bleiben soll (kein Platzhalter, keine Variable).
+        #    WICHTIG: Muss VOR Text-Heuristiken stehen, da sonst z.B.
+        #    ein Copyright-Text mit "Massstab" als SCALE_TEXT erkannt wird.
+        if item_id:
+            return {
+                "id": item_id,
+                "variable": "",
+                "placeholder": "",
+            }
+
+        # 3. Text enthält bereits einen {{PLACEHOLDER}}
         for elem_id, info in PLACEHOLDER_MAP.items():
             ph = info.get("placeholder", "")
             if ph and ph in text:
@@ -919,7 +933,7 @@ class LayoutExportDialog(QDialog):
                     "placeholder": ph,
                 }
 
-        # 3. Heuristik: Text-Inhalt analysieren
+        # 4. Heuristik: Text-Inhalt analysieren
         text_lower = text.lower().strip()
 
         # Massstabs-Bezeichnung (z.B. "1:100'000") → SCALE_LABEL (grafisch)
@@ -971,7 +985,7 @@ class LayoutExportDialog(QDialog):
                 "placeholder": "{{SCALE_BAR}}",
             }
 
-        # 4. Position-Heuristik: oben = Titel
+        # 5. Position-Heuristik: oben = Titel (nur für Labels OHNE explizite ID)
         if y < page_h * 0.15:
             return {
                 "id": "TITLE_TEXT",
@@ -979,7 +993,7 @@ class LayoutExportDialog(QDialog):
                 "placeholder": "{{TITLE}}",
             }
 
-        # 5. Unbekannt — trotzdem mit Metadaten exportieren
+        # 6. Fallback: Unbekannt — trotzdem mit Metadaten exportieren
         safe_id = re.sub(r'[^A-Za-z0-9_]', '_', text[:20]).upper() + "_TEXT"
         return {
             "id": safe_id,
@@ -1540,6 +1554,34 @@ class LayoutExportDialog(QDialog):
             if hasattr(item, 'setVisibility'):
                 item.setVisibility(was_visible)
 
+    @staticmethod
+    def _hide_map_items(layout):
+        """Versteckt alle QgsLayoutItemMap-Elemente vor dem SVG-Export.
+
+        Der Karteninhalt soll NICHT im SVG sein — die Karte wird im Browser
+        von OpenLayers gerendert und ins PDF eingefügt. Im SVG bleibt nur
+        der Rahmen (MAP_AREA-Rect) als Positionsreferenz.
+
+        Returns: list of (item, was_visible) tuples
+        """
+        hidden = []
+        for item in layout.items():
+            if isinstance(item, QgsLayoutItemMap):
+                was_visible = item.isVisible() if hasattr(item, 'isVisible') else True
+                if hasattr(item, 'setVisibility'):
+                    item.setVisibility(False)
+                hidden.append((item, was_visible))
+                item_id = item.id() if callable(getattr(item, 'id', None)) else '?'
+                print(f"[LayoutExporter] Map-Item versteckt: {item_id}")
+        return hidden
+
+    @staticmethod
+    def _restore_map_items(hidden_maps):
+        """Stellt Sichtbarkeit der versteckten Map-Items wieder her."""
+        for item, was_visible in hidden_maps:
+            if hasattr(item, 'setVisibility'):
+                item.setVisibility(was_visible)
+
     def _inject_svg_bboxes(self, svg_path, hidden_elements, layout_info):
         """Fügt rote Bbox-Rechtecke für versteckte grafische Elemente
         in das SVG ein.
@@ -1566,15 +1608,17 @@ class LayoutExportDialog(QDialog):
         vb = root.get('viewBox', '')
         vb_parts = vb.split()
         if len(vb_parts) != 4:
-            print("[LayoutExporter] Kein gültiger viewBox im SVG")
-            return
-
-        vb_w = float(vb_parts[2])
-        vb_h = float(vb_parts[3])
-        paper_w = layout_info.get("width_mm", 297.0)
-        paper_h = layout_info.get("height_mm", 420.0)
-        sx = vb_w / paper_w  # SVG-Units pro mm
-        sy = vb_h / paper_h
+            # Fallback: Nativer QGIS-SVG-Export hat oft mm-Einheiten
+            # ohne expliziten viewBox → SVG-Units = mm
+            print("[LayoutExporter] Kein viewBox → nehme mm direkt")
+            sx, sy = 1.0, 1.0
+        else:
+            vb_w = float(vb_parts[2])
+            vb_h = float(vb_parts[3])
+            paper_w = layout_info.get("width_mm", 297.0)
+            paper_h = layout_info.get("height_mm", 210.0)
+            sx = vb_w / paper_w  # SVG-Units pro mm
+            sy = vb_h / paper_h
 
         # Bbox-Rects als SVG-Elemente erzeugen
         ns = root.tag.split('}')[0] + '}' if '}' in root.tag else ''
@@ -1621,11 +1665,15 @@ class LayoutExportDialog(QDialog):
     #  SVG-Nachbearbeitung                                                 #
     # ================================================================== #
     def _postprocess_svg(self, svg_path, layout_info):
-        """SVG nachbearbeiten: IDs zu Platzhalter-Elementen hinzufügen.
+        """SVG nachbearbeiten nach nativem QGIS-Export.
 
         QGIS exportiert SVG über Qt's QSvgGenerator, der die Layout-Item-IDs
-        NICHT als SVG-id-Attribute übernimmt. Deshalb suchen wir nach den
-        {{PLACEHOLDER}}-Texten und fügen die IDs manuell hinzu.
+        NICHT als SVG-id-Attribute übernimmt. Deshalb:
+
+        1. {{PLACEHOLDER}}-Texte finden und IDs zum umgebenden <text>-Tag
+           hinzufügen (auch verschachtelt in <tspan>).
+        2. Zusätzliche Bereinigung: leere <g>-Gruppen entfernen,
+           überflüssige Transformationen vereinfachen.
         """
         try:
             with open(svg_path, 'r', encoding='utf-8') as f:
@@ -1636,37 +1684,74 @@ class LayoutExportDialog(QDialog):
 
         modified = False
 
+        # ── 1. IDs für {{PLACEHOLDER}}-Texte einfügen ──
         for elem_id, info in PLACEHOLDER_MAP.items():
             placeholder = info.get("placeholder", "")
             if not placeholder or placeholder not in svg_text:
                 continue
 
-            # Finde den {{PLACEHOLDER}} im SVG und das umgebende <text>-Tag
-            idx = svg_text.find(placeholder)
-            if idx < 0:
-                continue
+            # Finde ALLE Vorkommen des Platzhalters
+            search_pos = 0
+            while True:
+                idx = svg_text.find(placeholder, search_pos)
+                if idx < 0:
+                    break
 
-            # Suche rückwärts nach dem nächsten <text-Tag
-            search_start = svg_text.rfind('<text', 0, idx)
-            if search_start < 0:
-                continue
+                # Der Platzhalter kann in <text> oder in <tspan> stehen.
+                # Qt/QGIS SVG-Export verschachtelt oft: <text><tspan>{{X}}</tspan></text>
+                # Wir brauchen das äusserste <text>-Tag.
+                text_start = svg_text.rfind('<text', 0, idx)
+                if text_start < 0:
+                    search_pos = idx + len(placeholder)
+                    continue
 
-            # Tag-Ende finden
-            tag_end = svg_text.find('>', search_start)
-            if tag_end < 0:
-                continue
+                # Tag-Ende finden (das '>' nach den Attributen)
+                tag_end = svg_text.find('>', text_start)
+                if tag_end < 0 or tag_end > idx:
+                    # '>' wäre nach dem Platzhalter → Tag ist self-closing oder kaputt
+                    search_pos = idx + len(placeholder)
+                    continue
 
-            tag_content = svg_text[search_start:tag_end]
+                tag_content = svg_text[text_start:tag_end]
 
-            # Prüfe ob bereits eine id vorhanden ist
-            if ' id="' in tag_content or " id='" in tag_content:
-                continue
+                # Prüfe ob bereits eine id vorhanden ist
+                if ' id="' in tag_content or " id='" in tag_content:
+                    search_pos = idx + len(placeholder)
+                    continue
 
-            # id-Attribut zum <text>-Tag hinzufügen
-            new_tag = tag_content.replace('<text', f'<text id="{elem_id}"', 1)
-            svg_text = svg_text[:search_start] + new_tag + svg_text[tag_end:]
+                # id-Attribut zum <text>-Tag hinzufügen
+                new_tag = tag_content.replace('<text', f'<text id="{elem_id}"', 1)
+                svg_text = svg_text[:text_start] + new_tag + svg_text[tag_end:]
+                modified = True
+                print(f"[LayoutExporter] SVG: id=\"{elem_id}\" hinzugefügt")
+                # Nur erstes Vorkommen pro ID
+                break
+
+        # ── 2. Leere <g>-Gruppen entfernen (QGIS-Export-Artefakte) ──
+        import re
+        # WICHTIG: (?<!/) vor > stellt sicher, dass self-closing <g .../>
+        # Tags NICHT gematcht werden. Ohne diesen Lookbehind würde der
+        # Regex z.B. '<g attr="x"/>\n</g>' als "leere Gruppe" erkennen
+        # und das </g> entfernen, das eigentlich eine äussere Gruppe schliesst.
+        empty_g_pattern = re.compile(r'<g[^>]*(?<!/)>\s*</g>', re.DOTALL)
+        cleaned = empty_g_pattern.sub('', svg_text)
+        if len(cleaned) != len(svg_text):
+            svg_text = cleaned
             modified = True
-            print(f"[LayoutExporter] SVG: id=\"{elem_id}\" hinzugefügt")
+            print("[LayoutExporter] Leere <g>-Gruppen entfernt")
+
+        # ── 3. Unsichtbare Overlay-Rects entfernen ──
+        # QGIS exportiert manchmal transparente Rects über der ganzen Seite
+        # die im Browser das Klick-Handling stören können
+        page_overlay = re.compile(
+            r'<rect[^>]*fill="none"[^>]*stroke="none"[^>]*/>',
+            re.IGNORECASE
+        )
+        cleaned2 = page_overlay.sub('', svg_text)
+        if len(cleaned2) != len(svg_text):
+            svg_text = cleaned2
+            modified = True
+            print("[LayoutExporter] Unsichtbare Overlay-Rects entfernt")
 
         if modified:
             try:
@@ -1676,6 +1761,71 @@ class LayoutExportDialog(QDialog):
             except IOError as e:
                 print(f"[LayoutExporter] SVG schreiben fehlgeschlagen: {e}")
 
+    def _inject_map_area_rect(self, svg_path, layout_info):
+        """Fügt ein MAP_AREA-Rechteck ins SVG ein.
+
+        Dieses Rect markiert den Kartenbereich für den OL-PDF-Printer.
+        Da das Map-Item beim Export versteckt war, fehlt es im SVG –
+        wir fügen es als dünnen schwarzen Rahmen ein.
+        """
+        mf = layout_info.get("mapFrame")
+        if not mf:
+            return
+
+        try:
+            with open(svg_path, 'r', encoding='utf-8') as f:
+                svg_text = f.read()
+        except (IOError, UnicodeDecodeError) as e:
+            print(f"[LayoutExporter] SVG lesen fehlgeschlagen: {e}")
+            return
+
+        # ViewBox auslesen für mm → SVG-Einheiten Umrechnung
+        import xml.etree.ElementTree as ET
+        try:
+            root = ET.fromstring(svg_text)
+        except ET.ParseError as e:
+            print(f"[LayoutExporter] SVG parsen fehlgeschlagen: {e}")
+            return
+
+        vb = root.get('viewBox', '')
+        vb_parts = vb.split()
+        if len(vb_parts) != 4:
+            # Fallback: width/height Attribute (QGIS SVG hat oft mm-Einheiten)
+            # In dem Fall sind SVG-Units = mm
+            print("[LayoutExporter] Kein viewBox → nehme mm direkt")
+            sx, sy = 1.0, 1.0
+        else:
+            vb_w = float(vb_parts[2])
+            vb_h = float(vb_parts[3])
+            paper_w = layout_info.get("width_mm", 297.0)
+            paper_h = layout_info.get("height_mm", 210.0)
+            sx = vb_w / paper_w
+            sy = vb_h / paper_h
+
+        x_svg = mf["x_mm"] * sx
+        y_svg = mf["y_mm"] * sy
+        w_svg = mf["width_mm"] * sx
+        h_svg = mf["height_mm"] * sy
+
+        map_rect = (
+            f'\n  <!-- Kartenbereich (MAP_AREA) -->\n'
+            f'  <rect id="MAP_AREA" x="{x_svg:.2f}" y="{y_svg:.2f}"'
+            f' width="{w_svg:.2f}" height="{h_svg:.2f}"'
+            f' fill="none" stroke="#000000" stroke-width="0.30" />\n'
+        )
+
+        close_tag = '</svg>'
+        svg_text = svg_text.replace(close_tag, map_rect + close_tag)
+
+        try:
+            with open(svg_path, 'w', encoding='utf-8') as f:
+                f.write(svg_text)
+            print(f"[LayoutExporter] MAP_AREA-Rect eingefügt: "
+                  f"({mf['x_mm']:.1f}, {mf['y_mm']:.1f}) "
+                  f"{mf['width_mm']:.1f}×{mf['height_mm']:.1f} mm")
+        except IOError as e:
+            print(f"[LayoutExporter] SVG schreiben fehlgeschlagen: {e}")
+
     # ================================================================== #
     #  Export: ein Zielordner  →  <ziel>/                                #
     # ================================================================== #
@@ -1683,13 +1833,16 @@ class LayoutExportDialog(QDialog):
                              target_dir, write_manifest=True):
         """Exportiert Layout + Dateien direkt in target_dir/.
 
-        Ablauf für SVG:
+        Ablauf für SVG (Nativer QGIS-Export + Nachbearbeitung):
           1. Grafische Elemente (Nordpfeil, Massstabsbalken) verstecken
-          2. Labels temporär auf {{PLACEHOLDER}} setzen
-          3. SVG mit textRenderFormat=AlwaysText exportieren
-          4. SVG nachbearbeiten (IDs hinzufügen)
-          5. Rote Bbox-Rects für versteckte Elemente einfügen
-          6. Originale Label-Texte + Sichtbarkeit wiederherstellen
+          2. Karten-Items verstecken (Map-Content soll nicht im SVG sein)
+          3. Labels temporär auf {{PLACEHOLDER}} setzen
+          4. SVG via QgsLayoutExporter.exportToSvg() mit AlwaysText
+          5. SVG nachbearbeiten: IDs zu {{PLACEHOLDER}}-Texten hinzufügen,
+             leere Gruppen entfernen, Artefakte bereinigen
+          6. Rote Bbox-Rects für versteckte grafische Elemente einfügen
+          7. MAP_AREA-Rect einfügen (Kartenrahmen-Position)
+          8. Originale Label-Texte + Sichtbarkeit wiederherstellen
         """
 
         svg_dir = target_dir
@@ -1701,6 +1854,10 @@ class LayoutExportDialog(QDialog):
         # Grafische Elemente verstecken (Nordpfeil, Massstabsbalken etc.)
         elements = layout_info.get("elements", [])
         hidden_graphics = self._hide_graphic_elements(elements)
+
+        # Karten-Items verstecken (wir wollen nur das "Rahmen"-SVG,
+        # die Karte wird im Browser von OpenLayers gerendert)
+        hidden_maps = self._hide_map_items(layout)
 
         # Labels temporär auf Platzhalter setzen (nur Nicht-Grafische)
         original_texts = self._set_placeholder_texts(layout, elements)
@@ -1714,18 +1871,45 @@ class LayoutExportDialog(QDialog):
                     continue
 
                 if fmt == "svg":
-                    # ── Clean SVG direkt aus Layout-Elementen ──
-                    # Kein QgsLayoutExporter — alle Element-Eigenschaften
-                    # werden direkt aus dem QGIS-Layout gelesen und als
-                    # flache, ungruppierte SVG-Elemente mit exakten IDs,
-                    # Massen und Positionen geschrieben.
-                    svg_content = self._build_clean_svg(
-                        layout, layout_info, elements
-                    )
-                    with open(filepath, 'w', encoding='utf-8') as f:
-                        f.write(svg_content)
+                    # ── Nativer QGIS-SVG-Export ──
+                    # Verwendet QgsLayoutExporter mit textRenderFormat=AlwaysText
+                    # damit {{PLACEHOLDER}}-Texte als <text>-Elemente erhalten
+                    # bleiben und im Browser ersetzt werden können.
+                    s = QgsLayoutExporter.SvgExportSettings()
+                    s.dpi = 300
+                    # Text als <text>-Elemente, NICHT als <path>
+                    s.textRenderFormat = QgsRenderContext.TextFormatAlwaysText
+                    # Vektor-Output erzwingen (keine Rasterisierung)
+                    s.forceVectorOutput = True
+
+                    result = exporter.exportToSvg(filepath, s)
+                    if result != QgsLayoutExporter.Success:
+                        raise RuntimeError(
+                            f"SVG-Export fehlgeschlagen (Code {result})"
+                        )
+
+                    print(f"[LayoutExporter] Nativer SVG-Export: "
+                          f"{os.path.basename(filepath)}")
+
+                    # ── Nachbearbeitung ──
+                    # 1. IDs zu Platzhalter-Texten hinzufügen + Cleanup
+                    #    (Qt's QSvgGenerator übernimmt QGIS-Item-IDs nicht)
+                    self._postprocess_svg(filepath, layout_info)
+
+                    # 2. Rote Bbox-Rects für versteckte grafische Elemente
+                    #    (Nordpfeil, Massstabsbalken → vom Browser dynamisch
+                    #    gezeichnet)
+                    if hidden_graphics:
+                        self._inject_svg_bboxes(
+                            filepath, hidden_graphics, layout_info
+                        )
+
+                    # 3. MAP_AREA-Rect einfügen (Kartenrahmen)
+                    if layout_info.get("mapFrame"):
+                        self._inject_map_area_rect(filepath, layout_info)
+
                     exported.append(filepath)
-                    print(f"[LayoutExporter] Clean SVG: "
+                    print(f"[LayoutExporter] SVG-Nachbearbeitung abgeschlossen: "
                           f"{os.path.basename(filepath)}")
                 else:
                     s = QgsLayoutExporter.PdfExportSettings()
@@ -1742,6 +1926,8 @@ class LayoutExportDialog(QDialog):
             self._restore_label_texts(layout, original_texts)
             # Grafische Elemente wieder einblenden
             self._restore_graphic_elements(hidden_graphics)
+            # Karten-Items wieder einblenden
+            self._restore_map_items(hidden_maps)
 
         return exported
 

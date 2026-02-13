@@ -14,25 +14,10 @@
   <g font-style="normal" stroke-linejoin="bevel" transform="matrix(11.8081,0,0,11.8081,0,0)" fill="none" stroke="#000000" font-size="34.5833" stroke-width="1" stroke-linecap="square" font-weight="400" stroke-opacity="1" font-family="MS Shell Dlg 2"/>
   <g font-style="normal" stroke-linejoin="bevel" transform="matrix(11.8081,0,0,11.8081,0,0)" fill="none" stroke="#000000" font-size="34.5833" stroke-width="1" stroke-linecap="square" font-weight="400" stroke-opacity="1" font-family="MS Shell Dlg 2"/>
   <g font-style="normal" stroke-linejoin="bevel" transform="matrix(11.8081,0,0,11.8081,0,0)" fill="none" stroke="#000000" font-size="34.5833" stroke-width="1" stroke-linecap="square" font-weight="400" stroke-opacity="1" font-family="MS Shell Dlg 2"/>
-  <g font-style="normal" stroke-linejoin="bevel" transform="matrix(11.8081,0,0,11.8081,120.679,284.421)" fill="none" stroke="#000000" font-size="34.5833" stroke-width="1" stroke-linecap="square" font-weight="400" stroke-opacity="1" font-family="MS Shell Dlg 2"/>
-  <g font-style="normal" stroke-linejoin="bevel" transform="matrix(11.8081,0,0,11.8081,120.679,284.421)" fill="none" stroke="#000000" font-size="34.5833" stroke-width="1" stroke-linecap="square" font-weight="400" stroke-opacity="1" font-family="MS Shell Dlg 2"/>
-  <g font-style="normal" transform="matrix(0.999751,0,0,0.999751,120.679,284.421)" fill="#000000" stroke="none" font-size="34.5833" font-weight="400" fill-opacity="0" font-family="MS Shell Dlg 2">
-   <rect y="0" width="3272" height="4567" x="0"/>
-  </g>
-  <g font-style="normal" stroke-linejoin="bevel" transform="matrix(11.8081,0,0,11.8081,120.679,284.421)" fill="none" stroke="#000000" font-size="34.5833" stroke-width="1" stroke-linecap="square" font-weight="400" stroke-opacity="1" font-family="MS Shell Dlg 2"/>
-  <g font-style="normal" stroke-linejoin="bevel" transform="matrix(11.8081,0,0,11.8081,120.679,284.421)" fill="none" stroke="#000000" font-size="34.5833" stroke-width="1" stroke-linecap="square" font-weight="400" stroke-opacity="1" font-family="MS Shell Dlg 2"/>
-  <g font-style="normal" stroke-linejoin="bevel" transform="matrix(11.8081,0,0,11.8081,120.679,284.421)" fill="none" stroke="#000000" font-size="34.5833" stroke-width="1" stroke-linecap="square" font-weight="400" stroke-opacity="1" font-family="MS Shell Dlg 2"/>
-  <g font-style="normal" stroke-linejoin="bevel" transform="matrix(1,0,0,1,0,0)" fill="none" stroke="#000000" font-size="34.5833" stroke-width="1" stroke-linecap="square" font-weight="400" stroke-opacity="1" font-family="MS Shell Dlg 2"/>
-  <g font-style="normal" stroke-linejoin="bevel" transform="matrix(11.8081,0,0,11.8081,120.679,284.421)" fill="none" stroke="#000000" font-size="34.5833" stroke-width="1" stroke-linecap="square" font-weight="400" stroke-opacity="1" font-family="MS Shell Dlg 2"/>
-  <g font-style="normal" stroke-linejoin="miter" transform="matrix(11.8081,0,0,11.8081,120.679,284.421)" fill="none" stroke="#000000" font-size="34.5833" stroke-width="0.176389" stroke-linecap="square" font-weight="400" stroke-opacity="1" stroke-miterlimit="2" font-family="MS Shell Dlg 2">
-   <path d="M0,0 L277,0 L277,386.67 L0,386.67 L0,0" fill-rule="evenodd" vector-effect="none"/>
-  </g>
-  <g font-style="normal" stroke-linejoin="bevel" transform="matrix(11.8081,0,0,11.8081,120.679,284.421)" fill="none" stroke="#000000" font-size="34.5833" stroke-width="1" stroke-linecap="square" font-weight="400" stroke-opacity="1" font-family="MS Shell Dlg 2"/>
-  <g font-style="normal" stroke-linejoin="bevel" transform="matrix(11.8081,0,0,11.8081,120.679,284.421)" fill="none" stroke="#000000" font-size="34.5833" stroke-width="1" stroke-linecap="square" font-weight="400" stroke-opacity="1" font-family="MS Shell Dlg 2"/>
   <g font-style="normal" stroke-linejoin="bevel" transform="matrix(11.8081,0,0,11.8081,120.442,4869.46)" fill="none" stroke="#000000" font-size="34.5833" stroke-width="1" stroke-linecap="square" font-weight="400" stroke-opacity="1" font-family="MS Shell Dlg 2"/>
   <g font-style="normal" stroke-linejoin="bevel" transform="matrix(0.999751,0,0,0.999751,120.442,4869.46)" fill="none" stroke="#000000" font-size="34.5833" stroke-width="1" stroke-linecap="square" font-weight="400" stroke-opacity="1" font-family="MS Shell Dlg 2"/>
   <g font-style="normal" stroke-linejoin="bevel" transform="matrix(0.124969,0,0,0.124969,120.442,4897.02)" fill="none" stroke="#000000" font-size="201" stroke-width="1" stroke-linecap="square" font-weight="400" stroke-opacity="1" font-family="Arial">
-   <text id="SCALE_TEXT" font-style="normal" y="0" fill="#000000" stroke="none" font-size="201" xml:space="preserve" font-weight="400" fill-opacity="1" x="0" font-family="Arial">{{SCALE}}</text>
+   <text font-style="normal" y="0" fill="#000000" stroke="none" font-size="201" xml:space="preserve" font-weight="400" fill-opacity="1" x="0" font-family="Arial">© GIS Daten AG / Technische Kopie: Keine Rechtswirkung, keine Gewähr auf Massstabsangabe, Leitungen sind vor Baubeginn zu sondieren, bei Projektierungen sind Werkeigentümer zu benachrichtigen. </text>
   </g>
   <g font-style="normal" stroke-linejoin="bevel" transform="matrix(0.999751,0,0,0.999751,120.442,4869.46)" fill="none" stroke="#000000" font-size="34.5833" stroke-width="1" stroke-linecap="square" font-weight="400" stroke-opacity="1" font-family="MS Shell Dlg 2"/>
   <g font-style="normal" stroke-linejoin="bevel" transform="matrix(0.999751,0,0,0.999751,120.442,4869.46)" fill="none" stroke="#000000" font-size="34.5833" stroke-width="1" stroke-linecap="square" font-weight="400" stroke-opacity="1" font-family="MS Shell Dlg 2"/>
@@ -59,7 +44,7 @@
   <g font-style="normal" stroke-linejoin="bevel" transform="matrix(11.8081,0,0,11.8081,307.01,229.033)" fill="none" stroke="#000000" font-size="34.5833" stroke-width="1" stroke-linecap="square" font-weight="400" stroke-opacity="1" font-family="MS Shell Dlg 2"/>
   <g font-style="normal" stroke-linejoin="bevel" transform="matrix(0.999751,0,0,0.999751,307.01,229.033)" fill="none" stroke="#000000" font-size="34.5833" stroke-width="1" stroke-linecap="square" font-weight="400" stroke-opacity="1" font-family="MS Shell Dlg 2"/>
   <g font-style="normal" stroke-linejoin="bevel" transform="matrix(0.187453,0,0,0.187453,307.01,261.598)" fill="none" stroke="#000000" font-size="201" stroke-width="1" stroke-linecap="square" font-weight="160" stroke-opacity="1" font-family="Arial">
-   <text id="DATE_TEXT" font-style="normal" y="0" fill="#000000" stroke="none" font-size="201" xml:space="preserve" font-weight="160" fill-opacity="1" x="0" font-family="Arial">{{DATE}}</text>
+   <text font-style="normal" y="0" fill="#000000" stroke="none" font-size="201" xml:space="preserve" font-weight="160" fill-opacity="1" x="0" font-family="Arial">Erstellt am: 12.02.2026</text>
   </g>
   <g font-style="normal" stroke-linejoin="bevel" transform="matrix(0.999751,0,0,0.999751,307.01,229.033)" fill="none" stroke="#000000" font-size="34.5833" stroke-width="1" stroke-linecap="square" font-weight="400" stroke-opacity="1" font-family="MS Shell Dlg 2"/>
   <g font-style="normal" stroke-linejoin="bevel" transform="matrix(0.999751,0,0,0.999751,307.01,229.033)" fill="none" stroke="#000000" font-size="34.5833" stroke-width="1" stroke-linecap="square" font-weight="400" stroke-opacity="1" font-family="MS Shell Dlg 2"/>
@@ -67,9 +52,6 @@
   <g font-style="normal" stroke-linejoin="bevel" transform="matrix(11.8081,0,0,11.8081,307.01,229.033)" fill="none" stroke="#000000" font-size="34.5833" stroke-width="1" stroke-linecap="square" font-weight="400" stroke-opacity="1" font-family="MS Shell Dlg 2"/>
   <g font-style="normal" stroke-linejoin="bevel" transform="matrix(11.8081,0,0,11.8081,307.01,152.021)" fill="none" stroke="#000000" font-size="34.5833" stroke-width="1" stroke-linecap="square" font-weight="400" stroke-opacity="1" font-family="MS Shell Dlg 2"/>
   <g font-style="normal" stroke-linejoin="bevel" transform="matrix(0.999751,0,0,0.999751,307.01,152.021)" fill="none" stroke="#000000" font-size="34.5833" stroke-width="1" stroke-linecap="square" font-weight="400" stroke-opacity="1" font-family="MS Shell Dlg 2"/>
-  <g font-style="normal" stroke-linejoin="bevel" transform="matrix(0.999751,0,0,0.999751,307.01,202.754)" fill="none" stroke="#000000" font-size="58" stroke-width="1" stroke-linecap="square" font-weight="700" stroke-opacity="1" font-family="Arial">
-   <text id="TITLE_TEXT" font-style="normal" y="0" fill="#000000" stroke="none" font-size="58" xml:space="preserve" font-weight="700" fill-opacity="1" x="0" font-family="Arial">{{TITLE}}</text>
-  </g>
   <g font-style="normal" stroke-linejoin="bevel" transform="matrix(0.999751,0,0,0.999751,307.01,152.021)" fill="none" stroke="#000000" font-size="34.5833" stroke-width="1" stroke-linecap="square" font-weight="400" stroke-opacity="1" font-family="MS Shell Dlg 2"/>
   <g font-style="normal" stroke-linejoin="bevel" transform="matrix(0.999751,0,0,0.999751,307.01,152.021)" fill="none" stroke="#000000" font-size="34.5833" stroke-width="1" stroke-linecap="square" font-weight="400" stroke-opacity="1" font-family="MS Shell Dlg 2"/>
   <g font-style="normal" stroke-linejoin="bevel" transform="matrix(11.8081,0,0,11.8081,307.01,152.021)" fill="none" stroke="#000000" font-size="34.5833" stroke-width="1" stroke-linecap="square" font-weight="400" stroke-opacity="1" font-family="MS Shell Dlg 2"/>
@@ -122,7 +104,9 @@
  </metadata>
 
   <!-- Dynamic element bboxes (OL-Printer) -->
-  <rect id="Massstab" x="254.82" y="4840.72" width="260.84" height="65.19" fill="none" stroke="#FF0000" stroke-width="2" data-dynamic-type="scaleLabel" />
-  <rect id="Massstabsbalken" x="391.56" y="4829.50" width="650.74" height="41.10" fill="none" stroke="#FF0000" stroke-width="2" data-dynamic-type="scaleBar" />
-  <rect id="NORTH_ARROW" x="228" y="4608" width="54" height="120" fill="none" stroke="#FF0000" stroke-width="2" data-dynamic-type="northArrow" />
+  <rect id="Massstab" x="124.34" y="4775.54" width="260.84" height="65.19" fill="none" stroke="#FF0000" stroke-width="2" data-dynamic-type="scaleBar" />
+  <rect id="Massstabsbalken" x="391.56" y="4788.29" width="650.74" height="41.10" fill="none" stroke="#FF0000" stroke-width="2" data-dynamic-type="scaleBar" />
+
+  <!-- Kartenbereich (MAP_AREA) -->
+  <rect id="MAP_AREA" x="120.68" y="284.49" width="3270.84" height="4566.39" fill="none" stroke="#000000" stroke-width="0.30" />
 </svg>

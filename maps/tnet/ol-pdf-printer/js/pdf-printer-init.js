@@ -42,7 +42,7 @@
  *   };
  * ══════════════════════════════════════════════════════════════
  *
- * @version    1.1
+ * @version    2.0
  * @date       2026-02-12
  * @copyright  Trigonet AG
  * @author     Marco Dellenbach
@@ -56,7 +56,7 @@
   // ---------------------------------------------------------------- //
 
   var _config = {
-    templatesBasePath: 'ol-pdf-printer/qgis-templates',
+    templatesBasePath: 'tnet/ol-pdf-printer/qgis-templates',
     filename: 'Kartenexport'
   };
 
@@ -147,17 +147,33 @@
 
   var _crossOriginFixed = false;
 
+  /**
+   * Setzt crossOrigin='anonymous' für alle Tile- und ImageWMS-Quellen,
+   * damit Canvas-Export (toDataURL) ohne Tainted-Canvas-Fehler funktioniert.
+   */
   function fixCrossOrigin(map) {
     if (_crossOriginFixed) return;
     try {
       map.getLayers().forEach(function (layer) {
         var source = layer.getSource && layer.getSource();
-        if (source && typeof source.setTileLoadFunction === 'function') {
+        if (!source) return;
+
+        // Tile-Quellen (TileWMS, XYZ etc.)
+        if (typeof source.setTileLoadFunction === 'function') {
           var orig = source.getTileLoadFunction();
           source.setTileLoadFunction(function (tile, src) {
             var img = tile.getImage();
             if (img) img.crossOrigin = 'anonymous';
             orig(tile, src);
+          });
+        }
+
+        // ImageWMS-Quellen (einzelnes Bild pro Request)
+        if (typeof source.setImageLoadFunction === 'function') {
+          source.setImageLoadFunction(function (image, src) {
+            var img = image.getImage();
+            if (img) img.crossOrigin = 'anonymous';
+            img.src = src;
           });
         }
       });
@@ -173,27 +189,56 @@
 
   /**
    * Setzt den Kartenmassstab.
+   * Verwendet getPointResolution() für exakte Korrektur (± <0.1 %).
    * @param {ol.Map} map
    * @param {number} scale - z.B. 10000 für 1:10'000
    */
   function setMapScale(map, scale) {
     if (!scale || scale <= 0) return;
     var view = map.getView();
-    var mpu = view.getProjection().getMetersPerUnit() || 1;
-    // 1 Pixel = 0.00028 m bei 96 dpi Bildschirm (OGC-Standard)
+    var proj = view.getProjection();
+    var mpu  = proj.getMetersPerUnit() || 1;
+    // Initiale OGC-Näherung: 1 Pixel = 0.00028 m bei 96 dpi (OGC-Standard)
     var resolution = scale * 0.00028 / mpu;
     view.setResolution(resolution);
+    // Iterative Korrektur via getPointResolution (max 5 Schritte)
+    // getPointResolution liefert: wahre Meter pro Pixel am gegebenen Punkt
+    if (ol.proj && ol.proj.getPointResolution) {
+      var center = view.getCenter();
+      for (var i = 0; i < 5; i++) {
+        var gpr = ol.proj.getPointResolution(proj, resolution, center);
+        if (!gpr || gpr <= 0) break;
+        // Aktueller Massstab = gpr (wahre m/px) / 0.00028 (OGC-Pixelgrösse in m)
+        var actualScale = gpr / 0.00028;
+        var ratio = scale / actualScale;
+        if (Math.abs(ratio - 1) < 1e-6) break;  // <0.0001 % → gut genug
+        // Sicherheitsprüfung: Korrektur darf max 5 % betragen
+        if (Math.abs(ratio - 1) > 0.05) {
+          console.warn('[PdfPrinter] getPointResolution-Korrektur zu gross (' +
+            ((ratio - 1) * 100).toFixed(2) + ' %), übersprungen');
+          break;
+        }
+        resolution *= ratio;
+        view.setResolution(resolution);
+      }
+    }
   }
 
   /**
-   * Liest den aktuellen Massstab.
+   * Liest den aktuellen Massstab (mit getPointResolution-Korrektur).
    * @param {ol.Map} map
    * @returns {number}
    */
   function getMapScale(map) {
     var view = map.getView();
-    var mpu = view.getProjection().getMetersPerUnit() || 1;
-    return Math.round(view.getResolution() * mpu / 0.00028);
+    var proj = view.getProjection();
+    var mpu  = proj.getMetersPerUnit() || 1;
+    var res  = view.getResolution();
+    if (ol.proj && ol.proj.getPointResolution) {
+      var gpr = ol.proj.getPointResolution(proj, res, view.getCenter());
+      if (gpr && gpr > 0) return Math.round(gpr / 0.00028);
+    }
+    return Math.round(res * mpu / 0.00028);
   }
 
   /**
@@ -321,27 +366,25 @@
     // crossOrigin fixen
     fixCrossOrigin(map);
 
-    // Templates-Pfad setzen
+    // Templates-Pfad und Debug-Config setzen
     if (_config.templatesBasePath) {
       TemplatePdfExport.config.templatesBasePath = _config.templatesBasePath;
     }
+    // Debug/Format-Optionen aus globaler Config durchreichen
+    var printCfg = (window.tnetConfig && window.tnetConfig.print) || {};
+    if (printCfg.imageFormat)  TemplatePdfExport.config.imageFormat  = printCfg.imageFormat;
+    if (printCfg.debug)        TemplatePdfExport.config.debug        = true;
+    if (printCfg.debugTestLine) TemplatePdfExport.config.debugTestLine = true;
+    if (printCfg.debugLogMetrics) TemplatePdfExport.config.debugLogMetrics = true;
+    if (typeof printCfg.jpegQuality === 'number') TemplatePdfExport.config.jpegQuality = printCfg.jpegQuality;
 
     var onProgress = opts.onProgress || function () {};
     onProgress(0, 'Lade Templates...');
 
-    // ---- View-Zustand merken (wird nach Export wiederhergestellt) ----
-    var origResolution = map.getView().getResolution();
-    var origRotation   = map.getView().getRotation();
-
-    // ---- Massstab setzen ----
-    if (opts.massstab && opts.massstab > 0) {
-      setMapScale(map, opts.massstab);
-    }
-
-    // ---- Rotation setzen ----
-    if (typeof opts.rotation === 'number' && opts.rotation !== 0) {
-      setMapRotation(map, opts.rotation);
-    }
+    // ---- View wird NICHT mehr verändert ----
+    // Resolution/Rotation/Center werden rein rechnerisch ermittelt
+    // und als Parameter an den Off-Screen-Renderer durchgereicht.
+    // → Kein Flicker, kein Vorschaurahmen-Sprung.
 
     // ---- Koordinatennetz ----
     if (opts.koordinatennetz) {
@@ -353,14 +396,13 @@
     var scaleText = formatScale(scaleNum);
     // Print-Center: entweder explizit uebergeben oder aktuelles View-Center
     var centerNative = opts.printCenter || map.getView().getCenter();  // Projektionskoordinaten (LV95)
-    // Center explizit setzen (verhindert Drift nach setMapScale)
-    map.getView().setCenter(centerNative);
+    // KEIN setCenter auf der Hauptkarte — Off-Screen-Map bekommt Center direkt
     var center    = ol.proj.toLonLat(centerNative);
     // LV95-Koordinaten (EPSG:2056) für Schweizer Kontext
     var coordsText = Math.round(centerNative[0]).toLocaleString('de-CH') + ' / ' +
                      Math.round(centerNative[1]).toLocaleString('de-CH');
     var dateText  = new Date().toLocaleDateString('de-CH');
-    var rotationDeg = Math.round((map.getView().getRotation() || 0) * 180 / Math.PI);
+    var rotationDeg = typeof opts.rotation === 'number' ? opts.rotation : 0;
 
     console.log('[PdfPrinter] Texte für Template:', {
       scaleText: scaleText,
@@ -370,10 +412,9 @@
       rotation: rotationDeg
     });
 
-    // ---- Cleanup-Funktion (View + Graticule wiederherstellen) ----
+    // ---- Cleanup-Funktion (nur Graticule wiederherstellen) ----
+    // View wurde NICHT verändert → kein Resolution/Rotation-Restore nötig
     function restoreState() {
-      map.getView().setResolution(origResolution);
-      map.getView().setRotation(origRotation);
       if (opts.koordinatennetz) {
         toggleGraticule(map, false);
       }
@@ -457,7 +498,8 @@
           orientation: t.orientation,
           width_mm:    t.width_mm,
           height_mm:   t.height_mm,
-          mapFrame:    t.mapFrame || null
+          mapFrame:    t.mapFrame || null,
+          files:       t.files || null
         };
       });
     });

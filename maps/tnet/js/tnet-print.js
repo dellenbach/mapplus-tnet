@@ -27,6 +27,8 @@
   var _map = null;
   var _frameOverlay = null;
   var _frameEl = null;
+  var _svgPreviewImg = null;   // <img> für Template-SVG-Vorschau
+  var _svgPreviewCache = {};   // {layoutValue: dataUrl}
   var _isPrinting = false;
   var _downloads = [];
   var PDF_SAVE_URL = '/maps/tnet/php/pdf-save.php';
@@ -47,6 +49,7 @@
   var LIBS = [
     LIB_BASE + 'jspdf.umd.min.js',
     LIB_BASE + 'svg2pdf.umd.min.js',
+    LIB_BASE + 'pdf-fonts.js',
     LIB_BASE + 'template-pdf-export.js',
     LIB_BASE + 'pdf-printer-init.js'
   ];
@@ -291,20 +294,29 @@
         select.innerHTML = '<option value="">Keine Layouts verfügbar</option>';
         return;
       }
+      // Standard-Layout: A4 Hoch bevorzugen
+      var defaultIdx = 0;
+      for (var di = 0; di < layouts.length; di++) {
+        if (layouts[di].paper === 'A4' && layouts[di].orientation === 'portrait') {
+          defaultIdx = di;
+          break;
+        }
+      }
       layouts.forEach(function (l, idx) {
         var opt = document.createElement('option');
         opt.value = l.value;
         opt.textContent = l.label;
-        if (idx === 0) opt.selected = true;
+        if (idx === defaultIdx) opt.selected = true;
         select.appendChild(opt);
       });
       updateFrameSize();
+      loadSvgPreview();
       console.log('[Drucken] ' + layouts.length + ' Layouts geladen');
     });
   }
 
   // ================================================================
-  //  Druckrahmen (OL Overlay)
+  //  Druckrahmen (OL Overlay) + SVG-Template-Vorschau
   // ================================================================
   function showPrintFrame() {
     var map = getMap();
@@ -314,11 +326,12 @@
     _frameEl = document.createElement('div');
     _frameEl.className = 'print-frame-rect';
 
-    ['tl', 'tr', 'bl', 'br', 'tm', 'bm', 'ml', 'mr'].forEach(function (pos) {
-      var h = document.createElement('div');
-      h.className = 'print-frame-handle ' + pos;
-      _frameEl.appendChild(h);
-    });
+    // SVG-Vorschau-Bild (wird per loadSvgPreview befüllt)
+    _svgPreviewImg = document.createElement('img');
+    _svgPreviewImg.className = 'print-frame-svg-preview';
+    _svgPreviewImg.style.display = 'none';
+    _svgPreviewImg.draggable = false;
+    _frameEl.appendChild(_svgPreviewImg);
 
     _frameOverlay = new ol.Overlay({
       element: _frameEl,
@@ -331,6 +344,8 @@
 
     // Initiale Grösse und Position berechnen
     updateFrameSize();
+    // SVG-Vorschau laden
+    loadSvgPreview();
 
     map.getView().on('change:center', _onViewChange);
     map.getView().on('change:resolution', _onViewChange);
@@ -362,32 +377,48 @@
     var view = _map.getView();
     var mpu  = view.getProjection().getMetersPerUnit() || 1;
     var center = view.getCenter();
+    var res  = view.getResolution();
+    var rot  = view.getRotation() || 0;
 
     // ── Geographische Ausdehnung in Projektionseinheiten (LV95: Meter) ──
-    // Identisch mit PDF-Export: extent_m = (papier_mm / 1000) × massstab / mpu
     var halfW = (mapFrameW_mm / 1000) * scaleVal / (2 * mpu);
     var halfH = (mapFrameH_mm / 1000) * scaleVal / (2 * mpu);
 
-    // LV95-Eckpunkte des Druckbereichs
-    var topLeft     = [center[0] - halfW, center[1] + halfH];
-    var bottomRight = [center[0] + halfW, center[1] - halfH];
+    // ── Pixelgrösse direkt aus Resolution (rotations-unabhängig) ──
+    // Keine getPixelFromCoordinate — die enthält Rotation und verzerrt.
+    var w = (halfW * 2) / res;
+    var h = (halfH * 2) / res;
+    _frameEl.style.width  = Math.round(w) + 'px';
+    _frameEl.style.height = Math.round(h) + 'px';
 
-    // ── Pixelgrösse via OL-Koordinatentransformation ──
-    // Nutzt exakt denselben Pfad wie OL intern (inkl. Projektion/Rotation)
-    var pxTL = _map.getPixelFromCoordinate(topLeft);
-    var pxBR = _map.getPixelFromCoordinate(bottomRight);
-
-    if (pxTL && pxBR) {
-      var w = Math.abs(pxBR[0] - pxTL[0]);
-      var h = Math.abs(pxBR[1] - pxTL[1]);
-      _frameEl.style.width  = Math.round(w) + 'px';
-      _frameEl.style.height = Math.round(h) + 'px';
-    }
+    // Kein CSS-Rotate: Rahmen bleibt immer achsparallel zum Browserfenster.
+    // Die Karte wird gedreht, nicht der Rahmen.
 
     // Overlay-Position = View-Center
-    // positioning: 'center-center' → OL zentriert Element-Mitte auf Koordinate
     if (_frameOverlay) {
       _frameOverlay.setPosition(center);
+    }
+
+    // ── SVG-Vorschau positionieren ──
+    if (_svgPreviewImg && _svgPreviewImg.style.display !== 'none' && layout) {
+      var paperW_mm = layout.width_mm || 210;
+      var paperH_mm = layout.height_mm || 297;
+      // Skalierung: gesamtes Papier relativ zum Kartenbereich
+      var svgDispW = w * (paperW_mm / mapFrameW_mm);
+      var svgDispH = h * (paperH_mm / mapFrameH_mm);
+      _svgPreviewImg.style.width  = Math.round(svgDispW) + 'px';
+      _svgPreviewImg.style.height = Math.round(svgDispH) + 'px';
+      // Offset: MAP_AREA liegt innerhalb des Papiers
+      var mfX_mm = (layout.mapFrame && layout.mapFrame.x_mm) || 0;
+      var mfY_mm = (layout.mapFrame && layout.mapFrame.y_mm) || 0;
+      // Auto-Fix: Falls y_mm die Unterkante ist
+      if (mfY_mm + mapFrameH_mm > paperH_mm * 1.05) {
+        mfY_mm = mfY_mm - mapFrameH_mm;
+      }
+      var offsetX = mfX_mm * (w / mapFrameW_mm);
+      var offsetY = mfY_mm * (h / mapFrameH_mm);
+      _svgPreviewImg.style.left = Math.round(-offsetX) + 'px';
+      _svgPreviewImg.style.top  = Math.round(-offsetY) + 'px';
     }
   }
 
@@ -400,6 +431,147 @@
     }
     _frameOverlay = null;
     _frameEl = null;
+    _svgPreviewImg = null;
+  }
+
+  // ================================================================
+  //  SVG-Template-Vorschau laden
+  //
+  //  Lädt das SVG des gewählten Layouts, stanzt die MAP_AREA aus
+  //  (transparent), und zeigt es als Bild über dem Druckrahmen.
+  // ================================================================
+  function loadSvgPreview() {
+    if (!_svgPreviewImg) return;
+    var layoutVal = (document.getElementById('print-layout') || {}).value || '';
+    var layout = _layouts.find(function (l) { return l.value === layoutVal; });
+    if (!layout || !layout.files || !layout.files.svg) {
+      _svgPreviewImg.style.display = 'none';
+      return;
+    }
+
+    // Cache prüfen
+    if (_svgPreviewCache[layoutVal]) {
+      _svgPreviewImg.src = _svgPreviewCache[layoutVal];
+      _svgPreviewImg.style.display = '';
+      return;
+    }
+
+    // SVG laden über die TemplatePdfExport-API
+    if (typeof TemplatePdfExport === 'undefined' || !TemplatePdfExport.loadTemplateSvg) {
+      _svgPreviewImg.style.display = 'none';
+      return;
+    }
+
+    TemplatePdfExport.loadTemplateSvg(layout).then(function (svgText) {
+      var parser = new DOMParser();
+      var doc = parser.parseFromString(svgText, 'image/svg+xml');
+      var svg = doc.documentElement;
+
+      // MAP_AREA-Elemente ausblenden
+      var allEls = doc.querySelectorAll('[id]');
+      for (var i = 0; i < allEls.length; i++) {
+        var elId = allEls[i].getAttribute('id') || '';
+        if (elId.indexOf('MAP_AREA') >= 0 && elId.indexOf('LABEL') < 0) {
+          allEls[i].setAttribute('visibility', 'hidden');
+        }
+      }
+
+      // "[ MAP AREA ]" Text entfernen
+      var texts = doc.querySelectorAll('text');
+      for (var j = 0; j < texts.length; j++) {
+        if ((texts[j].textContent || '').indexOf('MAP AREA') >= 0) {
+          texts[j].setAttribute('visibility', 'hidden');
+        }
+      }
+
+      // Gestrichelte blaue MAP_AREA-Rects ausblenden
+      var svgRects = doc.querySelectorAll('rect');
+      for (var k = 0; k < svgRects.length; k++) {
+        var st = svgRects[k].getAttribute('style') || '';
+        var da = svgRects[k].getAttribute('stroke-dasharray') || '';
+        var sk = svgRects[k].getAttribute('stroke') || '';
+        if ((st.indexOf('dash') >= 0 || da) &&
+            (sk.indexOf('2196') >= 0 || st.indexOf('2196') >= 0)) {
+          svgRects[k].setAttribute('visibility', 'hidden');
+        }
+      }
+
+      // Originalen QGIS-Seitenhintergrund (weisser Full-Page-Path) entfernen
+      // QGIS exportiert <g fill="#ffffff"><path d="M-2,-2 L3510,-2 ..."/></g>
+      var vb = svg.getAttribute('viewBox');
+      var vbParts = vb ? vb.split(/[\s,]+/).map(Number) : null;
+      if (vbParts) {
+        var vbW = vbParts[2], vbH = vbParts[3];
+        var bgGroups = doc.querySelectorAll('g[fill="#ffffff"], g[fill="white"]');
+        for (var bg = 0; bg < bgGroups.length; bg++) {
+          var bgPaths = bgGroups[bg].querySelectorAll('path');
+          for (var bp = 0; bp < bgPaths.length; bp++) {
+            var pd = bgPaths[bp].getAttribute('d') || '';
+            var coords = pd.match(/-?\d+\.?\d*/g);
+            if (coords && coords.length >= 8) {
+              var xs = [parseFloat(coords[0]), parseFloat(coords[2]), parseFloat(coords[4]), parseFloat(coords[6])];
+              var ys = [parseFloat(coords[1]), parseFloat(coords[3]), parseFloat(coords[5]), parseFloat(coords[7])];
+              var minX = Math.min.apply(null, xs), maxX = Math.max.apply(null, xs);
+              var minY = Math.min.apply(null, ys), maxY = Math.max.apply(null, ys);
+              var pathW = maxX - minX, pathH = maxY - minY;
+              if (pathW >= vbW * 0.9 && pathH >= vbH * 0.9) {
+                bgGroups[bg].setAttribute('visibility', 'hidden');
+                console.log('[Drucken] QGIS-Seitenhintergrund ausgeblendet');
+              }
+            }
+          }
+        }
+      }
+
+      // Weisses Blatt mit MAP_AREA-Loch (Compound Path, fill-rule evenodd)
+      if (vb && layout.mapFrame) {
+        var parts = vb.split(/[\s,]+/).map(Number);
+        var paperW = layout.width_mm || 210;
+        var paperH = layout.height_mm || 297;
+        var sx = parts[2] / paperW;
+        var sy = parts[3] / paperH;
+        var mf = layout.mapFrame;
+        var mfY = mf.y_mm;
+        if (mfY + mf.height_mm > paperH * 1.05) mfY = mfY - mf.height_mm;
+
+        // Outer rect (CW) = ganzes Blatt, Inner rect (CCW) = MAP_AREA Loch
+        var ox = parts[0], oy = parts[1], ow = parts[2], oh = parts[3];
+        var ix = (mf.x_mm * sx), iy = (mfY * sy);
+        var iw = (mf.width_mm * sx), ih = (mf.height_mm * sy);
+
+        var d = 'M' + ox + ',' + oy
+              + ' L' + (ox + ow) + ',' + oy
+              + ' L' + (ox + ow) + ',' + (oy + oh)
+              + ' L' + ox + ',' + (oy + oh)
+              + ' Z'
+              + ' M' + ix.toFixed(2) + ',' + iy.toFixed(2)
+              + ' L' + ix.toFixed(2) + ',' + (iy + ih).toFixed(2)
+              + ' L' + (ix + iw).toFixed(2) + ',' + (iy + ih).toFixed(2)
+              + ' L' + (ix + iw).toFixed(2) + ',' + iy.toFixed(2)
+              + ' Z';
+
+        var maskPath = doc.createElementNS('http://www.w3.org/2000/svg', 'path');
+        maskPath.setAttribute('d', d);
+        maskPath.setAttribute('fill', 'white');
+        maskPath.setAttribute('fill-rule', 'evenodd');
+        // Als allererstes Element einfügen (unter allen SVG-Inhalten)
+        if (svg.firstChild) svg.insertBefore(maskPath, svg.firstChild);
+        else svg.appendChild(maskPath);
+      }
+
+      var serialized = new XMLSerializer().serializeToString(doc);
+      var dataUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(serialized);
+      _svgPreviewCache[layoutVal] = dataUrl;
+
+      if (_svgPreviewImg) {
+        _svgPreviewImg.src = dataUrl;
+        _svgPreviewImg.style.display = '';
+      }
+      console.log('[Drucken] SVG-Vorschau geladen für:', layoutVal);
+    }).catch(function (err) {
+      console.warn('[Drucken] SVG-Vorschau Fehler:', err.message);
+      if (_svgPreviewImg) _svgPreviewImg.style.display = 'none';
+    });
   }
 
   // ================================================================
@@ -569,7 +741,7 @@
     btn.innerHTML = '\u23f3 Wird erstellt...';
     document.getElementById('print-progress').style.display = 'block';
 
-    if (_frameEl) _frameEl.style.display = 'none';
+    // Vorschaurahmen bleibt sichtbar — On-Screen-Map wird nicht verändert
 
     // Exaktes Kartenzentrum zum Zeitpunkt des Drucks erfassen
     // (wird an den Export durchgereicht, um Drift beim Viewport-Resize zu verhindern)
@@ -623,10 +795,7 @@
       document.getElementById('print-progress-fill').style.width = '0%';
     }, success ? 2000 : 500);
 
-    if (_frameEl) _frameEl.style.display = '';
-    if (!document.getElementById('print-panel').classList.contains('hidden')) {
-      if (!_frameOverlay) showPrintFrame();
-    }
+    // Vorschaurahmen ist durchgehend sichtbar geblieben — kein Restore nötig
   }
 
   // ================================================================
@@ -767,9 +936,12 @@
     // Massstab-Dropdown dynamisch aus Config rendern
     renderScaleDropdown();
 
-    // Layout-Wechsel → Rahmen anpassen
+    // Layout-Wechsel → Rahmen + SVG-Vorschau anpassen
     var layoutSel = document.getElementById('print-layout');
-    if (layoutSel) layoutSel.addEventListener('change', updateFrameSize);
+    if (layoutSel) layoutSel.addEventListener('change', function () {
+      updateFrameSize();
+      loadSvgPreview();
+    });
 
     // Massstab-Wechsel → Rahmen anpassen
     var scaleSel = document.getElementById('print-scale');
