@@ -71,6 +71,7 @@ $content = preg_replace(
 // --- Minimales Inline-CSS (Backup + Layout) ---
 $inlineStyle = '<style id="proxy-overrides">
   header.site-header { display:none!important; }
+  .cdt-frontpage-maps-header { display:none!important; }
   body, main { padding-top:0!important; margin-top:0!important; }
 </style>';
 
@@ -88,29 +89,35 @@ if (strpos($content, '</head>') !== false) {
 }
 
 // --- SSO Auto-Login ---
-// Wenn mapplus-Session existiert UND gis-daten.ch zeigt Login-Button
-// → automatisch klicken. Gleicher IDP (ADFS) → SSO ohne Passwort.
 $isMapPlusLoggedIn = !empty($_SESSION['OIDC_CLAIM_group']) || !empty($_SESSION['app_username']);
+$hasWpLoginBtn = strpos($content, 'oauthloginbutton') !== false;
 
-if ($isMapPlusLoggedIn && strpos($content, 'oauthloginbutton') !== false) {
+// Debug: IMMER Session-Status in Browser-Konsole ausgeben
+$sessionDebug = json_encode([
+    'session_id' => session_id(),
+    'OIDC_CLAIM_group' => $_SESSION['OIDC_CLAIM_group'] ?? null,
+    'app_username' => $_SESSION['app_username'] ?? null,
+    'app_group' => $_SESSION['app_group'] ?? null,
+    'isMapPlusLoggedIn' => $isMapPlusLoggedIn,
+    'hasWpLoginBtn' => $hasWpLoginBtn,
+    'cookies_received' => array_keys($_COOKIE),
+    'session_name' => session_name(),
+]);
+$debugScript = '<script>console.log("[proxy] PHP Session Debug:", ' . $sessionDebug . ');</script>';
+$content = str_replace('</body>', $debugScript . '</body>', $content);
+
+if ($isMapPlusLoggedIn && $hasWpLoginBtn) {
+    // Nach OAuth-Login zurück zum Proxy leiten (nicht zur gis-daten.ch Startseite)
+    $proxyUrl = '/maps/tnet/php/active-maps-proxy.php?group=' . urlencode($group);
+    $redirectTo = urlencode($proxyUrl);
     $autoLoginScript = '<script>
-    // Auto-SSO: mapplus angemeldet, WP Login-Button gefunden
-    // Rufe moOAuthLoginNew direkt auf (mit Retry, da WP-Scripts spät laden)
-    (function autoSSO(attempt) {
-      if (typeof moOAuthLoginNew === "function") {
-        console.log("[proxy] Auto-SSO: rufe moOAuthLoginNew (Versuch " + attempt + ")");
-        moOAuthLoginNew("adfs", "");
-      } else if (attempt < 20) {
-        setTimeout(function() { autoSSO(attempt + 1); }, 500);
-      } else {
-        console.warn("[proxy] Auto-SSO: moOAuthLoginNew nach 10s nicht verfügbar");
-      }
-    })(1);
+    console.log("[proxy] Auto-SSO: mapplus angemeldet, starte WP-Login via Redirect");
+    window.location.href = "/?option=oauthredirect&app_name=adfs&redirect_to=' . $redirectTo . '";
     </script>';
     $content = str_replace('</body>', $autoLoginScript . '</body>', $content);
-    error_log('Proxy: Auto-SSO Script injiziert (User: ' . ($_SESSION['app_username'] ?? 'unknown') . ')');
+    error_log('Proxy: Auto-SSO Redirect injiziert (User: ' . ($_SESSION['app_username'] ?? 'unknown') . ', redirect_to: ' . $proxyUrl . ')');
 } else {
-    error_log('Proxy: SSO-Status: mapplus=' . ($isMapPlusLoggedIn ? 'ja' : 'nein') . ', WP-Login-Button=' . (strpos($content, 'oauthloginbutton') !== false ? 'ja' : 'nein'));
+    error_log('Proxy: SSO-Status: mapplus=' . ($isMapPlusLoggedIn ? 'ja' : 'nein') . ', WP-Login-Button=' . ($hasWpLoginBtn ? 'ja' : 'nein'));
 }
 
 // --- Output ---

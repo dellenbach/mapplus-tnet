@@ -23,7 +23,7 @@
 	background: white !important;
 }
 
-/* Sidebar - sticky positioning with scrolling */
+/* Sidebar - HIDDEN by default to keep buttons accessible */
 .cdt-frontpage-maps-sidebar {
 	position: sticky !important;
 	top: 0 !important;
@@ -31,6 +31,8 @@
 	max-height: 100vh !important;
 	overflow-y: auto !important;
 	z-index: 1500 !important;
+	display: none !important;
+	pointer-events: none !important;
 }
 
 /* Active navigation - highest z-index */

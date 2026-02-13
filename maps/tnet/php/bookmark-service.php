@@ -157,7 +157,7 @@ try {
             'bookmark' => $bookmark
         ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
     } else {
-        http_response_code(404);
+        // Kein 404 senden - JSON-API gibt immer 200 mit success:false zurück
         echo json_encode([
             'success' => false,
             'error' => 'Bookmark not found',

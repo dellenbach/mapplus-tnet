@@ -1243,13 +1243,15 @@ h3 {
 
 #mapsInfoDialog.dijitDialog {
   width: 1300px !important;
-  height: 90vh !important;
+  height: calc(90vh - 69px) !important;
   max-width: 1300px !important;
-  max-height: 90vh !important;
+  max-height: calc(90vh - 69px) !important;
   border: none !important;
   border-radius: 8px !important;
   box-shadow: 0 4px 20px rgba(0,0,0,0.5) !important;
   overflow: hidden !important;
+  /* Vertikal zentrieren unterhalb des 69px App-Headers */
+  top: calc(69px + (100vh - 69px - (90vh - 69px)) / 2) !important;
 }
 
 @media (max-width: 1400px) {

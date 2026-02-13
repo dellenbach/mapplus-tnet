@@ -277,7 +277,7 @@ function TnetSetBookmarkJson(bookmarkId, jsonPath = '/maps/tnet/map-bookmarks.js
  * @param {string} serviceUrl - URL zum Bookmark-Service (optional, default: '/maps/tnet/bookmark-service.php')
  * @returns {Promise} - Promise mit den gesetzten Layern
  */
-function TnetSetBookmark(bookmarkId, serviceUrl = '/maps/tnet/bookmark-service.php') {
+function TnetSetBookmark(bookmarkId, serviceUrl = '/maps/tnet/php/bookmark-service.php') {
   return fetch(serviceUrl + '?name=' + encodeURIComponent(bookmarkId))
     .then(response => {
       if (!response.ok) {
