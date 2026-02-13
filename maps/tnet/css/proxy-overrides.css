@@ -1,0 +1,73 @@
+/*
+ * proxy-overrides.css
+ * CSS Overrides für externe Kartenseiten im iframe
+ * Wird vom active-maps-proxy.php injiziert
+ *
+ * Header und Sidebar werden primär serverseitig entfernt (PHP).
+ * Dieses CSS dient als Backup-Sicherheit und für Button-Styling.
+ *
+ * @version    2.0
+ * @date       2026-02-13
+ * @copyright  Trigonet AG
+ * @author     Marco Dellenbach
+ */
+
+/* ===== BACKUP: HEADER VERSTECKEN (falls PHP-Regex nicht greift) ===== */
+.site-header,
+header.site-header,
+header[class*="site-header"] {
+    display: none !important;
+    height: 0 !important;
+    overflow: hidden !important;
+    pointer-events: none !important;
+}
+
+/* ===== BACKUP: SIDEBAR VERSTECKEN (falls PHP-Regex nicht greift) ===== */
+.cdt-frontpage-maps-sidebar,
+div[class*="cdt-frontpage-maps-sidebar"] {
+    display: none !important;
+    height: 0 !important;
+    overflow: hidden !important;
+    pointer-events: none !important;
+}
+
+/* ===== BUTTONS IM VORDERGRUND ===== */
+.cdt-frontpage-maps-header {
+    z-index: 999999 !important;
+    position: relative !important;
+}
+
+.cdt-frontpage-maps-header-buttons {
+    position: relative !important;
+    z-index: 999999 !important;
+    pointer-events: auto !important;
+    display: flex !important;
+    visibility: visible !important;
+}
+
+.cdt-frontpage-maps-header-buttons button,
+button.cdt-frontpage-maps-header-buttons-nw,
+button.cdt-frontpage-maps-header-buttons-ow {
+    pointer-events: auto !important;
+    cursor: pointer !important;
+    z-index: 999999 !important;
+    position: relative !important;
+    visibility: visible !important;
+}
+
+/* ===== LAYOUT ANPASSUNGEN ===== */
+body, main {
+    padding-top: 0 !important;
+    margin-top: 0 !important;
+}
+
+.cdt-frontpage-maps {
+    margin-top: 0 !important;
+    padding-top: 0 !important;
+}
+
+/* ===== PERFORMANCE ===== */
+* {
+    transition: none !important;
+    animation: none !important;
+}

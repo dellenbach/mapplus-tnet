@@ -51,13 +51,31 @@
     
     function getGroup() {
       var url = '';
-      try { url = window.top.location.href; } catch(e) {
-        try { url = window.parent.location.href; } catch(e2) {
+      var source = 'fallback';
+      
+      try { 
+        url = window.top.location.href;
+        source = 'window.top'; 
+        log('URL from window.top: ' + url);
+      } catch(e) {
+        log('window.top nicht erreichbar: ' + e.message);
+        try { 
+          url = window.parent.location.href;
+          source = 'window.parent';
+          log('URL from window.parent: ' + url);
+        } catch(e2) {
+          log('window.parent nicht erreichbar: ' + e2.message);
           url = window.location.href;
+          source = 'window.location';
+          log('URL from window.location: ' + url);
         }
       }
+      
+      log('URL source: ' + source);
       var match = url.match(/[?&]group=([^&]+)/);
-      return match ? decodeURIComponent(match[1]) : 'none';
+      var result = match ? decodeURIComponent(match[1]) : 'none';
+      log('Group match result: ' + result);
+      return result;
     }
     
     function getMapType() {
@@ -75,7 +93,8 @@
     
     function buildIframeSrc(group) {
       var mapType = getMapType();
-      return '/maps/active-maps-' + mapType + '?group=' + encodeURIComponent(group);
+      // Nutze den neuen PHP-Proxy statt direkter externer URL
+      return '/maps/tnet/php/active-maps-proxy.php?group=' + encodeURIComponent(group);
     }
     
     // =============================================================
@@ -115,7 +134,31 @@
     mapFrame.onload = function() {
       log('iframe geladen');
       showFrame();
+      
+      // CSS/JS Injection und Button-Handler werden jetzt serverseitig
+      // durch active-maps-proxy.php erledigt (zuverlässiger als client-seitig)
+      log('Proxy übernimmt CSS/JS Injection und Button-Handler');
     };
+    
+    // Hilfsfunktion: Update parent URL mit neuem group
+    function updateParentUrlGroup(newGroup) {
+      try {
+        var currentUrl = window.top.location.href;
+        var separator = currentUrl.indexOf('?') !== -1 ? '&' : '?';
+        
+        // Entferne existierenden group Parameter
+        var urlWithoutGroup = currentUrl.replace(/([?&]group=)[^&]*/g, '');
+        
+        // Füge neuen group Parameter hinzu
+        if (urlWithoutGroup.indexOf('?') !== -1) {
+          window.top.location.href = urlWithoutGroup + '&group=' + encodeURIComponent(newGroup);
+        } else {
+          window.top.location.href = urlWithoutGroup + '?group=' + encodeURIComponent(newGroup);
+        }
+      } catch(e) {
+        log('Fehler beim Update der Parent-URL: ' + e.message);
+      }
+    }
     
     // URL-Monitoring: Prüfe auf group-Wechsel alle 500ms
     setInterval(reloadMapIfGroupChanged, 500);
