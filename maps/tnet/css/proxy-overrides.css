@@ -22,14 +22,7 @@ header[class*="site-header"] {
     pointer-events: none !important;
 }
 
-/* ===== BACKUP: SIDEBAR VERSTECKEN (falls PHP-Regex nicht greift) ===== */
-.cdt-frontpage-maps-sidebar,
-div[class*="cdt-frontpage-maps-sidebar"] {
-    display: none !important;
-    height: 0 !important;
-    overflow: hidden !important;
-    pointer-events: none !important;
-}
+/* Sidebar bleibt sichtbar (gewünscht) */
 
 /* ===== BUTTONS IM VORDERGRUND ===== */
 .cdt-frontpage-maps-header {

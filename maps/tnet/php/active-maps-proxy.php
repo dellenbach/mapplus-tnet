@@ -65,16 +65,7 @@ $content = preg_replace(
     $content
 );
 
-// =========================================================
-// 2. Server-seitige Entfernung: Sidebar
-//    Entfernt das überlagernde Sidebar-Element komplett
-//    Greedy match für verschachtelte divs
-// =========================================================
-$content = preg_replace(
-    '/<div[^>]*class="[^"]*cdt-frontpage-maps-sidebar[^"]*"[^>]*>[\s\S]*?<\/div>\s*<\/div>\s*<\/div>/si',
-    '<!-- sidebar removed by proxy -->',
-    $content
-);
+// Sidebar bleibt sichtbar (gewünscht)
 
 // =========================================================
 // 3. CSS/JS Injection
@@ -83,7 +74,7 @@ $content = preg_replace(
 
 // Inline-Style als sofortiger Fallback
 $inlineStyle = '<style id="proxy-inline-overrides">
-  header.site-header, .cdt-frontpage-maps-sidebar { display:none!important; height:0!important; overflow:hidden!important; }
+  header.site-header { display:none!important; height:0!important; overflow:hidden!important; }
   .cdt-frontpage-maps-header { z-index:999999!important; position:relative!important; }
   .cdt-frontpage-maps-header-buttons { z-index:999999!important; position:relative!important; pointer-events:auto!important; }
   .cdt-frontpage-maps-header-buttons button { z-index:999999!important; position:relative!important; pointer-events:auto!important; cursor:pointer!important; }
