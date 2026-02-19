@@ -1650,10 +1650,11 @@ h3 {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 8px;
-  padding: 0;
+  padding: 0 4px 0 0;
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  scrollbar-gutter: stable;
 }
 
 .basemap-cards-scroll .basemap-card {
