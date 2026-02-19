@@ -713,8 +713,8 @@ body.drawing-mode #freepane * {
 
 /* Spring Container - scrollbar ohne Scrollbalken */
 #spring {
-  height: auto !important;
-  max-height: 100% !important;
+  height: fit-content !important;
+  max-height: calc(100vh - 79px) !important; /* 69px Header + 10px close_switch */
   overflow-y: auto !important;
   overflow-x: visible !important;
   padding-bottom: 0 !important;
@@ -787,7 +787,7 @@ body.drawing-mode #freepane * {
 }
 
 #spring {
-  flex: 0 1 auto;
+  flex: 0 0 auto;
   display: flex;
   flex-direction: column;
   position: relative;

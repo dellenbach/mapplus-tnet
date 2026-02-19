@@ -29,10 +29,30 @@ function initPanelShadow() {
     freepane.parentNode.insertBefore(shadow, freepane.nextSibling);
 
     function updateShadow() {
-        var rect = closeSwitch.getBoundingClientRect();
         var headerTop = 69;
-        var bottom = rect.bottom;
-        var width = rect.width;
+        var spring = document.getElementById('spring');
+        var bottom;
+
+        if (spring) {
+            // Höhe basierend auf dem tatsächlichen Inhalt von #spring berechnen
+            // (nicht closeSwitch, das bei flex-stretch am Viewport-Ende landen kann)
+            var titlePanes = spring.querySelectorAll(':scope > .dijitTitlePane');
+            if (titlePanes.length > 0) {
+                var lastPane = titlePanes[titlePanes.length - 1];
+                var lastRect = lastPane.getBoundingClientRect();
+                bottom = lastRect.bottom + 10; // +10px für close_switch
+            } else {
+                bottom = closeSwitch.getBoundingClientRect().bottom;
+            }
+        } else {
+            bottom = closeSwitch.getBoundingClientRect().bottom;
+        }
+
+        // Sicherheit: Schatten nie höher als der sichtbare Inhalt
+        var maxBottom = headerTop + (spring ? spring.scrollHeight : 400) + 10;
+        if (bottom > maxBottom) bottom = maxBottom;
+
+        var width = closeSwitch.offsetWidth || 340;
 
         shadow.style.top = headerTop + 'px';
         shadow.style.height = (bottom - headerTop) + 'px';
