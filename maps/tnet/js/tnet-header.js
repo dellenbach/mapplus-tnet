@@ -179,25 +179,29 @@ function adjustPanePosition(pane) {
     }
 }
 
-// Observer für das ganze Dokument - fängt neue Elemente ab
+// Observer NUR auf dem Karten-Container — FloatingPanes werden DORT eingefügt
+// (statt document.body mit subtree:true, was bei Dojo parser.parse() hunderte
+// unnötige Callbacks auslöst)
+var floatingPaneContainer = document.getElementById('NeapoljsContainer') || document.body;
 var bodyObserver = new MutationObserver(function(mutations) {
-    mutations.forEach(function(mutation) {
-        if (mutation.type === 'childList') {
-            mutation.addedNodes.forEach(function(node) {
-                if (node.nodeType === 1 && node.classList && 
-                    node.classList.contains('dojoxFloatingPane')) {
-                    adjustPanePosition(node);
-                    // Observer für Style-Änderungen auf diesem Pane
-                    var styleObserver = new MutationObserver(function() {
-                        adjustPanePosition(node);
-                    });
-                    styleObserver.observe(node, { attributes: true, attributeFilter: ['style'] });
-                }
-            });
+    for (var m = 0; m < mutations.length; m++) {
+        var mutation = mutations[m];
+        if (mutation.type !== 'childList') continue;
+        for (var n = 0; n < mutation.addedNodes.length; n++) {
+            var node = mutation.addedNodes[n];
+            if (node.nodeType === 1 && node.classList && 
+                node.classList.contains('dojoxFloatingPane')) {
+                adjustPanePosition(node);
+                // Observer für Style-Änderungen auf diesem Pane
+                var styleObserver = new MutationObserver(function(targetNode) {
+                    return function() { adjustPanePosition(targetNode); };
+                }(node));
+                styleObserver.observe(node, { attributes: true, attributeFilter: ['style'] });
+            }
         }
-    });
+    }
 });
-bodyObserver.observe(document.body, { childList: true, subtree: true });
+bodyObserver.observe(floatingPaneContainer, { childList: true, subtree: true });
 
 // Bestehende Panes auch behandeln
 document.querySelectorAll('.dojoxFloatingPane').forEach(function(pane) {

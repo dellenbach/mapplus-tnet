@@ -100,62 +100,75 @@ function initInfoPaneEnhancements() {
     // Initial versuchen
     enhanceInfoPane();
 
-    // MutationObserver für DOM-Änderungen
-    var observer = new MutationObserver(function(mutations) {
-        mutations.forEach(function(mutation) {
-            if (mutation.type === 'childList' || mutation.type === 'attributes') {
-                var infoPane = document.getElementById('njs_info_pane');
-                if (infoPane && infoPane.style.visibility !== 'hidden') {
+    // Hilfsfunktion: Docked-Zustand wiederherstellen (verhindert Flackern)
+    function restoreDockedLayout(infoPane) {
+        if (!isInfoPaneDocked || !infoPane.classList.contains('docked-right')) return;
+        var savedWidth = window._savedDockedPanelWidth || 350;
+        var streetviewContainer = document.getElementById('streetviewContainer');
+        var centerPane = document.getElementById('centerPaneLayout');
+        var streetviewWidth = 0;
+        if (streetviewContainer && streetviewContainer.offsetWidth > 0 && streetviewContainer.style.display !== 'none') {
+            streetviewWidth = streetviewContainer.offsetWidth;
+        }
 
-                    // ÖREB-Modus: Info-Pane sofort schliessen (keine Objektinfo während ÖREB)
-                    if (window.isOerebActive) {
-                        infoPane.style.visibility = 'hidden';
-                        return;
-                    }
+        infoPane.style.setProperty('width', savedWidth + 'px', 'important');
+        infoPane.style.setProperty('right', streetviewWidth + 'px', 'important');
 
-                    enhanceInfoPane();
+        var mapContainer = document.getElementById('mapContainer');
+        if (mapContainer) {
+            var centerPaneWidth = centerPane ? centerPane.offsetWidth : window.innerWidth;
+            var mapWidth = centerPaneWidth - streetviewWidth - savedWidth;
+            mapContainer.style.setProperty('width', mapWidth + 'px', 'important');
+        }
+    }
 
-                    // Falls angedockt, Position und Breite SOFORT wiederherstellen (verhindert Flackern)
-                    if (isInfoPaneDocked && infoPane.classList.contains('docked-right')) {
-                        var savedWidth = window._savedDockedPanelWidth || 350;
-                        var streetviewContainer = document.getElementById('streetviewContainer');
-                        var centerPane = document.getElementById('centerPaneLayout');
-                        var streetviewWidth = 0;
-                        if (streetviewContainer && streetviewContainer.offsetWidth > 0 && streetviewContainer.style.display !== 'none') {
-                            streetviewWidth = streetviewContainer.offsetWidth;
-                        }
+    // Callback wenn Info-Pane sichtbar wird
+    function onInfoPaneChange(infoPane) {
+        if (!infoPane || infoPane.style.visibility === 'hidden') return;
 
-                        infoPane.style.setProperty('width', savedWidth + 'px', 'important');
-                        infoPane.style.setProperty('right', streetviewWidth + 'px', 'important');
+        // ÖREB-Modus: Info-Pane sofort schliessen (keine Objektinfo während ÖREB)
+        if (window.isOerebActive) {
+            infoPane.style.visibility = 'hidden';
+            return;
+        }
 
-                        var mapContainer = document.getElementById('mapContainer');
-                        if (mapContainer) {
-                            // Absolute Breite berechnen
-                            var centerPaneWidth = centerPane ? centerPane.offsetWidth : window.innerWidth;
-                            var mapWidth = centerPaneWidth - streetviewWidth - savedWidth;
-                            mapContainer.style.setProperty('width', mapWidth + 'px', 'important');
-                        }
-                    }
-                }
-            }
+        enhanceInfoPane();
+        restoreDockedLayout(infoPane);
+    }
+
+    // Gezielter Observer: Nur njs_info_pane selbst beobachten (nicht document.body)
+    var paneObserver = null;
+
+    function attachPaneObserver(infoPane) {
+        if (paneObserver) return; // Bereits aktiv
+        paneObserver = new MutationObserver(function(mutations) {
+            onInfoPaneChange(infoPane);
         });
-    });
+        // Nur direkte Attribut-Änderungen am Info-Pane beobachten (style/class)
+        paneObserver.observe(infoPane, {
+            attributes: true,
+            attributeFilter: ['style', 'class']
+        });
+    }
 
-    // Beobachte body für neue Elemente
-    observer.observe(document.body, {
-        childList: true,
-        subtree: true,
-        attributes: true,
-        attributeFilter: ['style', 'class']
-    });
+    // Warten bis njs_info_pane im DOM erscheint, dann gezielten Observer setzen
+    var waitInterval = setInterval(function() {
+        var infoPane = document.getElementById('njs_info_pane');
+        if (infoPane) {
+            clearInterval(waitInterval);
+            attachPaneObserver(infoPane);
+            onInfoPaneChange(infoPane);
+        }
+    }, 500);
 
-    // Regelmäßig prüfen (Fallback - seltener da MutationObserver jetzt Hauptarbeit macht)
+    // Fallback-Check (seltener, nur für edge cases wie Neuöffnung)
     setInterval(function() {
         var infoPane = document.getElementById('njs_info_pane');
         if (infoPane && infoPane.style.visibility === 'visible') {
+            attachPaneObserver(infoPane); // Observer setzen falls noch nicht aktiv
             enhanceInfoPane();
         }
-    }, 2000);
+    }, 3000);
 }
 initInfoPaneEnhancements();
 
