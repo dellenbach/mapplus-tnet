@@ -297,16 +297,19 @@ function updateCopyrightDisplay() {
     // 1) Versuche OL-Attribution auszulesen
     var olAttr = document.querySelector('.ol-attribution ul');
     if (olAttr && olAttr.innerHTML.trim()) {
-        // Alle <li>-Texte sammeln, Links beibehalten
+        // Alle <li>-Texte sammeln
         var items = olAttr.querySelectorAll('li');
-        var parts = [];
+        var rawParts = [];
         for (var i = 0; i < items.length; i++) {
             var html = items[i].innerHTML.trim();
-            if (html && parts.indexOf(html) === -1) {
-                parts.push(html);
+            if (html && rawParts.indexOf(html) === -1) {
+                rawParts.push(html);
             }
         }
-        if (parts.length > 0) {
+
+        if (rawParts.length > 0) {
+            // Intelligente Deduplizierung: kürzere Einträge entfernen wenn in längerem enthalten
+            var parts = deduplicateAttributions(rawParts);
             target.innerHTML = parts.join(' | ');
             return;
         }
@@ -321,6 +324,70 @@ function updateCopyrightDisplay() {
 
     // 3) Wenn noch nichts da, später nochmal versuchen
     setTimeout(updateCopyrightDisplay, 1000);
+}
+
+// Attribution-Texte intelligent deduplizieren
+// Entfernt Einträge deren Quellen bereits in einem umfassenderen Eintrag enthalten sind
+function deduplicateAttributions(parts) {
+    if (parts.length <= 1) return parts;
+
+    // Hilfsfunktion: HTML-Tags entfernen, Text normalisieren
+    function textOnly(html) {
+        var div = document.createElement('div');
+        div.innerHTML = html;
+        return div.textContent.replace(/\s+/g, ' ').trim().toLowerCase();
+    }
+
+    // Quellen-Schlüsselwörter aus einem Attribution-Text extrahieren
+    function extractSources(text) {
+        var sources = [];
+        // Bekannte Quellen erkennen
+        if (/swisstopo/i.test(text)) sources.push('swisstopo');
+        if (/kantone|cantons|cantoni/i.test(text)) sources.push('kantone');
+        if (/openstreetmap/i.test(text)) sources.push('osm');
+        if (/tydac/i.test(text)) sources.push('tydac');
+        return sources;
+    }
+
+    // Prüfe ob alle Quellen von A auch in B vorkommen
+    function isSubsetOf(sourcesA, sourcesB) {
+        for (var i = 0; i < sourcesA.length; i++) {
+            if (sourcesB.indexOf(sourcesA[i]) === -1) return false;
+        }
+        return true;
+    }
+
+    // Quellen pro Eintrag analysieren
+    var entries = parts.map(function(html) {
+        return { html: html, text: textOnly(html), sources: extractSources(textOnly(html)) };
+    });
+
+    // Einträge filtern: entferne solche deren Quellen vollständig in einem anderen enthalten sind
+    var result = [];
+    for (var i = 0; i < entries.length; i++) {
+        var dominated = false;
+        for (var j = 0; j < entries.length; j++) {
+            if (i === j) continue;
+            // Wenn A.sources Teilmenge von B.sources UND B hat mehr Quellen → A ist überflüssig
+            if (entries[i].sources.length > 0 &&
+                isSubsetOf(entries[i].sources, entries[j].sources) &&
+                entries[j].sources.length > entries[i].sources.length) {
+                dominated = true;
+                break;
+            }
+            // Spezialfall: gleiche Quellen, aber einer ist kürzer (weniger Detail) → kürzeren entfernen
+            if (entries[i].sources.length > 0 &&
+                entries[i].sources.length === entries[j].sources.length &&
+                isSubsetOf(entries[i].sources, entries[j].sources) &&
+                entries[i].text.length < entries[j].text.length) {
+                dominated = true;
+                break;
+            }
+        }
+        if (!dominated) result.push(entries[i].html);
+    }
+
+    return result.length > 0 ? result : parts;
 }
 
 // Initialisieren wenn DOM bereit
