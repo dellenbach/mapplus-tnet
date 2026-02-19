@@ -49,12 +49,19 @@ function initPanelShadow() {
         }
     }
 
-    // Kontinuierliche Animation mit requestAnimationFrame
-    function animateLoop() {
-        updateShadow();
-        requestAnimationFrame(animateLoop);
+    // Schatten nur bei Bedarf aktualisieren (statt 60x/Sek rAF-Endlosschleife)
+    // ResizeObserver + MutationObserver für Panel open/close
+    updateShadow(); // Initial
+
+    if (typeof ResizeObserver !== 'undefined') {
+        var ro = new ResizeObserver(updateShadow);
+        ro.observe(freepane);
+        ro.observe(closeSwitch);
     }
-    animateLoop();
+
+    // Panel open/close (class toggle) erkennen
+    var mo = new MutationObserver(updateShadow);
+    mo.observe(freepane, { attributes: true, attributeFilter: ['class'] });
 
     window.addEventListener('resize', updateShadow);
 }
