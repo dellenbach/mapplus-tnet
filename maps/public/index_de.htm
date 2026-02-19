@@ -262,7 +262,7 @@
     <div id="disclaimer_pdf" class="njsDisclaimer" style='visibility:hidden'></div>
 
     <!-- Modaler Dialog mit iframe - ohne Rahmen, abgedunkelter Hintergrund -->
-    <div id="mapsInfoDialog" data-dojo-type="dijit/Dialog" title="">
+    <div id="mapsInfoDialog" data-dojo-type="dijit/Dialog" title="" style="display:none;">
         <div class="customRefreshBtn" onclick="refreshIframe()" title="Seite neu laden">↻</div>
         <div class="customBackBtn" onclick="goBackInIframe()">‹</div>
         <div class="customCloseBtn" onclick="closeMapsInfoDialog()">×</div>
@@ -508,7 +508,7 @@
             <div id="centerPaneLayout" class="demoLayout" data-dojo-type="dijit.layout.BorderContainer"
                 data-dojo-props="design: 'headline'" style="margin: 0px;padding: 0px;border: none">
                 <div dojotype="dijit.layout.ContentPane" id='mapContainer' region="center" style="overflow:hidden;">
-                    <div id="popup" class="ol-popup">
+                    <div id="popup" class="ol-popup" style="display:none;">
                         <a href="#" id="popup-closer" class="ol-popup-closer"></a>
                         <div id="popup-content"></div>
                     </div>
