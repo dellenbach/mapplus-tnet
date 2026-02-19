@@ -73,15 +73,31 @@ function initPanelShadow() {
     // ResizeObserver + MutationObserver für Panel open/close
     updateShadow(); // Initial
 
+    var spring = document.getElementById('spring');
+
     if (typeof ResizeObserver !== 'undefined') {
         var ro = new ResizeObserver(updateShadow);
         ro.observe(freepane);
         ro.observe(closeSwitch);
+        // spring beobachten — Höhe ändert sich wenn Dojo TitlePanes parsed oder Accordion öffnet
+        if (spring) ro.observe(spring);
     }
 
     // Panel open/close (class toggle) erkennen
     var mo = new MutationObserver(updateShadow);
     mo.observe(freepane, { attributes: true, attributeFilter: ['class'] });
+
+    // spring-Inhalt beobachten (Dojo Parser fügt dijitTitlePane-Klassen hinzu)
+    if (spring) {
+        new MutationObserver(updateShadow)
+            .observe(spring, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'style'] });
+    }
+
+    // Nach App-Ready nochmal aktualisieren (Dojo-Parser fertig)
+    document.addEventListener('tnet-app-ready', function() {
+        setTimeout(updateShadow, 100);
+        setTimeout(updateShadow, 500);
+    });
 
     window.addEventListener('resize', updateShadow);
 }
