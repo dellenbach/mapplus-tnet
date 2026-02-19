@@ -45,36 +45,49 @@
     // 2. CONFIG LOADER
     // =========================================================
 
-    function loadTimeDimensionConfig() {
-        if (window._basemapTimeConfig) return window._basemapTimeConfig;
+    /**
+     * Lädt die TimeDimension-Config ASYNCHRON via fetch.
+     * Gibt ein Promise zurück, das mit der Config oder null resolved.
+     * Cached in window._basemapTimeConfig.
+     */
+    function loadTimeDimensionConfigAsync() {
+        if (window._basemapTimeConfig) return Promise.resolve(window._basemapTimeConfig);
         if (typeof JSON5 === 'undefined') {
             console.error(LOG_PREFIX, 'JSON5-Library nicht verfügbar!');
-            return null;
+            return Promise.resolve(null);
         }
         var paths = [
             '/maps/tnet/config/tnet-global-config.json5',
             '/maps/tnet/tnet-global-config.json5',
             '../tnet/config/tnet-global-config.json5'
         ];
-        for (var i = 0; i < paths.length; i++) {
-            try {
-                var xhr = new XMLHttpRequest();
-                xhr.open('GET', paths[i], false);
-                xhr.send();
-                if (xhr.status === 200) {
-                    var parsed = JSON5.parse(xhr.responseText);
+
+        // Sequenziell Pfade durchprobieren (async, nicht-blockierend)
+        function tryPath(index) {
+            if (index >= paths.length) {
+                console.error(LOG_PREFIX, 'Config nicht gefunden (basemaps.timeDimension)');
+                return Promise.resolve(null);
+            }
+            return fetch(paths[index])
+                .then(function(response) {
+                    if (!response.ok) throw new Error('HTTP ' + response.status);
+                    return response.text();
+                })
+                .then(function(text) {
+                    var parsed = JSON5.parse(text);
                     if (parsed && parsed.basemaps && parsed.basemaps.timeDimension) {
-                        console.log(LOG_PREFIX, 'Config geladen:', paths[i]);
+                        console.log(LOG_PREFIX, 'Config geladen (async):', paths[index]);
                         window._basemapTimeConfig = parsed.basemaps.timeDimension;
                         return window._basemapTimeConfig;
                     }
-                }
-            } catch (e) {
-                console.warn(LOG_PREFIX, 'Config-Fehler (' + paths[i] + '):', e.message);
-            }
+                    return tryPath(index + 1);
+                })
+                .catch(function(e) {
+                    console.warn(LOG_PREFIX, 'Config-Fehler (' + paths[index] + '):', e.message);
+                    return tryPath(index + 1);
+                });
         }
-        console.error(LOG_PREFIX, 'Config nicht gefunden (basemaps.timeDimension)');
-        return null;
+        return tryPath(0);
     }
 
 
@@ -300,11 +313,24 @@
         // ── Init ──
 
         init: function() {
-            this.config = loadTimeDimensionConfig();
-            if (!this.config) {
-                console.warn(LOG_PREFIX, 'Keine timeDimension-Config, Zeitreise deaktiviert');
-                return;
-            }
+            var self = this;
+
+            // Config asynchron laden — blockiert den Main-Thread NICHT mehr
+            loadTimeDimensionConfigAsync().then(function(config) {
+                self.config = config;
+                if (!self.config) {
+                    console.warn(LOG_PREFIX, 'Keine timeDimension-Config, Zeitreise deaktiviert');
+                    return;
+                }
+                self._initDOM();
+            });
+        },
+
+        /**
+         * DOM-Initialisierung (nach Config-Load)
+         */
+        _initDOM: function() {
+            var self = this;
 
             this.containerEl = document.getElementById('basemap-time-container');
             this.sliderEl    = document.getElementById('basemap-time-slider');
