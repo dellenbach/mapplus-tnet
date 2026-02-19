@@ -232,6 +232,15 @@
             // Map-Objekt bereit = Dojo parser.parse() + initApp() abgeschlossen
             if (window.njs && njs.AppManager && njs.AppManager.Maps && njs.AppManager.Maps['main']) {
                 hideSplashScreen();
+                // Zentrales Event dispatchen — alle Module können darauf lauschen
+                // statt eigene Polling-Loops zu betreiben
+                if (!window._tnetAppReadyFired) {
+                    window._tnetAppReadyFired = true;
+                    document.dispatchEvent(new CustomEvent('tnet-app-ready', {
+                        detail: { map: njs.AppManager.Maps['main'].mapObj }
+                    }));
+                    console.log('[App] tnet-app-ready Event dispatched');
+                }
                 return;
             }
             // Fallback: Maximal 8 Sekunden warten

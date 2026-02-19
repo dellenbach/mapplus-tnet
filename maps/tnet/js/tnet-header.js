@@ -155,13 +155,14 @@ document.addEventListener('click', function(e) {
 // hideSplashScreen + checkAppReady sind jetzt als Early-Inline-Script
 // direkt in index_de.htm, damit sie SOFORT starten (nicht erst nach Module-Load).
 // Login-Status wird hier nachgeholt sobald das Module läuft:
-(function lateLoginCheck() {
-    if (window.njs && njs.AppManager && njs.AppManager.Maps && njs.AppManager.Maps['main']) {
+// Event-basiert statt Polling-Loop
+if (window._tnetAppReadyFired) {
+    updateLoginStatus();
+} else {
+    document.addEventListener('tnet-app-ready', function() {
         updateLoginStatus();
-    } else {
-        setTimeout(lateLoginCheck, 300);
-    }
-})();
+    }, { once: true });
+}
 
 // Basemap Widget Interaktion → verschoben nach tnet-basemap.js
 

@@ -105,33 +105,36 @@ if (document.readyState === 'loading') {
 }
 
 // ===== BOOKMARK AUTO-START =====
-// console.log('Auto-Start Script geladen');
 
 function startBookmarkFromUrl() {
     var currentPath = window.location.pathname;
-    // console.log('Prüfe URL:', currentPath);
 
     var match = currentPath.match(/\/maps\/([^\/]+)$/);
 
     if (match && match[1]) {
         var bookmarkId = match[1];
-        // console.log('Bookmark in URL gefunden:', bookmarkId);
 
-        // Prüfe ob alle benötigten Funktionen verfügbar sind
-        if (typeof window.TnetSetBookmark === 'function' &&
-            window.njs && window.njs.AppManager && 
-            window.njs.AppManager.setMapBookmark &&
-            typeof window.njs.AppManager.infoFloatWinRemoveallItems === 'function') {
-            // console.log('Alle Funktionen verfügbar - rufe TnetSetBookmark auf');
-            window.TnetSetBookmark(bookmarkId);
-        } else {
-            // console.log('Warte auf vollständiges Laden... (njs.AppManager.infoFloatWinRemoveallItems)');
-            setTimeout(startBookmarkFromUrl, 1500);
+        // Warte auf TnetSetBookmark-Funktion (wird async geladen)
+        function tryStart() {
+            if (typeof window.TnetSetBookmark === 'function' &&
+                window.njs && window.njs.AppManager && 
+                window.njs.AppManager.setMapBookmark &&
+                typeof window.njs.AppManager.infoFloatWinRemoveallItems === 'function') {
+                window.TnetSetBookmark(bookmarkId);
+            } else {
+                setTimeout(tryStart, 1500);
+            }
         }
-    } else {
-        // console.log('Keine Bookmark-ID in URL');
+        tryStart();
     }
 }
 
-// Starte nach 2 Sekunden
-setTimeout(startBookmarkFromUrl, 4000);
+// Event-basiert statt festes setTimeout(4000)
+if (window._tnetAppReadyFired) {
+    // Event wurde schon gefeuert bevor dieses Script geladen war
+    startBookmarkFromUrl();
+} else {
+    document.addEventListener('tnet-app-ready', function() {
+        startBookmarkFromUrl();
+    }, { once: true });
+}
