@@ -1,0 +1,9 @@
+{
+    "desc_gis_basis/basislayer_landeskarten_grau": "gis_basis basislayer_landeskarten_grau",
+    "desc_gis_basis/basislayer_landeskarten_grau/swiss_map_raster_1_10000_relief": "Swiss Map Raster 1:10000 (Relief)",
+    "desc_gis_basis/basislayer_landeskarten_grau/swiss_map_raster_1_25000_relief": "Swiss Map Raster 1:25000 (Relief)",
+    "desc_gis_basis/basislayer_landeskarten_grau/swiss_map_raster_1_50000_relief": "Swiss Map Raster 1:50000 (Relief)",
+    "desc_gis_basis/basislayer_landeskarten_grau/swiss_map_raster_1_100000_relief": "Swiss Map Raster 1:100000 (Relief)",
+    "desc_gis_basis/basislayer_landeskarten_grau/swiss_map_raster_1_200000_relief": "Swiss Map Raster 1:200000 (Relief)",
+    "desc_gis_basis/basislayer_landeskarten_grau/swiss_map_raster_1_500000_relief": "Swiss Map Raster 1:500000 (Relief)"
+}

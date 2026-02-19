@@ -1,0 +1,11 @@
+{
+    "desc_nw_gemeinden/st_warenmarkt": "nw_gemeinden st_warenmarkt",
+    "desc_nw_gemeinden/st_warenmarkt/stanser_warenmarkt": "Stanser Warenmarkt",
+    "desc_nw_gemeinden/st_warenmarkt/stanser_warenmarkt/stanser_warenmarkt_stand": "Stanser Warenmarkt Stanser Warenmarkt: Stand",
+    "desc_nw_gemeinden/st_warenmarkt/stanser_warenmarkt/stand_ausserhalb_flaeche_fehler": "Stanser Warenmarkt Stand ausserhalb Fläche: Fehler",
+    "desc_nw_gemeinden/st_warenmarkt/stanser_warenmarkt/stanser_warenmarkt_marktflaeche": "Stanser Warenmarkt Stanser Warenmarkt: Marktfläche",
+    "desc_nw_gemeinden/st_warenmarkt/vermessung": "Vermessung",
+    "desc_nw_gemeinden/st_warenmarkt/vermessung/vermessung_punkt": "Vermessung Vermessung Punkt",
+    "desc_nw_gemeinden/st_warenmarkt/vermessung/vermessung_linie": "Vermessung Vermessung Linie",
+    "desc_nw_gemeinden/st_warenmarkt/vermessung/vermessung_flaeche": "Vermessung Vermessung Fläche"
+}

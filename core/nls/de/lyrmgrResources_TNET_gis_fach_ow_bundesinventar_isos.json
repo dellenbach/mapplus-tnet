@@ -1,0 +1,11 @@
+{
+    "desc_gis_fach/ow_bundesinventar_isos": "gis_fach ow_bundesinventar_isos",
+    "desc_gis_fach/ow_bundesinventar_isos/isos": "ISOS",
+    "desc_gis_fach/ow_bundesinventar_isos/isos/einzelelement_pkt": "ISOS Einzelelement Pkt",
+    "desc_gis_fach/ow_bundesinventar_isos/isos/einzelelement_lin": "ISOS Einzelelement Lin",
+    "desc_gis_fach/ow_bundesinventar_isos/isos/einzelelement_fla": "ISOS Einzelelement Fla",
+    "desc_gis_fach/ow_bundesinventar_isos/isos/umgebungslinien": "ISOS Umgebungslinien",
+    "desc_gis_fach/ow_bundesinventar_isos/isos/gebiete": "ISOS Gebiete",
+    "desc_gis_fach/ow_bundesinventar_isos/isos/baugruppen": "ISOS Baugruppen",
+    "desc_gis_fach/ow_bundesinventar_isos/isos/umgebungszonen": "ISOS Umgebungszonen"
+}

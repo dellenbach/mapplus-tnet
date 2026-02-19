@@ -1,0 +1,226 @@
+.tundra .njsCategoryIcon1 {
+    background: url(../img/poi_manager/survey.svg);
+    background-repeat: no-repeat;
+    background-size: contain;
+    width: 38px;
+    height: 38px;
+    text-align: center;
+    background-position: 0px 0px !important;
+    outline: none !important;
+    opacity: 0.5;
+}
+
+.tundra .njsCategoryIcon1_active {
+	background: url(../img/poi_manager/survey_active.svg);
+    background-repeat: no-repeat;
+    background-size: contain;
+    width: 38px;
+    height: 38px;
+    text-align: center;
+    /*background-position: 0px 0px !important;*/
+    outline: none !important;
+	/*box-shadow: 0 1px 4px #666;*/
+}
+
+.tundra .njsCategoryIcon2 {
+    background: url(../img/poi_manager/planning.svg);
+    background-repeat: no-repeat;
+    background-size: contain;
+    width: 38px; /* bigger then others */
+    height: 38px;
+    text-align: center;
+    /*background-position: 0px 0px !important;*/
+    outline: none !important;
+    opacity: 0.5;
+}
+
+.tundra .njsCategoryIcon2_active {
+	background: url(../img/poi_manager/planning_active.svg);
+    background-repeat: no-repeat;
+    background-size: contain;
+    width: 38px;
+    height: 38px;
+    text-align: center;
+    /*background-position: 0px 0px !important;*/
+    outline: none !important;
+}
+
+.tundra .njsCategoryIcon3 {
+	background: url(../img/poi_manager/environment.svg);
+    background-repeat: no-repeat;
+    background-size: contain;
+    width: 38px;
+    height: 38px;
+    text-align: center;
+    /*background-position: 0px 0px !important;*/
+    opacity: 0.5;
+}
+
+.tundra .njsCategoryIcon3_active {
+	background: url(../img/poi_manager/environment_active.svg);
+    background-repeat: no-repeat;
+    background-size: contain;
+    width: 38px;
+    height: 38px;
+    text-align: center;
+    /*background-position: 0px 0px !important;*/
+}
+
+.tundra .njsCategoryIcon9 {
+	background: url(../img/poi_manager/climate.svg);
+    background-repeat: no-repeat;
+    background-size: contain;
+    width: 38px;
+    height: 38px;
+    text-align: center;
+    opacity: 0.5;
+}
+
+.tundra .njsCategoryIcon9_active {
+	background: url(../img/poi_manager/climate_active.svg);
+    background-repeat: no-repeat;
+    background-size: contain;
+    width: 38px;
+    height: 38px;
+    text-align: center;
+}
+
+.tundra .njsCategoryIcon5 {
+    background-image: url(../img/poi_manager/traffic_infra.svg);
+    background-repeat: no-repeat;
+    background-size: contain;
+    width: 38px;
+    height: 38px;
+    text-align: center;
+    background-position: 0px 0px;
+    opacity: 0.5;
+}
+
+.tundra .njsCategoryIcon5_active {
+    background-image: url(../img/poi_manager/traffic_infra_active.svg);
+    background-repeat: no-repeat;
+    background-size: contain;
+    width: 38px;
+    height: 38px;
+    text-align: center;
+    background-position: 0px 0px;
+}
+
+.tundra .njsCategoryIcon6 {
+    background-image: url(../img/poi_manager/services.svg);
+    background-repeat: no-repeat;
+    background-size: contain;
+    width: 38px;
+    height: 38px;
+    text-align: center;
+    background-position: 0px 0px;
+    opacity: 0.5;
+}
+
+.tundra .njsCategoryIcon6_active {
+    background-image: url(../img/poi_manager/services_active.svg);
+    background-repeat: no-repeat;
+    background-size: contain;
+    width: 38px;
+    height: 38px;
+    text-align: center;
+    background-position: 0px 0px;
+}
+
+.tundra .njsCategoryIcon7 {
+    background-image: url(../img/poi_manager/poi.svg);
+    background-repeat: no-repeat;
+    background-size: contain;
+    width: 38px;
+    height: 38px;
+    text-align: center;
+    background-position: 0px 0px;
+    opacity: 0.5;
+}
+
+.tundra .njsCategoryIcon7_active {
+    background-image: url(../img/poi_manager/poi_active.svg);
+    background-repeat: no-repeat;
+    background-size: contain;
+    width: 38px;
+    height: 38px;
+    text-align: center;
+    background-position: 0px 0px;
+}
+
+.tundra .njsCategoryIcon8 {
+    background-image: url(../img/poi_manager/wander.svg);
+    background-repeat: no-repeat;
+    background-size: contain;
+    width: 38px;
+    height: 38px;
+    text-align: center;
+    background-position: 0px 0px;
+    opacity: 0.5;
+}
+
+.tundra .njsCategoryIcon8_active {
+    background-image: url(../img/poi_manager/wander_active.svg);
+    background-repeat: no-repeat;
+    background-size: contain;
+    width: 38px;
+    height: 38px;
+    text-align: center;
+    background-position: 0px 0px;
+}
+
+.tundra .njsCategoryIcon4 {
+    background-image: url(../img/poi_manager/aerial.svg);
+    background-repeat: no-repeat;
+    background-size: contain;
+    width: 38px;
+    height: 38px;
+    text-align: center;
+    background-position: 0px 0px;
+    opacity: 0.5;
+}
+
+.tundra .njsCategoryIcon4_active {
+    background-image: url(../img/poi_manager/aerial_active.svg);
+    background-repeat: no-repeat;
+    background-size: contain;
+    width: 38px;
+    height: 38px;
+    text-align: center;
+    background-position: 0px 0px;
+}
+
+*[class^='njsCategoryIcon']:hover{
+    opacity: 1;
+}
+/* .tundra .njsCategoryIcon1:hover {
+    opacity: 1;
+}
+
+.tundra .njsCategoryIcon2:hover {
+    opacity: 1;
+}
+
+.tundra .njsCategoryIcon3:hover {
+    opacity: 1;
+}
+
+.tundra .njsCategoryIcon4:hover {
+    opacity: 1;
+}
+
+.tundra .njsCategoryIcon5:hover {
+    opacity: 1;
+}
+
+.tundra .njsCategoryIcon6:hover {
+    opacity: 1;
+} */
+
+:focus {
+    outline: none;
+}
+
+input::-moz-focus-inner {
+    border: 0;
+}

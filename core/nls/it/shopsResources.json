@@ -1,0 +1,22 @@
+{
+    "list_placeholder":"Selezionare il tema",
+    "av_title": "Misurazione ufficiale",
+    "av_fp_ls_title": "Misurazione ufficiale: punti fissi, parcelle",
+    "hk_title":"Altitudine: Curve di livello e modelli digitali",
+    "shop_rectangle":"Selezione rettangolare",
+    "shop_coord":"Coordinate",
+    "shop_minx":"Minimo coordinata est",
+    "shop_miny":"Minimo coordinata nord",
+    "shop_maxx":"Massimo coordinata est ",
+    "shop_maxy":"Massimo coordinata nord",
+    "shop_set_custom_extent":"Attualizzare",
+    "shop_callshop":"Comandare i dati",
+    "yr_shopping":"I suoi comandi ",
+    "shop_t_status":"Stato",
+    "shop_t_start":"Inizio",
+    "shop_t_end":"Fine",
+    "shop_t_set":"Tematica",
+    "shop_t_script":"Formato",
+    "shop_t_filesize":"Dimensioni",
+    "shop_t_extent":"Estensione"
+}

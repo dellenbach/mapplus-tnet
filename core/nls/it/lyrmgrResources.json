@@ -1,0 +1,38 @@
+{
+    "desc_1": "Misurazione, Terreno",
+    "desc_2": "Pianificazione, Immagini aeree",
+    "desc_3": "Ambiente",
+    "desc_4": "Clima",
+    "desc_5": "Trasporto, Energia",
+    "desc_6": "Strutture, Servizi",
+    "desc_7": "Cultura, Turismo, Natura, Svago",
+
+    "desc_actual": "Attualità",
+    "desc_av": "Complementi misurazione ufficiale",
+    "desc_dhm": "Modelli delle altezze",
+    "desc_rrp": "Pianificazione, Inventari",
+    "desc_luftbilder_swisstopo": "Immagini aeree swisstopo",
+    "desc_lubis": "Foto aeree storiche swisstopo",
+    "desc_ng": "Pericoli naturali",
+    "desc_bi": "Inventari federali",
+    "desc_planerischer_gewaesserschutz": "Misure pianificatorie per la protezione delle acque (geodienste.ch)",
+
+    "desc_verkehr": "Mezzi di transporto",
+    "desc_laerm": "Esposizione al rumore",
+    "desc_unfaelle": "Incidenti della circolazione",
+    "desc_energie": "Energia",
+    "desc_oeff_einrichtungen": "Enti pubblici",
+    "desc_retail": "Commercio",
+    "desc_post": "Punti d'accesso della Posta",
+    "desc_telecom": "Telecomunicazione",
+    "desc_information": "Informazioni",
+    "desc_gastro": "Gastronomia",
+    "desc_lodging": "Gastronomia e Alloggi",
+    "desc_sport": "Sport",
+    "desc_natur_freizeit": "Natura e svago",
+
+    "desc_ch.astra.ivs": "Inventario federale delle vie di comunicazione storiche",
+
+    "desc_2024_misox_flood": "<font color='#c40000'>Inondazioni/Frane Mesolcina <a href='https://www.rapidmapping.admin.ch/' target='_blank'>(swisstopo Rapid Mapping)</a></font>",
+    "desc_ch.swisstopo.rapidmapping_ticino": "<font color='#c40000'>Inondazioni/Frane Ticino/Maggia <a href='https://www.rapidmapping.admin.ch/' target='_blank'>(swisstopo Rapid Mapping)</a></font>"
+}

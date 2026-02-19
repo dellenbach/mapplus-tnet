@@ -1,0 +1,23 @@
+{
+    "items": [
+        { "name": "CH: WMS geo.sdmin", "url": "https://wms.geo.admin.ch/" },
+        { "name": "BE: Activités économiques", "url": "https://www.geoservice.apps.be.ch/geoservice2/services/a42geo/a42geo_wirtschaftwms_f_fk/MapServer/WMSServer?"},
+        { "name": "BE: Altimétrie", "url": "https://www.geoservice.apps.be.ch/geoservice2/services/a42geo/a42geo_hoehenwms_f_fk/MapServer/WMSServer?"},
+        { "name": "BE: Approvisionnement, élimination et communication", "url": "https://www.geoservice.apps.be.ch/geoservice2/services/a42geo/a42geo_versorgungwms_f_fk/MapServer/WMSServer?"},
+        { "name": "BE: Atmosphère, air et climat", "url": "https://www.geoservice.apps.be.ch/geoservice2/services/a42geo/a42geo_klimawms_f_fk/MapServer/WMSServer?"},
+        { "name": "BE: Cadastre RDPPF", "url": "https://oerebservice.apps.be.ch/cgi-bin/mapserv.fcgi?map=oereb_fr"},
+        { "name": "BE: Cartes de référence, couverture du sol et images aériennes", "url": "https://www.geoservice.apps.be.ch/geoservice2/services/a42geo/a42geo_basiswms_f_fk/MapServer/WMSServer?"},
+        { "name": "BE: Développement territorial et cadastre foncier", "url": "https://www.geoservice.apps.be.ch/geoservice2/services/a42geo/a42geo_planungwms_f_fk/MapServer/WMSServer?"},
+        { "name": "BE: Edifices et infrastructures", "url": "https://www.geoservice.apps.be.ch/geoservice2/services/a42geo/a42geo_bauwms_f_fk/MapServer/WMSServer?"},
+        { "name": "BE: Forêt, flore et faune", "url": "https://www.geoservice.apps.be.ch/geoservice2/services/a42geo/a42geo_florafaunawms_f_fk/MapServer/WMSServer?"},
+        { "name": "BE: Géologie, sols et dangers naturels", "url": "https://www.geoservice.apps.be.ch/geoservice2/services/a42geo/a42geo_geologiewms_f_fk/MapServer/WMSServer?"},
+        { "name": "BE: Hydrographie", "url": "https://www.geoservice.apps.be.ch/geoservice2/services/a42geo/a42geo_gewaesserwms_f_fk/MapServer/WMSServer?"},
+        { "name": "BE: Limites politiques et administratives", "url": "https://www.geoservice.apps.be.ch/geoservice2/services/a42geo/a42geo_grenzenwms_f_fk/MapServer/WMSServer?"},
+        { "name": "BE: Localisation et systèmes de référence", "url": "https://www.geoservice.apps.be.ch/geoservice2/services/a42geo/a42geo_ortwms_f_fk/MapServer/WMSServer?"},
+        { "name": "BE: Population, société et culture", "url": "https://www.geoservice.apps.be.ch/geoservice2/services/a42geo/a42geo_gesellschaftwms_f_fk/MapServer/WMSServer?"},
+        { "name": "BE: Thèmes agricoles", "url": "https://www.geoservice.apps.be.ch/geoservice2/services/a42geo/a42geo_agrarwms_f_fk/MapServer/WMSServer?"},
+        { "name": "BE: Thèmes de la protection de l’environnement et de la nature", "url": "https://www.geoservice.apps.be.ch/geoservice2/services/a42geo/a42geo_umweltwms_f_fk/MapServer/WMSServer?"},
+        { "name": "BE: Thèmes de santé", "url": "https://www.geoservice.apps.be.ch/geoservice2/services/a42geo/a42geo_gesundheitwms_f_fk/MapServer/WMSServer?"},
+        { "name": "BE: Thèmes de transport", "url": "https://www.geoservice.apps.be.ch/geoservice2/services/a42geo/a42geo_transportwms_f_fk/MapServer/WMSServer?"}
+    ]
+}

@@ -1,0 +1,10 @@
+{
+    "desc_gis_fach/ow_nutzungsplanung_differenzen_fuer_Mitwirkung": "gis_fach ow_nutzungsplanung_differenzen_fuer_Mitwirkung",
+    "desc_gis_fach/ow_nutzungsplanung_differenzen_fuer_mitwirkung/waldabstandslinien_differenz": "Waldabstandslinien Differenz",
+    "desc_gis_fach/ow_nutzungsplanung_differenzen_fuer_mitwirkung/laermempfindlichkeitsaufstufung_differenz": "Lärmempfindlichkeitsaufstufung Differenz",
+    "desc_gis_fach/ow_nutzungsplanung_differenzen_fuer_mitwirkung/objektbezogene_festlegung_differenz": "Objektbezogene Festlegung Differenz",
+    "desc_gis_fach/ow_nutzungsplanung_differenzen_fuer_mitwirkung/linienbezogene_festlegung_differenz": "Linienbezogene Festlegung Differenz",
+    "desc_gis_fach/ow_nutzungsplanung_differenzen_fuer_mitwirkung/ueberlagernde_festlegung_gefahren_differenz": "Überlagernde Festlegung Gefahren Differenz",
+    "desc_gis_fach/ow_nutzungsplanung_differenzen_fuer_mitwirkung/ueberlagernde_festlegung_differenz": "Überlagernde Festlegung Differenz",
+    "desc_gis_fach/ow_nutzungsplanung_differenzen_fuer_mitwirkung/grundnutzung_differenz": "Grundnutzung Differenz"
+}

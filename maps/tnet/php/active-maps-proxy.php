@@ -73,6 +73,60 @@ $inlineStyle = '<style id="proxy-overrides">
   header.site-header { display:none!important; }
   .cdt-frontpage-maps-header { display:none!important; }
   body, main { padding-top:0!important; margin-top:0!important; }
+
+  /* Sidebar-Icon (SVG Pin) verkleinern */
+  .cdt-frontpage-maps-sidebar-icon {
+    max-height: 60px!important;
+    overflow: hidden!important;
+    display: flex!important;
+    align-items: center!important;
+    justify-content: center!important;
+    cursor: pointer!important;
+  }
+  .cdt-frontpage-maps-sidebar-icon svg {
+    max-width: 40px!important;
+    max-height: 50px!important;
+    width: auto!important;
+    height: auto!important;
+  }
+  .cdt-frontpage-maps-sidebar-title {
+    cursor: pointer!important;
+  }
+  /* Sidebar-Logo/Pin Bilder verkleinern */
+  .cdt-frontpage-maps-sidebar > img,
+  .cdt-frontpage-maps-sidebar > a > img,
+  .cdt-frontpage-maps-sidebar > div > img,
+  .cdt-frontpage-maps-sidebar > figure img {
+    max-height: 60px!important;
+    width: auto!important;
+    object-fit: contain!important;
+  }
+
+  /* Sidebar sichtbar machen (war in inframe-maps.css display:none) */
+  .cdt-frontpage-maps-sidebar {
+    display: block!important;
+    pointer-events: auto!important;
+  }
+
+  /* KATEGORIEN-Nav: bei Toggle aufklappen */
+  .cdt-frontpage-maps-sidebar-nav.cdt-frontpage-maps-sidebar-nav-active {
+    display: block!important;
+    position: fixed!important;
+    z-index: 9999!important;
+    top: 0!important;
+    left: 0!important;
+    width: 400px!important;
+    max-width: 100vw!important;
+    height: 100vh!important;
+    box-sizing: border-box!important;
+    background: white!important;
+    overflow-x: hidden!important;
+    overflow-y: auto!important;
+    pointer-events: auto!important;
+    box-shadow: 2px 0 8px rgba(0,0,0,0.2)!important;
+    text-align: right!important;
+    padding: 50px 20px 20px 20px!important;
+  }
 </style>';
 
 // --- JS Injection: Helpers + Auto-Init ---

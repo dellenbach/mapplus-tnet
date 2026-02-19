@@ -1,0 +1,126 @@
+<html>
+  <head>
+    <meta http-equiv="content-type" content="text/html; charset=utf-8">
+    <title>MAP+ Lists - Help </title>
+    <link rel="stylesheet" type="text/css" href="css/bootstrap.css">
+    <link rel="stylesheet" type="text/css" href="css/mapplus.css">
+    <base target="_self">
+  </head>
+  <body leftmargin="20">
+    <div class="close" onclick="parent.njs.AppManager.toggleCustomPaneContent('help','custompane','../../core/help/help_de.htm','');"></div>
+
+    <p>&nbsp;</p>
+
+    <h1>MAP+ Lists - Help</h1>
+
+    <span>
+    <img class="img-responsive" src="./images/list_en.png">
+    </span>    
+
+    <h2>Functionality</h2>
+
+     <p>Functionality of lists:</p>
+
+     <ul>
+         <li>Filter database content</li>
+         <li>Sort database content</li>
+         <li>Search function across all fields</li>
+         <li>Geographic selection: selection (toggle on / off), rectangle, polygon. Also switch the option "only intersected objects" on or off</li>
+         <li>Any combination of filters and geographic selection</li>
+         <li>Clear selection: clears all filters and selections</li>
+         <li>Export function: JSON, XML, CSV, TXT, SQL, MS Excel</li>
+         <li>Export to geographic formats (if configured): ESRI Shape, GeoJSON, SQLIte, DXF, GeoPackage etc.</li>
+         <li>Selection of the columns to be displayed</li>
+     </ul>
+
+     <h2>Actions, overall search</h2>
+
+     <ul>
+     	<li><b>Large magnifying glass</b>: Zoom to all selected objects</li>
+     	<li><b>Small magnifying glass</b>: Zoom to object</li>
+      <li><b>Arrows</b>: Sort ascending / descending</li>
+     	<li><b>Search field</b>: Search the whole table (all fields)</li>
+     </ul>
+
+     <h2>Filter</h2>
+
+     <p>Data can be filtered by any <b>column or combination of columns</b>. Different types of filters are available depending on the column contents:<br/><br/></p>
+
+    <span class="row">
+
+      <span class="col-xs-2"> 
+        <img class="img-responsive" src="./images/list_text_de.png">
+      </span>
+      <span class="col-xs-10"> 
+        <p><b>Text fields</b>: arbitrary text input, it is filtered according to the entered text.
+        	  <br/>In the example: bern -&gt; Via Albula/Bernina, Via Berna
+        	  <br/>Remove filter: Delete field or click on the "Remove selection" function</p>
+      </span> 
+
+    </span>
+
+     <span class="row">
+
+      <span class="col-xs-2"> 
+        <img class="img-responsive" src="./images/list_select_en.png">
+      </span>
+      <span class="col-xs-10"> 
+        <p><b>Selection fields</b>: Fields with fixed entries, single or multiple selection of the filter.
+          <br/>Example: Fitness requirement light, medium and/or strong, optionally combined with a text filter as above.
+       	  <br/>Remove filter: Delete field or click on the "Remove selection" function</p>
+      </span> 
+
+    </span>
+
+    <span class="row">
+
+      <span class="col-xs-2"> 
+        <img class="img-responsive" src="./images/list_numeric_de.png">
+      </span>
+      <span class="col-xs-10"> 
+        <p><b>Numeric fields</b>: numeric operators: larger, smaller, equal etc. or ranges from-to. 
+        	<br/>Example, e.g. filter over the desired distance: <4000, 4000-6000, >10000 etc.
+        	<br/>Example of a <b>combination with selection fields</b>: Distance <4000 and fitness requirement easy and technical requirement easy; or if one feels challenged: distance > 10000, fitness requirement difficult and technical requirement difficult
+        	<br/>Remove filter: Delete field or click on the "Remove selection" function</p>
+      </span> 
+
+    </span>
+
+     <h2>Geografic Selection</h2>
+
+     <p>The following selection options are available, which can be combined with the filters mentioned above. Optionally only whole objects or as well intersected objects. The selection is shown in the list.</p>
+
+     <ul>
+     	<li>Select: select and deselect single objects -> click on an object</li>
+     	<li>Rectangle: drag a rectangle with the mouse</li>
+     	<li>Polygon: draw a polygon by clicking single points, double-click to close</li>
+     	<li>Remove selection: click on the "Remove selection" function</li>
+     </ul>
+
+     <h2>Select columns to be shown, Export</h2>
+
+     <span class="row">
+
+      <span class="col-xs-1"> 
+        <img class="img-responsive" src="./images/list_selcol.png"><br/>
+      </span>
+      <span class="col-xs-10"> 
+        <p><b>Column Selection:</b> select and deselect the columns to be displayed.</p>
+      </span> 
+
+    </span>
+
+     <span class="row">
+
+      <span class="col-xs-1"> 
+        <img class="img-responsive" src="./images/list_export.png">
+      </span>
+      <span class="col-xs-10"> 
+        <p><b>Export-function</b>: JSON, XML, CSV, TXT, SQL, MS Excel</p>
+      </span> 
+
+    </span>
+
+    <p>&nbsp;</p>
+  </body>
+</html>

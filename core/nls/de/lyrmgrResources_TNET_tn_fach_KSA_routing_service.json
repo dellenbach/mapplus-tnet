@@ -1,0 +1,10 @@
+{
+    "desc_tn_fach/KSA_routing_service": "tn_fach KSA_routing_service",
+    "desc_tn_fach/ksa_routing_service/route": "Route",
+    "desc_tn_fach/ksa_routing_service/route/stopps": "Route Stopps",
+    "desc_tn_fach/ksa_routing_service/route/punkt_barrieren": "Route Punkt-Barrieren",
+    "desc_tn_fach/ksa_routing_service/route/routen": "Route Routen",
+    "desc_tn_fach/ksa_routing_service/route/linien_barrieren": "Route Linien-Barrieren",
+    "desc_tn_fach/ksa_routing_service/route/polygon_barrieren": "Route Polygon-Barrieren",
+    "desc_tn_fach/ksa_routing_service/ksa_nd": "KSA_ND"
+}

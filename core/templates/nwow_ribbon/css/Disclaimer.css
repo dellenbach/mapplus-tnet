@@ -1,0 +1,91 @@
+#disclaimer_copyright{
+	background-color:rgba(255,255,255,0.8);
+	position:absolute;
+	z-index:900;
+	display:block;
+	width:auto;
+	height:auto;
+	font-size:11px !important;
+}
+
+#disclaimer_copyright b {
+	font-size:11px !important;
+}
+
+#disclaimer_mapplusbytydac{
+	background-color:rgba(255,255,255,0.8);
+	position:absolute;
+	z-index:900;
+	display:block;
+	width:auto;
+	height:auto;
+	font-size:11px !important;
+	border-radius: 4px 4px 0;
+}
+#disclaimer_pdf {
+	display: block;
+	font-size:14px !important;
+	background-color:#4b7b81;
+	color: #FFFFFF !important;
+	height: auto;
+	position: absolute;
+	width: auto;
+	z-index: 100;
+	border-radius: 5px;
+}
+
+#disclaimer_pdf:hover,#disclaimer_news:hover{
+	background-color:rgba(127,149,173,1);
+}
+
+#disclaimer_news {
+	position:absolute;
+	font-size:14px !important;
+	color: #fff !important;
+	z-index:10;
+	border-radius: 5px;
+	display:block;
+	width:430px;
+	height:auto;
+	background-color:#4b7b81;
+}
+
+#disclaimer_tips{
+	position:absolute;
+	background-color: #4b7b81;
+	color: #ffffff !important;
+	z-index:10;
+	border: 0px;
+	display:block;
+	width:300px;
+	height:auto;
+	top:5px !important;
+}
+
+.njsDisclaimer{
+	background:none;
+	border: none;
+	overflow: hidden;
+	color:#000000;
+}
+
+.njsDisclaimer .njsDisclaimerContent{
+	overflow: hidden;
+	padding: 0px;
+	margin: 0px;
+	/* color: #4c535b; */
+	opacity:0.85;
+}
+
+.njsDisclaimer .njsDisclaimerClose{
+	cursor: pointer;
+}
+
+.njsDisclaimerClose:after{
+	display:inline-block;
+	content:"\00d7";
+	font-weight:bold;
+	position: absolute;
+	right: 3px;
+	top: 3px;
+}

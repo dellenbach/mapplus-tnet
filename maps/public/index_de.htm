@@ -710,50 +710,67 @@
                                 </div>
                             </div>
 
-                            <!-- Haupt-Basemaps (immer sichtbar) -->
-                            <div class="basemap-cards-main">
-                                <div class="basemap-card active" data-basemap="swissimage" onclick="njs.AppManager.Maps['main'].changeBaseMap('swissimage');">
+                            <!-- Zeitreise: Slider für zeitfähige Basemaps -->
+                            <div id="basemap-time-container" class="basemap-time-container" style="display:none;">
+                                <div class="basemap-time-header">
+                                    <span class="basemap-time-icon">⏱</span>
+                                    <span class="basemap-time-title">Zeitreise</span>
+                                    <span id="basemap-time-label" class="basemap-time-label">2024</span>
+                                    <button id="basemap-time-reset" class="basemap-time-reset" title="Aktuell">
+                                        <svg viewBox="0 0 16 16" width="14" height="14"><path fill="currentColor" d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm0 12.5A5.5 5.5 0 1 1 13.5 8 5.51 5.51 0 0 1 8 13.5zM8.5 4v4.25l3.15 1.88-.75 1.23L7 9V4z"/></svg>
+                                    </button>
+                                </div>
+                                <input type="range" id="basemap-time-slider" class="basemap-time-slider"
+                                    min="0" max="33" value="33" step="1">
+                                <div class="basemap-time-range">
+                                    <span id="basemap-time-min">1926</span>
+                                    <span id="basemap-time-max">2024</span>
+                                </div>
+                            </div>
+                            <!-- Zeitreise: Info-Label für historische Basemaps (z.B. Siegfried) -->
+                            <div id="basemap-time-info" class="basemap-time-info" style="display:none;">
+                                <span class="basemap-time-icon">⏱</span>
+                                <span id="basemap-time-info-text"></span>
+                            </div>
+
+                            <!-- Basemap Kacheln (scrollbar) -->
+                            <div class="basemap-cards-scroll">
+                                <div class="basemap-card active" data-basemap="swissimage">
                                     <div class="basemap-card-preview orthofoto"></div>
                                     <span class="basemap-card-label">Orthofoto</span>
                                 </div>
-                                <div class="basemap-card" data-basemap="av_sw" onclick="njs.AppManager.Maps['main'].changeBaseMap('av_sw');">
+                                <div class="basemap-card" data-basemap="av_sw">
                                     <div class="basemap-card-preview basisplan"></div>
                                     <span class="basemap-card-label">Basisplan</span>
                                 </div>
-                                <div class="basemap-card" data-basemap="plan_fuer_grundbuch_bund" onclick="njs.AppManager.Maps['main'].changeBaseMap('plan_fuer_grundbuch_bund');">
+                                <div class="basemap-card" data-basemap="plan_fuer_grundbuch_bund">
                                     <div class="basemap-card-preview grundbuch"></div>
                                     <span class="basemap-card-label">Plan f. Grundbuch</span>
                                 </div>
-                            </div>
-
-                            <!-- Erweiterte Basemap Auswahl -->
-                            <div class="basemap-expand-header">
-                                <span class="expand-icon">▶</span> erweitern
-                            </div>
-                            <div class="basemap-cards">
-                                <div class="basemap-card" data-basemap="pk_color" onclick="njs.AppManager.Maps['main'].changeBaseMap('pk_color');">
+                                <div class="basemap-cards-spacer">Weitere</div>
+                                <div class="basemap-card" data-basemap="pk_color">
                                     <div class="basemap-card-preview landeskarte"></div>
                                     <span class="basemap-card-label">Landeskarte</span>
                                 </div>
-                                <div class="basemap-card" data-basemap="siegfried" onclick="njs.AppManager.Maps['main'].changeBaseMap('siegfried');">
+                                <div class="basemap-card" data-basemap="siegfried">
                                     <div class="basemap-card-preview siegfried"></div>
                                     <span class="basemap-card-label">Siegfriedkarten</span>
                                 </div>
-                                <div class="basemap-card" data-basemap="none" onclick="njs.AppManager.Maps['main'].changeBaseMap('none');">
-                                    <div class="basemap-card-preview transparent"></div>
-                                    <span class="basemap-card-label">Transparent</span>
+                                <div class="basemap-card" data-basemap="dufour">
+                                    <div class="basemap-card-preview dufour"></div>
+                                    <span class="basemap-card-label">Dufourkarte</span>
                                 </div>
-                                <div class="basemap-card" data-basemap="leer" onclick="njs.AppManager.Maps['main'].changeBaseMap('leer');">
-                                    <div class="basemap-card-preview keine"></div>
-                                    <span class="basemap-card-label">Leer</span>
+                                <div class="basemap-card" data-basemap="swiss_tlm">
+                                    <div class="basemap-card-preview swisstlm"></div>
+                                    <span class="basemap-card-label">swissTLM</span>
                                 </div>
-                                <div class="basemap-card" data-basemap="av_color" onclick="njs.AppManager.Maps['main'].changeBaseMap('av_color');">
-                                    <div class="basemap-card-preview av-color"></div>
-                                    <span class="basemap-card-label">Basisplan farbig</span>
-                                </div>
-                                <div class="basemap-card" data-basemap="osm" onclick="njs.AppManager.Maps['main'].changeBaseMap('osm');">
+                                <div class="basemap-card" data-basemap="osm_ch">
                                     <div class="basemap-card-preview osm"></div>
                                     <span class="basemap-card-label">OpenStreetMap</span>
+                                </div>
+                                <div class="basemap-card" data-basemap="leer">
+                                    <div class="basemap-card-preview keine"></div>
+                                    <span class="basemap-card-label">Leer</span>
                                 </div>
                             </div>
                         </div>
@@ -795,7 +812,7 @@
     <script type="module" src="/maps/tnet/js/tnet-utils.js"></script>
 
     <!-- TNET helpers for bookmarks&Co. -->
-    <script type="text/javascript" src="/maps/tnet/tnet-mapplus-helpers.js" defer></script>
+    <script type="text/javascript" src="/maps/tnet/js/tnet-mapplus-helpers.js" defer></script>
     
     <!-- TNET Accordion/Tab-Konverter -->
     <link rel="stylesheet" href="/maps/tnet/css/tnet_toc.css" />
@@ -839,6 +856,9 @@
     <script>window.__define = window.define; window.define = undefined;</script>
     <script src="https://cdn.jsdelivr.net/npm/json5@2.2.3/dist/index.min.js"></script>
     <script>window.define = window.__define; delete window.__define;</script>
+
+    <!-- TNET Basemap: Widget UI, Grundkarten-Layer-Sync, Zeitreise -->
+    <script src="/maps/tnet/js/tnet-basemap.js"></script>
 
     <!-- TNET 3D Landscape: Config wird lazy bei Bedarf geladen -->
     <script src="/maps/tnet/js/tnet-3d-landscape.js?v=20260211c"></script>

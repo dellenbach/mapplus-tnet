@@ -628,6 +628,9 @@
                     
                     // Hook into changeBaseMap calls
                     self.hookChangeBaseMap();
+                    
+                    // Hook into BasemapTimeManager time changes
+                    self._hookTimeDimensionSync();
                 })
                 .catch(function(err) {
                     console.error('[SplitScreen] Failed to load basemap config:', err);
@@ -950,6 +953,126 @@
                 
                 console.log('[SplitScreen] ✓ changeBaseMap hooked for map2 sync');
             }
+        },
+
+        /**
+         * Hook into BasemapTimeManager's time-change events to sync TIME dimension to map2.
+         * Listens for the 'basemap-time-change' custom event dispatched by tnet-basemap-time.js.
+         */
+        _hookTimeDimensionSync: function() {
+            var self = this;
+            
+            // Remove previous listener if any
+            if (this._timeDimensionHandler) {
+                document.removeEventListener('basemap-time-change', this._timeDimensionHandler);
+            }
+            
+            this._timeDimensionHandler = function(evt) {
+                if (!self.enabled || !self.map2) return;
+                
+                var detail = evt.detail;
+                console.log('[SplitScreen] Time overlay sync:', detail.year, '(' + detail.timeValue + ')');
+                
+                try {
+                    // Remove existing time overlays from map2
+                    self._removeTimeOverlaysFromMap(self.map2);
+                    
+                    // If timeValue is null → "current" year, no overlay needed
+                    if (!detail.timeValue || !detail.wmtsUrl) {
+                        // Restore base layer visibility on map2
+                        self._setMap2BaseLayerVisibility(true);
+                        return;
+                    }
+                    
+                    // Build the WMTS URL with time baked in
+                    var wmtsUrl = detail.wmtsUrl.replace('{Time}', detail.timeValue);
+                    
+                    // swisstopo WMTS TileGrid
+                    var resolutions = [
+                        4000, 3750, 3500, 3250, 3000, 2750, 2500, 2250, 2000, 1750,
+                        1500, 1250, 1000, 750, 650, 500, 250, 100, 50, 20,
+                        10, 5, 2.5, 2, 1.5, 1, 0.5, 0.25, 0.1
+                    ];
+                    var matrixIds = [];
+                    for (var mi = 0; mi < resolutions.length; mi++) matrixIds.push(mi.toString());
+                    
+                    var source = new ol.source.WMTS({
+                        url: wmtsUrl,
+                        layer: '',
+                        matrixSet: '2056',
+                        format: 'image/png',
+                        projection: 'EPSG:2056',
+                        requestEncoding: 'REST',
+                        style: 'default',
+                        tileGrid: new ol.tilegrid.WMTS({
+                            origin: [2420000, 1350000],
+                            resolutions: resolutions,
+                            matrixIds: matrixIds
+                        }),
+                        crossOrigin: 'anonymous'
+                    });
+                    
+                    var overlayOpacity = (window.BasemapTimeManager && window.BasemapTimeManager._currentOpacity !== undefined)
+                        ? window.BasemapTimeManager._currentOpacity : 1;
+                    var layer = new ol.layer.Tile({ source: source, opacity: overlayOpacity, visible: true });
+                    layer.set('_isTimeOverlay', true);
+                    layer.set('_timeValue', detail.timeValue);
+                    
+                    var layers = self.map2.getLayers();
+                    if (layers.getLength() > 0) {
+                        layers.insertAt(1, layer);
+                    } else {
+                        layers.push(layer);
+                    }
+
+                    // Apply grayscale if active
+                    if (window.BasemapTimeManager && window.BasemapTimeManager._isGrayscale) {
+                        window.BasemapTimeManager._applyGrayscaleCSS(layer, true);
+                    }
+
+                    // Hide base layer on map2 so it doesn't show through
+                    self._setMap2BaseLayerVisibility(false);
+                    console.log('[SplitScreen] ✓ Time overlay synced to map2');
+                    
+                } catch (e) {
+                    console.warn('[SplitScreen] Time overlay sync error:', e);
+                }
+            };
+            
+            document.addEventListener('basemap-time-change', this._timeDimensionHandler);
+            console.log('[SplitScreen] ✓ Time dimension sync hooked');
+        },
+        
+        /**
+         * Remove all time overlay layers (marked _isTimeOverlay) from a map.
+         */
+        _removeTimeOverlaysFromMap: function(map) {
+            if (!map) return;
+            try {
+                var layers = map.getLayers().getArray().slice();
+                for (var i = 0; i < layers.length; i++) {
+                    if (layers[i].get('_isTimeOverlay')) {
+                        map.removeLayer(layers[i]);
+                    }
+                }
+            } catch (e) { /* ignore */ }
+        },
+
+        /**
+         * Hide or show the base layer (index 0) on map2 to prevent the
+         * original basemap from showing through the time overlay.
+         */
+        _setMap2BaseLayerVisibility: function(visible) {
+            if (!this.map2) return;
+            try {
+                var layers = this.map2.getLayers().getArray();
+                for (var i = 0; i < layers.length; i++) {
+                    if (!layers[i].get('_isTimeOverlay')) {
+                        layers[i].setVisible(visible);
+                        break;
+                    }
+                }
+            } catch (e) { /* ignore */ }
         },
 
         /**
@@ -1537,6 +1660,13 @@
                 if (this._viewChangeListenerKey) {
                     ol.Observable.unByKey(this._viewChangeListenerKey);
                     this._viewChangeListenerKey = null;
+                }
+                
+                // Clean up time dimension sync listener
+                if (this._timeDimensionHandler) {
+                    document.removeEventListener('basemap-time-change', this._timeDimensionHandler);
+                    this._timeDimensionHandler = null;
+                    console.log('[SplitScreen] Time dimension sync listener removed');
                 }
                 
                 // Restore original changeBaseMap if hooked

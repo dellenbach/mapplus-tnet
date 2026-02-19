@@ -1,0 +1,22 @@
+{
+    "list_placeholder":"Scegliere un tema",
+
+    "sel_clear": "Rimuovere selezione",
+    "sel_export": "Esporto",
+    "sel_export_shape": "Esporto Shape",
+    "sel_intersect": "anche oggetti parzialmente selezionati",
+    "sel_multi": "Selezione",
+    "sel_polygon": "Poligono",
+    "sel_rectangle": "Rettangolo",
+
+    "table_actions": "Azione",
+    "table_edit": "Modifica oggetto",
+    "table_show_selection": "Attivare selezione nella carta",
+    "table_zoom_to": "Attivare oggetto nella carta",
+
+	"contours_title": "Curve di livello SwissALTI3D",
+    "fixpunkte_title": "Punti fissi",
+    "gwr_title": "Registro federale degli edifici e delle abitazioni (OREA)",
+    "heizungstraeger_ch_title": "Edifici: Dispositivi di riscaldamento Svizzera",
+    "liegenschaften_export_title": "Parcelle"
+}

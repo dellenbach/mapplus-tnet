@@ -1,0 +1,14 @@
+{
+    "desc_gis_fach/nw_strassenverzeichnis": "gis_fach nw_strassenverzeichnis",
+    "desc_gis_fach/nw_strassenverzeichnis/verkehr": "VERKEHR",
+    "desc_gis_fach/nw_strassenverzeichnis/verkehr/strassenverzeichnis": "VERKEHR STRASSENVERZEICHNIS",
+    "desc_gis_fach/nw_strassenverzeichnis/verkehr/strassenverzeichnis/strassenverzeichnis_punkt": "VERKEHR STRASSENVERZEICHNIS Strassenverzeichnis Punkt",
+    "desc_gis_fach/nw_strassenverzeichnis/verkehr/strassenverzeichnis/strassenverzeichnis_linie": "VERKEHR STRASSENVERZEICHNIS Strassenverzeichnis Linie",
+    "desc_gis_fach/nw_strassenverzeichnis/verkehr/strassenverzeichnis/strassenverzeichnis_flaeche": "VERKEHR STRASSENVERZEICHNIS Strassenverzeichnis Fläche",
+    "desc_gis_fach/nw_strassenverzeichnis/mistra": "MISTRA",
+    "desc_gis_fach/nw_strassenverzeichnis/mistra/strassensanierung": "MISTRA Strassensanierung",
+    "desc_gis_fach/nw_strassenverzeichnis/mistra/strassenplan": "MISTRA Strassenplan",
+    "desc_gis_fach/nw_strassenverzeichnis/mistra/diverses": "MISTRA DIVERSES",
+    "desc_gis_fach/nw_strassenverzeichnis/mistra/diverses/parkplaetze": "MISTRA DIVERSES Parkplaetze",
+    "desc_gis_fach/nw_strassenverzeichnis/mistra/diverses/tempo_30": "MISTRA DIVERSES Tempo_30"
+}

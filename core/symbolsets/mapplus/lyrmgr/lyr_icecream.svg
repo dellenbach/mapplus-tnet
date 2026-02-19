@@ -1,0 +1,197 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="8.2710037mm"
+   height="8.2710037mm"
+   viewBox="0 0 8.2710037 8.2710037"
+   version="1.1"
+   id="svg1"
+   xmlns:xlink="http://www.w3.org/1999/xlink"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <defs
+     id="defs1">
+    <linearGradient
+       id="linearGradient1258"
+       x1="11.784"
+       x2="11.784"
+       y1="1041.3"
+       y2="1051.8"
+       gradientTransform="matrix(1.046,0,0,1.0749,-0.85765,-78.488)"
+       gradientUnits="userSpaceOnUse"
+       xlink:href="#linearGradient1256" />
+    <linearGradient
+       id="linearGradient1256">
+      <stop
+         stop-color="#ffbf23"
+         offset="0"
+         id="stop1" />
+      <stop
+         stop-color="#ffe680"
+         offset=".29917"
+         id="stop2" />
+      <stop
+         stop-color="#ffe680"
+         offset="1"
+         id="stop3" />
+    </linearGradient>
+    <clipPath
+       id="clipPath2914">
+      <path
+         d="m 15.781,1041.7 -3.055,8.76 c 0,0 -0.08349,0.2637 -0.45828,0.2635 -0.3725,-10e-5 -0.45828,-0.2704 -0.45828,-0.2704 l -3.055,-8.7601 z"
+         fill="url(#linearGradient2918)"
+         id="path9" />
+    </clipPath>
+    <linearGradient
+       id="linearGradient2918"
+       x1="11.784"
+       x2="11.784"
+       y1="1041.3"
+       y2="1051.8"
+       gradientTransform="matrix(0.79334,0,0,0.79334,2.7476,216.58)"
+       gradientUnits="userSpaceOnUse"
+       xlink:href="#linearGradient1256" />
+    <linearGradient
+       id="linearGradient1268"
+       x1="12.083"
+       x2="12.083"
+       y1="1040.8"
+       y2="1038.5"
+       gradientTransform="matrix(1.0498,0,0,1.1451,-0.92544,-151.56)"
+       gradientUnits="userSpaceOnUse">
+      <stop
+         stop-color="#ff5050"
+         offset="0"
+         id="stop8" />
+      <stop
+         stop-color="#ff8080"
+         offset="1"
+         id="stop9" />
+    </linearGradient>
+  </defs>
+  <g
+     transform="matrix(0.41206058,0,0,0.36901295,-0.76585581,-379.93689)"
+     id="g28"
+     style="display:inline">
+    <g
+       id="g13">
+      <path
+         d="m 16.326,1039.5 -4.0279,11.87 c 0,0 -0.11008,0.3574 -0.60423,0.3571 -0.49113,-2e-4 -0.60423,-0.3664 -0.60423,-0.3664 l -4.0279,-11.87 z"
+         fill="url(#linearGradient1258)"
+         id="path12"
+         style="fill:url(#linearGradient1258)" />
+      <ellipse
+         cx="13.97"
+         cy="1034.2"
+         rx="4.2820001"
+         ry="4.3502002"
+         fill="#ffd42a"
+         style="paint-order:stroke fill markers"
+         id="ellipse12" />
+      <ellipse
+         cx="10.001"
+         cy="1035.5"
+         rx="4.4303002"
+         ry="4.6342001"
+         fill="#ff8080"
+         style="paint-order:stroke fill markers"
+         id="ellipse13" />
+    </g>
+    <g
+       transform="matrix(1.3185,0,0,1.355,-4.463,-371.96)"
+       clip-path="url(#clipPath2914)"
+       id="g26">
+      <g
+         transform="translate(-1.2887,1.3567)"
+         id="g19">
+        <g
+           fill="none"
+           stroke="#d38d5f"
+           stroke-linecap="round"
+           stroke-width="0.47153"
+           id="g18">
+          <path
+             transform="translate(1.2887,-1.3567)"
+             d="m 13.453,1038 5.7039,5.5503"
+             id="path13" />
+          <path
+             d="m 13.453,1038 5.7039,5.5503"
+             id="path14" />
+          <path
+             d="m 12.319,1039.3 5.7039,5.5503"
+             id="path15" />
+          <path
+             d="m 11.186,1040.7 5.7039,5.5503"
+             id="path16" />
+          <path
+             d="m 10.052,1042 5.7039,5.5503"
+             id="path17" />
+          <path
+             d="m 8.9181,1043.4 5.7039,5.5503"
+             id="path18" />
+        </g>
+      </g>
+      <g
+         transform="matrix(-1,0,0,1,26.434,2.9277)"
+         id="g25">
+        <g
+           fill="none"
+           stroke="#d38d5f"
+           stroke-linecap="round"
+           stroke-width="0.47153"
+           id="g24">
+          <path
+             transform="translate(1.2887,-1.3567)"
+             d="m 13.453,1038 5.7039,5.5503"
+             id="path19" />
+          <path
+             d="m 13.453,1038 5.7039,5.5503"
+             id="path20" />
+          <path
+             d="m 12.319,1039.3 5.7039,5.5503"
+             id="path21" />
+          <path
+             d="m 11.186,1040.7 5.7039,5.5503"
+             id="path22" />
+          <path
+             d="m 10.052,1042 5.7039,5.5503"
+             id="path23" />
+          <path
+             d="m 8.9181,1043.4 5.7039,5.5503"
+             id="path24" />
+        </g>
+      </g>
+    </g>
+    <g
+       id="g27">
+      <rect
+         x="5.5374999"
+         y="1037.3"
+         width="12.106"
+         height="3.3280001"
+         ry="1.664"
+         fill="url(#linearGradient1268)"
+         style="fill:url(#linearGradient1268);paint-order:stroke fill markers"
+         id="rect26" />
+      <ellipse
+         transform="matrix(0.91847,0.39549,-0.35703,0.93409,0,0)"
+         cx="376.79001"
+         cy="947.03998"
+         rx="0.69363999"
+         ry="1.1793"
+         fill="#ffd5d5"
+         style="paint-order:stroke fill markers"
+         id="ellipse26" />
+      <ellipse
+         transform="rotate(-38.467)"
+         cx="-629.72998"
+         cy="817.58002"
+         rx="0.68501002"
+         ry="1.1159"
+         fill="#fff6d5"
+         style="paint-order:stroke fill markers"
+         id="ellipse27" />
+    </g>
+  </g>
+</svg>

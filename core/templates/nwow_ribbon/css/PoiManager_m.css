@@ -1,0 +1,82 @@
+.tundra .njsCategoryIcon1 {
+    background-image: url("../img/poi_manager/njsCategoryIcon1.svg");
+    background-repeat: no-repeat;
+    width: 53px;
+    height: 36px;
+    text-align: center;
+}
+.tundra .njsCategoryIcon1_active {
+    background-image: url("../img/poi_manager/njsCategoryIcon1_active.svg");
+    background-repeat: no-repeat;
+    width: 53px;
+    height: 36px;
+    text-align: center;
+    opacity: 1;
+}
+.tundra .njsCategoryIcon2 {
+    background-image: url("../img/poi_manager/njsCategoryIcon2.svg");
+    background-repeat: no-repeat;
+    width: 53px;
+    height: 36px;
+    text-align: center;
+}
+.tundra .njsCategoryIcon2_active {
+    background-image: url("../img/poi_manager/njsCategoryIcon2_active.svg");
+    background-repeat: no-repeat;
+    width: 53px;
+    height: 36px;
+    text-align: center;
+    opacity: 1;
+}
+.tundra .njsCategoryIcon3 {
+    background-image: url("../img/poi_manager/njsCategoryIcon3.svg");
+    background-repeat: no-repeat;
+    width: 53px;
+    height: 36px;
+    text-align: center;
+}
+.tundra .njsCategoryIcon3_active {
+    background-image: url("../img/poi_manager/njsCategoryIcon3_active.svg");
+    background-repeat: no-repeat;
+    width: 53px;
+    height: 36px;
+    text-align: center;
+}
+.tundra .njsCategoryIcon4 {
+    background-image: url("../img/poi_manager/njsCategoryIcon4.svg");
+    background-repeat: no-repeat;
+    width: 53px;
+    height: 36px;
+    text-align: center;
+}
+.tundra .njsCategoryIcon4_active {
+    background-image: url("../img/poi_manager/njsCategoryIcon4_active.svg");
+    background-repeat: no-repeat;
+    width: 53px;
+    height: 36px;
+    text-align: center;
+    opacity: 1;
+}
+.tundra .njsCategoryIcon5 {
+    background-image: url("../img/poi_manager/njsCategoryIcon5.svg");
+    background-repeat: no-repeat;
+    width: 53px;
+    height: 36px;
+    text-align: center;
+}
+.tundra .njsCategoryIcon5_active {
+    background-image: url("../img/poi_manager/njsCategoryIcon5_active.svg");
+    background-repeat: no-repeat;
+    width: 53px;
+    height: 36px;
+    text-align: center;
+    opacity: 1;
+}
+
+:focus {
+    outline: none;
+}
+
+input::-moz-focus-inner {
+  border: 0;
+}

@@ -1,0 +1,43 @@
+{
+    "desc_klimaanalyse_nacht_2020": "Analyse climatique nuit, état 2020",
+    "desc_wst20n20": "Champ de vent nocturne à 2 m du sol, 2020",
+    "desc_leitbl": "Couloirs d'air froid, 2020",
+    "desc_leitbk": "Couloir, espaces verts dans un couloir d'air froid, 2020",
+    "desc_keinzg": "Zones de processus (zones de formation de l'air froid)",
+    "desc_keinw20n": "Zone d'impact de l'air froid dans l'espace urbain, situation nocturne, 2020",
+    "desc_kprgr20n": "Zones de génération d'air froid avec taux de production d'air froid supérieur à la moyenne, situation nocturne, 2020",
+    "desc_kvs20n": "Densité volumique de l'air froid, situation nocturne, 2020",
+    "desc_winss20n": "Effet d'îlot de chaleur de l'espace urbain, situation nocturne, 2020",
+    "desc_winsv20n": "Effet d'îlot de chaleur des zones de circulation, situation nocturne, 2020",
+
+    "desc_klimaanalyse_nacht_2060": "Analyse climatique nuit, scénario 2060",
+    "desc_wst60n20": "Champ de vent nocturne à 2 m du sol, 2060",
+    "desc_keinw60n": "Zone d'impact de l'air froid dans l'espace urbain, situation nocturne, 2060",
+    "desc_kprgr60n": "Zones de génération d'air froid avec taux de production d'air froid supérieur à la moyenne, situation nocturne, 2060",
+    "desc_kvs60n": "Densité volumique de l'air froid, situation nocturne, 2060",
+    "desc_winss60n": "Effet d'îlot de chaleur de l'espace urbain, situation nocturne, 2060",
+    "desc_winsv60n": "Effet d'îlot de chaleur des zones de circulation, situation nocturne, 2060",
+
+    "desc_planung_nacht_2020":"Indicative de planification nuit, état 2020",
+    "desc_belsvz": "Hausse prospective de la charge thermique nocturne dans les espaces urbains et les zones de circulation, 2020",
+    "desc_grzbed": "Hausse prospective de l'importance bioclimatique d'un espace vert, 2020",
+    "desc_sied20_nacht": "Situation de surchauffe bioclimatique à 2 m du sol dans les espaces urbains, situation nocturne, 2020",
+    "desc_verk20_nacht": "Situation de surchauffe bioclimatique à 2 m du sol dans les zones de circulation, 2020",
+    "desc_grfl20_nacht": "Qualité de séjour dans les espaces verts et ouverts, situation nocturne, 2020",
+
+    "desc_planung_nacht_2060":"Indicative de planification nuit, scénario 2060",
+    "desc_entw60": "Pôles de développement urbanistique, 2060",
+    "desc_sied60_nacht": "Situation de surchauffe bioclimatique à 2 m du sol dans les espaces urbains, situation nocturne, 2060",
+    "desc_verk60_nacht": "Situation de surchauffe bioclimatique à 2 m du sol dans les zones de circulation, 2060",
+    "desc_grfl60_nacht": "Qualité de séjour dans les espaces verts et ouverts, situation nocturne, 2060",
+
+    "desc_planung_tag_2020":"Indicative de planification diurne, état 2020",
+    "desc_sied20_tag": "Situation de surchauffe bioclimatique à 2 m du sol dans les espaces urbains, situation diurne, 2020",
+    "desc_verk20_tag": "Situation de surchauffe bioclimatique à 2 m du sol dans les zones de circulation, situation diurne, 2020",
+    "desc_grfl20_tag": "Qualité de séjour dans les espaces verts et ouverts, situation diurne, 2020",
+
+    "desc_planung_tag_2060":"Indicative de planification diurne, scénario 2060",
+    "desc_sied60_tag": "Situation de surchauffe bioclimatique à 2 m du sol dans les espaces urbains, situation diurne, 2020",
+    "desc_verk60_tag": "Situation de surchauffe bioclimatique à 2 m du sol dans les zones de circulation, situation diurne, 2020",
+    "desc_grfl60_tag": "Qualité de séjour dans les espaces verts et ouverts, situation diurne, 2020"
+}

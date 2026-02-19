@@ -1,0 +1,8 @@
+{
+    "desc_gis_fach/ow_rbbs": "gis_fach ow_rbbs",
+    "desc_gis_fach/ow_rbbs/rbbs": "RBBS",
+    "desc_gis_fach/ow_rbbs/rbbs/rbbs_achsen_kreuzung/anschluss_ereignis": "RBBS RBBS Achsen Kreuzung Anschluss (Ereignis)",
+    "desc_gis_fach/ow_rbbs/rbbs/rbbs_achsen_eigentum_ereignis": "RBBS RBBS Achsen Eigentum (Ereignis)",
+    "desc_gis_fach/ow_rbbs/rbbs/rbbs_achsen_route": "RBBS RBBS Achsen (Route)",
+    "desc_gis_fach/ow_rbbs/rbbs/rbbs_achsen_kantonsstrassen": "RBBS RBBS Achsen (Kantonsstrassen)"
+}

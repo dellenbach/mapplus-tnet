@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+<svg width="32" height="32" version="1.1" viewBox="0 0 8.4667 8.4667" xmlns="http://www.w3.org/2000/svg" xmlns:cc="http://creativecommons.org/ns#" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+ <metadata>
+  <rdf:RDF>
+   <cc:Work rdf:about="">
+    <dc:format>image/svg+xml</dc:format>
+    <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
+    <dc:title/>
+   </cc:Work>
+  </rdf:RDF>
+ </metadata>
+ <g transform="translate(-85.99 -126.19)">
+  <g transform="matrix(1.104 0 0 1.104 89.967 113.56)">
+   <g transform="matrix(1.6 0 0 1.6 -3.8083 -11.506)">
+    <g transform="matrix(.14978 0 0 .14978 -14.227 -13.836)">
+     <g transform="matrix(.88479 0 0 .88479 -19.746 -52.713)">
+      <path d="m134.58 304.5 28.454-28.488" fill="none" stroke="#333" stroke-linejoin="round" stroke-width="1.4428"/>
+      <g fill="#555555" shape-rendering="auto">
+       <path d="m137.93 303.6a3.6608 3.6505 76.183 0 1-2.6706 4.4267 3.6608 3.6505 76.183 0 1-4.4192-2.683 3.6608 3.6505 76.183 0 1 2.6706-4.4267 3.6608 3.6505 76.183 0 1 4.4192 2.683z" color="#000000" color-rendering="auto" image-rendering="auto" solid-color="#000000" style="isolation:auto;mix-blend-mode:normal"/>
+       <path d="m166.54 275.34a3.6608 3.6505 76.183 0 1-2.6706 4.4267 3.6608 3.6505 76.183 0 1-4.4192-2.683 3.6608 3.6505 76.183 0 1 2.6706-4.4267 3.6608 3.6505 76.183 0 1 4.4192 2.683z" color="#000000" color-rendering="auto" image-rendering="auto" solid-color="#000000" style="isolation:auto;mix-blend-mode:normal"/>
+       <circle cx="148.72" cy="290.29" r="7.3606" color="#000000" color-rendering="auto" fill-rule="evenodd" image-rendering="auto" solid-color="#000000" style="isolation:auto;mix-blend-mode:normal;paint-order:markers stroke fill"/>
+      </g>
+      <g transform="matrix(.5981 .009923 .009923 -.5981 78.996 458.46)" fill="#fff" aria-label="10 m">
+       <g transform="rotate(.12065)" fill="#fff" aria-label="x">
+        <path d="m119.08 275.61-5.1947 6.9904 5.4641 7.3752h-2.7833l-4.1814-5.6436-4.1814 5.6436h-2.7834l5.5795-7.5163-5.1049-6.8493h2.7833l3.8095 5.1178 3.8095-5.1178z" fill="#fff" stroke-width="1.2313px"/>
+       </g>
+      </g>
+     </g>
+    </g>
+   </g>
+  </g>
+ </g>
+</svg>

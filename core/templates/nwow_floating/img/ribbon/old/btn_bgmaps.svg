@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+<svg width="32" height="32" version="1.1" viewBox="0 0 8.4667 8.4667" xmlns="http://www.w3.org/2000/svg" xmlns:cc="http://creativecommons.org/ns#" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+ <metadata>
+  <rdf:RDF>
+   <cc:Work rdf:about="">
+    <dc:format>image/svg+xml</dc:format>
+    <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
+    <dc:title/>
+   </cc:Work>
+  </rdf:RDF>
+ </metadata>
+ <g transform="translate(-85.99 -126.19)">
+  <g transform="matrix(.68196 0 0 .68196 15.018 44.044)">
+   <g transform="matrix(1.5855 0 0 1.5855 75.912 98.676)">
+    <rect x="17.76" y="13.74" width="7.8306" height="7.8306" color="#000000" color-rendering="auto" fill="none" image-rendering="auto" shape-rendering="auto" solid-color="#000000" style="isolation:auto;mix-blend-mode:normal;paint-order:markers stroke fill"/>
+    <g fill="#fff" stroke-linecap="square" stroke-linejoin="bevel" stroke-width=".14775">
+     <g transform="matrix(.86253 0 0 .93486 2.3408 .80915)" stroke="#ccc">
+      <rect transform="matrix(.86852 .49566 0 1 0 0)" x="20.886" y="3.7136" width="2.691" height="3.85" fill="#fff" style="paint-order:fill markers stroke"/>
+      <rect transform="matrix(-.86852 .49566 0 1 0 0)" x="-26.268" y="27.086" width="2.691" height="3.85" fill="#f9f9f9" style="paint-order:fill markers stroke"/>
+      <rect transform="matrix(.86852 .49566 0 1 0 0)" x="26.268" y="1.046" width="2.691" height="3.85" fill="#fff" style="paint-order:fill markers stroke"/>
+     </g>
+     <g transform="matrix(.86253 0 0 .93486 2.8811 2.0628)" stroke="#999">
+      <rect transform="matrix(.86852 .49566 0 1 0 0)" x="20.886" y="3.7136" width="2.691" height="3.85" fill="#fff" style="paint-order:fill markers stroke"/>
+      <rect transform="matrix(-.86852 .49566 0 1 0 0)" x="-26.268" y="27.086" width="2.691" height="3.85" fill="#f2f2f2" style="paint-order:fill markers stroke"/>
+      <rect transform="matrix(.86852 .49566 0 1 0 0)" x="26.268" y="1.046" width="2.691" height="3.85" fill="#fff" style="paint-order:fill markers stroke"/>
+     </g>
+     <g transform="matrix(.86253 0 0 .93486 3.6952 3.3749)" stroke="#333">
+      <rect transform="matrix(.86852 .49566 0 1 0 0)" x="20.886" y="3.7136" width="2.691" height="3.85" fill="#fff" style="paint-order:fill markers stroke"/>
+      <rect transform="matrix(-.86852 .49566 0 1 0 0)" x="-26.268" y="27.086" width="2.691" height="3.85" fill="#e6e6e6" style="paint-order:fill markers stroke"/>
+      <rect transform="matrix(.86852 .49566 0 1 0 0)" x="26.268" y="1.046" width="2.691" height="3.85" fill="#fff" style="paint-order:fill markers stroke"/>
+     </g>
+    </g>
+   </g>
+  </g>
+ </g>
+</svg>

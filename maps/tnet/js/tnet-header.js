@@ -102,15 +102,7 @@ window.refreshIframe = function() {
     }
 };
 
-// ===== BASEMAP WIDGET TOGGLE =====
-window.toggleBasemapWidget = function() {
-    var widget = document.getElementById('basemap_widget');
-    var selector = document.getElementById('basemap_selector');
-    if (widget && selector) {
-        widget.classList.toggle('basemap-widget-hidden');
-        selector.classList.toggle('hidden');
-    }
-};
+// Basemap Widget Toggle → verschoben nach tnet-basemap.js
 
 // ===== LOGIN / LOGOUT =====
 window.updateLoginStatus = function() {
@@ -171,45 +163,7 @@ document.addEventListener('click', function(e) {
     }
 })();
 
-// ===== BASEMAP WIDGET INTERAKTION =====
-document.addEventListener('DOMContentLoaded', function() {
-    // Toggle Buttons
-    document.querySelectorAll('.layer-toggle .toggle-btn').forEach(function(btn) {
-        btn.addEventListener('click', function() {
-            var parent = this.closest('.layer-toggle');
-            parent.querySelectorAll('.toggle-btn').forEach(function(b) {
-                b.classList.remove('active');
-            });
-            this.classList.add('active');
-            // TODO: Hier Layer ein/ausschalten
-            // console.log('Layer:', this.dataset.layer, 'Value:', this.dataset.value);
-        });
-    });
-
-    // Basemap Cards - Aktiv-Status setzen
-    document.querySelectorAll('.basemap-card').forEach(function(card) {
-        card.addEventListener('click', function() {
-            // Alle Cards deaktivieren (auch in main und expanded)
-            document.querySelectorAll('.basemap-card').forEach(function(c) {
-                c.classList.remove('active');
-            });
-            this.classList.add('active');
-        });
-    });
-
-    // Expand Header
-    var expandHeader = document.querySelector('.basemap-expand-header');
-    if (expandHeader) {
-        expandHeader.addEventListener('click', function() {
-            var cards = document.querySelector('.basemap-cards');
-            var icon = this.querySelector('.expand-icon');
-            if (cards) {
-                cards.classList.toggle('expanded');
-                icon.textContent = cards.classList.contains('expanded') ? '▼' : '▶';
-            }
-        });
-    }
-});
+// Basemap Widget Interaktion → verschoben nach tnet-basemap.js
 
 // ===== FLOATING PANE POSITION FIX =====
 // FloatingPane (Maptips Dialog) unter Header positionieren

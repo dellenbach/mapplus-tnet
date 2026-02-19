@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+<svg width="32" height="32" version="1.1" viewBox="0 0 8.4667 8.4667" xmlns="http://www.w3.org/2000/svg" xmlns:cc="http://creativecommons.org/ns#" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+ <metadata>
+  <rdf:RDF>
+   <cc:Work rdf:about="">
+    <dc:format>image/svg+xml</dc:format>
+    <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
+    <dc:title/>
+   </cc:Work>
+  </rdf:RDF>
+ </metadata>
+ <g transform="translate(-85.99 -126.19)">
+  <g transform="matrix(1.104 0 0 1.104 89.967 113.56)">
+   <g transform="matrix(1.6 0 0 1.6 -3.8083 -11.506)">
+    <path d="m4.3864 14.892-1.6919 1.4713 0.73264 2.0537-2.7847 0.21014" fill="none" stroke="#333" stroke-linejoin="round" stroke-width=".1912"/>
+    <g shape-rendering="auto">
+     <path d="m4.8892 14.732a0.48515 0.48379 76.183 0 1-0.35392 0.58665 0.48515 0.48379 76.183 0 1-0.58566-0.35557 0.48515 0.48379 76.183 0 1 0.35392-0.58665 0.48515 0.48379 76.183 0 1 0.58566 0.35557z" color="#000000" color-rendering="auto" fill="#777767" image-rendering="auto" solid-color="#000000" style="isolation:auto;mix-blend-mode:normal"/>
+     <path d="m1.097 18.526a0.48515 0.48379 76.183 0 1-0.35392 0.58666 0.48515 0.48379 76.183 0 1-0.58566-0.35557 0.48515 0.48379 76.183 0 1 0.35392-0.58665 0.48515 0.48379 76.183 0 1 0.58566 0.35557z" color="#000000" color-rendering="auto" fill="#777767" image-rendering="auto" solid-color="#000000" style="isolation:auto;mix-blend-mode:normal"/>
+     <path d="m3.2524 16.211a0.48515 0.48379 76.183 0 1-0.35392 0.58665 0.48515 0.48379 76.183 0 1-0.58566-0.35557 0.48515 0.48379 76.183 0 1 0.35392-0.58666 0.48515 0.48379 76.183 0 1 0.58566 0.35557z" color="#000000" color-rendering="auto" fill="#333" image-rendering="auto" solid-color="#000000" style="isolation:auto;mix-blend-mode:normal"/>
+     <path d="m3.8645 18.253a0.48515 0.48379 76.183 0 1-0.35392 0.58665 0.48515 0.48379 76.183 0 1-0.58566-0.35557 0.48515 0.48379 76.183 0 1 0.35392-0.58665 0.48515 0.48379 76.183 0 1 0.58566 0.35557z" color="#000000" color-rendering="auto" fill="#777767" image-rendering="auto" solid-color="#000000" style="isolation:auto;mix-blend-mode:normal"/>
+     <circle cx="2.3013" cy="16.382" r=".97547" color="#000000" color-rendering="auto" fill="#777767" fill-rule="evenodd" image-rendering="auto" solid-color="#000000" style="isolation:auto;mix-blend-mode:normal;paint-order:markers stroke fill"/>
+    </g>
+    <g fill="#808080" aria-label="m">
+     <path d="m1.6714 16.857v-0.9297h0.14094v0.13044q0.043771-0.06828 0.11643-0.10943 0.07266-0.04202 0.16546-0.04202 0.1033 0 0.16896 0.0429 0.066532 0.0429 0.09367 0.11993 0.1103-0.16283 0.28714-0.16283 0.13832 0 0.21273 0.07704 0.074411 0.07616 0.074411 0.23549v0.63818h-0.1567v-0.58566q0-0.09455-0.015758-0.13569-0.014882-0.04202-0.055152-0.06741t-0.094546-0.02539q-0.098047 0-0.16283 0.06566-0.064781 0.06478-0.064781 0.20835v0.54014h-0.15758v-0.60404q0-0.10505-0.038519-0.15758t-0.12606-0.05253q-0.066532 0-0.12343 0.03502-0.056027 0.03502-0.081414 0.10242-0.025387 0.06741-0.025387 0.19434v0.48236z" fill="#fff" stroke-width=".084041px"/>
+    </g>
+   </g>
+  </g>
+ </g>
+</svg>

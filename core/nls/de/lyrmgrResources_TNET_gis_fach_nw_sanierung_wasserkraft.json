@@ -1,0 +1,19 @@
+{
+    "desc_gis_fach/nw_sanierung_wasserkraft": "gis_fach nw_sanierung_wasserkraft",
+    "desc_gis_fach/nw_sanierung_wasserkraft/wasserkraft": "Wasserkraft",
+    "desc_gis_fach/nw_sanierung_wasserkraft/wasserkraft/anlagen_und_anlageteile": "Wasserkraft Anlagen und Anlageteile",
+    "desc_gis_fach/nw_sanierung_wasserkraft/wasserkraft/anlagen_und_anlageteile/wasserkraftzentrale": "Wasserkraft Anlagen und Anlageteile Wasserkraftzentrale",
+    "desc_gis_fach/nw_sanierung_wasserkraft/wasserkraft/anlagen_und_anlageteile/wasserfassung": "Wasserkraft Anlagen und Anlageteile Wasserfassung",
+    "desc_gis_fach/nw_sanierung_wasserkraft/wasserkraft/sanierungspflicht_wasserkraftzentralen_strategische_planung_2014": "Wasserkraft Sanierungspflicht Wasserkraftzentralen (Strategische Planung 2014)",
+    "desc_gis_fach/nw_sanierung_wasserkraft/wasserkraft/sanierungspflicht_wasserkraftzentralen_strategische_planung_2014_/schwall_sunk": "Wasserkraft Sanierungspflicht Wasserkraftzentralen (Strategische Planung 2014) Schwall-Sunk",
+    "desc_gis_fach/nw_sanierung_wasserkraft/wasserkraft/sanierungspflicht_wasserkraftzentralen_strategische_planung_2014_/fischgaengigkeit_wasserkraftzentralen": "Wasserkraft Sanierungspflicht Wasserkraftzentralen (Strategische Planung 2014) Fischgängigkeit Wasserkraftzentralen",
+    "desc_gis_fach/nw_sanierung_wasserkraft/wasserkraft/sanierungspflicht_wasserkraftzentralen_strategische_planung_2014_/geschiebehaushalt": "Wasserkraft Sanierungspflicht Wasserkraftzentralen (Strategische Planung 2014) Geschiebehaushalt",
+    "desc_gis_fach/nw_sanierung_wasserkraft/wasserkraft/sanierungspflicht_wasserfassungen_strategische_planung_2014": "Wasserkraft Sanierungspflicht Wasserfassungen (Strategische Planung 2014)",
+    "desc_gis_fach/nw_sanierung_wasserkraft/wasserkraft/sanierungspflicht_wasserfassungen_strategische_planung_2014_/fischgaengigkeit_wasserfassungen": "Wasserkraft Sanierungspflicht Wasserfassungen (Strategische Planung 2014) Fischgängigkeit Wasserfassungen",
+    "desc_gis_fach/nw_sanierung_wasserkraft/gewaessernetz": "Gewässernetz",
+    "desc_gis_fach/nw_sanierung_wasserkraft/gewaessernetz/gewaesser_name": "Gewässernetz Gewässer Name",
+    "desc_gis_fach/nw_sanierung_wasserkraft/gewaessernetz/gewaesser_name/fliessgewaesser_name": "Gewässernetz Gewässer Name Fliessgewässer Name",
+    "desc_gis_fach/nw_sanierung_wasserkraft/gewaessernetz/gewaesser_name/seen_name": "Gewässernetz Gewässer Name Seen Name",
+    "desc_gis_fach/nw_sanierung_wasserkraft/gewaessernetz/fliessgewaesser": "Gewässernetz Fliessgewässer",
+    "desc_gis_fach/nw_sanierung_wasserkraft/gewaessernetz/seen": "Gewässernetz Seen"
+}

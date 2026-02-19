@@ -1,0 +1,22 @@
+{
+    "desc_gis_fach/nw_solarenergie": "gis_fach nw_solarenergie",
+    "desc_gis_fach/nw_solarenergie/solarenergie_abfrage": "Solarenergie Abfrage",
+    "desc_gis_fach/nw_solarenergie/solare_einstrahlung_kwh/m2": "Solare Einstrahlung [kWh m2]",
+    "desc_gis_fach/nw_solarenergie/solare_einstrahlung_kwh/m2_/jahressumme_0_grad_neigung": "Solare Einstrahlung [kWh m2] Jahressumme  0 Grad Neigung",
+    "desc_gis_fach/nw_solarenergie/solare_einstrahlung_kwh/m2_/wintersumme_0_grad_neigung": "Solare Einstrahlung [kWh m2] Wintersumme  0 Grad Neigung",
+    "desc_gis_fach/nw_solarenergie/solare_einstrahlung_kwh/m2_/jahressumme_30_grad_neigung": "Solare Einstrahlung [kWh m2] Jahressumme  30 Grad Neigung",
+    "desc_gis_fach/nw_solarenergie/solare_einstrahlung_kwh/m2_/wintersumme_30_grad_neigung": "Solare Einstrahlung [kWh m2] Wintersumme  30 Grad Neigung",
+    "desc_gis_fach/nw_solarenergie/solare_einstrahlung_kwh/m2_/jahressumme_75_grad_neigung": "Solare Einstrahlung [kWh m2] Jahressumme  75 Grad Neigung",
+    "desc_gis_fach/nw_solarenergie/solare_einstrahlung_kwh/m2_/wintersumme_75_grad_neigung": "Solare Einstrahlung [kWh m2] Wintersumme  75 Grad Neigung",
+    "desc_gis_fach/nw_solarenergie/solare_einstrahlung_kwh/m2_/jahressumme_90_grad_neigung": "Solare Einstrahlung [kWh m2] Jahressumme  90 Grad Neigung",
+    "desc_gis_fach/nw_solarenergie/solare_einstrahlung_kwh/m2_/wintersumme_90_grad_neigung": "Solare Einstrahlung [kWh m2] Wintersumme  90 Grad Neigung",
+    "desc_gis_fach/nw_solarenergie/spezifischer_pv_ertrag_kwh/kw": "Spezifischer PV-Ertrag [kWh kW]",
+    "desc_gis_fach/nw_solarenergie/spezifischer_pv_ertrag_kwh/kw_/jahressumme_pv_0_grad_neigung": "Spezifischer PV-Ertrag [kWh kW] Jahressumme PV 0 Grad Neigung",
+    "desc_gis_fach/nw_solarenergie/spezifischer_pv_ertrag_kwh/kw_/wintersumme_pv_0_grad_neigung": "Spezifischer PV-Ertrag [kWh kW] Wintersumme PV 0 Grad Neigung",
+    "desc_gis_fach/nw_solarenergie/spezifischer_pv_ertrag_kwh/kw_/jahressumme_pv_30_grad_neigung": "Spezifischer PV-Ertrag [kWh kW] Jahressumme PV 30 Grad Neigung",
+    "desc_gis_fach/nw_solarenergie/spezifischer_pv_ertrag_kwh/kw_/wintersumme_pv_30_grad_neigung": "Spezifischer PV-Ertrag [kWh kW] Wintersumme PV 30 Grad Neigung",
+    "desc_gis_fach/nw_solarenergie/spezifischer_pv_ertrag_kwh/kw_/jahressumme_pv_75_grad_neigung": "Spezifischer PV-Ertrag [kWh kW] Jahressumme PV 75 Grad Neigung",
+    "desc_gis_fach/nw_solarenergie/spezifischer_pv_ertrag_kwh/kw_/wintersumme_pv_75_grad_neigung": "Spezifischer PV-Ertrag [kWh kW] Wintersumme PV 75 Grad Neigung",
+    "desc_gis_fach/nw_solarenergie/spezifischer_pv_ertrag_kwh/kw_/jahressumme_pv_90_grad_neigung": "Spezifischer PV-Ertrag [kWh kW] Jahressumme PV 90 Grad Neigung",
+    "desc_gis_fach/nw_solarenergie/spezifischer_pv_ertrag_kwh/kw_/wintersumme_pv_90_grad_neigung": "Spezifischer PV-Ertrag [kWh kW] Wintersumme PV 90 Grad Neigung"
+}

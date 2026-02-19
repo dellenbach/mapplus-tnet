@@ -1,0 +1,22 @@
+{
+	"list_placeholder":"Bitte Anwendung wählen",
+
+    "sel_clear": "Auswahl aufheben",
+    "sel_export": "Export",
+    "sel_export_shape": "Export Shape",
+    "sel_intersect": "Auch angeschnittene Objekte auswählen",
+    "sel_multi": "Auswahl",
+    "sel_polygon": "Polygon",
+    "sel_rectangle": "Rechteck",
+
+	"kulturobjekte_nw_title": "Kulturobjekte Nidwalden",
+	"belastete_standorte_2022_title": "Belastete Standorte 2022",
+	"belastete_standorte_2023_title": "Belastete Standorte 2023",
+	"belastete_standorte_2024_title": "Belastete Standorte 2024",
+	"contours_title": "Höhenkurven SwissALTI3D",
+	"fixpunkte_title": "Fixpunkte",
+	"gwr_title": "Gebäude- und Wohnungsregister (GWR)",
+	"heizungstraeger_ch_title": "Gebäude: Heizungsträger Schweiz",
+	"heizungstraeger_title": "Gebäude: Heizungsträger Olten",
+	"liegenschaften_export_title": "Liegenschaften"
+}

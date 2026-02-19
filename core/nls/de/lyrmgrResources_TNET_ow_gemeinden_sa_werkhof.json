@@ -1,0 +1,16 @@
+{
+    "desc_ow_gemeinden/sa_werkhof": "ow_gemeinden sa_werkhof",
+    "desc_ow_gemeinden/sa_werkhof/anlage": "Anlage",
+    "desc_ow_gemeinden/sa_werkhof/kehricht_punkt": "Kehricht Punkt",
+    "desc_ow_gemeinden/sa_werkhof/strasse": "Strasse",
+    "desc_ow_gemeinden/sa_werkhof/strasse/abschrankung_linie": "Strasse Abschrankung Linie",
+    "desc_ow_gemeinden/sa_werkhof/strasse/strasse_punkt": "Strasse Strasse Punkt",
+    "desc_ow_gemeinden/sa_werkhof/strasse/strasse_linie": "Strasse Strasse Linie",
+    "desc_ow_gemeinden/sa_werkhof/strasse/winterdienst_punkt": "Strasse Winterdienst Punkt",
+    "desc_ow_gemeinden/sa_werkhof/strasse/winterdienst_linie": "Strasse Winterdienst Linie",
+    "desc_ow_gemeinden/sa_werkhof/gruenpflege": "Grünpflege",
+    "desc_ow_gemeinden/sa_werkhof/gruenpflege/gruenpflege_punkt": "Grünpflege Grünpflege Punkt",
+    "desc_ow_gemeinden/sa_werkhof/gruenpflege/gruenpflege_linie": "Grünpflege Grünpflege Linie",
+    "desc_ow_gemeinden/sa_werkhof/gruenpflege/gruenpflege_flaeeche": "Grünpflege Grünpflege Fläeche",
+    "desc_ow_gemeinden/sa_werkhof/oeffentlicher_platz": "Öffentlicher Platz"
+}

@@ -1,0 +1,15 @@
+{
+    "desc_nw_aue/nw_kanalisationszustand": "nw_aue nw_kanalisationszustand",
+    "desc_nw_aue/nw_kanalisationszustand/bd_gebaeude": "BD Gebaeude",
+    "desc_nw_aue/nw_kanalisationszustand/bu_gebaeude": "BU Gebaeude",
+    "desc_nw_aue/nw_kanalisationszustand/da_gebaeude": "DA Gebaeude",
+    "desc_nw_aue/nw_kanalisationszustand/eb_gebaeude": "EB Gebaeude",
+    "desc_nw_aue/nw_kanalisationszustand/em_gebaeude": "EM Gebaeude",
+    "desc_nw_aue/nw_kanalisationszustand/es_gebaeude": "ES Gebaeude",
+    "desc_nw_aue/nw_kanalisationszustand/he_gebaeude": "HE Gebaeude",
+    "desc_nw_aue/nw_kanalisationszustand/ob_gebaeude": "OB Gebaeude",
+    "desc_nw_aue/nw_kanalisationszustand/sd_gebaeude": "SD Gebaeude",
+    "desc_nw_aue/nw_kanalisationszustand/st_gebaeude": "ST Gebaeude",
+    "desc_nw_aue/nw_kanalisationszustand/wo_gebaeude": "WO Gebaeude",
+    "desc_nw_aue/nw_kanalisationszustand/nw_gebaeude": "NW Gebaeude"
+}

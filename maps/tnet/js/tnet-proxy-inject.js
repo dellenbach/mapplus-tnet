@@ -6,10 +6,11 @@
  * Aufgaben:
  * 1. Sidebar-Links umschreiben via processExtractedLinks()
  * 2. NW/OW Buttons abfangen und an Parent-Frame weiterleiten
+ * 3. Sidebar Toggle (Hamburger-Icon / Close-Button)
  * (SSO Auto-Login wird serverseitig via active-maps-proxy.php erledigt)
  *
- * @version    1.2
- * @date       2026-02-13
+ * @version    1.3
+ * @date       2026-02-19
  * @copyright  Trigonet AG
  * @author     Marco Dellenbach
  */
@@ -28,10 +29,10 @@
       console.warn(TAG, 'processExtractedLinks nicht verfügbar');
       return;
     }
-    // Alle Links in der Sidebar umschreiben
-    var selector = '.cdt-frontpage-maps-sidebar a';
+    // Alle Links in der Sidebar und map/ Links umschreiben
+    var selector = '.cdt-frontpage-maps-sidebar a, a[href*="gis-daten.ch/map/"], a[href^="/map/"], a[href*="/secmap/"]';
     var links = document.querySelectorAll(selector);
-    console.log(TAG, 'Sidebar-Links gefunden:', links.length);
+    console.log(TAG, 'Links gefunden:', links.length);
     if (links.length > 0) {
       processExtractedLinks(selector);
       console.log(TAG, 'Links umgeschrieben');
@@ -83,12 +84,71 @@
   }
 
   // -----------------------------------------------------------
+  // 3. Sidebar Toggle (Original-Theme-JS greift im Proxy nicht)
+  // -----------------------------------------------------------
+  function setupSidebarToggle() {
+    var nav = document.querySelector('.cdt-frontpage-maps-sidebar-nav');
+    if (!nav) return;
+
+    function toggleNav(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      nav.classList.toggle('cdt-frontpage-maps-sidebar-nav-active');
+      console.log(TAG, 'Sidebar toggled',
+        nav.classList.contains('cdt-frontpage-maps-sidebar-nav-active') ? 'open' : 'closed');
+    }
+
+    function closeNav(e) {
+      if (e) { e.preventDefault(); e.stopPropagation(); }
+      nav.classList.remove('cdt-frontpage-maps-sidebar-nav-active');
+      console.log(TAG, 'Sidebar closed');
+    }
+
+    // Icon (Logo/Pin) öffnet / schliesst die Nav
+    var icon = document.querySelector('.cdt-frontpage-maps-sidebar-icon');
+    if (icon && !icon.dataset.proxyBound) {
+      icon.dataset.proxyBound = '1';
+      icon.addEventListener('click', toggleNav, true);
+    }
+
+    // "Kategorien" Titel öffnet / schliesst die Nav
+    var title = document.querySelector('.cdt-frontpage-maps-sidebar-title');
+    if (title && !title.dataset.proxyBound) {
+      title.dataset.proxyBound = '1';
+      title.style.cursor = 'pointer';
+      title.addEventListener('click', toggleNav, true);
+    }
+
+    // Close-Button in der Nav
+    var close = document.querySelector('.cdt-frontpage-maps-sidebar-close');
+    if (close && !close.dataset.proxyBound) {
+      close.dataset.proxyBound = '1';
+      close.addEventListener('click', closeNav, true);
+    }
+
+    // Kategorie-Links: Klick → Nav schliessen (scrollt automatisch zum Anker)
+    var navLinks = nav.querySelectorAll('a');
+    navLinks.forEach(function (link) {
+      if (link.dataset.proxyNavBound) return;
+      link.dataset.proxyNavBound = '1';
+      link.addEventListener('click', function () {
+        // Kurze Verzögerung damit der Browser erst zum Anker scrollt
+        setTimeout(function () {
+          nav.classList.remove('cdt-frontpage-maps-sidebar-nav-active');
+          console.log(TAG, 'Nav closed after category click');
+        }, 150);
+      });
+    });
+  }
+
+  // -----------------------------------------------------------
   // Init: Warte auf DOM-Ready, dann mit Retry (WP lädt nach)
   // -----------------------------------------------------------
   function init() {
     console.log(TAG, 'Init');
     rewriteLinks();
     setupButtonHandler();
+    setupSidebarToggle();
   }
 
   function initWithRetry() {

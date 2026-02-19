@@ -1,0 +1,12 @@
+{
+    "desc_ewn/EWN_NIS_foto_upload": "ewn EWN_NIS_foto_upload",
+    "desc_ewn/ewn_nis_foto_upload/fotos": "Fotos",
+    "desc_ewn/ewn_nis_foto_upload/fotos/foto_upload_uebersicht": "Fotos Foto Upload Übersicht",
+    "desc_ewn/ewn_nis_foto_upload/fotos/foto_upload": "Fotos Foto Upload",
+    "desc_ewn/ewn_nis_foto_upload/punktobjekt": "Punktobjekt",
+    "desc_ewn/ewn_nis_foto_upload/punktobjekt/anlage": "Punktobjekt Anlage",
+    "desc_ewn/ewn_nis_foto_upload/punktobjekt/hausanschluss": "Punktobjekt Hausanschluss",
+    "desc_ewn/ewn_nis_foto_upload/punktobjekt/schacht": "Punktobjekt Schacht",
+    "desc_ewn/ewn_nis_foto_upload/punktobjekt/station": "Punktobjekt Station",
+    "desc_ewn/ewn_nis_foto_upload/punktobjekt/tragwerk": "Punktobjekt Tragwerk"
+}

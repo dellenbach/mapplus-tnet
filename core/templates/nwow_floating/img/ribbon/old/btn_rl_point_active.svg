@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+<svg width="32" height="32" version="1.1" viewBox="0 0 8.4667 8.4667" xmlns="http://www.w3.org/2000/svg" xmlns:cc="http://creativecommons.org/ns#" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+ <metadata>
+  <rdf:RDF>
+   <cc:Work rdf:about="">
+    <dc:format>image/svg+xml</dc:format>
+    <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
+    <dc:title/>
+   </cc:Work>
+  </rdf:RDF>
+ </metadata>
+ <g transform="translate(-85.99 -126.19)">
+  <g transform="matrix(1.104 0 0 1.104 89.967 113.56)" fill-rule="evenodd">
+   <circle cx="-2.0122" cy="17.507" r="1.4332" color="#000000" color-rendering="auto" fill="#555555" image-rendering="auto" shape-rendering="auto" solid-color="#000000" stroke="#555555" stroke-linecap="round" stroke-width=".23164" style="isolation:auto;mix-blend-mode:normal;paint-order:markers stroke fill"/>
+   <g transform="matrix(.024083 -.00036508 .00036508 .024083 .59357 1.5923)" fill="#fff">
+    <path d="m59.402 446.33-121.42 121.29-5.5007 11.678 35.33 36.148 11.994-6.7836 121.3-120.75z" fill="#333"/>
+    <g shape-rendering="auto">
+     <path d="m-41.663 588.48-20.621-20.627 113.58-113.58 41.82 41.826-56.527 56.506c-31.09 31.078-56.775 56.506-57.078 56.506-0.30306-1e-5 -9.8307-9.2823-21.172-20.627zm112.46-89.843c-2.0066-2.0246-3.9107-3.6811-4.2312-3.6811-0.32053 0-20.159 19.578-44.086 43.506l-43.503 43.506 7.8792 7.94 87.59-87.59z" color="#000000" color-rendering="auto" fill="#999" image-rendering="auto" solid-color="#000000" style="isolation:auto;mix-blend-mode:normal;paint-order:markers stroke fill"/>
+     <path d="m80.118 467.26-20.909-20.949 14.975-14.851c8.2364-8.168 16.247-15.725 17.801-16.793 3.8741-2.6622 7.3676-2.7154 11.02-0.16752 2.9182 2.0359 28.136 27.228 30.299 30.269 1.9456 2.7344 2.3156 5.9177 1.0122 8.7072-0.63416 1.3571-7.1977 8.4207-17.158 18.466l-16.131 16.268z" color="#000000" color-rendering="auto" fill="#555555" image-rendering="auto" solid-color="#000000" style="isolation:auto;mix-blend-mode:normal;paint-order:markers stroke fill"/>
+     <path d="m-72.454 619.53-6.7981-6.7284 1.1186-3.6392c1.5387-4.6582 9.9597-29.202 10.424-29.92 0.3042-0.47054 0.71288-0.33123 1.8656 0.63614 4.2125 3.5349 27.578 27.321 31.67 32.24 1.2173 1.4633 2.0342 2.8427 1.8155 3.0654-0.86474 0.88001-32.768 10.867-33.541 10.59-0.22442-0.0801-2.5006-2.1744-6.5547-6.2432z" color="#000000" color-rendering="auto" fill="#c5c5c5" image-rendering="auto" solid-color="#000000" style="isolation:auto;mix-blend-mode:normal;paint-order:markers stroke fill"/>
+    </g>
+    <path d="m-73.579 594.76 26.218 26.771-37.516 8.8552z" fill="#333"/>
+   </g>
+  </g>
+ </g>
+</svg>

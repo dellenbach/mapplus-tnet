@@ -1,0 +1,17 @@
+{
+    "desc_gis_fach/nw_inventar_wasserentnahmen": "gis_fach nw_inventar_wasserentnahmen",
+    "desc_gis_fach/nw_inventar_wasserentnahmen/entnahmen": "Entnahmen",
+    "desc_gis_fach/nw_inventar_wasserentnahmen/entnahmen/wasserkraftnutzung": "Entnahmen Wasserkraftnutzung",
+    "desc_gis_fach/nw_inventar_wasserentnahmen/entnahmen/andere_nutzungen": "Entnahmen Andere Nutzungen",
+    "desc_gis_fach/nw_inventar_wasserentnahmen/rueckgaben": "Rückgaben",
+    "desc_gis_fach/nw_inventar_wasserentnahmen/zuleitungen": "Zuleitungen",
+    "desc_gis_fach/nw_inventar_wasserentnahmen/gewaessernetz_nw": "Gewässernetz NW",
+    "desc_gis_fach/nw_inventar_wasserentnahmen/gewaessernetz_nw/gewaesser_name": "Gewässernetz NW Gewässer Name",
+    "desc_gis_fach/nw_inventar_wasserentnahmen/gewaessernetz_nw/gewaesser_name/fliessgewaesser_name": "Gewässernetz NW Gewässer Name Fliessgewässer Name",
+    "desc_gis_fach/nw_inventar_wasserentnahmen/gewaessernetz_nw/gewaesser_name/seen_name": "Gewässernetz NW Gewässer Name Seen Name",
+    "desc_gis_fach/nw_inventar_wasserentnahmen/gewaessernetz_nw/fliessgewaesser": "Gewässernetz NW Fliessgewässer",
+    "desc_gis_fach/nw_inventar_wasserentnahmen/gewaessernetz_nw/seen": "Gewässernetz NW Seen",
+    "desc_gis_fach/nw_inventar_wasserentnahmen/gewaessernetz_ow": "Gewässernetz OW",
+    "desc_gis_fach/nw_inventar_wasserentnahmen/gewaessernetz_ow/fliessgewaesser_art": "Gewässernetz OW Fliessgewässer Art",
+    "desc_gis_fach/nw_inventar_wasserentnahmen/gewaessernetz_ow/fliessgewaesser_routen": "Gewässernetz OW Fliessgewässer Routen"
+}

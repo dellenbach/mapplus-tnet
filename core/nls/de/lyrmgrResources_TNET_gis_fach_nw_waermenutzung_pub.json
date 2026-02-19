@@ -1,0 +1,11 @@
+{
+    "desc_gis_fach/nw_waermenutzung_pub": "gis_fach nw_waermenutzung_pub",
+    "desc_gis_fach/nw_waermenutzung_pub/waermenutzung": "Waermenutzung",
+    "desc_gis_fach/nw_waermenutzung_pub/waermenutzung/grundwasserwaermepumpen_entnahme": "Waermenutzung Grundwasserwaermepumpen Entnahme",
+    "desc_gis_fach/nw_waermenutzung_pub/waermenutzung/grundwasserwaermepumpen_rueckgabe": "Waermenutzung Grundwasserwaermepumpen Rueckgabe",
+    "desc_gis_fach/nw_waermenutzung_pub/waermenutzung/oberflaechenwaermepumpen_entnahme": "Waermenutzung Oberflaechenwaermepumpen Entnahme",
+    "desc_gis_fach/nw_waermenutzung_pub/waermenutzung/oberflaechenwaermepumpen_rueckgabe": "Waermenutzung Oberflaechenwaermepumpen Rueckgabe",
+    "desc_gis_fach/nw_waermenutzung_pub/waermenutzung/waermepumpe_mit_erdsonden": "Waermenutzung Waermepumpe mit Erdsonden",
+    "desc_gis_fach/nw_waermenutzung_pub/waermenutzung/waermepumpe_mit_erdregistern": "Waermenutzung Waermepumpe mit Erdregistern",
+    "desc_gis_fach/nw_waermenutzung_pub/waermenutzung/waermenutzungsbereiche": "Waermenutzung Waermenutzungsbereiche"
+}

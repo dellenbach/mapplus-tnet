@@ -1,0 +1,418 @@
+<html>
+  <head>
+    <meta http-equiv="content-type" content="text/html; charset=utf-8">
+    <title>MAP+ Hike - Hilfetexte </title>
+    <link rel="stylesheet" type="text/css" href="css/bootstrap.css">
+    <link rel="stylesheet" type="text/css" href="css/mapplus.css">
+    <base target="_self">
+  </head>
+  <body leftmargin="20">
+    <div class="close" onclick="parent.njs.AppManager.toggleCustomPaneContent('help','custompane','../../core/help/help_de.htm','');"></div>
+
+    <h1>MAP+ Hike - Hilfetexte</h1>
+    <h2>Themen der Hilfe</h2>
+    <h3>Karten und Funktionen</h3>
+    <ul>
+      <li>Navigation</li>
+      <li>Suche</li>
+      <li><a href="#Kartenauswahl">Funktionen, Kartenauswahl</a></li>
+    </ul>
+    <h3>Werkzeuge</h3>
+    <ul>
+      <li><a href="#Print">Drucken</a></li>
+      <li><a href="#Measure">Messen</a></li>
+      <li><a href="#Draw">Zeichnen</a></li>
+      <li><a href="#mobile">Mobile Version</a></li>
+    </ul>
+    <h2>Navigation</h2>
+    <p>Um in der Karte zu navigieren, haben Sie folgende Möglichkeiten:</br></br></p>
+    <span class="row"> <span class="col-xs-1"> <img class="img-responsive" src="./images/navigation.png">
+      </span> <span class="col-xs-10"> 
+    <ul>
+      <li><b>Zoom in/out</b>: Mausrad, +/- Funktionen oben rechts, +/- Tastatur</li>
+      <li><b>Verschieben</b>: Karte mit gedrückter Maustaste ziehen oder Pfeiltasten der Tastatur</li>
+      <li><b>Zoomfenster aufziehen</b>: Shift und mit gedrückter Maustaste Fenster
+        aufziehen </li>
+      <li><b>Lokalisierung mit GPS</b></li>
+      <li>Auf <b>Initialzoom</b> zurück (ganzes Gebiet): Home-Funktion oben rechts</li>
+    </ul>
+    </span>
+    </span>
+
+    <h2>Suche</h2>
+    <p>Gesucht werden kann nach</b>:</p>
+    <ul>
+      <li>Gemeinde</li>
+      <li>Postleitzahl/Ort</li>
+      <li>SchweizMobil Routen und Etappen</li>
+      <li>Points of Interest wie Hotels, Restaurants etc.</li>
+      <li>Flurnamen, Geländenamen, Ortsnamen, Bergspitzen etc. (swissnames von swisstopo, über 400'000 Objekte)</li>
+    </ul>
+
+    <h3>Tipps für eine effiziente Suche</h3>
+
+    <p>Je mehr sie die Suche verfeinern, desto weniger Treffer werden angezeigt (besonders dort, wo es viele Treffer gibt, wie Bahnhofstrasse). Beispiele, <b>Suche nach Objekten:</b></p>
+    <ul>
+      <li>Stadt Chur: chur</li>
+      <li>Rund um Saoseo: saoseo -> Rifugio, See, Flurmane etc.</li>
+      <li>Bernina: bernina -> Ospizio, Restaurants, alle möglichen Routen und Etappen SchweizMobil</li>
+      <li>Hotel Sternen Muri: "ster mur"</li>
+      <li>Berghütte Blüemlisalp: "blü berg"</li>
+    </ul>
+
+    <h3>Anzeige und Suche von Koordinaten</h3>
+
+        <span class="row"> 
+          <span class="col-xs-1"> <img class="img-responsive space-up"
+          src="/core/templates/hike_ui/img/coords_open.svg"> 
+          </span> 
+          <span class="col-xs-10">
+          <p>Ist der Vorhängeschloss offen (<b>blau) </b>werden die Koordinaten
+          dynamisch angezeigt (beim bewegen der Maus über die Karte)</p>
+          </span> 
+        </span>
+        <span class="row"> 
+          <span class="col-xs-1"> <img class="img-responsive space-up" src="/core/templates/hike_ui/img/coords_locked.svg"></span> 
+          <span class="col-xs-10">
+          <p>Ist der Vorhängeschloss geschlossen (<b>rot) </b>werden die
+          Koordinaten nur beim Klicken angezeigt. Dies erlaubt Ihnen einen
+          bestimmten Punkt anzuklicken und dann die Koordinaten zu kopieren
+          (markieren, rechte Maustaste, Kopieren oder markieren und STRG/C).</p>
+          </span>
+        </span>
+
+    <p>Für die <b>Suche</b> geben Sie die gesuchten Koordinaten
+      komma-separiert ein und drücken Sie die <b>Eingabetaste</b>.</p>
+
+    <a name="Kartenauswahl"></a><h2>Kartenauswahl</h2>
+    <h3>Hintergrundkarten</h3>
+    <span class="row"> <span class="col-xs-4"> <img class="img-responsive" src="images/background_maps_de.png">
+    </span> 
+    <span class="col-xs-8">
+        <p>Als <b>Hintergrundkarten</b> stehen zur Verfügung (kann je nach
+          Anwendung abweichend sein):</p>
+        <ul>
+          <li><b>Landeskarten</b> swisstopo</li>
+          <li><b>Landeskarten Winter</b> swisstopo</li>
+          <li><b>Landeskarten Vintage</b> swisstopo</li>
+          <li><b>swisstopo TLM</b> by TYDAC (TLM: Topographisches Landschaftsmodell)</li>
+          <li><b>OSM++ Schweiz</b>: Angereicherte <a target="_blank" href="http://www.openstreetmap.org/">OpenStreetMap</a>-Daten
+            (OSM). OpenStreetMap ist eine freie, editierbare Karte der gesamten
+            Welt, die von Freiwilligen erstellt wird.</li>
+          <li><b>Luftbild</b> swisstopo swissimage</li>
+        </ul>
+      </span> 
+    </span>
+
+    <h2>Datenbankabfragen und -downloads der SchweizMobil Daten</h2>
+
+    <span class="row"> <span class="col-xs-1"> <img class="img-responsive" src="./images/database.png">
+      </span> 
+      <span class="col-xs-10"> 
+    <p>Klicken Sie auf die Funktion "Datenbank". Die SchweizMobil Daten können gefiltert, angezeigt und heruntergeladen werden:</p>
+    </span>
+    </span>
+
+      <p>Über die <b>Tabellenfunktionen</b> können die Daten sortiert und beliebig gefiltert werden, dies auch in Kombination mit geografischen Selektionen (Rechteck, Polygon). Die selektierten Daten können in verschiedenen Formaten heruntergeladen: MS-Excel, JSON, XML, CSV, Text etc.</p>
+
+      <p>Eine detaillierte Anleitung finden Sie auf <a href=list_de.htm target=_blank><b>gesonderte Hilfeseiten</b></a></p>
+
+    <h2>Weitere Funktionen</h2>
+    
+    <span class="row"> 
+      <span class="col-xs-1"> <img class="img-responsive" src="./images/functions.png">
+      </span> 
+      <span class="col-xs-10"> 
+      <p>Weitere Funktionen sind:</p>
+      <ul>
+        <li>Alle angezeigten <b>Ebenen entfernen</b></li>
+        <li>Google <b>StreetView</b>:</li>
+        <ul>
+          <li>in StreetView navigieren. Die Karte wird entsprechend nachgeführt
+          (Position und Richtung). Beachten Sie: insbesondere bei Fotos ist die
+          dort angegebene Richtung nicht immer zuverlässig.</li>
+          <li>Sie können alternativ das StreetView-Objekt in der Karte
+          verschieben. Auch so wird nach der nächstgelegenen Aufnahme gesucht.</li>
+          <li>Um mehr Platz für die Karte zur Verfügung zu haben, können Sie die
+          Kartenwahl-Steuerung verkleinern (auf die drei Punkte links der Karte
+          klicken)</li>
+        </ul>
+        <li><b>3D-Ansicht</b> des Gebiets starten</li>
+    </ul>
+    </span>
+    </span>
+
+    <h1>Kartenfunktionen</h1>
+
+    <span class="row"> 
+      <span class="col-xs-4"> <img class="img-responsive" src="./images/maps_de.png">
+      </span> 
+      <span class="col-xs-8">
+      <p>Menü Karten, es sind Ebenen für folgende Themen verfügbar:</p>
+      <ul>
+      <li><b>Wanderwege und Infrastruktur</b></li>
+      <li><b>SchweizMobil Langsamverkehr</b></li>
+      <li><b>SchweizMobil und swisstopo Wintersport</b></li>
+      <li><b>Gastronomie und Unterkunft</b></li>
+      <li><b>Verkehrsmittel</b></li>
+      <li><b>Natur- und Umwelt</b></li>
+      <li><b>Nützliche Informationen</b></li>
+      </ul>
+      </span>
+    </span>
+
+    <h2>Informationsabgfrage</h2>
+
+    <p>Zu den meisten Objekten auf den Karten kann eine detaillierte Information abgefragt werden (auf das gewünschte Objekt klicken). Zu allen Wanderwegen und SchweizMobil Routen und Etappen wird zudem ein automatisch generiertes Profile angezeigt. Diese Information kann auch als PDF aufbereitet werden. Die SchweizMobil Objekte enthalten auch Links zu den Informationen auf SchweizMobil.</p>
+
+    <p>Beispiel:</p>
+
+    <p><img class="img-responsive" src="images/info_de.png"></p>
+
+    <h1>Werkzeuge</h1>
+    <p>Folgende Werkzeuge stehen zur Verfügung (Details dazu s. weiter unten):</p>
+    <ul>
+      <li>Messen und Bemassen unter "Messen"</li>
+      <li>Zeichenwerkzeuge unter "Zeichnen"</li>
+    </ul>
+    
+    <h2> <a name="Print"></a>Drucken </h2>
+
+    <span class="row"> 
+      <span class="col-xs-1">
+        <img class="img-responsive" src="/core/templates/hike_ui/img/ribbon/btn_pdf.svg">
+      </span> 
+      <span class="col-xs-10"> <b>PDF Druck, massstäblich<br>
+        </b>Massstäbliches Drucken zu PDF. Untenstehende Dialogbox erscheint.
+        Wählen Sie einen Massstab, eine Vorlage (Layout), die gewünschte
+        Auflösung aus und geben Sie einen optionalen Title ein:<br><br>
+      </span> 
+    </span>
+
+    <span class="row">
+      <span class="col-xs-1">
+      </span>
+      <span class="col-xs-11"> 
+        <img class="img-responsive" src="images/pdf_dialog_de.png">
+
+
+    <p> <font color="#FF0000"><b>WICHTIG</b></font>: Um die generierte <b>PDF
+        Datei im Massstab zu drucken</b>, schalten Sie beim Druckdialog vom
+      Acrobat Reader bei der Seiteneinstellung folgende Optionen aus respektive
+      stellen Sie diese folgendermassen ein (kann je nach Acrobat Version oder
+      falls Sie andere Programme benutzen abweichen): </p>
+    <ul>
+      <li><b>Seitenanpassung</b>: keine (also weder "kleine Seiten vergrössern"
+        noch "grosse Seiten verkleinern") </li>
+      <li><b>Automatisch drehen und zentrieren</b> ausschalten</li>
+      <li>Wählen Sie <b> beim Drucker die richtige Papiergrösse und
+          Orientierung aus</b></li>
+    </ul>
+      </span>    
+    </span>
+
+
+    <span class="row"> 
+      <span class="col-xs-1">
+      </span> 
+      <span class="col-xs-11">
+        <img class="img-responsive" src="images/pdf_dialog_scale_de.png"> 
+      </span>
+    </span> 
+
+
+    <a name="Measure"></a><h2>Messen</h2>
+
+    <span>
+    <img class="img-responsive" src="./images/tools_measure_de.png">
+    </span>    
+
+    <h3>Profil</h3>
+
+    <span class="row">
+      <span class="col-xs-1"> 
+        <img class="img-responsive" src="/core/templates/hike_ui/img/ribbon/btn_measure_profile.svg">
+      </span> <span class="col-xs-11">
+        <p>Klicken Sie auf den gewünschten Startpunkt und erfassen dann beliebig viele Zwischenpunkte. Zum Abschliessen Doppelklick. Nach
+        Abschluss der Messung können Sie Punkte verschieben oder neue
+        Zwischenpunkte einfügen. Um einen neuen Profil generieren zu können,
+        wiederholen Sie einfach die Prozedur. Um aus der Funktion auszusteigen,
+        wählen Sie die Funktion erneut.</p>
+        <p>Bewegen Sie die Maus über das Profil, wird die Lage in der Karten angezeigt.</p>
+          <p>Sie können weiterhin Punkte der Polylinie hinzufügen und verschieben, das Profil wird aktualisiert.</p>
+            <p>Um die Funktion zu beenden, klicken Sie erneut auf das Symbol, wählen Sie eine andere Funktion oder wechseln Sie zu Karten oder suchen.</p>
+        <br><br> 
+      </span> 
+        <span class="col-md-1 col-xs-1"></span>
+        <span class="col-md-11 col-xs-11"> <img class="img-responsive space-up" src="images/profile_de.png">
+      </span> 
+      </span> 
+
+      <a name="Bemassung"></a><h3>Distanz / Fläche</h3>
+    
+    <span class="row"> 
+      <span class="col-xs-1">
+      <img class="img-responsive" src="/core/templates/hike_ui/img/ribbon/btn_ortho_distance.svg">
+      </span>
+      <span class="col-xs-10"> <b>Distanz</b><br>
+      Messen von Distanzen mittels Polylinie. Klicken Sie auf die gewünschten
+      Punkte. Zum Abschluss Doppeklick.<br><br>
+      </span>
+    </span>
+
+    <span class="row"> 
+      <span class="col-xs-1"><img class="img-responsive"
+        src="/core/templates/hike_ui/img/ribbon/btn_ortho_area.svg"> 
+      </span>
+      <span class="col-xs-11"><b>Fläche</b><br>
+        Messen von Flächen. Klicken Sie auf die
+        gewünschten Punkte. Zum Abschluss Doppeklick.
+      </span>
+    </span>
+
+    <br><br>
+
+    <span class="row"> 
+    <p>
+    <span class="col-xs-12"><strong>Löschen: </strong>klicken Sie auf
+        Löschen, um alle Bemassungslinien zu löschen. Um einzelne
+        Bemassungslinien zu löschen, klicken Sie auf die gewünschte Linie. Der
+        Bemassungsdialog erscheint: Löschen = Papierkorb-Ikone.<br><br>
+    </span>
+    </p>
+    <p>
+      <span class="col-xs-12"><strong>Speichern</strong>: Bemassungslinien als
+        <strong>Lesezeichen</strong> speichern. Das Lesezeichen können Sie dann
+        entweder als solches speichern (übliche Browser-Funktionalität) oder
+        kopieren und versenden.<br><br>
+    </span>
+    </p>
+    </span>
+
+    <a name="Draw"></a><h2>Zeichnen</h2>
+
+    <span>
+    <img class="img-responsive" src="./images/tools_draw_de.png">
+        <br><br>
+    </span>
+
+    <span class="row"> 
+
+      <span class="col-xs-1"> 
+        <img class="img-responsive" src="/core/templates/hike_ui/img/ribbon/btn_rl_point.svg">
+      </span>
+      <span class="col-xs-11"> 
+        <b>Symbole</b><br>
+        Klicken Sie auf die Funktion, um diese zu aktivieren. Eine Auswahl an
+        Symbole erscheint. Wählen Sie einen Symbol aus und positionieren Sie
+        diesen auf der Karte. Beliebig wiederholen. Um das Zeichnen
+        abzuschliessen schliessen Sie die Symbolliste, klicken erneut auf die
+        Funktion oder wählen Sie eine andere Funktion aus. Um ein Symbol zu
+        verschieben, anklicken und mit gedrückter Maustaste bewegen. Sie können
+        auch den Symbol ändern: anklicken und anderen Symbol aus der Liste
+        wählen.
+
+        <p><b>Löschen</b>: </p>
+        <ul>
+          <li>einzelne Symbole: anklicken und auf Papierkorb in der Symbolliste
+            klicken</li>
+          <li>alle: Funktion "Alles löschen" verwenden<br></li>
+        </ul>
+      </span>
+
+    </span>
+
+    <span class="row">
+
+      <span class="col-xs-1"> 
+        <img class="img-responsive" src="/core/templates/hike_ui/img/ribbon/btn_rl_text.svg">
+      </span>
+      <span class="col-xs-10"> 
+        <b>Texte</b><br>
+        Klicken Sie auf die Funktion, um diese zu aktivieren. Wählen Sie die
+        gewünschte Schriftart etc. aus. Positionieren Sie den Text nach
+        Belieben. Beliebig wiederholen. Um das Zeichnen abzuschliessen,
+        schliessen Sie die Dialogbox, klicken erneut auf die Funktion oder
+        wählen Sie eine andere Funktion aus. Um einen Text zu verschieben,
+        anklicken, Dialog erscheint; erneut anklicken und mit gedrückter
+        Maustaste bewegen. Sie können auch den Text und die Ausprägung ändern.
+        <p> <b>Löschen</b>: </p>
+        <ul>
+          <li>einzelne Texte: anklicken und auf Papierkorb in der Dialogbox
+            klicken</li>
+          <li>alle: Funktion "Alles löschen" verwenden<br>
+            &nbsp; </li>
+        </ul>
+      </span> 
+
+    </span>
+
+    <span class="row">
+
+      <span class="col-xs-1"> <img class="img-responsive" src="/core/templates/hike_ui/img/ribbon/btn_rl_line.svg">
+      </span> 
+      <span class="col-xs-10"> <b>Linien</b><br>
+        Klicken Sie auf die Funktion, um diese zu aktivieren. Wählen Sie die
+        gewünschte Linienart etc. aus. Zeichnen Sie die Linie indem Sie beliebig
+        viele Stützpunkte zeichnen. Abschluss mit Doppelklick. Um das Zeichnen
+        abzuschliessen, schliessen Sie die Dialogbox, klicken erneut auf die
+        Funktion oder wählen Sie eine andere Funktion aus. Um eine Linie zu
+        verschieben oder zu verändern, anklicken, Dialog und Stützpunkte
+        erscheinen. Sie können die Linie als Gesamtes verschieben, einzelne
+        Stützpunkte verschieben oder Stützpunkte hinzufügen. Und auch die
+        Ausprägung anpassen.
+        <p><b>Löschen</b>: </p>
+        <ul>
+          <li>einzelne Linie: anklicken und auf Papierkorb in der Dialogbox
+            klicken</li>
+          <li>alle: Funktion "Alles löschen" verwenden</li>
+        </ul>
+      </span> 
+
+    </span>
+
+    <span class="row">
+
+      <span class="col-xs-1"> 
+        <img class="img-responsive" src="/core/templates/hike_ui/img/ribbon/btn_rl_area.svg"><br>
+        <img class="img-responsive" src="/core/templates/hike_ui/img/ribbon/btn_rl_circle.svg">
+      </span> 
+      <span class="col-xs-10"> <b>Flächen / Kreise</b><br>
+        Klicken Sie auf die Funktion, um diese zu aktivieren. Wählen Sie die
+        gewünschte Linienart etc. aus. Zeichnen Sie die Fläche indem Sie
+        beliebig viele Stützpunkte zeichnen. Abschluss mit Doppelklick. Um das
+        Zeichnen abzuschliessen, schliessen Sie die Dialogbox, klicken erneut
+        auf die Funktion oder wählen Sie eine andere Funktion aus. Um eine
+        Fläche zu verschieben oder zu verändern, anklicken, Dialog und
+        Stützpunkte erscheinen. Sie können die Fläche als Gesamtes verschieben,
+        einzelne Stützpunkte verschieben oder Stützpunkte hinzufügen. Und auch
+        die Ausprägung anpassen.
+        <p><b> Löschen</b>: </p>
+        <ul>
+          <li>einzelne Fläche: anklicken und auf Papierkorb in der Dialogbox
+            klicken</li>
+          <li>alle: Funktion "Alles löschen" verwenden</li>
+        </ul>
+      </span>
+    </span>
+
+    <p><strong>Speichern</strong>: Zeichnungen als <strong>Lesezeichen</strong>
+      speichern. Das Lesezeichen können Sie dann entweder als solches speichern
+      (übliche Browser-Funktionalität) oder kopieren und versenden.</p>
+
+  
+
+    <h1> <a name="mobile"></a>Mobile Version</h1>
+    <p>MAP+ Hike ist in einer Version für Mobiltelefone mit reduzierter Funktionalität verfügbar.</p>
+    <p>Folgenden Funktionen stehen zur Verfügung:</p>
+    <ul>
+      <li>Auswählen Hintergrundkarte</li>
+      <li>Ebenenwahl (Panel links)</li>
+      <li>GPS Lokalisation</li>
+      <li>Alle Themen entfernen</li>
+      <li>Zoom zur Ausdehnung der Hintergrundkarte</li>
+      <li>Informationsabfragen zu den Themen</li>
+    </ul>
+    <p>&nbsp;</p>
+  </body>
+</html>

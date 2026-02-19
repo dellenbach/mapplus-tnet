@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="24" height="24" version="1.1" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" xmlns:cc="http://creativecommons.org/ns#" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:xlink="http://www.w3.org/1999/xlink">
+ <metadata>
+  <rdf:RDF>
+   <cc:Work rdf:about="">
+    <dc:format>image/svg+xml</dc:format>
+    <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
+    <dc:title/>
+   </cc:Work>
+  </rdf:RDF>
+ </metadata>
+ <defs>
+  <radialGradient id="f" cx="6.393" cy="15.165" r="11.932" gradientTransform="matrix(1.4121 -1.1046 1.0703 1.3683 -14.652 5.117)" gradientUnits="userSpaceOnUse">
+   <stop stop-color="#b30101" stop-opacity=".996" offset="0"/>
+   <stop stop-color="#fa4667" stop-opacity=".996" offset="1"/>
+  </radialGradient>
+  <linearGradient id="g" x1="4.943" x2="30.151" y1="20.047" y2="-6.266" gradientUnits="userSpaceOnUse">
+   <stop offset="0"/>
+   <stop stop-opacity="0" offset="1"/>
+  </linearGradient>
+ </defs>
+ <g fill-rule="evenodd">
+  <path d="M23.932 12A11.932 11.932 0 0 1 12 23.932 11.932 11.932 0 0 1 .068 12 11.932 11.932 0 0 1 12 .068 11.932 11.932 0 0 1 23.932 12z" fill="url(#f)" overflow="visible" style="isolation:auto;mix-blend-mode:normal"/>
+  <path d="M12.047.006C5.437.006.067 5.374.067 11.984c0 6.61 5.37 11.98 11.98 11.98s11.978-5.37 11.978-11.98S18.657.006 12.047.006zm0 .963c6.09 0 11.015 4.925 11.015 11.014 0 6.09-4.926 11.016-11.015 11.016A11.008 11.008 0 0 1 1.03 11.984C1.03 5.894 5.958.97 12.048.97z" fill="url(#g)" font-family="sans-serif" font-weight="400" opacity=".096" overflow="visible" style="block-progression:tb;isolation:auto;mix-blend-mode:normal;text-decoration-color:#000;text-decoration-line:none;text-decoration-style:solid;text-indent:0;text-transform:none" white-space="normal"/>
+ </g>
+ <g fill="#fff" style="font-variant-caps:normal;font-variant-east-asian:normal;font-variant-ligatures:normal;font-variant-numeric:normal" aria-label="m">
+  <path d="m13.237 9.1328q0.61858-0.88607 1.3375-1.2873 0.71889-0.4096 1.6802-0.4096 1.5297 0 2.2821 0.86935 0.76068 0.861 0.76068 2.6081v4.6393h1.2706v1.0115h-5.2914v-1.0115h1.0616v-4.1963q0-1.6635-0.25913-2.0982-0.25078-0.43468-0.94459-0.43468-0.78576 0-1.2204 0.61022-0.43468 0.60186-0.43468 1.722v4.3969h1.0616v1.0115h-5.0824v-1.0115h1.0616v-4.1963q0-1.6635-0.25913-2.0982-0.25914-0.43468-0.94459-0.43468-0.79412 0-1.2288 0.61022-0.43468 0.60186-0.43468 1.722v4.3969h1.0616v1.0115h-5.283v-1.0115h1.2622v-6.8629h-1.2622v-1.0115h4.2214v1.2539q0.51827-0.7774 1.187-1.1368 0.66873-0.35944 1.5882-0.35944 1.0867 0 1.7638 0.41796 0.67709 0.4096 1.0449 1.279z" fill="#fff" stroke-width=".42799"/>
+ </g>
+</svg>

@@ -1,0 +1,140 @@
+.dojoxFloatingPane {
+    background-color: #fff;
+    position: relative;
+    border: 0px solid #000;
+    overflow: hidden;
+    -webkit-box-shadow: 0 0 1em #333333;
+    -moz-box-shadow: 0 0 1em #333333;
+    box-shadow: 0 0 1em #333333;
+}
+
+.dojoxFloatingPaneInfo {
+    background-color: #fff;
+    position: relative;
+    border: 0px solid #000;
+    overflow: hidden;
+    -webkit-box-shadow: 0 0 1em #333333;
+    -moz-box-shadow: 0 0 1em #333333;
+    box-shadow: 0 0 1em #333333;
+    height: auto !important;
+}
+
+.dojoxFloatingPaneFg {
+    -webkit-box-shadow: 0 0 1em #333333;
+    -moz-box-shadow: 0 0 1em #333333;
+    box-shadow: 0 0 1em #333333;
+}
+
+.dojoxFloatingPaneTitle {
+    background: #cccccc;
+    background: #fafafa repeat-x bottom left;
+    border: 0px solid #bfbfbf;
+    padding: 4px 4px 2px 4px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.soria .dojoxFloatingPaneTitle {
+    background: #fff url("") repeat-x top left;
+    border: 0px solid #b1badf;
+    font-size: 0.9em;
+    font-weight: bold;
+    line-height: 1.2em;
+}
+
+.tundra .dojoxFloatingPaneTitle {
+    background: url("") repeat-x scroll left bottom #333333;
+    border: 0px solid #333333;
+    font-weight: bold;
+    padding: 4px;
+    background-color: #333333;
+    color: #fff;
+    text-align: center;
+}
+
+
+.dojoxFloatingResizeHandle {
+    background: url('') no-repeat bottom right;
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    width: 16px;
+    height: 16px;
+    cursor: nw-resize;
+}
+
+.dojoxFloatingCloseIcon {
+    width: 16px;
+    height: 16px;
+    overflow: hidden;
+    float: right;
+    cursor: pointer;
+}
+
+.dojoxFloatingCloseIcon {
+    cursor: pointer;
+    background: url("../img/buttons/close16_white.svg") no-repeat 0 0 transparent !important;
+    background-size: contain;
+    width: 16px;
+    height: 16px;
+    margin: 0px 0px 0px 0px;
+    /*border: 1px solid #999;*/
+}
+
+.dojoxFloatingDockDefault {
+    position: absolute;
+    bottom: 0px;
+    left: 0px;
+    overflow: hidden;
+    margin: 0;
+    margin-bottom: 3px;
+    padding: 0px;
+    width: 100%;
+    z-index: 99;
+    background: transparent;
+}
+
+.dojoxDockList {
+    padding: 0px;
+    margin: 0px;
+}
+
+
+.dojoxDockTitleNode {
+    overflow: hidden;
+}
+
+.dojoxDock {
+    display: block;
+    border: 1px solid black;
+    position: absolute;
+    padding: 0;
+    margin: 0;
+    background: #fcfcfc;
+}
+
+.dojoxFloatingPaneContent {
+    overflow: auto;
+    background-color: #fff;
+    height: 100%;
+    width: 100%;
+}
+
+.dojoxFloatingPaneContentInfo {
+    overflow: auto;
+    background-color: #fff;
+    height: auto;
+    width: 100%;
+    max-height: 70vh;
+	overflow-y: auto !important;
+}
+
+.dojoxFloatingPaneCanvas {
+    background-color: #fff;
+}
+
+.dojoxFloatingPaneCanvasInfo {
+    background-color: #fff;
+    height: auto !important;
+}
+

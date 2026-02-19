@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+<svg width="32" height="32" version="1.1" viewBox="0 0 8.4667 8.4667" xmlns="http://www.w3.org/2000/svg" xmlns:cc="http://creativecommons.org/ns#" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+ <metadata>
+  <rdf:RDF>
+   <cc:Work rdf:about="">
+    <dc:format>image/svg+xml</dc:format>
+    <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
+    <dc:title/>
+   </cc:Work>
+  </rdf:RDF>
+ </metadata>
+ <g transform="translate(-85.99 -126.19)">
+  <g transform="matrix(.75361 0 0 .75361 -2.9804 29.145)" fill="#ccc" stroke="#333" stroke-width=".26458" style="paint-order:normal">
+   <path d="m123.54 139.65c-0.0716-0.1304-0.5735-1.0346-1.1151-2.0094-2.0362-3.6648-2.4133-4.637-2.2226-5.7292 0.27173-1.5568 1.5106-2.7435 3.0631-2.934 1.7278-0.212 3.374 0.91617 3.8348 2.628 0.0672 0.24944 0.084 0.41067 0.085 0.80995 0 0.47894-5e-3 0.51591-0.14106 0.94166-0.28706 0.89344-0.77441 1.8833-2.1183 4.302-0.44574 0.80226-0.88715 1.5999-0.98093 1.7725-0.2751 0.50644-0.25302 0.4945-0.40478 0.21847z" color="#000000" color-rendering="auto" fill="#ccc" fill-rule="evenodd" image-rendering="auto" shape-rendering="auto" solid-color="#000000" stroke="#333" stroke-width=".26458" style="isolation:auto;mix-blend-mode:normal;paint-order:normal"/>
+  </g>
+  <g transform="translate(-6.665)" fill-rule="evenodd" shape-rendering="auto">
+   <circle cx="96.888" cy="129.06" r="1.7189" color="#000000" color-rendering="auto" fill="#f9f9f9" image-rendering="auto" solid-color="#000000" stroke="#333" stroke-width=".47096" style="isolation:auto;mix-blend-mode:normal;paint-order:markers stroke fill"/>
+   <circle cx="96.888" cy="129.06" r="1.1108" color="#000000" color-rendering="auto" fill="#555555" image-rendering="auto" solid-color="#000000" style="isolation:auto;mix-blend-mode:normal;paint-order:markers stroke fill"/>
+  </g>
+ </g>
+</svg>

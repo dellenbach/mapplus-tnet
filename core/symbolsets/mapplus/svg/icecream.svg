@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+<svg width="24" height="24" version="1.1" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" xmlns:cc="http://creativecommons.org/ns#" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:xlink="http://www.w3.org/1999/xlink">
+ <defs>
+  <linearGradient id="linearGradient1256">
+   <stop stop-color="#ffbf23" offset="0"/>
+   <stop stop-color="#ffe680" offset=".29917"/>
+   <stop stop-color="#ffe680" offset="1"/>
+  </linearGradient>
+  <radialGradient id="radialGradient14151" cx="6.3932" cy="15.165" r="11.932" gradientTransform="matrix(1.4121 -1.1046 1.0703 1.3683 -14.652 5.1167)" gradientUnits="userSpaceOnUse">
+   <stop stop-color="#1f58b6" offset="0"/>
+   <stop stop-color="#7aa4e8" offset="1"/>
+  </radialGradient>
+  <linearGradient id="linearGradient14183" x1="4.9426" x2="30.151" y1="20.047" y2="-6.2656" gradientUnits="userSpaceOnUse">
+   <stop offset="0"/>
+   <stop stop-opacity="0" offset="1"/>
+  </linearGradient>
+  <linearGradient id="linearGradient1258" x1="11.784" x2="11.784" y1="1041.3" y2="1051.8" gradientTransform="matrix(1.046 0 0 1.0749 -.85765 -78.488)" gradientUnits="userSpaceOnUse" xlink:href="#linearGradient1256"/>
+  <linearGradient id="linearGradient1268" x1="12.083" x2="12.083" y1="1040.8" y2="1038.5" gradientTransform="matrix(1.0498 0 0 1.1451 -.92544 -151.56)" gradientUnits="userSpaceOnUse">
+   <stop stop-color="#ff5050" offset="0"/>
+   <stop stop-color="#ff8080" offset="1"/>
+  </linearGradient>
+  <clipPath id="clipPath2914">
+   <path d="m15.781 1041.7-3.055 8.76s-0.08349 0.2637-0.45828 0.2635c-0.3725-1e-4 -0.45828-0.2704-0.45828-0.2704l-3.055-8.7601z" fill="url(#linearGradient2918)"/>
+  </clipPath>
+  <linearGradient id="linearGradient2918" x1="11.784" x2="11.784" y1="1041.3" y2="1051.8" gradientTransform="matrix(.79334 0 0 .79334 2.7476 216.58)" gradientUnits="userSpaceOnUse" xlink:href="#linearGradient1256"/>
+ </defs>
+ <metadata>
+  <rdf:RDF>
+   <cc:Work rdf:about="">
+    <dc:format>image/svg+xml</dc:format>
+    <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
+    <dc:title/>
+   </cc:Work>
+  </rdf:RDF>
+ </metadata>
+ <g>
+  <g fill-rule="evenodd" shape-rendering="auto">
+   <path d="m23.932 12a11.932 11.932 0 0 1-11.932 11.932 11.932 11.932 0 0 1-11.932-11.932 11.932 11.932 0 0 1 11.932-11.932 11.932 11.932 0 0 1 11.932 11.932z" color="#000000" color-rendering="auto" fill="url(#radialGradient14151)" image-rendering="auto" solid-color="#000000" style="isolation:auto;mix-blend-mode:normal"/>
+   <path d="m12.047 0.0058594c-6.6103-1e-7 -11.979 5.3682-11.979 11.979 0 6.6103 5.3682 11.979 11.979 11.979 6.6103 0 11.979-5.3682 11.979-11.979 0-6.6103-5.3682-11.979-11.979-11.979zm0 0.96289c6.0895 0 11.016 4.9261 11.016 11.016s-4.9261 11.016-11.016 11.016-11.016-4.9261-11.016-11.016c-1e-7 -6.0895 4.9261-11.016 11.016-11.016z" color="#000000" color-rendering="auto" fill="url(#linearGradient14183)" image-rendering="auto" opacity=".096" solid-color="#000000" style="isolation:auto;mix-blend-mode:normal;text-decoration-color:#000000;text-decoration-line:none;text-decoration-style:solid;text-indent:0;text-transform:none;white-space:normal"/>
+  </g>
+ </g>
+ <g transform="translate(0 -1028.4)">
+  <g>
+   <path d="m16.326 1039.5-4.0279 11.87s-0.11008 0.3574-0.60423 0.3571c-0.49113-2e-4 -0.60423-0.3664-0.60423-0.3664l-4.0279-11.87z" fill="url(#linearGradient1258)"/>
+   <ellipse cx="13.97" cy="1034.2" rx="4.282" ry="4.3502" fill="#ffd42a" style="paint-order:stroke fill markers"/>
+   <ellipse cx="10.001" cy="1035.5" rx="4.4303" ry="4.6342" fill="#ff8080" style="paint-order:stroke fill markers"/>
+  </g>
+  <g transform="matrix(1.3185 0 0 1.355 -4.463 -371.96)" clip-path="url(#clipPath2914)">
+   <g transform="translate(-1.2887 1.3567)">
+    <g fill="none" stroke="#d38d5f" stroke-linecap="round" stroke-width=".47153">
+     <path transform="translate(1.2887 -1.3567)" d="m13.453 1038 5.7039 5.5503"/>
+     <path d="m13.453 1038 5.7039 5.5503"/>
+     <path d="m12.319 1039.3 5.7039 5.5503"/>
+     <path d="m11.186 1040.7 5.7039 5.5503"/>
+     <path d="m10.052 1042 5.7039 5.5503"/>
+     <path d="m8.9181 1043.4 5.7039 5.5503"/>
+    </g>
+   </g>
+   <g transform="matrix(-1 0 0 1 26.434 2.9277)">
+    <g fill="none" stroke="#d38d5f" stroke-linecap="round" stroke-width=".47153">
+     <path transform="translate(1.2887 -1.3567)" d="m13.453 1038 5.7039 5.5503"/>
+     <path d="m13.453 1038 5.7039 5.5503"/>
+     <path d="m12.319 1039.3 5.7039 5.5503"/>
+     <path d="m11.186 1040.7 5.7039 5.5503"/>
+     <path d="m10.052 1042 5.7039 5.5503"/>
+     <path d="m8.9181 1043.4 5.7039 5.5503"/>
+    </g>
+   </g>
+  </g>
+  <g>
+   <rect x="5.5375" y="1037.3" width="12.106" height="3.328" ry="1.664" fill="url(#linearGradient1268)" style="paint-order:stroke fill markers"/>
+   <ellipse transform="matrix(.91847 .39549 -.35703 .93409 0 0)" cx="376.79" cy="947.04" rx=".69364" ry="1.1793" fill="#ffd5d5" style="paint-order:stroke fill markers"/>
+   <ellipse transform="rotate(-38.467)" cx="-629.73" cy="817.58" rx=".68501" ry="1.1159" fill="#fff6d5" style="paint-order:stroke fill markers"/>
+  </g>
+ </g>
+</svg>

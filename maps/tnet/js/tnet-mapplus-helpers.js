@@ -9,16 +9,20 @@
  */
 
 /**
- * Extrahiert URL-Parameter aus einer URL
- * @param {string} url - Vollständige URL
- * @returns {string} - Query-String ohne "?"
+ * Extrahiert URL-Parameter aus einer URL oder einem Query-String
+ * @param {string} urlOrQuery - Vollständige URL oder Query-String (z.B. "map=x&group=y")
+ * @returns {URLSearchParams} - URLSearchParams Objekt
  */
-function extractUrlParams(url) {
+function extractUrlParams(urlOrQuery) {
   try {
-    const urlObj = new URL(url);
-    return urlObj.search.substring(1);
+    if (!urlOrQuery) return new URLSearchParams();
+    if (urlOrQuery.includes('://') || urlOrQuery.includes('?')) {
+      const urlObj = new URL(urlOrQuery, window.location.origin);
+      return new URLSearchParams(urlObj.search);
+    }
+    return new URLSearchParams(urlOrQuery);
   } catch (e) {
-    return '';
+    return new URLSearchParams();
   }
 }
 
@@ -115,11 +119,11 @@ function processExtractedLinks(selector) {
       if (match && match[1]) {
         const params = match[1]; // z.B. "map=nw_nutzungsplanung_intern&group=uwpro"
         const urlParams = extractUrlParams(params);
-        const bookmarkId = urlParams.map; // z.B. "nw_nutzungsplanung_intern"
+        const bookmarkId = urlParams.get('map'); // z.B. "nw_nutzungsplanung_intern"
         
         if (bookmarkId) {
-          // Ersetze onclick mit TnetSetBookmark Aufruf
-          link.setAttribute('onclick', `TnetSetBookmark('${bookmarkId}'); window.top.closeMapsInfoDialog(); return false;`);
+          // Ersetze onclick mit TnetSetBookmark Aufruf (async: Dialog erst nach Laden schliessen)
+          link.setAttribute('onclick', `TnetSetBookmark('${bookmarkId}').then(function(){ window.top.closeMapsInfoDialog(); }); return false;`);
         }
       }
       return;
@@ -133,17 +137,17 @@ function processExtractedLinks(selector) {
       // Wandle HTTP(S) Links in TnetSetBookmark-Aufrufe um
       if (href.startsWith('http')) {
         const params = extractUrlParams(href);
-        const bookmarkId = params.map;
+        const bookmarkId = params.get('map');
         
         if (bookmarkId) {
           link.setAttribute('href', 'javascript:void(null)');
           link.setAttribute('style', (link.getAttribute('style') || '') + '; cursor: pointer;');
-          link.setAttribute('onclick', `TnetSetBookmark('${bookmarkId}'); window.top.closeMapsInfoDialog(); return false;`);
+          link.setAttribute('onclick', `TnetSetBookmark('${bookmarkId}').then(function(){ window.top.closeMapsInfoDialog(); }); return false;`);
         } else {
           // Fallback: Alter setMapBookmark Aufruf wenn keine map-ID gefunden
           link.setAttribute('href', 'javascript:void(null)');
           link.setAttribute('style', (link.getAttribute('style') || '') + '; cursor: pointer;');
-          link.setAttribute('onclick', `window.top.njs.AppManager.setMapBookmark(['main'], '${params}'); window.top.closeMapsInfoDialog(); return false;`);
+          link.setAttribute('onclick', `window.top.njs.AppManager.setMapBookmark(['main'], '${params.toString()}'); window.top.closeMapsInfoDialog(); return false;`);
         }
       } else {
         link.setAttribute('href', href);

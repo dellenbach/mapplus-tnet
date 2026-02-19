@@ -1,0 +1,22 @@
+{
+    "gastro_link": "https://nodi.mapplus.ch/core/legends/gastronomy_en.htm",
+    "gastro_title": "Gastronomy",
+    "information_link": "https://nodi.mapplus.ch/core/legends/information_en.htm",
+    "information_title": "Information",
+    "lodging_link": "https://nodi.mapplus.ch/core/legends/lodging_en.htm",
+    "lodging_title": "Lodging",
+    "natur_freizeit_link": "https://nodi.mapplus.ch/core/legends/nature_en.htm",
+    "natur_freizeit_title": "Nature and Leisure",
+    "post_link": "https://nodi.mapplus.ch/core/legends/post_en.htm",
+    "post_title": "Access Points Swiss Post",
+    "public_link": "https://nodi.mapplus.ch/core/legends/public_en.htm",
+    "public_title": "Public Entities",
+    "retail_link": "https://nodi.mapplus.ch/core/legends/retail_en.htm",
+    "retail_title": "Retail",
+    "services_link": "https://nodi.mapplus.ch/core/legends/services_en.htm",
+    "services_title": "Services",
+    "sport_link": "https://nodi.mapplus.ch/core/legends/sport_en.htm",
+    "sport_title": "Sport",
+    "traffic_link": "https://nodi.mapplus.ch/core/legends/traffic_en.htm",
+    "traffic_title": "Transportation"
+}

@@ -1,0 +1,298 @@
+<html>
+
+<head>
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <title>MAP+ Mobile Hilfetexte</title>
+  <link rel="stylesheet" type="text/css" href="css/bootstrap.css">
+  <link rel="stylesheet" type="text/css" href="css/mapplus.css">
+  <base target="_self">
+</head>
+
+<body leftmargin="20">
+  <div class="close"
+    onclick="parent.njs.AppManager.toggleCustomPaneContent('help','custompane','../../core/help/help_de.htm','');">
+  </div>
+
+  <h1>MAP+ Mobile Hilfetexte</h1>
+  <h2>Themen der Hilfe</h2>
+  <h3>Karten und Funktionen</h3>
+  <ul>
+    <li>Navigation</li>
+    <li>Suche</li>
+    <li><a href="#maps">Funktionen, Kartenauswahl</a></li>
+    <li><a href="#info">Informationsabfrage</a></li>
+    <li><a href="#legend">Legenden</a></li>
+  </ul>
+  <h3>Werkzeuge</h3>
+  <ul>
+    <li><a href="#measure">Messen</a></li>
+  </ul>
+  <h2>Navigation</h2>
+  <p>Um in der Karte zu navigieren, haben Sie folgende Möglichkeiten:</br></br></p>
+  <span class="row"> 
+    <span class="col-xs-1"> 
+      </br> 
+      <img class="img-responsive" src="./images/m_zoomin.png">
+      <img class="img-responsive" src="./images/m_zoomout.png">
+      <img class="img-responsive" src="./images/m_locate.png">
+      <img class="img-responsive" src="./images/m_home.png">
+    </span> 
+    <span class="col-xs-10">
+      <ul>
+        <li><b>Zoom in/out</b>: Zwei Finger, zusammenziehen (-) oder auseinenader (+), "doppelklick" mit dem Finger (+), +/- Funktionsknöpfe</li>
+        <li><b>Karte drehen</b>: Mit zwei Finger die Karte drehen. Um wieder auf Norden zu drehen, auf Funktionskopf oben links klicken (ercheint nur wenn die Karte gedreht wird)</li>
+        <li><b>Verschieben</b>: Karte mit einem Finger ziehen</li>
+        <li><b>Lokalisierung mit GPS</b></li>
+        <li>Auf <b>Initialzoom</b> zurück (ganzes Gebiet)</li>
+      </ul>
+    </span>
+  </span>
+
+  <h2>Suche</h2>
+  <p>Gesucht werden kann nach</b>:</p>
+  <ul>
+    <li>Adressen</li>
+    <li>Liegenschaften</li>
+    <li>Gemeinde</li>
+    <li>Postleitzahl/Ort</li>
+    <li>Points of Interest wie Hotels, Restaurants etc.</li>
+    <li>Flurnamen, Geländenamen, Ortsnamen, Bergspitzen etc. (swissnames von swisstopo)</li>
+  </ul>
+
+  <h3>Tipps für eine effiziente Suche</h3>
+
+  <p>Je mehr sie die Suche verfeinern, desto weniger Treffer werden angezeigt (besonders dort, wo es viele Treffer gibt,
+    wie Bahnhofstrasse).</p>
+  <p>Beispiele, <b>Suche nach Objekten:</b></p>
+  <ul>
+    <li>Adresse, Optingenstrasse 27, Bern: "opt 27"</li>
+    <li>Adresse, Bahnhofstrasse 13 , Stettlen: "bahn 13 st"</li>
+    <li>Liegenschaften, 977 Bern Kirchenfeld: "977 ber"</li>
+    <li>Liegenschaften, 222 Münsingen: "222 mün"</li>
+    <li>Hotel Sternen Muri: "ster mur"</li>
+    <li>Berghütte Blüemlisalp: "blü berg"</li>
+  </ul>
+
+  <p>Beispiele, <b>Suche nach Kartenthemen</b>:</p>
+  <ul>
+    <li>Karte + Begriff, z.B. "Karte Velo"</li>
+    <li>Begriff, z.B. "Relief"</li>
+  </ul>
+
+  <h3>Anzeige der Koordinaten und der Höhen</h3>
+
+    <p><img class="img-responsive space-up" src="./images/m_coords.png"></p>
+    <p>Oben in der Karte werden die Landeskoordinaten (LV95) und die Höhen des Mittelpunkts angezeigt (Fadenkreuz). Um einen bestimmten Punkt anzufragen,verschieben Sie die Karte.</p>
+    <p><b>Höhe</b>: angezeigt werden die Höhe ohne Bewuchs und Bebauung (swisstopo swissALTI3D), die Höhe mit Bewuchs und Bebauung (swisstopo swissSURFACE3D) und die Differenz.</p>
+
+  <a name="maps"></a>
+  <h2>Kartenauswahl</h2>
+  <h3>Hintergrundkarten</h3>
+  <span class="row"> <span class="col-xs-1"> <img class="img-responsive" src="./images/m_basemap.png">
+    </span>
+    <span class="col-xs-10">
+      <p>Als <b>Hintergrundkarten</b> stehen zur Verfügung (kann je nach Anwendung abweichend sein):</p>
+      <ul>
+        <li><b>AV grau</b>: Amtliche Vermessung grau</li>
+        <li><b>AV farbig</b>: Amtliche Vermessung farbig</li>
+        <li><b>Luftbild</b> swisstopo swissimage</li>
+        <li><b>Landeskarten</b> swisstopo</li>
+        <li><b>Landeskarten Vintage</b> swisstopo</li>
+        <li><b>swisstopo TLM</b> by TYDAC (TLM: Topographisches Landschaftsmodell)</li>
+        <li><b>OSM++ Schweiz</b>: Angereicherte <a target="_blank"
+            href="http:/www.openstreetmap.org/">OpenStreetMap</a>-Daten
+          (OSM). OpenStreetMap ist eine freie, editierbare Karte der gesamten
+          Welt, die von Freiwilligen erstellt wird.</li>
+      </ul>
+    </span>
+  </span>
+
+  <h2>Weitere Funktionen</h2>
+
+  <span class="row">
+    <span class="col-xs-1"> 
+      <img class="img-responsive" src="./images/m_themes.png">
+      <img class="img-responsive" src="./images/m_layersoff.png">
+    </span>
+    <span class="col-xs-10">
+      <p>Weitere Funktionen sind:</p>
+      <ul>
+        <li><b>Themen</b>: ausgewählte Kartenkompositionen anzeigen</li>
+        <li>Alle angezeigten <b>Ebenen entfernen</b></li>
+      </ul>
+    </span>
+  </span>
+
+  <h1>Kartenfunktionen</h1>
+
+  <span class="row">
+    <span class="col-xs-1"> 
+      <img class="img-responsive" src="./images/m_maps.png">
+    </span>
+    <span class="col-xs-11">
+      <p>Klicken Sie auf die Kartenfunktion oben links. Hier sind Ebenen für umfassende Themen verfügbar (kann je nach Anwendung abweichend sein):</p>
+      <ul>
+        <li><b>Vermessung, Gelände</b></li>
+        <li><b>Planung, Luftbilder</b></li>
+        <li><b>Umwelt</b></li>
+        <li><b>Verkehr und Energie</b></li>
+        <li><b>Einrichtungen, Dienstleistungen</b></li>
+        <li><b>Kultur, Tourismus, Freizeit</b></li>
+      </ul>
+    </span>
+  </span>
+
+  <h2><a name="info"></a>Informationsabfrage</h2>
+
+  <p>Zu den meisten Objekten auf den Karten kann eine detaillierte Information abgefragt werden (auf das gewünschte Objekt klicken).</p>
+
+  <p>Beispiel:</p>
+
+  <p><img class="img-responsive" src="images/info_de.png"></p>
+
+  <h2><a name="legend"></a>Legenden</h2>
+
+  <p>Zu den meisten Kartenthemen sind Legenden und Beschreibungen verfügbar. Klicken Sie dazu auf den Kartennamen:</p>
+
+  <p><img class="img-responsive" src="images/legend_de.png"><br></p>
+
+  
+  <h1>Werkzeuge</h1>
+  <a name="measure"></a>
+  <h2>Messen</h2>
+
+  <span>
+    <img class="img-responsive" src="./images/measure_mobile.png">
+  </span>
+
+<p>Das Messen auf mobilen Geräten (SmartPhones) bietet folgende Funktionalität:</p>
+
+<br>
+
+ <span class="row">
+    <span class="col-xs-1">
+      <img class="img-responsive" src="./images/measure_mobile_line.png">
+      <img class="img-responsive" src="./images/measure_mobile_polygon.png">
+      <img class="img-responsive" src="./images/measure_mobile_ok.png">
+    </span>
+      <span class="col-xs-11">Ändern Sie die Art der Messung zwischen von Polylinien und Flächen. Die Art der Messung wird dann im Messcursor reflektiert. Um den Messvorgang zu starten, klicken Sie auf den Cursor an der gewünschten Stelle. Bewegen Sie den Cursor und fügen Sie nach Belieben Punkte ein. Um einen Vorgang abzuschließen, klicken Sie auf den Button "OK".
+      </span>
+</span>
+
+<br>
+
+<span class="row">
+    <span class="col-xs-1">
+      <img class="img-responsive" src="./images/measure_mobile_minus.png">
+    </span>
+      <span class="col-xs-11">Klicken Sie auf die Schaltfläche "Minus", um den letzten Punkt zu löschen.
+      </span>
+</span>
+
+<br>
+
+<span class="row">
+    <span class="col-xs-1">
+      <img class="img-responsive" src="./images/measure_mobile_trash.png">
+    </span>
+      <span class="col-xs-11"> Klicken Sie auf den Button "Papierkorb", um die letzte Messung zu löschen. Klicken Sie auf den Button "Papierkorb" im Hauptmenü, um alle Messungen zu löschen.
+      </span>
+</span>
+
+<br>
+
+ <span class="row">
+    <span class="col-xs-1">
+      <img class="img-responsive" src="./images/measure_mobile_exit.png">
+    </span>
+      <span class="col-xs-11">Klicken Sie auf die Schaltfläche "x", um die Funktion zu beenden.
+      </span>
+</span>
+
+<br>
+
+ <span class="row">
+    <span class="col-xs-1">
+      <img class="img-responsive" src="./images/measure_mobile_save.png">
+    </span>
+      <span class="col-xs-11">Klicken Sie auf den Button "Speichern" im Messmenü, um die Messung als URL zu speichern (die Sie dann kopieren und jemandem schicken können).<br><br>
+      </span>
+</span>
+
+<h2>Erfassen und Editieren</h2>
+
+  <span>
+    <img class="img-responsive" src="./images/mobile_edit.png">
+  </span>
+
+<h3>Erfassen neuer Objekte</h3>
+
+<p><b>Das Erfassen</b> auf mobilen Geräten (SmartPhones) bietet folgende Funktionalität:</p>
+
+<br>
+
+ <span class="row">
+    <span class="col-xs-1">
+      <img class="img-responsive" src="./images/mobile_edit_point.png" width="35">
+      <img class="img-responsive" src="./images/mobile_edit_line.png" width="35">
+      <img class="img-responsive" src="./images/mobile_edit_polygon.png" width="35">
+    </span>
+      <span class="col-xs-11">Die Art des Objekts wird automatisch im Efassungscursor angezeigt. Um den Editiervorgang zu starten, klicken Sie auf den Cursor an der gewünschten Stelle. Linien und Flächen: bewegen Sie den Cursor und fügen Sie nach Belieben Punkte ein. Um einen Vorgang abzuschließen, klicken Sie auf die Schaltfläche "&#10003;". Sind <b>Snap</b>-Layer konfiguriert, kann auch gesnappt werden.
+      </span>
+</span>
+
+<br>
+
+<span class="row">
+    <span class="col-xs-1">
+      <img class="img-responsive" src="./images/measure_mobile_minus.png" width="25">
+    </span>
+      <span class="col-xs-11">Klicken Sie auf die Schaltfläche "-", um den letzten Punkt zu löschen.
+      </span>
+</span>
+
+<br>
+
+ <span class="row">
+    <span class="col-xs-1">
+      <img class="img-responsive" src="./images/measure_mobile_ok.png" width="25">
+    </span>
+      <span class="col-xs-11">Klicken Sie auf die Schaltfläche "&#10003;", um abzuschliessen. Danch erscheint die Attributmaske. Erfassen Sie die Attribute und speicern Sie das Objekt.
+      </span>
+</span>
+
+<br>
+
+ <span class="row">
+    <span class="col-xs-1">
+      <img class="img-responsive" src="./images/measure_mobile_exit.png" width="25">
+    </span>
+      <span class="col-xs-11">Klicken Sie auf die Schaltfläche "x", um aus der Funktion auszusteigen (Abbruch).
+      </span>
+</span>
+
+<br>
+
+<h3>Editieren bestehender Objekte</h3>
+
+<p>Klicken Sie dazu auf das Objekt und auf "Objekt bearbeiten" im Info-Fenster.</p>
+<br>
+
+ <span class="row">
+    <span class="col-xs-1">
+      <img class="img-responsive" src="./images/mobile_edit_move.png" width="25">
+      <img class="img-responsive" src="./images/measure_mobile_ok.png" width="25">
+      <img class="img-responsive" src="./images/measure_mobile_minus.png" width="25">
+    </span>
+      <span class="col-xs-11">Um ein Objekt zu bearbeiten, plazieren Sie den Cursor an der gewünschten Stelle des Objekts. Sie haben folgende Möglichkeiten:
+        <ul>
+          <li>Punktobjekte: mit dem Cursor auf den Punkt, mit der Verschieb-Funktion ziehen, dann auf die "&#10003;" Funktion klicken.</li>
+          <li>Zwischenpunkt hinzufügen: Cursor auf beliebige Stelle, mit der Verschieb-Funktion ziehen, dann auf die "&#10003;" Funktion klicken</li>
+          <li>Zwischenpunkt löschen: Cursor auf gewünschten Zwischenpunkt, auf die Minus-Funktion klicken, dann auf die "&#10003;" Funktion klicken</li>
+          <li>Abschluss: im Info-Fenster auf Speichern klicken</li>
+      </span>
+</span>
+
+</body>
+
+</html>

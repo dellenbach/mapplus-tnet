@@ -1,0 +1,14 @@
+{
+    "desc_nw_aue/nw_grundwasserthemen_afu": "nw_aue nw_grundwasserthemen_afu",
+    "desc_nw_aue/nw_grundwasserthemen_afu/ogw_gewaessernetz": "OGW Gewaessernetz",
+    "desc_nw_aue/nw_grundwasserthemen_afu/ogw_gewaessernetz/gewaesser_name": "OGW Gewaessernetz Gewaesser Name",
+    "desc_nw_aue/nw_grundwasserthemen_afu/ogw_gewaessernetz/gewaesser_name/fliessgewaesser_name": "OGW Gewaessernetz Gewaesser Name Fliessgewaesser Name",
+    "desc_nw_aue/nw_grundwasserthemen_afu/ogw_gewaessernetz/gewaesser_name/seen_name": "OGW Gewaessernetz Gewaesser Name Seen Name",
+    "desc_nw_aue/nw_grundwasserthemen_afu/ogw_gewaessernetz/fliessgewaesser": "OGW Gewaessernetz Fliessgewaesser",
+    "desc_nw_aue/nw_grundwasserthemen_afu/ogw_gewaessernetz/fliessgewaesser/herkunft_und_art": "OGW Gewaessernetz Fliessgewaesser Herkunft und Art",
+    "desc_nw_aue/nw_grundwasserthemen_afu/ogw_gewaessernetz/seen": "OGW Gewaessernetz Seen",
+    "desc_nw_aue/nw_grundwasserthemen_afu/ggw_ueberwachung": "GGW Ueberwachung",
+    "desc_nw_aue/nw_grundwasserthemen_afu/ggw_gewaesserschutzbereiche": "GGW Gewaesserschutzbereiche",
+    "desc_nw_aue/nw_grundwasserthemen_afu/ggw_gewaesserschutzbereiche/zustroembereich": "GGW Gewaesserschutzbereiche Zustroembereich",
+    "desc_nw_aue/nw_grundwasserthemen_afu/ggw_grundwasserverhaeltnisse": "GGW Grundwasserverhaeltnisse"
+}

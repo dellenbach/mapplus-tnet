@@ -1,0 +1,43 @@
+
+
+.infoIpadCloseLink {
+        display: block;
+        position: absolute;
+        font-size: 0;
+        top: 5px !important;
+        right: 5px !important;
+        width: 18px;
+        height: 18px;
+        background: url(../img/close30.svg) center center no-repeat;
+        background-size: contain;
+        color: transparent !important;
+    }
+
+/* iPad mini portrait */
+
+@media only screen 
+and (min-device-width : 768px) 
+and (max-device-width : 1024px) 
+and (orientation : portrait)
+and (-webkit-min-device-pixel-ratio: 1)  { 
+    .appLayout, .mainmap {
+        width: 50px !important;
+    }
+    .appLayout div {
+        font-size: 9px !important;
+    }
+
+    #btnMapContainer_main, #njs_main_print_wrapper, #njs_main_measure_wrapper, #njs_main_ortho_wrapper, #njs_main_rl_wrapper {
+        left: 5px !important;
+    }
+ }
+
+ #njs_coordinates_wrapper table {
+ -webkit-border-vertical-spacing: 0px !important;
+ }
+
+ #footPane, #footPane_main {
+
+    height: 120px;
+
+}

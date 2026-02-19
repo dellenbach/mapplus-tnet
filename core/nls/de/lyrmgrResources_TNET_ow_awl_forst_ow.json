@@ -1,0 +1,18 @@
+{
+    "desc_ow_awl/forst_ow": "ow_awl forst_ow",
+    "desc_ow_awl/forst_ow/flughindernisse": "Flughindernisse",
+    "desc_ow_awl/forst_ow/flughindernisse/ow_flughindernisse": "Flughindernisse OW_Flughindernisse",
+    "desc_ow_awl/forst_ow/flughindernisse/bazl_flughindernisse": "Flughindernisse BAZL_Flughindernisse",
+    "desc_ow_awl/forst_ow/forst": "FORST",
+    "desc_ow_awl/forst_ow/forst/planung": "FORST Planung",
+    "desc_ow_awl/forst_ow/forst/planung/hilfspunkte_planung": "FORST Planung Hilfspunkte_Planung",
+    "desc_ow_awl/forst_ow/forst/planung/wege_und_linien_planung": "FORST Planung Wege_und_Linien_Planung",
+    "desc_ow_awl/forst_ow/forst/planung/forstflaechen_planung": "FORST Planung Forstflaechen_Planung",
+    "desc_ow_awl/forst_ow/forst/hilfspunkte": "FORST Hilfspunkte",
+    "desc_ow_awl/forst_ow/forst/wege_und_linien": "FORST Wege_und_Linien",
+    "desc_ow_awl/forst_ow/forst/forstflaechen": "FORST Forstflaechen",
+    "desc_ow_awl/forst_ow/forst/forstflaechen_ausfuerungsjahr_text": "FORST Forstflaechen_Ausfuerungsjahr_Text",
+    "desc_ow_awl/forst_ow/forst/forstflaechen_status": "FORST Forstflaechen_Status",
+    "desc_ow_awl/forst_ow/forst/forstflaechen_programm_projekt": "FORST Forstflaechen_Programm_Projekt",
+    "desc_ow_awl/forst_ow/forst/forstflaechen_deaktiviert": "FORST Forstflaechen_deaktiviert"
+}

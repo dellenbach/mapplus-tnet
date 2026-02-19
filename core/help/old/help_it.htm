@@ -1,0 +1,264 @@
+<html>
+  <head>
+    <meta http-equiv="content-type" content="text/html; charset=utf-8">
+    <title>MAP+&nbsp; aiuto</title>
+    <link rel="stylesheet" type="text/css" href="css/bootstrap.css">
+    <link rel="stylesheet" type="text/css" href="css/mapplus.css">
+    <base target="_self">
+  </head>
+  <body leftmargin="20">
+    <div class="close" onclick="parent.njs.AppManager.toggleCustomPaneContent('help','custompane','../....//help/help_de.htm','');"></div>
+    <h1>mapplus.ch - aiuto</h1>
+    <h2>Contenuto</h2>
+    <h3>Mappe e funzioni</h3>
+    <ul>
+      <li>Navigazione</li>
+      <li>Ricerca</li>
+      <li><a href="#Kartenauswahl">Funzioni, mappe</a></li>
+      <li><a href="#info">Interrogazione oggetti</a></li>
+      <li><a href="#Lesezeichen">Segnalibri</a></li>
+    </ul>
+    <h3>Tools</h3>
+    <ul>
+      <li><a href="#Print">Stampa</a></li>
+      <li><a href="#Measure">Misure</a></li>
+      <li><a href="#Draw">Disegni</a></li>
+      <li><a href="#wms">Carte esterne</a></li>
+      <li><a href="#mobile">Versione mobile</a></li>
+    </ul>
+    <h2>Navigazione</h2>
+    <p>Per navigare sulla mappa hai le seguenti opzioni:</p>
+    <ul>
+      <li>Ingrandire, rimpicciolire: rotellina del mouse o +/-</li>
+      <li>Spostare: fare clic e trascinare o il tasto freccia</li>
+      <li>Finestra: tieni premuto il tasto Shift, clicca e trascina</li>
+      <li>Vista iniziale: fare clic sull'icona "Vista totale"</li>
+    </ul>
+    <h2>Ricerca</h2>
+    <p>La ricerca integra CAP, località, strade, indirizzi delle città più grandi, nomi topografici e quasi tutti i punti di interesse.</p>
+    <h3>Ricerca per oggetti</h3>
+    <p>Digita parti del o il testo completo che stai cercando. Opzionalmente combinato con altre parti di testo.</p>
+    <p>Esempi di tecniche di ricerca rapide ed efficienti:</p>
+    <ul>
+      <li><b>Indirizzo</b>, Optingenstrasse 27, Bern: Digita "<b>opt 27</b>"</li>
+      <li><b>Indirizzo</b>, Bahnhofstrasse 13 , Stettlen: Digita "<b>bahn 13 st</b>"</li>
+      <li><b>Hotel</b> Palace Montreux: Digita "<b>pala montr</b>"</li>
+      <li><b>Capanna di montagna</b> Saoseo: Digita "<b>saos</b>"</li>
+    </ul>
+    <p>Puoi anche cercare temi delle mappe:</p>
+    <ul>
+      <li>Pper esempio "<b>pubs</b>"</li>
+      <li>o il tema Paragliding, digita <b>"paragl</b>"</li>
+    </ul>
+    <p></p>
+    <h3>Visualizzazione e ricerca coordinate</h3>
+    <span class="row"> 
+    <span class="col-xs-2"> 
+      <img class="img-responsive space-up"
+          src="../templates/mapplus_ribbon/img/coords_open.svg"> 
+    </span> 
+    <span class="col-xs-10">Se il lucchetto è aperto = blu o verde (dipende dai colori del layout), le coordinate vengono visualizzate in modo dinamico quando si sposta il mouse sulla mappa.
+      </span> 
+      </span> 
+    <span class="row"> 
+    <span class="col-xs-2"> 
+      <img class="img-responsive space-up" src="../templates/mapplus_ribbon/img/coords_locked.svg">
+      </span> 
+      <span class="col-xs-10">Se il lucchetto è chiuso = rosso (fare clic su di esso per farlo), le coordinate vengono aggiornate solo quando si fa clic sulla mappa. Ciò ti consentirà di copiare / incollare le coordinate di una posizione specifica.
+      </span>
+     </span>
+    <p>Se si desidera cercare per coordinate, inserire la coppia desiderata separata da una virgola o da uno spazio e premere il tasto "Enter".</p>
+
+    <p></p>
+    <a name="Kartenauswahl"></a>
+    <h2>Mappe di sfondo e funzioni</h2>
+    <p> <img class="img-responsive" src="images/background_maps_it.png"></p>
+        <p>Come sfondo puoi scegliere (dipende dall'applicazione):</p>
+        <ul>
+          <li><b>OSM++: Mappe OpenStreetMap (OSM) "arricchite"</b>.<a href="http://www.openstreetmap.org/" target="_blank">OpenStreetMap (OSM)</a> è un progetto collaborativo per creare una mappa modificabile gratuita del mondo. Pertanto, se non trovi la tua casa sulla mappa, collabora e diventa un OSM Mapper! "Arricchite" significa che abbiamo aggiuto ai dati OSM altri dati gratuiti, come rilievo, curve di livello, dati più dettagliati ecc. In più ci siam dati pena con una cartografia elaborata. Processiamo ogni trimestre tre versioni:</li>
+          <ul>
+          <li><b>OSM++ Alpi</b>, arricchita con dati gratuiti di Svizzera, Austria e Italia</li>
+          <li><b>OSM++ Svizzera</b>, arricchita con dati topografici dei cantoni (dove disponibili gratuitamente), mappe molto più dettagliate con un livello di zoom più elevato</li>
+          <li><b>OSM++ Europa</b>, basata su dati OSM "puri" (tranne rilievo e curve di livello dal EU DEM)</li>
+         </ul>
+          <li><b>Immagine aerea canton di Zurigo</b></li>
+          <li><b>Dati satellite Copernicus</b></li>
+          <li><b>Google Strade</b></li>
+          <li><b>Google Immagini aeree</b></li>
+          <li><b>Google Immagini aeree e strade</b></li>
+          <li><b>Vuota</b>: senza sfondo</li>
+        </ul>
+      </span> </span>
+    <p><b>Funzioni</b> supplemantari:</p>
+    <ul>
+      <li><b>Scelta di mappe preparate (carte tematiche)</b></li>
+      <li><b>Rimuovere tutti i temi</b></li>
+      <li><b>Localizzazione GPS</b></li>
+      <li><b>Vistal totale</b></li>
+      <li><b>Google StreetView</b>: </li>
+      <ul>
+        <li>Naviga in StreetView. la mappa verrà aggiornata (Posizione e direzione).</li>
+        <li>In alternativa, puoi spostare l'oggetto StreetView sulla mappa. Viene cercata e mostrata la registrazione StreetView più vicina.</li>
+        <li>Per avere più spazio per la mappa e Street View, puoi rimuovere il controllo di selezione delle mappe (fai clic sui tre punti a sinistra della mappa).</li>
+      </ul>
+        <li><b>Google Earth</b>: Vedi la sezione attuale della mappa in Google Earth</li>
+        <li><b>geo.admin:</b> Vedi i livelli attivi su geo.admin</li>
+        <li><b>Aiuto</b></li>
+    </ul>
+    <b></b>
+    <ul>
+    </ul>
+    <h2>Temi</h2>
+    <p>Esistono circa 150 temi (eur.mapplus.ch con 80 temi), raggruppati come segue:</p>
+    <ul>
+      <li><b>Turismo<br></b></li>
+      <li><b>Infrastruttura</b></li>
+      <li><b>Traffico<br></b></li>
+      <li><b>Sport</b></li>
+      <li><b>Natura</b></li>
+    </ul>
+    <p><b><font color="#FF0000">Importante</font></b>: I temi mostrati in corsivo non sono visibili al livello di zoom corrente, ingrandisci per vederli.</h2>
+    <p>Fare clic sulla <img src="../templates/mapplus_ribbon/img/buttons/map.png" title="'i'"/> a livello di gruppo per informazioni sui dati. Alcuni temi possono avere informazioni a livello di tema, come una legenda. In questo caso il titolo è un collegamento ipertestuale.</p>
+
+    <h2>Interrogazione sull'oggetto</h2>
+    <p>La maggior parte dei temi possono essere interrogati. Basta fare clic sull'oggetto desiderato.</p>
+
+    <h1>Strumenti</h1>
+    <p>Gli strumenti si trovano nella barra multifunzione in alto:</p>
+    <ul>
+      <li>Anteprima di stampa e Stampa PDF sotto "HOME"</li>
+      <li>Misurare e profili sotto "MISURE"</li>
+      <li>Disegnare sotto "DISEGNI"</li>
+    </ul>
+    <h2> <a name="Print"></a>Stampa</h2>
+    <span class="row"> 
+      <span class="col-xs-2"> <img class="img-responsive" src="../templates/mapplus_ribbon/img/ribbon/btn_preview.svg">
+      </span> 
+    <span class="col-xs-10"> <b>Anteprima</b><br>
+        La vista della mappa attuale viene elaborata per una stampa ottimizzata per A4. 
+      </span> 
+    </span>
+    <span class="row">
+       <span class="col-xs-2"> <img class="img-responsive" src="../templates/mapplus_ribbon/img/ribbon/btn_pdf.svg">
+      </span> 
+      <span class="col-xs-10"> <b>Stampa PDF in scala<br>
+        </b>Viene visualizzata la seguente finestra di dialogo. Scegli scala, layout, risoluzione e, facoltativamente, inserisci un titolo per la tua mappa:
+      </span> 
+    </span> 
+    <span class="row"> 
+    <span class="col-xs-2"></span>
+      <span class="col-xs-10"> <img class="img-responsive" src="images/pdf_dialog_it.png">
+      </span> 
+    </span>
+    <p> <font color="#FF0000"><b>IMPORTANTE</b></font>: Per poter stampare in scala devi disattivare qualsiasi ridimensionamento offerto dal tuo software PDF (come adattamento o riduzione del formato carta). Esempio:</p>
+    <span class="row"> <span class="col-md-1 col-xs-0"></span> <span class="col-md-11 col-xs-12">
+        <img class="img-responsive" src="images/pdf_dialog_scale_it.gif"> </span>
+    </span> <a name="Measure"></a>
+
+    <h2>Misure e profili</h2>
+    <span class="row"> 
+      <span class="col-xs-2"> <img class="img-responsive" src="../templates/mapplus_ribbon/img/ribbon/btn_measure_line.svg">
+      </span> <span class="col-xs-10"> <b>Distanza</b><br>
+       Cliccare sul punto iniziale desiderato e continuare a fare clic su un numero qualsiasi di punti intermedi. Per terminare fare doppio clic. Dopo aver terminato, puoi ancora aggiungere e spostare punti. Per terminare la funzione, fai di nuovo clic sull'icona, scegli un'altra funzione o passa a mappe o cerca.
+      </span> 
+     </span> 
+    <span class="row"> 
+
+      <span class="col-xs-2"> <img class="img-responsive" src="../templates/mapplus_ribbon/img/ribbon/btn_measure_area.svg">
+      </span> 
+      <span class="col-xs-10"> <b>Area<br>
+        </b>Cliccare sul punto iniziale desiderato e continuare a fare clic su un numero qualsiasi di punti intermedi. Per terminare fare doppio clic. Dopo aver terminato, puoi ancora aggiungere e spostare punti. Per terminare la funzione, fai di nuovo clic sull'icona, scegli un'altra funzione o passa a mappe o cerca.
+      </span> 
+    </span> 
+    <span class="row"> 
+       <span class="col-xs-2"> <img
+          class="img-responsive" src="../templates/mapplus_ribbon/img/ribbon/btn_measure_profile.svg">
+      </span> 
+      <span class="col-xs-10"> <b>Misura della distanza con generazione del profilo<br>
+        </b>Fare clic sul punto iniziale desiderato e continuare a fare clic su un numero qualsiasi di punti intermedi. Per terminare fare doppio clic. Un profilo viene generato e visualizzato in una finestra - ora puoi:
+        <ul>
+          <li>Spostare il mouse sul profilo. La posizione è mostrata sulla mappa</li>
+          <li>Fare clic sul profilo per ingrandirlo, ad esempio a fini di stampa</li>
+        </ul>
+        <p>Puoi aggiungere e spostare punti della polilinea della distanza, il profilo viene aggiornato. Per terminare la funzione, fai di nuovo clic sull'icona, scegli un'altra funzione o passa a mappe o cerca.</p>
+    </span> 
+    </span> 
+    <span class="row"> 
+       <span class="col-xs-2">
+      </span> 
+      <span class="col-xs-10">
+            <p><img class="img-responsive space-up" src="images/profile_dialog_en.png"></p>
+     </span>
+  </span>
+    <h2>Disegni</h2>
+    <p>Regole generali:</p>
+        <p><b>Cancellare</b>:</p>
+        <ul>
+          <li>Oggetto singolo: clicca sull'oggetto e fai clic sul cestino nella finestra di dialogo</li>
+          <li>Tutti gli oggetti: fare clic sul pulsante "Annulla"</li>
+        </ul>
+    <p><strong>Salva come segnalibro</strong>: Il disegno può essere facoltativamente salvato come segnalibro. Se si salva un disegno, è presente un tag aggiunto all'URL. È possibile salvare l'URL come segnalibro o copiare l'URL e, ad esempio, inviandola a qualcuno. Oltre al disegno, tutti i parametri della la mappa vengono salvati (puoi tornare esattamente dove eri).</p>
+
+    <span class="row"> 
+      <span class="col-xs-2"> <img class="img-responsive" src="../templates/mapplus_ribbon/img/ribbon/btn_rl_point.svg">
+      </span> 
+      <span class="col-xs-10"> <b>Simboli</b><br>
+        Cliccare sulla funzione per attivarla. Verrà mostrata una scelta di simboli. Scegli qualsiasi simbolo e inizia a disegnare. Ripeti a volontà. Per terminare fare clic sul pulsante chiudi o su qualsiasi altra funzione. I simboli possono essere modificati e spostati dopo aver terminato. Per fare ciò, basta cliccare sul simbolo, dopodiché si può spostarlo o anche scegliere un altro simbolo.
+      </span> 
+    </span> 
+    <span class="row"> 
+      <span class="col-xs-2"> <img class="img-responsive" src="../templates/mapplus_ribbon/img/ribbon/btn_rl_text.svg">
+      </span> <span class="col-xs-10"> <b>Testi</b><br>
+        Cliccare sulla funzione per attivarla. Verrà visualizzata la finestra di dialogo di testo. Scegli carattere, dimensione colore e inserisci un testo; fai clic sulla mappa per posizionarlo. Ripeti come preferisci. Per terminare fare clic sul pulsante Chiudi o su qualsiasi altra funzione. Gli oggetti di testo possono essere editati e spostati in qualsiasi momento dopo aver terminato. Per fare ciò, basta fare clic sul punto di vertice del testo e trascinarlo se si desidera spostarlo e / o modificare o inserire un altro testo, modificare le proprietà, ecc.
+      </span> 
+    </span> 
+    <span class="row"> 
+      <span class="col-xs-2"> <img class="img-responsive" src="../templates/mapplus_ribbon/img/ribbon/btn_rl_line.svg">
+      </span> <span class="col-xs-10"> <b>Linee</b><br>
+        Cliccare sulla funzione per attivarla. Verrà visualizzata la finestra di dialogo degli stili di linea. Scegli tipo, larghezza e colore; fai clic su un numero qualsiasi di punti nella mappa; per finire fare doppio clic. Ripeti come preferisci. Per terminare fare clic sul pulsante Chiudi o su qualsiasi altra funzione. Gli oggetti linea possono essere modificati e spostati in qualsiasi momento dopo aver terminato. Per fare ciò, basta cliccare sulla linea, quindi aggiungere vertici, cambiare vertici e / o proprietà.
+      </span> 
+    </span> 
+    <span class="row"> 
+      <span class="col-xs-2"> <img class="img-responsive" src="../templates/mapplus_ribbon/img/ribbon/btn_rl_area.svg">
+      </span> 
+      <span class="col-xs-10"> <b>Poligoni e circhi</b><br>
+        Cliccare sulla funzione per attivarla. Verrà visualizzata la finestra di dialogo degli stili di area. Scegli tipo, larghezza del bordo e colori; fai clic su un numero qualsiasi di punti nella mappa; per finire fare doppio clic. Ripeti come preferisci. Per terminare fare clic sul pulsante chiudi o su qualsiasi altra funzione. Gli oggetti area possono essere modificati e spostati in qualsiasi momento dopo aver terminato. Per fare ciò, basta cliccare sull' area, quindi aggiungere vertici, cambiare vertici e / o proprietà.
+  </span>
+</span>
+
+
+    <h2><a name="wms"></a>Aggiungere servizi carte esterni</h2>
+    <p>In MAP + puoi aggiungere servizi mappe web, cosidetti Web Mapping Services (<a target="_blank" href="http://www.wikiwand.com/de/Web_Map_Service">WMS</a>). Un servizio mappe web (WMS) è un protocollo standard per servire immagini di mappe georeferenziate su Internet. Per aggiungere uno o più livelli WMS, procedere come segue:
+      </p>
+    <ul>
+      <li>Scegliere CARTE ESTERNE (in basso a sinistra)</li>
+      <li>Viene visualizzata la seguente finestra di dialogo:</li>
+    </ul>
+    <p> <img class="img-responsive" src="images/wms_dialog_it.png"></p>
+    <ul>
+      <li><b>WMS</b>: Scegli un servizio dell'elenco integrato o digita una connessione manualmente e fai clic su connetti. Viene visualizzato un elenco dei WMS che può essere filtrato su bisogno</li>
+    </ul>
+    <p>Una volta scelto un livello hai le seguenti opzioni:</p>
+    <ul>
+      <li>Leggi la descrizione del WMS (se disponibile). Importante: Certi WMS dispongono di una limitazione dello zoom, voul dire non visibili a certi livelli</li>
+      <li>Clicca su un WMS per mostrarlo sulla mappa (fai attenzione alle possibili restrizioni di zoom, vedi sopra)</li>
+      <li><b>Legenda: </b> Mostra la legenda se disponibile (in caso contrario, il pulsante è disattivato).</li>
+      <li><b>Aggiungere</b>: Aggiungi il WMS alla mappa.</li>
+      <li>Alcuni livelli potrebbero non essere trasparenti. Per gestire la trasparenza di un livello, fare clic su ORDINARE / TRASPARENZA</li>
+      <li>Per rimuovere un WMS, sono disponibili le seguenti opzioni: fare clic sulla funzione Nascondi layers i o utilizzare il menu ORDINARE / TRASPARENZA</li>
+    </ul>
+    <h1> <a name="mobile"></a>Versione mobile</h1>
+    <p>La versione mobile per smartphone ha una funzionalità ridotta, come segue:</p>
+    <ul>
+      <li>Carte di sfondo</li>
+      <li>Aggiungere carte</span> </li>
+      <li>Scegliere carte tematiche</li>
+      <li>Localizzazione GPS</li>
+      <li>Nascondi layers</li>
+      <li>Vista totale</span> </li>
+      <li>Interrogazione Oggetti</li>
+      <li>Ricerca</li>
+    </ul>
+    <p>&nbsp;</p>
+  </body>
+</html>

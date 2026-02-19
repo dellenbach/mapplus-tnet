@@ -1,0 +1,10 @@
+{
+    "desc_gis_oereb/ow_planerischer_gewaesserschutz_DEF": "gis_oereb ow_planerischer_gewaesserschutz_DEF",
+    "desc_gis_oereb/ow_planerischer_gewaesserschutz_def/grundwasserschutzzone": "Grundwasserschutzzone",
+    "desc_gis_oereb/ow_planerischer_gewaesserschutz_def/grundwasserschutzareal": "Grundwasserschutzareal",
+    "desc_gis_oereb/ow_planerischer_gewaesserschutz_def/zustroembereich": "Zustroembereich",
+    "desc_gis_oereb/ow_planerischer_gewaesserschutz_def/gewaesserschutzbereich": "Gewaesserschutzbereich",
+    "desc_gis_oereb/ow_planerischer_gewaesserschutz_def/gewaesserschutzbereich/gewaesserschutzbereich_ao": "Gewaesserschutzbereich Gewaesserschutzbereich_Ao",
+    "desc_gis_oereb/ow_planerischer_gewaesserschutz_def/gewaesserschutzbereich/gewaesserschutzbereich_au": "Gewaesserschutzbereich Gewaesserschutzbereich_Au",
+    "desc_gis_oereb/ow_planerischer_gewaesserschutz_def/gewaesserschutzbereich/gewaesserschutzbereich_ub": "Gewaesserschutzbereich Gewaesserschutzbereich_UB"
+}

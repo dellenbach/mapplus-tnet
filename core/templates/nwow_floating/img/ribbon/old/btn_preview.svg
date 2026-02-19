@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+<svg width="32" height="32" version="1.1" viewBox="0 0 8.4667 8.4667" xmlns="http://www.w3.org/2000/svg" xmlns:cc="http://creativecommons.org/ns#" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+ <metadata>
+  <rdf:RDF>
+   <cc:Work rdf:about="">
+    <dc:format>image/svg+xml</dc:format>
+    <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
+    <dc:title/>
+   </cc:Work>
+  </rdf:RDF>
+ </metadata>
+ <g transform="translate(-85.99 -126.19)">
+  <g transform="matrix(.68196 0 0 .68196 15.018 44.044)">
+   <g transform="matrix(1.5855 0 0 1.5855 75.912 98.676)">
+    <g transform="matrix(1.0052 0 0 1.0052 -1.8196 3.0598)">
+     <g transform="translate(-7.9216 -4.1718)" fill="none" fill-rule="evenodd" stroke="#444" stroke-width=".12172">
+      <path d="m28.927 15.136h3.9459l1.501 1.8425v5.2687h-5.4469z" color="#000000" color-rendering="auto" image-rendering="auto" shape-rendering="auto" solid-color="#000000" stroke-linecap="round" style="isolation:auto;mix-blend-mode:normal;paint-order:normal"/>
+      <path d="m32.924 15.313v1.5899h1.3636z" stroke-linecap="square"/>
+     </g>
+     <rect x="20.263" y="14.685" width="5.3191" height="2.345" rx="0" ry="0" color="#000000" color-rendering="auto" fill="#808080" image-rendering="auto" shape-rendering="auto" solid-color="#000000" style="isolation:auto;mix-blend-mode:normal"/>
+     <g fill="#fff">
+      <path d="m20.868 16.597v-1.4552h0.29383v0.57277h0.57574v-0.57277h0.29383v1.4552h-0.29383v-0.6363h-0.57574v0.6363z" style="font-feature-settings:normal;font-variant-caps:normal;font-variant-ligatures:normal;font-variant-numeric:normal"/>
+      <path d="m22.664 16.597v-1.2091h-0.43181v-0.24618h1.1565v0.24618h-0.43082v1.2091z" style="font-feature-settings:normal;font-variant-caps:normal;font-variant-ligatures:normal;font-variant-numeric:normal"/>
+      <path d="m23.575 16.597v-1.4552h0.43975l0.26405 0.99266 0.26107-0.99266h0.44074v1.4552h-0.27298v-1.1455l-0.28886 1.1455h-0.28291l-0.28787-1.1455v1.1455z" style="font-feature-settings:normal;font-variant-caps:normal;font-variant-ligatures:normal;font-variant-numeric:normal"/>
+     </g>
+    </g>
+   </g>
+  </g>
+ </g>
+</svg>

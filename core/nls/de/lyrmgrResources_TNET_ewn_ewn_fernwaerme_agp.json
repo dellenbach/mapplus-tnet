@@ -1,0 +1,14 @@
+{
+    "desc_ewn/ewn_fernwaerme_agp": "ewn ewn_fernwaerme_agp",
+    "desc_ewn/ewn_fernwaerme_agp/fernwaerme_kundendaten": "Fernwärme Kundendaten",
+    "desc_ewn/ewn_fernwaerme_agp/fernwaerme_kundendaten_kategorien": "Fernwärme Kundendaten Kategorien",
+    "desc_ewn/ewn_fernwaerme_agp/fernwaerme_bauphase": "Fernwärme Bauphase",
+    "desc_ewn/ewn_fernwaerme_agp/infopunkt": "Infopunkt",
+    "desc_ewn/ewn_fernwaerme_agp/heizung_verbindungslinien": "Heizung Verbindungslinien",
+    "desc_ewn/ewn_fernwaerme_agp/fernwaerme_temporaere_leitungen": "Fernwärme temporäre Leitungen",
+    "desc_ewn/ewn_fernwaerme_agp/fernwaerme_leitungen": "Fernwärme Leitungen",
+    "desc_ewn/ewn_fernwaerme_agp/leitungen_dienstbarkeiten": "Leitungen Dienstbarkeiten",
+    "desc_ewn/ewn_fernwaerme_agp/fernwaerme_perimeter": "Fernwärme Perimeter",
+    "desc_ewn/ewn_fernwaerme_agp/fernwaerme_perimeter/fernwaerme_perimetergrenze": "Fernwärme Perimeter Fernwärme Perimetergrenze",
+    "desc_ewn/ewn_fernwaerme_agp/fernwaerme_perimeter/fernwaerme_perimeterflaeche": "Fernwärme Perimeter Fernwärme Perimeterfläche"
+}

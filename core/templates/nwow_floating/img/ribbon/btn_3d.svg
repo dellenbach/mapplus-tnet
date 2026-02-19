@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Uploaded to: SVG Repo, www.svgrepo.com, Generator: SVG Repo Mixer Tools -->
+
+<svg
+   fill="#000000"
+   height="800"
+   width="800"
+   version="1.1"
+   id="Capa_1"
+   viewBox="0 0 270 270"
+   xml:space="preserve"
+   sodipodi:docname="btn_3d.svg"
+   inkscape:version="1.4 (1:1.4+202410161351+e7c3feb100)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg"><defs
+   id="defs1"><rect
+   x="-97.149399"
+   y="38.120129"
+   width="1054.0817"
+   height="330.55356"
+   id="rect4" />
+	
+	
+</defs><sodipodi:namedview
+   id="namedview1"
+   pagecolor="#ffffff"
+   bordercolor="#000000"
+   borderopacity="0.25"
+   inkscape:showpageshadow="2"
+   inkscape:pageopacity="0.0"
+   inkscape:pagecheckerboard="0"
+   inkscape:deskcolor="#d1d1d1"
+   inkscape:zoom="1.6572815"
+   inkscape:cx="433.54131"
+   inkscape:cy="490.56241"
+   inkscape:window-width="3840"
+   inkscape:window-height="2075"
+   inkscape:window-x="0"
+   inkscape:window-y="0"
+   inkscape:window-maximized="1"
+   inkscape:current-layer="Capa_1" />
+
+<g
+   id="db-table"
+   style="opacity:0;mix-blend-mode:color-dodge;fill:#000000;fill-opacity:1;fill-rule:evenodd;stroke:none;stroke-width:1"
+   transform="matrix(3.6052538,0,0,2.91339,63.149039,96.563318)" /><g
+   id="g1"
+   style="fill:#000000"><path
+     class="st1"
+     d="m 107.61944,185.07544 15.35249,22.41116 36.47339,-53.28273 61.40998,89.52352 H 116.95021 L 67.699781,171.64951 -0.22273887,270.57349 H 269.98962 L 159.4506,109.50843 Z m -58.713139,58.65195 18.661541,-27.2498 18.677373,27.2498 z"
+     id="path1"
+     style="clip-rule:evenodd;fill:#000000;fill-opacity:1;fill-rule:evenodd;stroke-width:0.551694" /><text
+     xml:space="preserve"
+     style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:4.05px;font-family:'Roboto Slab';-inkscape-font-specification:'Roboto Slab Bold';white-space:pre;inline-size:105.821;fill:#000000;fill-opacity:1;stroke-width:0.3375"
+     x="17.232016"
+     y="43.808712"
+     id="text3"
+     transform="matrix(28.408942,0,0,27.566517,-479.36293,-1112.1543)"><tspan
+       x="17.232016"
+       y="43.808712"
+       id="tspan1">3D</tspan></text></g><text
+   xml:space="preserve"
+   transform="scale(0.3375)"
+   id="text4"
+   style="white-space:pre;shape-inside:url(#rect4);fill:#ffffff;fill-opacity:1" /></svg>

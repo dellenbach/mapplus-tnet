@@ -1,0 +1,241 @@
+/* -------------------------------------------------------------------------
+ * Layout Aspects
+ * ---------------------------------------------------------------------- */
+
+html,
+body {
+    background-color: #ffffff;
+    background-repeat: repeat-x;
+    background-position: left top;
+    /*margin: 10px;*/
+}
+
+body {
+    font-family: 'Lucida Grande', "Lucida Sans Unicode", Verdana, Helvetica, Arial, sans-serif;
+    color: #202020;
+    font-size: 12px;
+}
+
+#wrapper {
+    background: #fff;
+}
+
+.mission {
+    background: #fff url('../images/bg-shade-white-lrg.png') repeat-x bottom left;
+    color: #000;
+    border-color: #eee;
+}
+
+#footer-content,
+.bottom .middle {
+    background: #fff;
+}
+
+
+/* -------------------------------------------------------------------------
+ * Links/General
+ * ---------------------------------------------------------------------- */
+
+a,
+a:active {
+    color: #000000;
+    border-bottom-color: #000000;
+    border-bottom-style: dotted;
+    border-bottom-width: 1px;
+    text-decoration: none;
+}
+
+a.img {
+    border: none;
+}
+
+a,
+a:visited,
+li a.active {
+    color: #404040;
+}
+
+a:hover,
+.buttons div a:hover {
+    color: #000000;
+}
+
+code,
+pre {
+    font-family: 'Monaco', 'Consolas', 'Deja Vu Sans Mono', 'Courier New', courier, monospace;
+    color: #888;
+}
+
+
+/* Lists */
+
+
+/* ul,
+ol {
+    clear: both;
+    margin: 10px;
+} */
+
+ul {
+    margin-left: -20px;
+}
+
+dl {
+    width: 100%;
+    margin: 10px 0;
+}
+
+dt {
+    font-weight: 400;
+    padding: 2px 0;
+    border: none;
+}
+
+dd {
+    margin: 0;
+    padding: 10px 0;
+}
+
+
+/* -------------------------------------------------------------------------
+ * Headings
+ * ---------------------------------------------------------------------- */
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+#main h1.title {
+    font-family: 'Lucida Grande', Verdana, Arial, sans-serif;
+    color: #AA0114;
+}
+
+h1 a,
+h2 a,
+h3 a,
+h4 a,
+h5 a,
+.node .title a {
+    color: #AA0114;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+    clear: both;
+    display: block;
+    font-style: normal;
+    font-variant: normal;
+    font-weight: 400;
+    letter-spacing: -1px;
+    line-height: 1.4em;
+    margin-bottom: 10px;
+    margin-top: 5px;
+}
+
+h1 {
+    font-size: 2.0em;
+    display: block;
+}
+
+h2 {
+    font-size: 1.6em;
+}
+
+h3 {
+    font-size: 1.3em;
+}
+
+h4 {
+    font-size: 1.2em;
+}
+
+h5 {
+    font-size: 1.0em;
+}
+
+
+/* -------------------------------------------------------------------------
+ * Tables
+ * ---------------------------------------------------------------------- */
+
+table,
+th,
+thead th,
+td,
+td.menu-disabled,
+#blocks td.block {
+    border-color: #ddd;
+}
+
+table.noborder,
+.noborder tr,
+.noborder th,
+.noborder td {
+    border: none;
+}
+
+th,
+thead th {
+    color: #777;
+}
+
+td.active,
+tr.even,
+tr.odd {
+    background-color: #fff;
+}
+
+td.menu-disabled,
+tr.even td {
+    background: #eee;
+}
+
+
+/* -------------------------------------------------------------------------
+ * lists
+ * ---------------------------------------------------------------------- */
+
+li {
+    padding-bottom: 5px;
+}
+
+
+/* grid */
+
+container {
+    display: flex;
+    flex-direction: row;
+}
+
+main {
+    width: 90%;
+}
+
+aside {
+    width: 10%;
+}
+
+.full {
+    width: 100%;
+    text-align: center;
+    max-width: 720px;
+    margin-bottom: 20px;
+}
+
+
+/* @media (max-width: 700px) {
+    container {
+        display: flex;
+        flex-direction: column;
+    }
+    aside,
+    main {
+        width: 100%;
+    }
+} */

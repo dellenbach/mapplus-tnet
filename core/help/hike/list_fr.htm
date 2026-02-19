@@ -1,0 +1,126 @@
+<html>
+  <head>
+    <meta http-equiv="content-type" content="text/html; charset=utf-8">
+    <title>MAP+ Liste - Aide</title>
+    <link rel="stylesheet" type="text/css" href="css/bootstrap.css">
+    <link rel="stylesheet" type="text/css" href="css/mapplus.css">
+    <base target="_self">
+  </head>
+  <body leftmargin="20">
+    <div class="close" onclick="parent.njs.AppManager.toggleCustomPaneContent('help','custompane','../../core/help/help_de.htm','');"></div>
+
+    <p>&nbsp;</p>
+
+    <h1>MAP+ Liste - Aide</h1>
+
+    <span>
+    <img class="img-responsive" src="./images/list_fr.png">
+    </span>    
+
+    <h2>Fonctionnalité</h2>
+
+     <p>Fonctionnalité sur le listes:</p>
+
+     <ul>
+         <li>Filtres sur le contenu de la table</li>
+         <li>Trier le contenu sur une colonne</li>
+         <li>Fonction de recherche sur toute la table</li>
+         <li>Sélection géographique;: sélection/désélectionner des sigles d'objets, des rectangles, des polygones. Activez ou désactivez la fonction "même les objets tronqués" en option.</li>
+         <li>Toute combinaison de filtres et de sélection géographique</li>
+         <li>Effacer: efface tous les filtres et sélections</li>
+         <li>Fonctions d'exportation: JSON, XML, CSV, TXT, SQL, MS Excel</li>
+         <li>Fonctions d'exportation vers des formats géographiques (si configuré): ESRI Shape, GeoJSON, SQLIte, DXF, GeoPackage, etc.</li>
+         <li>Sélection des colonnes à afficher</li>
+     </ul>
+
+     <h2>Actions, recherche générique</h2>
+
+     <ul>
+     	<li><b>Grande loupe</b>: Zoom sur tous les objets sélectionnés</li>
+     	<li><b>Petite loupe</b>: Zoom sur l'objet</li>
+        <li><b>Flèches</b>: Trier le contenu</li>
+     	<li><b>Chape recherche</b>: recherche sur toute la table (tous les champs)</li>
+     </ul>
+
+     <h2>Filtres</h2>
+
+     <p>Les données peuvent être filtrées sur n'importe quelle <b>colonne ou combinaison de colonnes</b>. Différents types de filtres sont disponibles en fonction du contenu de la colonne:<br/><br/></p>
+
+    <span class="row">
+
+      <span class="col-xs-2"> 
+        <img class="img-responsive" src="./images/list_text_de.png">
+      </span>
+      <span class="col-xs-10"> 
+        <p><b>Champs text</b>: insertion de texte arbitraire, filtré en fonction du texte inséré.
+          <br/>Exemple: bern -> Via Albula/Bernina, Via Berna etc.
+          <br/>Supprimer le filtre: Supprimer le contenu du champ ou cliquez sur "Nettoyer"</p>
+      </span> 
+
+    </span>
+
+     <span class="row">
+
+      <span class="col-xs-2"> 
+        <img class="img-responsive" src="./images/list_select_it.png">
+      </span>
+      <span class="col-xs-10"> 
+        <p><b>Champs de sélection</b>: Champs à contenu fixe, sélection simple ou multiple du filtre.
+          <br/>Exemple: Forme physique basse, moyenne et/ou haute, éventuellement combinés avec un filtre de texte comme ci-dessus.
+          <br/>Supprimer le filtre: Supprimer le contenu du champ ou cliquez sur "Nettoyer"</p>
+      </span> 
+
+    </span>
+
+    <span class="row">
+
+      <span class="col-xs-2"> 
+        <img class="img-responsive" src="./images/list_numeric_de.png">
+      </span>
+      <span class="col-xs-10"> 
+        <p><b>Champs numériques</b>: opérateurs numériques: plus grand, plus petit, égal, etc. ou intervalle de-à.
+          <br/>Exemple filter sur la distance: <4000, 4000-6000, >10000 etc.
+          <br/>Exemple de <b>combinaison avec des champs de sélection</b>: distance <4000 et forme physique basse et forme technique basse; si vous vous sentez à la hauteur: distance > 10000, forme condition heute et forme technique haute
+          <br/>Supprimer le filtre: Supprimer le contenu du champ ou cliquez sur "Nettoyer"</p>
+      </span> 
+
+    </span>
+
+     <h2>Sélection géographique</h2>
+
+     <p>Les options de sélection suivantes sont disponibles et peuvent être combinées avec les filtres mentionnés ci-dessus. Optionnellement, seuls les objets entiers ou même les objets tronqués. La sélection est reflétée dans la liste.</p>
+
+     <ul>
+     	<li>Select: sélection/désélection d'objets individuels</li>
+     	<li>Rectangle: faire glisser un rectangle avec la souris</li>
+     	<li>Polygone: dessinez un polygone en cliquant sur des points individuels, double-cliquez pour fermer</li>
+      <li>Supprimer la séléction: cliquez sur "Nettoyer"</p>
+     </ul>
+
+     <h2>Sélectionner les colonnes à afficher, exporter</h2>
+
+     <span class="row">
+
+      <span class="col-xs-1"> 
+        <img class="img-responsive" src="./images/list_selcol.png"><br/>
+      </span>
+      <span class="col-xs-10"> 
+        <p><b>Sélectionner les colonnes à afficher:</b> sélectionner et désélectionner les colonnes à afficher.</p>
+      </span> 
+
+    </span>
+
+     <span class="row">
+
+      <span class="col-xs-1"> 
+        <img class="img-responsive" src="./images/list_export.png">
+      </span>
+      <span class="col-xs-10"> 
+        <p><b>Export</b>: JSON, XML, CSV, TXT, SQL, MS Excel</p>
+      </span> 
+
+    </span>
+
+    <p>&nbsp;</p>
+  </body>
+</html>

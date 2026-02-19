@@ -18,7 +18,7 @@ header('Access-Control-Allow-Origin: *');
 
 class BookmarkService {
     private static $bookmarks = null;
-    private static $jsonFile = __DIR__ . '/map-bookmarks-all.json';
+    private static $jsonFile = __DIR__ . '/../data/map-bookmarks-all.json';
     
     /**
      * Lädt Bookmarks aus JSON (mit OPcache gecacht)

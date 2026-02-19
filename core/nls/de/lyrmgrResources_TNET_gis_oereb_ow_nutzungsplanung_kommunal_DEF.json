@@ -1,0 +1,16 @@
+{
+    "desc_gis_oereb/ow_nutzungsplanung_kommunal_DEF": "gis_oereb ow_nutzungsplanung_kommunal_DEF",
+    "desc_gis_oereb/ow_nutzungsplanung_kommunal_def/vermassungslinie": "Vermassungslinie",
+    "desc_gis_oereb/ow_nutzungsplanung_kommunal_def/hilfslinie": "Hilfslinie",
+    "desc_gis_oereb/ow_nutzungsplanung_kommunal_def/statische_waldgrenzen": "Statische Waldgrenzen",
+    "desc_gis_oereb/ow_nutzungsplanung_kommunal_def/waldabstandslinien": "Waldabstandslinien",
+    "desc_gis_oereb/ow_nutzungsplanung_kommunal_def/baueinschraenkung_infolge_wald": "Baueinschränkung infolge Wald",
+    "desc_gis_oereb/ow_nutzungsplanung_kommunal_def/laermempfindlichkeitsaufstufung": "Lärmempfindlichkeitsaufstufung",
+    "desc_gis_oereb/ow_nutzungsplanung_kommunal_def/objektbezogene_festlegung": "objektbezogene Festlegung",
+    "desc_gis_oereb/ow_nutzungsplanung_kommunal_def/linienbezogene_festlegung": "linienbezogene Festlegung",
+    "desc_gis_oereb/ow_nutzungsplanung_kommunal_def/gefahrenzone": "Gefahrenzone",
+    "desc_gis_oereb/ow_nutzungsplanung_kommunal_def/sondernutzungsplan": "Sondernutzungsplan",
+    "desc_gis_oereb/ow_nutzungsplanung_kommunal_def/ueberlagernde_festlegung": "überlagernde Festlegung",
+    "desc_gis_oereb/ow_nutzungsplanung_kommunal_def/grundnutzung": "Grundnutzung",
+    "desc_gis_oereb/ow_nutzungsplanung_kommunal_def/laermempfindlichkeitsstufen": "Lärmempfindlichkeitsstufen"
+}

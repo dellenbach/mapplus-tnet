@@ -1,0 +1,16 @@
+{
+    "desc_ow_alu/ow_waermenutzungskarte": "ow_alu ow_waermenutzungskarte",
+    "desc_ow_alu/ow_waermenutzungskarte/waermepumpen_mit_erdsonden": "Wärmepumpen mit Erdsonden",
+    "desc_ow_alu/ow_waermenutzungskarte/grundwasserwaermepumpen_entnahme": "Grundwasserwärmepumpen Entnahme",
+    "desc_ow_alu/ow_waermenutzungskarte/grundwasserwaermepumpen_rueckgabe": "Grundwasserwärmepumpen Rückgabe",
+    "desc_ow_alu/ow_waermenutzungskarte/oberflaechengewaesserwaermepumpen_entnahme": "Oberflächengewässerwärmepumpen Entnahme",
+    "desc_ow_alu/ow_waermenutzungskarte/oberflaechengewaesserwaermepumpen_rueckgabe": "Oberflächengewässerwärmepumpen Rückgabe",
+    "desc_ow_alu/ow_waermenutzungskarte/waermepumpen_mit_erdregistern": "Wärmepumpen mit Erdregistern",
+    "desc_ow_alu/ow_waermenutzungskarte/waermepumpen_mit_energiepfaehlen": "Wärmepumpen mit Energiepfählen",
+    "desc_ow_alu/ow_waermenutzungskarte/tunnel_und_stollen": "Tunnel und Stollen",
+    "desc_ow_alu/ow_waermenutzungskarte/stollenachse_vom_hochwasserschutzstollen": "Stollenachse vom Hochwasserschutzstollen",
+    "desc_ow_alu/ow_waermenutzungskarte/waermenutzung": "Wärmenutzung",
+    "desc_ow_alu/ow_waermenutzungskarte/schutzgebiet_wellenberg": "Schutzgebiet Wellenberg",
+    "desc_ow_alu/ow_waermenutzungskarte/gewaesserraumzonen_ueberlagernd": "Gewässerraumzonen überlagernd",
+    "desc_ow_alu/ow_waermenutzungskarte/planungszone_hochwasserschutz": "Planungszone Hochwasserschutz"
+}

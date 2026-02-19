@@ -1,0 +1,22 @@
+{
+    "desc_nw_awn/nw_naturgefahren_grundwasser": "nw_awn nw_naturgefahren_grundwasser",
+    "desc_nw_awn/nw_naturgefahren_grundwasser/grundwasser_stanser_talboden": "Grundwasser Stanser Talboden",
+    "desc_nw_awn/nw_naturgefahren_grundwasser/grundwasser_stanser_talboden/gefahren_grundwasser_perimeter": "Grundwasser Stanser Talboden Gefahren Grundwasser - Perimeter",
+    "desc_nw_awn/nw_naturgefahren_grundwasser/grundwasser_stanser_talboden/gefahren_grundwasser": "Grundwasser Stanser Talboden Gefahren Grundwasser",
+    "desc_nw_awn/nw_naturgefahren_grundwasser/grundwasser_stanser_talboden/gefahren_grundwasser/isohypsen_gw_hw_300": "Grundwasser Stanser Talboden Gefahren Grundwasser Isohypsen GW HW 300",
+    "desc_nw_awn/nw_naturgefahren_grundwasser/grundwasser_stanser_talboden/gefahren_grundwasser/flurabstand_mittelstand": "Grundwasser Stanser Talboden Gefahren Grundwasser Flurabstand Mittelstand",
+    "desc_nw_awn/nw_naturgefahren_grundwasser/grundwasser_stanser_talboden/gefahren_grundwasser/flurabstand_hw300": "Grundwasser Stanser Talboden Gefahren Grundwasser Flurabstand HW300",
+    "desc_nw_awn/nw_naturgefahren_grundwasser/grundwasser_stanser_talboden/intensitaeten_grundwasser": "Grundwasser Stanser Talboden Intensitäten Grundwasser",
+    "desc_nw_awn/nw_naturgefahren_grundwasser/grundwasser_stanser_talboden/intensitaeten_grundwasser/ehw_grundwasser_ik": "Grundwasser Stanser Talboden Intensitäten Grundwasser EHW Grundwasser IK",
+    "desc_nw_awn/nw_naturgefahren_grundwasser/grundwasser_stanser_talboden/intensitaeten_grundwasser/ehw_grundwasser_ik/ehw_grundwasser_ik_isohypsen": "Grundwasser Stanser Talboden Intensitäten Grundwasser EHW Grundwasser IK EHW Grundwasser-IK-Isohypsen",
+    "desc_nw_awn/nw_naturgefahren_grundwasser/grundwasser_stanser_talboden/intensitaeten_grundwasser/ehw_grundwasser_ik/ehw_grundwasser_ik_flurabstand": "Grundwasser Stanser Talboden Intensitäten Grundwasser EHW Grundwasser IK EHW Grundwasser-IK-Flurabstand",
+    "desc_nw_awn/nw_naturgefahren_grundwasser/grundwasser_stanser_talboden/intensitaeten_grundwasser/300_grundwasser_ik": "Grundwasser Stanser Talboden Intensitäten Grundwasser 300 Grundwasser IK",
+    "desc_nw_awn/nw_naturgefahren_grundwasser/grundwasser_stanser_talboden/intensitaeten_grundwasser/300_grundwasser_ik/300_grundwasser_ik_isohypsen": "Grundwasser Stanser Talboden Intensitäten Grundwasser 300 Grundwasser IK 300 Grundwasser-IK-Isohypsen",
+    "desc_nw_awn/nw_naturgefahren_grundwasser/grundwasser_stanser_talboden/intensitaeten_grundwasser/300_grundwasser_ik/300_grundwasser_ik_flurabstand": "Grundwasser Stanser Talboden Intensitäten Grundwasser 300 Grundwasser IK 300 Grundwasser-IK-Flurabstand",
+    "desc_nw_awn/nw_naturgefahren_grundwasser/grundwasser_stanser_talboden/intensitaeten_grundwasser/100_grundwasser_ik": "Grundwasser Stanser Talboden Intensitäten Grundwasser 100 Grundwasser IK",
+    "desc_nw_awn/nw_naturgefahren_grundwasser/grundwasser_stanser_talboden/intensitaeten_grundwasser/100_grundwasser_ik/100_grundwasser_ik_isohypsen": "Grundwasser Stanser Talboden Intensitäten Grundwasser 100 Grundwasser IK 100 Grundwasser-IK-Isohypsen",
+    "desc_nw_awn/nw_naturgefahren_grundwasser/grundwasser_stanser_talboden/intensitaeten_grundwasser/100_grundwasser_ik/100_grundwasser_ik_flurabstand": "Grundwasser Stanser Talboden Intensitäten Grundwasser 100 Grundwasser IK 100 Grundwasser-IK-Flurabstand",
+    "desc_nw_awn/nw_naturgefahren_grundwasser/grundwasser_stanser_talboden/intensitaeten_grundwasser/_30_grundwasser_ik": "Grundwasser Stanser Talboden Intensitäten Grundwasser  30 Grundwasser IK",
+    "desc_nw_awn/nw_naturgefahren_grundwasser/grundwasser_stanser_talboden/intensitaeten_grundwasser/_30_grundwasser_ik/30_grundwasser_ik_isohypsen": "Grundwasser Stanser Talboden Intensitäten Grundwasser  30 Grundwasser IK 30 Grundwasser-IK-Isohypsen",
+    "desc_nw_awn/nw_naturgefahren_grundwasser/grundwasser_stanser_talboden/intensitaeten_grundwasser/_30_grundwasser_ik/30_grundwasser_ik_flurabstand": "Grundwasser Stanser Talboden Intensitäten Grundwasser  30 Grundwasser IK 30 Grundwasser-IK-Flurabstand"
+}

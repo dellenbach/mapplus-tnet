@@ -1,0 +1,11 @@
+{
+    "tt_open_clic": "Informationen, Legende",
+    "symbols_ms_title": "Legende: Symbole MapServer Basic, Kombinationen",
+    "symbols_ms_link": "./symbol/help/sym_ms.php",
+    "symbols_av_title": "Legende: Symbole Amtliche Vermessung",
+    "symbols_av_link": "./symbol/help/sym_av.php",
+    "symbols_lk_title": "Legende: Symbole Leitungskataster",
+    "symbols_lk_link": "./symbol/help/sym_lk.php",
+    
+    "placeholder":""
+}

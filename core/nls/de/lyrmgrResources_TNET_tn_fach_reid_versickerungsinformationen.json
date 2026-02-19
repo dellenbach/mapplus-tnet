@@ -1,0 +1,21 @@
+{
+    "desc_tn_fach/reid_versickerungsinformationen": "tn_fach reid_versickerungsinformationen",
+    "desc_tn_fach/reid_versickerungsinformationen/versickerungskarte": "Versickerungskarte",
+    "desc_tn_fach/reid_versickerungsinformationen/versickerungskarte/isohypsen": "Versickerungskarte Isohypsen",
+    "desc_tn_fach/reid_versickerungsinformationen/versickerungskarte/isohypsen/2m": "Versickerungskarte Isohypsen 2m",
+    "desc_tn_fach/reid_versickerungsinformationen/versickerungskarte/isohypsen/5m": "Versickerungskarte Isohypsen 5m",
+    "desc_tn_fach/reid_versickerungsinformationen/versickerungskarte/isohypsen/10m": "Versickerungskarte Isohypsen 10m",
+    "desc_tn_fach/reid_versickerungsinformationen/versickerungskarte/drosselmenge": "Versickerungskarte Drosselmenge",
+    "desc_tn_fach/reid_versickerungsinformationen/versickerungskarte/drosselmenge/beschriftung": "Versickerungskarte Drosselmenge Beschriftung",
+    "desc_tn_fach/reid_versickerungsinformationen/versickerungskarte/drosselmenge/parzellen": "Versickerungskarte Drosselmenge Parzellen",
+    "desc_tn_fach/reid_versickerungsinformationen/versickerungskarte/versickerungskarte_gep": "Versickerungskarte Versickerungskarte GEP",
+    "desc_tn_fach/reid_versickerungsinformationen/versickerungskarte/versickerungsfaehigkeit_boden": "Versickerungskarte Versickerungsfähigkeit Boden",
+    "desc_tn_fach/reid_versickerungsinformationen/versickerungskarte/versickerungsfaehigkeit_boden/versickerung_gut": "Versickerungskarte Versickerungsfähigkeit Boden Versickerung gut",
+    "desc_tn_fach/reid_versickerungsinformationen/versickerungskarte/versickerungsfaehigkeit_boden/versickerung_maessig": "Versickerungskarte Versickerungsfähigkeit Boden Versickerung mässig",
+    "desc_tn_fach/reid_versickerungsinformationen/versickerungskarte/versickerungsfaehigkeit_boden/versickerung_schlecht": "Versickerungskarte Versickerungsfähigkeit Boden Versickerung schlecht",
+    "desc_tn_fach/reid_versickerungsinformationen/versickerungskarte/versickerungsfaehigkeit_boden/versickerung_keine": "Versickerungskarte Versickerungsfähigkeit Boden Versickerung keine",
+    "desc_tn_fach/reid_versickerungsinformationen/versickerungskarte/flurabstand": "Versickerungskarte Flurabstand",
+    "desc_tn_fach/reid_versickerungsinformationen/versickerungskarte/flurabstand/_2m": "Versickerungskarte Flurabstand <= 2m",
+    "desc_tn_fach/reid_versickerungsinformationen/versickerungskarte/flurabstand/2m_3m": "Versickerungskarte Flurabstand 2m - 3m",
+    "desc_tn_fach/reid_versickerungsinformationen/versickerungskarte/flurabstand/_3m": "Versickerungskarte Flurabstand > 3m"
+}

@@ -1,0 +1,10 @@
+{
+    "desc_gis_fach/ow_rutschgebiete": "gis_fach ow_rutschgebiete",
+    "desc_gis_fach/ow_rutschgebiete/differenzen_rutschgebiete": "Differenzen Rutschgebiete",
+    "desc_gis_fach/ow_rutschgebiete/differenzen_rutschgebiete/vor_erneuerung": "Differenzen Rutschgebiete vor Erneuerung",
+    "desc_gis_fach/ow_rutschgebiete/differenzen_rutschgebiete/vor_erneuerung/grundstuecknummer": "Differenzen Rutschgebiete vor Erneuerung Grundstücknummer",
+    "desc_gis_fach/ow_rutschgebiete/differenzen_rutschgebiete/vor_erneuerung/grundstuecknummer_proj": "Differenzen Rutschgebiete vor Erneuerung Grundstücknummer proj",
+    "desc_gis_fach/ow_rutschgebiete/differenzen_rutschgebiete/aktuell": "Differenzen Rutschgebiete aktuell",
+    "desc_gis_fach/ow_rutschgebiete/differenzen_rutschgebiete/aktuell/aktuell_grundstuecknummer": "Differenzen Rutschgebiete aktuell aktuell Grundstücknummer",
+    "desc_gis_fach/ow_rutschgebiete/differenzen_rutschgebiete/aktuell/aktuell_grundstuecknummer_proj": "Differenzen Rutschgebiete aktuell aktuell Grundstücknummer proj"
+}

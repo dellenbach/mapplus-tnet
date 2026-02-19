@@ -1,0 +1,20 @@
+{
+    "desc_gis_fach/nw_natur_ls_jagd_fischerei": "gis_fach nw_natur_ls_jagd_fischerei",
+    "desc_gis_fach/nw_natur_ls_jagd_fischerei/fischereigebiete_ng_842": "Fischereigebiete (NG 842)",
+    "desc_gis_fach/nw_natur_ls_jagd_fischerei/fischereigebiete_ng_842_/private_fischereienzen": "Fischereigebiete (NG 842) Private Fischereienzen",
+    "desc_gis_fach/nw_natur_ls_jagd_fischerei/eidg_jagdbanngebiete_sr_922_31": "Eidg. Jagdbanngebiete (SR 922.31)",
+    "desc_gis_fach/nw_natur_ls_jagd_fischerei/eidg_jagdbanngebiete_sr_922_31_/eidg_jagdbangebiete": "Eidg. Jagdbanngebiete (SR 922.31) Eidg. Jagdbangebiete",
+    "desc_gis_fach/nw_natur_ls_jagd_fischerei/kantonale_jagdbanngebiete": "Kantonale Jagdbanngebiete",
+    "desc_gis_fach/nw_natur_ls_jagd_fischerei/kantonale_jagdbanngebiete/wildasyl_ng_841_11": "Kantonale Jagdbanngebiete Wildasyl (NG 841.11)",
+    "desc_gis_fach/nw_natur_ls_jagd_fischerei/wildruhezonen_/_jagdverbot": "Wildruhezonen   Jagdverbot",
+    "desc_gis_fach/nw_natur_ls_jagd_fischerei/wildruhezonen_/_jagdverbot/wege_/_routen_mit_wegegebot": "Wildruhezonen   Jagdverbot Wege   Routen mit Wegegebot",
+    "desc_gis_fach/nw_natur_ls_jagd_fischerei/wildruhezonen_/_jagdverbot/wildruhegebiete_ng_841_15": "Wildruhezonen   Jagdverbot Wildruhegebiete (NG 841.15)",
+    "desc_gis_fach/nw_natur_ls_jagd_fischerei/wildruhezonen_/_jagdverbot/zeitlich_befristete_wildschutzgebiete_ng_841_16": "Wildruhezonen   Jagdverbot zeitlich befristete Wildschutzgebiete (NG 841.16)",
+    "desc_gis_fach/nw_natur_ls_jagd_fischerei/wildruhezonen_/_jagdverbot/jagdverbot": "Wildruhezonen   Jagdverbot Jagdverbot",
+    "desc_gis_fach/nw_natur_ls_jagd_fischerei/wildzaehlkreise": "Wildzählkreise",
+    "desc_gis_fach/nw_natur_ls_jagd_fischerei/wildzaehlkreise/kantonale_wildzaehlkreise": "Wildzählkreise Kantonale Wildzählkreise",
+    "desc_gis_fach/nw_natur_ls_jagd_fischerei/schneesport": "Schneesport",
+    "desc_gis_fach/nw_natur_ls_jagd_fischerei/schneesport/nationale_skirouten": "Schneesport Nationale Skirouten",
+    "desc_gis_fach/nw_natur_ls_jagd_fischerei/wildtierkorridor_kantonaler_richtplan": "Wildtierkorridor (Kantonaler Richtplan)",
+    "desc_gis_fach/nw_natur_ls_jagd_fischerei/wildtierkorridor_kantonaler_richtplan_/wildkorridor": "Wildtierkorridor (Kantonaler Richtplan) Wildkorridor"
+}

@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+<svg width="24" height="24" version="1.1" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" xmlns:cc="http://creativecommons.org/ns#" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:xlink="http://www.w3.org/1999/xlink">
+ <defs>
+  <radialGradient id="radialGradient14151" cx="6.3932" cy="15.165" r="11.932" gradientTransform="matrix(1.4121 -1.1046 1.0703 1.3683 -14.652 5.1167)" gradientUnits="userSpaceOnUse">
+   <stop stop-color="#b30101" stop-opacity=".99608" offset="0"/>
+   <stop stop-color="#fa4667" stop-opacity=".99608" offset="1"/>
+  </radialGradient>
+  <linearGradient id="linearGradient14183" x1="4.9426" x2="30.151" y1="20.047" y2="-6.2656" gradientUnits="userSpaceOnUse">
+   <stop offset="0"/>
+   <stop stop-opacity="0" offset="1"/>
+  </linearGradient>
+ </defs>
+ <metadata>
+  <rdf:RDF>
+   <cc:Work rdf:about="">
+    <dc:format>image/svg+xml</dc:format>
+    <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
+    <dc:title/>
+   </cc:Work>
+  </rdf:RDF>
+ </metadata>
+ <g>
+  <g fill-rule="evenodd" shape-rendering="auto">
+   <path d="m23.932 12a11.932 11.932 0 0 1-11.932 11.932 11.932 11.932 0 0 1-11.932-11.932 11.932 11.932 0 0 1 11.932-11.932 11.932 11.932 0 0 1 11.932 11.932z" color="#000000" color-rendering="auto" fill="url(#radialGradient14151)" image-rendering="auto" solid-color="#000000" style="isolation:auto;mix-blend-mode:normal"/>
+   <path d="m12.047 0.0058594c-6.6103-1e-7 -11.979 5.3682-11.979 11.979 0 6.6103 5.3682 11.979 11.979 11.979 6.6103 0 11.979-5.3682 11.979-11.979 0-6.6103-5.3682-11.979-11.979-11.979zm0 0.96289c6.0895 0 11.016 4.9261 11.016 11.016s-4.9261 11.016-11.016 11.016-11.016-4.9261-11.016-11.016c-1e-7 -6.0895 4.9261-11.016 11.016-11.016z" color="#000000" color-rendering="auto" fill="url(#linearGradient14183)" image-rendering="auto" opacity=".096" solid-color="#000000" style="block-progression:tb;isolation:auto;mix-blend-mode:normal;text-decoration-color:#000000;text-decoration-line:none;text-decoration-style:solid;text-indent:0;text-transform:none;white-space:normal"/>
+  </g>
+ </g>
+ <g transform="translate(0 -1028.4)">
+  <g transform="matrix(.74813 .30246 -.30246 .74813 343.81 268.67)">
+   <g>
+    <path d="m-29.053 1034.1a4.7329 4.7496 67.987 0 0 4.7414 4.7295 4.7329 4.7496 67.987 0 0 4.4878-3.2009l8.7414-0.011 1.1315-2.2614-1.5618-0.4803-7.25e-4 0.5898h-0.97108l0.0011-0.9271h-3.0085l-0.0011 0.8942h-2.2637l1e-3 -0.8278h-2.0396a4.7329 4.7496 67.987 0 0-4.5047-3.2562 4.7329 4.7496 67.987 0 0-4.7531 4.741zm1.693 0a2.052 2.0593 67.987 0 1 2.0608-2.0556 2.052 2.0593 67.987 0 1 2.0557 2.0505 2.052 2.0593 67.987 0 1-2.0608 2.0556 2.052 2.0593 67.987 0 1-2.0557-2.0505z" fill="#333" style="paint-order:stroke fill markers"/>
+    <path d="m-29.24 1033.5a4.7329 4.7496 67.987 0 0 4.7414 4.7295 4.7329 4.7496 67.987 0 0 4.4878-3.2009l8.7414-0.011 1.1315-2.2614-1.5618-0.4803-7.25e-4 0.5898h-0.97108l0.0011-0.9271h-3.0085l-0.0011 0.8942h-2.2637l1e-3 -0.8278h-2.0396a4.7329 4.7496 67.987 0 0-4.5047-3.2562 4.7329 4.7496 67.987 0 0-4.7531 4.741zm1.693 0a2.052 2.0593 67.987 0 1 2.0608-2.0556 2.052 2.0593 67.987 0 1 2.0557 2.0505 2.052 2.0593 67.987 0 1-2.0608 2.0556 2.052 2.0593 67.987 0 1-2.0557-2.0505z" fill="#f9f9f9" style="paint-order:stroke fill markers"/>
+    <rect transform="matrix(.018215 -.99983 .99144 .1306 0 0)" x="-1041.9" y="-7.1525" width="6.0061" height="1.3483" ry=".66273" fill="#999" style="paint-order:stroke fill markers"/>
+    <path d="m-28.735 1041a1.3456 1.3456 0 0 1-0.90829 1.0639v10.426a1.3456 1.3456 0 0 1 0.92932 1.0829h8.0611a1.3456 1.3456 0 0 1 0.82419-1.1102l-1e-6 -10.496a1.3456 1.3456 0 0 1-0.81788-0.9671z" fill="#333" style="paint-order:stroke fill markers"/>
+    <path d="m-29.755 1040.1a1.3456 1.3456 0 0 1-0.90829 1.0639v10.426a1.3456 1.3456 0 0 1 0.92932 1.0828h8.0611a1.3456 1.3456 0 0 1 0.82419-1.1101v-10.496a1.3456 1.3456 0 0 1-0.81788-0.9672z" fill="#fff" stroke="#000" stroke-linecap="round" stroke-width=".77057" style="paint-order:stroke fill markers"/>
+   </g>
+   <g fill-opacity=".99608" style="font-feature-settings:normal;font-variant-caps:normal;font-variant-ligatures:normal;font-variant-numeric:normal" aria-label="M">
+    <path d="m-28.787 1050.3 0.72186-6.1196h0.02155l1.6161 5.2577c0.22626 0.7434 0.39864 0.8619 0.76496 0.8619h0.02155c0.36632 0 0.5387-0.1185 0.76496-0.8619l1.6161-5.2577h0.02155l0.72186 6.1196h1.0559l-0.8727-6.8738c-0.06464-0.5172-0.44174-0.7973-0.84038-0.7973-0.44174 0-0.72186 0.1616-0.93735 0.8835l-1.5299 5.0746h-0.02155l-1.5299-5.0746c-0.21548-0.7219-0.49561-0.8835-0.93735-0.8835-0.39864 0-0.77573 0.2801-0.84038 0.7973l-0.8727 6.8738z" fill-opacity=".99608" stroke-width=".26935" style="font-feature-settings:normal;font-variant-caps:normal;font-variant-ligatures:normal;font-variant-numeric:normal"/>
+   </g>
+  </g>
+ </g>
+</svg>

@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="24" height="24" version="1.1" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" xmlns:cc="http://creativecommons.org/ns#" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+ <defs>
+  <linearGradient id="linearGradient3061-7" x1="12.141" x2="12.141" y1="17.998" y2="23.256" gradientTransform="translate(25.938 .24921)" gradientUnits="userSpaceOnUse">
+   <stop stop-color="#c2c2c2" offset="0"/>
+   <stop stop-color="#5d5d5d" offset="1"/>
+  </linearGradient>
+  <linearGradient id="linearGradient233-9" x1="11.827" x2="11.827" y1=".60943" y2="17.639" gradientTransform="translate(25.938 .24921)" gradientUnits="userSpaceOnUse">
+   <stop stop-color="#e3e3e3" offset="0"/>
+   <stop stop-color="#fff" offset="1"/>
+  </linearGradient>
+ </defs>
+ <metadata>
+  <rdf:RDF>
+   <cc:Work rdf:about="">
+    <dc:format>image/svg+xml</dc:format>
+    <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
+   </cc:Work>
+  </rdf:RDF>
+ </metadata>
+ <circle cx="12" cy="12" r="11.932" color="#000000" color-rendering="auto" fill="url(#linearGradient233-9)" fill-rule="evenodd" image-rendering="auto" shape-rendering="auto" solid-color="#000000" stop-color="#000000" style="-inkscape-stroke:none;font-variation-settings:normal;isolation:auto;mix-blend-mode:normal"/>
+ <path d="m22.484 17.703c-2.0231 3.7113-5.9595 6.2296-10.484 6.2296-4.526 0-8.4635-2.5199-10.486-6.2333z" color="#000000" color-rendering="auto" fill="url(#linearGradient3061-7)" fill-rule="evenodd" image-rendering="auto" shape-rendering="auto" solid-color="#000000" stop-color="#000000" style="-inkscape-stroke:none;font-variation-settings:normal;isolation:auto;mix-blend-mode:normal"/>
+ <path d="m4.7755 10.019 1.4217-2.5654 1.7-0.86556 5.75 0.061705 3.5238 3.6475z" fill="#f2f2f2"/>
+ <path d="m17.318 9.9863 4.3301 0.59304c0.99093 0.13572 1.8054 0.80519 1.8054 1.8054v1.511c0 0.92916-0.05305 2.2497-1.2944 2.4241 0.06511-0.23892 0.10055-0.49011 0.10055-0.74966 0-1.5713-1.2738-2.8451-2.8451-2.8451-0.0041-9e-6 -0.01243 0-0.01243 0v0s-2.8106-0.04719-2.8326 2.8451c-2e-3 0.26756 0.03774 0.52619 0.10679 0.77168l-8.8696-0.0346c0.06789-0.24106 0.10674-0.49432 0.10674-0.75709-1e-7 -1.5412-1.2494-2.7906-2.7906-2.7906-0.00406-9e-6 -0.00814-9e-6 -0.012196 0-1.5364 0.0067-2.7784 1.2542-2.7784 2.7906 0 0.25096 0.036195 0.49296 0.098317 0.72432-1.1837-0.19176-1.402-1.2885-1.402-2.3514v-1.784c0-1.1809 0.95068-2.1298 2.1316-2.1316z" fill="#666" stop-color="#000000" stroke-linecap="round" stroke-width=".059917" style="paint-order:fill markers stroke"/>
+ <path d="m17.4 9.9802-3.1595-3.3506s-0.2458-0.16333-0.51787-0.32677c-0.27208-0.16344-1.035-0.16344-1.035-0.16344l-5.5839 0.027452s-1.3894 0.2177-2.4244 1.1437c-1.035 0.92604-1.2529 2.7239-1.2529 2.7239h2.0158s-0.082251-1.0347 0.87146-2.0155c0.95371-0.98084 2.0158-1.1985 2.0158-1.1985l4.4945-0.081719s0.43573-0.082251 0.89859 0.2177c0.46286 0.29996 3.0237 3.1055 3.0237 3.1055z" fill="#666" stroke="#000" stroke-width=".019472px"/>
+ <g transform="matrix(.17777 0 0 .17777 39.564 20.18)">
+  <ellipse transform="matrix(-5.7733 0 0 5.7733 -81.095 -126.1)" cx="19.492" cy="17.192" rx="1.4766" ry="1.4223" fill="#fff" stop-color="#000000" style="paint-order:fill markers stroke"/>
+  <g transform="translate(-89.412 .37646)" fill="#666">
+   <path d="m-104.39-40.101c-7.0839 0.031-12.81 5.7824-12.81 12.866 0 7.1059 5.7605 12.866 12.866 12.866 7.1059 1e-6 12.866-5.7605 12.866-12.866-1e-6 -7.1059-5.7605-12.866-12.866-12.866-0.0187-4.1e-5 -0.0375-4.1e-5 -0.0562 0zm0.0402 5.0414c5e-3 0 0.0106-5e-6 0.0159 0 4.3218-1e-6 7.8252 3.5035 7.8252 7.8252s-3.5035 7.8252-7.8252 7.8252c-4.322 4.04e-4 -7.826-3.5032-7.826-7.8252-1e-5 -4.3157 3.494-7.8252 7.8097-7.8252z" stop-color="#000000" stroke-width=".89369" style="paint-order:stroke fill markers"/>
+   <circle cx="-104.27" cy="-27.172" r="4.3523" stop-color="#000000" style="paint-order:fill markers stroke"/>
+  </g>
+ </g>
+ <g transform="matrix(.17777 0 0 .17777 53.843 20.19)">
+  <ellipse transform="matrix(-5.7733 0 0 5.7733 -81.095 -126.1)" cx="19.492" cy="17.192" rx="1.4766" ry="1.4223" fill="#fff" stop-color="#000000" style="paint-order:fill markers stroke"/>
+  <g transform="translate(-89.412 .37646)" fill="#666">
+   <path d="m-104.39-40.101c-7.0839 0.031-12.81 5.7824-12.81 12.866 0 7.1059 5.7605 12.866 12.866 12.866 7.1059 1e-6 12.866-5.7605 12.866-12.866-1e-6 -7.1059-5.7605-12.866-12.866-12.866-0.0187-4.1e-5 -0.0375-4.1e-5 -0.0562 0zm0.0402 5.0414c5e-3 0 0.0106-5e-6 0.0159 0 4.3218-1e-6 7.8252 3.5035 7.8252 7.8252s-3.5035 7.8252-7.8252 7.8252c-4.322 4.04e-4 -7.826-3.5032-7.826-7.8252-1e-5 -4.3157 3.494-7.8252 7.8097-7.8252z" stop-color="#000000" stroke-width=".89369" style="paint-order:stroke fill markers"/>
+   <circle cx="-104.27" cy="-27.172" r="4.3523" stop-color="#000000" style="paint-order:fill markers stroke"/>
+  </g>
+ </g>
+ <g>
+  <path d="m17.333 9.9648 4.3301 0.59304c0.99093 0.13572 1.8054 0.80519 1.8054 1.8054l-6.1813-0.06771c-1.5233-0.10669-1.5122-0.1165-1.5458 1.3326l-0.05626 2.4224-7.0841-0.0056 0.011125-2.7259c0.10806-1.2476-0.058284-1.1191-1.2169-1.1318l-6.3518-0.06958c0-1.1809 0.95068-2.1298 2.1316-2.1316z" fill="#999" stop-color="#000000" stroke-linecap="round" stroke-width="3.0772" style="paint-order:fill markers stroke"/>
+  <rect x="21.445" y="11.648" width="2.0155" height="1.9999" ry=".54703" fill="#f9f9f9" stop-color="#000000" style="paint-order:fill markers stroke"/>
+  <rect x="1.0081" y="12.406" width="1.4529" height="1.4684" ry=".40165" fill="#f9f9f9" stop-color="#000000" style="paint-order:fill markers stroke"/>
+ </g>
+</svg>

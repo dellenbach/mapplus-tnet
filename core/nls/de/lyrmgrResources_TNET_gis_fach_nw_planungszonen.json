@@ -1,0 +1,8 @@
+{
+    "desc_gis_fach/nw_planungszonen": "gis_fach nw_planungszonen",
+    "desc_gis_fach/nw_planungszonen/planungszonen": "Planungszonen",
+    "desc_gis_fach/nw_planungszonen/planungszonen/pz_nutzungsplanung": "Planungszonen PZ Nutzungsplanung",
+    "desc_gis_fach/nw_planungszonen/planungszonen/pz_gewaesserraum_und_ueberlastkorridor": "Planungszonen PZ Gewässerraum und Überlastkorridor",
+    "desc_gis_fach/nw_planungszonen/planungszonen/pz_naturgefahren": "Planungszonen PZ Naturgefahren",
+    "desc_gis_fach/nw_planungszonen/planungszonen/pz_kantonaler_richtplan": "Planungszonen PZ Kantonaler Richtplan"
+}

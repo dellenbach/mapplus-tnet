@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="30" height="25" version="1.1" viewBox="0 0 7.9376 6.6146" xmlns="http://www.w3.org/2000/svg" xmlns:cc="http://creativecommons.org/ns#" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+ <metadata>
+  <rdf:RDF>
+   <cc:Work rdf:about="">
+    <dc:format>image/svg+xml</dc:format>
+    <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
+    <dc:title/>
+   </cc:Work>
+  </rdf:RDF>
+ </metadata>
+ <g fill-rule="evenodd" shape-rendering="auto">
+  <rect transform="matrix(.89402 .44802 -.89402 .44802 0 0)" x="5.1786" y=".81238" width="4.053" height="4.053" color="#000000" color-rendering="auto" fill="#293d5f" image-rendering="auto" solid-color="#000000" style="isolation:auto;mix-blend-mode:normal;paint-order:markers stroke fill"/>
+  <rect transform="matrix(.89402 .44802 -.89402 .44802 0 0)" x="3.8568" y="-.48828" width="4.053" height="4.053" color="#000000" color-rendering="auto" fill="#777767" image-rendering="auto" solid-color="#000000" style="isolation:auto;mix-blend-mode:normal;paint-order:markers stroke fill"/>
+  <rect transform="matrix(.89402 .44802 -.89402 .44802 0 0)" x="2.5333" y="-1.7872" width="4.053" height="4.053" color="#000000" color-rendering="auto" fill="#7fa5e0" image-rendering="auto" solid-color="#000000" style="isolation:auto;mix-blend-mode:normal;paint-order:markers stroke fill"/>
+ </g>
+</svg>

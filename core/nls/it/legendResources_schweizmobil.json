@@ -1,0 +1,26 @@
+{
+    "ww_swisstopo_link": "./core/legends/ww_swisstopo.php",
+    "ww_swisstopo_title": "Sentieri swisstopo",
+
+    "schweizmobil_link": "./core/legends/schweizmobil_it.htm",
+    "schweizmobil_title": "SvizzeraMobile",
+    "skatingland_etappen_link": "./core/legends/sm_skl_etappen.php",
+    "skatingland_etappen_title": "SvizzeraMobile: Svizzera in skating tappe",
+    "skatingland_routen_link": "./core/legends/sm_skl_routen.php",
+    "skatingland_routen_title": "SvizzeraMobile: Svizzera in skating percorsi",
+    "veloland_etappen_link": "./core/legends/sm_vl_etappen.php",
+    "veloland_etappen_title": "SvizzeraMobile: Svizzera in bici tappe",
+    "veloland_routen_link": "./core/legends/sm_vl_routen.php",
+    "veloland_routen_title": "SvizzeraMobile: Svizzera in bici percorsi",
+    "wanderland_etappen_link": "./core/legends/sm_wl_etappen.php",
+    "wanderland_etappen_title": "SvizzeraMobile: Svizzera a piedi tappe",
+    "wanderland_routen_link": "./core/legends/sm_wl_routen.php",
+    "wanderland_routen_title": "SvizzeraMobile: Svizzera a piedi percorsi",
+    "mountainbikeland_etappen_link": "./core/legends/sm_mbl_etappen.php",
+    "mountainbikeland_etappen_title": "SvizzeraMobile: Svizzera in mountain bike tappe",
+    "mountainbikeland_routen_link": "./core/legends/sm_mbl_routen.php",
+    "mountainbikeland_routen_title": "SvizzeraMobile: Svizzera in mountain bike percorsi",
+
+    "wintersport_title": "Sport invernali",
+    "wintersport_link": "./core/legends/wintersport_it.htm"
+}

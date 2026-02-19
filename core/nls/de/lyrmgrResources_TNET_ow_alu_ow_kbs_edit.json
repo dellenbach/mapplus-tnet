@@ -1,0 +1,14 @@
+{
+    "desc_ow_alu/ow_kbs_edit": "ow_alu ow_kbs_edit",
+    "desc_ow_alu/ow_kbs_edit/kbs_oeffentlich": "KBS_OEFFENTLICH",
+    "desc_ow_alu/ow_kbs_edit/kbs_oeffentlich/belastete_standorte_punkte_allgemein": "KBS_OEFFENTLICH belastete Standorte Punkte Allgemein",
+    "desc_ow_alu/ow_kbs_edit/kbs_oeffentlich/belastete_standorte_flaechen": "KBS_OEFFENTLICH belastete Standorte Flächen",
+    "desc_ow_alu/ow_kbs_edit/kbs_afu": "KBS_AFU",
+    "desc_ow_alu/ow_kbs_edit/kbs_afu/kbs_punkte_alle": "KBS_AFU KBS_Punkte_alle",
+    "desc_ow_alu/ow_kbs_edit/kbs_afu/kbs_punkte_nach_standort": "KBS_AFU KBS_Punkte_nach Standort",
+    "desc_ow_alu/ow_kbs_edit/kbs_afu/kbs_punkte_nach_standort/kbs_ablagerungsstandort": "KBS_AFU KBS_Punkte_nach Standort KBS_Ablagerungsstandort",
+    "desc_ow_alu/ow_kbs_edit/kbs_afu/kbs_punkte_nach_standort/kbs_unfallstandort": "KBS_AFU KBS_Punkte_nach Standort KBS_Unfallstandort",
+    "desc_ow_alu/ow_kbs_edit/kbs_afu/kbs_punkte_nach_standort/kbs_schiessanlage": "KBS_AFU KBS_Punkte_nach Standort KBS_Schiessanlage",
+    "desc_ow_alu/ow_kbs_edit/kbs_afu/kbs_punkte_nach_standort/kbs_betriebsstandorte": "KBS_AFU KBS_Punkte_nach Standort KBS_Betriebsstandorte",
+    "desc_ow_alu/ow_kbs_edit/kbs_afu/kbs_standorte_alle": "KBS_AFU KBS_Standorte_alle"
+}

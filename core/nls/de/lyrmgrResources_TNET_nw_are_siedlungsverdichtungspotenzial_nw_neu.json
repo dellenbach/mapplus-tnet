@@ -1,0 +1,11 @@
+{
+    "desc_nw_are/siedlungsverdichtungspotenzial_nw_neu": "nw_are siedlungsverdichtungspotenzial_nw_neu",
+    "desc_nw_are/siedlungsverdichtungspotenzial_nw_neu/verdichtungspotential": "VERDICHTUNGSPOTENTIAL",
+    "desc_nw_are/siedlungsverdichtungspotenzial_nw_neu/verdichtungspotential/einwohner": "VERDICHTUNGSPOTENTIAL Einwohner",
+    "desc_nw_are/siedlungsverdichtungspotenzial_nw_neu/verdichtungspotential/beschaeftigte": "VERDICHTUNGSPOTENTIAL Beschäftigte",
+    "desc_nw_are/siedlungsverdichtungspotenzial_nw_neu/verdichtungspotential/siedlungsverdichtungspotenzial_gebaeude": "VERDICHTUNGSPOTENTIAL Siedlungsverdichtungspotenzial Gebäude",
+    "desc_nw_are/siedlungsverdichtungspotenzial_nw_neu/verdichtungspotential/siedlungsverdichtungspotenzial_liegenschaft": "VERDICHTUNGSPOTENTIAL Siedlungsverdichtungspotenzial Liegenschaft",
+    "desc_nw_are/siedlungsverdichtungspotenzial_nw_neu/verdichtungspotential/grundlagen": "VERDICHTUNGSPOTENTIAL Grundlagen",
+    "desc_nw_are/siedlungsverdichtungspotenzial_nw_neu/verdichtungspotential/grundlagen/anrechenbare_bauzonenflaeche": "VERDICHTUNGSPOTENTIAL Grundlagen Anrechenbare Bauzonenfläche",
+    "desc_nw_are/siedlungsverdichtungspotenzial_nw_neu/verdichtungspotential/grundlagen/terrain_dreiecksvermaschung": "VERDICHTUNGSPOTENTIAL Grundlagen Terrain Dreiecksvermaschung"
+}

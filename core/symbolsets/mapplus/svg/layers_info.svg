@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="24" height="24" version="1.1" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" xmlns:cc="http://creativecommons.org/ns#" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:xlink="http://www.w3.org/1999/xlink">
+ <metadata>
+  <rdf:RDF>
+   <cc:Work rdf:about="">
+    <dc:format>image/svg+xml</dc:format>
+    <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
+    <dc:title/>
+   </cc:Work>
+  </rdf:RDF>
+ </metadata>
+ <g>
+  <g stroke="#000" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.073">
+   <path transform="skewX(-38.72) scale(1 .78023)" d="m19.842 14.238h11.67v14.96h-11.67z" fill="#f2f2f2" overflow="visible" style="isolation:auto;mix-blend-mode:normal"/>
+   <path transform="skewX(-38.72) scale(1 .78023)" d="M15.9 7.985h11.67v14.96H15.9z" fill="#f9f9f9" overflow="visible" style="isolation:auto;mix-blend-mode:normal"/>
+   <path transform="skewX(-38.72) scale(1 .78023)" d="m11.927 1.733h11.67v14.96h-11.67z" fill="#fff" overflow="visible" style="isolation:auto;mix-blend-mode:normal"/>
+  </g>
+  <path d="m20.998 18.03h1.94v4.94h-1.94zm-0.06-3h1.94v1.97h-1.94z" overflow="visible" style="isolation:auto;mix-blend-mode:normal"/>
+ </g>
+</svg>

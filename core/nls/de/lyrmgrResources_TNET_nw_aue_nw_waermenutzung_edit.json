@@ -1,0 +1,15 @@
+{
+    "desc_nw_aue/nw_waermenutzung_edit": "nw_aue nw_waermenutzung_edit",
+    "desc_nw_aue/nw_waermenutzung_edit/verbundene_objekte": "Verbundene Objekte",
+    "desc_nw_aue/nw_waermenutzung_edit/anlagen_waermenutzung": "Anlagen Wärmenutzung",
+    "desc_nw_aue/nw_waermenutzung_edit/entnahme": "Entnahme",
+    "desc_nw_aue/nw_waermenutzung_edit/entnahme/grundwasser_inkl_quellen": "Entnahme Grundwasser (inkl. Quellen)",
+    "desc_nw_aue/nw_waermenutzung_edit/entnahme/oberflaechengewaesser": "Entnahme Oberflächengewässer",
+    "desc_nw_aue/nw_waermenutzung_edit/rueckgabe": "Rückgabe",
+    "desc_nw_aue/nw_waermenutzung_edit/rueckgabe/grundwasser": "Rückgabe Grundwasser",
+    "desc_nw_aue/nw_waermenutzung_edit/rueckgabe/oberflaechengewaesser": "Rückgabe Oberflächengewässer",
+    "desc_nw_aue/nw_waermenutzung_edit/waermepumpe_mit_erdregistern": "Wärmepumpe mit Erdregistern",
+    "desc_nw_aue/nw_waermenutzung_edit/waermepumpe_mit_erdsonden": "Wärmepumpe mit Erdsonden",
+    "desc_nw_aue/nw_waermenutzung_edit/waermenutzungsbereiche": "Wärmenutzungsbereiche",
+    "desc_nw_aue/nw_waermenutzung_edit/liegenschaft_nw": "Liegenschaft NW"
+}

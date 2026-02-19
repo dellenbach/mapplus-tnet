@@ -1,0 +1,12 @@
+{
+    "desc_ow_alu/gewaesserueberwachung_ow": "ow_alu gewaesserueberwachung_ow",
+    "desc_ow_alu/gewaesserueberwachung_ow/messstellen": "Messstellen",
+    "desc_ow_alu/gewaesserueberwachung_ow/messstellen/fliessgewaesser": "Messstellen Fliessgewässer",
+    "desc_ow_alu/gewaesserueberwachung_ow/messstellen/seen": "Messstellen Seen",
+    "desc_ow_alu/gewaesserueberwachung_ow/messstellen/grundwasser/quelle": "Messstellen Grundwasser Quelle",
+    "desc_ow_alu/gewaesserueberwachung_ow/gewaessernetz": "Gewässernetz",
+    "desc_ow_alu/gewaesserueberwachung_ow/gewaessernetz/fliessgewaesser_name": "Gewässernetz Fliessgewässer Name",
+    "desc_ow_alu/gewaesserueberwachung_ow/gewaessernetz/fliessgewaesser_art": "Gewässernetz Fliessgewässer Art",
+    "desc_ow_alu/gewaesserueberwachung_ow/gewaessernetz/fliessgewaesser_routen": "Gewässernetz Fliessgewässer Routen",
+    "desc_ow_alu/gewaesserueberwachung_ow/gewaessernetz/stehendes_gewaesser": "Gewässernetz Stehendes Gewässer"
+}

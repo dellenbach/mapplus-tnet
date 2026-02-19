@@ -1,0 +1,17 @@
+{
+    "desc_nw_awn/nw_naturgefahren_folgeereignis_erdbeben": "nw_awn nw_naturgefahren_folgeereignis_erdbeben",
+    "desc_nw_awn/nw_naturgefahren_folgeereignis_erdbeben/erdbeben": "Erdbeben",
+    "desc_nw_awn/nw_naturgefahren_folgeereignis_erdbeben/erdbeben/baugrundklassen": "Erdbeben Baugrundklassen",
+    "desc_nw_awn/nw_naturgefahren_folgeereignis_erdbeben/folgeereignis_erdbeben": "Folgeereignis_Erdbeben",
+    "desc_nw_awn/nw_naturgefahren_folgeereignis_erdbeben/folgeereignis_erdbeben/flutwelle": "Folgeereignis_Erdbeben Flutwelle",
+    "desc_nw_awn/nw_naturgefahren_folgeereignis_erdbeben/folgeereignis_erdbeben/flutwelle/flutwelle_flaeche": "Folgeereignis_Erdbeben Flutwelle Flutwelle_Flaeche",
+    "desc_nw_awn/nw_naturgefahren_folgeereignis_erdbeben/folgeereignis_erdbeben/uferabbruch": "Folgeereignis_Erdbeben Uferabbruch",
+    "desc_nw_awn/nw_naturgefahren_folgeereignis_erdbeben/folgeereignis_erdbeben/uferabbruch/uferabbruch_schnitt": "Folgeereignis_Erdbeben Uferabbruch Uferabbruch_Schnitt",
+    "desc_nw_awn/nw_naturgefahren_folgeereignis_erdbeben/folgeereignis_erdbeben/uferabbruch/uferabbruch_flaeche": "Folgeereignis_Erdbeben Uferabbruch Uferabbruch_Flaeche",
+    "desc_nw_awn/nw_naturgefahren_folgeereignis_erdbeben/folgeereignis_erdbeben/rutschung": "Folgeereignis_Erdbeben Rutschung",
+    "desc_nw_awn/nw_naturgefahren_folgeereignis_erdbeben/folgeereignis_erdbeben/rutschung/rutschung_flaeche": "Folgeereignis_Erdbeben Rutschung Rutschung_Flaeche",
+    "desc_nw_awn/nw_naturgefahren_folgeereignis_erdbeben/folgeereignis_erdbeben/sturz_kleinabbruch": "Folgeereignis_Erdbeben Sturz_Kleinabbruch",
+    "desc_nw_awn/nw_naturgefahren_folgeereignis_erdbeben/folgeereignis_erdbeben/sturz_kleinabbruch/sturz_kleinabbruch_flaeche": "Folgeereignis_Erdbeben Sturz_Kleinabbruch Sturz_Kleinabbruch_Flaeche",
+    "desc_nw_awn/nw_naturgefahren_folgeereignis_erdbeben/folgeereignis_erdbeben/sturz_grossabbruch": "Folgeereignis_Erdbeben Sturz_Grossabbruch",
+    "desc_nw_awn/nw_naturgefahren_folgeereignis_erdbeben/folgeereignis_erdbeben/sturz_grossabbruch/sturz_grossabbruch_flaeche": "Folgeereignis_Erdbeben Sturz_Grossabbruch Sturz_Grossabbruch_Flaeche"
+}

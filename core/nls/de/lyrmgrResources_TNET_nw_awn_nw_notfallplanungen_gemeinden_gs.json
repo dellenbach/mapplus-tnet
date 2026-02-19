@@ -1,0 +1,13 @@
+{
+    "desc_nw_awn/nw_notfallplanungen_gemeinden_gs": "nw_awn nw_notfallplanungen_gemeinden_gs",
+    "desc_nw_awn/nw_notfallplanungen_gemeinden_gs/notfallplanungen_gemeinde": "Notfallplanungen Gemeinde",
+    "desc_nw_awn/nw_notfallplanungen_gemeinden_gs/massnahmen_uebersicht": "Massnahmen Übersicht",
+    "desc_nw_awn/nw_notfallplanungen_gemeinden_gs/massnahmen_uebersicht/notfallplanungen_massnahmen_punkte_uebersicht": "Massnahmen Übersicht Notfallplanungen Massnahmen Punkte Übersicht",
+    "desc_nw_awn/nw_notfallplanungen_gemeinden_gs/massnahmen_uebersicht/notfallplanungen_massnahmen_linien_uebersicht": "Massnahmen Übersicht Notfallplanungen Massnahmen Linien Übersicht",
+    "desc_nw_awn/nw_notfallplanungen_gemeinden_gs/massnahmen_uebersicht/notfallplanungen_massnahmen_flaechen_uebersicht": "Massnahmen Übersicht Notfallplanungen Massnahmen Flächen Übersicht",
+    "desc_nw_awn/nw_notfallplanungen_gemeinden_gs/massnahmen": "Massnahmen",
+    "desc_nw_awn/nw_notfallplanungen_gemeinden_gs/massnahmen/notfallplanungen_massnahmen_punkte": "Massnahmen Notfallplanungen Massnahmen Punkte",
+    "desc_nw_awn/nw_notfallplanungen_gemeinden_gs/massnahmen/notfallplanungen_massnahmen_linien": "Massnahmen Notfallplanungen Massnahmen Linien",
+    "desc_nw_awn/nw_notfallplanungen_gemeinden_gs/massnahmen/notfallplanungen_massnahmen_flaechen": "Massnahmen Notfallplanungen Massnahmen Flächen",
+    "desc_nw_awn/nw_notfallplanungen_gemeinden_gs/notfallplanungen_gefahrenstufen": "Notfallplanungen Gefahrenstufen"
+}

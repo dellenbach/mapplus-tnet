@@ -1,0 +1,13 @@
+{
+    "upload_img_msg_1": "Das Bild konnte nicht geladen werden. Das Bild hat nicht die erforderlichen EXIF-Informationen!",
+    "upload_img_msg_2": "Keine Koordinaten in EXIF Daten.<br/><span style='color:#ff0000'>Bitte klicken Sie in der Karte um das Bild zu lokalisieren</span> (<b>bitte diese Seite nicht schliessen</b>).",
+    "upload_img_msg_3": "Der POI-und Foto Koordinaten sind nicht gleich.<br>",
+    "upload_img_msg_4": "Welche Koordinaten soll verwendet werden?",
+    "photo": "Foto",
+    "upload": "Hochladen",
+    "alert_googlemaps": "Die Digitalisierung ist auf Google Maps Karten nicht erlaubt! Bitte auf OSM++ wechseln",
+    "upload_done": "Das Bild wurde geladen. Bitte noch warten...Das Fenster wird automatisch geschlossen sein.",
+    "image_title_1": "Bild hochladen",
+    "gpx_title_1": "GPX Datei hochladen",
+    "kml_title_1": "KML Datei hochladen"
+}

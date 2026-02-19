@@ -1,0 +1,23 @@
+{
+    "list_placeholder":"Sélectionner le thème",
+
+    "sel_clear": "Supprimer la sélection",
+    "sel_export": "Export",
+    "sel_export_shape": "Export Shape",
+    "sel_intersect": "Compris les objets partiellement sélectionnés",
+    "sel_multi": "Sélection",
+    "sel_polygon": "Polygon",
+    "sel_rectangle": "Rectangle",
+
+    "table_actions": "Action",
+    "table_edit": "Modifier objet",
+    "table_show_selection": "Montrer la sélection dans la carte",
+    "table_zoom_to": "Montrer l'objet dans la carte",
+
+    "contours_title": "Courbes de niveau SwissALTI3D",
+    "fixpunkte_title": "Points fixes",
+    "gwr_title": "Registre fédéral des bâtiments et des logements (ORegBL)",
+    "heizungstraeger_ch_title": "Bâtiment: Supports de chauffage Suisse",
+    "heizungstraeger_title": "Bâtiment: Supports de chauffage Olten",
+    "liegenschaften_export_title": "Parcelles"
+}

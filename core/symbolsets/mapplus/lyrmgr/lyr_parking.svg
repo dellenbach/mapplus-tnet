@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="8.2710037mm"
+   height="8.2710037mm"
+   viewBox="0 0 8.2710037 8.2710037"
+   version="1.1"
+   id="svg1"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <defs
+     id="defs1">
+    <clipPath
+       clipPathUnits="userSpaceOnUse"
+       id="clipPath1968">
+      <path
+         d="M 0,5504.926 H 5022.134 V 0 H 0 Z"
+         transform="translate(-3442.4249,-1964.5508)"
+         id="path1968" />
+    </clipPath>
+    <clipPath
+       clipPathUnits="userSpaceOnUse"
+       id="clipPath1970">
+      <path
+         d="M 0,5504.926 H 5022.134 V 0 H 0 Z"
+         transform="translate(-3475.5538,-1932.8906)"
+         id="path1970" />
+    </clipPath>
+  </defs>
+  <g
+     id="layer1"
+     transform="translate(-123.29584,-119.85624)">
+    <g
+       id="g2052"
+       transform="matrix(0.02664472,0,0,0.02664472,5.8544826,-3.1899479)"
+       style="fill:#00008b;fill-opacity:1;stroke-width:4.39536">
+      <path
+         id="path1967"
+         d="m 0,0 c -2.326,1.404 -5.018,2.355 -8.076,2.844 -3.059,0.488 -6.24,0.734 -9.545,0.734 h -22.391 v -39.275 h 22.391 c 3.305,0 6.486,0.242 9.545,0.734 3.058,0.486 5.75,1.436 8.076,2.844 2.322,1.404 4.189,3.396 5.598,5.965 1.404,2.57 2.111,5.933 2.111,10.093 0,4.161 -0.707,7.526 -2.111,10.096 C 4.189,-3.396 2.322,-1.408 0,0"
+         style="fill:#00008b;fill-opacity:1;fill-rule:nonzero;stroke:none;stroke-width:4.39536"
+         transform="matrix(1.3333333,0,0,-1.3333333,4589.8997,4720.5056)"
+         clip-path="url(#clipPath1968)" />
+      <path
+         id="path1969"
+         d="m 0,0 c -1.652,-5.02 -4.285,-9.484 -7.893,-13.398 -3.611,-3.918 -8.291,-7.067 -14.041,-9.454 -5.752,-2.384 -12.728,-3.578 -20.923,-3.578 h -30.284 v -46.984 h -28.814 V 57.631 h 59.098 c 8.195,0 15.171,-1.193 20.923,-3.58 5.75,-2.385 10.43,-5.537 14.041,-9.451 C -4.285,40.682 -1.652,36.186 0,31.109 1.652,26.031 2.477,20.859 2.477,15.6 2.477,10.215 1.652,5.016 0,0 m 14.133,92.809 h -135.045 c -10.039,0 -18.252,-8.215 -18.252,-18.254 V -90.338 c 0,-10.041 8.213,-18.254 18.252,-18.254 H 14.133 c 10.039,0 18.254,8.213 18.254,18.254 V 74.555 c 0,10.039 -8.215,18.254 -18.254,18.254"
+         style="fill:#00008b;fill-opacity:1;fill-rule:nonzero;stroke:none;stroke-width:4.39536"
+         transform="matrix(1.3333333,0,0,-1.3333333,4634.0716,4762.7192)"
+         clip-path="url(#clipPath1970)" />
+    </g>
+  </g>
+</svg>

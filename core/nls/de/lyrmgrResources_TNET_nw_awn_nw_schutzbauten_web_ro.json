@@ -1,0 +1,20 @@
+{
+    "desc_nw_awn/nw_schutzbauten_web_ro": "nw_awn nw_schutzbauten_web_ro",
+    "desc_nw_awn/nw_schutzbauten_web_ro/schutzbauten": "Schutzbauten",
+    "desc_nw_awn/nw_schutzbauten_web_ro/schutzbauten/schutzbauwerke_wasser": "Schutzbauten Schutzbauwerke Wasser",
+    "desc_nw_awn/nw_schutzbauten_web_ro/schutzbauten/schutzbauwerke_wasser/schutzbauwerke_punkte_wasser": "Schutzbauten Schutzbauwerke Wasser Schutzbauwerke Punkte Wasser",
+    "desc_nw_awn/nw_schutzbauten_web_ro/schutzbauten/schutzbauwerke_wasser/schutzbauwerke_linien_wasser": "Schutzbauten Schutzbauwerke Wasser Schutzbauwerke Linien Wasser",
+    "desc_nw_awn/nw_schutzbauten_web_ro/schutzbauten/schutzbauwerke_wasser/schutzbauwerke_flaechen_wasser": "Schutzbauten Schutzbauwerke Wasser Schutzbauwerke Flächen Wasser",
+    "desc_nw_awn/nw_schutzbauten_web_ro/schutzbauten/schutzbauwerke_rutschung": "Schutzbauten Schutzbauwerke Rutschung",
+    "desc_nw_awn/nw_schutzbauten_web_ro/schutzbauten/schutzbauwerke_rutschung/schutzbauwerke_punkte_rutschung": "Schutzbauten Schutzbauwerke Rutschung Schutzbauwerke Punkte Rutschung",
+    "desc_nw_awn/nw_schutzbauten_web_ro/schutzbauten/schutzbauwerke_rutschung/schutzbauwerke_linien_rutschung": "Schutzbauten Schutzbauwerke Rutschung Schutzbauwerke Linien Rutschung",
+    "desc_nw_awn/nw_schutzbauten_web_ro/schutzbauten/schutzbauwerke_rutschung/schutzbauwerke_flaechen_rutschung": "Schutzbauten Schutzbauwerke Rutschung Schutzbauwerke Flächen Rutschung",
+    "desc_nw_awn/nw_schutzbauten_web_ro/schutzbauten/schutzbauwerke_sturz": "Schutzbauten Schutzbauwerke Sturz",
+    "desc_nw_awn/nw_schutzbauten_web_ro/schutzbauten/schutzbauwerke_sturz/schutzbauwerke_punkte_sturz": "Schutzbauten Schutzbauwerke Sturz Schutzbauwerke Punkte Sturz",
+    "desc_nw_awn/nw_schutzbauten_web_ro/schutzbauten/schutzbauwerke_sturz/schutzbauwerke_linien_sturz": "Schutzbauten Schutzbauwerke Sturz Schutzbauwerke Linien Sturz",
+    "desc_nw_awn/nw_schutzbauten_web_ro/schutzbauten/schutzbauwerke_sturz/schutzbauwerke_flaechen_sturz": "Schutzbauten Schutzbauwerke Sturz Schutzbauwerke Flächen Sturz",
+    "desc_nw_awn/nw_schutzbauten_web_ro/schutzbauten/schutzbauwerke_lawine": "Schutzbauten Schutzbauwerke Lawine",
+    "desc_nw_awn/nw_schutzbauten_web_ro/schutzbauten/schutzbauwerke_lawine/schutzbauwerke_punkte_lawine": "Schutzbauten Schutzbauwerke Lawine Schutzbauwerke Punkte Lawine",
+    "desc_nw_awn/nw_schutzbauten_web_ro/schutzbauten/schutzbauwerke_lawine/schutzbauwerke_linien_lawine": "Schutzbauten Schutzbauwerke Lawine Schutzbauwerke Linien Lawine",
+    "desc_nw_awn/nw_schutzbauten_web_ro/schutzbauten/schutzbauwerke_lawine/schutzbauwerke_flaechen_lawine": "Schutzbauten Schutzbauwerke Lawine Schutzbauwerke Flächen Lawine"
+}

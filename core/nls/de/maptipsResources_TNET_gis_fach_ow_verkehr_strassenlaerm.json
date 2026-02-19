@@ -1,0 +1,16 @@
+{
+    "gis_fach/ow_verkehr_strassenlaerm/laermbelastungskataster/immissionen_2017_1_grp_gis_fach/ow_verkehr_strassenlaerm/laermbelastungskataster_title": "Laermbelastungskataster Immissionen 2017",
+    "gis_fach/ow_verkehr_strassenlaerm/laermbelastungskataster/emissionen_2017_2_grp_gis_fach/ow_verkehr_strassenlaerm/laermbelastungskataster_title": "Laermbelastungskataster Emissionen 2017",
+    "gis_fach/ow_verkehr_strassenlaerm/laermbelastungskataster/immissionen_2017_1_title": "Laermbelastungskataster Immissionen 2017",
+    "gis_fach/ow_verkehr_strassenlaerm/laermbelastungskataster/emissionen_2017_2_title": "Laermbelastungskataster Emissionen 2017",
+    "gis_fach/ow_verkehr_strassenlaerm/rbbs/alt_axen_kantonsstrassen_4_grp_gis_fach/ow_verkehr_strassenlaerm/rbbs_title": "RBBS ALT Axen (Kantonsstrassen)",
+    "gis_fach/ow_verkehr_strassenlaerm/rbbs/rbbs_achsen_kreuzung/anschluss_ereignis_5_grp_gis_fach/ow_verkehr_strassenlaerm/rbbs_title": "RBBS RBBS Achsen Kreuzung/Anschluss (Ereignis)",
+    "gis_fach/ow_verkehr_strassenlaerm/rbbs/rbbs_achsen_eigentum_ereignis_6_grp_gis_fach/ow_verkehr_strassenlaerm/rbbs_title": "RBBS RBBS Achsen Eigentum (Ereignis)",
+    "gis_fach/ow_verkehr_strassenlaerm/rbbs/rbbs_achsen_route_7_grp_gis_fach/ow_verkehr_strassenlaerm/rbbs_title": "RBBS RBBS Achsen (Route)",
+    "gis_fach/ow_verkehr_strassenlaerm/rbbs/rbbs_achsen_kantonsstrassen_8_grp_gis_fach/ow_verkehr_strassenlaerm/rbbs_title": "RBBS RBBS Achsen (Kantonsstrassen)",
+    "gis_fach/ow_verkehr_strassenlaerm/rbbs/alt_axen_kantonsstrassen_4_title": "RBBS ALT Axen (Kantonsstrassen)",
+    "gis_fach/ow_verkehr_strassenlaerm/rbbs/rbbs_achsen_kreuzung/anschluss_ereignis_5_title": "RBBS RBBS Achsen Kreuzung/Anschluss (Ereignis)",
+    "gis_fach/ow_verkehr_strassenlaerm/rbbs/rbbs_achsen_eigentum_ereignis_6_title": "RBBS RBBS Achsen Eigentum (Ereignis)",
+    "gis_fach/ow_verkehr_strassenlaerm/rbbs/rbbs_achsen_route_7_title": "RBBS RBBS Achsen (Route)",
+    "gis_fach/ow_verkehr_strassenlaerm/rbbs/rbbs_achsen_kantonsstrassen_8_title": "RBBS RBBS Achsen (Kantonsstrassen)"
+}

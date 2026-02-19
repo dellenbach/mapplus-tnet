@@ -1,0 +1,11 @@
+{
+    "desc_gis_oereb/nw_gewaesserraum_revision_PRJ": "gis_oereb nw_gewaesserraum_revision_PRJ",
+    "desc_gis_oereb/nw_gewaesserraum_revision_prj/teilrevision_mit_vorwirkung": "Teilrevision mit Vorwirkung",
+    "desc_gis_oereb/nw_gewaesserraum_revision_prj/teilrevision_mit_vorwirkung/revisionsperimeter_mit_vorwirkung_teilrevision": "Teilrevision mit Vorwirkung Revisionsperimeter mit Vorwirkung (Teilrevision)",
+    "desc_gis_oereb/nw_gewaesserraum_revision_prj/teilrevision_mit_vorwirkung/gewaesserraum_grundnutzung_teilrevision": "Teilrevision mit Vorwirkung Gewässerraum (Grundnutzung) (Teilrevision)",
+    "desc_gis_oereb/nw_gewaesserraum_revision_prj/teilrevision_mit_vorwirkung/gewaesserraum_ueberlagernd_teilrevision": "Teilrevision mit Vorwirkung Gewässerraum (überlagernd) (Teilrevision)",
+    "desc_gis_oereb/nw_gewaesserraum_revision_prj/gesamtrevision_ohne_vorwirkung": "Gesamtrevision ohne Vorwirkung",
+    "desc_gis_oereb/nw_gewaesserraum_revision_prj/gesamtrevision_ohne_vorwirkung/revisionsperimeter_ohne_vorwirkung_gesamtrevision": "Gesamtrevision ohne Vorwirkung Revisionsperimeter ohne Vorwirkung (Gesamtrevision)",
+    "desc_gis_oereb/nw_gewaesserraum_revision_prj/gesamtrevision_ohne_vorwirkung/gewaesserraum_grundnutzung_gesamtrevision": "Gesamtrevision ohne Vorwirkung Gewässerraum (Grundnutzung) (Gesamtrevision)",
+    "desc_gis_oereb/nw_gewaesserraum_revision_prj/gesamtrevision_ohne_vorwirkung/gewaesserraum_ueberlagernd_gesamtrevision": "Gesamtrevision ohne Vorwirkung Gewässerraum (überlagernd) (Gesamtrevision)"
+}

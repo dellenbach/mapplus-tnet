@@ -1,0 +1,16 @@
+{
+    "desc_nw_kvv/nw_entsorgung": "nw_kvv nw_entsorgung",
+    "desc_nw_kvv/nw_entsorgung/nw_entsorgung": "NW Entsorgung",
+    "desc_nw_kvv/nw_entsorgung/nw_entsorgung/adresse": "NW Entsorgung Adresse",
+    "desc_nw_kvv/nw_entsorgung/nw_entsorgung/container": "NW Entsorgung Container",
+    "desc_nw_kvv/nw_entsorgung/nw_entsorgung/ufc": "NW Entsorgung UFC",
+    "desc_nw_kvv/nw_entsorgung/nw_entsorgung/sammelstelle": "NW Entsorgung Sammelstelle",
+    "desc_nw_kvv/nw_entsorgung/nw_entsorgung/wendeplatz": "NW Entsorgung Wendeplatz",
+    "desc_nw_kvv/nw_entsorgung/nw_entsorgung/strassenachse": "NW Entsorgung Strassenachse",
+    "desc_nw_kvv/nw_entsorgung/nw_entsorgung/strassenachse_qualitaet": "NW Entsorgung Strassenachse Qualität",
+    "desc_nw_kvv/nw_entsorgung/nw_entsorgung/trackingdaten_kw_36_2004": "NW Entsorgung Trackingdaten KW 36 2004",
+    "desc_nw_kvv/nw_entsorgung/av_datenbasis": "AV Datenbasis",
+    "desc_nw_kvv/nw_entsorgung/av_datenbasis/av_adresse_datenbasis": "AV Datenbasis AV Adresse Datenbasis",
+    "desc_nw_kvv/nw_entsorgung/av_datenbasis/av_strassenachse_datenbasis": "AV Datenbasis AV Strassenachse Datenbasis",
+    "desc_nw_kvv/nw_entsorgung/gemeinde": "Gemeinde"
+}

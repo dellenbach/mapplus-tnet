@@ -1,0 +1,346 @@
+<html>
+  <head>
+    <meta http-equiv="content-type" content="text/html; charset=utf-8">
+    <title>MAP+&nbsp; Hilfetexte </title>
+    <link rel="stylesheet" type="text/css" href="css/bootstrap.css">
+    <link rel="stylesheet" type="text/css" href="css/mapplus.css">
+    <base target="_self">
+  </head>
+  <body leftmargin="20">
+    <div class="close" onclick="parent.njs.AppManager.toggleCustomPaneContent('help','custompane','../....//help/help_de.htm','');"></div>
+    <h1>mapplus.ch - Hilfetexte</h1>
+    <h2>Themen der Hilfe</h2>
+    <h3>Karten und Funktionen</h3>
+    <ul>
+      <li>Navigation</li>
+      <li>Suche</li>
+      <li><a href="#Kartenauswahl">Funktionen, Kartenauswahl</a></li>
+      <li><a href="#info">Informationsabfrage</a></li>
+      <li><a href="#Lesezeichen">Lesezeichen</a></li>
+    </ul>
+    <h3>Werkzeuge</h3>
+    <ul>
+      <li><a href="#Print">Drucken</a></li>
+      <li><a href="#Measure">Messen</a></li>
+      <li><a href="#Draw">Zeichnen</a></li>
+      <li><a href="#wms">Externe Kartendienste hinzuladen (WMS)</a></li>
+      <li><a href="#mobile">Mobile Version</a></li>
+    </ul>
+    <h2>Navigation</h2>
+    <p>Um in der Karte zu navigieren, haben Sie folgende Möglichkeiten:</p>
+    <ul>
+      <li>Zoom in/out: Mausrad oder +/- Tasten</li>
+      <li>Verschieben: Karte mit gedrückter Maustaste ziehen oder Pfeiltasten</li>
+      <li>Zoomfenster aufziehen: Shift und mit gedrückter Maustaste Fenster
+        aufziehen </li>
+      <li>Auf Initialzoom zurück (ganzes Gebiet): "Home" Funktion</li>
+    </ul>
+    <h2>Suche</h2>
+    <p>Gesucht werden kann nach fast allen Inhalten der Karte, zusätzlich auch nach:</p>
+    <ul>
+      <li>Adresse</li>
+      <li>Orts- und Flurnamen</li>
+      <li>PLZ</li>
+    </ul>
+    <h3>Suche nach Objekte</h3>
+    <p>Gesuchter Begriff oder Kombination von Begriffen eingeben, Treffer werden angezeigt. </p>
+    <p>Beispiele, Suche nach Objekten:</p>
+    <ul>
+      <li><b>Adresse</b>, Optingenstrasse 27, Bern: "<b>opt 27</b>"</li>
+      <li><b>Adresse</b>, Bahnhofstrasse 13 , Stettlen: "<b>bahn 13 stett</b>"</li>
+      <li><b>Hotel</b> Sternen Muri: "<b>ster mur</b>"</li>
+      <li><b>Berghütte</b> Blüemlisalp: "<b>blüemlisalphü</b>"</li>
+    </ul>
+    <p>Beispiele, Suche nach Kartenthemen, Begriffe wie:</p>
+    <ul>
+      <li>"<b>wander</b>"</li>
+      <li>"<b>Fahrrad</b> oder <b>Vélos</b>"</li>
+      <li>Paragliding, tippe "<b>paragl</b>"</li>
+    </ul>
+    <p></p>
+    <h3>Anzeige und Suche von Koordinaten</h3>
+    <span class="row"> 
+    <span class="col-xs-2"> 
+      <img class="img-responsive space-up"
+          src="../templates/mapplus_ribbon/img/coords_open.svg"> 
+    </span> 
+    <span class="col-xs-10">Ist der Vorhängeschloss offen (<b>blau) </b>werden die Koordinaten dynamisch angezeigt (beim bewegen der Maus über die Karte)
+      </span> 
+      </span> 
+    <span class="row"> 
+    <span class="col-xs-2"> 
+      <img class="img-responsive space-up" src="../templates/mapplus_ribbon/img/coords_locked.svg">
+      </span> 
+      <span class="col-xs-10">Ist der Vorhängeschloss geschlossen (<b>rot) </b>werden die Koordinaten nur beim Klicken angezeigt. Dies erlaubt Ihnen einen bestimmten Punkt anzuklicken und dann die Koordinaten zu kopieren (markieren, rechte Maustaste, Kopieren oder markieren und STRG/C).
+      </span>
+     </span>
+    <p>Für die <b>Suche</b> tippen Sie die gesuchten Koordinaten
+      komma-separiert ein und drücken Sie die <b>Eingabetaste</b>.</p>
+
+    <a name="Kartenauswahl"></a>
+    <h2>Funktionen, Kartenauswahl</h2>
+    <h3>Hintergrundkarten und Funktionen</h3>
+    <p> <img class="img-responsive" src="images/background_maps_de.png"></p>
+        <p>Als <b>Hintergrundkarten</b> stehen zur Verfügung (Beispiel, je nach
+          Anwendung abweichend):</p>
+        <ul>
+          <li><b>OSM++ Alpen</b> OpenStreetMap "Alpen", angereichert mit freien Daten CH, A und I</li>
+          <li><b>OSM++ Schweiz</b> OpenStreetMap "Schweiz", angereichert mit freien Daten der Kantone, kleinere Massstäbe bis Adresstufe möglich</li>
+          <li><b>OSM++ Europa</b> OpenStreetMap "Europa", basiert auf reinen OSM Daten</li>
+          <li><b>Luftbild Kanton ZH</b></li>
+          <li><b>Copernicus Satelliten Daten</b></li>
+          <li><b>Google Strassenkarte</b></li>
+          <li><b>Google Luftbild</b></li>
+          <li><b>Google Luftbild mit Strassen</b></li>
+          <li><b>Leer</b>: kein Hintergrund</li>
+        </ul>
+      </span> </span>
+    <p>Weitere <b>Funktionen</b> sind:</p>
+    <ul>
+      <li><b>Auswahl von vorgefertigten Karten (Themen)</b></li>
+      <li><b>Alle angezeigten Layer entfernen</b></li>
+      <li><b>Locate</b>-Funktion: Lokalisieren über GPS Empfänger (mobile
+        Geräte) </li>
+      <li><b>Zoom zur Ausdehnung</b> der Hintergrundkarte. Beachten Sie, dass
+        sich die OSM- und Google-Karten auf die ganze Schweiz zoomen lassen. </li>
+      <li><b>Google StreetView</b>: </li>
+      <ul>
+        <li>in StreetView navigieren. Die Karte wird entsprechend nachgeführt
+          (Position und Richtung). Beachten Sie: insbesondere bei Fotos ist die
+          dort angegebene Richtung nicht immer zuverlässig.</li>
+        <li>Sie können alternativ das StreetView-Objekt in der Karte
+          verschieben. Auch so wird nach der nächstgelegenen Aufnahme gesucht.</li>
+        <li>Um mehr Platz für die Karte zur Verfügung zu haben, können Sie die
+          Kartenwahl-Steuerung verkleinern (auf die drei Punkte links der Karte
+          klicken)</li>
+      </ul>
+        <li><b>Google Earth</b>: Ausschnitt in Google Earth aufrufen</li>
+        <li><b>geo.admin</b>mit den zugeschalteten Karten aufrufen</li>
+        <li><b>Hilfe</b>: diese Hilfetexte aufrufen</li>
+    </ul>
+    <b></b>
+    <ul>
+    </ul>
+    <h2>Zuschaltbare Themen</h2>
+    <p>Diese umfassen:</p>
+    <ul>
+      <li><b>Tourismus<br></b></li>
+      <li><b>Infrastruktur</b></li>
+      <li><b>Verkehr<br></b></li>
+      <li><b>Sport</b></li>
+      <li><b>Natur</b></li>
+    </ul>
+    <p><b><font color="#FF0000">BEACHTEN </font>Sie: Kursiv angezeigte Themen</b>
+      sind im aktuellen Kartenmassstab (Zoomstufe) nicht sichtbar.</p>
+    <h2>Informationen zu den Themen</h2>
+    <p><b>Themen können Informationen enthalten, wie Legende, Quellen etc.</b>
+      Klicken die dazu auf dem Thementitel</p>
+    <h2>Informationen zu Objekten in der Karte</h2>
+    <p>Die allermeisten Themen können abgefragt werden. Klicken Sie dazu einfach auf den
+      gewünschten Objekt. </p>
+    <h1>WERKZEUGE</h1>
+    <p>Die Werkzeuge finden Sie im Menüband oben (Ribbon):</p>
+    <ul>
+      <li>Vorschau und PDF Druck unter "HOME"</li>
+      <li>Messen und Bemassen unter "MESSEN"</li>
+      <li>Zeichenwerkzeige und "ZEICHNEN"</li>
+    </ul>
+    <h2> <a name="Print"></a>Drucken </h2>
+    <span class="row"> 
+      <span class="col-xs-2"> <img class="img-responsive" src="../templates/mapplus_ribbon/img/ribbon/btn_preview.svg">
+      </span> 
+    <span class="col-xs-10"> <b>Vorschau</b><br>
+        Die aktuelle Kartensicht wird in einem separaten Fenster zum Drucken
+        aufbereitet. Die Grösse ist für A4 optimiert. 
+      </span> 
+    </span>
+    <span class="row">
+       <span class="col-xs-2"> <img class="img-responsive" src="../templates/mapplus_ribbon/img/ribbon/btn_pdf.svg">
+      </span> 
+      <span class="col-xs-10"> <b>PDF Druck, massstäblich<br>
+        </b>Massstäbliches Drucken zu PDF. Untenstehende Dialogbox erscheint.
+        Wählen Sie einen Massstab, eine Vorlage (Layout), die gewünschte
+        Auflösung aus und geben Sie einen optionalen Titel ein:
+      </span> 
+    </span> 
+    <span class="row"> 
+    <span class="col-xs-2"></span>
+      <span class="col-xs-10"> <img class="img-responsive" src="images/pdf_dialog_de.png">
+      </span> 
+    </span>
+    <p> <font color="#FF0000"><b>WICHTIG</b></font>: Um die generierte <b>PDF
+        Datei im Massstab zu drucken</b>, schalten Sie beim Druckdialog vom
+      Acrobat Reader bei der Seiteneinstellung folgende Optionen aus respektive
+      stellen Sie diese folgendermassen ein (kann je nach Acrobat Version oder
+      falls Sie andere Programme benutzen abweichen): </p>
+    <ul>
+      <li><b>Seitenanpassung</b>: keine (also weder "kleine Seiten vergrössern"
+        noch "grosse Seiten verkleinern") </li>
+      <li><b>Automatisch drehen und zentrieren</b> ausschalten</li>
+      <li>Wählen Sie <b> beim Drucker die richtige Papiergrösse und
+          Orientierung aus</b></li>
+    </ul>
+    <span class="row"> <span class="col-md-1 col-xs-0"></span> <span class="col-md-11 col-xs-12">
+        <img class="img-responsive" src="images/pdf_dialog_scale_de.png"> </span>
+    </span> <a name="Measure"></a>
+    <h2>Messen</h2>
+    <span class="row"> 
+      <span class="col-xs-2"> <img class="img-responsive" src="../templates/mapplus_ribbon/img/ribbon/btn_measure_line.svg">
+      </span> <span class="col-xs-10"> <b>Distanz</b><br>
+        Klicken Sie auf den gewünschten Startpunkt und erfassen dann beliebig
+        viele Zwischenpunkte. Zum Abschliessen Doppelklick. Nach Abschluss der
+        Messung können Sie Punkte verschieben oder neue Zwischenpunkte einfügen.
+        Um eine neue Distanz messen zu können, wiederholen Sie einfach die
+        Prozedur. Um aus der Funktion auszusteigen, wählen Sie die Funktion
+        erneut. 
+      </span> 
+     </span> 
+    <span class="row"> 
+
+      <span class="col-xs-2"> <img class="img-responsive" src="../templates/mapplus_ribbon/img/ribbon/btn_measure_area.svg">
+      </span> 
+      <span class="col-xs-10"> <b>Fläche<br>
+        </b>Klicken Sie auf den gewünschten Startpunkt und erfassen dann
+        beliebig viele Zwischenpunkte. Zum Abschliessen Doppelklick. Nach
+        Abschluss der Messung können Sie Punkte verschieben oder neue
+        Zwischenpunkte einfügen. Um eine neue Fläche messen zu können,
+        wiederholen Sie einfach die Prozedur. Um aus der Funktion auszusteigen,
+        wählen Sie die Funktion erneut. 
+      </span> 
+    </span> 
+    <span class="row"> 
+       <span class="col-xs-2"> <img
+          class="img-responsive" src="../templates/mapplus_ribbon/img/ribbon/btn_measure_profile.svg">
+      </span> 
+      <span class="col-xs-10"> <b>Profil<br>
+        </b>Klicken Sie auf den gewünschten Startpunkt und erfassen dann
+        beliebig viele Zwischenpunkte. Zum Abschliessen Doppelklick. Nach
+        Abschluss der Messung können Sie Punkte verschieben oder neue
+        Zwischenpunkte einfügen. Um eine neue Fläche messen zu können,
+        wiederholen Sie einfach die Prozedur. Um aus der Funktion auszusteigen,
+        wählen Sie die Funktion erneut. 
+    </span> 
+    </span> 
+    <span class="row"> 
+       <span class="col-xs-2">
+      </span> 
+      <span class="col-xs-10">
+            <p><img class="img-responsive space-up" src="images/profile_dialog_de.png"></p>
+     </span>
+  </span>
+    <h2>Zeichnen</h2>
+    <p>Generell für alle:</p>
+        <p><b>Löschen</b>: </p>
+        <ul>
+          <li>einzelne Objekte: anklicken und auf Papierkorb im angezeigten Dialog klicken</li>
+          <li>alle: Funktion "Alles löschen" verwenden</li>
+        </ul>
+    <p><strong>Speichern</strong>: Zeichnungen als <strong>Lesezeichen</strong>
+      speichern. Das Lesezeichen können Sie dann entweder als solches speichern
+      (übliche Browser-Funktionalität) oder kopieren und versenden.</p>
+
+    <span class="row"> 
+      <span class="col-xs-2"> <img class="img-responsive" src="../templates/mapplus_ribbon/img/ribbon/btn_rl_point.svg">
+      </span> 
+      <span class="col-xs-10"> <b>Symbole</b><br>
+        Klicken Sie auf die Funktion, um diese zu aktivieren. Eine Auswahl an
+        Symbole erscheint. Wählen Sie einen Symbol aus und positionieren Sie
+        diesen auf der Karte. Beliebig wiederholen. Um das Zeichnen
+        abzuschliessen schliessen Sie die Symbolliste, klicken erneut auf die
+        Funktion oder wählen Sie eine andere Funktion aus. Um ein Symbol zu
+        verschieben, anklicken und mit gedrückter Maustaste bewegen. Sie können
+        auch den Symbol ändern: anklicken und anderen Symbol aus der Liste
+        wählen.
+
+      </span> 
+    </span> 
+    <span class="row"> 
+      <span class="col-xs-2"> <img class="img-responsive" src="../templates/mapplus_ribbon/img/ribbon/btn_rl_text.svg">
+      </span> <span class="col-xs-10"> <b>Texte</b><br>
+        Klicken Sie auf die Funktion, um diese zu aktivieren. Wählen Sie die
+        gewünschte Schriftart etc. aus. Positionieren Sie den Text nach
+        Belieben. Beliebig wiederholen. Um das Zeichnen abzuschliessen,
+        schliessen Sie die Dialobbox, klicken erneut auf die Funktion oder
+        wählen Sie eine andere Funktion aus. Um einen Text zu verschieben,
+        anklicken, Dialog erscheint; erneut anklicken und mit gedrückter
+        Maustaste bewegen. Sie können auch den Text und die Ausprägung ändern.
+
+      </span> 
+    </span> 
+    <span class="row"> 
+      <span class="col-xs-2"> <img class="img-responsive" src="../templates/mapplus_ribbon/img/ribbon/btn_rl_line.svg">
+      </span> <span class="col-xs-10"> <b>Linien</b><br>
+        Klicken Sie auf die Funktion, um diese zu aktivieren. Wählen Sie die
+        gewünschte Linienart etc. aus. Zeichnen Sie die Linie indem Sie beliebig
+        viele Stützpunkte zeichnen. Abschluss mit Doppelklick. Um das Zeichnen
+        abzuschliessen, schliessen Sie die Dialobbox, klicken erneut auf die
+        Funktion oder wählen Sie eine andere Funktion aus. Um eine Linie zu
+        verschieben oder zu verändern, anklicken, Dialog und Stützpunkte
+        erscheinen. Sie können die Linie als Gesamtes verschieben, einzelne
+        Stützpunkte verschieben oder Stützpunkte hinzufügen. Und auch die
+        Ausprägung anpassen.
+
+      </span> 
+    </span> 
+    <span class="row"> 
+      <span class="col-xs-2"> <img class="img-responsive" src="../templates/mapplus_ribbon/img/ribbon/btn_rl_area.svg">
+      </span> <span class="col-xs-10"> <b>Flächen / Kreise</b><br>
+        Klicken Sie auf die Funktion, um diese zu aktivieren. Wählen Sie die
+        gewünschte Linienart etc. aus. Zeichnen Sie die Fläche indem Sie
+        beliebig viele Stützpunkte zeichnen. Abschluss mit Doppelklick. Um das
+        Zeichnen abzuschliessen, schliessen Sie die Dialobbox, klicken erneut
+        auf die Funktion oder wählen Sie eine andere Funktion aus. Um eine
+        Fläche zu verschieben oder zu verändern, anklicken, Dialog und
+        Stützpunkte erscheinen. Sie können die Fläche als Gesamtes verschieben,
+        einzelne Stützpunkte verschieben oder Stützpunkte hinzufügen. Und auch
+        die Ausprägung anpassen.
+        <p><b> Löschen</b>: </p>
+      </span></span>
+
+    <h2><a name="wms"></a>Hinzuladen von externen Kartendiensten</h2>
+    <p>Sie können sogenannte Web Mapping Services (<a target="_blank" href="http://www.wikiwand.com/de/Web_Map_Service">WMS</a>)
+      hinzuladen. Ein WMS ist ein Dienst, mit dem Karten über das Web zur
+      Verfügung gestellt werden können. Normalerweise wird ein WMS aber nicht
+      direkt übers Web aufgerufen, sondern in eine Anwendung oder Software
+      eingebaut. WMS-Dienste sind letztlich Bilder, die zudem nach Informationen
+      abgefragt werden können. Vorgehen beim Anwenden:</p>
+    <ul>
+      <li>Wählen Sie die Rubrik KARTENDIENSTE EXTERN auf (unten links)</li>
+      <li>Folgender Dialog erscheint:</li>
+    </ul>
+    <p> <img class="img-responsive" src="images/wms_dialog_de.png"></p>
+    <ul>
+      <li><b>WMS</b>: Wählen Sie aus der Liste ein WMS aus oder geben Sie die
+        gewünschte WMS-Adresse manuell ein. Klicken Sie dann auf Verbinden.</li>
+      <li>Danach erscheint die Liste der verfügbaren Layer. Optional können Sie
+        diese <b>filtern</b>.</li>
+    </ul>
+    <p>Sobald Sie einen Layer ausgewählt haben, wird dieser in der Karten angezeigt, wenn im Ausschnitt Daten vorhanden sind. Beachten Sie</b>, dass
+        die Sichtbarkeit eines WMS-Layers auf bestimmte Zoomstufen beschränkt
+        sein kann -&gt; s. Beschreibung des WMS: "Beschränkte Sichtbarkeit".</p>
+    <ul>
+      <li>Unten erscheint, falls vorhanden, die <b>Beschreibung</b> des WMS.</li>
+      <li><b>Legende: </b> Ist im WMS-Dienst eine Legende vorhanden, so kann
+        diese Funktion ausgewählt werden (sonst ist der Knopf ausgegraut).</li>
+      <li><b>Hinzufügen</b>: WMS zur Karte hinzufügen.</li>
+      <li>Gewisse Dienste sind nicht transparent. Um die Transparenz zu ändern, wählen Sie die Rubrik SORTIEREN / TRANSPARENZ</li>
+      <li>Um WMS-Layer wieder zu <b>entfernen</b>, klicken Sie auf die Funktion
+        "Alle Layer ausschalten" (ganz oben neben der Hilfe-Funktion) oder
+        wählen Sie den <b>Reiter SORTIEREN / TRANSPARENZ</b> und entfernen Sie einzelne Layer.</li>
+    </ul>
+    <h1><a name="mobile"></a>Mobile Version</h1>
+    <p>MAP+ ist in einer Version für Mobiltelefone mit reduzierter
+          Funktionalität verfügbar. Folgenden Funktionen stehen zur Verfügung:</p>
+    <ul>
+      <li>Auswahl der Hintergrundkarte</li>
+      <li>Themenwahl (Panel links)</li>
+      <li>Wahl vorgefertigter Karten (Panel rechts)</li>
+      <li>Lokalisation</li>
+      <li>Alle Themen entfernen</li>
+      <li>Zoom zur Ausdehnung der Hintergrundkarte</li>
+      <li>Informationsabfragen zu den Themen</li>
+      <li>Suche</li>
+    </ul>
+    <p>&nbsp;</p>
+  </body>
+</html>

@@ -1,0 +1,21 @@
+{
+    "desc_wintersport": "Winter sport",
+    "desc_schweizmobil": "SwitzerlandMobility",
+    "desc_wanderland_routen": "Wanderland Hiking Routes",
+    "desc_wanderland_etappen": "Wanderland Hiking Sections",
+    "desc_veloland_routen": "Veloland Routes",
+    "desc_veloland_etappen": "Veloland Sections",
+    "desc_mountainbikeland_routen": "Mountainbikeland Routes",
+    "desc_mountainbikeland_etappen": "Mountainbikeland Sections",
+    "desc_skatingland_routen": "Skatingland Routes",
+    "desc_skatingland_etappen": "Skatingland Sections",
+    "desc_winterwandern": "Winter Hiking - SwitzerlandMobility",
+    "desc_schneeschuhwandern": "Snowshoe Trekking - SwitzerlandMobility",
+    "desc_schlitteln": "Sledging - SwitzerlandMobility",
+    "desc_langlaufen": "Cross-country skiing  - SwitzerlandMobility",
+    "desc_hindernisfrei": "Wanderland Obstacle-free",
+    "desc_sperrungen_umleitungen": "SwitzerlandMobility: Closures",
+    "desc_swisstopo_wanderwege": "Hiking Trails - swisstopo",
+    "desc_swisstopo_schneeschuhrouten": "Snowshoeing Routes- swisstopo",
+    "desc_swisstopo_skirouten": "Skiiig Routes - swisstopo"
+}

@@ -1,0 +1,23 @@
+{
+    "desc_nw_afl/landw_infrastrukturen_nw": "nw_afl landw_infrastrukturen_nw",
+    "desc_nw_afl/landw_infrastrukturen_nw/bewaesserung": "Bewässerung",
+    "desc_nw_afl/landw_infrastrukturen_nw/bewaesserung/bewaesserung_punkt": "Bewässerung Bewässerung Punkt",
+    "desc_nw_afl/landw_infrastrukturen_nw/bewaesserung/bewaesserung_linie": "Bewässerung Bewässerung Linie",
+    "desc_nw_afl/landw_infrastrukturen_nw/bewaesserung/bewaesserung_flaeche": "Bewässerung Bewässerung Fläche",
+    "desc_nw_afl/landw_infrastrukturen_nw/elektrizitaetsversorgungen": "Elektrizitätsversorgungen",
+    "desc_nw_afl/landw_infrastrukturen_nw/elektrizitaetsversorgungen/elektrizitaetsversorgungen_punkt": "Elektrizitätsversorgungen Elektrizitätsversorgungen Punkt",
+    "desc_nw_afl/landw_infrastrukturen_nw/elektrizitaetsversorgungen/elektrizitaetsversorgungen_linie": "Elektrizitätsversorgungen Elektrizitätsversorgungen Linie",
+    "desc_nw_afl/landw_infrastrukturen_nw/entwaesserung": "Entwässerung",
+    "desc_nw_afl/landw_infrastrukturen_nw/entwaesserung/entwaesserung_punkt": "Entwässerung Entwässerung Punkt",
+    "desc_nw_afl/landw_infrastrukturen_nw/entwaesserung/entwaesserung_linie": "Entwässerung Entwässerung Linie",
+    "desc_nw_afl/landw_infrastrukturen_nw/entwaesserung/entwaesserung_flaeche": "Entwässerung Entwässerung Fläche",
+    "desc_nw_afl/landw_infrastrukturen_nw/seilbahn": "Seilbahn",
+    "desc_nw_afl/landw_infrastrukturen_nw/seilbahn/seilbahn_station": "Seilbahn Seilbahn_Station",
+    "desc_nw_afl/landw_infrastrukturen_nw/seilbahn/seilbahn": "Seilbahn Seilbahn",
+    "desc_nw_afl/landw_infrastrukturen_nw/wasserversorgungsanlagen": "Wasserversorgungsanlagen",
+    "desc_nw_afl/landw_infrastrukturen_nw/wasserversorgungsanlagen/wasserversorgungsanlagen_punkt": "Wasserversorgungsanlagen Wasserversorgungsanlagen_Punkt",
+    "desc_nw_afl/landw_infrastrukturen_nw/wasserversorgungsanlagen/wasserversorgungsanlagen_linie": "Wasserversorgungsanlagen Wasserversorgungsanlagen_Linie",
+    "desc_nw_afl/landw_infrastrukturen_nw/wegebau": "Wegebau",
+    "desc_nw_afl/landw_infrastrukturen_nw/wegebau/kunstbaute": "Wegebau Kunstbaute",
+    "desc_nw_afl/landw_infrastrukturen_nw/wegebau/gueterweg": "Wegebau Gueterweg"
+}
