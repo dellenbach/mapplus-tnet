@@ -104,6 +104,10 @@
         var widget = document.getElementById('basemap_widget');
         if (!widget) return;
 
+        // Pointer-Events im Widget stoppen, damit OL-Map nicht reagiert
+        widget.addEventListener('pointerdown', function(e) { e.stopPropagation(); });
+        widget.addEventListener('mousedown', function(e) { e.stopPropagation(); });
+
         widget.addEventListener('click', function(e) {
             var card = e.target.closest('.basemap-card');
             if (!card) return;
@@ -341,11 +345,7 @@
                 });
             }
 
-            // Detect initial basemap
-            var activeCard = document.querySelector('.basemap-card.active');
-            if (activeCard && activeCard.dataset.basemap) {
-                this.onBasemapChange(activeCard.dataset.basemap);
-            }
+            // Detect initial basemap → wird nach hookChangeBaseMap erledigt
 
             this._hookOpacityAndGrayscale();
             this.hookChangeBaseMap();
@@ -826,11 +826,41 @@
 
                     console.log(LOG_PREFIX, 'changeBaseMap:', basemapId, '→ Framework:', actualBasemapId);
                     var result = mapInstance._preTimeChangeBaseMap.call(mapInstance, actualBasemapId);
-                    setTimeout(function() { self.onBasemapChange(basemapId); }, 200);
+                    setTimeout(function() {
+                        // Fix: Nach View-Ersatz Viewport stabilisieren
+                        var map = mapInstance.mapObj;
+                        if (map) {
+                            var viewport = map.getViewport();
+                            if (viewport) {
+                                // ondragstart (Property, nicht addEventListener → ersetzt sich selbst)
+                                viewport.ondragstart = function(e) { e.preventDefault(); };
+                            }
+                            map.updateSize();
+                        }
+                        self.onBasemapChange(basemapId);
+                    }, 200);
                     return result;
                 };
 
                 console.log(LOG_PREFIX, 'changeBaseMap gehookt ✓');
+
+                // Nach dem Hook: aktuelle Framework-Basemap erkennen und Zeitreise nachholen
+                var currBm = mapInstance.currBasisMap || mapInstance.basisMap;
+                if (currBm) {
+                    console.log(LOG_PREFIX, 'Framework-Basemap beim Hook:', currBm);
+                    // Card im DOM synchronisieren
+                    document.querySelectorAll('.basemap-card').forEach(function(c) {
+                        c.classList.toggle('active', c.dataset.basemap === currBm);
+                    });
+                    // Zeitreise-Overlay anwenden (z.B. für void-Basemaps siegfried/pk_color/dufour)
+                    self.onBasemapChange(currBm);
+                } else {
+                    // Fallback: aus DOM lesen
+                    var activeCard = document.querySelector('.basemap-card.active');
+                    if (activeCard && activeCard.dataset.basemap) {
+                        self.onBasemapChange(activeCard.dataset.basemap);
+                    }
+                }
             }
             tryHook();
         },
@@ -868,7 +898,58 @@
         // Zeitreise
         BasemapTimeManager.init();
 
+        // URL-Parameter ?basemap= auswerten
+        applyBasemapFromUrl();
+
         console.log(LOG_PREFIX, 'Modul vollständig initialisiert ✓');
+    }
+
+    /**
+     * Liest ?basemap=<id> aus der URL und wechselt die Basemap.
+     * Wartet auf Framework-Bereitschaft UND aktiven Hook.
+     */
+    function applyBasemapFromUrl() {
+        var urlParams = new URLSearchParams(window.location.search);
+        var basemapParam = urlParams.get('basemap');
+        if (!basemapParam) return;
+
+        // Gültige IDs: alle data-basemap Attribute im DOM
+        var validCards = document.querySelectorAll('.basemap-card[data-basemap]');
+        var validIds = [];
+        validCards.forEach(function(c) { validIds.push(c.dataset.basemap); });
+        if (validIds.indexOf(basemapParam) === -1) {
+            console.warn(LOG_PREFIX, 'URL basemap="' + basemapParam + '" ist ungültig. Gültig:', validIds.join(', '));
+            return;
+        }
+
+        console.log(LOG_PREFIX, 'URL-Parameter basemap=' + basemapParam);
+
+        // Active-Card im Widget sofort aktualisieren
+        validCards.forEach(function(c) {
+            c.classList.toggle('active', c.dataset.basemap === basemapParam);
+        });
+
+        // Warte auf Framework UND Hook, dann Basemap wechseln
+        var attempts = 0;
+        (function waitAndSwitch() {
+            attempts++;
+            var ready = window.njs && njs.AppManager && njs.AppManager.Maps && njs.AppManager.Maps.main;
+            var hooked = ready && njs.AppManager.Maps.main._basemapTimeHooked;
+            if (ready && hooked) {
+                // Nur wechseln wenn nicht schon die richtige Basemap aktiv
+                var curr = njs.AppManager.Maps.main.currBasisMap || njs.AppManager.Maps.main.basisMap;
+                if (curr !== basemapParam) {
+                    njs.AppManager.Maps['main'].changeBaseMap(basemapParam);
+                    console.log(LOG_PREFIX, 'Basemap aus URL gesetzt:', basemapParam);
+                } else {
+                    console.log(LOG_PREFIX, 'Basemap aus URL bereits aktiv:', basemapParam);
+                }
+            } else if (attempts < 40) {
+                setTimeout(waitAndSwitch, 500);
+            } else {
+                console.warn(LOG_PREFIX, 'Framework nicht bereit, basemap aus URL konnte nicht gesetzt werden');
+            }
+        })();
     }
 
     if (document.readyState === 'loading') {

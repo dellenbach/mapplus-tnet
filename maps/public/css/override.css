@@ -713,10 +713,11 @@ body.drawing-mode #freepane * {
 
 /* Spring Container - scrollbar ohne Scrollbalken */
 #spring {
-  height: 100% !important;
+  height: auto !important;
+  max-height: 100% !important;
   overflow-y: auto !important;
   overflow-x: visible !important;
-  padding-bottom: 60px !important;
+  padding-bottom: 0 !important;
   box-sizing: border-box !important;
   /* Scrollbalken verstecken */
   scrollbar-width: none; /* Firefox */
@@ -786,7 +787,7 @@ body.drawing-mode #freepane * {
 }
 
 #spring {
-  flex: 1;
+  flex: 0 1 auto;
   display: flex;
   flex-direction: column;
   position: relative;
@@ -1486,6 +1487,9 @@ h3 {
   right: 20px;
   bottom: 30px;
   width: 340px;
+  max-height: calc(100vh - 120px);
+  display: flex;
+  flex-direction: column;
   background: #fff;
   border-radius: 4px;
   box-shadow: 0 4px 20px rgba(0,0,0,0.25);
@@ -1532,17 +1536,20 @@ h3 {
 
 .basemap-widget-content {
   padding: 16px;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
 }
 
 /* Layer Toggles */
 .basemap-layer-section {
-  margin-bottom: 16px;
+  margin-bottom: 10px;
 }
 
 .basemap-layer-row {
   display: flex;
   align-items: center;
-  padding: 8px 0;
+  padding: 5px 0;
   border-bottom: 1px solid #eee;
 }
 
@@ -1685,6 +1692,7 @@ h3 {
   border: 2px solid transparent;
   box-sizing: border-box;
   transition: border-color 0.2s ease, transform 0.2s ease;
+  position: relative;
 }
 
 .basemap-card:hover {
@@ -1693,6 +1701,23 @@ h3 {
 
 .basemap-card.active {
   border-color: #4b7b81;
+}
+
+/* Zeitreise-Badge auf Kacheln */
+.basemap-card-time-badge {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 18px;
+  height: 18px;
+  font-size: 11px;
+  line-height: 18px;
+  text-align: center;
+  background: rgba(255,255,255,0.88);
+  border-radius: 50%;
+  z-index: 1;
+  pointer-events: none;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
 }
 
 .basemap-card-preview {
