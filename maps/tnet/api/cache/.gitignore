@@ -1,0 +1,3 @@
+# Cache-Dateien nicht committen
+*
+!.gitignore

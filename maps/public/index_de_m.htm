@@ -2,276 +2,846 @@
 <!--
   index_de_m.htm
   GIS NW/OW - Mobile Ansicht
+  Abgeleitet aus index_de.htm (Desktop)
+  Hamburger-Drawer statt Sidebar, Touch-optimiert
 
   @version    1.0
-  @date       2026-02-12
+  @date       2026-02-19
   @copyright  Trigonet AG
   @author     Marco Dellenbach
 -->
 <html>
 
 <head>
-  <meta http-equiv="Content-Type" content="text/html; charset=utf-8;" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, minimal-ui" />
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <title>GIS NW/OW</title>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@v10.6.0/ol.css"
-    onerror="this.href='/mapplus-lib/openlayers/v10.6.0-package/ol.css';">
+    <meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="preconnect" href="https://www.gis-daten.ch" crossorigin>
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+    <link rel="dns-prefetch" href="//www.gis-daten.ch">
+    <link rel="dns-prefetch" href="//cdn.jsdelivr.net">
+    <link rel="dns-prefetch" href="//cdnjs.cloudflare.com">
+    <!-- Preload: kritische Ressourcen -->
+    <link rel="preload" href="https://cdn.jsdelivr.net/npm/ol@v10.6.0/dist/ol.js" as="script">
+    <link rel="preload" href="https://cdnjs.cloudflare.com/ajax/libs/dojo/1.17.3/dojo.js" as="script">
+    <link rel="preload" href="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.12.1/proj4.min.js" as="script" crossorigin="anonymous">
+    <link rel="preload" href="https://cdn.jsdelivr.net/npm/sortablejs@1.15.6/Sortable.min.js" as="script">
+    <link rel="preload" href="https://cdn.jsdelivr.net/npm/ol@v10.6.0/ol.css" as="style">
+    <link rel="preload" href="https://cdn.jsdelivr.net/npm/ol-ext/dist/ol-ext.min.js" as="script">
+    <link rel="preload" href="https://cdn.jsdelivr.net/npm/ol-ext/dist/ol-ext.min.css" as="style">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <title>MAP+ GIS Daten AG</title>
 
-  <link rel="shortcut icon" href="favicon.png?" />
-  <!--
-    Layout CSS linking a template and custom layout: to be integrated
-  -->
-  <link rel="stylesheet" type="text/css"
-    href="/mapplus-lib/dojo-release/dojo-release-1.17.3/dijit/themes/tundra/tundra.css" />
-  <link rel="stylesheet" type="text/css"
-    href="/mapplus-lib/dojo-release/dojo-release-1.17.3/dojox/widget/ColorPicker/ColorPicker.css" />
+    <!-- Critical CSS für Splash Screen -->
+    <style>
+        #splash-screen{position:fixed;top:0;left:0;width:100%;height:100%;background:linear-gradient(135deg,#4b7b81 0%,#3a6268 100%);display:flex;flex-direction:column;justify-content:center;align-items:center;z-index:99999}
+    </style>
 
-  <!--
-    Layout CSS dojo FloatingPane module
-  -->
-  <!-- google fonts -->
-  <link href="https://fonts.googleapis.com/css?family=Roboto+Slab:400,700" rel="stylesheet">
+    <!-- Feature Flags für Mobile Layout Migrationen -->
+    <script>
+        window.FEATURE_FLAGS = {
+            USE_TITLEPANE_NATIVE: false,   // Phase 3: → true nach TitlePane→details Migration
+            USE_HTML5_DIALOG: false,       // Phase 2: → true nach Dialog→HTML5 Migration
+            USE_FLEXBOX_LAYOUT: false,     // Phase 4: → true nach BorderContainer→Flexbox Migration
+            DEBUG_MODE: false              // Set true für console.log() von Resize-Events
+        };
+    </script>
 
-  <!-- FontAwesome -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@v10.6.0/ol.css"
+        onerror="this.href='/mapplus-lib/openlayers/v10.6.0-package/ol.css';">
 
-  <!-- mapplusFonta - selfMadeIconFont -->
-  <link rel="stylesheet" href="../core/templates/nwow_floating/mapplusFonta/css/mapplusFonta.css">
+    <link rel="stylesheet" type="text/css"
+        href="/mapplus-lib/dojo-release/dojo-release-1.17.3/dijit/themes/tundra/tundra.css" />
+    <link rel="shortcut icon" href="favicon.png?" />
 
-  <link rel="stylesheet" href="../core/templates/nwow_floating/css/FloatingPane.css" />
-  <link rel="stylesheet" href="../core/templates/nwow_floating/css/ResizeHandle.css" />
-  <!--
-    Layout CSS dojo Dialog module
-  -->
-  <link rel="stylesheet" href="../core/templates/nwow_floating/css/Dialog.css" />
-  <!--
-    Layout CSS Disclaimer module
-  -->
-  <link rel="stylesheet" href="../core/templates/nwow_floating/css/Disclaimer.css" />
-  <!--
-    Layout CSS dojo checkboxtree module
-  -->
-  <!-- <link rel="stylesheet" href="../core/templates/nwow_floating/css/InfoWindow.css" /> -->
-  <!--
-    POI Manager CSS for icons
-  -->
-  <link rel="stylesheet" href="../core/templates/nwow_floating/css/PoiManager.css" />
-  <!--
-    Layout CSS classic Layermanager module
-  -->
-  <link rel="stylesheet" href="../core/templates/nwow_floating/css/ClassicLayerMgr.css" />
-  <!--
-    ScaleBar CSS
-  -->
-  <link rel="stylesheet" href="../core/templates/nwow_floating/css/scalebar-thin.css" />
-  <!--
-    Layout CSS for search params grids
-  -->
-  <style type="text/css">
-    @import "../core/templates/nwow_floating/css/tundraGrid.css";
-    @import "/mapplus-lib/dojo-release/dojo-release-1.17.3/dojox/grid/enhanced/resources/tundra/EnhancedGrid.css";
-    @import "/mapplus-lib/dojo-release/dojo-release-1.17.3/dojox/grid/enhanced/resources/EnhancedGrid_rtl.css";
-  </style>
-  <link rel="stylesheet" type="text/css" href="../core/templates/nwow_floating/css/style_m.css" />
+    <!-- Google Fonts (non-blocking) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;600;700&family=Roboto+Condensed:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet" media="print" onload="this.media='all'" />
 
-  <!--
-    Dojo config
-  -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.9.0/proj4.min.js"></script>
-  <script>window.proj4 || document.write('<script src="/mapplus-lib/proj4js/2.9.0/dist/proj4.js">\x3C/script>')</script>
-  <script src="//cdn.jsdelivr.net/npm/ol@v10.6.0/dist/ol.js"></script>
-  <script>window.ol || document.write('<script src="/mapplus-lib/openlayers/v10.6.0-package/dist/ol.js">\x3C/script>')</script>
-  <script type="text/javascript">
-    //<![CDATA[
-    var dojoConfig = {
-      parseOnLoad: false,
-      isDebug: false,
-      baseUrl: "",
-      async: true,
-      packages: [{
-        name: "njs",
-        location: "/mapplus-lib/mapplus-dojo/v4.0.0/extended"
-      }],
-      locale: "de"
-    };
-    //]]>
-    var hideLoader = function () {
-      dojo.fadeOut({
-        node: "preloader",
-        onEnd: function () {
-          dojo.style("preloader", "display", "none");
+    <!-- Layout CSS -->
+    <link rel="stylesheet" href="../core/templates/nwow_floating/css/FloatingPane.css" media="print" onload="this.media='all'" />
+    <link rel="stylesheet" href="../core/templates/nwow_floating/css/ResizeHandle.css" media="print" onload="this.media='all'" />
+    <link rel="stylesheet" href="../core/templates/nwow_floating/css/Dialog.css" media="print" onload="this.media='all'" />
+    <link rel="stylesheet" href="../core/templates/nwow_floating/css/Disclaimer.css" media="print" onload="this.media='all'" />
+    <link rel="stylesheet" href="../core/templates/nwow_floating/css/PoiManager.css" media="print" onload="this.media='all'" />
+    <link rel="stylesheet" href="../core/templates/nwow_floating/css/ClassicLayerMgr.css" media="print" onload="this.media='all'" />
+    <!-- Mobile Base CSS -->
+    <link rel="stylesheet" type="text/css" href="../core/templates/nwow_floating/css/style_m.css" />
+    <link rel="stylesheet" type="text/css" href="../core/templates/nwow_floating/css/tundraGrid.css"
+        media="print" onload="this.media='all'" />
+
+    <!-- Scripts (vor Dojo laden) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.12.1/proj4.min.js" crossorigin="anonymous"
+        referrerpolicy="no-referrer"></script>
+    <script>window.proj4 || document.write('<script src="/mapplus-lib/proj4js/2.12.1/dist/proj4.js">\x3C/script>')</script>
+    <script src="//cdn.jsdelivr.net/npm/ol@v10.6.0/dist/ol.js"></script>
+    <script>window.ol || document.write('<script src="/mapplus-lib/openlayers/v10.6.0-package/dist/ol.js">\x3C/script>')</script>
+
+    <script type="text/javascript">
+        var dojoConfig = {
+            parseOnLoad: false,
+            isDebug: false,
+            baseUrl: "",
+            async: true,
+            packages: [{
+                name: "njs",
+                location: "/mapplus-lib/mapplus-dojo/v4.0.0/extended"
+            }],
+            locale: "de"
+        };
+
+        var hideLoader = function() {
+            dojo.fadeOut({
+                node: "preloader",
+                onEnd: function() {
+                    dojo.style("preloader", "display", "none");
+                }
+            }).play();
         }
-      }).play();
-    }
-  </script>
-  <script src="/mapplus-lib/Sortable/1.15.0/Sortable.min.js"></script>
-  <script
-    data-dojo-config="packages:[{name:'dojo',location:'https://cdnjs.cloudflare.com/ajax/libs/dojo/1.17.3'},{name:'dijit',location:'/mapplus-lib/dojo-release/dojo-release-1.17.3/dijit'},{name:'dojox',location:'/mapplus-lib/dojo-release/dojo-release-1.17.3/dojox'}]"
-    data-dojo-config="mblAlwaysHideAddressBar: true"
-    src="https://cdnjs.cloudflare.com/ajax/libs/dojo/1.17.3/dojo.js"></script>
-  <script>window.define || document.write('<script data-dojo-config= \'packages:[{name:"dojo",location:"/mapplus-lib/dojo-release/dojo-release-1.17.3/dojo"},{name:"dijit",location:"/mapplus-lib/dojo-release/dojo-release-1.17.3/dijit"},{name:"dojox",location:"/mapplus-lib/dojo-release/dojo-release-1.17.3/dojox"}],mblAlwaysHideAddressBar:true\' src="/mapplus-lib/dojo-release/dojo-release-1.17.3/dojo/dojo.js">\x3C/script>')</script>
+    </script>
+    <script defer src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.6/Sortable.min.js"></script>
+    <script>window.Sortable || document.write('<script defer src="/mapplus-lib/Sortable/1.15.0/Sortable.min.js">\x3C/script>')</script>
+    <script
+        data-dojo-config="packages:[{name:'dojo',location:'https://cdnjs.cloudflare.com/ajax/libs/dojo/1.17.3'},{name:'dijit',location:'/mapplus-lib/dojo-release/dojo-release-1.17.3/dijit'},{name:'dojox',location:'/mapplus-lib/dojo-release/dojo-release-1.17.3/dojox'}]"
+        data-dojo-config="mblAlwaysHideAddressBar: true"
+        src="https://cdnjs.cloudflare.com/ajax/libs/dojo/1.17.3/dojo.js"></script>
+    <script>window.define || document.write('<script data-dojo-config= \'packages:[{name:"dojo",location:"/mapplus-lib/dojo-release/dojo-release-1.17.3/dojo"},{name:"dijit",location:"/mapplus-lib/dojo-release/dojo-release-1.17.3/dijit"},{name:"dojox",location:"/mapplus-lib/dojo-release/dojo-release-1.17.3/dojox"}],mblAlwaysHideAddressBar:true\' src="/mapplus-lib/dojo-release/dojo-release-1.17.3/dojo/dojo.js">\x3C/script>')</script>
 
-  <style>
-    
-  </style>
-  <link rel="stylesheet" href="public/css/override_m.css">
+    <!-- TNET CSS -->
+    <link rel="stylesheet" href="/maps/tnet/css/tnet_toc.css" media="print" onload="this.media='all'" />
+    <link rel="stylesheet" href="/maps/tnet/css/tnet-components.css" media="print" onload="this.media='all'" />
+    <link rel="stylesheet" href="/maps/tnet/css/tnet-3d-landscape.css" media="print" onload="this.media='all'" />
+    <link rel="stylesheet" href="/maps/tnet/css/gis-daten-splash.css" />
+    <link rel="stylesheet" href="/maps/tnet/css/tnet-print.css" media="print" onload="this.media='all'" />
+    <!-- ol-pdf-printer CSS (VOR mobile override laden) -->
+    <link rel="stylesheet" href="/maps/tnet/ol-pdf-printer/css/ol-pdf-printer.css" media="print" onload="this.media='all'" />
+    <!-- TNET Mobile Master-CSS (muss ZULETZT kommen) -->
+    <link rel="stylesheet" href="/maps/tnet/css/mobile/tnet_override_m.css" />
 </head>
 
-<body id="body" class="tundra">
-  <!-- Must be the first element loaded (before the scripts -->
-  <div id="preloader"></div>
-  <!-- begin modules load: must be done here in body-->
-
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol-ext/dist/ol-ext.min.css"
-    onerror="this.href='mapplus-lib/openlayers/ol-ext/dist/ol-ext.min.css';">
-  <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/ol-ext/dist/ol-ext.min.js"></script>
-  <script>window.ol.ext || document.write('<script src="/mapplus-lib/openlayers/ol-ext/dist/ol-ext.min.js">\x3C/script>')</script>
-
-  <script type="text/javascript" src="/mapplus-lib/mapplus-dojo/v4.0.0/common.js"></script>
-  <script type="text/javascript" src="/mapplus-lib/mapplus-dojo/v4.0.0/njs.js"></script>
-  <script type="text/javascript" src="/mapplus-lib/mapplus-dojo/v4.0.0/layout.js"></script>
-  <script type="text/javascript" src="/mapplus-lib/mapplus-dojo/v4.0.0/appmanager.js"></script>
-  <script type="text/javascript" src="/mapplus-lib/mapplus-dojo/v4.0.0/search.js"></script>
-  <!-- <script type="text/javascript" src="/mapplus-lib/mapplus-dojo/v4.0.0/floatingwindow.js"></script> -->
-  <script type="text/javascript" src="/mapplus-lib/mapplus-dojo/v4.0.0/provider/OLPlus/openlayers.js"></script>
-  <!--   <script type="text/javascript" src="/mapplus-lib/mapplus-dojo/v4.0.0/provider/OLPlus/Control/olScaleBar.js"></script>
-    <script type="text/javascript" src="/mapplus-lib/mapplus-dojo/v4.0.0/provider/OLPlus/Control/olSelectFeature.js"></script>
-    <script type="text/javascript" src="/mapplus-lib/mapplus-dojo/v4.0.0/provider/OLPlus/Control/olWMSGetFeatureInfo.js"></script>
-    <script type="text/javascript" src="/mapplus-lib/mapplus-dojo/v4.0.0/provider/OLPlus/Handler/Rectangle.js"></script>
-    <script type="text/javascript" src="/mapplus-lib/mapplus-dojo/v4.0.0/provider/OLPlus/Control/DrawShopSelectFeature.js"></script> -->
-
-  <!-- Load provider dependent libraries -->
-  <script type="text/javascript">
-    /* Application configuration */
-    njs.AppManager.Version = "v4.0.0";
-    njs.AppManager.apipath = "/mapplus-lib/mapplus-dojo/";
-    njs.AppManager.Provider = "OLPlus";
-    njs.AppManager.template = "nwow_floating";
-    njs.AppManager.keepalivetimeout = 180000; // millisecs
-    njs.AppManager.keepalivepage = "/mapplus-lib/mapplus-dojo/v4.0.0/php/sso/keepalive.php"
-  </script>
-  <?php print $set_vars?>
-  <!-- dojo modules and startup config-->
-  <script type="text/javascript" src="public/config/modules_m.js?v=v4.0.0"></script>
-  <!-- end modules load -->
-  <div id="NeapoljsContainer" dojotype="dijit.layout.BorderContainer" design="headline" gutters="false"
-    style="width:100%; height:100%;">
-    <!-- COMMENT TO BE PUT IN THE WIKI
-            The map in Neapoljs is in the "center" pane.
-              1) With OpenLayers do not assign the ol container to the dojo ContentPane
-                Doing that it will disable the wheel zoom !!
-              2) Set the height of the map container to 99% (100% will set content largely outside the pane: BUG ?)
-              3) set the overflow to hidden in the ContentPane (in order not to see the scrollbars as the content goes outside the pane)
-        -->
-    <div id="centerPane" class="edgePanel" data-dojo-type="dijit.layout.ContentPane" data-dojo-props="region: 'center'"
-      style="margin: 0px;padding: 0px;border: none;">
-      <div id="centerPaneLayout" class="demoLayout" data-dojo-type="dijit.layout.BorderContainer"
-        data-dojo-props="design: 'headline'" style="margin: 0px;padding: 0px;border: none">
-        <div dojotype="dijit.layout.ContentPane" id="mapContainer" region="center" style="overflow:hidden;">
-          <div id="map"></div>
-
-          <div id="popup" class="ol-popup">
-            <a href="#" id="popup-closer" class="ol-popup-closer"></a>
-            <div id="popup-content"></div>
-          </div>
-
-          <span class="mainButtonAll">
-            <div id="mainButtonBar"></div>
-            <div id="mainButtonMeasure" class="btn_mainButtonMeasure"></div>
-          </span>
-
-
-          <div id="njs_search_wrapper"></div>
-          <div id="njs_coordinates_wrapper"></div>
-          <div id="scale-line"></div>
-
-          <!-- Disclamer container, not displayed now ... -->
-          <div class="row">
-            <div id="disclaimer_mapplusbytydac" class="njsDisclaimer"></div>
-          </div>
-
-        </div>
-
-        <div dojotype="dijit.layout.ContentPane" id="custompaneContainer" class="outer"
-          style="display:none;width:100%; -webkit-overflow-scrolling:touch !important; margin: 0px;padding: 0px;border: none;"
-          data-dojo-props="region: 'right', splitter: false" doLayout="false">
-          <iframe id="custompaneFrame" src="" height="100%"
-            style="-webkit-overflow-scrolling:touch !important; border:none; width:100%; height:100%;">
-          </iframe>
-          <iframe id="custompaneFrameForm" src="" height="100%"
-            style="-webkit-overflow-scrolling:touch !important;border:none; width:100%; height:100%;">
-          </iframe>
-          <!-- divert maptips in this area -->
-          <!-- <div id="custompaneDiv"></div> -->
-
-        </div>
-      </div>
-
+<body class="tundra">
+    <!-- Preloader -->
+    <style>
+      #preloader{position:fixed;top:0;left:0;right:0;bottom:0;width:100%;height:100%;background:rgba(255,255,255,0.95);background-image:none!important;display:flex;align-items:center;justify-content:center;z-index:99999;perspective:200px}
+      #preloader .preloader-cube{width:32px;height:32px;position:relative;transform-style:preserve-3d;transform:rotateX(-30deg) rotateY(-30deg);animation:pRotate 1s infinite linear;will-change:transform;backface-visibility:hidden}
+      #preloader .preloader-cube .cube-face{position:absolute;width:32px;height:32px;backface-visibility:hidden}
+      #preloader .preloader-cube .cube-front{transform:rotateY(0deg) translateZ(16px);background:#f00}
+      #preloader .preloader-cube .cube-back{transform:rotateY(180deg) translateZ(16px);background:#8a0000}
+      #preloader .preloader-cube .cube-left{transform:rotateY(-90deg) translateZ(16px);background:#8a0000}
+      #preloader .preloader-cube .cube-right{transform:rotateY(90deg) translateZ(16px);background:#ffe4e4}
+      #preloader .preloader-cube .cube-top{transform:rotateX(90deg) translateZ(16px);background:#f69f9f}
+      #preloader .preloader-cube .cube-bottom{transform:rotateX(-90deg) translateZ(16px);background:#8a0000}
+      @keyframes pRotate{from{transform:rotateX(-30deg) rotateY(0deg)}to{transform:rotateX(-30deg) rotateY(360deg)}}
+    </style>
+    <div id="preloader">
+      <div class="preloader-cube"><div class="cube-face cube-front"></div><div class="cube-face cube-back"></div><div class="cube-face cube-left"></div><div class="cube-face cube-right"></div><div class="cube-face cube-top"></div><div class="cube-face cube-bottom"></div></div>
     </div>
-    <!-- left container -->
-    <div id="leftPaneContainer" class="edgePanel left_contentpane" data-dojo-type="dijit.layout.ContentPane"
-      data-dojo-props="region: 'left', splitter: false">
-      <!--NEw BorderContainer in order to split right pane into sections-->
-      <div id="paneLayout" class="demoLayout" data-dojo-type="dijit.layout.BorderContainer"
-        data-dojo-props="design: 'headline'">
-        <!-- headPane -->
-        <div id="btnZuruck" onclick="njs.AppManager.toggleCustomPaneContent('leftpane','leftPane',null,'');">
+
+    <!-- Libs (body) -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol-ext/dist/ol-ext.min.css"
+        onerror="this.href='mapplus-lib/openlayers/ol-ext/dist/ol-ext.min.css';">
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/ol-ext/dist/ol-ext.min.js"></script>
+    <script>window.ol.ext || document.write('<script src="/mapplus-lib/openlayers/ol-ext/dist/ol-ext.min.js">\x3C/script>')</script>
+
+    <script type="text/javascript" src="/mapplus-lib/mapplus-dojo/v4.0.0/common.js"></script>
+    <script type="text/javascript" src="/mapplus-lib/mapplus-dojo/v4.0.0/njs.js"></script>
+    <script type="text/javascript" src="/mapplus-lib/mapplus-dojo/v4.0.0/layout.js"></script>
+    <script type="text/javascript" src="/mapplus-lib/mapplus-dojo/v4.0.0/appmanager.js"></script>
+    <script type="text/javascript" src="/mapplus-lib/mapplus-dojo/v4.0.0/search.js"></script>
+    <script type="text/javascript" src="/mapplus-lib/mapplus-dojo/v4.0.0/provider/OLPlus/openlayers.js"></script>
+
+    <script type="text/javascript">
+        /* Application configuration */
+        njs.AppManager.Version = "v4.0.0";
+        njs.AppManager.apipath = "/mapplus-lib/mapplus-dojo/";
+        njs.AppManager.Provider = "OLPlus";
+        njs.AppManager.template = "nwow_floating";
+        njs.AppManager.keepalivetimeout = 180000;
+        njs.AppManager.keepalivepage = "/mapplus-lib/mapplus-dojo/v4.0.0/php/sso/keepalive.php"
+    </script>
+    <?php print $set_vars?>
+
+    <!-- JSON5 Parser (vor mobile Config-Load) -->
+    <script>window.__define = window.define; window.define = undefined;</script>
+    <script src="https://cdn.jsdelivr.net/npm/json5@2.2.3/dist/index.min.js"></script>
+    <script>window.define = window.__define; delete window.__define;</script>
+
+    <!-- TNET Mobile Config (synchron vor tnet_modules_m.js laden) -->
+    <script>
+    (function() {
+        var fallbackConfig = {
+            splash: { cubeExtraOffsetPx: 0, hideTimeoutMs: 8000, checkIntervalMs: 80 },
+            topbar: { heightPx: 56 },
+            drawer: { autoCloseDelayMs: 200 },
+            sheets: { resize: { minVh: 0.30, maxVh: 0.85, snapCloseVh: 0.20 } },
+            timing: { drawerInitFallbackMs: 3000, layersFixDelaysMs: [100, 400, 1000] },
+            menuActions: { enabled: { print: true, oereb: true, landscape3d: true, basemaps: true, layers: true, help: true } }
+        };
+
+        window.tnetMobileConfig = fallbackConfig;
+
+        // Async Config-Load (kein blocking sync XHR)
+        try {
+            fetch('/maps/tnet/config/tnet-mobile-config.json5?v=20260220a')
+              .then(function(r) { return r.ok ? r.text() : Promise.reject(r.status); })
+              .then(function(txt) {
+                  var parsed = (window.JSON5 && typeof window.JSON5.parse === 'function')
+                      ? window.JSON5.parse(txt) : JSON.parse(txt);
+                  if (parsed && typeof parsed === 'object') {
+                      window.tnetMobileConfig = parsed;
+                  }
+              })
+              .catch(function(e) { /* fallback bleibt aktiv */ });
+        } catch (e) {
+            /* fallback bleibt aktiv */
+        }
+
+        function cfg(path, fallback) {
+            var obj = window.tnetMobileConfig || {};
+            var parts = path.split('.');
+            for (var i = 0; i < parts.length; i++) {
+                if (!obj || typeof obj !== 'object' || !(parts[i] in obj)) return fallback;
+                obj = obj[parts[i]];
+            }
+            return (obj === undefined || obj === null) ? fallback : obj;
+        }
+
+        var topbarH = Number(cfg('topbar.heightPx', 56));
+        var splashOffset = Number(cfg('splash.cubeExtraOffsetPx', 0));
+        if (!isNaN(topbarH) && topbarH > 0) {
+            document.documentElement.style.setProperty('--m-topbar-h', topbarH + 'px');
+        }
+        if (!isNaN(splashOffset)) {
+            document.documentElement.style.setProperty('--m-splash-cube-extra-offset-px', splashOffset + 'px');
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            var enabled = cfg('menuActions.enabled', {});
+            if (!enabled || typeof enabled !== 'object') return;
+            Object.keys(enabled).forEach(function(action) {
+                if (enabled[action] === false) {
+                    document.querySelectorAll('.m-menu-item[data-m-action="' + action + '"]').forEach(function(item) {
+                        item.style.display = 'none';
+                    });
+                }
+            });
+        });
+
+        document.addEventListener('DOMContentLoaded', function() {
+            var tools = cfg('tools', {});
+            if (!tools || typeof tools !== 'object') return;
+
+            var selectorMap = {
+                'wms': '[data-m-toggle="wms"]',
+                'active': '[data-m-toggle="active-layers"]',
+                'measure': '[data-m-toggle="tools"]',
+                'print': '[data-m-action="print"]',
+                'oereb': '[data-m-action="oereb"]',
+                'landscape3d': '[data-m-action="3d"]',
+            };
+
+            Object.keys(tools).forEach(function(toolKey) {
+                var toolCfg = tools[toolKey] || {};
+                var selector = selectorMap[toolKey];
+                if (!selector) return;
+
+                var el = document.querySelector(selector);
+                if (!el) return;
+
+                // Visible
+                if (toolCfg.visible === false) {
+                    el.setAttribute('hidden', '');
+                } else {
+                    el.removeAttribute('hidden');
+                }
+
+                // Enabled
+                if (toolCfg.enabled === false) {
+                    el.setAttribute('aria-disabled', 'true');
+                    el.classList.add('is-disabled');
+                } else {
+                    el.removeAttribute('aria-disabled');
+                    el.classList.remove('is-disabled');
+                }
+            });
+        });
+    })();
+    </script>
+
+    <!-- TNET Mobile Dojo modules -->
+    <script type="text/javascript" src="/maps/tnet/js/mobile/tnet_modules_m.js?v=v4.0.0"></script>
+
+    <!-- Early Splash-Hide -->
+    <script>
+    (function() {
+        var _t0 = Date.now();
+        var cfg = window.tnetMobileConfig || {};
+        var splashTimeoutMs = (cfg.splash && Number(cfg.splash.hideTimeoutMs)) || 8000;
+        var splashCheckIntervalMs = (cfg.splash && Number(cfg.splash.checkIntervalMs)) || 80;
+        if (!(splashTimeoutMs > 0)) splashTimeoutMs = 8000;
+        if (!(splashCheckIntervalMs > 0)) splashCheckIntervalMs = 80;
+        window.hideSplashScreen = function() {
+            var splash = document.getElementById('splash-screen');
+            var preloader = document.getElementById('preloader');
+            if (preloader) preloader.style.display = 'none';
+            if (splash) {
+                splash.classList.add('hidden');
+                setTimeout(function() { splash.remove(); }, 1000);
+            }
+        };
+        function earlyCheckAppReady() {
+            if (window.njs && njs.AppManager && njs.AppManager.Maps && njs.AppManager.Maps['main']) {
+                hideSplashScreen();
+                if (!window._tnetAppReadyFired) {
+                    window._tnetAppReadyFired = true;
+                    document.dispatchEvent(new CustomEvent('tnet-app-ready', {
+                        detail: { map: njs.AppManager.Maps['main'].mapObj }
+                    }));
+                    console.log('[App] tnet-app-ready Event dispatched (mobile)');
+                }
+                return;
+            }
+            if (Date.now() - _t0 > splashTimeoutMs) { hideSplashScreen(); return; }
+            setTimeout(earlyCheckAppReady, splashCheckIntervalMs);
+        }
+        earlyCheckAppReady();
+    })();
+    </script>
+
+    <!-- Disclaimers -->
+    <div id="disclaimer_copyright" class="njsDisclaimer"></div>
+    <div id="disclaimer_tips" class="njsDisclaimer"></div>
+    <div id="disclaimer_news" class="njsDisclaimer"></div>
+    <div id="disclaimer_pdf" class="njsDisclaimer" style='visibility:hidden'></div>
+
+    <!-- Modaler Dialog mit iframe (Fullscreen auf Mobile) -->
+    <div id="mapsInfoDialog" data-dojo-type="dijit/Dialog" title="" style="display:none;">
+        <div class="customRefreshBtn" onclick="refreshIframe()" title="Seite neu laden">↻</div>
+        <div class="customBackBtn" onclick="goBackInIframe()">‹</div>
+        <div class="customCloseBtn" onclick="closeMapsInfoDialog()">×</div>
+        <iframe id="mapsInfoFrame" name="mapsInfoFrame" data-src="/maps/tnet/inframe-maps.html"
+            loading="lazy" sandbox="allow-same-origin allow-scripts" referrerpolicy="no-referrer"
+            style="width: 100%; height: 100%; border: none;"></iframe>
+    </div>
+
+    <!-- Splash Screen -->
+    <div id="splash-screen">
+        <div id="splash-logo"></div>
+        <div id="splash-cube-container">
+            <div id="splash-cube">
+                <div class="cube-face cube-front"></div>
+                <div class="cube-face cube-back"></div>
+                <div class="cube-face cube-right"></div>
+                <div class="cube-face cube-left"></div>
+                <div class="cube-face cube-top"></div>
+                <div class="cube-face cube-bottom"></div>
+            </div>
         </div>
-        <!-- CentePannel for accordeon-->
-        <div id="freePaneAccordeonContentPane" dojotype="dijit.layout.ContentPane" data-dojo-props="region: 'center'"
-          style="padding:0px;margin:0px;">
-          <div id="freePaneAccordeon" dojotype="dijit.layout.AccordionContainer" style="height: 100%;">
-            <!-- TOOL MENU -->
+    </div>
 
-            <!-- LAYERMANAGER MENU -->
 
-            <div id="layer_menu" dojotype="dijit.layout.ContentPane" title="Grundlagen, Planung, Umwelt">
-              <div id="njs_main_lyrmgr_wrapper" style="width: 100%; background-color: #fff"></div>
-            </div>
-
-            <div id="layer_menu2" dojotype="dijit.layout.ContentPane" title="Infrastruktur, Tourismus">
-              <div id="njs_second_lyrmgr_wrapper" style="width: 100%; background-color: #fff"></div>
-            </div>
-
-            <!-- LAYERMANAGER SORT LAYERS -->
-            <!--<div id="sort_menu" dojotype="dijit.layout.ContentPane" title="Sort" style="display: none !important;">-->
-            <div id="njs_main_lyrsorter_wrapper" style="width: 100%; height:100%; border:0"
-              style="display: none !important;">
-              <ul id="main_lyrsorter" style="list-style-type: none; padding: 0;display: none !important;">
-              </ul>
-            </div>
-            <!--</div>-->
-            <!-- SEARCH MENU -->
-          </div>
+    <!-- ============================================================
+         MOBILE TOP-BAR: Logo + Suchfeld + Hamburger
+         ============================================================ -->
+    <div id="m-topbar">
+        <div class="m-logo">
+            <a href="https://www.gis-daten.ch" target="_blank">
+                <img src="/maps/tnet/resources/Logo-GIS-Daten-AG.svg" alt="GIS">
+            </a>
         </div>
-        <!-- End CentePannel for accordeon-->
-        <!-- FooterPane for coords-->
+        <div id="njs_search_wrapper"></div>
+        <button id="m-hamburger" aria-label="Menü öffnen">
+            <svg viewBox="0 0 24 24"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg>
+        </button>
+    </div>
+
+
+    <!-- ============================================================
+         DRAWER OVERLAY (Backdrop)
+         ============================================================ -->
+    <div id="m-drawer-overlay"></div>
+
+
+    <!-- ============================================================
+         DRAWER (Slide-in von rechts)
+         ============================================================ -->
+    <div id="m-drawer">
+        <div class="m-drawer-header">
+            <span class="m-drawer-title">
+                <img src="/maps/tnet/resources/Logo-GIS-Daten-AG.svg" alt="">
+                MAP+
+            </span>
+            <button class="m-drawer-close" id="m-drawer-close" aria-label="Menü schliessen">&times;</button>
+        </div>
+        <div class="m-drawer-content">
+
+            <!-- Login/Logout -->
+            <div class="m-menu-section">
+                <div id="m-login" class="m-menu-item m-menu-user" onclick="window.location.href=window.location.href+'&amp;group=?'">
+                    <svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+                    <span class="m-menu-label">Anmelden</span>
+                    <svg class="m-menu-arrow" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                </div>
+                <div id="m-logout" class="m-menu-item m-menu-user" style="display:none;" onclick="doLogout()">
+                    <svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+                    <span class="m-menu-label"><span id="m-username"></span> &middot; Abmelden</span>
+                </div>
+            </div>
+
+            <!-- Kartenauswahl -->
+            <div class="m-menu-section">
+                <div class="m-menu-item" data-m-action="maps" onclick="openMapsInfoDialog()">
+                    <svg viewBox="0 0 24 24"><path d="M20.5 3l-.16.03L15 5.1 9 3 3.36 4.9c-.21.07-.36.25-.36.48V20.5c0 .28.22.5.5.5l.16-.03L9 18.9l6 2.1 5.64-1.9c.21-.07.36-.25.36-.48V3.5c0-.28-.22-.5-.5-.5zM15 19l-6-2.11V5l6 2.11V19z"/></svg>
+                    <span class="m-menu-label">Kartenauswahl</span>
+                </div>
+            </div>
+
+            <!-- Hintergrundkarte → öffnet Bottom-Sheet -->
+            <div class="m-menu-section">
+                <div class="m-menu-item" data-m-action="basemap" onclick="openBasemapSheet()">
+                    <svg viewBox="0 0 24 24"><path d="M11.99 18.54l-7.37-5.73L3 14.07l9 7 9-7-1.63-1.27-7.38 5.74zM12 16l7.36-5.73L21 9l-9-7-9 7 1.63 1.27L12 16z"/></svg>
+                    <span class="m-menu-label">Hintergrundkarte</span>
+                </div>
+            </div>
+
+            <!-- Themenkatalog (4 Kantone) -->
+            <div class="m-menu-section">
+                <div class="m-menu-item" data-m-action="layers" onclick="openLayersSheet()">
+                    <svg viewBox="0 0 24 24"><path d="M11.99 18.54l-7.37-5.73L3 14.07l9 7 9-7-1.63-1.27-7.38 5.74zM12 16l7.36-5.73L21 9l-9-7-9 7 1.63 1.27L12 16zm0-11.47L17.74 9 12 13.47 6.26 9 12 4.53z"/></svg>
+                    <span class="m-menu-label">Themenkatalog</span>
+                </div>
+            </div>
+
+            <!-- Externe WMS -->
+            <div class="m-menu-section">
+                <div class="m-menu-item" data-m-toggle="m-panel-wms">
+                    <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+                    <span class="m-menu-label">Externe WMS</span>
+                    <svg class="m-menu-arrow" viewBox="0 0 24 24"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
+                </div>
+                <div id="m-panel-wms" class="m-sub-panel">
+                    <div id="wms_menu" data-dojo-type="dijit.layout.ContentPane" title="Externe Kartendienste">
+                        <div id="njs_wmsimport_dialog" style="width:100%; height:100%;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Dargestellte Themen -->
+            <div class="m-menu-section">
+                <div class="m-menu-item" data-m-toggle="m-panel-active">
+                    <svg viewBox="0 0 24 24"><path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/></svg>
+                    <span class="m-menu-label">Dargestellte Themen</span>
+                    <svg class="m-menu-arrow" viewBox="0 0 24 24"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
+                </div>
+                <div id="m-panel-active" class="m-sub-panel">
+                    <div id="sort_menu">
+                        <div id="njs_main_lyrsorter_wrapper" style="width: 100%; height:100%; border:0">
+                            <div id="main_lyrsorter_txt" style="display:block;text-align: center;">--- Keine Daten ausgewählt ---</div>
+                            <ul id="main_lyrsorter" style="list-style-type: none; padding: 0;"></ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Werkzeuge -->
+            <div class="m-menu-section">
+                <div class="m-menu-item" data-m-toggle="m-panel-tools">
+                    <svg viewBox="0 0 24 24"><path d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z"/></svg>
+                    <span class="m-menu-label">Werkzeuge</span>
+                    <svg class="m-menu-arrow" viewBox="0 0 24 24"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
+                </div>
+                <div id="m-panel-tools" class="m-sub-panel">
+                    <div id="tools_menu">
+                        <div id="njs_measure_wrapper"></div>
+                        <div id="njs_redlining_wrapper"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Drucken -->
+            <div class="m-menu-section">
+                <div class="m-menu-item" data-m-action="print" onclick="closeDrawer(); if(window._olMap) window._printSavedCenter = window._olMap.getView().getCenter().slice(); if(typeof openPdfPrinter==='function') openPdfPrinter();">
+                    <svg viewBox="0 0 24 24"><path d="M19 8H5c-1.66 0-3 1.34-3 3v6h4v4h12v-4h4v-6c0-1.66-1.34-3-3-3zm-3 11H8v-5h8v5zm3-7c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm-1-9H6v4h12V3z"/></svg>
+                    <span class="m-menu-label">Drucken</span>
+                </div>
+            </div>
+
+            <!-- Separator -->
+            <div class="m-menu-section">
+                <!-- ÖREB -->
+                <div class="m-menu-item" data-m-action="oereb" onclick="toggleOerebMode()">
+                    <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><path fill="currentColor" d="M7 7h4v4H7zM13 7h4v2h-4zM7 13h4v2H7zM13 13h4v4h-4z"/><circle fill="currentColor" cx="17" cy="7" r="1.5"/></svg>
+                    <span class="m-menu-label">ÖREB Grundstückabfrage</span>
+                </div>
+                <div class="m-menu-item" data-m-action="spatialquery" onclick="togglePolygonDraw()">
+                    <svg viewBox="0 0 24 24"><path d="M4 5h3v3H4zM17 4h3v3h-3zM18 17h3v3h-3zM4 17h3v3H4z" fill="currentColor"/><path d="M8.5 6.5L15.5 5.5 18.5 12.5 14.5 18.5 6.5 16.5 5.5 10.5z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+                    <span class="m-menu-label">Räumliche Abfrage</span>
+                </div>
+                <!-- 3D Landschaftsmodell -->
+                <div class="m-menu-item" data-m-action="3d" onclick="toggleLandscape3D()">
+                    <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm3.5-9c.83 0 1.5-.67 1.5-1.5S16.33 8 15.5 8 14 8.67 14 9.5s.67 1.5 1.5 1.5zm-7 0c.83 0 1.5-.67 1.5-1.5S9.33 8 8.5 8 7 8.67 7 9.5 7.67 11 8.5 11zm3.5 6.5c2.33 0 4.31-1.46 5.11-3.5H6.89c.8 2.04 2.78 3.5 5.11 3.5z" fill="currentColor"/></svg>
+                    <span class="m-menu-label">3D Landschaftsmodell</span>
+                </div>
+            </div>
+
+            <!-- Hilfe & Links -->
+            <div class="m-menu-section">
+                <div class="m-menu-item" data-m-action="help" onclick="openHelp()">
+                    <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17h-2v-2h2v2zm2.07-7.75l-.9.92C13.45 12.9 13 13.5 13 15h-2v-.5c0-1.1.45-2.1 1.17-2.83l1.24-1.26c.37-.36.59-.86.59-1.41 0-1.1-.9-2-2-2s-2 .9-2 2H8c0-2.21 1.79-4 4-4s4 1.79 4 4c0 .88-.36 1.68-.93 2.25z"/></svg>
+                    <span class="m-menu-label">Hilfe</span>
+                </div>
+                <a class="m-menu-item" href="https://www.gis-daten.ch/news-termine/news/" target="_blank" style="text-decoration:none;">
+                    <svg viewBox="0 0 24 24"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2zm-2 1H8v-6c0-2.48 1.51-4.5 4-4.5s4 2.02 4 4.5v6z"/></svg>
+                    <span class="m-menu-label">News</span>
+                </a>
+                <a class="m-menu-item" href="https://www.gis-daten.ch/ueber-uns/support/" target="_blank" style="text-decoration:none;">
+                    <svg viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
+                    <span class="m-menu-label">Support</span>
+                </a>
+            </div>
+
+        </div><!-- /.m-drawer-content -->
+    </div><!-- /#m-drawer -->
+
+
+    <!-- ============================================================
+         MAP (Dojo BorderContainer - Fullscreen)
+         ============================================================ -->
+    <div id="NeapoljsContainer" data-dojo-type="dijit.layout.BorderContainer" design="headline" gutters="false"
+        style="width:100%; height:100%;">
+
+        <div id="centerPane" class="edgePanel" data-dojo-type="dijit.layout.ContentPane"
+            data-dojo-props="region: 'center'"
+            style="margin:0;padding:0;border:none;">
+            <div id="centerPaneLayout" class="demoLayout" data-dojo-type="dijit.layout.BorderContainer"
+                data-dojo-props="design: 'headline'" style="margin:0;padding:0;border:none">
+                <div data-dojo-type="dijit.layout.ContentPane" id='mapContainer' region="center" style="overflow:hidden;">
+                    <div id="popup" class="ol-popup" style="display:none;">
+                        <a href="#" id="popup-closer" class="ol-popup-closer"></a>
+                        <div id="popup-content"></div>
+                    </div>
+
+                    <div id="njs_main_shop_wrapper" style="display:none"></div>
+                    <div id="map" class="map-cont" style="height:100%;"></div>
+
+                    <!-- ÖREB Button auf Karte -->
+                    <div id="oereb-tool-btn" onclick="toggleOerebMode()" title="ÖREB Grundstückabfrage">
+                        <svg viewBox="0 0 24 24" width="20" height="20">
+                            <rect x="3" y="3" width="18" height="18" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/>
+                            <path fill="currentColor" d="M7 7h4v4H7zM13 7h4v2h-4zM7 13h4v2H7zM13 13h4v4h-4z"/>
+                            <circle fill="currentColor" cx="17" cy="7" r="1.5"/>
+                        </svg>
+                    </div>
+
+                    <div id="mainButtonBar"></div>
+
+                    <!-- Versteckte Controls (für Basemap BW/Opacity) -->
+                    <div id='mapcontrols_div' style="display:none;">
+                        <div id='toggle_coltool1_div' style="visibility:hidden;">
+                            <input type="button" class="toggle_coltool" id="btnBW"
+                                onclick="njs.AppManager.toggleBaseLayerColor('main','toggle_coltool1',this);">
+                        </div>
+                        <div id='opacitytool1_rangediv' style="visibility:hidden;">
+                            <input type='range' min='0' max='100' value='0' id='opacitytool1_range'
+                                oninput="njs.AppManager.setBaseLayerOpacity('main',this.value);"
+                                onchange="njs.AppManager.setBaseLayerOpacity('main',this.value);">
+                        </div>
+                    </div>
+
+                    <!-- Koordinaten + Scale direkt auf Karte -->
+                    <div id="njs_coordinates_wrapper"></div>
+                    <div id="scale-line"></div>
+
+                    <div id="paneSwitcher" class="edgePanel" style="position:absolute;left:0;top:0;display:none"></div>
+
+                    <!-- Basemap Selector (klein, rechts unten) -->
+                    <div id="basemap_selector" title="Hintergrundkarte wählen">
+                        <div class="basemap-preview"></div>
+                        <span class="basemap-label">Hintergrund</span>
+                    </div>
+
+                    <!-- Desktop Basemap Widget (versteckt, JS referenziert es) -->
+                    <div id="basemap_widget" class="basemap-widget-hidden" style="display:none;"></div>
+
+                </div>
+                <!-- /mapContainer -->
+
+                <!-- Info-Panel als Bottom-Sheet -->
+                <div data-dojo-type="dijit.layout.ContentPane" id='custompaneContainer' class="outer"
+                    style="display:none; width:100%; -webkit-overflow-scrolling:touch !important; margin:0;padding:0;border:none;"
+                    data-dojo-props="region: 'right', splitter: false" doLayout="false">
+                    <iframe id="custompaneFrame" src="" height="100%"
+                        style="-webkit-overflow-scrolling:touch !important; border:none; width:100%; height:100%;"></iframe>
+                    <iframe id="custompaneFrameForm" src="" height="100%"
+                        style="-webkit-overflow-scrolling:touch !important; display:none; border:none; width:100%; height:100%;"></iframe>
+                </div>
+
+                <!-- StreetView Container (versteckt) -->
+                <div data-dojo-type="dijit.layout.ContentPane" id='streetviewContainer' class="outer"
+                    style="width:100%; display:none; -webkit-overflow-scrolling:touch !important; margin:0;padding:0;border:none;"
+                    data-dojo-props="region: 'right', splitter: false">
+                    <iframe id="streetviewFrame" src="" height="100%"
+                        style="border:0; width:100%; height:100%;"></iframe>
+                </div>
+
+            </div><!-- /centerPaneLayout -->
+        </div><!-- /centerPane -->
+
+        <!-- FooterPane (versteckt, für Dojo-Kompatibilität) -->
         <div id="footPane_main" class="edgePanel" data-dojo-type="dijit.layout.ContentPane"
-          data-dojo-props="region: 'bottom'" style="display: none !important;">
-          <div id="footPane" class="edgePanel" data-dojo-type="dijit.layout.ContentPane"
-            data-dojo-props="region: 'top'">
-
-          </div>
-          <!-- End FooterPane for coords-->
-          <div id="footPane2" class="edgePanel" data-dojo-type="dijit.layout.ContentPane"
-            data-dojo-props="region: 'bottom'">
-            <div id="logoMapPlus2" class="njsFooter">
+            data-dojo-props="region: 'bottom'" style="display:none;">
+            <div id="footPane" class="edgePanel" data-dojo-type="dijit.layout.ContentPane"
+                data-dojo-props="region: 'bottom'">
+                <div id="leftPaneFooter" class="njsFooter">
+                </div>
             </div>
-          </div>
         </div>
-      </div>
-      <!-- End BorderContainer paneLayout-->
-    </div>
-    <!-- End EdgePannel -->
-  </div>
-  <!-- end NeapoljsContainer-->
-  <!-- freesearchresult modified-->
-  <script type="text/javascript">
-    window.onload = function () {
-      document.getElementById("btnZuruck").style.visibility = 'visible';
-    }
-  </script>
-</body>
 
+    </div><!-- /NeapoljsContainer -->
+
+
+    <!-- ============================================================
+         BOTTOM-SHEETS (ausserhalb NeapoljsContainer für korrektes position:fixed)
+         ============================================================ -->
+    <div id="m-sheet-overlay" class="m-sheet-overlay"></div>
+
+    <!-- Themenkatalog -->
+    <div id="m-layers-sheet" class="m-bottom-sheet">
+        <div class="m-sheet-handle"><div class="m-sheet-bar"></div></div>
+        <div class="m-sheet-header">
+            <span class="m-sheet-title">Themenkatalog</span>
+            <button class="m-sheet-close" onclick="closeLayersSheet()" aria-label="Schliessen">&times;</button>
+        </div>
+        <div class="m-sheet-body">
+            <div id="kantons_container">
+                <div id="tp_layer_menu" data-dojo-type="dijit/TitlePane" data-dojo-props="title: 'Nidwalden', open:true"
+                    style="padding:0px;margin:0px;">
+                    <div id="layer_menu" data-dojo-type="dijit.layout.ContentPane" title="Titel 1">
+                        <div id="njs_main_lyrmgr_wrapper" style="width: 100%;"></div>
+                    </div>
+                </div>
+                <div id="tp_layer_menu2" data-dojo-type="dijit/TitlePane" data-dojo-props="title: 'Obwalden', open:true"
+                    style="padding:0px;margin:0px;">
+                    <div id="layer_menu2" data-dojo-type="dijit.layout.ContentPane" title="Titel 2">
+                        <div id="njs_second_lyrmgr_wrapper" style="width: 100%;"></div>
+                    </div>
+                </div>
+                <div id="tp_layer_menu3" data-dojo-type="dijit/TitlePane" data-dojo-props="title: 'Bund', open:true"
+                    style="padding:0px;margin:0px;">
+                    <div id="layer_menu3" data-dojo-type="dijit.layout.ContentPane" title="Titel 3">
+                        <div id="njs_third_lyrmgr_wrapper" style="width: 100%;"></div>
+                    </div>
+                </div>
+                <div id="tp_layer_menu4" data-dojo-type="dijit/TitlePane" data-dojo-props="title: 'Weitere', open:true"
+                    style="padding:0px;margin:0px;">
+                    <div id="layer_menu4" data-dojo-type="dijit.layout.ContentPane" title="Titel 4">
+                        <div id="njs_forth_lyrmgr_wrapper" style="width: 100%;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Basemap Bottom-Sheet -->
+    <div id="m-basemap-overlay" class="m-basemap-overlay"></div>
+    <div id="m-basemap-sheet">
+        <div class="m-sheet-handle m-basemap-sheet-handle"><div class="m-sheet-bar m-basemap-sheet-bar"></div></div>
+        <div class="m-basemap-sheet-header">
+            <span class="m-basemap-sheet-title">Hintergrundkarte</span>
+            <button class="m-basemap-sheet-close" id="m-basemap-sheet-close" aria-label="Schliessen">&times;</button>
+        </div>
+        <div class="m-basemap-sheet-body">
+            <div class="basemap-widget-content">
+                <div class="basemap-layer-section">
+                    <div class="basemap-layer-row">
+                        <span class="layer-icon">〜</span>
+                        <span class="layer-label">Höhenkurven</span>
+                        <div class="layer-toggle">
+                            <button class="toggle-btn" data-layer="hoehenkurven" data-value="on">EIN</button>
+                            <button class="toggle-btn active" data-layer="hoehenkurven" data-value="off">AUS</button>
+                        </div>
+                    </div>
+                    <div class="basemap-layer-row">
+                        <span class="layer-icon">⊞</span>
+                        <span class="layer-label">Projektebene</span>
+                        <div class="layer-toggle">
+                            <button class="toggle-btn" data-layer="projektebene" data-value="on">EIN</button>
+                            <button class="toggle-btn active" data-layer="projektebene" data-value="off">AUS</button>
+                        </div>
+                    </div>
+                    <div class="basemap-layer-row">
+                        <span class="layer-icon">◯</span>
+                        <span class="layer-label">Gemeindegrenzen</span>
+                        <div class="layer-toggle">
+                            <button class="toggle-btn" data-layer="gemeindegrenzen" data-value="on">EIN</button>
+                            <button class="toggle-btn active" data-layer="gemeindegrenzen" data-value="off">AUS</button>
+                        </div>
+                    </div>
+                    <div class="basemap-layer-row">
+                        <span class="layer-icon">◧</span>
+                        <span class="layer-label">Farbig / Grau</span>
+                        <div class="layer-toggle">
+                            <button class="toggle-btn active" data-layer="farbmodus" data-value="color"
+                                onclick="njs.AppManager.toggleBaseLayerColor('main','toggle_coltool1',this); this.classList.add('active'); this.nextElementSibling.classList.remove('active');">FARBE</button>
+                            <button class="toggle-btn" data-layer="farbmodus" data-value="grey"
+                                onclick="njs.AppManager.toggleBaseLayerColor('main','toggle_coltool1',this); this.classList.add('active'); this.previousElementSibling.classList.remove('active');">GRAU</button>
+                        </div>
+                    </div>
+                    <div class="basemap-layer-row">
+                        <span class="layer-label">Transparenz</span>
+                        <input type="range" class="transparency-slider" min="0" max="100" value="0"
+                            oninput="njs.AppManager.setBaseLayerOpacity('main',this.value); this.nextElementSibling.textContent=this.value;"
+                            onchange="njs.AppManager.setBaseLayerOpacity('main',this.value);">
+                        <span class="transparency-value">0</span>
+                    </div>
+                </div>
+
+                <!-- Zeitreise -->
+                <div id="basemap-time-container" class="basemap-time-container" style="display:none;">
+                    <div class="basemap-time-header">
+                        <span class="basemap-time-icon">⏱</span>
+                        <span class="basemap-time-title">Zeitreise</span>
+                        <span id="basemap-time-label" class="basemap-time-label">2024</span>
+                        <button id="basemap-time-reset" class="basemap-time-reset" title="Aktuell">
+                            <svg viewBox="0 0 16 16" width="14" height="14"><path fill="currentColor" d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm0 12.5A5.5 5.5 0 1 1 13.5 8 5.51 5.51 0 0 1 8 13.5zM8.5 4v4.25l3.15 1.88-.75 1.23L7 9V4z"/></svg>
+                        </button>
+                    </div>
+                    <input type="range" id="basemap-time-slider" class="basemap-time-slider"
+                        min="0" max="33" value="33" step="1">
+                    <div class="basemap-time-range">
+                        <span id="basemap-time-min">1926</span>
+                        <span id="basemap-time-max">2024</span>
+                    </div>
+                </div>
+                <div id="basemap-time-info" class="basemap-time-info" style="display:none;">
+                    <span class="basemap-time-icon">⏱</span>
+                    <span id="basemap-time-info-text"></span>
+                </div>
+
+                <!-- Basemap Kacheln -->
+                <div class="basemap-cards-scroll">
+                    <div class="basemap-card active" data-basemap="swissimage">
+                        <span class="basemap-card-time-badge">⏱</span>
+                        <div class="basemap-card-preview orthofoto"></div>
+                        <span class="basemap-card-label">Orthofoto</span>
+                    </div>
+                    <div class="basemap-card" data-basemap="av_sw">
+                        <div class="basemap-card-preview basisplan"></div>
+                        <span class="basemap-card-label">Basisplan</span>
+                    </div>
+                    <div class="basemap-card" data-basemap="plan_fuer_grundbuch_bund">
+                        <div class="basemap-card-preview grundbuch"></div>
+                        <span class="basemap-card-label">Plan f. Grundbuch</span>
+                    </div>
+                    <div class="basemap-cards-spacer">Weitere</div>
+                    <div class="basemap-card" data-basemap="pk_color">
+                        <span class="basemap-card-time-badge">⏱</span>
+                        <div class="basemap-card-preview landeskarte"></div>
+                        <span class="basemap-card-label">Landeskarte</span>
+                    </div>
+                    <div class="basemap-card" data-basemap="siegfried">
+                        <span class="basemap-card-time-badge">⏱</span>
+                        <div class="basemap-card-preview siegfried"></div>
+                        <span class="basemap-card-label">Siegfriedkarten</span>
+                    </div>
+                    <div class="basemap-card" data-basemap="dufour">
+                        <span class="basemap-card-time-badge">⏱</span>
+                        <div class="basemap-card-preview dufour"></div>
+                        <span class="basemap-card-label">Dufourkarte</span>
+                    </div>
+                    <div class="basemap-card" data-basemap="swiss_tlm">
+                        <div class="basemap-card-preview swisstlm"></div>
+                        <span class="basemap-card-label">swissTLM</span>
+                    </div>
+                    <div class="basemap-card" data-basemap="osm_ch">
+                        <div class="basemap-card-preview osm"></div>
+                        <span class="basemap-card-label">OpenStreetMap</span>
+                    </div>
+                    <div class="basemap-card" data-basemap="leer">
+                        <div class="basemap-card-preview keine"></div>
+                        <span class="basemap-card-label">Leer</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- ============================================================
+         TNET Module (selektiv für Mobile)
+         ============================================================ -->
+    <!-- TNET Shared Utils -->
+    <script type="module" src="/maps/tnet/js/tnet-utils.js"></script>
+
+    <!-- TNET Helpers (Bookmarks) -->
+    <script type="text/javascript" src="/maps/tnet/js/tnet-mapplus-helpers.js" defer></script>
+
+    <!-- TNET TOC Konverter (mobile Version ohne aggressive Observer) -->
+    <script type="text/javascript" src="/maps/tnet/js/mobile/tnet-toc-m.js" defer></script>
+
+    <!-- TNET App-Init -->
+    <script type="module" src="/maps/tnet/js/tnet-app.js"></script>
+
+    <!-- TNET Header: Login, Splash, Maps-Dialog -->
+    <script type="module" src="/maps/tnet/js/tnet-header.js"></script>
+
+    <!-- TNET Info Panel (Bottom-Sheet Variante) -->
+    <script type="module" src="/maps/tnet/js/tnet-info-panel.js"></script>
+
+    <!-- TNET Basemap: Widget UI, Grundkarten-Layer-Sync, Zeitreise -->
+    <script src="/maps/tnet/js/tnet-basemap.js" defer></script>
+
+    <!-- TNET 3D Landscape -->
+    <script src="/maps/tnet/js/tnet-3d-landscape.js?v=20260211c" defer></script>
+
+    <!-- TNET Spatial Query -->
+    <script type="module" src="/maps/tnet/js/tnet-spatial-query.js"></script>
+
+    <!-- TNET ÖREB -->
+    <script type="module" src="/maps/tnet/js/tnet-oereb.js"></script>
+
+    <!-- TNET Drucken / PDF-Export -->
+    <script src="/maps/tnet/js/tnet-print.js" defer></script>
+
+
+    <!-- ============================================================
+         Panels (ausserhalb mapContainer)
+         ============================================================ -->
+
+    <!-- ÖREB Dock-Panel (als Bottom-Sheet auf Mobile) -->
+    <div id="oereb-dock-panel" class="oereb-dock-panel docked-right hidden">
+        <div class="oereb-dock-header" id="oereb-dock-header">
+            <span class="oereb-dock-title">ÖREB Grundstückabfrage</span>
+            <div class="oereb-dock-actions">
+                <button class="oereb-dock-close" onclick="closeOerebPanel()">&times;</button>
+            </div>
+        </div>
+        <div id="oereb-selection" class="oereb-selection"></div>
+        <div class="oereb-iframe-container">
+            <iframe id="oereb-iframe" src="about:blank" style="border:none;width:100%;height:100%;display:block;"></iframe>
+        </div>
+    </div>
+
+    <!-- Spatial Query Panel (vereinfacht, Bottom-Sheet) -->
+    <div id="spatial-query-panel" class="spatial-query-panel hidden">
+        <div class="spatial-query-header" id="spatial-query-header">
+            <span class="spatial-query-title">Räumliche Abfrage</span>
+            <div class="spatial-query-actions">
+                <button class="spatial-query-btn" onclick="exportQueryToExcel()" title="Als Excel exportieren">
+                    <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm4 18H6V4h7v5h5v11zm-5-7l-3 3.5L7 13h2.5V9h3v4H15z"/></svg>
+                </button>
+                <button class="spatial-query-close" onclick="closeSpatialQueryPanel()">&times;</button>
+            </div>
+        </div>
+        <div class="spatial-query-status" id="spatial-query-status">Zeichnen Sie ein Polygon auf der Karte...</div>
+        <div class="spatial-query-results" id="spatial-query-results"></div>
+    </div>
+
+    <!-- Stub für TouchCursorMeasure.buildUI (erwartet #btnMeasure im DOM, auf Mobile nicht sichtbar) -->
+    <div id="btnMeasure" style="display:none;"></div>
+
+</body>
 </html>

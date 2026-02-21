@@ -1,0 +1,527 @@
+openapi: 3.0.3
+info:
+  title: TNET API
+  description: |
+    REST API für MAP+ GIS Applikation der Trigonet AG.
+
+    Liefert Layer-Kataloge, Hintergrundkarten und Bookmarks als JSON.  
+    Designed für Split-Screen, Mobile und Desktop Clients.
+
+    ## Gruppen / Profile
+
+    Der `group`-Parameter wählt ein Profil (Unterordner unter maps/):
+    - `public` (Standard) — Öffentlicher Zugang
+    - `nwpro` — Nidwalden Professional
+    - `owpro` — Obwalden Professional
+    - `uwpro` — Unterwalden Professional
+    - `marco` — Entwickler-Profil
+
+    ## Kategorien
+
+    Layer sind in 4 Hauptkategorien organisiert:
+    - `nidwalden` — Kanton Nidwalden
+    - `obwalden` — Kanton Obwalden
+    - `bund` — Bund (Bundesebene)
+    - `weitere` — Weitere Datenquellen
+
+  version: "1.0"
+  contact:
+    name: Trigonet AG
+    url: https://www.gis-daten.ch
+  license:
+    name: Proprietary
+    url: https://www.trigonet.ch
+
+servers:
+- url: https://www.gis-daten.ch/maps/tnet/api
+  description: Produktion
+- url: http://localhost/maps/tnet/api
+  description: Lokale Entwicklung
+
+tags:
+- name: Layers
+  description: Layer-Katalog (Themen, Gruppen, Layer)
+- name: Basemaps
+  description: Hintergrundkarten
+- name: Bookmarks
+  description: Vorkonfigurierte Kartenansichten
+- name: Cache
+  description: Cache-Management
+- name: System
+  description: API-Info und Health-Check
+
+paths:
+  /v1/layers:
+    get:
+      tags: [ Layers ]
+      summary: Layer-Katalog abrufen
+      description: |
+        Liefert den hierarchischen Layer-Katalog als JSON.  
+        Unterstützt Filterung nach Kategorie, flache Ausgabe und Einzelabfrage.  
+        Ergebnisse werden automatisch gecacht (1h, invalidiert bei Config-Änderung).
+
+        **Performance-Tipps:**
+        - `?details=false` für schnelles Laden (~570ms statt 3.7s)
+        - `?id=xxx` für Einzelabfrage (~168ms)
+        - Zweiter Aufruf dank Cache ~15ms
+      parameters:
+      - name: group
+        in: query
+        description: "Profil/Gruppe (default: public)"
+        schema:
+          type: string
+          default: public
+          enum: [ public, av, intranet, marco, nwpro, oereb, owpro, playground1, playground2, playground3, uwpro, wmi ]
+      - name: category
+        in: query
+        description: Nur eine bestimmte Kategorie zurückgeben
+        schema:
+          type: string
+          enum: [ nidwalden, obwalden, bund, weitere ]
+      - name: flat
+        in: query
+        description: "Flache Liste statt Baumstruktur (true/false)"
+        schema:
+          type: string
+          enum: [ "true", "false" ]
+          default: "false"
+      - name: details
+        in: query
+        description: "Layer-Details (url, params, options) laden. false = nur IDs+Namen, viel schneller."
+        schema:
+          type: string
+          enum: [ "true", "false" ]
+          default: "true"
+      - name: id
+        in: query
+        description: "Einzelnen Layer per ID laden (schneller Lookup, ~168ms)"
+        schema:
+          type: string
+        example: gis_basis/nw_basisplan_gis_dynamisch
+      - name: debug
+        in: query
+        description: "Debug-Informationen einblenden, Cache überspringen (1/0)"
+        schema:
+          type: string
+          enum: [ "1", "0" ]
+          default: "0"
+      responses:
+        "200":
+          description: Erfolgreiche Antwort
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LayerCatalogResponse"
+              examples:
+                tree:
+                  summary: Hierarchische Antwort
+                  value:
+                    success: true
+                    data:
+                      version: "2.0"
+                      categories:
+                      - id: nidwalden
+                        name: Nidwalden
+                        icon: njsCategoryIcon8
+                        subcategories:
+                        - id: grundlagen
+                          name: Grundlagen
+                          groups:
+                          - id: "grundlagen/av"
+                            name: AV
+                            layers:
+                            - id: "TNET_gis_basis/nw_amtliche_vermessung"
+                              name: Amtliche Vermessung
+                              type: layer
+                              layerType: arcgisRest
+                    meta:
+                      group: public
+                      categoriesCount: 4
+                      format: tree
+        "404":
+          description: Konfiguration nicht gefunden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "405":
+          description: Methode nicht erlaubt (nur GET)
+        "500":
+          description: Server-Fehler
+
+  /v1/basemaps:
+    get:
+      tags: [ Basemaps ]
+      summary: Hintergrundkarten abrufen
+      description: Liefert die verfügbaren Basemaps aus basemaps.conf.
+      responses:
+        "200":
+          description: Erfolgreiche Antwort
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BasemapsResponse"
+        "404":
+          description: basemaps.conf nicht gefunden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /v1/bookmarks:
+    get:
+      tags: [ Bookmarks ]
+      summary: Bookmarks abrufen
+      description: |
+        Ohne `name`-Parameter: Liste aller Bookmark-Namen.  
+        Mit `name`-Parameter: Ein einzelner Bookmark mit Konfiguration.
+      parameters:
+      - name: name
+        in: query
+        description: Name des gesuchten Bookmarks
+        schema:
+          type: string
+        example: nw_nutzungsplanung
+      responses:
+        "200":
+          description: Erfolgreiche Antwort
+          content:
+            application/json:
+              schema:
+                oneOf:
+                - $ref: "#/components/schemas/BookmarkListResponse"
+                - $ref: "#/components/schemas/BookmarkDetailResponse"
+              examples:
+                list:
+                  summary: Alle Bookmarks
+                  value:
+                    success: true
+                    data:
+                    - name: nw_nutzungsplanung
+                      aliases: [ nw_np ]
+                    - name: ow_nutzungsplanung
+                    meta:
+                      count: 42
+                detail:
+                  summary: Einzelner Bookmark
+                  value:
+                    success: true
+                    data:
+                      map-bookmark: nw_nutzungsplanung
+                      basemap: landeskarte_farbe
+                      layers:
+                      - nw_nutzungsplanung_grundnutzung
+                      theme: grundlagen
+                      subtheme: raumplanung
+        "404":
+          description: Bookmark nicht gefunden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /v1/cache:
+    get:
+      tags: [ Cache ]
+      summary: Cache-Statistiken
+      description: Zeigt Anzahl gecachter Einträge, Grösse und Alter.
+      responses:
+        "200":
+          description: Cache-Status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      entries:
+                        type: integer
+                        example: 5
+                      totalFormatted:
+                        type: string
+                        example: "2.1 MB"
+                      files:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            key:
+                              type: string
+                            sizeFormatted:
+                              type: string
+                            ageFormatted:
+                              type: string
+    post:
+      tags: [ Cache ]
+      summary: Cache leeren
+      description: Löscht alle gecachten JSON-Dateien. Nächster API-Aufruf baut Cache neu auf.
+      parameters:
+      - name: action
+        in: query
+        required: true
+        schema:
+          type: string
+          enum: [ clear ]
+      responses:
+        "200":
+          description: Cache geleert
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  message: "Cache cleared successfully"
+                  entriesRemoved: 5
+
+  /v1/info:
+    get:
+      tags: [ System ]
+      summary: API-Info und Health-Check
+      description: |
+        Liefert Informationen über die API, verfügbare Endpoints,  
+        Server-Status und Statistiken.
+      responses:
+        "200":
+          description: Erfolgreiche Antwort
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InfoResponse"
+
+components:
+  schemas:
+    # === Base Response ===
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+        meta:
+          type: object
+      required: [ success, data ]
+
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: object
+          properties:
+            code:
+              type: integer
+              example: 404
+            message:
+              type: string
+              example: "Resource not found"
+      required: [ success, error ]
+
+    # === Layer Schemas ===
+    LayerCatalogResponse:
+      allOf:
+      - $ref: "#/components/schemas/SuccessResponse"
+      - type: object
+        properties:
+          data:
+            type: object
+            properties:
+              version:
+                type: string
+                example: "2.0"
+              categories:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Category"
+
+    Category:
+      type: object
+      properties:
+        id:
+          type: string
+          example: nidwalden
+        name:
+          type: string
+          example: Nidwalden
+        icon:
+          type: string
+          example: njsCategoryIcon8
+        subcategories:
+          type: array
+          items:
+            $ref: "#/components/schemas/Subcategory"
+
+    Subcategory:
+      type: object
+      properties:
+        id:
+          type: string
+          example: grundlagen
+        name:
+          type: string
+          example: Grundlagen
+        icon:
+          type: string
+        groups:
+          type: array
+          items:
+            $ref: "#/components/schemas/LayerGroup"
+
+    LayerGroup:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        open:
+          type: boolean
+          default: false
+        layers:
+          type: array
+          items:
+            $ref: "#/components/schemas/Layer"
+
+    Layer:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "TNET_gis_basis/nw_amtliche_vermessung"
+        name:
+          type: string
+          example: "Amtliche Vermessung"
+        type:
+          type: string
+          enum: [ layer, group ]
+        url:
+          type: string
+          example: "/maps/agsproxy.php?path=gis_basis/nw_amtliche_vermessung/MapServer"
+        layerType:
+          type: string
+          enum: [ arcgisRest, wms, wmts, tileWMS ]
+        opacity:
+          type: number
+          format: float
+          example: 0.65
+        visible:
+          type: boolean
+          default: false
+        params:
+          type: object
+        options:
+          type: object
+        layers:
+          type: array
+          description: "Nur bei type=group: verschachtelte Layer"
+          items:
+            $ref: "#/components/schemas/Layer"
+
+    # === Basemaps ===
+    BasemapsResponse:
+      allOf:
+      - $ref: "#/components/schemas/SuccessResponse"
+      - type: object
+        properties:
+          data:
+            type: object
+            description: "Basemaps-Konfiguration (Struktur aus basemaps.conf)"
+
+    # === Bookmarks ===
+    BookmarkListResponse:
+      allOf:
+      - $ref: "#/components/schemas/SuccessResponse"
+      - type: object
+        properties:
+          data:
+            type: array
+            items:
+              type: object
+              properties:
+                name:
+                  type: string
+                aliases:
+                  type: array
+                  items:
+                    type: string
+
+    BookmarkDetailResponse:
+      allOf:
+      - $ref: "#/components/schemas/SuccessResponse"
+      - type: object
+        properties:
+          data:
+            type: object
+            properties:
+              map-bookmark:
+                type: string
+              aliases:
+                type: array
+                items:
+                  type: string
+              basemap:
+                type: string
+              layers:
+                type: array
+                items:
+                  type: string
+              theme:
+                type: string
+              subtheme:
+                type: string
+
+    # === Info ===
+    InfoResponse:
+      allOf:
+      - $ref: "#/components/schemas/SuccessResponse"
+      - type: object
+        properties:
+          data:
+            type: object
+            properties:
+              api:
+                type: object
+                properties:
+                  name:
+                    type: string
+                  version:
+                    type: string
+              endpoints:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    path:
+                      type: string
+                    description:
+                      type: string
+                    parameters:
+                      type: array
+                      items:
+                        type: string
+              server:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  php:
+                    type: string
+                  groups:
+                    type: array
+                    items:
+                      type: string
+                  layerFiles:
+                    type: integer
+                  layerDefinitions:
+                    type: integer
+                  basemaps:
+                    type: integer

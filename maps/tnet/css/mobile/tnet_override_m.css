@@ -1,0 +1,2179 @@
+/*
+ * tnet_override_m.css
+ * TNET Mobile Master-CSS für index_de_m.htm
+ * Drawer-Navigation, Top-Bar, Touch-optimierte Basemaps, Bottom-Sheet
+ *
+ * @version    1.0
+ * @date       2026-02-19
+ * @copyright  Trigonet AG
+ * @author     Marco Dellenbach
+ */
+
+/* ========================================
+   CSS Custom Properties (Mobile)
+   ======================================== */
+:root {
+    --m-topbar-h: 56px;
+    --m-splash-cube-extra-offset-px: 0px;
+    --m-drawer-w: 85vw;
+    --m-drawer-max-w: 380px;
+    --m-color-primary: #4b7b81;
+    --m-color-primary-dark: #3a6268;
+    --m-color-bg: #fff;
+    --m-color-text: #333;
+    --m-color-border: #e0e0e0;
+    --m-touch-target: 44px;
+    --m-radius: 8px;
+    --m-transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --m-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    --m-shadow-lg: 0 4px 24px rgba(0,0,0,0.25);
+}
+
+/* ========================================
+   Base / Reset
+   ======================================== */
+
+/* Globales box-sizing für konsistente Breiten */
+*, *::before, *::after {
+    box-sizing: border-box;
+}
+
+html {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    height: 100dvh; /* Dynamic viewport height - Chrome URL-Bar safe */
+    overflow: hidden;
+    overflow-x: hidden;
+    -webkit-text-size-adjust: 100%;
+}
+
+body {
+    margin: 0;
+    padding: 0;
+    width: 100% !important;       /* Override style_m.css 100vw */
+    max-width: 100vw !important;   /* Sicherheit: nie breiter als Viewport */
+    height: 100% !important;
+    height: 100dvh !important;     /* Dynamic viewport - Chrome URL-Bar */
+    overflow: hidden !important;
+    overflow-x: hidden !important;
+    -webkit-overflow-scrolling: touch;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    font-family: 'Roboto', 'Inter Tight', -apple-system, BlinkMacSystemFont, sans-serif;
+    position: fixed;               /* Verhindert Bounce-Scroll auf iOS/Android */
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+}
+
+/* TYDAC Disclaimer ausblenden */
+#disclaimer_mapplusbytydac { display: none !important; }
+
+/* Accent color */
+[type="checkbox"], [type="radio"] {
+    accent-color: var(--m-color-primary) !important;
+}
+
+body div[class^='btn'],
+body .ol-control {
+    background-color: var(--m-color-primary);
+}
+
+/* ========================================
+   Desktop- & Alt-Mobile-Elemente ausblenden
+   ======================================== */
+#gis_logo_header,
+#gis_logo_container,
+#header_toolbar,
+#header_maps_select,
+#freepane,
+#map-footer-bar,
+#map-context-menu,
+#polygon-tool-btn,
+#mapcontrols_div,
+#paneSwitcher,
+#scrollToTopBtn,
+#custompaneContainer_splitter,
+#streetviewContainer,
+#footPane_main,
+/* Alt-Mobile Elemente aus style_m.css neutralisieren */
+.mainButtonAll,
+#mainButtonBar,
+#btnZuruck,
+#logo_small,
+#layer_manager_button,
+#btn_box_touchcursor,
+#leftPaneContainer,
+#headPane,
+#leftPaneHeader,
+#leftPaneFooter,
+#leftPaneSearch,
+#headPane_splitter,
+#spring {
+    display: none !important;
+}
+
+/* body div[class^="btn"] aus style_m.css neutralisieren – 
+   verhindert, dass Framework-Buttons wild auf der Karte erscheinen.
+   Die btn*-Elemente sitzen in .mainButtonAll / #mainButtonBar (beide display:none),
+   als Fallback trotzdem die Button-Styles resetten */
+.mainButtonAll,
+.mainButtonAll *,
+#mainButtonBar,
+#mainButtonBar * {
+    display: none !important;
+    visibility: hidden !important;
+}
+
+/* ========================================
+   Mobile Top-Bar
+   ======================================== */
+#m-topbar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: var(--m-topbar-h);
+    background: var(--m-color-primary);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    padding: 0 10px;
+    gap: 8px;
+    z-index: 10000;
+    box-shadow: 0 1px 6px rgba(0,0,0,0.15);
+}
+
+#m-topbar .m-logo {
+    width: 32px;
+    height: 32px;
+    flex-shrink: 0;
+    position: relative;
+}
+
+#m-topbar .m-logo img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    filter: brightness(0) invert(1);
+}
+
+/* Weisser Würfel auf Logo */
+#m-topbar .m-logo::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 14px;
+    width: 8px;
+    height: 8px;
+    background: #fff;
+    border-radius: 1px;
+    transform: rotate(0deg);
+    pointer-events: none;
+}
+
+/* Suchfeld in Top-Bar – style_m.css & override.css komplett neutralisieren */
+#njs_search_wrapper,
+body div#njs_search_wrapper {
+    position: static !important;
+    top: auto !important;
+    left: auto !important;
+    right: auto !important;
+    width: auto !important;
+    max-width: none !important;
+    height: auto !important;
+    z-index: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: none !important;
+    border: none !important;
+    display: block !important;
+}
+
+#m-topbar #njs_search_wrapper {
+    flex: 1 !important;
+    min-width: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+}
+
+/* #search_container – vom MapPlus-Framework in #njs_search_wrapper gerendert */
+#search_container,
+div#search_container,
+#njs_search_wrapper #search_container {
+    position: relative !important;
+    top: auto !important;
+    left: auto !important;
+    right: auto !important;
+    transform: none !important;
+    width: 100% !important;
+    height: 40px !important;
+    background: rgba(255,255,255,0.10) !important;
+    border: none !important;
+    border-radius: 10px !important;
+    box-shadow: none !important;
+    display: flex !important;
+    align-items: center !important;
+    padding: 0 10px !important;
+    box-sizing: border-box !important;
+    margin: 0 !important;
+    backdrop-filter: blur(8px) !important;
+    -webkit-backdrop-filter: blur(8px) !important;
+    transition: background 0.2s ease !important;
+}
+
+/* Focus-State: heller */
+#search_container:focus-within,
+div#search_container:focus-within {
+    background: rgba(255,255,255,0.18) !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+/* Lupe-Icon */
+#search_container .iconSearch {
+    flex-shrink: 0 !important;
+    width: 20px !important;
+    height: 20px !important;
+    margin-right: 8px !important;
+    opacity: 0.7 !important;
+    filter: brightness(0) invert(1) !important;
+}
+
+/* srch_free Wrapper */
+#search_container #srch_free {
+    width: 100% !important;
+    display: flex !important;
+    align-items: center !important;
+}
+
+#search_container #srch_free > div {
+    width: 100% !important;
+}
+
+/* Dojo TextBox / ComboBox im Suchfeld */
+#search_container .dijitTextBox,
+#search_container .dijitComboBox,
+#search_container .dijitValidationTextBox {
+    width: 100% !important;
+    height: 38px !important;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    margin: 0 !important;
+    overflow: visible !important;
+}
+
+#search_container .dijitInputContainer {
+    overflow: visible !important;
+    flex: 1 !important;
+}
+
+#search_container .dijitInputInner,
+#search_container input[type="text"],
+#m-topbar input {
+    height: 38px !important;
+    border: none !important;
+    background: transparent !important;
+    color: #fff !important;
+    font-size: 16px !important;
+    font-weight: 400 !important;
+    letter-spacing: 0.01em !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    outline: none !important;
+    line-height: 38px !important;
+    width: 100% !important;
+}
+
+#m-topbar input::placeholder,
+#search_container .dijitPlaceHolder {
+    color: rgba(255,255,255,0.5) !important;
+    font-size: 15px !important;
+    font-weight: 300 !important;
+    letter-spacing: 0.02em !important;
+    text-align: left !important;
+}
+
+/* Clear-Button: sauberes X-Icon ohne Hintergrund */
+#search_container .clearSearch {
+    flex-shrink: 0 !important;
+    width: 24px !important;
+    height: 24px !important;
+    margin-left: 4px !important;
+    cursor: pointer !important;
+    /* Original-Bild ausblenden */
+    font-size: 0 !important;
+    color: transparent !important;
+    border: none !important;
+    background: transparent !important;
+    border-radius: 50% !important;
+    /* Sauberes X-Icon (dünne Linien) */
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round'%3E%3Cline x1='7' y1='7' x2='17' y2='17'/%3E%3Cline x1='17' y1='7' x2='7' y2='17'/%3E%3C/svg%3E") !important;
+    background-size: 18px 18px !important;
+    background-position: center !important;
+    background-repeat: no-repeat !important;
+    filter: none !important;
+    opacity: 0.5 !important;
+    transition: opacity 0.15s ease !important;
+    -webkit-tap-highlight-color: transparent !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+}
+
+#search_container .clearSearch:active {
+    opacity: 1 !important;
+}
+
+/* Cancel-Button (falls Dojo einen erzeugt) */
+#search_container [class*="cancel"] {
+    display: none !important;
+}
+
+/* Dojo Validation Icon & Arrow ausblenden */
+#search_container .dijitValidationContainer,
+#search_container .dijitArrowButton,
+#njs_search_wrapper .dijitValidationContainer,
+#njs_search_wrapper .dijitArrowButton {
+    display: none !important;
+}
+
+/* Autocomplete Dropdown – Mobile-optimiert */
+.dijitComboBoxMenu,
+.dijitPopup {
+    max-width: calc(100vw - 16px) !important;
+    font-size: 15px !important;
+    border-radius: 12px !important;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.18) !important;
+    border: 1px solid rgba(0,0,0,0.08) !important;
+    overflow: hidden !important;
+}
+
+.dijitComboBoxMenu .dijitMenuItem,
+.dijitComboBoxMenu .dijitReset {
+    min-height: 44px !important;
+    line-height: 22px !important;
+    padding: 11px 14px !important;
+    border-bottom: 1px solid rgba(0,0,0,0.04) !important;
+}
+
+/* Suchfeld-Dropdown korrekt positionieren (nicht links 340px wie Desktop) */
+#widget_solrsearchFirstParamSelect_dropdown {
+    left: 8px !important;
+    top: var(--m-topbar-h) !important;
+    max-width: calc(100vw - 16px) !important;
+}
+
+/* Hamburger Button */
+#m-hamburger {
+    width: var(--m-touch-target);
+    height: var(--m-touch-target);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    border-radius: 8px;
+    color: #fff;
+    cursor: pointer;
+    flex-shrink: 0;
+    padding: 0;
+    -webkit-tap-highlight-color: transparent;
+    transition: background 0.15s ease;
+}
+
+#m-hamburger:active {
+    background: rgba(255,255,255,0.15);
+}
+
+#m-hamburger svg {
+    width: 24px;
+    height: 24px;
+    fill: currentColor;
+}
+
+/* ========================================
+   Overlay (Backdrop für Drawer)
+   ======================================== */
+#m-drawer-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 10001;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity var(--m-transition), visibility var(--m-transition);
+}
+
+#m-drawer-overlay.open {
+    opacity: 1;
+    visibility: visible;
+}
+
+/* ========================================
+   Drawer (Slide-in von rechts)
+   ======================================== */
+#m-drawer {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: var(--m-drawer-w);
+    max-width: var(--m-drawer-max-w);
+    background: var(--m-color-bg);
+    z-index: 10002;
+    transform: translateX(100%);
+    transition: transform var(--m-transition);
+    display: flex;
+    flex-direction: column;
+    box-shadow: var(--m-shadow-lg);
+    overflow: hidden;
+}
+
+#m-drawer.open {
+    transform: translateX(0);
+}
+
+/* Drawer Header */
+.m-drawer-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    background: var(--m-color-primary);
+    color: #fff;
+    flex-shrink: 0;
+}
+
+.m-drawer-header .m-drawer-title {
+    font-size: 16px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.m-drawer-header .m-drawer-title img {
+    height: 22px;
+    filter: brightness(0) invert(1);
+}
+
+.m-drawer-close {
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255,255,255,0.15);
+    border: none;
+    border-radius: 50%;
+    color: #fff;
+    font-size: 20px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+
+/* Drawer Content (scrollbar) */
+.m-drawer-content {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+}
+
+/* ========================================
+   Drawer Menu Items
+   ======================================== */
+.m-menu-section {
+    border-bottom: 1px solid var(--m-color-border);
+    padding: 4px 0;
+}
+
+.m-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    min-height: var(--m-touch-target);
+    cursor: pointer;
+    color: var(--m-color-text);
+    font-size: 14px;
+    font-weight: 500;
+    text-decoration: none;
+    -webkit-tap-highlight-color: transparent;
+    transition: background 0.15s;
+}
+
+.m-menu-item:active {
+    background: rgba(75, 123, 129, 0.08);
+}
+
+.m-menu-item.is-disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+.m-menu-item.is-disabled svg {
+    fill: #ccc;
+}
+
+.m-menu-item svg {
+    width: 22px;
+    height: 22px;
+    fill: var(--m-color-primary);
+    flex-shrink: 0;
+}
+
+.m-menu-item .m-menu-label {
+    flex: 1;
+}
+
+.m-menu-item .m-menu-arrow {
+    width: 18px;
+    height: 18px;
+    fill: #999;
+    flex-shrink: 0;
+    transition: transform 0.2s;
+}
+
+.m-menu-item.expanded .m-menu-arrow {
+    transform: rotate(90deg);
+}
+
+/* Login/Logout Bereich */
+.m-menu-user {
+    background: rgba(75, 123, 129, 0.05);
+}
+
+.m-menu-user .m-user-text {
+    font-size: 13px;
+    color: #666;
+}
+
+/* ========================================
+   Dojo TitlePane Animation-Deaktivierung
+   Mobile: Instant-Toggle statt wipeIn/wipeOut
+   ======================================== */
+.dijitTitlePane .dijitReset {
+    animation: none !important;
+    transition: none !important;
+}
+
+.dijitTitlePaneContentOuter[style] {
+    transition: none !important;
+}
+
+.dijitTitlePane.dijitTitlePaneOpened > .dijitTitlePaneContentOuter {
+    display: block !important;
+    opacity: 1 !important;
+    height: auto !important;
+    visibility: visible !important;
+}
+
+.dijitTitlePane.dijitTitlePaneClosed > .dijitTitlePaneContentOuter {
+    display: none !important;
+    opacity: 0 !important;
+    height: 0 !important;
+    visibility: hidden !important;
+}
+
+/* ZUSATZ: Innere TitlePanes im aktiven Kantons-Tab NICHT durch Parent-Closed verstecken */
+#kantons_container .dijitTitlePane.active-tab .dijitTitlePane.dijitTitlePaneOpened > .dijitTitlePaneContentOuter {
+    display: block !important;
+    opacity: 1 !important;
+    height: auto !important;
+    visibility: visible !important;
+}
+
+/* ========================================
+   Drawer Sub-Panel (Layerauswahl etc.)
+   ======================================== */
+.m-sub-panel {
+    display: none;
+    padding: 0;
+    background: #fafafa;
+}
+
+.m-sub-panel.open {
+    display: block;
+}
+
+/* ========================================
+   Themenkatalog: #kantons_container im Drawer
+   tnet_toc.css setzt height:100% + overflow:hidden
+   → im Scroll-Drawer bricht das Layout.
+   ======================================== */
+#m-drawer #kantons_container {
+    height: auto !important;
+    overflow: visible !important;
+    min-height: 0 !important;
+}
+
+/* Tab-Bar im Drawer: volle Breite, Touch-freundlicher */
+#m-drawer #kantons_tab_bar {
+    display: flex !important;
+    width: 100% !important;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    flex-shrink: 0;
+}
+
+#m-drawer #kantons_tab_bar .kanton-tab {
+    min-height: 40px !important;
+    flex: 1 !important;
+}
+
+#m-drawer #kantons_tab_bar .kanton-tab img {
+    height: 24px !important;
+}
+
+/* TitlePanes im Drawer: aktive Inhalte sichtbar */
+#m-drawer #kantons_container > .dijitTitlePane.active-tab {
+    display: block !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    height: auto !important;
+    max-height: none !important;
+}
+
+/* TitlePane-Header in Tabs ausblenden (nötig auch im Drawer) */
+#m-drawer #kantons_container > .dijitTitlePane.active-tab > .dijitTitlePaneTitle {
+    display: none !important;
+}
+
+/* Content des aktiven Tabs immer sichtbar */
+#m-drawer #kantons_container > .dijitTitlePane.active-tab > .dijitTitlePaneContentOuter,
+#m-drawer #kantons_container > .dijitTitlePane.active-tab > .dijitTitlePaneContentOuter[style],
+#m-drawer #kantons_container > .dijitTitlePane.active-tab .dijitTitlePaneContentOuter .dijitReset,
+#m-drawer #kantons_container > .dijitTitlePane.active-tab .dijitTitlePaneContentOuter .dijitReset[style] {
+    display: block !important;
+    visibility: visible !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+}
+
+/* Dojo Accordion / TitlePanes in Drawer anpassen */
+.m-sub-panel .dijitAccordionContainer {
+    border: none !important;
+}
+
+.m-sub-panel .dijitAccordionTitle {
+    min-height: var(--m-touch-target) !important;
+    font-size: 14px !important;
+    padding: 0 16px !important;
+    background: #f5f5f5 !important;
+    border-bottom: 1px solid var(--m-color-border) !important;
+}
+
+.m-sub-panel .dijitAccordionChildWrapper {
+    padding: 8px !important;
+}
+
+/* TitlePanes im Drawer (Layerkatalog) – Accordion-ähnlich */
+.m-sub-panel .dijitTitlePane {
+    margin: 0 !important;
+    border: none !important;
+    border-bottom: 1px solid var(--m-color-border) !important;
+}
+
+.m-sub-panel .dijitTitlePaneTitle {
+    min-height: var(--m-touch-target) !important;
+    display: flex !important;
+    align-items: center !important;
+    padding: 0 12px !important;
+    font-size: 14px !important;
+    font-weight: 500 !important;
+    background: #f5f5f5 !important;
+    border: none !important;
+    cursor: pointer !important;
+    color: var(--m-color-text) !important;
+}
+
+.m-sub-panel .dijitTitlePaneTitle:hover,
+.m-sub-panel .dijitTitlePaneTitle:active {
+    background: #eee !important;
+}
+
+.m-sub-panel .dijitTitlePaneTitle .dijitTitlePaneTextNode {
+    flex: 1 !important;
+    font-size: 14px !important;
+}
+
+.m-sub-panel .dijitTitlePaneTitle .dijitOpenCloseArrow,
+.m-sub-panel .dijitTitlePaneTitle .dijitArrowNode {
+    margin-right: 8px !important;
+}
+
+.m-sub-panel .dijitTitlePaneContentOuter {
+    border: none !important;
+    padding: 0 !important;
+}
+
+.m-sub-panel .dijitTitlePaneContentInner {
+    padding: 4px 8px !important;
+}
+
+/* Layer-Manager innerhalb TitlePanes – Touch-optimiert */
+.m-sub-panel .lyrmgr_group {
+    padding: 4px 0 !important;
+}
+
+.m-sub-panel .lyrmgr_group * {
+    transform: none !important;
+    transform-origin: unset !important;
+}
+
+.m-sub-panel .lyrmgr_item {
+    min-height: 36px !important;
+    padding: 4px 8px !important;
+}
+
+.m-sub-panel .lyrmgr_item label {
+    font-size: 13px !important;
+    line-height: 1.3 !important;
+}
+
+.m-sub-panel .lyrmgr_item input[type="checkbox"] {
+    width: 20px !important;
+    height: 20px !important;
+    margin-right: 8px !important;
+}
+
+/* Tabs2Accordion Headers im Drawer – Touch-freundlich */
+#m-drawer .tabs2acc-header {
+    min-height: var(--m-touch-target) !important;
+    padding: 8px 12px !important;
+    font-size: 13px !important;
+}
+
+#m-drawer .tabs2acc-panel.is-open {
+    display: block !important;
+}
+
+/* dijitTabContainer innerhalb der Layer-Panes im Drawer */
+#m-drawer .dijitTabContainerTop-tabs,
+#m-drawer .dijitTabContainerBottom-tabs {
+    display: none !important;
+}
+
+#m-drawer .dijitTabPaneWrapper {
+    border: none !important;
+}
+
+#m-drawer .dijitTabContainerTopChildWrapper {
+    border: none !important;
+}
+
+/* Basemap im Drawer → jetzt via Bottom-Sheet */
+
+
+/* ========================================
+   BASEMAP — Selbstständige Basis-Stile
+   (aus override.css übernommen, unabhängig
+    von Desktop-CSS)
+   ======================================== */
+
+/* --- Selector auf Karte (kleiner Thumbnail rechts unten) --- */
+#basemap_selector {
+    position: absolute !important;
+    right: 10px !important;
+    bottom: 16px !important;
+    width: 60px !important;
+    height: 60px !important;
+    z-index: 500;
+    background: #fff;
+    border: 2px solid #424A52;
+    border-radius: var(--m-radius);
+    box-shadow: var(--m-shadow);
+    overflow: hidden;
+    cursor: pointer;
+    transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.3s ease;
+}
+
+#basemap_selector:active {
+    transform: scale(0.95);
+}
+
+#basemap_selector.hidden {
+    opacity: 0;
+    pointer-events: none;
+}
+
+#basemap_selector .basemap-preview {
+    width: 100%;
+    height: 100%;
+    background-image: url('/maps/tnet/resources/images/basemap-preview-grey.png');
+    background-size: cover;
+    background-position: center;
+    background-color: #b6c6cb;
+}
+
+#basemap_selector .basemap-label {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: rgba(66, 74, 82, 0.85);
+    color: white;
+    font-family: 'Inter Tight', Arial, sans-serif;
+    font-size: 9px;
+    font-weight: 500;
+    text-align: center;
+    padding: 2px 0;
+}
+
+/* --- Widget-Dummy (Desktop-Referenz, auf Mobile hidden) --- */
+#basemap_widget {
+    display: none !important;
+}
+
+/* --- Card Basis-Stile --- */
+.basemap-card {
+    cursor: pointer;
+    border-radius: 4px;
+    overflow: hidden;
+    border: 2px solid transparent;
+    box-sizing: border-box;
+    transition: border-color 0.2s ease;
+    position: relative;
+}
+
+.basemap-card.active {
+    border-color: var(--m-color-primary, #4b7b81);
+}
+
+.basemap-card-time-badge {
+    position: absolute;
+    top: 3px;
+    right: 3px;
+    width: 18px;
+    height: 18px;
+    font-size: 11px;
+    line-height: 18px;
+    text-align: center;
+    background: rgba(255,255,255,0.88);
+    border-radius: 50%;
+    z-index: 1;
+    pointer-events: none;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+
+.basemap-card-preview {
+    height: 50px;
+    min-height: 50px;
+    background-size: cover;
+    background-position: center;
+    background-color: #b6c6cb;
+}
+
+/* --- Preview-Varianten (Hintergrundbilder) --- */
+.basemap-card-preview.orthofoto,
+.basemap-preview.orthofoto {
+    background: url('/maps/tnet/resources/preview-swissimage.png') center/cover no-repeat;
+}
+.basemap-card-preview.basisplan,
+.basemap-preview.basisplan {
+    background: #e8e8e8 url('/maps/tnet/resources/images/basemap-preview-grey.png') center/cover no-repeat;
+}
+.basemap-card-preview.grundbuch,
+.basemap-preview.grundbuch {
+    background: #fff url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 80"><rect fill="%23fff" width="100" height="80"/><path stroke="%23333" stroke-width="0.8" fill="none" d="M0,25 L40,25 L40,0"/><path stroke="%23333" stroke-width="0.8" fill="none" d="M40,25 L40,55 L0,55"/><path stroke="%23333" stroke-width="0.8" fill="none" d="M40,25 L70,15 L100,15"/><path stroke="%23333" stroke-width="0.8" fill="none" d="M40,55 L70,45 L100,45"/><path stroke="%23333" stroke-width="0.8" fill="none" d="M70,15 L70,45"/><path stroke="%23333" stroke-width="0.8" fill="none" d="M0,70 L50,70 L50,80"/><path stroke="%23333" stroke-width="0.8" fill="none" d="M50,55 L50,70"/><path stroke="%23333" stroke-width="0.8" fill="none" d="M70,45 L70,80"/><rect fill="none" stroke="%23333" stroke-width="1" x="12" y="30" width="15" height="12"/><rect fill="none" stroke="%23333" stroke-width="1" x="50" y="20" width="12" height="10"/><rect fill="none" stroke="%23333" stroke-width="1" x="75" y="50" width="18" height="14"/><rect fill="none" stroke="%23333" stroke-width="1" x="8" y="58" width="10" height="8"/><text x="20" y="48" font-size="6" fill="%23666">234</text><text x="55" y="38" font-size="6" fill="%23666">235</text><text x="80" y="35" font-size="6" fill="%23666">236</text></svg>') center/cover no-repeat;
+}
+.basemap-card-preview.landeskarte,
+.basemap-preview.landeskarte {
+    background: url('/maps/tnet/resources/preview-landeskarte.png') center/cover no-repeat;
+}
+.basemap-card-preview.siegfried,
+.basemap-preview.siegfried {
+    background: url('/maps/tnet/resources/preview-siegfried.png') center/cover no-repeat;
+}
+.basemap-card-preview.dufour,
+.basemap-preview.dufour {
+    background: url('/maps/tnet/resources/preview-dufour.png') center/cover no-repeat;
+}
+.basemap-card-preview.transparent,
+.basemap-preview.transparent {
+    background: repeating-conic-gradient(#ccc 0% 25%, #fff 0% 50%) 50% / 16px 16px;
+}
+.basemap-card-preview.keine,
+.basemap-preview.keine {
+    background: #fff;
+    border: 1px solid #ddd;
+}
+.basemap-card-preview.osm,
+.basemap-preview.osm {
+    background: url('/maps/tnet/resources/preview-osm.png') center/cover no-repeat;
+}
+.basemap-card-preview.swisstlm,
+.basemap-preview.swisstlm {
+    background: url('/maps/tnet/resources/preview-swisstlm.png') center/cover no-repeat;
+}
+
+.basemap-card-label {
+    display: block;
+    background: rgba(66, 74, 82, 0.85);
+    color: white;
+    font-size: 10px;
+    text-align: center;
+    padding: 4px 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* --- Cards-Grid & Scroll --- */
+.basemap-cards-scroll {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    padding: 0 4px 0 0;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    scrollbar-gutter: stable;
+}
+
+.basemap-cards-scroll .basemap-card {
+    min-width: 0;
+    min-height: 72px;
+}
+
+.basemap-cards-scroll::-webkit-scrollbar { width: 4px; }
+.basemap-cards-scroll::-webkit-scrollbar-track { background: transparent; }
+.basemap-cards-scroll::-webkit-scrollbar-thumb { background: #bbb; border-radius: 2px; }
+
+.basemap-cards-spacer {
+    grid-column: 1 / -1;
+    font-size: 11px;
+    font-weight: 500;
+    color: #888;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    padding: 4px 0 2px 0;
+    border-bottom: 1px solid #ddd;
+    margin-bottom: 2px;
+}
+
+/* --- Layer-Toggles (Höhenkurven, Projektebene, etc.) --- */
+.basemap-layer-section {
+    margin-bottom: 10px;
+}
+
+.basemap-layer-row {
+    display: flex;
+    align-items: center;
+    padding: 8px 0;
+    min-height: 36px;
+    border-bottom: 1px solid #eee;
+}
+.basemap-layer-row:last-child { border-bottom: none; }
+
+.layer-icon {
+    width: 28px;
+    color: #e8423f;
+    font-size: 16px;
+    text-align: center;
+    flex-shrink: 0;
+}
+.layer-label {
+    flex: 1;
+    font-size: 13px;
+    color: #333;
+}
+.layer-toggle {
+    display: flex;
+    gap: 0;
+}
+
+.toggle-btn {
+    padding: 6px 12px;
+    font-size: 12px;
+    font-weight: 500;
+    border: 1px solid #ccc;
+    background: #fff;
+    color: #666;
+    cursor: pointer;
+    min-width: 44px;
+    min-height: 32px;
+    transition: all 0.2s ease;
+}
+.toggle-btn:first-child { border-radius: 4px 0 0 4px; }
+.toggle-btn:last-child { border-radius: 0 4px 4px 0; border-left: none; }
+.toggle-btn.active {
+    background: var(--m-color-primary, #4b7b81);
+    border-color: var(--m-color-primary, #4b7b81);
+    color: white;
+}
+.toggle-btn:hover:not(.active) { background: #f0f0f0; }
+
+/* --- Transparenz-Slider --- */
+.transparency-slider {
+    flex: 1;
+    margin: 0 10px;
+    height: 4px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: #ddd;
+    border-radius: 2px;
+    cursor: pointer;
+}
+.transparency-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 22px;
+    height: 22px;
+    background: var(--m-color-primary, #4b7b81);
+    border-radius: 50%;
+    cursor: pointer;
+}
+.transparency-slider::-moz-range-thumb {
+    width: 22px;
+    height: 22px;
+    background: var(--m-color-primary, #4b7b81);
+    border-radius: 50%;
+    cursor: pointer;
+    border: none;
+}
+.transparency-value {
+    font-size: 12px;
+    color: #666;
+    min-width: 28px;
+    text-align: right;
+}
+
+/* --- Zeitreise-Container & Slider --- */
+.basemap-time-container {
+    padding: 8px 16px 10px;
+    margin: 0 -16px;
+    background: linear-gradient(135deg, #f0f7f8 0%, #e8f0f1 100%);
+    border-top: 1px solid #d0dfe1;
+    border-bottom: 1px solid #d0dfe1;
+    overflow: hidden;
+    max-height: 0;
+    opacity: 0;
+    transition: max-height 0.35s ease, opacity 0.25s ease, padding 0.35s ease;
+    padding-top: 0;
+    padding-bottom: 0;
+}
+.basemap-time-container.visible {
+    max-height: 100px;
+    opacity: 1;
+    padding: 8px 16px 10px;
+}
+
+.basemap-time-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 6px;
+}
+.basemap-time-icon { font-size: 14px; line-height: 1; }
+.basemap-time-title {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--m-color-primary, #4b7b81);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+.basemap-time-label {
+    margin-left: auto;
+    font-size: 18px;
+    font-weight: 700;
+    color: #2c5f65;
+    font-variant-numeric: tabular-nums;
+    min-width: 44px;
+    text-align: right;
+}
+.basemap-time-reset {
+    background: none;
+    border: 1px solid #b0c8cc;
+    border-radius: 3px;
+    cursor: pointer;
+    padding: 2px 4px;
+    color: var(--m-color-primary, #4b7b81);
+    line-height: 1;
+    transition: background 0.15s, border-color 0.15s;
+}
+.basemap-time-reset:hover {
+    background: #d0e6e8;
+    border-color: var(--m-color-primary, #4b7b81);
+}
+
+.basemap-time-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 6px;
+    background: linear-gradient(to right, #a0b8bc 0%, #4b7b81 100%);
+    border-radius: 3px;
+    outline: none;
+    cursor: pointer;
+}
+.basemap-time-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 24px;
+    height: 24px;
+    background: var(--m-color-primary, #4b7b81);
+    border: 2px solid #fff;
+    border-radius: 50%;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.25);
+    cursor: grab;
+    transition: transform 0.1s ease;
+}
+.basemap-time-slider::-webkit-slider-thumb:active { cursor: grabbing; transform: scale(1.15); }
+.basemap-time-slider::-moz-range-thumb {
+    width: 24px;
+    height: 24px;
+    background: var(--m-color-primary, #4b7b81);
+    border: 2px solid #fff;
+    border-radius: 50%;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.25);
+    cursor: grab;
+}
+
+.basemap-time-range {
+    display: flex;
+    justify-content: space-between;
+    font-size: 9px;
+    color: #7a9da3;
+    margin-top: 2px;
+    font-variant-numeric: tabular-nums;
+}
+
+.basemap-time-info {
+    padding: 6px 16px;
+    margin: 0 -16px;
+    background: #f5f0e8;
+    border-top: 1px solid #ddd5c8;
+    border-bottom: 1px solid #ddd5c8;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: #8b7355;
+    font-style: italic;
+    overflow: hidden;
+    max-height: 0;
+    opacity: 0;
+    transition: max-height 0.35s ease, opacity 0.25s ease, padding 0.35s ease;
+    padding-top: 0;
+    padding-bottom: 0;
+}
+.basemap-time-info.visible {
+    max-height: 40px;
+    opacity: 1;
+    padding: 6px 16px;
+}
+
+/* --- Widget-Content Container --- */
+.basemap-widget-content {
+    padding: 12px 16px;
+    overflow-y: hidden;
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+
+/* ========================================
+   GENERISCHE BOTTOM-SHEETS (Themenkatalog, Drucken)
+   ======================================== */
+
+/* Shared Overlay */
+.m-sheet-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.35);
+    z-index: 999;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+}
+
+.m-sheet-overlay.open {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* Bottom-Sheet Container */
+.m-bottom-sheet {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 50vh;
+    min-height: 30vh;
+    max-height: 85vh;
+    z-index: 1000;
+    background: #fff;
+    border-radius: 16px 16px 0 0;
+    box-shadow: 0 -4px 24px rgba(0,0,0,0.2);
+    transform: translateY(100%);
+    transition: transform 0.35s cubic-bezier(0.32, 0.72, 0, 1);
+    display: flex;
+    flex-direction: column;
+    font-family: 'Inter Tight', Arial, sans-serif;
+    overflow: hidden;
+    touch-action: none;  /* Handle übernimmt touch */
+}
+
+.m-bottom-sheet.open {
+    transform: translateY(0);
+}
+
+/* Drag-Handle (resize) */
+.m-sheet-handle {
+    display: flex;
+    justify-content: center;
+    padding: 10px 0 6px;
+    cursor: grab;
+    flex-shrink: 0;
+    touch-action: none;  /* eigener Touch-Handler */
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.m-sheet-handle:active {
+    cursor: grabbing;
+}
+
+.m-sheet-bar {
+    width: 40px;
+    height: 5px;
+    background: #bbb;
+    border-radius: 3px;
+    transition: background 0.15s;
+}
+
+.m-sheet-handle:active .m-sheet-bar {
+    background: #888;
+}
+
+/* Sheet Header */
+.m-sheet-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 4px 16px 10px;
+    border-bottom: 1px solid #eee;
+    flex-shrink: 0;
+}
+
+.m-sheet-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #333;
+    letter-spacing: 0.3px;
+}
+
+.m-sheet-close {
+    background: rgba(0,0,0,0.06);
+    border: none;
+    font-size: 22px;
+    color: #666;
+    cursor: pointer;
+    padding: 0;
+    line-height: 1;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    -webkit-tap-highlight-color: transparent;
+    transition: background 0.15s ease;
+}
+
+.m-sheet-close:active {
+    background: rgba(0,0,0,0.12);
+}
+
+/* Sheet Body (scrollbar) */
+.m-sheet-body {
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    padding: 0;
+}
+
+/* Pointer-Events auf Sheets stoppen (OL-Map darf nicht reagieren) */
+.m-bottom-sheet {
+    pointer-events: auto;
+}
+
+/* ---- Themenkatalog Sheet: kantons_container ---- */
+#m-layers-sheet .m-sheet-body {
+    padding: 0;
+}
+
+#m-layers-sheet #kantons_container {
+    height: auto !important;
+    overflow: visible !important;
+    min-height: 0 !important;
+}
+
+/* FALLBACK: Wenn noch kein active-tab gesetzt → NW-Pane (ersten) anzeigen */
+#m-layers-sheet #kantons_container:not(:has(.active-tab)) > #tp_layer_menu {
+    display: block !important;
+}
+#m-layers-sheet #kantons_container:not(:has(.active-tab)) > #tp_layer_menu > .dijitTitlePaneTitle {
+    display: none !important;
+}
+#m-layers-sheet #kantons_container:not(:has(.active-tab)) > #tp_layer_menu > .dijitTitlePaneContentOuter,
+#m-layers-sheet #kantons_container:not(:has(.active-tab)) > #tp_layer_menu > .dijitTitlePaneContentOuter[style],
+#m-layers-sheet #kantons_container:not(:has(.active-tab)) > #tp_layer_menu .dijitReset,
+#m-layers-sheet #kantons_container:not(:has(.active-tab)) > #tp_layer_menu .dijitReset[style] {
+    display: block !important;
+    visibility: visible !important;
+    height: auto !important;
+    overflow: visible !important;
+}
+
+#m-layers-sheet #kantons_tab_bar {
+    display: flex !important;
+    width: 100% !important;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    flex-shrink: 0;
+    background: #fff;
+}
+
+#m-layers-sheet #kantons_tab_bar .kanton-tab {
+    min-height: 44px !important;
+    flex: 1 !important;
+}
+
+#m-layers-sheet #kantons_tab_bar .kanton-tab img {
+    height: 24px !important;
+}
+
+#m-layers-sheet #kantons_container > .dijitTitlePane.active-tab {
+    display: block !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    height: auto !important;
+    max-height: none !important;
+}
+
+#m-layers-sheet #kantons_container > .dijitTitlePane.active-tab > .dijitTitlePaneTitle {
+    display: none !important;
+}
+
+#m-layers-sheet #kantons_container > .dijitTitlePane.active-tab > .dijitTitlePaneContentOuter,
+#m-layers-sheet #kantons_container > .dijitTitlePane.active-tab > .dijitTitlePaneContentOuter[style],
+#m-layers-sheet #kantons_container > .dijitTitlePane.active-tab .dijitTitlePaneContentOuter .dijitReset,
+#m-layers-sheet #kantons_container > .dijitTitlePane.active-tab .dijitTitlePaneContentOuter .dijitReset[style] {
+    display: block !important;
+    visibility: visible !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+}
+
+/* AGGRESSIV: Alle Kinder im aktiven Pane sichtbar erzwingen */
+#m-layers-sheet #kantons_container > .dijitTitlePane.active-tab .dijitTitlePaneContentOuter,
+#m-layers-sheet #kantons_container > .dijitTitlePane.active-tab .dijitTitlePaneContentInner,
+#m-layers-sheet #kantons_container > .dijitTitlePane.active-tab [data-dojo-attach-point="wipeNode"],
+#m-layers-sheet #kantons_container > .dijitTitlePane.active-tab [data-dojo-attach-point="hideNode"],
+#m-layers-sheet #kantons_container > .dijitTitlePane.active-tab .dijitContainer {
+    display: block !important;
+    visibility: visible !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    opacity: 1 !important;
+}
+
+/* Dojo TitlePanes in Sheet anpassen */
+#m-layers-sheet .dijitTitlePane {
+    margin: 0 !important;
+    border: none !important;
+    border-bottom: 1px solid var(--m-color-border) !important;
+}
+
+#m-layers-sheet .dijitTitlePaneTitle {
+    min-height: var(--m-touch-target) !important;
+    font-size: 14px !important;
+    padding: 0 16px !important;
+    display: flex !important;
+    align-items: center !important;
+}
+
+#m-layers-sheet .dijitTitlePaneTitle .dijitArrowNode {
+    width: 20px !important;
+    height: 20px !important;
+}
+
+/* ---- Drucken: print-panel (tnet-print.js) als Bottom-Sheet ---- */
+#print-panel,
+#print-panel.docked-right {
+    position: fixed !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    top: auto !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: 55vh;
+    min-height: 30vh;
+    max-height: 85vh;
+    border-radius: 16px 16px 0 0 !important;
+    box-shadow: 0 -4px 24px rgba(0,0,0,0.18) !important;
+    border: none !important;
+    background: #fff !important;
+    z-index: 10010 !important;
+    overflow: hidden !important;
+    display: flex !important;
+    flex-direction: column !important;
+    touch-action: none !important;
+    transform: none !important;
+    font-size: 14px !important;
+}
+
+#print-panel.hidden {
+    display: none !important;
+}
+
+/* Print-Sheet Drag-Handle (eingefügt von tnet_modules_m.js) */
+#print-panel > .m-sheet-handle {
+    position: relative !important;
+    z-index: 10 !important;
+    display: flex !important;
+    touch-action: none !important;
+}
+
+#print-panel .print-panel-header {
+    min-height: 48px !important;
+    padding: 0 14px !important;
+    border-bottom: 1px solid rgba(0,0,0,0.08) !important;
+    flex-shrink: 0 !important;
+}
+
+#print-panel .print-panel-body {
+    padding: 14px !important;
+    -webkit-overflow-scrolling: touch !important;
+    flex: 1 !important;
+    overflow-y: auto !important;
+    min-height: 0 !important;
+}
+
+/* Dock-Button ausblenden (mobile hat kein Dock) */
+#print-panel #print-dock-btn {
+    display: none !important;
+}
+
+/* Resize-Handle ausblenden */
+#print-panel .print-resize-handle {
+    display: none !important;
+}
+
+/* Touch-freundliche Inputs */
+#print-panel select,
+#print-panel input[type="text"],
+#print-panel input[type="number"] {
+    height: 44px !important;
+    font-size: 16px !important;
+    border-radius: 8px !important;
+}
+
+#print-panel .print-action-btn {
+    height: 48px !important;
+    font-size: 16px !important;
+    border-radius: 10px !important;
+}
+
+/* Druckrahmen-Info + Rotation kompakter */
+#print-panel .print-frame-info {
+    margin-bottom: 10px !important;
+}
+
+#print-panel .print-hint-box {
+    font-size: 13px !important;
+    padding: 10px !important;
+    border-radius: 8px !important;
+}
+
+
+/* ========================================
+   BASEMAP BOTTOM-SHEET
+   ======================================== */
+
+/* Overlay hinter dem Sheet */
+.m-basemap-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.35);
+    z-index: 999;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+}
+
+.m-basemap-overlay.open {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* Bottom-Sheet Container */
+#m-basemap-sheet {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 50vh;
+    min-height: 25vh;
+    max-height: 85vh;
+    z-index: 1000;
+    background: #fff;
+    border-radius: 16px 16px 0 0;
+    box-shadow: 0 -4px 20px rgba(0,0,0,0.25);
+    transform: translateY(100%);
+    transition: transform 0.35s cubic-bezier(0.32, 0.72, 0, 1);
+    display: flex;
+    flex-direction: column;
+    font-family: 'Inter Tight', Arial, sans-serif;
+    overflow: hidden;
+    /* Pointer-Events auf Sheet stoppen (OL-Map) */
+    touch-action: auto;
+}
+
+#m-basemap-sheet.open {
+    transform: translateY(0);
+}
+
+/* Drag-Handle */
+.m-basemap-sheet-handle {
+    display: flex;
+    justify-content: center;
+    padding: 8px 0 4px;
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.m-basemap-sheet-bar {
+    width: 40px;
+    height: 4px;
+    background: #ccc;
+    border-radius: 2px;
+}
+
+/* Sheet Header */
+.m-basemap-sheet-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 4px 16px 8px;
+    border-bottom: 1px solid #eee;
+}
+
+.m-basemap-sheet-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: #333;
+    letter-spacing: 0.5px;
+}
+
+.m-basemap-sheet-close {
+    background: none;
+    border: none;
+    font-size: 24px;
+    color: #888;
+    cursor: pointer;
+    padding: 0;
+    line-height: 1;
+    width: var(--m-touch-target, 44px);
+    height: var(--m-touch-target, 44px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.m-basemap-sheet-close:hover { color: #333; }
+
+/* Sheet Body (scrollbar) */
+.m-basemap-sheet-body {
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    min-height: 0;
+}
+
+/* Touch-Anpassungen innerhalb Bottom-Sheet */
+#m-basemap-sheet .basemap-cards-scroll {
+    gap: 10px;
+    padding: 4px 4px 8px;
+}
+
+#m-basemap-sheet .basemap-card {
+    min-height: 72px;
+}
+
+#m-basemap-sheet .basemap-card-preview {
+    height: 50px;
+}
+
+#m-basemap-sheet .basemap-card-label {
+    font-size: 11px;
+    padding: 4px 2px;
+}
+
+#m-basemap-sheet .toggle-btn {
+    min-width: 44px;
+    min-height: 36px;
+}
+
+#m-basemap-sheet .basemap-time-slider::-webkit-slider-thumb {
+    width: 26px;
+    height: 26px;
+}
+
+#m-basemap-sheet .transparency-slider::-webkit-slider-thumb {
+    width: 24px;
+    height: 24px;
+}
+
+/* ========================================
+   Map Container Anpassung
+   ======================================== */
+#NeapoljsContainer {
+    position: absolute !important;
+    top: var(--m-topbar-h) !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100% !important;
+    max-width: 100vw !important;
+    height: calc(100dvh - var(--m-topbar-h)) !important;
+    overflow: hidden !important;
+}
+
+/* style_m.css setzt #map auf 100dvh x 100dvw → überschreiben auf 100% */
+#map {
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+}
+
+/* Center cross aus style_m.css: 100dvh/dvw → 100% */
+#map::before {
+    width: 100% !important;
+    height: 100% !important;
+}
+
+/* OL Controls – Touch-Targets vergrössern */
+.ol-control button {
+    width: var(--m-touch-target) !important;
+    height: var(--m-touch-target) !important;
+    font-size: 20px !important;
+}
+
+.ol-zoom {
+    top: 10px !important;
+    left: 10px !important;
+}
+
+.ol-attribution {
+    font-size: 10px !important;
+}
+
+/* Koordinaten auf Karte (Mobile) – style_m.css top:2.6rem überschreiben */
+#njs_coordinates_wrapper {
+    position: absolute !important;
+    top: auto !important;
+    right: auto !important;
+    bottom: 8px !important;
+    left: 8px !important;
+    z-index: 500;
+    font-size: 10px !important;
+    background: rgba(255,255,255,0.8) !important;
+    padding: 2px 6px !important;
+    border-radius: 4px !important;
+    pointer-events: none;
+}
+
+/* Scale-Line auf Karte */
+#scale-line {
+    position: absolute !important;
+    bottom: 8px !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    z-index: 500;
+}
+
+/* ========================================
+   ÖREB Button auf Karte
+   ======================================== */
+#oereb-tool-btn {
+    position: absolute !important;
+    top: 110px !important;
+    left: 10px !important;
+    z-index: 500;
+    width: var(--m-touch-target) !important;
+    height: var(--m-touch-target) !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--m-color-primary) !important;
+    border-radius: var(--m-radius) !important;
+    box-shadow: var(--m-shadow);
+}
+
+/* ========================================
+   ÖREB Dock-Panel als Bottom-Sheet
+   ======================================== */
+#oereb-dock-panel {
+    position: fixed !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    top: auto !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: 50vh;
+    min-height: 30vh;
+    max-height: 85vh;
+    border-radius: 16px 16px 0 0 !important;
+    box-shadow: 0 -4px 24px rgba(0,0,0,0.18) !important;
+    background: #fff !important;
+    transform: translateY(100%);
+    transition: transform 0.35s cubic-bezier(0.32, 0.72, 0, 1);
+    z-index: 10010 !important;
+    overflow: hidden !important;
+    display: flex !important;
+    flex-direction: column !important;
+    touch-action: none !important;
+}
+
+#oereb-dock-panel:not(.hidden) {
+    transform: translateY(0) !important;
+}
+
+/* Drag-Handle oben: echtes DOM-Element via tnet_modules_m.js */
+#oereb-dock-panel::before {
+    display: none !important;
+}
+
+/* ÖREB-Sheet Handle */
+#oereb-dock-panel > .oereb-sheet-handle {
+    display: flex;
+    justify-content: center;
+    padding: 10px 0 6px;
+    cursor: grab;
+    flex-shrink: 0;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+#oereb-dock-panel > .oereb-sheet-handle:active {
+    cursor: grabbing;
+}
+
+#oereb-dock-panel .oereb-dock-header {
+    border-radius: 0 !important;
+    min-height: var(--m-touch-target);
+    padding: 4px 16px 8px !important;
+    border-bottom: 1px solid rgba(0,0,0,0.08) !important;
+    flex-shrink: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+}
+
+#oereb-dock-panel .oereb-dock-title {
+    font-size: 16px !important;
+    font-weight: 600 !important;
+}
+
+#oereb-dock-panel .oereb-dock-close {
+    width: 36px !important;
+    height: 36px !important;
+    font-size: 22px !important;
+    border-radius: 50% !important;
+    background: rgba(0,0,0,0.06) !important;
+    border: none !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    cursor: pointer !important;
+    -webkit-tap-highlight-color: transparent !important;
+}
+
+#oereb-dock-panel .oereb-dock-close:active {
+    background: rgba(0,0,0,0.12) !important;
+}
+
+/* Dock/Undock-Button auf Mobile ausblenden */
+#oereb-dock-panel .oereb-dock-btn {
+    display: none !important;
+}
+
+/* Selection-Bereich */
+#oereb-dock-panel .oereb-selection {
+    padding: 8px 16px !important;
+    flex-shrink: 0 !important;
+    max-height: 80px !important;
+    overflow-y: auto !important;
+    font-size: 14px !important;
+    border-bottom: 1px solid rgba(0,0,0,0.06) !important;
+}
+
+#oereb-dock-panel .oereb-selection:empty {
+    display: none !important;
+}
+
+/* iframe füllt den Rest */
+#oereb-dock-panel .oereb-iframe-container {
+    flex: 1 !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+}
+
+#oereb-dock-panel .oereb-iframe-container iframe,
+#oereb-dock-panel #oereb-iframe {
+    width: 100% !important;
+    height: 100% !important;
+    border: none !important;
+    display: block !important;
+}
+
+/* Resize-Handles ausblenden (nicht nötig auf Mobile) */
+#oereb-dock-panel [class*="oereb-resize"] {
+    display: none !important;
+}
+
+/* Kein Backdrop auf Mobile: Karte muss
+   im ÖREB-Modus klickbar bleiben */
+
+/* ========================================
+   custompaneContainer als Bottom-Sheet
+   ======================================== */
+#custompaneContainer {
+    position: fixed !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    top: auto !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: 40vh !important;
+    z-index: 9000 !important;
+    border-radius: 16px 16px 0 0 !important;
+    box-shadow: 0 -4px 20px rgba(0,0,0,0.2) !important;
+    background: #fff;
+}
+
+/* ========================================
+   Spatial Query Panel als Bottom-Sheet
+   ======================================== */
+#spatial-query-panel {
+    position: fixed !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    top: auto !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: 50vh !important;
+    border-radius: 16px 16px 0 0 !important;
+    box-shadow: 0 -4px 20px rgba(0,0,0,0.2) !important;
+}
+
+#spatial-query-panel [class*="spatial-query-resize"] {
+    display: none !important;
+}
+
+#spatial-query-panel .sq-show-more-btn {
+    min-height: 40px;
+    padding: 10px 14px;
+    font-size: 13px;
+}
+
+/* ========================================
+   Maps Info Dialog – Fullscreen auf Mobile
+   ======================================== */
+#mapsInfoDialog {
+    width: 100vw !important;
+    height: 100vh !important;
+    max-width: 100vw !important;
+    max-height: 100vh !important;
+}
+
+#mapsInfoDialog .dijitDialogPaneContent {
+    padding: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+}
+
+/* ========================================
+   Popup (Feature-Info)
+   ======================================== */
+.ol-popup {
+    max-width: calc(100vw - 32px) !important;
+    font-size: 13px !important;
+}
+
+/* ========================================
+   3D Landscape – Vertikaler Split auf Mobile
+   ======================================== */
+.landscape-3d-container {
+    width: 100vw !important;
+    height: calc(100vh - var(--m-topbar-h)) !important;
+}
+
+/* Split-Wrapper: vertikal statt horizontal */
+#split-wrapper-3d {
+    flex-direction: column !important;
+}
+
+/* 2D-Panel oben */
+#split-panel-2d {
+    min-height: 0 !important;
+    min-width: unset !important;
+}
+
+/* 3D-Panel unten */
+#split-panel-3d {
+    min-height: 0 !important;
+    min-width: unset !important;
+}
+
+/* Divider: Horizontaler Trennbalken */
+#split-divider-3d {
+    width: 100% !important;
+    height: 4px !important;
+    cursor: row-resize !important;
+    flex-shrink: 0 !important;
+}
+
+/* Divider-Handle: Horizontal gedreht */
+#split-divider-3d > div {
+    width: 40px !important;
+    height: 16px !important;
+    font-size: 10px !important;
+    /* Horizontale Dots statt vertikale */
+    transform: translate(-50%, -50%) rotate(90deg) !important;
+}
+
+/* ========================================
+   Print Dialog – Mobile-Anpassungen
+   ======================================== */
+.tnet-print-dialog {
+    width: 100vw !important;
+    max-width: 100vw !important;
+    left: 0 !important;
+    right: 0 !important;
+    border-radius: 16px 16px 0 0 !important;
+}
+
+/* ========================================
+   Splash Screen (analog Desktop override.css)
+   ======================================== */
+#splash-screen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(135deg, #4b7b81 0%, #3a6268 100%);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 99999;
+    transition: opacity 1s ease, visibility 1s ease, transform 1s ease;
+}
+
+#splash-screen.hidden {
+    opacity: 0;
+    visibility: hidden;
+    transform: scale(1.05);
+}
+
+#splash-logo {
+    position: relative;
+    width: 68vw;
+    max-width: 320px;
+    height: auto;
+    aspect-ratio: 228.55 / 174.96;
+    background-image: url(/maps/tnet/resources/Logo-GIS-Daten-AG.svg);
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: contain;
+    filter: brightness(0) invert(1);
+    margin-top: -70px;
+}
+
+/* Splash-Cube auf Mobile (0.8x)
+   Positioniert auf dem "I" von GIS.
+   I-Oberkante = 31.35% von Logo-Top.
+   Logo-Height = 68vw × 0.7655 ≈ 52vw (max ~245px bei max-width:320px).
+   margin-top = -(68.65% × logo-height + cube-size)
+   = -(35.8vw + 36px), clamp bei -200px für Tablets. */
+#splash-cube-container {
+    --cube-size: 36px;
+    --cube-half: 18px;
+    width: var(--cube-size);
+    height: var(--cube-size);
+    margin-top: clamp(-230px, calc(-35.8vw - 66px + var(--m-splash-cube-extra-offset-px)), -95px);
+}
+
+#splash-loader {
+    width: 150px;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-top: 3em;
+    box-shadow: 0 0 10px rgba(255, 255, 255, 0.1);
+}
+
+#splash-loader-bar {
+    width: 30%;
+    height: 100%;
+    background: linear-gradient(90deg, rgba(255, 255, 255, 0.3), white, rgba(255, 255, 255, 0.3));
+    border-radius: 4px;
+    animation: splashLoading 1.5s ease-in-out infinite;
+    box-shadow: 0 0 8px rgba(255, 255, 255, 0.5);
+}
+
+@keyframes splashLoading {
+    0%   { transform: translateX(-100%); }
+    100% { transform: translateX(400%); }
+}
+
+/* ========================================
+   Preloader
+   ======================================== */
+#preloader {
+    z-index: 99999;
+}
+
+/* ========================================
+   Dojo Widget Anpassungen (Mobile)
+   ======================================== */
+
+/* style_m.css: lyrmgr_group * transform scale(94%) neutralisieren */
+.lyrmgr_group * {
+    transform: none !important;
+    transform-origin: unset !important;
+}
+
+/* TitlePane Headers grösser für Touch */
+.dijitTitlePaneTitle {
+    min-height: var(--m-touch-target) !important;
+    font-size: 14px !important;
+}
+
+/* Dialog (Dojo) – Mobile-freundlich */
+.dijitDialog {
+    max-width: 95vw !important;
+}
+
+/* Scrollbar dünn auf Mobile */
+.m-drawer-content::-webkit-scrollbar {
+    width: 3px;
+}
+
+.m-drawer-content::-webkit-scrollbar-thumb {
+    background: rgba(0,0,0,0.2);
+    border-radius: 3px;
+}
+
+/* ========================================
+   Dargestellte Themen (Layer-Sorter) im Drawer
+   ======================================== */
+#m-drawer #main_lyrsorter {
+    padding: 0 8px !important;
+}
+
+#m-drawer #main_lyrsorter li {
+    min-height: var(--m-touch-target);
+    padding: 8px;
+    border-bottom: 1px solid var(--m-color-border);
+}
+
+/* ========================================
+   Werkzeuge im Drawer
+   ======================================== */
+#m-drawer #njs_measure_wrapper,
+#m-drawer #njs_redlining_wrapper {
+    padding: 8px 12px;
+}
+
+/* ========================================
+   Print-Button im Drawer
+   ======================================== */
+#m-drawer #njs_print_wrapper {
+    padding: 8px 12px;
+}
+
+/* ========================================
+   Safe-Area für Geräte mit Notch
+   ======================================== */
+@supports (padding-top: env(safe-area-inset-top)) {
+    #m-topbar {
+        padding-top: env(safe-area-inset-top);
+        height: calc(var(--m-topbar-h) + env(safe-area-inset-top));
+    }
+    
+    #NeapoljsContainer {
+        top: calc(var(--m-topbar-h) + env(safe-area-inset-top)) !important;
+        height: calc(100dvh - var(--m-topbar-h) - env(safe-area-inset-top)) !important;
+    }
+}
+
+/* ========================================
+   Landscape-Modus Korrekturen
+   ======================================== */
+@media (orientation: landscape) and (max-height: 500px) {
+    :root {
+        --m-topbar-h: 40px;
+    }
+
+    #m-drawer {
+        width: 50vw;
+    }
+
+    #oereb-dock-panel {
+        height: 50vh !important;
+        max-height: 50vh !important;
+    }
+
+    #custompaneContainer {
+        height: 60vh !important;
+    }
+}
+
+/* ========================================
+   Kleine Screens (< 360px)
+   ======================================== */
+@media (max-width: 360px) {
+    #m-drawer {
+        width: 100vw;
+        max-width: 100vw;
+    }
+
+    #m-basemap-sheet .basemap-cards-scroll {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}

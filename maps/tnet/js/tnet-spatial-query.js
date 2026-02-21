@@ -18,6 +18,82 @@ window.isPolygonDrawing = false;
 var drawInteraction = null;
 var drawLayer = null;
 var isDrawing = false;
+var spatialQueryConfig = null;
+var spatialQueryConfigPromise = null;
+
+    function getDefaultSpatialQueryConfig() {
+        return {
+            maxVisibleColumns: 10,
+            globalBlacklist: [],
+            layerBlacklist: {},
+            bufferDistances: [10, 25, 50, 100, 250, 500, 1000]
+        };
+    }
+
+    function normalizeSpatialQueryConfig(rawConfig) {
+        var defaults = getDefaultSpatialQueryConfig();
+        var cfg = rawConfig || {};
+        var maxCols = parseInt(cfg.maxVisibleColumns, 10);
+
+        return {
+            maxVisibleColumns: isNaN(maxCols) || maxCols < 1 ? defaults.maxVisibleColumns : maxCols,
+            globalBlacklist: Array.isArray(cfg.globalBlacklist) ? cfg.globalBlacklist : defaults.globalBlacklist,
+            layerBlacklist: cfg.layerBlacklist && typeof cfg.layerBlacklist === 'object' ? cfg.layerBlacklist : defaults.layerBlacklist,
+            bufferDistances: Array.isArray(cfg.bufferDistances) ? cfg.bufferDistances : defaults.bufferDistances
+        };
+    }
+
+    function loadSpatialQueryConfigAsync() {
+        if (spatialQueryConfig) {
+            return Promise.resolve(spatialQueryConfig);
+        }
+        if (spatialQueryConfigPromise) {
+            return spatialQueryConfigPromise;
+        }
+
+        if (typeof JSON5 === 'undefined') {
+            spatialQueryConfig = getDefaultSpatialQueryConfig();
+            return Promise.resolve(spatialQueryConfig);
+        }
+
+        var paths = [
+            '/maps/tnet/config/tnet-global-config.json5',
+            '/maps/tnet/tnet-global-config.json5',
+            '../tnet/config/tnet-global-config.json5'
+        ];
+
+        function tryPath(index) {
+            if (index >= paths.length) {
+                spatialQueryConfig = getDefaultSpatialQueryConfig();
+                return Promise.resolve(spatialQueryConfig);
+            }
+
+            return fetch(paths[index])
+                .then(function(response) {
+                    if (!response.ok) throw new Error('HTTP ' + response.status);
+                    return response.text();
+                })
+                .then(function(text) {
+                    var parsed = JSON5.parse(text);
+                    spatialQueryConfig = normalizeSpatialQueryConfig(parsed && parsed.spatialQuery ? parsed.spatialQuery : null);
+                    return spatialQueryConfig;
+                })
+                .catch(function() {
+                    return tryPath(index + 1);
+                });
+        }
+
+        spatialQueryConfigPromise = tryPath(0).then(function(cfg) {
+            spatialQueryConfigPromise = null;
+            return cfg;
+        }).catch(function() {
+            spatialQueryConfigPromise = null;
+            spatialQueryConfig = getDefaultSpatialQueryConfig();
+            return spatialQueryConfig;
+        });
+
+        return spatialQueryConfigPromise;
+    }
     
     // Zeichnen-Layer erstellen
     function getDrawLayer(map) {
@@ -48,7 +124,8 @@ var isDrawing = false;
     
     // Polygon-Zeichnen aktivieren/deaktivieren
     window.togglePolygonDraw = function() {
-        waitForMap(function(map) {
+        loadSpatialQueryConfigAsync().then(function() {
+            waitForMap(function(map) {
             var btn = document.getElementById('polygon-tool-btn');
             var panel = document.getElementById('spatial-query-panel');
             var statusEl = document.getElementById('spatial-query-status');
@@ -63,8 +140,8 @@ var isDrawing = false;
                 isDrawing = false;
                 window.isPolygonDrawing = false;
                 document.body.classList.remove('drawing-mode');
-                btn.classList.remove('active');
-                panel.classList.add('hidden');
+                if (btn) btn.classList.remove('active');
+                if (panel) panel.classList.add('hidden');
                 
                 // Layer leeren
                 if (drawLayer) {
@@ -74,6 +151,11 @@ var isDrawing = false;
                 // ÖREB-Modus deaktivieren falls aktiv
                 if (window.isOerebActive && typeof window.toggleOerebMode === 'function') {
                     window.toggleOerebMode();
+                }
+
+                // Mobile Drawer schließen falls offen
+                if (typeof window.closeDrawer === 'function') {
+                    window.closeDrawer();
                 }
 
                 // Aktivieren
@@ -135,11 +217,12 @@ var isDrawing = false;
                 isDrawing = true;
                 window.isPolygonDrawing = true;
                 document.body.classList.add('drawing-mode');
-                btn.classList.add('active');
-                panel.classList.remove('hidden');
+                if (btn) btn.classList.add('active');
+                if (panel) panel.classList.remove('hidden');
                 statusEl.textContent = 'Zeichnen Sie ein Polygon auf der Karte (Doppelklick zum Beenden)...';
                 resultsEl.innerHTML = '';
             }
+            });
         });
     };
     
@@ -147,8 +230,8 @@ var isDrawing = false;
     window.closeSpatialQueryPanel = function() {
         var panel = document.getElementById('spatial-query-panel');
         var btn = document.getElementById('polygon-tool-btn');
-        panel.classList.add('hidden');
-        btn.classList.remove('active');
+        if (panel) panel.classList.add('hidden');
+        if (btn) btn.classList.remove('active');
         isDrawing = false;
         window.isPolygonDrawing = false;
         document.body.classList.remove('drawing-mode');
@@ -272,6 +355,9 @@ var isDrawing = false;
                     
                     resolve({
                         layerName: displayName + ' (geo.admin.ch)',
+                        baseLayerName: layer.name || displayName,
+                        layerUrl: layer.url || '',
+                        layerKey: layer.wmsLayers || '',
                         features: features,
                         error: null
                     });
@@ -285,6 +371,9 @@ var isDrawing = false;
                     
                     resolve({
                         layerName: displayName + ' (geo.admin.ch)',
+                        baseLayerName: layer.name || displayName,
+                        layerUrl: layer.url || '',
+                        layerKey: layer.wmsLayers || '',
                         features: [],
                         error: 'API-Fehler: ' + err.message
                     });
@@ -350,7 +439,7 @@ var isDrawing = false;
         }).catch(function(err) {
             console.error('Spatial Query Error:', err);
             statusEl.textContent = 'Fehler bei der Abfrage.';
-            resultsEl.innerHTML = '<p class="error">' + err.message + '</p>';
+            resultsEl.innerHTML = '<p class="error">' + escapeHtml(err && err.message ? err.message : 'Unbekannter Fehler') + '</p>';
         });
     }
     
@@ -497,6 +586,9 @@ var isDrawing = false;
                         
                         resolve({
                             layerName: layer.name + ' (WFS Multi-Kanton)',
+                            baseLayerName: layer.name || '',
+                            layerUrl: layer.url || '',
+                            layerKey: layer.wmsLayers || '',
                             features: allFeatures,
                             error: null
                         });
@@ -505,6 +597,9 @@ var isDrawing = false;
                         console.error('Multi-Kanton WFS Fehler:', err);
                         resolve({
                             layerName: layer.name + ' (WFS)',
+                            baseLayerName: layer.name || '',
+                            layerUrl: layer.url || '',
+                            layerKey: layer.wmsLayers || '',
                             features: [],
                             error: 'Multi-Kanton WFS Fehler: ' + err.message
                         });
@@ -627,6 +722,9 @@ var isDrawing = false;
                     // console.log('WFS Features nach BBOX-Filterung:', features.length);
                     resolve({
                         layerName: layer.name + ' (WFS)',
+                        baseLayerName: layer.name || '',
+                        layerUrl: layer.url || '',
+                        layerKey: layer.wmsLayers || '',
                         features: features,
                         error: null
                     });
@@ -635,6 +733,9 @@ var isDrawing = false;
                     console.error('WFS Query Error:', err);
                     resolve({
                         layerName: layer.name + ' (WFS)',
+                        baseLayerName: layer.name || '',
+                        layerUrl: layer.url || '',
+                        layerKey: layer.wmsLayers || '',
                         features: [],
                         error: err.message
                     });
@@ -1036,6 +1137,9 @@ var isDrawing = false;
                         // console.log('Response Data für "' + layer.name + '":', data);
                         resolve({
                             layerName: layer.name,
+                            baseLayerName: layer.name || '',
+                            layerUrl: layer.url || '',
+                            layerKey: layer.layerId || '',
                             features: data.features || [],
                             error: data.error ? data.error.message : null
                         });
@@ -1044,6 +1148,9 @@ var isDrawing = false;
                         console.error('Fetch Error für "' + layer.name + '":', err);
                         resolve({
                             layerName: layer.name,
+                            baseLayerName: layer.name || '',
+                            layerUrl: layer.url || '',
+                            layerKey: layer.layerId || '',
                             features: [],
                             error: err.message
                         });
@@ -1076,6 +1183,9 @@ var isDrawing = false;
                         // console.log('Response Data für "' + layer.name + '":', data);
                         resolve({
                             layerName: layer.name,
+                            baseLayerName: layer.name || '',
+                            layerUrl: layer.url || '',
+                            layerKey: layer.layerId || '',
                             features: data.features || [],
                             error: data.error ? data.error.message : null
                         });
@@ -1084,6 +1194,9 @@ var isDrawing = false;
                         console.error('Fetch Error für "' + layer.name + '":', err);
                         resolve({
                             layerName: layer.name,
+                            baseLayerName: layer.name || '',
+                            layerUrl: layer.url || '',
+                            layerKey: layer.layerId || '',
                             features: [],
                             error: err.message
                         });
@@ -1289,6 +1402,7 @@ var isDrawing = false;
     // Highlight-Layer für Feature-Hervorhebung
     var highlightLayer = null;
     var allQueryFeatures = []; // Speichert alle Features für Klick-Zugriff
+    var allQueryResults = []; // Speichert Result-Metadaten für Export/Filter
     
     function getHighlightLayer(map) {
         if (!highlightLayer) {
@@ -1463,19 +1577,158 @@ var isDrawing = false;
         }
     };
     
+    function escapeHtml(value) {
+        if (value === null || value === undefined) return '';
+        return String(value)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    function normalizeForMatch(value) {
+        if (value === null || value === undefined) return '';
+        return String(value).toLowerCase().trim();
+    }
+
+    function matchesGlob(value, pattern) {
+        var normalizedValue = normalizeForMatch(value);
+        var normalizedPattern = normalizeForMatch(pattern);
+        if (!normalizedPattern) return false;
+        var escaped = normalizedPattern.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*');
+        var regex = new RegExp('^' + escaped + '$', 'i');
+        return regex.test(normalizedValue);
+    }
+
+    function matchesLayerTarget(target, resultMeta) {
+        var pattern = normalizeForMatch(target);
+        if (!pattern) return false;
+
+        var candidates = [
+            resultMeta && resultMeta.layerName,
+            resultMeta && resultMeta.baseLayerName,
+            resultMeta && resultMeta.layerUrl,
+            resultMeta && resultMeta.layerKey
+        ];
+
+        var hasGlob = pattern.indexOf('*') > -1;
+        return candidates.some(function(candidate) {
+            var normalizedCandidate = normalizeForMatch(candidate);
+            if (!normalizedCandidate) return false;
+            if (hasGlob) {
+                return matchesGlob(normalizedCandidate, pattern);
+            }
+            return normalizedCandidate.indexOf(pattern) > -1;
+        });
+    }
+
+    function getLayerBlacklistPatterns(resultMeta) {
+        var cfg = spatialQueryConfig || getDefaultSpatialQueryConfig();
+        var layerBlacklist = cfg.layerBlacklist || {};
+        var patterns = [];
+
+        function pushPatterns(attributes) {
+            if (!attributes) return;
+            if (Array.isArray(attributes)) {
+                attributes.forEach(function(attr) {
+                    if (attr !== null && attr !== undefined) {
+                        patterns.push(String(attr));
+                    }
+                });
+            } else if (typeof attributes === 'string') {
+                patterns.push(attributes);
+            }
+        }
+
+        if (Array.isArray(layerBlacklist)) {
+            layerBlacklist.forEach(function(entry) {
+                if (!entry || typeof entry !== 'object') return;
+                if (matchesLayerTarget(entry.target, resultMeta)) {
+                    pushPatterns(entry.attributes);
+                }
+            });
+        } else if (layerBlacklist && typeof layerBlacklist === 'object') {
+            Object.keys(layerBlacklist).forEach(function(target) {
+                var value = layerBlacklist[target];
+                if (matchesLayerTarget(target, resultMeta)) {
+                    if (value && typeof value === 'object' && !Array.isArray(value) && value.attributes) {
+                        pushPatterns(value.attributes);
+                    } else {
+                        pushPatterns(value);
+                    }
+                }
+            });
+        }
+
+        return patterns;
+    }
+
+    function isBlacklistedAttribute(attributeName, resultMeta) {
+        var attrName = normalizeForMatch(attributeName);
+        if (!attrName) return true;
+
+        var cfg = spatialQueryConfig || getDefaultSpatialQueryConfig();
+        var globalPatterns = Array.isArray(cfg.globalBlacklist) ? cfg.globalBlacklist : [];
+        var layerPatterns = getLayerBlacklistPatterns(resultMeta);
+        var allPatterns = globalPatterns.concat(layerPatterns);
+
+        return allPatterns.some(function(pattern) {
+            var normalizedPattern = normalizeForMatch(pattern);
+            if (!normalizedPattern) return false;
+            if (normalizedPattern.indexOf('*') > -1) {
+                return matchesGlob(attrName, normalizedPattern);
+            }
+            return attrName === normalizedPattern;
+        });
+    }
+
+    function filterFeatureAttributes(attrs, resultMeta) {
+        var source = attrs || {};
+        var filtered = {};
+        Object.keys(source).forEach(function(key) {
+            if (!isBlacklistedAttribute(key, resultMeta)) {
+                filtered[key] = source[key];
+            }
+        });
+        return filtered;
+    }
+
+    function collectColumnKeys(features, resultMeta) {
+        var keys = [];
+        var seen = {};
+        (features || []).forEach(function(feature) {
+            var attrs = feature && feature.attributes ? feature.attributes : {};
+            var filtered = filterFeatureAttributes(attrs, resultMeta);
+            Object.keys(filtered).forEach(function(key) {
+                if (!seen[key]) {
+                    seen[key] = true;
+                    keys.push(key);
+                }
+            });
+        });
+        return keys;
+    }
+
     // Ergebnisse anzeigen
     function displayResults(results, layers) {
         var statusEl = document.getElementById('spatial-query-status');
         var resultsEl = document.getElementById('spatial-query-results');
-        
-        // Features für späteren Zugriff speichern
-        allQueryFeatures = results.map(function(r) { return r.features || []; });
-        
+
         // Filtere mask_layer aus den Ergebnissen aus
         results = results.filter(function(result) {
             return result.layerName !== 'mask_layer (WFS)' && 
                    result.layerName.toLowerCase().indexOf('mask_layer') === -1;
         });
+
+        allQueryResults = results;
+        allQueryFeatures = results.map(function(r) { return r.features || []; });
+
+        var cfg = spatialQueryConfig || getDefaultSpatialQueryConfig();
+        var maxVisibleColumns = parseInt(cfg.maxVisibleColumns, 10);
+        if (isNaN(maxVisibleColumns) || maxVisibleColumns < 1) {
+            maxVisibleColumns = getDefaultSpatialQueryConfig().maxVisibleColumns;
+        }
         
         // Layer in Kategorien einteilen
         var layersWithResults = [];
@@ -1512,19 +1765,21 @@ var isDrawing = false;
             html += '<div class="query-result-layer">';
             html += '<div class="query-result-header" onclick="toggleQueryResult(this)">';
             html += '<span class="query-result-icon">▶</span>';
-            html += '<span class="query-result-name">' + result.layerName + '</span>';
+            html += '<span class="query-result-name">' + escapeHtml(result.layerName) + '</span>';
             html += '<span class="query-result-count">' + count + '</span>';
             html += '</div>';
             html += '<div class="query-result-content hidden">';
-            html += '<table class="query-result-table">';
-            
-            // Header
-            var attrs = result.features[0].attributes;
-            var keys = Object.keys(attrs).slice(0, 6); // Max 6 Spalten
+            var tableId = 'sq-table-' + layerIdx;
+            html += '<div class="query-result-table-wrap">';
+            html += '<table class="query-result-table" id="' + tableId + '">';
+
+            var keys = collectColumnKeys(result.features, result);
+            var hiddenColumns = Math.max(0, keys.length - maxVisibleColumns);
             html += '<thead><tr>';
             html += '<th></th>'; // Spalte für Zoom-Button
-            keys.forEach(function(key) {
-                html += '<th>' + key + '</th>';
+            keys.forEach(function(key, keyIdx) {
+                var hiddenClass = keyIdx >= maxVisibleColumns ? ' sq-col-hidden' : '';
+                html += '<th class="' + hiddenClass.replace(/^\s+/, '') + '">' + escapeHtml(key) + '</th>';
             });
             html += '</tr></thead>';
             
@@ -1532,16 +1787,25 @@ var isDrawing = false;
             html += '<tbody>';
             result.features.slice(0, 50).forEach(function(feature, featureIdx) {
                 var hasGeom = feature.geometry ? 'true' : 'false';
+                var filteredAttrs = filterFeatureAttributes(feature.attributes, result);
                 html += '<tr class="query-result-row" data-layer="' + layerIdx + '" data-feature="' + featureIdx + '" onclick="highlightFeature(' + layerIdx + ',' + featureIdx + ')">';
                 html += '<td class="zoom-cell"><span class="zoom-icon" title="In Karte zeigen"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/></svg></span></td>';
-                keys.forEach(function(key) {
-                    var val = feature.attributes[key];
+                keys.forEach(function(key, keyIdx) {
+                    var val = filteredAttrs[key];
                     if (val === null || val === undefined) val = '-';
-                    html += '<td>' + val + '</td>';
+                    var hiddenClass = keyIdx >= maxVisibleColumns ? ' sq-col-hidden' : '';
+                    html += '<td class="' + hiddenClass.replace(/^\s+/, '') + '">' + escapeHtml(val) + '</td>';
                 });
                 html += '</tr>';
             });
             html += '</tbody></table>';
+            html += '</div>';
+
+            if (hiddenColumns > 0) {
+                html += '<div class="sq-more-wrap">';
+                html += '<button class="sq-show-more-btn" data-table-id="' + tableId + '" onclick="window.showAllQueryColumns(this)">Mehr anzeigen (' + hiddenColumns + ')</button>';
+                html += '</div>';
+            }
             
             if (count > 50) {
                 html += '<p class="more-results">... und ' + (count - 50) + ' weitere</p>';
@@ -1561,7 +1825,7 @@ var isDrawing = false;
             html += '<div class="query-result-content hidden">';
             html += '<ul class="empty-layers-list">';
             layersWithoutResults.forEach(function(item) {
-                html += '<li>' + item.result.layerName + '</li>';
+                html += '<li>' + escapeHtml(item.result.layerName) + '</li>';
             });
             html += '</ul>';
             html += '</div>';
@@ -1580,7 +1844,7 @@ var isDrawing = false;
             html += '<ul class="not-queryable-layers-list">';
             layersNotQueryable.forEach(function(item) {
                 var errorMsg = item.result.error || 'Unbekannter Fehler';
-                html += '<li>' + item.result.layerName + ' <span class="error-hint">(' + errorMsg + ')</span></li>';
+                html += '<li>' + escapeHtml(item.result.layerName) + ' <span class="error-hint">(' + escapeHtml(errorMsg) + ')</span></li>';
             });
             html += '</ul>';
             html += '</div>';
@@ -1604,10 +1868,24 @@ var isDrawing = false;
             icon.textContent = '▶';
         }
     };
+
+    window.showAllQueryColumns = function(buttonEl) {
+        if (!buttonEl) return;
+        var tableId = buttonEl.getAttribute('data-table-id');
+        if (!tableId) return;
+
+        var table = document.getElementById(tableId);
+        if (!table) return;
+
+        table.querySelectorAll('.sq-col-hidden').forEach(function(cell) {
+            cell.classList.remove('sq-col-hidden');
+        });
+        buttonEl.style.display = 'none';
+    };
     
     // Excel Export
     window.exportQueryToExcel = function() {
-        if (!allQueryFeatures || allQueryFeatures.length === 0) {
+        if (!allQueryResults || allQueryResults.length === 0) {
             alert('Keine Daten zum Exportieren vorhanden.');
             return;
         }
@@ -1615,23 +1893,27 @@ var isDrawing = false;
         var csvContent = '';
         var hasData = false;
         
-        allQueryFeatures.forEach(function(features, layerIdx) {
+        allQueryResults.forEach(function(result, layerIdx) {
+            var features = result && result.features ? result.features : [];
             if (features && features.length > 0) {
                 hasData = true;
                 
                 // Layer-Name als Überschrift
-                var layerName = document.querySelectorAll('.query-result-name')[layerIdx];
-                csvContent += '\n"' + (layerName ? layerName.textContent : 'Layer ' + layerIdx) + '"\n';
+                var layerName = (result && result.layerName) ? result.layerName : ('Layer ' + layerIdx);
+                csvContent += '\n"' + String(layerName).replace(/"/g, '""') + '"\n';
                 
                 // Header
-                var attrs = features[0].attributes;
-                var keys = Object.keys(attrs);
+                var keys = collectColumnKeys(features, result);
+                if (keys.length === 0) {
+                    return;
+                }
                 csvContent += keys.map(function(k) { return '"' + k + '"'; }).join(';') + '\n';
                 
                 // Daten
                 features.forEach(function(feature) {
+                    var filteredAttrs = filterFeatureAttributes(feature.attributes, result);
                     var row = keys.map(function(key) {
-                        var val = feature.attributes[key];
+                        var val = filteredAttrs[key];
                         if (val === null || val === undefined) val = '';
                         // Escape quotes
                         val = String(val).replace(/"/g, '""');

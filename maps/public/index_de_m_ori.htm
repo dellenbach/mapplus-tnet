@@ -1,0 +1,277 @@
+<!DOCTYPE HTML>
+<!--
+  index_de_m.htm
+  GIS NW/OW - Mobile Ansicht
+
+  @version    1.0
+  @date       2026-02-12
+  @copyright  Trigonet AG
+  @author     Marco Dellenbach
+-->
+<html>
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8;" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, minimal-ui" />
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>GIS NW/OW</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@v10.6.0/ol.css"
+    onerror="this.href='/mapplus-lib/openlayers/v10.6.0-package/ol.css';">
+
+  <link rel="shortcut icon" href="favicon.png?" />
+  <!--
+    Layout CSS linking a template and custom layout: to be integrated
+  -->
+  <link rel="stylesheet" type="text/css"
+    href="/mapplus-lib/dojo-release/dojo-release-1.17.3/dijit/themes/tundra/tundra.css" />
+  <link rel="stylesheet" type="text/css"
+    href="/mapplus-lib/dojo-release/dojo-release-1.17.3/dojox/widget/ColorPicker/ColorPicker.css" />
+
+  <!--
+    Layout CSS dojo FloatingPane module
+  -->
+  <!-- google fonts -->
+  <link href="https://fonts.googleapis.com/css?family=Roboto+Slab:400,700" rel="stylesheet">
+
+  <!-- FontAwesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+
+  <!-- mapplusFonta - selfMadeIconFont -->
+  <link rel="stylesheet" href="../core/templates/nwow_floating/mapplusFonta/css/mapplusFonta.css">
+
+  <link rel="stylesheet" href="../core/templates/nwow_floating/css/FloatingPane.css" />
+  <link rel="stylesheet" href="../core/templates/nwow_floating/css/ResizeHandle.css" />
+  <!--
+    Layout CSS dojo Dialog module
+  -->
+  <link rel="stylesheet" href="../core/templates/nwow_floating/css/Dialog.css" />
+  <!--
+    Layout CSS Disclaimer module
+  -->
+  <link rel="stylesheet" href="../core/templates/nwow_floating/css/Disclaimer.css" />
+  <!--
+    Layout CSS dojo checkboxtree module
+  -->
+  <!-- <link rel="stylesheet" href="../core/templates/nwow_floating/css/InfoWindow.css" /> -->
+  <!--
+    POI Manager CSS for icons
+  -->
+  <link rel="stylesheet" href="../core/templates/nwow_floating/css/PoiManager.css" />
+  <!--
+    Layout CSS classic Layermanager module
+  -->
+  <link rel="stylesheet" href="../core/templates/nwow_floating/css/ClassicLayerMgr.css" />
+  <!--
+    ScaleBar CSS
+  -->
+  <link rel="stylesheet" href="../core/templates/nwow_floating/css/scalebar-thin.css" />
+  <!--
+    Layout CSS for search params grids
+  -->
+  <style type="text/css">
+    @import "../core/templates/nwow_floating/css/tundraGrid.css";
+    @import "/mapplus-lib/dojo-release/dojo-release-1.17.3/dojox/grid/enhanced/resources/tundra/EnhancedGrid.css";
+    @import "/mapplus-lib/dojo-release/dojo-release-1.17.3/dojox/grid/enhanced/resources/EnhancedGrid_rtl.css";
+  </style>
+  <link rel="stylesheet" type="text/css" href="../core/templates/nwow_floating/css/style_m.css" />
+
+  <!--
+    Dojo config
+  -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.9.0/proj4.min.js"></script>
+  <script>window.proj4 || document.write('<script src="/mapplus-lib/proj4js/2.9.0/dist/proj4.js">\x3C/script>')</script>
+  <script src="//cdn.jsdelivr.net/npm/ol@v10.6.0/dist/ol.js"></script>
+  <script>window.ol || document.write('<script src="/mapplus-lib/openlayers/v10.6.0-package/dist/ol.js">\x3C/script>')</script>
+  <script type="text/javascript">
+    //<![CDATA[
+    var dojoConfig = {
+      parseOnLoad: false,
+      isDebug: false,
+      baseUrl: "",
+      async: true,
+      packages: [{
+        name: "njs",
+        location: "/mapplus-lib/mapplus-dojo/v4.0.0/extended"
+      }],
+      locale: "de"
+    };
+    //]]>
+    var hideLoader = function () {
+      dojo.fadeOut({
+        node: "preloader",
+        onEnd: function () {
+          dojo.style("preloader", "display", "none");
+        }
+      }).play();
+    }
+  </script>
+  <script src="/mapplus-lib/Sortable/1.15.0/Sortable.min.js"></script>
+  <script
+    data-dojo-config="packages:[{name:'dojo',location:'https://cdnjs.cloudflare.com/ajax/libs/dojo/1.17.3'},{name:'dijit',location:'/mapplus-lib/dojo-release/dojo-release-1.17.3/dijit'},{name:'dojox',location:'/mapplus-lib/dojo-release/dojo-release-1.17.3/dojox'}]"
+    data-dojo-config="mblAlwaysHideAddressBar: true"
+    src="https://cdnjs.cloudflare.com/ajax/libs/dojo/1.17.3/dojo.js"></script>
+  <script>window.define || document.write('<script data-dojo-config= \'packages:[{name:"dojo",location:"/mapplus-lib/dojo-release/dojo-release-1.17.3/dojo"},{name:"dijit",location:"/mapplus-lib/dojo-release/dojo-release-1.17.3/dijit"},{name:"dojox",location:"/mapplus-lib/dojo-release/dojo-release-1.17.3/dojox"}],mblAlwaysHideAddressBar:true\' src="/mapplus-lib/dojo-release/dojo-release-1.17.3/dojo/dojo.js">\x3C/script>')</script>
+
+  <style>
+    
+  </style>
+  <link rel="stylesheet" href="public/css/override_m.css">
+</head>
+
+<body id="body" class="tundra">
+  <!-- Must be the first element loaded (before the scripts -->
+  <div id="preloader"></div>
+  <!-- begin modules load: must be done here in body-->
+
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol-ext/dist/ol-ext.min.css"
+    onerror="this.href='mapplus-lib/openlayers/ol-ext/dist/ol-ext.min.css';">
+  <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/ol-ext/dist/ol-ext.min.js"></script>
+  <script>window.ol.ext || document.write('<script src="/mapplus-lib/openlayers/ol-ext/dist/ol-ext.min.js">\x3C/script>')</script>
+
+  <script type="text/javascript" src="/mapplus-lib/mapplus-dojo/v4.0.0/common.js"></script>
+  <script type="text/javascript" src="/mapplus-lib/mapplus-dojo/v4.0.0/njs.js"></script>
+  <script type="text/javascript" src="/mapplus-lib/mapplus-dojo/v4.0.0/layout.js"></script>
+  <script type="text/javascript" src="/mapplus-lib/mapplus-dojo/v4.0.0/appmanager.js"></script>
+  <script type="text/javascript" src="/mapplus-lib/mapplus-dojo/v4.0.0/search.js"></script>
+  <!-- <script type="text/javascript" src="/mapplus-lib/mapplus-dojo/v4.0.0/floatingwindow.js"></script> -->
+  <script type="text/javascript" src="/mapplus-lib/mapplus-dojo/v4.0.0/provider/OLPlus/openlayers.js"></script>
+  <!--   <script type="text/javascript" src="/mapplus-lib/mapplus-dojo/v4.0.0/provider/OLPlus/Control/olScaleBar.js"></script>
+    <script type="text/javascript" src="/mapplus-lib/mapplus-dojo/v4.0.0/provider/OLPlus/Control/olSelectFeature.js"></script>
+    <script type="text/javascript" src="/mapplus-lib/mapplus-dojo/v4.0.0/provider/OLPlus/Control/olWMSGetFeatureInfo.js"></script>
+    <script type="text/javascript" src="/mapplus-lib/mapplus-dojo/v4.0.0/provider/OLPlus/Handler/Rectangle.js"></script>
+    <script type="text/javascript" src="/mapplus-lib/mapplus-dojo/v4.0.0/provider/OLPlus/Control/DrawShopSelectFeature.js"></script> -->
+
+  <!-- Load provider dependent libraries -->
+  <script type="text/javascript">
+    /* Application configuration */
+    njs.AppManager.Version = "v4.0.0";
+    njs.AppManager.apipath = "/mapplus-lib/mapplus-dojo/";
+    njs.AppManager.Provider = "OLPlus";
+    njs.AppManager.template = "nwow_floating";
+    njs.AppManager.keepalivetimeout = 180000; // millisecs
+    njs.AppManager.keepalivepage = "/mapplus-lib/mapplus-dojo/v4.0.0/php/sso/keepalive.php"
+  </script>
+  <?php print $set_vars?>
+  <!-- dojo modules and startup config-->
+  <script type="text/javascript" src="public/config/modules_m.js?v=v4.0.0"></script>
+  <!-- end modules load -->
+  <div id="NeapoljsContainer" dojotype="dijit.layout.BorderContainer" design="headline" gutters="false"
+    style="width:100%; height:100%;">
+    <!-- COMMENT TO BE PUT IN THE WIKI
+            The map in Neapoljs is in the "center" pane.
+              1) With OpenLayers do not assign the ol container to the dojo ContentPane
+                Doing that it will disable the wheel zoom !!
+              2) Set the height of the map container to 99% (100% will set content largely outside the pane: BUG ?)
+              3) set the overflow to hidden in the ContentPane (in order not to see the scrollbars as the content goes outside the pane)
+        -->
+    <div id="centerPane" class="edgePanel" data-dojo-type="dijit.layout.ContentPane" data-dojo-props="region: 'center'"
+      style="margin: 0px;padding: 0px;border: none;">
+      <div id="centerPaneLayout" class="demoLayout" data-dojo-type="dijit.layout.BorderContainer"
+        data-dojo-props="design: 'headline'" style="margin: 0px;padding: 0px;border: none">
+        <div dojotype="dijit.layout.ContentPane" id="mapContainer" region="center" style="overflow:hidden;">
+          <div id="map"></div>
+
+          <div id="popup" class="ol-popup">
+            <a href="#" id="popup-closer" class="ol-popup-closer"></a>
+            <div id="popup-content"></div>
+          </div>
+
+          <span class="mainButtonAll">
+            <div id="mainButtonBar"></div>
+            <div id="mainButtonMeasure" class="btn_mainButtonMeasure"></div>
+          </span>
+
+
+          <div id="njs_search_wrapper"></div>
+          <div id="njs_coordinates_wrapper"></div>
+          <div id="scale-line"></div>
+
+          <!-- Disclamer container, not displayed now ... -->
+          <div class="row">
+            <div id="disclaimer_mapplusbytydac" class="njsDisclaimer"></div>
+          </div>
+
+        </div>
+
+        <div dojotype="dijit.layout.ContentPane" id="custompaneContainer" class="outer"
+          style="display:none;width:100%; -webkit-overflow-scrolling:touch !important; margin: 0px;padding: 0px;border: none;"
+          data-dojo-props="region: 'right', splitter: false" doLayout="false">
+          <iframe id="custompaneFrame" src="" height="100%"
+            style="-webkit-overflow-scrolling:touch !important; border:none; width:100%; height:100%;">
+          </iframe>
+          <iframe id="custompaneFrameForm" src="" height="100%"
+            style="-webkit-overflow-scrolling:touch !important;border:none; width:100%; height:100%;">
+          </iframe>
+          <!-- divert maptips in this area -->
+          <!-- <div id="custompaneDiv"></div> -->
+
+        </div>
+      </div>
+
+    </div>
+    <!-- left container -->
+    <div id="leftPaneContainer" class="edgePanel left_contentpane" data-dojo-type="dijit.layout.ContentPane"
+      data-dojo-props="region: 'left', splitter: false">
+      <!--NEw BorderContainer in order to split right pane into sections-->
+      <div id="paneLayout" class="demoLayout" data-dojo-type="dijit.layout.BorderContainer"
+        data-dojo-props="design: 'headline'">
+        <!-- headPane -->
+        <div id="btnZuruck" onclick="njs.AppManager.toggleCustomPaneContent('leftpane','leftPane',null,'');">
+        </div>
+        <!-- CentePannel for accordeon-->
+        <div id="freePaneAccordeonContentPane" dojotype="dijit.layout.ContentPane" data-dojo-props="region: 'center'"
+          style="padding:0px;margin:0px;">
+          <div id="freePaneAccordeon" dojotype="dijit.layout.AccordionContainer" style="height: 100%;">
+            <!-- TOOL MENU -->
+
+            <!-- LAYERMANAGER MENU -->
+
+            <div id="layer_menu" dojotype="dijit.layout.ContentPane" title="Grundlagen, Planung, Umwelt">
+              <div id="njs_main_lyrmgr_wrapper" style="width: 100%; background-color: #fff"></div>
+            </div>
+
+            <div id="layer_menu2" dojotype="dijit.layout.ContentPane" title="Infrastruktur, Tourismus">
+              <div id="njs_second_lyrmgr_wrapper" style="width: 100%; background-color: #fff"></div>
+            </div>
+
+            <!-- LAYERMANAGER SORT LAYERS -->
+            <!--<div id="sort_menu" dojotype="dijit.layout.ContentPane" title="Sort" style="display: none !important;">-->
+            <div id="njs_main_lyrsorter_wrapper" style="width: 100%; height:100%; border:0"
+              style="display: none !important;">
+              <ul id="main_lyrsorter" style="list-style-type: none; padding: 0;display: none !important;">
+              </ul>
+            </div>
+            <!--</div>-->
+            <!-- SEARCH MENU -->
+          </div>
+        </div>
+        <!-- End CentePannel for accordeon-->
+        <!-- FooterPane for coords-->
+        <div id="footPane_main" class="edgePanel" data-dojo-type="dijit.layout.ContentPane"
+          data-dojo-props="region: 'bottom'" style="display: none !important;">
+          <div id="footPane" class="edgePanel" data-dojo-type="dijit.layout.ContentPane"
+            data-dojo-props="region: 'top'">
+
+          </div>
+          <!-- End FooterPane for coords-->
+          <div id="footPane2" class="edgePanel" data-dojo-type="dijit.layout.ContentPane"
+            data-dojo-props="region: 'bottom'">
+            <div id="logoMapPlus2" class="njsFooter">
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- End BorderContainer paneLayout-->
+    </div>
+    <!-- End EdgePannel -->
+  </div>
+  <!-- end NeapoljsContainer-->
+  <!-- freesearchresult modified-->
+  <script type="text/javascript">
+    window.onload = function () {
+      document.getElementById("btnZuruck").style.visibility = 'visible';
+    }
+  </script>
+</body>
+
+</html>

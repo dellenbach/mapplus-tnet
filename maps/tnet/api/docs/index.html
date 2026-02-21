@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>TNET GIS API — Dokumentation</title>
+    <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css">
+    <style>
+        html { box-sizing: border-box; overflow-y: scroll; }
+        *, *:before, *:after { box-sizing: inherit; }
+        body { margin: 0; background: #fafafa; }
+        .swagger-ui .topbar { display: none !important; }
+        .swagger-ui .info { margin: 30px 0; }
+        .swagger-ui .info .title { font-size: 2em; }
+        #swagger-ui { max-width: 1200px; margin: 0 auto; padding: 20px; }
+        .api-header {
+            background: #2c5f6f;
+            color: white;
+            padding: 12px 20px;
+            font-family: Arial, sans-serif;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        .api-header h1 { margin: 0; font-size: 20px; font-weight: 600; }
+        .api-header .version {
+            background: rgba(255,255,255,0.2);
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+        .api-header a {
+            color: #b8e0ec;
+            margin-left: auto;
+            text-decoration: none;
+            font-size: 14px;
+        }
+        .api-header a:hover { color: white; }
+    </style>
+</head>
+<body>
+    <div class="api-header">
+        <h1>TNET GIS API</h1>
+        <span class="version">v1.0</span>
+        <a href="../v1/info">API Info</a>
+    </div>
+    <div id="swagger-ui"></div>
+
+    <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
+    <script>
+        window.onload = function () {
+            SwaggerUIBundle({
+                url: "openapi.yaml",
+                dom_id: '#swagger-ui',
+                deepLinking: true,
+                presets: [
+                    SwaggerUIBundle.presets.apis,
+                    SwaggerUIBundle.SwaggerUIStandalonePreset
+                ],
+                layout: "BaseLayout",
+                defaultModelsExpandDepth: 2,
+                defaultModelExpandDepth: 2,
+                docExpansion: "list",
+                filter: true,
+                tryItOutEnabled: true
+            });
+        };
+    </script>
+</body>
+</html>

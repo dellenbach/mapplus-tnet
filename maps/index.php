@@ -7,12 +7,56 @@ if ($host === 'nwow.mapplus.ch' && $requestUri === '/maps/') {
     //exit;
 }
 
+/**
+ * Cleanup alte Token-Dateien (älter als 1 Tag)
+ * - Session-Tokens: /data/Client_Data/nwow/tmp/token/mapplus_token_*
+ * - ArcGIS-Cache: _token_cache/arcgis_token.json (wenn abgelaufen)
+ */
+function cleanupOldTokens() {
+    // Session-Tokens aufräumen
+    $tokenDir = '/data/Client_Data/nwow/tmp/token';
+    $maxAge = 86400; // 1 Tag in Sekunden
+    $now = time();
+    
+    if (is_dir($tokenDir)) {
+        $tokenFiles = glob($tokenDir . '/mapplus_token_*');
+        if ($tokenFiles) {
+            foreach ($tokenFiles as $file) {
+                if (is_file($file) && ($now - filemtime($file)) > $maxAge) {
+                    @unlink($file);
+                }
+            }
+        }
+    }
+    
+    // ArcGIS-Cache-Token aufräumen (falls abgelaufen)
+    $cacheDir = __DIR__ . "/_token_cache";
+    $cacheFile = $cacheDir . "/arcgis_token.json";
+    
+    if (is_file($cacheFile)) {
+        $cacheData = @json_decode(file_get_contents($cacheFile), true);
+        if ($cacheData && isset($cacheData['expires'])) {
+            // expires in Millisekunden, time() in Sekunden
+            if ($cacheData['expires'] < ($now * 1000)) {
+                @unlink($cacheFile);
+            }
+        }
+    }
+}
+
+// Token-Cleanup beim App-Start (max. alle 60s)
+if (!isset($_SESSION['lastTokenCleanup']) || (time() - $_SESSION['lastTokenCleanup']) > 60) {
+    cleanupOldTokens();
+    $_SESSION['lastTokenCleanup'] = time();
+}
+
 // Token für agsproxy
 
 $token = bin2hex(random_bytes(32));
 $expires = time() + 86400; // Ablaufzeit (z.B. 1 Tag)
 //file_put_contents('/tmp/mapplus_token_' . $token, $expires);
-file_put_contents('/data/Client_Data/nwow/tmp/token/mapplus_token_' . $token, $expires);
+$tokenDir = '/data/Client_Data/nwow/tmp/token';
+file_put_contents($tokenDir . '/mapplus_token_' . $token, $expires);
 
 setcookie("mapplus_token", $token, [
     'expires' => $expires,

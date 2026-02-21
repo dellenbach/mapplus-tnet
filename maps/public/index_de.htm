@@ -27,8 +27,8 @@
     <link rel="preload" href="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js" as="script">
     <link rel="preload" href="https://cdn.jsdelivr.net/npm/sortablejs@1.15.6/Sortable.min.js" as="script">
     <link rel="preload" href="https://cdn.jsdelivr.net/npm/ol@v10.6.0/ol.css" as="style">
-    <link rel="preload" href="https://cdn.jsdelivr.net/npm/ol-ext/dist/ol-ext.min.js" as="script">
-    <link rel="preload" href="https://cdn.jsdelivr.net/npm/ol-ext/dist/ol-ext.min.css" as="style">
+    <link rel="preload" href="/mapplus-lib/openlayers/ol-ext/dist/ol-ext.min.js" as="script">
+    <link rel="preload" href="/mapplus-lib/openlayers/ol-ext/dist/ol-ext.min.css" as="style">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <title>MAP+ GIS Daten AG</title>
     
@@ -184,10 +184,10 @@
     </div>
     <!-- begin modules load: must be done here in body-->
 
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol-ext/dist/ol-ext.min.css"
-        onerror="this.href='mapplus-lib/openlayers/ol-ext/dist/ol-ext.min.css';">
-    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/ol-ext/dist/ol-ext.min.js"></script>
-    <script>window.ol.ext || document.write('<script src="/mapplus-lib/openlayers/ol-ext/dist/ol-ext.min.js">\x3C/script>')</script>
+    <link rel="stylesheet" href="/mapplus-lib/openlayers/ol-ext/dist/ol-ext.min.css">
+    <!-- ol-ext: lokale Version primär (garantiert ol.control.Mover), CDN als Fallback -->
+    <script type="text/javascript" src="/mapplus-lib/openlayers/ol-ext/dist/ol-ext.min.js"></script>
+    <script>(window.ol && window.ol.control && window.ol.control.Mover) || document.write('<script src="https://cdn.jsdelivr.net/npm/ol-ext@3.3.25/dist/ol-ext.min.js">\x3C/script>')</script>
 
     <script type="text/javascript" src="/mapplus-lib/mapplus-dojo/v4.0.0/common.js"></script>
     <script type="text/javascript" src="/mapplus-lib/mapplus-dojo/v4.0.0/njs.js"></script>

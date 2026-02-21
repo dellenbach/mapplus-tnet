@@ -195,6 +195,20 @@
   spatialQuery: {
     _description: "Räumliche Abfragen",
     enabled: true,
+    maxVisibleColumns: 10,  // Initial sichtbare Spalten (Rest via "Mehr")
+    globalBlacklist: [      // Glob-Patterns (case-insensitive)
+      "OBJECTID*",
+      "Shape*",
+      "GlobalID",
+      "gml_id",
+      "*_gml_id",
+      "SHAPE.STArea*",
+      "SHAPE.STLength*",
+    ],
+    layerBlacklist: {       // Key matcht auf Layer-Name ODER URL-Fragment
+      // "av_ls_eigentuemer": ["fid", "created_at"],
+      // "geo.admin.ch": ["legend_text"],
+    },
     bufferDistances: [10, 25, 50, 100, 250, 500, 1000],  // Puffer-Distanzen in Metern
   },
   

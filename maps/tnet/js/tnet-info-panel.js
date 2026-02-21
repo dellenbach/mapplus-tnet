@@ -162,11 +162,12 @@ function initInfoPaneEnhancements() {
     }, 500);
 
     // Fallback-Check (seltener, nur für edge cases wie Neuöffnung)
-    setInterval(function() {
+    var fallbackInterval = setInterval(function() {
         var infoPane = document.getElementById('njs_info_pane');
-        if (infoPane && infoPane.style.visibility === 'visible') {
+        if (infoPane) {
             attachPaneObserver(infoPane); // Observer setzen falls noch nicht aktiv
-            enhanceInfoPane();
+            if (infoPane.style.visibility === 'visible') enhanceInfoPane();
+            clearInterval(fallbackInterval); // Fertig: Observer übernimmt
         }
     }, 3000);
 }

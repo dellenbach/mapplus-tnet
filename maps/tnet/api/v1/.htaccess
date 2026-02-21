@@ -1,0 +1,19 @@
+# TNET API - Clean URLs (ohne .php Endung)
+# Platziert in v1/ damit die Regeln direkt greifen
+#
+# Ermöglicht Aufrufe wie:
+#   /maps/tnet/api/v1/layers?group=marco
+# statt:
+#   /maps/tnet/api/v1/layers.php?group=marco
+
+Options +FollowSymLinks -MultiViews
+RewriteEngine On
+RewriteBase /maps/tnet/api/v1/
+
+# Wenn die angeforderte Datei/Ordner existiert → nichts tun
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+
+# layers, basemaps, bookmarks, info, cache, server-check → .php anhängen
+RewriteRule ^([a-zA-Z0-9_-]+)$ $1.php [L,QSA]
