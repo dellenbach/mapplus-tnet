@@ -20,11 +20,40 @@
     var currentXhr   = null;
     var lastQuery    = '';
     var featureHighlightLayer = null;
+    var _searchZoomConfig = null;   // aus tnet-global-config.json5 geladen
 
     // -- Map/Layer Helpers ---------------------------------------------------
 
     function getMapView() {
         try { return njs.AppManager.Maps['main'].mapObj.getView(); } catch (e) { return null; }
+    }
+
+    /** Prüft ob die aktive Basemap ein Orthophoto ist */
+    function isOrthophotoActive() {
+        try {
+            var bm = njs.AppManager.Maps['main'].currBasisMap || njs.AppManager.Maps['main'].basisMap || '';
+            if (/swissimage|ortho/i.test(bm)) return true;
+        } catch (e) {}
+        var card = document.querySelector('.basemap-card.active');
+        if (card && /swissimage|ortho/i.test(card.dataset.basemap || '')) return true;
+        return false;
+    }
+
+    /** Basemap-abhängige Zoom-Stufen (aus Config oder Fallback) */
+    function getZoomLevels() {
+        var key = isOrthophotoActive() ? 'orthophoto' : 'other';
+        if (_searchZoomConfig && _searchZoomConfig[key]) {
+            var c = _searchZoomConfig[key];
+            return {
+                point:      c.point      != null ? c.point      : (key === 'orthophoto' ? 25 : 24),
+                fitMax:     c.fitMax     != null ? c.fitMax     : (key === 'orthophoto' ? 25 : 24),
+                fitMin:     c.fitMin     != null ? c.fitMin     : (key === 'orthophoto' ? 16 : 15),
+                panDefault: c.panDefault != null ? c.panDefault : (key === 'orthophoto' ? 25 : 24)
+            };
+        }
+        // Fallback falls Config nicht geladen
+        if (key === 'orthophoto') return { point: 25, fitMax: 25, fitMin: 16, panDefault: 25 };
+        return { point: 24, fitMax: 24, fitMin: 15, panDefault: 24 };
     }
 
     /** Zur Koordinate animieren. x=Northing, y=Easting (LV95) */
@@ -35,7 +64,8 @@
         var coord = (typeof ol !== 'undefined' && ol.proj)
             ? ol.proj.transform([y, x], 'EPSG:2056', mapProj)
             : [y, x];
-        view.animate({ center: coord, zoom: zoom || 15, duration: 400 });
+        var zl = getZoomLevels();
+        view.animate({ center: coord, zoom: zoom || zl.panDefault, duration: 400 });
     }
 
     /**
@@ -128,10 +158,11 @@
                 var w = extent[2] - extent[0];
                 var h = extent[3] - extent[1];
                 if (w > 1 || h > 1) {
+                    var zl = getZoomLevels();
                     view.fit(extent, {
                         padding: [50, 50, 50, 50],
-                        minZoom: 14,
-                        maxZoom: 17,
+                        minZoom: zl.fitMin,
+                        maxZoom: zl.fitMax,
                         duration: 500,
                         constrainResolution: false
                     });
@@ -139,7 +170,8 @@
                     // Punkt-Geometrie: zur Mitte zoomen
                     var cx = (extent[0] + extent[2]) / 2;
                     var cy = (extent[1] + extent[3]) / 2;
-                    view.animate({ center: [cx, cy], zoom: 16, duration: 500 });
+                    var zl2 = getZoomLevels();
+                    view.animate({ center: [cx, cy], zoom: zl2.point, duration: 500 });
                 }
             } catch (e) {
                 console.warn('[DesktopSearch] Feature-Geometrie konnte nicht geladen werden:', e);
@@ -457,6 +489,9 @@
                 .then(function (r) { if (!r.ok) throw new Error(r.status); return r.text(); })
                 .then(function (t) {
                     var parsed = JSON5.parse(t);
+                    if (parsed && parsed.search && parsed.search.zoom) {
+                        _searchZoomConfig = parsed.search.zoom;
+                    }
                     return (parsed && parsed.search) ? parsed.search : null;
                 })
                 .catch(function () { return tryPath(i + 1); });

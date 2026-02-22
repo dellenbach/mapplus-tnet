@@ -189,6 +189,38 @@
     njsSearchEnabled: false,
     // TNET-Suche (tnet-search.js / search-proxy.php) ein-/ausblenden
     tnetSearchEnabled: true,
+
+    // ---- Zoom-Stufen (Swisstopo TileGrid, 29 Stufen, Zoom 0-28) ----
+    // Zoom-Werte sind basemap-abhängig weil das Orthophoto höhere
+    // Zoom-Level unterstützt als Plan/Basisplan.
+    //
+    // Referenz: Swisstopo-Resolutions
+    //   Zoom 15 = 500m/px   (~1:1'800'000)
+    //   Zoom 18 = 50m/px    (~1:180'000)
+    //   Zoom 20 = 10m/px    (~1:36'000)
+    //   Zoom 22 = 2.5m/px   (~1:9'000)
+    //   Zoom 23 = 2.0m/px   (~1:7'200)
+    //   Zoom 24 = 1.5m/px   (~1:5'400)
+    //   Zoom 25 = 1.0m/px   (~1:3'600)
+    //   Zoom 26 = 0.5m/px   (~1:1'800)
+    //   Zoom 27 = 0.25m/px  (~1:900)
+    //   Zoom 28 = 0.1m/px   (~1:360)
+    zoom: {
+      // Orthophoto (swissimage): höhere Zoom-Level verfügbar
+      orthophoto: {
+        point: 25,        // Punkt-Geometrie / Adresse
+        fitMax: 25,       // Flächen-Geometrie: maximaler Zoom bei view.fit()
+        fitMin: 16,       // Flächen-Geometrie: minimaler Zoom bei view.fit()
+        panDefault: 25,   // Standard-Zoom bei panToResult() (Geocoder)
+      },
+      // Plan / Basisplan / andere Basemaps
+      other: {
+        point: 24,
+        fitMax: 24,
+        fitMin: 15,
+        panDefault: 24,
+      },
+    },
   },
 
   // ============================================================
@@ -198,6 +230,9 @@
     _description: "ÖREB Kataster Integration",
     enabled: true,
     apiUrl: "https://api.geo.admin.ch/rest/services/api/MapServer",
+    // Basemap-abhängiger maxZoom für Parzellen-Fit
+    maxZoomOrthophoto: 23,
+    maxZoomOther: 18,
     timeout: 5000,
   },
   

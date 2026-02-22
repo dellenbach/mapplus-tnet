@@ -59,6 +59,7 @@ var _oerebFitAnimating = false;  // Guard: view.fit() Animation läuft
 var _oerebSavedView = null;        // Gespeicherte View nach view.fit() (center + zoom)
 var _oerebMoveEndKey = null;        // OL-Listener Key für moveend-Überwachung
 var _oerebViewGuardTimer = null;    // Timer für View-Guard Timeout
+var _oerebMaxZoomConfig = null;     // aus tnet-global-config.json5 geladen
 
 // Globaler Flag für andere Module (analog isPolygonDrawing)
 window.isOerebActive = false;
@@ -73,6 +74,32 @@ var _njsInfoHighlightLayer = null;
 var _njsInfoHighlightWasVisible = true;
 var _njsInfoHighlightLogged = false;
 var _njsInfoHighlightLayers = [];
+
+// -- Config-Loading: maxZoom aus tnet-global-config.json5 laden ---------------
+(function loadOerebConfig() {
+    if (typeof JSON5 === 'undefined') return;
+    var paths = [
+        '/maps/tnet/config/tnet-global-config.json5',
+        '/maps/tnet/tnet-global-config.json5',
+        '../tnet/config/tnet-global-config.json5'
+    ];
+    function tryPath(i) {
+        if (i >= paths.length) return;
+        fetch(paths[i])
+            .then(function (r) { if (!r.ok) throw new Error(r.status); return r.text(); })
+            .then(function (t) {
+                var parsed = JSON5.parse(t);
+                if (parsed && parsed.oereb) {
+                    _oerebMaxZoomConfig = parsed.oereb;
+                    console.log('[OEREB] Config geladen: maxZoomOrthophoto=' +
+                        _oerebMaxZoomConfig.maxZoomOrthophoto + ', maxZoomOther=' +
+                        _oerebMaxZoomConfig.maxZoomOther);
+                }
+            })
+            .catch(function () { tryPath(i + 1); });
+    }
+    tryPath(0);
+})();
 // Gespeicherte Features vor dem Leeren
 var _njsInfoHighlightFeatures = [];
 
@@ -748,10 +775,29 @@ function highlightOerebParcel(geojsonGeom, map) {
             // Bestehenden View-Guard aufräumen
             stopOerebViewGuard(map);
 
+            // Basemap-abhängiger maxZoom: Orthophoto braucht höhere Werte
+            // Werte aus Config, Fallback auf hardcoded
+            var oerebMaxZoomOrtho = (_oerebMaxZoomConfig && _oerebMaxZoomConfig.maxZoomOrthophoto != null)
+                ? _oerebMaxZoomConfig.maxZoomOrthophoto : 23;
+            var oerebMaxZoomPlan  = (_oerebMaxZoomConfig && _oerebMaxZoomConfig.maxZoomOther != null)
+                ? _oerebMaxZoomConfig.maxZoomOther : 18;
+            var oerebMaxZoom = oerebMaxZoomPlan;
+            try {
+                var bm = njs.AppManager.Maps['main'].currBasisMap || njs.AppManager.Maps['main'].basisMap || '';
+                if (/swissimage|ortho/i.test(bm)) oerebMaxZoom = oerebMaxZoomOrtho;
+            } catch (e) {}
+            if (oerebMaxZoom === oerebMaxZoomPlan) {
+                var card = document.querySelector('.basemap-card.active');
+                if (card && /swissimage|ortho/i.test(card.dataset.basemap || '')) oerebMaxZoom = oerebMaxZoomOrtho;
+            }
+
+            // Auf Mobile duration:0 (sofort), damit kein updateSize() dazwischen feuern kann.
+            // Auf Desktop: animation 600ms wie bisher.
+            var fitDuration = isMobileView() ? 0 : 600;
             map.getView().fit(extent, {
                 padding: [80, 80, bottomPad, 80],
-                maxZoom: 18,
-                duration: 600,
+                maxZoom: oerebMaxZoom,
+                duration: fitDuration,
                 callback: function(completed) {
                     // View-State speichern und Überwachung starten
                     var view = map.getView();
@@ -760,7 +806,7 @@ function highlightOerebParcel(geojsonGeom, map) {
                         zoom: view.getZoom(),
                         time: Date.now()
                     };
-                    console.log('[OEREB] Zoom nach fit:', _oerebSavedView.zoom, 'completed:', completed);
+                    console.log('[OEREB] Zoom nach fit:', _oerebSavedView.zoom, 'completed:', completed, 'maxZoom:', oerebMaxZoom);
                     startOerebViewGuard(map);
                 }
             });
@@ -808,20 +854,19 @@ function startOerebViewGuard(map) {
 
         if (zoomDiff > 0.3 || centerDx > 100 || centerDy > 100) {
             console.warn('[OEREB] View wurde ver\u00e4ndert (zoom: ' + currentZoom.toFixed(2) + ' vs ' + savedZoom.toFixed(2) +
-                '), stelle wieder her');
-            view.animate({
-                center: savedCenter,
-                zoom: savedZoom,
-                duration: 300
-            });
+                ', dy: ' + centerDy.toFixed(0) + '), stelle wieder her');
+            // Sofort setzen (kein animate!) damit kein updateSize dazwischenfunken kann
+            try { view.cancelAnimations(); } catch (e) {}
+            view.setCenter(savedCenter);
+            view.setZoom(savedZoom);
         }
     });
 
-    // Guard nach 3s beenden
+    // Guard nach 5s beenden (3s war zu kurz für Mobile Container-Resize)
     if (_oerebViewGuardTimer) clearTimeout(_oerebViewGuardTimer);
     _oerebViewGuardTimer = setTimeout(function() {
         stopOerebViewGuard(map);
-    }, 3000);
+    }, 5000);
 }
 
 /** View-Guard stoppen */
@@ -836,6 +881,7 @@ function stopOerebViewGuard(map) {
         clearTimeout(_oerebViewGuardTimer);
         _oerebViewGuardTimer = null;
     }
+    window._tnetBlockResize = false;
 }
 
 function clearOerebHighlight() {

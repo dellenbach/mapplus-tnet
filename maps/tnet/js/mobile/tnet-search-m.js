@@ -21,6 +21,7 @@
     var currentXhr   = null;
     var lastQuery    = '';
     var featureHighlightLayer = null;
+    var _searchZoomConfig = null;   // aus tnet-global-config.json5 geladen
 
     // -- Map/Layer Helpers ---------------------------------------------------
 
@@ -32,88 +33,50 @@
         try { return njs.AppManager.Maps['main'].mapObj.getView(); } catch (e) { return null; }
     }
 
-    // -- Keyboard-aware Zoom --------------------------------------------------
-    // Wartet bis die Tastatur vollständig geschlossen ist (viewport stabil),
-    // dann setzt den View und bewacht ihn für 4s gegen Framework-Resets.
-
-    var _searchViewGuardKey = null;
-    var _searchViewGuardTimer = null;
-    var _searchSavedView = null;
-    var _searchGuardCount = 0;
+    /** Prüft ob die aktive Basemap ein Orthophoto ist */
+    function isOrthophotoActive() {
+        try {
+            var bm = njs.AppManager.Maps['main'].currBasisMap || njs.AppManager.Maps['main'].basisMap || '';
+            if (/swissimage|ortho/i.test(bm)) return true;
+        } catch (e) {}
+        var card = document.querySelector('.basemap-card.active');
+        if (card && /swissimage|ortho/i.test(card.dataset.basemap || '')) return true;
+        return false;
+    }
 
     /**
-     * Setzt View und bewacht ihn aggressiv gegen Resets.
-     * Wird NACH dem Keyboard-Close aufgerufen (delayed).
+     * Basemap-abhängige Zoom-Stufen (aus Config oder Fallback).
+     * Orthophoto unterstützt höhere Zoom-Level als Plan/Basisplan.
+     * Bei Plan/Basisplan eine Stufe weiter raus.
      */
-    function applyAndGuardView(map, view, center, zoom) {
-        stopViewGuard();
-        window._tnetBlockResize = true;
-        _searchSavedView = { center: center.slice(), zoom: zoom };
-        _searchGuardCount = 0;
-
-        function forceView() {
-            try { view.cancelAnimations(); } catch (e) {}
-            view.setCenter(_searchSavedView.center);
-            view.setZoom(_searchSavedView.zoom);
-            console.log('[MobileSearch] forceView applied, zoom=' + _searchSavedView.zoom);
+    function getZoomLevels() {
+        var key = isOrthophotoActive() ? 'orthophoto' : 'other';
+        if (_searchZoomConfig && _searchZoomConfig[key]) {
+            var c = _searchZoomConfig[key];
+            return {
+                point:      c.point      != null ? c.point      : (key === 'orthophoto' ? 25 : 24),
+                fitMax:     c.fitMax     != null ? c.fitMax     : (key === 'orthophoto' ? 25 : 24),
+                fitMin:     c.fitMin     != null ? c.fitMin     : (key === 'orthophoto' ? 16 : 15),
+                panDefault: c.panDefault != null ? c.panDefault : (key === 'orthophoto' ? 25 : 24)
+            };
         }
-
-        // Sofort setzen
-        forceView();
-
-        // Mehrfach nachsetzen um Framework-Resets zu überleben
-        // (Resize-Events kommen oft in Wellen: 100ms, 300ms, 600ms nach Keyboard-Close)
-        setTimeout(forceView, 150);
-        setTimeout(forceView, 400);
-        setTimeout(forceView, 800);
-
-        // moveend-Guard für unvorhergesehene Resets
-        _searchViewGuardKey = map.on('moveend', function () {
-            if (!_searchSavedView) return;
-            var curZoom = view.getZoom();
-            var curCenter = view.getCenter();
-            var zoomDiff = Math.abs(curZoom - _searchSavedView.zoom);
-            var dx = Math.abs(curCenter[0] - _searchSavedView.center[0]);
-            var dy = Math.abs(curCenter[1] - _searchSavedView.center[1]);
-            if (zoomDiff > 0.3 || dx > 100 || dy > 100) {
-                _searchGuardCount++;
-                console.log('[MobileSearch] ViewGuard #' + _searchGuardCount +
-                    ': zoom ' + curZoom.toFixed(1) + '->' + _searchSavedView.zoom +
-                    ' dx=' + dx.toFixed(0) + ' dy=' + dy.toFixed(0) + ', restoring');
-                forceView();
-            }
-        });
-
-        // Guard nach 4s beenden
-        _searchViewGuardTimer = setTimeout(function () {
-            console.log('[MobileSearch] ViewGuard ended after 4s (restored ' + _searchGuardCount + 'x)');
-            stopViewGuard();
-        }, 4000);
+        // Fallback falls Config nicht geladen
+        if (key === 'orthophoto') return { point: 25, fitMax: 25, fitMin: 16, panDefault: 25 };
+        return { point: 24, fitMax: 24, fitMin: 15, panDefault: 24 };
     }
 
-    function stopViewGuard() {
-        if (_searchViewGuardKey) {
-            ol.Observable.unByKey(_searchViewGuardKey);
-            _searchViewGuardKey = null;
-        }
-        if (_searchViewGuardTimer) {
-            clearTimeout(_searchViewGuardTimer);
-            _searchViewGuardTimer = null;
-        }
-        _searchSavedView = null;
-        _searchGuardCount = 0;
-        window._tnetBlockResize = false;
-    }
+    // -- Keyboard-aware Zoom --------------------------------------------------
 
     /**
      * Wartet auf stabile Viewport-Höhe (Tastatur geschlossen), dann ruft callback.
      * Prüft alle 100ms ob innerHeight sich stabilisiert hat.
+     * Nach dem Settle kurze Pause damit OL updateSize() fertig hat.
      */
     function waitForKeyboardClose(callback) {
         var stableHeight = window.innerHeight;
         var stableCount = 0;
         var checks = 0;
-        var maxChecks = 20; // max 2s warten
+        var maxChecks = 20;
 
         var interval = setInterval(function () {
             checks++;
@@ -123,30 +86,30 @@
                 stableHeight = window.innerHeight;
                 stableCount = 0;
             }
-            // 3 stabile Messungen (300ms stabil) oder Timeout
             if (stableCount >= 3 || checks >= maxChecks) {
                 clearInterval(interval);
                 console.log('[MobileSearch] Keyboard settled after ' + (checks * 100) + 'ms, height=' + stableHeight);
-                callback();
+                setTimeout(callback, 300);
             }
         }, 100);
     }
 
     /** Zur Koordinate zoomen. x=Northing, y=Easting (LV95) */
     function panToResult(x, y, zoom) {
-        var map  = getMap();
         var view = getMapView();
         console.log('[MobileSearch] panToResult x=' + x + ' y=' + y);
-        if (!view || !map || x == null || y == null) return;
+        if (!view || x == null || y == null) return;
         var mapProj = view.getProjection().getCode();
         var coord = (typeof ol !== 'undefined' && ol.proj)
             ? ol.proj.transform([y, x], 'EPSG:2056', mapProj)
             : [y, x];
-        var targetZoom = zoom || 14;
+        var zl = getZoomLevels();
+        var targetZoom = zoom || zl.panDefault;
 
-        // Warte bis Tastatur geschlossen, dann zoomen + bewachen
         waitForKeyboardClose(function () {
-            applyAndGuardView(map, view, coord, targetZoom);
+            view.setCenter(coord);
+            view.setZoom(targetZoom);
+            console.log('[MobileSearch] panToResult done, zoom=' + targetZoom + ' ortho=' + isOrthophotoActive());
         });
     }
 
@@ -245,23 +208,23 @@
 
                 // Zoom NACH Keyboard-Close anwenden
                 waitForKeyboardClose(function () {
+                    var zl = getZoomLevels();
                     if (w > 1 || h > 1) {
                         // Flächen-Geometrie: fitten
-                        try { view.cancelAnimations(); } catch (e2) {}
                         view.fit(extent, {
                             padding: [50, 50, 50, 50],
-                            minZoom: 12,
-                            maxZoom: 16,
+                            minZoom: zl.fitMin,
+                            maxZoom: zl.fitMax,
                             duration: 0
                         });
-                        // Guard mit resultierendem Center/Zoom
-                        applyAndGuardView(map, view, view.getCenter(), view.getZoom());
-                        console.log('[MobileSearch] fit applied, zoom=' + view.getZoom().toFixed(1));
+                        console.log('[MobileSearch] fit applied, zoom=' + view.getZoom().toFixed(1) + ' ortho=' + isOrthophotoActive());
                     } else {
                         // Punkt-Geometrie: zur Mitte zoomen
                         var cx = (extent[0] + extent[2]) / 2;
                         var cy = (extent[1] + extent[3]) / 2;
-                        applyAndGuardView(map, view, [cx, cy], 14);
+                        view.setCenter([cx, cy]);
+                        view.setZoom(zl.point);
+                        console.log('[MobileSearch] point zoom=' + zl.point + ', center=[' + cx.toFixed(0) + ',' + cy.toFixed(0) + ']');
                     }
                 });
             } catch (e) {
@@ -393,16 +356,9 @@
 
             // Immer vorherigen Feature-Highlight entfernen
             clearFeatureHighlight();
-            // Vorherigen View-Guard stoppen
-            stopViewGuard();
 
-            // SOFORT Resize blockieren bevor Tastatur schliesst (blur → resize)
-            // Der Guard in panToResult/highlightFeature übernimmt danach
-            if (item.type !== 'layer') {
-                window._tnetBlockResize = true;
-            }
-
-            // Input blur: Tastatur schliessen bevor Karte bewegt wird
+            // Input blur: Tastatur schliessen
+            // waitForKeyboardClose() in pan/highlight wartet auf stabilen Container
             if (inp) inp.blur();
 
             if (item.type === 'layer') {
@@ -589,10 +545,39 @@
         });
     }
 
+    // -- Config-Loading: Zoom-Stufen aus tnet-global-config.json5 laden ------
+
+    function loadSearchZoomConfig() {
+        if (typeof JSON5 === 'undefined') return Promise.resolve();
+        var paths = [
+            '/maps/tnet/config/tnet-global-config.json5',
+            '/maps/tnet/tnet-global-config.json5',
+            '../tnet/config/tnet-global-config.json5'
+        ];
+        function tryPath(i) {
+            if (i >= paths.length) return Promise.resolve();
+            return fetch(paths[i])
+                .then(function (r) { if (!r.ok) throw new Error(r.status); return r.text(); })
+                .then(function (t) {
+                    var parsed = JSON5.parse(t);
+                    if (parsed && parsed.search && parsed.search.zoom) {
+                        _searchZoomConfig = parsed.search.zoom;
+                        console.log('[MobileSearch] Zoom-Config geladen:', _searchZoomConfig);
+                    }
+                })
+                .catch(function () { return tryPath(i + 1); });
+        }
+        return tryPath(0);
+    }
+
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', init);
+        document.addEventListener('DOMContentLoaded', function() {
+            init();
+            loadSearchZoomConfig();
+        });
     } else {
         init();
+        loadSearchZoomConfig();
     }
 
     window.MobileSearch = { init: init, search: doSearch };
@@ -612,8 +597,6 @@
             var size = target ? (target.clientWidth + 'x' + target.clientHeight) : 'unknown';
             console.log('[Debug] Center:', c, 'Zoom:', z.toFixed(2), 'Resolution:', r.toFixed(4));
             console.log('[Debug] Map-Container:', size, 'innerHeight:', window.innerHeight);
-            console.log('[Debug] _tnetBlockResize:', !!window._tnetBlockResize, 'Guard active:', !!_searchSavedView);
-            if (_searchSavedView) console.log('[Debug] Guard savedView:', _searchSavedView);
         },
         /** Zoom auf bestimmtes Level testen */
         zoom: function (level) {
@@ -629,18 +612,6 @@
             view.setCenter([easting, northing]);
             view.setZoom(level || 16);
             console.log('[Debug] Center:', [easting, northing], 'Zoom:', level || 16);
-        },
-        /** Zoom testen mit Guard */
-        zoomGuarded: function (easting, northing, level) {
-            var map = getMap();
-            var view = getMapView();
-            if (!map || !view) { console.log('Kein Map/View'); return; }
-            applyAndGuardView(map, view, [easting, northing], level || 16);
-        },
-        /** Guard manuell stoppen */
-        stopGuard: function () {
-            stopViewGuard();
-            console.log('[Debug] Guard gestoppt');
         },
         /** Auf Extent zoomen [minE, minN, maxE, maxN] */
         fitExtent: function (minE, minN, maxE, maxN, maxZoom) {
