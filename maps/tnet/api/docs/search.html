@@ -1,9 +1,9 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="de">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>TNET GIS API - Dokumentation</title>
+    <title>TNET Search API - Dokumentation</title>
     <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css">
     <style>
         html { box-sizing: border-box; overflow-y: scroll; }
@@ -71,11 +71,12 @@
     <nav class="api-nav">
         <span class="brand">TNET API</span>
         <div class="tabs">
-            <a class="tab active" href="index.html">GIS API <span class="ver">v1.0</span></a>
-            <a class="tab" href="search.html">Search API <span class="ver">v2.0</span></a>
+            <a class="tab" href="index.html">GIS API <span class="ver">v1.0</span></a>
+            <a class="tab active" href="search.html">Search API <span class="ver">v2.0</span></a>
         </div>
         <span class="spacer"></span>
-        <a class="link" href="../v1/info" target="_blank">API Info</a>
+        <a class="link" href="https://www.agvchapp.bfs.admin.ch/de/communes/query" target="_blank">BFS Verzeichnis</a>
+        <a class="link" href="../search-proxy.php?action=boundaries" target="_blank">Boundaries</a>
     </nav>
     <div id="swagger-ui"></div>
 
@@ -83,7 +84,7 @@
     <script>
         window.onload = function () {
             SwaggerUIBundle({
-                url: "openapi.yaml",
+                url: "openapi-search.yaml",
                 dom_id: '#swagger-ui',
                 deepLinking: true,
                 presets: [

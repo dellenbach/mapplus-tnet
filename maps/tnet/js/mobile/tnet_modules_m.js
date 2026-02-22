@@ -578,6 +578,13 @@ require([
             function triggerLayoutResize(reason) {
                 clearTimeout(resizeDebounceTimer);
                 resizeDebounceTimer = setTimeout(function() {
+                    // Resize blockieren während Suche/ÖREB aktiv zoomen
+                    if (window._tnetBlockResize) {
+                        if (window.FEATURE_FLAGS && window.FEATURE_FLAGS.DEBUG_MODE) {
+                            console.log('[Layout] Resize blocked (_tnetBlockResize): ' + reason);
+                        }
+                        return;
+                    }
                     try {
                         var nc = dijit.byId('NeapoljsContainer');
                         if (nc && typeof nc.resize === 'function') {

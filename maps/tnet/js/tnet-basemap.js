@@ -979,8 +979,8 @@
         (function waitAndSwitch() {
             attempts++;
             var ready = window.njs && njs.AppManager && njs.AppManager.Maps && njs.AppManager.Maps.main;
-            var hooked = ready && njs.AppManager.Maps.main._basemapTimeHooked;
-            if (ready && hooked) {
+            var hasChangeBaseMap = ready && typeof njs.AppManager.Maps.main.changeBaseMap === 'function';
+            if (ready && hasChangeBaseMap) {
                 // Nur wechseln wenn nicht schon die richtige Basemap aktiv
                 var curr = njs.AppManager.Maps.main.currBasisMap || njs.AppManager.Maps.main.basisMap;
                 if (curr !== basemapParam) {

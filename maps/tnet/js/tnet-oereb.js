@@ -55,6 +55,10 @@ var oerebClickListener = null;
 var oerebHighlightLayer = null;
 var currentResults = null;
 var _mobileGraphicsLayerRegistered = false;
+var _oerebFitAnimating = false;  // Guard: view.fit() Animation läuft
+var _oerebSavedView = null;        // Gespeicherte View nach view.fit() (center + zoom)
+var _oerebMoveEndKey = null;        // OL-Listener Key für moveend-Überwachung
+var _oerebViewGuardTimer = null;    // Timer für View-Guard Timeout
 
 // Globaler Flag für andere Module (analog isPolygonDrawing)
 window.isOerebActive = false;
@@ -146,10 +150,12 @@ function activateOereb() {
     var mapEl = document.getElementById('map');
     if (mapEl) mapEl.style.cursor = 'crosshair';
 
-    // Dock-Panel zeigen mit Hinweis
+    // Dock-Panel zeigen
     showOerebDockPanel();
-    setOerebSelection('<div class="oereb-info-text">Klicken Sie auf ein Grundstück in der Karte...</div>');
-    clearOerebIframe();
+    setOerebSelection('');
+
+    // iframe mit Basis-URL vorladen (zeigt ÖREB-Oberfläche)
+    preloadOerebIframe();
 
     // Klick-Listener registrieren (callback-basiert!)
     waitForMap(function(map) {
@@ -164,8 +170,16 @@ function activateOereb() {
         }, 100);
 
         oerebClickListener = map.on('singleclick', function(evt) {
+            // njs-Identify unterdrücken: sowohl OL-Event als auch DOM-Event stoppen
+            evt.stopPropagation();
+            try {
+                if (evt.originalEvent) {
+                    evt.originalEvent.stopPropagation();
+                    evt.originalEvent.stopImmediatePropagation();
+                }
+            } catch(e) {}
             handleOerebClick(evt.coordinate, map);
-            // njs-Identify feuert parallel → verzögert aufräumen
+            // njs-Highlights zusätzlich verzögert aufräumen
             scheduleNjsHighlightCleanup(map);
         });
     });
@@ -215,6 +229,9 @@ function deactivateOereb() {
     } else if (_njsInfoHighlightLayer) {
         _njsInfoHighlightLayer.setVisible(_njsInfoHighlightWasVisible);
     }
+
+    // View-Guard stoppen
+    waitForMap(function(m) { stopOerebViewGuard(m); });
 
     // Highlight entfernen
     clearOerebHighlight();
@@ -327,9 +344,19 @@ function selectOerebResult(result, map) {
         highlightOerebParcel(result.geometry, map);
     }
 
-    // iframe laden
+    // iframe laden + Vorselektor ausblenden sobald iframe geladen
     if (egrid) {
         loadOerebIframe(egrid, typ, kanton);
+        var iframe = document.getElementById('oereb-iframe');
+        if (iframe) {
+            iframe.onload = function() {
+                // Vorselektor ausblenden nach Start der Auswertung
+                if (iframe.src && iframe.src !== 'about:blank') {
+                    setOerebSelection('');
+                }
+                iframe.onload = null;
+            };
+        }
     }
 }
 
@@ -556,12 +583,9 @@ function loadOerebIframe(egrid, typ, canton) {
         + (canton ? '&canton=' + encodeURIComponent(canton) : '')
         + '&' + OEREB_IFRAME_PARAMS;
 
-    // Auf Mobile: mobil-kompatiblen graphicsLayer registrieren
+    // graphicsLayer registrieren (OL-Drawing-Support statt WebOffice-API)
     // Das iframe ruft parent.require(["app/oereb/graphicsLayer"]) auf
-    // und erhält unsere Version mit OL-Drawing-Support statt WebOffice-API
-    if (isMobileView()) {
-        registerMobileGraphicsLayer();
-    }
+    registerMobileGraphicsLayer();
 
     iframe.src = src;
 }
@@ -569,6 +593,14 @@ function loadOerebIframe(egrid, typ, canton) {
 function clearOerebIframe() {
     var iframe = document.getElementById('oereb-iframe');
     if (iframe) iframe.src = 'about:blank';
+}
+
+function preloadOerebIframe() {
+    var iframe = document.getElementById('oereb-iframe');
+    if (!iframe) return;
+    // Basis-URL ohne EGRID laden → zeigt ÖREB-Startseite
+    registerMobileGraphicsLayer();
+    iframe.src = OEREB_IFRAME_BASE + '?' + OEREB_IFRAME_PARAMS;
 }
 
 // ===== NJS-FRAMEWORK HIGHLIGHT UNTERDRÜCKUNG =====
@@ -707,22 +739,37 @@ function highlightOerebParcel(geojsonGeom, map) {
             // Auf Mobile: Bottom-Sheet belegt ~50% unten, Padding grosszügig
             var bottomPad = isMobileView() ? Math.round(window.innerHeight * 0.55) : 80;
             console.log('[OEREB] view.fit mit padding [80, 80, ' + bottomPad + ', 80], mobile=' + isMobileView());
+
+            // Guard setzen: triggerMapUpdate() darf kein updateSize()/resize() aufrufen
+            _oerebFitAnimating = true;
+            // Resize-Handler auf Mobile blockieren (Tastatur/Viewport-Änderungen)
+            if (isMobileView()) window._tnetBlockResize = true;
+
+            // Bestehenden View-Guard aufräumen
+            stopOerebViewGuard(map);
+
             map.getView().fit(extent, {
                 padding: [80, 80, bottomPad, 80],
-                duration: 600
-            });
-            
-            // Dann Zoom-Level begrenzen falls zu nah
-            setTimeout(function() {
-                var currentZoom = map.getView().getZoom();
-                if (currentZoom > 18) {
-                    map.getView().animate({
-                        zoom: 18,
-                        duration: 300
-                    });
+                maxZoom: 18,
+                duration: 600,
+                callback: function(completed) {
+                    // View-State speichern und Überwachung starten
+                    var view = map.getView();
+                    _oerebSavedView = {
+                        center: view.getCenter().slice(),
+                        zoom: view.getZoom(),
+                        time: Date.now()
+                    };
+                    console.log('[OEREB] Zoom nach fit:', _oerebSavedView.zoom, 'completed:', completed);
+                    startOerebViewGuard(map);
                 }
-                console.log('[OEREB] Zoom nach fit:', currentZoom);
-            }, 700);
+            });
+
+            // Fallback: Guard nach 5s sicherheitshalber zurücksetzen
+            setTimeout(function() {
+                _oerebFitAnimating = false;
+                window._tnetBlockResize = false;
+            }, 5000);
         } else {
             console.warn('[OEREB] Extent ist leer oder ungültig:', extent);
         }
@@ -734,6 +781,60 @@ function highlightOerebParcel(geojsonGeom, map) {
 
     } catch (err) {
         console.error('[OEREB] Fehler in highlightOerebParcel:', err);
+    }
+}
+
+/**
+ * View-Guard starten: Nach view.fit() die View 3s lang überwachen.
+ * Falls irgendetwas (njs, dijit, iframe) die View ändert, sofort wiederherstellen.
+ */
+function startOerebViewGuard(map) {
+    if (!map || !_oerebSavedView) return;
+
+    // moveend-Listener: prüft ob View noch stimmt
+    if (_oerebMoveEndKey) ol.Observable.unByKey(_oerebMoveEndKey);
+    _oerebMoveEndKey = map.on('moveend', function() {
+        if (!_oerebSavedView) return;
+        var view = map.getView();
+        var currentZoom = view.getZoom();
+        var currentCenter = view.getCenter();
+        var savedZoom = _oerebSavedView.zoom;
+        var savedCenter = _oerebSavedView.center;
+
+        // Toleranz: Zoom-Differenz > 0.3 oder Center-Verschiebung > 100m
+        var zoomDiff = Math.abs(currentZoom - savedZoom);
+        var centerDx = Math.abs(currentCenter[0] - savedCenter[0]);
+        var centerDy = Math.abs(currentCenter[1] - savedCenter[1]);
+
+        if (zoomDiff > 0.3 || centerDx > 100 || centerDy > 100) {
+            console.warn('[OEREB] View wurde ver\u00e4ndert (zoom: ' + currentZoom.toFixed(2) + ' vs ' + savedZoom.toFixed(2) +
+                '), stelle wieder her');
+            view.animate({
+                center: savedCenter,
+                zoom: savedZoom,
+                duration: 300
+            });
+        }
+    });
+
+    // Guard nach 3s beenden
+    if (_oerebViewGuardTimer) clearTimeout(_oerebViewGuardTimer);
+    _oerebViewGuardTimer = setTimeout(function() {
+        stopOerebViewGuard(map);
+    }, 3000);
+}
+
+/** View-Guard stoppen */
+function stopOerebViewGuard(map) {
+    _oerebFitAnimating = false;
+    _oerebSavedView = null;
+    if (_oerebMoveEndKey) {
+        ol.Observable.unByKey(_oerebMoveEndKey);
+        _oerebMoveEndKey = null;
+    }
+    if (_oerebViewGuardTimer) {
+        clearTimeout(_oerebViewGuardTimer);
+        _oerebViewGuardTimer = null;
     }
 }
 
@@ -764,6 +865,11 @@ var _savedOerebDockedWidth = 440;
 
 function triggerMapUpdate() {
     setTimeout(function() {
+        // Während view.fit()-Animation kein updateSize() aufrufen (würde Zoom zurücksetzen)
+        if (_oerebFitAnimating) {
+            console.log('[OEREB] triggerMapUpdate übersprungen (view.fit Animation läuft)');
+            return;
+        }
         if (window.njs && njs.AppManager && njs.AppManager.Maps && njs.AppManager.Maps['main']) {
             var mapObj = njs.AppManager.Maps['main'].mapObj;
             if (mapObj && mapObj.updateSize) {

@@ -1,0 +1,467 @@
+openapi: 3.0.3
+info:
+  title: TNET Search API
+  description: |
+    Such-Proxy für MAP+ GIS — kombinierte Suche über swisstopo Geocoder, Feature Search
+    und SwissNames3D mit Polygon-basiertem Ortfilter.
+
+    ## Suche
+
+    Der Haupt-Endpunkt `?q=...` liefert gruppierte, deduplizierte, natural-sortierte Resultate
+    aus mehreren Quellen:
+    - **Adressen** — swisstopo Geocoder (origin=address) + Gebäude aus Feature Search
+    - **Orte & Strassen** — swisstopo Geocoder (Orte), SwissNames3D, Feature Search (Strassen)
+    - **Themen** — Layer-Suche in NLS-Dateien (lokale Konfiguration)
+
+    ## Ortfilter (Boundaries)
+
+    Resultate können mit dem `canton`-Parameter auf ein Gebiet eingeschränkt werden.
+    Dazu werden vereinfachte Grenzen-Polygone in `boundaries-simplified.json` verwaltet.
+    Polygone werden von der swisstopo API geholt und mit Douglas-Peucker vereinfacht.
+
+    ## Koordinatensystem
+
+    Alle Koordinaten sind im Schweizer Bezugsrahmen **LV95 (EPSG:2056)**:
+    - **Easting** (x): ca. 2'600'000
+    - **Northing** (y): ca. 1'200'000
+
+    ## BFS-Nummern
+
+    Die BFS-Nummer (Bundesamt für Statistik) identifiziert Kantone und Gemeinden eindeutig.
+    Alle BFS-Nummern können im offiziellen Verzeichnis gesucht werden:
+
+    **[BFS Gemeindeverzeichnis (AGVCH) — Suche](https://www.agvchapp.bfs.admin.ch/de/communes/query)**
+
+    ### Beispiele Nidwalden / Obwalden
+
+    | Key | Type | BFS | Beschreibung |
+    |-----|------|-----|-------------|
+    | NW | canton | 7 | Kanton Nidwalden |
+    | OW | canton | 6 | Kanton Obwalden |
+    | Stans | municipality | 1509 | Gemeinde Stans |
+    | Sarnen | municipality | 1407 | Gemeinde Sarnen |
+    | Engelberg | municipality | 1402 | Gemeinde Engelberg |
+    | Buochs | municipality | 1502 | Gemeinde Buochs |
+    | Hergiswil | municipality | 1504 | Gemeinde Hergiswil (NW) |
+
+  version: "2.0"
+  contact:
+    name: Trigonet AG
+    url: https://www.gis-daten.ch
+  license:
+    name: Proprietary
+    url: https://www.trigonet.ch
+
+servers:
+- url: https://nwow.mapplus.ch/maps/tnet/api
+  description: Produktion (NWOW)
+- url: https://www.gis-daten.ch/maps/tnet/api
+  description: Produktion (GIS-Daten)
+
+tags:
+- name: Suche
+  description: Kombinierte Such-Endpunkte (Adressen, Orte, Strassen, Layer)
+- name: Boundaries
+  description: Grenzen-Polygone verwalten (Kantone, Gemeinden)
+
+paths:
+  /search-proxy.php:
+    get:
+      tags: [ Suche ]
+      summary: Kombinierte Suche
+      description: |
+        Sucht gleichzeitig in mehreren Quellen und liefert gruppierte Resultate:
+        - **Adressen** — Geocoder-Adressen + Gebäude
+        - **Orte & Strassen** — Geocoder-Orte, SwissNames3D, Strassen
+        - **Themen** — Layer-Suche in lokaler Konfiguration
+
+        Resultate werden dedupliziert, natural-sortiert und auf `limit` pro Gruppe beschränkt.
+
+        Wenn `canton` gesetzt ist, werden nur Treffer innerhalb des Grenzpolygons zurückgegeben
+        (Ray-Casting Point-in-Polygon).
+      operationId: search
+      parameters:
+      - name: q
+        in: query
+        required: true
+        description: "Suchbegriff (min. 2 Zeichen)"
+        schema:
+          type: string
+          minLength: 2
+        example: Stans
+      - name: limit
+        in: query
+        description: "Max. Resultate pro Gruppe (4–20)"
+        schema:
+          type: integer
+          minimum: 4
+          maximum: 20
+          default: 8
+      - name: canton
+        in: query
+        description: |
+          Ortfilter-Key — entspricht einem Schlüssel in `boundaries-simplified.json`.
+          Kann ein Kanton (z.B. `NW`, `OW`) oder eine Gemeinde (z.B. `Stans`) sein.
+          Leer = alle definierten Boundaries.
+        schema:
+          type: string
+        examples:
+          nidwalden:
+            value: NW
+            summary: Kanton Nidwalden
+          obwalden:
+            value: OW
+            summary: Kanton Obwalden
+          alle:
+            value: ""
+            summary: Alle Boundaries (NW + OW + ...)
+      - name: scope
+        in: query
+        description: |
+          Komma-separierte Liste der gewünschten Ergebnis-Typen.
+          Leer = alle Typen.
+        schema:
+          type: string
+        examples:
+          orte:
+            value: orte
+            summary: Nur Orte & Strassen
+          adressen:
+            value: adressen
+            summary: Nur Adressen
+          layers:
+            value: layers
+            summary: Nur Themen-Layer
+          multi:
+            value: orte,adressen
+            summary: Orte + Adressen (ohne Layer)
+      - name: debug
+        in: query
+        description: "Debug-Modus: gibt zusätzliche Zähler und Einzel-Arrays zurück"
+        schema:
+          type: string
+          enum: [ "0", "1" ]
+          default: "0"
+      responses:
+        "200":
+          description: Erfolgreiche Suche
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SearchResponse"
+              examples:
+                standard:
+                  summary: Standard-Antwort
+                  value:
+                    numRows: 12
+                    items:
+                    - id: "1234"
+                      label: "Stansstaderstrasse 12, 6370 Stans"
+                      subtitle: "Adresse"
+                      type: feature
+                      x: 1202855.0
+                      y: 2670123.0
+                      featureId: "1234"
+                    groups:
+                    - label: Adressen
+                      type: feature
+                      items: [ "..." ]
+                    - label: "Orte & Strassen"
+                      type: location
+                      items: [ "..." ]
+                    - label: Themen
+                      type: layer
+                      items: [ "..." ]
+                leer:
+                  summary: Keine Treffer / zu kurzer Suchbegriff
+                  value:
+                    numRows: 0
+                    items: []
+                    groups: []
+
+  /search-proxy.php?action=boundaries:
+    get:
+      tags: [ Boundaries ]
+      summary: Alle Boundaries auflisten
+      description: |
+        Listet alle gespeicherten Grenzen-Polygone mit Metadaten (Anzahl Polygone, Punkte).
+        Die Daten stammen aus `boundaries-simplified.json`.
+      operationId: listBoundaries
+      parameters:
+      - name: action
+        in: query
+        required: true
+        schema:
+          type: string
+          enum: [ boundaries ]
+      - name: op
+        in: query
+        description: "Operation (Standard: list)"
+        schema:
+          type: string
+          enum: [ list ]
+          default: list
+      responses:
+        "200":
+          description: Liste aller Boundaries
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BoundaryListResponse"
+              example:
+                ok: true
+                boundaries:
+                - key: NW
+                  polygonCount: 1
+                  pointCount: 53
+                - key: OW
+                  polygonCount: 2
+                  pointCount: 57
+                - key: Stans
+                  polygonCount: 1
+                  pointCount: 19
+
+  /search-proxy.php?action=boundaries&op=add:
+    get:
+      tags: [ Boundaries ]
+      summary: Boundary hinzufügen
+      description: |
+        Holt die Geometrie einer Boundary (Kanton oder Gemeinde) von der swisstopo API
+        (`swissboundaries3d`), vereinfacht sie mit Douglas-Peucker und speichert sie in
+        `boundaries-simplified.json`.
+
+        Wenn der Key bereits existiert, wird er überschrieben.
+      operationId: addBoundary
+      parameters:
+      - name: action
+        in: query
+        required: true
+        schema:
+          type: string
+          enum: [ boundaries ]
+      - name: op
+        in: query
+        required: true
+        schema:
+          type: string
+          enum: [ add ]
+      - name: key
+        in: query
+        required: true
+        description: "Schlüssel / Name (z.B. NW, OW, Stans, Engelberg)"
+        schema:
+          type: string
+        example: Sarnen
+      - name: type
+        in: query
+        required: true
+        description: "Typ der Boundary"
+        schema:
+          type: string
+          enum: [ canton, municipality ]
+        example: municipality
+      - name: bfs
+        in: query
+        required: true
+        description: "BFS-Nummer (Bundesamt für Statistik)"
+        schema:
+          type: integer
+        example: 1407
+      - name: tolerance
+        in: query
+        description: "Douglas-Peucker Toleranz in Meter. Standard: 500 (Kanton), 100 (Gemeinde)"
+        schema:
+          type: number
+          format: float
+        example: 100
+      responses:
+        "200":
+          description: Boundary erfolgreich hinzugefügt
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BoundaryAddResponse"
+              example:
+                ok: true
+                message: 'Boundary "Sarnen" gespeichert'
+                key: Sarnen
+                type: municipality
+                bfsNr: 1407
+                polygonCount: 1
+                rawPointCount: 270
+                pointCount: 19
+                tolerance: 100
+
+  /search-proxy.php?action=boundaries&op=delete:
+    get:
+      tags: [ Boundaries ]
+      summary: Boundary entfernen
+      description: |
+        Entfernt eine Boundary aus `boundaries-simplified.json`.
+        Die Suche verwendet dieses Polygon anschliessend nicht mehr als Ortfilter.
+      operationId: deleteBoundary
+      parameters:
+      - name: action
+        in: query
+        required: true
+        schema:
+          type: string
+          enum: [ boundaries ]
+      - name: op
+        in: query
+        required: true
+        schema:
+          type: string
+          enum: [ delete ]
+      - name: key
+        in: query
+        required: true
+        description: "Schlüssel der zu löschenden Boundary"
+        schema:
+          type: string
+        example: Stans
+      responses:
+        "200":
+          description: Boundary erfolgreich gelöscht
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BoundaryDeleteResponse"
+              examples:
+                success:
+                  summary: Erfolgreich gelöscht
+                  value:
+                    ok: true
+                    message: 'Boundary "Stans" gelöscht'
+                notFound:
+                  summary: Key nicht gefunden
+                  value:
+                    ok: false
+                    message: 'Boundary "xyz" nicht gefunden'
+
+components:
+  schemas:
+    SearchItem:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Eindeutige ID des Resultats
+        label:
+          type: string
+          description: Anzeige-Text
+        subtitle:
+          type: string
+          description: "Typ-Beschreibung (Adresse, Ort, Strasse, Gebäude, etc.)"
+        type:
+          type: string
+          enum: [ location, feature, layer ]
+          description: "Ergebnis-Typ: location (Geocoder/SwissNames), feature (Feature Search), layer (Themen)"
+        x:
+          type: number
+          format: float
+          description: "Northing (LV95, ca. 1'200'000)"
+        y:
+          type: number
+          format: float
+          description: "Easting (LV95, ca. 2'600'000)"
+        featureId:
+          type: string
+          nullable: true
+          description: Feature-ID für Geometrie-Highlight (optional)
+        layerId:
+          type: string
+          nullable: true
+          description: swisstopo Layer-ID (optional)
+        layer:
+          type: string
+          nullable: true
+          description: Layer-ID bei type=layer
+
+    SearchGroup:
+      type: object
+      properties:
+        label:
+          type: string
+          description: "Gruppenname (Adressen, Orte & Strassen, Themen)"
+        type:
+          type: string
+          enum: [ feature, location, layer ]
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/SearchItem"
+
+    SearchResponse:
+      type: object
+      properties:
+        numRows:
+          type: integer
+          description: Gesamtanzahl Resultate
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/SearchItem"
+          description: Alle Resultate als flache Liste
+        groups:
+          type: array
+          items:
+            $ref: "#/components/schemas/SearchGroup"
+          description: Resultate nach Typ gruppiert
+
+    BoundaryInfo:
+      type: object
+      properties:
+        key:
+          type: string
+          description: "Schlüssel (z.B. NW, OW, Stans)"
+        polygonCount:
+          type: integer
+          description: Anzahl Polygone
+        pointCount:
+          type: integer
+          description: Gesamtanzahl Punkte (alle Ringe)
+
+    BoundaryListResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+        boundaries:
+          type: array
+          items:
+            $ref: "#/components/schemas/BoundaryInfo"
+
+    BoundaryAddResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+        message:
+          type: string
+        key:
+          type: string
+        type:
+          type: string
+          enum: [ canton, municipality ]
+        bfsNr:
+          type: integer
+        polygonCount:
+          type: integer
+        rawPointCount:
+          type: integer
+          description: Anzahl Punkte vor Vereinfachung
+        pointCount:
+          type: integer
+          description: Anzahl Punkte nach Vereinfachung
+        tolerance:
+          type: number
+          format: float
+
+    BoundaryDeleteResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+        message:
+          type: string

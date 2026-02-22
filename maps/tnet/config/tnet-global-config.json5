@@ -180,6 +180,18 @@
   },
   
   // ============================================================
+  // SUCHE
+  // ============================================================
+  search: {
+    _description: "Such-Konfiguration: Standard MapPlus/TYDAC-Suche vs. TNET-Suche",
+    // Standard MapPlus/TYDAC-Suche (njs search.js) ein-/ausblenden
+    // false = deaktiviert (Suchfeld wird versteckt)
+    njsSearchEnabled: false,
+    // TNET-Suche (tnet-search.js / search-proxy.php) ein-/ausblenden
+    tnetSearchEnabled: true,
+  },
+
+  // ============================================================
   // ÖREB KATASTER
   // ============================================================
   oereb: {

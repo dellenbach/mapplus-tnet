@@ -185,9 +185,16 @@
     <!-- begin modules load: must be done here in body-->
 
     <link rel="stylesheet" href="/mapplus-lib/openlayers/ol-ext/dist/ol-ext.min.css">
-    <!-- ol-ext: lokale Version primär (garantiert ol.control.Mover), CDN als Fallback -->
+    <!-- ol-ext: lokale Version primär (garantiert ol.control.Mover), CDN als synchroner Fallback -->
     <script type="text/javascript" src="/mapplus-lib/openlayers/ol-ext/dist/ol-ext.min.js"></script>
-    <script>(window.ol && window.ol.control && window.ol.control.Mover) || document.write('<script src="https://cdn.jsdelivr.net/npm/ol-ext@3.3.25/dist/ol-ext.min.js">\x3C/script>')</script>
+    <script>
+    if (!(window.ol && window.ol.control && window.ol.control.Mover)) {
+        var s = document.createElement('script');
+        s.src = 'https://cdn.jsdelivr.net/npm/ol-ext@3.3.25/dist/ol-ext.min.js';
+        s.async = false; // synchron laden (Reihenfolge bewahren)
+        document.currentScript.parentNode.insertBefore(s, document.currentScript.nextSibling);
+    }
+    </script>
 
     <script type="text/javascript" src="/mapplus-lib/mapplus-dojo/v4.0.0/common.js"></script>
     <script type="text/javascript" src="/mapplus-lib/mapplus-dojo/v4.0.0/njs.js"></script>
@@ -375,7 +382,8 @@
             <hr class="dt-filter-hr">
             <div class="dt-filter-section">
                 <div class="dt-filter-title">Inhalte</div>
-                <label class="dt-filter-check"><input type="checkbox" id="dt-filter-locations" checked> Orte &amp; Adressen</label>
+                <label class="dt-filter-check"><input type="checkbox" id="dt-filter-orte" checked> Orte, Strassen &amp; Gebiete</label>
+                <label class="dt-filter-check"><input type="checkbox" id="dt-filter-adressen" checked> Adressen</label>
                 <label class="dt-filter-check"><input type="checkbox" id="dt-filter-layers" checked> Themen</label>
             </div>
         </div>
@@ -963,6 +971,6 @@
     <script src="/maps/tnet/js/tnet-print.js"></script>
 
     <!-- Desktop-Suche: search-proxy.php (Layer + Geocoder) -->
-    <script defer src="/maps/tnet/js/tnet-search.js"></script>
+    <script defer src="/maps/tnet/js/tnet-search.js?v=20260222b"></script>
 
 </body>

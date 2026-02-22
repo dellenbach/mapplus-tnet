@@ -18,6 +18,7 @@ FILES = [
     "public/config/modules_m.conf",
     "public/css/override.css",
     "tnet/js/tnet-search.js",
+    "tnet/js/tnet-basemap.js",
     "tnet/js/mobile/tnet-search-m.js",
     "tnet/js/mobile/tnet_modules_m.js",
     "tnet/api/search-proxy.php",
@@ -25,6 +26,13 @@ FILES = [
     "tnet/js/tnet-oereb.js",
     "tnet/js/tnet-mapplus-helpers.js",
     "tnet/resources/Logo-GIS-Daten-AG_wuerfel.svg",
+    "tnet/config/tnet-global-config.json5",
+    "tnet/resources/icons/search-layer.svg",
+    "tnet/resources/icons/search-location.svg",
+    "tnet/resources/icons/search-address.svg",
+    "tnet/resources/icons/search-street.svg",
+    "tnet/resources/icons/search-terrain.svg",
+    "tnet/config/boundaries-simplified.json",
 ]
 
 def upload_files():
