@@ -19,7 +19,7 @@ import { waitForMap, getMainMap, showToast } from './tnet-utils.js';
 import { isEmpty as extentIsEmpty } from 'https://cdn.jsdelivr.net/npm/ol@v10.6.0/extent.js';
 
 // ===== CONFIG =====
-var OEREB_IFRAME_BASE = 'https://www.gis-daten.ch/app/oereb/graphicsLayerOereb-nw.html';
+var OEREB_IFRAME_BASE = 'https://www.gis-daten.ch/app/oereb/graphicsLayerOereb-nw';
 var OEREB_IFRAME_PARAMS = 'folder=nwow&site=maps&uprofile=public&ugroup=public';
 
 // Gemeinde-Mapping (identdn-Prefix → Gemeindename)
@@ -274,7 +274,7 @@ function selectOerebResult(result, map) {
     var props = result.properties || result.attributes;
     var egrid = props.egris_egrid || '';
     var nummer = props.number || '?';
-    var kanton = props.ak || '?';
+    var kanton = props.ak || '';
     var identnd = props.identnd || '';
     var typ = detectType(nummer, props.realestate_type);
     var gemeinde = getGemeinde(identnd);
