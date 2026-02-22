@@ -86,10 +86,13 @@
             isDebug: false,
             baseUrl: "",
             async: true,
-            packages: [{
-                name: "njs",
-                location: "/mapplus-lib/mapplus-dojo/v4.0.0/extended"
-            }],
+            mblAlwaysHideAddressBar: true,
+            packages: [
+                { name: "njs",   location: "/mapplus-lib/mapplus-dojo/v4.0.0/extended" },
+                { name: "dojo",  location: "https://cdnjs.cloudflare.com/ajax/libs/dojo/1.17.3" },
+                { name: "dijit", location: "/mapplus-lib/dojo-release/dojo-release-1.17.3/dijit" },
+                { name: "dojox", location: "/mapplus-lib/dojo-release/dojo-release-1.17.3/dojox" }
+            ],
             locale: "de"
         };
 
@@ -104,10 +107,7 @@
     </script>
     <script defer src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.6/Sortable.min.js"></script>
     <script>window.Sortable || document.write('<script defer src="/mapplus-lib/Sortable/1.15.0/Sortable.min.js">\x3C/script>')</script>
-    <script
-        data-dojo-config="packages:[{name:'dojo',location:'https://cdnjs.cloudflare.com/ajax/libs/dojo/1.17.3'},{name:'dijit',location:'/mapplus-lib/dojo-release/dojo-release-1.17.3/dijit'},{name:'dojox',location:'/mapplus-lib/dojo-release/dojo-release-1.17.3/dojox'}]"
-        data-dojo-config="mblAlwaysHideAddressBar: true"
-        src="https://cdnjs.cloudflare.com/ajax/libs/dojo/1.17.3/dojo.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dojo/1.17.3/dojo.js"></script>
     <script>window.define || document.write('<script data-dojo-config= \'packages:[{name:"dojo",location:"/mapplus-lib/dojo-release/dojo-release-1.17.3/dojo"},{name:"dijit",location:"/mapplus-lib/dojo-release/dojo-release-1.17.3/dijit"},{name:"dojox",location:"/mapplus-lib/dojo-release/dojo-release-1.17.3/dojox"}],mblAlwaysHideAddressBar:true\' src="/mapplus-lib/dojo-release/dojo-release-1.17.3/dojo/dojo.js">\x3C/script>')</script>
 
     <!-- TNET CSS -->
