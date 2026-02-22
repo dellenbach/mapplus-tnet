@@ -44,11 +44,17 @@ var GEMEINDE_MAP = {
     'NW0200001331': 'Ennetmoos'
 };
 
+// ===== MOBILE ERKENNUNG =====
+function isMobileView() {
+    return window.innerWidth <= 768 || document.body.classList.contains('mobile-view');
+}
+
 // ===== STATE =====
 var oerebActive = false;
 var oerebClickListener = null;
 var oerebHighlightLayer = null;
 var currentResults = null;
+var _mobileGraphicsLayerRegistered = false;
 
 // Globaler Flag für andere Module (analog isPolygonDrawing)
 window.isOerebActive = false;
@@ -212,6 +218,8 @@ function deactivateOereb() {
 
     // Highlight entfernen
     clearOerebHighlight();
+    // OerebGraphics-Layer (Detail-Geometrien vom iframe) leeren
+    clearOerebGraphicsLayer();
 
     // ÖREB-Daten und UI komplett clearen
     currentResults = null;
@@ -370,6 +378,173 @@ function showOerebResultList(results, map) {
     }
 }
 
+// ===== MOBILE GRAPHICSLAYER BRIDGE =====
+/**
+ * Registriert ein mobil-kompatibles graphicsLayer-Modul via Dojo define().
+ * Wenn die OEREB-Seite im iframe parent.require(["app/oereb/graphicsLayer"]) aufruft,
+ * erhält sie diese Version statt der Server-Version, die WebOffice-APIs benötigt.
+ * Zeichenfunktionen (Polygon, Polyline, Point) arbeiten direkt mit OpenLayers.
+ * WebOffice-spezifische Methoden (toggleLayer, addLayerByThemeId etc.) sind sichere No-Ops.
+ */
+function registerMobileGraphicsLayer() {
+    if (_mobileGraphicsLayerRegistered) return;
+    if (typeof window.define !== 'function' || !window.define.amd) {
+        console.warn('[OEREB] Dojo define() nicht verfügbar, Mobile-GraphicsLayer kann nicht registriert werden');
+        return;
+    }
+    _mobileGraphicsLayerRegistered = true;
+
+    window.define('app/oereb/graphicsLayer', [], function() {
+        // Constructor
+        function MobileGraphicsLayer() {
+            this.displayLayer = null;
+            this.mappedTocNodes = null;
+            this.mapping = null;
+            this.flexActive = false;
+            this.activatedTocNodes = [];
+        }
+
+        var proto = MobileGraphicsLayer.prototype;
+
+        proto.getMap = function() {
+            var mapplus_obj = null;
+            try {
+                if (window.njs) mapplus_obj = window.njs;
+                else if (parent && parent.njs) mapplus_obj = parent.njs;
+            } catch(e) {}
+            if (!mapplus_obj || !mapplus_obj.AppManager || !mapplus_obj.AppManager.Maps || !mapplus_obj.AppManager.Maps['main']) {
+                console.warn('[OEREB-Mobile] getMap: Karte nicht gefunden');
+                return { mapplus_obj: null, mapObj: null, mapname: 'main' };
+            }
+            return {
+                mapplus_obj: mapplus_obj,
+                mapObj: mapplus_obj.AppManager.Maps['main'].mapObj,
+                mapname: 'main'
+            };
+        };
+
+        proto.addLayer = function() {
+            var mapResult = this.getMap();
+            var map = mapResult ? mapResult.mapObj : null;
+            if (!map) return;
+
+            if (!this.displayLayer) {
+                // Prüfen, ob Layer bereits existiert
+                var self = this;
+                map.getLayers().forEach(function(layer) {
+                    if (layer.get('id') === 'OerebGraphics') {
+                        self.displayLayer = layer;
+                    }
+                });
+
+                if (!this.displayLayer) {
+                    this.displayLayer = new ol.layer.Vector({
+                        source: new ol.source.Vector(),
+                        zIndex: 999,
+                        style: new ol.style.Style({
+                            stroke: new ol.style.Stroke({ color: 'rgba(0, 255, 0, 0.8)', width: 6 }),
+                            fill: new ol.style.Fill({ color: 'rgba(0,255,0,0.3)' }),
+                            image: new ol.style.Circle({
+                                radius: 12,
+                                fill: new ol.style.Fill({ color: 'rgba(0, 255, 0, 0.2)' }),
+                                stroke: new ol.style.Stroke({ color: 'rgba(0, 255, 0, 0.8)', width: 6 })
+                            })
+                        })
+                    });
+                    this.displayLayer.set('id', 'OerebGraphics');
+                    map.addLayer(this.displayLayer);
+                    console.log('[OEREB-Mobile] OerebGraphics-Layer erstellt');
+                }
+            }
+        };
+
+        proto.clearLayer = function() {
+            if (this.displayLayer && this.displayLayer.getSource()) {
+                this.displayLayer.getSource().clear();
+            }
+        };
+
+        proto.removeLayer = function() {
+            var mapResult = this.getMap();
+            var map = mapResult ? mapResult.mapObj : null;
+            if (map && this.displayLayer) {
+                try { map.removeLayer(this.displayLayer); } catch(e) {}
+                this.displayLayer = null;
+            }
+        };
+
+        proto.addOerebGraphicPolygon = function(argGeometryString) {
+            this.addLayer();
+            if (!this.displayLayer) return;
+            var rings = argGeometryString.map(function(ring) {
+                var first = ring[0];
+                var last = ring[ring.length - 1];
+                if (first[0] !== last[0] || first[1] !== last[1]) {
+                    ring.push([first[0], first[1]]);
+                }
+                return ring;
+            });
+            var geojson = {
+                type: 'FeatureCollection',
+                features: [{ type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: rings } }]
+            };
+            var features = new ol.format.GeoJSON().readFeatures(geojson, {
+                dataProjection: 'EPSG:2056', featureProjection: 'EPSG:2056'
+            });
+            this.displayLayer.getSource().addFeatures(features);
+            console.log('[OEREB-Mobile] Polygon gezeichnet, Ringe:', rings.length);
+        };
+
+        proto.addOerebGraphicPolyline = function(argGeometryString) {
+            this.addLayer();
+            if (!this.displayLayer) return;
+            var geojson = {
+                type: 'FeatureCollection',
+                features: [{ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: argGeometryString } }]
+            };
+            var features = new ol.format.GeoJSON().readFeatures(geojson, {
+                dataProjection: 'EPSG:2056', featureProjection: 'EPSG:2056'
+            });
+            this.displayLayer.getSource().addFeatures(features);
+            console.log('[OEREB-Mobile] Polyline gezeichnet');
+        };
+
+        proto.addOerebGraphicPoint = function(argGeometryString) {
+            this.addLayer();
+            if (!this.displayLayer) return;
+            var geojson = {
+                type: 'FeatureCollection',
+                features: [{ type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: argGeometryString } }]
+            };
+            var features = new ol.format.GeoJSON().readFeatures(geojson, {
+                dataProjection: 'EPSG:2056', featureProjection: 'EPSG:2056'
+            });
+            this.displayLayer.getSource().addFeatures(features);
+            console.log('[OEREB-Mobile] Point gezeichnet');
+        };
+
+        // WebOffice-spezifische Methoden: sichere No-Ops auf Mobile
+        proto.toggleLayer = function() {};
+        proto.addLayerByThemeId = function(themeId) {
+            // Nur den Grafik-Layer leeren (keine WMS-Layer-Steuerung auf Mobile)
+            this.clearLayer();
+        };
+        proto.deactivateTocLayers = function() {};
+        proto.setMappingTable = function() {};
+        proto.changeTocOpacityByTocId = function() {};
+        proto.extractMapElementByThemeId = function() { return {}; };
+        proto.activateLayerByMappedElement = function() {};
+        proto.searchTocByName = function() { return false; };
+        proto.mapTocNodes = function(elements) { return elements || []; };
+        proto.getSymbology = function() { return null; };
+        proto.extractLayers = { byIdAndType: function() { return []; } };
+
+        return MobileGraphicsLayer;
+    });
+
+    console.log('[OEREB] Mobile-GraphicsLayer Modul registriert');
+}
+
 // ===== IFRAME =====
 function loadOerebIframe(egrid, typ, canton) {
     var iframe = document.getElementById('oereb-iframe');
@@ -380,6 +555,13 @@ function loadOerebIframe(egrid, typ, canton) {
         + '&EGRID=' + encodeURIComponent(egrid)
         + (canton ? '&canton=' + encodeURIComponent(canton) : '')
         + '&' + OEREB_IFRAME_PARAMS;
+
+    // Auf Mobile: mobil-kompatiblen graphicsLayer registrieren
+    // Das iframe ruft parent.require(["app/oereb/graphicsLayer"]) auf
+    // und erhält unsere Version mit OL-Drawing-Support statt WebOffice-API
+    if (isMobileView()) {
+        registerMobileGraphicsLayer();
+    }
 
     iframe.src = src;
 }
@@ -466,49 +648,92 @@ function suppressInfoHighlightLayer(map) {
 function highlightOerebParcel(geojsonGeom, map) {
     clearOerebHighlight();
 
-    if (!oerebHighlightLayer) {
-        oerebHighlightLayer = new ol.layer.Vector({
-            source: new ol.source.Vector(),
-            zIndex: 998,
-            properties: { isOereb: true },
-            style: new ol.style.Style({
-                fill: new ol.style.Fill({ color: 'rgba(255, 200, 0, 0.3)' }),
-                stroke: new ol.style.Stroke({ color: '#e8423f', width: 3 })
-            })
-        });
-        map.addLayer(oerebHighlightLayer);
+    if (!map) {
+        console.warn('[OEREB] highlightOerebParcel: map ist null');
+        return;
     }
 
-    var format = new ol.format.GeoJSON();
-    var feature = format.readFeature({
-        type: 'Feature',
-        geometry: geojsonGeom
-    }, {
-        dataProjection: 'EPSG:2056',
-        featureProjection: map.getView().getProjection()
-    });
+    if (!geojsonGeom || !geojsonGeom.coordinates) {
+        console.warn('[OEREB] highlightOerebParcel: keine Geometrie', geojsonGeom);
+        return;
+    }
 
-    oerebHighlightLayer.getSource().addFeature(feature);
+    console.log('[OEREB] Highlight Geometrie:', geojsonGeom.type, 
+        'coords:', JSON.stringify(geojsonGeom.coordinates).substring(0, 100));
 
-    // Auf Parzelle zoomen/pannen
-    var extent = feature.getGeometry().getExtent();
-    if (extent && !extentIsEmpty(extent)) {
-        // Zuerst auf Extent fitten mit padding
-        map.getView().fit(extent, {
-            padding: [80, 80, 80, 80],
-            duration: 600
+    try {
+        if (!oerebHighlightLayer) {
+            oerebHighlightLayer = new ol.layer.Vector({
+                source: new ol.source.Vector(),
+                zIndex: 998,
+                properties: { isOereb: true },
+                style: new ol.style.Style({
+                    fill: new ol.style.Fill({ color: 'rgba(255, 200, 0, 0.3)' }),
+                    stroke: new ol.style.Stroke({ color: '#e8423f', width: 3 })
+                })
+            });
+            map.addLayer(oerebHighlightLayer);
+            console.log('[OEREB] Highlight-Layer erstellt und zur Karte hinzugefügt');
+        }
+
+        var mapProj = map.getView().getProjection();
+        console.log('[OEREB] Karten-Projektion:', mapProj.getCode());
+
+        var format = new ol.format.GeoJSON();
+        var feature = format.readFeature({
+            type: 'Feature',
+            geometry: geojsonGeom
+        }, {
+            dataProjection: 'EPSG:2056',
+            featureProjection: mapProj
         });
-        
-        // Dann Zoom-Level begrenzen falls zu nah
-        setTimeout(function() {
-            var currentZoom = map.getView().getZoom();
-            if (currentZoom > 18) {
-                map.getView().animate({
-                    zoom: 18,
-                    duration: 300
-                });
-            }
-        }, 100);
+
+        if (!feature || !feature.getGeometry()) {
+            console.error('[OEREB] Feature konnte nicht aus GeoJSON gelesen werden');
+            return;
+        }
+
+        console.log('[OEREB] Feature erstellt, Geometry-Type:', feature.getGeometry().getType());
+
+        oerebHighlightLayer.getSource().addFeature(feature);
+        console.log('[OEREB] Feature zu Highlight-Layer hinzugefügt, Anzahl Features:',
+            oerebHighlightLayer.getSource().getFeatures().length);
+
+        // Auf Parzelle zoomen/pannen
+        var extent = feature.getGeometry().getExtent();
+        console.log('[OEREB] Feature-Extent:', extent);
+
+        if (extent && !extentIsEmpty(extent)) {
+            // Auf Mobile: Bottom-Sheet belegt ~50% unten, Padding grosszügig
+            var bottomPad = isMobileView() ? Math.round(window.innerHeight * 0.55) : 80;
+            console.log('[OEREB] view.fit mit padding [80, 80, ' + bottomPad + ', 80], mobile=' + isMobileView());
+            map.getView().fit(extent, {
+                padding: [80, 80, bottomPad, 80],
+                duration: 600
+            });
+            
+            // Dann Zoom-Level begrenzen falls zu nah
+            setTimeout(function() {
+                var currentZoom = map.getView().getZoom();
+                if (currentZoom > 18) {
+                    map.getView().animate({
+                        zoom: 18,
+                        duration: 300
+                    });
+                }
+                console.log('[OEREB] Zoom nach fit:', currentZoom);
+            }, 700);
+        } else {
+            console.warn('[OEREB] Extent ist leer oder ungültig:', extent);
+        }
+
+        // Prüfe ob Layer sichtbar ist
+        console.log('[OEREB] Layer visible:', oerebHighlightLayer.getVisible(),
+            'opacity:', oerebHighlightLayer.getOpacity(),
+            'zIndex:', oerebHighlightLayer.getZIndex());
+
+    } catch (err) {
+        console.error('[OEREB] Fehler in highlightOerebParcel:', err);
     }
 }
 
@@ -516,6 +741,19 @@ function clearOerebHighlight() {
     if (oerebHighlightLayer) {
         oerebHighlightLayer.getSource().clear();
     }
+}
+
+/** OerebGraphics-Layer (Detail-Geometrien vom iframe/graphicsLayer) leeren */
+function clearOerebGraphicsLayer() {
+    try {
+        var map = getMainMap ? getMainMap() : null;
+        if (!map) return;
+        map.getLayers().forEach(function(layer) {
+            if (layer.get && layer.get('id') === 'OerebGraphics' && layer.getSource) {
+                layer.getSource().clear();
+            }
+        });
+    } catch(e) {}
 }
 
 // ===== DOCK-PANEL (identisch mit Objektinfo-Logik) =====
@@ -542,7 +780,9 @@ function showOerebDockPanel() {
     var panel = document.getElementById('oereb-dock-panel');
     if (!panel) return;
     panel.classList.remove('hidden');
-    // Default = angedockt
+    // Auf Mobile: CSS-Bottom-Sheet übernimmt, kein JS-Docking
+    if (isMobileView()) return;
+    // Desktop: Default = angedockt
     if (window.isOerebPanelDocked) {
         dockOerebPanel();
     }
@@ -551,7 +791,12 @@ function showOerebDockPanel() {
 function hideOerebDockPanel() {
     var panel = document.getElementById('oereb-dock-panel');
     if (!panel) return;
-    // Falls angedockt: mapContainer zurücksetzen
+    // Auf Mobile: nur hidden setzen, CSS erledigt den Rest
+    if (isMobileView()) {
+        panel.classList.add('hidden');
+        return;
+    }
+    // Desktop: Falls angedockt, mapContainer zurücksetzen
     if (window.isOerebPanelDocked) {
         var mapContainer = document.getElementById('mapContainer');
         if (mapContainer) {
@@ -578,6 +823,9 @@ function dockOerebPanel() {
     var dockBtn = document.getElementById('oereb-dock-btn');
     var mapContainer = document.getElementById('mapContainer');
     if (!panel) return;
+
+    // Auf Mobile: CSS-Bottom-Sheet, kein Desktop-Docking
+    if (isMobileView()) return;
 
     panel.classList.add('docked-right');
 
