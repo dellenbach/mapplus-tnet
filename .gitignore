@@ -2,5 +2,8 @@
 **/__pycache__/
 **/*.pyc
 
+# DB credentials (nie committen!)
+**/db_config.php
+
 # Test reports
 test-results/*.xml

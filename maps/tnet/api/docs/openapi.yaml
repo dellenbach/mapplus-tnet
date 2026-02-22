@@ -105,6 +105,13 @@ paths:
           type: string
           enum: [ "1", "0" ]
           default: "0"
+      - name: source
+        in: query
+        description: "Datenquelle: auto = DB bevorzugt mit File-Fallback, db = nur PostgreSQL, file = nur Config-Dateien"
+        schema:
+          type: string
+          enum: [ auto, db, file ]
+          default: auto
       responses:
         "200":
           description: Erfolgreiche Antwort
@@ -293,6 +300,97 @@ paths:
               schema:
                 $ref: "#/components/schemas/InfoResponse"
 
+  /v1/admin:
+    get:
+      tags: [ Admin ]
+      summary: DB-Management und Synchronisation
+      description: |
+        Steuert die PostgreSQL-Datenbank (Schema `mapplusconf`):
+        - **status** — DB-Verbindung und Schema prüfen
+        - **schema** — Schema anlegen/aktualisieren (idempotent)
+        - **configToPG** — Config-Dateien → PostgreSQL synchronisieren
+        - **stats** — Tabellenstatistiken
+        - **log** — Import-Historie
+      parameters:
+      - name: action
+        in: query
+        required: true
+        description: "Auszuführende Aktion"
+        schema:
+          type: string
+          enum: [ status, schema, configToPG, stats, log ]
+      - name: scope
+        in: query
+        description: "Sync-Bereich (nur bei action=configToPG)"
+        schema:
+          type: string
+          enum: [ full, layers, catalog, maptips, nls ]
+          default: full
+      - name: limit
+        in: query
+        description: "Max. Anzahl Log-Einträge (nur bei action=log, max 100)"
+        schema:
+          type: integer
+          default: 10
+          maximum: 100
+      responses:
+        "200":
+          description: Erfolgreiche Antwort
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+              examples:
+                status:
+                  summary: DB-Status
+                  value:
+                    success: true
+                    data:
+                      database: { available: true, message: "OK" }
+                      schema: { exists: true, tables: 9 }
+                    meta: { action: status, responseTime: "45ms" }
+                configToPG:
+                  summary: Full-Sync Resultat
+                  value:
+                    success: true
+                    data:
+                      message: "configToPG abgeschlossen (scope: full)"
+                      stats:
+                        layers_upserted: 10010
+                        layers_deleted: 0
+                        nodes_upserted: 7875
+                        nodes_deleted: 0
+                        maptips_upserted: 25900
+                        maptips_deleted: 0
+                    meta: { action: configToPG, scope: full, responseTime: "20777ms" }
+                stats:
+                  summary: Tabellenstatistiken
+                  value:
+                    success: true
+                    data:
+                      tableCounts:
+                        profile: 5
+                        category_mapping: 4
+                        layer_definition: 9999
+                        catalog_node: 7875
+                        layer_maptip: 25900
+                        nls_resource: 158
+                      sourceFiles: 378
+                      activeProfiles: 5
+                    meta: { action: stats, responseTime: "47ms" }
+        "400":
+          description: Unbekannte Aktion
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Fehler bei der Ausführung
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
 components:
   schemas:
     # === Base Response ===
@@ -421,9 +519,18 @@ components:
           type: object
         layers:
           type: array
-          description: "Nur bei type=group: verschachtelte Layer"
+          description: "Nur bei type=group: verschachtelte Layer (max. 3 Ebenen tief)"
           items:
-            $ref: "#/components/schemas/Layer"
+            type: object
+            description: "Verschachtelter Layer oder Gruppe"
+            properties:
+              id:
+                type: string
+              name:
+                type: string
+              type:
+                type: string
+                enum: [ layer, group ]
 
     # === Basemaps ===
     BasemapsResponse:

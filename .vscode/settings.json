@@ -3,7 +3,11 @@
         "git add": true,
         "git commit": true,
         "git push": true,
-        "&": true
+        "&": true,
+        "/^& \"C:/Program Files/Python313/python\\.exe\" \"c:\\\\_Daten\\\\mapplus-exp\\\\_scripts\\\\_debug_search4\\.py\" 2>&1$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
     },
     "python-envs.pythonProjects": [],
     "chat.agent.maxRequests": 100,

@@ -6,6 +6,12 @@
 # statt:
 #   /maps/tnet/api/v1/layers.php?group=marco
 
+# === GZIP-Kompression für JSON-Antworten ===
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE application/json
+    AddOutputFilterByType DEFLATE text/plain
+</IfModule>
+
 Options +FollowSymLinks -MultiViews
 RewriteEngine On
 RewriteBase /maps/tnet/api/v1/
