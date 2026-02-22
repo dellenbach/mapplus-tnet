@@ -1673,6 +1673,23 @@ div#search_container:focus-within {
     border-radius: 8px !important;
 }
 
+/* Preview iframe auf Mobile ausblenden */
+#print-panel .print-preview-frame {
+    display: none !important;
+}
+#print-panel .pj-btn-preview {
+    display: none !important;
+}
+/* Touch-freundliche Job-Aktionen */
+#print-panel .pj-btn {
+    min-height: 36px !important;
+    font-size: 13px !important;
+    border-radius: 6px !important;
+}
+#print-panel .pj-btn-dl {
+    font-size: 14px !important;
+}
+
 
 /* ========================================
    BASEMAP BOTTOM-SHEET

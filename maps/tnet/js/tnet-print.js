@@ -13,8 +13,8 @@
  *   <link rel="stylesheet" href="/maps/tnet/css/tnet-print.css">
  *   <script src="/maps/tnet/js/tnet-print.js"></script>
  *
- * @version    1.2
- * @date       2026-02-12
+ * @version    1.3
+ * @date       2026-02-22
  * @copyright  Trigonet AG
  * @author     Marco Dellenbach
  */
@@ -30,7 +30,7 @@
   var _svgPreviewImg = null;   // <img> für Template-SVG-Vorschau
   var _svgPreviewCache = {};   // {layoutValue: dataUrl}
   var _isPrinting = false;
-  var _downloads = [];
+  var _isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
   var PDF_SAVE_URL = '/maps/tnet/php/pdf-save.php';
   var PDF_LOG_URL = '/maps/tnet/php/pdf-log.php';  // Parallel-Logging
   var _layouts = [];
@@ -265,33 +265,14 @@
             '<div class="print-progress-text" id="print-progress-text">Wird erstellt...</div>' +
           '</div>' +
 
-          // Job-Queue-Status (Accordion)
-          '<div class="print-accordion" id="print-queue-acc" style="display:none">' +
-            '<div class="print-acc-header" onclick="togglePrintAccordion(\'print-queue-acc\')">' +
-              '<span class="print-acc-arrow">&#9654;</span> \u267B Druck-Warteschlange (<span id="print-queue-count">0</span>)' +
+          // PDF Auftr\u00e4ge (vereinigtes Accordion: Queue + Downloads)
+          '<div class="print-accordion" id="print-jobs-acc" style="display:none">' +
+            '<div class="print-acc-header" onclick="togglePrintAccordion(\'print-jobs-acc\')">' +
+              '<span class="print-acc-arrow">&#9654;</span> \uD83D\uDCCB PDF Auftr\u00e4ge (<span id="print-jobs-count">0</span>)' +
             '</div>' +
             '<div class="print-acc-panel">' +
-              '<div id="print-queue-list" class="print-queue-list"></div>' +
-            '</div>' +
-          '</div>' +
-
-          // PDF-Vorschau (Accordion)
-          '<div class="print-accordion" id="print-preview-acc" style="display:none">' +
-            '<div class="print-acc-header" onclick="togglePrintAccordion(\'print-preview-acc\')">' +
-              '<span class="print-acc-arrow">&#9654;</span> Vorschau' +
-            '</div>' +
-            '<div class="print-acc-panel">' +
-              '<iframe id="print-preview-frame" class="print-preview-frame"></iframe>' +
-            '</div>' +
-          '</div>' +
-
-          // Downloads (Accordion)
-          '<div class="print-accordion" id="print-downloads-acc" style="display:none">' +
-            '<div class="print-acc-header" onclick="togglePrintAccordion(\'print-downloads-acc\')">' +
-              '<span class="print-acc-arrow">&#9654;</span> \uD83D\uDCE5 Erzeugte PDFs' +
-            '</div>' +
-            '<div class="print-acc-panel">' +
-              '<div id="print-download-list"></div>' +
+              '<div id="print-jobs-list" class="print-jobs-list"></div>' +
+              '<iframe id="print-preview-frame" class="print-preview-frame" style="display:none"></iframe>' +
             '</div>' +
           '</div>' +
 
@@ -731,7 +712,10 @@
       }
       showPrintFrame();
       // Kartenausschnitt anpassen: Frame sollte ca. 60-80% des Viewports füllen
-      adjustZoomForPrintFrame();
+      // Auf Mobile übernimmt der Bottom-Sheet-Patch die Zoom-Steuerung
+      if (!_isMobile) {
+        adjustZoomForPrintFrame();
+      }
     };
 
     if (_libsReady) {
@@ -784,13 +768,28 @@
     var svgFormatEl     = document.getElementById('print-svg-format');
     var svgFormat       = svgFormatEl ? svgFormatEl.checked : false;
 
+    // ─ Dateiname vorab generieren (gleiche Logik wie template-pdf-export.js) ─
+    var layoutObj = _layouts.find(function (l) { return l.value === layout; });
+    var now = new Date();
+    var ts = now.getFullYear() +
+      String(now.getMonth() + 1).padStart(2, '0') +
+      String(now.getDate()).padStart(2, '0') + '_' +
+      String(now.getHours()).padStart(2, '0') +
+      String(now.getMinutes()).padStart(2, '0');
+    var safeTitle = (kartentitel || 'Kartenexport')
+      .replace(/[<>:"/\\|?*]/g, '').replace(/\s+/g, '_').substring(0, 50);
+    var paperInfo = (layoutObj && layoutObj.paper) || '';
+    if (layoutObj && layoutObj.orientation === 'landscape') paperInfo += '_quer';
+    else if (layoutObj && layoutObj.orientation === 'portrait') paperInfo += '_hoch';
+    var preFilename = safeTitle + '_' + paperInfo + '_' + ts + '.pdf';
+
     // ─ Neuer Job ─
     var jobId = ++_jobIdCounter;
     var printCenter = map.getView().getCenter().slice();
     var job = {
       id: jobId,
       status: 'pending',  // pending, processing, completed, failed
-      title: kartentitel || ('Druck #' + jobId),
+      title: preFilename,
       progress: 0,
       error: null,
       blob: null,
@@ -850,8 +849,12 @@
 
       onProgress: function (step, msg) {
         job.progress = Math.round((step / 7) * 100);
-        updateQueueUI();
-        // UI-Update pro Job
+        // Nur Fortschrittsbalken direkt aktualisieren (kein volles renderJobs!)
+        var pjFill = document.querySelector('.pj-processing .pj-progress-fill');
+        var pjText = document.querySelector('.pj-processing .pj-progress-text');
+        if (pjFill) pjFill.style.width = job.progress + '%';
+        if (pjText) pjText.textContent = job.progress + '%';
+        // Globaler Fortschrittsbalken
         if (job.id === _currentJobId) {
           document.getElementById('print-progress-fill').style.width = job.progress + '%';
           document.getElementById('print-progress-text').textContent = msg;
@@ -861,6 +864,7 @@
       onSuccess: function (result) {
         job.blob = result.blob;
         job.filename = result.filename;
+        job.title = result.filename;  // Titel = tatsächlicher Dateiname
         job.status = 'completed';
         job.progress = 100;
         
@@ -907,98 +911,145 @@
     }, 2000);
   }
 
-  function updateQueueUI() {
-    var queueList = document.getElementById('print-queue-list');
-    var queueAcc = document.getElementById('print-queue-acc');
-    var queueCount = document.getElementById('print-queue-count');
-    
-    if (!queueList) return;
+  function renderJobs() {
+    var jobsList = document.getElementById('print-jobs-list');
+    var jobsAcc = document.getElementById('print-jobs-acc');
+    var jobsCount = document.getElementById('print-jobs-count');
 
-    var pendingCount = _printQueue.filter(function (j) { return j.status === 'pending'; }).length;
-    var processingJob = _printQueue.find(function (j) { return j.status === 'processing'; });
-    
-    queueCount.textContent = _printQueue.length;
-    
+    if (!jobsList) return;
+
+    jobsCount.textContent = _printQueue.length;
+
     // Zeige Accordion wenn Jobs vorhanden
     if (_printQueue.length > 0) {
-      queueAcc.style.display = 'block';
+      jobsAcc.style.display = 'block';
+      jobsAcc.classList.add('is-open');
     } else {
-      queueAcc.style.display = 'none';
+      jobsAcc.style.display = 'none';
+      closePrintPreview();
       return;
     }
 
     var html = '';
-    _printQueue.forEach(function (job) {
-      var statusClass = 'queue-job-' + job.status;
+    // Neueste Jobs zuerst
+    var sorted = _printQueue.slice().reverse();
+    sorted.forEach(function (job) {
+      var statusClass = 'pj-' + job.status;
       var statusLabel = {
-        pending: '⏳ In Warteschlange',
-        processing: '⚙ Wird verarbeitet',
-        completed: '✓ Fertig',
-        failed: '✕ Fehler'
+        pending: '\u23f3 In Warteschlange',
+        processing: '\u2699 Wird verarbeitet',
+        completed: '\u2713 Fertig',
+        failed: '\u2715 Fehler'
       }[job.status] || job.status;
 
-      html += 
-        '<div class="queue-job ' + statusClass + '">' +
-          '<div class="queue-job-header">' +
-            '<span class="queue-job-title">' + job.title + '</span>' +
-            '<span class="queue-job-status">' + statusLabel + '</span>' +
+      html +=
+        '<div class="print-job ' + statusClass + '">' +
+          '<div class="pj-header">' +
+            '<span class="pj-title">' + job.title + '</span>' +
+            '<span class="pj-status">' + statusLabel + '</span>' +
           '</div>';
-      
+
       if (job.status === 'processing') {
-        html += 
-          '<div class="queue-job-progress">' +
-            '<div class="queue-job-progress-bar"><div class="queue-job-progress-fill" style="width:' + job.progress + '%"></div></div>' +
-            '<span class="queue-job-progress-text">' + job.progress + '%</span>' +
-          '</div>';
-      }
-      
-      if (job.status === 'completed' && job.blob) {
         html +=
-          '<div class="queue-job-actions">' +
-            '<button class="queue-job-btn" onclick="downloadJobPdf(' + job.id + ')">⬇ Download</button>' +
+          '<div class="pj-progress">' +
+            '<div class="pj-progress-bar"><div class="pj-progress-fill" style="width:' + job.progress + '%"></div></div>' +
+            '<span class="pj-progress-text">' + job.progress + '%</span>' +
           '</div>';
       }
-      
+
+      if (job.status === 'completed' && job.blobUrl) {
+        var time = '';
+        if (job.completedDate) {
+          time = String(job.completedDate.getHours()).padStart(2, '0') + ':' +
+                 String(job.completedDate.getMinutes()).padStart(2, '0');
+        }
+        var sizeStr = formatFileSize(job.size);
+        var meta = [];
+        if (time) meta.push(time);
+        if (sizeStr) meta.push(sizeStr);
+        html +=
+          '<div class="pj-meta">' + meta.join(' \u00b7 ') + '</div>' +
+          '<div class="pj-actions">' +
+            '<a class="pj-btn pj-btn-dl" href="' + job.blobUrl + '" download="' + job.filename + '" title="Herunterladen">\u2B07 Download</a>';
+        if (!_isMobile) {
+          html += '<button class="pj-btn pj-btn-preview" onclick="previewJob(' + job.id + ')" title="Vorschau">\uD83D\uDD0D</button>';
+        }
+        html +=
+            '<button class="pj-btn pj-btn-remove" onclick="removeJob(' + job.id + ')" title="Entfernen">&times;</button>' +
+          '</div>';
+      }
+
       if (job.status === 'failed') {
         html +=
-          '<div class="queue-job-error">' + job.error + '</div>';
+          '<div class="pj-error">' + job.error + '</div>';
       }
-      
+
       html += '</div>';
     });
 
-    queueList.innerHTML = html;
+    jobsList.innerHTML = html;
   }
+
+  // Alias für bestehende updateQueueUI()-Aufrufe
+  var updateQueueUI = renderJobs;
+
+  window.removeJob = function (jobId) {
+    var idx = _printQueue.findIndex(function (j) { return j.id === jobId; });
+    if (idx < 0) return;
+    var job = _printQueue[idx];
+    if (job.blobUrl) URL.revokeObjectURL(job.blobUrl);
+    _printQueue.splice(idx, 1);
+    renderJobs();
+  };
+
+  window.previewJob = function (jobId) {
+    var job = _printQueue.find(function (j) { return j.id === jobId; });
+    if (!job || !job.blobUrl) return;
+    showPdfPreview(job.blobUrl);
+  };
 
   window.downloadJobPdf = function (jobId) {
     var job = _printQueue.find(function (j) { return j.id === jobId; });
-    if (!job || !job.blob) return;
-    
-    var blobUrl = URL.createObjectURL(job.blob);
+    if (!job || !job.blobUrl) return;
     var link = document.createElement('a');
-    link.href = blobUrl;
+    link.href = job.blobUrl;
     link.download = job.filename;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    URL.revokeObjectURL(blobUrl);
   };
 
   // ================================================================
   //  PDF im Memory behalten + parallel auf Server loggen
   // ================================================================
   function handlePdfResult(blob, filename) {
-    // Blob-URL erstellen
+    // Blob-URL erstellen und am Job speichern
     var blobUrl = URL.createObjectURL(blob);
-    
-    // In Download-Liste aufnehmen
-    addDownload(filename, blobUrl, blob.size);
-    
-    // Vorschau sofort anzeigen
-    showPdfPreview(blobUrl);
-    
+    var job = _printQueue.find(function (j) { return j.id === _currentJobId; });
+    if (job) {
+      job.blobUrl = blobUrl;
+      job.size = blob.size;
+      job.completedDate = new Date();
+    }
+
+    // Jobs-Liste aktualisieren
+    renderJobs();
+
+    // Vorschau nur auf Desktop anzeigen
+    if (!_isMobile) {
+      showPdfPreview(blobUrl);
+    } else {
+      // Mobile: Auto-Download triggern
+      var link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
     console.log('[Drucken] PDF fertig:', filename, '(' + blob.size + ' Bytes)');
-    
+
     // Parallel: PDF auf Server loggen (fire-and-forget)
     logPdfToServer(blob, filename);
   }
@@ -1031,32 +1082,26 @@
   }
 
   // ================================================================
-  //  PDF-Vorschau (iframe)
+  //  PDF-Vorschau (iframe, nur Desktop)
   // ================================================================
   function showPdfPreview(url) {
-    var accDiv = document.getElementById('print-preview-acc');
+    if (_isMobile) return;  // Kein iframe-Preview auf Mobile
     var iframe = document.getElementById('print-preview-frame');
-    if (!accDiv || !iframe) return;
+    if (!iframe) return;
     iframe.src = url;
-    accDiv.style.display = '';
-    // Accordion aufklappen
-    accDiv.classList.add('is-open');
+    iframe.style.display = '';
     // Zum Vorschau-Bereich scrollen
-    accDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    iframe.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
 
-  window.closePrintPreview = function () {
-    var accDiv = document.getElementById('print-preview-acc');
+  function closePrintPreview() {
     var iframe = document.getElementById('print-preview-frame');
-    if (accDiv) { accDiv.style.display = 'none'; accDiv.classList.remove('is-open'); }
-    if (iframe) iframe.src = 'about:blank';
-  };
-
-  window.previewPrintDownload = function (idx) {
-    if (_downloads[idx] && _downloads[idx].url) {
-      showPdfPreview(_downloads[idx].url);
+    if (iframe) {
+      iframe.src = 'about:blank';
+      iframe.style.display = 'none';
     }
-  };
+  }
+  window.closePrintPreview = closePrintPreview;
 
   // ================================================================
   //  Accordion Toggle
@@ -1077,50 +1122,8 @@
     return (bytes / 1048576).toFixed(1) + ' MB';
   }
 
-  function addDownload(name, url, size) {
-    _downloads.push({ name: name, url: url, size: size, date: new Date() });
-    renderDownloads();
-  }
-
-  function renderDownloads() {
-    var accDiv = document.getElementById('print-downloads-acc');
-    var list = document.getElementById('print-download-list');
-    if (!accDiv || !list) return;
-    if (_downloads.length > 0) {
-      accDiv.style.display = '';
-      accDiv.classList.add('is-open');
-    } else {
-      accDiv.style.display = 'none';
-    }
-    list.innerHTML = '';
-    _downloads.forEach(function (dl, idx) {
-      var item = document.createElement('div');
-      item.className = 'print-dl-item';
-      var time = String(dl.date.getHours()).padStart(2, '0') + ':' +
-                 String(dl.date.getMinutes()).padStart(2, '0');
-      var sizeStr = formatFileSize(dl.size);
-      item.innerHTML =
-        '<div class="print-dl-main">' +
-          '<a href="' + dl.url + '" download="' + dl.name + '" title="Herunterladen">' + dl.name + '</a>' +
-          '<span class="dl-meta">' + time + (sizeStr ? ' \u00b7 ' + sizeStr : '') + '</span>' +
-        '</div>' +
-        '<div class="print-dl-actions">' +
-          '<button class="dl-preview-btn" onclick="previewPrintDownload(' + idx + ')" title="Vorschau">\uD83D\uDD0D</button>' +
-          '<a class="dl-download-btn" href="' + dl.url + '" download="' + dl.name + '" title="Herunterladen">\u2B07</a>' +
-          '<button class="dl-remove" onclick="removePrintDownload(' + idx + ')" title="Entfernen">&times;</button>' +
-        '</div>';
-      list.appendChild(item);
-    });
-  }
-
-  window.removePrintDownload = function (idx) {
-    if (_downloads[idx]) {
-      _downloads.splice(idx, 1);
-      renderDownloads();
-      // Vorschau schliessen falls leer
-      if (_downloads.length === 0) window.closePrintPreview();
-    }
-  };
+  // addDownload, renderDownloads, removePrintDownload entfernt
+  // → ersetzt durch renderJobs() und window.removeJob()
 
   // ================================================================
   //  Dock / Undock (analog Info-Panel + ÖREB)

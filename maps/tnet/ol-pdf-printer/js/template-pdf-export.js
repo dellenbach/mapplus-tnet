@@ -41,9 +41,9 @@
     // Bildformat: 'image/jpeg' (Standard) oder 'image/png'
     imageFormat: 'image/jpeg',
     // Debug-Flags (überschreibbar via tnet-global-config.json5)
-    debug: true,
-    debugTestLine: true,
-    debugLogMetrics: true
+    debug: false,
+    debugTestLine: false,
+    debugLogMetrics: false
   };
 
   /** Bedingte Konsolenausgabe: nur wenn CONFIG.debug === true */
@@ -81,7 +81,7 @@
       .then(function (data) {
         if (data.templates && data.templates.length > 0) {
           _manifestCache = data;
-          console.log('[TemplatePDF] Manifest via Scanner:', data.templates.length,
+          _dbg('[TemplatePDF] Manifest via Scanner:', data.templates.length,
             'Templates aus', (data.source || 'scan-manifests.php'));
           return data;
         }
@@ -96,7 +96,7 @@
           })
           .then(function (data) {
             _manifestCache = data;
-            console.log('[TemplatePDF] Manifest (legacy):', data.templates.length, 'Templates');
+            _dbg('[TemplatePDF] Manifest (legacy):', data.templates.length, 'Templates');
             return data;
           });
       })
@@ -252,7 +252,7 @@
     if (values.scaleText) { var b2 = result.length; result = result.split('{{SCALE}}').join(values.scaleText); if (result.length !== b2) count++; }
     if (values.coords)    { var b3 = result.length; result = result.split('{{COORDINATES}}').join(values.coords); if (result.length !== b3) count++; }
     if (values.date)      { var b4 = result.length; result = result.split('{{DATE}}').join(values.date);        if (result.length !== b4) count++; }
-    console.log('[TemplatePDF] Mustache-Ersetzung:', count, 'Platzhalter ersetzt,',
+    _dbg('[TemplatePDF] Mustache-Ersetzung:', count, 'Platzhalter ersetzt,',
       'Werte:', { title: values.title, scale: values.scaleText, coords: values.coords, date: values.date });
     return result;
   }
@@ -284,7 +284,7 @@
       if (tspans.length > 0) tspans[0].textContent = mapping[elemId];
       else el.textContent = mapping[elemId];
       changed = true;
-      console.log('[TemplatePDF] SVG-Element ersetzt:', elemId);
+      _dbg('[TemplatePDF] SVG-Element ersetzt:', elemId);
     }
 
     if (changed) {
@@ -391,7 +391,7 @@
     }
 
     if (changed) {
-      console.log('[TemplatePDF] Ungültige font-weight Werte korrigiert');
+      _dbg('[TemplatePDF] Ungültige font-weight Werte korrigiert');
       return new XMLSerializer().serializeToString(doc);
     }
     return svgText;
@@ -433,7 +433,7 @@
       if (removedThisPass === 0) break;
     }
     if (removedCount > 0) {
-      console.log('[TemplatePDF] SVG-Cleanup:', removedCount, 'leere <g>-Elemente entfernt');
+      _dbg('[TemplatePDF] SVG-Cleanup:', removedCount, 'leere <g>-Elemente entfernt');
     }
 
     // 2. Schriftarten normalisieren
@@ -464,7 +464,7 @@
     }
 
     if (changed) {
-      console.log('[TemplatePDF] SVG-Cleanup: Fonts normalisiert auf', targetFont);
+      _dbg('[TemplatePDF] SVG-Cleanup: Fonts normalisiert auf', targetFont);
       return new XMLSerializer().serializeToString(doc);
     }
     return svgText;
@@ -670,7 +670,7 @@
       return Promise.resolve(empty);
     }
 
-    console.log('[ServerRender] Starte direktes Server-Rendering:',
+    _dbg('[ServerRender] Starte direktes Server-Rendering:',
       layerInfos.length, 'Layer,',
       widthPx + '×' + heightPx, 'px, DPI:', dpi,
       'BBOX:', bbox.map(function(v){return v.toFixed(1)}).join(', '));
@@ -685,7 +685,7 @@
         var wmsFmt = useSvg ? 'image/svg+xml' : format;
         url = buildWmsGetMapUrl(info, bbox, widthPx, heightPx, dpi, wmsFmt);
       }
-      console.log('[ServerRender] Layer', idx, info.name || info.layers,
+      _dbg('[ServerRender] Layer', idx, info.name || info.layers,
         '(' + info.type + '):', url.substring(0, 120) + '...');
       return { info: info, url: url, index: idx };
     });
@@ -696,7 +696,7 @@
         var img = new Image();
         img.crossOrigin = 'anonymous';
         img.onload = function () {
-          console.log('[ServerRender] ✓ Layer', req.index, req.info.name || req.info.layers,
+          _dbg('[ServerRender] ✓ Layer', req.index, req.info.name || req.info.layers,
             img.naturalWidth + '×' + img.naturalHeight);
           resolve({ img: img, info: req.info, ok: true });
         };
@@ -734,7 +734,7 @@
       });
       ctx.globalAlpha = 1;
 
-      console.log('[ServerRender] Merge-Ergebnis:',
+      _dbg('[ServerRender] Merge-Ergebnis:',
         drawn, 'Layer gezeichnet,', failed, 'fehlgeschlagen,',
         canvas.width + '×' + canvas.height, 'px');
 
@@ -752,7 +752,7 @@
       var vectorCanvas = renderVectorOverlay(map, bbox, widthPx, heightPx);
       if (vectorCanvas) {
         ctx.drawImage(vectorCanvas, 0, 0);
-        console.log('[ServerRender] Vector-Overlay hinzugefügt');
+        _dbg('[ServerRender] Vector-Overlay hinzugefügt');
       }
 
       if (onProgress) onProgress(4, 'Server-Bilder geladen');
@@ -1025,29 +1025,15 @@
         interactions: []
       });
 
-      // ── Logging ──
-      console.log('┌─────────────────────────────────────────────────────');
-      console.log('│ [RENDER] Off-Screen renderMapCanvas');
-      console.log('├─────────────────────────────────────────────────────');
-      console.log('│ Off-Screen-DIV:', pxW + '×' + pxH, 'px');
-      console.log('│ pixelRatio: 1 (window.devicePixelRatio=' + window.devicePixelRatio + ')');
-      console.log('│ Projektion:', proj.getCode(), 'mpu=' + proj.getMetersPerUnit());
-      console.log('│ Center:', center[0].toFixed(2) + ' / ' + center[1].toFixed(2));
-      console.log('│ Resolution:', resolution.toFixed(10), 'm/px');
-      console.log('│ Rotation:', (rotation * 180 / Math.PI).toFixed(1) + '°');
-      console.log('│ PDF-DPI:', printDpi, ' / Server-DPI:', serverDpi);
-      console.log('│ Sichtbare Layer:', printLayers.length);
-      console.log('│ DPI-Quellen geklont:', dpiClonedCount);
+      // ── Logging (nur bei CONFIG.debug) ──
       var expectedExtentW = pxW * resolution;
       var expectedExtentH = pxH * resolution;
-      console.log('│ Erwarteter Extent:', expectedExtentW.toFixed(2) + ' × ' +
-        expectedExtentH.toFixed(2), 'm');
-      console.log('│ Erwartete BBOX: [' +
-        (center[0] - expectedExtentW / 2).toFixed(2) + ', ' +
-        (center[1] - expectedExtentH / 2).toFixed(2) + ', ' +
-        (center[0] + expectedExtentW / 2).toFixed(2) + ', ' +
-        (center[1] + expectedExtentH / 2).toFixed(2) + ']');
-      console.log('└─────────────────────────────────────────────────────');
+      if (CONFIG.debug) {
+        console.log('[RENDER] Off-Screen renderMapCanvas: ' +
+          pxW + '×' + pxH + 'px, Res=' + resolution.toFixed(8) +
+          ', Layers=' + printLayers.length + ', DPI=' + printDpi +
+          ', Extent=' + expectedExtentW.toFixed(1) + '×' + expectedExtentH.toFixed(1) + 'm');
+      }
 
       // ── 5. rendercomplete-Handler + renderSync ──
       offMap.once('rendercomplete', function () {
@@ -1056,16 +1042,10 @@
           var rcRes = offView.getResolution();
           var rcCtr = offView.getCenter();
 
-          console.log('┌─────────────────────────────────────────────────────');
-          console.log('│ [RENDER] Off-Screen rendercomplete');
-          console.log('├─────────────────────────────────────────────────────');
-          console.log('│ offMap.getSize():', JSON.stringify(size),
-            size[0] === pxW && size[1] === pxH ? '✓' : '✗ SOLL: [' + pxW + ',' + pxH + ']');
-          console.log('│ view.getResolution():', rcRes,
-            Math.abs(rcRes - resolution) < 1e-10 ? '✓' : '✗ SOLL: ' + resolution);
-          console.log('│ view.getCenter():', JSON.stringify(rcCtr));
-          console.log('│ Extent:', (size[0] * rcRes).toFixed(2) + ' × ' +
-            (size[1] * rcRes).toFixed(2), 'm');
+          if (CONFIG.debug) {
+            console.log('[RENDER] rendercomplete: size=' + JSON.stringify(size) +
+              ', res=' + rcRes + ', center=' + JSON.stringify(rcCtr));
+          }
 
           // ── 6. Canvas-Compositing (OL-Referenz-Pattern) ──
           var canvas = document.createElement('canvas');
@@ -1075,7 +1055,9 @@
 
           // Nur im Off-Screen-DIV suchen (nicht global im DOM!)
           var layerCanvases = offDiv.querySelectorAll('.ol-layer canvas');
-          console.log('│ Layer-Canvases:', layerCanvases.length);
+          if (CONFIG.debug) {
+            console.log('[RENDER] Layer-Canvases: ' + layerCanvases.length);
+          }
 
           for (var i = 0; i < layerCanvases.length; i++) {
             var lc = layerCanvases[i];
@@ -1086,18 +1068,12 @@
               var tf = lc.style.transform;
               var mat = tf && tf.match(/^matrix\(([^)]+)\)$/);
 
-              console.log('│ Layer[' + i + ']: ' + lc.width + '×' + lc.height +
-                ' (Soll: ' + pxW + '×' + pxH +
-                ', Ratio: ' + (lc.width / pxW).toFixed(4) + ')' +
-                ' transform: ' + (tf || 'keine'));
-
               if (mat) {
                 var mx = mat[1].split(',').map(Number);
-                console.log('│   Matrix: [' +
-                  mx[0].toFixed(4) + ',' + mx[1].toFixed(4) + ',' +
-                  mx[2].toFixed(4) + ',' + mx[3].toFixed(4) + ',' +
-                  mx[4].toFixed(1) + ',' + mx[5].toFixed(1) + ']' +
-                  (Math.abs(mx[0] - 1.0) > 0.001 ? ' ⚠ scaleX≠1' : ''));
+                if (CONFIG.debug) {
+                  console.log('[RENDER] Layer[' + i + ']: ' + lc.width + '×' + lc.height +
+                    ' matrix=[' + mx.map(function(v){return v.toFixed(4)}).join(',') + ']');
+                }
                 ctx.setTransform(mx[0], mx[1], mx[2], mx[3], mx[4], mx[5]);
               } else {
                 ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -1107,7 +1083,6 @@
           }
           ctx.setTransform(1, 0, 0, 1, 0, 0);
           ctx.globalAlpha = 1;
-          console.log('└─────────────────────────────────────────────────────');
 
           // ── 7. Cleanup: Off-Screen-Map zerstören ──
           // Geklonte Layer werden mit dispose() automatisch aufgeräumt
@@ -1195,7 +1170,7 @@
         align = 'left';
       }
       pdf.text(text, textX, textY, { align: align });
-      console.log('[TemplatePDF] PDF-Overlay:', elem.id, '→', text);
+      _dbg('[TemplatePDF] PDF-Overlay:', elem.id, '→', text);
     });
 
     // Font zurücksetzen
@@ -1272,7 +1247,7 @@
         height_mm: h * sy
       });
 
-      console.log('[TemplatePDF] SVG-Bbox gefunden:', id, type,
+      _dbg('[TemplatePDF] SVG-Bbox gefunden:', id, type,
         { x_mm: (x * sx).toFixed(1), y_mm: (y * sy).toFixed(1),
           w_mm: (w * sx).toFixed(1), h_mm: (h * sy).toFixed(1) });
     }
@@ -1354,7 +1329,7 @@
       svgBboxes.forEach(function (bbox) {
         elementsMap[bbox.type] = bbox;
       });
-      console.log('[TemplatePDF] Positionen aus SVG-Bboxen:', svgBboxes.length);
+      _dbg('[TemplatePDF] Positionen aus SVG-Bboxen:', svgBboxes.length);
     }
 
     // Zeichnen
@@ -1449,7 +1424,7 @@
     pdf.setTextColor(0, 0, 0);
     pdf.text('N', nPos[0], nPos[1] + 1, { align: 'center' });
 
-    console.log('[TemplatePDF] Nordpfeil gezeichnet, Rotation:', rotationDeg + '°');
+    _dbg('[TemplatePDF] Nordpfeil gezeichnet, Rotation:', rotationDeg + '°');
   }
 
   /**
@@ -1537,7 +1512,7 @@
       pdf.text(label, labelX, labelY, { align: align });
     }
 
-    console.log('[TemplatePDF] Massstabsbalken:',
+    _dbg('[TemplatePDF] Massstabsbalken:',
       numSegs, 'Segmente à', segDistM, 'm, Breite:', barWidth.toFixed(1), 'mm');
   }
 
@@ -1560,7 +1535,7 @@
     var textY = elem.y_mm + elem.height_mm * 0.75;
     pdf.text(scaleText, elem.x_mm, textY);
 
-    console.log('[TemplatePDF] Massstabstext:', scaleText);
+    _dbg('[TemplatePDF] Massstabstext:', scaleText);
   }
 
   // ---------------------------------------------------------------- //
@@ -1638,7 +1613,7 @@
     }
     ctx.restore();
 
-    console.log('[TemplatePDF] Debug-Testlinie ins Canvas gezeichnet',
+    _dbg('[TemplatePDF] Debug-Testlinie ins Canvas gezeichnet',
       '(100 mm =', Math.round(lineLen_px), 'px, pxPerMm =', pxPerMm.toFixed(2) + ')');
   }
 
@@ -1738,7 +1713,7 @@
             mapAreaY = mapAreaY - mapAreaH;
           }
 
-          console.log('[TemplatePDF] MAP_AREA aus Manifest (mm):',
+          _dbg('[TemplatePDF] MAP_AREA aus Manifest (mm):',
             { x: mapAreaX, y: mapAreaY, w: mapAreaW, h: mapAreaH });
         } else {
           // ▸ Fallback: SVG parsen → SVG-Units nach mm umrechnen
@@ -1752,7 +1727,7 @@
           mapAreaY = fallback.y * sy;
           mapAreaW = fallback.width * sx;
           mapAreaH = fallback.height * sy;
-          console.log('[TemplatePDF] MAP_AREA via SVG-Parsing (mm):',
+          _dbg('[TemplatePDF] MAP_AREA via SVG-Parsing (mm):',
             { x: mapAreaX, y: mapAreaY, w: mapAreaW, h: mapAreaH });
         }
 
@@ -1804,34 +1779,9 @@
         var mpu = map.getView().getProjection().getMetersPerUnit() || 1;
         var desiredCenter = options.printCenter || map.getView().getCenter();
 
-        console.log('┌─────────────────────────────────────────────────────');
-        console.log('│ [PRINT] Schritt-für-Schritt Koordinatenberechnung');
-        console.log('├─────────────────────────────────────────────────────');
-        console.log('│ MANIFEST / EINGABE:');
-        console.log('│   Template:      ', template.paper || '?',
-          template.orientation || '', '(' + (template.name || template.file || '?') + ')');
-        console.log('│   Papier:        ', paperW.toFixed(1) + ' × ' + paperH.toFixed(1), 'mm');
-        console.log('│   MAP_AREA:      ', mapAreaW.toFixed(2) + ' × ' + mapAreaH.toFixed(2), 'mm',
-          'bei (' + mapAreaX.toFixed(2) + ', ' + mapAreaY.toFixed(2) + ')');
-        console.log('│   Massstab:       1:' + scaleNumber);
-        console.log('│   DPI:           ', dpi);
-        console.log('│   Projektion:    ', map.getView().getProjection().getCode(), ' mpu=' + mpu);
-        console.log('│   Center (View): ', map.getView().getCenter()[0].toFixed(2),
-          '/', map.getView().getCenter()[1].toFixed(2));
-        console.log('│   Center (Print):', desiredCenter[0].toFixed(2),
-          '/', desiredCenter[1].toFixed(2));
-        console.log('│   printCenter:   ', options.printCenter ? 'JA (explizit)' : 'NEIN (= View-Center)');
-        console.log('│   Bildformat:    ', CONFIG.imageFormat || 'image/jpeg');
-        console.log('├─────────────────────────────────────────────────────');
-
         // 1. Extent in Meter
         var extentW_m = mapAreaW * scaleNumber / 1000;
         var extentH_m = mapAreaH * scaleNumber / 1000;
-        console.log('│ SCHRITT 1: Kartenausschnitt (Extent) in Meter');
-        console.log('│   Formel:   mapAreaW_mm × Massstab / 1000');
-        console.log('│   Breite:  ', mapAreaW.toFixed(2), '×', scaleNumber, '/ 1000 =', extentW_m.toFixed(2), 'm');
-        console.log('│   Höhe:    ', mapAreaH.toFixed(2), '×', scaleNumber, '/ 1000 =', extentH_m.toFixed(2), 'm');
-        console.log('├─────────────────────────────────────────────────────');
 
         // 2. BBOX (Eckkoordinaten)
         var halfW = extentW_m / (2 * mpu);
@@ -1842,29 +1792,10 @@
           desiredCenter[0] + halfW,
           desiredCenter[1] + halfH
         ];
-        console.log('│ SCHRITT 2: Eckkoordinaten (BBOX LV95)');
-        console.log('│   halfW:    extentW / (2 × mpu) =', extentW_m.toFixed(2), '/ (2 ×', mpu + ') =', halfW.toFixed(2), 'm');
-        console.log('│   halfH:    extentH / (2 × mpu) =', extentH_m.toFixed(2), '/ (2 ×', mpu + ') =', halfH.toFixed(2), 'm');
-        console.log('│');
-        console.log('│   Links-Unten (SW):  E ' + printBbox[0].toFixed(2) + '  /  N ' + printBbox[1].toFixed(2));
-        console.log('│   Rechts-Oben (NE):  E ' + printBbox[2].toFixed(2) + '  /  N ' + printBbox[3].toFixed(2));
-        console.log('│   Links-Oben  (NW):  E ' + printBbox[0].toFixed(2) + '  /  N ' + printBbox[3].toFixed(2));
-        console.log('│   Rechts-Unten (SE): E ' + printBbox[2].toFixed(2) + '  /  N ' + printBbox[1].toFixed(2));
-        console.log('│   Center:            E ' + desiredCenter[0].toFixed(2) + '  /  N ' + desiredCenter[1].toFixed(2));
-        console.log('│');
-        console.log('│   → BBOX: [' + printBbox.map(function(v){return v.toFixed(2)}).join(', ') + ']');
-        console.log('│   → Prüfung: ΔE=' + (printBbox[2]-printBbox[0]).toFixed(2) + 'm (soll ' + extentW_m.toFixed(2) + ')' +
-          '  ΔN=' + (printBbox[3]-printBbox[1]).toFixed(2) + 'm (soll ' + extentH_m.toFixed(2) + ')');
-        console.log('├─────────────────────────────────────────────────────');
 
         // 3. Pixeldimensionen
         var baseVpW = mapAreaW / 25.4 * dpi;
         var baseVpH = mapAreaH / 25.4 * dpi;
-        console.log('│ SCHRITT 3: Pixeldimensionen');
-        console.log('│   Formel:   mapAreaW_mm / 25.4 × DPI');
-        console.log('│   Breite:  ', mapAreaW.toFixed(2), '/ 25.4 ×', dpi, '=', baseVpW.toFixed(2), 'px → gerundet:', Math.round(baseVpW));
-        console.log('│   Höhe:    ', mapAreaH.toFixed(2), '/ 25.4 ×', dpi, '=', baseVpH.toFixed(2), 'px → gerundet:', Math.round(baseVpH));
-        console.log('├─────────────────────────────────────────────────────');
 
         // 4. Resolution
         var desiredRes;
@@ -1873,23 +1804,10 @@
         } else {
           desiredRes = map.getView().getResolution();
         }
-        console.log('│ SCHRITT 4: Resolution (m/px)');
-        console.log('│   Formel:   extentW_m / baseVpW_px');
-        console.log('│  ', extentW_m.toFixed(4), '/', baseVpW.toFixed(4), '=', desiredRes.toFixed(10), 'm/px');
-        console.log('│   Alternativ: Massstab × 0.0254 / DPI =', (scaleNumber * 0.0254 / dpi).toFixed(10), 'm/px');
-        console.log('│   → Identisch?', Math.abs(desiredRes - scaleNumber * 0.0254 / dpi) < 1e-10 ? 'JA ✓' : 'NEIN ✗');
-        console.log('├─────────────────────────────────────────────────────');
 
         // 5. Rückrechnung → Verifikation
         var checkExtentW = desiredRes * Math.round(baseVpW);
         var checkExtentH = desiredRes * Math.round(baseVpH);
-        console.log('│ SCHRITT 5: Rückrechnung (Verifikation)');
-        console.log('│   res × round(pxW):', desiredRes.toFixed(10), '×', Math.round(baseVpW), '=', checkExtentW.toFixed(4), 'm (soll:', extentW_m.toFixed(4) + ')');
-        console.log('│   res × round(pxH):', desiredRes.toFixed(10), '×', Math.round(baseVpH), '=', checkExtentH.toFixed(4), 'm (soll:', extentH_m.toFixed(4) + ')');
-        console.log('│   ΔW:', Math.abs(checkExtentW - extentW_m).toFixed(6), 'm  ΔH:', Math.abs(checkExtentH - extentH_m).toFixed(6), 'm');
-        console.log('│   Massstab rückgerechnet: 1:' + Math.round(checkExtentW / (mapAreaW / 1000)),
-          '(soll: 1:' + scaleNumber + ')');
-        console.log('├─────────────────────────────────────────────────────');
 
         // 6. Rotation + viewport
         var rotRad = map.getView().getRotation() || 0;
@@ -1898,28 +1816,15 @@
         var rotBuffer = Math.abs(rotRad) > 0.001 ? 1.15 : 1.0;
         var targetVpW = Math.round((baseVpW * absC + baseVpH * absS) * rotBuffer);
         var targetVpH = Math.round((baseVpW * absS + baseVpH * absC) * rotBuffer);
-        console.log('│ SCHRITT 6: Rotation');
-        console.log('│   Winkel:', (rotRad * 180 / Math.PI).toFixed(1) + '°',
-          rotBuffer > 1 ? '(+15% Buffer)' : '(kein Buffer)');
-        console.log('│   Base-Viewport:  ', Math.round(baseVpW) + ' × ' + Math.round(baseVpH), 'px');
-        console.log('│   Target-Viewport:', targetVpW + ' × ' + targetVpH, 'px');
-        console.log('├─────────────────────────────────────────────────────');
 
-        // 7. Aktueller View vs. Print
-        var curViewRes = map.getView().getResolution();
-        var curViewCtr = map.getView().getCenter();
-        var curViewSize = map.getSize();
-        console.log('│ AKTUELLER VIEW (On-Screen):');
-        console.log('│   Size:       ', curViewSize ? (curViewSize[0] + '×' + curViewSize[1] + ' px') : 'undefined');
-        console.log('│   Resolution: ', curViewRes ? curViewRes.toFixed(8) + ' m/px' : 'undefined');
-        console.log('│   Center:      E ' + (curViewCtr ? curViewCtr[0].toFixed(2) : '?') + '  /  N ' + (curViewCtr ? curViewCtr[1].toFixed(2) : '?'));
-        if (curViewRes && curViewSize) {
-          console.log('│   View-Extent:', (curViewRes * curViewSize[0]).toFixed(1) + ' × ' +
-            (curViewRes * curViewSize[1]).toFixed(1), 'm');
-          console.log('│   View-Scale:  ~1:' + Math.round(curViewRes / 0.00028));
+        if (CONFIG.debug) {
+          console.log('[PRINT] ' + (template.paper || '?') + ' ' + (template.orientation || '') +
+            ', 1:' + scaleNumber + ', ' + dpi + 'dpi' +
+            ', BBOX: [' + printBbox.map(function(v){return v.toFixed(0)}).join(', ') + ']' +
+            ', Pixel: ' + Math.round(baseVpW) + '×' + Math.round(baseVpH) +
+            ', Res: ' + desiredRes.toFixed(8) + ' m/px' +
+            ', Rot: ' + (rotRad * 180 / Math.PI).toFixed(1) + '°');
         }
-        console.log('│   devicePixelRatio:', window.devicePixelRatio);
-        console.log('└─────────────────────────────────────────────────────');
 
         // ── Render-Methode wählen ──
         var useServerRender = !!options.serverRender && scaleNumber > 0;
@@ -1931,7 +1836,7 @@
           var imgW = Math.round(baseVpW);
           var imgH = Math.round(baseVpH);
 
-          console.log('[TemplatePDF] Server-Rendering:',
+          _dbg('[TemplatePDF] Server-Rendering:',
             imgW + '×' + imgH, 'px, DPI:', dpi,
             'BBOX:', printBbox.map(function(v){return v.toFixed(1)}).join(', '));
 
@@ -1945,7 +1850,7 @@
           // ── Client-Rendering via Off-Screen-Map ──
           // Separate ol.Map-Instanz mit pixelRatio:1 → kein DPR-Problem,
           // kein ResizeObserver, On-Screen-Map bleibt unverändert.
-          console.log('[TemplatePDF] Client-Rendering (Off-Screen):',
+          _dbg('[TemplatePDF] Client-Rendering (Off-Screen):',
             'Druckpixel:', Math.round(targetVpW) + '×' + Math.round(targetVpH),
             '(Basis:', Math.round(baseVpW) + '×' + Math.round(baseVpH) + ')',
             'Resolution:', desiredRes.toFixed(8), 'm/px',
@@ -1979,7 +1884,7 @@
             var sx = Math.round((mapCanvas.width - cropW) / 2);
             var sy = Math.round((mapCanvas.height - cropH) / 2);
             cropCtx.drawImage(mapCanvas, sx, sy, cropW, cropH, 0, 0, cropW, cropH);
-            console.log('[TemplatePDF] Rotiertes Canvas zugeschnitten:',
+            _dbg('[TemplatePDF] Rotiertes Canvas zugeschnitten:',
               mapCanvas.width + 'x' + mapCanvas.height, '→', cropW + 'x' + cropH);
           } else {
             finalCanvas = mapCanvas;
@@ -2076,10 +1981,10 @@
             pdf.addImage(mapDataUrl, pdfImgType,
               mapAreaX, mapAreaY, mapAreaW, mapAreaH, undefined, 'FAST');
 
-            console.log('[TemplatePDF] Bildformat:', pdfImgType,
+            _dbg('[TemplatePDF] Bildformat:', pdfImgType,
               isJpeg ? ('Qualität: ' + jpegQuality) : '(verlustfrei)');
 
-            console.log('[TemplatePDF] Karte platziert bei:',
+            _dbg('[TemplatePDF] Karte platziert bei:',
               { x: mapAreaX, y: mapAreaY, w: mapAreaW, h: mapAreaH });
 
             // ── Dynamische Grafik-Elemente (Nordpfeil, Massstabsbalken) ──
@@ -2109,7 +2014,7 @@
             var _layerInfos = collectLayerInfos(map);
             var _layerNames = _layerInfos.map(function (l) { return l.name || l.layers || '?'; });
 
-            console.log('[TemplatePDF] Export:', pdfFilename,
+            _dbg('[TemplatePDF] Export:', pdfFilename,
               '(' + pdfBlob.size + ' Bytes)',
               '| Dauer:', _duration + 's',
               '| DPI:', dpi,
@@ -2179,6 +2084,6 @@
     collectLayerInfos: collectLayerInfos
   };
 
-  console.log('[TemplatePDF] Template-PDF-Export Engine v2.0 geladen ✓');
+  _dbg('[TemplatePDF] Template-PDF-Export Engine v2.0 geladen ✓');
 
 })();

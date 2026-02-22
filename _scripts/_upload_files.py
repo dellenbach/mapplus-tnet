@@ -14,6 +14,7 @@ LOCAL_BASE = r"c:\_Daten\mapplus-exp\maps"
 # Files to upload - Mobile Suche v1.2 + OEREB Fix
 FILES = [
     "public/index_de_m.htm",
+    "public/config/modules_m.conf",
     "tnet/js/mobile/tnet-search-m.js",
     "tnet/js/mobile/tnet_modules_m.js",
     "tnet/api/search-proxy.php",
