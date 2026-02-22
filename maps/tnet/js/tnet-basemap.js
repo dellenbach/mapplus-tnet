@@ -545,17 +545,15 @@
                 var layer = new ol.layer.Tile({
                     source: source,
                     opacity: this._currentOpacity,
-                    visible: true
+                    visible: true,
+                    zIndex: -1
                 });
                 layer.set('_isTimeOverlay', true);
                 layer.set('_timeValue', timeValue);
 
+                // An Position 0 einfügen (unter allen Fachlayern) + zIndex -1 als Absicherung
                 var layers = mainMap.getLayers();
-                if (layers.getLength() > 0) {
-                    layers.insertAt(1, layer);
-                } else {
-                    layers.push(layer);
-                }
+                layers.insertAt(0, layer);
 
                 this._timeOverlayLayer = layer;
                 this._setBaseLayerVisibility(mainMap, false);
@@ -585,8 +583,17 @@
             try {
                 var layers = map.getLayers().getArray();
                 for (var i = 0; i < layers.length; i++) {
-                    if (!layers[i].get('_isTimeOverlay')) {
-                        layers[i].setVisible(visible);
+                    var lyr = layers[i];
+                    // Nur den echten Basemap-Layer (nicht Time-Overlay, nicht Fachlayer)
+                    if (!lyr.get('_isTimeOverlay') && lyr.get('isBaseLayer')) {
+                        lyr.setVisible(visible);
+                        return;
+                    }
+                }
+                // Fallback: erster Nicht-Overlay-Layer
+                for (var j = 0; j < layers.length; j++) {
+                    if (!layers[j].get('_isTimeOverlay')) {
+                        layers[j].setVisible(visible);
                         break;
                     }
                 }

@@ -122,6 +122,19 @@ function initInfoPaneEnhancements() {
         }
     }
 
+    // Info-Pane unter Header positionieren (69px Header + 11px Puffer)
+    function ensureBelowHeader(infoPane) {
+        if (!infoPane || infoPane.classList.contains('docked-right')) return;
+        requestAnimationFrame(function() {
+            var rect = infoPane.getBoundingClientRect();
+            if (rect.top < 80) {
+                var currentTop = parseInt(infoPane.style.top) || 0;
+                var delta = 80 - rect.top;
+                infoPane.style.setProperty('top', (currentTop + delta) + 'px', 'important');
+            }
+        });
+    }
+
     // Callback wenn Info-Pane sichtbar wird
     function onInfoPaneChange(infoPane) {
         if (!infoPane || infoPane.style.visibility === 'hidden') return;
@@ -134,6 +147,7 @@ function initInfoPaneEnhancements() {
 
         enhanceInfoPane();
         restoreDockedLayout(infoPane);
+        ensureBelowHeader(infoPane);
     }
 
     // Gezielter Observer: Nur njs_info_pane selbst beobachten (nicht document.body)

@@ -2268,6 +2268,44 @@ div#search_container:focus-within {
 }
 
 /* ========================================
+   Info Pane (Objektinformation) als Bottom-Sheet
+   ======================================== */
+#njs_info_pane,
+#njs_info_pane.docked-right {
+    position: fixed !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    top: auto !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    height: 50vh !important;
+    max-height: calc(100dvh - var(--m-topbar-h) - 10px) !important;
+    z-index: 9500 !important;
+    border-radius: 16px 16px 0 0 !important;
+    box-shadow: 0 -4px 20px rgba(0,0,0,0.2) !important;
+    overflow: hidden !important;
+}
+
+/* Dock-Button auf Mobile ausblenden */
+#njs_info_pane #info-pane-dock-btn {
+    display: none !important;
+}
+
+/* Resize-Handles auf Mobile ausblenden */
+#njs_info_pane [class*="info-pane-resize"],
+#njs_info_pane .dojoxFloatingResizeHandle {
+    display: none !important;
+}
+
+/* Content scrollbar auf Mobile */
+#njs_info_pane .dojoxFloatingPaneContentInfo {
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+}
+
+/* ========================================
    Maps Info Dialog – Fullscreen auf Mobile
    ======================================== */
 #mapsInfoDialog {

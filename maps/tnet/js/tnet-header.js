@@ -169,13 +169,19 @@ if (window._tnetAppReadyFired) {
 // ===== FLOATING PANE POSITION FIX =====
 // FloatingPane (Maptips Dialog) unter Header positionieren
 var headerHeight = 69;
-var minTop = 80;
+var minTopViewport = headerHeight + 11; // 80px vom Viewport-Rand
 
 function adjustPanePosition(pane) {
     if (!pane) return;
-    var top = parseInt(pane.style.top) || 0;
-    if (top < headerHeight) {
-        pane.style.top = minTop + 'px';
+    // Docked-Panes nicht verschieben (haben eigene Position via CSS)
+    if (pane.classList.contains('docked-right')) return;
+    // Tatsächliche Viewport-Position prüfen statt CSS-top-Wert
+    var rect = pane.getBoundingClientRect();
+    if (rect.top < minTopViewport) {
+        var currentTop = parseInt(pane.style.top) || 0;
+        var delta = minTopViewport - rect.top;
+        // setProperty mit important, damit Dojo-Werte überschrieben werden
+        pane.style.setProperty('top', (currentTop + delta) + 'px', 'important');
     }
 }
 
