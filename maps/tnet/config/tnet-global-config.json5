@@ -208,17 +208,17 @@
     zoom: {
       // Orthophoto (swissimage): höhere Zoom-Level verfügbar
       orthophoto: {
-        point: 25,        // Punkt-Geometrie / Adresse
-        fitMax: 25,       // Flächen-Geometrie: maximaler Zoom bei view.fit()
+        point: 27,        // Punkt-Geometrie / Adresse
+        fitMax: 27,       // Flächen-Geometrie: maximaler Zoom bei view.fit()
         fitMin: 16,       // Flächen-Geometrie: minimaler Zoom bei view.fit()
-        panDefault: 25,   // Standard-Zoom bei panToResult() (Geocoder)
+        panDefault: 27,   // Standard-Zoom bei panToResult() (Geocoder)
       },
       // Plan / Basisplan / andere Basemaps
       other: {
-        point: 24,
-        fitMax: 24,
+        point: 26,
+        fitMax: 26,
         fitMin: 15,
-        panDefault: 24,
+        panDefault: 26,
       },
     },
   },
