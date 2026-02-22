@@ -1,15 +1,21 @@
 ﻿<?php
 /**
- * search-proxy.php  v1.2
- * Suche für den Mobile-Client - identisch mit Desktop:
+ * search-proxy.php  v1.4
+ * Suche für den Mobile-Client:
  *   1. Layer-Suche via NLS-Dateien (lyrmgrResources*.json)
  *   2. Standort-Suche via swisstopo Geocoder API
  *   Resultate werden gruppiert zurückgegeben.
  *
- * Aufruf: /maps/tnet/api/search-proxy.php?q=wald&limit=8
+ * Parameter:
+ *   q      = Suchbegriff (min. 2 Zeichen)
+ *   limit  = max. Resultate pro Typ (4-20, default 8)
+ *   canton = Kanton-Filter: NW, OW oder leer (beide)
+ *   scope  = Such-Typ: locations, layers oder leer (alles)
  *
- * @version  1.2
- * @date     2026-02-21
+ * Aufruf: /maps/tnet/api/search-proxy.php?q=wald&limit=8&canton=NW&scope=layers
+ *
+ * @version  1.4
+ * @date     2026-02-22
  */
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
@@ -17,18 +23,24 @@ header('Cache-Control: no-store, max-age=0');
 
 $q      = isset($_GET['q']) ? trim($_GET['q']) : '';
 $limit  = max(4, min(20, (int)($_GET['limit'] ?? 8)));
+$canton = isset($_GET['canton']) ? strtoupper(trim($_GET['canton'])) : '';
+$scope  = isset($_GET['scope']) ? strtolower(trim($_GET['scope'])) : '';
 $debug  = isset($_GET['debug']) && $_GET['debug'] === '1';
+
+// Validierung
+if ($canton !== 'NW' && $canton !== 'OW') $canton = '';
+if ($scope !== 'locations' && $scope !== 'layers') $scope = '';
 
 if ($q === '' || mb_strlen($q) < 2) {
     echo json_encode(['numRows' => 0, 'items' => [], 'groups' => []]);
     exit;
 }
 
-// 1. Layer-Suche via NLS-Dateien
-$layerItems = searchLayers($q, $limit);
+// 1. Layer-Suche (nur wenn scope != 'locations')
+$layerItems = ($scope !== 'locations') ? searchLayers($q, $limit) : [];
 
-// 2. Standort-Suche via swisstopo Geocoder
-$locationItems = searchLocations($q, $limit);
+// 2. Standort-Suche (nur wenn scope != 'layers')
+$locationItems = ($scope !== 'layers') ? searchLocations($q, $limit, $canton) : [];
 
 // Ergebnis zusammenstellen
 $allItems = array_merge($locationItems, $layerItems);
@@ -114,11 +126,20 @@ function searchLayers(string $q, int $limit): array
  * Standort-Suche via swisstopo Geocoder API (LV95 / EPSG:2056).
  * x = Northing (ca. 1.2 Mio), y = Easting (ca. 2.6 Mio)
  * Gefiltert auf Kanton Nidwalden (NW) + Obwalden (OW) via Bounding Box.
+ * Optional: $canton = 'NW' oder 'OW' für Eingrenzung auf einen Kanton.
  */
-function searchLocations(string $q, int $limit): array
+function searchLocations(string $q, int $limit, string $canton = ''): array
 {
-    // Bounding Box NW + OW in LV95 (minEast, minNorth, maxEast, maxNorth)
-    $bbox = '2632000,1158000,2700000,1215000';
+    // Bounding Boxen in LV95 (minEast, minNorth, maxEast, maxNorth)
+    $bboxes = [
+        ''   => '2632000,1158000,2700000,1215000',   // NW + OW
+        'NW' => '2658000,1185000,2685000,1210000',   // Nidwalden
+        'OW' => '2632000,1158000,2680000,1200000',   // Obwalden
+    ];
+    $bbox = $bboxes[$canton] ?? $bboxes[''];
+
+    // Regex-Filter: nur gewählten Kanton oder beide
+    $cantonFilter = $canton ?: 'NW|OW';
 
     // Mehr Resultate anfragen um nach Filterung genug zu haben
     $fetchLimit = $limit * 4;
@@ -146,11 +167,13 @@ function searchLocations(string $q, int $limit): array
     foreach (($data['results'] ?? []) as $r) {
         $a     = $r['attrs'] ?? [];
         $label = strip_tags($a['label'] ?? $a['detail'] ?? '');
+        $label = preg_replace('/\bswisstopo\b\s*/i', '', $label);
+        $label = trim($label);
         if (!$label) continue;
 
-        // Sekundär-Filter: nur NW/OW – fängt Randlagen ab, die bbox knapp einschließt
+        // Sekundär-Filter: nur gewählte(n) Kanton(e)
         $detail = $a['detail'] ?? '';
-        if (!preg_match('/\b(NW|OW)\b/i', $label . ' ' . $detail)) continue;
+        if (!preg_match('/\b(' . $cantonFilter . ')\b/i', $label . ' ' . $detail)) continue;
 
         $out[] = [
             'id'    => $a['id'] ?? uniqid(),

@@ -1,12 +1,10 @@
 /*
- * tnet-search-m.js  v1.5
- * Natives Suchfeld fuer Mobile-Topbar
+ * tnet-search.js  v1.5
+ * Desktop-Suchfeld (parallel zur bestehenden njs/SOLR-Suche)
  * Nutzt search-proxy.php -> Layer-Suche (NLS) + swisstopo Geocoder
  * Resultate werden gruppiert angezeigt (Layer / Standorte).
- * v1.3: Kanton-Filter (NW/OW/Alle)
- * v1.4: Scope-Filter (Alles/Orte/Themen)
- * v1.5: Filter-Popup (Radios + Checkboxen statt inline Selects)
- *       Lupe links, Tune-Icon rechts
+ * v1.0: Kanton-Select + Scope-Select (inline)
+ * v1.5: Filter-Popup (Radios + Checkboxen), Lupe links, Tune rechts
  *
  * @version    1.5
  * @date       2026-02-22
@@ -46,7 +44,6 @@
             window.TnetLayerSwitch(layerId, 'on');
             return;
         }
-        // Fallback: setMapBookmark direkt (falls Helpers noch nicht geladen)
         try {
             var njsAM = (window.top && window.top.njs) ? window.top.njs.AppManager
                        : (window.njs ? window.njs.AppManager : null);
@@ -55,31 +52,26 @@
                 return;
             }
         } catch (e) {}
-        console.warn('[MobileSearch] Layer-Aktivierung fehlgeschlagen:', layerId);
+        console.warn('[DesktopSearch] Layer-Aktivierung fehlgeschlagen:', layerId);
     }
 
     // -- Icons ----------------------------------------------------------------
 
     var ICON_LAYER =
-        '<svg class="m-search-item-icon" viewBox="0 0 24 24">' +
+        '<svg class="dt-search-item-icon" viewBox="0 0 24 24">' +
         '<path d="M11.99 2L2 7l10 5 10-5-10.01-5zM2 17l10 5 10-5-10-5-10 5z' +
         'M2 12l10 5 10-5-10-5-10 5z"/></svg>';
 
     var ICON_LOCATION =
-        '<svg class="m-search-item-icon" viewBox="0 0 24 24">' +
+        '<svg class="dt-search-item-icon" viewBox="0 0 24 24">' +
         '<path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13' +
         'c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5S10.62 6.5' +
         ' 12 6.5s2.5 1.12 2.5 2.5S13.38 11.5 12 11.5z"/></svg>';
 
     // -- DOM-Render -----------------------------------------------------------
 
-    /**
-     * Dropdown mit gruppierten Resultaten fuellen.
-     * Erwartet groups: [{label, type, items: [{id,label,type,x,y,layer}]}]
-     * Fallback: items-Array direkt (ohne Gruppen).
-     */
     function showGroupedResults(groups, itemsFallback) {
-        var list = document.getElementById('m-search-results');
+        var list = document.getElementById('dt-search-results');
         if (!list) return;
         list.innerHTML = '';
 
@@ -90,7 +82,7 @@
                 if (!group.items || !group.items.length) return;
 
                 var header = document.createElement('li');
-                header.className = 'm-search-group-header';
+                header.className = 'dt-search-group-header';
                 header.setAttribute('role', 'presentation');
                 header.textContent = group.label;
                 list.appendChild(header);
@@ -114,31 +106,29 @@
     function highlightText(text, query) {
         if (!query) return text;
         var safe = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        return text.replace(new RegExp('(' + safe + ')', 'gi'), '<b class="m-search-highlight">$1</b>');
+        return text.replace(new RegExp('(' + safe + ')', 'gi'), '<b class="dt-search-highlight">$1</b>');
     }
 
     function makeItem(item) {
         var li = document.createElement('li');
-        li.className = 'm-search-item';
+        li.className = 'dt-search-item';
         li.setAttribute('role', 'option');
         li.setAttribute('tabindex', '-1');
         var icon = (item.type === 'layer') ? ICON_LAYER : ICON_LOCATION;
         var label = highlightText(item.label || '', lastQuery);
-        li.innerHTML = icon + '<span class="m-search-item-label">' + label + '</span>';
+        li.innerHTML = icon + '<span class="dt-search-item-label">' + label + '</span>';
 
         li.addEventListener('click', function () {
-            var inp  = document.getElementById('m-search-input');
-            var lst  = document.getElementById('m-search-results');
-            var clr  = document.getElementById('m-search-clear');
+            var inp  = document.getElementById('dt-search-input');
+            var lst  = document.getElementById('dt-search-results');
+            var clr  = document.getElementById('dt-search-clear');
 
             if (item.type === 'layer') {
-                // Layer: Suche komplett zurücksetzen
                 if (inp)  { inp.value = ''; }
                 if (clr)  { clr.style.display = 'none'; }
                 if (lst)  { lst.classList.remove('open'); lst.innerHTML = ''; }
                 activateLayer(item.layer || item.id);
             } else {
-                // Standort: Label anzeigen, Dropdown schliessen
                 if (inp) inp.value = item.label;
                 if (lst) lst.classList.remove('open');
                 panToResult(item.x, item.y);
@@ -155,20 +145,19 @@
         if (currentXhr) { try { currentXhr.abort(); } catch (e) {} }
 
         // Kanton aus Radio-Buttons lesen
-        var cantonRadio = document.querySelector('input[name="m-canton"]:checked');
+        var cantonRadio = document.querySelector('input[name="dt-canton"]:checked');
         var canton = cantonRadio ? cantonRadio.value : '';
 
         // Scope aus Checkboxen ableiten
-        var locCb = document.getElementById('m-filter-locations');
-        var layCb = document.getElementById('m-filter-layers');
+        var locCb = document.getElementById('dt-filter-locations');
+        var layCb = document.getElementById('dt-filter-layers');
         var hasLoc = locCb ? locCb.checked : true;
         var hasLay = layCb ? layCb.checked : true;
         var scope = '';
         if (hasLoc && !hasLay) scope = 'locations';
         else if (!hasLoc && hasLay) scope = 'layers';
-        // beide oder keines = '' (alles)
 
-        var url = PROXY_URL + '?q=' + encodeURIComponent(query) + '&limit=8';
+        var url = PROXY_URL + '?q=' + encodeURIComponent(query) + '&limit=10';
         if (canton) url += '&canton=' + encodeURIComponent(canton);
         if (scope)  url += '&scope='  + encodeURIComponent(scope);
         var xhr = new XMLHttpRequest();
@@ -190,11 +179,11 @@
     // -- Event-Binding --------------------------------------------------------
 
     function init() {
-        var input    = document.getElementById('m-search-input');
-        var list     = document.getElementById('m-search-results');
-        var clearBtn = document.getElementById('m-search-clear');
-        var filterBtn = document.getElementById('m-search-filter-btn');
-        var popup    = document.getElementById('m-search-filter-popup');
+        var input    = document.getElementById('dt-search-input');
+        var list     = document.getElementById('dt-search-results');
+        var clearBtn = document.getElementById('dt-search-clear');
+        var filterBtn = document.getElementById('dt-search-filter-btn');
+        var popup    = document.getElementById('dt-search-filter-popup');
 
         if (!input || !list) return;
 
@@ -207,26 +196,9 @@
             });
         }
 
-        // Filter-Indikator aktualisieren
-        function updateFilterIndicator() {
-            if (!filterBtn) return;
-            var cantonRadio = document.querySelector('input[name="m-canton"]:checked');
-            var canton = cantonRadio ? cantonRadio.value : '';
-            var locCb = document.getElementById('m-filter-locations');
-            var layCb = document.getElementById('m-filter-layers');
-            var hasLoc = locCb ? locCb.checked : true;
-            var hasLay = layCb ? layCb.checked : true;
-            // Default = Alle Kantone + beide Checkboxen an
-            var isDefault = (canton === '') && hasLoc && hasLay;
-            filterBtn.classList.toggle('has-filter', !isDefault);
-        }
-        updateFilterIndicator();
-
         // Radio/Checkbox-Änderungen: sofort neu suchen
-        var filterPopup = document.getElementById('m-search-filter-popup');
-        if (filterPopup) {
-            filterPopup.addEventListener('change', function () {
-                updateFilterIndicator();
+        if (popup) {
+            popup.addEventListener('change', function () {
                 var q = input.value.trim();
                 if (q.length >= 2) doSearch(q);
             });
@@ -255,7 +227,7 @@
         }
 
         input.addEventListener('keydown', function (e) {
-            var items = list.querySelectorAll('.m-search-item');
+            var items = list.querySelectorAll('.dt-search-item');
             if (e.key === 'Enter') {
                 if (items.length) items[0].click();
                 else if (input.value.trim().length >= 2) doSearch(input.value.trim());
@@ -266,7 +238,7 @@
         });
 
         list.addEventListener('keydown', function (e) {
-            var items   = list.querySelectorAll('.m-search-item');
+            var items   = list.querySelectorAll('.dt-search-item');
             var focused = document.activeElement;
             var idx     = Array.prototype.indexOf.call(items, focused);
             if (e.key === 'ArrowDown' && idx < items.length - 1) { items[idx + 1].focus(); e.preventDefault(); }
@@ -279,11 +251,11 @@
         });
 
         document.addEventListener('click', function (e) {
-            if (!e.target.closest('#m-search-bar')) {
+            if (!e.target.closest('#dt-search-bar')) {
                 list.classList.remove('open');
             }
             // Popup schliessen bei Klick ausserhalb
-            if (popup && !e.target.closest('#m-search-filter-popup') && !e.target.closest('#m-search-filter-btn')) {
+            if (popup && !e.target.closest('#dt-search-filter-popup') && !e.target.closest('#dt-search-filter-btn')) {
                 popup.classList.remove('open');
                 if (filterBtn) filterBtn.classList.remove('active');
             }
@@ -302,5 +274,5 @@
         init();
     }
 
-    window.MobileSearch = { init: init, search: doSearch };
+    window.DesktopSearch = { init: init, search: doSearch };
 })();

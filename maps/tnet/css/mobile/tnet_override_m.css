@@ -14,7 +14,7 @@
    ======================================== */
 :root {
     --m-topbar-h: 56px;
-    --m-splash-cube-extra-offset-px: 0px;
+    --m-splash-cube-extra-offset-px: 10px;
     --m-drawer-w: 85vw;
     --m-drawer-max-w: 380px;
     --m-color-primary: #4b7b81;
@@ -154,25 +154,10 @@ body .ol-control {
     position: relative;
 }
 
-#m-topbar .m-logo img {
+#m-topbar .m-logo svg {
     width: 100%;
     height: 100%;
-    object-fit: contain;
-    filter: brightness(0) invert(1);
-}
-
-/* Weisser Würfel auf Logo */
-#m-topbar .m-logo::after {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 14px;
-    width: 8px;
-    height: 8px;
-    background: #fff;
-    border-radius: 1px;
-    transform: rotate(0deg);
-    pointer-events: none;
+    display: block;
 }
 
 /* Suchfeld in Top-Bar – style_m.css & override.css komplett neutralisieren */
@@ -274,7 +259,7 @@ div#search_container:focus-within {
 
 #search_container .dijitInputInner,
 #search_container input[type="text"],
-#m-topbar input {
+#m-topbar input:not([type="radio"]):not([type="checkbox"]) {
     height: 38px !important;
     border: none !important;
     background: transparent !important;
@@ -379,29 +364,167 @@ div#search_container:focus-within {
     background: rgba(255,255,255,0.12);
     border-radius: 10px;
     height: 40px;
-    padding: 0 10px;
-    gap: 6px;
+    padding: 0 8px;
+    gap: 0;
     transition: background 0.2s ease;
 }
-
 #m-search-bar:focus-within {
     background: rgba(255,255,255,0.22);
 }
 
+/* Gemeinsames Styling: Filter-Button (Tune-Icon rechts) */
+#m-search-filter-btn {
+    flex-shrink: 0;
+    width: 30px;
+    height: 30px;
+    background: transparent;
+    border: none;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    padding: 0;
+    margin-left: 4px;
+    -webkit-tap-highlight-color: transparent;
+    transition: background 0.15s;
+    position: relative;
+}
+#m-search-filter-btn svg {
+    width: 20px;
+    height: 20px;
+    fill: rgba(255,255,255,0.55);
+    transition: fill 0.15s;
+}
+#m-search-filter-btn:active {
+    background: rgba(255,255,255,0.15);
+}
+#m-search-filter-btn.active svg {
+    fill: #fff;
+}
+
+/* Filter-Indikator: oranger Punkt wenn Filter gesetzt */
+#m-search-filter-btn.has-filter::after {
+    content: '';
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 8px;
+    height: 8px;
+    background: #e67e22;
+    border-radius: 50%;
+    pointer-events: none;
+}
+
+/* Filter-Popup (weisses Panel unterhalb Suchbar) */
+#m-search-filter-popup {
+    display: none;
+    position: fixed;
+    top: var(--m-topbar-h);
+    right: 10px;
+    width: 260px;
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 8px 28px rgba(0,0,0,0.18);
+    padding: 16px 18px;
+    z-index: 10020;
+}
+#m-search-filter-popup::before {
+    content: '';
+    position: absolute;
+    top: -6px;
+    right: 66px;
+    width: 12px;
+    height: 12px;
+    background: #fff;
+    transform: rotate(45deg);
+    box-shadow: -2px -2px 4px rgba(0,0,0,0.06);
+}
+#m-search-filter-popup.open {
+    display: block;
+}
+
+.m-filter-section {
+    margin: 0;
+}
+.m-filter-title {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #4b7b81;
+    margin-bottom: 6px;
+}
+.m-filter-hr {
+    border: none;
+    border-top: 1px solid #e8e8e8;
+    margin: 10px 0;
+}
+.m-filter-radio,
+.m-filter-check {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 16px;
+    color: #333;
+    padding: 7px 0;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    min-height: 40px;
+}
+.m-filter-radio input,
+.m-filter-check input {
+    -webkit-appearance: none !important;
+    -moz-appearance: none !important;
+    appearance: none !important;
+    display: inline-block !important;
+    box-sizing: border-box !important;
+    width: 24px !important;
+    height: 24px !important;
+    min-width: 24px !important;
+    min-height: 24px !important;
+    max-width: 24px !important;
+    max-height: 24px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    flex-shrink: 0;
+    cursor: pointer;
+    border: 2px solid #888 !important;
+    background: #fff !important;
+    outline: none !important;
+    vertical-align: middle;
+    line-height: normal !important;
+}
+.m-filter-radio input {
+    border-radius: 50% !important;
+}
+.m-filter-check input {
+    border-radius: 3px !important;
+}
+.m-filter-radio input:checked {
+    border-color: #4b7b81 !important;
+    border-width: 6px !important;
+    background: #4b7b81 !important;
+}
+.m-filter-check input:checked {
+    border-color: #4b7b81 !important;
+    background: #4b7b81 !important;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 16 16' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M6.5 11.5L3 8l1-1 2.5 2.5L12 4l1 1-6.5 6.5z' fill='white'/%3E%3C/svg%3E") !important;
+    background-size: 18px 18px !important;
+    background-position: center !important;
+    background-repeat: no-repeat !important;
+}
+
+/* Lupe-Icon (links im Suchfeld) */
 .m-search-icon {
     flex-shrink: 0;
     width: 18px;
     height: 18px;
-    fill: rgba(255,255,255,0.65);
+    fill: rgba(255,255,255,0.45);
     display: flex;
     align-items: center;
     pointer-events: none;
-}
-
-.m-search-icon svg {
-    width: 18px;
-    height: 18px;
-    fill: inherit;
+    margin-right: 4px;
 }
 
 #m-search-input {
@@ -517,6 +640,11 @@ div#search_container:focus-within {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+.m-search-highlight {
+    font-weight: 700;
+    color: #1a1a1a;
+    background: transparent;
 }
 
 /* Gruppen-Header im Suchdropdown (Layer / Standorte) */
@@ -1847,6 +1975,35 @@ div#search_container:focus-within {
     overflow: hidden !important;
 }
 
+/* Alle Dojo-Container: kein Rand/Padding/Splitter */
+#NeapoljsContainer,
+#centerPane,
+#centerPaneLayout,
+#mapContainer {
+    padding: 0 !important;
+    margin: 0 !important;
+    border: none !important;
+}
+
+#centerPane,
+#centerPaneLayout,
+#mapContainer {
+    width: 100% !important;
+    height: 100% !important;
+    left: 0 !important;
+    top: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+}
+
+/* Dojo BorderContainer Splitter auf Mobile ausblenden */
+.dijitSplitter,
+.dijitGutter {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+}
+
 /* style_m.css setzt #map auf 100dvh x 100dvw → überschreiben auf 100% */
 #map {
     position: absolute !important;
@@ -2205,7 +2362,7 @@ div#search_container:focus-within {
     background-repeat: no-repeat;
     background-size: contain;
     filter: brightness(0) invert(1);
-    margin-top: -70px;
+    margin-top: -250px;
 }
 
 /* Splash-Cube auf Mobile (0.8x)

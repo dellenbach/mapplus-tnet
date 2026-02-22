@@ -13,14 +13,18 @@ LOCAL_BASE = r"c:\_Daten\mapplus-exp\maps"
 
 # Files to upload - Mobile Suche v1.2 + OEREB Fix
 FILES = [
+    "public/index_de.htm",
     "public/index_de_m.htm",
     "public/config/modules_m.conf",
+    "public/css/override.css",
+    "tnet/js/tnet-search.js",
     "tnet/js/mobile/tnet-search-m.js",
     "tnet/js/mobile/tnet_modules_m.js",
     "tnet/api/search-proxy.php",
     "tnet/css/mobile/tnet_override_m.css",
     "tnet/js/tnet-oereb.js",
     "tnet/js/tnet-mapplus-helpers.js",
+    "tnet/resources/Logo-GIS-Daten-AG_wuerfel.svg",
 ]
 
 def upload_files():

@@ -398,14 +398,23 @@ function TnetLayerSwitch(layerId, mode) {
       found.setVisible(true);
       console.log('[TnetLayerSwitch] Layer eingeblendet:', layerId);
     } else {
-      // Noch nicht im Stack → direkt über lyrmgr (Layer-Manager) laden.
+      // Noch nicht im Stack → über LyrMgr (Layer-Manager) laden.
       // WICHTIG: setMapBookmark NICHT verwenden — setzt gesamten Kartenstatus zurück.
-      var lyrmgr = am.Maps && am.Maps['main'] ? am.Maps['main'].lyrmgr : null;
-      if (lyrmgr && typeof lyrmgr.addLayer === 'function') {
-        lyrmgr.addLayer(layerId);
-        console.log('[TnetLayerSwitch] Layer via lyrmgr.addLayer geladen:', layerId);
+      // LyrMgr ist in njs.AppManager.LyrMgr gespeichert, NICHT auf dem Map-Objekt.
+      var targetLyrMgr = null;
+      if (am.LyrMgr) {
+        for (var lm in am.LyrMgr) {
+          if (am.LyrMgr[lm].targetMap && dojo.indexOf(am.LyrMgr[lm].targetMap, 'main') > -1) {
+            targetLyrMgr = am.LyrMgr[lm];
+            break;
+          }
+        }
+      }
+      if (targetLyrMgr && typeof targetLyrMgr.switchLayersProgr === 'function') {
+        targetLyrMgr.switchLayersProgr(layerId, null, true);
+        console.log('[TnetLayerSwitch] Layer via LyrMgr.switchLayersProgr geladen:', layerId);
       } else {
-        console.warn('[TnetLayerSwitch] lyrmgr.addLayer nicht verfügbar für:', layerId);
+        console.warn('[TnetLayerSwitch] LyrMgr nicht verfügbar für:', layerId);
         return false;
       }
     }

@@ -305,6 +305,10 @@
         _currentOpacity: 1,       // 0..1 (1 = fully opaque)
         _isGrayscale: false,
 
+        // Timers für hide-Animationen (Race-Condition-Schutz)
+        _hideSliderTimer: null,
+        _hideInfoTimer: null,
+
         // Dynamic (Landeskarte)
         _moveEndHandler: null,
         _moveEndDebounceTimer: null,
@@ -443,36 +447,51 @@
 
         showSlider: function() {
             if (!this.containerEl) return;
+            // Laufenden hide-Timer abbrechen (Race-Condition-Schutz)
+            if (this._hideSliderTimer) {
+                clearTimeout(this._hideSliderTimer);
+                this._hideSliderTimer = null;
+            }
             this.containerEl.style.display = '';
-            requestAnimationFrame(function() {
-                this.containerEl.classList.add('visible');
-            }.bind(this));
+            // Reflow erzwingen → Browser berechnet max-height:0 BEVOR
+            // .visible (max-height:100px) die Transition auslöst.
+            // Ein einzelner requestAnimationFrame reicht in modernen
+            // Browsern nicht mehr zuverlässig aus.
+            void this.containerEl.offsetHeight;
+            this.containerEl.classList.add('visible');
         },
 
         hideSlider: function() {
             if (!this.containerEl) return;
             this.containerEl.classList.remove('visible');
+            if (this._hideSliderTimer) clearTimeout(this._hideSliderTimer);
             var el = this.containerEl;
-            setTimeout(function() {
+            this._hideSliderTimer = setTimeout(function() {
                 if (!el.classList.contains('visible')) el.style.display = 'none';
             }, 400);
         },
 
         showInfo: function(text) {
             if (this.infoEl && this.infoTextEl) {
+                // Laufenden hide-Timer abbrechen
+                if (this._hideInfoTimer) {
+                    clearTimeout(this._hideInfoTimer);
+                    this._hideInfoTimer = null;
+                }
                 this.infoTextEl.textContent = text;
                 this.infoEl.style.display = '';
-                requestAnimationFrame(function() {
-                    this.infoEl.classList.add('visible');
-                }.bind(this));
+                // Reflow erzwingen (gleiche Logik wie showSlider)
+                void this.infoEl.offsetHeight;
+                this.infoEl.classList.add('visible');
             }
         },
 
         hideInfo: function() {
             if (!this.infoEl) return;
             this.infoEl.classList.remove('visible');
+            if (this._hideInfoTimer) clearTimeout(this._hideInfoTimer);
             var el = this.infoEl;
-            setTimeout(function() {
+            this._hideInfoTimer = setTimeout(function() {
                 if (!el.classList.contains('visible')) el.style.display = 'none';
             }, 400);
         },

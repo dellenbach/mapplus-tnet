@@ -1927,3 +1927,263 @@ h3 {
 
 
 /* TNET-Komponenten-Styles sind in /maps/tnet/css/tnet-components.css */
+
+/* ========================================
+   Desktop-Suchfeld v1.5 (tnet-search.js)
+   ======================================== */
+#dt-search-bar {
+    position: fixed;
+    top: 12px;
+    left: 680px;
+    width: 340px;
+    height: 45px;
+    display: flex;
+    align-items: center;
+    z-index: 1000;
+    background: #e8f0f1;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.10);
+    padding: 0 10px;
+    box-sizing: border-box;
+    gap: 0;
+}
+
+/* Lupe-Icon (links) */
+.dt-search-icon {
+    flex-shrink: 0;
+    width: 18px;
+    height: 18px;
+    fill: rgba(0,0,0,0.40);
+    display: flex;
+    align-items: center;
+    pointer-events: none;
+    margin-right: 6px;
+}
+
+/* Suchfeld-Input */
+#dt-search-input {
+    flex: 1;
+    min-width: 0;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: #333;
+    font-size: 14px;
+    font-family: 'Roboto', sans-serif;
+    line-height: 45px;
+    height: 45px;
+    padding: 0;
+    -webkit-appearance: none;
+    appearance: none;
+}
+#dt-search-input::placeholder {
+    color: #999;
+    font-size: 13px;
+}
+#dt-search-input::-webkit-search-cancel-button,
+#dt-search-input::-webkit-search-decoration {
+    -webkit-appearance: none;
+}
+
+/* Clear-Button */
+#dt-search-clear {
+    flex-shrink: 0;
+    width: 20px;
+    height: 20px;
+    background: rgba(0,0,0,0.08);
+    border: none;
+    border-radius: 50%;
+    color: #666;
+    font-size: 13px;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    margin-left: 4px;
+    transition: background 0.15s;
+}
+#dt-search-clear:hover {
+    background: rgba(0,0,0,0.15);
+    color: #333;
+}
+
+/* Filter-Button (Tune-Icon rechts) */
+#dt-search-filter-btn {
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    background: transparent;
+    border: none;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    padding: 0;
+    margin-left: 4px;
+    transition: background 0.15s;
+}
+#dt-search-filter-btn svg {
+    width: 20px;
+    height: 20px;
+    fill: rgba(0,0,0,0.40);
+    transition: fill 0.15s;
+}
+#dt-search-filter-btn:hover {
+    background: rgba(0,0,0,0.06);
+}
+#dt-search-filter-btn:hover svg {
+    fill: rgba(0,0,0,0.60);
+}
+#dt-search-filter-btn.active svg {
+    fill: #4b7b81;
+}
+
+/* Filter-Popup (weisses Panel unterhalb Suchbar) */
+#dt-search-filter-popup {
+    display: none;
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    width: 220px;
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 8px 28px rgba(0,0,0,0.18);
+    padding: 14px 16px;
+    z-index: 1002;
+}
+#dt-search-filter-popup::before {
+    content: '';
+    position: absolute;
+    top: -6px;
+    right: 16px;
+    width: 12px;
+    height: 12px;
+    background: #fff;
+    transform: rotate(45deg);
+    box-shadow: -2px -2px 4px rgba(0,0,0,0.06);
+}
+#dt-search-filter-popup.open {
+    display: block;
+}
+
+.dt-filter-section {
+    margin: 0;
+}
+.dt-filter-title {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #4b7b81;
+    margin-bottom: 8px;
+}
+.dt-filter-hr {
+    border: none;
+    border-top: 1px solid #e8e8e8;
+    margin: 12px 0;
+}
+.dt-filter-radio,
+.dt-filter-check {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: #333;
+    padding: 4px 0;
+    cursor: pointer;
+}
+.dt-filter-radio:hover,
+.dt-filter-check:hover {
+    color: #111;
+}
+.dt-filter-radio input,
+.dt-filter-check input {
+    accent-color: #4b7b81;
+    width: 15px;
+    height: 15px;
+    margin: 0;
+    cursor: pointer;
+}
+
+/* Dropdown-Resultatliste */
+#dt-search-results {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    width: 100%;
+    background: #fff;
+    border-radius: 0 0 8px 8px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+    list-style: none;
+    margin: 0;
+    padding: 4px 0;
+    z-index: 1001;
+    max-height: 50vh;
+    overflow-y: auto;
+}
+#dt-search-results.open {
+    display: block;
+}
+
+/* Einzelnes Resultat */
+.dt-search-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    cursor: pointer;
+    border-bottom: 1px solid rgba(0,0,0,0.05);
+    transition: background 0.12s;
+}
+.dt-search-item:last-child {
+    border-bottom: none;
+}
+.dt-search-item:hover,
+.dt-search-item:focus {
+    background: rgba(75,123,129,0.08);
+    outline: none;
+}
+
+/* Resultat-Icon */
+.dt-search-item-icon {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    fill: #4b7b81;
+    opacity: 0.7;
+}
+
+/* Resultat-Label */
+.dt-search-item-label {
+    font-size: 13px;
+    color: #333;
+    line-height: 1.4;
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.dt-search-highlight {
+    font-weight: 700;
+    color: #1a1a1a;
+    background: transparent;
+}
+
+/* Gruppen-Header (Layer / Standorte) */
+.dt-search-group-header {
+    display: block;
+    padding: 6px 14px 4px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #4b7b81;
+    background: rgba(75,123,129,0.06);
+    border-bottom: 1px solid rgba(75,123,129,0.10);
+    pointer-events: none;
+    user-select: none;
+}
