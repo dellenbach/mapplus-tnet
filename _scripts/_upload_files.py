@@ -11,12 +11,12 @@ PASSWORD = "3Zs,k4%Un,<[W(Kx"
 REMOTE_BASE = "/www/maps"
 LOCAL_BASE = r"c:\_Daten\mapplus-exp\maps"
 
-# Files to upload - Mobile Performance Optimization
+# Files to upload - Mobile Suche v1.2 (Layer + Standorte, gruppiert)
 FILES = [
     "public/index_de_m.htm",
-    "index.php",
-    "tnet/js/mobile/tnet-toc-m.js",
-    "tnet/js/mobile/tnet_modules_m.js",
+    "tnet/js/mobile/tnet-search-m.js",
+    "tnet/api/search-proxy.php",
+    "tnet/css/mobile/tnet_override_m.css",
 ]
 
 def upload_files():

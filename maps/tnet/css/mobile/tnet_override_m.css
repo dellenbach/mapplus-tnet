@@ -367,6 +367,174 @@ div#search_container:focus-within {
     max-width: calc(100vw - 16px) !important;
 }
 
+/* ========================================
+   Natives Suchfeld (tnet-search-m.js)
+   ======================================== */
+#m-search-bar {
+    flex: 1;
+    min-width: 0;
+    position: relative;
+    display: flex;
+    align-items: center;
+    background: rgba(255,255,255,0.12);
+    border-radius: 10px;
+    height: 40px;
+    padding: 0 10px;
+    gap: 6px;
+    transition: background 0.2s ease;
+}
+
+#m-search-bar:focus-within {
+    background: rgba(255,255,255,0.22);
+}
+
+.m-search-icon {
+    flex-shrink: 0;
+    width: 18px;
+    height: 18px;
+    fill: rgba(255,255,255,0.65);
+    display: flex;
+    align-items: center;
+    pointer-events: none;
+}
+
+.m-search-icon svg {
+    width: 18px;
+    height: 18px;
+    fill: inherit;
+}
+
+#m-search-input {
+    flex: 1;
+    min-width: 0;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: #fff;
+    font-size: 15px;
+    font-family: inherit;
+    line-height: 40px;
+    padding: 0;
+    /* iOS: verhindert Auto-Zoom bei focus (< 16px) */
+    font-size: 16px;
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+#m-search-input::placeholder {
+    color: rgba(255,255,255,0.50);
+    font-size: 14px;
+}
+
+/* Standardmässig zeigen Browser ein X in <input type="search"> */
+#m-search-input::-webkit-search-cancel-button,
+#m-search-input::-webkit-search-decoration {
+    -webkit-appearance: none;
+}
+
+#m-search-clear {
+    flex-shrink: 0;
+    width: 22px;
+    height: 22px;
+    background: rgba(255,255,255,0.2);
+    border: none;
+    border-radius: 50%;
+    color: #fff;
+    font-size: 14px;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    -webkit-tap-highlight-color: transparent;
+    transition: background 0.15s;
+}
+
+#m-search-clear:active {
+    background: rgba(255,255,255,0.35);
+}
+
+/* Dropdown-Resultateliste */
+#m-search-results {
+    display: none;
+    position: fixed;
+    top: var(--m-topbar-h);
+    left: 8px;
+    right: 8px;
+    background: #fff;
+    border-radius: 0 0 12px 12px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+    list-style: none;
+    margin: 0;
+    padding: 4px 0;
+    z-index: 10010;
+    max-height: 50vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+#m-search-results.open {
+    display: block;
+}
+
+.m-search-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    cursor: pointer;
+    border-bottom: 1px solid rgba(0,0,0,0.05);
+    min-height: 44px;
+    -webkit-tap-highlight-color: transparent;
+    transition: background 0.1s;
+}
+
+.m-search-item:last-child {
+    border-bottom: none;
+}
+
+.m-search-item:active,
+.m-search-item:focus {
+    background: rgba(75,123,129,0.08);
+    outline: none;
+}
+
+.m-search-item-icon {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    fill: var(--m-color-primary);
+    opacity: 0.7;
+}
+
+.m-search-item-label {
+    font-size: 14px;
+    color: #333;
+    line-height: 1.4;
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Gruppen-Header im Suchdropdown (Layer / Standorte) */
+.m-search-group-header {
+    display: block;
+    padding: 6px 16px 4px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--m-color-primary, #4b7b81);
+    background: rgba(75,123,129,0.06);
+    border-bottom: 1px solid rgba(75,123,129,0.1);
+    pointer-events: none;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
 /* Hamburger Button */
 #m-hamburger {
     width: var(--m-touch-target);

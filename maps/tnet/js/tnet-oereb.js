@@ -321,7 +321,7 @@ function selectOerebResult(result, map) {
 
     // iframe laden
     if (egrid) {
-        loadOerebIframe(egrid, typ);
+        loadOerebIframe(egrid, typ, kanton);
     }
 }
 
@@ -371,13 +371,14 @@ function showOerebResultList(results, map) {
 }
 
 // ===== IFRAME =====
-function loadOerebIframe(egrid, typ) {
+function loadOerebIframe(egrid, typ, canton) {
     var iframe = document.getElementById('oereb-iframe');
     if (!iframe) return;
 
     var src = OEREB_IFRAME_BASE
         + '?typ=' + encodeURIComponent(typ || 'Liegenschaft')
         + '&EGRID=' + encodeURIComponent(egrid)
+        + (canton ? '&canton=' + encodeURIComponent(canton) : '')
         + '&' + OEREB_IFRAME_PARAMS;
 
     iframe.src = src;

@@ -1,12 +1,99 @@
 /**
  * tnet-mapplus-helpers.js
- * Hilfsfunktionen für inframe-maps.html
+ * Hilfsfunktionen für MAP+ Desktop & Mobile
  *
- * @version    1.0
- * @date       2026-02-12
+ * @version    2.0
+ * @date       2026-02-22
  * @copyright  Trigonet AG
  * @author     Marco Dellenbach
  */
+
+// =====================================================================
+// TnetApi — Zentraler API-Client für alle /api/v1/* Aufrufe
+// =====================================================================
+var TnetApi = (function() {
+  var BASE = '/maps/tnet/api/v1';
+
+  /**
+   * Zentraler GET-Request an die TNET API
+   * @param {string} endpoint - Pfad ohne Basis, z.B. 'bookmarks'
+   * @param {Object} [params] - Query-Parameter als Key/Value
+   * @returns {Promise<Object>} - JSON-Response {success, data, meta}
+   */
+  function get(endpoint, params) {
+    var url = BASE + '/' + endpoint;
+    if (params) {
+      var qs = Object.keys(params)
+        .filter(function(k) { return params[k] != null; })
+        .map(function(k) { return encodeURIComponent(k) + '=' + encodeURIComponent(params[k]); })
+        .join('&');
+      if (qs) url += '?' + qs;
+    }
+    return fetch(url).then(function(response) {
+      if (!response.ok) {
+        throw new Error('API ' + endpoint + ': HTTP ' + response.status + ' ' + response.statusText);
+      }
+      return response.json();
+    });
+  }
+
+  return {
+    /** Basis-URL, z.B. für relative Links */
+    BASE_URL: BASE,
+
+    /** Roher API-GET */
+    get: get,
+
+    /**
+     * Einzelnen Bookmark laden
+     * @param {string} name - Bookmark-ID oder Alias
+     * @returns {Promise<Object>} - Bookmark-Daten {map-bookmark, basemap, layers, ...}
+     */
+    getBookmark: function(name) {
+      return get('bookmarks', { name: name }).then(function(res) {
+        if (!res.success) throw new Error(res.error && res.error.message || 'Bookmark nicht gefunden');
+        return res.data;
+      });
+    },
+
+    /**
+     * Alle Bookmark-Namen auflisten
+     * @returns {Promise<Array>} - [{name, aliases}, ...]
+     */
+    listBookmarks: function() {
+      return get('bookmarks').then(function(res) {
+        if (!res.success) throw new Error('Bookmarks konnten nicht geladen werden');
+        return res.data;
+      });
+    },
+
+    /**
+     * Layer-Katalog laden
+     * @param {Object} [options] - {group, category, flat, details, source}
+     * @returns {Promise<Object>} - {data, meta}
+     */
+    getLayers: function(options) {
+      var p = Object.assign({ source: 'db' }, options || {});
+      return get('layers', p);
+    },
+
+    /**
+     * Basemaps laden
+     * @returns {Promise<Object>}
+     */
+    getBasemaps: function() {
+      return get('basemaps');
+    },
+
+    /**
+     * API-Info / Health-Check
+     * @returns {Promise<Object>}
+     */
+    getInfo: function() {
+      return get('info');
+    }
+  };
+})();
 
 /**
  * Extrahiert URL-Parameter aus einer URL oder einem Query-String
@@ -198,209 +285,139 @@ function tryAutoLogin(iframe) {
   return false;
 }
 
+// =====================================================================
+// Bookmark: Laden & Anwenden via API
+// =====================================================================
+
 /**
- * TNET Bookmark Funktion - Lädt Map-Konfiguration aus JSON und setzt Layer
- * @param {string} bookmarkId - ID des Bookmarks aus dem map-bookmarks.json (map-bookmark Feld)
- * @param {string} jsonPath - Pfad zum JSON-File (optional, default: '/maps/tnet/map-bookmarks.json')
- * @returns {Promise} - Promise mit den gesetzten Layern
+ * Baut den Bookmark-Parameter-String für njs.AppManager.setMapBookmark()
+ * @param {Object} cfg - Bookmark-Konfiguration aus der API
+ * @returns {string} - z.B. 'basemap=av_sw&layers=layer1|layer2&theme=grundlagen'
  */
-function TnetSetBookmarkJson(bookmarkId, jsonPath = '/maps/tnet/map-bookmarks.json') {
-  return fetch(jsonPath)
-    .then(response => {
-      if (!response.ok) {
-        throw new Error('Map-Bookmarks JSON konnte nicht geladen werden: ' + response.statusText);
-      }
-      return response.json();
-    })
-    .then(bookmarks => {
-      // Suche die Map in der JSON-Struktur (hierarchisch)
-      const mapConfig = findMapInHierarchy(bookmarks, bookmarkId);
-      
-      if (!mapConfig) {
-        throw new Error('Bookmark "' + bookmarkId + '" nicht in map-bookmarks.json gefunden');
-      }
-      
-      console.log('TNET Bookmark: Map gefunden:', bookmarkId, mapConfig);
-      
-      // Baue den Parameter-String für setMapBookmark
-      let params = '';
-      
-      // Basemap hinzufügen wenn vorhanden
-      if (mapConfig.basemap) {
-        params += 'basemap=' + mapConfig.basemap;
-      }
-      
-      // Layer hinzufügen
-      if (mapConfig.layers && mapConfig.layers.length > 0) {
-        if (params) params += '&';
-        params += 'layers=' + mapConfig.layers.join('|');
-      }
-      
-      // Opacity hinzufügen wenn vorhanden
-      if (mapConfig.opacity && mapConfig.opacity.length > 0) {
-        params += '&op=' + mapConfig.opacity.join('|');
-      }
-      
-      // Theme hinzufügen wenn vorhanden
-      if (mapConfig.theme) {
-        params += '&theme=' + mapConfig.theme;
-      }
-      
-      // Subtheme hinzufügen wenn vorhanden
-      if (mapConfig.subtheme) {
-        params += '&subtheme=' + mapConfig.subtheme;
-      }
-      
-      // Zoom/Position hinzufügen wenn vorhanden
-      if (mapConfig.x && mapConfig.y) {
-        params += '&x=' + mapConfig.x + '&y=' + mapConfig.y;
-        if (mapConfig.zoom) {
-          params += '&zl=' + mapConfig.zoom;
-        }
-      }
-      
-      console.log('TNET Bookmark: Parameter:', params);
-      
-      // Rufe setMapBookmark auf
-      if (window.top && window.top.njs && window.top.njs.AppManager) {
-        window.top.njs.AppManager.setMapBookmark(['main'], params);
-        return { success: true, bookmarkId: bookmarkId, params: params };
-      } else {
-        throw new Error('njs.AppManager nicht verfügbar');
-      }
-    })
-    .catch(error => {
-      console.error('TNET Bookmark Fehler:', error);
-      return { success: false, error: error.message };
+function _buildBookmarkParams(cfg) {
+  var parts = [];
+  if (cfg.basemap)                          parts.push('basemap=' + cfg.basemap);
+  if (cfg.layers && cfg.layers.length)      parts.push('layers='  + cfg.layers.join('|'));
+  if (cfg.opacity && cfg.opacity.length)    parts.push('op='      + cfg.opacity.join('|'));
+  if (cfg.theme)                            parts.push('theme='   + cfg.theme);
+  if (cfg.subtheme)                         parts.push('subtheme='+ cfg.subtheme);
+  if (cfg.x && cfg.y) {
+    parts.push('x=' + cfg.x, 'y=' + cfg.y);
+    if (cfg.zoom) parts.push('zl=' + cfg.zoom);
+  }
+  return parts.join('&');
+}
+
+/**
+ * Wendet einen Bookmark auf die Hauptkarte an (Framework-Aufruf)
+ * @param {Object} cfg - Bookmark-Konfiguration
+ * @param {string} bookmarkId - Bookmark-ID (für Logging/Return)
+ * @returns {{success: boolean, bookmarkId: string, params: string}}
+ */
+function _applyBookmark(cfg, bookmarkId) {
+  var params = _buildBookmarkParams(cfg);
+  var am = (window.top && window.top.njs && window.top.njs.AppManager)
+           ? window.top.njs.AppManager
+           : (window.njs && window.njs.AppManager) ? window.njs.AppManager : null;
+  if (!am) throw new Error('njs.AppManager nicht verfügbar');
+  am.setMapBookmark(['main'], params);
+  console.log('[TnetSetBookmark]', bookmarkId, params);
+  return { success: true, bookmarkId: bookmarkId, params: params };
+}
+
+/**
+ * Lädt einen Bookmark über die TNET API und setzt den Kartenstatus.
+ *
+ * @param {string} bookmarkId - ID oder Alias des Bookmarks
+ * @returns {Promise<{success: boolean, bookmarkId?: string, params?: string, error?: string}>}
+ */
+function TnetSetBookmark(bookmarkId) {
+  return TnetApi.getBookmark(bookmarkId)
+    .then(function(cfg) { return _applyBookmark(cfg, bookmarkId); })
+    .catch(function(err) {
+      console.error('[TnetSetBookmark] Fehler:', err);
+      return { success: false, error: err.message };
     });
 }
 
 /**
- * TNET Bookmark Service Funktion - Lädt Map-Konfiguration vom PHP-Service und setzt Layer
- * @param {string} bookmarkId - ID des Bookmarks (map-bookmark Feld oder Alias)
- * @param {string} serviceUrl - URL zum Bookmark-Service (optional, default: '/maps/tnet/bookmark-service.php')
- * @returns {Promise} - Promise mit den gesetzten Layern
+ * Layer in der Hauptkarte ein-/ausschalten oder umschalten (kein Bookmark-Lookup).
+ *
+ * Ablauf:
+ *  - 'on':     Layer existiert bereits im OL-Layer-Stack → setVisible(true)
+ *              Sonst noch nicht geladen → setMapBookmark('layers=layerId')
+ *  - 'off':    Layer aus dem OL-Layer-Stack entfernen (removeLayer)
+ *  - 'toggle': Aktuellen Zustand prüfen, dann on oder off
+ *
+ * Layer werden anhand von layer.get('name') mit der lyrmgr-ID verglichen.
+ *
+ * @param {string} layerId - Layer-ID aus dem Lyrmgr (z.B. 'gis_fach/nw_wald')
+ * @param {string} [mode='toggle'] - 'on', 'off' oder 'toggle'
+ * @returns {boolean} - Neuer Sichtbarkeitszustand: true = eingeschaltet
  */
-function TnetSetBookmark(bookmarkId, serviceUrl = '/maps/tnet/php/bookmark-service.php') {
-  return fetch(serviceUrl + '?name=' + encodeURIComponent(bookmarkId))
-    .then(response => {
-      if (!response.ok) {
-        throw new Error('Bookmark-Service nicht erreichbar: ' + response.statusText);
-      }
-      return response.json();
-    })
-    .then(data => {
-      // Prüfe ob Service erfolgreich war
-      if (!data.success) {
-        throw new Error(data.error || 'Bookmark in Service nicht gefunden');
-      }
-      
-      const mapConfig = data.bookmark;
-      
-      if (!mapConfig) {
-        throw new Error('Bookmark "' + bookmarkId + '" nicht in Service gefunden');
-      }
-      
-      console.log('TNET Bookmark Service: Map gefunden:', bookmarkId, mapConfig);
-      
-      // Baue den Parameter-String für setMapBookmark
-      let params = '';
-      
-      // Basemap hinzufügen wenn vorhanden
-      if (mapConfig.basemap) {
-        params += 'basemap=' + mapConfig.basemap;
-      }
-      
-      // Layer hinzufügen
-      if (mapConfig.layers && mapConfig.layers.length > 0) {
-        if (params) params += '&';
-        params += 'layers=' + mapConfig.layers.join('|');
-      }
-      
-      // Opacity hinzufügen wenn vorhanden
-      if (mapConfig.opacity && mapConfig.opacity.length > 0) {
-        params += '&op=' + mapConfig.opacity.join('|');
-      }
-      
-      // Theme hinzufügen wenn vorhanden
-      if (mapConfig.theme) {
-        params += '&theme=' + mapConfig.theme;
-      }
-      
-      // Subtheme hinzufügen wenn vorhanden
-      if (mapConfig.subtheme) {
-        params += '&subtheme=' + mapConfig.subtheme;
-      }
-      
-      // Zoom/Position hinzufügen wenn vorhanden
-      if (mapConfig.x && mapConfig.y) {
-        params += '&x=' + mapConfig.x + '&y=' + mapConfig.y;
-        if (mapConfig.zoom) {
-          params += '&zl=' + mapConfig.zoom;
-        }
-      }
-      
-      console.log('TNET Bookmark Service: Parameter:', params);
-      
-      // Rufe setMapBookmark auf
-      if (window.top && window.top.njs && window.top.njs.AppManager) {
-        window.top.njs.AppManager.setMapBookmark(['main'], params);
-        return { success: true, bookmarkId: bookmarkId, params: params };
-      } else {
-        throw new Error('njs.AppManager nicht verfügbar');
-      }
-    })
-    .catch(error => {
-      console.error('TNET Bookmark Service Fehler:', error);
-      return { success: false, error: error.message };
-    });
-}
+function TnetLayerSwitch(layerId, mode) {
+  mode = mode || 'toggle';
 
-/**
- * Sucht eine Map hierarchisch in der Bookmark-Struktur
- * @param {Object|Array} node - Aktueller Knoten in der Hierarchie
- * @param {string} bookmarkId - Gesuchte Bookmark-ID (map-bookmark Feld)
- * @returns {Object|null} - Map-Konfiguration oder null
- */
-function findMapInHierarchy(node, bookmarkId) {
-  // Wenn node ein Array ist, durchsuche alle Elemente
-  if (Array.isArray(node)) {
-    for (let item of node) {
-      // Prüfe direkt ob map-bookmark passt
-      if (item['map-bookmark'] === bookmarkId) {
-        return item;
-      }
-      // Prüfe ob bookmarkId in aliases enthalten ist
-      if (item.aliases && Array.isArray(item.aliases) && item.aliases.includes(bookmarkId)) {
-        return item;
-      }
-      const found = findMapInHierarchy(item, bookmarkId);
-      if (found) return found;
-    }
-    return null;
+  var am = (window.njs && window.njs.AppManager)
+           ? window.njs.AppManager
+           : (window.top && window.top.njs && window.top.njs.AppManager)
+             ? window.top.njs.AppManager
+             : null;
+
+  if (!am || !am.Maps || !am.Maps['main'] || !am.Maps['main'].mapObj) {
+    console.warn('[TnetLayerSwitch] AppManager oder Map nicht verfügbar');
+    return false;
   }
-  
-  // Wenn node ein Objekt ist
-  if (typeof node === 'object' && node !== null) {
-    // Prüfe ob es die gesuchte Map ist
-    if (node['map-bookmark'] === bookmarkId || node.id === bookmarkId) {
-      return node;
+
+  var map = am.Maps['main'].mapObj;
+
+  // Layer im OL-Stack suchen (nach 'name'-Property = lyrmgr-ID)
+  var found = null;
+  map.getLayers().forEach(function(layer) {
+    if (!found) {
+      var n = layer.get('name') || '';
+      if (n === layerId) found = layer;
     }
-    // Prüfe ob bookmarkId in aliases enthalten ist
-    if (node.aliases && Array.isArray(node.aliases) && node.aliases.includes(bookmarkId)) {
-      return node;
-    }
-    
-    // Durchsuche children wenn vorhanden
-    if (node.children) {
-      return findMapInHierarchy(node.children, bookmarkId);
-    }
-    
-    // Durchsuche maps wenn vorhanden (für Root-Level)
-    if (node.maps) {
-      return findMapInHierarchy(node.maps, bookmarkId);
-    }
+  });
+
+  var isCurrentlyOn = found ? found.getVisible() : false;
+
+  var shouldTurnOn;
+  if (mode === 'on') {
+    shouldTurnOn = true;
+  } else if (mode === 'off') {
+    shouldTurnOn = false;
+  } else {
+    // toggle: einschalten wenn aus, ausschalten wenn an
+    shouldTurnOn = !isCurrentlyOn;
   }
-  
-  return null;
+
+  if (shouldTurnOn) {
+    if (found) {
+      // Layer existiert bereits im Stack → sichtbar machen
+      found.setVisible(true);
+      console.log('[TnetLayerSwitch] Layer eingeblendet:', layerId);
+    } else {
+      // Noch nicht im Stack → direkt über lyrmgr (Layer-Manager) laden.
+      // WICHTIG: setMapBookmark NICHT verwenden — setzt gesamten Kartenstatus zurück.
+      var lyrmgr = am.Maps && am.Maps['main'] ? am.Maps['main'].lyrmgr : null;
+      if (lyrmgr && typeof lyrmgr.addLayer === 'function') {
+        lyrmgr.addLayer(layerId);
+        console.log('[TnetLayerSwitch] Layer via lyrmgr.addLayer geladen:', layerId);
+      } else {
+        console.warn('[TnetLayerSwitch] lyrmgr.addLayer nicht verfügbar für:', layerId);
+        return false;
+      }
+    }
+    return true;
+  } else {
+    // Ausschalten: Layer aus dem Stack entfernen
+    if (found) {
+      map.removeLayer(found);
+      console.log('[TnetLayerSwitch] Layer entfernt:', layerId);
+    } else {
+      console.log('[TnetLayerSwitch] Layer war bereits aus:', layerId);
+    }
+    return false;
+  }
 }
