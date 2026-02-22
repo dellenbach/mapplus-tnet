@@ -65,6 +65,16 @@ require([
             .filter(function(v) { return !isNaN(v) && v >= 0; });
         if (!layersFixDelaysMs.length) layersFixDelaysMs = [100, 400, 1000];
 
+        // FloatingPane-Stub: wird von openlayers.js erwartet, auf Mobile aber nicht benötigt
+        // Vollständiger AMD-Import verursacht multipleDefine-Fehler im Dojo-Loader
+        if (!window.dojox) window.dojox = {};
+        if (!window.dojox.layout) window.dojox.layout = {};
+        if (!window.dojox.layout.FloatingPane) {
+            window.dojox.layout.FloatingPane = function() {};
+            window.dojox.layout.FloatingPane.prototype.startup = function() {};
+            window.dojox.layout.FloatingPane.prototype.destroy = function() {};
+        }
+
         // Build the page
         parser.parse();
 

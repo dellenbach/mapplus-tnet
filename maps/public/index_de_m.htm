@@ -106,8 +106,8 @@
             }).play();
         }
     </script>
-    <script defer src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.6/Sortable.min.js"></script>
-    <script>window.Sortable || document.write('<script defer src="/mapplus-lib/Sortable/1.15.0/Sortable.min.js">\x3C/script>')</script>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.6/Sortable.min.js"></script>
+    <script>window.Sortable || document.write('<script src="/mapplus-lib/Sortable/1.15.0/Sortable.min.js">\x3C/script>')</script>
     <script src="/mapplus-lib/dojo-release/dojo-release-1.17.3/dojo/dojo.js"></script>
     <script>window.define || document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/dojo/1.17.3/dojo.js">\x3C/script>')</script>
 
@@ -144,8 +144,10 @@
     <!-- Libs (body) -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol-ext/dist/ol-ext.min.css"
         onerror="this.href='mapplus-lib/openlayers/ol-ext/dist/ol-ext.min.css';">
+    <script>var __amd = window.define && window.define.amd; if (__amd) delete window.define.amd;</script>
     <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/ol-ext/dist/ol-ext.min.js"></script>
     <script>window.ol.ext || document.write('<script src="/mapplus-lib/openlayers/ol-ext/dist/ol-ext.min.js">\x3C/script>')</script>
+    <script>if (__amd) window.define.amd = __amd;</script>
 
     <script type="text/javascript" src="/mapplus-lib/mapplus-dojo/v4.0.0/common.js"></script>
     <script type="text/javascript" src="/mapplus-lib/mapplus-dojo/v4.0.0/njs.js"></script>
@@ -310,6 +312,73 @@
             setTimeout(earlyCheckAppReady, splashCheckIntervalMs);
         }
         earlyCheckAppReady();
+    })();
+    </script>
+
+    <!-- URL-Parameter (x/y/zl) nach WMTS-Laden erneut anwenden -->
+    <script>
+    (function() {
+        // Bei WMTS-basierten Basemaps (z.B. plan_fuer_grundbuch_bund) erstellt
+        // changeBaseMap() nach dem async Fetch eine neue View — die Werte aus
+        // postProcessLoadMap() gehen dadurch verloren.
+        // Fix: URL-Parameter nach App-Start erneut anwenden.
+
+        var params = new URLSearchParams(window.location.search);
+        var urlX = parseFloat(params.get('x'));
+        var urlY = parseFloat(params.get('y'));
+        var urlZl = params.get('zl');
+
+        if (isNaN(urlX) || isNaN(urlY)) return; // Kein x/y → nichts zu tun
+
+        document.addEventListener('tnet-app-ready', function() {
+            var mapObj = njs.AppManager.Maps && njs.AppManager.Maps['main'];
+            if (!mapObj || !mapObj.mapObj) return;
+
+            var map = mapObj.mapObj;
+            var targetCenter = [urlX, urlY];
+            var targetZl = urlZl != null ? parseInt(urlZl, 10) : null;
+            var applied = false;
+
+            function applyUrlView() {
+                if (applied) return;
+                var view = map.getView();
+                if (!view) return;
+
+                var currentCenter = view.getCenter();
+                // Prüfe ob Center schon stimmt (Toleranz 1m)
+                if (currentCenter &&
+                    Math.abs(currentCenter[0] - urlX) < 1 &&
+                    Math.abs(currentCenter[1] - urlY) < 1) {
+                    // Schon korrekt, prüfe Zoom
+                    if (targetZl != null && Math.abs(view.getZoom() - targetZl) < 0.5) {
+                        applied = true;
+                        return;
+                    }
+                }
+
+                // Center + Zoom setzen
+                if (typeof mapObj.centerAndZoom === 'function' && targetZl != null) {
+                    mapObj.centerAndZoom(targetCenter, targetZl);
+                } else {
+                    view.setCenter(targetCenter);
+                    if (targetZl != null) view.setZoom(targetZl);
+                }
+                applied = true;
+                console.log('[App] URL-Parameter erneut angewendet: x=' + urlX + ' y=' + urlY + ' zl=' + targetZl);
+            }
+
+            // changeBaseMap setzt mapObj.setView() → 'change:view' Event
+            map.on('change:view', function() {
+                if (applied) return;
+                // Kurz warten bis neue View fertig initialisiert
+                setTimeout(applyUrlView, 150);
+            });
+
+            // Sicherheits-Fallback: nach 3s nochmal prüfen
+            setTimeout(applyUrlView, 3000);
+            // Und nach 5s (WMTS können langsam sein)
+            setTimeout(applyUrlView, 5000);
+        }, { once: true });
     })();
     </script>
 

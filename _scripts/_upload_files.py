@@ -15,6 +15,7 @@ LOCAL_BASE = r"c:\_Daten\mapplus-exp\maps"
 FILES = [
     "public/index_de_m.htm",
     "tnet/js/mobile/tnet-search-m.js",
+    "tnet/js/mobile/tnet_modules_m.js",
     "tnet/api/search-proxy.php",
     "tnet/css/mobile/tnet_override_m.css",
     "tnet/js/tnet-oereb.js",
