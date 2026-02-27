@@ -178,7 +178,20 @@
     searchEnabled: true,
     maxResults: 50,
   },
-  
+
+  // ============================================================
+  // LAYER MANAGER (NEU – eigener Themenkatalog + Dargestellte Themen)
+  // ============================================================
+  layerManager: {
+    _description: "Eigener Layer-Manager als Ersatz für den Dojo-basierten TOC",
+    // Feature-Flag: neuen Layer-Manager verwenden? (false = Dojo-TOC)
+    useNew: true,
+    // API-Endpoint für Layer-Katalog (Hierarchie)
+    apiUrl: '/maps/tnet/api/v1/layers.php',
+    // Debug-Modus (erweiterte Console-Ausgabe)
+    debug: true,
+  },
+
   // ============================================================
   // SUCHE
   // ============================================================

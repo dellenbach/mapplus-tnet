@@ -609,6 +609,8 @@ function flattenLayers($layers, &$result, $path, $category) {
             if (isset($layer['url']))       $flat['url']       = $layer['url'];
             if (isset($layer['layerType'])) $flat['layerType'] = $layer['layerType'];
             if (isset($layer['opacity']))   $flat['opacity']   = $layer['opacity'];
+            if (isset($layer['params']))    $flat['params']    = $layer['params'];
+            if (isset($layer['options']))   $flat['options']   = $layer['options'];
 
             $result[] = $flat;
         }
@@ -891,6 +893,8 @@ function flattenDbNodes($nodes, &$result, $path, $category) {
             if (isset($node['url']))       $flat['url']       = $node['url'];
             if (isset($node['layerType'])) $flat['layerType'] = $node['layerType'];
             if (isset($node['opacity']))   $flat['opacity']   = $node['opacity'];
+            if (isset($node['params']))    $flat['params']    = $node['params'];
+            if (isset($node['options']))   $flat['options']   = $node['options'];
 
             $result[] = $flat;
         }

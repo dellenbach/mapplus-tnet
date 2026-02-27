@@ -24,6 +24,17 @@ info:
     - `bund` — Bund (Bundesebene)
     - `weitere` — Weitere Datenquellen
 
+    ## Tools
+
+    | Tool | URL | Beschreibung |
+    |------|-----|--------------|
+    | **Layer-Tree Vorschau** | [`/v1/tree-test.html`](https://www.gis-daten.ch/maps/tnet/api/v1/tree-test.html) | Interaktiver Layer-Tree zum Testen und Debuggen. Unterstützt `?group=` und `?category=` Parameter. |
+    | **Dev-Testseite** | [`/v1/dev-test.html`](https://www.gis-daten.ch/maps/tnet/api/v1/dev-test.html) | Tree + Active Panel mit Mobile/Desktop/Split View, Drag & Drop, emulierte Layer. |
+    | **Tree-Builder** | [`/v1/tree-builder.html`](https://www.gis-daten.ch/maps/tnet/api/v1/tree-builder.html) | Interaktiver Konfigurator: Layer → Gruppen → Tree per Drag & Drop, JSON5 Export. |
+    | **AGS Import** | [`/v1/ags-import.html`](https://www.gis-daten.ch/maps/tnet/api/v1/ags-import.html) | ArcGIS Server Roh-Konfigurationen importieren & verwalten. Multi-Import/-Delete. |
+    | **Tree-Builder API** | [`/v1/treebuilder-api.php`](https://www.gis-daten.ch/maps/tnet/api/v1/treebuilder-api.php) | Persistenz-Backend: State, Locks, Profile, AGS-Import. |
+    | **API Info** | [`/v1/info`](https://www.gis-daten.ch/maps/tnet/api/v1/info) | Health-Check, Endpoint-Übersicht, Server-Statistiken. |
+
   version: "1.0"
   contact:
     name: Trigonet AG
@@ -47,8 +58,19 @@ tags:
   description: Vorkonfigurierte Kartenansichten
 - name: Cache
   description: Cache-Management
+- name: Tree-Builder
+  description: |
+    Persistenz-API für den Tree-Builder (State, Locks, JSON5-Gruppen, Profile, Lyrmgr-Publish).
+    Alle Aktionen laufen über `treebuilder-api.php?action=...`.
+- name: AGS Import
+  description: |
+    ArcGIS Server → MapPlus Roh-Konfiguration.
+    Importiert Config-Dateien von ArcGIS Server-Diensten via `ags2mapplus`-API,
+    speichert sie in `data/tmp/raw-conf/` und ermöglicht Verwaltung (Auflisten, Lesen, Löschen).
 - name: System
   description: API-Info und Health-Check
+- name: Tools
+  description: Interaktive Test- und Vorschau-Tools
 
 paths:
   /v1/layers:
@@ -300,6 +322,107 @@ paths:
               schema:
                 $ref: "#/components/schemas/InfoResponse"
 
+  /v1/tree-test.html:
+    get:
+      tags: [ Tools ]
+      summary: Layer-Tree Vorschau
+      description: |
+        Interaktive HTML-Seite zum Testen und Vorschauen des Layer-Tree.
+        Rendert den echten `tnet-lm-tree.js` gegen die Live-API.
+
+        **Direkt im Browser öffnen:**  
+        [`/maps/tnet/api/v1/tree-test.html`](https://www.gis-daten.ch/maps/tnet/api/v1/tree-test.html)
+
+        Die Seite bietet eine Gruppen-Auswahlliste zum schnellen Wechseln zwischen Profilen.
+      parameters:
+      - name: group
+        in: query
+        description: "Profil/Gruppe (default: marco). Verfügbare Gruppen werden dynamisch vom Info-Endpoint geladen."
+        schema:
+          type: string
+          default: marco
+          enum: [ public, av, intranet, marco, nwpro, oereb, owpro, playground1, playground2, playground3, uwpro, wmi ]
+      - name: category
+        in: query
+        description: Nur eine bestimmte Kategorie anzeigen
+        schema:
+          type: string
+          enum: [ nidwalden, obwalden, bund, weitere ]
+      responses:
+        "200":
+          description: HTML-Seite mit interaktivem Layer-Tree
+          content:
+            text/html:
+              schema:
+                type: string
+
+  /v1/dev-test.html:
+    get:
+      tags: [ Tools ]
+      summary: Dev-Testseite (Tree + Active Panel)
+      description: |
+        Erweiterte Entwickler-Testseite für 1:1 Integration in Desktop und Mobile Clients.
+
+        **Direkt im Browser öffnen:**  
+        [`/maps/tnet/api/v1/dev-test.html`](https://www.gis-daten.ch/maps/tnet/api/v1/dev-test.html)
+
+        Features:
+        - **Themenkatalog** (Tree) und **Dargestellte Themen** (Active Panel) getrennt oder zusammen
+        - **Mobile / Desktop / Split View** zum Vergleich
+        - **Emulierte aktive Layer** mit Drag & Drop, Opacity, Eye-Toggle
+        - **Live-Gruppenwechsel** ohne Page-Reload
+        - Layer ein/ausschalten im Tree aktualisiert Active Panel live
+      parameters:
+      - name: group
+        in: query
+        description: "Profil/Gruppe (default: marco)"
+        schema:
+          type: string
+          default: marco
+      - name: panel
+        in: query
+        description: "Anzuzeigendes Panel"
+        schema:
+          type: string
+          default: tree
+          enum: [ tree, active, both ]
+      - name: view
+        in: query
+        description: "Ansichtsmodus (Gerätebreite)"
+        schema:
+          type: string
+          default: mobile
+          enum: [ mobile, desktop, split ]
+      responses:
+        "200":
+          description: HTML-Seite mit Dev-Test UI
+          content:
+            text/html:
+              schema:
+                type: string
+
+  /v1/ags-import.html:
+    get:
+      tags: [ Tools ]
+      summary: AGS Import & Verwaltung
+      description: |
+        Eigenständige Seite für ArcGIS Server → MapPlus Roh-Konfiguration Import & Verwaltung.
+
+        **Direkt im Browser öffnen:**
+        [`/maps/tnet/api/v1/ags-import.html`](https://www.gis-daten.ch/maps/tnet/api/v1/ags-import.html)
+
+        Features:
+        - **Import-Tab**: Verfügbare AGS-Dienste mit Checkboxen auswählen, Alle/Keine, Shift-Range, Multi-Export nach `data/tmp/raw-conf/`
+        - **Verwalten-Tab**: Bestehende Roh-Konfigurationen anzeigen, Multi-Select mit Checkboxen auf Service-Ebene, Multi-Delete, Backup-Filter und Backup-Delete
+        - Nutzt dieselbe `treebuilder-api.php` API (Aktionen: `ags-services`, `ags-export`, `ags-list-raw`, `ags-delete-raw`, `ags-delete-backups`)
+      responses:
+        "200":
+          description: HTML-Seite mit AGS Import UI
+          content:
+            text/html:
+              schema:
+                type: string
+
   /v1/admin:
     get:
       tags: [ Admin ]
@@ -390,6 +513,405 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+
+  # ===== TREE-BUILDER API =====
+
+  /v1/treebuilder-api.php:
+    get:
+      tags: [ Tree-Builder ]
+      summary: Tree-Builder State & Daten abrufen
+      description: |
+        Liest den aktuellen State, Lock-Status, Backup-Historie, Gruppen-Dateien,
+        Profile und Lyrmgr-Konfiguration.
+
+        **Verfügbare GET-Aktionen:**
+        | Aktion | Beschreibung | Zusatzparameter |
+        |--------|-------------|-----------------|
+        | `load` | Aktuellen State + Lock-Info laden | — |
+        | `lock` | Lock setzen (Header `X-Editor-Name` oder `?editor=`) | `editor` |
+        | `unlock` | Lock freigeben | `editor` |
+        | `lock-status` | Lock-Status abfragen | — |
+        | `history` | Backup-Historie auflisten | — |
+        | `restore` | Backup wiederherstellen | `file` |
+        | `load-groups` | JSON5-Gruppendatei laden | — |
+        | `load-profile` | Einzelnes Profil laden | `name` |
+        | `list-profiles` | Alle Profile auflisten | — |
+        | `load-lyrmgr` | Lyrmgr.conf eines Profils laden | `profile` |
+        | `list-lyrmgr-profiles` | Lyrmgr-Profile auflisten | — |
+      operationId: treebuilderGet
+      parameters:
+      - name: action
+        in: query
+        required: true
+        description: "Auszuführende Aktion"
+        schema:
+          type: string
+          enum: [ load, lock, unlock, lock-status, history, restore, load-groups, load-profile, list-profiles, load-lyrmgr, list-lyrmgr-profiles ]
+      - name: editor
+        in: query
+        description: "Editor-Name für Lock-Operationen (alternativ: Header `X-Editor-Name`)"
+        schema:
+          type: string
+        example: Marco
+      - name: file
+        in: query
+        description: "Backup-Dateiname (nur bei action=restore)"
+        schema:
+          type: string
+        example: state_20250101_120000.json
+      - name: name
+        in: query
+        description: "Profil-Name (nur bei action=load-profile)"
+        schema:
+          type: string
+        example: nwpro
+      - name: profile
+        in: query
+        description: "Lyrmgr-Profil (nur bei action=load-lyrmgr)"
+        schema:
+          type: string
+        example: public
+      responses:
+        "200":
+          description: Erfolgreiche Antwort
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+              examples:
+                load:
+                  summary: "State laden"
+                  value:
+                    success: true
+                    data:
+                      exists: true
+                      data: { layers: [], groups: [], _meta: {} }
+                      lock: null
+                      size: 4096
+                lockStatus:
+                  summary: "Lock-Status"
+                  value:
+                    success: true
+                    data:
+                      locked: true
+                      lock: { editor: "Marco", datetime: "2025-01-15 10:30:00" }
+                      age_min: 5.2
+                history:
+                  summary: "Backup-Historie"
+                  value:
+                    success: true
+                    data:
+                    - file: state_20250115_103000.json
+                      size: 4096
+                      modified: "2025-01-15 10:30:00"
+                listProfiles:
+                  summary: "Profile auflisten"
+                  value:
+                    success: true
+                    data:
+                    - name: nwpro
+                      size: 12345
+                      modified: "2025-01-15 10:30:00"
+                    - name: owpro
+                      size: 8765
+                      modified: "2025-01-14 09:00:00"
+        "400":
+          description: Fehlende Parameter
+        "405":
+          description: Methode nicht erlaubt
+        "423":
+          description: Gesperrt von anderem Editor
+
+    post:
+      tags: [ Tree-Builder ]
+      summary: Tree-Builder State & Daten speichern
+      description: |
+        Speichert State, JSON5-Gruppen, Profile und publiziert Lyrmgr-Blöcke.
+        Erstellt automatisch Backups beim Speichern.
+
+        **Verfügbare POST-Aktionen:**
+        | Aktion | Beschreibung | Body |
+        |--------|-------------|------|
+        | `save` | State speichern (mit Backup) | Vollständiger State als JSON |
+        | `save-groups` | JSON5-Gruppendatei speichern | Raw JSON5-Text |
+        | `save-profile` | Profil speichern (`?name=...`) | Raw JSON5-Text |
+        | `publish-lyrmgr` | Lyrmgr-Block publizieren | `{ profile, lyrmgrKey, data }` |
+      operationId: treebuilderPost
+      parameters:
+      - name: action
+        in: query
+        required: true
+        description: "Auszuführende Aktion"
+        schema:
+          type: string
+          enum: [ save, save-groups, save-profile, publish-lyrmgr ]
+      - name: name
+        in: query
+        description: "Profil-Name (nur bei action=save-profile)"
+        schema:
+          type: string
+        example: nwpro
+      - name: editor
+        in: query
+        description: "Editor-Name (alternativ: Header `X-Editor-Name`)"
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: "Inhalt abhängig von der Aktion"
+            examples:
+              save:
+                summary: "State speichern"
+                value:
+                  layers: []
+                  groups: []
+                  profiles: {}
+              publishLyrmgr:
+                summary: "Lyrmgr publizieren"
+                value:
+                  profile: nwpro
+                  lyrmgrKey: grundlagen/av
+                  data:
+                    layers:
+                    - TNET_gis_basis/nw_amtliche_vermessung
+          text/plain:
+            schema:
+              type: string
+              description: "Raw JSON5-Text (für action=save-groups, save-profile)"
+      responses:
+        "200":
+          description: Erfolgreiche Antwort
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+              examples:
+                saved:
+                  summary: "State gespeichert"
+                  value:
+                    success: true
+                    data:
+                      saved: true
+                      bytes: 4096
+                      backup: state_20250115_103000.json
+        "400":
+          description: Ungültiger Body oder fehlende Parameter
+        "405":
+          description: Methode nicht erlaubt (POST required)
+        "423":
+          description: Gesperrt von anderem Editor
+        "500":
+          description: Speichern fehlgeschlagen
+
+  # ===== AGS IMPORT =====
+
+  /v1/treebuilder-api.php/ags:
+    get:
+      tags: [ AGS Import ]
+      summary: AGS-Dienste & Roh-Konfigurationen abrufen
+      description: |
+        Abrufen der verfügbaren ArcGIS Server-Dienste von der externen API (`ags2mapplus`)
+        und Verwalten der lokal gespeicherten Roh-Konfigurationsdateien.
+
+        **Verfügbare GET-Aktionen:**
+        | Aktion | Beschreibung | Zusatzparameter |
+        |--------|-------------|-----------------|
+        | `ags-services` | Verfügbare AGS-Dienste von der externen API abrufen | — |
+        | `ags-list-raw` | Importierte Roh-Konfigurationen auflisten (gruppiert nach Service) | `includeBackups`, `backupOnly` |
+        | `ags-read-raw` | Einzelne Roh-Konfigurationsdatei lesen | `file` |
+
+        **Hinweis:** Der tatsächliche Endpunkt ist `treebuilder-api.php?action=ags-*`.
+        Die Pfad-Darstellung `/ags` dient nur der besseren Übersicht in der Dokumentation.
+      operationId: agsGet
+      parameters:
+      - name: action
+        in: query
+        required: true
+        description: "Auszuführende AGS-Aktion"
+        schema:
+          type: string
+          enum: [ ags-services, ags-list-raw, ags-read-raw ]
+      - name: includeBackups
+        in: query
+        description: "Backups zusätzlich einbeziehen (nur bei action=ags-list-raw)"
+        schema:
+          type: string
+          enum: [ "1", "0" ]
+          default: "0"
+      - name: backupOnly
+        in: query
+        description: "Nur Backup-Dateien listen (nur bei action=ags-list-raw)"
+        schema:
+          type: string
+          enum: [ "1", "0" ]
+          default: "0"
+      - name: file
+        in: query
+        description: "Relativer Dateipfad innerhalb von `data/tmp/raw-conf/` (nur bei action=ags-read-raw)"
+        schema:
+          type: string
+        example: awu/AWU_EIGENTUM/layers_TNET_awu_AWU_EIGENTUM.conf
+      responses:
+        "200":
+          description: Erfolgreiche Antwort
+          content:
+            application/json:
+              schema:
+                oneOf:
+                - $ref: "#/components/schemas/AgsServicesResponse"
+                - $ref: "#/components/schemas/AgsListRawResponse"
+                - $ref: "#/components/schemas/AgsReadRawResponse"
+              examples:
+                services:
+                  summary: "AGS-Dienste auflisten"
+                  value:
+                    success: true
+                    data:
+                      dienstnamen:
+                      - awu/AWU_EIGENTUM
+                      - awu/AWU_WERKPLAN
+                      - ewn/ewn_fernwaerme_agp
+                      - gis_basis/nw_amtliche_vermessung
+                listRaw:
+                  summary: "Roh-Konfigurationen auflisten"
+                  value:
+                    success: true
+                    data:
+                      exists: true
+                      directory: /data/Client_Data/nwow/tmp/raw-conf
+                      includeBackups: false
+                      backupOnly: false
+                      services:
+                      - service: awu/AWU_EIGENTUM
+                        totalSize: 8234
+                        files:
+                        - file: awu/AWU_EIGENTUM/layers_TNET_awu_AWU_EIGENTUM.conf
+                          size: 4567
+                          modified: "2025-01-15 10:30:00"
+                          isBackup: false
+                        - file: awu/AWU_EIGENTUM/layers_TNET_awu_AWU_EIGENTUM_cache.conf
+                          size: 3667
+                          modified: "2025-01-15 10:30:00"
+                          isBackup: false
+                      files:
+                      - file: awu/AWU_EIGENTUM/layers_TNET_awu_AWU_EIGENTUM.conf
+                        size: 4567
+                        modified: "2025-01-15 10:30:00"
+                        isBackup: false
+                readRaw:
+                  summary: "Einzelne Datei lesen"
+                  value:
+                    success: true
+                    data:
+                      file: awu/AWU_EIGENTUM/layers_TNET_awu_AWU_EIGENTUM.conf
+                      content: "[layers_TNET_awu_AWU_EIGENTUM]
+
+                        type=arcgisRest
+
+                        ..."
+                      size: 4567
+        "404":
+          description: Datei nicht gefunden
+        "502":
+          description: Externe API nicht erreichbar
+
+    post:
+      tags: [ AGS Import ]
+      summary: AGS-Dienste importieren oder löschen
+      description: |
+        Importiert ArcGIS Server-Konfigurationen von der externen `ags2mapplus`-API
+        (ZIP-Download + Extraktion) oder löscht bestehende Roh-Konfigurationen.
+
+        **Verfügbare POST-Aktionen:**
+        | Aktion | Beschreibung | Body |
+        |--------|-------------|------|
+        | `ags-export` | Dienste von externer API importieren → ZIP entpacken → `data/tmp/raw-conf/` | `{ "dienstnamen": ["awu/AWU_EIGENTUM", ...] }` |
+        | `ags-delete-raw` | Alle Dateien eines Services löschen (inkl. Backups) | `{ "service": "awu/AWU_EIGENTUM" }` |
+        | `ags-delete-backups` | Nur Backup-Dateien eines Services löschen | `{ "service": "awu/AWU_EIGENTUM" }` |
+
+        **Hinweis:** Der tatsächliche Endpunkt ist `treebuilder-api.php?action=ags-*`.
+        Die Pfad-Darstellung `/ags` dient nur der besseren Übersicht in der Dokumentation.
+
+        ### Import-Ablauf (ags-export)
+        1. POST an externe API `ags2mapplus/mapplus-conf-export` mit Dienstnamen
+        2. ZIP-Antwort empfangen, Magic-Bytes validieren
+        3. Bestehende Dateien werden mit Timestamp-Suffix gesichert (`.bak`)
+        4. ZIP nach `data/tmp/raw-conf/` entpacken
+      operationId: agsPost
+      parameters:
+      - name: action
+        in: query
+        required: true
+        description: "Auszuführende AGS-Aktion"
+        schema:
+          type: string
+          enum: [ ags-export, ags-delete-raw, ags-delete-backups ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+              - $ref: "#/components/schemas/AgsExportRequest"
+              - $ref: "#/components/schemas/AgsDeleteRequest"
+            examples:
+              export:
+                summary: "Dienste importieren"
+                value:
+                  dienstnamen:
+                  - awu/AWU_EIGENTUM
+                  - awu/AWU_WERKPLAN
+              delete:
+                summary: "Service löschen"
+                value:
+                  service: awu/AWU_EIGENTUM
+      responses:
+        "200":
+          description: Erfolgreiche Antwort
+          content:
+            application/json:
+              schema:
+                oneOf:
+                - $ref: "#/components/schemas/AgsExportResponse"
+                - $ref: "#/components/schemas/AgsDeleteResponse"
+              examples:
+                exported:
+                  summary: "Import erfolgreich"
+                  value:
+                    success: true
+                    data:
+                      success: true
+                      services:
+                      - awu/AWU_EIGENTUM
+                      - awu/AWU_WERKPLAN
+                      zipSize: 45678
+                      files:
+                      - file: awu/AWU_EIGENTUM/layers_TNET_awu_AWU_EIGENTUM.conf
+                        bytes: 4567
+                      - file: awu/AWU_WERKPLAN/layers_TNET_awu_AWU_WERKPLAN.conf
+                        bytes: 3456
+                      timestamp: "2025-01-15 10:30:00"
+                deleted:
+                  summary: "Service gelöscht"
+                  value:
+                    success: true
+                    data:
+                      success: true
+                      service: awu/AWU_EIGENTUM
+                      deleted:
+                      - awu/AWU_EIGENTUM/layers_TNET_awu_AWU_EIGENTUM.conf
+                      - awu/AWU_EIGENTUM/layers_TNET_awu_AWU_EIGENTUM_cache.conf
+                      count: 2
+        "400":
+          description: Fehlende oder ungültige Parameter
+        "405":
+          description: Methode nicht erlaubt (POST required)
+        "500":
+          description: Import oder Löschung fehlgeschlagen
 
 components:
   schemas:
@@ -632,3 +1154,176 @@ components:
                     type: integer
                   basemaps:
                     type: integer
+
+    # === AGS Import Schemas ===
+    AgsServicesResponse:
+      allOf:
+      - $ref: "#/components/schemas/SuccessResponse"
+      - type: object
+        properties:
+          data:
+            type: object
+            properties:
+              dienstnamen:
+                type: array
+                description: "Liste der verfügbaren ArcGIS Server-Dienste"
+                items:
+                  type: string
+                  example: awu/AWU_EIGENTUM
+
+    AgsListRawResponse:
+      allOf:
+      - $ref: "#/components/schemas/SuccessResponse"
+      - type: object
+        properties:
+          data:
+            type: object
+            properties:
+              exists:
+                type: boolean
+                description: "true wenn data/tmp/raw-conf existiert"
+              directory:
+                type: string
+                example: /data/Client_Data/nwow/tmp/raw-conf
+              includeBackups:
+                type: boolean
+                description: "true wenn Backups in der Liste enthalten sind"
+              backupOnly:
+                type: boolean
+                description: "true wenn nur Backup-Dateien gelistet sind"
+              services:
+                type: array
+                description: "Dateien gruppiert nach Service-Key"
+                items:
+                  $ref: "#/components/schemas/AgsServiceGroup"
+              files:
+                type: array
+                description: "Flache Liste aller Dateien"
+                items:
+                  $ref: "#/components/schemas/AgsFileInfo"
+
+    AgsServiceGroup:
+      type: object
+      properties:
+        service:
+          type: string
+          description: "Service-Key (z.B. awu/AWU_EIGENTUM)"
+          example: awu/AWU_EIGENTUM
+        totalSize:
+          type: integer
+          description: "Gesamtgrösse aller Dateien in Bytes"
+          example: 8234
+        files:
+          type: array
+          items:
+            $ref: "#/components/schemas/AgsFileInfo"
+
+    AgsFileInfo:
+      type: object
+      properties:
+        file:
+          type: string
+          description: "Relativer Pfad innerhalb data/tmp/raw-conf/"
+          example: awu/AWU_EIGENTUM/layers_TNET_awu_AWU_EIGENTUM.conf
+        size:
+          type: integer
+          example: 4567
+        modified:
+          type: string
+          example: "2025-01-15 10:30:00"
+        isBackup:
+          type: boolean
+          description: "true wenn Datei ein Backup (*.bak) ist"
+          example: false
+
+    AgsReadRawResponse:
+      allOf:
+      - $ref: "#/components/schemas/SuccessResponse"
+      - type: object
+        properties:
+          data:
+            type: object
+            properties:
+              file:
+                type: string
+                example: awu/AWU_EIGENTUM/layers_TNET_awu_AWU_EIGENTUM.conf
+              content:
+                type: string
+                description: "Dateiinhalt als Text"
+              size:
+                type: integer
+                example: 4567
+
+    AgsExportRequest:
+      type: object
+      required: [ dienstnamen ]
+      properties:
+        dienstnamen:
+          type: array
+          description: "Liste der zu importierenden Service-Namen"
+          items:
+            type: string
+          example: [ "awu/AWU_EIGENTUM", "awu/AWU_WERKPLAN" ]
+
+    AgsDeleteRequest:
+      type: object
+      required: [ service ]
+      properties:
+        service:
+          type: string
+          description: "Service-Key zum Löschen (z.B. awu/AWU_EIGENTUM)"
+          example: awu/AWU_EIGENTUM
+
+    AgsExportResponse:
+      allOf:
+      - $ref: "#/components/schemas/SuccessResponse"
+      - type: object
+        properties:
+          data:
+            type: object
+            properties:
+              success:
+                type: boolean
+              services:
+                type: array
+                items:
+                  type: string
+              zipSize:
+                type: integer
+                description: "Grösse des empfangenen ZIP in Bytes"
+              files:
+                type: array
+                description: "Liste der extrahierten Dateien"
+                items:
+                  type: object
+                  properties:
+                    file:
+                      type: string
+                    bytes:
+                      type: integer
+              directory:
+                type: string
+              timestamp:
+                type: string
+
+    AgsDeleteResponse:
+      allOf:
+      - $ref: "#/components/schemas/SuccessResponse"
+      - type: object
+        properties:
+          data:
+            type: object
+            properties:
+              success:
+                type: boolean
+              service:
+                type: string
+                example: awu/AWU_EIGENTUM
+              deleted:
+                type: array
+                description: "Liste der gelöschten Dateien"
+                items:
+                  type: string
+              count:
+                type: integer
+                description: "Anzahl gelöschter Dateien"

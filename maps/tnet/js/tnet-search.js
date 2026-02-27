@@ -17,10 +17,14 @@
     var PROXY_URL    = '/maps/tnet/api/search-proxy.php';
     var MAPSERVER_URL = 'https://api3.geo.admin.ch/rest/services/api/MapServer/';
     var debounceTimer = null;
-    var currentXhr   = null;
+    var currentAbort  = null;   // AbortController
     var lastQuery    = '';
     var featureHighlightLayer = null;
     var _searchZoomConfig = null;   // aus tnet-global-config.json5 geladen
+    var _resultCache = new Map();   // Client-Cache: query-key → {data, ts}
+    var _CACHE_TTL   = 300000;      // 5 min (ms)
+    var _CACHE_MAX   = 50;          // max Einträge
+    var _ADDR_RESOLUTION = 0.28;    // 1:1000 Massstab (OGC: 1000 × 0.00028 m/px)
 
     // -- Map/Layer Helpers ---------------------------------------------------
 
@@ -57,15 +61,19 @@
     }
 
     /** Zur Koordinate animieren. x=Northing, y=Easting (LV95) */
-    function panToResult(x, y, zoom) {
+    function panToResult(x, y, zoom, resolution) {
         var view = getMapView();
         if (!view || x == null || y == null) return;
         var mapProj = view.getProjection().getCode();
         var coord = (typeof ol !== 'undefined' && ol.proj)
             ? ol.proj.transform([y, x], 'EPSG:2056', mapProj)
             : [y, x];
-        var zl = getZoomLevels();
-        view.animate({ center: coord, zoom: zoom || zl.panDefault, duration: 400 });
+        if (resolution) {
+            view.animate({ center: coord, resolution: resolution, duration: 400 });
+        } else {
+            var zl = getZoomLevels();
+            view.animate({ center: coord, zoom: zoom || zl.panDefault, duration: 400 });
+        }
     }
 
     /**
@@ -170,8 +178,12 @@
                     // Punkt-Geometrie: zur Mitte zoomen
                     var cx = (extent[0] + extent[2]) / 2;
                     var cy = (extent[1] + extent[3]) / 2;
-                    var zl2 = getZoomLevels();
-                    view.animate({ center: [cx, cy], zoom: zl2.point, duration: 500 });
+                    if (item.subtitle === 'Adresse') {
+                        view.animate({ center: [cx, cy], resolution: _ADDR_RESOLUTION, duration: 500 });
+                    } else {
+                        var zl2 = getZoomLevels();
+                        view.animate({ center: [cx, cy], zoom: zl2.point, duration: 500 });
+                    }
                 }
             } catch (e) {
                 console.warn('[DesktopSearch] Feature-Geometrie konnte nicht geladen werden:', e);
@@ -179,6 +191,82 @@
         };
         xhr.onerror = xhr.ontimeout = function () {
             console.warn('[DesktopSearch] Feature-Geometrie Timeout/Fehler');
+        };
+        xhr.send();
+    }
+
+    /** Parzellen-Geometrie via swisstopo Identify-API laden und highlighten */
+    function highlightParcelByCoord(x, y) {
+        var layer = ensureFeatureHighlightLayer();
+        if (!layer) return;
+        clearFeatureHighlight();
+
+        // x = Northing, y = Easting (swisstopo Geocoder-Konvention)
+        var easting  = Math.round(y);
+        var northing = Math.round(x);
+
+        var url = 'https://api3.geo.admin.ch/rest/services/ech/MapServer/identify'
+            + '?geometryType=esriGeometryPoint'
+            + '&geometry=' + easting + ',' + northing
+            + '&tolerance=0'
+            + '&layers=all:ch.kantone.cadastralwebmap-farbe'
+            + '&returnGeometry=true'
+            + '&sr=2056'
+            + '&geometryFormat=geojson';
+
+        var xhr = new XMLHttpRequest();
+        xhr.open('GET', url, true);
+        xhr.timeout = 8000;
+        xhr.onload = function () {
+            if (xhr.status !== 200) return;
+            try {
+                var data = JSON.parse(xhr.responseText);
+                if (!data.results || !data.results.length) {
+                    // Kein Polygon gefunden, Fallback: nur hinzoomen
+                    panToResult(x, y);
+                    return;
+                }
+
+                var view = getMapView();
+                if (!view) return;
+                var mapProj = view.getProjection().getCode();
+
+                // Erstes Resultat verwenden (genauester Treffer)
+                var result = data.results[0];
+                var geom = result.geometry;
+                if (!geom) { panToResult(x, y); return; }
+
+                var geojson = { type: 'Feature', geometry: geom, properties: result.properties || {} };
+                var features = new ol.format.GeoJSON().readFeatures(geojson, {
+                    dataProjection: 'EPSG:2056',
+                    featureProjection: mapProj
+                });
+                if (!features.length) { panToResult(x, y); return; }
+
+                layer.getSource().addFeatures(features);
+
+                var extent = features[0].getGeometry().getExtent().slice();
+                for (var i = 1; i < features.length; i++) {
+                    ol.extent.extend(extent, features[i].getGeometry().getExtent());
+                }
+                console.log('[DesktopSearch] Parcel extent:', extent);
+
+                var zl = getZoomLevels();
+                view.fit(extent, {
+                    padding: [50, 50, 50, 50],
+                    minZoom: zl.fitMin,
+                    maxZoom: zl.fitMax,
+                    duration: 500,
+                    constrainResolution: false
+                });
+            } catch (e) {
+                console.warn('[DesktopSearch] Parcel-Geometrie Fehler:', e);
+                panToResult(x, y);
+            }
+        };
+        xhr.onerror = xhr.ontimeout = function () {
+            console.warn('[DesktopSearch] Parcel-Identify Timeout');
+            panToResult(x, y);
         };
         xhr.send();
     }
@@ -271,6 +359,13 @@
     function highlightText(text, query) {
         if (!query) return text;
         var safe = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        // EGRID-Suche (z.B. CH310515347747): optionale Leerzeichen zwischen Ziffern,
+        // weil swisstopo das Label mit Leerzeichen liefert (CH 3105 1534 7747)
+        if (/^CH\d{6,}/i.test(query)) {
+            var prefix = safe.substring(0, 2);
+            var digits = safe.substring(2);
+            safe = prefix + '\\s*' + digits.split('').join('\\s*');
+        }
         return text.replace(new RegExp('(' + safe + ')', 'gi'), '<b class="dt-search-highlight">$1</b>');
     }
 
@@ -313,24 +408,25 @@
             } else {
                 if (inp) inp.value = item.label;
                 if (lst) lst.classList.remove('open');
-                panToResult(item.x, item.y);
+                // Parzellen: Flächengeometrie via Identify-API highlighten
+                if (item.subtitle === 'Parzelle' && item.x && item.y) {
+                    highlightParcelByCoord(item.x, item.y);
+                } else if (item.subtitle === 'Adresse' && item.x && item.y) {
+                    panToResult(item.x, item.y, null, _ADDR_RESOLUTION);
+                } else {
+                    panToResult(item.x, item.y);
+                }
             }
         });
 
         return li;
     }
 
-    // -- XHR ------------------------------------------------------------------
+    // -- Search ---------------------------------------------------------------
 
-    function doSearch(query) {
-        lastQuery = query;
-        if (currentXhr) { try { currentXhr.abort(); } catch (e) {} }
-
-        // Kanton aus Radio-Buttons lesen
+    function buildSearchUrl(query, mode) {
         var cantonRadio = document.querySelector('input[name="dt-canton"]:checked');
         var canton = cantonRadio ? cantonRadio.value : '';
-
-        // Scope aus Checkboxen ableiten
         var orteCb = document.getElementById('dt-filter-orte');
         var adrCb  = document.getElementById('dt-filter-adressen');
         var layCb  = document.getElementById('dt-filter-layers');
@@ -344,24 +440,75 @@
             if (hasLay)  scopes.push('layers');
         }
         var scope = scopes.join(',');
-
         var url = PROXY_URL + '?q=' + encodeURIComponent(query) + '&limit=10';
         if (canton) url += '&canton=' + encodeURIComponent(canton);
         if (scope)  url += '&scope='  + encodeURIComponent(scope);
-        var xhr = new XMLHttpRequest();
-        xhr.open('GET', url, true);
-        xhr.timeout = 6000;
-        xhr.onload = function () {
-            if (xhr.status === 200) {
-                try {
-                    var data = JSON.parse(xhr.responseText);
-                    showGroupedResults(data.groups, data.items);
-                } catch (e) { showGroupedResults(null, []); }
-            }
-        };
-        xhr.onerror = xhr.ontimeout = function () { showGroupedResults(null, []); };
-        xhr.send();
-        currentXhr = xhr;
+        if (mode)   url += '&mode='   + encodeURIComponent(mode);
+        return url;
+    }
+
+    function getCacheKey(url) { return url; }
+
+    var _searchId = 0;  // Monoton steigend, verhindert Race Conditions
+
+    function doSearch(query) {
+        lastQuery = query;
+        if (currentAbort) { try { currentAbort.abort(); } catch (e) {} }
+
+        var myId = ++_searchId;
+        var fullUrl = buildSearchUrl(query);
+        var fullCacheKey = getCacheKey(fullUrl);
+
+        // Client-Cache: Vollergebnis vorhanden? Sofort anzeigen.
+        var cachedFull = _resultCache.get(fullCacheKey);
+        if (cachedFull && (Date.now() - cachedFull.ts) < _CACHE_TTL) {
+            showGroupedResults(cachedFull.data.groups, cachedFull.data.items);
+            return;
+        }
+
+        // Phase 1: Fast-Modus (nur Adressen + Layers)
+        var fastUrl = buildSearchUrl(query, 'fast');
+        var fastCacheKey = getCacheKey(fastUrl);
+        var cachedFast = _resultCache.get(fastCacheKey);
+
+        var ac = new AbortController();
+        currentAbort = ac;
+
+        if (cachedFast && (Date.now() - cachedFast.ts) < _CACHE_TTL) {
+            // Fast aus Cache → sofort anzeigen
+            showGroupedResults(cachedFast.data.groups, cachedFast.data.items);
+        } else {
+            // Fast-Request starten
+            fetch(fastUrl, { signal: ac.signal })
+                .then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); })
+                .then(function (data) {
+                    if (_searchId !== myId) return;  // Veralteter Request
+                    if (_resultCache.size >= _CACHE_MAX) {
+                        _resultCache.delete(_resultCache.keys().next().value);
+                    }
+                    _resultCache.set(fastCacheKey, { data: data, ts: Date.now() });
+                    // Nur anzeigen wenn Full noch nicht da ist
+                    if (!_resultCache.has(fullCacheKey) || (Date.now() - _resultCache.get(fullCacheKey).ts) >= _CACHE_TTL) {
+                        showGroupedResults(data.groups, data.items);
+                    }
+                })
+                .catch(function () {});
+        }
+
+        // Phase 2: Full-Request (parallel starten)
+        fetch(fullUrl, { signal: ac.signal })
+            .then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); })
+            .then(function (data) {
+                if (_searchId !== myId) return;  // Veralteter Request
+                if (_resultCache.size >= _CACHE_MAX) {
+                    _resultCache.delete(_resultCache.keys().next().value);
+                }
+                _resultCache.set(fullCacheKey, { data: data, ts: Date.now() });
+                showGroupedResults(data.groups, data.items);
+            })
+            .catch(function (e) {
+                if (e.name !== 'AbortError') showGroupedResults(null, []);
+            });
     }
 
     // -- Event-Binding --------------------------------------------------------
@@ -405,7 +552,7 @@
             popup.addEventListener('change', function () {
                 updateFilterIndicator();
                 var q = input.value.trim();
-                if (q.length >= 2) doSearch(q);
+                if (q.length >= 3) doSearch(q);
             });
         }
 
@@ -413,7 +560,7 @@
             var q = input.value.trim();
             if (clearBtn) clearBtn.style.display = q ? 'flex' : 'none';
             if (debounceTimer) clearTimeout(debounceTimer);
-            if (q.length < 2) {
+            if (q.length < 3) {
                 list.classList.remove('open');
                 list.innerHTML = '';
                 return;
@@ -436,21 +583,21 @@
             var items = list.querySelectorAll('.dt-search-item');
             if (e.key === 'Enter') {
                 if (items.length) items[0].click();
-                else if (input.value.trim().length >= 2) doSearch(input.value.trim());
+                else if (input.value.trim().length >= 3) doSearch(input.value.trim());
                 e.preventDefault();
             }
             if (e.key === 'Escape') { list.classList.remove('open'); input.blur(); }
-            if (e.key === 'ArrowDown' && items.length) { items[0].focus(); e.preventDefault(); }
+            if (e.key === 'ArrowDown' && items.length) { items[0].focus(); e.preventDefault(); e.stopPropagation(); }
         });
 
         list.addEventListener('keydown', function (e) {
             var items   = list.querySelectorAll('.dt-search-item');
             var focused = document.activeElement;
             var idx     = Array.prototype.indexOf.call(items, focused);
-            if (e.key === 'ArrowDown' && idx < items.length - 1) { items[idx + 1].focus(); e.preventDefault(); }
+            if (e.key === 'ArrowDown' && idx < items.length - 1) { items[idx + 1].focus(); e.preventDefault(); e.stopPropagation(); }
             if (e.key === 'ArrowUp') {
                 if (idx > 0) items[idx - 1].focus(); else input.focus();
-                e.preventDefault();
+                e.preventDefault(); e.stopPropagation();
             }
             if (e.key === 'Enter' && idx >= 0) items[idx].click();
             if (e.key === 'Escape') { list.classList.remove('open'); input.focus(); }
@@ -468,7 +615,7 @@
         });
 
         input.addEventListener('focus', function () {
-            if (input.value.trim().length >= 2 && !list.children.length) {
+            if (input.value.trim().length >= 3 && !list.children.length) {
                 doSearch(input.value.trim());
             }
         });

@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Layer-Manager Dev — TNET API</title>
+<link rel="stylesheet" href="/maps/tnet/css/tnet-lm.css?v=dev">
+<style>
+* { box-sizing: border-box; }
+body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f0f2f5; }
+
+/* ── Toolbar ── */
+.dt-toolbar {
+  background: #1e3a4a; color: #fff; padding: 0 16px;
+  display: flex; align-items: center; gap: 0; height: 44px;
+  font-size: 13px; position: sticky; top: 0; z-index: 100;
+}
+.dt-toolbar .dt-brand { font-weight: 700; padding-right: 16px; border-right: 1px solid rgba(255,255,255,.15); margin-right: 8px; white-space: nowrap; }
+.dt-toolbar .dt-sep { width: 1px; height: 24px; background: rgba(255,255,255,.15); margin: 0 8px; }
+
+.dt-toolbar label { color: rgba(255,255,255,.65); font-size: 12px; margin-right: 4px; white-space: nowrap; }
+.dt-toolbar select, .dt-toolbar input[type="text"] {
+  padding: 4px 8px; font-size: 12px; border: 1px solid rgba(255,255,255,.25); border-radius: 3px;
+  background: rgba(255,255,255,.1); color: #fff; outline: none;
+}
+.dt-toolbar select option { color: #333; background: #fff; }
+.dt-toolbar select:focus, .dt-toolbar input:focus { border-color: rgba(255,255,255,.5); }
+
+.dt-toolbar .dt-view-btns { display: flex; gap: 0; margin-left: auto; }
+.dt-toolbar .dt-view-btn {
+  padding: 5px 12px; border: 1px solid rgba(255,255,255,.25); background: none;
+  color: rgba(255,255,255,.65); cursor: pointer; font-size: 12px; font-weight: 500;
+  transition: all .15s;
+}
+.dt-toolbar .dt-view-btn:first-child { border-radius: 3px 0 0 3px; }
+.dt-toolbar .dt-view-btn:last-child { border-radius: 0 3px 3px 0; border-left: 0; }
+.dt-toolbar .dt-view-btn.active { background: rgba(255,255,255,.2); color: #fff; font-weight: 700; }
+.dt-toolbar .dt-view-btn:hover:not(.active) { background: rgba(255,255,255,.08); }
+
+/* ── Links unterhalb Toolbar ── */
+.dt-links {
+  background: #f5f5f5; border-bottom: 1px solid #ddd; padding: 6px 16px;
+  display: flex; gap: 16px; font-size: 11px; color: #888;
+}
+.dt-links a { color: #648C96; text-decoration: none; }
+.dt-links a:hover { text-decoration: underline; }
+.dt-links code { background: #e8e8e8; padding: 1px 5px; border-radius: 2px; font-size: 10px; }
+
+/* ── Panel-Tabs ── */
+.dt-panel-tabs {
+  display: flex; gap: 0; background: #fff; border-bottom: 2px solid #ddd;
+}
+.dt-panel-tab {
+  flex: 1; padding: 10px; border: none; background: none;
+  font-size: 13px; font-weight: 500; color: #888; cursor: pointer;
+  border-bottom: 3px solid transparent; transition: all .15s;
+  text-align: center;
+}
+.dt-panel-tab:hover { color: #333; background: #f8f8f8; }
+.dt-panel-tab.active { color: #e8423f; border-bottom-color: #e8423f; font-weight: 700; }
+
+/* ── Layout ── */
+.dt-canvas {
+  display: flex; justify-content: center; padding: 16px; gap: 16px;
+  min-height: calc(100vh - 120px);
+}
+
+/* Geräterahmen */
+.dt-device {
+  background: #fff; border-radius: 12px; overflow: hidden;
+  box-shadow: 0 2px 12px rgba(0,0,0,.1); border: 1px solid #ddd;
+  display: flex; flex-direction: column;
+  transition: width .3s, max-width .3s;
+}
+.dt-device-label {
+  background: #f5f5f5; padding: 4px 12px; text-align: center;
+  font-size: 10px; color: #999; text-transform: uppercase; letter-spacing: 1px;
+  border-bottom: 1px solid #eee; font-weight: 600;
+}
+.dt-device-body {
+  flex: 1; overflow-y: auto; position: relative;
+}
+
+/* View Modes */
+.dt-canvas[data-view="mobile"] .dt-device { width: 375px; max-width: 375px; }
+.dt-canvas[data-view="desktop"] .dt-device { width: 380px; max-width: 420px; }
+.dt-canvas[data-view="split"] .dt-device { width: 375px; max-width: 420px; }
+.dt-canvas[data-view="split"] { gap: 24px; }
+
+/* Mobile-spezifisch: Bottom-Sheet Simulation */
+.dt-mobile-frame .dt-device-body { position: relative; min-height: 500px; }
+
+/* ── Status ── */
+.dt-status {
+  padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600;
+  display: inline-block; margin-left: 8px;
+}
+.dt-status.loading { background: #fff3cd; color: #856404; }
+.dt-status.ok { background: #d4edda; color: #155724; }
+.dt-status.error { background: #f8d7da; color: #721c24; }
+
+/* ── Log ── */
+#dt-log {
+  max-width: 800px; margin: 8px auto; background: #1a1a2e; color: #0f0;
+  border-radius: 6px; padding: 10px 14px; font-size: 11px;
+  font-family: 'Consolas', 'Monaco', monospace;
+  max-height: 140px; overflow-y: auto;
+}
+#dt-log .err { color: #ff6b6b; }
+#dt-log .warn { color: #ffd93d; }
+#dt-log .info { color: #6bcfff; }
+#dt-log div { padding: 1px 0; }
+.dt-log-toggle {
+  text-align: center; padding: 4px; cursor: pointer;
+  font-size: 11px; color: #888;
+}
+.dt-log-toggle:hover { color: #333; }
+</style>
+</head>
+<body>
+
+<!-- Toolbar -->
+<div class="dt-toolbar">
+  <span class="dt-brand">⚙ Dev Test</span>
+  <label>Gruppe:</label>
+  <select id="dt-group"><option value="" disabled>Laden…</option></select>
+  <span class="dt-sep"></span>
+  <label>Panel:</label>
+  <select id="dt-panel">
+    <option value="tree" selected>Themenkatalog</option>
+    <option value="active">Dargestellte Themen</option>
+    <option value="both">Beide</option>
+  </select>
+  <span class="dt-sep"></span>
+  <div class="dt-view-btns">
+    <button class="dt-view-btn active" data-view="mobile">Mobile</button>
+    <button class="dt-view-btn" data-view="desktop">Desktop</button>
+    <button class="dt-view-btn" data-view="split">Split</button>
+  </div>
+</div>
+
+<!-- Links -->
+<div class="dt-links">
+  <span>API: <code id="dt-api-url">…</code></span>
+  <span id="dt-stats-span"></span>
+  <span style="margin-left:auto"></span>
+  <a href="/maps/tnet/api/docs/" target="_blank">Swagger Docs</a>
+  <a href="/maps/tnet/api/v1/info" target="_blank">API Info</a>
+  <a href="/maps/tnet/api/v1/tree-test.html" target="_blank">Simple Tree-Test</a>
+</div>
+
+<!-- Canvas -->
+<div class="dt-canvas" id="dt-canvas" data-view="mobile">
+
+  <!-- Themenkatalog Panel -->
+  <div class="dt-device dt-tree-frame" id="dt-tree-frame">
+    <div class="dt-device-label">Themenkatalog <span class="dt-status loading" id="dt-tree-status">Laden…</span></div>
+    <div class="dt-device-body">
+      <div id="lm-tree-container" class="lm-container"></div>
+    </div>
+  </div>
+
+  <!-- Dargestellte Themen Panel -->
+  <div class="dt-device dt-active-frame" id="dt-active-frame" style="display:none">
+    <div class="dt-device-label">Dargestellte Themen <span class="dt-status ok" id="dt-active-status">0 Layer</span></div>
+    <div class="dt-device-body">
+      <div id="lm-active-container" class="lm-container"></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Log (minimiert) -->
+<div class="dt-log-toggle" id="dt-log-toggle">▾ Log anzeigen</div>
+<div id="dt-log" style="display:none"></div>
+
+<script>
+// =====================================================================
+// Config / URL-Parameter
+// =====================================================================
+var params = new URLSearchParams(window.location.search);
+var currentGroup = params.get('group') || 'marco';
+var currentPanel = params.get('panel') || 'tree';
+var currentView  = params.get('view')  || 'mobile';
+
+// =====================================================================
+// Logger
+// =====================================================================
+var logEl = document.getElementById('dt-log');
+function log(msg, cls) {
+  var d = document.createElement('div');
+  d.className = cls || '';
+  d.textContent = '[' + new Date().toLocaleTimeString() + '] ' + msg;
+  logEl.appendChild(d);
+  logEl.scrollTop = logEl.scrollHeight;
+  console.log(msg);
+}
+
+// Log-Toggle
+document.getElementById('dt-log-toggle').addEventListener('click', function() {
+  var vis = logEl.style.display !== 'none';
+  logEl.style.display = vis ? 'none' : 'block';
+  this.textContent = vis ? '▾ Log anzeigen' : '▴ Log ausblenden';
+});
+
+// =====================================================================
+// Toolbar: View-Buttons
+// =====================================================================
+(function() {
+  var btns = document.querySelectorAll('.dt-view-btn');
+  var canvas = document.getElementById('dt-canvas');
+
+  // Init
+  canvas.dataset.view = currentView;
+  btns.forEach(function(b) { b.classList.toggle('active', b.dataset.view === currentView); });
+
+  btns.forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      btns.forEach(function(b) { b.classList.remove('active'); });
+      this.classList.add('active');
+      canvas.dataset.view = this.dataset.view;
+      updateUrl();
+    });
+  });
+})();
+
+// =====================================================================
+// Toolbar: Panel-Select
+// =====================================================================
+(function() {
+  var sel = document.getElementById('dt-panel');
+  sel.value = currentPanel;
+
+  sel.addEventListener('change', function() {
+    currentPanel = this.value;
+    showPanels();
+    updateUrl();
+  });
+
+  // Init
+  showPanels();
+})();
+
+function showPanels() {
+  var tree = document.getElementById('dt-tree-frame');
+  var active = document.getElementById('dt-active-frame');
+  tree.style.display   = (currentPanel === 'tree'   || currentPanel === 'both') ? '' : 'none';
+  active.style.display = (currentPanel === 'active' || currentPanel === 'both') ? '' : 'none';
+}
+
+// =====================================================================
+// Toolbar: Group-Select (dynamisch von API)
+// =====================================================================
+(function() {
+  var sel = document.getElementById('dt-group');
+  fetch('/maps/tnet/api/v1/info')
+    .then(function(r) { return r.json(); })
+    .then(function(json) {
+      var groups = (json.data && json.data.server && json.data.server.groups) || [];
+      sel.innerHTML = '';
+      groups.forEach(function(g) {
+        var opt = document.createElement('option');
+        opt.value = g; opt.textContent = g;
+        if (g === currentGroup) opt.selected = true;
+        sel.appendChild(opt);
+      });
+      if (!sel.value) {
+        var opt = document.createElement('option');
+        opt.value = currentGroup; opt.textContent = currentGroup;
+        opt.selected = true;
+        sel.insertBefore(opt, sel.firstChild);
+      }
+      log('Gruppen geladen: ' + groups.join(', '), 'info');
+    })
+    .catch(function() {
+      ['public','nwpro','owpro','uwpro','marco'].forEach(function(g) {
+        var opt = document.createElement('option');
+        opt.value = g; opt.textContent = g;
+        if (g === currentGroup) opt.selected = true;
+        sel.appendChild(opt);
+      });
+    });
+  sel.addEventListener('change', function() {
+    currentGroup = this.value;
+    updateUrl();
+    reloadData();
+  });
+})();
+
+function updateUrl() {
+  var u = window.location.pathname + '?group=' + currentGroup + '&panel=' + currentPanel + '&view=' + document.getElementById('dt-canvas').dataset.view;
+  history.replaceState(null, '', u);
+  document.getElementById('dt-api-url').textContent = buildApiUrl();
+}
+
+function buildApiUrl() {
+  return '/maps/tnet/api/v1/layers.php?group=' + encodeURIComponent(currentGroup);
+}
+document.getElementById('dt-api-url').textContent = buildApiUrl();
+
+// =====================================================================
+// MOCK: TnetLMStore (erweitert mit Active-Layer-Emulation)
+// =====================================================================
+window.TnetLMStore = (function() {
+  var _catalog = [];
+  var _activeLayers = [];
+  var _listeners = {};
+  var _loaded = false;
+
+  // ── Normalisierung ──
+  function normalizeCategories(categories) {
+    for (var i = 0; i < categories.length; i++) {
+      var cat = categories[i];
+      if (cat.nodes && !cat.subcategories) {
+        cat.subcategories = cat.nodes;
+        delete cat.nodes;
+      }
+      var subs = cat.subcategories || [];
+      for (var s = 0; s < subs.length; s++) {
+        var sub = subs[s];
+        if (sub.layers && !sub.groups) {
+          sub.groups = sub.layers;
+          delete sub.layers;
+        }
+      }
+    }
+  }
+
+  function initDefaults(nodes) {
+    for (var i = 0; i < nodes.length; i++) {
+      var n = nodes[i];
+      if (n.subcategories) {
+        for (var s = 0; s < n.subcategories.length; s++) {
+          var sub = n.subcategories[s];
+          if (sub.expanded === undefined) sub.expanded = true;
+          if (sub.groups) {
+            for (var g = 0; g < sub.groups.length; g++) {
+              var group = sub.groups[g];
+              if (group.expanded === undefined) group.expanded = group.open || false;
+              if (group.layers) initLayerDefaults(group.layers);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  function initLayerDefaults(layers) {
+    for (var i = 0; i < layers.length; i++) {
+      var l = layers[i];
+      if (l.type === 'group' && l.layers) {
+        if (l.expanded === undefined) l.expanded = l.open || false;
+        initLayerDefaults(l.layers);
+      } else {
+        if (l.visible === undefined) l.visible = false;
+        if (l.opacity === undefined) l.opacity = 1.0;
+      }
+    }
+  }
+
+  // ── Alle Blatt-Layer sammeln ──
+  function collectLeafLayers(catalog) {
+    var result = [];
+    function walk(node) {
+      if (node.subcategories) {
+        node.subcategories.forEach(function(sub) { walk(sub); });
+      }
+      if (node.groups) {
+        node.groups.forEach(function(g) { walk(g); });
+      }
+      if (node.layers) {
+        node.layers.forEach(function(l) {
+          if (l.type === 'group' && l.layers) {
+            l.layers.forEach(function(sl) { if (sl.type !== 'group') result.push(sl); });
+          } else if (l.type !== 'group') {
+            result.push(l);
+          }
+        });
+      }
+    }
+    catalog.forEach(function(cat) { walk(cat); });
+    return result;
+  }
+
+  // ── Emulierte aktive Layer (erste N einschalten) ──
+  function emulateActiveLayers(catalog, count) {
+    var all = collectLeafLayers(catalog);
+    var active = [];
+    for (var i = 0; i < Math.min(count, all.length); i++) {
+      all[i].visible = true;
+      all[i].opacity = Math.round((0.5 + Math.random() * 0.5) * 100) / 100;
+      active.push(all[i]);
+    }
+    return active;
+  }
+
+  return {
+    init: function() {
+      var apiUrl = buildApiUrl();
+      log('Store: Lade ' + apiUrl);
+      document.getElementById('dt-tree-status').textContent = 'Laden…';
+      document.getElementById('dt-tree-status').className = 'dt-status loading';
+
+      var self = this;
+      fetch(apiUrl)
+        .then(function(r) {
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          return r.json();
+        })
+        .then(function(json) {
+          var data = json.data || json;
+          var categories = data.categories || [];
+
+          normalizeCategories(categories);
+          initDefaults(categories);
+          _catalog = categories;
+          _loaded = true;
+
+          // Statistik
+          var totalLayers = 0, totalGroups = 0, totalSubs = 0;
+          for (var ci = 0; ci < categories.length; ci++) {
+            var subs = categories[ci].subcategories || [];
+            totalSubs += subs.length;
+            for (var si = 0; si < subs.length; si++) {
+              var groups = subs[si].groups || [];
+              totalGroups += groups.length;
+              for (var gi = 0; gi < groups.length; gi++) {
+                totalLayers += (groups[gi].layers || []).length;
+              }
+            }
+          }
+
+          var statsText = categories.length + ' Kat / ' + totalSubs + ' Sub / ' + totalGroups + ' Gruppen / ' + totalLayers + ' Layer';
+          log('Store: ' + statsText);
+          document.getElementById('dt-tree-status').textContent = statsText;
+          document.getElementById('dt-tree-status').className = 'dt-status ok';
+          document.getElementById('dt-stats-span').textContent = statsText;
+
+          // Emuliere aktive Layer (5 zufällige)
+          _activeLayers = emulateActiveLayers(categories, 5);
+          log('Store: ' + _activeLayers.length + ' emulierte aktive Layer', 'info');
+          document.getElementById('dt-active-status').textContent = _activeLayers.length + ' Layer';
+
+          self._emit('catalog-loaded', _catalog);
+          self._emit('active-layers-changed', _activeLayers);
+        })
+        .catch(function(err) {
+          log('FEHLER: ' + err.message, 'err');
+          document.getElementById('dt-tree-status').textContent = 'Fehler';
+          document.getElementById('dt-tree-status').className = 'dt-status error';
+        });
+    },
+
+    getCatalog: function() { return _catalog; },
+    isLoaded: function() { return _loaded; },
+    getActiveLayers: function() { return _activeLayers; },
+
+    on: function(evt, cb) {
+      if (!_listeners[evt]) _listeners[evt] = [];
+      _listeners[evt].push(cb);
+      return function() {
+        var idx = _listeners[evt].indexOf(cb);
+        if (idx >= 0) _listeners[evt].splice(idx, 1);
+      };
+    },
+
+    _emit: function(evt, data) {
+      (_listeners[evt] || []).forEach(function(cb) {
+        try { cb(data); } catch(e) { log('Event ' + evt + ' Fehler: ' + e.message, 'err'); }
+      });
+    },
+
+    toggleLayer: function(id) {
+      log('toggleLayer: ' + id, 'info');
+      // Layer in _activeLayers suchen
+      var idx = -1;
+      for (var i = 0; i < _activeLayers.length; i++) {
+        if (_activeLayers[i].id === id) { idx = i; break; }
+      }
+      // Layer im Katalog suchen
+      var layer = this.findLayer(id);
+      if (!layer) return;
+
+      if (idx >= 0) {
+        // Deaktivieren
+        layer.visible = false;
+        _activeLayers.splice(idx, 1);
+      } else {
+        // Aktivieren
+        layer.visible = true;
+        layer.opacity = layer.opacity || 1.0;
+        _activeLayers.push(layer);
+      }
+      this._emit('active-layers-changed', _activeLayers);
+      document.getElementById('dt-active-status').textContent = _activeLayers.length + ' Layer';
+    },
+
+    toggleLayerEye: function(id) {
+      for (var i = 0; i < _activeLayers.length; i++) {
+        if (_activeLayers[i].id === id) {
+          _activeLayers[i].visible = !_activeLayers[i].visible;
+          log('toggleEye: ' + id + ' → ' + _activeLayers[i].visible, 'info');
+          this._emit('layer-visibility', { id: id, visible: _activeLayers[i].visible });
+          return;
+        }
+      }
+    },
+
+    setLayerOpacity: function(id, opacity) {
+      for (var i = 0; i < _activeLayers.length; i++) {
+        if (_activeLayers[i].id === id) {
+          _activeLayers[i].opacity = opacity;
+          this._emit('layer-opacity', { id: id, opacity: opacity });
+          return;
+        }
+      }
+    },
+
+    removeLayer: function(id) {
+      for (var i = 0; i < _activeLayers.length; i++) {
+        if (_activeLayers[i].id === id) {
+          _activeLayers[i].visible = false;
+          _activeLayers.splice(i, 1);
+          log('removeLayer: ' + id, 'info');
+          this._emit('active-layers-changed', _activeLayers);
+          document.getElementById('dt-active-status').textContent = _activeLayers.length + ' Layer';
+          return;
+        }
+      }
+    },
+
+    reorderLayer: function(id, newIdx) {
+      var oldIdx = -1;
+      for (var i = 0; i < _activeLayers.length; i++) {
+        if (_activeLayers[i].id === id) { oldIdx = i; break; }
+      }
+      if (oldIdx === -1 || oldIdx === newIdx) return;
+      var item = _activeLayers.splice(oldIdx, 1)[0];
+      _activeLayers.splice(newIdx, 0, item);
+      log('reorderLayer: ' + id + ' ' + oldIdx + '→' + newIdx, 'info');
+      this._emit('active-layers-changed', _activeLayers);
+    },
+
+    moveLayer: function(id, dir) {
+      var idx = -1;
+      for (var i = 0; i < _activeLayers.length; i++) {
+        if (_activeLayers[i].id === id) { idx = i; break; }
+      }
+      if (idx === -1) return;
+      var newIdx = dir === 'up' ? idx - 1 : idx + 1;
+      if (newIdx < 0 || newIdx >= _activeLayers.length) return;
+      this.reorderLayer(id, newIdx);
+    },
+
+    findLayer: function(id) {
+      function search(nodes) {
+        for (var i = 0; i < nodes.length; i++) {
+          var n = nodes[i];
+          if (n.id === id) return n;
+          if (n.subcategories) { var r = search(n.subcategories); if (r) return r; }
+          if (n.groups) { var r2 = search(n.groups); if (r2) return r2; }
+          if (n.layers) { var r3 = search(n.layers); if (r3) return r3; }
+        }
+        return null;
+      }
+      return search(_catalog);
+    }
+  };
+})();
+
+// =====================================================================
+// Reload bei Gruppenwechsel (ohne Page-Reload)
+// =====================================================================
+function reloadData() {
+  document.getElementById('lm-tree-container').innerHTML = '';
+  document.getElementById('lm-active-container').innerHTML = '';
+  window.TnetLMStore.init();
+}
+
+log('=== Dev-Test [group=' + currentGroup + ', panel=' + currentPanel + ', view=' + currentView + '] ===');
+</script>
+
+<!-- Echte JS-Module -->
+<script src="/maps/tnet/js/tnet-lm-tree.js?v=dev"></script>
+<script src="/maps/tnet/js/tnet-lm-active.js?v=dev"></script>
+
+<script>
+// Start
+if (window.TnetLMTree) {
+  log('Tree: init...');
+  window.TnetLMTree.init('lm-tree-container');
+} else {
+  log('WARNUNG: TnetLMTree nicht geladen', 'warn');
+}
+
+if (window.TnetLMActive) {
+  log('Active: init...');
+  window.TnetLMActive.init('lm-active-container');
+} else {
+  log('WARNUNG: TnetLMActive nicht geladen', 'warn');
+}
+
+window.TnetLMStore.init();
+</script>
+</body>
+</html>

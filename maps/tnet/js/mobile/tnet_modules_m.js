@@ -9,6 +9,160 @@
  * @copyright  Trigonet AG
  * @author     Marco Dellenbach
  */
+
+// (FloatingPane wird als echter dojox/layout/FloatingPane via AMD geladen –
+//  kein Mock nötig. CSS macht daraus ein Mobile Bottom-Sheet.)
+(function() {
+
+    'use strict';
+
+    // Early-exit: diese IIFE ist ein Placeholder, der Namespace-Schutz entfällt.
+    // Die echte dojox/layout/FloatingPane wird via AMD require geladen.
+    return;
+
+    // (Toter Code – wird nie erreicht)
+    function FloatingPaneMock(params) {
+        params = params || {};
+        var id = params.id || ('njsFloating_' + Date.now());
+
+        var pane = document.createElement('div');
+        pane.id = id;
+        pane.className = 'dojoxFloatingPane';
+        if (params.style) { try { pane.style.cssText = params.style; } catch(e) {} }
+        // Pane initial unsichtbar; pointer-events:none verhindert, dass das
+        // 50vh-hohe Element (CSS display:flex !important) Karten-Klicks blockiert
+        pane.style.visibility    = 'hidden';
+        pane.style.pointerEvents = 'none';
+
+        var titleBar = document.createElement('div');
+        titleBar.className = 'dojoxFloatingPaneTitle';
+        var titleSpan = document.createElement('span');
+        titleSpan.className = 'dojoxFloatingPaneTitleText';
+        titleSpan.textContent = params.title || '';
+        titleBar.appendChild(titleSpan);
+        pane.appendChild(titleBar);
+
+        var contentWrap = document.createElement('div');
+        contentWrap.className = 'dojoxFloatingPaneContentInfo';
+        var contentInner = document.createElement('div');
+        contentInner.id = id + '_content';
+        contentWrap.appendChild(contentInner);
+        pane.appendChild(contentWrap);
+
+        this.domNode       = pane;
+        this.containerNode = contentInner;
+        this.titleBar      = titleBar;
+        this.id            = id;
+        this._params       = params;
+
+        document.body.appendChild(pane);
+
+        // Globaler Direktzugriff
+        window.__njsInfoPaneMock = this;
+
+        // Dijit-Registry: internes _hash-Lookup
+        try {
+            if (typeof dijit !== 'undefined' && dijit.registry) {
+                if (dijit.registry._hash) {
+                    dijit.registry._hash[id] = this;
+                } else if (typeof dijit.registry.add === 'function') {
+                    dijit.registry.add(this);
+                }
+            }
+        } catch(e) {}
+    }
+
+    var FP = FloatingPaneMock.prototype;
+    FP.startup  = function() { return this; };
+    FP.resize   = function() { return this; };
+    FP.placeAt  = function(container) {
+        try {
+            var t = (typeof container === 'string') ? document.getElementById(container) : container;
+            if (t && this.domNode && this.domNode.parentNode !== t) t.appendChild(this.domNode);
+        } catch(e) {}
+        return this;
+    };
+    FP.on        = function() { return { remove: function() {} }; };
+    FP.connect   = function() { return []; };
+    FP.subscribe = function() { return []; };
+    FP.watch     = function() { return { unwatch: function() {} }; };
+    FP.emit      = function() { return this; };
+
+    FP.set = function(prop, val) {
+        if (prop === 'content' && this.containerNode) {
+            if (typeof val === 'string') {
+                this.containerNode.innerHTML = val;
+            } else if (val && val.nodeType) {
+                this.containerNode.innerHTML = '';
+                this.containerNode.appendChild(val);
+            }
+        } else if (prop === 'title') {
+            var s = this.titleBar && this.titleBar.querySelector('.dojoxFloatingPaneTitleText');
+            if (s) s.textContent = val || '';
+            this[prop] = val;
+        } else {
+            this[prop] = val;
+        }
+        return this;
+    };
+    FP.get  = function(prop) { return this[prop]; };
+    FP.attr = function(prop, val) {
+        return (arguments.length > 1) ? this.set(prop, val) : this.get(prop);
+    };
+    FP.show = function() {
+        if (!this.domNode) return;
+        this.domNode.style.visibility    = 'visible';
+        this.domNode.style.pointerEvents = '';
+        try {
+            window.dispatchEvent(new CustomEvent('njsInfoPaneShow', {
+                bubbles: false, detail: { paneId: this.id }
+            }));
+        } catch(e) {}
+    };
+    FP.close = function() {
+        if (!this.domNode) return;
+        this.domNode.style.visibility    = 'hidden';
+        this.domNode.style.pointerEvents = 'none';
+        try {
+            window.dispatchEvent(new CustomEvent('njsInfoPaneHide', {
+                bubbles: false, detail: { paneId: this.id }
+            }));
+        } catch(e) {}
+    };
+    FP.destroy = function() {
+        try {
+            if (this.domNode && this.domNode.parentNode) {
+                this.domNode.parentNode.removeChild(this.domNode);
+            }
+            if (window.__njsInfoPaneMock === this) window.__njsInfoPaneMock = null;
+        } catch(e) {}
+    };
+
+    // ── Als AMD-Modul vorab registrieren ─────────────────────────────────────
+    // dadurch erhält auch appmanager.js beim lokalen require('dojox/layout/FloatingPane')
+    // unseren Mock zurück (nicht die echte Klasse).
+    if (typeof define === 'function') {
+        define('dojox/layout/FloatingPane', [], function() { return FloatingPaneMock; });
+    }
+
+    // ── Globale Namespaces sicherstellen ──────────────────────────────────────
+    if (!window.dojox) window.dojox = {};
+    if (!window.dojox.layout) window.dojox.layout = {};
+    window.dojox.layout.FloatingPane = FloatingPaneMock;
+
+    // Getter/Setter: verhindert dass AMD nach define() das window-Global überschreibt
+    try {
+        Object.defineProperty(window.dojox.layout, 'FloatingPane', {
+            get: function() { return FloatingPaneMock; },
+            set: function() { /* AMD-Overwrites ignorieren */ },
+            configurable: true, enumerable: true
+        });
+    } catch(e) {
+        window.dojox.layout.FloatingPane = FloatingPaneMock;
+    }
+})();
+// ─────────────────────────────────────────────────────────────────────────────
+
 require([
     "dojo/ready",
     "dojo/parser",
@@ -33,7 +187,8 @@ require([
     "njs/data/ComboBoxReadSolrStore",
     "dojo/topic",
     "dojo/fx",
-    "dijit/layout/TabContainer"
+    "dijit/layout/TabContainer",
+    "dojox/layout/TableContainer"
 ], function(ready, parser, domConstruct, domAttr, domStyle) {
     ready(function() {
         var mobileCfg = window.tnetMobileConfig || {};
@@ -65,15 +220,27 @@ require([
             .filter(function(v) { return !isNaN(v) && v >= 0; });
         if (!layersFixDelaysMs.length) layersFixDelaysMs = [100, 400, 1000];
 
-        // FloatingPane-Stub: wird von openlayers.js erwartet, auf Mobile aber nicht benötigt
-        // Vollständiger AMD-Import verursacht multipleDefine-Fehler im Dojo-Loader
-        if (!window.dojox) window.dojox = {};
-        if (!window.dojox.layout) window.dojox.layout = {};
-        if (!window.dojox.layout.FloatingPane) {
-            window.dojox.layout.FloatingPane = function() {};
-            window.dojox.layout.FloatingPane.prototype.startup = function() {};
-            window.dojox.layout.FloatingPane.prototype.destroy = function() {};
-        }
+        // FloatingPane-Prototype für Mobile patchen:
+        // show() / close() dispatchen CustomEvents → tnet-info-panel.js reagiert darauf.
+        // pointer-events: none verhindert, dass das 50vh-Panel Karten-Klicks blockiert.
+        // Nested require() → sofort aus Cache zurück falls bereits geladen; kein Blocking.
+        require(['dojox/layout/FloatingPane'], function(FloatingPane) {
+            try {
+                var proto = FloatingPane.prototype;
+                var _origShow  = proto.show;
+                var _origClose = proto.close;
+                proto.show = function() {
+                    if (this.domNode) this.domNode.style.pointerEvents = '';
+                    _origShow.apply(this, arguments);
+                    try { window.dispatchEvent(new CustomEvent('njsInfoPaneShow', { bubbles: false, detail: { paneId: this.id } })); } catch(e) {}
+                };
+                proto.close = function() {
+                    _origClose.apply(this, arguments);
+                    if (this.domNode) this.domNode.style.pointerEvents = 'none';
+                    try { window.dispatchEvent(new CustomEvent('njsInfoPaneHide', { bubbles: false, detail: { paneId: this.id } })); } catch(e) {}
+                };
+            } catch(e) { console.warn('[tnet-mobile] FloatingPane prototype patch failed:', e); }
+        });
 
         // Build the page
         parser.parse();
@@ -142,6 +309,17 @@ require([
 
         // App initialisieren
         njs.AppManager.initApp();
+
+        // Mobile: Info-Abfrage (picking) dauerhaft aktivieren.
+        // Auf Desktop steuert ein Toolbar-Button das picking-Flag; auf Mobile
+        // ist immer der "Pan+Info"-Modus aktiv – jeder Karten-Tap soll Objektinfos zeigen.
+        document.addEventListener('tnet-app-ready', function() {
+            try {
+                for (var _mapId in njs.AppManager.Maps) {
+                    njs.AppManager.Maps[_mapId].picking = true;
+                }
+            } catch(e) { console.warn('[tnet-mobile] picking setzen fehlgeschlagen:', e); }
+        }, { once: true });
 
         njs.AppManager.legend_css = ['../core/legends/css/geoadmin_legends.css'];
 
@@ -240,6 +418,14 @@ require([
                         window.closePrintPanel();
                     }
                 }
+
+                // Info-Pane (Objektinformation)
+                var infoPn = document.getElementById('njs_info_pane');
+                if (infoPn && infoPn.style.visibility !== 'hidden') {
+                    var dWidget = (typeof dijit !== 'undefined') && dijit.byId && dijit.byId('njs_info_pane');
+                    if (dWidget && dWidget.close) dWidget.close();
+                    else infoPn.style.visibility = 'hidden';
+                }
             }
 
             if (sheetOverlay) {
@@ -254,7 +440,8 @@ require([
                 handle._sheetResizeAttached = true;
                 var sheet = handle.closest('.m-bottom-sheet')
                          || handle.closest('#m-basemap-sheet')
-                         || handle.closest('#oereb-dock-panel');
+                         || handle.closest('#oereb-dock-panel')
+                         || handle.closest('#njs_info_pane');
                 if (!sheet) return;
 
                 var startY = 0, startH = 0, dragging = false;
@@ -296,7 +483,11 @@ require([
                         if (sheet.id === 'm-layers-sheet' && window.closeLayersSheet) closeLayersSheet();
                         else if (sheet.id === 'm-basemap-sheet' && window.closeBasemapSheet) closeBasemapSheet();
                         else if (sheet.id === 'oereb-dock-panel' && window.closeOerebPanel) closeOerebPanel();
-                        else {
+                        else if (sheet.id === 'njs_info_pane') {
+                            var dWidget = (typeof dijit !== 'undefined') && dijit.byId && dijit.byId('njs_info_pane');
+                            if (dWidget && dWidget.close) dWidget.close();
+                            else sheet.style.visibility = 'hidden';
+                        } else {
                             sheet.classList.remove('open');
                             if (sheetOverlay) sheetOverlay.classList.remove('open');
                         }
@@ -392,6 +583,50 @@ require([
             if (layersSheet) {
                 layersSheet.addEventListener('pointerdown', function(e) { e.stopPropagation(); });
                 layersSheet.addEventListener('mousedown', function(e) { e.stopPropagation(); });
+            }
+
+            // --- Dargestellte Themen Bottom-Sheet ---
+            var activeSheet = document.getElementById('m-active-sheet');
+
+            window.openActiveSheet = function() {
+                closeAllSheets();
+                if (activeSheet) {
+                    activeSheet.style.height = '';
+                    activeSheet.classList.add('open');
+                }
+                // KEIN sheetOverlay — Karte bleibt interaktiv (Pan/Zoom)
+                closeDrawer();
+
+                // Active-Panel immer neu rendern (aktuelle Layer)
+                try {
+                    if (window.TnetLMStore && window.TnetLMStore.isLoaded()) {
+                        var active = window.TnetLMStore.getActiveLayers();
+                        if (window.TnetLMActive) {
+                            window.TnetLMActive.render(active);
+                        }
+                        console.log('[LM-Modules]', 'Active-Sheet geöffnet,', active.length, 'Layer');
+                    }
+                } catch (e) {
+                    console.error('[LM-Modules]', 'Render-Fehler beim Öffnen:', e);
+                }
+            };
+
+            window.closeActiveSheet = function() {
+                if (activeSheet) activeSheet.classList.remove('open');
+                // Overlay nur entfernen wenn kein anderes Sheet offen ist
+                var anyOpen = document.querySelector('.m-bottom-sheet.open');
+                if (!anyOpen && sheetOverlay) sheetOverlay.classList.remove('open');
+            };
+
+            // Pointer-Events stoppen auf Active-Sheet
+            if (activeSheet) {
+                activeSheet.addEventListener('pointerdown', function(e) { e.stopPropagation(); });
+                activeSheet.addEventListener('mousedown', function(e) { e.stopPropagation(); });
+                // Drag-to-Resize anbinden
+                var activeHandle = activeSheet.querySelector('.m-sheet-handle');
+                if (activeHandle && window.attachSheetResize) {
+                    window.attachSheetResize(activeHandle);
+                }
             }
 
             // --- Basemap Bottom-Sheet ---
@@ -894,6 +1129,48 @@ require([
                 obs.observe(panel, { attributes: true, attributeFilter: ['class'] });
             }
         })();
+
+        // --- Nordpfeil / Compass (links unten, 40×40, dreht mit) ---
+        document.addEventListener('tnet-app-ready', function() {
+            var map = window._olMap;
+            if (!map) return;
+            var view = map.getView();
+
+            // Container erstellen
+            var btn = document.createElement('div');
+            btn.id = 'm-north-arrow';
+            btn.setAttribute('aria-label', 'Nord ausrichten');
+            btn.innerHTML =
+                '<svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">' +
+                '<circle cx="20" cy="20" r="19" fill="#fff" stroke="#b0b0b0" stroke-width="1"/>' +
+                '<polygon points="20,6 25,22 20,18 15,22" fill="#d32f2f"/>' +  // Nord-Hälfte rot
+                '<polygon points="20,34 15,22 20,18 25,22" fill="#424242"/>' +  // Süd-Hälfte dunkel
+                '<text x="20" y="13" text-anchor="middle" font-size="7" font-weight="700" fill="#d32f2f" font-family="Arial,sans-serif">N</text>' +
+                '</svg>';
+
+            // Ins Map-Viewport einhängen
+            var vp = map.getViewport();
+            vp.appendChild(btn);
+
+            // Rotation synchronisieren
+            function syncRotation() {
+                var rot = view.getRotation();  // rad
+                var svg = btn.querySelector('svg');
+                if (svg) svg.style.transform = 'rotate(' + rot + 'rad)';
+                if (Math.abs(rot) < 0.01) {
+                    btn.classList.remove('rotated');
+                } else {
+                    btn.classList.add('rotated');
+                }
+            }
+            syncRotation();
+            view.on('change:rotation', syncRotation);
+
+            // Tap → nach Norden ausrichten (animiert 300ms)
+            btn.addEventListener('click', function() {
+                view.animate({ rotation: 0, duration: 300 });
+            });
+        });
 
         // --- Mobile 3D Split: Vertikaler Divider-Drag ---
         // Überschreibt den Desktop-Resizer (col-resize) mit row-resize (vertikal)

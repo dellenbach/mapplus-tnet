@@ -1537,7 +1537,7 @@ div#search_container:focus-within {
     flex-direction: column;
     font-family: 'Inter Tight', Arial, sans-serif;
     overflow: hidden;
-    touch-action: none;  /* Handle übernimmt touch */
+    touch-action: pan-y;  /* Scrolling in Sheet erlauben, Handle hat eigenes none */
 }
 
 .m-bottom-sheet.open {
@@ -1551,7 +1551,7 @@ div#search_container:focus-within {
     padding: 10px 0 6px;
     cursor: grab;
     flex-shrink: 0;
-    touch-action: none;  /* eigener Touch-Handler */
+    touch-action: none;  /* eigener Touch-Handler — kein pan hier */
     user-select: none;
     -webkit-user-select: none;
 }
@@ -1618,6 +1618,7 @@ div#search_container:focus-within {
     -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
     padding: 0;
+    touch-action: pan-y;  /* Touch-Scroll erlauben */
 }
 
 /* Pointer-Events auf Sheets stoppen (OL-Map darf nicht reagieren) */
@@ -2299,10 +2300,201 @@ div#search_container:focus-within {
     display: none !important;
 }
 
+/* Dojo FloatingPane Steuer-Icons (Minimize/Maximize/Restore/Close) ausblenden –
+   auf Mobile nicht verwendbar; wir haben eigene Buttons im Titel-Bar */
+#njs_info_pane .dojoxFloatingPaneIconize,
+#njs_info_pane .dojoxFloatingPaneMaximize,
+#njs_info_pane .dojoxFloatingPaneRestore,
+#njs_info_pane .dojoxFloatingPaneCollapse,
+#njs_info_pane .dojoxFloatingPaneClose,
+#njs_info_pane .dojoxFloatingPaneTitleButtons,
+#njs_info_pane .dojoxFloatingPaneTitleBarIcon,
+#njs_info_pane [class*="dojoxFloatingPane"][class*="Close"],
+#njs_info_pane [class*="dojoxFloatingPane"][class*="Icon"] {
+    display: none !important;
+    order: 99 !important; /* Fallback: ans Ende des Flex-Containers schieben */
+}
+
+/* Dojo-Titelbar: Layout-Container für unseren Inhalt.
+   Wir leeren ihn per JS und befüllen ihn neu — so bleibt Dojos
+   offsetHeight-Berechnung für die contentInfo intakt. */
+#njs_info_pane .dojoxFloatingPaneTitle {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    flex-shrink: 0 !important;
+    height: 46px !important;
+    min-height: 46px !important;
+    background: var(--m-color-primary, #4B7B81) !important;
+    padding: 0 8px 0 14px !important;
+    box-sizing: border-box !important;
+    border: none !important;
+    cursor: default !important;
+    overflow: hidden !important;
+    text-align: left !important;
+}
+
+/* Titel-Text Span (unser eigener, kein Dojo-Input mehr) */
+#njs_info_pane .info-pane-custom-title {
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+    text-align: left !important;
+    font-size: 15px !important;
+    font-weight: 600 !important;
+    color: #fff !important;
+    line-height: 46px !important;
+    background: transparent !important;
+    border: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+}
+
+/* Unsere eigenen Action-Buttons (Clipboard, Close) in der Titel-Bar */
+#njs_info_pane .info-pane-actions {
+    flex-shrink: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 2px !important;
+    order: 2 !important;
+}
+
+#njs_info_pane .info-pane-btn {
+    background: transparent !important;
+    border: none !important;
+    color: rgba(255,255,255,0.9) !important;
+    padding: 0 !important;
+    cursor: pointer !important;
+    border-radius: 6px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 36px !important;
+    height: 36px !important;
+    -webkit-tap-highlight-color: transparent !important;
+}
+#njs_info_pane .info-pane-btn:active {
+    background: rgba(255,255,255,0.2) !important;
+}
+#njs_info_pane .info-pane-btn svg {
+    width: 20px !important;
+    height: 20px !important;
+}
+/* Trennlinie vor Close-Button */
+#njs_info_pane .info-pane-close {
+    border-left: 1px solid rgba(255,255,255,0.25) !important;
+    border-radius: 0 !important;
+    width: 42px !important;
+    margin-left: 2px !important;
+}
+
+/* Flex-Layout: Handle → Titel-Bar → scrollbarer Content */
+#njs_info_pane {
+    display: flex !important;
+    flex-direction: column !important;
+    background: #fff !important;
+}
+
+/* Sheet-Handle (Zieh-Balken oben) */
+#njs_info_pane .info-sheet-handle {
+    flex-shrink: 0;
+}
+
 /* Content scrollbar auf Mobile */
 #njs_info_pane .dojoxFloatingPaneContentInfo {
+    flex: 1 1 auto !important;
     overflow-y: auto !important;
     -webkit-overflow-scrolling: touch !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+}
+
+/* TitlePane innerhalb Info-Pane (z.B. "Grundnutzung") */
+#njs_info_pane .dijitTitlePane {
+    border-left: none !important;
+    border-right: none !important;
+    border-top: none !important;
+    border-bottom: 1px solid #d6e4e6 !important;
+    margin: 0 !important;
+}
+#njs_info_pane .dijitTitlePaneTitle {
+    background: #e8f0f1 !important;
+    border-bottom: none !important;
+    border-left: 3px solid var(--m-color-primary, #4B7B81) !important;
+    border-top: none !important;
+    border-right: none !important;
+    padding: 11px 14px 11px 12px !important;
+    font-size: 13px !important;
+    font-weight: 600 !important;
+    color: var(--m-color-primary, #4B7B81) !important;
+    letter-spacing: 0.02em !important;
+    text-transform: uppercase !important;
+    cursor: pointer !important;
+    user-select: none !important;
+    -webkit-user-select: none !important;
+}
+#njs_info_pane .dijitTitlePaneTitle:active {
+    background: #d6e4e6 !important;
+}
+#njs_info_pane .dijitTitlePaneTitleFocused {
+    background: #e8f0f1 !important;
+}
+/* Dojo Arrow-Icon in Accordion */
+#njs_info_pane .dijitArrowNode,
+#njs_info_pane .dijitTitlePaneTextNode {
+    vertical-align: middle !important;
+}
+#njs_info_pane .dijitTitlePaneContentOuter {
+    border: none !important;
+    border-left: 3px solid transparent !important;
+}
+
+/* Tabellen-Layout für Attributdaten – keine Schatten */
+#njs_info_pane table {
+    width: 100% !important;
+    font-size: 14px !important;
+    border-collapse: collapse !important;
+    box-shadow: none !important;
+    outline: none !important;
+}
+#njs_info_pane tr:nth-child(even) {
+    background: #f7fafa !important;
+}
+#njs_info_pane tr {
+    box-shadow: none !important;
+    outline: none !important;
+}
+#njs_info_pane td {
+    padding: 8px 14px !important;
+    word-break: break-word !important;
+    border-top: none !important;
+    border-left: none !important;
+    border-right: none !important;
+    border-bottom: 1px solid #e8eef0 !important;
+    box-shadow: none !important;
+    outline: none !important;
+    line-height: 1.45 !important;
+    vertical-align: top !important;
+}
+#njs_info_pane td:first-child {
+    color: #5a7a80 !important;
+    font-size: 12px !important;
+    font-weight: 500 !important;
+    white-space: nowrap !important;
+    width: 42% !important;
+    padding-left: 16px !important;
+}
+#njs_info_pane td:last-child {
+    color: #1a2e30 !important;
+    font-weight: 400 !important;
+    padding-right: 16px !important;
+}
+/* Wrapper um Tabelle — kein overflow-Schatten */
+#njs_info_pane .dojoxFloatingPaneContentInfo * {
+    box-shadow: none !important;
+    outline: none !important;
 }
 
 /* ========================================
@@ -2559,6 +2751,32 @@ div#search_container:focus-within {
     #custompaneContainer {
         height: 60vh !important;
     }
+}
+
+/* ========================================
+   Nordpfeil / Compass (links unten)
+   ======================================== */
+#m-north-arrow {
+    position: absolute;
+    left: 12px;
+    bottom: 28px;
+    z-index: 500;
+    width: 40px;
+    height: 40px;
+    cursor: pointer;
+    pointer-events: auto;
+    transition: opacity 0.25s ease;
+    /* Nicht-rotiert → dezent */
+    opacity: 0.5;
+}
+#m-north-arrow.rotated {
+    opacity: 1;
+}
+#m-north-arrow svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+    filter: drop-shadow(0 1px 3px rgba(0,0,0,0.35));
 }
 
 /* ========================================

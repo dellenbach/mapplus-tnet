@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 /**
  * search-proxy.php  v2.0
  * Suche für den Mobile-Client:
@@ -19,7 +19,11 @@
  */
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
-header('Cache-Control: no-store, max-age=0');
+header('Cache-Control: public, max-age=300');
+header('Vary: Accept-Encoding');
+
+// Gzip-Komprimierung aktivieren
+if (!ob_start('ob_gzhandler')) ob_start();
 
 // -- Grenzen-Polygone laden (vereinfacht, LV95) ------------------------------
 $_cantonBoundaries = null;
@@ -135,6 +139,45 @@ function getBboxForCanton(string $canton = ''): string {
     return ($cache[$cacheKey] = round($minE) . ',' . round($minN) . ',' . round($maxE) . ',' . round($maxN));
 }
 
+// -- File-basierter Cache in /tmp (5 Minuten TTL) ----------------------------
+
+$_cacheDir = '/tmp/mapplus_search_cache_v3';
+$_cacheTTL = 300; // 5 Minuten
+
+function cacheGet(string $key): ?string {
+    global $_cacheDir, $_cacheTTL;
+    $file = $_cacheDir . '/' . $key . '.json';
+    if (!file_exists($file)) return null;
+    if (time() - filemtime($file) > $_cacheTTL) {
+        @unlink($file);
+        return null;
+    }
+    return @file_get_contents($file) ?: null;
+}
+
+function cachePut(string $key, string $data): void {
+    global $_cacheDir;
+    if (!is_dir($_cacheDir)) @mkdir($_cacheDir, 0755, true);
+    @file_put_contents($_cacheDir . '/' . $key . '.json', $data, LOCK_EX);
+}
+
+/** Generiert einen Cache-Key aus der Query + Parametern */
+function makeCacheKey(string $q, string $canton, string $scope, int $limit): string {
+    return 'search_' . md5(strtolower($q) . '|' . $canton . '|' . $scope . '|' . $limit);
+}
+
+/** Alte Cache-Dateien aufräumen (einmal pro 100 Aufrufe) */
+function cacheCleanup(): void {
+    global $_cacheDir, $_cacheTTL;
+    if (mt_rand(1, 100) !== 1) return;
+    $files = @glob($_cacheDir . '/*.json');
+    if (!$files) return;
+    $now = time();
+    foreach ($files as $f) {
+        if ($now - filemtime($f) > $_cacheTTL * 2) @unlink($f);
+    }
+}
+
 // -- Parallele HTTP-Anfragen via curl_multi -----------------------------------
 
 /**
@@ -157,6 +200,8 @@ function fetchMultipleUrls(array $urls): array {
             CURLOPT_USERAGENT      => 'GIS-Daten-Search/2.0',
             CURLOPT_FOLLOWLOCATION => true,
             CURLOPT_SSL_VERIFYPEER => true,
+            CURLOPT_ENCODING       => '',  // gzip/deflate/br von swisstopo akzeptieren
+            CURLOPT_HTTP_VERSION   => CURL_HTTP_VERSION_2_0,  // HTTP/2
         ]);
         curl_multi_add_handle($mh, $ch);
         $handles[$key] = $ch;
@@ -479,6 +524,7 @@ $limit  = max(4, min(20, (int)($_GET['limit'] ?? 8)));
 $canton = isset($_GET['canton']) ? strtoupper(trim($_GET['canton'])) : '';
 $scope  = isset($_GET['scope']) ? strtolower(trim($_GET['scope'])) : '';
 $debug  = isset($_GET['debug']) && $_GET['debug'] === '1';
+$mode   = isset($_GET['mode']) ? strtolower(trim($_GET['mode'])) : '';  // 'fast' = nur Adressen+Layers
 
 // Scope: komma-separierte Liste (orte, adressen, layers) oder leer = alles
 $scopes = $scope ? array_map('trim', explode(',', $scope)) : [];
@@ -486,13 +532,59 @@ $hasOrte     = empty($scopes) || in_array('orte', $scopes);
 $hasAdressen = empty($scopes) || in_array('adressen', $scopes);
 $hasLayers   = empty($scopes) || in_array('layers', $scopes);
 
-if ($q === '' || mb_strlen($q) < 2) {
+if ($q === '' || mb_strlen($q) < 3) {
     echo json_encode(['numRows' => 0, 'items' => [], 'groups' => []]);
     exit;
 }
 
 // -- Timing starten -----------------------------------------------------------
 $t0 = microtime(true);
+
+// -- Cache prüfen (Gesamtergebnis, 5min TTL) ----------------------------------
+$cacheKey = makeCacheKey($q, $canton, $scope . ($mode === 'fast' ? ':fast' : ''), $limit);
+$cached = cacheGet($cacheKey);
+if ($cached !== null && !$debug) {
+    echo $cached;
+    exit;
+}
+cacheCleanup();
+
+// == FAST MODE: Nur Adressen + Layers (1 API-Call statt 4) ====================
+if ($mode === 'fast') {
+    $layerItems = $hasLayers ? searchLayers($q, $limit) : [];
+    $bbox = getBboxForCanton($canton);
+    $fastUrls = [];
+    if ($hasAdressen) {
+        $fastUrls['addresses'] = 'https://api3.geo.admin.ch/rest/services/api/SearchServer'
+            . '?searchText=' . rawurlencode($q)
+            . '&lang=de&type=locations&origins=address&sr=2056'
+            . '&bbox=' . $bbox
+            . '&limit=' . ($limit * 3);
+    }
+    $fastResponses = fetchMultipleUrls($fastUrls);
+    $fastAddresses = $hasAdressen
+        ? parseLocations($fastResponses['addresses'] ?? '', $limit * 3, $canton)
+        : [];
+    // Nur Adressen behalten
+    $addressItems = [];
+    foreach ($fastAddresses as $item) {
+        if ($item['subtitle'] === 'Adresse') $addressItems[] = $item;
+    }
+    usort($addressItems, function($a, $b) { return strnatcasecmp($a['label'], $b['label']); });
+    $groups = buildGroups($layerItems, [], $addressItems, []);
+    $allItems = array_merge($addressItems, $layerItems);
+    $output = json_encode([
+        'numRows' => count($allItems),
+        'items'   => $allItems,
+        'groups'  => $groups,
+        'partial' => true,
+    ], JSON_UNESCAPED_UNICODE);
+    cachePut($cacheKey, $output);
+    echo $output;
+    exit;
+}
+
+// == FULL MODE (Standard) =====================================================
 
 // 1. Layer-Suche (lokal, kein HTTP)
 $layerItems = $hasLayers ? searchLayers($q, $limit) : [];
@@ -506,7 +598,16 @@ if ($hasOrte || $hasAdressen) {
         . '?searchText=' . rawurlencode($q)
         . '&lang=de&type=locations&sr=2056'
         . '&bbox=' . $bbox
-        . '&limit=' . ($limit * 8);
+        . '&limit=' . ($limit * 4);
+}
+
+// 2b. Dedizierter Adress-Aufruf (origins=address) — garantiert Adressen
+if ($hasAdressen) {
+    $apiUrls['addresses'] = 'https://api3.geo.admin.ch/rest/services/api/SearchServer'
+        . '?searchText=' . rawurlencode($q)
+        . '&lang=de&type=locations&origins=address&sr=2056'
+        . '&bbox=' . $bbox
+        . '&limit=' . ($limit * 3);
 }
 
 if ($hasOrte || $hasAdressen) {
@@ -517,7 +618,7 @@ if ($hasOrte || $hasAdressen) {
         . '&features=' . $featureLayers
         . '&sr=2056'
         . '&bbox=' . $bbox
-        . '&limit=' . ($limit * 3);
+        . '&limit=' . ($limit * 2);
 }
 
 if ($hasOrte) {
@@ -527,7 +628,7 @@ if ($hasOrte) {
         . '&searchField=name'
         . '&sr=2056'
         . '&lang=de'
-        . '&limit=' . ($limit * 4);
+        . '&limit=' . ($limit * 2);
 }
 
 // Alle swisstopo-Anfragen PARALLEL ausführen
@@ -537,6 +638,11 @@ $tFetch = microtime(true);
 // Ergebnisse parsen (mit vorgeladenen Rohdaten)
 $allGeocoderItems = ($hasOrte || $hasAdressen)
     ? parseLocations($apiResponses['locations'] ?? '', $limit * 2, $canton)
+    : [];
+
+// Dedizierte Adressen parsen (4. API-Call)
+$dedicatedAddressItems = $hasAdressen
+    ? parseLocations($apiResponses['addresses'] ?? '', $limit * 3, $canton)
     : [];
 
 // Geocoder-Ergebnisse splitten: origin=address → Adressen, Rest → Orte
@@ -549,6 +655,21 @@ foreach ($allGeocoderItems as $item) {
         $locationItems[] = $item;
     }
 }
+
+// Dedizierte Adressen mit Geocoder-Adressen mergen (dedupliziert via Label-Key)
+$seenAddrKeys = [];
+foreach ($geocoderAddressItems as $item) {
+    $ak = mb_strtolower(preg_replace('/\s+/', ' ', trim($item['label'])));
+    $seenAddrKeys[$ak] = true;
+}
+foreach ($dedicatedAddressItems as $item) {
+    if ($item['subtitle'] !== 'Adresse') continue;
+    $ak = mb_strtolower(preg_replace('/\s+/', ' ', trim($item['label'])));
+    if (isset($seenAddrKeys[$ak])) continue;
+    $seenAddrKeys[$ak] = true;
+    $geocoderAddressItems[] = $item;
+}
+
 // Scope-Filter anwenden
 if (!$hasOrte)     $locationItems = [];
 if (!$hasAdressen) $geocoderAddressItems = [];
@@ -635,11 +756,16 @@ if ($debug) {
     exit;
 }
 
-echo json_encode([
+$output = json_encode([
     'numRows' => count($allItems),
     'items'   => $allItems,
     'groups'  => $groups,
 ], JSON_UNESCAPED_UNICODE);
+
+// Ergebnis cachen
+cachePut($cacheKey, $output);
+
+echo $output;
 exit;
 
 
@@ -733,6 +859,7 @@ function parseLocations(string $raw, int $limit, string $canton = ''): array
             'canton'    => 'Kanton',
             'sn25'      => 'Ortschaft',
             'gazetteer' => 'Lokalname',
+            'parcel'    => 'Parzelle',
         ];
         $subtitle = $originLabels[$origin] ?? ucfirst($origin);
 

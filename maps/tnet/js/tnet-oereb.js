@@ -16,7 +16,7 @@
  */
 
 import { waitForMap, getMainMap, showToast } from './tnet-utils.js';
-import { isEmpty as extentIsEmpty } from 'https://cdn.jsdelivr.net/npm/ol@v10.6.0/extent.js';
+import { isEmpty as extentIsEmpty } from 'https://cdn.jsdelivr.net/npm/ol@v10.8.0/extent.js';
 
 // ===== CONFIG =====
 var OEREB_IFRAME_BASE = 'https://www.gis-daten.ch/app/oereb/graphicsLayerOereb-nw';
@@ -47,6 +47,10 @@ var GEMEINDE_MAP = {
 // ===== MOBILE ERKENNUNG =====
 function isMobileView() {
     return window.innerWidth <= 768 || document.body.classList.contains('mobile-view');
+}
+
+function isMobileEntry() {
+    return window.__TNET_MOBILE_ENTRY === true;
 }
 
 // ===== STATE =====
@@ -438,9 +442,10 @@ function showOerebResultList(results, map) {
  * Wenn die OEREB-Seite im iframe parent.require(["app/oereb/graphicsLayer"]) aufruft,
  * erhält sie diese Version statt der Server-Version, die WebOffice-APIs benötigt.
  * Zeichenfunktionen (Polygon, Polyline, Point) arbeiten direkt mit OpenLayers.
- * WebOffice-spezifische Methoden (toggleLayer, addLayerByThemeId etc.) sind sichere No-Ops.
+ * WebOffice-spezifische Methoden sind auf den lokalen Layer-Manager gebrückt.
  */
 function registerMobileGraphicsLayer() {
+    if (!isMobileEntry()) return;
     if (_mobileGraphicsLayerRegistered) return;
     if (typeof window.define !== 'function' || !window.define.amd) {
         console.warn('[OEREB] Dojo define() nicht verfügbar, Mobile-GraphicsLayer kann nicht registriert werden');
@@ -475,6 +480,205 @@ function registerMobileGraphicsLayer() {
                 mapObj: mapplus_obj.AppManager.Maps['main'].mapObj,
                 mapname: 'main'
             };
+        };
+
+        function readNodeToken(node) {
+            if (node == null) return null;
+            if (typeof node === 'string' || typeof node === 'number') return String(node);
+            var candidates = [
+                node.id,
+                node.tocId,
+                node.layerId,
+                node.layer,
+                node.layerName,
+                node.name,
+                node.title,
+                node.label,
+                node.mapElementId,
+                node.themeId
+            ];
+            for (var i = 0; i < candidates.length; i++) {
+                if (candidates[i] != null && String(candidates[i]).trim() !== '') return String(candidates[i]);
+            }
+            return null;
+        }
+
+        function normalizeNodes(value) {
+            if (!value) return [];
+            if (Array.isArray(value)) return value;
+            return [value];
+        }
+
+        function setLayerVisible(layer, visible) {
+            if (!layer) return;
+            if (typeof layer.setVisible === 'function') {
+                layer.setVisible(!!visible);
+                return;
+            }
+            if (typeof layer.visible !== 'undefined') {
+                layer.visible = !!visible;
+            }
+        }
+
+        function setLayerOpacity(layer, opacity) {
+            if (!layer) return;
+            var value = Number(opacity);
+            if (!isFinite(value)) return;
+            if (typeof layer.setOpacity === 'function') {
+                layer.setOpacity(value);
+                return;
+            }
+            if (typeof layer.opacity !== 'undefined') {
+                layer.opacity = value;
+            }
+        }
+
+        function readNodeTokens(nodeOrToken) {
+            if (nodeOrToken == null) return [];
+            if (Array.isArray(nodeOrToken)) {
+                var listTokens = [];
+                nodeOrToken.forEach(function(entry) {
+                    readNodeTokens(entry).forEach(function(token) {
+                        if (listTokens.indexOf(token) === -1) listTokens.push(token);
+                    });
+                });
+                return listTokens;
+            }
+
+            var values = [];
+            var baseToken = readNodeToken(nodeOrToken);
+            if (baseToken) values.push(baseToken);
+
+            if (typeof nodeOrToken === 'object') {
+                [
+                    nodeOrToken.id,
+                    nodeOrToken.tocId,
+                    nodeOrToken.layerId,
+                    nodeOrToken.layer,
+                    nodeOrToken.layerName,
+                    nodeOrToken.name,
+                    nodeOrToken.title,
+                    nodeOrToken.label,
+                    nodeOrToken.mapElementId,
+                    nodeOrToken.themeId
+                ].forEach(function(candidate) {
+                    if (candidate == null) return;
+                    var token = String(candidate).trim();
+                    if (token && values.indexOf(token) === -1) values.push(token);
+                });
+            }
+
+            return values;
+        }
+
+        function findStoreLayerIdByToken(token) {
+            if (!token) return null;
+            if (!window.TnetLMStore || typeof window.TnetLMStore.findLayer !== 'function') return null;
+
+            var direct = window.TnetLMStore.findLayer(token);
+            if (direct && direct.id) return direct.id;
+
+            var catalog = (typeof window.TnetLMStore.getCatalog === 'function')
+                ? window.TnetLMStore.getCatalog()
+                : null;
+            if (!catalog || !Array.isArray(catalog.layers)) return null;
+
+            var lowerToken = String(token).toLowerCase();
+            for (var i = 0; i < catalog.layers.length; i++) {
+                var layer = catalog.layers[i];
+                if (!layer || layer.type === 'group') continue;
+                var id = (layer.id || '').toString();
+                var name = (layer.name || '').toString();
+                var title = (layer.title || '').toString();
+                if (
+                    id.toLowerCase() === lowerToken
+                    || name.toLowerCase() === lowerToken
+                    || title.toLowerCase() === lowerToken
+                    || id.toLowerCase().indexOf(lowerToken) !== -1
+                    || name.toLowerCase().indexOf(lowerToken) !== -1
+                    || title.toLowerCase().indexOf(lowerToken) !== -1
+                ) {
+                    return layer.id;
+                }
+            }
+
+            return null;
+        }
+
+        function setStoreLayerVisible(token, visible) {
+            var layerId = findStoreLayerIdByToken(token);
+            if (!layerId) return false;
+
+            try {
+                if (window.TnetLMStore && typeof window.TnetLMStore.setLayerVisible === 'function') {
+                    window.TnetLMStore.setLayerVisible(layerId, !!visible);
+                    return true;
+                }
+                if (typeof window.TnetLayerSwitch === 'function') {
+                    window.TnetLayerSwitch(layerId, visible ? 'on' : 'off');
+                    return true;
+                }
+            } catch (e) {
+                console.warn('[OEREB-Mobile] setStoreLayerVisible Fehler:', e);
+            }
+
+            return false;
+        }
+
+        function setStoreLayerOpacity(token, opacity) {
+            var layerId = findStoreLayerIdByToken(token);
+            if (!layerId) return false;
+
+            try {
+                if (window.TnetLMStore && typeof window.TnetLMStore.setLayerOpacity === 'function') {
+                    window.TnetLMStore.setLayerOpacity(layerId, Number(opacity));
+                    return true;
+                }
+            } catch (e) {
+                console.warn('[OEREB-Mobile] setStoreLayerOpacity Fehler:', e);
+            }
+
+            return false;
+        }
+
+        proto.findMapLayers = function(token) {
+            var normalizedToken = (token == null ? '' : String(token)).toLowerCase().trim();
+            if (!normalizedToken) return [];
+
+            var mapResult = this.getMap();
+            var map = mapResult ? mapResult.mapObj : null;
+            if (!map || !map.getLayers || !map.getLayers()) return [];
+
+            var layers = [];
+            try {
+                if (typeof map.getLayers().getArray === 'function') {
+                    layers = map.getLayers().getArray();
+                } else if (typeof map.getLayers().forEach === 'function') {
+                    map.getLayers().forEach(function(layer) { layers.push(layer); });
+                }
+            } catch (e) {
+                layers = [];
+            }
+
+            function contains(haystack) {
+                if (haystack == null) return false;
+                return String(haystack).toLowerCase().indexOf(normalizedToken) !== -1;
+            }
+
+            return layers.filter(function(layer) {
+                try {
+                    return contains(layer.get && layer.get('id'))
+                        || contains(layer.get && layer.get('name'))
+                        || contains(layer.get && layer.get('title'))
+                        || contains(layer.get && layer.get('layerName'))
+                        || contains(layer.id)
+                        || contains(layer.name)
+                        || contains(layer.title)
+                        || contains(layer.layerName);
+                } catch (e) {
+                    return false;
+                }
+            });
         };
 
         proto.addLayer = function() {
@@ -577,21 +781,126 @@ function registerMobileGraphicsLayer() {
             console.log('[OEREB-Mobile] Point gezeichnet');
         };
 
-        // WebOffice-spezifische Methoden: sichere No-Ops auf Mobile
-        proto.toggleLayer = function() {};
-        proto.addLayerByThemeId = function(themeId) {
-            // Nur den Grafik-Layer leeren (keine WMS-Layer-Steuerung auf Mobile)
-            this.clearLayer();
+        // WebOffice-spezifische Methoden: Mobile-Implementierung via Tnet-Layersteuerung
+        proto.toggleLayer = function(nodeOrToken, active) {
+            var tokens = readNodeTokens(nodeOrToken);
+            var visible = (active !== false);
+            var updatedLayerIds = [];
+
+            tokens.forEach(function(token) {
+                if (setStoreLayerVisible(token, visible)) {
+                    var layerId = findStoreLayerIdByToken(token) || token;
+                    if (updatedLayerIds.indexOf(layerId) === -1) updatedLayerIds.push(layerId);
+                }
+            });
+
+            if (updatedLayerIds.length > 0) return updatedLayerIds;
+
+            // Fallback: direkte OL-Sichtbarkeit
+            var mapLayers = [];
+            tokens.forEach(function(token) {
+                var matches = this.findMapLayers(token);
+                matches.forEach(function(layer) {
+                    setLayerVisible(layer, visible);
+                    if (mapLayers.indexOf(layer) === -1) mapLayers.push(layer);
+                });
+            }, this);
+            return mapLayers;
         };
-        proto.deactivateTocLayers = function() {};
-        proto.setMappingTable = function() {};
-        proto.changeTocOpacityByTocId = function() {};
-        proto.extractMapElementByThemeId = function() { return {}; };
-        proto.activateLayerByMappedElement = function() {};
-        proto.searchTocByName = function() { return false; };
-        proto.mapTocNodes = function(elements) { return elements || []; };
+        proto.addLayerByThemeId = function(themeId) {
+            var mapped = this.extractMapElementByThemeId(themeId);
+            var activated = this.activateLayerByMappedElement(mapped);
+            this.clearLayer();
+            return activated;
+        };
+        proto.deactivateTocLayers = function() {
+            var self = this;
+            normalizeNodes(this.activatedTocNodes).forEach(function(node) {
+                self.toggleLayer(node, false);
+            });
+            this.activatedTocNodes = [];
+        };
+        proto.setMappingTable = function(mapping) {
+            this.mapping = mapping || null;
+            return this.mapping;
+        };
+        proto.changeTocOpacityByTocId = function(tocId, opacity) {
+            var tokens = readNodeTokens(tocId);
+            if (!tokens.length) return;
+
+            var handledByStore = false;
+            tokens.forEach(function(token) {
+                if (setStoreLayerOpacity(token, opacity)) handledByStore = true;
+            });
+            if (handledByStore) return;
+
+            tokens.forEach(function(token) {
+                this.findMapLayers(token).forEach(function(layer) {
+                    setLayerOpacity(layer, opacity);
+                });
+            }, this);
+        };
+        proto.extractMapElementByThemeId = function(themeId) {
+            var mapping = this.mapping;
+            if (!mapping || themeId == null) return {};
+            if (Array.isArray(mapping)) {
+                for (var i = 0; i < mapping.length; i++) {
+                    var entry = mapping[i];
+                    if (!entry) continue;
+                    if (String(entry.themeId) === String(themeId)) return entry;
+                    if (String(entry.id) === String(themeId)) return entry;
+                }
+                return {};
+            }
+            return mapping[themeId] || mapping[String(themeId)] || {};
+        };
+        proto.activateLayerByMappedElement = function(mappedElement) {
+            var self = this;
+            var nodes = this.mapTocNodes(mappedElement);
+            this.deactivateTocLayers();
+            this.activatedTocNodes = nodes.slice();
+            nodes.forEach(function(node) {
+                self.toggleLayer(node, true);
+            });
+            return nodes;
+        };
+        proto.searchTocByName = function(name) {
+            var tokens = readNodeTokens(name);
+            if (!tokens.length) return false;
+
+            for (var i = 0; i < tokens.length; i++) {
+                if (findStoreLayerIdByToken(tokens[i])) return true;
+            }
+
+            for (var j = 0; j < tokens.length; j++) {
+                var layers = this.findMapLayers(tokens[j]);
+                if (layers && layers.length > 0) return true;
+            }
+            return false;
+        };
+        proto.mapTocNodes = function(elements) {
+            var source = elements;
+            if (elements && typeof elements === 'object') {
+                if (Array.isArray(elements.tocNodes)) source = elements.tocNodes;
+                else if (Array.isArray(elements.layers)) source = elements.layers;
+                else if (Array.isArray(elements.mappedTocNodes)) source = elements.mappedTocNodes;
+            }
+            var mapped = normalizeNodes(source).filter(function(item) {
+                return readNodeToken(item) != null;
+            });
+            this.mappedTocNodes = mapped;
+            return mapped;
+        };
         proto.getSymbology = function() { return null; };
-        proto.extractLayers = { byIdAndType: function() { return []; } };
+        proto.extractLayers = {
+            byIdAndType: function(idOrName) {
+                var token = readNodeToken(idOrName);
+                if (!token) return [];
+                return this.findMapLayers(token);
+            }
+        };
+
+        proto.extractLayers.byIdAndType = proto.extractLayers.byIdAndType.bind(proto);
 
         return MobileGraphicsLayer;
     });
@@ -612,7 +921,7 @@ function loadOerebIframe(egrid, typ, canton) {
 
     // graphicsLayer registrieren (OL-Drawing-Support statt WebOffice-API)
     // Das iframe ruft parent.require(["app/oereb/graphicsLayer"]) auf
-    registerMobileGraphicsLayer();
+    if (isMobileEntry()) registerMobileGraphicsLayer();
 
     iframe.src = src;
 }
@@ -626,7 +935,7 @@ function preloadOerebIframe() {
     var iframe = document.getElementById('oereb-iframe');
     if (!iframe) return;
     // Basis-URL ohne EGRID laden → zeigt ÖREB-Startseite
-    registerMobileGraphicsLayer();
+    if (isMobileEntry()) registerMobileGraphicsLayer();
     iframe.src = OEREB_IFRAME_BASE + '?' + OEREB_IFRAME_PARAMS;
 }
 

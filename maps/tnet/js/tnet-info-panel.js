@@ -13,6 +13,7 @@
 // Buttons zum Info-Panel hinzufügen und Resize aktivieren
 // Verwendet MutationObserver um auch bei Neuöffnen zu funktionieren
 function initInfoPaneEnhancements() {
+    function isMobile() { return !!window.__TNET_MOBILE_ENTRY; }
 
     function enhanceInfoPane() {
         var infoPane = document.getElementById('njs_info_pane');
@@ -21,16 +22,40 @@ function initInfoPaneEnhancements() {
         var titleBar = infoPane.querySelector('.dojoxFloatingPaneTitle');
         if (!titleBar) return false;
 
-        // Prüfe ob Actions bereits vorhanden
-        if (titleBar.querySelector('.info-pane-actions')) {
-            // Actions vorhanden - aber Resize-Handles prüfen
-            if (!infoPane.querySelector('.info-pane-resize-left')) {
+        // Prüfe ob Custom-Titlebar bereits vorhanden
+        if (titleBar.querySelector('.info-pane-custom-title')) {
+            if (!isMobile() && !infoPane.querySelector('.info-pane-resize-left')) {
                 initInfoPaneResize(infoPane);
             }
             return true;
         }
 
-        // Actions Container erstellen
+        // ── Custom Titelbar: Dojo-Kinder leeren, unseren Inhalt einsetzen ─────
+        // Wir entfernen NICHT den titleBar selbst — Dojo berechnet offsetHeight
+        // des Titelbars um die contentInfo absolut zu positionieren.
+        // Stattdessen leeren wir ihn und befüllen ihn neu.
+
+        // Titel fix: dijit.get('title') liefert HTML-Inhalt zurück — NICHT verwenden!
+        var titleText = 'Objektinformation';
+        var dojoTitleEl = titleBar.querySelector('.dojoxFloatingPaneTitleText');
+        if (dojoTitleEl) {
+            var _t = (dojoTitleEl.value || '').trim();
+            if (_t && _t.indexOf('<') === -1 && _t.length < 80) titleText = _t;
+        }
+
+        // Alle bestehenden Dojo-Kinder entfernen (per loop, da innerHTML = '' Dojo-Widgets beschädigt)
+        while (titleBar.firstChild) { titleBar.removeChild(titleBar.firstChild); }
+
+        // Dojo setzt text-align:center inline — überschreiben
+        titleBar.style.setProperty('text-align', 'left', 'important');
+        titleBar.style.setProperty('justify-content', 'flex-start', 'important');
+
+        // Titel-Span
+        var titleSpan = document.createElement('span');
+        titleSpan.className = 'info-pane-custom-title';
+        titleSpan.textContent = titleText;
+
+        // Actions Container
         var actions = document.createElement('div');
         actions.className = 'info-pane-actions';
 
@@ -39,44 +64,43 @@ function initInfoPaneEnhancements() {
         clipboardBtn.className = 'info-pane-btn';
         clipboardBtn.title = 'In Zwischenablage kopieren';
         clipboardBtn.innerHTML = '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M19 21H8V7h11m0-2H8a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2m-3-4H4a2 2 0 0 0-2 2v14h2V3h12V1Z"/></svg>';
+        clipboardBtn.onmousedown = function(e) { e.stopPropagation(); };
         clipboardBtn.onclick = function(e) {
             e.stopPropagation();
-            copyInfoPaneToClipboard();
+            window.copyInfoPaneToClipboard();
         };
 
-        // Dock Button
+        // Dock Button (nur Desktop)
         var dockBtn = document.createElement('button');
         dockBtn.className = 'info-pane-btn';
         dockBtn.id = 'info-pane-dock-btn';
         dockBtn.title = 'Rechts andocken';
         dockBtn.innerHTML = '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16h-4V5h4v14z"/></svg>';
+        dockBtn.onmousedown = function(e) { e.stopPropagation(); };
         dockBtn.onclick = function(e) {
             e.stopPropagation();
-            toggleInfoPaneDock();
+            window.toggleInfoPaneDock();
         };
 
-        // Close Button (custom, da original versteckt)
+        // Close Button
         var closeBtn = document.createElement('button');
         closeBtn.className = 'info-pane-btn info-pane-close';
         closeBtn.title = 'Schließen';
         closeBtn.innerHTML = '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/></svg>';
+        closeBtn.onmousedown = function(e) { e.stopPropagation(); };
         closeBtn.onclick = function(e) {
             e.stopPropagation();
-            // Falls angedockt, mapContainer zurücksetzen
             if (isInfoPaneDocked) {
                 var mapContainer = document.getElementById('mapContainer');
                 if (mapContainer) {
                     mapContainer.style.setProperty('width', '100%', 'important');
-                    setTimeout(function() {
-                        triggerMapUpdate();
-                    }, 100);
+                    setTimeout(function() { triggerMapUpdate(); }, 100);
                 }
                 stopMapContainerObserver();
                 isInfoPaneDocked = false;
                 infoPane.classList.remove('docked-right');
             }
-            // Dojo FloatingPane close aufrufen
-            var widget = dijit.byId('njs_info_pane');
+            var widget = (typeof dijit !== 'undefined') ? dijit.byId('njs_info_pane') : null;
             if (widget && widget.close) {
                 widget.close();
             } else {
@@ -85,14 +109,22 @@ function initInfoPaneEnhancements() {
         };
 
         actions.appendChild(clipboardBtn);
-        actions.appendChild(dockBtn);
+        if (!isMobile()) actions.appendChild(dockBtn);
         actions.appendChild(closeBtn);
 
-        // Actions ans Ende des Headers
+        // Direkt in den Dojo-titleBar einfügen (nicht als separaten DIV)
+        // So bleibt Dojo's offsetHeight-Berechnung für die contentInfo intakt.
+        titleBar.appendChild(titleSpan);
         titleBar.appendChild(actions);
 
-        // Custom Resize-Handle hinzufügen
-        initInfoPaneResize(infoPane);
+        // MutationObserver: nicht mehr nötig (lesen per Dojo-Widget bei jedem show)
+
+        // Custom Resize-Handle hinzufügen (nur Desktop)
+        if (!isMobile()) {
+            initInfoPaneResize(infoPane);
+        } else {
+            addMobileInfoSheetHandle(infoPane);
+        }
 
         return true;
     }
@@ -125,6 +157,7 @@ function initInfoPaneEnhancements() {
     // Info-Pane unter Header positionieren (69px Header + 11px Puffer)
     function ensureBelowHeader(infoPane) {
         if (!infoPane || infoPane.classList.contains('docked-right')) return;
+        if (isMobile()) return; // auf Mobile positioniert das CSS fix als Bottom-Sheet
         requestAnimationFrame(function() {
             var rect = infoPane.getBoundingClientRect();
             if (rect.top < 80) {
@@ -135,13 +168,25 @@ function initInfoPaneEnhancements() {
         });
     }
 
+    // Hilfsfunktion: ist die Pane sichtbar?
+    // (Mock: visibility:hidden/visible; CSS hat display:flex !important, daher kein display-Check)
+    function isPaneVisible(infoPane) {
+        if (!infoPane) return false;
+        return infoPane.style.visibility !== 'hidden';
+    }
+
     // Callback wenn Info-Pane sichtbar wird
     function onInfoPaneChange(infoPane) {
-        if (!infoPane || infoPane.style.visibility === 'hidden') return;
+        if (!isPaneVisible(infoPane)) return;
 
         // ÖREB-Modus: Info-Pane sofort schliessen (keine Objektinfo während ÖREB)
         if (window.isOerebActive) {
-            infoPane.style.visibility = 'hidden';
+            var oerebWidget = (typeof dijit !== 'undefined') ? dijit.byId('njs_info_pane') : null;
+            if (oerebWidget && oerebWidget.close) {
+                oerebWidget.close();
+            } else {
+                infoPane.style.visibility = 'hidden';
+            }
             return;
         }
 
@@ -158,10 +203,12 @@ function initInfoPaneEnhancements() {
         paneObserver = new MutationObserver(function(mutations) {
             onInfoPaneChange(infoPane);
         });
-        // Nur direkte Attribut-Änderungen am Info-Pane beobachten (style/class)
+        // Attribut-Änderungen (style/class) UND DOM-Rebuilds (childList) beobachten
         paneObserver.observe(infoPane, {
             attributes: true,
-            attributeFilter: ['style', 'class']
+            attributeFilter: ['style', 'class'],
+            childList: true,
+            subtree: true
         });
     }
 
@@ -175,20 +222,61 @@ function initInfoPaneEnhancements() {
         }
     }, 500);
 
-    // Fallback-Check (seltener, nur für edge cases wie Neuöffnung)
-    var fallbackInterval = setInterval(function() {
+    // Fallback-Check: periodisch prüfen ob Buttons (noch) vorhanden sind
+    setInterval(function() {
         var infoPane = document.getElementById('njs_info_pane');
         if (infoPane) {
             attachPaneObserver(infoPane); // Observer setzen falls noch nicht aktiv
-            if (infoPane.style.visibility === 'visible') enhanceInfoPane();
-            clearInterval(fallbackInterval); // Fertig: Observer übernimmt
+            if (isPaneVisible(infoPane)) {
+                enhanceInfoPane();
+            }
         }
-    }, 3000);
+    }, 2000);
+
+    // Mobile: Custom-Event vom FloatingPane-Mock (zuverlässiger als MutationObserver)
+    if (isMobile()) {
+        window.addEventListener('njsInfoPaneShow', function(e) {
+            var infoPane = document.getElementById('njs_info_pane');
+            if (!infoPane) return;
+            attachPaneObserver(infoPane);
+            enhanceInfoPane();
+        });
+        window.addEventListener('njsInfoPaneHide', function() {
+            // kein Action nötig
+        });
+    }
 }
 initInfoPaneEnhancements();
 
+// Mobile: Sheet-Handle in #njs_info_pane injizieren und Drag-to-Resize aktivieren
+function addMobileInfoSheetHandle(infoPane) {
+    if (!infoPane) return;
+    if (infoPane.querySelector('.info-sheet-handle')) return; // bereits vorhanden
+
+    // Handle als allererstes Kind einfügen (vor dojoxFloatingPaneTitle)
+    var handle = document.createElement('div');
+    handle.className = 'm-sheet-handle info-sheet-handle';
+    var bar = document.createElement('div');
+    bar.className = 'm-sheet-bar';
+    handle.appendChild(bar);
+    infoPane.insertBefore(handle, infoPane.firstChild);
+
+    // attachSheetResize ggf. noch nicht bereit (mDrawerInit läuft asynchron)
+    var retryCount = 0;
+    function tryAttach() {
+        if (typeof window.attachSheetResize === 'function') {
+            window.attachSheetResize(handle);
+        } else if (retryCount < 25) {
+            retryCount++;
+            setTimeout(tryAttach, 200);
+        }
+    }
+    tryAttach();
+}
+
 // Custom Resize für Info-Panel
 function initInfoPaneResize(pane) {
+    if (window.__TNET_MOBILE_ENTRY) return; // keine Resize-Handles auf Mobile
     // Bestehende Resize-Handles entfernen (falls vorhanden)
     var existingHandles = pane.querySelectorAll('[class*="info-pane-resize"]');
     existingHandles.forEach(function(h) { h.remove(); });

@@ -24,13 +24,13 @@
     <link rel="dns-prefetch" href="//cdn.jsdelivr.net">
     <link rel="dns-prefetch" href="//cdnjs.cloudflare.com">
     <!-- Preload: kritische Ressourcen -->
-    <link rel="preload" href="https://cdn.jsdelivr.net/npm/ol@v10.6.0/dist/ol.js" as="script">
+    <link rel="preload" href="https://cdn.jsdelivr.net/npm/ol@v10.8.0/dist/ol.js" as="script">
     <link rel="preload" href="/mapplus-lib/dojo-release/dojo-release-1.17.3/dojo/dojo.js" as="script">
     <link rel="preload" href="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.12.1/proj4.min.js" as="script" crossorigin="anonymous">
     <link rel="preload" href="https://cdn.jsdelivr.net/npm/sortablejs@1.15.6/Sortable.min.js" as="script">
-    <link rel="preload" href="https://cdn.jsdelivr.net/npm/ol@v10.6.0/ol.css" as="style">
-    <link rel="preload" href="https://cdn.jsdelivr.net/npm/ol-ext/dist/ol-ext.min.js" as="script">
-    <link rel="preload" href="https://cdn.jsdelivr.net/npm/ol-ext/dist/ol-ext.min.css" as="style">
+    <link rel="preload" href="https://cdn.jsdelivr.net/npm/ol@v10.8.0/ol.css" as="style">
+    <link rel="preload" href="https://cdn.jsdelivr.net/npm/ol-ext/dist/ol-ext.min.js" as="script" crossorigin="anonymous">
+    <link rel="preload" href="https://cdn.jsdelivr.net/npm/ol-ext/dist/ol-ext.min.css" as="style" crossorigin="anonymous">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <title>MAP+ GIS Daten AG</title>
 
@@ -49,7 +49,7 @@
         };
     </script>
 
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@v10.6.0/ol.css"
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@v10.8.0/ol.css"
         onerror="this.href='/mapplus-lib/openlayers/v10.6.0-package/ol.css';">
 
     <link rel="stylesheet" type="text/css"
@@ -77,7 +77,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.12.1/proj4.min.js" crossorigin="anonymous"
         referrerpolicy="no-referrer"></script>
     <script>window.proj4 || document.write('<script src="/mapplus-lib/proj4js/2.12.1/dist/proj4.js">\x3C/script>')</script>
-    <script src="//cdn.jsdelivr.net/npm/ol@v10.6.0/dist/ol.js"></script>
+    <script src="//cdn.jsdelivr.net/npm/ol@v10.8.0/dist/ol.js"></script>
     <script>window.ol || document.write('<script src="/mapplus-lib/openlayers/v10.6.0-package/dist/ol.js">\x3C/script>')</script>
 
     <script type="text/javascript">
@@ -117,6 +117,8 @@
     <link rel="stylesheet" href="/maps/tnet/css/tnet-3d-landscape.css" media="print" onload="this.media='all'" />
     <link rel="stylesheet" href="/maps/tnet/css/gis-daten-splash.css" />
     <link rel="stylesheet" href="/maps/tnet/css/tnet-print.css" media="print" onload="this.media='all'" />
+    <!-- Neuer Layer-Manager -->
+    <link rel="stylesheet" href="/maps/tnet/css/tnet-lm.css?v=20260222c" media="print" onload="this.media='all'" />
     <!-- ol-pdf-printer CSS (VOR mobile override laden) -->
     <link rel="stylesheet" href="/maps/tnet/ol-pdf-printer/css/ol-pdf-printer.css" media="print" onload="this.media='all'" />
     <!-- TNET Mobile Master-CSS (muss ZULETZT kommen) -->
@@ -143,11 +145,10 @@
 
     <!-- Libs (body) -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol-ext/dist/ol-ext.min.css"
-        onerror="this.href='mapplus-lib/openlayers/ol-ext/dist/ol-ext.min.css';">
-    <script>var __amd = window.define && window.define.amd; if (__amd) delete window.define.amd;</script>
-    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/ol-ext/dist/ol-ext.min.js"></script>
-    <script>window.ol.ext || document.write('<script src="/mapplus-lib/openlayers/ol-ext/dist/ol-ext.min.js">\x3C/script>')</script>
-    <script>if (__amd) window.define.amd = __amd;</script>
+        crossorigin="anonymous"
+        onerror="this.href='/mapplus-lib/openlayers/ol-ext/dist/ol-ext.min.css';">
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/ol-ext/dist/ol-ext.min.js" crossorigin="anonymous"></script>
+    <script>window.ol && window.ol.ext || document.write('<script src="/mapplus-lib/openlayers/ol-ext/dist/ol-ext.min.js">\x3C/script>')</script>
 
     <script type="text/javascript" src="/mapplus-lib/mapplus-dojo/v4.0.0/common.js"></script>
     <script type="text/javascript" src="/mapplus-lib/mapplus-dojo/v4.0.0/njs.js"></script>
@@ -308,7 +309,28 @@
                 }
                 return;
             }
-            if (Date.now() - _t0 > splashTimeoutMs) { hideSplashScreen(); return; }
+            if (Date.now() - _t0 > splashTimeoutMs) {
+                hideSplashScreen();
+                // Splash-Timeout erreicht, aber App noch nicht bereit →
+                // weiter pollen (langsamer) damit tnet-app-ready noch gefeuert wird
+                var _latePollCount = 0;
+                var _latePoll = setInterval(function () {
+                    _latePollCount++;
+                    if (window._tnetAppReadyFired) { clearInterval(_latePoll); return; }
+                    if (window.njs && njs.AppManager && njs.AppManager.Maps && njs.AppManager.Maps['main']) {
+                        clearInterval(_latePoll);
+                        if (!window._tnetAppReadyFired) {
+                            window._tnetAppReadyFired = true;
+                            document.dispatchEvent(new CustomEvent('tnet-app-ready', {
+                                detail: { map: njs.AppManager.Maps['main'].mapObj }
+                            }));
+                            console.log('[App] tnet-app-ready Event dispatched (late, nach Splash-Timeout)');
+                        }
+                    }
+                    if (_latePollCount > 60) clearInterval(_latePoll); // max 30s
+                }, 500);
+                return;
+            }
             setTimeout(earlyCheckAppReady, splashCheckIntervalMs);
         }
         earlyCheckAppReady();
@@ -382,7 +404,62 @@
     })();
     </script>
 
-    <!-- Disclaimers -->
+    <!-- URL-Layer nach App-Start sicherstellen -->
+    <!-- Das Framework liest layers= zwar selbst, aber bei WMTS-Neuinit kann die Layer-Liste
+         verloren gehen. Dieser Code stellt sicher dass URL-Layer dauerhaft aktiv sind. -->
+    <script>
+    (function() {
+        var params = new URLSearchParams(window.location.search);
+        var urlLayersRaw  = params.get('layers') || '';
+        var urlOpacity    = parseFloat(params.get('op'));
+        if (!urlLayersRaw) return;
+
+        // Layers können | oder , getrennt sein
+        var urlLayerIds = urlLayersRaw.split(/[|,]/).map(function(s) { return s.trim(); }).filter(Boolean);
+        if (!urlLayerIds.length) return;
+
+        function ensureUrlLayers() {
+            var am = window.njs && window.njs.AppManager;
+            if (!am || !am.Maps || !am.Maps['main'] || !am.Maps['main'].mapObj) return;
+            var map = am.Maps['main'].mapObj;
+
+            urlLayerIds.forEach(function(layerId) {
+                // Ist der Layer bereits im OL-Stack und sichtbar?
+                var found = null;
+                map.getLayers().forEach(function(l) {
+                    if (!found && (l.get('name') || '') === layerId) found = l;
+                });
+                if (found && found.getVisible()) return; // bereits aktiv
+
+                // Layer fehlt oder nicht sichtbar → laden
+                if (typeof TnetLayerSwitch === 'function') {
+                    TnetLayerSwitch(layerId, 'on');
+                } else if (am.LyrMgr) {
+                    for (var lm in am.LyrMgr) {
+                        var mgr = am.LyrMgr[lm];
+                        if (mgr.targetMap && mgr.switchLayersProgr &&
+                            (typeof mgr.targetMap === 'string' ? mgr.targetMap === 'main' : mgr.targetMap.indexOf('main') > -1)) {
+                            mgr.switchLayersProgr(layerId, null, true);
+                            break;
+                        }
+                    }
+                }
+
+                // Opazität aus URL setzen
+                if (!isNaN(urlOpacity) && found) {
+                    found.setOpacity(urlOpacity);
+                }
+            });
+        }
+
+        document.addEventListener('tnet-app-ready', function() {
+            // Mehrere Versuche: Framework-Initialisierung kann Layer kurz entfernen
+            setTimeout(ensureUrlLayers, 500);
+            setTimeout(ensureUrlLayers, 1500);
+            setTimeout(ensureUrlLayers, 3000);
+        }, { once: true });
+    })();
+    </script>
     <div id="disclaimer_copyright" class="njsDisclaimer"></div>
     <div id="disclaimer_tips" class="njsDisclaimer"></div>
     <div id="disclaimer_news" class="njsDisclaimer"></div>
@@ -534,20 +611,19 @@
                 </div>
             </div>
 
-            <!-- Dargestellte Themen -->
+            <!-- Dargestellte Themen → Bottom-Sheet -->
             <div class="m-menu-section">
-                <div class="m-menu-item" data-m-toggle="m-panel-active">
+                <div class="m-menu-item" data-m-action="active" onclick="openActiveSheet()">
                     <svg viewBox="0 0 24 24"><path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/></svg>
                     <span class="m-menu-label">Dargestellte Themen</span>
                     <svg class="m-menu-arrow" viewBox="0 0 24 24"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
                 </div>
-                <div id="m-panel-active" class="m-sub-panel">
-                    <div id="sort_menu">
-                        <div id="njs_main_lyrsorter_wrapper" style="width: 100%; height:100%; border:0">
-                            <div id="main_lyrsorter_txt" style="display:block;text-align: center;">--- Keine Daten ausgewählt ---</div>
-                            <ul id="main_lyrsorter" style="list-style-type: none; padding: 0;"></ul>
-                        </div>
-                    </div>
+            </div>
+            <!-- Legacy sort_menu (versteckt, für Dojo-Kompatibilität) -->
+            <div id="sort_menu" style="display:none">
+                <div id="njs_main_lyrsorter_wrapper" style="width: 100%; height:100%; border:0">
+                    <div id="main_lyrsorter_txt" style="display:block;text-align: center;">--- Keine Daten ausgewählt ---</div>
+                    <ul id="main_lyrsorter" style="list-style-type: none; padding: 0;"></ul>
                 </div>
             </div>
 
@@ -750,6 +826,21 @@
         </div>
     </div>
 
+    <!-- Dargestellte Themen Bottom-Sheet -->
+    <div id="m-active-sheet" class="m-bottom-sheet">
+        <div class="m-sheet-handle"><div class="m-sheet-bar"></div></div>
+        <div class="m-sheet-header">
+            <span class="m-sheet-title">Dargestellte Themen</span>
+            <button class="m-sheet-close" onclick="closeActiveSheet()" aria-label="Schliessen">&times;</button>
+        </div>
+        <div class="m-sheet-body">
+            <div id="lm-active-container" class="lm-container"></div>
+            <div id="sort_menu_sheet">
+                <div id="njs_main_lyrsorter_wrapper_sheet" style="width: 100%; border:0"></div>
+            </div>
+        </div>
+    </div>
+
     <!-- Basemap Bottom-Sheet -->
     <div id="m-basemap-overlay" class="m-basemap-overlay"></div>
     <div id="m-basemap-sheet">
@@ -905,11 +996,21 @@
     <!-- TNET Spatial Query -->
     <script type="module" src="/maps/tnet/js/tnet-spatial-query.js"></script>
 
+    <script>
+        window.__TNET_MOBILE_ENTRY = true;
+    </script>
+
     <!-- TNET ÖREB -->
     <script type="module" src="/maps/tnet/js/tnet-oereb.js"></script>
 
     <!-- TNET Drucken / PDF-Export -->
     <script src="/maps/tnet/js/tnet-print.js" defer></script>
+
+    <!-- Neuer Layer-Manager (Feature-Flag in tnet-global-config.json5 → layerManager.useNew) -->
+    <script src="/maps/tnet/js/tnet-lm-store.js?v=20260222c" defer></script>
+    <script src="/maps/tnet/js/tnet-lm-tree.js?v=20260222c" defer></script>
+    <script src="/maps/tnet/js/tnet-lm-active.js?v=20260222c" defer></script>
+    <script src="/maps/tnet/js/tnet-lm-init.js?v=20260222c" defer></script>
 
 
     <!-- ============================================================

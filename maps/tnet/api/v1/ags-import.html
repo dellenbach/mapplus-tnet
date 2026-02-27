@@ -1,0 +1,991 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AGS Import — TNET API</title>
+<style>
+/**
+ * ags-import.html
+ * Eigenständige Seite für ArcGIS Server → MapPlus Roh-Konfiguration Import & Verwaltung
+ *
+ * @version    1.0
+ * @date       2026-02-26
+ * @copyright  Trigonet AG
+ * @author     Marco Dellenbach
+ */
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --c-bg: #f0f2f5; --c-panel: #fff; --c-border: #ddd;
+  --c-primary: #648C96; --c-accent: #e8423f; --c-dark: #1e3a4a;
+  --c-text: #333; --c-muted: #888; --c-hover: #f5f8fa;
+  --radius: 6px; --shadow: 0 1px 4px rgba(0,0,0,.08);
+}
+html, body { height: 100%; margin: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: var(--c-bg); color: var(--c-text); font-size: 13px;
+  display: flex; flex-direction: column;
+}
+
+/* ===== TOOLBAR ===== */
+.ags-toolbar {
+  display: flex; align-items: center; gap: 8px;
+  padding: 0 14px; height: 42px; min-height: 42px;
+  background: var(--c-dark); color: #fff; font-size: 12px;
+  user-select: none;
+}
+.ags-toolbar .brand { font-weight: 700; font-size: 14px; letter-spacing: .3px; }
+.ags-toolbar .sep { width: 1px; height: 20px; background: rgba(255,255,255,.15); margin: 0 4px; }
+.ags-toolbar .spacer { flex: 1; }
+.ags-toolbar button {
+  padding: 4px 12px; font-size: 11px; border: 1px solid rgba(255,255,255,.2);
+  border-radius: 3px; background: rgba(255,255,255,.08); color: #fff;
+  cursor: pointer; font-weight: 500;
+}
+.ags-toolbar button:hover { background: rgba(255,255,255,.18); }
+.ags-toolbar a {
+  color: rgba(255,255,255,.5); font-size: 11px; text-decoration: none;
+}
+.ags-toolbar a:hover { color: rgba(255,255,255,.8); }
+
+/* ===== MAIN LAYOUT ===== */
+.ags-main {
+  flex: 1; display: flex; flex-direction: column;
+  max-width: 920px; width: 100%; margin: 0 auto;
+  padding: 20px 24px; overflow: hidden;
+}
+
+/* ===== TABS ===== */
+.ags-tabs {
+  display: flex; border-bottom: 2px solid #e0e4e8; gap: 0;
+  margin-bottom: 16px;
+}
+.ags-tab {
+  padding: 10px 24px; font-size: 13px; font-weight: 600;
+  cursor: pointer; border: none; background: none;
+  color: #888; border-bottom: 2px solid transparent;
+  margin-bottom: -2px; transition: all .15s;
+}
+.ags-tab:hover { color: #555; background: #f0f0f0; }
+.ags-tab.active { color: var(--c-accent); border-bottom-color: var(--c-accent); background: #fff; }
+
+/* ===== TAB PANES ===== */
+.ags-pane { display: none; flex-direction: column; flex: 1; overflow: hidden; }
+.ags-pane.active { display: flex; }
+
+/* ===== STATUS ===== */
+.ags-status {
+  padding: 8px 12px; font-size: 12px; color: #666;
+  background: #f5f7fa; border-radius: 4px; margin-bottom: 12px;
+  flex-shrink: 0;
+}
+.ags-status.error { background: #fef0f0; color: #c33; }
+.ags-status.success { background: #edf9f0; color: #2a8; }
+
+/* ===== FILTER ===== */
+.ags-filter {
+  width: 100%; padding: 7px 10px; font-size: 12px;
+  border: 1px solid #ccc; border-radius: 4px; margin-bottom: 8px;
+  box-sizing: border-box; flex-shrink: 0;
+}
+
+/* ===== SELECT BAR ===== */
+.ags-select-bar {
+  display: flex; gap: 6px; margin-bottom: 8px;
+  align-items: center; flex-shrink: 0;
+}
+.ags-select-bar button {
+  padding: 3px 10px; font-size: 11px; border: 1px solid #ccc;
+  border-radius: 3px; background: #f8f8f8; cursor: pointer;
+}
+.ags-select-bar button:hover { background: #eee; }
+.ags-select-bar .sel-info { font-size: 11px; color: #888; margin-left: auto; }
+
+/* ===== CHECKBOX-LISTE ===== */
+.ags-list {
+  flex: 1; overflow-y: auto; border: 1px solid #e0e4e8;
+  border-radius: 4px; margin-bottom: 12px; min-height: 120px;
+}
+.ags-item {
+  display: flex; align-items: center; gap: 8px; padding: 6px 10px;
+  font-size: 12px; border-bottom: 1px solid #f0f0f0; cursor: pointer;
+  user-select: none;
+}
+.ags-item:last-child { border-bottom: none; }
+.ags-item:hover { background: #f0f7f8; }
+.ags-item input[type=checkbox] { flex-shrink: 0; cursor: pointer; }
+.ags-item .ags-name { flex: 1; font-family: 'Consolas', monospace; word-break: break-all; }
+.ags-item.hidden { display: none; }
+
+/* ===== ACTIONS BAR ===== */
+.ags-actions {
+  display: flex; gap: 8px; align-items: center; padding-top: 8px;
+  border-top: 1px solid #eee; flex-shrink: 0;
+}
+.ags-actions .spacer { flex: 1; }
+.ags-actions button {
+  padding: 7px 18px; font-size: 12px; border: 1px solid #ddd;
+  border-radius: 4px; cursor: pointer; font-weight: 600;
+}
+.ags-actions button.primary {
+  background: var(--c-accent); color: #fff; border-color: var(--c-accent);
+}
+.ags-actions button.primary:hover { background: #c9362f; }
+.ags-actions button.primary:disabled { opacity: .4; cursor: default; }
+.ags-actions button.danger {
+  background: #fff; color: #c33; border-color: #daa;
+}
+.ags-actions button.danger:hover { background: #fef0f0; border-color: #c33; }
+.ags-actions button.danger:disabled { opacity: .4; cursor: default; color: #999; border-color: #ddd; }
+.ags-actions button.secondary {
+  background: #fff; color: #555; border-color: #ccc;
+}
+.ags-actions button.secondary:hover { background: #f5f5f5; }
+.ags-actions button.secondary:disabled { opacity: .4; cursor: default; color: #999; border-color: #ddd; }
+.ags-selcount { font-size: 11px; color: #888; }
+
+/* ===== PROGRESS ===== */
+.ags-progress {
+  display: none; align-items: center; gap: 8px; padding: 12px;
+  background: #f5f7fa; border-radius: 4px; margin-bottom: 12px;
+  flex-shrink: 0;
+}
+.ags-progress.active { display: flex; }
+.ags-spinner {
+  width: 18px; height: 18px; border: 2px solid #ddd;
+  border-top-color: var(--c-accent); border-radius: 50%;
+  animation: ags-spin .8s linear infinite;
+}
+@keyframes ags-spin { to { transform: rotate(360deg); } }
+
+/* ===== RESULT ===== */
+.ags-result { margin-top: 12px; flex-shrink: 0; }
+.ags-result-file {
+  display: flex; align-items: center; gap: 6px; padding: 3px 0;
+  font-size: 11px; color: #555;
+}
+.ags-result-file .rf-icon { color: #2a8; }
+.ags-result-file .rf-name { flex: 1; font-family: 'Consolas', monospace; }
+.ags-result-file .rf-size { color: #999; font-size: 10px; }
+
+/* ===== VERWALTEN-TAB: SERVICE-GRUPPEN ===== */
+.ags-svc-list { flex: 1; overflow-y: auto; min-height: 120px; }
+.ags-svc-group {
+  border: 1px solid #e0e4e8; border-radius: 4px; margin-bottom: 6px; overflow: hidden;
+}
+.ags-svc-head {
+  display: flex; align-items: center; gap: 8px; padding: 7px 10px;
+  background: #f5f7fa; cursor: pointer; user-select: none; font-size: 12px;
+}
+.ags-svc-head:hover { background: #eef2f4; }
+.ags-svc-head input[type=checkbox] { flex-shrink: 0; cursor: pointer; }
+.ags-svc-head .svc-arrow { display: inline-block; transition: transform .15s; font-size: 10px; color: #888; width: 12px; }
+.ags-svc-group.open .svc-arrow { transform: rotate(90deg); }
+.ags-svc-head .svc-name { flex: 1; font-family: 'Consolas', monospace; font-weight: 600; }
+.ags-svc-head .svc-badge { font-size: 9px; color: #fff; background: var(--c-primary); padding: 1px 6px; border-radius: 7px; }
+.ags-svc-head .svc-size { font-size: 10px; color: #999; }
+.ags-svc-head .svc-del {
+  padding: 2px 8px; font-size: 10px; border: 1px solid #ddd; border-radius: 3px;
+  background: #fff; cursor: pointer; color: #c33;
+}
+.ags-svc-head .svc-del:hover { background: #fef0f0; border-color: #c33; }
+.ags-svc-files { padding: 2px 10px 6px 54px; display: none; }
+.ags-svc-group.open .ags-svc-files { display: block; }
+.ags-svc-file { font-size: 11px; color: #666; padding: 2px 0; display: flex; gap: 8px; }
+.ags-svc-file .sf-name { flex: 1; font-family: 'Consolas', monospace; }
+.ags-svc-file .sf-size { color: #aaa; font-size: 10px; }
+.ags-svc-file .sf-date { color: #aaa; font-size: 10px; }
+</style>
+</head>
+<body>
+
+<!-- ===== TOOLBAR ===== -->
+<div class="ags-toolbar">
+  <span class="brand">🌐 AGS Import</span>
+  <span class="sep"></span>
+  <button id="ags-btn-refresh" title="Daten neu laden">↻ Aktualisieren</button>
+  <span class="spacer"></span>
+  <a href="/maps/tnet/api/v1/tree-builder.html">← Tree-Builder</a>
+  <span class="sep"></span>
+  <a href="/maps/tnet/api/docs/" target="_blank">API Docs</a>
+</div>
+
+<!-- ===== MAIN ===== -->
+<div class="ags-main">
+
+  <!-- Tabs -->
+  <div class="ags-tabs">
+    <button class="ags-tab active" data-tab="import">📥 Import</button>
+    <button class="ags-tab" data-tab="manage">📂 Verwalten</button>
+  </div>
+
+  <!-- ===== TAB: IMPORT ===== -->
+  <div class="ags-pane active" id="pane-import">
+    <div class="ags-status" id="import-status">Dienste werden geladen…</div>
+    <div class="ags-progress" id="import-progress">
+      <div class="ags-spinner"></div>
+      <span id="import-progress-text">Export wird verarbeitet…</span>
+    </div>
+    <input type="text" class="ags-filter" id="import-filter" placeholder="Dienste filtern…" style="display:none">
+    <div class="ags-select-bar" id="import-select-bar" style="display:none">
+      <button id="import-sel-all">Alle</button>
+      <button id="import-sel-none">Keine</button>
+      <span class="sel-info" id="import-sel-info">0 ausgewählt</span>
+    </div>
+    <div class="ags-list" id="import-list" style="display:none"></div>
+    <div class="ags-result" id="import-result" style="display:none"></div>
+    <div class="ags-actions" id="import-actions" style="display:none">
+      <span class="ags-selcount" id="import-selcount"></span>
+      <span class="spacer"></span>
+      <button id="import-btn-export" class="primary" disabled>📦 Exportieren & Speichern</button>
+    </div>
+  </div>
+
+  <!-- ===== TAB: VERWALTEN ===== -->
+  <div class="ags-pane" id="pane-manage">
+    <div class="ags-status" id="manage-status">Lade bestehende Konfigurationen…</div>
+    <div class="ags-progress" id="manage-progress">
+      <div class="ags-spinner"></div>
+      <span id="manage-progress-text">Lösche Services…</span>
+    </div>
+    <input type="text" class="ags-filter" id="manage-filter" placeholder="Services filtern…" style="display:none">
+    <div class="ags-select-bar" id="manage-select-bar" style="display:none">
+      <select id="manage-backup-filter" style="padding:3px 8px;font-size:11px;border:1px solid #ccc;border-radius:3px;background:#fff">
+        <option value="active">Aktive</option>
+        <option value="all">Alle</option>
+        <option value="backups">Nur Backups</option>
+      </select>
+      <button id="manage-sel-all">Alle</button>
+      <button id="manage-sel-none">Keine</button>
+      <span class="sel-info" id="manage-sel-info">0 / 0 ausgewählt</span>
+    </div>
+    <div class="ags-svc-list" id="manage-svc-list"></div>
+    <div class="ags-actions" id="manage-actions" style="display:none">
+      <span class="ags-selcount" id="manage-selcount"></span>
+      <span class="spacer"></span>
+      <button id="manage-btn-delete-backups" class="secondary" disabled>🧹 Backups löschen</button>
+      <button id="manage-btn-delete" class="danger" disabled>🗑 Ausgewählte löschen</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+/**
+ * ags-import.html — Applikationslogik
+ * ArcGIS Server → MapPlus Roh-Konfiguration Import & Verwaltung
+ *
+ * @version    1.0
+ * @date       2026-02-26
+ * @copyright  Trigonet AG
+ * @author     Marco Dellenbach
+ */
+
+// =====================================================================
+// KONFIGURATION
+// =====================================================================
+var API_URL = '/maps/tnet/api/v1/treebuilder-api.php';
+
+// =====================================================================
+// STATE
+// =====================================================================
+var _agsServices = [];      // Gecachte Dienstliste
+var _agsExportingCount = 0; // Anzahl laufender Exporte
+var _agsDeleting = false;   // Läuft gerade ein multi-delete?
+var _agsLastImportCheckbox = null;
+var _agsLastManageCheckbox = null;
+
+function applyShiftRangeSelection(checkboxes, fromCb, toCb, checkedState) {
+  if (!fromCb || !toCb || !checkboxes || checkboxes.length === 0) return;
+  var start = checkboxes.indexOf(fromCb);
+  var end = checkboxes.indexOf(toCb);
+  if (start === -1 || end === -1) return;
+  var from = Math.min(start, end);
+  var to = Math.max(start, end);
+  for (var i = from; i <= to; i++) {
+    checkboxes[i].checked = checkedState;
+  }
+}
+
+function getVisibleImportCheckboxes() {
+  return Array.prototype.filter.call(
+    document.querySelectorAll('#import-list .ags-item input[type=checkbox]'),
+    function(cb) {
+      var row = cb.closest('.ags-item');
+      return row && !row.classList.contains('hidden');
+    }
+  );
+}
+
+function getVisibleManageCheckboxes() {
+  return Array.prototype.filter.call(
+    document.querySelectorAll('#manage-svc-list .ags-svc-group input[type=checkbox]'),
+    function(cb) {
+      var row = cb.closest('.ags-svc-group');
+      return row && row.style.display !== 'none';
+    }
+  );
+}
+
+function refreshImportProgress() {
+  var progressEl = document.getElementById('import-progress');
+  var progressText = document.getElementById('import-progress-text');
+  if (_agsExportingCount > 0) {
+    progressEl.classList.add('active');
+    progressText.textContent = _agsExportingCount + ' Import(s) laufen…';
+  } else {
+    progressEl.classList.remove('active');
+  }
+}
+
+// =====================================================================
+// TAB-SWITCHING
+// =====================================================================
+function switchTab(tabName) {
+  document.querySelectorAll('.ags-tab').forEach(function(t) { t.classList.remove('active'); });
+  document.querySelectorAll('.ags-pane').forEach(function(p) { p.classList.remove('active'); });
+  var tab = document.querySelector('[data-tab="' + tabName + '"]');
+  var pane = document.getElementById('pane-' + tabName);
+  if (tab) tab.classList.add('active');
+  if (pane) pane.classList.add('active');
+
+  if (tabName === 'import') {
+    if (_agsServices.length === 0) loadAgsServices();
+  } else if (tabName === 'manage') {
+    loadRawConfList();
+  }
+}
+
+document.querySelectorAll('.ags-tab').forEach(function(tab) {
+  tab.addEventListener('click', function() {
+    switchTab(tab.dataset.tab);
+  });
+});
+
+// =====================================================================
+// IMPORT-TAB: Dienste laden
+// =====================================================================
+
+/**
+ * Dienste von der ags2mapplus API laden
+ */
+function loadAgsServices() {
+  var statusEl = document.getElementById('import-status');
+  var listEl = document.getElementById('import-list');
+  var filterEl = document.getElementById('import-filter');
+  var selectBar = document.getElementById('import-select-bar');
+  var actionsEl = document.getElementById('import-actions');
+
+  statusEl.textContent = 'Dienste werden geladen…';
+  statusEl.className = 'ags-status';
+  statusEl.style.display = '';
+  listEl.style.display = 'none';
+  filterEl.style.display = 'none';
+  selectBar.style.display = 'none';
+  actionsEl.style.display = 'none';
+
+  fetch(API_URL + '?action=ags-services')
+    .then(function(r) { return r.json(); })
+    .then(function(resp) {
+      if (!resp.success) throw new Error(resp.error || 'Unbekannter Fehler');
+      // Die API gibt {"dienstnamen": [...]} zurück
+      var services = [];
+      if (resp.data && Array.isArray(resp.data.dienstnamen)) {
+        services = resp.data.dienstnamen;
+      } else if (Array.isArray(resp.data)) {
+        services = resp.data;
+      } else if (resp.data && Array.isArray(resp.data.services)) {
+        services = resp.data.services;
+      } else if (resp.data && typeof resp.data === 'object') {
+        services = Object.keys(resp.data);
+      }
+      // Duplikate entfernen und sortieren
+      services = services.filter(function(v, i, a) { return a.indexOf(v) === i; }).sort();
+      _agsServices = services;
+      if (services.length === 0) {
+        statusEl.textContent = 'Keine Dienste gefunden.';
+        statusEl.className = 'ags-status error';
+        return;
+      }
+      statusEl.textContent = services.length + ' Dienste verfügbar';
+      statusEl.className = 'ags-status success';
+      renderImportList(services);
+    })
+    .catch(function(err) {
+      console.error('AGS-Services laden fehlgeschlagen:', err);
+      statusEl.textContent = 'Fehler: ' + err.message;
+      statusEl.className = 'ags-status error';
+    });
+}
+
+/**
+ * Import-Liste mit Checkboxen rendern
+ */
+function renderImportList(services) {
+  var listEl = document.getElementById('import-list');
+  var filterEl = document.getElementById('import-filter');
+  var selectBar = document.getElementById('import-select-bar');
+  var actionsEl = document.getElementById('import-actions');
+
+  listEl.innerHTML = '';
+  _agsLastImportCheckbox = null;
+  services.forEach(function(svc, i) {
+    var name = typeof svc === 'string' ? svc : (svc.name || svc.serviceName || String(svc));
+    var div = document.createElement('div');
+    div.className = 'ags-item';
+    div.dataset.name = name.toLowerCase();
+    div.innerHTML = '<input type="checkbox" data-svc="' + name.replace(/"/g, '&quot;') + '" id="imp-cb-' + i + '">'
+      + '<label for="imp-cb-' + i + '" class="ags-name" style="cursor:pointer;flex:1">' + name + '</label>';
+    div.addEventListener('click', function(e) {
+      if (e.target.tagName === 'INPUT') { updateImportSelCount(); return; }
+      var cb = div.querySelector('input');
+      cb.checked = !cb.checked;
+      _agsLastImportCheckbox = cb;
+      updateImportSelCount();
+    });
+    var cb = div.querySelector('input');
+    cb.addEventListener('click', function(e) {
+      e.stopPropagation();
+      if (e.shiftKey && _agsLastImportCheckbox) {
+        applyShiftRangeSelection(getVisibleImportCheckboxes(), _agsLastImportCheckbox, cb, cb.checked);
+      }
+      _agsLastImportCheckbox = cb;
+      updateImportSelCount();
+    });
+    listEl.appendChild(div);
+  });
+
+  listEl.style.display = '';
+  filterEl.style.display = '';
+  filterEl.value = '';
+  selectBar.style.display = 'flex';
+  actionsEl.style.display = 'flex';
+  updateImportSelCount();
+}
+
+/**
+ * Import-Auswahl-Zähler aktualisieren
+ */
+function updateImportSelCount() {
+  var checked = document.querySelectorAll('#import-list input:checked');
+  var total = document.querySelectorAll('#import-list input[type=checkbox]');
+  document.getElementById('import-sel-info').textContent = checked.length + ' / ' + total.length + ' ausgewählt';
+  document.getElementById('import-selcount').textContent = checked.length + ' Dienste ausgewählt';
+  document.getElementById('import-btn-export').disabled = checked.length === 0;
+}
+
+// =====================================================================
+// IMPORT-TAB: Export durchführen
+// =====================================================================
+
+/**
+ * Gewählte Dienste exportieren → ZIP → data/raw-conf
+ */
+function exportAgsServices() {
+  var checkboxes = document.querySelectorAll('#import-list input:checked');
+  var dienstnamen = [];
+  checkboxes.forEach(function(cb) { dienstnamen.push(cb.dataset.svc); });
+  if (dienstnamen.length === 0) return;
+
+  _agsExportingCount++;
+  refreshImportProgress();
+  var resultEl = document.getElementById('import-result');
+  var runLabel = new Date().toLocaleTimeString('de-CH', { hour12: false });
+  resultEl.style.display = '';
+
+  // AbortController mit 16 Min Timeout (Backend hat 15 Min cURL-Timeout)
+  var controller = new AbortController();
+  var timeoutId = setTimeout(function() { controller.abort(); }, 16 * 60 * 1000);
+
+  fetch(API_URL + '?action=ags-export', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ dienstnamen: dienstnamen }),
+    signal: controller.signal
+  })
+    .then(function(r) { clearTimeout(timeoutId); return r.json(); })
+    .then(function(resp) {
+      _agsExportingCount = Math.max(0, _agsExportingCount - 1);
+      refreshImportProgress();
+
+      if (!resp.success) throw new Error(resp.error || 'Export fehlgeschlagen');
+
+      var data = resp.data;
+      var statusEl = document.getElementById('import-status');
+      var savedCount = data.files ? data.files.length : 0;
+      var failedCount = data.failedFiles ? data.failedFiles.length : 0;
+
+      if (savedCount > 0 && failedCount === 0) {
+        statusEl.textContent = '✓ Export abgeschlossen (' + runLabel + '): ' + savedCount + ' Dateien in data/Client_Data/nwow/raw-conf/ gespeichert';
+        statusEl.className = 'ags-status success';
+      } else if (savedCount > 0 && failedCount > 0) {
+        statusEl.textContent = '⚠ Export teilweise (' + runLabel + '): ' + savedCount + ' gespeichert, ' + failedCount + ' fehlgeschlagen';
+        statusEl.className = 'ags-status warning';
+      } else {
+        statusEl.textContent = '✗ Export fehlgeschlagen (' + runLabel + '): Keine Dateien gespeichert';
+        statusEl.className = 'ags-status error';
+      }
+
+      // Ergebnis-Dateien anzeigen
+      var html = '<div style="font-weight:700;font-size:12px;margin:6px 0">[' + runLabel + '] ' + dienstnamen.length + ' Dienst(e)</div>';
+      if (data.files && data.files.length > 0) {
+        html += '<div style="font-weight:600;font-size:12px;margin-bottom:6px">Gespeicherte Dateien:</div>';
+        data.files.forEach(function(f) {
+          var size = f.bytes > 1024 ? (f.bytes / 1024).toFixed(1) + ' KB' : f.bytes + ' B';
+          html += '<div class="ags-result-file">'
+            + '<span class="rf-icon">✓</span>'
+            + '<span class="rf-name">' + f.file + '</span>'
+            + '<span class="rf-size">' + size + '</span>'
+            + '</div>';
+        });
+      }
+      // Fehlgeschlagene Dateien anzeigen
+      if (data.failedFiles && data.failedFiles.length > 0) {
+        html += '<div style="font-weight:600;font-size:12px;margin:8px 0 6px;color:#c0392b">Fehlgeschlagene Dateien:</div>';
+        data.failedFiles.forEach(function(f) {
+          html += '<div class="ags-result-file">'
+            + '<span class="rf-icon" style="color:#c0392b">✗</span>'
+            + '<span class="rf-name">' + f.file + '</span>'
+            + '<span class="rf-size" style="color:#c0392b;font-size:10px">' + f.error + '</span>'
+            + '</div>';
+        });
+      }
+      if (data.timestamp) {
+        html += '<div style="font-size:10px;color:#999;margin-top:6px">Zeitpunkt: ' + data.timestamp + '</div>';
+      }
+      if (data.zipSize) {
+        html += '<div style="font-size:10px;color:#999">ZIP-Grösse: ' + (data.zipSize / 1024).toFixed(1) + ' KB</div>';
+      }
+      if (html) {
+        resultEl.innerHTML = html + '<hr style="border:none;border-top:1px solid #eee;margin:8px 0">' + resultEl.innerHTML;
+        resultEl.style.display = '';
+      }
+      updateImportSelCount();
+    })
+    .catch(function(err) {
+      clearTimeout(timeoutId);
+      _agsExportingCount = Math.max(0, _agsExportingCount - 1);
+      refreshImportProgress();
+      console.error('AGS-Export fehlgeschlagen:', err);
+      var statusEl = document.getElementById('import-status');
+      var msg = err.message || String(err);
+      if (err.name === 'AbortError') {
+        msg = 'Zeitüberschreitung — der Export hat zu lange gedauert (>16 Min). Bitte weniger Dienste auf einmal exportieren.';
+      } else if (msg === 'Failed to fetch' || msg === 'NetworkError when attempting to fetch resource.') {
+        msg = 'Netzwerkfehler — der Server hat die Verbindung unterbrochen. Bitte erneut versuchen oder weniger Dienste auf einmal exportieren.';
+      }
+      statusEl.textContent = 'Fehler (' + runLabel + '): ' + msg;
+      statusEl.className = 'ags-status error';
+      resultEl.innerHTML = '<div style="font-weight:700;font-size:12px;margin:6px 0;color:#c0392b">[' + runLabel + '] ✗ Fehler</div>'
+        + '<div style="font-size:11px;color:#c0392b">' + msg + '</div>'
+        + '<hr style="border:none;border-top:1px solid #eee;margin:8px 0">' + resultEl.innerHTML;
+      resultEl.style.display = '';
+    });
+}
+
+// =====================================================================
+// VERWALTEN-TAB: Bestehende Configs laden
+// =====================================================================
+
+/**
+ * Bestehende raw-conf Dateien laden und anzeigen
+ */
+function loadRawConfList() {
+  var statusEl = document.getElementById('manage-status');
+  var listEl = document.getElementById('manage-svc-list');
+  var filterEl = document.getElementById('manage-filter');
+  var selectBar = document.getElementById('manage-select-bar');
+  var actionsEl = document.getElementById('manage-actions');
+
+  statusEl.textContent = 'Lade bestehende Konfigurationen…';
+  statusEl.className = 'ags-status';
+  statusEl.style.display = '';
+  listEl.innerHTML = '';
+  filterEl.style.display = 'none';
+  selectBar.style.display = 'none';
+  actionsEl.style.display = 'none';
+
+  var filterMode = document.getElementById('manage-backup-filter').value || 'active';
+  var url = API_URL + '?action=ags-list-raw';
+  if (filterMode === 'all') {
+    url += '&includeBackups=1';
+  } else if (filterMode === 'backups') {
+    url += '&backupOnly=1';
+  }
+
+  fetch(url)
+    .then(function(r) { return r.json(); })
+    .then(function(resp) {
+      if (!resp.success) throw new Error(resp.error || 'Fehler');
+      var data = resp.data;
+      if (!data.exists || !data.services || data.services.length === 0) {
+        statusEl.textContent = 'Keine Roh-Konfigurationen für den aktuellen Filter vorhanden.';
+        statusEl.className = 'ags-status';
+        return;
+      }
+      statusEl.textContent = data.services.length + ' Services, ' + data.files.length + ' Dateien in data/Client_Data/nwow/raw-conf/';
+      statusEl.className = 'ags-status success';
+      filterEl.style.display = '';
+      filterEl.value = '';
+      selectBar.style.display = 'flex';
+      actionsEl.style.display = 'flex';
+      renderManageList(data.services);
+    })
+    .catch(function(err) {
+      console.error('raw-conf laden fehlgeschlagen:', err);
+      statusEl.textContent = 'Fehler: ' + err.message;
+      statusEl.className = 'ags-status error';
+    });
+}
+
+/**
+ * Service-Liste mit Checkboxen und aufklappbaren Dateidetails rendern
+ */
+function renderManageList(services) {
+  var listEl = document.getElementById('manage-svc-list');
+  listEl.innerHTML = '';
+  _agsLastManageCheckbox = null;
+
+  services.forEach(function(svc, i) {
+    var group = document.createElement('div');
+    group.className = 'ags-svc-group';
+    group.dataset.svcname = svc.service.toLowerCase();
+
+    var totalSize = svc.totalSize > 1024 ? (svc.totalSize / 1024).toFixed(1) + ' KB' : svc.totalSize + ' B';
+
+    var head = document.createElement('div');
+    head.className = 'ags-svc-head';
+
+    // Checkbox für Multi-Select
+    var cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.dataset.svc = svc.service;
+    cb.id = 'mgr-cb-' + i;
+    cb.addEventListener('click', function(e) {
+      e.stopPropagation();
+      if (e.shiftKey && _agsLastManageCheckbox) {
+        applyShiftRangeSelection(getVisibleManageCheckboxes(), _agsLastManageCheckbox, cb, cb.checked);
+      }
+      _agsLastManageCheckbox = cb;
+      updateManageSelCount();
+    });
+
+    head.appendChild(cb);
+    head.innerHTML += '<span class="svc-arrow">▶</span>'
+      + '<span class="svc-name">' + svc.service + '</span>'
+      + '<span class="svc-badge">' + svc.files.length + ' Dateien</span>'
+      + '<span class="svc-size">' + totalSize + '</span>';
+
+    // Einzel-Löschen-Button
+    var delBtn = document.createElement('button');
+    delBtn.className = 'svc-del';
+    delBtn.textContent = '🗑';
+    delBtn.title = 'Alle Dateien dieses Dienstes löschen';
+    delBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      deleteSingleService(svc.service);
+    });
+    head.appendChild(delBtn);
+
+    // Aufklappen/Zuklappen (Klick auf Head, aber nicht auf Checkbox/Delete)
+    head.addEventListener('click', function(e) {
+      if (e.target.tagName === 'INPUT' || e.target.closest('.svc-del')) return;
+      group.classList.toggle('open');
+    });
+
+    // Datei-Liste
+    var filesDiv = document.createElement('div');
+    filesDiv.className = 'ags-svc-files';
+    svc.files.forEach(function(f) {
+      var fSize = f.size > 1024 ? (f.size / 1024).toFixed(1) + ' KB' : f.size + ' B';
+      var fileEl = document.createElement('div');
+      fileEl.className = 'ags-svc-file';
+      var shortName = f.file.replace(svc.service + '/', '');
+      fileEl.innerHTML = '<span class="sf-name">' + shortName + (f.isBackup ? ' <span style="color:#c0392b">(Backup)</span>' : '') + '</span>'
+        + '<span class="sf-size">' + fSize + '</span>'
+        + '<span class="sf-date">' + f.modified + '</span>';
+      filesDiv.appendChild(fileEl);
+    });
+
+    group.appendChild(head);
+    group.appendChild(filesDiv);
+    listEl.appendChild(group);
+  });
+
+  updateManageSelCount();
+}
+
+/**
+ * Verwalten-Auswahl-Zähler aktualisieren
+ */
+function updateManageSelCount() {
+  var checked = document.querySelectorAll('#manage-svc-list input:checked');
+  var total = document.querySelectorAll('#manage-svc-list input[type=checkbox]');
+  var visible = document.querySelectorAll('#manage-svc-list .ags-svc-group:not([style*="display: none"]) input[type=checkbox]');
+  document.getElementById('manage-sel-info').textContent = checked.length + ' / ' + total.length + ' ausgewählt';
+  document.getElementById('manage-selcount').textContent = checked.length + ' Services ausgewählt';
+  document.getElementById('manage-btn-delete').disabled = checked.length === 0 || _agsDeleting;
+  document.getElementById('manage-btn-delete-backups').disabled = checked.length === 0 || _agsDeleting;
+}
+
+// =====================================================================
+// VERWALTEN-TAB: Löschen
+// =====================================================================
+
+/**
+ * Einzelnen Service löschen (Schnellzugriff per 🗑-Button)
+ */
+function deleteSingleService(serviceKey) {
+  if (!confirm('Alle Dateien von "' + serviceKey + '" löschen?\n\nDiese Aktion kann nicht rückgängig gemacht werden.')) {
+    return;
+  }
+  var statusEl = document.getElementById('manage-status');
+  statusEl.textContent = 'Lösche ' + serviceKey + '…';
+  statusEl.className = 'ags-status';
+
+  fetch(API_URL + '?action=ags-delete-raw', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ service: serviceKey })
+  })
+    .then(function(r) { return r.json(); })
+    .then(function(resp) {
+      if (!resp.success) throw new Error(resp.error || 'Löschen fehlgeschlagen');
+      statusEl.textContent = '✓ ' + serviceKey + ' gelöscht (' + resp.data.count + ' Dateien entfernt)';
+      statusEl.className = 'ags-status success';
+      loadRawConfList();
+    })
+    .catch(function(err) {
+      console.error('Löschen fehlgeschlagen:', err);
+      statusEl.textContent = 'Fehler: ' + err.message;
+      statusEl.className = 'ags-status error';
+    });
+}
+
+/**
+ * Mehrere ausgewählte Services sequenziell löschen
+ */
+function deleteSelectedServices() {
+  if (_agsDeleting) return;
+
+  var checkboxes = document.querySelectorAll('#manage-svc-list input:checked');
+  var services = [];
+  checkboxes.forEach(function(cb) { services.push(cb.dataset.svc); });
+  if (services.length === 0) return;
+
+  // Bestätigungs-Dialog mit Service-Liste
+  var msg = services.length + ' Services löschen?\n\n'
+    + services.map(function(s) { return '  • ' + s; }).join('\n')
+    + '\n\nDiese Aktion kann nicht rückgängig gemacht werden.';
+  if (!confirm(msg)) return;
+
+  _agsDeleting = true;
+  var statusEl = document.getElementById('manage-status');
+  var progressEl = document.getElementById('manage-progress');
+  var progressText = document.getElementById('manage-progress-text');
+  var deleteBtn = document.getElementById('manage-btn-delete');
+
+  progressEl.classList.add('active');
+  deleteBtn.disabled = true;
+
+  var done = 0;
+  var failed = [];
+  var totalFiles = 0;
+
+  // Sequenzielles Löschen via Promise-Kette
+  function deleteNext(index) {
+    if (index >= services.length) {
+      // Fertig
+      _agsDeleting = false;
+      progressEl.classList.remove('active');
+
+      if (failed.length === 0) {
+        statusEl.textContent = '✓ ' + done + ' Services gelöscht (' + totalFiles + ' Dateien entfernt)';
+        statusEl.className = 'ags-status success';
+      } else {
+        statusEl.textContent = done + ' gelöscht, ' + failed.length + ' fehlgeschlagen: ' + failed.join(', ');
+        statusEl.className = 'ags-status error';
+      }
+      loadRawConfList();
+      return;
+    }
+
+    var svc = services[index];
+    progressText.textContent = 'Lösche ' + (index + 1) + ' / ' + services.length + ': ' + svc + '…';
+
+    fetch(API_URL + '?action=ags-delete-raw', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ service: svc })
+    })
+      .then(function(r) { return r.json(); })
+      .then(function(resp) {
+        if (!resp.success) {
+          failed.push(svc);
+        } else {
+          done++;
+          totalFiles += (resp.data.count || 0);
+        }
+        deleteNext(index + 1);
+      })
+      .catch(function(err) {
+        console.error('Löschen fehlgeschlagen:', svc, err);
+        failed.push(svc);
+        deleteNext(index + 1);
+      });
+  }
+
+  deleteNext(0);
+}
+
+/**
+ * Nur Backups der ausgewählten Services löschen
+ */
+function deleteSelectedBackups() {
+  if (_agsDeleting) return;
+
+  var checkboxes = document.querySelectorAll('#manage-svc-list input:checked');
+  var services = [];
+  checkboxes.forEach(function(cb) { services.push(cb.dataset.svc); });
+  if (services.length === 0) return;
+
+  var msg = 'Backups für ' + services.length + ' Services löschen?\n\n'
+    + services.map(function(s) { return '  • ' + s; }).join('\n')
+    + '\n\nNur *.bak-Dateien werden gelöscht.';
+  if (!confirm(msg)) return;
+
+  _agsDeleting = true;
+  var statusEl = document.getElementById('manage-status');
+  var progressEl = document.getElementById('manage-progress');
+  var progressText = document.getElementById('manage-progress-text');
+  var deleteBtn = document.getElementById('manage-btn-delete');
+  var deleteBackupsBtn = document.getElementById('manage-btn-delete-backups');
+
+  progressEl.classList.add('active');
+  deleteBtn.disabled = true;
+  deleteBackupsBtn.disabled = true;
+
+  var done = 0;
+  var failed = [];
+  var totalFiles = 0;
+
+  function deleteNext(index) {
+    if (index >= services.length) {
+      _agsDeleting = false;
+      progressEl.classList.remove('active');
+
+      if (failed.length === 0) {
+        statusEl.textContent = '✓ Backups für ' + done + ' Services gelöscht (' + totalFiles + ' Dateien entfernt)';
+        statusEl.className = 'ags-status success';
+      } else {
+        statusEl.textContent = 'Backups: ' + done + ' gelöscht, ' + failed.length + ' fehlgeschlagen: ' + failed.join(', ');
+        statusEl.className = 'ags-status error';
+      }
+      loadRawConfList();
+      return;
+    }
+
+    var svc = services[index];
+    progressText.textContent = 'Lösche Backups ' + (index + 1) + ' / ' + services.length + ': ' + svc + '…';
+
+    fetch(API_URL + '?action=ags-delete-backups', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ service: svc })
+    })
+      .then(function(r) { return r.json(); })
+      .then(function(resp) {
+        if (!resp.success) {
+          failed.push(svc);
+        } else {
+          done++;
+          totalFiles += (resp.data.count || 0);
+        }
+        deleteNext(index + 1);
+      })
+      .catch(function(err) {
+        console.error('Backup-Löschen fehlgeschlagen:', svc, err);
+        failed.push(svc);
+        deleteNext(index + 1);
+      });
+  }
+
+  deleteNext(0);
+}
+
+// =====================================================================
+// EVENT-HANDLER
+// =====================================================================
+
+// Aktualisieren-Button
+document.getElementById('ags-btn-refresh').addEventListener('click', function() {
+  var activeTab = document.querySelector('.ags-tab.active');
+  if (activeTab && activeTab.dataset.tab === 'manage') {
+    loadRawConfList();
+  } else {
+    _agsServices = [];
+    loadAgsServices();
+  }
+});
+
+// Import-Tab: Filter
+document.getElementById('import-filter').addEventListener('input', function() {
+  var term = this.value.toLowerCase();
+  document.querySelectorAll('#import-list .ags-item').forEach(function(item) {
+    item.classList.toggle('hidden', term !== '' && item.dataset.name.indexOf(term) === -1);
+  });
+});
+
+// Import-Tab: Alle / Keine
+document.getElementById('import-sel-all').addEventListener('click', function() {
+  document.querySelectorAll('#import-list .ags-item:not(.hidden) input').forEach(function(cb) { cb.checked = true; });
+  _agsLastImportCheckbox = null;
+  updateImportSelCount();
+});
+document.getElementById('import-sel-none').addEventListener('click', function() {
+  document.querySelectorAll('#import-list input').forEach(function(cb) { cb.checked = false; });
+  _agsLastImportCheckbox = null;
+  updateImportSelCount();
+});
+
+// Import-Tab: Export-Button
+document.getElementById('import-btn-export').addEventListener('click', exportAgsServices);
+
+// Verwalten-Tab: Filter
+document.getElementById('manage-filter').addEventListener('input', function() {
+  var term = this.value.toLowerCase();
+  document.querySelectorAll('#manage-svc-list .ags-svc-group').forEach(function(grp) {
+    grp.style.display = (term !== '' && grp.dataset.svcname.indexOf(term) === -1) ? 'none' : '';
+  });
+  updateManageSelCount();
+});
+
+document.getElementById('manage-backup-filter').addEventListener('change', function() {
+  loadRawConfList();
+});
+
+// Verwalten-Tab: Alle / Keine
+document.getElementById('manage-sel-all').addEventListener('click', function() {
+  document.querySelectorAll('#manage-svc-list .ags-svc-group:not([style*="display: none"]) input').forEach(function(cb) { cb.checked = true; });
+  _agsLastManageCheckbox = null;
+  updateManageSelCount();
+});
+document.getElementById('manage-sel-none').addEventListener('click', function() {
+  document.querySelectorAll('#manage-svc-list input').forEach(function(cb) { cb.checked = false; });
+  _agsLastManageCheckbox = null;
+  updateManageSelCount();
+});
+
+// Verwalten-Tab: Multi-Delete-Button
+document.getElementById('manage-btn-delete').addEventListener('click', deleteSelectedServices);
+document.getElementById('manage-btn-delete-backups').addEventListener('click', deleteSelectedBackups);
+
+// =====================================================================
+// INITIALISIERUNG
+// =====================================================================
+loadAgsServices();
+</script>
+</body>
+</html>

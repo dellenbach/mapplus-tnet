@@ -11,28 +11,12 @@ PASSWORD = "3Zs,k4%Un,<[W(Kx"
 REMOTE_BASE = "/www/maps"
 LOCAL_BASE = r"c:\_Daten\mapplus-exp\maps"
 
-# Files to upload - Mobile Suche v1.2 + OEREB Fix
+# Files to upload - AGS Import Feature + OpenAPI Docs
 FILES = [
-    "public/index_de.htm",
-    "public/index_de_m.htm",
-    "public/config/modules_m.conf",
-    "public/css/override.css",
-    "tnet/js/tnet-search.js",
-    "tnet/js/tnet-basemap.js",
-    "tnet/js/mobile/tnet-search-m.js",
-    "tnet/js/mobile/tnet_modules_m.js",
-    "tnet/api/search-proxy.php",
-    "tnet/css/mobile/tnet_override_m.css",
-    "tnet/js/tnet-oereb.js",
-    "tnet/js/tnet-mapplus-helpers.js",
-    "tnet/resources/Logo-GIS-Daten-AG_wuerfel.svg",
-    "tnet/config/tnet-global-config.json5",
-    "tnet/resources/icons/search-layer.svg",
-    "tnet/resources/icons/search-location.svg",
-    "tnet/resources/icons/search-address.svg",
-    "tnet/resources/icons/search-street.svg",
-    "tnet/resources/icons/search-terrain.svg",
-    "tnet/config/boundaries-simplified.json",
+    "tnet/api/v1/treebuilder-api.php",
+    "tnet/api/v1/tree-builder.html",
+    "tnet/api/v1/ags-import.html",
+    "tnet/api/docs/openapi.yaml",
 ]
 
 def upload_files():

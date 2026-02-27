@@ -80,6 +80,21 @@ $info = [
             'path'        => '/maps/tnet/api/v1/info',
             'description' => 'API-Info und Health-Check',
             'parameters'  => []
+        ],
+        [
+            'path'        => '/maps/tnet/api/v1/tree-test',
+            'description' => 'Layer-Tree Vorschau (HTML, parametrierbar)',
+            'parameters'  => ['group', 'category']
+        ],
+        [
+            'path'        => '/maps/tnet/api/v1/dev-test',
+            'description' => 'Dev-Testseite: Tree + Active Panel, Mobile/Desktop/Split View',
+            'parameters'  => ['group', 'panel', 'view']
+        ],
+        [
+            'path'        => '/maps/tnet/api/v1/tree-builder',
+            'description' => 'Interaktiver Tree-Builder: Layer → Gruppen → Tree-Konfiguration per Drag & Drop',
+            'parameters'  => []
         ]
     ],
     'docs' => '/maps/tnet/api/docs/',
