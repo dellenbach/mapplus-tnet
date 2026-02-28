@@ -147,6 +147,44 @@
 
 ---
 
+## Konfigurationsdateien — Struktur & Schlüssel
+
+> Detaillierte Analyse mit FK-Matrix: `maps/tnet/docs/CONFIG_SCHLUESSEL_FK_ANALYSE.md`
+
+### Datei-Familien (pro Dienst / Kürzel)
+
+| Präfix | Verzeichnis | Format | Inhalt |
+|---|---|---|---|
+| `layers_*.conf` | `core/config/` | JSON (als `.conf`) | Layer-Definitionen (URL, Typ, Sichtbarkeit, Legende) |
+| `maptips_*.conf` | `core/config/` | JSON (als `.conf`) | Info-Abfragen (query_layers, linked_layer, nls, Felder) |
+| `lyrmgrResources_*.json` | `core/nls/de/` | JSON | UI-Labels für Layer-Manager (`desc_<layerKey>`) |
+| `maptipsResources_*.json` | `core/nls/de/` | JSON | Info-Panel Texte (`<nls>_title`, `<nls>_field_*`) |
+| `legendResources_*.json` | `core/nls/de/` | JSON | Legenden-Titel und -Links (`<key>_title`, `<key>_link`) |
+
+### Namenskonventionen
+
+- **TNET-Dienste**: `layers_TNET_<kuerzel>_<Service>.conf` (z.B. `layers_TNET_ewn_EWN_NIS_gwr.conf`)
+- **Allgemeine**: `layers_<quelle>.conf` (z.B. `layers_nodi_ch.conf`, `layers_geoadmin.conf`)
+- **Layer-Keys (TNET)**: Hierarchisch mit `/` → `ewn/ewn_nis_gwr/gwr/egid`
+- **Layer-Keys (NODI/Geoadmin)**: Flach → `gwr_address`, `ch.are.bauzonen`
+
+### Join-Regeln (Kurzform)
+
+1. **Layer → Maptip**: `maptips_*.conf[key].linked_layer` = Key in `layers_*.conf`
+2. **Layer → Label**: `desc_` + `<layerKey>` = Key in `lyrmgrResources_*.json`
+3. **Maptip → Text**: `maptips_*.conf[key].nls` als Präfix → `<nls>_title`, `<nls>_field_*` in `maptipsResources_*.json`
+4. **Layer → Legende**: `layers_*.conf[key].legend` → `<legend>_title` / `<legend>_link` in `legendResources_*.json`
+
+### AGS Import/Staging Pipeline
+
+- **Import**: ArcGIS Server REST → Roh-Conf-Dateien unter `/data/Client_Data/nwow/raw-conf/<kuerzel>/`
+- **Staging Merge**: Mehrere Dienste → zusammengeführte Dateien unter `/data/Client_Data/nwow/raw-conf/ImportToCore/<kuerzel>/`
+- **Duplikat-Metadaten**: `.duplicates.json` pro Kürzel-Verzeichnis speichert `{dateiname: [{key, count, sources}]}`
+- **Output-Dateien**: `<prefix>_<kuerzel>.<ext>` (z.B. `layers_ewn.conf`, `lyrmgrResources_ewn.json`)
+- **Prefixe → Buckets**: `layers` → `.conf`, `maptips` → `.conf`, `lyrmgrResources` → `.json`, `maptipsResources` → `.json`
+
+---
+
 ## Workflow-Regeln für die KI
 
 1. **Nach jedem Bug-Fix**: Ergänze `docs/ai-lessons-learned.md` mit:

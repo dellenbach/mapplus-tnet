@@ -320,7 +320,8 @@ function listLyrmgrProfiles() {
 // AGS → MapPlus Roh-Konfiguration (ags2mapplus API)
 // =====================================================================
 define('AGS_API_BASE', 'https://www.gis-daten.ch/gapi/ags2mapplus');
-define('RAW_CONF_DIR', '/data/Client_Data/nwow/raw-conf');
+define('RAW_CONF_DIR', '/data/Client_Data/nwow/tmp/raw-conf');
+define('IMPORT_TO_CORE_DIR', '/data/Client_Data/nwow/tmp/ImportToCore');
 
 /**
  * Verfügbare AGS-Dienste von der externen API abrufen
@@ -358,7 +359,7 @@ function getAgsServices() {
 
 /**
  * Ermittelt den tatsächlich nutzbaren Pfad für raw-conf.
- * RAW_CONF_DIR liegt unter /data/Client_Data/nwow/tmp/ — dieses Verzeichnis
+ * RAW_CONF_DIR liegt unter /data/Client_Data/nwow/tmp/raw-conf — dieses Verzeichnis
  * gehört www-data (gid 33) und ist dauerhaft beschreibbar.
  * Cacht das Ergebnis für den aktuellen Request.
  */
@@ -569,9 +570,12 @@ function listRawConf($includeBackups = false, $backupOnly = false) {
 
         // Service-Key ermitteln
         $parts = explode('/', $relPath);
-        if (count($parts) >= 2) {
-            // Datei in Unterordner: erster Pfad-Teil als Service
+        if (count($parts) >= 3) {
+            // 3-Ebenen-Struktur: group/service/datei → Key = group/service
             $svcKey = $parts[0] . '/' . $parts[1];
+        } elseif (count($parts) == 2) {
+            // 2-Ebenen-Struktur: service_dir/datei → Key = service_dir
+            $svcKey = $parts[0];
         } else {
             // Flache Datei: Service aus Dateiname extrahieren
             $baseName = $isBackup ? stripRawConfBackupSuffix($parts[0]) : $parts[0];
@@ -747,8 +751,10 @@ function deleteRawConfBackups($serviceKey) {
         $relPath = str_replace('\\', '/', $relPath);
         $parts = explode('/', $relPath);
 
-        if (count($parts) >= 2) {
+        if (count($parts) >= 3) {
             $svcKey = $parts[0] . '/' . $parts[1];
+        } elseif (count($parts) == 2) {
+            $svcKey = $parts[0];
         } else {
             $svcKey = extractServiceFromFilename(stripRawConfBackupSuffix($parts[0]));
         }
@@ -794,6 +800,356 @@ function readRawConfFile($filePath) {
         'file'    => $filePath,
         'content' => $content,
         'size'    => strlen($content)
+    ];
+}
+
+/**
+ * Einzelne Rohdatei in data/raw-conf schreiben (mit automatischem Backup)
+ */
+function writeRawConfFile($filePath, $content) {
+    $rawConfDir = getWritableRawConfDir();
+    if ($rawConfDir === false) $rawConfDir = RAW_CONF_DIR;
+    // Sicherheit: nur innerhalb von raw-conf erlaubt
+    $fullPath = $rawConfDir . '/' . $filePath;
+    // realpath() funktioniert nur wenn Datei existiert → dirname absichern
+    $realBase = realpath($rawConfDir);
+    $dirPart   = realpath(dirname($fullPath));
+    if (!$realBase || !$dirPart || strpos($dirPart, $realBase) !== 0) {
+        return ['success' => false, 'error' => 'Ungültiger Pfad'];
+    }
+    if (!file_exists($fullPath)) {
+        return ['success' => false, 'error' => 'Datei nicht gefunden: ' . $filePath];
+    }
+    // Backup anlegen (gleiche Logik wie AGS-Export)
+    $timestamp  = date('Ymd_His');
+    $backupPath = $fullPath . '.' . $timestamp . '.bak';
+    @copy($fullPath, $backupPath);
+    $backupCreated = file_exists($backupPath);
+    // Inhalt schreiben
+    $written = file_put_contents($fullPath, $content);
+    if ($written === false) {
+        return ['success' => false, 'error' => 'Datei konnte nicht geschrieben werden: ' . $filePath];
+    }
+    return [
+        'success'       => true,
+        'file'          => $filePath,
+        'bytes'         => $written,
+        'backupCreated' => $backupCreated,
+        'backup'        => $backupCreated ? ($filePath . '.' . $timestamp . '.bak') : null
+    ];
+}
+
+// =====================================================================
+// Staging: raw-conf-Dienste nach Typ mergen → ImportToCore
+// =====================================================================
+
+/**
+ * Gewählte raw-conf-Dienste nach Typ zusammenführen und in ImportToCore/<kuerzel>/ schreiben.
+ *
+ * Datei-Typ-Buckets (erste passende Regel):
+ *   maptipsResources_* → maptipsResources_TNET_<kuerzel>.json
+ *   maptips_*          → maptips_TNET_<kuerzel>.conf
+ *   lyrmgrResources_*  → lyrmgrResources_TNET_<kuerzel>.json
+ *   layers_*           → layers_TNET_<kuerzel>.conf
+ *   Alle anderen       → unveränderter Dateiname (letzte Version gewinnt)
+ */
+/**
+ * ImportToCore-Verzeichnis auflisten (nach Kürzel gruppiert)
+ * Erkennt auch kürzelübergreifende Duplikate (gleicher Key im selben Prefix-Typ)
+ */
+function listImportToCore() {
+    $dir = IMPORT_TO_CORE_DIR;
+    if (!is_dir($dir)) return ['exists' => false, 'kuerzel' => []];
+    $kuerzelList = [];
+    $entries = @scandir($dir);
+    if (!$entries) return ['exists' => true, 'kuerzel' => []];
+
+    // 1. Pass: Alle Kürzel + Dateien sammeln, JSON-Keys extrahieren für Cross-Check
+    // $keyIndex[$prefix][$topLevelKey][] = "kuerzel/dateiname"
+    $keyIndex = [];
+    $rawKuerzel = [];
+
+    foreach ($entries as $k) {
+        if ($k === '.' || $k === '..') continue;
+        $kPath = $dir . '/' . $k;
+        if (!is_dir($kPath)) continue;
+        // Duplikat-Metadaten laden (beim Merge gespeichert)
+        $meta = [];
+        $metaPath = $kPath . '/.duplicates.json';
+        if (is_file($metaPath)) {
+            $raw = @file_get_contents($metaPath);
+            if ($raw !== false) $meta = @json_decode($raw, true) ?: [];
+        }
+        $files = [];
+        foreach (@scandir($kPath) ?: [] as $f) {
+            if ($f === '.' || $f === '..' || $f[0] === '.') continue;
+            $fp = $kPath . '/' . $f;
+            if (!is_file($fp)) continue;
+            $fInfo = ['file' => $k . '/' . $f, 'name' => $f, 'size' => filesize($fp), 'modified' => date('Y-m-d H:i:s', filemtime($fp))];
+            // Intra-Kürzel Duplikat-Info aus Meta anfügen
+            if (isset($meta[$f]) && !empty($meta[$f])) {
+                $fInfo['duplicateKeys'] = $meta[$f];
+            }
+            // Prefix extrahieren (z.B. "layers" aus "layers_ewn.conf")
+            $underPos = strpos($f, '_');
+            $prefix = ($underPos !== false) ? substr($f, 0, $underPos) : pathinfo($f, PATHINFO_FILENAME);
+            $fInfo['_prefix'] = $prefix;
+
+            // JSON lesen und Top-Level-Keys indexieren
+            $content = @file_get_contents($fp);
+            if ($content !== false) {
+                $decoded = @json_decode($content, true);
+                if (is_array($decoded) && !empty($decoded)) {
+                    // Nur assoziative Arrays (JSON-Objekte) indexieren
+                    if (array_keys($decoded) !== range(0, count($decoded) - 1)) {
+                        foreach (array_keys($decoded) as $topKey) {
+                            $keyIndex[$prefix][$topKey][] = $k . '/' . $f;
+                        }
+                    }
+                }
+            }
+
+            $files[] = $fInfo;
+        }
+        if (count($files)) {
+            $rawKuerzel[] = ['kuerzel' => $k, 'files' => $files, 'size' => array_sum(array_column($files, 'size'))];
+        }
+    }
+
+    // 2. Pass: Cross-Kürzel-Duplikate erkennen (Key erscheint in >1 Datei desselben Prefix-Typs)
+    // Nur wenn die Dateien aus VERSCHIEDENEN Kürzel-Ordnern stammen
+    foreach ($rawKuerzel as &$kEntry) {
+        foreach ($kEntry['files'] as &$fInfo) {
+            $prefix = $fInfo['_prefix'];
+            $crossDups = [];
+            if (isset($keyIndex[$prefix])) {
+                $thisFile = $fInfo['file']; // z.B. "ewn/layers_ewn.conf"
+                foreach ($keyIndex[$prefix] as $topKey => $sources) {
+                    // Nur wenn dieser Key in DIESER Datei vorkommt UND es andere Dateien gibt
+                    if (in_array($thisFile, $sources) && count($sources) > 1) {
+                        $otherFiles = array_values(array_filter($sources, function($s) use ($thisFile) {
+                            return $s !== $thisFile;
+                        }));
+                        if (!empty($otherFiles)) {
+                            $crossDups[] = ['key' => $topKey, 'conflictsWith' => $otherFiles];
+                        }
+                    }
+                }
+            }
+            if (!empty($crossDups)) {
+                $fInfo['crossDuplicateKeys'] = $crossDups;
+            }
+            unset($fInfo['_prefix']); // Hilfsfeld entfernen
+        }
+        unset($fInfo);
+    }
+    unset($kEntry);
+
+    return ['exists' => true, 'kuerzel' => $rawKuerzel];
+}
+
+/**
+ * Datei aus ImportToCore lesen
+ */
+function readImportToCoreFile($relPath) {
+    if (strpos($relPath, '..') !== false || strpos($relPath, '\\') !== false)
+        return ['success' => false, 'error' => 'Ungültiger Pfad'];
+    $fullPath = IMPORT_TO_CORE_DIR . '/' . $relPath;
+    if (!is_file($fullPath)) return ['success' => false, 'error' => 'Datei nicht gefunden: ' . $relPath];
+    $content = @file_get_contents($fullPath);
+    if ($content === false) return ['success' => false, 'error' => 'Lesefehler'];
+    return ['success' => true, 'content' => $content, 'size' => strlen($content), 'file' => $relPath];
+}
+
+/**
+ * Datei in ImportToCore schreiben (ohne Backup)
+ */
+function writeImportToCoreFile($relPath, $content) {
+    if (strpos($relPath, '..') !== false || strpos($relPath, '\\') !== false)
+        return ['success' => false, 'error' => 'Ungültiger Pfad'];
+    $fullPath = IMPORT_TO_CORE_DIR . '/' . $relPath;
+    if (!is_file($fullPath)) return ['success' => false, 'error' => 'Datei nicht gefunden (nur bestehende bearbeiten)'];
+    $bytes = @file_put_contents($fullPath, $content);
+    if ($bytes === false) return ['success' => false, 'error' => 'Schreibfehler'];
+    return ['success' => true, 'bytes' => $bytes];
+}
+
+/**
+ * Kürzel-Verzeichnisse aus ImportToCore löschen
+ */
+function deleteImportToCoreKuerzel(array $kuerzelList) {
+    $dir = IMPORT_TO_CORE_DIR;
+    $deleted = []; $errors = [];
+    foreach ($kuerzelList as $k) {
+        if (strpos($k, '..') !== false || strpos($k, '/') !== false || strpos($k, '\\') !== false)
+            { $errors[] = 'Ungültiger Name: ' . $k; continue; }
+        $kPath = $dir . '/' . $k;
+        if (!is_dir($kPath)) { $errors[] = 'Nicht gefunden: ' . $k; continue; }
+        $ok = true;
+        foreach (@scandir($kPath) ?: [] as $f) {
+            if ($f === '.' || $f === '..') continue;
+            if (!@unlink($kPath . '/' . $f)) { $ok = false; $errors[] = 'Konnte nicht löschen: ' . $k . '/' . $f; }
+        }
+        if ($ok && @rmdir($kPath)) $deleted[] = $k;
+        else $errors[] = 'Verzeichnis-Löschen fehlgeschlagen: ' . $k;
+    }
+    return ['success' => true, 'deleted' => $deleted, 'errors' => $errors];
+}
+
+function stageServicesToImportToCore(array $serviceKeys, string $kuerzel) {
+    $kuerzel = preg_replace('/[^a-zA-Z0-9_\-]/', '_', trim($kuerzel));
+    if ($kuerzel === '') return ['success' => false, 'error' => 'Kürzel darf nicht leer sein'];
+
+    $rawDir = getWritableRawConfDir();
+    if ($rawDir === false) $rawDir = RAW_CONF_DIR;
+
+    // Zielordner erstellen
+    $targetDir = IMPORT_TO_CORE_DIR . '/' . $kuerzel;
+    if (!is_dir($targetDir)) {
+        if (!@mkdir($targetDir, 0777, true)) {
+            return ['success' => false, 'error' => 'Zielordner konnte nicht erstellt werden: ' . $targetDir];
+        }
+    }
+
+    // Datei-Typ-Buckets (dynamisch, Key = Prefix vor erstem Unterstrich)
+    // keySources trackt pro Bucket+Key, aus welcher Quelldatei der Key stammt
+    $buckets    = [];
+    $keySources = []; // $keySources[$prefix][$topLevelKey][] = $quelldatei
+    $errors     = [];
+
+    foreach ($serviceKeys as $svcKey) {
+        $svcDir = $rawDir . '/' . $svcKey;
+
+        // Verzeichnis-basierte Struktur (group/service/ ODER service_dir/)
+        if (is_dir($svcDir)) {
+            $it = new RecursiveIteratorIterator(
+                new RecursiveDirectoryIterator($svcDir, RecursiveDirectoryIterator::SKIP_DOTS),
+                RecursiveIteratorIterator::LEAVES_ONLY
+            );
+            $svcFiles = iterator_to_array($it, false);
+        } else {
+            // Flache Struktur: Dateien im Root-Verzeichnis suchen die zum Service passen
+            $svcFiles = [];
+            $allEntries = @scandir($rawDir);
+            if ($allEntries) {
+                foreach ($allEntries as $entry) {
+                    if ($entry === '.' || $entry === '..') continue;
+                    $fullPath = $rawDir . '/' . $entry;
+                    if (!is_file($fullPath)) continue;
+                    if (extractServiceFromFilename($entry) === $svcKey) {
+                        $svcFiles[] = new SplFileInfo($fullPath);
+                    }
+                }
+            }
+            if (empty($svcFiles)) { $errors[] = 'Dienst nicht gefunden: ' . $svcKey; continue; }
+        }
+
+        // Gefundene Dateien verarbeiten
+        $it = new ArrayIterator($svcFiles);
+        foreach ($it as $file) {
+            $fname = $file->getFilename();
+            if (preg_match('/\.\d{8}_\d{6}\.bak$/', $fname)) continue; // Backups überspringen
+            if (preg_match('/\.xlsx$/i', $fname))             continue; // Excel-Dateien überspringen
+
+            $ext = strtolower(pathinfo($fname, PATHINFO_EXTENSION));
+            if (!in_array($ext, ['conf', 'json'])) continue; // nur Konfig-Dateien
+
+            $content = @file_get_contents($file->getPathname());
+            if ($content === false) { $errors[] = 'Lesefehler: ' . $file->getPathname(); continue; }
+
+            $decoded = @json_decode($content, true);
+            if ($decoded === null || !is_array($decoded)) {
+                $errors[] = 'Kein gültiges JSON: ' . $fname;
+                continue;
+            }
+
+            // Bucket-Key = Prefix vor dem ersten Unterstrich (z.B. "layers", "maptips", "lyrmgrResources", "maptipsResources")
+            $underPos = strpos($fname, '_');
+            $prefix = ($underPos !== false) ? substr($fname, 0, $underPos) : pathinfo($fname, PATHINFO_FILENAME);
+
+            if (!isset($buckets[$prefix])) {
+                $buckets[$prefix] = ['parts' => [], 'ext' => $ext];
+            }
+            $buckets[$prefix]['parts'][] = ['data' => $decoded, 'source' => $fname];
+        }
+    }
+
+    // Ausgabe: pro Bucket eine Datei "<prefix>_<kuerzel>.<ext>"
+    // Duplikat-Erkennung: gleiche Top-Level-Keys aus verschiedenen Quelldateien
+    $written    = [];
+    $duplicates = [];
+    $dupMeta    = []; // für .duplicates.json: outName => [{key, sources}]
+    foreach ($buckets as $prefix => $bucket) {
+        if (empty($bucket['parts'])) continue;
+        $merged   = [];
+        $keySeen  = []; // key => Anzahl Vorkommen
+        $keySrc   = []; // key => [quelldatei, ...]
+        $isAssoc  = false;
+        foreach ($bucket['parts'] as $part) {
+            $arr    = $part['data'];
+            $source = $part['source'];
+            // Prüfen ob assoziatives Array (JSON-Objekt) oder indexiertes Array
+            if (!empty($arr) && array_keys($arr) !== range(0, count($arr) - 1)) {
+                $isAssoc = true;
+            }
+            if ($isAssoc) {
+                foreach ($arr as $k => $v) {
+                    if (!isset($keySeen[$k])) {
+                        $keySeen[$k] = 0;
+                        $keySrc[$k]  = [];
+                    }
+                    $keySeen[$k]++;
+                    $keySrc[$k][] = $source;
+                    $merged[$k] = $v; // Letzter Wert gewinnt
+                }
+            } else {
+                foreach ($arr as $v) { $merged[] = $v; }
+            }
+        }
+        // Duplikate sammeln (mit Quell-Info)
+        $outName  = $prefix . '_' . $kuerzel . '.' . $bucket['ext'];
+        $fileDups = []; // [{key, count, sources}]
+        foreach ($keySeen as $k => $cnt) {
+            if ($cnt > 1) {
+                $fileDups[] = ['key' => $k, 'count' => $cnt, 'sources' => array_values(array_unique($keySrc[$k]))];
+            }
+        }
+        if (!empty($fileDups)) {
+            $duplicates[] = [
+                'file'  => $outName,
+                'keys'  => $fileDups,
+                'count' => count($fileDups),
+            ];
+            $dupMeta[$outName] = $fileDups;
+        }
+        $outPath = $targetDir . '/' . $outName;
+        $json    = json_encode($merged, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        $bytes   = @file_put_contents($outPath, $json);
+        if ($bytes === false) {
+            $errors[] = 'Schreibfehler: ' . $outName;
+        } else {
+            $written[] = ['file' => $kuerzel . '/' . $outName, 'bytes' => $bytes, 'keys' => count($merged),
+                          'duplicateKeys' => isset($dupMeta[$outName]) ? $dupMeta[$outName] : []];
+        }
+    }
+
+    // Metadaten für Duplikate speichern (damit listImportToCore sie später lesen kann)
+    // json_encode dedupliziert → geschriebene Dateien sind sauber, aber info geht verloren
+    $metaPath = $targetDir . '/.duplicates.json';
+    if (!empty($dupMeta)) {
+        @file_put_contents($metaPath, json_encode($dupMeta, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+    } elseif (is_file($metaPath)) {
+        @unlink($metaPath); // Alte Meta löschen wenn keine Duplikate mehr
+    }
+
+    return [
+        'success'    => true,
+        'kuerzel'    => $kuerzel,
+        'targetDir'  => $targetDir,
+        'files'      => $written,
+        'duplicates' => $duplicates,
+        'errors'     => $errors,
+        'timestamp'  => date('Y-m-d H:i:s'),
     ];
 }
 
@@ -1186,6 +1542,59 @@ switch ($action) {
         jsonResponse(['success' => true, 'data' => $result]);
         break;
 
+    case 'ags-write-raw':
+        $body = json_decode(file_get_contents('php://input'), true);
+        if (!isset($body['file']) || !isset($body['content'])) {
+            jsonError('JSON-Body mit Feldern "file" und "content" erforderlich', 400);
+        }
+        $result = writeRawConfFile($body['file'], $body['content']);
+        if (!$result['success']) {
+            jsonError($result['error'], 400);
+        }
+        jsonResponse(['success' => true, 'data' => $result]);
+        break;
+
+    case 'staging-list-output':
+        jsonResponse(['success' => true, 'data' => listImportToCore()]);
+        break;
+
+    case 'staging-read-output':
+        $file = $_GET['file'] ?? '';
+        if (!$file) jsonError('Parameter file= erforderlich', 400);
+        $result = readImportToCoreFile($file);
+        if (!$result['success']) jsonError($result['error'], 404);
+        jsonResponse(['success' => true, 'data' => $result]);
+        break;
+
+    case 'staging-write-output':
+        $body = json_decode(file_get_contents('php://input'), true);
+        if (!isset($body['file']) || !isset($body['content'])) jsonError('Felder "file" und "content" erforderlich', 400);
+        $result = writeImportToCoreFile($body['file'], $body['content']);
+        if (!$result['success']) jsonError($result['error'], 400);
+        jsonResponse(['success' => true, 'data' => $result]);
+        break;
+
+    case 'staging-delete-output':
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('POST required', 405);
+        $body = json_decode(file_get_contents('php://input'), true);
+        if (!$body || !isset($body['kuerzel'])) jsonError('Feld "kuerzel" (Array) erforderlich', 400);
+        jsonResponse(['success' => true, 'data' => deleteImportToCoreKuerzel($body['kuerzel'])]);
+        break;
+
+    case 'ags-stage-merge':
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('POST required', 405);
+        $body = json_decode(file_get_contents('php://input'), true);
+        if (!$body || !isset($body['services']) || !isset($body['kuerzel'])) {
+            jsonError('JSON-Body mit Feldern "services" (Array) und "kuerzel" (String) erforderlich', 400);
+        }
+        if (!is_array($body['services']) || count($body['services']) === 0) {
+            jsonError('services muss ein nicht-leeres Array sein', 400);
+        }
+        $result = stageServicesToImportToCore($body['services'], $body['kuerzel']);
+        if (!$result['success']) jsonError($result['error'], 400);
+        jsonResponse(['success' => true, 'data' => $result]);
+        break;
+
     case 'debug-rawconf':
         $info = [
             'RAW_CONF_DIR' => RAW_CONF_DIR,
@@ -1272,7 +1681,7 @@ switch ($action) {
             'data' => [
                 'name'    => 'Tree-Builder Persistence API',
                 'version' => '3.1',
-                'actions' => ['load', 'save', 'lock', 'unlock', 'lock-status', 'history', 'restore', 'save-groups', 'load-groups', 'save-profile', 'load-profile', 'list-profiles', 'load-lyrmgr', 'publish-lyrmgr', 'list-lyrmgr-profiles', 'ags-services', 'ags-export', 'ags-list-raw', 'ags-delete-raw', 'ags-read-raw'],
+                'actions' => ['load', 'save', 'lock', 'unlock', 'lock-status', 'history', 'restore', 'save-groups', 'load-groups', 'save-profile', 'load-profile', 'list-profiles', 'load-lyrmgr', 'publish-lyrmgr', 'list-lyrmgr-profiles', 'ags-services', 'ags-export', 'ags-list-raw', 'ags-delete-raw', 'ags-delete-backups', 'ags-read-raw', 'ags-write-raw'],
                 'storage' => DATA_DIR
             ]
         ]);

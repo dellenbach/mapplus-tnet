@@ -53,23 +53,31 @@ body {
 /* ===== MAIN LAYOUT ===== */
 .ags-main {
   flex: 1; display: flex; flex-direction: column;
-  max-width: 920px; width: 100%; margin: 0 auto;
+  max-width: 1280px; width: 100%; margin: 0 auto;
   padding: 20px 24px; overflow: hidden;
 }
 
-/* ===== TABS ===== */
+/* ===== TABS (Prozesskette / Chevron) ===== */
 .ags-tabs {
-  display: flex; border-bottom: 2px solid #e0e4e8; gap: 0;
-  margin-bottom: 16px;
+  display: flex; gap: 4px; margin-bottom: 16px; user-select: none;
 }
 .ags-tab {
-  padding: 10px 24px; font-size: 13px; font-weight: 600;
-  cursor: pointer; border: none; background: none;
-  color: #888; border-bottom: 2px solid transparent;
-  margin-bottom: -2px; transition: all .15s;
+  padding: 9px 18px 9px 26px; font-size: 13px; font-weight: 600;
+  cursor: pointer; border: none; color: #fff; white-space: nowrap;
+  clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 50%, calc(100% - 14px) 100%, 0 100%, 14px 50%);
+  transition: opacity .2s, filter .2s;
+  opacity: 0.4; filter: grayscale(0.3);
 }
-.ags-tab:hover { color: #555; background: #f0f0f0; }
-.ags-tab.active { color: var(--c-accent); border-bottom-color: var(--c-accent); background: #fff; }
+.ags-tab:first-of-type {
+  padding-left: 16px;
+  clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 50%, calc(100% - 14px) 100%, 0 100%);
+  border-radius: 4px 0 0 4px;
+}
+.ags-tab[data-tab="import"]  { background: linear-gradient(135deg, #7cb342, #558b2f); }
+.ags-tab[data-tab="manage"]  { background: linear-gradient(135deg, #5ba4b5, #3d8a9a); }
+.ags-tab[data-tab="staging"] { background: linear-gradient(135deg, #e0a430, #c68d20); }
+.ags-tab.active { opacity: 1; filter: none; }
+.ags-tab:hover:not(.active) { opacity: 0.65; filter: grayscale(0.1); }
 
 /* ===== TAB PANES ===== */
 .ags-pane { display: none; flex-direction: column; flex: 1; overflow: hidden; }
@@ -118,6 +126,13 @@ body {
 .ags-item input[type=checkbox] { flex-shrink: 0; cursor: pointer; }
 .ags-item .ags-name { flex: 1; font-family: 'Consolas', monospace; word-break: break-all; }
 .ags-item.hidden { display: none; }
+.ags-item.imported { background: #f0faf3; }
+.ags-item.imported .ags-name { color: #27ae60; }
+.ags-imported-badge { font-size: 10px; background: #27ae60; color: #fff; border-radius: 3px; padding: 1px 5px; flex-shrink: 0; font-family: sans-serif; }
+.ags-import-legend { display: flex; gap: 14px; align-items: center; font-size: 11px; color: #666; padding: 5px 10px; background: #f5f7fa; border-radius: 4px; margin-bottom: 6px; border: 1px solid #e8eaed; }
+.ags-import-legend .leg-item { display: flex; align-items: center; gap: 5px; }
+.leg-dot-new { width: 10px; height: 10px; border-radius: 2px; background: #fff; border: 1px solid #bbb; flex-shrink: 0; }
+.leg-dot-imp { width: 10px; height: 10px; border-radius: 2px; background: #27ae60; flex-shrink: 0; }
 
 /* ===== ACTIONS BAR ===== */
 .ags-actions {
@@ -161,7 +176,7 @@ body {
 @keyframes ags-spin { to { transform: rotate(360deg); } }
 
 /* ===== RESULT ===== */
-.ags-result { margin-top: 12px; flex-shrink: 0; }
+.ags-result { margin-top: 12px; flex-shrink: 0; max-height: 260px; overflow-y: auto; border: 1px solid #e8eaed; border-radius: 4px; padding: 6px; }
 .ags-result-file {
   display: flex; align-items: center; gap: 6px; padding: 3px 0;
   font-size: 11px; color: #555;
@@ -197,6 +212,129 @@ body {
 .ags-svc-file .sf-name { flex: 1; font-family: 'Consolas', monospace; }
 .ags-svc-file .sf-size { color: #aaa; font-size: 10px; }
 .ags-svc-file .sf-date { color: #aaa; font-size: 10px; }
+.ags-svc-file .sf-edit {
+  padding: 1px 6px; font-size: 10px; border: 1px solid #ccc; border-radius: 3px;
+  background: #fff; cursor: pointer; color: #648C96; flex-shrink: 0;
+}
+.ags-svc-file .sf-edit:hover { background: #eef5f6; border-color: #648C96; }
+
+/* ===== DATEI-EDITOR-MODAL ===== */
+#file-editor-overlay {
+  display: none; position: fixed; inset: 0; z-index: 10000;
+  background: rgba(0,0,0,.45); align-items: center; justify-content: center;
+}
+#file-editor-overlay.open { display: flex; }
+#file-editor-dialog {
+  background: #fff; border-radius: 6px; box-shadow: 0 8px 32px rgba(0,0,0,.22);
+  width: 92vw; max-width: 960px; height: 80vh;
+  display: flex; flex-direction: column; overflow: hidden;
+}
+#file-editor-header {
+  display: flex; align-items: center; gap: 10px; padding: 10px 14px;
+  border-bottom: 1px solid #e0e4e8; background: #f5f7fa; flex-shrink: 0;
+}
+#file-editor-header .fe-filename {
+  flex: 1; font-family: 'Consolas', monospace; font-size: 12px;
+  font-weight: 700; color: #1e3a4a; word-break: break-all;
+}
+#file-editor-header .fe-close {
+  padding: 4px 10px; font-size: 11px; border: 1px solid #ccc;
+  border-radius: 3px; background: #fff; cursor: pointer;
+}
+#file-editor-header .fe-close:hover { background: #fef0f0; color: #c33; border-color: #c33; }
+#file-editor-body { flex: 1; overflow: hidden; position: relative; }
+.fe-editor-wrapper { position: relative; width: 100%; height: 100%; overflow: hidden; }
+.fe-line-numbers {
+  position: absolute; top: 0; left: 0; bottom: 0; width: 40px;
+  padding: 12px 6px 12px 0; background: #252526;
+  border-right: 1px solid #3e3e42;
+  font-family: 'Consolas', monospace; font-size: 12px; line-height: 1.5;
+  color: #858585; text-align: right; overflow: hidden; user-select: none;
+  z-index: 3; white-space: pre;
+}
+.fe-line-numbers .ln-err { color: #f44747; font-weight: bold; }
+#file-editor-highlight {
+  position: absolute; inset: 0; padding: 12px 12px 12px 52px; margin: 0;
+  font-family: 'Consolas', monospace; font-size: 12px; line-height: 1.5;
+  background: #1e1e1e; color: #d4d4d4; white-space: pre-wrap; word-wrap: break-word;
+  overflow: auto; pointer-events: none; tab-size: 2;
+}
+#file-editor-textarea {
+  position: absolute; inset: 0; padding: 12px 12px 12px 52px;
+  font-family: 'Consolas', monospace; font-size: 12px; line-height: 1.5;
+  background: transparent; color: transparent; caret-color: #d4d4d4;
+  border: none; outline: none; resize: none; tab-size: 2;
+  overflow: auto; z-index: 1; white-space: pre-wrap; word-wrap: break-word;
+  spellcheck: false;
+}
+#file-editor-textarea.valid   { box-shadow: inset 0 0 0 2px #27ae60; }
+#file-editor-textarea.invalid { box-shadow: inset 0 0 0 2px #c0392b; }
+.j-err-line { background: rgba(220,30,30,.28); border-left: 3px solid #e74c3c; display: block; margin-left: -3px; padding-left: 3px; }
+.j-err-col  { display: inline-block; width: 0; border-left: 2px solid #e74c3c;
+              height: 1.2em; vertical-align: text-bottom; margin: 0 -1px;
+              box-shadow: 0 0 4px #e74c3c; }
+/* ===== STAGING-TAB ===== */
+.staging-kuerzel-row {
+  display: flex; align-items: center; gap: 8px; padding: 6px 2px;
+  font-size: 12px; flex-shrink: 0; margin-top: 4px;
+}
+.staging-kuerzel-row label { font-weight: 600; color: #555; white-space: nowrap; }
+.staging-kuerzel-row input {
+  flex: 1; padding: 5px 8px; font-size: 12px; border: 1px solid #ccc;
+  border-radius: 4px; font-family: 'Consolas', monospace;
+}
+.staging-kuerzel-row input:focus { outline: none; border-color: var(--c-primary); }
+/* ===== STAGING SPLIT LAYOUT ===== */
+.staging-split  { display: flex; gap: 0; flex: 1; min-height: 0; overflow: hidden; }
+.staging-left   { display: flex; flex-direction: column; flex: 0 0 47%; border-right: 1px solid #e0e0e0; padding-right: 8px; overflow: hidden; min-height: 0; }
+.staging-right  { display: flex; flex-direction: column; flex: 1; padding-left: 8px; overflow: hidden; min-height: 0; }
+.stg-right-head { display: flex; align-items: center; gap: 4px; padding: 1px 0 5px; border-bottom: 1px solid #e8e8e8; flex-shrink: 0; }
+.stg-right-head > span { font-size: 11px; font-weight: 700; color: #555; flex: 1; }
+.stg-right-head button { font-size: 11px; padding: 2px 6px; border: 1px solid #ccc; border-radius: 3px; background: #f5f5f5; cursor: pointer; }
+.stg-right-head button:hover { background: #e8f4f4; }
+.stg-output-status { font-size: 11px; color: #888; padding: 3px 0; flex-shrink: 0; }
+.stg-output-list   { flex: 1; overflow-y: auto; min-height: 0; margin-top: 2px; }
+.stg-output-kuerzel { font-size: 11px; font-weight: 700; color: var(--c-primary); padding: 5px 2px 3px; display: flex; align-items: center; gap: 5px; border-top: 1px solid #e8e8e8; }
+.stg-output-kuerzel:first-child { border-top: none; }
+.stg-output-kuerzel label { cursor: pointer; flex: 1; margin: 0; font-weight: 700; }
+.stg-output-kuerzel input[type=checkbox] { margin: 0; flex-shrink: 0; }
+.stg-output-file { display: flex; align-items: center; gap: 4px; padding: 2px 4px 2px 16px; border-radius: 3px; }
+.stg-output-file:hover { background: #f0f7f7; }
+.stg-output-file .of-name { flex: 1; font-family: 'Consolas', monospace; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stg-output-file .of-size { color: #bbb; font-size: 10px; flex-shrink: 0; }
+.stg-output-file .of-edit { font-size: 10px; padding: 1px 5px; border: 1px solid #ccc; border-radius: 3px; background: transparent; cursor: pointer; color: #555; flex-shrink: 0; opacity: 0.6; }
+.stg-output-file .of-edit:hover { opacity: 1; background: #e8f4f4; }
+.stg-output-file.has-dups { background: #fef6f0; border-left: 3px solid #e67e22; }
+.stg-output-file .of-dup { font-size: 9px; color: #e67e22; font-weight: 700; flex-shrink: 0; cursor: help; }
+.stg-output-file.has-cross-dups { background: #fef0f0; border-left: 3px solid #c33; }
+.stg-output-file .of-cross-dup { font-size: 9px; color: #c33; font-weight: 700; flex-shrink: 0; cursor: help; }
+.stg-dup-detail { font-size: 10px; color: #c33; padding: 3px 4px 3px 20px; background: #fef0f0; border-radius: 3px; margin: 1px 0; font-family: 'Consolas', monospace; word-break: break-all; }
+.stg-cross-dup-detail { font-size: 10px; color: #c33; padding: 3px 4px 3px 20px; background: #fce4e4; border-radius: 3px; margin: 1px 0; font-family: 'Consolas', monospace; word-break: break-all; }
+.stg-cross-dup-summary { font-size: 11px; color: #c33; font-weight: 700; padding: 6px 8px; margin-bottom: 6px; background: #fce4e4; border: 1px solid #e8a; border-radius: 4px; }
+#file-editor-footer {
+  display: flex; align-items: center; gap: 8px; padding: 8px 14px;
+  border-top: 1px solid #e0e4e8; background: #f5f7fa; flex-shrink: 0;
+}
+#file-editor-status { flex: 1; font-size: 11px; }
+#file-editor-status.ok   { color: #2a8; }
+#file-editor-status.err  { color: #c33; }
+#file-editor-validate {
+  padding: 6px 14px; font-size: 12px; font-weight: 600;
+  background: #fff; color: #555; border: 1px solid #ccc; border-radius: 4px; cursor: pointer;
+}
+#file-editor-validate:hover { background: #f5f5f5; }
+#file-editor-save {
+  padding: 6px 18px; font-size: 12px; font-weight: 600;
+  background: #648C96; color: #fff; border: none; border-radius: 4px; cursor: pointer;
+}
+#file-editor-save:hover { background: #50737d; }
+#file-editor-save:disabled { opacity: .4; cursor: default; }
+/* Syntax-Highlighting */
+#file-editor-highlight .j-key  { color: #9cdcfe; }
+#file-editor-highlight .j-str  { color: #ce9178; }
+#file-editor-highlight .j-num  { color: #b5cea8; }
+#file-editor-highlight .j-bool { color: #569cd6; }
+#file-editor-highlight .j-null { color: #569cd6; }
 </style>
 </head>
 <body>
@@ -217,8 +355,9 @@ body {
 
   <!-- Tabs -->
   <div class="ags-tabs">
-    <button class="ags-tab active" data-tab="import">📥 Import</button>
-    <button class="ags-tab" data-tab="manage">📂 Verwalten</button>
+    <button class="ags-tab active" data-tab="import">① Import</button>
+    <button class="ags-tab" data-tab="manage">② Verwalten</button>
+    <button class="ags-tab" data-tab="staging">③ Staging</button>
   </div>
 
   <!-- ===== TAB: IMPORT ===== -->
@@ -233,6 +372,10 @@ body {
       <button id="import-sel-all">Alle</button>
       <button id="import-sel-none">Keine</button>
       <span class="sel-info" id="import-sel-info">0 ausgewählt</span>
+    </div>
+    <div class="ags-import-legend" id="import-legend" style="display:none">
+      <span class="leg-item"><span class="leg-dot-new"></span> Noch nicht importiert</span>
+      <span class="leg-item"><span class="leg-dot-imp"></span> Bereits importiert</span>
     </div>
     <div class="ags-list" id="import-list" style="display:none"></div>
     <div class="ags-result" id="import-result" style="display:none"></div>
@@ -270,6 +413,65 @@ body {
     </div>
   </div>
 
+  <!-- ===== TAB: STAGING ===== -->
+  <div class="ags-pane" id="pane-staging">
+    <div class="staging-split">
+      <!-- LINKS: Dienste auswählen & mergen -->
+      <div class="staging-left">
+        <div class="ags-status" id="staging-status">Lade Konfigurationen…</div>
+        <input type="text" class="ags-filter" id="staging-filter" placeholder="Dienste filtern…" style="display:none">
+        <div class="ags-select-bar" id="staging-select-bar" style="display:none">
+          <button id="staging-sel-all">Alle</button>
+          <button id="staging-sel-none">Keine</button>
+          <span class="sel-info" id="staging-sel-info">0 / 0 ausgewählt</span>
+        </div>
+        <div class="ags-svc-list" id="staging-svc-list"></div>
+        <div class="staging-kuerzel-row" id="staging-kuerzel-row" style="display:none">
+          <label for="staging-kuerzel">Kürzel</label>
+          <input type="text" id="staging-kuerzel" placeholder="z.B. ewn oder nodi_ch" maxlength="40">
+        </div>
+        <div class="ags-result" id="staging-result" style="display:none"></div>
+        <div class="ags-actions" id="staging-actions" style="display:none">
+          <span class="ags-selcount" id="staging-selcount"></span>
+          <span class="spacer"></span>
+          <button id="staging-btn-merge" class="primary" disabled>🔀 Mergen</button>
+        </div>
+      </div>
+      <!-- RECHTS: ImportToCore Ausgabe -->
+      <div class="staging-right">
+        <div class="stg-right-head">
+          <span>📁 ImportToCore</span>
+          <button id="stg-output-refresh" title="Aktualisieren">↻</button>
+          <button id="stg-output-delete-sel" class="danger" disabled title="Ausgewählte Kürzel löschen">🗑</button>
+        </div>
+        <div class="stg-output-status" id="stg-output-status">Lade…</div>
+        <div class="stg-output-list" id="stg-output-list"></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ===== DATEI-EDITOR-MODAL ===== -->
+<div id="file-editor-overlay">
+  <div id="file-editor-dialog">
+    <div id="file-editor-header">
+      <span class="fe-filename" id="file-editor-filename"></span>
+      <button class="fe-close" id="file-editor-close" title="Schliessen">✕</button>
+    </div>
+    <div id="file-editor-body">
+      <div class="fe-editor-wrapper">
+        <div class="fe-line-numbers" id="file-editor-line-numbers"></div>
+        <pre id="file-editor-highlight"></pre>
+        <textarea id="file-editor-textarea" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off"></textarea>
+      </div>
+    </div>
+    <div id="file-editor-footer">
+      <span id="file-editor-status"></span>
+      <button id="file-editor-validate">✓ Validieren</button>
+      <button id="file-editor-save">💾 Speichern</button>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -296,6 +498,8 @@ var _agsExportingCount = 0; // Anzahl laufender Exporte
 var _agsDeleting = false;   // Läuft gerade ein multi-delete?
 var _agsLastImportCheckbox = null;
 var _agsLastManageCheckbox = null;
+var _agsLastStagingCheckbox = null;
+var _importedServiceNames = {}; // Service-Namen die bereits in raw-conf vorhanden sind
 
 function applyShiftRangeSelection(checkboxes, fromCb, toCb, checkedState) {
   if (!fromCb || !toCb || !checkboxes || checkboxes.length === 0) return;
@@ -352,9 +556,16 @@ function switchTab(tabName) {
   if (pane) pane.classList.add('active');
 
   if (tabName === 'import') {
-    if (_agsServices.length === 0) loadAgsServices();
+    if (_agsServices.length === 0) {
+      loadAgsServices();
+    } else {
+      loadImportedNamesSilent(); // Markierungen aus Verwalten-Daten auffrischen
+    }
   } else if (tabName === 'manage') {
     loadRawConfList();
+  } else if (tabName === 'staging') {
+    loadStagingList();
+    loadStagingOutput();
   }
 }
 
@@ -412,12 +623,34 @@ function loadAgsServices() {
       statusEl.textContent = services.length + ' Dienste verfügbar';
       statusEl.className = 'ags-status success';
       renderImportList(services);
+      loadImportedNamesSilent(); // Verwalten-Daten nachladen für Markierungen
     })
     .catch(function(err) {
       console.error('AGS-Services laden fehlgeschlagen:', err);
       statusEl.textContent = 'Fehler: ' + err.message;
       statusEl.className = 'ags-status error';
     });
+}
+
+/**
+ * Bereits importierte Service-Namen still aus raw-conf nachladen (ohne Verwalten-UI zu berühren)
+ */
+function loadImportedNamesSilent() {
+  fetch(API_URL + '?action=ags-list-raw')
+    .then(function(r) { return r.json(); })
+    .then(function(resp) {
+      if (!resp.success || !resp.data || !resp.data.services) return;
+      _importedServiceNames = {};
+      resp.data.services.forEach(function(s) {
+        var k = s.service.toLowerCase();
+        _importedServiceNames[k] = true;
+        // Auch letztes Pfad-Segment speichern ("ewn/ewn_nis_gwr" → "ewn_nis_gwr")
+        var sl = k.lastIndexOf('/');
+        if (sl !== -1) _importedServiceNames[k.substring(sl + 1)] = true;
+      });
+      refreshImportImportedMarkers();
+    })
+    .catch(function() {}); // Stilles Scheitern — Import-Tab bleibt funktionsfähig
 }
 
 /**
@@ -462,7 +695,35 @@ function renderImportList(services) {
   filterEl.value = '';
   selectBar.style.display = 'flex';
   actionsEl.style.display = 'flex';
+  refreshImportImportedMarkers();
   updateImportSelCount();
+}
+
+/**
+ * Bereits importierte Dienste farblich markieren und Legende ein-/ausblenden
+ */
+function refreshImportImportedMarkers() {
+  var hasAny = Object.keys(_importedServiceNames).length > 0;
+  var legend = document.getElementById('import-legend');
+  var listEl = document.getElementById('import-list');
+  if (legend) legend.style.display = (hasAny && listEl && listEl.children.length) ? '' : 'none';
+  document.querySelectorAll('#import-list .ags-item').forEach(function(div) {
+    var name = div.dataset.name; // bereits lowercase
+    // Vergleich: raw-conf nutzt flache Keys (awu_awu_zustand), AGS-Namen haben Slash (awu/awu_zustand)
+    var isImp = !!_importedServiceNames[name]
+             || !!_importedServiceNames[name.replace('\/', '_')]
+             || !!_importedServiceNames[name.substring(name.lastIndexOf('\/') + 1)];
+    div.classList.toggle('imported', isImp);
+    var existing = div.querySelector('.ags-imported-badge');
+    if (isImp && !existing) {
+      var badge = document.createElement('span');
+      badge.className = 'ags-imported-badge';
+      badge.textContent = '\u2713 importiert';
+      div.appendChild(badge);
+    } else if (!isImp && existing) {
+      existing.remove();
+    }
+  });
 }
 
 /**
@@ -518,7 +779,7 @@ function exportAgsServices() {
       var failedCount = data.failedFiles ? data.failedFiles.length : 0;
 
       if (savedCount > 0 && failedCount === 0) {
-        statusEl.textContent = '✓ Export abgeschlossen (' + runLabel + '): ' + savedCount + ' Dateien in data/Client_Data/nwow/raw-conf/ gespeichert';
+        statusEl.textContent = '✓ Export abgeschlossen (' + runLabel + '): ' + savedCount + ' Dateien in data/Client_Data/nwow/tmp/raw-conf/ gespeichert';
         statusEl.className = 'ags-status success';
       } else if (savedCount > 0 && failedCount > 0) {
         statusEl.textContent = '⚠ Export teilweise (' + runLabel + '): ' + savedCount + ' gespeichert, ' + failedCount + ' fehlgeschlagen';
@@ -562,6 +823,11 @@ function exportAgsServices() {
         resultEl.innerHTML = html + '<hr style="border:none;border-top:1px solid #eee;margin:8px 0">' + resultEl.innerHTML;
         resultEl.style.display = '';
       }
+      // Selektion leeren
+      document.querySelectorAll('#import-list input:checked').forEach(function(cb) { cb.checked = false; });
+      // Neu importierte markieren
+      dienstnamen.forEach(function(n) { _importedServiceNames[n.toLowerCase()] = true; });
+      refreshImportImportedMarkers();
       updateImportSelCount();
     })
     .catch(function(err) {
@@ -625,13 +891,22 @@ function loadRawConfList() {
         statusEl.className = 'ags-status';
         return;
       }
-      statusEl.textContent = data.services.length + ' Services, ' + data.files.length + ' Dateien in data/Client_Data/nwow/raw-conf/';
+      statusEl.textContent = data.services.length + ' Services, ' + data.files.length + ' Dateien in data/Client_Data/nwow/tmp/raw-conf/';
       statusEl.className = 'ags-status success';
       filterEl.style.display = '';
       filterEl.value = '';
       selectBar.style.display = 'flex';
       actionsEl.style.display = 'flex';
       renderManageList(data.services);
+      // _importedServiceNames für Import-Tab aktualisieren
+      _importedServiceNames = {};
+      data.services.forEach(function(s) {
+        var k = s.service.toLowerCase();
+        _importedServiceNames[k] = true;
+        var sl = k.lastIndexOf('/');
+        if (sl !== -1) _importedServiceNames[k.substring(sl + 1)] = true;
+      });
+      refreshImportImportedMarkers();
     })
     .catch(function(err) {
       console.error('raw-conf laden fehlgeschlagen:', err);
@@ -657,8 +932,13 @@ function renderManageList(services) {
 
     var head = document.createElement('div');
     head.className = 'ags-svc-head';
+    // Statischer HTML-Inhalt zuerst setzen (innerHTML += würde Listener auf später angehängten Nodes zerstören)
+    head.innerHTML = '<span class="svc-arrow">▶</span>'
+      + '<span class="svc-name">' + svc.service + '</span>'
+      + '<span class="svc-badge">' + svc.files.length + ' Dateien</span>'
+      + '<span class="svc-size">' + totalSize + '</span>';
 
-    // Checkbox für Multi-Select
+    // Checkbox für Multi-Select — nach innerHTML anhängen, damit Listener intakt bleibt
     var cb = document.createElement('input');
     cb.type = 'checkbox';
     cb.dataset.svc = svc.service;
@@ -671,12 +951,7 @@ function renderManageList(services) {
       _agsLastManageCheckbox = cb;
       updateManageSelCount();
     });
-
-    head.appendChild(cb);
-    head.innerHTML += '<span class="svc-arrow">▶</span>'
-      + '<span class="svc-name">' + svc.service + '</span>'
-      + '<span class="svc-badge">' + svc.files.length + ' Dateien</span>'
-      + '<span class="svc-size">' + totalSize + '</span>';
+    head.insertBefore(cb, head.firstChild);
 
     // Einzel-Löschen-Button
     var delBtn = document.createElement('button');
@@ -706,6 +981,17 @@ function renderManageList(services) {
       fileEl.innerHTML = '<span class="sf-name">' + shortName + (f.isBackup ? ' <span style="color:#c0392b">(Backup)</span>' : '') + '</span>'
         + '<span class="sf-size">' + fSize + '</span>'
         + '<span class="sf-date">' + f.modified + '</span>';
+      // Edit-Button
+      var editBtn = document.createElement('button');
+      editBtn.className = 'sf-edit';
+      editBtn.textContent = '✏️';
+      editBtn.title = 'Datei anzeigen / bearbeiten';
+      editBtn.dataset.relFile = f.file;
+      editBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        openFileEditor(f.file);
+      });
+      fileEl.appendChild(editBtn);
       filesDiv.appendChild(fileEl);
     });
 
@@ -916,14 +1202,610 @@ function deleteSelectedBackups() {
 }
 
 // =====================================================================
-// EVENT-HANDLER
+// DATEI-EDITOR
 // =====================================================================
 
-// Aktualisieren-Button
+/**
+ * Highlighting im Editor aktualisieren
+ */
+function updateEditorHighlight() {
+  var textarea  = document.getElementById('file-editor-textarea');
+  var highlight = document.getElementById('file-editor-highlight');
+  var lineNums  = document.getElementById('file-editor-line-numbers');
+  var text = textarea.value;
+  var lines = text.split('\n');
+  // Zeilennummern
+  var nums = lines.map(function(_, i) {
+    return i + 1 === _feErrorLine
+      ? '<span class="ln-err">' + (i + 1) + '</span>'
+      : (i + 1);
+  }).join('\n');
+  lineNums.innerHTML = nums + '\n';
+  // Syntax-Highlighting
+  var html;
+  if (_feIsJson) {
+    html = syntaxHighlightJson(text);
+  } else {
+    html = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+  // Fehlerzeile + Spaltenmarkierung
+  if (_feErrorLine) {
+    var parts = html.split('\n');
+    var idx = _feErrorLine - 1;
+    if (idx < parts.length) {
+      parts[idx] = '<span class="j-err-line">' + insertColMarker(parts[idx], _feErrorCol) + '</span>';
+    }
+    html = parts.join('\n');
+  }
+  highlight.innerHTML = html + '\n';
+  // Zur Fehlerzeile scrollen
+  if (_feErrorLine) {
+    var lh = parseFloat(getComputedStyle(highlight).lineHeight) || 18;
+    var target = Math.max(0, (_feErrorLine - 1) * lh - highlight.clientHeight / 2 + lh);
+    highlight.scrollTop = target;
+    textarea.scrollTop  = target;
+    lineNums.scrollTop  = target;
+  } else {
+    highlight.scrollTop  = textarea.scrollTop;
+    highlight.scrollLeft = textarea.scrollLeft;
+    lineNums.scrollTop   = textarea.scrollTop;
+  }
+}
+
+function getJsonErrorPos(str, errMsg) {
+  var line = null, col = null;
+  var mLine = errMsg.match(/line\s+(\d+)/i);
+  var mCol  = errMsg.match(/column\s+(\d+)/i);
+  if (mLine) line = parseInt(mLine[1], 10);
+  if (mCol)  col  = parseInt(mCol[1],  10);
+  if (!line) {
+    var mPos = errMsg.match(/position\s+(\d+)/i);
+    if (mPos) {
+      var pos    = parseInt(mPos[1], 10);
+      var before = str.substring(0, pos);
+      line = before.split('\n').length;
+      col  = pos - before.lastIndexOf('\n');
+    }
+  }
+  return { line: line, col: col };
+}
+
+function insertColMarker(htmlLine, col) {
+  if (!col || col < 1) return htmlLine;
+  var count = 0, i = 0, s = htmlLine;
+  while (i < s.length && count < col - 1) {
+    if (s[i] === '<') { while (i < s.length && s[i] !== '>') i++; i++; }
+    else if (s[i] === '&') { while (i < s.length && s[i] !== ';') i++; i++; count++; }
+    else { i++; count++; }
+  }
+  return s.slice(0, i) + '<span class="j-err-col" title="Fehler hier"></span>' + s.slice(i);
+}
+
+/**
+ * JSON validieren (und bei Gültigkeit formatieren)
+ */
+function validateFileEditor() {
+  var textarea = document.getElementById('file-editor-textarea');
+  var statusEl = document.getElementById('file-editor-status');
+  if (!_feIsJson) {
+    statusEl.textContent = 'Keine JSON-Datei — Validierung nicht verfügbar';
+    statusEl.className = '';
+    return;
+  }
+  var result = validateJsonText(textarea.value);
+  if (result.valid) {
+    _feErrorLine = null; _feErrorCol = null;
+    try {
+      textarea.value = JSON.stringify(JSON.parse(textarea.value), null, 2);
+      updateEditorHighlight();
+    } catch(e) {}
+    statusEl.textContent = '✓ Gültiges JSON (formatiert)';
+    statusEl.className = 'ok';
+    textarea.className = 'valid';
+  } else {
+    var ep = getJsonErrorPos(textarea.value, result.error);
+    _feErrorLine = ep.line; _feErrorCol = ep.col;
+    updateEditorHighlight();
+    var loc = ep.line ? ' (Zeile ' + ep.line + (ep.col ? ', Spalte ' + ep.col : '') + ')' : '';
+    statusEl.textContent = '✗ ' + result.error + loc;
+    statusEl.className = 'err';
+    textarea.className = 'invalid';
+  }
+}
+
+/**
+ * JSON-String mit Syntax-Highlighting in HTML umwandeln
+ */
+function syntaxHighlightJson(str) {
+  // Escape HTML-Sonderzeichen zuerst
+  var escaped = str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+  // Dann Tokens einfärben
+  return escaped.replace(
+    /("[^"\\]*(?:\\.[^"\\]*)*")\s*:/g,  // Keys
+    '<span class="j-key">$1</span>:'
+  ).replace(
+    /:\s*("[^"\\]*(?:\\.[^"\\]*)*")/g,   // String-Values
+    ': <span class="j-str">$1</span>'
+  ).replace(
+    /:\s*(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)/g, // Number-Values
+    ': <span class="j-num">$1</span>'
+  ).replace(
+    /:\s*(true|false)/g,                 // Boolean-Values
+    ': <span class="j-bool">$1</span>'
+  ).replace(
+    /:\s*(null)/g,                       // Null-Values
+    ': <span class="j-null">$1</span>'
+  );
+}
+
+/**
+ * JSON-Text validieren; gibt {valid, error} zurück
+ */
+function validateJsonText(str) {
+  try {
+    JSON.parse(str);
+    return { valid: true, error: null };
+  } catch (e) {
+    return { valid: false, error: e.message };
+  }
+}
+
+/** Aktuell im Editor geöffneter Datei-Pfad */
+var _feCurrentFile = null;
+/** API-Actions für Lesen/Schreiben (können per openFileEditor überschrieben werden) */
+var _feReadAction  = 'ags-read-raw';
+var _feWriteAction = 'ags-write-raw';
+var _feAfterSave   = null; // Callback nach erfolgreichem Speichern
+/** true wenn die Datei eine JSON-Datei ist */
+var _feIsJson = false;
+/** Fehler-Zeilennummer für Highlighting (null = kein Fehler) */
+var _feErrorLine = null;
+var _feErrorCol  = null;
+
+/**
+ * Datei im Editor öffnen (lädt Inhalt vom Server)
+ */
+function openFileEditor(relPath, readAction, writeAction, afterSave) {
+  var overlay    = document.getElementById('file-editor-overlay');
+  var filenameEl = document.getElementById('file-editor-filename');
+  var textarea   = document.getElementById('file-editor-textarea');
+  var highlight  = document.getElementById('file-editor-highlight');
+  var statusEl   = document.getElementById('file-editor-status');
+  var saveBtn    = document.getElementById('file-editor-save');
+
+  _feCurrentFile = relPath;
+  _feIsJson = /\.(json5?|conf)$/i.test(relPath);
+  _feReadAction  = readAction  || 'ags-read-raw';
+  _feWriteAction = writeAction || 'ags-write-raw';
+  _feAfterSave   = afterSave   || null;
+
+  filenameEl.textContent = relPath;
+  textarea.value = 'Lade…';
+  highlight.textContent = 'Lade…';
+  textarea.className = '';
+  _feErrorLine = null; _feErrorCol = null;
+  statusEl.textContent = '';
+  statusEl.className = '';
+  saveBtn.disabled = true;
+
+  overlay.classList.add('open');
+
+  fetch(API_URL + '?action=' + _feReadAction + '&file=' + encodeURIComponent(relPath))
+    .then(function(r) { return r.json(); })
+    .then(function(resp) {
+      if (!resp.success) throw new Error(resp.error || 'Fehler');
+      textarea.value = resp.data.content;
+      updateEditorHighlight();
+      saveBtn.disabled = false;
+      if (_feIsJson) {
+        var result = validateJsonText(resp.data.content);
+        textarea.className = result.valid ? 'valid' : 'invalid';
+        statusEl.textContent = result.valid ? '✓ Gültiges JSON' : '✗ ' + result.error;
+        statusEl.className = result.valid ? 'ok' : 'err';
+      } else {
+        statusEl.textContent = resp.data.size + ' Bytes';
+        statusEl.className = '';
+      }
+    })
+    .catch(function(err) {
+      textarea.value = '';
+      highlight.textContent = '';
+      saveBtn.disabled = true;
+      statusEl.textContent = 'Fehler beim Laden: ' + err.message;
+      statusEl.className = 'err';
+    });
+}
+
+/**
+ * Editor-Tab wechseln (Bearbeiten / Vorschau) — wird nicht mehr benötigt, bleibt als Stub
+ */
+function switchEditorTab(tabName) {}
+
+/**
+ * Datei speichern (POST ags-write-raw)
+ */
+function saveFileEditor() {
+  if (!_feCurrentFile) return;
+  var textarea = document.getElementById('file-editor-textarea');
+  var statusEl = document.getElementById('file-editor-status');
+  var saveBtn  = document.getElementById('file-editor-save');
+
+  // Bei JSON-Dateien vor dem Speichern validieren
+  if (_feIsJson) {
+    var result = validateJsonText(textarea.value);
+    if (!result.valid) {
+      if (!confirm('Das JSON ist ungültig:\n' + result.error + '\n\nTrotzdem speichern?')) return;
+    }
+  }
+
+  saveBtn.disabled = true;
+  statusEl.textContent = 'Speichere…';
+  statusEl.className = '';
+
+  fetch(API_URL + '?action=' + _feWriteAction, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ file: _feCurrentFile, content: textarea.value })
+  })
+    .then(function(r) {
+      if (!r.ok && r.status !== 200) return r.text().then(function(t) { throw new Error('HTTP ' + r.status + (t ? ': ' + t.substring(0, 120) : '')); });
+      return r.json();
+    })
+    .then(function(resp) {
+      saveBtn.disabled = false;
+      if (!resp.success) throw new Error(resp.error || 'Speichern fehlgeschlagen');
+      var d = resp.data;
+      statusEl.textContent = '✓ Gespeichert (' + (d.bytes / 1024).toFixed(1) + ' KB)';
+      if (d.backupCreated) statusEl.textContent += ' — Backup: ' + d.backup;
+      statusEl.className = 'ok';
+      if (_feAfterSave) _feAfterSave(); else loadRawConfList();
+    })
+    .catch(function(err) {
+      saveBtn.disabled = false;
+      statusEl.textContent = '✗ Fehler: ' + err.message;
+      statusEl.className = 'err';
+    });
+}
+
+// =====================================================================
+// STAGING-TAB
+// =====================================================================
+
+/**
+ * Verfügbare Dienste aus raw-conf für Staging laden
+ */
+function loadStagingList() {
+  var statusEl  = document.getElementById('staging-status');
+  var listEl    = document.getElementById('staging-svc-list');
+  var filterEl  = document.getElementById('staging-filter');
+  var selectBar = document.getElementById('staging-select-bar');
+  var kRow      = document.getElementById('staging-kuerzel-row');
+  var actionsEl = document.getElementById('staging-actions');
+
+  statusEl.textContent = 'Lade bestehende Konfigurationen…';
+  statusEl.className = 'ags-status';
+  listEl.innerHTML = '';
+  filterEl.style.display = 'none';
+  selectBar.style.display = 'none';
+  kRow.style.display = 'none';
+  actionsEl.style.display = 'none';
+
+  fetch(API_URL + '?action=ags-list-raw')
+    .then(function(r) { return r.json(); })
+    .then(function(resp) {
+      if (!resp.success) throw new Error(resp.error || 'Fehler');
+      var data = resp.data;
+      if (!data.exists || !data.services || data.services.length === 0) {
+        statusEl.textContent = 'Keine Konfigurationen in raw-conf vorhanden.';
+        return;
+      }
+      statusEl.textContent = data.services.length + ' Dienste verfügbar';
+      statusEl.className = 'ags-status success';
+      filterEl.style.display = '';
+      filterEl.value = '';
+      selectBar.style.display = 'flex';
+      kRow.style.display = 'flex';
+      actionsEl.style.display = 'flex';
+      renderStagingList(data.services);
+    })
+    .catch(function(err) {
+      statusEl.textContent = 'Fehler: ' + err.message;
+      statusEl.className = 'ags-status error';
+    });
+}
+
+/**
+ * Staging-Dienstliste rendern (ohne Delete-Button, ohne Edit)
+ */
+function renderStagingList(services) {
+  var listEl = document.getElementById('staging-svc-list');
+  listEl.innerHTML = '';
+  _agsLastStagingCheckbox = null;
+
+  services.forEach(function(svc, i) {
+    var totalSize = svc.totalSize > 1024 ? (svc.totalSize / 1024).toFixed(1) + ' KB' : svc.totalSize + ' B';
+    var group = document.createElement('div');
+    group.className = 'ags-svc-group';
+    group.dataset.svcname = svc.service.toLowerCase();
+    group.dataset.svckey  = svc.service;
+
+    var head = document.createElement('div');
+    head.className = 'ags-svc-head';
+    head.innerHTML = '<span class="svc-arrow">▶</span>'
+      + '<span class="svc-name">' + svc.service + '</span>'
+      + '<span class="svc-badge">' + svc.files.length + ' Dateien</span>'
+      + '<span class="svc-size">' + totalSize + '</span>';
+
+    var cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.dataset.svc = svc.service;
+    cb.id = 'stg-cb-' + i;
+    cb.addEventListener('click', function(e) {
+      e.stopPropagation();
+      if (e.shiftKey && _agsLastStagingCheckbox) {
+        applyShiftRangeSelection(getVisibleStagingCheckboxes(), _agsLastStagingCheckbox, cb, cb.checked);
+      }
+      _agsLastStagingCheckbox = cb;
+      updateStagingSelCount();
+    });
+    head.insertBefore(cb, head.firstChild);
+
+    head.addEventListener('click', function(e) {
+      if (e.target.tagName === 'INPUT') return;
+      group.classList.toggle('open');
+    });
+
+    // Datei-Liste
+    var fileList = document.createElement('div');
+    fileList.className = 'ags-svc-files';
+    svc.files.forEach(function(f) {
+      var row = document.createElement('div');
+      row.className = 'ags-svc-file';
+      var size = f.size > 1024 ? (f.size / 1024).toFixed(1) + ' KB' : f.size + ' B';
+      row.innerHTML = '<span class="sf-name">' + f.file + '</span><span class="sf-size">' + size + '</span>';
+      fileList.appendChild(row);
+    });
+
+    group.appendChild(head);
+    group.appendChild(fileList);
+    listEl.appendChild(group);
+  });
+
+  updateStagingSelCount();
+}
+
+function getVisibleStagingCheckboxes() {
+  return Array.prototype.filter.call(
+    document.querySelectorAll('#staging-svc-list .ags-svc-group input[type=checkbox]'),
+    function(cb) {
+      var row = cb.closest('.ags-svc-group');
+      return row && row.style.display !== 'none';
+    }
+  );
+}
+
+function updateStagingSelCount() {
+  var checked = document.querySelectorAll('#staging-svc-list input:checked');
+  var total   = document.querySelectorAll('#staging-svc-list input[type=checkbox]');
+  document.getElementById('staging-sel-info').textContent = checked.length + ' / ' + total.length + ' ausgewählt';
+  document.getElementById('staging-selcount').textContent = checked.length + ' Dienste ausgewählt';
+  var kuerzel = (document.getElementById('staging-kuerzel').value || '').trim();
+  document.getElementById('staging-btn-merge').disabled = (checked.length === 0 || kuerzel === '');
+}
+
+/**
+ * Gewählte Dienste zusammenführen und in ImportToCore schreiben
+ */
+function executeStagingMerge() {
+  var checkboxes = document.querySelectorAll('#staging-svc-list input:checked');
+  var services = [];
+  checkboxes.forEach(function(cb) { services.push(cb.dataset.svc); });
+  var kuerzel = (document.getElementById('staging-kuerzel').value || '').trim();
+  if (services.length === 0 || !kuerzel) return;
+
+  var btn = document.getElementById('staging-btn-merge');
+  var resultEl = document.getElementById('staging-result');
+  var statusEl = document.getElementById('staging-status');
+  btn.disabled = true;
+  statusEl.textContent = 'Zusammenführen läuft…';
+  statusEl.className = 'ags-status';
+  resultEl.style.display = 'none';
+
+  fetch(API_URL + '?action=ags-stage-merge', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ services: services, kuerzel: kuerzel })
+  })
+    .then(function(r) { return r.json(); })
+    .then(function(resp) {
+      btn.disabled = false;
+      if (!resp.success) throw new Error(resp.error || 'Merge fehlgeschlagen');
+      var d = resp.data;
+      statusEl.textContent = '✓ ' + d.files.length + ' Dateien → ImportToCore/' + d.kuerzel + '/';
+      statusEl.className = 'ags-status success';
+      var html = '';
+      // Duplikat-Warnungen (neues Format: keys = [{key, count, sources}])
+      if (d.duplicates && d.duplicates.length) {
+        statusEl.textContent += ' — ⚠ Duplikate!';
+        statusEl.className = 'ags-status';
+        statusEl.style.color = '#e67e22';
+        d.duplicates.forEach(function(dup) {
+          html += '<div style="color:#e67e22;font-weight:700;font-size:11px;margin:4px 0 2px">⚠ ' + dup.file + ': ' + dup.count + ' doppelte Keys</div>';
+          dup.keys.forEach(function(dk) {
+            var src = dk.sources ? dk.sources.join(', ') : '';
+            html += '<div style="font-size:10px;color:#c33;padding-left:12px;font-family:Consolas,monospace">• ' + dk.key + ' <span style="color:#999">(' + src + ')</span></div>';
+          });
+        });
+      }
+      if (d.errors && d.errors.length) {
+        html += '<div style="color:#c33;font-size:11px">Warnungen: ' + d.errors.join('; ') + '</div>';
+      }
+      if (html) { resultEl.innerHTML = html; resultEl.style.display = ''; }
+      else { resultEl.style.display = 'none'; }
+      updateStagingSelCount();
+      loadStagingOutput(); // Rechtes Panel aktualisieren
+    })
+    .catch(function(err) {
+      btn.disabled = false;
+      statusEl.textContent = '✗ Fehler: ' + err.message;
+      statusEl.className = 'ags-status error';
+    });
+}
+
+// =====================================================================
+// STAGING RECHTS: ImportToCore Ausgabe
+// =====================================================================
+
+function loadStagingOutput() {
+  var listEl   = document.getElementById('stg-output-list');
+  var statusEl = document.getElementById('stg-output-status');
+  var delBtn   = document.getElementById('stg-output-delete-sel');
+  listEl.innerHTML = '';
+  statusEl.textContent = 'Lade…';
+  delBtn.disabled = true;
+  fetch(API_URL + '?action=staging-list-output')
+    .then(function(r) { return r.json(); })
+    .then(function(resp) {
+      if (!resp.success) throw new Error(resp.error || 'Fehler');
+      var d = resp.data;
+      if (!d.exists || !d.kuerzel || d.kuerzel.length === 0) {
+        statusEl.textContent = 'Noch keine Ausgaben vorhanden.';
+        return;
+      }
+      statusEl.textContent = d.kuerzel.length + ' Kürzel';
+      renderStagingOutput(d.kuerzel);
+      // Cross-Kürzel Duplikat-Zusammenfassung
+      var crossTotal = 0;
+      d.kuerzel.forEach(function(k) { k.files.forEach(function(f) { if (f.crossDuplicateKeys && f.crossDuplicateKeys.length) crossTotal += f.crossDuplicateKeys.length; }); });
+      if (crossTotal > 0) {
+        var warn = document.createElement('div');
+        warn.className = 'stg-cross-dup-summary';
+        warn.textContent = '⚠ ' + crossTotal + ' kürzelübergreifende Key-Konflikte erkannt!';
+        listEl.insertBefore(warn, listEl.firstChild);
+      }
+    })
+    .catch(function(err) { statusEl.textContent = '✗ ' + err.message; });
+}
+
+function renderStagingOutput(kuerzelList) {
+  var listEl = document.getElementById('stg-output-list');
+  listEl.innerHTML = '';
+  kuerzelList.forEach(function(k) {
+    var totalKB = k.size > 1024 ? (k.size / 1024).toFixed(1) + ' KB' : k.size + ' B';
+    var hdr = document.createElement('div');
+    hdr.className = 'stg-output-kuerzel';
+    var cb = document.createElement('input');
+    cb.type = 'checkbox'; cb.dataset.kuerzel = k.kuerzel; cb.id = 'stg-out-cb-' + k.kuerzel;
+    cb.addEventListener('change', function() {
+      var any = !!document.querySelector('#stg-output-list input[type=checkbox]:checked');
+      document.getElementById('stg-output-delete-sel').disabled = !any;
+    });
+    var lbl = document.createElement('label');
+    lbl.htmlFor = 'stg-out-cb-' + k.kuerzel;
+    lbl.innerHTML = '<b>' + k.kuerzel + '</b>&nbsp;<span style="font-weight:400;color:#888;font-size:10px">(' + k.files.length + ' Dateien, ' + totalKB + ')</span>';
+    hdr.appendChild(cb); hdr.appendChild(lbl);
+    listEl.appendChild(hdr);
+    k.files.forEach(function(f) {
+      var row = document.createElement('div');
+      row.className = 'stg-output-file';
+      var sz = f.size > 1024 ? (f.size / 1024).toFixed(1) + ' KB' : f.size + ' B';
+      var nameEl = document.createElement('span'); nameEl.className = 'of-name'; nameEl.textContent = f.name; nameEl.title = f.file;
+      var sizeEl = document.createElement('span'); sizeEl.className = 'of-size'; sizeEl.textContent = sz;
+      // Duplikat-Badge (neues Format: [{key, count, sources}])
+      if (f.duplicateKeys && f.duplicateKeys.length) {
+        row.classList.add('has-dups');
+        var dupBadge = document.createElement('span');
+        dupBadge.className = 'of-dup';
+        dupBadge.textContent = '⚠ ' + f.duplicateKeys.length + ' Dups';
+        // Tooltip mit Keys und Quell-Dateien
+        var tipLines = f.duplicateKeys.map(function(dk) {
+          var src = dk.sources ? dk.sources.join(' + ') : '';
+          return dk.key + ' (' + src + ')';
+        });
+        dupBadge.title = 'Doppelte Keys:\n' + tipLines.join('\n');
+        row.appendChild(nameEl); row.appendChild(dupBadge);
+      } else {
+        row.appendChild(nameEl);
+      }
+      row.appendChild(sizeEl);
+      var editBtn = document.createElement('button'); editBtn.className = 'of-edit'; editBtn.title = 'Bearbeiten'; editBtn.textContent = '✏';
+      editBtn.addEventListener('click', function() {
+        openFileEditor(f.file, 'staging-read-output', 'staging-write-output', loadStagingOutput);
+      });
+      row.appendChild(editBtn);
+      listEl.appendChild(row);
+      // Intra-Kürzel Duplikat-Detail-Zeilen (aufklappbar per Badge-Klick)
+      if (f.duplicateKeys && f.duplicateKeys.length) {
+        var dupWrap = document.createElement('div');
+        dupWrap.className = 'stg-dup-details-wrap';
+        dupWrap.style.display = 'none';
+        f.duplicateKeys.forEach(function(dk) {
+          var dd = document.createElement('div');
+          dd.className = 'stg-dup-detail';
+          var src = dk.sources ? dk.sources.join(' + ') : '';
+          dd.innerHTML = '• <b>' + dk.key + '</b> <span style="color:#999">(' + src + ')</span>';
+          dupWrap.appendChild(dd);
+        });
+        listEl.appendChild(dupWrap);
+        var dupBadgeEl = row.querySelector('.of-dup');
+        if (dupBadgeEl) { dupBadgeEl.style.cursor = 'pointer'; dupBadgeEl.addEventListener('click', function() { dupWrap.style.display = dupWrap.style.display === 'none' ? '' : 'none'; }); }
+      }
+      // Kürzelübergreifende Duplikat (aufklappbar per Badge-Klick)
+      if (f.crossDuplicateKeys && f.crossDuplicateKeys.length) {
+        if (!row.classList.contains('has-dups')) {
+          row.classList.add('has-cross-dups');
+        }
+        var crossBadge = document.createElement('span');
+        crossBadge.className = 'of-cross-dup';
+        crossBadge.textContent = '✗ ' + f.crossDuplicateKeys.length + ' Konflikte';
+        var crossTip = f.crossDuplicateKeys.map(function(cd) { return cd.key + ' ↔ ' + cd.conflictsWith.join(', '); });
+        crossBadge.title = 'Kürzelübergreifende Konflikte:\n' + crossTip.join('\n');
+        crossBadge.style.cursor = 'pointer';
+        row.insertBefore(crossBadge, editBtn);
+        var crossWrap = document.createElement('div');
+        crossWrap.className = 'stg-dup-details-wrap';
+        crossWrap.style.display = 'none';
+        f.crossDuplicateKeys.forEach(function(cd) {
+          var dd = document.createElement('div');
+          dd.className = 'stg-cross-dup-detail';
+          dd.innerHTML = '✗ <b>' + cd.key + '</b> <span style="color:#999">↔ ' + cd.conflictsWith.join(', ') + '</span>';
+          crossWrap.appendChild(dd);
+        });
+        listEl.appendChild(crossWrap);
+        crossBadge.addEventListener('click', function() { crossWrap.style.display = crossWrap.style.display === 'none' ? '' : 'none'; });
+      }
+    });
+  });
+}
+
+function deleteStagingOutputFiles() {
+  var checked = document.querySelectorAll('#stg-output-list input[type=checkbox]:checked');
+  var items = [];
+  checked.forEach(function(cb) { items.push(cb.dataset.kuerzel); });
+  if (items.length === 0) return;
+  if (!confirm('Löschen:\n' + items.join('\n'))) return;
+  fetch(API_URL + '?action=staging-delete-output', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ kuerzel: items })
+  })
+    .then(function(r) { return r.json(); })
+    .then(function() { loadStagingOutput(); })
+    .catch(function() { loadStagingOutput(); });
+}
+
+// =====================================================================
+// EVENT-HANDLER
+// =====================================================================
 document.getElementById('ags-btn-refresh').addEventListener('click', function() {
   var activeTab = document.querySelector('.ags-tab.active');
   if (activeTab && activeTab.dataset.tab === 'manage') {
     loadRawConfList();
+  } else if (activeTab && activeTab.dataset.tab === 'staging') {
+    loadStagingList();
   } else {
     _agsServices = [];
     loadAgsServices();
@@ -981,6 +1863,82 @@ document.getElementById('manage-sel-none').addEventListener('click', function() 
 // Verwalten-Tab: Multi-Delete-Button
 document.getElementById('manage-btn-delete').addEventListener('click', deleteSelectedServices);
 document.getElementById('manage-btn-delete-backups').addEventListener('click', deleteSelectedBackups);
+
+// Staging-Tab: Filter
+document.getElementById('staging-filter').addEventListener('input', function() {
+  var term = this.value.toLowerCase();
+  document.querySelectorAll('#staging-svc-list .ags-svc-group').forEach(function(grp) {
+    grp.style.display = (term && grp.dataset.svcname.indexOf(term) === -1) ? 'none' : '';
+  });
+  updateStagingSelCount();
+});
+// Staging-Tab: Alle / Keine
+document.getElementById('staging-sel-all').addEventListener('click', function() {
+  document.querySelectorAll('#staging-svc-list .ags-svc-group:not([style*="display: none"]) input').forEach(function(cb) { cb.checked = true; });
+  _agsLastStagingCheckbox = null; updateStagingSelCount();
+});
+document.getElementById('staging-sel-none').addEventListener('click', function() {
+  document.querySelectorAll('#staging-svc-list input').forEach(function(cb) { cb.checked = false; });
+  _agsLastStagingCheckbox = null; updateStagingSelCount();
+});
+// Staging-Tab: Kürzel-Input (Button-State aktualisieren)
+document.getElementById('staging-kuerzel').addEventListener('input', updateStagingSelCount);
+// Staging-Tab: Merge-Button
+document.getElementById('staging-btn-merge').addEventListener('click', executeStagingMerge);
+document.getElementById('stg-output-refresh').addEventListener('click', loadStagingOutput);
+document.getElementById('stg-output-delete-sel').addEventListener('click', deleteStagingOutputFiles);
+
+// ===== DATEI-EDITOR: Event-Handler =====
+
+// Scroll-Sync (Textarea → Highlight + Zeilennummern) — nur wenn kein Fehler-Scroll aktiv
+document.getElementById('file-editor-textarea').addEventListener('scroll', function() {
+  var h  = document.getElementById('file-editor-highlight');
+  var ln = document.getElementById('file-editor-line-numbers');
+  h.scrollTop = this.scrollTop; h.scrollLeft = this.scrollLeft;
+  ln.scrollTop = this.scrollTop;
+});
+
+// Schliessen
+document.getElementById('file-editor-close').addEventListener('click', function() {
+  document.getElementById('file-editor-overlay').classList.remove('open');
+  _feCurrentFile = null;
+});
+
+// Klick auf Overlay-Hintergrund schliesst Modal
+document.getElementById('file-editor-overlay').addEventListener('click', function(e) {
+  if (e.target === this) {
+    this.classList.remove('open');
+    _feCurrentFile = null;
+  }
+});
+
+// Escape-Taste schliesst Modal
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape' && document.getElementById('file-editor-overlay').classList.contains('open')) {
+    document.getElementById('file-editor-overlay').classList.remove('open');
+    _feCurrentFile = null;
+  }
+});
+
+// Live-Validierung + Highlighting beim Tippen
+document.getElementById('file-editor-textarea').addEventListener('input', function() {
+  if (_feIsJson) {
+    var result = validateJsonText(this.value);
+    this.className = result.valid ? 'valid' : 'invalid';
+    var _ep = result.valid ? {line:null,col:null} : getJsonErrorPos(this.value, result.error);
+    _feErrorLine = _ep.line; _feErrorCol = _ep.col;
+    var statusEl = document.getElementById('file-editor-status');
+    statusEl.textContent = result.valid ? '✓ Gültiges JSON' : '✗ ' + result.error;
+    statusEl.className = result.valid ? 'ok' : 'err';
+  }
+  updateEditorHighlight();
+});
+
+// Validieren-Button
+document.getElementById('file-editor-validate').addEventListener('click', validateFileEditor);
+
+// Speichern-Button
+document.getElementById('file-editor-save').addEventListener('click', saveFileEditor);
 
 // =====================================================================
 // INITIALISIERUNG
