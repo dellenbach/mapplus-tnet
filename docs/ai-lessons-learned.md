@@ -237,3 +237,12 @@
 - **Root-Cause**: `exportAgsServices()` rief nur `updateImportSelCount()`  kein Deselektieren, kein visuelles Markieren.
 - **Fix**: Nach Export-Erfolg Checkboxen leeren; `_importedServiceNames` bef�llen; `refreshImportImportedMarkers()` setzt Klasse `imported` + Badge + Legende. `loadRawConfList` bef�llt dieselbe Map.
 - **Guardrail**: Nach mutierendem API-Call immer visuellen State synchronisieren  Checkboxen leeren und Markierungen updaten statt nur Z�hler refreshen.
+
+---
+
+## 2026-02-28 — Legend-Proxy: ArcGIS `size`-Parameter liefert proportional skalierte Symbole
+
+- **Symptom**: Bei `size=80,160` liefert ArcGIS nicht exakt 80×160, sondern z.B. 106×213 — grösser, aber proportional skaliert.
+- **Root-Cause**: ArcGIS REST Legend-Endpoint interpretiert `size` als Zielgrösse, skaliert aber proportional zum Originalsymbol. Kein exaktes Clipping.
+- **Fix**: CSS `width`/`height` auf `<img>` erzwingt exakte Anzeigegrösse; ArcGIS liefert dennoch höhere Auflösung → bessere Darstellung.
+- **Guardrail**: Nie `size`-Parameter allein für exakte Pixelgrössen verlassen — immer zusätzlich CSS/HTML `width`/`height` setzen.

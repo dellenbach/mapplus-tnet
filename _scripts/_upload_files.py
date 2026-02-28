@@ -11,11 +11,9 @@ PASSWORD = "3Zs,k4%Un,<[W(Kx"
 REMOTE_BASE = "/www/maps"
 LOCAL_BASE = r"c:\_Daten\mapplus-exp\maps"
 
-# Files to upload - AGS Import Feature + OpenAPI Docs
+# Files to upload - Legend-Proxy + OpenAPI Doku
 FILES = [
-    "tnet/api/v1/treebuilder-api.php",
-    "tnet/api/v1/tree-builder.html",
-    "tnet/api/v1/ags-import.html",
+    "tnet/api/v1/legend-proxy.php",
     "tnet/api/docs/openapi.yaml",
 ]
 

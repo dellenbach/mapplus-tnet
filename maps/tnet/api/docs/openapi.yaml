@@ -32,6 +32,7 @@ info:
     | **Dev-Testseite** | [`/v1/dev-test.html`](https://www.gis-daten.ch/maps/tnet/api/v1/dev-test.html) | Tree + Active Panel mit Mobile/Desktop/Split View, Drag & Drop, emulierte Layer. |
     | **Tree-Builder** | [`/v1/tree-builder.html`](https://www.gis-daten.ch/maps/tnet/api/v1/tree-builder.html) | Interaktiver Konfigurator: Layer → Gruppen → Tree per Drag & Drop, JSON5 Export. |
     | **AGS Import** | [`/v1/ags-import.html`](https://www.gis-daten.ch/maps/tnet/api/v1/ags-import.html) | ArcGIS Server Roh-Konfigurationen importieren & verwalten. Multi-Import/-Delete. |
+    | **Legend-Proxy** | [`/v1/legend-proxy.php`](https://www.gis-daten.ch/maps/tnet/api/v1/legend-proxy.php?service=ewn/EWN_NIS/MapServer) | Formatierte ArcGIS-Legenden mit konfigurierbarer Symbolgrösse (HTML/JSON). |
     | **Tree-Builder API** | [`/v1/treebuilder-api.php`](https://www.gis-daten.ch/maps/tnet/api/v1/treebuilder-api.php) | Persistenz-Backend: State, Locks, Profile, AGS-Import. |
     | **API Info** | [`/v1/info`](https://www.gis-daten.ch/maps/tnet/api/v1/info) | Health-Check, Endpoint-Übersicht, Server-Statistiken. |
 
@@ -67,6 +68,11 @@ tags:
     ArcGIS Server → MapPlus Roh-Konfiguration.
     Importiert Config-Dateien von ArcGIS Server-Diensten via `ags2mapplus`-API,
     speichert sie in `data/tmp/raw-conf/` und ermöglicht Verwaltung (Auflisten, Lesen, Löschen).
+- name: Legends
+  description: |
+    ArcGIS Server Legenden-Proxy.
+    Holt Legend-JSON via agsproxy.php (inkl. Token-Management),
+    rendert kompaktes HTML mit eingebetteten Base64-Symbolen oder gibt JSON zurück.
 - name: System
   description: API-Info und Health-Check
 - name: Tools
@@ -321,6 +327,188 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/InfoResponse"
+
+  /v1/legend-proxy.php:
+    get:
+      tags: [ Legends ]
+      summary: ArcGIS Server Legende abrufen
+      description: |
+        Holt die Legende eines ArcGIS MapServer-Dienstes und rendert sie als
+        selbstständiges HTML mit eingebetteten Base64-Symbolen.
+        Alternativ als JSON abrufbar.
+
+        **Funktionsweise:**
+        1. Holt Legend-JSON vom ArcGIS Server via `agsproxy.php` (Token-Management inklusive)
+        2. Skaliert Symbole auf konfigurierbare Grösse (Standard: 160×80px, Anzeige 40×20px)
+        3. Rendert kompaktes HTML mit CSS-Grid oder gibt strukturiertes JSON zurück
+        4. Cache mit 24h TTL (umgehbar mit `nocache=1`)
+
+        **Beispiel-URLs (direkt im Browser öffnen):**
+        - Ganzer Dienst: [`?service=ewn/EWN_NIS/MapServer`](https://www.gis-daten.ch/maps/tnet/api/v1/legend-proxy.php?service=ewn/EWN_NIS/MapServer)
+        - Kleine Symbole: [`?service=ewn/EWN_NIS/MapServer&width=64&height=32`](https://www.gis-daten.ch/maps/tnet/api/v1/legend-proxy.php?service=ewn/EWN_NIS/MapServer&width=64&height=32)
+        - Gefiltert (Layer 0–2): [`?service=awu/AWU_WERKPLAN/MapServer&layers=0,1,2`](https://www.gis-daten.ch/maps/tnet/api/v1/legend-proxy.php?service=awu/AWU_WERKPLAN/MapServer&layers=0,1,2)
+        - GWR-Gebäude: [`?service=ewn/EWN_NIS_gwr/MapServer`](https://www.gis-daten.ch/maps/tnet/api/v1/legend-proxy.php?service=ewn/EWN_NIS_gwr/MapServer)
+        - Werkplan Cache: [`?service=awu/AWU_WERKPLAN_cache/MapServer`](https://www.gis-daten.ch/maps/tnet/api/v1/legend-proxy.php?service=awu/AWU_WERKPLAN_cache/MapServer)
+        - JSON-Ausgabe: [`?service=ewn/EWN_NIS/MapServer&format=json`](https://www.gis-daten.ch/maps/tnet/api/v1/legend-proxy.php?service=ewn/EWN_NIS/MapServer&format=json)
+        - Ohne Cache: [`?service=ewn/EWN_NIS/MapServer&nocache=1`](https://www.gis-daten.ch/maps/tnet/api/v1/legend-proxy.php?service=ewn/EWN_NIS/MapServer&nocache=1)
+
+        **Integration in legendResources:**
+        ```json
+        {
+          "ewn/ewn_nis_link": "/maps/tnet/api/v1/legend-proxy.php?service=ewn/EWN_NIS/MapServer",
+          "ewn/ewn_nis_title": "Legende: EWN NIS"
+        }
+        ```
+      parameters:
+      - name: service
+        in: query
+        required: true
+        description: |
+          ArcGIS MapServer-Pfad (ohne Basis-URL).
+          Entspricht dem `path`-Parameter in `agsproxy.php`.
+        schema:
+          type: string
+        examples:
+          ewn_nis:
+            summary: EWN NIS (69 Layer, ~1000 Symbole)
+            value: ewn/EWN_NIS/MapServer
+          awu_werkplan:
+            summary: AWU Werkplan
+            value: awu/AWU_WERKPLAN/MapServer
+          awu_werkplan_cache:
+            summary: AWU Werkplan (Cache-Dienst)
+            value: awu/AWU_WERKPLAN_cache/MapServer
+          ewn_gwr:
+            summary: EWN Gebäude- und Wohnungsregister
+            value: ewn/EWN_NIS_gwr/MapServer
+          awu_eigentum:
+            summary: AWU Eigentum
+            value: awu/AWU_EIGENTUM/MapServer
+          kbs:
+            summary: NW Belastete Standorte
+            value: gis_fach/nw_kbs/MapServer
+      - name: width
+        in: query
+        description: |
+          Symbolbreite in Pixel für die ArcGIS-Anfrage (Standard: 160).
+          ArcGIS skaliert proportional. Anzeige wird auf 1/4 runterskaliert (kompakt).
+        schema:
+          type: integer
+          default: 160
+          minimum: 8
+          maximum: 512
+        examples:
+          standard:
+            summary: Standard (160px → Anzeige 40px)
+            value: 160
+          klein:
+            summary: Klein (64px → Anzeige 16px)
+            value: 64
+          gross:
+            summary: Gross (320px → Anzeige 80px)
+            value: 320
+      - name: height
+        in: query
+        description: |
+          Symbolhöhe in Pixel für die ArcGIS-Anfrage (Standard: 80).
+          ArcGIS skaliert proportional. Anzeige wird auf 1/4 runterskaliert (kompakt).
+        schema:
+          type: integer
+          default: 80
+          minimum: 8
+          maximum: 512
+        examples:
+          standard:
+            summary: Standard (80px → Anzeige 20px)
+            value: 80
+          quadratisch:
+            summary: Quadratisch (160px → Anzeige 40px)
+            value: 160
+          klein:
+            summary: Klein (32px → Anzeige 8px)
+            value: 32
+      - name: layers
+        in: query
+        description: |
+          Komma-separierte Layer-IDs zum Filtern.
+          Ohne diesen Parameter werden alle Layer des Dienstes angezeigt.
+        schema:
+          type: string
+        examples:
+          erste_drei:
+            summary: Layer 0, 1 und 2
+            value: "0,1,2"
+          einzeln:
+            summary: Nur Layer 5
+            value: "5"
+          bereich:
+            summary: Mehrere Layer
+            value: "0,3,7,12"
+      - name: format
+        in: query
+        description: |
+          Ausgabeformat: `html` (Standard) oder `json`.
+          JSON liefert die rohen Legenddaten inkl. Base64-Bildern.
+        schema:
+          type: string
+          enum: [ html, json ]
+          default: html
+      - name: nocache
+        in: query
+        description: |
+          Cache umgehen (`1` = ja). Erzwingt eine frische Abfrage vom ArcGIS Server.
+          Nützlich nach Server-Updates oder Symboländerungen.
+        schema:
+          type: integer
+          enum: [ 0, 1 ]
+          default: 0
+      responses:
+        "200":
+          description: |
+            Erfolgreiche Antwort.
+            Bei `format=html`: Selbstständige HTML-Seite mit eingebetteten Symbolen.
+            Bei `format=json`: Strukturiertes JSON mit Layer- und Symbol-Informationen.
+          content:
+            text/html:
+              schema:
+                type: string
+                description: Selbstständige HTML-Seite mit CSS, Base64-Symbolen und responsivem Layout.
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LegendJsonResponse"
+              example:
+                service: ewn/EWN_NIS/MapServer
+                requestedSize:
+                  width: 80
+                  height: 160
+                layerCount: 69
+                symbolCount: 1019
+                layers:
+                - layerId: 0
+                  layerName: Trassee Elektro
+                  symbolCount: 5
+                  symbols:
+                  - label: "110kV"
+                    width: 106
+                    height: 20
+                    contentType: image/png
+                    imageData: "iVBORw0KGgo..."
+        "400":
+          description: Fehlender oder ungültiger `service`-Parameter
+          content:
+            application/json:
+              example:
+                error: true
+                message: "Parameter 'service' fehlt. Beispiel: ?service=ewn/EWN_NIS/MapServer"
+        "502":
+          description: ArcGIS Server nicht erreichbar oder ungültige Antwort
+          content:
+            application/json:
+              example:
+                error: true
+                message: "ArcGIS Legend-Endpunkt nicht erreichbar"
+                service: ewn/EWN_NIS/MapServer
+                statusCode: 0
 
   /v1/tree-test.html:
     get:
@@ -1327,3 +1515,65 @@ components:
               count:
                 type: integer
                 description: "Anzahl gelöschter Dateien"
+
+    LegendJsonResponse:
+      type: object
+      description: |
+        JSON-Antwort des Legend-Proxy.
+        Enthält alle Layer des Dienstes mit ihren Symbolen als Base64-Bilder.
+      properties:
+        service:
+          type: string
+          example: ewn/EWN_NIS/MapServer
+        requestedSize:
+          type: object
+          properties:
+            width:
+              type: integer
+              example: 80
+            height:
+              type: integer
+              example: 160
+        layerCount:
+          type: integer
+          example: 69
+        symbolCount:
+          type: integer
+          example: 1019
+        layers:
+          type: array
+          items:
+            type: object
+            properties:
+              layerId:
+                type: integer
+                example: 0
+              layerName:
+                type: string
+                example: Trassee Elektro
+              symbolCount:
+                type: integer
+                example: 5
+              symbols:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    label:
+                      type: string
+                      example: "110kV"
+                    width:
+                      type: integer
+                      description: Tatsächliche Breite des gelieferten Symbols (kann von requestedSize abweichen)
+                      example: 106
+                    height:
+                      type: integer
+                      description: Tatsächliche Höhe des gelieferten Symbols
+                      example: 20
+                    contentType:
+                      type: string
+                      example: image/png
+                    imageData:
+                      type: string
+                      description: Base64-kodierte Bilddaten
+                      example: "iVBORw0KGgo..."
