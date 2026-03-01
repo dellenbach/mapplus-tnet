@@ -1,9 +1,0 @@
-{
-    "desc_gis_fach/ow_bodenqualitaet": "gis_fach ow_bodenqualitaet",
-    "desc_gis_fach/ow_bodenqualitaet/bodenqualitaet": "Bodenqualität",
-    "desc_gis_fach/ow_bodenqualitaet/bodenqualitaet/bodenverwertungsflaechen": "Bodenqualität Bodenverwertungsflächen",
-    "desc_gis_fach/ow_bodenqualitaet/bodenqualitaet/potentielle_fff_kompensationsflaechen": "Bodenqualität potentielle FFF-Kompensationsflächen",
-    "desc_gis_fach/ow_bodenqualitaet/bodenqualitaet/fruchtfolgeflaechen": "Bodenqualität Fruchtfolgeflächen",
-    "desc_gis_fach/ow_bodenqualitaet/bodenqualitaet/fruchtfolgeflaechen/fruchtfolgeflaeche": "Bodenqualität Fruchtfolgeflächen Fruchtfolgefläche",
-    "desc_gis_fach/ow_bodenqualitaet/bodenqualitaet/fruchtfolgeflaechen/fruchtfolgeflaeche_entlassen": "Bodenqualität Fruchtfolgeflächen Fruchtfolgefläche entlassen"
-}

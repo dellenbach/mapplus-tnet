@@ -623,6 +623,8 @@ function extractServiceFromFilename($filename) {
     if (preg_match('/^lyrmgrResources_TNET_(.+)\.json$/i', $filename, $m)) return $m[1];
     // maptipsResources_TNET_<SVC>.json
     if (preg_match('/^maptipsResources_TNET_(.+)\.json$/i', $filename, $m)) return $m[1];
+    // legendResources_TNET_<SVC>.json
+    if (preg_match('/^legendResources_TNET_(.+)\.json$/i', $filename, $m)) return $m[1];
     // maptips_TNET_<SVC>.conf
     if (preg_match('/^maptips_TNET_(.+)\.conf$/i', $filename, $m)) return $m[1];
     // <SVC>_Layerstruktur.xlsx (aber nicht merged_Layerstruktur.xlsx)
@@ -853,6 +855,103 @@ function writeRawConfFile($filePath, $content) {
  *   layers_*           → layers_TNET_<kuerzel>.conf
  *   Alle anderen       → unveränderter Dateiname (letzte Version gewinnt)
  */
+
+/**
+ * Prüft ob sich raw-conf-Quelldateien seit dem letzten Staging geändert haben.
+ * Vergleicht Dateigrösse und Änderungsdatum aus dem Manifest mit dem aktuellen Stand.
+ * Gibt zurück: {hasChanges: bool, changed: [{service, files: [{file, reason, old*, new*}]}], missing: [service]}
+ */
+function checkSourceChanges($manifest, $rawDir) {
+    $result = ['hasChanges' => false, 'changed' => [], 'missing' => []];
+    if (!isset($manifest['sources']) || !is_array($manifest['sources'])) return $result;
+
+    foreach ($manifest['sources'] as $src) {
+        $svcKey = $src['service'];
+        $svcDir = $rawDir . '/' . $svcKey;
+
+        // Service existiert nicht mehr in raw-conf?
+        if (!is_dir($svcDir)) {
+            $result['missing'][] = $svcKey;
+            $result['hasChanges'] = true;
+            continue;
+        }
+
+        // Keine sourceFiles im Manifest → kann nicht vergleichen (altes Manifest-Format)
+        if (!isset($src['sourceFiles']) || !is_array($src['sourceFiles'])) continue;
+
+        $changedFiles = [];
+        foreach ($src['sourceFiles'] as $sf) {
+            // Datei im Service-Verzeichnis suchen (rekursiv, da Unterordner möglich)
+            $found = findFileRecursive($svcDir, $sf['file']);
+            if ($found === null) {
+                $changedFiles[] = ['file' => $sf['file'], 'reason' => 'deleted'];
+                continue;
+            }
+            $currentSize = filesize($found);
+            $currentMod  = date('Y-m-d H:i:s', filemtime($found));
+            if ($currentSize !== $sf['size'] || $currentMod !== $sf['modified']) {
+                $changedFiles[] = [
+                    'file'        => $sf['file'],
+                    'reason'      => 'modified',
+                    'oldSize'     => $sf['size'],
+                    'newSize'     => $currentSize,
+                    'oldModified' => $sf['modified'],
+                    'newModified' => $currentMod
+                ];
+            }
+        }
+
+        // Neue Dateien prüfen (im Service-Verzeichnis aber nicht im Manifest)
+        $manifestFileNames = array_column($src['sourceFiles'], 'file');
+        $currentFiles = listConfFilesRecursive($svcDir);
+        foreach ($currentFiles as $cf) {
+            if (!in_array($cf, $manifestFileNames)) {
+                $changedFiles[] = ['file' => $cf, 'reason' => 'added'];
+            }
+        }
+
+        if (!empty($changedFiles)) {
+            $result['changed'][] = ['service' => $svcKey, 'files' => $changedFiles];
+            $result['hasChanges'] = true;
+        }
+    }
+    return $result;
+}
+
+/**
+ * Sucht eine Datei rekursiv in einem Verzeichnis (nach Dateiname).
+ */
+function findFileRecursive($dir, $filename) {
+    $it = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($dir, RecursiveDirectoryIterator::SKIP_DOTS),
+        RecursiveIteratorIterator::LEAVES_ONLY
+    );
+    foreach ($it as $file) {
+        if ($file->getFilename() === $filename) return $file->getPathname();
+    }
+    return null;
+}
+
+/**
+ * Listet alle .conf/.json Dateinamen rekursiv in einem Verzeichnis (ohne Backups/Excel).
+ */
+function listConfFilesRecursive($dir) {
+    $files = [];
+    $it = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($dir, RecursiveDirectoryIterator::SKIP_DOTS),
+        RecursiveIteratorIterator::LEAVES_ONLY
+    );
+    foreach ($it as $file) {
+        $fn = $file->getFilename();
+        $ext = strtolower(pathinfo($fn, PATHINFO_EXTENSION));
+        if (!in_array($ext, ['conf', 'json'])) continue;
+        if (preg_match('/\.\d{8}_\d{6}\.bak$/', $fn)) continue;
+        if (preg_match('/\.xlsx$/i', $fn)) continue;
+        $files[] = $fn;
+    }
+    return $files;
+}
+
 /**
  * ImportToCore-Verzeichnis auflisten (nach Kürzel gruppiert)
  * Erkennt auch kürzelübergreifende Duplikate (gleicher Key im selben Prefix-Typ)
@@ -860,6 +959,8 @@ function writeRawConfFile($filePath, $content) {
 function listImportToCore() {
     $dir = IMPORT_TO_CORE_DIR;
     if (!is_dir($dir)) return ['exists' => false, 'kuerzel' => []];
+    $rawDir = getWritableRawConfDir();
+    if ($rawDir === false) $rawDir = RAW_CONF_DIR;
     $kuerzelList = [];
     $entries = @scandir($dir);
     if (!$entries) return ['exists' => true, 'kuerzel' => []];
@@ -873,12 +974,12 @@ function listImportToCore() {
         if ($k === '.' || $k === '..') continue;
         $kPath = $dir . '/' . $k;
         if (!is_dir($kPath)) continue;
-        // Duplikat-Metadaten laden (beim Merge gespeichert)
-        $meta = [];
-        $metaPath = $kPath . '/.duplicates.json';
-        if (is_file($metaPath)) {
-            $raw = @file_get_contents($metaPath);
-            if ($raw !== false) $meta = @json_decode($raw, true) ?: [];
+        // Staging-Manifest laden (Quell-Info)
+        $manifest = null;
+        $manifestPath = $kPath . '/.staging-manifest.json';
+        if (is_file($manifestPath)) {
+            $raw = @file_get_contents($manifestPath);
+            if ($raw !== false) $manifest = @json_decode($raw, true);
         }
         $files = [];
         foreach (@scandir($kPath) ?: [] as $f) {
@@ -886,10 +987,6 @@ function listImportToCore() {
             $fp = $kPath . '/' . $f;
             if (!is_file($fp)) continue;
             $fInfo = ['file' => $k . '/' . $f, 'name' => $f, 'size' => filesize($fp), 'modified' => date('Y-m-d H:i:s', filemtime($fp))];
-            // Intra-Kürzel Duplikat-Info aus Meta anfügen
-            if (isset($meta[$f]) && !empty($meta[$f])) {
-                $fInfo['duplicateKeys'] = $meta[$f];
-            }
             // Prefix extrahieren (z.B. "layers" aus "layers_ewn.conf")
             $underPos = strpos($f, '_');
             $prefix = ($underPos !== false) ? substr($f, 0, $underPos) : pathinfo($f, PATHINFO_FILENAME);
@@ -912,7 +1009,13 @@ function listImportToCore() {
             $files[] = $fInfo;
         }
         if (count($files)) {
-            $rawKuerzel[] = ['kuerzel' => $k, 'files' => $files, 'size' => array_sum(array_column($files, 'size'))];
+            $entry = ['kuerzel' => $k, 'files' => $files, 'size' => array_sum(array_column($files, 'size'))];
+            if ($manifest) {
+                $entry['manifest'] = $manifest;
+                // Change-Detection: Manifest-Quelldateien gegen aktuelle raw-conf vergleichen
+                $entry['sourceChanges'] = checkSourceChanges($manifest, $rawDir);
+            }
+            $rawKuerzel[] = $entry;
         }
     }
 
@@ -996,9 +1099,12 @@ function deleteImportToCoreKuerzel(array $kuerzelList) {
     return ['success' => true, 'deleted' => $deleted, 'errors' => $errors];
 }
 
-function stageServicesToImportToCore(array $serviceKeys, string $kuerzel) {
+function stageServicesToImportToCore(array $serviceKeys, string $kuerzel, string $mode = 'replace') {
     $kuerzel = preg_replace('/[^a-zA-Z0-9_\-]/', '_', trim($kuerzel));
     if ($kuerzel === '') return ['success' => false, 'error' => 'Kürzel darf nicht leer sein'];
+    if (!in_array($mode, ['merge', 'replace', 'preview'])) {
+        return ['success' => false, 'error' => 'Ungültiger Modus: ' . $mode . ' (erlaubt: merge, replace, preview)'];
+    }
 
     $rawDir = getWritableRawConfDir();
     if ($rawDir === false) $rawDir = RAW_CONF_DIR;
@@ -1006,15 +1112,25 @@ function stageServicesToImportToCore(array $serviceKeys, string $kuerzel) {
     // Zielordner erstellen
     $targetDir = IMPORT_TO_CORE_DIR . '/' . $kuerzel;
     if (!is_dir($targetDir)) {
-        if (!@mkdir($targetDir, 0777, true)) {
-            return ['success' => false, 'error' => 'Zielordner konnte nicht erstellt werden: ' . $targetDir];
+        if ($mode === 'preview') {
+            // Bei Preview ohne existierenden Ordner: leerer Merge
+        } else {
+            if (!@mkdir($targetDir, 0777, true)) {
+                return ['success' => false, 'error' => 'Zielordner konnte nicht erstellt werden: ' . $targetDir];
+            }
         }
     }
 
+    // Bestehendes Manifest laden (für merge/preview)
+    $manifestPath = $targetDir . '/.staging-manifest.json';
+    $existingManifest = null;
+    if (($mode === 'merge' || $mode === 'preview') && is_file($manifestPath)) {
+        $raw = @file_get_contents($manifestPath);
+        if ($raw !== false) $existingManifest = @json_decode($raw, true);
+    }
+
     // Datei-Typ-Buckets (dynamisch, Key = Prefix vor erstem Unterstrich)
-    // keySources trackt pro Bucket+Key, aus welcher Quelldatei der Key stammt
     $buckets    = [];
-    $keySources = []; // $keySources[$prefix][$topLevelKey][] = $quelldatei
     $errors     = [];
 
     foreach ($serviceKeys as $svcKey) {
@@ -1075,81 +1191,529 @@ function stageServicesToImportToCore(array $serviceKeys, string $kuerzel) {
     }
 
     // Ausgabe: pro Bucket eine Datei "<prefix>_<kuerzel>.<ext>"
-    // Duplikat-Erkennung: gleiche Top-Level-Keys aus verschiedenen Quelldateien
     $written    = [];
-    $duplicates = [];
-    $dupMeta    = []; // für .duplicates.json: outName => [{key, sources}]
+    $duplicates = []; // Leer — Duplikat-Prüfung nur innerhalb ImportToCore, nicht raw-conf
+    $dupMeta    = [];
+    $mergeStats = []; // Pro Bucket: {added, updated, unchanged}
+    $manifestSources = []; // Für .staging-manifest.json
+
+    // Bestehende Manifest-Sources übernehmen (bei merge/preview)
+    if (($mode === 'merge' || $mode === 'preview') && $existingManifest && isset($existingManifest['sources'])) {
+        // Bestehende Sources übernehmen, aber aktuelle Services werden unten aktualisiert
+        foreach ($existingManifest['sources'] as $src) {
+            if (!in_array($src['service'], $serviceKeys)) {
+                $manifestSources[$src['service']] = $src;
+            }
+        }
+    }
+
     foreach ($buckets as $prefix => $bucket) {
         if (empty($bucket['parts'])) continue;
-        $merged   = [];
-        $keySeen  = []; // key => Anzahl Vorkommen
-        $keySrc   = []; // key => [quelldatei, ...]
+
+        // Bei mode=merge: bestehende Output-Datei als Basis laden
+        $outName  = $prefix . '_' . $kuerzel . '.' . $bucket['ext'];
+        $outPath  = $targetDir . '/' . $outName;
+        $existingKeys = []; // Keys die schon in ImportToCore existieren
+        if (($mode === 'merge' || $mode === 'preview') && is_file($outPath)) {
+            $existContent = @file_get_contents($outPath);
+            if ($existContent !== false) {
+                $existDecoded = @json_decode($existContent, true);
+                if (is_array($existDecoded)) {
+                    $existingKeys = $existDecoded;
+                }
+            }
+        }
+
+        $merged   = ($mode === 'merge' || $mode === 'preview') ? $existingKeys : [];
         $isAssoc  = false;
+
+        // Bestehende Keys prüfen für Merge-Statistik
+        if (!empty($existingKeys) && array_keys($existingKeys) !== range(0, count($existingKeys) - 1)) {
+            $isAssoc = true;
+        }
+
         foreach ($bucket['parts'] as $part) {
             $arr    = $part['data'];
-            $source = $part['source'];
             // Prüfen ob assoziatives Array (JSON-Objekt) oder indexiertes Array
             if (!empty($arr) && array_keys($arr) !== range(0, count($arr) - 1)) {
                 $isAssoc = true;
             }
             if ($isAssoc) {
                 foreach ($arr as $k => $v) {
-                    if (!isset($keySeen[$k])) {
-                        $keySeen[$k] = 0;
-                        $keySrc[$k]  = [];
-                    }
-                    $keySeen[$k]++;
-                    $keySrc[$k][] = $source;
                     $merged[$k] = $v; // Letzter Wert gewinnt
                 }
             } else {
                 foreach ($arr as $v) { $merged[] = $v; }
             }
         }
-        // Duplikate sammeln (mit Quell-Info)
-        $outName  = $prefix . '_' . $kuerzel . '.' . $bucket['ext'];
-        $fileDups = []; // [{key, count, sources}]
-        foreach ($keySeen as $k => $cnt) {
-            if ($cnt > 1) {
-                $fileDups[] = ['key' => $k, 'count' => $cnt, 'sources' => array_values(array_unique($keySrc[$k]))];
+
+        // Merge-Statistik berechnen (nur bei merge/preview + assoziative Arrays)
+        $stats = ['added' => 0, 'updated' => 0, 'unchanged' => 0];
+        if (($mode === 'merge' || $mode === 'preview') && $isAssoc && !empty($existingKeys)) {
+            foreach ($merged as $k => $v) {
+                if (!array_key_exists($k, $existingKeys)) {
+                    $stats['added']++;
+                } elseif ($v !== $existingKeys[$k]) {
+                    $stats['updated']++;
+                } else {
+                    $stats['unchanged']++;
+                }
             }
         }
-        if (!empty($fileDups)) {
-            $duplicates[] = [
-                'file'  => $outName,
-                'keys'  => $fileDups,
-                'count' => count($fileDups),
-            ];
-            $dupMeta[$outName] = $fileDups;
+        $mergeStats[$prefix] = $stats;
+
+        // Bei Preview: nichts schreiben
+        if ($mode === 'preview') {
+            $written[] = ['file' => $kuerzel . '/' . $outName, 'bytes' => 0, 'keys' => count($merged),
+                          'mergeStats' => $stats, 'preview' => true,
+                          'duplicateKeys' => []];
+            continue;
         }
-        $outPath = $targetDir . '/' . $outName;
+
         $json    = json_encode($merged, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         $bytes   = @file_put_contents($outPath, $json);
         if ($bytes === false) {
             $errors[] = 'Schreibfehler: ' . $outName;
         } else {
             $written[] = ['file' => $kuerzel . '/' . $outName, 'bytes' => $bytes, 'keys' => count($merged),
-                          'duplicateKeys' => isset($dupMeta[$outName]) ? $dupMeta[$outName] : []];
+                          'mergeStats' => $stats,
+                          'duplicateKeys' => []];
         }
     }
 
-    // Metadaten für Duplikate speichern (damit listImportToCore sie später lesen kann)
-    // json_encode dedupliziert → geschriebene Dateien sind sauber, aber info geht verloren
-    $metaPath = $targetDir . '/.duplicates.json';
-    if (!empty($dupMeta)) {
-        @file_put_contents($metaPath, json_encode($dupMeta, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
-    } elseif (is_file($metaPath)) {
-        @unlink($metaPath); // Alte Meta löschen wenn keine Duplikate mehr
+    // Manifest-Sources für aktuelle Services ergänzen (inkl. Quell-Metadaten für Change-Detection)
+    foreach ($serviceKeys as $svcKey) {
+        $svcKeyCounts = [];
+        foreach ($buckets as $prefix => $bucket) {
+            $count = 0;
+            foreach ($bucket['parts'] as $part) {
+                if (is_array($part['data'])) {
+                    $count += count($part['data']);
+                }
+            }
+            if ($count > 0) $svcKeyCounts[$prefix] = $count;
+        }
+        // Quelldatei-Metadaten erfassen (size + mtime für Change-Detection)
+        $srcFiles = [];
+        $svcDir = $rawDir . '/' . $svcKey;
+        if (is_dir($svcDir)) {
+            $it = new RecursiveIteratorIterator(
+                new RecursiveDirectoryIterator($svcDir, RecursiveDirectoryIterator::SKIP_DOTS),
+                RecursiveIteratorIterator::LEAVES_ONLY
+            );
+            foreach ($it as $sf) {
+                $sfn = $sf->getFilename();
+                $sfExt = strtolower(pathinfo($sfn, PATHINFO_EXTENSION));
+                if (!in_array($sfExt, ['conf', 'json'])) continue;
+                if (preg_match('/\.\d{8}_\d{6}\.bak$/', $sfn)) continue;
+                $srcFiles[] = ['file' => $sfn, 'size' => $sf->getSize(), 'modified' => date('Y-m-d H:i:s', $sf->getMTime())];
+            }
+        }
+        $manifestSources[$svcKey] = [
+            'service'     => $svcKey,
+            'staged'      => date('Y-m-d\TH:i:s'),
+            'keys'        => $svcKeyCounts,
+            'sourceFiles' => $srcFiles
+        ];
+    }
+
+    // Metadaten für Duplikate speichern
+    if ($mode !== 'preview') {
+        $metaPath = $targetDir . '/.duplicates.json';
+        if (!empty($dupMeta)) {
+            @file_put_contents($metaPath, json_encode($dupMeta, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+        } elseif (is_file($metaPath)) {
+            @unlink($metaPath);
+        }
+
+        // Staging-Manifest schreiben
+        $manifest = [
+            'kuerzel'    => $kuerzel,
+            'lastStaged' => date('Y-m-d\TH:i:s'),
+            'mode'       => $mode,
+            'sources'    => array_values($manifestSources),
+            'buckets'    => []
+        ];
+        foreach ($written as $wf) {
+            $parts = explode('/', $wf['file']);
+            $fname = end($parts);
+            $underPos = strpos($fname, '_');
+            $pfx = ($underPos !== false) ? substr($fname, 0, $underPos) : $fname;
+            $manifest['buckets'][$pfx] = ['file' => $fname, 'totalKeys' => $wf['keys']];
+        }
+        @file_put_contents($manifestPath, json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
     }
 
     return [
         'success'    => true,
         'kuerzel'    => $kuerzel,
+        'mode'       => $mode,
         'targetDir'  => $targetDir,
         'files'      => $written,
+        'mergeStats' => $mergeStats,
         'duplicates' => $duplicates,
         'errors'     => $errors,
         'timestamp'  => date('Y-m-d H:i:s'),
+    ];
+}
+
+// =====================================================================
+// Staging → Flat Layer List (für Tree-Builder Embedding)
+// =====================================================================
+
+/**
+ * Liest alle Konfigurationsdateien aus ImportToCore und liefert eine flache
+ * Layer-Liste im gleichen Format wie layers.php?flat=true, angereichert mit
+ * Alias-Namen, Maptip-Info und Legenden-Info.
+ *
+ * Gibt zusätzlich `supplements` zurück mit allen lyrmgr/maptip/legend-Daten,
+ * damit der Tree-Builder die volle Konfiguration kennt.
+ *
+ * @param string $kuerzel  Optional: nur dieses Kürzel lesen. Leer = alle.
+ * @return array  {success, data: [...], meta, supplements}
+ */
+function stagingLayersFlat($kuerzel = '') {
+    $dir = IMPORT_TO_CORE_DIR;
+    if (!is_dir($dir)) return ['success' => false, 'error' => 'ImportToCore-Verzeichnis nicht gefunden'];
+
+    // Bestimme welche Kürzel-Verzeichnisse gelesen werden
+    if ($kuerzel) {
+        $safe = preg_replace('/[^a-zA-Z0-9_\-]/', '_', trim($kuerzel));
+        $kDirs = [$safe];
+    } else {
+        $kDirs = [];
+        $entries = @scandir($dir);
+        if (!$entries) return ['success' => true, 'data' => [], 'meta' => ['count' => 0]];
+        foreach ($entries as $k) {
+            if ($k === '.' || $k === '..') continue;
+            if (is_dir($dir . '/' . $k)) $kDirs[] = $k;
+        }
+    }
+
+    // ── Alle Config-Typen einlesen ──
+    $nameMap = [];          // strtolower(layerKey) → Anzeige-Name
+    $allAliases = [];       // alle lyrmgrResources Einträge (für Supplements)
+    $maptipsByLayer = [];   // strtolower(linked_layer) → {key, nls, query_layers}
+    $allMaptips = [];       // alle maptips_*.conf Einträge (key → {...})
+    $allMaptipTexts = [];   // alle maptipsResources_*.json Einträge
+    $allLegends = [];       // alle legendResources_*.json Einträge
+    $layerFiles = [];       // [{kuerzel, file, decoded}]
+
+    foreach ($kDirs as $k) {
+        $kPath = $dir . '/' . $k;
+        if (!is_dir($kPath)) continue;
+
+        foreach (@scandir($kPath) ?: [] as $f) {
+            if ($f === '.' || $f === '..' || $f[0] === '.') continue;
+            $ext = strtolower(pathinfo($f, PATHINFO_EXTENSION));
+            if (!in_array($ext, ['conf', 'json'])) continue;
+
+            $raw = @file_get_contents($kPath . '/' . $f);
+            if ($raw === false) continue;
+            $decoded = @json_decode($raw, true);
+            if (!is_array($decoded)) continue;
+
+            // Dateityp erkennen
+            if (strpos($f, 'lyrmgrResources_') === 0) {
+                foreach ($decoded as $resKey => $resVal) {
+                    $allAliases[$resKey] = $resVal;
+                    if (strpos($resKey, 'desc_') === 0) {
+                        // Case-insensitive Zuordnung: Keys können DEF vs def sein
+                        $layerKey = strtolower(substr($resKey, 5));
+                        $nameMap[$layerKey] = is_string($resVal) ? $resVal : (string)$resVal;
+                    }
+                }
+            } elseif (strpos($f, 'maptips_') === 0) {
+                foreach ($decoded as $mtKey => $mtDef) {
+                    $allMaptips[$mtKey] = $mtDef;
+                    $linked = $mtDef['linked_layer'] ?? '';
+                    if ($linked) {
+                        $maptipsByLayer[strtolower($linked)] = [
+                            'key'          => $mtKey,
+                            'nls'          => $mtDef['nls'] ?? '',
+                            'query_layers' => $mtDef['query_layers'] ?? '',
+                        ];
+                    }
+                }
+            } elseif (strpos($f, 'maptipsResources_') === 0) {
+                foreach ($decoded as $trKey => $trVal) {
+                    $allMaptipTexts[$trKey] = $trVal;
+                }
+            } elseif (strpos($f, 'legendResources_') === 0) {
+                foreach ($decoded as $lgKey => $lgVal) {
+                    $allLegends[$lgKey] = $lgVal;
+                }
+            } elseif (strpos($f, 'layers_') === 0 && $ext === 'conf') {
+                $layerFiles[] = ['kuerzel' => $k, 'file' => $f, 'decoded' => $decoded];
+            }
+        }
+    }
+
+    // ── Sublayer-Zählung: wie viele lyrmgr-Einträge je Service ──
+    $sublayerCount = [];
+    foreach ($nameMap as $lk => $name) {
+        $prefix = $lk . '/';
+        foreach ($nameMap as $otherKey => $otherName) {
+            if (strpos($otherKey, $prefix) === 0) {
+                $sublayerCount[$lk] = ($sublayerCount[$lk] ?? 0) + 1;
+            }
+        }
+    }
+
+    // ── Flache Layer-Liste aufbauen ──
+    // Maptips und Legenden sind auf Sublayer-Ebene definiert, Layer auf Service-Ebene.
+    // → Prefix-Match: Layer hat Maptips wenn irgendein Maptip-linked_layer mit dem Key beginnt.
+    $flatLayers = [];
+    foreach ($layerFiles as $lf) {
+        foreach ($lf['decoded'] as $layerKey => $layerDef) {
+            $lkLower = strtolower($layerKey);
+            $alias   = $nameMap[$lkLower] ?? null;
+            $legend  = $layerDef['legend'] ?? null;
+
+            // Prefix-Match: Maptips für diesen Service sammeln
+            $maptipCount = 0;
+            $firstMaptipNls = null;
+            $firstMaptipTitle = null;
+            $lkPrefix = $lkLower . '/';
+            foreach ($maptipsByLayer as $mlKey => $mlVal) {
+                // Exakt-Match (Layer = Sublayer) oder Prefix (Layer ist Service)
+                if ($mlKey === $lkLower || strpos($mlKey, $lkPrefix) === 0) {
+                    $maptipCount++;
+                    if (!$firstMaptipNls && $mlVal['nls']) {
+                        $firstMaptipNls = $mlVal['nls'];
+                        $titleKey = $mlVal['nls'] . '_title';
+                        $firstMaptipTitle = $allMaptipTexts[$titleKey] ?? null;
+                    }
+                }
+            }
+
+            // Prefix-Match: Legenden für diesen Service zählen
+            $legendCount = 0;
+            $firstLegendTitle = null;
+            foreach ($allLegends as $lgKey => $lgVal) {
+                // legendResources-Keys: <layerKey>_title, <layerKey>_link
+                if (strpos(strtolower($lgKey), $lkLower) === 0) {
+                    if (substr($lgKey, -6) === '_title') {
+                        $legendCount++;
+                        if (!$firstLegendTitle) $firstLegendTitle = $lgVal;
+                    }
+                }
+            }
+
+            $flatLayers[] = [
+                'id'          => $layerKey,
+                'name'        => $alias ?: $layerKey,
+                'alias'       => $alias,
+                'url'         => $layerDef['url'] ?? '',
+                'type'        => $layerDef['type'] ?? 'unknown',
+                'layerType'   => $layerDef['type'] ?? 'unknown',
+                'visible'     => $layerDef['visible'] ?? 0,
+                'icon'        => $layerDef['icon'] ?? '',
+                'params'      => $layerDef['params'] ?? null,
+                'options'     => $layerDef['options'] ?? null,
+                'hasMaptip'   => $maptipCount > 0,
+                'maptipCount' => $maptipCount,
+                'maptipNls'   => $firstMaptipNls,
+                'maptipTitle' => $firstMaptipTitle,
+                'hasLegend'   => $legendCount > 0,
+                'legendCount' => $legendCount,
+                'legendKey'   => $legend,
+                'legendTitle' => $firstLegendTitle,
+                'sublayers'   => $sublayerCount[$lkLower] ?? 0,
+                '_source'     => $lf['kuerzel'],
+                '_file'       => $lf['file'],
+            ];
+        }
+    }
+
+    return [
+        'success' => true,
+        'data'    => $flatLayers,
+        'meta'    => [
+            'kuerzel' => $kuerzel ?: '(alle)',
+            'count'   => count($flatLayers),
+            'format'  => 'flat',
+            'source'  => 'staging-importtocore',
+            'aliases' => count($allAliases),
+            'maptips' => count($allMaptips),
+            'legends' => count($allLegends),
+        ],
+        'supplements' => [
+            'aliases'    => $allAliases,
+            'maptips'    => $allMaptips,
+            'maptipTexts'=> $allMaptipTexts,
+            'legends'    => $allLegends,
+        ]
+    ];
+}
+
+// =====================================================================
+// Config-Editor: Laden & Export nach Core
+// =====================================================================
+
+/**
+ * Alle Dateien eines Kürzels aus ImportToCore laden.
+ * Gibt pro Datei den Inhalt als JSON-Objekt zurück, sortiert nach Prefix-Typ.
+ */
+function configEditorLoad($kuerzel) {
+    $safe = preg_replace('/[^a-zA-Z0-9_\-]/', '_', trim($kuerzel));
+    if ($safe === '') return ['success' => false, 'error' => 'Kürzel darf nicht leer sein'];
+
+    $dir = IMPORT_TO_CORE_DIR . '/' . $safe;
+    if (!is_dir($dir)) return ['success' => false, 'error' => 'Kürzel-Ordner nicht gefunden: ' . $safe];
+
+    $result = ['kuerzel' => $safe, 'files' => []];
+    $entries = @scandir($dir);
+    if (!$entries) return ['success' => false, 'error' => 'Ordner konnte nicht gelesen werden'];
+
+    foreach ($entries as $f) {
+        if ($f === '.' || $f === '..' || $f[0] === '.') continue;
+        $fp = $dir . '/' . $f;
+        if (!is_file($fp)) continue;
+
+        $ext = strtolower(pathinfo($f, PATHINFO_EXTENSION));
+        if (!in_array($ext, ['conf', 'json'])) continue;
+
+        $content = @file_get_contents($fp);
+        if ($content === false) continue;
+        $decoded = @json_decode($content, true);
+        if ($decoded === null) continue;
+
+        // Prefix extrahieren (layers, maptips, lyrmgrResources, maptipsResources)
+        $underPos = strpos($f, '_');
+        $prefix = ($underPos !== false) ? substr($f, 0, $underPos) : pathinfo($f, PATHINFO_FILENAME);
+
+        // Typ bestimmen
+        $type = 'unknown';
+        if ($prefix === 'layers')                $type = 'layers';
+        elseif ($prefix === 'maptips')           $type = 'maptips';
+        elseif ($prefix === 'lyrmgrResources')   $type = 'lyrmgr';
+        elseif ($prefix === 'maptipsResources')  $type = 'maptipsRes';
+        elseif ($prefix === 'legendResources')   $type = 'legendRes';
+
+        $result['files'][] = [
+            'name'     => $f,
+            'type'     => $type,
+            'prefix'   => $prefix,
+            'keys'     => count($decoded),
+            'size'     => filesize($fp),
+            'modified' => date('Y-m-d H:i:s', filemtime($fp)),
+            'data'     => $decoded
+        ];
+    }
+
+    // Manifest laden if vorhanden
+    $manifestPath = $dir . '/.staging-manifest.json';
+    if (is_file($manifestPath)) {
+        $raw = @file_get_contents($manifestPath);
+        if ($raw !== false) $result['manifest'] = @json_decode($raw, true);
+    }
+
+    return ['success' => true, 'data' => $result];
+}
+
+/**
+ * Geänderte Daten eines Dateityps zurück in ImportToCore schreiben.
+ */
+function configEditorSave($kuerzel, $fileName, $data) {
+    $safe = preg_replace('/[^a-zA-Z0-9_\-]/', '_', trim($kuerzel));
+    if ($safe === '') return ['success' => false, 'error' => 'Kürzel darf nicht leer sein'];
+    if (strpos($fileName, '..') !== false || strpos($fileName, '/') !== false)
+        return ['success' => false, 'error' => 'Ungültiger Dateiname'];
+
+    $dir = IMPORT_TO_CORE_DIR . '/' . $safe;
+    if (!is_dir($dir)) return ['success' => false, 'error' => 'Kürzel-Ordner nicht gefunden'];
+
+    $path = $dir . '/' . $fileName;
+    if (!is_file($path)) return ['success' => false, 'error' => 'Datei nicht gefunden: ' . $fileName];
+
+    $json = json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    if ($json === false) return ['success' => false, 'error' => 'JSON-Encode Fehler: ' . json_last_error_msg()];
+
+    $bytes = @file_put_contents($path, $json);
+    if ($bytes === false) return ['success' => false, 'error' => 'Schreiben fehlgeschlagen: ' . $path];
+
+    return ['success' => true, 'file' => $fileName, 'bytes' => $bytes, 'keys' => count($data),
+            'timestamp' => date('Y-m-d H:i:s')];
+}
+
+/**
+ * Dateien aus ImportToCore/<kuerzel>/ in die Core-Verzeichnisse exportieren.
+ * Erstellt Backups der bestehenden Core-Dateien.
+ *
+ * Ziel-Pfade:
+ *   layers_*.conf / maptips_*.conf    → $docRoot/maps/core/config/
+ *   lyrmgrResources_*.json / maptipsResources_*.json → $docRoot/maps/core/nls/de/
+ */
+function configExportToCore($kuerzel) {
+    global $docRoot;
+    $safe = preg_replace('/[^a-zA-Z0-9_\-]/', '_', trim($kuerzel));
+    if ($safe === '') return ['success' => false, 'error' => 'Kürzel darf nicht leer sein'];
+
+    $srcDir = IMPORT_TO_CORE_DIR . '/' . $safe;
+    if (!is_dir($srcDir)) return ['success' => false, 'error' => 'Quell-Ordner nicht gefunden'];
+
+    $coreConfigDir = $docRoot . '/maps/core/config';
+    $coreNlsDir    = $docRoot . '/maps/core/nls/de';
+
+    // Prüfen ob Zielverzeichnisse existieren
+    if (!is_dir($coreConfigDir)) return ['success' => false, 'error' => 'core/config/ nicht gefunden auf Server'];
+    if (!is_dir($coreNlsDir))    return ['success' => false, 'error' => 'core/nls/de/ nicht gefunden auf Server'];
+
+    $exported = [];
+    $errors   = [];
+    $backups  = [];
+    $ts       = date('Ymd_His');
+
+    $entries = @scandir($srcDir);
+    if (!$entries) return ['success' => false, 'error' => 'Quell-Ordner nicht lesbar'];
+
+    foreach ($entries as $f) {
+        if ($f === '.' || $f === '..' || $f[0] === '.') continue;
+        $fp = $srcDir . '/' . $f;
+        if (!is_file($fp)) continue;
+
+        $ext = strtolower(pathinfo($f, PATHINFO_EXTENSION));
+        if (!in_array($ext, ['conf', 'json'])) continue;
+
+        // Prefix ermitteln → Zielverzeichnis
+        $underPos = strpos($f, '_');
+        $prefix = ($underPos !== false) ? substr($f, 0, $underPos) : '';
+
+        $targetDir = '';
+        if (in_array($prefix, ['layers', 'maptips'])) {
+            $targetDir = $coreConfigDir;
+        } elseif (in_array($prefix, ['lyrmgrResources', 'maptipsResources', 'legendResources'])) {
+            $targetDir = $coreNlsDir;
+        } else {
+            continue; // Unbekannter Prefix → überspringen
+        }
+
+        $targetPath = $targetDir . '/' . $f;
+
+        // Backup falls Datei bereits existiert
+        if (is_file($targetPath)) {
+            $backupPath = $targetPath . '.' . $ts . '.bak';
+            if (@copy($targetPath, $backupPath)) {
+                $backups[] = $f . ' → ' . basename($backupPath);
+            }
+        }
+
+        // Kopieren
+        if (@copy($fp, $targetPath)) {
+            $exported[] = ['file' => $f, 'target' => str_replace($docRoot, '', $targetPath), 'bytes' => filesize($fp)];
+        } else {
+            $errors[] = 'Kopieren fehlgeschlagen: ' . $f . ' → ' . $targetPath;
+        }
+    }
+
+    return [
+        'success'   => count($errors) === 0,
+        'kuerzel'   => $safe,
+        'exported'  => $exported,
+        'backups'   => $backups,
+        'errors'    => $errors,
+        'timestamp' => date('Y-m-d H:i:s')
     ];
 }
 
@@ -1590,8 +2154,47 @@ switch ($action) {
         if (!is_array($body['services']) || count($body['services']) === 0) {
             jsonError('services muss ein nicht-leeres Array sein', 400);
         }
-        $result = stageServicesToImportToCore($body['services'], $body['kuerzel']);
+        $mode = isset($body['mode']) ? $body['mode'] : 'replace';
+        $result = stageServicesToImportToCore($body['services'], $body['kuerzel'], $mode);
         if (!$result['success']) jsonError($result['error'], 400);
+        jsonResponse(['success' => true, 'data' => $result]);
+        break;
+
+    // ── Config-Editor ──
+    case 'staging-layers-flat':
+        $kuerzel = $_GET['kuerzel'] ?? '';
+        $result = stagingLayersFlat($kuerzel);
+        if (!$result['success']) jsonError($result['error'], 404);
+        jsonResponse($result);
+        break;
+
+    case 'config-editor-load':
+        $kuerzel = $_GET['kuerzel'] ?? '';
+        if (!$kuerzel) jsonError('Parameter kuerzel= erforderlich', 400);
+        $result = configEditorLoad($kuerzel);
+        if (!$result['success']) jsonError($result['error'], 404);
+        jsonResponse($result);
+        break;
+
+    case 'config-editor-save':
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('POST required', 405);
+        $body = json_decode(file_get_contents('php://input'), true);
+        if (!$body || !isset($body['kuerzel']) || !isset($body['file']) || !isset($body['data'])) {
+            jsonError('Felder "kuerzel", "file" und "data" erforderlich', 400);
+        }
+        $result = configEditorSave($body['kuerzel'], $body['file'], $body['data']);
+        if (!$result['success']) jsonError($result['error'], 400);
+        jsonResponse(['success' => true, 'data' => $result]);
+        break;
+
+    case 'config-export-to-core':
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('POST required', 405);
+        $body = json_decode(file_get_contents('php://input'), true);
+        if (!$body || !isset($body['kuerzel'])) {
+            jsonError('Feld "kuerzel" erforderlich', 400);
+        }
+        $result = configExportToCore($body['kuerzel']);
+        if (!$result['success']) jsonError($result['error'], 500);
         jsonResponse(['success' => true, 'data' => $result]);
         break;
 
@@ -1681,7 +2284,7 @@ switch ($action) {
             'data' => [
                 'name'    => 'Tree-Builder Persistence API',
                 'version' => '3.1',
-                'actions' => ['load', 'save', 'lock', 'unlock', 'lock-status', 'history', 'restore', 'save-groups', 'load-groups', 'save-profile', 'load-profile', 'list-profiles', 'load-lyrmgr', 'publish-lyrmgr', 'list-lyrmgr-profiles', 'ags-services', 'ags-export', 'ags-list-raw', 'ags-delete-raw', 'ags-delete-backups', 'ags-read-raw', 'ags-write-raw'],
+                'actions' => ['load', 'save', 'lock', 'unlock', 'lock-status', 'history', 'restore', 'save-groups', 'load-groups', 'save-profile', 'load-profile', 'list-profiles', 'load-lyrmgr', 'publish-lyrmgr', 'list-lyrmgr-profiles', 'ags-services', 'ags-export', 'ags-list-raw', 'ags-delete-raw', 'ags-delete-backups', 'ags-read-raw', 'ags-write-raw', 'staging-layers-flat', 'config-editor-load', 'config-editor-save', 'config-export-to-core'],
                 'storage' => DATA_DIR
             ]
         ]);

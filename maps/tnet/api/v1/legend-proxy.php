@@ -6,18 +6,61 @@
  *
  * Holt Legend-JSON via agsproxy.php (Token-Management inklusive),
  * rendert kompaktes, selbstständiges HTML mit eingebetteten Base64-Bildern.
+ * Unterstützt #-Label-Auflösung via Attribut-Queries (groupBy + Renderer)
+ * sowie Gruppierung der Legende nach einem Attributfeld (z.B. Gemeinde).
  *
  * Parameter:
- *   service  — ArcGIS MapServer-Pfad (z.B. "ewn/EWN_NIS/MapServer")
- *   width    — Symbolbreite in px (default: 80)
- *   height   — Symbolhöhe in px (default: 50)
- *   dpi      — DPI für ArcGIS-Rendering (default: 192). Höherer DPI = dickere Linien/Punkte.
- *              Symbolgrössen sind in pt definiert, höherer DPI = mehr px pro pt = kräftigere Symbole.
- *              96 = ArcGIS-Standard (dünn), 192 = 2× dicker, 288 = 3× dicker
- *   zoom     — Zusätzliche CSS-Vergrösserung der Anzeige (default: 1.0, z.B. 1.5 oder 2.0)
- *   layers   — Komma-separierte Layer-IDs zum Filtern (optional)
- *   nocache  — Cache umgehen (1 = ja)
- *   format   — Ausgabeformat: "html" (default) oder "json"
+ *   service      (string, PFLICHT) ArcGIS MapServer-Pfad.
+ *                Beispiel: "gis_oereb/nw_nutzungsplanung_DEF/MapServer"
+ *                "/MapServer" wird automatisch angehängt falls fehlend.
+ *
+ *   width        (int, default: 16, min: 8, max: 512)
+ *                Symbolbreite in px für die ArcGIS-Abfrage.
+ *
+ *   height       (int, default: 10, min: 8, max: 512)
+ *                Symbolhöhe in px für die ArcGIS-Abfrage.
+ *
+ *   dpi          (int, default: 288, min: 72, max: 600)
+ *                DPI für ArcGIS-Rendering. Höherer DPI = dickere Linien/Punkte.
+ *                96 = ArcGIS-Standard (dünn), 192 = 2× dicker, 288 = 3× dicker.
+ *
+ *   zoom         (float, default: 3.0, min: 0.5, max: 5.0)
+ *                Zusätzliche CSS-Vergrösserung der Anzeige.
+ *                Endgrösse = width×zoom × height×zoom px.
+ *
+ *   resolve      (bool, default: true)
+ *                #-Label-Auflösung via Attribut-Query.
+ *                true = Labels mit "#" werden durch Bezeichnungen aus den
+ *                Feldern codefield/labelfield ersetzt (2-Pass: groupBy + Renderer).
+ *                Einträge ohne Lookup-Treffer werden entfernt.
+ *                false = Labels bleiben unverändert (Roh-Darstellung).
+ *
+ *   labelfield   (string, default: "Typ_Bezeichnung")
+ *                Feldname für die Legendenbezeichnung bei #-Label-Auflösung.
+ *
+ *   codefield    (string, default: "Typ_Darstellungscode")
+ *                Feldname für den Darstellungscode bei #-Label-Auflösung.
+ *                Die Query gruppiert nach codefield+labelfield und ersetzt
+ *                das "#"-Label durch die aufgelöste Bezeichnung.
+ *
+ *   legendgroup  (string, default: "Gemeinde" wenn #-Labels vorhanden, sonst leer)
+ *                Attributfeld für die Gruppierung der Legende.
+ *                Wenn gesetzt, wird die Legende nach den Werten dieses Felds
+ *                in zusammenklappbare Sektionen unterteilt.
+ *                Pro Sektion nur die Symbole, die in dieser Gruppe vorkommen.
+ *                "none" = Gruppierung explizit deaktivieren.
+ *
+ *   layers       (string, default: leer = alle Layer)
+ *                Komma-separierte Layer-IDs zum Filtern.
+ *                Beispiel: "0,1,2" zeigt nur Layer 0, 1 und 2.
+ *
+ *   nocache      (string, default: 0)
+ *                Cache umgehen: "1" = frische Daten holen.
+ *                Cache-TTL: 24 Stunden.
+ *
+ *   format       (string, default: "html")
+ *                Ausgabeformat: "html" (selbstständige HTML-Seite) oder
+ *                "json" (strukturierte JSON-Daten).
  *
  * Test-URLs:
  *   ?service=ewn/EWN_NIS/MapServer
@@ -30,9 +73,13 @@
  *   ?service=ewn/EWN_NIS/MapServer&layers=0,1,2
  *   ?service=ewn/EWN_NIS/MapServer&format=json
  *   ?service=ewn/EWN_NIS/MapServer&nocache=1
+ *   ?service=gis_oereb/nw_nutzungsplanung_DEF/MapServer&nocache=1
+ *   ?service=gis_oereb/nw_nutzungsplanung_DEF/MapServer&nocache=1&format=json
+ *   ?service=gis_oereb/nw_nutzungsplanung_DEF/MapServer&legendgroup=none&nocache=1
+ *   ?service=gis_oereb/nw_nutzungsplanung_DEF/MapServer&resolve=false&nocache=1
  *
- * @version    1.0
- * @date       2026-02-28
+ * @version    1.1
+ * @date       2026-03-01
  * @copyright  Trigonet AG
  * @author     Marco Dellenbach
  */
@@ -107,9 +154,13 @@ $width   = isset($_GET['width'])   ? max(8, min(512, intval($_GET['width'])))  :
 $height  = isset($_GET['height'])  ? max(8, min(512, intval($_GET['height']))) : $DEFAULT_HEIGHT;
 $dpi     = isset($_GET['dpi'])     ? max(72, min(600, intval($_GET['dpi'])))   : $DEFAULT_DPI;
 $zoom    = isset($_GET['zoom'])    ? max(0.5, min(5, floatval($_GET['zoom']))) : $DEFAULT_ZOOM;
-$layers  = isset($_GET['layers'])  ? trim($_GET['layers']) : '';
-$noCache = isset($_GET['nocache']) && $_GET['nocache'] === '1';
-$format  = (isset($_GET['format']) && $_GET['format'] === 'json') ? 'json' : 'html';
+$layers       = isset($_GET['layers'])     ? trim($_GET['layers']) : '';
+$resolveLabels = !isset($_GET['resolve']) || strtolower(trim($_GET['resolve'])) !== 'false';
+$labelField   = isset($_GET['labelfield']) ? trim($_GET['labelfield']) : 'Typ_Bezeichnung';
+$codeField    = isset($_GET['codefield'])  ? trim($_GET['codefield'])  : 'Typ_Darstellungscode';
+$legendGroup  = isset($_GET['legendgroup']) ? trim($_GET['legendgroup']) : '';
+$noCache    = isset($_GET['nocache']) && $_GET['nocache'] === '1';
+$format     = (isset($_GET['format']) && $_GET['format'] === 'json') ? 'json' : 'html';
 
 // ArcGIS holt bei voller Grösse + DPI (scharf + dick)
 // Zoom skaliert nur die CSS-Anzeige zusätzlich hoch
@@ -131,13 +182,21 @@ if (!preg_match('#/MapServer$#i', $service)) {
     $service .= '/MapServer';
 }
 
-// ===== CACHE PRÜFEN =====
+// ===== CACHE PRÜFEN (Früh-Cache nur bei explizitem legendgroup) =====
 
-$cacheKey  = md5($service . '|' . $width . 'x' . $height . '|d' . $dpi . '|z' . $zoom . '|' . $layers);
+// legendgroup=none → sofort auflösen
+$legendGroupExplicit = isset($_GET['legendgroup']);
+if ($legendGroup !== '' && strtolower($legendGroup) === 'none') {
+    $legendGroup = '';
+    $legendGroupExplicit = true; // "none" zählt als explizit gesetzt (= leer)
+}
+
+$cacheKey  = md5($service . '|' . $width . 'x' . $height . '|d' . $dpi . '|z' . $zoom . '|' . $layers . '|r' . ($resolveLabels ? '1' : '0') . '|' . $labelField . '|' . $codeField . '|g' . $legendGroup);
 $cacheExt  = ($format === 'json') ? '.json' : '.html';
 $cacheFile = $CACHE_DIR . '/' . $cacheKey . $cacheExt;
 
-if (!$noCache && file_exists($cacheFile) && (time() - filemtime($cacheFile)) < $CACHE_TTL) {
+// Früh-Cache nur wenn legendgroup explizit gesetzt (Auto-Default kann sich ändern)
+if ($legendGroupExplicit && !$noCache && file_exists($cacheFile) && (time() - filemtime($cacheFile)) < $CACHE_TTL) {
     // Cache-Hit
     if ($format === 'json') {
         header('Content-Type: application/json; charset=utf-8');
@@ -235,16 +294,90 @@ if ($layers !== '') {
     $filteredLayers = array_values($filteredLayers);
 }
 
+// ===== #-LABELS AUFLÖSEN (Attribut-Lookup) =====
+
+if ($resolveLabels) {
+    $filteredLayers = resolveHashLabels($filteredLayers, $service, $labelField, $codeField, $scheme, $host, $LOG_FILE);
+}
+
+// ===== AUTO-DEFAULT: legendgroup=Gemeinde wenn #-Labels vorhanden =====
+
+if ($legendGroup === '' && !$legendGroupExplicit) {
+    $hasCodeEntries = false;
+    foreach ($filteredLayers as $layer) {
+        foreach ($layer['legend'] ?? [] as $entry) {
+            if (isset($entry['values']) && is_array($entry['values']) && count($entry['values']) > 0) {
+                $hasCodeEntries = true;
+                break 2;
+            }
+        }
+    }
+    if ($hasCodeEntries) {
+        $legendGroup = 'Gemeinde';
+        logMessage($LOG_FILE, 'INFO', "Auto-Default: legendgroup=Gemeinde (Code-basierte Layer erkannt)");
+
+        // Cache-Key mit neuem legendGroup neu berechnen + prüfen
+        $cacheKey  = md5($service . '|' . $width . 'x' . $height . '|d' . $dpi . '|z' . $zoom . '|' . $layers . '|r' . ($resolveLabels ? '1' : '0') . '|' . $labelField . '|' . $codeField . '|g' . $legendGroup);
+        $cacheFile = $CACHE_DIR . '/' . $cacheKey . $cacheExt;
+
+        if (!$noCache && file_exists($cacheFile) && (time() - filemtime($cacheFile)) < $CACHE_TTL) {
+            if ($format === 'json') {
+                header('Content-Type: application/json; charset=utf-8');
+            } else {
+                header('Content-Type: text/html; charset=utf-8');
+            }
+            header('X-Legend-Cache: HIT');
+            readfile($cacheFile);
+            exit;
+        }
+    }
+}
+
+// ===== GRUPPIERUNG NACH FELD (legendgroup) =====
+
+$groupedData = null;
+if ($legendGroup !== '') {
+    $groupMapping = buildGroupMapping($filteredLayers, $service, $codeField, $legendGroup, $scheme, $host, $LOG_FILE);
+    if (!empty($groupMapping['groups'])) {
+        $groupedData = groupLayersByField($filteredLayers, $groupMapping);
+    }
+    if ($groupedData === null || empty($groupedData)) {
+        logMessage($LOG_FILE, 'WARN', "Gruppierung nach '$legendGroup' ergab keine Ergebnisse — Fallback auf ungroupiert");
+        $groupedData = null;
+    }
+}
+
 // ===== FORMAT: JSON — Roh-Daten durchreichen =====
 
 if ($format === 'json') {
-    $output = [
-        'success'     => true,
-        'service'     => $service,
-        'symbolSize'  => ['width' => $width, 'height' => $height],
-        'layerCount'  => count($filteredLayers),
-        'layers'      => $filteredLayers
-    ];
+    if ($groupedData !== null) {
+        $output = [
+            'success'    => true,
+            'service'    => $service,
+            'symbolSize' => ['width' => $width, 'height' => $height],
+            'groupField' => $legendGroup,
+            'groupCount' => count($groupedData),
+            'groups'     => []
+        ];
+        foreach ($groupedData as $groupValue => $groupLayers) {
+            $totalSym = 0;
+            foreach ($groupLayers as $gl) $totalSym += count($gl['legend'] ?? []);
+            $output['groups'][] = [
+                'groupValue'  => $groupValue,
+                'layerCount'  => count($groupLayers),
+                'symbolCount' => $totalSym,
+                'layers'      => $groupLayers
+            ];
+        }
+    } else {
+        $output = [
+            'success'     => true,
+            'service'     => $service,
+            'symbolSize'  => ['width' => $width, 'height' => $height],
+            'layerCount'  => count($filteredLayers),
+            'layers'      => $filteredLayers
+        ];
+    }
     $json = json_encode($output, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     @file_put_contents($cacheFile, $json);
     header('X-Legend-Cache: MISS');
@@ -278,14 +411,38 @@ $html .= '<body>' . "\n";
 // Header
 $html .= '<div class="legend-header">' . "\n";
 $html .= '  <h1>' . $serviceName . '</h1>' . "\n";
-$html .= '  <p class="legend-meta">' . count($filteredLayers) . ' Layer, ' . $totalSymbols . ' Symbole';
+$html .= '  <p class="legend-meta">';
+if ($groupedData !== null) {
+    $html .= count($groupedData) . ' Gruppen (' . htmlspecialchars($legendGroup) . '), ';
+}
+$html .= count($filteredLayers) . ' Layer, ' . $totalSymbols . ' Symbole';
 $zoomInfo = ($zoom != 1.0) ? ', Zoom ' . $zoom . '&times;' : '';
 $html .= ' &mdash; ' . $displayWidth . '&times;' . $displayHeight . 'px, ' . $dpi . ' DPI' . $zoomInfo . '</p>' . "\n";
 $html .= '</div>' . "\n";
 
 // Layer rendern
-foreach ($filteredLayers as $layer) {
-    $html .= renderLayerLegend($layer, $displayWidth, $displayHeight);
+if ($groupedData !== null) {
+    foreach ($groupedData as $groupValue => $groupLayers) {
+        $groupSymCount = 0;
+        foreach ($groupLayers as $gl) $groupSymCount += count($gl['legend'] ?? []);
+
+        $html .= '<details class="legend-group">' . "\n";
+        $html .= '  <summary class="legend-group-header"><span class="legend-group-arrow">&blacktriangleright;</span> ' . htmlspecialchars($groupValue);
+        $html .= ' <span class="legend-group-count">(' . $groupSymCount . ')</span>';
+        $html .= '</summary>' . "\n";
+        $html .= '  <div class="legend-group-content">' . "\n";
+
+        foreach ($groupLayers as $layer) {
+            $html .= renderLayerLegend($layer, $displayWidth, $displayHeight);
+        }
+
+        $html .= '  </div>' . "\n";
+        $html .= '</details>' . "\n";
+    }
+} else {
+    foreach ($filteredLayers as $layer) {
+        $html .= renderLayerLegend($layer, $displayWidth, $displayHeight);
+    }
 }
 
 // Footer
@@ -299,6 +456,9 @@ if ($zoom != 1.0) {
 if ($layers !== '') {
     $html .= '&amp;layers=' . htmlspecialchars($layers);
 }
+if ($legendGroup !== '') {
+    $html .= '&amp;legendgroup=' . urlencode($legendGroup);
+}
 $html .= '">JSON-Daten</a></p>' . "\n";
 $html .= '</div>' . "\n";
 
@@ -310,6 +470,546 @@ $html .= '</html>';
 header('X-Legend-Cache: MISS');
 htmlResponse($html);
 
+
+// =========================================================================
+// LABEL-AUFLÖSUNG (#-Labels → Attribut-Lookup)
+// =========================================================================
+
+/**
+ * Prüft ob ein Layer #-Labels enthält (Legend-Einträge mit "#" als Label).
+ *
+ * @param array $layer  Layer-Objekt aus der ArcGIS Legend-Response
+ * @return bool         true wenn mindestens ein Label "#" enthält
+ */
+function layerHasHashLabels($layer) {
+    foreach ($layer['legend'] ?? [] as $entry) {
+        $label = trim($entry['label'] ?? '');
+        if ($label === '#' || strpos($label, '#') !== false) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/**
+ * Erstellt eine globale Mapping-Tabelle (Code → Bezeichnung) durch parallele Abfrage aller Layer.
+ *
+ * Strategie: Alle Layer mit #-Labels werden per curl_multi gleichzeitig abgefragt
+ * (groupByFieldsForStatistics). Die Ergebnisse werden in eine einzige flache
+ * Lookup-Map zusammengeführt. Bei mehreren Bezeichnungen pro Code wird die
+ * längste (= spezifischste) gewählt statt alle zu verketten.
+ *
+ * Laufzeit: ≈ max(einzelne Query) statt sum(alle Queries), da alle parallel laufen.
+ *
+ * @param array  $layers      Gefilterte Layer-Liste
+ * @param string $service     ArcGIS MapServer-Pfad (inkl. /MapServer)
+ * @param string $labelField  Feldname für Bezeichnung (z.B. "Typ_Bezeichnung")
+ * @param string $codeField   Feldname für Darstellungscode (z.B. "Typ_Darstellungscode")
+ * @param string $scheme      http oder https
+ * @param string $host        Hostname
+ * @param string $logFile     Log-Datei-Pfad
+ * @return array              Flache Map: code => "Bezeichnung" (service-weit, spezifischste)
+ */
+function buildLabelLookup($layers, $service, $labelField, $codeField, $scheme, $host, $logFile) {
+    // 1. Alle Layer-IDs mit #-Labels sammeln
+    $layerIds = [];
+    foreach ($layers as $layer) {
+        if (!layerHasHashLabels($layer)) continue;
+        $lid = $layer['layerId'] ?? null;
+        if ($lid !== null && !in_array($lid, $layerIds)) $layerIds[] = $lid;
+    }
+
+    if (empty($layerIds)) return [];
+
+    logMessage($logFile, 'INFO', "Label-Lookup: " . count($layerIds) . " Layer mit #-Labels → parallele Abfrage (curl_multi)");
+
+    // 2. curl_multi — alle Queries gleichzeitig absenden
+    $mh = curl_multi_init();
+    $handles = [];
+
+    $stats = json_encode([
+        ['statisticType' => 'count', 'onStatisticField' => '*', 'outStatisticFieldName' => 'cnt']
+    ]);
+
+    foreach ($layerIds as $lid) {
+        $params = [
+            'path'                       => $service . '/' . $lid . '/query',
+            'where'                      => '1=1',
+            'groupByFieldsForStatistics' => $codeField . ',' . $labelField,
+            'outStatistics'              => $stats,
+            'returnGeometry'             => 'false',
+            'f'                          => 'pjson'
+        ];
+        $url = $scheme . '://' . $host . '/maps/agsproxy.php?' . http_build_query($params);
+
+        $ch = curl_init();
+        curl_setopt_array($ch, [
+            CURLOPT_URL            => $url,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => 20,
+            CURLOPT_SSL_VERIFYPEER => false,
+        ]);
+        curl_multi_add_handle($mh, $ch);
+        $handles[$lid] = $ch;
+    }
+
+    // 3. Parallele Ausführung — blockiert bis alle fertig
+    $running = null;
+    do {
+        curl_multi_exec($mh, $running);
+        curl_multi_select($mh);
+    } while ($running > 0);
+
+    // 4. Ergebnisse aller Layer zusammenführen → Code → {label → true, ...}
+    $codeLabels = [];
+    $successCount = 0;
+
+    foreach ($handles as $lid => $ch) {
+        $response = curl_multi_getcontent($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_multi_remove_handle($mh, $ch);
+        curl_close($ch);
+
+        if ($httpCode !== 200 || !$response) {
+            logMessage($logFile, 'WARN', "Label-Lookup: HTTP $httpCode | Layer $lid");
+            continue;
+        }
+
+        $data = json_decode($response, true);
+        if (!$data || isset($data['error']) || !isset($data['features'])) {
+            $errMsg = $data['error']['message'] ?? 'Kein features-Array';
+            logMessage($logFile, 'WARN', "Label-Lookup JSON-Fehler: $errMsg | Layer $lid");
+            continue;
+        }
+
+        foreach ($data['features'] as $feature) {
+            $attrs = $feature['attributes'] ?? [];
+            $code  = isset($attrs[$codeField])  ? (string)$attrs[$codeField]  : '';
+            $label = isset($attrs[$labelField]) ? trim($attrs[$labelField])   : '';
+            if ($code === '' || $label === '') continue;
+
+            if (!isset($codeLabels[$code])) $codeLabels[$code] = [];
+            $codeLabels[$code][$label] = true;
+        }
+
+        $successCount++;
+        logMessage($logFile, 'INFO', "Label-Lookup OK: Layer $lid | " . count($data['features']) . " Gruppen");
+    }
+
+    curl_multi_close($mh);
+
+    // 5. Pro Code: mehrere Bezeichnungen → kommasepariert zusammenfassen
+    //    z.B. Code "W3a" → "Wohnzone 3-geschossig a, Wohnzonen"
+    $lookup = [];
+    foreach ($codeLabels as $code => $labels) {
+        $names = array_keys($labels);
+        if (count($names) === 1) {
+            $lookup[$code] = $names[0];
+        } else {
+            // Längste zuerst (spezifischste), dann kommasepariert
+            usort($names, function($a, $b) { return strlen($b) - strlen($a); });
+            $lookup[$code] = implode(', ', $names);
+        }
+    }
+
+    logMessage($logFile, 'INFO', "Label-Lookup (groupBy): $successCount/" . count($layerIds) . " Layer, " . count($lookup) . " Codes aufgelöst");
+
+    // 6. ZWEITER PASS: Renderer-Definitionen (drawingInfo) parallel abrufen
+    //    → Enthält ALLE Codes inkl. solcher ohne Features.
+    //    Codes die bereits per groupBy gefunden wurden, werden NICHT überschrieben.
+    $mh2 = curl_multi_init();
+    $handles2 = [];
+
+    foreach ($layerIds as $lid) {
+        $params = [
+            'path' => $service . '/' . $lid,
+            'f'    => 'pjson'
+        ];
+        $url = $scheme . '://' . $host . '/maps/agsproxy.php?' . http_build_query($params);
+
+        $ch = curl_init();
+        curl_setopt_array($ch, [
+            CURLOPT_URL            => $url,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => 20,
+            CURLOPT_SSL_VERIFYPEER => false,
+        ]);
+        curl_multi_add_handle($mh2, $ch);
+        $handles2[$lid] = $ch;
+    }
+
+    $running = null;
+    do {
+        curl_multi_exec($mh2, $running);
+        curl_multi_select($mh2);
+    } while ($running > 0);
+
+    $rendererCount = 0;
+    foreach ($handles2 as $lid => $ch) {
+        $response = curl_multi_getcontent($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_multi_remove_handle($mh2, $ch);
+        curl_close($ch);
+
+        if ($httpCode !== 200 || !$response) continue;
+
+        $layerDef = json_decode($response, true);
+        if (!$layerDef || !isset($layerDef['drawingInfo']['renderer'])) continue;
+
+        $renderer = $layerDef['drawingInfo']['renderer'];
+        $uvis = $renderer['uniqueValueInfos'] ?? [];
+        $added = 0;
+
+        foreach ($uvis as $uvi) {
+            $val   = (string)($uvi['value'] ?? '');
+            $label = (string)($uvi['label'] ?? '');
+            if ($val === '' || $label === '') continue;
+
+            // Code bereits durch groupBy aufgelöst → nicht überschreiben
+            if (isset($lookup[$val])) continue;
+
+            // Label nach # extrahieren: "CODE#Beschreibung" → "Beschreibung"
+            if (strpos($label, '#') !== false) {
+                $parts = explode('#', $label, 2);
+                $afterHash = trim($parts[1] ?? '');
+                if ($afterHash !== '') {
+                    $lookup[$val] = $afterHash;
+                    $added++;
+                }
+            } elseif ($label !== $val) {
+                // Label ohne # das nicht dem Code entspricht → direkt verwenden
+                $lookup[$val] = $label;
+                $added++;
+            }
+        }
+
+        if ($added > 0) {
+            $rendererCount += $added;
+            logMessage($logFile, 'INFO', "Label-Lookup (Renderer): Layer $lid | $added zusätzliche Codes");
+        }
+    }
+
+    curl_multi_close($mh2);
+
+    $groupByCount = count($lookup) - $rendererCount;
+    logMessage($logFile, 'INFO', "Label-Lookup abgeschlossen: " . count($lookup) . " Codes total (groupBy: $groupByCount + Renderer: $rendererCount)");
+    return $lookup;
+}
+
+/**
+ * Führt einen ArcGIS REST Query aus und gibt das JSON-Array zurück.
+ * Gibt null zurück bei HTTP-Fehler oder ArcGIS-Error.
+ *
+ * @param string $url       Volle Query-URL
+ * @param string $logFile   Log-Datei
+ * @param int    $layerId   Layer-ID (für Log)
+ * @return array|null       Decodiertes JSON oder null bei Fehler
+ */
+function _fetchQueryJson($url, $logFile, $layerId) {
+    $ch = curl_init();
+    curl_setopt_array($ch, [
+        CURLOPT_URL            => $url,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT        => 15,
+        CURLOPT_SSL_VERIFYPEER => false,
+    ]);
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($httpCode !== 200 || !$response) {
+        logMessage($logFile, 'WARN', "Label-Lookup fehlgeschlagen: HTTP $httpCode | Layer $layerId");
+        return null;
+    }
+
+    $data = json_decode($response, true);
+    if (!$data || isset($data['error']) || !isset($data['features'])) {
+        $errMsg = $data['error']['message'] ?? 'Kein features-Array';
+        logMessage($logFile, 'WARN', "Label-Lookup JSON-Fehler: $errMsg | Layer $layerId");
+        return null;
+    }
+
+    return $data;
+}
+
+/**
+ * Ersetzt #-Labels in den Legend-Einträgen durch lesbare Bezeichnungen.
+ *
+ * Nur Einträge mit einem Treffer in der Lookup-Tabelle (groupBy oder Renderer)
+ * werden aufgelöst. Einträge ohne Lookup-Treffer werden aus der Legende entfernt,
+ * da sie keine spezifische Bezeichnung haben und nur generische Kategorie-Labels
+ * (z.B. "Wohnzonen") anzeigen würden.
+ *
+ * Die Legend-values[0] wird als Code interpretiert und gegen die Lookup-Map gematcht.
+ *
+ * @param array  $layers      Gefilterte Layer-Liste
+ * @param string $service     ArcGIS MapServer-Pfad
+ * @param string $labelField  Feldname für Bezeichnung
+ * @param string $codeField   Feldname für Darstellungscode
+ * @param string $scheme      http/https
+ * @param string $host        Hostname
+ * @param string $logFile     Log-Datei-Pfad
+ * @return array              Layer-Liste mit aufgelösten Labels
+ */
+function resolveHashLabels($layers, $service, $labelField, $codeField, $scheme, $host, $logFile) {
+    // Globale Mapping-Tabelle laden (groupBy + Renderer)
+    $lookup = buildLabelLookup($layers, $service, $labelField, $codeField, $scheme, $host, $logFile);
+
+    $removedCount = 0;
+
+    foreach ($layers as &$layer) {
+        if (!layerHasHashLabels($layer)) continue;
+
+        $layerId = $layer['layerId'] ?? null;
+        if ($layerId === null) continue;
+
+        // Labels ersetzen oder Eintrag zum Entfernen markieren
+        foreach ($layer['legend'] as $idx => &$entry) {
+            $label = trim($entry['label'] ?? '');
+            if ($label !== '#' && strpos($label, '#') === false) continue;
+
+            // Code aus values-Array holen (ArcGIS Renderer-Wert)
+            $code = '';
+            if (isset($entry['values']) && is_array($entry['values']) && count($entry['values']) > 0) {
+                $code = (string)$entry['values'][0];
+            }
+
+            // Lookup-Tabelle: Treffer → spezifische Bezeichnung verwenden
+            if ($code !== '' && !empty($lookup) && isset($lookup[$code])) {
+                $entry['label'] = $lookup[$code];
+                $entry['_resolvedFrom'] = '#:lookup';
+                continue;
+            }
+
+            // Kein Lookup-Treffer → Eintrag zum Entfernen markieren
+            $entry['_remove'] = true;
+            $removedCount++;
+        }
+        unset($entry);
+
+        // Markierte Einträge entfernen und Array neu indizieren
+        $layer['legend'] = array_values(array_filter($layer['legend'], function($e) {
+            return empty($e['_remove']);
+        }));
+    }
+    unset($layer);
+
+    if ($removedCount > 0) {
+        logMessage($logFile, 'INFO', "Label-Resolve: $removedCount Einträge ohne Lookup entfernt");
+    }
+
+    return $layers;
+}
+
+// =========================================================================
+// GRUPPIERUNG (legendgroup — Einträge nach Feld gruppieren)
+// =========================================================================
+
+/**
+ * Erstellt eine Mapping-Tabelle: Layer-ID → { Code → [Gruppen-Werte] }
+ *
+ * Für Layer mit #-Labels wird per groupByFieldsForStatistics(codeField, groupField)
+ * ermittelt, welche Codes in welchen Gruppen (z.B. Gemeinden) vorkommen.
+ * Für Layer ohne #-Labels wird nur groupField abgefragt (Layer-Level-Zuordnung).
+ *
+ * @param array  $layers      Gefilterte Layer-Liste
+ * @param string $service     ArcGIS MapServer-Pfad
+ * @param string $codeField   Feldname für Darstellungscode
+ * @param string $groupField  Feldname für Gruppierung (z.B. "Gemeinde")
+ * @param string $scheme      http/https
+ * @param string $host        Hostname
+ * @param string $logFile     Log-Datei-Pfad
+ * @return array              ['mapping' => [layerId => [code => [groups]]], 'groups' => [sortierte Werte]]
+ */
+function buildGroupMapping($layers, $service, $codeField, $groupField, $scheme, $host, $logFile) {
+    $mh = curl_multi_init();
+    $handles = [];
+
+    $stats = json_encode([
+        ['statisticType' => 'count', 'onStatisticField' => '*', 'outStatisticFieldName' => 'cnt']
+    ]);
+
+    foreach ($layers as $layer) {
+        $lid = $layer['layerId'] ?? null;
+        if ($lid === null) continue;
+
+        // Prüfen ob Layer Code-basierte Einträge hat (values-Array mit Inhalt).
+        // NICHT layerHasHashLabels() verwenden — nach resolve=true sind # bereits weg.
+        $hasCodes = false;
+        foreach ($layer['legend'] ?? [] as $entry) {
+            if (isset($entry['values']) && is_array($entry['values']) && count($entry['values']) > 0) {
+                $hasCodes = true;
+                break;
+            }
+        }
+        $groupByFields = $hasCodes
+            ? $codeField . ',' . $groupField
+            : $groupField;
+
+        $params = [
+            'path'                       => $service . '/' . $lid . '/query',
+            'where'                      => '1=1',
+            'groupByFieldsForStatistics' => $groupByFields,
+            'outStatistics'              => $stats,
+            'returnGeometry'             => 'false',
+            'f'                          => 'pjson'
+        ];
+        $url = $scheme . '://' . $host . '/maps/agsproxy.php?' . http_build_query($params);
+
+        $ch = curl_init();
+        curl_setopt_array($ch, [
+            CURLOPT_URL            => $url,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => 20,
+            CURLOPT_SSL_VERIFYPEER => false,
+        ]);
+        curl_multi_add_handle($mh, $ch);
+        $handles[$lid] = ['ch' => $ch, 'hasCodes' => $hasCodes];
+    }
+
+    // Parallele Ausführung
+    $running = null;
+    do {
+        curl_multi_exec($mh, $running);
+        curl_multi_select($mh);
+    } while ($running > 0);
+
+    // Ergebnisse auswerten
+    // mapping: layerId => { code => [group1, group2, ...] }
+    // Für Layer ohne Codes: layerId => { '_all' => [group1, group2, ...] }
+    $mapping   = [];
+    $allGroups = [];
+
+    foreach ($handles as $lid => $info) {
+        $ch       = $info['ch'];
+        $hasCodes = $info['hasCodes'];
+        $response = curl_multi_getcontent($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_multi_remove_handle($mh, $ch);
+        curl_close($ch);
+
+        if ($httpCode !== 200 || !$response) {
+            logMessage($logFile, 'WARN', "Group-Mapping: HTTP $httpCode | Layer $lid");
+            continue;
+        }
+
+        $data = json_decode($response, true);
+        if (!$data || isset($data['error']) || !isset($data['features'])) {
+            $errMsg = $data['error']['message'] ?? 'Kein features-Array';
+            logMessage($logFile, 'WARN', "Group-Mapping Fehler: $errMsg | Layer $lid");
+            continue;
+        }
+
+        $mapping[$lid] = [];
+        foreach ($data['features'] as $feature) {
+            $attrs = $feature['attributes'] ?? [];
+            $group = isset($attrs[$groupField]) ? trim((string)$attrs[$groupField]) : '';
+            if ($group === '') continue;
+
+            $allGroups[$group] = true;
+
+            if ($hasCodes) {
+                $code = isset($attrs[$codeField]) ? (string)$attrs[$codeField] : '';
+                if ($code === '') continue;
+                if (!isset($mapping[$lid][$code])) $mapping[$lid][$code] = [];
+                if (!in_array($group, $mapping[$lid][$code])) {
+                    $mapping[$lid][$code][] = $group;
+                }
+            } else {
+                // Layer-Level-Zuordnung (kein Code)
+                if (!isset($mapping[$lid]['_all'])) $mapping[$lid]['_all'] = [];
+                if (!in_array($group, $mapping[$lid]['_all'])) {
+                    $mapping[$lid]['_all'][] = $group;
+                }
+            }
+        }
+
+        logMessage($logFile, 'INFO', "Group-Mapping OK: Layer $lid | " . count($data['features']) . " Gruppen-Einträge");
+    }
+
+    curl_multi_close($mh);
+
+    // Gruppen alphabetisch sortieren
+    $sortedGroups = array_keys($allGroups);
+    sort($sortedGroups);
+
+    logMessage($logFile, 'INFO', "Group-Mapping: " . count($sortedGroups) . " Gruppen gefunden" . ($sortedGroups ? ': ' . implode(', ', $sortedGroups) : ''));
+
+    return ['mapping' => $mapping, 'groups' => $sortedGroups];
+}
+
+/**
+ * Gruppiert die Layer-Daten nach Feld-Werten.
+ *
+ * Für jeden Gruppen-Wert (z.B. jede Gemeinde) wird eine gefilterte Kopie
+ * der Layer erstellt, die nur die Legend-Einträge enthält, deren Codes
+ * in dieser Gruppe vorkommen.
+ *
+ * @param array $layers       Gefilterte Layer-Liste (mit aufgelösten Labels)
+ * @param array $groupMapping Ergebnis von buildGroupMapping()
+ * @return array|null         Assoziatives Array: groupValue => [layers], oder null
+ */
+function groupLayersByField($layers, $groupMapping) {
+    $mapping = $groupMapping['mapping'];
+    $groups  = $groupMapping['groups'];
+
+    if (empty($groups)) return null;
+
+    $result = [];
+
+    foreach ($groups as $group) {
+        $groupLayers = [];
+
+        foreach ($layers as $layer) {
+            $lid = $layer['layerId'] ?? null;
+            if ($lid === null) continue;
+
+            if (!isset($mapping[$lid])) {
+                // Layer nicht abgefragt oder Fehler → in alle Gruppen aufnehmen
+                $groupLayers[] = $layer;
+                continue;
+            }
+
+            $layerMap = $mapping[$lid];
+
+            // Layer ohne Codes: _all Mapping prüfen
+            if (isset($layerMap['_all'])) {
+                if (in_array($group, $layerMap['_all'])) {
+                    $groupLayers[] = $layer;
+                }
+                continue;
+            }
+
+            // Layer mit Codes: einzelne Legend-Einträge filtern
+            $filteredEntries = [];
+            foreach ($layer['legend'] as $entry) {
+                $code = '';
+                if (isset($entry['values']) && is_array($entry['values']) && count($entry['values']) > 0) {
+                    $code = (string)$entry['values'][0];
+                }
+
+                if ($code !== '' && isset($layerMap[$code]) && in_array($group, $layerMap[$code])) {
+                    $filteredEntries[] = $entry;
+                } elseif ($code === '') {
+                    // Eintrag ohne Code → aufnehmen wenn Layer überhaupt in Gruppe vorkommt
+                    $filteredEntries[] = $entry;
+                }
+            }
+
+            if (!empty($filteredEntries)) {
+                $groupLayer = $layer;
+                $groupLayer['legend'] = $filteredEntries;
+                $groupLayers[] = $groupLayer;
+            }
+        }
+
+        if (!empty($groupLayers)) {
+            $result[$group] = $groupLayers;
+        }
+    }
+
+    return empty($result) ? null : $result;
+}
 
 // =========================================================================
 // RENDER-FUNKTIONEN
@@ -517,6 +1217,87 @@ body {
     color: #444;
     line-height: 1.3;
     word-break: break-word;
+}
+
+/* ===== GRUPPIERUNG ===== */
+.legend-group {
+    margin-bottom: 14px;
+    border: 1px solid #c5cdce;
+    border-radius: 5px;
+    overflow: hidden;
+    background: #fff;
+}
+.legend-group:last-child {
+    margin-bottom: 0;
+}
+
+/* Summary-Zeile (Klick-Header) */
+.legend-group-header {
+    display: flex;
+    align-items: center;
+    font-size: 15px;
+    font-weight: 800;
+    color: #333;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    padding: 10px 14px;
+    background: #e4eaeb;
+    cursor: pointer;
+    list-style: none;
+    user-select: none;
+    border-bottom: none;
+    transition: background 0.15s ease;
+}
+.legend-group-header:hover {
+    background: #d6dfe0;
+}
+.legend-group-header::-webkit-details-marker {
+    display: none;
+}
+.legend-group-header::marker {
+    content: '';
+    display: none;
+}
+
+/* Pfeil-Indikator */
+.legend-group-arrow {
+    display: inline-block;
+    margin-right: 8px;
+    font-size: 12px;
+    color: #4B7B81;
+    transition: transform 0.2s ease;
+    line-height: 1;
+}
+.legend-group[open] > .legend-group-header .legend-group-arrow {
+    transform: rotate(90deg);
+}
+
+/* Offener Zustand: Trennlinie unter Header */
+.legend-group[open] > .legend-group-header {
+    border-bottom: 3px solid #4B7B81;
+}
+
+/* Inhalt-Container */
+.legend-group-content {
+    padding: 8px 12px 6px;
+}
+
+.legend-group-count {
+    font-weight: 400;
+    color: #888;
+    font-size: 12px;
+    text-transform: none;
+    letter-spacing: 0;
+    margin-left: auto;
+}
+.legend-group .legend-layer {
+    margin-bottom: 3px;
+    padding-bottom: 3px;
+}
+.legend-group .legend-layer:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+    padding-bottom: 0;
 }
 
 /* ===== FOOTER ===== */

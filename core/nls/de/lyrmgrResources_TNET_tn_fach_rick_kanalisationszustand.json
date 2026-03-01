@@ -1,9 +1,0 @@
-{
-    "desc_tn_fach/rick_kanalisationszustand": "tn_fach rick_kanalisationszustand",
-    "desc_tn_fach/rick_kanalisationszustand/status_sanierungsstand_liegenschaftsentwaesserung": "Status Sanierungsstand Liegenschaftsentwässerung",
-    "desc_tn_fach/rick_kanalisationszustand/status_zustand_liegenschaftsentwaesserung": "Status Zustand Liegenschaftsentwässerung",
-    "desc_tn_fach/rick_kanalisationszustand/unterhaltsabschnitt_privat": "Unterhaltsabschnitt Privat",
-    "desc_tn_fach/rick_kanalisationszustand/hydraulik_abwasser": "Hydraulik Abwasser",
-    "desc_tn_fach/rick_kanalisationszustand/hydraulik_abwasser/rueckstaukote_knoten": "Hydraulik Abwasser Rückstaukote Knoten",
-    "desc_tn_fach/rick_kanalisationszustand/hydraulik_abwasser/auslastung_haltungen": "Hydraulik Abwasser Auslastung Haltungen"
-}

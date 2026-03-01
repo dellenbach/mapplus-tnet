@@ -52,8 +52,35 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 
 .tb-panel-layers { width: 280px; min-width: 160px; max-width: 600px; flex-shrink: 0; position: relative; }
 .tb-panel-groups { width: 320px; min-width: 180px; max-width: 700px; flex-shrink: 0; position: relative; }
-.tb-panel-tree   { flex: 1; min-width: 250px; position: relative; }
+.tb-panel-tree   { flex: 1; min-width: 250px; position: relative; display: flex; flex-direction: row; }
 .tb-panel-preview { width: 360px; min-width: 200px; max-width: 800px; flex-shrink: 0; display: flex; flex-direction: column; position: relative; }
+
+/* ── Panel Toggle (ein-/ausblenden) ── */
+.tb-panel-layers.tb-hidden, .tb-panel-groups.tb-hidden, .tb-panel-preview.tb-hidden, .tb-json-panel.tb-hidden { display: none !important; }
+.tb-toolbar .tb-toggle { opacity: .5; }
+.tb-toolbar .tb-toggle.active { opacity: 1; background: rgba(255,255,255,.2); }
+
+/* ── Tree-Panel Split: Baum links, JSON rechts ── */
+.tb-tree-split { display: flex; flex: 1; min-width: 0; min-height: 0; }
+.tb-tree-left { flex: 1; display: flex; flex-direction: column; min-width: 200px; overflow: hidden; }
+.tb-json-panel { width: 380px; min-width: 200px; max-width: 600px; flex-shrink: 0;
+  display: flex; flex-direction: column; border-left: 1px solid var(--c-border); background: #1e1e1e;
+}
+.tb-json-panel.tb-hidden { display: none !important; }
+.tb-json-head { padding: 6px 10px; background: #252526; border-bottom: 1px solid #3e3e42;
+  display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.tb-json-head span { color: #ccc; font-size: 11px; font-weight: 600; flex: 1; }
+.tb-json-head button { padding: 2px 8px; font-size: 10px; border: 1px solid #555;
+  border-radius: 3px; background: #333; color: #ccc; cursor: pointer; }
+.tb-json-head button:hover { background: #444; }
+.tb-json-status { padding: 2px 10px; font-size: 10px; flex-shrink: 0; }
+.tb-json-status.ok { color: #2a8; }
+.tb-json-status.err { color: #f44; }
+#tb-json-textarea { flex: 1; padding: 8px 10px; font-family: 'Consolas', monospace;
+  font-size: 11px; line-height: 1.5; background: #1e1e1e; color: #d4d4d4;
+  border: none; outline: none; resize: none; tab-size: 2; overflow: auto; }
+.tb-json-resize { width: 5px; cursor: col-resize; background: transparent; flex-shrink: 0; }
+.tb-json-resize:hover, .tb-json-resize.active { background: rgba(100,140,150,.4); }
 
 /* ── Resize Handle ── */
 .tb-resize-handle {
@@ -103,6 +130,17 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .tb-layer-item:hover { background: var(--c-hover); }
 .tb-layer-item .grip { color: #ccc; font-size: 10px; flex-shrink: 0; }
 .tb-layer-item .lname { flex: 1; word-break: break-word; }
+.tb-layer-item .stg-badge {
+  font-size: 8px; padding: 1px 4px; border-radius: 2px; flex-shrink: 0;
+  font-weight: 700; line-height: 1.2; letter-spacing: .3px; text-transform: uppercase;
+}
+.tb-layer-item .stg-badge.mtip { background: #e3f2fd; color: #1565c0; }
+.tb-layer-item .stg-badge.leg  { background: #f3e5f5; color: #7b1fa2; }
+.tb-layer-item .stg-badge.sub  { background: #fff3e0; color: #e65100; }
+.tb-layer-item .stg-alias {
+  font-size: 10px; color: #888; white-space: nowrap; overflow: hidden;
+  text-overflow: ellipsis; max-width: 140px; flex-shrink: 1;
+}
 .tb-layer-item .ltype {
   font-size: 9px; color: #fff; background: var(--c-primary); padding: 1px 4px;
   border-radius: 2px; flex-shrink: 0; text-transform: uppercase;
@@ -221,19 +259,35 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 }
 
 /* ── Tree-Panel (rechts) ── */
-.tb-tree-tabs {
-  display: flex; border-bottom: 1px solid var(--c-border); flex-shrink: 0;
-  overflow-x: auto;
+.tb-tree-actions {
+  display: flex; gap: 4px; border-bottom: 1px solid var(--c-border); flex-shrink: 0;
+  overflow-x: auto; padding: 4px 8px; background: #f5f7f8; align-items: center;
 }
-.tb-tree-tab {
-  padding: 6px 14px; font-size: 11px; font-weight: 500; color: var(--c-muted);
-  border: none; background: none; cursor: pointer; border-bottom: 2px solid transparent;
-  white-space: nowrap; transition: all .12s;
-}
-.tb-tree-tab:hover { color: var(--c-text); background: #f8f8f8; }
-.tb-tree-tab.active { color: var(--c-accent); border-bottom-color: var(--c-accent); font-weight: 700; }
 
 .tb-tree-body { flex: 1; overflow-y: auto; padding: 4px 0; }
+
+/* ── LyrMgr Root-Knoten ── */
+.tb-tree-lyrmgr { margin: 8px 8px; border: 2px solid var(--c-dark); border-radius: var(--radius); }
+.tb-tree-lyrmgr.dragging { opacity: .4; }
+.tb-tree-lyrmgr-head {
+  display: flex; align-items: center; gap: 8px; padding: 8px 12px;
+  background: var(--c-dark); color: #fff; border-radius: calc(var(--radius) - 2px) calc(var(--radius) - 2px) 0 0;
+  cursor: pointer; user-select: none; font-size: 13px; font-weight: 700;
+}
+.tb-tree-lyrmgr-head .lm-arrow { transition: transform .2s; font-size: 11px; }
+.tb-tree-lyrmgr-head .lm-arrow.open { transform: rotate(90deg); }
+.tb-tree-lyrmgr-head .lm-name { flex: 1; }
+.tb-tree-lyrmgr-head .lm-badge {
+  font-size: 9px; background: rgba(255,255,255,.2); padding: 1px 7px;
+  border-radius: 10px; font-weight: 400;
+}
+.tb-tree-lyrmgr-head .lm-del {
+  width: 20px; height: 20px; border: none; background: none; color: rgba(255,255,255,.4);
+  cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center;
+  border-radius: 50%;
+}
+.tb-tree-lyrmgr-head .lm-del:hover { color: #fff; background: rgba(255,255,255,.15); }
+.tb-tree-lyrmgr-body { border-top: 1px solid rgba(255,255,255,.1); }
 
 /* Tree Nodes */
 .tb-tree-cat {
@@ -752,6 +806,11 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
   <button id="tb-btn-import-api" title="Bestehenden Layertree von der API importieren">📥 Baum importieren</button>
   <button id="tb-btn-ags-import" title="ArcGIS-Server Roh-Konfigurationen importieren">🌐 AGS Import</button>
   <a href="/maps/tnet/api/v1/ags-import.html" target="_blank" style="color:rgba(255,255,255,.45);font-size:10px;text-decoration:none;margin-left:-4px" title="AGS Import in separater Seite öffnen">↗</a>
+  <span class="sep"></span>
+  <button class="tb-toggle active" id="tb-toggle-layers" title="Layer-Katalog ein/aus">🗂</button>
+  <button class="tb-toggle active" id="tb-toggle-clipboard" title="Zwischenablage ein/aus">📋</button>
+  <button class="tb-toggle active" id="tb-toggle-json" title="JSON-Editor ein/aus">📝</button>
+  <button class="tb-toggle active" id="tb-toggle-preview" title="Kartenvorschau ein/aus">🗺</button>
   <span class="spacer"></span>
   <button id="tb-btn-import">📂 Import</button>
   <button id="tb-btn-export" class="primary">💾 Export</button>
@@ -795,15 +854,29 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 
   <!-- RIGHT: Staging -->
   <div class="tb-panel tb-panel-tree" id="tb-panel-tree">
-    <div class="tb-panel-head">
-      <h2>Staging</h2>
-      <button id="tb-btn-add-cat">+ Kategorie</button>
-      <button id="tb-btn-add-sub">+ Subkategorie</button>
-      <button id="tb-btn-save-profile" class="primary" title="Aktives Profil als JSON auf Server speichern">💾</button>
-      <span id="tb-profile-save-status" style="font-size:10px;color:rgba(0,0,0,.35)"></span>
+    <div class="tb-tree-split">
+      <div class="tb-tree-left">
+        <div class="tb-panel-head">
+          <h2>Staging</h2>
+          <button id="tb-btn-add-cat">+ Kategorie</button>
+          <button id="tb-btn-add-sub">+ Subkategorie</button>
+          <button id="tb-btn-save-profile" class="primary" title="Aktives Profil als JSON auf Server speichern">💾</button>
+          <span id="tb-profile-save-status" style="font-size:10px;color:rgba(0,0,0,.35)"></span>
+        </div>
+        <div class="tb-tree-actions" id="tb-tree-actions"></div>
+        <div class="tb-tree-body" id="tb-tree-body"></div>
+      </div>
+      <div class="tb-json-resize" id="tb-json-resize"></div>
+      <div class="tb-json-panel" id="tb-json-panel">
+        <div class="tb-json-head">
+          <span>JSON-Editor</span>
+          <button id="tb-json-format" title="JSON formatieren">✉ Format</button>
+          <button id="tb-json-apply" title="JSON auf Baum anwenden">▶ Apply</button>
+        </div>
+        <div class="tb-json-status" id="tb-json-status"></div>
+        <textarea id="tb-json-textarea" spellcheck="false"></textarea>
+      </div>
     </div>
-    <div class="tb-tree-tabs" id="tb-tree-tabs"></div>
-    <div class="tb-tree-body" id="tb-tree-body"></div>
   </div>
 
   <!-- FAR RIGHT: Karten-Vorschau -->
@@ -992,6 +1065,14 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 // =====================================================================
 var STORAGE_KEY = 'treebuilder_state';
 var API_URL = '/maps/tnet/api/v1/treebuilder-api.php';
+
+// Staging-Modus: ?source=staging in der URL → Layer aus ImportToCore laden
+var _urlParams = new URLSearchParams(window.location.search);
+var _stagingMode = _urlParams.get('source') === 'staging';
+if (_stagingMode) {
+  document.querySelector('.tb-toolbar .brand').innerHTML = '🔧 Tree-Builder <span style="background:#e0a430;color:#1e3a4a;padding:1px 8px;border-radius:3px;font-size:10px;font-weight:700;margin-left:6px;vertical-align:middle">STAGING</span>';
+}
+
 var _saveTimer = null;
 var _lockRefreshTimer = null;
 var _lockStatusTimer = null;
@@ -1000,6 +1081,7 @@ var _hasLock = false;
 
 var state = {
   layers: [],           // Flat layer list from API
+  stagingMeta: null,    // Staging-Modus: supplements (aliases, maptips, legends)
   groups: [],           // Wiederverwendbare Gruppen: [{ id, name, layerIds:[] }]
   clipboard: { categories: [] }, // Zwischenablage: gleiche Hierarchie wie Staging
   profiles: {},         // { profileName: { lyrmgrs: { key: { meta:{}, categories:[] } } } } oder legacy { profileName: { categories:[] } }
@@ -1273,17 +1355,53 @@ function downloadJSON(filename, content) {
 function uid(prefix) { return prefix + '_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5); }
 function esc(s) { var d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
 
+/**
+ * Wildcard-Filter: * = beliebige Zeichen, ? = einzelnes Zeichen.
+ * Ohne Wildcards: einfache Substring-Suche.
+ * Komma-getrennte Patterns → OR-Logik.
+ */
+function matchWildcard(text, pattern) {
+  if (!pattern) return true;
+  var parts = pattern.split(',');
+  for (var i = 0; i < parts.length; i++) {
+    var p = parts[i].trim().toLowerCase();
+    if (!p) continue;
+    var t = text.toLowerCase();
+    if (p.indexOf('*') === -1 && p.indexOf('?') === -1) {
+      if (t.indexOf(p) !== -1) return true;
+    } else {
+      var re = p.replace(/([.+^${}()|[\]\\])/g, '\\$1')
+                .replace(/\*/g, '.*')
+                .replace(/\?/g, '.');
+      if (new RegExp(re).test(t)) return true;
+    }
+  }
+  return false;
+}
+
 // =====================================================================
 // API: Layer laden
 // =====================================================================
 function loadLayers(group) {
-  var url = '/maps/tnet/api/v1/layers.php?flat=true&details=true&group=' + encodeURIComponent(group || 'marco');
+  var url;
+  if (_stagingMode) {
+    // Staging-Modus: Layer aus ImportToCore via treebuilder-api
+    url = API_URL + '?action=staging-layers-flat';
+    if (group) url += '&kuerzel=' + encodeURIComponent(group);
+  } else {
+    url = '/maps/tnet/api/v1/layers.php?flat=true&details=true&group=' + encodeURIComponent(group || 'marco');
+  }
   document.getElementById('tb-layer-count').textContent = '…';
   fetch(url)
     .then(function(r) { return r.json(); })
     .then(function(json) {
       var data = json.data || json;
       state.layers = Array.isArray(data) ? data : (data.layers || data.categories || []);
+      // Staging-Modus: Supplements (Aliase, Maptips, Legenden) speichern
+      if (_stagingMode && json.supplements) {
+        state.stagingMeta = json.supplements;
+        console.log('Staging-Meta geladen:', Object.keys(json.supplements).map(function(k) { return k + '=' + Object.keys(json.supplements[k]).length; }).join(', '));
+      }
       // Flatten if needed
       if (state.layers.length && state.layers[0].subcategories) {
         state.layers = flattenCatalog(state.layers);
@@ -1336,18 +1454,34 @@ function flattenCatalog(categories) {
 // =====================================================================
 (function loadGroupSelect() {
   var sel = document.getElementById('tb-source-group');
-  fetch('/maps/tnet/api/v1/info')
-    .then(function(r) { return r.json(); })
-    .then(function(json) {
-      var groups = (json.data && json.data.server && json.data.server.groups) || [];
-      sel.innerHTML = '';
-      groups.forEach(function(g) {
-        var opt = document.createElement('option');
-        opt.value = g; opt.textContent = g;
-        if (g === 'marco') opt.selected = true;
-        sel.appendChild(opt);
+  if (_stagingMode) {
+    // Staging-Modus: Kürzel aus ImportToCore als Quelle anbieten
+    fetch(API_URL + '?action=staging-list-output')
+      .then(function(r) { return r.json(); })
+      .then(function(json) {
+        sel.innerHTML = '<option value="">(Alle Kürzel)</option>';
+        var kList = (json.data || {}).kuerzel || [];
+        kList.forEach(function(k) {
+          var name = typeof k === 'string' ? k : k.kuerzel;
+          var opt = document.createElement('option');
+          opt.value = name; opt.textContent = name;
+          sel.appendChild(opt);
+        });
       });
-    });
+  } else {
+    fetch('/maps/tnet/api/v1/info')
+      .then(function(r) { return r.json(); })
+      .then(function(json) {
+        var groups = (json.data && json.data.server && json.data.server.groups) || [];
+        sel.innerHTML = '';
+        groups.forEach(function(g) {
+          var opt = document.createElement('option');
+          opt.value = g; opt.textContent = g;
+          if (g === 'marco') opt.selected = true;
+          sel.appendChild(opt);
+        });
+      });
+  }
 })();
 
 // =====================================================================
@@ -1425,6 +1559,12 @@ function renderLayers(filter) {
       html += '<div class="tb-layer-item" draggable="true" data-layer-idx="' + item.idx + '" data-layer-id="' + esc(l.id) + '">';
       html += '<span class="grip">⠿</span>';
       html += '<span class="lname">' + esc(name) + '</span>';
+      // Staging-Modus: Badges für Alias, Maptip, Legende, Sublayer
+      if (_stagingMode) {
+        if (l.sublayers > 0) html += '<span class="stg-badge sub" title="' + l.sublayers + ' Sublayer">' + l.sublayers + '</span>';
+        if (l.hasMaptip) html += '<span class="stg-badge mtip" title="' + (l.maptipCount || '') + ' Maptip(s): ' + esc(l.maptipTitle || l.maptipNls || '') + '">' + (l.maptipCount || 'i') + 'i</span>';
+        if (l.hasLegend) html += '<span class="stg-badge leg" title="' + (l.legendCount || '') + ' Legende(n): ' + esc(l.legendTitle || l.legendKey || '') + '">' + (l.legendCount || '') + 'L</span>';
+      }
       html += '</div>';
     });
     html += '</div></div>';
@@ -2060,54 +2200,29 @@ function findGroupById(id) {
 // Render: Tree (rechts)
 // =====================================================================
 function renderTreeTabs() {
-  var tabs = document.getElementById('tb-tree-tabs');
+  // Redesign: Keine Tabs mehr — nur Action-Buttons in der Actions-Bar
+  var bar = document.getElementById('tb-tree-actions');
+  if (!bar) return;
   var p = state.profiles[state.activeProfile];
+  if (!p) { bar.innerHTML = ''; return; }
 
-  if (!p) {
-    tabs.innerHTML = '<span style="padding:8px;color:#999;font-size:11px">Profil wählen…</span>';
-    return;
-  }
-
-  var html = '';
-
+  // activeLyrmgr sicherstellen
   if (p.lyrmgrs) {
-    // Neues Format: LyrMgr-Tabs anzeigen
     var keys = Object.keys(p.lyrmgrs);
     if (!state.activeLyrmgr || !p.lyrmgrs[state.activeLyrmgr]) {
       state.activeLyrmgr = keys[0] || null;
     }
-    keys.forEach(function(key) {
-      var displayName = getLyrmgrDisplayName(key);
-      var active = key === state.activeLyrmgr ? ' active' : '';
-      html += '<button class="tb-tree-tab' + active + '" data-lyrmgr="' + esc(key) + '">' + esc(displayName) + '</button>';
-    });
-  } else if (p.categories) {
-    // Legacy-Format: einzelner Tab
-    state.activeLyrmgr = null;
-    html += '<button class="tb-tree-tab active">' + esc(state.activeProfile) + '</button>';
   }
 
-  // Action-Buttons (rechts)
-  html += '<div class="tb-lyrmgr-actions">';
+  var html = '<div class="tb-lyrmgr-actions">';
   html += '<button class="tb-lyrmgr-btn" data-action="lyrmgr-import" title="Lyrmgr-Block vom Server importieren">📥 Import</button>';
   html += '<button class="tb-lyrmgr-btn" data-action="lyrmgr-export" title="Lyrmgr-Block als JSON anzeigen">📤 Export</button>';
   html += '<button class="tb-lyrmgr-btn" data-action="lyrmgr-verify" title="Layer-IDs prüfen">✅ Verify</button>';
   html += '<button class="tb-lyrmgr-btn tb-lyrmgr-btn-publish" data-action="lyrmgr-publish" title="Lyrmgr-Block auf Server publizieren">🚀 Publish</button>';
   html += '</div>';
+  bar.innerHTML = html;
 
-  tabs.innerHTML = html;
-
-  // Tab-Click-Handler
-  tabs.querySelectorAll('.tb-tree-tab[data-lyrmgr]').forEach(function(tab) {
-    tab.addEventListener('click', function() {
-      state.activeLyrmgr = this.dataset.lyrmgr;
-      renderTreeTabs();
-      renderTree();
-    });
-  });
-
-  // Action-Button-Handler
-  tabs.querySelectorAll('.tb-lyrmgr-btn').forEach(function(btn) {
+  bar.querySelectorAll('.tb-lyrmgr-btn').forEach(function(btn) {
     btn.addEventListener('click', function(e) {
       e.stopPropagation();
       var action = this.dataset.action;
@@ -2119,13 +2234,137 @@ function renderTreeTabs() {
   });
 }
 
+// ===== HELPER: IDs über alle LyrMgrs sammeln =====
+function collectAllStagingIdsGlobal() {
+  var ids = {};
+  var p = state.profiles[state.activeProfile];
+  if (!p) return ids;
+  if (p.lyrmgrs) {
+    Object.keys(p.lyrmgrs).forEach(function(key) {
+      var more = collectAllStagingIds(p.lyrmgrs[key]);
+      for (var id in more) ids[id] = true;
+    });
+  } else if (p.categories) {
+    ids = collectAllStagingIds(p);
+  }
+  return ids;
+}
+
+// ===== HELPER: Profil-Tree aus DOM-Element auflösen =====
+function getProfileFromEl(el) {
+  var lmEl = el.closest('[data-lyrmgr]');
+  if (!lmEl) return getActiveTree();
+  var key = lmEl.dataset.lyrmgr;
+  if (key === '_legacy') {
+    var p = state.profiles[state.activeProfile];
+    return p && p.categories ? p : null;
+  }
+  var p2 = state.profiles[state.activeProfile];
+  return p2 && p2.lyrmgrs ? p2.lyrmgrs[key] : null;
+}
+
+// ===== HELPER: Rekursiv alle Kind-Knoten öffnen/schliessen =====
+function toggleAllChildren(container, show) {
+  container.querySelectorAll('.tb-tree-lyrmgr-body').forEach(function(b) {
+    b.style.display = show ? '' : 'none';
+    var head = b.previousElementSibling;
+    if (head) { var a = head.querySelector('.lm-arrow'); if (a) a.textContent = show ? '▼' : '▶'; }
+  });
+  container.querySelectorAll('.tb-tree-cat-body').forEach(function(b) {
+    b.style.display = show ? '' : 'none';
+    var head = b.previousElementSibling;
+    if (head) { var a = head.querySelector('.arrow'); if (a) a.classList.toggle('open', show); }
+  });
+  container.querySelectorAll('.tb-tree-subgrp').forEach(function(sg) {
+    sg.classList.toggle('open', show);
+  });
+}
+
+// ===== HELPER: JSON-Editor synchronisieren =====
+function syncJsonEditor() {
+  var textarea = document.getElementById('tb-json-textarea');
+  if (!textarea) return;
+  var panel = document.getElementById('tb-json-panel');
+  if (panel && panel.classList.contains('tb-hidden')) return;
+  var p = state.profiles[state.activeProfile];
+  if (!p) { textarea.value = '{}'; return; }
+  try {
+    var exportObj = p.lyrmgrs ? p.lyrmgrs : (p.categories ? { _legacy: p } : {});
+    textarea.value = JSON.stringify(exportObj, function(key, val) {
+      if (key === '_rawBlock') return undefined;
+      return val;
+    }, 2);
+    var statusEl = document.getElementById('tb-json-status');
+    if (statusEl) { statusEl.textContent = ''; statusEl.className = 'tb-json-status'; }
+  } catch(e) { textarea.value = '// Fehler: ' + e.message; }
+}
+
 function renderTree() {
-  // Auto-save bei Tree-Änderung
+  // ===== UNIFIED TREE: Alle LyrMgrs als Root-Knoten =====
   saveState();
   var body = document.getElementById('tb-tree-body');
-  var profile = getActiveTree();
-  if (!profile) { body.innerHTML = '<div style="padding:40px;text-align:center;color:#ccc"><div style="font-size:40px;margin-bottom:12px">📂</div>Profil wählen und lyrmgr.conf importieren</div>'; return; }
+  var p = state.profiles[state.activeProfile];
 
+  if (!p) {
+    body.innerHTML = '<div style="padding:40px;text-align:center;color:#ccc"><div style="font-size:40px;margin-bottom:12px">📂</div>Profil wählen und lyrmgr.conf importieren</div>';
+    syncJsonEditor();
+    return;
+  }
+
+  // LyrMgr-Entries bestimmen (neues + Legacy-Format)
+  var lyrmgrEntries = [];
+  if (p.lyrmgrs) {
+    Object.keys(p.lyrmgrs).forEach(function(key) {
+      lyrmgrEntries.push({ key: key, tree: p.lyrmgrs[key] });
+    });
+  } else if (p.categories) {
+    lyrmgrEntries.push({ key: '_legacy', tree: p });
+  }
+
+  if (!lyrmgrEntries.length) {
+    body.innerHTML = '<div style="padding:40px;text-align:center;color:#ccc"><div style="font-size:40px;margin-bottom:12px">📂</div>LyrMgr importieren…</div>';
+    syncJsonEditor();
+    return;
+  }
+
+  // activeLyrmgr sicherstellen
+  if (!state.activeLyrmgr && lyrmgrEntries.length) state.activeLyrmgr = lyrmgrEntries[0].key;
+
+  body.innerHTML = '';
+
+  lyrmgrEntries.forEach(function(entry) {
+    renderLyrmgrBlock(body, entry.key, entry.tree);
+  });
+
+  syncJsonEditor();
+}
+
+// ===== Einen LyrMgr-Block als Root-Knoten rendern =====
+function renderLyrmgrBlock(container, lmKey, profile) {
+  var isLegacy = (lmKey === '_legacy');
+  var displayName = isLegacy ? (state.activeProfile || 'Profil') : getLyrmgrDisplayName(lmKey);
+  var catCount = (profile.categories || []).length;
+  var isExpanded = (state.activeLyrmgr === lmKey);
+
+  // LyrMgr Root-Element
+  var lmEl = document.createElement('div');
+  lmEl.className = 'tb-tree-lyrmgr';
+  lmEl.dataset.lyrmgr = lmKey;
+
+  // Head
+  var headEl = document.createElement('div');
+  headEl.className = 'tb-tree-lyrmgr-head';
+  headEl.innerHTML = '<span class="lm-arrow">' + (isExpanded ? '▼' : '▶') + '</span>'
+    + '<span class="lm-name">' + esc(displayName) + '</span>'
+    + '<span class="lm-badge">' + catCount + ' Kat.</span>';
+  lmEl.appendChild(headEl);
+
+  // Body (default collapsed, expanded wenn activeLyrmgr)
+  var lmBody = document.createElement('div');
+  lmBody.className = 'tb-tree-lyrmgr-body';
+  lmBody.style.display = isExpanded ? '' : 'none';
+
+  // ===== Kategorie-HTML aufbauen =====
   var html = '';
 
   function renderNestedItem(item, ci, si, path) {
@@ -2138,7 +2377,6 @@ function renderTree() {
         + '<button class="tidel" data-action="del-item" data-cat-idx="' + ci + '" data-sub-idx="' + si + '" data-item-path="' + path.join('.') + '">×</button>'
         + '</div>';
     }
-
     if (item && typeof item === 'object') {
       var sgName = item.name || '(Untergruppe)';
       var sgItems = item.items || [];
@@ -2156,23 +2394,22 @@ function renderTree() {
         + '<div class="tb-tree-subgrp-body">' + nestedHtml + '</div>'
         + '</div>';
     }
-
     return '';
   }
 
-  profile.categories.forEach(function(cat, ci) {
+  (profile.categories || []).forEach(function(cat, ci) {
     var catLabel = cat.name || cat.key || '(Kategorie)';
     var iconInfo = cat.iconClass ? ' <span style="font-size:9px;color:rgba(255,255,255,.5)">' + esc(cat.iconClass) + '</span>' : '';
     html += '<div class="tb-tree-cat" data-cat-idx="' + ci + '" draggable="true">';
     html += '<div class="tb-tree-cat-head">';
-    html += '<span class="arrow open">▶</span>';
+    html += '<span class="arrow">▶</span>';
     html += '<input class="cname" value="' + esc(catLabel) + '" data-cat-idx="' + ci + '">';
     html += iconInfo;
     html += '<button class="cdel" data-action="del-cat" data-cat-idx="' + ci + '">×</button>';
     html += '</div>';
-    html += '<div class="tb-tree-cat-body">';
+    html += '<div class="tb-tree-cat-body" style="display:none">';
 
-    cat.subcategories.forEach(function(sub, si) {
+    (cat.subcategories || []).forEach(function(sub, si) {
       var subLabel = sub.name || sub.key || '(Gruppe)';
       html += '<div class="tb-tree-sub" data-cat-idx="' + ci + '" data-sub-idx="' + si + '" draggable="true">';
       html += '<div class="tb-tree-sub-head">';
@@ -2185,12 +2422,10 @@ function renderTree() {
       var hasGroupRefs = sub.groupRefs && sub.groupRefs.length > 0;
 
       if (hasItems) {
-        // Lyrmgr-Modus: Items direkt anzeigen
         sub.items.forEach(function(item, ii) {
           html += renderNestedItem(item, ci, si, [ii]);
         });
       } else if (hasGroupRefs) {
-        // Legacy-Modus: Gruppen-Referenzen
         sub.groupRefs.forEach(function(gid, gri) {
           var g = findGroupById(gid);
           var gname = g ? g.name : '(gelöscht)';
@@ -2209,24 +2444,76 @@ function renderTree() {
       html += '</div></div>';
     });
 
-    if (cat.subcategories.length === 0) {
+    if (!cat.subcategories || cat.subcategories.length === 0) {
       html += '<div class="tb-drop-hint">Subkategorien hinzufügen oder Gruppen direkt ziehen</div>';
     }
 
     html += '</div></div>';
   });
 
-  if (!profile.categories.length) {
-    html += '<div style="padding:40px;text-align:center;color:#ccc">';
-    html += '<div style="font-size:40px;margin-bottom:12px">🌳</div>';
-    html += 'Tree ist leer.<br>Klicke «+ Kategorie» oder importiere einen lyrmgr.conf.';
+  if (!profile.categories || !profile.categories.length) {
+    html += '<div style="padding:20px;text-align:center;color:#aaa;font-size:12px">';
+    html += '🌳 Tree ist leer — «+ Kategorie» oder lyrmgr.conf importieren.';
     html += '</div>';
   }
 
-  body.innerHTML = html;
+  lmBody.innerHTML = html;
+  lmEl.appendChild(lmBody);
 
-  // Drop-Zonen: Gruppen/Layer in Subcategory-Body
-  body.querySelectorAll('.tb-tree-sub-body').forEach(function(subBody) {
+  // ===== LyrMgr Head: Click → expand/collapse + activeLyrmgr setzen =====
+  headEl.addEventListener('click', function(e) {
+    var isHidden = lmBody.style.display === 'none';
+    lmBody.style.display = isHidden ? '' : 'none';
+    headEl.querySelector('.lm-arrow').textContent = isHidden ? '▼' : '▶';
+    state.activeLyrmgr = lmKey;
+    // Shift+Click: rekursiv alle Kind-Knoten öffnen/schliessen
+    if (e.shiftKey) {
+      toggleAllChildren(lmBody, isHidden);
+    }
+  });
+
+  // ===== Drop-Top-Level auf LyrMgr-Body =====
+  lmBody.addEventListener('dragover', function(e) { e.preventDefault(); });
+  lmBody.addEventListener('drop', function(e) {
+    if (e.target.closest('.tb-tree-sub-body') || e.target.closest('.tb-tree-cat-body')) return;
+    e.preventDefault();
+    try {
+      var d = JSON.parse(e.dataTransfer.getData('text/plain'));
+      var existingIds = collectAllStagingIdsGlobal();
+      if (d.type === 'clip-cat') {
+        var newCat = deepCopy(d.cat);
+        newCat.id = uid('cat');
+        (newCat.subcategories || []).forEach(function(s) {
+          s.items = filterDuplicateItems(s.items || [], existingIds);
+        });
+        profile.categories.push(newCat);
+        renderTree();
+      }
+      if (d.type === 'clip-sub') {
+        var newSub = deepCopy(d.sub);
+        newSub.items = filterDuplicateItems(newSub.items || [], existingIds);
+        var newCat2 = { id: uid('cat'), name: newSub.name || 'Aus Clipboard', subcategories: [newSub] };
+        profile.categories.push(newCat2);
+        renderTree();
+      }
+      if (d.type === 'clip-item') {
+        var filtered = filterDuplicateItems([deepCopy(d.item)], existingIds);
+        if (filtered.length) {
+          var sub = { id: uid('sub'), name: 'Aus Clipboard', items: filtered };
+          if (profile.categories.length) {
+            var lastCat = profile.categories[profile.categories.length - 1];
+            lastCat.subcategories.push(sub);
+          } else {
+            profile.categories.push({ id: uid('cat'), name: 'Aus Clipboard', subcategories: [sub] });
+          }
+          renderTree();
+        }
+      }
+    } catch(ex) {}
+  });
+
+  // ===== Drop-Zonen: Gruppen/Layer in Subcategory-Body =====
+  lmBody.querySelectorAll('.tb-tree-sub-body').forEach(function(subBody) {
     subBody.addEventListener('dragover', function(e) { e.preventDefault(); subBody.classList.add('drag-over'); });
     subBody.addEventListener('dragleave', function() { subBody.classList.remove('drag-over'); });
     subBody.addEventListener('drop', function(e) {
@@ -2236,7 +2523,7 @@ function renderTree() {
         var ci = parseInt(subBody.dataset.catIdx);
         var si = parseInt(subBody.dataset.subIdx);
         var sub = profile.categories[ci].subcategories[si];
-        var existingIds = collectAllStagingIds(profile);
+        var existingIds = collectAllStagingIdsGlobal();
         if (d.type === 'group-ref' && sub.groupRefs) {
           var gid = state.groups[d.groupIdx].id;
           if (sub.groupRefs.indexOf(gid) === -1) {
@@ -2252,29 +2539,25 @@ function renderTree() {
             renderTree();
           }
         }
-        // Aus Clipboard: einzelnes Item
         if (d.type === 'clip-item') {
           if (!sub.items) sub.items = [];
           var filtered = filterDuplicateItems([deepCopy(d.item)], existingIds);
           if (filtered.length) { filtered.forEach(function(it) { sub.items.push(it); }); renderTree(); }
         }
-        // Aus Clipboard: Sub → Items mergen
         if (d.type === 'clip-sub') {
           if (!sub.items) sub.items = [];
           var filtered2 = filterDuplicateItems(deepCopy(d.sub).items || [], existingIds);
           if (filtered2.length) { filtered2.forEach(function(it) { sub.items.push(it); }); renderTree(); }
         }
-        // Intra-Staging: Item verschieben/kopieren
         if (d.type === 'staging-items' && d.srcCat !== undefined) {
           if (!sub.items) sub.items = [];
           if (!e.ctrlKey) {
-            // Move: erst entfernen, dann einfügen (keine Duplikat-Prüfung nötig)
-            var srcItems = profile.categories[d.srcCat].subcategories[d.srcSub].items;
+            var srcProfile = d.srcLyrmgr ? (state.profiles[state.activeProfile].lyrmgrs[d.srcLyrmgr] || profile) : profile;
+            var srcItems = srcProfile.categories[d.srcCat].subcategories[d.srcSub].items;
             if (d.srcPath) spliceItemByPath(srcItems, d.srcPath);
             var copied = deepCopy(d.items);
             copied.forEach(function(it) { sub.items.push(it); });
           } else {
-            // Copy: Duplikate filtern
             var filtered3 = filterDuplicateItems(deepCopy(d.items), existingIds);
             if (filtered3.length) filtered3.forEach(function(it) { sub.items.push(it); });
           }
@@ -2284,29 +2567,26 @@ function renderTree() {
     });
   });
 
-  // Drop-Zone: Gruppen direkt in Kategorie (erstellt auto Subkategorie)
-  body.querySelectorAll('.tb-tree-cat-body').forEach(function(catBody) {
+  // ===== Drop-Zone: Gruppen direkt in Kategorie =====
+  lmBody.querySelectorAll('.tb-tree-cat-body').forEach(function(catBody) {
     catBody.addEventListener('dragover', function(e) { e.preventDefault(); catBody.classList.add('drag-over'); });
     catBody.addEventListener('dragleave', function(e) {
       if (!catBody.contains(e.relatedTarget)) catBody.classList.remove('drag-over');
     });
     catBody.addEventListener('drop', function(e) {
-      // Only handle if not handled by sub-body
       if (e.target.closest('.tb-tree-sub-body')) return;
       e.preventDefault(); catBody.classList.remove('drag-over');
       try {
         var d = JSON.parse(e.dataTransfer.getData('text/plain'));
         var ci = parseInt(catBody.closest('.tb-tree-cat').dataset.catIdx);
         var cat = profile.categories[ci];
-        var existingIds = collectAllStagingIds(profile);
+        var existingIds = collectAllStagingIdsGlobal();
         if (d.type === 'group-ref') {
           var gid = state.groups[d.groupIdx].id;
-          // Auto-Subkategorie erstellen
           var sub = { id: uid('sub'), name: state.groups[d.groupIdx].name, groupRefs: [gid] };
           cat.subcategories.push(sub);
           renderTree();
         }
-        // Clipboard-Sub direkt in Kategorie droppen
         if (d.type === 'clip-sub') {
           var newSub = deepCopy(d.sub);
           newSub.id = uid('sub');
@@ -2314,7 +2594,6 @@ function renderTree() {
           cat.subcategories.push(newSub);
           renderTree();
         }
-        // Clipboard-Cat → alle Subs in die Kategorie mergen
         if (d.type === 'clip-cat') {
           var clipCat = deepCopy(d.cat);
           (clipCat.subcategories || []).forEach(function(s) {
@@ -2328,8 +2607,8 @@ function renderTree() {
     });
   });
 
-  // Name-Änderungen (name + key synchron halten)
-  body.querySelectorAll('.cname').forEach(function(inp) {
+  // ===== Name-Änderungen =====
+  lmBody.querySelectorAll('.cname').forEach(function(inp) {
     inp.addEventListener('change', function() {
       var cat = profile.categories[parseInt(this.dataset.catIdx)];
       cat.name = this.value;
@@ -2337,7 +2616,7 @@ function renderTree() {
     });
     inp.addEventListener('click', function(e) { e.stopPropagation(); });
   });
-  body.querySelectorAll('.sname').forEach(function(inp) {
+  lmBody.querySelectorAll('.sname').forEach(function(inp) {
     inp.addEventListener('change', function() {
       var sub = profile.categories[parseInt(this.dataset.catIdx)].subcategories[parseInt(this.dataset.subIdx)];
       sub.name = this.value;
@@ -2346,15 +2625,23 @@ function renderTree() {
     inp.addEventListener('click', function(e) { e.stopPropagation(); });
   });
 
-  // Delegated clicks
-  body.addEventListener('click', function(e) {
+  // ===== Delegated Clicks: Delete-Actions + Toggles =====
+  lmBody.addEventListener('click', function(e) {
     var btn = e.target.closest('[data-action]');
     if (!btn) {
-      // Sub-Group Toggle
+      // SubGroup Toggle (mit Shift: rekursiv)
       var sgHead = e.target.closest('.tb-tree-subgrp-head');
       if (sgHead) {
         var sgEl = sgHead.closest('.tb-tree-subgrp');
-        if (sgEl) sgEl.classList.toggle('open');
+        if (sgEl) {
+          if (e.shiftKey) {
+            var willOpen = !sgEl.classList.contains('open');
+            sgEl.classList.toggle('open', willOpen);
+            toggleAllChildren(sgEl, willOpen);
+          } else {
+            sgEl.classList.toggle('open');
+          }
+        }
       }
       return;
     }
@@ -2393,8 +2680,8 @@ function renderTree() {
     }
   });
 
-  // Toggle cat collapse
-  body.querySelectorAll('.tb-tree-cat-head').forEach(function(head) {
+  // ===== Toggle Cat collapse (mit Shift: rekursiv) =====
+  lmBody.querySelectorAll('.tb-tree-cat-head').forEach(function(head) {
     head.addEventListener('click', function(e) {
       if (e.target.closest('.cname') || e.target.closest('.cdel')) return;
       var cat = head.closest('.tb-tree-cat');
@@ -2403,18 +2690,22 @@ function renderTree() {
       var hidden = catBody.style.display === 'none';
       catBody.style.display = hidden ? '' : 'none';
       arrow.classList.toggle('open', hidden);
+      // Shift+Click: rekursiv
+      if (e.shiftKey) {
+        toggleAllChildren(catBody, hidden);
+      }
     });
   });
 
-  // ── D&D: Kategorien umsortieren ──
-  body.querySelectorAll('.tb-tree-cat').forEach(function(catEl) {
+  // ===== D&D: Kategorien umsortieren =====
+  lmBody.querySelectorAll('.tb-tree-cat').forEach(function(catEl) {
     catEl.addEventListener('dragstart', function(e) {
       if (e.target.closest('.tb-tree-sub') || e.target.closest('.tb-tree-gref') || e.target.closest('.tb-tree-item') || e.target.closest('.tb-tree-subgrp') || e.target.closest('input')) { return; }
       e.stopPropagation();
       e.dataTransfer.effectAllowed = 'copyMove';
       var ci = parseInt(catEl.dataset.catIdx);
       var catData = deepCopy(profile.categories[ci]);
-      e.dataTransfer.setData('text/plain', JSON.stringify({ type: 'reorder-cat', catIdx: ci, stagingCat: catData }));
+      e.dataTransfer.setData('text/plain', JSON.stringify({ type: 'reorder-cat', catIdx: ci, stagingCat: catData, srcLyrmgr: lmKey }));
       catEl.classList.add('dragging');
     });
     catEl.addEventListener('dragend', function() { catEl.classList.remove('dragging'); });
@@ -2435,16 +2726,21 @@ function renderTree() {
         e.preventDefault(); e.stopPropagation();
         var from = d.catIdx;
         var to = parseInt(catEl.dataset.catIdx);
+        var srcProfile = d.srcLyrmgr ? (state.profiles[state.activeProfile].lyrmgrs[d.srcLyrmgr] || profile) : profile;
         var cats = profile.categories;
         var rect = catEl.getBoundingClientRect();
         var insertAt = e.clientY < rect.top + rect.height / 2 ? to : to + 1;
-        if (e.ctrlKey) {
-          var existIds = collectAllStagingIds(profile);
+        if (e.ctrlKey || d.srcLyrmgr !== lmKey) {
+          var existIds = collectAllStagingIdsGlobal();
           var newCat = deepCopy(d.stagingCat); newCat.id = uid('cat');
           (newCat.subcategories || []).forEach(function(s) {
             s.items = filterDuplicateItems(s.items || [], existIds);
           });
           cats.splice(insertAt, 0, newCat);
+          // Bei Move zwischen LyrMgrs: Quelle entfernen
+          if (!e.ctrlKey && d.srcLyrmgr !== lmKey) {
+            srcProfile.categories.splice(from, 1);
+          }
         } else {
           if (from === to) return;
           var moved = cats.splice(from, 1)[0];
@@ -2456,8 +2752,8 @@ function renderTree() {
     });
   });
 
-  // ── D&D: Subkategorien umsortieren (innerhalb + zwischen Kategorien) ──
-  body.querySelectorAll('.tb-tree-sub').forEach(function(subEl) {
+  // ===== D&D: Subkategorien umsortieren =====
+  lmBody.querySelectorAll('.tb-tree-sub').forEach(function(subEl) {
     subEl.addEventListener('dragstart', function(e) {
       if (e.target.closest('.tb-tree-gref') || e.target.closest('.tb-tree-item') || e.target.closest('.tb-tree-subgrp') || e.target.closest('input')) { return; }
       e.stopPropagation();
@@ -2465,7 +2761,7 @@ function renderTree() {
       var ci = parseInt(subEl.dataset.catIdx), si = parseInt(subEl.dataset.subIdx);
       var subData = deepCopy(profile.categories[ci].subcategories[si]);
       e.dataTransfer.setData('text/plain', JSON.stringify({
-        type: 'reorder-sub', catIdx: ci, subIdx: si, stagingSub: subData
+        type: 'reorder-sub', catIdx: ci, subIdx: si, stagingSub: subData, srcLyrmgr: lmKey
       }));
       subEl.classList.add('dragging');
     });
@@ -2488,13 +2784,14 @@ function renderTree() {
         var rect = subEl.getBoundingClientRect();
         var insertAt = e.clientY < rect.top + rect.height / 2 ? toSi : toSi + 1;
         if (e.ctrlKey) {
-          var existIds = collectAllStagingIds(profile);
+          var existIds = collectAllStagingIdsGlobal();
           var newSub = deepCopy(d.stagingSub); newSub.id = uid('sub');
           newSub.items = filterDuplicateItems(newSub.items || [], existIds);
           profile.categories[toCi].subcategories.splice(insertAt, 0, newSub);
         } else {
-          var moved = profile.categories[fromCi].subcategories.splice(fromSi, 1)[0];
-          if (fromCi === toCi && fromSi < insertAt) insertAt--;
+          var srcProfile = d.srcLyrmgr ? (state.profiles[state.activeProfile].lyrmgrs[d.srcLyrmgr] || profile) : profile;
+          var moved = srcProfile.categories[fromCi].subcategories.splice(fromSi, 1)[0];
+          if (srcProfile === profile && fromCi === toCi && fromSi < insertAt) insertAt--;
           profile.categories[toCi].subcategories.splice(insertAt, 0, moved);
         }
         renderTree();
@@ -2502,8 +2799,8 @@ function renderTree() {
     });
   });
 
-  // ── D&D: Gruppen-Referenzen umsortieren (innerhalb + zwischen Subcategories) ──
-  body.querySelectorAll('.tb-tree-gref').forEach(function(grefEl) {
+  // ===== D&D: Gruppen-Referenzen umsortieren =====
+  lmBody.querySelectorAll('.tb-tree-gref').forEach(function(grefEl) {
     grefEl.addEventListener('dragstart', function(e) {
       e.stopPropagation();
       e.dataTransfer.effectAllowed = 'move';
@@ -2511,7 +2808,8 @@ function renderTree() {
         type: 'reorder-gref',
         catIdx: parseInt(grefEl.dataset.catIdx),
         subIdx: parseInt(grefEl.dataset.subIdx),
-        grefIdx: parseInt(grefEl.dataset.grefIdx)
+        grefIdx: parseInt(grefEl.dataset.grefIdx),
+        srcLyrmgr: lmKey
       }));
       grefEl.classList.add('dragging');
     });
@@ -2544,7 +2842,6 @@ function renderTree() {
           }
           renderTree();
         }
-        // Neue Gruppe aus Mitte-Panel direkt an Position droppen
         if (d.type === 'group-ref') {
           e.preventDefault(); e.stopPropagation();
           var gid = state.groups[d.groupIdx].id;
@@ -2561,8 +2858,8 @@ function renderTree() {
     });
   });
 
-  // ── D&D: Staging Items/Subgroups — Dragstart + Reorder ──
-  body.querySelectorAll('.tb-tree-item, .tb-tree-subgrp').forEach(function(el) {
+  // ===== D&D: Staging Items/Subgroups =====
+  lmBody.querySelectorAll('.tb-tree-item, .tb-tree-subgrp').forEach(function(el) {
     el.addEventListener('dragstart', function(e) {
       if (el.classList.contains('tb-tree-subgrp') && (e.target.closest('.tb-tree-item') || e.target.closest('input'))) return;
       e.stopPropagation();
@@ -2574,7 +2871,7 @@ function renderTree() {
       var item = getItemByPath(items, path);
       if (!item) return;
       e.dataTransfer.setData('text/plain', JSON.stringify({
-        type: 'staging-items', items: [deepCopy(item)], srcCat: ci, srcSub: si, srcPath: path
+        type: 'staging-items', items: [deepCopy(item)], srcCat: ci, srcSub: si, srcPath: path, srcLyrmgr: lmKey
       }));
       el.classList.add('dragging');
     });
@@ -2593,7 +2890,7 @@ function renderTree() {
         var tCi = parseInt(el.dataset.catIdx);
         var tSi = parseInt(el.dataset.subIdx);
         var tPath = (el.dataset.itemPath || '').split('.').map(Number);
-        if (tPath.length !== 1) return; // nur Top-Level positional
+        if (tPath.length !== 1) return;
         var tIdx = tPath[0];
         var rect = el.getBoundingClientRect();
         var insertAt = e.clientY < rect.top + rect.height / 2 ? tIdx : tIdx + 1;
@@ -2602,15 +2899,14 @@ function renderTree() {
         if (d.type === 'staging-items' && d.srcCat !== undefined) {
           e.preventDefault(); e.stopPropagation();
           if (!e.ctrlKey) {
-            // Move: erst entfernen, dann einfügen
-            var srcItems = profile.categories[d.srcCat].subcategories[d.srcSub].items;
+            var srcProfile = d.srcLyrmgr ? (state.profiles[state.activeProfile].lyrmgrs[d.srcLyrmgr] || profile) : profile;
+            var srcItems = srcProfile.categories[d.srcCat].subcategories[d.srcSub].items;
             spliceItemByPath(srcItems, d.srcPath);
-            if (d.srcCat === tCi && d.srcSub === tSi && d.srcPath.length === 1 && d.srcPath[0] < insertAt) insertAt--;
+            if (srcProfile === profile && d.srcCat === tCi && d.srcSub === tSi && d.srcPath.length === 1 && d.srcPath[0] < insertAt) insertAt--;
             var copied = deepCopy(d.items);
             for (var i = copied.length - 1; i >= 0; i--) targetItems.splice(insertAt, 0, copied[i]);
           } else {
-            // Copy: Duplikate filtern
-            var existIds = collectAllStagingIds(profile);
+            var existIds = collectAllStagingIdsGlobal();
             var filtered = filterDuplicateItems(deepCopy(d.items), existIds);
             for (var j = filtered.length - 1; j >= 0; j--) targetItems.splice(insertAt, 0, filtered[j]);
           }
@@ -2618,7 +2914,7 @@ function renderTree() {
         }
         if (d.type === 'clip-item') {
           e.preventDefault(); e.stopPropagation();
-          var existIds2 = collectAllStagingIds(profile);
+          var existIds2 = collectAllStagingIdsGlobal();
           var filtered2 = filterDuplicateItems([deepCopy(d.item)], existIds2);
           if (filtered2.length) targetItems.splice(insertAt, 0, filtered2[0]);
           renderTree(); return;
@@ -2626,7 +2922,7 @@ function renderTree() {
         if (d.type === 'layer') {
           e.preventDefault(); e.stopPropagation();
           var layer = state.layers[d.idx];
-          var existIds3 = collectAllStagingIds(profile);
+          var existIds3 = collectAllStagingIdsGlobal();
           if (layer && !existIds3[layer.id]) { targetItems.splice(insertAt, 0, layer.id); renderTree(); }
           return;
         }
@@ -2634,48 +2930,10 @@ function renderTree() {
     });
   });
 
-  // ── Top-Level Staging Drop: Clipboard-Elemente direkt empfangen ──
-  body.addEventListener('dragover', function(e) { e.preventDefault(); });
-  body.addEventListener('drop', function(e) {
-    if (e.target.closest('.tb-tree-sub-body') || e.target.closest('.tb-tree-cat-body')) return;
-    e.preventDefault();
-    try {
-      var d = JSON.parse(e.dataTransfer.getData('text/plain'));
-      var existingIds = collectAllStagingIds(profile);
-      if (d.type === 'clip-cat') {
-        var newCat = deepCopy(d.cat);
-        newCat.id = uid('cat');
-        (newCat.subcategories || []).forEach(function(s) {
-          s.items = filterDuplicateItems(s.items || [], existingIds);
-        });
-        profile.categories.push(newCat);
-        renderTree();
-      }
-      if (d.type === 'clip-sub') {
-        var newSub = deepCopy(d.sub);
-        newSub.items = filterDuplicateItems(newSub.items || [], existingIds);
-        var newCat2 = { id: uid('cat'), name: newSub.name || 'Aus Clipboard', subcategories: [newSub] };
-        profile.categories.push(newCat2);
-        renderTree();
-      }
-      if (d.type === 'clip-item') {
-        var filtered = filterDuplicateItems([deepCopy(d.item)], existingIds);
-        if (filtered.length) {
-          var sub = { id: uid('sub'), name: 'Aus Clipboard', items: filtered };
-          if (profile.categories.length) {
-            var lastCat = profile.categories[profile.categories.length - 1];
-            lastCat.subcategories.push(sub);
-          } else {
-            profile.categories.push({ id: uid('cat'), name: 'Aus Clipboard', subcategories: [sub] });
-          }
-          renderTree();
-        }
-      }
-    } catch(ex) {}
-  });
+  container.appendChild(lmEl);
 }
 
-// + Kategorie
+// + Kategorie (zum aktiven LyrMgr hinzufügen)
 document.getElementById('tb-btn-add-cat').addEventListener('click', function() {
   var tree = getActiveTree();
   if (!tree) return;
@@ -2685,17 +2943,17 @@ document.getElementById('tb-btn-add-cat').addEventListener('click', function() {
   renderTree();
 });
 
-// + Subkategorie
+// + Subkategorie (zur letzten Kategorie des aktiven LyrMgrs)
 document.getElementById('tb-btn-add-sub').addEventListener('click', function() {
   var tree = getActiveTree();
   if (!tree || !tree.categories.length) { alert('Erst eine Kategorie erstellen.'); return; }
-  // Zur letzten Kategorie hinzufügen
   var lastCat = tree.categories[tree.categories.length - 1];
   lastCat.subcategories.push({
     id: uid('sub'), name: 'Neue Subkategorie', groupRefs: [], items: []
   });
   renderTree();
 });
+
 
 // =====================================================================
 // JSON Export
@@ -4643,17 +4901,17 @@ document.getElementById('tb-ags-btn-refresh').addEventListener('click', function
 
 // Filter (Import-Tab)
 document.getElementById('tb-ags-filter').addEventListener('input', function() {
-  var term = this.value.toLowerCase();
+  var term = this.value.trim();
   document.querySelectorAll('.tb-ags-item').forEach(function(item) {
-    item.classList.toggle('hidden', term && item.dataset.name.indexOf(term) === -1);
+    item.classList.toggle('hidden', term && !matchWildcard(item.dataset.name, term));
   });
 });
 
 // Filter (Verwalten-Tab)
 document.getElementById('tb-ags-manage-filter').addEventListener('input', function() {
-  var term = this.value.toLowerCase();
+  var term = this.value.trim();
   document.querySelectorAll('.tb-ags-svc-group').forEach(function(grp) {
-    grp.style.display = (term && grp.dataset.svcname.indexOf(term) === -1) ? 'none' : '';
+    grp.style.display = (term && !matchWildcard(grp.dataset.svcname, term)) ? 'none' : '';
   });
   updateTbAgsManageSelCount();
 });
@@ -4692,9 +4950,9 @@ document.getElementById('tb-ags-btn-delete-backups').addEventListener('click', d
 
 // Staging-Tab: Filter
 document.getElementById('tb-staging-filter').addEventListener('input', function() {
-  var term = this.value.toLowerCase();
+  var term = this.value.trim();
   document.querySelectorAll('#tb-staging-svc-list .tb-ags-svc-group').forEach(function(grp) {
-    grp.style.display = (term && grp.dataset.svcname.indexOf(term) === -1) ? 'none' : '';
+    grp.style.display = (term && !matchWildcard(grp.dataset.svcname, term)) ? 'none' : '';
   });
   updateTbStagingSelCount();
 });
@@ -5153,9 +5411,111 @@ document.getElementById('tb-profile-select').addEventListener('change', function
 });
 
 // =====================================================================
+// Panel-Toggles + JSON-Editor
+// =====================================================================
+
+// Panel-Toggle-Buttons: Layer, Clipboard, JSON, Preview ein/ausblenden
+var _panelToggles = {
+  'tb-toggle-layers':    'tb-panel-layers',
+  'tb-toggle-clipboard': 'tb-panel-groups',
+  'tb-toggle-json':      'tb-json-panel',
+  'tb-toggle-preview':   'tb-preview-panel'
+};
+
+Object.keys(_panelToggles).forEach(function(btnId) {
+  var btn = document.getElementById(btnId);
+  if (!btn) return;
+  var panelId = _panelToggles[btnId];
+  // Aus localStorage wiederherstellen
+  var storedState = localStorage.getItem('tb_panel_' + btnId);
+  if (storedState === 'hidden') {
+    btn.classList.remove('active');
+    var panel = document.getElementById(panelId);
+    if (panel) panel.classList.add('tb-hidden');
+  }
+  btn.addEventListener('click', function() {
+    var panel = document.getElementById(panelId);
+    if (!panel) return;
+    var isActive = btn.classList.toggle('active');
+    panel.classList.toggle('tb-hidden', !isActive);
+    localStorage.setItem('tb_panel_' + btnId, isActive ? 'visible' : 'hidden');
+    // JSON-Editor: beim Einblenden synchronisieren
+    if (btnId === 'tb-toggle-json' && isActive) syncJsonEditor();
+  });
+});
+
+// JSON-Editor: Resize-Handle (horizontaler Drag)
+(function() {
+  var handle = document.getElementById('tb-json-resize');
+  var panel = document.getElementById('tb-json-panel');
+  if (!handle || !panel) return;
+  var startX, startW;
+  handle.addEventListener('mousedown', function(e) {
+    e.preventDefault();
+    startX = e.clientX;
+    startW = panel.offsetWidth;
+    function onMove(e2) {
+      var diff = startX - e2.clientX;
+      panel.style.width = Math.max(200, Math.min(800, startW + diff)) + 'px';
+    }
+    function onUp() {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    }
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+})();
+
+// JSON-Editor: Format-Button
+document.getElementById('tb-json-format').addEventListener('click', function() {
+  var textarea = document.getElementById('tb-json-textarea');
+  var statusEl = document.getElementById('tb-json-status');
+  try {
+    var obj = JSON.parse(textarea.value);
+    textarea.value = JSON.stringify(obj, null, 2);
+    if (statusEl) { statusEl.textContent = '✓ Formatiert'; statusEl.className = 'tb-json-status ok'; }
+  } catch(e) {
+    if (statusEl) { statusEl.textContent = '✗ ' + e.message; statusEl.className = 'tb-json-status error'; }
+  }
+});
+
+// JSON-Editor: Apply-Button (JSON → State übernehmen)
+document.getElementById('tb-json-apply').addEventListener('click', function() {
+  var textarea = document.getElementById('tb-json-textarea');
+  var statusEl = document.getElementById('tb-json-status');
+  try {
+    var obj = JSON.parse(textarea.value);
+    var p = state.profiles[state.activeProfile];
+    if (!p) { alert('Kein aktives Profil!'); return; }
+    // Erwarte: { lyrmgr_key: { meta:{}, categories:[] }, ... }
+    if (p.lyrmgrs) {
+      Object.keys(obj).forEach(function(key) {
+        if (key === '_legacy') return;
+        p.lyrmgrs[key] = obj[key];
+      });
+    } else {
+      // Legacy: ersetze categories direkt
+      if (obj._legacy) {
+        p.categories = obj._legacy.categories || [];
+      }
+    }
+    renderTree();
+    if (statusEl) { statusEl.textContent = '✓ Angewendet'; statusEl.className = 'tb-json-status ok'; }
+  } catch(e) {
+    if (statusEl) { statusEl.textContent = '✗ ' + e.message; statusEl.className = 'tb-json-status error'; }
+  }
+});
+
+// =====================================================================
 // Init
 // =====================================================================
-loadLayers('marco');
+// Im Staging-Modus: alle ImportToCore-Layer laden, sonst Default-Gruppe 'marco'
+if (_stagingMode) {
+  loadLayers('');
+} else {
+  loadLayers('marco');
+}
 // Gespeicherten State wiederherstellen
 var restored = loadState();
 renderClipboard();

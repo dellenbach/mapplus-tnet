@@ -1,6 +1,0 @@
-{
-"items": [
-{ "name": "CH: WMS geo.sdmin", "url": "https://wms.geo.admin.ch/" },
-{ "name": "WMS Basisdaten Trigonet", "url": "https://www.gis-daten.ch/wms/trigonet_Test/service?REQUEST=GetCapabilities" }
-    ]
-}

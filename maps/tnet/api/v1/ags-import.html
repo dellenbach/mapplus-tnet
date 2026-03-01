@@ -176,7 +176,7 @@ body {
 @keyframes ags-spin { to { transform: rotate(360deg); } }
 
 /* ===== RESULT ===== */
-.ags-result { margin-top: 12px; flex-shrink: 0; max-height: 260px; overflow-y: auto; border: 1px solid #e8eaed; border-radius: 4px; padding: 6px; }
+.ags-result { margin-top: 12px; flex-shrink: 1; min-height: 60px; max-height: 260px; overflow-y: auto; border: 1px solid #e8eaed; border-radius: 4px; padding: 6px; }
 .ags-result-file {
   display: flex; align-items: center; gap: 6px; padding: 3px 0;
   font-size: 11px; color: #555;
@@ -284,6 +284,28 @@ body {
   border-radius: 4px; font-family: 'Consolas', monospace;
 }
 .staging-kuerzel-row input:focus { outline: none; border-color: var(--c-primary); }
+.staging-kuerzel-row select {
+  padding: 5px 6px; font-size: 11px; border: 1px solid #ccc;
+  border-radius: 4px; background: #fff; cursor: pointer; flex-shrink: 0;
+}
+.staging-kuerzel-row select:focus { outline: none; border-color: var(--c-primary); }
+.staging-manifest-info {
+  font-size: 10px; color: #666; padding: 4px 6px; margin-top: 2px;
+  background: #f0f7f7; border-radius: 4px; border-left: 3px solid var(--c-primary);
+  flex-shrink: 1; min-height: 0; overflow-y: auto; max-height: 150px;
+}
+.staging-manifest-info .smi-title { font-weight: 700; color: #555; margin-bottom: 2px; }
+.staging-manifest-info .smi-source { padding-left: 10px; color: #888; }
+.staging-manifest-info .smi-source b { color: #555; font-weight: 600; }
+.staging-preview-result {
+  font-size: 11px; padding: 6px 8px; margin-top: 4px;
+  background: #f0f7fa; border: 1px solid #d0e8f0; border-radius: 4px;
+  flex-shrink: 1; min-height: 0; overflow-y: auto; max-height: 120px;
+}
+.staging-preview-result .spr-bucket { margin: 2px 0; }
+.staging-preview-result .spr-added   { color: #2a8; font-weight: 600; }
+.staging-preview-result .spr-updated { color: #e67e22; font-weight: 600; }
+.staging-preview-result .spr-unchanged { color: #999; }
 /* ===== STAGING SPLIT LAYOUT ===== */
 .staging-split  { display: flex; gap: 0; flex: 1; min-height: 0; overflow: hidden; }
 .staging-left   { display: flex; flex-direction: column; flex: 0 0 47%; border-right: 1px solid #e0e0e0; padding-right: 8px; overflow: hidden; min-height: 0; }
@@ -311,6 +333,16 @@ body {
 .stg-dup-detail { font-size: 10px; color: #c33; padding: 3px 4px 3px 20px; background: #fef0f0; border-radius: 3px; margin: 1px 0; font-family: 'Consolas', monospace; word-break: break-all; }
 .stg-cross-dup-detail { font-size: 10px; color: #c33; padding: 3px 4px 3px 20px; background: #fce4e4; border-radius: 3px; margin: 1px 0; font-family: 'Consolas', monospace; word-break: break-all; }
 .stg-cross-dup-summary { font-size: 11px; color: #c33; font-weight: 700; padding: 6px 8px; margin-bottom: 6px; background: #fce4e4; border: 1px solid #e8a; border-radius: 4px; }
+.stg-output-kuerzel .stg-restage-btn { font-size: 10px; padding: 1px 6px; border: 1px solid #ccc; border-radius: 3px; background: transparent; cursor: pointer; color: #555; flex-shrink: 0; opacity: 0.6; margin-left: auto; }
+.stg-output-kuerzel .stg-restage-btn:hover { opacity: 1; background: #e8f4f4; border-color: var(--c-primary); }
+.stg-output-kuerzel .stg-restage-btn.has-changes { opacity: 1; color: #c33; border-color: #c33; background: #fef0f0; animation: restage-pulse 2s ease-in-out infinite; }
+.stg-output-kuerzel .stg-restage-btn.has-changes:hover { background: #fce4e4; }
+@keyframes restage-pulse { 0%,100% { box-shadow: none; } 50% { box-shadow: 0 0 6px rgba(204,51,51,0.3); } }
+.stg-changes-detail { font-size: 10px; color: #c33; padding: 4px 6px 4px 20px; background: #fef6f0; border-radius: 3px; margin: 2px 0; border-left: 3px solid #e67e22; }
+.stg-changes-detail .scd-service { font-weight: 700; color: #555; }
+.stg-changes-detail .scd-file { color: #888; font-family: 'Consolas', monospace; font-size: 9px; }
+.stg-changes-detail .scd-added { color: #2a8; } .stg-changes-detail .scd-modified { color: #e67e22; } .stg-changes-detail .scd-deleted { color: #c33; }
+.stg-changes-detail .scd-missing { color: #c33; font-weight: 600; }
 #file-editor-footer {
   display: flex; align-items: center; gap: 8px; padding: 8px 14px;
   border-top: 1px solid #e0e4e8; background: #f5f7fa; flex-shrink: 0;
@@ -335,6 +367,261 @@ body {
 #file-editor-highlight .j-num  { color: #b5cea8; }
 #file-editor-highlight .j-bool { color: #569cd6; }
 #file-editor-highlight .j-null { color: #569cd6; }
+
+/* ===== CONFIG-EDITOR TAB ===== */
+.ags-tab[data-tab="editor"]  { background: linear-gradient(135deg, #607d8b, #455a64); }
+.ags-tab[data-tab="treebuilder"] { background: linear-gradient(135deg, #8e6aa0, #6a4c7d); }
+
+/* ── Editor 2-Panel-Layout (analog Tree-Builder) ── */
+.editor-split {
+  flex: 1; display: flex; gap: 0; min-height: 0; overflow: hidden;
+}
+
+/* ── Linkes Panel: Quellen-Liste ── */
+.editor-sources {
+  width: 260px; min-width: 200px; display: flex; flex-direction: column;
+  border: 1px solid var(--c-border, #ddd); border-radius: var(--radius, 6px) 0 0 var(--radius, 6px);
+  background: var(--c-panel, #fff); box-shadow: var(--shadow, 0 1px 4px rgba(0,0,0,.08));
+  overflow: hidden; flex-shrink: 0;
+}
+.editor-src-head {
+  padding: 8px 12px; background: #f5f7f8; border-bottom: 1px solid var(--c-border, #ddd);
+  display: flex; align-items: center; gap: 8px; flex-shrink: 0;
+}
+.editor-src-head h2 { font-size: 13px; font-weight: 700; margin: 0; flex: 1; color: var(--c-text, #333); }
+.editor-src-head .badge {
+  background: var(--c-primary, #648C96); color: #fff; font-size: 10px;
+  padding: 1px 6px; border-radius: 8px; font-weight: 600;
+}
+.editor-src-head button {
+  padding: 2px 8px; font-size: 11px; border: 1px solid var(--c-border, #ddd);
+  border-radius: 3px; background: #fff; cursor: pointer; color: var(--c-text, #333);
+}
+.editor-src-head button:hover { background: var(--c-hover, #f5f8fa); }
+.editor-src-search {
+  padding: 6px 8px; border-bottom: 1px solid var(--c-border, #ddd); flex-shrink: 0;
+}
+.editor-src-search input {
+  width: 100%; padding: 5px 8px; font-size: 12px; border: 1px solid var(--c-border, #ddd);
+  border-radius: 3px; background: #fff; box-sizing: border-box;
+}
+.editor-src-search input:focus { outline: none; border-color: var(--c-primary, #648C96); }
+.editor-src-list {
+  flex: 1; overflow-y: auto; padding: 4px 0;
+}
+.editor-src-item {
+  display: flex; align-items: center; gap: 8px; padding: 7px 12px;
+  font-size: 12px; cursor: pointer; border-left: 3px solid transparent;
+  transition: all .12s; user-select: none;
+}
+.editor-src-item:hover { background: #f0f7f8; }
+.editor-src-item.active {
+  background: rgba(100,140,150,.1); border-left-color: var(--c-primary, #648C96);
+  font-weight: 600;
+}
+.editor-src-item .src-name {
+  flex: 1; font-family: 'Consolas', monospace; font-weight: 600;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.editor-src-item .src-badge {
+  font-size: 9px; color: #fff; background: var(--c-primary, #648C96);
+  padding: 1px 6px; border-radius: 7px; font-weight: 600; flex-shrink: 0;
+}
+.editor-src-item .src-types {
+  display: flex; gap: 2px; flex-shrink: 0;
+}
+.editor-src-item .src-type-dot {
+  font-size: 8px; color: #fff; padding: 1px 4px; border-radius: 2px;
+  text-transform: uppercase; flex-shrink: 0;
+}
+.editor-src-item .src-type-dot.t-conf { background: #d47b2e; }
+.editor-src-item .src-type-dot.t-json { background: #2e8bd4; }
+.editor-src-item .src-arrow {
+  font-size: 10px; color: var(--c-muted, #888); transition: transform .15s;
+  flex-shrink: 0; width: 12px; text-align: center;
+}
+.editor-src-item.collapsed .src-arrow { transform: rotate(-90deg); }
+.editor-src-files {
+  border-left: 3px solid transparent; background: #fafbfc;
+}
+.editor-src-item.active + .editor-src-files { border-left-color: rgba(100,140,150,.15); }
+.editor-src-item.collapsed + .editor-src-files { display: none; }
+.editor-src-file {
+  display: flex; align-items: center; gap: 6px; padding: 3px 12px 3px 32px;
+  font-size: 10px; color: var(--c-muted, #888); border-bottom: 1px solid #f0f2f5;
+}
+.editor-src-file .sf-name {
+  flex: 1; font-family: 'Consolas', monospace; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap;
+}
+.editor-src-file .sf-size { flex-shrink: 0; color: #aaa; }
+.editor-src-file .sf-type {
+  font-size: 8px; color: #fff; padding: 0 3px; border-radius: 2px;
+  text-transform: uppercase; flex-shrink: 0;
+}
+.editor-src-file .sf-type.t-layers { background: #d47b2e; }
+.editor-src-file .sf-type.t-lyrmgr { background: #2e8bd4; }
+.editor-src-file .sf-type.t-maptips { background: #6b2ed4; }
+.editor-src-file .sf-type.t-maptipsres { background: #2ea88b; }
+.editor-src-file .sf-type.t-legend { background: #888; }
+.editor-src-empty {
+  padding: 20px; text-align: center; color: var(--c-muted, #888); font-size: 12px;
+}
+
+/* ── Rechtes Panel: Editor ── */
+.editor-main {
+  flex: 1; display: flex; flex-direction: column; min-height: 0; min-width: 0;
+  border: 1px solid var(--c-border, #ddd); border-left: none;
+  border-radius: 0 var(--radius, 6px) var(--radius, 6px) 0;
+  background: var(--c-panel, #fff); box-shadow: var(--shadow, 0 1px 4px rgba(0,0,0,.08));
+  overflow: hidden;
+}
+
+/* ── Editor-Toolbar (Panel-Head rechts) ── */
+.editor-toolbar {
+  display: flex; align-items: center; gap: 8px; padding: 8px 12px;
+  background: #f5f7f8; border-bottom: 1px solid var(--c-border, #ddd);
+  flex-shrink: 0;
+}
+.editor-toolbar h2 {
+  font-size: 13px; font-weight: 700; margin: 0; color: var(--c-text, #333);
+  white-space: nowrap;
+}
+.editor-toolbar .et-kuerzel-label {
+  font-size: 12px; font-weight: 600; font-family: 'Consolas', monospace;
+  color: var(--c-primary, #648C96);
+}
+.editor-toolbar button {
+  padding: 4px 12px; font-size: 11px; font-weight: 600; border: 1px solid var(--c-border, #ddd);
+  border-radius: 3px; background: #fff; cursor: pointer; color: var(--c-text, #333);
+  transition: all .15s;
+}
+.editor-toolbar button:hover { background: var(--c-hover, #f5f8fa); }
+.editor-toolbar button.export {
+  background: var(--c-accent, #e8423f); color: #fff; border-color: var(--c-accent, #e8423f);
+}
+.editor-toolbar button.export:hover { background: #c9362f; }
+.editor-toolbar button.export:disabled { opacity: .4; cursor: default; }
+.editor-toolbar .et-spacer { flex: 1; }
+.editor-toolbar .et-info { font-size: 11px; color: var(--c-muted, #888); }
+.editor-toolbar .badge {
+  background: var(--c-primary, #648C96); color: #fff; font-size: 10px;
+  padding: 1px 6px; border-radius: 8px; font-weight: 600;
+}
+
+/* ── Editor Sub-Tabs (Tree-Builder Stil: rote Underline) ── */
+.editor-subtabs {
+  display: flex; border-bottom: 1px solid var(--c-border, #ddd); flex-shrink: 0;
+  overflow-x: auto; background: transparent;
+}
+.editor-subtab {
+  padding: 7px 16px; font-size: 11px; font-weight: 500;
+  border: none; background: none; color: var(--c-muted, #888); cursor: pointer;
+  border-bottom: 2px solid transparent; white-space: nowrap;
+  transition: all .12s;
+}
+.editor-subtab:hover { color: var(--c-text, #333); background: #f8f8f8; }
+.editor-subtab.active {
+  color: var(--c-accent, #e8423f); border-bottom-color: var(--c-accent, #e8423f);
+  font-weight: 700;
+}
+.editor-subtab .est-badge {
+  font-size: 9px; background: var(--c-primary, #648C96); color: #fff;
+  padding: 1px 5px; border-radius: 7px; margin-left: 4px; font-weight: 600;
+}
+
+/* ── Editor-Tabelle ── */
+.editor-table-wrap {
+  flex: 1; overflow: auto; min-height: 0;
+}
+.editor-table {
+  border-collapse: collapse; font-size: 11px; table-layout: fixed;
+  border: 1px solid #b0b0b0; width: 100%;
+}
+.editor-table th {
+  position: sticky; top: 0; z-index: 2;
+  padding: 4px 8px; background: var(--c-primary, #648C96); color: #fff; font-weight: 600;
+  border: 1px solid #567a83; text-align: left; white-space: nowrap;
+  font-size: 10px; text-transform: uppercase; letter-spacing: .4px;
+  overflow: visible; min-width: 40px; user-select: none;
+}
+.editor-table th.et-th-param  { background: #5b8a5e; }
+.editor-table th.et-th-option { background: #7b6b8a; }
+/* Spaltenresizer (Drag-Handle) */
+.et-col-resizer {
+  position: absolute; top: 0; right: -2px; width: 5px; bottom: 0;
+  cursor: col-resize; z-index: 4;
+}
+.et-col-resizer:hover, .et-col-resizer.active {
+  background: rgba(255,255,255,.35);
+}
+.editor-table td {
+  padding: 0; border: 1px solid #e0e0e0;
+  font-family: 'Consolas', monospace; font-size: 11px;
+  vertical-align: middle; overflow: hidden; text-overflow: ellipsis;
+  height: 25px;
+}
+.editor-table tbody tr:nth-child(even) td { background: #f7f9fa; }
+.editor-table tbody tr:hover td { background: #e5eff3 !important; }
+.editor-table td.et-key {
+  padding: 2px 6px; color: #999; font-style: italic;
+  max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.editor-table td.et-readonly {
+  padding: 2px 6px; color: #999; font-style: italic;
+}
+.editor-table td.et-editable {
+  padding: 0; cursor: text;
+}
+.editor-table td.et-changed { background: #fdf5e6 !important; border-left: 2px solid #e0a430; }
+.editor-table input.et-input {
+  width: 100%; height: 100%; padding: 2px 6px; font-size: 11px;
+  font-family: 'Consolas', monospace; border: none;
+  background: transparent; box-sizing: border-box; outline: none;
+}
+.editor-table input.et-input:focus {
+  background: #fff;
+  box-shadow: inset 0 0 0 2px rgba(100,140,150,.35);
+}
+.editor-table select.et-select {
+  width: 100%; height: 100%; padding: 2px 4px; font-size: 11px;
+  border: none; background: transparent; font-family: 'Consolas', monospace;
+  outline: none; cursor: pointer;
+}
+.editor-table select.et-select:focus {
+  background: #fff;
+  box-shadow: inset 0 0 0 2px rgba(100,140,150,.35);
+}
+
+/* ── Editor-Platzhalter (kein Kürzel geladen) ── */
+.editor-placeholder {
+  flex: 1; display: flex; align-items: center; justify-content: center;
+  color: var(--c-muted, #888); font-size: 13px;
+}
+
+/* ── Editor-Änderungsleiste ── */
+.editor-changes-bar {
+  display: flex; align-items: center; gap: 8px; padding: 6px 12px;
+  background: #f5f7f8; border-top: 1px solid var(--c-border, #ddd);
+  flex-shrink: 0; font-size: 11px;
+}
+.editor-changes-bar.hidden { display: none; }
+.editor-changes-bar .ecb-count {
+  font-weight: 700; color: var(--c-accent, #e8423f);
+  background: rgba(232,66,63,.08); padding: 2px 8px; border-radius: 8px;
+}
+.editor-changes-bar .ecb-spacer { flex: 1; }
+.editor-changes-bar button {
+  padding: 4px 12px; font-size: 11px; font-weight: 600;
+  border: 1px solid var(--c-border, #ddd); border-radius: 3px; cursor: pointer;
+  transition: all .15s;
+}
+.editor-changes-bar .ecb-save {
+  background: var(--c-primary, #648C96); color: #fff; border-color: var(--c-primary, #648C96);
+}
+.editor-changes-bar .ecb-save:hover { background: #567a83; }
+.editor-changes-bar .ecb-revert { background: #fff; color: #c33; border-color: #daa; }
+.editor-changes-bar .ecb-revert:hover { background: #fef0f0; border-color: #c33; }
 </style>
 </head>
 <body>
@@ -358,6 +645,8 @@ body {
     <button class="ags-tab active" data-tab="import">① Import</button>
     <button class="ags-tab" data-tab="manage">② Verwalten</button>
     <button class="ags-tab" data-tab="staging">③ Staging</button>
+    <button class="ags-tab" data-tab="editor">④ Config-Editor</button>
+    <button class="ags-tab" data-tab="treebuilder">⑤ Tree-Builder</button>
   </div>
 
   <!-- ===== TAB: IMPORT ===== -->
@@ -367,7 +656,7 @@ body {
       <div class="ags-spinner"></div>
       <span id="import-progress-text">Export wird verarbeitet…</span>
     </div>
-    <input type="text" class="ags-filter" id="import-filter" placeholder="Dienste filtern…" style="display:none">
+    <input type="text" class="ags-filter" id="import-filter" placeholder="Dienste filtern… (* = beliebig, ? = Zeichen, Komma = ODER)" style="display:none">
     <div class="ags-select-bar" id="import-select-bar" style="display:none">
       <button id="import-sel-all">Alle</button>
       <button id="import-sel-none">Keine</button>
@@ -393,7 +682,7 @@ body {
       <div class="ags-spinner"></div>
       <span id="manage-progress-text">Lösche Services…</span>
     </div>
-    <input type="text" class="ags-filter" id="manage-filter" placeholder="Services filtern…" style="display:none">
+    <input type="text" class="ags-filter" id="manage-filter" placeholder="Services filtern… (* = beliebig, ? = Zeichen, Komma = ODER)" style="display:none">
     <div class="ags-select-bar" id="manage-select-bar" style="display:none">
       <select id="manage-backup-filter" style="padding:3px 8px;font-size:11px;border:1px solid #ccc;border-radius:3px;background:#fff">
         <option value="active">Aktive</option>
@@ -419,7 +708,7 @@ body {
       <!-- LINKS: Dienste auswählen & mergen -->
       <div class="staging-left">
         <div class="ags-status" id="staging-status">Lade Konfigurationen…</div>
-        <input type="text" class="ags-filter" id="staging-filter" placeholder="Dienste filtern…" style="display:none">
+        <input type="text" class="ags-filter" id="staging-filter" placeholder="Dienste filtern… (* = beliebig, ? = Zeichen, Komma = ODER)" style="display:none">
         <div class="ags-select-bar" id="staging-select-bar" style="display:none">
           <button id="staging-sel-all">Alle</button>
           <button id="staging-sel-none">Keine</button>
@@ -429,12 +718,19 @@ body {
         <div class="staging-kuerzel-row" id="staging-kuerzel-row" style="display:none">
           <label for="staging-kuerzel">Kürzel</label>
           <input type="text" id="staging-kuerzel" placeholder="z.B. ewn oder nodi_ch" maxlength="40">
+          <select id="staging-mode" title="Merge-Modus">
+            <option value="merge">Zusammenführen</option>
+            <option value="replace">Ersetzen</option>
+            <option value="preview">Vorschau</option>
+          </select>
         </div>
+        <div class="staging-manifest-info" id="staging-manifest-info" style="display:none"></div>
+        <div class="staging-preview-result" id="staging-preview-result" style="display:none"></div>
         <div class="ags-result" id="staging-result" style="display:none"></div>
         <div class="ags-actions" id="staging-actions" style="display:none">
           <span class="ags-selcount" id="staging-selcount"></span>
           <span class="spacer"></span>
-          <button id="staging-btn-merge" class="primary" disabled>🔀 Mergen</button>
+          <button id="staging-btn-merge" class="primary" disabled>🔀 Zusammenführen</button>
         </div>
       </div>
       <!-- RECHTS: ImportToCore Ausgabe -->
@@ -450,9 +746,83 @@ body {
     </div>
   </div>
 
-</div>
+  <!-- ===== TAB: CONFIG-EDITOR ===== -->
+  <div class="ags-pane" id="pane-editor">
+    <div class="editor-split">
 
-<!-- ===== DATEI-EDITOR-MODAL ===== -->
+      <!-- LINKS: Quellen-Liste (ImportToCore Kürzel) -->
+      <div class="editor-sources">
+        <div class="editor-src-head">
+          <h2>📁 Quellen</h2>
+          <span class="badge" id="editor-src-count">0</span>
+          <button id="editor-src-refresh" title="Aktualisieren">↻</button>
+        </div>
+        <div class="editor-src-search">
+          <input type="text" id="editor-src-filter" placeholder="Kürzel suchen…">
+        </div>
+        <div class="editor-src-list" id="editor-src-list">
+          <div class="editor-src-empty">Lade Quellen…</div>
+        </div>
+      </div>
+
+      <!-- RECHTS: Editor-Bereich -->
+      <div class="editor-main">
+        <!-- Panel-Head / Toolbar -->
+        <div class="editor-toolbar">
+          <h2>📝 Editor</h2>
+          <span class="et-kuerzel-label" id="editor-kuerzel-label"></span>
+          <span class="et-spacer"></span>
+          <span class="et-info" id="editor-info"></span>
+          <button id="editor-btn-export" class="export" disabled title="Dateien nach core/config/ und core/nls/de/ exportieren">📤 Nach Core exportieren</button>
+        </div>
+
+        <div class="ags-status" id="editor-status" style="display:none"></div>
+
+        <!-- Sub-Tabs für die 4 Dateitypen -->
+        <div class="editor-subtabs" id="editor-subtabs" style="display:none">
+          <button class="editor-subtab active" data-editor-tab="layers">Layers</button>
+          <button class="editor-subtab" data-editor-tab="lyrmgr">Aliase</button>
+          <button class="editor-subtab" data-editor-tab="maptips">Maptips</button>
+          <button class="editor-subtab" data-editor-tab="maptipsRes">Maptip-Texte</button>
+          <button class="editor-subtab" data-editor-tab="legendRes">Legenden</button>
+        </div>
+
+        <!-- Filter -->
+        <div class="editor-filter-bar" id="editor-filter-bar" style="display:none">
+          <input type="text" id="editor-table-filter" placeholder="Filtern nach Key, Wert, URL…">
+          <span class="efb-count" id="editor-filter-count"></span>
+        </div>
+
+        <!-- Tabellen-Bereich -->
+        <div class="editor-table-wrap" id="editor-table-wrap" style="display:none">
+          <table class="editor-table" id="editor-table">
+            <thead id="editor-thead"></thead>
+            <tbody id="editor-tbody"></tbody>
+          </table>
+        </div>
+
+        <!-- Platzhalter wenn noch nichts geladen -->
+        <div class="editor-placeholder" id="editor-placeholder">← Kürzel links auswählen</div>
+
+        <!-- Änderungsleiste -->
+        <div class="editor-changes-bar hidden" id="editor-changes-bar">
+          <span class="ecb-count" id="editor-change-count">0 Änderungen</span>
+          <span class="ecb-spacer"></span>
+          <button class="ecb-revert" id="editor-btn-revert">↩ Verwerfen</button>
+          <button class="ecb-save" id="editor-btn-save">💾 Speichern</button>
+        </div>
+      </div><!-- /.editor-main -->
+
+    </div><!-- /.editor-split -->
+  </div>
+
+  <!-- ===== TAB: TREE-BUILDER (Staging) ===== -->
+  <div class="ags-pane" id="pane-treebuilder" style="position:relative">
+    <iframe id="treebuilder-iframe" style="width:100%;height:100%;border:none;display:none"></iframe>
+    <div class="editor-placeholder" id="treebuilder-placeholder">Tree-Builder wird geladen…</div>
+  </div>
+
+</div>
 <div id="file-editor-overlay">
   <div id="file-editor-dialog">
     <div id="file-editor-header">
@@ -500,6 +870,35 @@ var _agsLastImportCheckbox = null;
 var _agsLastManageCheckbox = null;
 var _agsLastStagingCheckbox = null;
 var _importedServiceNames = {}; // Service-Namen die bereits in raw-conf vorhanden sind
+var _stagingOutputData = null;  // Gecachte ImportToCore-Daten für Manifest-Info
+
+/**
+ * Wildcard-Filter: Prüft ob text auf pattern passt.
+ * Unterstützt * (beliebige Zeichen) und ? (einzelnes Zeichen).
+ * Ohne Wildcards: einfache Substring-Suche (wie bisher).
+ * Mehrere Patterns können mit Komma getrennt werden (OR-Logik).
+ */
+function matchWildcard(text, pattern) {
+  if (!pattern) return true;
+  // Komma-getrennte Patterns → OR-Logik
+  var parts = pattern.split(',');
+  for (var i = 0; i < parts.length; i++) {
+    var p = parts[i].trim().toLowerCase();
+    if (!p) continue;
+    var t = text.toLowerCase();
+    if (p.indexOf('*') === -1 && p.indexOf('?') === -1) {
+      // Kein Wildcard → Substring-Suche (Rückwärtskompatibel)
+      if (t.indexOf(p) !== -1) return true;
+    } else {
+      // Wildcards → Regex konvertieren (Substring-Match)
+      var re = p.replace(/([.+^${}()|[\]\\])/g, '\\$1')
+                .replace(/\*/g, '.*')
+                .replace(/\?/g, '.');
+      if (new RegExp(re).test(t)) return true;
+    }
+  }
+  return false;
+}
 
 function applyShiftRangeSelection(checkboxes, fromCb, toCb, checkedState) {
   if (!fromCb || !toCb || !checkboxes || checkboxes.length === 0) return;
@@ -566,6 +965,17 @@ function switchTab(tabName) {
   } else if (tabName === 'staging') {
     loadStagingList();
     loadStagingOutput();
+  } else if (tabName === 'editor') {
+    loadEditorKuerzelList();
+  } else if (tabName === 'treebuilder') {
+    var iframe = document.getElementById('treebuilder-iframe');
+    if (!iframe.src || iframe.src === 'about:blank') {
+      iframe.src = 'tree-builder.html?source=staging';
+      iframe.onload = function() {
+        document.getElementById('treebuilder-placeholder').style.display = 'none';
+        iframe.style.display = 'block';
+      };
+    }
   }
 }
 
@@ -1604,28 +2014,78 @@ function executeStagingMerge() {
   var services = [];
   checkboxes.forEach(function(cb) { services.push(cb.dataset.svc); });
   var kuerzel = (document.getElementById('staging-kuerzel').value || '').trim();
+  var mode = document.getElementById('staging-mode').value;
   if (services.length === 0 || !kuerzel) return;
 
   var btn = document.getElementById('staging-btn-merge');
   var resultEl = document.getElementById('staging-result');
   var statusEl = document.getElementById('staging-status');
+  var previewEl = document.getElementById('staging-preview-result');
   btn.disabled = true;
-  statusEl.textContent = 'Zusammenführen läuft…';
+  previewEl.style.display = 'none';
+  var modeLabel = mode === 'merge' ? 'Zusammenführen' : mode === 'preview' ? 'Vorschau' : 'Ersetzen';
+  statusEl.textContent = modeLabel + ' läuft…';
   statusEl.className = 'ags-status';
   resultEl.style.display = 'none';
 
   fetch(API_URL + '?action=ags-stage-merge', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ services: services, kuerzel: kuerzel })
+    body: JSON.stringify({ services: services, kuerzel: kuerzel, mode: mode })
   })
     .then(function(r) { return r.json(); })
     .then(function(resp) {
       btn.disabled = false;
       if (!resp.success) throw new Error(resp.error || 'Merge fehlgeschlagen');
       var d = resp.data;
-      statusEl.textContent = '✓ ' + d.files.length + ' Dateien → ImportToCore/' + d.kuerzel + '/';
+
+      // Preview-Modus: nur Statistik anzeigen, nichts geschrieben
+      if (mode === 'preview') {
+        statusEl.textContent = '👁 Vorschau für ' + d.files.length + ' Dateien → ImportToCore/' + d.kuerzel + '/';
+        statusEl.className = 'ags-status';
+        statusEl.style.color = '#3478c6';
+        var html = '';
+        d.files.forEach(function(f) {
+          var parts = f.file.split('/');
+          var fname = parts[parts.length - 1];
+          var s = f.mergeStats || {};
+          html += '<div class="spr-bucket">' + fname + ': ';
+          if (s.added)     html += '<span class="spr-added">+' + s.added + ' neu</span> ';
+          if (s.updated)   html += '<span class="spr-updated">~' + s.updated + ' aktualisiert</span> ';
+          if (s.unchanged) html += '<span class="spr-unchanged">' + s.unchanged + ' unverändert</span> ';
+          html += '(' + f.keys + ' total)</div>';
+        });
+        if (!html) html = '<div style="color:#888">Keine Änderungen.</div>';
+        previewEl.innerHTML = html;
+        previewEl.style.display = '';
+        updateStagingSelCount();
+        return; // Kein Output-Refresh bei Preview
+      }
+
+      // Merge/Replace: Ergebnis anzeigen
+      var modeInfo = d.mode === 'merge' ? ' (zusammengeführt)' : ' (ersetzt)';
+      statusEl.textContent = '✓ ' + d.files.length + ' Dateien → ImportToCore/' + d.kuerzel + '/' + modeInfo;
       statusEl.className = 'ags-status success';
+
+      // Merge-Statistik anzeigen wenn vorhanden
+      if (d.mode === 'merge' && d.mergeStats) {
+        var statsHtml = '';
+        for (var prefix in d.mergeStats) {
+          var s = d.mergeStats[prefix];
+          if (s.added || s.updated) {
+            statsHtml += '<div class="spr-bucket">' + prefix + ': ';
+            if (s.added)     statsHtml += '<span class="spr-added">+' + s.added + ' neu</span> ';
+            if (s.updated)   statsHtml += '<span class="spr-updated">~' + s.updated + ' aktualisiert</span> ';
+            if (s.unchanged) statsHtml += '<span class="spr-unchanged">' + s.unchanged + ' unverändert</span>';
+            statsHtml += '</div>';
+          }
+        }
+        if (statsHtml) {
+          previewEl.innerHTML = statsHtml;
+          previewEl.style.display = '';
+        }
+      }
+
       var html = '';
       // Duplikat-Warnungen (neues Format: keys = [{key, count, sources}])
       if (d.duplicates && d.duplicates.length) {
@@ -1676,7 +2136,9 @@ function loadStagingOutput() {
         return;
       }
       statusEl.textContent = d.kuerzel.length + ' Kürzel';
+      _stagingOutputData = d.kuerzel; // Für Manifest-Info cachen
       renderStagingOutput(d.kuerzel);
+      updateStagingManifestInfo(); // Info-Panel aktualisieren
       // Cross-Kürzel Duplikat-Zusammenfassung
       var crossTotal = 0;
       d.kuerzel.forEach(function(k) { k.files.forEach(function(f) { if (f.crossDuplicateKeys && f.crossDuplicateKeys.length) crossTotal += f.crossDuplicateKeys.length; }); });
@@ -1705,9 +2167,86 @@ function renderStagingOutput(kuerzelList) {
     });
     var lbl = document.createElement('label');
     lbl.htmlFor = 'stg-out-cb-' + k.kuerzel;
-    lbl.innerHTML = '<b>' + k.kuerzel + '</b>&nbsp;<span style="font-weight:400;color:#888;font-size:10px">(' + k.files.length + ' Dateien, ' + totalKB + ')</span>';
+    // Manifest-Badge anzeigen wenn vorhanden
+    var manifestBadge = '';
+    if (k.manifest && k.manifest.sources) {
+      var srcCount = k.manifest.sources.length;
+      var lastDate = k.manifest.lastStaged ? k.manifest.lastStaged.replace('T', ' ') : '';
+      manifestBadge = ' <span style="font-size:9px;color:#fff;background:var(--c-primary);padding:1px 5px;border-radius:8px;font-weight:400" title="' + srcCount + ' Quellen, zuletzt: ' + lastDate + '">' + srcCount + ' Quellen</span>';
+    }
+    lbl.innerHTML = '<b>' + k.kuerzel + '</b>' + manifestBadge + '&nbsp;<span style="font-weight:400;color:#888;font-size:10px">(' + k.files.length + ' Dateien, ' + totalKB + ')</span>';
     hdr.appendChild(cb); hdr.appendChild(lbl);
+    // 🔄 Aktualisieren-Button (nur wenn Manifest mit Quellen vorhanden)
+    if (k.manifest && k.manifest.sources && k.manifest.sources.length) {
+      var restageBtn = document.createElement('button');
+      restageBtn.className = 'stg-restage-btn';
+      restageBtn.textContent = '🔄';
+      restageBtn.title = 'Erneut stagen — Quellen aus Manifest vorauswählen';
+      // Change-Detection: Button rot färben wenn Quellen geändert
+      var changes = k.sourceChanges;
+      if (changes && changes.hasChanges) {
+        restageBtn.classList.add('has-changes');
+        var tipLines = [];
+        if (changes.missing && changes.missing.length) {
+          tipLines.push('⚠ Gelöscht: ' + changes.missing.join(', '));
+        }
+        if (changes.changed && changes.changed.length) {
+          changes.changed.forEach(function(ch) {
+            var reasons = ch.files.map(function(f) {
+              if (f.reason === 'modified') return f.file + ' (geändert)';
+              if (f.reason === 'added') return f.file + ' (neu)';
+              if (f.reason === 'deleted') return f.file + ' (gelöscht)';
+              return f.file;
+            });
+            tipLines.push(ch.service + ': ' + reasons.join(', '));
+          });
+        }
+        restageBtn.title = 'Quellen haben sich geändert!\n' + tipLines.join('\n');
+      }
+      (function(kuerzel, sources) {
+        restageBtn.addEventListener('click', function(e) {
+          e.stopPropagation();
+          restageFromManifest(kuerzel, sources);
+        });
+      })(k.kuerzel, k.manifest.sources);
+      hdr.appendChild(restageBtn);
+    }
     listEl.appendChild(hdr);
+    // Change-Detail-Zeilen anzeigen (aufklappbar über den Button)
+    if (k.sourceChanges && k.sourceChanges.hasChanges) {
+      var changeWrap = document.createElement('div');
+      changeWrap.className = 'stg-dup-details-wrap';
+      changeWrap.style.display = 'none';
+      if (k.sourceChanges.missing) {
+        k.sourceChanges.missing.forEach(function(svc) {
+          var dd = document.createElement('div'); dd.className = 'stg-changes-detail';
+          dd.innerHTML = '<span class="scd-missing">⚠ ' + svc + '</span> — Service nicht mehr in raw-conf';
+          changeWrap.appendChild(dd);
+        });
+      }
+      if (k.sourceChanges.changed) {
+        k.sourceChanges.changed.forEach(function(ch) {
+          ch.files.forEach(function(f) {
+            var dd = document.createElement('div'); dd.className = 'stg-changes-detail';
+            var cls = 'scd-' + f.reason;
+            var label = f.reason === 'modified' ? 'geändert' : f.reason === 'added' ? 'neu' : 'gelöscht';
+            dd.innerHTML = '<span class="scd-service">' + ch.service + '</span> → <span class="scd-file ' + cls + '">' + f.file + ' (' + label + ')</span>';
+            changeWrap.appendChild(dd);
+          });
+        });
+      }
+      listEl.appendChild(changeWrap);
+      // Toggle: Klick auf den restage-btn öffnet/schliesst Details
+      var toggleBtn = hdr.querySelector('.stg-restage-btn');
+      if (toggleBtn) {
+        (function(wrap) {
+          toggleBtn.addEventListener('dblclick', function(e) {
+            e.stopPropagation();
+            wrap.style.display = wrap.style.display === 'none' ? '' : 'none';
+          });
+        })(changeWrap);
+      }
+    }
     k.files.forEach(function(f) {
       var row = document.createElement('div');
       row.className = 'stg-output-file';
@@ -1797,6 +2336,87 @@ function deleteStagingOutputFiles() {
     .catch(function() { loadStagingOutput(); });
 }
 
+/**
+ * Re-Stage: Manifest-Quellen auf der linken Seite vorauswählen
+ * Setzt Kürzel, Modus "replace" und kreuzt die passenden Services an.
+ * Fehlende Services (nicht mehr in raw-conf) werden als Warnung angezeigt.
+ */
+function restageFromManifest(kuerzel, sources) {
+  // Kürzel und Modus setzen
+  var kuerzelInput = document.getElementById('staging-kuerzel');
+  var modeSelect = document.getElementById('staging-mode');
+  kuerzelInput.value = kuerzel;
+  modeSelect.value = 'replace';
+  // Button-Text aktualisieren
+  document.getElementById('staging-btn-merge').textContent = '🔀 Ersetzen';
+  // Alle Checkboxen erst abwählen
+  document.querySelectorAll('#staging-svc-list input[type=checkbox]').forEach(function(cb) {
+    cb.checked = false;
+  });
+  // Manifest-Service-Keys extrahieren
+  var wantedServices = sources.map(function(s) { return s.service; });
+  var foundServices = [];
+  var missingServices = [];
+  // Checkboxen durchgehen und passende ankreuzen
+  wantedServices.forEach(function(svcName) {
+    var cb = document.querySelector('#staging-svc-list input[data-svc="' + svcName + '"]');
+    if (cb) {
+      cb.checked = true;
+      foundServices.push(svcName);
+    } else {
+      missingServices.push(svcName);
+    }
+  });
+  // Manifest-Info und Selektionszähler aktualisieren
+  updateStagingSelCount();
+  updateStagingManifestInfo();
+  // Warnung bei fehlenden Services
+  var statusEl = document.getElementById('staging-status');
+  if (missingServices.length > 0) {
+    statusEl.className = 'ags-status error';
+    statusEl.textContent = '⚠ ' + foundServices.length + '/' + wantedServices.length
+      + ' Quellen gefunden. Nicht mehr verfügbar: ' + missingServices.join(', ');
+  } else {
+    statusEl.className = 'ags-status success';
+    statusEl.textContent = '✓ Alle ' + foundServices.length
+      + ' Quellen vorausgewählt — Modus: Ersetzen. Bitte prüfen und Merge starten.';
+  }
+}
+
+/**
+ * Manifest-Info für das eingegebene Kürzel anzeigen
+ * Zeigt bereits gestaged Sources an, damit der User weiss was schon drin ist
+ */
+function updateStagingManifestInfo() {
+  var infoEl = document.getElementById('staging-manifest-info');
+  var kuerzel = (document.getElementById('staging-kuerzel').value || '').trim().toLowerCase();
+  if (!kuerzel || !_stagingOutputData) { infoEl.style.display = 'none'; return; }
+  // Kürzel in den Output-Daten suchen
+  var match = null;
+  _stagingOutputData.forEach(function(k) {
+    if (k.kuerzel.toLowerCase() === kuerzel && k.manifest) match = k.manifest;
+  });
+  if (!match || !match.sources || match.sources.length === 0) {
+    infoEl.style.display = 'none';
+    return;
+  }
+  var html = '<div class="smi-title">Bereits gestagete Quellen (' + match.sources.length + '):</div>';
+  match.sources.forEach(function(src) {
+    var keyCounts = '';
+    if (src.keys && typeof src.keys === 'object') {
+      var parts = [];
+      for (var p in src.keys) parts.push(p + ': ' + src.keys[p]);
+      keyCounts = ' — ' + parts.join(', ');
+    }
+    html += '<div class="smi-source"><b>' + src.service + '</b>' + keyCounts + '</div>';
+  });
+  if (match.lastStaged) {
+    html += '<div style="color:#aaa;font-size:9px;margin-top:2px">Letztes Staging: ' + match.lastStaged.replace('T', ' ') + '</div>';
+  }
+  infoEl.innerHTML = html;
+  infoEl.style.display = '';
+}
+
 // =====================================================================
 // EVENT-HANDLER
 // =====================================================================
@@ -1814,9 +2434,9 @@ document.getElementById('ags-btn-refresh').addEventListener('click', function() 
 
 // Import-Tab: Filter
 document.getElementById('import-filter').addEventListener('input', function() {
-  var term = this.value.toLowerCase();
+  var term = this.value.trim();
   document.querySelectorAll('#import-list .ags-item').forEach(function(item) {
-    item.classList.toggle('hidden', term !== '' && item.dataset.name.indexOf(term) === -1);
+    item.classList.toggle('hidden', term !== '' && !matchWildcard(item.dataset.name, term));
   });
 });
 
@@ -1837,9 +2457,9 @@ document.getElementById('import-btn-export').addEventListener('click', exportAgs
 
 // Verwalten-Tab: Filter
 document.getElementById('manage-filter').addEventListener('input', function() {
-  var term = this.value.toLowerCase();
+  var term = this.value.trim();
   document.querySelectorAll('#manage-svc-list .ags-svc-group').forEach(function(grp) {
-    grp.style.display = (term !== '' && grp.dataset.svcname.indexOf(term) === -1) ? 'none' : '';
+    grp.style.display = (term !== '' && !matchWildcard(grp.dataset.svcname, term)) ? 'none' : '';
   });
   updateManageSelCount();
 });
@@ -1866,9 +2486,9 @@ document.getElementById('manage-btn-delete-backups').addEventListener('click', d
 
 // Staging-Tab: Filter
 document.getElementById('staging-filter').addEventListener('input', function() {
-  var term = this.value.toLowerCase();
+  var term = this.value.trim();
   document.querySelectorAll('#staging-svc-list .ags-svc-group').forEach(function(grp) {
-    grp.style.display = (term && grp.dataset.svcname.indexOf(term) === -1) ? 'none' : '';
+    grp.style.display = (term && !matchWildcard(grp.dataset.svcname, term)) ? 'none' : '';
   });
   updateStagingSelCount();
 });
@@ -1882,9 +2502,20 @@ document.getElementById('staging-sel-none').addEventListener('click', function()
   _agsLastStagingCheckbox = null; updateStagingSelCount();
 });
 // Staging-Tab: Kürzel-Input (Button-State aktualisieren)
-document.getElementById('staging-kuerzel').addEventListener('input', updateStagingSelCount);
+document.getElementById('staging-kuerzel').addEventListener('input', function() {
+  updateStagingSelCount();
+  updateStagingManifestInfo();
+});
 // Staging-Tab: Merge-Button
 document.getElementById('staging-btn-merge').addEventListener('click', executeStagingMerge);
+// Staging-Tab: Mode-Wechsel → Button-Text anpassen
+document.getElementById('staging-mode').addEventListener('change', function() {
+  var btn = document.getElementById('staging-btn-merge');
+  var mode = this.value;
+  if (mode === 'preview') btn.textContent = '👁 Vorschau';
+  else if (mode === 'merge') btn.textContent = '🔀 Zusammenführen';
+  else btn.textContent = '🔀 Ersetzen';
+});
 document.getElementById('stg-output-refresh').addEventListener('click', loadStagingOutput);
 document.getElementById('stg-output-delete-sel').addEventListener('click', deleteStagingOutputFiles);
 
@@ -1939,6 +2570,803 @@ document.getElementById('file-editor-validate').addEventListener('click', valida
 
 // Speichern-Button
 document.getElementById('file-editor-save').addEventListener('click', saveFileEditor);
+
+// =====================================================================
+// CONFIG-EDITOR TAB: State & Hilfsfunktionen
+// =====================================================================
+var _editorData = null;       // Geladene Daten: {kuerzel, files: [{name, type, data}]}
+var _editorOriginal = {};     // Originaldaten pro Dateiname (deep copy)
+var _editorChanges = {};      // Geänderte Werte: { "dateiname.conf": { "key.field": newValue } }
+var _editorActiveSubTab = 'layers';
+var _editorKuerzelLoaded = false;
+var _editorKuerzelList = [];  // Cachet die Kürzel-Daten
+var _editorActiveKuerzel = ''; // Aktuell gewähltes Kürzel
+
+/**
+ * Kürzel-Liste aus ImportToCore laden und als klickbare Liste rendern
+ */
+function loadEditorKuerzelList(forceReload) {
+  if (_editorKuerzelLoaded && !forceReload) {
+    renderEditorSourceList();
+    return;
+  }
+
+  var listEl = document.getElementById('editor-src-list');
+  listEl.innerHTML = '<div class="editor-src-empty">Lade Quellen…</div>';
+
+  fetch(API_URL + '?action=staging-list-output')
+    .then(function(r) { return r.json(); })
+    .then(function(j) {
+      if (!j.success) return;
+      _editorKuerzelList = j.data.kuerzel || [];
+      _editorKuerzelLoaded = true;
+      document.getElementById('editor-src-count').textContent = _editorKuerzelList.length;
+      renderEditorSourceList();
+    })
+    .catch(function(e) {
+      listEl.innerHTML = '<div class="editor-src-empty">Fehler: ' + e.message + '</div>';
+    });
+}
+
+/**
+ * Quellen-Liste rendern (mit optionalem Filter) — aufklappbare Gruppen mit Dateien
+ */
+function renderEditorSourceList(filter) {
+  var listEl = document.getElementById('editor-src-list');
+  var q = (filter || document.getElementById('editor-src-filter').value || '').toLowerCase();
+  var html = '';
+  var count = 0;
+
+  _editorKuerzelList.forEach(function(k) {
+    var name = k.kuerzel;
+    if (q && name.toLowerCase().indexOf(q) === -1) return;
+    count++;
+    var active = (name === _editorActiveKuerzel) ? ' active' : '';
+    var collapsed = (name !== _editorActiveKuerzel) ? ' collapsed' : '';
+    var confCount = 0, jsonCount = 0;
+    var files = k.files || [];
+    files.forEach(function(f) {
+      var fname = (typeof f === 'string') ? f : (f.name || f.file || '');
+      if (fname.match(/\.conf$/i)) confCount++;
+      else if (fname.match(/\.json$/i)) jsonCount++;
+    });
+
+    // Gruppen-Kopf (klickbar)
+    html += '<div class="editor-src-item' + active + collapsed + '" data-kuerzel="' + name + '">';
+    html += '<span class="src-arrow">▼</span>';
+    html += '<span class="src-name">' + name + '</span>';
+    html += '<span class="src-types">';
+    if (confCount) html += '<span class="src-type-dot t-conf">' + confCount + '</span>';
+    if (jsonCount) html += '<span class="src-type-dot t-json">' + jsonCount + '</span>';
+    html += '</span>';
+    html += '<span class="src-badge">' + files.length + '</span>';
+    html += '</div>';
+
+    // Datei-Liste (aufklappbar)
+    html += '<div class="editor-src-files">';
+    files.forEach(function(f) {
+      var fname = (typeof f === 'string') ? f : (f.name || f.file || '');
+      var fsize = (typeof f === 'object' && f.size) ? formatFileSize(f.size) : '';
+      var ftype = getFileTypeClass(fname);
+      html += '<div class="editor-src-file">';
+      html += '<span class="sf-type ' + ftype.cls + '">' + ftype.label + '</span>';
+      html += '<span class="sf-name" title="' + fname + '">' + fname + '</span>';
+      if (fsize) html += '<span class="sf-size">' + fsize + '</span>';
+      html += '</div>';
+    });
+    html += '</div>';
+  });
+
+  if (!html) {
+    html = '<div class="editor-src-empty">' + (q ? 'Keine Treffer für «' + q + '»' : 'Keine Kürzel vorhanden') + '</div>';
+  }
+  listEl.innerHTML = html;
+  document.getElementById('editor-src-count').textContent = count;
+
+  // Klick-Handler auf Quellen-Items
+  listEl.querySelectorAll('.editor-src-item').forEach(function(item) {
+    item.addEventListener('click', function(e) {
+      var kuerzel = item.dataset.kuerzel;
+
+      // Toggle collapse wenn dasselbe Kürzel geklickt wird
+      if (kuerzel === _editorActiveKuerzel) {
+        item.classList.toggle('collapsed');
+        return;
+      }
+
+      // Alle zuklappen, aktives aufklappen
+      listEl.querySelectorAll('.editor-src-item').forEach(function(el) {
+        el.classList.remove('active');
+        el.classList.add('collapsed');
+      });
+      item.classList.add('active');
+      item.classList.remove('collapsed');
+      _editorActiveKuerzel = kuerzel;
+      loadEditorKuerzel(kuerzel);
+    });
+  });
+}
+
+/** Dateigrösse formatieren */
+function formatFileSize(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+/** Dateityp-Klasse bestimmen */
+function getFileTypeClass(fname) {
+  if (fname.match(/^layers_/i)) return { cls: 't-layers', label: 'LYR' };
+  if (fname.match(/^lyrmgr/i)) return { cls: 't-lyrmgr', label: 'ALIAS' };
+  if (fname.match(/^maptipsRes/i)) return { cls: 't-maptipsres', label: 'MTXT' };
+  if (fname.match(/^maptips_/i)) return { cls: 't-maptips', label: 'MTIP' };
+  if (fname.match(/^legend/i)) return { cls: 't-legend', label: 'LEG' };
+  if (fname.match(/\.conf$/i)) return { cls: 't-layers', label: 'CONF' };
+  if (fname.match(/\.json$/i)) return { cls: 't-lyrmgr', label: 'JSON' };
+  return { cls: '', label: '?' };
+}
+
+function editorStatus(msg, cls) {
+  var el = document.getElementById('editor-status');
+  el.textContent = msg;
+  el.className = 'ags-status' + (cls ? ' ' + cls : '');
+  el.style.display = msg ? '' : 'none';
+}
+
+/**
+ * Daten eines Kürzels laden
+ */
+function loadEditorKuerzel(kuerzel) {
+  if (!kuerzel) return;
+  editorStatus('Lade Konfigurationen für «' + kuerzel + '»…');
+  document.getElementById('editor-subtabs').style.display = 'none';
+  document.getElementById('editor-table-wrap').style.display = 'none';
+  document.getElementById('editor-placeholder').style.display = 'none';
+  document.getElementById('editor-changes-bar').classList.add('hidden');
+  document.getElementById('editor-kuerzel-label').textContent = kuerzel;
+
+  fetch(API_URL + '?action=config-editor-load&kuerzel=' + encodeURIComponent(kuerzel))
+    .then(function(r) { return r.json(); })
+    .then(function(j) {
+      if (!j.success) { editorStatus(j.error || 'Fehler beim Laden', 'error'); return; }
+      _editorData = j.data;
+      _editorOriginal = {};
+      _editorChanges = {};
+
+      // Deep Copy der Originaldaten
+      j.data.files.forEach(function(f) {
+        _editorOriginal[f.name] = JSON.parse(JSON.stringify(f.data));
+      });
+
+      // Sub-Tab-Badges aktualisieren
+      var typeCounts = { layers: 0, lyrmgr: 0, maptips: 0, maptipsRes: 0, legendRes: 0 };
+      j.data.files.forEach(function(f) {
+        if (typeCounts[f.type] !== undefined) {
+          typeCounts[f.type] += f.keys;
+        }
+      });
+      document.querySelectorAll('.editor-subtab').forEach(function(btn) {
+        var t = btn.dataset.editorTab;
+        var badge = btn.querySelector('.est-badge');
+        if (!badge) {
+          badge = document.createElement('span');
+          badge.className = 'est-badge';
+          btn.appendChild(badge);
+        }
+        badge.textContent = (typeCounts[t] || 0);
+      });
+
+      // Info-Zeile
+      var total = j.data.files.reduce(function(s, f) { return s + f.keys; }, 0);
+      document.getElementById('editor-info').textContent = total + ' Einträge in ' + j.data.files.length + ' Dateien';
+
+      document.getElementById('editor-subtabs').style.display = 'flex';
+      document.getElementById('editor-table-wrap').style.display = '';
+      document.getElementById('editor-placeholder').style.display = 'none';
+      document.getElementById('editor-btn-export').disabled = false;
+      editorStatus('');
+
+      renderEditorSubTab(_editorActiveSubTab);
+    })
+    .catch(function(e) {
+      editorStatus('Netzwerkfehler: ' + e.message, 'error');
+    });
+}
+
+/**
+ * Sub-Tab-Rendering: Tabelle für den gewählten Dateityp aufbauen
+ */
+function renderEditorSubTab(subTab) {
+  _editorActiveSubTab = subTab;
+
+  // Aktiven Sub-Tab markieren
+  document.querySelectorAll('.editor-subtab').forEach(function(btn) {
+    btn.classList.toggle('active', btn.dataset.editorTab === subTab);
+  });
+
+  if (!_editorData) return;
+
+  // Filter zurücksetzen bei Tab-Wechsel
+  var filterInput = document.getElementById('editor-table-filter');
+  filterInput.value = '';
+  document.getElementById('editor-filter-count').textContent = '';
+
+  var thead = document.getElementById('editor-thead');
+  var tbody = document.getElementById('editor-tbody');
+  thead.innerHTML = '';
+  tbody.innerHTML = '';
+
+  // Dateien dieses Typs sammeln
+  var files = _editorData.files.filter(function(f) { return f.type === subTab; });
+  if (files.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="10" style="padding:20px;color:#999;text-align:center">Keine Dateien dieses Typs gefunden</td></tr>';
+    return;
+  }
+
+  if (subTab === 'layers') {
+    renderLayersTable(thead, tbody, files);
+  } else if (subTab === 'lyrmgr') {
+    renderLyrmgrTable(thead, tbody, files);
+  } else if (subTab === 'maptips') {
+    renderMaptipsTable(thead, tbody, files);
+  } else if (subTab === 'maptipsRes') {
+    renderMaptipsResTable(thead, tbody, files);
+  } else if (subTab === 'legendRes') {
+    renderLegendResTable(thead, tbody, files);
+  }
+
+  // Filter-Bar anzeigen + Count
+  document.getElementById('editor-filter-bar').style.display = 'flex';
+  var total = tbody.querySelectorAll('tr').length;
+  document.getElementById('editor-filter-count').textContent = total + ' Einträge';
+
+  // Spaltenresizer initialisieren
+  var tbl = document.getElementById('editor-table');
+  if (tbl) initColumnResize(tbl);
+}
+
+/**
+ * Editor-Tabellenfilter: Zeilen nach Textinhalt filtern.
+ * Durchsucht Key-Spalte + alle sichtbaren Zellen + Input-Werte.
+ */
+function filterEditorTable(query) {
+  var tbody = document.getElementById('editor-tbody');
+  if (!tbody) return;
+  var q = (query || '').toLowerCase().trim();
+  var rows = tbody.querySelectorAll('tr');
+  var visible = 0;
+
+  rows.forEach(function(tr) {
+    if (!q) {
+      tr.style.display = '';
+      visible++;
+      return;
+    }
+    // Sammle durchsuchbaren Text: data-key, Zelleninhalte, Input-Werte
+    var text = (tr.dataset.key || '').toLowerCase();
+    tr.querySelectorAll('td').forEach(function(td) {
+      text += ' ' + (td.textContent || '').toLowerCase();
+      var inp = td.querySelector('input, select');
+      if (inp) text += ' ' + (inp.value || '').toLowerCase();
+    });
+    if (text.indexOf(q) !== -1) {
+      tr.style.display = '';
+      visible++;
+    } else {
+      tr.style.display = 'none';
+    }
+  });
+
+  var total = rows.length;
+  var countEl = document.getElementById('editor-filter-count');
+  if (q) {
+    countEl.textContent = visible + ' / ' + total;
+  } else {
+    countEl.textContent = total + ' Einträge';
+  }
+}
+
+/**
+ * Spaltenresizer: Drag-Handle an jeder TH-Rechtkante.
+ * Ermöglicht Excel-ähnliches Spaltenbreite-Ändern per Mausdrag.
+ */
+function initColumnResize(table) {
+  var ths = table.querySelectorAll('thead th');
+  ths.forEach(function(th) {
+    // Vorhandene Resizer entfernen (bei Re-Render)
+    var old = th.querySelector('.et-col-resizer');
+    if (old) old.remove();
+
+    var resizer = document.createElement('div');
+    resizer.className = 'et-col-resizer';
+    th.appendChild(resizer);
+
+    var startX, startW;
+    resizer.addEventListener('mousedown', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      startX = e.pageX;
+      startW = th.offsetWidth;
+      resizer.classList.add('active');
+
+      function onMouseMove(e2) {
+        var newW = startW + (e2.pageX - startX);
+        if (newW < 40) newW = 40;
+        th.style.width = newW + 'px';
+      }
+      function onMouseUp() {
+        resizer.classList.remove('active');
+        document.removeEventListener('mousemove', onMouseMove);
+        document.removeEventListener('mouseup', onMouseUp);
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+      }
+
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+      document.addEventListener('mousemove', onMouseMove);
+      document.addEventListener('mouseup', onMouseUp);
+    });
+  });
+}
+
+// ===== LAYERS-TABELLE =====
+function renderLayersTable(thead, tbody, files) {
+  // 1) Alle eindeutigen params- und options-Keys sammeln
+  var paramKeys = {};   // { 'LAYERS': true, 'DPI': true, ... }
+  var optionKeys = {};  // { 'projection': true, 'opacity': true, ... }
+  files.forEach(function(fileObj) {
+    Object.keys(fileObj.data).forEach(function(key) {
+      var ld = fileObj.data[key];
+      if (ld.params) Object.keys(ld.params).forEach(function(pk) { paramKeys[pk] = true; });
+      if (ld.options) Object.keys(ld.options).forEach(function(ok) { optionKeys[ok] = true; });
+    });
+  });
+  var pKeys = Object.keys(paramKeys).sort();
+  var oKeys = Object.keys(optionKeys).sort();
+
+  // 2) Header aufbauen: Basis | params.* | options.* | Typ | URL
+  //    Initialbreiten: Key=200, kleine Felder=70, LAYERS=180, URL=200
+  var colW = { Key: 200, Sichtbar: 70, Rank: 55, 'Min Res.': 70, 'Max Res.': 70, Typ: 85, URL: 200 };
+  var paramW = { LAYERS: 180 }; // breite Param-Spalten
+  var defaultPW = 80;
+  var defaultOW = 85;
+
+  function thStyle(w) { return ' style="width:' + w + 'px"'; }
+  var headerHtml = '<tr>';
+  headerHtml += '<th' + thStyle(colW.Key) + '>Key</th>';
+  headerHtml += '<th' + thStyle(colW.Sichtbar) + '>Sichtbar</th>';
+  headerHtml += '<th' + thStyle(colW.Rank) + '>Rank</th>';
+  headerHtml += '<th' + thStyle(colW['Min Res.']) + '>Min Res.</th>';
+  headerHtml += '<th' + thStyle(colW['Max Res.']) + '>Max Res.</th>';
+  pKeys.forEach(function(pk) {
+    var w = paramW[pk] || defaultPW;
+    headerHtml += '<th' + thStyle(w) + ' title="params.' + pk + '" class="et-th-param">p.' + pk + '</th>';
+  });
+  oKeys.forEach(function(ok) {
+    headerHtml += '<th' + thStyle(defaultOW) + ' title="options.' + ok + '" class="et-th-option">o.' + ok + '</th>';
+  });
+  headerHtml += '<th' + thStyle(colW.Typ) + '>Typ</th>';
+  headerHtml += '<th' + thStyle(colW.URL) + '>URL</th></tr>';
+  thead.innerHTML = headerHtml;
+
+  // Boolean-Werte die ein Select bekommen
+  var boolFields = { 'isBaseLayer': 1, 'singleTile': 1, 'displayInLayerSwitcher': 1, 'noLegend': 1 };
+
+  // 3) Zeilen rendern
+  files.forEach(function(fileObj) {
+    var data = fileObj.data;
+    Object.keys(data).forEach(function(key) {
+      var ld = data[key];
+      var tr = document.createElement('tr');
+      tr.dataset.file = fileObj.name;
+      tr.dataset.key = key;
+
+      // Key (readonly)
+      addTd(tr, key, 'et-key', true);
+
+      // Sichtbar (editable select: 0/1/true/false)
+      var vis = (ld.visible !== undefined) ? String(ld.visible) : '';
+      addSelectTd(tr, fileObj.name, key, 'visible', vis, ['0', '1', 'true', 'false', '']);
+
+      // Rank (editable)
+      addInputTd(tr, fileObj.name, key, 'rank', ld.rank !== undefined ? String(ld.rank) : '');
+
+      // Min Resolution (editable)
+      addInputTd(tr, fileObj.name, key, 'minResolution', ld.minResolution !== undefined ? String(ld.minResolution) : '');
+
+      // Max Resolution (editable)
+      addInputTd(tr, fileObj.name, key, 'maxResolution', ld.maxResolution !== undefined ? String(ld.maxResolution) : '');
+
+      // params.*
+      pKeys.forEach(function(pk) {
+        var val = (ld.params && ld.params[pk] !== undefined) ? String(ld.params[pk]) : '';
+        addInputTd(tr, fileObj.name, key, 'params.' + pk, val);
+      });
+
+      // options.*
+      oKeys.forEach(function(ok) {
+        var val = (ld.options && ld.options[ok] !== undefined) ? String(ld.options[ok]) : '';
+        if (boolFields[ok]) {
+          addSelectTd(tr, fileObj.name, key, 'options.' + ok, val, ['true', 'false', '']);
+        } else {
+          addInputTd(tr, fileObj.name, key, 'options.' + ok, val);
+        }
+      });
+
+      // Typ (readonly)
+      addTd(tr, ld.type || '', 'et-readonly', true);
+
+      // URL (readonly, gekürzt)
+      var url = ld.url || '';
+      if (url.length > 60) url = url.substring(0, 57) + '…';
+      addTd(tr, url, 'et-readonly', true);
+
+      tbody.appendChild(tr);
+    });
+  });
+}
+
+// ===== ALIASE-TABELLE (lyrmgrResources) =====
+function renderLyrmgrTable(thead, tbody, files) {
+  thead.innerHTML = '<tr><th>Key</th><th>Label (editierbar)</th></tr>';
+  files.forEach(function(fileObj) {
+    var data = fileObj.data;
+    Object.keys(data).forEach(function(key) {
+      var tr = document.createElement('tr');
+      tr.dataset.file = fileObj.name;
+      tr.dataset.key = key;
+      addTd(tr, key, 'et-key', true);
+      addInputTd(tr, fileObj.name, key, '_value', String(data[key] || ''));
+      tbody.appendChild(tr);
+    });
+  });
+}
+
+// ===== MAPTIPS-TABELLE =====
+function renderMaptipsTable(thead, tbody, files) {
+  thead.innerHTML = '<tr><th>Key</th><th>NLS</th><th>Linked Layer</th><th>Query Layers</th><th>Aktiv</th><th>Leere Felder</th></tr>';
+  files.forEach(function(fileObj) {
+    var data = fileObj.data;
+    Object.keys(data).forEach(function(key) {
+      var md = data[key];
+      var tr = document.createElement('tr');
+      tr.dataset.file = fileObj.name;
+      tr.dataset.key = key;
+
+      addTd(tr, key, 'et-key', true);
+      addInputTd(tr, fileObj.name, key, 'nls', md.nls || '');
+      addTd(tr, md.linked_layer || '', 'et-readonly', true);
+
+      // Query layers (kann Array sein)
+      var ql = '';
+      if (md.query_layers) {
+        ql = Array.isArray(md.query_layers) ? md.query_layers.join(', ') : String(md.query_layers);
+      }
+      addTd(tr, ql, 'et-readonly', true);
+
+      addSelectTd(tr, fileObj.name, key, 'enabled', md.enabled !== undefined ? String(md.enabled) : 'true', ['true', 'false']);
+      addSelectTd(tr, fileObj.name, key, 'show_empty_fields', md.show_empty_fields !== undefined ? String(md.show_empty_fields) : 'false', ['true', 'false']);
+
+      tbody.appendChild(tr);
+    });
+  });
+}
+
+// ===== MAPTIP-TEXTE-TABELLE (maptipsResources) =====
+function renderMaptipsResTable(thead, tbody, files) {
+  thead.innerHTML = '<tr><th>Key</th><th>Text (editierbar)</th></tr>';
+  files.forEach(function(fileObj) {
+    var data = fileObj.data;
+    Object.keys(data).forEach(function(key) {
+      var tr = document.createElement('tr');
+      tr.dataset.file = fileObj.name;
+      tr.dataset.key = key;
+      addTd(tr, key, 'et-key', true);
+      addInputTd(tr, fileObj.name, key, '_value', String(data[key] || ''));
+      tbody.appendChild(tr);
+    });
+  });
+}
+
+/**
+ * Legenden-Ressourcen: key_title / key_link Paare
+ */
+function renderLegendResTable(thead, tbody, files) {
+  thead.innerHTML = '<tr><th>Key</th><th>Typ</th><th>Wert (editierbar)</th></tr>';
+  files.forEach(function(fileObj) {
+    var data = fileObj.data;
+    Object.keys(data).forEach(function(key) {
+      var tr = document.createElement('tr');
+      tr.dataset.file = fileObj.name;
+      tr.dataset.key = key;
+      addTd(tr, key, 'et-key', true);
+      // Typ erkennen: _title oder _link
+      var typeLabel = '';
+      if (key.match(/_title$/)) typeLabel = 'Titel';
+      else if (key.match(/_link$/)) typeLabel = 'Link';
+      else typeLabel = '–';
+      addTd(tr, typeLabel, 'et-readonly', true);
+      addInputTd(tr, fileObj.name, key, '_value', String(data[key] || ''));
+      tbody.appendChild(tr);
+    });
+  });
+}
+
+// ===== Tabellen-Hilfsfunktionen =====
+
+/** Readonly-Zelle hinzufügen */
+function addTd(tr, text, cls, readonly) {
+  var td = document.createElement('td');
+  td.className = cls || '';
+  td.textContent = text;
+  td.title = text;
+  tr.appendChild(td);
+}
+
+/** Editierbare Input-Zelle */
+function addInputTd(tr, fileName, topKey, field, value) {
+  var td = document.createElement('td');
+  td.className = 'et-editable';
+  var input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'et-input';
+  input.value = value;
+  input.dataset.file = fileName;
+  input.dataset.topKey = topKey;
+  input.dataset.field = field;
+  input.dataset.origValue = value;
+  input.addEventListener('change', onEditorCellChange);
+  input.addEventListener('input', function() {
+    td.classList.toggle('et-changed', input.value !== input.dataset.origValue);
+    updateEditorChangeCount();
+  });
+  td.appendChild(input);
+  tr.appendChild(td);
+}
+
+/** Editierbare Select-Zelle */
+function addSelectTd(tr, fileName, topKey, field, value, options) {
+  var td = document.createElement('td');
+  td.className = 'et-editable';
+  var sel = document.createElement('select');
+  sel.className = 'et-select';
+  sel.dataset.file = fileName;
+  sel.dataset.topKey = topKey;
+  sel.dataset.field = field;
+  sel.dataset.origValue = value;
+  options.forEach(function(opt) {
+    var o = document.createElement('option');
+    o.value = opt;
+    o.textContent = opt || '(leer)';
+    if (opt === value) o.selected = true;
+    sel.appendChild(o);
+  });
+  sel.addEventListener('change', function() {
+    td.classList.toggle('et-changed', sel.value !== sel.dataset.origValue);
+    onEditorCellChange.call(sel);
+  });
+  td.appendChild(sel);
+  tr.appendChild(td);
+}
+
+/**
+ * Änderung in einer Editor-Zelle verarbeiten.
+ * Wert wird direkt in _editorData gespeichert (in-memory).
+ */
+function onEditorCellChange() {
+  var el = this;
+  var fileName = el.dataset.file;
+  var topKey = el.dataset.topKey;
+  var field = el.dataset.field;
+  var newValue = el.value;
+  var origValue = el.dataset.origValue;
+
+  // Datei in _editorData finden
+  var fileObj = _editorData.files.find(function(f) { return f.name === fileName; });
+  if (!fileObj) return;
+
+  // Wert in den Daten aktualisieren
+  if (field === '_value') {
+    // Direkte Wert-Zellen (lyrmgrResources, maptipsResources)
+    fileObj.data[topKey] = newValue;
+  } else if (field.indexOf('.') !== -1) {
+    // Verschachtelter Pfad (z.B. options.opacity)
+    var parts = field.split('.');
+    var obj = fileObj.data[topKey];
+    for (var i = 0; i < parts.length - 1; i++) {
+      if (!obj[parts[i]]) obj[parts[i]] = {};
+      obj = obj[parts[i]];
+    }
+    // Typ konvertieren
+    obj[parts[parts.length - 1]] = convertEditorValue(newValue);
+  } else {
+    // Einfaches Feld
+    fileObj.data[topKey][field] = convertEditorValue(newValue);
+  }
+
+  // Änderungszähler aktualisieren
+  updateEditorChangeCount();
+}
+
+/** Wert-Typ konvertieren (String → Number/Boolean) */
+function convertEditorValue(val) {
+  if (val === '') return undefined;
+  if (val === 'true') return true;
+  if (val === 'false') return false;
+  var num = Number(val);
+  if (!isNaN(num) && val.trim() !== '') return num;
+  return val;
+}
+
+/** Anzahl Änderungen zählen und Leiste aktualisieren */
+function updateEditorChangeCount() {
+  var count = 0;
+  var inputs = document.querySelectorAll('#editor-tbody .et-input, #editor-tbody .et-select');
+  inputs.forEach(function(el) {
+    if (el.value !== el.dataset.origValue) count++;
+  });
+
+  var bar = document.getElementById('editor-changes-bar');
+  var countEl = document.getElementById('editor-change-count');
+  if (count > 0) {
+    bar.classList.remove('hidden');
+    countEl.textContent = count + ' Änderung' + (count !== 1 ? 'en' : '');
+  } else {
+    bar.classList.add('hidden');
+  }
+  return count;
+}
+
+// =====================================================================
+// CONFIG-EDITOR: Speichern & Export
+// =====================================================================
+
+/**
+ * Geänderte Dateien zurück nach ImportToCore speichern
+ */
+function saveEditorChanges() {
+  if (!_editorData) return;
+
+  // Dateien ermitteln, die tatsächlich geändert wurden
+  var changedFiles = [];
+  _editorData.files.forEach(function(f) {
+    var orig = _editorOriginal[f.name];
+    if (JSON.stringify(f.data) !== JSON.stringify(orig)) {
+      changedFiles.push(f);
+    }
+  });
+
+  if (changedFiles.length === 0) {
+    editorStatus('Keine Änderungen zum Speichern.', 'success');
+    return;
+  }
+
+  editorStatus('Speichere ' + changedFiles.length + ' Datei(en)…');
+  var saved = 0;
+  var errors = [];
+
+  changedFiles.forEach(function(f) {
+    fetch(API_URL + '?action=config-editor-save', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ kuerzel: _editorData.kuerzel, file: f.name, data: f.data })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(j) {
+      if (!j.success) errors.push(f.name + ': ' + (j.error || 'Fehler'));
+      saved++;
+      if (saved === changedFiles.length) {
+        if (errors.length === 0) {
+          editorStatus(changedFiles.length + ' Datei(en) gespeichert ✓', 'success');
+          // Originale aktualisieren
+          changedFiles.forEach(function(cf) {
+            _editorOriginal[cf.name] = JSON.parse(JSON.stringify(cf.data));
+          });
+          // Alle Zellen-origValues aktualisieren
+          document.querySelectorAll('#editor-tbody .et-input, #editor-tbody .et-select').forEach(function(el) {
+            el.dataset.origValue = el.value;
+            el.closest('td').classList.remove('et-changed');
+          });
+          updateEditorChangeCount();
+        } else {
+          editorStatus('Fehler beim Speichern: ' + errors.join('; '), 'error');
+        }
+      }
+    })
+    .catch(function(e) {
+      errors.push(f.name + ': ' + e.message);
+      saved++;
+    });
+  });
+}
+
+/**
+ * Alle Änderungen verwerfen
+ */
+function revertEditorChanges() {
+  if (!_editorData || !confirm('Alle Änderungen verwerfen?')) return;
+
+  // Daten aus Original zurückkopieren
+  _editorData.files.forEach(function(f) {
+    f.data = JSON.parse(JSON.stringify(_editorOriginal[f.name]));
+  });
+  _editorChanges = {};
+  renderEditorSubTab(_editorActiveSubTab);
+  updateEditorChangeCount();
+  editorStatus('Änderungen verworfen.', 'success');
+}
+
+/**
+ * Export nach Core: ImportToCore → core/config/ + core/nls/de/
+ */
+function exportEditorToCore() {
+  if (!_editorData) return;
+
+  // Warnung: Erst ungespeicherte Änderungen prüfen
+  var unsaved = updateEditorChangeCount();
+  if (unsaved > 0) {
+    if (!confirm('Es gibt ' + unsaved + ' ungespeicherte Änderung(en). Zuerst speichern?\n\nOK = Erst speichern\nAbbrechen = Trotzdem exportieren')) {
+      // Trotzdem exportieren
+    } else {
+      saveEditorChanges();
+      return;
+    }
+  }
+
+  if (!confirm('Dateien von «' + _editorData.kuerzel + '» nach core/config/ und core/nls/de/ exportieren?\n\nBestehende Dateien werden mit Backup (.bak) gesichert.')) {
+    return;
+  }
+
+  editorStatus('Exportiere nach Core…');
+  document.getElementById('editor-btn-export').disabled = true;
+
+  fetch(API_URL + '?action=config-export-to-core', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ kuerzel: _editorData.kuerzel })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(j) {
+    document.getElementById('editor-btn-export').disabled = false;
+    if (!j.success) {
+      editorStatus('Export-Fehler: ' + (j.error || 'Unbekannt'), 'error');
+      return;
+    }
+    var d = j.data;
+    var msg = d.exported.length + ' Datei(en) exportiert';
+    if (d.backups.length > 0) msg += ', ' + d.backups.length + ' Backup(s) erstellt';
+    if (d.errors.length > 0) msg += ', ' + d.errors.length + ' Fehler';
+    editorStatus(msg + ' ✓', d.errors.length > 0 ? 'error' : 'success');
+  })
+  .catch(function(e) {
+    document.getElementById('editor-btn-export').disabled = false;
+    editorStatus('Netzwerkfehler: ' + e.message, 'error');
+  });
+}
+
+// ===== Editor Event-Listener =====
+// Quellen-Suchfeld: Live-Filter
+document.getElementById('editor-src-filter').addEventListener('input', function() {
+  renderEditorSourceList(this.value);
+});
+// Tabellen-Filter: Live-Filter über Zeilen
+document.getElementById('editor-table-filter').addEventListener('input', function() {
+  filterEditorTable(this.value);
+});
+// Refresh-Button
+document.getElementById('editor-src-refresh').addEventListener('click', function() {
+  _editorKuerzelLoaded = false;
+  loadEditorKuerzelList(true);
+});
+document.querySelectorAll('.editor-subtab').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    renderEditorSubTab(btn.dataset.editorTab);
+  });
+});
+document.getElementById('editor-btn-save').addEventListener('click', saveEditorChanges);
+document.getElementById('editor-btn-revert').addEventListener('click', revertEditorChanges);
+document.getElementById('editor-btn-export').addEventListener('click', exportEditorToCore);
 
 // =====================================================================
 // INITIALISIERUNG

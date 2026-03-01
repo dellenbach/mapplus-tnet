@@ -339,9 +339,12 @@ paths:
 
         **Funktionsweise:**
         1. Holt Legend-JSON vom ArcGIS Server via `agsproxy.php` (Token-Management inklusive)
-        2. Skaliert Symbole auf konfigurierbare Grösse (Standard: 160×80px, Anzeige 40×20px)
-        3. Rendert kompaktes HTML mit CSS-Grid oder gibt strukturiertes JSON zurück
-        4. Cache mit 24h TTL (umgehbar mit `nocache=1`)
+        2. Skaliert Symbole auf konfigurierbare Grösse (width×height bei einstellbarem DPI)
+        3. Zusätzliche CSS-Vergrösserung via `zoom` (Endgrösse = width×zoom × height×zoom)
+        4. `#`-Labels werden per Attribut-Query aufgelöst (2-Pass: groupBy + Renderer)
+        5. Einträge ohne Lookup-Treffer werden automatisch entfernt
+        6. Wenn Code-basierte Layer vorhanden → automatische Gruppierung nach `Gemeinde`
+        7. Cache mit 24h TTL (umgehbar mit `nocache=1`)
 
         **Beispiel-URLs (direkt im Browser öffnen):**
         - Ganzer Dienst: [`?service=ewn/EWN_NIS/MapServer`](https://www.gis-daten.ch/maps/tnet/api/v1/legend-proxy.php?service=ewn/EWN_NIS/MapServer)
@@ -351,6 +354,9 @@ paths:
         - Werkplan Cache: [`?service=awu/AWU_WERKPLAN_cache/MapServer`](https://www.gis-daten.ch/maps/tnet/api/v1/legend-proxy.php?service=awu/AWU_WERKPLAN_cache/MapServer)
         - JSON-Ausgabe: [`?service=ewn/EWN_NIS/MapServer&format=json`](https://www.gis-daten.ch/maps/tnet/api/v1/legend-proxy.php?service=ewn/EWN_NIS/MapServer&format=json)
         - Ohne Cache: [`?service=ewn/EWN_NIS/MapServer&nocache=1`](https://www.gis-daten.ch/maps/tnet/api/v1/legend-proxy.php?service=ewn/EWN_NIS/MapServer&nocache=1)
+        - Nutzungsplanung (Auto-Gruppierung): [`?service=gis_oereb/nw_nutzungsplanung_DEF/MapServer&nocache=1`](https://www.gis-daten.ch/maps/tnet/api/v1/legend-proxy.php?service=gis_oereb/nw_nutzungsplanung_DEF/MapServer&nocache=1)
+        - Ohne Gruppierung: [`?service=gis_oereb/nw_nutzungsplanung_DEF/MapServer&legendgroup=none&nocache=1`](https://www.gis-daten.ch/maps/tnet/api/v1/legend-proxy.php?service=gis_oereb/nw_nutzungsplanung_DEF/MapServer&legendgroup=none&nocache=1)
+        - Ohne Label-Auflösung: [`?service=gis_oereb/nw_nutzungsplanung_DEF/MapServer&resolve=false&nocache=1`](https://www.gis-daten.ch/maps/tnet/api/v1/legend-proxy.php?service=gis_oereb/nw_nutzungsplanung_DEF/MapServer&resolve=false&nocache=1)
 
         **Integration in legendResources:**
         ```json
@@ -365,6 +371,7 @@ paths:
         required: true
         description: |
           ArcGIS MapServer-Pfad (ohne Basis-URL).
+          `/MapServer` wird automatisch angehängt falls fehlend.
           Entspricht dem `path`-Parameter in `agsproxy.php`.
         schema:
           type: string
@@ -387,46 +394,144 @@ paths:
           kbs:
             summary: NW Belastete Standorte
             value: gis_fach/nw_kbs/MapServer
+          oereb:
+            summary: ÖREB Nutzungsplanung (mit #-Labels + Gemeinde-Gruppierung)
+            value: gis_oereb/nw_nutzungsplanung_DEF/MapServer
       - name: width
         in: query
         description: |
-          Symbolbreite in Pixel für die ArcGIS-Anfrage (Standard: 160).
-          ArcGIS skaliert proportional. Anzeige wird auf 1/4 runterskaliert (kompakt).
+          Symbolbreite in Pixel für die ArcGIS-Anfrage.
+          ArcGIS rendert das Symbol in dieser Grösse. Die Anzeige wird zusätzlich
+          mit dem `zoom`-Faktor skaliert (Endgrösse = width × zoom).
         schema:
           type: integer
-          default: 160
+          default: 16
           minimum: 8
           maximum: 512
         examples:
           standard:
-            summary: Standard (160px → Anzeige 40px)
-            value: 160
-          klein:
-            summary: Klein (64px → Anzeige 16px)
-            value: 64
+            summary: Standard (16px)
+            value: 16
           gross:
-            summary: Gross (320px → Anzeige 80px)
-            value: 320
+            summary: Gross (32px)
+            value: 32
       - name: height
         in: query
         description: |
-          Symbolhöhe in Pixel für die ArcGIS-Anfrage (Standard: 80).
-          ArcGIS skaliert proportional. Anzeige wird auf 1/4 runterskaliert (kompakt).
+          Symbolhöhe in Pixel für die ArcGIS-Anfrage.
+          Endgrösse = height × zoom.
         schema:
           type: integer
-          default: 80
+          default: 10
           minimum: 8
           maximum: 512
         examples:
           standard:
-            summary: Standard (80px → Anzeige 20px)
-            value: 80
+            summary: Standard (10px)
+            value: 10
           quadratisch:
-            summary: Quadratisch (160px → Anzeige 40px)
-            value: 160
-          klein:
-            summary: Klein (32px → Anzeige 8px)
-            value: 32
+            summary: Quadratisch (16px)
+            value: 16
+      - name: dpi
+        in: query
+        description: |
+          DPI für das ArcGIS-Symbol-Rendering. Höherer DPI = dickere Linien und Punkte.
+          Symbolgrössen in ArcGIS sind in pt definiert — höherer DPI = mehr Pixel pro pt.
+          - `96` = ArcGIS-Standard (dünn)
+          - `192` = 2× dicker
+          - `288` = 3× dicker (Standard)
+        schema:
+          type: integer
+          default: 288
+          minimum: 72
+          maximum: 600
+        examples:
+          standard:
+            summary: Standard (288 DPI, 3× dicker)
+            value: 288
+          arcgis_default:
+            summary: ArcGIS-Standard (96 DPI, dünn)
+            value: 96
+          mittel:
+            summary: Mittel (192 DPI, 2× dicker)
+            value: 192
+      - name: zoom
+        in: query
+        description: |
+          Zusätzliche CSS-Vergrösserung der Symbol-Anzeige.
+          Endgrösse = width×zoom × height×zoom Pixel.
+          `1.0` = keine Vergrösserung, `3.0` = 3-fach (Standard).
+        schema:
+          type: number
+          format: float
+          default: 3.0
+          minimum: 0.5
+          maximum: 5.0
+        examples:
+          standard:
+            summary: Standard (3×)
+            value: 3.0
+          original:
+            summary: Originalgrösse (1×)
+            value: 1.0
+      - name: resolve
+        in: query
+        description: |
+          Aktiviert die Auflösung von `#`-Labels via Attribut-Queries.
+          Wenn `true` (Standard): Labels mit `#` werden durch lesbare Bezeichnungen
+          ersetzt (via `codefield`/`labelfield`). Einträge ohne Lookup-Treffer
+          werden aus der Legende entfernt.
+          Wenn `false`: Labels bleiben unverändert (Roh-Darstellung mit Codes wie `W3a#Wohnzone`).
+        schema:
+          type: boolean
+          default: true
+        examples:
+          aktiv:
+            summary: Label-Auflösung aktiv (Standard)
+            value: true
+          deaktiviert:
+            summary: Roh-Labels anzeigen
+            value: false
+      - name: labelfield
+        in: query
+        description: |
+          Feldname für die Legendenbezeichnung bei `#`-Label-Auflösung.
+          Wird zusammen mit `codefield` per `groupByFieldsForStatistics` abgefragt.
+          Nur relevant wenn `resolve=true`.
+        schema:
+          type: string
+          default: Typ_Bezeichnung
+      - name: codefield
+        in: query
+        description: |
+          Feldname für den Darstellungscode bei `#`-Label-Auflösung.
+          Die Query gruppiert nach `codefield` + `labelfield` und ersetzt das
+          `#`-Label durch die aufgelöste Bezeichnung.
+          Nur relevant wenn `resolve=true`.
+        schema:
+          type: string
+          default: Typ_Darstellungscode
+      - name: legendgroup
+        in: query
+        description: |
+          Attributfeld für die Gruppierung der Legende in zusammenklappbare Sektionen.
+          Wenn gesetzt, wird für jeden Wert des Felds (z.B. jede Gemeinde) eine eigene
+          Sektion erzeugt, die nur die dort vorkommenden Symbole enthält.
+
+          **Auto-Default:** Wenn nicht angegeben und Code-basierte Layer vorhanden (values-Array),
+          wird automatisch `Gemeinde` als Gruppierungsfeld gesetzt.
+
+          Spezialwert `none` deaktiviert die Gruppierung explizit.
+        schema:
+          type: string
+          default: "Gemeinde (auto bei Code-Layern)"
+        examples:
+          gemeinde:
+            summary: Nach Gemeinde gruppieren
+            value: Gemeinde
+          keine:
+            summary: Gruppierung deaktivieren
+            value: none
       - name: layers
         in: query
         description: |
@@ -441,14 +546,12 @@ paths:
           einzeln:
             summary: Nur Layer 5
             value: "5"
-          bereich:
-            summary: Mehrere Layer
-            value: "0,3,7,12"
       - name: format
         in: query
         description: |
           Ausgabeformat: `html` (Standard) oder `json`.
           JSON liefert die rohen Legenddaten inkl. Base64-Bildern.
+          Bei Gruppierung enthält die JSON-Antwort ein `groups`-Array statt `layers`.
         schema:
           type: string
           enum: [ html, json ]
@@ -458,6 +561,7 @@ paths:
         description: |
           Cache umgehen (`1` = ja). Erzwingt eine frische Abfrage vom ArcGIS Server.
           Nützlich nach Server-Updates oder Symboländerungen.
+          Cache-TTL: 24 Stunden.
         schema:
           type: integer
           enum: [ 0, 1 ]
@@ -468,6 +572,17 @@ paths:
             Erfolgreiche Antwort.
             Bei `format=html`: Selbstständige HTML-Seite mit eingebetteten Symbolen.
             Bei `format=json`: Strukturiertes JSON mit Layer- und Symbol-Informationen.
+
+            **Live-Vorschau (HTML — direkt im Browser öffnen):**
+            - [EWN NIS — Standard](https://www.gis-daten.ch/maps/tnet/api/v1/legend-proxy.php?service=ewn/EWN_NIS/MapServer)
+            - [AWU Werkplan](https://www.gis-daten.ch/maps/tnet/api/v1/legend-proxy.php?service=awu/AWU_WERKPLAN/MapServer)
+            - [ÖREB Nutzungsplanung — Gruppiert nach Gemeinde](https://www.gis-daten.ch/maps/tnet/api/v1/legend-proxy.php?service=gis_oereb/nw_nutzungsplanung_DEF/MapServer&nocache=1)
+            - [ÖREB Nutzungsplanung — Ohne Gruppierung](https://www.gis-daten.ch/maps/tnet/api/v1/legend-proxy.php?service=gis_oereb/nw_nutzungsplanung_DEF/MapServer&legendgroup=none&nocache=1)
+            - [ÖREB Nutzungsplanung — Roh-Labels (resolve=false)](https://www.gis-daten.ch/maps/tnet/api/v1/legend-proxy.php?service=gis_oereb/nw_nutzungsplanung_DEF/MapServer&resolve=false&legendgroup=none&nocache=1)
+
+            **Live-Vorschau (JSON):**
+            - [EWN NIS — JSON](https://www.gis-daten.ch/maps/tnet/api/v1/legend-proxy.php?service=ewn/EWN_NIS/MapServer&format=json)
+            - [ÖREB Nutzungsplanung — JSON gruppiert](https://www.gis-daten.ch/maps/tnet/api/v1/legend-proxy.php?service=gis_oereb/nw_nutzungsplanung_DEF/MapServer&format=json&nocache=1)
           content:
             text/html:
               schema:
@@ -602,7 +717,8 @@ paths:
         Features:
         - **Import-Tab**: Verfügbare AGS-Dienste mit Checkboxen auswählen, Alle/Keine, Shift-Range, Multi-Export nach `data/tmp/raw-conf/`
         - **Verwalten-Tab**: Bestehende Roh-Konfigurationen anzeigen, Multi-Select mit Checkboxen auf Service-Ebene, Multi-Delete, Backup-Filter und Backup-Delete
-        - Nutzt dieselbe `treebuilder-api.php` API (Aktionen: `ags-services`, `ags-export`, `ags-list-raw`, `ags-delete-raw`, `ags-delete-backups`)
+        - **Staging-Tab**: Services zu Kürzel-basierten Ausgabedateien zusammenführen. Unterstützt inkrementellen Merge (mode=merge), Ersetzen (mode=replace) und Vorschau (mode=preview). Staging-Manifest trackt Quell-Services.
+        - Nutzt dieselbe `treebuilder-api.php` API (Aktionen: `ags-services`, `ags-export`, `ags-list-raw`, `ags-delete-raw`, `ags-delete-backups`, `ags-stage-merge`, `staging-list-output`)
       responses:
         "200":
           description: HTML-Seite mit AGS Import UI
@@ -1101,6 +1217,150 @@ paths:
         "500":
           description: Import oder Löschung fehlgeschlagen
 
+  /v1/treebuilder-api.php/staging:
+    get:
+      tags: [ AGS Import ]
+      summary: Staging-Ausgabe (ImportToCore) auflisten
+      description: |
+        Listet alle Kürzel-Verzeichnisse unter `ImportToCore/` mit Dateien,
+        Duplikat-Metadaten, Cross-Kürzel-Konflikten und Staging-Manifest.
+
+        **Hinweis:** Der tatsächliche Endpunkt ist `treebuilder-api.php?action=staging-list-output`.
+      operationId: stagingListOutput
+      parameters:
+      - name: action
+        in: query
+        required: true
+        schema:
+          type: string
+          enum: [ staging-list-output ]
+      responses:
+        "200":
+          description: Kürzel-Liste mit Dateien und Manifest-Info
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      exists:
+                        type: boolean
+                      kuerzel:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            kuerzel:
+                              type: string
+                              example: "ewn"
+                            files:
+                              type: array
+                              items:
+                                type: object
+                            size:
+                              type: integer
+                            manifest:
+                              $ref: "#/components/schemas/StagingManifest"
+
+    post:
+      tags: [ AGS Import ]
+      summary: Staging-Merge (Services → ImportToCore zusammenführen)
+      description: |
+        Führt ausgewählte Raw-Conf-Services zu Kürzel-basierten Ausgabedateien zusammen.
+
+        **Merge-Modi:**
+        | Modus | Verhalten |
+        |-------|-----------|
+        | `merge` | Bestehende ImportToCore-Datei als Basis laden, neue Keys hinzufügen/aktualisieren. Bestehende bleiben erhalten. |
+        | `replace` | Alles neu aufbauen — bestehende Ausgabe wird komplett überschrieben (bisheriges Verhalten). |
+        | `preview` | Dry-Run: berechnet Diff-Statistik (added/updated/unchanged), schreibt nichts. |
+
+        **Merge-Ablauf (mode=merge):**
+        1. Bestehende `<prefix>_<kuerzel>.<ext>` aus `ImportToCore/<kuerzel>/` laden
+        2. Neue Keys aus den ausgewählten raw-conf-Services darüber mergen (letzter gewinnt bei Duplikaten)
+        3. Output schreiben + `.staging-manifest.json` mit Source-Tracking aktualisieren
+        4. Statistik zurückgeben: `mergeStats` pro Bucket (added, updated, unchanged)
+
+        **Manifest:** Bei `merge` und `replace` wird `.staging-manifest.json` geschrieben mit:
+        - `sources[]`: Array aller Services die in diese Ausgabe eingeflossen sind (kumulativ bei merge)
+        - `buckets`: Datei-Übersicht pro Prefix mit Key-Counts
+        - `lastStaged`: Zeitstempel
+
+        **Hinweis:** Der tatsächliche Endpunkt ist `treebuilder-api.php?action=ags-stage-merge`.
+      operationId: stagingMerge
+      parameters:
+      - name: action
+        in: query
+        required: true
+        schema:
+          type: string
+          enum: [ ags-stage-merge, staging-delete-output ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StagingMergeRequest"
+            examples:
+              merge:
+                summary: "Inkrementell zusammenführen"
+                value:
+                  services: [ "ewn/ewn_EWN_NIS_gwr" ]
+                  kuerzel: "ewn"
+                  mode: "merge"
+              replace:
+                summary: "Komplett ersetzen"
+                value:
+                  services: [ "ewn/ewn_EWN_NIS", "ewn/ewn_EWN_NIS_gwr" ]
+                  kuerzel: "ewn"
+                  mode: "replace"
+              preview:
+                summary: "Nur Vorschau"
+                value:
+                  services: [ "ewn/ewn_EWN_NIS_gwr" ]
+                  kuerzel: "ewn"
+                  mode: "preview"
+      responses:
+        "200":
+          description: Merge-Ergebnis
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: "#/components/schemas/StagingMergeResponse"
+              examples:
+                merged:
+                  summary: "Inkrementeller Merge erfolgreich"
+                  value:
+                    success: true
+                    data:
+                      success: true
+                      kuerzel: "ewn"
+                      mode: "merge"
+                      files:
+                      - file: "ewn/layers_ewn.conf"
+                        bytes: 12345
+                        keys: 57
+                        mergeStats: { added: 12, updated: 3, unchanged: 42 }
+                      mergeStats:
+                        layers: { added: 12, updated: 3, unchanged: 42 }
+                        maptips: { added: 24, updated: 0, unchanged: 84 }
+                      duplicates: []
+                      errors: []
+                      timestamp: "2026-03-01 14:30:00"
+        "400":
+          description: Fehlende oder ungültige Parameter
+        "405":
+          description: Methode nicht erlaubt (POST required)
+
 components:
   schemas:
     # === Base Response ===
@@ -1577,3 +1837,166 @@ components:
                       type: string
                       description: Base64-kodierte Bilddaten
                       example: "iVBORw0KGgo..."
+
+    # === Staging Schemas ===
+    StagingMergeRequest:
+      type: object
+      required: [ services, kuerzel ]
+      properties:
+        services:
+          type: array
+          description: "Zu mergende Service-Keys aus raw-conf"
+          items:
+            type: string
+          example: [ "ewn/ewn_EWN_NIS", "ewn/ewn_EWN_NIS_gwr" ]
+        kuerzel:
+          type: string
+          description: "Ziel-Kürzel für die Ausgabe (z.B. ewn, nodi_ch)"
+          example: ewn
+        mode:
+          type: string
+          description: |
+            Merge-Modus:
+            - `merge`: Bestehende ImportToCore-Datei als Basis, neue Keys darüber (Standard)
+            - `replace`: Alles komplett neu aufbauen, bestehende Ausgabe wird überschrieben
+            - `preview`: Dry-Run — nur Diff-Statistik berechnen, nichts schreiben
+          enum: [ merge, replace, preview ]
+          default: replace
+          example: merge
+
+    StagingMergeResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        kuerzel:
+          type: string
+          example: ewn
+        mode:
+          type: string
+          enum: [ merge, replace, preview ]
+          example: merge
+        files:
+          type: array
+          description: "Geschriebene/berechnete Ausgabedateien"
+          items:
+            type: object
+            properties:
+              file:
+                type: string
+                example: "ewn/layers_ewn.conf"
+              bytes:
+                type: integer
+                description: "0 bei preview"
+              keys:
+                type: integer
+                description: "Gesamtzahl der Keys in der Ausgabe"
+              mergeStats:
+                type: object
+                description: "Diff-Statistik (nur bei merge/preview)"
+                properties:
+                  added:
+                    type: integer
+                    description: "Neue Keys hinzugefügt"
+                  updated:
+                    type: integer
+                    description: "Bestehende Keys aktualisiert (Wert geändert)"
+                  unchanged:
+                    type: integer
+                    description: "Keys unverändert"
+              preview:
+                type: boolean
+                description: "true bei mode=preview"
+        mergeStats:
+          type: object
+          description: "Aggregierte Statistik pro Bucket-Prefix"
+          additionalProperties:
+            type: object
+            properties:
+              added:
+                type: integer
+              updated:
+                type: integer
+              unchanged:
+                type: integer
+        duplicates:
+          type: array
+          description: "Intra-Quell-Duplikate (gleicher Key in verschiedenen Quelldateien)"
+          items:
+            type: object
+            properties:
+              file:
+                type: string
+              keys:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    key:
+                      type: string
+                    count:
+                      type: integer
+                    sources:
+                      type: array
+                      items:
+                        type: string
+              count:
+                type: integer
+        errors:
+          type: array
+          items:
+            type: string
+        timestamp:
+          type: string
+          example: "2026-03-01 14:30:00"
+
+    StagingManifest:
+      type: object
+      description: |
+        Staging-Manifest (`.staging-manifest.json`) — trackt welche Services in eine
+        ImportToCore-Ausgabe eingeflossen sind. Wird bei merge kumulativ ergänzt.
+      properties:
+        kuerzel:
+          type: string
+          example: ewn
+        lastStaged:
+          type: string
+          description: "ISO 8601 Zeitstempel"
+          example: "2026-03-01T14:30:00"
+        mode:
+          type: string
+          description: "Modus der letzten Staging-Operation"
+          enum: [ merge, replace ]
+        sources:
+          type: array
+          description: "Alle Services die in diese Ausgabe eingeflossen sind"
+          items:
+            type: object
+            properties:
+              service:
+                type: string
+                example: "ewn/ewn_EWN_NIS"
+              staged:
+                type: string
+                description: "Zeitpunkt an dem dieser Service gestagete wurde"
+                example: "2026-03-01T14:30:00"
+              keys:
+                type: object
+                description: "Key-Counts pro Bucket-Prefix"
+                additionalProperties:
+                  type: integer
+                example:
+                  layers: 45
+                  maptips: 90
+        buckets:
+          type: object
+          description: "Ausgabedateien pro Prefix"
+          additionalProperties:
+            type: object
+            properties:
+              file:
+                type: string
+                example: "layers_ewn.conf"
+              totalKeys:
+                type: integer
+                example: 57

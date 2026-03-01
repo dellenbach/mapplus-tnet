@@ -246,3 +246,12 @@
 - **Root-Cause**: ArcGIS REST Legend-Endpoint interpretiert `size` als Zielgrösse, skaliert aber proportional zum Originalsymbol. Kein exaktes Clipping.
 - **Fix**: CSS `width`/`height` auf `<img>` erzwingt exakte Anzeigegrösse; ArcGIS liefert dennoch höhere Auflösung → bessere Darstellung.
 - **Guardrail**: Nie `size`-Parameter allein für exakte Pixelgrössen verlassen — immer zusätzlich CSS/HTML `width`/`height` setzen.
+
+---
+
+## 2025-07-13 — Tree-Builder Staging Redesign: renderTree() per-LyrMgr-Closure
+
+- **Symptom**: Beim Umstellen von Tab-basiertem Rendering (ein LyrMgr gleichzeitig) auf unified Tree (alle LyrMgrs als Root-Knoten) referenzierten D&D-Handler die falsche `profile`-Variable → Drops landeten im falschen LyrMgr.
+- **Root-Cause**: `renderTree()` hatte eine einzige `var profile = getActiveTree()` am Anfang. Bei mehreren LyrMgrs in einem DOM müssten Handler wissen, welcher LyrMgr ihr Ziel ist.
+- **Fix**: `renderTree()` iteriert über alle LyrMgr-Keys und ruft `renderLyrmgrBlock(container, lmKey, profile)` pro Eintrag auf. Jeder Aufruf hat eigene DOM-Elemente und eigenen `profile`-Closure. D&D-Daten enthalten `srcLyrmgr` für Cross-LyrMgr-Operationen.
+- **Guardrail**: Bei mehreren unabhängigen Bäumen in einem DOM immer per-Subtree-Closure mit eigenem Datenzugriff verwenden — nie eine Single-Variable für alle Handler teilen.

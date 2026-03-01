@@ -1,8 +1,0 @@
-{
-    "desc_gis_fach/ow_planungszonen": "gis_fach ow_planungszonen",
-    "desc_gis_fach/ow_planungszonen/planungszonen": "Planungszonen",
-    "desc_gis_fach/ow_planungszonen/planungszonen/pz_nutzungsplanung": "Planungszonen PZ Nutzungsplanung",
-    "desc_gis_fach/ow_planungszonen/planungszonen/pz_gewaesserraum_und_entlastungskorridor": "Planungszonen PZ Gewässerraum und Entlastungskorridor",
-    "desc_gis_fach/ow_planungszonen/planungszonen/pz_naturgefahren": "Planungszonen PZ Naturgefahren",
-    "desc_gis_fach/ow_planungszonen/planungszonen/pz_kantonaler_richtplan": "Planungszonen PZ Kantonaler Richtplan"
-}

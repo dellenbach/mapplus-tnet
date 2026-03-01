@@ -1,8 +1,0 @@
-{
-    "desc_ow_kapo/ow_einschraenkungen_binnenschifffahrt": "ow_kapo ow_einschraenkungen_binnenschifffahrt",
-    "desc_ow_kapo/ow_einschraenkungen_binnenschifffahrt/schifffahrtszeichen": "Schifffahrtszeichen",
-    "desc_ow_kapo/ow_einschraenkungen_binnenschifffahrt/beeinflussungen": "Beeinflussungen",
-    "desc_ow_kapo/ow_einschraenkungen_binnenschifffahrt/beeinflussungen/beeinflussung_punkt": "Beeinflussungen Beeinflussung (Punkt)",
-    "desc_ow_kapo/ow_einschraenkungen_binnenschifffahrt/beeinflussungen/beeinflussung_linie": "Beeinflussungen Beeinflussung (Linie)",
-    "desc_ow_kapo/ow_einschraenkungen_binnenschifffahrt/beeinflussungen/beeinflussung_flaeche": "Beeinflussungen Beeinflussung (Fläche)"
-}
