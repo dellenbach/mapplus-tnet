@@ -85,7 +85,13 @@
       }
       console.log(LOG, 'render:', layers.length, 'Layer');
 
-      var html = '<ul class="lm-active-list">';
+      var html = '<div class="lm-active-toolbar">';
+      html += '<span class="lm-active-count">' + layers.length + ' Themen</span>';
+      html += '<button class="lm-btn-remove-all" data-action="remove-all" title="Alle Themen entfernen">';
+      html += '<svg class="lm-icon" viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>';
+      html += ' Alle entfernen</button>';
+      html += '</div>';
+      html += '<ul class="lm-active-list">';
       for (var i = 0; i < layers.length; i++) {
         var l = layers[i];
         var eyeIcon = l.visible ? ICON.eyeOn : ICON.eyeOff;
@@ -105,7 +111,7 @@
 
         // Opazitäts-Slider
         html += '<div class="lm-opacity-row">';
-        html += '<span class="lm-opacity-label">Transparenz</span>';
+        html += '<span class="lm-opacity-label">Deckkraft</span>';
         html += '<input type="range" class="lm-opacity-slider" data-action="opacity" min="0" max="100" value="' + opacityPct + '">';
         html += '<span class="lm-opacity-val">' + opacityPct + '%</span>';
         html += '</div>';
@@ -124,13 +130,22 @@
     _bindEvents: function () {
       var self = this;
 
-      // ── Click-Events (Eye, Remove) ──
+      // ── Click-Events (Eye, Remove, Remove-All) ──
       _container.addEventListener('click', function (e) {
         if (_dragState) return; // Kein Click während Drag
         var btn = e.target.closest('[data-action]');
         if (!btn) return;
         var action = btn.dataset.action;
         if (action === 'drag') return; // Drag-Handle hat eigene Handler
+
+        // "Alle entfernen" liegt in der Toolbar, nicht in einem Item
+        if (action === 'remove-all') {
+          if (window.TnetLMStore && window.TnetLMStore.removeAllLayers) {
+            window.TnetLMStore.removeAllLayers();
+          }
+          return;
+        }
+
         var item = btn.closest('.lm-active-item');
         if (!item) return;
         var layerId = item.dataset.layerId;

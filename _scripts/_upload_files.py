@@ -11,10 +11,10 @@ PASSWORD = "3Zs,k4%Un,<[W(Kx"
 REMOTE_BASE = "/www/maps"
 LOCAL_BASE = r"c:\_Daten\mapplus-exp\maps"
 
-# Files to upload - Re-Stage Change-Detection
+# Files to upload - WMS-Panel + Store Sync-Fix
 FILES = [
-    "tnet/api/v1/ags-import.html",
-    "tnet/api/v1/treebuilder-api.php",
+    "tnet/js/tnet-wms-panel.js",
+    "tnet/js/tnet-lm-store.js",
 ]
 
 def upload_files():

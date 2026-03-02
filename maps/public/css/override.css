@@ -17,8 +17,13 @@
 }
 
 /* ========================================
-   WMS Menu - Kompaktere Darstellung
+   WMS Menu - Aus Sidebar ausblenden (jetzt im Hamburger-Menü)
    ======================================== */
+#tp_wms_menu {
+  display: none !important;
+}
+
+/* Alte WMS-Sidebar-Styles (beibehalten für Kompatibilität) */
 #tp_wms_menu .dijitTitlePaneTextNode {
   font-size: 13px !important;
 }
@@ -403,7 +408,7 @@ input[type="range"]::-webkit-slider-thumb:hover {
 #second_lyrmgr .dijitTitlePaneTextNode,
 #layer_menu .dijitTitlePaneTextNode {
   margin-left: 11px;
-  margin-top: -12px;
+  margin-top: 0;
 }
 
 /* ===== Layer Manager TitlePane vertikale Zentrierung ===== */
@@ -693,14 +698,15 @@ body.drawing-mode #freepane * {
 #freepane .close_switch,
 #freepane #scrollToTopBtn,
 #freepane .dijitTitlePaneTitle,
-#freepane .dijitTitlePaneContentOuter {
+#freepane .dijitTitlePaneContentOuter,
+#freepane .tnet-accordion-resize-handle {
   pointer-events: auto;
 }
 
 /* Spring Container - scrollbar ohne Scrollbalken */
 #spring {
   height: fit-content !important;
-  max-height: calc(100vh - 79px) !important; /* 69px Header + 10px close_switch */
+  max-height: calc(100vh - 105px) !important; /* 69px Header + 10px close_switch + 26px Footer */
   overflow-y: auto !important;
   overflow-x: visible !important;
   padding-bottom: 0 !important;
@@ -2202,4 +2208,459 @@ h3 {
     border-bottom: 1px solid rgba(75,123,129,0.10);
     pointer-events: none;
     user-select: none;
+}
+
+/* ===== LEGEND PANE (Legende) - Identisches Styling wie Info-Pane ===== */
+#njs_floatlegend_pane {
+  width: 10cm !important;
+  min-width: 350px;
+  max-width: none !important;
+  min-height: 150px;
+  border-radius: 6px !important;
+  overflow: hidden !important;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.25) !important;
+  border: none !important;
+}
+
+/* Header wie Info-Pane */
+#njs_floatlegend_pane .dojoxFloatingPaneTitle {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  padding: 8px 10px !important;
+  background: #4b7b81 !important;
+  color: white !important;
+  font-weight: 500 !important;
+  cursor: move !important;
+  user-select: none !important;
+  height: 36px !important;
+  min-height: 36px !important;
+  box-sizing: border-box !important;
+  position: relative !important;
+  z-index: 1000 !important;
+}
+
+/* Original Dojo-Icons verstecken */
+#njs_floatlegend_pane .dojoxFloatingCloseIcon,
+#njs_floatlegend_pane .dojoxFloatingMaximizeIcon,
+#njs_floatlegend_pane .dojoxFloatingRestoreIcon,
+#njs_floatlegend_pane .dojoxFloatingMinimizeIcon {
+  display: none !important;
+}
+
+/* Custom Titel-Text */
+#njs_floatlegend_pane .legend-pane-custom-title {
+  flex: 1 !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  color: white !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+/* Custom Action Buttons - rechts */
+#njs_floatlegend_pane .legend-pane-actions {
+  display: flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  margin-left: auto !important;
+  margin-right: 0 !important;
+}
+
+#njs_floatlegend_pane .legend-pane-btn {
+  background: rgba(255,255,255,0.15) !important;
+  border: none !important;
+  color: white !important;
+  width: 24px !important;
+  height: 24px !important;
+  border-radius: 4px !important;
+  cursor: pointer !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  transition: background 0.2s !important;
+}
+
+#njs_floatlegend_pane .legend-pane-btn:hover {
+  background: rgba(255,255,255,0.3) !important;
+}
+
+#njs_floatlegend_pane .legend-pane-btn svg {
+  width: 16px !important;
+  height: 16px !important;
+}
+
+/* Content-Bereich */
+#njs_floatlegend_pane .dojoxFloatingPaneCanvas {
+  background: white !important;
+  position: absolute !important;
+  top: 36px !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+}
+
+#njs_floatlegend_pane .dojoxFloatingPaneContent {
+  overflow: auto !important;
+  height: 100% !important;
+  padding: 0 !important;
+}
+
+#njs_floatlegend_pane iframe {
+  width: 100% !important;
+  height: 100% !important;
+  border: none !important;
+  margin: 0 !important;
+}
+
+/* Resize Handle (Dojo original) verstecken */
+#njs_floatlegend_pane .dojoxFloatingResizeHandle {
+  display: none !important;
+}
+
+/* ===== DARGESTELLTE THEMEN - Active Panel im Desktop-TitlePane ===== */
+#sort_menu .lm-container-desktop {
+  padding: 0 !important;
+  min-height: 60px;
+}
+
+/* Layer-Items im Desktop-Kontext etwas kompakter */
+#sort_menu .lm-active-item {
+  padding: 6px 8px !important;
+  border-bottom: 1px solid #eee;
+  background: #fff;
+}
+
+#sort_menu .lm-active-item:last-child {
+  border-bottom: none;
+}
+
+#sort_menu .lm-active-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 28px;
+}
+
+#sort_menu .lm-drag-handle {
+  cursor: grab;
+  width: 22px;
+  flex-shrink: 0;
+  opacity: 0.5;
+}
+
+#sort_menu .lm-drag-handle:hover {
+  opacity: 1;
+}
+
+#sort_menu .lm-eye {
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: #4b7b81;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  padding: 2px;
+}
+
+#sort_menu .lm-eye:hover {
+  background: rgba(75,123,129,0.1);
+}
+
+#sort_menu .lm-eye-off {
+  color: #bbb;
+}
+
+#sort_menu .lm-active-name {
+  flex: 1;
+  font-size: 12px;
+  color: #333;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#sort_menu .lm-btn-remove {
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: #ccc;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  padding: 2px;
+}
+
+#sort_menu .lm-btn-remove:hover {
+  background: rgba(232,66,63,0.1);
+  color: #e8423f;
+}
+
+#sort_menu .lm-opacity-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0 0 26px;
+}
+
+#sort_menu .lm-opacity-label {
+  font-size: 10px;
+  color: #999;
+  flex-shrink: 0;
+}
+
+#sort_menu .lm-opacity-slider {
+  flex: 1;
+  height: 4px;
+  accent-color: #4b7b81;
+}
+
+#sort_menu .lm-opacity-val {
+  font-size: 10px;
+  color: #999;
+  min-width: 30px;
+  text-align: right;
+}
+
+#sort_menu .lm-empty {
+  text-align: center;
+  padding: 16px 8px;
+  color: #999;
+  font-size: 12px;
+}
+
+#sort_menu .lm-active-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 8px;
+  background: #f5f9fa;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+#sort_menu .lm-active-count {
+  font-size: 11px;
+  color: #888;
+  font-weight: 500;
+}
+
+#sort_menu .lm-btn-remove-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border: 1px solid #dcc;
+  border-radius: 4px;
+  background: #fff;
+  color: #c0392b;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: 'Roboto', sans-serif;
+}
+
+#sort_menu .lm-btn-remove-all:hover {
+  background: rgba(192,57,43,0.08);
+  border-color: #c0392b;
+}
+
+#sort_menu .lm-btn-remove-all .lm-icon {
+  width: 14px;
+  height: 14px;
+  fill: currentColor;
+}
+
+#sort_menu .lm-active-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+#sort_menu .lm-icon {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+}
+
+#sort_menu .lm-icon-drag {
+  width: 16px;
+  height: 16px;
+}
+
+/* Drag-Clone (schwebendes Element beim Verschieben) */
+#sort_menu .lm-drag-clone,
+.lm-drag-clone {
+  position: fixed;
+  z-index: 10000;
+  pointer-events: none;
+  opacity: 0.9;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  background: #fff;
+  border-radius: 4px;
+}
+
+#sort_menu .lm-drag-placeholder {
+  background: rgba(75,123,129,0.08);
+  border: 2px dashed rgba(75,123,129,0.3);
+  border-radius: 4px;
+}
+
+#sort_menu .lm-drag-hidden {
+  opacity: 0;
+  height: 0;
+  overflow: hidden;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: none !important;
+}
+
+/* Resize Handles für Legend Pane - alle Seiten */
+#njs_floatlegend_pane .legend-pane-resize-top,
+#njs_floatlegend_pane .legend-pane-resize-bottom,
+#njs_floatlegend_pane .legend-pane-resize-left,
+#njs_floatlegend_pane .legend-pane-resize-right {
+  position: absolute !important;
+  z-index: 1100 !important;
+  transition: background 0.2s;
+}
+
+#njs_floatlegend_pane .legend-pane-resize-top {
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  height: 6px !important;
+  cursor: ns-resize !important;
+}
+
+#njs_floatlegend_pane .legend-pane-resize-bottom {
+  bottom: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  height: 6px !important;
+  cursor: ns-resize !important;
+}
+
+#njs_floatlegend_pane .legend-pane-resize-left {
+  left: 0 !important;
+  top: 0 !important;
+  bottom: 0 !important;
+  width: 8px !important;
+  cursor: ew-resize !important;
+  background: linear-gradient(to right, rgba(75,123,129,0.15), transparent) !important;
+}
+
+#njs_floatlegend_pane .legend-pane-resize-right {
+  right: 0 !important;
+  top: 0 !important;
+  bottom: 0 !important;
+  width: 8px !important;
+  cursor: ew-resize !important;
+  background: linear-gradient(to left, rgba(75,123,129,0.15), transparent) !important;
+}
+
+/* Hover-Effekte */
+#njs_floatlegend_pane .legend-pane-resize-top:hover,
+#njs_floatlegend_pane .legend-pane-resize-bottom:hover {
+  background: rgba(75,123,129,0.15) !important;
+}
+
+#njs_floatlegend_pane .legend-pane-resize-left:hover {
+  background: linear-gradient(to right, rgba(75,123,129,0.3), transparent) !important;
+}
+
+#njs_floatlegend_pane .legend-pane-resize-right:hover {
+  background: linear-gradient(to left, rgba(75,123,129,0.3), transparent) !important;
+}
+
+/* Ecken-Handles */
+#njs_floatlegend_pane .legend-pane-resize-corner-tl,
+#njs_floatlegend_pane .legend-pane-resize-corner-tr,
+#njs_floatlegend_pane .legend-pane-resize-corner-bl,
+#njs_floatlegend_pane .legend-pane-resize-corner-br {
+  position: absolute !important;
+  width: 12px !important;
+  height: 12px !important;
+  z-index: 1101 !important;
+}
+
+#njs_floatlegend_pane .legend-pane-resize-corner-tl {
+  top: 0 !important;
+  left: 0 !important;
+  cursor: nwse-resize !important;
+}
+
+#njs_floatlegend_pane .legend-pane-resize-corner-tr {
+  top: 0 !important;
+  right: 0 !important;
+  cursor: nesw-resize !important;
+}
+
+#njs_floatlegend_pane .legend-pane-resize-corner-bl {
+  bottom: 0 !important;
+  left: 0 !important;
+  cursor: nesw-resize !important;
+}
+
+#njs_floatlegend_pane .legend-pane-resize-corner-br {
+  bottom: 0 !important;
+  right: 0 !important;
+  width: 20px !important;
+  height: 20px !important;
+  cursor: nwse-resize !important;
+  background: linear-gradient(135deg, transparent 50%, rgba(75,123,129,0.5) 50%) !important;
+}
+
+#njs_floatlegend_pane .legend-pane-resize-corner-br:hover {
+  background: linear-gradient(135deg, transparent 50%, #4b7b81 50%) !important;
+}
+
+/* ===== LEGEND PANE DOCK (rechts angedockt) ===== */
+#njs_floatlegend_pane.legend-docked-right {
+  position: fixed !important;
+  border-radius: 0 !important;
+  box-shadow: -2px 0 8px rgba(0,0,0,0.15) !important;
+  z-index: 980 !important;
+  border-left: 2px solid #4b7b81 !important;
+}
+
+#njs_floatlegend_pane.legend-docked-right .dojoxFloatingPaneTitle {
+  border-radius: 0 !important;
+}
+
+/* Im angedockten Modus: nur linken Resize-Handle sichtbar */
+#njs_floatlegend_pane.legend-docked-right .legend-pane-resize-top,
+#njs_floatlegend_pane.legend-docked-right .legend-pane-resize-right,
+#njs_floatlegend_pane.legend-docked-right .legend-pane-resize-bottom,
+#njs_floatlegend_pane.legend-docked-right .legend-pane-resize-corner-tl,
+#njs_floatlegend_pane.legend-docked-right .legend-pane-resize-corner-tr,
+#njs_floatlegend_pane.legend-docked-right .legend-pane-resize-corner-bl,
+#njs_floatlegend_pane.legend-docked-right .legend-pane-resize-corner-br {
+  display: none !important;
+}
+
+#njs_floatlegend_pane.legend-docked-right .legend-pane-resize-left {
+  display: block !important;
+  width: 6px !important;
+  background: linear-gradient(to right, rgba(75,123,129,0.2), transparent) !important;
+}
+
+#njs_floatlegend_pane.legend-docked-right .legend-pane-resize-left:hover {
+  background: linear-gradient(to right, rgba(75,123,129,0.4), transparent) !important;
+}
+
+/* Dojo native Resize-Handle im Dock-Modus verstecken */
+#njs_floatlegend_pane.legend-docked-right .dojoxFloatingResizeHandle {
+  display: none !important;
 }

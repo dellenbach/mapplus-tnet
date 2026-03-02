@@ -255,3 +255,21 @@
 - **Root-Cause**: `renderTree()` hatte eine einzige `var profile = getActiveTree()` am Anfang. Bei mehreren LyrMgrs in einem DOM müssten Handler wissen, welcher LyrMgr ihr Ziel ist.
 - **Fix**: `renderTree()` iteriert über alle LyrMgr-Keys und ruft `renderLyrmgrBlock(container, lmKey, profile)` pro Eintrag auf. Jeder Aufruf hat eigene DOM-Elemente und eigenen `profile`-Closure. D&D-Daten enthalten `srcLyrmgr` für Cross-LyrMgr-Operationen.
 - **Guardrail**: Bei mehreren unabhängigen Bäumen in einem DOM immer per-Subtree-Closure mit eigenem Datenzugriff verwenden — nie eine Single-Variable für alle Handler teilen.
+
+---
+
+## 2026-03-02 — Sidepane überlappt Footer + fixe Accordion-Höhen
+
+- **Symptom**: Sidepane-Inhalt (`#spring`) ragt über den `#map-footer-bar` (26px) hinaus. Themenkatalog und Dargestellte Themen haben nicht verstellbare Höhen (fest 450px / 500px).
+- **Root-Cause**: `#spring` hatte `max-height: calc(100vh - 79px)` — berücksichtigte nur Header (69px) und close_switch (10px), nicht den 26px Footer. `#kantons_container` war auf `height: 450px !important` fixiert.
+- **Fix**: 1) `max-height` auf `calc(100vh - 105px)` geändert (79px + 26px Footer). 2) Fixe Höhen durch CSS-Variablen ersetzt (`--tnet-catalog-height`, `--tnet-active-height`). 3) Neues Modul `tnet-accordion-resize.js` mit Drag-Splitter-Handles am unteren Rand der Accordion-Inhalte. Höhen werden in localStorage gespeichert. 4) Guard `window.__tnetResizing` in `tnet_toc.js` → verhindert dass MutationObserver/aggressiveFix die Resize-Styles überschreibt.
+- **Guardrail**: Bei `max-height`-Berechnungen auf Sidepanes immer alle fixen UI-Elemente (Header, Footer, Toolbars) abziehen. Vor Inline-Style-Manipulation im Sidepane prüfen ob der MutationObserver in tnet_toc.js eine Feedback-Schleife auslöst — immer `window.__tnetResizing`-Flag nutzen.
+
+---
+
+## 2026-03-02 — Dargestellte Themen: Eye-Toggle + Remove wirkungslos, WMS Remove geht nicht
+
+- **Symptom**: Eye-Toggle (Sichtbarkeit) in "Dargestellte Themen" ohne Effekt. Remove entfernt Eintrag aus Liste, Layer bleibt auf Karte. WMS-Checkbox: Hinzufügen funktioniert, Entfernen nicht.
+- **Root-Cause**: Drei Bugs: (1) `_olLayerRef` wurde nur für WMS-Einträge gespeichert, nicht für reguläre Layer — dadurch kein direkter OL-Zugriff. (2) `_findOLLayer` suchte nur Top-Level-Layer, nicht in OL-LayerGroups. (3) `removeLayer` bei `visible=false` (Auge aus) entfernte Layer nur aus der Liste, nicht von der Karte. (4) WMS-Panel nutzte `njs.AppManager` statt `window.njs.AppManager` — in Strict-Mode-IIFE potentiell undefiniert, Fehler wurden stumm verschluckt (`catch(e){}`).
+- **Fix**: (1) `_olLayerRef` in `_syncFromMap` und `_onOLLayerAdd` für ALLE Layer setzen. (2) `_findOLLayer` rekursiv gemacht (sucht auch in `layer.getLayers()`). (3) `removeLayer` immer `map.removeLayer(_olLayerRef)` aufrufen, Fallback via `TnetLayerSwitch`. (4) WMS-Panel: `window.njs`/`window.top.njs` mit Fehler-Logging statt stiller Catch.
+- **Guardrail**: Bei OL-Layer-Manipulation immer gespeicherte `_olLayerRef` bevorzugen statt Suche via `name`-Attribut. Nie `catch(e){}` ohne Logging verwenden — erschwert debugging massiv.

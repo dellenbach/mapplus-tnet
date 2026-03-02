@@ -174,6 +174,7 @@
           if (isVisible) {
             storeLayer.visible = true;
             storeLayer.opacity = olLayer.getOpacity();
+            storeLayer._olLayerRef = olLayer; // OL-Referenz für direkten Zugriff
             if (!this._isActive(lid)) {
               _activeLayers.push(storeLayer);
             }
@@ -206,10 +207,32 @@
     _onOLLayerAdd: function (olLayer) {
       var lid = olLayer.get('name') || '';
       if (!lid) return;
+
+      // WMS Custom-Layer: IMMER den wms:-Pfad nutzen (nie Katalog-Match)
+      if (olLayer.get('tnet_wms_custom')) {
+        var wmsId = 'wms:' + lid;
+        if (!this._isActive(wmsId)) {
+          var wmsEntry = {
+            id: wmsId,
+            name: olLayer.get('title') || lid,
+            visible: true,
+            opacity: olLayer.getOpacity(),
+            type: 'wms',
+            _olLayerRef: olLayer
+          };
+          _activeLayers.push(wmsEntry);
+          console.log(LOG, '_onOLLayerAdd WMS:', wmsId, '→ _olLayerRef gesetzt');
+          this._emit('layer-visibility', { id: wmsId, visible: true, source: 'map' });
+          this._emit('active-layers-changed', _activeLayers);
+        }
+        return; // Kein Katalog-Match für WMS-Layer
+      }
+
       var storeLayer = this.findLayer(lid);
       if (storeLayer && !storeLayer.visible) {
         storeLayer.visible = true;
         storeLayer.opacity = olLayer.getOpacity();
+        storeLayer._olLayerRef = olLayer; // OL-Referenz für direkten Zugriff
         if (!this._isActive(lid)) {
           _activeLayers.push(storeLayer);
         }
@@ -221,6 +244,19 @@
     _onOLLayerRemove: function (olLayer) {
       var lid = olLayer.get('name') || '';
       if (!lid) return;
+
+      // WMS Custom-Layer: IMMER den wms:-Pfad nutzen
+      if (olLayer.get('tnet_wms_custom')) {
+        var wmsId = 'wms:' + lid;
+        _activeLayers = _activeLayers.filter(function (l) { return l.id !== wmsId; });
+        console.log(LOG, '_onOLLayerRemove WMS:', wmsId);
+        // WMS-Panel informieren (Checkbox + interne Liste synchronisieren)
+        document.dispatchEvent(new CustomEvent('tnet-wms-layer-removed', { detail: { name: lid } }));
+        this._emit('layer-visibility', { id: wmsId, visible: false, source: 'map' });
+        this._emit('active-layers-changed', _activeLayers);
+        return; // Kein Katalog-Match für WMS-Layer
+      }
+
       var storeLayer = this.findLayer(lid);
       if (storeLayer && storeLayer.visible) {
         storeLayer.visible = false;
@@ -297,15 +333,40 @@
      * (weil TnetLayerSwitch bei 'off' den Layer komplett entfernt).
      */
     toggleLayerEye: function (layerId) {
+      // Aktiven Eintrag suchen (hat _olLayerRef)
+      var activeEntry = this._findActiveLayer(layerId);
+      console.log(LOG, 'toggleLayerEye:', layerId, '→ activeEntry:', activeEntry ? 'gefunden' : 'NICHT gefunden',
+        activeEntry ? '_olLayerRef:' + !!activeEntry._olLayerRef : '');
+
+      // WMS Custom-Layer: direkte OL-Layer-Referenz nutzen
+      if (layerId.indexOf('wms:') === 0) {
+        if (activeEntry && activeEntry._olLayerRef) {
+          var newVis = !activeEntry._olLayerRef.getVisible();
+          _suppressMapSync = true;
+          activeEntry._olLayerRef.setVisible(newVis);
+          setTimeout(function () { _suppressMapSync = false; }, 200);
+          activeEntry.visible = newVis;
+          console.log(LOG, 'toggleLayerEye WMS:', layerId, '→ visible:', newVis);
+          this._emit('layer-visibility', { id: layerId, visible: newVis, source: 'ui' });
+          this._emit('active-layers-changed', _activeLayers);
+        }
+        return;
+      }
+
       var layer = this.findLayer(layerId);
       if (!layer) return;
 
-      // Aktuellen OL-Layer finden und Sichtbarkeit togglen
-      var am = this._getAppManager();
-      if (!am || !am.Maps || !am.Maps['main'] || !am.Maps['main'].mapObj) return;
+      // OL-Layer finden: bevorzugt gespeicherte Referenz, Fallback auf Suche
+      var olLayer = (activeEntry && activeEntry._olLayerRef) ? activeEntry._olLayerRef : null;
+      if (!olLayer) {
+        var am = this._getAppManager();
+        if (am && am.Maps && am.Maps['main'] && am.Maps['main'].mapObj) {
+          olLayer = this._findOLLayer(am.Maps['main'].mapObj, layerId);
+          // Referenz für nächstes Mal speichern
+          if (olLayer && activeEntry) activeEntry._olLayerRef = olLayer;
+        }
+      }
 
-      var map = am.Maps['main'].mapObj;
-      var olLayer = this._findOLLayer(map, layerId);
       if (olLayer) {
         var newVisible = !olLayer.getVisible();
         _suppressMapSync = true;
@@ -315,6 +376,8 @@
         layer.visible = newVisible;
         this._emit('layer-visibility', { id: layerId, visible: newVisible, source: 'ui' });
         this._emit('active-layers-changed', _activeLayers);
+      } else {
+        console.warn(LOG, 'toggleLayerEye: OL-Layer nicht gefunden für', layerId);
       }
     },
 
@@ -322,9 +385,24 @@
      * Opazität eines Layers setzen (0.0 – 1.0).
      */
     setLayerOpacity: function (layerId, opacity) {
+      var clampedOpacity = Math.max(0, Math.min(1, opacity));
+
+      // WMS Custom-Layer: direkte OL-Layer-Referenz nutzen
+      if (layerId.indexOf('wms:') === 0) {
+        var wmsEntry = this._findActiveLayer(layerId);
+        if (wmsEntry) {
+          wmsEntry.opacity = clampedOpacity;
+          if (wmsEntry._olLayerRef) {
+            wmsEntry._olLayerRef.setOpacity(clampedOpacity);
+          }
+          this._emit('layer-opacity', { id: layerId, opacity: clampedOpacity });
+        }
+        return;
+      }
+
       var layer = this.findLayer(layerId);
       if (!layer) return;
-      layer.opacity = Math.max(0, Math.min(1, opacity));
+      layer.opacity = clampedOpacity;
 
       var am = this._getAppManager();
       if (!am || !am.Maps || !am.Maps['main'] || !am.Maps['main'].mapObj) return;
@@ -388,17 +466,73 @@
     },
 
     /**
+     * Alle aktiven Layer entfernen.
+     */
+    removeAllLayers: function () {
+      var ids = _activeLayers.map(function (l) { return l.id; });
+      var self = this;
+      // Rückwärts iterieren um Index-Verschiebung zu vermeiden
+      ids.forEach(function (id) {
+        self.removeLayer(id);
+      });
+    },
+
+    /**
      * Layer entfernen (aus Karte und Liste).
      */
     removeLayer: function (layerId) {
-      var layer = this.findLayer(layerId);
-      if (layer && layer.visible) {
-        this.setLayerVisible(layerId, false);
-      } else {
-        // Falls der Layer unsichtbar (Auge zu) aber noch in der Liste ist
+      console.log(LOG, 'removeLayer:', layerId);
+      // WMS Custom-Layer: direkt von Karte entfernen
+      if (layerId.indexOf('wms:') === 0) {
+        var wmsEntry = this._findActiveLayer(layerId);
+        console.log(LOG, 'removeLayer WMS:', layerId, '→ wmsEntry:', wmsEntry ? 'gefunden' : 'NICHT gefunden',
+          wmsEntry ? '_olLayerRef:' + !!wmsEntry._olLayerRef : '');
+        if (wmsEntry && wmsEntry._olLayerRef) {
+          var am = this._getAppManager();
+          if (am && am.Maps && am.Maps['main'] && am.Maps['main'].mapObj) {
+            _suppressMapSync = true;
+            am.Maps['main'].mapObj.removeLayer(wmsEntry._olLayerRef);
+            console.log(LOG, 'removeLayer WMS: OL-Layer von Karte entfernt');
+            setTimeout(function () { _suppressMapSync = false; }, 200);
+          }
+        }
+        // WMS-Panel IMMER informieren (Checkbox + interne Liste synchronisieren)
+        var realName = layerId.replace('wms:', '');
+        document.dispatchEvent(new CustomEvent('tnet-wms-layer-removed', { detail: { name: realName } }));
         _activeLayers = _activeLayers.filter(function (l) { return l.id !== layerId; });
         this._emit('active-layers-changed', _activeLayers);
+        return;
       }
+
+      var layer = this.findLayer(layerId);
+      var activeEntry = this._findActiveLayer(layerId);
+
+      // OL-Layer von der Karte entfernen (via gespeicherte Referenz oder TnetLayerSwitch)
+      _suppressMapSync = true;
+      try {
+        // 1. Versuch: gespeicherte _olLayerRef direkt nutzen
+        if (activeEntry && activeEntry._olLayerRef) {
+          var am = this._getAppManager();
+          if (am && am.Maps && am.Maps['main'] && am.Maps['main'].mapObj) {
+            am.Maps['main'].mapObj.removeLayer(activeEntry._olLayerRef);
+            console.log(LOG, 'removeLayer via _olLayerRef:', layerId);
+          }
+        }
+        // 2. Versuch: TnetLayerSwitch als Fallback (findet Layer per name-Attribut)
+        else if (typeof TnetLayerSwitch === 'function') {
+          TnetLayerSwitch(layerId, 'off');
+          console.log(LOG, 'removeLayer via TnetLayerSwitch:', layerId);
+        }
+      } catch (e) {
+        console.warn(LOG, 'removeLayer Fehler:', e);
+      }
+      setTimeout(function () { _suppressMapSync = false; }, 200);
+
+      // Store-State aktualisieren
+      if (layer) layer.visible = false;
+      _activeLayers = _activeLayers.filter(function (l) { return l.id !== layerId; });
+      this._emit('layer-visibility', { id: layerId, visible: false, source: 'ui' });
+      this._emit('active-layers-changed', _activeLayers);
     },
 
     /**
@@ -468,13 +602,28 @@
     },
 
     _findOLLayer: function (map, layerId) {
-      var found = null;
-      map.getLayers().forEach(function (layer) {
-        if (!found && (layer.get('name') || '') === layerId) {
-          found = layer;
-        }
-      });
-      return found;
+      // Rekursive Suche: auch in OL Layer-Groups (z.B. MAP+ Service-Container)
+      function _searchLayers(collection) {
+        var found = null;
+        collection.forEach(function (layer) {
+          if (found) return;
+          if ((layer.get('name') || '') === layerId) {
+            found = layer;
+          } else if (layer.getLayers) {
+            // Layer-Group: rekursiv durchsuchen
+            found = _searchLayers(layer.getLayers());
+          }
+        });
+        return found;
+      }
+      return _searchLayers(map.getLayers());
+    },
+
+    _findActiveLayer: function (layerId) {
+      for (var i = 0; i < _activeLayers.length; i++) {
+        if (_activeLayers[i].id === layerId) return _activeLayers[i];
+      }
+      return null;
     },
 
     _isActive: function (layerId) {

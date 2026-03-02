@@ -345,6 +345,11 @@
                     <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17h-2v-2h2v2zm2.07-7.75l-.9.92C13.45 12.9 13 13.5 13 15h-2v-.5c0-1.1.45-2.1 1.17-2.83l1.24-1.26c.37-.36.59-.86.59-1.41 0-1.1-.9-2-2-2s-2 .9-2 2H8c0-2.21 1.79-4 4-4s4 1.79 4 4c0 .88-.36 1.68-.93 2.25z"/></svg>
                     <span>Hilfe</span>
                 </div>
+                <hr class="menu-divider">
+                <div class="menu-item" onclick="event.stopPropagation(); toggleWmsPanel();">
+                    <svg viewBox="0 0 24 24"><path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+                    <span>Ext. Kartendienste</span>
+                </div>
             </div>
         </div>
     </div>
@@ -900,6 +905,18 @@
     <!-- TNET Basemap: Widget UI, Grundkarten-Layer-Sync, Zeitreise -->
     <script src="/maps/tnet/js/tnet-basemap.js"></script>
 
+    <!-- TNET Layer-Manager: Dargestellte Themen (Store, Active-Panel, Init) -->
+    <link rel="stylesheet" href="/maps/tnet/css/tnet-lm.css" />
+    <script src="/maps/tnet/js/tnet-lm-store.js" defer></script>
+    <script src="/maps/tnet/js/tnet-lm-active.js" defer></script>
+    <script src="/maps/tnet/js/tnet-lm-init.js" defer></script>
+
+    <!-- TNET Accordion-Resize: Höhenverstellbare Themenkatalog/Dargestellte Themen -->
+    <script src="/maps/tnet/js/tnet-accordion-resize.js" defer></script>
+
+    <!-- TNET Catalog-Filter: Wildcard-Suche im Themenkatalog -->
+    <script src="/maps/tnet/js/tnet-catalog-filter.js" defer></script>
+
     <!-- TNET 3D Landscape: Config wird lazy bei Bedarf geladen -->
     <script src="/maps/tnet/js/tnet-3d-landscape.js?v=20260211c"></script>
 
@@ -959,6 +976,51 @@
 
     <!-- TNET Panel Drag & Resize: Verschieben und Größe ändern des Spatial Query Panels -->
     <script type="module" src="/maps/tnet/js/tnet-panel-drag-resize.js"></script>
+
+    <!-- WMS-Panel: Externe Kartendienste (Dojo-frei, eigenes Floating-Panel) -->
+    <div id="wms-panel" class="wms-panel hidden">
+        <div class="wms-resize-top" id="wms-resize-top"></div>
+        <div class="wms-resize-left" id="wms-resize-left"></div>
+        <div class="wms-resize-right" id="wms-resize-right"></div>
+        <div class="wms-resize-bottom" id="wms-resize-bottom"></div>
+        <div class="wms-resize-corner-tl" id="wms-resize-corner-tl"></div>
+        <div class="wms-resize-corner-tr" id="wms-resize-corner-tr"></div>
+        <div class="wms-resize-corner-bl" id="wms-resize-corner-bl"></div>
+        <div class="wms-resize-corner-br" id="wms-resize-corner-br"></div>
+        <div class="wms-header" id="wms-header">
+            <span class="wms-title">Externe Kartendienste (WMS)</span>
+            <div class="wms-actions">
+                <button class="wms-btn" id="wms-dock-btn" onclick="toggleWmsDock()" title="Rechts andocken">
+                    <svg viewBox="0 0 24 24"><path fill="currentColor" d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16h-4V5h4v14z"/></svg>
+                </button>
+                <button class="wms-close" onclick="closeWmsPanel()">&times;</button>
+            </div>
+        </div>
+        <div class="wms-body">
+            <div class="wms-url-bar">
+                <label class="wms-label">WMS-Dienst wählen oder URL eingeben:</label>
+                <div class="wms-url-row">
+                    <select id="wms-preset-select" class="wms-select">
+                        <option value="">— Vordefinierter Dienst —</option>
+                    </select>
+                </div>
+                <div class="wms-url-row">
+                    <input type="text" id="wms-url-input" class="wms-input" placeholder="https://wms.example.com/service?" autocomplete="off">
+                    <button class="wms-load-btn" id="wms-load-btn" onclick="loadWmsCapabilities()">Laden</button>
+                </div>
+            </div>
+            <div class="wms-status" id="wms-status"></div>
+            <div class="wms-filter-row" id="wms-filter-row" style="display:none">
+                <input type="text" id="wms-layer-filter" class="wms-input wms-filter-input" placeholder="Layer filtern…" autocomplete="off">
+            </div>
+            <div class="wms-layer-list" id="wms-layer-list"></div>
+            <div class="wms-added-section" id="wms-added-section" style="display:none">
+                <div class="wms-added-header">Hinzugefügte Layer</div>
+                <div class="wms-added-list" id="wms-added-list"></div>
+            </div>
+        </div>
+    </div>
+    <script src="/maps/tnet/js/tnet-wms-panel.js?v=20260302"></script>
 
     <!-- Drucken / PDF-Export (Libraries werden dynamisch in tnet-print.js geladen) -->
     <link rel="stylesheet" href="/maps/tnet/css/tnet-print.css">
