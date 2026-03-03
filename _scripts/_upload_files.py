@@ -11,10 +11,9 @@ PASSWORD = "3Zs,k4%Un,<[W(Kx"
 REMOTE_BASE = "/www/maps"
 LOCAL_BASE = r"c:\_Daten\mapplus-exp\maps"
 
-# Files to upload - WMS-Panel + Store Sync-Fix
+# Files to upload - WMS GFI debug logging
 FILES = [
     "tnet/js/tnet-wms-panel.js",
-    "tnet/js/tnet-lm-store.js",
 ]
 
 def upload_files():

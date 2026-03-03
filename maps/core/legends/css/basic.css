@@ -1,0 +1,43 @@
+body {
+    font-family: Verdana,Lucida,Helvetica,Arial,sans-serif;
+    font-size: 11px;
+}
+
+/* =========================================================================== */
+/* Normal Text */
+  
+    ol, ul, p, body, tbody, td, tr, th { font-family: verdana,arial,helvetica,sans-serif; font-size:11px; margin-top: 2px; margin-bottom: 2px;}
+
+/* =========================================================================== */
+
+.p1 { font-family: verdana,arial,helvetica,sans-serif; font-size:10px; color: #333333; margin-top: 2px; margin-bottom: 2px;}
+
+/* navigation */
+ 
+a:link {
+	text-decoration: none;
+	color:#000;
+}
+
+a:hover {
+	text-decoration: none;
+	color:#555;
+}
+
+a:visited {
+	text-decoration: none;
+	color:#000;
+}}
+
+
+@media print {
+  .toolbar { display: none }
+}
+@media screen {
+  .toolbar {
+    position: absolute;
+    top: 30px;
+    right: 20px;
+    visibility: visible;
+    }
+}

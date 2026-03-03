@@ -1,0 +1,11 @@
+{
+    "items": [
+        { "name": "WMS geo.admin", "url": "https://wms.geo.admin.ch/" },
+        { "name": "SWISSIMAGE Zeitreise", "url": "https://nodi.swiss/zeitreise.geo.admin.ch.xml","sort":"desc","query_layer":"ch.swisstopo.swissimage-product.metadata","query_fields":"bgdi_flugjahr,gsd" },
+        { "name": "Kartenwerke Zeitreise", "url": "https://nodi.swiss/zeitreise.geo.admin.ch.kartenwerke.xml","sort":"desc","query_fields":"kbbez,produkt,kbnum,release_year,1855,years","query_type":"swissadmingeojson"},
+        { "name": "WMS Basisdaten Trigonet", "url":  "https://www.gis-daten.ch/wms/trigonet_Test/service?" },  
+        { "name": "WMS Gefahrenkarte Basis Trigonet", "url":  "https://www.gis-daten.ch/wms/nwow_naturgefahren_gefahrenkarte_basis/service?" },
+        { "name": "WMS Gewässerraum Trigonet", "url":  "https://www.gis-daten.ch/wms/lwn_nw_Gewaesserraum/service?" },
+        { "name": "WMS Schleppschlauch Trigonet", "url":  "https://www.gis-daten.ch/wms/lwn_nw_Schleppschlauch/service?" }
+    ]
+}

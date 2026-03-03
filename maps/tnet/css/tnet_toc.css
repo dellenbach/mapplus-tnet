@@ -29,6 +29,7 @@
   z-index: 1;
   min-height: 28px;
   box-sizing: border-box;
+  letter-spacing: 0.5px;
 }
 
 .tabs2acc-header:hover {
@@ -113,7 +114,7 @@
 
 /* Container-Höhe vom übergeordneten Themenkatalog TitlePane */
 #tp_overview_menu.dijitTitlePane > .dijitTitlePaneContentOuter {
-  height: 450px !important;
+  height: var(--tnet-catalog-height, 450px) !important;
   padding: 0 !important;
   margin: 0 !important;
 }
@@ -209,12 +210,12 @@
   display: none !important;
 }
 
-/* KRITISCH: ContentOuter IMMER sichtbar - alle möglichen Dijit-Zustände überschreiben */
+/* KRITISCH: ContentOuter der KANTONS-PANE IMMER sichtbar */
+/* NUR direkte Kinder (>) — Level-2-TitlePanes NICHT berühren! */
 #kantons_container > .dijitTitlePane.active-tab > .dijitTitlePaneContentOuter,
 #kantons_container > .dijitTitlePane.active-tab.dijitTitlePaneClosed > .dijitTitlePaneContentOuter,
 #kantons_container > .dijitTitlePane.active-tab.dijitClosed > .dijitTitlePaneContentOuter,
 #kantons_container > .dijitTitlePane.active-tab[aria-hidden="true"] > .dijitTitlePaneContentOuter,
-#kantons_container .dijitTitlePane.active-tab .dijitTitlePaneContentOuter,
 /* ULTIMATIV: Auch mit inline style attribute selector */
 #kantons_container > .dijitTitlePane.active-tab > .dijitTitlePaneContentOuter[style],
 #kantons_container > .dijitTitlePane.active-tab > .dijitTitlePaneContentOuter[style*="display"],
@@ -277,24 +278,21 @@
 }
 
 /* ========================================================================
-   ULTIMATIVER FIX: wipeNode (dijitReset) MUSS sichtbar bleiben!
-   Dijit setzt display:none auf BEIDE ContentOuter UND wipeNode
+   ULTIMATIVER FIX: wipeNode (dijitReset) der KANTONS-PANE sichtbar halten
+   NUR direkte Kinder (>) — Level-2 wipeNodes NICHT berühren!
    ======================================================================== */
-#kantons_container .dijitTitlePane.active-tab .dijitTitlePaneContentOuter .dijitReset,
-#kantons_container .dijitTitlePane.active-tab .dijitTitlePaneContentOuter > .dijitReset,
-#kantons_container .dijitTitlePane.active-tab .dijitTitlePaneContentOuter > div[data-dojo-attach-point="wipeNode"],
 #kantons_container > .dijitTitlePane.active-tab > .dijitTitlePaneContentOuter > .dijitReset,
 #kantons_container > .dijitTitlePane.active-tab > .dijitTitlePaneContentOuter > .dijitReset[style],
 #kantons_container > .dijitTitlePane.active-tab > .dijitTitlePaneContentOuter > .dijitReset[style*="display"],
 #kantons_container > .dijitTitlePane.active-tab > .dijitTitlePaneContentOuter > .dijitReset[style*="none"],
-#tp_layer_menu.active-tab .dijitTitlePaneContentOuter .dijitReset,
-#tp_layer_menu.active-tab .dijitTitlePaneContentOuter .dijitReset[style],
-#tp_layer_menu2.active-tab .dijitTitlePaneContentOuter .dijitReset,
-#tp_layer_menu2.active-tab .dijitTitlePaneContentOuter .dijitReset[style],
-#tp_layer_menu3.active-tab .dijitTitlePaneContentOuter .dijitReset,
-#tp_layer_menu3.active-tab .dijitTitlePaneContentOuter .dijitReset[style],
-#tp_layer_menu4.active-tab .dijitTitlePaneContentOuter .dijitReset,
-#tp_layer_menu4.active-tab .dijitTitlePaneContentOuter .dijitReset[style] {
+#tp_layer_menu.active-tab > .dijitTitlePaneContentOuter > .dijitReset,
+#tp_layer_menu.active-tab > .dijitTitlePaneContentOuter > .dijitReset[style],
+#tp_layer_menu2.active-tab > .dijitTitlePaneContentOuter > .dijitReset,
+#tp_layer_menu2.active-tab > .dijitTitlePaneContentOuter > .dijitReset[style],
+#tp_layer_menu3.active-tab > .dijitTitlePaneContentOuter > .dijitReset,
+#tp_layer_menu3.active-tab > .dijitTitlePaneContentOuter > .dijitReset[style],
+#tp_layer_menu4.active-tab > .dijitTitlePaneContentOuter > .dijitReset,
+#tp_layer_menu4.active-tab > .dijitTitlePaneContentOuter > .dijitReset[style] {
   display: block !important;
   visibility: visible !important;
   opacity: 1 !important;
@@ -303,28 +301,28 @@
   overflow: visible !important;
 }
 
-/* SUPER-ULTIMATIV: Alle Elemente mit inline display:none innerhalb active-tab überschreiben */
-/* ABER: Layer-Gruppen (div_gis_...) ausnehmen, damit Einklappen funktioniert */
-#kantons_container .dijitTitlePane.active-tab .dijitTitlePaneContentOuter[style*="display: none"],
-#kantons_container .dijitTitlePane.active-tab .dijitTitlePaneContentOuter[style*="display:none"],
-#kantons_container .dijitTitlePane.active-tab .dijitReset[style*="display: none"],
-#kantons_container .dijitTitlePane.active-tab .dijitReset[style*="display:none"],
-#tp_layer_menu.active-tab .dijitTitlePaneContentOuter[style*="display: none"],
-#tp_layer_menu.active-tab .dijitTitlePaneContentOuter[style*="display:none"],
-#tp_layer_menu.active-tab .dijitReset[style*="display: none"],
-#tp_layer_menu.active-tab .dijitReset[style*="display:none"],
-#tp_layer_menu2.active-tab .dijitTitlePaneContentOuter[style*="display: none"],
-#tp_layer_menu2.active-tab .dijitTitlePaneContentOuter[style*="display:none"],
-#tp_layer_menu2.active-tab .dijitReset[style*="display: none"],
-#tp_layer_menu2.active-tab .dijitReset[style*="display:none"],
-#tp_layer_menu3.active-tab .dijitTitlePaneContentOuter[style*="display: none"],
-#tp_layer_menu3.active-tab .dijitTitlePaneContentOuter[style*="display:none"],
-#tp_layer_menu3.active-tab .dijitReset[style*="display: none"],
-#tp_layer_menu3.active-tab .dijitReset[style*="display:none"],
-#tp_layer_menu4.active-tab .dijitTitlePaneContentOuter[style*="display: none"],
-#tp_layer_menu4.active-tab .dijitTitlePaneContentOuter[style*="display:none"],
-#tp_layer_menu4.active-tab .dijitReset[style*="display: none"],
-#tp_layer_menu4.active-tab .dijitReset[style*="display:none"] {
+/* SUPER-ULTIMATIV: inline display:none auf KANTONS-PANE überschreiben */
+/* NUR direkte Kinder (>) — Level-2-TitlePanes NICHT berühren! */
+#kantons_container > .dijitTitlePane.active-tab > .dijitTitlePaneContentOuter[style*="display: none"],
+#kantons_container > .dijitTitlePane.active-tab > .dijitTitlePaneContentOuter[style*="display:none"],
+#kantons_container > .dijitTitlePane.active-tab > .dijitTitlePaneContentOuter > .dijitReset[style*="display: none"],
+#kantons_container > .dijitTitlePane.active-tab > .dijitTitlePaneContentOuter > .dijitReset[style*="display:none"],
+#tp_layer_menu.active-tab > .dijitTitlePaneContentOuter[style*="display: none"],
+#tp_layer_menu.active-tab > .dijitTitlePaneContentOuter[style*="display:none"],
+#tp_layer_menu.active-tab > .dijitTitlePaneContentOuter > .dijitReset[style*="display: none"],
+#tp_layer_menu.active-tab > .dijitTitlePaneContentOuter > .dijitReset[style*="display:none"],
+#tp_layer_menu2.active-tab > .dijitTitlePaneContentOuter[style*="display: none"],
+#tp_layer_menu2.active-tab > .dijitTitlePaneContentOuter[style*="display:none"],
+#tp_layer_menu2.active-tab > .dijitTitlePaneContentOuter > .dijitReset[style*="display: none"],
+#tp_layer_menu2.active-tab > .dijitTitlePaneContentOuter > .dijitReset[style*="display:none"],
+#tp_layer_menu3.active-tab > .dijitTitlePaneContentOuter[style*="display: none"],
+#tp_layer_menu3.active-tab > .dijitTitlePaneContentOuter[style*="display:none"],
+#tp_layer_menu3.active-tab > .dijitTitlePaneContentOuter > .dijitReset[style*="display: none"],
+#tp_layer_menu3.active-tab > .dijitTitlePaneContentOuter > .dijitReset[style*="display:none"],
+#tp_layer_menu4.active-tab > .dijitTitlePaneContentOuter[style*="display: none"],
+#tp_layer_menu4.active-tab > .dijitTitlePaneContentOuter[style*="display:none"],
+#tp_layer_menu4.active-tab > .dijitTitlePaneContentOuter > .dijitReset[style*="display: none"],
+#tp_layer_menu4.active-tab > .dijitTitlePaneContentOuter > .dijitReset[style*="display:none"] {
   display: block !important;
 }
 
@@ -341,6 +339,9 @@
   height: auto !important;
   overflow: visible !important;
 }
+
+/* Counter-Rules für Level-2 nicht mehr nötig — ULTIMATIV-Regeln verwenden
+ * jetzt Child-Selektoren (>) und berühren Level-2 ContentOuter/wipeNode nicht mehr. */
 
 /* Scrollbar nur bei hover */
 #kantons_container > .dijitTitlePane.active-tab::-webkit-scrollbar {
@@ -447,9 +448,11 @@
   overflow: visible !important;
 }
 
-#kantons_container .dijitTitlePaneTextNode,
-#kantons_container .dijitTitlePaneTextNode .appendtitle {
-  display: inline-block !important;
+#kantons_container .dijitTitlePaneTextNode {
+  display: inline-flex !important;
+  align-items: center !important;
+  flex-wrap: nowrap !important;
+  gap: 4px !important;
   overflow: visible !important;
   white-space: nowrap !important;
   text-overflow: clip !important;
@@ -459,15 +462,48 @@
   vertical-align: middle !important;
 }
 
-/* Checkbox im TitlePane horizontal neben dem Text */
-#kantons_container .dijitTitlePaneTextNode .dijitCheckBox,
-.tabs2acc-panel .dijitTitlePaneTextNode .dijitCheckBox,
-.dijitTitlePaneTextNode > .dijitCheckBox {
-  display: inline-block !important;
+#kantons_container .dijitTitlePaneTextNode .appendtitle {
+  display: inline !important;
+  overflow: visible !important;
+  white-space: nowrap !important;
   vertical-align: middle !important;
-  margin-right: 6px !important;
-  margin-top: 0 !important;
-  margin-bottom: 0 !important;
+}
+
+/* ===== CHECKBOX-AUSRICHTUNG ===== */
+/*
+ * Native Browser-Checkboxen beibehalten (ClassicLayerMgr.css: opacity: 100%).
+ * Nur Wrapper und Input konsistent dimensionieren für Ausrichtung.
+ */
+
+/* dijitCheckBox Wrapper: Fixe Grösse für konsistente Ausrichtung */
+#kantons_container .dijitCheckBox,
+[id^="div_head_"] .dijitCheckBox {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 16px !important;
+  min-width: 16px !important;
+  height: 16px !important;
+  flex-shrink: 0 !important;
+  margin: 0 4px 0 0 !important;
+  padding: 0 !important;
+  background-image: none !important;
+  background: transparent !important;
+  border: none !important;
+}
+
+/* Native Checkbox: Quadratisch, einheitliche Grösse */
+#kantons_container .dijitCheckBoxInput,
+[id^="div_head_"] .dijitCheckBoxInput {
+  width: 15px !important;
+  height: 15px !important;
+  min-width: 15px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  flex-shrink: 0 !important;
+  opacity: 1 !important;
+  cursor: pointer !important;
+  accent-color: #4b7b81 !important;
 }
 
 /* TitlePaneTitleFocus vertikal zentrieren */
@@ -490,11 +526,12 @@
   vertical-align: middle !important;
 }
 
-/* Arrow-Elemente vertikal zentrieren */
-.dijitArrowNode,
-.dijitArrowNodeInner {
-  display: inline-flex !important;
-  align-items: center !important;
+/* Arrow-Elemente: Vertikale Zentrierung (nur Themenkatalog) */
+#kantons_container .dijitArrowNode {
+  vertical-align: middle !important;
+}
+
+#kantons_container .dijitArrowNodeInner {
   vertical-align: middle !important;
 }
 
@@ -559,12 +596,25 @@
 
 /* Themenkatalog Höhe anpassen */
 #tp_overview_menu.dijitTitlePane > .dijitTitlePaneContentOuter {
-  height: auto !important;
-  max-height: 500px !important;
+  height: var(--tnet-catalog-height, 450px) !important;
+  max-height: none !important;
 }
 
 #kantons_container {
-  height: 450px !important;
+  height: var(--tnet-catalog-height, 450px) !important;
+}
+
+/* Dargestellte Themen: Höhenbegrenzung für Scroll */
+#tp_sort_menu.dijitTitlePane > .dijitTitlePaneContentOuter {
+  max-height: var(--tnet-active-height, 300px) !important;
+  overflow-y: auto !important;
+  /* Scrollbalken verstecken (analog Themenkatalog) */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+#tp_sort_menu.dijitTitlePane > .dijitTitlePaneContentOuter::-webkit-scrollbar {
+  display: none;
 }
 
 /* ===========================================================================
@@ -759,11 +809,15 @@
 #kantons_container .dijitTitlePane .dijitTitlePane .dijitTitlePaneTitle,
 .tabs2acc-panel .dijitTitlePane .dijitTitlePaneTitle {
   background: #b8cdd2 !important;
+  border-left: 3px solid #4b7b81 !important;
+  padding-left: 12px !important;
+  font-size: 12px !important;
 }
 
 .tabs2acc-panel .dijitTitlePane .dijitTitlePaneTitle .dijitTitlePaneTextNode,
 #kantons_container .dijitTitlePane .dijitTitlePane .dijitTitlePaneTitle .dijitTitlePaneTextNode {
   color: #3d5a5f !important;
+  font-size: 12px !important;
 }
 
 .tabs2acc-panel .dijitTitlePane .dijitTitlePaneTitle .dijitArrowNodeInner,
@@ -771,19 +825,151 @@
   color: #3d5a5f !important;
 }
 
-/* Ebene 4: Layer-Items (div_head_...) */
+/* Ebene 4: Layer-Items (div_head_...) — Flexbox für Ausrichtung */
 [id^="div_head_"] {
+  display: flex !important;
+  align-items: center !important;
+  gap: 4px !important;
   background: #e8f0f1 !important;
-  padding: 4px 6px !important;
+  padding: 6px 10px !important;
   margin: 1px 0 !important;
   border-radius: 2px;
+  transition: background 0.15s ease;
 }
 
 [id^="div_head_"]:hover {
-  background: #dbe8ea !important;
+  background: #cde0e3 !important;
 }
 
 /* Layer-Labels */
 [id^="div_head_"] label {
   color: #2d4a4f !important;
+  font-size: 12px !important;
+}
+
+/* ===== LETTER-SPACING FIX: Umbruch bei langen UPPERCASE-Übertiteln verhindern ===== */
+#kantons_container .dijitTitlePane .dijitTitlePane .dijitTitlePaneTitle,
+.tabs2acc-panel .dijitTitlePane .dijitTitlePaneTitle {
+  letter-spacing: 0.5px !important;
+  margin-top: 1px !important;
+}
+
+/* ===== GRUPPEN-LAYER: Scale-Override für einheitliche Grösse ===== */
+.lyrmgr_group * {
+  transform: none !important;
+  transform-origin: unset !important;
+}
+
+.lyrmgr_group label {
+  font-size: 0.9em !important;
+}
+
+/* ===========================================================================
+   CATALOG FILTER BOX
+   =========================================================================== */
+
+.tnet-catalog-filter {
+  position: relative;
+  padding: 4px 6px;
+  background: #e0edef;
+  border-bottom: 1px solid #b8cdd2;
+  flex-shrink: 0;
+}
+
+.tnet-catalog-filter-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 5px 28px 5px 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 12px;
+  outline: none;
+  background: #fff;
+}
+
+.tnet-catalog-filter-input:focus {
+  border-color: var(--m-color-primary, #4B7B81);
+  box-shadow: 0 0 0 1px var(--m-color-primary, #4B7B81);
+}
+
+.tnet-catalog-filter-input::placeholder {
+  color: #999;
+  font-style: italic;
+}
+
+.tnet-catalog-filter-clear {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  font-size: 16px;
+  color: #999;
+  cursor: pointer;
+  padding: 2px 4px;
+  line-height: 1;
+}
+
+.tnet-catalog-filter-clear:hover {
+  color: #333;
+}
+
+/* Gefilterte Elemente ausblenden */
+.tnet-filter-hidden {
+  display: none !important;
+}
+
+/* ===========================================================================
+   ACCORDION RESIZE HANDLES
+   =========================================================================== */
+
+/* Resize-Handle am unteren Rand der Accordion-Inhalte */
+.tnet-accordion-resize-handle {
+  height: 4px;
+  min-height: 4px;
+  cursor: ns-resize;
+  background: var(--m-color-primary, #4B7B81);
+  opacity: 0.25;
+  border-radius: 0 0 4px 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto !important;
+  user-select: none;
+  -webkit-user-select: none;
+  transition: opacity 0.15s ease;
+  flex-shrink: 0;
+}
+
+.tnet-accordion-resize-handle:hover {
+  opacity: 0.5;
+}
+
+.tnet-accordion-resize-handle.active {
+  opacity: 0.7;
+}
+
+/* Grip-Icon (3 horizontale Punkte) */
+.tnet-accordion-resize-handle::before {
+  content: '';
+  display: block;
+  width: 30px;
+  height: 2px;
+  border-top: 2px dotted rgba(255,255,255,0.7);
+}
+
+/* Während Resize: kein Text-Select, Cursor überall */
+body.tnet-resizing {
+  user-select: none !important;
+  -webkit-user-select: none !important;
+  cursor: ns-resize !important;
+}
+
+body.tnet-resizing * {
+  cursor: ns-resize !important;
+}
+
+body.tnet-resizing iframe {
+  pointer-events: none !important;
 }

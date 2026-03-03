@@ -421,9 +421,12 @@
       var fixCount = 0;
       
       function startAggressiveFix() {
+        // Guard: Während Accordion-Resize keine Styles überschreiben
+        if (window.__tnetResizing) return;
         fixCount = 0;
         if (fixIntervalId) clearInterval(fixIntervalId);
         fixIntervalId = setInterval(function() {
+          if (window.__tnetResizing) return;
           restoreActiveTab();
           fixCount++;
           if (fixCount > 20) { // Nach 2 Sekunden stoppen
@@ -442,6 +445,10 @@
           var needsRestore = false;
           
           mutations.forEach(function(mutation) {
+            // Level-2 TitlePanes im Themenkatalog NICHT stören
+            if (mutation.target && mutation.target.closest && mutation.target.closest('.tabs2acc-panel')) {
+              return;
+            }
             // Prüfe ob ein TitlePane geöffnet/geschlossen wurde
             if (mutation.target && mutation.target.classList) {
               if (mutation.target.classList.contains('dijitTitlePane') ||
@@ -450,14 +457,17 @@
                 needsRestore = true;
               }
             }
-            // Auch auf style-Änderungen am wipeNode reagieren
+            // Auch auf style-Änderungen am wipeNode reagieren (nur Kantons-Pane)
             if (mutation.attributeName === 'style' && mutation.target.dataset && 
                 mutation.target.dataset.dojoAttachPoint === 'wipeNode') {
-              needsRestore = true;
+              // Nur wenn der wipeNode NICHT innerhalb eines tabs2acc-panel liegt
+              if (!mutation.target.closest || !mutation.target.closest('.tabs2acc-panel')) {
+                needsRestore = true;
+              }
             }
           });
           
-          if (needsRestore) {
+          if (needsRestore && !window.__tnetResizing) {
             // Sofort und aggressiv wiederherstellen
             restoreActiveTab();
             startAggressiveFix();
@@ -493,13 +503,15 @@
         });
       }
       
-      // DIREKTER KLICK-HANDLER auf alle TitlePane-Titel außerhalb unserer Tabs
+      // DIREKTER KLICK-HANDLER auf TitlePane-Titel AUßERHALB des Themenkatalogs
       document.addEventListener('click', function(e) {
         var titleBar = e.target.closest('.dijitTitlePaneTitle');
         if (titleBar) {
           // Prüfen ob es NICHT einer unserer Tab-Panes ist
           var pane = titleBar.closest('.dijitTitlePane');
           if (pane && !pane.classList.contains('kantons-tab')) {
+            // Level-2 TitlePanes im Themenkatalog: Dojo-Toggle nicht stören
+            if (pane.closest('.tabs2acc-panel')) return;
             // Ein anderer TitlePane wurde geklickt - aggressiv wiederherstellen
             startAggressiveFix();
           }

@@ -1734,7 +1734,13 @@
             }
             
             // Add to main map
-            mainMap.addLayer(layer);
+            // try/catch: njs.MapTip.addLayerCallback kann bei Custom-WMS-Layern
+            // crashen, der Layer wird trotzdem zur OL-Collection hinzugefügt.
+            try {
+                mainMap.addLayer(layer);
+            } catch(e) {
+                console.warn('[SplitScreen] addLayer Framework-Fehler abgefangen:', e.message);
+            }
             console.log('[SplitScreen] Layer added to Map A:', layer.get('name') || 'unnamed');
             
             // Clone and add to map B if splitscreen is active

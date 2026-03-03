@@ -721,3 +721,456 @@ function updateContainerForInfoPane() {
     // Nichts zu tun - mapContainer wird nicht mehr verändert
     // Panel passt sich automatisch über updateDockedInfoPanePosition an
 }
+
+// ===== LEGEND PANE ERWEITERUNGEN =====
+// Legenden-Popup identisch zum Info-Panel stylen
+// Custom Titelbar mit Titel + Close-Button, Positionierung unter Header
+function initLegendPaneEnhancements() {
+    function isMobile() { return !!window.__TNET_MOBILE_ENTRY; }
+
+    function enhanceLegendPane() {
+        var legendPane = document.getElementById('njs_floatlegend_pane');
+        if (!legendPane) return false;
+
+        var titleBar = legendPane.querySelector('.dojoxFloatingPaneTitle');
+        if (!titleBar) return false;
+
+        // Prüfe ob Custom-Titlebar bereits vorhanden
+        if (titleBar.querySelector('.legend-pane-custom-title')) {
+            ensureLegendBelowHeader(legendPane);
+            return true;
+        }
+
+        // Titel aus dem Dojo-TitleNode lesen
+        var titleText = 'Legende';
+        var titleNode = titleBar.querySelector('.dijitTitleNode');
+        if (titleNode) {
+            var td = titleNode.querySelector('td');
+            if (td) {
+                var _t = (td.textContent || '').trim();
+                if (_t && _t.length < 120) titleText = _t;
+            } else {
+                var _t2 = (titleNode.textContent || '').trim();
+                if (_t2 && _t2.indexOf('<') === -1 && _t2.length < 120) titleText = _t2;
+            }
+        }
+
+        // ── Custom Titelbar: Dojo-Kinder leeren, unseren Inhalt einsetzen ─────
+        // titleBar NICHT entfernen — Dojo berechnet offsetHeight für contentInfo
+        while (titleBar.firstChild) { titleBar.removeChild(titleBar.firstChild); }
+
+        // Dojo Inline-Styles überschreiben
+        titleBar.style.setProperty('text-align', 'left', 'important');
+        titleBar.style.setProperty('justify-content', 'flex-start', 'important');
+        titleBar.style.setProperty('position', 'relative', 'important');
+        titleBar.style.setProperty('width', '100%', 'important');
+
+        // Titel-Span
+        var titleSpan = document.createElement('span');
+        titleSpan.className = 'legend-pane-custom-title';
+        titleSpan.textContent = titleText;
+
+        // Actions Container
+        var actions = document.createElement('div');
+        actions.className = 'legend-pane-actions';
+
+        // Dock Button (nur Desktop)
+        if (!isMobile()) {
+            var dockBtn = document.createElement('button');
+            dockBtn.id = 'legend-pane-dock-btn';
+            dockBtn.className = 'legend-pane-btn';
+            dockBtn.title = 'Rechts andocken';
+            dockBtn.innerHTML = '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16h-4V5h4v14z"/></svg>';
+            dockBtn.onmousedown = function(e) { e.stopPropagation(); };
+            dockBtn.onclick = function(e) {
+                e.stopPropagation();
+                if (window.toggleLegendPaneDock) window.toggleLegendPaneDock();
+            };
+            actions.appendChild(dockBtn);
+        }
+
+        // Close Button
+        var closeBtn = document.createElement('button');
+        closeBtn.className = 'legend-pane-btn legend-pane-close';
+        closeBtn.title = 'Schliessen';
+        closeBtn.innerHTML = '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/></svg>';
+        closeBtn.onmousedown = function(e) { e.stopPropagation(); };
+        closeBtn.onclick = function(e) {
+            e.stopPropagation();
+            // Falls angedockt, zuerst abdocken
+            if (window._isLegendPaneDocked) {
+                window.toggleLegendPaneDock();
+            }
+            var widget = (typeof dijit !== 'undefined') ? dijit.byId('njs_floatlegend_pane') : null;
+            if (widget && widget.close) {
+                widget.close();
+            } else {
+                legendPane.style.visibility = 'hidden';
+            }
+        };
+
+        actions.appendChild(closeBtn);
+        titleBar.appendChild(titleSpan);
+        titleBar.appendChild(actions);
+
+        // Custom Resize-Handles hinzufügen (nur Desktop)
+        if (!isMobile()) {
+            initLegendPaneResize(legendPane);
+        }
+
+        // Unter Header positionieren
+        ensureLegendBelowHeader(legendPane);
+
+        return true;
+    }
+
+    // Legend-Pane unter Header positionieren (69px Header + 11px Puffer)
+    function ensureLegendBelowHeader(legendPane) {
+        if (!legendPane || isMobile()) return;
+        requestAnimationFrame(function() {
+            var rect = legendPane.getBoundingClientRect();
+            if (rect.top < 80) {
+                var currentTop = parseInt(legendPane.style.top) || 0;
+                var delta = 80 - rect.top;
+                legendPane.style.setProperty('top', (currentTop + delta) + 'px', 'important');
+            }
+        });
+    }
+
+    // Initial versuchen
+    enhanceLegendPane();
+
+    // MutationObserver: UI-Elemente hinzufügen wenn Legende geöffnet wird
+    var observer = new MutationObserver(function(mutations) {
+        for (var i = 0; i < mutations.length; i++) {
+            var m = mutations[i];
+            if (m.type === 'attributes' && m.attributeName === 'style') {
+                var legendPane = document.getElementById('njs_floatlegend_pane');
+                if (legendPane && legendPane.style.visibility === 'visible') {
+                    enhanceLegendPane();
+                }
+            }
+            if (m.type === 'childList' && m.addedNodes.length) {
+                for (var j = 0; j < m.addedNodes.length; j++) {
+                    var node = m.addedNodes[j];
+                    if (node.id === 'njs_floatlegend_pane' || (node.querySelector && node.querySelector('#njs_floatlegend_pane'))) {
+                        setTimeout(enhanceLegendPane, 100);
+                    }
+                }
+            }
+        }
+    });
+
+    observer.observe(document.body, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['style']
+    });
+}
+
+// Legend-Pane Initialisierung
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initLegendPaneEnhancements);
+} else {
+    initLegendPaneEnhancements();
+}
+
+// ===== LEGEND PANE RESIZE =====
+// Resize-Handles für Legend-Pane (identisch zu Info-Pane, ohne Dock-Logik)
+function initLegendPaneResize(pane) {
+    // Bestehende Resize-Handles entfernen (falls vorhanden)
+    var existingHandles = pane.querySelectorAll('[class*="legend-pane-resize"]');
+    existingHandles.forEach(function(h) { h.remove(); });
+
+    function createHandle(className, style) {
+        var handle = document.createElement('div');
+        handle.className = className;
+        handle.style.cssText = style;
+        pane.appendChild(handle);
+        return handle;
+    }
+
+    // Alle Resize-Handles erstellen
+    var handles = {
+        top: createHandle('legend-pane-resize-top', 'position:absolute; top:0; left:0; right:0; height:6px; cursor:ns-resize; z-index:1100;'),
+        bottom: createHandle('legend-pane-resize-bottom', 'position:absolute; bottom:0; left:0; right:0; height:6px; cursor:ns-resize; z-index:1100;'),
+        left: createHandle('legend-pane-resize-left', 'position:absolute; left:0; top:0; bottom:0; width:8px; cursor:ew-resize; z-index:1100;'),
+        right: createHandle('legend-pane-resize-right', 'position:absolute; right:0; top:0; bottom:0; width:8px; cursor:ew-resize; z-index:1100;'),
+        tl: createHandle('legend-pane-resize-corner-tl', 'position:absolute; top:0; left:0; width:12px; height:12px; cursor:nwse-resize; z-index:1101;'),
+        tr: createHandle('legend-pane-resize-corner-tr', 'position:absolute; top:0; right:0; width:12px; height:12px; cursor:nesw-resize; z-index:1101;'),
+        bl: createHandle('legend-pane-resize-corner-bl', 'position:absolute; bottom:0; left:0; width:12px; height:12px; cursor:nesw-resize; z-index:1101;'),
+        br: createHandle('legend-pane-resize-corner-br', 'position:absolute; bottom:0; right:0; width:20px; height:20px; cursor:nwse-resize; z-index:1101;')
+    };
+
+    var isResizing = false;
+    var resizeDirection = '';
+    var startX, startY, startWidth, startHeight, startLeft, startTop;
+
+    function startResize(e, direction) {
+        isResizing = true;
+        resizeDirection = direction;
+        startX = e.clientX;
+        startY = e.clientY;
+
+        var rect = pane.getBoundingClientRect();
+        startWidth = rect.width;
+        startHeight = rect.height;
+        startLeft = rect.left;
+        startTop = rect.top;
+
+        document.body.style.userSelect = 'none';
+        e.preventDefault();
+        e.stopPropagation();
+    }
+
+    // Mousedown für alle Handles
+    handles.top.onmousedown = function(e) { startResize(e, 'top'); };
+    handles.bottom.onmousedown = function(e) { startResize(e, 'bottom'); };
+    handles.left.onmousedown = function(e) { startResize(e, 'left'); };
+    handles.right.onmousedown = function(e) { startResize(e, 'right'); };
+    handles.tl.onmousedown = function(e) { startResize(e, 'tl'); };
+    handles.tr.onmousedown = function(e) { startResize(e, 'tr'); };
+    handles.bl.onmousedown = function(e) { startResize(e, 'bl'); };
+    handles.br.onmousedown = function(e) { startResize(e, 'br'); };
+
+    // Mousemove Handler
+    var mouseMoveHandler = function(e) {
+        if (!isResizing) return;
+
+        var dx = e.clientX - startX;
+        var dy = e.clientY - startY;
+        var newWidth, newHeight;
+
+        switch(resizeDirection) {
+            case 'top':
+                newHeight = Math.max(150, startHeight - dy);
+                pane.style.setProperty('height', newHeight + 'px', 'important');
+                pane.style.setProperty('top', (startTop + dy) + 'px', 'important');
+                break;
+            case 'bottom':
+                newHeight = Math.max(150, startHeight + dy);
+                pane.style.setProperty('height', newHeight + 'px', 'important');
+                break;
+            case 'left':
+                newWidth = Math.max(350, startWidth - dx);
+                pane.style.setProperty('width', newWidth + 'px', 'important');
+                pane.style.setProperty('left', (startLeft + dx) + 'px', 'important');
+                break;
+            case 'right':
+                newWidth = Math.max(350, startWidth + dx);
+                pane.style.setProperty('width', newWidth + 'px', 'important');
+                break;
+            case 'tl':
+                newWidth = Math.max(350, startWidth - dx);
+                newHeight = Math.max(150, startHeight - dy);
+                pane.style.setProperty('width', newWidth + 'px', 'important');
+                pane.style.setProperty('height', newHeight + 'px', 'important');
+                pane.style.setProperty('left', (startLeft + dx) + 'px', 'important');
+                pane.style.setProperty('top', (startTop + dy) + 'px', 'important');
+                break;
+            case 'tr':
+                newWidth = Math.max(350, startWidth + dx);
+                newHeight = Math.max(150, startHeight - dy);
+                pane.style.setProperty('width', newWidth + 'px', 'important');
+                pane.style.setProperty('height', newHeight + 'px', 'important');
+                pane.style.setProperty('top', (startTop + dy) + 'px', 'important');
+                break;
+            case 'bl':
+                newWidth = Math.max(350, startWidth - dx);
+                newHeight = Math.max(150, startHeight + dy);
+                pane.style.setProperty('width', newWidth + 'px', 'important');
+                pane.style.setProperty('height', newHeight + 'px', 'important');
+                pane.style.setProperty('left', (startLeft + dx) + 'px', 'important');
+                break;
+            case 'br':
+                newWidth = Math.max(350, startWidth + dx);
+                newHeight = Math.max(150, startHeight + dy);
+                pane.style.setProperty('width', newWidth + 'px', 'important');
+                pane.style.setProperty('height', newHeight + 'px', 'important');
+                break;
+        }
+        e.preventDefault();
+    };
+
+    var mouseUpHandler = function() {
+        if (isResizing) {
+            isResizing = false;
+            resizeDirection = '';
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+        }
+    };
+
+    // Alte Handler entfernen falls vorhanden
+    if (window._legendPaneMouseMove) {
+        document.removeEventListener('mousemove', window._legendPaneMouseMove);
+    }
+    if (window._legendPaneMouseUp) {
+        document.removeEventListener('mouseup', window._legendPaneMouseUp);
+    }
+
+    // Neue Handler speichern und registrieren
+    window._legendPaneMouseMove = mouseMoveHandler;
+    window._legendPaneMouseUp = mouseUpHandler;
+    document.addEventListener('mousemove', mouseMoveHandler);
+    document.addEventListener('mouseup', mouseUpHandler);
+}
+
+// ===== LEGEND PANE DOCK FUNKTIONALITÄT =====
+// Andockbar analog zum Info-Panel
+(function() {
+    'use strict';
+
+    window._isLegendPaneDocked = false;
+    var _savedLegendPosition = null;
+    var _legendDockObserver = null;
+
+    function triggerMapUpdate() {
+        setTimeout(function() {
+            if (window.njs && njs.AppManager && njs.AppManager.Maps && njs.AppManager.Maps['main']) {
+                var mapObj = njs.AppManager.Maps['main'].mapObj;
+                if (mapObj && mapObj.updateSize) mapObj.updateSize();
+            }
+        }, 50);
+    }
+
+    window.toggleLegendPaneDock = function() {
+        var legendPane = document.getElementById('njs_floatlegend_pane');
+        var dockBtn = document.getElementById('legend-pane-dock-btn');
+        var mapContainer = document.getElementById('mapContainer');
+        var centerPane = document.getElementById('centerPaneLayout');
+        if (!legendPane) return;
+
+        if (window._isLegendPaneDocked) {
+            // === UNDOCK ===
+            legendPane.classList.remove('legend-docked-right');
+
+            // Observer stoppen
+            if (_legendDockObserver) {
+                _legendDockObserver.disconnect();
+                _legendDockObserver = null;
+            }
+            window.removeEventListener('resize', _updateDockedLegendPosition);
+
+            // mapContainer wieder auf volle Breite
+            if (mapContainer) {
+                mapContainer.style.setProperty('width', '100%', 'important');
+                triggerMapUpdate();
+            }
+
+            // Position wiederherstellen
+            if (_savedLegendPosition) {
+                legendPane.style.setProperty('position', 'absolute', 'important');
+                legendPane.style.setProperty('top', _savedLegendPosition.top, 'important');
+                legendPane.style.setProperty('left', _savedLegendPosition.left, 'important');
+                legendPane.style.setProperty('width', _savedLegendPosition.width, 'important');
+                legendPane.style.setProperty('height', _savedLegendPosition.height, 'important');
+                legendPane.style.setProperty('right', 'auto', 'important');
+                legendPane.style.setProperty('bottom', 'auto', 'important');
+            }
+
+            // Resize Handle Visibility: alle wieder sichtbar
+            var allHandles = legendPane.querySelectorAll('[class*="legend-pane-resize"]');
+            allHandles.forEach(function(h) { h.style.display = ''; });
+
+            if (dockBtn) {
+                dockBtn.title = 'Rechts andocken';
+                dockBtn.innerHTML = '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16h-4V5h4v14z"/></svg>';
+            }
+            window._isLegendPaneDocked = false;
+
+        } else {
+            // === DOCK ===
+            // Position speichern
+            _savedLegendPosition = {
+                top: legendPane.style.top || '80px',
+                left: legendPane.style.left || '100px',
+                width: legendPane.style.width || '400px',
+                height: legendPane.style.height || '500px'
+            };
+
+            legendPane.classList.add('legend-docked-right');
+
+            var panelWidth = window._savedLegendDockedWidth || 380;
+            var streetviewContainer = document.getElementById('streetviewContainer');
+            var streetviewWidth = 0;
+            if (streetviewContainer && streetviewContainer.offsetWidth > 0 && streetviewContainer.style.display !== 'none') {
+                streetviewWidth = streetviewContainer.offsetWidth;
+            }
+
+            var centerRect = centerPane ? centerPane.getBoundingClientRect() : { top: 69, bottom: window.innerHeight - 32 };
+
+            legendPane.style.setProperty('position', 'fixed', 'important');
+            legendPane.style.setProperty('top', centerRect.top + 'px', 'important');
+            legendPane.style.setProperty('right', streetviewWidth + 'px', 'important');
+            legendPane.style.setProperty('bottom', (window.innerHeight - centerRect.bottom) + 'px', 'important');
+            legendPane.style.setProperty('left', 'auto', 'important');
+            legendPane.style.setProperty('width', panelWidth + 'px', 'important');
+            legendPane.style.setProperty('height', 'auto', 'important');
+
+            // mapContainer verkleinern
+            if (mapContainer && centerPane) {
+                var centerPaneWidth = centerPane.offsetWidth;
+                var mapWidth = centerPaneWidth - streetviewWidth - panelWidth;
+                mapContainer.style.setProperty('width', mapWidth + 'px', 'important');
+                triggerMapUpdate();
+            }
+
+            // Resize Handles: nur linken Rand sichtbar lassen
+            var allHandles = legendPane.querySelectorAll('[class*="legend-pane-resize"]');
+            allHandles.forEach(function(h) {
+                if (h.className.indexOf('left') !== -1) {
+                    h.style.display = '';
+                } else {
+                    h.style.display = 'none';
+                }
+            });
+
+            // ResizeObserver für Layout-Änderungen
+            if (window.ResizeObserver && mapContainer) {
+                _legendDockObserver = new ResizeObserver(function() {
+                    if (!window._isLegendPaneDocked) return;
+                    _updateDockedLegendPosition();
+                });
+                _legendDockObserver.observe(mapContainer);
+            }
+            window.addEventListener('resize', _updateDockedLegendPosition);
+
+            if (dockBtn) {
+                dockBtn.title = 'Floating';
+                dockBtn.innerHTML = '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M19 11h-8v6h8v-6zm4 8V4.98C23 3.88 22.1 3 21 3H3c-1.1 0-2 .88-2 1.98V19c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2zm-2 .02H3V4.97h18v14.05z"/></svg>';
+            }
+            window._isLegendPaneDocked = true;
+        }
+    };
+
+    function _updateDockedLegendPosition() {
+        if (!window._isLegendPaneDocked) return;
+        var legendPane = document.getElementById('njs_floatlegend_pane');
+        var mapContainer = document.getElementById('mapContainer');
+        var centerPane = document.getElementById('centerPaneLayout');
+        var streetviewContainer = document.getElementById('streetviewContainer');
+        if (!legendPane || !mapContainer) return;
+
+        var panelWidth = window._savedLegendDockedWidth || legendPane.offsetWidth || 380;
+        var streetviewWidth = 0;
+        if (streetviewContainer && streetviewContainer.offsetWidth > 0 && streetviewContainer.style.display !== 'none') {
+            streetviewWidth = streetviewContainer.offsetWidth;
+        }
+
+        var centerRect = centerPane ? centerPane.getBoundingClientRect() : { top: 69, bottom: window.innerHeight - 32 };
+        legendPane.style.setProperty('top', centerRect.top + 'px', 'important');
+        legendPane.style.setProperty('right', streetviewWidth + 'px', 'important');
+        legendPane.style.setProperty('bottom', (window.innerHeight - centerRect.bottom) + 'px', 'important');
+        legendPane.style.setProperty('width', panelWidth + 'px', 'important');
+
+        var centerPaneWidth = centerPane ? centerPane.offsetWidth : window.innerWidth;
+        var mapWidth = centerPaneWidth - streetviewWidth - panelWidth;
+        mapContainer.style.setProperty('width', mapWidth + 'px', 'important');
+        triggerMapUpdate();
+    }
+
+    // Gespeicherte Dock-Breite global verfügbar machen
+    window._savedLegendDockedWidth = 380;
+})();

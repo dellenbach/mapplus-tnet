@@ -391,6 +391,69 @@
     });
   }
 
+  // ===== FRAMEWORK-KOMPATIBILITÄT =====
+
+  /**
+   * Injiziert einen Dummy-Eintrag in die Framework-Layer-Config (njs.AppManager.Maps['main'].layers),
+   * damit njs.MapTip.addLayerCallback beim addLayer-Event keinen Null-Zugriff auf
+   * minResolution/maxResolution bekommt.
+   */
+  function _injectFrameworkLayerConfig(layerName, wmsUrl) {
+    try {
+      var am = window.njs && window.njs.AppManager;
+      if (!am) am = window.top && window.top.njs && window.top.njs.AppManager;
+      if (!am || !am.Maps || !am.Maps['main']) return;
+
+      var mainMap = am.Maps['main'];
+
+      // Layers-Objekt: Framework speichert Layer-Configs als Objekt mit layerName als Key
+      // Verschiedene mögliche Speicherorte prüfen
+      var configStores = ['layers', 'Layers', 'layerConf', 'layersConf', 'conf'];
+      for (var i = 0; i < configStores.length; i++) {
+        var store = mainMap[configStores[i]];
+        if (store && typeof store === 'object' && !Array.isArray(store)) {
+          if (!store[layerName]) {
+            store[layerName] = {
+              minResolution: 0,
+              maxResolution: 999999,
+              resol_visibility: [0, 999999],
+              url: wmsUrl,
+              type: 'wms',
+              visible: true,
+              name: layerName,
+              tnet_wms_custom: true
+            };
+            console.log('[WMS-Panel] Dummy-Config injiziert in mainMap.' + configStores[i] + ':', layerName);
+          }
+          break;
+        }
+      }
+
+      // Auch MapTip-Konfiguration: Leeres Objekt damit kein null-Zugriff
+      if (am.MapTips && typeof am.MapTips === 'object') {
+        // Nicht überschreiben falls vorhanden
+      }
+
+      // Sicherheitsnetz: addLayerCallback wrappen falls vorhanden
+      if (window.njs && window.njs.MapTip && window.njs.MapTip.addLayerCallback) {
+        var origFn = window.njs.MapTip.addLayerCallback;
+        if (!origFn.__tnetWrapped) {
+          window.njs.MapTip.addLayerCallback = function() {
+            try {
+              return origFn.apply(this, arguments);
+            } catch (e) {
+              console.warn('[WMS-Panel] addLayerCallback-Fehler abgefangen:', e.message);
+            }
+          };
+          window.njs.MapTip.addLayerCallback.__tnetWrapped = true;
+          console.log('[WMS-Panel] addLayerCallback mit try/catch gewrapped');
+        }
+      }
+    } catch (e) {
+      console.warn('[WMS-Panel] Config-Injection fehlgeschlagen:', e.message);
+    }
+  }
+
   // ===== LAYER ZUR KARTE HINZUFÜGEN =====
 
   function _addWmsLayer(layerDef) {
@@ -436,18 +499,34 @@
     olLayer.set('name', layerDef.name);
     olLayer.set('tnet_wms_custom', true);
 
+    // Framework-Kompatibilität: minResolution/maxResolution setzen,
+    // damit njs.MapTip.addLayerCallback keinen Null-Zugriff macht
+    olLayer.setMinResolution(0);
+    olLayer.setMaxResolution(Infinity);
+
+    // Dummy-Eintrag in Framework-Layer-Config injizieren,
+    // damit das Framework beim addLayer-Event keinen Null-Zugriff bekommt.
+    // Das Framework sucht per Layer-Name in der Config und crasht wenn null.
+    _injectFrameworkLayerConfig(layerDef.name, wmsUrl);
+
     // Zur Karte hinzufügen (SplitScreen-kompatibel)
-    if (window.TnetSplitScreen && window.TnetSplitScreen.addLayerToMaps) {
-      window.TnetSplitScreen.addLayerToMaps(olLayer);
-    } else {
-      try {
+    // WICHTIG: try/catch um addLayer — njs.MapTip.addLayerCallback crasht bei
+    // Custom-WMS-Layern mit "Cannot read properties of null (reading 'minResolution')",
+    // weil die Framework-Config-Injection den richtigen Speicherort nicht immer trifft.
+    // Der Layer wird trotzdem zur OL-Collection hinzugefügt (push passiert vor dem Event).
+    try {
+      if (window.TnetSplitScreen && window.TnetSplitScreen.addLayerToMaps) {
+        window.TnetSplitScreen.addLayerToMaps(olLayer);
+      } else {
         var am = window.njs && window.njs.AppManager;
         if (!am) am = window.top && window.top.njs && window.top.njs.AppManager;
         var map = am.Maps['main'].mapObj;
         map.addLayer(olLayer);
-      } catch (e) {
-        console.error('[WMS-Panel] Karte nicht erreichbar:', e);
       }
+    } catch (e) {
+      // Framework-Callback-Fehler abfangen — Layer ist TROTZDEM auf der Karte
+      // (OL Collection.insertAt fügt Element ein BEVOR Event gefeuert wird)
+      console.warn('[WMS-Panel] addLayer Framework-Fehler abgefangen:', e.message);
     }
 
     _addedLayers.push({
@@ -712,6 +791,516 @@
     return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 
+  function _getAppManager() {
+    var am = window.njs && window.njs.AppManager;
+    if (!am) am = window.top && window.top.njs && window.top.njs.AppManager;
+    return am;
+  }
+
+  // ===== WMS GETFEATUREINFO (OBJEKTABFRAGE) =====
+
+  var _gfiHandlerRegistered = false;
+  var _gfiRetryCount = 0;
+  var _GFI_MAX_RETRIES = 15; // 15 × 2s = 30 Sekunden max
+
+  /**
+   * Registriert einen singleclick-Handler auf der Hauptkarte,
+   * der für alle sichtbaren Custom-WMS-Layer GetFeatureInfo abfragt
+   * und die Ergebnisse im Objektinfo-Panel (njs_info_pane) anzeigt.
+   */
+  function _setupWmsGetFeatureInfo() {
+    if (_gfiHandlerRegistered) return;
+    var am = _getAppManager();
+    if (!am || !am.Maps || !am.Maps['main'] || !am.Maps['main'].mapObj) {
+      _gfiRetryCount++;
+      if (_gfiRetryCount <= _GFI_MAX_RETRIES) {
+        console.log('[WMS-GFI] Karte nicht bereit, Retry ' + _gfiRetryCount + '/' + _GFI_MAX_RETRIES);
+        setTimeout(_setupWmsGetFeatureInfo, 2000);
+      } else {
+        console.warn('[WMS-GFI] Karte nach ' + _GFI_MAX_RETRIES + ' Versuchen nicht bereit');
+      }
+      return;
+    }
+    var map = am.Maps['main'].mapObj;
+    _gfiHandlerRegistered = true;
+    console.log('[WMS-GFI] singleclick-Handler auf Hauptkarte registriert (nach ' + _gfiRetryCount + ' Retries)');
+
+    map.on('singleclick', function(evt) {
+      console.log('[WMS-GFI] === singleclick Event empfangen ===');
+
+      try {
+        // Picking-Check: Info-Panel zeigt "Keine Objekte gefunden" → Framework hat gefeuert → picking MUSS true sein.
+        // Trotzdem prüfen wir es, aber nur zum Loggen — NICHT als Abbruchkriterium.
+        var currentAm = _getAppManager();
+        var pickingActive = false;
+        if (currentAm && currentAm.Maps && currentAm.Maps['main']) {
+          pickingActive = !!currentAm.Maps['main'].picking;
+        }
+        console.log('[WMS-GFI] picking:', pickingActive, '| _addedLayers:', _addedLayers.length);
+
+        // Wenn picking nicht aktiv ist UND keine Custom-WMS-Layer → nichts tun
+        if (!pickingActive && _addedLayers.length === 0) {
+          console.log('[WMS-GFI] picking=false und keine Custom-WMS-Layer → Abbruch');
+          return;
+        }
+
+        // ===== ALLE sichtbaren WMS-Layer auf der Karte sammeln =====
+        var wmsLayers = []; // { source, title, name, isCustom }
+        var processedLayerParams = {};
+
+        // 1) Custom-WMS-Layer aus Panel (IMMER abfragen, auch ohne picking)
+        _addedLayers.forEach(function(entry) {
+          if (entry.olLayer && entry.olLayer.getVisible()) {
+            var source = entry.olLayer.getSource();
+            if (source && typeof source.getFeatureInfoUrl === 'function') {
+              var layerParam = '';
+              try { layerParam = source.getParams().LAYERS || ''; } catch(e) {}
+              processedLayerParams[layerParam] = true;
+              wmsLayers.push({
+                source: source,
+                title: entry.title || entry.name,
+                name: entry.name,
+                isCustom: true
+              });
+              console.log('[WMS-GFI] Custom-Layer:', entry.title, '| LAYERS:', layerParam);
+            } else {
+              console.log('[WMS-GFI] Custom-Layer übersprungen (kein getFeatureInfoUrl):', entry.name);
+            }
+          }
+        });
+
+        // 2) Framework-WMS-Layer (nur wenn picking aktiv)
+        if (pickingActive) {
+          try {
+            var allLayers = map.getLayers().getArray();
+            console.log('[WMS-GFI] OL-Layer auf Karte:', allLayers.length);
+            allLayers.forEach(function(layer, idx) {
+              if (!layer || typeof layer.getVisible !== 'function' || typeof layer.getSource !== 'function') return;
+              if (!layer.getVisible()) return;
+
+              var source = layer.getSource();
+              if (!source) return;
+              if (typeof source.getFeatureInfoUrl !== 'function') return;
+
+              // URL ermitteln
+              var url = null;
+              if (typeof source.getUrl === 'function') url = source.getUrl();
+              if (!url && typeof source.getUrls === 'function') {
+                var urls = source.getUrls();
+                if (urls && urls.length > 0) url = urls[0];
+              }
+              if (!url && source.url_) url = source.url_;
+
+              // ArcGIS-Proxy-Layer überspringen
+              if (url && url.indexOf('agsproxy.php') > -1) return;
+
+              // Params holen
+              var params = (typeof source.getParams === 'function') ? source.getParams() : null;
+              var layerParam = params && params.LAYERS ? params.LAYERS : '';
+              if (!layerParam || layerParam === 'mask_layer') return;
+
+              // Duplikat-Check per LAYERS-Param
+              if (processedLayerParams[layerParam]) return;
+              processedLayerParams[layerParam] = true;
+
+              // Custom-WMS-Layer Marker
+              if (layer.get('tnet_wms_custom')) return;
+
+              var name = layer.get('name') || layer.get('title') || layerParam;
+              var title = layer.get('title') || layer.get('name') || layerParam;
+
+              wmsLayers.push({
+                source: source,
+                title: title,
+                name: name,
+                isCustom: false
+              });
+              console.log('[WMS-GFI] Framework-Layer:', title, '| LAYERS:', layerParam);
+            });
+          } catch(e) {
+            console.warn('[WMS-GFI] Fehler beim Scannen der Karten-Layer:', e);
+          }
+        }
+
+        console.log('[WMS-GFI] Gesamt WMS-Layer zum Abfragen:', wmsLayers.length,
+          '(Custom:', wmsLayers.filter(function(l){return l.isCustom;}).length,
+          ', Framework:', wmsLayers.filter(function(l){return !l.isCustom;}).length + ')');
+
+        if (wmsLayers.length === 0) {
+          console.log('[WMS-GFI] Keine abfragbaren WMS-Layer gefunden → Abbruch');
+          return;
+        }
+
+        var coordinate = evt.coordinate;
+        var viewResolution = map.getView().getResolution();
+        var projection = map.getView().getProjection();
+        var requests = [];
+        var features = [];
+
+      wmsLayers.forEach(function(entry) {
+        var source = entry.source;
+        var layerTitle = entry.title;
+
+        // Format-Fallback-Kette: JSON → GML → HTML → text/plain
+        var formats = [
+          'application/json',
+          'application/geojson',
+          'application/vnd.ogc.gml',
+          'text/html',
+          'text/plain'
+        ];
+
+        var tryFormat = function(formatIndex) {
+          if (formatIndex >= formats.length) {
+            console.warn('[WMS-GFI] Alle Formate fehlgeschlagen für', layerTitle);
+            return Promise.resolve();
+          }
+          var format = formats[formatIndex];
+          var url = source.getFeatureInfoUrl(
+            coordinate, viewResolution, projection,
+            { 'INFO_FORMAT': format, 'FEATURE_COUNT': 10 }
+          );
+          if (!url) {
+            console.warn('[WMS-GFI] getFeatureInfoUrl liefert null für', layerTitle, format);
+            return Promise.resolve();
+          }
+
+          // QUERY_LAYERS ergänzen falls fehlend
+          if (url.indexOf('QUERY_LAYERS') === -1) {
+            var params = source.getParams();
+            if (params && params.LAYERS) {
+              url += '&QUERY_LAYERS=' + params.LAYERS;
+            }
+          }
+
+          // Proxy nutzen für CORS (externe URLs)
+          var originalUrl = url;
+          if (url.indexOf(location.origin) === -1 && url.indexOf('/maps/') !== 0) {
+            url = '/maps/wmsproxy.php?url=' + encodeURIComponent(url);
+          }
+
+          console.log('[WMS-GFI] Request:', layerTitle, '| Format:', format, '| URL:', url.substring(0, 120) + '...');
+
+          return fetch(url)
+            .then(function(r) {
+              console.log('[WMS-GFI] Response:', layerTitle, '| Status:', r.status, '| ContentType:', r.headers.get('Content-Type'));
+              return r.text();
+            })
+            .then(function(text) {
+              if (!text || text.length === 0) {
+                console.log('[WMS-GFI] Leere Response für', layerTitle, format);
+                return tryFormat(formatIndex + 1);
+              }
+
+              console.log('[WMS-GFI] Response-Text (' + text.length + ' bytes):', text.substring(0, 200));
+
+              // ServiceException → nächstes Format
+              if (text.indexOf('ServiceException') > -1) {
+                console.log('[WMS-GFI] ServiceException für', layerTitle, format);
+                return tryFormat(formatIndex + 1);
+              }
+
+              // JSON parsen
+              if (format.indexOf('json') > -1) {
+                try {
+                  var data = JSON.parse(text);
+                  if (data.features && data.features.length > 0) {
+                    var normalized = data.features.map(function(f) {
+                      return { properties: f.properties || f.attributes || {} };
+                    });
+                    features.push({ layer: layerTitle, data: normalized });
+                    console.log('[WMS-GFI] JSON Features gefunden:', normalized.length, 'für', layerTitle);
+                    return;
+                  } else {
+                    console.log('[WMS-GFI] JSON ok aber keine Features für', layerTitle);
+                  }
+                } catch(e) {
+                  console.log('[WMS-GFI] JSON-Parse-Fehler für', layerTitle, e.message);
+                }
+              }
+
+              // GML/XML parsen
+              if (text.indexOf('<?xml') === 0 || text.indexOf('<') === 0) {
+                try {
+                  var parser = new DOMParser();
+                  var xmlDoc = parser.parseFromString(text, 'text/xml');
+                  // gml:featureMember und featureMember (ohne Namespace) prüfen
+                  var featureMembers = xmlDoc.getElementsByTagName('gml:featureMember');
+                  if (featureMembers.length === 0) featureMembers = xmlDoc.getElementsByTagName('featureMember');
+                  if (featureMembers.length > 0) {
+                    var xmlFeatures = [];
+                    for (var i = 0; i < featureMembers.length; i++) {
+                      var attrs = {};
+                      var featureNode = featureMembers[i].children[0];
+                      if (featureNode) {
+                        for (var j = 0; j < featureNode.children.length; j++) {
+                          var child = featureNode.children[j];
+                          var tagName = child.localName || child.tagName;
+                          if (child.textContent && tagName !== 'boundedBy') {
+                            attrs[tagName] = child.textContent;
+                          }
+                        }
+                      }
+                      if (Object.keys(attrs).length > 0) xmlFeatures.push({ properties: attrs });
+                    }
+                    if (xmlFeatures.length > 0) {
+                      features.push({ layer: layerTitle, data: xmlFeatures });
+                      console.log('[WMS-GFI] GML Features gefunden:', xmlFeatures.length, 'für', layerTitle);
+                      return;
+                    }
+                  }
+                } catch(e) {
+                  console.log('[WMS-GFI] GML-Parse-Fehler für', layerTitle, e.message);
+                }
+              }
+
+              // HTML-Tabelle parsen
+              if (format.indexOf('html') > -1 && text.indexOf('<') > -1) {
+                var tempDiv = document.createElement('div');
+                tempDiv.innerHTML = text;
+                var tables = tempDiv.getElementsByTagName('table');
+                if (tables.length > 0) {
+                  var attrs = {};
+                  var rows = tables[0].getElementsByTagName('tr');
+                  for (var i = 0; i < rows.length; i++) {
+                    var cells = rows[i].getElementsByTagName('td');
+                    if (cells.length >= 2) {
+                      attrs[cells[0].textContent.trim()] = cells[1].textContent.trim();
+                    }
+                    // th/td Kombination
+                    var ths = rows[i].getElementsByTagName('th');
+                    var tds = rows[i].getElementsByTagName('td');
+                    if (ths.length >= 1 && tds.length >= 1) {
+                      attrs[ths[0].textContent.trim()] = tds[0].textContent.trim();
+                    }
+                  }
+                  if (Object.keys(attrs).length > 0) {
+                    features.push({ layer: layerTitle, data: [{ properties: attrs }] });
+                    console.log('[WMS-GFI] HTML-Tabelle Features gefunden für', layerTitle);
+                    return;
+                  }
+                }
+                // HTML ohne Tabelle → als Raw-HTML anzeigen
+                var bodyContent = text.replace(/<\/?html[^>]*>/gi, '').replace(/<\/?body[^>]*>/gi, '').replace(/<\/?head[^>]*>/gi, '').trim();
+                if (bodyContent.length > 10 && bodyContent.indexOf('ServiceException') === -1) {
+                  features.push({ layer: layerTitle, rawHtml: bodyContent });
+                  console.log('[WMS-GFI] HTML-Rohinhalt für', layerTitle);
+                  return;
+                }
+              }
+
+              // text/plain parsen (MapServer key = 'value')
+              if (format === 'text/plain' && text.indexOf('<?xml') !== 0) {
+                var attrs = {};
+                var lines = text.split('\n');
+                for (var i = 0; i < lines.length; i++) {
+                  var line = lines[i].trim();
+                  if (line && line.indexOf('=') > -1 && !line.match(/^(Layer|Feature|GetFeatureInfo)/)) {
+                    var parts = line.split('=');
+                    var key = parts[0].trim();
+                    var value = parts.slice(1).join('=').trim().replace(/^'|'$/g, '');
+                    if (key && value) attrs[key] = value;
+                  }
+                }
+                if (Object.keys(attrs).length > 0) {
+                  features.push({ layer: layerTitle, data: [{ properties: attrs }] });
+                  console.log('[WMS-GFI] text/plain Features gefunden für', layerTitle);
+                  return;
+                }
+              }
+
+              console.log('[WMS-GFI] Keine Features extrahiert aus', format, 'für', layerTitle);
+              return tryFormat(formatIndex + 1);
+            })
+            .catch(function(err) {
+              console.warn('[WMS-GFI] Fetch-Fehler für', layerTitle, format, err.message || err);
+              return tryFormat(formatIndex + 1);
+            });
+        };
+
+        requests.push(tryFormat(0));
+      });
+
+      // Alle Requests abwarten, dann Ergebnisse anzeigen
+      if (requests.length > 0) {
+        Promise.all(requests).then(function() {
+          console.log('[WMS-GFI] Alle Requests fertig | Features:', features.length);
+          if (features.length > 0) {
+            _showWmsInfoResults(features, coordinate);
+          }
+        });
+      }
+
+      } catch(gfiErr) {
+        console.error('[WMS-GFI] Unerwarteter Fehler im singleclick-Handler:', gfiErr);
+      }
+    });
+  }
+
+  /**
+   * Ergebnisse im Objektinfo-Panel anzeigen.
+   * Wartet bis das Framework seine Ergebnisse geschrieben hat,
+   * dann hängt unsere WMS-GFI-Ergebnisse an.
+   */
+  function _showWmsInfoResults(features, coordinate) {
+    console.log('[WMS-GFI] Ergebnisse anzeigen:', features.length, 'Layer');
+
+    // Info-Panel sichtbar machen — NICHT InitInfoFloatingWindow
+    // (das löst im Framework ein erneutes Clearing aus).
+    // Stattdessen Panel direkt per Dijit/DOM öffnen.
+    _ensureInfoPaneVisible();
+
+    // Ergebnisse per Polling einsetzen: warten bis Framework fertig ist
+    var attempts = 0;
+    var maxAttempts = 20;
+    var injected = false;
+
+    function _tryInject() {
+      attempts++;
+      var container = document.getElementById('njs_info_pane_content');
+      if (!container) {
+        if (attempts < maxAttempts) setTimeout(_tryInject, 200);
+        else console.warn('[WMS-GFI] njs_info_pane_content nach', maxAttempts, 'Versuchen nicht gefunden');
+        return;
+      }
+      if (injected) return;
+
+      // Prüfe ob Framework seine Arbeit beendet hat:
+      // - Hat TitlePanes (Framework-Ergebnisse), ODER
+      // - Zeigt "Keine Ergebnisse" / ist leer, ODER
+      // - Nach 1.5 Sekunden → erzwingen
+      var hasTitlePanes = container.querySelector('.dijitTitlePane');
+      var hasNoResults = container.textContent.indexOf('Keine') > -1 ||
+                         container.querySelector('.noInfoResults');
+      var forceInject = (attempts >= 8); // 8 × 200ms = 1.6s
+
+      if (!hasTitlePanes && !hasNoResults && !forceInject) {
+        setTimeout(_tryInject, 200);
+        return;
+      }
+
+      injected = true;
+      console.log('[WMS-GFI] Injiziere Ergebnisse (Versuch ' + attempts + ')');
+
+      // "Keine Ergebnisse" Meldungen des Frameworks entfernen
+      var noResults = container.querySelectorAll('.noInfoResults, .njs-info-no-results');
+      noResults.forEach(function(n) { n.remove(); });
+      // Textknoten mit "Keine Ergebnisse" oder ähnlich entfernen
+      var childNodes = container.childNodes;
+      for (var n = childNodes.length - 1; n >= 0; n--) {
+        if (childNodes[n].nodeType === 3 && childNodes[n].textContent.indexOf('Keine') > -1) {
+          container.removeChild(childNodes[n]);
+        }
+      }
+
+      features.forEach(function(item) {
+        // Raw HTML Ergebnisse
+        if (item.rawHtml) {
+          _createInfoTitlePane(container, item.layer, item.rawHtml);
+          return;
+        }
+
+        item.data.forEach(function(feature, featIdx) {
+          var props = feature.properties || {};
+          var propKeys = Object.keys(props).filter(function(k) {
+            return k !== 'geometry' && k !== 'boundedBy' && props[k] !== null && props[k] !== '';
+          });
+          if (propKeys.length === 0) return;
+
+          // Titel: Layer-Name + Feature-Index
+          var title = item.layer;
+          if (item.data.length > 1) title += ' (' + (featIdx + 1) + '/' + item.data.length + ')';
+
+          // Attribut-Tabelle
+          var tableHtml = '<table class="wms-gfi-table">';
+          propKeys.forEach(function(key) {
+            var val = String(props[key]);
+            if (val.match(/^https?:\/\//)) {
+              val = '<a href="' + _escHtml(val) + '" target="_blank" rel="noopener">' + _escHtml(val) + '</a>';
+            } else {
+              val = _escHtml(val);
+            }
+            tableHtml += '<tr><td class="wms-gfi-key">' + _escHtml(key) + '</td>';
+            tableHtml += '<td class="wms-gfi-val">' + val + '</td></tr>';
+          });
+          tableHtml += '</table>';
+
+          _createInfoTitlePane(container, title, tableHtml);
+        });
+      });
+    }
+
+    // Erste Injektion nach 400ms (Framework hat sein Clearing begonnen)
+    setTimeout(_tryInject, 400);
+  }
+
+  /**
+   * Info-Panel sichtbar machen ohne Framework-Clearing auszulösen.
+   * Nutzt dijit.byId (falls verfügbar) oder direkten DOM-Zugriff.
+   */
+  function _ensureInfoPaneVisible() {
+    // Versuch 1: dijit FloatingPane öffnen
+    try {
+      if (typeof dijit !== 'undefined' && dijit.byId) {
+        var widget = dijit.byId('njs_info_pane');
+        if (widget) {
+          if (widget.domNode) {
+            widget.domNode.style.visibility = 'visible';
+            widget.domNode.style.display = 'block';
+          }
+          if (typeof widget.show === 'function') widget.show();
+          console.log('[WMS-GFI] Info-Panel per dijit sichtbar gemacht');
+          return;
+        }
+      }
+    } catch(e) {}
+
+    // Versuch 2: DOM-Element direkt zeigen
+    var pane = document.getElementById('njs_info_pane');
+    if (pane) {
+      pane.style.visibility = 'visible';
+      pane.style.display = 'block';
+      console.log('[WMS-GFI] Info-Panel per DOM sichtbar gemacht');
+    }
+  }
+
+  /**
+   * Erstellt ein aufklappbares TitlePane für ein GFI-Ergebnis.
+   * Nutzt Dojo dijit/TitlePane falls verfügbar, sonst HTML-Fallback.
+   */
+  function _createInfoTitlePane(container, title, contentHtml) {
+    var wrapper = document.createElement('div');
+    wrapper.className = 'wms-gfi-result';
+
+    // Dojo TitlePane (gleich wie Framework)
+    if (typeof dijit !== 'undefined' && dijit.TitlePane) {
+      try {
+        var contentDiv = document.createElement('div');
+        contentDiv.innerHTML = contentHtml;
+        container.appendChild(wrapper);
+        var tp = new dijit.TitlePane({
+          title: '<span class="wms-gfi-title-icon">WMS</span> ' + _escHtml(title),
+          content: contentDiv,
+          open: true
+        });
+        wrapper.appendChild(tp.domNode);
+        tp.startup();
+        console.log('[WMS-GFI] TitlePane erstellt:', title);
+        return;
+      } catch(e) {
+        console.warn('[WMS-GFI] TitlePane Fehler, Fallback:', e);
+      }
+    }
+
+    // HTML-Fallback
+    wrapper.innerHTML =
+      '<details class="wms-gfi-details" open>' +
+      '<summary class="wms-gfi-summary"><span class="wms-gfi-title-icon">WMS</span> ' + _escHtml(title) + '</summary>' +
+      '<div class="wms-gfi-content">' + contentHtml + '</div>' +
+      '</details>';
+    container.appendChild(wrapper);
+  }
+
   // ===== SYNC MIT DARGESTELLTE THEMEN =====
 
   // Event-Listener: Layer wurde aus "Dargestellte Themen" entfernt
@@ -738,8 +1327,18 @@
   function _init() {
     _initPresets();
     _initFilter();
+    // GetFeatureInfo-Handler registrieren (wartet auf Karte)
+    _setupWmsGetFeatureInfo();
     console.log('[WMS-Panel] Initialisiert');
   }
+
+  // Auch auf tnet-app-ready reagieren (Karte ist dann sicher bereit)
+  document.addEventListener('tnet-app-ready', function() {
+    if (!_gfiHandlerRegistered) {
+      console.log('[WMS-GFI] tnet-app-ready empfangen — versuche Handler-Registrierung');
+      _setupWmsGetFeatureInfo();
+    }
+  }, { once: true });
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', _init);

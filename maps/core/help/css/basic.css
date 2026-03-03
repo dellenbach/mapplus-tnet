@@ -1,0 +1,16 @@
+
+body {
+    font-family: Verdana,Lucida,Helvetica,Arial,sans-serif;
+    font-size: 11px;
+}
+@media print {
+  .toolbar { display: none }
+}
+@media screen {
+  .toolbar {
+    position: absolute;
+    top: 30px;
+    right: 10px;
+    visibility: visible;
+    }
+}

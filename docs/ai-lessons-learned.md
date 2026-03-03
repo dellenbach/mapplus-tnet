@@ -273,3 +273,30 @@
 - **Root-Cause**: Drei Bugs: (1) `_olLayerRef` wurde nur für WMS-Einträge gespeichert, nicht für reguläre Layer — dadurch kein direkter OL-Zugriff. (2) `_findOLLayer` suchte nur Top-Level-Layer, nicht in OL-LayerGroups. (3) `removeLayer` bei `visible=false` (Auge aus) entfernte Layer nur aus der Liste, nicht von der Karte. (4) WMS-Panel nutzte `njs.AppManager` statt `window.njs.AppManager` — in Strict-Mode-IIFE potentiell undefiniert, Fehler wurden stumm verschluckt (`catch(e){}`).
 - **Fix**: (1) `_olLayerRef` in `_syncFromMap` und `_onOLLayerAdd` für ALLE Layer setzen. (2) `_findOLLayer` rekursiv gemacht (sucht auch in `layer.getLayers()`). (3) `removeLayer` immer `map.removeLayer(_olLayerRef)` aufrufen, Fallback via `TnetLayerSwitch`. (4) WMS-Panel: `window.njs`/`window.top.njs` mit Fehler-Logging statt stiller Catch.
 - **Guardrail**: Bei OL-Layer-Manipulation immer gespeicherte `_olLayerRef` bevorzugen statt Suche via `name`-Attribut. Nie `catch(e){}` ohne Logging verwenden — erschwert debugging massiv.
+
+---
+
+## 2026-03-02 — Themenkatalog: Level-2-Gruppen (Gemeindegrenzen etc.) lassen sich nicht einklappen
+
+- **Symptom**: Klick auf Gruppenüberschriften (z.B. Gemeindegrenzen, Höhenlinien) im Themenkatalog hat keinen Effekt — die Gruppen bleiben immer aufgeklappt. Level-1 (Accordions wie GRUNDLAGEN, ÖREB) und Level-3 (Einzel-Layer) funktionieren.
+- **Root-Cause**: CSS-Counter-Regeln verwendeten `.dijitClosed` als Klassenname. Dojo setzt aber `.dijitTitlePaneClosed` auf dem domNode (Widget-Root) und `.dijitClosed` nur auf dem titleBarNode (Geschwister-Element). Da `.dijitTitlePaneContentOuter` ein Kind des domNodes ist, matchte der Selektor `.dijitTitlePane.dijitClosed > .dijitTitlePaneContentOuter` kein einziges Element — die ULTIMATIV-Regeln (`display: block !important`) gewannen immer.
+- **Fix**: Alle 7 Selektoren in den Counter-Regeln (tnet_toc.css, Zeilen 346–381) von `.dijitClosed` auf `.dijitTitlePaneClosed` geändert.
+- **Guardrail**: Bei Dojo dijit.TitlePane immer die korrekte Klasse pro DOM-Ebene verwenden: `dijitTitlePaneClosed`/`dijitTitlePaneOpened` auf dem **domNode**, `dijitClosed`/`dijitOpen` auf dem **titleBarNode**. Mobile-CSS (tnet_override_m.css) als Referenz nutzen — dort war es bereits korrekt.
+
+---
+
+## 2026-03-02 — Level-2-Gruppen: Klassenname-Fix allein reicht nicht — Descendant-Selektoren sind das Problem
+
+- **Symptom**: Trotz korrigiertem Klassennamen (`dijitTitlePaneClosed`) lassen sich Level-2-Gruppen (Gemeindegrenzen, Höhenlinien, etc.) im Themenkatalog weiterhin nicht ein-/ausklappen.
+- **Root-Cause**: Die ULTIMATIV/SUPER-ULTIMATIV CSS-Regeln verwendeten **Nachfahren-Selektoren** (Leerzeichen) statt **Kind-Selektoren** (`>`). Dadurch matchten `#kantons_container .dijitTitlePane.active-tab .dijitTitlePaneContentOuter` und `#kantons_container .dijitTitlePane.active-tab .dijitReset` auch Level-2-Elemente tief in der Hierarchie — nicht nur die Kantons-Pane selbst. CSS setzte `display: block !important` auf Level-2-ContentOuter/wipeNode und blockierte Dojos Toggle-Animation komplett. Zusätzlich feuerte der `globalObserver` (MutationObserver) und der Capture-Phase-Click-Handler `startAggressiveFix()` bei jedem Level-2-Klick.
+- **Fix**: (1) ALLE Descendant-Selektoren in ULTIMATIV/SUPER-ULTIMATIV Blöcken durch Child-Combinators (`>`) ersetzt — matchen jetzt nur noch direkte Kinder der Kantons-Pane. (2) Counter-Rules komplett entfernt (unnötig, da ULTIMATIV-Regeln Level-2 nicht mehr berühren). (3) `globalObserver`: Skip für Mutations innerhalb `.tabs2acc-panel`. (4) Capture-Phase-Click-Handler: Return bei Klick auf TitlePanes innerhalb `.tabs2acc-panel`.
+- **Guardrail**: Bei CSS-Regeln für verschachtelte Dojo-Widgets **immer Kind-Selektoren (`>`) verwenden**, nie Nachfahren-Selektoren. Descendant-Selektoren in `#kantons_container` treffen unweigerlich auch tiefer verschachtelte TitlePanes. MutationObserver und aggressive Fix-Routinen müssen Level-2-TitlePanes explizit ausschliessen (`.closest('.tabs2acc-panel')`-Check).
+
+---
+
+## 2026-03-02 — WMS GetFeatureInfo für Custom-WMS-Layer
+
+- **Symptom**: Über das WMS-Panel hinzugefügte Layer liessen sich nicht per Klick abfragen — kein Eintrag im Objektinfo-Panel.
+- **Root-Cause**: Das Framework nutzt `wmsActiveLyrs` (ol.Collection registrierter MapTip-Instanzen) für GetFeatureInfo. Custom-WMS-Layer werden dort nie eingetragen, da sie keine Maptip-Config haben.
+- **Fix**: In `tnet-wms-panel.js` eigenen `singleclick`-Handler auf die Hauptkarte registriert. Iteriert `_addedLayers`, ruft `source.getFeatureInfoUrl()` pro sichtbarem WMS-Layer auf (Format-Fallback: JSON→GML→HTML→text/plain), nutzt `wmsproxy.php` als CORS-Proxy und injiziert Ergebnisse als `dijit.TitlePane` in `njs_info_pane_content`. Proxy (`wmsproxy.php`) auf `GetFeatureInfo` erweitert.
+- **Guardrail**: `wmsproxy.php` nur `GetCapabilities` + `GetFeatureInfo` erlauben — nie `GetMap` (Missbrauchsrisiko). GFI-Ergebnisse mit 300ms Delay einfügen, damit Framework-Clearing abgeschlossen ist.

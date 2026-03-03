@@ -1,10 +1,10 @@
 <?php
 /**
  * wmsproxy.php
- * Einfacher CORS-Proxy für WMS GetCapabilities-Anfragen.
- * Leitet nur GetCapabilities-Requests weiter (kein GetMap, kein GetFeatureInfo).
+ * CORS-Proxy für WMS-Anfragen (GetCapabilities und GetFeatureInfo).
+ * Leitet nur diese beiden Request-Typen weiter (kein GetMap).
  *
- * @version    1.0
+ * @version    1.1
  * @date       2026-03-02
  * @copyright  Trigonet AG
  * @author     Marco Dellenbach
@@ -37,11 +37,13 @@ if (!filter_var($url, FILTER_VALIDATE_URL)) {
     exit;
 }
 
-// Sicherheitscheck: Nur GetCapabilities erlauben
+// Sicherheitscheck: Nur GetCapabilities und GetFeatureInfo erlauben
 $urlLower = strtolower($url);
-if (strpos($urlLower, 'request=getcapabilities') === false) {
+$isGetCaps = strpos($urlLower, 'request=getcapabilities') !== false;
+$isGetFeatureInfo = strpos($urlLower, 'request=getfeatureinfo') !== false;
+if (!$isGetCaps && !$isGetFeatureInfo) {
     http_response_code(403);
-    echo 'Nur GetCapabilities-Requests erlaubt';
+    echo 'Nur GetCapabilities- und GetFeatureInfo-Requests erlaubt';
     exit;
 }
 

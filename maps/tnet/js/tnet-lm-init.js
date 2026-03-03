@@ -17,6 +17,7 @@
 
   var LOG = '[LM-Init]';
   var _lmFallbackTimer = null;
+  var _isDesktop = !window.__TNET_MOBILE_ENTRY;
 
   // ── Config laden ──
 
@@ -47,9 +48,12 @@
    * - #kantons_container im Themenkatalog Bottom-Sheet
    * - #njs_main_lyrsorter_wrapper im Dargestellte-Themen (legacy im Drawer)
    * - #sort_menu_sheet im Active-Sheet (legacy Wrapper)
+   * Desktop: #sort_menu Inhalt (Legacy Sorter) ausblenden
    */
   function hideLegacyContainers() {
-    var ids = ['kantons_container', 'njs_main_lyrsorter_wrapper', 'sort_menu_sheet'];
+    var ids = _isDesktop
+      ? ['njs_main_lyrsorter_wrapper']
+      : ['kantons_container', 'njs_main_lyrsorter_wrapper', 'sort_menu_sheet'];
     ids.forEach(function (id) {
       var el = document.getElementById(id);
       if (el) {
@@ -60,7 +64,9 @@
   }
 
   function showLegacyContainers() {
-    var ids = ['kantons_container', 'njs_main_lyrsorter_wrapper', 'sort_menu_sheet'];
+    var ids = _isDesktop
+      ? ['njs_main_lyrsorter_wrapper']
+      : ['kantons_container', 'njs_main_lyrsorter_wrapper', 'sort_menu_sheet'];
     ids.forEach(function (id) {
       var el = document.getElementById(id);
       if (el) {
@@ -85,10 +91,31 @@
 
   /**
    * Neue Container für den Layer-Manager einfügen.
-   * - Themenkatalog-Tree: dynamisch in #m-layers-sheet .m-sheet-body
-   * - Active-Panel: bereits im HTML (#lm-active-container in #m-active-sheet)
+   * Mobile: Themenkatalog-Tree in #m-layers-sheet, Active in #m-active-sheet
+   * Desktop: Active-Panel in #sort_menu (ersetzt Legacy-Sorter)
    */
   function createNewContainers() {
+    if (_isDesktop) {
+      // Desktop: Container in #sort_menu einfügen (innerhalb des Dojo TitlePane)
+      var sortMenu = document.getElementById('sort_menu');
+      if (sortMenu) {
+        var existing = document.getElementById('lm-active-container');
+        if (!existing) {
+          var activeContainer = document.createElement('div');
+          activeContainer.id = 'lm-active-container';
+          activeContainer.className = 'lm-container lm-container-desktop';
+          sortMenu.appendChild(activeContainer);
+          console.log(LOG, '[Desktop] #lm-active-container in #sort_menu erstellt');
+        } else {
+          console.log(LOG, '[Desktop] #lm-active-container bereits vorhanden');
+        }
+      } else {
+        console.error(LOG, '[Desktop] #sort_menu nicht gefunden');
+      }
+      return;
+    }
+
+    // Mobile: Original-Logik
     // 1) Themenkatalog-Tree — in m-layers-sheet .m-sheet-body
     var sheetBody = document.querySelector('#m-layers-sheet .m-sheet-body');
     if (sheetBody) {
@@ -146,10 +173,10 @@
       return;
     }
 
-    // Tree-UI initialisieren
-    if (window.TnetLMTree) {
+    // Tree-UI initialisieren (nur Mobile — Desktop nutzt den bestehenden Dojo-Themenbaum)
+    if (!_isDesktop && window.TnetLMTree) {
       window.TnetLMTree.init('lm-tree-container');
-    } else {
+    } else if (!_isDesktop) {
       console.error(LOG, 'TnetLMTree fehlt');
     }
 
@@ -175,11 +202,19 @@
     }
 
     _lmFallbackTimer = setTimeout(function () {
-      var treeContainer = document.getElementById('lm-tree-container');
-      var hasTreeContent = !!(treeContainer && treeContainer.children && treeContainer.children.length);
       var isLoaded = !!(store && typeof store.isLoaded === 'function' && store.isLoaded());
-      if (!isLoaded || !hasTreeContent) {
-        activateLegacyFallback('Timeout beim Laden des neuen Layer-Managers');
+      if (_isDesktop) {
+        // Desktop: Fallback nur prüfen ob Store geladen
+        if (!isLoaded) {
+          activateLegacyFallback('Timeout beim Laden des Layer-Stores (Desktop)');
+        }
+      } else {
+        // Mobile: Auch Tree-Container prüfen
+        var treeContainer = document.getElementById('lm-tree-container');
+        var hasTreeContent = !!(treeContainer && treeContainer.children && treeContainer.children.length);
+        if (!isLoaded || !hasTreeContent) {
+          activateLegacyFallback('Timeout beim Laden des neuen Layer-Managers');
+        }
       }
     }, 6000);
   }
