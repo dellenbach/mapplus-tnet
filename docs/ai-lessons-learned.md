@@ -14,6 +14,22 @@
 
 ---
 
+## 2026-03-03 — Entfernte Themen bleiben im BGI/WMS-Katalog angehakt
+- **Symptom**: Layer in "Dargestellte Themen" entfernt, im BGI/WMS-Katalog bleibt die Checkbox trotzdem aktiv.
+- **Root-Cause**: `tnet-wms-panel.js` synchronisiert Checkboxen über das Event `tnet-wms-layer-removed`. Beim `removeLayer()` in `tnet-lm-store.js` wurde dieses Event nur für `wms:`-Layer dispatcht, nicht für normale Geoadmin-Layer-IDs (`ch.*`).
+- **Fix**: In `tnet-lm-store.js` beim Entfernen normaler Layer ebenfalls `tnet-wms-layer-removed` mit `detail.name = layerId` dispatchen.
+- **Guardrail**: Bei Layer-Entfernung immer beide UI-Pfade synchronisieren: Store-Events (`layer-visibility`) **und** WMS-Panel-Event (`tnet-wms-layer-removed`).
+
+---
+
+## 2026-03-03 — Entfernte Themen bleiben im Dojo-Themenkatalog angehakt (alle LayerManager)
+- **Symptom**: Layer in "Dargestellte Themen" entfernt → Checkbox im Themenkatalog (nw, ow, bund, divers) bleibt checked.
+- **Root-Cause**: `TnetLayerSwitch(id, 'off')` in `tnet-mapplus-helpers.js` rief nur `map.removeLayer(found)` auf — direkte OL-Entfernung ohne Benachrichtigung des Dojo ClassicLayerMgr. Der ClassicLayerMgr steuert Checkboxen intern via `switchLayer(id, false)` → `dijit.byId(id).set('checked', false)`. Zusätzlich wurde nur der **erste** LyrMgr gesucht (nw), nicht alle (ow, bund, divers).
+- **Fix**: `TnetLayerSwitch('off')` iteriert jetzt über **alle** `am.LyrMgr` die `targetMap: ['main']` haben und ruft jeweils `mgr.switchLayer(layerId, false)` auf. In `tnet-lm-store.js` wird `TnetLayerSwitch` immer zuerst aufgerufen, `_olLayerRef` nur noch als Sicherheitsnetz.
+- **Guardrail**: Layer-Entfernung **immer** über `ClassicLayerMgr.switchLayer(id, false)` — nie nur `map.removeLayer()`. Immer alle LyrMgr iterieren, nicht beim ersten `break`en.
+
+---
+
 ## 2026-02-27 — Staging: "Dienst nicht gefunden" obwohl Dienst in raw-conf sichtbar
 - **Symptom**: Staging-Merge meldet für alle gewählten Dienste "Dienst nicht gefunden: ewn_EWN_NIS" — Verwalten-Tab zeigt sie aber korrekt an.
 - **Root-Cause**: `listRawConf()` berechnete `$svcKey = $parts[0] . '/' . $parts[1]` für ALLE Tiefen. Bei 2-Ebenen-Struktur (`service_dir/datei.conf`) wurde dadurch `svcKey = 'ewn_EWN_NIS/layers_...'` (directory+filename) statt nur `'ewn_EWN_NIS'` (directory). `stageServicesToImportToCore` suchte dann `is_dir('ewn_EWN_NIS/layers_...')` → nicht gefunden.

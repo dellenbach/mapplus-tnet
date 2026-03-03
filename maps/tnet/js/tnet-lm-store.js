@@ -535,21 +535,27 @@
       var layer = this.findLayer(layerId);
       var activeEntry = this._findActiveLayer(layerId);
 
-      // OL-Layer von der Karte entfernen (via gespeicherte Referenz oder TnetLayerSwitch)
+      // OL-Layer von der Karte entfernen
+      // IMMER TnetLayerSwitch nutzen — damit das Framework (Dojo ClassicLayerMgr)
+      // benachrichtigt wird und Checkboxen im Themenkatalog korrekt entfernt werden.
+      // _olLayerRef nur als zusätzliche Absicherung falls TnetLayerSwitch den Layer nicht findet.
       _suppressMapSync = true;
       try {
-        // 1. Versuch: gespeicherte _olLayerRef direkt nutzen
+        // 1. Framework-Toggle (benachrichtigt Dojo-LayerManager → Checkboxen werden entfernt)
+        if (typeof TnetLayerSwitch === 'function') {
+          TnetLayerSwitch(layerId, 'off');
+          console.log(LOG, 'removeLayer via TnetLayerSwitch:', layerId);
+        }
+        // 2. Zusätzlich: gespeicherte _olLayerRef als Sicherheitsnetz
+        //    (falls TnetLayerSwitch den Layer nicht gefunden hat)
         if (activeEntry && activeEntry._olLayerRef) {
           var am = this._getAppManager();
           if (am && am.Maps && am.Maps['main'] && am.Maps['main'].mapObj) {
-            am.Maps['main'].mapObj.removeLayer(activeEntry._olLayerRef);
-            console.log(LOG, 'removeLayer via _olLayerRef:', layerId);
+            try {
+              am.Maps['main'].mapObj.removeLayer(activeEntry._olLayerRef);
+              console.log(LOG, 'removeLayer Sicherheitsnetz _olLayerRef:', layerId);
+            } catch (e2) { /* Layer war bereits entfernt durch TnetLayerSwitch */ }
           }
-        }
-        // 2. Versuch: TnetLayerSwitch als Fallback (findet Layer per name-Attribut)
-        else if (typeof TnetLayerSwitch === 'function') {
-          TnetLayerSwitch(layerId, 'off');
-          console.log(LOG, 'removeLayer via TnetLayerSwitch:', layerId);
         }
       } catch (e) {
         console.warn(LOG, 'removeLayer Fehler:', e);
@@ -558,6 +564,8 @@
 
       // Store-State aktualisieren
       if (layer) layer.visible = false;
+      // WMS/BGI-Panel synchronisieren: Layer über technische ID entmarkieren
+      document.dispatchEvent(new CustomEvent('tnet-wms-layer-removed', { detail: { name: layerId } }));
       _activeLayers = _activeLayers.filter(function (l) { return l.id !== layerId; });
       this._emit('layer-visibility', { id: layerId, visible: false, source: 'ui' });
       this._emit('active-layers-changed', _activeLayers);

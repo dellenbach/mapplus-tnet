@@ -11,6 +11,10 @@
         "/^\\$files = @\\(\"c:\\\\_Daten\\\\mapplus-exp\\\\maps\\\\tnet\\\\ol-pdf-printer\\\\qgis-templates\\\\nw_layout_a4_hoch_portrait\\.svg\",\"c:\\\\_Daten\\\\mapplus-exp\\\\maps\\\\tnet\\\\ol-pdf-printer\\\\qgis-templates\\\\nw_layout_a3_hoch_portrait\\.svg\",\"c:\\\\_Daten\\\\mapplus-exp\\\\maps\\\\tnet\\\\ol-pdf-printer\\\\qgis-templates\\\\nw_layout_a4_quer_landscape\\.svg\",\"c:\\\\_Daten\\\\mapplus-exp\\\\maps\\\\tnet\\\\ol-pdf-printer\\\\qgis-templates\\\\nw_layout_a3_quer_landscape\\.svg\",\"c:\\\\_Daten\\\\mapplus-exp\\\\maps\\\\tnet\\\\ol-pdf-printer\\\\qgis-templates\\\\webgis_a3_hoch_portrait\\.svg\"\\); foreach \\(\\$f in \\$files\\) \\{ Write-Host \"===== \\$\\(Split-Path \\$f -Leaf\\) =====\"; Write-Host \"Total lines: \\$\\(\\(Get-Content \\$f\\)\\.Count\\)\"; Select-String -Path \\$f -Pattern '<text' \\| ForEach-Object \\{ \"\\$\\(\\$_\\.LineNumber\\): \\$\\(\\$_\\.Line\\.Trim\\(\\)\\)\" \\}; Write-Host \"\" \\}$/": {
             "approve": true,
             "matchCommandLine": true
+        },
+        "/^\\$serverConf = Get-Content 'maps/www/maps/public/config/lyrmgr\\.conf' -Raw \\| ConvertFrom-Json; \\$serverItems = @\\(\\); foreach \\(\\$cat in \\$serverConf\\.third_lyrmgr\\.structure\\.PSObject\\.Properties\\) \\{ foreach \\(\\$grp in \\$cat\\.Value\\.items\\.PSObject\\.Properties\\) \\{ foreach \\(\\$item in \\$grp\\.Value\\.items\\) \\{ if \\(\\$item -is \\[string\\]\\) \\{ \\$serverItems \\+= \\$item \\} elseif \\(\\$item\\.items\\) \\{ \\$serverItems \\+= \\$item\\.items \\} \\} \\} \\}; Write-Host \"Server third_lyrmgr: \\$\\(\\$serverItems\\.Count\\) items\"; \\$serverItems \\| Select-Object -First 15$/": {
+            "approve": true,
+            "matchCommandLine": true
         }
     },
     "python-envs.pythonProjects": [],

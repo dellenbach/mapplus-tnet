@@ -420,12 +420,28 @@ function TnetLayerSwitch(layerId, mode) {
     }
     return true;
   } else {
-    // Ausschalten: Layer aus dem Stack entfernen
-    if (found) {
-      map.removeLayer(found);
-      console.log('[TnetLayerSwitch] Layer entfernt:', layerId);
-    } else {
-      console.log('[TnetLayerSwitch] Layer war bereits aus:', layerId);
+    // Ausschalten: über ClassicLayerMgr.switchLayer auf ALLEN LayerManagern
+    // (nw, ow, bund, divers etc. targeten alle 'main')
+    var lyrMgrHandled = false;
+    if (am.LyrMgr) {
+      for (var lmOff in am.LyrMgr) {
+        var mgr = am.LyrMgr[lmOff];
+        if (mgr.targetMap && dojo.indexOf(mgr.targetMap, 'main') > -1 &&
+            typeof mgr.switchLayer === 'function') {
+          mgr.switchLayer(layerId, false);
+          console.log('[TnetLayerSwitch] switchLayer(false) auf LyrMgr:', lmOff, layerId);
+          lyrMgrHandled = true;
+        }
+      }
+    }
+    if (!lyrMgrHandled) {
+      // Fallback: direktes Entfernen wenn kein LyrMgr verfügbar
+      if (found) {
+        map.removeLayer(found);
+        console.log('[TnetLayerSwitch] Layer direkt entfernt (kein LyrMgr):', layerId);
+      } else {
+        console.log('[TnetLayerSwitch] Layer war bereits aus:', layerId);
+      }
     }
     return false;
   }

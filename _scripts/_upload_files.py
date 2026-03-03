@@ -11,9 +11,9 @@ PASSWORD = "3Zs,k4%Un,<[W(Kx"
 REMOTE_BASE = "/www/maps"
 LOCAL_BASE = r"c:\_Daten\mapplus-exp\maps"
 
-# Files to upload - Debug: drawScaleLabel Logging
+# Files to upload
 FILES = [
-    "tnet/ol-pdf-printer/js/template-pdf-export.js",
+    "tnet/js/tnet-lm-store.js",
 ]
 
 def upload_files():
