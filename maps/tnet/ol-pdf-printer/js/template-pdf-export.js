@@ -248,12 +248,40 @@
   function replaceMustachePlaceholders(svgText, values) {
     var result = svgText;
     var count = 0;
-    if (values.title)     { var b = result.length; result = result.split('{{TITLE}}').join(values.title);       if (result.length !== b) count++; }
-    if (values.scaleText) { var b2 = result.length; result = result.split('{{SCALE}}').join(values.scaleText); if (result.length !== b2) count++; }
-    if (values.coords)    { var b3 = result.length; result = result.split('{{COORDINATES}}').join(values.coords); if (result.length !== b3) count++; }
-    if (values.date)      { var b4 = result.length; result = result.split('{{DATE}}').join(values.date);        if (result.length !== b4) count++; }
-    _dbg('[TemplatePDF] Mustache-Ersetzung:', count, 'Platzhalter ersetzt,',
-      'Werte:', { title: values.title, scale: values.scaleText, coords: values.coords, date: values.date });
+
+    // Bekannte Platzhalter → Wert oder leerer String
+    var replacements = {
+      'TITLE':       values.title || '',
+      'SCALE':       values.scaleText || '',
+      'SCALETEXT':   values.scaleText || '',
+      'COORDINATES': values.coords || '',
+      'DATE':        values.date || '',
+      'TIME':        values.time || '',
+      'USER':        values.user || ''
+    };
+
+    // Debug: Eingangs-Werte und SVG-Platzhalter-Status loggen
+    var foundInSvg = svgText.match(/\{\{[A-Z_]+\}\}/g) || [];
+    console.log('[TemplatePDF] Mustache: gefundene Platzhalter im SVG:', foundInSvg);
+    console.log('[TemplatePDF] Mustache: Ersetzungs-Werte:', JSON.stringify(replacements));
+
+    for (var key in replacements) {
+      if (!replacements.hasOwnProperty(key)) continue;
+      var placeholder = '{{' + key + '}}';
+      if (result.indexOf(placeholder) !== -1) {
+        result = result.split(placeholder).join(replacements[key]);
+        count++;
+        console.log('[TemplatePDF] Mustache:', placeholder, '→', JSON.stringify(replacements[key]));
+      }
+    }
+
+    // Catch-All: Unbekannte {{VARIABLE}} mit leerem String ersetzen
+    result = result.replace(/\{\{[A-Z_]+\}\}/g, function (match) {
+      console.warn('[TemplatePDF] Unbekannter Platzhalter entfernt:', match);
+      return '';
+    });
+
+    _dbg('[TemplatePDF] Mustache-Ersetzung:', count, 'Platzhalter ersetzt');
     return result;
   }
 
@@ -267,11 +295,19 @@
     var doc = parser.parseFromString(svgText, 'image/svg+xml');
     var changed = false;
 
+    // Datum + Zeit kombiniert für DATE_TEXT (Strategie 1 hat {{DATE}} {{TIME}}
+    // bereits ersetzt — hier nur setzen wenn im Element noch der Originaltext steht)
+    var dateTimeStr = 'Erstellt am: ' + (values.date || '');
+    if (values.time) dateTimeStr += ' ' + values.time;
+
     var mapping = {
       'TITLE_TEXT':       values.title || '',
-      'SCALE_TEXT':       values.scaleText || '',  // Massstabstext beibehalten
+      'SCALE_TEXT':       values.scaleText || '',
+      'SCALETEXT_TEXT':   values.scaleText || '',
       'COORDINATES_TEXT': values.coords ? ('LV95: ' + values.coords) : '',
-      'DATE_TEXT':        values.date ? ('Erstellt am: ' + values.date) : ''
+      'DATE_TEXT':        dateTimeStr,
+      'TIME_TEXT':        values.time || '',
+      'USER_TEXT':        values.user || ''
     };
 
     for (var elemId in mapping) {
@@ -1131,11 +1167,17 @@
   function drawPdfTextOverlays(pdf, elements, values) {
     if (!elements || !elements.length) return;
 
+    var dateTimeStr = 'Erstellt am: ' + (values.date || '');
+    if (values.time) dateTimeStr += ' ' + values.time;
+
     var variableValues = {
       'title':       values.title || '',
       'scale':       '',  // Wird dynamisch als SCALE_LABEL gezeichnet
+      'scaletext':   values.scaleText || '',
       'coordinates': values.coords ? ('LV95: ' + values.coords) : '',
-      'date':        values.date ? ('Erstellt am: ' + values.date) : ''
+      'date':        dateTimeStr,
+      'time':        values.time || '',
+      'user':        values.user || ''
     };
 
     elements.forEach(function (elem) {
@@ -1524,18 +1566,23 @@
    * @param {string} scaleText - Formatierter Massstab (z.B. "1:10'000")
    */
   function drawScaleLabel(pdf, elem, scaleText) {
-    if (!scaleText) return;
+    if (!scaleText) {
+      console.warn('[TemplatePDF] drawScaleLabel: scaleText ist leer!');
+      return;
+    }
 
-    // Transparenter Hintergrund — kein weisses Rechteck
+    // Kein Hintergrund — nur Text im Vordergrund über der Karte,
+    // so dass es wie eine reine SVG-Textersetzung aussieht.
 
-    // Text zeichnen (Stil wie "Situation")
-    pdf.setFontSize(12);
+    // Text zeichnen — gleicher Stil wie im SVG-Original (Arial Bold, ~14pt)
+    pdf.setFontSize(14);
     pdf.setFont('Inter', 'bold');
     pdf.setTextColor(0, 0, 0);
-    var textY = elem.y_mm + elem.height_mm * 0.75;
-    pdf.text(scaleText, elem.x_mm, textY);
+    var textY = elem.y_mm + elem.height_mm * 0.7;
+    pdf.text(scaleText, elem.x_mm + 0.5, textY);
 
-    _dbg('[TemplatePDF] Massstabstext:', scaleText);
+    _dbg('[TemplatePDF] Massstabstext (Vordergrund):', scaleText,
+      'bei x=' + elem.x_mm.toFixed(1) + ' y=' + textY.toFixed(1) + ' mm');
   }
 
   // ---------------------------------------------------------------- //
@@ -1740,7 +1787,9 @@
           title:     title,
           scaleText: options.scaleText || '',
           coords:    options.coords || '',
-          date:      options.date || ''
+          date:      options.date || '',
+          time:      options.time || '',
+          user:      options.user || ''
         };
 
         // 1. {{PLACEHOLDER}}-Muster (v1.3 Plugin mit textRenderFormat)
@@ -1765,7 +1814,8 @@
         processedSvg = cleanupSvg(processedSvg);
 
         // Prüfen ob noch unreplatzierte {{…}} vorhanden → PDF-Overlay nötig
-        var needPdfOverlay = /\{\{(TITLE|SCALE|COORDINATES|DATE)\}\}/.test(processedSvg);
+        // (Nach dem Catch-All in replaceMustachePlaceholders sollte das nie mehr vorkommen)
+        var needPdfOverlay = /\{\{[A-Z_]+\}\}/.test(processedSvg);
         if (needPdfOverlay) {
           console.warn('[TemplatePDF] Nicht alle Platzhalter ersetzt → PDF-Overlay');
         }

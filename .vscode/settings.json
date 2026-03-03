@@ -7,6 +7,10 @@
         "/^& \"C:/Program Files/Python313/python\\.exe\" \"c:\\\\_Daten\\\\mapplus-exp\\\\_scripts\\\\_debug_search4\\.py\" 2>&1$/": {
             "approve": true,
             "matchCommandLine": true
+        },
+        "/^\\$files = @\\(\"c:\\\\_Daten\\\\mapplus-exp\\\\maps\\\\tnet\\\\ol-pdf-printer\\\\qgis-templates\\\\nw_layout_a4_hoch_portrait\\.svg\",\"c:\\\\_Daten\\\\mapplus-exp\\\\maps\\\\tnet\\\\ol-pdf-printer\\\\qgis-templates\\\\nw_layout_a3_hoch_portrait\\.svg\",\"c:\\\\_Daten\\\\mapplus-exp\\\\maps\\\\tnet\\\\ol-pdf-printer\\\\qgis-templates\\\\nw_layout_a4_quer_landscape\\.svg\",\"c:\\\\_Daten\\\\mapplus-exp\\\\maps\\\\tnet\\\\ol-pdf-printer\\\\qgis-templates\\\\nw_layout_a3_quer_landscape\\.svg\",\"c:\\\\_Daten\\\\mapplus-exp\\\\maps\\\\tnet\\\\ol-pdf-printer\\\\qgis-templates\\\\webgis_a3_hoch_portrait\\.svg\"\\); foreach \\(\\$f in \\$files\\) \\{ Write-Host \"===== \\$\\(Split-Path \\$f -Leaf\\) =====\"; Write-Host \"Total lines: \\$\\(\\(Get-Content \\$f\\)\\.Count\\)\"; Select-String -Path \\$f -Pattern '<text' \\| ForEach-Object \\{ \"\\$\\(\\$_\\.LineNumber\\): \\$\\(\\$_\\.Line\\.Trim\\(\\)\\)\" \\}; Write-Host \"\" \\}$/": {
+            "approve": true,
+            "matchCommandLine": true
         }
     },
     "python-envs.pythonProjects": [],

@@ -6,6 +6,14 @@
 
 ---
 
+## 2026-06-xx — Legend-Button fehlt bei ArcGIS REST Layern in "Dargestellte Themen"
+- **Symptom**: Planungszonen kantonal/kommunal aktiv → kein Legenden-Icon im "Dargestellte Themen"-Panel.
+- **Root-Cause**: Die API läuft im **Database-Modus** (`source: "database"`), nicht File-Modus. Alle `legendLink`/`legendTitle` sind `null` in der DB. Fix-Versuch über `processLayerItems()` (File-Modus) und `legend`-Property-Vererbung griff nicht. Der Click-Handler suchte nach `/rest/services/` im URL-Pattern, aber die Layer nutzen `agsproxy.php?path=`.
+- **Fix**: Button-Bedingung in `tnet-lm-active.js` auf `l.layerType === 'arcgisRest' && l.url.indexOf('agsproxy.php') !== -1` geändert. Click-Handler extrahiert Service-Pfad aus `agsproxy.php?path=<pfad>` und konstruiert `legend-proxy.php?service=<pfad>`.
+- **Guardrail**: Nie annehmen, dass die API im File-Modus läuft — immer `?debug=1` prüfen für `source`-Feld. ArcGIS-Layer verwenden `agsproxy.php?path=`, nicht `/rest/services/`.
+
+---
+
 ## 2026-02-27 — Staging: "Dienst nicht gefunden" obwohl Dienst in raw-conf sichtbar
 - **Symptom**: Staging-Merge meldet für alle gewählten Dienste "Dienst nicht gefunden: ewn_EWN_NIS" — Verwalten-Tab zeigt sie aber korrekt an.
 - **Root-Cause**: `listRawConf()` berechnete `$svcKey = $parts[0] . '/' . $parts[1]` für ALLE Tiefen. Bei 2-Ebenen-Struktur (`service_dir/datei.conf`) wurde dadurch `svcKey = 'ewn_EWN_NIS/layers_...'` (directory+filename) statt nur `'ewn_EWN_NIS'` (directory). `stageServicesToImportToCore` suchte dann `is_dir('ewn_EWN_NIS/layers_...')` → nicht gefunden.

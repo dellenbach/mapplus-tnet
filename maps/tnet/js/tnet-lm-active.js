@@ -25,7 +25,8 @@
     eyeOn: '<svg class="lm-icon" viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>',
     eyeOff: '<svg class="lm-icon" viewBox="0 0 24 24"><path d="M12 7c2.76 0 5 2.24 5 5 0 .65-.13 1.26-.36 1.83l2.92 2.92c1.51-1.26 2.7-2.89 3.43-4.75-1.73-4.39-6-7.5-11-7.5-1.4 0-2.74.25-3.98.7l2.16 2.16C10.74 7.13 11.35 7 12 7zM2 4.27l2.28 2.28.46.46C3.08 8.3 1.78 10.02 1 12c1.73 4.39 6 7.5 11 7.5 1.55 0 3.03-.3 4.38-.84l.42.42L19.73 22 21 20.73 3.27 3 2 4.27zM7.53 9.8l1.55 1.55c-.05.21-.08.43-.08.65 0 1.66 1.34 3 3 3 .22 0 .44-.03.65-.08l1.55 1.55c-.67.33-1.41.53-2.2.53-2.76 0-5-2.24-5-5 0-.79.2-1.53.53-2.2zm4.31-.78l3.15 3.15.02-.16c0-1.66-1.34-3-3-3l-.17.01z"/></svg>',
     drag: '<svg class="lm-icon lm-icon-drag" viewBox="0 0 24 24"><path d="M3 15h18v-2H3v2zm0 4h18v-2H3v2zm0-8h18V9H3v2zm0-6v2h18V5H3z"/></svg>',
-    remove: '<svg class="lm-icon" viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>'
+    remove: '<svg class="lm-icon" viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>',
+    legend: '<svg class="lm-icon" viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm-1 7V3.5L18.5 9H13zM6 20V4h5v5c0 .55.45 1 1 1h6v10H6z"/><rect x="8" y="13" width="8" height="1.5" rx=".5"/><rect x="8" y="16" width="5" height="1.5" rx=".5"/></svg>'
   };
 
   var LMActive = {
@@ -106,6 +107,15 @@
         html += '<div class="lm-drag-handle" data-action="drag" title="Verschieben">' + ICON.drag + '</div>';
         html += '<button class="' + eyeCls + '" data-action="eye" title="Sichtbarkeit">' + eyeIcon + '</button>';
         html += '<span class="lm-active-name">' + esc(l.name) + '</span>';
+
+        // Legende-Button: WMS immer, ArcGIS REST mit agsproxy immer, sonstige mit legendLink
+        var isWms = (l.type === 'wms' || (l.id && l.id.indexOf('wms:') === 0));
+        var isArcgis = (!isWms && l.layerType === 'arcgisRest' && l.url && l.url.indexOf('agsproxy.php') !== -1);
+        var hasExplicitLegend = (!isWms && !isArcgis && l.legendLink && l.legendLink !== '');
+        if (isWms || isArcgis || hasExplicitLegend) {
+          html += '<button class="lm-btn-legend" data-action="legend" title="Legende anzeigen">' + ICON.legend + '</button>';
+        }
+
         html += '<button class="lm-btn-remove" data-action="remove" title="Entfernen">' + ICON.remove + '</button>';
         html += '</div>';
 
@@ -156,6 +166,96 @@
             break;
           case 'remove':
             window.TnetLMStore.removeLayer(layerId);
+            break;
+          case 'legend':
+            // Legende öffnen — unterscheide WMS vs. Framework-Layer
+            var isWmsLayer = (layerId.indexOf('wms:') === 0);
+
+            if (isWmsLayer) {
+              // WMS-Layer: über TnetWmsLegend (legendUrl vom OL-Layer)
+              if (window.TnetWmsLegend) {
+                var wmsLegendUrl = '';
+                var wmsLegendTitle = '';
+                try {
+                  var store = window.TnetLMStore;
+                  var layers = store ? store.getActiveLayers() : [];
+                  for (var li = 0; li < layers.length; li++) {
+                    if (layers[li].id === layerId && layers[li]._olLayerRef) {
+                      wmsLegendUrl = layers[li]._olLayerRef.get('tnet_wms_legendUrl') || '';
+                      wmsLegendTitle = layers[li]._olLayerRef.get('title') || layers[li].name || '';
+                      break;
+                    }
+                  }
+                } catch(e) { /* Fehler ignorieren */ }
+                var wmsName = layerId.substring(4);
+                window.TnetWmsLegend(wmsName, wmsLegendTitle, wmsLegendUrl);
+              }
+            } else {
+              // Framework-Layer: legendLink oder legend-proxy URL
+              try {
+                var fStore = window.TnetLMStore;
+                var fLayers = fStore ? fStore.getActiveLayers() : [];
+                var fEntry = null;
+                for (var fi = 0; fi < fLayers.length; fi++) {
+                  if (fLayers[fi].id === layerId) { fEntry = fLayers[fi]; break; }
+                }
+                if (fEntry) {
+                  var fLegendUrl = fEntry.legendLink || '';
+                  var fLegendTitle = fEntry.legendTitle || fEntry.name || '';
+
+                  // Kein expliziter legendLink → legend-proxy URL aus agsproxy-URL konstruieren
+                  if (!fLegendUrl) {
+                    var svcUrl = fEntry.url || '';
+                    // Auch OL-Layer Source-URL prüfen (Fallback)
+                    if (!svcUrl && fEntry._olLayerRef) {
+                      try {
+                        var src = fEntry._olLayerRef.getSource();
+                        if (src && typeof src.getUrl === 'function') svcUrl = src.getUrl() || '';
+                        if (!svcUrl && src && typeof src.getUrls === 'function') {
+                          var urls = src.getUrls();
+                          if (urls && urls.length) svcUrl = urls[0];
+                        }
+                      } catch(se) { /* Source-Zugriff fehlgeschlagen */ }
+                    }
+                    // Pattern 1: agsproxy.php?path=<service-pfad>
+                    var proxyIdx = svcUrl.indexOf('agsproxy.php?path=');
+                    if (proxyIdx !== -1) {
+                      var svcPath = svcUrl.substring(proxyIdx + 18); // nach 'agsproxy.php?path='
+                      fLegendUrl = '/maps/tnet/api/v1/legend-proxy.php?service=' + encodeURIComponent(svcPath);
+                      console.log(LOG, 'Legend-Proxy URL (agsproxy):', fLegendUrl);
+                    }
+                    // Pattern 2: Fallback /rest/services/<pfad>
+                    if (!fLegendUrl) {
+                      var svcIdx = svcUrl.indexOf('/rest/services/');
+                      if (svcIdx !== -1) {
+                        var svcPath2 = svcUrl.substring(svcIdx + 15);
+                        var qIdx = svcPath2.indexOf('?');
+                        if (qIdx !== -1) svcPath2 = svcPath2.substring(0, qIdx);
+                        fLegendUrl = '/maps/tnet/api/v1/legend-proxy.php?service=' + encodeURIComponent(svcPath2);
+                        console.log(LOG, 'Legend-Proxy URL (rest):', fLegendUrl);
+                      }
+                    }
+                  }
+
+                  if (fLegendUrl) {
+                    var am = window.njs && window.njs.AppManager;
+                    if (!am) am = window.top && window.top.njs && window.top.njs.AppManager;
+                    if (am && typeof am.showLegend === 'function') {
+                      am.showLegend(fLegendUrl, fLegendTitle, true, undefined);
+                      console.log(LOG, 'Framework-Legende geöffnet:', fLegendUrl);
+                    } else {
+                      window.open(fLegendUrl, '_blank', 'noopener');
+                    }
+                  } else {
+                    console.warn(LOG, 'Keine Legenden-URL ermittelbar für:', layerId);
+                  }
+                } else {
+                  console.warn(LOG, 'Kein Store-Eintrag für Layer:', layerId);
+                }
+              } catch(e) {
+                console.error(LOG, 'Fehler beim Öffnen der Legende:', e);
+              }
+            }
             break;
         }
       });

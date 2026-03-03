@@ -211,6 +211,12 @@
             '<input type="text" id="print-title" placeholder="Kartentitel" value="Situationsplan">' +
           '</div>' +
 
+          // Benutzer
+          '<div class="print-section">' +
+            '<label>Benutzer</label>' +
+            '<input type="text" id="print-user" placeholder="Benutzer">' +
+          '</div>' +
+
           // Server-Rendering
           '<div class="print-section print-checks">' +
             '<label class="print-check"><input type="checkbox" id="print-server-render"> ' +
@@ -711,6 +717,13 @@
         dockPrintPanel();
       }
       showPrintFrame();
+      // Benutzer-Feld vorausfüllen (aus Login)
+      var userInput = document.getElementById('print-user');
+      if (userInput && !userInput.value) {
+        if (window.njs && njs.AppManager && njs.AppManager.auth_user) {
+          userInput.value = njs.AppManager.auth_user;
+        }
+      }
       // Kartenausschnitt anpassen: Frame sollte ca. 60-80% des Viewports füllen
       // Auf Mobile übernimmt der Bottom-Sheet-Patch die Zoom-Steuerung
       if (!_isMobile) {
@@ -758,6 +771,7 @@
     var dpiEl          = document.querySelector('input[name="print-dpi"]:checked');
     var aufloesung     = dpiEl ? parseInt(dpiEl.value) : 150;
     var kartentitel    = document.getElementById('print-title').value || '';
+    var benutzer        = document.getElementById('print-user').value || '';
     var gridEl          = document.getElementById('print-grid');
     var koordinatennetz = gridEl ? gridEl.checked : false;
     var netzfarbeEl    = document.querySelector('input[name="print-gridcolor"]:checked');
@@ -801,6 +815,7 @@
         aufloesung: aufloesung,
         rotation: rotation,
         kartentitel: kartentitel,
+        benutzer: benutzer,
         koordinatennetz: koordinatennetz,
         netzfarbe: netzfarbe,
         printCenter: printCenter,
@@ -839,6 +854,7 @@
       aufloesung:      job.params.aufloesung,
       rotation:        job.params.rotation,
       kartentitel:     job.params.kartentitel,
+      benutzer:        job.params.benutzer,
       koordinatennetz: job.params.koordinatennetz,
       netzfarbe:       job.params.netzfarbe,
       printCenter:     job.params.printCenter,

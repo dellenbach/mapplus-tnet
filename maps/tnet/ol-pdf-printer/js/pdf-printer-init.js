@@ -403,12 +403,16 @@
     var coordsText = Math.round(centerNative[0]).toLocaleString('de-CH') + ' / ' +
                      Math.round(centerNative[1]).toLocaleString('de-CH');
     var dateText  = new Date().toLocaleDateString('de-CH');
+    var timeText  = new Date().toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' });
+    var userText  = opts.benutzer || '';
     var rotationDeg = typeof opts.rotation === 'number' ? opts.rotation : 0;
 
     console.log('[PdfPrinter] Texte für Template:', {
       scaleText: scaleText,
       coordsText: coordsText,
       dateText: dateText,
+      timeText: timeText,
+      userText: userText,
       title: opts.kartentitel || _config.filename || 'Kartenexport',
       rotation: rotationDeg
     });
@@ -448,6 +452,8 @@
           scaleNumber: scaleNum,
           coords:    coordsText,
           date:      dateText,
+          time:      timeText,
+          user:      userText,
           rotation:  rotationDeg,
           printCenter: centerNative,  // Exaktes Zentrum durchreichen
           jpegQuality: opts.jpegQuality || 0.7,  // JPEG-Qualität durchreichen

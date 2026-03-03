@@ -460,6 +460,84 @@ input[type="range"]::-webkit-slider-thumb:hover {
   vertical-align: middle !important;
 }
 
+/* ===== INFO-PANEL UNIFIED DESIGN ===== */
+/* Framework-Ergebnisse an WMS-GFI-Design angleichen (teal, 12px, Zebra-Stripes) */
+
+/* TitlePane-Header im Info-Panel: Unterlinie in Primärfarbe */
+#njs_info_pane_content .dijitTitlePaneTitle {
+  background: #fff !important;
+  color: #333 !important;
+  border-bottom: 2px solid #4B7B81 !important;
+  border-top: none !important;
+  border-left: none !important;
+  border-right: none !important;
+  font-size: 12px !important;
+  font-weight: 900 !important;
+  letter-spacing: 1px !important;
+  text-transform: uppercase !important;
+  min-height: 30px !important;
+  padding: 4px 6px !important;
+}
+
+/* Feldname-Spalte: teal, fett, 12px — analog .wms-gfi-key */
+#njs_info_pane_content .infoWindowItemName,
+#njs_info_pane_content .infoWindowFirstItemName {
+  font-weight: 600 !important;
+  white-space: nowrap !important;
+  padding: 3px 8px 3px 4px !important;
+  color: #4B7B81 !important;
+  vertical-align: top !important;
+  width: 35% !important;
+  font-size: 12px !important;
+  background-color: transparent !important;
+  border-top: none !important;
+}
+
+/* Wert-Spalte: 12px, Zeilenumbruch — analog .wms-gfi-val */
+#njs_info_pane_content .infoWindowItem,
+#njs_info_pane_content .infoWindowFirstItem {
+  padding: 3px 4px !important;
+  word-break: break-word !important;
+  font-size: 12px !important;
+  font-weight: normal !important;
+  color: #333 !important;
+  background-color: transparent !important;
+  border-top: none !important;
+}
+
+/* Zebra-Stripes für alle Tabellen im Info-Panel */
+#njs_info_pane_content table tr:nth-child(even) {
+  background: rgba(75, 123, 129, 0.06) !important;
+}
+
+/* Links im Info-Panel: Primärfarbe mit Unterstrich */
+#njs_info_pane_content .infoWindowItem a,
+#njs_info_pane_content .infoWindowItem a:visited,
+#njs_info_pane_content .infoWindowItem a:hover {
+  color: #4B7B81 !important;
+  text-decoration: underline !important;
+}
+
+/* Kategorie-Header (seltener Fall) */
+#njs_info_pane_content .infoWindowCat {
+  background-color: #4B7B81 !important;
+  border-color: #4B7B81 !important;
+  font-size: 11px !important;
+  padding: 4px 6px !important;
+}
+
+/* Footer-Zeile */
+#njs_info_pane_content .infoWindowFooter {
+  border-top: 1px solid rgba(75, 123, 129, 0.2) !important;
+  font-size: 12px !important;
+}
+
+/* Meldungs-Zeile */
+#njs_info_pane_content .infoWindowMsg {
+  font-size: 12px !important;
+  color: #666 !important;
+}
+
 .ol-overviewmap {
   right: 1.5px;
   bottom: 1.5px;
@@ -2405,6 +2483,31 @@ h3 {
 #sort_menu .lm-btn-remove:hover {
   background: rgba(232,66,63,0.1);
   color: #e8423f;
+}
+
+/* Legend-Button in Dargestellte Themen (nur WMS-Layer) */
+#sort_menu .lm-btn-legend {
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: #4b7b81;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  padding: 2px;
+}
+
+#sort_menu .lm-btn-legend:hover {
+  background: rgba(75,123,129,0.15);
+}
+
+#sort_menu .lm-btn-legend .lm-icon {
+  width: 16px;
+  height: 16px;
 }
 
 #sort_menu .lm-opacity-row {

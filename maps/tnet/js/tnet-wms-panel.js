@@ -258,12 +258,29 @@
     if (!layerObj) return;
     // Einzelner Layer
     if (layerObj.Name) {
+      // LegendURL aus Style extrahieren (OL WMSCapabilities Parser liefert Style-Array)
+      var legendUrl = '';
+      var metadataUrl = '';
+      try {
+        if (layerObj.Style && layerObj.Style.length > 0) {
+          var style = layerObj.Style[0];
+          if (style.LegendURL && style.LegendURL.length > 0 && style.LegendURL[0].OnlineResource) {
+            legendUrl = style.LegendURL[0].OnlineResource;
+          }
+        }
+        if (layerObj.MetadataURL && layerObj.MetadataURL.length > 0 && layerObj.MetadataURL[0].OnlineResource) {
+          metadataUrl = layerObj.MetadataURL[0].OnlineResource;
+        }
+      } catch (e) { /* Style/Metadata nicht vorhanden */ }
+
       list.push({
         name: layerObj.Name,
         title: layerObj.Title || layerObj.Name,
         abstract: layerObj.Abstract || '',
         bbox: layerObj.BoundingBox || layerObj.EX_GeographicBoundingBox || null,
-        queryable: layerObj.queryable !== false
+        queryable: layerObj.queryable !== false,
+        legendUrl: legendUrl,
+        metadataUrl: metadataUrl
       });
     }
     // Kind-Layer
@@ -342,6 +359,19 @@
       var actions = document.createElement('div');
       actions.className = 'wms-layer-actions';
 
+      // Legende-Button (immer sichtbar — Fallback-URL wird konstruiert)
+      var legendBtn = document.createElement('button');
+      legendBtn.className = 'wms-layer-action-btn wms-layer-legend-btn';
+      legendBtn.title = 'Legende anzeigen';
+      legendBtn.innerHTML = '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm-1 7V3.5L18.5 9H13zM6 20V4h5v5c0 .55.45 1 1 1h6v10H6z"/><rect fill="currentColor" x="8" y="13" width="8" height="1.5" rx=".5"/><rect fill="currentColor" x="8" y="16" width="5" height="1.5" rx=".5"/></svg>';
+      (function(l) {
+        legendBtn.onclick = function(e) {
+          e.stopPropagation();
+          _showWmsLegend(l.name, l.title, l.legendUrl);
+        };
+      })(layer);
+      actions.appendChild(legendBtn);
+
       // Zoom-Button
       if (layer.bbox) {
         var zoomBtn = document.createElement('button');
@@ -354,8 +384,6 @@
         };
         actions.appendChild(zoomBtn);
       }
-
-      // Nur Zoom-Button rechts — Checkbox links ist der Ein/Aus-Schalter
 
       div.appendChild(cb);
       div.appendChild(info);
@@ -529,12 +557,25 @@
       console.warn('[WMS-Panel] addLayer Framework-Fehler abgefangen:', e.message);
     }
 
+    // LegendURL: aus Capabilities oder Fallback via GetLegendGraphic
+    var legendUrl = layerDef.legendUrl || '';
+    if (!legendUrl && wmsUrl) {
+      // Fallback: GetLegendGraphic-URL konstruieren
+      var sep = wmsUrl.indexOf('?') > -1 ? '&' : '?';
+      legendUrl = wmsUrl + sep + 'SERVICE=WMS&VERSION=1.3.0&REQUEST=GetLegendGraphic&LAYER=' +
+        encodeURIComponent(layerDef.name) + '&FORMAT=image/png';
+    }
+    olLayer.set('tnet_wms_legendUrl', legendUrl);
+    olLayer.set('tnet_wms_metadataUrl', layerDef.metadataUrl || '');
+
     _addedLayers.push({
       olLayer: olLayer,
       name: layerDef.name,
       title: layerDef.title,
       wmsUrl: wmsUrl,
-      opacity: 0.8
+      opacity: 0.8,
+      legendUrl: legendUrl,
+      metadataUrl: layerDef.metadataUrl || ''
     });
 
     _renderAddedLayers();
@@ -665,6 +706,17 @@
         entry.olLayer.setOpacity(val);
       };
 
+      // Legende-Button
+      var legendBtn = document.createElement('button');
+      legendBtn.className = 'wms-added-legend';
+      legendBtn.title = 'Legende anzeigen';
+      legendBtn.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm-1 7V3.5L18.5 9H13zM6 20V4h5v5c0 .55.45 1 1 1h6v10H6z"/><rect fill="currentColor" x="8" y="13" width="8" height="1.5" rx=".5"/><rect fill="currentColor" x="8" y="16" width="5" height="1.5" rx=".5"/></svg>';
+      (function(e) {
+        legendBtn.onclick = function() {
+          _showWmsLegend(e.name, e.title, e.legendUrl);
+        };
+      })(entry);
+
       var removeBtn = document.createElement('button');
       removeBtn.className = 'wms-added-remove';
       removeBtn.title = 'Entfernen';
@@ -675,10 +727,67 @@
 
       div.appendChild(name);
       div.appendChild(slider);
+      div.appendChild(legendBtn);
       div.appendChild(removeBtn);
       list.appendChild(div);
     });
   }
+
+  // ===== WMS-LEGENDE ANZEIGEN =====
+
+  /**
+   * Öffnet die WMS-Legende im bestehenden Legend-FloatingPane.
+   * Nutzt njs.AppManager.showLegend() falls verfügbar, sonst window.open().
+   * Falls keine legendUrl vorhanden, wird eine GetLegendGraphic-Fallback-URL konstruiert.
+   */
+  function _showWmsLegend(layerName, layerTitle, legendUrl) {
+    console.log('[WMS-Panel] Legende anzeigen:', layerTitle, '| URL:', legendUrl);
+
+    // Falls keine URL: Fallback aus der aktuellen WMS-URL konstruieren
+    if (!legendUrl && _currentWmsUrl) {
+      var sep = _currentWmsUrl.indexOf('?') > -1 ? '&' : '?';
+      legendUrl = _currentWmsUrl + sep + 'SERVICE=WMS&VERSION=1.3.0&REQUEST=GetLegendGraphic&LAYER=' +
+        encodeURIComponent(layerName) + '&FORMAT=image/png';
+    }
+    // Auch in _addedLayers suchen (falls über Dargestellte Themen aufgerufen)
+    if (!legendUrl) {
+      for (var i = 0; i < _addedLayers.length; i++) {
+        if (_addedLayers[i].name === layerName) {
+          legendUrl = _addedLayers[i].legendUrl;
+          if (!legendUrl && _addedLayers[i].wmsUrl) {
+            var s = _addedLayers[i].wmsUrl.indexOf('?') > -1 ? '&' : '?';
+            legendUrl = _addedLayers[i].wmsUrl + s + 'SERVICE=WMS&VERSION=1.3.0&REQUEST=GetLegendGraphic&LAYER=' +
+              encodeURIComponent(layerName) + '&FORMAT=image/png';
+          }
+          break;
+        }
+      }
+    }
+
+    if (!legendUrl) {
+      console.warn('[WMS-Panel] Keine Legenden-URL für:', layerName);
+      return;
+    }
+
+    // Versuch 1: Framework-Methode (öffnet im bestehenden Legend-FloatingPane)
+    try {
+      var am = window.njs && window.njs.AppManager;
+      if (!am) am = window.top && window.top.njs && window.top.njs.AppManager;
+      if (am && typeof am.showLegend === 'function') {
+        am.showLegend(legendUrl, 'Legende: ' + (layerTitle || layerName), true, undefined);
+        console.log('[WMS-Panel] Legende über Framework geöffnet');
+        return;
+      }
+    } catch (e) {
+      console.warn('[WMS-Panel] Framework showLegend fehlgeschlagen:', e.message);
+    }
+
+    // Versuch 2: Neues Fenster/Tab
+    window.open(legendUrl, '_blank', 'noopener');
+  }
+
+  // Export für tnet-lm-active.js (Dargestellte Themen)
+  window.TnetWmsLegend = _showWmsLegend;
 
   // ===== ZOOM AUF LAYER =====
 
@@ -1138,6 +1247,62 @@
   }
 
   /**
+   * Entfernt alle "Keine Objekte/Ergebnisse"-Meldungen aus dem Container.
+   * Bereinigt: .noInfoResults, .njs-info-no-results Elemente UND
+   * lose Textknoten die "Keine" enthalten.
+   */
+  function _removeNoResultsMessages(container) {
+    // Element-basierte Meldungen
+    var noResults = container.querySelectorAll('.noInfoResults, .njs-info-no-results');
+    noResults.forEach(function(n) { n.remove(); });
+    // Textknoten mit "Keine Ergebnisse" oder ähnlich
+    var childNodes = container.childNodes;
+    for (var n = childNodes.length - 1; n >= 0; n--) {
+      if (childNodes[n].nodeType === 3 && childNodes[n].textContent.indexOf('Keine') > -1) {
+        container.removeChild(childNodes[n]);
+      }
+    }
+  }
+
+  /**
+   * MutationObserver: Überwacht den Info-Container nach der WMS-Injection.
+   * Falls das Framework nachträglich "Keine Objekte gefunden" schreibt
+   * (Race-Condition), wird die Meldung sofort entfernt — aber NUR wenn
+   * WMS-Ergebnisse (.wms-gfi-result) im Container vorhanden sind.
+   * Disconnected automatisch nach 5 Sekunden.
+   */
+  function _watchForNoResultsMessages(container) {
+    if (typeof MutationObserver === 'undefined') return;
+    var observer = new MutationObserver(function(mutations) {
+      // Nur handeln wenn WMS-Ergebnisse vorhanden sind
+      if (!container.querySelector('.wms-gfi-result')) return;
+      var hasKeineText = false;
+      for (var i = 0; i < mutations.length; i++) {
+        var added = mutations[i].addedNodes;
+        for (var j = 0; j < added.length; j++) {
+          var node = added[j];
+          if (node.nodeType === 3 && node.textContent.indexOf('Keine') > -1) {
+            hasKeineText = true;
+          } else if (node.nodeType === 1 && (
+            node.classList.contains('noInfoResults') ||
+            node.classList.contains('njs-info-no-results') ||
+            (node.textContent && node.textContent.indexOf('Keine Objekte') > -1 && !node.querySelector('.dijitTitlePane'))
+          )) {
+            hasKeineText = true;
+          }
+        }
+      }
+      if (hasKeineText) {
+        console.log('[WMS-GFI] Observer: "Keine Objekte" nachträglich entfernt');
+        _removeNoResultsMessages(container);
+      }
+    });
+    observer.observe(container, { childList: true, subtree: false });
+    // Auto-Disconnect nach 5 Sekunden
+    setTimeout(function() { observer.disconnect(); }, 5000);
+  }
+
+  /**
    * Ergebnisse im Objektinfo-Panel anzeigen.
    * Wartet bis das Framework seine Ergebnisse geschrieben hat,
    * dann hängt unsere WMS-GFI-Ergebnisse an.
@@ -1183,15 +1348,12 @@
       console.log('[WMS-GFI] Injiziere Ergebnisse (Versuch ' + attempts + ')');
 
       // "Keine Ergebnisse" Meldungen des Frameworks entfernen
-      var noResults = container.querySelectorAll('.noInfoResults, .njs-info-no-results');
-      noResults.forEach(function(n) { n.remove(); });
-      // Textknoten mit "Keine Ergebnisse" oder ähnlich entfernen
-      var childNodes = container.childNodes;
-      for (var n = childNodes.length - 1; n >= 0; n--) {
-        if (childNodes[n].nodeType === 3 && childNodes[n].textContent.indexOf('Keine') > -1) {
-          container.removeChild(childNodes[n]);
-        }
-      }
+      _removeNoResultsMessages(container);
+
+      // MutationObserver: Framework kann "Keine Objekte" auch NACH unserer
+      // Injection schreiben (asynchrone Race-Condition).
+      // Observer entfernt solche Meldungen solange WMS-Ergebnisse vorhanden sind.
+      _watchForNoResultsMessages(container);
 
       features.forEach(function(item) {
         // Raw HTML Ergebnisse

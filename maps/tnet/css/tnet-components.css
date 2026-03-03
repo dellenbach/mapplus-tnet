@@ -1731,3 +1731,30 @@ body.oereb-mode #freepane * {
 .wms-gfi-content {
   padding: 4px 8px;
 }
+
+/* ===== WMS LEGENDE-BUTTONS ===== */
+
+.wms-layer-legend-btn {
+  color: #4b7b81 !important;
+}
+.wms-layer-legend-btn svg {
+  width: 16px;
+  height: 16px;
+}
+.wms-added-legend {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  background: rgba(75,123,129,0.08);
+  border-radius: 3px;
+  color: #4b7b81;
+  cursor: pointer;
+  flex-shrink: 0;
+  padding: 0;
+}
+.wms-added-legend:hover {
+  background: rgba(75,123,129,0.2);
+}

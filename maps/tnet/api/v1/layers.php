@@ -356,6 +356,11 @@ foreach ($mapping['categories'] as $topCategory) {
                         'layers' => []
                     ];
 
+                    // Legenden-Key aus lyrmgr.conf durchreichen
+                    if (isset($groupDef['legend']) && $groupDef['legend'] !== '') {
+                        $groupData['legend'] = $groupDef['legend'];
+                    }
+
                     if (isset($groupDef['items'])) {
                         $groupData['layers'] = processLayerItems($groupDef['items'], $layerDefinitions, $details);
                     }
@@ -494,6 +499,11 @@ function processLayerItems($items, &$layerDefinitions, $details = true) {
                 'type' => isset($item['items']) ? 'group' : 'layer',
                 'open' => $item['open'] ?? false
             ];
+
+            // Legenden-Key aus lyrmgr.conf durchreichen
+            if (isset($item['legend']) && $item['legend'] !== '') {
+                $layerData['legend'] = $item['legend'];
+            }
 
             if ($details && !isset($item['items'])) {
                 $def = findLayerDefinition($item['name'], $layerDefinitions);

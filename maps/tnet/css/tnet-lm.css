@@ -435,6 +435,29 @@
   background: rgba(0, 0, 0, 0.06);
 }
 
+/* ── Legende-Button (nur WMS-Layer) ── */
+
+.lm-btn-legend {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  border-radius: 50%;
+  padding: 0;
+  color: #4b7b81;
+  flex-shrink: 0;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.lm-btn-legend:active {
+  background: rgba(75, 123, 129, 0.12);
+}
+
 /* ── Drag Handle ── */
 
 .lm-drag-handle {

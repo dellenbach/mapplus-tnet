@@ -56,6 +56,7 @@
           //   API liefert: categories[].nodes[] statt .subcategories[]
           //   Subcategories haben .layers (Gruppen) statt .groups
           self._normalizeCategories(categories);
+          self._propagateLegends(categories, null);
           self._initDefaults(categories);
           _catalog = categories;
           _loaded = true;
@@ -142,6 +143,33 @@
           // Blatt-Layer
           if (l.visible === undefined) l.visible = false;
           if (l.opacity === undefined) l.opacity = (l.options && l.options.opacity !== undefined) ? l.options.opacity : 1.0;
+        }
+      }
+    },
+
+    /**
+     * Vererbt den legend-Key von Gruppen an Blatt-Layer.
+     * Wird nach _normalizeCategories aufgerufen.
+     * Durchläuft den gesamten Baum rekursiv.
+     *
+     * @param {Array} nodes       Aktueller Knoten-Array (Kategorien/Gruppen/Layer)
+     * @param {string|null} parentLegend  Legende des nächsten Eltern-Knotens
+     */
+    _propagateLegends: function (nodes, parentLegend) {
+      for (var i = 0; i < nodes.length; i++) {
+        var n = nodes[i];
+        // Eigene Legende hat Vorrang, sonst vom Eltern-Knoten erben
+        var effectiveLegend = n.legend || parentLegend;
+        if (!n.legend && effectiveLegend) {
+          n.legend = effectiveLegend;
+        }
+        // Rekursiv in alle Kind-Arrays absteigen
+        var childArrays = ['subcategories', 'groups', 'layers', 'children'];
+        for (var c = 0; c < childArrays.length; c++) {
+          var children = n[childArrays[c]];
+          if (children && children.length) {
+            this._propagateLegends(children, effectiveLegend);
+          }
         }
       }
     },
