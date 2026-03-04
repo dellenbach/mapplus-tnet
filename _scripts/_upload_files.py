@@ -13,7 +13,9 @@ LOCAL_BASE = r"c:\_Daten\mapplus-exp\maps"
 
 # Files to upload
 FILES = [
-    "tnet/js/tnet-lm-store.js",
+    "tnet/js/tnet-print.js",
+    "tnet/js/tnet-3d-landscape.js",
+    "tnet/js/tnet-3d-landscape-config.js",
 ]
 
 def upload_files():

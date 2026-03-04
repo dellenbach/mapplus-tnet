@@ -51,9 +51,9 @@
         }
         
         var paths = [
+            '/maps/tnet/config/tnet-global-config.json5',
             '/maps/tnet/tnet-global-config.json5',
-            '../tnet-global-config.json5',
-            'tnet-global-config.json5'
+            '../tnet/config/tnet-global-config.json5'
         ];
         for (var i = 0; i < paths.length; i++) {
             try {

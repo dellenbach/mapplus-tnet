@@ -157,6 +157,9 @@ function setupObservers() {
     updateScaleDisplay();
     updateCopyrightDisplay();
 
+    // Scales aus tnet-global-config.json5 laden (async, Dropdown wird nachgebaut)
+    loadScalesFromConfig();
+
     // Event-Listener für Zoom/Resolution-Änderungen
     view.on('change:resolution', updateScaleDisplay);
 
@@ -209,10 +212,65 @@ function getMapScale(map) {
 }
 
 // Vordefinierte Maßstäbe für die Auswahl
-// Quelle: tnet-global-config.json5 → scales (falls geladen), sonst Defaults
-var predefinedScales = (window._tnetScales && window._tnetScales.length)
-    ? window._tnetScales
-    : [100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 75000, 100000, 250000, 500000, 1000000];
+// Werden beim Init aus tnet-global-config.json5 geladen, Fallback auf Defaults
+var predefinedScales = [100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 75000, 100000, 250000, 500000, 1000000];
+
+// Scales aus Config laden und Dropdown neu befüllen
+function loadScalesFromConfig() {
+    var paths = [
+        '/maps/tnet/config/tnet-global-config.json5',
+        '/maps/tnet/tnet-global-config.json5',
+        '../tnet/config/tnet-global-config.json5'
+    ];
+    function tryPath(idx) {
+        if (idx >= paths.length) return; // alle Pfade fehlgeschlagen, Defaults bleiben
+        var xhr = new XMLHttpRequest();
+        xhr.open('GET', paths[idx], true);
+        xhr.onload = function() {
+            if (xhr.status === 200) {
+                try {
+                    // JSON5: Kommentare und trailing commas entfernen
+                    var text = xhr.responseText
+                        .replace(/\/\/.*$/gm, '')
+                        .replace(/\/\*[\s\S]*?\*\//g, '')
+                        .replace(/,\s*([\]}])/g, '$1');
+                    var cfg = JSON.parse(text);
+                    if (cfg.scales && Array.isArray(cfg.scales) && cfg.scales.length > 0) {
+                        predefinedScales = cfg.scales;
+                        window._tnetScales = cfg.scales;
+                        rebuildScaleDropdown();
+                        console.log('[MapFooter] Scales aus Config geladen:', predefinedScales.length, 'Stufen');
+                    }
+                } catch (e) {
+                    console.warn('[MapFooter] Config-Parse-Fehler:', e);
+                }
+            } else {
+                tryPath(idx + 1);
+            }
+        };
+        xhr.onerror = function() { tryPath(idx + 1); };
+        xhr.send();
+    }
+    tryPath(0);
+}
+
+// Dropdown-Optionen neu aufbauen aus predefinedScales
+function rebuildScaleDropdown() {
+    var scaleSelect = document.getElementById('map-scale-select');
+    if (!scaleSelect) return;
+    var currentVal = scaleSelect.value;
+    scaleSelect.innerHTML = '';
+    for (var i = 0; i < predefinedScales.length; i++) {
+        var s = predefinedScales[i];
+        var opt = document.createElement('option');
+        opt.value = s.toString();
+        opt.textContent = '1:' + s.toLocaleString('de-CH');
+        scaleSelect.appendChild(opt);
+    }
+    // Aktuellen Wert wiederherstellen oder nächsten finden
+    if (currentVal) scaleSelect.value = currentVal;
+    updateScaleDisplay();
+}
 
 // Resolution aus Maßstab berechnen (umgekehrte Formel)
 function getResolutionFromScale(scale) {

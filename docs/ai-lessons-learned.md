@@ -6,6 +6,12 @@
 
 ---
 
+## 2026-03-04 — Druckrahmen initial falsch skaliert (erst nach Pan korrekt)
+- **Symptom**: Beim Öffnen des Druck-Panels wird der Druckrahmen zu gross/klein angezeigt; erst nach kleinem Pan stimmt die Skalierung.
+- **Root-Cause**: `dockPrintPanel()` ändert `mapContainer`-Breite und ruft `map.updateSize()` verzögert (350ms). `showPrintFrame()` → `updateFrameSize()` läuft aber sofort, mit der alten Resolution/Viewport-Grösse. Ebenso `adjustZoomForPrintFrame()` liest veraltete `clientWidth`.
+- **Fix**: In `triggerPrintMapUpdate()` nach `updateSize()` auch `updateFrameSize()` aufrufen. `adjustZoomForPrintFrame()` in `openPdfPrinter` um 450ms verzögern (nach Map-Update).
+- **Guardrail**: Nach `map.updateSize()` immer alle davon abhängigen Berechnungen (Frame-Grösse, Viewport-Ratio) erneut triggern.
+
 ## 2026-06-xx — Legend-Button fehlt bei ArcGIS REST Layern in "Dargestellte Themen"
 - **Symptom**: Planungszonen kantonal/kommunal aktiv → kein Legenden-Icon im "Dargestellte Themen"-Panel.
 - **Root-Cause**: Die API läuft im **Database-Modus** (`source: "database"`), nicht File-Modus. Alle `legendLink`/`legendTitle` sind `null` in der DB. Fix-Versuch über `processLayerItems()` (File-Modus) und `legend`-Property-Vererbung griff nicht. Der Click-Handler suchte nach `/rest/services/` im URL-Pattern, aber die Layer nutzen `agsproxy.php?path=`.

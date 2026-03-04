@@ -113,7 +113,7 @@
   function loadScalesFromConfig() {
     try {
       var xhr = new XMLHttpRequest();
-      xhr.open('GET', '/maps/tnet/tnet-global-config.json5', false);
+      xhr.open('GET', '/maps/tnet/config/tnet-global-config.json5', false);
       xhr.send();
       if (xhr.status === 200) {
           var text = xhr.responseText;
@@ -726,8 +726,11 @@
       }
       // Kartenausschnitt anpassen: Frame sollte ca. 60-80% des Viewports füllen
       // Auf Mobile übernimmt der Bottom-Sheet-Patch die Zoom-Steuerung
+      // Verzögerung notwendig: dockPrintPanel() ändert mapContainer-Breite,
+      // map.updateSize() wird erst nach 350ms aufgerufen → Frame-Berechnung
+      // und Viewport-Dimensionen stimmen erst danach.
       if (!_isMobile) {
-        adjustZoomForPrintFrame();
+        setTimeout(function () { adjustZoomForPrintFrame(); }, 450);
       }
     };
 
@@ -1153,6 +1156,9 @@
       if (typeof dijit !== 'undefined' && dijit.byId('NeapolisContainer')) {
         dijit.byId('NeapolisContainer').resize();
       }
+      // Nach updateSize den Druckrahmen neu berechnen,
+      // damit die initiale Skalierung stimmt (nicht erst nach Pan)
+      updateFrameSize();
     }, 350);
   }
 
