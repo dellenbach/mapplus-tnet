@@ -6,6 +6,12 @@
 
 ---
 
+## 2026-03-04 — Nordpfeil und Massstabstext im PDF nicht sichtbar
+- **Symptom**: Nach Einführung von `rotateNorthArrowInSvg()` fehlen Nordpfeil und ggf. Massstabstext im exportierten PDF.
+- **Root-Cause**: Z-Order-Problem. Der Nordpfeil liegt innerhalb des MAP_AREA. `pdf.svg()` rendert das SVG (inkl. rotiertem Nordpfeil) als unterste Schicht. Danach folgen ein weisses Rect + Kartenbild, die den Bereich komplett überdecken. `drawNorthArrow()` wurde wegen `_northArrowInSvg`-Flag fälschlich übersprungen. Zusätzlich konnte `pdf.svg()` den jsPDF-internen Graphics-State (Clip/Transform) verändern, was folgende `drawScaleLabel()`/`drawScaleBar()`-Aufrufe beeinträchtigte.
+- **Fix**: (1) `rotateNorthArrowInSvg()`-Aufruf im Export-Flow deaktiviert (Nordpfeil innerhalb MAP_AREA → wird immer überdeckt). (2) `drawNorthArrow()` wird jetzt IMMER nach dem Kartenbild aufgerufen, ohne `_northArrowInSvg`-Skip. (3) `drawDynamicElements()` und `drawScaleLabel()` mit `saveGraphicsState()`/`restoreGraphicsState()` abgesichert.
+- **Guardrail**: Dynamische Elemente, die innerhalb des MAP_AREA liegen, müssen IMMER per jsPDF NACH dem Kartenbild gezeichnet werden. SVG-basierte Manipulation funktioniert nur für Elemente ausserhalb des MAP_AREA (z.B. Titel, Copyright).
+
 ## 2026-06-xx — Nordpfeil in Druck-Vorschau dreht sich nicht bei Rotation
 - **Symptom**: Beim Ändern des Rotations-Sliders im Druck-Panel dreht sich der Nordpfeil im SVG-Overlay nicht mit.
 - **Root-Cause**: `insertDynamicSvgElements()` behandelte nur `scaleBar`/`scaleLabel`, nicht den Nordpfeil. Der Rotation-Slider aktualisierte die SVG-Vorschau nicht.
@@ -354,3 +360,12 @@
 - **Root-Cause**: `#spring` wurde mit `height:0` und `overflow:hidden` kollabiert, wodurch der Handle (als Kind von `#spring`) mit weggeclippt wurde. Gleichzeitig wurden Resthöhen von Child-Elementen nicht konsistent neutralisiert.
 - **Fix**: Im Close-Zustand werden alle `#spring`-Kinder ausser `.close_switch` auf `max-height:0`/`opacity:0` gesetzt; `#spring` bleibt auf Handle-Höhe (`10px`) mit `overflow:visible`; `.close_switch` bleibt relativ und klickbar.
 - **Guardrail**: Bei Collapse-Layouts nie den einzigen Reopen-Trigger in einem `overflow:hidden`-Container clippen. Reopen-Element explizit sichtbar/klickbar halten und nur Nicht-Trigger-Inhalt kollabieren.
+
+---
+
+## 2026-03-04 — Sidebar-Close: Handle nicht bündig am Header
+
+- **Symptom**: Nach dem Zusammenklappen blieb der Handle sichtbar, lag aber mit Abstand unterhalb des Headers statt bündig anzuliegen.
+- **Root-Cause**: Resthöhen/Min-Heights kollabierter `#spring`-Kinder beeinflussten den normalen Flow und drückten den Handle nach unten.
+- **Fix**: Close-Regeln für `#spring > *:not(.close_switch)` um `height:0` und `min-height:0` ergänzt; Handle im Close-Zustand absolut auf `top:0` innerhalb von `#spring` verankert; `#spring` bleibt `position:relative`.
+- **Guardrail**: Bei Collapse-UI mit Trigger innerhalb des Containers Trigger-Position entkoppeln (absolute Verankerung) und bei Geschwister-Elementen immer auch `height/min-height` explizit nullen.

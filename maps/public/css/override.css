@@ -947,6 +947,8 @@ body.drawing-mode #freepane * {
 
 #freepane.close #spring > *:not(.close_switch) {
   max-height: 0 !important;
+  height: 0 !important;
+  min-height: 0 !important;
   opacity: 0 !important;
   overflow: hidden !important;
   margin: 0 !important;
@@ -956,6 +958,7 @@ body.drawing-mode #freepane * {
 }
 
 #freepane.close #spring {
+  position: relative !important;
   height: 10px !important;
   max-height: 10px !important;
   min-height: 10px !important;
@@ -966,9 +969,10 @@ body.drawing-mode #freepane * {
 
 /* close_switch bleibt immer sichtbar */
 #freepane.close .close_switch {
-  position: relative !important;
-  top: auto !important;
-  left: auto !important;
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
   transform: none !important;
   pointer-events: auto !important;
 }
