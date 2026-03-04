@@ -915,6 +915,7 @@ body.drawing-mode #freepane * {
 #freepane.close {
   max-height: 10px !important;
   min-height: 0 !important;
+  overflow: hidden !important;
 }
 
 /* Freepane kürzen wenn Spatial Query Panel angedockt */
