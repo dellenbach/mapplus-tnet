@@ -1,4 +1,4 @@
-/**
+﻿/**
  * tnet-map-footer.js (ES Module) - Koordinaten-Leiste / Map Footer Bar
  * 
  * Enthält:
@@ -229,20 +229,36 @@ function loadScalesFromConfig() {
         xhr.onload = function() {
             if (xhr.status === 200) {
                 try {
-                    // JSON5: Kommentare und trailing commas entfernen
-                    var text = xhr.responseText
-                        .replace(/\/\/.*$/gm, '')
-                        .replace(/\/\*[\s\S]*?\*\//g, '')
-                        .replace(/,\s*([\]}])/g, '$1');
-                    var cfg = JSON.parse(text);
+                    // JSON5-Parser: Kommentare (string-aware), trailing commas, unquoted keys, single quotes
+                    var text = xhr.responseText;
+                    var lines = text.split('\n');
+                    var cleaned = [];
+                    for (var j = 0; j < lines.length; j++) {
+                        var line = lines[j];
+                        var inStr = false, strCh = null, cp = -1;
+                        for (var k = 0; k < line.length; k++) {
+                            var c = line[k];
+                            if ((c === '"' || c === "'") && (k === 0 || line[k - 1] !== '\\')) {
+                                if (!inStr) { inStr = true; strCh = c; }
+                                else if (c === strCh) { inStr = false; }
+                            }
+                            if (!inStr && k < line.length - 1 && line[k] === '/' && line[k + 1] === '/') { cp = k; break; }
+                        }
+                        if (cp > -1) line = line.substring(0, cp);
+                        if (line.trim()) cleaned.push(line);
+                    }
+                    var jsonText = cleaned.join('\n')
+                        .replace(/,(\s*[}\]])/g, '$1')
+                        .replace(/((?:^|[{,])\s*)([a-zA-Z_][a-zA-Z0-9_-]*)\s*:/gm, '$1"$2":')
+                        .replace(/'([^'\\]*(?:\\.[^'\\]*)*)'/g, '"$1"');
+                    var cfg = JSON.parse(jsonText);
                     if (cfg.scales && Array.isArray(cfg.scales) && cfg.scales.length > 0) {
                         predefinedScales = cfg.scales;
                         window._tnetScales = cfg.scales;
                         rebuildScaleDropdown();
-                        console.log('[MapFooter] Scales aus Config geladen:', predefinedScales.length, 'Stufen');
                     }
                 } catch (e) {
-                    console.warn('[MapFooter] Config-Parse-Fehler:', e);
+                    TnetLog.warn('[MapFooter] Config-Parse-Fehler:', e);
                 }
             } else {
                 tryPath(idx + 1);

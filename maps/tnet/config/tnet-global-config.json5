@@ -14,7 +14,7 @@
   logLevel: 'none',
 
   // Vordefinierte Kartenmassstäbe (für Footer-Dropdown + Druck-Panel)
-  scales: [50, 100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 75000, 100000, 250000, 500000, 1000000],
+  scales: [100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 75000, 100000, 250000, 500000, 1000000],
 
   // ============================================================
   // 3D LANDSCAPE / SPLITSCREEN
@@ -102,8 +102,8 @@
     
     // Kamera & Terrain
     camera: {
-      terrainHeightOffset: 200,     // Kamerahöhe über Terrain (m)
-      fallbackTerrainHeight: 600,   // Fallback wenn API fehlschlägt (m ü.M.)
+      terrainHeightOffset: 100,     // Kamerahöhe über Terrain (m)
+      fallbackTerrainHeight: 500,   // Fallback wenn API fehlschlägt (m ü.M.)
       defaultHeading: 0,            // Ausrichtung (0 = Nord)
       defaultTilt: 60,              // Neigung (0 = senkrecht nach unten, 90 = horizontal)
       defaultFov: 55,               // Field of View (Grad)
@@ -383,7 +383,7 @@
     // Automatisch Zoom anpassen beim Öffnen des Druckpanels
     autoAdjustZoom: true,
     // Ziel: Frame soll ca. X% des Viewports füllen (50-90)
-    targetFramePercent: 50,
+    targetFramePercent: 40,
     // JPEG-Qualität für Kartenbild im PDF (0.0 - 1.0)
     // Niedriger = kleinere Datei, etwas unschärfer
     // 0.7 = guter Kompromiss, 0.85 = hohe Qualität, 0.5 = sehr klein

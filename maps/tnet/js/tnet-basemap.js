@@ -1,4 +1,4 @@
-/**
+﻿/**
  * tnet-basemap.js
  * ================
  * Zentrales Basemap-Modul für TNET WebGIS.
@@ -53,7 +53,7 @@
     function loadTimeDimensionConfigAsync() {
         if (window._basemapTimeConfig) return Promise.resolve(window._basemapTimeConfig);
         if (typeof JSON5 === 'undefined') {
-            console.error(LOG_PREFIX, 'JSON5-Library nicht verfügbar!');
+            TnetLog.error(LOG_PREFIX, 'JSON5-Library nicht verfügbar!');
             return Promise.resolve(null);
         }
         var paths = [
@@ -65,7 +65,7 @@
         // Sequenziell Pfade durchprobieren (async, nicht-blockierend)
         function tryPath(index) {
             if (index >= paths.length) {
-                console.error(LOG_PREFIX, 'Config nicht gefunden (basemaps.timeDimension)');
+                TnetLog.error(LOG_PREFIX, 'Config nicht gefunden (basemaps.timeDimension)');
                 return Promise.resolve(null);
             }
             return fetch(paths[index])
@@ -76,14 +76,14 @@
                 .then(function(text) {
                     var parsed = JSON5.parse(text);
                     if (parsed && parsed.basemaps && parsed.basemaps.timeDimension) {
-                        console.log(LOG_PREFIX, 'Config geladen (async):', paths[index]);
+                        TnetLog.log(LOG_PREFIX, 'Config geladen (async):', paths[index]);
                         window._basemapTimeConfig = parsed.basemaps.timeDimension;
                         return window._basemapTimeConfig;
                     }
                     return tryPath(index + 1);
                 })
                 .catch(function(e) {
-                    console.warn(LOG_PREFIX, 'Config-Fehler (' + paths[index] + '):', e.message);
+                    TnetLog.warn(LOG_PREFIX, 'Config-Fehler (' + paths[index] + '):', e.message);
                     return tryPath(index + 1);
                 });
         }
@@ -200,7 +200,7 @@
                     var params = 'layers=-' + GRUNDKARTEN_LAYER_MAPPING[key];
                     window.top.njs.AppManager.setMapBookmark(['main'], params);
                 } catch(e) {
-                    console.warn(LOG_PREFIX, 'GrundkartenSync Fehler:', GRUNDKARTEN_LAYER_MAPPING[key], e);
+                    TnetLog.warn(LOG_PREFIX, 'GrundkartenSync Fehler:', GRUNDKARTEN_LAYER_MAPPING[key], e);
                 }
             });
 
@@ -209,7 +209,7 @@
                     ? njs.AppManager.Maps.main.mapObj : null;
             if (map) {
                 window._olMap = map;
-                console.log(LOG_PREFIX, 'window._olMap gesetzt ✓');
+                TnetLog.log(LOG_PREFIX, 'window._olMap gesetzt ✓');
             }
 
             // Layer-Toggle Buttons initialisieren
@@ -268,12 +268,12 @@
                     siblings.forEach(function(s) { s.classList.remove('active'); });
                     this.classList.add('active');
                 } catch(e) {
-                    console.error(LOG_PREFIX, 'Layer-Toggle Fehler:', e);
+                    TnetLog.error(LOG_PREFIX, 'Layer-Toggle Fehler:', e);
                 }
             });
         });
 
-        console.log(LOG_PREFIX, 'GrundkartenSync:', buttons.length, 'Buttons registriert');
+        TnetLog.log(LOG_PREFIX, 'GrundkartenSync:', buttons.length, 'Buttons registriert');
     }
 
     // Global exportieren (tnet-app.js referenziert es)
@@ -323,7 +323,7 @@
             loadTimeDimensionConfigAsync().then(function(config) {
                 self.config = config;
                 if (!self.config) {
-                    console.warn(LOG_PREFIX, 'Keine timeDimension-Config, Zeitreise deaktiviert');
+                    TnetLog.warn(LOG_PREFIX, 'Keine timeDimension-Config, Zeitreise deaktiviert');
                     return;
                 }
                 self._initDOM();
@@ -346,7 +346,7 @@
             this.infoTextEl  = document.getElementById('basemap-time-info-text');
 
             if (!this.containerEl || !this.sliderEl) {
-                console.error(LOG_PREFIX, 'Zeitreise DOM-Elemente nicht gefunden');
+                TnetLog.error(LOG_PREFIX, 'Zeitreise DOM-Elemente nicht gefunden');
                 return;
             }
 
@@ -379,7 +379,7 @@
 
             this._hookOpacityAndGrayscale();
             this.hookChangeBaseMap();
-            console.log(LOG_PREFIX, 'Zeitreise initialisiert ✓');
+            TnetLog.log(LOG_PREFIX, 'Zeitreise initialisiert ✓');
         },
 
         // ── Basemap Change ──
@@ -510,7 +510,7 @@
             }
 
             var wmtsUrl = cfg.wmtsUrl.replace('{Time}', timeValue);
-            console.log(LOG_PREFIX, 'Overlay:', cfg.wmtsLayer, '→', timeValue);
+            TnetLog.log(LOG_PREFIX, 'Overlay:', cfg.wmtsLayer, '→', timeValue);
             this._createOverlayLayer(wmtsUrl, timeValue);
             this._dispatchTimeEvent(year, timeValue);
         },
@@ -519,7 +519,7 @@
             try {
                 var mapEntry = njs.AppManager.Maps && njs.AppManager.Maps.main;
                 if (!mapEntry || !mapEntry.mapObj) {
-                    console.warn(LOG_PREFIX, 'Karte noch nicht bereit – Overlay wird beim ersten changeBaseMap erstellt');
+                    TnetLog.warn(LOG_PREFIX, 'Karte noch nicht bereit – Overlay wird beim ersten changeBaseMap erstellt');
                     return;
                 }
                 var mainMap = mapEntry.mapObj;
@@ -562,7 +562,7 @@
                     this._applyGrayscaleCSS(layer, true);
                 }
             } catch (e) {
-                console.error(LOG_PREFIX, 'Overlay-Layer Fehler:', e);
+                TnetLog.error(LOG_PREFIX, 'Overlay-Layer Fehler:', e);
             }
         },
 
@@ -622,7 +622,7 @@
                     origOpacity.call(njs.AppManager, mapId, value);
                     if (mapId === 'main') self.syncOpacity(value);
                 };
-                console.log(LOG_PREFIX, 'setBaseLayerOpacity gehookt ✓');
+                TnetLog.log(LOG_PREFIX, 'setBaseLayerOpacity gehookt ✓');
             } else {
                 setTimeout(function() { self._hookOpacityAndGrayscale(); }, 500);
                 return;
@@ -634,7 +634,7 @@
                     try {
                         origColor.call(njs.AppManager, mapId, toolId, btnEl);
                     } catch (e) {
-                        console.warn(LOG_PREFIX, 'toggleBaseLayerColor Fehler (kein aktiver Basemap-Layer?):', e.message);
+                        TnetLog.warn(LOG_PREFIX, 'toggleBaseLayerColor Fehler (kein aktiver Basemap-Layer?):', e.message);
                     }
                     if (mapId === 'main') {
                         var isGrey = false;
@@ -646,7 +646,7 @@
                         self.syncGrayscale(isGrey);
                     }
                 };
-                console.log(LOG_PREFIX, 'toggleBaseLayerColor gehookt ✓');
+                TnetLog.log(LOG_PREFIX, 'toggleBaseLayerColor gehookt ✓');
             }
         },
 
@@ -696,7 +696,7 @@
                     var olLayerDivs = viewport.querySelectorAll('.ol-layer');
                     if (olLayerDivs.length > 1) applyToEl(olLayerDivs[1]);
                 } catch (e2) {
-                    console.warn(LOG_PREFIX, 'Grayscale CSS Fallback Fehler:', e2);
+                    TnetLog.warn(LOG_PREFIX, 'Grayscale CSS Fallback Fehler:', e2);
                 }
             }, 150);
         },
@@ -732,7 +732,7 @@
                     mainMap.on('moveend', this._moveEndHandler);
                 }
             } catch (e) {
-                console.warn(LOG_PREFIX, 'moveend error:', e);
+                TnetLog.warn(LOG_PREFIX, 'moveend error:', e);
             }
         },
 
@@ -769,10 +769,10 @@
                         if (years.length > 0) self._updateDynamicSlider(years);
                     })
                     .catch(function(err) {
-                        console.warn(LOG_PREFIX, 'Identify error:', err);
+                        TnetLog.warn(LOG_PREFIX, 'Identify error:', err);
                     });
             } catch (e) {
-                console.warn(LOG_PREFIX, 'fetchDynamicYears error:', e);
+                TnetLog.warn(LOG_PREFIX, 'fetchDynamicYears error:', e);
             }
         },
 
@@ -856,7 +856,7 @@
                 attempts++;
                 if (!njs || !njs.AppManager || !njs.AppManager.Maps || !njs.AppManager.Maps.main) {
                     if (attempts < maxAttempts) setTimeout(tryHook, 500);
-                    else console.warn(LOG_PREFIX, 'Hook aufgegeben nach', maxAttempts, 'Versuchen');
+                    else TnetLog.warn(LOG_PREFIX, 'Hook aufgegeben nach', maxAttempts, 'Versuchen');
                     return;
                 }
 
@@ -876,7 +876,7 @@
                         actualBasemapId = cfg.fallbackBasemap;
                     }
 
-                    console.log(LOG_PREFIX, 'changeBaseMap:', basemapId, '→ Framework:', actualBasemapId);
+                    TnetLog.log(LOG_PREFIX, 'changeBaseMap:', basemapId, '→ Framework:', actualBasemapId);
                     var result = mapInstance._preTimeChangeBaseMap.call(mapInstance, actualBasemapId);
                     setTimeout(function() {
                         // Fix: Nach View-Ersatz Viewport stabilisieren
@@ -894,12 +894,12 @@
                     return result;
                 };
 
-                console.log(LOG_PREFIX, 'changeBaseMap gehookt ✓');
+                TnetLog.log(LOG_PREFIX, 'changeBaseMap gehookt ✓');
 
                 // Nach dem Hook: aktuelle Framework-Basemap erkennen und Zeitreise nachholen
                 var currBm = mapInstance.currBasisMap || mapInstance.basisMap;
                 if (currBm) {
-                    console.log(LOG_PREFIX, 'Framework-Basemap beim Hook:', currBm);
+                    TnetLog.log(LOG_PREFIX, 'Framework-Basemap beim Hook:', currBm);
                     // Card im DOM synchronisieren
                     document.querySelectorAll('.basemap-card').forEach(function(c) {
                         c.classList.toggle('active', c.dataset.basemap === currBm);
@@ -953,7 +953,7 @@
         // URL-Parameter ?basemap= auswerten
         applyBasemapFromUrl();
 
-        console.log(LOG_PREFIX, 'Modul vollständig initialisiert ✓');
+        TnetLog.log(LOG_PREFIX, 'Modul vollständig initialisiert ✓');
     }
 
     /**
@@ -970,11 +970,11 @@
         var validIds = [];
         validCards.forEach(function(c) { validIds.push(c.dataset.basemap); });
         if (validIds.indexOf(basemapParam) === -1) {
-            console.warn(LOG_PREFIX, 'URL basemap="' + basemapParam + '" ist ungültig. Gültig:', validIds.join(', '));
+            TnetLog.warn(LOG_PREFIX, 'URL basemap="' + basemapParam + '" ist ungültig. Gültig:', validIds.join(', '));
             return;
         }
 
-        console.log(LOG_PREFIX, 'URL-Parameter basemap=' + basemapParam);
+        TnetLog.log(LOG_PREFIX, 'URL-Parameter basemap=' + basemapParam);
 
         // Active-Card im Widget sofort aktualisieren
         validCards.forEach(function(c) {
@@ -992,14 +992,14 @@
                 var curr = njs.AppManager.Maps.main.currBasisMap || njs.AppManager.Maps.main.basisMap;
                 if (curr !== basemapParam) {
                     njs.AppManager.Maps['main'].changeBaseMap(basemapParam);
-                    console.log(LOG_PREFIX, 'Basemap aus URL gesetzt:', basemapParam);
+                    TnetLog.log(LOG_PREFIX, 'Basemap aus URL gesetzt:', basemapParam);
                 } else {
-                    console.log(LOG_PREFIX, 'Basemap aus URL bereits aktiv:', basemapParam);
+                    TnetLog.log(LOG_PREFIX, 'Basemap aus URL bereits aktiv:', basemapParam);
                 }
             } else if (attempts < 40) {
                 setTimeout(waitAndSwitch, 500);
             } else {
-                console.warn(LOG_PREFIX, 'Framework nicht bereit, basemap aus URL konnte nicht gesetzt werden');
+                TnetLog.warn(LOG_PREFIX, 'Framework nicht bereit, basemap aus URL konnte nicht gesetzt werden');
             }
         })();
     }

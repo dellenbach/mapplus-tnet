@@ -1,4 +1,4 @@
-/**
+﻿/**
  * tnet-lm-tree.js — Themenkatalog-Baum (Mobile)
  *
  * Rendert die Layer-Hierarchie als Accordion-Baum mit Inline-Filter.
@@ -34,13 +34,13 @@
     init: function (containerId) {
       _container = document.getElementById(containerId);
       if (!_container) {
-        console.error(LOG, 'Container #' + containerId + ' nicht gefunden');
+        TnetLog.error(LOG, 'Container #' + containerId + ' nicht gefunden');
         return;
       }
 
       var store = window.TnetLMStore;
       if (!store) {
-        console.error(LOG, 'TnetLMStore nicht geladen');
+        TnetLog.error(LOG, 'TnetLMStore nicht geladen');
         return;
       }
 
@@ -52,7 +52,7 @@
         this.render(store.getCatalog());
       }
 
-      console.log(LOG, 'Init ✓ → #' + containerId);
+      TnetLog.log(LOG, 'Init ✓ → #' + containerId);
     },
 
     destroy: function () {

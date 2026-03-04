@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Split-Screen Layer Catalog Integration
  * Erweitert tnet-splitscreen.js um hierarchischen Layer-Katalog
  *
@@ -18,17 +18,17 @@
             return;
         }
         
-        console.log('[SplitScreenCatalog] Extending TnetSplitScreen with catalog functionality');
+        TnetLog.log('[SplitScreenCatalog] Extending TnetSplitScreen with catalog functionality');
         
         // Überschreibe populateLayerControl
         window.TnetSplitScreen.populateLayerControl = function() {
             var self = this;
             
-            console.log('[SplitScreen] Populating layer control using PHP service...');
+            TnetLog.log('[SplitScreen] Populating layer control using PHP service...');
             
             var layerList = document.getElementById('splitscreen-layer-list');
             if (!layerList) {
-                console.error('[SplitScreen] Layer list element not found');
+                TnetLog.error('[SplitScreen] Layer list element not found');
                 return;
             }
             
@@ -44,11 +44,11 @@
                     return response.json();
                 })
                 .then(function(data) {
-                    console.log('[SplitScreen] Catalog data loaded:', data);
+                    TnetLog.log('[SplitScreen] Catalog data loaded:', data);
                     self.renderCatalogHierarchy(data, layerList);
                 })
                 .catch(function(error) {
-                    console.error('[SplitScreen] Error loading catalog:', error);
+                    TnetLog.error('[SplitScreen] Error loading catalog:', error);
                     layerList.innerHTML = '<div style="padding: 10px; text-align: center; color: #f00;">Fehler beim Laden: ' + error.message + '</div>';
                 });
         };
@@ -64,7 +64,7 @@
                 return;
             }
             
-            console.log('[SplitScreen] Rendering', data.categories.length, 'top-level categories');
+            TnetLog.log('[SplitScreen] Rendering', data.categories.length, 'top-level categories');
             
             // Render each top-level category (Nidwalden, Obwalden, Bund, Weitere)
             data.categories.forEach(function(topCategory) {
@@ -236,7 +236,7 @@
             // Add event handler to load/toggle layer directly from catalog definition
             checkbox.addEventListener('change', function() {
                 var isChecked = this.checked;
-                console.log('[SplitScreenCatalog] Layer checkbox changed:', layer.id, 'checked:', isChecked);
+                TnetLog.log('[SplitScreenCatalog] Layer checkbox changed:', layer.id, 'checked:', isChecked);
                 
                 if (isChecked) {
                     // Erst ALLE Layer mit dieser ID entfernen
@@ -249,14 +249,14 @@
                             }
                         });
                         
-                        console.log('[SplitScreenCatalog] Removing', layersToRemove.length, 'old instances of', layer.id);
+                        TnetLog.log('[SplitScreenCatalog] Removing', layersToRemove.length, 'old instances of', layer.id);
                         layersToRemove.forEach(function(oldLayer) {
                             self.map2.removeLayer(oldLayer);
                         });
                     }
                     
                     // Dann neu erstellen
-                    console.log('[SplitScreenCatalog] Creating new layer:', layer.id);
+                    TnetLog.log('[SplitScreenCatalog] Creating new layer:', layer.id);
                     if (layer.url) {
                         self.createLayerFromDefinition(layer);
                     } else {
@@ -273,7 +273,7 @@
                             }
                         });
                         
-                        console.log('[SplitScreenCatalog] Removing', layersToRemove.length, 'instances of', layer.id);
+                        TnetLog.log('[SplitScreenCatalog] Removing', layersToRemove.length, 'instances of', layer.id);
                         layersToRemove.forEach(function(oldLayer) {
                             self.map2.removeLayer(oldLayer);
                         });
@@ -304,11 +304,11 @@
         // Create layer directly from catalog definition (without loading in main map)
         window.TnetSplitScreen.createLayerFromDefinition = function(layerDef) {
             if (!this.map2) {
-                console.warn('[SplitScreenCatalog] map2 not available');
+                TnetLog.warn('[SplitScreenCatalog] map2 not available');
                 return;
             }
             
-            console.log('[SplitScreenCatalog] Creating layer from definition:', layerDef);
+            TnetLog.log('[SplitScreenCatalog] Creating layer from definition:', layerDef);
             
             try {
                 var layer = null;
@@ -357,7 +357,7 @@
                             zIndex: 100
                         });
                         
-                        console.log('[SplitScreenCatalog] Created ImageWMS (singleTile) layer');
+                        TnetLog.log('[SplitScreenCatalog] Created ImageWMS (singleTile) layer');
                     } else {
                         // TileWMS for tiled requests
                         source = new ol.source.TileWMS({
@@ -374,7 +374,7 @@
                             zIndex: 100
                         });
                         
-                        console.log('[SplitScreenCatalog] Created TileWMS layer');
+                        TnetLog.log('[SplitScreenCatalog] Created TileWMS layer');
                     }
                 } else if (layerDef.layerType === 'arcgisRest' || layerDef.layerType === 'ArcGISRest') {
                     // ArcGIS REST Layer
@@ -414,7 +414,7 @@
                         });
                     }
                 } else {
-                    console.warn('[SplitScreenCatalog] Unknown layer type:', layerDef.layerType);
+                    TnetLog.warn('[SplitScreenCatalog] Unknown layer type:', layerDef.layerType);
                     return;
                 }
                 
@@ -425,28 +425,28 @@
                 
                 // Add to map2
                 this.map2.addLayer(layer);
-                console.log('[SplitScreenCatalog] Layer created and added to map2:', layerDef.id);
-                console.log('[SplitScreenCatalog]   -> Visible:', layer.getVisible());
-                console.log('[SplitScreenCatalog]   -> Opacity:', layer.getOpacity());
-                console.log('[SplitScreenCatalog]   -> ZIndex:', layer.getZIndex());
-                console.log('[SplitScreenCatalog]   -> Source:', layer.getSource());
+                TnetLog.log('[SplitScreenCatalog] Layer created and added to map2:', layerDef.id);
+                TnetLog.log('[SplitScreenCatalog]   -> Visible:', layer.getVisible());
+                TnetLog.log('[SplitScreenCatalog]   -> Opacity:', layer.getOpacity());
+                TnetLog.log('[SplitScreenCatalog]   -> ZIndex:', layer.getZIndex());
+                TnetLog.log('[SplitScreenCatalog]   -> Source:', layer.getSource());
                 
                 // Force render and update size
                 this.map2.updateSize();
                 this.map2.render();
             } catch (e) {
-                console.error('[SplitScreenCatalog] Error creating layer from definition:', e);
+                TnetLog.error('[SplitScreenCatalog] Error creating layer from definition:', e);
             }
         };
         
         // Add layer to map2 using LayerManager (setMapBookmark) - Fallback method
         window.TnetSplitScreen.addLayerToMap2 = function(layerId, visible) {
             if (!this.map2) {
-                console.warn('[SplitScreenCatalog] map2 not available');
+                TnetLog.warn('[SplitScreenCatalog] map2 not available');
                 return;
             }
             
-            console.log('[SplitScreenCatalog] Adding layer to map2:', layerId, 'visible:', visible);
+            TnetLog.log('[SplitScreenCatalog] Adding layer to map2:', layerId, 'visible:', visible);
             
             try {
                 if (window.top && window.top.njs && window.top.njs.AppManager) {
@@ -457,7 +457,7 @@
                     // Build params string
                     var params = 'layers=' + layerId;
                     
-                    console.log('[SplitScreenCatalog] Loading layer via setMapBookmark:', params);
+                    TnetLog.log('[SplitScreenCatalog] Loading layer via setMapBookmark:', params);
                     
                     // Load layer in main map
                     window.top.njs.AppManager.setMapBookmark(['main'], params);
@@ -479,7 +479,7 @@
                             
                             // Klone zu map2 und entferne aus main
                             newLayers.forEach(function(mainLayer) {
-                                console.log('[SplitScreenCatalog] New layer detected:', mainLayer.get('name'));
+                                TnetLog.log('[SplitScreenCatalog] New layer detected:', mainLayer.get('name'));
                                 
                                 // Clone to map2
                                 var clonedLayer = self.cloneLayerForMap2(mainLayer);
@@ -487,22 +487,22 @@
                                     clonedLayer.setVisible(visible);
                                     clonedLayer.set('catalogId', layerId); // Store catalog ID
                                     self.map2.addLayer(clonedLayer);
-                                    console.log('[SplitScreenCatalog] Layer cloned to map2:', mainLayer.get('name'), 'visible:', visible);
+                                    TnetLog.log('[SplitScreenCatalog] Layer cloned to map2:', mainLayer.get('name'), 'visible:', visible);
                                 }
                                 
                                 // WICHTIG: Entferne Layer aus Karte A (main)
                                 mainMap.removeLayer(mainLayer);
-                                console.log('[SplitScreenCatalog] Layer removed from main map:', mainLayer.get('name'));
+                                TnetLog.log('[SplitScreenCatalog] Layer removed from main map:', mainLayer.get('name'));
                             });
                         } else {
-                            console.warn('[SplitScreenCatalog] No new layer detected in main map');
+                            TnetLog.warn('[SplitScreenCatalog] No new layer detected in main map');
                         }
                     }, 1000); // Warte 1 Sekunde auf Layer-Laden
                 } else {
-                    console.error('[SplitScreenCatalog] njs.AppManager not available');
+                    TnetLog.error('[SplitScreenCatalog] njs.AppManager not available');
                 }
             } catch (e) {
-                console.error('[SplitScreenCatalog] Error adding layer:', e);
+                TnetLog.error('[SplitScreenCatalog] Error adding layer:', e);
             }
         };
         
@@ -540,7 +540,7 @@
                 } else if (source.constructor.name === 'OSM') {
                     newSource = new ol.source.OSM();
                 } else {
-                    console.warn('[SplitScreenCatalog] Unknown source type:', source.constructor.name);
+                    TnetLog.warn('[SplitScreenCatalog] Unknown source type:', source.constructor.name);
                     return null;
                 }
                 
@@ -559,7 +559,7 @@
                 
                 return newLayer;
             } catch (e) {
-                console.error('[SplitScreenCatalog] Error cloning layer:', e);
+                TnetLog.error('[SplitScreenCatalog] Error cloning layer:', e);
                 return null;
             }
         };
@@ -588,7 +588,7 @@
             return null;
         };
         
-        console.log('[SplitScreenCatalog] Catalog integration complete');
+        TnetLog.log('[SplitScreenCatalog] Catalog integration complete');
     }
     
     // Start initialization

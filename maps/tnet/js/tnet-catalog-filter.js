@@ -1,4 +1,4 @@
-/**
+﻿/**
  * tnet-catalog-filter.js
  * Filterbox für den Themenkatalog-Baum. Ermöglicht Wildcard-Suche
  * in Layer-Labels aller Kantons-Tabs. Matching-Eltern bleiben sichtbar,
@@ -229,7 +229,7 @@
       input.focus();
     });
 
-    console.log('[CatalogFilter] Filterbox eingefügt');
+    TnetLog.log('[CatalogFilter] Filterbox eingefügt');
     return true;
   }
 

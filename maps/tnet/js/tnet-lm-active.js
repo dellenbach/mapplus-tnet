@@ -1,4 +1,4 @@
-/**
+﻿/**
  * tnet-lm-active.js — Dargestellte-Themen-Panel (Mobile)
  *
  * Zeigt aktive Layer mit:
@@ -34,13 +34,13 @@
     init: function (containerId) {
       _container = document.getElementById(containerId);
       if (!_container) {
-        console.error(LOG, 'Container #' + containerId + ' nicht gefunden');
+        TnetLog.error(LOG, 'Container #' + containerId + ' nicht gefunden');
         return;
       }
 
       var store = window.TnetLMStore;
       if (!store) {
-        console.error(LOG, 'TnetLMStore nicht geladen');
+        TnetLog.error(LOG, 'TnetLMStore nicht geladen');
         return;
       }
 
@@ -54,7 +54,7 @@
       // Initial-State rendern
       var active = store.getActiveLayers();
       this.render(active);
-      console.log(LOG, 'Init ✓ → #' + containerId);
+      TnetLog.log(LOG, 'Init ✓ → #' + containerId);
     },
 
     destroy: function () {
@@ -69,22 +69,22 @@
 
     render: function (layers) {
       if (!_container) {
-        console.warn(LOG, 'render: Container fehlt');
+        TnetLog.warn(LOG, 'render: Container fehlt');
         return;
       }
 
       // Nicht rendern während Drag aktiv (sonst springt alles)
       if (_dragState) {
-        console.log(LOG, 'render übersprungen (Drag aktiv)');
+        TnetLog.log(LOG, 'render übersprungen (Drag aktiv)');
         return;
       }
 
       if (!layers || !layers.length) {
         _container.innerHTML = '<div class="lm-empty">Keine Themen dargestellt.<br><small style="color:#aaa">Themen im Themenkatalog aktivieren.</small></div>';
-        console.log(LOG, 'render: Leerzustand');
+        TnetLog.log(LOG, 'render: Leerzustand');
         return;
       }
-      console.log(LOG, 'render:', layers.length, 'Layer');
+      TnetLog.log(LOG, 'render:', layers.length, 'Layer');
 
       var html = '<div class="lm-active-toolbar">';
       html += '<span class="lm-active-count">' + layers.length + ' Themen</span>';
@@ -222,7 +222,7 @@
                     if (proxyIdx !== -1) {
                       var svcPath = svcUrl.substring(proxyIdx + 18); // nach 'agsproxy.php?path='
                       fLegendUrl = '/maps/tnet/api/v1/legend-proxy.php?service=' + encodeURIComponent(svcPath);
-                      console.log(LOG, 'Legend-Proxy URL (agsproxy):', fLegendUrl);
+                      TnetLog.log(LOG, 'Legend-Proxy URL (agsproxy):', fLegendUrl);
                     }
                     // Pattern 2: Fallback /rest/services/<pfad>
                     if (!fLegendUrl) {
@@ -232,7 +232,7 @@
                         var qIdx = svcPath2.indexOf('?');
                         if (qIdx !== -1) svcPath2 = svcPath2.substring(0, qIdx);
                         fLegendUrl = '/maps/tnet/api/v1/legend-proxy.php?service=' + encodeURIComponent(svcPath2);
-                        console.log(LOG, 'Legend-Proxy URL (rest):', fLegendUrl);
+                        TnetLog.log(LOG, 'Legend-Proxy URL (rest):', fLegendUrl);
                       }
                     }
                   }
@@ -242,18 +242,18 @@
                     if (!am) am = window.top && window.top.njs && window.top.njs.AppManager;
                     if (am && typeof am.showLegend === 'function') {
                       am.showLegend(fLegendUrl, fLegendTitle, true, undefined);
-                      console.log(LOG, 'Framework-Legende geöffnet:', fLegendUrl);
+                      TnetLog.log(LOG, 'Framework-Legende geöffnet:', fLegendUrl);
                     } else {
                       window.open(fLegendUrl, '_blank', 'noopener');
                     }
                   } else {
-                    console.warn(LOG, 'Keine Legenden-URL ermittelbar für:', layerId);
+                    TnetLog.warn(LOG, 'Keine Legenden-URL ermittelbar für:', layerId);
                   }
                 } else {
-                  console.warn(LOG, 'Kein Store-Eintrag für Layer:', layerId);
+                  TnetLog.warn(LOG, 'Kein Store-Eintrag für Layer:', layerId);
                 }
               } catch(e) {
-                console.error(LOG, 'Fehler beim Öffnen der Legende:', e);
+                TnetLog.error(LOG, 'Fehler beim Öffnen der Legende:', e);
               }
             }
             break;

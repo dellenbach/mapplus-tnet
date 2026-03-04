@@ -1,4 +1,4 @@
-/**
+﻿/**
  * tnet-3d-landscape.js
  * 3D Landscape Model Split-Screen functionality (iframe-based)
  * 
@@ -19,24 +19,9 @@
 
     // =========================================================
     // Log Level System
-    // Stufen: 'none' (0) | 'error' (1) | 'warn' (2) | 'info' (3) | 'debug' (4)
-    // Einstellbar in tnet-global-config.json5 → logLevel (Root-Ebene)
-    // console wird im IIFE-Scope geschattet → alle bestehenden
-    // console.log/warn/error Aufrufe werden automatisch gefiltert.
+    // Nutzt jetzt die zentrale TnetLog-Utility (tnet-log.js).
+    // LogLevel wird dort aus tnet-global-config.json5 geladen.
     // =========================================================
-    var _LOG_LEVELS = { none: 0, error: 1, warn: 2, info: 3, debug: 4 };
-    var _logLevel = _LOG_LEVELS.warn; // Standard: nur Warnungen und Fehler
-    var _realConsole = window.console;
-    var console = {
-        log:      function() { if (_logLevel >= _LOG_LEVELS.debug) _realConsole.log.apply(_realConsole, arguments); },
-        info:     function() { if (_logLevel >= _LOG_LEVELS.info)  _realConsole.info.apply(_realConsole, arguments); },
-        warn:     function() { if (_logLevel >= _LOG_LEVELS.warn)  _realConsole.warn.apply(_realConsole, arguments); },
-        error:    function() { if (_logLevel >= _LOG_LEVELS.error) _realConsole.error.apply(_realConsole, arguments); },
-        debug:    function() { if (_logLevel >= _LOG_LEVELS.debug) _realConsole.debug.apply(_realConsole, arguments); },
-        table:    _realConsole.table    ? _realConsole.table.bind(_realConsole)    : function() {},
-        group:    _realConsole.group    ? _realConsole.group.bind(_realConsole)    : function() {},
-        groupEnd: _realConsole.groupEnd ? _realConsole.groupEnd.bind(_realConsole) : function() {}
-    };
 
     // =========================================================
     // Config Loader (nutzt offizielle JSON5-Library via CDN)
@@ -46,7 +31,7 @@
     function loadGlobalConfig() {
         if (window.Landscape3DConfig) return window.Landscape3DConfig; // bereits geladen
         if (typeof JSON5 === 'undefined') {
-            console.error('[3DLandscape] JSON5-Library nicht verfügbar!');
+            TnetLog.error('[3DLandscape] JSON5-Library nicht verfügbar!');
             return null;
         }
         
@@ -63,7 +48,7 @@
                 if (xhr.status === 200) {
                     var config = JSON5.parse(xhr.responseText);
                     if (config && config['3d-landscape']) {
-                        console.log('[3DLandscape] Config loaded from:', paths[i]);
+                        TnetLog.log('[3DLandscape] Config loaded from:', paths[i]);
                         // Globales logLevel separat speichern (Root-Ebene)
                         if (config.logLevel) {
                             window.TnetGlobalLogLevel = config.logLevel;
@@ -73,22 +58,15 @@
                     }
                 }
             } catch(e) {
-                console.warn('[3DLandscape] Config load error (' + paths[i] + '):', e.message);
+                TnetLog.warn('[3DLandscape] Config load error (' + paths[i] + '):', e.message);
             }
         }
-        console.error('[3DLandscape] FEHLER: tnet-global-config.json5 nicht gefunden!');
+        TnetLog.error('[3DLandscape] FEHLER: tnet-global-config.json5 nicht gefunden!');
         return null;
     }
 
-    // Log-Level aus Config aktualisieren (nach Config-Load)
-    // logLevel liegt auf Root-Ebene der JSON5-Config
-    if (window.TnetGlobalLogLevel && _LOG_LEVELS[window.TnetGlobalLogLevel] !== undefined) {
-        _logLevel = _LOG_LEVELS[window.TnetGlobalLogLevel];
-    }
-    if (_logLevel >= _LOG_LEVELS.info) {
-        var _lvlName = Object.keys(_LOG_LEVELS).filter(function(k) { return _LOG_LEVELS[k] === _logLevel; })[0] || 'warn';
-        _realConsole.info('[3DLandscape] Log level:', _lvlName);
-    }
+    // Log-Level wird jetzt zentral von TnetLog verwaltet (tnet-log.js)
+    TnetLog.info('[3DLandscape] Log level:', window.TnetLog ? TnetLog.getLevel() : 'N/A');
 
     // =========================================================
     // 3D Landscape Controller
@@ -188,10 +166,10 @@
             }
             this.webSceneId = webSceneId || this.getDefaultWebSceneId();
             if (!this.webSceneId) {
-                console.error('[3DLandscape] Keine WebScene ID - Abbruch');
+                TnetLog.error('[3DLandscape] Keine WebScene ID - Abbruch');
                 return;
             }
-            console.log('[3DLandscape] Initializing with WebScene:', this.webSceneId);
+            TnetLog.log('[3DLandscape] Initializing with WebScene:', this.webSceneId);
             
             // Disable existing split-screen if active
             if (window.TnetSplitScreen && window.TnetSplitScreen.enabled) {
@@ -206,7 +184,7 @@
             // createSceneSwitcher() wird nach iframe-Erstellung aufgerufen
             
             this.enabled = true;
-            console.log('[3DLandscape] Initialized');
+            TnetLog.log('[3DLandscape] Initialized');
         },
 
         /**
@@ -217,7 +195,7 @@
             if (cfg && cfg.defaultWebSceneId) {
                 return cfg.defaultWebSceneId;
             }
-            console.error('[3DLandscape] Keine defaultWebSceneId in Config!');
+            TnetLog.error('[3DLandscape] Keine defaultWebSceneId in Config!');
             return null;
         },
 
@@ -233,7 +211,7 @@
             var mapContainer = document.getElementById('mapContainer');
             
             if (!mapContainer) {
-                console.error('[3DLandscape] mapContainer not found');
+                TnetLog.error('[3DLandscape] mapContainer not found');
                 return;
             }
             
@@ -272,7 +250,7 @@
             if (map2D) {
                 this._originalMapTarget = map2D.getTarget();
                 map2D.setTarget(leftPanel);
-                console.log('[3DLandscape] OL map re-targeted to split-panel-2d');
+                TnetLog.log('[3DLandscape] OL map re-targeted to split-panel-2d');
             }
             
             // Trigger OL map resize
@@ -287,7 +265,7 @@
                 this._resizeObserver.observe(leftPanel);
             }
             
-            console.log('[3DLandscape] Split layout created');
+            TnetLog.log('[3DLandscape] Split layout created');
         },
 
         /**
@@ -314,7 +292,7 @@
                 url += '&northing=' + northing;
                 url += '&sr=' + config.coordinateSystem;
                 
-                console.log('[3DLandscape] Querying terrain elevation:', url);
+                TnetLog.log('[3DLandscape] Querying terrain elevation:', url);
                 
                 var xhr = new XMLHttpRequest();
                 xhr.open('GET', url, true);
@@ -326,31 +304,31 @@
                             var response = JSON.parse(xhr.responseText);
                             var h = parseFloat(response && response.height);
                             if (!isNaN(h)) {
-                                console.log('[3DLandscape] Terrain elevation:', h, 'm');
+                                TnetLog.log('[3DLandscape] Terrain elevation:', h, 'm');
                                 callback(h);
                                 return;
                             }
                         } catch(e) {
-                            console.warn('[3DLandscape] Error parsing elevation response:', e);
+                            TnetLog.warn('[3DLandscape] Error parsing elevation response:', e);
                         }
                     }
-                    console.warn('[3DLandscape] Elevation query failed, status:', xhr.status, 'response:', xhr.responseText);
+                    TnetLog.warn('[3DLandscape] Elevation query failed, status:', xhr.status, 'response:', xhr.responseText);
                     callback(null);
                 };
                 
                 xhr.onerror = function() {
-                    console.warn('[3DLandscape] Elevation query error, using fallback');
+                    TnetLog.warn('[3DLandscape] Elevation query error, using fallback');
                     callback(null);
                 };
                 
                 xhr.ontimeout = function() {
-                    console.warn('[3DLandscape] Elevation query timeout, using fallback');
+                    TnetLog.warn('[3DLandscape] Elevation query timeout, using fallback');
                     callback(null);
                 };
                 
                 xhr.send();
             } catch(e) {
-                console.warn('[3DLandscape] Error in elevation query:', e);
+                TnetLog.warn('[3DLandscape] Error in elevation query:', e);
                 callback(null);
             }
         },
@@ -380,7 +358,7 @@
                     var res = map2D.getView().getResolution();
                     var scaleDenom = resolutionToScale(res);
                     cameraAltitude = scaleToHeight(scaleDenom);
-                    console.log('[3DLandscape] Initial: 2D resolution', res, '→ scale 1:' + Math.round(scaleDenom), '→ camera height', Math.round(cameraAltitude), 'm');
+                    TnetLog.log('[3DLandscape] Initial: 2D resolution', res, '→ scale 1:' + Math.round(scaleDenom), '→ camera height', Math.round(cameraAltitude), 'm');
                 } else {
                     // Fallback: Terrain + Offset
                     var baseElevation = (terrainHeight !== null && !isNaN(terrainHeight)) ? terrainHeight : (config.fallbackTerrainHeight || 600);
@@ -390,7 +368,7 @@
                 // Initiale Kamera 50m tiefer (näher am Boden) für bessere Übersicht
                 var cameraAltitudeOffset = (config.initialAltitudeOffset !== undefined) ? config.initialAltitudeOffset : -50;
                 cameraAltitude = Math.max(cameraAltitude + cameraAltitudeOffset, 50);
-                console.log('[3DLandscape] Altitude after offset (' + cameraAltitudeOffset + 'm):', Math.round(cameraAltitude), 'm');
+                TnetLog.log('[3DLandscape] Altitude after offset (' + cameraAltitudeOffset + 'm):', Math.round(cameraAltitude), 'm');
                 
                 // Build iframe URL (absolute for iframe context)
                 var iframeSrc = window.location.origin + '/maps/tnet/tnet-3d-viewer.html?webscene=' + encodeURIComponent(self.webSceneId);
@@ -425,7 +403,7 @@
                 var _cfgLogLevel = window.TnetGlobalLogLevel || 'warn';
                 iframeSrc += '&loglevel=' + encodeURIComponent(_cfgLogLevel);
                 
-                console.log('[3DLandscape] Creating iframe with altitude', cameraAltitude, 'm (terrain:', baseElevation, 'm +', config.terrainHeightOffset + 'm):', iframeSrc);
+                TnetLog.log('[3DLandscape] Creating iframe with altitude', cameraAltitude, 'm (terrain:', baseElevation, 'm +', config.terrainHeightOffset + 'm):', iframeSrc);
                 
                 self.iframe = document.createElement('iframe');
                 self.iframe.id = 'landscape-3d-iframe';
@@ -460,7 +438,7 @@
                 // Transform LV95 -> WGS84
                 var wgs84 = ol.proj.transform(center, 'EPSG:2056', 'EPSG:4326');
                 
-                console.log('[3DLandscape] 2D position LV95:', center, '-> WGS84:', wgs84, 'zoom:', zoom);
+                TnetLog.log('[3DLandscape] 2D position LV95:', center, '-> WGS84:', wgs84, 'zoom:', zoom);
                 
                 return {
                     longitude: wgs84[0],
@@ -468,7 +446,7 @@
                     zoom: zoom || 14
                 };
             } catch(e) {
-                console.warn('[3DLandscape] Cannot get 2D map position:', e);
+                TnetLog.warn('[3DLandscape] Cannot get 2D map position:', e);
                 return null;
             }
         },
@@ -492,10 +470,10 @@
                 if (!proj && window.proj4) {
                     proj4.defs('EPSG:2056', '+proj=somerc +lat_0=46.95240555555556 +lon_0=7.439583333333333 +k_0=1 +x_0=2600000 +y_0=1200000 +ellps=bessel +towgs84=674.374,15.056,405.346,0,0,0,0 +units=m +no_defs');
                     ol.proj.proj4.register(proj4);
-                    console.log('[3DLandscape] LV95 projection registered');
+                    TnetLog.log('[3DLandscape] LV95 projection registered');
                 }
             } catch(e) {
-                console.warn('[3DLandscape] Error registering LV95:', e);
+                TnetLog.warn('[3DLandscape] Error registering LV95:', e);
             }
         },
 
@@ -511,7 +489,7 @@
                 
                 switch (data.type) {
                     case 'ready':
-                        console.log('[3DLandscape] 3D viewer ready');
+                        TnetLog.log('[3DLandscape] 3D viewer ready');
                         self.iframeReady = true;
                         // Highlight-Config an Viewer senden
                         var hlCfg = window.Landscape3DConfig && window.Landscape3DConfig.highlight;
@@ -525,7 +503,7 @@
                         // Initiales Frustum sofort zeichnen (mit gespeicherten Init-Parametern)
                         if (self.lastCameraData) {
                             self.updateFrustum(self.lastCameraData);
-                            console.log('[3DLandscape] Initial frustum drawn');
+                            TnetLog.log('[3DLandscape] Initial frustum drawn');
                         }
                         break;
                         
@@ -539,11 +517,11 @@
                         
                     case 'syncToggled':
                         self.syncEnabled = data.enabled;
-                        console.log('[3DLandscape] Sync toggled from 3D:', data.enabled);
+                        TnetLog.log('[3DLandscape] Sync toggled from 3D:', data.enabled);
                         break;
                         
                     case 'error':
-                        console.error('[3DLandscape] 3D viewer error:', data.message);
+                        TnetLog.error('[3DLandscape] 3D viewer error:', data.message);
                         break;
                 }
             };
@@ -564,7 +542,7 @@
             var map2D = this.get2DMap();
             
             if (!map2D) {
-                console.warn('[3DLandscape] Cannot setup 2D sync: map not found');
+                TnetLog.warn('[3DLandscape] Cannot setup 2D sync: map not found');
                 return;
             }
             
@@ -590,7 +568,7 @@
                         var scaleDenom = resolutionToScale(resolution);
                         var altitude = scaleToHeight(scaleDenom);
                         
-                        console.log('[3DLandscape] 2D→3D zoom: scale 1:' + Math.round(scaleDenom) + ' → altitude', Math.round(altitude), 'm');
+                        TnetLog.log('[3DLandscape] 2D→3D zoom: scale 1:' + Math.round(scaleDenom) + ' → altitude', Math.round(altitude), 'm');
                         
                         // Zoom: Kamerahöhe ändern, Position bleibt wo 3D-Kamera ist
                         self.sendToIframe({
@@ -602,7 +580,7 @@
                         self.lastSyncedResolution = resolution;
                     }
                 } catch(e) {
-                    console.warn('[3DLandscape] Error in 2D->3D zoom sync:', e);
+                    TnetLog.warn('[3DLandscape] Error in 2D->3D zoom sync:', e);
                 }
                 
                 var delay = (window.Landscape3DConfig && window.Landscape3DConfig.synchronization)
@@ -612,7 +590,7 @@
             });
             
             this.sync2DHandle = [resKey];
-            console.log('[3DLandscape] 2D -> 3D sync active (nur Zoom→Altitude, Pan entkoppelt)');
+            TnetLog.log('[3DLandscape] 2D -> 3D sync active (nur Zoom→Altitude, Pan entkoppelt)');
         },
 
         /**
@@ -649,7 +627,7 @@
                     var scaleDenom = heightToScale(altitude);
                     var resolution = scaleToResolution(scaleDenom);
                     
-                    console.log('[3DLandscape] 3D→2D: altitude', Math.round(altitude), 'm → scale 1:' + Math.round(scaleDenom), '→ resolution', resolution.toFixed(2));
+                    TnetLog.log('[3DLandscape] 3D→2D: altitude', Math.round(altitude), 'm → scale 1:' + Math.round(scaleDenom), '→ resolution', resolution.toFixed(2));
                     
                     if (view.getZoomForResolution) {
                         var zoom2D = view.getZoomForResolution(resolution);
@@ -660,7 +638,7 @@
                     }
                 }
             } catch(e) {
-                console.warn('[3DLandscape] Error in 3D->2D sync:', e);
+                TnetLog.warn('[3DLandscape] Error in 3D->2D sync:', e);
             }
             
             var delay = (window.Landscape3DConfig && window.Landscape3DConfig.synchronization) 
@@ -725,12 +703,12 @@
                 
                 // syncLock setzen bevor view.setCenter, um circular sync zu verhindern
                 this.syncLock = true;
-                console.log('[3DLandscape] Auto-Pan: Frustum ausserhalb → 2D-Karte verschoben');
+                TnetLog.log('[3DLandscape] Auto-Pan: Frustum ausserhalb → 2D-Karte verschoben');
                 view.setCenter(newCenter);
                 var self2 = this;
                 setTimeout(function() { self2.syncLock = false; }, 120);
             } catch(e) {
-                console.warn('[3DLandscape] Error in ensureFrustumVisible:', e);
+                TnetLog.warn('[3DLandscape] Error in ensureFrustumVisible:', e);
             }
         },
 
@@ -772,14 +750,14 @@
                 });
 
                 if (basemapLayers.length > 0) {
-                    console.log('[3DLandscape] Syncing basemap to 3D:', basemapLayers.length, 'sublayers');
+                    TnetLog.log('[3DLandscape] Syncing basemap to 3D:', basemapLayers.length, 'sublayers');
                     self.sendToIframe({
                         type: 'syncBasemap',
                         layers: basemapLayers
                     });
                 }
             } catch(e) {
-                console.warn('[3DLandscape] Error syncing basemap:', e);
+                TnetLog.warn('[3DLandscape] Error syncing basemap:', e);
             }
         },
 
@@ -792,7 +770,7 @@
                     this.iframe.contentWindow.postMessage(msg, '*');
                 }
             } catch(e) {
-                console.warn('[3DLandscape] Cannot send to iframe:', e);
+                TnetLog.warn('[3DLandscape] Cannot send to iframe:', e);
             }
         },
 
@@ -802,7 +780,7 @@
         createFrustumLayer: function() {
             var map2D = this.get2DMap();
             if (!map2D) {
-                console.warn('[3DLandscape] Cannot create frustum layer: map not found');
+                TnetLog.warn('[3DLandscape] Cannot create frustum layer: map not found');
                 return;
             }
             
@@ -831,7 +809,7 @@
             });
             
             map2D.addLayer(this.viewFrustumLayer);
-            console.log('[3DLandscape] View frustum layer created');
+            TnetLog.log('[3DLandscape] View frustum layer created');
 
             // Setup drag + rotate interaction for the frustum
             this.setupFrustumInteraction(map2D);
@@ -1021,7 +999,7 @@
 
             map2D.addInteraction(this._frustumInteraction);
             this.frustumDragInteraction = true;
-            console.log('[3DLandscape] Frustum interaction ready (ol.interaction.Pointer)');
+            TnetLog.log('[3DLandscape] Frustum interaction ready (ol.interaction.Pointer)');
         },
 
         /**
@@ -1030,15 +1008,15 @@
         createSceneSwitcher: function() {
             var self = this;
             var scenes = (window.Landscape3DConfig && window.Landscape3DConfig.availableScenes) || [];
-            console.log('[3DLandscape] createSceneSwitcher - scenes:', scenes.length, scenes);
+            TnetLog.log('[3DLandscape] createSceneSwitcher - scenes:', scenes.length, scenes);
             if (scenes.length < 2) {
-                console.warn('[3DLandscape] Not creating scene switcher - only', scenes.length, 'scene(s) available');
+                TnetLog.warn('[3DLandscape] Not creating scene switcher - only', scenes.length, 'scene(s) available');
                 return; // no point with only 1 scene
             }
             
             var rightPanel = document.getElementById('split-panel-3d');
             if (!rightPanel) {
-                console.error('[3DLandscape] Cannot create scene switcher - split-panel-3d not found');
+                TnetLog.error('[3DLandscape] Cannot create scene switcher - split-panel-3d not found');
                 return;
             }
             
@@ -1061,7 +1039,7 @@
             select.addEventListener('change', function() {
                 var newId = this.value;
                 if (newId && newId !== self.webSceneId) {
-                    console.log('[3DLandscape] Switching scene to:', newId);
+                    TnetLog.log('[3DLandscape] Switching scene to:', newId);
                     self.webSceneId = newId;
                     self.sendToIframe({ type: 'setWebScene', webSceneId: newId });
                 }
@@ -1069,7 +1047,7 @@
             
             switcher.appendChild(select);
             rightPanel.appendChild(switcher);
-            console.log('[3DLandscape] Scene switcher created with', scenes.length, 'scenes');
+            TnetLog.log('[3DLandscape] Scene switcher created with', scenes.length, 'scenes');
         },
 
         /**
@@ -1100,7 +1078,7 @@
             var match = url.match(/(.*agsproxy\.php)\?path=([^&]+)/);
             if (match) {
                 var converted = match[1] + '/' + decodeURIComponent(match[2]);
-                console.log('[3DLandscape] Proxy URL converted for ESRI:', url, '→', converted);
+                TnetLog.log('[3DLandscape] Proxy URL converted for ESRI:', url, '→', converted);
                 return converted;
             }
             return url;
@@ -1283,7 +1261,7 @@
             });
 
             if (layers.length > 0) {
-                console.log('[3DLandscape] Found', layers.length, 'overlay layers:',
+                TnetLog.log('[3DLandscape] Found', layers.length, 'overlay layers:',
                     layers.map(function(l) { return l.name + ' (' + l.type + ')'; }).join(', '));
             }
             return layers;
@@ -1302,7 +1280,7 @@
             if (stateKey === this.lastLayerState) return;
             this.lastLayerState = stateKey;
             
-            console.log('[3DLandscape] Syncing', layers.length, 'overlay layers to 3D');
+            TnetLog.log('[3DLandscape] Syncing', layers.length, 'overlay layers to 3D');
             this.sendToIframe({
                 type: 'syncLayers',
                 layers: layers
@@ -1322,7 +1300,7 @@
             if (map2D) {
                 // Listen for layer add/remove on the map
                 var collectionKey = map2D.getLayers().on(['add', 'remove'], function() {
-                    console.log('[3DLandscape] Layer collection changed');
+                    TnetLog.log('[3DLandscape] Layer collection changed');
                     // Re-attach visibility listeners and sync
                     self.attachVisibilityListeners();
                     self.syncLayersTo3D();
@@ -1342,7 +1320,7 @@
                 }
             }, 3000);
 
-            console.log('[3DLandscape] Layer watch started (events + polling)');
+            TnetLog.log('[3DLandscape] Layer watch started (events + polling)');
         },
 
         /**
@@ -1374,7 +1352,7 @@
                 }
 
                 var key = layer.on('change:visible', function() {
-                    console.log('[3DLandscape] Layer visibility changed:', layer.get('name'));
+                    TnetLog.log('[3DLandscape] Layer visibility changed:', layer.get('name'));
                     self.syncLayersTo3D();
                 });
                 self.layerChangeKeys.push(key);
@@ -1541,7 +1519,7 @@
                 }
                 
             } catch(e) {
-                console.warn('[3DLandscape] Error updating frustum:', e);
+                TnetLog.warn('[3DLandscape] Error updating frustum:', e);
             }
         },
 
@@ -1617,7 +1595,7 @@
          * Disable 3D mode
          */
         disable: function() {
-            console.log('[3DLandscape] Disabling...');
+            TnetLog.log('[3DLandscape] Disabling...');
             
             if (this._messageHandler) {
                 window.removeEventListener('message', this._messageHandler);
@@ -1669,7 +1647,7 @@
             if (map2D_r && this._originalMapTarget) {
                 map2D_r.setTarget(this._originalMapTarget);
                 this._originalMapTarget = null;
-                console.log('[3DLandscape] OL map target restored');
+                TnetLog.log('[3DLandscape] OL map target restored');
             }
             
             // Remove split wrapper
@@ -1692,7 +1670,7 @@
             
             this.resize2DMap();
             
-            console.log('[3DLandscape] Disabled');
+            TnetLog.log('[3DLandscape] Disabled');
         },
 
         /**
@@ -1712,7 +1690,7 @@
         toggleSync: function() {
             this.syncEnabled = !this.syncEnabled;
             this.sendToIframe({ type: 'toggleSync' });
-            console.log('[3DLandscape] Sync:', this.syncEnabled ? 'ON' : 'OFF');
+            TnetLog.log('[3DLandscape] Sync:', this.syncEnabled ? 'ON' : 'OFF');
         },
 
         /**

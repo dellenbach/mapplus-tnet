@@ -1,4 +1,4 @@
-/**
+﻿/**
  * tnet-print.js
  *
  * Drucken Side-Panel für tnet WebGIS.
@@ -29,6 +29,7 @@
   var _frameEl = null;
   var _svgPreviewImg = null;   // <img> für Template-SVG-Vorschau
   var _svgPreviewCache = {};   // {layoutValue: dataUrl}
+  var _svgRawCache = {};        // {layoutValue: serializedSvg} — vor Variablen-Ersetzung
   var _isPrinting = false;
   var _isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
   var PDF_SAVE_URL = '/maps/tnet/php/pdf-save.php';
@@ -101,7 +102,7 @@
       return chain.then(function () { return loadScriptSafe(src); });
     }, Promise.resolve()).then(function () {
       _libsReady = true;
-      console.log('[Drucken] PDF-Libraries geladen ✓');
+      TnetLog.log('[Drucken] PDF-Libraries geladen ✓');
     });
 
     return _libsPromise;
@@ -143,11 +144,11 @@
         if (config.scales && Array.isArray(config.scales)) {
           _scales = config.scales;
           window._tnetScales = _scales;
-          console.log('[Drucken] ' + _scales.length + ' Massstäbe aus Config geladen');
+          TnetLog.log('[Drucken] ' + _scales.length + ' Massstäbe aus Config geladen');
         }
       }
     } catch (e) {
-      console.warn('[Drucken] Config nicht geladen:', e.message);
+      TnetLog.warn('[Drucken] Config nicht geladen:', e.message);
     }
   }
 
@@ -304,7 +305,7 @@
   // ================================================================
   function loadLayouts() {
     if (typeof getAvailableLayouts !== 'function') {
-      console.warn('[Drucken] getAvailableLayouts() nicht verfügbar');
+      TnetLog.warn('[Drucken] getAvailableLayouts() nicht verfügbar');
       return;
     }
     getAvailableLayouts().then(function (layouts) {
@@ -333,7 +334,7 @@
       });
       updateFrameSize();
       loadSvgPreview();
-      console.log('[Drucken] ' + layouts.length + ' Layouts geladen');
+      TnetLog.log('[Drucken] ' + layouts.length + ' Layouts geladen');
     });
   }
 
@@ -471,10 +472,9 @@
       return;
     }
 
-    // Cache prüfen
-    if (_svgPreviewCache[layoutVal]) {
-      _svgPreviewImg.src = _svgPreviewCache[layoutVal];
-      _svgPreviewImg.style.display = '';
+    // Cache prüfen — wenn Roh-SVG bereits vorhanden, nur Variablen neu einsetzen
+    if (_svgRawCache[layoutVal]) {
+      refreshSvgPreviewValues();
       return;
     }
 
@@ -538,7 +538,7 @@
               var pathW = maxX - minX, pathH = maxY - minY;
               if (pathW >= vbW * 0.9 && pathH >= vbH * 0.9) {
                 bgGroups[bg].setAttribute('visibility', 'hidden');
-                console.log('[Drucken] QGIS-Seitenhintergrund ausgeblendet');
+                TnetLog.log('[Drucken] QGIS-Seitenhintergrund ausgeblendet');
               }
             }
           }
@@ -582,18 +582,83 @@
       }
 
       var serialized = new XMLSerializer().serializeToString(doc);
-      var dataUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(serialized);
-      _svgPreviewCache[layoutVal] = dataUrl;
-
-      if (_svgPreviewImg) {
-        _svgPreviewImg.src = dataUrl;
-        _svgPreviewImg.style.display = '';
-      }
-      console.log('[Drucken] SVG-Vorschau geladen für:', layoutVal);
+      // Roh-SVG cachen (ohne Variablen-Ersetzung) für Live-Aktualisierung
+      _svgRawCache[layoutVal] = serialized;
+      // Variablen ersetzen und Vorschau anzeigen
+      refreshSvgPreviewValues();
+      TnetLog.log('[Drucken] SVG-Vorschau geladen für:', layoutVal);
     }).catch(function (err) {
-      console.warn('[Drucken] SVG-Vorschau Fehler:', err.message);
+      TnetLog.warn('[Drucken] SVG-Vorschau Fehler:', err.message);
       if (_svgPreviewImg) _svgPreviewImg.style.display = 'none';
     });
+  }
+
+  // ================================================================
+  //  SVG-Vorschau: Live-Variablen-Ersetzung
+  //
+  //  Ersetzt {{PLACEHOLDER}} im gecachten Roh-SVG mit aktuellen
+  //  Formularwerten. Wird bei Änderungen an Titel, Benutzer,
+  //  Massstab etc. automatisch aufgerufen.
+  // ================================================================
+
+  /**
+   * Sammelt aktuelle Formularwerte für die Vorschau-Ersetzung.
+   */
+  function getPreviewValues() {
+    var scaleVal = parseInt((document.getElementById('print-scale') || {}).value) || 10000;
+    var now = new Date();
+    return {
+      title:     (document.getElementById('print-title') || {}).value || '',
+      scaleText: '1:' + scaleVal.toLocaleString('de-CH'),
+      date:      now.toLocaleDateString('de-CH'),
+      time:      now.toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' }),
+      user:      (document.getElementById('print-user') || {}).value || '',
+      coords:    _map ? (Math.round(_map.getView().getCenter()[0]).toLocaleString('de-CH') + ' / ' +
+                         Math.round(_map.getView().getCenter()[1]).toLocaleString('de-CH')) : ''
+    };
+  }
+
+  /**
+   * Ersetzt {{PLACEHOLDER}} im gecachten Roh-SVG und aktualisiert das Vorschaubild.
+   * Wird bei Formularänderungen und initial nach loadSvgPreview() aufgerufen.
+   */
+  function refreshSvgPreviewValues() {
+    if (!_svgPreviewImg) return;
+    var layoutVal = (document.getElementById('print-layout') || {}).value || '';
+    var rawSvg = _svgRawCache[layoutVal];
+    if (!rawSvg) return;  // Noch nicht geladen
+
+    var values = getPreviewValues();
+    var result = rawSvg;
+
+    // Bekannte Platzhalter ersetzen
+    var replacements = {
+      'TITLE':       values.title,
+      'SCALE':       values.scaleText,
+      'SCALETEXT':   values.scaleText,
+      'SCALEDOT':    values.scaleText,
+      'COORDINATES': values.coords,
+      'DATE':        values.date,
+      'TIME':        values.time,
+      'USER':        values.user
+    };
+
+    for (var key in replacements) {
+      if (!replacements.hasOwnProperty(key)) continue;
+      var placeholder = '{{' + key + '}}';
+      if (result.indexOf(placeholder) !== -1) {
+        result = result.split(placeholder).join(replacements[key]);
+      }
+    }
+
+    // Unbekannte {{VARIABLE}} entfernen
+    result = result.replace(/\{\{[A-Z_]+\}\}/g, '');
+
+    var dataUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(result);
+    // Fertigen dataUrl im Bild-Cache aktualisieren (für updateFrameSize)
+    _svgPreviewCache[layoutVal] = dataUrl;
+    _svgPreviewImg.src = dataUrl;
+    _svgPreviewImg.style.display = '';
   }
 
   // ================================================================
@@ -668,7 +733,7 @@
     // Abweichung vom Ziel berechnen
     // Wenn Frame < 40% oder > 90% des Viewports, anpassen
     if (currentRatio >= 40 && currentRatio <= 90) {
-      console.log('[Drucken] Frame-Grösse OK:', Math.round(currentRatio) + '% des Viewports');
+      TnetLog.log('[Drucken] Frame-Grösse OK:', Math.round(currentRatio) + '% des Viewports');
       return; // Passt schon
     }
 
@@ -680,7 +745,7 @@
 
     // Resolution setzen
     view.animate({ resolution: newRes, duration: 300 });
-    console.log('[Drucken] Zoom angepasst:', Math.round(currentRatio) + '% → ' + 
+    TnetLog.log('[Drucken] Zoom angepasst:', Math.round(currentRatio) + '% → ' + 
       targetPercent + '% (Resolution:', currentRes.toFixed(2), '→', newRes.toFixed(2) + ')');
 
     // Nach Animation Frame-Grösse aktualisieren
@@ -738,7 +803,7 @@
       doOpen();
     } else {
       loadLibraries().then(doOpen).catch(function (err) {
-        console.error('[Drucken] Libraries konnten nicht geladen werden:', err);
+        TnetLog.error('[Drucken] Libraries konnten nicht geladen werden:', err);
         alert('PDF-Export konnte nicht initialisiert werden.\n' + err.message);
       });
     }
@@ -830,7 +895,7 @@
     };
 
     _printQueue.push(job);
-    console.log('[Print-Queue] Job #' + jobId + ' hinzugefügt. Queue-Länge:', _printQueue.length);
+    TnetLog.log('[Print-Queue] Job #' + jobId + ' hinzugefügt. Queue-Länge:', _printQueue.length);
     updateQueueUI();
     processNextQueueJob();
   };
@@ -849,7 +914,7 @@
     job.status = 'processing';
     updateQueueUI();
 
-    console.log('[Print-Queue] Starte Job #' + job.id + ': ' + job.title);
+    TnetLog.log('[Print-Queue] Starte Job #' + job.id + ': ' + job.title);
 
     templatePdfPrint({
       massstab:        job.params.massstab,
@@ -888,7 +953,7 @@
         job.progress = 100;
         
         handlePdfResult(job.blob, job.filename);
-        console.log('[Print-Queue] Job #' + job.id + ' abgeschlossen: ' + job.filename);
+        TnetLog.log('[Print-Queue] Job #' + job.id + ' abgeschlossen: ' + job.filename);
         
         finishQueueJobUI();
         _currentJobId = null;
@@ -903,7 +968,7 @@
       onError: function (err) {
         job.status = 'failed';
         job.error = err.message;
-        console.error('[Print-Queue] Job #' + job.id + ' Fehler:', err);
+        TnetLog.error('[Print-Queue] Job #' + job.id + ' Fehler:', err);
         
         finishQueueJobUI();
         _currentJobId = null;
@@ -1067,7 +1132,7 @@
       document.body.removeChild(link);
     }
 
-    console.log('[Drucken] PDF fertig:', filename, '(' + blob.size + ' Bytes)');
+    TnetLog.log('[Drucken] PDF fertig:', filename, '(' + blob.size + ' Bytes)');
 
     // Parallel: PDF auf Server loggen (fire-and-forget)
     logPdfToServer(blob, filename);
@@ -1090,13 +1155,13 @@
       .then(function(r) { return r.json(); })
       .then(function(data) {
         if (data.ok) {
-          console.log('[Drucken] PDF archiviert:', data.path);
+          TnetLog.log('[Drucken] PDF archiviert:', data.path);
         } else {
-          console.warn('[Drucken] PDF-Archivierung fehlgeschlagen:', data.error);
+          TnetLog.warn('[Drucken] PDF-Archivierung fehlgeschlagen:', data.error);
         }
       })
       .catch(function(err) {
-        console.warn('[Drucken] PDF-Archivierung Fehler:', err.message);
+        TnetLog.warn('[Drucken] PDF-Archivierung Fehler:', err.message);
       });
   }
 
@@ -1360,6 +1425,13 @@
     var scaleSel = document.getElementById('print-scale');
     if (scaleSel) scaleSel.addEventListener('change', updateFrameSize);
 
+    // ── Live-Aktualisierung der SVG-Vorschau bei Formularänderungen ──
+    if (scaleSel) scaleSel.addEventListener('change', refreshSvgPreviewValues);
+    var titleInput = document.getElementById('print-title');
+    if (titleInput) titleInput.addEventListener('input', refreshSvgPreviewValues);
+    var userInputEl = document.getElementById('print-user');
+    if (userInputEl) userInputEl.addEventListener('input', refreshSvgPreviewValues);
+
     // Koordinatennetz Checkbox → Farbwahl ein-/ausblenden
     var gridCb = document.getElementById('print-grid');
     if (gridCb) gridCb.addEventListener('change', function () {
@@ -1387,14 +1459,14 @@
       if (map) map.getView().setRotation(deg * Math.PI / 180);
     });
 
-    console.log('[Drucken] tnet-print.js initialisiert');
+    TnetLog.log('[Drucken] tnet-print.js initialisiert');
 
     // Resize-Handle für Dock-Modus
     initPrintPanelResize();
 
     // Libraries im Hintergrund vorladen (kein Blockieren)
     loadLibraries().catch(function (err) {
-      console.warn('[Drucken] Vorladen der PDF-Libraries fehlgeschlagen:', err);
+      TnetLog.warn('[Drucken] Vorladen der PDF-Libraries fehlgeschlagen:', err);
     });
   }
 

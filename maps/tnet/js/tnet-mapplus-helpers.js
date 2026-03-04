@@ -1,4 +1,4 @@
-/**
+﻿/**
  * tnet-mapplus-helpers.js
  * Hilfsfunktionen für MAP+ Desktop & Mobile
  *
@@ -321,7 +321,7 @@ function _applyBookmark(cfg, bookmarkId) {
            : (window.njs && window.njs.AppManager) ? window.njs.AppManager : null;
   if (!am) throw new Error('njs.AppManager nicht verfügbar');
   am.setMapBookmark(['main'], params);
-  console.log('[TnetSetBookmark]', bookmarkId, params);
+  TnetLog.log('[TnetSetBookmark]', bookmarkId, params);
   return { success: true, bookmarkId: bookmarkId, params: params };
 }
 
@@ -335,7 +335,7 @@ function TnetSetBookmark(bookmarkId) {
   return TnetApi.getBookmark(bookmarkId)
     .then(function(cfg) { return _applyBookmark(cfg, bookmarkId); })
     .catch(function(err) {
-      console.error('[TnetSetBookmark] Fehler:', err);
+      TnetLog.error('[TnetSetBookmark] Fehler:', err);
       return { success: false, error: err.message };
     });
 }
@@ -365,7 +365,7 @@ function TnetLayerSwitch(layerId, mode) {
              : null;
 
   if (!am || !am.Maps || !am.Maps['main'] || !am.Maps['main'].mapObj) {
-    console.warn('[TnetLayerSwitch] AppManager oder Map nicht verfügbar');
+    TnetLog.warn('[TnetLayerSwitch] AppManager oder Map nicht verfügbar');
     return false;
   }
 
@@ -396,7 +396,7 @@ function TnetLayerSwitch(layerId, mode) {
     if (found) {
       // Layer existiert bereits im Stack → sichtbar machen
       found.setVisible(true);
-      console.log('[TnetLayerSwitch] Layer eingeblendet:', layerId);
+      TnetLog.log('[TnetLayerSwitch] Layer eingeblendet:', layerId);
     } else {
       // Noch nicht im Stack → über LyrMgr (Layer-Manager) laden.
       // WICHTIG: setMapBookmark NICHT verwenden — setzt gesamten Kartenstatus zurück.
@@ -412,9 +412,9 @@ function TnetLayerSwitch(layerId, mode) {
       }
       if (targetLyrMgr && typeof targetLyrMgr.switchLayersProgr === 'function') {
         targetLyrMgr.switchLayersProgr(layerId, null, true);
-        console.log('[TnetLayerSwitch] Layer via LyrMgr.switchLayersProgr geladen:', layerId);
+        TnetLog.log('[TnetLayerSwitch] Layer via LyrMgr.switchLayersProgr geladen:', layerId);
       } else {
-        console.warn('[TnetLayerSwitch] LyrMgr nicht verfügbar für:', layerId);
+        TnetLog.warn('[TnetLayerSwitch] LyrMgr nicht verfügbar für:', layerId);
         return false;
       }
     }
@@ -429,7 +429,7 @@ function TnetLayerSwitch(layerId, mode) {
         if (mgr.targetMap && dojo.indexOf(mgr.targetMap, 'main') > -1 &&
             typeof mgr.switchLayer === 'function') {
           mgr.switchLayer(layerId, false);
-          console.log('[TnetLayerSwitch] switchLayer(false) auf LyrMgr:', lmOff, layerId);
+          TnetLog.log('[TnetLayerSwitch] switchLayer(false) auf LyrMgr:', lmOff, layerId);
           lyrMgrHandled = true;
         }
       }
@@ -438,9 +438,9 @@ function TnetLayerSwitch(layerId, mode) {
       // Fallback: direktes Entfernen wenn kein LyrMgr verfügbar
       if (found) {
         map.removeLayer(found);
-        console.log('[TnetLayerSwitch] Layer direkt entfernt (kein LyrMgr):', layerId);
+        TnetLog.log('[TnetLayerSwitch] Layer direkt entfernt (kein LyrMgr):', layerId);
       } else {
-        console.log('[TnetLayerSwitch] Layer war bereits aus:', layerId);
+        TnetLog.log('[TnetLayerSwitch] Layer war bereits aus:', layerId);
       }
     }
     return false;

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * tnet-spatial-query.js (ES Module)
  * Polygon-Zeichnen und räumliche Abfrage: WFS, ArcGIS, geo.admin.ch
  * Layer-Erkennung, GML-Parsing, Feature-Highlighting, Ergebnis-Anzeige, Excel-Export
@@ -363,7 +363,7 @@ var spatialQueryConfigPromise = null;
                     });
                 })
                 .catch(function(err) {
-                    console.error('geo.admin.ch API Fehler:', err);
+                    TnetLog.error('geo.admin.ch API Fehler:', err);
                     
                     var displayName = layer.wmsLayers || layer.name || 'Unbekannter Layer';
                     displayName = displayName.replace(/_v\d+_\d+(\.oereb)?$/, '');
@@ -437,7 +437,7 @@ var spatialQueryConfigPromise = null;
             // console.log('Query Results:', results);
             displayResults(results, visibleLayers);
         }).catch(function(err) {
-            console.error('Spatial Query Error:', err);
+            TnetLog.error('Spatial Query Error:', err);
             statusEl.textContent = 'Fehler bei der Abfrage.';
             resultsEl.innerHTML = '<p class="error">' + escapeHtml(err && err.message ? err.message : 'Unbekannter Fehler') + '</p>';
         });
@@ -559,7 +559,7 @@ var spatialQueryConfigPromise = null;
                                     return { typeName: typeName, data: { features: [] } };
                                 })
                                 .catch(function(err) {
-                                    console.error('WFS Query für ' + typeName + ' fehlgeschlagen:', err);
+                                    TnetLog.error('WFS Query für ' + typeName + ' fehlgeschlagen:', err);
                                     return { typeName: typeName, data: { features: [] } };
                                 });
                         });
@@ -594,7 +594,7 @@ var spatialQueryConfigPromise = null;
                         });
                     })
                     .catch(function(err) {
-                        console.error('Multi-Kanton WFS Fehler:', err);
+                        TnetLog.error('Multi-Kanton WFS Fehler:', err);
                         resolve({
                             layerName: layer.name + ' (WFS)',
                             baseLayerName: layer.name || '',
@@ -669,7 +669,7 @@ var spatialQueryConfigPromise = null;
                                     // Fallback: erster FeatureType
                                     if (!matchingType) {
                                         matchingType = allTypes[0];
-                                        console.warn('Kein passender FeatureType gefunden, verwende ersten:', matchingType);
+                                        TnetLog.warn('Kein passender FeatureType gefunden, verwende ersten:', matchingType);
                                     } else {
                                         // console.log('Passender FeatureType gefunden:', matchingType);
                                     }
@@ -692,7 +692,7 @@ var spatialQueryConfigPromise = null;
                     
                     // Prüfe auf WFS Exception oder Fehler
                     if (text.indexOf('ExceptionReport') > -1 || text.indexOf('Exception') > -1) {
-                        console.warn('WFS Exception oder Fehler:', text.substring(0, 500));
+                        TnetLog.warn('WFS Exception oder Fehler:', text.substring(0, 500));
                         // WFS nicht verfügbar - leere Ergebnisse zurückgeben
                         return { features: [], error: 'WFS nicht verfügbar oder Layer nicht gefunden' };
                     }
@@ -730,7 +730,7 @@ var spatialQueryConfigPromise = null;
                     });
                 })
                 .catch(function(err) {
-                    console.error('WFS Query Error:', err);
+                    TnetLog.error('WFS Query Error:', err);
                     resolve({
                         layerName: layer.name + ' (WFS)',
                         baseLayerName: layer.name || '',
@@ -796,7 +796,7 @@ var spatialQueryConfigPromise = null;
         
         // Prüfe auf Exception
         if (text.indexOf('ExceptionReport') > -1 || text.indexOf('Exception') > -1) {
-            console.error('WFS Exception:', text);
+            TnetLog.error('WFS Exception:', text);
             return { features: [], error: text };
         }
         
@@ -898,7 +898,7 @@ var spatialQueryConfigPromise = null;
             // console.log('Parsed', features.length, 'features from GML');
             
         } catch (e) {
-            console.warn('GML Parse Error:', e);
+            TnetLog.warn('GML Parse Error:', e);
         }
         
         return { features: features };
@@ -955,7 +955,7 @@ var spatialQueryConfigPromise = null;
                 return { type: 'MultiPolygon', coordinates: coords };
             }
         } catch (e) {
-            console.warn('GML Geometry Parse Error:', e);
+            TnetLog.warn('GML Geometry Parse Error:', e);
         }
         return null;
     }
@@ -1145,7 +1145,7 @@ var spatialQueryConfigPromise = null;
                         });
                     })
                     .catch(function(err) {
-                        console.error('Fetch Error für "' + layer.name + '":', err);
+                        TnetLog.error('Fetch Error für "' + layer.name + '":', err);
                         resolve({
                             layerName: layer.name,
                             baseLayerName: layer.name || '',
@@ -1191,7 +1191,7 @@ var spatialQueryConfigPromise = null;
                         });
                     })
                     .catch(function(err) {
-                        console.error('Fetch Error für "' + layer.name + '":', err);
+                        TnetLog.error('Fetch Error für "' + layer.name + '":', err);
                         resolve({
                             layerName: layer.name,
                             baseLayerName: layer.name || '',
@@ -1435,7 +1435,7 @@ var spatialQueryConfigPromise = null;
         var map = getMainMap();
         
         if (!map) {
-            console.warn('Map nicht verfügbar');
+            TnetLog.warn('Map nicht verfügbar');
             return;
         }
         

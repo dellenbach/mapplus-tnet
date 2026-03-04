@@ -1,4 +1,4 @@
-/**
+﻿/**
  * tnet-oereb.js (ES Module) - ÖREB Grundstückabfrage
  * 
  * Enthält:
@@ -95,7 +95,7 @@ var _njsInfoHighlightLayers = [];
                 var parsed = JSON5.parse(t);
                 if (parsed && parsed.oereb) {
                     _oerebMaxZoomConfig = parsed.oereb;
-                    console.log('[OEREB] Config geladen: maxZoomOrthophoto=' +
+                    TnetLog.log('[OEREB] Config geladen: maxZoomOrthophoto=' +
                         _oerebMaxZoomConfig.maxZoomOrthophoto + ', maxZoomOther=' +
                         _oerebMaxZoomConfig.maxZoomOther);
                 }
@@ -448,7 +448,7 @@ function registerMobileGraphicsLayer() {
     if (!isMobileEntry()) return;
     if (_mobileGraphicsLayerRegistered) return;
     if (typeof window.define !== 'function' || !window.define.amd) {
-        console.warn('[OEREB] Dojo define() nicht verfügbar, Mobile-GraphicsLayer kann nicht registriert werden');
+        TnetLog.warn('[OEREB] Dojo define() nicht verfügbar, Mobile-GraphicsLayer kann nicht registriert werden');
         return;
     }
     _mobileGraphicsLayerRegistered = true;
@@ -472,7 +472,7 @@ function registerMobileGraphicsLayer() {
                 else if (parent && parent.njs) mapplus_obj = parent.njs;
             } catch(e) {}
             if (!mapplus_obj || !mapplus_obj.AppManager || !mapplus_obj.AppManager.Maps || !mapplus_obj.AppManager.Maps['main']) {
-                console.warn('[OEREB-Mobile] getMap: Karte nicht gefunden');
+                TnetLog.warn('[OEREB-Mobile] getMap: Karte nicht gefunden');
                 return { mapplus_obj: null, mapObj: null, mapname: 'main' };
             }
             return {
@@ -619,7 +619,7 @@ function registerMobileGraphicsLayer() {
                     return true;
                 }
             } catch (e) {
-                console.warn('[OEREB-Mobile] setStoreLayerVisible Fehler:', e);
+                TnetLog.warn('[OEREB-Mobile] setStoreLayerVisible Fehler:', e);
             }
 
             return false;
@@ -635,7 +635,7 @@ function registerMobileGraphicsLayer() {
                     return true;
                 }
             } catch (e) {
-                console.warn('[OEREB-Mobile] setStoreLayerOpacity Fehler:', e);
+                TnetLog.warn('[OEREB-Mobile] setStoreLayerOpacity Fehler:', e);
             }
 
             return false;
@@ -711,7 +711,7 @@ function registerMobileGraphicsLayer() {
                     });
                     this.displayLayer.set('id', 'OerebGraphics');
                     map.addLayer(this.displayLayer);
-                    console.log('[OEREB-Mobile] OerebGraphics-Layer erstellt');
+                    TnetLog.log('[OEREB-Mobile] OerebGraphics-Layer erstellt');
                 }
             }
         };
@@ -750,7 +750,7 @@ function registerMobileGraphicsLayer() {
                 dataProjection: 'EPSG:2056', featureProjection: 'EPSG:2056'
             });
             this.displayLayer.getSource().addFeatures(features);
-            console.log('[OEREB-Mobile] Polygon gezeichnet, Ringe:', rings.length);
+            TnetLog.log('[OEREB-Mobile] Polygon gezeichnet, Ringe:', rings.length);
         };
 
         proto.addOerebGraphicPolyline = function(argGeometryString) {
@@ -764,7 +764,7 @@ function registerMobileGraphicsLayer() {
                 dataProjection: 'EPSG:2056', featureProjection: 'EPSG:2056'
             });
             this.displayLayer.getSource().addFeatures(features);
-            console.log('[OEREB-Mobile] Polyline gezeichnet');
+            TnetLog.log('[OEREB-Mobile] Polyline gezeichnet');
         };
 
         proto.addOerebGraphicPoint = function(argGeometryString) {
@@ -778,7 +778,7 @@ function registerMobileGraphicsLayer() {
                 dataProjection: 'EPSG:2056', featureProjection: 'EPSG:2056'
             });
             this.displayLayer.getSource().addFeatures(features);
-            console.log('[OEREB-Mobile] Point gezeichnet');
+            TnetLog.log('[OEREB-Mobile] Point gezeichnet');
         };
 
         // WebOffice-spezifische Methoden: Mobile-Implementierung via Tnet-Layersteuerung
@@ -905,7 +905,7 @@ function registerMobileGraphicsLayer() {
         return MobileGraphicsLayer;
     });
 
-    console.log('[OEREB] Mobile-GraphicsLayer Modul registriert');
+    TnetLog.log('[OEREB] Mobile-GraphicsLayer Modul registriert');
 }
 
 // ===== IFRAME =====
@@ -1005,7 +1005,7 @@ function suppressInfoHighlightLayer(map) {
                 // Log nur beim ersten Mal - dann ist die cosmetic_maptip leer und wir brauchen kein Spam
                 if (!_njsInfoHighlightLogged && _njsInfoHighlightFeatures.length > 0) {
                     _njsInfoHighlightLogged = true;
-                    console.log('[ÖREB] Objektinfo-Unterdrückung aktiv: ' + _njsInfoHighlightFeatures.length + ' Features zwischengespeichert');
+                    TnetLog.log('[ÖREB] Objektinfo-Unterdrückung aktiv: ' + _njsInfoHighlightFeatures.length + ' Features zwischengespeichert');
                 }
             }
         }
@@ -1017,16 +1017,16 @@ function highlightOerebParcel(geojsonGeom, map) {
     clearOerebHighlight();
 
     if (!map) {
-        console.warn('[OEREB] highlightOerebParcel: map ist null');
+        TnetLog.warn('[OEREB] highlightOerebParcel: map ist null');
         return;
     }
 
     if (!geojsonGeom || !geojsonGeom.coordinates) {
-        console.warn('[OEREB] highlightOerebParcel: keine Geometrie', geojsonGeom);
+        TnetLog.warn('[OEREB] highlightOerebParcel: keine Geometrie', geojsonGeom);
         return;
     }
 
-    console.log('[OEREB] Highlight Geometrie:', geojsonGeom.type, 
+    TnetLog.log('[OEREB] Highlight Geometrie:', geojsonGeom.type, 
         'coords:', JSON.stringify(geojsonGeom.coordinates).substring(0, 100));
 
     try {
@@ -1041,11 +1041,11 @@ function highlightOerebParcel(geojsonGeom, map) {
                 })
             });
             map.addLayer(oerebHighlightLayer);
-            console.log('[OEREB] Highlight-Layer erstellt und zur Karte hinzugefügt');
+            TnetLog.log('[OEREB] Highlight-Layer erstellt und zur Karte hinzugefügt');
         }
 
         var mapProj = map.getView().getProjection();
-        console.log('[OEREB] Karten-Projektion:', mapProj.getCode());
+        TnetLog.log('[OEREB] Karten-Projektion:', mapProj.getCode());
 
         var format = new ol.format.GeoJSON();
         var feature = format.readFeature({
@@ -1057,24 +1057,24 @@ function highlightOerebParcel(geojsonGeom, map) {
         });
 
         if (!feature || !feature.getGeometry()) {
-            console.error('[OEREB] Feature konnte nicht aus GeoJSON gelesen werden');
+            TnetLog.error('[OEREB] Feature konnte nicht aus GeoJSON gelesen werden');
             return;
         }
 
-        console.log('[OEREB] Feature erstellt, Geometry-Type:', feature.getGeometry().getType());
+        TnetLog.log('[OEREB] Feature erstellt, Geometry-Type:', feature.getGeometry().getType());
 
         oerebHighlightLayer.getSource().addFeature(feature);
-        console.log('[OEREB] Feature zu Highlight-Layer hinzugefügt, Anzahl Features:',
+        TnetLog.log('[OEREB] Feature zu Highlight-Layer hinzugefügt, Anzahl Features:',
             oerebHighlightLayer.getSource().getFeatures().length);
 
         // Auf Parzelle zoomen/pannen
         var extent = feature.getGeometry().getExtent();
-        console.log('[OEREB] Feature-Extent:', extent);
+        TnetLog.log('[OEREB] Feature-Extent:', extent);
 
         if (extent && !extentIsEmpty(extent)) {
             // Auf Mobile: Bottom-Sheet belegt ~50% unten, Padding grosszügig
             var bottomPad = isMobileView() ? Math.round(window.innerHeight * 0.55) : 80;
-            console.log('[OEREB] view.fit mit padding [80, 80, ' + bottomPad + ', 80], mobile=' + isMobileView());
+            TnetLog.log('[OEREB] view.fit mit padding [80, 80, ' + bottomPad + ', 80], mobile=' + isMobileView());
 
             // Guard setzen: triggerMapUpdate() darf kein updateSize()/resize() aufrufen
             _oerebFitAnimating = true;
@@ -1115,7 +1115,7 @@ function highlightOerebParcel(geojsonGeom, map) {
                         zoom: view.getZoom(),
                         time: Date.now()
                     };
-                    console.log('[OEREB] Zoom nach fit:', _oerebSavedView.zoom, 'completed:', completed, 'maxZoom:', oerebMaxZoom);
+                    TnetLog.log('[OEREB] Zoom nach fit:', _oerebSavedView.zoom, 'completed:', completed, 'maxZoom:', oerebMaxZoom);
                     startOerebViewGuard(map);
                 }
             });
@@ -1126,16 +1126,16 @@ function highlightOerebParcel(geojsonGeom, map) {
                 window._tnetBlockResize = false;
             }, 5000);
         } else {
-            console.warn('[OEREB] Extent ist leer oder ungültig:', extent);
+            TnetLog.warn('[OEREB] Extent ist leer oder ungültig:', extent);
         }
 
         // Prüfe ob Layer sichtbar ist
-        console.log('[OEREB] Layer visible:', oerebHighlightLayer.getVisible(),
+        TnetLog.log('[OEREB] Layer visible:', oerebHighlightLayer.getVisible(),
             'opacity:', oerebHighlightLayer.getOpacity(),
             'zIndex:', oerebHighlightLayer.getZIndex());
 
     } catch (err) {
-        console.error('[OEREB] Fehler in highlightOerebParcel:', err);
+        TnetLog.error('[OEREB] Fehler in highlightOerebParcel:', err);
     }
 }
 
@@ -1162,7 +1162,7 @@ function startOerebViewGuard(map) {
         var centerDy = Math.abs(currentCenter[1] - savedCenter[1]);
 
         if (zoomDiff > 0.3 || centerDx > 100 || centerDy > 100) {
-            console.warn('[OEREB] View wurde ver\u00e4ndert (zoom: ' + currentZoom.toFixed(2) + ' vs ' + savedZoom.toFixed(2) +
+            TnetLog.warn('[OEREB] View wurde ver\u00e4ndert (zoom: ' + currentZoom.toFixed(2) + ' vs ' + savedZoom.toFixed(2) +
                 ', dy: ' + centerDy.toFixed(0) + '), stelle wieder her');
             // Sofort setzen (kein animate!) damit kein updateSize dazwischenfunken kann
             try { view.cancelAnimations(); } catch (e) {}
@@ -1222,7 +1222,7 @@ function triggerMapUpdate() {
     setTimeout(function() {
         // Während view.fit()-Animation kein updateSize() aufrufen (würde Zoom zurücksetzen)
         if (_oerebFitAnimating) {
-            console.log('[OEREB] triggerMapUpdate übersprungen (view.fit Animation läuft)');
+            TnetLog.log('[OEREB] triggerMapUpdate übersprungen (view.fit Animation läuft)');
             return;
         }
         if (window.njs && njs.AppManager && njs.AppManager.Maps && njs.AppManager.Maps['main']) {

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * tnet-3d-landscape-config.js
  * Configuration for 3D Landscape Model
  * 
@@ -100,7 +100,7 @@
                     var globalConfig = parseJSON5Simple(xhr.responseText);
                     
                     if (globalConfig && globalConfig['3d-landscape']) {
-                        console.log('[Landscape3DConfig] Loaded from:', possiblePaths[i]);
+                        TnetLog.log('[Landscape3DConfig] Loaded from:', possiblePaths[i]);
                         // Globales logLevel separat speichern (liegt auf Root-Ebene)
                         if (globalConfig.logLevel) {
                             window.TnetGlobalLogLevel = globalConfig.logLevel;
@@ -109,11 +109,11 @@
                     }
                 }
             } catch(e) {
-                console.warn('[Landscape3DConfig] Failed to load from:', possiblePaths[i], e.message);
+                TnetLog.warn('[Landscape3DConfig] Failed to load from:', possiblePaths[i], e.message);
             }
         }
         
-        console.error('[Landscape3DConfig] FEHLER: Konfiguration konnte nicht geladen werden!');
+        TnetLog.error('[Landscape3DConfig] FEHLER: Konfiguration konnte nicht geladen werden!');
         return null;
     }
     
@@ -121,7 +121,7 @@
     window.Landscape3DConfig = loadConfigFromJson();
     
     if (!window.Landscape3DConfig) {
-        console.error('[Landscape3DConfig] 3D Landscape wird nicht funktionieren - keine Konfiguration vorhanden!');
+        TnetLog.error('[Landscape3DConfig] 3D Landscape wird nicht funktionieren - keine Konfiguration vorhanden!');
     }
     
 })();
@@ -131,7 +131,7 @@
  */
 window.setWebSceneFromConfig = function(sceneName) {
     if (!window.Landscape3DConfig || !window.Landscape3DConfig.availableScenes) {
-        console.error('[Landscape3DConfig] Keine Konfiguration verfügbar');
+        TnetLog.error('[Landscape3DConfig] Keine Konfiguration verfügbar');
         return;
     }
     
@@ -140,12 +140,12 @@ window.setWebSceneFromConfig = function(sceneName) {
     });
     
     if (scene) {
-        console.log('[Landscape3DConfig] Switching to scene:', sceneName);
+        TnetLog.log('[Landscape3DConfig] Switching to scene:', sceneName);
         if (typeof toggleLandscape3D !== 'undefined') {
             toggleLandscape3D(scene.id);
         }
     } else {
-        console.error('[Landscape3DConfig] Scene not found:', sceneName);
+        TnetLog.error('[Landscape3DConfig] Scene not found:', sceneName);
     }
 };
 
@@ -154,12 +154,12 @@ window.setWebSceneFromConfig = function(sceneName) {
  */
 window.listAvailableScenes = function() {
     if (!window.Landscape3DConfig || !window.Landscape3DConfig.availableScenes) {
-        console.error('[Landscape3DConfig] Keine Konfiguration verfügbar');
+        TnetLog.error('[Landscape3DConfig] Keine Konfiguration verfügbar');
         return;
     }
     
-    console.log('[Landscape3DConfig] Available 3D Scenes:');
+    TnetLog.log('[Landscape3DConfig] Available 3D Scenes:');
     window.Landscape3DConfig.availableScenes.forEach(function(scene, index) {
-        console.log(' [' + (index + 1) + '] ' + scene.name + ' - ' + scene.id);
+        TnetLog.log(' [' + (index + 1) + '] ' + scene.name + ' - ' + scene.id);
     });
 };

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * tnet-accordion-resize.js
  * Drag-Splitter für Sidepane-Accordions (Themenkatalog, Dargestellte Themen).
  * Fügt NACH jedem TitlePane einen horizontalen Resize-Handle ein,
@@ -130,7 +130,7 @@
   function setupPanel(panelCfg) {
     var paneEl = document.getElementById(panelCfg.id);
     if (!paneEl) {
-      console.warn('[AccordionResize] Panel nicht gefunden:', panelCfg.id);
+      TnetLog.warn('[AccordionResize] Panel nicht gefunden:', panelCfg.id);
       return;
     }
 
@@ -209,14 +209,14 @@
         window.__tnetResizing = false;
       }, 500);
 
-      console.log('[AccordionResize] Neue Höhe gespeichert:', panelCfg.id, '→', finalHeight + 'px');
+      TnetLog.log('[AccordionResize] Neue Höhe gespeichert:', panelCfg.id, '→', finalHeight + 'px');
     }
 
     handle.addEventListener('mousedown', onDragStart);
     handle.addEventListener('touchstart', onDragStart, { passive: false });
 
     _handles.push({ panel: panelCfg, handle: handle, paneEl: paneEl });
-    console.log('[AccordionResize] Handle eingefügt nach:', panelCfg.id, '→ Höhe:', currentHeight + 'px');
+    TnetLog.log('[AccordionResize] Handle eingefügt nach:', panelCfg.id, '→ Höhe:', currentHeight + 'px');
   }
 
   // ===== VIEWPORT-RESIZE =====
@@ -237,7 +237,7 @@
     });
 
     if (!allFound) {
-      console.log('[AccordionResize] Panels noch nicht bereit, warte...');
+      TnetLog.log('[AccordionResize] Panels noch nicht bereit, warte...');
       return false;
     }
 
@@ -250,7 +250,7 @@
       resizeTimer = setTimeout(onWindowResize, 200);
     });
 
-    console.log('[AccordionResize] Initialisiert');
+    TnetLog.log('[AccordionResize] Initialisiert');
     return true;
   }
 

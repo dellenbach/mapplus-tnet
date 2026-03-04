@@ -1,4 +1,4 @@
-/**
+﻿/**
  * tnet-lm-store.js — Zentraler Layer-State für den neuen Layer-Manager
  *
  * Lädt den Katalog von der API (/maps/tnet/api/v1/layers.php)
@@ -33,7 +33,7 @@
 
     init: function (config) {
       _config = config || {};
-      if (_config.debug) console.log(LOG, 'Init mit Config:', _config);
+      if (_config.debug) TnetLog.log(LOG, 'Init mit Config:', _config);
       this._loadCatalog();
     },
 
@@ -61,14 +61,14 @@
           _catalog = categories;
           _loaded = true;
 
-          if (_config.debug) console.log(LOG, 'Katalog geladen:', categories.length, 'Kategorien');
+          if (_config.debug) TnetLog.log(LOG, 'Katalog geladen:', categories.length, 'Kategorien');
           self._emit('catalog-loaded', _catalog);
 
           // Aktuellen Karten-Zustand in Store übernehmen
           self._syncFromMap();
         })
         .catch(function (err) {
-          console.error(LOG, 'API fehlgeschlagen:', err);
+          TnetLog.error(LOG, 'API fehlgeschlagen:', err);
         });
     },
 
@@ -96,7 +96,7 @@
         }
       }
       if (this._config && this._config.debug) {
-        console.log(LOG, 'Normalisiert:', categories.length, 'Kategorien');
+        TnetLog.log(LOG, 'Normalisiert:', categories.length, 'Kategorien');
       }
     },
 
@@ -217,7 +217,7 @@
       // OL-Events überwachen (bidirektionale Sync)
       this._watchMapChanges(map);
 
-      if (_config.debug) console.log(LOG, 'Sync von Map:', _activeLayers.length, 'aktive Layer');
+      if (_config.debug) TnetLog.log(LOG, 'Sync von Map:', _activeLayers.length, 'aktive Layer');
     },
 
     _watchMapChanges: function (map) {
@@ -249,7 +249,7 @@
             _olLayerRef: olLayer
           };
           _activeLayers.push(wmsEntry);
-          console.log(LOG, '_onOLLayerAdd WMS:', wmsId, '→ _olLayerRef gesetzt');
+          TnetLog.log(LOG, '_onOLLayerAdd WMS:', wmsId, '→ _olLayerRef gesetzt');
           this._emit('layer-visibility', { id: wmsId, visible: true, source: 'map' });
           this._emit('active-layers-changed', _activeLayers);
         }
@@ -277,7 +277,7 @@
       if (olLayer.get('tnet_wms_custom')) {
         var wmsId = 'wms:' + lid;
         _activeLayers = _activeLayers.filter(function (l) { return l.id !== wmsId; });
-        console.log(LOG, '_onOLLayerRemove WMS:', wmsId);
+        TnetLog.log(LOG, '_onOLLayerRemove WMS:', wmsId);
         // WMS-Panel informieren (Checkbox + interne Liste synchronisieren)
         document.dispatchEvent(new CustomEvent('tnet-wms-layer-removed', { detail: { name: lid } }));
         this._emit('layer-visibility', { id: wmsId, visible: false, source: 'map' });
@@ -309,11 +309,11 @@
     toggleLayer: function (layerId) {
       var layer = this.findLayer(layerId);
       if (!layer || layer.type === 'group') {
-        console.warn(LOG, 'toggleLayer: Layer nicht gefunden oder ist Gruppe:', layerId);
+        TnetLog.warn(LOG, 'toggleLayer: Layer nicht gefunden oder ist Gruppe:', layerId);
         return;
       }
       var newVisible = !layer.visible;
-      if (_config.debug) console.log(LOG, 'toggleLayer', layerId, '→', newVisible ? 'EIN' : 'AUS');
+      if (_config.debug) TnetLog.log(LOG, 'toggleLayer', layerId, '→', newVisible ? 'EIN' : 'AUS');
       this.setLayerVisible(layerId, newVisible);
     },
 
@@ -332,12 +332,12 @@
       try {
         if (typeof TnetLayerSwitch === 'function') {
           TnetLayerSwitch(layerId, visible ? 'on' : 'off');
-          if (_config.debug) console.log(LOG, 'TnetLayerSwitch', layerId, visible ? 'on' : 'off');
+          if (_config.debug) TnetLog.log(LOG, 'TnetLayerSwitch', layerId, visible ? 'on' : 'off');
         } else {
-          console.warn(LOG, 'TnetLayerSwitch nicht verfügbar');
+          TnetLog.warn(LOG, 'TnetLayerSwitch nicht verfügbar');
         }
       } catch (e) {
-        console.warn(LOG, 'TnetLayerSwitch Fehler:', e);
+        TnetLog.warn(LOG, 'TnetLayerSwitch Fehler:', e);
       }
       // Guard nach kurzem Delay zurücksetzen (async OL-Events)
       setTimeout(function () { _suppressMapSync = false; }, 200);
@@ -351,7 +351,7 @@
 
       this._emit('layer-visibility', { id: layerId, visible: visible, source: 'ui' });
       this._emit('active-layers-changed', _activeLayers);
-      if (_config.debug) console.log(LOG, 'Active-Layer-Liste:', _activeLayers.length, 'Layer, IDs:', _activeLayers.map(function(l) { return l.id; }));
+      if (_config.debug) TnetLog.log(LOG, 'Active-Layer-Liste:', _activeLayers.length, 'Layer, IDs:', _activeLayers.map(function(l) { return l.id; }));
     },
 
     /**
@@ -363,7 +363,7 @@
     toggleLayerEye: function (layerId) {
       // Aktiven Eintrag suchen (hat _olLayerRef)
       var activeEntry = this._findActiveLayer(layerId);
-      console.log(LOG, 'toggleLayerEye:', layerId, '→ activeEntry:', activeEntry ? 'gefunden' : 'NICHT gefunden',
+      TnetLog.log(LOG, 'toggleLayerEye:', layerId, '→ activeEntry:', activeEntry ? 'gefunden' : 'NICHT gefunden',
         activeEntry ? '_olLayerRef:' + !!activeEntry._olLayerRef : '');
 
       // WMS Custom-Layer: direkte OL-Layer-Referenz nutzen
@@ -374,7 +374,7 @@
           activeEntry._olLayerRef.setVisible(newVis);
           setTimeout(function () { _suppressMapSync = false; }, 200);
           activeEntry.visible = newVis;
-          console.log(LOG, 'toggleLayerEye WMS:', layerId, '→ visible:', newVis);
+          TnetLog.log(LOG, 'toggleLayerEye WMS:', layerId, '→ visible:', newVis);
           this._emit('layer-visibility', { id: layerId, visible: newVis, source: 'ui' });
           this._emit('active-layers-changed', _activeLayers);
         }
@@ -405,7 +405,7 @@
         this._emit('layer-visibility', { id: layerId, visible: newVisible, source: 'ui' });
         this._emit('active-layers-changed', _activeLayers);
       } else {
-        console.warn(LOG, 'toggleLayerEye: OL-Layer nicht gefunden für', layerId);
+        TnetLog.warn(LOG, 'toggleLayerEye: OL-Layer nicht gefunden für', layerId);
       }
     },
 
@@ -490,7 +490,7 @@
       this._syncZIndices();
       this._emit('active-layers-changed', _activeLayers);
 
-      if (_config.debug) console.log(LOG, 'reorderLayer', layerId, fromIdx, '→', toIndex);
+      if (_config.debug) TnetLog.log(LOG, 'reorderLayer', layerId, fromIdx, '→', toIndex);
     },
 
     /**
@@ -509,18 +509,18 @@
      * Layer entfernen (aus Karte und Liste).
      */
     removeLayer: function (layerId) {
-      console.log(LOG, 'removeLayer:', layerId);
+      TnetLog.log(LOG, 'removeLayer:', layerId);
       // WMS Custom-Layer: direkt von Karte entfernen
       if (layerId.indexOf('wms:') === 0) {
         var wmsEntry = this._findActiveLayer(layerId);
-        console.log(LOG, 'removeLayer WMS:', layerId, '→ wmsEntry:', wmsEntry ? 'gefunden' : 'NICHT gefunden',
+        TnetLog.log(LOG, 'removeLayer WMS:', layerId, '→ wmsEntry:', wmsEntry ? 'gefunden' : 'NICHT gefunden',
           wmsEntry ? '_olLayerRef:' + !!wmsEntry._olLayerRef : '');
         if (wmsEntry && wmsEntry._olLayerRef) {
           var am = this._getAppManager();
           if (am && am.Maps && am.Maps['main'] && am.Maps['main'].mapObj) {
             _suppressMapSync = true;
             am.Maps['main'].mapObj.removeLayer(wmsEntry._olLayerRef);
-            console.log(LOG, 'removeLayer WMS: OL-Layer von Karte entfernt');
+            TnetLog.log(LOG, 'removeLayer WMS: OL-Layer von Karte entfernt');
             setTimeout(function () { _suppressMapSync = false; }, 200);
           }
         }
@@ -544,7 +544,7 @@
         // 1. Framework-Toggle (benachrichtigt Dojo-LayerManager → Checkboxen werden entfernt)
         if (typeof TnetLayerSwitch === 'function') {
           TnetLayerSwitch(layerId, 'off');
-          console.log(LOG, 'removeLayer via TnetLayerSwitch:', layerId);
+          TnetLog.log(LOG, 'removeLayer via TnetLayerSwitch:', layerId);
         }
         // 2. Zusätzlich: gespeicherte _olLayerRef als Sicherheitsnetz
         //    (falls TnetLayerSwitch den Layer nicht gefunden hat)
@@ -553,12 +553,12 @@
           if (am && am.Maps && am.Maps['main'] && am.Maps['main'].mapObj) {
             try {
               am.Maps['main'].mapObj.removeLayer(activeEntry._olLayerRef);
-              console.log(LOG, 'removeLayer Sicherheitsnetz _olLayerRef:', layerId);
+              TnetLog.log(LOG, 'removeLayer Sicherheitsnetz _olLayerRef:', layerId);
             } catch (e2) { /* Layer war bereits entfernt durch TnetLayerSwitch */ }
           }
         }
       } catch (e) {
-        console.warn(LOG, 'removeLayer Fehler:', e);
+        TnetLog.warn(LOG, 'removeLayer Fehler:', e);
       }
       setTimeout(function () { _suppressMapSync = false; }, 200);
 
@@ -627,7 +627,7 @@
 
     _emit: function (event, data) {
       (_listeners[event] || []).forEach(function (cb) {
-        try { cb(data); } catch (e) { console.error(LOG, event, e); }
+        try { cb(data); } catch (e) { TnetLog.error(LOG, event, e); }
       });
     },
 

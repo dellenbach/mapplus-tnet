@@ -1,4 +1,4 @@
-/**
+﻿/**
  * tnet-lm-init.js — Initialisierer für den neuen Layer-Manager (Mobile)
  *
  * Prüft das Feature-Flag in tnet-global-config.json5 → layerManager.useNew.
@@ -23,7 +23,7 @@
 
   function loadConfig() {
     if (typeof JSON5 === 'undefined') {
-      console.warn(LOG, 'JSON5 nicht verfügbar');
+      TnetLog.warn(LOG, 'JSON5 nicht verfügbar');
       return Promise.resolve(null);
     }
     var paths = [
@@ -58,7 +58,7 @@
       var el = document.getElementById(id);
       if (el) {
         el.style.display = 'none';
-        console.log(LOG, '#' + id + ' ausgeblendet');
+        TnetLog.log(LOG, '#' + id + ' ausgeblendet');
       }
     });
   }
@@ -71,13 +71,13 @@
       var el = document.getElementById(id);
       if (el) {
         el.style.display = '';
-        console.log(LOG, '#' + id + ' wieder eingeblendet');
+        TnetLog.log(LOG, '#' + id + ' wieder eingeblendet');
       }
     });
   }
 
   function activateLegacyFallback(reason) {
-    console.warn(LOG, 'Fallback auf Legacy-Themenbaum:', reason || 'unbekannt');
+    TnetLog.warn(LOG, 'Fallback auf Legacy-Themenbaum:', reason || 'unbekannt');
     if (_lmFallbackTimer) {
       clearTimeout(_lmFallbackTimer);
       _lmFallbackTimer = null;
@@ -105,12 +105,12 @@
           activeContainer.id = 'lm-active-container';
           activeContainer.className = 'lm-container lm-container-desktop';
           sortMenu.appendChild(activeContainer);
-          console.log(LOG, '[Desktop] #lm-active-container in #sort_menu erstellt');
+          TnetLog.log(LOG, '[Desktop] #lm-active-container in #sort_menu erstellt');
         } else {
-          console.log(LOG, '[Desktop] #lm-active-container bereits vorhanden');
+          TnetLog.log(LOG, '[Desktop] #lm-active-container bereits vorhanden');
         }
       } else {
-        console.error(LOG, '[Desktop] #sort_menu nicht gefunden');
+        TnetLog.error(LOG, '[Desktop] #sort_menu nicht gefunden');
       }
       return;
     }
@@ -131,18 +131,18 @@
         } else {
           sheetBody.appendChild(treeContainer);
         }
-        console.log(LOG, '#lm-tree-container erstellt');
+        TnetLog.log(LOG, '#lm-tree-container erstellt');
       } else {
-        console.log(LOG, '#lm-tree-container bereits vorhanden');
+        TnetLog.log(LOG, '#lm-tree-container bereits vorhanden');
       }
     }
 
     // 2) Active-Panel — lm-active-container ist bereits im HTML (#m-active-sheet)
     var activeContainer = document.getElementById('lm-active-container');
     if (activeContainer) {
-      console.log(LOG, '#lm-active-container gefunden im Active-Sheet');
+      TnetLog.log(LOG, '#lm-active-container gefunden im Active-Sheet');
     } else {
-      console.error(LOG, '#lm-active-container nicht gefunden');
+      TnetLog.error(LOG, '#lm-active-container nicht gefunden');
     }
   }
 
@@ -153,12 +153,12 @@
 
     if (!lmConfig.useNew) {
       if (lmConfig.debug || (config && config.debug)) {
-        console.log(LOG, 'Feature-Flag layerManager.useNew ist deaktiviert → kein Start');
+        TnetLog.log(LOG, 'Feature-Flag layerManager.useNew ist deaktiviert → kein Start');
       }
       return;
     }
 
-    console.log(LOG, 'Feature-Flag aktiv → starte neuen Layer-Manager');
+    TnetLog.log(LOG, 'Feature-Flag aktiv → starte neuen Layer-Manager');
 
     // DOM vorbereiten
     hideLegacyContainers();
@@ -168,7 +168,7 @@
     if (window.TnetLMStore) {
       window.TnetLMStore.init(lmConfig);
     } else {
-      console.error(LOG, 'TnetLMStore fehlt');
+      TnetLog.error(LOG, 'TnetLMStore fehlt');
       activateLegacyFallback('TnetLMStore fehlt');
       return;
     }
@@ -177,14 +177,14 @@
     if (!_isDesktop && window.TnetLMTree) {
       window.TnetLMTree.init('lm-tree-container');
     } else if (!_isDesktop) {
-      console.error(LOG, 'TnetLMTree fehlt');
+      TnetLog.error(LOG, 'TnetLMTree fehlt');
     }
 
     // Active-Panel initialisieren
     if (window.TnetLMActive) {
       window.TnetLMActive.init('lm-active-container');
     } else {
-      console.error(LOG, 'TnetLMActive fehlt');
+      TnetLog.error(LOG, 'TnetLMActive fehlt');
     }
 
     // Wenn der neue LM nicht lädt, auf Legacy zurückfallen statt leeres Sheet
@@ -224,14 +224,14 @@
   function start() {
     loadConfig().then(function (config) {
       if (!config) {
-        console.warn(LOG, 'Config nicht geladen → Fallback-Verhalten');
+        TnetLog.warn(LOG, 'Config nicht geladen → Fallback-Verhalten');
         return;
       }
 
       // Auf tnet-app-ready warten (Map muss bereit sein)
       if (window.njs && window.njs.AppManager && window.njs.AppManager.Maps && window.njs.AppManager.Maps['main']) {
         // App schon bereit
-        console.log(LOG, 'App bereits bereit → sofort starten');
+        TnetLog.log(LOG, 'App bereits bereit → sofort starten');
         bootstrap(config);
       } else {
         var _bootstrapped = false;
@@ -241,7 +241,7 @@
             bootstrap(config);
           }
         });
-        console.log(LOG, 'Warte auf tnet-app-ready...');
+        TnetLog.log(LOG, 'Warte auf tnet-app-ready...');
 
         // Fallback: Polling falls tnet-app-ready nie gefeuert wird
         // (earlyCheckAppReady kann vor Map-Verfügbarkeit timeouten)
@@ -257,12 +257,12 @@
             clearInterval(_pollTimer);
             if (!_bootstrapped) {
               _bootstrapped = true;
-              console.log(LOG, 'App bereit (Polling-Fallback nach ' + (_pollCount * 500) + 'ms) → starte');
+              TnetLog.log(LOG, 'App bereit (Polling-Fallback nach ' + (_pollCount * 500) + 'ms) → starte');
               bootstrap(config);
             }
           } else if (_pollCount >= _pollMax) {
             clearInterval(_pollTimer);
-            console.warn(LOG, 'App nach 30s immer noch nicht bereit → Abbruch');
+            TnetLog.warn(LOG, 'App nach 30s immer noch nicht bereit → Abbruch');
           }
         }, 500);
       }

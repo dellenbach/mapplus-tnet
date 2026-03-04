@@ -1,4 +1,4 @@
-/*
+﻿/*
  * tnet-search.js  v1.7
  * Desktop-Suchfeld (parallel zur bestehenden njs/SOLR-Suche)
  * Nutzt search-proxy.php -> Layer-Suche (NLS) + swisstopo Geocoder + Feature-Suche
@@ -93,7 +93,7 @@
                 return;
             }
         } catch (e) {}
-        console.warn('[DesktopSearch] Layer-Aktivierung fehlgeschlagen:', layerId);
+        TnetLog.warn('[DesktopSearch] Layer-Aktivierung fehlgeschlagen:', layerId);
     }
 
     // -- Feature Highlight ----------------------------------------------------
@@ -118,7 +118,7 @@
             });
             map.addLayer(featureHighlightLayer);
         } catch (e) {
-            console.warn('[DesktopSearch] Feature-Highlight-Layer konnte nicht erstellt werden:', e);
+            TnetLog.warn('[DesktopSearch] Feature-Highlight-Layer konnte nicht erstellt werden:', e);
         }
         return featureHighlightLayer;
     }
@@ -161,7 +161,7 @@
                 for (var i = 1; i < features.length; i++) {
                     ol.extent.extend(extent, features[i].getGeometry().getExtent());
                 }
-                console.log('[DesktopSearch] Feature extent:', extent);
+                TnetLog.log('[DesktopSearch] Feature extent:', extent);
 
                 var w = extent[2] - extent[0];
                 var h = extent[3] - extent[1];
@@ -186,11 +186,11 @@
                     }
                 }
             } catch (e) {
-                console.warn('[DesktopSearch] Feature-Geometrie konnte nicht geladen werden:', e);
+                TnetLog.warn('[DesktopSearch] Feature-Geometrie konnte nicht geladen werden:', e);
             }
         };
         xhr.onerror = xhr.ontimeout = function () {
-            console.warn('[DesktopSearch] Feature-Geometrie Timeout/Fehler');
+            TnetLog.warn('[DesktopSearch] Feature-Geometrie Timeout/Fehler');
         };
         xhr.send();
     }
@@ -249,7 +249,7 @@
                 for (var i = 1; i < features.length; i++) {
                     ol.extent.extend(extent, features[i].getGeometry().getExtent());
                 }
-                console.log('[DesktopSearch] Parcel extent:', extent);
+                TnetLog.log('[DesktopSearch] Parcel extent:', extent);
 
                 var zl = getZoomLevels();
                 view.fit(extent, {
@@ -260,12 +260,12 @@
                     constrainResolution: false
                 });
             } catch (e) {
-                console.warn('[DesktopSearch] Parcel-Geometrie Fehler:', e);
+                TnetLog.warn('[DesktopSearch] Parcel-Geometrie Fehler:', e);
                 panToResult(x, y);
             }
         };
         xhr.onerror = xhr.ontimeout = function () {
-            console.warn('[DesktopSearch] Parcel-Identify Timeout');
+            TnetLog.warn('[DesktopSearch] Parcel-Identify Timeout');
             panToResult(x, y);
         };
         xhr.send();
@@ -652,13 +652,13 @@
         if (cfg.njsSearchEnabled === false) {
             var njsWrap = document.getElementById('njs_search_wrapper');
             if (njsWrap) njsWrap.style.display = 'none';
-            console.log('[DesktopSearch] njs/MapPlus-Suche deaktiviert (Config)');
+            TnetLog.log('[DesktopSearch] njs/MapPlus-Suche deaktiviert (Config)');
         }
         // tnet-Suche deaktivieren
         if (cfg.tnetSearchEnabled === false) {
             var dtBar = document.getElementById('dt-search-bar');
             if (dtBar) dtBar.style.display = 'none';
-            console.log('[DesktopSearch] TNET-Suche deaktiviert (Config)');
+            TnetLog.log('[DesktopSearch] TNET-Suche deaktiviert (Config)');
         }
     }
 
