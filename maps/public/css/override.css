@@ -930,7 +930,7 @@ body.drawing-mode #freepane * {
   transition: opacity 0.3s ease;
 }
 
-/* Geschlossen: Kinder sanft einfalten (ausser close_switch) */
+/* Geschlossen: Inhalt einklappen, Handle sichtbar/klickbar lassen */
 #freepane.close #leftPaneHeader {
   max-height: 0 !important;
   opacity: 0 !important;
@@ -952,15 +952,25 @@ body.drawing-mode #freepane * {
   margin: 0 !important;
   padding: 0 !important;
   border: none !important;
+  pointer-events: none !important;
 }
 
-/* Spring + Freepane selbst im Close-Zustand zusammenfalten */
 #freepane.close #spring {
+  height: 10px !important;
+  max-height: 10px !important;
+  min-height: 10px !important;
+  overflow: visible !important;
   padding: 0 !important;
   margin: 0 !important;
-  gap: 0 !important;
-  max-height: 20px !important;
-  overflow: visible !important;
+}
+
+/* close_switch bleibt immer sichtbar */
+#freepane.close .close_switch {
+  position: relative !important;
+  top: auto !important;
+  left: auto !important;
+  transform: none !important;
+  pointer-events: auto !important;
 }
 
 #freepane.close {

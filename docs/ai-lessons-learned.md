@@ -6,6 +6,12 @@
 
 ---
 
+## 2026-06-xx — Nordpfeil in Druck-Vorschau dreht sich nicht bei Rotation
+- **Symptom**: Beim Ändern des Rotations-Sliders im Druck-Panel dreht sich der Nordpfeil im SVG-Overlay nicht mit.
+- **Root-Cause**: `insertDynamicSvgElements()` behandelte nur `scaleBar`/`scaleLabel`, nicht den Nordpfeil. Der Rotation-Slider aktualisierte die SVG-Vorschau nicht.
+- **Fix**: In `insertDynamicSvgElements()` den QGIS-Nordpfeil-Path (`M8.003,-9.593`) per Path-Signatur finden, Transform-Matrix des Parent-`<g>` parsen, Rotations-Wrapper hinzufügen. `rotationDeg` in `getPreviewValues()` ergänzt. `refreshSvgPreviewValues()` wird jetzt auch vom Rotation-Slider aufgerufen.
+- **Guardrail**: Bei dynamischen SVG-Elementen ohne `data-dynamic-type`-Rect: stabile Element-Signaturen (Path-Data, ID) für die Erkennung verwenden, nicht Reihenfolge/Index.
+
 ## 2026-03-04 — Druckrahmen initial falsch skaliert (erst nach Pan korrekt)
 - **Symptom**: Beim Öffnen des Druck-Panels wird der Druckrahmen zu gross/klein angezeigt; erst nach kleinem Pan stimmt die Skalierung.
 - **Root-Cause**: `dockPrintPanel()` ändert `mapContainer`-Breite und ruft `map.updateSize()` verzögert (350ms). `showPrintFrame()` → `updateFrameSize()` läuft aber sofort, mit der alten Resolution/Viewport-Grösse. Ebenso `adjustZoomForPrintFrame()` liest veraltete `clientWidth`.
@@ -339,3 +345,12 @@
 - **Root-Cause**: (1) Kein Modul prüfte den logLevel — alle nutzten direkt `console.log/warn/error`. (2) Footer-JSON5-Parser war zu simpel: Regex `//.*$` zerstörte URLs mit `://`, unquoted Keys wurden nicht gequoted. (3) Config lag an zwei Server-Pfaden mit unterschiedlichem Inhalt.
 - **Fix**: (1) Neues `tnet-log.js` als zentrale Logging-Utility: liest `logLevel` synchron aus Config, gated alle Ausgaben. (2) 341 `console.*`-Aufrufe in 17 Modulen durch `TnetLog.*` ersetzt. (3) Footer-JSON5-Parser durch string-aware Variante ersetzt (wie in tnet-print.js). (4) Config-Pfad auf `/maps/tnet/config/` vereinheitlicht, alte Kopie gelöscht.
 - **Guardrail**: Neue Module müssen `TnetLog.*` statt `console.*` verwenden. JSON5-Parsing immer string-aware (Zeichen innerhalb Strings nie als Kommentar-Start interpretieren).
+
+---
+
+## 2026-03-04 — Sidebar-Close: Handle verschwindet / Spalt bleibt
+
+- **Symptom**: Nach dem Zusammenklappen blieb ein Spalt unter dem Header sichtbar; in einem Folgefix verschwand der Close-Handle komplett und das Panel liess sich nicht mehr aufklappen.
+- **Root-Cause**: `#spring` wurde mit `height:0` und `overflow:hidden` kollabiert, wodurch der Handle (als Kind von `#spring`) mit weggeclippt wurde. Gleichzeitig wurden Resthöhen von Child-Elementen nicht konsistent neutralisiert.
+- **Fix**: Im Close-Zustand werden alle `#spring`-Kinder ausser `.close_switch` auf `max-height:0`/`opacity:0` gesetzt; `#spring` bleibt auf Handle-Höhe (`10px`) mit `overflow:visible`; `.close_switch` bleibt relativ und klickbar.
+- **Guardrail**: Bei Collapse-Layouts nie den einzigen Reopen-Trigger in einem `overflow:hidden`-Container clippen. Reopen-Element explizit sichtbar/klickbar halten und nur Nicht-Trigger-Inhalt kollabieren.
