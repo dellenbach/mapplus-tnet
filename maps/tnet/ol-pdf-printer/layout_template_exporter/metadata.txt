@@ -2,7 +2,7 @@
 name=Layout Template Exporter
 qgisMinimumVersion=3.0
 description=Exportiert leere Layout-Vorlagen (A4–A0) als SVG/PDF für Web-App-Templates (ol-pdf-printer).
-version=1.4.0
+version=1.5.0
 author=Trigonet AG / Marco Dellenbach
 email=info@trigonet.ch
 
@@ -12,6 +12,9 @@ tracker=https://github.com/example/layout-template-exporter/issues
 repository=https://github.com/example/layout-template-exporter
 
 changelog=
+    1.5.0 - 04.03.2026
+        * Build-Datum und Zeitstempel aktualisiert
+        * Plugin-Installation via install.bat verifiziert
     1.4.0 - 13.02.2026
         * Fix: Nordpfeil-Erkennung (linkedMap-Check für QGIS-Nordpfeile)
         * Neu: Automatischer Nordpfeil-Platzhalter wenn keiner erkannt

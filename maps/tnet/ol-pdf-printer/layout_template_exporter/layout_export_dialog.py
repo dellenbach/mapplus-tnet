@@ -12,8 +12,8 @@ Erzeugte Struktur pro Zielordner:
     ├── …
     └── manifest.json            ← Konfig für die Web-App
 
-@version    1.4
-@date       2026-02-13
+@version    1.5
+@date       2026-03-04
 @copyright  Trigonet AG
 @author     Marco Dellenbach
 """
@@ -119,7 +119,7 @@ class LayoutExportDialog(QDialog):
         self.setWindowTitle(self.tr("Layout-Vorlagen für Druckdienst exportieren"))
         self.setMinimumWidth(580)
         self.setMinimumHeight(640)
-        self.plugin_version = "1.4.0"
+        self.plugin_version = "1.5.0"
         # Lokale Zeit automatisch setzen
         from datetime import datetime as _dt
         self.plugin_date = _dt.now().strftime("%d.%m.%Y %H:%M")

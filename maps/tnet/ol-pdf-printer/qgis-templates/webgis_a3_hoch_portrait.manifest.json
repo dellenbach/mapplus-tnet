@@ -1,6 +1,6 @@
 {
   "version": "1.4",
-  "generated": "2026-03-03T09:18:50",
+  "generated": "2026-03-04T13:16:49",
   "template": {
     "name": "webgis_a3_hoch_portrait",
     "title": "WebGIS A3 hoch",
@@ -8,6 +8,7 @@
     "orientation": "portrait",
     "width_mm": 297.0,
     "height_mm": 420.0,
+    "source": "qgis_project",
     "files": {
       "svg": "webgis_a3_hoch_portrait.svg"
     },
@@ -19,16 +20,101 @@
     },
     "elements": [
       {
+        "id": "Wappen",
+        "type": "image",
+        "variable": "",
+        "x_mm": 10.13,
+        "y_mm": 9.4,
+        "width_mm": 13.33,
+        "height_mm": 13.33
+      },
+      {
+        "id": "Titel",
+        "type": "text",
+        "variable": "",
+        "placeholder": "",
+        "x_mm": 26.0,
+        "y_mm": 9.4,
+        "width_mm": 130.0,
+        "height_mm": 8.97,
+        "hAlign": "left",
+        "fontFamily": "Arial",
+        "fontSize_pt": 14,
+        "fontWeight": "bold"
+      },
+      {
+        "id": "Erstellungsdatum",
+        "type": "text",
+        "variable": "",
+        "placeholder": "",
+        "x_mm": 26.0,
+        "y_mm": 19.4,
+        "width_mm": 47.19,
+        "height_mm": 2.9,
+        "hAlign": "left",
+        "fontFamily": "Arial",
+        "fontSize_pt": 9,
+        "fontWeight": "normal"
+      },
+      {
+        "id": "Logo GIS Daten AG",
+        "type": "image",
+        "variable": "",
+        "x_mm": 269.44,
+        "y_mm": 9.04,
+        "width_mm": 17.86,
+        "height_mm": 13.69
+      },
+      {
         "id": "Massstabsbalken",
         "type": "scaleBar",
-        "x_mm": 41.16,
+        "variable": "scaleBar",
+        "x_mm": 41.17,
         "y_mm": 405.46,
-        "width_mm": 54.93,
+        "width_mm": 55.11,
         "height_mm": 3.48
+      },
+      {
+        "id": "Copyright",
+        "type": "text",
+        "variable": "",
+        "placeholder": "",
+        "x_mm": 10.13,
+        "y_mm": 413.45,
+        "width_mm": 277.17,
+        "height_mm": 6.55,
+        "hAlign": "left",
+        "fontFamily": "Arial",
+        "fontSize_pt": 7,
+        "fontWeight": "normal"
+      },
+      {
+        "id": "SCALETEXT",
+        "type": "text",
+        "variable": "",
+        "placeholder": "",
+        "x_mm": 11.2,
+        "y_mm": 402.26,
+        "width_mm": 34.15,
+        "height_mm": 9.36,
+        "hAlign": "left",
+        "fontFamily": "Arial",
+        "fontSize_pt": 14,
+        "fontWeight": "bold"
+      },
+      {
+        "id": "MAP_AREA",
+        "type": "map",
+        "variable": "map",
+        "x_mm": 10.29,
+        "y_mm": 25.63,
+        "width_mm": 277.0,
+        "height_mm": 386.67
       },
       {
         "id": "NORTH_ARROW",
         "type": "northArrow",
+        "variable": "northArrow",
         "x_mm": 15.0,
         "y_mm": 380.0,
         "width_mm": 12.0,

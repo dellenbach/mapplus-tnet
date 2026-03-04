@@ -4,8 +4,8 @@ Layout Template Exporter – Haupt-Plugin-Klasse
 
 Registriert Menüeintrag + Toolbar-Button und koordiniert den Export-Workflow.
 
-@version    1.4
-@date       2026-02-13
+@version    1.5
+@date       2026-03-04
 @copyright  Trigonet AG
 @author     Marco Dellenbach
 """

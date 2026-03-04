@@ -13,29 +13,8 @@ LOCAL_BASE = r"c:\_Daten\mapplus-exp\maps"
 
 # Files to upload
 FILES = [
-    # Neues zentrales Logging
-    "tnet/js/tnet-log.js",
-    # HTML mit tnet-log.js Script-Tag
-    "public/index_de.htm",
-    "public/index_de_m.htm",
-    # JS-Dateien mit TnetLog-Migration
-    "tnet/js/tnet-3d-landscape.js",
-    "tnet/js/tnet-3d-landscape-config.js",
-    "tnet/js/tnet-accordion-resize.js",
-    "tnet/js/tnet-basemap.js",
-    "tnet/js/tnet-catalog-filter.js",
-    "tnet/js/tnet-lm-active.js",
-    "tnet/js/tnet-lm-init.js",
-    "tnet/js/tnet-lm-store.js",
-    "tnet/js/tnet-lm-tree.js",
-    "tnet/js/tnet-map-footer.js",
-    "tnet/js/tnet-mapplus-helpers.js",
-    "tnet/js/tnet-oereb.js",
-    "tnet/js/tnet-print.js",
-    "tnet/js/tnet-search.js",
-    "tnet/js/tnet-spatial-query.js",
-    "tnet/js/tnet-splitscreen-catalog.js",
-    "tnet/js/tnet-wms-panel.js",
+    # PDF-Export: scaleLabel Auto-Fix + Diagnose-Logging
+    "tnet/ol-pdf-printer/js/template-pdf-export.js",
 ]
 
 def upload_files():

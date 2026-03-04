@@ -102,6 +102,68 @@ window.refreshIframe = function() {
     }
 };
 
+// ===== BOOKMARK-HOOK (LOGGING + DIALOG-AUTO-CLOSE) =====
+function installSetMapBookmarkHook() {
+    if (window.__tnetSetMapBookmarkHookInstalled) {
+        return true;
+    }
+
+    var am = (window.njs && window.njs.AppManager) ? window.njs.AppManager : null;
+    if (!am || typeof am.setMapBookmark !== 'function') {
+        return false;
+    }
+
+    var originalSetMapBookmark = am.setMapBookmark;
+
+    am.setMapBookmark = function(targetMaps, params) {
+        try {
+            if (typeof params === 'string' && params) {
+                var parsed = new URLSearchParams(params);
+                var layerParam = parsed.get('layers');
+                var mapParam = parsed.get('map');
+
+                if (layerParam) {
+                    var layers = layerParam.split('|').filter(function(x) { return !!x; });
+                    TnetLog.log('[MapBookmark] Layer ON (' + layers.length + '):', layers);
+                } else if (mapParam) {
+                    TnetLog.log('[MapBookmark] map=', mapParam);
+                } else {
+                    TnetLog.log('[MapBookmark] params=', params);
+                }
+            }
+        } catch (e) {
+            TnetLog.warn('[MapBookmark] Parse-Fehler:', e);
+        }
+
+        var result = originalSetMapBookmark.apply(am, arguments);
+
+        try {
+            if (typeof dijit !== 'undefined' && typeof dijit.byId === 'function') {
+                var dialog = dijit.byId('mapsInfoDialog');
+                if (dialog && dialog.open && typeof window.closeMapsInfoDialog === 'function') {
+                    window.closeMapsInfoDialog();
+                    TnetLog.log('[MapBookmark] mapsInfoDialog nach Kartenwechsel geschlossen');
+                }
+            }
+        } catch (e2) {
+            TnetLog.warn('[MapBookmark] Dialog-Close fehlgeschlagen:', e2);
+        }
+
+        return result;
+    };
+
+    window.__tnetSetMapBookmarkHookInstalled = true;
+    TnetLog.log('[MapBookmark] setMapBookmark-Hook installiert');
+    return true;
+}
+
+function installSetMapBookmarkHookWithRetry() {
+    if (installSetMapBookmarkHook()) return;
+    setTimeout(installSetMapBookmarkHook, 500);
+    setTimeout(installSetMapBookmarkHook, 1500);
+    setTimeout(installSetMapBookmarkHook, 3000);
+}
+
 // Basemap Widget Toggle → verschoben nach tnet-basemap.js
 
 // ===== LOGIN / LOGOUT =====
@@ -158,9 +220,11 @@ document.addEventListener('click', function(e) {
 // Event-basiert statt Polling-Loop
 if (window._tnetAppReadyFired) {
     updateLoginStatus();
+    installSetMapBookmarkHookWithRetry();
 } else {
     document.addEventListener('tnet-app-ready', function() {
         updateLoginStatus();
+        installSetMapBookmarkHookWithRetry();
     }, { once: true });
 }
 

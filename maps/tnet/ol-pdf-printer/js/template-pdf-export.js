@@ -254,6 +254,7 @@
       'TITLE':       values.title || '',
       'SCALE':       values.scaleText || '',
       'SCALETEXT':   values.scaleText || '',
+      'SCALEDOT':    values.scaleText || '',
       'COORDINATES': values.coords || '',
       'DATE':        values.date || '',
       'TIME':        values.time || '',
@@ -1294,6 +1295,8 @@
           w_mm: (w * sx).toFixed(1), h_mm: (h * sy).toFixed(1) });
     }
 
+    console.log('[TemplatePDF] extractDynamicBboxes: ' + bboxes.length + ' gefunden:',
+      bboxes.map(function(b) { return b.type + '(' + b.id + ')'; }).join(', '));
     return bboxes;
   }
 
@@ -1315,6 +1318,73 @@
       ''
     );
     return result;
+  }
+
+  /**
+   * Rotiert den originalen QGIS-Nordpfeil direkt im SVG-DOM.
+   * Findet den Pfad mit Signatur "M8.003,-9.593", berechnet das
+   * Zentrum aus der Parent-Group-Transform-Matrix und wickelt die
+   * Gruppe in ein <g transform="rotate(...)"> ein.
+   *
+   * Vorteil gegenüber drawNorthArrow(): Der originale hochwertige
+   * QGIS-Pfeil bleibt erhalten statt durch eine vereinfachte
+   * jsPDF-Kite-Form ersetzt zu werden.
+   *
+   * @param {string} svgText      - SVG-Quelltext
+   * @param {number} rotationDeg  - Kartenrotation in Grad (CW)
+   * @returns {{ svg: string, found: boolean }}
+   */
+  function rotateNorthArrowInSvg(svgText, rotationDeg) {
+    var parser = new DOMParser();
+    var doc = parser.parseFromString(svgText, 'image/svg+xml');
+    var found = false;
+
+    // Nordpfeil-Path identifizieren (einheitlich in QGIS-Templates)
+    var allPaths = doc.querySelectorAll('path');
+    for (var p = 0; p < allPaths.length; p++) {
+      var pathD = allPaths[p].getAttribute('d') || '';
+      if (pathD.indexOf('M8.003,-9.593') !== 0) continue;
+
+      var arrowGroup = allPaths[p].parentNode;
+      var tfm = arrowGroup.getAttribute('transform') || '';
+      var mMatch = tfm.match(/matrix\(([^)]+)\)/);
+      if (!mMatch) continue;
+
+      var mParts = mMatch[1].split(/[\s,]+/).map(Number);
+      var arrowSx = mParts[0], arrowSy = mParts[3];
+      var arrowTx = mParts[4], arrowTy = mParts[5];
+
+      // Zentrum des Nordpfeils in SVG-Viewport-Koordinaten
+      // Path-Bbox lokal: x=[0..16.06], y=[-37.31..0]
+      var localCX = 8.03;
+      var localCY = -18.66;
+      var arrowCx = arrowSx * localCX + arrowTx;
+      var arrowCy = arrowSy * localCY + arrowTy;
+
+      // Rotation-Wrapper: Karte CW → Nordpfeil CCW
+      var NS = 'http://www.w3.org/2000/svg';
+      var wrapper = doc.createElementNS(NS, 'g');
+      wrapper.setAttribute('id', 'pdf-northarrow-rotate');
+      wrapper.setAttribute('transform',
+        'rotate(' + (-rotationDeg) + ', ' +
+        arrowCx.toFixed(2) + ', ' + arrowCy.toFixed(2) + ')');
+      arrowGroup.parentNode.insertBefore(wrapper, arrowGroup);
+      wrapper.appendChild(arrowGroup);
+
+      found = true;
+      console.log('[TemplatePDF] Nordpfeil im SVG rotiert:',
+        rotationDeg + '°, Zentrum=(' + arrowCx.toFixed(1) + ', ' + arrowCy.toFixed(1) + ')');
+      break;
+    }
+
+    if (!found) {
+      console.warn('[TemplatePDF] QGIS-Nordpfeil-Path (M8.003,-9.593) nicht im SVG gefunden');
+    }
+
+    return {
+      svg:   new XMLSerializer().serializeToString(doc),
+      found: found
+    };
   }
 
   // ---------------------------------------------------------------- //
@@ -1360,8 +1430,15 @@
     // Manifest-Elements als Basis
     if (template.elements) {
       template.elements.forEach(function (elem) {
-        if (elem.type === 'northArrow' || elem.type === 'scaleBar' || elem.type === 'scaleLabel') {
-          elementsMap[elem.type] = elem;
+        var effectiveType = elem.type;
+        // Auto-Fix: "Massstab"-Element hat in älteren Manifesten fälschlich
+        // type="scaleBar" statt type="scaleLabel". Korrektur anhand der ID.
+        if (elem.id === 'Massstab' && effectiveType === 'scaleBar') {
+          console.warn('[TemplatePDF] Auto-Fix: Manifest "Massstab" type scaleBar → scaleLabel');
+          effectiveType = 'scaleLabel';
+        }
+        if (effectiveType === 'northArrow' || effectiveType === 'scaleBar' || effectiveType === 'scaleLabel') {
+          elementsMap[effectiveType] = elem;
         }
       });
     }
@@ -1374,11 +1451,38 @@
       _dbg('[TemplatePDF] Positionen aus SVG-Bboxen:', svgBboxes.length);
     }
 
+    // Sicherheitsnetz: Wenn scaleLabel im scaleText verfügbar aber nicht
+    // im elementsMap, versuche aus scaleBar-Position eine sinnvolle
+    // Position abzuleiten (links vom Massstabsbalken).
+    if (scaleText && !elementsMap.scaleLabel && elementsMap.scaleBar) {
+      var bar = elementsMap.scaleBar;
+      console.warn('[TemplatePDF] scaleLabel fehlt → leite Position aus scaleBar ab');
+      elementsMap.scaleLabel = {
+        type:      'scaleLabel',
+        x_mm:      Math.max(5, bar.x_mm - 25),
+        y_mm:      bar.y_mm - 1,
+        width_mm:  22,
+        height_mm: bar.height_mm + 2
+      };
+    }
+
+    // Debug: elementsMap loggen
+    var foundTypes = Object.keys(elementsMap);
+    console.log('[TemplatePDF] drawDynamicElements: Typen im elementsMap:', foundTypes.join(', '),
+      '| scaleText="' + scaleText + '" | scaleNumber=' + scaleNumber + ' | rotation=' + rotationDeg + '°');
+
     // Zeichnen
     for (var type in elementsMap) {
       var elem = elementsMap[type];
+      console.log('[TemplatePDF] Zeichne dynamisches Element:', type,
+        'bei x=' + (elem.x_mm || 0).toFixed(1) + ' y=' + (elem.y_mm || 0).toFixed(1) +
+        ' w=' + (elem.width_mm || 0).toFixed(1) + ' h=' + (elem.height_mm || 0).toFixed(1) + ' mm');
       switch (type) {
         case 'northArrow':
+          // Nordpfeil IMMER nach dem Kartenbild zeichnen.
+          // (SVG-Rotation via rotateNorthArrowInSvg hat keinen Effekt,
+          //  da der Nordpfeil innerhalb des MAP_AREA liegt und vom
+          //  Kartenbild überdeckt wird.)
           drawNorthArrow(pdf, elem, rotationDeg);
           break;
         case 'scaleBar':
@@ -1506,7 +1610,9 @@
     var maxWidth = elem.width_mm;
     var boxH     = elem.height_mm;
 
-    // Transparenter Hintergrund — kein weisses Rechteck
+    // Weisser Hintergrund → statischen QGIS-Massstabsbalken überdecken
+    pdf.setFillColor(255, 255, 255);
+    pdf.rect(x0, y0, maxWidth, boxH, 'F');
 
     // Schönes Segment berechnen
     var segDistM   = niceScaleSegment(maxWidth, scaleNumber);
@@ -1531,11 +1637,17 @@
     pdf.setLineWidth(0.2);
     pdf.rect(x0, barY, barWidth, barH, 'S');
 
-    // Beschriftungen unter dem Balken (Stil wie "Situation")
-    pdf.setFontSize(7);
-    pdf.setFont('Inter', 'normal');
+    // Beschriftungen unter dem Balken — dynamische Font-Grösse
+    var fontSize = Math.max(5, Math.min(8, boxH * 0.55));
+    pdf.setFontSize(fontSize);
+    try { pdf.setFont('Inter', 'normal'); } catch (e) { pdf.setFont('helvetica', 'normal'); }
     pdf.setTextColor(0, 0, 0);
-    var labelY = barY + barH + 3;
+    var labelY = barY + barH + fontSize * 0.45;
+
+    // Kollisionserkennung: Label-Breite schätzen, überlappende Labels überspringen
+    // Faktor 0.35 mm pro Punkt pro Zeichen (empirisch für Inter/Helvetica)
+    var charWidthMm = fontSize * 0.35;
+    var prevLabelRight = -Infinity;
 
     for (var l = 0; l <= numSegs; l++) {
       var labelX = x0 + l * segWidthMm;
@@ -1548,14 +1660,32 @@
         label = distM.toLocaleString('de-CH');
         if (l === numSegs) label += ' m';
       }
+
       var align = 'center';
       if (l === 0)        align = 'left';
       if (l === numSegs)  align = 'right';
+
+      // Label-Breite und linke Kante berechnen
+      var labelW = label.length * charWidthMm;
+      var labelLeft;
+      if (align === 'left')        labelLeft = labelX;
+      else if (align === 'right')  labelLeft = labelX - labelW;
+      else                         labelLeft = labelX - labelW / 2;
+
+      // Erstes und letztes Label immer zeigen, mittlere nur bei genug Platz
+      var isFirstOrLast = (l === 0 || l === numSegs);
+      if (!isFirstOrLast && labelLeft < prevLabelRight + 0.5) {
+        // Überlappung → dieses mittlere Label überspringen
+        continue;
+      }
+
       pdf.text(label, labelX, labelY, { align: align });
+      prevLabelRight = labelLeft + labelW;
     }
 
     _dbg('[TemplatePDF] Massstabsbalken:',
-      numSegs, 'Segmente à', segDistM, 'm, Breite:', barWidth.toFixed(1), 'mm');
+      numSegs, 'Segmente à', segDistM, 'm, Breite:', barWidth.toFixed(1), 'mm',
+      'fontSize:', fontSize.toFixed(1) + 'pt');
   }
 
   /**
@@ -1571,18 +1701,28 @@
       return;
     }
 
-    // Kein Hintergrund — nur Text im Vordergrund über der Karte,
-    // so dass es wie eine reine SVG-Textersetzung aussieht.
+    // Graphics-State sichern (pdf.svg() kann Clip/Transform verändern)
+    pdf.saveGraphicsState();
+    try {
+      // Weisser Hintergrund → statischen QGIS-Text überdecken
+      pdf.setFillColor(255, 255, 255);
+      pdf.rect(elem.x_mm, elem.y_mm, elem.width_mm, elem.height_mm, 'F');
 
-    // Text zeichnen — gleicher Stil wie im SVG-Original (Arial Bold, ~14pt)
-    pdf.setFontSize(14);
-    pdf.setFont('Inter', 'bold');
-    pdf.setTextColor(0, 0, 0);
-    var textY = elem.y_mm + elem.height_mm * 0.7;
-    pdf.text(scaleText, elem.x_mm + 0.5, textY);
+      // Text zeichnen — Font-Grösse dynamisch an Bbox-Höhe anpassen
+      var fontSize = Math.max(8, Math.min(16, elem.height_mm * 0.65));
+      pdf.setFontSize(fontSize);
+      try { pdf.setFont('Inter', 'bold'); } catch (e) { pdf.setFont('helvetica', 'bold'); }
+      pdf.setTextColor(0, 0, 0);
+      var textY = elem.y_mm + elem.height_mm * 0.65;
+      pdf.text(scaleText, elem.x_mm + 0.5, textY);
 
-    _dbg('[TemplatePDF] Massstabstext (Vordergrund):', scaleText,
-      'bei x=' + elem.x_mm.toFixed(1) + ' y=' + textY.toFixed(1) + ' mm');
+      console.log('[TemplatePDF] Massstabstext gezeichnet:', scaleText,
+        'fontSize=' + fontSize.toFixed(1) + 'pt',
+        'bei x=' + elem.x_mm.toFixed(1) + ' y=' + textY.toFixed(1) + ' mm',
+        'bbox: ' + elem.width_mm.toFixed(1) + '×' + elem.height_mm.toFixed(1) + ' mm');
+    } finally {
+      pdf.restoreGraphicsState();
+    }
   }
 
   // ---------------------------------------------------------------- //
@@ -1806,6 +1946,16 @@
 
         // 5. Bbox-Rects für dynamische Elemente entfernen
         processedSvg = removeDynamicBboxes(processedSvg);
+
+        // 5b. Nordpfeil-SVG-Rotation deaktiviert:
+        // rotateNorthArrowInSvg() modifiziert zwar das SVG korrekt, aber
+        // der Nordpfeil liegt innerhalb des MAP_AREA und wird vom weissen
+        // Rect + Kartenbild verdeckt. drawNorthArrow() zeichnet den Pfeil
+        // deshalb NACH dem Kartenbild per jsPDF.
+        // var rotDeg = (map.getView().getRotation() || 0) * 180 / Math.PI;
+        // var naResult = rotateNorthArrowInSvg(processedSvg, rotDeg);
+        // processedSvg = naResult.svg;
+        // options._northArrowInSvg = naResult.found;
 
         // 6. Font-Sizes normalisieren (QGIS SVG-px → pt)
         processedSvg = normalizeSvgFonts(processedSvg, paperW, paperH);
@@ -2038,7 +2188,10 @@
               { x: mapAreaX, y: mapAreaY, w: mapAreaW, h: mapAreaH });
 
             // ── Dynamische Grafik-Elemente (Nordpfeil, Massstabsbalken) ──
+            // Graphics-State sichern: pdf.svg() kann internen State verändern
+            pdf.saveGraphicsState();
             drawDynamicElements(pdf, template, options, svgBboxes);
+            pdf.restoreGraphicsState();
 
             // ── PDF-Text-Overlays (Fallback) ──
             if (needPdfOverlay && template.elements) {

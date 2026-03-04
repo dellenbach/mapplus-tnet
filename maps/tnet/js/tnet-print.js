@@ -608,18 +608,21 @@
     var scaleVal = parseInt((document.getElementById('print-scale') || {}).value) || 10000;
     var now = new Date();
     return {
-      title:     (document.getElementById('print-title') || {}).value || '',
-      scaleText: '1:' + scaleVal.toLocaleString('de-CH'),
-      date:      now.toLocaleDateString('de-CH'),
-      time:      now.toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' }),
-      user:      (document.getElementById('print-user') || {}).value || '',
-      coords:    _map ? (Math.round(_map.getView().getCenter()[0]).toLocaleString('de-CH') + ' / ' +
-                         Math.round(_map.getView().getCenter()[1]).toLocaleString('de-CH')) : ''
+      title:       (document.getElementById('print-title') || {}).value || '',
+      scaleText:   '1:' + scaleVal.toLocaleString('de-CH'),
+      date:        now.toLocaleDateString('de-CH'),
+      time:        now.toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' }),
+      user:        (document.getElementById('print-user') || {}).value || '',
+      coords:      _map ? (Math.round(_map.getView().getCenter()[0]).toLocaleString('de-CH') + ' / ' +
+                           Math.round(_map.getView().getCenter()[1]).toLocaleString('de-CH')) : '',
+      rotationDeg: parseInt((document.getElementById('print-rotation') || {}).value) || 0
     };
   }
 
   /**
-   * Ersetzt {{PLACEHOLDER}} im gecachten Roh-SVG und aktualisiert das Vorschaubild.
+   * Ersetzt {{PLACEHOLDER}} im gecachten Roh-SVG, zeichnet dynamische
+   * Grafik-Elemente (Massstabsbalken, Massstabstext, Nordpfeil-Rotation)
+   * und aktualisiert das Vorschaubild.
    * Wird bei Formularänderungen und initial nach loadSvgPreview() aufgerufen.
    */
   function refreshSvgPreviewValues() {
@@ -654,11 +657,201 @@
     // Unbekannte {{VARIABLE}} entfernen
     result = result.replace(/\{\{[A-Z_]+\}\}/g, '');
 
+    // ── Dynamische Grafik-Elemente in SVG einsetzen ──
+    // Massstabsbalken + Massstabstext als SVG erzeugen
+    result = insertDynamicSvgElements(result, values);
+
     var dataUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(result);
     // Fertigen dataUrl im Bild-Cache aktualisieren (für updateFrameSize)
     _svgPreviewCache[layoutVal] = dataUrl;
     _svgPreviewImg.src = dataUrl;
     _svgPreviewImg.style.display = '';
+  }
+
+  /**
+   * Berechnet ein "schönes" rundes Segment für den Massstabsbalken.
+   * (Gleiche Logik wie niceScaleSegment in template-pdf-export.js)
+   */
+  function niceScaleSegmentPreview(maxWidthMm, scaleNumber) {
+    var maxDistM  = maxWidthMm * scaleNumber / 1000;
+    var targetSeg = maxDistM / 5;
+    var magnitude = Math.pow(10, Math.floor(Math.log10(targetSeg)));
+    var niceVals  = [1, 2, 2.5, 5, 10];
+    for (var i = 0; i < niceVals.length; i++) {
+      if (niceVals[i] * magnitude >= targetSeg * 0.8) {
+        return niceVals[i] * magnitude;
+      }
+    }
+    return magnitude * 10;
+  }
+
+  /**
+   * Sucht rote Bbox-Rects (data-dynamic-type) im SVG,
+   * blendet sie aus und fügt dynamische SVG-Elemente ein:
+   * - scaleBar: alternierende Schwarz/Weiss-Segmente mit Beschriftung
+   * - scaleLabel: Massstabstext (z.B. "1:10'000")
+   * Zusätzlich wird der QGIS-Nordpfeil bei Rotation gedreht.
+   */
+  function insertDynamicSvgElements(svgText, values) {
+    var parser = new DOMParser();
+    var doc = parser.parseFromString(svgText, 'image/svg+xml');
+    var svg = doc.documentElement;
+    var NS = 'http://www.w3.org/2000/svg';
+
+    // Massstab aus Text parsen
+    var scaleNumber = 0;
+    if (values.scaleText) {
+      var m = values.scaleText.match(/1\s*:\s*([\d\s''\u2019\u2018\u00A0.,]+)/);
+      if (m) scaleNumber = parseInt(m[1].replace(/[^0-9]/g, ''), 10) || 0;
+    }
+
+    // Alle <rect> mit data-dynamic-type finden
+    var rects = doc.querySelectorAll('rect[data-dynamic-type]');
+    for (var i = 0; i < rects.length; i++) {
+      var rect = rects[i];
+      var dynType = rect.getAttribute('data-dynamic-type') || '';
+      var rx = parseFloat(rect.getAttribute('x')) || 0;
+      var ry = parseFloat(rect.getAttribute('y')) || 0;
+      var rw = parseFloat(rect.getAttribute('width')) || 0;
+      var rh = parseFloat(rect.getAttribute('height')) || 0;
+
+      // Rotes Rect ausblenden
+      rect.setAttribute('visibility', 'hidden');
+
+      if (dynType === 'scaleBar' && scaleNumber > 0) {
+        // ── Massstabsbalken als SVG ──
+        // ViewBox → mm Umrechnung für niceScaleSegment
+        var vb = svg.getAttribute('viewBox');
+        var vbParts = vb ? vb.split(/[\s,]+/).map(Number) : [0, 0, 2480, 3507];
+        var layout = _layouts.find(function (l) { return l.value === ((document.getElementById('print-layout') || {}).value || ''); });
+        var paperW = (layout && layout.width_mm) || 210;
+        var paperH = (layout && layout.height_mm) || 297;
+        var sxMm = paperW / vbParts[2];  // mm pro SVG-Unit
+        var maxWidthMm = rw * sxMm;
+
+        var segDistM   = niceScaleSegmentPreview(maxWidthMm, scaleNumber);
+        var segWidthMm = segDistM * 1000 / scaleNumber;
+        var segWidthSvg = segWidthMm / sxMm;  // Zurück in SVG-Units
+        var numSegs    = Math.floor(rw / segWidthSvg);
+        numSegs = Math.max(2, Math.min(numSegs, 6));
+
+        var barH     = Math.min(rh * 0.45, 2.0 / sxMm);
+        var barY     = ry + 0.5 / sxMm;
+
+        var g = doc.createElementNS(NS, 'g');
+        g.setAttribute('id', 'preview-scalebar');
+
+        // Alternierende Segmente
+        for (var s = 0; s < numSegs; s++) {
+          var segX = rx + s * segWidthSvg;
+          var segRect = doc.createElementNS(NS, 'rect');
+          segRect.setAttribute('x', segX.toFixed(2));
+          segRect.setAttribute('y', barY.toFixed(2));
+          segRect.setAttribute('width', segWidthSvg.toFixed(2));
+          segRect.setAttribute('height', barH.toFixed(2));
+          segRect.setAttribute('fill', s % 2 === 0 ? '#000000' : '#ffffff');
+          segRect.setAttribute('stroke', '#000000');
+          segRect.setAttribute('stroke-width', '1.5');
+          g.appendChild(segRect);
+        }
+
+        // Äusserer Rahmen
+        var outerRect = doc.createElementNS(NS, 'rect');
+        outerRect.setAttribute('x', rx.toFixed(2));
+        outerRect.setAttribute('y', barY.toFixed(2));
+        outerRect.setAttribute('width', (numSegs * segWidthSvg).toFixed(2));
+        outerRect.setAttribute('height', barH.toFixed(2));
+        outerRect.setAttribute('fill', 'none');
+        outerRect.setAttribute('stroke', '#000000');
+        outerRect.setAttribute('stroke-width', '2');
+        g.appendChild(outerRect);
+
+        // Beschriftungen
+        var labelY = barY + barH + 14 / sxMm;
+        var fontSize = Math.max(16, Math.min(24, 7 / sxMm));
+
+        for (var l = 0; l <= numSegs; l++) {
+          var labelX = rx + l * segWidthSvg;
+          var distM  = l * segDistM;
+          var label;
+          if (segDistM >= 1000) {
+            label = (distM / 1000).toLocaleString('de-CH');
+            if (l === numSegs) label += ' km';
+          } else {
+            label = distM.toLocaleString('de-CH');
+            if (l === numSegs) label += ' m';
+          }
+          var anchor = 'middle';
+          if (l === 0)        anchor = 'start';
+          if (l === numSegs)  anchor = 'end';
+
+          var text = doc.createElementNS(NS, 'text');
+          text.setAttribute('x', labelX.toFixed(2));
+          text.setAttribute('y', labelY.toFixed(2));
+          text.setAttribute('font-family', 'Arial, sans-serif');
+          text.setAttribute('font-size', fontSize.toFixed(1));
+          text.setAttribute('fill', '#000000');
+          text.setAttribute('text-anchor', anchor);
+          text.textContent = label;
+          g.appendChild(text);
+        }
+
+        svg.appendChild(g);
+
+      } else if (dynType === 'scaleLabel' && values.scaleText) {
+        // ── Massstabstext als SVG ──
+        var scaleFontSize = Math.min(rh * 0.7, 50);
+        var scaleText = doc.createElementNS(NS, 'text');
+        scaleText.setAttribute('x', (rx + 5).toFixed(2));
+        scaleText.setAttribute('y', (ry + rh * 0.7).toFixed(2));
+        scaleText.setAttribute('font-family', 'Arial, sans-serif');
+        scaleText.setAttribute('font-size', scaleFontSize.toFixed(1));
+        scaleText.setAttribute('font-weight', 'bold');
+        scaleText.setAttribute('fill', '#000000');
+        scaleText.textContent = values.scaleText;
+        svg.appendChild(scaleText);
+      }
+    }
+
+    // ── Nordpfeil rotieren (falls Rotation vorhanden) ──
+    if (values.rotationDeg) {
+      // Nordpfeil-Path identifizieren (einheitlich in allen QGIS-Templates)
+      var allPaths = doc.querySelectorAll('path');
+      for (var p = 0; p < allPaths.length; p++) {
+        var pathD = allPaths[p].getAttribute('d') || '';
+        if (pathD.indexOf('M8.003,-9.593') === 0) {
+          var arrowGroup = allPaths[p].parentNode;
+
+          // Transform-Matrix parsen: matrix(sx,0,0,sy,tx,ty)
+          var tfm = arrowGroup.getAttribute('transform') || '';
+          var mMatch = tfm.match(/matrix\(([^)]+)\)/);
+          if (mMatch) {
+            var mParts = mMatch[1].split(',').map(Number);
+            var arrowSx = mParts[0], arrowSy = mParts[3];
+            var arrowTx = mParts[4], arrowTy = mParts[5];
+
+            // Zentrum des Nordpfeils in SVG-Viewport-Koordinaten
+            // Path-Bbox lokal: x=[0..16.06], y=[-37.31..0]
+            var localCX = 8.03;
+            var localCY = -18.66;
+            var arrowCx = arrowSx * localCX + arrowTx;
+            var arrowCy = arrowSy * localCY + arrowTy;
+
+            // Rotation-Wrapper: Karte CW → Nordpfeil CCW
+            var wrapper = doc.createElementNS(NS, 'g');
+            wrapper.setAttribute('id', 'preview-northarrow-rotate');
+            wrapper.setAttribute('transform',
+              'rotate(' + (-values.rotationDeg) + ', ' +
+              arrowCx.toFixed(2) + ', ' + arrowCy.toFixed(2) + ')');
+            arrowGroup.parentNode.insertBefore(wrapper, arrowGroup);
+            wrapper.appendChild(arrowGroup);
+          }
+          break;
+        }
+      }
+    }
+
+    return new XMLSerializer().serializeToString(doc);
   }
 
   // ================================================================
@@ -1457,6 +1650,7 @@
       document.getElementById('print-rotation-val').textContent = deg + '\u00b0';
       var map = getMap();
       if (map) map.getView().setRotation(deg * Math.PI / 180);
+      refreshSvgPreviewValues();
     });
 
     TnetLog.log('[Drucken] tnet-print.js initialisiert');
