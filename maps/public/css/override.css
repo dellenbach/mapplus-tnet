@@ -908,26 +908,57 @@ body.drawing-mode #freepane * {
 /* Panel geschlossen Status */
 #freepane {
   max-height: 100vh;
-  transition: max-height 0.5s ease;
   overflow: visible;
 }
 
-#freepane.close {
-  max-height: 10px !important;
-  min-height: 0 !important;
-  /* KEIN overflow:hidden — close_switch muss klickbar bleiben */
+/* Header + Spring: animierbar machen */
+#freepane #leftPaneHeader {
+  max-height: 50px;
+  opacity: 1;
+  overflow: hidden;
+  transition: max-height 0.4s ease, opacity 0.3s ease;
 }
 
-/* Geschlossen: Alle Kinder ausblenden ausser close_switch */
-#freepane.close #leftPaneHeader,
-#freepane.close #scrollToTopBtn,
+#freepane #spring > *:not(.close_switch) {
+  max-height: 2000px;
+  opacity: 1;
+  overflow: hidden;
+  transition: max-height 0.4s ease, opacity 0.3s ease;
+}
+
+#freepane #scrollToTopBtn {
+  transition: opacity 0.3s ease;
+}
+
+/* Geschlossen: Kinder sanft einfalten (ausser close_switch) */
+#freepane.close #leftPaneHeader {
+  max-height: 0 !important;
+  opacity: 0 !important;
+  overflow: hidden !important;
+}
+
+#freepane.close #scrollToTopBtn {
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
 #freepane.close #spring > *:not(.close_switch) {
-  display: none !important;
+  max-height: 0 !important;
+  opacity: 0 !important;
+  overflow: hidden !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: none !important;
 }
 
-/* Schatten ausblenden wenn Panel geschlossen */
+/* Schatten sanft ausblenden wenn Panel geschlossen */
+#panelShadow {
+  transition: opacity 0.4s ease;
+}
+
 #freepane.close + #panelShadow {
-  display: none !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
 }
 
 /* Freepane kürzen wenn Spatial Query Panel angedockt */
