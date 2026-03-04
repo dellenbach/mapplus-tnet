@@ -935,11 +935,14 @@ body.drawing-mode #freepane * {
   max-height: 0 !important;
   opacity: 0 !important;
   overflow: hidden !important;
+  padding: 0 !important;
+  margin: 0 !important;
 }
 
 #freepane.close #scrollToTopBtn {
   opacity: 0 !important;
   pointer-events: none !important;
+  max-height: 0 !important;
 }
 
 #freepane.close #spring > *:not(.close_switch) {
@@ -949,6 +952,21 @@ body.drawing-mode #freepane * {
   margin: 0 !important;
   padding: 0 !important;
   border: none !important;
+}
+
+/* Spring + Freepane selbst im Close-Zustand zusammenfalten */
+#freepane.close #spring {
+  padding: 0 !important;
+  margin: 0 !important;
+  gap: 0 !important;
+  max-height: 20px !important;
+  overflow: visible !important;
+}
+
+#freepane.close {
+  max-height: 20px !important;
+  min-height: 0 !important;
+  overflow: visible !important;
 }
 
 /* Schatten sanft ausblenden wenn Panel geschlossen */
