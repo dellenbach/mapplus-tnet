@@ -915,7 +915,19 @@ body.drawing-mode #freepane * {
 #freepane.close {
   max-height: 10px !important;
   min-height: 0 !important;
-  overflow: hidden !important;
+  /* KEIN overflow:hidden — close_switch muss klickbar bleiben */
+}
+
+/* Geschlossen: Alle Kinder ausblenden ausser close_switch */
+#freepane.close #leftPaneHeader,
+#freepane.close #scrollToTopBtn,
+#freepane.close #spring > *:not(.close_switch) {
+  display: none !important;
+}
+
+/* Schatten ausblenden wenn Panel geschlossen */
+#freepane.close + #panelShadow {
+  display: none !important;
 }
 
 /* Freepane kürzen wenn Spatial Query Panel angedockt */
