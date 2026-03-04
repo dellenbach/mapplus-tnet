@@ -330,3 +330,12 @@
 - **Root-Cause**: Das Framework nutzt `wmsActiveLyrs` (ol.Collection registrierter MapTip-Instanzen) für GetFeatureInfo. Custom-WMS-Layer werden dort nie eingetragen, da sie keine Maptip-Config haben.
 - **Fix**: In `tnet-wms-panel.js` eigenen `singleclick`-Handler auf die Hauptkarte registriert. Iteriert `_addedLayers`, ruft `source.getFeatureInfoUrl()` pro sichtbarem WMS-Layer auf (Format-Fallback: JSON→GML→HTML→text/plain), nutzt `wmsproxy.php` als CORS-Proxy und injiziert Ergebnisse als `dijit.TitlePane` in `njs_info_pane_content`. Proxy (`wmsproxy.php`) auf `GetFeatureInfo` erweitert.
 - **Guardrail**: `wmsproxy.php` nur `GetCapabilities` + `GetFeatureInfo` erlauben — nie `GetMap` (Missbrauchsrisiko). GFI-Ergebnisse mit 300ms Delay einfügen, damit Framework-Clearing abgeschlossen ist.
+
+---
+
+## 2026-03-04 — Console-Spam trotz logLevel:'none' + Footer-Massstab fehlt
+
+- **Symptom**: 238+ console.log-Meldungen trotz `logLevel: 'none'` in Config. Massstab 1:50 fehlt in Footer-Dropdown.
+- **Root-Cause**: (1) Kein Modul prüfte den logLevel — alle nutzten direkt `console.log/warn/error`. (2) Footer-JSON5-Parser war zu simpel: Regex `//.*$` zerstörte URLs mit `://`, unquoted Keys wurden nicht gequoted. (3) Config lag an zwei Server-Pfaden mit unterschiedlichem Inhalt.
+- **Fix**: (1) Neues `tnet-log.js` als zentrale Logging-Utility: liest `logLevel` synchron aus Config, gated alle Ausgaben. (2) 341 `console.*`-Aufrufe in 17 Modulen durch `TnetLog.*` ersetzt. (3) Footer-JSON5-Parser durch string-aware Variante ersetzt (wie in tnet-print.js). (4) Config-Pfad auf `/maps/tnet/config/` vereinheitlicht, alte Kopie gelöscht.
+- **Guardrail**: Neue Module müssen `TnetLog.*` statt `console.*` verwenden. JSON5-Parsing immer string-aware (Zeichen innerhalb Strings nie als Kommentar-Start interpretieren).
