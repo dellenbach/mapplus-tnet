@@ -6,11 +6,161 @@
 
 ---
 
+## 2026-03-06 — MapTips feuern nicht: Sublayer-Name ≠ OL-Layer-Name (Prefix-Mismatch)
+- **Symptom**: Layer wie `gis_fach/nw_fruchtfolgeflaechen` auf der Karte sichtbar, aber TnetSyncMapTips aktiviert keinen MapTip → null Queries beim Klick.
+- **Root-Cause**: MapTip-Config hat `linked_layer = gis_fach/nw_fruchtfolgeflaechen/fruchtfolgeflaeche` (Sublayer-Key), aber der OL-Layer auf der Karte heisst `gis_fach/nw_fruchtfolgeflaechen` (Parent-Key). TnetSyncMapTips machte exakten Vergleich → kein Match → MapTip nie aktiviert. Auch `getLayerByMap()` findet den Sublayer-Key nicht, weil er nicht im LyrMgr registriert ist (nur der Parent ist in lyrmgr.conf).
+- **Fix**: (1) Prefix-Matching in `TnetSyncMapTips`: Wenn exakter match fehlschlägt, wird der Parent-Pfad sukzessive verkürzt (`split('/')`, `pop()`) bis ein sichtbarer OL-Layer gefunden wird. (2) Wenn Prefix-Match: `mt.wms_layer = parentOLLayer` setzen, damit `queryconnector()` eine gültige Layer-Quelle hat (getLayerByMap würde null returnen).
+- **Guardrail**: linked_layer_id in Maptips-Configs kann Sublayer-Pfade enthalten die länger sind als der OL-Layer-Name. IMMER Prefix-Matching verwenden, nie exakt vergleichen.
+
+## 2026-03-06 — Proxy überschreibt distance-Parameter → 1m Suchradius
+- **Symptom**: MapTip-Queries werden korrekt dispatcht, aber ArcGIS REST `/query` liefert keine Features trotz Klick auf sichtbare Objekte.
+- **Root-Cause**: `agsproxy.php` setzt `$queryParams['distance'] = 1.0` IMMER — auch wenn der Client einen eigenen Wert sendet (z.B. 200m = viewResolution × tolerance). Der Query-Endpunkt des ArcGIS-Servers sucht dadurch nur in 1m Radius.
+- **Fix**: Auto-Parameter nur als Default setzen: `if (!isset($queryParams['distance']))` vor der Zuweisung.
+- **Guardrail**: Proxy-Auto-Parameter nie bedingungslos überschreiben. Immer `isset()`-Check, damit Client-Werte Vorrang haben.
+
+## 2026-03-06 — "Keine Objekte gefunden" trotz korrekter MapTip-Registrierung
+- **Symptom**: `TnetInfoBridge.diagnose()` zeigt 17 wmsActiveLyrs / 29 aktive MapTips. Klick dispatcht 2 Queries, aber Ergebnis ist immer "Keine Objekte gefunden".
+- **Root-Cause**: `TnetSyncMapTips` setzte `mt.wms_layer = olLayerOnMap` für MapTips OHNE eigene `url`. Der OL-Layer auf der Karte nutzt eine Proxy-URL (`/maps/agsproxy.php?path=.../MapServer`). `queryconnector()` baut daraus für esrigeojson: `proxyUrl + "/0/query?f=json&..."` → doppeltes `?` in der URL → Query-Parameter werden als agsproxy-Parameter statt als ArcGIS-Parameter geparst → leeres Ergebnis. Im nativen Framework-Flow bleibt `wms_layer = null`, und `queryconnector()` nutzt `getLayerByMap()` → Framework-Layer-Wrapper → korrekte URL-Auflösung.
+- **Fix**: In `TnetSyncMapTips` KEINEN `wms_layer` mehr setzen. Nur `mt.active` / `wmsActiveLyrs` verwalten. `queryconnector()` fällt auf den nativen `getLayerByMap()`-Pfad zurück.
+- **Guardrail**: *Niemals* `mt.wms_layer` von aussen setzen — dieses Property gehört ausschliesslich dem Framework (`Activate()` bei MapTips mit `url`). TnetSyncMapTips darf nur `mt.active` und `wmsActiveLyrs` steuern.
+
+## 2026-03-05 — Doppelte MapTip-Requests bei Coalesce-Sublayern (z.B. Grundnutzung)
+- **Symptom**: Beim Klick auf die Karte werden zwei identische REST-Requests an denselben MapServer-Sublayer (z.B. `/12/query`) gesendet — einer mit korrektem NLS/Alias, einer ohne.
+- **Root-Cause**: In `maptips_tnet_oereb_multi.conf` existieren ZWEI MapTip-Objekte für die gleiche `query_layers`-Nummer: ein Root-Level-MapTip (`_def_12`, `linked_layer = Root-Key`, generisch `qryFields: ["*"]`) und ein Sublayer-MapTip (`_def/grundnutzung_12`, `linked_layer = Sublayer-Key`, detaillierte Felder + NLS). Wenn die Bridge `TnetLayerSwitch(rootKey, 'on')` aufruft, feuert das Framework `addLayerCallback` für ALLE Root-Level-MapTips → Root-MapTip `_def_12` wird in `wmsActiveLyrs` gepusht. Gleichzeitig pusht die Bridge den Sublayer-MapTip `_def/grundnutzung_12`. Beide haben `query_layers = "12"` → `queryconnector()` wird zweimal aufgerufen.
+- **Fix**: In `_forceActivateMaptip()` (tnet-coalesce-bridge.js) nach Aktivierung eines Sublayer-MapTip die `query_layers` sammeln und Root-Level-MapTips mit gleicher `query_layers` aus `wmsActiveLyrs` entfernen (Dedup). Der spezifischere Sublayer-MapTip hat Vorrang.
+- **Guardrail**: Immer wenn `_forceActivateMaptip` einen Sublayer-MapTip aktiviert, Root-Level-Duplikate prüfen und deaktivieren
+
+## 2026-03-05 — Maptip-Breadcrumb neben Titel statt darunter
+- **Symptom**: Im Objektinfo-Panel erscheint der Breadcrumb-Text (z.B. "ÖREB > Nutzungsplanung") neben dem Titel statt auf einer eigenen Zeile darunter.
+- **Root-Cause**: `.dijitTitlePaneTitle` hat `display: flex` mit default `flex-wrap: nowrap`. Der Breadcrumb-div (`display: block`) wird als Flex-Kind trotzdem in die gleiche Zeile gezwungen.
+- **Fix**: `flex-wrap: wrap !important` auf `#njs_info_pane_content .dijitTitlePaneTitle`, plus `width: 100%; flex-basis: 100%` auf `.tnet-maptip-breadcrumb` — erzwingt Zeilenumbruch.
+- **Guardrail**: Flex-Kinder brechen nur um wenn der Container `flex-wrap: wrap` hat UND das Kind volle Breite beansprucht.
+
+---
+
+## 2026-03-05 — Maptip-Breadcrumb verursachte Browser-Hänger
+- **Symptom**: Beim Öffnen von Maptips hing die Applikation (Browser meldete langlaufenden/aufgehängten Code).
+- **Root-Cause**: Die Breadcrumb-Auflösung scannte rekursiv den gesamten Layer-Tree und wurde durch den MutationObserver sehr häufig erneut ausgelöst.
+- **Fix**: Auf schnellen, begrenzten Resolver ohne Full-Tree-Scan umgestellt und Breadcrumb-Rendering im Observer entprellt (Timer statt Direktlauf pro Mutation).
+- **Guardrail**: Keine teuren Traversals im MutationObserver-Callback; UI-Anreicherung immer throttlen/debouncen und auf bekannte Layer-Keys begrenzen.
+
+## 2026-03-05 — ÖREB-Tool blockiert Sidepanel/Layermanager komplett
+- **Symptom**: Bei aktivem ÖREB-Abfrage-Tool kann das Sidepanel (Layermanager, Themenkatalog) nicht mehr bedient werden — Klicks gehen auf die Karte statt auf das Panel.
+- **Root-Cause**: `body.oereb-mode` setzt `pointer-events: none !important` auf `#freepane` und alle Kinder (analog `drawing-mode`). Das blockiert das gesamte Sidepanel, obwohl ÖREB-Klicks direkt auf dem OL-Map-Objekt via `map.on('singleclick')` registriert sind und kein DOM-Event-Blocking brauchen.
+- **Fix**: CSS-Regeln `body.oereb-mode #freepane { pointer-events: none }` entfernt. Der ÖREB-Klick-Listener funktioniert weiterhin, da er direkt am OL-Map-Objekt hängt. Maptip-Unterdrückung erfolgt im JS via `evt.stopPropagation()` und `suppressInfoHighlightLayer`.
+- **Guardrail**: `pointer-events: none` auf `#freepane` nur bei echtem Zeichen-Modus (drawing-mode) verwenden, nicht bei Tool-Modi die nur Kartenklicks abfangen. ÖREB, Spatial Query etc. registrieren sich direkt am OL-Map und brauchen kein DOM-Level-Blocking.
+
+## 2026-03-05 — Dargestellte Themen: Gruppenname zeigt URL-Pfad statt lesbaren Namen
+- **Symptom**: Coalesce-Gruppen zeigen z.B. `gis_oereb/nw_planungszon_def` statt den lesbaren Namen aus dem Dojo-LyrMgr.
+- **Root-Cause**: `_scanCoalesceNodes` setzt `name: servicePath || n.name || n.id` — `servicePath` (der rohe URL-Pfad) gewinnt immer, auch wenn `n.name` bereits einen bereinigten Namen enthält. Zudem fehlt ein Lookup gegen die lyrmgrResources-Bezeichnungen im Dojo-LyrMgr.
+- **Fix**: Priorität umgekehrt auf `n.displayName || n.name || servicePath || n.id`. Neue Methode `_enrichCoalesceNamesFromDojo()` liest nach `_syncFromMap` aus `njs.LayerMgr.arCategories[].arSubCategories[].arLayers[].description` (= lyrmgrResources-Text) und überschreibt `_coalesceIndex[groupId].name`.
+- **Guardrail**: `servicePath` ist nie ein lesbarer Name — immer als letzten Fallback verwenden. Dojo-LyrMgr-`description` ist die Authority für menschenlesbare Gruppenbezeichnungen.
+- **Update 2026-03-05**: Benutzergewünscht: servicePath soll als Gruppenname angezeigt werden (z.B. `gis_oereb/nw_nutzungsplanung_def`). Priorität jetzt: `servicePath || n.displayName || n.name || n.id`. DB-Name war generisch ("Virtueller Layer/Coalesce Layer").
+- **Update v3 2026-03-05**: `_enrichCoalesceNamesFromDojo` war mit 4 Bugs komplett kaputt: (1) `njs.LayerMgr` statt `njs.AppManager.LyrMgr`, (2) `arSubCategories` statt `arCategories`, (3) Nicht-rekursiv, (4) ID-Mismatch Dojo-Kategorie-ID vs. Coalesce-Gruppen-ID. Fix: Reverse-Lookup über Kind-Layer-Namen — Dojo-Kategorie die Layer enthält deren `name` zu einer Coalesce-Gruppe gehört → deren `description` als Gruppenname verwenden. Bridges die ID-Lücke zwischen Dojo (`rp_def_np_fl_nutzungszonen`) und Coalesce (`gis_oereb/nw_nutzungsplanung_def`).
+
+## 2026-03-05 — Maptips feuern nicht für Coalesce-Sublayer
+- **Symptom**: Klick in die Karte auf Coalesce-Layer zeigt kein Info-Panel. MapTips werden nie aktiviert.
+- **Root-Cause**: Framework aktiviert MapTips nur wenn ein OL-Layer mit `name === linked_layer_id` zur Map hinzugefügt wird. Coalesce-OL-Layer hat den Dienst-Pfad als Name (z.B. `gis_oereb/nw_nutzungsplanung_def`), MapTips haben Sublayer-Keys als `linked_layer_id` (z.B. `gis_oereb/nw_nutzungsplanung_def/grundnutzung`). → MapTips nie in `wmsActiveLyrs` → `queryconnector()` wird nie aufgerufen. Bisherige `lookupCallbacks`-Registrierung war wirkungslos, da das Framework diese nie ausliest.
+- **Fix**: Neue Funktionen `_forceActivateMaptip(sublayerKey, olLayer)` / `_forceDeactivateMaptip(sublayerKey)` in tnet-coalesce-bridge.js. Setzen `mt.wms_layer = olLayer` und pushen MapTip manuell in `wmsActiveLyrs`. Aufgerufen von `registerSublayer` (Bridge), `patchMaptipForCoalesceLayer` (Standard-Coalesce), `_installMaptipPatch` (Nachholen) und den Deaktivierungs-Gegenstücken.
+- **Guardrail**: Jeder OL-Layer ausserhalb des Frameworks braucht manuelles Maptip-Lifecycle-Management (`wmsActiveLyrs.push` / `.remove`, `mt.active`, `mt.wms_layer`). `lookupCallbacks` allein reicht nicht — die Abfrage muss erst durch `queryconnector()` ausgelöst werden.
+
+## 2026-03-05 — Dargestellte Themen: Auge und Deckkraft ohne Wirkung bei legacy-geschalteten Layern
+- **Symptom**: Klick auf Auge-Icon oder Deckkraft-Slider im "Dargestellte Themen"-Panel hat keinen Effekt, obwohl Layer sichtbar auf der Karte ist.
+- **Root-Cause**: `toggleCoalesceGroupEye`/`setCoalesceGroupOpacity` prüfen nur `_coalesceOLLayers[groupId]` (Coalesce-Modus). Bei `useNewTree: false` werden Layer über den Dojo-LyrMgr eingeschaltet — dabei wird kein `_coalesceOLLayers`-Eintrag erstellt. Die Funktionen brechen stillschweigend ab (`return`).
+- **Fix**: Legacy-Fallback-Zweig in beiden Funktionen ergänzt: Iteriert über `info.childIds`, holt OL-Layer via `activeEntry._olLayerRef` oder `_findOLLayer`, setzt `setVisible()` / `setOpacity()` direkt. `_suppressMapSync` schützt vor Rückkopplungs-Events.
+- **Guardrail**: Coalesce-Funktionen müssen immer beide Modi unterstützen: Coalesce-OL-Layer (neuer Tree) UND individuelle OL-Layer pro Kind (Legacy-LyrMgr).
+
+## 2026-03-04 — Coalesce-OL-Layer inkompatibel mit MapPlus-Framework
+- **Symptom**: TNET-Coalesce erstellt eigene `__coalesce__`-OL-Layer mit `show:0,3,5` — MapTip, Bookmark/URL-State und Legacy-Checkboxen funktionieren nicht für diese Layer.
+- **Root-Cause**: Der `ClassicLayerMgr` macht kein natives Coalescing — jeder `switchLayer()` erstellt einen eigenen OL-Layer. Das TNET-Coalesce-System erstellt Layer ausserhalb des Frameworks, die von `_wms_connector.lookupCallbacks` (MapTip) und `updateMapStatusUrl` (Bookmark) nicht erkannt werden.
+- **Fix**: Neue `tnet-coalesce-bridge.js` als Framework-Bridge: registriert Coalesce-Sublayer in `lookupCallbacks`, synchronisiert URL-State via `history.replaceState()` und pflegt Legacy-Dojo-Checkboxen. Zudem Debounce für `_updateCoalesceLAYERSParam` (50ms Default) um bei schnellem Aktivieren nur einen Server-Request auszulösen.
+- **Guardrail**: OL-Layer die ausserhalb des MapPlus-Frameworks erstellt werden, müssen immer manuell in `_wms_connector.lookupCallbacks` registriert werden (Key: `<URL>~<normalizedLayerName>`). Nie annehmen, der ClassicLayerMgr mache automatisch Coalescing.
+
+## 2026-03-05 — Bridge v1 MapTip zeigt `__coalesce__`-Gruppennamen statt echte Layer-Info
+- **Symptom**: MapTip zeigt `__coalesce__rp_def_np_fl_nutzungszonen (Layer 12)` — den internen Coalesce-Gruppennamen statt der echten Objektinformation.
+- **Root-Cause**: Bridge v1 erstellte eigene `__coalesce__`-OL-Layer ausserhalb des Frameworks. Die lookupCallbacks zeigten auf diese internen Layer-URLs, aber der MapTip-Handler konnte die `linked_layer`-Referenzen nicht korrekt auflösen. Der OL-Layer-Name (`__coalesce__...`) wurde statt des konfigurierten Titels angezeigt.
+- **Fix**: Bridge v2 (Root-Dienst-Strategie): Anstatt eigene OL-Layer zu erstellen, werden die bereits in `layers_tnet_oereb_multi.conf` existierenden Root-Dienste (z.B. `gis_oereb/nw_nutzungsplanung_def`) via `TnetLayerSwitch(rootKey, 'on')` aktiviert. Die Sublayer-Sichtbarkeit wird über `source.updateParams({LAYERS: 'show:0,3,5'})` gesteuert. Da der OL-Layer vom Framework erstellt wird, funktionieren MapTip, Legende und Bookmark automatisch. Store-Hooks in `_addToCoalesceOLLayer`, `_removeFromCoalesceOLLayer`, `_removeCoalesceOLLayer` und `toggleLayerEye` prüfen `Bridge.canHandle()` und delegieren ggf. an die Bridge. `_findOLLayer` hat einen Bridge-Fallback für Sublayer→Root-Auflösung.
+- **Guardrail**: Coalesce-Layer die einen Root-Dienst in der Framework-Config haben, IMMER über die Bridge (TnetLayerSwitch) verwalten — nie eigene OL-Layer erstellen. Für Root-Dienste müssen `layers_tnet_oereb_multi.conf`-Einträge vorhanden sein.
+
+---
+
 ## 2026-03-04 — Nordpfeil und Massstabstext im PDF nicht sichtbar
 - **Symptom**: Nach Einführung von `rotateNorthArrowInSvg()` fehlen Nordpfeil und ggf. Massstabstext im exportierten PDF.
 - **Root-Cause**: Z-Order-Problem. Der Nordpfeil liegt innerhalb des MAP_AREA. `pdf.svg()` rendert das SVG (inkl. rotiertem Nordpfeil) als unterste Schicht. Danach folgen ein weisses Rect + Kartenbild, die den Bereich komplett überdecken. `drawNorthArrow()` wurde wegen `_northArrowInSvg`-Flag fälschlich übersprungen. Zusätzlich konnte `pdf.svg()` den jsPDF-internen Graphics-State (Clip/Transform) verändern, was folgende `drawScaleLabel()`/`drawScaleBar()`-Aufrufe beeinträchtigte.
 - **Fix**: (1) `rotateNorthArrowInSvg()`-Aufruf im Export-Flow deaktiviert (Nordpfeil innerhalb MAP_AREA → wird immer überdeckt). (2) `drawNorthArrow()` wird jetzt IMMER nach dem Kartenbild aufgerufen, ohne `_northArrowInSvg`-Skip. (3) `drawDynamicElements()` und `drawScaleLabel()` mit `saveGraphicsState()`/`restoreGraphicsState()` abgesichert.
 - **Guardrail**: Dynamische Elemente, die innerhalb des MAP_AREA liegen, müssen IMMER per jsPDF NACH dem Kartenbild gezeichnet werden. SVG-basierte Manipulation funktioniert nur für Elemente ausserhalb des MAP_AREA (z.B. Titel, Copyright).
+
+## 2026-03-04 — Nested Layer-Accordion toggelt im Log, aber bleibt visuell zu
+- **Symptom**: Klick auf verschachtelte Layer-Kategorien loggt korrekt `OPEN/CLOSE`, aber das Accordion bleibt geschlossen und zeigt keine Inhalte.
+- **Root-Cause**: Kombination aus (1) detached-Container beim Nested-Build, (2) doppeltem Event-Pfad (`ondijitclick` + nativer `click`) und (3) CSS-Konflikt: `.tabs2acc-panel .categoryHeader { display:none !important; }` blendete verschachtelte Container aus, weil sie dieselbe Klasse erhielten.
+- **Fix**: Nested-Build auf echten Pane-Container stabilisiert (`_buildContentHeader()` im Nested-Context übersprungen), Klickpfad auf **eine** Quelle reduziert und Re-Entrancy-Guard in `_setOpenAttr` ergänzt. Zusätzlich wird `categoryHeader` im Nested-Context nicht mehr gesetzt (bzw. entfernt), damit Tabs2Accordion-CSS die Nested-Inhalte nicht versteckt.
+- **Guardrail**: Bei verschachtelten Dojo-Containern Klassennamen auf globale CSS-Regeln prüfen (insb. `display:none !important` in Tabs/Accordion-Styles) und Event-Toggle immer auf genau einen Pfad begrenzen.
+
+## 2026-03-04 — Nested-Hierarchie-CSS soll nur bei aktivierter JSON5-Option greifen
+- **Symptom**: Hierarchie-Styling griff global, auch wenn die erweiterte Legacy-Hierarchie nicht explizit gewünscht war.
+- **Root-Cause**: CSS-Regeln waren direkt auf `#layer_menu .dijitTitlePane[data-lyrmgr-depth]` gebunden, ohne Feature-Gate aus `tnet-global-config.json5`.
+- **Fix**: Neues Config-Flag `layerManager.useLegacyNestedHierarchyStyle` eingeführt, in `window.__tnetLMFlags` exponiert und CSS auf `body.tnet-lm-legacy-nested ...` gescoped. Zusätzlich `window.TnetDumpNestedCss()` für reproduzierbaren Style-Dump ergänzt.
+- **Guardrail**: Grössere Legacy-UI-Overrides immer per Feature-Flag in JSON5 schalten und CSS nie ungescoped global auf Standard-Pfade legen.
+
+## 2026-03-04 — Nested-Hierarchie zeigt trotz korrekter Titel-Linie noch grauen linken Rand
+- **Symptom**: Einrückung und Titel-Border pro Depth greifen, aber zusätzlich bleibt eine graue linke Legacy-Linie (`rgb(51, 51, 51)`) sichtbar.
+- **Root-Cause**: Der Standard-Rand der Dojo-`dijitTitlePane` blieb auf Pane-/Content-Ebene aktiv und konkurrierte mit der gewünschten Titel-`border-left`-Logik.
+- **Fix**: In `override.css` für `body.tnet-lm-legacy-nested #layer_menu .dijitTitlePane[data-lyrmgr-depth]` sowie `> .dijitTitlePaneContentOuter` den Rand per `border: 0 !important` plus `border-left: 0 !important` neutralisiert; Dump um Pane-Border-Metriken erweitert.
+- **Guardrail**: Bei Legacy-Dojo-Hierarchien immer sowohl Titel- als auch Pane-/Content-Ränder prüfen; visuelle Vertical-Guides nur auf einem Elementpfad aktiv lassen.
+
+## 2026-03-04 — Leaf-Layer erscheinen linksbündig statt unter der Nested-Unterkategorie
+- **Symptom**: Einträge wie „Grundnutzung“ stehen visuell ganz links, obwohl sie in einer tiefen Nested-Kategorie liegen.
+- **Root-Cause**: Depth-Styling wurde auf `dijitTitlePaneTitle` angewendet, aber die Leaf-Layer-Container im Content erhielten keine depth-basierte Klasse/Einrückung.
+- **Fix**: In `tnet-lyrmgr-patch.js` `_buildContentLayers` ergänzt und Leaf-Container mit `tnet-lm-nested-leaf` + `data-lyrmgr-parent-depth` markiert; in `override.css` depth-spezifische `margin-left`-Regeln für diese Leaf-Container ergänzt.
+- **Guardrail**: Bei Hierarchie-CSS immer Header **und** Content-Leaves separat behandeln; reine Titel-Einrückung reicht für visuell korrekte Baumtiefe nicht aus.
+
+## 2026-03-04 — Leaf-Einrückung wirkt trotz Depth-Attribut visuell weiterhin falsch
+- **Symptom**: Child-Layer stehen nicht klar unter dem Parent-Titel, obwohl `data-lyrmgr-parent-depth` korrekt gesetzt ist.
+- **Root-Cause**: Einrückung via `margin-left` am Leaf-Wrapper war durch Breiten-/Layoutregeln (Dojo/TOC) visuell unzuverlässig.
+- **Fix**: Leaf-Einrückung auf `padding-left` umgestellt und pro Depth mit zusätzlichem Offset gegenüber Headern abgestuft, damit Checkbox+Label stabil in der Baumtiefe ausgerichtet sind.
+- **Guardrail**: Bei Legacy-Dojo-Listen Einrückung für Zeileninhalte bevorzugt über `padding-left` statt Wrapper-`margin-left` lösen.
+
+## 2026-03-04 — Neuer Layer-Manager zeigte tiefe Gruppen nicht stufenweise (Farbe + Einrückung)
+- **Symptom**: In der neuen Tree-Ansicht wirkten tief verschachtelte Ebenen (z.B. zwischen „Rechtskräftig“ und „Nutzungszonen“) optisch auf gleicher Stufe.
+- **Root-Cause**: Rekursive Nodes (`lm-nested-group`) erhielten keine depth-spezifischen Klassen/Attribute; CSS konnte daher nur eine fixe Nested-Stufe stylen.
+- **Fix**: In `tnet-lm-tree.js` depth-Werte (`lm-depth-N`, `data-lm-depth`) rekursiv auf Header/Layer gesetzt und in `tnet-lm.css` pro Depth (1–6) abgestufte Farben (dunkel→hell) sowie gestaffelte Einrückung für Header und Leaf-Zeilen ergänzt (inkl. Desktop-Offsets).
+- **Guardrail**: Für rekursive Baum-UI immer depth-Metadaten bereits beim Rendern mitgeben; reine Klassen wie `nested` reichen für mehr als eine Unterebene nicht aus.
+
+## 2026-03-04 — Legacy Gruppen-Checkbox schaltete Unterebenen nicht rekursiv
+- **Symptom**: Bei deaktivierter Parent-Checkbox blieben unterliegende Layer teilweise sichtbar bzw. beim Reaktivieren ging der frühere Child-Zustand verloren.
+- **Root-Cause**: `switchGroupLayers` arbeitete effektiv nur mit direkten `arLayers` der Zielkategorie; rekursive Unterkategorien wurden nicht konsistent verarbeitet.
+- **Fix**: In `tnet-lyrmgr-patch.js` rekursives Sammeln aller Descendant-Layer ergänzt, Parent-OFF auf rekursiv AUS umgestellt und beim OFF ein Sichtbarkeits-Snapshot gespeichert, der beim Parent-ON rekursiv restauriert wird. Zusätzlich rekursive all/mixed/none-Checkbox-States für Gruppen eingeführt.
+- **Guardrail**: Für hierarchische Group-Toggles immer rekursiv über den vollständigen Descendant-Baum arbeiten und den Child-Zustand vor Bulk-OFF explizit als Snapshot sichern.
+
+## 2026-03-04 — Ausklappen brach nach rekursiver Gruppen-Logik (Legacy)
+- **Symptom**: Nach der rekursiven Gruppen-Umschaltung reagierte das Ausklappen der Layer-Kategorien unzuverlässig bzw. brach bei Klicks auf Gruppen-Checkboxen.
+- **Root-Cause**: Programmatische Checkbox-Status-Updates konnten in den Gruppen-`onClick`-Pfad hineinlaufen; zusätzlich war `stopPropagation()` ohne Event-Guard anfällig.
+- **Fix**: In `tnet-lyrmgr-patch.js` Suppress-Flag für programmatische Checkbox-Updates ergänzt und im Gruppen-`onClick` Event-Guards (`evt` prüfen, `stopPropagation`/`preventDefault` nur falls vorhanden) eingebaut.
+- **Guardrail**: Bei Dojo-Checkboxen UI-State-Updates immer von Benutzer-Click-Handlern entkoppeln (Reentrancy-/Suppress-Guard + null-safe Event-Nutzung).
+
+## 2026-03-04 — Parent/Child-Schaltung im Legacy-Tree war inkonsistent
+- **Symptom**: Parent AUS schaltete Child-Layer nicht in allen Fällen effektiv aus der Karte; Child EIN zog Parent-Checkboxen nicht zuverlässig rekursiv nach.
+- **Root-Cause**: Bei Einzel-Layer-Toggles fehlte ein konsistentes rekursives Refresh der übergeordneten Gruppenstates; zusätzlich konnten alte Gruppen-Snapshots trotz manueller Child-Änderungen weiterwirken.
+- **Fix**: `switchLayer` in `tnet-lyrmgr-patch.js` gepatcht: rekursives Parent-State-Refresh (all/mixed/none) nach jedem Layer-Toggle, OFF mit zusätzlichem `removeLayerIfPossible`, Bulk-Suppress-Guard sowie Snapshot-Invalidierung entlang der Ancestor-Pfade bei manuellem Child-EIN.
+- **Guardrail**: In hierarchischen TOCs nach jedem Child-Toggle Parent-States rekursiv neu berechnen und bei manuellen Child-Änderungen gespeicherte Parent-Snapshots verwerfen.
+
+## 2026-03-04 — Geklickte Gruppen-Checkbox blieb leer, während Parent/Child gesetzt wurden
+- **Symptom**: Beim Aktivieren einer mittleren Gruppe wurden obere und untere Ebenen visuell gesetzt, das direkt geklickte Kästchen blieb jedoch leer.
+- **Root-Cause**: Die Gruppen-State-Ableitung basierte primär auf rekursiv gesammelten Descendant-Layern. Für bestimmte Zwischenknoten lieferte die Statistik `total=0`, wodurch fälschlich `none` zurückkam.
+- **Fix**: `deriveCategoryState` in `tnet-lyrmgr-patch.js` erweitert: bei `total=0` Fallback auf rekursive Ableitung aus Subkategorien (`all/mixed/none`) und erst danach Checkbox-Fallback.
+- **Guardrail**: Gruppen-State-Logik darf nicht nur auf direkt zählbaren Layern basieren; Zwischenknoten immer über Child-States auflösen.
+
+## 2026-03-04 — Eigene Gruppen-Checkbox verlor Check-Status nach Klick
+- **Symptom**: Nach Klick auf eine Gruppen-Checkbox wurden Parent/Child korrekt gesetzt, aber das direkt geklickte Kästchen fiel in einzelnen Fällen visuell auf „nicht angekreuzt“ zurück.
+- **Root-Cause**: `preventDefault()` im Dojo-Checkbox-`onClick` störte den nativen Toggle-Pfad des geklickten Widgets.
+- **Fix**: `preventDefault()` aus dem Gruppen-Checkbox-Handler entfernt (nur `stopPropagation` belassen) und im `switchGroupLayers`-Pfad den Ziel-Checkbox-State nach dem Refresh explizit synchronisiert.
+- **Guardrail**: Bei Checkbox-`onClick` nie pauschal `preventDefault()` setzen, ausser ein vollständiger eigener Toggle-Flow ersetzt das native Widget-Verhalten.
+
+## 2026-03-04 — Steuerung im Panel „Dargestellte Themen“ reagierte teilweise nicht
+- **Symptom**: Auge/Deckkraft im Active-Panel wirkten bei einzelnen Einträgen ohne Effekt, obwohl die Einträge sichtbar waren.
+- **Root-Cause**: Die Aktionen verließen sich auf `findLayer(layerId)` im Katalog. Bei Einträgen ohne sauberen Katalog-Match brach der Standardpfad vor der Kartenaktion ab.
+- **Fix**: In `tnet-lm-store.js` Fallback auf `activeEntry` + `_olLayerRef` ergänzt; bei fehlendem OL-Ref wird für Standard-Layer auf `TnetLayerSwitch(on/off)` zurückgefallen. Deckkraft arbeitet nun ebenfalls über Active-Entry-Fallback.
+- **Guardrail**: Active-Panel-Aktionen immer gegen beide Quellen robust machen: Katalog-Layer **und** aktive Laufzeit-Einträge.
 
 ## 2026-06-xx — Nordpfeil in Druck-Vorschau dreht sich nicht bei Rotation
 - **Symptom**: Beim Ändern des Rotations-Sliders im Druck-Panel dreht sich der Nordpfeil im SVG-Overlay nicht mit.
@@ -369,3 +519,114 @@
 - **Root-Cause**: Resthöhen/Min-Heights kollabierter `#spring`-Kinder beeinflussten den normalen Flow und drückten den Handle nach unten.
 - **Fix**: Close-Regeln für `#spring > *:not(.close_switch)` um `height:0` und `min-height:0` ergänzt; Handle im Close-Zustand absolut auf `top:0` innerhalb von `#spring` verankert; `#spring` bleibt `position:relative`.
 - **Guardrail**: Bei Collapse-UI mit Trigger innerhalb des Containers Trigger-Position entkoppeln (absolute Verankerung) und bei Geschwister-Elementen immer auch `height/min-height` explizit nullen.
+
+## 2026-03-04 — Neuer LM-Tree: Gruppen-/Subcategory-Namen zeigen Rohpfade statt Labels
+
+- **Symptom**: Im neuen Desktop-Layermanager werden Gruppen als "Gis Basis/nw Basisplan Gis Dynamisch/gemeindegrenzen" und Subcategories als "Grundlagen" (ucfirst) statt NLS-Label "GRUNDLAGEN" angezeigt.
+- **Root-Cause**: Die API (`layers.php`) im DB-Pfad setzt `name = catalog_node.display_name` ohne Bereinigung — die DB speichert den vollen Service-Pfad. Im File-Pfad wird für Subcategory-Namen nur `ucfirst($categoryId)` statt NLS-Lookup genutzt. Das Frontend hat keinen Fallback für Pfad-basierte Namen.
+- **Fix**: (1) PHP: `getNlsLabel()` Funktion hinzugefügt (liest `lyrmgrResources.json`, gecacht). DB-Pfad: Gruppen/Subcategories bekommen NLS-Lookup, Fallback `extractLayerName()` (letztes Pfad-Segment). File-Pfad: Subcategory-Name per NLS auflösen. (2) JS: `_cleanPathName()` und `_cleanLayerNames()` in Store-Normalisierung — Pfade bereinigen, `displayName` über `name` bevorzugen.
+- **Guardrail**: Bei Gruppen-/Kategorie-Namen aus der DB immer NLS-Lookup zuerst, dann Pfad-Bereinigung (letztes Segment). Nie den rohen `display_name` aus der DB unbereinigt durchreichen. Frontend-Fallback (`_cleanPathName`) als Sicherheitsnetz beibehalten.
+
+## 2026-03-04 — Bundesthemen (ch.*) können nicht ein-/ausgeschaltet werden
+
+- **Symptom**: Klick auf Bundesthemen-Layer (ch.ensi.*, ch.kantone.*) schaltet zuerst AUS statt EIN. Nach erfolgreichem Einschalten zeigt `toggleLayerEye` "OL-Layer nicht gefunden" (`_olLayerRef:false`).
+- **Root-Cause**: Drei Bugs in `tnet-lm-store.js`: (1) `_onOLLayerAdd` setzt `_olLayerRef` nur wenn `!storeLayer.visible` — aber `setLayerVisible()` setzt `visible=true` bevor der async OL-Layer-Add passiert. (2) `_initLayerDefaults` übernimmt `visible: true` aus API-Daten als Ist-Zustand. (3) **Hauptursache**: `_watchMapChanges` unterdrückt `_onOLLayerAdd` **komplett** wenn `_suppressMapSync=true` — aber `setLayerVisible` setzt genau dieses Flag bevor `TnetLayerSwitch` den Layer lädt. Dadurch wird `_olLayerRef` für ALLE via `toggleLayer` aktivierten Layer nie gesetzt.
+- **Fix**: (1) `_onOLLayerAdd`: `_olLayerRef` immer setzen, unabhängig vom `visible`-Status. (2) `_initLayerDefaults`: `l.visible = false` bedingungslos. (3) **Kern-Fix**: In `_watchMapChanges` den `add`-Handler aufgeteilt — `_olLayerRef` wird VOR dem `_suppressMapSync`-Check zugewiesen (auf storeLayer UND activeEntry). Nur State-Changes/Events werden unterdrückt.
+- **Guardrail**: `_suppressMapSync` darf nie die Zuweisung von OL-Layer-Referenzen blockieren. Referenz-Updates (`_olLayerRef`) gehören VOR den Suppress-Check. Nur State-/Event-Propagation darf unterdrückt werden.
+
+---
+
+## 2026-03-04 — PHP OPcache blockiert Datei-Updates auf Server (Deploy fehlschlägt)
+
+- **Symptom**: Nach SFTP-Upload von LayerImporter.php zeigt der Server identischen Fehler mit identischen Zeilennummern, trotz korrekter Datei auf Disk und `opcache_reset()`.
+- **Root-Cause**: Nicht PHP OPcache — ein **HTTP-Response-Cache** (Reverse-Proxy/CDN vor www.gis-daten.ch) cached JSON-Antworten. Gleiche URL → gleiche gecachte Antwort. `opcache_invalidate()` und `opcache_reset()` wirkungslos weil das Problem vor PHP liegt. Beweis: Reflection-Endpoint (neue URL) zeigt korrekten Code, aber `?action=test-catalog` (gecachte URL) zeigt alten Fehler. Zeilennummern-Differenz (910 vs 913) = exakt die 3 eingefügten Zeilen.
+- **Fix**: Cache-Busting-Parameter `&_bust=<timestamp>` an die URL anhängen → frische Antwort, Import erfolgreich (10.302 Knoten, 0 Fehler).
+- **Guardrail**: Bei API-Tests auf dem Server **immer** einen Cache-Busting-Parameter `&_bust=<stamp>` anhängen. Nie davon ausgehen, dass JSON-Antworten nicht gecacht werden. Wenn identischer Fehler trotz Code-Änderung: Response-Cache prüfen, nicht nur OPcache.
+
+---
+
+## 2026-03-04 — LayerImporter.extractServiceBaseUrl() crasht bei NULL-URLs
+
+- **Symptom**: `TypeError: Argument #1 ($url) must be of type string, null given` in `extractServiceBaseUrl()` während Catalog-Import.
+- **Root-Cause**: `layer_definition.url` kann NULL sein in der DB (z.B. bei Gruppen ohne eigene URL). `FETCH_KEY_PAIR` liefert `[layer_id => null]`. Der foreach-Loop rief `extractServiceBaseUrl($url)` ohne Null-Check auf, und die Methode hatte `string $url` (non-nullable).
+- **Fix**: (1) Methodensignatur auf `?string $url` geändert mit early-return bei null. (2) Null-Check vor dem Aufruf: `if ($url === null || $url === '') return $result;`. (3) Gesamter Coalesce-Block in `try/catch (\Throwable)` gewrappt.
+- **Guardrail**: DB-Felder die NULL sein können: immer nullable Type-Hints verwenden und Null-Checks VOR dem Funktionsaufruf einbauen. `FETCH_KEY_PAIR` kann NULL-Values liefern.
+
+## 2026-03-04 — Neuer Themenkatalog: Layer-Toggle wirkungslos (keine Layer auf Karte)
+
+- **Symptom**: Klick auf Layer-Checkbox im neuen Themenkatalog → kein Layer wird auf der Karte dargestellt. `toggleLayer` meldet "Layer nicht gefunden oder ist Gruppe".
+- **Root-Cause**: In der lyrmgr.conf haben Gruppen-Wrapper häufig die **exakt gleiche ID** wie ihr einziges Kind-Layer (z.B. `gis_basis/nw_basisplan_gis_dynamisch/gemeindegrenzen` als Gruppe UND als Blatt-Layer). `_findLayerRecursive()` suchte top-down und gab den **Gruppen-Knoten** (type='group') zuerst zurück. `toggleLayer` prüft `layer.type === 'group'` → return ohne Aktion.
+- **Fix**: `_findLayerRecursive()` so angepasst, dass Blatt-Layer gegenüber gleichnamigen Gruppen-Knoten bevorzugt werden: Bei ID-Match + type=group/subcategory → zuerst Kinder durchsuchen; nur als Fallback den Gruppen-Knoten zurückgeben.
+- **Guardrail**: Beim Aufbau hierarchischer Kataloge wo Eltern/Kind gleiche IDs haben können: rekursive Suchen müssen IMMER Blätter vor Containern bevorzugen. `findLayer` nie blind den ersten Match zurückgeben.
+
+## 2026-03-04 — Dargestellte Themen (Active Panel) nicht scrollbar
+
+- **Symptom**: Neue Active-Panel-Container (`#lm-active-container`) scrollt nicht, obwohl mehr Einträge vorhanden sind als sichtbar.
+- **Root-Cause**: Drei Probleme: (1) CSS `max-height: calc(100vh - 260px)` war ~820px — Content überläuft nie innerhalb des Containers. (2) Dojo TitlePane setzt ContentOuter Inline-Styles beim Öffnen zurück → `overflow-y: auto` geht verloren. (3) `#lm-active-container` wird asynchron von `tnet-lm-init.js` erstellt, existiert ggf. noch nicht wenn `setupPanel()` in `tnet-accordion-resize.js` erstmals läuft → Inline-Styles werden auf NULL-Element angewendet.
+- **Fix**: (a) CSS: `max-height` auf `var(--tnet-active-height, 300px)` mit `!important`-Overflow. Zusätzliche Regel auf `#tp_sort_menu > .dijitTitlePaneContentOuter` mit `overflow-y: auto !important`. (b) JS v2.1: `applyHeight()` setzt CSS-Variable `--tnet-active-height` als Fallback. Lazy Flag-Reads via `readFlags()` statt IIFE-Scope. Dojo `widget.watch('open', ...)` re-appliziert Styles nach Animation. Container-Nachverfolgung per Polling falls `#lm-active-container` verspätet erscheint.
+- **Guardrail**: Bei Dojo-TitlePanes: Inline-Styles werden beim Open/Close überschrieben → immer CSS `!important` als Basis verwenden + JS re-apply nach Open. Asynchron erstellte Container brauchen Polling/Observer für nachträgliche Style-Anwendung.
+
+## 2026-03-06 — Coalesce-Bridge: queryconnector filtert nicht bei root-linked MapTip-Einträgen
+
+- **Symptom**: MapTip zeigt Ergebnisse aller 14 Sublayer, obwohl nur 2 sichtbar sind. queryconnector-Patch greift nicht.
+- **Root-Cause**: MapTip-Einträge `_0` bis `_13` in multi.conf verwenden `linked_layer: "gis_oereb/nw_nutzungsplanung_def"` (Root-Key direkt), nicht einen Sublayer-Key. `_sublayerToRoot[rootKey]` → undefined. `_extractRootKey(rootKey)` → `"gis_oereb"` (falsch, splittet 2-Segment-Key).
+- **Fix**: Queryconnector v2 mit 3-Strategie-Priorität: (1) Direct-Match: `_rootServices[linkedId]`, (2) Sublayer-Lookup: `_sublayerToRoot[linkedId]`, (3) Fallback: `_extractRootKey()` + Verifikation.
+- **Guardrail**: MapTip-`linked_layer` kann sowohl ein Root-Key als auch ein Sublayer-Key sein. Root-Key Matching immer als erste Strategie prüfen.
+
+## 2026-03-06 — Coalesce-Bridge: Framework-URL überschreibt Sublayer-Keys mit Root-Keys
+
+- **Symptom**: URL wechselt von korrekten Sublayer-Keys auf Root-Key (`layers=gis_oereb/nw_nutzungsplanung_def`). Beim Reload wird der konsolidierte Layer statt der korrekten Sublayer aktiviert.
+- **Root-Cause**: `njs.AppManager.updateMapStatusUrl()` wird bei jedem `moveend`/`loadend` aufgerufen, schreibt `layers=` mit LyrMgr-Root-Key-IDs via `history.replaceState()`.
+- **Fix**: 3 Patches: (1) `_patchUpdateMapStatusUrl()` — nach Original: Root-Keys durch Sublayer-Keys ersetzen. (2) `_patchTnetLayerSwitch()` — bei `on`-Aufruf für Coalesce-Sublayer: über Store routen statt individuelles OL-Layer erstellen. (3) `restoreFromUrl()` auf `catalog-loaded`: Sublayer-Keys aus URL via Store aktivieren.
+- **Guardrail**: Bei URL-State-Management immer prüfen, wer die URL schreibt (Framework vs. eigener Code). TnetLayerSwitch-Aufrufe für Coalesce-Sublayer MÜSSEN über den Store laufen, nie direkt über LyrMgr.switchLayersProgr().
+
+## 2026-03-05 — Ghost-Layer: Coalesce-Layer bleiben auf Karte nach Entfernung
+
+- **Symptom**: Layer bleiben auf der Karte sichtbar, obwohl sie aus dem Panel «Dargestellte Themen» entfernt wurden (kein Eintrag mehr im Store/Panel). Maptip funktioniert nicht auf Ghost-Layern, aber Räumliche Abfrage findet Daten.
+- **Root-Cause (v4, endgültig)**: Das Framework erstellt beim Startup via `ClassicLayerMgr.switchLayersProgr()` → `lay.switchLayer(true)` **individuelle OL-Layer** für jeden Sublayer-Key (z.B. `gis_oereb/nw_nutzungsplanung_def/grundnutzung`). Diese gehen NICHT durch `TnetLayerSwitch` und NICHT durch die Coalesce-Bridge. Der Store erkennt sie via `_onOLLayerAdd` und zeigt sie im Active-Panel. Aber `_coalesceOLLayers[groupId]` wird NIE erstellt, weil `restoreFromUrl` die Layer als bereits sichtbar sieht. Beim Entfernen: `removeLayer` → `_layerToCoalesce[layerId]` existiert → Coalesce-Pfad → `_removeFromCoalesceOLLayer` findet kein `cEntry` → **return sofort** → OL-Layer bleibt auf der Karte!
+- **Fix**: In `_removeFromCoalesceOLLayer` (tnet-lm-store.js): Wenn `cEntry` nicht existiert, Fallback auf `TnetLayerSwitch(layerId, 'off')` — das findet den Framework-OL-Layer am richtigen Namen und entfernt ihn via `mgr.switchLayer(sublayerKey, false)` → `lay.switchLayer(false)` → `map.removeLayer(this._lyr)`. Zusätzlich: `toggleLayerEye` Fallback über `_olLayerRef.setVisible()` für Startup-Layer ohne Coalesce-Entry.
+- **Guardrail**: Wenn `_layerToCoalesce[id]` zwar gesetzt ist (aus Katalog) aber kein `_coalesceOLLayers`-Eintrag existiert (weil Framework die Layer beim Startup direkt erstellt hat), muss der Entfernungs-Code auf den Standard-Pfad (`TnetLayerSwitch off`) zurückfallen.
+- **Fehlgeschlagene Ansätze (v1-v3)**: (1) Dreifach-Sicherung in Bridge — zu komplex. (2) `map.removeLayer(entry.olLayer)` — entry.olLayer zeigt auf Root, nicht auf individuelle Sublayer. (3) `_findFrameworkOLLayer(rootKey)` — findet Root-Layer, aber die Ghosts sind individuelle Sublayer-OL-Layer.
+- **Update v5 2026-03-05**: v4-Fix greift nur wenn KEIN Bridge-`cEntry` existiert. Aber bei URL-Start (`?layers=...`) erstellt das Framework einen individuellen OL-Layer (name=sublayerKey) UND die Bridge einen Root-OL-Layer (name=rootKey) → zwei Layer übereinander. v4-Fallback (`!cEntry`) feuert nie, weil Bridge-Entry existiert. Fix: In `unregisterSublayer` (Bridge) zusätzlich `_findFrameworkOLLayer(sublayerKey)` aufrufen und individuellen OL-Layer von der Map entfernen. Auch bei `registerSublayer` den individuellen Layer sofort entfernen (Doppel-Schutz während Nutzung).
+- **Update v6 2026-03-05**: v5-Cleanup in `registerSublayer` läuft zu FRÜH — der individuelle Framework-Layer existiert noch nicht zu dem Zeitpunkt. Framework erstellt ihn verzögert via `switchLayersProgr` oder `ensureUrlLayers` NACH der Bridge-Registrierung. Fix: Ghost-Schutz direkt im `_watchMapChanges` → `map.getLayers().on('add')` Listener (tnet-lm-store.js). Prüft VOR `_olLayerRef`-Setzen und `_suppressMapSync`: wenn `TnetCoalesceBridge.isManagedSublayer(lid)` → sofort `map.removeLayer(olLayer)`. Fängt den Layer exakt im Moment ab in dem er zur Map hinzugefügt wird, unabhängig vom Timing.
+- **KRITISCH v6b**: `map.removeLayer()` synchron innerhalb eines `map.getLayers().on('add')` Handlers aufrufen **korrumpiert OpenLayers' interne Collection**! ALLE nachfolgenden Layer-Operationen brechen (Basemap-Wechsel, Layer schalten, etc.). Fix: `olLayer.setVisible(false)` sofort (unsichtbar), dann `setTimeout(function() { map.removeLayer(olLayer); }, 50)` deferred. **Guardrail**: NIEMALS `removeLayer` synchron in einem `add`-Event-Handler aufrufen — immer deferren!
+
+## 2026-03-05 — Breadcrumb zeigt falschen Katalogpfad (z.B. ÖREB statt Grundbuchplan)
+
+- **Symptom**: Objektinfo-Breadcrumb zeigt „ÖREB > RAUMPLANUNG > ..." obwohl der Layer im Katalog unter „Grundlagen > Grundbuchplan" platziert ist. Tiefste Verschachtelung im Dojo-LyrMgr-Baum gewinnt immer.
+- **Root-Cause**: `resolveFastBreadcrumb` (tnet-info-panel.js) baut eine Lookup-Map aus dem Dojo-`arCategories`-Baum. Bei Mehrfachvorkommen (gleicher `layer.name` in mehreren Kategorien) überschreibt der letzte Traversal. Scoring: `score += path.length` → tiefster Pfad bevorzugt. Dojo-Baum hat artikulierte Tiefen-Struktur mit NLS-Labels, die den Admin-Katalog nicht widerspiegelt.
+- **Fix**: TNET-Katalog (aus API / `lyrmgr.conf`) als **primäre Breadcrumb-Quelle** verwenden. Neue Methode `TnetLMStore.getLayerCatalogPath(prefix)` traversiert rekursiv `_catalog` (exakt + Prefix-Match). `resolveFastBreadcrumb` prüft zuerst den TNET-Katalog; nur bei Nicht-Treffer Fallback auf Dojo-LyrMgr-Baum. Breadcrumb-Cache wird bei `catalog-loaded` Event invalidiert.
+- **Guardrail**: Für Breadcrumbs immer den TNET-Katalog als autoritative Quelle verwenden — der Dojo-LyrMgr-Baum hat unkontrollierbare Tiefe und Mehrfachvorkommen.
+
+## 2026-03-06 — Feature: Breadcrumb-Klick → Layer im Themenkatalog hervorheben
+
+- **Feature**: Klick auf Breadcrumb im Info-Panel öffnet den Themenkatalog, expandiert Eltern-TitlePanes, aktiviert den richtigen Kantons-Tab und scrollt zum Layer mit Highlight-Animation.
+- **Implementierung**: `scrollToLayerInCatalog(linkedLayerId)` in tnet-info-panel.js. Findet Layer-DOM via `div_<key>` oder `dijit.byId(<key>)`. Traversiert DOM aufwärts um Kantons-Tab zu bestimmen und TitlePanes zu öffnen. `renderBreadcrumbInTitleBar` erweitert um `data-linked-layer` Attribut und Click-Handler. CSS: `.tnet-maptip-breadcrumb-clickable` (cursor, hover-Feedback), `.tnet-catalog-highlight` (@keyframes Puls-Animation in `--m-color-primary`).
+- **Guardrail**: `scrollIntoView` mit 450ms Delay aufrufen — TitlePane-Animationen brauchen Zeit. `e.stopPropagation()` im Click-Handler, sonst öffnet/schliesst sich das übergeordnete TitlePane.
+
+## 2026-03-06 — Feature: Ctrl+Klick → Alle Geschwister-Knoten im Katalog öffnen/schliessen
+
+- **Feature**: Ctrl+Klick auf einen Kategorie-Knoten im Themenkatalog toggelt alle Geschwister derselben Hierarchiestufe (gleicher Parent-Container, gleiches `data-lyrmgr-depth`).
+- **Implementierung**: Im TitleBar-Click-Handler (tnet-lyrmgr-patch.js, Abschnitt „Nativer DOM-Click") wird `e.ctrlKey || e.metaKey` geprüft. Bei Ctrl: Parent-Container durchlaufen, alle `dijitTitlePane[data-lyrmgr-depth="<N>"]` Geschwister finden, jeweils `_setOpenAttr(targetOpen)` aufrufen.
+- **Guardrail**: Nur Geschwister im selben Parent-Container toggeln (nicht global alle Panes derselben Tiefe). `dijit.byNode()` in try/catch, da nicht alle Panes das Widget haben.
+
+## 2026-03-06 — Coalesce-Layer rendert erst nach doppeltem Toggle (aus/ein)
+
+- **Symptom**: Beim ersten Einschalten eines Coalesce-Sublayers (z.B. ÖREB Nutzungsplanung) wurde der Karteninhalt nicht dargestellt. Erst nach Aus- und wieder Einschalten war der Layer sichtbar. Zusätzlich wurde die URL (`layers=`) nicht aktualisiert.
+- **Root-Cause**: `registerSublayer()` in der Coalesce-Bridge rief `TnetLayerSwitch(rootKey, 'on')` auf, was intern `switchLayersProgr()` (asynchron) triggert. Direkt danach wurde synchron `_findFrameworkOLLayer(rootKey)` geprüft — der OL-Layer existierte aber noch nicht (async!). Die Bridge gab `false` zurück → der Store fiel auf den Standard-Coalesce-Pfad zurück und erstellte einen eigenen `ol.source.ImageArcGISRest`-Layer. Beim zweiten Toggle war der Framework-OL-Layer bereits da → Bridge funktionierte. Der Standard-Coalesce-Pfad hatte zudem keine URL-Sync → `layers=`-Parameter blieb leer.
+- **Fix**: (1) `registerSublayer()` gibt jetzt immer `true` zurück (kein sofortiger Fallback). Der OL-Layer wird asynchron mit Retry gesucht (bis 12 Versuche, 300–1500ms). Erst nach allen Retries wird aufgeräumt. (2) Öffentliche `scheduleUrlSync()` Methode auf Bridge exponiert. (3) Standard-Coalesce-Pfad im Store ruft `TnetCoalesceBridge.scheduleUrlSync()` auf.
+- **Guardrail**: Nach `TnetLayerSwitch()` NIEMALS synchron auf den OL-Layer prüfen — `switchLayersProgr` ist asynchron. Immer Retry-Pattern verwenden.
+
+## 2026-03-06 — Coalesce-Layer laden nicht aus URL beim App-Start
+
+- **Symptom**: URL mit `layers=gis_oereb/nw_nutzungsplanung_def/ueberlagernde_festlegung|.../grundnutzung` zeigt beim Start keine Layer an.
+- **Root-Cause**: `registerSublayer()` rief `TnetLayerSwitch(rootKey, 'on')` auf, aber das Framework kennt den Root-Service-Key (`gis_oereb/nw_nutzungsplanung_def`) nicht als konfigurierten Layer → `switchLayersProgr` erzeugt keinen OL-Layer → trotz Async-Retry wird nie einer gefunden → Layer bleiben unsichtbar.
+- **Fix**: Bridge erstellt den OL-Layer jetzt **selbst** (`_createRootOLLayer`), statt auf das Framework zu warten. `serviceUrl` wird via `TnetLMStore.getCoalesceInfo(sublayerKey)` geholt. `ol.source.ImageArcGISRest` + `ol.layer.Image` werden synchron erstellt und der Map hinzugefügt. `TnetLayerSwitch(rootKey, 'on')` wird nicht mehr aufgerufen.
+- **Guardrail**: Nie davon ausgehen, dass das Dojo-Framework einen Root-Dienst-Key kennt — es kennt nur Blatt-Layer-Keys. Für Coalesce-Root-Dienste immer den OL-Layer selbst erstellen.
+
+## 2026-03-06 — Coalesce-Gruppenname zeigt Service-Pfad statt Alias
+
+- **Symptom**: Im Active-Layers-Panel steht `gis_oereb/nw_nutzung...` statt des lesbaren Namens ("Nutzungszonen").
+- **Root-Cause**: In `_scanCoalesceNodes` hatte `servicePath` Vorrang über `n.name`: `name: servicePath || n.displayName || n.name || n.id`. Kommentar sagte "DB-Name ist oft generisch" — trifft aber auf die meisten Katalog-Knoten nicht zu.
+- **Fix**: Priorität umgekehrt: `n.displayName || n.name || servicePath || n.id`. Generische Namen ("Virtueller Layer") werden mit Prüfung übersprungen.
+- **Guardrail**: Katalog-Knoten-Namen (`n.name`, `n.displayName`) haben immer Vorrang vor technischen Pfaden. Nur als Fallback hinter Generik-Check verwenden.

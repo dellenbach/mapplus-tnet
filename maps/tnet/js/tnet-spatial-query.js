@@ -94,6 +94,129 @@ var spatialQueryConfigPromise = null;
 
         return spatialQueryConfigPromise;
     }
+
+    // ===== ALIAS-AUFLÖSUNG FÜR LAYER-NAMEN =====
+
+    // Cache für ArcGIS Service-Metadaten (serviceUrl → {layers: [{id, name}]})
+    var _serviceInfoCache = {};
+
+    /**
+     * Löst Aliase/Anzeigenamen für Layer auf.
+     * - ArcGIS: Holt Service-Metadaten um Sublayer-Namen zu ermitteln
+     * - Alle: Versucht NLS-Lookup in lyrmgrResources und maptipsResources
+     * - Fallback: Technischer Name bleibt erhalten
+     * @param {Array} layers - Layer-Array aus getVisibleQueryableLayers()
+     * @returns {Promise} Resolved wenn alle Namen aufgelöst sind
+     */
+    function resolveLayerAliases(layers) {
+        // 1. Synchrone NLS-Lookups zuerst
+        layers.forEach(function(layer) {
+            var alias = _lookupNlsAlias(layer);
+            if (alias) {
+                layer.alias = alias;
+            }
+        });
+
+        // 2. ArcGIS Service-Metadaten asynchron holen (nur für ungelöste Sublayer)
+        var serviceGroups = {};
+        layers.forEach(function(layer) {
+            if (layer.type === 'arcgis' && layer.serviceUrl && !layer.alias) {
+                if (!serviceGroups[layer.serviceUrl]) {
+                    serviceGroups[layer.serviceUrl] = [];
+                }
+                serviceGroups[layer.serviceUrl].push(layer);
+            }
+        });
+
+        var fetchPromises = Object.keys(serviceGroups).map(function(svcUrl) {
+            // Cache prüfen
+            if (_serviceInfoCache[svcUrl]) {
+                _applyServiceInfo(serviceGroups[svcUrl], _serviceInfoCache[svcUrl]);
+                return Promise.resolve();
+            }
+
+            return fetch(svcUrl + '?f=json')
+                .then(function(resp) { return resp.json(); })
+                .then(function(info) {
+                    _serviceInfoCache[svcUrl] = info;
+                    _applyServiceInfo(serviceGroups[svcUrl], info);
+                })
+                .catch(function(err) {
+                    // Fehler ignorieren, Fallback auf technischen Namen
+                    console.warn('[SpatialQuery] Service-Info Abruf fehlgeschlagen:', svcUrl, err);
+                });
+        });
+
+        return Promise.all(fetchPromises).then(function() {
+            // Layer-Namen mit aufgelösten Aliasen aktualisieren
+            layers.forEach(function(layer) {
+                if (layer.alias) {
+                    layer.name = layer.alias;
+                }
+            });
+        });
+    }
+
+    /**
+     * Synchroner NLS-Lookup: Versucht über lyrmgrResources und maptipsResources
+     * einen benutzerfreundlichen Namen zu finden.
+     */
+    function _lookupNlsAlias(layer) {
+        if (!njs || !njs.AppManager || !njs.AppManager.nls) return null;
+
+        var lyrmgr = njs.AppManager.nls.lyrmgrResources || {};
+        var maptips = njs.AppManager.nls.maptipsResources || {};
+
+        // Basisnamen extrahieren (OL-Layername ohne Suffixe)
+        var baseName = layer.olLayerName || layer.name || '';
+
+        // Verschiedene Key-Varianten versuchen
+        // z.B. "gis_oereb/nw_nutzungsplanung_def" → versuche desc_gis_oereb/nw_nutzungsplanung_def,
+        //   desc_nw_nutzungsplanung_def, desc_nw_nutzungsplanung_DEF etc.
+        var keyVariants = [
+            baseName,
+            baseName.replace(/^[^/]+\//, ''),  // Ordner-Prefix entfernen
+            baseName.replace(/\//g, '_')         // Slashes durch Underscores
+        ];
+
+        for (var i = 0; i < keyVariants.length; i++) {
+            var key = keyVariants[i];
+            if (lyrmgr['desc_' + key]) return lyrmgr['desc_' + key];
+            // Auch Case-insensitive versuchen (DEF/def Varianten)
+            var keyUpper = key.replace(/(def|prj)/gi, function(m) { return m.toUpperCase(); });
+            if (keyUpper !== key && lyrmgr['desc_' + keyUpper]) return lyrmgr['desc_' + keyUpper];
+        }
+
+        // MapTips-Lookup: maptipKey + "_title"
+        if (layer.type === 'arcgis' && layer.layerId) {
+            var maptipKeys = keyVariants.map(function(k) { return k + '_' + layer.layerId; });
+            for (var j = 0; j < maptipKeys.length; j++) {
+                if (maptips[maptipKeys[j] + '_title']) return maptips[maptipKeys[j] + '_title'];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Wendet ArcGIS Service-Metadaten auf Layer an:
+     * Mappt Sublayer-IDs auf ihre Anzeigenamen.
+     */
+    function _applyServiceInfo(layers, serviceInfo) {
+        if (!serviceInfo || !serviceInfo.layers) return;
+
+        // ID → Name Mapping aufbauen
+        var layerMap = {};
+        serviceInfo.layers.forEach(function(l) {
+            layerMap[String(l.id)] = l.name;
+        });
+
+        layers.forEach(function(layer) {
+            if (!layer.alias && layer.layerId && layerMap[String(layer.layerId)]) {
+                layer.alias = layerMap[String(layer.layerId)];
+            }
+        });
+    }
     
     // Zeichnen-Layer erstellen
     function getDrawLayer(map) {
@@ -423,19 +546,24 @@ var spatialQueryConfigPromise = null;
         // console.log('Geometry JSON:', geometryJson);
         // console.log('Polygon BBOX:', polygonBbox);
         
-        statusEl.textContent = 'Abfrage von ' + visibleLayers.length + ' Layer(n)...';
+        statusEl.textContent = 'Layer-Namen auflösen...';
         
-        var promises = visibleLayers.map(function(layer) {
-            if (layer.type === 'wms') {
-                return queryWfsLayer(layer, polygonBbox, polygonCoords);
-            } else {
-                return querySingleLayer(layer, geometryJson);
-            }
-        });
-        
-        Promise.all(promises).then(function(results) {
-            // console.log('Query Results:', results);
-            displayResults(results, visibleLayers);
+        // Aliase/Anzeigenamen für Layer auflösen, dann Abfragen starten
+        resolveLayerAliases(visibleLayers).then(function() {
+            statusEl.textContent = 'Abfrage von ' + visibleLayers.length + ' Layer(n)...';
+            
+            var promises = visibleLayers.map(function(layer) {
+                if (layer.type === 'wms') {
+                    return queryWfsLayer(layer, polygonBbox, polygonCoords);
+                } else {
+                    return querySingleLayer(layer, geometryJson);
+                }
+            });
+            
+            return Promise.all(promises).then(function(results) {
+                // console.log('Query Results:', results);
+                displayResults(results, visibleLayers);
+            });
         }).catch(function(err) {
             TnetLog.error('Spatial Query Error:', err);
             statusEl.textContent = 'Fehler bei der Abfrage.';
@@ -1334,6 +1462,8 @@ var spatialQueryConfigPromise = null;
                                     // console.log('  -> Layer hinzugefügt:', fullUrl);
                                     layers.push({
                                         name: name + ' (Layer ' + lid + ')',
+                                        olLayerName: name,
+                                        serviceUrl: serviceUrl,
                                         url: fullUrl,
                                         layerId: lid.trim(),
                                         type: 'arcgis'
@@ -1344,6 +1474,8 @@ var spatialQueryConfigPromise = null;
                                 // console.log('  -> Layer hinzugefügt:', serviceUrl + '/' + layerId);
                                 layers.push({
                                     name: name,
+                                    olLayerName: name,
+                                    serviceUrl: serviceUrl,
                                     url: serviceUrl + '/' + layerId,
                                     layerId: layerId,
                                     type: 'arcgis'
@@ -1353,6 +1485,8 @@ var spatialQueryConfigPromise = null;
                                 // console.log('  -> Fallback Layer 0:', serviceUrl + '/0');
                                 layers.push({
                                     name: name,
+                                    olLayerName: name,
+                                    serviceUrl: serviceUrl,
                                     url: serviceUrl + '/0',
                                     layerId: '0',
                                     type: 'arcgis'
@@ -1380,6 +1514,7 @@ var spatialQueryConfigPromise = null;
                                 // console.log('  -> WMS Layer hinzugefügt:', baseUrl, 'LAYERS:', wmsLayers);
                                 layers.push({
                                     name: name,
+                                    olLayerName: name,
                                     url: baseUrl,
                                     wmsLayers: wmsLayers,
                                     type: 'wms',

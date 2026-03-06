@@ -935,21 +935,29 @@
     TnetLog.log('[WMS-GFI] singleclick-Handler auf Hauptkarte registriert (nach ' + _gfiRetryCount + ' Retries)');
 
     map.on('singleclick', function(evt) {
-      TnetLog.log('[WMS-GFI] === singleclick Event empfangen ===');
+      // ── Bridge-Gate: Wenn die Info-Bridge aktiv ist, übernimmt sie den Dispatch ──
+      if (window._tnetInfoBridgeActive) {
+        TnetLog.log('[WMS-GFI] singleclick ignoriert — Info-Bridge aktiv');
+        return;
+      }
+      TnetLog.log('[WMS-GFI] === singleclick Event empfangen (Legacy-Modus) ===');
 
       try {
-        // Picking-Check: Info-Panel zeigt "Keine Objekte gefunden" → Framework hat gefeuert → picking MUSS true sein.
-        // Trotzdem prüfen wir es, aber nur zum Loggen — NICHT als Abbruchkriterium.
+        // Gate-Check: Framework's _disablewmsgetfeatureinfo prüfen
+        // (wird gesetzt wenn Mess-/Zeichen-/Druck-Tool aktiv ist)
         var currentAm = _getAppManager();
-        var pickingActive = false;
-        if (currentAm && currentAm.Maps && currentAm.Maps['main']) {
-          pickingActive = !!currentAm.Maps['main'].picking;
-        }
-        TnetLog.log('[WMS-GFI] picking:', pickingActive, '| _addedLayers:', _addedLayers.length);
+        var gfiDisabled = false;
+        try {
+          gfiDisabled = !!(currentAm && currentAm.MapTips &&
+            currentAm.MapTips['_disablewmsgetfeatureinfo'] &&
+            currentAm.MapTips['_disablewmsgetfeatureinfo']['main']);
+        } catch (e) { /* ignore */ }
 
-        // Wenn picking nicht aktiv ist UND keine Custom-WMS-Layer → nichts tun
-        if (!pickingActive && _addedLayers.length === 0) {
-          TnetLog.log('[WMS-GFI] picking=false und keine Custom-WMS-Layer → Abbruch');
+        TnetLog.log('[WMS-GFI] gfiDisabled:', gfiDisabled, '| _addedLayers:', _addedLayers.length);
+
+        // Wenn GFI durch Tool blockiert UND keine Custom-WMS-Layer → nichts tun
+        if (gfiDisabled && _addedLayers.length === 0) {
+          TnetLog.log('[WMS-GFI] GFI durch Tool blockiert und keine Custom-WMS-Layer → Abbruch');
           return;
         }
 
@@ -978,8 +986,8 @@
           }
         });
 
-        // 2) Framework-WMS-Layer (nur wenn picking aktiv)
-        if (pickingActive) {
+        // 2) Framework-WMS-Layer (sofern GFI nicht durch Tool blockiert)
+        if (!gfiDisabled) {
           try {
             var allLayers = map.getLayers().getArray();
             TnetLog.log('[WMS-GFI] OL-Layer auf Karte:', allLayers.length);
@@ -1002,6 +1010,10 @@
 
               // ArcGIS-Proxy-Layer überspringen
               if (url && url.indexOf('agsproxy.php') > -1) return;
+
+              // mask_layer (Kantonsmaske) überspringen — unterstützt kein GFI
+              var layerName = layer.get('name') || '';
+              if (layerName === 'mask_layer') return;
 
               // Params holen
               var params = (typeof source.getParams === 'function') ? source.getParams() : null;
@@ -1511,5 +1523,211 @@
   // Globale Referenz für Drag/Resize-Erweiterung
   window._savedWmsDockedWidth = 400;
   window.isWmsPanelDocked = false;
+
+  // ===== BRIDGE-API: Exportierte Funktionen für tnet-info-bridge.js =====
+
+  /**
+   * Liefert alle sichtbaren Custom-WMS-Layer (vom Benutzer hinzugefügt).
+   * Wird von der Info-Bridge aufgerufen.
+   * @returns {Array<{source: ol.source.TileWMS, title: string, name: string}>}
+   */
+  function _getVisibleCustomLayers() {
+    var result = [];
+    _addedLayers.forEach(function (entry) {
+      if (entry.olLayer && entry.olLayer.getVisible()) {
+        var source = entry.olLayer.getSource();
+        if (source && typeof source.getFeatureInfoUrl === 'function') {
+          result.push({
+            source: source,
+            title: entry.title || entry.name,
+            name: entry.name,
+            isCustom: true
+          });
+        }
+      }
+    });
+    return result;
+  }
+
+  /**
+   * Führt GFI-Abfragen für die übergebenen Custom-WMS-Layer aus und
+   * zeigt Ergebnisse im Info-Panel an.
+   * Wird von der Info-Bridge aufgerufen.
+   * @param {ol.MapBrowserEvent} evt - Das Click-Event
+   * @param {Array} customLayers - Ergebnis von getVisibleCustomLayers()
+   * @param {ol.Map} map - Die Karte
+   */
+  function _queryCustomLayersForBridge(evt, customLayers, map) {
+    if (!customLayers || customLayers.length === 0) return;
+
+    var coordinate = evt.coordinate;
+    var viewResolution = map.getView().getResolution();
+    var projection = map.getView().getProjection();
+    var features = [];
+    var requests = [];
+
+    // Format-Fallback-Kette (identisch mit dem Haupt-Handler)
+    var formats = [
+      'application/json',
+      'application/geojson',
+      'application/vnd.ogc.gml',
+      'text/html',
+      'text/plain'
+    ];
+
+    customLayers.forEach(function (entry) {
+      var source = entry.source;
+      var layerTitle = entry.title;
+
+      var tryFormat = function (formatIndex) {
+        if (formatIndex >= formats.length) {
+          TnetLog.warn('[WMS-GFI] Alle Formate fehlgeschlagen für', layerTitle);
+          return Promise.resolve();
+        }
+        var format = formats[formatIndex];
+        var url = source.getFeatureInfoUrl(
+          coordinate, viewResolution, projection,
+          { 'INFO_FORMAT': format, 'FEATURE_COUNT': 10 }
+        );
+        if (!url) {
+          TnetLog.warn('[WMS-GFI] getFeatureInfoUrl liefert null für', layerTitle, format);
+          return Promise.resolve();
+        }
+
+        // QUERY_LAYERS ergänzen falls fehlend
+        if (url.indexOf('QUERY_LAYERS') === -1) {
+          var params = source.getParams();
+          if (params && params.LAYERS) {
+            url += '&QUERY_LAYERS=' + params.LAYERS;
+          }
+        }
+
+        // Proxy für CORS
+        if (url.indexOf(location.origin) === -1 && url.indexOf('/maps/') !== 0) {
+          url = '/maps/wmsproxy.php?url=' + encodeURIComponent(url);
+        }
+
+        TnetLog.log('[WMS-GFI:Bridge] Request:', layerTitle, '| Format:', format);
+
+        return fetch(url)
+          .then(function (r) { return r.text(); })
+          .then(function (text) {
+            if (!text || text.length === 0) return tryFormat(formatIndex + 1);
+            if (text.indexOf('ServiceException') > -1) return tryFormat(formatIndex + 1);
+
+            // JSON
+            if (format.indexOf('json') > -1) {
+              try {
+                var data = JSON.parse(text);
+                if (data.features && data.features.length > 0) {
+                  features.push({
+                    layer: layerTitle,
+                    data: data.features.map(function (f) {
+                      return { properties: f.properties || f.attributes || {} };
+                    })
+                  });
+                  return;
+                }
+              } catch (e) { /* weiter */ }
+            }
+
+            // GML/XML
+            if (text.indexOf('<') === 0 || text.indexOf('<?xml') === 0) {
+              try {
+                var xmlDoc = new DOMParser().parseFromString(text, 'text/xml');
+                var fm = xmlDoc.getElementsByTagName('gml:featureMember');
+                if (fm.length === 0) fm = xmlDoc.getElementsByTagName('featureMember');
+                if (fm.length > 0) {
+                  var xmlFeatures = [];
+                  for (var i = 0; i < fm.length; i++) {
+                    var attrs = {};
+                    var fn = fm[i].children[0];
+                    if (fn) {
+                      for (var j = 0; j < fn.children.length; j++) {
+                        var c = fn.children[j];
+                        var tag = c.localName || c.tagName;
+                        if (c.textContent && tag !== 'boundedBy') attrs[tag] = c.textContent;
+                      }
+                    }
+                    if (Object.keys(attrs).length > 0) xmlFeatures.push({ properties: attrs });
+                  }
+                  if (xmlFeatures.length > 0) {
+                    features.push({ layer: layerTitle, data: xmlFeatures });
+                    return;
+                  }
+                }
+              } catch (e) { /* weiter */ }
+            }
+
+            // HTML
+            if (format.indexOf('html') > -1 && text.indexOf('<') > -1) {
+              var tempDiv = document.createElement('div');
+              tempDiv.innerHTML = text;
+              var tables = tempDiv.getElementsByTagName('table');
+              if (tables.length > 0) {
+                var attrs = {};
+                var rows = tables[0].getElementsByTagName('tr');
+                for (var i = 0; i < rows.length; i++) {
+                  var cells = rows[i].getElementsByTagName('td');
+                  if (cells.length >= 2) attrs[cells[0].textContent.trim()] = cells[1].textContent.trim();
+                  var ths = rows[i].getElementsByTagName('th');
+                  var tds = rows[i].getElementsByTagName('td');
+                  if (ths.length >= 1 && tds.length >= 1) attrs[ths[0].textContent.trim()] = tds[0].textContent.trim();
+                }
+                if (Object.keys(attrs).length > 0) {
+                  features.push({ layer: layerTitle, data: [{ properties: attrs }] });
+                  return;
+                }
+              }
+              var bodyContent = text.replace(/<\/?html[^>]*>/gi, '').replace(/<\/?body[^>]*>/gi, '').replace(/<\/?head[^>]*>/gi, '').trim();
+              if (bodyContent.length > 10 && bodyContent.indexOf('ServiceException') === -1) {
+                features.push({ layer: layerTitle, rawHtml: bodyContent });
+                return;
+              }
+            }
+
+            // text/plain
+            if (format === 'text/plain' && text.indexOf('<?xml') !== 0) {
+              var attrs = {};
+              text.split('\n').forEach(function (line) {
+                line = line.trim();
+                if (line && line.indexOf('=') > -1 && !line.match(/^(Layer|Feature|GetFeatureInfo)/)) {
+                  var parts = line.split('=');
+                  var key = parts[0].trim();
+                  var value = parts.slice(1).join('=').trim().replace(/^'|'$/g, '');
+                  if (key && value) attrs[key] = value;
+                }
+              });
+              if (Object.keys(attrs).length > 0) {
+                features.push({ layer: layerTitle, data: [{ properties: attrs }] });
+                return;
+              }
+            }
+
+            return tryFormat(formatIndex + 1);
+          })
+          .catch(function (err) {
+            TnetLog.warn('[WMS-GFI:Bridge] Fetch-Fehler:', layerTitle, err.message || err);
+            return tryFormat(formatIndex + 1);
+          });
+      };
+
+      requests.push(tryFormat(0));
+    });
+
+    if (requests.length > 0) {
+      Promise.all(requests).then(function () {
+        TnetLog.log('[WMS-GFI:Bridge] Alle Custom-Requests fertig | Features:', features.length);
+        if (features.length > 0) {
+          _showWmsInfoResults(features, coordinate);
+        }
+      });
+    }
+  }
+
+  // ── Export für Info-Bridge ──
+  window.TnetWmsPanel = window.TnetWmsPanel || {};
+  window.TnetWmsPanel.getVisibleCustomLayers = _getVisibleCustomLayers;
+  window.TnetWmsPanel.queryCustomLayers = _queryCustomLayersForBridge;
 
 })();

@@ -17,11 +17,10 @@
 }
 
 /* ========================================
-   WMS Menu - Aus Sidebar ausblenden (jetzt im Hamburger-Menü)
+   WMS Menu — Ausblendung wird jetzt per Config-Flag
+   layerManager.useNewWmsPanel in tnet-lm-init.js gesteuert.
    ======================================== */
-#tp_wms_menu {
-  display: none !important;
-}
+/* #tp_wms_menu { display: none !important; } */
 
 /* Alte WMS-Sidebar-Styles (beibehalten für Kompatibilität) */
 #tp_wms_menu .dijitTitlePaneTextNode {
@@ -460,6 +459,221 @@ input[type="range"]::-webkit-slider-thumb:hover {
   vertical-align: middle !important;
 }
 
+/* ===== LAYER MANAGER HIERARCHIE-EINRÜCKUNG ===== */
+/* Verschachtelte TitlePanes im Layer-Manager visuell einrücken.
+   data-lyrmgr-depth wird per JS-Patch gesetzt (1=erste Sub-Kat, aufsteigend).
+   Jede Ebene bekommt Einrückung, linke Farblinie und Farbverlauf dunkel→hell.
+   
+   Farbschema (dunkel → hell, Teal-Palette):
+     Tiefe 1: #3d6a70  (dunkelster Teal)  — Hauptkategorie
+     Tiefe 2: #5a8f98  (mittlerer Teal)   — Unterkategorie
+     Tiefe 3: #8db5bc  (heller Teal)      — Gruppe
+     Tiefe 4: #b0ced4  (sehr hell)        — Untergruppe
+     Tiefe 5: #cee0e4  (hellster)         — Blatt-Gruppe
+     Tiefe 6: #e2edef  (fast weiss)
+     Tiefe 7: #f0f5f6  (weiss-Teal)
+   
+   @version 2.0 — 2026-03-04 — solide Farben statt rgba, grössere Einrückung
+*/
+
+/* Alle sub-category TitlePanes: Basis-Styling */
+body.tnet-lm-legacy-nested #layer_menu .dijitTitlePane[data-lyrmgr-depth] {
+  border: 0 !important;
+  border-color: transparent !important;
+  border-left: 0 !important;
+  box-shadow: none !important;
+  margin-top: 1px;
+  margin-bottom: 1px;
+}
+body.tnet-lm-legacy-nested #layer_menu .dijitTitlePane[data-lyrmgr-depth] > .dijitTitlePaneContentOuter {
+  border: 0 !important;
+  border-left: 0 !important;
+  box-shadow: none !important;
+}
+
+/* Verschachtelte Panes: Sichtbarkeit NUR via CSS-Klasse 'lyrmgr-open' */
+/* GESCHLOSSEN: Content-Bereich komplett verstecken */
+body.tnet-lm-legacy-nested #layer_menu .dijitTitlePane[data-lyrmgr-depth]:not(.lyrmgr-open) > .dijitTitlePaneContentOuter {
+  display: none !important;
+  height: 0 !important;
+  overflow: hidden !important;
+}
+
+/* OFFEN: Content-Bereich komplett anzeigen */
+body.tnet-lm-legacy-nested #layer_menu .dijitTitlePane[data-lyrmgr-depth].lyrmgr-open > .dijitTitlePaneContentOuter {
+  display: block !important;
+  height: auto !important;
+  overflow: visible !important;
+}
+body.tnet-lm-legacy-nested #layer_menu .dijitTitlePane[data-lyrmgr-depth].lyrmgr-open > .dijitTitlePaneContentOuter > * {
+  display: block !important;
+  height: auto !important;
+  overflow: visible !important;
+}
+
+/* Pfeil-Indikator für verschachtelte TitlePanes */
+body.tnet-lm-legacy-nested #layer_menu .dijitTitlePane[data-lyrmgr-depth] > .dijitTitlePaneTitle {
+  cursor: pointer !important;
+  border-left-style: solid !important;
+  border-left-color: transparent !important;
+}
+body.tnet-lm-legacy-nested #layer_menu .dijitTitlePane[data-lyrmgr-depth].dijitClosed > .dijitTitlePaneTitle .dijitArrowNode::before {
+  content: '\25B6' !important; /* ▶ */
+  font-size: 9px !important;
+  display: inline-block !important;
+  margin-right: 4px !important;
+}
+body.tnet-lm-legacy-nested #layer_menu .dijitTitlePane[data-lyrmgr-depth]:not(.dijitClosed) > .dijitTitlePaneTitle .dijitArrowNode::before {
+  content: '\25BC' !important; /* ▼ */
+  font-size: 9px !important;
+  display: inline-block !important;
+  margin-right: 4px !important;
+}
+
+/* Ebene 1 (z.B. "Raumplanung") — dunkelster Teal */
+body.tnet-lm-legacy-nested #layer_menu .dijitTitlePane[data-lyrmgr-depth="1"] {
+  margin-left: 0 !important;
+}
+body.tnet-lm-legacy-nested #layer_menu .dijitTitlePane[data-lyrmgr-depth="1"] > .dijitTitlePaneTitle {
+  background: #3d6a70 !important;
+  border-left: 4px solid #2a4e53 !important;
+  padding-left: 10px !important;
+  color: #fff !important;
+}
+body.tnet-lm-legacy-nested #layer_menu .dijitTitlePane[data-lyrmgr-depth="1"] > .dijitTitlePaneTitle .appendtitle {
+  font-size: 12.5px !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.3px !important;
+  color: #fff !important;
+}
+body.tnet-lm-legacy-nested #layer_menu .dijitTitlePane[data-lyrmgr-depth="1"] > .dijitTitlePaneTitle .dijitArrowNode::before {
+  color: #fff !important;
+}
+
+/* Ebene 2 (z.B. "Rechtskräftig" / "Projektiert") — mittlerer Teal */
+body.tnet-lm-legacy-nested #layer_menu .dijitTitlePane[data-lyrmgr-depth="2"] {
+  margin-left: 0 !important;
+}
+body.tnet-lm-legacy-nested #layer_menu .dijitTitlePane[data-lyrmgr-depth="2"] > .dijitTitlePaneTitle {
+  background: #5a8f98 !important;
+  border-left: 4px solid #4b7b81 !important;
+  padding-left: 22px !important;
+  color: #fff !important;
+}
+body.tnet-lm-legacy-nested #layer_menu .dijitTitlePane[data-lyrmgr-depth="2"] > .dijitTitlePaneTitle .appendtitle {
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  color: #fff !important;
+}
+body.tnet-lm-legacy-nested #layer_menu .dijitTitlePane[data-lyrmgr-depth="2"] > .dijitTitlePaneTitle .dijitArrowNode::before {
+  color: rgba(255,255,255,0.8) !important;
+}
+
+/* Ebene 3 (z.B. "Nutzungsplanung") — heller Teal */
+body.tnet-lm-legacy-nested #layer_menu .dijitTitlePane[data-lyrmgr-depth="3"] {
+  margin-left: 0 !important;
+}
+body.tnet-lm-legacy-nested #layer_menu .dijitTitlePane[data-lyrmgr-depth="3"] > .dijitTitlePaneTitle {
+  background: #8db5bc !important;
+  border-left: 4px solid #5a8f98 !important;
+  padding-left: 34px !important;
+  color: #1a3e43 !important;
+}
+body.tnet-lm-legacy-nested #layer_menu .dijitTitlePane[data-lyrmgr-depth="3"] > .dijitTitlePaneTitle .appendtitle {
+  font-size: 11.5px !important;
+  font-weight: 600 !important;
+  color: #1a3e43 !important;
+}
+body.tnet-lm-legacy-nested #layer_menu .dijitTitlePane[data-lyrmgr-depth="3"] > .dijitTitlePaneTitle .dijitArrowNode::before {
+  color: #2a4e53 !important;
+}
+
+/* Ebene 4 (z.B. "Flächenbezogene Themen") — sehr hell */
+body.tnet-lm-legacy-nested #layer_menu .dijitTitlePane[data-lyrmgr-depth="4"] {
+  margin-left: 0 !important;
+}
+body.tnet-lm-legacy-nested #layer_menu .dijitTitlePane[data-lyrmgr-depth="4"] > .dijitTitlePaneTitle {
+  background: #b0ced4 !important;
+  border-left: 3px solid #8db5bc !important;
+  padding-left: 46px !important;
+  color: #2a4e53 !important;
+}
+body.tnet-lm-legacy-nested #layer_menu .dijitTitlePane[data-lyrmgr-depth="4"] > .dijitTitlePaneTitle .appendtitle {
+  font-size: 11px !important;
+  font-weight: 500 !important;
+  color: #2a4e53 !important;
+}
+
+/* Ebene 5 (z.B. "Nutzungszonen") — hellster Teal */
+body.tnet-lm-legacy-nested #layer_menu .dijitTitlePane[data-lyrmgr-depth="5"] {
+  margin-left: 0 !important;
+}
+body.tnet-lm-legacy-nested #layer_menu .dijitTitlePane[data-lyrmgr-depth="5"] > .dijitTitlePaneTitle {
+  background: #cee0e4 !important;
+  border-left: 3px solid #b0ced4 !important;
+  padding-left: 58px !important;
+  color: #345c61 !important;
+}
+body.tnet-lm-legacy-nested #layer_menu .dijitTitlePane[data-lyrmgr-depth="5"] > .dijitTitlePaneTitle .appendtitle {
+  font-size: 10.5px !important;
+  font-weight: 500 !important;
+  color: #345c61 !important;
+}
+
+/* Ebene 6 — fast weiss */
+body.tnet-lm-legacy-nested #layer_menu .dijitTitlePane[data-lyrmgr-depth="6"] {
+  margin-left: 0 !important;
+}
+body.tnet-lm-legacy-nested #layer_menu .dijitTitlePane[data-lyrmgr-depth="6"] > .dijitTitlePaneTitle {
+  background: #e2edef !important;
+  border-left: 2px solid #cee0e4 !important;
+  padding-left: 68px !important;
+  color: #345c61 !important;
+}
+
+/* Ebene 7 (tiefste) — weiss-Teal */
+body.tnet-lm-legacy-nested #layer_menu .dijitTitlePane[data-lyrmgr-depth="7"] {
+  margin-left: 0 !important;
+}
+body.tnet-lm-legacy-nested #layer_menu .dijitTitlePane[data-lyrmgr-depth="7"] > .dijitTitlePaneTitle {
+  background: #f0f5f6 !important;
+  border-left: 2px solid #e2edef !important;
+  padding-left: 78px !important;
+  color: #345c61 !important;
+}
+
+/* Leaf-Layer im Content ebenfalls depth-basiert einrücken
+   WICHTIG: via padding-left (nicht margin-left), damit Checkbox/Label zuverlässig
+   unter dem Parent-Titel erscheinen und nicht am linken Rand "kleben". */
+body.tnet-lm-legacy-nested #layer_menu .tnet-lm-nested-leaf {
+  margin-left: 0 !important;
+  box-sizing: border-box !important;
+}
+body.tnet-lm-legacy-nested #layer_menu .tnet-lm-nested-leaf[data-lyrmgr-parent-depth="1"] { padding-left: 24px !important; }
+body.tnet-lm-legacy-nested #layer_menu .tnet-lm-nested-leaf[data-lyrmgr-parent-depth="2"] { padding-left: 36px !important; }
+body.tnet-lm-legacy-nested #layer_menu .tnet-lm-nested-leaf[data-lyrmgr-parent-depth="3"] { padding-left: 48px !important; }
+body.tnet-lm-legacy-nested #layer_menu .tnet-lm-nested-leaf[data-lyrmgr-parent-depth="4"] { padding-left: 60px !important; }
+body.tnet-lm-legacy-nested #layer_menu .tnet-lm-nested-leaf[data-lyrmgr-parent-depth="5"] { padding-left: 72px !important; }
+body.tnet-lm-legacy-nested #layer_menu .tnet-lm-nested-leaf[data-lyrmgr-parent-depth="6"] { padding-left: 84px !important; }
+body.tnet-lm-legacy-nested #layer_menu .tnet-lm-nested-leaf[data-lyrmgr-parent-depth="7"] { padding-left: 96px !important; }
+
+body.tnet-lm-legacy-nested #layer_menu .tnet-lm-nested-leaf .lyrmgr_group,
+body.tnet-lm-legacy-nested #layer_menu .tnet-lm-nested-leaf [id^="div_"] {
+  margin-left: 0 !important;
+}
+body.tnet-lm-legacy-nested #layer_menu .dijitTitlePane[data-lyrmgr-depth="6"] > .dijitTitlePaneTitle .appendtitle {
+  font-size: 10px !important;
+  font-weight: 500 !important;
+  color: #345c61 !important;
+}
+body.tnet-lm-legacy-nested #layer_menu .dijitTitlePane[data-lyrmgr-depth="7"] > .dijitTitlePaneTitle .appendtitle {
+  font-size: 10px !important;
+  font-weight: 400 !important;
+  font-style: italic !important;
+  color: #345c61 !important;
+}
+
 /* ===== INFO-PANEL UNIFIED DESIGN ===== */
 /* Framework-Ergebnisse an WMS-GFI-Design angleichen (teal, 12px, Zebra-Stripes) */
 
@@ -477,6 +691,46 @@ input[type="range"]::-webkit-slider-thumb:hover {
   text-transform: uppercase !important;
   min-height: 30px !important;
   padding: 4px 6px !important;
+  flex-wrap: wrap !important;
+}
+
+#njs_info_pane_content .dijitTitlePaneTitle .tnet-maptip-breadcrumb {
+  display: block !important;
+  width: 100% !important;
+  flex-basis: 100% !important;
+  margin-top: 0 !important;
+  padding-top: 0 !important;
+  color: #8a8f96 !important;
+  font-size: 10px !important;
+  font-weight: 500 !important;
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+  line-height: 1.2 !important;
+  white-space: normal !important;
+  word-break: break-word !important;
+}
+
+/* Klickbarer Breadcrumb: Hover-Feedback */
+#njs_info_pane_content .dijitTitlePaneTitle .tnet-maptip-breadcrumb-clickable {
+  cursor: pointer !important;
+  transition: color 0.15s ease !important;
+}
+#njs_info_pane_content .dijitTitlePaneTitle .tnet-maptip-breadcrumb-clickable:hover {
+  color: #4B7B81 !important;
+  text-decoration: underline !important;
+}
+
+/* Highlight-Animation für Layer im Themenkatalog */
+@keyframes tnet-catalog-highlight-pulse {
+  0%   { background-color: rgba(75, 123, 129, 0.35); }
+  50%  { background-color: rgba(75, 123, 129, 0.12); }
+  100% { background-color: rgba(75, 123, 129, 0.35); }
+}
+.tnet-catalog-highlight {
+  animation: tnet-catalog-highlight-pulse 0.8s ease-in-out 3 !important;
+  border-radius: 3px !important;
+  outline: 2px solid rgba(75, 123, 129, 0.5) !important;
+  outline-offset: 1px !important;
 }
 
 /* Feldname-Spalte: teal, fett, 12px — analog .wms-gfi-key */
@@ -1509,6 +1763,80 @@ h3 {
 #mapsInfoDialog.dijitDialogVisible .customRefreshBtn {
   display: flex;
 }
+
+/* ========================================
+   Layer Manager — Dezenter Scrollbar
+   Flex-Layout: Tab-Bar + Suchfeld bleiben oben fixiert,
+   nur der Kategorie-Inhalt (.lm-cat-content) scrollt.
+   Dadurch beginnt der Scrollbar unterhalb des Filterfelds.
+   ======================================== */
+
+/* Container: Flex-Spalte, kein eigenes Scrollen */
+#lm-tree-container.lm-container-desktop {
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+}
+
+/* Tab-Bar und Suchfeld: fixiert oben, nicht mitscrollen */
+.lm-container-desktop .lm-tab-bar {
+  position: static !important;
+  flex-shrink: 0 !important;
+}
+
+.lm-container-desktop .lm-search-wrap {
+  position: static !important;
+  flex-shrink: 0 !important;
+}
+
+/* Kategorie-Inhalt: nimmt restliche Höhe ein, scrollt bei Bedarf */
+.lm-container-desktop .lm-cat-content {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+}
+
+/* Dezenter Scrollbar — Firefox */
+.lm-container-desktop .lm-cat-content {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(75, 123, 129, 0.3) transparent;
+}
+
+/* Dezenter Scrollbar — Chrome / Safari / Edge */
+.lm-container-desktop .lm-cat-content::-webkit-scrollbar {
+  width: 6px;
+}
+.lm-container-desktop .lm-cat-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+.lm-container-desktop .lm-cat-content::-webkit-scrollbar-thumb {
+  background: rgba(75, 123, 129, 0.3);
+  border-radius: 3px;
+}
+.lm-container-desktop .lm-cat-content::-webkit-scrollbar-thumb:hover {
+  background: rgba(75, 123, 129, 0.5);
+}
+
+/* Dezenter Scrollbar auch für "Dargestellte Themen" Panel */
+#lm-active-container.lm-container-desktop {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(75, 123, 129, 0.3) transparent;
+}
+#lm-active-container.lm-container-desktop::-webkit-scrollbar {
+  width: 6px;
+}
+#lm-active-container.lm-container-desktop::-webkit-scrollbar-track {
+  background: transparent;
+}
+#lm-active-container.lm-container-desktop::-webkit-scrollbar-thumb {
+  background: rgba(75, 123, 129, 0.3);
+  border-radius: 3px;
+}
+#lm-active-container.lm-container-desktop::-webkit-scrollbar-thumb:hover {
+  background: rgba(75, 123, 129, 0.5);
+}
+
 /* ========================================
    Themenkatalog - Layer Manager Styling
    ======================================== */

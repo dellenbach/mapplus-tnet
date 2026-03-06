@@ -446,3 +446,237 @@ function TnetLayerSwitch(layerId, mode) {
     return false;
   }
 }
+
+// =====================================================================
+// TnetSyncMapTips — Einheitlicher MapTip-Sync für ALLE Layer-Typen
+// =====================================================================
+//
+// Konzept:
+//   1. Layer-Sichtbarkeit prüfen (OL-Layer auf der Karte)
+//   2. Triage: Für jeden MapTip-Eintrag entscheiden WIE die Abfrage läuft
+//      - MapTips MIT eigenem wms_layer (Activate() hat ihn gebaut) → NIE überschreiben
+//      - MapTips OHNE wms_layer (nur linked_layer_id) → Karten-Layer zuweisen
+//      - Coalesce-Layer → Bridge verwaltet diese selbstständig
+//   3. wmsActiveLyrs in Sync bringen mit der Karte
+//
+// Performance:
+//   - Ein einziger Durchlauf über MapTips + Karten-Layer
+//   - Debounced (300ms default) bei Bulk-Operationen
+//   - Kein DOM-Zugriff, nur JS-Objekte
+//
+// Funktioniert für ALLE Quellen:
+//   - TNET ArcGIS MapServer (agsproxy) — esrigeojson
+//   - WMS (Bund, NODI, Kantone) — getfeatureinfo
+//   - Geoadmin (swissadmingeojson)
+//   - Coalesce-Layer (übersprungen, Bridge managed)
+// =====================================================================
+
+var _syncDebounceTimer = null;
+var _syncRunCount = 0;
+
+function TnetSyncMapTips() {
+  var am = window.njs && window.njs.AppManager;
+  if (!am || !am.MapTips || !am.wmsActiveLyrs || !am.Maps || !am.Maps['main']) return;
+
+  var map = am.Maps['main'].mapObj;
+  if (!map) return;
+
+  _syncRunCount++;
+  var runId = _syncRunCount;
+
+  // ── Schritt 0: singleclick-Handler ──
+  // Wenn Info-Bridge aktiv → KEINEN Framework-Handler registrieren (Bridge übernimmt).
+  // Nur im Legacy-Modus (ohne Bridge) den Framework-Handler sicherstellen.
+  if (!window._tnetInfoBridgeActive) {
+    if (!am.infoWMSListener && typeof am.infoWMSHandler === 'function') {
+      am.infoWMSListener = map.on('singleclick', am.infoWMSHandler.bind({ idmap: 'main' }));
+      TnetLog.log('[SyncMT #' + runId + '] Framework infoWMSHandler manuell registriert (Legacy)');
+    }
+  }
+
+  // ── Schritt 1: Karten-Layer Index aufbauen ──
+  // Alle OL-Layer nach Name indexieren:
+  //   visibleLayers: name → olLayer (nur sichtbare)
+  //   allLayersByName: name → olLayer (alle, auch unsichtbare)
+  var visibleLayers = {};   // name → olLayer
+  var allLayersByName = {}; // name → olLayer
+  map.getLayers().forEach(function (layer) {
+    var name = layer.get('name');
+    if (!name) return;
+    allLayersByName[name] = layer;
+    if (typeof layer.getVisible === 'function' && layer.getVisible()) {
+      visibleLayers[name] = layer;
+    }
+  });
+
+  // ── Prefix-Matching Hilfsfunktion ──
+  // MapTip linked_layer_id ist oft ein Sublayer-Key (z.B. 'gis_fach/nw_fff/fruchtfolgeflaeche')
+  // aber der OL-Layer auf der Karte hat den Parent-Key (z.B. 'gis_fach/nw_fff').
+  // Diese Funktion prüft zuerst exakt, dann probiert sukzessive kürzere Parent-Pfade.
+  function findMatchingVisibleLayer(linkedLayerId) {
+    // 1. Exakter Match
+    if (visibleLayers[linkedLayerId]) {
+      return { name: linkedLayerId, olLayer: visibleLayers[linkedLayerId], exact: true };
+    }
+    // 2. Prefix-Match: Parent-Pfade versuchen
+    var parts = linkedLayerId.split('/');
+    while (parts.length > 1) {
+      parts.pop();
+      var parentKey = parts.join('/');
+      if (visibleLayers[parentKey]) {
+        return { name: parentKey, olLayer: visibleLayers[parentKey], exact: false };
+      }
+    }
+    return null;
+  }
+
+  // ── Schritt 2: Coalesce-Check vorbereiten ──
+  var store = window.TnetLMStore;
+  var isCoalesce = (store && typeof store.isCoalesceSublayer === 'function')
+    ? function (id) { return store.isCoalesceSublayer(id); }
+    : function () { return false; };
+
+  // ── Schritt 3: Triage — jeden MapTip einzeln behandeln ──
+  var activated = 0, deactivated = 0, skippedCoalesce = 0, prefixMatched = 0;
+
+  for (var mtId in am.MapTips) {
+    if (!am.MapTips.hasOwnProperty(mtId)) continue;
+    // Interne Framework-Keys überspringen
+    if (mtId === '_wms_connector' || mtId === '_disablewmsgetfeatureinfo') continue;
+
+    var mt = am.MapTips[mtId];
+    if (!mt || !mt.linked_layer_id) continue;
+
+    // ── Coalesce: Bridge hat eigenen Mechanismus (_forceActivateMaptip) ──
+    if (isCoalesce(mt.linked_layer_id)) {
+      skippedCoalesce++;
+      continue;
+    }
+
+    // ── Triage: Soll dieser MapTip aktiv sein? ──
+    // Prefix-Matching: Wenn der exakte linked_layer_id nicht sichtbar ist,
+    // versuche den Parent-Pfad (z.B. 'gis_fach/nw_fff/sublayer' → 'gis_fach/nw_fff')
+    var linkedLayerId = mt.linked_layer_id;
+    var match = findMatchingVisibleLayer(linkedLayerId);
+    var shouldBeActive = !!match;
+
+    // Resolution-Check: Wenn MapTip min/maxResolution hat, nur im Bereich aktiv
+    if (shouldBeActive && (mt.minResolution || mt.maxResolution)) {
+      var currentResol = map.getView().getResolution();
+      if (mt.minResolution && currentResol < mt.minResolution) shouldBeActive = false;
+      if (mt.maxResolution && currentResol > mt.maxResolution) shouldBeActive = false;
+    }
+
+    // ── AKTIVIEREN ──
+    if (shouldBeActive && !mt.active) {
+      // Wenn Prefix-Match (nicht exakt) und MapTip kein eigenes wms_layer hat:
+      // → wms_layer auf den Parent-OL-Layer setzen, damit queryconnector
+      //   eine gültige URL hat. Ohne dies würde getLayerByMap() den Sublayer-Key
+      //   nicht finden (er ist nicht im LyrMgr registriert) → crash.
+      //
+      // Für exakte Matches ODER MapTips mit url (= haben wms_layer via Activate()):
+      // → wms_layer NICHT anfassen. getLayerByMap funktioniert korrekt.
+      if (match && !match.exact && !mt.wms_layer && !mt.url) {
+        mt.wms_layer = match.olLayer;
+        mt._tnetParentMatch = match.name; // Logging-Marker
+        prefixMatched++;
+      }
+      am.wmsActiveLyrs.push(mt);
+      mt.active = true;
+      activated++;
+    }
+    // ── DEAKTIVIEREN ──
+    else if (!shouldBeActive && mt.active) {
+      // wms_layer zurücksetzen wenn wir es via Prefix-Match gesetzt hatten
+      if (mt._tnetParentMatch) {
+        mt.wms_layer = null;
+        delete mt._tnetParentMatch;
+      }
+      am.wmsActiveLyrs.remove(mt);
+      mt.active = false;
+      deactivated++;
+    }
+  }
+
+  // ── Duplikat-Bereinigung in wmsActiveLyrs ──
+  // Race-Condition: addLayerCallback kann parallel feuern → gleicher MapTip doppelt
+  var seen = {};
+  var dupes = [];
+  am.wmsActiveLyrs.getArray().forEach(function (mt, idx) {
+    var key = mt.linked_layer_id || mt.id || ('idx_' + idx);
+    if (seen[key]) {
+      dupes.push(mt);
+    }
+    seen[key] = true;
+  });
+  for (var d = 0; d < dupes.length; d++) {
+    am.wmsActiveLyrs.remove(dupes[d]);
+  }
+
+  if (activated > 0 || deactivated > 0 || dupes.length > 0 || prefixMatched > 0) {
+    TnetLog.log('[SyncMT #' + runId + '] +' + activated + ' -' + deactivated +
+      ' prefix:' + prefixMatched +
+      ' dupes:' + dupes.length +
+      ' coal:' + skippedCoalesce +
+      ' total:' + am.wmsActiveLyrs.getLength());
+  }
+}
+
+/**
+ * Debounced Variante von TnetSyncMapTips.
+ * Verhindert dass bei Bulk-Operationen (z.B. restoreFromUrl) hunderte Syncs feuern.
+ * @param {number} [delay=300] - Verzögerung in ms
+ */
+function TnetScheduleSyncMapTips(delay) {
+  if (_syncDebounceTimer) clearTimeout(_syncDebounceTimer);
+  _syncDebounceTimer = setTimeout(function () {
+    _syncDebounceTimer = null;
+    TnetSyncMapTips();
+  }, delay || 300);
+}
+
+// ── Auto-Init: Nach App-Start MapTips synchronisieren ──
+// Mehrere Zeitpunkte weil Layer/MapTips schrittweise geladen werden.
+// Zusätzlich: Listener auf Layer-Add/Remove für laufende Sync.
+(function _initSyncMapTips() {
+  var INIT_DELAYS = [800, 2000, 4000, 8000];
+  var _listenerInstalled = false;
+
+  function scheduleSync(idx) {
+    if (idx >= INIT_DELAYS.length) return;
+    setTimeout(function () {
+      TnetSyncMapTips();
+      scheduleSync(idx + 1);
+    }, INIT_DELAYS[idx]);
+  }
+
+  function installLayerListeners() {
+    if (_listenerInstalled) return;
+    var am = window.njs && window.njs.AppManager;
+    if (!am || !am.Maps || !am.Maps['main'] || !am.Maps['main'].mapObj) return;
+    _listenerInstalled = true;
+
+    var map = am.Maps['main'].mapObj;
+    // Bei jedem Layer-Add/Remove: debounced Sync
+    map.getLayers().on('add', function () { TnetScheduleSyncMapTips(400); });
+    map.getLayers().on('remove', function () { TnetScheduleSyncMapTips(400); });
+    TnetLog.log('[SyncMT] Layer-Add/Remove-Listener installiert');
+  }
+
+  function startInit() {
+    scheduleSync(0);
+    // Listener mit kurzem Delay installieren (Map muss bereit sein)
+    setTimeout(installLayerListeners, 1500);
+    setTimeout(installLayerListeners, 4000); // Fallback
+  }
+
+  // Auf tnet-app-ready warten, dann mehrfach syncen
+  document.addEventListener('tnet-app-ready', function () {
+    startInit();
+  }, { once: true });
+
+  // Fallback falls Event nie feuert
+  setTimeout(function () {
+    if (!_listenerInstalled) startInit();
+  }, 5000);
+})();

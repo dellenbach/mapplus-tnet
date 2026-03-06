@@ -149,6 +149,9 @@ CREATE TABLE IF NOT EXISTS mapplusconf.catalog_node (
     sort_idx        INTEGER NOT NULL DEFAULT 0,    -- Sortierung innerhalb Parent
     path_text       TEXT,                          -- Materialisierter Pfad für Flat-Output (z.B. 'ÖREB > Raumplanung')
     layer_id        TEXT REFERENCES mapplusconf.layer_definition(layer_id) ON DELETE SET NULL,
+    -- Coalesce-Felder: Dienst-Gruppierung für kombinierten MapServer-Request
+    service_url     TEXT,                          -- MapServer-URL auf Gruppen-Ebene (wenn alle Kinder gleiche URL)
+    coalesce_group  TEXT,                          -- Coalesce-Schlüssel (z.B. 'nw_basisplan_gis_dynamisch')
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -159,12 +162,15 @@ COMMENT ON COLUMN mapplusconf.catalog_node.source_id IS 'Original-ID/Name aus ly
 COMMENT ON COLUMN mapplusconf.catalog_node.layer_id IS 'FK auf layer_definition – nur bei node_kind=layer gesetzt';
 COMMENT ON COLUMN mapplusconf.catalog_node.path_text IS 'Materialisierter Breadcrumb-Pfad für Flat-Ausgabe';
 COMMENT ON COLUMN mapplusconf.catalog_node.select_all IS 'selectAll-Flag aus lyrmgr.conf (Gruppe komplett an/aus)';
+COMMENT ON COLUMN mapplusconf.catalog_node.service_url IS 'MapServer-URL auf Gruppen-Ebene (alle Kinder teilen diese URL)';
+COMMENT ON COLUMN mapplusconf.catalog_node.coalesce_group IS 'Coalesce-Schlüssel: Gruppen mit gleichem Key werden zu einem Request zusammengefasst';
 
 -- Indexe für Katalogabfragen
 CREATE INDEX IF NOT EXISTS idx_catalog_tree          ON mapplusconf.catalog_node (profile_id, category_id, parent_node_pk, sort_idx);
 CREATE INDEX IF NOT EXISTS idx_catalog_kind          ON mapplusconf.catalog_node (profile_id, category_id, node_kind);
 CREATE INDEX IF NOT EXISTS idx_catalog_source_id     ON mapplusconf.catalog_node (profile_id, source_id);
 CREATE INDEX IF NOT EXISTS idx_catalog_layer_id      ON mapplusconf.catalog_node (layer_id);
+CREATE INDEX IF NOT EXISTS idx_catalog_coalesce      ON mapplusconf.catalog_node (coalesce_group) WHERE coalesce_group IS NOT NULL;
 
 
 -- ============================================================================
@@ -238,6 +244,18 @@ COMMENT ON TABLE mapplusconf.import_log IS 'Protokoll der Daten-Synchronisierung
 
 
 -- ============================================================================
+-- MIGRATIONEN: Spalten nachträglich hinzufügen (für bestehende Installationen)
+-- ALTER TABLE ... ADD COLUMN IF NOT EXISTS ist idempotent (PostgreSQL 9.6+)
+-- WICHTIG: Muss VOR den Views stehen, da Views diese Spalten referenzieren!
+-- ============================================================================
+
+-- 2024-06: Coalesce-Felder für Dienst-Gruppierung
+ALTER TABLE mapplusconf.catalog_node ADD COLUMN IF NOT EXISTS service_url TEXT;
+ALTER TABLE mapplusconf.catalog_node ADD COLUMN IF NOT EXISTS coalesce_group TEXT;
+CREATE INDEX IF NOT EXISTS idx_catalog_coalesce ON mapplusconf.catalog_node (coalesce_group) WHERE coalesce_group IS NOT NULL;
+
+
+-- ============================================================================
 -- VIEWS: Häufig benötigte Abfragen vorformuliert
 -- ============================================================================
 
@@ -301,6 +319,8 @@ SELECT
     cn.sort_idx,
     cn.path_text,
     cn.layer_id,
+    cn.service_url,
+    cn.coalesce_group,
     -- Layer-Details (NULL für Gruppen)
     ld.display_name AS layer_display_name,
     ld.layer_type,

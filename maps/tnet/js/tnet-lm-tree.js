@@ -1,5 +1,5 @@
 ﻿/**
- * tnet-lm-tree.js — Themenkatalog-Baum (Mobile)
+ * tnet-lm-tree.js — Themenkatalog-Baum (Desktop + Mobile)
  *
  * Rendert die Layer-Hierarchie als Accordion-Baum mit Inline-Filter.
  * Struktur: Tab-Bar (Wappen) → Subcategories → Groups → Layers
@@ -128,80 +128,85 @@
 
     _renderSubcategory: function (sub) {
       // Subcategory = Level-1 Accordion — expanded-Wert aus Store/API
+      var depth = 1;
+      var normalizedDepth = this._clampDepth(depth);
       var groups = sub.groups || [];
       var count = this._countLeaves(groups);
       var isExpanded = sub.expanded !== false; // default: offen
       var stateClass = isExpanded ? ' lm-expanded' : ' lm-collapsed';
       var html = '';
       html += '<div class="lm-subcat' + stateClass + '" data-group-id="' + esc(sub.id) + '">';
-      html += '<div class="lm-subcat-header" data-action="toggle-group">';
+      html += '<div class="lm-subcat-header lm-depth-' + normalizedDepth + '" data-action="toggle-group" data-lm-depth="' + normalizedDepth + '">';
       html += '<span class="lm-arrow">▶</span>';
       html += '<span class="lm-subcat-name">' + esc(sub.name) + '</span>';
       html += '<span class="lm-count">' + count + '</span>';
       html += '</div>';
       html += '<div class="lm-subcat-body">';
       for (var g = 0; g < groups.length; g++) {
-        html += this._renderGroup(groups[g]);
+        html += this._renderGroup(groups[g], depth + 1);
       }
       html += '</div>';
       html += '</div>';
       return html;
     },
 
-    _renderGroup: function (group) {
+    _renderGroup: function (group, depth) {
+      var normalizedDepth = this._clampDepth(depth);
       var layers = group.layers || [];
       // Einzel-Layer ohne verschachtelte Gruppe? Direkt als Layer rendern
       if (layers.length === 1 && layers[0].type !== 'group') {
-        return this._renderLeafLayer(layers[0]);
+        return this._renderLeafLayer(layers[0], normalizedDepth);
       }
       var count = this._countLeaves(layers);
       var isExpanded = group.open === true || group.expanded === true;
       var stateClass = isExpanded ? ' lm-expanded' : ' lm-collapsed';
       var html = '';
-      html += '<div class="lm-group' + stateClass + '" data-group-id="' + esc(group.id) + '">';
-      html += '<div class="lm-group-header" data-action="toggle-group">';
+      html += '<div class="lm-group' + stateClass + ' lm-depth-' + normalizedDepth + '" data-group-id="' + esc(group.id) + '" data-lm-depth="' + normalizedDepth + '">';
+      html += '<div class="lm-group-header lm-depth-' + normalizedDepth + '" data-action="toggle-group" data-lm-depth="' + normalizedDepth + '">';
       html += '<span class="lm-arrow">▶</span>';
       html += '<span class="lm-group-name">' + esc(group.name) + '</span>';
       html += '<span class="lm-count">' + count + '</span>';
       html += '</div>';
       html += '<div class="lm-group-body">';
       for (var i = 0; i < layers.length; i++) {
-        html += this._renderLayerItem(layers[i]);
+        html += this._renderLayerItem(layers[i], normalizedDepth + 1);
       }
       html += '</div>';
       html += '</div>';
       return html;
     },
 
-    _renderLayerItem: function (item) {
+    _renderLayerItem: function (item, depth) {
+      var normalizedDepth = this._clampDepth(depth);
       if (item.type === 'group' && item.layers && item.layers.length) {
         // Verschachtelte Untergruppe (Level 3+)
         var count = this._countLeaves(item.layers);
         var isExpanded = item.open === true || item.expanded === true;
         var stateClass = isExpanded ? ' lm-expanded' : ' lm-collapsed';
         var html = '';
-        html += '<div class="lm-nested-group' + stateClass + '" data-group-id="' + esc(item.id) + '">';
-        html += '<div class="lm-nested-header" data-action="toggle-group">';
+        html += '<div class="lm-nested-group' + stateClass + ' lm-depth-' + normalizedDepth + '" data-group-id="' + esc(item.id) + '" data-lm-depth="' + normalizedDepth + '">';
+        html += '<div class="lm-nested-header lm-depth-' + normalizedDepth + '" data-action="toggle-group" data-lm-depth="' + normalizedDepth + '">';
         html += '<span class="lm-arrow">▶</span>';
         html += '<span class="lm-nested-name">' + esc(item.name) + '</span>';
         html += '<span class="lm-count">' + count + '</span>';
         html += '</div>';
         html += '<div class="lm-nested-body">';
         for (var i = 0; i < item.layers.length; i++) {
-          html += this._renderLayerItem(item.layers[i]);
+          html += this._renderLayerItem(item.layers[i], normalizedDepth + 1);
         }
         html += '</div>';
         html += '</div>';
         return html;
       }
-      return this._renderLeafLayer(item);
+      return this._renderLeafLayer(item, normalizedDepth);
     },
 
-    _renderLeafLayer: function (layer) {
+    _renderLeafLayer: function (layer, depth) {
+      var normalizedDepth = this._clampDepth(depth);
       var checked = layer.visible ? ' checked' : '';
       var activeClass = layer.visible ? ' lm-active' : '';
       var html = '';
-      html += '<div class="lm-layer' + activeClass + '" data-layer-id="' + esc(layer.id) + '" data-name="' + esc((layer.name || '').toLowerCase()) + '">';
+      html += '<div class="lm-layer lm-depth-' + normalizedDepth + activeClass + '" data-layer-id="' + esc(layer.id) + '" data-lm-depth="' + normalizedDepth + '" data-name="' + esc((layer.name || '').toLowerCase()) + '">';
       html += '<label class="lm-layer-label">';
       html += '<input type="checkbox" class="lm-cb"' + checked + ' data-action="toggle-layer">';
       html += '<span class="lm-layer-name">' + esc(layer.name) + '</span>';
@@ -233,10 +238,32 @@
         if (groupAction) {
           var groupEl = groupAction.closest('[data-group-id]');
           if (groupEl) {
-            // Lokaler DOM-Toggle (schneller als Store-Roundtrip)
             var isExpanded = groupEl.classList.contains('lm-expanded');
-            groupEl.classList.toggle('lm-expanded', !isExpanded);
-            groupEl.classList.toggle('lm-collapsed', isExpanded);
+            var targetOpen = !isExpanded;
+
+            if (e.ctrlKey || e.metaKey) {
+              // ── Ctrl+Klick: alle Geschwister derselben Tiefe toggeln ──
+              var depth = groupAction.getAttribute('data-lm-depth');
+              var parentContainer = groupEl.parentElement;
+              if (parentContainer && depth) {
+                var siblings = parentContainer.querySelectorAll(
+                  ':scope > [data-group-id][data-lm-depth="' + depth + '"],' +
+                  ':scope > .lm-subcat[data-group-id],' +
+                  ':scope > .lm-group[data-lm-depth="' + depth + '"],' +
+                  ':scope > .lm-nested-group[data-lm-depth="' + depth + '"]'
+                );
+                for (var si = 0; si < siblings.length; si++) {
+                  siblings[si].classList.toggle('lm-expanded', targetOpen);
+                  siblings[si].classList.toggle('lm-collapsed', !targetOpen);
+                }
+                TnetLog.debug(LOG, 'Ctrl+Klick: Tiefe', depth, '→', siblings.length,
+                  'Knoten', targetOpen ? 'geöffnet' : 'geschlossen');
+              }
+            } else {
+              // Normaler Klick: nur diesen Knoten toggeln
+              groupEl.classList.toggle('lm-expanded', targetOpen);
+              groupEl.classList.toggle('lm-collapsed', !targetOpen);
+            }
           }
           return;
         }
@@ -423,6 +450,13 @@
         }
       }
       return count;
+    },
+
+    _clampDepth: function (depth) {
+      var n = parseInt(depth, 10);
+      if (!isFinite(n) || n < 1) return 1;
+      if (n > 6) return 6;
+      return n;
     }
   };
 

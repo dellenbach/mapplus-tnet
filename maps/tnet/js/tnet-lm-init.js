@@ -1,25 +1,42 @@
 ﻿/**
- * tnet-lm-init.js — Initialisierer für den neuen Layer-Manager (Mobile)
+ * tnet-lm-init.js
+ * Initialisierer für den neuen Layer-Manager (Desktop + Mobile)
  *
- * Prüft das Feature-Flag in tnet-global-config.json5 → layerManager.useNew.
- * Falls aktiv:
- *   1. Dojo-TOC-Container ausblenden
- *   2. Neue Container erzeugen
- *   3. TnetLMStore → TnetLMTree → TnetLMActive initialisieren
+ * Liest Feature-Flags aus tnet-global-config.json5 → layerManager:
+ *   - useNewActivePanel: Dargestellte-Themen-Panel (Drag&Drop)
+ *   - useNewTree:        Themenkatalog-Baum (Wappen-Tabs + Suche)
+ *   - useNewWmsPanel:    WMS-TitlePane ausblenden (neues Panel im Hamburger-Menü)
  *
- * Muss NACH den drei Modulen geladen werden.
+ * Flow:
+ *   1. Config laden (async via fetch + JSON5)
+ *   2. Feature-Flags auswerten (Rückwärtskompatibel mit altem useNew)
+ *   3. Legacy-Container ausblenden (display:none, NICHT entfernen → Parallel-Betrieb)
+ *   4. Neue Container erzeugen
+ *   5. TnetLMStore → TnetLMTree → TnetLMActive initialisieren
+ *   6. Fallback-Timer: nach 6s Legacy wiederherstellen wenn Module nicht laden
  *
- * @version 1.0
- * @copyright Trigonet AG
+ * Muss NACH den drei Modulen geladen werden (defer).
+ *
+ * @version    2.0
+ * @date       2026-03-04
+ * @copyright  Trigonet AG
+ * @author     Marco Dellenbach
  */
 (function () {
   'use strict';
 
+  // ===== KONSTANTEN =====
   var LOG = '[LM-Init]';
-  var _lmFallbackTimer = null;
-  var _isDesktop = !window.__TNET_MOBILE_ENTRY;
+  var FALLBACK_TIMEOUT = 6000; // ms bis Legacy-Fallback greift
 
-  // ── Config laden ──
+  // ===== ZUSTAND =====
+  var _isDesktop = !window.__TNET_MOBILE_ENTRY;
+  var _lmFallbackTimer = null;
+  var _useNewActivePanel = false;
+  var _useNewTree = false;
+  var _useNewWmsPanel = false;
+
+  // ===== CONFIG LADEN =====
 
   function loadConfig() {
     if (typeof JSON5 === 'undefined') {
@@ -41,47 +58,115 @@
     return tryPath(0);
   }
 
-  // ── DOM-Manipulation ──
+  // ===== LEGACY-CONTAINER MANAGEMENT =====
 
   /**
-   * Dojo-TOC ausblenden:
-   * - #kantons_container im Themenkatalog Bottom-Sheet
-   * - #njs_main_lyrsorter_wrapper im Dargestellte-Themen (legacy im Drawer)
-   * - #sort_menu_sheet im Active-Sheet (legacy Wrapper)
-   * Desktop: #sort_menu Inhalt (Legacy Sorter) ausblenden
+   * Legacy-Container ausblenden je nach aktiven Feature-Flags.
+   * WICHTIG: Elemente werden NICHT aus dem DOM entfernt, nur visuell
+   * versteckt (display:none). Legacy-Tree bleibt für Parallel-Betrieb
+   * (Feature-Edit-Tools, Werkzeuge) im Hintergrund verfügbar.
    */
   function hideLegacyContainers() {
-    var ids = _isDesktop
-      ? ['njs_main_lyrsorter_wrapper']
-      : ['kantons_container', 'njs_main_lyrsorter_wrapper', 'sort_menu_sheet'];
-    ids.forEach(function (id) {
-      var el = document.getElementById(id);
-      if (el) {
-        el.style.display = 'none';
-        TnetLog.log(LOG, '#' + id + ' ausgeblendet');
+    TnetLog.log(LOG, 'hideLegacyContainers — Desktop=' + _isDesktop +
+      ', useNewActivePanel=' + _useNewActivePanel +
+      ', useNewTree=' + _useNewTree +
+      ', useNewWmsPanel=' + _useNewWmsPanel);
+
+    // --- Active-Panel (Dargestellte Themen) ---
+    if (_useNewActivePanel) {
+      _hideById('njs_main_lyrsorter_wrapper');
+      if (!_isDesktop) {
+        _hideById('sort_menu_sheet');
       }
-    });
+    }
+
+    // --- Themenkatalog-Baum ---
+    if (_useNewTree) {
+      if (_isDesktop) {
+        // Desktop: Die 4 Kantons-Wrapper verstecken, aber #kantons_container
+        // selbst NICHT — Dojo TitlePane braucht es für offsetHeight-Berechnung.
+        // Stattdessen alle Kinder von #kantons_container ausblenden.
+        var kantonsContainer = document.getElementById('kantons_container');
+        if (kantonsContainer) {
+          var children = kantonsContainer.children;
+          for (var i = 0; i < children.length; i++) {
+            children[i].style.display = 'none';
+          }
+          TnetLog.log(LOG, '#kantons_container Kinder ausgeblendet (' + children.length + ')');
+        }
+      } else {
+        // Mobile: kantons_container komplett ausblenden
+        _hideById('kantons_container');
+      }
+    }
+
+    // --- WMS-TitlePane ---
+    if (_useNewWmsPanel) {
+      _hideById('tp_wms_menu');
+    }
   }
 
+  /**
+   * Legacy-Container wieder einblenden (Fallback bei Fehler/Timeout).
+   */
   function showLegacyContainers() {
-    var ids = _isDesktop
-      ? ['njs_main_lyrsorter_wrapper']
-      : ['kantons_container', 'njs_main_lyrsorter_wrapper', 'sort_menu_sheet'];
-    ids.forEach(function (id) {
-      var el = document.getElementById(id);
-      if (el) {
-        el.style.display = '';
-        TnetLog.log(LOG, '#' + id + ' wieder eingeblendet');
+    TnetLog.warn(LOG, 'Fallback: Legacy-Container werden wieder eingeblendet');
+
+    // Active-Panel
+    _showById('njs_main_lyrsorter_wrapper');
+    if (!_isDesktop) {
+      _showById('sort_menu_sheet');
+    }
+
+    // Themenkatalog
+    if (_isDesktop) {
+      // Desktop: Kinder von #kantons_container wieder einblenden
+      var kantonsContainer = document.getElementById('kantons_container');
+      if (kantonsContainer) {
+        var children = kantonsContainer.children;
+        for (var i = 0; i < children.length; i++) {
+          // Nur die Legacy-Elemente wieder zeigen, nicht den neuen Tree-Container
+          if (children[i].id !== 'lm-tree-container') {
+            children[i].style.display = '';
+          }
+        }
       }
-    });
+    } else {
+      _showById('kantons_container');
+    }
+
+    // WMS
+    _showById('tp_wms_menu');
   }
 
+  /** Element per ID ausblenden */
+  function _hideById(id) {
+    var el = document.getElementById(id);
+    if (el) {
+      el.style.display = 'none';
+      TnetLog.log(LOG, '#' + id + ' ausgeblendet');
+    }
+  }
+
+  /** Element per ID wieder einblenden */
+  function _showById(id) {
+    var el = document.getElementById(id);
+    if (el) {
+      el.style.display = '';
+    }
+  }
+
+  /**
+   * Fallback auf Legacy aktivieren: neue Container entfernen,
+   * Legacy-Container wiederherstellen.
+   */
   function activateLegacyFallback(reason) {
     TnetLog.warn(LOG, 'Fallback auf Legacy-Themenbaum:', reason || 'unbekannt');
     if (_lmFallbackTimer) {
       clearTimeout(_lmFallbackTimer);
       _lmFallbackTimer = null;
     }
+    // Neuen Tree-Container entfernen
     var treeContainer = document.getElementById('lm-tree-container');
     if (treeContainer && treeContainer.parentNode) {
       treeContainer.parentNode.removeChild(treeContainer);
@@ -89,82 +174,110 @@
     showLegacyContainers();
   }
 
+  // ===== NEUE CONTAINER ERSTELLEN =====
+
   /**
-   * Neue Container für den Layer-Manager einfügen.
-   * Mobile: Themenkatalog-Tree in #m-layers-sheet, Active in #m-active-sheet
-   * Desktop: Active-Panel in #sort_menu (ersetzt Legacy-Sorter)
+   * DOM-Container für den neuen Layer-Manager erzeugen.
+   * Desktop: Tree in #kantons_container, Active in #sort_menu
+   * Mobile:  Tree in #m-layers-sheet, Active bereits im HTML
    */
   function createNewContainers() {
-    if (_isDesktop) {
-      // Desktop: Container in #sort_menu einfügen (innerhalb des Dojo TitlePane)
-      var sortMenu = document.getElementById('sort_menu');
-      if (sortMenu) {
-        var existing = document.getElementById('lm-active-container');
-        if (!existing) {
+    var platformClass = _isDesktop ? 'lm-container lm-container-desktop' : 'lm-container';
+
+    // --- Tree-Container (Themenkatalog) ---
+    if (_useNewTree && !document.getElementById('lm-tree-container')) {
+      var treeContainer = document.createElement('div');
+      treeContainer.id = 'lm-tree-container';
+      treeContainer.className = platformClass;
+
+      if (_isDesktop) {
+        // Desktop: In #kantons_container einfügen (innerhalb Dojo TitlePane "Themenkatalog").
+        // Die Legacy-Kinder sind bereits per display:none versteckt.
+        var kantonsContainer = document.getElementById('kantons_container');
+        if (kantonsContainer) {
+          kantonsContainer.appendChild(treeContainer);
+          TnetLog.log(LOG, '[Desktop] #lm-tree-container in #kantons_container erstellt');
+        } else {
+          // Fallback: direkt in tp_overview_menu
+          var overviewMenu = document.getElementById('tp_overview_menu');
+          if (overviewMenu) {
+            overviewMenu.appendChild(treeContainer);
+            TnetLog.log(LOG, '[Desktop] #lm-tree-container in #tp_overview_menu erstellt (Fallback)');
+          } else {
+            TnetLog.error(LOG, '[Desktop] Weder #kantons_container noch #tp_overview_menu gefunden');
+          }
+        }
+      } else {
+        // Mobile: in m-layers-sheet .m-sheet-body (vor kantons_container)
+        var sheetBody = document.querySelector('#m-layers-sheet .m-sheet-body');
+        if (sheetBody) {
+          var kantonsEl = document.getElementById('kantons_container');
+          if (kantonsEl) {
+            sheetBody.insertBefore(treeContainer, kantonsEl);
+          } else {
+            sheetBody.appendChild(treeContainer);
+          }
+          TnetLog.log(LOG, '[Mobile] #lm-tree-container erstellt');
+        }
+      }
+    }
+
+    // --- Active-Panel-Container (Dargestellte Themen) ---
+    if (_useNewActivePanel && !document.getElementById('lm-active-container')) {
+      if (_isDesktop) {
+        // Desktop: In #sort_menu einfügen (innerhalb "Dargestellte Themen" TitlePane)
+        var sortMenu = document.getElementById('sort_menu');
+        if (sortMenu) {
           var activeContainer = document.createElement('div');
           activeContainer.id = 'lm-active-container';
-          activeContainer.className = 'lm-container lm-container-desktop';
+          activeContainer.className = platformClass;
           sortMenu.appendChild(activeContainer);
           TnetLog.log(LOG, '[Desktop] #lm-active-container in #sort_menu erstellt');
         } else {
-          TnetLog.log(LOG, '[Desktop] #lm-active-container bereits vorhanden');
+          TnetLog.error(LOG, '[Desktop] #sort_menu nicht gefunden');
         }
       } else {
-        TnetLog.error(LOG, '[Desktop] #sort_menu nicht gefunden');
-      }
-      return;
-    }
-
-    // Mobile: Original-Logik
-    // 1) Themenkatalog-Tree — in m-layers-sheet .m-sheet-body
-    var sheetBody = document.querySelector('#m-layers-sheet .m-sheet-body');
-    if (sheetBody) {
-      var existing = document.getElementById('lm-tree-container');
-      if (!existing) {
-        var treeContainer = document.createElement('div');
-        treeContainer.id = 'lm-tree-container';
-        treeContainer.className = 'lm-container';
-        // Vor kantons_container einfügen (oder am Anfang)
-        var kantonsEl = document.getElementById('kantons_container');
-        if (kantonsEl) {
-          sheetBody.insertBefore(treeContainer, kantonsEl);
+        // Mobile: Container ist bereits im HTML (#m-active-sheet)
+        var mobileActive = document.getElementById('lm-active-container');
+        if (mobileActive) {
+          TnetLog.log(LOG, '[Mobile] #lm-active-container gefunden');
         } else {
-          sheetBody.appendChild(treeContainer);
+          TnetLog.error(LOG, '[Mobile] #lm-active-container nicht im HTML');
         }
-        TnetLog.log(LOG, '#lm-tree-container erstellt');
-      } else {
-        TnetLog.log(LOG, '#lm-tree-container bereits vorhanden');
       }
-    }
-
-    // 2) Active-Panel — lm-active-container ist bereits im HTML (#m-active-sheet)
-    var activeContainer = document.getElementById('lm-active-container');
-    if (activeContainer) {
-      TnetLog.log(LOG, '#lm-active-container gefunden im Active-Sheet');
-    } else {
-      TnetLog.error(LOG, '#lm-active-container nicht gefunden');
     }
   }
 
-  // ── Bootstrap ──
+  // ===== BOOTSTRAP =====
 
   function bootstrap(config) {
     var lmConfig = (config && config.layerManager) || {};
 
-    if (!lmConfig.useNew) {
-      if (lmConfig.debug || (config && config.debug)) {
-        TnetLog.log(LOG, 'Feature-Flag layerManager.useNew ist deaktiviert → kein Start');
-      }
+    // --- Feature-Flags auswerten ---
+    // Rückwärtskompatibilität: altes "useNew" wird als "useNewActivePanel" interpretiert
+    _useNewActivePanel = lmConfig.useNewActivePanel !== undefined
+      ? !!lmConfig.useNewActivePanel
+      : !!lmConfig.useNew;  // Fallback auf altes Flag
+
+    _useNewTree = !!lmConfig.useNewTree;
+    _useNewWmsPanel = !!lmConfig.useNewWmsPanel;
+
+    TnetLog.log(LOG, 'Feature-Flags: useNewActivePanel=' + _useNewActivePanel +
+      ', useNewTree=' + _useNewTree +
+      ', useNewWmsPanel=' + _useNewWmsPanel +
+      ', Plattform=' + (_isDesktop ? 'Desktop' : 'Mobile'));
+
+    // Wenn nichts aktiv → Legacy-Modus, nichts tun
+    if (!_useNewActivePanel && !_useNewTree && !_useNewWmsPanel) {
+      TnetLog.log(LOG, 'Alle Feature-Flags deaktiviert → Legacy-Modus');
       return;
     }
-
-    TnetLog.log(LOG, 'Feature-Flag aktiv → starte neuen Layer-Manager');
 
     // DOM vorbereiten
     hideLegacyContainers();
     createNewContainers();
 
-    // Store initialisieren
+    // Store initialisieren (wird von beiden Panels benötigt)
     if (window.TnetLMStore) {
       window.TnetLMStore.init(lmConfig);
     } else {
@@ -173,21 +286,31 @@
       return;
     }
 
-    // Tree-UI initialisieren (nur Mobile — Desktop nutzt den bestehenden Dojo-Themenbaum)
-    if (!_isDesktop && window.TnetLMTree) {
-      window.TnetLMTree.init('lm-tree-container');
-    } else if (!_isDesktop) {
-      TnetLog.error(LOG, 'TnetLMTree fehlt');
+    // Tree-UI initialisieren (Desktop + Mobile wenn useNewTree aktiv)
+    if (_useNewTree) {
+      if (window.TnetLMTree) {
+        window.TnetLMTree.init('lm-tree-container');
+        TnetLog.log(LOG, 'TnetLMTree initialisiert' + (_isDesktop ? ' (Desktop)' : ' (Mobile)'));
+      } else {
+        TnetLog.warn(LOG, 'useNewTree=true, aber TnetLMTree Modul nicht geladen');
+        if (!_isDesktop) {
+          // Mobile: ohne Tree ist der Themenkatalog leer → Fallback
+          TnetLog.error(LOG, 'TnetLMTree fehlt auf Mobile → Fallback');
+        }
+      }
     }
 
-    // Active-Panel initialisieren
-    if (window.TnetLMActive) {
-      window.TnetLMActive.init('lm-active-container');
-    } else {
-      TnetLog.error(LOG, 'TnetLMActive fehlt');
+    // Active-Panel initialisieren (Desktop + Mobile wenn useNewActivePanel aktiv)
+    if (_useNewActivePanel) {
+      if (window.TnetLMActive) {
+        window.TnetLMActive.init('lm-active-container');
+        TnetLog.log(LOG, 'TnetLMActive initialisiert' + (_isDesktop ? ' (Desktop)' : ' (Mobile)'));
+      } else {
+        TnetLog.error(LOG, 'TnetLMActive fehlt');
+      }
     }
 
-    // Wenn der neue LM nicht lädt, auf Legacy zurückfallen statt leeres Sheet
+    // Fallback: Wenn Store/Katalog nicht laden → Legacy wiederherstellen
     var store = window.TnetLMStore;
     if (store && typeof store.on === 'function') {
       store.on('catalog-loaded', function (catalog) {
@@ -197,29 +320,44 @@
         }
         if (!catalog || !catalog.length) {
           activateLegacyFallback('Katalog leer');
+          return;
+        }
+        // Coalesce-Bridge: Layer aus URL-Parameter wiederherstellen
+        if (window.TnetCoalesceBridge && window.TnetCoalesceBridge.isEnabled()) {
+          window.TnetCoalesceBridge.restoreFromUrl(store);
         }
       });
     }
 
+    // Timeout-Fallback: Module müssen innerhalb von FALLBACK_TIMEOUT laden
     _lmFallbackTimer = setTimeout(function () {
       var isLoaded = !!(store && typeof store.isLoaded === 'function' && store.isLoaded());
-      if (_isDesktop) {
-        // Desktop: Fallback nur prüfen ob Store geladen
-        if (!isLoaded) {
-          activateLegacyFallback('Timeout beim Laden des Layer-Stores (Desktop)');
-        }
-      } else {
-        // Mobile: Auch Tree-Container prüfen
-        var treeContainer = document.getElementById('lm-tree-container');
-        var hasTreeContent = !!(treeContainer && treeContainer.children && treeContainer.children.length);
-        if (!isLoaded || !hasTreeContent) {
-          activateLegacyFallback('Timeout beim Laden des neuen Layer-Managers');
-        }
+
+      // Tree-Container prüfen (wenn aktiv)
+      var treeOk = !_useNewTree;
+      if (_useNewTree) {
+        var treeEl = document.getElementById('lm-tree-container');
+        treeOk = !!(treeEl && treeEl.children && treeEl.children.length > 0);
       }
-    }, 6000);
+
+      // Active-Container prüfen (wenn aktiv)
+      var activeOk = !_useNewActivePanel;
+      if (_useNewActivePanel) {
+        var activeEl = document.getElementById('lm-active-container');
+        activeOk = !!(activeEl && activeEl.children && activeEl.children.length > 0);
+      }
+
+      if (!isLoaded || !treeOk) {
+        activateLegacyFallback('Timeout (' + FALLBACK_TIMEOUT + 'ms) — Store geladen=' +
+          isLoaded + ', Tree ok=' + treeOk + ', Active ok=' + activeOk);
+      } else {
+        TnetLog.log(LOG, 'Fallback-Timer: Alles ok (Store=' + isLoaded +
+          ', Tree=' + treeOk + ', Active=' + activeOk + ')');
+      }
+    }, FALLBACK_TIMEOUT);
   }
 
-  // ── Einstiegspunkt ──
+  // ===== EINSTIEGSPUNKT =====
 
   function start() {
     loadConfig().then(function (config) {
@@ -275,4 +413,23 @@
   } else {
     start();
   }
+
+  // ===== EXPORT =====
+  window.TnetLMInit = {
+    /** Manueller Re-Init (z.B. nach Config-Änderung in der Konsole) */
+    reinit: function () {
+      loadConfig().then(function (config) {
+        if (config) bootstrap(config);
+      });
+    },
+    /** Feature-Flags abfragen (für Debug/Testing) */
+    getFlags: function () {
+      return {
+        useNewActivePanel: _useNewActivePanel,
+        useNewTree: _useNewTree,
+        useNewWmsPanel: _useNewWmsPanel,
+        isDesktop: _isDesktop
+      };
+    }
+  };
 })();

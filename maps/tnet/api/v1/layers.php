@@ -172,6 +172,8 @@ if ($useDatabase) {
                 cn.layer_id,
                 cn.sort_idx,
                 cn.open_flag,
+                cn.service_url,
+                cn.coalesce_group,
                 cm.category_key,
                 cm.label AS category_label,
                 cm.icon AS category_icon,
@@ -340,9 +342,12 @@ foreach ($mapping['categories'] as $topCategory) {
     // Struktur innerhalb des Layer-Managers
     if (isset($lyrmgr['structure'])) {
         foreach ($lyrmgr['structure'] as $categoryId => $categoryDef) {
+            // NLS-Lookup für Subcategory-Name, Fallback auf ucfirst
+            $subName = getNlsLabel($categoryId);
+            if (!$subName) $subName = ucfirst($categoryId);
             $subcategoryData = [
                 'id'     => $categoryId,
-                'name'   => ucfirst($categoryId),
+                'name'   => $subName,
                 'icon'   => $categoryDef['iconClass'] ?? '',
                 'groups' => []
             ];
@@ -568,6 +573,31 @@ function extractLayerName($layerId) {
 }
 
 /**
+ * Lädt NLS-Labels (lyrmgrResources.json) und gibt den Display-Namen zurück.
+ * Cacht die Datei nach dem ersten Laden.
+ * 
+ * @param string $key  Schlüssel (z.B. 'grundlagen', 'oereb')
+ * @return string|null  NLS-Label oder null wenn nicht gefunden
+ */
+function getNlsLabel($key) {
+    static $nls = null;
+    if ($nls === null) {
+        $nlsPath = realpath(__DIR__ . '/../../../core/nls/de/lyrmgrResources.json');
+        if ($nlsPath && file_exists($nlsPath)) {
+            $nls = json_decode(file_get_contents($nlsPath), true) ?: [];
+        } else {
+            $nls = [];
+        }
+    }
+    // Suche: desc_<key> (exakt)
+    $lookupKey = 'desc_' . $key;
+    if (isset($nls[$lookupKey])) {
+        return $nls[$lookupKey];
+    }
+    return null;
+}
+
+/**
  * Flacht die hierarchische Kategorie-Struktur ab
  * 
  * @param array $categories Hierarchische Kategorien
@@ -720,15 +750,33 @@ function buildCatalogTree(array $rows, bool $details): array {
         $parentPk = $row['parent_node_pk'] !== null ? (int) $row['parent_node_pk'] : null;
         $catId    = (int) $row['category_id'];
 
-        // Node-Objekt
+        // Node-Objekt — Name bereinigen
+        $nodeId = $row['source_id'] ?? $row['layer_id'] ?? (string) $nodePk;
+        $nodeName = $row['node_name'];
+        if ($row['node_kind'] !== 'layer') {
+            // Für Gruppen/Subcategories: NLS-Lookup, dann Pfad-Bereinigung
+            $nlsLabel = getNlsLabel($nodeId);
+            if ($nlsLabel) {
+                $nodeName = $nlsLabel;
+            } elseif (strpos($nodeName, '/') !== false) {
+                // Pfad-basierter Name → nur letztes Segment verwenden
+                $nodeName = extractLayerName($nodeId);
+            }
+        }
         $node = [
-            'id'   => $row['source_id'] ?? $row['layer_id'] ?? (string) $nodePk,
-            'name' => $row['node_name'],
+            'id'   => $nodeId,
+            'name' => $nodeName,
             'type' => $row['node_kind'],
         ];
 
         if ($row['open_flag']) {
             $node['open'] = true;
+        }
+
+        // Coalesce-Infos für Gruppen anhängen
+        if (!empty($row['service_url'])) {
+            $node['serviceUrl']     = $row['service_url'];
+            $node['coalesceGroup']  = $row['coalesce_group'];
         }
 
         // Layer-Details anhängen

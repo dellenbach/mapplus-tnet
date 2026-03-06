@@ -13,8 +13,18 @@ LOCAL_BASE = r"c:\_Daten\mapplus-exp\maps"
 
 # Files to upload
 FILES = [
-    # PDF-Export: scaleLabel Auto-Fix + Diagnose-Logging
-    "tnet/ol-pdf-printer/js/template-pdf-export.js",
+    "tnet/js/tnet-lm-store.js",
+    "tnet/js/tnet-info-panel.js",
+    "tnet/js/tnet-coalesce-bridge.js",
+    "tnet/js/tnet-lyrmgr-patch.js",
+    "tnet/js/tnet-lm-tree.js",
+    "tnet/js/tnet-accordion-resize.js",
+    "tnet/js/tnet-wms-panel.js",
+    "tnet/js/tnet-info-bridge.js",
+    "tnet/js/tnet-mapplus-helpers.js",
+    "public/index_de.htm",
+    "public/index_de_m.htm",
+    "public/css/override.css",
 ]
 
 def upload_files():

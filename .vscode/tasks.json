@@ -1,35 +1,83 @@
 {
-    "version": "2.0.0",
-    "tasks": [
-        {
-            "label": "SFTP: Upload Changed Files",
-            "type": "shell",
-            "command": "${command:sftp.sync.localToRemote}",
-            "problemMatcher": [],
-            "presentation": {
-                "reveal": "silent",
-                "panel": "shared"
-            }
-        },
-        {
-            "label": "SFTP: Upload Active File",
-            "type": "shell", 
-            "command": "${command:sftp.upload.activeFile}",
-            "problemMatcher": [],
-            "presentation": {
-                "reveal": "silent",
-                "panel": "shared"
-            }
-        },
-        {
-            "label": "SFTP: Upload Folder",
-            "type": "shell",
-            "command": "${command:sftp.upload.activeFolder}",
-            "problemMatcher": [],
-            "presentation": {
-                "reveal": "silent",
-                "panel": "shared"
-            }
-        }
-    ]
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "SFTP: Upload Changed Files",
+			"type": "shell",
+			"command": "${command:sftp.sync.localToRemote}",
+			"problemMatcher": [],
+			"presentation": {
+				"reveal": "silent",
+				"panel": "shared"
+			}
+		},
+		{
+			"label": "SFTP: Upload Active File",
+			"type": "shell",
+			"command": "${command:sftp.upload.activeFile}",
+			"problemMatcher": [],
+			"presentation": {
+				"reveal": "silent",
+				"panel": "shared"
+			}
+		},
+		{
+			"label": "SFTP: Upload Folder",
+			"type": "shell",
+			"command": "${command:sftp.upload.activeFolder}",
+			"problemMatcher": [],
+			"presentation": {
+				"reveal": "silent",
+				"panel": "shared"
+			}
+		},
+		{
+			"label": "Deploy: LyrMgr Patch",
+			"type": "shell",
+			"command": "C:/Program Files/Python313/python.exe",
+			"args": [
+				"_scripts/_upload_lyrmgr_patch.py"
+			]
+		},
+		{
+			"label": "Deploy: LyrMgr Patch",
+			"type": "shell",
+			"command": "C:/Program Files/Python313/python.exe",
+			"args": [
+				"_scripts/_upload_lyrmgr_patch.py"
+			]
+		},
+		{
+			"label": "Deploy: LyrMgr Patch",
+			"type": "shell",
+			"command": "C:/Program Files/Python313/python.exe",
+			"args": [
+				"_scripts/_upload_lyrmgr_patch.py"
+			]
+		},
+		{
+			"label": "Deploy: LyrMgr Patch",
+			"type": "shell",
+			"command": "C:/Program Files/Python313/python.exe",
+			"args": [
+				"_scripts/_upload_lyrmgr_patch.py"
+			]
+		},
+		{
+			"label": "Deploy: LyrMgr Patch",
+			"type": "shell",
+			"command": "C:/Program Files/Python313/python.exe",
+			"args": [
+				"_scripts/_upload_lyrmgr_patch.py"
+			]
+		},
+		{
+			"label": "Deploy: Active Panel Store",
+			"type": "shell",
+			"command": "C:/Program Files/Python313/python.exe",
+			"args": [
+				"_scripts/_upload_files.py"
+			]
+		}
+	]
 }

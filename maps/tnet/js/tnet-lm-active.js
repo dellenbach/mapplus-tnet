@@ -1,5 +1,5 @@
 ﻿/**
- * tnet-lm-active.js — Dargestellte-Themen-Panel (Mobile)
+ * tnet-lm-active.js — Dargestellte-Themen-Panel (Desktop + Mobile)
  *
  * Zeigt aktive Layer mit:
  *   - Drag-Handle (≡) zum Verschieben per Drag & Drop (Touch + Mouse)
@@ -20,13 +20,19 @@
   // ── Drag & Drop State ──
   var _dragState = null; // { item, layerId, placeholder, clone, startY, startIdx, currentIdx, listEl }
 
+  // ── Coalesce-Gruppen Expand-State ──
+  var _groupExpanded = {}; // groupId → boolean (default: true = aufgeklappt)
+
   // SVG-Icons (inline, kein externer Sprite)
   var ICON = {
     eyeOn: '<svg class="lm-icon" viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>',
     eyeOff: '<svg class="lm-icon" viewBox="0 0 24 24"><path d="M12 7c2.76 0 5 2.24 5 5 0 .65-.13 1.26-.36 1.83l2.92 2.92c1.51-1.26 2.7-2.89 3.43-4.75-1.73-4.39-6-7.5-11-7.5-1.4 0-2.74.25-3.98.7l2.16 2.16C10.74 7.13 11.35 7 12 7zM2 4.27l2.28 2.28.46.46C3.08 8.3 1.78 10.02 1 12c1.73 4.39 6 7.5 11 7.5 1.55 0 3.03-.3 4.38-.84l.42.42L19.73 22 21 20.73 3.27 3 2 4.27zM7.53 9.8l1.55 1.55c-.05.21-.08.43-.08.65 0 1.66 1.34 3 3 3 .22 0 .44-.03.65-.08l1.55 1.55c-.67.33-1.41.53-2.2.53-2.76 0-5-2.24-5-5 0-.79.2-1.53.53-2.2zm4.31-.78l3.15 3.15.02-.16c0-1.66-1.34-3-3-3l-.17.01z"/></svg>',
     drag: '<svg class="lm-icon lm-icon-drag" viewBox="0 0 24 24"><path d="M3 15h18v-2H3v2zm0 4h18v-2H3v2zm0-8h18V9H3v2zm0-6v2h18V5H3z"/></svg>',
     remove: '<svg class="lm-icon" viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>',
-    legend: '<svg class="lm-icon" viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm-1 7V3.5L18.5 9H13zM6 20V4h5v5c0 .55.45 1 1 1h6v10H6z"/><rect x="8" y="13" width="8" height="1.5" rx=".5"/><rect x="8" y="16" width="5" height="1.5" rx=".5"/></svg>'
+    legend: '<svg class="lm-icon" viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm-1 7V3.5L18.5 9H13zM6 20V4h5v5c0 .55.45 1 1 1h6v10H6z"/><rect x="8" y="13" width="8" height="1.5" rx=".5"/><rect x="8" y="16" width="5" height="1.5" rx=".5"/></svg>',
+    expand: '<svg class="lm-icon" viewBox="0 0 24 24"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>',
+    collapse: '<svg class="lm-icon" viewBox="0 0 24 24"><path d="M16.59 8.59L12 13.17 7.41 8.59 6 10l6 6 6-6z"/></svg>',
+    group: '<svg class="lm-icon" viewBox="0 0 24 24"><path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10z"/></svg>'
   };
 
   var LMActive = {
@@ -84,53 +90,190 @@
         TnetLog.log(LOG, 'render: Leerzustand');
         return;
       }
-      TnetLog.log(LOG, 'render:', layers.length, 'Layer');
+
+      // Einträge gruppieren (Standalone vs. Coalesce-Gruppen)
+      var entries = this._buildActiveEntries(layers);
+      var totalLayers = layers.length;
+
+      TnetLog.log(LOG, 'render:', totalLayers, 'Layer,', entries.length, 'Einträge');
 
       var html = '<div class="lm-active-toolbar">';
-      html += '<span class="lm-active-count">' + layers.length + ' Themen</span>';
+      html += '<span class="lm-active-count">' + totalLayers + ' Themen</span>';
       html += '<button class="lm-btn-remove-all" data-action="remove-all" title="Alle Themen entfernen">';
       html += '<svg class="lm-icon" viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>';
       html += ' Alle entfernen</button>';
       html += '</div>';
       html += '<ul class="lm-active-list">';
+
+      for (var i = 0; i < entries.length; i++) {
+        var entry = entries[i];
+        if (entry.type === 'group') {
+          html += this._renderGroup(entry);
+        } else {
+          html += this._renderStandalone(entry.layer);
+        }
+      }
+
+      html += '</ul>';
+      _container.innerHTML = html;
+    },
+
+    /**
+     * Gruppiert aktive Layer in Standalone und Coalesce-Gruppen.
+     * Reihenfolge: Erster Layer einer Gruppe bestimmt Position der gesamten Gruppe.
+     */
+    _buildActiveEntries: function (layers) {
+      var entries = [];
+      var seenGroups = {};  // groupId → entry-Object
+      var store = window.TnetLMStore;
+
       for (var i = 0; i < layers.length; i++) {
         var l = layers[i];
-        var eyeIcon = l.visible ? ICON.eyeOn : ICON.eyeOff;
-        var eyeCls = l.visible ? 'lm-eye' : 'lm-eye lm-eye-off';
-        var opacity = (l.opacity !== undefined && l.opacity !== null) ? l.opacity : 1;
-        var opacityPct = Math.round(opacity * 100);
+        var coalInfo = store ? store.getCoalesceInfo(l.id) : null;
 
-        html += '<li class="lm-active-item" data-layer-id="' + esc(l.id) + '">';
-
-        // Kopfzeile: Drag-Handle | Auge | Name | X
-        html += '<div class="lm-active-row">';
-        html += '<div class="lm-drag-handle" data-action="drag" title="Verschieben">' + ICON.drag + '</div>';
-        html += '<button class="' + eyeCls + '" data-action="eye" title="Sichtbarkeit">' + eyeIcon + '</button>';
-        html += '<span class="lm-active-name">' + esc(l.name) + '</span>';
-
-        // Legende-Button: WMS immer, ArcGIS REST mit agsproxy immer, sonstige mit legendLink
-        var isWms = (l.type === 'wms' || (l.id && l.id.indexOf('wms:') === 0));
-        var isArcgis = (!isWms && l.layerType === 'arcgisRest' && l.url && l.url.indexOf('agsproxy.php') !== -1);
-        var hasExplicitLegend = (!isWms && !isArcgis && l.legendLink && l.legendLink !== '');
-        if (isWms || isArcgis || hasExplicitLegend) {
-          html += '<button class="lm-btn-legend" data-action="legend" title="Legende anzeigen">' + ICON.legend + '</button>';
+        if (coalInfo) {
+          if (!seenGroups[coalInfo.groupId]) {
+            // Erste Layer dieser Coalesce-Gruppe → neuer Eintrag
+            var entry = {
+              type: 'group',
+              groupId: coalInfo.groupId,
+              groupName: coalInfo.groupName,
+              serviceUrl: coalInfo.serviceUrl,
+              children: [l]
+            };
+            entries.push(entry);
+            seenGroups[coalInfo.groupId] = entry;
+          } else {
+            // Weiterer Layer derselben Gruppe
+            seenGroups[coalInfo.groupId].children.push(l);
+          }
+        } else {
+          entries.push({ type: 'standalone', layer: l });
         }
+      }
 
-        html += '<button class="lm-btn-remove" data-action="remove" title="Entfernen">' + ICON.remove + '</button>';
-        html += '</div>';
+      return entries;
+    },
 
-        // Opazitäts-Slider
-        html += '<div class="lm-opacity-row">';
-        html += '<span class="lm-opacity-label">Deckkraft</span>';
-        html += '<input type="range" class="lm-opacity-slider" data-action="opacity" min="0" max="100" value="' + opacityPct + '">';
-        html += '<span class="lm-opacity-val">' + opacityPct + '%</span>';
-        html += '</div>';
+    /**
+     * Rendert einen einzelnen Standalone-Layer (identisch zum bisherigen Verhalten).
+     */
+    _renderStandalone: function (l) {
+      var eyeIcon = l.visible ? ICON.eyeOn : ICON.eyeOff;
+      var eyeCls = l.visible ? 'lm-eye' : 'lm-eye lm-eye-off';
+      var opacity = (l.opacity !== undefined && l.opacity !== null) ? l.opacity : 1;
+      var opacityPct = Math.round(opacity * 100);
 
-        html += '</li>';
+      var html = '<li class="lm-active-item" data-layer-id="' + esc(l.id) + '">';
+
+      // Kopfzeile: Drag-Handle | Auge | Name | Legende | X
+      html += '<div class="lm-active-row">';
+      html += '<div class="lm-drag-handle" data-action="drag" title="Verschieben">' + ICON.drag + '</div>';
+      html += '<button class="' + eyeCls + '" data-action="eye" title="Sichtbarkeit">' + eyeIcon + '</button>';
+      html += '<span class="lm-active-name">' + esc(l.name) + '</span>';
+
+      // Legende-Button
+      if (this._hasLegend(l)) {
+        html += '<button class="lm-btn-legend" data-action="legend" title="Legende anzeigen">' + ICON.legend + '</button>';
+      }
+
+      html += '<button class="lm-btn-remove" data-action="remove" title="Entfernen">' + ICON.remove + '</button>';
+      html += '</div>';
+
+      // Opazitäts-Slider
+      html += '<div class="lm-opacity-row">';
+      html += '<span class="lm-opacity-label">Deckkraft</span>';
+      html += '<input type="range" class="lm-opacity-slider" data-action="opacity" min="0" max="100" value="' + opacityPct + '">';
+      html += '<span class="lm-opacity-val">' + opacityPct + '%</span>';
+      html += '</div>';
+
+      html += '</li>';
+      return html;
+    },
+
+    /**
+     * Rendert eine Coalesce-Gruppe:
+     * - Gruppen-Header: Auge | Ordner-Icon | Name | Expand/Collapse | X
+     * - Gemeinsamer Opazitäts-Slider
+     * - Kind-Layer (wenn aufgeklappt): nur Auge + Name
+     */
+    _renderGroup: function (entry) {
+      var groupId = entry.groupId;
+      var expanded = (_groupExpanded[groupId] !== undefined) ? _groupExpanded[groupId] : true;
+      var expandCls = expanded ? '' : ' lm-collapsed';
+
+      // Mittlere Opazität der Kinder berechnen
+      var totalOpacity = 0;
+      var anyVisible = false;
+      for (var i = 0; i < entry.children.length; i++) {
+        var c = entry.children[i];
+        totalOpacity += (c.opacity !== undefined && c.opacity !== null) ? c.opacity : 1;
+        if (c.visible !== false) anyVisible = true;
+      }
+      var avgOpacity = entry.children.length > 0 ? totalOpacity / entry.children.length : 1;
+      var opacityPct = Math.round(avgOpacity * 100);
+
+      var eyeIcon = anyVisible ? ICON.eyeOn : ICON.eyeOff;
+      var eyeCls = anyVisible ? 'lm-eye' : 'lm-eye lm-eye-off';
+      var expandIcon = expanded ? ICON.collapse : ICON.expand;
+
+      var html = '<li class="lm-active-group' + expandCls + '" data-group-id="' + esc(groupId) + '">';
+
+      // Gruppen-Header
+      html += '<div class="lm-active-group-header">';
+      html += '<div class="lm-drag-handle" data-action="drag" title="Verschieben">' + ICON.drag + '</div>';
+      html += '<button class="' + eyeCls + '" data-action="group-eye" title="Gruppe ein/aus">' + eyeIcon + '</button>';
+      html += '<span class="lm-active-group-icon">' + ICON.group + '</span>';
+      html += '<span class="lm-active-group-name">' + esc(entry.groupName) + '</span>';
+      // Legende-Button (Dienst-URL vorhanden)
+      if (entry.serviceUrl) {
+        html += '<button class="lm-btn-legend" data-action="group-legend" title="Legende anzeigen">' + ICON.legend + '</button>';
+      }
+      html += '<button class="lm-btn-expand" data-action="group-expand" title="Auf-/Zuklappen">' + expandIcon + '</button>';
+      html += '<button class="lm-btn-remove" data-action="group-remove" title="Gruppe entfernen">' + ICON.remove + '</button>';
+      html += '</div>';
+
+      // Gemeinsamer Opazitäts-Slider
+      html += '<div class="lm-opacity-row">';
+      html += '<span class="lm-opacity-label">Deckkraft</span>';
+      html += '<input type="range" class="lm-opacity-slider lm-group-opacity" data-action="group-opacity" min="0" max="100" value="' + opacityPct + '">';
+      html += '<span class="lm-opacity-val">' + opacityPct + '%</span>';
+      html += '</div>';
+
+      // Kind-Layer
+      html += '<ul class="lm-active-group-children">';
+      for (var j = 0; j < entry.children.length; j++) {
+        html += this._renderGroupChild(entry.children[j]);
       }
       html += '</ul>';
 
-      _container.innerHTML = html;
+      html += '</li>';
+      return html;
+    },
+
+    /**
+     * Rendert ein Kind-Layer innerhalb einer Coalesce-Gruppe.
+     * Nur Auge-Toggle + Name (kein Drag, kein eigener Opacity-Slider).
+     */
+    _renderGroupChild: function (l) {
+      var eyeIcon = l.visible ? ICON.eyeOn : ICON.eyeOff;
+      var eyeCls = l.visible ? 'lm-eye' : 'lm-eye lm-eye-off';
+
+      var html = '<li class="lm-active-group-child" data-layer-id="' + esc(l.id) + '">';
+      html += '<button class="' + eyeCls + '" data-action="child-eye" title="Sichtbarkeit">' + eyeIcon + '</button>';
+      html += '<span class="lm-active-name">' + esc(l.name) + '</span>';
+      html += '</li>';
+      return html;
+    },
+
+    /**
+     * Prüft ob ein Layer einen Legenden-Button erhalten soll.
+     */
+    _hasLegend: function (l) {
+      var isWms = (l.type === 'wms' || (l.id && l.id.indexOf('wms:') === 0));
+      var isArcgis = (!isWms && l.layerType === 'arcgisRest' && l.url && l.url.indexOf('agsproxy.php') !== -1);
+      var hasExplicitLegend = (!isWms && !isArcgis && l.legendLink && l.legendLink !== '');
+      return isWms || isArcgis || hasExplicitLegend;
     },
 
     // ============================================================
@@ -140,7 +283,7 @@
     _bindEvents: function () {
       var self = this;
 
-      // ── Click-Events (Eye, Remove, Remove-All) ──
+      // ── Click-Events (Eye, Remove, Remove-All, Gruppen-Aktionen) ──
       _container.addEventListener('click', function (e) {
         if (_dragState) return; // Kein Click während Drag
         var btn = e.target.closest('[data-action]');
@@ -156,6 +299,42 @@
           return;
         }
 
+        // ── Coalesce-Gruppen-Aktionen ──
+        var groupEl = btn.closest('.lm-active-group');
+
+        if (action === 'group-eye' && groupEl) {
+          var gid = groupEl.dataset.groupId;
+          if (window.TnetLMStore) window.TnetLMStore.toggleCoalesceGroupEye(gid);
+          return;
+        }
+        if (action === 'group-remove' && groupEl) {
+          var gid2 = groupEl.dataset.groupId;
+          if (window.TnetLMStore) window.TnetLMStore.removeCoalesceGroup(gid2);
+          return;
+        }
+        if (action === 'group-expand' && groupEl) {
+          var gid3 = groupEl.dataset.groupId;
+          var isExpanded = !groupEl.classList.contains('lm-collapsed');
+          _groupExpanded[gid3] = !isExpanded;
+          groupEl.classList.toggle('lm-collapsed', isExpanded);
+          // Icon austauschen
+          btn.innerHTML = isExpanded ? ICON.expand : ICON.collapse;
+          return;
+        }
+        if (action === 'group-legend' && groupEl) {
+          self._openGroupLegend(groupEl.dataset.groupId);
+          return;
+        }
+        if (action === 'child-eye') {
+          var childEl = btn.closest('.lm-active-group-child');
+          if (childEl) {
+            var childId = childEl.dataset.layerId;
+            if (window.TnetLMStore) window.TnetLMStore.toggleLayerEye(childId);
+          }
+          return;
+        }
+
+        // ── Standalone-Layer-Aktionen ──
         var item = btn.closest('.lm-active-item');
         if (!item) return;
         var layerId = item.dataset.layerId;
@@ -260,15 +439,30 @@
         }
       });
 
-      // ── Opacity-Slider ──
+      // ── Opacity-Slider (Standalone + Gruppen) ──
       _container.addEventListener('input', function (e) {
         if (e.target.matches('.lm-opacity-slider')) {
-          var item = e.target.closest('.lm-active-item');
-          if (!item) return;
           var val = parseInt(e.target.value, 10) / 100;
-          var valLabel = item.querySelector('.lm-opacity-val');
-          if (valLabel) valLabel.textContent = Math.round(val * 100) + '%';
-          window.TnetLMStore.setLayerOpacity(item.dataset.layerId, val);
+          var valLabel = e.target.closest('.lm-opacity-row');
+          if (valLabel) {
+            var span = valLabel.querySelector('.lm-opacity-val');
+            if (span) span.textContent = Math.round(val * 100) + '%';
+          }
+
+          // Gruppen-Opazität
+          if (e.target.matches('.lm-group-opacity')) {
+            var groupEl = e.target.closest('.lm-active-group');
+            if (groupEl) {
+              window.TnetLMStore.setCoalesceGroupOpacity(groupEl.dataset.groupId, val);
+            }
+            return;
+          }
+
+          // Standalone-Opazität
+          var item = e.target.closest('.lm-active-item');
+          if (item) {
+            window.TnetLMStore.setLayerOpacity(item.dataset.layerId, val);
+          }
         }
       });
 
@@ -320,14 +514,17 @@
     // ============================================================
 
     _dragStart: function (handle, clientY) {
-      var item = handle.closest('.lm-active-item');
+      // Sowohl Standalone-Items als auch Gruppen können gezogen werden
+      var item = handle.closest('.lm-active-item') || handle.closest('.lm-active-group');
       if (!item) return;
       var listEl = _container.querySelector('.lm-active-list');
       if (!listEl) return;
 
-      var layerId = item.dataset.layerId;
-      var items = Array.prototype.slice.call(listEl.querySelectorAll('.lm-active-item'));
-      var startIdx = items.indexOf(item);
+      var layerId = item.dataset.layerId || item.dataset.groupId || '';
+      var isGroup = item.classList.contains('lm-active-group');
+      // Alle Top-Level-Einträge (Items + Gruppen) als sortierbare Elemente
+      var entries = Array.prototype.slice.call(listEl.querySelectorAll(':scope > .lm-active-item, :scope > .lm-active-group'));
+      var startIdx = entries.indexOf(item);
       if (startIdx === -1) return;
 
       var rect = item.getBoundingClientRect();
@@ -353,6 +550,7 @@
       _dragState = {
         item: item,
         layerId: layerId,
+        isGroup: isGroup,
         clone: clone,
         placeholder: placeholder,
         listEl: listEl,
@@ -374,12 +572,13 @@
       // Clone Position aktualisieren
       ds.clone.style.top = (clientY - ds.offsetY) + 'px';
 
-      // Ziel-Index berechnen
-      var items = Array.prototype.slice.call(ds.listEl.querySelectorAll('.lm-active-item:not(.lm-drag-hidden)'));
+      // Ziel-Index berechnen — alle Top-Level-Einträge (Items + Gruppen)
+      var selector = ':scope > .lm-active-item:not(.lm-drag-hidden), :scope > .lm-active-group:not(.lm-drag-hidden)';
+      var visibleEntries = Array.prototype.slice.call(ds.listEl.querySelectorAll(selector));
       var newIdx = ds.currentIdx;
 
-      for (var i = 0; i < items.length; i++) {
-        var r = items[i].getBoundingClientRect();
+      for (var i = 0; i < visibleEntries.length; i++) {
+        var r = visibleEntries[i].getBoundingClientRect();
         var midY = r.top + r.height / 2;
         if (clientY < midY) {
           newIdx = i;
@@ -388,25 +587,14 @@
         newIdx = i + 1;
       }
 
-      // Placeholder-Position korrigieren (Achtung: startIdx offset berücksichtigen)
-      var allItems = Array.prototype.slice.call(ds.listEl.children);
-      var placeholderCurrentIdx = allItems.indexOf(ds.placeholder);
-
       // Placeholder an gewünschte Position verschieben
       if (newIdx !== ds.currentIdx) {
-        // Placeholder entfernen und neu einfügen
         ds.placeholder.remove();
 
-        // Alle sichtbaren Items (ohne hidden und placeholder)
-        var visibleItems = Array.prototype.slice.call(
-          ds.listEl.querySelectorAll('.lm-active-item:not(.lm-drag-hidden)')
-        );
-
-        if (newIdx >= visibleItems.length) {
-          // Am Ende einfügen
+        if (newIdx >= visibleEntries.length) {
           ds.listEl.appendChild(ds.placeholder);
         } else {
-          ds.listEl.insertBefore(ds.placeholder, visibleItems[newIdx]);
+          ds.listEl.insertBefore(ds.placeholder, visibleEntries[newIdx]);
         }
 
         ds.currentIdx = newIdx;
@@ -423,17 +611,12 @@
       ds.item.classList.remove('lm-drag-hidden');
       ds.listEl.classList.remove('lm-dragging');
 
-      // Store aktualisieren (nur wenn sich Position geändert hat)
-      var finalIdx = ds.currentIdx;
-      // currentIdx ist relativ zu sichtbaren Items, muss auf Gesamt-Array umgerechnet werden
-      // Da wir das hidden-Item nicht mitzählen, ist der Offset korrekt wenn startIdx < finalIdx
-      if (ds.startIdx < finalIdx) {
-        // Element wurde nach unten verschoben — finalIdx ist schon korrekt
-      }
-      // Kein Offset nötig, da reorderLayer mit absolutem Index arbeitet
-
-      if (ds.startIdx !== finalIdx) {
-        window.TnetLMStore.reorderLayer(ds.layerId, finalIdx);
+      // Neue Reihenfolge aus DOM lesen und an Store übergeben
+      if (ds.startIdx !== ds.currentIdx) {
+        var orderedIds = this._readOrderFromDOM(ds.listEl);
+        if (orderedIds.length > 0 && window.TnetLMStore && window.TnetLMStore.setActiveLayerOrder) {
+          window.TnetLMStore.setActiveLayerOrder(orderedIds);
+        }
       }
 
       _dragState = null;
@@ -452,6 +635,97 @@
     // ============================================================
     // Inkrementelle DOM-Updates
     // ============================================================
+
+    /**
+     * Liest die Layer-Reihenfolge aus der aktuellen DOM-Struktur.
+     * Gruppen-Kinder werden inline expandiert.
+     * @param {HTMLElement} listEl
+     * @returns {string[]}
+     */
+    _readOrderFromDOM: function (listEl) {
+      var orderedIds = [];
+      var entries = listEl.querySelectorAll(':scope > .lm-active-item, :scope > .lm-active-group');
+      for (var i = 0; i < entries.length; i++) {
+        var el = entries[i];
+        if (el.classList.contains('lm-active-group')) {
+          // Gruppen-Kinder in DOM-Reihenfolge
+          var children = el.querySelectorAll('.lm-active-group-child[data-layer-id]');
+          for (var c = 0; c < children.length; c++) {
+            orderedIds.push(children[c].dataset.layerId);
+          }
+        } else {
+          orderedIds.push(el.dataset.layerId);
+        }
+      }
+      return orderedIds;
+    },
+
+    /**
+     * Öffnet die Legende für eine Coalesce-Gruppe.
+     * Konstruiert die legend-proxy URL aus der Dienst-URL.
+     * @param {string} groupId
+     */
+    _openGroupLegend: function (groupId) {
+      try {
+        var store = window.TnetLMStore;
+        if (!store) return;
+        // Gruppen-Info holen — serviceUrl + groupName
+        var layers = store.getActiveLayers();
+        var coalInfo = null;
+        for (var i = 0; i < layers.length; i++) {
+          coalInfo = store.getCoalesceInfo(layers[i].id);
+          if (coalInfo && coalInfo.groupId === groupId) break;
+          coalInfo = null;
+        }
+        if (!coalInfo || !coalInfo.serviceUrl) {
+          TnetLog.warn(LOG, 'Keine serviceUrl für Gruppe:', groupId);
+          return;
+        }
+
+        var svcUrl = coalInfo.serviceUrl;
+        var legendUrl = '';
+
+        // agsproxy.php?path=<service-pfad>
+        var proxyIdx = svcUrl.indexOf('agsproxy.php?path=');
+        if (proxyIdx !== -1) {
+          var svcPath = svcUrl.substring(proxyIdx + 18);
+          // MapServer und alles danach entfernen
+          var msIdx = svcPath.indexOf('/MapServer');
+          if (msIdx !== -1) svcPath = svcPath.substring(0, msIdx);
+          legendUrl = '/maps/tnet/api/v1/legend-proxy.php?service=' + encodeURIComponent(svcPath);
+        }
+        // Fallback: /rest/services/<pfad>/MapServer
+        if (!legendUrl) {
+          var restIdx = svcUrl.indexOf('/rest/services/');
+          if (restIdx !== -1) {
+            var svcPath2 = svcUrl.substring(restIdx + 15);
+            var qIdx = svcPath2.indexOf('?');
+            if (qIdx !== -1) svcPath2 = svcPath2.substring(0, qIdx);
+            var msIdx2 = svcPath2.indexOf('/MapServer');
+            if (msIdx2 !== -1) svcPath2 = svcPath2.substring(0, msIdx2);
+            legendUrl = '/maps/tnet/api/v1/legend-proxy.php?service=' + encodeURIComponent(svcPath2);
+          }
+        }
+
+        if (!legendUrl) {
+          TnetLog.warn(LOG, 'Keine Legenden-URL konstruierbar für:', svcUrl);
+          return;
+        }
+
+        var legendTitle = coalInfo.groupName || groupId;
+
+        var am = window.njs && window.njs.AppManager;
+        if (!am) am = window.top && window.top.njs && window.top.njs.AppManager;
+        if (am && typeof am.showLegend === 'function') {
+          am.showLegend(legendUrl, legendTitle, true, undefined);
+          TnetLog.log(LOG, 'Gruppen-Legende geöffnet:', legendUrl);
+        } else {
+          window.open(legendUrl, '_blank', 'noopener');
+        }
+      } catch (e) {
+        TnetLog.error(LOG, 'Fehler beim Öffnen der Gruppen-Legende:', e);
+      }
+    },
 
     _onVisibility: function (evt) {
       if (!_container || _dragState) return;

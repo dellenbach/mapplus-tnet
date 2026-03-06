@@ -24,5 +24,8 @@
     "diffEditor.ignoreTrimWhitespace": false,
     "github.copilot.chat.codeGeneration.instructions": [
         { "file": ".github/copilot-instructions.md" }
-    ]
+    ],
+    "markdown.validate.enabled": true,
+    "json.maxItemsComputed": 7500,
+    "json5.maxItemsComputed": 7500
 }

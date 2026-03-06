@@ -1,15 +1,19 @@
 /**
- * tnet-lm.css — Styles für den neuen Layer-Manager (Mobile)
+ * tnet-lm.css — Styles für den neuen Layer-Manager (Desktop + Mobile)
  *
  * Farbschema passend zum bestehenden TOC:
  *   Tab inaktiv:  #648C96
  *   Tab aktiv:    #e8423f
- *   Level 1:      #95b5be
- *   Level 2:      #b8cdd2
- *   Level 3:      #e8f0f1
+ *   Level 1 (Subcategory): #3d6a70  (dunkel)
+ *   Level 2 (Group):       #7ba8b0  (mittel)
+ *   Level 3 (Nested):      #c5dce0  (hell)
+ *   Layer:                  #f5f8f9  (fast weiss)
  *   Akzent:       #700011
  *
- * @version 1.0
+ * Einrückung: 0px → 20px → 40px → 56px (pro Ebene ~16-20px)
+ * Linker Farbstreifen: zeigt Hierarchietiefe visuell an
+ *
+ * @version 1.1
  * @copyright Trigonet AG
  */
 
@@ -171,16 +175,19 @@
   align-items: center;
   gap: 6px;
   padding: 10px 12px;
-  background: #95b5be;
+  background: #2f5960;
   color: #fff;
   cursor: pointer;
   min-height: 44px;
   -webkit-user-select: none;
   user-select: none;
+  font-size: 14px;
+  letter-spacing: 0.2px;
+  border-left: 4px solid #1f4348;
 }
 
 .lm-subcat-header:active {
-  background: #87a9b3;
+  background: #345c61;
 }
 
 .lm-subcat-icon {
@@ -207,17 +214,18 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 9px 12px 9px 24px;
-  background: #b8cdd2;
-  color: #333;
+  padding: 9px 12px 9px 32px;
+  background: #5f8f98;
+  color: #fff;
   cursor: pointer;
-  min-height: 44px;
+  min-height: 42px;
   -webkit-user-select: none;
   user-select: none;
+  border-left: 4px solid #4a7982;
 }
 
 .lm-group-header:active {
-  background: #adc3c8;
+  background: #6d9da5;
 }
 
 .lm-group-name {
@@ -238,17 +246,18 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 8px 12px 8px 36px;
-  background: #e8f0f1;
-  color: #444;
+  padding: 8px 12px 8px 52px;
+  background: #90b7be;
+  color: #17363b;
   cursor: pointer;
   min-height: 40px;
   -webkit-user-select: none;
   user-select: none;
+  border-left: 4px solid #7fa8b0;
 }
 
 .lm-nested-header:active {
-  background: #dce8ea;
+  background: #b5d0d5;
 }
 
 .lm-nested-name {
@@ -300,10 +309,87 @@
 .lm-layer {
   display: flex;
   align-items: center;
-  padding: 6px 12px 6px 48px;
+  padding: 6px 12px 6px 68px;
   min-height: 40px;
   border-bottom: 1px solid rgba(0, 0, 0, 0.04);
-  background: #fff;
+  background: #edf4f6;
+  border-left: 4px solid #c8dade;
+}
+
+/* ============================================================
+   Depth-Stufen (dunkel → hell, jeweils eingerückt)
+   ============================================================ */
+
+.lm-subcat-header.lm-depth-1 {
+  background: #2f5960;
+  border-left-color: #1f4348;
+  color: #fff;
+  padding-left: 12px;
+}
+
+.lm-group-header.lm-depth-2 {
+  background: #5f8f98;
+  border-left-color: #4a7982;
+  color: #fff;
+  padding-left: 30px;
+}
+
+.lm-nested-header.lm-depth-3 {
+  background: #7fa8b0;
+  border-left-color: #6a959e;
+  color: #133237;
+  padding-left: 48px;
+}
+
+.lm-nested-header.lm-depth-4 {
+  background: #a3c2c9;
+  border-left-color: #8cb1b8;
+  color: #17363b;
+  padding-left: 66px;
+}
+
+.lm-nested-header.lm-depth-5 {
+  background: #c1d7dc;
+  border-left-color: #aac8ce;
+  color: #1f4045;
+  padding-left: 84px;
+}
+
+.lm-nested-header.lm-depth-6 {
+  background: #dce9ec;
+  border-left-color: #c5dde2;
+  color: #2a4e53;
+  padding-left: 102px;
+}
+
+.lm-layer.lm-depth-2 {
+  background: #e4eff1;
+  border-left-color: #cedfe3;
+  padding-left: 46px;
+}
+
+.lm-layer.lm-depth-3 {
+  background: #edf4f6;
+  border-left-color: #c8dade;
+  padding-left: 64px;
+}
+
+.lm-layer.lm-depth-4 {
+  background: #f3f8f9;
+  border-left-color: #d5e4e8;
+  padding-left: 82px;
+}
+
+.lm-layer.lm-depth-5 {
+  background: #f8fbfc;
+  border-left-color: #e2edf0;
+  padding-left: 100px;
+}
+
+.lm-layer.lm-depth-6 {
+  background: #fbfdfe;
+  border-left-color: #e9f1f3;
+  padding-left: 118px;
 }
 
 .lm-layer-label {
@@ -330,6 +416,7 @@
 
 .lm-layer.lm-active {
   background: #fef3f2;
+  border-left: 4px solid #e8423f;
 }
 
 .lm-layer.lm-active .lm-layer-name {
@@ -565,4 +652,353 @@
   width: 32px;
   text-align: right;
   flex-shrink: 0;
+}
+
+/* ============================================================
+   COALESCE-GRUPPEN im Active-Panel
+   ============================================================ */
+
+/* Gruppen-Container */
+.lm-active-group {
+  list-style: none;
+  border: 1px solid #d0dde0;
+  border-radius: 6px;
+  margin: 4px 0;
+  background: #f4f8f9;
+  overflow: hidden;
+}
+
+/* Gruppen-Header: Auge | Ordner-Icon | Name | Expand | X */
+.lm-active-group-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 8px;
+  min-height: 36px;
+  background: #e8f0f2;
+  border-bottom: 1px solid #d0dde0;
+  cursor: default;
+}
+
+.lm-active-group-icon {
+  display: flex;
+  align-items: center;
+  color: var(--m-color-primary, #4B7B81);
+  flex-shrink: 0;
+}
+
+.lm-active-group-icon .lm-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.lm-active-group-name {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 600;
+  color: #2c4a50;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lm-active-group-header .lm-eye {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+}
+
+.lm-btn-expand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  border-radius: 4px;
+  color: #6b8e95;
+  flex-shrink: 0;
+  transition: transform 0.15s ease;
+}
+
+.lm-btn-expand:hover {
+  background: rgba(75, 123, 129, 0.12);
+}
+
+.lm-btn-expand .lm-icon {
+  width: 20px;
+  height: 20px;
+  fill: currentColor;
+}
+
+/* Gruppen-Opazitäts-Slider */
+.lm-active-group > .lm-opacity-row {
+  padding: 2px 8px 4px 40px;
+  background: #e8f0f2;
+}
+
+/* Kind-Layer-Liste */
+.lm-active-group-children {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 500px;
+  overflow: hidden;
+  transition: max-height 0.2s ease;
+}
+
+/* Collapsed → Kinder ausblenden */
+.lm-active-group.lm-collapsed .lm-active-group-children {
+  max-height: 0;
+}
+
+.lm-active-group.lm-collapsed .lm-active-group-header {
+  border-bottom: none;
+}
+
+.lm-active-group.lm-collapsed > .lm-opacity-row {
+  display: none;
+}
+
+/* Einzelnes Kind-Layer */
+.lm-active-group-child {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px 4px 24px;
+  min-height: 30px;
+  border-bottom: 1px solid #edf2f3;
+}
+
+.lm-active-group-child:last-child {
+  border-bottom: none;
+}
+
+.lm-active-group-child .lm-eye {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+}
+
+.lm-active-group-child .lm-active-name {
+  font-size: 12px;
+  color: #444;
+}
+
+/* ============================================================
+   DESKTOP-SPEZIFISCHE STYLES
+   Scoping via .lm-container-desktop (wird von tnet-lm-init.js gesetzt)
+   ============================================================ */
+
+.lm-container-desktop {
+  font-size: 13px;
+}
+
+/* Tab-Bar: kompakter als Mobile (kein 44px Touch-Target nötig) */
+.lm-container-desktop .lm-tab {
+  min-height: 34px;
+  padding: 3px 0;
+}
+
+.lm-container-desktop .lm-tab-icon {
+  height: 22px;
+}
+
+/* Schweizerkreuz (Bund) etwas grösser */
+.lm-container-desktop .lm-tab:nth-child(3) .lm-tab-icon {
+  height: 28px;
+}
+
+/* Suchfeld: kompakter */
+.lm-container-desktop .lm-search-wrap {
+  padding: 5px 8px;
+  top: 40px; /* nach kleinerer Tab-Bar */
+}
+
+.lm-container-desktop .lm-search {
+  padding: 5px 30px 5px 10px;
+  font-size: 13px;
+  border-radius: 4px;
+}
+
+/* Subcategory-Header (Level 1) */
+.lm-container-desktop .lm-subcat-header {
+  min-height: 30px;
+  padding: 5px 10px;
+  font-size: 13px;
+}
+
+/* Group-Header (Level 2) */
+.lm-container-desktop .lm-group-header {
+  min-height: 28px;
+  padding: 4px 10px;
+  font-size: 12px;
+}
+
+/* Nested-Group-Header (Level 3) */
+.lm-container-desktop .lm-nested-header {
+  min-height: 26px;
+  padding: 4px 10px;
+  font-size: 12px;
+}
+
+/* Layer-Zeile (Blatt mit Checkbox) */
+.lm-container-desktop .lm-layer {
+  min-height: 26px;
+  padding: 3px 10px;
+}
+
+.lm-container-desktop .lm-subcat-header.lm-depth-1 {
+  padding-left: 10px;
+}
+
+.lm-container-desktop .lm-group-header.lm-depth-2 {
+  padding-left: 24px;
+}
+
+.lm-container-desktop .lm-nested-header.lm-depth-3 {
+  padding-left: 38px;
+}
+
+.lm-container-desktop .lm-nested-header.lm-depth-4 {
+  padding-left: 52px;
+}
+
+.lm-container-desktop .lm-nested-header.lm-depth-5 {
+  padding-left: 66px;
+}
+
+.lm-container-desktop .lm-nested-header.lm-depth-6 {
+  padding-left: 80px;
+}
+
+.lm-container-desktop .lm-layer.lm-depth-2 {
+  padding-left: 30px;
+}
+
+.lm-container-desktop .lm-layer.lm-depth-3 {
+  padding-left: 44px;
+}
+
+.lm-container-desktop .lm-layer.lm-depth-4 {
+  padding-left: 58px;
+}
+
+.lm-container-desktop .lm-layer.lm-depth-5 {
+  padding-left: 72px;
+}
+
+.lm-container-desktop .lm-layer.lm-depth-6 {
+  padding-left: 86px;
+}
+
+.lm-container-desktop .lm-cb {
+  width: 16px;
+  height: 16px;
+}
+
+.lm-container-desktop .lm-layer-name {
+  font-size: 12px;
+}
+
+/* Count-Badge */
+.lm-container-desktop .lm-count {
+  font-size: 10px;
+}
+
+/* Tree-Container: Scroll im Dojo-Sidepane.
+   Höhe wird per tnet-accordion-resize.js dynamisch gesetzt. */
+#lm-tree-container.lm-container-desktop {
+  max-height: calc(100vh - 260px);
+  min-height: 120px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* Active-Container: Scroll + Höhe per Accordion-Resize.
+   Default 300px, wird per JS-Variable --tnet-active-height überschrieben.
+   !important weil Dojo bei TitlePane-Open Inline-Styles setzt. */
+#lm-active-container.lm-container-desktop {
+  max-height: var(--tnet-active-height, 300px);
+  min-height: 80px;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+}
+
+/* ContentOuter von "Dargestellte Themen" muss auch scrollen können,
+   falls #lm-active-container noch nicht per JS begrenzt wurde. */
+#tp_sort_menu > .dijitTitlePaneContentOuter {
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+}
+
+/* Active-Panel: kompaktere Items */
+.lm-container-desktop .lm-active-row {
+  min-height: 30px;
+  gap: 4px;
+}
+
+.lm-container-desktop .lm-active-item {
+  padding: 4px 8px;
+}
+
+.lm-container-desktop .lm-active-name {
+  font-size: 12px;
+}
+
+.lm-container-desktop .lm-drag-handle {
+  min-height: 30px;
+  width: 24px;
+}
+
+.lm-container-desktop .lm-eye {
+  width: 30px;
+  height: 30px;
+}
+
+.lm-container-desktop .lm-btn-remove,
+.lm-container-desktop .lm-btn-legend {
+  width: 28px;
+  height: 28px;
+}
+
+.lm-container-desktop .lm-opacity-row {
+  padding: 1px 0 1px 24px;
+}
+
+.lm-container-desktop .lm-opacity-label {
+  font-size: 10px;
+  width: 60px;
+}
+
+/* Active-Panel Toolbar */
+.lm-container-desktop .lm-active-toolbar {
+  font-size: 12px;
+}
+
+/* Empty-State */
+.lm-container-desktop .lm-empty {
+  padding: 16px 10px;
+  font-size: 12px;
+}
+
+/* Desktop: Gruppen kompakter */
+.lm-container-desktop .lm-active-group-header {
+  min-height: 30px;
+  padding: 4px 6px;
+}
+
+.lm-container-desktop .lm-active-group-name {
+  font-size: 12px;
+}
+
+.lm-container-desktop .lm-active-group-child {
+  min-height: 26px;
+  padding: 2px 6px 2px 20px;
+}
+
+.lm-container-desktop .lm-active-group > .lm-opacity-row {
+  padding: 1px 6px 2px 36px;
 }

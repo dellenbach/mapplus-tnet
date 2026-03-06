@@ -42,6 +42,9 @@ class LayerImporter {
     /** @var int|null Import-Log-ID */
     private $logId = null;
 
+    /** @var array|null Gecachte Basis-NLS-Labels (lyrmgrResources.json) */
+    private $baseNls = null;
+
     public function __construct() {
         $this->pdo = Database::getConnection();
     }
@@ -440,6 +443,24 @@ class LayerImporter {
         $displayName  = $nodeData['name'] ?? ucwords(str_replace('_', ' ', $sourceId));
         $nodeKind     = isset($nodeData['items']) ? 'group' : 'layer';
         $openFlag     = $nodeData['open'] ?? false;
+
+        // NLS-Lookup für Subcategories und Groups (desc_<sourceId>)
+        if ($nodeKind !== 'layer') {
+            $nlsLabel = $this->getBaseNlsLabel($sourceId);
+            if ($nlsLabel) {
+                $displayName = $nlsLabel;
+            } elseif (strpos($sourceId, '/') !== false) {
+                // Pfad-basierte ID → letztes Segment lesbar formatieren
+                $parts = explode('/', $sourceId);
+                $last = end($parts);
+                $displayName = ucwords(str_replace('_', ' ', $last));
+            }
+        } elseif (strpos($sourceId, '/') !== false) {
+            // Leaf-Layer mit Pfad: letztes Segment verwenden
+            $parts = explode('/', $sourceId);
+            $last = end($parts);
+            $displayName = ucwords(str_replace('_', ' ', $last));
+        }
         $selectAll    = $nodeData['selectAll'] ?? null;
         $icon         = $nodeData['icon'] ?? ($nodeData['iconClass'] ?? null);
         $iconStyle    = $nodeData['icon_style'] ?? null;
@@ -463,19 +484,23 @@ class LayerImporter {
         $pks[] = $nodePk;
         $this->stats['nodes_upserted']++;
 
-        // Kinder rekursiv verarbeiten
+        // Kinder rekursiv verarbeiten + Layer-IDs für Coalesce-Analyse sammeln
+        $childLayerIds = []; // Sammelt die layer_ids aller direkten Kind-Layer
         if (isset($nodeData['items']) && is_array($nodeData['items'])) {
             $childIdx = 0;
             foreach ($nodeData['items'] as $childKey => $childData) {
                 $childIdx++;
                 if (is_string($childData)) {
-                    // Einfache Layer-Referenz (String)
+                    // Einfache Layer-Referenz (String) — lesbaren Namen aus letztem Pfad-Segment
+                    $leafParts = explode('/', $childData);
+                    $leafName = ucwords(str_replace('_', ' ', end($leafParts)));
                     $childPks = $this->upsertCatalogSubtree(
                         $profileId, $categoryId, $nodePk,
-                        $childData, ['name' => ucwords(str_replace(['_', '/'], [' ', ' / '], basename($childData)))],
+                        $childData, ['name' => $leafName],
                         $childIdx, $pathText
                     );
                     $pks = array_merge($pks, $childPks);
+                    $childLayerIds[] = $childData; // Layer-ID für Coalesce
                 } elseif (is_array($childData) && isset($childData['name'])) {
                     // Benannter Node (Gruppe oder Layer mit Metadaten)
                     $childSourceId = $childData['name'];
@@ -484,6 +509,10 @@ class LayerImporter {
                         $childSourceId, $childData, $childIdx, $pathText
                     );
                     $pks = array_merge($pks, $childPks);
+                    // Nur wenn es ein einfacher Layer ist (kein items)
+                    if (!isset($childData['items'])) {
+                        $childLayerIds[] = $childSourceId;
+                    }
                 } elseif (is_array($childData) && isset($childData['items'])) {
                     // Gruppe mit numerischem Key
                     $childSourceId = is_string($childKey) ? $childKey : ('group_' . $childIdx);
@@ -493,6 +522,29 @@ class LayerImporter {
                     );
                     $pks = array_merge($pks, $childPks);
                 }
+            }
+        }
+
+        // Coalesce-Analyse: Haben alle direkten Kind-Layer die gleiche URL?
+        if ($nodeKind !== 'layer' && count($childLayerIds) >= 2) {
+            try {
+                $coalesceInfo = $this->analyzeCoalesceGroup($childLayerIds);
+                if ($coalesceInfo['serviceUrl']) {
+                    // Gruppen-Node mit service_url und coalesce_group aktualisieren
+                    $updCoalesce = $this->pdo->prepare("
+                        UPDATE mapplusconf.catalog_node
+                        SET service_url = ?, coalesce_group = ?
+                        WHERE node_pk = ?
+                    ");
+                    $updCoalesce->execute([
+                        $coalesceInfo['serviceUrl'],
+                        $coalesceInfo['coalesceGroup'],
+                        $nodePk
+                    ]);
+                }
+            } catch (\Throwable $e) {
+                // Coalesce-Analyse nicht fatal — Gruppe funktioniert auch ohne
+                $this->stats['errors'][] = 'Coalesce-Analyse für ' . $sourceId . ': ' . $e->getMessage();
             }
         }
 
@@ -518,7 +570,9 @@ class LayerImporter {
         ?string $legend,
         int     $sortIdx,
         string  $pathText,
-        ?string $layerId
+        ?string $layerId,
+        ?string $serviceUrl = null,
+        ?string $coalesceGroup = null
     ): int {
         // Prüfe ob FK layer_id existiert
         if ($layerId) {
@@ -555,6 +609,7 @@ class LayerImporter {
                     category_id = ?, node_kind = ?, display_name = ?,
                     open_flag = ?, select_all = ?, icon = ?, icon_style = ?,
                     legend = ?, sort_idx = ?, path_text = ?, layer_id = ?,
+                    service_url = ?, coalesce_group = ?,
                     updated_at = now()
                 WHERE node_pk = ?
             ");
@@ -563,6 +618,7 @@ class LayerImporter {
                 $openFlag ? 'true' : 'false',
                 $selectAll !== null ? ($selectAll ? 'true' : 'false') : null,
                 $icon, $iconStyle, $legend, $sortIdx, $pathText, $layerId,
+                $serviceUrl, $coalesceGroup,
                 $existing['node_pk']
             ]);
             return (int) $existing['node_pk'];
@@ -573,8 +629,9 @@ class LayerImporter {
                 INSERT INTO mapplusconf.catalog_node (
                     profile_id, category_id, parent_node_pk, node_kind,
                     source_id, display_name, open_flag, select_all,
-                    icon, icon_style, legend, sort_idx, path_text, layer_id
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    icon, icon_style, legend, sort_idx, path_text, layer_id,
+                    service_url, coalesce_group
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 RETURNING node_pk
             ");
             $ins->execute([
@@ -582,7 +639,8 @@ class LayerImporter {
                 $sourceId, $displayName,
                 $openFlag ? 'true' : 'false',
                 $selectAll !== null ? ($selectAll ? 'true' : 'false') : null,
-                $icon, $iconStyle, $legend, $sortIdx, $pathText, $layerId
+                $icon, $iconStyle, $legend, $sortIdx, $pathText, $layerId,
+                $serviceUrl, $coalesceGroup
             ]);
             $row = $ins->fetch();
             return (int) $row['node_pk'];
@@ -787,6 +845,137 @@ class LayerImporter {
     private function getNlsPath(): ?string {
         $path = realpath(__DIR__ . '/../../../../core/nls/de');
         return ($path && is_dir($path)) ? $path : null;
+    }
+
+    /**
+     * Lädt und cached die Basis-NLS-Labels (lyrmgrResources.json)
+     * und gibt den Display-Namen für einen Schlüssel zurück.
+     * 
+     * @param string $key  Schlüssel (z.B. 'grundlagen', 'oereb')
+     * @return string|null NLS-Label oder null
+     */
+    private function getBaseNlsLabel(string $key): ?string {
+        if ($this->baseNls === null) {
+            $nlsPath = $this->getNlsPath();
+            if ($nlsPath) {
+                $file = $nlsPath . '/lyrmgrResources.json';
+                $this->baseNls = file_exists($file)
+                    ? (json_decode(file_get_contents($file), true) ?: [])
+                    : [];
+            } else {
+                $this->baseNls = [];
+            }
+        }
+        return $this->baseNls['desc_' . $key] ?? null;
+    }
+
+    // =========================================================================
+    // Coalesce-Analyse
+    // =========================================================================
+
+    /**
+     * Prüft ob alle übergebenen Kind-Layer die gleiche MapServer-URL haben.
+     * Falls ja, wird die gemeinsame URL und ein abgeleiteter Coalesce-Key
+     * zurückgegeben; andernfalls null-Werte.
+     *
+     * @param  string[] $childLayerIds  Layer-IDs der direkten Kind-Layer
+     * @return array{serviceUrl: ?string, coalesceGroup: ?string}
+     */
+    private function analyzeCoalesceGroup(array $childLayerIds): array
+    {
+        $result = ['serviceUrl' => null, 'coalesceGroup' => null];
+
+        if (count($childLayerIds) < 2) {
+            return $result;
+        }
+
+        // URLs aller Kind-Layer aus layer_definition abfragen
+        $placeholders = implode(',', array_fill(0, count($childLayerIds), '?'));
+        $stmt = $this->pdo->prepare("
+            SELECT layer_id, url
+            FROM mapplusconf.layer_definition
+            WHERE layer_id IN ($placeholders)
+        ");
+        $stmt->execute(array_values($childLayerIds));
+        $rows = $stmt->fetchAll(\PDO::FETCH_KEY_PAIR);  // layer_id => url
+
+        // Nur weitermachen wenn wirklich alle Kind-Layer gefunden wurden
+        if (count($rows) < count($childLayerIds)) {
+            return $result;
+        }
+
+        // Basis-URLs extrahieren (ohne query_layers-Parameter etc.)
+        $baseUrls = [];
+        foreach ($rows as $layerId => $url) {
+            if ($url === null || $url === '') {
+                return $result; // Keine URL → kein Coalesce möglich
+            }
+            $base = $this->extractServiceBaseUrl($url);
+            if ($base === null) {
+                return $result; // Nicht parsebar → kein Coalesce
+            }
+            $baseUrls[$layerId] = $base;
+        }
+
+        // Prüfe ob alle Basis-URLs identisch sind
+        $uniqueUrls = array_unique(array_values($baseUrls));
+        if (count($uniqueUrls) !== 1) {
+            return $result; // Verschiedene Services → kein Coalesce
+        }
+
+        $commonUrl = $uniqueUrls[0];
+        $coalesceKey = $this->extractCoalesceKey($commonUrl);
+
+        $result['serviceUrl']     = $commonUrl;
+        $result['coalesceGroup']  = $coalesceKey;
+        return $result;
+    }
+
+    /**
+     * Extrahiert die Basis-URL eines MapServer-Dienstes.
+     * Entfernt query_layers, show-Parameter und Trailing-Slashes.
+     *
+     * Beispiel: "agsproxy.php?path=gis_basis/nw_basisplan_gis_dynamisch/MapServer"
+     *        → "agsproxy.php?path=gis_basis/nw_basisplan_gis_dynamisch/MapServer"
+     *
+     * @param  string $url  Volle URL aus layer_definition
+     * @return string|null  Basis-URL oder null falls nicht parsebar
+     */
+    private function extractServiceBaseUrl(?string $url): ?string
+    {
+        if ($url === null || $url === '') return null;
+        // AGS-Proxy-URLs: agsproxy.php?path=.../MapServer[/...]
+        if (preg_match('#(agsproxy\.php\?path=[^&]+/MapServer)#i', $url, $m)) {
+            return $m[1];
+        }
+        // Direkte ArcGIS-URLs: https://.../MapServer[/...]
+        if (preg_match('#(https?://[^?]+/MapServer)#i', $url, $m)) {
+            return $m[1];
+        }
+        // WMS-URLs: alles vor dem ?
+        if (preg_match('#^(https?://[^?]+)\?#', $url, $m)) {
+            return $m[1];
+        }
+        return null;
+    }
+
+    /**
+     * Extrahiert einen kurzen, lesbaren Coalesce-Key aus einer MapServer-URL.
+     *
+     * Beispiel: "agsproxy.php?path=gis_basis/nw_basisplan_gis_dynamisch/MapServer"
+     *        → "nw_basisplan_gis_dynamisch"
+     *
+     * @param  string $url  Basis-URL des MapServer-Dienstes
+     * @return string       Coalesce-Key (Service-Name)
+     */
+    private function extractCoalesceKey(string $url): string
+    {
+        // Versuch: letztes Pfad-Segment vor /MapServer
+        if (preg_match('#/([^/]+)/MapServer#i', $url, $m)) {
+            return $m[1];
+        }
+        // Fallback: MD5-Hash der URL (eindeutig, aber weniger lesbar)
+        return 'coalesce_' . substr(md5($url), 0, 8);
     }
 
     // =========================================================================

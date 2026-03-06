@@ -566,9 +566,15 @@ $queryParams = $_GET;
 unset($queryParams['path']);
 $queryParams = array_merge($embeddedParams, $queryParams);
 
-// Auto-Parameter für Identify/Query
-$queryParams['distance'] = 1.0;
-$queryParams['units'] = 'esriSRUnit_Meter';
+// Auto-Parameter für Identify/Query — nur als Default setzen, NICHT überschreiben.
+// queryconnector() sendet eigene distance (= viewResolution * tolerance), z.B. 200m.
+// Wenn wir hier immer 1.0 erzwingen, werden fast keine Features gefunden.
+if (!isset($queryParams['distance'])) {
+    $queryParams['distance'] = 1.0;
+}
+if (!isset($queryParams['units'])) {
+    $queryParams['units'] = 'esriSRUnit_Meter';
+}
 
 // POST-Body einlesen
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';

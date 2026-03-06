@@ -128,6 +128,25 @@
             setLevel(config.logLevel);
           }
           window.TnetGlobalLogLevel = config.logLevel || 'warn';
+
+          // Layer-Manager Feature-Flags auf window exponieren,
+          // damit tnet_toc.js, tnet-catalog-filter.js und tnet-accordion-resize.js
+          // synchron prüfen können ob sie aktiv sein sollen (ohne eigenen Config-Fetch).
+          var lm = config.layerManager || {};
+          var useLegacyNestedHierarchyStyle = !!(
+            lm.useLegacyNestedHierarchyStyle ||
+            lm.useExtendedLegacyHierarchy ||
+            lm.legacyNestedHierarchyStyle
+          );
+          window.__tnetLMFlags = {
+            useNewActivePanel: !!(lm.useNewActivePanel || lm.useNew),
+            useNewTree: !!lm.useNewTree,
+            useNewWmsPanel: !!lm.useNewWmsPanel,
+            useLegacyNestedHierarchyStyle: useLegacyNestedHierarchyStyle
+          };
+
+          window.TnetGlobalConfig = config;
+
           _configLoaded = true;
           break; // Erfolg — Schleife verlassen
         }

@@ -1223,13 +1223,9 @@
   min-height: 0;
 }
 
-/* Während ÖREB-Modus: Freepane/MapTips komplett deaktivieren (analog drawing-mode) */
-body.oereb-mode #freepane {
-  pointer-events: none !important;
-}
-body.oereb-mode #freepane * {
-  pointer-events: none !important;
-}
+/* Während ÖREB-Modus: Nur Maptip-Popups deaktivieren, Sidepanel/Layermanager bleibt bedienbar.
+   NICHT analog drawing-mode: ÖREB braucht kein DOM-Event-Blocking auf #freepane,
+   da der Klick-Listener direkt auf dem OL-Map-Objekt registriert ist. */
 /* ÖREB Dock-Panel bleibt bedienbar */
 .oereb-dock-panel {
   pointer-events: auto !important;

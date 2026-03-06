@@ -12,6 +12,13 @@
 (function () {
   'use strict';
 
+  // Wenn neuer Themenkatalog-Baum aktiv → Filter überflüssig
+  // (tnet-lm-tree.js hat eigene Inline-Suche)
+  if (window.__tnetLMFlags && window.__tnetLMFlags.useNewTree) {
+    console.log('[tnet-catalog-filter.js] Neuer Layer-Manager-Tree aktiv → übersprungen');
+    return;
+  }
+
   // ===== KONFIGURATION =====
   var FILTER_DEBOUNCE = 200;
   var HIDDEN_CLASS = 'tnet-filter-hidden';

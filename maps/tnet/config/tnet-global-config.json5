@@ -184,10 +184,33 @@
   // ============================================================
   layerManager: {
     _description: "Eigener Layer-Manager als Ersatz für den Dojo-basierten TOC",
-    // Feature-Flag: neuen Layer-Manager verwenden? (false = Dojo-TOC)
-    useNew: true,
+
+    // Feature-Flag: neues Active-Panel (Dargestellte Themen) verwenden?
+    // true = neues Drag&Drop-Panel | false = Legacy njs_main_lyrsorter_wrapper
+    useNewActivePanel: true,
+
+    // Feature-Flag: neuen Themenkatalog-Baum verwenden?
+    // true = TNET-Tree mit Wappen-Tabs + Suche | false = Legacy Dojo-Baum (kantons_container)
+    // HINWEIS: Legacy-Tree bleibt im Hintergrund geladen (Parallel-Betrieb),
+    // damit Feature-Edit-Tools und andere Werkzeuge weiterhin funktionieren.
+    useNewTree: true,
+
+    // Feature-Flag: Legacy-WMS-TitlePane (#tp_wms_menu) ausblenden?
+    // true = versteckt (neues WMS-Panel im Hamburger-Menü aktiv)
+    // false = Legacy WMS-TitlePane in Sidebar sichtbar
+    useNewWmsPanel: true,
+
     // API-Endpoint für Layer-Katalog (Hierarchie)
     apiUrl: '/maps/tnet/api/v1/layers.php',
+    // Legacy Dojo-LayerManager: zusätzliche Hierarchiestufen optisch hervorheben?
+    // true = dunkler→heller Verlauf + Einrückung für data-lyrmgr-depth
+    // false = keine speziellen Nested-Hierarchie-CSS-Regeln
+    useLegacyNestedHierarchyStyle: true,
+    // Coalesce-Framework-Bridge aktivieren (MapTip, URL-State, Dojo-Sync)
+    // MUSS aktiv sein, damit Maptips für Coalesce-Layer funktionieren
+    coalesceFrameworkBridge: true,
+    // Debounce-Verzögerung (ms) beim schnellen Aktivieren mehrerer Sublayer
+    coalesceDebounceMs: 80,
     // Debug-Modus (erweiterte Console-Ausgabe)
     debug: true,
   },

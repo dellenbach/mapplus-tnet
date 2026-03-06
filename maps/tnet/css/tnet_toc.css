@@ -805,8 +805,10 @@
 /* Ebene 2: tabs2acc-header (ÖREB, RAUMENTWICKLUNG, etc.) - bereits definiert oben */
 /* background: linear-gradient(to bottom, #a8c4cc 0%, #95b5be 100%); */
 
-/* Ebene 3: Innere TitlePanes (RAUMPLANUNG, etc.) */
-#kantons_container .dijitTitlePane .dijitTitlePane .dijitTitlePaneTitle,
+/* Ebene 3: Innere TitlePanes (RAUMPLANUNG, etc.)
+   WICHTIG: Nur anwenden wenn KEIN data-lyrmgr-depth gesetzt ist!
+   Bei gesetztem Attribut übernimmt override.css die Hierarchie-Farben. */
+#kantons_container .dijitTitlePane .dijitTitlePane:not([data-lyrmgr-depth]) > .dijitTitlePaneTitle,
 .tabs2acc-panel .dijitTitlePane .dijitTitlePaneTitle {
   background: #b8cdd2 !important;
   border-left: 3px solid #4b7b81 !important;
@@ -815,13 +817,13 @@
 }
 
 .tabs2acc-panel .dijitTitlePane .dijitTitlePaneTitle .dijitTitlePaneTextNode,
-#kantons_container .dijitTitlePane .dijitTitlePane .dijitTitlePaneTitle .dijitTitlePaneTextNode {
+#kantons_container .dijitTitlePane .dijitTitlePane:not([data-lyrmgr-depth]) > .dijitTitlePaneTitle .dijitTitlePaneTextNode {
   color: #3d5a5f !important;
   font-size: 12px !important;
 }
 
 .tabs2acc-panel .dijitTitlePane .dijitTitlePaneTitle .dijitArrowNodeInner,
-#kantons_container .dijitTitlePane .dijitTitlePane .dijitTitlePaneTitle .dijitArrowNodeInner {
+#kantons_container .dijitTitlePane .dijitTitlePane:not([data-lyrmgr-depth]) > .dijitTitlePaneTitle .dijitArrowNodeInner {
   color: #3d5a5f !important;
 }
 
