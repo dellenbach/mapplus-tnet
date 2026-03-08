@@ -1037,7 +1037,7 @@ function initInfoPaneEnhancements() {
         var clipboardBtn = document.createElement('button');
         clipboardBtn.className = 'info-pane-btn';
         clipboardBtn.title = 'In Zwischenablage kopieren';
-        clipboardBtn.innerHTML = '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M19 21H8V7h11m0-2H8a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2m-3-4H4a2 2 0 0 0-2 2v14h2V3h12V1Z"/></svg>';
+        clipboardBtn.innerHTML = TnetIcons.get('clipboard');
         clipboardBtn.onmousedown = function(e) { e.stopPropagation(); };
         clipboardBtn.onclick = function(e) {
             e.stopPropagation();
@@ -1049,7 +1049,7 @@ function initInfoPaneEnhancements() {
         dockBtn.className = 'info-pane-btn';
         dockBtn.id = 'info-pane-dock-btn';
         dockBtn.title = 'Rechts andocken';
-        dockBtn.innerHTML = '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16h-4V5h4v14z"/></svg>';
+        dockBtn.innerHTML = TnetIcons.get('dock');
         dockBtn.onmousedown = function(e) { e.stopPropagation(); };
         dockBtn.onclick = function(e) {
             e.stopPropagation();
@@ -1060,7 +1060,7 @@ function initInfoPaneEnhancements() {
         var closeBtn = document.createElement('button');
         closeBtn.className = 'info-pane-btn info-pane-close';
         closeBtn.title = 'Schließen';
-        closeBtn.innerHTML = '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/></svg>';
+        closeBtn.innerHTML = TnetIcons.get('close');
         closeBtn.onmousedown = function(e) { e.stopPropagation(); };
         closeBtn.onclick = function(e) {
             e.stopPropagation();
@@ -1576,7 +1576,7 @@ window.toggleInfoPaneDock = function() {
         
         if (dockBtn) {
             dockBtn.title = 'Rechts andocken';
-            dockBtn.innerHTML = '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16h-4V5h4v14z"/></svg>';
+            dockBtn.innerHTML = TnetIcons.get('dock');
         }
         isInfoPaneDocked = false;
     } else {
@@ -1625,7 +1625,7 @@ window.toggleInfoPaneDock = function() {
         
         if (dockBtn) {
             dockBtn.title = 'Floating';
-            dockBtn.innerHTML = '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M19 11h-8v6h8v-6zm4 8V4.98C23 3.88 22.1 3 21 3H3c-1.1 0-2 .88-2 1.98V19c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2zm-2 .02H3V4.97h18v14.05z"/></svg>';
+            dockBtn.innerHTML = TnetIcons.get('undock');
         }
         isInfoPaneDocked = true;
     }
@@ -1776,7 +1776,7 @@ function initLegendPaneEnhancements() {
             dockBtn.id = 'legend-pane-dock-btn';
             dockBtn.className = 'legend-pane-btn';
             dockBtn.title = 'Rechts andocken';
-            dockBtn.innerHTML = '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16h-4V5h4v14z"/></svg>';
+            dockBtn.innerHTML = TnetIcons.get('dock');
             dockBtn.onmousedown = function(e) { e.stopPropagation(); };
             dockBtn.onclick = function(e) {
                 e.stopPropagation();
@@ -1789,7 +1789,7 @@ function initLegendPaneEnhancements() {
         var closeBtn = document.createElement('button');
         closeBtn.className = 'legend-pane-btn legend-pane-close';
         closeBtn.title = 'Schliessen';
-        closeBtn.innerHTML = '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/></svg>';
+        closeBtn.innerHTML = TnetIcons.get('close');
         closeBtn.onmousedown = function(e) { e.stopPropagation(); };
         closeBtn.onclick = function(e) {
             e.stopPropagation();
@@ -2072,7 +2072,7 @@ function initLegendPaneResize(pane) {
 
             if (dockBtn) {
                 dockBtn.title = 'Rechts andocken';
-                dockBtn.innerHTML = '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16h-4V5h4v14z"/></svg>';
+                dockBtn.innerHTML = TnetIcons.get('dock');
             }
             window._isLegendPaneDocked = false;
 
@@ -2135,7 +2135,7 @@ function initLegendPaneResize(pane) {
 
             if (dockBtn) {
                 dockBtn.title = 'Floating';
-                dockBtn.innerHTML = '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M19 11h-8v6h8v-6zm4 8V4.98C23 3.88 22.1 3 21 3H3c-1.1 0-2 .88-2 1.98V19c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2zm-2 .02H3V4.97h18v14.05z"/></svg>';
+                dockBtn.innerHTML = TnetIcons.get('undock');
             }
             window._isLegendPaneDocked = true;
         }

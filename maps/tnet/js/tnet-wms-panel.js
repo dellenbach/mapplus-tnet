@@ -107,7 +107,7 @@
 
     if (dockBtn) {
       dockBtn.title = 'Floating';
-      dockBtn.innerHTML = '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M19 11h-8v6h8v-6zm4 8V4.98C23 3.88 22.1 3 21 3H3c-1.1 0-2 .88-2 1.98V19c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2zm-2 .02H3V4.97h18v14.05z"/></svg>';
+      dockBtn.innerHTML = TnetIcons.get('undock');
     }
 
     _isWmsDocked = true;
@@ -143,7 +143,7 @@
 
     if (dockBtn) {
       dockBtn.title = 'Rechts andocken';
-      dockBtn.innerHTML = '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16h-4V5h4v14z"/></svg>';
+      dockBtn.innerHTML = TnetIcons.get('dock');
     }
 
     _isWmsDocked = false;
@@ -363,7 +363,7 @@
       var legendBtn = document.createElement('button');
       legendBtn.className = 'wms-layer-action-btn wms-layer-legend-btn';
       legendBtn.title = 'Legende anzeigen';
-      legendBtn.innerHTML = '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm-1 7V3.5L18.5 9H13zM6 20V4h5v5c0 .55.45 1 1 1h6v10H6z"/><rect fill="currentColor" x="8" y="13" width="8" height="1.5" rx=".5"/><rect fill="currentColor" x="8" y="16" width="5" height="1.5" rx=".5"/></svg>';
+      legendBtn.innerHTML = TnetIcons.get('legend');
       (function(l) {
         legendBtn.onclick = function(e) {
           e.stopPropagation();
@@ -377,7 +377,7 @@
         var zoomBtn = document.createElement('button');
         zoomBtn.className = 'wms-layer-action-btn';
         zoomBtn.title = 'Auf Layer zoomen';
-        zoomBtn.innerHTML = '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zM5 9.5C5 7.01 7.01 5 9.5 5S14 7.01 14 9.5 11.99 14 9.5 14 5 11.99 5 9.5z"/></svg>';
+        zoomBtn.innerHTML = TnetIcons.get('zoom');
         zoomBtn.onclick = function(e) {
           e.stopPropagation();
           _zoomToLayer(layer);
@@ -710,7 +710,7 @@
       var legendBtn = document.createElement('button');
       legendBtn.className = 'wms-added-legend';
       legendBtn.title = 'Legende anzeigen';
-      legendBtn.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm-1 7V3.5L18.5 9H13zM6 20V4h5v5c0 .55.45 1 1 1h6v10H6z"/><rect fill="currentColor" x="8" y="13" width="8" height="1.5" rx=".5"/><rect fill="currentColor" x="8" y="16" width="5" height="1.5" rx=".5"/></svg>';
+      legendBtn.innerHTML = TnetIcons.get('legend', null, {width: '16', height: '16'});
       (function(e) {
         legendBtn.onclick = function() {
           _showWmsLegend(e.name, e.title, e.legendUrl);

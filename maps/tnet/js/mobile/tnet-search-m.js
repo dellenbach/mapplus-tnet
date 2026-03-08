@@ -22,6 +22,7 @@
     var lastQuery    = '';
     var featureHighlightLayer = null;
     var _searchZoomConfig = null;   // aus tnet-global-config.json5 geladen
+    var _searchLimits = {};          // {maxAddresses, maxLocations, maxLayers} aus Config
     var _resultCache = new Map();   // Client-Cache: query-key → {data, ts}
     var _CACHE_TTL   = 300000;      // 5 min (ms)
     var _CACHE_MAX   = 50;          // max Einträge
@@ -512,6 +513,10 @@
         }
         var scope = scopes.join(',');
         var url = PROXY_URL + '?q=' + encodeURIComponent(query) + '&limit=8';
+        // Resultat-Limits aus Konfiguration übergeben
+        if (_searchLimits.maxAddresses) url += '&maxAddr=' + _searchLimits.maxAddresses;
+        if (_searchLimits.maxLocations) url += '&maxLoc='  + _searchLimits.maxLocations;
+        if (_searchLimits.maxLayers)    url += '&maxLay='  + _searchLimits.maxLayers;
         if (canton) url += '&canton=' + encodeURIComponent(canton);
         if (scope)  url += '&scope='  + encodeURIComponent(scope);
         if (mode)   url += '&mode='   + encodeURIComponent(mode);
@@ -712,6 +717,15 @@
                     if (parsed && parsed.search && parsed.search.zoom) {
                         _searchZoomConfig = parsed.search.zoom;
                         console.log('[MobileSearch] Zoom-Config geladen:', _searchZoomConfig);
+                    }
+                    // Resultat-Limits laden
+                    if (parsed && parsed.search) {
+                        _searchLimits = {
+                            maxAddresses: parsed.search.maxAddresses || 0,
+                            maxLocations: parsed.search.maxLocations || 0,
+                            maxLayers:    parsed.search.maxLayers    || 0,
+                        };
+                        console.log('[MobileSearch] Resultat-Limits geladen:', _searchLimits);
                     }
                 })
                 .catch(function () { return tryPath(i + 1); });

@@ -13,18 +13,9 @@ LOCAL_BASE = r"c:\_Daten\mapplus-exp\maps"
 
 # Files to upload
 FILES = [
+    # Fix: Coalesce-Erkennung nur fuer ArcGIS MapServer, nicht WMS
     "tnet/js/tnet-lm-store.js",
-    "tnet/js/tnet-info-panel.js",
-    "tnet/js/tnet-coalesce-bridge.js",
-    "tnet/js/tnet-lyrmgr-patch.js",
-    "tnet/js/tnet-lm-tree.js",
-    "tnet/js/tnet-accordion-resize.js",
-    "tnet/js/tnet-wms-panel.js",
-    "tnet/js/tnet-info-bridge.js",
-    "tnet/js/tnet-mapplus-helpers.js",
-    "public/index_de.htm",
-    "public/index_de_m.htm",
-    "public/css/override.css",
+    "tnet/api/includes/LayerImporter.php",
 ]
 
 def upload_files():

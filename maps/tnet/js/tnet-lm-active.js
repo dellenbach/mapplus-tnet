@@ -23,21 +23,26 @@
   // ── Coalesce-Gruppen Expand-State ──
   var _groupExpanded = {}; // groupId → boolean (default: true = aufgeklappt)
 
-  // SVG-Icons (inline, kein externer Sprite)
-  var ICON = {
-    eyeOn: '<svg class="lm-icon" viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>',
-    eyeOff: '<svg class="lm-icon" viewBox="0 0 24 24"><path d="M12 7c2.76 0 5 2.24 5 5 0 .65-.13 1.26-.36 1.83l2.92 2.92c1.51-1.26 2.7-2.89 3.43-4.75-1.73-4.39-6-7.5-11-7.5-1.4 0-2.74.25-3.98.7l2.16 2.16C10.74 7.13 11.35 7 12 7zM2 4.27l2.28 2.28.46.46C3.08 8.3 1.78 10.02 1 12c1.73 4.39 6 7.5 11 7.5 1.55 0 3.03-.3 4.38-.84l.42.42L19.73 22 21 20.73 3.27 3 2 4.27zM7.53 9.8l1.55 1.55c-.05.21-.08.43-.08.65 0 1.66 1.34 3 3 3 .22 0 .44-.03.65-.08l1.55 1.55c-.67.33-1.41.53-2.2.53-2.76 0-5-2.24-5-5 0-.79.2-1.53.53-2.2zm4.31-.78l3.15 3.15.02-.16c0-1.66-1.34-3-3-3l-.17.01z"/></svg>',
-    drag: '<svg class="lm-icon lm-icon-drag" viewBox="0 0 24 24"><path d="M3 15h18v-2H3v2zm0 4h18v-2H3v2zm0-8h18V9H3v2zm0-6v2h18V5H3z"/></svg>',
-    remove: '<svg class="lm-icon" viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>',
-    legend: '<svg class="lm-icon" viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm-1 7V3.5L18.5 9H13zM6 20V4h5v5c0 .55.45 1 1 1h6v10H6z"/><rect x="8" y="13" width="8" height="1.5" rx=".5"/><rect x="8" y="16" width="5" height="1.5" rx=".5"/></svg>',
-    expand: '<svg class="lm-icon" viewBox="0 0 24 24"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>',
-    collapse: '<svg class="lm-icon" viewBox="0 0 24 24"><path d="M16.59 8.59L12 13.17 7.41 8.59 6 10l6 6 6-6z"/></svg>',
-    group: '<svg class="lm-icon" viewBox="0 0 24 24"><path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10z"/></svg>'
-  };
+  // SVG-Icons — geladen via TnetIcons (externe .svg Dateien)
+  // Werden in _initIcons() befüllt nachdem TnetIcons.loadAll() abgeschlossen ist
+  var ICON = {};
+
+  function _initIcons() {
+    ICON.eyeOn    = TnetIcons.get('eye-on', 'lm-icon');
+    ICON.eyeOff   = TnetIcons.get('eye-off', 'lm-icon');
+    ICON.drag     = TnetIcons.get('drag-handle', 'lm-icon lm-icon-drag');
+    ICON.remove   = TnetIcons.get('close', 'lm-icon');
+    ICON.legend   = TnetIcons.get('legend', 'lm-icon');
+    ICON.expand   = TnetIcons.get('chevron-right', 'lm-icon');
+    ICON.collapse = TnetIcons.get('chevron-down', 'lm-icon');
+    ICON.group    = TnetIcons.get('folder', 'lm-icon');
+    ICON.trash    = TnetIcons.get('trash', 'lm-icon');
+  }
 
   var LMActive = {
 
     init: function (containerId) {
+      _initIcons();
       _container = document.getElementById(containerId);
       if (!_container) {
         TnetLog.error(LOG, 'Container #' + containerId + ' nicht gefunden');
@@ -100,7 +105,7 @@
       var html = '<div class="lm-active-toolbar">';
       html += '<span class="lm-active-count">' + totalLayers + ' Themen</span>';
       html += '<button class="lm-btn-remove-all" data-action="remove-all" title="Alle Themen entfernen">';
-      html += '<svg class="lm-icon" viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>';
+      html += ICON.trash;
       html += ' Alle entfernen</button>';
       html += '</div>';
       html += '<ul class="lm-active-list">';

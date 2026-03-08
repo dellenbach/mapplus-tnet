@@ -22,6 +22,11 @@
   var _currentFilter = '';
 
   /** Wappen-/Icon-Mapping */
+  // SVG Legend-Icon (Farbquadrate mit Linien) — geladen via TnetIcons
+  function getLegendIconSvg() {
+    return TnetIcons.get('legend-colors', null, {width: '14', height: '14', style: 'vertical-align:-2px'});
+  }
+
   var CATEGORY_ICONS = {
     'nidwalden': { label: 'NW', wappen: '/maps/tnet/resources/wappen_nidwalden.svg' },
     'obwalden':  { label: 'OW', wappen: '/maps/tnet/resources/wappen_obwalden.svg' },
@@ -160,11 +165,19 @@
       var count = this._countLeaves(layers);
       var isExpanded = group.open === true || group.expanded === true;
       var stateClass = isExpanded ? ' lm-expanded' : ' lm-collapsed';
+      var hasSelectAll = group.selectAll === true;
+      var hasLegend = group.legend && group.legend !== '';
       var html = '';
       html += '<div class="lm-group' + stateClass + ' lm-depth-' + normalizedDepth + '" data-group-id="' + esc(group.id) + '" data-lm-depth="' + normalizedDepth + '">';
       html += '<div class="lm-group-header lm-depth-' + normalizedDepth + '" data-action="toggle-group" data-lm-depth="' + normalizedDepth + '">';
       html += '<span class="lm-arrow">▶</span>';
+      if (hasSelectAll) {
+        html += '<input type="checkbox" class="lm-group-cb" data-action="select-all" data-group-id="' + esc(group.id) + '" title="Alle Layer ein-/ausschalten">';
+      }
       html += '<span class="lm-group-name">' + esc(group.name) + '</span>';
+      if (hasLegend) {
+        html += '<button class="lm-legend-btn" data-action="open-legend" data-legend-key="' + esc(group.legend) + '" title="Legende anzeigen">' + getLegendIconSvg() + '</button>';
+      }
       html += '<span class="lm-count">' + count + '</span>';
       html += '</div>';
       html += '<div class="lm-group-body">';
@@ -183,11 +196,19 @@
         var count = this._countLeaves(item.layers);
         var isExpanded = item.open === true || item.expanded === true;
         var stateClass = isExpanded ? ' lm-expanded' : ' lm-collapsed';
+        var hasSelectAll = item.selectAll === true;
+        var hasLegend = item.legend && item.legend !== '';
         var html = '';
         html += '<div class="lm-nested-group' + stateClass + ' lm-depth-' + normalizedDepth + '" data-group-id="' + esc(item.id) + '" data-lm-depth="' + normalizedDepth + '">';
         html += '<div class="lm-nested-header lm-depth-' + normalizedDepth + '" data-action="toggle-group" data-lm-depth="' + normalizedDepth + '">';
         html += '<span class="lm-arrow">▶</span>';
+        if (hasSelectAll) {
+          html += '<input type="checkbox" class="lm-group-cb" data-action="select-all" data-group-id="' + esc(item.id) + '" title="Alle Layer ein-/ausschalten">';
+        }
         html += '<span class="lm-nested-name">' + esc(item.name) + '</span>';
+        if (hasLegend) {
+          html += '<button class="lm-legend-btn" data-action="open-legend" data-legend-key="' + esc(item.legend) + '" title="Legende anzeigen">' + getLegendIconSvg() + '</button>';
+        }
         html += '<span class="lm-count">' + count + '</span>';
         html += '</div>';
         html += '<div class="lm-nested-body">';
@@ -205,12 +226,19 @@
       var normalizedDepth = this._clampDepth(depth);
       var checked = layer.visible ? ' checked' : '';
       var activeClass = layer.visible ? ' lm-active' : '';
+      var hasLegend = layer.legend && layer.legend !== '';
       var html = '';
       html += '<div class="lm-layer lm-depth-' + normalizedDepth + activeClass + '" data-layer-id="' + esc(layer.id) + '" data-lm-depth="' + normalizedDepth + '" data-name="' + esc((layer.name || '').toLowerCase()) + '">';
       html += '<label class="lm-layer-label">';
       html += '<input type="checkbox" class="lm-cb"' + checked + ' data-action="toggle-layer">';
       html += '<span class="lm-layer-name">' + esc(layer.name) + '</span>';
       html += '</label>';
+      if (hasLegend) {
+        var legendLayers = layer.legendLayers || '';
+        html += '<button class="lm-legend-btn" data-action="open-legend" data-legend-key="' + esc(layer.legend) + '"';
+        if (legendLayers) html += ' data-legend-layers="' + esc(legendLayers) + '"';
+        html += ' title="Legende anzeigen">' + getLegendIconSvg() + '</button>';
+      }
       html += '</div>';
       return html;
     },
@@ -220,6 +248,10 @@
     // ============================================================
 
     _bindEvents: function () {
+      // Guard: Nur 1x binden — verhindert Doppel-Toggle bei mehrfachem render()
+      if (_container.__tnetLmTreeBound) return;
+      _container.__tnetLmTreeBound = true;
+
       var self = this;
 
       _container.addEventListener('click', function (e) {
@@ -233,13 +265,28 @@
           return;
         }
 
-        // Gruppe auf-/zuklappen (nur wenn kein aktiver Filter)
+        // Legende öffnen
+        var legendBtn = e.target.closest('[data-action="open-legend"]');
+        if (legendBtn) {
+          e.stopPropagation();
+          self._openLegend(legendBtn.dataset.legendKey, legendBtn.dataset.legendLayers || '');
+          return;
+        }
+
+        // SelectAll-Checkbox (Klick-Event stoppen, change-Handler übernimmt)
+        if (e.target.matches('[data-action="select-all"]')) {
+          e.stopPropagation(); // Verhindert toggle-group
+          return;
+        }
+
+        // Gruppe auf-/zuklappen
         var groupAction = e.target.closest('[data-action="toggle-group"]');
         if (groupAction) {
-          var groupEl = groupAction.closest('[data-group-id]');
+          var groupEl = groupAction.closest('.lm-subcat, .lm-group, .lm-nested-group');
           if (groupEl) {
-            var isExpanded = groupEl.classList.contains('lm-expanded');
-            var targetOpen = !isExpanded;
+            e.preventDefault();
+            // Explizit: collapsed → öffnen, sonst → schliessen
+            var isClosed = groupEl.classList.contains('lm-collapsed');
 
             if (e.ctrlKey || e.metaKey) {
               // ── Ctrl+Klick: alle Geschwister derselben Tiefe toggeln ──
@@ -247,23 +294,37 @@
               var parentContainer = groupEl.parentElement;
               if (parentContainer && depth) {
                 var siblings = parentContainer.querySelectorAll(
-                  ':scope > [data-group-id][data-lm-depth="' + depth + '"],' +
-                  ':scope > .lm-subcat[data-group-id],' +
+                  ':scope > .lm-subcat,' +
                   ':scope > .lm-group[data-lm-depth="' + depth + '"],' +
                   ':scope > .lm-nested-group[data-lm-depth="' + depth + '"]'
                 );
                 for (var si = 0; si < siblings.length; si++) {
-                  siblings[si].classList.toggle('lm-expanded', targetOpen);
-                  siblings[si].classList.toggle('lm-collapsed', !targetOpen);
+                  if (isClosed) {
+                    siblings[si].classList.add('lm-expanded');
+                    siblings[si].classList.remove('lm-collapsed');
+                  } else {
+                    siblings[si].classList.remove('lm-expanded');
+                    siblings[si].classList.add('lm-collapsed');
+                  }
                 }
                 TnetLog.debug(LOG, 'Ctrl+Klick: Tiefe', depth, '→', siblings.length,
-                  'Knoten', targetOpen ? 'geöffnet' : 'geschlossen');
+                  'Knoten', isClosed ? 'geöffnet' : 'geschlossen');
               }
             } else {
               // Normaler Klick: nur diesen Knoten toggeln
-              groupEl.classList.toggle('lm-expanded', targetOpen);
-              groupEl.classList.toggle('lm-collapsed', !targetOpen);
+              if (isClosed) {
+                groupEl.classList.add('lm-expanded');
+                groupEl.classList.remove('lm-collapsed');
+              } else {
+                groupEl.classList.remove('lm-expanded');
+                groupEl.classList.add('lm-collapsed');
+              }
+              TnetLog.debug(LOG, 'Toggle:', groupEl.dataset.groupId,
+                isClosed ? '→ offen' : '→ geschlossen',
+                'classes:', groupEl.className.substring(0, 60));
             }
+          } else {
+            TnetLog.warn(LOG, 'Toggle: kein Gruppen-Element gefunden für', groupAction);
           }
           return;
         }
@@ -278,10 +339,25 @@
       });
 
       _container.addEventListener('change', function (e) {
+        // Einzelner Layer ein-/ausschalten
         if (e.target.matches('[data-action="toggle-layer"]')) {
           var layerEl = e.target.closest('.lm-layer');
           if (layerEl) {
             window.TnetLMStore.toggleLayer(layerEl.dataset.layerId);
+          }
+          return;
+        }
+        // SelectAll: alle Layer einer Gruppe ein-/ausschalten
+        if (e.target.matches('[data-action="select-all"]')) {
+          var groupId = e.target.dataset.groupId;
+          var checked = e.target.checked;
+          if (groupId && window.TnetLMStore) {
+            window.TnetLMStore.setGroupAllVisible(groupId, checked);
+            // Fallback-Sync: Nach Verarbeitung (gestaffelt) nochmals prüfen
+            // ob alle Checkboxen im DOM den Store-Zustand reflektieren
+            setTimeout(function () {
+              self._syncGroupCheckboxes(groupId, checked);
+            }, 1200);
           }
         }
       });
@@ -353,18 +429,21 @@
       var allGroups = activeContent.querySelectorAll('.lm-subcat, .lm-group, .lm-nested-group');
 
       if (!q || q.length < 2) {
-        // Filter aufheben — alles sichtbar, Gruppen zuklappen
+        // Filter aufheben — alles sichtbar, Originalzustand wiederherstellen
         for (var i = 0; i < allLayers.length; i++) {
           allLayers[i].style.display = '';
           allLayers[i].classList.remove('lm-filter-match');
         }
         for (var g = 0; g < allGroups.length; g++) {
           allGroups[g].style.display = '';
-          allGroups[g].classList.remove('lm-filter-open');
-          // Originalzustand wiederherstellen (collapsed)
-          if (!allGroups[g].dataset.wasExpanded) {
-            allGroups[g].classList.remove('lm-expanded');
-            allGroups[g].classList.add('lm-collapsed');
+          if (allGroups[g].classList.contains('lm-filter-open')) {
+            // War nur durch den Filter geöffnet — Originalzustand wiederherstellen
+            allGroups[g].classList.remove('lm-filter-open');
+            if (allGroups[g].dataset.preFilterState === 'collapsed') {
+              allGroups[g].classList.remove('lm-expanded');
+              allGroups[g].classList.add('lm-collapsed');
+            }
+            delete allGroups[g].dataset.preFilterState;
           }
         }
         var noResults = _container.querySelector('.lm-no-results');
@@ -399,8 +478,11 @@
         }
 
         groupEl.style.display = hasVisible ? '' : 'none';
-        if (hasVisible) {
-          // Auto-expand bei Filter
+        if (hasVisible && !groupEl.classList.contains('lm-filter-open')) {
+          // Zustand VOR dem Filter merken, dann öffnen
+          if (!groupEl.dataset.preFilterState) {
+            groupEl.dataset.preFilterState = groupEl.classList.contains('lm-collapsed') ? 'collapsed' : 'expanded';
+          }
           groupEl.classList.add('lm-expanded', 'lm-filter-open');
           groupEl.classList.remove('lm-collapsed');
         }
@@ -423,6 +505,8 @@
         if (cb) cb.checked = evt.visible;
         els[i].classList.toggle('lm-active', evt.visible);
       }
+      // SelectAll-Checkboxen in Eltern-Gruppen aktualisieren
+      this._updateSelectAllCheckboxes();
     },
 
     _onGroupToggled: function (evt) {
@@ -431,6 +515,87 @@
       for (var i = 0; i < els.length; i++) {
         els[i].classList.toggle('lm-expanded', evt.expanded);
         els[i].classList.toggle('lm-collapsed', !evt.expanded);
+      }
+    },
+
+    /**
+     * Aktualisiert den Zustand aller selectAll-Checkboxen im Baum.
+     * checked = alles an, indeterminate = teilweise, unchecked = alles aus.
+     */
+    _updateSelectAllCheckboxes: function () {
+      if (!_container) return;
+      var store = window.TnetLMStore;
+      if (!store || typeof store.getGroupVisibilityState !== 'function') return;
+      var cbs = _container.querySelectorAll('.lm-group-cb[data-action="select-all"]');
+      for (var i = 0; i < cbs.length; i++) {
+        var groupId = cbs[i].dataset.groupId;
+        if (!groupId) continue;
+        var state = store.getGroupVisibilityState(groupId);
+        cbs[i].checked = (state === 'all');
+        cbs[i].indeterminate = (state === 'partial');
+        // Visuelles Feedback auf dem Gruppen-Container
+        var groupEl = cbs[i].closest('[data-group-id]');
+        if (groupEl) {
+          groupEl.classList.toggle('lm-partial', state === 'partial');
+        }
+      }
+    },
+
+    /**
+     * Synchronisiert Kind-Checkboxen einer Gruppe mit dem Store-Zustand.
+     * Fallback für Fälle wo layer-visibility Events den DOM nicht aktualisiert haben
+     * (z.B. weil Tab noch nicht gerendert war oder gestaffelte Verarbeitung).
+     * @param {string} groupId  Die Gruppen-ID
+     * @param {boolean} visible  Ziel-Zustand
+     */
+    _syncGroupCheckboxes: function (groupId, visible) {
+      if (!_container) return;
+      var groupEl = _container.querySelector('[data-group-id="' + groupId + '"]');
+      if (!groupEl) return;
+      var layerEls = groupEl.querySelectorAll('.lm-layer');
+      var synced = 0;
+      for (var i = 0; i < layerEls.length; i++) {
+        var cb = layerEls[i].querySelector('.lm-cb');
+        if (cb && cb.checked !== visible) {
+          // Store-Zustand prüfen (Single Source of Truth)
+          var layerId = layerEls[i].dataset.layerId;
+          var store = window.TnetLMStore;
+          if (store) {
+            var layer = store.findLayer(layerId);
+            if (layer && layer.visible === visible) {
+              cb.checked = visible;
+              layerEls[i].classList.toggle('lm-active', visible);
+              synced++;
+            }
+          }
+        }
+      }
+      if (synced > 0) {
+        TnetLog.log('[LMTree]', '_syncGroupCheckboxes:', synced, 'Checkboxen korrigiert für', groupId);
+      }
+      this._updateSelectAllCheckboxes();
+    },
+
+    /**
+     * Legende in einem Fenster öffnen.
+     * Nutzt bestehenden njs.AppManager.showLegend() oder Fallback auf neues Tab.
+     */
+    _openLegend: function (legendKey, legendLayers) {
+      if (!legendKey) return;
+      // Legenden-URL über legend-proxy konstruieren
+      var legendUrl = '/maps/tnet/api/v1/legend-proxy.php?service=' + encodeURIComponent(legendKey);
+      if (legendLayers) {
+        legendUrl += '&layers=' + encodeURIComponent(legendLayers);
+      }
+      var legendTitle = legendKey.split('/').pop() || 'Legende';
+
+      var am = window.njs && window.njs.AppManager;
+      if (!am) am = window.top && window.top.njs && window.top.njs.AppManager;
+      if (am && typeof am.showLegend === 'function') {
+        am.showLegend(legendUrl, legendTitle, true, undefined);
+        TnetLog.log(LOG, 'Legende geöffnet:', legendUrl);
+      } else {
+        window.open(legendUrl, '_blank', 'noopener');
       }
     },
 
@@ -457,6 +622,100 @@
       if (!isFinite(n) || n < 1) return 1;
       if (n > 6) return 6;
       return n;
+    },
+
+    // ============================================================
+    //  Oeffentliche Navigation: Layer im Baum anzeigen
+    // ============================================================
+
+    /**
+     * Navigiert im Themenbaum zu einem bestimmten Layer.
+     * Wechselt ggf. den Tab, klappt Elternknoten auf, scrollt zum Layer.
+     * Wird von der Desktop-Suche aufgerufen wenn ein Themen-Ergebnis angeklickt wird.
+     *
+     * @param {string} layerId     Die volle Layer-ID (z.B. "gis_oereb/nw_nutzungsplanung_def/grundnutzung")
+     * @param {string} categoryId  Die Kategorie-ID (z.B. "nidwalden") fuer Tab-Wechsel
+     * @returns {boolean} true wenn Navigation gestartet
+     */
+    navigateToLayer: function (layerId, categoryId) {
+      if (!_container || !layerId) return false;
+      var store = window.TnetLMStore;
+      if (!store) return false;
+
+      // 1) Richtigen Tab finden und wechseln
+      var targetTabId = categoryId || null;
+      if (!targetTabId) {
+        // Layer in allen Kategorien suchen
+        var catalog = store.getCatalog();
+        for (var c = 0; c < catalog.length; c++) {
+          if (this._catalogNodeContainsLayer(catalog[c], layerId)) {
+            targetTabId = catalog[c].id;
+            break;
+          }
+        }
+      }
+      if (targetTabId && targetTabId !== _activeTabId) {
+        this._switchTab(targetTabId);
+      }
+
+      // 2) Layer-Element finden (evtl. nach Tab-Render mit kurzer Verzoegerung)
+      var self = this;
+      var attempts = 0;
+      function tryFind() {
+        var layerEl = _container.querySelector('[data-layer-id="' + layerId + '"]');
+        if (!layerEl && attempts < 5) {
+          attempts++;
+          setTimeout(tryFind, 150);
+          return;
+        }
+        if (!layerEl) {
+          // Eltern-Pfad-Fallback: Pfadsegmente kürzen bis ein DOM-Element gefunden wird
+          // z.B. "a/b/c/d/e" → "a/b/c/d" → "a/b/c" → "a/b" → "a"
+          var fallbackParts = layerId.split('/');
+          while (!layerEl && fallbackParts.length > 1) {
+            fallbackParts.pop();
+            var fallbackId = fallbackParts.join('/');
+            layerEl = _container.querySelector('[data-layer-id="' + fallbackId + '"]');
+          }
+          if (!layerEl) {
+            TnetLog.warn(LOG, 'navigateToLayer: Layer nicht im DOM gefunden:', layerId);
+            return;
+          }
+          TnetLog.log(LOG, 'navigateToLayer: Eltern-Element gefunden:', fallbackParts.join('/'), '(statt:', layerId, ')');
+        }
+
+        // 3) Alle Elternknoten aufklappen (immer explizit setzen,
+        //    nicht nur bei lm-collapsed — verhindert Zustand ohne Klasse)
+        var parent = layerEl.parentElement;
+        while (parent && parent !== _container) {
+          if (parent.dataset && parent.dataset.groupId !== undefined) {
+            parent.classList.add('lm-expanded');
+            parent.classList.remove('lm-collapsed');
+          }
+          parent = parent.parentElement;
+        }
+
+        // 4) In den sichtbaren Bereich scrollen
+        layerEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+        // 5) Kurz hervorheben (CSS-Animation)
+        layerEl.classList.add('lm-highlight');
+        setTimeout(function () {
+          layerEl.classList.remove('lm-highlight');
+        }, 2500);
+      }
+      setTimeout(tryFind, 80);
+      return true;
+    },
+
+    /** Prueft rekursiv ob ein Katalog-Knoten den Layer enthaelt */
+    _catalogNodeContainsLayer: function (node, layerId) {
+      if (node.id === layerId) return true;
+      var children = node.subcategories || node.groups || node.layers || [];
+      for (var i = 0; i < children.length; i++) {
+        if (this._catalogNodeContainsLayer(children[i], layerId)) return true;
+      }
+      return false;
     }
   };
 

@@ -283,6 +283,18 @@
     // ── Sicherheitsprüfung: Framework-Handler nicht erneut registriert? ──
     _ensureSentinel();
 
+    // ── Tool-Exklusivität: Anderes Tool aktiv? ──
+    // Nur ein Tool darf gleichzeitig Klick-Queries auslösen.
+    // ÖREB-Modus, Polygon-Zeichnen und Framework-Tools haben Vorrang.
+    if (window.isOerebActive) {
+      _log('Click #' + _clickCount + ': ÖREB-Modus aktiv → MapTip blockiert');
+      return;
+    }
+    if (window.isPolygonDrawing) {
+      _log('Click #' + _clickCount + ': Polygon-Zeichnen aktiv → MapTip blockiert');
+      return;
+    }
+
     // ── Gate-Check: Mess-/Zeichen-/Druck-Tool aktiv? ──
     try {
       if (am.MapTips && am.MapTips[GATE_KEY] && am.MapTips[GATE_KEY][MAP_ID] === true) {
@@ -297,15 +309,23 @@
     } catch (e) { /* Gate-Check fehlgeschlagen → weiter */ }
 
     // ── Feature-at-Pixel Check ──
+    // Blockiert Klicks auf interaktive Vektor-Features (Redlining etc.)
+    // AUSNAHME: Zeichenlayer der räumlichen Abfrage, Messungen und PDF-Extent sollen NICHT blockieren
     var hasBlockingFeature = false;
     try {
       if (map.hasFeatureAtPixel(evt.pixel) === true) {
         map.forEachFeatureAtPixel(evt.pixel, function (feature, layer) {
           if (!layer) return;
           var name = layer.get('name') || '';
-          if (name !== 'cosmetic_maptip' && name !== 'cosmetic_search' && name.indexOf('cosmetic_') !== 0) {
-            hasBlockingFeature = true;
-          }
+          // Kosmetische Layer ignorieren
+          if (name === 'cosmetic_maptip' || name === 'cosmetic_search' || name.indexOf('cosmetic_') === 0) return;
+          // Framework-interne Layer ignorieren (Messungen, PDF-Extent, Select-Tools)
+          if (name.indexOf('njs_') === 0 || name.indexOf('pdfExtent') === 0) return;
+          // Räumliche-Abfrage-Zeichenlayer ignorieren
+          if (name === 'spatial_query_draw' || name === 'tnet_spatial_query') return;
+          // Alles andere blockiert
+          hasBlockingFeature = true;
+          _log('Click #' + _clickCount + ': blockierender Layer: "' + name + '"');
         });
       }
     } catch (e) { /* Ignorieren */ }
@@ -420,6 +440,7 @@
     console.log('Sentinel:', am.infoWMSListener === SENTINEL ? 'OK (__bridge__)' : 'WARNUNG: ' + am.infoWMSListener);
     console.log('_tnetInfoBridgeActive:', !!window._tnetInfoBridgeActive);
     console.log('Gate (_disablewmsgetfeatureinfo):', am.MapTips && am.MapTips[GATE_KEY] ? am.MapTips[GATE_KEY][MAP_ID] : 'n/a');
+    console.log('Tool-Exklusivität: ÖREB=' + !!window.isOerebActive + ' Polygon=' + !!window.isPolygonDrawing);
 
     // wmsActiveLyrs Dump
     var items = am.wmsActiveLyrs ? am.wmsActiveLyrs.getArray() : [];

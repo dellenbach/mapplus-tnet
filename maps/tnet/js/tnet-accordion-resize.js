@@ -111,12 +111,14 @@
     if (panelCfg.id === 'tp_overview_menu') {
       if (_useNewTree) {
         // Neuer Tree: Höhe auf #lm-tree-container setzen
-        // Overflow wird per CSS gesteuert (Flex-Layout: Tab-Bar + Suchfeld fixiert,
-        // nur .lm-cat-content scrollt → Scrollbar beginnt unter dem Filterfeld)
+        // Container scrollt selbst (overflow-y: auto), Tab-Bar und Suchfeld
+        // bleiben per position:sticky oben fixiert.
         var treeContainer = document.getElementById('lm-tree-container');
         if (treeContainer) {
           treeContainer.style.setProperty('max-height', clamped + 'px', 'important');
           treeContainer.style.setProperty('height', clamped + 'px', 'important');
+          treeContainer.style.setProperty('overflow-y', 'auto', 'important');
+          treeContainer.style.setProperty('overflow-x', 'hidden', 'important');
         }
         // ContentOuter auch anpassen (Dojo-Wrapper)
         if (contentOuter) {

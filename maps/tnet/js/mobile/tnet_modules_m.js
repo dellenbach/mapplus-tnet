@@ -1140,13 +1140,7 @@ require([
             var btn = document.createElement('div');
             btn.id = 'm-north-arrow';
             btn.setAttribute('aria-label', 'Nord ausrichten');
-            btn.innerHTML =
-                '<svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">' +
-                '<circle cx="20" cy="20" r="19" fill="#fff" stroke="#b0b0b0" stroke-width="1"/>' +
-                '<polygon points="20,6 25,22 20,18 15,22" fill="#d32f2f"/>' +  // Nord-Hälfte rot
-                '<polygon points="20,34 15,22 20,18 25,22" fill="#424242"/>' +  // Süd-Hälfte dunkel
-                '<text x="20" y="13" text-anchor="middle" font-size="7" font-weight="700" fill="#d32f2f" font-family="Arial,sans-serif">N</text>' +
-                '</svg>';
+            btn.innerHTML = TnetIcons.get('compass');
 
             // Ins Map-Viewport einhängen
             var vp = map.getViewport();

@@ -50,7 +50,7 @@
             btn.id = 'layer-catalog-btn';
             btn.title = 'Themenkatalog';
             btn.style.cssText = 'position: absolute; top: 52px; right: 10px; width: 36px; height: 36px; background: white; border: none; border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.2); cursor: pointer; z-index: 1002; display: flex; align-items: center; justify-content: center;';
-            btn.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20"><path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z" fill="currentColor"/></svg>';
+            btn.innerHTML = TnetIcons.get('list', null, {width: '20', height: '20'});
             
             // Create catalog panel
             var panel = document.createElement('div');

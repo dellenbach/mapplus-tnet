@@ -1035,21 +1035,33 @@ body.drawing-mode #freepane * {
   pointer-events: auto;
 }
 
-/* Spring Container - scrollbar ohne Scrollbalken */
+/* Spring Container - scrollbar sichtbar (dünn, dezent) */
 #spring {
   height: fit-content !important;
   max-height: calc(100vh - 105px) !important; /* 69px Header + 10px close_switch + 26px Footer */
   overflow-y: auto !important;
-  overflow-x: visible !important;
-  padding-bottom: 0 !important;
+  overflow-x: hidden !important;
+  padding-bottom: 16px !important;
   box-sizing: border-box !important;
-  /* Scrollbalken verstecken */
-  scrollbar-width: none; /* Firefox */
-  -ms-overflow-style: none; /* IE/Edge */
+  scrollbar-width: thin; /* Firefox: dünner Scrollbalken */
+  scrollbar-color: rgba(75, 123, 129, 0.35) transparent;
 }
 
 #spring::-webkit-scrollbar {
-  display: none; /* Chrome/Safari/Opera */
+  width: 6px;
+}
+
+#spring::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+#spring::-webkit-scrollbar-thumb {
+  background: rgba(75, 123, 129, 0.35);
+  border-radius: 3px;
+}
+
+#spring::-webkit-scrollbar-thumb:hover {
+  background: rgba(75, 123, 129, 0.55);
 }
 
 /* Scroll-to-Top Button - Kreis mit Chevron */
@@ -1766,56 +1778,66 @@ h3 {
 
 /* ========================================
    Layer Manager — Dezenter Scrollbar
-   Flex-Layout: Tab-Bar + Suchfeld bleiben oben fixiert,
-   nur der Kategorie-Inhalt (.lm-cat-content) scrollt.
-   Dadurch beginnt der Scrollbar unterhalb des Filterfelds.
+   Der Container (#lm-tree-container) scrollt als Ganzes.
+   Tab-Bar + Suchfeld bleiben per position:sticky oben fixiert.
    ======================================== */
 
-/* Container: Flex-Spalte, kein eigenes Scrollen */
+/* Container: scrollt intern, Höhe per JS (tnet-accordion-resize.js) */
 #lm-tree-container.lm-container-desktop {
-  display: flex !important;
-  flex-direction: column !important;
-  overflow: hidden !important;
-}
-
-/* Tab-Bar und Suchfeld: fixiert oben, nicht mitscrollen */
-.lm-container-desktop .lm-tab-bar {
-  position: static !important;
-  flex-shrink: 0 !important;
-}
-
-.lm-container-desktop .lm-search-wrap {
-  position: static !important;
-  flex-shrink: 0 !important;
-}
-
-/* Kategorie-Inhalt: nimmt restliche Höhe ein, scrollt bei Bedarf */
-.lm-container-desktop .lm-cat-content {
-  flex: 1 1 auto !important;
-  min-height: 0 !important;
   overflow-y: auto !important;
   overflow-x: hidden !important;
 }
 
-/* Dezenter Scrollbar — Firefox */
+/* Tab-Bar: sticky am oberen Rand des Scroll-Containers */
+.lm-container-desktop .lm-tab-bar {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 6 !important;
+  background: var(--m-color-primary, #4B7B81) !important;
+}
+
+/* Suchfeld: sticky direkt unter der Tab-Bar */
+.lm-container-desktop .lm-search-wrap {
+  position: sticky !important;
+  top: 40px !important;
+  z-index: 5 !important;
+  background: #fff !important;
+}
+
+/* Kategorie-Inhalt: normaler Flow, Padding unten für letzten Eintrag */
 .lm-container-desktop .lm-cat-content {
+  padding-bottom: 40px !important;
+}
+
+/* Dezenter Scrollbar — Firefox */
+#lm-tree-container.lm-container-desktop {
   scrollbar-width: thin;
   scrollbar-color: rgba(75, 123, 129, 0.3) transparent;
 }
 
 /* Dezenter Scrollbar — Chrome / Safari / Edge */
-.lm-container-desktop .lm-cat-content::-webkit-scrollbar {
+#lm-tree-container.lm-container-desktop::-webkit-scrollbar {
   width: 6px;
 }
-.lm-container-desktop .lm-cat-content::-webkit-scrollbar-track {
+#lm-tree-container.lm-container-desktop::-webkit-scrollbar-track {
   background: transparent;
 }
-.lm-container-desktop .lm-cat-content::-webkit-scrollbar-thumb {
+#lm-tree-container.lm-container-desktop::-webkit-scrollbar-thumb {
   background: rgba(75, 123, 129, 0.3);
   border-radius: 3px;
 }
-.lm-container-desktop .lm-cat-content::-webkit-scrollbar-thumb:hover {
+#lm-tree-container.lm-container-desktop::-webkit-scrollbar-thumb:hover {
   background: rgba(75, 123, 129, 0.5);
+}
+
+/* ===== LAYER SEARCH HIGHLIGHT ===== */
+/* Pulsierende Hervorhebung wenn ein Layer via Suche navigiert wird */
+.lm-highlight {
+  animation: lm-highlight-pulse 2.5s ease-out !important;
+}
+@keyframes lm-highlight-pulse {
+  0%, 30% { background-color: rgba(75, 123, 129, 0.35) !important; }
+  100% { background-color: transparent !important; }
 }
 
 /* Dezenter Scrollbar auch für "Dargestellte Themen" Panel */

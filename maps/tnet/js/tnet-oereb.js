@@ -1316,7 +1316,7 @@ function dockOerebPanel() {
 
     if (dockBtn) {
         dockBtn.title = 'Floating';
-        dockBtn.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M19 11h-8v6h8v-6zm4 8V4.98C23 3.88 22.1 3 21 3H3c-1.1 0-2 .88-2 1.98V19c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2zm-2 .02H3V4.97h18v14.05z"/></svg>';
+        dockBtn.innerHTML = TnetIcons.get('undock', null, {width: '16', height: '16'});
     }
     window.isOerebPanelDocked = true;
 }
@@ -1355,7 +1355,7 @@ function undockOerebPanel() {
 
     if (dockBtn) {
         dockBtn.title = 'Rechts andocken';
-        dockBtn.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16h-4V5h4v14z"/></svg>';
+        dockBtn.innerHTML = TnetIcons.get('dock', null, {width: '16', height: '16'});
     }
     window.isOerebPanelDocked = false;
 }

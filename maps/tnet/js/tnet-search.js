@@ -1,14 +1,15 @@
 ﻿/*
- * tnet-search.js  v1.7
+ * tnet-search.js  v2.0
  * Desktop-Suchfeld (parallel zur bestehenden njs/SOLR-Suche)
- * Nutzt search-proxy.php -> Layer-Suche (NLS) + swisstopo Geocoder + Feature-Suche
- * Resultate werden gruppiert angezeigt (Orte / Adressen / Themen).
+ * Nutzt search-proxy.php fuer Geo-Suche + lokalen Layer-Index fuer Themen-Suche.
  * v1.5: Filter-Popup (Radios + Checkboxen), Lupe links, Tune rechts
- * v1.6: Feature-Suche (Strassen/Gebäude) mit Geometrie-Highlighting
- * v1.7: Subtitles, Deduplizierung, featureId-Highlight für Geocoder-Adressen
+ * v1.6: Feature-Suche (Strassen/Gebaeude) mit Geometrie-Highlighting
+ * v1.7: Subtitles, Deduplizierung, featureId-Highlight fuer Geocoder-Adressen
+ * v2.0: Lokale Themen-Suche via Layer-API-Index, Breadcrumb-Subtitles,
+ *       Relevanz-Ranking, Tree-Navigation bei Klick
  *
- * @version    1.7
- * @date       2025-02-22
+ * @version    2.0
+ * @date       2026-03-07
  * @copyright  Trigonet AG
  */
 (function () {
@@ -21,10 +22,14 @@
     var lastQuery    = '';
     var featureHighlightLayer = null;
     var _searchZoomConfig = null;   // aus tnet-global-config.json5 geladen
+    var _searchLimits = {};          // {maxAddresses, maxLocations, maxLayers} aus Config
     var _resultCache = new Map();   // Client-Cache: query-key → {data, ts}
     var _CACHE_TTL   = 300000;      // 5 min (ms)
     var _CACHE_MAX   = 50;          // max Einträge
     var _ADDR_RESOLUTION = 0.28;    // 1:1000 Massstab (OGC: 1000 × 0.00028 m/px)
+    var _layerIndex = null;        // Flache Layer-Liste von API fuer lokale Themen-Suche
+    var _layerIndexReady = false;
+    var _layerIndexLoading = false;
 
     // -- Map/Layer Helpers ---------------------------------------------------
 
@@ -77,14 +82,45 @@
     }
 
     /**
-     * Layer einschalten via TnetLayerSwitch (aus tnet-mapplus-helpers.js).
-     * Fallback: setMapBookmark direkt.
+     * Layer einschalten — dreistufig:
+     * 1. Über TnetLMStore (respektiert Coalesce, Sichtbarkeit, Active-Liste)
+     * 2. Eltern-Pfad-Fallback: wenn exakte ID nicht im Store → Pfadsegmente
+     *    kürzen bis ein bekannter Layer gefunden wird (z.B. Service-Root)
+     * 3. TnetLayerSwitch / setMapBookmark als letzter Fallback
      */
     function activateLayer(layerId) {
+        var store = window.TnetLMStore;
+
+        // 1. Exakte Suche im Store
+        if (store && typeof store.findLayer === 'function') {
+            var layer = store.findLayer(layerId);
+            if (layer && layer.type !== 'group') {
+                store.setLayerVisible(layerId, true);
+                TnetLog.log('[DesktopSearch] Layer via Store aktiviert:', layerId);
+                return;
+            }
+
+            // 2. Eltern-Pfad-Fallback: "a/b/c/d" → "a/b/c" → "a/b" → "a"
+            var parts = layerId.split('/');
+            while (parts.length > 1) {
+                parts.pop();
+                var parentId = parts.join('/');
+                var parent = store.findLayer(parentId);
+                if (parent && parent.type !== 'group') {
+                    store.setLayerVisible(parentId, true);
+                    TnetLog.log('[DesktopSearch] Eltern-Layer aktiviert:', parentId, '(statt:', layerId, ')');
+                    return;
+                }
+            }
+        }
+
+        // 3. TnetLayerSwitch (Dojo LyrMgr)
         if (typeof window.TnetLayerSwitch === 'function') {
             window.TnetLayerSwitch(layerId, 'on');
             return;
         }
+
+        // 4. Letzter Fallback: setMapBookmark
         try {
             var njsAM = (window.top && window.top.njs) ? window.top.njs.AppManager
                        : (window.njs ? window.njs.AppManager : null);
@@ -94,6 +130,134 @@
             }
         } catch (e) {}
         TnetLog.warn('[DesktopSearch] Layer-Aktivierung fehlgeschlagen:', layerId);
+    }
+
+    // -- Layer-Index fuer lokale Themen-Suche ----------------------------------
+
+    /** Kategorie-Abkuerzungen und Sortierung */
+    var CATEGORY_ABBR = { 'nidwalden': 'NW', 'obwalden': 'OW', 'bund': 'CH', 'weitere': 'Weitere' };
+    var CATEGORY_ORDER = { 'nidwalden': 0, 'obwalden': 1, 'bund': 2, 'weitere': 3 };
+
+    /**
+     * Laedt den flachen Layer-Katalog von der API und cached ihn im Client.
+     * Wird einmalig beim Init aufgerufen — alle Themen-Suchen nutzen dann den lokalen Index.
+     */
+    function loadLayerIndex() {
+        if (_layerIndexReady || _layerIndexLoading) return;
+        _layerIndexLoading = true;
+        var apiUrl = '/maps/tnet/api/v1/layers.php?flat=true&details=false';
+        fetch(apiUrl)
+            .then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); })
+            .then(function (json) {
+                _layerIndex = json.data || json || [];
+                if (Array.isArray(_layerIndex) && _layerIndex.length > 0) {
+                    _layerIndexReady = true;
+                    TnetLog.log('[DesktopSearch] Layer-Index geladen:', _layerIndex.length, 'Layer');
+                } else {
+                    TnetLog.warn('[DesktopSearch] Layer-Index leer oder ungueltiges Format');
+                }
+                _layerIndexLoading = false;
+            })
+            .catch(function (e) {
+                _layerIndexLoading = false;
+                TnetLog.warn('[DesktopSearch] Layer-Index konnte nicht geladen werden:', e);
+            });
+    }
+
+    /**
+     * Durchsucht den lokalen Layer-Index nach dem Suchbegriff.
+     * Gibt Ergebnisse mit Breadcrumb-Subtitle und Relevanz-Ranking zurueck.
+     * Viel besser als PHP-Suche: volle Layer-IDs, Pfad-Kontext, Kategorie-Info.
+     */
+    function searchLayersLocal(query, limit) {
+        if (!_layerIndex || !_layerIndex.length) return [];
+        var qLower = query.toLowerCase();
+        var results = [];
+
+        for (var i = 0; i < _layerIndex.length; i++) {
+            var layer = _layerIndex[i];
+            var name = layer.name || '';
+            var nameLower = name.toLowerCase();
+            // ID-basierter Suchtext: Unterstriche und Slashes durch Leerzeichen
+            var idText = (layer.id || '').replace(/[_\/]/g, ' ').toLowerCase();
+
+            // Relevanz-Score berechnen
+            var score = 0;
+            if (nameLower === qLower) score = 100;                // Exakter Treffer
+            else if (nameLower.indexOf(qLower) === 0) score = 80; // Beginnt mit
+            else if (nameLower.indexOf(qLower) !== -1) score = 60; // Enthaelt im Namen
+            else if (idText.indexOf(qLower) !== -1) score = 20;    // Enthaelt in ID
+            if (score === 0) continue;
+
+            // Breadcrumb-Subtitle aus Pfad bauen (z.B. "NW > OEREB > Raumplanung")
+            var pathParts = (layer.path || '').split(' > ');
+            var cat = (layer.category || '').toLowerCase();
+            if (pathParts.length > 0) {
+                pathParts[0] = CATEGORY_ABBR[cat] || pathParts[0];
+            }
+            // Letztes Segment entfernen wenn es dem Layer-Namen aehnelt
+            if (pathParts.length > 2) {
+                var lastPart = pathParts[pathParts.length - 1];
+                if (lastPart.toLowerCase().replace(/[\s_-]/g, '') ===
+                    nameLower.replace(/[\s_-]/g, '')) {
+                    pathParts.pop();
+                }
+            }
+            var subtitle = pathParts.join(' \u203A ');
+
+            results.push({
+                id: layer.id,
+                label: name,
+                subtitle: subtitle,
+                type: 'layer',
+                layer: layer.id,
+                category: layer.category || '',
+                x: null,
+                y: null,
+                _score: score,
+                _catOrder: CATEGORY_ORDER[cat] || 99
+            });
+        }
+
+        // Sortieren: Relevanz absteigend, dann Kategorie-Reihenfolge
+        results.sort(function (a, b) {
+            if (a._score !== b._score) return b._score - a._score;
+            return a._catOrder - b._catOrder;
+        });
+
+        // Limit anwenden und interne Score-Felder entfernen
+        results = results.slice(0, limit || 10);
+        for (var j = 0; j < results.length; j++) {
+            delete results[j]._score;
+            delete results[j]._catOrder;
+        }
+        return results;
+    }
+
+    /**
+     * Verschmilzt PHP-Geo-Ergebnisse (Gruppen) mit lokalen Layer-Ergebnissen.
+     * Ersetzt die PHP-Layer-Gruppe durch die (bessere) lokale Variante.
+     */
+    function mergeWithLocalLayers(phpGroups, localLayers) {
+        if (!localLayers || !localLayers.length) return phpGroups || [];
+        if (!phpGroups || !phpGroups.length) {
+            return [{ label: 'Themen', type: 'layer', items: localLayers }];
+        }
+        var merged = [];
+        for (var i = 0; i < phpGroups.length; i++) {
+            if (phpGroups[i].type !== 'layer') {
+                merged.push(phpGroups[i]);
+            }
+        }
+        merged.push({ label: 'Themen', type: 'layer', items: localLayers });
+        return merged;
+    }
+
+    /** Navigiert im Themenbaum zum Layer und klappt die Elternknoten auf */
+    function navigateTreeToLayer(layerId, categoryId) {
+        if (window.TnetLMTree && typeof window.TnetLMTree.navigateToLayer === 'function') {
+            window.TnetLMTree.navigateToLayer(layerId, categoryId);
+        }
     }
 
     // -- Feature Highlight ----------------------------------------------------
@@ -397,6 +561,8 @@
                 if (clr)  { clr.style.display = 'none'; }
                 if (lst)  { lst.classList.remove('open'); lst.innerHTML = ''; }
                 activateLayer(item.layer || item.id);
+                // Im Themenbaum zum Layer navigieren, Elternknoten aufklappen
+                navigateTreeToLayer(item.layer || item.id, item.category);
             } else if (item.type === 'feature' || item.featureId) {
                 if (inp) inp.value = item.label;
                 if (lst) lst.classList.remove('open');
@@ -441,6 +607,10 @@
         }
         var scope = scopes.join(',');
         var url = PROXY_URL + '?q=' + encodeURIComponent(query) + '&limit=10';
+        // Resultat-Limits aus Konfiguration übergeben
+        if (_searchLimits.maxAddresses) url += '&maxAddr=' + _searchLimits.maxAddresses;
+        if (_searchLimits.maxLocations) url += '&maxLoc='  + _searchLimits.maxLocations;
+        if (_searchLimits.maxLayers)    url += '&maxLay='  + _searchLimits.maxLayers;
         if (canton) url += '&canton=' + encodeURIComponent(canton);
         if (scope)  url += '&scope='  + encodeURIComponent(scope);
         if (mode)   url += '&mode='   + encodeURIComponent(mode);
@@ -456,17 +626,26 @@
         if (currentAbort) { try { currentAbort.abort(); } catch (e) {} }
 
         var myId = ++_searchId;
+
+        // Phase 0: Sofortige lokale Layer-Suche (instant, kein Netzwerk)
+        var layCb = document.getElementById('dt-filter-layers');
+        var hasLay = layCb ? layCb.checked : true;
+        var localLayers = (hasLay && _layerIndexReady) ? searchLayersLocal(query, 10) : [];
+        if (localLayers.length) {
+            showGroupedResults([{ label: 'Themen', type: 'layer', items: localLayers }], null);
+        }
+
         var fullUrl = buildSearchUrl(query);
         var fullCacheKey = getCacheKey(fullUrl);
 
-        // Client-Cache: Vollergebnis vorhanden? Sofort anzeigen.
+        // Client-Cache: Vollergebnis vorhanden? Mit lokalen Layern mergen.
         var cachedFull = _resultCache.get(fullCacheKey);
         if (cachedFull && (Date.now() - cachedFull.ts) < _CACHE_TTL) {
-            showGroupedResults(cachedFull.data.groups, cachedFull.data.items);
+            showGroupedResults(mergeWithLocalLayers(cachedFull.data.groups, localLayers), cachedFull.data.items);
             return;
         }
 
-        // Phase 1: Fast-Modus (nur Adressen + Layers)
+        // Phase 1: Fast-Modus (Adressen + Layers)
         var fastUrl = buildSearchUrl(query, 'fast');
         var fastCacheKey = getCacheKey(fastUrl);
         var cachedFast = _resultCache.get(fastCacheKey);
@@ -475,39 +654,36 @@
         currentAbort = ac;
 
         if (cachedFast && (Date.now() - cachedFast.ts) < _CACHE_TTL) {
-            // Fast aus Cache → sofort anzeigen
-            showGroupedResults(cachedFast.data.groups, cachedFast.data.items);
+            showGroupedResults(mergeWithLocalLayers(cachedFast.data.groups, localLayers), cachedFast.data.items);
         } else {
-            // Fast-Request starten
             fetch(fastUrl, { signal: ac.signal })
                 .then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); })
                 .then(function (data) {
-                    if (_searchId !== myId) return;  // Veralteter Request
+                    if (_searchId !== myId) return;
                     if (_resultCache.size >= _CACHE_MAX) {
                         _resultCache.delete(_resultCache.keys().next().value);
                     }
                     _resultCache.set(fastCacheKey, { data: data, ts: Date.now() });
-                    // Nur anzeigen wenn Full noch nicht da ist
                     if (!_resultCache.has(fullCacheKey) || (Date.now() - _resultCache.get(fullCacheKey).ts) >= _CACHE_TTL) {
-                        showGroupedResults(data.groups, data.items);
+                        showGroupedResults(mergeWithLocalLayers(data.groups, localLayers), data.items);
                     }
                 })
                 .catch(function () {});
         }
 
-        // Phase 2: Full-Request (parallel starten)
+        // Phase 2: Full-Request (parallel, Geo-Ergebnisse hinzufuegen)
         fetch(fullUrl, { signal: ac.signal })
             .then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); })
             .then(function (data) {
-                if (_searchId !== myId) return;  // Veralteter Request
+                if (_searchId !== myId) return;
                 if (_resultCache.size >= _CACHE_MAX) {
                     _resultCache.delete(_resultCache.keys().next().value);
                 }
                 _resultCache.set(fullCacheKey, { data: data, ts: Date.now() });
-                showGroupedResults(data.groups, data.items);
+                showGroupedResults(mergeWithLocalLayers(data.groups, localLayers), data.items);
             })
             .catch(function (e) {
-                if (e.name !== 'AbortError') showGroupedResults(null, []);
+                if (e.name !== 'AbortError' && localLayers.length === 0) showGroupedResults(null, []);
             });
     }
 
@@ -639,6 +815,14 @@
                     if (parsed && parsed.search && parsed.search.zoom) {
                         _searchZoomConfig = parsed.search.zoom;
                     }
+                    // Resultat-Limits laden
+                    if (parsed && parsed.search) {
+                        _searchLimits = {
+                            maxAddresses: parsed.search.maxAddresses || 0,
+                            maxLocations: parsed.search.maxLocations || 0,
+                            maxLayers:    parsed.search.maxLayers    || 0,
+                        };
+                    }
                     return (parsed && parsed.search) ? parsed.search : null;
                 })
                 .catch(function () { return tryPath(i + 1); });
@@ -665,6 +849,7 @@
     function initWithConfig() {
         init();
         loadSearchConfig().then(applySearchConfig);
+        loadLayerIndex();
     }
 
     if (document.readyState === 'loading') {

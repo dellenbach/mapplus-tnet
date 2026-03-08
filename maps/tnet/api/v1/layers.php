@@ -174,26 +174,30 @@ if ($useDatabase) {
                 cn.open_flag,
                 cn.service_url,
                 cn.coalesce_group,
+                cn.select_all,
+                cn.legend AS node_legend,
                 cm.category_key,
                 cm.label AS category_label,
                 cm.icon AS category_icon,
-                cm.sort_idx AS category_sort
+                cm.sort_idx AS category_sort,
+                -- Legend-Felder immer laden (für Baum-Legenden auch ohne details)
+                ld.url,
+                ld.layer_type,
+                ld.legend_key,
+                ld.legend_title,
+                ld.legend_link,
+                ld.params
         ";
         if ($details) {
             $sql .= ",
-                ld.url,
-                ld.layer_type,
                 ld.display_name AS layer_display_name,
                 ld.icon AS layer_icon,
-                ld.legend_title,
-                ld.legend_link,
                 ld.opacity,
                 ld.visible,
                 ld.searchable,
                 ld.rank,
                 ld.min_resolution,
                 ld.max_resolution,
-                ld.params,
                 ld.options
             ";
         }
@@ -201,10 +205,8 @@ if ($useDatabase) {
             FROM mapplusconf.catalog_node cn
             JOIN mapplusconf.profile p ON cn.profile_id = p.id AND p.is_active = true
             JOIN mapplusconf.category_mapping cm ON cn.category_id = cm.id
+            LEFT JOIN mapplusconf.layer_definition ld ON cn.layer_id = ld.layer_id
         ";
-        if ($details) {
-            $sql .= " LEFT JOIN mapplusconf.layer_definition ld ON cn.layer_id = ld.layer_id";
-        }
         $sql .= " WHERE p.code = :profile";
         if ($category) {
             $sql .= " AND cm.category_key = :category";
@@ -308,13 +310,10 @@ if (!$mapping) {
     ApiResponse::serverError('lyrmgr-mapping.json not found or invalid');
 }
 
-// 3. Layer-Definitionen aus core/config/layers_*.conf (nur wenn details=true)
-$layerData = ['definitions' => [], 'filesCount' => 0, 'path' => null];
-$layerDefinitions = [];
-if ($details) {
-    $layerData = ConfigReader::readAllLayerDefinitions();
-    $layerDefinitions = $layerData['definitions'];
-}
+// 3. Layer-Definitionen aus core/config/layers_*.conf
+//    Immer laden: wird für details UND Legend-Info auf Leaf-Layern benötigt
+$layerData = ConfigReader::readAllLayerDefinitions();
+$layerDefinitions = $layerData['definitions'];
 
 // === Layer-Katalog aufbauen ===
 $categories = [];
@@ -364,6 +363,11 @@ foreach ($mapping['categories'] as $topCategory) {
                     // Legenden-Key aus lyrmgr.conf durchreichen
                     if (isset($groupDef['legend']) && $groupDef['legend'] !== '') {
                         $groupData['legend'] = $groupDef['legend'];
+                    }
+
+                    // selectAll-Flag durchreichen
+                    if (!empty($groupDef['selectAll'])) {
+                        $groupData['selectAll'] = true;
                     }
 
                     if (isset($groupDef['items'])) {
@@ -482,15 +486,26 @@ function processLayerItems($items, &$layerDefinitions, $details = true) {
                 'type' => 'layer'
             ];
 
-            if ($details) {
-                $def = findLayerDefinition($item, $layerDefinitions);
-                if ($def) {
-                    $layerData['url']       = $def['url'] ?? null;
-                    $layerData['layerType'] = $def['type'] ?? null;
-                    $layerData['opacity']   = $def['opacity'] ?? ($def['options']['opacity'] ?? 1.0);
-                    $layerData['visible']   = (bool)($def['visible'] ?? false);
-                    $layerData['params']    = $def['params'] ?? [];
-                    $layerData['options']   = $def['options'] ?? [];
+            // Layer-Definition laden (für Details ODER Legend-Info)
+            $def = findLayerDefinition($item, $layerDefinitions);
+
+            if ($details && $def) {
+                $layerData['url']       = $def['url'] ?? null;
+                $layerData['layerType'] = $def['type'] ?? null;
+                $layerData['opacity']   = $def['opacity'] ?? ($def['options']['opacity'] ?? 1.0);
+                $layerData['visible']   = (bool)($def['visible'] ?? false);
+                $layerData['params']    = $def['params'] ?? [];
+                $layerData['options']   = $def['options'] ?? [];
+            }
+
+            // Legend-Info immer generieren (auch bei details=false)
+            if ($def) {
+                $legendInfo = extractLegendInfo($def);
+                if ($legendInfo) {
+                    $layerData['legend'] = $legendInfo['legend'];
+                    if (isset($legendInfo['legendLayers'])) {
+                        $layerData['legendLayers'] = $legendInfo['legendLayers'];
+                    }
                 }
             }
 
@@ -510,15 +525,33 @@ function processLayerItems($items, &$layerDefinitions, $details = true) {
                 $layerData['legend'] = $item['legend'];
             }
 
-            if ($details && !isset($item['items'])) {
+            // selectAll-Flag durchreichen
+            if (!empty($item['selectAll'])) {
+                $layerData['selectAll'] = true;
+            }
+
+            if (!isset($item['items'])) {
+                // Leaf-Layer: Definition laden für Details und/oder Legend-Info
                 $def = findLayerDefinition($item['name'], $layerDefinitions);
                 if ($def) {
-                    $layerData['url']       = $def['url'] ?? null;
-                    $layerData['layerType'] = $def['type'] ?? null;
-                    $layerData['opacity']   = $def['opacity'] ?? ($def['options']['opacity'] ?? 1.0);
-                    $layerData['visible']   = (bool)($def['visible'] ?? false);
-                    $layerData['params']    = $def['params'] ?? [];
-                    $layerData['options']   = $def['options'] ?? [];
+                    if ($details) {
+                        $layerData['url']       = $def['url'] ?? null;
+                        $layerData['layerType'] = $def['type'] ?? null;
+                        $layerData['opacity']   = $def['opacity'] ?? ($def['options']['opacity'] ?? 1.0);
+                        $layerData['visible']   = (bool)($def['visible'] ?? false);
+                        $layerData['params']    = $def['params'] ?? [];
+                        $layerData['options']   = $def['options'] ?? [];
+                    }
+                    // Legend-Info immer generieren, falls nicht bereits aus lyrmgr.conf gesetzt
+                    if (!isset($layerData['legend'])) {
+                        $legendInfo = extractLegendInfo($def);
+                        if ($legendInfo) {
+                            $layerData['legend'] = $legendInfo['legend'];
+                            if (isset($legendInfo['legendLayers'])) {
+                                $layerData['legendLayers'] = $legendInfo['legendLayers'];
+                            }
+                        }
+                    }
                 }
             }
 
@@ -557,6 +590,54 @@ function findLayerDefinition($layerId, &$layerDefinitions) {
     }
 
     return null;
+}
+
+/**
+ * Extrahiert Legend-Info aus einer Layer-Definition.
+ * Generiert Service-Pfad und Layer-Index für den legend-proxy.
+ * 
+ * @param array $def Layer-Definition aus layers_*.conf
+ * @return array|null ['legend' => 'service/pfad', 'legendLayers' => '0,1'] oder null
+ */
+function extractLegendInfo($def) {
+    $type = $def['type'] ?? '';
+    $url  = $def['url'] ?? '';
+
+    // Nur ArcGIS-Layer haben Legenden über den legend-proxy
+    if ($type !== 'arcgisRest' || $url === '') {
+        return null;
+    }
+
+    // Service-Pfad aus URL extrahieren:
+    // /svc/rest/services/<folder>/<service>/MapServer
+    // /maps/agsproxy.php?path=<folder>/<service>/MapServer
+    // /maps/tnet/agsproxy/<folder>/<service>/MapServer
+    $servicePath = '';
+    if (preg_match('#/services/(.+?)/MapServer#i', $url, $m)) {
+        $servicePath = $m[1];
+    } elseif (preg_match('#agsproxy\.php\?path=(.+?)/MapServer#i', $url, $m)) {
+        $servicePath = $m[1];
+    } elseif (preg_match('#/agsproxy/(.+?)/MapServer#i', $url, $m)) {
+        $servicePath = $m[1];
+    }
+
+    if ($servicePath === '') {
+        return null;
+    }
+
+    $result = ['legend' => $servicePath];
+
+    // Layer-Index aus params.LAYERS extrahieren (z.B. "show:0" oder "show:0,1,2")
+    // "all" wird ignoriert — dann zeigt der legend-proxy die gesamte Service-Legende
+    $layersParam = $def['params']['LAYERS'] ?? '';
+    if (preg_match('/show:(.+)/', $layersParam, $lm)) {
+        $layerIdx = trim($lm[1]);
+        if ($layerIdx !== 'all') {
+            $result['legendLayers'] = $layerIdx;
+        }
+    }
+
+    return $result;
 }
 
 /**
@@ -773,26 +854,53 @@ function buildCatalogTree(array $rows, bool $details): array {
             $node['open'] = true;
         }
 
+        // selectAll-Flag aus DB
+        if (!empty($row['select_all'])) {
+            $node['selectAll'] = true;
+        }
+
+        // Legenden-Key aus DB (Gruppen-Legende aus lyrmgr.conf)
+        if (!empty($row['node_legend'])) {
+            $node['legend'] = $row['node_legend'];
+        }
+
         // Coalesce-Infos für Gruppen anhängen
         if (!empty($row['service_url'])) {
             $node['serviceUrl']     = $row['service_url'];
             $node['coalesceGroup']  = $row['coalesce_group'];
         }
 
-        // Layer-Details anhängen
+        // Legend-Info für Leaf-Layer generieren (immer, auch ohne details)
+        // Baut ein Mini-Def-Array für extractLegendInfo(), analog zum File-Pfad
+        if ($row['node_kind'] === 'layer' && !empty($row['url']) && !isset($node['legend'])) {
+            $miniDef = [
+                'url'    => $row['url'],
+                'type'   => $row['layer_type'] ?? '',
+                'params' => json_decode($row['params'] ?? '{}', true) ?: [],
+            ];
+            $legendInfo = extractLegendInfo($miniDef);
+            if ($legendInfo) {
+                $node['legend'] = $legendInfo['legend'];
+                if (isset($legendInfo['legendLayers'])) {
+                    $node['legendLayers'] = $legendInfo['legendLayers'];
+                }
+            }
+        }
+
+        // Layer-Details anhängen (nur bei details=true)
         if ($details && $row['layer_id'] && isset($row['url'])) {
             $node['url']           = $row['url'];
             $node['layerType']     = $row['layer_type'];
-            $node['displayName']   = $row['layer_display_name'];
-            $node['icon']          = $row['layer_icon'];
+            $node['displayName']   = $row['layer_display_name'] ?? null;
+            $node['icon']          = $row['layer_icon'] ?? null;
             $node['legendTitle']   = $row['legend_title'];
             $node['legendLink']    = $row['legend_link'];
             $node['opacity']       = (float) ($row['opacity'] ?? 1.0);
-            $node['visible']       = (bool)  $row['visible'];
-            $node['searchable']    = (bool)  $row['searchable'];
+            $node['visible']       = (bool)  ($row['visible'] ?? false);
+            $node['searchable']    = (bool)  ($row['searchable'] ?? false);
             $node['rank']          = (int)   ($row['rank'] ?? 1);
-            $node['minResolution'] = $row['min_resolution'] !== null ? (float) $row['min_resolution'] : null;
-            $node['maxResolution'] = $row['max_resolution'] !== null ? (float) $row['max_resolution'] : null;
+            $node['minResolution'] = isset($row['min_resolution']) && $row['min_resolution'] !== null ? (float) $row['min_resolution'] : null;
+            $node['maxResolution'] = isset($row['max_resolution']) && $row['max_resolution'] !== null ? (float) $row['max_resolution'] : null;
             $node['params']        = json_decode($row['params'] ?? '{}', true) ?: new \stdClass();
             $node['options']       = json_decode($row['options'] ?? '{}', true) ?: new \stdClass();
         }

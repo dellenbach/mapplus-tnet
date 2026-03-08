@@ -226,6 +226,14 @@
     // TNET-Suche (tnet-search.js / search-proxy.php) ein-/ausblenden
     tnetSearchEnabled: true,
 
+    // ---- Resultat-Limits pro Kategorie ----
+    // Maximale Anzahl Adress-Resultate in der Ergebnisliste
+    maxAddresses: 10,
+    // Maximale Anzahl Orts-/Strassen-Resultate
+    maxLocations: 10,
+    // Maximale Anzahl Themen-Resultate
+    maxLayers: 10,
+
     // ---- Zoom-Stufen (Swisstopo TileGrid, 29 Stufen, Zoom 0-28) ----
     // Zoom-Werte sind basemap-abhängig weil das Orthophoto höhere
     // Zoom-Level unterstützt als Plan/Basisplan.
@@ -279,6 +287,13 @@
     _description: "Räumliche Abfragen",
     enabled: true,
     maxVisibleColumns: 10,  // Initial sichtbare Spalten (Rest via "Mehr")
+    
+    // Massstabsabhängiger Abfrage-Buffer (für Punkt-/Linienobjekte)
+    // buffer = resolution(m/px) * tolerancePixels, gedeckelt auf [minBuffer, maxBuffer]
+    tolerancePixels: 10,    // Pixel-Toleranz → bestimmt Buffer-Grösse
+    minBuffer: 1.0,         // Minimaler Buffer in Metern
+    maxBuffer: 50.0,        // Maximaler Buffer in Metern
+    
     globalBlacklist: [      // Glob-Patterns (case-insensitive)
       "OBJECTID*",
       "Shape*",

@@ -1,0 +1,31 @@
+<FilesMatch "\.(conf)$">
+Order Allow,Deny
+Deny from all
+</FilesMatch>
+
+RewriteEngine on
+
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+
+# SPEZIELLE REGELN ZUERST (höchste Priorität)
+
+# Hole den urspruenglichen Host aus dem Forwarded Header für nw_nutzungsplanung 
+RewriteCond %{HTTP:X-Forwarded-Host} ^(.+)$
+# RewriteRule ^nw_nutzungsplanung/?$ https://%1/maps/?layers=grundnutzung|nw_kbs_DEF|nw_nutzungsplanung_DEF_grundnutzung [R=302,L,QSA]
+# Spezielle Playground/Intranet Regeln
+RewriteRule ^pg1$ /maps/?group=playground1 [QSA,L]
+RewriteRule ^pg2$ /maps/?group=playground2 [QSA,L]
+RewriteRule ^intranet$ /maps/?group=intranet [QSA,L]
+RewriteRule ^marco$ /maps/index_oidc.php?group=marco [QSA,L]
+
+# CATCH-ALL: Alle anderen /maps/xxx URLs -> Interner Rewrite zu index.php mit bookmark Parameter
+# Ausnahmen: Verzeichnisse (public, core) und spezielle Dateien
+RewriteCond %{REQUEST_URI} !^/maps/(public|core|inframe-maps\.html|map-bookmarks\.json|inframe-helpers\.js|inframe-maps\.css|index_oidc\.php|agsproxy\.php|agsproxy/|index\.php)
+RewriteCond %{REQUEST_URI} !^/maps/?$
+RewriteRule ^([a-zA-Z0-9_-]+)$ index.php?bookmark=$1 [QSA,L]
+
+
+RewriteEngine On
+RewriteCond %{QUERY_STRING} LAYERS=show:
+RewriteRule ^agsproxy\.php$ - [R=204,L]

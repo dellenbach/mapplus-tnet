@@ -526,6 +526,12 @@ $scope  = isset($_GET['scope']) ? strtolower(trim($_GET['scope'])) : '';
 $debug  = isset($_GET['debug']) && $_GET['debug'] === '1';
 $mode   = isset($_GET['mode']) ? strtolower(trim($_GET['mode'])) : '';  // 'fast' = nur Adressen+Layers
 
+// Pro-Kategorie Limits (optional, aus JSON5-Config via JS übergeben)
+// 0 = kein Limit (Standard wenn Parameter fehlt)
+$maxAddr = isset($_GET['maxAddr']) ? max(1, min(50, (int)$_GET['maxAddr'])) : 0;
+$maxLoc  = isset($_GET['maxLoc'])  ? max(1, min(50, (int)$_GET['maxLoc']))  : 0;
+$maxLay  = isset($_GET['maxLay'])  ? max(1, min(50, (int)$_GET['maxLay']))  : 0;
+
 // Scope: komma-separierte Liste (orte, adressen, layers) oder leer = alles
 $scopes = $scope ? array_map('trim', explode(',', $scope)) : [];
 $hasOrte     = empty($scopes) || in_array('orte', $scopes);
@@ -571,6 +577,9 @@ if ($mode === 'fast') {
         if ($item['subtitle'] === 'Adresse') $addressItems[] = $item;
     }
     usort($addressItems, function($a, $b) { return strnatcasecmp($a['label'], $b['label']); });
+    // Pro-Kategorie Limits anwenden
+    if ($maxAddr > 0) $addressItems = array_slice($addressItems, 0, $maxAddr);
+    if ($maxLay  > 0) $layerItems   = array_slice($layerItems,   0, $maxLay);
     $groups = buildGroups($layerItems, [], $addressItems, []);
     $allItems = array_merge($addressItems, $layerItems);
     $output = json_encode([
@@ -728,6 +737,14 @@ $simpleSort = function($a, $b) { return strnatcasecmp($a['label'], $b['label']);
 usort($locationItems,  $simpleSort);
 usort($swissNameItems, $simpleSort);
 usort($layerItems,     $simpleSort);
+
+// Pro-Kategorie Limits anwenden (aus Config via GET-Parameter)
+if ($maxAddr > 0) $addressItems  = array_slice($addressItems,  0, $maxAddr);
+if ($maxLoc  > 0) {
+    $locationItems  = array_slice($locationItems,  0, $maxLoc);
+    $swissNameItems = array_slice($swissNameItems, 0, $maxLoc);
+}
+if ($maxLay  > 0) $layerItems    = array_slice($layerItems,    0, $maxLay);
 
 // Ergebnis zusammenstellen
 $allItems = array_merge($addressItems, $locationItems, $swissNameItems, $layerItems);

@@ -526,10 +526,14 @@ class LayerImporter {
         }
 
         // Coalesce-Analyse: Haben alle direkten Kind-Layer die gleiche URL?
+        // Nur für ArcGIS-MapServer-Dienste relevant (serviceUrl enthält "MapServer").
+        // WMS-Dienste (Geoadmin etc.) haben zwar gleiche Basis-URL, sind aber
+        // keine Coalesce-Kandidaten — client-seitig nicht kombinierbar.
         if ($nodeKind !== 'layer' && count($childLayerIds) >= 2) {
             try {
                 $coalesceInfo = $this->analyzeCoalesceGroup($childLayerIds);
-                if ($coalesceInfo['serviceUrl']) {
+                if ($coalesceInfo['serviceUrl'] &&
+                    stripos($coalesceInfo['serviceUrl'], 'MapServer') !== false) {
                     // Gruppen-Node mit service_url und coalesce_group aktualisieren
                     $updCoalesce = $this->pdo->prepare("
                         UPDATE mapplusconf.catalog_node
@@ -935,8 +939,8 @@ class LayerImporter {
      * Extrahiert die Basis-URL eines MapServer-Dienstes.
      * Entfernt query_layers, show-Parameter und Trailing-Slashes.
      *
-     * Beispiel: "agsproxy.php?path=gis_basis/nw_basisplan_gis_dynamisch/MapServer"
-     *        → "agsproxy.php?path=gis_basis/nw_basisplan_gis_dynamisch/MapServer"
+     * Beispiel: "/maps/tnet/agsproxy/gis_basis/nw_basisplan_gis_dynamisch/MapServer"
+     *        → "/maps/tnet/agsproxy/gis_basis/nw_basisplan_gis_dynamisch/MapServer"
      *
      * @param  string $url  Volle URL aus layer_definition
      * @return string|null  Basis-URL oder null falls nicht parsebar
@@ -944,7 +948,18 @@ class LayerImporter {
     private function extractServiceBaseUrl(?string $url): ?string
     {
         if ($url === null || $url === '') return null;
-        // AGS-Proxy-URLs: agsproxy.php?path=.../MapServer[/...]
+        // Clean-URL: /maps/tnet/agsproxy/.../MapServer[/...]
+        if (preg_match('#(tnet/agsproxy/[^?]+/MapServer)#i', $url, $m)) {
+            // Pfad bis /MapServer extrahieren, ohne Sublayer-IDs
+            $base = preg_replace('#/MapServer/.*$#i', '/MapServer', $m[0]);
+            // Vollständigen Pfad mit /maps/ Prefix zurückgeben
+            $pos = strpos($url, $base);
+            if ($pos !== false) {
+                return substr($url, 0, $pos) . $base;
+            }
+            return '/maps/' . $base;
+        }
+        // Legacy AGS-Proxy-URLs: agsproxy.php?path=.../MapServer[/...]
         if (preg_match('#(agsproxy\.php\?path=[^&]+/MapServer)#i', $url, $m)) {
             return $m[1];
         }
@@ -962,7 +977,7 @@ class LayerImporter {
     /**
      * Extrahiert einen kurzen, lesbaren Coalesce-Key aus einer MapServer-URL.
      *
-     * Beispiel: "agsproxy.php?path=gis_basis/nw_basisplan_gis_dynamisch/MapServer"
+     * Beispiel: "/maps/tnet/agsproxy/gis_basis/nw_basisplan_gis_dynamisch/MapServer"
      *        → "nw_basisplan_gis_dynamisch"
      *
      * @param  string $url  Basis-URL des MapServer-Dienstes

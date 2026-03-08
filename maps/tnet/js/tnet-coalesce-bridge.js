@@ -51,6 +51,13 @@
   /** URL-Sync Timer */
   var _urlSyncTimer = null;
 
+  /**
+   * Batch-Modus: Unterdrückt _syncDojoCheckbox und _scheduleUrlSync
+   * während setGroupAllVisible mehrere Layer auf einmal verarbeitet.
+   * Verhindert Dojo-Framework-Seiteneffekte (switchLayersProgr Ghost-Layer).
+   */
+  var _batchDepth = 0;
+
   /** Ursprüngliche layers= aus URL — beim Script-Laden gespeichert, bevor Framework die URL überschreibt */
   var _originalUrlLayers = '';
   try {
@@ -254,7 +261,15 @@
     olLayer.set('name', rootKey);
     olLayer.set('tnet_bridge_created', true);
 
-    map.addLayer(olLayer);
+    // map.addLayer() kann in Dojo-Callbacks crashen (z.B. MapTip.addLayerCallback
+    // versucht layerConf.minResolution zu lesen, aber layerConf ist null für
+    // Bridge-erstellte Layer). Try-catch verhindert, dass der Fehler
+    // den gesamten Coalesce-Pfad abbricht und Events nicht mehr feuern.
+    try {
+      map.addLayer(olLayer);
+    } catch (e) {
+      TnetLog.warn(LOG, '_createRootOLLayer: Fehler in Framework-Callback bei addLayer (ignoriert):', e.message);
+    }
     TnetLog.log(LOG, 'Bridge OL-Layer erstellt:', rootKey,
       '| URL:', serviceUrl, '| LAYERS:', layersParam, '| Opacity:', opacity);
 
@@ -943,12 +958,21 @@
         }
 
         // 2. Store fragen: ist es ein Coalesce-Sublayer?
+        //    WICHTIG: Zusätzlich prüfen ob der Layer im Store existiert!
+        //    Ohne findLayer-Check gibt setLayerVisible() still auf wenn
+        //    die Search-API Layer-IDs liefert die nicht im Katalog sind.
+        //    Der Patch würde dann true zurückgeben → kein Fallback auf Original.
         var store = window.TnetLMStore;
         if (store && typeof store.isCoalesceSublayer === 'function' &&
             store.isCoalesceSublayer(layerId)) {
-          store.setLayerVisible(layerId, true);
-          TnetLog.log(LOG, 'TnetLayerSwitch → Store route (Coalesce-Sublayer):', layerId);
-          return true;
+          // Verifizieren dass der Layer wirklich im Store-Katalog existiert
+          if (typeof store.findLayer === 'function' && store.findLayer(layerId)) {
+            store.setLayerVisible(layerId, true);
+            TnetLog.log(LOG, 'TnetLayerSwitch → Store route (Coalesce-Sublayer):', layerId);
+            return true;
+          }
+          // Layer in _layerToCoalesce aber nicht im Katalog → Fallback
+          TnetLog.debug(LOG, 'TnetLayerSwitch: Coalesce-Sublayer nicht im Store-Katalog:', layerId, '→ Fallback');
         }
       }
       // Kein Coalesce-Sublayer oder mode !== 'on' → Original aufrufen
@@ -1133,9 +1157,11 @@
         }
       }, isFirst ? 500 : 100);
 
-      // Dojo-Checkbox + URL-State
-      _syncDojoCheckbox(sublayerKey, true);
-      _scheduleUrlSync();
+      // Dojo-Checkbox + URL-State (nur außerhalb von Batch-Modus)
+      if (_batchDepth === 0) {
+        _syncDojoCheckbox(sublayerKey, true);
+        _scheduleUrlSync();
+      }
 
       return true;
     },
@@ -1208,8 +1234,10 @@
         this._updateLAYERSDebounced(rootKey);
       }
 
-      _syncDojoCheckbox(sublayerKey, false);
-      _scheduleUrlSync();
+      if (_batchDepth === 0) {
+        _syncDojoCheckbox(sublayerKey, false);
+        _scheduleUrlSync();
+      }
       return true;
     },
 
@@ -1380,6 +1408,30 @@
      */
     isManagedSublayer: function (sublayerKey) {
       return !!_sublayerToRoot[sublayerKey];
+    },
+
+    /**
+     * Startet den Batch-Modus: unterdrückt Dojo-Checkbox-Sync und URL-Sync
+     * für nachfolgende register/unregisterSublayer-Aufrufe.
+     * Muss mit endBatch() abgeschlossen werden.
+     */
+    beginBatch: function () {
+      _batchDepth++;
+      TnetLog.debug(LOG, 'beginBatch, Tiefe:', _batchDepth);
+    },
+
+    /**
+     * Beendet den Batch-Modus. Beim letzten endBatch wird URL-Sync ausgelöst.
+     * Dojo-Checkboxen werden bewusst NICHT synchronisiert — das würde
+     * switchLayersProgr/Ghost-Layer-Probleme verursachen.
+     */
+    endBatch: function () {
+      _batchDepth--;
+      if (_batchDepth <= 0) {
+        _batchDepth = 0;
+        _scheduleUrlSync();
+        TnetLog.debug(LOG, 'endBatch: URL-Sync ausgelöst');
+      }
     },
 
     /**

@@ -1002,3 +1002,74 @@
 .lm-container-desktop .lm-active-group > .lm-opacity-row {
   padding: 1px 6px 2px 36px;
 }
+
+/* ============================================================
+   SelectAll-Checkbox auf Gruppen-Headern
+   ============================================================ */
+
+/* Checkbox in Gruppen-Headern (neben dem Pfeil) */
+.lm-group-cb {
+  width: 15px;
+  height: 15px;
+  margin: 0 2px 0 0;
+  cursor: pointer;
+  accent-color: var(--m-color-primary, #4B7B81);
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
+/* Indeterminate-State: Eltern-Gruppe mit teils sichtbaren Layern */
+.lm-group-cb:indeterminate {
+  opacity: 0.7;
+}
+
+/* Desktop: etwas kleiner */
+.lm-container-desktop .lm-group-cb {
+  width: 14px;
+  height: 14px;
+}
+
+/* ============================================================
+   Legenden-Button auf Gruppen-/Layer-Zeilen (bei Hover)
+   ============================================================ */
+
+/* Legenden-Button: dezent sichtbar, bei Hover stärker */
+.lm-legend-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  margin: 0 4px 0 auto;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 14px;
+  opacity: 0.35;
+  transition: opacity 0.15s ease;
+  vertical-align: middle;
+  flex-shrink: 0;
+  line-height: 1;
+  border-radius: 3px;
+}
+
+/* Bei Hover auf Header/Layer: Legenden-Button stärker sichtbar */
+.lm-group-header:hover .lm-legend-btn,
+.lm-nested-header:hover .lm-legend-btn,
+.lm-layer:hover .lm-legend-btn,
+.lm-legend-btn:focus {
+  opacity: 0.75;
+}
+
+.lm-legend-btn:hover {
+  opacity: 1 !important;
+  background: rgba(75, 123, 129, 0.15);
+}
+
+/* Desktop: etwas kleiner */
+.lm-container-desktop .lm-legend-btn {
+  width: 20px;
+  height: 20px;
+  font-size: 12px;
+}

@@ -178,7 +178,7 @@
           '<span class="print-panel-title">\uD83D\uDDA8 Drucken / Export</span>' +
           '<div class="print-panel-actions">' +
             '<button class="print-panel-btn" id="print-dock-btn" onclick="togglePrintPanelDock()" title="Floating">' +
-              '<svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M19 11h-8v6h8v-6zm4 8V4.98C23 3.88 22.1 3 21 3H3c-1.1 0-2 .88-2 1.98V19c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2zm-2 .02H3V4.97h18v14.05z"/></svg>' +
+              TnetIcons.get('undock', null, {width: '16', height: '16'}) +
             '</button>' +
             '<button class="print-panel-btn print-panel-close" onclick="closePrintPanel()" title="Schliessen">&times;</button>' +
           '</div>' +
@@ -261,7 +261,7 @@
           // Drucken-Button
           '<div class="print-section">' +
             '<button class="print-action-btn" id="print-exec-btn" onclick="executePrint()">' +
-              '<svg viewBox="0 0 24 24" width="18" height="18"><path d="M19 8H5c-1.66 0-3 1.34-3 3v6h4v4h12v-4h4v-6c0-1.66-1.34-3-3-3zm-3 11H8v-5h8v5zm3-7c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm-1-9H6v4h12V3z" fill="currentColor"/></svg>' +
+              TnetIcons.get('printer', null, {width: '18', height: '18'}) +
               ' PDF erstellen' +
             '</button>' +
           '</div>' +
@@ -1180,7 +1180,7 @@
     btn.disabled = false;
     btn.classList.remove('printing');
     btn.innerHTML =
-      '<svg viewBox="0 0 24 24" width="18" height="18"><path d="M19 8H5c-1.66 0-3 1.34-3 3v6h4v4h12v-4h4v-6c0-1.66-1.34-3-3-3zm-3 11H8v-5h8v5zm3-7c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm-1-9H6v4h12V3z" fill="currentColor"/></svg> PDF erstellen';
+      TnetIcons.get('printer', null, {width: '18', height: '18'}) + ' PDF erstellen';
 
     setTimeout(function () {
       document.getElementById('print-progress').style.display = 'none';
@@ -1455,7 +1455,7 @@
 
     if (dockBtn) {
       dockBtn.title = 'Floating';
-      dockBtn.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M19 11h-8v6h8v-6zm4 8V4.98C23 3.88 22.1 3 21 3H3c-1.1 0-2 .88-2 1.98V19c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2zm-2 .02H3V4.97h18v14.05z"/></svg>';
+      dockBtn.innerHTML = TnetIcons.get('undock', null, {width: '16', height: '16'});
     }
   }
 
@@ -1485,7 +1485,7 @@
 
     if (dockBtn) {
       dockBtn.title = 'Rechts andocken';
-      dockBtn.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16h-4V5h4v14z"/></svg>';
+      dockBtn.innerHTML = TnetIcons.get('dock', null, {width: '16', height: '16'});
     }
   }
 

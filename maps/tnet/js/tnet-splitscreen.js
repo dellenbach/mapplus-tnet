@@ -1337,7 +1337,7 @@
             btn.id = 'split-layer-btn';
             btn.title = 'Layer für Karte B auswählen';
             btn.style.cssText = 'position: absolute; top: 10px; right: 10px; width: 36px; height: 36px; background: white; border: none; border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.2); cursor: pointer; z-index: 1002; display: flex; align-items: center; justify-content: center;';
-            btn.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20"><path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
+            btn.innerHTML = TnetIcons.get('hamburger', null, {width: '20', height: '20'});
             
             // Create panel container (popup)
             var panel = document.createElement('div');

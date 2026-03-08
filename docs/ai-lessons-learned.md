@@ -6,6 +6,42 @@
 
 ---
 
+## 2026-03-08 — Bundesdaten (Geoadmin WMS) lassen sich nicht einschalten
+- **Symptom**: Geoadmin-Layer (z.B. `ch.astra.baulinien-nationalstrassen`) einschalten → Log: `Coalesce: Sublayer-Nummer nicht extrahierbar`. Layer wird nicht auf der Karte angezeigt.
+- **Root-Cause**: `LayerImporter.php` setzt `service_url`/`coalesce_group` auf jede Gruppe, deren Kind-Layer dieselbe Basis-URL teilen — auch WMS-Gruppen (Geoadmin). `_scanCoalesceNodes` erkennt diese fälschlich als Coalesce-Gruppen. `_extractSublayerNum` erwartet ArcGIS-Format `LAYERS: "show:3"`, WMS hat aber `layers: "ch.astra...."` → gibt `null` zurück → Aktivierung bricht ab.
+- **Fix**: (1) JS: `_scanCoalesceNodes` prüft `serviceUrl.indexOf('MapServer') !== -1` — nur ArcGIS-Dienste werden als Coalesce klassifiziert. (2) PHP: `LayerImporter.php` schreibt `service_url`/`coalesce_group` nur wenn URL `MapServer` enthält.
+- **Guardrail**: Coalesce-Logik darf NUR für ArcGIS-MapServer-Dienste greifen. WMS-Dienste immer über Standard-Pfad (TnetLayerSwitch) aktivieren.
+
+---
+
+## 2026-03-08 — MapTip-Crash bei Coalesce-Layer-Aktivierung → SelectAll-Checkbox hängt
+- **Symptom**: Coalesce-Layer (z.B. Grundnutzung NW) per Suche oder Checkbox einschalten → `Uncaught TypeError: Cannot read properties of null (reading 'minResolution')` in `njs.MapTip.addLayerCallback`. Übergeordnete SelectAll-Checkbox aktualisiert sich nur jedes zweite Mal.
+- **Root-Cause**: `_createRootOLLayer` ruft `map.addLayer(olLayer)` auf → Dojo `MapTip.addLayerCallback` feuert synchron → sucht `layerConf` im LyrMgr für Bridge-erstellte Layer → `null.minResolution` → Crash. Der Uncaught TypeError propagiert hoch durch `_addToCoalesceOLLayer` → `setLayerVisible` → `_emit('layer-visibility')` wird NIE erreicht → Tree erhält kein Event → `_updateSelectAllCheckboxes()` läuft nicht. Beim 2. Klick existiert Root-OL-Layer bereits → kein `map.addLayer()` → kein Crash → Events feuern korrekt.
+- **Fix**: `map.addLayer(olLayer)` in `_createRootOLLayer` (tnet-coalesce-bridge.js) in try-catch gewrappt. OL fügt den Layer vor dem Callback zur Collection hinzu, daher ist die Kartenfunktionalität nicht betroffen.
+- **Guardrail**: Bei jedem `map.addLayer()` für Bridge-erstellte Layer immer try-catch verwenden, da Dojo-Callbacks auf Layer-Events mit unbekannten Layer-Typen crashen können.
+
+---
+
+## 2026-03-08 — Suche: Layer-Aktivierung schlägt fehl bei tiefen Sublayer-Pfaden
+- **Symptom**: Über die Suche "Grundnutzung" ausgewählt → Layer wird nicht eingeschaltet. Log: `navigateToLayer: Layer nicht im DOM gefunden: gis_fach/ow_fliessgewaesser_intern/gewaesser/.../gewaesserraumzonen_grundnutzung`
+- **Root-Cause**: Drei Probleme: (1) Coalesce-Bridge-Patch fängt `TnetLayerSwitch('on')` ab und gibt `true` zurück, auch wenn `setLayerVisible` still fehlschlägt (Layer nicht im Store-Katalog). Dadurch kein Fallback auf Original. (2) Search-`activateLayer` nutzt nur TnetLayerSwitch, nicht den Store. (3) Such-API kann Layer-IDs liefern die tiefer liegen als lyrmgr.conf definiert (z.B. aus DB-Import) → weder Store noch Dojo kennt diese IDs.
+- **Fix**: (1) Bridge-Patch: `findLayer`-Check vor Store-Route — wenn Layer nicht im Katalog → Fallback auf Original. (2) `activateLayer`: Store-first mit Eltern-Pfad-Fallback (Pfadsegmente kürzen bis bekannter Layer gefunden). (3) `navigateToLayer`: DOM-Fallback auf Eltern-Pfad wenn exakte ID nicht gefunden.
+- **Guardrail**: Bei TnetLayerSwitch-Patch immer verifizieren dass der Layer im Store existiert bevor `true` zurückgegeben wird. Such-Aktivierung immer über Store routen (Coalesce, Active-Liste, Sichtbarkeits-Tracking).
+
+---
+
+## 2026-03-07 — Räumliche Abfrage: Doppeltes ? in Proxy-URL bricht ArcGIS-Queries
+- **Symptom**: Räumliche Abfrage (Polygon) liefert keine Ergebnisse für ArcGIS-Layer wie Fruchtfolgeflächen. Fetch schlägt fehl oder gibt leere Antwort.
+- **Root-Cause**: OL-Layer-Source liefert URL im `?path=`-Format: `agsproxy.php?path=gis_fach/.../MapServer`. Die Spatial Query hängt `/0/query?f=json&geometry=...` an → entsteht URL mit **doppeltem `?`**: `agsproxy.php?path=.../MapServer/0/query?f=json&...`. Der Browser interpretiert alles nach dem ersten `?` als Query-String, wodurch `f=json` in den `path`-Parameter eingebettet wird.
+- **Fix**: Neue Funktion `normalizeProxyUrl()` in `tnet-spatial-query.js`: konvertiert `agsproxy.php?path=X` → `agsproxy.php/X` (PATH_INFO-Format). Wird in `getVisibleQueryableLayers()` (nach URL-Extraktion) UND in `querySingleLayer()` (vor Query-Bau) aufgerufen.
+- **Guardrail**: Proxy-URLs können in zwei Formaten vorliegen (`?path=` und PATH_INFO). Vor dem Anhängen von `/sublayer/query?params` IMMER erst in PATH_INFO normalisieren, damit kein doppeltes `?` entsteht.
+
+## 2026-03-07 — ÖREB/Polygon-Zeichnen löst gleichzeitig MapTip aus
+- **Symptom**: Klick auf Karte während ÖREB-Modus oder Polygon-Zeichnen (räumliche Abfrage) löst parallel einen MapTip-Request aus → verwirrende doppelte Ergebnisse.
+- **Root-Cause**: `tnet-info-bridge.js` singleclick-Handler kannte keine Tool-Exklusivität. OL feuert alle registrierten singleclick-Listener unabhängig voneinander — `evt.stopPropagation()` blockiert nur DOM-Events, nicht OL-Event-Listener.
+- **Fix**: Am Anfang von `_handleClick()` in der Bridge prüfen: `window.isOerebActive` → early return; `window.isPolygonDrawing` → early return. Globals werden von `tnet-oereb.js` bzw. `tnet-spatial-query.js` korrekt gesetzt/zurückgesetzt.
+- **Guardrail**: Jedes neue Tool, das eigene Klick-Handler registriert, MUSS ein globales Flag setzen (z.B. `window.isToolXActive`) und dieses in der Bridge als Gate abfragen.
+
 ## 2026-03-06 — MapTips feuern nicht: Sublayer-Name ≠ OL-Layer-Name (Prefix-Mismatch)
 - **Symptom**: Layer wie `gis_fach/nw_fruchtfolgeflaechen` auf der Karte sichtbar, aber TnetSyncMapTips aktiviert keinen MapTip → null Queries beim Klick.
 - **Root-Cause**: MapTip-Config hat `linked_layer = gis_fach/nw_fruchtfolgeflaechen/fruchtfolgeflaeche` (Sublayer-Key), aber der OL-Layer auf der Karte heisst `gis_fach/nw_fruchtfolgeflaechen` (Parent-Key). TnetSyncMapTips machte exakten Vergleich → kein Match → MapTip nie aktiviert. Auch `getLayerByMap()` findet den Sublayer-Key nicht, weil er nicht im LyrMgr registriert ist (nur der Parent ist in lyrmgr.conf).
@@ -630,3 +666,49 @@
 - **Root-Cause**: In `_scanCoalesceNodes` hatte `servicePath` Vorrang über `n.name`: `name: servicePath || n.displayName || n.name || n.id`. Kommentar sagte "DB-Name ist oft generisch" — trifft aber auf die meisten Katalog-Knoten nicht zu.
 - **Fix**: Priorität umgekehrt: `n.displayName || n.name || servicePath || n.id`. Generische Namen ("Virtueller Layer") werden mit Prüfung übersprungen.
 - **Guardrail**: Katalog-Knoten-Namen (`n.name`, `n.displayName`) haben immer Vorrang vor technischen Pfaden. Nur als Fallback hinter Generik-Check verwenden.
+
+## 2026-03-08 — DB-Pfad: selectAll und legend fehlen auf verschachtelten Gruppen
+
+- **Symptom**: SelectAll-Checkbox und Legenden-Button auf verschachtelten Gruppen (z.B. "Nw Nutzungsplanung Def") nicht sichtbar — obwohl in lyrmgr.conf `selectAll: true` und `legend` korrekt gesetzt sind.
+- **Root-Cause (1/2)**: SQL-Query im DB-Pfad (`buildCatalogTree`) selektierte weder `cn.select_all` noch `cn.legend` aus `catalog_node`. Die Spalten existierten in der DB und wurden vom Importer geschrieben, aber die Query ignorierte sie.
+- **Root-Cause (2/2)**: Die Daten fehlten initial in der DB auch wegen fehlendem Katalog-Resync (`admin.php?action=configtopg&scope=catalog`) nach dem Hinzufügen der Spalten.
+- **Fix**: `cn.select_all` und `cn.legend AS node_legend` zur SQL hinzugefügt. In der Node-Verarbeitung: `$node['selectAll'] = true` wenn `select_all` gesetzt, `$node['legend']` aus `node_legend`. Anschliessend Katalog-Resync ausgeführt.
+- **Guardrail**: Wenn neue Spalten zu `catalog_node` hinzugefügt werden → IMMER auch die SQL-Query in layers.php UND die Node-Verarbeitung in `buildCatalogTree` anpassen. Nach Schema-Änderung: Katalog-Resync via `admin.php?action=configtopg&scope=catalog` triggern.
+
+## 2026-03-08 — DB-Pfad: Leaf-Layer ohne legend/legendLayers
+
+- **Symptom**: Legenden-Button (🗺) fehlt auf Blatt-Layern im neuen Tree, obwohl der File-basierte API-Pfad `legend`/`legendLayers` korrekt liefert.
+- **Root-Cause**: Der DB-Pfad lieferte nur `legendTitle`/`legendLink` (volle URL), aber der JS-Renderer erwartet `legend` (Service-Pfad) und `legendLayers` (Layer-Index). Die Konvertierung via `extractLegendInfo()` fehlte im DB-Pfad.
+- **Fix**: `ld.url`, `ld.layer_type`, `ld.params` werden jetzt IMMER selektiert (nicht nur bei `details=true`). Für Leaf-Layer wird ein Mini-Def-Array gebaut und `extractLegendInfo()` aufgerufen — identisch zum File-Pfad. LEFT JOIN auf `layer_definition` ist jetzt immer aktiv.
+- **Guardrail**: Beide API-Pfade (File + DB) MÜSSEN identische Felder auf den Leaf-Layern liefern. `extractLegendInfo()` ist die einzige Quelle für `legend`/`legendLayers` — immer diese Funktion verwenden.
+
+## 2026-03-08 — Toggle nach Breadcrumb-Navigation funktioniert nicht
+
+- **Symptom**: Nach Breadcrumb-Navigation zu einem Layer (z.B. "Grundnutzung") lassen sich übergeordnete Gruppen nicht mehr schliessen.
+- **Root-Cause**: Toggle-Handler nutzte `closest('[data-group-id]')` für die Gruppen-Suche — das matchte auf jeden Elternknoten mit `data-group-id`, potenziell auch auf den falschen. Zustandserkennung via `!contains('lm-collapsed')` konnte bei fehlender Klasse (weder expanded noch collapsed) inkorrekt sein. `classList.toggle(name, force)` hatte Browser-Quirks.
+- **Fix**: Selektor geändert auf `closest('.lm-subcat, .lm-group, .lm-nested-group')` (explizite Klassen). Explizites `classList.add/remove` statt `toggle(name, force)`. `e.preventDefault()` ergänzt. Debug-Logging via TnetLog.
+- **Guardrail**: CSS-Klassen-Toggle immer explicit add+remove verwenden, nie `classList.toggle(name, boolForce)`. Group-Suche immer via CSS-Klasse (`.lm-subcat` etc.), nicht via Daten-Attribut.
+
+## 2026-03-08 — Gruppen-Legend: Case-Mismatch ArcGIS-Servicename vs. Config
+- **Symptom**: Klick auf Legenden-Button einer Gruppe zeigt "ArcGIS Legend-Fehler: Could not find service". Leaf-Layer-Legenden funktionieren.
+- **Root-Cause**: lyrmgr.conf und DB-Spalte `catalog_node.legend` enthalten den Service-Pfad in Kleinbuchstaben (z.B. `gis_oereb/nw_nutzungsplanung_def`), aber der ArcGIS-Dienst heisst `nw_nutzungsplanung_DEF` (Grossbuchstaben). ArcGIS REST ist case-sensitive. Leaf-Layer haben den korrekten Case aus `extractLegendInfo()` (direkt aus der URL), Gruppen-Legend kommt aber aus der Config.
+- **Fix**: `_propagateLegends()` im Store ergänzt: Nach der Vererbung an Kinder, wird `_findCorrectLegendCase()` aufgerufen. Diese Funktion sucht rekursiv in Kind-Knoten nach einem `legend`-Wert der case-insensitiv übereinstimmt aber korrekt gecastet ist (aus extractLegendInfo). Gruppen-Legend wird dann auf den korrekten Case aktualisiert.
+- **Guardrail**: ArcGIS REST ist case-sensitive. Service-Pfade aus Config nie direkt verwenden — immer gegen die aus der URL extrahierten Pfade (extractLegendInfo) abgleichen.
+
+## 2025-07-27 — Icon-Zentralisierung: Inline-SVGs in externe Dateien + TnetIcons Modul
+- **Symptom**: ~45 inline SVGs verstreut über 10+ JS-Dateien. Gleiche Icons (dock, undock, close) mehrfach dupliziert. Wartung und Konsistenz schwierig.
+- **Root-Cause**: Historisch gewachsen — jedes Modul definierte eigene SVG-Strings inline.
+- **Fix**: 22 SVG-Dateien unter `/maps/tnet/resources/icons/` erstellt. Neues `tnet-icons.js` Modul mit `window.TnetIcons` (fetch-basierter Loader mit Cache). `TnetIcons.loadAll()` im HTML-Head aufgerufen, alle Module nutzen `TnetIcons.get('name')`. CSS data-URIs beibehalten (currentColor funktioniert nicht in externen SVGs via url()). Search-Fallback-SVGs beibehalten (eigener Loader).
+- **Guardrail**: Neue Icons immer als .svg in `/resources/icons/` ablegen und in `TnetIcons.ALL` registrieren. Für CSS-Hintergrundbilder weiterhin data-URIs verwenden.
+
+## 2026-03-08 — SelectAll-Checkbox: Gruppen-Layer nicht robust eingeschaltet
+- **Symptom**: Gruppen-Checkbox (selectAll) anhaken → nicht alle Kind-Layer werden eingeschaltet. Intermittent.
+- **Root-Cause**: `setLayerVisible` hat Guard `if (layer.visible === visible) return;`. Wenn Store durch `_syncFromMap` bereits `visible: true` hat, aber UI-Checkbox noch unchecked (Tab war nicht gerendert bei Sync), werden Layer übersprungen → kein Event → Checkbox bleibt unchecked. Zusätzlich: Standard-Layer (TnetLayerSwitch/switchLayersProgr) vertragen keine 9+ Aufrufe in enger Schleife.
+- **Fix**: `setGroupAllVisible` komplett überarbeitet: (1) Guard umgehen — `visible`-State vor Aufruf auf Gegenteil setzen falls nötig, (2) Coalesce-Layer synchron (Debounce bündelt), Standard-Layer gestaffelt (50ms Abstand), (3) Fehler pro Layer abfangen, Event trotzdem emittieren, (4) Fallback-Sync `_syncGroupCheckboxes` nach 800ms prüft DOM vs. Store.
+- **Guardrail**: Bei Batch-Operationen nie den `layer.visible === visible` Guard verlassen. Immer force-through für Gruppen-Aktionen.
+
+## 2026-03-08 — SelectAll: "Jedes zweite Mal" Race Condition
+- **Symptom**: SelectAll-Checkbox für Gruppen-Layer (ÖREB, SLB) funktioniert nur jedes zweite Mal (nicht deterministisch, timing-abhängig).
+- **Root-Cause**: Bridge's `_syncDojoCheckbox()` in `registerSublayer`/`unregisterSublayer` setzt Dojo-Checkboxen → Dojo-Framework reagiert async mit `switchLayersProgr` → erstellt individuelle Ghost-OL-Layer → Ghost-Schutz muss diese asynchron entfernen. Race Condition zwischen `_suppressMapSync` (200ms Reset), Dojo-Async und Ghost-Schutz (50ms Deferred) → je nach Browser-Timing funktioniert es oder nicht.
+- **Fix**: Batch-Modus (`beginBatch`/`endBatch`) in der CoalesceBridge. Store's `setGroupAllVisible` aktiviert Batch vor Coalesce-Verarbeitung. Im Batch-Modus wird `_syncDojoCheckbox` komplett unterdrückt → keine Dojo-Seiteneffekte → keine Ghost-Layer → kein Timing-Problem. URL-Sync wird einmal am Ende ausgelöst. Fallback-Sync-Timeout auf 1200ms erhöht.
+- **Guardrail**: `_syncDojoCheckbox` NIE in Batch-Operationen aufrufen. Dojo-Checkbox-Sync nur für einzelne Layer-Toggles, nie für Massen-Aktivierung.

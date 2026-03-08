@@ -1,0 +1,14 @@
+# TNET - Clean URLs für ArcGIS Proxy
+#
+# Ermöglicht Aufrufe wie:
+#   /maps/tnet/agsproxy/gis_fach/nw_fruchtfolgeflaechen/MapServer?f=json
+# statt:
+#   /maps/agsproxy.php?path=gis_fach/nw_fruchtfolgeflaechen/MapServer&f=json
+#
+# Voraussetzung: Apache mod_rewrite + AllowOverride All
+
+RewriteEngine On
+
+# /maps/tnet/agsproxy/... → /maps/agsproxy.php?path=...
+# Query-String wird via QSA durchgereicht.
+RewriteRule ^agsproxy/(.+)$ /maps/agsproxy.php?path=$1 [L,QSA]

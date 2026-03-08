@@ -24,6 +24,9 @@ var spatialQueryConfigPromise = null;
     function getDefaultSpatialQueryConfig() {
         return {
             maxVisibleColumns: 10,
+            tolerancePixels: 10,
+            minBuffer: 1.0,
+            maxBuffer: 50.0,
             globalBlacklist: [],
             layerBlacklist: {},
             bufferDistances: [10, 25, 50, 100, 250, 500, 1000]
@@ -95,6 +98,39 @@ var spatialQueryConfigPromise = null;
         return spatialQueryConfigPromise;
     }
 
+    // ===== PROXY-URL NORMALISIERUNG =====
+
+    /**
+     * Prüft ob eine URL über den ArcGIS-Proxy läuft.
+     * Erkennt beide Formate:
+     *   - Legacy:    /maps/agsproxy.php?path=... oder /maps/agsproxy.php/...
+     *   - Clean-URL: /maps/tnet/agsproxy/...
+     */
+    function isProxyUrl(url) {
+        if (!url) return false;
+        return url.indexOf('agsproxy.php') > -1 || url.indexOf('tnet/agsproxy/') > -1;
+    }
+
+    /**
+     * Normalisiert Proxy-URLs in ein direkt verwendbares Format.
+     * - Legacy ?path=:  /maps/agsproxy.php?path=X  → /maps/agsproxy.php/X
+     * - Clean-URLs:     /maps/tnet/agsproxy/X       → unverändert (bereits sauber)
+     * - Andere URLs:    unverändert zurückgegeben
+     */
+    function normalizeProxyUrl(url) {
+        if (!url) return url;
+        // Legacy-Format: ?path= → PATH_INFO
+        var match = url.match(/^(.*agsproxy\.php)\?path=([^&]+)(.*)$/);
+        if (match) {
+            // match[1] = /maps/agsproxy.php
+            // match[2] = gis_fach/.../MapServer (der Pfad)
+            // match[3] = restliche Query-Params (z.B. &foo=bar), normalerweise leer
+            return match[1] + '/' + match[2];
+        }
+        // Clean-URL-Format: bereits sauber, unverändert zurückgeben
+        return url;
+    }
+
     // ===== ALIAS-AUFLÖSUNG FÜR LAYER-NAMEN =====
 
     // Cache für ArcGIS Service-Metadaten (serviceUrl → {layers: [{id, name}]})
@@ -109,18 +145,21 @@ var spatialQueryConfigPromise = null;
      * @returns {Promise} Resolved wenn alle Namen aufgelöst sind
      */
     function resolveLayerAliases(layers) {
-        // 1. Synchrone NLS-Lookups zuerst
+        // 1. Synchrone NLS-Lookups zuerst (liefert Gruppen-/Dienst-Namen)
         layers.forEach(function(layer) {
             var alias = _lookupNlsAlias(layer);
             if (alias) {
+                layer.nlsAlias = alias;  // NLS-Name merken, aber noch nicht als finalen Alias setzen
                 layer.alias = alias;
             }
         });
 
-        // 2. ArcGIS Service-Metadaten asynchron holen (nur für ungelöste Sublayer)
+        // 2. ArcGIS Service-Metadaten asynchron holen
+        // IMMER für Sublayer (layerId gesetzt) holen, auch wenn NLS schon was gefunden hat
+        // Der Sublayer-Name hat Priorität über den Gruppen-Namen
         var serviceGroups = {};
         layers.forEach(function(layer) {
-            if (layer.type === 'arcgis' && layer.serviceUrl && !layer.alias) {
+            if (layer.type === 'arcgis' && layer.serviceUrl && layer.layerId) {
                 if (!serviceGroups[layer.serviceUrl]) {
                     serviceGroups[layer.serviceUrl] = [];
                 }
@@ -142,7 +181,7 @@ var spatialQueryConfigPromise = null;
                     _applyServiceInfo(serviceGroups[svcUrl], info);
                 })
                 .catch(function(err) {
-                    // Fehler ignorieren, Fallback auf technischen Namen
+                    // Fehler ignorieren, Fallback auf NLS- oder technischen Namen
                     console.warn('[SpatialQuery] Service-Info Abruf fehlgeschlagen:', svcUrl, err);
                 });
         });
@@ -212,8 +251,16 @@ var spatialQueryConfigPromise = null;
         });
 
         layers.forEach(function(layer) {
-            if (!layer.alias && layer.layerId && layerMap[String(layer.layerId)]) {
-                layer.alias = layerMap[String(layer.layerId)];
+            if (layer.layerId && layerMap[String(layer.layerId)]) {
+                // Sublayer-Name aus ArcGIS-Metadaten hat Priorität
+                // Optional: NLS-Gruppenname als Prefix behalten
+                var sublayerName = layerMap[String(layer.layerId)];
+                if (layer.nlsAlias) {
+                    // z.B. "NW Nutzungsplanung (rechtskräftig) — Objektbezogene Festlegung"
+                    layer.alias = layer.nlsAlias + ' — ' + sublayerName;
+                } else {
+                    layer.alias = sublayerName;
+                }
             }
         });
     }
@@ -513,8 +560,9 @@ var spatialQueryConfigPromise = null;
         var visibleLayers = getVisibleQueryableLayers();
         
         // console.log('=== SPATIAL QUERY DEBUG ===');
-        // console.log('Gefundene Layer:', visibleLayers);
+        // console.log('Gefundene Layer:', visibleLayers.length, visibleLayers);
         // console.log('Polygon Koordinaten:', polygonCoords);
+        // console.log('Abfrage-Buffer:', getQueryBuffer(), 'm');
         
         if (visibleLayers.length === 0) {
             statusEl.textContent = 'Keine abfragbaren Layer aktiv.';
@@ -547,12 +595,15 @@ var spatialQueryConfigPromise = null;
         // console.log('Polygon BBOX:', polygonBbox);
         
         statusEl.textContent = 'Layer-Namen auflösen...';
+        // console.log('Starte resolveLayerAliases...');
         
         // Aliase/Anzeigenamen für Layer auflösen, dann Abfragen starten
         resolveLayerAliases(visibleLayers).then(function() {
+            // console.log('Aliase aufgelöst, starte Queries für', visibleLayers.length, 'Layer');
             statusEl.textContent = 'Abfrage von ' + visibleLayers.length + ' Layer(n)...';
             
             var promises = visibleLayers.map(function(layer) {
+                // console.log('Query Layer:', layer.name, layer.type, layer.url);
                 if (layer.type === 'wms') {
                     return queryWfsLayer(layer, polygonBbox, polygonCoords);
                 } else {
@@ -566,6 +617,7 @@ var spatialQueryConfigPromise = null;
             });
         }).catch(function(err) {
             TnetLog.error('Spatial Query Error:', err);
+            console.error('Spatial Query Error:', err);
             statusEl.textContent = 'Fehler bei der Abfrage.';
             resultsEl.innerHTML = '<p class="error">' + escapeHtml(err && err.message ? err.message : 'Unbekannter Fehler') + '</p>';
         });
@@ -1224,27 +1276,77 @@ var spatialQueryConfigPromise = null;
         return polygons;
     }
     
+    // ===== MASSSTABSABHÄNGIGER ABFRAGE-BUFFER =====
+
+    /**
+     * Berechnet einen massstabsabhängigen Buffer für die räumliche Abfrage.
+     * Wichtig für Punkt- und Linienobjekte, da diese ohne Buffer
+     * bei kleinem Polygon oft nicht getroffen werden.
+     *
+     * Der Buffer wird aus der aktuellen Kartenauflösung (m/px) berechnet:
+     *   buffer = resolution * tolerancePixels
+     *
+     * Beispiele (bei tolerancePixels = 10):
+     *   1:1'000  (res ~0.28)  →  ~3m
+     *   1:5'000  (res ~1.4)   →  ~14m
+     *   1:25'000 (res ~7.0)   →  ~70m  (gedeckelt auf maxBuffer)
+     *   1:100'000 (res ~28)   →  ~50m  (gedeckelt auf maxBuffer)
+     *
+     * @returns {number} Buffer in Metern
+     */
+    function getQueryBuffer() {
+        var cfg = spatialQueryConfig || getDefaultSpatialQueryConfig();
+        var tolerancePixels = parseFloat(cfg.tolerancePixels) || 10;
+        var minBuffer = parseFloat(cfg.minBuffer);
+        var maxBuffer = parseFloat(cfg.maxBuffer);
+        if (isNaN(minBuffer) || minBuffer < 0) minBuffer = 1.0;
+        if (isNaN(maxBuffer) || maxBuffer < 1) maxBuffer = 50.0;
+
+        var resolution = 1.0;
+        try {
+            var mapWrapper = njs.AppManager.Maps['main'];
+            if (mapWrapper && mapWrapper.mapObj) {
+                resolution = mapWrapper.mapObj.getView().getResolution() || 1.0;
+            }
+        } catch (e) {
+            // Fallback auf 1.0 m/px
+        }
+
+        var buffer = resolution * tolerancePixels;
+        buffer = Math.max(minBuffer, Math.min(maxBuffer, buffer));
+        buffer = Math.round(buffer * 10) / 10;  // 1 Dezimalstelle
+        return buffer;
+    }
+
     // Einzelnen ArcGIS Layer abfragen
     function querySingleLayer(layer, geometryJson) {
         return new Promise(function(resolve, reject) {
             // Die layer.url kann verschiedene Formate haben:
-            // 1. Proxy-URL: /maps/agsproxy.php/gis_oereb/service/MapServer/0
-            // 2. Direkte URL: https://server/arcgis/rest/services/...
+            // 1. Clean-URL:      /maps/tnet/agsproxy/gis_fach/service/MapServer/0
+            // 2. Legacy Proxy:   /maps/agsproxy.php/gis_oereb/service/MapServer/0
+            // 3. Legacy ?path=:  /maps/agsproxy.php?path=gis_oereb/service/MapServer/0
+            // 4. Direkte URL:    https://server/arcgis/rest/services/...
             
-            var serviceUrl = layer.url;
+            // Proxy-URL normalisieren: ?path= → PATH_INFO (verhindert doppeltes ?)
+            var serviceUrl = normalizeProxyUrl(layer.url);
+            console.log('[querySingleLayer]', layer.name, 'serviceUrl:', serviceUrl, 'isProxy:', isProxyUrl(serviceUrl));
             
-            // Falls es eine Proxy-URL ist, benutze sie direkt mit /query
-            // Der agsproxy leitet an den richtigen Service weiter
-            if (serviceUrl.indexOf('agsproxy.php') > -1) {
-                // URL ist bereits im Proxy-Format: /maps/agsproxy.php/service/MapServer/0
-                // Füge /query direkt an
+            // Falls es eine Proxy-URL ist (Clean oder Legacy), benutze direkt mit /query
+            // Die .htaccess-Regel leitet tnet/agsproxy/... an agsproxy.php weiter
+            if (isProxyUrl(serviceUrl)) {
+                // URL funktioniert direkt — /query anhängen
                 var queryUrl = serviceUrl + '/query';
+                
+                // Massstabsabhängiger Buffer für Punkt-/Linienobjekte
+                var buffer = getQueryBuffer();
                 
                 var params = new URLSearchParams({
                     f: 'json',
                     geometry: geometryJson,
                     geometryType: 'esriGeometryPolygon',
                     spatialRel: 'esriSpatialRelIntersects',
+                    distance: buffer,
+                    units: 'esriSRUnit_Meter',
                     outFields: '*',
                     returnGeometry: 'true',
                     inSR: '2056',
@@ -1287,11 +1389,16 @@ var spatialQueryConfigPromise = null;
                 // Direkte URL - über Proxy leiten
                 var queryUrl = serviceUrl + '/query';
                 
+                // Massstabsabhängiger Buffer für Punkt-/Linienobjekte
+                var buffer = getQueryBuffer();
+                
                 var params = new URLSearchParams({
                     f: 'json',
                     geometry: geometryJson,
                     geometryType: 'esriGeometryPolygon',
                     spatialRel: 'esriSpatialRelIntersects',
+                    distance: buffer,
+                    units: 'esriSRUnit_Meter',
                     outFields: '*',
                     returnGeometry: 'true',
                     inSR: '2056',
@@ -1337,14 +1444,14 @@ var spatialQueryConfigPromise = null;
     function getVisibleQueryableLayers() {
         var layers = [];
         
-        // console.log('=== LAYER DETECTION DEBUG ===');
+        console.log('=== LAYER DETECTION DEBUG ===');
         
         // Versuche Layer aus dem njs Layer-Manager zu holen
         if (njs && njs.AppManager && njs.AppManager.Maps && njs.AppManager.Maps['main']) {
             var mapWrapper = njs.AppManager.Maps['main'];
             var map = mapWrapper.mapObj;
             
-            // console.log('Map gefunden:', !!map);
+            console.log('Map gefunden:', !!map);
             
             if (map) {
                 var allLayers = map.getLayers().getArray();
@@ -1362,14 +1469,14 @@ var spatialQueryConfigPromise = null;
                     var name = layer.get('name') || layer.get('title') || 'Layer ' + idx;
                     var sourceType = source ? source.constructor.name : 'no source';
                     
-                    // console.log('Layer ' + idx + ':', {
-                    //     name: name,
-                    //     visible: visible,
-                    //     sourceType: sourceType,
-                    //     hasGetUrl: !!(source && source.getUrl),
-                    //     hasGetUrls: !!(source && source.getUrls),
-                    //     hasParams: !!(source && source.getParams)
-                    // });
+                    console.log('Layer ' + idx + ':', {
+                        name: name,
+                        visible: visible,
+                        sourceType: sourceType,
+                        hasGetUrl: !!(source && source.getUrl),
+                        hasGetUrls: !!(source && source.getUrls),
+                        hasParams: !!(source && source.getParams)
+                    });
                     
                     if (visible && source) {
                         var url = null;
@@ -1393,7 +1500,9 @@ var spatialQueryConfigPromise = null;
                         }
                         
                         if (url) {
-                            // console.log('  URL:', url);
+                            console.log('  URL:', url);
+                        } else {
+                            console.log('  KEINE URL gefunden!');
                         }
                         
                         // Hole auch die Source-Parameter für zusätzliche Infos
@@ -1403,11 +1512,19 @@ var spatialQueryConfigPromise = null;
                             // console.log('  Source Params:', sourceParams);
                         }
                         
+                        // Proxy-URL normalisieren: ?path= → PATH_INFO
+                        // Sonst entsteht beim Anhängen von /0/query?params ein doppeltes ?
+                        if (url) {
+                            url = normalizeProxyUrl(url);
+                        }
+
                         // Prüfe ob es ein ArcGIS Layer ist (über Proxy oder direkt)
-                        // agsproxy.php = ArcGIS Server Proxy
-                        var isArcGIS = url && (url.indexOf('agsproxy.php') > -1 || 
+                        // agsproxy.php oder tnet/agsproxy/ = ArcGIS Server Proxy
+                        var isArcGIS = url && (isProxyUrl(url) || 
                             (url.indexOf('MapServer') > -1 && url.indexOf('cgi-bin') === -1 && url.indexOf('geo.admin.ch') === -1) || 
                             url.indexOf('FeatureServer') > -1);
+                        
+                        console.log('  isProxyUrl:', url ? isProxyUrl(url) : 'no url', 'isArcGIS:', isArcGIS);
                         
                         // Prüfe ob es ein WMS/MapServer Layer ist (UMN MapServer via cgi-bin)
                         // WICHTIG: Nur wenn es NICHT bereits als ArcGIS erkannt wurde
@@ -1433,15 +1550,15 @@ var spatialQueryConfigPromise = null;
                         // console.log('  Layer-Typ:', isArcGIS ? 'ArcGIS' : (isWMS ? 'WMS/MapServer' : 'Unbekannt'));
                         
                         if (isArcGIS) {
-                            // console.log('  ArcGIS Layer erkannt');
+                            console.log('  ArcGIS Layer erkannt');
                             
                             // Extrahiere den Service-Pfad
                             var serviceUrl = url;
                             var layerId = null;
                             
                             // Verschiedene URL-Formate handhaben:
-                            // 1. /maps/agsproxy.php/gis_oereb/service/MapServer/0
-                            // 2. /maps/agsproxy.php/gis_oereb/service/MapServer (mit LAYERS param)
+                            // 1. /maps/tnet/agsproxy/gis_fach/service/MapServer/0 (Clean-URL)
+                            // 2. /maps/agsproxy.php/gis_oereb/service/MapServer (Legacy)
                             // 3. https://server/arcgis/rest/services/folder/service/MapServer/0
                             
                             // Layer-ID am Ende der URL?
@@ -1451,27 +1568,49 @@ var spatialQueryConfigPromise = null;
                                 serviceUrl = url.replace(/\/\d+\/?$/, '');
                             }
                             
+                            console.log('  sourceParams:', sourceParams);
+                            console.log('  layerMatch:', layerMatch, 'layerId:', layerId);
+                            
                             // Falls LAYERS Parameter vorhanden und keine Layer-ID in URL
+                            // "show:all" bedeutet: alle Sublayer sichtbar → Fallback auf Layer 0
                             if (!layerId && sourceParams && sourceParams.LAYERS) {
                                 var layerStr = sourceParams.LAYERS.replace('show:', '');
-                                var layerIds = layerStr.split(',');
                                 
-                                // Für jeden Layer-ID einen Eintrag erstellen
-                                layerIds.forEach(function(lid) {
-                                    var fullUrl = serviceUrl + '/' + lid.trim();
-                                    // console.log('  -> Layer hinzugefügt:', fullUrl);
+                                // "all" ist kein numerischer Layer-ID → überspringen
+                                if (layerStr !== 'all' && /^\d/.test(layerStr)) {
+                                    var layerIds = layerStr.split(',');
+                                    console.log('  LAYERS param:', sourceParams.LAYERS, '-> layerIds:', layerIds);
+                                    
+                                    // Für jeden Layer-ID einen Eintrag erstellen
+                                    layerIds.forEach(function(lid) {
+                                        lid = lid.trim();
+                                        if (!/^\d+$/.test(lid)) return; // Nur numerische IDs
+                                        var fullUrl = serviceUrl + '/' + lid;
+                                        console.log('  -> Layer hinzugefügt (LAYERS):', fullUrl);
+                                        layers.push({
+                                            name: name + ' (Layer ' + lid + ')',
+                                            olLayerName: name,
+                                            serviceUrl: serviceUrl,
+                                            url: fullUrl,
+                                            layerId: lid,
+                                            type: 'arcgis'
+                                        });
+                                    });
+                                } else {
+                                    // "show:all" → alle Sublayer sichtbar, frage alle ab (Layer 0 als Einstieg)
+                                    console.log('  LAYERS ist "' + sourceParams.LAYERS + '" → Fallback auf Layer 0');
                                     layers.push({
-                                        name: name + ' (Layer ' + lid + ')',
+                                        name: name,
                                         olLayerName: name,
                                         serviceUrl: serviceUrl,
-                                        url: fullUrl,
-                                        layerId: lid.trim(),
+                                        url: serviceUrl + '/0',
+                                        layerId: '0',
                                         type: 'arcgis'
                                     });
-                                });
+                                }
                             } else if (layerId) {
                                 // Einzelner Layer mit ID in URL
-                                // console.log('  -> Layer hinzugefügt:', serviceUrl + '/' + layerId);
+                                console.log('  -> Layer hinzugefügt (URL-ID):', serviceUrl + '/' + layerId);
                                 layers.push({
                                     name: name,
                                     olLayerName: name,
@@ -1482,7 +1621,7 @@ var spatialQueryConfigPromise = null;
                                 });
                             } else {
                                 // Fallback: Versuche alle Layer des Service abzufragen (Layer 0)
-                                // console.log('  -> Fallback Layer 0:', serviceUrl + '/0');
+                                console.log('  -> Fallback Layer 0:', serviceUrl + '/0');
                                 layers.push({
                                     name: name,
                                     olLayerName: name,
@@ -1924,7 +2063,7 @@ var spatialQueryConfigPromise = null;
                 var hasGeom = feature.geometry ? 'true' : 'false';
                 var filteredAttrs = filterFeatureAttributes(feature.attributes, result);
                 html += '<tr class="query-result-row" data-layer="' + layerIdx + '" data-feature="' + featureIdx + '" onclick="highlightFeature(' + layerIdx + ',' + featureIdx + ')">';
-                html += '<td class="zoom-cell"><span class="zoom-icon" title="In Karte zeigen"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/></svg></span></td>';
+                html += '<td class="zoom-cell"><span class="zoom-icon" title="In Karte zeigen">' + TnetIcons.get('crosshair', null, {width: '16', height: '16'}) + '</span></td>';
                 keys.forEach(function(key, keyIdx) {
                     var val = filteredAttrs[key];
                     if (val === null || val === undefined) val = '-';
@@ -2088,7 +2227,7 @@ var spatialQueryConfigPromise = null;
             panel.style.left = '';
             panel.style.top = '';
             panel.style.height = '';
-            dockBtn.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5v-3h14v3zm0-5H5V5h14v9z"/></svg>';
+            dockBtn.innerHTML = TnetIcons.get('dock-bottom', null, {width: '16', height: '16'});
             dockBtn.title = 'Unten andocken';
             window.isPanelDocked = false;
             // Freepane wieder auf volle Höhe
@@ -2101,7 +2240,7 @@ var spatialQueryConfigPromise = null;
             panel.classList.add('docked-bottom');
             panel.style.left = '';
             panel.style.top = '';
-            dockBtn.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M19 11h-8v6h8v-6zm4 8V4.98C23 3.88 22.1 3 21 3H3c-1.1 0-2 .88-2 1.98V19c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2zm-2 .02H3V4.97h18v14.05z"/></svg>';
+            dockBtn.innerHTML = TnetIcons.get('undock', null, {width: '16', height: '16'});
             dockBtn.title = 'Floating';
             window.isPanelDocked = true;
             // Freepane kürzen bis Panel-Oberkante

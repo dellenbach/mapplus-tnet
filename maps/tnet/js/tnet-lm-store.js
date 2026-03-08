@@ -175,8 +175,8 @@
           // Kategorie (nidwalden, obwalden, bund, weitere)
           for (var s = 0; s < n.subcategories.length; s++) {
             var sub = n.subcategories[s];
-            // Subcategories standardmässig offen (Gruppen sichtbar)
-            if (sub.expanded === undefined) sub.expanded = true;
+            // Subcategories: open-Wert aus Config respektieren, default geschlossen
+            if (sub.expanded === undefined) sub.expanded = sub.open === true;
             if (sub.groups) {
               for (var g = 0; g < sub.groups.length; g++) {
                 var group = sub.groups[g];
@@ -186,8 +186,8 @@
             }
           }
         } else if (n.groups) {
-          // Subcategory direkt — standardmässig offen
-          if (n.expanded === undefined) n.expanded = true;
+          // Subcategory direkt — open-Wert aus Config respektieren, default geschlossen
+          if (n.expanded === undefined) n.expanded = n.open === true;
           for (var gi = 0; gi < n.groups.length; gi++) {
             var grp = n.groups[gi];
             if (grp.expanded === undefined) grp.expanded = grp.open || false;
@@ -237,7 +237,42 @@
             this._propagateLegends(children, effectiveLegend);
           }
         }
+        // Case-Korrektur: ArcGIS-Dienste sind case-sensitive.
+        // Config-Dateien (lyrmgr.conf) haben oft Kleinbuchstaben,
+        // aber der tatsächliche Service-Pfad stammt aus extractLegendInfo
+        // und hat den korrekten Case. → Gruppen-Legend anhand Kind-Layer korrigieren.
+        if (n.legend) {
+          var correctCase = this._findCorrectLegendCase(n, n.legend);
+          if (correctCase && correctCase !== n.legend) {
+            n.legend = correctCase;
+          }
+        }
       }
+    },
+
+    /**
+     * Sucht rekursiv in Kind-Knoten nach einem legend-Wert,
+     * der case-insensitiv übereinstimmt, aber korrekt gecastet ist
+     * (aus extractLegendInfo, d.h. aus der originalen ArcGIS-URL).
+     */
+    _findCorrectLegendCase: function (node, legendToMatch) {
+      var lower = legendToMatch.toLowerCase();
+      var childArrays = ['subcategories', 'groups', 'layers', 'children'];
+      for (var c = 0; c < childArrays.length; c++) {
+        var children = node[childArrays[c]];
+        if (!children) continue;
+        for (var i = 0; i < children.length; i++) {
+          var child = children[i];
+          // Leaf-Layer: legend stammt aus extractLegendInfo (korrekter Case)
+          if (child.legend && child.legend.toLowerCase() === lower && child.legend !== legendToMatch) {
+            return child.legend;
+          }
+          // Rekursiv in Untergruppen suchen
+          var found = this._findCorrectLegendCase(child, legendToMatch);
+          if (found) return found;
+        }
+      }
+      return null;
     },
 
     // ============================================================
@@ -1072,6 +1107,124 @@
     },
 
     /**
+     * Alle Blatt-Layer einer Gruppe ein- oder ausschalten.
+     * Wird von selectAll-Checkbox im Themenbaum verwendet.
+     *
+     * Robuste Variante: Umgeht den visible-Guard in setLayerVisible,
+     * damit auch bei Store↔UI-Desync alle Layer korrekt geschaltet werden.
+     * Standard-Layer (nicht-Coalesce) werden gestaffelt aufgerufen,
+     * um den Dojo-LyrMgr (switchLayersProgr) nicht zu überlasten.
+     *
+     * @param {string} groupId  Die Gruppen-ID
+     * @param {boolean} visible  true = alle EIN, false = alle AUS
+     */
+    setGroupAllVisible: function (groupId, visible) {
+      var node = this._findGroupNode(groupId);
+      if (!node) {
+        TnetLog.warn(LOG, 'setGroupAllVisible: Gruppe nicht gefunden:', groupId);
+        return;
+      }
+      var self = this;
+      var layers = [];
+      this._walkLayers([node], function (layer) {
+        layers.push(layer);
+      });
+      TnetLog.log(LOG, 'setGroupAllVisible', groupId, visible ? 'EIN' : 'AUS',
+        '→', layers.length, 'Layer');
+
+      if (layers.length === 0) {
+        TnetLog.warn(LOG, 'setGroupAllVisible: Keine Blatt-Layer in Gruppe:', groupId);
+        return;
+      }
+
+      // ── Coalesce-Layer und Standard-Layer trennen ──
+      var coalesceLayers = [];
+      var standardLayers = [];
+      for (var i = 0; i < layers.length; i++) {
+        var lyr = layers[i];
+        if (!lyr || lyr.type === 'group') continue;
+        if (_layerToCoalesce[lyr.id]) {
+          coalesceLayers.push(lyr);
+        } else {
+          standardLayers.push(lyr);
+        }
+      }
+
+      // ── 1. Coalesce-Layer: synchron, alle auf einmal ──
+      // Bridge-Batch-Modus: unterdrückt _syncDojoCheckbox pro Layer.
+      // Das verhindert, dass das Dojo-Framework pro Sublayer individuelle
+      // OL-Layer erstellt (switchLayersProgr), die dann als Ghost-Layer
+      // entfernt werden müssen. Race Condition zwischen _suppressMapSync,
+      // Ghost-Schutz und Dojo-Async wird so eliminiert.
+      var hasBridge = window.TnetCoalesceBridge &&
+        typeof window.TnetCoalesceBridge.beginBatch === 'function';
+      if (hasBridge && coalesceLayers.length > 0) {
+        window.TnetCoalesceBridge.beginBatch();
+      }
+      for (var ci = 0; ci < coalesceLayers.length; ci++) {
+        var cl = coalesceLayers[ci];
+        try {
+          // Guard umgehen: visible-State zurücksetzen falls nötig
+          if (cl.visible === visible) {
+            cl.visible = !visible;
+          }
+          self.setLayerVisible(cl.id, visible);
+        } catch (e) {
+          TnetLog.warn(LOG, 'setGroupAllVisible: Fehler bei Coalesce-Layer', cl.id, e);
+          // Event trotzdem emittieren für UI-Sync
+          cl.visible = visible;
+          self._emit('layer-visibility', { id: cl.id, visible: visible, source: 'ui' });
+        }
+      }
+      if (hasBridge && coalesceLayers.length > 0) {
+        window.TnetCoalesceBridge.endBatch();
+      }
+
+      // ── 2. Standard-Layer: gestaffelt (50ms Abstand) um Framework zu schonen ──
+      if (standardLayers.length > 0) {
+        var processStandard = function (index) {
+          if (index >= standardLayers.length) return;
+          var sl = standardLayers[index];
+          try {
+            // Guard umgehen
+            if (sl.visible === visible) {
+              sl.visible = !visible;
+            }
+            self.setLayerVisible(sl.id, visible);
+          } catch (e) {
+            TnetLog.warn(LOG, 'setGroupAllVisible: Fehler bei Standard-Layer', sl.id, e);
+            sl.visible = visible;
+            self._emit('layer-visibility', { id: sl.id, visible: visible, source: 'ui' });
+          }
+          if (index + 1 < standardLayers.length) {
+            setTimeout(function () { processStandard(index + 1); }, 50);
+          }
+        };
+        processStandard(0);
+      }
+    },
+
+    /**
+     * Sichtbarkeits-Zustand aller Blatt-Layer einer Gruppe prüfen.
+     * @param {string} groupId  Die Gruppen-ID
+     * @returns {string} 'all' = alle sichtbar, 'none' = keiner sichtbar, 'partial' = gemischt
+     */
+    getGroupVisibilityState: function (groupId) {
+      var node = this._findGroupNode(groupId);
+      if (!node) return 'none';
+      var total = 0;
+      var visibleCount = 0;
+      this._walkLayers([node], function (layer) {
+        total++;
+        if (layer.visible) visibleCount++;
+      });
+      if (total === 0) return 'none';
+      if (visibleCount === 0) return 'none';
+      if (visibleCount === total) return 'all';
+      return 'partial';
+    },
+
+    /**
      * Layer nach Name suchen. Gibt flache Liste zurück.
      */
     searchLayers: function (query) {
@@ -1262,7 +1415,11 @@
       for (var i = 0; i < nodes.length; i++) {
         var n = nodes[i];
         // Coalesce-Gruppe erkennen: serviceUrl + coalesceGroup vorhanden
-        if (n.serviceUrl && n.coalesceGroup) {
+        // NUR ArcGIS-MapServer-Dienste (URL enthält "MapServer").
+        // WMS-Dienste (Geoadmin etc.) haben ebenfalls serviceUrl/coalesceGroup
+        // aus dem DB-Import, sind aber KEINE Coalesce-Kandidaten — deren
+        // params.layers ist ein WMS-Layername, kein "show:N" Format.
+        if (n.serviceUrl && n.coalesceGroup && n.serviceUrl.indexOf('MapServer') !== -1) {
           var childIds = this._collectChildLayerIds(n);
           if (childIds.length >= 2) {
             // Dienst-Pfad aus serviceUrl extrahieren (z.B. "gis_oereb/nw_nutzungsplanung_def")
