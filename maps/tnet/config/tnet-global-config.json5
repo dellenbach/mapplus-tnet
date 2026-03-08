@@ -216,6 +216,21 @@
   },
 
   // ============================================================
+  // WMS-PANEL (Externe Kartendienste)
+  // ============================================================
+  wmsPanel: {
+    _description: "Konfiguration für das WMS-Panel (Externe Kartendienste)",
+    // Vordefinierte WMS-Dienste im Dropdown
+    presets: [
+      { name: 'Swisstopo WMS',        url: 'https://wms.geo.admin.ch/?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetCapabilities' },
+      { name: 'Kt. Nidwalden',         url: 'https://www.gis-daten.ch/wms/nw/service?REQUEST=GetCapabilities&SERVICE=WMS' },
+      { name: 'Kt. Obwalden',          url: 'https://www.gis-daten.ch/wms/ow/service?REQUEST=GetCapabilities&SERVICE=WMS' },
+      { name: 'Kt. Uri',              url: 'https://geo.ur.ch/wms?request=getCapabilities' },
+      { name: 'Geodienste AV',        url: 'https://geodienste.ch/db/av_0/deu?SERVICE=WMS&REQUEST=GetCapabilities' },
+    ],
+  },
+
+  // ============================================================
   // SUCHE
   // ============================================================
   search: {

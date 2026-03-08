@@ -15,14 +15,15 @@
 
   // ===== KONFIGURATION =====
 
-  // Vordefinierte WMS-Dienste (Name + GetCapabilities-URL)
+  // Vordefinierte WMS-Dienste — Fallback-Defaults, werden durch tnet-global-config.json5 überschrieben
   var WMS_PRESETS = [
     { name: 'Swisstopo WMS', url: 'https://wms.geo.admin.ch/?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetCapabilities' },
-    { name: 'Kt. Nidwalden (NSDI)', url: 'https://www.geoservice.apps.be.ch/geoservice3/services/a4p/a4p_kanton_de_ms_wms/MapServer/WMSServer?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetCapabilities' },
-    { name: 'Kt. Luzern', url: 'https://spatial.geo.lu.ch/wms?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetCapabilities' },
-    { name: 'Kt. Uri', url: 'https://geodienste.ur.ch/geoportal/services/Basiskarten/MapServer/WMSServer?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetCapabilities' },
-    { name: 'Kt. Bern', url: 'https://www.geoservice.apps.be.ch/geoservice3/services/a4p/a4p_basiswmsk_de/MapServer/WMSServer?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetCapabilities' }
+    { name: 'Kt. Nidwalden', url: 'https://www.gis-daten.ch/wms/nw/service?REQUEST=GetCapabilities&SERVICE=WMS' },
+    { name: 'Kt. Obwalden', url: 'https://www.gis-daten.ch/wms/ow/service?REQUEST=GetCapabilities&SERVICE=WMS' },
+    { name: 'Kt. Uri', url: 'https://geo.ur.ch/wms?request=getCapabilities' },
+    { name: 'Geodienste AV', url: 'https://geodienste.ch/db/av_0/deu?SERVICE=WMS&REQUEST=GetCapabilities' }
   ];
+  var _configLoaded = false;
 
   // State
   var _addedLayers = [];  // { olLayer, name, title, wmsUrl, opacity }
@@ -1499,11 +1500,38 @@
   // ===== INITIALISIERUNG =====
 
   function _init() {
-    _initPresets();
-    _initFilter();
-    // GetFeatureInfo-Handler registrieren (wartet auf Karte)
-    _setupWmsGetFeatureInfo();
-    TnetLog.log('[WMS-Panel] Initialisiert');
+    _loadWmsConfig().then(function() {
+      _initPresets();
+      _initFilter();
+      // GetFeatureInfo-Handler registrieren (wartet auf Karte)
+      _setupWmsGetFeatureInfo();
+      TnetLog.log('[WMS-Panel] Initialisiert');
+    });
+  }
+
+  // WMS-Presets aus tnet-global-config.json5 laden
+  function _loadWmsConfig() {
+    if (_configLoaded || typeof JSON5 === 'undefined') return Promise.resolve();
+    var paths = [
+      '/maps/tnet/config/tnet-global-config.json5',
+      '/maps/tnet/tnet-global-config.json5',
+      '../tnet/config/tnet-global-config.json5'
+    ];
+    function tryPath(i) {
+      if (i >= paths.length) return Promise.resolve();
+      return fetch(paths[i])
+        .then(function(r) { if (!r.ok) throw new Error(r.status); return r.text(); })
+        .then(function(t) {
+          var parsed = JSON5.parse(t);
+          if (parsed && parsed.wmsPanel && Array.isArray(parsed.wmsPanel.presets) && parsed.wmsPanel.presets.length) {
+            WMS_PRESETS = parsed.wmsPanel.presets;
+            TnetLog.log('[WMS-Panel] Presets aus Config geladen:', WMS_PRESETS.length, 'Dienste');
+          }
+          _configLoaded = true;
+        })
+        .catch(function() { return tryPath(i + 1); });
+    }
+    return tryPath(0);
   }
 
   // Auch auf tnet-app-ready reagieren (Karte ist dann sicher bereit)
