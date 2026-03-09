@@ -6,6 +6,12 @@
 
 ---
 
+## 2026-03-08 — Accordion-Scroll: Inhalt unten abgeschnitten bei grossem Themenkatalog
+- **Symptom**: Wenn der Themenkatalog-Abschnitt per Drag-Handle vergrössert wird, kann im Layer-Tree nicht mehr ganz nach unten gescrollt werden. Bei kleinerem Abschnitt funktioniert es.
+- **Root-Cause**: `getMaxHeight()` gab `innerHeight - 150` zurück (statisch). `#spring` hat aber `max-height: calc(100vh - 105px)` und enthält andere Elemente (TitlePane-Titelleisten, Resize-Handles, Padding ≈ 160px). Bei grosser Höhe ragte `#lm-tree-container` über `#spring` hinaus — der Container fing Scroll-Events ab, aber der untere Teil war von `#spring` abgeschnitten.
+- **Fix**: `getMaxHeight(panelId)` berechnet nun dynamisch den verfügbaren Platz: misst `#spring`'s computed max-height, subtrahiert alle Geschwister-Elemente (`offsetHeight`) und die eigene Titelleiste. Alle 7 Call-Sites aktualisiert.
+- **Guardrail**: Maximale Höhe für Accordion-Panels IMMER aus dem tatsächlichen Container-Platz ableiten, nie aus `window.innerHeight` mit statischem Offset.
+
 ## 2026-03-08 — Bundesdaten (Geoadmin WMS) lassen sich nicht einschalten
 - **Symptom**: Geoadmin-Layer (z.B. `ch.astra.baulinien-nationalstrassen`) einschalten → Log: `Coalesce: Sublayer-Nummer nicht extrahierbar`. Layer wird nicht auf der Karte angezeigt.
 - **Root-Cause**: `LayerImporter.php` setzt `service_url`/`coalesce_group` auf jede Gruppe, deren Kind-Layer dieselbe Basis-URL teilen — auch WMS-Gruppen (Geoadmin). `_scanCoalesceNodes` erkennt diese fälschlich als Coalesce-Gruppen. `_extractSublayerNum` erwartet ArcGIS-Format `LAYERS: "show:3"`, WMS hat aber `layers: "ch.astra...."` → gibt `null` zurück → Aktivierung bricht ab.

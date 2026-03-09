@@ -57,11 +57,48 @@
   // ===== HILFSFUNKTIONEN =====
 
   /**
-   * Maximale Höhe berechnen: gesamter verfügbarer Platz abzüglich Header (69px),
-   * Footer (26px), Titelbar (~35px) und etwas Puffer
+   * Maximale Höhe dynamisch berechnen.
+   * Misst den tatsächlich verfügbaren Platz im #spring-Container,
+   * abzüglich aller anderen Geschwister-Elemente (geschlossene TitlePanes,
+   * Resize-Handles, Padding) und der eigenen Titelleiste.
+   *
+   * @param {string} [panelId] - ID des Panels (z.B. 'tp_overview_menu'),
+   *   um dessen Titelleiste korrekt zu berücksichtigen.
    */
-  function getMaxHeight() {
-    return Math.round(window.innerHeight - 150);
+  function getMaxHeight(panelId) {
+    var spring = document.getElementById('spring');
+    if (!spring) return Math.round(window.innerHeight - 150);
+
+    // #spring's computed max-height (Browser löst calc() in Pixel auf)
+    var springMaxH = parseFloat(window.getComputedStyle(spring).maxHeight);
+    if (isNaN(springMaxH) || springMaxH <= 0) {
+      springMaxH = window.innerHeight - 105;
+    }
+
+    // Falls kein panelId: grober Fallback
+    if (!panelId) return Math.round(springMaxH - 170);
+
+    // Padding von #spring abziehen
+    var cs = window.getComputedStyle(spring);
+    var padding = (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0);
+
+    // Höhe aller ANDEREN Elemente in #spring ermitteln
+    // Für das Ziel-Panel: nur die Titelleiste zählen, nicht den Inhalt
+    var otherH = 0;
+    var children = spring.children;
+    for (var i = 0; i < children.length; i++) {
+      var child = children[i];
+      if (child.id === panelId) {
+        // Eigene Titelleiste mitzählen (Inhalt wird separat gesteuert)
+        var titleBar = child.querySelector('.dijitTitlePaneTitle');
+        if (titleBar) otherH += titleBar.offsetHeight;
+      } else {
+        otherH += child.offsetHeight || 0;
+      }
+    }
+
+    var maxH = Math.round(springMaxH - padding - otherH - 10);
+    return Math.max(150, maxH);
   }
 
   /**
@@ -102,7 +139,7 @@
    *     selbst wenn der Container noch nicht existiert.
    */
   function applyHeight(panelCfg, height) {
-    var clamped = Math.max(panelCfg.minHeight, Math.min(height, panelCfg.maxHeight || getMaxHeight()));
+    var clamped = Math.max(panelCfg.minHeight, Math.min(height, panelCfg.maxHeight || getMaxHeight(panelCfg.id)));
     var paneEl = document.getElementById(panelCfg.id);
     if (!paneEl) return clamped;
 
@@ -225,7 +262,7 @@
 
     // Gespeicherte Höhe laden und anwenden
     var currentHeight = loadHeight(panelCfg.storageKey, panelCfg.defaultHeight);
-    panelCfg.maxHeight = getMaxHeight();
+    panelCfg.maxHeight = getMaxHeight(panelCfg.id);
     applyHeight(panelCfg, currentHeight);
 
     // ===== DRAG-LOGIK =====
@@ -240,7 +277,7 @@
       isDragging = true;
       startY = e.type === 'touchstart' ? e.touches[0].clientY : e.clientY;
       startHeight = getContentHeight(panelCfg);
-      panelCfg.maxHeight = getMaxHeight();
+      panelCfg.maxHeight = getMaxHeight(panelCfg.id);
 
       // Globales Flag — verhindert aggressiveFix in tnet_toc.js
       window.__tnetResizing = true;
@@ -318,7 +355,7 @@
             // 350ms Delay: Dojo-Wipe-Animation dauert ca. 250ms
             setTimeout(function () {
               var h = loadHeight(panelCfg.storageKey, panelCfg.defaultHeight);
-              panelCfg.maxHeight = getMaxHeight();
+              panelCfg.maxHeight = getMaxHeight(panelCfg.id);
               applyHeight(panelCfg, h);
               TnetLog.log('[AccordionResize] TitlePane geöffnet → Höhe angewendet:', panelCfg.id, h + 'px');
             }, 350);
@@ -338,7 +375,7 @@
             if (el.classList.contains('dijitOpen')) {
               setTimeout(function () {
                 var h = loadHeight(panelCfg.storageKey, panelCfg.defaultHeight);
-                panelCfg.maxHeight = getMaxHeight();
+                panelCfg.maxHeight = getMaxHeight(panelCfg.id);
                 applyHeight(panelCfg, h);
               }, 350);
             }
@@ -354,7 +391,7 @@
 
   function onWindowResize() {
     _handles.forEach(function (entry) {
-      entry.panel.maxHeight = getMaxHeight();
+      entry.panel.maxHeight = getMaxHeight(entry.panel.id);
       var currentHeight = loadHeight(entry.panel.storageKey, entry.panel.defaultHeight);
       applyHeight(entry.panel, currentHeight);
     });
@@ -425,7 +462,7 @@
           var panelCfg = CONFIG.panels.filter(function (p) { return p.id === t.panelId; })[0];
           if (panelCfg) {
             var h = loadHeight(panelCfg.storageKey, panelCfg.defaultHeight);
-            panelCfg.maxHeight = getMaxHeight();
+            panelCfg.maxHeight = getMaxHeight(panelCfg.id);
             applyHeight(panelCfg, h);
             TnetLog.log('[AccordionResize] Container erschienen → Höhe angewendet:', t.containerId, h + 'px');
           }

@@ -13,9 +13,8 @@ LOCAL_BASE = r"c:\_Daten\mapplus-exp\maps"
 
 # Files to upload
 FILES = [
-    # WMS-Presets in JSON5-Config verschoben
-    "tnet/js/tnet-wms-panel.js",
-    "tnet/config/tnet-global-config.json5",
+    # Accordion-Scroll-Bug: getMaxHeight() dynamisch berechnen
+    "tnet/js/tnet-accordion-resize.js",
 ]
 
 def upload_files():
