@@ -71,6 +71,7 @@
       var self = this;
       var apiUrl = _config.apiUrl || '/maps/tnet/api/v1/layers.php';
       var url = apiUrl + '?source=file&group=' + encodeURIComponent(group);
+      if (_config.cache === false) url += '&nocache=1';
 
       if (_config.debug) TnetLog.log(LOG, 'Lade LyrMgr aus lyrmgr.conf (source=file, group=' + group + ')');
 
@@ -127,6 +128,7 @@
       var self = this;
       var url = _config.apiUrl || '/maps/tnet/api/v1/layers.php';
       url += (url.indexOf('?') > -1 ? '&' : '?') + 'group=' + encodeURIComponent(group);
+      if (_config.cache === false) url += '&nocache=1';
 
       if (_config.debug) TnetLog.log(LOG, 'Lade Katalog aus API (group=' + group + ')');
 

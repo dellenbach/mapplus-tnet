@@ -223,6 +223,19 @@
     coalesceDebounceMs: 80,
     // Debug-Modus (erweiterte Console-Ausgabe)
     debug: true,
+
+    // ===== SERVER-CACHE =====
+    // Steuert den serverseitigen JSON-Cache für API-Responses (layers.php).
+    // Der Cache speichert aufwendig generierte Katalog-JSONs und invalidiert
+    // automatisch wenn sich Quell-Configs (lyrmgr.conf, mapping) ändern.
+    //
+    // true  = Cache nutzen (Standard, empfohlen für Produktion)
+    // false = Cache umgehen (nützlich bei Entwicklung / nach Conf-Änderungen)
+    //
+    // Cache manuell leeren:
+    //   POST https://www.gis-daten.ch/maps/tnet/api/v1/cache.php?action=clear
+    //   Cache-Status: GET https://www.gis-daten.ch/maps/tnet/api/v1/cache.php
+    cache: true,
   },
 
   // ============================================================

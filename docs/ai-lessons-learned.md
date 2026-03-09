@@ -6,6 +6,18 @@
 
 ---
 
+## 2026-03-09 — Server-Cache liefert veraltete API-Responses nach PHP-Fix
+- **Symptom**: Nach Deploy von PHP-Fixes zeigt der LayerManager weiterhin alte/falsche Daten (z.B. „Oereb Raumplanung 0" statt „RAUMPLANUNG"). API-Response mit `&debug=1` korrekt, ohne debug falsch.
+- **Root-Cause**: `JsonCache` invalidiert nur bei geänderter Quell-Datei (lyrmgr.conf, mapping) — Änderungen an PHP-Logik (layers.php) lösen keine Cache-Invalidierung aus. Die 1h-TTL hielt die alte Response im Cache.
+- **Fix**: (a) Neuer `nocache`-URL-Parameter in layers.php: `$noCache = isset($_GET['nocache']) && $_GET['nocache'] === '1'`, Cache-Bypass: `!$debug && !$noCache`. (b) Neue `cache: true|false`-Option in `tnet-global-config.json5` (layerManager-Sektion). (c) JS hängt `&nocache=1` an API-URL wenn `_config.cache === false`. (d) Server-Cache manuell geleert via `POST cache.php?action=clear`.
+- **Guardrail**: Nach PHP-Logik-Änderungen immer Server-Cache leeren (`POST cache.php?action=clear`). Bei Entwicklung `cache: false` in json5 setzen. Für Produktion `cache: true` verwenden.
+
+## 2026-03-09 — source=file: NLS-Labels fehlen + ÖREB-Knoten nicht öffenbar
+- **Symptom**: Bei `lyrmgrSource: 'file'` zeigt der LayerManager rohe Keys statt NLS-Labels (z.B. „Oereb Raumplanung" statt „RAUMPLANUNG"). „Oereb Raumplanung"-Knoten zeigt 0 Layer und lässt sich nicht aufklappen.
+- **Root-Cause**: Zwei Fehler: (1) Der `source=file`-Block in layers.php gab die rohe lyrmgr.conf als JSON zurück — ohne NLS-Label-Lookup (`getNlsLabel`), ohne Mapping-Merge, ohne `processLayerItems`. (2) `processLayerItems()` konnte assoziative Arrays (Key=Gruppen-ID, Value=Definition) nicht verarbeiten — nur Strings und `{name: ...}`-Objekte. ÖREB-Subitems wie `{ "rp_liegenschaften": {...}, "rp_rechtskraeftig": {...} }` wurden stillschweigend übersprungen → 0 Layers. (3) Gruppen-Namen verwendeten `extractLayerName()` statt `getNlsLabel()`.
+- **Fix**: (a) `source=file`-Early-Return-Block entfernt → fällt zum bewährten File-Fallback durch. (b) `processLayerItems` um `elseif (is_array($item) && is_string($key) && !is_numeric($key))` erweitert → erkennt assoziative Gruppen. (c) Gruppen-Name: `getNlsLabel($groupId) ?: extractLayerName($groupId)`. (d) JS: client-seitige Transformation entfernt, gleicher Response-Parser wie API.
+- **Guardrail**: `processLayerItems` muss drei Fälle abdecken: (1) `is_string` → Leaf-Layer, (2) `isset($item['name'])` → benannte Gruppe/Layer, (3) `is_string($key) && !is_numeric($key)` → assoziatives Objekt (Key = ID). NLS-Labels immer zuerst via `getNlsLabel()` probieren, `extractLayerName()` nur als Fallback.
+
 ## 2026-03-08 — Accordion-Scroll: Inhalt unten abgeschnitten bei grossem Themenkatalog
 - **Symptom**: Wenn der Themenkatalog-Abschnitt per Drag-Handle vergrössert wird, kann im Layer-Tree nicht mehr ganz nach unten gescrollt werden. Bei kleinerem Abschnitt funktioniert es.
 - **Root-Cause**: `getMaxHeight()` gab `innerHeight - 150` zurück (statisch). `#spring` hat aber `max-height: calc(100vh - 105px)` und enthält andere Elemente (TitlePane-Titelleisten, Resize-Handles, Padding ≈ 160px). Bei grosser Höhe ragte `#lm-tree-container` über `#spring` hinaus — der Container fing Scroll-Events ab, aber der untere Teil war von `#spring` abgeschnitten.

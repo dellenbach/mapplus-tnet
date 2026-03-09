@@ -39,6 +39,7 @@ $details  = !isset($_GET['details']) || $_GET['details'] !== 'false'; // default
 $debug    = isset($_GET['debug']) && $_GET['debug'] === '1';
 $layerId  = $_GET['id'] ?? null; // Einzelner Layer per ID
 $source   = strtolower(trim($_GET['source'] ?? 'auto')); // auto|db|file
+$noCache  = isset($_GET['nocache']) && $_GET['nocache'] === '1';
 
 // === Datenbank-Verfügbarkeit prüfen ===
 $useDatabase = false;
@@ -141,9 +142,9 @@ $lyrmgrFile = ($group && $group !== 'public' && file_exists($publicConfigBase . 
 $mappingFile = realpath(__DIR__ . '/../../php/lyrmgr-mapping.json') ?: '';
 $sourceFiles = array_filter([$lyrmgrFile, $mappingFile], 'file_exists');
 
-// Cache Hit? (ausser im Debug-Modus)
+// Cache Hit? (ausser im Debug- oder NoCache-Modus)
 $cached = $cache->get($cacheKey, $sourceFiles, 3600);
-if ($cached !== null && !$debug) {
+if ($cached !== null && !$debug && !$noCache) {
     CacheHelper::setCacheControl(CacheHelper::DEFAULT_MAX_AGE);
     $meta = $cached['meta'] ?? [];
     $meta['cache'] = 'hit';
@@ -354,9 +355,12 @@ foreach ($mapping['categories'] as $topCategory) {
 
             if (isset($categoryDef['items'])) {
                 foreach ($categoryDef['items'] as $groupId => $groupDef) {
+                    // NLS-Lookup für Gruppen-Name, Fallback auf extractLayerName
+                    $grpName = getNlsLabel($groupId);
+                    if (!$grpName) $grpName = extractLayerName($groupId);
                     $groupData = [
                         'id'     => $groupId,
-                        'name'   => extractLayerName($groupId),
+                        'name'   => $grpName,
                         'open'   => $groupDef['open'] ?? false,
                         'layers' => []
                     ];
@@ -478,7 +482,7 @@ ApiResponse::success($result, $meta);
 function processLayerItems($items, &$layerDefinitions, $details = true) {
     $layers = [];
 
-    foreach ($items as $item) {
+    foreach ($items as $key => $item) {
         if (is_string($item)) {
             // Einfache Layer-Referenz (String)
             $layerData = [
@@ -554,6 +558,32 @@ function processLayerItems($items, &$layerDefinitions, $details = true) {
                         }
                     }
                 }
+            }
+
+            if (isset($item['items'])) {
+                $layerData['layers'] = processLayerItems($item['items'], $layerDefinitions, $details);
+            }
+
+            $layers[] = $layerData;
+
+        } elseif (is_array($item) && is_string($key) && !is_numeric($key)) {
+            // Assoziatives Array: Key ist die Gruppen-ID
+            // (z.B. oereb_raumplanung.items = { rp_liegenschaften: {...}, rp_rechtskraeftig: {...} })
+            $grpName = getNlsLabel($key);
+            if (!$grpName) $grpName = extractLayerName($key);
+
+            $layerData = [
+                'id'   => $key,
+                'name' => $grpName,
+                'type' => 'group',
+                'open' => $item['open'] ?? false
+            ];
+
+            if (isset($item['legend']) && $item['legend'] !== '') {
+                $layerData['legend'] = $item['legend'];
+            }
+            if (!empty($item['selectAll'])) {
+                $layerData['selectAll'] = true;
             }
 
             if (isset($item['items'])) {
