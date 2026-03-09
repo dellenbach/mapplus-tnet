@@ -189,14 +189,16 @@
           activeContainer.style.setProperty('overflow-y', 'auto', 'important');
           activeContainer.style.setProperty('overflow-x', 'hidden', 'important');
         }
-        // ContentOuter ebenfalls anpassen
+        // ContentOuter: height UND max-height setzen (max-height allein erzwingt keine Grösse)
         if (contentOuter) {
+          contentOuter.style.setProperty('height', (clamped + 10) + 'px', 'important');
           contentOuter.style.setProperty('max-height', (clamped + 10) + 'px', 'important');
           contentOuter.style.setProperty('overflow-y', 'auto', 'important');
         }
       } else {
-        // Legacy: max-height + overflow-y auf ContentOuter
+        // Legacy: height + max-height + overflow-y auf ContentOuter
         if (contentOuter) {
+          contentOuter.style.setProperty('height', clamped + 'px', 'important');
           contentOuter.style.setProperty('max-height', clamped + 'px', 'important');
           contentOuter.style.setProperty('overflow-y', 'auto', 'important');
         }

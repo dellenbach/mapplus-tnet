@@ -13,8 +13,11 @@ LOCAL_BASE = r"c:\_Daten\mapplus-exp\maps"
 
 # Files to upload
 FILES = [
-    # Accordion-Scroll-Bug: getMaxHeight() dynamisch berechnen
-    "tnet/js/tnet-accordion-resize.js",
+    # LyrMgr source=file: Hierarchie direkt aus lyrmgr.conf laden
+    "tnet/config/tnet-global-config.json5",
+    "tnet/js/tnet-lm-store.js",
+    "tnet/js/tnet-lm-init.js",
+    "tnet/api/v1/layers.php",
 ]
 
 def upload_files():
