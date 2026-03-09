@@ -200,7 +200,17 @@
     // false = Legacy WMS-TitlePane in Sidebar sichtbar
     useNewWmsPanel: true,
 
-    // API-Endpoint für Layer-Katalog (Hierarchie)
+    // ===== DATENQUELLE FÜR DEN LYRMGR (Themenkatalog-Hierarchie) =====
+    // Betrifft NUR die lyrmgr.conf (Baumstruktur / Kategorien / Layer-Zuordnung).
+    // Layer-Details (URL, Typ, WMS-Params, Legenden) kommen IMMER aus der DB/API.
+    //
+    // 'api' = LyrMgr-Hierarchie + Layer-Details komplett aus API (DB-basiert, bisheriges Verhalten)
+    // 'file' = LyrMgr-Hierarchie direkt aus lyrmgr.conf lesen (via API ?source=file),
+    //          Layer-Details werden separat aus der DB nachgeladen.
+    //          Kein DB-Import nötig nach Conf-Änderung → schnellerer Turnaround.
+    lyrmgrSource: 'file',
+
+    // API-Endpoint für Layer-Katalog (Hierarchie + Details)
     apiUrl: '/maps/tnet/api/v1/layers.php',
     // Legacy Dojo-LayerManager: zusätzliche Hierarchiestufen optisch hervorheben?
     // true = dunkler→heller Verlauf + Einrückung für data-lyrmgr-depth

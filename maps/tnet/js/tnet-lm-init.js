@@ -253,6 +253,15 @@
   function bootstrap(config) {
     var lmConfig = (config && config.layerManager) || {};
 
+    // --- Gruppen-Parameter aus URL übernehmen (z.B. ?group=owpro) ---
+    if (!lmConfig.group) {
+      var urlGroup = new URLSearchParams(window.location.search).get('group');
+      if (urlGroup) {
+        lmConfig.group = urlGroup;
+        TnetLog.log(LOG, 'Gruppe aus URL übernommen: ' + urlGroup);
+      }
+    }
+
     // --- Feature-Flags auswerten ---
     // Rückwärtskompatibilität: altes "useNew" wird als "useNewActivePanel" interpretiert
     _useNewActivePanel = lmConfig.useNewActivePanel !== undefined

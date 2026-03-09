@@ -45,9 +45,90 @@
       this._loadCatalog();
     },
 
+    // ============================================================
+    // Katalog laden — lyrmgrSource: 'file' oder 'api'
+    // ============================================================
+
     _loadCatalog: function () {
+      var source = _config.lyrmgrSource || 'api';
+      var group  = _config.group || 'public';
+
+      if (source === 'file') {
+        return this._loadLyrmgrFromFile(group);
+      }
+      return this._loadLyrmgrFromApi(group);
+    },
+
+    /**
+     * LyrMgr-Hierarchie aus Config-Dateien laden (via API ?source=file).
+     * Kein DB-Roundtrip — liest direkt lyrmgr.conf + NLS-Labels + Mapping.
+     * Liefert dasselbe categories[]-Format wie der DB-Pfad.
+     * Bei Fehler: automatischer Fallback auf API-Modus (source=db).
+     *
+     * @param {string} group - Gruppenname (z.B. 'owpro', 'marco', 'public')
+     */
+    _loadLyrmgrFromFile: function (group) {
+      var self = this;
+      var apiUrl = _config.apiUrl || '/maps/tnet/api/v1/layers.php';
+      var url = apiUrl + '?source=file&group=' + encodeURIComponent(group);
+
+      if (_config.debug) TnetLog.log(LOG, 'Lade LyrMgr aus lyrmgr.conf (source=file, group=' + group + ')');
+
+      fetch(url)
+        .then(function (r) {
+          if (!r.ok) {
+            TnetLog.warn(LOG, 'lyrmgr.conf nicht gefunden (HTTP ' + r.status + '), Fallback auf API');
+            return self._loadLyrmgrFromApi(group);
+          }
+          return r.json();
+        })
+        .then(function (json) {
+          if (!json) return; // Fallback bereits ausgelöst
+
+          // Antwort-Format identisch mit DB-Pfad:
+          // { success: true, data: { version: '2.0', categories: [...] } }
+          var data = json.data || json;
+          var categories = data.categories || [];
+
+          self._normalizeCategories(categories);
+          self._propagateLegends(categories, null);
+          self._initDefaults(categories);
+          _catalog = categories;
+          _loaded = true;
+
+          // Coalesce-Gruppen aus Katalog indexieren
+          self._initCoalesceInfo(categories);
+
+          // Coalesce-Framework-Bridge initialisieren
+          if (window.TnetCoalesceBridge) {
+            window.TnetCoalesceBridge.init(_config);
+          }
+
+          if (_config.debug) TnetLog.log(LOG, 'LyrMgr aus Datei geladen:',
+            categories.length, 'Kategorien,',
+            Object.keys(_coalesceIndex).length, 'Coalesce-Gruppen',
+            '(source=file, group=' + group + ')');
+
+          self._emit('catalog-loaded', _catalog);
+          self._syncFromMap();
+        })
+        .catch(function (err) {
+          TnetLog.error(LOG, 'Fehler beim Laden aus lyrmgr.conf:', err);
+          TnetLog.warn(LOG, 'Fallback auf API (source=db)');
+          self._loadLyrmgrFromApi(group);
+        });
+    },
+
+    /**
+     * Bisheriges Verhalten: LyrMgr-Hierarchie + Layer-Details komplett aus API (DB-basiert).
+     * @param {string} group - Gruppenname (z.B. 'owpro', 'public')
+     */
+    _loadLyrmgrFromApi: function (group) {
       var self = this;
       var url = _config.apiUrl || '/maps/tnet/api/v1/layers.php';
+      url += (url.indexOf('?') > -1 ? '&' : '?') + 'group=' + encodeURIComponent(group);
+
+      if (_config.debug) TnetLog.log(LOG, 'Lade Katalog aus API (group=' + group + ')');
 
       fetch(url)
         .then(function (r) {

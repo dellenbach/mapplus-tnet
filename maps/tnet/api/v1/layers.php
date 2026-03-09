@@ -128,7 +128,8 @@ $cacheParams = [
     'group'    => $group,
     'category' => $category,
     'details'  => $details ? 'true' : 'false',
-    'flat'     => $flat ? 'true' : 'false'
+    'flat'     => $flat ? 'true' : 'false',
+    'source'   => $source
 ];
 $cacheKey = $cache->getCacheKey('layers', $cacheParams);
 
