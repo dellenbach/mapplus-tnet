@@ -40,6 +40,173 @@ $debug    = isset($_GET['debug']) && $_GET['debug'] === '1';
 $layerId  = $_GET['id'] ?? null; // Einzelner Layer per ID
 $source   = strtolower(trim($_GET['source'] ?? 'auto')); // auto|db|file
 $noCache  = isset($_GET['nocache']) && $_GET['nocache'] === '1';
+$action   = $_GET['action'] ?? null;
+
+// =====================================================================
+// Action: NLS-Label-Check
+// GET /v1/layers.php?action=nls_check&group=owpro
+// Listet alle Keys aus der lyrmgr.conf und zeigt ob ein NLS-Label existiert.
+// =====================================================================
+if ($action === 'nls_check') {
+    header('Content-Type: application/json; charset=utf-8');
+
+    // 1. Alle lyrmgrResources_*.json laden
+    //    Basis:       /www/core/nls/de/          (4 Ebenen hoch)
+    //    Überladungen: /www/maps/core/nls/de/     (3 Ebenen hoch)
+    //    Überladungen überschreiben gleichnamige Keys aus der Basis.
+    $nlsDirBase     = realpath(__DIR__ . '/../../../../core/nls/de');
+    $nlsDirOverride = realpath(__DIR__ . '/../../../core/nls/de');
+    $allNls = [];       // nlsKey => { label, file }
+    $nlsFiles = [];     // filename => count
+    $nlsDirs = [];      // Debug: welche Verzeichnisse geladen wurden
+
+    // Basis laden
+    if ($nlsDirBase && is_dir($nlsDirBase)) {
+        $nlsDirs[] = $nlsDirBase . ' (Basis)';
+        foreach (glob($nlsDirBase . '/lyrmgrResources*.json') as $f) {
+            $fname = basename($f);
+            $data = json_decode(file_get_contents($f), true);
+            if (is_array($data)) {
+                $nlsFiles[$fname] = count($data);
+                foreach ($data as $k => $v) {
+                    $allNls[$k] = ['label' => $v, 'file' => $fname];
+                }
+            }
+        }
+    }
+    // Überladungen laden (überschreibt gleichnamige Keys)
+    if ($nlsDirOverride && is_dir($nlsDirOverride) && $nlsDirOverride !== $nlsDirBase) {
+        $nlsDirs[] = $nlsDirOverride . ' (Override)';
+        foreach (glob($nlsDirOverride . '/lyrmgrResources*.json') as $f) {
+            $fname = 'override/' . basename($f);
+            $data = json_decode(file_get_contents($f), true);
+            if (is_array($data)) {
+                $nlsFiles[$fname] = count($data);
+                foreach ($data as $k => $v) {
+                    $allNls[$k] = ['label' => $v, 'file' => $fname];
+                }
+            }
+        }
+    }
+
+    // 2. lyrmgr.conf laden (gruppenspezifisch oder public)
+    $confBase = ConfigReader::getPublicConfigPath($group);
+    $confPath = $confBase ? $confBase . '/lyrmgr.conf' : null;
+    if (!$confPath || !file_exists($confPath)) {
+        $confBase = ConfigReader::getPublicConfigPath('public');
+        $confPath = $confBase ? $confBase . '/lyrmgr.conf' : null;
+    }
+    if (!$confPath || !file_exists($confPath)) {
+        ApiResponse::error("lyrmgr.conf nicht gefunden (group={$group})", 404);
+    }
+    $lyrmgr = json_decode(file_get_contents($confPath), true);
+    if (!$lyrmgr) {
+        ApiResponse::error("lyrmgr.conf parse error", 500);
+    }
+
+    // 3. Alle Keys rekursiv aus der Struktur extrahieren
+    $allKeys = [];
+    _nlsExtractKeys($lyrmgr, 'lyrmgr', $allKeys);
+
+    // 4. Abgleich: welche Keys haben ein NLS-Label, welche nicht?
+    $missing = [];
+    $found   = [];
+    foreach ($allKeys as $entry) {
+        $nlsKey = 'desc_' . $entry['key'];
+        if (isset($allNls[$nlsKey])) {
+            $found[] = [
+                'key'    => $entry['key'],
+                'type'   => $entry['type'],
+                'nlsKey' => $nlsKey,
+                'label'  => $allNls[$nlsKey]['label'],
+                'file'   => $allNls[$nlsKey]['file'],
+            ];
+        } else {
+            // Fallback-Name wie im JS: letzter Pfadteil, Unterstriche→Leerzeichen, ucwords
+            $base = (strpos($entry['key'], '/') !== false)
+                ? substr($entry['key'], strrpos($entry['key'], '/') + 1)
+                : $entry['key'];
+            $missing[] = [
+                'key'      => $entry['key'],
+                'type'     => $entry['type'],
+                'nlsKey'   => $nlsKey,
+                'fallback' => ucwords(str_replace('_', ' ', $base)),
+            ];
+        }
+    }
+
+    echo json_encode([
+        'group'          => $group,
+        'confPath'       => basename(dirname($confPath)) . '/' . basename($confPath),
+        'nlsDirs'        => $nlsDirs,
+        'nlsFiles'       => $nlsFiles,
+        'totalNlsLabels' => count($allNls),
+        'totalKeys'      => count($allKeys),
+        'summary'        => ['found' => count($found), 'missing' => count($missing)],
+        'missing'        => $missing,
+        'found'          => $found,
+    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
+    exit;
+}
+
+/**
+ * Rekursive Hilfsfunktion: Alle Keys aus lyrmgr.conf-Struktur extrahieren.
+ * Erkennt Strings (Layer-Keys), benannte Objekte ({name,...,items:[...]}),
+ * und assoziative Unter-Gruppen (Key=ID, Value=Array).
+ */
+function _nlsExtractKeys($node, $type, &$out) {
+    // Meta-Keys überspringen
+    static $skip = ['open','iconClass','type','useRemoveHighlight',
+        'switchLyrChkBoxAndName','targetMap','mod_sortlayers',
+        'statemanager_cgi','version','structure','name','items'];
+
+    if (is_string($node)) {
+        $out[] = ['key' => $node, 'type' => 'layer'];
+        return;
+    }
+    if (!is_array($node)) return;
+
+    // Numerisches Array → Liste von Items
+    if (array_values($node) === $node) {
+        foreach ($node as $item) {
+            // Gruppen-Objekt mit "name"-Property → Service-Root-Key extrahieren
+            // z.B. {"name": "gis_oereb/nw_nutzungsplanung_def", "items": [...]}
+            if (is_array($item) && isset($item['name'])) {
+                $out[] = ['key' => $item['name'], 'type' => 'group'];
+            }
+            _nlsExtractKeys($item, 'layer', $out);
+        }
+        return;
+    }
+
+    // Assoziatives Array → Gruppen / Kategorien
+    foreach ($node as $key => $value) {
+        if (in_array($key, $skip, true)) continue;
+
+        if ($key === 'structure' || $key === 'items') {
+            _nlsExtractKeys($value, 'group', $out);
+            continue;
+        }
+
+        if (is_array($value)) {
+            $out[] = ['key' => $key, 'type' => $type];
+            // Unterstruktur: items-Array oder weitere verschachtelte Gruppen
+            if (isset($value['items'])) {
+                _nlsExtractKeys($value['items'], 'group', $out);
+            }
+            if (isset($value['structure'])) {
+                _nlsExtractKeys($value['structure'], 'subcategory', $out);
+            }
+            // Weitere verschachtelte assoziative Schlüssel
+            foreach ($value as $sk => $sv) {
+                if (in_array($sk, $skip, true)) continue;
+                if (is_array($sv) && !is_numeric($sk)) {
+                    _nlsExtractKeys([$sk => $sv], 'group', $out);
+                }
+            }
+        }
+    }
+}
 
 // === Datenbank-Verfügbarkeit prüfen ===
 $useDatabase = false;
@@ -487,7 +654,7 @@ function processLayerItems($items, &$layerDefinitions, $details = true) {
             // Einfache Layer-Referenz (String)
             $layerData = [
                 'id'   => $item,
-                'name' => extractLayerName($item),
+                'name' => getNlsLabel($item) ?: extractLayerName($item),
                 'type' => 'layer'
             ];
 
@@ -520,7 +687,7 @@ function processLayerItems($items, &$layerDefinitions, $details = true) {
             // Gruppe oder Layer mit Metadaten
             $layerData = [
                 'id'   => $item['name'],
-                'name' => extractLayerName($item['name']),
+                'name' => getNlsLabel($item['name']) ?: extractLayerName($item['name']),
                 'type' => isset($item['items']) ? 'group' : 'layer',
                 'open' => $item['open'] ?? false
             ];
@@ -685,20 +852,36 @@ function extractLayerName($layerId) {
 }
 
 /**
- * Lädt NLS-Labels (lyrmgrResources.json) und gibt den Display-Namen zurück.
- * Cacht die Datei nach dem ersten Laden.
+ * Lädt ALLE NLS-Labels (lyrmgrResources*.json) und gibt den Display-Namen zurück.
+ * Cacht die Dateien nach dem ersten Laden.
+ * Pfad: /www/core/nls/de/ (4 Ebenen über __DIR__).
  * 
- * @param string $key  Schlüssel (z.B. 'grundlagen', 'oereb')
+ * @param string $key  Schlüssel (z.B. 'grundlagen', 'gis_oereb/nw_nutzungsplanung_def')
  * @return string|null  NLS-Label oder null wenn nicht gefunden
  */
 function getNlsLabel($key) {
     static $nls = null;
     if ($nls === null) {
-        $nlsPath = realpath(__DIR__ . '/../../../core/nls/de/lyrmgrResources.json');
-        if ($nlsPath && file_exists($nlsPath)) {
-            $nls = json_decode(file_get_contents($nlsPath), true) ?: [];
-        } else {
-            $nls = [];
+        $nls = [];
+        // Basis: /www/core/nls/de/ (4 Ebenen hoch)
+        $nlsDirBase = realpath(__DIR__ . '/../../../../core/nls/de');
+        if ($nlsDirBase && is_dir($nlsDirBase)) {
+            foreach (glob($nlsDirBase . '/lyrmgrResources*.json') as $f) {
+                $data = json_decode(file_get_contents($f), true);
+                if (is_array($data)) {
+                    $nls = array_merge($nls, $data);
+                }
+            }
+        }
+        // Überladungen: /www/maps/core/nls/de/ (3 Ebenen hoch, überschreibt Basis)
+        $nlsDirOverride = realpath(__DIR__ . '/../../../core/nls/de');
+        if ($nlsDirOverride && is_dir($nlsDirOverride) && $nlsDirOverride !== $nlsDirBase) {
+            foreach (glob($nlsDirOverride . '/lyrmgrResources*.json') as $f) {
+                $data = json_decode(file_get_contents($f), true);
+                if (is_array($data)) {
+                    $nls = array_merge($nls, $data);
+                }
+            }
         }
     }
     // Suche: desc_<key> (exakt)
@@ -865,15 +1048,13 @@ function buildCatalogTree(array $rows, bool $details): array {
         // Node-Objekt — Name bereinigen
         $nodeId = $row['source_id'] ?? $row['layer_id'] ?? (string) $nodePk;
         $nodeName = $row['node_name'];
-        if ($row['node_kind'] !== 'layer') {
-            // Für Gruppen/Subcategories: NLS-Lookup, dann Pfad-Bereinigung
-            $nlsLabel = getNlsLabel($nodeId);
-            if ($nlsLabel) {
-                $nodeName = $nlsLabel;
-            } elseif (strpos($nodeName, '/') !== false) {
-                // Pfad-basierter Name → nur letztes Segment verwenden
-                $nodeName = extractLayerName($nodeId);
-            }
+        // NLS-Lookup für alle Knoten-Typen (Gruppen, Subcategories UND Layer)
+        $nlsLabel = getNlsLabel($nodeId);
+        if ($nlsLabel) {
+            $nodeName = $nlsLabel;
+        } elseif ($row['node_kind'] !== 'layer' && strpos($nodeName, '/') !== false) {
+            // Pfad-basierter Name bei Nicht-Layern → nur letztes Segment verwenden
+            $nodeName = extractLayerName($nodeId);
         }
         $node = [
             'id'   => $nodeId,

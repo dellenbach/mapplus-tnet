@@ -844,7 +844,7 @@ class LayerImporter {
     }
 
     /**
-     * Ermittelt den NLS-Pfad (core/nls/de)
+     * Ermittelt den Basis-NLS-Pfad (/www/core/nls/de — 4 Ebenen hoch)
      */
     private function getNlsPath(): ?string {
         $path = realpath(__DIR__ . '/../../../../core/nls/de');
@@ -852,22 +852,48 @@ class LayerImporter {
     }
 
     /**
-     * Lädt und cached die Basis-NLS-Labels (lyrmgrResources.json)
-     * und gibt den Display-Namen für einen Schlüssel zurück.
+     * Ermittelt den Override-NLS-Pfad (/www/maps/core/nls/de — 3 Ebenen hoch)
+     */
+    private function getNlsOverridePath(): ?string {
+        $path = realpath(__DIR__ . '/../../../core/nls/de');
+        $basePath = $this->getNlsPath();
+        // Nur zurückgeben wenn es ein anderes Verzeichnis ist als die Basis
+        if ($path && is_dir($path) && $path !== $basePath) {
+            return $path;
+        }
+        return null;
+    }
+
+    /**
+     * Lädt und cached ALLE NLS-Labels (lyrmgrResources*.json) aus Basis + Override.
+     * Basis: /www/core/nls/de/ (alle dienst-spezifischen Dateien)
+     * Override: /www/maps/core/nls/de/ (Überladungen, überschreibt gleichnamige Keys)
      * 
-     * @param string $key  Schlüssel (z.B. 'grundlagen', 'oereb')
+     * @param string $key  Schlüssel (z.B. 'grundlagen', 'gis_oereb/nw_nutzungsplanung_def')
      * @return string|null NLS-Label oder null
      */
     private function getBaseNlsLabel(string $key): ?string {
         if ($this->baseNls === null) {
+            $this->baseNls = [];
+            // Basis: alle lyrmgrResources_*.json laden
             $nlsPath = $this->getNlsPath();
             if ($nlsPath) {
-                $file = $nlsPath . '/lyrmgrResources.json';
-                $this->baseNls = file_exists($file)
-                    ? (json_decode(file_get_contents($file), true) ?: [])
-                    : [];
-            } else {
-                $this->baseNls = [];
+                foreach (glob($nlsPath . '/lyrmgrResources*.json') as $f) {
+                    $data = json_decode(file_get_contents($f), true);
+                    if (is_array($data)) {
+                        $this->baseNls = array_merge($this->baseNls, $data);
+                    }
+                }
+            }
+            // Override: gleichnamige Keys überschreiben
+            $overridePath = $this->getNlsOverridePath();
+            if ($overridePath) {
+                foreach (glob($overridePath . '/lyrmgrResources*.json') as $f) {
+                    $data = json_decode(file_get_contents($f), true);
+                    if (is_array($data)) {
+                        $this->baseNls = array_merge($this->baseNls, $data);
+                    }
+                }
             }
         }
         return $this->baseNls['desc_' . $key] ?? null;
