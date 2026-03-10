@@ -12,8 +12,8 @@
  *
  * Läuft auf demselben Server (Loopback). cURL für Robustheit.
  *
- * @version    4.2
- * @date       2026-02-13
+ * @version    4.3
+ * @date       2026-03-10
  * @copyright  Trigonet AG
  * @author     Marco Dellenbach
  */
@@ -71,26 +71,54 @@ $content = preg_replace(
 // --- Minimales Inline-CSS (Backup + Layout) ---
 $inlineStyle = '<style id="proxy-overrides">
   header.site-header { display:none!important; }
-  .cdt-frontpage-maps-header { display:none!important; }
+  .cdt-frontpage-maps-header > h2 { display:none!important; }
+  .cdt-parallax-header-slider { display:none!important; }
   body, main { padding-top:0!important; margin-top:0!important; }
 
   /* Sidebar-Icon (SVG Pin) verkleinern */
   .cdt-frontpage-maps-sidebar-icon {
-    max-height: 60px!important;
-    overflow: hidden!important;
+    position: fixed!important;
+    top: 50px!important;
+    left: 40px!important;
+    z-index: 9999!important;
+    background: transparent!important;
+    padding: 0!important;
     display: flex!important;
     align-items: center!important;
     justify-content: center!important;
     cursor: pointer!important;
   }
   .cdt-frontpage-maps-sidebar-icon svg {
-    max-width: 40px!important;
-    max-height: 50px!important;
+    max-width: 150px!important;
+    max-height: 188px!important;
     width: auto!important;
     height: auto!important;
   }
   .cdt-frontpage-maps-sidebar-title {
     cursor: pointer!important;
+  }
+
+  /* Karten-Suchfeld */
+  #tnet-map-search {
+    position: fixed!important;
+    top: 130px!important;
+    left: 160px!important;
+    z-index: 9999!important;
+    width: 180px!important;
+    padding: 8px 12px!important;
+    border: 1px solid #ccc!important;
+    border-radius: 4px!important;
+    font-size: 14px!important;
+    background: rgba(255,255,255,0.95)!important;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.15)!important;
+    outline: none!important;
+  }
+  #tnet-map-search:focus {
+    border-color: var(--m-color-primary, #4B7B81)!important;
+    box-shadow: 0 0 0 2px rgba(75,123,129,0.25)!important;
+  }
+  #tnet-map-search::placeholder {
+    color: #999!important;
   }
   /* Sidebar-Logo/Pin Bilder verkleinern */
   .cdt-frontpage-maps-sidebar > img,
@@ -102,10 +130,16 @@ $inlineStyle = '<style id="proxy-overrides">
     object-fit: contain!important;
   }
 
-  /* Sidebar sichtbar machen (war in inframe-maps.css display:none) */
+  /* Sidebar sichtbar machen und Layout stabilisieren */
   .cdt-frontpage-maps-sidebar {
     display: block!important;
     pointer-events: auto!important;
+    min-height: 100vh!important;
+    flex-shrink: 0!important;
+  }
+  /* Content-Bereich: min-height damit Sidebar nicht springt bei Filterung */
+  .cdt-frontpage-maps-maplists {
+    min-height: 100vh!important;
   }
 
   /* KATEGORIEN-Nav: bei Toggle aufklappen */
@@ -129,12 +163,70 @@ $inlineStyle = '<style id="proxy-overrides">
   }
 </style>';
 
+// --- Proxy-Config aus tnet-global-config.json5 lesen ---
+$proxyConfig = ['debug' => false, 'autoLogin' => false, 'autoLoginPollMs' => 300, 'autoLoginPollMax' => 20];
+$proxyConfigStatus = 'default'; // wird zu 'ok' oder 'parse-failed' gesetzt
+$configPath  = __DIR__ . '/../config/tnet-global-config.json5';
+if (file_exists($configPath)) {
+    $json5 = file_get_contents($configPath);
+    // JSON5 → JSON Konvertierung:
+    // Kommentare entfernen, ABER Strings (mit // drin, z.B. URLs) bewahren.
+    // Regex matcht: "string" | 'string' | //Kommentar | /*Kommentar*/
+    // Nur Gruppe 1 (Kommentare) wird durch '' ersetzt, Strings bleiben.
+    $json5 = preg_replace_callback(
+        '/"(?:[^"\\\\]|\\\\.)*"|\'(?:[^\'\\\\]|\\\\.)*\'|(\/\/[^\n]*|\/\*.*?\*\/)/s',
+        function($m) { return isset($m[1]) && $m[1] !== '' ? '' : $m[0]; },
+        $json5
+    );
+    // Single-quoted Strings → Double-quoted (JSON kennt nur "...")
+    $json5 = preg_replace_callback(
+        "/(?<![\\w])\'((?:[^'\\\\]|\\\\.)*)'/",
+        function($m) { return '"' . str_replace('"', '\\"', $m[1]) . '"'; },
+        $json5
+    );
+    // Unquoted keys quotieren (key: → "key":)
+    $json5 = preg_replace('/(?<=^|[\s{,])([a-zA-Z_][a-zA-Z0-9_-]*)\s*:/m', '"$1":', $json5);
+    // Trailing commas entfernen (JSON5 → JSON)
+    $json5 = preg_replace('/,(\s*[}\]])/', '$1', $json5);
+    $parsed = @json_decode($json5, true);
+    if ($parsed && isset($parsed['proxy'])) {
+        // Nur bekannte Keys übernehmen (nicht _description etc.)
+        foreach (['debug', 'autoLogin', 'autoLoginPollMs', 'autoLoginPollMax'] as $k) {
+            if (array_key_exists($k, $parsed['proxy'])) {
+                $proxyConfig[$k] = $parsed['proxy'][$k];
+            }
+        }
+        $proxyConfigStatus = 'ok';
+        error_log('Proxy: Config geladen – debug=' . ($proxyConfig['debug'] ? 'true' : 'false') . ', autoLogin=' . ($proxyConfig['autoLogin'] ? 'true' : 'false'));
+    } else {
+        $proxyConfigStatus = 'parse-failed:' . json_last_error_msg();
+        error_log('Proxy: Config-Parse fehlgeschlagen (json_last_error=' . json_last_error_msg() . ')');
+    }
+}
+// SSO-Status: muss VOR dem JS-Block ermittelt werden (wird in __TNET_PROXY_SESSION verwendet)
+$isMapPlusLoggedIn = !empty($_SESSION['OIDC_CLAIM_group']) || !empty($_SESSION['app_username']);
+// Login-Button im originalen WP-HTML? (VOR unserer Injection prüfen)
+$hasWpLoginBtn = strpos($content, 'oauthloginbutton') !== false;
+
+$proxyConfigJs = '<script>
+window.__TNET_PROXY_DEBUG      = ' . ($proxyConfig['debug']     ? 'true' : 'false') . ';
+window.__TNET_PROXY_CONFIG_STATUS = ' . json_encode($proxyConfigStatus) . ';
+window.__TNET_PROXY_AUTO_LOGIN = ' . ($proxyConfig['autoLogin'] ? 'true' : 'false') . ';
+window.__TNET_PROXY_NEEDS_LOGIN = ' . ($hasWpLoginBtn ? 'true' : 'false') . ';
+window.__TNET_PROXY_SESSION    = ' . json_encode([
+    'isLoggedIn'  => $isMapPlusLoggedIn,
+    'username'    => $_SESSION['app_username']  ?? null,
+    'group'       => $_SESSION['app_group']     ?? null,
+    'oidcGroup'   => $_SESSION['OIDC_CLAIM_group'] ?? null,
+]) . ';
+</script>';
+
 // --- JS Injection: Helpers + Auto-Init ---
 $v = time();
 $jsHelpers = '<script src="/maps/tnet/js/tnet-mapplus-helpers.js?v=' . $v . '"></script>';
 $jsInject  = '<script src="/maps/tnet/js/tnet-proxy-inject.js?v=' . $v . '"></script>';
 
-$injection = "\n" . $inlineStyle . "\n" . $jsHelpers . "\n" . $jsInject . "\n";
+$injection = "\n" . $proxyConfigJs . "\n" . $inlineStyle . "\n" . $jsHelpers . "\n" . $jsInject . "\n";
 
 if (strpos($content, '</head>') !== false) {
     $content = str_replace('</head>', $injection . '</head>', $content);
@@ -142,37 +234,7 @@ if (strpos($content, '</head>') !== false) {
     $content = preg_replace('/(<body[^>]*>)/i', '$1' . $injection, $content);
 }
 
-// --- SSO Auto-Login ---
-$isMapPlusLoggedIn = !empty($_SESSION['OIDC_CLAIM_group']) || !empty($_SESSION['app_username']);
-$hasWpLoginBtn = strpos($content, 'oauthloginbutton') !== false;
-
-// Debug: IMMER Session-Status in Browser-Konsole ausgeben
-$sessionDebug = json_encode([
-    'session_id' => session_id(),
-    'OIDC_CLAIM_group' => $_SESSION['OIDC_CLAIM_group'] ?? null,
-    'app_username' => $_SESSION['app_username'] ?? null,
-    'app_group' => $_SESSION['app_group'] ?? null,
-    'isMapPlusLoggedIn' => $isMapPlusLoggedIn,
-    'hasWpLoginBtn' => $hasWpLoginBtn,
-    'cookies_received' => array_keys($_COOKIE),
-    'session_name' => session_name(),
-]);
-$debugScript = '<script>console.log("[proxy] PHP Session Debug:", ' . $sessionDebug . ');</script>';
-$content = str_replace('</body>', $debugScript . '</body>', $content);
-
-if ($isMapPlusLoggedIn && $hasWpLoginBtn) {
-    // Nach OAuth-Login zurück zum Proxy leiten (nicht zur gis-daten.ch Startseite)
-    $proxyUrl = '/maps/tnet/php/active-maps-proxy.php?group=' . urlencode($group);
-    $redirectTo = urlencode($proxyUrl);
-    $autoLoginScript = '<script>
-    console.log("[proxy] Auto-SSO: mapplus angemeldet, starte WP-Login via Redirect");
-    window.location.href = "/?option=oauthredirect&app_name=adfs&redirect_to=' . $redirectTo . '";
-    </script>';
-    $content = str_replace('</body>', $autoLoginScript . '</body>', $content);
-    error_log('Proxy: Auto-SSO Redirect injiziert (User: ' . ($_SESSION['app_username'] ?? 'unknown') . ', redirect_to: ' . $proxyUrl . ')');
-} else {
-    error_log('Proxy: SSO-Status: mapplus=' . ($isMapPlusLoggedIn ? 'ja' : 'nein') . ', WP-Login-Button=' . ($hasWpLoginBtn ? 'ja' : 'nein'));
-}
+error_log('Proxy: SSO-Status: mapplus=' . ($isMapPlusLoggedIn ? 'ja' : 'nein') . ', WP-Login-Button=' . ($hasWpLoginBtn ? 'ja' : 'nein'));
 
 // --- Output ---
 echo $content;

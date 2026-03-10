@@ -6,6 +6,24 @@
 
 ---
 
+## 2026-03-10 — Proxy-SSO: redirect_to zurück zum Proxy blockiert WP-Session
+- **Symptom**: Nach OAuth-Flow zeigt der Proxy-iframe weiterhin den Login-Button; Auto-Click löst Loop aus statt den Benutzer einzuloggen.
+- **Root-Cause**: Proxy-PHP fetched `www.gis-daten.ch` via cURL mit `$_COOKIE` des Browsers (`nwow.mapplus.ch`-Domain). WP-Session-Cookie wurde vom Browser für `gis-daten.ch`-Domain gesetzt → wird NIE an `nwow.mapplus.ch` gesendet → cURL bekommt WP-Cookie nie → Proxy sieht stets Login-Button.
+- **Fix**: `redirect_to` NICHT auf die Proxy-URL patchen. Nach OAuth landet das iframe direkt auf `www.gis-daten.ch` mit aktiver WP-Session (identisch zum manuellen Klick). Robustes Polling (20×300 ms) statt Einzel-Timeout; `window.location.href = btn.href` statt `.click()`.
+- **Guardrail**: Proxy kann WP-Cookies nie per cURL forwarden wenn Proxy und WP auf unterschiedlichen Domains laufen. Auto-Login muss das iframe auf die Ziel-Domain navigieren lassen, nicht zurück zum Proxy.
+
+## 2026-03-10 — Proxy-SSO: sessionStorage-Flag blockiert Auto-Click nach Hard-Reload
+- **Symptom**: WP Login-Button erscheint nach Hard-Reload trotz Auto-Login-Logik; manueller Klick funktioniert, automatischer nicht.
+- **Root-Cause**: `sessionStorage.getItem('tnet_sso_attempted')` persistiert über Seitenreloads (sessionStorage wird erst beim Tab-Schlies­sen geleert) → Flag aus vorangehender Session blockiert den Auto-Click beim nächsten Besuch.
+- **Fix**: Loop-Schutz als reine In-Memory-Variable `_ssoAttempted` (resettet bei jedem Seitenload) statt sessionStorage. Zusätzlich: Button-href patchen via `patchLoginButtonRedirect()`, sodass OAuth nach Abschluss mit `sso_done=1` zum Proxy zurückleitet statt zur gis-daten.ch Startseite. Kein Auto-Click wenn `sso_done=1` in URL.
+- **Guardrail**: Persistenten Storage (sessionStorage/localStorage) für Einmal-Flags nur verwenden, wenn explizites Ablaufdatum oder manueller Reset vorhanden.
+
+## 2026-03-10 — Proxy-SSO: window.location.href Redirect verhindert proxy-inject.js Init
+- **Symptom**: Keine Konsolenausgaben von proxy-inject.js; WP-Login-Button erscheint trotz aktiver mapplus-Session; manueller Button-Klick funktioniert aber die Auto-Auth nicht.
+- **Root-Cause**: PHP injizierten `window.location.href`-Redirect als Inline-`<script>` vor `</body>`. Dieser feuert synchron beim HTML-Parsen — bevor DOMContentLoaded und damit proxy-inject.js initialisieren.
+- **Fix**: PHP-Redirect deaktiviert; `proxy-inject.js` erhält neue `autoClickLoginBtn()`-Funktion, die den WP-OAuth-Button per JS klickt (simuliert den manuellen Klick). Loop-Schutz via `sessionStorage`-Flag `tnet_sso_attempted`; Reset via `?sso_done=1`.
+- **Guardrail**: Keine synchronen `window.location.href`-Redirects in Inline-Scripts injizieren — externe Script-Tags werden dadurch nie ausgeführt.
+
 ## 2026-03-09 — Server-Cache liefert veraltete API-Responses nach PHP-Fix
 - **Symptom**: Nach Deploy von PHP-Fixes zeigt der LayerManager weiterhin alte/falsche Daten (z.B. „Oereb Raumplanung 0" statt „RAUMPLANUNG"). API-Response mit `&debug=1` korrekt, ohne debug falsch.
 - **Root-Cause**: `JsonCache` invalidiert nur bei geänderter Quell-Datei (lyrmgr.conf, mapping) — Änderungen an PHP-Logik (layers.php) lösen keine Cache-Invalidierung aus. Die 1h-TTL hielt die alte Response im Cache.
@@ -730,3 +748,9 @@
 - **Root-Cause**: Bridge's `_syncDojoCheckbox()` in `registerSublayer`/`unregisterSublayer` setzt Dojo-Checkboxen → Dojo-Framework reagiert async mit `switchLayersProgr` → erstellt individuelle Ghost-OL-Layer → Ghost-Schutz muss diese asynchron entfernen. Race Condition zwischen `_suppressMapSync` (200ms Reset), Dojo-Async und Ghost-Schutz (50ms Deferred) → je nach Browser-Timing funktioniert es oder nicht.
 - **Fix**: Batch-Modus (`beginBatch`/`endBatch`) in der CoalesceBridge. Store's `setGroupAllVisible` aktiviert Batch vor Coalesce-Verarbeitung. Im Batch-Modus wird `_syncDojoCheckbox` komplett unterdrückt → keine Dojo-Seiteneffekte → keine Ghost-Layer → kein Timing-Problem. URL-Sync wird einmal am Ende ausgelöst. Fallback-Sync-Timeout auf 1200ms erhöht.
 - **Guardrail**: `_syncDojoCheckbox` NIE in Batch-Operationen aufrufen. Dojo-Checkbox-Sync nur für einzelne Layer-Toggles, nie für Massen-Aktivierung.
+
+## 2026-03-xx — Proxy-SSO: autoLogin: false wird ignoriert trotz korrekter JS-Logik
+- **Symptom**: Auto-Login startet weiterhin obwohl `autoLogin: false` in `tnet-global-config.json5` gesetzt ist und JS-Logik korrekt `=== true` prüft.
+- **Root-Cause**: PHP-Default-Array hatte `'autoLogin' => true`. Wenn JSON5-Parse fehlschlägt (oder bis der Parse-Status unbekannt war), blieb der Fallback `true` → PHP injizierte `window.__TNET_PROXY_AUTO_LOGIN = true` trotz Config-Einstellung.
+- **Fix**: PHP-Default auf `'autoLogin' => false` geändert (sicherer Fallback). Zusätzlich `window.__TNET_PROXY_CONFIG_STATUS` als JS-Variable injiziert (`'ok'`, `'default'` oder `'parse-failed:...'`) damit der Parse-Zustand im iframe-Kontext der Browser-Konsole sichtbar ist.
+- **Guardrail**: PHP-Defaults für Sicherheits-/Verhaltensflags immer auf den restriktiveren Wert setzen (`false`). Parse-Fehler nie stillschweigend durch `true`-Fallbacks maskieren.

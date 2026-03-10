@@ -494,4 +494,17 @@
     // Alle Metriken (Scale, Resolution, DPI, Pixel, Extent) in Konsole loggen
     debugLogMetrics: false,
   },
+
+  // ── Proxy / iFrame-Login ──────────────────────────────────
+  proxy: {
+    _description: "Einstellungen für active-maps-proxy.php und proxy-inject.js",
+    // true = ausführliche Konsolenausgaben in proxy-inject.js (im Proxy-iframe)
+    debug: true,
+    // Auto-Login: WP OAuth-Button automatisch klicken wenn noch nicht eingeloggt
+    autoLogin: true,
+    // Polling-Intervall (ms) beim Suchen des Login-Buttons
+    autoLoginPollMs: 300,
+    // Maximale Polling-Versuche (Gesamtzeit = autoLoginPollMs × autoLoginPollMax)
+    autoLoginPollMax: 20,
+  },
 }

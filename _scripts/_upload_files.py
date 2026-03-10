@@ -13,11 +13,8 @@ LOCAL_BASE = r"c:\_Daten\mapplus-exp\maps"
 
 # Files to upload
 FILES = [
-    # LyrMgr source=file: Hierarchie direkt aus lyrmgr.conf laden
-    "tnet/config/tnet-global-config.json5",
-    "tnet/js/tnet-lm-store.js",
-    "tnet/js/tnet-lm-init.js",
-    "tnet/api/v1/layers.php",
+    "tnet/js/tnet-proxy-inject.js",
+    "tnet/php/active-maps-proxy.php",
 ]
 
 def upload_files():

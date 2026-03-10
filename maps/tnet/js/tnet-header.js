@@ -22,6 +22,126 @@
 var iframeHistory = [];
 var iframeHistoryIndex = -1;
 
+// ===== OAUTH SILENT-HANDLER =====
+// Pre-Authentifizierung: Wenn User in MapPlus angemeldet ist, wird WP-OAuth
+// sofort im Hintergrund gestartet — noch bevor das Maps-Panel geöffnet wird.
+// So sind die WP-Cookies gesetzt, wenn der User das Panel erstmals öffnet.
+(function _installOAuthHandler() {
+  var _hiddenFrame = null;
+  var _timeoutId = null;
+  var _done = false;
+  var _preAuthStarted = false;
+
+  // 1. postMessage-Listener
+  window.addEventListener('message', function(evt) {
+    if (!evt.data || typeof evt.data !== 'object') return;
+
+    // Popup/iframe-Request von proxy-inject.js (manueller Klick auf Login-Button)
+    if (evt.data.type === 'tnet-oauth-popup' && evt.data.url) {
+      console.log('[tnet-header] OAuth-Request empfangen:', evt.data.url);
+      _startSilentOAuth(evt.data.url);
+    }
+
+    // Callback von oauth-callback.html (versteckter iframe ODER Popup)
+    if (evt.data.type === 'tnet-oauth-done') {
+      console.log('[tnet-header] OAuth-Done empfangen');
+      _onOAuthComplete();
+    }
+  });
+
+  // 2. Pre-Auth: sofort starten wenn User in MapPlus angemeldet
+  function _tryPreAuth() {
+    if (_preAuthStarted || _done) return;
+    if (!window.njs || !njs.AppManager || !njs.AppManager.auth_user || njs.AppManager.auth_user === '') {
+      return; // Nicht angemeldet → kein Pre-Auth
+    }
+    _preAuthStarted = true;
+    var base = 'https://www.gis-daten.ch';
+    var callbackUrl = base + '/maps/tnet/views/oauth-callback.html';
+    var oauthUrl = base + '/?option=oauthredirect&app_name=adfs&redirect_url=' + encodeURIComponent(callbackUrl);
+    console.log('[tnet-header] Pre-Auth: User angemeldet → starte WP-OAuth im Hintergrund');
+    _startSilentOAuth(oauthUrl);
+  }
+
+  // Pre-Auth bei App-Ready auslösen
+  if (window._tnetAppReadyFired) {
+    _tryPreAuth();
+  }
+  document.addEventListener('tnet-app-ready', function() {
+    _tryPreAuth();
+  }, { once: true });
+
+  // 3. Versteckten iframe im Top-Frame erstellen
+  function _startSilentOAuth(url) {
+    _done = false;
+    _cleanup();
+    // Versteckter iframe — nicht sandboxed, direkt im Top-Frame
+    _hiddenFrame = document.createElement('iframe');
+    _hiddenFrame.id = '_tnet_oauth_frame';
+    _hiddenFrame.style.cssText = 'position:fixed;width:1px;height:1px;left:-9999px;top:-9999px;opacity:0;pointer-events:none;';
+    _hiddenFrame.src = url;
+    document.body.appendChild(_hiddenFrame);
+    console.log('[tnet-header] Versteckter OAuth-iframe erstellt');
+
+    // Timeout: falls IdP-Session abgelaufen → Login-Seite kann nicht im iframe rendern
+    // → Fallback auf Popup
+    _timeoutId = setTimeout(function() {
+      if (!_done) {
+        console.warn('[tnet-header] OAuth silent timeout (8s) → Fallback: Popup');
+        _cleanup();
+        _openFallbackPopup(url);
+      }
+    }, 8000);
+  }
+
+  // 3. Fallback: Popup (falls IdP-Session abgelaufen)
+  function _openFallbackPopup(url) {
+    var w = 520, h = 650;
+    var left = (screen.width - w) / 2;
+    var top = (screen.height - h) / 2;
+    var popup = window.open(url, 'tnet_oauth',
+      'width=' + w + ',height=' + h + ',left=' + left + ',top=' + top +
+      ',menubar=no,toolbar=no,status=no,scrollbars=yes');
+    if (!popup) {
+      console.warn('[tnet-header] Popup blockiert — bitte Popup-Blocker deaktivieren');
+      return;
+    }
+    // Polling: popup.closed
+    var pollTimer = setInterval(function() {
+      if (popup && popup.closed) {
+        clearInterval(pollTimer);
+        _onOAuthComplete();
+      }
+    }, 500);
+  }
+
+  // 5. OAuth abgeschlossen → ggf. sichtbaren iframe refreshen
+  function _onOAuthComplete() {
+    if (_done) return; // Doppel-Aufruf verhindern
+    _done = true;
+    _cleanup();
+    // Nur refreshen wenn das Maps-Panel bereits geladen ist
+    // Bei Pre-Auth ist das iframe noch nicht da → kein Refresh nötig
+    var iframe = document.getElementById('mapsInfoFrame');
+    if (iframe && iframe.getAttribute('src') && iframe.getAttribute('src') !== '') {
+      var baseSrc = iframe.getAttribute('data-src') || '/maps/tnet/views/inframe-maps.html';
+      iframe.src = baseSrc + (baseSrc.indexOf('?') === -1 ? '?t=' : '&t=') + Date.now();
+      console.log('[tnet-header] iframe refresht nach OAuth');
+    } else {
+      console.log('[tnet-header] Pre-Auth abgeschlossen (iframe noch nicht geladen — OK)');
+    }
+  }
+
+  // 5. Aufräumen
+  function _cleanup() {
+    if (_timeoutId) { clearTimeout(_timeoutId); _timeoutId = null; }
+    if (_hiddenFrame && _hiddenFrame.parentNode) {
+      _hiddenFrame.parentNode.removeChild(_hiddenFrame);
+      _hiddenFrame = null;
+    }
+  }
+})();
+
 window.setupIframeMonitoring = function() {
     var iframe = document.getElementById("mapsInfoFrame");
     if (iframe) {

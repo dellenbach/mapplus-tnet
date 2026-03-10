@@ -50,31 +50,19 @@
     
     function getGroup() {
       var url = '';
-      var source = 'fallback';
       
       try { 
         url = window.top.location.href;
-        source = 'window.top'; 
-        log('URL from window.top: ' + url);
       } catch(e) {
-        log('window.top nicht erreichbar: ' + e.message);
         try { 
           url = window.parent.location.href;
-          source = 'window.parent';
-          log('URL from window.parent: ' + url);
         } catch(e2) {
-          log('window.parent nicht erreichbar: ' + e2.message);
           url = window.location.href;
-          source = 'window.location';
-          log('URL from window.location: ' + url);
         }
       }
       
-      log('URL source: ' + source);
       var match = url.match(/[?&]group=([^&]+)/);
-      var result = match ? decodeURIComponent(match[1]) : 'none';
-      log('Group match result: ' + result);
-      return result;
+      return match ? decodeURIComponent(match[1]) : 'none';
     }
     
     function getMapType() {
@@ -132,8 +120,6 @@
     mapFrame.onload = function() {
       log('iframe geladen');
       showFrame();
-      // Proxy v4 injiziert tnet-mapplus-helpers.js + tnet-proxy-inject.js
-      // → Links via processExtractedLinks(), NW/OW Buttons via proxy-inject
     };
     
     // Hilfsfunktion: Update parent URL mit neuem group
