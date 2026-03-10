@@ -6,6 +6,12 @@
 
 ---
 
+## 2026-03-10 — Kartenportal: ÖFFNEN-Button-Klick tut nichts bei bestimmten Karten (z.B. Gefahrenkarte OW)
+- **Symptom**: Klick auf "ÖFFNEN" bei Gefahrenkarte Obwalden hat keine Wirkung.
+- **Root-Cause**: `processExtractedLinks()` ersetzt WP-onclick (`setMapBookmark`) mit `TnetSetBookmark(bookmarkId)`, das einen API-Lookup macht. Die WP-Seite verwendet Bookmark-Namen (z.B. `ow_gefahrenkarte`), die nicht im Bookmark-API existieren (API kennt `ow_naturgefahren_pro`). `TnetSetBookmark` fängt den Fehler still ab → keine Aktion.
+- **Fix**: Fallback in onclick: wenn `TnetSetBookmark` `{success: false}` liefert → direkter Framework-Aufruf `window.top.njs.AppManager.setMapBookmark(['main'], originalParams)` mit den originalen WP-Parametern.
+- **Guardrail**: Bei Link-Rewriting immer einen Fallback auf den direkten Framework-Aufruf einbauen, wenn der API-basierte Bookmark-Lookup fehlschlägt.
+
 ## 2026-03-10 — Proxy-SSO: redirect_to zurück zum Proxy blockiert WP-Session
 - **Symptom**: Nach OAuth-Flow zeigt der Proxy-iframe weiterhin den Login-Button; Auto-Click löst Loop aus statt den Benutzer einzuloggen.
 - **Root-Cause**: Proxy-PHP fetched `www.gis-daten.ch` via cURL mit `$_COOKIE` des Browsers (`nwow.mapplus.ch`-Domain). WP-Session-Cookie wurde vom Browser für `gis-daten.ch`-Domain gesetzt → wird NIE an `nwow.mapplus.ch` gesendet → cURL bekommt WP-Cookie nie → Proxy sieht stets Login-Button.

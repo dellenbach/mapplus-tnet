@@ -210,7 +210,8 @@ function processExtractedLinks(selector) {
         
         if (bookmarkId) {
           // Ersetze onclick mit TnetSetBookmark Aufruf (async: Dialog erst nach Laden schliessen)
-          link.setAttribute('onclick', `TnetSetBookmark('${bookmarkId}').then(function(){ window.top.closeMapsInfoDialog(); }); return false;`);
+          // Fallback: Bei API-Fehler (Bookmark nicht gefunden) → direkter Framework-Aufruf mit Original-Parametern
+          link.setAttribute('onclick', `TnetSetBookmark('${bookmarkId}').then(function(r){ if(!r.success){ console.warn('[processLinks] TnetSetBookmark fehlgeschlagen, Fallback auf Framework-Aufruf:', '${bookmarkId}'); window.top.njs.AppManager.setMapBookmark(['main'], '${params}'); } window.top.closeMapsInfoDialog(); }); return false;`);
         }
       }
       return;
@@ -229,7 +230,8 @@ function processExtractedLinks(selector) {
         if (bookmarkId) {
           link.setAttribute('href', 'javascript:void(null)');
           link.setAttribute('style', (link.getAttribute('style') || '') + '; cursor: pointer;');
-          link.setAttribute('onclick', `TnetSetBookmark('${bookmarkId}').then(function(){ window.top.closeMapsInfoDialog(); }); return false;`);
+          // Fallback: Bei API-Fehler → direkter Framework-Aufruf mit Original-URL-Parametern
+          link.setAttribute('onclick', `TnetSetBookmark('${bookmarkId}').then(function(r){ if(!r.success){ console.warn('[processLinks] TnetSetBookmark fehlgeschlagen, Fallback:', '${bookmarkId}'); window.top.njs.AppManager.setMapBookmark(['main'], '${params.toString()}'); } window.top.closeMapsInfoDialog(); }); return false;`);
         } else {
           // Fallback: Alter setMapBookmark Aufruf wenn keine map-ID gefunden
           link.setAttribute('href', 'javascript:void(null)');
