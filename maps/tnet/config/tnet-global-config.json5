@@ -506,5 +506,17 @@
     autoLoginPollMs: 300,
     // Maximale Polling-Versuche (Gesamtzeit = autoLoginPollMs × autoLoginPollMax)
     autoLoginPollMax: 20,
+
+    // ── Cache ──
+    // Serverseitiger Cache für die proxied WP-Seite (pro Gruppe).
+    // Reduziert Ladezeit und Last auf gis-daten.ch.
+    cache: {
+      enabled: false,  // DEAKTIVIERT: WP lädt Karten per AJAX mit session-gebundenem Nonce
+      // Cache-TTL in Sekunden (3600 = 1 Stunde)
+      ttlSeconds: 3600,
+      // Cache-Verzeichnis (auf dem Server, ausserhalb DocumentRoot)
+      // __DIR__ wird in PHP aufgelöst relativ zu active-maps-proxy.php
+      directory: '/data/Client_Data/nwow/tmp/proxy-cache',
+    },
   },
 }

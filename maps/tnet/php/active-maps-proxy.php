@@ -9,10 +9,11 @@
  * - Injiziert tnet-proxy-inject.js  (Auto-Init: Links, Buttons)
  * - Leitet Browser-Cookies an gis-daten.ch weiter (SSO pass-through)
  * - SSO Auto-Login: Klickt WP-Login-Button wenn mapplus-Session existiert
+ * - Serverseitiger Cache pro Gruppe (konfigurierbar in tnet-global-config.json5)
  *
  * Läuft auf demselben Server (Loopback). cURL für Robustheit.
  *
- * @version    4.3
+ * @version    4.4
  * @date       2026-03-10
  * @copyright  Trigonet AG
  * @author     Marco Dellenbach
@@ -38,6 +39,7 @@ header('Content-Type: text/html; charset=utf-8');
 // --- Parameter ---
 $group = isset($_GET['group']) ? sanitize($_GET['group']) : 'nw';
 $activeMap = ($group === 'ow' || strpos($group, 'ow') === 0) ? 'ow' : 'nw';
+$bustCache = isset($_GET['nocache']);
 
 $externalUrl = 'https://www.gis-daten.ch/?active-map=' . $activeMap;
 if ($group !== 'nw' && $group !== 'ow' && $group !== 'none') {
@@ -46,8 +48,66 @@ if ($group !== 'nw' && $group !== 'ow' && $group !== 'none') {
 
 error_log('Proxy v4: Lade ' . $externalUrl);
 
-// --- Content laden ---
-$content = fetchContent($externalUrl);
+// --- Cache-Konfiguration aus JSON5 laden (wird später nochmals gelesen für JS-Config) ---
+$cacheConfig = ['enabled' => false, 'ttlSeconds' => 3600, 'directory' => '/data/Client_Data/nwow/tmp/proxy-cache'];
+$cacheConfigPath = __DIR__ . '/../config/tnet-global-config.json5';
+if (file_exists($cacheConfigPath)) {
+    $cacheJson5 = file_get_contents($cacheConfigPath);
+    $cacheJson5 = preg_replace_callback(
+        '/"(?:[^"\\\\]|\\\\.)*"|\x27(?:[^\x27\\\\]|\\\\.)*\x27|(\/\/[^\n]*|\/\*.*?\*\/)/s',
+        function($m) { return isset($m[1]) && $m[1] !== '' ? '' : $m[0]; },
+        $cacheJson5
+    );
+    $cacheJson5 = preg_replace_callback(
+        "/(?<![\\w])\x27((?:[^'\\\\]|\\\\.)*)\x27/",
+        function($m) { return '"' . str_replace('"', '\\"', $m[1]) . '"'; },
+        $cacheJson5
+    );
+    $cacheJson5 = preg_replace('/(?<=^|[\s{,])([a-zA-Z_][a-zA-Z0-9_-]*)\s*:/m', '"$1":', $cacheJson5);
+    $cacheJson5 = preg_replace('/,(\s*[}\]])/', '$1', $cacheJson5);
+    $cacheParsed = @json_decode($cacheJson5, true);
+    if ($cacheParsed && isset($cacheParsed['proxy']['cache'])) {
+        $cc = $cacheParsed['proxy']['cache'];
+        if (isset($cc['enabled']))    $cacheConfig['enabled']    = (bool)$cc['enabled'];
+        if (isset($cc['ttlSeconds'])) $cacheConfig['ttlSeconds'] = (int)$cc['ttlSeconds'];
+        if (isset($cc['directory']))  $cacheConfig['directory']  = $cc['directory'];
+    }
+}
+
+// --- Content laden (mit optionalem Cache) ---
+$content = false;
+$cacheFile = null;
+$cacheHit = false;
+
+if ($cacheConfig['enabled'] && !$bustCache) {
+    $cacheDir = $cacheConfig['directory'];
+    if (!is_dir($cacheDir)) {
+        @mkdir($cacheDir, 0755, true);
+    }
+    $cacheFile = $cacheDir . '/proxy_' . $activeMap . '_' . md5($group) . '.html';
+    
+    // Cache-Datei prüfen
+    if (file_exists($cacheFile)) {
+        $cacheAge = time() - filemtime($cacheFile);
+        if ($cacheAge < $cacheConfig['ttlSeconds']) {
+            $content = file_get_contents($cacheFile);
+            $cacheHit = true;
+            error_log('Proxy Cache HIT: ' . $cacheFile . ' (Alter: ' . $cacheAge . 's, TTL: ' . $cacheConfig['ttlSeconds'] . 's)');
+        } else {
+            error_log('Proxy Cache EXPIRED: ' . $cacheFile . ' (Alter: ' . $cacheAge . 's, TTL: ' . $cacheConfig['ttlSeconds'] . 's)');
+        }
+    }
+}
+
+if ($content === false) {
+    $content = fetchContent($externalUrl);
+    
+    // Bei Erfolg in Cache schreiben
+    if ($content !== false && $cacheConfig['enabled'] && $cacheFile) {
+        @file_put_contents($cacheFile, $content);
+        error_log('Proxy Cache WRITE: ' . $cacheFile . ' (' . strlen($content) . ' bytes)');
+    }
+}
 
 if ($content === false) {
     http_response_code(502);
@@ -59,7 +119,7 @@ if ($content === false) {
     exit;
 }
 
-error_log('Proxy v4: Content geladen, Länge: ' . strlen($content));
+error_log('Proxy v4: Content ' . ($cacheHit ? 'aus Cache' : 'geladen') . ', Länge: ' . strlen($content));
 
 // --- Header entfernen (server-seitig, zuverlässiger als CSS) ---
 $content = preg_replace(
@@ -213,6 +273,7 @@ window.__TNET_PROXY_DEBUG      = ' . ($proxyConfig['debug']     ? 'true' : 'fals
 window.__TNET_PROXY_CONFIG_STATUS = ' . json_encode($proxyConfigStatus) . ';
 window.__TNET_PROXY_AUTO_LOGIN = ' . ($proxyConfig['autoLogin'] ? 'true' : 'false') . ';
 window.__TNET_PROXY_NEEDS_LOGIN = ' . ($hasWpLoginBtn ? 'true' : 'false') . ';
+window.__TNET_PROXY_CACHE_HIT  = ' . ($cacheHit ? 'true' : 'false') . ';
 window.__TNET_PROXY_SESSION    = ' . json_encode([
     'isLoggedIn'  => $isMapPlusLoggedIn,
     'username'    => $_SESSION['app_username']  ?? null,
