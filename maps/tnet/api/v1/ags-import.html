@@ -359,15 +359,8 @@ body {
 .ecm-k-header .eckh-status { margin-left: 4px; }
 .ecm-k-files { display: block; }
 .ecm-k-files.hidden { display: none; }
-/* Checkbox + Deploy-Auswahl-Button */
+/* Checkbox */
 .editor-src-item .src-cb { flex-shrink: 0; cursor: pointer; width: 13px; height: 13px; margin-right: 2px; }
-.src-deploy-sel-btn {
-  padding: 3px 8px; font-size: 10px; font-weight: 600;
-  border: 1px solid #648C96; border-radius: 3px; background: #648C96;
-  color: #fff; cursor: pointer; white-space: nowrap;
-}
-.src-deploy-sel-btn:disabled { opacity: .4; cursor: not-allowed; }
-.src-deploy-sel-btn:hover:not(:disabled) { background: #3a6368; border-color: #3a6368; }
 .ecm-empty { color: #888; font-size: 12px; text-align: center; padding: 20px; }
 #export-confirm-footer {
   display: flex; align-items: center; gap: 8px; padding: 10px 14px;
@@ -881,7 +874,6 @@ body {
           <h2>📁 Quellen</h2>
           <span class="badge" id="editor-src-count">0</span>
           <button id="editor-src-refresh" title="Aktualisieren">↻</button>
-          <button id="editor-src-deploy-sel" class="src-deploy-sel-btn" disabled title="Ausgewählte Kürzel deployen">📤 (0)</button>
         </div>
         <div class="editor-src-search">
           <input type="text" id="editor-src-filter" placeholder="Kürzel suchen…">
@@ -3460,10 +3452,14 @@ function revertEditorChanges() {
  * Deploy-Auswahl-Button aktualisieren
  */
 function updateDeploySelBtn() {
-  var btn  = document.getElementById('editor-src-deploy-sel');
-  var count = Object.keys(_editorSelectedKuerzel).length;
-  btn.textContent = '📤 (' + count + ')';
-  btn.disabled = (count === 0);
+  var count  = Object.keys(_editorSelectedKuerzel).length;
+  var btn    = document.getElementById('editor-btn-export');
+  if (!btn) return;
+  if (count > 0) {
+    btn.textContent = '📤 ' + count + ' Kürzel deployen';
+  } else {
+    btn.textContent = '📤 Nach Core exportieren';
+  }
 }
 
 /**
@@ -3473,17 +3469,17 @@ function deploySelection() {
   var kuerzelList = Object.keys(_editorSelectedKuerzel);
   if (kuerzelList.length === 0) return;
 
-  var btn = document.getElementById('editor-src-deploy-sel');
-  btn.disabled = true;
-  btn.textContent = '📤 Lade…';
+  var exportBtn = document.getElementById('editor-btn-export');
+  exportBtn.disabled = true;
+  exportBtn.textContent = '📤 Lade…';
 
   var results = [];  // [{kuerzel, dryData}]
   var index   = 0;
 
   function nextDryRun() {
     if (index >= kuerzelList.length) {
-      btn.disabled = false;
-      btn.textContent = '📤 (' + kuerzelList.length + ')';
+      exportBtn.disabled = false;
+      updateDeploySelBtn();
       openExportConfirmMultiModal(kuerzelList, results);
       return;
     }
@@ -3731,6 +3727,11 @@ function buildFileRow(f) {
  * Export nach Core: 1. Dry-Run → Confirm-Modal anzeigen, 2. Echtes Deploy
  */
 function exportEditorToCore() {
+  // Multi-Auswahl: an deploySelection delegieren
+  if (Object.keys(_editorSelectedKuerzel).length > 0) {
+    deploySelection();
+    return;
+  }
   if (!_editorData) return;
   var kuerzel = _editorData.kuerzel;
   var unsaved = updateEditorChangeCount();
@@ -3912,7 +3913,7 @@ document.querySelectorAll('.editor-subtab').forEach(function(btn) {
 document.getElementById('editor-btn-save').addEventListener('click', saveEditorChanges);
 document.getElementById('editor-btn-revert').addEventListener('click', revertEditorChanges);
 document.getElementById('editor-btn-export').addEventListener('click', exportEditorToCore);
-document.getElementById('editor-src-deploy-sel').addEventListener('click', deploySelection);
+
 
 // Export-Confirm-Modal: Schliessen-Button
 document.getElementById('export-confirm-close').addEventListener('click', function() {
