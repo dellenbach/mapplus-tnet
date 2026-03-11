@@ -3457,8 +3457,11 @@ function updateDeploySelBtn() {
   if (!btn) return;
   if (count > 0) {
     btn.textContent = '📤 ' + count + ' Kürzel deployen';
+    btn.disabled = false;
   } else {
     btn.textContent = '📤 Nach Core exportieren';
+    // Nur deaktivieren wenn auch kein Einzel-Kürzel geöffnet ist
+    if (!_editorData) btn.disabled = true;
   }
 }
 
