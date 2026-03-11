@@ -273,6 +273,131 @@ body {
 .j-err-col  { display: inline-block; width: 0; border-left: 2px solid #e74c3c;
               height: 1.2em; vertical-align: text-bottom; margin: 0 -1px;
               box-shadow: 0 0 4px #e74c3c; }
+
+/* ===== EXPORT-CONFIRM-MODAL ===== */
+#export-confirm-overlay {
+  display: none; position: fixed; inset: 0; z-index: 10100;
+  background: rgba(0,0,0,.5); align-items: center; justify-content: center;
+}
+#export-confirm-overlay.open { display: flex; }
+#export-confirm-dialog {
+  background: #fff; border-radius: 6px; box-shadow: 0 8px 32px rgba(0,0,0,.25);
+  width: 620px; max-width: 96vw; max-height: 82vh;
+  display: flex; flex-direction: column; overflow: hidden;
+}
+#export-confirm-header {
+  display: flex; align-items: center; gap: 10px; padding: 10px 14px;
+  border-bottom: 1px solid #e0e4e8; background: #f5f7fa; flex-shrink: 0;
+}
+#export-confirm-title { flex: 1; font-weight: 700; font-size: 13px; color: #1e3a4a; }
+#export-confirm-header .ec-close {
+  padding: 3px 9px; font-size: 11px; border: 1px solid #ccc;
+  border-radius: 3px; background: #fff; cursor: pointer;
+}
+#export-confirm-header .ec-close:hover { background: #fef0f0; color: #c33; border-color: #c33; }
+#export-confirm-body { flex: 1; overflow-y: auto; padding: 14px 16px; min-height: 0; }
+.ecm-warning {
+  background: #fff8e1; border: 1px solid #f0c040; border-radius: 4px;
+  padding: 7px 10px; margin-bottom: 10px; font-size: 12px; color: #7d5a00;
+}
+.ecm-summary { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
+.ecm-pill {
+  padding: 3px 9px; border-radius: 12px; font-size: 11px; font-weight: 600;
+}
+.ecm-pill.new     { background: #e8f5e9; color: #2a7a3b; }
+.ecm-pill.upd     { background: #fff3e0; color: #c56a00; }
+.ecm-pill.skip    { background: #f3f3f3; color: #888; }
+.ecm-pill.err     { background: #fdecea; color: #c62828; }
+.ecm-table-wrap   { overflow-x: auto; }
+.ecm-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.ecm-table th {
+  text-align: left; padding: 5px 8px; background: #f0f2f5;
+  border-bottom: 2px solid #ddd; font-weight: 600; color: #555;
+  white-space: nowrap;
+}
+.ecm-table td { padding: 4px 8px; border-bottom: 1px solid #f0f0f0; }
+.ecm-table .ecm-td-name { font-family: 'Consolas', monospace; word-break: break-all; }
+.ecm-table .ecm-td-size { white-space: nowrap; color: #888; text-align: right; }
+.ecm-table .ecm-td-status { white-space: nowrap; }
+.ecm-table tr.row-new td { color: #2a7a3b; }
+.ecm-table tr.row-upd td { color: #c56a00; }
+.ecm-table tr.row-skip td { color: #aaa; }
+.ecm-hash-match { font-size: 10px; background: #e8f5e9; color: #2a7a3b; border: 1px solid #a3cfbb; border-radius: 9px; padding: 1px 6px; font-weight: 600; white-space: nowrap; }
+.ecm-hash-diff  { font-size: 10px; background: #fff3e0; color: #c56a00; border: 1px solid #ffe0b2; border-radius: 9px; padding: 1px 6px; font-weight: 600; white-space: nowrap; }
+.ecm-table tr.row-err td { color: #c62828; font-style: italic; }
+.ecm-td-date { white-space: nowrap; font-family: 'Consolas', monospace; font-size: 11px; }
+.ecm-date-newer  { color: #2a7a3b; font-weight: 600; }  /* Staging neuer → grün */
+.ecm-date-older  { color: #c56a00; font-weight: 600; }  /* Staging älter → orange */
+.ecm-date-same   { color: #888; }
+.ecm-date-none   { color: #bbb; font-style: italic; }
+.ecm-date-arrow  { color: #aaa; margin: 0 3px; font-style: normal; }
+/* ===== MULTI-DEPLOY ===== */
+.ecm-k-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 4px; }
+.ecm-k-table th {
+  text-align: left; padding: 5px 8px; background: #f0f2f5;
+  border-bottom: 2px solid #ddd; font-weight: 600; color: #555; white-space: nowrap;
+}
+.ecm-k-table td { padding: 5px 8px; border-bottom: 1px solid #f0f2f5; vertical-align: middle; }
+.ecm-k-table .kcol-name { font-family: 'Consolas', monospace; font-weight: 600; }
+.ecm-k-table .kcol-num  { text-align: right; color: #555; min-width: 36px; }
+.ecm-k-status { font-size: 11px; padding: 2px 9px; border-radius: 10px; font-weight: 600; }
+.ecm-k-status.running { background: #fff3cd; color: #856404; }
+.ecm-k-status.success { background: #d1e7dd; color: #0a3622; }
+.ecm-k-status.error   { background: #f8d7da; color: #842029; }
+.ecm-k-status.pending { background: #f0f2f5; color: #888; }
+/* Multi-Modal Accordion */
+.ecm-k-block { border: 1px solid #e0e4e8; border-radius: 4px; margin-bottom: 6px; overflow: hidden; }
+.ecm-k-header {
+  display: flex; align-items: center; gap: 8px; padding: 7px 10px;
+  background: #f5f7f8; cursor: pointer; user-select: none; font-size: 12px;
+}
+.ecm-k-header:hover { background: #edf1f3; }
+.ecm-k-header .eckh-arrow { font-size: 10px; color: #888; transition: transform .15s; width: 12px; text-align: center; flex-shrink: 0; }
+.ecm-k-header.collapsed .eckh-arrow { transform: rotate(-90deg); }
+.ecm-k-header .eckh-name { font-family: 'Consolas', monospace; font-weight: 700; flex: 1; }
+.ecm-k-header .eckh-pills { display: flex; gap: 3px; }
+.ecm-k-header .eckh-status { margin-left: 4px; }
+.ecm-k-files { display: block; }
+.ecm-k-files.hidden { display: none; }
+/* Checkbox + Deploy-Auswahl-Button */
+.editor-src-item .src-cb { flex-shrink: 0; cursor: pointer; width: 13px; height: 13px; margin-right: 2px; }
+.src-deploy-sel-btn {
+  padding: 3px 8px; font-size: 10px; font-weight: 600;
+  border: 1px solid #648C96; border-radius: 3px; background: #648C96;
+  color: #fff; cursor: pointer; white-space: nowrap;
+}
+.src-deploy-sel-btn:disabled { opacity: .4; cursor: not-allowed; }
+.src-deploy-sel-btn:hover:not(:disabled) { background: #3a6368; border-color: #3a6368; }
+.ecm-empty { color: #888; font-size: 12px; text-align: center; padding: 20px; }
+#export-confirm-footer {
+  display: flex; align-items: center; gap: 8px; padding: 10px 14px;
+  border-top: 1px solid #e0e4e8; background: #f5f7fa; flex-shrink: 0;
+}
+#export-confirm-status { flex: 1; font-size: 12px; }
+#export-confirm-status.ecm-running { color: #888; }
+#export-confirm-status.ecm-status-success { color: #2a7a3b; font-weight: 600; }
+#export-confirm-status.ecm-status-error   { color: #c62828; font-weight: 600; }
+.ecm-result-banner {
+  display: flex; align-items: center; gap: 8px; padding: 7px 10px;
+  border-radius: 4px; margin-bottom: 10px; font-size: 12px; font-weight: 600;
+}
+.ecm-result-banner.success { background: #d1e7dd; color: #0a3622; border: 1px solid #a3cfbb; }
+.ecm-result-banner.verifying { background: #fff3cd; color: #664d03; border: 1px solid #ffda6a; }
+#export-confirm-run.btn-close {
+  background: #555 !important; border-color: #444 !important;
+}
+#export-confirm-footer button {
+  padding: 5px 14px; font-size: 12px; border-radius: 3px; cursor: pointer;
+  border: 1px solid #ccc; background: #fff;
+}
+#export-confirm-footer button:hover:not(:disabled) { background: #f0f2f5; }
+#export-confirm-footer button:disabled { opacity: .5; cursor: not-allowed; }
+#export-confirm-run {
+  background: #4B7B81 !important; color: #fff !important;
+  border-color: #3a6368 !important; font-weight: 600;
+}
+#export-confirm-run:hover:not(:disabled) { background: #3a6368 !important; }
+
 /* ===== STAGING-TAB ===== */
 .staging-kuerzel-row {
   display: flex; align-items: center; gap: 8px; padding: 6px 2px;
@@ -756,6 +881,7 @@ body {
           <h2>📁 Quellen</h2>
           <span class="badge" id="editor-src-count">0</span>
           <button id="editor-src-refresh" title="Aktualisieren">↻</button>
+          <button id="editor-src-deploy-sel" class="src-deploy-sel-btn" disabled title="Ausgewählte Kürzel deployen">📤 (0)</button>
         </div>
         <div class="editor-src-search">
           <input type="text" id="editor-src-filter" placeholder="Kürzel suchen…">
@@ -844,6 +970,21 @@ body {
   </div>
 </div>
 
+<!-- ===== EXPORT-CONFIRM-MODAL ===== -->
+<div id="export-confirm-overlay">
+  <div id="export-confirm-dialog">
+    <div id="export-confirm-header">
+      <span id="export-confirm-title">📤 Nach Core exportieren</span>
+      <button class="ec-close" id="export-confirm-close" title="Schliessen">✕</button>
+    </div>
+    <div id="export-confirm-body"></div>
+    <div id="export-confirm-footer">
+      <span id="export-confirm-status"></span>
+      <button id="export-confirm-run">✓ Jetzt deployen</button>
+    </div>
+  </div>
+</div>
+
 <script>
 /**
  * ags-import.html — Applikationslogik
@@ -858,7 +999,8 @@ body {
 // =====================================================================
 // KONFIGURATION
 // =====================================================================
-var API_URL = '/maps/tnet/api/v1/treebuilder-api.php';
+var API_URL  = '/maps/tnet/api/v1/treebuilder-api.php';
+var GAPI_URL = '/gapi/ags2mapplus';
 
 // =====================================================================
 // STATE
@@ -2581,6 +2723,10 @@ var _editorActiveSubTab = 'layers';
 var _editorKuerzelLoaded = false;
 var _editorKuerzelList = [];  // Cachet die Kürzel-Daten
 var _editorActiveKuerzel = ''; // Aktuell gewähltes Kürzel
+var _editorSelectedKuerzel = {}; // Ausgewählte Kürzel für Multi-Deploy { kuerzel: true }
+var _deployQueue = [];           // Multi-Deploy Queue: Array von Kürzel-Strings
+var _deployQueueMode = 'single'; // 'single' | 'multi'
+var _deployDone  = false;        // Verhindert Doppelauslösung nach Deploy
 
 /**
  * Kürzel-Liste aus ImportToCore laden und als klickbare Liste rendern
@@ -2632,7 +2778,9 @@ function renderEditorSourceList(filter) {
     });
 
     // Gruppen-Kopf (klickbar)
+    var cbChecked = _editorSelectedKuerzel[name] ? ' checked' : '';
     html += '<div class="editor-src-item' + active + collapsed + '" data-kuerzel="' + name + '">';
+    html += '<input type="checkbox" class="src-cb" data-kuerzel="' + name + '"' + cbChecked + '>';
     html += '<span class="src-arrow">▼</span>';
     html += '<span class="src-name">' + name + '</span>';
     html += '<span class="src-types">';
@@ -2662,6 +2810,17 @@ function renderEditorSourceList(filter) {
   }
   listEl.innerHTML = html;
   document.getElementById('editor-src-count').textContent = count;
+
+  // Checkbox-Handler: Auswahl pflegen, Klick nicht weiterleiten
+  listEl.querySelectorAll('.src-cb').forEach(function(cb) {
+    cb.addEventListener('click', function(e) { e.stopPropagation(); });
+    cb.addEventListener('change', function(e) {
+      var k = cb.dataset.kuerzel;
+      if (cb.checked) _editorSelectedKuerzel[k] = true;
+      else delete _editorSelectedKuerzel[k];
+      updateDeploySelBtn();
+    });
+  });
 
   // Klick-Handler auf Quellen-Items
   listEl.querySelectorAll('.editor-src-item').forEach(function(item) {
@@ -3298,50 +3457,436 @@ function revertEditorChanges() {
 }
 
 /**
- * Export nach Core: ImportToCore → core/config/ + core/nls/de/
+ * Deploy-Auswahl-Button aktualisieren
+ */
+function updateDeploySelBtn() {
+  var btn  = document.getElementById('editor-src-deploy-sel');
+  var count = Object.keys(_editorSelectedKuerzel).length;
+  btn.textContent = '📤 (' + count + ')';
+  btn.disabled = (count === 0);
+}
+
+/**
+ * Mehrere ausgewählte Kürzel deployen: Dry-Run für alle, dann Modal
+ */
+function deploySelection() {
+  var kuerzelList = Object.keys(_editorSelectedKuerzel);
+  if (kuerzelList.length === 0) return;
+
+  var btn = document.getElementById('editor-src-deploy-sel');
+  btn.disabled = true;
+  btn.textContent = '📤 Lade…';
+
+  var results = [];  // [{kuerzel, dryData}]
+  var index   = 0;
+
+  function nextDryRun() {
+    if (index >= kuerzelList.length) {
+      btn.disabled = false;
+      btn.textContent = '📤 (' + kuerzelList.length + ')';
+      openExportConfirmMultiModal(kuerzelList, results);
+      return;
+    }
+    var k = kuerzelList[index++];
+    fetch(GAPI_URL + '/deploy-staging/' + encodeURIComponent(k) + '?dry_run=true', {
+      method: 'POST'
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(j) {
+      results.push({ kuerzel: k, dryData: j });
+      nextDryRun();
+    })
+    .catch(function(e) {
+      results.push({ kuerzel: k, dryData: null, error: e.message });
+      nextDryRun();
+    });
+  }
+  nextDryRun();
+}
+
+/**
+ * Multi-Deploy Confirm-Modal anzeigen
+ */
+function openExportConfirmMultiModal(kuerzelList, results) {
+  _deployQueue     = kuerzelList.slice();
+  _deployQueueMode = 'multi';
+
+  var totalNew = 0, totalUpd = 0, totalSkip = 0, totalErr = 0;
+  results.forEach(function(r) {
+    if (!r.dryData || r.error) { totalErr++; return; }
+    var files = r.dryData.files || [];
+    files.forEach(function(f) {
+      if (f.status === 'neu') totalNew++;
+      else if (f.result !== 'error') totalUpd++;
+    });
+    totalSkip += (r.dryData.skipped || 0);
+    if (r.dryData.errors > 0) totalErr += r.dryData.errors;
+  });
+
+  var html = '<div class="ecm-summary">';
+  html += '<span class="ecm-pill new">' + totalNew + ' neu</span>';
+  html += '<span class="ecm-pill upd">' + totalUpd + ' überschreiben</span>';
+  html += '<span class="ecm-pill skip">' + totalSkip + ' übersprungen</span>';
+  if (totalErr > 0) html += '<span class="ecm-pill err">' + totalErr + ' Fehler</span>';
+  html += '</div>';
+
+  results.forEach(function(r) {
+    var k     = r.kuerzel;
+    var d     = r.dryData;
+    var files = d ? (d.files || []) : [];
+    var rNew  = files.filter(function(f) { return f.status === 'neu'; }).length;
+    var rUpd  = files.filter(function(f) { return f.status !== 'neu' && f.result !== 'error'; }).length;
+
+    html += '<div class="ecm-k-block" id="ecm-block-' + escapeHtml(k) + '">';
+
+    // Kürzel-Kopfzeile
+    html += '<div class="ecm-k-header" data-k="' + escapeHtml(k) + '">';
+    html += '<span class="eckh-arrow">▼</span>';
+    html += '<span class="eckh-name">' + escapeHtml(k) + '</span>';
+    html += '<span class="eckh-pills">';
+    if (rNew > 0)  html += '<span class="ecm-pill new">'  + rNew  + ' neu</span>';
+    if (rUpd > 0)  html += '<span class="ecm-pill upd">'  + rUpd  + ' überschr.</span>';
+    if (d && d.skipped > 0) html += '<span class="ecm-pill skip">' + d.skipped + ' skip</span>';
+    html += '</span>';
+    html += '<span class="eckh-status"><span class="ecm-k-status pending" id="ecm-kstat-' + escapeHtml(k) + '">Ausstehend</span></span>';
+    html += '</div>';
+
+    // Datei-Tabelle
+    html += '<div class="ecm-k-files" id="ecm-kfiles-' + escapeHtml(k) + '">';
+    if (r.error || !d) {
+      html += '<div style="padding:8px 12px;color:#c62828;font-size:12px;">✗ Dry-Run-Fehler: ' + escapeHtml(r.error || 'Unbekannt') + '</div>';
+    } else if (files.length === 0) {
+      html += '<div style="padding:8px 12px;color:#888;font-size:12px;">Keine Dateien gefunden</div>';
+    } else {
+      html += '<table class="ecm-table" style="margin:0">';
+      html += '<thead><tr><th>Datei</th><th>Grösse</th><th>Datum Staging</th><th>Datum Core</th><th>Aktion</th></tr></thead><tbody>';
+      files.forEach(function(f) {
+        var rowCls  = f.result === 'error' ? 'row-err' : (f.status === 'neu' ? 'row-new' : 'row-upd');
+        var srcMt   = f.source_mtime || 0;
+        var tgtMt   = f.target_mtime || 0;
+        var srcDate = f.source_mtime_display || null;
+        var tgtDate = f.target_mtime_display || null;
+        var srcCls, tgtCls;
+        if (!tgtDate) {
+          srcCls = 'ecm-date-newer'; tgtCls = 'ecm-date-none';
+        } else if (srcMt > tgtMt) {
+          srcCls = 'ecm-date-newer'; tgtCls = 'ecm-date-same';
+        } else if (srcMt < tgtMt) {
+          srcCls = 'ecm-date-older'; tgtCls = 'ecm-date-newer';
+        } else {
+          srcCls = 'ecm-date-same'; tgtCls = 'ecm-date-same';
+        }
+        html += '<tr class="' + rowCls + '">';
+        html += '<td class="ecm-td-name">' + escapeHtml(f.name) + '</td>';
+        html += '<td class="ecm-td-size">' + escapeHtml(f.size_display) + '</td>';
+        html += '<td class="ecm-td-date"><span class="' + srcCls + '">' + escapeHtml(srcDate || '–') + '</span></td>';
+        html += '<td class="ecm-td-date"><span class="' + tgtCls + '">' + escapeHtml(tgtDate || 'nicht vorhanden') + '</span></td>';
+        html += '<td class="ecm-td-status">' + escapeHtml(f.status) + '</td>';
+        html += '</tr>';
+      });
+      html += '</tbody></table>';
+    }
+    html += '</div>'; // .ecm-k-files
+    html += '</div>'; // .ecm-k-block
+  });
+
+  document.getElementById('export-confirm-title').textContent = '📤 Deploy ' + kuerzelList.length + ' Kürzel';
+  document.getElementById('export-confirm-body').innerHTML = html;
+
+  // Accordion-Toggle
+  document.getElementById('export-confirm-body').querySelectorAll('.ecm-k-header').forEach(function(hdr) {
+    hdr.addEventListener('click', function() {
+      var k      = hdr.dataset.k;
+      var files  = document.getElementById('ecm-kfiles-' + k);
+      var toggle = hdr.classList.toggle('collapsed');
+      if (toggle) files.classList.add('hidden');
+      else files.classList.remove('hidden');
+    });
+  });
+
+  document.getElementById('export-confirm-status').textContent = '';
+  document.getElementById('export-confirm-status').className   = '';
+  var runBtnM = document.getElementById('export-confirm-run');
+  runBtnM.textContent = '✓ Jetzt deployen';
+  runBtnM.classList.remove('btn-close');
+  runBtnM.disabled = false;
+  _deployDone = false;
+  document.getElementById('export-confirm-overlay').classList.add('open');
+}
+
+/**
+ * Mehrere Kürzel sequenziell deployen (Multi-Modus)
+ */
+function runMultiDeploy() {
+  var queue     = _deployQueue.slice();
+  var statusEl  = document.getElementById('export-confirm-status');
+  var runBtn    = document.getElementById('export-confirm-run');
+  var closeBtn  = document.getElementById('export-confirm-close');
+
+  statusEl.textContent = 'Deploye ' + queue.length + ' Kürzel…';
+  statusEl.className   = 'ecm-running';
+  runBtn.disabled = closeBtn.disabled = true;
+
+  var done = 0, errors = 0;
+
+  function deployNext(i) {
+    if (i >= queue.length) {
+      runBtn.disabled = closeBtn.disabled = false;
+      var msg = done + ' Kürzel deployed';
+      if (errors > 0) msg += ', ' + errors + ' Fehler';
+      statusEl.textContent = (errors > 0 ? '' : '✓ ') + msg;
+      statusEl.className   = errors > 0 ? 'ecm-status-error' : 'ecm-status-success';
+      editorStatus(msg + (errors === 0 ? ' ✓' : ''), errors > 0 ? 'error' : 'success');
+      if (errors === 0) {
+        // Run-Button auf Schliessen umstellen
+        _deployDone = true;
+        runBtn.textContent = 'Schliessen';
+        runBtn.classList.add('btn-close');
+        runBtn.disabled = false;
+      }
+      return;
+    }
+    var k     = queue[i];
+    var stEl  = document.getElementById('ecm-kstat-' + k);
+    if (stEl) { stEl.textContent = 'Deploye…'; stEl.className = 'ecm-k-status running'; }
+
+    fetch(GAPI_URL + '/deploy-staging/' + encodeURIComponent(k) + '?dry_run=false', {
+      method: 'POST'
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(j) {
+      if (j.detail || j.errors > 0) {
+        errors++;
+        if (stEl) { stEl.textContent = '✗ Fehler'; stEl.className = 'ecm-k-status error'; }
+      } else {
+        done++;
+        if (stEl) { stEl.textContent = '✓ ' + j.deployed + ' deployed'; stEl.className = 'ecm-k-status success'; }
+      }
+      deployNext(i + 1);
+    })
+    .catch(function(e) {
+      errors++;
+      if (stEl) { stEl.textContent = '✗ ' + e.message; stEl.className = 'ecm-k-status error'; }
+      deployNext(i + 1);
+    });
+  }
+  deployNext(0);
+}
+
+/**
+ * Hilfsfunktion: HTML-Zeichen escapen
+ */
+function escapeHtml(str) {
+  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+/**
+ * Gemeinsame Hilfsfunktion: Eine FileAction als <tr> rendern
+ */
+function buildFileRow(f) {
+  var isSkip = (f.result === 'skipped' || f.hash_match === true);
+  var rowCls = f.result === 'error' ? 'row-err'
+             : f.status === 'neu'   ? 'row-new'
+             : isSkip               ? 'row-skip'
+             : 'row-upd';
+
+  var srcMt   = f.source_mtime || 0;
+  var tgtMt   = f.target_mtime || 0;
+  var srcDate = f.source_mtime_display || null;
+  var tgtDate = f.target_mtime_display || null;
+  var srcCls, tgtCls;
+  if (!tgtDate) {
+    srcCls = 'ecm-date-newer'; tgtCls = 'ecm-date-none';
+  } else if (srcMt > tgtMt) {
+    srcCls = 'ecm-date-newer'; tgtCls = 'ecm-date-same';
+  } else if (srcMt < tgtMt) {
+    srcCls = 'ecm-date-older'; tgtCls = 'ecm-date-newer';
+  } else {
+    srcCls = 'ecm-date-same';  tgtCls = 'ecm-date-same';
+  }
+
+  var hashCell;
+  if (f.hash_match === true) {
+    hashCell = '<span class="ecm-hash-match">≡ identisch</span>';
+  } else if (f.hash_match === false && f.status !== 'neu') {
+    hashCell = '<span class="ecm-hash-diff">≠ geändert</span>';
+  } else {
+    hashCell = '<span style="color:#bbb">–</span>';
+  }
+
+  var aktion = isSkip ? '<span style="color:#aaa">unverändert (skip)</span>' : escapeHtml(f.status);
+
+  var html = '<tr class="' + rowCls + '">';
+  html += '<td class="ecm-td-name">'  + escapeHtml(f.name) + '</td>';
+  html += '<td class="ecm-td-size">'  + escapeHtml(f.size_display) + '</td>';
+  html += '<td class="ecm-td-date"><span class="' + srcCls + '">' + escapeHtml(srcDate || '–') + '</span></td>';
+  html += '<td class="ecm-td-date"><span class="' + tgtCls + '">' + escapeHtml(tgtDate || 'nicht vorhanden') + '</span></td>';
+  html += '<td>' + hashCell + '</td>';
+  html += '<td class="ecm-td-status">' + aktion + '</td>';
+  html += '</tr>';
+  return html;
+}
+
+/**
+ * Export nach Core: 1. Dry-Run → Confirm-Modal anzeigen, 2. Echtes Deploy
  */
 function exportEditorToCore() {
   if (!_editorData) return;
-
-  // Warnung: Erst ungespeicherte Änderungen prüfen
+  var kuerzel = _editorData.kuerzel;
   var unsaved = updateEditorChangeCount();
-  if (unsaved > 0) {
-    if (!confirm('Es gibt ' + unsaved + ' ungespeicherte Änderung(en). Zuerst speichern?\n\nOK = Erst speichern\nAbbrechen = Trotzdem exportieren')) {
-      // Trotzdem exportieren
-    } else {
-      saveEditorChanges();
-      return;
-    }
-  }
 
-  if (!confirm('Dateien von «' + _editorData.kuerzel + '» nach core/config/ und core/nls/de/ exportieren?\n\nBestehende Dateien werden mit Backup (.bak) gesichert.')) {
-    return;
-  }
-
-  editorStatus('Exportiere nach Core…');
+  editorStatus('Dry-Run für «' + kuerzel + '»…');
   document.getElementById('editor-btn-export').disabled = true;
 
-  fetch(API_URL + '?action=config-export-to-core', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ kuerzel: _editorData.kuerzel })
+  fetch(GAPI_URL + '/deploy-staging/' + encodeURIComponent(kuerzel) + '?dry_run=true', {
+    method: 'POST'
   })
   .then(function(r) { return r.json(); })
   .then(function(j) {
     document.getElementById('editor-btn-export').disabled = false;
-    if (!j.success) {
-      editorStatus('Export-Fehler: ' + (j.error || 'Unbekannt'), 'error');
+    if (j.detail) {
+      var errMsg = Array.isArray(j.detail) ? j.detail[0].msg : j.detail;
+      editorStatus('Fehler: ' + errMsg, 'error');
       return;
     }
-    var d = j.data;
-    var msg = d.exported.length + ' Datei(en) exportiert';
-    if (d.backups.length > 0) msg += ', ' + d.backups.length + ' Backup(s) erstellt';
-    if (d.errors.length > 0) msg += ', ' + d.errors.length + ' Fehler';
-    editorStatus(msg + ' ✓', d.errors.length > 0 ? 'error' : 'success');
+    editorStatus('');
+    openExportConfirmModal(j, unsaved);
   })
   .catch(function(e) {
     document.getElementById('editor-btn-export').disabled = false;
     editorStatus('Netzwerkfehler: ' + e.message, 'error');
+  });
+}
+
+/**
+ * Dry-Run-Ergebnis im Confirm-Modal anzeigen
+ */
+function openExportConfirmModal(dryData, unsavedCount, prependHtml) {
+  _deployQueueMode = 'single';
+  _deployQueue     = [dryData.kuerzel];
+  var kuerzel  = dryData.kuerzel;
+  var files    = dryData.files || [];
+  var newFiles  = files.filter(function(f) { return f.status === 'neu'; });
+  var skipFiles = files.filter(function(f) { return f.hash_match === true || f.result === 'skipped'; });
+  var updFiles  = files.filter(function(f) { return f.status !== 'neu' && f.result !== 'error' && !f.hash_match && f.result !== 'skipped'; });
+  var errFiles  = files.filter(function(f) { return f.result === 'error'; });
+
+  var html = '';
+  if (prependHtml) html += prependHtml;
+  if (unsavedCount > 0) {
+    html += '<div class="ecm-warning">⚠ ' + unsavedCount + ' ungespeicherte Änderung(en) im Editor — diese sind im Staging noch nicht enthalten.</div>';
+  }
+
+  html += '<div class="ecm-summary">';
+  html += '<span class="ecm-pill new">'  + newFiles.length  + ' neu</span>';
+  html += '<span class="ecm-pill upd">'  + updFiles.length  + ' überschreiben</span>';
+  html += '<span class="ecm-pill skip">' + skipFiles.length + ' identisch</span>';
+  if (errFiles.length > 0) html += '<span class="ecm-pill err">' + errFiles.length + ' Fehler</span>';
+  html += '</div>';
+
+  if (files.length > 0) {
+    html += '<div class="ecm-table-wrap"><table class="ecm-table">';
+    html += '<thead><tr><th>Datei</th><th>Grösse</th><th>Datum Staging</th><th>Datum Core</th><th>Hash</th><th>Aktion</th></tr></thead><tbody>';
+    files.forEach(function(f) { html += buildFileRow(f); });
+    html += '</tbody></table></div>';
+  } else {
+    html += '<div class="ecm-empty">Keine Dateien zum Deployen gefunden.</div>';
+  }
+
+  document.getElementById('export-confirm-title').textContent = '📤 Deploy: ' + kuerzel;
+  document.getElementById('export-confirm-body').innerHTML = html;
+  // Status + Buttons nur beim ersten Öffnen zurücksetzen (nicht beim Verifikations-Update)
+  if (!prependHtml) {
+    _deployDone = false;
+    document.getElementById('export-confirm-status').textContent = '';
+    document.getElementById('export-confirm-status').className   = '';
+    var runBtn = document.getElementById('export-confirm-run');
+    runBtn.textContent = '✓ Jetzt deployen';
+    runBtn.classList.remove('btn-close');
+    runBtn.onclick = null;
+    runBtn.disabled = (files.length === 0);
+    document.getElementById('export-confirm-overlay').classList.add('open');
+  }
+}
+
+/**
+ * Echtes Deploy nach Bestätigung ausführen
+ */
+function runExportDeploy() {
+  var kuerzel   = _deployQueue[0];
+  if (!kuerzel) return;
+  var statusEl  = document.getElementById('export-confirm-status');
+  var runBtn    = document.getElementById('export-confirm-run');
+  var closeBtn  = document.getElementById('export-confirm-close');
+
+  statusEl.textContent = 'Deploye…';
+  statusEl.className   = 'ecm-running';
+  runBtn.disabled   = true;
+  closeBtn.disabled = true;
+
+  fetch(GAPI_URL + '/deploy-staging/' + encodeURIComponent(kuerzel) + '?dry_run=false', {
+    method: 'POST'
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(j) {
+    runBtn.disabled    = false;
+    cancelBtn.disabled = false;
+    closeBtn.disabled  = false;
+    if (j.detail) {
+      var errMsg = Array.isArray(j.detail) ? j.detail[0].msg : j.detail;
+      statusEl.textContent = 'Fehler: ' + errMsg;
+      statusEl.className   = 'ecm-status-error';
+      return;
+    }
+    if (j.errors > 0) {
+      var msg = j.deployed + ' deployed, ' + j.errors + ' Fehler';
+      statusEl.textContent = msg;
+      statusEl.className   = 'ecm-status-error';
+      editorStatus(msg, 'error');
+      return;
+    }
+    // Erfolgreich: Verifikations-Dry-Run
+    var deployedCount = j.deployed;
+    statusEl.textContent = '✓ ' + deployedCount + ' Datei(en) deployed — Verifiziere…';
+    statusEl.className   = 'ecm-running';
+    runBtn.disabled    = true;
+    cancelBtn.disabled = true;
+    fetch(GAPI_URL + '/deploy-staging/' + encodeURIComponent(kuerzel) + '?dry_run=true', {
+      method: 'POST'
+    })
+    .then(function(r2) { return r2.json(); })
+    .then(function(j2) {
+      runBtn.disabled    = false;
+      cancelBtn.disabled = false;
+      // Modal-Body neu rendern mit aktualisierten Daten + Erfolgsbanner
+      var banner = '<div class="ecm-result-banner success">✅ ' + deployedCount + ' Datei(en) erfolgreich deployed</div>';
+      openExportConfirmModal(j2, 0, banner);
+      // Run-Button auf Schliessen umstellen
+      _deployDone = true;
+      runBtn.textContent = 'Schliessen';
+      runBtn.classList.add('btn-close');
+      runBtn.disabled = false;
+      statusEl.textContent = '✓ Deployment verifiziert';
+      statusEl.className   = 'ecm-status-success';
+      editorStatus(deployedCount + ' Datei(en) deployed ✓', 'success');
+    })
+    .catch(function() {
+      runBtn.disabled    = false;
+      cancelBtn.disabled = false;
+      _deployDone = true;
+      runBtn.textContent = 'Schliessen';
+      runBtn.classList.add('btn-close');
+      statusEl.textContent = '✓ Deployed — Verifikation fehlgeschlagen';
+      statusEl.className   = 'ecm-status-success';
+      editorStatus(deployedCount + ' Datei(en) deployed ✓', 'success');
+    });
+  })
+  .catch(function(e) {
+    runBtn.disabled    = false;
+    cancelBtn.disabled = false;
+    closeBtn.disabled  = false;
+    statusEl.textContent = 'Netzwerkfehler: ' + e.message;
+    statusEl.className   = 'ecm-status-error';
   });
 }
 
@@ -3367,6 +3912,31 @@ document.querySelectorAll('.editor-subtab').forEach(function(btn) {
 document.getElementById('editor-btn-save').addEventListener('click', saveEditorChanges);
 document.getElementById('editor-btn-revert').addEventListener('click', revertEditorChanges);
 document.getElementById('editor-btn-export').addEventListener('click', exportEditorToCore);
+document.getElementById('editor-src-deploy-sel').addEventListener('click', deploySelection);
+
+// Export-Confirm-Modal: Schliessen-Button
+document.getElementById('export-confirm-close').addEventListener('click', function() {
+  document.getElementById('export-confirm-overlay').classList.remove('open');
+});
+document.getElementById('export-confirm-run').addEventListener('click', function() {
+  if (_deployDone) {
+    // Im Schliessen-Modus: Modal schliessen, State zurücksetzen
+    this.textContent = '✓ Jetzt deployen';
+    this.classList.remove('btn-close');
+    _deployDone = false;
+    _editorSelectedKuerzel = {};
+    updateDeploySelBtn();
+    renderEditorSourceList();
+    document.getElementById('export-confirm-overlay').classList.remove('open');
+    return;
+  }
+  if (_deployQueueMode === 'multi') runMultiDeploy();
+  else runExportDeploy();
+});
+// Klick auf Overlay-Hintergrund schliesst Modal
+document.getElementById('export-confirm-overlay').addEventListener('click', function(e) {
+  if (e.target === this) this.classList.remove('open');
+});
 
 // =====================================================================
 // INITIALISIERUNG
