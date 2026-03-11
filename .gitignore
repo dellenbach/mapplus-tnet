@@ -7,3 +7,13 @@
 
 # Test reports
 test-results/*.xml
+
+# Zugangsdaten
+.htpasswd
+
+# Core-Konfigurationsdateien (werden via Deploy-API verwaltet)
+core/
+
+maps/core/
+maps/public/config/
+maps/public/guis/

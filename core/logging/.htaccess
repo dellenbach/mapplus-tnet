@@ -1,4 +1,0 @@
-AuthType Basic
-AuthName "Access statistic"
-AuthUserFile /var/www/html/mapplus/core/logging/.htpasswd
-Require valid-user

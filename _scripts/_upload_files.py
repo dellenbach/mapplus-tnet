@@ -13,8 +13,7 @@ LOCAL_BASE = r"c:\_Daten\mapplus-exp\maps"
 
 # Files to upload
 FILES = [
-    "tnet/js/tnet-proxy-inject.js",
-    "tnet/php/active-maps-proxy.php",
+    "tnet/api/v1/ags-import.html",
 ]
 
 def upload_files():
