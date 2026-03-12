@@ -155,7 +155,7 @@ $cacheFile   = $cacheDir . DIRECTORY_SEPARATOR . "arcgis_token.json";
 // --- 1.5 Layer-Aggregation -------------------------------------------------
 // Kombiniert gleichzeitige Requests zu einem einzigen Backend-Call.
 // Nur für Nicht-Druck-Requests (DPI < aggregationPrintDpiThreshold).
-$aggregationEnabled           = true;    // Aggregation aktivieren/deaktivieren
+$aggregationEnabled           = false;    // Aggregation aktivieren/deaktivieren
 $aggregationWindowMs          = 80;      // Initiales Sliding Window in Millisekunden
 $aggregationWindowExtensionMs = 5;       // Verlängerung pro eingehender Request (ms)
 $aggregationTempDir           = '/data/Client_Data/nwow/tmp/';

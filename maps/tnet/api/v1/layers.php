@@ -557,6 +557,11 @@ foreach ($mapping['categories'] as $topCategory) {
     $categories[] = $topCategoryData;
 }
 
+// === Coalesce-Info anreichern (nur bei details=true, da url/params benötigt) ===
+if ($details) {
+    enrichCoalesceInfo($categories);
+}
+
 // === Flat Mode: Alle Layer als flache Liste ===
 if ($flat) {
     $flatLayers = [];
@@ -950,6 +955,144 @@ function flattenLayers($layers, &$result, $path, $category) {
             $result[] = $flat;
         }
     }
+}
+
+// ===== COALESCE-ERKENNUNG (FILE-PFAD) =====
+
+/**
+ * Reichert Coalesce-Information für den File-Pfad an.
+ * Erkennt Gruppen, deren rekursive Blatt-Layer denselben ArcGIS MapServer-
+ * Dienst mit individuellen show:N-Sublayern verwenden, und setzt
+ * serviceUrl + coalesceGroup auf diesen Gruppen.
+ *
+ * @param array &$categories  Kategorie-Array (wird in-place modifiziert)
+ */
+function enrichCoalesceInfo(&$categories) {
+    foreach ($categories as &$cat) {
+        if (isset($cat['subcategories'])) {
+            enrichCoalesceWalk($cat['subcategories']);
+        }
+    }
+}
+
+/**
+ * Rekursive Hilfsfunktion: Durchläuft Knoten und setzt Coalesce-Info.
+ *
+ * @param array &$nodes  Knoten-Array (subcategories, groups oder layers)
+ */
+function enrichCoalesceWalk(&$nodes) {
+    foreach ($nodes as &$node) {
+        // Rekursiv in Kind-Arrays absteigen (Bottom-Up: Kinder zuerst)
+        foreach (['subcategories', 'groups', 'layers'] as $childKey) {
+            if (isset($node[$childKey]) && is_array($node[$childKey])) {
+                enrichCoalesceWalk($node[$childKey]);
+            }
+        }
+
+        // Coalesce nur auf Knoten mit layers-Array
+        if (!isset($node['layers']) || !is_array($node['layers'])) {
+            continue;
+        }
+
+        // Bereits gesetzte Coalesce-Info nicht überschreiben
+        if (isset($node['serviceUrl'])) continue;
+
+        // Prüfen ob ALLE rekursiven Blatt-Layer denselben MapServer teilen
+        $commonPath = getCommonMapServerPath($node['layers']);
+        if ($commonPath === null) continue;
+
+        // ≥2 Blatt-Layer nötig für Coalesce
+        $leafCount = countCoalesceLeaves($node['layers']);
+        if ($leafCount < 2) continue;
+
+        // serviceUrl im tnet/agsproxy-Format (wie DB-Pfad)
+        $node['serviceUrl'] = '/maps/tnet/agsproxy/' . $commonPath;
+
+        // coalesceGroup: Dienst-Name (letztes Pfad-Segment vor /MapServer)
+        $pathParts = explode('/', rtrim($commonPath, '/'));
+        // "MapServer" ist das letzte Element — davor kommt der Service-Name
+        $node['coalesceGroup'] = $pathParts[count($pathParts) - 2] ?? $node['id'];
+    }
+}
+
+/**
+ * Prüft ob ALLE rekursiven Blatt-Layer denselben MapServer-Dienst
+ * mit individuellem show:N-Parameter teilen.
+ *
+ * @param array $layers  Verschachtelte Layer/Gruppen
+ * @return string|null   Gemeinsamer MapServer-Pfad oder null
+ */
+function getCommonMapServerPath($layers) {
+    $commonPath = null;
+
+    foreach ($layers as $layer) {
+        if (isset($layer['layers']) && is_array($layer['layers']) && count($layer['layers']) > 0) {
+            // Sub-Gruppe → rekursiv prüfen
+            $subPath = getCommonMapServerPath($layer['layers']);
+            if ($subPath === null) return null;
+
+            if ($commonPath === null) {
+                $commonPath = $subPath;
+            } elseif (strcasecmp($commonPath, $subPath) !== 0) {
+                return null; // Verschiedene MapServer-Dienste
+            }
+        } else {
+            // Blatt-Layer: URL und LAYERS-Param prüfen
+            $url = $layer['url'] ?? '';
+            $layersParam = $layer['params']['LAYERS'] ?? '';
+
+            // Nur individuelle Sublayer (show:N, genau eine Zahl)
+            if (!preg_match('/^show:\d+$/', $layersParam)) return null;
+
+            // MapServer-Pfad aus URL extrahieren
+            $path = extractMapServerPathForCoalesce($url);
+            if ($path === null) return null;
+
+            if ($commonPath === null) {
+                $commonPath = $path;
+            } elseif (strcasecmp($commonPath, $path) !== 0) {
+                return null; // Verschiedene MapServer-Dienste
+            }
+        }
+    }
+
+    return $commonPath;
+}
+
+/**
+ * Extrahiert den MapServer-Pfad aus einer Layer-URL.
+ *
+ * @param string $url  z.B. "/maps/agsproxy.php?path=gis_oereb/nw_gewaesserraum_DEF/MapServer"
+ * @return string|null z.B. "gis_oereb/nw_gewaesserraum_DEF/MapServer"
+ */
+function extractMapServerPathForCoalesce($url) {
+    // Format 1: agsproxy.php?path=SERVICE/MapServer
+    if (preg_match('/[?&]path=([^&]+\/MapServer)/i', $url, $m)) {
+        return $m[1];
+    }
+    // Format 2: /maps/tnet/agsproxy/SERVICE/MapServer (Rewrite-URL)
+    if (preg_match('/\/agsproxy\/(.+\/MapServer)/i', $url, $m)) {
+        return $m[1];
+    }
+    return null;
+}
+
+/**
+ * Zählt rekursiv alle Blatt-Layer.
+ *
+ * @param array $layers  Verschachtelte Layer/Gruppen
+ * @return int
+ */
+function countCoalesceLeaves($layers) {
+    $count = 0;
+    foreach ($layers as $layer) {
+        if (isset($layer['layers']) && is_array($layer['layers']) && count($layer['layers']) > 0) {
+            $count += countCoalesceLeaves($layer['layers']);
+        } else {
+            $count++;
+        }
+    }
+    return $count;
 }
 
 // =====================================================================
