@@ -384,6 +384,12 @@
     });
     map.addOverlay(_frameOverlay);
 
+    // Mobile: Frame bis nach Zoom-Animation unsichtbar (wird in adjustMapZoomMobile eingeblendet)
+    if (_isMobile) {
+      _frameEl.style.opacity = '0';
+      _frameEl.style.transition = 'opacity 0.2s';
+    }
+
     // Drag/Rotate-Interaktion — nur auf Desktop
     if (!_isMobile) {
       initFrameInteraction(map);
@@ -1150,25 +1156,84 @@
   }
 
   /**
-   * Mobile: Setzt den Kartenmassstab eine Stufe kleiner als den Druckmassstab,
-   * damit der Druckrahmen vollständig im Viewport sichtbar bleibt.
-   * Kleinerer Kartenmassstab = grössere Massstabszahl = weiter herausgezoomt.
+   * Mobile: Setzt den Kartenzoom so, dass der Druckrahmen vollständig
+   * im sichtbaren Bereich über dem Bottom-Sheet passt. Blendet den
+   * Rahmen nach der Zoom-Animation ein.
+   *
+   * Basis: tatsächliche Frame-Pixelgrösse (nach updateFrameSize), da
+   * _layouts async geladen wird und bei Erstaufruf noch leer sein kann.
+   * Retry bis Frame-Grösse verfügbar (max. 8 Versuche à 200ms).
    */
   function adjustMapZoomMobile(printScale) {
     var map = getMap();
     if (!map) return;
     var mpu = map.getView().getProjection().getMetersPerUnit() || 1;
     var sortedAsc = _scales.slice().sort(function (a, b) { return a - b; });
-    // Nächst grössere Massstabszahl (= kleinerer Massstab) suchen
-    var mapScale = null;
-    for (var i = 0; i < sortedAsc.length; i++) {
-      if (sortedAsc[i] > printScale) { mapScale = sortedAsc[i]; break; }
+
+    // Verfügbarer Kartenbereich über dem Bottom-Sheet:
+    // Bottom-Sheet ~50vh + Toolbar ~10vh = ~60vh belegt → verbleibende Map-Fläche ~32%
+    var availH = window.innerHeight * 0.25;
+    var availW = window.innerWidth  * 0.80;
+    var targetFill = 0.40;  // Frame soll max. 40% des verfügbaren Bereichs füllen
+
+    var attempt = 0;
+    function tryAdjust() {
+      // Sicherstellen dass updateFrameSize() mit aktuellem Layout + Scale läuft
+      updateFrameSize();
+      var frameW = _frameEl ? parseFloat(_frameEl.style.width)  : 0;
+      var frameH = _frameEl ? parseFloat(_frameEl.style.height) : 0;
+
+      // Noch kein Layout geladen → nochmal warten
+      if ((frameW <= 0 || frameH <= 0) && attempt++ < 8) {
+        setTimeout(tryAdjust, 200);
+        return;
+      }
+
+      if (frameW <= 0 || frameH <= 0) {
+        // Fallback: einfach eine Stufe herauszoomen
+        if (_frameEl) _frameEl.style.opacity = '1';
+        return;
+      }
+
+      // Aktuelles Verhältnis Frame / verfügbarer Bereich
+      var ratioW = frameW / availW;
+      var ratioH = frameH / availH;
+      var currentRatio = Math.max(ratioW, ratioH);
+
+      if (currentRatio <= targetFill) {
+        // Passt bereits — nur einblenden
+        if (_frameEl) _frameEl.style.opacity = '1';
+        TnetLog.log('[Drucken Mobile] Frame passt (' + Math.round(currentRatio * 100) + '% ≤ ' + Math.round(targetFill * 100) + '%)');
+        return;
+      }
+
+      // Skalierungsfaktor: um wieviel muss herausgezoomt werden?
+      var scaleFactor = currentRatio / targetFill;
+      var view = map.getView();
+      var neededRes = view.getResolution() * scaleFactor;
+
+      // Nächsten Massstab aus _scales wählen: grösser als printScale UND gross genug
+      var mapScale = null;
+      for (var i = 0; i < sortedAsc.length; i++) {
+        if (sortedAsc[i] > printScale && (sortedAsc[i] * 0.00028 / mpu) >= neededRes) {
+          mapScale = sortedAsc[i]; break;
+        }
+      }
+      if (mapScale === null) mapScale = sortedAsc[sortedAsc.length - 1];
+
+      var finalRes = mapScale * 0.00028 / mpu;
+      view.animate({ resolution: finalRes, duration: 300 });
+
+      map.once('moveend', function () {
+        updateFrameSize();
+        if (_frameEl) _frameEl.style.opacity = '1';
+      });
+
+      TnetLog.log('[Drucken Mobile] Zoom: 1:' + mapScale + ' (Frame ' + Math.round(currentRatio * 100) + '% → Ziel ' + Math.round(targetFill * 100) + '%)');
     }
-    if (mapScale === null) mapScale = sortedAsc[sortedAsc.length - 1];
-    var newRes = mapScale * 0.00028 / mpu;
-    map.getView().animate({ resolution: newRes, duration: 300 });
-    setTimeout(updateFrameSize, 350);
-    TnetLog.log('[Drucken Mobile] Kartenmassstab 1:' + mapScale + ' (Druckmassstab 1:' + printScale + ')');
+
+    // Kurz warten damit DOM-Render und updateFrameSize() stabil sind
+    setTimeout(tryAdjust, 100);
   }
 
   // ================================================================
@@ -1247,13 +1312,15 @@
     if (panel) panel.classList.add('hidden');
     removePrintFrame();
     restoreMapInteractions();
-    // Falls angedockt: mapContainer zurücksetzen
+    // Falls angedockt: mapContainer zurücksetzen (nur Desktop — Mobile hat kein Width-Override)
     if (_isPrintPanelDocked) {
-      var mapContainer = document.getElementById('mapContainer');
-      if (mapContainer) {
-        mapContainer.style.setProperty('width', '100%', 'important');
-        triggerPrintMapUpdate();
+      if (!_isMobile) {
+        var mapContainer = document.getElementById('mapContainer');
+        if (mapContainer) {
+          mapContainer.style.setProperty('width', '100%', 'important');
+        }
       }
+      triggerPrintMapUpdate();
       stopPrintObservers();
     }
   };
@@ -1671,7 +1738,9 @@
     panel.classList.add('docked-right');
     _isPrintPanelDocked = true;
 
-    if (mapContainer) {
+    // Desktop: Panel rechts andocken, mapContainer verschmälern.
+    // Mobile: Panel ist Bottom-Sheet (CSS steuert Layout) — keine Breitenanpassung!
+    if (!_isMobile && mapContainer) {
       var panelWidth = _savedPrintDockedWidth || 380;
       var centerPane = document.getElementById('centerPaneLayout');
       var streetviewContainer = document.getElementById('streetviewContainer');
@@ -1690,8 +1759,8 @@
       var centerPaneWidth = centerPane ? centerPane.offsetWidth : window.innerWidth;
       var mapWidth = centerPaneWidth - streetviewWidth - panelWidth;
       mapContainer.style.setProperty('width', mapWidth + 'px', 'important');
-      triggerPrintMapUpdate();
     }
+    triggerPrintMapUpdate();
 
     startPrintObservers();
 

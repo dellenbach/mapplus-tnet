@@ -952,6 +952,232 @@ function listConfFilesRecursive($dir) {
     return $files;
 }
 
+// =====================================================================
+// Core-Config Import (Produktiv → raw-conf)
+// =====================================================================
+
+/**
+ * Core-Konfigurationen (Produktiv) auflisten.
+ * Scannt core/config/ und core/nls/de/, gruppiert nach Suffix/Kürzel.
+ * Markiert welche Kürzel bereits in raw-conf vorhanden sind.
+ */
+function listCoreSources() {
+    global $docRoot;
+    $coreConfigDir = $docRoot . '/core/config';
+    $coreNlsDir    = $docRoot . '/core/nls/de';
+    if (!is_dir($coreConfigDir)) return ['success' => false, 'error' => 'core/config/ nicht gefunden'];
+    if (!is_dir($coreNlsDir))    return ['success' => false, 'error' => 'core/nls/de/ nicht gefunden'];
+
+    $prefixes = ['layers', 'maptips', 'lyrmgrResources', 'maptipsResources', 'legendResources'];
+    $typeMap = [
+        'layers' => 'layers', 'maptips' => 'maptips',
+        'lyrmgrResources' => 'lyrmgr', 'maptipsResources' => 'maptipsRes', 'legendResources' => 'legendRes'
+    ];
+
+    // raw-conf-Kürzel sammeln (für «bereits importiert»-Markierung)
+    $rawConfDir = getWritableRawConfDir();
+    if ($rawConfDir === false) $rawConfDir = RAW_CONF_DIR;
+    $rawConfKuerzel = [];
+    if (is_dir($rawConfDir)) {
+        foreach (@scandir($rawConfDir) ?: [] as $d) {
+            if ($d !== '.' && $d !== '..' && is_dir($rawConfDir . '/' . $d)) {
+                $rawConfKuerzel[$d] = true;
+            }
+        }
+    }
+
+    // Dateien sammeln: suffix → [files]
+    $filesBySuffix = [];
+    $dirsToScan = [
+        $coreConfigDir => 'config',
+        $coreNlsDir    => 'nls/de'
+    ];
+
+    foreach ($dirsToScan as $dir => $dirLabel) {
+        foreach (@scandir($dir) ?: [] as $f) {
+            if ($f === '.' || $f === '..') continue;
+            if (preg_match('/\.bak$/', $f)) continue;
+            $ext = strtolower(pathinfo($f, PATHINFO_EXTENSION));
+            if (!in_array($ext, ['conf', 'json'])) continue;
+            $basename = pathinfo($f, PATHINFO_FILENAME);
+            $matchedPrefix = null;
+            $suffix = null;
+            foreach ($prefixes as $pfx) {
+                if (strpos($basename, $pfx . '_') === 0) {
+                    $matchedPrefix = $pfx; $suffix = substr($basename, strlen($pfx) + 1); break;
+                }
+                if (strpos($basename, $pfx . '-') === 0) {
+                    $matchedPrefix = $pfx; $suffix = substr($basename, strlen($pfx) + 1); break;
+                }
+            }
+            if (!$matchedPrefix || !$suffix) continue;
+
+            $fp = $dir . '/' . $f;
+            $content = @file_get_contents($fp);
+            $decoded = ($content !== false) ? @json_decode($content, true) : null;
+            $keys = is_array($decoded) ? count($decoded) : 0;
+            $filesBySuffix[$suffix][] = [
+                'name' => $f, 'type' => $typeMap[$matchedPrefix] ?? 'unknown',
+                'prefix' => $matchedPrefix, 'suffix' => $suffix,
+                'dir' => $dirLabel, 'keys' => $keys,
+                'size' => filesize($fp), 'modified' => date('Y-m-d H:i:s', filemtime($fp)),
+            ];
+        }
+    }
+
+    // Suffixe zusammenführen (z.B. "GIS-oereb-wms" + "oereb-wms" → Gruppe "oereb-wms")
+    $suffixes = array_keys($filesBySuffix);
+    $merged = [];
+    $groups = [];
+    foreach ($suffixes as $s) {
+        if (isset($merged[$s])) continue;
+        $merged[$s] = $s;
+        $groups[$s] = $filesBySuffix[$s];
+        foreach ($suffixes as $other) {
+            if ($other === $s || isset($merged[$other])) continue;
+            $shorter = strlen($s) <= strlen($other) ? $s : $other;
+            $longer  = strlen($s) >  strlen($other) ? $s : $other;
+            if (substr($longer, -(strlen($shorter) + 1)) === '-' . $shorter) {
+                $groupKey = $shorter;
+                $existingFiles = isset($groups[$groupKey]) ? $groups[$groupKey] : [];
+                $otherFiles = $filesBySuffix[$other];
+                if ($merged[$s] !== $groupKey && isset($groups[$merged[$s]])) {
+                    $existingFiles = $groups[$merged[$s]];
+                    unset($groups[$merged[$s]]);
+                }
+                $groups[$groupKey] = array_merge($existingFiles, $otherFiles);
+                $merged[$s] = $groupKey;
+                $merged[$other] = $groupKey;
+            }
+        }
+    }
+
+    // Ergebnis bauen
+    $result = [];
+    foreach ($groups as $key => $files) {
+        usort($files, function($a, $b) { return strcmp($a['name'], $b['name']); });
+        $has = ['layers' => false, 'maptips' => false, 'lyrmgr' => false, 'maptipsRes' => false, 'legendRes' => false];
+        foreach ($files as $fi) { if (isset($has[$fi['type']])) $has[$fi['type']] = true; }
+        $missing = [];
+        if ($has['layers'] && !$has['lyrmgr']) $missing[] = 'lyrmgrResources';
+        if ($has['layers'] && !$has['maptipsRes']) $missing[] = 'maptipsResources';
+        $result[] = [
+            'kuerzel' => $key, 'files' => $files,
+            'size' => array_sum(array_column($files, 'size')),
+            'source' => 'core', 'missingNls' => $missing,
+            'inRawConf' => isset($rawConfKuerzel[$key]),
+        ];
+    }
+    usort($result, function($a, $b) { return strcmp($a['kuerzel'], $b['kuerzel']); });
+    return ['success' => true, 'kuerzel' => $result];
+}
+
+/**
+ * Core-Konfigurationsdateien in raw-conf importieren.
+ * Kopiert Config-Dateien aus core/config/ und core/nls/de/ in raw-conf/<kuerzel>/.
+ * Erstellt Backups bestehender Dateien.
+ *
+ * @param array $kuerzelList  Array von Kürzel-Strings
+ * @return array  Ergebnis mit kopierten Dateien
+ */
+function importCoreToRawConf($kuerzelList) {
+    global $docRoot;
+    if (!is_array($kuerzelList) || count($kuerzelList) === 0) {
+        return ['success' => false, 'error' => 'Keine Kürzel angegeben'];
+    }
+
+    $rawConfDir = getWritableRawConfDir();
+    if ($rawConfDir === false) {
+        return ['success' => false, 'error' => 'raw-conf Verzeichnis nicht beschreibbar'];
+    }
+
+    $coreConfigDir = $docRoot . '/core/config';
+    $coreNlsDir    = $docRoot . '/core/nls/de';
+
+    $prefixes = ['layers', 'maptips', 'lyrmgrResources', 'maptipsResources', 'legendResources'];
+    $ts = date('Ymd_His');
+    $results = [];
+
+    foreach ($kuerzelList as $kuerzel) {
+        $kuerzel = basename($kuerzel); // Sicherheit: keine Pfad-Traversal
+        $targetDir = $rawConfDir . '/' . $kuerzel;
+        $copiedFiles = [];
+        $errors = [];
+
+        // Zielverzeichnis erstellen
+        if (!is_dir($targetDir)) {
+            if (!@mkdir($targetDir, 0777, true)) {
+                $results[] = ['kuerzel' => $kuerzel, 'success' => false, 'error' => 'Verzeichnis konnte nicht erstellt werden'];
+                continue;
+            }
+        }
+
+        // Beide Quellverzeichnisse durchsuchen
+        $dirsToScan = [$coreConfigDir, $coreNlsDir];
+        foreach ($dirsToScan as $srcDir) {
+            if (!is_dir($srcDir)) continue;
+            foreach (@scandir($srcDir) ?: [] as $f) {
+                if ($f === '.' || $f === '..' || preg_match('/\.bak$/', $f)) continue;
+                $ext = strtolower(pathinfo($f, PATHINFO_EXTENSION));
+                if (!in_array($ext, ['conf', 'json'])) continue;
+                $basename = pathinfo($f, PATHINFO_FILENAME);
+
+                // Prüfen ob Datei zu diesem Kürzel gehört
+                $belongs = false;
+                foreach ($prefixes as $pfx) {
+                    foreach (['_', '-'] as $sep) {
+                        if (strpos($basename, $pfx . $sep) === 0) {
+                            $suffix = substr($basename, strlen($pfx) + 1);
+                            if ($suffix === $kuerzel || substr($suffix, -(strlen($kuerzel) + 1)) === '-' . $kuerzel) {
+                                $belongs = true;
+                            }
+                            break 2;
+                        }
+                    }
+                }
+                if (!$belongs) continue;
+
+                $srcPath = $srcDir . '/' . $f;
+                $dstPath = $targetDir . '/' . $f;
+
+                // Backup bestehender Datei
+                if (file_exists($dstPath)) {
+                    @copy($dstPath, $dstPath . '.' . $ts . '.bak');
+                }
+
+                $content = @file_get_contents($srcPath);
+                if ($content === false) {
+                    $errors[] = 'Lesen fehlgeschlagen: ' . $f;
+                    continue;
+                }
+
+                $bytes = @file_put_contents($dstPath, $content);
+                if ($bytes === false) {
+                    $errors[] = 'Schreiben fehlgeschlagen: ' . $f;
+                } else {
+                    $copiedFiles[] = [
+                        'file' => $f,
+                        'bytes' => $bytes,
+                    ];
+                }
+            }
+        }
+
+        $results[] = [
+            'kuerzel' => $kuerzel,
+            'success' => count($copiedFiles) > 0,
+            'files' => $copiedFiles,
+            'errors' => $errors,
+        ];
+    }
+
+    return [
+        'success' => true,
+        'results' => $results,
+        'timestamp' => date('Y-m-d H:i:s'),
+    ];
+}
+
 /**
  * ImportToCore-Verzeichnis auflisten (nach Kürzel gruppiert)
  * Erkennt auch kürzelübergreifende Duplikate (gleicher Key im selben Prefix-Typ)
@@ -1579,9 +1805,17 @@ function configEditorLoad($kuerzel) {
         $decoded = @json_decode($content, true);
         if ($decoded === null) continue;
 
-        // Prefix extrahieren (layers, maptips, lyrmgrResources, maptipsResources)
-        $underPos = strpos($f, '_');
-        $prefix = ($underPos !== false) ? substr($f, 0, $underPos) : pathinfo($f, PATHINFO_FILENAME);
+        // Prefix extrahieren (layers, maptips, lyrmgrResources, maptipsResources, legendResources)
+        // Unterstützt sowohl _ als auch - als Trenner (Core-Dateien nutzen -)
+        $knownPrefixes = ['layers', 'maptips', 'lyrmgrResources', 'maptipsResources', 'legendResources'];
+        $prefix = 'unknown';
+        $basename = pathinfo($f, PATHINFO_FILENAME);
+        foreach ($knownPrefixes as $pfx) {
+            if (strpos($basename, $pfx . '_') === 0 || strpos($basename, $pfx . '-') === 0 || $basename === $pfx) {
+                $prefix = $pfx;
+                break;
+            }
+        }
 
         // Typ bestimmen
         $type = 'unknown';
@@ -1642,8 +1876,8 @@ function configEditorSave($kuerzel, $fileName, $data) {
  * Erstellt Backups der bestehenden Core-Dateien.
  *
  * Ziel-Pfade:
- *   layers_*.conf / maptips_*.conf    → $docRoot/maps/core/config/
- *   lyrmgrResources_*.json / maptipsResources_*.json → $docRoot/maps/core/nls/de/
+ *   layers_*.conf / maptips_*.conf    → $docRoot/core/config/
+ *   lyrmgrResources_*.json / maptipsResources_*.json → $docRoot/core/nls/de/
  */
 function configExportToCore($kuerzel) {
     global $docRoot;
@@ -1653,8 +1887,8 @@ function configExportToCore($kuerzel) {
     $srcDir = IMPORT_TO_CORE_DIR . '/' . $safe;
     if (!is_dir($srcDir)) return ['success' => false, 'error' => 'Quell-Ordner nicht gefunden'];
 
-    $coreConfigDir = $docRoot . '/maps/core/config';
-    $coreNlsDir    = $docRoot . '/maps/core/nls/de';
+    $coreConfigDir = $docRoot . '/core/config';
+    $coreNlsDir    = $docRoot . '/core/nls/de';
 
     // Prüfen ob Zielverzeichnisse existieren
     if (!is_dir($coreConfigDir)) return ['success' => false, 'error' => 'core/config/ nicht gefunden auf Server'];
@@ -1677,8 +1911,16 @@ function configExportToCore($kuerzel) {
         if (!in_array($ext, ['conf', 'json'])) continue;
 
         // Prefix ermitteln → Zielverzeichnis
-        $underPos = strpos($f, '_');
-        $prefix = ($underPos !== false) ? substr($f, 0, $underPos) : '';
+        // Unterstützt sowohl _ als auch - als Trenner (Core-Dateien nutzen -)
+        $knownPrefixes = ['layers', 'maptips', 'lyrmgrResources', 'maptipsResources', 'legendResources'];
+        $basename = pathinfo($f, PATHINFO_FILENAME);
+        $prefix = '';
+        foreach ($knownPrefixes as $pfx) {
+            if (strpos($basename, $pfx . '_') === 0 || strpos($basename, $pfx . '-') === 0 || $basename === $pfx) {
+                $prefix = $pfx;
+                break;
+            }
+        }
 
         $targetDir = '';
         if (in_array($prefix, ['layers', 'maptips'])) {
@@ -2198,6 +2440,24 @@ switch ($action) {
         jsonResponse(['success' => true, 'data' => $result]);
         break;
 
+    // ── Core-Config Import (Produktiv → raw-conf) ──
+    case 'core-list-sources':
+        $result = listCoreSources();
+        if (!$result['success']) jsonError($result['error'], 500);
+        jsonResponse(['success' => true, 'data' => $result]);
+        break;
+
+    case 'core-import':
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('POST required', 405);
+        $body = json_decode(file_get_contents('php://input'), true);
+        if (!$body || !isset($body['kuerzel']) || !is_array($body['kuerzel'])) {
+            jsonError('JSON-Body mit Feld "kuerzel" (Array) erforderlich', 400);
+        }
+        $result = importCoreToRawConf($body['kuerzel']);
+        if (!$result['success']) jsonError($result['error'], 500);
+        jsonResponse(['success' => true, 'data' => $result]);
+        break;
+
     case 'debug-rawconf':
         $info = [
             'RAW_CONF_DIR' => RAW_CONF_DIR,
@@ -2284,7 +2544,7 @@ switch ($action) {
             'data' => [
                 'name'    => 'Tree-Builder Persistence API',
                 'version' => '3.1',
-                'actions' => ['load', 'save', 'lock', 'unlock', 'lock-status', 'history', 'restore', 'save-groups', 'load-groups', 'save-profile', 'load-profile', 'list-profiles', 'load-lyrmgr', 'publish-lyrmgr', 'list-lyrmgr-profiles', 'ags-services', 'ags-export', 'ags-list-raw', 'ags-delete-raw', 'ags-delete-backups', 'ags-read-raw', 'ags-write-raw', 'staging-layers-flat', 'config-editor-load', 'config-editor-save', 'config-export-to-core'],
+                'actions' => ['load', 'save', 'lock', 'unlock', 'lock-status', 'history', 'restore', 'save-groups', 'load-groups', 'save-profile', 'load-profile', 'list-profiles', 'load-lyrmgr', 'publish-lyrmgr', 'list-lyrmgr-profiles', 'ags-services', 'ags-export', 'ags-list-raw', 'ags-delete-raw', 'ags-delete-backups', 'ags-read-raw', 'ags-write-raw', 'staging-layers-flat', 'config-editor-load', 'config-editor-save', 'config-export-to-core', 'core-list-sources', 'core-import'],
                 'storage' => DATA_DIR
             ]
         ]);

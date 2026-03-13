@@ -15,6 +15,10 @@
         "/^\\$serverConf = Get-Content 'maps/www/maps/public/config/lyrmgr\\.conf' -Raw \\| ConvertFrom-Json; \\$serverItems = @\\(\\); foreach \\(\\$cat in \\$serverConf\\.third_lyrmgr\\.structure\\.PSObject\\.Properties\\) \\{ foreach \\(\\$grp in \\$cat\\.Value\\.items\\.PSObject\\.Properties\\) \\{ foreach \\(\\$item in \\$grp\\.Value\\.items\\) \\{ if \\(\\$item -is \\[string\\]\\) \\{ \\$serverItems \\+= \\$item \\} elseif \\(\\$item\\.items\\) \\{ \\$serverItems \\+= \\$item\\.items \\} \\} \\} \\}; Write-Host \"Server third_lyrmgr: \\$\\(\\$serverItems\\.Count\\) items\"; \\$serverItems \\| Select-Object -First 15$/": {
             "approve": true,
             "matchCommandLine": true
+        },
+        "/^& \"C:\\\\Program Files\\\\Python313\\\\python\\.exe\" -c \"\nimport paramiko, json\nssh = paramiko\\.SSHClient\\(\\)\nssh\\.set_missing_host_key_policy\\(paramiko\\.AutoAddPolicy\\(\\)\\)\nssh\\.connect\\('nwow\\.mapplus\\.ch', 22, 'trigonet', '3Zs,k4%Un,<\\[W\\(Kx'\\)\nsftp = ssh\\.open_sftp\\(\\)\nwith sftp\\.open\\('/www/maps/core/nls/de/import_wms_list\\.json','r'\\) as f:\n    d = json\\.load\\(f\\)\n    print\\(json\\.dumps\\(d, indent=2, ensure_ascii=False\\)\\[:3000\\]\\)\nsftp\\.close\\(\\)\nssh\\.close\\(\\)\n\"$/": {
+            "approve": true,
+            "matchCommandLine": true
         }
     },
     "python-envs.pythonProjects": [],

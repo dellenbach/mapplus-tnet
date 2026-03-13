@@ -53,7 +53,7 @@ body {
 /* ===== MAIN LAYOUT ===== */
 .ags-main {
   flex: 1; display: flex; flex-direction: column;
-  max-width: 1280px; width: 100%; margin: 0 auto;
+  width: 100%; margin: 0 auto;
   padding: 20px 24px; overflow: hidden;
 }
 
@@ -740,6 +740,27 @@ body {
 .editor-changes-bar .ecb-save:hover { background: #567a83; }
 .editor-changes-bar .ecb-revert { background: #fff; color: #c33; border-color: #daa; }
 .editor-changes-bar .ecb-revert:hover { background: #fef0f0; border-color: #c33; }
+
+/* ===== IMPORT QUELLAUSWAHL ===== */
+.import-source-bar {
+  display: flex; gap: 4px; padding: 6px 10px 4px;
+  border-bottom: 1px solid #e0e4e8; background: #f5f7fa;
+}
+.import-source-btn {
+  padding: 5px 14px; font-size: 11px; font-weight: 600;
+  border: 1px solid #ccc; border-radius: 4px; background: #fff;
+  cursor: pointer; color: #555; transition: all .15s;
+}
+.import-source-btn:hover { background: #f0f2f5; border-color: #aaa; }
+.import-source-btn.active {
+  background: var(--c-primary, #648C96); color: #fff;
+  border-color: var(--c-primary, #648C96);
+}
+.core-imported-badge {
+  font-size: 9px; color: #2e8bd4; background: rgba(46,139,212,.12);
+  padding: 1px 5px; border-radius: 3px; margin-left: auto; flex-shrink: 0;
+}
+
 </style>
 </head>
 <body>
@@ -769,6 +790,11 @@ body {
 
   <!-- ===== TAB: IMPORT ===== -->
   <div class="ags-pane active" id="pane-import">
+    <!-- Quellauswahl -->
+    <div class="import-source-bar">
+      <button class="import-source-btn active" data-source="ags">📦 AGS-Dienste</button>
+      <button class="import-source-btn" data-source="core">🌐 Core / Produktiv</button>
+    </div>
     <div class="ags-status" id="import-status">Dienste werden geladen…</div>
     <div class="ags-progress" id="import-progress">
       <div class="ags-spinner"></div>
@@ -977,6 +1003,8 @@ body {
   </div>
 </div>
 
+
+
 <script>
 /**
  * ags-import.html — Applikationslogik
@@ -1080,13 +1108,16 @@ function refreshImportProgress() {
 // =====================================================================
 // TAB-SWITCHING
 // =====================================================================
-function switchTab(tabName) {
+function switchTab(tabName, skipHash) {
   document.querySelectorAll('.ags-tab').forEach(function(t) { t.classList.remove('active'); });
   document.querySelectorAll('.ags-pane').forEach(function(p) { p.classList.remove('active'); });
   var tab = document.querySelector('[data-tab="' + tabName + '"]');
   var pane = document.getElementById('pane-' + tabName);
   if (tab) tab.classList.add('active');
   if (pane) pane.classList.add('active');
+
+  // URL-Hash aktualisieren (ohne hashchange-Event auszulösen)
+  if (!skipHash) updateUrlHash({ tab: tabName });
 
   if (tabName === 'import') {
     if (_agsServices.length === 0) {
@@ -1392,6 +1423,194 @@ function exportAgsServices() {
         + '<div style="font-size:11px;color:#c0392b">' + msg + '</div>'
         + '<hr style="border:none;border-top:1px solid #eee;margin:8px 0">' + resultEl.innerHTML;
       resultEl.style.display = '';
+    });
+}
+
+// =====================================================================
+// IMPORT-TAB: Core/Produktiv-Quellen
+// =====================================================================
+var _coreSources = [];
+var _coreSourcesLoaded = false;
+var _importActiveSource = 'ags'; // 'ags' | 'core'
+
+/**
+ * Import-Quelle wechseln (AGS ↔ Core)
+ */
+function switchImportSource(source) {
+  _importActiveSource = source;
+  updateUrlHash({ source: source });
+  document.querySelectorAll('.import-source-btn').forEach(function(btn) {
+    btn.classList.toggle('active', btn.dataset.source === source);
+  });
+  // UI zurücksetzen
+  var resultEl = document.getElementById('import-result');
+  resultEl.style.display = 'none';
+  resultEl.innerHTML = '';
+
+  if (source === 'ags') {
+    document.getElementById('import-btn-export').textContent = '📦 Exportieren & Speichern';
+    if (_agsServices.length > 0) {
+      renderImportList(_agsServices);
+      document.getElementById('import-status').textContent = _agsServices.length + ' Dienste verfügbar';
+      document.getElementById('import-status').className = 'ags-status success';
+    } else {
+      loadAgsServices();
+    }
+  } else if (source === 'core') {
+    document.getElementById('import-btn-export').textContent = '📥 In raw-conf importieren';
+    loadCoreSources();
+  }
+}
+
+/**
+ * Core-Konfigurationsgruppen laden
+ */
+function loadCoreSources(forceReload) {
+  if (_coreSourcesLoaded && !forceReload) {
+    renderCoreSourceList();
+    return;
+  }
+
+  var statusEl = document.getElementById('import-status');
+  var listEl = document.getElementById('import-list');
+  statusEl.textContent = 'Core-Konfigurationen werden geladen…';
+  statusEl.className = 'ags-status';
+  statusEl.style.display = '';
+  listEl.style.display = 'none';
+
+  fetch(API_URL + '?action=core-list-sources')
+    .then(function(r) { return r.json(); })
+    .then(function(resp) {
+      if (!resp.success) throw new Error(resp.error || 'Unbekannter Fehler');
+      _coreSources = (resp.data && resp.data.kuerzel) ? resp.data.kuerzel : [];
+      _coreSourcesLoaded = true;
+      statusEl.textContent = _coreSources.length + ' Core-Konfigurationsgruppen gefunden';
+      statusEl.className = 'ags-status success';
+      renderCoreSourceList();
+    })
+    .catch(function(err) {
+      statusEl.textContent = 'Fehler: ' + err.message;
+      statusEl.className = 'ags-status error';
+    });
+}
+
+/**
+ * Core-Quellen als Checkbox-Liste rendern (im selben import-list Container)
+ */
+function renderCoreSourceList() {
+  var listEl = document.getElementById('import-list');
+  var filterEl = document.getElementById('import-filter');
+  var selectBar = document.getElementById('import-select-bar');
+  var actionsEl = document.getElementById('import-actions');
+  var legendEl = document.getElementById('import-legend');
+
+  listEl.innerHTML = '';
+  if (legendEl) legendEl.style.display = 'none';
+
+  _coreSources.forEach(function(src, i) {
+    var name = src.kuerzel;
+    var fileCount = src.files ? src.files.length : 0;
+    var div = document.createElement('div');
+    div.className = 'ags-item';
+    div.dataset.name = name.toLowerCase();
+    var sizeStr = src.size ? formatFileSize(src.size) : '';
+    var badge = src.inRawConf ? '<span class="core-imported-badge">✓ in raw-conf</span>' : '';
+    div.innerHTML = '<input type="checkbox" data-svc="' + name.replace(/"/g, '&quot;') + '" id="core-cb-' + i + '">'
+      + '<label for="core-cb-' + i + '" class="ags-name" style="cursor:pointer;flex:1">' + name + '</label>'
+      + '<span style="font-size:10px;color:#888;margin-right:6px">' + fileCount + ' Dateien' + (sizeStr ? ' · ' + sizeStr : '') + '</span>'
+      + badge;
+    div.addEventListener('click', function(e) {
+      if (e.target.tagName === 'INPUT') { updateImportSelCount(); return; }
+      var cb = div.querySelector('input');
+      cb.checked = !cb.checked;
+      updateImportSelCount();
+    });
+    var cb = div.querySelector('input');
+    cb.addEventListener('click', function(e) {
+      e.stopPropagation();
+      updateImportSelCount();
+    });
+    listEl.appendChild(div);
+  });
+
+  listEl.style.display = '';
+  filterEl.style.display = '';
+  filterEl.value = '';
+  selectBar.style.display = 'flex';
+  actionsEl.style.display = 'flex';
+  updateImportSelCount();
+}
+
+/**
+ * Core-Konfigurationen in raw-conf importieren
+ */
+function importCoreSources() {
+  var checkboxes = document.querySelectorAll('#import-list input:checked');
+  var kuerzelList = [];
+  checkboxes.forEach(function(cb) { kuerzelList.push(cb.dataset.svc); });
+  if (kuerzelList.length === 0) return;
+
+  var statusEl = document.getElementById('import-status');
+  var resultEl = document.getElementById('import-result');
+  var runLabel = new Date().toLocaleTimeString('de-CH', { hour12: false });
+  statusEl.textContent = 'Importiere ' + kuerzelList.length + ' Kürzel…';
+  statusEl.className = 'ags-status';
+
+  fetch(API_URL + '?action=core-import', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ kuerzel: kuerzelList })
+  })
+    .then(function(r) { return r.json(); })
+    .then(function(resp) {
+      if (!resp.success) throw new Error(resp.error || 'Import fehlgeschlagen');
+      var data = resp.data;
+      var totalFiles = 0, totalErrors = 0;
+      (data.results || []).forEach(function(r) {
+        totalFiles += (r.files || []).length;
+        totalErrors += (r.errors || []).length;
+      });
+
+      if (totalErrors === 0) {
+        statusEl.textContent = '✓ Import abgeschlossen (' + runLabel + '): ' + totalFiles + ' Dateien kopiert';
+        statusEl.className = 'ags-status success';
+      } else {
+        statusEl.textContent = '⚠ Import teilweise (' + runLabel + '): ' + totalFiles + ' kopiert, ' + totalErrors + ' Fehler';
+        statusEl.className = 'ags-status warning';
+      }
+
+      var html = '<div style="font-weight:700;font-size:12px;margin:6px 0">[' + runLabel + '] ' + kuerzelList.length + ' Kürzel importiert</div>';
+      (data.results || []).forEach(function(r) {
+        html += '<div style="font-weight:600;font-size:11px;margin:4px 0 2px">' + r.kuerzel + '</div>';
+        (r.files || []).forEach(function(f) {
+          var size = f.bytes > 1024 ? (f.bytes / 1024).toFixed(1) + ' KB' : f.bytes + ' B';
+          html += '<div class="ags-result-file"><span class="rf-icon">✓</span><span class="rf-name">' + f.file + '</span><span class="rf-size">' + size + '</span></div>';
+        });
+        (r.errors || []).forEach(function(e) {
+          html += '<div class="ags-result-file"><span class="rf-icon" style="color:#c33">✗</span><span class="rf-name" style="color:#c33">' + e + '</span></div>';
+        });
+      });
+      if (data.timestamp) {
+        html += '<div style="font-size:10px;color:#999;margin-top:6px">Zeitpunkt: ' + data.timestamp + '</div>';
+      }
+      resultEl.innerHTML = html;
+      resultEl.style.display = '';
+
+      // Checkboxen leeren, Markierungen aktualisieren
+      document.querySelectorAll('#import-list input:checked').forEach(function(cb) { cb.checked = false; });
+      updateImportSelCount();
+
+      // inRawConf-Status im Cache aktualisieren
+      kuerzelList.forEach(function(k) {
+        _coreSources.forEach(function(src) {
+          if (src.kuerzel === k) src.inRawConf = true;
+        });
+      });
+      renderCoreSourceList();
+    })
+    .catch(function(err) {
+      statusEl.textContent = 'Fehler (' + runLabel + '): ' + err.message;
+      statusEl.className = 'ags-status error';
     });
 }
 
@@ -2560,9 +2779,17 @@ document.getElementById('ags-btn-refresh').addEventListener('click', function() 
     loadRawConfList();
   } else if (activeTab && activeTab.dataset.tab === 'staging') {
     loadStagingList();
-  } else {
-    _agsServices = [];
-    loadAgsServices();
+  } else if (activeTab && activeTab.dataset.tab === 'import') {
+    if (_importActiveSource === 'core') {
+      _coreSourcesLoaded = false;
+      loadCoreSources(true);
+    } else {
+      _agsServices = [];
+      loadAgsServices();
+    }
+  } else if (activeTab && activeTab.dataset.tab === 'editor') {
+    _editorKuerzelLoaded = false;
+    loadEditorKuerzelList(true);
   }
 });
 
@@ -2571,6 +2798,13 @@ document.getElementById('import-filter').addEventListener('input', function() {
   var term = this.value.trim();
   document.querySelectorAll('#import-list .ags-item').forEach(function(item) {
     item.classList.toggle('hidden', term !== '' && !matchWildcard(item.dataset.name, term));
+  });
+});
+
+// Import-Tab: Quellauswahl-Buttons
+document.querySelectorAll('.import-source-btn').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    switchImportSource(btn.dataset.source);
   });
 });
 
@@ -2586,8 +2820,14 @@ document.getElementById('import-sel-none').addEventListener('click', function() 
   updateImportSelCount();
 });
 
-// Import-Tab: Export-Button
-document.getElementById('import-btn-export').addEventListener('click', exportAgsServices);
+// Import-Tab: Export/Import-Button (quellabhängig)
+document.getElementById('import-btn-export').addEventListener('click', function() {
+  if (_importActiveSource === 'core') {
+    importCoreSources();
+  } else {
+    exportAgsServices();
+  }
+});
 
 // Verwalten-Tab: Filter
 document.getElementById('manage-filter').addEventListener('input', function() {
@@ -2735,14 +2975,14 @@ function loadEditorKuerzelList(forceReload) {
   fetch(API_URL + '?action=staging-list-output')
     .then(function(r) { return r.json(); })
     .then(function(j) {
-      if (!j.success) return;
-      _editorKuerzelList = j.data.kuerzel || [];
+      if (j.success) _editorKuerzelList = j.data.kuerzel || [];
       _editorKuerzelLoaded = true;
       document.getElementById('editor-src-count').textContent = _editorKuerzelList.length;
       renderEditorSourceList();
     })
-    .catch(function(e) {
-      listEl.innerHTML = '<div class="editor-src-empty">Fehler: ' + e.message + '</div>';
+    .catch(function() {
+      _editorKuerzelLoaded = true;
+      renderEditorSourceList();
     });
 }
 
@@ -2769,7 +3009,6 @@ function renderEditorSourceList(filter) {
       else if (fname.match(/\.json$/i)) jsonCount++;
     });
 
-    // Gruppen-Kopf (klickbar)
     var cbChecked = _editorSelectedKuerzel[name] ? ' checked' : '';
     html += '<div class="editor-src-item' + active + collapsed + '" data-kuerzel="' + name + '">';
     html += '<input type="checkbox" class="src-cb" data-kuerzel="' + name + '"' + cbChecked + '>';
@@ -2782,7 +3021,6 @@ function renderEditorSourceList(filter) {
     html += '<span class="src-badge">' + files.length + '</span>';
     html += '</div>';
 
-    // Datei-Liste (aufklappbar)
     html += '<div class="editor-src-files">';
     files.forEach(function(f) {
       var fname = (typeof f === 'string') ? f : (f.name || f.file || '');
@@ -2803,7 +3041,7 @@ function renderEditorSourceList(filter) {
   listEl.innerHTML = html;
   document.getElementById('editor-src-count').textContent = count;
 
-  // Checkbox-Handler: Auswahl pflegen, Klick nicht weiterleiten
+  // Checkbox-Handler
   listEl.querySelectorAll('.src-cb').forEach(function(cb) {
     cb.addEventListener('click', function(e) { e.stopPropagation(); });
     cb.addEventListener('change', function(e) {
@@ -2819,7 +3057,7 @@ function renderEditorSourceList(filter) {
     item.addEventListener('click', function(e) {
       var kuerzel = item.dataset.kuerzel;
 
-      // Toggle collapse wenn dasselbe Kürzel geklickt wird
+      // Toggle collapse für aktives Item
       if (kuerzel === _editorActiveKuerzel) {
         item.classList.toggle('collapsed');
         return;
@@ -2832,7 +3070,9 @@ function renderEditorSourceList(filter) {
       });
       item.classList.add('active');
       item.classList.remove('collapsed');
+
       _editorActiveKuerzel = kuerzel;
+      updateUrlHash({ kuerzel: kuerzel });
       loadEditorKuerzel(kuerzel);
     });
   });
@@ -2847,10 +3087,10 @@ function formatFileSize(bytes) {
 
 /** Dateityp-Klasse bestimmen */
 function getFileTypeClass(fname) {
-  if (fname.match(/^layers_/i)) return { cls: 't-layers', label: 'LYR' };
+  if (fname.match(/^layers[_-]/i)) return { cls: 't-layers', label: 'LYR' };
   if (fname.match(/^lyrmgr/i)) return { cls: 't-lyrmgr', label: 'ALIAS' };
   if (fname.match(/^maptipsRes/i)) return { cls: 't-maptipsres', label: 'MTXT' };
-  if (fname.match(/^maptips_/i)) return { cls: 't-maptips', label: 'MTIP' };
+  if (fname.match(/^maptips[_-]/i)) return { cls: 't-maptips', label: 'MTIP' };
   if (fname.match(/^legend/i)) return { cls: 't-legend', label: 'LEG' };
   if (fname.match(/\.conf$/i)) return { cls: 't-layers', label: 'CONF' };
   if (fname.match(/\.json$/i)) return { cls: 't-lyrmgr', label: 'JSON' };
@@ -3943,9 +4183,96 @@ document.getElementById('export-confirm-overlay').addEventListener('click', func
 });
 
 // =====================================================================
+// URL-HASH NAVIGATION
+// =====================================================================
+
+/**
+ * URL-Hash lesen → Objekt { tab: '...', kuerzel: '...', source: '...' }
+ */
+function parseUrlHash() {
+  var hash = window.location.hash.replace(/^#/, '');
+  var params = {};
+  hash.split('&').forEach(function(part) {
+    var kv = part.split('=');
+    if (kv.length === 2 && kv[0] && kv[1]) {
+      params[decodeURIComponent(kv[0])] = decodeURIComponent(kv[1]);
+    }
+  });
+  return params;
+}
+
+/**
+ * URL-Hash aktualisieren (merge mit bestehendem State)
+ */
+function updateUrlHash(updates) {
+  var current = parseUrlHash();
+  for (var k in updates) {
+    if (updates[k] === null || updates[k] === undefined || updates[k] === '') {
+      delete current[k];
+    } else {
+      current[k] = updates[k];
+    }
+  }
+  // tab-fremde Keys bereinigen
+  if (current.tab !== 'editor') delete current.kuerzel;
+  if (current.tab !== 'import') delete current.source;
+  var parts = [];
+  for (var p in current) parts.push(encodeURIComponent(p) + '=' + encodeURIComponent(current[p]));
+  var newHash = parts.length > 0 ? '#' + parts.join('&') : '';
+  if (window.location.hash !== newHash) {
+    history.replaceState(null, '', newHash || window.location.pathname + window.location.search);
+  }
+}
+
+/**
+ * hashchange-Event: Wenn Benutzer URL ändert / Back-Button
+ */
+window.addEventListener('hashchange', function() {
+  var p = parseUrlHash();
+  var validTabs = ['import', 'manage', 'staging', 'editor', 'treebuilder'];
+  if (p.tab && validTabs.indexOf(p.tab) !== -1) {
+    switchTab(p.tab, true);
+    if (p.tab === 'editor' && p.kuerzel) {
+      loadEditorKuerzelList();
+      setTimeout(function() { loadEditorKuerzel(p.kuerzel); }, 300);
+    }
+    if (p.tab === 'import' && p.source) {
+      switchImportSource(p.source);
+    }
+  }
+});
+
+// =====================================================================
 // INITIALISIERUNG
 // =====================================================================
-loadAgsServices();
+(function initFromHash() {
+  var p = parseUrlHash();
+  var validTabs = ['import', 'manage', 'staging', 'editor', 'treebuilder'];
+  var startTab = (p.tab && validTabs.indexOf(p.tab) !== -1) ? p.tab : 'import';
+
+  if (startTab !== 'import') {
+    switchTab(startTab, true);
+  }
+
+  // Import-Quelle aus Hash
+  if (startTab === 'import' && p.source === 'core') {
+    loadAgsServices(); // AGS im Hintergrund laden
+    switchImportSource('core');
+  } else if (startTab === 'import') {
+    loadAgsServices();
+  }
+
+  // Editor: direkt Kürzel öffnen
+  if (startTab === 'editor' && p.kuerzel) {
+    // Warten bis Kürzel-Liste geladen, dann öffnen
+    var origRender = renderEditorSourceList;
+    renderEditorSourceList = function(filter) {
+      origRender(filter);
+      renderEditorSourceList = origRender; // Einmalig
+      loadEditorKuerzel(p.kuerzel);
+    };
+  }
+})();
 </script>
 </body>
 </html>

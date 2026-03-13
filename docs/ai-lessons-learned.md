@@ -12,6 +12,12 @@
 - **Fix**: `rotRad` in `template-pdf-export.js` um `options.rotation`-Fallback ergänzt: `(typeof options.rotation === 'number' && options.rotation !== 0) ? options.rotation * Math.PI / 180 : map.getView().getRotation()`.
 - **Guardrail**: Wenn Map-Rotation via CSS-Transform (nicht View) gelöst wird, muss `options.rotation` immer explizit in Radiant in `rotRad` einfliessen.
 
+## 2026-03-13 — Basemap-Wechsel: "Duplicate item added to a unique collection" beim Orthofoto
+- **Symptom**: Klick auf Orthofoto (swissimage) wirft `Uncaught Error: Duplicate item added to a unique collection` in OpenLayers Collection.setAt().
+- **Root-Cause**: Framework's `changeBaseMap()` ruft `mapObj.getLayers().setAt(0, basisMaps[id])` ohne zu prüfen, ob das Layer-Objekt bereits an Index 0 liegt. OpenLayers' `assertUnique_` wirft, wenn dasselbe Objekt schon in der Collection ist — auch am Ziel-Index.
+- **Fix**: Guard im `changeBaseMap`-Hook (tnet-basemap.js): Vor dem Framework-Aufruf prüfen ob `mapObj.getLayers().item(0) === basisMaps[actualBasemapId]`. Wenn ja, Framework-Aufruf überspringen, `onBasemapChange` aber trotzdem ausführen (für Zeitreise-Overlay).
+- **Guardrail**: Bei OpenLayers `Collection.setAt()` immer vorher prüfen, ob das Element schon in der Collection ist. Framework-Code kann diesen Check nicht, daher im Hook abfangen.
+
 ## 2026-03-10 — Kartenportal: ÖFFNEN-Button-Klick tut nichts bei bestimmten Karten (z.B. Gefahrenkarte OW)
 - **Symptom**: Klick auf "ÖFFNEN" bei Gefahrenkarte Obwalden hat keine Wirkung.
 - **Root-Cause**: `processExtractedLinks()` ersetzt WP-onclick (`setMapBookmark`) mit `TnetSetBookmark(bookmarkId)`, das einen API-Lookup macht. Die WP-Seite verwendet Bookmark-Namen (z.B. `ow_gefahrenkarte`), die nicht im Bookmark-API existieren (API kennt `ow_naturgefahren_pro`). `TnetSetBookmark` fängt den Fehler still ab → keine Aktion.

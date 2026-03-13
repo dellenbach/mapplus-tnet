@@ -128,6 +128,9 @@
             var basemapId = card.dataset.basemap;
             if (!basemapId) return;
 
+            // Bereits aktiv → nichts tun
+            if (card.classList.contains('active')) return;
+
             // Active-Klasse: Alle Cards deaktivieren, diese aktivieren
             document.querySelectorAll('.basemap-card').forEach(function(c) {
                 c.classList.remove('active');
@@ -877,7 +880,38 @@
                     }
 
                     TnetLog.log(LOG_PREFIX, 'changeBaseMap:', basemapId, '→ Framework:', actualBasemapId);
-                    var result = mapInstance._preTimeChangeBaseMap.call(mapInstance, actualBasemapId);
+
+                    // Guard: Duplikat-Fehler vermeiden — OpenLayers Collection.setAt() wirft
+                    // "Duplicate item added to a unique collection" wenn dasselbe Layer-Objekt
+                    // bereits irgendwo in der Collection ist (nicht nur an Position 0).
+                    var skipFramework = false;
+                    try {
+                        var layers = mapInstance.mapObj.getLayers();
+                        var targetLayer = mapInstance.basisMaps[actualBasemapId];
+                        if (targetLayer) {
+                            var currentAtZero = layers.item(0);
+                            if (currentAtZero === targetLayer) {
+                                // Bereits an Position 0 → Framework-Aufruf komplett unnötig
+                                TnetLog.log(LOG_PREFIX, 'Basemap-Layer bereits an Position 0, überspringe Framework-Aufruf');
+                                skipFramework = true;
+                            } else {
+                                // Layer an anderer Position? → erst entfernen, damit setAt(0) nicht kracht
+                                var arr = layers.getArray();
+                                for (var idx = 1; idx < arr.length; idx++) {
+                                    if (arr[idx] === targetLayer) {
+                                        layers.removeAt(idx);
+                                        TnetLog.warn(LOG_PREFIX, 'Basemap-Layer an Position', idx, 'entfernt (war deplatziert)');
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    } catch (e) { /* ignore */ }
+
+                    var result;
+                    if (!skipFramework) {
+                        result = mapInstance._preTimeChangeBaseMap.call(mapInstance, actualBasemapId);
+                    }
                     setTimeout(function() {
                         // Fix: Nach View-Ersatz Viewport stabilisieren
                         var map = mapInstance.mapObj;
