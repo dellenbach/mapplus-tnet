@@ -770,6 +770,7 @@ body {
   <span class="brand">🌐 AGS Import</span>
   <span class="sep"></span>
   <button id="ags-btn-refresh" title="Daten neu laden">↻ Aktualisieren</button>
+  <button id="ags-btn-cache-clear" title="Layermanager-Cache auf dem Server leeren">🗑 Cache leeren</button>
   <span class="spacer"></span>
   <a href="/maps/tnet/api/v1/tree-builder.html">← Tree-Builder</a>
   <span class="sep"></span>
@@ -2803,6 +2804,23 @@ document.getElementById('ags-btn-refresh').addEventListener('click', function() 
   }
 });
 
+// Cache-Leeren-Button
+document.getElementById('ags-btn-cache-clear').addEventListener('click', function() {
+  var btn = this;
+  btn.disabled = true;
+  btn.textContent = '⏳ Cache…';
+  fetch('/maps/tnet/api/v1/cache?action=clear', { method: 'POST' })
+    .then(function(r) { return r.json(); })
+    .then(function(j) {
+      btn.textContent = '✓ Cache geleert';
+      setTimeout(function() { btn.textContent = '🗑 Cache leeren'; btn.disabled = false; }, 2000);
+    })
+    .catch(function(e) {
+      btn.textContent = '✗ Fehler';
+      setTimeout(function() { btn.textContent = '🗑 Cache leeren'; btn.disabled = false; }, 2000);
+    });
+});
+
 // Import-Tab: Filter
 document.getElementById('import-filter').addEventListener('input', function() {
   var term = this.value.trim();
@@ -4069,7 +4087,7 @@ function openExportConfirmModal(dryData, unsavedCount, prependHtml) {
  * Cache leeren nach erfolgreichem Deploy
  */
 function clearCacheAfterDeploy(statusEl) {
-  fetch('/maps/tnet/api/v1/cache?action=clear')
+  fetch('/maps/tnet/api/v1/cache?action=clear', { method: 'POST' })
     .then(function(r) { return r.json(); })
     .then(function(j) {
       if (statusEl) statusEl.textContent = '✓ Deployment verifiziert — Cache geleert';
