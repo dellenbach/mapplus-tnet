@@ -1213,9 +1213,15 @@ function listImportToCore() {
             $fp = $kPath . '/' . $f;
             if (!is_file($fp)) continue;
             $fInfo = ['file' => $k . '/' . $f, 'name' => $f, 'size' => filesize($fp), 'modified' => date('Y-m-d H:i:s', filemtime($fp))];
-            // Prefix extrahieren (z.B. "layers" aus "layers_ewn.conf")
-            $underPos = strpos($f, '_');
-            $prefix = ($underPos !== false) ? substr($f, 0, $underPos) : pathinfo($f, PATHINFO_FILENAME);
+            // Prefix extrahieren (z.B. "layers" aus "layers_ewn.conf" oder "layers-GIS-oereb-wms_x.conf")
+            $knownPfx = ['layers', 'maptips', 'lyrmgrResources', 'maptipsResources', 'legendResources'];
+            $prefix = pathinfo($f, PATHINFO_FILENAME);
+            foreach ($knownPfx as $pfx) {
+                if (strpos($f, $pfx . '_') === 0 || strpos($f, $pfx . '-') === 0) {
+                    $prefix = $pfx;
+                    break;
+                }
+            }
             $fInfo['_prefix'] = $prefix;
 
             // JSON lesen und Top-Level-Keys indexieren
@@ -1405,12 +1411,22 @@ function stageServicesToImportToCore(array $serviceKeys, string $kuerzel, string
                 continue;
             }
 
-            // Bucket-Key = Prefix vor dem ersten Unterstrich (z.B. "layers", "maptips", "lyrmgrResources", "maptipsResources")
-            $underPos = strpos($fname, '_');
-            $prefix = ($underPos !== false) ? substr($fname, 0, $underPos) : pathinfo($fname, PATHINFO_FILENAME);
+            // Bucket-Key = Prefix (layers, maptips, lyrmgrResources, maptipsResources, legendResources)
+            // Unterstützt sowohl _ als auch - als Trenner (Core-Dateien nutzen -)
+            $knownPfx = ['layers', 'maptips', 'lyrmgrResources', 'maptipsResources', 'legendResources'];
+            $prefix = pathinfo($fname, PATHINFO_FILENAME); // Fallback
+            foreach ($knownPfx as $pfx) {
+                if (strpos($fname, $pfx . '_') === 0 || strpos($fname, $pfx . '-') === 0) {
+                    $prefix = $pfx;
+                    break;
+                }
+            }
+
+            // Prüfen ob Core-Datei (verwendet - statt _ als Separator)
+            $usesDash = (strpos($fname, $prefix . '-') === 0);
 
             if (!isset($buckets[$prefix])) {
-                $buckets[$prefix] = ['parts' => [], 'ext' => $ext];
+                $buckets[$prefix] = ['parts' => [], 'ext' => $ext, 'usesDash' => $usesDash];
             }
             $buckets[$prefix]['parts'][] = ['data' => $decoded, 'source' => $fname];
         }
@@ -1436,8 +1452,14 @@ function stageServicesToImportToCore(array $serviceKeys, string $kuerzel, string
     foreach ($buckets as $prefix => $bucket) {
         if (empty($bucket['parts'])) continue;
 
-        // Bei mode=merge: bestehende Output-Datei als Basis laden
-        $outName  = $prefix . '_' . $kuerzel . '.' . $bucket['ext'];
+        // Output-Dateiname bestimmen:
+        // Core-Dateien (mit -): Original-Name beibehalten (z.B. layers-GIS-oereb-wms.conf)
+        // AGS-Dateien (mit _): Standard-Merge-Name (z.B. layers_ewn.conf)
+        if (!empty($bucket['usesDash']) && count($bucket['parts']) === 1) {
+            $outName = $bucket['parts'][0]['source']; // Original-Name beibehalten
+        } else {
+            $outName = $prefix . '_' . $kuerzel . '.' . $bucket['ext'];
+        }
         $outPath  = $targetDir . '/' . $outName;
         $existingKeys = []; // Keys die schon in ImportToCore existieren
         if (($mode === 'merge' || $mode === 'preview') && is_file($outPath)) {
@@ -1563,8 +1585,14 @@ function stageServicesToImportToCore(array $serviceKeys, string $kuerzel, string
         foreach ($written as $wf) {
             $parts = explode('/', $wf['file']);
             $fname = end($parts);
-            $underPos = strpos($fname, '_');
-            $pfx = ($underPos !== false) ? substr($fname, 0, $underPos) : $fname;
+            $knownPfx2 = ['layers', 'maptips', 'lyrmgrResources', 'maptipsResources', 'legendResources'];
+            $pfx = $fname;
+            foreach ($knownPfx2 as $p) {
+                if (strpos($fname, $p . '_') === 0 || strpos($fname, $p . '-') === 0) {
+                    $pfx = $p;
+                    break;
+                }
+            }
             $manifest['buckets'][$pfx] = ['file' => $fname, 'totalKeys' => $wf['keys']];
         }
         @file_put_contents($manifestPath, json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));

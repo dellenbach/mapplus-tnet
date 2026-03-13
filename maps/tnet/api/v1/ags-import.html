@@ -2355,7 +2355,17 @@ function updateStagingSelCount() {
   var total   = document.querySelectorAll('#staging-svc-list input[type=checkbox]');
   document.getElementById('staging-sel-info').textContent = checked.length + ' / ' + total.length + ' ausgewählt';
   document.getElementById('staging-selcount').textContent = checked.length + ' Dienste ausgewählt';
-  var kuerzel = (document.getElementById('staging-kuerzel').value || '').trim();
+
+  // Auto-Fill Kürzel: Wenn genau 1 Dienst ausgewählt → Kürzel = Verzeichnisname
+  var kInput = document.getElementById('staging-kuerzel');
+  if (checked.length === 1) {
+    var svcName = checked[0].dataset.svc || '';
+    if (!kInput.value.trim()) {
+      kInput.value = svcName;
+    }
+  }
+
+  var kuerzel = (kInput.value || '').trim();
   document.getElementById('staging-btn-merge').disabled = (checked.length === 0 || kuerzel === '');
 }
 
@@ -3882,6 +3892,8 @@ function runMultiDeploy() {
         runBtn.textContent = 'Schliessen';
         runBtn.classList.add('btn-close');
         runBtn.disabled = false;
+        // Cache leeren
+        clearCacheAfterDeploy(statusEl);
       }
       return;
     }
@@ -4054,6 +4066,20 @@ function openExportConfirmModal(dryData, unsavedCount, prependHtml) {
 }
 
 /**
+ * Cache leeren nach erfolgreichem Deploy
+ */
+function clearCacheAfterDeploy(statusEl) {
+  fetch('/maps/tnet/api/v1/cache?action=clear')
+    .then(function(r) { return r.json(); })
+    .then(function(j) {
+      if (statusEl) statusEl.textContent = '✓ Deployment verifiziert — Cache geleert';
+    })
+    .catch(function() {
+      if (statusEl) statusEl.textContent = '✓ Deployment verifiziert — Cache-Fehler';
+    });
+}
+
+/**
  * Echtes Deploy nach Bestätigung ausführen
  */
 function runExportDeploy() {
@@ -4110,9 +4136,11 @@ function runExportDeploy() {
       runBtn.textContent = 'Schliessen';
       runBtn.classList.add('btn-close');
       runBtn.disabled = false;
-      statusEl.textContent = '✓ Deployment verifiziert';
+      statusEl.textContent = '✓ Deployment verifiziert — Cache leeren…';
       statusEl.className   = 'ecm-status-success';
       editorStatus(deployedCount + ' Datei(en) deployed ✓', 'success');
+      // Cache leeren nach erfolgreichem Deploy
+      clearCacheAfterDeploy(statusEl);
     })
     .catch(function() {
       runBtn.disabled    = false;
@@ -4123,6 +4151,7 @@ function runExportDeploy() {
       statusEl.textContent = '✓ Deployed — Verifikation fehlgeschlagen';
       statusEl.className   = 'ecm-status-success';
       editorStatus(deployedCount + ' Datei(en) deployed ✓', 'success');
+      clearCacheAfterDeploy(statusEl);
     });
   })
   .catch(function(e) {

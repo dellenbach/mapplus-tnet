@@ -79,12 +79,12 @@ ALLOWED_EXTENSIONS = {".conf", ".json"}
 # ===== HILFSFUNKTIONEN =====
 
 def get_prefix(filename):
-    """Ermittelt den Prefix einer Konfigurationsdatei (vor dem ersten Unterstrich)."""
-    # lyrmgrResources_ewn.json → lyrmgrResources
+    """Ermittelt den Prefix einer Konfigurationsdatei.
+    Unterstützt sowohl '_' als auch '-' als Separator (Core-Dateien nutzen '-')."""
     # layers_gis_basis.conf → layers
-    # Spezialfall: zusammengesetzte Prefixe wie lyrmgrResources
+    # lyrmgrResources-oereb-wms_oereb-wms.json → lyrmgrResources
     for prefix in PREFIX_ROUTING:
-        if filename.startswith(prefix + "_"):
+        if filename.startswith(prefix + "_") or filename.startswith(prefix + "-"):
             return prefix
     return None
 
