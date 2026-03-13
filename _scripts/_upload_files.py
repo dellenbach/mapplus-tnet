@@ -13,7 +13,9 @@ LOCAL_BASE = r"c:\_Daten\mapplus-exp\maps"
 
 # Files to upload
 FILES = [
-    "tnet/api/v1/layers.php",
+    "tnet/js/tnet-print.js",
+    "tnet/css/tnet-print.css",
+    "tnet/ol-pdf-printer/js/template-pdf-export.js",
 ]
 
 def upload_files():

@@ -2010,7 +2010,21 @@
         var checkExtentH = desiredRes * Math.round(baseVpH);
 
         // 6. Rotation + viewport
-        var rotRad = map.getView().getRotation() || 0;
+        // Desktop: Frame per CSS-Transform rotiert, OL-View bleibt bei 0°.
+        //   options.rotation (Grad) → Vorzeichen-Flip nötig, da OL setRotation(+θ)
+        //   Karteninhalt CW dreht (Screen-Top zeigt NW statt NE).
+        //   Konsistent mit drawNorthArrow(): var rad = (-rotationDeg) * π/180.
+        // Mobile: Benutzer dreht die OL-View direkt → map.getView().getRotation()
+        //   wird 1:1 übernommen (kein Vorzeichen-Flip).
+        var viewRot = map.getView().getRotation() || 0;
+        var rotRad;
+        if (typeof options.rotation === 'number' && options.rotation !== 0) {
+            // Desktop-Pfad: Grad → Radiant mit Vorzeichen-Flip
+            rotRad = -options.rotation * Math.PI / 180;
+        } else {
+            // Mobile-Pfad (oder rotation === 0): View-Rotation direkt übernehmen
+            rotRad = viewRot;
+        }
         var absC = Math.abs(Math.cos(rotRad));
         var absS = Math.abs(Math.sin(rotRad));
         var rotBuffer = Math.abs(rotRad) > 0.001 ? 1.15 : 1.0;

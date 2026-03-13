@@ -287,6 +287,8 @@
   position: relative; box-sizing: content-box;
   transform-origin: center center;
   overflow: visible;
+  cursor: move;
+  user-select: none;
 }
 
 /* SVG-Template-Vorschau im Druckrahmen */
@@ -295,4 +297,40 @@
   pointer-events: none;
   user-select: none;
   -webkit-user-select: none;
+}
+
+/* ==============================
+   Ecken-Handles (Drehen) + Mittelpunkt
+   ============================== */
+.print-corner-handle {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  background: #cc0000;
+  border: 2px solid #ffffff;
+  border-radius: 50%;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.5);
+  z-index: 10;
+  touch-action: none;
+}
+/* Cursor gibt Dreh-Richtungshinweis */
+.print-corner-nw { top: -7px; left: -7px;   cursor: crosshair; }
+.print-corner-ne { top: -7px; right: -7px;  cursor: crosshair; }
+.print-corner-sw { bottom: -7px; left: -7px;  cursor: crosshair; }
+.print-corner-se { bottom: -7px; right: -7px; cursor: crosshair; }
+
+/* Mittelpunkt-Marker (nur visuell) */
+.print-center-dot {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  background: #cc0000;
+  border: 2px solid #ffffff;
+  border-radius: 50%;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.5);
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 10;
 }

@@ -47,6 +47,12 @@
   var _isPrintPanelDocked = true;  // Default: angedockt
   var _savedPrintDockedWidth = 380;
   var _printResizeObserver = null;
+  var _printCenter = null;           // Druckrahmen-Mittelpunkt in Kartenkoordinaten (unabhängig vom View-Center)
+  var _frameRotation = 0;            // Rahmen-Rotation in Radiant (unabhängig von Kartenrotation)
+  var _savedInteractions = [];       // Deaktivierte OL-Interaktionen (nach Schliessen wiederhergestellt)
+  var _savedPickingStates = {};      // Gespeicherter Picking-Zustand pro Map-ID
+  var _frameDrag = null;             // Aktiver Drag-State: {type:'move'|'rotate', ...}
+  var _frameDragHandlers = null;     // Document-Event-Handler-Referenzen für Cleanup
 
   // ================================================================
   //  Library-Loader — lädt UMD-Scripts per fetch+eval,
@@ -255,7 +261,7 @@
 
           // Hinweis
           '<div class="print-section print-hint-box">' +
-            'Karte verschieben/zoomen, um den Druckbereich anzupassen. Der Rahmen zeigt den exportierten Ausschnitt.' +
+            'Rahmen verschieben: auf den Rahmen klicken und ziehen. Drehen: an einer Ecke ziehen. Zoomen: Mausrad.' +
           '</div>' +
 
           // Drucken-Button
@@ -356,14 +362,32 @@
     _svgPreviewImg.draggable = false;
     _frameEl.appendChild(_svgPreviewImg);
 
+    // Ecken-Handles (Drehen) + Mittelpunkt-Marker — nur auf Desktop
+    if (!_isMobile) {
+      ['nw', 'ne', 'sw', 'se'].forEach(function (corner) {
+        var h = document.createElement('div');
+        h.className = 'print-corner-handle print-corner-' + corner;
+        h.setAttribute('data-corner', corner);
+        _frameEl.appendChild(h);
+      });
+      var centerDot = document.createElement('div');
+      centerDot.className = 'print-center-dot';
+      _frameEl.appendChild(centerDot);
+    }
+
     _frameOverlay = new ol.Overlay({
       element: _frameEl,
       positioning: 'center-center',
-      position: map.getView().getCenter(),
-      stopEvent: false,
+      position: _printCenter,
+      stopEvent: true,
       className: 'print-frame-overlay-container'
     });
     map.addOverlay(_frameOverlay);
+
+    // Drag/Rotate-Interaktion — nur auf Desktop
+    if (!_isMobile) {
+      initFrameInteraction(map);
+    }
 
     // Initiale Grösse und Position berechnen
     updateFrameSize();
@@ -376,6 +400,14 @@
   }
 
   function _onViewChange() {
+    // Mobile: Frame folgt der Kartenmitte (Benutzer verschiebt die Karte, nicht den Rahmen)
+    if (_isMobile) {
+      var m = getMap();
+      if (m) {
+        _printCenter = m.getView().getCenter().slice();
+        if (_frameOverlay) _frameOverlay.setPosition(_printCenter);
+      }
+    }
     updateFrameSize();
   }
 
@@ -417,9 +449,9 @@
     // Kein CSS-Rotate: Rahmen bleibt immer achsparallel zum Browserfenster.
     // Die Karte wird gedreht, nicht der Rahmen.
 
-    // Overlay-Position = View-Center
+    // Overlay-Position = _printCenter (unabhängig vom View-Center)
     if (_frameOverlay) {
-      _frameOverlay.setPosition(center);
+      _frameOverlay.setPosition(_printCenter || center);
     }
 
     // ── SVG-Vorschau positionieren ──
@@ -446,6 +478,15 @@
   }
 
   function removePrintFrame() {
+    // Drag-Handler entfernen
+    if (_frameDragHandlers) {
+      document.removeEventListener('mousemove', _frameDragHandlers.move);
+      document.removeEventListener('mouseup', _frameDragHandlers.up);
+      _frameDragHandlers = null;
+    }
+    _frameDrag = null;
+    document.body.style.cursor = '';
+
     if (_frameOverlay && _map) {
       _map.removeOverlay(_frameOverlay);
       _map.getView().un('change:center', _onViewChange);
@@ -455,6 +496,93 @@
     _frameOverlay = null;
     _frameEl = null;
     _svgPreviewImg = null;
+  }
+
+  // ================================================================
+  //  Rahmen-Drag (Verschieben) + Ecken-Drag (Drehen)
+  // ================================================================
+  function initFrameInteraction(map) {
+    // ── Verschieben: Mousedown auf Frame (nicht Ecke) ──
+    function onFrameMouseDown(e) {
+      if (e.target.classList.contains('print-corner-handle')) return;
+      var res = map.getView().getResolution();
+      var rot = map.getView().getRotation();
+      _frameDrag = {
+        type:        'move',
+        startPx:     [e.clientX, e.clientY],
+        startCenter: _printCenter.slice(),
+        res:         res,
+        cosR:        Math.cos(rot),
+        sinR:        Math.sin(rot)
+      };
+      document.body.style.cursor = 'grabbing';
+      e.preventDefault();
+      e.stopPropagation();
+    }
+
+    // ── Drehen: Mousedown auf Ecken-Handle ──
+    var corners = _frameEl.querySelectorAll('.print-corner-handle');
+    corners.forEach(function (corner) {
+      corner.addEventListener('mousedown', function (e) {
+        // mapRect + centerPx einmalig beim Drag-Start lesen – kein Reflow im mousemove
+        var mapRect  = map.getTargetElement().getBoundingClientRect();
+        var centerPx = map.getPixelFromCoordinate(_printCenter);
+        var dx = e.clientX - mapRect.left - centerPx[0];
+        var dy = e.clientY - mapRect.top  - centerPx[1];
+        _frameDrag = {
+          type:               'rotate',
+          startAngle:         Math.atan2(dy, dx),
+          startFrameRotation: _frameRotation,
+          mapLeft:            mapRect.left,   // gecacht – kein Reflow während Drag
+          mapTop:             mapRect.top,
+          centerPx:           centerPx        // gecacht – kein getPixelFromCoordinate während Drag
+        };
+        document.body.style.cursor = 'crosshair';
+        e.preventDefault();
+        e.stopPropagation();
+      });
+    });
+
+    // ── Document-Level Move/Up ──
+    function onDocMouseMove(e) {
+      if (!_frameDrag) return;
+
+      if (_frameDrag.type === 'move') {
+        // Auflösung + Rotation wurden beim mousedown gecacht → kein DOM-Zugriff hier
+        var dpx = e.clientX - _frameDrag.startPx[0];
+        var dpy = e.clientY - _frameDrag.startPx[1];
+        var res = _frameDrag.res;
+        var cosR = _frameDrag.cosR;
+        var sinR = _frameDrag.sinR;
+        // Screen-Delta → Map-Delta (korrekt auch bei rotierter Karte)
+        _printCenter[0] = _frameDrag.startCenter[0] + (dpx * cosR - dpy * sinR) * res;
+        _printCenter[1] = _frameDrag.startCenter[1] + (dpx * sinR + dpy * cosR) * (-res);
+        _frameOverlay.setPosition(_printCenter.slice());
+
+      } else if (_frameDrag.type === 'rotate') {
+        // mapLeft/mapTop + centerPx wurden beim mousedown gecacht → kein DOM-Zugriff hier
+        var dx = e.clientX - _frameDrag.mapLeft - _frameDrag.centerPx[0];
+        var dy = e.clientY - _frameDrag.mapTop  - _frameDrag.centerPx[1];
+        var currentAngle = Math.atan2(dy, dx);
+        var angleDiff    = currentAngle - _frameDrag.startAngle;
+        _frameRotation = _frameDrag.startFrameRotation + angleDiff;
+        applyFrameRotation();
+        refreshSvgPreviewValues();
+      }
+    }
+
+    function onDocMouseUp() {
+      if (!_frameDrag) return;
+      _frameDrag = null;
+      document.body.style.cursor = '';
+    }
+
+    _frameEl.addEventListener('mousedown', onFrameMouseDown);
+    document.addEventListener('mousemove', onDocMouseMove);
+    document.addEventListener('mouseup',   onDocMouseUp);
+
+    // Referenzen für Cleanup in removePrintFrame()
+    _frameDragHandlers = { move: onDocMouseMove, up: onDocMouseUp };
   }
 
   // ================================================================
@@ -857,10 +985,24 @@
   // ================================================================
   //  Rotation
   // ================================================================
+
+  /** CSS-Transform auf Rahmen anwenden und UI synchronisieren. */
+  function applyFrameRotation() {
+    if (_frameEl) {
+      _frameEl.style.transform = 'rotate(' + (_frameRotation * 180 / Math.PI).toFixed(2) + 'deg)';
+    }
+    syncRotationUI();
+  }
+
   function syncRotationUI() {
-    var map = getMap();
-    if (!map) return;
-    var deg = Math.round(map.getView().getRotation() * 180 / Math.PI);
+    var deg;
+    if (_isMobile) {
+      // Mobile: Rotation aus der Karten-View lesen
+      var m = getMap();
+      deg = m ? Math.round(m.getView().getRotation() * 180 / Math.PI) : 0;
+    } else {
+      deg = Math.round(_frameRotation * 180 / Math.PI);
+    }
     var el = document.getElementById('print-rotation');
     if (el) el.value = deg;
     var lbl = document.getElementById('print-rotation-val');
@@ -868,17 +1010,15 @@
   }
 
   window.printRotateBy = function (deg) {
-    var map = getMap();
-    if (!map) return;
-    map.getView().adjustRotation(deg * Math.PI / 180);
-    syncRotationUI();
+    _frameRotation += deg * Math.PI / 180;
+    applyFrameRotation();
+    refreshSvgPreviewValues();
   };
 
   window.printResetRotation = function () {
-    var map = getMap();
-    if (!map) return;
-    map.getView().setRotation(0);
-    syncRotationUI();
+    _frameRotation = 0;
+    applyFrameRotation();
+    refreshSvgPreviewValues();
   };
 
   // ================================================================
@@ -888,6 +1028,70 @@
     var el = document.getElementById('print-scale');
     if (el) el.value = val;
   };
+
+  // ================================================================
+  //  Karten-Interaktionen deaktivieren (während Druck-Panel aktiv)
+  // ================================================================
+
+  function disableMapInteractions() {
+    _savedInteractions = [];
+    _savedPickingStates = {};
+    var map = getMap();
+    if (map) {
+      // Mobile: Pan-Interaktionen bleiben aktiv (Benutzer schiebt Karte unter Rahmen)
+      if (!_isMobile) {
+        map.getInteractions().getArray().slice().forEach(function (interaction) {
+          var cname = (interaction.constructor && interaction.constructor.name) || '';
+          if ((cname === 'DragPan' || cname === 'KeyboardPan') && interaction.getActive()) {
+            _savedInteractions.push(interaction);
+            interaction.setActive(false);
+          }
+        });
+      }
+    }
+    // Maptip-Picking deaktivieren + Info-Bridge Gate setzen
+    try {
+      var am = window.njs && njs.AppManager;
+      var maps = am && am.Maps;
+      if (maps) {
+        for (var id in maps) {
+          if (maps[id] && maps[id].picking !== undefined) {
+            _savedPickingStates[id] = maps[id].picking;
+            maps[id].picking = false;
+          }
+        }
+      }
+      // Info-Bridge Gate: blockiert singleclick-Objektabfragen
+      if (am && am.MapTips) {
+        if (!am.MapTips['_disablewmsgetfeatureinfo']) {
+          am.MapTips['_disablewmsgetfeatureinfo'] = {};
+        }
+        am.MapTips['_disablewmsgetfeatureinfo']['main'] = true;
+      }
+    } catch (e) { /* noop */ }
+  }
+
+  function restoreMapInteractions() {
+    _savedInteractions.forEach(function (i) { i.setActive(true); });
+    _savedInteractions = [];
+    // Picking wiederherstellen + Info-Bridge Gate zurücksetzen
+    try {
+      var am = window.njs && njs.AppManager;
+      var maps = am && am.Maps;
+      if (maps) {
+        for (var id in maps) {
+          if (maps[id] && _savedPickingStates[id] !== undefined) {
+            maps[id].picking = _savedPickingStates[id];
+          }
+        }
+      }
+      // Info-Bridge Gate zurücksetzen
+      if (am && am.MapTips && am.MapTips['_disablewmsgetfeatureinfo']) {
+        am.MapTips['_disablewmsgetfeatureinfo']['main'] = false;
+      }
+    } catch (e) { /* noop */ }
+    _savedPickingStates = {};
+  }
 
   // ================================================================
   //  Zoom anpassen für Druckrahmen
@@ -945,6 +1149,28 @@
     setTimeout(updateFrameSize, 350);
   }
 
+  /**
+   * Mobile: Setzt den Kartenmassstab eine Stufe kleiner als den Druckmassstab,
+   * damit der Druckrahmen vollständig im Viewport sichtbar bleibt.
+   * Kleinerer Kartenmassstab = grössere Massstabszahl = weiter herausgezoomt.
+   */
+  function adjustMapZoomMobile(printScale) {
+    var map = getMap();
+    if (!map) return;
+    var mpu = map.getView().getProjection().getMetersPerUnit() || 1;
+    var sortedAsc = _scales.slice().sort(function (a, b) { return a - b; });
+    // Nächst grössere Massstabszahl (= kleinerer Massstab) suchen
+    var mapScale = null;
+    for (var i = 0; i < sortedAsc.length; i++) {
+      if (sortedAsc[i] > printScale) { mapScale = sortedAsc[i]; break; }
+    }
+    if (mapScale === null) mapScale = sortedAsc[sortedAsc.length - 1];
+    var newRes = mapScale * 0.00028 / mpu;
+    map.getView().animate({ resolution: newRes, duration: 300 });
+    setTimeout(updateFrameSize, 350);
+    TnetLog.log('[Drucken Mobile] Kartenmassstab 1:' + mapScale + ' (Druckmassstab 1:' + printScale + ')');
+  }
+
   // ================================================================
   //  Panel öffnen / schliessen
   // ================================================================
@@ -957,16 +1183,23 @@
 
     // Libraries bei Bedarf laden, dann Layouts holen
     var doOpen = function () {
+      _frameRotation = 0;  // Rotation bei jedem Öffnen zurücksetzen
       loadLayouts();
       // Aktuellen Massstab im Dropdown auf nächsten Wert setzen
       var map = getMap();
       if (map) {
         var mpu = map.getView().getProjection().getMetersPerUnit() || 1;
         var currentScale = Math.round(map.getView().getResolution() * mpu / 0.00028);
-        var closest = _scales.reduce(function (prev, curr) {
-          return Math.abs(curr - currentScale) < Math.abs(prev - currentScale) ? curr : prev;
-        });
-        document.getElementById('print-scale').value = closest;
+        // Nächst grösserer Massstab = nächst kleinere Zahl (mehr Detail).
+        // Suche den grössten _scales-Wert der < currentScale ist.
+        // Falls keiner existiert (Karte bereits am detailliertesten), kleinsten nehmen.
+        var sortedAsc = _scales.slice().sort(function (a, b) { return a - b; });
+        var nextLarger = null;
+        for (var si = sortedAsc.length - 1; si >= 0; si--) {
+          if (sortedAsc[si] < currentScale) { nextLarger = sortedAsc[si]; break; }
+        }
+        if (nextLarger === null) nextLarger = sortedAsc[0];
+        document.getElementById('print-scale').value = nextLarger;
       }
       syncRotationUI();
       document.getElementById('print-panel').classList.remove('hidden');
@@ -974,6 +1207,9 @@
       if (_isPrintPanelDocked) {
         dockPrintPanel();
       }
+      // Druckrahmen-Center initialisieren: immer aktuelle Kartenmitte beim Öffnen
+      _printCenter = map.getView().getCenter().slice();
+      disableMapInteractions();
       showPrintFrame();
       // Benutzer-Feld vorausfüllen (aus Login)
       var userInput = document.getElementById('print-user');
@@ -989,6 +1225,10 @@
       // und Viewport-Dimensionen stimmen erst danach.
       if (!_isMobile) {
         setTimeout(function () { adjustZoomForPrintFrame(); }, 450);
+      } else {
+        // Mobile: Kartenmassstab eine Stufe kleiner setzen damit Rahmen sichtbar bleibt
+        var printScaleVal = parseInt(document.getElementById('print-scale').value) || 10000;
+        setTimeout(function () { adjustMapZoomMobile(printScaleVal); }, 450);
       }
     };
 
@@ -1006,8 +1246,7 @@
     var panel = document.getElementById('print-panel');
     if (panel) panel.classList.add('hidden');
     removePrintFrame();
-    var map = getMap();
-    if (map) map.getView().setRotation(0);
+    restoreMapInteractions();
     // Falls angedockt: mapContainer zurücksetzen
     if (_isPrintPanelDocked) {
       var mapContainer = document.getElementById('mapContainer');
@@ -1037,7 +1276,10 @@
     var koordinatennetz = gridEl ? gridEl.checked : false;
     var netzfarbeEl    = document.querySelector('input[name="print-gridcolor"]:checked');
     var netzfarbe      = netzfarbeEl ? netzfarbeEl.value : 'schwarz';
-    var rotation       = parseInt(document.getElementById('print-rotation').value) || 0;
+    // Mobile: Rotation aus der Karten-View; Desktop: aus _frameRotation (CSS-Frame-Rotation)
+    var rotation = _isMobile
+      ? Math.round(map.getView().getRotation() * 180 / Math.PI)
+      : Math.round(_frameRotation * 180 / Math.PI);
     var serverRenderEl  = document.getElementById('print-server-render');
     var serverRender    = serverRenderEl ? serverRenderEl.checked : false;
     var svgFormatEl     = document.getElementById('print-svg-format');
@@ -1060,7 +1302,7 @@
 
     // ─ Neuer Job ─
     var jobId = ++_jobIdCounter;
-    var printCenter = map.getView().getCenter().slice();
+    var printCenter = _printCenter ? _printCenter.slice() : map.getView().getCenter().slice();
     var job = {
       id: jobId,
       status: 'pending',  // pending, processing, completed, failed
@@ -1614,12 +1856,16 @@
       loadSvgPreview();
     });
 
-    // Massstab-Wechsel → Rahmen anpassen
+    // Massstab-Wechsel → Rahmen anpassen + Mobile: Kartenzoom nachführen
     var scaleSel = document.getElementById('print-scale');
-    if (scaleSel) scaleSel.addEventListener('change', updateFrameSize);
-
-    // ── Live-Aktualisierung der SVG-Vorschau bei Formularänderungen ──
-    if (scaleSel) scaleSel.addEventListener('change', refreshSvgPreviewValues);
+    if (scaleSel) scaleSel.addEventListener('change', function () {
+      updateFrameSize();
+      refreshSvgPreviewValues();
+      if (_isMobile) {
+        var ps = parseInt(scaleSel.value) || 10000;
+        adjustMapZoomMobile(ps);
+      }
+    });
     var titleInput = document.getElementById('print-title');
     if (titleInput) titleInput.addEventListener('input', refreshSvgPreviewValues);
     var userInputEl = document.getElementById('print-user');
@@ -1647,9 +1893,8 @@
     var rotSlider = document.getElementById('print-rotation');
     if (rotSlider) rotSlider.addEventListener('input', function () {
       var deg = parseInt(rotSlider.value);
-      document.getElementById('print-rotation-val').textContent = deg + '\u00b0';
-      var map = getMap();
-      if (map) map.getView().setRotation(deg * Math.PI / 180);
+      _frameRotation = deg * Math.PI / 180;
+      applyFrameRotation();
       refreshSvgPreviewValues();
     });
 
