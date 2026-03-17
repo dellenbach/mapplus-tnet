@@ -772,3 +772,35 @@
 - **Root-Cause**: PHP-Default-Array hatte `'autoLogin' => true`. Wenn JSON5-Parse fehlschlägt (oder bis der Parse-Status unbekannt war), blieb der Fallback `true` → PHP injizierte `window.__TNET_PROXY_AUTO_LOGIN = true` trotz Config-Einstellung.
 - **Fix**: PHP-Default auf `'autoLogin' => false` geändert (sicherer Fallback). Zusätzlich `window.__TNET_PROXY_CONFIG_STATUS` als JS-Variable injiziert (`'ok'`, `'default'` oder `'parse-failed:...'`) damit der Parse-Zustand im iframe-Kontext der Browser-Konsole sichtbar ist.
 - **Guardrail**: PHP-Defaults für Sicherheits-/Verhaltensflags immer auf den restriktiveren Wert setzen (`false`). Parse-Fehler nie stillschweigend durch `true`-Fallbacks maskieren.
+
+---
+
+### Kontextmenü im Treebuilder (2025-06-20)
+
+- **Symptom**: `+ Subkategorie`-Button war zu limitiert — kein Einfügen vor/nach Knoten, keine Untergruppen, keine Properties-Bearbeitung
+- **Root-Cause**: Bestehende Buttons konnten nur ans Ende der letzten Kategorie hinzufügen, keine positionsgenaue Einfügung
+- **Fix**: Rechtsklick-Kontextmenü auf allen Baum-Knoten (Kat/Sub/Untergruppe/Item) mit Insert before/after, Properties-Dialog (legend, selectAll, drawtype, icon, open etc.), Löschen, In-Zwischenablage-Kopieren. `getItemByPath()` navigiert über verschachtelte Item-Arrays per Pfad-Array. Properties-Dialog mit dynamischem Formular je Knotentyp.
+- **Guardrail**: Kontextmenü-Handler via Event-Delegation auf `#tb-tree-body`, `.closest()` von innen nach aussen prüfen (Item → Subgrp → Sub → Cat → Lyrmgr).
+
+### Grosses Refactoring: Subkategorien → Gruppenlayer (2025-01-XX)
+- **Symptom**: Subkategorien waren nicht verschachtbar, umständlich, nicht 1:1 kompatibel mit lyrmgr.conf Layergruppen
+- **Root-Cause**: Internes Datenmodell `categories[].subcategories[].items[]` erzwang flache 1-Ebene-Hierarchie
+- **Fix**: Komplettes Refactoring auf `categories[].items[]` (rekursiv verschachtbar). Betroffene Bereiche:
+  - Core-Modell: `convertLyrmgrStructure`, `generateLyrmgrConfBlock`, `collectAllStagingIds`, `deriveGroupsFromLyrmgrs`
+  - Rendering: Neues `renderTreeItem()` mit path-basierter Adressierung
+  - CSS: `.tb-tree-sub*` / `.tb-tree-subgrp*` → `.tb-tree-group*`
+  - D&D: Vereinheitlicht auf `.tb-tree-item, .tb-tree-group` Selektoren
+  - Kontextmenü: `showSubCtxMenu` + `showSubgrpCtxMenu` → `showGroupCtxMenu`
+  - Properties-Dialog: `type === 'sub'` + `'subgrp'` → `type === 'group'`
+  - Clipboard: Gesamte Zwischenablage auf `cat.items[]` umgestellt
+  - Preview-Click-Handler: Alle `data-clip-sub` / `data-sub-idx` entfernt
+  - Export-Preview: `buildExportPreviewHtml` direkt auf `cat.items` lesen
+  - Legacy-Import `importFromAPI`: Erzeugt jetzt Gruppenlayer-Objekte statt subcategories
+- **Guardrail**: `getItemByPath()` für Lese-Zugriff, `getItemRefByPath()` für Mutations-Zugriff (liefert `{parent, index, item}`). Nie direkt `subcategories` indexieren.
+
+## 2026-03-17 — legend-proxy.php: Überzählige `}` nach JSON-MISS-Pfad → HTTP 500
+
+- **Symptom**: Nach Performance-Refactoring (gzip/ETag/sendCachedFile) liefert legend-proxy.php HTTP 500 — Body leer, kein PHP-Fehlertext sichtbar.
+- **Root-Cause**: Beim Ersetzen des JSON-MISS-Ausgabepfads (`jsonResponse()` → `sendCachedFile()`) blieb eine überzählige `}` stehen, die den ursprünglichen `if/else`-Block geschlossen hatte. PHP-Syntaxfehler → 500 mit leerem Body.
+- **Fix**: Überflüssige `}` direkt nach `sendCachedFile($cacheFile, 'application/json', ...)` entfernt.
+- **Guardrail**: Nach jedem PHP-Strukturrefactoring lokal `php -l datei.php` ausführen. Leerer 500-Body = PHP-Syntaxfehler (nicht Runtime). Auf ungematchte Klammern unterhalb von `exit`-Aufrufen achten.

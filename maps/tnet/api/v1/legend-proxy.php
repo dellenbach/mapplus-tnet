@@ -91,8 +91,17 @@ $CACHE_TTL    = 86400;   // 24 Stunden in Sekunden
 $LOG_FILE     = '/data/Client_Data/nwow/tmp/legend-proxy.log';
 $DEFAULT_WIDTH  = 16;
 $DEFAULT_HEIGHT = 10;
-$DEFAULT_DPI    = 288;    // 3× DPI: kräftige Linien/Punkte
+$DEFAULT_DPI    = 192;    // 2× DPI: kräftige Linien/Punkte, kleinere Payload als 288
 $DEFAULT_ZOOM   = 3;      // 3× CSS-Vergrösserung → Anzeige 48×30px
+
+// ArcGIS Direkt-Anbindung (Token-Cache geteilt mit agsproxy.php, kein HTTP-Roundtrip)
+$AGS_BASE        = getenv('GIS_REST_ROOT')  ?: 'https://www.gis-daten.ch/svc/rest/services/';
+$AGS_TOKEN_URL   = getenv('GIS_TOKEN_URL')  ?: 'https://www.gis-daten.ch/svc/tokens/';
+$AGS_TOKEN_USER  = getenv('GIS_TOKEN_USER') ?: 'mapplus-imp';
+$AGS_TOKEN_PASS  = getenv('GIS_TOKEN_PASS') ?: 'mapplus-imp6370';
+// Token-Cache 3 Ebenen nach oben: tnet/api/v1/ → maps/ (gleiche Datei wie agsproxy.php)
+$AGS_TOKEN_CACHE = dirname(__DIR__, 3) . '/_token_cache/arcgis_token.json';
+$AGS_TOKEN_SKEW  = 60;  // Safety-Skew in Sekunden
 
 // ===== CORS & HEADERS =====
 
@@ -102,6 +111,79 @@ header('Access-Control-Allow-Methods: GET, OPTIONS');
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(204);
     exit;
+}
+
+// ===== CACHE-INDEX AKTUALISIEREN =====
+
+/**
+ * Trägt eine neue Cache-Datei in den Service-Index ein.
+ * Index-Format: { "md5hash.ext": "service/pfad" }
+ */
+function updateCacheIndex($cacheDir, $basename, $service) {
+    $indexFile = $cacheDir . '/_index.json';
+    $index = [];
+    if (file_exists($indexFile)) {
+        $raw = file_get_contents($indexFile);
+        if ($raw !== false) {
+            $index = json_decode($raw, true) ?: [];
+        }
+    }
+    $index[$basename] = $service;
+    @file_put_contents($indexFile, json_encode($index, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES), LOCK_EX);
+}
+
+// ===== ACTION-HANDLER (Cache-Verwaltung) =====
+
+if (isset($_GET['action'])) {
+    $action    = trim($_GET['action']);
+    $svcFilter = isset($_GET['service']) ? trim($_GET['service']) : '';
+
+    if ($action === 'clear-cache') {
+        $indexFile = $CACHE_DIR . '/_index.json';
+        $deleted   = 0;
+        $errors    = 0;
+
+        if (!is_dir($CACHE_DIR)) {
+            jsonResponse(['success' => true, 'deleted' => 0, 'message' => 'Cache-Verzeichnis existiert nicht.']);
+        }
+
+        // Index laden
+        $index = [];
+        if (file_exists($indexFile)) {
+            $raw = file_get_contents($indexFile);
+            $index = $raw ? (json_decode($raw, true) ?: []) : [];
+        }
+
+        // Alle Cache-Dateien ermitteln
+        $files = glob($CACHE_DIR . '/*.{html,json}', GLOB_BRACE) ?: [];
+
+        foreach ($files as $file) {
+            $basename = basename($file);
+            // Service-Filter: nur passende Dateien löschen
+            if ($svcFilter !== '') {
+                $svc = $index[$basename] ?? null;
+                if ($svc === null || strcasecmp($svc, $svcFilter) !== 0) {
+                    continue;
+                }
+            }
+            if (@unlink($file)) {
+                unset($index[$basename]);
+                $deleted++;
+            } else {
+                $errors++;
+            }
+        }
+
+        // Index neu schreiben
+        @file_put_contents($indexFile, json_encode($index, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES), LOCK_EX);
+
+        $msg = $svcFilter !== ''
+            ? "Cache f\u00fcr Service '$svcFilter' geleert."
+            : 'Gesamter Legenden-Cache geleert.';
+        jsonResponse(['success' => true, 'deleted' => $deleted, 'errors' => $errors, 'message' => $msg]);
+    }
+
+    jsonResponse(['success' => false, 'error' => "Unbekannte Action: $action"], 400);
 }
 
 // ===== HILFSFUNKTIONEN =====
@@ -135,6 +217,52 @@ function htmlResponse($html, $code = 200) {
 }
 
 /**
+ * Sendet gecachten Inhalt mit gzip-Komprimierung, ETag und Browser-Cache-Headern.
+ * Bei If-None-Match-Treffer: 304 Not Modified (kein Body).
+ *
+ * @param string $file    Absoluter Pfad zur Cache-Datei
+ * @param string $ctype   Content-Type
+ * @param int    $ttl     Cache-TTL in Sekunden
+ * @param string $xCache  Wert für X-Legend-Cache Header
+ */
+function sendCachedFile($file, $ctype, $ttl, $xCache) {
+    $content = file_get_contents($file);
+    $etag    = '"' . md5($content) . '"';
+    $mtime   = filemtime($file);
+
+    // Browser-Cache-Header
+    header('Cache-Control: public, max-age=' . $ttl);
+    header('Last-Modified: ' . gmdate('D, d M Y H:i:s', $mtime) . ' GMT');
+    header('ETag: ' . $etag);
+    header('X-Legend-Cache: ' . $xCache);
+
+    // 304 Not Modified wenn ETag übereinstimmt
+    $ifNoneMatch = $_SERVER['HTTP_IF_NONE_MATCH'] ?? '';
+    if ($ifNoneMatch === $etag) {
+        http_response_code(304);
+        exit;
+    }
+
+    header('Content-Type: ' . $ctype . '; charset=utf-8');
+
+    // gzip-Komprimierung wenn Browser unterstützt
+    $acceptEnc = $_SERVER['HTTP_ACCEPT_ENCODING'] ?? '';
+    if (strpos($acceptEnc, 'gzip') !== false) {
+        $gz = gzencode($content, 6);
+        if ($gz !== false) {
+            header('Content-Encoding: gzip');
+            header('Content-Length: ' . strlen($gz));
+            echo $gz;
+            exit;
+        }
+    }
+
+    header('Content-Length: ' . strlen($content));
+    echo $content;
+    exit;
+}
+
+/**
  * Sendet eine Fehler-Antwort im gewünschten Format.
  */
 function errorResponse($msg, $code = 400, $format = 'html') {
@@ -145,6 +273,92 @@ function errorResponse($msg, $code = 400, $format = 'html') {
     $html .= '<body style="font-family:\'Segoe UI\',sans-serif;padding:20px;">';
     $html .= '<p style="color:#c00;font-size:14px;">&#9888; ' . htmlspecialchars($msg) . '</p></body></html>';
     htmlResponse($html, $code);
+}
+
+// ===== ArcGIS DIREKT-ZUGRIFF HILFSFUNKTIONEN =====
+
+/**
+ * Liest den gecachten ArcGIS-Token (aus agsproxy-Cache) oder holt einen neuen.
+ * Schreibt neuen Token in dieselbe Cache-Datei wie agsproxy.php.
+ */
+function agsGetToken($tokenUrl, $user, $pass, $cacheFile, $skewSec) {
+    if (file_exists($cacheFile)) {
+        $raw = @file_get_contents($cacheFile);
+        if ($raw !== false) {
+            $data  = json_decode($raw, true);
+            $nowMs = (int)(microtime(true) * 1000);
+            if (!empty($data['token']) && isset($data['expires']) && ($data['expires'] - $skewSec * 1000) > $nowMs) {
+                return $data['token'];
+            }
+        }
+    }
+    // Neuen Token vom ArcGIS Token-Service holen
+    $ch = curl_init();
+    curl_setopt_array($ch, [
+        CURLOPT_URL            => $tokenUrl,
+        CURLOPT_POST           => true,
+        CURLOPT_POSTFIELDS     => http_build_query(['username' => $user, 'password' => $pass,
+                                                    'client' => 'requestip', 'f' => 'json', 'expiration' => 60]),
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT        => 10,
+        CURLOPT_SSL_VERIFYPEER => true,
+    ]);
+    $resp = curl_exec($ch);
+    curl_close($ch);
+    if (!$resp) return '';
+    $data = json_decode($resp, true);
+    if (empty($data['token'])) return '';
+    $nowMs   = (int)(microtime(true) * 1000);
+    $expires = isset($data['expires']) ? (int)$data['expires'] : ($nowMs + 3600000);
+    $dir = dirname($cacheFile);
+    if (!is_dir($dir)) @mkdir($dir, 0700, true);
+    @file_put_contents($cacheFile, json_encode(['token' => $data['token'], 'expires' => $expires],
+                       JSON_UNESCAPED_SLASHES), LOCK_EX);
+    return $data['token'];
+}
+
+/**
+ * Prüft ob eine ArcGIS-REST-Antwort ein Token-Fehler ist.
+ * ArcGIS-Codes: 498 = Token invalid/expired, 499 = Token required.
+ *
+ * @param mixed $data   json_decode()-Ergebnis der ArcGIS-Antwort
+ * @return bool
+ */
+function agsIsTokenError($data) {
+    if (!is_array($data) || !isset($data['error'])) return false;
+    $code = (int)($data['error']['code'] ?? 0);
+    $msg  = strtolower($data['error']['message'] ?? '');
+    return $code === 498 || $code === 499
+        || strpos($msg, 'invalid token')   !== false
+        || strpos($msg, 'token expired')   !== false
+        || strpos($msg, 'token required')  !== false;
+}
+
+/**
+ * Erzwingt einen neuen ArcGIS-Token (Cache-Datei wird gelöscht).
+ *
+ * @param string $tokenUrl  Token-Service-URL
+ * @param string $user      Benutzername
+ * @param string $pass      Passwort
+ * @param string $cacheFile Pfad zur Cache-Datei
+ * @param int    $skewSec   Sicherheits-Puffer in Sekunden
+ * @return string           Neuer Token oder ''
+ */
+function agsForceRefreshToken($tokenUrl, $user, $pass, $cacheFile, $skewSec) {
+    @unlink($cacheFile);  // Abgelaufenen Cache löschen
+    return agsGetToken($tokenUrl, $user, $pass, $cacheFile, $skewSec);
+}
+
+/**
+ * Baut eine direkte ArcGIS REST URL auf (kein agsproxy-Roundtrip).
+ * @param string $agsBase  Basis-URL inkl. trailing slash (z.B. 'https://.../services/')
+ * @param string $path     Service-Pfad (z.B. 'ewn/EWN_NIS/MapServer/legend')
+ * @param array  $params   Query-Parameter (ohne token)
+ * @param string $token    ArcGIS-Token
+ */
+function agsBuildUrl($agsBase, $path, array $params, $token) {
+    if ($token !== '') $params['token'] = $token;
+    return rtrim($agsBase, '/') . '/' . ltrim($path, '/') . '?' . http_build_query($params);
 }
 
 // ===== PARAMETER LESEN =====
@@ -195,50 +409,44 @@ $cacheKey  = md5($service . '|' . $width . 'x' . $height . '|d' . $dpi . '|z' . 
 $cacheExt  = ($format === 'json') ? '.json' : '.html';
 $cacheFile = $CACHE_DIR . '/' . $cacheKey . $cacheExt;
 
-// Früh-Cache nur wenn legendgroup explizit gesetzt (Auto-Default kann sich ändern)
+// Auto-Default-Cache: separater Alias-Key für Aufrufe ohne legendgroup-Parameter.
+// Wird am Ende befüllt und hier sofort geprüft → kein ArcGIS-Kontakt bei HIT.
+$cacheKeyAuto  = md5($service . '|' . $width . 'x' . $height . '|d' . $dpi . '|z' . $zoom . '|' . $layers . '|r' . ($resolveLabels ? '1' : '0') . '|' . $labelField . '|' . $codeField . '|gAUTO');
+$cacheFileAuto = $CACHE_DIR . '/' . $cacheKeyAuto . $cacheExt;
+
+// Früh-Cache: explizites legendgroup
 if ($legendGroupExplicit && !$noCache && file_exists($cacheFile) && (time() - filemtime($cacheFile)) < $CACHE_TTL) {
-    // Cache-Hit
-    if ($format === 'json') {
-        header('Content-Type: application/json; charset=utf-8');
-    } else {
-        header('Content-Type: text/html; charset=utf-8');
-    }
-    header('X-Legend-Cache: HIT');
-    readfile($cacheFile);
-    exit;
+    $ctype = ($format === 'json') ? 'application/json' : 'text/html';
+    sendCachedFile($cacheFile, $ctype, $CACHE_TTL, 'HIT');
 }
 
-// ===== LEGEND-JSON VON AGSPROXY HOLEN =====
+// Früh-Cache: kein legendgroup → AUTO-Alias (vorangehendes Request hat Ergebnis gecacht)
+if (!$legendGroupExplicit && !$noCache && file_exists($cacheFileAuto) && (time() - filemtime($cacheFileAuto)) < $CACHE_TTL) {
+    $ctype = ($format === 'json') ? 'application/json' : 'text/html';
+    sendCachedFile($cacheFileAuto, $ctype, $CACHE_TTL, 'HIT-AUTO');
+}
+
+// ===== LEGEND-JSON DIREKT VON ARCGIS HOLEN =====
 
 // Cache-Verzeichnis erstellen
 if (!is_dir($CACHE_DIR)) {
     @mkdir($CACHE_DIR, 0775, true);
 }
 
-// Proxy-URL aufbauen (Server-interner Aufruf an agsproxy.php)
-$scheme   = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-$host     = $_SERVER['HTTP_HOST'] ?? 'www.gis-daten.ch';
-$queryParams = [
-    'path' => $service . '/legend',
-    'f'    => 'pjson',
-    'size' => $width . ',' . $height,
-    'dpi'  => $dpi
-];
-$proxyUrl = $scheme . '://' . $host . '/maps/agsproxy.php?' . http_build_query($queryParams);
+// ArcGIS-Token holen (gemeinsamer Cache mit agsproxy.php — kein HTTP-Roundtrip)
+$agsToken  = agsGetToken($AGS_TOKEN_URL, $AGS_TOKEN_USER, $AGS_TOKEN_PASS, $AGS_TOKEN_CACHE, $AGS_TOKEN_SKEW);
+$legendUrl = agsBuildUrl($AGS_BASE, $service . '/legend', ['f' => 'pjson', 'size' => $width . ',' . $height, 'dpi' => $dpi], $agsToken);
 
-logMessage($LOG_FILE, 'INFO', "Fetch: $proxyUrl | Service: $service | Size: {$width}x{$height} | DPI: {$dpi} | Zoom: {$zoom}x | Display: {$displayWidth}x{$displayHeight}");
+logMessage($LOG_FILE, 'INFO', "Fetch: $service | Size: {$width}x{$height} | DPI: {$dpi} | Zoom: {$zoom}x | Display: {$displayWidth}x{$displayHeight}");
 
-// cURL Request an den Proxy
+// cURL-Request direkt an ArcGIS (kein Proxy-Zwischenhop)
 $ch = curl_init();
 curl_setopt_array($ch, [
-    CURLOPT_URL            => $proxyUrl,
+    CURLOPT_URL            => $legendUrl,
     CURLOPT_RETURNTRANSFER => true,
     CURLOPT_TIMEOUT        => 30,
-    CURLOPT_SSL_VERIFYPEER => false,
-    CURLOPT_HTTPHEADER     => [
-        'Accept: application/json',
-        'User-Agent: LegendProxy/1.0'
-    ]
+    CURLOPT_SSL_VERIFYPEER => true,
+    CURLOPT_HTTPHEADER     => ['Accept: application/json'],
 ]);
 
 $response  = curl_exec($ch);
@@ -247,21 +455,43 @@ $curlError = curl_error($ch);
 curl_close($ch);
 
 if ($curlError) {
-    logMessage($LOG_FILE, 'ERROR', "cURL Fehler: $curlError | URL: $proxyUrl");
-    errorResponse('Verbindungsfehler zum ArcGIS-Proxy: ' . $curlError, 502, $format);
+    logMessage($LOG_FILE, 'ERROR', "cURL Fehler: $curlError | Service: $service");
+    errorResponse('Verbindungsfehler zu ArcGIS: ' . $curlError, 502, $format);
 }
 
 if ($httpCode !== 200) {
-    logMessage($LOG_FILE, 'ERROR', "HTTP $httpCode von Proxy | URL: $proxyUrl");
-    errorResponse("ArcGIS-Proxy liefert HTTP $httpCode", 502, $format);
+    logMessage($LOG_FILE, 'ERROR', "HTTP $httpCode von ArcGIS | Service: $service");
+    errorResponse("ArcGIS liefert HTTP $httpCode", 502, $format);
 }
 
 // JSON parsen
 $legendData = json_decode($response, true);
 if (!$legendData || isset($legendData['error'])) {
-    $errMsg = isset($legendData['error']['message']) ? $legendData['error']['message'] : 'Ungültiges JSON';
-    logMessage($LOG_FILE, 'ERROR', "Legend-JSON Fehler: $errMsg | Service: $service");
-    errorResponse('ArcGIS Legend-Fehler: ' . $errMsg, 502, $format);
+    // Token-Fehler? → Cache löschen + einmal automatisch neu versuchen
+    if ($legendData && agsIsTokenError($legendData)) {
+        $errCode  = $legendData['error']['code'] ?? 0;
+        logMessage($LOG_FILE, 'WARN', "Token-Fehler ($errCode) — Cache leeren, Token neu holen + Retry | Service: $service");
+        $agsToken  = agsForceRefreshToken($AGS_TOKEN_URL, $AGS_TOKEN_USER, $AGS_TOKEN_PASS, $AGS_TOKEN_CACHE, $AGS_TOKEN_SKEW);
+        $legendUrl = agsBuildUrl($AGS_BASE, $service . '/legend',
+                        ['f' => 'pjson', 'size' => $width . ',' . $height, 'dpi' => $dpi], $agsToken);
+        $chRetry = curl_init();
+        curl_setopt_array($chRetry, [
+            CURLOPT_URL            => $legendUrl,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => 30,
+            CURLOPT_SSL_VERIFYPEER => true,
+            CURLOPT_HTTPHEADER     => ['Accept: application/json'],
+        ]);
+        $response   = curl_exec($chRetry);
+        curl_close($chRetry);
+        $legendData = json_decode($response, true);
+    }
+    // Nach eventuellem Retry nochmals prüfen
+    if (!$legendData || isset($legendData['error'])) {
+        $errMsg = isset($legendData['error']['message']) ? $legendData['error']['message'] : 'Ungültiges JSON';
+        logMessage($LOG_FILE, 'ERROR', "Legend-JSON Fehler: $errMsg | Service: $service");
+        errorResponse('ArcGIS Legend-Fehler: ' . $errMsg, 502, $format);
+    }
 }
 
 if (!isset($legendData['layers']) || !is_array($legendData['layers'])) {
@@ -294,13 +524,8 @@ if ($layers !== '') {
     $filteredLayers = array_values($filteredLayers);
 }
 
-// ===== #-LABELS AUFLÖSEN (Attribut-Lookup) =====
-
-if ($resolveLabels) {
-    $filteredLayers = resolveHashLabels($filteredLayers, $service, $labelField, $codeField, $scheme, $host, $LOG_FILE);
-}
-
-// ===== AUTO-DEFAULT: legendgroup=Gemeinde wenn #-Labels vorhanden =====
+// ===== AUTO-DEFAULT: legendgroup=Gemeinde wenn Code-basierte Layer vorhanden =====
+// Auswertung auf Rohdaten — kein API-Aufruf nötig, muss vor fetchLegendAuxData stehen.
 
 if ($legendGroup === '' && !$legendGroupExplicit) {
     $hasCodeEntries = false;
@@ -321,23 +546,33 @@ if ($legendGroup === '' && !$legendGroupExplicit) {
         $cacheFile = $CACHE_DIR . '/' . $cacheKey . $cacheExt;
 
         if (!$noCache && file_exists($cacheFile) && (time() - filemtime($cacheFile)) < $CACHE_TTL) {
-            if ($format === 'json') {
-                header('Content-Type: application/json; charset=utf-8');
-            } else {
-                header('Content-Type: text/html; charset=utf-8');
-            }
-            header('X-Legend-Cache: HIT');
-            readfile($cacheFile);
-            exit;
+            $ctype = ($format === 'json') ? 'application/json' : 'text/html';
+            sendCachedFile($cacheFile, $ctype, $CACHE_TTL, 'HIT');
         }
     }
+}
+
+// ===== ALLE HILFSABFRAGEN IN EINEM CURL_MULTI-BATCH =====
+// Labels (groupBy + Renderer) und Gruppen-Mapping parallel — spart 2 serielle Runden.
+
+$auxData = fetchLegendAuxData(
+    $filteredLayers, $service, $labelField, $codeField, $legendGroup,
+    $resolveLabels, $AGS_BASE, $agsToken, $LOG_FILE,
+    $AGS_TOKEN_URL, $AGS_TOKEN_USER, $AGS_TOKEN_PASS, $AGS_TOKEN_CACHE, $AGS_TOKEN_SKEW
+);
+// Evtl. erneuerter Token (nach Token-Retry in fetchLegendAuxData) übernehmen
+$agsToken = $auxData['token'];
+
+// Labels nach Lookup ersetzen (#-Labels → lesbare Bezeichnungen)
+if ($resolveLabels && !empty($auxData['lookup'])) {
+    $filteredLayers = applyLabelLookup($filteredLayers, $auxData['lookup'], $LOG_FILE);
 }
 
 // ===== GRUPPIERUNG NACH FELD (legendgroup) =====
 
 $groupedData = null;
 if ($legendGroup !== '') {
-    $groupMapping = buildGroupMapping($filteredLayers, $service, $codeField, $legendGroup, $scheme, $host, $LOG_FILE);
+    $groupMapping = $auxData['groupMapping'];
     if (!empty($groupMapping['groups'])) {
         $groupedData = groupLayersByField($filteredLayers, $groupMapping);
     }
@@ -380,8 +615,13 @@ if ($format === 'json') {
     }
     $json = json_encode($output, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     @file_put_contents($cacheFile, $json);
-    header('X-Legend-Cache: MISS');
-    jsonResponse($output);
+    updateCacheIndex($CACHE_DIR, basename($cacheFile), $service);
+    // Auto-Default-Alias: bei Aufruf ohne legendgroup-Parameter sofort cacherbar
+    if (!$legendGroupExplicit) {
+        @file_put_contents($cacheFileAuto, $json);
+        updateCacheIndex($CACHE_DIR, basename($cacheFileAuto), $service);
+    }
+    sendCachedFile($cacheFile, 'application/json', $CACHE_TTL, 'MISS');
 }
 
 // ===== FORMAT: HTML — Legende rendern =====
@@ -467,8 +707,13 @@ $html .= '</html>';
 
 // Cache schreiben
 @file_put_contents($cacheFile, $html);
-header('X-Legend-Cache: MISS');
-htmlResponse($html);
+updateCacheIndex($CACHE_DIR, basename($cacheFile), $service);
+// Auto-Default-Alias: bei Aufruf ohne legendgroup-Parameter sofort cacherbar
+if (!$legendGroupExplicit) {
+    @file_put_contents($cacheFileAuto, $html);
+    updateCacheIndex($CACHE_DIR, basename($cacheFileAuto), $service);
+}
+sendCachedFile($cacheFile, 'text/html', $CACHE_TTL, 'MISS');
 
 
 // =========================================================================
@@ -505,12 +750,12 @@ function layerHasHashLabels($layer) {
  * @param string $service     ArcGIS MapServer-Pfad (inkl. /MapServer)
  * @param string $labelField  Feldname für Bezeichnung (z.B. "Typ_Bezeichnung")
  * @param string $codeField   Feldname für Darstellungscode (z.B. "Typ_Darstellungscode")
- * @param string $scheme      http oder https
- * @param string $host        Hostname
+ * @param string $agsBase    ArcGIS Basis-URL (z.B. 'https://.../services/')
+ * @param string $agsToken   ArcGIS-Token
  * @param string $logFile     Log-Datei-Pfad
  * @return array              Flache Map: code => "Bezeichnung" (service-weit, spezifischste)
  */
-function buildLabelLookup($layers, $service, $labelField, $codeField, $scheme, $host, $logFile) {
+function buildLabelLookup($layers, $service, $labelField, $codeField, $agsBase, $agsToken, $logFile) {
     // 1. Alle Layer-IDs mit #-Labels sammeln
     $layerIds = [];
     foreach ($layers as $layer) {
@@ -532,22 +777,20 @@ function buildLabelLookup($layers, $service, $labelField, $codeField, $scheme, $
     ]);
 
     foreach ($layerIds as $lid) {
-        $params = [
-            'path'                       => $service . '/' . $lid . '/query',
+        $url = agsBuildUrl($agsBase, $service . '/' . $lid . '/query', [
             'where'                      => '1=1',
             'groupByFieldsForStatistics' => $codeField . ',' . $labelField,
             'outStatistics'              => $stats,
             'returnGeometry'             => 'false',
-            'f'                          => 'pjson'
-        ];
-        $url = $scheme . '://' . $host . '/maps/agsproxy.php?' . http_build_query($params);
+            'f'                          => 'pjson',
+        ], $agsToken);
 
         $ch = curl_init();
         curl_setopt_array($ch, [
             CURLOPT_URL            => $url,
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_TIMEOUT        => 20,
-            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_SSL_VERIFYPEER => true,
         ]);
         curl_multi_add_handle($mh, $ch);
         $handles[$lid] = $ch;
@@ -621,18 +864,14 @@ function buildLabelLookup($layers, $service, $labelField, $codeField, $scheme, $
     $handles2 = [];
 
     foreach ($layerIds as $lid) {
-        $params = [
-            'path' => $service . '/' . $lid,
-            'f'    => 'pjson'
-        ];
-        $url = $scheme . '://' . $host . '/maps/agsproxy.php?' . http_build_query($params);
+        $url = agsBuildUrl($agsBase, $service . '/' . $lid, ['f' => 'pjson'], $agsToken);
 
         $ch = curl_init();
         curl_setopt_array($ch, [
             CURLOPT_URL            => $url,
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_TIMEOUT        => 20,
-            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_SSL_VERIFYPEER => true,
         ]);
         curl_multi_add_handle($mh2, $ch);
         $handles2[$lid] = $ch;
@@ -746,14 +985,14 @@ function _fetchQueryJson($url, $logFile, $layerId) {
  * @param string $service     ArcGIS MapServer-Pfad
  * @param string $labelField  Feldname für Bezeichnung
  * @param string $codeField   Feldname für Darstellungscode
- * @param string $scheme      http/https
- * @param string $host        Hostname
+ * @param string $agsBase    ArcGIS Basis-URL
+ * @param string $agsToken   ArcGIS-Token
  * @param string $logFile     Log-Datei-Pfad
  * @return array              Layer-Liste mit aufgelösten Labels
  */
-function resolveHashLabels($layers, $service, $labelField, $codeField, $scheme, $host, $logFile) {
+function resolveHashLabels($layers, $service, $labelField, $codeField, $agsBase, $agsToken, $logFile) {
     // Globale Mapping-Tabelle laden (groupBy + Renderer)
-    $lookup = buildLabelLookup($layers, $service, $labelField, $codeField, $scheme, $host, $logFile);
+    $lookup = buildLabelLookup($layers, $service, $labelField, $codeField, $agsBase, $agsToken, $logFile);
 
     $removedCount = 0;
 
@@ -816,12 +1055,12 @@ function resolveHashLabels($layers, $service, $labelField, $codeField, $scheme, 
  * @param string $service     ArcGIS MapServer-Pfad
  * @param string $codeField   Feldname für Darstellungscode
  * @param string $groupField  Feldname für Gruppierung (z.B. "Gemeinde")
- * @param string $scheme      http/https
- * @param string $host        Hostname
+ * @param string $agsBase    ArcGIS Basis-URL
+ * @param string $agsToken   ArcGIS-Token
  * @param string $logFile     Log-Datei-Pfad
  * @return array              ['mapping' => [layerId => [code => [groups]]], 'groups' => [sortierte Werte]]
  */
-function buildGroupMapping($layers, $service, $codeField, $groupField, $scheme, $host, $logFile) {
+function buildGroupMapping($layers, $service, $codeField, $groupField, $agsBase, $agsToken, $logFile) {
     $mh = curl_multi_init();
     $handles = [];
 
@@ -846,22 +1085,20 @@ function buildGroupMapping($layers, $service, $codeField, $groupField, $scheme, 
             ? $codeField . ',' . $groupField
             : $groupField;
 
-        $params = [
-            'path'                       => $service . '/' . $lid . '/query',
+        $url = agsBuildUrl($agsBase, $service . '/' . $lid . '/query', [
             'where'                      => '1=1',
             'groupByFieldsForStatistics' => $groupByFields,
             'outStatistics'              => $stats,
             'returnGeometry'             => 'false',
-            'f'                          => 'pjson'
-        ];
-        $url = $scheme . '://' . $host . '/maps/agsproxy.php?' . http_build_query($params);
+            'f'                          => 'pjson',
+        ], $agsToken);
 
         $ch = curl_init();
         curl_setopt_array($ch, [
             CURLOPT_URL            => $url,
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_TIMEOUT        => 20,
-            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_SSL_VERIFYPEER => true,
         ]);
         curl_multi_add_handle($mh, $ch);
         $handles[$lid] = ['ch' => $ch, 'hasCodes' => $hasCodes];
@@ -936,6 +1173,323 @@ function buildGroupMapping($layers, $service, $codeField, $groupField, $scheme, 
     logMessage($logFile, 'INFO', "Group-Mapping: " . count($sortedGroups) . " Gruppen gefunden" . ($sortedGroups ? ': ' . implode(', ', $sortedGroups) : ''));
 
     return ['mapping' => $mapping, 'groups' => $sortedGroups];
+}
+
+/**
+ * Führt alle benötigten ArcGIS-Hilfsabfragen in EINEM curl_multi-Batch aus.
+ *
+ * Kombiniert in einer einzigen parallelen Runde:
+ *   1. groupBy(codeField, labelField)  — für Label-Lookup (#-Labels)
+ *   2. Layer-Definition (Renderer)     — Codes ohne Features ergänzen
+ *   3. groupBy(codeField, groupField)  — Gruppen-Mapping (z.B. Gemeinde)
+ *
+ * Statt 3 serieller curl_multi-Runden reicht eine → spart 2 Netzwerk-Round-Trips.
+ *
+ * @param array  $layers        Gefilterte Layer-Liste (Rohdaten, noch unresolved)
+ * @param string $service       ArcGIS MapServer-Pfad
+ * @param string $labelField    Feldname Bezeichnung
+ * @param string $codeField     Feldname Darstellungscode
+ * @param string $groupField    Feldname Gruppierung (leer = kein Gruppen-Mapping)
+ * @param bool   $resolveLabels Ob #-Labels aufgelöst werden sollen
+ * @param string $agsBase       ArcGIS Basis-URL
+ * @param string $agsToken      ArcGIS-Token
+ * @param string $logFile       Log-Datei
+ * @return array                ['lookup' => [...], 'groupMapping' => ['mapping' => [...], 'groups' => [...]]]
+ */
+function fetchLegendAuxData($layers, $service, $labelField, $codeField, $groupField, $resolveLabels, $agsBase, $agsToken, $logFile,
+                            $tokenUrl = '', $tokenUser = '', $tokenPass = '', $tokenCache = '', $tokenSkew = 60) {
+    $mh        = curl_multi_init();
+    $handles   = [];   // key: 'label_N', 'renderer_N', 'group_N'
+    $layerMeta = [];   // lid => ['hasHash' => bool, 'hasCodes' => bool]
+
+    $stats = json_encode([
+        ['statisticType' => 'count', 'onStatisticField' => '*', 'outStatisticFieldName' => 'cnt']
+    ]);
+
+    foreach ($layers as $layer) {
+        $lid = $layer['layerId'] ?? null;
+        if ($lid === null) continue;
+
+        $hasHash  = $resolveLabels && layerHasHashLabels($layer);
+        $hasCodes = false;
+        foreach ($layer['legend'] ?? [] as $entry) {
+            if (isset($entry['values']) && is_array($entry['values']) && count($entry['values']) > 0) {
+                $hasCodes = true;
+                break;
+            }
+        }
+        $layerMeta[$lid] = ['hasHash' => $hasHash, 'hasCodes' => $hasCodes];
+
+        // Request 1: groupBy(codeField, labelField) — Label-Lookup
+        if ($hasHash) {
+            $url = agsBuildUrl($agsBase, $service . '/' . $lid . '/query', [
+                'where'                      => '1=1',
+                'groupByFieldsForStatistics' => $codeField . ',' . $labelField,
+                'outStatistics'              => $stats,
+                'returnGeometry'             => 'false',
+                'f'                          => 'pjson',
+            ], $agsToken);
+            $ch = curl_init();
+            curl_setopt_array($ch, [CURLOPT_URL => $url, CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 20, CURLOPT_SSL_VERIFYPEER => true]);
+            curl_multi_add_handle($mh, $ch);
+            $handles['label_' . $lid] = $ch;
+        }
+
+        // Request 2: Layer-Definition (Renderer) — Codes ohne aktive Features ergänzen
+        if ($hasHash) {
+            $url = agsBuildUrl($agsBase, $service . '/' . $lid, ['f' => 'pjson'], $agsToken);
+            $ch = curl_init();
+            curl_setopt_array($ch, [CURLOPT_URL => $url, CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 20, CURLOPT_SSL_VERIFYPEER => true]);
+            curl_multi_add_handle($mh, $ch);
+            $handles['renderer_' . $lid] = $ch;
+        }
+
+        // Request 3: groupBy(codeField/groupField) — Gruppen-Mapping
+        if ($groupField !== '') {
+            $groupByFields = $hasCodes
+                ? $codeField . ',' . $groupField
+                : $groupField;
+            $url = agsBuildUrl($agsBase, $service . '/' . $lid . '/query', [
+                'where'                      => '1=1',
+                'groupByFieldsForStatistics' => $groupByFields,
+                'outStatistics'              => $stats,
+                'returnGeometry'             => 'false',
+                'f'                          => 'pjson',
+            ], $agsToken);
+            $ch = curl_init();
+            curl_setopt_array($ch, [CURLOPT_URL => $url, CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 20, CURLOPT_SSL_VERIFYPEER => true]);
+            curl_multi_add_handle($mh, $ch);
+            $handles['group_' . $lid] = $ch;
+        }
+    }
+
+    // Alle Requests gleichzeitig ausführen
+    $totalReq  = count($handles);
+    if ($totalReq === 0) {
+        curl_multi_close($mh);
+        return ['lookup' => [], 'groupMapping' => ['mapping' => [], 'groups' => []], 'token' => $agsToken];
+    }
+
+    $hashCount  = count(array_filter($layerMeta, function($m) { return $m['hasHash'];  }));
+    $grpCount   = $groupField !== '' ? count($layerMeta) : 0;
+    logMessage($logFile, 'INFO', "Aux-Fetch: $totalReq parallele Requests ($hashCount×2 Label/Renderer + $grpCount Gruppen-Mapping)");
+
+    $running = null;
+    do {
+        curl_multi_exec($mh, $running);
+        curl_multi_select($mh);
+    } while ($running > 0);
+
+    // Alle Inhalte lesen bevor Handles geschlossen werden
+    $contents  = [];
+    $httpCodes = [];
+    foreach ($handles as $key => $ch) {
+        $contents[$key]  = curl_multi_getcontent($ch);
+        $httpCodes[$key] = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_multi_remove_handle($mh, $ch);
+        curl_close($ch);
+    }
+    curl_multi_close($mh);
+
+    // Token-Fehler in einem der Responses? → Cache leeren + ganzen Batch einmal wiederholen
+    $tokenRefreshed = false;
+    if ($tokenUrl !== '' && $tokenCache !== '') {
+        foreach ($contents as $key => $body) {
+            if (empty($body)) continue;
+            $decoded = json_decode($body, true);
+            if ($decoded && agsIsTokenError($decoded)) {
+                $errCode = $decoded['error']['code'] ?? 0;
+                logMessage($logFile, 'WARN', "Aux-Fetch Token-Fehler ($errCode, $key) — Cache leeren + Retry");
+                $agsToken = agsForceRefreshToken($tokenUrl, $tokenUser, $tokenPass, $tokenCache, $tokenSkew);
+                $tokenRefreshed = true;
+                break;
+            }
+        }
+    }
+
+    if ($tokenRefreshed) {
+        // Sämtliche Handles neu aufbauen mit frischem Token
+        $mh2     = curl_multi_init();
+        $handles = [];
+        foreach ($layerMeta as $lid => $meta) {
+            if ($meta['hasHash']) {
+                $url = agsBuildUrl($agsBase, $service . '/' . $lid . '/query', [
+                    'where' => '1=1', 'groupByFieldsForStatistics' => $codeField . ',' . $labelField,
+                    'outStatistics' => $stats, 'returnGeometry' => 'false', 'f' => 'pjson',
+                ], $agsToken);
+                $ch = curl_init();
+                curl_setopt_array($ch, [CURLOPT_URL => $url, CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 20, CURLOPT_SSL_VERIFYPEER => true]);
+                curl_multi_add_handle($mh2, $ch);
+                $handles['label_' . $lid] = $ch;
+
+                $url = agsBuildUrl($agsBase, $service . '/' . $lid, ['f' => 'pjson'], $agsToken);
+                $ch = curl_init();
+                curl_setopt_array($ch, [CURLOPT_URL => $url, CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 20, CURLOPT_SSL_VERIFYPEER => true]);
+                curl_multi_add_handle($mh2, $ch);
+                $handles['renderer_' . $lid] = $ch;
+            }
+            if ($groupField !== '') {
+                $groupByFields = $meta['hasCodes'] ? $codeField . ',' . $groupField : $groupField;
+                $url = agsBuildUrl($agsBase, $service . '/' . $lid . '/query', [
+                    'where' => '1=1', 'groupByFieldsForStatistics' => $groupByFields,
+                    'outStatistics' => $stats, 'returnGeometry' => 'false', 'f' => 'pjson',
+                ], $agsToken);
+                $ch = curl_init();
+                curl_setopt_array($ch, [CURLOPT_URL => $url, CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 20, CURLOPT_SSL_VERIFYPEER => true]);
+                curl_multi_add_handle($mh2, $ch);
+                $handles['group_' . $lid] = $ch;
+            }
+        }
+        $running = null;
+        do { curl_multi_exec($mh2, $running); curl_multi_select($mh2); } while ($running > 0);
+        $contents  = [];
+        $httpCodes = [];
+        foreach ($handles as $key => $ch) {
+            $contents[$key]  = curl_multi_getcontent($ch);
+            $httpCodes[$key] = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_multi_remove_handle($mh2, $ch);
+            curl_close($ch);
+        }
+        curl_multi_close($mh2);
+        logMessage($logFile, 'INFO', "Aux-Fetch Retry abgeschlossen (" . count($handles) . " Requests)");
+    }
+
+
+    $codeLabels = [];
+    foreach ($layerMeta as $lid => $meta) {
+        if (!$meta['hasHash']) continue;
+        $key = 'label_' . $lid;
+        if (($httpCodes[$key] ?? 0) !== 200 || empty($contents[$key])) continue;
+        $data = json_decode($contents[$key], true);
+        if (!$data || isset($data['error']) || !isset($data['features'])) continue;
+        foreach ($data['features'] as $feature) {
+            $attrs = $feature['attributes'] ?? [];
+            $code  = isset($attrs[$codeField])  ? (string)$attrs[$codeField]  : '';
+            $label = isset($attrs[$labelField]) ? trim($attrs[$labelField])   : '';
+            if ($code === '' || $label === '') continue;
+            if (!isset($codeLabels[$code])) $codeLabels[$code] = [];
+            $codeLabels[$code][$label] = true;
+        }
+    }
+    $lookup = [];
+    foreach ($codeLabels as $code => $labels) {
+        $names = array_keys($labels);
+        usort($names, function($a, $b) { return strlen($b) - strlen($a); });
+        $lookup[$code] = implode(', ', $names);
+    }
+
+    // ===== Label-Lookup ergänzen (Pass 2: Renderer) =====
+    $rendererAdded = 0;
+    foreach ($layerMeta as $lid => $meta) {
+        if (!$meta['hasHash']) continue;
+        $key = 'renderer_' . $lid;
+        if (($httpCodes[$key] ?? 0) !== 200 || empty($contents[$key])) continue;
+        $layerDef = json_decode($contents[$key], true);
+        if (!$layerDef || !isset($layerDef['drawingInfo']['renderer'])) continue;
+        $uvis = $layerDef['drawingInfo']['renderer']['uniqueValueInfos'] ?? [];
+        foreach ($uvis as $uvi) {
+            $val   = (string)($uvi['value'] ?? '');
+            $label = (string)($uvi['label'] ?? '');
+            if ($val === '' || $label === '' || isset($lookup[$val])) continue;
+            if (strpos($label, '#') !== false) {
+                $parts = explode('#', $label, 2);
+                $afterHash = trim($parts[1] ?? '');
+                if ($afterHash !== '') { $lookup[$val] = $afterHash; $rendererAdded++; }
+            } elseif ($label !== $val) {
+                $lookup[$val] = $label;
+                $rendererAdded++;
+            }
+        }
+    }
+    logMessage($logFile, 'INFO', "Label-Lookup: " . count($lookup) . " Codes (" . (count($lookup) - $rendererAdded) . " groupBy + $rendererAdded Renderer)");
+
+    // ===== Gruppen-Mapping aufbauen =====
+    $mapping   = [];
+    $allGroups = [];
+    if ($groupField !== '') {
+        foreach ($layerMeta as $lid => $meta) {
+            $key = 'group_' . $lid;
+            if (($httpCodes[$key] ?? 0) !== 200 || empty($contents[$key])) {
+                logMessage($logFile, 'WARN', "Group-Mapping: HTTP " . ($httpCodes[$key] ?? 0) . " | Layer $lid");
+                continue;
+            }
+            $data = json_decode($contents[$key], true);
+            if (!$data || isset($data['error']) || !isset($data['features'])) {
+                $errMsg = $data['error']['message'] ?? 'Kein features-Array';
+                logMessage($logFile, 'WARN', "Group-Mapping Fehler: $errMsg | Layer $lid");
+                continue;
+            }
+            $hasCodes    = $meta['hasCodes'];
+            $mapping[$lid] = [];
+            foreach ($data['features'] as $feature) {
+                $attrs = $feature['attributes'] ?? [];
+                $group = isset($attrs[$groupField]) ? trim((string)$attrs[$groupField]) : '';
+                if ($group === '') continue;
+                $allGroups[$group] = true;
+                if ($hasCodes) {
+                    $code = isset($attrs[$codeField]) ? (string)$attrs[$codeField] : '';
+                    if ($code === '') continue;
+                    if (!isset($mapping[$lid][$code])) $mapping[$lid][$code] = [];
+                    if (!in_array($group, $mapping[$lid][$code])) $mapping[$lid][$code][] = $group;
+                } else {
+                    if (!isset($mapping[$lid]['_all'])) $mapping[$lid]['_all'] = [];
+                    if (!in_array($group, $mapping[$lid]['_all'])) $mapping[$lid]['_all'][] = $group;
+                }
+            }
+            logMessage($logFile, 'INFO', "Group-Mapping OK: Layer $lid | " . count($data['features']) . " Gruppen-Einträge");
+        }
+        $sortedGroups = array_keys($allGroups);
+        sort($sortedGroups);
+        logMessage($logFile, 'INFO', "Group-Mapping: " . count($sortedGroups) . " Gruppen" . ($sortedGroups ? ': ' . implode(', ', $sortedGroups) : ''));
+    } else {
+        $sortedGroups = [];
+    }
+
+    return [
+        'lookup'       => $lookup,
+        'groupMapping' => ['mapping' => $mapping, 'groups' => $sortedGroups],
+        'token'        => $agsToken,  // evtl. erneuerter Token nach Retry
+    ];
+}
+
+/**
+ * Ersetzt #-Labels in den Legend-Einträgen anhand einer vorberechneten Lookup-Map.
+ * Einträge ohne Lookup-Treffer werden entfernt.
+ *
+ * @param array  $layers  Gefilterte Layer-Liste
+ * @param array  $lookup  Code → Bezeichnung
+ * @param string $logFile Log-Datei
+ * @return array          Layer-Liste mit aufgelösten Labels
+ */
+function applyLabelLookup($layers, $lookup, $logFile) {
+    $removedCount = 0;
+    foreach ($layers as &$layer) {
+        if (!layerHasHashLabels($layer)) continue;
+        foreach ($layer['legend'] as $idx => &$entry) {
+            $label = trim($entry['label'] ?? '');
+            if ($label !== '#' && strpos($label, '#') === false) continue;
+            $code = '';
+            if (isset($entry['values']) && is_array($entry['values']) && count($entry['values']) > 0) {
+                $code = (string)$entry['values'][0];
+            }
+            if ($code !== '' && isset($lookup[$code])) {
+                $entry['label']          = $lookup[$code];
+                $entry['_resolvedFrom']  = '#:lookup';
+            } else {
+                $entry['_remove'] = true;
+                $removedCount++;
+            }
+        }
+        unset($entry);
+        $layer['legend'] = array_values(array_filter($layer['legend'], function($e) {
+            return empty($e['_remove']);
+        }));
+    }
+    unset($layer);
+    if ($removedCount > 0) {
+        logMessage($logFile, 'INFO', "Label-Resolve: $removedCount Einträge ohne Lookup entfernt");
+    }
+    return $layers;
 }
 
 /**
