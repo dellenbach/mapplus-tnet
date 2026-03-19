@@ -40,7 +40,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 // Config
 // =====================================================================
 $docRoot = rtrim($_SERVER['DOCUMENT_ROOT'] ?? '/var/www/html/nwow', '/');
-define('DATA_DIR', $docRoot . '/data/layertree');
+define('DATA_DIR', '/data/Client_Data/nwow/tmp/layertree');
 define('STATE_FILE', DATA_DIR . '/treebuilder-state.json');
 define('GROUPS_FILE', DATA_DIR . '/groups.json5');
 define('PROFILES_DIR', DATA_DIR . '/profiles');
@@ -213,6 +213,68 @@ function getConfigPath($profile) {
     return CONFIG_BASE . '/' . $safe . '/lyrmgr.conf';
 }
 
+/**
+ * Pfad zur Draft-Datei im tmp/layertree Verzeichnis.
+ * Format: DATA_DIR/[profile]-lyrmgr.conf
+ */
+function getDraftPath($profile) {
+    $safe = preg_replace('/[^a-zA-Z0-9_\-]/', '', $profile);
+    return DATA_DIR . '/' . $safe . '-lyrmgr.conf';
+}
+
+/**
+ * Draft-LyrMgr aus tmp/layertree speichern.
+ * Speichert die gesamte lyrmgr.conf Struktur (alle Blöcke).
+ */
+function saveLyrmgrDraft($profile, $data, $editor) {
+    $path = getDraftPath($profile);
+    ensureDirs();
+
+    $json = json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    if ($json === false) {
+        return ['saved' => false, 'error' => 'JSON encode Fehler: ' . json_last_error_msg()];
+    }
+    $bytes = @file_put_contents($path, $json);
+    if ($bytes === false) {
+        $err = error_get_last();
+        return ['saved' => false, 'error' => 'Schreiben fehlgeschlagen: ' . $path . ' — ' . ($err ? $err['message'] : 'unbekannt')];
+    }
+    return [
+        'saved'     => true,
+        'profile'   => $profile,
+        'path'      => $path,
+        'bytes'     => $bytes,
+        'editor'    => $editor,
+        'timestamp' => date('Y-m-d H:i:s')
+    ];
+}
+
+/**
+ * Draft-LyrMgr aus tmp/layertree laden.
+ */
+function loadLyrmgrDraft($profile) {
+    $path = getDraftPath($profile);
+    if (!file_exists($path)) {
+        return ['exists' => false, 'path' => $path, 'profile' => $profile];
+    }
+    $content = file_get_contents($path);
+    $data = json_decode($content, true);
+    if ($data === null) {
+        return ['exists' => true, 'error' => 'JSON parse error: ' . json_last_error_msg(), 'path' => $path];
+    }
+    $lyrmgrKeys = array_keys($data);
+    return [
+        'exists'     => true,
+        'profile'    => $profile,
+        'path'       => $path,
+        'lyrmgrKeys' => $lyrmgrKeys,
+        'data'       => $data,
+        'size'       => strlen($content),
+        'modified'   => date('Y-m-d H:i:s', filemtime($path)),
+        'source'     => 'draft'
+    ];
+}
+
 function loadLyrmgrConf($profile) {
     $path = getConfigPath($profile);
     if (!file_exists($path)) {
@@ -297,7 +359,8 @@ function listLyrmgrProfiles() {
             'path'       => $publicPath,
             'lyrmgrKeys' => $data ? array_keys($data) : [],
             'size'       => filesize($publicPath),
-            'modified'   => date('Y-m-d H:i:s', filemtime($publicPath))
+            'modified'   => date('Y-m-d H:i:s', filemtime($publicPath)),
+            'isStage'    => false
         ];
     }
     // Subdirectories
@@ -305,15 +368,438 @@ function listLyrmgrProfiles() {
     foreach ($dirs as $f) {
         $dirName = basename(dirname($f));
         $data = json_decode(file_get_contents($f), true);
-        $result[] = [
+        $isStage = (bool)preg_match('/-stage$/', $dirName);
+        $baseProfile = $isStage ? preg_replace('/-stage$/', '', $dirName) : null;
+        $entry = [
             'profile'    => $dirName,
             'path'       => $f,
             'lyrmgrKeys' => $data ? array_keys($data) : [],
             'size'       => filesize($f),
-            'modified'   => date('Y-m-d H:i:s', filemtime($f))
+            'modified'   => date('Y-m-d H:i:s', filemtime($f)),
+            'isStage'    => $isStage
         ];
+        if ($isStage) $entry['baseProfile'] = $baseProfile;
+        $result[] = $entry;
     }
     return $result;
+}
+
+/**
+ * Alle Layer-Definitionen aus 3 Quellen laden und zusammenführen.
+ * 1. /www/core/config/layers_*.conf (Basis)
+ * 2. /www/maps/core/config/layers_*.conf (Overrides)
+ * 3. /www/maps/public/config/[profil]/layers.conf (Profil, optional)
+ *
+ * Zusätzlich: NLS-Labels aus lyrmgrResources_*.json
+ */
+function listAllLayers($profile = null) {
+    global $docRoot;
+
+    $definitions = [];
+    $sources = [];
+    $sourceMap = [];  // layerId → { tag, file }
+
+    // Hilfsfunktion: Alle Layer-Conf-Dateien aus einem Verzeichnis lesen
+    // Erfasst layers_*.conf, layers-*.conf und layers.conf (alle Varianten)
+    $readLayerConfs = function($dir, $sourceTag) use (&$definitions, &$sourceMap, &$sources) {
+        if (!$dir || !is_dir($dir)) return;
+        // Alle Dateien die mit "layers" beginnen und auf .conf enden
+        $allConf = glob($dir . '/layers*.conf');
+        // Nur aktive Dateien (keine Backups wie .20260101_120000.bak)
+        $files = array_filter($allConf, function($f) {
+            return !preg_match('/\.\d{8}_\d{6}\./', basename($f));
+        });
+        foreach ($files as $f) {
+            $fname = basename($f);
+            $data = json_decode(file_get_contents($f), true);
+            if (is_array($data)) {
+                foreach ($data as $k => $v) {
+                    $definitions[$k] = $v;
+                    $sourceMap[$k] = ['tag' => $sourceTag, 'file' => $fname, 'dir' => $dir];
+                }
+            }
+        }
+        $sources[] = ['path' => $dir, 'type' => $sourceTag, 'files' => count($files)];
+    };
+
+    // 1. Basis: /www/core/config/ — alle Layer-Typen (WMS, ArcGIS REST, WMTS, etc.)
+    $coreBase = realpath($docRoot . '/core/config');
+    $readLayerConfs($coreBase, 'core');
+
+    // 2. Override: /www/maps/core/config/
+    $overridePath = realpath($docRoot . '/maps/core/config');
+    if ($overridePath !== $coreBase) {
+        $readLayerConfs($overridePath, 'override');
+    }
+
+    // 3. Profil-spezifisch: /www/maps/public/config/[profil]/
+    if ($profile) {
+        $safe = preg_replace('/[^a-zA-Z0-9_\-]/', '', $profile);
+        $profilePath = CONFIG_BASE . '/' . $safe;
+        if ($safe === 'public') $profilePath = CONFIG_BASE;
+        $readLayerConfs($profilePath, 'profile');
+    }
+
+    // NLS-Labels laden (Basis + Override)
+    $aliases = [];
+    $nlsDirs = [];
+    $nlsBase = realpath($docRoot . '/core/nls/de');
+    if ($nlsBase && is_dir($nlsBase)) $nlsDirs[] = $nlsBase;
+    $nlsOverride = realpath($docRoot . '/maps/core/nls/de');
+    if ($nlsOverride && is_dir($nlsOverride) && $nlsOverride !== $nlsBase) $nlsDirs[] = $nlsOverride;
+
+    foreach ($nlsDirs as $nlsDir) {
+        foreach (glob($nlsDir . '/lyrmgrResources*.json') as $f) {
+            $data = json_decode(file_get_contents($f), true);
+            if (is_array($data)) {
+                $aliases = array_merge($aliases, $data);
+            }
+        }
+    }
+
+    // Profil-spezifische NLS laden (Profil-Aliases überschreiben Basis)
+    $profileAliases = [];
+    if ($profile) {
+        $safeP = preg_replace('/[^a-zA-Z0-9_\-]/', '', $profile);
+        $profileNlsFile = getProfileNlsPath($safeP);
+        if (file_exists($profileNlsFile)) {
+            $pData = json_decode(file_get_contents($profileNlsFile), true);
+            if (is_array($pData)) {
+                $profileAliases = $pData;
+                $aliases = array_merge($aliases, $pData);
+            }
+        }
+    }
+
+    // Flache Layer-Liste aufbauen — alle Properties übernehmen
+    $layers = [];
+    // Interne/unwichtige Keys die nicht in die Ausgabe sollen
+    $skipKeys = ['_comment' => 1, '_backup' => 1];
+    foreach ($definitions as $id => $def) {
+        $sm = $sourceMap[$id] ?? ['tag' => 'unknown', 'file' => '', 'dir' => ''];
+        $layer = ['id' => $id, 'source' => $sm['tag'], 'sourceFile' => $sm['file'], 'sourceFilePath' => $sm['dir'] . '/' . $sm['file']];
+        // Alle Properties 1:1 übernehmen (Layer-Typ-agnostisch: WMS, ArcGIS, WMTS etc.)
+        foreach ($def as $prop => $val) {
+            if (!isset($skipKeys[$prop])) {
+                $layer[$prop] = $val;
+            }
+        }
+        // Alias/Label aus NLS
+        // NLS-Alias: zuerst mit Original-Slashes, dann mit / → _
+        $aliasKey1 = 'desc_' . $id;
+        $aliasKey2 = 'desc_' . str_replace('/', '_', $id);
+        if (isset($aliases[$aliasKey1])) {
+            $layer['name'] = $aliases[$aliasKey1];
+        } elseif (isset($aliases[$aliasKey2])) {
+            $layer['name'] = $aliases[$aliasKey2];
+        } elseif (!isset($layer['name'])) {
+            // Fallback: letzter Teil der ID
+            $parts = explode('/', $id);
+            $layer['name'] = end($parts);
+        }
+        $layers[] = $layer;
+    }
+
+    return [
+        'layers'         => $layers,
+        'count'          => count($layers),
+        'sources'        => $sources,
+        'aliases'        => $aliases,
+        'profileAliases' => $profileAliases
+    ];
+}
+
+/**
+ * Pfad zur Profil-spezifischen NLS-Datei.
+ * Liegt unter core/nls/de/lyrmgrResources_Profile_<Name>.json
+ */
+function getProfileNlsPath($profile) {
+    global $docRoot;
+    $safe = preg_replace('/[^a-zA-Z0-9_\-]/', '', $profile);
+    return $docRoot . '/core/nls/de/lyrmgrResources_Profile_' . $safe . '.json';
+}
+
+// ===== NLS-Ziel-Pfade: Site-Core / Group =====
+
+/**
+ * Pfad zur Site-Core NLS-Datei.
+ * /www/maps/core/nls/de/lyrmgrResources.json — EINE Überladungsdatei.
+ */
+function getSiteCoreNlsPath() {
+    global $docRoot;
+    return $docRoot . '/maps/core/nls/de/lyrmgrResources.json';
+}
+
+/**
+ * Pfad zur Group-NLS-Datei.
+ * /www/maps/public/config/<group>/lyrmgrResources.json — EINE Überladungsdatei pro Gruppe.
+ */
+function getGroupNlsPath($group) {
+    $safe = preg_replace('/[^a-zA-Z0-9_\-]/', '', $group);
+    return CONFIG_BASE . '/' . $safe . '/lyrmgrResources.json';
+}
+
+/**
+ * NLS-Datei lesen (site-core oder group).
+ * Gibt den JSON-Inhalt als Array zurück.
+ */
+function loadNlsFile($target, $group = null) {
+    if ($target === 'site-core') {
+        $path = getSiteCoreNlsPath();
+    } elseif ($target === 'group' && $group) {
+        $path = getGroupNlsPath($group);
+    } else {
+        return ['success' => false, 'error' => 'Ungültiges Ziel: ' . $target];
+    }
+    $data = [];
+    $exists = file_exists($path);
+    if ($exists) {
+        $data = json_decode(file_get_contents($path), true) ?: [];
+    }
+    return [
+        'success' => true,
+        'target'  => $target,
+        'group'   => $group,
+        'path'    => $path,
+        'exists'  => $exists,
+        'entries' => count($data),
+        'aliases' => $data
+    ];
+}
+
+/**
+ * NLS-Einträge in Ziel-Datei speichern (merge).
+ * Bestehende Einträge bleiben erhalten, neue werden ergänzt/überschrieben.
+ * Leere Werte ('') entfernen den Eintrag.
+ */
+function saveNlsEntries($target, $aliases, $group = null) {
+    if ($target === 'site-core') {
+        $path = getSiteCoreNlsPath();
+    } elseif ($target === 'group' && $group) {
+        $path = getGroupNlsPath($group);
+    } else {
+        return ['saved' => false, 'error' => 'Ungültiges Ziel: ' . $target];
+    }
+
+    $dir = dirname($path);
+    if (!is_dir($dir)) {
+        return ['saved' => false, 'error' => 'Verzeichnis existiert nicht: ' . $dir];
+    }
+
+    // Bestehende Datei lesen
+    $existing = [];
+    if (file_exists($path)) {
+        $existing = json_decode(file_get_contents($path), true) ?: [];
+        // Backup erstellen
+        ensureDirs();
+        $ts = date('Ymd_His');
+        $label = ($target === 'group') ? 'group_' . preg_replace('/[^a-zA-Z0-9_\-]/', '', $group) : 'site_core';
+        $backupPath = BACKUP_DIR . '/lyrmgrResources_' . $label . '_' . $ts . '.json';
+        @copy($path, $backupPath);
+    }
+
+    // Merge: neue Einträge ergänzen/überschreiben, leere entfernen
+    $added = 0;
+    $updated = 0;
+    $removed = 0;
+    foreach ($aliases as $key => $value) {
+        if ($value === '' || $value === null) {
+            if (isset($existing[$key])) {
+                unset($existing[$key]);
+                $removed++;
+            }
+        } elseif (isset($existing[$key])) {
+            if ($existing[$key] !== $value) {
+                $existing[$key] = $value;
+                $updated++;
+            }
+        } else {
+            $existing[$key] = $value;
+            $added++;
+        }
+    }
+
+    $json = json_encode($existing, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    if ($json === false) {
+        return ['saved' => false, 'error' => 'JSON encode Fehler: ' . json_last_error_msg()];
+    }
+
+    $bytes = @file_put_contents($path, $json);
+    if ($bytes === false) {
+        $err = error_get_last();
+        return ['saved' => false, 'error' => 'Schreiben fehlgeschlagen: ' . ($err ? $err['message'] : 'unbekannt')];
+    }
+
+    return [
+        'saved'     => true,
+        'target'    => $target,
+        'group'     => $group,
+        'path'      => $path,
+        'bytes'     => $bytes,
+        'entries'   => count($existing),
+        'added'     => $added,
+        'updated'   => $updated,
+        'removed'   => $removed,
+        'timestamp' => date('Y-m-d H:i:s')
+    ];
+}
+
+/**
+ * Profil-NLS speichern.
+ * Schreibt lyrmgrResources_Profile_<Name>.json in core/nls/de/
+ */
+function saveProfileNls($profile, $data) {
+    $path = getProfileNlsPath($profile);
+    $dir = dirname($path);
+    if (!is_dir($dir)) {
+        return ['saved' => false, 'error' => 'NLS-Verzeichnis existiert nicht: ' . $dir];
+    }
+
+    // Backup falls vorhanden
+    if (file_exists($path)) {
+        ensureDirs();
+        $ts = date('Ymd_His');
+        $safe = preg_replace('/[^a-zA-Z0-9_\-]/', '', $profile);
+        $backupPath = BACKUP_DIR . '/lyrmgrResources_Profile_' . $safe . '_' . $ts . '.json';
+        @copy($path, $backupPath);
+    }
+
+    $json = json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    if ($json === false) {
+        return ['saved' => false, 'error' => 'JSON encode Fehler: ' . json_last_error_msg()];
+    }
+
+    $bytes = @file_put_contents($path, $json);
+    if ($bytes === false) {
+        $err = error_get_last();
+        return ['saved' => false, 'error' => 'Schreiben fehlgeschlagen: ' . ($err ? $err['message'] : 'unbekannt')];
+    }
+
+    return [
+        'saved'     => true,
+        'profile'   => $profile,
+        'path'      => $path,
+        'bytes'     => $bytes,
+        'entries'   => count($data),
+        'timestamp' => date('Y-m-d H:i:s')
+    ];
+}
+
+// ===== PROFIL-LEGENDRESOURCES =====
+
+/**
+ * Pfad zur Profil-spezifischen legendResources-Datei.
+ * Liegt unter core/nls/de/legendResources_Profile_<Name>.json
+ */
+function getProfileLegendPath($profile) {
+    global $docRoot;
+    $safe = preg_replace('/[^a-zA-Z0-9_\-]/', '', $profile);
+    return $docRoot . '/core/nls/de/legendResources_Profile_' . $safe . '.json';
+}
+
+/**
+ * Profil-legendResources speichern.
+ * Schreibt legendResources_Profile_<Name>.json in core/nls/de/
+ */
+function saveProfileLegend($profile, $data) {
+    $path = getProfileLegendPath($profile);
+    $dir = dirname($path);
+    if (!is_dir($dir)) {
+        return ['saved' => false, 'error' => 'NLS-Verzeichnis existiert nicht: ' . $dir];
+    }
+
+    // Backup falls vorhanden
+    if (file_exists($path)) {
+        ensureDirs();
+        $ts = date('Ymd_His');
+        $safe = preg_replace('/[^a-zA-Z0-9_\-]/', '', $profile);
+        $backupPath = BACKUP_DIR . '/legendResources_Profile_' . $safe . '_' . $ts . '.json';
+        @copy($path, $backupPath);
+    }
+
+    $json = json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    if ($json === false) {
+        return ['saved' => false, 'error' => 'JSON encode Fehler: ' . json_last_error_msg()];
+    }
+
+    $bytes = @file_put_contents($path, $json);
+    if ($bytes === false) {
+        $err = error_get_last();
+        return ['saved' => false, 'error' => 'Schreiben fehlgeschlagen: ' . ($err ? $err['message'] : 'unbekannt')];
+    }
+
+    return [
+        'saved'     => true,
+        'profile'   => $profile,
+        'path'      => $path,
+        'bytes'     => $bytes,
+        'entries'   => count($data),
+        'timestamp' => date('Y-m-d H:i:s')
+    ];
+}
+
+/**
+ * Deploy: Stage-Profil nach Produktiv-Profil kopieren.
+ * Liest [profil]-stage/lyrmgr.conf und publiziert jeden Block
+ * ins Ziel-Profil via publishLyrmgrBlock().
+ */
+function deployLyrmgr($stageProfile, $targetProfile, $editor) {
+    // Validiere: stageProfile muss auf -stage enden
+    if (!preg_match('/-stage$/', $stageProfile)) {
+        return ['success' => false, 'error' => 'Stage-Profil muss auf "-stage" enden: ' . $stageProfile];
+    }
+    // Ableitung: marco-stage → marco
+    $expected = preg_replace('/-stage$/', '', $stageProfile);
+    if ($targetProfile !== $expected) {
+        return ['success' => false, 'error' => 'Ziel-Profil "' . $targetProfile . '" stimmt nicht mit Stage "' . $stageProfile . '" überein (erwartet: "' . $expected . '")'];
+    }
+
+    // Stage-Datei laden
+    $stageData = loadLyrmgrConf($stageProfile);
+    if (!$stageData['exists']) {
+        return ['success' => false, 'error' => 'Stage-Datei nicht gefunden: ' . $stageData['path']];
+    }
+    if (isset($stageData['error'])) {
+        return ['success' => false, 'error' => 'Stage-Datei Parse-Fehler: ' . $stageData['error']];
+    }
+
+    // Validierung: JSON muss gültig und nicht leer sein
+    $confData = $stageData['data'];
+    if (empty($confData)) {
+        return ['success' => false, 'error' => 'Stage-Datei ist leer'];
+    }
+
+    // Jeden Block einzeln publizieren (mit Backup)
+    $published = [];
+    $errors = [];
+    foreach ($confData as $lyrmgrKey => $blockData) {
+        $result = publishLyrmgrBlock($targetProfile, $lyrmgrKey, $blockData, $editor);
+        if ($result['published']) {
+            $published[] = $lyrmgrKey;
+        } else {
+            $errors[] = $lyrmgrKey . ': ' . $result['error'];
+        }
+    }
+
+    if (!empty($errors)) {
+        return [
+            'success'   => false,
+            'error'     => 'Deploy teilweise fehlgeschlagen: ' . implode('; ', $errors),
+            'published' => $published,
+            'errors'    => $errors
+        ];
+    }
+
+    return [
+        'success'       => true,
+        'stageProfile'  => $stageProfile,
+        'targetProfile' => $targetProfile,
+        'published'     => $published,
+        'blocksCount'   => count($published),
+        'editor'        => $editor,
+        'targetPath'    => getConfigPath($targetProfile),
+        'timestamp'     => date('Y-m-d H:i:s')
+    ];
 }
 
 // =====================================================================
@@ -2282,7 +2768,27 @@ switch ($action) {
     case 'load-lyrmgr':
         $profile = $_GET['profile'] ?? '';
         if (!$profile) jsonError('Parameter profile= erforderlich', 400);
-        $result = loadLyrmgrConf($profile);
+        $source = $_GET['source'] ?? 'config';
+        if ($source === 'draft') {
+            $result = loadLyrmgrDraft($profile);
+        } else {
+            $result = loadLyrmgrConf($profile);
+        }
+        jsonResponse(['success' => true, 'data' => $result]);
+        break;
+
+    case 'save-lyrmgr-draft':
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('POST required', 405);
+        $body = json_decode(file_get_contents('php://input'), true);
+        if (!$body) jsonError('Ungültiger JSON-Body', 400);
+        if (!isset($body['profile']) || !isset($body['data'])) {
+            jsonError('Felder profile, data erforderlich', 400);
+        }
+        $editor = getEditorName();
+        $result = saveLyrmgrDraft($body['profile'], $body['data'], $editor);
+        if (!$result['saved']) {
+            jsonError($result['error'], 500);
+        }
         jsonResponse(['success' => true, 'data' => $result]);
         break;
 
@@ -2308,6 +2814,168 @@ switch ($action) {
     case 'list-lyrmgr-profiles':
         $profiles = listLyrmgrProfiles();
         jsonResponse(['success' => true, 'data' => $profiles]);
+        break;
+
+    // ── Alle Layer aus 3 Quellen ──
+    case 'list-all-layers':
+        $profile = $_GET['profile'] ?? null;
+        $result = listAllLayers($profile);
+        jsonResponse(['success' => true, 'data' => $result]);
+        break;
+
+    // ── Config-Datei lesen (für Rechtsklick-Öffnen im Tree-Builder) ──
+    case 'read-config-file':
+        $file = $_GET['file'] ?? null;
+        $sourceType = $_GET['source'] ?? null;
+        if (!$file || !$sourceType) jsonError('Parameter file= und source= erforderlich', 400);
+        // Nur erlaubte Dateinamen (layers_*.conf)
+        $safeFile = basename($file);
+        if (!preg_match('/^layers[_\-].*\.conf$/', $safeFile) && $safeFile !== 'layers.conf') {
+            jsonError('Ungültiger Dateiname', 400);
+        }
+        // Verzeichnis anhand source-Typ bestimmen
+        $configDir = null;
+        if ($sourceType === 'core') {
+            $configDir = realpath($docRoot . '/core/config');
+        } elseif ($sourceType === 'override') {
+            $configDir = realpath($docRoot . '/maps/core/config');
+        } elseif ($sourceType === 'profile') {
+            $prof = $_GET['profile'] ?? null;
+            if ($prof) {
+                $safeProf = preg_replace('/[^a-zA-Z0-9_\-]/', '', $prof);
+                $configDir = CONFIG_BASE . '/' . $safeProf;
+                if ($safeProf === 'public') $configDir = CONFIG_BASE;
+            }
+        }
+        if (!$configDir || !is_dir($configDir)) jsonError('Quellverzeichnis nicht gefunden', 404);
+        $fullPath = $configDir . '/' . $safeFile;
+        if (!file_exists($fullPath)) jsonError('Datei nicht gefunden: ' . $safeFile, 404);
+        $content = file_get_contents($fullPath);
+        $parsed = json_decode($content, true);
+        jsonResponse(['success' => true, 'data' => [
+            'file'    => $safeFile,
+            'source'  => $sourceType,
+            'path'    => $fullPath,
+            'entries' => is_array($parsed) ? count($parsed) : 0,
+            'content' => $parsed
+        ]]);
+        break;
+
+    // ── Profil-NLS laden ──
+    case 'load-profile-nls':
+        $profile = $_GET['profile'] ?? null;
+        if (!$profile) jsonError('Profile erforderlich', 400);
+        $safe = preg_replace('/[^a-zA-Z0-9_\-]/', '', $profile);
+        $path = getProfileNlsPath($safe);
+        $data = [];
+        if (file_exists($path)) {
+            $data = json_decode(file_get_contents($path), true) ?: [];
+        }
+        jsonResponse(['success' => true, 'data' => [
+            'profile' => $safe,
+            'path'    => $path,
+            'exists'  => file_exists($path),
+            'entries' => count($data),
+            'aliases' => $data
+        ]]);
+        break;
+
+    // ── NLS laden (site-core oder group) ──
+    case 'load-nls':
+        $target = $_GET['target'] ?? null;
+        $group = $_GET['group'] ?? null;
+        if (!$target) jsonError('Parameter target= erforderlich (site-core|group)', 400);
+        if ($target === 'group' && !$group) jsonError('Parameter group= erforderlich bei target=group', 400);
+        $result = loadNlsFile($target, $group);
+        if (!$result['success']) jsonError($result['error'], 400);
+        jsonResponse(['success' => true, 'data' => $result]);
+        break;
+
+    // ── NLS speichern (site-core oder group) ──
+    case 'save-nls':
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('POST required', 405);
+        $body = json_decode(file_get_contents('php://input'), true);
+        if (!$body) jsonError('Ungültiger JSON-Body', 400);
+        $target = $body['target'] ?? null;
+        $group = $body['group'] ?? null;
+        $aliases = $body['aliases'] ?? null;
+        if (!$target) jsonError('Feld target erforderlich (site-core|group)', 400);
+        if ($target === 'group' && !$group) jsonError('Feld group erforderlich bei target=group', 400);
+        if (!is_array($aliases)) jsonError('Feld aliases muss ein Object sein', 400);
+        $result = saveNlsEntries($target, $aliases, $group);
+        if (!$result['saved']) jsonError($result['error'], 500);
+        jsonResponse(['success' => true, 'data' => $result]);
+        break;
+
+    // ── Profil-NLS speichern ──
+    case 'save-profile-nls':
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('POST required', 405);
+        $body = json_decode(file_get_contents('php://input'), true);
+        if (!$body) jsonError('Ungültiger JSON-Body', 400);
+        if (!isset($body['profile']) || !isset($body['aliases'])) {
+            jsonError('Felder profile und aliases erforderlich', 400);
+        }
+        if (!is_array($body['aliases'])) jsonError('aliases muss ein Object sein', 400);
+        $result = saveProfileNls($body['profile'], $body['aliases']);
+        if (!$result['saved']) {
+            jsonError($result['error'], 500);
+        }
+        jsonResponse(['success' => true, 'data' => $result]);
+        break;
+
+    // ── Profil-legendResources laden ──
+    case 'load-profile-legend':
+        $profile = $_GET['profile'] ?? null;
+        if (!$profile) jsonError('Profile erforderlich', 400);
+        $safe = preg_replace('/[^a-zA-Z0-9_\-]/', '', $profile);
+        $path = getProfileLegendPath($safe);
+        $data = [];
+        if (file_exists($path)) {
+            $data = json_decode(file_get_contents($path), true) ?: [];
+        }
+        jsonResponse(['success' => true, 'data' => [
+            'profile' => $safe,
+            'path'    => $path,
+            'exists'  => file_exists($path),
+            'entries' => count($data),
+            'legends' => $data
+        ]]);
+        break;
+
+    // ── Profil-legendResources speichern ──
+    case 'save-profile-legend':
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('POST required', 405);
+        $body = json_decode(file_get_contents('php://input'), true);
+        if (!$body) jsonError('Ungültiger JSON-Body', 400);
+        if (!isset($body['profile']) || !isset($body['legends'])) {
+            jsonError('Felder profile und legends erforderlich', 400);
+        }
+        if (!is_array($body['legends'])) jsonError('legends muss ein Object sein', 400);
+        $result = saveProfileLegend($body['profile'], $body['legends']);
+        if (!$result['saved']) {
+            jsonError($result['error'], 500);
+        }
+        jsonResponse(['success' => true, 'data' => $result]);
+        break;
+
+    // ── Deploy: Stage → Produktiv ──
+    case 'deploy-lyrmgr':
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('POST required', 405);
+        $body = json_decode(file_get_contents('php://input'), true);
+        if (!$body) jsonError('Ungültiger JSON-Body', 400);
+        if (!isset($body['stageProfile']) || !isset($body['targetProfile'])) {
+            jsonError('Felder stageProfile und targetProfile erforderlich', 400);
+        }
+        $editor = getEditorName();
+        $lock = readLock();
+        if ($lock && $lock['editor'] !== $editor) {
+            jsonError('Gesperrt von ' . $lock['editor'], 423);
+        }
+        $result = deployLyrmgr($body['stageProfile'], $body['targetProfile'], $editor);
+        if (!$result['success']) {
+            jsonError($result['error'], 500);
+        }
+        jsonResponse(['success' => true, 'data' => $result]);
         break;
 
     // ── AGS → MapPlus Roh-Konfiguration ──
@@ -2572,7 +3240,7 @@ switch ($action) {
             'data' => [
                 'name'    => 'Tree-Builder Persistence API',
                 'version' => '3.1',
-                'actions' => ['load', 'save', 'lock', 'unlock', 'lock-status', 'history', 'restore', 'save-groups', 'load-groups', 'save-profile', 'load-profile', 'list-profiles', 'load-lyrmgr', 'publish-lyrmgr', 'list-lyrmgr-profiles', 'ags-services', 'ags-export', 'ags-list-raw', 'ags-delete-raw', 'ags-delete-backups', 'ags-read-raw', 'ags-write-raw', 'staging-layers-flat', 'config-editor-load', 'config-editor-save', 'config-export-to-core', 'core-list-sources', 'core-import'],
+                'actions' => ['load', 'save', 'lock', 'unlock', 'lock-status', 'history', 'restore', 'save-groups', 'load-groups', 'save-profile', 'load-profile', 'list-profiles', 'load-lyrmgr', 'save-lyrmgr-draft', 'publish-lyrmgr', 'list-lyrmgr-profiles', 'list-all-layers', 'deploy-lyrmgr', 'ags-services', 'ags-export', 'ags-list-raw', 'ags-delete-raw', 'ags-delete-backups', 'ags-read-raw', 'ags-write-raw', 'staging-layers-flat', 'config-editor-load', 'config-editor-save', 'config-export-to-core', 'core-list-sources', 'core-import'],
                 'storage' => DATA_DIR
             ]
         ]);
