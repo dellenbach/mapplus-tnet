@@ -34,6 +34,15 @@ class CacheHelper {
     }
 
     /**
+     * Setzt no-cache Header — Browser muss immer beim Server revalidieren.
+     * ETag/304 sorgt dafür, dass bei unverändertem Inhalt kein Body
+     * übertragen wird (schnell), aber Änderungen sofort sichtbar sind.
+     */
+    public static function setNoCache() {
+        header("Cache-Control: no-cache, must-revalidate");
+    }
+
+    /**
      * Setzt ETag und prüft auf 304 Not Modified
      * 
      * Wenn der Client den gleichen ETag sendet, wird 304 zurückgegeben

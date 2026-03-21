@@ -244,7 +244,7 @@ if ($layerId !== null) {
         $layer = fetchLayerFromDb($layerId);
         if ($layer) {
             $layer['_source'] = 'database';
-            CacheHelper::setCacheControl(CacheHelper::DEFAULT_MAX_AGE);
+            CacheHelper::setNoCache();
             ApiResponse::success($layer);
         }
         // Kein Treffer in DB → Fallback auf Files
@@ -286,7 +286,7 @@ if ($layerId !== null) {
         '_source'   => 'file'
     ];
 
-    CacheHelper::setCacheControl(CacheHelper::DEFAULT_MAX_AGE);
+    CacheHelper::setNoCache();
     ApiResponse::success($layer);
 }
 
@@ -312,7 +312,7 @@ $sourceFiles = array_filter([$lyrmgrFile, $mappingFile], 'file_exists');
 // Cache Hit? (ausser im Debug- oder NoCache-Modus)
 $cached = $cache->get($cacheKey, $sourceFiles, 3600);
 if ($cached !== null && !$debug && !$noCache) {
-    CacheHelper::setCacheControl(CacheHelper::DEFAULT_MAX_AGE);
+    CacheHelper::setNoCache();
     $meta = $cached['meta'] ?? [];
     $meta['cache'] = 'hit';
     ApiResponse::success($cached['data'], $meta);
@@ -415,7 +415,7 @@ if ($useDatabase) {
                 $elapsed = round((microtime(true) - $startTime) * 1000);
                 $meta['responseTime'] = $elapsed . 'ms';
 
-                CacheHelper::setCacheControl(CacheHelper::DEFAULT_MAX_AGE);
+                CacheHelper::setNoCache();
                 ApiResponse::success($flatLayers, $meta);
             }
 
@@ -448,7 +448,7 @@ if ($useDatabase) {
             // In Cache speichern (auch DB-Resultate cachen)
             $cache->set($cacheKey, ['data' => $result, 'meta' => $meta]);
 
-            CacheHelper::setCacheControl(CacheHelper::DEFAULT_MAX_AGE);
+            CacheHelper::setNoCache();
             ApiResponse::success($result, $meta);
         }
         $dbError = 'Keine Katalogdaten für Profil "' . $group . '" gefunden';
@@ -532,9 +532,14 @@ foreach ($mapping['categories'] as $topCategory) {
                         'layers' => []
                     ];
 
-                    // Legenden-Key aus lyrmgr.conf durchreichen
+                    // Legenden-Key aus lyrmgr.conf durchreichen + legendResources auflösen
                     if (isset($groupDef['legend']) && $groupDef['legend'] !== '') {
                         $groupData['legend'] = $groupDef['legend'];
+                        $legInfo = getLegendLink($groupDef['legend']);
+                        if ($legInfo) {
+                            $groupData['legendLink']  = $legInfo['link'];
+                            $groupData['legendTitle'] = $legInfo['title'];
+                        }
                     }
 
                     // selectAll-Flag durchreichen
@@ -595,7 +600,7 @@ if ($flat) {
     }
 
     // HTTP Caching
-    CacheHelper::setCacheControl(CacheHelper::DEFAULT_MAX_AGE);
+    CacheHelper::setNoCache();
 
     ApiResponse::success($flatLayers, $meta);
 }
@@ -636,7 +641,7 @@ if (!$cached && $debug) {
 }
 
 // HTTP Caching
-CacheHelper::setCacheControl(CacheHelper::DEFAULT_MAX_AGE);
+CacheHelper::setNoCache();
 
 ApiResponse::success($result, $meta);
 
@@ -685,6 +690,14 @@ function processLayerItems($items, &$layerDefinitions, $details = true) {
                     }
                 }
             }
+            // Zusätzlich legendResources auflösen (für nicht-ArcGIS Legenden)
+            if (isset($layerData['legend']) && !isset($layerData['legendLink'])) {
+                $legInfo = getLegendLink($layerData['legend']);
+                if ($legInfo) {
+                    $layerData['legendLink']  = $legInfo['link'];
+                    $layerData['legendTitle'] = $legInfo['title'];
+                }
+            }
 
             $layers[] = $layerData;
 
@@ -697,9 +710,14 @@ function processLayerItems($items, &$layerDefinitions, $details = true) {
                 'open' => $item['open'] ?? false
             ];
 
-            // Legenden-Key aus lyrmgr.conf durchreichen
+            // Legenden-Key aus lyrmgr.conf durchreichen + legendResources auflösen
             if (isset($item['legend']) && $item['legend'] !== '') {
                 $layerData['legend'] = $item['legend'];
+                $legInfo = getLegendLink($item['legend']);
+                if ($legInfo) {
+                    $layerData['legendLink']  = $legInfo['link'];
+                    $layerData['legendTitle'] = $legInfo['title'];
+                }
             }
 
             // selectAll-Flag durchreichen
@@ -729,6 +747,14 @@ function processLayerItems($items, &$layerDefinitions, $details = true) {
                             }
                         }
                     }
+                    // Zusätzlich legendResources auflösen
+                    if (isset($layerData['legend']) && !isset($layerData['legendLink'])) {
+                        $legInfo = getLegendLink($layerData['legend']);
+                        if ($legInfo) {
+                            $layerData['legendLink']  = $legInfo['link'];
+                            $layerData['legendTitle'] = $legInfo['title'];
+                        }
+                    }
                 }
             }
 
@@ -753,6 +779,11 @@ function processLayerItems($items, &$layerDefinitions, $details = true) {
 
             if (isset($item['legend']) && $item['legend'] !== '') {
                 $layerData['legend'] = $item['legend'];
+                $legInfo = getLegendLink($item['legend']);
+                if ($legInfo) {
+                    $layerData['legendLink']  = $legInfo['link'];
+                    $layerData['legendTitle'] = $legInfo['title'];
+                }
             }
             if (!empty($item['selectAll'])) {
                 $layerData['selectAll'] = true;
@@ -893,6 +924,47 @@ function getNlsLabel($key) {
     $lookupKey = 'desc_' . $key;
     if (isset($nls[$lookupKey])) {
         return $nls[$lookupKey];
+    }
+    return null;
+}
+
+/**
+ * Löst einen Legend-Key gegen legendResources_*.json auf.
+ * Gibt Link und Titel zurück, falls vorhanden.
+ * 
+ * @param string $legendKey  z.B. 'information', 'schweizmobil', 'gastro'
+ * @return array|null  ['link' => '...', 'title' => '...'] oder null
+ */
+function getLegendLink($legendKey) {
+    static $legendRes = null;
+    if ($legendRes === null) {
+        $legendRes = [];
+        $nlsDirBase = realpath(__DIR__ . '/../../../../core/nls/de');
+        if ($nlsDirBase && is_dir($nlsDirBase)) {
+            foreach (glob($nlsDirBase . '/legendResources*.json') as $f) {
+                // Backup-Dateien (.bak) ignorieren
+                if (preg_match('/\.bak$/', $f)) continue;
+                $data = json_decode(file_get_contents($f), true);
+                if (is_array($data)) {
+                    $legendRes = array_merge($legendRes, $data);
+                }
+            }
+        }
+        $nlsDirOverride = realpath(__DIR__ . '/../../../core/nls/de');
+        if ($nlsDirOverride && is_dir($nlsDirOverride) && $nlsDirOverride !== $nlsDirBase) {
+            foreach (glob($nlsDirOverride . '/legendResources*.json') as $f) {
+                if (preg_match('/\.bak$/', $f)) continue;
+                $data = json_decode(file_get_contents($f), true);
+                if (is_array($data)) {
+                    $legendRes = array_merge($legendRes, $data);
+                }
+            }
+        }
+    }
+    $link  = $legendRes[$legendKey . '_link'] ?? null;
+    $title = $legendRes[$legendKey . '_title'] ?? null;
+    if ($link) {
+        return ['link' => $link, 'title' => $title];
     }
     return null;
 }

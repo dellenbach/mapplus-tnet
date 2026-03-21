@@ -36,7 +36,7 @@ if (json_last_error() !== JSON_ERROR_NONE) {
 }
 
 // === Caching ===
-CacheHelper::setCacheControl(CacheHelper::DEFAULT_MAX_AGE);
+CacheHelper::setNoCache();
 CacheHelper::handleLastModified($bookmarksFile);
 
 // === Parameter ===

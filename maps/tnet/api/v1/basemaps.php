@@ -29,7 +29,7 @@ if ($basemaps === null) {
 $coreConfig = ConfigReader::getCoreConfigPath();
 $basemapsFile = $coreConfig . '/basemaps.conf';
 
-CacheHelper::setCacheControl(CacheHelper::LONG_MAX_AGE);
+CacheHelper::setNoCache();
 CacheHelper::handleLastModified($basemapsFile);
 
 // === Response ===
