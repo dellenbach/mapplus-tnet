@@ -564,6 +564,74 @@ window.TnetLMStore = (function() {
         return null;
       }
       return search(_catalog);
+    },
+
+    // Coalesce-Gruppen: Im Dev-Mock nicht verwendet → Stub-Methoden
+    getCoalesceInfo: function() { return null; },
+
+    getGroupVisibilityState: function(groupId) {
+      // Alle Blatt-Layer der Gruppe prüfen
+      var node = this.findLayer(groupId);
+      if (!node) return 'none';
+      var leaves = [];
+      (function walk(n) {
+        if (n.layers) n.layers.forEach(function(l) { walk(l); });
+        else if (n.type !== 'group') leaves.push(n);
+      })(node);
+      if (!leaves.length) return 'none';
+      var on = 0;
+      for (var i = 0; i < leaves.length; i++) { if (leaves[i].visible) on++; }
+      if (on === 0) return 'none';
+      if (on === leaves.length) return 'all';
+      return 'partial';
+    },
+
+    setGroupAllVisible: function(groupId, visible) {
+      var self = this;
+      var node = this.findLayer(groupId);
+      if (!node) return;
+      (function walk(n) {
+        if (n.layers) n.layers.forEach(function(l) { walk(l); });
+        else if (n.type !== 'group') {
+          n.visible = visible;
+          if (visible && _activeLayers.indexOf(n) === -1) {
+            n.opacity = n.opacity || 1.0;
+            _activeLayers.push(n);
+          } else if (!visible) {
+            var idx = _activeLayers.indexOf(n);
+            if (idx >= 0) _activeLayers.splice(idx, 1);
+          }
+        }
+      })(node);
+      self._emit('active-layers-changed', _activeLayers);
+      document.getElementById('dt-active-status').textContent = _activeLayers.length + ' Layer';
+    },
+
+    toggleCoalesceGroupEye: function() {},
+    removeCoalesceGroup: function() {},
+    setCoalesceGroupOpacity: function() {},
+
+    setActiveLayerOrder: function(orderedIds) {
+      var reordered = [];
+      for (var i = 0; i < orderedIds.length; i++) {
+        for (var j = 0; j < _activeLayers.length; j++) {
+          if (_activeLayers[j].id === orderedIds[i]) {
+            reordered.push(_activeLayers[j]);
+            break;
+          }
+        }
+      }
+      _activeLayers = reordered;
+      this._emit('active-layers-changed', _activeLayers);
+    },
+
+    removeAllLayers: function() {
+      for (var i = 0; i < _activeLayers.length; i++) {
+        _activeLayers[i].visible = false;
+      }
+      _activeLayers = [];
+      this._emit('active-layers-changed', _activeLayers);
+      document.getElementById('dt-active-status').textContent = '0 Layer';
     }
   };
 })();
@@ -580,27 +648,33 @@ function reloadData() {
 log('=== Dev-Test [group=' + currentGroup + ', panel=' + currentPanel + ', view=' + currentView + '] ===');
 </script>
 
+<!-- Abhängigkeiten (TnetLog, TnetIcons) -->
+<script src="/maps/tnet/js/tnet-log.js?v=dev"></script>
+<script src="/maps/tnet/js/tnet-icons.js?v=dev"></script>
+
 <!-- Echte JS-Module -->
 <script src="/maps/tnet/js/tnet-lm-tree.js?v=dev"></script>
 <script src="/maps/tnet/js/tnet-lm-active.js?v=dev"></script>
 
 <script>
-// Start
-if (window.TnetLMTree) {
-  log('Tree: init...');
-  window.TnetLMTree.init('lm-tree-container');
-} else {
-  log('WARNUNG: TnetLMTree nicht geladen', 'warn');
-}
+// Icons vorladen, dann Module initialisieren
+TnetIcons.loadAll().then(function() {
+  if (window.TnetLMTree) {
+    log('Tree: init...');
+    window.TnetLMTree.init('lm-tree-container');
+  } else {
+    log('WARNUNG: TnetLMTree nicht geladen', 'warn');
+  }
 
-if (window.TnetLMActive) {
-  log('Active: init...');
-  window.TnetLMActive.init('lm-active-container');
-} else {
-  log('WARNUNG: TnetLMActive nicht geladen', 'warn');
-}
+  if (window.TnetLMActive) {
+    log('Active: init...');
+    window.TnetLMActive.init('lm-active-container');
+  } else {
+    log('WARNUNG: TnetLMActive nicht geladen', 'warn');
+  }
 
-window.TnetLMStore.init();
+  window.TnetLMStore.init();
+});
 </script>
 </body>
 </html>

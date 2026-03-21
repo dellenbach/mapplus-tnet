@@ -57,6 +57,9 @@
         this.render(store.getCatalog());
       }
 
+      // Resolution-Listener: Layer ausserhalb des Massstabsbereichs ausgrauen
+      this._initResolutionWatch();
+
       TnetLog.log(LOG, 'Init ✓ → #' + containerId);
     },
 
@@ -176,11 +179,14 @@
       }
       html += '<span class="lm-group-name">' + esc(group.name) + '</span>';
       if (hasLegend) {
-        html += '<button class="lm-legend-btn" data-action="open-legend" data-legend-key="' + esc(group.legend) + '" title="Legende anzeigen">' + getLegendIconSvg() + '</button>';
+        html += '<button class="lm-legend-btn" data-action="open-legend" data-legend-key="' + esc(group.legend) + '"';
+        if (group.legendLink) html += ' data-legend-link="' + esc(group.legendLink) + '"';
+        if (group.legendTitle) html += ' data-legend-title="' + esc(group.legendTitle) + '"';
+        html += ' title="Legende anzeigen">' + getLegendIconSvg() + '</button>';
       }
       html += '<span class="lm-count">' + count + '</span>';
       html += '</div>';
-      html += '<div class="lm-group-body">';
+      html += '<div class="lm-group-body">';;
       for (var i = 0; i < layers.length; i++) {
         html += this._renderLayerItem(layers[i], normalizedDepth + 1);
       }
@@ -207,7 +213,10 @@
         }
         html += '<span class="lm-nested-name">' + esc(item.name) + '</span>';
         if (hasLegend) {
-          html += '<button class="lm-legend-btn" data-action="open-legend" data-legend-key="' + esc(item.legend) + '" title="Legende anzeigen">' + getLegendIconSvg() + '</button>';
+          html += '<button class="lm-legend-btn" data-action="open-legend" data-legend-key="' + esc(item.legend) + '"';
+          if (item.legendLink) html += ' data-legend-link="' + esc(item.legendLink) + '"';
+          if (item.legendTitle) html += ' data-legend-title="' + esc(item.legendTitle) + '"';
+          html += ' title="Legende anzeigen">' + getLegendIconSvg() + '</button>';
         }
         html += '<span class="lm-count">' + count + '</span>';
         html += '</div>';
@@ -237,6 +246,8 @@
         var legendLayers = layer.legendLayers || '';
         html += '<button class="lm-legend-btn" data-action="open-legend" data-legend-key="' + esc(layer.legend) + '"';
         if (legendLayers) html += ' data-legend-layers="' + esc(legendLayers) + '"';
+        if (layer.legendLink) html += ' data-legend-link="' + esc(layer.legendLink) + '"';
+        if (layer.legendTitle) html += ' data-legend-title="' + esc(layer.legendTitle) + '"';
         html += ' title="Legende anzeigen">' + getLegendIconSvg() + '</button>';
       }
       html += '</div>';
@@ -269,7 +280,12 @@
         var legendBtn = e.target.closest('[data-action="open-legend"]');
         if (legendBtn) {
           e.stopPropagation();
-          self._openLegend(legendBtn.dataset.legendKey, legendBtn.dataset.legendLayers || '');
+          self._openLegend(
+            legendBtn.dataset.legendKey,
+            legendBtn.dataset.legendLayers || '',
+            legendBtn.dataset.legendLink || '',
+            legendBtn.dataset.legendTitle || ''
+          );
           return;
         }
 
@@ -541,6 +557,59 @@
       }
     },
 
+    // ============================================================
+    //  Resolution-Watch: Layer ausserhalb Massstabsbereich ausgrauen
+    // ============================================================
+
+    _initResolutionWatch: function () {
+      var self = this;
+      // Warte auf Map-Objekt (kann verzögert initialisiert werden)
+      function tryBind() {
+        var mainMap = typeof njs !== 'undefined' && njs.AppManager && njs.AppManager.Maps && njs.AppManager.Maps['main'];
+        var map = mainMap && mainMap.mapObj;
+        if (!map) {
+          setTimeout(tryBind, 2000);
+          return;
+        }
+        var view = map.getView();
+        if (!view) return;
+        var debounceTimer = null;
+        view.on('change:resolution', function () {
+          clearTimeout(debounceTimer);
+          debounceTimer = setTimeout(function () { self._updateOutOfRange(view.getResolution()); }, 200);
+        });
+        // Initialer Check
+        self._updateOutOfRange(view.getResolution());
+        TnetLog.log(LOG, 'Resolution-Watch aktiv');
+      }
+      tryBind();
+    },
+
+    _updateOutOfRange: function (resolution) {
+      if (!_container) return;
+      var store = window.TnetLMStore;
+      if (!store) return;
+      var els = _container.querySelectorAll('.lm-layer[data-layer-id]');
+      for (var i = 0; i < els.length; i++) {
+        var layerId = els[i].dataset.layerId;
+        var layer = store.findLayer(layerId);
+        if (!layer) continue;
+        // Resolution-Limits aus Config oder aus OL-Layer
+        var maxRes = layer.maxResolution;
+        var minRes = layer.minResolution;
+        if (layer._olLayerRef) {
+          var olMax = layer._olLayerRef.getMaxResolution();
+          var olMin = layer._olLayerRef.getMinResolution();
+          if (olMax && olMax !== Infinity) maxRes = olMax;
+          if (olMin && olMin > 0) minRes = olMin;
+        }
+        var outOfRange = false;
+        if (maxRes && resolution > maxRes) outOfRange = true;
+        if (minRes && resolution < minRes) outOfRange = true;
+        els[i].classList.toggle('lm-out-of-range', outOfRange);
+      }
+    },
+
     /**
      * Synchronisiert Kind-Checkboxen einer Gruppe mit dem Store-Zustand.
      * Fallback für Fälle wo layer-visibility Events den DOM nicht aktualisiert haben
@@ -578,21 +647,29 @@
 
     /**
      * Legende in einem Fenster öffnen.
-     * Nutzt bestehenden njs.AppManager.showLegend() oder Fallback auf neues Tab.
+     * Wenn legendLink vorhanden (aus legendResources), direkt öffnen.
+     * Sonst Fallback auf legend-proxy (für ArcGIS-Dienste).
      */
-    _openLegend: function (legendKey, legendLayers) {
+    _openLegend: function (legendKey, legendLayers, legendLink, legendTitle) {
       if (!legendKey) return;
-      // Legenden-URL über legend-proxy konstruieren
-      var legendUrl = '/maps/tnet/api/v1/legend-proxy.php?service=' + encodeURIComponent(legendKey);
-      if (legendLayers) {
-        legendUrl += '&layers=' + encodeURIComponent(legendLayers);
+
+      var legendUrl;
+      if (legendLink) {
+        // Direkte URL aus legendResources (z.B. ../core/legends/information_de.htm)
+        legendUrl = legendLink;
+      } else {
+        // ArcGIS-Dienst → legend-proxy
+        legendUrl = '/maps/tnet/api/v1/legend-proxy.php?service=' + encodeURIComponent(legendKey);
+        if (legendLayers) {
+          legendUrl += '&layers=' + encodeURIComponent(legendLayers);
+        }
       }
-      var legendTitle = legendKey.split('/').pop() || 'Legende';
+      var title = legendTitle || legendKey.split('/').pop() || 'Legende';
 
       var am = window.njs && window.njs.AppManager;
       if (!am) am = window.top && window.top.njs && window.top.njs.AppManager;
       if (am && typeof am.showLegend === 'function') {
-        am.showLegend(legendUrl, legendTitle, true, undefined);
+        am.showLegend(legendUrl, title, true, undefined);
         TnetLog.log(LOG, 'Legende geöffnet:', legendUrl);
       } else {
         window.open(legendUrl, '_blank', 'noopener');

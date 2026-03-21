@@ -295,18 +295,24 @@ window.TnetLMStore = (function() {
 log('=== Tree-Test [group=' + currentGroup + '] ===');
 </script>
 
+<!-- Abhängigkeiten (TnetLog, TnetIcons) -->
+<script src="/maps/tnet/js/tnet-log.js?v=test"></script>
+<script src="/maps/tnet/js/tnet-icons.js?v=test"></script>
+
 <!-- Echter Tree-Renderer -->
 <script src="/maps/tnet/js/tnet-lm-tree.js?v=test"></script>
 
 <script>
-if (window.TnetLMTree) {
-  log('Tree: init...');
-  window.TnetLMTree.init('lm-tree-container');
-  window.TnetLMStore.init();
-} else {
-  log('FEHLER: TnetLMTree nicht geladen!', 'err');
-  setStatus('Fehler', 'error');
-}
+TnetIcons.loadAll().then(function() {
+  if (window.TnetLMTree) {
+    log('Tree: init...');
+    window.TnetLMTree.init('lm-tree-container');
+    window.TnetLMStore.init();
+  } else {
+    log('FEHLER: TnetLMTree nicht geladen!', 'err');
+    setStatus('Fehler', 'error');
+  }
+});
 </script>
 </body>
 </html>

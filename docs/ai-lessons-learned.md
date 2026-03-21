@@ -12,6 +12,24 @@
 - **Fix**: `rotRad` in `template-pdf-export.js` um `options.rotation`-Fallback ergänzt: `(typeof options.rotation === 'number' && options.rotation !== 0) ? options.rotation * Math.PI / 180 : map.getView().getRotation()`.
 - **Guardrail**: Wenn Map-Rotation via CSS-Transform (nicht View) gelöst wird, muss `options.rotation` immer explizit in Radiant in `rotRad` einfliessen.
 
+## 2026-03-19 — Falsche Legende für WMS-Layer: „ArcGIS Legend-Fehler: Service schweizmobil/MapServer not found"
+- **Symptom**: Klick auf Legenden-Icon bei Gemeindegrenzen (Geoadmin WMS) öffnet `legend-proxy.php?service=schweizmobil` → Fehlermeldung „Service schweizmobil/MapServer not found", da der Dienst nicht existiert.
+- **Root-Cause**: `_propagateLegends()` in `tnet-lm-store.js` vererbt den Legend-Key (`"schweizmobil"`) von einer ArcGIS-Elterngruppe blind an ALLE Kind-Layer — auch an WMS/WMTS-Layer. `_openLegend()` in `tnet-lm-tree.js` schickt den Key dann an `legend-proxy.php`, das nur ArcGIS-Services versteht.
+- **Fix**: `_propagateLegends()` prüft bei Vererbung: Wenn Blatt-Layer (`type==='layer'`) ein `layerType` hat, das nicht `arcgisRest` ist, wird die Legende NICHT vom Eltern-Knoten geerbt.
+- **Guardrail**: Legend-Vererbung darf nur an Layer gleichen Service-Typs erfolgen. `layerType`-Feld (von `extractLegendInfo()` in layers.php) immer als Typ-Check verwenden.
+
+## 2026-03-19 — TnetLayerSwitch: Layer-Einschalten funktioniert nur für ersten LyrMgr (main_lyrmgr)
+- **Symptom**: Checkbox-Klick auf Bundesdaten (Geoadmin WMS), Gemeindegrenzen, Obwalden-Layer im TNET-Tree zeigt keinen Layer auf der Karte. `switchLayersProgr` wird aufgerufen, meldet Erfolg, aber kein OL-Layer entsteht.
+- **Root-Cause**: `TnetLayerSwitch()` in `tnet-mapplus-helpers.js` iteriert `am.LyrMgr` mit `break` beim ersten LyrMgr der `targetMap='main'` hat → nimmt immer `main_lyrmgr` (NW-Layer). Layer wie `municipalities_borders` (Geoadmin) sind aber in `second_lyrmgr` oder `forth_lyrmgr` registriert. `switchLayersProgr` auf dem falschen LyrMgr überspringt unbekannte Layer still.
+- **Fix**: Statt `break` bei erstem Match: Alle LyrMgr mit `getLayerById(layerId)` abfragen und denjenigen nehmen, der den Layer kennt. Fallback: auf allen LyrMgr `switchLayersProgr` aufrufen.
+- **Guardrail**: Bei Multi-LyrMgr-Setups (main/second/third/forth) NIE auf den ersten LyrMgr beschränken. Einschalten muss wie Ausschalten ALLE LyrMgr durchsuchen.
+
+## 2026-03-19 — Eckige Klammern in Layer-Namen werden abgeschnitten, z.B. "Gemeindegrenzen [04/2025]" → "2025]"
+- **Symptom**: NLS-Beschreibungen mit `/` in eckigen Klammern (z.B. `[04/2025]`, `[kWh/m2]`) werden in der aktiven-Themen-Liste falsch dargestellt — nur das letzte Segment nach `/` bleibt sichtbar.
+- **Root-Cause**: `_cleanPathName()` in `tnet-lm-store.js` splittet den Namen am `/` um Pfade wie `"Gis Basis/gemeindegrenzen"` aufzulösen. Aber `"Gemeindegrenzen [04/2025]"` enthält ebenfalls `/` → `split('/').pop()` ergibt `"2025]"`.
+- **Fix**: Vor dem Split Klammer-Inhalt entfernen (`name.replace(/\[[^\]]*\]/g, '')`) und prüfen, ob dann noch ein `/` vorhanden ist. Falls nicht, Name unverändert zurückgeben.
+- **Guardrail**: Bei Pfad-Split-Logik immer prüfen, ob der `/` innerhalb von Klammern, Anführungszeichen oder anderen Sonderzeichen steht. Eckige Klammern in NLS-Texten sind verbreitet (Einheiten, Datumsangaben).
+
 ## 2026-03-13 — Basemap-Wechsel: "Duplicate item added to a unique collection" beim Orthofoto
 - **Symptom**: Klick auf Orthofoto (swissimage) wirft `Uncaught Error: Duplicate item added to a unique collection` in OpenLayers Collection.setAt().
 - **Root-Cause**: Framework's `changeBaseMap()` ruft `mapObj.getLayers().setAt(0, basisMaps[id])` ohne zu prüfen, ob das Layer-Objekt bereits an Index 0 liegt. OpenLayers' `assertUnique_` wirft, wenn dasselbe Objekt schon in der Collection ist — auch am Ziel-Index.
@@ -610,6 +628,22 @@
 - **Fix**: Close-Regeln für `#spring > *:not(.close_switch)` um `height:0` und `min-height:0` ergänzt; Handle im Close-Zustand absolut auf `top:0` innerhalb von `#spring` verankert; `#spring` bleibt `position:relative`.
 - **Guardrail**: Bei Collapse-UI mit Trigger innerhalb des Containers Trigger-Position entkoppeln (absolute Verankerung) und bei Geschwister-Elementen immer auch `height/min-height` explizit nullen.
 
+---
+
+## 2025-07-09 — Tree-Builder: replace_string_in_file scheitert leise an grossen HTML-Dateien
+
+- **Symptom**: `replace_string_in_file` meldet "successfully edited" aber die Datei bleibt unverändert (tree-builder.html, ~300 KB).
+- **Root-Cause**: Grosse inlined HTML-Dateien mit JavaScript-Blöcken werden vom Edit-Tool manchmal nicht korrekt geschrieben, obwohl Matches gefunden werden.
+- **Fix**: Für grosse Dateien (>100 KB) ein Python-Patch-Skript erstellen, das `str.replace()` auf den gelesenen Inhalt anwendet und die Datei direkt schreibt.
+- **Guardrail**: Bei tree-builder.html und ähnlich grossen HTML-Dateien immer via Python-Skript patchen. Nach jedem Edit per Terminal verifizieren (`Select-String` oder Python-Check).
+
+## 2025-07-09 — Tree-Builder: Config-Datei Tooltip + Rechtsklick
+
+- **Symptom**: Im Tree-Builder war nicht erkennbar, aus welcher Server-Datei ein Layer stammt (nur Dateiname, kein voller Pfad).
+- **Root-Cause**: `listAllLayers()` in treebuilder-api.php speicherte nur `basename($f)` als `sourceFile`, nicht den vollen Pfad.
+- **Fix**: PHP: `sourceFilePath` (dir + filename) pro Layer hinzugefügt. JS: Gruppen-Header-Tooltip zeigt alle Config-Pfade; Source-Badge-Tooltip zeigt vollen Pfad; Rechtsklick auf Badge/Header öffnet Config im bestehenden Modal via neuem `read-config-file` API-Endpoint.
+- **Guardrail**: Bei API-Erweiterungen die `openCtxMenu()`-Infrastruktur wiederverwenden statt eigene Kontextmenüs zu bauen.
+
 ## 2026-03-04 — Neuer LM-Tree: Gruppen-/Subcategory-Namen zeigen Rohpfade statt Labels
 
 - **Symptom**: Im neuen Desktop-Layermanager werden Gruppen als "Gis Basis/nw Basisplan Gis Dynamisch/gemeindegrenzen" und Subcategories als "Grundlagen" (ucfirst) statt NLS-Label "GRUNDLAGEN" angezeigt.
@@ -804,3 +838,17 @@
 - **Root-Cause**: Beim Ersetzen des JSON-MISS-Ausgabepfads (`jsonResponse()` → `sendCachedFile()`) blieb eine überzählige `}` stehen, die den ursprünglichen `if/else`-Block geschlossen hatte. PHP-Syntaxfehler → 500 mit leerem Body.
 - **Fix**: Überflüssige `}` direkt nach `sendCachedFile($cacheFile, 'application/json', ...)` entfernt.
 - **Guardrail**: Nach jedem PHP-Strukturrefactoring lokal `php -l datei.php` ausführen. Leerer 500-Body = PHP-Syntaxfehler (nicht Runtime). Auf ungematchte Klammern unterhalb von `exit`-Aufrufen achten.
+
+## 2026-03-19 — replace_string_in_file bei grossen Dateien wirkungslos
+
+- **Symptom**: `replace_string_in_file` meldet Erfolg für tree-builder.html (~296KB), aber die Datei auf Disk bleibt unverändert (mehrfach reproduziert).
+- **Root-Cause**: Bei sehr grossen Dateien (>250KB) schlägt die interne Persistierung fehl, obwohl das Tool Erfolg meldet.
+- **Fix**: Python-Script (`_temp_patch_treebuilder.py`) mit `str.replace()` und `open(..., 'w')` verwenden.
+- **Guardrail**: Bei grossen Dateien (>100KB) nach jeder Änderung via Terminal/Python verifizieren, ob die Änderung tatsächlich geschrieben wurde. PowerShell-String-Ersetzungen mit `\n` vs `\r\n` (CRLF) sorgfältig prüfen — `IndexOf` mit LF-only findet auf Windows-Dateien den falschen Offset.
+
+## 2026-03-19 — PowerShell Here-String + CRLF → Datei-Korruption
+
+- **Symptom**: PowerShell-basierte String-Ersetzung mit Here-Strings (`@"..."@`) und `\`n` (LF) als Marker korruptiert die Datei durch falschen Splice-Offset.
+- **Root-Cause**: Windows-Dateien verwenden CRLF (`\r\n`). PowerShell-`\`n` ist nur LF. `IndexOf` auf CRLF-Inhalt mit LF-Marker gibt -1 oder falschen Offset → `Substring()` schneidet an falscher Stelle.
+- **Fix**: Python-Script mit expliziter Encoding-Kontrolle (`newline=''`) verwenden. Keine PowerShell-Here-Strings für Dateimanipulation grosser Dateien.
+- **Guardrail**: Grosse HTML-Dateien immer mit Python manipulieren, nie mit PowerShell-String-Operationen.

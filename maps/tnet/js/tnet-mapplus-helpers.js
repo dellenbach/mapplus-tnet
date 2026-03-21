@@ -403,12 +403,21 @@ function TnetLayerSwitch(layerId, mode) {
       // Noch nicht im Stack → über LyrMgr (Layer-Manager) laden.
       // WICHTIG: setMapBookmark NICHT verwenden — setzt gesamten Kartenstatus zurück.
       // LyrMgr ist in njs.AppManager.LyrMgr gespeichert, NICHT auf dem Map-Objekt.
+      // WICHTIG: Es gibt mehrere LyrMgr (main, second, third, forth), die alle
+      // 'main' als targetMap haben. Der Layer kann in JEDEM davon registriert sein.
+      // → Alle durchsuchen und denjenigen nehmen, der den Layer kennt.
       var targetLyrMgr = null;
       if (am.LyrMgr) {
         for (var lm in am.LyrMgr) {
-          if (am.LyrMgr[lm].targetMap && dojo.indexOf(am.LyrMgr[lm].targetMap, 'main') > -1) {
-            targetLyrMgr = am.LyrMgr[lm];
-            break;
+          var mgr = am.LyrMgr[lm];
+          if (mgr.targetMap && dojo.indexOf(mgr.targetMap, 'main') > -1 &&
+              typeof mgr.getLayerById === 'function') {
+            var lyrObj = mgr.getLayerById(layerId);
+            if (lyrObj) {
+              targetLyrMgr = mgr;
+              TnetLog.log('[TnetLayerSwitch] Layer gefunden in LyrMgr:', lm);
+              break;
+            }
           }
         }
       }
@@ -416,8 +425,23 @@ function TnetLayerSwitch(layerId, mode) {
         targetLyrMgr.switchLayersProgr(layerId, null, true);
         TnetLog.log('[TnetLayerSwitch] Layer via LyrMgr.switchLayersProgr geladen:', layerId);
       } else {
-        TnetLog.warn('[TnetLayerSwitch] LyrMgr nicht verfügbar für:', layerId);
-        return false;
+        // Fallback: Layer in keinem LyrMgr gefunden → auf allen versuchen
+        var anyMgr = false;
+        if (am.LyrMgr) {
+          for (var lmFb in am.LyrMgr) {
+            var mgrFb = am.LyrMgr[lmFb];
+            if (mgrFb.targetMap && dojo.indexOf(mgrFb.targetMap, 'main') > -1 &&
+                typeof mgrFb.switchLayersProgr === 'function') {
+              mgrFb.switchLayersProgr(layerId, null, true);
+              anyMgr = true;
+            }
+          }
+        }
+        if (!anyMgr) {
+          TnetLog.warn('[TnetLayerSwitch] LyrMgr nicht verfügbar für:', layerId);
+          return false;
+        }
+        TnetLog.log('[TnetLayerSwitch] Layer via Fallback (alle LyrMgr) versucht:', layerId);
       }
     }
     return true;

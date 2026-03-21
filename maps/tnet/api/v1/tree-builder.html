@@ -551,6 +551,8 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .tb-tree-item .ti-badge.b-leg { background: #e0d4f5; color: #635; }
 .tb-tree-item .ti-badge.b-vis { background: #def4de; color: #363; }
 .tb-tree-item .ti-badge.b-tip { background: #d4ecf5; color: #346; }
+.tb-tree-item .ti-badge.b-res { background: #fde8d0; color: #854; }
+.tb-tree-item.ti-hidden .tiname, .tb-tree-item.ti-hidden .ti-id { opacity: 0.45; }
 .tb-tree-item .tidel {
   width: 16px; height: 16px; border: none; background: none; color: #bbb;
   cursor: pointer; font-size: 12px; display: flex; align-items: center; justify-content: center;
@@ -703,6 +705,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .tb-ags-tab[data-ags-tab="import"]  { background: linear-gradient(135deg, #7cb342, #558b2f); }
 .tb-ags-tab[data-ags-tab="manage"]  { background: linear-gradient(135deg, #5ba4b5, #3d8a9a); }
 .tb-ags-tab[data-ags-tab="staging"] { background: linear-gradient(135deg, #e0a430, #c68d20); }
+.tb-ags-tab[data-ags-tab="deployed"] { background: linear-gradient(135deg, #7e57c2, #5e35b1); }
 .tb-ags-tab.active { opacity: 1; filter: none; }
 .tb-ags-tab:hover:not(.active) { opacity: 0.65; filter: grayscale(0.1); }
 .tb-ags-body { flex: 1; overflow: auto; padding: 16px; }
@@ -771,6 +774,34 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .stg-dup-detail { font-size: 10px; color: #c33; padding: 3px 4px 3px 20px; background: #fef0f0; border-radius: 3px; margin: 1px 0; font-family: 'Consolas', monospace; word-break: break-all; }
 .stg-cross-dup-detail { font-size: 10px; color: #c33; padding: 3px 4px 3px 20px; background: #fce4e4; border-radius: 3px; margin: 1px 0; font-family: 'Consolas', monospace; word-break: break-all; }
 .stg-cross-dup-summary { font-size: 11px; color: #c33; font-weight: 700; padding: 6px 8px; margin-bottom: 6px; background: #fce4e4; border: 1px solid #e8a; border-radius: 4px; }
+
+/* ===== DEPLOYED TAB ===== */
+.deployed-toolbar { display: flex; gap: 6px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
+.deployed-toolbar .tb-ags-filter { flex: 1; min-width: 120px; margin-bottom: 0; }
+.deployed-toolbar button { padding: 4px 10px; font-size: 12px; border: 1px solid #ddd; border-radius: 3px; background: #fff; cursor: pointer; }
+.deployed-toolbar button:hover { background: #f0f0f0; }
+.deployed-legend { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; padding: 6px 8px; background: #f5f7fa; border-radius: 4px; margin-bottom: 8px; font-size: 11px; }
+.dep-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 3px; vertical-align: middle; }
+.dep-override-hint { color: #e67e22; font-size: 10px; margin-left: 8px; }
+.deployed-status { padding: 8px 12px; font-size: 12px; color: #666; background: #f5f7fa; border-radius: 4px; margin-bottom: 8px; }
+.deployed-list { max-height: 480px; overflow-y: auto; border: 1px solid #e0e4e8; border-radius: 4px; }
+.dep-item { display: flex; align-items: center; gap: 8px; padding: 5px 10px; font-size: 11px; border-bottom: 1px solid #f0f0f0; }
+.dep-item:last-child { border-bottom: none; }
+.dep-item:hover { background: #f5f8fa; }
+.dep-item.hidden { display: none; }
+.dep-source-badge { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 9px; font-weight: 700; color: #fff; flex-shrink: 0; min-width: 50px; text-align: center; }
+.dep-source-badge.src-core { background: #4caf50; }
+.dep-source-badge.src-core_nls { background: #2196f3; }
+.dep-source-badge.src-override { background: #ff9800; }
+.dep-source-badge.src-override_nls { background: #e91e63; }
+.dep-source-badge.src-profile { background: #9c27b0; }
+.dep-name { flex: 1; font-family: 'Consolas', monospace; word-break: break-all; }
+.dep-size { color: #999; font-size: 10px; flex-shrink: 0; min-width: 55px; text-align: right; }
+.dep-date { color: #aaa; font-size: 10px; flex-shrink: 0; min-width: 80px; }
+.dep-override-icon { color: #e67e22; font-weight: 700; flex-shrink: 0; cursor: help; }
+.dep-btn-delete { font-size: 10px; padding: 1px 6px; border: 1px solid #e57373; border-radius: 3px; background: transparent; color: #c33; cursor: pointer; flex-shrink: 0; opacity: 0.6; }
+.dep-btn-delete:hover { opacity: 1; background: #fce4e4; }
+
 .tb-ags-actions {
   display: flex; gap: 8px; align-items: center; padding-top: 8px;
   border-top: 1px solid #eee;
@@ -1105,6 +1136,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
       <button class="tb-ags-tab active" data-ags-tab="import">① Import</button>
       <button class="tb-ags-tab" data-ags-tab="manage">② Verwalten</button>
       <button class="tb-ags-tab" data-ags-tab="staging">③ Staging</button>
+      <button class="tb-ags-tab" data-ags-tab="deployed">④ Deployed</button>
     </div>
     <div class="tb-ags-body">
       <!-- Tab: Import -->
@@ -1194,6 +1226,39 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
           </div>
         </div>
       </div>
+      <!-- Tab: Deployed -->
+      <div class="tb-ags-pane" id="tb-ags-pane-deployed">
+        <div class="deployed-toolbar">
+          <input type="text" class="tb-ags-filter" id="tb-deployed-filter" placeholder="Dateien filtern…">
+          <select id="tb-deployed-source-filter" style="padding:5px 8px;font-size:11px;border:1px solid #ccc;border-radius:3px;background:#fff">
+            <option value="all">Alle Quellen</option>
+            <option value="core">Core</option>
+            <option value="core_nls">Core NLS</option>
+            <option value="override">Override</option>
+            <option value="override_nls">Override NLS</option>
+            <option value="profile">Profil</option>
+          </select>
+          <select id="tb-deployed-type-filter" style="padding:5px 8px;font-size:11px;border:1px solid #ccc;border-radius:3px;background:#fff">
+            <option value="all">Alle Typen</option>
+            <option value="layers">layers_*.conf</option>
+            <option value="maptips">maptips_*.conf</option>
+            <option value="lyrmgr">lyrmgrResources_*.json</option>
+            <option value="maptipsRes">maptipsResources_*.json</option>
+            <option value="legend">legendResources_*.json</option>
+          </select>
+          <button id="tb-deployed-refresh" title="Aktualisieren">↻</button>
+        </div>
+        <div class="deployed-legend" id="tb-deployed-legend" style="display:none">
+          <span class="leg-item"><span class="dep-dot" style="background:#4caf50"></span> Core</span>
+          <span class="leg-item"><span class="dep-dot" style="background:#2196f3"></span> Core NLS</span>
+          <span class="leg-item"><span class="dep-dot" style="background:#ff9800"></span> Override</span>
+          <span class="leg-item"><span class="dep-dot" style="background:#e91e63"></span> Override NLS</span>
+          <span class="leg-item"><span class="dep-dot" style="background:#9c27b0"></span> Profil</span>
+          <span class="dep-override-hint">⚠ = Datei existiert in mehreren Quellen (Override)</span>
+        </div>
+        <div class="deployed-status" id="tb-deployed-status">Klicke auf ↻ oder wechsle zum Tab um Dateien zu laden…</div>
+        <div class="deployed-list" id="tb-deployed-list"></div>
+      </div>
     </div>
   </div>
   <!-- TB Datei-Editor (innerhalb des AGS-Modals) -->
@@ -1266,6 +1331,8 @@ var state = {
   profiles: {},         // { profileName: { lyrmgrs: { key: { meta:{}, categories:[] } } } } oder legacy { profileName: { categories:[] } }
   activeProfile: null,  // Aktuelles Profil (z.B. 'public', 'marco')
   activeLyrmgr: null,   // Aktiver LyrMgr-Tab (z.B. 'main_lyrmgr')
+  layerPropEdits: {},   // Pending Layer-Conf-Edits: { layerId: { props:{}, target, sourceFile, source, profile? } }
+  nlsEdits: {},          // Pending NLS-Edits: { layerId: { alias, nlsFile, target, source, profile? } }
   nextGroupId: 1,
   nextCatId: 1,
   nextSubId: 1
@@ -1652,13 +1719,27 @@ function getLayerSourceKey(layer) {
     return { key: 'arcgis:other', label: 'ArcGIS (andere)', typeTag: 'arcgis' };
   }
 
-  // WMS / tileWMS: group by hostname + path
+  // WMS / tileWMS: nach Map-Datei gruppieren (cgi-bin), sonst nach Hostname
   if (type === 'wms' || type === 'tilewms') {
     if (url) {
       try {
+        var tTag = type === 'tilewms' ? 'tilewms' : 'wms';
+        // MapServer-URLs (relativ oder absolut): nach Map-Dateiname gruppieren
+        var mapMatch = url.match(/[?&]map=([^&]+)/i);
+        if (mapMatch) {
+          var mapFile = mapMatch[1].replace(/\.map[&]?$/, '').replace(/\.map$/, '');
+          var sfLabel = 'MapServer: ' + mapFile.split('/').pop();
+          return { key: 'wms:' + sfLabel, label: sfLabel, typeTag: tTag };
+        }
+        // Sonstige relative URLs
+        if (url.charAt(0) === '/' && url.indexOf('//') !== 0) {
+          var pathLabel = layer.sourceFile ? layer.sourceFile.replace(/\.conf$/, '') : url.split('?')[0];
+          return { key: 'wms:' + pathLabel, label: pathLabel, typeTag: tTag };
+        }
+        // Absolute URLs: nach Hostname + Pfad
         var u = new URL(url, location.origin);
         var label = u.hostname + u.pathname.replace(/\/+$/, '');
-        return { key: 'wms:' + label, label: label, typeTag: type === 'tilewms' ? 'tilewms' : 'wms' };
+        return { key: 'wms:' + label, label: label, typeTag: tTag };
       } catch(e) {}
     }
     return { key: 'wms:other', label: 'WMS (andere)', typeTag: 'wms' };
@@ -2477,38 +2558,31 @@ function openNlsEditDialog(elementId, elementType) {
     var target = targetSelect.value;
     var group = (target === 'group') ? groupName : null;
 
-    // Lokal aktualisieren
+    // Lokal aktualisieren — beide Key-Varianten (Slash + Underscore)
+    var nlsKeySlash = 'desc_' + elementId;
     if (newAlias) {
       state.layerAliases[nlsKey] = newAlias;
+      state.layerAliases[nlsKeySlash] = newAlias;
     } else {
       delete state.layerAliases[nlsKey];
+      delete state.layerAliases[nlsKeySlash];
     }
 
-    // Auf Server speichern via save-nls Endpoint
-    var payload = {
-      target: target,
-      group: group,
-      aliases: {}
+    // NLS im Memory speichern (Deploy über Staging-Pipeline)
+    var layerObj = state.layers.find(function(l) { return l.id === elementId; });
+    var nlsFile = layerObj && layerObj.sourceFile
+      ? layerObj.sourceFile.replace(/^layers/, 'lyrmgrResources').replace(/\.conf$/, '.json')
+      : 'lyrmgrResources.json';
+    var nlsTarget = (target === 'group') ? 'profile' : 'original';
+    state.nlsEdits[elementId] = {
+      alias: newAlias || '',
+      nlsFile: nlsFile,
+      target: nlsTarget,
+      source: layerObj ? (layerObj.source || 'core') : 'core',
+      profile: (target === 'group' && groupName) ? groupName : null
     };
-    payload.aliases[nlsKey] = newAlias || '';
-    fetch(API_URL + '?action=save-nls', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    })
-    .then(function(r) { return r.json(); })
-    .then(function(j) {
-      if (j.success) {
-        console.log('NLS gespeichert:', j);
-      } else {
-        console.warn('NLS-Speichern fehlgeschlagen:', j.error);
-        alert('Fehler: ' + (j.error || 'Unbekannt'));
-      }
-    })
-    .catch(function(err) {
-      console.warn('NLS-Speichern Fehler:', err);
-      alert('Netzwerkfehler beim Speichern');
-    });
+    console.log('NLS im Memory gespeichert:', elementId, state.nlsEdits[elementId]);
+    updatePendingEditsCounter();
 
     doClose();
     renderTree();
@@ -2594,6 +2668,7 @@ function renderTreeTabs() {
   html += '<button class="tb-lyrmgr-btn" data-action="lyrmgr-verify" title="Layer-IDs prüfen">✅ Verify</button>';
   html += '<button class="tb-lyrmgr-btn" data-action="lyrmgr-roundtrip" title="Prüft ob Export identisch mit dem geladenen Original ist">🔄 Round-Trip</button>';
   html += '<button class="tb-lyrmgr-btn tb-lyrmgr-btn-publish" data-action="lyrmgr-publish" title="Lyrmgr-Block auf Server publizieren">🚀 Publish</button>';
+  html += '<button class="tb-lyrmgr-btn" id="tb-deploy-conf-btn" data-action="deploy-conf" title="Pending Conf+NLS-Änderungen auf Server deployen" style="display:none">📦 Deploy <span id="tb-pending-edits-count" class="badge" style="background:#e74c3c;color:#fff;font-size:9px;padding:1px 5px;border-radius:8px;margin-left:3px">0</span></button>';
   html += '<span style="flex:1"></span>';
   html += '<button class="tb-lyrmgr-btn" data-action="file-import" title="JSON-Datei importieren (z.B. Backup)">📂 Datei-Import</button>';
   html += '<button class="tb-lyrmgr-btn" data-action="file-export" title="Gesamten Baum als JSON exportieren">💾 Gesamt-Export</button>';
@@ -2611,6 +2686,7 @@ function renderTreeTabs() {
       if (action === 'lyrmgr-verify') verifyLyrmgr();
       if (action === 'lyrmgr-roundtrip') verifyRoundTrip();
       if (action === 'lyrmgr-publish') publishLyrmgr();
+      if (action === 'deploy-conf') deployLayerConfEdits();
       if (action === 'file-import') triggerFileImport();
       if (action === 'file-export') triggerFileExport();
       if (action === 'file-download') triggerFileDownload();
@@ -2811,9 +2887,14 @@ function renderLyrmgrBlock(container, lmKey, profile) {
         if (layer.legend) lBadges += '<span class="ti-badge b-leg" title="legend: ' + esc(layer.legend) + '">LEG</span>';
         if (layer.visible === true || layer.visible === 'true') lBadges += '<span class="ti-badge b-vis" title="visible">VIS</span>';
         if (layer.query_layers || layer.queryable) lBadges += '<span class="ti-badge b-tip" title="queryable">TIP</span>';
+        var resInfo = [];
+        if (layer.maxResolution) resInfo.push('max: ' + layer.maxResolution);
+        if (layer.minResolution) resInfo.push('min: ' + layer.minResolution);
+        if (resInfo.length) lBadges += '<span class="ti-badge b-res" title="Resolution: ' + resInfo.join(', ') + '">RES</span>';
       }
       var badgesHtml = lBadges ? '<span class="ti-badges">' + lBadges + '</span>' : '';
-      return '<div class="tb-tree-item' + (path.length > 1 ? ' tb-tree-item-nested' : '') + '" data-cat-idx="' + ci + '" data-item-path="' + path.join('.') + '" draggable="true">'
+      var isHidden = layer && !(layer.visible === true || layer.visible === 'true' || layer.visible === 1 || layer.visible === '1');
+      return '<div class="tb-tree-item' + (isHidden ? ' ti-hidden' : '') + (path.length > 1 ? ' tb-tree-item-nested' : '') + '" data-cat-idx="' + ci + '" data-item-path="' + path.join('.') + '" draggable="true">'
         + '<span class="ti-grip">⋮</span>'
         + '<span class="tiname' + (noNls ? ' no-nls' : '') + '" data-editable data-layer-id="' + esc(item) + '" title="' + esc(item) + (nlsName ? '' : ' (kein NLS)') + '">' + esc(itemName) + '</span>'
         + (nlsName ? '<span class="ti-id" title="' + esc(item) + '">' + esc(item) + '</span>' : '')
@@ -3538,6 +3619,10 @@ function showItemCtxMenu(x, y, tree, ci, path) {
   var nlsName = getNlsAlias(itemId);
   openCtxMenu(x, y, [
     { head: nlsName ? nlsName : itemId },
+    { icon: '⚙', label: 'Eigenschaften', action: function() {
+      openPropsDialog('layer', itemId);
+    }},
+    '---',
     { icon: '📎', label: 'In Gruppenlayer umwandeln', action: function() {
       ref.parent[ref.index] = { id: uid('grp'), name: itemId, open: false, items: [itemId] };
       renderTree();
@@ -3611,6 +3696,42 @@ function openPropsDialog(type, ref) {
       { key: 'icon', label: 'Icon-URL', value: ref.icon || '', type: 'text', hint: 'z.B. ../core/symbolsets/mapplus/layers.png' },
       { key: 'icon_style', label: 'Icon-Style', value: ref.icon_style || '', type: 'text', hint: 'z.B. width:18px;height:18px' }
     ]);
+  } else if (type === 'layer') {
+    // Layer-Properties: Alias + Konfig-Optionen
+    var layerId = ref;
+    var layer = findLayerById(layerId);
+    var nlsAlias = getNlsAlias(layerId) || '';
+    var lType = layer ? (layer.layerType || layer.type || '') : '';
+    title = 'Layer: ' + (nlsAlias || layerId);
+    var fields = [
+      { key: '_layerId', label: 'Layer-ID', value: layerId, type: 'readonly' },
+      { key: '_alias', label: 'Alias (NLS)', value: nlsAlias, type: 'text', hint: 'Anzeigename im Layer-Manager' },
+      { key: '_type', label: 'Typ', value: lType, type: 'readonly' }
+    ];
+    if (layer) {
+      if (layer.url) fields.push({ key: '_url', label: 'URL', value: layer.url, type: 'readonly' });
+      fields.push({ key: 'visible', label: 'Sichtbar bei Start', value: layer.visible === true || layer.visible === 'true' || layer.visible === 1 || layer.visible === '1', type: 'bool' });
+      if (layer.opacity != null) fields.push({ key: 'opacity', label: 'Opazität', value: String(layer.opacity), type: 'text', hint: '0.0 bis 1.0' });
+      fields.push({ key: 'legend', label: 'Legende', value: layer.legend || '', type: 'text', hint: 'Legenden-Key' });
+      if (layer.maxResolution != null) fields.push({ key: 'maxResolution', label: 'maxResolution', value: String(layer.maxResolution), type: 'text', hint: 'Maximale Auflösung (m/px)' });
+      if (layer.minResolution != null) fields.push({ key: 'minResolution', label: 'minResolution', value: String(layer.minResolution), type: 'text', hint: 'Minimale Auflösung (m/px)' });
+      fields.push({ key: 'rank', label: 'Rank', value: layer.rank != null ? String(layer.rank) : '', type: 'text', hint: 'Reihenfolge in der Karte' });
+    }
+    // Speicherziel-Auswahl
+    var profileName = state.activeProfile || '';
+    var lSource = layer ? (layer.source || 'core') : 'core';
+    var lSourceFile = layer ? (layer.sourceFile || '') : '';
+    var targetOpts = '<option value="original">Original (' + esc(lSourceFile || 'layers_*.conf') + ')</option>';
+    targetOpts += '<option value="override">Site-Override (maps/core/config/)</option>';
+    if (profileName && profileName !== 'public') {
+      targetOpts += '<option value="profile">Profil: ' + esc(profileName) + '</option>';
+    }
+    body = buildPropsForm(fields)
+      + '<div class="tb-props-row" style="margin-top:8px;border-top:1px solid #ddd;padding-top:8px">'
+      + '<label>Speicherziel</label>'
+      + '<select id="tb-layer-props-target" style="width:100%;padding:4px 6px;border:1px solid #ccc;border-radius:3px">' + targetOpts + '</select>'
+      + '<div class="hint">Original: direkt in die Quelldatei. Override: ergänzt/überschreibt für diesen Standort. Profil: nur für Profil-Konfiguration.</div>'
+      + '</div>';
   }
 
   document.getElementById('tb-props-title').textContent = title;
@@ -3626,6 +3747,8 @@ function buildPropsForm(fields) {
     if (f.type === 'bool') {
       html += '<label style="font-weight:normal"><input type="checkbox" data-prop="' + f.key + '"'
         + (f.value ? ' checked' : '') + '> Aktiviert</label>';
+    } else if (f.type === 'readonly') {
+      html += '<span style="color:#888;font-size:12px;word-break:break-all" data-prop-ro="' + f.key + '">' + esc(f.value || '') + '</span>';
     } else {
       html += '<input type="text" data-prop="' + f.key + '" value="' + esc(f.value || '') + '">';
     }
@@ -3640,6 +3763,99 @@ document.getElementById('tb-props-save').addEventListener('click', function() {
   var ref = _propsTarget.ref;
   var type = _propsTarget.type;
   var body = document.getElementById('tb-props-body');
+
+  // ===== Layer-Typ: Spezialbehandlung =====
+  if (type === 'layer') {
+    var layerId = ref;
+    var layer = findLayerById(layerId);
+    var targetSelect = document.getElementById('tb-layer-props-target');
+    var target = targetSelect ? targetSelect.value : 'original';
+
+    // 1) Alias (NLS) speichern
+    var aliasInput = body.querySelector('input[data-prop="_alias"]');
+    if (aliasInput) {
+      var newAlias = aliasInput.value.trim();
+      var nlsKey = 'desc_' + layerId.replace(/\//g, '_');
+      // Beide Key-Varianten aktualisieren (Slash + Underscore), damit getNlsAlias() den neuen Wert findet
+      var nlsKeySlash = 'desc_' + layerId;
+      if (newAlias) {
+        state.layerAliases[nlsKey] = newAlias;
+        state.layerAliases[nlsKeySlash] = newAlias;
+      } else {
+        delete state.layerAliases[nlsKey];
+        delete state.layerAliases[nlsKeySlash];
+      }
+      // NLS im Memory speichern (Deploy über Staging-Pipeline)
+      var nlsFile = layer && layer.sourceFile
+        ? layer.sourceFile.replace(/^layers/, 'lyrmgrResources').replace(/\.conf$/, '.json')
+        : 'lyrmgrResources.json';
+      var nlsTarget = target; // 'original', 'override', 'profile'
+      state.nlsEdits[layerId] = {
+        alias: newAlias || '',
+        nlsFile: nlsFile,
+        target: nlsTarget,
+        source: layer ? (layer.source || 'core') : 'core',
+        profile: (nlsTarget === 'profile' && state.activeProfile) ? state.activeProfile : null
+      };
+      console.log('NLS im Memory gespeichert:', layerId, state.nlsEdits[layerId]);
+      updatePendingEditsCounter();
+    }
+
+    // 2) Layer-Config-Optionen sammeln und auf Server speichern
+    if (layer) {
+      var configProps = {};
+      body.querySelectorAll('input[data-prop]').forEach(function(input) {
+        var key = input.dataset.prop;
+        if (key.charAt(0) === '_') return; // Interne Felder überspringen
+        var val;
+        if (input.type === 'checkbox') {
+          val = input.checked;
+        } else {
+          val = input.value.trim();
+          // Numerische Werte konvertieren
+          if (val !== '' && !isNaN(Number(val)) && (key === 'opacity' || key === 'maxResolution' || key === 'minResolution' || key === 'rank')) {
+            val = Number(val);
+          }
+        }
+        configProps[key] = val;
+        // Lokal aktualisieren
+        if (val === '' && key !== 'visible') {
+          delete layer[key];
+        } else {
+          layer[key] = val;
+        }
+      });
+
+      // Änderungen im Memory speichern (Deploy später)
+      if (Object.keys(configProps).length > 0) {
+        var saveTarget = target; // 'original', 'override', 'profile'
+        var editEntry = {
+          props: configProps,
+          target: saveTarget,
+          sourceFile: layer.sourceFile || '',
+          source: layer.source || 'core'
+        };
+        if (saveTarget === 'profile' && state.activeProfile) {
+          editEntry.profile = state.activeProfile;
+        }
+        // Bestehende Edits für diesen Layer mergen
+        if (state.layerPropEdits[layerId]) {
+          var existing = state.layerPropEdits[layerId].props || {};
+          for (var pk in configProps) existing[pk] = configProps[pk];
+          editEntry.props = existing;
+        }
+        state.layerPropEdits[layerId] = editEntry;
+        console.log('Layer-Props im Memory gespeichert:', layerId, editEntry);
+        updatePendingEditsCounter();
+      }
+    }
+
+    closePropsDialog();
+    renderTree();
+    return;
+  }
+
+  // ===== Standard-Typen: lyrmgr, cat, group =====
 
   body.querySelectorAll('input[data-prop]').forEach(function(input) {
     var key = input.dataset.prop;
@@ -3832,10 +4048,13 @@ document.getElementById('tb-btn-copy').addEventListener('click', function() {
   navigator.clipboard.writeText(text).then(function() { alert('Kopiert!'); });
 });
 
-// Download aus Modal
+// Download aus Modal — Dateiname aus Modal-Titel ableiten
 document.getElementById('tb-btn-download-modal').addEventListener('click', function() {
   var text = document.getElementById('tb-json-output').textContent;
-  var filename = 'tree-config_' + new Date().toISOString().slice(0,10) + '.json';
+  var title = (document.getElementById('tb-modal-title').textContent || '').trim();
+  // Dateiname aus Titel extrahieren: "layers_poi_ch.conf (core)" → "layers_poi_ch"
+  var baseName = title.replace(/\s*\(.*\)$/, '').replace(/\.[^.]+$/, '').replace(/[^a-zA-Z0-9_\-]/g, '_') || 'export';
+  var filename = baseName + '_' + new Date().toISOString().slice(0,10) + '.json';
   downloadJSON(filename, text);
 });
 
@@ -4388,6 +4607,8 @@ function switchAgsTab(tabName) {
   } else if (tabName === 'staging') {
     loadTbStagingList();
     loadTbStagingOutput();
+  } else if (tabName === 'deployed') {
+    loadDeployedConf();
   }
 }
 
@@ -4771,6 +4992,179 @@ function deleteTbStagingOutputFiles() {
     .then(function(r) { return r.json(); })
     .then(function() { loadTbStagingOutput(); })
     .catch(function() { loadTbStagingOutput(); });
+}
+
+// =====================================================================
+// ④ DEPLOYED TAB — Dateien auflisten, filtern, löschen
+// =====================================================================
+var _deployedFiles = [];
+
+function loadDeployedConf() {
+  var statusEl = document.getElementById('tb-deployed-status');
+  var listEl = document.getElementById('tb-deployed-list');
+  var legendEl = document.getElementById('tb-deployed-legend');
+  statusEl.textContent = 'Lade Dateien…';
+  statusEl.style.display = '';
+  listEl.innerHTML = '';
+  legendEl.style.display = 'none';
+
+  var profile = state.activeProfile || 'public';
+  fetch(API_URL + '?action=list-deployed-conf&profile=' + encodeURIComponent(profile))
+    .then(function(r) { return r.json(); })
+    .then(function(json) {
+      if (!json.success) {
+        statusEl.textContent = 'Fehler: ' + (json.error || 'Unbekannt');
+        return;
+      }
+      _deployedFiles = json.data.files || [];
+      statusEl.textContent = _deployedFiles.length + ' Dateien in ' + Object.keys(json.data.dirs).length + ' Verzeichnissen';
+      legendEl.style.display = 'flex';
+      renderDeployedList();
+    })
+    .catch(function(err) {
+      statusEl.textContent = 'Fehler: ' + err.message;
+    });
+}
+
+function renderDeployedList() {
+  var listEl = document.getElementById('tb-deployed-list');
+  var filterText = (document.getElementById('tb-deployed-filter').value || '').toLowerCase();
+  var sourceFilter = document.getElementById('tb-deployed-source-filter').value;
+  var typeFilter = document.getElementById('tb-deployed-type-filter').value;
+
+  listEl.innerHTML = '';
+
+  // Quell-Label-Mapping
+  var sourceLabels = {
+    core: 'Core', core_nls: 'Core NLS',
+    override: 'Override', override_nls: 'Ovr NLS',
+    profile: 'Profil'
+  };
+
+  // Typ-Mapping
+  var typeMap = {
+    layers: /^layers/,
+    maptips: /^maptips[^R]/i,
+    lyrmgr: /^lyrmgrResources/,
+    maptipsRes: /^maptipsResources/,
+    legend: /^legendResources/
+  };
+
+  var visibleCount = 0;
+
+  _deployedFiles.forEach(function(fi, idx) {
+    // Filter: Quelle
+    if (sourceFilter !== 'all' && fi.source !== sourceFilter) return;
+
+    // Filter: Typ
+    if (typeFilter !== 'all') {
+      var re = typeMap[typeFilter];
+      if (re && !re.test(fi.name)) return;
+    }
+
+    // Filter: Text
+    if (filterText && fi.name.toLowerCase().indexOf(filterText) === -1) return;
+
+    visibleCount++;
+
+    var div = document.createElement('div');
+    div.className = 'dep-item';
+    div.dataset.idx = idx;
+
+    // Quell-Badge
+    var badge = '<span class="dep-source-badge src-' + esc(fi.source) + '">' + esc(sourceLabels[fi.source] || fi.source) + '</span>';
+
+    // Dateiname
+    var name = '<span class="dep-name">' + esc(fi.name) + '</span>';
+
+    // Grösse
+    var sizeKb = fi.size > 1000 ? (fi.size / 1024).toFixed(1) + ' KB' : fi.size + ' B';
+    var size = '<span class="dep-size">' + sizeKb + '</span>';
+
+    // Datum
+    var date = '<span class="dep-date">' + esc(fi.modified || '') + '</span>';
+
+    // Override-Indikator
+    var overrideIcon = '';
+    if (fi.hasOverride) {
+      var sources = (fi.overrideSources || []).join(', ');
+      overrideIcon = '<span class="dep-override-icon" title="Override: existiert in ' + esc(sources) + '">⚠</span>';
+    }
+
+    // Lösch-Button (nicht für core — zu gefährlich)
+    var deleteBtn = '';
+    if (fi.source !== 'core' && fi.source !== 'core_nls') {
+      deleteBtn = '<button class="dep-btn-delete" data-idx="' + idx + '" title="Datei löschen (mit Backup)">🗑</button>';
+    }
+
+    div.innerHTML = badge + name + overrideIcon + size + date + deleteBtn;
+
+    // Lösch-Handler
+    var btn = div.querySelector('.dep-btn-delete');
+    if (btn) {
+      btn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        deleteDeployedConf(fi);
+      });
+    }
+
+    listEl.appendChild(div);
+  });
+
+  if (visibleCount === 0) {
+    listEl.innerHTML = '<div style="padding:12px;color:#999;font-size:12px;text-align:center">Keine Dateien gefunden</div>';
+  }
+}
+
+/**
+ * Deployed-Conf löschen: PHP (Backup) → FastAPI (SFTP delete)
+ */
+function deleteDeployedConf(fi) {
+  if (!confirm('Datei löschen?\n\n' + fi.name + ' (' + fi.source + ')\n\nEin Backup wird automatisch erstellt.')) return;
+
+  var profile = state.activeProfile || 'public';
+  var statusEl = document.getElementById('tb-deployed-status');
+  statusEl.textContent = '⏳ Erstelle Backup und bereite Löschung vor…';
+
+  // 1. PHP: Backup erstellen + SFTP-Pfad erhalten
+  fetch(API_URL + '?action=prepare-delete-conf', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fileName: fi.name, source: fi.source, profile: profile })
+  })
+    .then(function(r) { return r.json(); })
+    .then(function(json) {
+      if (!json.success) {
+        statusEl.textContent = '❌ Backup fehlgeschlagen: ' + (json.error || 'Unbekannt');
+        return Promise.reject(new Error(json.error));
+      }
+      var deletePath = json.data.deletePath;
+      statusEl.textContent = '⏳ Lösche via SFTP: ' + fi.name + '…';
+
+      // 2. FastAPI: Datei via SFTP löschen
+      return fetch(GAPI_URL + '/delete-deployed-conf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deletePath: deletePath })
+      });
+    })
+    .then(function(r) {
+      if (!r) return; // reject-Fall
+      return r.json();
+    })
+    .then(function(json) {
+      if (!json) return;
+      if (json.success || json.deleted) {
+        statusEl.textContent = '✅ Gelöscht: ' + fi.name + ' (Backup erstellt)';
+        // Liste neu laden
+        loadDeployedConf();
+      } else {
+        statusEl.textContent = '❌ SFTP-Löschung fehlgeschlagen: ' + (json.detail || json.error || 'Unbekannt');
+      }
+    })
+    .catch(function(err) {
+      statusEl.textContent = '❌ Fehler: ' + err.message;
+    });
 }
 
 /**
@@ -5658,6 +6052,12 @@ document.getElementById('tb-staging-btn-merge').addEventListener('click', execut
 document.getElementById('tb-stg-output-refresh').addEventListener('click', loadTbStagingOutput);
 document.getElementById('tb-stg-output-delete-sel').addEventListener('click', deleteTbStagingOutputFiles);
 
+// ④ Deployed Tab Event-Listener
+document.getElementById('tb-deployed-refresh').addEventListener('click', loadDeployedConf);
+document.getElementById('tb-deployed-filter').addEventListener('input', renderDeployedList);
+document.getElementById('tb-deployed-source-filter').addEventListener('change', renderDeployedList);
+document.getElementById('tb-deployed-type-filter').addEventListener('change', renderDeployedList);
+
 // Escape-Taste / Backdrop zum Schliessen
 document.getElementById('tb-ags-modal').addEventListener('click', function(e) {
   if (e.target === this) closeAgsModal();
@@ -6424,7 +6824,246 @@ function applyLoadedLyrmgr(profileName, responseData, silent, isDraft) {
 
 /**
  * Aktiven LyrMgr-Block auf den Server publizieren.
- * Schreibt den Block in die definitive lyrmgr.conf Datei.
+// ===== PENDING LAYER-CONF-EDITS =====
+
+/**
+ * Zähler für pending Layer-Conf-Edits aktualisieren.
+ */
+function updatePendingEditsCounter() {
+  var confCount = Object.keys(state.layerPropEdits).length;
+  var nlsCount = Object.keys(state.nlsEdits).length;
+  var count = confCount + nlsCount;
+  var btn = document.getElementById('tb-deploy-conf-btn');
+  var badge = document.getElementById('tb-pending-edits-count');
+  if (btn) btn.style.display = count > 0 ? '' : 'none';
+  if (badge) badge.textContent = count;
+}
+
+/**
+ * Pending Conf + NLS Edits deployen.
+ * Flow: Original vom Server holen → Merging → tmp/stageConf → FastAPI SFTP Deploy
+ */
+function deployLayerConfEdits() {
+  var confEdits = state.layerPropEdits;
+  var nlsEdits = state.nlsEdits;
+  var confIds = Object.keys(confEdits);
+  var nlsIds = Object.keys(nlsEdits);
+  if (!confIds.length && !nlsIds.length) {
+    _tbAlert('Keine Änderungen', 'Es gibt keine pending Änderungen.', 'info');
+    return;
+  }
+
+  // === Conf-Edits nach sourceFile gruppieren ===
+  var groups = []; // Array von { type:'conf'|'nls', sourceFile, target, source, profile, edits }
+  var confGroups = {};
+  confIds.forEach(function(lid) {
+    var e = confEdits[lid];
+    var gk = 'conf|' + (e.sourceFile || 'unknown') + '|' + (e.target || 'original') + '|' + (e.source || 'core');
+    if (!confGroups[gk]) {
+      confGroups[gk] = { type: 'conf', sourceFile: e.sourceFile, target: e.target, source: e.source, profile: e.profile, edits: {} };
+    }
+    confGroups[gk].edits[lid] = e.props;
+  });
+  for (var ck in confGroups) groups.push(confGroups[ck]);
+
+  // === NLS-Edits nach nlsFile gruppieren ===
+  var nlsGroups = {};
+  nlsIds.forEach(function(lid) {
+    var e = nlsEdits[lid];
+    var gk = 'nls|' + (e.nlsFile || 'unknown') + '|' + (e.target || 'original') + '|' + (e.source || 'core');
+    if (!nlsGroups[gk]) {
+      nlsGroups[gk] = { type: 'nls', sourceFile: e.nlsFile, target: e.target, source: e.source, profile: e.profile, aliases: {} };
+    }
+    // Beide Key-Varianten: Slash und Underscore
+    var nlsKey = 'desc_' + lid.replace(/\//g, '_');
+    var nlsKeySlash = 'desc_' + lid;
+    nlsGroups[gk].aliases[nlsKey] = e.alias;
+    nlsGroups[gk].aliases[nlsKeySlash] = e.alias;
+  });
+  for (var nk in nlsGroups) groups.push(nlsGroups[nk]);
+
+  // === Zusammenfassung anzeigen ===
+  var summaryHtml = '<strong>' + confIds.length + ' Conf + ' + nlsIds.length + ' NLS Änderungen in ' + groups.length + ' Datei(en)</strong><br><br>';
+  groups.forEach(function(g) {
+    var icon = g.type === 'conf' ? '⚙️' : '🏷️';
+    summaryHtml += '<div style="margin-bottom:6px">' + icon + ' <strong>' + esc(g.sourceFile) + '</strong> → ' + esc(g.target);
+    if (g.profile) summaryHtml += ' (' + esc(g.profile) + ')';
+    if (g.type === 'conf') {
+      var layerCount = Object.keys(g.edits).length;
+      summaryHtml += ' — ' + layerCount + ' Layer</div>';
+      summaryHtml += '<ul style="font-size:11px;margin:2px 0 8px 16px;padding:0">';
+      for (var lid in g.edits) {
+        summaryHtml += '<li>' + esc(lid) + ': ' + esc(Object.keys(g.edits[lid]).join(', ')) + '</li>';
+      }
+      summaryHtml += '</ul>';
+    } else {
+      var aliasCount = Object.keys(g.aliases).length / 2; // Jeder NLS-Key hat 2 Varianten
+      summaryHtml += ' — ' + aliasCount + ' Alias(e)</div>';
+      summaryHtml += '<ul style="font-size:11px;margin:2px 0 8px 16px;padding:0">';
+      var shown = {};
+      for (var ak in g.aliases) {
+        var baseKey = ak.replace(/\//g, '_');
+        if (shown[baseKey]) continue;
+        shown[baseKey] = true;
+        summaryHtml += '<li>' + esc(ak) + ' = ' + esc(g.aliases[ak] || '(leer)') + '</li>';
+      }
+      summaryHtml += '</ul>';
+    }
+  });
+
+  _tbConfirm('Änderungen deployen?', summaryHtml, function() {
+    _deployAllGroups(groups);
+  }, { okLabel: 'Deployen', okClass: 'primary', type: 'warn' });
+}
+
+/**
+ * Interner Deploy-Ablauf: Für jede Gruppe PHP-Staging + FastAPI-Deploy.
+ * Unterstützt type='conf' (stage-layer-conf) und type='nls' (stage-nls-conf).
+ */
+function _deployAllGroups(groups) {
+  var results = [];
+  var idx = 0;
+
+  function processNext() {
+    if (idx >= groups.length) {
+      // Fertig — Ergebnis anzeigen
+      var ok = results.filter(function(r) { return r.success; }).length;
+      var fail = results.filter(function(r) { return !r.success; }).length;
+      var html = '<strong>Ergebnis:</strong> ' + ok + ' OK, ' + fail + ' Fehler<br><br>';
+      results.forEach(function(r) {
+        var icon = r.type === 'conf' ? '⚙️' : '🏷️';
+        html += (r.success ? '✅' : '❌') + ' ' + icon + ' ' + esc(r.sourceFile) + ' → ' + esc(r.target);
+        if (r.error) html += '<br><span style="color:#c00;font-size:11px">' + esc(r.error) + '</span>';
+        if (r.bytes) html += ' (' + r.bytes + ' bytes)';
+        html += '<br>';
+      });
+      _tbAlert('Deploy', html, fail > 0 ? 'warn' : 'success');
+      // Erfolgreiche Edits aus Memory entfernen
+      if (ok > 0) {
+        // NLS: wenn mindestens ein NLS-Deploy erfolgreich war, alle NLS-Edits mit gleichem target entfernen
+        var nlsOkTargets = {};
+        results.forEach(function(r) {
+          if (r.success && r.type === 'nls') nlsOkTargets[r.target] = true;
+        });
+        if (Object.keys(nlsOkTargets).length > 0) {
+          for (var nid in state.nlsEdits) {
+            var ne = state.nlsEdits[nid];
+            if (nlsOkTargets[ne.target || 'original']) delete state.nlsEdits[nid];
+          }
+        }
+        // Conf: wie bisher
+        results.forEach(function(r) {
+          if (!r.success || r.type !== 'conf') return;
+          for (var lid in state.layerPropEdits) {
+            var e = state.layerPropEdits[lid];
+            if ((e.sourceFile || '') === r.sourceFile && (e.target || 'original') === r.target) {
+              delete state.layerPropEdits[lid];
+            }
+          }
+        });
+        updatePendingEditsCounter();
+      }
+      return;
+    }
+
+    var g = groups[idx];
+    idx++;
+
+    // PHP-Staging — unterschiedlicher Endpoint je nach Typ
+    var stageAction = g.type === 'nls' ? 'stage-nls-conf' : 'stage-layer-conf';
+    var stageBody = {
+      sourceFile: g.sourceFile,
+      source: g.source,
+      target: g.target,
+      profile: g.profile || null
+    };
+    if (g.type === 'conf') {
+      stageBody.edits = g.edits;
+    } else {
+      stageBody.aliases = g.aliases;
+    }
+
+    fetch(API_URL + '?action=' + stageAction, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(stageBody)
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(j) {
+      if (!j.success) {
+        results.push({ type: g.type, sourceFile: g.sourceFile, target: g.target, success: false, error: 'Staging: ' + (j.error || 'Unbekannt') });
+        processNext();
+        return;
+      }
+      var staged = j.data;
+
+      if (g.type === 'nls' && staged.stagedFiles) {
+        // NLS: Mehrere Dateien wurden gestaged — jede einzeln deployen
+        var nlsFiles = staged.stagedFiles;
+        var nlsIdx = 0;
+        function deployNextNls() {
+          if (nlsIdx >= nlsFiles.length) { processNext(); return; }
+          var nf = nlsFiles[nlsIdx];
+          nlsIdx++;
+          fetch(GAPI_URL + '/deploy-staged-conf', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ stagedPath: nf.stagedPath, deployPath: nf.deployPath })
+          })
+          .then(function(r2) { return r2.json(); })
+          .then(function(j2) {
+            var d2 = j2.data || j2;
+            if (j2.success || d2.success) {
+              results.push({ type: 'nls', sourceFile: nf.file, target: g.target, success: true, bytes: d2.bytes || nf.bytes || 0 });
+            } else {
+              var errMsg = j2.detail || j2.error || d2.error || 'Unbekannt';
+              if (typeof errMsg === 'object') errMsg = JSON.stringify(errMsg);
+              results.push({ type: 'nls', sourceFile: nf.file, target: g.target, success: false, error: 'Deploy: ' + errMsg });
+            }
+            deployNextNls();
+          })
+          .catch(function(err) {
+            results.push({ type: 'nls', sourceFile: nf.file, target: g.target, success: false, error: 'Deploy-Netzwerk: ' + err.message });
+            deployNextNls();
+          });
+        }
+        deployNextNls();
+      } else {
+        // Conf: Einzelne Datei deployen
+        fetch(GAPI_URL + '/deploy-staged-conf', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ stagedPath: staged.stagedPath, deployPath: staged.deployPath })
+        })
+        .then(function(r2) { return r2.json(); })
+        .then(function(j2) {
+          var d2 = j2.data || j2;
+          if (j2.success || d2.success) {
+            results.push({ type: g.type, sourceFile: g.sourceFile, target: g.target, success: true, bytes: d2.bytes || staged.bytes || 0 });
+          } else {
+            var errMsg = j2.detail || j2.error || d2.error || 'Unbekannt';
+            if (typeof errMsg === 'object') errMsg = JSON.stringify(errMsg);
+            results.push({ type: g.type, sourceFile: g.sourceFile, target: g.target, success: false, error: 'Deploy: ' + errMsg });
+          }
+          processNext();
+        })
+        .catch(function(err) {
+          results.push({ type: g.type, sourceFile: g.sourceFile, target: g.target, success: false, error: 'Deploy-Netzwerk: ' + err.message });
+          processNext();
+        });
+      }
+    })
+    .catch(function(err) {
+      results.push({ type: g.type, sourceFile: g.sourceFile, target: g.target, success: false, error: 'Staging-Netzwerk: ' + err.message });
+      processNext();
+    });
+  }
+
+  processNext();
+}
+
+/**
+ * Aktiven LyrMgr-Block auf den Server publizieren.
  */
 function publishLyrmgr() {
   var profileName = state.activeProfile;

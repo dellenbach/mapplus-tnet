@@ -217,8 +217,13 @@
     /**
      * Extrahiert aus einem Pfad-basierten Namen das letzte Segment
      * und formatiert es lesbar: "Gis Basis/nw Xyz/gemeindegrenzen" → "Gemeindegrenzen"
+     * Schrägstriche innerhalb eckiger Klammern (z.B. "[04/2025]") werden ignoriert.
      */
     _cleanPathName: function (name) {
+      // Prüfen ob Slash nur innerhalb eckiger Klammern vorkommt → kein Pfad
+      var nameWithoutBrackets = name.replace(/\[[^\]]*\]/g, '');
+      if (nameWithoutBrackets.indexOf('/') === -1) return name;
+
       var parts = name.split('/');
       var last = parts[parts.length - 1].trim();
       // Unterstriche ersetzen und Wortanfänge gross schreiben
@@ -304,20 +309,39 @@
      * @param {Array} nodes       Aktueller Knoten-Array (Kategorien/Gruppen/Layer)
      * @param {string|null} parentLegend  Legende des nächsten Eltern-Knotens
      */
-    _propagateLegends: function (nodes, parentLegend) {
+    _propagateLegends: function (nodes, parentLegend, parentLegendLink, parentLegendTitle) {
       for (var i = 0; i < nodes.length; i++) {
         var n = nodes[i];
-        // Eigene Legende hat Vorrang, sonst vom Eltern-Knoten erben
+        // Eigene Legende hat Vorrang, sonst vom Eltern-Knoten erben.
+        // legendLink/legendTitle werden mitvererbt, damit NLS-Legenden
+        // (z.B. information → ../core/legends/information_de.htm) korrekt
+        // an Kind-Layer weitergegeben werden.
         var effectiveLegend = n.legend || parentLegend;
+        var effectiveLink = n.legendLink || parentLegendLink;
+        var effectiveTitle = n.legendTitle || parentLegendTitle;
         if (!n.legend && effectiveLegend) {
-          n.legend = effectiveLegend;
+          // Blatt-Layer mit bekanntem Nicht-ArcGIS-Typ und OHNE legendLink → NICHT erben
+          // (legend-proxy funktioniert nur für ArcGIS)
+          // ABER: Wenn legendLink vorhanden → ist eine NLS-Legende, die direkt geöffnet wird → erben erlaubt
+          var isLeaf = (n.type === 'layer') && !n.layers && !n.groups;
+          var isNonArcgis = isLeaf && n.layerType && n.layerType !== 'arcgisRest';
+          if (!isNonArcgis || effectiveLink) {
+            n.legend = effectiveLegend;
+            if (effectiveLink && !n.legendLink) n.legendLink = effectiveLink;
+            if (effectiveTitle && !n.legendTitle) n.legendTitle = effectiveTitle;
+          }
+        }
+        // Wenn eigene Legende vorhanden, aber kein legendLink → ggf. vom Eltern erben
+        if (n.legend && !n.legendLink && effectiveLink) {
+          n.legendLink = effectiveLink;
+          if (effectiveTitle && !n.legendTitle) n.legendTitle = effectiveTitle;
         }
         // Rekursiv in alle Kind-Arrays absteigen
         var childArrays = ['subcategories', 'groups', 'layers', 'children'];
         for (var c = 0; c < childArrays.length; c++) {
           var children = n[childArrays[c]];
           if (children && children.length) {
-            this._propagateLegends(children, effectiveLegend);
+            this._propagateLegends(children, effectiveLegend, effectiveLink, effectiveTitle);
           }
         }
         // Case-Korrektur: ArcGIS-Dienste sind case-sensitive.

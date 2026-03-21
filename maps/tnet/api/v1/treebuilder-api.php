@@ -2861,6 +2861,382 @@ switch ($action) {
         ]]);
         break;
 
+    // ── Layer-Conf staging: Original lesen, Edits mergen, nach tmp/stageConf schreiben ──
+    case 'stage-layer-conf':
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('POST required', 405);
+        $body = json_decode(file_get_contents('php://input'), true);
+        if (!$body) jsonError('Ungültiger JSON-Body', 400);
+
+        $sourceFile = $body['sourceFile'] ?? null;
+        $source     = $body['source'] ?? 'core';
+        $target     = $body['target'] ?? 'original';
+        $profile    = $body['profile'] ?? null;
+        $edits      = $body['edits'] ?? null;  // { layerId: { prop: val, ... }, ... }
+
+        if (!$sourceFile) jsonError('sourceFile erforderlich', 400);
+        if (!is_array($edits) || empty($edits)) jsonError('edits muss ein nicht-leeres Object sein', 400);
+
+        $safeFile = basename($sourceFile);
+        if (!preg_match('/^layers[_\-].*\.conf$/', $safeFile) && $safeFile !== 'layers.conf') {
+            jsonError('Ungültiger Dateiname: ' . $safeFile, 400);
+        }
+
+        // Quell-Pfad bestimmen (zum Lesen des Originals)
+        // Primär: nach source suchen. Fallback: alle bekannten Pfade durchsuchen.
+        $readPath = null;
+        $candidatePaths = [];
+        if ($source === 'core') {
+            $candidatePaths[] = $docRoot . '/core/config/' . $safeFile;
+        } elseif ($source === 'override') {
+            $candidatePaths[] = $docRoot . '/maps/core/config/' . $safeFile;
+        } elseif ($source === 'profile') {
+            $safeProf = preg_replace('/[^a-zA-Z0-9_\-]/', '', $profile ?: '');
+            $profDir = ($safeProf === 'public' || !$safeProf) ? CONFIG_BASE : CONFIG_BASE . '/' . $safeProf;
+            $candidatePaths[] = $profDir . '/' . $safeFile;
+        }
+        // Fallback-Pfade (alle Quellen durchsuchen)
+        $candidatePaths[] = $docRoot . '/core/config/' . $safeFile;
+        $candidatePaths[] = $docRoot . '/maps/core/config/' . $safeFile;
+        if ($profile) {
+            $safeProf2 = preg_replace('/[^a-zA-Z0-9_\-]/', '', $profile);
+            $profDir2 = ($safeProf2 === 'public' || !$safeProf2) ? CONFIG_BASE : CONFIG_BASE . '/' . $safeProf2;
+            $candidatePaths[] = $profDir2 . '/' . $safeFile;
+        }
+        $candidatePaths[] = CONFIG_BASE . '/' . $safeFile;
+        // Ersten existierenden Pfad nehmen
+        foreach (array_unique($candidatePaths) as $cp) {
+            if (file_exists($cp)) {
+                $readPath = $cp;
+                break;
+            }
+        }
+
+        // Original lesen
+        if (!$readPath) {
+            jsonError('Quelldatei nicht gefunden. Gesucht in: ' . implode(', ', array_unique($candidatePaths)), 404);
+        }
+        $raw = file_get_contents($readPath);
+        $conf = json_decode($raw, true);
+        if (!is_array($conf)) {
+            jsonError('Quelldatei ist kein gültiges JSON: ' . $safeFile, 500);
+        }
+
+        // Erlaubte Properties
+        $allowedProps = ['visible', 'opacity', 'legend', 'maxResolution', 'minResolution',
+                         'rank', 'icon', 'icon_style', 'drawtype', 'singleTile'];
+
+        // Edits mergen
+        $changedLayers = [];
+        foreach ($edits as $layerId => $props) {
+            if (!is_string($layerId) || !is_array($props)) continue;
+            if (!isset($conf[$layerId])) {
+                // Layer nicht in Datei — überspringen mit Warnung
+                $changedLayers[] = $layerId . ': NICHT GEFUNDEN';
+                continue;
+            }
+            $layerChanges = [];
+            foreach ($props as $k => $v) {
+                if (!in_array($k, $allowedProps, true)) continue;
+                // Numerische Werte konvertieren
+                if (in_array($k, ['opacity', 'maxResolution', 'minResolution', 'rank'], true) && is_numeric($v)) {
+                    $v = $v + 0;
+                }
+                if ($k === 'visible') {
+                    $v = ($v === true || $v === 'true' || $v === 1 || $v === '1') ? 1 : 0;
+                }
+                if ($v === '' || $v === null) {
+                    if (isset($conf[$layerId][$k])) {
+                        unset($conf[$layerId][$k]);
+                        $layerChanges[] = $k . ': entfernt';
+                    }
+                } else {
+                    $conf[$layerId][$k] = $v;
+                    $layerChanges[] = $k . '=' . json_encode($v);
+                }
+            }
+            $changedLayers[] = $layerId . ': ' . implode(', ', $layerChanges);
+        }
+
+        // Staging-Verzeichnis: /data/Client_Data/nwow/tmp/stageConf/<target>/
+        $stageBase = '/data/Client_Data/nwow/tmp/stageConf';
+        $stageDir = $stageBase . '/' . preg_replace('/[^a-zA-Z0-9_\-]/', '_', $target);
+        if (!is_dir($stageDir)) {
+            @mkdir($stageDir, 0775, true);
+        }
+
+        $json = json_encode($conf, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        $stagePath = $stageDir . '/' . $safeFile;
+        $written = @file_put_contents($stagePath, $json);
+        if ($written === false) {
+            $err = error_get_last();
+            jsonError('Staging-Schreiben fehlgeschlagen: ' . ($err ? $err['message'] : $stagePath), 500);
+        }
+
+        // deployPath: readPath für target=original, sonst nach target/source bestimmen
+        $deployPath = $readPath;
+        if ($target === 'override') {
+            $deployPath = $docRoot . '/maps/core/config/' . $safeFile;
+        } elseif ($target === 'profile' && $profile) {
+            $sp = preg_replace('/[^a-zA-Z0-9_\-]/', '', $profile);
+            $deployPath = ($sp === 'public' || !$sp) ? CONFIG_BASE . '/' . $safeFile : CONFIG_BASE . '/' . $sp . '/' . $safeFile;
+        }
+        // PHP-Pfad → SFTP-Pfad: /var/www/html/nwow → /www
+        $sftpDeployPath = str_replace('/var/www/html/nwow', '/www', $deployPath);
+        $sftpStagedPath = str_replace('/data/Client_Data/nwow', '/data', $stagePath);
+
+        jsonResponse(['success' => true, 'data' => [
+            'sourceFile'    => $safeFile,
+            'source'        => $source,
+            'target'        => $target,
+            'readPath'      => $readPath,
+            'stagedPath'    => $sftpStagedPath,
+            'deployPath'    => $sftpDeployPath,
+            'bytes'         => $written,
+            'layersChanged' => $changedLayers,
+            'timestamp'     => date('Y-m-d H:i:s')
+        ]]);
+        break;
+
+    // ── NLS-Conf stagen: Original lesen, Aliases mergen, nach tmp/stageConf schreiben ──
+    // Scannt ALLE lyrmgrResources-Dateien im gleichen Verzeichnis nach betroffenen Keys
+    case 'stage-nls-conf':
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('POST required', 405);
+        $body = json_decode(file_get_contents('php://input'), true);
+        if (!$body) jsonError('Ungültiger JSON-Body', 400);
+
+        $sourceFile = $body['sourceFile'] ?? null;
+        $source     = $body['source'] ?? 'core';
+        $target     = $body['target'] ?? 'original';
+        $profile    = $body['profile'] ?? null;
+        $aliases    = $body['aliases'] ?? null;
+
+        if (!$sourceFile) jsonError('sourceFile erforderlich', 400);
+        if (!is_array($aliases) || empty($aliases)) jsonError('aliases muss ein nicht-leeres Object sein', 400);
+
+        // NLS-Verzeichnis bestimmen
+        $nlsDir = null;
+        if ($source === 'core') {
+            $nlsDir = $docRoot . '/core/nls/de';
+        } elseif ($source === 'override') {
+            $nlsDir = $docRoot . '/maps/core/nls/de';
+        } elseif ($source === 'profile' && $profile) {
+            $safeProf = preg_replace('/[^a-zA-Z0-9_\-]/', '', $profile);
+            $nlsDir = ($safeProf === 'public' || !$safeProf) ? CONFIG_BASE : CONFIG_BASE . '/' . $safeProf;
+        }
+        // Fallback
+        if (!$nlsDir || !is_dir($nlsDir)) {
+            $nlsDir = $docRoot . '/core/nls/de';
+        }
+
+        // Alle lyrmgrResources-Dateien im Verzeichnis scannen
+        $nlsFiles = glob($nlsDir . '/lyrmgrResources*.json');
+        if (empty($nlsFiles)) {
+            jsonError('Keine NLS-Dateien in ' . $nlsDir . ' gefunden', 404);
+        }
+
+        $aliasKeys = array_keys($aliases);
+        $stageBase = '/data/Client_Data/nwow/tmp/stageConf';
+        $stageDir = $stageBase . '/' . preg_replace('/[^a-zA-Z0-9_\-]/', '_', $target);
+        if (!is_dir($stageDir)) @mkdir($stageDir, 0775, true);
+
+        $stagedFiles = [];  // Pro betroffene Datei: { file, stagedPath, deployPath, bytes, changes }
+
+        foreach ($nlsFiles as $nlsFilePath) {
+            $raw = file_get_contents($nlsFilePath);
+            $nls = json_decode($raw, true);
+            if (!is_array($nls)) continue;
+
+            // Prüfen ob diese Datei betroffene Keys enthält
+            $hasMatch = false;
+            foreach ($aliasKeys as $ak) {
+                if (isset($nls[$ak])) { $hasMatch = true; break; }
+            }
+            if (!$hasMatch) continue;
+
+            // Aliases mergen
+            $changes = [];
+            foreach ($aliases as $key => $value) {
+                if (!is_string($key)) continue;
+                if (!isset($nls[$key])) continue;  // Nur existierende Keys aktualisieren
+                if ($value === '' || $value === null) {
+                    unset($nls[$key]);
+                    $changes[] = $key . ': entfernt';
+                } elseif ($nls[$key] !== $value) {
+                    $nls[$key] = $value;
+                    $changes[] = $key . ': ' . $value;
+                }
+            }
+            if (empty($changes)) continue;  // Keine tatsächlichen Änderungen
+
+            $fn = basename($nlsFilePath);
+            $json = json_encode($nls, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            $stagePath = $stageDir . '/' . $fn;
+            $written = @file_put_contents($stagePath, $json);
+            if ($written === false) continue;
+
+            // deployPath = readPath (bei target=original)
+            $deployPath = $nlsFilePath;
+            if ($target === 'override') {
+                $deployPath = $docRoot . '/maps/core/nls/de/' . $fn;
+            } elseif ($target === 'profile' && $profile) {
+                $sp = preg_replace('/[^a-zA-Z0-9_\-]/', '', $profile);
+                $deployPath = ($sp === 'public' || !$sp) ? CONFIG_BASE . '/' . $fn : CONFIG_BASE . '/' . $sp . '/' . $fn;
+            }
+
+            $sftpDeploy = str_replace('/var/www/html/nwow', '/www', $deployPath);
+            $sftpStaged = str_replace('/data/Client_Data/nwow', '/data', $stagePath);
+
+            $stagedFiles[] = [
+                'file'       => $fn,
+                'stagedPath' => $sftpStaged,
+                'deployPath' => $sftpDeploy,
+                'bytes'      => $written,
+                'changes'    => $changes
+            ];
+        }
+
+        if (empty($stagedFiles)) {
+            jsonError('Keine NLS-Dateien mit passenden Keys gefunden', 404);
+        }
+
+        jsonResponse(['success' => true, 'data' => [
+            'sourceFile'  => basename($sourceFile),
+            'source'      => $source,
+            'target'      => $target,
+            'stagedFiles' => $stagedFiles,
+            'timestamp'   => date('Y-m-d H:i:s')
+        ]]);
+        break;
+
+    // ── (Legacy) Layer-Properties direkt speichern — wird durch stage-layer-conf + FastAPI ersetzt ──
+    case 'save-layer-props':
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('POST required', 405);
+        $body = json_decode(file_get_contents('php://input'), true);
+        if (!$body) jsonError('Ungültiger JSON-Body', 400);
+
+        $layerId = $body['layerId'] ?? null;
+        $props   = $body['props'] ?? null;
+        $target  = $body['target'] ?? 'original';  // original|override|profile
+        $profile = $body['profile'] ?? null;
+
+        if (!$layerId) jsonError('layerId erforderlich', 400);
+        if (!is_array($props) || empty($props)) jsonError('props muss ein nicht-leeres Object sein', 400);
+
+        // Erlaubte Properties (Sicherheit: nur bekannte Felder)
+        $allowedProps = ['visible', 'opacity', 'legend', 'maxResolution', 'minResolution',
+                         'rank', 'icon', 'icon_style', 'drawtype', 'singleTile'];
+        $sanitized = [];
+        foreach ($props as $k => $v) {
+            if (!in_array($k, $allowedProps, true)) continue;
+            // Numerische Werte konvertieren
+            if (in_array($k, ['opacity', 'maxResolution', 'minResolution', 'rank'], true) && is_numeric($v)) {
+                $v = $v + 0; // int oder float
+            }
+            // Boolean-Werte
+            if ($k === 'visible') {
+                $v = ($v === true || $v === 'true' || $v === 1 || $v === '1') ? 1 : 0;
+            }
+            $sanitized[$k] = $v;
+        }
+        if (empty($sanitized)) jsonError('Keine gültigen Properties', 400);
+
+        // Ziel-Datei bestimmen
+        if ($target === 'original') {
+            // sourceFile und source des Layers ermitteln
+            $sf = $body['sourceFile'] ?? null;
+            $ss = $body['source'] ?? 'core';
+            if (!$sf) jsonError('sourceFile erforderlich bei target=original', 400);
+            $safeFile = basename($sf);
+            if (!preg_match('/^layers[_\-].*\.conf$/', $safeFile) && $safeFile !== 'layers.conf') {
+                jsonError('Ungültiger Dateiname: ' . $safeFile, 400);
+            }
+            if ($ss === 'core') {
+                $configDir = $docRoot . '/core/config';
+            } elseif ($ss === 'override') {
+                $configDir = $docRoot . '/maps/core/config';
+            } else {
+                jsonError('source für original muss core oder override sein', 400);
+            }
+            $filePath = $configDir . '/' . $safeFile;
+        } elseif ($target === 'override') {
+            // Override-Verzeichnis: gleicher Dateiname wie Original
+            $sf = $body['sourceFile'] ?? null;
+            if (!$sf) jsonError('sourceFile erforderlich bei target=override', 400);
+            $safeFile = basename($sf);
+            if (!preg_match('/^layers[_\-].*\.conf$/', $safeFile) && $safeFile !== 'layers.conf') {
+                jsonError('Ungültiger Dateiname: ' . $safeFile, 400);
+            }
+            $configDir = $docRoot . '/maps/core/config';
+            $filePath = $configDir . '/' . $safeFile;
+        } elseif ($target === 'profile') {
+            if (!$profile) jsonError('profile erforderlich bei target=profile', 400);
+            $safeProf = preg_replace('/[^a-zA-Z0-9_\-]/', '', $profile);
+            $configDir = CONFIG_BASE . '/' . $safeProf;
+            if ($safeProf === 'public') $configDir = CONFIG_BASE;
+            $sf = $body['sourceFile'] ?? null;
+            if (!$sf) jsonError('sourceFile erforderlich bei target=profile', 400);
+            $safeFile = basename($sf);
+            if (!preg_match('/^layers[_\-].*\.conf$/', $safeFile) && $safeFile !== 'layers.conf') {
+                jsonError('Ungültiger Dateiname: ' . $safeFile, 400);
+            }
+            $filePath = $configDir . '/' . $safeFile;
+        } else {
+            jsonError('target muss original, override oder profile sein', 400);
+        }
+
+        // Bestehende Datei laden (oder leeres Object für neues Override/Profil)
+        $existing = [];
+        if (file_exists($filePath)) {
+            $raw = file_get_contents($filePath);
+            $existing = json_decode($raw, true) ?: [];
+            // Backup erstellen
+            ensureDirs();
+            $ts = date('Ymd_His');
+            $backupName = 'layers_props_' . pathinfo($safeFile, PATHINFO_FILENAME) . '_' . $ts . '.conf';
+            @copy($filePath, BACKUP_DIR . '/' . $backupName);
+        } else {
+            // Verzeichnis sicherstellen (für profile/override)
+            if (!is_dir(dirname($filePath))) {
+                @mkdir(dirname($filePath), 0775, true);
+            }
+        }
+
+        // Layer-Eintrag updaten oder anlegen
+        if (!isset($existing[$layerId])) {
+            $existing[$layerId] = [];
+        }
+        $changed = [];
+        foreach ($sanitized as $k => $v) {
+            $old = $existing[$layerId][$k] ?? null;
+            if ($v === '' || $v === null) {
+                // Leerer Wert: Property entfernen
+                if (isset($existing[$layerId][$k])) {
+                    unset($existing[$layerId][$k]);
+                    $changed[] = $k . ': entfernt';
+                }
+            } else {
+                $existing[$layerId][$k] = $v;
+                if ($old !== $v) $changed[] = $k . ': ' . json_encode($old) . ' → ' . json_encode($v);
+            }
+        }
+
+        // Schreiben
+        $json = json_encode($existing, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        $written = @file_put_contents($filePath, $json);
+        if ($written === false) {
+            jsonError('Schreibfehler: ' . $filePath, 500);
+        }
+
+        jsonResponse(['success' => true, 'data' => [
+            'layerId' => $layerId,
+            'target'  => $target,
+            'file'    => $safeFile,
+            'path'    => $filePath,
+            'changed' => $changed,
+            'bytes'   => $written
+        ]]);
+        break;
+
     // ── Profil-NLS laden ──
     case 'load-profile-nls':
         $profile = $_GET['profile'] ?? null;
@@ -3232,6 +3608,294 @@ switch ($action) {
             ];
         }
         jsonResponse(['success' => true, 'data' => $info]);
+        break;
+
+    // ── Deployed-Conf: Einzelne Datei lesen (für Editor-Ansicht) ──
+    case 'read-deployed-conf':
+        $file    = $_GET['file'] ?? '';
+        $source  = $_GET['source'] ?? '';
+        $profile = $_GET['profile'] ?? 'public';
+        if (!$file || !$source) jsonError('Parameter file= und source= erforderlich', 400);
+
+        $safeFile = basename($file);
+        $safeProf = preg_replace('/[^a-zA-Z0-9_\-]/', '', $profile ?: 'public');
+
+        // Verzeichnis bestimmen (gleiche Logik wie list-deployed-conf)
+        $targetDir = null;
+        switch ($source) {
+            case 'core':         $targetDir = realpath($docRoot . '/core/config'); break;
+            case 'core_nls':     $targetDir = realpath($docRoot . '/core/nls/de'); break;
+            case 'override':     $targetDir = realpath($docRoot . '/maps/core/config'); break;
+            case 'override_nls': $targetDir = realpath($docRoot . '/maps/core/nls/de'); break;
+            default:
+                // profile_public, profile_xyz etc.
+                if (strpos($source, 'profile_') === 0) {
+                    $profName = substr($source, 8);
+                    $safeProfName = preg_replace('/[^a-zA-Z0-9_\-]/', '', $profName);
+                    $targetDir = ($safeProfName === 'public' || !$safeProfName) ? CONFIG_BASE : CONFIG_BASE . '/' . $safeProfName;
+                } else {
+                    jsonError('Unbekannte Quelle: ' . $source, 400);
+                }
+        }
+        if (!$targetDir || !is_dir($targetDir)) jsonError('Verzeichnis nicht gefunden', 404);
+
+        $fullPath = $targetDir . '/' . $safeFile;
+        $realPath = realpath($fullPath);
+        $realBase = realpath($targetDir);
+        if (!$realPath || !$realBase || strpos($realPath, $realBase) !== 0) {
+            jsonError('Ungültiger Pfad', 400);
+        }
+        if (!file_exists($realPath)) jsonError('Datei nicht gefunden: ' . $safeFile, 404);
+
+        $content = file_get_contents($realPath);
+        jsonResponse(['success' => true, 'data' => [
+            'file'    => $safeFile,
+            'source'  => $source,
+            'content' => $content,
+            'size'    => strlen($content)
+        ]]);
+        break;
+
+    // ── Deployed-Conf: Alle .conf und .json Dateien aus core/override/profile auflisten ──
+    case 'list-deployed-conf':
+        $profile = $_GET['profile'] ?? 'public';
+        $safeProf = preg_replace('/[^a-zA-Z0-9_\-]/', '', $profile ?: 'public');
+
+        // Verzeichnisse definieren
+        $dirs = [
+            'core'     => realpath($docRoot . '/core/config'),
+            'core_nls' => realpath($docRoot . '/core/nls/de'),
+            'override'     => realpath($docRoot . '/maps/core/config'),
+            'override_nls' => realpath($docRoot . '/maps/core/nls/de'),
+        ];
+        // Alle Profile scannen (public + Unterverzeichnisse)
+        $profiles = ['public'];
+        if (is_dir(CONFIG_BASE)) {
+            $dirs['profile_public'] = CONFIG_BASE;
+            // Unterverzeichnisse = weitere Profile
+            foreach (glob(CONFIG_BASE . '/*', GLOB_ONLYDIR) as $subDir) {
+                $profName = basename($subDir);
+                $dirs['profile_' . $profName] = $subDir;
+                $profiles[] = $profName;
+            }
+        }
+
+        // Dateien sammeln
+        $files = [];
+        $backupPattern = '/\.\d{8}_\d{6}\./';  // Backups ausschliessen
+        foreach ($dirs as $tag => $dir) {
+            if (!$dir || !is_dir($dir)) continue;
+            // .conf und .json Dateien
+            $found = array_merge(
+                glob($dir . '/*.conf') ?: [],
+                glob($dir . '/*.json') ?: []
+            );
+            foreach ($found as $f) {
+                $bn = basename($f);
+                // Backups und versteckte Dateien ausschliessen
+                if (preg_match($backupPattern, $bn)) continue;
+                if ($bn[0] === '.') continue;
+                $files[] = [
+                    'name'     => $bn,
+                    'source'   => $tag,
+                    'dir'      => $dir,
+                    'size'     => filesize($f),
+                    'modified' => date('Y-m-d H:i:s', filemtime($f)),
+                    'entries'  => null  // Wird nur bei Bedarf geladen
+                ];
+            }
+        }
+
+        // Override-Info: Welche Dateien in mehreren Quellen existieren
+        $nameMap = [];
+        foreach ($files as &$fi) {
+            $nameMap[$fi['name']][] = $fi['source'];
+        }
+        unset($fi);
+        foreach ($files as &$fi) {
+            $fi['overrideSources'] = $nameMap[$fi['name']];
+            $fi['hasOverride'] = count($nameMap[$fi['name']]) > 1;
+        }
+        unset($fi);
+
+        // Nach Dateiname sortieren
+        usort($files, function($a, $b) {
+            $cmp = strcmp($a['name'], $b['name']);
+            if ($cmp !== 0) return $cmp;
+            // core vor override vor profile
+            $order = ['core' => 0, 'core_nls' => 1, 'override' => 2, 'override_nls' => 3, 'profile' => 4];
+            return ($order[$a['source']] ?? 9) - ($order[$b['source']] ?? 9);
+        });
+
+        jsonResponse(['success' => true, 'data' => [
+            'profile'  => $safeProf,
+            'profiles' => $profiles,
+            'dirs'     => $dirs,
+            'files'    => $files,
+            'count'    => count($files)
+        ]]);
+        break;
+
+    // ── Deployed-Conf: Backup erstellen + SFTP-Pfad zurückgeben (Löschen via FastAPI) ──
+    case 'prepare-delete-conf':
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('POST required', 405);
+        $body = json_decode(file_get_contents('php://input'), true);
+        if (!$body) jsonError('Ungültiger JSON-Body', 400);
+
+        $fileName = $body['fileName'] ?? null;
+        $source   = $body['source'] ?? null;
+        $profile  = $body['profile'] ?? 'public';
+
+        if (!$fileName || !$source) jsonError('fileName und source erforderlich', 400);
+
+        // Dateiname sanitizen
+        $safeFile = basename($fileName);
+        if (!preg_match('/^(layers|maptips|lyrmgrResources|maptipsResources|legendResources)[_\-].*\.(conf|json)$/', $safeFile)) {
+            jsonError('Ungültiger Dateiname: ' . $safeFile, 400);
+        }
+
+        // Verzeichnis bestimmen
+        $safeProf = preg_replace('/[^a-zA-Z0-9_\-]/', '', $profile ?: 'public');
+        $targetDir = null;
+        switch ($source) {
+            case 'core':
+                $targetDir = realpath($docRoot . '/core/config');
+                break;
+            case 'core_nls':
+                $targetDir = realpath($docRoot . '/core/nls/de');
+                break;
+            case 'override':
+                $targetDir = realpath($docRoot . '/maps/core/config');
+                break;
+            case 'override_nls':
+                $targetDir = realpath($docRoot . '/maps/core/nls/de');
+                break;
+            default:
+                // profile_public, profile_xyz etc.
+                if (strpos($source, 'profile_') === 0) {
+                    $profName = substr($source, 8);
+                    $safeProfName = preg_replace('/[^a-zA-Z0-9_\-]/', '', $profName);
+                    $targetDir = ($safeProfName === 'public' || !$safeProfName) ? CONFIG_BASE : CONFIG_BASE . '/' . $safeProfName;
+                } else {
+                    jsonError('Unbekannte Quelle: ' . $source, 400);
+                }
+        }
+
+        if (!$targetDir || !is_dir($targetDir)) {
+            jsonError('Zielverzeichnis nicht gefunden', 404);
+        }
+
+        $fullPath = $targetDir . '/' . $safeFile;
+        if (!file_exists($fullPath)) {
+            jsonError('Datei nicht gefunden: ' . $safeFile . ' in ' . $source, 404);
+        }
+
+        // Backup erstellen in schreibbares Verzeichnis (bevor FastAPI löscht)
+        $ts = date('Ymd_His');
+        $backupFile = $source . '_' . preg_replace('/(\.(conf|json))$/', '.' . $ts . '.bak$1', $safeFile);
+        $backupDir = DATA_DIR . '/deleted-backups';
+        if (!is_dir($backupDir)) @mkdir($backupDir, 0775, true);
+        $backupPath = $backupDir . '/' . $backupFile;
+        if (!@copy($fullPath, $backupPath)) {
+            // Zweiter Versuch: Direkt im selben Verzeichnis
+            $backupPath2 = $targetDir . '/' . preg_replace('/(\.(conf|json))$/', '.' . $ts . '.bak$1', $safeFile);
+            if (!@copy($fullPath, $backupPath2)) {
+                jsonError('Backup konnte nicht erstellt werden (weder in ' . $backupDir . ' noch in ' . $targetDir . ')', 500);
+            }
+            $backupFile = basename($backupPath2);
+            $backupPath = $backupPath2;
+        }
+
+        // PHP-Pfad → SFTP-Pfad
+        $sftpDeletePath = str_replace('/var/www/html/nwow', '/www', $fullPath);
+        // Falls /data-Pfad betroffen
+        $sftpDeletePath = str_replace('/data/Client_Data/nwow', '/data', $sftpDeletePath);
+
+        jsonResponse(['success' => true, 'data' => [
+            'fileName'    => $safeFile,
+            'source'      => $source,
+            'deletePath'  => $sftpDeletePath,
+            'backupFile'  => basename($backupPath),
+            'timestamp'   => date('Y-m-d H:i:s')
+        ]]);
+        break;
+
+    // -- Deployed-Conf: Backup + Content in Temp-Datei → stagedPath/deployPath für deploy-staged-conf --
+    case 'prepare-save-conf':
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('POST required', 405);
+        $body = json_decode(file_get_contents('php://input'), true);
+        if (!$body) jsonError('Ungültiger JSON-Body', 400);
+
+        $fileName = $body['fileName'] ?? null;
+        $source   = $body['source'] ?? null;
+        $content  = $body['content'] ?? null;
+        $profile  = $body['profile'] ?? 'public';
+
+        if (!$fileName || !$source || $content === null) jsonError('fileName, source und content erforderlich', 400);
+
+        $safeFile = basename($fileName);
+        if (!preg_match('/^(layers|maptips|lyrmgrResources|maptipsResources|legendResources)[_\-].*\.(conf|json)$/', $safeFile)) {
+            jsonError('Ungültiger Dateiname: ' . $safeFile, 400);
+        }
+
+        // Zielverzeichnis bestimmen (gleiche Logik wie prepare-delete-conf)
+        $targetDir = null;
+        switch ($source) {
+            case 'core':         $targetDir = realpath($docRoot . '/core/config'); break;
+            case 'core_nls':     $targetDir = realpath($docRoot . '/core/nls/de'); break;
+            case 'override':     $targetDir = realpath($docRoot . '/maps/core/config'); break;
+            case 'override_nls': $targetDir = realpath($docRoot . '/maps/core/nls/de'); break;
+            default:
+                if (strpos($source, 'profile_') === 0) {
+                    $profName = substr($source, 8);
+                    $safeProfName = preg_replace('/[^a-zA-Z0-9_\-]/', '', $profName);
+                    $targetDir = ($safeProfName === 'public' || !$safeProfName) ? CONFIG_BASE : CONFIG_BASE . '/' . $safeProfName;
+                } else {
+                    jsonError('Unbekannte Quelle: ' . $source, 400);
+                }
+        }
+
+        if (!$targetDir || !is_dir($targetDir)) jsonError('Zielverzeichnis nicht gefunden', 404);
+
+        $fullPath = $targetDir . '/' . $safeFile;
+        if (!file_exists($fullPath)) jsonError('Datei nicht gefunden: ' . $safeFile . ' in ' . $source, 404);
+
+        // Backup erstellen in schreibbares Verzeichnis
+        $ts = date('Ymd_His');
+        $backupFile = $source . '_' . preg_replace('/(\.(conf|json))$/', '.' . $ts . '.bak$1', $safeFile);
+        $backupDir = DATA_DIR . '/edit-backups';
+        if (!is_dir($backupDir)) @mkdir($backupDir, 0775, true);
+        $backupPath = $backupDir . '/' . $backupFile;
+        if (!@copy($fullPath, $backupPath)) {
+            $backupPath2 = $targetDir . '/' . preg_replace('/(\.(conf|json))$/', '.' . $ts . '.bak$1', $safeFile);
+            if (!@copy($fullPath, $backupPath2)) {
+                jsonError('Backup konnte nicht erstellt werden', 500);
+            }
+            $backupFile = basename($backupPath2);
+        }
+
+        // Content in Temp-Datei (staged) schreiben — DATA_DIR ist schreibbar
+        $stagedDir = DATA_DIR . '/edit-staged';
+        if (!is_dir($stagedDir)) @mkdir($stagedDir, 0775, true);
+        $stagedFile = $stagedDir . '/' . $safeFile;
+        if (file_put_contents($stagedFile, $content) === false) {
+            jsonError('Temp-Datei konnte nicht geschrieben werden', 500);
+        }
+
+        // Pfade für FastAPI deploy-staged-conf: /data/-Pfade
+        $stagedSftp = str_replace('/data/Client_Data/nwow', '/data', $stagedFile);
+        $deploySftp = str_replace('/var/www/html/nwow', '/www', $fullPath);
+        $deploySftp = str_replace('/data/Client_Data/nwow', '/data', $deploySftp);
+
+        jsonResponse(['success' => true, 'data' => [
+            'fileName'   => $safeFile,
+            'source'     => $source,
+            'stagedPath' => $stagedSftp,
+            'deployPath' => $deploySftp,
+            'backupFile' => basename($backupPath ?: $backupPath2),
+            'bytes'      => strlen($content),
+            'timestamp'  => date('Y-m-d H:i:s')
+        ]]);
         break;
 
     default:

@@ -424,6 +424,15 @@
   color: #700011;
 }
 
+/* Layer ausserhalb des sichtbaren Massstabsbereichs */
+.lm-layer.lm-out-of-range .lm-layer-name {
+  opacity: 0.4;
+  font-style: italic;
+}
+.lm-layer.lm-out-of-range .lm-cb {
+  opacity: 0.4;
+}
+
 /* ============================================================
    Dargestellte Themen — Active Layers Panel
    ============================================================ */

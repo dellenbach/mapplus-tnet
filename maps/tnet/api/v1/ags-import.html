@@ -489,6 +489,43 @@ body {
 /* ===== CONFIG-EDITOR TAB ===== */
 .ags-tab[data-tab="editor"]  { background: linear-gradient(135deg, #607d8b, #455a64); }
 .ags-tab[data-tab="treebuilder"] { background: linear-gradient(135deg, #8e6aa0, #6a4c7d); }
+.ags-tab[data-tab="deployed"] { background: linear-gradient(135deg, #7e57c2, #5e35b1); }
+
+/* ===== DEPLOYED TAB ===== */
+.deployed-toolbar { display: flex; gap: 6px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
+.deployed-toolbar .ags-filter { flex: 1; min-width: 120px; margin-bottom: 0; }
+.deployed-toolbar button { padding: 5px 12px; font-size: 12px; border: 1px solid #ddd; border-radius: 3px; background: #fff; cursor: pointer; }
+.deployed-toolbar button:hover { background: #f0f0f0; }
+.deployed-toolbar select { padding: 5px 8px; font-size: 11px; border: 1px solid #ccc; border-radius: 3px; background: #fff; }
+.deployed-status { padding: 8px 12px; font-size: 12px; color: #666; background: #f5f7fa; border-radius: 4px; margin-bottom: 8px; flex-shrink: 0; }
+.deployed-table-wrap { flex: 1; overflow: auto; min-height: 0; }
+.dep-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+.dep-table th { position: sticky; top: 0; background: #f0f2f5; padding: 6px 8px; text-align: left; font-size: 11px; font-weight: 700; border-bottom: 2px solid #ddd; z-index: 1; white-space: nowrap; }
+.dep-table th.col-core { color: #2e7d32; border-bottom-color: #4caf50; }
+.dep-table th.col-override { color: #e65100; border-bottom-color: #ff9800; }
+.dep-table th.col-profile { color: #6a1b9a; border-bottom-color: #9c27b0; }
+.dep-table td { padding: 3px 8px; border-bottom: 1px solid #f0f0f0; vertical-align: top; }
+.dep-table tr:hover td { background: #f5f8fa; }
+.dep-table tr.hidden { display: none; }
+.dep-table td.dep-name-cell { font-family: 'Consolas', monospace; font-weight: 600; white-space: nowrap; min-width: 180px; }
+.dep-cell { font-size: 10px; color: #555; }
+.dep-cell .dep-size { color: #999; }
+.dep-cell .dep-date { color: #aaa; display: block; font-size: 9px; }
+.dep-cell-empty { color: #ccc; font-size: 10px; }
+.dep-cell-nls { margin-top: 2px; padding-top: 2px; border-top: 1px dashed #e0e0e0; }
+.dep-cell-nls-label { font-size: 9px; color: #888; font-style: italic; }
+.dep-btn-delete { font-size: 10px; padding: 1px 6px; border: 1px solid #e57373; border-radius: 3px; background: transparent; color: #c33; cursor: pointer; opacity: 0.5; margin-left: 4px; }
+.dep-btn-delete:hover { opacity: 1; background: #fce4e4; }
+.dep-override-row td { background: #fff8e1; }
+/* Checkbox in Deployed-Zellen */
+.dep-cb { margin: 0 4px 0 0; vertical-align: middle; cursor: pointer; accent-color: #c33; }
+.dep-cell-clickable { cursor: pointer; }
+.dep-cell-clickable:hover { text-decoration: underline; color: #1976d2; }
+/* Lösch-Button Toolbar */
+#deployed-delete-sel { padding: 5px 12px; font-size: 12px; border: 1px solid #e57373; border-radius: 3px; background: #fff; color: #c33; cursor: pointer; display: none; }
+#deployed-delete-sel:hover { background: #fce4e4; }
+#deployed-delete-sel:disabled { opacity: .4; cursor: default; }
+#deployed-sel-count { font-size: 11px; color: #999; display: none; }
 
 /* ── Editor 2-Panel-Layout (analog Tree-Builder) ── */
 .editor-split {
@@ -787,6 +824,7 @@ body {
     <button class="ags-tab" data-tab="staging">③ Staging</button>
     <button class="ags-tab" data-tab="editor">④ Config-Editor</button>
     <button class="ags-tab" data-tab="treebuilder">⑤ Tree-Builder</button>
+    <button class="ags-tab" data-tab="deployed">⑥ Deployed</button>
   </div>
 
   <!-- ===== TAB: IMPORT ===== -->
@@ -967,6 +1005,40 @@ body {
     <div class="editor-placeholder" id="treebuilder-placeholder">Tree-Builder wird geladen…</div>
   </div>
 
+  <!-- ===== TAB: DEPLOYED ===== -->
+  <div class="ags-pane" id="pane-deployed">
+    <div class="deployed-toolbar">
+      <input type="text" class="ags-filter" id="deployed-filter" placeholder="Dateien filtern…">
+      <select id="deployed-type-filter">
+        <option value="all">Alle Typen</option>
+        <option value="layers">layers_*.conf</option>
+        <option value="maptips">maptips_*.conf</option>
+        <option value="lyrmgr">lyrmgrResources_*.json</option>
+        <option value="maptipsRes">maptipsResources_*.json</option>
+        <option value="legend">legendResources_*.json</option>
+      </select>
+      <label style="font-size:11px;display:flex;align-items:center;gap:3px;cursor:pointer"><input type="checkbox" id="deployed-override-only"> Nur Overrides</label>
+      <button id="deployed-refresh" title="Aktualisieren">↻ Laden</button>
+      <span style="border-left:1px solid #ddd;height:20px"></span>
+      <span id="deployed-sel-count">0 gewählt</span>
+      <button id="deployed-delete-sel" title="Ausgewählte Dateien löschen">🗑 Löschen</button>
+    </div>
+    <div class="deployed-status" id="deployed-status">Wechsle zum Tab oder klicke ↻ um Dateien zu laden…</div>
+    <div class="deployed-table-wrap" id="deployed-table-wrap">
+      <table class="dep-table" id="deployed-table">
+        <thead>
+          <tr>
+            <th>Datei</th>
+            <th class="col-core">Core</th>
+            <th class="col-override">Site-Core (Override)</th>
+            <th class="col-profile">Profil</th>
+          </tr>
+        </thead>
+        <tbody id="deployed-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
 </div>
 <div id="file-editor-overlay">
   <div id="file-editor-dialog">
@@ -1142,6 +1214,8 @@ function switchTab(tabName, skipHash) {
         iframe.style.display = 'block';
       };
     }
+  } else if (tabName === 'deployed') {
+    loadDeployedConf();
   }
 }
 
@@ -2125,6 +2199,8 @@ var _feWriteAction = 'ags-write-raw';
 var _feAfterSave   = null; // Callback nach erfolgreichem Speichern
 /** true wenn die Datei eine JSON-Datei ist */
 var _feIsJson = false;
+/** Deployed-File Info (null = normaler Editor-Modus) */
+var _feDeployedInfo = null;
 /** Fehler-Zeilennummer für Highlighting (null = kein Fehler) */
 var _feErrorLine = null;
 var _feErrorCol  = null;
@@ -2192,6 +2268,8 @@ function switchEditorTab(tabName) {}
  * Datei speichern (POST ags-write-raw)
  */
 function saveFileEditor() {
+  // Im Deployed-Modus: eigene Save-Logik (PHP Backup + FastAPI SFTP)
+  if (_feDeployedInfo) { saveDeployedFile(); return; }
   if (!_feCurrentFile) return;
   var textarea = document.getElementById('file-editor-textarea');
   var statusEl = document.getElementById('file-editor-status');
@@ -2934,14 +3012,22 @@ document.getElementById('file-editor-textarea').addEventListener('scroll', funct
 // Schliessen
 document.getElementById('file-editor-close').addEventListener('click', function() {
   document.getElementById('file-editor-overlay').classList.remove('open');
+  document.getElementById('file-editor-save').style.display = '';
+  document.getElementById('file-editor-save').textContent = '💾 Speichern';
+  document.getElementById('file-editor-textarea').readOnly = false;
   _feCurrentFile = null;
+  _feDeployedInfo = null;
 });
 
 // Klick auf Overlay-Hintergrund schliesst Modal
 document.getElementById('file-editor-overlay').addEventListener('click', function(e) {
   if (e.target === this) {
     this.classList.remove('open');
+    document.getElementById('file-editor-save').style.display = '';
+    document.getElementById('file-editor-save').textContent = '💾 Speichern';
+    document.getElementById('file-editor-textarea').readOnly = false;
     _feCurrentFile = null;
+    _feDeployedInfo = null;
   }
 });
 
@@ -2949,7 +3035,11 @@ document.getElementById('file-editor-overlay').addEventListener('click', functio
 document.addEventListener('keydown', function(e) {
   if (e.key === 'Escape' && document.getElementById('file-editor-overlay').classList.contains('open')) {
     document.getElementById('file-editor-overlay').classList.remove('open');
+    document.getElementById('file-editor-save').style.display = '';
+    document.getElementById('file-editor-save').textContent = '💾 Speichern';
+    document.getElementById('file-editor-textarea').readOnly = false;
     _feCurrentFile = null;
+    _feDeployedInfo = null;
   }
 });
 
@@ -4292,9 +4382,439 @@ window.addEventListener('hashchange', function() {
 // =====================================================================
 // INITIALISIERUNG
 // =====================================================================
+// =====================================================================
+// ⑥ DEPLOYED TAB — Dateien auflisten, filtern, löschen
+// =====================================================================
+var _deployedFiles = [];
+
+var _deployedProfile = 'public'; // Aktuelles Profil
+var _deployedProfiles = [];     // Alle Profile vom Server
+var _deployedColumns = [];      // Dynamische Spalten: ['core', 'override', 'profile_public', ...]
+
+function loadDeployedConf() {
+  var statusEl = document.getElementById('deployed-status');
+  var tbody = document.getElementById('deployed-tbody');
+  statusEl.textContent = 'Lade Dateien…';
+  statusEl.style.display = '';
+  tbody.innerHTML = '';
+  updateDeployedSelCount();
+
+  fetch(API_URL + '?action=list-deployed-conf&profile=' + encodeURIComponent(_deployedProfile))
+    .then(function(r) { return r.json(); })
+    .then(function(json) {
+      if (!json.success) {
+        statusEl.textContent = 'Fehler: ' + (json.error || 'Unbekannt');
+        return;
+      }
+      _deployedFiles = json.data.files || [];
+      _deployedProfile = json.data.profile || 'public';
+      _deployedProfiles = json.data.profiles || ['public'];
+
+      // Spalten dynamisch aufbauen: core, override, dann alle profile_*
+      _deployedColumns = ['core', 'override'];
+      _deployedProfiles.forEach(function(p) {
+        _deployedColumns.push('profile_' + p);
+      });
+
+      // Tabellen-Header dynamisch aufbauen
+      buildDeployedHeader();
+
+      statusEl.textContent = _deployedFiles.length + ' Dateien in ' + Object.keys(json.data.dirs).length + ' Verzeichnissen';
+      renderDeployedList();
+    })
+    .catch(function(err) {
+      statusEl.textContent = 'Fehler: ' + err.message;
+    });
+}
+
+// Tabellenkopf dynamisch erzeugen
+function buildDeployedHeader() {
+  var thead = document.querySelector('#deployed-table thead tr');
+  if (!thead) return;
+  thead.innerHTML = '';
+
+  var thName = document.createElement('th');
+  thName.textContent = 'Datei';
+  thead.appendChild(thName);
+
+  _deployedColumns.forEach(function(col) {
+    var th = document.createElement('th');
+    if (col === 'core') {
+      th.className = 'col-core';
+      th.textContent = 'Core';
+    } else if (col === 'override') {
+      th.className = 'col-override';
+      th.textContent = 'Site-Core (Override)';
+    } else if (col.indexOf('profile_') === 0) {
+      th.className = 'col-profile';
+      var profName = col.substring(8);
+      th.textContent = 'Profil: ' + profName;
+    }
+    thead.appendChild(th);
+  });
+}
+
+function renderDeployedList() {
+  var tbody = document.getElementById('deployed-tbody');
+  var filterText = (document.getElementById('deployed-filter').value || '').toLowerCase();
+  var typeFilter = document.getElementById('deployed-type-filter').value;
+  var overrideOnly = document.getElementById('deployed-override-only').checked;
+
+  tbody.innerHTML = '';
+
+  var typeMap = {
+    layers: /^layers/,
+    maptips: /^maptips[^R]/i,
+    lyrmgr: /^lyrmgrResources/,
+    maptipsRes: /^maptipsResources/,
+    legend: /^legendResources/
+  };
+
+  // Spalten-Mapping: core+core_nls → 'core', override+override_nls → 'override',
+  // profile_public → 'profile_public', profile_xyz → 'profile_xyz'
+  var colMap = { core: 'core', core_nls: 'core', override: 'override', override_nls: 'override' };
+  // Profile dynamisch mappen
+  _deployedProfiles.forEach(function(p) {
+    colMap['profile_' + p] = 'profile_' + p;
+  });
+
+  // Dateien nach Name gruppieren, pro Spalte zuordnen
+  var grouped = {};
+  _deployedFiles.forEach(function(fi) {
+    var col = colMap[fi.source] || fi.source;
+    if (!grouped[fi.name]) {
+      grouped[fi.name] = {};
+    }
+    if (!grouped[fi.name][col]) {
+      grouped[fi.name][col] = fi;
+    }
+  });
+
+  // Sortierte Dateinamen
+  var names = Object.keys(grouped).sort();
+  var visibleCount = 0;
+  var totalCols = _deployedColumns.length + 1; // +1 für Dateiname
+
+  names.forEach(function(name) {
+    // Typ-Filter
+    if (typeFilter !== 'all') {
+      var re = typeMap[typeFilter];
+      if (re && !re.test(name)) return;
+    }
+    // Text-Filter
+    if (filterText && name.toLowerCase().indexOf(filterText) === -1) return;
+
+    var row = grouped[name];
+    var filledCount = _deployedColumns.filter(function(c) { return !!row[c]; }).length;
+
+    // Nur Overrides: mindestens 2 Spalten belegt
+    if (overrideOnly && filledCount < 2) return;
+
+    visibleCount++;
+
+    var tr = document.createElement('tr');
+    if (filledCount > 1) tr.className = 'dep-override-row';
+
+    // Spalte: Dateiname
+    var tdName = document.createElement('td');
+    tdName.className = 'dep-name-cell';
+    tdName.textContent = name;
+    tr.appendChild(tdName);
+
+    // Dynamische Spalten
+    _deployedColumns.forEach(function(col) {
+      var td = document.createElement('td');
+      var fi = row[col];
+      if (fi) {
+        var sizeStr = fi.size > 1000 ? (fi.size / 1024).toFixed(1) + ' KB' : fi.size + ' B';
+        var dateStr = (fi.modified || '').replace(/:\d{2}$/, '');
+        td.className = 'dep-cell';
+
+        // Checkbox zum Löschen (alle Spalten)
+        var cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.className = 'dep-cb';
+        cb.title = 'Zum Löschen markieren';
+        cb.dataset.fileName = fi.name;
+        cb.dataset.source = fi.source;
+        cb.addEventListener('change', updateDeployedSelCount);
+        td.appendChild(cb);
+
+        var info = document.createElement('span');
+        info.className = 'dep-size';
+        info.textContent = sizeStr;
+        td.appendChild(info);
+
+        var dt = document.createElement('span');
+        dt.className = 'dep-date';
+        dt.textContent = dateStr;
+        td.appendChild(dt);
+
+        // Klick auf 📄 → Editor öffnen
+        var clickArea = document.createElement('span');
+        clickArea.className = 'dep-cell-clickable';
+        clickArea.title = 'Datei anzeigen';
+        clickArea.textContent = ' 📄';
+        clickArea.addEventListener('click', (function(f) {
+          return function(e) { e.stopPropagation(); openDeployedFile(f); };
+        })(fi));
+        td.appendChild(clickArea);
+      } else {
+        td.className = 'dep-cell-empty';
+        td.textContent = '—';
+      }
+      tr.appendChild(td);
+    });
+
+    tbody.appendChild(tr);
+  });
+
+  if (visibleCount === 0) {
+    var tr = document.createElement('tr');
+    var td = document.createElement('td');
+    td.colSpan = totalCols;
+    td.style.cssText = 'padding:12px;color:#999;text-align:center';
+    td.textContent = 'Keine Dateien gefunden';
+    tr.appendChild(td);
+    tbody.appendChild(tr);
+  }
+}
+
+// Zähler für ausgewählte Checkboxen aktualisieren
+function updateDeployedSelCount() {
+  var cbs = document.querySelectorAll('#deployed-tbody .dep-cb:checked');
+  var countEl = document.getElementById('deployed-sel-count');
+  var delBtn = document.getElementById('deployed-delete-sel');
+  var n = cbs.length;
+  if (n > 0) {
+    countEl.textContent = n + ' gewählt';
+    countEl.style.display = 'inline';
+    delBtn.style.display = 'inline-block';
+    delBtn.disabled = false;
+  } else {
+    countEl.style.display = 'none';
+    delBtn.style.display = 'none';
+  }
+}
+
+// Einzelne Datei löschen (Backup → SFTP)
+function deleteSingleDeployedConf(fileName, source) {
+  var statusEl = document.getElementById('deployed-status');
+  // 1. PHP: Backup erstellen + SFTP-Pfad erhalten
+  return fetch(API_URL + '?action=prepare-delete-conf', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fileName: fileName, source: source, profile: _deployedProfile })
+  })
+    .then(function(r) {
+      if (!r.ok) throw new Error('PHP prepare-delete HTTP ' + r.status + ' für ' + fileName);
+      return r.json();
+    })
+    .then(function(json) {
+      if (!json.success) {
+        throw new Error('Backup fehlgeschlagen für ' + fileName + ': ' + (json.error || JSON.stringify(json)));
+      }
+      var deletePath = json.data.deletePath;
+      statusEl.textContent = '⏳ SFTP-Lösche: ' + deletePath;
+      // 2. FastAPI: Datei via SFTP löschen
+      return fetch(GAPI_URL + '/delete-deployed-conf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deletePath: deletePath })
+      });
+    })
+    .then(function(r) {
+      if (!r.ok) {
+        return r.text().then(function(t) {
+          throw new Error('FastAPI HTTP ' + r.status + ' für ' + fileName + ': ' + t.substring(0, 200));
+        });
+      }
+      return r.json();
+    })
+    .then(function(json) {
+      if (!json) throw new Error('Leere FastAPI-Antwort für ' + fileName);
+      if (!json.success && !json.deleted) {
+        throw new Error('SFTP-Löschung fehlgeschlagen für ' + fileName + ': ' + JSON.stringify(json).substring(0, 200));
+      }
+      return { fileName: fileName, source: source, ok: true };
+    });
+}
+
+// Batch-Delete: Alle angekreuzten Dateien sequentiell löschen
+function batchDeleteDeployed() {
+  var cbs = document.querySelectorAll('#deployed-tbody .dep-cb:checked');
+  if (cbs.length === 0) return;
+
+  var items = [];
+  cbs.forEach(function(cb) {
+    items.push({ fileName: cb.dataset.fileName, source: cb.dataset.source });
+  });
+
+  var msg = items.length + ' Datei(en) löschen?\n\n';
+  items.forEach(function(it) { msg += '  • ' + it.fileName + ' (' + it.source + ')\n'; });
+  msg += '\nBackups werden automatisch erstellt.';
+  if (!confirm(msg)) return;
+
+  var statusEl = document.getElementById('deployed-status');
+  var delBtn = document.getElementById('deployed-delete-sel');
+  delBtn.disabled = true;
+  var done = 0, errors = [];
+
+  // Sequentiell abarbeiten (nicht parallel, Server-Last vermeiden)
+  function next() {
+    if (done >= items.length) {
+      // Fertig
+      if (errors.length === 0) {
+        statusEl.textContent = '✅ ' + items.length + ' Datei(en) gelöscht (Backups erstellt)';
+      } else {
+        statusEl.textContent = '⚠ ' + (items.length - errors.length) + '/' + items.length + ' gelöscht. Fehler: ' + errors.join('; ');
+      }
+      loadDeployedConf();
+      // Button + Zähler explizit ausblenden
+      delBtn.style.display = 'none';
+      document.getElementById('deployed-sel-count').style.display = 'none';
+      return;
+    }
+    var item = items[done];
+    statusEl.textContent = '⏳ Lösche ' + (done + 1) + '/' + items.length + ': ' + item.fileName + '…';
+    deleteSingleDeployedConf(item.fileName, item.source)
+      .then(function() { done++; next(); })
+      .catch(function(err) { errors.push(err.message); done++; next(); });
+  }
+  next();
+}
+
+// Deployed-Datei im Editor anzeigen (read-only)
+function openDeployedFile(fi) {
+  var overlay    = document.getElementById('file-editor-overlay');
+  var filenameEl = document.getElementById('file-editor-filename');
+  var textarea   = document.getElementById('file-editor-textarea');
+  var highlight  = document.getElementById('file-editor-highlight');
+  var statusEl   = document.getElementById('file-editor-status');
+  var saveBtn    = document.getElementById('file-editor-save');
+
+  // Deployed-Modus: editierbar + Save via FastAPI
+  _feDeployedInfo = { name: fi.name, source: fi.source };
+  _feCurrentFile = fi.name;
+  _feIsJson = /\.(json5?|conf)$/i.test(fi.name);
+
+  filenameEl.textContent = fi.name + '  [' + fi.source + ']';
+  textarea.value = 'Lade…';
+  highlight.textContent = 'Lade…';
+  textarea.className = '';
+  statusEl.textContent = '';
+  statusEl.className = '';
+  saveBtn.disabled = true;
+  saveBtn.style.display = '';
+  saveBtn.textContent = '💾 Speichern (SFTP)';
+  textarea.readOnly = false;
+
+  overlay.classList.add('open');
+
+  var url = API_URL + '?action=read-deployed-conf'
+    + '&file=' + encodeURIComponent(fi.name)
+    + '&source=' + encodeURIComponent(fi.source)
+    + '&profile=' + encodeURIComponent(_deployedProfile);
+
+  fetch(url)
+    .then(function(r) { return r.json(); })
+    .then(function(resp) {
+      if (!resp.success) throw new Error(resp.error || 'Fehler');
+      textarea.value = resp.data.content;
+      if (typeof updateEditorHighlight === 'function') updateEditorHighlight();
+      saveBtn.disabled = false;
+      if (_feIsJson && typeof validateJsonText === 'function') {
+        var result = validateJsonText(resp.data.content);
+        textarea.className = result.valid ? 'valid' : 'invalid';
+        statusEl.textContent = result.valid ? '✓ Gültiges JSON (' + resp.data.size + ' Bytes)' : '✗ ' + result.error;
+        statusEl.className = result.valid ? 'ok' : 'err';
+      } else {
+        statusEl.textContent = resp.data.size + ' Bytes';
+      }
+    })
+    .catch(function(err) {
+      textarea.value = '';
+      highlight.textContent = '';
+      statusEl.textContent = 'Fehler: ' + err.message;
+      statusEl.className = 'err';
+    });
+}
+
+// Deployed-Datei speichern: PHP Backup+Staging → FastAPI deploy-staged-conf
+function saveDeployedFile() {
+  if (!_feDeployedInfo) return;
+  var textarea = document.getElementById('file-editor-textarea');
+  var statusEl = document.getElementById('file-editor-status');
+  var saveBtn  = document.getElementById('file-editor-save');
+  var content  = textarea.value;
+
+  // JSON validieren
+  if (_feIsJson) {
+    var result = validateJsonText(content);
+    if (!result.valid) {
+      if (!confirm('Das JSON ist ungültig:\n' + result.error + '\n\nTrotzdem speichern?')) return;
+    }
+  }
+
+  saveBtn.disabled = true;
+  statusEl.textContent = '⏳ Erstelle Backup + Staging…';
+  statusEl.className = '';
+
+  var fi = _feDeployedInfo;
+
+  // 1. PHP: Backup + Content als staged-Datei schreiben → stagedPath + deployPath erhalten
+  fetch(API_URL + '?action=prepare-save-conf', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fileName: fi.name, source: fi.source, profile: _deployedProfile, content: content })
+  })
+    .then(function(r) {
+      if (!r.ok) return r.json().then(function(j) { throw new Error(j.error || 'PHP HTTP ' + r.status); });
+      return r.json();
+    })
+    .then(function(json) {
+      if (!json.success) throw new Error('Backup: ' + (json.error || 'Unbekannt'));
+      statusEl.textContent = '⏳ Deploy via SFTP…';
+
+      // 2. FastAPI: Bestehenden deploy-staged-conf Endpoint nutzen
+      return fetch(GAPI_URL + '/deploy-staged-conf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ stagedPath: json.data.stagedPath, deployPath: json.data.deployPath })
+      });
+    })
+    .then(function(r) {
+      if (!r.ok) {
+        return r.text().then(function(t) {
+          throw new Error('FastAPI HTTP ' + r.status + ': ' + t.substring(0, 200));
+        });
+      }
+      return r.json();
+    })
+    .then(function(json) {
+      var d = json.data || json;
+      if (!json.success && !d.success) throw new Error('Deploy: ' + (json.detail || json.error || d.error || 'Unbekannt'));
+      saveBtn.disabled = false;
+      statusEl.textContent = '✓ Gespeichert via SFTP (' + (content.length / 1024).toFixed(1) + ' KB) — Backup erstellt';
+      statusEl.className = 'ok';
+    })
+    .catch(function(err) {
+      saveBtn.disabled = false;
+      statusEl.textContent = '✗ Fehler: ' + err.message;
+      statusEl.className = 'err';
+    });
+}
+
+// Deployed-Tab Event-Listener
+document.getElementById('deployed-refresh').addEventListener('click', loadDeployedConf);
+document.getElementById('deployed-filter').addEventListener('input', renderDeployedList);
+document.getElementById('deployed-type-filter').addEventListener('change', renderDeployedList);
+document.getElementById('deployed-override-only').addEventListener('change', renderDeployedList);
+document.getElementById('deployed-delete-sel').addEventListener('click', batchDeleteDeployed);
+
 (function initFromHash() {
   var p = parseUrlHash();
-  var validTabs = ['import', 'manage', 'staging', 'editor', 'treebuilder'];
+  var validTabs = ['import', 'manage', 'staging', 'editor', 'treebuilder', 'deployed'];
   var startTab = (p.tab && validTabs.indexOf(p.tab) !== -1) ? p.tab : 'import';
 
   if (startTab !== 'import') {
