@@ -1,21 +1,80 @@
 /**
  * tnet-lm.css — Styles für den neuen Layer-Manager (Desktop + Mobile)
  *
- * Farbschema passend zum bestehenden TOC:
- *   Tab inaktiv:  #648C96
- *   Tab aktiv:    #e8423f
- *   Level 1 (Subcategory): #7db0b8  (hell)
- *   Level 2 (Group):       #89b5bc  (medium-hell)
- *   Level 3 (Nested):      #a8ccd2  (hell)
- *   Layer:                  #f5f8f9  (fast weiss)
- *   Akzent:       #700011
+ * Farbkonzept: Alle Farben zentral als CSS-Variablen in :root definiert.
+ * Siehe FARBKONZEPT-Block direkt nach diesem Header.
  *
- * Einrückung: 0px → 20px → 40px → 56px (pro Ebene ~16-20px)
+ * Einrückung: 12px-Schritte pro Ebene (Desktop)
  * Linker Farbstreifen: zeigt Hierarchietiefe visuell an
  *
- * @version 1.1
+ * @version 1.2
  * @copyright Trigonet AG
  */
+
+/* ============================================================
+   FARBKONZEPT — Zentrale Variablen
+   Farben hier ändern → wirkt automatisch im ganzen Layer-Manager.
+   ============================================================ */
+:root {
+  /* ── Tabs ── */
+  --lm-tab-bg:           #648C96;     /* Tab inaktiv */
+  --lm-tab-active:       #e8423f;     /* Tab aktiv (rot) */
+
+  /* ── Akzent ── */
+  --lm-accent:           #e8423f;     /* Checkbox, aktiver Layer, Buttons */
+  --lm-accent-dark:      #700011;     /* Aktiver-Layer-Text */
+
+  /* ── Hierarchie-Stufen: Hintergrund ── */
+  --lm-depth-1-bg:       #7db0b8;     /* Subkategorie */
+  --lm-depth-2-bg:       #89b5bc;     /* Gruppe */
+  --lm-depth-3-bg:       #a8ccd2;     /* Verschachtelt L3 */
+  --lm-depth-4-bg:       #c1dce1;     /* Verschachtelt L4 */
+  --lm-depth-5-bg:       #d6e9ec;     /* Verschachtelt L5 */
+  --lm-depth-6-bg:       #e8f1f3;     /* Verschachtelt L6 */
+
+  /* ── Hierarchie-Stufen: Rand (border-left) ── */
+  --lm-depth-1-border:   #6da0a8;
+  --lm-depth-2-border:   #79a5ac;
+  --lm-depth-3-border:   #98bcc2;
+  --lm-depth-4-border:   #b1ccd1;
+  --lm-depth-5-border:   #c6d9dc;
+  --lm-depth-6-border:   #d8e1e3;
+
+  /* ── Hierarchie-Stufen: Active/Pressed ── */
+  --lm-depth-1-active:   #8dbcc3;
+  --lm-depth-2-active:   #96c0c6;
+  --lm-depth-3-active:   #b8d6db;
+
+  /* ── Hierarchie-Stufen: Textfarbe ── */
+  --lm-text-depth-3:     #1a3e43;     /* Auf L3/L4-Headern */
+  --lm-text-depth-5:     #1f4045;     /* Auf L5-Headern */
+  --lm-text-depth-6:     #2a4e53;     /* Auf L6-Headern */
+
+  /* ── Layer-Zeilen ── */
+  --lm-layer-bg:         #edf4f6;     /* Standard / L3 */
+  --lm-layer-border:     #c8dade;
+  --lm-layer-d2-bg:      #e4eff1;     /* Unter L2-Gruppe */
+  --lm-layer-d2-border:  #cedfe3;
+  --lm-layer-d4-bg:      #f3f8f9;
+  --lm-layer-d4-border:  #d5e4e8;
+  --lm-layer-d5-bg:      #f8fbfc;
+  --lm-layer-d5-border:  #e2edf0;
+  --lm-layer-d6-bg:      #fbfdfe;
+  --lm-layer-d6-border:  #e9f1f3;
+
+  /* ── Aktiver Layer ── */
+  --lm-active-bg:        #fef3f2;
+
+  /* ── UI-Elemente ── */
+  --lm-primary:          #4b7b81;
+  --lm-primary-light:    #648C96;
+  --lm-filter-bg:        #fef9e7;     /* Such-Treffer Highlight */
+  --lm-group-bg:         #f4f8f9;     /* Active-Panel Gruppen */
+  --lm-group-header-bg:  #e8f0f2;
+  --lm-group-border:     #d0dde0;
+  --lm-group-name:       #2c4a50;
+  --lm-placeholder-bg:   #e8f0f1;     /* Drag & Drop */
+}
 
 /* ============================================================
    Gemeinsam
@@ -51,7 +110,7 @@
   padding: 4px 0;
   border: none;
   border-right: 2px solid rgba(255, 255, 255, 0.4);
-  background: #648C96;
+  background: var(--lm-tab-bg);
   color: #fff;
   cursor: pointer;
   min-height: 44px;
@@ -66,7 +125,7 @@
 }
 
 .lm-tab-active {
-  background: #e8423f;
+  background: var(--lm-tab-active);
 }
 
 .lm-tab:active {
@@ -125,7 +184,7 @@
 
 .lm-search:focus {
   outline: none;
-  border-color: #e8423f;
+  border-color: var(--lm-accent);
   box-shadow: 0 0 0 2px rgba(232, 66, 63, 0.15);
 }
 
@@ -146,7 +205,7 @@
 }
 
 .lm-search-clear:active {
-  color: #e8423f;
+  color: var(--lm-accent);
 }
 
 .lm-no-results {
@@ -158,7 +217,7 @@
 
 /* Filter-Match-Highlight */
 .lm-filter-match {
-  background: #fef9e7 !important;
+  background: var(--lm-filter-bg) !important;
 }
 
 /* ============================================================
@@ -174,7 +233,7 @@
   align-items: center;
   gap: 6px;
   padding: 10px 12px;
-  background: #7db0b8;
+  background: var(--lm-depth-1-bg);
   color: #fff;
   cursor: pointer;
   min-height: 44px;
@@ -182,11 +241,11 @@
   user-select: none;
   font-size: 14px;
   letter-spacing: 0.2px;
-  border-left: 4px solid #6da0a8;
+  border-left: 4px solid var(--lm-depth-1-border);
 }
 
 .lm-subcat-header:active {
-  background: #8dbcc3;
+  background: var(--lm-depth-1-active);
 }
 
 .lm-subcat-icon {
@@ -214,17 +273,17 @@
   align-items: center;
   gap: 6px;
   padding: 9px 12px 9px 24px;
-  background: #89b5bc;
+  background: var(--lm-depth-2-bg);
   color: #fff;
   cursor: pointer;
   min-height: 42px;
   -webkit-user-select: none;
   user-select: none;
-  border-left: 4px solid #79a5ac;
+  border-left: 4px solid var(--lm-depth-2-border);
 }
 
 .lm-group-header:active {
-  background: #96c0c6;
+  background: var(--lm-depth-2-active);
 }
 
 .lm-group-name {
@@ -246,17 +305,17 @@
   align-items: center;
   gap: 6px;
   padding: 8px 12px 8px 36px;
-  background: #bbe3ea;
-  color: #1a3e43;
+  background: var(--lm-depth-3-bg);
+  color: var(--lm-text-depth-3);
   cursor: pointer;
   min-height: 40px;
   -webkit-user-select: none;
   user-select: none;
-  border-left: 4px solid #98bcc2;
+  border-left: 4px solid var(--lm-depth-3-border);
 }
 
 .lm-nested-header:active {
-  background: #b8d6db;
+  background: var(--lm-depth-3-active);
 }
 
 .lm-nested-name {
@@ -311,8 +370,8 @@
   padding: 6px 12px 6px 48px;
   min-height: 40px;
   border-bottom: 1px solid rgba(0, 0, 0, 0.04);
-  background: #edf4f6;
-  border-left: 4px solid #c8dade;
+  background: var(--lm-layer-bg);
+  border-left: 4px solid var(--lm-layer-border);
 }
 
 /* ============================================================
@@ -320,74 +379,74 @@
    ============================================================ */
 
 .lm-subcat-header.lm-depth-1 {
-  background: #7db0b8;
-  border-left-color: #6da0a8;
+  background: var(--lm-depth-1-bg);
+  border-left-color: var(--lm-depth-1-border);
   color: #fff;
   padding-left: 12px;
 }
 
 .lm-group-header.lm-depth-2 {
-  background: #89b5bc;
-  border-left-color: #79a5ac;
+  background: var(--lm-depth-2-bg);
+  border-left-color: var(--lm-depth-2-border);
   color: #fff;
   padding-left: 24px;
 }
 
 .lm-nested-header.lm-depth-3 {
-  background: #a8ccd2;
-  border-left-color: #98bcc2;
-  color: #1a3e43;
+  background: var(--lm-depth-3-bg);
+  border-left-color: var(--lm-depth-3-border);
+  color: var(--lm-text-depth-3);
   padding-left: 36px;
 }
 
 .lm-nested-header.lm-depth-4 {
-  background: #c1dce1;
-  border-left-color: #b1ccd1;
-  color: #1a3e43;
+  background: var(--lm-depth-4-bg);
+  border-left-color: var(--lm-depth-4-border);
+  color: var(--lm-text-depth-3);
   padding-left: 48px;
 }
 
 .lm-nested-header.lm-depth-5 {
-  background: #d6e9ec;
-  border-left-color: #c6d9dc;
-  color: #1f4045;
+  background: var(--lm-depth-5-bg);
+  border-left-color: var(--lm-depth-5-border);
+  color: var(--lm-text-depth-5);
   padding-left: 60px;
 }
 
 .lm-nested-header.lm-depth-6 {
-  background: #e8f1f3;
-  border-left-color: #d8e1e3;
-  color: #2a4e53;
+  background: var(--lm-depth-6-bg);
+  border-left-color: var(--lm-depth-6-border);
+  color: var(--lm-text-depth-6);
   padding-left: 72px;
 }
 
 .lm-layer.lm-depth-2 {
-  background: #e4eff1;
-  border-left-color: #cedfe3;
+  background: var(--lm-layer-d2-bg);
+  border-left-color: var(--lm-layer-d2-border);
   padding-left: 36px;
 }
 
 .lm-layer.lm-depth-3 {
-  background: #edf4f6;
-  border-left-color: #c8dade;
+  background: var(--lm-layer-bg);
+  border-left-color: var(--lm-layer-border);
   padding-left: 48px;
 }
 
 .lm-layer.lm-depth-4 {
-  background: #f3f8f9;
-  border-left-color: #d5e4e8;
+  background: var(--lm-layer-d4-bg);
+  border-left-color: var(--lm-layer-d4-border);
   padding-left: 60px;
 }
 
 .lm-layer.lm-depth-5 {
-  background: #f8fbfc;
-  border-left-color: #e2edf0;
+  background: var(--lm-layer-d5-bg);
+  border-left-color: var(--lm-layer-d5-border);
   padding-left: 72px;
 }
 
 .lm-layer.lm-depth-6 {
-  background: #fbfdfe;
-  border-left-color: #e9f1f3;
+  background: var(--lm-layer-d6-bg);
+  border-left-color: var(--lm-layer-d6-border);
   padding-left: 84px;
 }
 
@@ -402,7 +461,7 @@
 .lm-cb {
   width: 20px;
   height: 20px;
-  accent-color: #e8423f;
+  accent-color: var(--lm-accent);
   flex-shrink: 0;
   cursor: pointer;
 }
@@ -414,13 +473,13 @@
 }
 
 .lm-layer.lm-active {
-  background: #fef3f2;
-  border-left: 4px solid #e8423f;
+  background: var(--lm-active-bg);
+  border-left: 4px solid var(--lm-accent);
 }
 
 .lm-layer.lm-active .lm-layer-name {
   font-weight: 600;
-  color: #700011;
+  color: var(--lm-accent-dark);
 }
 
 /* Layer ausserhalb des sichtbaren Massstabsbereichs */
@@ -492,7 +551,7 @@
   height: 36px;
   border: none;
   background: transparent;
-  color: #648C96;
+  color: var(--lm-primary-light);
   cursor: pointer;
   border-radius: 50%;
   flex-shrink: 0;
@@ -520,7 +579,7 @@
   cursor: pointer;
   border-radius: 50%;
   padding: 0;
-  color: #e8423f;
+  color: var(--lm-accent);
   flex-shrink: 0;
   -webkit-appearance: none;
   appearance: none;
@@ -543,7 +602,7 @@
   cursor: pointer;
   border-radius: 50%;
   padding: 0;
-  color: #4b7b81;
+  color: var(--lm-primary);
   flex-shrink: 0;
   -webkit-appearance: none;
   appearance: none;
@@ -571,7 +630,7 @@
 
 .lm-drag-handle:active {
   cursor: grabbing;
-  color: #648C96;
+  color: var(--lm-primary-light);
 }
 
 .lm-icon-drag {
@@ -596,8 +655,8 @@
 }
 
 .lm-drag-placeholder {
-  background: #e8f0f1;
-  border: 2px dashed #648C96;
+  background: var(--lm-placeholder-bg);
+  border: 2px dashed var(--lm-primary-light);
   border-radius: 6px;
   box-sizing: border-box;
   list-style: none;
@@ -612,7 +671,7 @@
   background: #fff;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
   border-radius: 6px;
-  border-left: 3px solid #648C96;
+  border-left: 3px solid var(--lm-primary-light);
   list-style: none;
   transition: none;
 }
@@ -648,7 +707,7 @@
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  background: #648C96;
+  background: var(--lm-primary-light);
   border: 2px solid #fff;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
   cursor: pointer;
@@ -669,10 +728,10 @@
 /* Gruppen-Container */
 .lm-active-group {
   list-style: none;
-  border: 1px solid #d0dde0;
+  border: 1px solid var(--lm-group-border);
   border-radius: 6px;
   margin: 4px 0;
-  background: #f4f8f9;
+  background: var(--lm-group-bg);
   overflow: hidden;
 }
 
@@ -683,8 +742,8 @@
   gap: 4px;
   padding: 6px 8px;
   min-height: 36px;
-  background: #e8f0f2;
-  border-bottom: 1px solid #d0dde0;
+  background: var(--lm-group-header-bg);
+  border-bottom: 1px solid var(--lm-group-border);
   cursor: default;
 }
 
@@ -704,7 +763,7 @@
   flex: 1;
   font-size: 13px;
   font-weight: 600;
-  color: #2c4a50;
+  color: var(--lm-group-name);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -744,7 +803,7 @@
 /* Gruppen-Opazitäts-Slider */
 .lm-active-group > .lm-opacity-row {
   padding: 2px 8px 4px 40px;
-  background: #e8f0f2;
+  background: var(--lm-group-header-bg);
 }
 
 /* Kind-Layer-Liste */
