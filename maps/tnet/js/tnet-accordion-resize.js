@@ -28,6 +28,14 @@
     _useNewTree = !!(window.__tnetLMFlags && window.__tnetLMFlags.useNewTree);
     _useNewActivePanel = !!(window.__tnetLMFlags && window.__tnetLMFlags.useNewActivePanel);
   }
+
+  function hasNewTreeContainer() {
+    return !!document.getElementById('lm-tree-container');
+  }
+
+  function hasNewActiveContainer() {
+    return !!document.getElementById('lm-active-container');
+  }
   // Sofort versuchen (tnet-log.js sollte schon fertig sein)
   readFlags();
 
@@ -53,6 +61,9 @@
 
   // ===== STATE =====
   var _handles = [];
+  var _refreshTimer = null;
+  var _layoutObserver = null;
+  var _mutationObserver = null;
 
   // ===== HILFSFUNKTIONEN =====
 
@@ -65,7 +76,7 @@
    * @param {string} [panelId] - ID des Panels (z.B. 'tp_overview_menu'),
    *   um dessen Titelleiste korrekt zu berücksichtigen.
    */
-  function getMaxHeight(panelId) {
+  function getMaxHeight(panelId, useActual) {
     var spring = document.getElementById('spring');
     if (!spring) return Math.round(window.innerHeight - 150);
 
@@ -82,16 +93,40 @@
     var cs = window.getComputedStyle(spring);
     var padding = (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0);
 
-    // Höhe aller ANDEREN Elemente in #spring ermitteln
-    // Für das Ziel-Panel: nur die Titelleiste zählen, nicht den Inhalt
+    // Resizable Panel-IDs für späteren Vergleich
+    var resizablePanelMap = {};
+    CONFIG.panels.forEach(function (p) { resizablePanelMap[p.id] = p; });
+
+    // Höhe aller ANDEREN Elemente in #spring ermitteln.
+    // Für das EIGENE Panel: nur Titelleiste zählen.
+    // Für das ANDERE resizable Panel:
+    //   useActual=false (Drag): Titelleiste + minHeight (grosszügig, damit man vergrössern kann)
+    //   useActual=true  (Recalc): Tatsächliche Inhaltshöhe (damit beide Panels zusammen passen)
+    // Für alle sonstigen Elemente: vollen offsetHeight zählen.
     var otherH = 0;
     var children = spring.children;
     for (var i = 0; i < children.length; i++) {
       var child = children[i];
       if (child.id === panelId) {
         // Eigene Titelleiste mitzählen (Inhalt wird separat gesteuert)
-        var titleBar = child.querySelector('.dijitTitlePaneTitle');
+        var titleBar = child.querySelector('summary.tnet-panel-title') || child.querySelector('.dijitTitlePaneTitle');
         if (titleBar) otherH += titleBar.offsetHeight;
+      } else if (resizablePanelMap[child.id]) {
+        var otherCfg = resizablePanelMap[child.id];
+        var otherTitle = child.querySelector('summary.tnet-panel-title') || child.querySelector('.dijitTitlePaneTitle');
+        var titleH = otherTitle ? otherTitle.offsetHeight : 30;
+        // Bei geschlossenem <details> nur Titel zählen
+        if (child.tagName === 'DETAILS' && !child.open) {
+          otherH += titleH;
+        } else if (useActual) {
+          // Tatsächliche Inhaltshöhe verwenden (für recalc — damit beides passt)
+          var otherContent = child.querySelector('.tnet-panel-content') || child.querySelector('.dijitTitlePaneContentOuter');
+          var actualH = otherContent ? otherContent.offsetHeight : otherCfg.defaultHeight;
+          otherH += titleH + Math.max(otherCfg.minHeight, actualH);
+        } else {
+          // Nur minHeight reservieren (für Drag — grosszügig)
+          otherH += titleH + otherCfg.minHeight;
+        }
       } else {
         otherH += child.offsetHeight || 0;
       }
@@ -142,22 +177,24 @@
     var clamped = Math.max(panelCfg.minHeight, Math.min(height, panelCfg.maxHeight || getMaxHeight(panelCfg.id)));
     var paneEl = document.getElementById(panelCfg.id);
     if (!paneEl) return clamped;
+    var useTreeNow = _useNewTree || hasNewTreeContainer();
+    var useActiveNow = _useNewActivePanel || hasNewActiveContainer();
 
-    var contentOuter = paneEl.querySelector('.dijitTitlePaneContentOuter');
+    // Content-Wrapper: bei details→.tnet-panel-content, bei Dojo→.dijitTitlePaneContentOuter
+    var contentOuter = paneEl.querySelector('.tnet-panel-content') || paneEl.querySelector('.dijitTitlePaneContentOuter');
 
     if (panelCfg.id === 'tp_overview_menu') {
-      if (_useNewTree) {
-        // Neuer Tree: Höhe auf #lm-tree-container setzen
-        // Container scrollt selbst (overflow-y: auto), Tab-Bar und Suchfeld
-        // bleiben per position:sticky oben fixiert.
+      // CSS-Variable setzen
+      document.documentElement.style.setProperty('--tnet-catalog-height', clamped + 'px');
+
+      if (useTreeNow) {
         var treeContainer = document.getElementById('lm-tree-container');
         if (treeContainer) {
           treeContainer.style.setProperty('max-height', clamped + 'px', 'important');
           treeContainer.style.setProperty('height', clamped + 'px', 'important');
-          treeContainer.style.setProperty('overflow-y', 'auto', 'important');
-          treeContainer.style.setProperty('overflow-x', 'hidden', 'important');
+          // Flex-Column Layout: Container hidden, nur .lm-cat-content scrollt (via CSS)
+          treeContainer.style.setProperty('overflow', 'hidden', 'important');
         }
-        // ContentOuter auch anpassen (Dojo-Wrapper)
         if (contentOuter) {
           contentOuter.style.setProperty('height', (clamped + 10) + 'px', 'important');
         }
@@ -166,7 +203,6 @@
           kantonsContainer.style.setProperty('height', (clamped + 10) + 'px', 'important');
         }
       } else {
-        // Legacy: feste Höhe auf kantons_container UND ContentOuter
         var kantonsContainer = document.getElementById('kantons_container');
         if (kantonsContainer) {
           kantonsContainer.style.setProperty('height', clamped + 'px', 'important');
@@ -176,12 +212,9 @@
         }
       }
     } else if (panelCfg.id === 'tp_sort_menu') {
-      // CSS-Variable setzen — wirkt sofort auf #lm-active-container via CSS-Fallback
-      // auch wenn der Container noch nicht per JS-Inline-Styles konfiguriert wurde
       document.documentElement.style.setProperty('--tnet-active-height', clamped + 'px');
 
-      if (_useNewActivePanel) {
-        // Neues Active-Panel: Höhe auf #lm-active-container setzen
+      if (useActiveNow) {
         var activeContainer = document.getElementById('lm-active-container');
         if (activeContainer) {
           activeContainer.style.setProperty('max-height', clamped + 'px', 'important');
@@ -189,14 +222,12 @@
           activeContainer.style.setProperty('overflow-y', 'auto', 'important');
           activeContainer.style.setProperty('overflow-x', 'hidden', 'important');
         }
-        // ContentOuter: height UND max-height setzen (max-height allein erzwingt keine Grösse)
         if (contentOuter) {
           contentOuter.style.setProperty('height', (clamped + 10) + 'px', 'important');
           contentOuter.style.setProperty('max-height', (clamped + 10) + 'px', 'important');
           contentOuter.style.setProperty('overflow-y', 'auto', 'important');
         }
       } else {
-        // Legacy: height + max-height + overflow-y auf ContentOuter
         if (contentOuter) {
           contentOuter.style.setProperty('height', clamped + 'px', 'important');
           contentOuter.style.setProperty('max-height', clamped + 'px', 'important');
@@ -221,14 +252,14 @@
     if (!paneEl) return panelCfg.defaultHeight;
 
     if (panelCfg.id === 'tp_overview_menu') {
-      if (_useNewTree) {
+      if (_useNewTree || hasNewTreeContainer()) {
         var tc = document.getElementById('lm-tree-container');
         return tc ? tc.offsetHeight : panelCfg.defaultHeight;
       }
       var kc = document.getElementById('kantons_container');
       return kc ? kc.offsetHeight : panelCfg.defaultHeight;
     } else {
-      if (_useNewActivePanel) {
+      if (_useNewActivePanel || hasNewActiveContainer()) {
         var ac = document.getElementById('lm-active-container');
         return ac ? ac.offsetHeight : panelCfg.defaultHeight;
       }
@@ -271,6 +302,26 @@
     var startY = 0;
     var startHeight = 0;
     var isDragging = false;
+    var lastAppliedHeight = 0;
+
+    // Gekoppeltes Resize: das andere Panel wird gleichzeitig verkleinert/vergrössert
+    var siblingCfg = null;
+    var siblingStartHeight = 0;
+    var lastSiblingHeight = 0;
+    var totalBudget = 0;
+
+    function findSiblingPanel() {
+      for (var i = 0; i < CONFIG.panels.length; i++) {
+        if (CONFIG.panels[i].id !== panelCfg.id) {
+          var sibEl = document.getElementById(CONFIG.panels[i].id);
+          // Nur offene Panels als Sibling zählen
+          if (sibEl && (sibEl.tagName !== 'DETAILS' || sibEl.open)) {
+            return CONFIG.panels[i];
+          }
+        }
+      }
+      return null;
+    }
 
     function onDragStart(e) {
       e.preventDefault();
@@ -278,10 +329,26 @@
 
       isDragging = true;
       startY = e.type === 'touchstart' ? e.touches[0].clientY : e.clientY;
-      startHeight = getContentHeight(panelCfg);
-      panelCfg.maxHeight = getMaxHeight(panelCfg.id);
 
-      // Globales Flag — verhindert aggressiveFix in tnet_toc.js
+      // Alle Werte EINMALIG berechnen (kein DOM-Read während Drag)
+      panelCfg.maxHeight = getMaxHeight(panelCfg.id, true);
+      var rawH = getContentHeight(panelCfg);
+      startHeight = Math.max(panelCfg.minHeight, Math.min(rawH, panelCfg.maxHeight));
+      lastAppliedHeight = startHeight;
+
+      // Sibling-Panel für gekoppeltes Resize vorbereiten
+      siblingCfg = findSiblingPanel();
+      if (siblingCfg) {
+        var sibRawH = getContentHeight(siblingCfg);
+        siblingCfg.maxHeight = getMaxHeight(siblingCfg.id, true);
+        siblingStartHeight = Math.max(siblingCfg.minHeight, Math.min(sibRawH, siblingCfg.maxHeight));
+        lastSiblingHeight = siblingStartHeight;
+      }
+
+      // Gesamtbudget vorberechnen: wie viel Platz haben beide zusammen?
+      totalBudget = startHeight + (siblingCfg ? siblingStartHeight : 0);
+
+      // Globales Flag — verhindert Observer-Interference + schaltet CSS-Transitions ab
       window.__tnetResizing = true;
       document.body.classList.add('tnet-resizing');
       handle.classList.add('active');
@@ -300,7 +367,24 @@
       var deltaY = clientY - startY;
       var newHeight = startHeight + deltaY;
 
-      applyHeight(panelCfg, newHeight);
+      // Clampen auf min/max
+      newHeight = Math.max(panelCfg.minHeight, newHeight);
+
+      if (siblingCfg) {
+        // Gekoppelt: Budget zwischen beiden Panels aufteilen
+        // Neues Panel darf maximal so gross werden, dass Sibling auf minHeight bleibt
+        var maxForThis = totalBudget - siblingCfg.minHeight;
+        newHeight = Math.min(newHeight, maxForThis);
+
+        // Sibling bekommt den Rest
+        var sibNewHeight = totalBudget - newHeight;
+        sibNewHeight = Math.max(siblingCfg.minHeight, sibNewHeight);
+        lastSiblingHeight = applyHeight(siblingCfg, sibNewHeight);
+      } else {
+        newHeight = Math.min(newHeight, panelCfg.maxHeight);
+      }
+
+      lastAppliedHeight = applyHeight(panelCfg, newHeight);
     }
 
     function onDragEnd() {
@@ -312,9 +396,13 @@
       document.removeEventListener('touchmove', onDragMove);
       document.removeEventListener('touchend', onDragEnd);
 
-      // Finale Höhe speichern
-      var finalHeight = getContentHeight(panelCfg);
-      saveHeight(panelCfg.storageKey, finalHeight);
+      // Finale Höhen speichern
+      saveHeight(panelCfg.storageKey, lastAppliedHeight);
+      if (siblingCfg && lastSiblingHeight !== siblingStartHeight) {
+        saveHeight(siblingCfg.storageKey, lastSiblingHeight);
+        TnetLog.log('[AccordionResize] Sibling-Höhe gespeichert:', siblingCfg.id, '→', lastSiblingHeight + 'px');
+      }
+      siblingCfg = null;
 
       handle.classList.remove('active');
       document.body.classList.remove('tnet-resizing');
@@ -324,7 +412,7 @@
         window.__tnetResizing = false;
       }, 500);
 
-      TnetLog.log('[AccordionResize] Neue Höhe gespeichert:', panelCfg.id, '→', finalHeight + 'px');
+      TnetLog.log('[AccordionResize] Neue Höhe gespeichert:', panelCfg.id, '→', lastAppliedHeight + 'px');
     }
 
     handle.addEventListener('mousedown', onDragStart);
@@ -340,26 +428,93 @@
   }
 
   /**
-   * Überwacht Dojo-TitlePane Öffnen/Schliessen (via dijit.byId oder MutationObserver)
+   * Überwacht Panel Öffnen/Schliessen (via toggle-Event auf details-Element
+   * oder Fallback: dijit.byId für Legacy Dojo TitlePanes)
    * und wendet Höhen-Styles nach dem Öffnen erneut an.
    */
+  /**
+   * Alle Panels neu berechnen und clampen.
+   * Wird aufgerufen wenn ein Panel geöffnet/geschlossen wird,
+   * damit BEIDE Panels gemeinsam in den verfügbaren Platz passen.
+   */
+  /**
+   * Natürliche Inhaltshöhe eines Panels messen (scrollHeight des Inhalts-Containers).
+   * Gibt 0 zurück wenn der Container nicht gefunden wird.
+   */
+  function getNaturalContentHeight(panelId) {
+    if (panelId === 'tp_overview_menu') {
+      // Inhalt des Themenkatalogs messen
+      var treeContainer = document.getElementById('lm-tree-container');
+      if (treeContainer) {
+        var catContent = treeContainer.querySelector('.lm-cat-content');
+        if (catContent) return catContent.scrollHeight;
+        return treeContainer.scrollHeight;
+      }
+    } else if (panelId === 'tp_sort_menu') {
+      var activeContainer = document.getElementById('lm-active-container');
+      if (activeContainer) return activeContainer.scrollHeight;
+    }
+    return 0;
+  }
+
+  function recalcAllPanels(reason) {
+    // Sequentiell verarbeiten:
+    // Panel 1 (Themenkatalog) bekommt grosszügiges Maximum (andere auf minHeight).
+    // Panel 2 (Dargestellte Themen) sieht die TATSÄCHLICHE Höhe von Panel 1
+    // im DOM und bekommt nur den verbleibenden Platz → kein Overflow.
+    _handles.forEach(function (entry, index) {
+      entry.panel.maxHeight = getMaxHeight(entry.panel.id, index > 0);
+      var h = loadHeight(entry.panel.storageKey, entry.panel.defaultHeight);
+      var clamped = applyHeight(entry.panel, h);
+      // Gespeicherten Wert aktualisieren wenn er geclamped wurde
+      if (clamped !== h) {
+        saveHeight(entry.panel.storageKey, clamped);
+      }
+    });
+    TnetLog.log('[AccordionResize] recalcAllPanels:', reason || '');
+  }
+
   function watchTitlePaneOpen(panelCfg) {
     var paneEl = document.getElementById(panelCfg.id);
     if (!paneEl) return;
 
-    // Strategie 1: Dojo widget.watch('open', ...) — zuverlässigste Methode
+    // Strategie 1: Natives details-Element — toggle-Event
+    if (paneEl.tagName === 'DETAILS') {
+      paneEl.addEventListener('toggle', function () {
+        if (paneEl.open) {
+          // Beim Öffnen: Inhaltshöhe messen und als Zielgrösse verwenden,
+          // damit z.B. alle Level-1-Einträge sichtbar sind (wenn Platz reicht).
+          setTimeout(function () {
+            if (panelCfg.id === 'tp_overview_menu') {
+              var naturalH = getNaturalContentHeight(panelCfg.id);
+              if (naturalH > 0) {
+                var maxH = getMaxHeight(panelCfg.id, true);
+                var targetH = Math.min(naturalH, maxH);
+                targetH = Math.max(panelCfg.minHeight, targetH);
+                applyHeight(panelCfg, targetH);
+                saveHeight(panelCfg.storageKey, targetH);
+              }
+            }
+            recalcAllPanels('toggle-' + panelCfg.id);
+          }, 50);
+          // Nochmal nach kurzem Timeout (DOM-Layout fertig stabilisiert)
+          setTimeout(function () {
+            recalcAllPanels('toggle-delayed-' + panelCfg.id);
+          }, 200);
+        }
+      });
+      TnetLog.log('[AccordionResize] toggle-Event registriert für:', panelCfg.id);
+      return;
+    }
+
+    // Strategie 2: Dojo widget.watch('open', ...) — für Legacy TitlePanes (z.B. tp_wms_menu)
     if (typeof dijit !== 'undefined' && dijit.byId) {
       var widget = dijit.byId(panelCfg.id);
       if (widget && typeof widget.watch === 'function') {
         widget.watch('open', function (name, oldVal, newVal) {
           if (newVal) {
-            // TitlePane wurde geöffnet → Styles nach Dojo-Animation erneut setzen
-            // 350ms Delay: Dojo-Wipe-Animation dauert ca. 250ms
             setTimeout(function () {
-              var h = loadHeight(panelCfg.storageKey, panelCfg.defaultHeight);
-              panelCfg.maxHeight = getMaxHeight(panelCfg.id);
-              applyHeight(panelCfg, h);
-              TnetLog.log('[AccordionResize] TitlePane geöffnet → Höhe angewendet:', panelCfg.id, h + 'px');
+              recalcAllPanels('dijitWatch-' + panelCfg.id);
             }, 350);
           }
         });
@@ -368,7 +523,7 @@
       }
     }
 
-    // Strategie 2: MutationObserver als Fallback (beobachtet CSS-Klasse dijitOpen)
+    // Strategie 3: MutationObserver als Fallback
     if (typeof MutationObserver !== 'undefined') {
       var observer = new MutationObserver(function (mutations) {
         for (var i = 0; i < mutations.length; i++) {
@@ -376,9 +531,7 @@
             var el = mutations[i].target;
             if (el.classList.contains('dijitOpen')) {
               setTimeout(function () {
-                var h = loadHeight(panelCfg.storageKey, panelCfg.defaultHeight);
-                panelCfg.maxHeight = getMaxHeight(panelCfg.id);
-                applyHeight(panelCfg, h);
+                recalcAllPanels('dijitOpen-' + panelCfg.id);
               }, 350);
             }
           }
@@ -392,10 +545,71 @@
   // ===== VIEWPORT-RESIZE =====
 
   function onWindowResize() {
-    _handles.forEach(function (entry) {
-      entry.panel.maxHeight = getMaxHeight(entry.panel.id);
-      var currentHeight = loadHeight(entry.panel.storageKey, entry.panel.defaultHeight);
-      applyHeight(entry.panel, currentHeight);
+    recalcAllPanels('window-resize');
+  }
+
+  function scheduleRefresh(reason, delay) {
+    if (window.__tnetResizing) return;
+    if (_refreshTimer) clearTimeout(_refreshTimer);
+    _refreshTimer = setTimeout(function () {
+      if (window.__tnetResizing) return;
+      recalcAllPanels(reason || 'scheduleRefresh');
+    }, typeof delay === 'number' ? delay : 120);
+  }
+
+  function scheduleStabilizedRefreshes(reason) {
+    [0, 120, 400, 900, 1600].forEach(function (delay) {
+      setTimeout(function () {
+        if (window.__tnetResizing) return;
+        recalcAllPanels(reason + '-' + delay + 'ms');
+      }, delay);
+    });
+  }
+
+  function installLayoutObserver() {
+    if (typeof ResizeObserver === 'undefined' || _layoutObserver) return;
+
+    var spring = document.getElementById('spring');
+    var freepane = document.getElementById('freepane');
+    if (!spring && !freepane) return;
+
+    _layoutObserver = new ResizeObserver(function () {
+      scheduleRefresh('ResizeObserver', 80);
+    });
+
+    if (spring) _layoutObserver.observe(spring);
+    if (freepane) _layoutObserver.observe(freepane);
+  }
+
+  function installMutationObserver() {
+    if (typeof MutationObserver === 'undefined' || _mutationObserver) return;
+
+    var spring = document.getElementById('spring');
+    if (!spring) return;
+
+    _mutationObserver = new MutationObserver(function (mutations) {
+      if (window.__tnetResizing) return;
+      for (var i = 0; i < mutations.length; i++) {
+        var m = mutations[i];
+        if (m.type === 'childList') {
+          scheduleRefresh('MutationObserver-childList', 80);
+          return;
+        }
+        if (m.type === 'attributes') {
+          // Wichtig für <details open>, class/style-Umschaltungen und Inline-Height-Updates
+          if (m.attributeName === 'open' || m.attributeName === 'class' || m.attributeName === 'style') {
+            scheduleRefresh('MutationObserver-attr-' + m.attributeName, 80);
+            return;
+          }
+        }
+      }
+    });
+
+    _mutationObserver.observe(spring, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+      attributeFilter: ['open', 'class', 'style']
     });
   }
 
@@ -416,6 +630,13 @@
 
     CONFIG.panels.forEach(setupPanel);
 
+    // Mehrfach nachklemmen, weil Tree/Active-Panel, Fonts und dynamische Inhalte
+    // zeitversetzt eintreffen können. Ohne diese Folge-Refreshes ist das Panel
+    // teils erst nach Benutzerinteraktion korrekt geklemmt.
+    scheduleStabilizedRefreshes('init');
+    installLayoutObserver();
+    installMutationObserver();
+
     // === CONTAINER-NACHVERFOLGUNG ===
     // #lm-active-container und #lm-tree-container werden von tnet-lm-init.js
     // asynchron erstellt. Wenn sie beim ersten setupPanel-Lauf noch nicht existieren,
@@ -429,6 +650,16 @@
       resizeTimer = setTimeout(onWindowResize, 200);
     });
 
+    window.addEventListener('load', function () {
+      scheduleStabilizedRefreshes('window-load');
+    }, { once: true });
+
+    if (document.fonts && document.fonts.ready) {
+      document.fonts.ready.then(function () {
+        scheduleStabilizedRefreshes('fonts-ready');
+      });
+    }
+
     TnetLog.log('[AccordionResize] Initialisiert (useNewTree=' + _useNewTree + ', useNewActivePanel=' + _useNewActivePanel + ')');
     return true;
   }
@@ -440,10 +671,10 @@
   function scheduleContainerRetry() {
     var targets = [];
 
-    if (_useNewActivePanel && !document.getElementById('lm-active-container')) {
+    if ((_useNewActivePanel || hasNewActiveContainer()) && !document.getElementById('lm-active-container')) {
       targets.push({ containerId: 'lm-active-container', panelId: 'tp_sort_menu' });
     }
-    if (_useNewTree && !document.getElementById('lm-tree-container')) {
+    if ((_useNewTree || hasNewTreeContainer()) && !document.getElementById('lm-tree-container')) {
       targets.push({ containerId: 'lm-tree-container', panelId: 'tp_overview_menu' });
     }
 
@@ -460,14 +691,10 @@
       for (var i = 0; i < targets.length; i++) {
         var t = targets[i];
         if (document.getElementById(t.containerId)) {
-          // Container erschienen → Höhe anwenden
-          var panelCfg = CONFIG.panels.filter(function (p) { return p.id === t.panelId; })[0];
-          if (panelCfg) {
-            var h = loadHeight(panelCfg.storageKey, panelCfg.defaultHeight);
-            panelCfg.maxHeight = getMaxHeight(panelCfg.id);
-            applyHeight(panelCfg, h);
-            TnetLog.log('[AccordionResize] Container erschienen → Höhe angewendet:', t.containerId, h + 'px');
-          }
+          // Container erschienen → alle Panels neu berechnen
+          TnetLog.log('[AccordionResize] Container erschienen:', t.containerId);
+          recalcAllPanels('container-' + t.containerId);
+          scheduleStabilizedRefreshes('container-' + t.containerId);
         } else {
           remaining.push(t);
         }

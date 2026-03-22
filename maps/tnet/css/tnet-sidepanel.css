@@ -1,0 +1,450 @@
+/* ===== TNET SIDEPANEL V2 ===== */
+
+/* Freepane base */
+body.tnet-sidepanel-v2 div#freepane {
+  left: 0 !important;
+  top: 69px !important;
+  width: 340px;
+  z-index: 50;
+  position: fixed !important;
+  bottom: 0 !important;
+  height: calc(100vh - 69px) !important;
+  overflow: hidden !important;
+  pointer-events: none !important;
+  max-height: calc(100vh - 69px) !important;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Während Polygon-Zeichnen: Sidepanel deaktivieren */
+body.tnet-sidepanel-v2.drawing-mode #freepane,
+body.tnet-sidepanel-v2.drawing-mode #freepane * {
+  pointer-events: none !important;
+}
+
+/* Spatial Query Panel bleibt immer bedienbar */
+body.tnet-sidepanel-v2 .spatial-query-panel,
+body.tnet-sidepanel-v2 .spatial-query-panel * {
+  pointer-events: auto !important;
+}
+
+/* Spring scroll container — kein Scroll hier, nur innere Container scrollen */
+body.tnet-sidepanel-v2 #spring {
+  pointer-events: auto;
+  width: 340px !important;
+  height: calc(100vh - 79px) !important;
+  max-height: calc(100vh - 79px) !important;
+  overflow: hidden !important;
+  padding-bottom: 16px !important;
+  box-sizing: border-box !important;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+/* Keep panel interactive */
+body.tnet-sidepanel-v2 #freepane #leftPaneHeader,
+body.tnet-sidepanel-v2 #freepane .dijitTitlePane,
+body.tnet-sidepanel-v2 #freepane .close_switch,
+body.tnet-sidepanel-v2 #freepane #scrollToTopBtn,
+body.tnet-sidepanel-v2 #freepane .dijitTitlePaneTitle,
+body.tnet-sidepanel-v2 #freepane .dijitTitlePaneContentOuter,
+body.tnet-sidepanel-v2 #freepane .tnet-accordion-resize-handle {
+  pointer-events: auto;
+}
+
+/* Accordion resize handle */
+body.tnet-sidepanel-v2 #freepane #spring .tnet-accordion-resize-handle {
+  height: 5px !important;
+  min-height: 5px !important;
+  max-height: 5px !important;
+  background: #6e9aa0 !important;
+  border-top: 1px solid #5f8a90 !important;
+  border-bottom: 1px solid #5f8a90 !important;
+  cursor: ns-resize !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex-shrink: 0 !important;
+  overflow: visible !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  transition: background 0.15s ease !important;
+  pointer-events: auto !important;
+  position: relative !important;
+  z-index: 100 !important;
+}
+
+body.tnet-sidepanel-v2 #freepane #spring .tnet-accordion-resize-handle:hover {
+  background: #5f8a90 !important;
+}
+
+body.tnet-sidepanel-v2 #freepane #spring .tnet-accordion-resize-handle.active {
+  background: #557e83 !important;
+}
+
+body.tnet-sidepanel-v2 #freepane #spring .tnet-accordion-resize-handle::before {
+  content: '' !important;
+  display: block !important;
+  width: 24px !important;
+  height: 0 !important;
+  border-top: 2px dotted #3f666b !important;
+}
+
+/* Scroll to top button */
+body.tnet-sidepanel-v2 #scrollToTopBtn {
+  position: fixed;
+  bottom: 24px;
+  left: 318px;
+  width: 44px;
+  height: 44px;
+  background: #e8423f;
+  color: white;
+  border: 4px solid #e8423f;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 0;
+  text-align: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.3s ease;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+body.tnet-sidepanel-v2 #scrollToTopBtn::before {
+  content: '';
+  display: block;
+  width: 12px;
+  height: 12px;
+  border-left: 3px solid white;
+  border-top: 3px solid white;
+  transform: rotate(45deg) translateX(2px) translateY(2px);
+}
+
+body.tnet-sidepanel-v2 #scrollToTopBtn.visible {
+  opacity: 1;
+  visibility: visible;
+}
+
+body.tnet-sidepanel-v2 #scrollToTopBtn:hover {
+  background: #4b7b81;
+  border-color: #4b7b81;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+body.tnet-sidepanel-v2 #scrollToTopBtn:active {
+  transform: translateY(0);
+}
+
+/* Close switch */
+body.tnet-sidepanel-v2 .close_switch {
+  position: relative;
+  width: 100%;
+  height: 10px;
+  background: #95b5be;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  flex-shrink: 0;
+  left: 0;
+}
+
+body.tnet-sidepanel-v2 .close_switch:hover {
+  background: #4b7b81;
+}
+
+body.tnet-sidepanel-v2 .close_switch::before {
+  content: '';
+  width: 40px;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.8);
+  border-radius: 1px;
+}
+
+body.tnet-sidepanel-v2 .close_switch:hover::before {
+  background: rgba(255, 255, 255, 1);
+}
+
+/* Open state */
+body.tnet-sidepanel-v2 #freepane #leftPaneHeader {
+  max-height: 50px;
+  opacity: 1;
+  overflow: hidden;
+  transition: max-height 0.4s ease, opacity 0.3s ease;
+}
+
+body.tnet-sidepanel-v2 #freepane #spring > *:not(.close_switch):not(.tnet-accordion-resize-handle):not(.tnet-panel) {
+  max-height: 2000px;
+  opacity: 1;
+  overflow: hidden;
+  transition: max-height 0.4s ease, opacity 0.3s ease;
+}
+
+body.tnet-sidepanel-v2 #freepane #spring > .tnet-panel {
+  opacity: 1;
+  transition: max-height 0.4s ease, opacity 0.3s ease;
+}
+
+body.tnet-sidepanel-v2 #freepane #scrollToTopBtn {
+  transition: opacity 0.3s ease;
+}
+
+/* Während Resize-Drag: alle Transitions abschalten für flüssiges Ziehen */
+body.tnet-resizing #freepane,
+body.tnet-resizing #freepane *,
+body.tnet-resizing #spring,
+body.tnet-resizing #spring * {
+  transition: none !important;
+}
+
+/* Closed state */
+body.tnet-sidepanel-v2 #freepane.close #leftPaneHeader {
+  max-height: 0 !important;
+  opacity: 0 !important;
+  overflow: hidden !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+body.tnet-sidepanel-v2 #freepane.close #scrollToTopBtn {
+  opacity: 0 !important;
+  pointer-events: none !important;
+  max-height: 0 !important;
+}
+
+body.tnet-sidepanel-v2 #freepane.close #spring > *:not(.close_switch) {
+  max-height: 0 !important;
+  height: 0 !important;
+  min-height: 0 !important;
+  opacity: 0 !important;
+  overflow: hidden !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+  pointer-events: none !important;
+}
+
+body.tnet-sidepanel-v2 #freepane.close #spring {
+  position: relative !important;
+  height: 10px !important;
+  max-height: 10px !important;
+  min-height: 10px !important;
+  overflow: visible !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+body.tnet-sidepanel-v2 #freepane.close .close_switch {
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  transform: none !important;
+  pointer-events: auto !important;
+  width: 170px;
+  margin: 0 auto;
+  border-radius: 0 0 4px 4px;
+  height: 10px !important;
+  min-height: 10px !important;
+  transition: width 0.5s ease, margin 0.5s ease;
+}
+
+body.tnet-sidepanel-v2 #freepane:not(.close) .close_switch {
+  transition: none;
+}
+
+body.tnet-sidepanel-v2 #freepane.close .close_switch::before {
+  width: 30px;
+  height: 2px;
+}
+
+body.tnet-sidepanel-v2 #freepane.close {
+  max-height: 20px !important;
+  min-height: 0 !important;
+  overflow: visible !important;
+}
+
+/* Shadow disabled */
+body.tnet-sidepanel-v2 #panelShadow {
+  display: none !important;
+  transition: opacity 0.4s ease;
+}
+
+body.tnet-sidepanel-v2 #freepane.close + #panelShadow {
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* Panel dock support */
+body.tnet-sidepanel-v2 #freepane.panel-docked {
+  transition: bottom 0.15s ease;
+}
+
+/* Vanilla panels */
+body.tnet-sidepanel-v2 .tnet-panel {
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+body.tnet-sidepanel-v2 .tnet-panel > summary.tnet-panel-title {
+  display: flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 5px 10px;
+  margin: 0;
+  background: #4b7b81;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  list-style: none;
+  outline: none;
+  border: none;
+}
+
+body.tnet-sidepanel-v2 .tnet-panel > summary.tnet-panel-title::-webkit-details-marker {
+  display: none;
+}
+
+body.tnet-sidepanel-v2 .tnet-panel > summary.tnet-panel-title:hover {
+  background: #3d6a7065;
+}
+
+body.tnet-sidepanel-v2 .tnet-panel > summary.tnet-panel-title::before {
+  content: '';
+}
+
+body.tnet-sidepanel-v2 .tnet-panel > .tnet-panel-content {
+  padding: 0;
+  margin: 0;
+  background: #fff;
+}
+
+body.tnet-sidepanel-v2 .tnet-panel-nested > summary.tnet-panel-title-nested {
+  background: #95b5be;
+  font-size: 11px;
+  font-weight: 600;
+  min-height: 26px;
+  padding: 4px 10px;
+  text-transform: none;
+}
+
+body.tnet-sidepanel-v2 .tnet-panel-nested > summary.tnet-panel-title-nested:hover {
+  background: #7da3ac;
+}
+
+body.tnet-sidepanel-v2 #tp_overview_menu > .tnet-panel-content {
+  height: var(--tnet-catalog-height, min(450px, calc(50vh - 80px)));
+  max-height: calc(100vh - 250px);
+  overflow: hidden;
+}
+
+body.tnet-sidepanel-v2 #tp_overview_menu > .tnet-panel-content > #kantons_container {
+  height: 100%;
+}
+
+body.tnet-sidepanel-v2 #tp_sort_menu > .tnet-panel-content {
+  height: var(--tnet-active-height, min(300px, calc(30vh - 50px)));
+  max-height: calc(100vh - 350px);
+  overflow: hidden;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+body.tnet-sidepanel-v2 #tp_sort_menu > .tnet-panel-content::-webkit-scrollbar {
+  display: none;
+}
+
+/* ===== NEW TREE / ACTIVE PANEL STYLING (aus override.css migriert) ===== */
+body.tnet-sidepanel-v2 #lm-tree-container.lm-container-desktop {
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+  height: var(--tnet-catalog-height, min(450px, calc(50vh - 80px))) !important;
+  max-height: var(--tnet-catalog-height, min(450px, calc(50vh - 80px))) !important;
+}
+
+body.tnet-sidepanel-v2 .lm-container-desktop .lm-tab-bar {
+  position: relative !important;
+  flex-shrink: 0 !important;
+  z-index: 6 !important;
+  background: var(--m-color-primary, #4B7B81) !important;
+}
+
+body.tnet-sidepanel-v2 .lm-container-desktop .lm-search-wrap {
+  background: #52808a !important;
+  padding: 4px 10px 5px 10px !important;
+  border: none !important;
+}
+
+body.tnet-sidepanel-v2 .lm-container-desktop .lm-search {
+  border: none !important;
+  border-radius: 6px !important;
+  background: rgba(255, 255, 255, 0.15) !important;
+  color: #fff !important;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.15) !important;
+  padding: 6px 30px 6px 10px !important;
+  font-size: 13px !important;
+}
+
+body.tnet-sidepanel-v2 .lm-container-desktop .lm-search::placeholder {
+  color: rgba(255, 255, 255, 0.6) !important;
+  font-style: normal !important;
+}
+
+body.tnet-sidepanel-v2 .lm-container-desktop .lm-search:focus {
+  background: rgba(255, 255, 255, 0.25) !important;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(255, 255, 255, 0.3) !important;
+  outline: none !important;
+}
+
+/* Themenkatalog-Liste: Scrollbar ausgeblendet */
+body.tnet-sidepanel-v2 .lm-container-desktop .lm-cat-content {
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  min-height: 0 !important;
+  padding-bottom: 40px !important;
+  scrollbar-width: none;
+}
+
+body.tnet-sidepanel-v2 .lm-container-desktop .lm-cat-content::-webkit-scrollbar {
+  display: none;
+}
+
+/* Dargestellte Themen: Scrollbar ausgeblendet */
+body.tnet-sidepanel-v2 #lm-active-container.lm-container-desktop {
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  min-height: 0 !important;
+  height: var(--tnet-active-height, min(300px, calc(30vh - 50px))) !important;
+  max-height: var(--tnet-active-height, min(300px, calc(30vh - 50px))) !important;
+  scrollbar-width: none;
+}
+
+body.tnet-sidepanel-v2 #lm-active-container.lm-container-desktop::-webkit-scrollbar {
+  display: none;
+}
+
+body.tnet-sidepanel-v2 #lm-active-container.lm-container-desktop::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+body.tnet-sidepanel-v2 .tnet-panel:not([open]) > .tnet-panel-content {
+  display: none;
+}

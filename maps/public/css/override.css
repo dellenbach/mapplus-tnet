@@ -988,20 +988,21 @@ div#leftPaneHeader {
   display: none; /* Ausgeblendet, Logo ist jetzt separat */
 }
 
-div#freepane {
+body:not(.tnet-sidepanel-v2) div#freepane {
   left: 0 !important;
   top: 69px !important;
   width: 340px;
   z-index: 50;
   position: fixed !important;
   bottom: 0 !important;
-  height: auto !important;
-  overflow: visible !important;
+  height: calc(100vh - 69px) !important;
+  overflow: hidden !important;
   pointer-events: none !important; /* Container lässt Klicks durch */
+  max-height: calc(100vh - 69px) !important;
 }
 
 /* Spring Container - braucht pointer-events für Scrolling */
-#spring {
+body:not(.tnet-sidepanel-v2) #spring {
   pointer-events: auto; /* Scroll muss funktionieren */
   width: 340px !important; /* Begrenzt auf Panel-Breite */
 }
@@ -1025,47 +1026,93 @@ body.drawing-mode #freepane * {
 }
 
 /* Nur echte interaktive Elemente bekommen pointer-events zurück */
-#freepane #leftPaneHeader,
-#freepane .dijitTitlePane,
-#freepane .close_switch,
-#freepane #scrollToTopBtn,
-#freepane .dijitTitlePaneTitle,
-#freepane .dijitTitlePaneContentOuter,
-#freepane .tnet-accordion-resize-handle {
+body:not(.tnet-sidepanel-v2) #freepane #leftPaneHeader,
+body:not(.tnet-sidepanel-v2) #freepane .dijitTitlePane,
+body:not(.tnet-sidepanel-v2) #freepane .close_switch,
+body:not(.tnet-sidepanel-v2) #freepane #scrollToTopBtn,
+body:not(.tnet-sidepanel-v2) #freepane .dijitTitlePaneTitle,
+body:not(.tnet-sidepanel-v2) #freepane .dijitTitlePaneContentOuter,
+body:not(.tnet-sidepanel-v2) #freepane .tnet-accordion-resize-handle {
   pointer-events: auto;
 }
 
-/* Spring Container - scrollbar sichtbar (dünn, dezent) */
-#spring {
-  height: fit-content !important;
-  max-height: calc(100vh - 105px) !important; /* 69px Header + 10px close_switch + 26px Footer */
-  overflow-y: auto !important;
+/* Resize-Handle: sichtbar, mit Grip-Linie */
+body:not(.tnet-sidepanel-v2) #freepane #spring .tnet-accordion-resize-handle {
+  height: 5px !important;
+  min-height: 5px !important;
+  max-height: 5px !important;
+  background: #6e9aa0 !important;
+  border-top: 1px solid #5f8a90 !important;
+  border-bottom: 1px solid #5f8a90 !important;
+  cursor: ns-resize !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex-shrink: 0 !important;
+  overflow: visible !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  transition: background 0.15s ease !important;
+  pointer-events: auto !important;
+  position: relative !important;
+  z-index: 100 !important;
+}
+
+body:not(.tnet-sidepanel-v2) #freepane #spring .tnet-accordion-resize-handle:hover {
+  background: #5f8a90 !important;
+}
+
+body:not(.tnet-sidepanel-v2) #freepane #spring .tnet-accordion-resize-handle.active {
+  background: #557e83 !important;
+}
+
+body:not(.tnet-sidepanel-v2) #freepane #spring .tnet-accordion-resize-handle::before {
+  content: '' !important;
+  display: block !important;
+  width: 24px !important;
+  height: 0 !important;
+  border-top: 2px dotted #3f666b !important;
+}
+
+/* Spring Container - scrollbar immer dünn sichtbar, kein Inhalt-Shift */
+body:not(.tnet-sidepanel-v2) #spring {
+  height: calc(100vh - 79px) !important;
+  max-height: calc(100vh - 79px) !important;
+  overflow-y: hidden !important;
   overflow-x: hidden !important;
   padding-bottom: 16px !important;
   box-sizing: border-box !important;
-  scrollbar-width: thin; /* Firefox: dünner Scrollbalken */
-  scrollbar-color: rgba(75, 123, 129, 0.35) transparent;
+  scrollbar-width: thin !important;
+  scrollbar-color: rgba(75, 123, 129, 0.2) transparent !important;
 }
 
-#spring::-webkit-scrollbar {
-  width: 6px;
+/* Keine Scrollbar-Pfeile, dünner transparenter Balken */
+body:not(.tnet-sidepanel-v2) #spring::-webkit-scrollbar-button {
+  display: none !important;
+  height: 0 !important;
+  width: 0 !important;
 }
 
-#spring::-webkit-scrollbar-track {
-  background: transparent;
+body:not(.tnet-sidepanel-v2) #spring::-webkit-scrollbar {
+  width: 6px !important;
+  background: transparent !important;
 }
 
-#spring::-webkit-scrollbar-thumb {
-  background: rgba(75, 123, 129, 0.35);
-  border-radius: 3px;
+body:not(.tnet-sidepanel-v2) #spring::-webkit-scrollbar-track {
+  background: transparent !important;
 }
 
-#spring::-webkit-scrollbar-thumb:hover {
-  background: rgba(75, 123, 129, 0.55);
+body:not(.tnet-sidepanel-v2) #spring::-webkit-scrollbar-thumb {
+  background: rgba(75, 123, 129, 0.2) !important;
+  border-radius: 3px !important;
+}
+
+body:not(.tnet-sidepanel-v2) #spring::-webkit-scrollbar-thumb:hover {
+  background: rgba(75, 123, 129, 0.45) !important;
 }
 
 /* Scroll-to-Top Button - Kreis mit Chevron */
-#scrollToTopBtn {
+body:not(.tnet-sidepanel-v2) #scrollToTopBtn {
   position: fixed;
   bottom: 24px;
   left: 318px;
@@ -1089,7 +1136,7 @@ body.drawing-mode #freepane * {
 }
 
 /* Chevron-Pfeil mit CSS - zentriert */
-#scrollToTopBtn::before {
+body:not(.tnet-sidepanel-v2) #scrollToTopBtn::before {
   content: '';
   display: block;
   width: 12px;
@@ -1099,49 +1146,44 @@ body.drawing-mode #freepane * {
   transform: rotate(45deg) translateX(2px) translateY(2px);
 }
 
-#scrollToTopBtn.visible {
+body:not(.tnet-sidepanel-v2) #scrollToTopBtn.visible {
   opacity: 1;
   visibility: visible;
 }
 
-#scrollToTopBtn:hover {
+body:not(.tnet-sidepanel-v2) #scrollToTopBtn:hover {
   background: #4b7b81;
   border-color: #4b7b81;
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(0,0,0,0.3);
 }
 
-#scrollToTopBtn:active {
+body:not(.tnet-sidepanel-v2) #scrollToTopBtn:active {
   transform: translateY(0);
 }
 
 /* Panel Zusammenklappen Button */
-#freepane {
+body:not(.tnet-sidepanel-v2) #freepane {
   position: absolute;
   display: flex;
   flex-direction: column;
 }
 
-#spring {
-  flex: 0 0 auto;
+body:not(.tnet-sidepanel-v2) #spring {
+  flex: 1 1 auto;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   position: relative;
   /* pointer-events wird oben bereits auf none gesetzt */
 }
 
-/* Panel-Schatten wird per JavaScript positioniert */
-#panelShadow {
-  position: fixed;
-  left: 0;
-  pointer-events: none;
-  z-index: 99;
-  box-shadow: 4px 0 10px rgba(0,0,0,0.15);
-  border-radius: 0 0 4px 4px;
-  overflow: hidden;
+/* Panel-Schatten entfernt — war störend */
+body:not(.tnet-sidepanel-v2) #panelShadow {
+  display: none !important;
 }
 
-.close_switch {
+body:not(.tnet-sidepanel-v2) .close_switch {
   position: relative;
   width: 100%;
   height: 10px;
@@ -1155,11 +1197,11 @@ body.drawing-mode #freepane * {
   left: 0;
 }
 
-.close_switch:hover {
+body:not(.tnet-sidepanel-v2) .close_switch:hover {
   background: #4b7b81;
 }
 
-.close_switch::before {
+body:not(.tnet-sidepanel-v2) .close_switch::before {
   content: '';
   width: 40px;
   height: 2px;
@@ -1167,37 +1209,43 @@ body.drawing-mode #freepane * {
   border-radius: 1px;
 }
 
-.close_switch:hover::before {
+body:not(.tnet-sidepanel-v2) .close_switch:hover::before {
   background: rgba(255,255,255,1);
 }
 
 /* Panel geschlossen Status */
-#freepane {
+body:not(.tnet-sidepanel-v2) #freepane {
   max-height: 100vh;
   overflow: visible;
 }
 
 /* Header + Spring: animierbar machen */
-#freepane #leftPaneHeader {
+body:not(.tnet-sidepanel-v2) #freepane #leftPaneHeader {
   max-height: 50px;
   opacity: 1;
   overflow: hidden;
   transition: max-height 0.4s ease, opacity 0.3s ease;
 }
 
-#freepane #spring > *:not(.close_switch) {
+body:not(.tnet-sidepanel-v2) #freepane #spring > *:not(.close_switch):not(.tnet-accordion-resize-handle):not(.tnet-panel) {
   max-height: 2000px;
   opacity: 1;
   overflow: hidden;
   transition: max-height 0.4s ease, opacity 0.3s ease;
 }
 
-#freepane #scrollToTopBtn {
+/* details-Panels: kein overflow:hidden (bricht native Toggle) */
+body:not(.tnet-sidepanel-v2) #freepane #spring > .tnet-panel {
+  opacity: 1;
+  transition: max-height 0.4s ease, opacity 0.3s ease;
+}
+
+body:not(.tnet-sidepanel-v2) #freepane #scrollToTopBtn {
   transition: opacity 0.3s ease;
 }
 
 /* Geschlossen: Inhalt einklappen, Handle sichtbar/klickbar lassen */
-#freepane.close #leftPaneHeader {
+body:not(.tnet-sidepanel-v2) #freepane.close #leftPaneHeader {
   max-height: 0 !important;
   opacity: 0 !important;
   overflow: hidden !important;
@@ -1205,13 +1253,13 @@ body.drawing-mode #freepane * {
   margin: 0 !important;
 }
 
-#freepane.close #scrollToTopBtn {
+body:not(.tnet-sidepanel-v2) #freepane.close #scrollToTopBtn {
   opacity: 0 !important;
   pointer-events: none !important;
   max-height: 0 !important;
 }
 
-#freepane.close #spring > *:not(.close_switch) {
+body:not(.tnet-sidepanel-v2) #freepane.close #spring > *:not(.close_switch) {
   max-height: 0 !important;
   height: 0 !important;
   min-height: 0 !important;
@@ -1223,7 +1271,7 @@ body.drawing-mode #freepane * {
   pointer-events: none !important;
 }
 
-#freepane.close #spring {
+body:not(.tnet-sidepanel-v2) #freepane.close #spring {
   position: relative !important;
   height: 10px !important;
   max-height: 10px !important;
@@ -1234,7 +1282,7 @@ body.drawing-mode #freepane * {
 }
 
 /* close_switch bleibt immer sichtbar */
-#freepane.close .close_switch {
+body:not(.tnet-sidepanel-v2) #freepane.close .close_switch {
   position: absolute !important;
   top: 0 !important;
   left: 0 !important;
@@ -1243,29 +1291,29 @@ body.drawing-mode #freepane * {
   pointer-events: auto !important;
 }
 
-#freepane.close {
+body:not(.tnet-sidepanel-v2) #freepane.close {
   max-height: 20px !important;
   min-height: 0 !important;
   overflow: visible !important;
 }
 
 /* Schatten sanft ausblenden wenn Panel geschlossen */
-#panelShadow {
+body:not(.tnet-sidepanel-v2) #panelShadow {
   transition: opacity 0.4s ease;
 }
 
-#freepane.close + #panelShadow {
+body:not(.tnet-sidepanel-v2) #freepane.close + #panelShadow {
   opacity: 0 !important;
   pointer-events: none !important;
 }
 
 /* Freepane kürzen wenn Spatial Query Panel angedockt */
-#freepane.panel-docked {
+body:not(.tnet-sidepanel-v2) #freepane.panel-docked {
   /* bottom wird dynamisch per JS gesetzt */
   transition: bottom 0.15s ease;
 }
 
-#freepane.close .close_switch {
+body:not(.tnet-sidepanel-v2) #freepane.close .close_switch {
   width: 170px;
   margin: 0 auto;
   border-radius: 0 0 4px 4px;
@@ -1274,15 +1322,15 @@ body.drawing-mode #freepane * {
 }
 
 /* Balken schrumpft nur beim Schließen */
-#freepane:not(.close) .close_switch {
+body:not(.tnet-sidepanel-v2) #freepane:not(.close) .close_switch {
   transition: none;
 }
 
-#freepane.close .close_switch {
+body:not(.tnet-sidepanel-v2) #freepane.close .close_switch {
   transition: width 0.5s ease, margin 0.5s ease;
 }
 
-#freepane.close .close_switch::before {
+body:not(.tnet-sidepanel-v2) #freepane.close .close_switch::before {
   width: 30px;
   height: 2px;
 }
@@ -1782,52 +1830,93 @@ h3 {
    Tab-Bar + Suchfeld bleiben per position:sticky oben fixiert.
    ======================================== */
 
-/* Container: scrollt intern, Höhe per JS (tnet-accordion-resize.js) */
-#lm-tree-container.lm-container-desktop {
-  overflow-y: auto !important;
-  overflow-x: hidden !important;
+/* Container: Flex-Column — Tab-Bar + Suche fest oben, nur Inhalt scrollt */
+body:not(.tnet-sidepanel-v2) #lm-tree-container.lm-container-desktop {
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
 }
 
-/* Tab-Bar: sticky am oberen Rand des Scroll-Containers */
-.lm-container-desktop .lm-tab-bar {
-  position: sticky !important;
-  top: 0 !important;
+/* Tab-Bar: fest oben, kein Sticky nötig */
+body:not(.tnet-sidepanel-v2) .lm-container-desktop .lm-tab-bar {
+  position: relative !important;
+  flex-shrink: 0 !important;
   z-index: 6 !important;
   background: var(--m-color-primary, #4B7B81) !important;
 }
 
-/* Suchfeld: sticky direkt unter der Tab-Bar */
-.lm-container-desktop .lm-search-wrap {
-  position: sticky !important;
-  top: 40px !important;
-  z-index: 5 !important;
-  background: #fff !important;
+/* Suchfeld: nahtlos unter Tab-Bar, dezent modern */
+body:not(.tnet-sidepanel-v2) .lm-container-desktop .lm-search-wrap {
+  background: #52808a !important;
+  padding: 4px 10px 5px 10px !important;
+  border: none !important;
 }
 
-/* Kategorie-Inhalt: normaler Flow, Padding unten für letzten Eintrag */
-.lm-container-desktop .lm-cat-content {
+/* Suchfeld-Input: dezent, abgerundet, leichter Inset-Schatten */
+body:not(.tnet-sidepanel-v2) .lm-container-desktop .lm-search {
+  border: none !important;
+  border-radius: 6px !important;
+  background: rgba(255, 255, 255, 0.15) !important;
+  color: #fff !important;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.15) !important;
+  padding: 6px 30px 6px 10px !important;
+  font-size: 13px !important;
+}
+
+body:not(.tnet-sidepanel-v2) .lm-container-desktop .lm-search::placeholder {
+  color: rgba(255, 255, 255, 0.6) !important;
+  font-style: normal !important;
+}
+
+body:not(.tnet-sidepanel-v2) .lm-container-desktop .lm-search:focus {
+  background: rgba(255, 255, 255, 0.25) !important;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(255, 255, 255, 0.3) !important;
+  outline: none !important;
+}
+
+/* Kategorie-Inhalt: scrollt als einziges Element */
+body:not(.tnet-sidepanel-v2) .lm-container-desktop .lm-cat-content {
+  flex: 1 1 0 !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  min-height: 0 !important;
   padding-bottom: 40px !important;
 }
 
-/* Dezenter Scrollbar — Firefox */
-#lm-tree-container.lm-container-desktop {
+/* Dezenter Scrollbar — Firefox: unsichtbar, bei Hover dünn */
+body:not(.tnet-sidepanel-v2) .lm-container-desktop .lm-cat-content {
+  scrollbar-width: none;
+  scrollbar-color: transparent transparent;
+  transition: scrollbar-color 0.3s;
+}
+body:not(.tnet-sidepanel-v2) #lm-tree-container.lm-container-desktop:hover .lm-cat-content {
   scrollbar-width: thin;
-  scrollbar-color: rgba(75, 123, 129, 0.3) transparent;
+  scrollbar-color: rgba(75, 123, 129, 0.25) transparent;
 }
 
-/* Dezenter Scrollbar — Chrome / Safari / Edge */
-#lm-tree-container.lm-container-desktop::-webkit-scrollbar {
-  width: 6px;
+/* Dezenter Scrollbar — Chrome / Safari / Edge: Auto-Hide bei Hover */
+body:not(.tnet-sidepanel-v2) .lm-container-desktop .lm-cat-content::-webkit-scrollbar {
+  width: 5px;
 }
-#lm-tree-container.lm-container-desktop::-webkit-scrollbar-track {
+body:not(.tnet-sidepanel-v2) .lm-container-desktop .lm-cat-content::-webkit-scrollbar-track {
   background: transparent;
 }
-#lm-tree-container.lm-container-desktop::-webkit-scrollbar-thumb {
-  background: rgba(75, 123, 129, 0.3);
+body:not(.tnet-sidepanel-v2) .lm-container-desktop .lm-cat-content::-webkit-scrollbar-thumb {
+  background: transparent;
   border-radius: 3px;
+  transition: background 0.3s;
 }
-#lm-tree-container.lm-container-desktop::-webkit-scrollbar-thumb:hover {
-  background: rgba(75, 123, 129, 0.5);
+/* Einblenden bei Hover über gesamten Tree-Container */
+body:not(.tnet-sidepanel-v2) #lm-tree-container.lm-container-desktop:hover .lm-cat-content::-webkit-scrollbar-thumb {
+  background: rgba(75, 123, 129, 0.2);
+}
+body:not(.tnet-sidepanel-v2) #lm-tree-container.lm-container-desktop:hover .lm-cat-content::-webkit-scrollbar-thumb:hover {
+  background: rgba(75, 123, 129, 0.45);
+}
+/* Keine Scrollbar-Pfeile */
+body:not(.tnet-sidepanel-v2) .lm-container-desktop .lm-cat-content::-webkit-scrollbar-button {
+  display: none;
+  height: 0;
 }
 
 /* ===== LAYER SEARCH HIGHLIGHT ===== */
@@ -1841,21 +1930,21 @@ h3 {
 }
 
 /* Dezenter Scrollbar auch für "Dargestellte Themen" Panel */
-#lm-active-container.lm-container-desktop {
+body:not(.tnet-sidepanel-v2) #lm-active-container.lm-container-desktop {
   scrollbar-width: thin;
   scrollbar-color: rgba(75, 123, 129, 0.3) transparent;
 }
-#lm-active-container.lm-container-desktop::-webkit-scrollbar {
+body:not(.tnet-sidepanel-v2) #lm-active-container.lm-container-desktop::-webkit-scrollbar {
   width: 6px;
 }
-#lm-active-container.lm-container-desktop::-webkit-scrollbar-track {
+body:not(.tnet-sidepanel-v2) #lm-active-container.lm-container-desktop::-webkit-scrollbar-track {
   background: transparent;
 }
-#lm-active-container.lm-container-desktop::-webkit-scrollbar-thumb {
+body:not(.tnet-sidepanel-v2) #lm-active-container.lm-container-desktop::-webkit-scrollbar-thumb {
   background: rgba(75, 123, 129, 0.3);
   border-radius: 3px;
 }
-#lm-active-container.lm-container-desktop::-webkit-scrollbar-thumb:hover {
+body:not(.tnet-sidepanel-v2) #lm-active-container.lm-container-desktop::-webkit-scrollbar-thumb:hover {
   background: rgba(75, 123, 129, 0.5);
 }
 
@@ -3192,4 +3281,99 @@ h3 {
 /* Dojo native Resize-Handle im Dock-Modus verstecken */
 #njs_floatlegend_pane.legend-docked-right .dojoxFloatingResizeHandle {
   display: none !important;
+}
+
+/* ===== TNET PANEL — Vanilla Accordions (Ersatz für dijit/TitlePane) ===== */
+
+/* Haupt-Panel (details-Element) */
+body:not(.tnet-sidepanel-v2) .tnet-panel {
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+/* Summary (klickbarer Header) */
+body:not(.tnet-sidepanel-v2) .tnet-panel > summary.tnet-panel-title {
+  display: flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 5px 10px;
+  margin: 0;
+  background: #4b7b81;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  list-style: none;
+  outline: none;
+  border: none;
+}
+
+/* Standard-Marker in Safari/Chrome entfernen */
+body:not(.tnet-sidepanel-v2) .tnet-panel > summary.tnet-panel-title::-webkit-details-marker {
+  display: none;
+}
+
+/* Kein Pfeil rechts */
+
+/* Hover-Effekt */
+body:not(.tnet-sidepanel-v2) .tnet-panel > summary.tnet-panel-title:hover {
+  background: #3d6a70;
+}
+
+/* Gepunkteter Resize-Handle unter dem Header (wie bisher) */
+body:not(.tnet-sidepanel-v2) .tnet-panel > summary.tnet-panel-title::before {
+  content: '';
+}
+
+/* Content-Bereich */
+body:not(.tnet-sidepanel-v2) .tnet-panel > .tnet-panel-content {
+  padding: 0;
+  margin: 0;
+  background: #fff;
+}
+
+/* Nested Panels (Export PDF / Ausdruck massstäblich) */
+body:not(.tnet-sidepanel-v2) .tnet-panel-nested > summary.tnet-panel-title-nested {
+  background: #95b5be;
+  font-size: 11px;
+  font-weight: 600;
+  min-height: 26px;
+  padding: 4px 10px;
+  text-transform: none;
+}
+
+body:not(.tnet-sidepanel-v2) .tnet-panel-nested > summary.tnet-panel-title-nested:hover {
+  background: #7da3ac;
+}
+
+/* Themenkatalog: spezielle Höhensteuerung */
+body:not(.tnet-sidepanel-v2) #tp_overview_menu > .tnet-panel-content {
+  height: min(var(--tnet-catalog-height, 450px), calc(100vh - 340px));
+  overflow: hidden;
+}
+
+body:not(.tnet-sidepanel-v2) #tp_overview_menu > .tnet-panel-content > #kantons_container {
+  height: 100%;
+}
+
+/* Dargestellte Themen: Höhenbegrenzung */
+body:not(.tnet-sidepanel-v2) #tp_sort_menu > .tnet-panel-content {
+  max-height: min(var(--tnet-active-height, 300px), calc(100vh - 260px));
+  overflow-y: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+body:not(.tnet-sidepanel-v2) #tp_sort_menu > .tnet-panel-content::-webkit-scrollbar {
+  display: none;
+}
+
+/* Animation: übergangsloser Wechsel (kein Dojo-wipeIn nötig) */
+body:not(.tnet-sidepanel-v2) .tnet-panel:not([open]) > .tnet-panel-content {
+  display: none;
 }

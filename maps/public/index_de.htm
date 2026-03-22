@@ -165,7 +165,7 @@
 
 </head>
 
-<body class="tundra">
+<body class="tundra tnet-sidepanel-v2">
     <!-- Preloader mit Critical Inline CSS für sofortige Anzeige -->
     <style>
       #preloader{position:fixed;top:0;left:0;right:0;bottom:0;width:100%;height:100%;background:rgba(255,255,255,0.95);background-image:none!important;display:flex;align-items:center;justify-content:center;z-index:99999;perspective:200px}
@@ -413,100 +413,106 @@
 
 
         <div id="spring">
-            <!-- ÜBERGEORDNETES MENU -->
-            <div id="tp_overview_menu" data-dojo-type="dijit/TitlePane"
-                data-dojo-props="title: 'Themenkatalog', open:false" style="padding:0px;margin:0px;">
-
-                <!-- LAYERMANAGER MENU - wird per JS zu Tabs konvertiert -->
-                <div id="kantons_container">
-                    <div id="tp_layer_menu" data-dojo-type="dijit/TitlePane" data-dojo-props="title: 'Nidwalden', open:false"
-                        style="padding:0px;margin:0px;">
-                        <div id="layer_menu" data-dojo-type="dijit.layout.ContentPane" title="Titel 1">
-                            <div id="njs_main_lyrmgr_wrapper" style="width: 100%;">
+            <!-- THEMENKATALOG -->
+            <details id="tp_overview_menu" class="tnet-panel">
+                <summary class="tnet-panel-title">Themenkatalog</summary>
+                <div class="tnet-panel-content">
+                    <div id="kantons_container">
+                        <div id="tp_layer_menu" data-dojo-type="dijit/TitlePane" data-dojo-props="title: 'Nidwalden', open:false"
+                            style="padding:0px;margin:0px;">
+                            <div id="layer_menu" data-dojo-type="dijit.layout.ContentPane" title="Titel 1">
+                                <div id="njs_main_lyrmgr_wrapper" style="width: 100%;"></div>
                             </div>
                         </div>
-                    </div>
-                    
-                    <div id="tp_layer_menu2" data-dojo-type="dijit/TitlePane" data-dojo-props="title: 'Obwalden', open:false"
-                        style="padding:0px;margin:0px;">
-                        <div id="layer_menu2" data-dojo-type="dijit.layout.ContentPane" title="Titel 2">
-                            <div id="njs_second_lyrmgr_wrapper" style="width: 100%;">
+                        <div id="tp_layer_menu2" data-dojo-type="dijit/TitlePane" data-dojo-props="title: 'Obwalden', open:false"
+                            style="padding:0px;margin:0px;">
+                            <div id="layer_menu2" data-dojo-type="dijit.layout.ContentPane" title="Titel 2">
+                                <div id="njs_second_lyrmgr_wrapper" style="width: 100%;"></div>
                             </div>
                         </div>
-                    </div>
-                    <div id="tp_layer_menu3" data-dojo-type="dijit/TitlePane" data-dojo-props="title: 'Bund', open:false"
-                        style="padding:0px;margin:0px;">
-                        <div id="layer_menu3" data-dojo-type="dijit.layout.ContentPane" title="Titel 3">
-                            <div id="njs_third_lyrmgr_wrapper" style="width: 100%;">
+                        <div id="tp_layer_menu3" data-dojo-type="dijit/TitlePane" data-dojo-props="title: 'Bund', open:false"
+                            style="padding:0px;margin:0px;">
+                            <div id="layer_menu3" data-dojo-type="dijit.layout.ContentPane" title="Titel 3">
+                                <div id="njs_third_lyrmgr_wrapper" style="width: 100%;"></div>
                             </div>
                         </div>
-                    </div>
-                    <div id="tp_layer_menu4" data-dojo-type="dijit/TitlePane" data-dojo-props="title: 'Weitere', open:false"
-                        style="padding:0px;margin:0px;">
-                        <div id="layer_menu4" data-dojo-type="dijit.layout.ContentPane" title="Titel 4">
-                            <div id="njs_forth_lyrmgr_wrapper" style="width: 100%;">
+                        <div id="tp_layer_menu4" data-dojo-type="dijit/TitlePane" data-dojo-props="title: 'Weitere', open:false"
+                            style="padding:0px;margin:0px;">
+                            <div id="layer_menu4" data-dojo-type="dijit.layout.ContentPane" title="Titel 4">
+                                <div id="njs_forth_lyrmgr_wrapper" style="width: 100%;"></div>
                             </div>
                         </div>
                     </div>
                 </div>
-            </div>
+            </details>
 
+            <!-- DARGESTELLTE THEMEN -->
+            <details id="tp_sort_menu" class="tnet-panel">
+                <summary class="tnet-panel-title">Dargestellte Themen</summary>
+                <div class="tnet-panel-content">
+                    <div id="sort_menu">
+                        <div id="njs_main_lyrsorter_wrapper" style="width: 100%; height:100%; border:0">
+                            <div id="main_lyrsorter_txt" style="display:block;text-align: center;">--- Keine Daten
+                                ausgewählt ---</div>
+                            <ul id="main_lyrsorter" style="list-style-type: none; padding: 0;"></ul>
+                        </div>
+                    </div>
+                </div>
+            </details>
 
-            <!-- LAYERMANAGER WMS -->
+            <!-- WERKZEUGE / EXPORT -->
+            <details id="tp_tools_menu" class="tnet-panel">
+                <summary class="tnet-panel-title">Werkzeuge / Export</summary>
+                <div class="tnet-panel-content">
+                    <div id="tools_menu">
+                        <div id="njs_measure_wrapper"></div>
+                        <div id="njs_redlining_wrapper"></div>
+                    </div>
+                    <details id="preview_menu" class="tnet-panel tnet-panel-nested" open>
+                        <summary class="tnet-panel-title tnet-panel-title-nested">Export PDF / PNG</summary>
+                        <div class="tnet-panel-content">
+                            <span style="width:100%;text-align:center;display:block;">
+                                <button id="btn_htmlprint1_preview"
+                                    class="dijitReset dijitInline dijitButtonNode dijitButtonExport"
+                                    style="text-align: center;box-shadow: 0px 1px 2px #999;margin-right: 10px !important;height: 24px !important;min-width:97px">
+                                    <span class="njsIconButtonVorExport"
+                                        style="width:18px;height:18px;display:inline-block"></span>
+                                    <span>Export</span>
+                                </button>
+                            </span>
+                        </div>
+                    </details>
+                </div>
+            </details>
+
+            <!-- DRUCKEN -->
+            <details id="tp_print_menu" class="tnet-panel">
+                <summary class="tnet-panel-title">Drucken</summary>
+                <div class="tnet-panel-content">
+                    <details id="print_menu" class="tnet-panel tnet-panel-nested" open>
+                        <summary class="tnet-panel-title tnet-panel-title-nested">Ausdruck massstäblich</summary>
+                        <div class="tnet-panel-content">
+                            <div id="njs_print_wrapper" style="width: 100%; height:100%; border:0"></div>
+                        </div>
+                    </details>
+                </div>
+            </details>
+
+            <!-- NAVIGIEREN -->
+            <details id="tp_ov_menu" class="tnet-panel">
+                <summary class="tnet-panel-title">Navigieren</summary>
+                <div class="tnet-panel-content">
+                    <div id="ovWin"
+                        style="border:solid 1px #424A52; display:block; position:relative; right:-1px; bottom:-1px; z-Index:998; width:310px;height:240px;">
+                    </div>
+                </div>
+            </details>
+
+            <!-- EXTERNE KARTENDIENSTE (WMS) — bleibt Dojo wg. NJS-Framework -->
             <div id="tp_wms_menu" data-dojo-type="dijit/TitlePane"
                 data-dojo-props="title: 'Externe Kartendienste (WMS)', open:false">
                 <div id="wms_menu" dojotype="dijit.layout.ContentPane" title="Externe Kartendienste">
                     <div id="njs_wmsimport_dialog" style="width:100%; height:100%;"></div>
-                </div>
-            </div>
-            <!-- LAYERMANAGER SORT LAYERS -->
-            <div id="tp_sort_menu" data-dojo-type="dijit/TitlePane"
-                data-dojo-props="title: 'Dargestellte Themen', open:false">
-                <div id="sort_menu">
-                    <div id="njs_main_lyrsorter_wrapper" style="width: 100%; height:100%; border:0">
-                        <div id="main_lyrsorter_txt" style="display:block;text-align: center;">--- Keine Daten
-                            ausgewählt ---</div>
-                        <ul id="main_lyrsorter" style="list-style-type: none; padding: 0;"></ul>
-                    </div>
-                </div>
-            </div>
-            <!-- TOOL MENU -->
-            <div id="tp_tools_menu" data-dojo-type="dijit/TitlePane"
-                data-dojo-props="title: 'Werkzeuge / Export', open:false">
-                <div id="tools_menu">
-                    <div id="njs_measure_wrapper"></div>
-                    <div id="njs_redlining_wrapper"></div>
-                </div>
-                <div id="preview_menu" data-dojo-type="dijit/TitlePane"
-                    data-dojo-props="title: 'Export PDF / PNG', open:true">
-                    <span style="width:100%;text-align:center;display:block;">
-                        <button id="btn_htmlprint1_preview"
-                            class="dijitReset dijitInline dijitButtonNode dijitButtonExport"
-                            style="text-align: center;box-shadow: 0px 1px 2px #999;margin-right: 10px !important;height: 24px !important;min-width:97px">
-                            <span class="njsIconButtonVorExport"
-                                style="width:18px;height:18px;display:inline-block"></span>
-                            <span>Export</span>
-                        </button>
-
-                    </span>
-                </div>
-            </div>
-
-            <!-- PRINT MENU -->
-            <div id="tp_print_menu" data-dojo-type="dijit/TitlePane" data-dojo-props="title: 'Drucken', open:false">
-
-                <div id="print_menu" data-dojo-type="dijit/TitlePane"
-                    data-dojo-props="title: 'Ausdruck massstäblich', open:true">
-                    <div id="njs_print_wrapper" style="width: 100%; height:100%; border:0"></div>
-                </div>
-
-
-            </div>
-
-            <!-- OVERVIEW -->
-            <div id="tp_ov_menu" data-dojo-type="dijit/TitlePane" data-dojo-props="title: 'Navigieren', open:false">
-                <div id="ovWin"
-                    style="border:solid 1px #424A52; display:block; position:relative; right:-1px; bottom:-1px; z-Index:998; width:310px;height:240px;">
                 </div>
             </div>
 
@@ -917,6 +923,7 @@
 
     <!-- TNET Layer-Manager: Themenkatalog + Dargestellte Themen (Store, Tree, Active-Panel, Init) -->
     <link rel="stylesheet" href="/maps/tnet/css/tnet-lm.css" />
+    <link rel="stylesheet" href="/maps/tnet/css/tnet-sidepanel.css" />
     <script src="/maps/tnet/js/tnet-coalesce-bridge.js" defer></script>
     <script src="/maps/tnet/js/tnet-lm-store.js" defer></script>
     <script src="/maps/tnet/js/tnet-lm-tree.js" defer></script>

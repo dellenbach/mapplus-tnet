@@ -6,6 +6,38 @@
 
 ---
 
+## 2026-03-22 — Scrollbar im Sidepanel verursachte Inhalts-Sprung und wirkte zu dominant
+- **Symptom**: Beim Erscheinen/Verbergen der Scrollbar verschob sich der Inhalt; gewünscht war eine dezente, leicht transparente Scrollbar ohne Layout-Resize.
+- **Root-Cause**: Scroll-Container nutzten uneinheitliches `overflow-y`/Scrollbar-Styling (teils auto/ausgeblendet), wodurch der verfügbare Inhaltsraum je nach Scroll-Zustand wechselte.
+- **Fix**: Für V2-Container (`.lm-cat-content`, `#tp_sort_menu > .tnet-panel-content`) auf stabile Scrollbar umgestellt: `overflow-y: scroll`, `scrollbar-gutter: stable both-edges`, dünne leicht transparente Thumb-Farbe, keine Scrollbar-Buttons.
+- **Guardrail**: In UI-Containern mit fester Breite Scrollbar-Platz immer stabil reservieren, damit Inhalt beim Scrollbar-Zustandswechsel nicht springt.
+- **Update**: Scroll muss auf den echten inneren Zielcontainern liegen (`.lm-cat-content` und `#lm-active-container`), nicht auf Outer-Wrappern. Nur so bleiben Scrollbars visuell identisch und Resize-Effekte klar sichtbar.
+
+## 2026-03-22 — Sidepanel-Höhen waren initial zu gross und korrigierten sich erst nach Interaktion
+- **Symptom**: Das Sidepanel war beim ersten Render teilweise zu hoch; erst nach Resize oder anderer Benutzerinteraktion wurden die Höhen korrekt geklemmt.
+- **Root-Cause**: Die initiale Höhenberechnung lief, bevor Tree-/Panel-Inhalte, Fonts und finale Containerhöhen vollständig stabil waren.
+- **Fix**: In `tnet-accordion-resize.js` gestaffelte Reflows nach Init/Load/Fonts-Ready ergänzt sowie `ResizeObserver` auf `#spring`/`#freepane` und zusätzlich `MutationObserver` auf `#spring` (childList + open/class/style), damit auch reine DOM-Änderungen ohne Container-Resize automatisch nachgeklemmt werden.
+- **Guardrail**: Bei dynamisch gerenderten Panel-Layouts nicht nur auf Fenster-Resize verlassen; zusätzlich Mutation-basierte Nachkorrektur einbauen.
+- **Update**: Observer-Refresh während aktivem Drag (`window.__tnetResizing`) unterdrücken, sonst wird die alte gespeicherte Höhe beim Ziehen zurückgesetzt und der Resize-Handle wirkt defekt.
+
+## 2026-03-22 — Gesamtes Sidepanel scrollte statt nur der inneren Bereiche
+- **Symptom**: Das komplette linke Sidepanel liess sich vertikal scrollen; der Panel-Footer wirkte nicht sauber an die Fensterhöhe gekoppelt.
+- **Root-Cause**: `#freepane` und `#spring` hatten eine content-getriebene Höhe mit Outer-Scroll (`overflow-y: scroll`) statt einer strikt viewportgebundenen Panel-Hülle.
+- **Fix**: `#freepane` auf feste Höhe `calc(100vh - 69px)` gesetzt, Outer-Overflow auf `hidden` umgestellt und Scroll nur noch in inneren Content-Bereichen belassen; Content-Caps für Katalog und aktive Themen konservativer gesetzt.
+- **Guardrail**: Das Gesamtpanel selbst darf nicht scrollen. Scroll-Verhalten nur auf dedizierte innere Listen-/Content-Bereiche legen.
+
+## 2026-03-22 — Sidepanel überläuft, untere Accordions verschwinden
+- **Symptom**: Im linken Panel lief der Inhalt nach unten über; untere Accordion-Bereiche waren nicht mehr erreichbar/sichtbar.
+- **Root-Cause**: `#spring` war als nicht-schrumpfender Flex-Block (`flex: 0 0 auto`) mit content-getriebener Höhe konfiguriert; zusätzlich konnten Panel-Inhalte zu gross für kleine Viewports werden.
+- **Fix**: `#spring` auf flexiblen Scrollbereich umgestellt (`flex: 1 1 auto`, `min-height: 0`, `height: auto`) und Panel-Content-Höhen per `min(..., calc(100vh - ...))` viewportbasiert gedeckelt.
+- **Guardrail**: In vertikalen Flex-Layouts mit Scrollcontainern immer `min-height: 0` auf dem Scroll-Child setzen und feste Panel-Höhen gegen `100vh` clampen.
+
+## 2026-03-22 — Resize-Handles wirkten zu transparent und zu massiv
+- **Symptom**: Divider zwischen Accordion-Panels waren sichtbar, wirkten aber zu durchsichtig und optisch zu dominant.
+- **Root-Cause**: Handle-Styles nutzten RGBA-Farben mit Transparenz im Normal-/Hover-/Active-State.
+- **Fix**: Handle-Farben auf deckende Vollfarben umgestellt (`background`, `border`, `::before`-Grip), Höhe schlank bei 5px belassen.
+- **Guardrail**: Für funktionale UI-Trennelemente in dichtem Panel-Layout bevorzugt deckende Farben verwenden; Transparenz nur gezielt für dekorative Elemente.
+
 ## 2025-07-11 — PDF-Export nordgerichtet obwohl Druckrahmen rotiert ist
 - **Symptom**: Frame auf Karte mit ~-24° CSS-Rotation; PDF-Ausgabe ist nordgerichtet (0°).
 - **Root-Cause**: `template-pdf-export.js` berechnet `rotRad = map.getView().getRotation()` und ignoriert `options.rotation` (Grad, vom Slider). Da Map-View nie mehr gedreht wird (nur noch CSS-Frame), bleibt `rotRad = 0`.
@@ -815,6 +847,15 @@
 - **Root-Cause**: Bestehende Buttons konnten nur ans Ende der letzten Kategorie hinzufügen, keine positionsgenaue Einfügung
 - **Fix**: Rechtsklick-Kontextmenü auf allen Baum-Knoten (Kat/Sub/Untergruppe/Item) mit Insert before/after, Properties-Dialog (legend, selectAll, drawtype, icon, open etc.), Löschen, In-Zwischenablage-Kopieren. `getItemByPath()` navigiert über verschachtelte Item-Arrays per Pfad-Array. Properties-Dialog mit dynamischem Formular je Knotentyp.
 - **Guardrail**: Kontextmenü-Handler via Event-Delegation auf `#tb-tree-body`, `.closest()` von innen nach aussen prüfen (Item → Subgrp → Sub → Cat → Lyrmgr).
+
+---
+
+### Resize-Handle funktioniert nicht — keepPanesOpen ohne Guard (2026-03-22)
+
+- **Symptom**: Accordion-Resize-Handle nicht bedienbar, Drag bewirkt nichts
+- **Root-Cause**: `keepPanesOpen()` MutationObserver in `tnet_toc.js` beobachtet `#kantons_container` inkl. `style`-Attribut, hat aber **keinen `__tnetResizing`-Guard**. `restoreActiveTab()` ebenso nicht. → Während Drag setzt `applyHeight()` Inline-Styles → Observer feuert → setzt `height: auto` → Resize sofort rückgängig gemacht.
+- **Fix**: `if (window.__tnetResizing) return;` in `keepPanesOpen` MutationObserver-Callback und am Anfang von `restoreActiveTab()` eingefügt.
+- **Guardrail**: **Jeder** MutationObserver der Inline-Styles auf Sidepanel-Elemente setzt, muss das `__tnetResizing`-Flag prüfen.
 
 ### Grosses Refactoring: Subkategorien → Gruppenlayer (2025-01-XX)
 - **Symptom**: Subkategorien waren nicht verschachtbar, umständlich, nicht 1:1 kompatibel mit lyrmgr.conf Layergruppen

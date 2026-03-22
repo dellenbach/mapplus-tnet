@@ -488,42 +488,25 @@
         });
       }
       
-      // Auch auf Dijit-Events reagieren falls verfügbar
-      if (typeof dijit !== 'undefined' && typeof dijit.byId === 'function') {
-        var widget = dijit.byId('tp_overview_menu');
-        if (widget) {
-          widget.watch('open', function(name, oldValue, newValue) {
-            if (newValue === true) {
-              startAggressiveFix();
-            }
+      // Toggle-Events auf allen Sidebar-Panels (details-Elemente)
+      ['tp_overview_menu', 'tp_sort_menu', 'tp_tools_menu', 'tp_print_menu', 'tp_ov_menu'].forEach(function(id) {
+        var panel = document.getElementById(id);
+        if (panel) {
+          panel.addEventListener('toggle', function() {
+            startAggressiveFix();
           });
         }
-        
-        // Reagiere auf ALLE TitlePane toggle-Events
-        ['tp_wms_menu', 'tp_sort_menu', 'tp_tools_menu', 'tp_overview_menu'].forEach(function(id) {
-          var pane = dijit.byId(id);
-          if (pane) {
-            pane.watch('open', function() {
-              startAggressiveFix();
-            });
-          }
-        });
-      }
-      
-      // DIREKTER KLICK-HANDLER auf TitlePane-Titel AUßERHALB des Themenkatalogs
-      document.addEventListener('click', function(e) {
-        var titleBar = e.target.closest('.dijitTitlePaneTitle');
-        if (titleBar) {
-          // Prüfen ob es NICHT einer unserer Tab-Panes ist
-          var pane = titleBar.closest('.dijitTitlePane');
-          if (pane && !pane.classList.contains('kantons-tab')) {
-            // Level-2 TitlePanes im Themenkatalog: Dojo-Toggle nicht stören
-            if (pane.closest('.tabs2acc-panel')) return;
-            // Ein anderer TitlePane wurde geklickt - aggressiv wiederherstellen
+      });
+
+      // Auch auf Dojo TitlePane toggle reagieren (WMS-Panel bleibt Dojo)
+      if (typeof dijit !== 'undefined' && typeof dijit.byId === 'function') {
+        var wmsPane = dijit.byId('tp_wms_menu');
+        if (wmsPane) {
+          wmsPane.watch('open', function() {
             startAggressiveFix();
-          }
+          });
         }
-      }, true); // capture phase
+      }
     },
 
     init: function() {

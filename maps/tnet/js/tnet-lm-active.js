@@ -610,9 +610,13 @@
       if (!_dragState) return;
       var ds = _dragState;
 
-      // Aufräumen
+      // Clone entfernen
       ds.clone.remove();
+
+      // Element an Placeholder-Position verschieben, dann Placeholder entfernen
+      ds.placeholder.parentNode.insertBefore(ds.item, ds.placeholder);
       ds.placeholder.remove();
+
       ds.item.classList.remove('lm-drag-hidden');
       ds.listEl.classList.remove('lm-dragging');
 

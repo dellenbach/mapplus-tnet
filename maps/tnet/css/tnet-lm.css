@@ -4,9 +4,9 @@
  * Farbschema passend zum bestehenden TOC:
  *   Tab inaktiv:  #648C96
  *   Tab aktiv:    #e8423f
- *   Level 1 (Subcategory): #3d6a70  (dunkel)
- *   Level 2 (Group):       #7ba8b0  (mittel)
- *   Level 3 (Nested):      #c5dce0  (hell)
+ *   Level 1 (Subcategory): #7db0b8  (hell)
+ *   Level 2 (Group):       #89b5bc  (medium-hell)
+ *   Level 3 (Nested):      #a8ccd2  (hell)
  *   Layer:                  #f5f8f9  (fast weiss)
  *   Akzent:       #700011
  *
@@ -104,12 +104,11 @@
    ============================================================ */
 
 .lm-search-wrap {
-  padding: 8px 10px;
-  background: #fff;
+  padding: 0 6px 4px 6px;
+  background: transparent;
   position: sticky;
-  top: 50px;
+  top: 34px;
   z-index: 4;
-  border-bottom: 1px solid #eee;
 }
 
 .lm-search {
@@ -167,7 +166,7 @@
    ============================================================ */
 
 .lm-subcat {
-  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  border-bottom: none;
 }
 
 .lm-subcat-header {
@@ -175,7 +174,7 @@
   align-items: center;
   gap: 6px;
   padding: 10px 12px;
-  background: #2f5960;
+  background: #7db0b8;
   color: #fff;
   cursor: pointer;
   min-height: 44px;
@@ -183,11 +182,11 @@
   user-select: none;
   font-size: 14px;
   letter-spacing: 0.2px;
-  border-left: 4px solid #1f4348;
+  border-left: 4px solid #6da0a8;
 }
 
 .lm-subcat-header:active {
-  background: #345c61;
+  background: #8dbcc3;
 }
 
 .lm-subcat-icon {
@@ -214,18 +213,18 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 9px 12px 9px 32px;
-  background: #5f8f98;
+  padding: 9px 12px 9px 24px;
+  background: #89b5bc;
   color: #fff;
   cursor: pointer;
   min-height: 42px;
   -webkit-user-select: none;
   user-select: none;
-  border-left: 4px solid #4a7982;
+  border-left: 4px solid #79a5ac;
 }
 
 .lm-group-header:active {
-  background: #6d9da5;
+  background: #96c0c6;
 }
 
 .lm-group-name {
@@ -246,18 +245,18 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 8px 12px 8px 52px;
-  background: #90b7be;
-  color: #17363b;
+  padding: 8px 12px 8px 36px;
+  background: #bbe3ea;
+  color: #1a3e43;
   cursor: pointer;
   min-height: 40px;
   -webkit-user-select: none;
   user-select: none;
-  border-left: 4px solid #7fa8b0;
+  border-left: 4px solid #98bcc2;
 }
 
 .lm-nested-header:active {
-  background: #b5d0d5;
+  background: #b8d6db;
 }
 
 .lm-nested-name {
@@ -309,7 +308,7 @@
 .lm-layer {
   display: flex;
   align-items: center;
-  padding: 6px 12px 6px 68px;
+  padding: 6px 12px 6px 48px;
   min-height: 40px;
   border-bottom: 1px solid rgba(0, 0, 0, 0.04);
   background: #edf4f6;
@@ -321,75 +320,75 @@
    ============================================================ */
 
 .lm-subcat-header.lm-depth-1 {
-  background: #2f5960;
-  border-left-color: #1f4348;
+  background: #7db0b8;
+  border-left-color: #6da0a8;
   color: #fff;
   padding-left: 12px;
 }
 
 .lm-group-header.lm-depth-2 {
-  background: #5f8f98;
-  border-left-color: #4a7982;
+  background: #89b5bc;
+  border-left-color: #79a5ac;
   color: #fff;
-  padding-left: 30px;
+  padding-left: 24px;
 }
 
 .lm-nested-header.lm-depth-3 {
-  background: #7fa8b0;
-  border-left-color: #6a959e;
-  color: #133237;
-  padding-left: 48px;
+  background: #a8ccd2;
+  border-left-color: #98bcc2;
+  color: #1a3e43;
+  padding-left: 36px;
 }
 
 .lm-nested-header.lm-depth-4 {
-  background: #a3c2c9;
-  border-left-color: #8cb1b8;
-  color: #17363b;
-  padding-left: 66px;
+  background: #c1dce1;
+  border-left-color: #b1ccd1;
+  color: #1a3e43;
+  padding-left: 48px;
 }
 
 .lm-nested-header.lm-depth-5 {
-  background: #c1d7dc;
-  border-left-color: #aac8ce;
+  background: #d6e9ec;
+  border-left-color: #c6d9dc;
   color: #1f4045;
-  padding-left: 84px;
+  padding-left: 60px;
 }
 
 .lm-nested-header.lm-depth-6 {
-  background: #dce9ec;
-  border-left-color: #c5dde2;
+  background: #e8f1f3;
+  border-left-color: #d8e1e3;
   color: #2a4e53;
-  padding-left: 102px;
+  padding-left: 72px;
 }
 
 .lm-layer.lm-depth-2 {
   background: #e4eff1;
   border-left-color: #cedfe3;
-  padding-left: 46px;
+  padding-left: 36px;
 }
 
 .lm-layer.lm-depth-3 {
   background: #edf4f6;
   border-left-color: #c8dade;
-  padding-left: 64px;
+  padding-left: 48px;
 }
 
 .lm-layer.lm-depth-4 {
   background: #f3f8f9;
   border-left-color: #d5e4e8;
-  padding-left: 82px;
+  padding-left: 60px;
 }
 
 .lm-layer.lm-depth-5 {
   background: #f8fbfc;
   border-left-color: #e2edf0;
-  padding-left: 100px;
+  padding-left: 72px;
 }
 
 .lm-layer.lm-depth-6 {
   background: #fbfdfe;
   border-left-color: #e9f1f3;
-  padding-left: 118px;
+  padding-left: 84px;
 }
 
 .lm-layer-label {
@@ -822,8 +821,8 @@
 
 /* Suchfeld: kompakter */
 .lm-container-desktop .lm-search-wrap {
-  padding: 5px 8px;
-  top: 40px; /* nach kleinerer Tab-Bar */
+  padding: 0 6px 2px 6px;
+  top: 34px;
 }
 
 .lm-container-desktop .lm-search {
@@ -864,43 +863,43 @@
 }
 
 .lm-container-desktop .lm-group-header.lm-depth-2 {
-  padding-left: 24px;
+  padding-left: 22px;
 }
 
 .lm-container-desktop .lm-nested-header.lm-depth-3 {
-  padding-left: 38px;
+  padding-left: 34px;
 }
 
 .lm-container-desktop .lm-nested-header.lm-depth-4 {
-  padding-left: 52px;
+  padding-left: 46px;
 }
 
 .lm-container-desktop .lm-nested-header.lm-depth-5 {
-  padding-left: 66px;
-}
-
-.lm-container-desktop .lm-nested-header.lm-depth-6 {
-  padding-left: 80px;
-}
-
-.lm-container-desktop .lm-layer.lm-depth-2 {
-  padding-left: 30px;
-}
-
-.lm-container-desktop .lm-layer.lm-depth-3 {
-  padding-left: 44px;
-}
-
-.lm-container-desktop .lm-layer.lm-depth-4 {
   padding-left: 58px;
 }
 
+.lm-container-desktop .lm-nested-header.lm-depth-6 {
+  padding-left: 70px;
+}
+
+.lm-container-desktop .lm-layer.lm-depth-2 {
+  padding-left: 28px;
+}
+
+.lm-container-desktop .lm-layer.lm-depth-3 {
+  padding-left: 40px;
+}
+
+.lm-container-desktop .lm-layer.lm-depth-4 {
+  padding-left: 52px;
+}
+
 .lm-container-desktop .lm-layer.lm-depth-5 {
-  padding-left: 72px;
+  padding-left: 64px;
 }
 
 .lm-container-desktop .lm-layer.lm-depth-6 {
-  padding-left: 86px;
+  padding-left: 76px;
 }
 
 .lm-container-desktop .lm-cb {
@@ -1032,17 +1031,17 @@
   opacity: 0.7;
 }
 
-/* Desktop: etwas kleiner */
+/* Desktop: gleiche Grösse wie Layer-Checkbox */
 .lm-container-desktop .lm-group-cb {
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
 }
 
 /* ============================================================
    Legenden-Button auf Gruppen-/Layer-Zeilen (bei Hover)
    ============================================================ */
 
-/* Legenden-Button: dezent sichtbar, bei Hover stärker */
+/* Legenden-Button: kaum sichtbar, bei Hover auf Zeile dezent, bei Hover auf Button stark */
 .lm-legend-btn {
   display: inline-flex;
   align-items: center;
@@ -1055,7 +1054,7 @@
   background: transparent;
   cursor: pointer;
   font-size: 14px;
-  opacity: 0.35;
+  opacity: 0.1;
   transition: opacity 0.15s ease;
   vertical-align: middle;
   flex-shrink: 0;
@@ -1063,12 +1062,12 @@
   border-radius: 3px;
 }
 
-/* Bei Hover auf Header/Layer: Legenden-Button stärker sichtbar */
+/* Bei Hover auf Header/Layer: Legenden-Button dezent sichtbar */
 .lm-group-header:hover .lm-legend-btn,
 .lm-nested-header:hover .lm-legend-btn,
 .lm-layer:hover .lm-legend-btn,
 .lm-legend-btn:focus {
-  opacity: 0.75;
+  opacity: 0.4;
 }
 
 .lm-legend-btn:hover {

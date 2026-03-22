@@ -610,14 +610,10 @@ function initInfoPaneEnhancements() {
         console.log('[ScrollToCatalog] Modus:', isNewTree ? 'Neuer Tree' : 'Legacy');
 
         // 3. Themenkatalog-Pane öffnen (tp_overview_menu) — gilt für beide Modi
-        if (typeof dijit !== 'undefined') {
-            var overviewWidget = dijit.byId('tp_overview_menu');
-            if (overviewWidget && typeof overviewWidget.set === 'function') {
-                if (!overviewWidget.get('open')) {
-                    overviewWidget.set('open', true);
-                    console.log('[ScrollToCatalog] tp_overview_menu geöffnet');
-                }
-            }
+        var overviewEl = document.getElementById('tp_overview_menu');
+        if (overviewEl && !overviewEl.open) {
+            overviewEl.open = true;
+            console.log('[ScrollToCatalog] tp_overview_menu geöffnet');
         }
 
         if (isNewTree) {

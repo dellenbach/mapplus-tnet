@@ -527,6 +527,34 @@ body {
 #deployed-delete-sel:disabled { opacity: .4; cursor: default; }
 #deployed-sel-count { font-size: 11px; color: #999; display: none; }
 
+/* ── Deployed: Horizontal Split ── */
+#pane-deployed { display: none; flex-direction: column; }
+#pane-deployed.active { display: flex; }
+.deployed-top { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-height: 120px; }
+.deployed-split-handle { height: 5px; background: #e0e0e0; cursor: row-resize; flex-shrink: 0; position: relative; }
+.deployed-split-handle:hover, .deployed-split-handle.dragging { background: #4B7B81; }
+.deployed-split-handle::after { content: '⋯'; position: absolute; left: 50%; top: -2px; transform: translateX(-50%); color: #999; font-size: 12px; }
+.deployed-bottom { height: 35%; min-height: 80px; display: flex; flex-direction: column; overflow: hidden; border-top: 1px solid #ddd; }
+.deployed-bottom-header { display: flex; gap: 8px; align-items: center; padding: 6px 10px; background: #f5f7fa; border-bottom: 1px solid #e0e0e0; flex-shrink: 0; }
+.deployed-bottom-header h3 { margin: 0; font-size: 12px; font-weight: 700; color: #333; }
+.deployed-bottom-header .nls-stats { font-size: 11px; color: #888; }
+.deployed-bottom-header .nls-filter { padding: 3px 6px; font-size: 11px; border: 1px solid #ccc; border-radius: 3px; min-width: 100px; }
+.nls-table-wrap { flex: 1; overflow: auto; min-height: 0; }
+.nls-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+.nls-table th { position: sticky; top: 0; background: #fff3e0; padding: 4px 8px; text-align: left; font-size: 10px; font-weight: 700; border-bottom: 2px solid #ffb74d; z-index: 1; white-space: nowrap; }
+.nls-table td { padding: 3px 8px; border-bottom: 1px solid #f0f0f0; font-family: 'Consolas', monospace; font-size: 10px; }
+.nls-table tr:hover td { background: #fff8e1; }
+.nls-type-layer { color: #2e7d32; font-weight: 600; }
+.nls-type-maptip { color: #1565c0; font-weight: 600; }
+.nls-expected { color: #999; font-style: italic; }
+.nls-input { width: 100%; padding: 2px 4px; font-size: 10px; border: 1px solid #ccc; border-radius: 2px; font-family: inherit; box-sizing: border-box; }
+.nls-input:focus { border-color: #4B7B81; outline: none; }
+.nls-btn-save { padding: 1px 8px; font-size: 10px; border: 1px solid #4caf50; border-radius: 3px; background: #e8f5e9; color: #2e7d32; cursor: pointer; white-space: nowrap; }
+.nls-btn-save:hover { background: #c8e6c9; }
+.nls-btn-save:disabled { opacity: .4; cursor: default; }
+.nls-saved { color: #4caf50; font-size: 10px; font-weight: 600; }
+.nls-row-done td { opacity: .4; }
+
 /* ── Editor 2-Panel-Layout (analog Tree-Builder) ── */
 .editor-split {
   flex: 1; display: flex; gap: 0; min-height: 0; overflow: hidden;
@@ -1007,35 +1035,70 @@ body {
 
   <!-- ===== TAB: DEPLOYED ===== -->
   <div class="ags-pane" id="pane-deployed">
-    <div class="deployed-toolbar">
-      <input type="text" class="ags-filter" id="deployed-filter" placeholder="Dateien filtern…">
-      <select id="deployed-type-filter">
-        <option value="all">Alle Typen</option>
-        <option value="layers">layers_*.conf</option>
-        <option value="maptips">maptips_*.conf</option>
-        <option value="lyrmgr">lyrmgrResources_*.json</option>
-        <option value="maptipsRes">maptipsResources_*.json</option>
-        <option value="legend">legendResources_*.json</option>
-      </select>
-      <label style="font-size:11px;display:flex;align-items:center;gap:3px;cursor:pointer"><input type="checkbox" id="deployed-override-only"> Nur Overrides</label>
-      <button id="deployed-refresh" title="Aktualisieren">↻ Laden</button>
-      <span style="border-left:1px solid #ddd;height:20px"></span>
-      <span id="deployed-sel-count">0 gewählt</span>
-      <button id="deployed-delete-sel" title="Ausgewählte Dateien löschen">🗑 Löschen</button>
+    <!-- Oberer Bereich: Dateiliste -->
+    <div class="deployed-top">
+      <div class="deployed-toolbar">
+        <input type="text" class="ags-filter" id="deployed-filter" placeholder="Dateien filtern…">
+        <select id="deployed-type-filter">
+          <option value="all">Alle Typen</option>
+          <option value="layers">layers_*.conf</option>
+          <option value="maptips">maptips_*.conf</option>
+          <option value="lyrmgr">lyrmgrResources_*.json</option>
+          <option value="maptipsRes">maptipsResources_*.json</option>
+          <option value="legend">legendResources_*.json</option>
+        </select>
+        <label style="font-size:11px;display:flex;align-items:center;gap:3px;cursor:pointer"><input type="checkbox" id="deployed-override-only"> Nur Overrides</label>
+        <button id="deployed-refresh" title="Aktualisieren">↻ Laden</button>
+        <span style="border-left:1px solid #ddd;height:20px"></span>
+        <span id="deployed-sel-count">0 gewählt</span>
+        <button id="deployed-delete-sel" title="Ausgewählte Dateien löschen">🗑 Löschen</button>
+      </div>
+      <div class="deployed-status" id="deployed-status">Wechsle zum Tab oder klicke ↻ um Dateien zu laden…</div>
+      <div class="deployed-table-wrap" id="deployed-table-wrap">
+        <table class="dep-table" id="deployed-table">
+          <thead>
+            <tr>
+              <th>Datei</th>
+              <th class="col-core">Core</th>
+              <th class="col-override">Site-Core (Override)</th>
+              <th class="col-profile">Profil</th>
+            </tr>
+          </thead>
+          <tbody id="deployed-tbody"></tbody>
+        </table>
+      </div>
     </div>
-    <div class="deployed-status" id="deployed-status">Wechsle zum Tab oder klicke ↻ um Dateien zu laden…</div>
-    <div class="deployed-table-wrap" id="deployed-table-wrap">
-      <table class="dep-table" id="deployed-table">
-        <thead>
-          <tr>
-            <th>Datei</th>
-            <th class="col-core">Core</th>
-            <th class="col-override">Site-Core (Override)</th>
-            <th class="col-profile">Profil</th>
-          </tr>
-        </thead>
-        <tbody id="deployed-tbody"></tbody>
-      </table>
+    <!-- Drag-Handle -->
+    <div class="deployed-split-handle" id="deployed-split-handle"></div>
+    <!-- Unterer Bereich: Fehlende NLS -->
+    <div class="deployed-bottom" id="deployed-bottom">
+      <div class="deployed-bottom-header">
+        <h3>⚠ Fehlende NLS / Alias</h3>
+        <span class="nls-stats" id="nls-stats"></span>
+        <input type="text" class="nls-filter" id="nls-filter" placeholder="Filtern…">
+        <select id="nls-type-filter" style="padding:3px 6px;font-size:11px;border:1px solid #ccc;border-radius:3px">
+          <option value="all">Alle</option>
+          <option value="layer">Layer (desc_)</option>
+          <option value="maptip">Maptip (_title)</option>
+        </select>
+      </div>
+      <div class="nls-table-wrap">
+        <table class="nls-table" id="nls-table">
+          <thead>
+            <tr>
+              <th>Typ</th>
+              <th>Key</th>
+              <th>Config-Datei</th>
+              <th>Quelle</th>
+              <th>Erwarteter NLS-Key</th>
+              <th>Wert</th>
+              <th>Ziel-Datei</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="nls-tbody"></tbody>
+        </table>
+      </div>
     </div>
   </div>
 
@@ -1216,6 +1279,7 @@ function switchTab(tabName, skipHash) {
     }
   } else if (tabName === 'deployed') {
     loadDeployedConf();
+    loadMissingNls();
   }
 }
 
@@ -4600,6 +4664,7 @@ function updateDeployedSelCount() {
 // Einzelne Datei löschen (Backup → SFTP)
 function deleteSingleDeployedConf(fileName, source) {
   var statusEl = document.getElementById('deployed-status');
+  var _deletePath = '';
   // 1. PHP: Backup erstellen + SFTP-Pfad erhalten
   return fetch(API_URL + '?action=prepare-delete-conf', {
     method: 'POST',
@@ -4615,6 +4680,7 @@ function deleteSingleDeployedConf(fileName, source) {
         throw new Error('Backup fehlgeschlagen für ' + fileName + ': ' + (json.error || JSON.stringify(json)));
       }
       var deletePath = json.data.deletePath;
+      _deletePath = deletePath;
       statusEl.textContent = '⏳ SFTP-Lösche: ' + deletePath;
       // 2. FastAPI: Datei via SFTP löschen
       return fetch(GAPI_URL + '/delete-deployed-conf', {
@@ -4635,6 +4701,14 @@ function deleteSingleDeployedConf(fileName, source) {
       if (!json) throw new Error('Leere FastAPI-Antwort für ' + fileName);
       if (!json.success && !json.deleted) {
         throw new Error('SFTP-Löschung fehlgeschlagen für ' + fileName + ': ' + JSON.stringify(json).substring(0, 200));
+      }
+      // Git-Delete (non-blocking)
+      if (_deletePath) {
+        fetch(GAPI_URL + '/git-delete-conf', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ deployPath: _deletePath, source: source || '', message: 'Delete: ' + fileName })
+        }).catch(function() { /* Git-Fehler blockieren nicht */ });
       }
       return { fileName: fileName, source: source, ok: true };
     });
@@ -4761,6 +4835,7 @@ function saveDeployedFile() {
   statusEl.className = '';
 
   var fi = _feDeployedInfo;
+  var _deployPath = '';
 
   // 1. PHP: Backup + Content als staged-Datei schreiben → stagedPath + deployPath erhalten
   fetch(API_URL + '?action=prepare-save-conf', {
@@ -4775,12 +4850,13 @@ function saveDeployedFile() {
     .then(function(json) {
       if (!json.success) throw new Error('Backup: ' + (json.error || 'Unbekannt'));
       statusEl.textContent = '⏳ Deploy via SFTP…';
+      _deployPath = json.data.deployPath;
 
       // 2. FastAPI: Bestehenden deploy-staged-conf Endpoint nutzen
       return fetch(GAPI_URL + '/deploy-staged-conf', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ stagedPath: json.data.stagedPath, deployPath: json.data.deployPath })
+        body: JSON.stringify({ stagedPath: json.data.stagedPath, deployPath: _deployPath })
       });
     })
     .then(function(r) {
@@ -4797,6 +4873,20 @@ function saveDeployedFile() {
       saveBtn.disabled = false;
       statusEl.textContent = '✓ Gespeichert via SFTP (' + (content.length / 1024).toFixed(1) + ' KB) — Backup erstellt';
       statusEl.className = 'ok';
+
+      // 3. Git-Commit (non-blocking)
+      if (_deployPath) {
+        fetch(GAPI_URL + '/git-commit-conf', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ deployPath: _deployPath, source: fi.source || '', message: 'Edit: ' + fi.name })
+        })
+          .then(function(r) { return r.json(); })
+          .then(function(g) {
+            if (g.committed) statusEl.textContent += ' — Git ✓';
+          })
+          .catch(function() { /* Git-Fehler blockieren nicht */ });
+      }
     })
     .catch(function(err) {
       saveBtn.disabled = false;
@@ -4806,11 +4896,204 @@ function saveDeployedFile() {
 }
 
 // Deployed-Tab Event-Listener
-document.getElementById('deployed-refresh').addEventListener('click', loadDeployedConf);
+document.getElementById('deployed-refresh').addEventListener('click', function() { loadDeployedConf(); loadMissingNls(); });
 document.getElementById('deployed-filter').addEventListener('input', renderDeployedList);
 document.getElementById('deployed-type-filter').addEventListener('change', renderDeployedList);
 document.getElementById('deployed-override-only').addEventListener('change', renderDeployedList);
 document.getElementById('deployed-delete-sel').addEventListener('click', batchDeleteDeployed);
+document.getElementById('nls-filter').addEventListener('input', renderMissingNls);
+document.getElementById('nls-type-filter').addEventListener('change', renderMissingNls);
+
+// ===== SPLIT-HANDLE DRAG =====
+(function() {
+  var handle = document.getElementById('deployed-split-handle');
+  var pane   = document.getElementById('pane-deployed');
+  var bottom = document.getElementById('deployed-bottom');
+  var dragging = false;
+
+  handle.addEventListener('mousedown', function(e) {
+    e.preventDefault();
+    dragging = true;
+    handle.classList.add('dragging');
+    document.addEventListener('mousemove', onDrag);
+    document.addEventListener('mouseup', onUp);
+  });
+
+  function onDrag(e) {
+    if (!dragging) return;
+    var rect = pane.getBoundingClientRect();
+    var bottomH = rect.bottom - e.clientY;
+    if (bottomH < 60) bottomH = 60;
+    if (bottomH > rect.height - 120) bottomH = rect.height - 120;
+    bottom.style.height = bottomH + 'px';
+    bottom.style.flex = 'none';
+  }
+
+  function onUp() {
+    dragging = false;
+    handle.classList.remove('dragging');
+    document.removeEventListener('mousemove', onDrag);
+    document.removeEventListener('mouseup', onUp);
+  }
+})();
+
+// ===== FEHLENDE NLS LADEN + RENDERN =====
+var _nlsMissingData = [];
+
+function loadMissingNls() {
+  var statsEl = document.getElementById('nls-stats');
+  var tbody   = document.getElementById('nls-tbody');
+  statsEl.textContent = 'Prüfe…';
+  tbody.innerHTML = '';
+
+  fetch(API_URL + '?action=check-missing-nls&profile=' + encodeURIComponent(_deployedProfile))
+    .then(function(r) { return r.json(); })
+    .then(function(json) {
+      if (!json.success) {
+        statsEl.textContent = 'Fehler: ' + (json.error || 'Unbekannt');
+        return;
+      }
+      var d = json.data;
+      _nlsMissingData = [].concat(d.missingLayers || [], d.missingMaptips || []);
+      statsEl.textContent = d.missingLayers.length + ' Layer + ' + d.missingMaptips.length + ' Maptips fehlen'
+        + '  (von ' + d.totalLayers + ' Layern, ' + d.totalMaptips + ' Maptips)';
+      renderMissingNls();
+    })
+    .catch(function(err) {
+      statsEl.textContent = 'Fehler: ' + err.message;
+    });
+}
+
+function renderMissingNls() {
+  var tbody      = document.getElementById('nls-tbody');
+  var filterText = (document.getElementById('nls-filter').value || '').toLowerCase();
+  var typeFilter = document.getElementById('nls-type-filter').value;
+  tbody.innerHTML = '';
+
+  var count = 0;
+  _nlsMissingData.forEach(function(item, idx) {
+    if (typeFilter !== 'all' && item.type !== typeFilter) return;
+    var searchStr = (item.key + ' ' + item.file + ' ' + item.expected).toLowerCase();
+    if (filterText && searchStr.indexOf(filterText) === -1) return;
+    count++;
+
+    var tr = document.createElement('tr');
+    if (item._saved) tr.className = 'nls-row-done';
+
+    var tdType = document.createElement('td');
+    tdType.className = item.type === 'layer' ? 'nls-type-layer' : 'nls-type-maptip';
+    tdType.textContent = item.type === 'layer' ? 'Layer' : 'Maptip';
+    tr.appendChild(tdType);
+
+    var tdKey = document.createElement('td');
+    tdKey.textContent = item.key;
+    tr.appendChild(tdKey);
+
+    var tdFile = document.createElement('td');
+    tdFile.textContent = item.file;
+    tdFile.style.color = '#666';
+    tr.appendChild(tdFile);
+
+    var tdSrc = document.createElement('td');
+    tdSrc.textContent = item.source;
+    tdSrc.style.color = '#888';
+    tr.appendChild(tdSrc);
+
+    var tdExp = document.createElement('td');
+    tdExp.className = 'nls-expected';
+    tdExp.textContent = item.expected;
+    tr.appendChild(tdExp);
+
+    // Wert-Eingabe
+    var tdVal = document.createElement('td');
+    if (item._saved) {
+      tdVal.innerHTML = '<span class="nls-saved">✓ ' + (item._savedValue || '') + '</span>';
+    } else {
+      var inp = document.createElement('input');
+      inp.type = 'text';
+      inp.className = 'nls-input';
+      inp.value = item.defaultValue || '';
+      inp.placeholder = 'Alias / Titel eingeben…';
+      inp.dataset.idx = idx;
+      tdVal.appendChild(inp);
+    }
+    tr.appendChild(tdVal);
+
+    // Ziel-Datei
+    var tdTarget = document.createElement('td');
+    tdTarget.textContent = item.targetFile || '?';
+    tdTarget.style.cssText = 'color:#888;font-size:9px';
+    tr.appendChild(tdTarget);
+
+    // Speichern-Button
+    var tdBtn = document.createElement('td');
+    if (!item._saved) {
+      var btn = document.createElement('button');
+      btn.className = 'nls-btn-save';
+      btn.textContent = '✔ Setzen';
+      btn.dataset.idx = idx;
+      btn.addEventListener('click', function() {
+        var i = parseInt(this.dataset.idx);
+        var it = _nlsMissingData[i];
+        var input = tbody.querySelector('input[data-idx="' + i + '"]');
+        var val = input ? input.value.trim() : '';
+        if (!val) { input.focus(); return; }
+        saveNlsEntry(it, val, this, tr);
+      });
+      tdBtn.appendChild(btn);
+    }
+    tr.appendChild(tdBtn);
+
+    tbody.appendChild(tr);
+  });
+
+  if (count === 0) {
+    var tr = document.createElement('tr');
+    var td = document.createElement('td');
+    td.colSpan = 8;
+    td.style.cssText = 'padding:12px;color:#999;text-align:center';
+    td.textContent = _nlsMissingData.length === 0 ? 'Noch nicht geladen' : 'Keine Treffer';
+    tr.appendChild(td);
+    tbody.appendChild(tr);
+  }
+}
+
+function saveNlsEntry(item, value, btn, tr) {
+  btn.disabled = true;
+  btn.textContent = '⏳…';
+
+  fetch(API_URL + '?action=add-nls-entry', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      targetFile:   item.targetFile,
+      targetSource: item.targetSource,
+      nlsKey:       item.expected,
+      nlsValue:     value,
+      profile:      _deployedProfile
+    })
+  })
+    .then(function(r) { return r.json(); })
+    .then(function(json) {
+      if (!json.success) throw new Error(json.error || 'Unbekannt');
+      item._saved = true;
+      item._savedValue = value;
+      tr.className = 'nls-row-done';
+      // Zeile aktualisieren
+      renderMissingNls();
+      // Stats aktualisieren
+      var saved = _nlsMissingData.filter(function(x) { return x._saved; }).length;
+      var statsEl = document.getElementById('nls-stats');
+      if (saved > 0) {
+        statsEl.textContent += ' (✓ ' + saved + ' gesetzt)';
+      }
+    })
+    .catch(function(err) {
+      btn.disabled = false;
+      btn.textContent = '✔ Setzen';
+      alert('Fehler: ' + err.message);
+    });
+}
 
 (function initFromHash() {
   var p = parseUrlHash();

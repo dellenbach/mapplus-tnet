@@ -3736,6 +3736,261 @@ switch ($action) {
         ]]);
         break;
 
+    // ── Deployed: Fehlende NLS-Einträge (Layer-Alias + Maptip-Titel) prüfen ──
+    case 'check-missing-nls':
+        $profile = $_GET['profile'] ?? 'public';
+        $safeProf = preg_replace('/[^a-zA-Z0-9_\-]/', '', $profile ?: 'public');
+
+        // Verzeichnisse: config + nls
+        $configDirs = [
+            'core'     => realpath($docRoot . '/core/config'),
+            'override' => realpath($docRoot . '/maps/core/config'),
+        ];
+        $nlsDirs = [
+            'core'     => realpath($docRoot . '/core/nls/de'),
+            'override' => realpath($docRoot . '/maps/core/nls/de'),
+        ];
+        // Profil-Verzeichnis
+        if (defined('CONFIG_BASE') && is_dir(CONFIG_BASE)) {
+            $configDirs['profile_' . $safeProf] = CONFIG_BASE;
+            // Profil hat NLS im gleichen Verzeichnis
+            $nlsDirs['profile_' . $safeProf] = CONFIG_BASE;
+        }
+
+        // Alle Keys aus JSON-Dateien sammeln (mit Glob-Pattern)
+        $collectJsonKeys = function($dir, $pattern) {
+            $keys = [];
+            if (!$dir || !is_dir($dir)) return $keys;
+            $files = glob($dir . '/' . $pattern) ?: [];
+            foreach ($files as $f) {
+                $data = @json_decode(file_get_contents($f), true);
+                if (!is_array($data)) continue;
+                foreach (array_keys($data) as $k) {
+                    $keys[$k] = basename($f);
+                }
+            }
+            return $keys;
+        };
+
+        // 1. Layer-Keys aus layers_*.conf sammeln
+        $layerKeys = [];  // key => { file, source }
+        foreach ($configDirs as $src => $dir) {
+            if (!$dir || !is_dir($dir)) continue;
+            $files = glob($dir . '/layers_*.conf') ?: [];
+            // Auch layers.conf ohne Suffix
+            if (file_exists($dir . '/layers.conf')) {
+                $files[] = $dir . '/layers.conf';
+            }
+            foreach ($files as $f) {
+                $data = @json_decode(file_get_contents($f), true);
+                if (!is_array($data)) continue;
+                $bn = basename($f);
+                foreach (array_keys($data) as $k) {
+                    // Nur echte Layer (haben type-Property)
+                    if (isset($data[$k]['type'])) {
+                        $layerKeys[$k] = ['file' => $bn, 'source' => $src];
+                    }
+                }
+            }
+        }
+
+        // 2. Alle desc_-Einträge aus lyrmgrResources_*.json sammeln
+        $descKeys = [];
+        foreach ($nlsDirs as $src => $dir) {
+            $found = $collectJsonKeys($dir, 'lyrmgrResources*.json');
+            foreach ($found as $k => $fn) {
+                $descKeys[$k] = true;
+            }
+        }
+
+        // 3. Maptip-Keys aus maptips_*.conf sammeln
+        $maptipKeys = [];  // key => { file, source, nls }
+        foreach ($configDirs as $src => $dir) {
+            if (!$dir || !is_dir($dir)) continue;
+            $files = glob($dir . '/maptips_*.conf') ?: [];
+            if (file_exists($dir . '/maptips.conf')) {
+                $files[] = $dir . '/maptips.conf';
+            }
+            foreach ($files as $f) {
+                $data = @json_decode(file_get_contents($f), true);
+                if (!is_array($data)) continue;
+                $bn = basename($f);
+                foreach ($data as $k => $v) {
+                    if (is_array($v) && isset($v['type'])) {
+                        $maptipKeys[$k] = [
+                            'file'   => $bn,
+                            'source' => $src,
+                            'nls'    => $v['nls'] ?? $k
+                        ];
+                    }
+                }
+            }
+        }
+
+        // 4. Alle *_title-Einträge aus maptipsResources_*.json sammeln
+        $titleKeys = [];
+        foreach ($nlsDirs as $src => $dir) {
+            $found = $collectJsonKeys($dir, 'maptipsResources*.json');
+            foreach ($found as $k => $fn) {
+                $titleKeys[$k] = true;
+            }
+        }
+
+        // 5. Fehlende Layer-Aliase finden
+        $missingLayers = [];
+        foreach ($layerKeys as $key => $info) {
+            $aliasKey1 = 'desc_' . $key;
+            $aliasKey2 = 'desc_' . str_replace('/', '_', $key);
+            if (!isset($descKeys[$aliasKey1]) && !isset($descKeys[$aliasKey2])) {
+                // Ziel-NLS-Datei: layers_<suffix>.conf → lyrmgrResources_<suffix>.json
+                $suffix = preg_replace('/^layers/', '', pathinfo($info['file'], PATHINFO_FILENAME));
+                $targetFile = 'lyrmgrResources' . $suffix . '.json';
+                // Zielverzeichnis: config-source → nls-source
+                $targetSource = ($info['source'] === 'core' || $info['source'] === 'override')
+                    ? $info['source'] . '_nls' : $info['source'];
+                $missingLayers[] = [
+                    'key'      => $key,
+                    'file'     => $info['file'],
+                    'source'   => $info['source'],
+                    'type'     => 'layer',
+                    'expected' => $aliasKey1,
+                    'targetFile'   => $targetFile,
+                    'targetSource' => $targetSource,
+                    'defaultValue' => end(explode('/', $key))
+                ];
+            }
+        }
+
+        // 6. Fehlende Maptip-Titel finden
+        $missingMaptips = [];
+        foreach ($maptipKeys as $key => $info) {
+            $titleKey = $key . '_title';
+            if (!isset($titleKeys[$titleKey])) {
+                // Ziel-NLS-Datei: maptips_<suffix>.conf → maptipsResources_<suffix>.json
+                $suffix = preg_replace('/^maptips/', '', pathinfo($info['file'], PATHINFO_FILENAME));
+                $targetFile = 'maptipsResources' . $suffix . '.json';
+                $targetSource = ($info['source'] === 'core' || $info['source'] === 'override')
+                    ? $info['source'] . '_nls' : $info['source'];
+                $missingMaptips[] = [
+                    'key'      => $key,
+                    'file'     => $info['file'],
+                    'source'   => $info['source'],
+                    'nls'      => $info['nls'],
+                    'type'     => 'maptip',
+                    'expected' => $titleKey,
+                    'targetFile'   => $targetFile,
+                    'targetSource' => $targetSource,
+                    'defaultValue' => end(explode('/', $key))
+                ];
+            }
+        }
+
+        // Nach Key sortieren
+        usort($missingLayers, function($a, $b) { return strcmp($a['key'], $b['key']); });
+        usort($missingMaptips, function($a, $b) { return strcmp($a['key'], $b['key']); });
+
+        jsonResponse(['success' => true, 'data' => [
+            'missingLayers'  => $missingLayers,
+            'missingMaptips' => $missingMaptips,
+            'totalLayers'    => count($layerKeys),
+            'totalMaptips'   => count($maptipKeys),
+            'totalDescKeys'  => count($descKeys),
+            'totalTitleKeys' => count($titleKeys)
+        ]]);
+        break;
+
+    // ── Deployed: NLS-Eintrag in JSON-Datei einfügen ──
+    case 'add-nls-entry':
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('POST required', 405);
+        $body = json_decode(file_get_contents('php://input'), true);
+        if (!$body) jsonError('Ungültiger JSON-Body', 400);
+
+        $targetFile   = basename($body['targetFile'] ?? '');
+        $targetSource = $body['targetSource'] ?? '';
+        $nlsKey       = $body['nlsKey'] ?? '';
+        $nlsValue     = $body['nlsValue'] ?? '';
+        $profile      = $body['profile'] ?? 'public';
+
+        if (!$targetFile || !$targetSource || !$nlsKey) {
+            jsonError('targetFile, targetSource und nlsKey erforderlich', 400);
+        }
+        if (!preg_match('/^[a-zA-Z0-9][a-zA-Z0-9_\-\.]*\.json$/', $targetFile)) {
+            jsonError('Ungültiger Dateiname: ' . $targetFile, 400);
+        }
+
+        // Verzeichnis bestimmen
+        $safeProf = preg_replace('/[^a-zA-Z0-9_\-]/', '', $profile ?: 'public');
+        $nlsTargetDir = null;
+        switch ($targetSource) {
+            case 'core_nls':     $nlsTargetDir = realpath($docRoot . '/core/nls/de'); break;
+            case 'override_nls': $nlsTargetDir = realpath($docRoot . '/maps/core/nls/de'); break;
+            case 'profile_' . $safeProf:
+                $nlsTargetDir = defined('CONFIG_BASE') ? CONFIG_BASE : null;
+                break;
+            default:
+                // Fallback: core_nls verwenden
+                $nlsTargetDir = realpath($docRoot . '/core/nls/de');
+        }
+
+        if (!$nlsTargetDir || !is_dir($nlsTargetDir)) {
+            jsonError('NLS-Verzeichnis nicht gefunden für: ' . $targetSource, 400);
+        }
+
+        $filePath = $nlsTargetDir . '/' . $targetFile;
+
+        // Datei lesen oder leeres Objekt
+        $data = [];
+        if (file_exists($filePath)) {
+            $raw = file_get_contents($filePath);
+            $data = json_decode($raw, true);
+            if (!is_array($data)) {
+                jsonError('JSON-Parse-Fehler in ' . $targetFile, 500);
+            }
+        }
+
+        // Key bereits vorhanden?
+        if (isset($data[$nlsKey])) {
+            jsonResponse(['success' => true, 'data' => [
+                'action'  => 'exists',
+                'message' => 'Key existiert bereits: ' . $nlsKey,
+                'file'    => $targetFile
+            ]]);
+            break;
+        }
+
+        // Eintrag hinzufügen
+        $data[$nlsKey] = $nlsValue;
+
+        // Sortiert schreiben
+        ksort($data, SORT_STRING);
+        $json = json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        if ($json === false) {
+            jsonError('JSON-Encoding-Fehler', 500);
+        }
+
+        // Backup erstellen
+        $backupDir = (defined('DATA_DIR') ? DATA_DIR : sys_get_temp_dir()) . '/nls-backups';
+        if (!is_dir($backupDir)) mkdir($backupDir, 0755, true);
+        if (file_exists($filePath)) {
+            copy($filePath, $backupDir . '/' . $targetFile . '.' . date('Ymd_His') . '.bak');
+        }
+
+        // Schreiben
+        $written = file_put_contents($filePath, $json . "\n");
+        if ($written === false) {
+            jsonError('Schreibfehler: ' . $filePath, 500);
+        }
+
+        jsonResponse(['success' => true, 'data' => [
+            'action'  => 'added',
+            'message' => 'NLS-Eintrag hinzugefügt',
+            'file'    => $targetFile,
+            'key'     => $nlsKey,
+            'value'   => $nlsValue,
+            'bytes'   => $written
+        ]]);
+        break;
+
     // ── Deployed-Conf: Backup erstellen + SFTP-Pfad zurückgeben (Löschen via FastAPI) ──
     case 'prepare-delete-conf':
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('POST required', 405);
@@ -3750,7 +4005,7 @@ switch ($action) {
 
         // Dateiname sanitizen
         $safeFile = basename($fileName);
-        if (!preg_match('/^(layers|maptips|lyrmgrResources|maptipsResources|legendResources)[_\-].*\.(conf|json)$/', $safeFile)) {
+        if (!preg_match('/^[a-zA-Z0-9][a-zA-Z0-9_\-\.]*\.(conf|json)$/', $safeFile)) {
             jsonError('Ungültiger Dateiname: ' . $safeFile, 400);
         }
 
@@ -3834,7 +4089,7 @@ switch ($action) {
         if (!$fileName || !$source || $content === null) jsonError('fileName, source und content erforderlich', 400);
 
         $safeFile = basename($fileName);
-        if (!preg_match('/^(layers|maptips|lyrmgrResources|maptipsResources|legendResources)[_\-].*\.(conf|json)$/', $safeFile)) {
+        if (!preg_match('/^[a-zA-Z0-9][a-zA-Z0-9_\-\.]*\.(conf|json)$/', $safeFile)) {
             jsonError('Ungültiger Dateiname: ' . $safeFile, 400);
         }
 
@@ -3874,8 +4129,8 @@ switch ($action) {
             $backupFile = basename($backupPath2);
         }
 
-        // Content in Temp-Datei (staged) schreiben — DATA_DIR ist schreibbar
-        $stagedDir = DATA_DIR . '/edit-staged';
+        // Content in Temp-Datei (staged) schreiben — gleicher Pfad wie stage-layer-conf
+        $stagedDir = '/data/Client_Data/nwow/tmp/stageConf/edit';
         if (!is_dir($stagedDir)) @mkdir($stagedDir, 0775, true);
         $stagedFile = $stagedDir . '/' . $safeFile;
         if (file_put_contents($stagedFile, $content) === false) {

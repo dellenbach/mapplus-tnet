@@ -151,14 +151,15 @@ function startBookmarkFromUrl() {
         var bookmarkId = match[1];
 
         // Warte auf TnetSetBookmark-Funktion (wird async geladen)
+        // Polling-Intervall 200ms statt 1500ms → Bookmark wird wesentlich früher angewendet.
+        // infoFloatWinRemoveallItems-Check entfernt — TnetSetBookmark benötigt es nicht direkt.
         function tryStart() {
             if (typeof window.TnetSetBookmark === 'function' &&
-                window.njs && window.njs.AppManager && 
-                window.njs.AppManager.setMapBookmark &&
-                typeof window.njs.AppManager.infoFloatWinRemoveallItems === 'function') {
+                window.njs && window.njs.AppManager &&
+                typeof window.njs.AppManager.setMapBookmark === 'function') {
                 window.TnetSetBookmark(bookmarkId);
             } else {
-                setTimeout(tryStart, 1500);
+                setTimeout(tryStart, 200);
             }
         }
         tryStart();
