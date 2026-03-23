@@ -25,25 +25,25 @@
   --lm-accent-dark:      #700011;     /* Aktiver-Layer-Text */
 
   /* ── Hierarchie-Stufen: Hintergrund ── */
-  --lm-depth-1-bg:       #7db0b8;     /* Subkategorie */
-  --lm-depth-2-bg:       #89b5bc;     /* Gruppe */
-  --lm-depth-3-bg:       #a8ccd2;     /* Verschachtelt L3 */
-  --lm-depth-4-bg:       #c1dce1;     /* Verschachtelt L4 */
-  --lm-depth-5-bg:       #d6e9ec;     /* Verschachtelt L5 */
-  --lm-depth-6-bg:       #e8f1f3;     /* Verschachtelt L6 */
+  --lm-depth-1-bg:       #6fa5ae;     /* Subkategorie (dunkel) */
+  --lm-depth-2-bg:       #8dbcc5;     /* Gruppe */
+  --lm-depth-3-bg:       #c8e2e7;     /* Verschachtelt L3 */
+  --lm-depth-4-bg:       #c2dee3;     /* Verschachtelt L4 */
+  --lm-depth-5-bg:       #d8eaee;     /* Verschachtelt L5 */
+  --lm-depth-6-bg:       #ecf4f6;     /* Verschachtelt L6 (hell) */
 
   /* ── Hierarchie-Stufen: Rand (border-left) ── */
-  --lm-depth-1-border:   #6da0a8;
-  --lm-depth-2-border:   #79a5ac;
-  --lm-depth-3-border:   #98bcc2;
-  --lm-depth-4-border:   #b1ccd1;
-  --lm-depth-5-border:   #c6d9dc;
-  --lm-depth-6-border:   #d8e1e3;
+  --lm-depth-1-border:   #5a8f98;
+  --lm-depth-2-border:   #72a5ae;
+  --lm-depth-3-border:   #aad0d6;
+  --lm-depth-4-border:   #a8ccd2;
+  --lm-depth-5-border:   #c2dbe0;
+  --lm-depth-6-border:   #d8e5e8;
 
   /* ── Hierarchie-Stufen: Active/Pressed ── */
-  --lm-depth-1-active:   #8dbcc3;
-  --lm-depth-2-active:   #96c0c6;
-  --lm-depth-3-active:   #b8d6db;
+  --lm-depth-1-active:   #5f9aa3;
+  --lm-depth-2-active:   #7db0b9;
+  --lm-depth-3-active:   #b8d8de;
 
   /* ── Hierarchie-Stufen: Textfarbe ── */
   --lm-text-depth-3:     #1a3e43;     /* Auf L3/L4-Headern */

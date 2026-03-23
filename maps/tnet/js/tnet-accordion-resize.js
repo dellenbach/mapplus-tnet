@@ -331,16 +331,29 @@
       startY = e.type === 'touchstart' ? e.touches[0].clientY : e.clientY;
 
       // Alle Werte EINMALIG berechnen (kein DOM-Read während Drag)
+      // useActual wird erst nach Sibling-Bestimmung korrigiert (s.u.)
       panelCfg.maxHeight = getMaxHeight(panelCfg.id, true);
       var rawH = getContentHeight(panelCfg);
       startHeight = Math.max(panelCfg.minHeight, Math.min(rawH, panelCfg.maxHeight));
       lastAppliedHeight = startHeight;
 
       // Sibling-Panel für gekoppeltes Resize vorbereiten
-      siblingCfg = findSiblingPanel();
+      // Nur das Handle ZWISCHEN den Panels koppelt (erstes Panel).
+      // Das Handle nach dem letzten Panel resized unabhängig,
+      // sonst wächst das Panel visuell nach oben statt nach unten.
+      if (panelCfg.id !== CONFIG.panels[CONFIG.panels.length - 1].id) {
+        siblingCfg = findSiblingPanel();
+      } else {
+        siblingCfg = null;
+      }
       if (siblingCfg) {
+        // Bei Kopplung: maxHeight NEU berechnen mit useActual=false,
+        // damit nur minHeight des Siblings reserviert wird — so kann dieses Panel
+        // in den Schrumpfraum des Siblings hineinwachsen.
+        panelCfg.maxHeight = getMaxHeight(panelCfg.id, false);
+
         var sibRawH = getContentHeight(siblingCfg);
-        siblingCfg.maxHeight = getMaxHeight(siblingCfg.id, true);
+        siblingCfg.maxHeight = getMaxHeight(siblingCfg.id, false);
         siblingStartHeight = Math.max(siblingCfg.minHeight, Math.min(sibRawH, siblingCfg.maxHeight));
         lastSiblingHeight = siblingStartHeight;
       }
@@ -376,9 +389,15 @@
         var maxForThis = totalBudget - siblingCfg.minHeight;
         newHeight = Math.min(newHeight, maxForThis);
 
+        // Auch auf eigenes maxHeight clampen, BEVOR Sibling berechnet wird.
+        // Sonst schrumpft Sibling, obwohl dieses Panel gar nicht wächst (am Max).
+        newHeight = Math.min(newHeight, panelCfg.maxHeight);
+
         // Sibling bekommt den Rest
         var sibNewHeight = totalBudget - newHeight;
         sibNewHeight = Math.max(siblingCfg.minHeight, sibNewHeight);
+        // Sibling ebenfalls auf sein maxHeight clampen
+        sibNewHeight = Math.min(sibNewHeight, siblingCfg.maxHeight);
         lastSiblingHeight = applyHeight(siblingCfg, sibNewHeight);
       } else {
         newHeight = Math.min(newHeight, panelCfg.maxHeight);

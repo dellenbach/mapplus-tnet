@@ -6,6 +6,12 @@
 
 ---
 
+## 2026-03-22 — Resize-Handle: Panel wächst nach oben statt nach unten
+- **Symptom**: Ziehen des unteren Resize-Handles (nach tp_sort_menu) nach unten vergrössert das Panel visuell nach oben statt nach unten.
+- **Root-Cause**: Beide Handles nutzten gekoppeltes Resize: Wenn tp_sort_menu wächst, schrumpft tp_overview_menu darüber → alles verschiebt sich nach oben → visuell wächst das Panel nach oben.
+- **Fix**: Kopplung nur für das Handle ZWISCHEN den Panels (erstes Panel, Index 0). Das Handle nach dem letzten Panel resized unabhängig (`siblingCfg = null`).
+- **Guardrail**: Bei gekoppeltem Accordion-Resize: Kopplung nur am Splitter zwischen zwei Panels anwenden. Handles am Rand eines Panels dürfen nicht rückwärts auf Geschwister-Panels wirken.
+
 ## 2026-03-22 — Scrollbar im Sidepanel verursachte Inhalts-Sprung und wirkte zu dominant
 - **Symptom**: Beim Erscheinen/Verbergen der Scrollbar verschob sich der Inhalt; gewünscht war eine dezente, leicht transparente Scrollbar ohne Layout-Resize.
 - **Root-Cause**: Scroll-Container nutzten uneinheitliches `overflow-y`/Scrollbar-Styling (teils auto/ausgeblendet), wodurch der verfügbare Inhaltsraum je nach Scroll-Zustand wechselte.
