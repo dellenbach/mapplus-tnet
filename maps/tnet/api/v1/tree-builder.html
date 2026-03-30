@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Layer-Tree Builder — TNET API</title>
+<title>Layer-Tree Builder v5 — TNET API</title>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 :root {
@@ -483,6 +483,36 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
   flex: 1; display: flex; align-items: center; justify-content: center;
   color: #ccc; font-size: 12px; font-style: italic;
 }
+
+/* ── Preview Sub-Tabs ── */
+.tb-preview-tabs { display: flex; border-bottom: 2px solid #e0e4e8; flex-shrink: 0; background: #f5f7f9; }
+.tb-preview-tab {
+  padding: 5px 12px; font-size: 11px; font-weight: 600; color: #888; cursor: pointer;
+  border: none; background: none; border-bottom: 2px solid transparent; margin-bottom: -2px;
+  white-space: nowrap; transition: color .15s;
+}
+.tb-preview-tab:hover { color: var(--c-dark); }
+.tb-preview-tab.active { color: var(--c-primary); border-bottom-color: var(--c-primary); }
+
+/* ── LyrMgr-Vorschau iframe ── */
+#tb-lm-preview-wrapper { flex: 1; display: none; flex-direction: column; min-height: 0; overflow: hidden; }
+#tb-lm-preview-wrapper.active { display: flex; }
+#tb-lm-preview-toolbar {
+  background: #1e3a4a; color: rgba(255,255,255,.85); padding: 4px 10px;
+  display: flex; align-items: center; gap: 8px; font-size: 11px; flex-shrink: 0;
+}
+#tb-lm-preview-toolbar label { color: rgba(255,255,255,.55); }
+#tb-lm-preview-toolbar select {
+  padding: 2px 4px; font-size: 11px; border: 1px solid rgba(255,255,255,.25); border-radius: 3px;
+  background: rgba(255,255,255,.1); color: #fff; outline: none;
+}
+#tb-lm-preview-toolbar select option { background: #fff; color: #333; }
+#tb-lm-preview-toolbar .lm-prev-reload {
+  margin-left: auto; padding: 2px 8px; font-size: 10px; background: rgba(255,255,255,.15);
+  border: 1px solid rgba(255,255,255,.25); color: #fff; border-radius: 3px; cursor: pointer;
+}
+#tb-lm-preview-toolbar .lm-prev-reload:hover { background: rgba(255,255,255,.25); }
+#tb-lm-preview-iframe { flex: 1; border: none; width: 100%; min-height: 0; }
 .tb-layer-item.selected { background: #e0f0f4; border-left: 3px solid var(--c-primary); }
 .tb-group-card.selected { border-color: var(--c-primary); box-shadow: 0 0 0 2px rgba(100,140,150,.25); }
 .tb-group-layer.selected { background: #d4eaf0; border-left: 3px solid var(--c-primary); }
@@ -528,6 +558,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 }
 .tb-lyrmgr-btn-publish:hover { background: #c9362f; }
 .tb-lyrmgr-btn:disabled { opacity: .4; cursor: default; }
+.tb-btn-sep { width: 1px; background: #d0d5d8; margin: 2px 4px; align-self: stretch; flex-shrink: 0; }
 
 /* ── Tree Items (Lyrmgr mode) ── */
 .tb-tree-item {
@@ -590,6 +621,25 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .tb-verify-bar.all-ok { background: #e8f8ee; border: 1px solid #a6d8b4; color: #2a7; }
 .tb-verify-bar.has-warnings { background: #fefbe8; border: 1px solid #e8d890; color: #886; }
 .tb-verify-bar .vb-jump { cursor: pointer; text-decoration: underline; margin-left: 8px; font-weight: 600; }
+.tb-verify-bar .vb-toggle { cursor: pointer; margin-left: auto; font-size: 11px; padding: 1px 7px; border-radius: 10px; border: 1px solid currentColor; opacity: .75; white-space: nowrap; }
+.tb-verify-bar .vb-toggle:hover { opacity: 1; }
+
+/* Verify Detail-Panel */
+#tb-verify-detail { display: none; border-top: 2px solid #e0e8ec; background: #fff; overflow-y: auto; max-height: 180px; flex-shrink: 0; }
+#tb-verify-detail.open { display: block; }
+.vd-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+.vd-table th { position: sticky; top: 0; background: #f5f7f9; font-weight: 600; font-size: 10px; text-transform: uppercase; color: #888; padding: 4px 8px; border-bottom: 1px solid #dde3e7; text-align: left; white-space: nowrap; }
+.vd-table td { padding: 3px 8px; border-bottom: 1px solid #f0f3f5; vertical-align: middle; }
+.vd-table tr:last-child td { border-bottom: none; }
+.vd-table tr.vd-error td { background: #fff5f5; }
+.vd-table tr.vd-warn td { background: #fffdf0; }
+.vd-table tr:hover td { background: #eef4ff !important; cursor: pointer; }
+.vd-type { font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 8px; white-space: nowrap; }
+.vd-type.err { background: #fde; color: #b33; }
+.vd-type.warn { background: #fef9de; color: #886; }
+.vd-id { font-family: Consolas, monospace; color: #333; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vd-cat { color: #777; font-size: 10px; }
+.vd-hint { color: #aaa; font-size: 10px; font-style: italic; }
 
 /* ── Kontext-Menü ── */
 .tb-ctx-menu {
@@ -1034,6 +1084,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
         </div>
         <div class="tb-tree-actions" id="tb-tree-actions"></div>
         <div class="tb-tree-body" id="tb-tree-body"></div>
+        <div id="tb-verify-detail"></div>
       </div>
       <div class="tb-json-resize" id="tb-json-resize"></div>
       <div class="tb-json-panel tb-hidden" id="tb-json-panel">
@@ -1055,20 +1106,49 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
       <h2>Vorschau</h2>
       <span class="badge" id="tb-preview-layer-type"></span>
     </div>
-    <div class="tb-preview-controls">
-      <label>Base:</label>
-      <select id="tb-basemap-select">
-        <option value="pk_grau" selected>Pixelkarte grau</option>
-        <option value="pk_farbe">Pixelkarte farbig</option>
-        <option value="swissimage">Swissimage</option>
-        <option value="leer">Leer (weiss)</option>
-      </select>
-      <label>Transparenz:</label>
-      <input type="range" id="tb-opacity-slider" min="0" max="100" value="50">
-      <span class="opacity-val" id="tb-opacity-val">50%</span>
+
+    <!-- Sub-Tab-Leiste -->
+    <div class="tb-preview-tabs">
+      <button class="tb-preview-tab active" data-preview-tab="layer">Layer-Info</button>
+      <button class="tb-preview-tab" data-preview-tab="lyrmgr">LyrMgr-Vorschau</button>
     </div>
-    <div id="tb-preview-map"><div class="tb-preview-hint">Layer anklicken für Vorschau</div></div>
-    <div class="tb-preview-info" id="tb-preview-info"></div>
+
+    <!-- Tab: Layer-Info (bisherige Inhalte) -->
+    <div id="tb-preview-layer-tab" style="display:flex;flex-direction:column;flex:1;min-height:0;">
+      <div class="tb-preview-controls">
+        <label>Base:</label>
+        <select id="tb-basemap-select">
+          <option value="pk_grau" selected>Pixelkarte grau</option>
+          <option value="pk_farbe">Pixelkarte farbig</option>
+          <option value="swissimage">Swissimage</option>
+          <option value="leer">Leer (weiss)</option>
+        </select>
+        <label>Transparenz:</label>
+        <input type="range" id="tb-opacity-slider" min="0" max="100" value="50">
+        <span class="opacity-val" id="tb-opacity-val">50%</span>
+      </div>
+      <div id="tb-preview-map"><div class="tb-preview-hint">Layer anklicken für Vorschau</div></div>
+      <div class="tb-preview-info" id="tb-preview-info"></div>
+    </div>
+
+    <!-- Tab: LyrMgr-Vorschau -->
+    <div id="tb-lm-preview-wrapper">
+      <div id="tb-lm-preview-toolbar">
+        <label>Panel:</label>
+        <select id="tb-lm-panel-select">
+          <option value="tree">Themenkatalog</option>
+          <option value="both" selected>Beide</option>
+          <option value="active">Dargestellte Themen</option>
+        </select>
+        <label style="margin-left:8px">Quelle:</label>
+        <select id="tb-lm-source-select">
+          <option value="file" selected>Dateien (live)</option>
+          <option value="auto">DB</option>
+        </select>
+        <button class="lm-prev-reload" id="tb-lm-prev-reload">&#8635; Neu laden</button>
+      </div>
+      <iframe id="tb-lm-preview-iframe" src="about:blank" title="LyrMgr-Vorschau"></iframe>
+    </div>
   </div>
 
 </div>
@@ -1323,6 +1403,9 @@ var _lockStatusTimer = null;
 var _editorName = localStorage.getItem('treebuilder_editor') || '';
 var _hasLock = false;
 
+console.log('[TB-DIAG v5] Script start — TNET Tree-Builder init');
+window.TB_STARTED = 1;  // Diagnostik: Script hat begonnen
+
 var state = {
   layers: [],           // Flat layer list from API
   stagingMeta: null,    // Staging-Modus: supplements (aliases, maptips, legends)
@@ -1337,6 +1420,7 @@ var state = {
   nextCatId: 1,
   nextSubId: 1
 };
+window.TNET_STATE = state;  // Diagnostik: state auf window exponieren
 
 // Lyrmgr Display-Namen
 var LYRMGR_LABELS = {
@@ -1416,16 +1500,18 @@ function saveToServer() {
 }
 
 function loadState() {
-  // 1. Erst vom Server laden
-  // 2. Fallback: localStorage
+  // Fallback: localStorage
   try {
     var raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return false;
     var saved = JSON.parse(raw);
-    if (saved.groups && saved.groups.length) {
+    // Auch ohne Gruppen wiederherstellen falls Profil oder LyrMgr-Daten vorhanden
+    var hasGroups = !!(saved.groups && saved.groups.length);
+    var hasProfiles = !!(saved.profiles && Object.keys(saved.profiles).length);
+    if (hasGroups || hasProfiles || saved.activeProfile) {
       applyLoadedState(saved);
       showSaveStatus(saved.savedAt);
-      return true;
+      return hasGroups;
     }
   } catch(e) { console.warn('loadState fehlgeschlagen:', e); }
   return false;
@@ -1797,7 +1883,8 @@ function renderLayers(filter) {
   var html = '';
   order.forEach(function(key) {
     var grp = groups[key];
-    var collapsed = (_sourceGroupState[key] === false) ? '' : ' collapsed';
+    // Bei aktivem Suchfilter immer aufklappen, sonst gespeicherter State
+    var collapsed = (q || _sourceGroupState[key] === false) ? '' : ' collapsed';
     // Tooltip: Alle Config-Dateipfade dieser Gruppe sammeln
     var cfgPaths = {};
     grp.items.forEach(function(it) {
@@ -2661,18 +2748,19 @@ function renderTreeTabs() {
     }
   }
 
+  // Gruppe A: Laden | Gruppe B: Prüfen | Gruppe C: Sichern | Gruppe D: Veröffentlichen
   var html = '<div class="tb-lyrmgr-actions">';
-  html += '<button class="tb-lyrmgr-btn" data-action="lyrmgr-import-profile" title="lyrmgr.conf vom Server importieren (aktuelles oder anderes Profil)">📥 Import von Profil</button>';
+  html += '<button class="tb-lyrmgr-btn" data-action="lyrmgr-import-profile" title="lyrmgr.conf vom Server importieren (aktuelles oder anderes Profil)">📥 Von Profil laden</button>';
+  html += '<button class="tb-lyrmgr-btn" data-action="file-import" title="JSON-Backup importieren">📂 Datei laden</button>';
+  html += '<span class="tb-btn-sep"></span>';
   html += '<button class="tb-lyrmgr-btn" data-action="lyrmgr-save" title="Baum als Draft speichern (tmp/layertree)">💾 Speichern</button>';
-  html += '<button class="tb-lyrmgr-btn" data-action="lyrmgr-export" title="Lyrmgr-Block als JSON anzeigen">📤 Export</button>';
   html += '<button class="tb-lyrmgr-btn" data-action="lyrmgr-verify" title="Layer-IDs prüfen">✅ Verify</button>';
-  html += '<button class="tb-lyrmgr-btn" data-action="lyrmgr-roundtrip" title="Prüft ob Export identisch mit dem geladenen Original ist">🔄 Round-Trip</button>';
-  html += '<button class="tb-lyrmgr-btn tb-lyrmgr-btn-publish" data-action="lyrmgr-publish" title="Lyrmgr-Block auf Server publizieren">🚀 Publish</button>';
-  html += '<button class="tb-lyrmgr-btn" id="tb-deploy-conf-btn" data-action="deploy-conf" title="Pending Conf+NLS-Änderungen auf Server deployen" style="display:none">📦 Deploy <span id="tb-pending-edits-count" class="badge" style="background:#e74c3c;color:#fff;font-size:9px;padding:1px 5px;border-radius:8px;margin-left:3px">0</span></button>';
+  html += '<span class="tb-btn-sep"></span>';
+  html += '<button class="tb-lyrmgr-btn" data-action="lyrmgr-export" title="Aktiven LyrMgr-Block als JSON anzeigen (inkl. Round-Trip-Prüfung)">📤 Export</button>';
+  html += '<button class="tb-lyrmgr-btn" data-action="file-export" title="Gesamten Baum aller Profile als JSON-Backup exportieren">📦 Backup</button>';
   html += '<span style="flex:1"></span>';
-  html += '<button class="tb-lyrmgr-btn" data-action="file-import" title="JSON-Datei importieren (z.B. Backup)">📂 Datei-Import</button>';
-  html += '<button class="tb-lyrmgr-btn" data-action="file-export" title="Gesamten Baum als JSON exportieren">💾 Gesamt-Export</button>';
-  html += '<button class="tb-lyrmgr-btn" data-action="file-download" title="Als .json herunterladen">⬇ Download</button>';
+  html += '<button class="tb-lyrmgr-btn" id="tb-deploy-conf-btn" data-action="deploy-conf" title="Pending Conf+NLS-Änderungen auf Server deployen" style="display:none">🚢 Deploy <span id="tb-pending-edits-count" class="badge" style="background:#e74c3c;color:#fff;font-size:9px;padding:1px 5px;border-radius:8px;margin-left:3px">0</span></button>';
+  html += '<button class="tb-lyrmgr-btn tb-lyrmgr-btn-publish" data-action="lyrmgr-publish" title="Alle LyrMgr-Blöcke des Profils auf Server publizieren">🚀 Publish</button>';
   html += '</div>';
   bar.innerHTML = html;
 
@@ -2684,12 +2772,10 @@ function renderTreeTabs() {
       if (action === 'lyrmgr-save') saveLyrmgrDraft();
       if (action === 'lyrmgr-export') exportLyrmgrBlock();
       if (action === 'lyrmgr-verify') verifyLyrmgr();
-      if (action === 'lyrmgr-roundtrip') verifyRoundTrip();
       if (action === 'lyrmgr-publish') publishLyrmgr();
       if (action === 'deploy-conf') deployLayerConfEdits();
       if (action === 'file-import') triggerFileImport();
       if (action === 'file-export') triggerFileExport();
-      if (action === 'file-download') triggerFileDownload();
     });
   });
 }
@@ -6109,19 +6195,25 @@ function convertLyrmgrStructure(structure) {
     cat.id = uid('cat');
     cat.name = catKey;
     cat.key = catKey;
-    // 'items' ist im Original eine Object-Map (Gruppenlayer-Keys → Objekte)
-    // → In ein Array von Gruppenlayer-Objekten umwandeln
-    var grpMap = catData.items || {};
-    cat.items = [];
-    Object.keys(grpMap).forEach(function(grpKey) {
-      var grpData = grpMap[grpKey];
-      var grp = JSON.parse(JSON.stringify(grpData));
-      grp.id = uid('grp');
-      grp.name = grpKey;
-      grp.key = grpKey;
-      grp.items = passItems(grpData.items || []);
-      cat.items.push(grp);
-    });
+    // 'items' kann ein Object-Map (Standard) oder ein Array (Legacy-Format) sein
+    var rawItems = catData.items;
+    if (Array.isArray(rawItems)) {
+      // Array-Format (Flat-Layerliste): direkt als Items übernehmen
+      cat.items = passItems(rawItems);
+    } else {
+      // Object-Map (Gruppenlayer-Keys → Objekte)
+      var grpMap = rawItems || {};
+      cat.items = [];
+      Object.keys(grpMap).forEach(function(grpKey) {
+        var grpData = grpMap[grpKey];
+        var grp = JSON.parse(JSON.stringify(grpData));
+        grp.id = uid('grp');
+        grp.name = grpKey;
+        grp.key = grpKey;
+        grp.items = passItems(grpData.items || []);
+        cat.items.push(grp);
+      });
+    }
     categories.push(cat);
   });
   return categories;
@@ -6318,6 +6410,28 @@ function importLyrmgrFromProfile() {
 }
 
 /**
+ * Lädt den _rawBlock für alle Lyrmgrs eines Profils still vom Server nach.
+ * Wird nach Reload genutzt wenn State aus localStorage kommt (_rawBlock fehlt).
+ * Überschreibt NICHT die aktuellen categories/meta des Profils.
+ */
+function initRawBlocksFromServer(profileName) {
+  fetch(API_URL + '?action=load-lyrmgr&profile=' + encodeURIComponent(profileName))
+    .then(function(r) { return r.json(); })
+    .then(function(json) {
+      if (!json.success || !json.data || !json.data.exists || !json.data.data) return;
+      var confData = json.data.data;
+      var p = state.profiles[profileName];
+      if (!p || !p.lyrmgrs) return;
+      Object.keys(confData).forEach(function(key) {
+        if (p.lyrmgrs[key] && !p.lyrmgrs[key]._rawBlock) {
+          p.lyrmgrs[key]._rawBlock = JSON.parse(JSON.stringify(confData[key]));
+        }
+      });
+    })
+    .catch(function() { /* stilles Scheitern ist OK */ });
+}
+
+/**
  * Lyrmgr.conf für ein Profil vom Server laden und in den State übernehmen.
  * Wird beim Profil-Wechsel automatisch aufgerufen (ohne Confirm).
  */
@@ -6360,6 +6474,7 @@ function loadLyrmgrForProfile(profileName, silent) {
 
       state.groups = deriveGroupsFromLyrmgrs(lyrmgrs);
       state.profiles[profileName] = { lyrmgrs: lyrmgrs };
+      state.activeProfile = profileName;  // sicherstellen dass getActiveTree() nicht null liefert
       state.activeLyrmgr = lyrmgrKeys[0] || null;
 
       renderClipboard();
@@ -6442,7 +6557,7 @@ function checkRoundTripIdentity(tree, lyrmgrKey) {
   var generated = generateLyrmgrConfBlock(tree);
   var original = tree._rawBlock || null;
   if (!original) {
-    return { identical: false, diffs: ['Kein Original-Block vorhanden (_rawBlock fehlt)'], generated: generated, original: null };
+    return { identical: false, diffs: ['Erstmalig publiziert – kein Vorher-Vergleich verfügbar'], generated: generated, original: null };
   }
   var diffs = findBlockDifferences(original, generated, lyrmgrKey);
   return { identical: diffs.length === 0, diffs: diffs, generated: generated, original: original };
@@ -6530,7 +6645,10 @@ function generateLyrmgrConfBlock(treeData) {
     });
   }
 
-  // Structure aufbauen: Kategorie → Object-Map von Gruppenlayern
+  // _rawBlock konsultieren um Original-Format (Array vs Object) pro Kategorie zu bestimmen
+  var rawStructure = (treeData._rawBlock && treeData._rawBlock.structure) ? treeData._rawBlock.structure : {};
+
+  // Structure aufbauen: Kategorie → Object-Map oder Array von Gruppenlayern
   var structure = {};
   (treeData.categories || []).forEach(function(cat) {
     var catKey = cat.key || cat.name;
@@ -6539,22 +6657,33 @@ function generateLyrmgrConfBlock(treeData) {
     Object.keys(cat).forEach(function(k) {
       if (!skipCatKeys[k]) catObj[k] = cat[k];
     });
-    catObj.items = {};
 
-    // Jeder Top-Level Gruppenlayer → Object-Map Eintrag
-    (cat.items || []).forEach(function(item) {
-      if (typeof item === 'object' && item !== null && item.key) {
-        var grpKey = item.key;
-        var grpObj = {};
-        var skipGrpKeys = { id: 1, name: 1, key: 1, items: 1 };
-        Object.keys(item).forEach(function(k) {
-          if (!skipGrpKeys[k]) grpObj[k] = item[k];
-        });
-        grpObj.items = serializeItems(item.items || []);
-        catObj.items[grpKey] = grpObj;
-      }
-      // Bare Strings auf Top-Level: werden ignoriert (müssen in Gruppenlayer sein)
-    });
+    // Format aus _rawBlock ableiten: Array-Format beibehalten
+    var rawCat = rawStructure[catKey] || null;
+    var usesArrayFormat = rawCat && Array.isArray(rawCat.items);
+
+    if (usesArrayFormat) {
+      // Original war Array-Format (Flat-Layerliste) → als Array serialisieren
+      catObj.items = serializeItems(cat.items || []);
+    } else {
+      catObj.items = {};
+      // Jeder Top-Level Gruppenlayer → Object-Map Eintrag
+      (cat.items || []).forEach(function(item) {
+        if (typeof item === 'object' && item !== null && item.key) {
+          var grpKey = item.key;
+          var grpObj = {};
+          var skipGrpKeys = { id: 1, name: 1, key: 1, items: 1 };
+          Object.keys(item).forEach(function(k) {
+            if (!skipGrpKeys[k]) grpObj[k] = item[k];
+          });
+          grpObj.items = serializeItems(item.items || []);
+          catObj.items[grpKey] = grpObj;
+        } else if (typeof item === 'string') {
+          // Bare Layer-ID direkt unter Kategorie → als Einzel-Gruppe speichern
+          catObj.items[item] = { items: [item] };
+        }
+      });
+    }
 
     structure[catKey] = catObj;
   });
@@ -6600,10 +6729,11 @@ function verifyLyrmgr() {
   });
 
   // Visuelles Feedback im Tree: Klassen setzen
+  // data-layer-id ist zuverlässiger als title (title enthält ggf. " (kein NLS)")
   document.querySelectorAll('.tb-tree-item').forEach(function(el) {
-    var title = el.querySelector('.tiname');
-    if (!title) return;
-    var lid = title.getAttribute('title') || title.textContent;
+    var nameEl = el.querySelector('.tiname[data-layer-id]');
+    if (!nameEl) return;
+    var lid = nameEl.getAttribute('data-layer-id');
     el.classList.remove('verify-ok', 'verify-missing', 'verify-warn');
     var isMissing = missing.some(function(m) { return m.id === lid; });
     var isDup = duplicates.some(function(d) { return d.id === lid; });
@@ -6639,39 +6769,167 @@ function verifyLyrmgr() {
 
   var summary = '✅ ' + found + '/' + total + ' OK';
   if (missing.length) summary += ' · ❌ ' + missing.length + ' fehlend';
-  if (duplicates.length) summary += ' · ⚠ ' + duplicates.length + ' Duplikate';
-  barEl.innerHTML = '<span>' + summary + '</span>';
+  if (duplicates.length) summary += ' · ⚠ ' + duplicates.length + ' Duplikat' + (duplicates.length > 1 ? 'e' : '');
 
-  // Sprung-Buttons für Fehler und Warnungen
-  if (hasErrors) {
-    var jumpErr = document.createElement('span');
-    jumpErr.className = 'vb-jump';
-    jumpErr.textContent = '→ Zum ersten Fehler';
-    jumpErr.addEventListener('click', function() { scrollToFirstVerify('verify-missing'); });
-    barEl.appendChild(jumpErr);
+  var detailEl = document.getElementById('tb-verify-detail');
+  var isOpen = detailEl && detailEl.classList.contains('open');
+
+  var toggleCount = (hasErrors || hasWarnings) ? (missing.length + duplicates.length) : 0;
+  barEl.innerHTML = '<span>' + summary + '</span>';
+  if (toggleCount > 0) {
+    var tog = document.createElement('span');
+    tog.className = 'vb-toggle';
+    tog.textContent = (isOpen ? '▲' : '▼') + ' Details';
+    tog.addEventListener('click', function() {
+      if (!detailEl) return;
+      var nowOpen = detailEl.classList.toggle('open');
+      tog.textContent = (nowOpen ? '▲' : '▼') + ' Details';
+    });
+    barEl.appendChild(tog);
   }
-  if (hasWarnings) {
-    var jumpWarn = document.createElement('span');
-    jumpWarn.className = 'vb-jump';
-    jumpWarn.textContent = '→ Erste Warnung';
-    jumpWarn.style.color = '#886';
-    jumpWarn.addEventListener('click', function() { scrollToFirstVerify('verify-warn'); });
-    barEl.appendChild(jumpWarn);
+
+  // Detail-Tabelle aufbauen
+  if (detailEl) {
+    if (!hasErrors && !hasWarnings) {
+      detailEl.classList.remove('open');
+      detailEl.innerHTML = '';
+    } else {
+      var rows = '';
+      missing.forEach(function(m) {
+        rows += '<tr class="vd-error" data-layer-id="' + m.id.replace(/"/g, '&quot;') + '">';
+        rows += '<td><span class="vd-type err">Fehler</span></td>';
+        rows += '<td class="vd-id" title="' + m.id.replace(/"/g, '&quot;') + '">' + m.id + '</td>';
+        rows += '<td class="vd-cat">' + (m.cat || '—') + '</td>';
+        rows += '<td class="vd-hint">Layer-ID nicht in geladenen Layer-Daten</td>';
+        rows += '</tr>';
+      });
+      duplicates.forEach(function(d) {
+        rows += '<tr class="vd-warn" data-layer-id="' + d.id.replace(/"/g, '&quot;') + '">';
+        rows += '<td><span class="vd-type warn">Duplikat</span></td>';
+        rows += '<td class="vd-id" title="' + d.id.replace(/"/g, '&quot;') + '">' + d.id + '</td>';
+        rows += '<td class="vd-cat">' + (d.cat || '—') + '</td>';
+        rows += '<td class="vd-hint">Bereits in «' + (d.firstCat || '?') + '» vorhanden</td>';
+        rows += '</tr>';
+      });
+      detailEl.innerHTML = '<table class="vd-table"><thead><tr>'
+        + '<th>Typ</th><th>Layer-ID</th><th>Kategorie</th><th>Hinweis</th>'
+        + '</tr></thead><tbody>' + rows + '</tbody></table>';
+
+      // Klick auf Zeile → im Baum anspringen
+      detailEl.querySelectorAll('tr[data-layer-id]').forEach(function(row) {
+        row.addEventListener('click', function() {
+          scrollToVerifyItem(this.dataset.layerId);
+        });
+      });
+
+      // Öffnen wenn es Fehler/Warnungen gibt (beim ersten Verify automatisch öffnen)
+      detailEl.classList.add('open');
+      if (toggleCount > 0 && barEl.querySelector('.vb-toggle')) {
+        barEl.querySelector('.vb-toggle').textContent = '▲ Details';
+      }
+    }
+  }
+
+  // ── Legende-Keys asynchron prüfen ──
+  var _legendKeyMap = {};
+  var _layerLegendLookup = {};
+  state.layers.forEach(function(l) {
+    if (l.legend) _layerLegendLookup[l.id] = l.legend;
+  });
+  function _collectLegendKeys(items, catName) {
+    (items || []).forEach(function(item) {
+      if (typeof item === 'string') {
+        var lk = _layerLegendLookup[item];
+        if (lk && !_legendKeyMap[lk]) _legendKeyMap[lk] = { cat: catName };
+      } else if (typeof item === 'object' && item !== null) {
+        if (item.legend && !_legendKeyMap[item.legend]) {
+          _legendKeyMap[item.legend] = { cat: catName };
+        }
+        if (item.items) _collectLegendKeys(item.items, catName);
+      }
+    });
+  }
+  (tree.categories || []).forEach(function(cat) {
+    _collectLegendKeys(cat.items || [], cat.name || cat.key || '?');
+  });
+
+  var _legendKeyList = Object.keys(_legendKeyMap);
+  if (_legendKeyList.length) {
+    fetch(API_URL + '?action=check-legend-keys', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ keys: _legendKeyList, profile: state.activeProfile || null })
+    }).then(function(r) { return r.json(); })
+    .then(function(json) {
+      var unresLegend = (json.data || {}).unresolved || [];
+      if (!unresLegend.length) return;
+
+      // Detail-Tabelle sicherstellen
+      if (!detailEl) return;
+      var tbody = detailEl.querySelector('tbody');
+      if (!tbody) {
+        // Tabelle noch nicht vorhanden (kein Fehler/Duplikat) → neu anlegen
+        detailEl.innerHTML = '<table class="vd-table"><thead><tr>'
+          + '<th>Typ</th><th>Key</th><th>Kategorie</th><th>Hinweis</th>'
+          + '</tr></thead><tbody></tbody></table>';
+        tbody = detailEl.querySelector('tbody');
+      }
+
+      // Warnung-Zeilen anhängen
+      unresLegend.forEach(function(key) {
+        var info = _legendKeyMap[key] || {};
+        var tr = document.createElement('tr');
+        tr.className = 'vd-warn';
+        tr.setAttribute('data-layer-id', '');
+        tr.innerHTML = '<td><span class="vd-type warn">Legende</span></td>'
+          + '<td class="vd-id" title="' + key.replace(/"/g, '&quot;') + '">' + key + '</td>'
+          + '<td class="vd-cat">' + (info.cat || '—') + '</td>'
+          + '<td class="vd-hint">Legend-Key «' + key + '» nicht in legendResources gefunden</td>';
+        tbody.appendChild(tr);
+      });
+
+      // Summary-Bar aktualisieren
+      var totalWarn = duplicates.length + unresLegend.length;
+      var newSummary = '✅ ' + found + '/' + total + ' OK';
+      if (missing.length) newSummary += ' · ❌ ' + missing.length + ' fehlend';
+      if (totalWarn) newSummary += ' · ⚠ ' + totalWarn + ' Warnung' + (totalWarn > 1 ? 'en' : '');
+      var sumSpan = barEl.querySelector('span');
+      if (sumSpan) sumSpan.textContent = newSummary;
+
+      barEl.classList.remove('all-ok');
+      barEl.classList.add('has-warnings');
+
+      // Toggle-Button hinzufügen falls noch nicht vorhanden
+      if (!barEl.querySelector('.vb-toggle')) {
+        var togNew = document.createElement('span');
+        togNew.className = 'vb-toggle';
+        togNew.textContent = '▲ Details';
+        togNew.addEventListener('click', function() {
+          var nowOpen = detailEl.classList.toggle('open');
+          togNew.textContent = (nowOpen ? '▲' : '▼') + ' Details';
+        });
+        barEl.appendChild(togNew);
+      }
+      detailEl.classList.add('open');
+    })
+    .catch(function() { /* Legend-Check-Fehler werden ignoriert */ });
   }
 }
 
-/**
- * Scrollt zum ersten Element mit der angegebenen Verify-Klasse
- * und klappt übergeordnete Kategorien/Gruppen auf.
- */
-function scrollToFirstVerify(cls) {
-  var el = document.querySelector('.tb-tree-item.' + cls);
-  if (!el) { el = document.querySelector('.' + cls); }
+function scrollToVerifyItem(layerId) {
+  // Element anhand Layer-ID im Baum suchen
+  var allItems = document.querySelectorAll('.tb-tree-item .tiname[data-layer-id]');
+  var el = null;
+  for (var _vi = 0; _vi < allItems.length; _vi++) {
+    if (allItems[_vi].getAttribute('data-layer-id') === layerId) {
+      el = allItems[_vi].closest('.tb-tree-item');
+      break;
+    }
+  }
   if (!el) return;
-
-  // Übergeordnete Kategorien und Gruppen aufklappen
+  // Aufklapp-Logik: Elternelemente bis tb-tree-body aufklappen
   var parent = el.parentElement;
-  while (parent) {
+  while (parent && !parent.classList.contains('tb-tree-body')) {
     if (parent.classList.contains('tb-tree-cat-body')) {
       parent.style.display = '';
       var catHead = parent.previousElementSibling;
@@ -6694,19 +6952,13 @@ function scrollToFirstVerify(cls) {
     parent = parent.parentElement;
   }
 
-  // Im .tb-tree-body Container scrollen (hat overflow-y: auto)
-  var container = document.getElementById('tb-tree-body');
-  if (container) {
-    var containerRect = container.getBoundingClientRect();
-    var elRect = el.getBoundingClientRect();
-    var scrollTarget = container.scrollTop + (elRect.top - containerRect.top) - (containerRect.height / 2) + (elRect.height / 2);
-    container.scrollTo({ top: Math.max(0, scrollTarget), behavior: 'smooth' });
-  }
-
-  // Highlight
-  el.style.transition = 'box-shadow .2s';
-  el.style.boxShadow = '0 0 0 3px rgba(75,123,129,.6)';
-  setTimeout(function() { el.style.boxShadow = ''; }, 2000);
+  // scrollIntoView ist zuverlässiger als manuelle getBoundingClientRect-Berechnung.
+  setTimeout(function() {
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    el.style.transition = 'box-shadow .3s';
+    el.style.boxShadow = '0 0 0 3px rgba(180,50,50,.6)';
+    setTimeout(function() { el.style.boxShadow = ''; }, 2500);
+  }, 80);
 }
 
 // ===== DRAFT SPEICHERN/LADEN =====
@@ -7108,6 +7360,12 @@ function publishLyrmgr() {
     .then(function(json) {
       var d = json.data || json;
       if (d.published) {
+        // Publizierten Stand als neues Original speichern → zukünftige Round-Trip-Checks stimmen
+        Object.keys(confData).forEach(function(key) {
+          if (p.lyrmgrs[key]) p.lyrmgrs[key]._rawBlock = JSON.parse(JSON.stringify(confData[key]));
+        });
+        // Vorschau nach Publish sofort aktualisieren
+        updateLmPreviewIframe();
         _tbAlert('Publiziert (SFTP)', 'Profil: ' + esc(profileName) + '<br>' +
           'Blöcke: ' + blockKeys.length + '<br>' +
           'Pfad: ' + esc(d.path || '') + '<br>' +
@@ -7125,13 +7383,16 @@ function publishLyrmgr() {
 
 /**
  * Verfügbare Lyrmgr-Profile vom Server laden und Dropdown befüllen.
+ * @param {Function} [onReady] Optionaler Callback nach dem Befüllen.
  */
-function loadAvailableProfiles() {
+function loadAvailableProfiles(onReady) {
+  console.log('[TB-DIAG v5] loadAvailableProfiles() aufgerufen');
   var sel = document.getElementById('tb-profile-select');
   fetch(API_URL + '?action=list-lyrmgr-profiles')
     .then(function(r) { return r.json(); })
     .then(function(json) {
-      if (!json.success || !json.data) return;
+      console.log('[TB-DIAG v5] list-lyrmgr-profiles Antwort: success=' + json.success + ' data-count=' + (json.data ? json.data.length : 'null'));
+      if (!json.success || !json.data) { if (onReady) onReady(); return; }
       // Bestehende Optionen (ausser default) entfernen
       while (sel.options.length > 1) sel.remove(1);
       json.data.forEach(function(p) {
@@ -7139,7 +7400,6 @@ function loadAvailableProfiles() {
         opt.value = p.profile;
         opt.textContent = p.profile + ' (' + p.lyrmgrKeys.length + ' LM)';
         opt.title = p.path + ' — ' + p.modified;
-        if (p.profile === state.activeProfile) opt.selected = true;
         sel.appendChild(opt);
       });
       // Auch lokale Profile hinzufügen die nicht vom Server kommen
@@ -7151,13 +7411,17 @@ function loadAvailableProfiles() {
         if (!exists) {
           var opt = document.createElement('option');
           opt.value = pName; opt.textContent = pName + ' (lokal)';
-          if (pName === state.activeProfile) opt.selected = true;
           sel.appendChild(opt);
         }
       });
+      // Dropdown auf aktives Profil setzen (Option existiert jetzt)
+      console.log('[TB-DIAG v5] Dropdown befüllt: ' + sel.options.length + ' Optionen, activeProfile=' + state.activeProfile);
+      if (state.activeProfile) sel.value = state.activeProfile;
+      if (onReady) onReady();
     })
     .catch(function(err) {
-      console.warn('Profile laden fehlgeschlagen:', err);
+      console.warn('[TB-DIAG v5] Profile laden fehlgeschlagen:', err);
+      if (onReady) onReady();
     });
 }
 
@@ -7172,7 +7436,65 @@ document.getElementById('tb-profile-select').addEventListener('change', function
   saveState();
   // Layer für neues Profil laden (core + override + profil-spezifisch)
   loadLayers(profile);
+  // LyrMgr-Vorschau iframe aktualisieren
+  updateLmPreviewIframe();
 });
+
+// ===== LyrMgr-Vorschau Sub-Tabs =====
+function buildLmPreviewUrl(panel) {
+  var group = state.activeProfile || 'public';
+  var p = panel || document.getElementById('tb-lm-panel-select').value || 'both';
+  var src = (document.getElementById('tb-lm-source-select') || {}).value || 'file';
+  return '/maps/tnet/api/v1/dev-test.html?group=' + encodeURIComponent(group) + '&panel=' + p + '&source=' + src;
+}
+function updateLmPreviewIframe() {
+  var iframe = document.getElementById('tb-lm-preview-iframe');
+  var wrapper = document.getElementById('tb-lm-preview-wrapper');
+  if (iframe && wrapper.classList.contains('active')) {
+    iframe.src = buildLmPreviewUrl();
+  }
+}
+
+(function() {
+  var tabs = document.querySelectorAll('.tb-preview-tab');
+  var layerTab = document.getElementById('tb-preview-layer-tab');
+  var lmWrapper = document.getElementById('tb-lm-preview-wrapper');
+
+  tabs.forEach(function(tab) {
+    tab.addEventListener('click', function() {
+      tabs.forEach(function(t) { t.classList.remove('active'); });
+      this.classList.add('active');
+      var which = this.dataset.previewTab;
+      if (which === 'lyrmgr') {
+        layerTab.style.display = 'none';
+        lmWrapper.classList.add('active');
+        // Iframe erst beim ersten Öffnen laden
+        var iframe = document.getElementById('tb-lm-preview-iframe');
+        if (iframe.src === 'about:blank' || iframe.src === '') {
+          iframe.src = buildLmPreviewUrl();
+        }
+      } else {
+        lmWrapper.classList.remove('active');
+        layerTab.style.display = '';
+      }
+    });
+  });
+
+  document.getElementById('tb-lm-panel-select').addEventListener('change', function() {
+    var iframe = document.getElementById('tb-lm-preview-iframe');
+    iframe.src = buildLmPreviewUrl(this.value);
+  });
+
+  document.getElementById('tb-lm-source-select').addEventListener('change', function() {
+    var iframe = document.getElementById('tb-lm-preview-iframe');
+    iframe.src = buildLmPreviewUrl();
+  });
+
+  document.getElementById('tb-lm-prev-reload').addEventListener('click', function() {
+    var iframe = document.getElementById('tb-lm-preview-iframe');
+    iframe.src = buildLmPreviewUrl();
+  });
+})();
 
 // =====================================================================
 // Panel-Toggles + JSON-Editor
@@ -7282,29 +7604,41 @@ document.getElementById('tb-json-apply').addEventListener('click', function() {
 });
 
 // =====================================================================
-// Init
+// Init — sequenziell: erst Profile laden, dann Lyrmgr
 // =====================================================================
-// Gespeicherten State zuerst wiederherstellen (damit activeProfile bekannt ist)
 var restored = loadState();
-// Layer laden für aktives Profil (immer über list-all-layers)
-var _initProfile = state.activeProfile || 'public';
-loadLayers(_initProfile);
-// Lyrmgr.conf vom Server laden falls Profil vorhanden aber Tree noch leer
-var _initProfData = state.profiles[_initProfile];
-if (!_initProfData || !_initProfData.lyrmgrs || Object.keys(_initProfData.lyrmgrs).length === 0) {
-  loadLyrmgrForProfile(_initProfile, true);
-} else {
-  renderClipboard();
-  renderTreeTabs();
-  renderTree();
-}
-// Verfügbare Profile vom Server laden
-loadAvailableProfiles();
-// Profil-Dropdown synchronisieren
-if (state.activeProfile) {
-  document.getElementById('tb-profile-select').value = state.activeProfile;
-}
-if (restored) console.log('Tree-Builder: State aus localStorage wiederhergestellt (' + state.groups.length + ' Gruppen, Profil: ' + state.activeProfile + ', LyrMgr: ' + state.activeLyrmgr + ')');
+if (restored) console.log('Tree-Builder: State aus localStorage wiederhergestellt (Profil: ' + state.activeProfile + ', LyrMgr: ' + state.activeLyrmgr + ')');
+
+// Schritt 1: Profile-Dropdown befüllen
+loadAvailableProfiles(function() {
+  console.log('[TB-DIAG v5] Callback gefeuert — activeProfile=' + state.activeProfile);
+  // Schritt 2: Profil bestimmen (aus localStorage oder Default 'public')
+  var _initProfile = state.activeProfile || 'public';
+  if (!state.activeProfile) state.activeProfile = _initProfile;
+  // Dropdown auf aktives Profil setzen (Optionen existieren jetzt)
+  document.getElementById('tb-profile-select').value = _initProfile;
+
+  // Schritt 3: Layer laden (parallel, kein Blocking)
+  console.log('[TB-DIAG v5] loadLayers(' + _initProfile + ')');
+  loadLayers(_initProfile);
+
+  // Schritt 4: Lyrmgr laden oder aus localStorage rendern
+  var _initProfData = state.profiles[_initProfile];
+  var _hasLyrmgrs = _initProfData && _initProfData.lyrmgrs && Object.keys(_initProfData.lyrmgrs).length > 0;
+  console.log('[TB-DIAG v5] hasLyrmgrs=' + _hasLyrmgrs + ' initProfData=' + !!_initProfData);
+  if (_hasLyrmgrs) {
+    // State aus localStorage: direkt rendern
+    renderClipboard();
+    renderTreeTabs();
+    renderTree();
+    // _rawBlock still vom Server nachladen
+    initRawBlocksFromServer(_initProfile);
+  } else {
+    // Lyrmgr.conf vom Server laden
+    console.log('[TB-DIAG v5] loadLyrmgrForProfile(' + _initProfile + ')');
+    loadLyrmgrForProfile(_initProfile, true);
+  }
+});
 </script>
 <script src="https://cdn.jsdelivr.net/npm/ol@10.8.0/dist/ol.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.9.0/proj4.js"></script>

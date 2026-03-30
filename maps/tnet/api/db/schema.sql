@@ -546,6 +546,26 @@ CREATE TRIGGER trg_nls_resource_updated    BEFORE UPDATE ON mapplusconf.nls_reso
 
 
 -- ============================================================================
+-- TABELLE: ags_import_history — Import-Audit-Log für AGS-Dienste
+-- Jeder Import-Lauf erzeugt eine Zeile pro Dienst (volle Historie)
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS mapplusconf.ags_import_history (
+    id              SERIAL       PRIMARY KEY,
+    service_name    TEXT         NOT NULL,       -- z.B. "ewn/ewn_nis_gwr"
+    hash            TEXT,                        -- Hash vom AGS-Service zum Zeitpunkt des Imports
+    published_at    TEXT,                        -- Publikationszeitpunkt (von GAPI)
+    published_by    TEXT,                        -- Publiziert durch (von GAPI)
+    imported_at     TIMESTAMPTZ  NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_ags_import_svc
+    ON mapplusconf.ags_import_history (service_name, imported_at DESC);
+
+COMMENT ON TABLE mapplusconf.ags_import_history
+    IS 'Audit-Log: Jeder AGS-Import-Lauf erzeugt eine Zeile pro Dienst. Ermöglicht Hash-Vergleich und Zeitverlauf.';
+
+
+-- ============================================================================
 -- GRANTS: API-Benutzer (read-only) und Import-Benutzer (read-write)
 -- Diese Rollen müssen ggf. angepasst oder erstellt werden.
 -- ============================================================================

@@ -80,9 +80,19 @@
     var spring = document.getElementById('spring');
     if (!spring) return Math.round(window.innerHeight - 150);
 
-    // #spring's computed max-height (Browser löst calc() in Pixel auf)
-    var springMaxH = parseFloat(window.getComputedStyle(spring).maxHeight);
-    if (isNaN(springMaxH) || springMaxH <= 0) {
+    // #spring's verfügbare Höhe ermitteln:
+    // Wenn Spatial-Query angedockt → CSS max-height ist 100% → computedStyle liefert keine Pixel.
+    // Daher: offsetHeight als primäre Quelle, computedStyle als Fallback.
+    var springMaxH;
+    var computedMax = window.getComputedStyle(spring).maxHeight;
+    if (computedMax && computedMax.indexOf('px') !== -1) {
+      springMaxH = parseFloat(computedMax);
+    }
+    if (!springMaxH || isNaN(springMaxH) || springMaxH <= 0) {
+      // offsetHeight = tatsächlich gerenderte Höhe (funktioniert immer)
+      springMaxH = spring.offsetHeight;
+    }
+    if (!springMaxH || springMaxH <= 0) {
       springMaxH = window.innerHeight - 105;
     }
 
@@ -173,67 +183,39 @@
    *     damit das CSS-Fallback (var(--tnet-active-height, 300px)) greift
    *     selbst wenn der Container noch nicht existiert.
    */
+  // ===== DOM-ELEMENT-CACHE (einmalig beim DragStart befüllt) =====
+  var _elCache = {};
+
+  function buildElCache() {
+    _elCache = {};
+    CONFIG.panels.forEach(function (p) {
+      var paneEl = document.getElementById(p.id);
+      if (!paneEl) return;
+      _elCache[p.id] = {
+        pane: paneEl,
+        content: paneEl.querySelector('.tnet-panel-content') || paneEl.querySelector('.dijitTitlePaneContentOuter')
+      };
+    });
+    _elCache.tree = document.getElementById('lm-tree-container');
+    _elCache.active = document.getElementById('lm-active-container');
+    _elCache.kantons = document.getElementById('kantons_container');
+    _elCache.useTree = _useNewTree || !!_elCache.tree;
+    _elCache.useActive = _useNewActivePanel || !!_elCache.active;
+    _elCache.docEl = document.documentElement;
+  }
+
   function applyHeight(panelCfg, height) {
     var clamped = Math.max(panelCfg.minHeight, Math.min(height, panelCfg.maxHeight || getMaxHeight(panelCfg.id)));
-    var paneEl = document.getElementById(panelCfg.id);
-    if (!paneEl) return clamped;
-    var useTreeNow = _useNewTree || hasNewTreeContainer();
-    var useActiveNow = _useNewActivePanel || hasNewActiveContainer();
 
-    // Content-Wrapper: bei details→.tnet-panel-content, bei Dojo→.dijitTitlePaneContentOuter
-    var contentOuter = paneEl.querySelector('.tnet-panel-content') || paneEl.querySelector('.dijitTitlePaneContentOuter');
-
+    // Optimierung: NUR die CSS-Variable setzen.
+    // Die CSS-Regeln in tnet-sidepanel.css referenzieren diese Variablen
+    // bereits mit !important → kein style.cssText / setProperty nötig.
+    // Ein einziger Custom-Property-Write pro Panel statt 3-4 style-Writes = deutlich weniger Reflows.
+    var docEl = _elCache.docEl || document.documentElement;
     if (panelCfg.id === 'tp_overview_menu') {
-      // CSS-Variable setzen
-      document.documentElement.style.setProperty('--tnet-catalog-height', clamped + 'px');
-
-      if (useTreeNow) {
-        var treeContainer = document.getElementById('lm-tree-container');
-        if (treeContainer) {
-          treeContainer.style.setProperty('max-height', clamped + 'px', 'important');
-          treeContainer.style.setProperty('height', clamped + 'px', 'important');
-          // Flex-Column Layout: Container hidden, nur .lm-cat-content scrollt (via CSS)
-          treeContainer.style.setProperty('overflow', 'hidden', 'important');
-        }
-        if (contentOuter) {
-          contentOuter.style.setProperty('height', (clamped + 10) + 'px', 'important');
-        }
-        var kantonsContainer = document.getElementById('kantons_container');
-        if (kantonsContainer) {
-          kantonsContainer.style.setProperty('height', (clamped + 10) + 'px', 'important');
-        }
-      } else {
-        var kantonsContainer = document.getElementById('kantons_container');
-        if (kantonsContainer) {
-          kantonsContainer.style.setProperty('height', clamped + 'px', 'important');
-        }
-        if (contentOuter) {
-          contentOuter.style.setProperty('height', clamped + 'px', 'important');
-        }
-      }
+      docEl.style.setProperty('--tnet-catalog-height', clamped + 'px');
     } else if (panelCfg.id === 'tp_sort_menu') {
-      document.documentElement.style.setProperty('--tnet-active-height', clamped + 'px');
-
-      if (useActiveNow) {
-        var activeContainer = document.getElementById('lm-active-container');
-        if (activeContainer) {
-          activeContainer.style.setProperty('max-height', clamped + 'px', 'important');
-          activeContainer.style.setProperty('height', clamped + 'px', 'important');
-          activeContainer.style.setProperty('overflow-y', 'auto', 'important');
-          activeContainer.style.setProperty('overflow-x', 'hidden', 'important');
-        }
-        if (contentOuter) {
-          contentOuter.style.setProperty('height', (clamped + 10) + 'px', 'important');
-          contentOuter.style.setProperty('max-height', (clamped + 10) + 'px', 'important');
-          contentOuter.style.setProperty('overflow-y', 'auto', 'important');
-        }
-      } else {
-        if (contentOuter) {
-          contentOuter.style.setProperty('height', clamped + 'px', 'important');
-          contentOuter.style.setProperty('max-height', clamped + 'px', 'important');
-          contentOuter.style.setProperty('overflow-y', 'auto', 'important');
-        }
-      }
+      docEl.style.setProperty('--tnet-active-height', clamped + 'px');
     }
 
     return clamped;
@@ -328,7 +310,11 @@
       e.stopPropagation();
 
       isDragging = true;
+      _rafPending = false;
       startY = e.type === 'touchstart' ? e.touches[0].clientY : e.clientY;
+
+      // DOM-Element-Cache einmalig aufbauen (kein getElementById während Drag)
+      buildElCache();
 
       // Alle Werte EINMALIG berechnen (kein DOM-Read während Drag)
       // useActual wird erst nach Sibling-Bestimmung korrigiert (s.u.)
@@ -372,13 +358,24 @@
       document.addEventListener('touchend', onDragEnd);
     }
 
+    var _rafPending = false;
+    var _pendingClientY = 0;
+
     function onDragMove(e) {
       if (!isDragging) return;
       e.preventDefault();
 
-      var clientY = e.type === 'touchmove' ? e.touches[0].clientY : e.clientY;
-      var deltaY = clientY - startY;
-      var newHeight = startHeight + deltaY;
+      _pendingClientY = e.type === 'touchmove' ? e.touches[0].clientY : e.clientY;
+
+      // RAF-Throttle: DOM-Writes nur 1× pro Frame
+      if (_rafPending) return;
+      _rafPending = true;
+      requestAnimationFrame(function () {
+        _rafPending = false;
+        if (!isDragging) return;
+
+        var deltaY = _pendingClientY - startY;
+        var newHeight = startHeight + deltaY;
 
       // Clampen auf min/max
       newHeight = Math.max(panelCfg.minHeight, newHeight);
@@ -404,6 +401,7 @@
       }
 
       lastAppliedHeight = applyHeight(panelCfg, newHeight);
+      }); // Ende requestAnimationFrame
     }
 
     function onDragEnd() {
@@ -753,6 +751,7 @@
   window.TnetAccordionResize = {
     init: init,
     applyHeight: applyHeight,
+    scheduleRefresh: scheduleRefresh,
     CONFIG: CONFIG
   };
 

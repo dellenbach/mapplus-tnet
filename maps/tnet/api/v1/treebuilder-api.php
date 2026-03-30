@@ -31,6 +31,8 @@ header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, X-Editor-Name');
 
+require_once __DIR__ . '/../includes/Database.php';
+
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(204);
     exit;
@@ -813,7 +815,8 @@ define('IMPORT_TO_CORE_DIR', '/data/Client_Data/nwow/tmp/ImportToCore');
  * Verfügbare AGS-Dienste von der externen API abrufen
  */
 function getAgsServices() {
-    $url = AGS_API_BASE . '/get-ags-services';
+    $details = isset($_GET['details']) && $_GET['details'] === 'true';
+    $url = AGS_API_BASE . '/get-ags-services' . ($details ? '?details=true' : '');
 
     $ch = curl_init($url);
     curl_setopt_array($ch, [
@@ -881,7 +884,7 @@ function getWritableRawConfDir() {
 /**
  * AGS-Dienste exportieren (ZIP von externer API laden, entpacken, in raw-conf speichern)
  */
-function exportAgsServices($dienstnamen) {
+function exportAgsServices($dienstnamen, $serviceDetails = []) {
     // PHP-Zeitlimit aufheben — cURL-Timeout (15 Min) kontrolliert die max. Dauer
     set_time_limit(0);
 
@@ -1008,6 +1011,28 @@ function exportAgsServices($dienstnamen) {
         $result['failedFiles'] = $failedFiles;
         $result['warning'] = count($failedFiles) . ' Datei(en) konnten nicht gespeichert werden';
     }
+
+    // Import-Metadaten in DB speichern (Hash, Zeitstempel etc.)
+    try {
+        $pdo = Database::getConnection();
+        $stmt = $pdo->prepare(
+            "INSERT INTO mapplusconf.ags_import_history (service_name, hash, published_at, published_by)
+             VALUES (?, ?, ?, ?)"
+        );
+        foreach ($dienstnamen as $svcName) {
+            $sd = isset($serviceDetails[$svcName]) ? $serviceDetails[$svcName] : [];
+            $stmt->execute([
+                $svcName,
+                isset($sd['hash'])         ? $sd['hash']         : null,
+                isset($sd['published_at']) ? $sd['published_at'] : null,
+                isset($sd['published_by']) ? $sd['published_by'] : null
+            ]);
+        }
+    } catch (Exception $e) {
+        // DB-Fehler nicht fatal — Import-Dateien sind bereits gespeichert
+        $result['metaWarning'] = 'Import-Metadaten konnten nicht in DB gespeichert werden: ' . $e->getMessage();
+    }
+
     return $result;
 }
 
@@ -1088,6 +1113,7 @@ function listRawConf($includeBackups = false, $backupOnly = false) {
     $servicesList = array_values($services);
 
     usort($files, function($a, $b) { return strcmp($a['file'], $b['file']); });
+
     return [
         'exists'    => true,
         'directory' => $rawConfDir,
@@ -1547,11 +1573,62 @@ function listCoreSources() {
         $missing = [];
         if ($has['layers'] && !$has['lyrmgr']) $missing[] = 'lyrmgrResources';
         if ($has['layers'] && !$has['maptipsRes']) $missing[] = 'maptipsResources';
+
+        // Change-Detection: Vergleich aktuelle Core-Dateien mit letztem Import-Manifest
+        $sourceChanges = null;
+        if (isset($rawConfKuerzel[$key])) {
+            $manifestPath = $rawConfDir . '/' . $key . '/.core-import-manifest.json';
+            if (is_file($manifestPath)) {
+                $raw = @file_get_contents($manifestPath);
+                if ($raw !== false) {
+                    $importManifest = @json_decode($raw, true);
+                    if ($importManifest && isset($importManifest['sourceFiles'])) {
+                        $sourceChanges = [
+                            'hasChanges'   => false,
+                            'changed'      => [],
+                            'added'        => [],
+                            'deleted'      => [],
+                            'lastImported' => $importManifest['lastImported'] ?? null,
+                        ];
+                        $manifestByName = [];
+                        foreach ($importManifest['sourceFiles'] as $mf) {
+                            $manifestByName[$mf['file']] = $mf;
+                        }
+                        $currentNames = [];
+                        foreach ($files as $fi) {
+                            $currentNames[] = $fi['name'];
+                            if (!isset($manifestByName[$fi['name']])) {
+                                $sourceChanges['added'][] = $fi['name'];
+                                $sourceChanges['hasChanges'] = true;
+                            } else {
+                                $mf = $manifestByName[$fi['name']];
+                                if ($fi['size'] !== $mf['size'] || $fi['modified'] !== $mf['modified']) {
+                                    $sourceChanges['changed'][] = [
+                                        'file'        => $fi['name'],
+                                        'oldModified' => $mf['modified'],
+                                        'newModified' => $fi['modified'],
+                                    ];
+                                    $sourceChanges['hasChanges'] = true;
+                                }
+                            }
+                        }
+                        foreach (array_keys($manifestByName) as $mfn) {
+                            if (!in_array($mfn, $currentNames)) {
+                                $sourceChanges['deleted'][] = $mfn;
+                                $sourceChanges['hasChanges'] = true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         $result[] = [
             'kuerzel' => $key, 'files' => $files,
             'size' => array_sum(array_column($files, 'size')),
             'source' => 'core', 'missingNls' => $missing,
             'inRawConf' => isset($rawConfKuerzel[$key]),
+            'sourceChanges' => $sourceChanges,
         ];
     }
     usort($result, function($a, $b) { return strcmp($a['kuerzel'], $b['kuerzel']); });
@@ -1642,17 +1719,40 @@ function importCoreToRawConf($kuerzelList) {
                     $errors[] = 'Schreiben fehlgeschlagen: ' . $f;
                 } else {
                     $copiedFiles[] = [
-                        'file' => $f,
-                        'bytes' => $bytes,
+                        'file'        => $f,
+                        'bytes'       => $bytes,
+                        'srcSize'     => strlen($content),
+                        'srcModified' => date('Y-m-d H:i:s', filemtime($srcPath)),
                     ];
                 }
             }
         }
 
+        // Import-Manifest schreiben (.core-import-manifest.json) für Change-Detection
+        if (count($copiedFiles) > 0) {
+            $manifestFiles = [];
+            foreach ($copiedFiles as $cf) {
+                $manifestFiles[] = [
+                    'file'     => $cf['file'],
+                    'size'     => $cf['srcSize'],
+                    'modified' => $cf['srcModified'],
+                ];
+            }
+            @file_put_contents(
+                $targetDir . '/.core-import-manifest.json',
+                json_encode([
+                    'kuerzel'      => $kuerzel,
+                    'lastImported' => date('Y-m-d\TH:i:s'),
+                    'sourceFiles'  => $manifestFiles
+                ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+            );
+        }
         $results[] = [
             'kuerzel' => $kuerzel,
             'success' => count($copiedFiles) > 0,
-            'files' => $copiedFiles,
+            'files'   => array_map(function($cf) {
+                return ['file' => $cf['file'], 'bytes' => $cf['bytes']];
+            }, $copiedFiles),
             'errors' => $errors,
         ];
     }
@@ -2017,6 +2117,11 @@ function stageServicesToImportToCore(array $serviceKeys, string $kuerzel, string
 
     // Manifest-Sources für aktuelle Services ergänzen (inkl. Quell-Metadaten für Change-Detection)
     foreach ($serviceKeys as $svcKey) {
+        // Services die nicht in raw-conf gefunden wurden NICHT ins Manifest schreiben,
+        // damit sie bei der nächsten Change-Detection nicht als "missing" erscheinen.
+        $svcDir = $rawDir . '/' . $svcKey;
+        if (!is_dir($svcDir)) continue;
+
         $svcKeyCounts = [];
         foreach ($buckets as $prefix => $bucket) {
             $count = 0;
@@ -2029,19 +2134,16 @@ function stageServicesToImportToCore(array $serviceKeys, string $kuerzel, string
         }
         // Quelldatei-Metadaten erfassen (size + mtime für Change-Detection)
         $srcFiles = [];
-        $svcDir = $rawDir . '/' . $svcKey;
-        if (is_dir($svcDir)) {
-            $it = new RecursiveIteratorIterator(
-                new RecursiveDirectoryIterator($svcDir, RecursiveDirectoryIterator::SKIP_DOTS),
-                RecursiveIteratorIterator::LEAVES_ONLY
-            );
-            foreach ($it as $sf) {
-                $sfn = $sf->getFilename();
-                $sfExt = strtolower(pathinfo($sfn, PATHINFO_EXTENSION));
-                if (!in_array($sfExt, ['conf', 'json'])) continue;
-                if (preg_match('/\.\d{8}_\d{6}\.bak$/', $sfn)) continue;
-                $srcFiles[] = ['file' => $sfn, 'size' => $sf->getSize(), 'modified' => date('Y-m-d H:i:s', $sf->getMTime())];
-            }
+        $it = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($svcDir, RecursiveDirectoryIterator::SKIP_DOTS),
+            RecursiveIteratorIterator::LEAVES_ONLY
+        );
+        foreach ($it as $sf) {
+            $sfn = $sf->getFilename();
+            $sfExt = strtolower(pathinfo($sfn, PATHINFO_EXTENSION));
+            if (!in_array($sfExt, ['conf', 'json'])) continue;
+            if (preg_match('/\.\d{8}_\d{6}\.bak$/', $sfn)) continue;
+            $srcFiles[] = ['file' => $sfn, 'size' => $sf->getSize(), 'modified' => date('Y-m-d H:i:s', $sf->getMTime())];
         }
         $manifestSources[$svcKey] = [
             'service'     => $svcKey,
@@ -2823,6 +2925,52 @@ switch ($action) {
         jsonResponse(['success' => true, 'data' => $result]);
         break;
 
+    // ── Legend-Keys gegen legendResources prüfen ──
+    case 'check-legend-keys':
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('POST erforderlich', 405);
+        $body = json_decode(file_get_contents('php://input'), true);
+        $checkKeys = is_array($body['keys'] ?? null) ? $body['keys'] : [];
+        $checkProfile = isset($body['profile']) ? preg_replace('/[^a-zA-Z0-9_\-]/', '', (string)$body['profile']) : null;
+
+        // legendResources aus core/nls/de und maps/core/nls/de laden
+        $legendRes = [];
+        $nlsDirs = [];
+        $nlsBase = realpath($docRoot . '/core/nls/de');
+        if ($nlsBase && is_dir($nlsBase)) $nlsDirs[] = $nlsBase;
+        $nlsOver = realpath($docRoot . '/maps/core/nls/de');
+        if ($nlsOver && is_dir($nlsOver) && $nlsOver !== $nlsBase) $nlsDirs[] = $nlsOver;
+        foreach ($nlsDirs as $nlsD) {
+            foreach (glob($nlsD . '/legendResources*.json') ?: [] as $lf) {
+                $d = @json_decode(@file_get_contents($lf), true);
+                if (is_array($d)) $legendRes = array_merge($legendRes, $d);
+            }
+        }
+        // Profil-spezifische legendResources zusätzlich laden
+        if ($checkProfile) {
+            $profLegPath = getProfileLegendPath($checkProfile);
+            if (file_exists($profLegPath)) {
+                $d = @json_decode(@file_get_contents($profLegPath), true);
+                if (is_array($d)) $legendRes = array_merge($legendRes, $d);
+            }
+        }
+
+        $resolved = [];
+        $unresolved = [];
+        foreach ($checkKeys as $k) {
+            $k = (string)$k;
+            if (isset($legendRes[$k . '_link'])) {
+                $resolved[] = [
+                    'key'   => $k,
+                    'link'  => $legendRes[$k . '_link'],
+                    'title' => $legendRes[$k . '_title'] ?? '',
+                ];
+            } else {
+                $unresolved[] = $k;
+            }
+        }
+        jsonResponse(['success' => true, 'data' => ['resolved' => $resolved, 'unresolved' => $unresolved]]);
+        break;
+
     // ── Config-Datei lesen (für Rechtsklick-Öffnen im Tree-Builder) ──
     case 'read-config-file':
         $file = $_GET['file'] ?? null;
@@ -3369,11 +3517,39 @@ switch ($action) {
         if (!$body || !isset($body['dienstnamen'])) {
             jsonError('JSON-Body mit Feld "dienstnamen" (Array) erforderlich', 400);
         }
-        $result = exportAgsServices($body['dienstnamen']);
+        $serviceDetails = isset($body['serviceDetails']) && is_array($body['serviceDetails']) ? $body['serviceDetails'] : [];
+        $result = exportAgsServices($body['dienstnamen'], $serviceDetails);
         if (!$result['success']) {
             jsonError($result['error'], 500);
         }
         jsonResponse(['success' => true, 'data' => $result]);
+        break;
+
+    case 'ags-import-meta':
+        // Letzter Import pro Dienst aus DB lesen
+        try {
+            $pdo = Database::getConnection();
+            $stmt = $pdo->query(
+                "SELECT DISTINCT ON (service_name)
+                        service_name, hash, published_at, published_by,
+                        imported_at::text AS imported_at
+                 FROM mapplusconf.ags_import_history
+                 ORDER BY service_name, imported_at DESC"
+            );
+            $rows = $stmt->fetchAll();
+            $meta = [];
+            foreach ($rows as $row) {
+                $meta[$row['service_name']] = [
+                    'hash'         => $row['hash'],
+                    'published_at' => $row['published_at'],
+                    'published_by' => $row['published_by'],
+                    'imported_at'  => $row['imported_at']
+                ];
+            }
+            jsonResponse(['success' => true, 'data' => ['meta' => $meta]]);
+        } catch (Exception $e) {
+            jsonError('DB-Fehler: ' . $e->getMessage(), 500);
+        }
         break;
 
     case 'ags-list-raw':

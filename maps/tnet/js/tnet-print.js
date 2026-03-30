@@ -46,6 +46,7 @@
   // Dock-State
   var _isPrintPanelDocked = true;  // Default: angedockt
   var _savedPrintDockedWidth = 380;
+  var _inlineMode = false;          // true = Panel im Sidebar-Akkordeon (tp_tnet_print_menu)
   var _printResizeObserver = null;
   var _printCenter = null;           // Druckrahmen-Mittelpunkt in Kartenkoordinaten (unabhängig vom View-Center)
   var _frameRotation = 0;            // Rahmen-Rotation in Radiant (unabhängig von Kartenrotation)
@@ -439,47 +440,64 @@
     var mpu  = view.getProjection().getMetersPerUnit() || 1;
     var center = view.getCenter();
     var res  = view.getResolution();
-    var rot  = view.getRotation() || 0;
 
     // ── Geographische Ausdehnung in Projektionseinheiten (LV95: Meter) ──
     var halfW = (mapFrameW_mm / 1000) * scaleVal / (2 * mpu);
     var halfH = (mapFrameH_mm / 1000) * scaleVal / (2 * mpu);
 
-    // ── Pixelgrösse direkt aus Resolution (rotations-unabhängig) ──
-    // Keine getPixelFromCoordinate — die enthält Rotation und verzerrt.
+    // ── Pixelgrösse MAP_AREA ──
     var w = (halfW * 2) / res;
     var h = (halfH * 2) / res;
-    _frameEl.style.width  = Math.round(w) + 'px';
-    _frameEl.style.height = Math.round(h) + 'px';
 
-    // Kein CSS-Rotate: Rahmen bleibt immer achsparallel zum Browserfenster.
-    // Die Karte wird gedreht, nicht der Rahmen.
+    // ── Papiergrösse in Pixeln — Rahmen zeigt gesamtes Papier ──
+    var paperW_mm = (layout && layout.width_mm) || 210;
+    var paperH_mm = (layout && layout.height_mm) || 297;
+    var wPaper = w * (paperW_mm / mapFrameW_mm);
+    var hPaper = h * (paperH_mm / mapFrameH_mm);
 
-    // Overlay-Position = _printCenter (unabhängig vom View-Center)
+    _frameEl.style.width  = Math.round(wPaper) + 'px';
+    _frameEl.style.height = Math.round(hPaper) + 'px';
+
+    // ── MAP_AREA-Offset im Papier (für Overlay-Offset und Transform-Origin) ──
+    var mfX_mm = (layout && layout.mapFrame && layout.mapFrame.x_mm) || 0;
+    var mfY_mm = (layout && layout.mapFrame && layout.mapFrame.y_mm) || 0;
+    // Auto-Fix: Falls y_mm die Unterkante ist (QGIS bottom-left-Origin)
+    if (mfY_mm + mapFrameH_mm > paperH_mm * 1.05) {
+      mfY_mm = mfY_mm - mapFrameH_mm;
+    }
+    // MAP_AREA-Zentrum relativ zum Papier (Prozent)
+    var mapCenterPctX = (mfX_mm + mapFrameW_mm / 2) / paperW_mm * 100;
+    var mapCenterPctY = (mfY_mm + mapFrameH_mm / 2) / paperH_mm * 100;
+
+    // Transform-Origin auf MAP_AREA-Zentrum legen (für korrekte Rotation)
+    _frameEl.style.transformOrigin = mapCenterPctX.toFixed(2) + '% ' + mapCenterPctY.toFixed(2) + '%';
+
+    // Overlay-Position = _printCenter (= MAP_AREA-Zentrum auf der Karte).
+    // Offset verschiebt den Rahmen, damit das MAP_AREA-Zentrum auf _printCenter liegt
+    // (da positioning:center-center das Papier-Zentrum auf die Position setzt).
     if (_frameOverlay) {
       _frameOverlay.setPosition(_printCenter || center);
+      var mapCenterPxX = mapCenterPctX / 100 * wPaper;
+      var mapCenterPxY = mapCenterPctY / 100 * hPaper;
+      _frameOverlay.setOffset([
+        Math.round(wPaper / 2 - mapCenterPxX),
+        Math.round(hPaper / 2 - mapCenterPxY)
+      ]);
     }
 
-    // ── SVG-Vorschau positionieren ──
+    // Mittelpunkt-Marker auf MAP_AREA-Zentrum verschieben
+    var centerDot = _frameEl.querySelector('.print-center-dot');
+    if (centerDot) {
+      centerDot.style.left = mapCenterPctX.toFixed(2) + '%';
+      centerDot.style.top  = mapCenterPctY.toFixed(2) + '%';
+    }
+
+    // ── SVG-Vorschau: füllt den gesamten Rahmen (= Papiergrösse) ──
     if (_svgPreviewImg && _svgPreviewImg.style.display !== 'none' && layout) {
-      var paperW_mm = layout.width_mm || 210;
-      var paperH_mm = layout.height_mm || 297;
-      // Skalierung: gesamtes Papier relativ zum Kartenbereich
-      var svgDispW = w * (paperW_mm / mapFrameW_mm);
-      var svgDispH = h * (paperH_mm / mapFrameH_mm);
-      _svgPreviewImg.style.width  = Math.round(svgDispW) + 'px';
-      _svgPreviewImg.style.height = Math.round(svgDispH) + 'px';
-      // Offset: MAP_AREA liegt innerhalb des Papiers
-      var mfX_mm = (layout.mapFrame && layout.mapFrame.x_mm) || 0;
-      var mfY_mm = (layout.mapFrame && layout.mapFrame.y_mm) || 0;
-      // Auto-Fix: Falls y_mm die Unterkante ist
-      if (mfY_mm + mapFrameH_mm > paperH_mm * 1.05) {
-        mfY_mm = mfY_mm - mapFrameH_mm;
-      }
-      var offsetX = mfX_mm * (w / mapFrameW_mm);
-      var offsetY = mfY_mm * (h / mapFrameH_mm);
-      _svgPreviewImg.style.left = Math.round(-offsetX) + 'px';
-      _svgPreviewImg.style.top  = Math.round(-offsetY) + 'px';
+      _svgPreviewImg.style.width  = Math.round(wPaper) + 'px';
+      _svgPreviewImg.style.height = Math.round(hPaper) + 'px';
+      _svgPreviewImg.style.left = '0px';
+      _svgPreviewImg.style.top  = '0px';
     }
   }
 
@@ -1151,13 +1169,15 @@
     TnetLog.log('[Drucken] Zoom angepasst:', Math.round(currentRatio) + '% → ' + 
       targetPercent + '% (Resolution:', currentRes.toFixed(2), '→', newRes.toFixed(2) + ')');
 
-    // Nach Animation Frame-Grösse aktualisieren
-    setTimeout(updateFrameSize, 350);
+    // Nach Zoom-Animation: Frame und SVG-Vorschau aktualisieren
+    // moveend ist zuverlässiger als setTimeout (feuert exakt nach Animations-Ende)
+    map.once('moveend', function () {
+      updateFrameSize();
+      refreshSvgPreviewValues();
+    });
   }
 
   /**
-   * Mobile: Setzt den Kartenzoom so, dass der Druckrahmen vollständig
-   * im sichtbaren Bereich über dem Bottom-Sheet passt. Blendet den
    * Rahmen nach der Zoom-Animation ein.
    *
    * Basis: tatsächliche Frame-Pixelgrösse (nach updateFrameSize), da
@@ -1241,6 +1261,23 @@
   // ================================================================
   window.openPdfPrinter = function () {
     if (typeof toggleHeaderMenu === 'function') toggleHeaderMenu();
+
+    // Inline-Modus: Akkordeon öffnen statt floating Panel
+    // (Map-Check entfällt hier — Form zeigen geht immer, Frame nur wenn Map bereit)
+    if (_inlineMode) {
+      var tnetPrintDetailsInline = document.getElementById('tp_tnet_print_menu');
+      if (tnetPrintDetailsInline) {
+        if (!tnetPrintDetailsInline.open) {
+          tnetPrintDetailsInline.open = true; // löst toggle-Event aus
+        }
+        // Akkordeon in Sicht scrollen (falls unten im Panel)
+        setTimeout(function () {
+          tnetPrintDetailsInline.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }, 50);
+      }
+      return;
+    }
+
     if (!getMap()) {
       alert('Drucken ist erst verfügbar, wenn die Karte vollständig geladen ist.');
       return;
@@ -1308,6 +1345,17 @@
   };
 
   window.closePrintPanel = function () {
+    // Inline-Modus: Akkordeon schliessen
+    if (_inlineMode) {
+      var tnetPrintDetailsClose = document.getElementById('tp_tnet_print_menu');
+      if (tnetPrintDetailsClose && tnetPrintDetailsClose.open) {
+        tnetPrintDetailsClose.open = false; // löst toggle-Event aus (removePrintFrame)
+      } else {
+        removePrintFrame();
+        restoreMapInteractions();
+      }
+      return;
+    }
     var panel = document.getElementById('print-panel');
     if (panel) panel.classList.add('hidden');
     removePrintFrame();
@@ -1730,6 +1778,7 @@
   }
 
   function dockPrintPanel() {
+    if (_inlineMode) return; // Kein Docking im Inline-Modus
     var panel = document.getElementById('print-panel');
     var dockBtn = document.getElementById('print-dock-btn');
     var mapContainer = document.getElementById('mapContainer');
@@ -1906,14 +1955,72 @@
   //  Init: Panel-HTML einfügen + Event-Listener
   // ================================================================
   function init() {
+    try {
     // Config laden (Massstäbe aus tnet-global-config.json5)
     loadScalesFromConfig();
 
-    // Panel-HTML vor </body> einfügen
+    // Panel-HTML einfügen: Inline in Sidebar-Akkordeon ODER an body anhängen
     var container = document.createElement('div');
-    container.innerHTML = createPanelHTML();
+    try {
+      container.innerHTML = createPanelHTML();
+    } catch (htmlErr) {
+      TnetLog.error('[Drucken] createPanelHTML() Fehler:', htmlErr);
+      // Fallback: minimaler Platzhalter
+      container.innerHTML = '<div id="print-panel" class="print-panel print-panel-inline"><div class="print-panel-body"><p style="padding:10px;color:#c00">Drucken konnte nicht initialisiert werden.</p></div></div>';
+    }
     var panel = container.firstElementChild;
-    document.body.appendChild(panel);
+    if (!panel) {
+      TnetLog.error('[Drucken] createPanelHTML() lieferte kein Element zurück');
+      return;
+    }
+
+    var _inlineContainer = document.getElementById('tnet-print-left-container');
+    if (_inlineContainer) {
+      // ── Inline-Modus: Panel in Sidebar-Akkordeon einbetten ──
+      _inlineMode = true;
+      panel.classList.add('print-panel-inline');
+      panel.classList.remove('hidden');
+      _inlineContainer.appendChild(panel);
+
+      // Altes DRUCKEN sicherheitshalber ausblenden
+      var legacyMenu = document.getElementById('tp_print_menu');
+      if (legacyMenu && _globalConfig.print && _globalConfig.print.enableLegacyPrint === false) {
+        legacyMenu.style.display = 'none';
+      }
+
+      // Akkordeon-Toggle: Libraries + Layouts laden, Frame zeigen
+      var tnetPrintDetails = document.getElementById('tp_tnet_print_menu');
+      if (tnetPrintDetails) {
+        tnetPrintDetails.addEventListener('toggle', function () {
+          if (this.open) {
+            var openHelper = function () {
+              // Layouts laden (brauchen keine Map)
+              loadLayouts();
+              // Massstab setzen falls Map vorhanden
+              var m = getMap();
+              if (!m) return; // Form ist sichtbar, nur kein Rahmen
+              _frameRotation = 0;
+              _printCenter = m.getView().getCenter().slice();
+              disableMapInteractions();
+              showPrintFrame();
+              setTimeout(function () { adjustZoomForPrintFrame(); }, 450);
+            };
+            if (_libsReady) {
+              openHelper();
+            } else {
+              loadLibraries().then(openHelper).catch(function (err) {
+                TnetLog.error('[Drucken] Libraries konnten nicht geladen werden:', err);
+              });
+            }
+          } else {
+            removePrintFrame();
+            restoreMapInteractions();
+          }
+        });
+      }
+    } else {
+      document.body.appendChild(panel);
+    }
 
     // Massstab-Dropdown dynamisch aus Config rendern
     renderScaleDropdown();
@@ -1976,6 +2083,10 @@
     loadLibraries().catch(function (err) {
       TnetLog.warn('[Drucken] Vorladen der PDF-Libraries fehlgeschlagen:', err);
     });
+
+    } catch (initErr) {
+      TnetLog.error('[Drucken] init() Fehler:', initErr);
+    }
   }
 
   // Auto-Init bei DOMContentLoaded oder sofort falls DOM schon bereit

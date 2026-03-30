@@ -49,6 +49,10 @@ body {
   color: rgba(255,255,255,.5); font-size: 11px; text-decoration: none;
 }
 .ags-toolbar a:hover { color: rgba(255,255,255,.8); }
+.ctdb-scope-btn { padding: 4px 12px; font-size: 12px; border: 1px solid #ccc; border-radius: 4px; background: #f5f7fa; cursor: pointer; color: #333; }
+.ctdb-scope-btn.active { background: var(--c-primary,#4b7b81); color: #fff; border-color: var(--c-primary,#4b7b81); }
+.ctdb-scope-btn:hover { background: #e8f0f2; }
+.ctdb-scope-btn.active:hover { opacity: .9; }
 
 /* ===== MAIN LAYOUT ===== */
 .ags-main {
@@ -116,23 +120,40 @@ body {
   flex: 1; overflow-y: auto; border: 1px solid #e0e4e8;
   border-radius: 4px; margin-bottom: 12px; min-height: 120px;
 }
-.ags-item {
-  display: flex; align-items: center; gap: 8px; padding: 6px 10px;
-  font-size: 12px; border-bottom: 1px solid #f0f0f0; cursor: pointer;
-  user-select: none;
+/* ===== IMPORT-TABELLE ===== */
+.ags-import-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.ags-import-table thead { position: sticky; top: 0; z-index: 1; }
+.ags-import-table th {
+  background: #f5f7fa; text-align: left; padding: 5px 8px; font-weight: 600;
+  border-bottom: 2px solid #e0e4e8; font-size: 11px; color: #555; white-space: nowrap;
 }
-.ags-item:last-child { border-bottom: none; }
-.ags-item:hover { background: #f0f7f8; }
-.ags-item input[type=checkbox] { flex-shrink: 0; cursor: pointer; }
-.ags-item .ags-name { flex: 1; font-family: 'Consolas', monospace; word-break: break-all; }
-.ags-item.hidden { display: none; }
-.ags-item.imported { background: #f0faf3; }
-.ags-item.imported .ags-name { color: #27ae60; }
+.ags-import-table th.sortable { cursor: pointer; user-select: none; }
+.ags-import-table th.sortable:hover { background: #e8ecf0; }
+.ags-import-table th.sort-asc::after { content: ' \25B2'; font-size: 9px; color: #4B7B81; }
+.ags-import-table th.sort-desc::after { content: ' \25BC'; font-size: 9px; color: #4B7B81; }
+.ags-import-table th.col-cb { width: 28px; text-align: center; }
+.ags-import-table td { padding: 4px 8px; border-bottom: 1px solid #f0f0f0; vertical-align: middle; }
+.ags-import-table td.col-cb { text-align: center; }
+.ags-import-table .ags-item { cursor: pointer; user-select: none; }
+.ags-import-table .ags-item:hover { background: #f0f7f8; }
+.ags-import-table .ags-item.hidden { display: none; }
+.ags-import-table .ags-item.imported { background: #f0faf3; }
+.ags-import-table .ags-item.imported .ags-name { color: #27ae60; }
+.ags-import-table .ags-item.changed { background: #fef9f0; }
+.ags-import-table .ags-item.changed .ags-name { color: #e67e22; }
+.ags-name { font-family: 'Consolas', monospace; word-break: break-all; }
+.ags-col-date { font-size: 11px; color: #666; white-space: nowrap; font-family: 'Consolas', monospace; }
+.ags-col-author { font-size: 11px; color: #888; white-space: nowrap; }
+.ags-col-status { white-space: nowrap; }
 .ags-imported-badge { font-size: 10px; background: #27ae60; color: #fff; border-radius: 3px; padding: 1px 5px; flex-shrink: 0; font-family: sans-serif; }
+.ags-changed-badge { font-size: 10px; background: #e67e22; color: #fff; border-radius: 3px; padding: 1px 5px; flex-shrink: 0; font-family: sans-serif; }
+.ags-new-badge { font-size: 10px; background: #bbb; color: #fff; border-radius: 3px; padding: 1px 5px; flex-shrink: 0; font-family: sans-serif; }
+.ags-pub-info { font-size: 10px; color: #999; flex-shrink: 0; font-family: sans-serif; margin-right: 4px; }
 .ags-import-legend { display: flex; gap: 14px; align-items: center; font-size: 11px; color: #666; padding: 5px 10px; background: #f5f7fa; border-radius: 4px; margin-bottom: 6px; border: 1px solid #e8eaed; }
 .ags-import-legend .leg-item { display: flex; align-items: center; gap: 5px; }
 .leg-dot-new { width: 10px; height: 10px; border-radius: 2px; background: #fff; border: 1px solid #bbb; flex-shrink: 0; }
 .leg-dot-imp { width: 10px; height: 10px; border-radius: 2px; background: #27ae60; flex-shrink: 0; }
+.leg-dot-chg { width: 10px; height: 10px; border-radius: 2px; background: #e67e22; flex-shrink: 0; }
 
 /* ===== ACTIONS BAR ===== */
 .ags-actions {
@@ -434,9 +455,9 @@ body {
 .stg-right-head button:hover { background: #e8f4f4; }
 .stg-output-status { font-size: 11px; color: #888; padding: 3px 0; flex-shrink: 0; }
 .stg-output-list   { flex: 1; overflow-y: auto; min-height: 0; margin-top: 2px; }
-.stg-output-kuerzel { font-size: 11px; font-weight: 700; color: var(--c-primary); padding: 5px 2px 3px; display: flex; align-items: center; gap: 5px; border-top: 1px solid #e8e8e8; }
-.stg-output-kuerzel:first-child { border-top: none; }
-.stg-output-kuerzel label { cursor: pointer; flex: 1; margin: 0; font-weight: 700; }
+.stg-output-kuerzel { font-size: 12px; font-weight: 700; color: #333; padding: 6px 8px 6px 6px; display: flex; align-items: center; gap: 6px; border-top: 1px solid #e8e8e8; background: #f7f9fa; border-radius: 4px; margin-top: 4px; }
+.stg-output-kuerzel:first-child { border-top: none; margin-top: 0; }
+.stg-output-kuerzel label { cursor: pointer; flex: 1; margin: 0; font-weight: 700; color: var(--c-primary,#4b7b81); }
 .stg-output-kuerzel input[type=checkbox] { margin: 0; flex-shrink: 0; }
 .stg-output-file { display: flex; align-items: center; gap: 4px; padding: 2px 4px 2px 16px; border-radius: 3px; }
 .stg-output-file:hover { background: #f0f7f7; }
@@ -451,11 +472,33 @@ body {
 .stg-dup-detail { font-size: 10px; color: #c33; padding: 3px 4px 3px 20px; background: #fef0f0; border-radius: 3px; margin: 1px 0; font-family: 'Consolas', monospace; word-break: break-all; }
 .stg-cross-dup-detail { font-size: 10px; color: #c33; padding: 3px 4px 3px 20px; background: #fce4e4; border-radius: 3px; margin: 1px 0; font-family: 'Consolas', monospace; word-break: break-all; }
 .stg-cross-dup-summary { font-size: 11px; color: #c33; font-weight: 700; padding: 6px 8px; margin-bottom: 6px; background: #fce4e4; border: 1px solid #e8a; border-radius: 4px; }
-.stg-output-kuerzel .stg-restage-btn { font-size: 10px; padding: 1px 6px; border: 1px solid #ccc; border-radius: 3px; background: transparent; cursor: pointer; color: #555; flex-shrink: 0; opacity: 0.6; margin-left: auto; }
-.stg-output-kuerzel .stg-restage-btn:hover { opacity: 1; background: #e8f4f4; border-color: var(--c-primary); }
-.stg-output-kuerzel .stg-restage-btn.has-changes { opacity: 1; color: #c33; border-color: #c33; background: #fef0f0; animation: restage-pulse 2s ease-in-out infinite; }
-.stg-output-kuerzel .stg-restage-btn.has-changes:hover { background: #fce4e4; }
-@keyframes restage-pulse { 0%,100% { box-shadow: none; } 50% { box-shadow: 0 0 6px rgba(204,51,51,0.3); } }
+.stg-kuerzel-actions { display: flex; gap: 5px; margin-left: auto; flex-shrink: 0; align-items: center; }
+.stg-btn-restage {
+  font-size: 11px; padding: 3px 10px; border-radius: 12px;
+  border: 1.5px solid var(--c-primary,#4b7b81);
+  background: #fff; color: var(--c-primary,#4b7b81);
+  cursor: pointer; white-space: nowrap; font-weight: 600;
+  transition: background .15s, color .15s;
+}
+.stg-btn-restage:hover { background: var(--c-primary,#4b7b81); color: #fff; }
+.stg-btn-restage.has-changes {
+  background: #e67e22; border-color: #e67e22; color: #fff;
+  font-weight: 700; animation: restage-pulse 2s ease-in-out infinite;
+}
+.stg-btn-restage.has-changes:hover { background: #d35400; border-color: #d35400; animation: none; }
+.stg-btn-del-kuerzel {
+  font-size: 11px; padding: 3px 10px; border-radius: 12px;
+  border: 1.5px solid #ddd; background: #fff; color: #aaa;
+  cursor: pointer; white-space: nowrap;
+  transition: background .15s, color .15s, border-color .15s;
+}
+.stg-btn-del-kuerzel:hover { background: #fff0f0; border-color: #e33; color: #c33; }
+.stg-change-hint { font-size: 10px; font-weight: 600; color: #c05000; background: #fef0e0; border: 1px solid #e6a060; border-radius: 10px; padding: 1px 8px; white-space: nowrap; flex-shrink: 0; }
+@keyframes restage-pulse { 0%,100% { box-shadow: none; } 50% { box-shadow: 0 0 6px rgba(230,126,34,0.5); } }
+.stg-output-kuerzel.needs-update { background: #fef3e8; border-left: 3px solid #e67e22; }
+.stg-output-kuerzel.needs-update label { color: #c05000; }
+.stg-changes-summary { font-size: 11px; color: #fff; font-weight: 600; padding: 6px 10px; margin-bottom: 6px; background: #e67e22; border-radius: 4px; display: flex; align-items: center; gap: 6px; }
+.stg-changes-summary .stg-cs-count { background: #fff; color: #e67e22; padding: 1px 7px; border-radius: 10px; font-weight: 700; font-size: 12px; }
 .stg-changes-detail { font-size: 10px; color: #c33; padding: 4px 6px 4px 20px; background: #fef6f0; border-radius: 3px; margin: 2px 0; border-left: 3px solid #e67e22; }
 .stg-changes-detail .scd-service { font-weight: 700; color: #555; }
 .stg-changes-detail .scd-file { color: #888; font-family: 'Consolas', monospace; font-size: 9px; }
@@ -825,6 +868,30 @@ body {
   font-size: 9px; color: #2e8bd4; background: rgba(46,139,212,.12);
   padding: 1px 5px; border-radius: 3px; margin-left: auto; flex-shrink: 0;
 }
+.core-changed-badge {
+  font-size: 9px; color: #fff; background: #e67e22;
+  padding: 1px 5px; border-radius: 3px; margin-left: auto; flex-shrink: 0; font-weight: 600;
+}
+.ags-item.needs-update { background: #fef6f0; border-left: 3px solid #e67e22; }
+.ags-item.needs-update .ags-name { color: #c66; font-weight: 600; }
+.core-change-details { font-size: 10px; padding: 2px 6px 4px 22px; }
+.core-change-detail { padding: 1px 0; font-family: Consolas, monospace; }
+.core-change-detail .ccd-added { color: #2a8; }
+.core-change-detail .ccd-modified { color: #e67e22; }
+.core-change-detail .ccd-deleted { color: #c33; }
+.core-files-toggle { cursor: pointer; color: var(--c-primary,#4b7b81); text-decoration: none; white-space: nowrap; }
+.core-files-toggle:hover { text-decoration: underline; }
+.core-files-toggle .toggle-arrow { display: inline-block; font-size: 9px; margin-right: 2px; transition: transform .15s; }
+.core-files-toggle.open .toggle-arrow { transform: rotate(90deg); }
+.core-files-detail td { background: #f4f8fa; }
+.core-files-subtable { width: 100%; border-collapse: collapse; font-size: 10px; }
+.core-files-subtable th { font-size: 9px; text-transform: uppercase; color: #aaa; font-weight: 600; padding: 3px 6px; border-bottom: 1px solid #e0e0e0; text-align: left; }
+.core-files-subtable th:last-child, .core-files-subtable td:last-child { text-align: right; }
+.core-files-subtable td { padding: 2px 6px; color: #555; font-family: Consolas, monospace; border-bottom: 1px solid #eee; }
+.core-files-subtable tr:last-child td { border-bottom: none; }
+.core-files-subtable .cfs-dir { color: #aaa; font-size: 9px; }
+.core-files-subtable .cfs-keys { color: #888; font-size: 9px; }
+.core-files-subtable .cfs-changed { color: #e67e22; font-weight: 600; }
 
 </style>
 </head>
@@ -836,10 +903,36 @@ body {
   <span class="sep"></span>
   <button id="ags-btn-refresh" title="Daten neu laden">↻ Aktualisieren</button>
   <button id="ags-btn-cache-clear" title="Layermanager-Cache auf dem Server leeren">🗑 Cache leeren</button>
+  <button id="ags-btn-config-to-db" title="Konfigurationsdateien in PostgreSQL-Datenbank einlesen (configToPG)">🗄 Config → DB</button>
   <span class="spacer"></span>
   <a href="/maps/tnet/api/v1/tree-builder.html">← Tree-Builder</a>
   <span class="sep"></span>
   <a href="/maps/tnet/api/docs/" target="_blank">API Docs</a>
+</div>
+
+<!-- ===== CONFIG-TO-DB MODAL ===== -->
+<div id="ctdb-modal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.45);align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,.25);width:480px;max-width:95vw;overflow:hidden">
+    <div style="background:#2c4a50;color:#fff;padding:12px 16px;display:flex;align-items:center;gap:8px">
+      <span style="font-weight:700;flex:1">🗄 Config → DB (configToPG)</span>
+      <button id="ctdb-close" style="background:transparent;border:none;color:#fff;font-size:18px;cursor:pointer;line-height:1;padding:0">×</button>
+    </div>
+    <div style="padding:14px 16px;border-bottom:1px solid #eee">
+      <label style="font-size:12px;color:#555;font-weight:600">Scope:</label>
+      <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">
+        <button class="ctdb-scope-btn active" data-scope="full" style="font-size:12px;padding:4px 12px">Full (alle)</button>
+        <button class="ctdb-scope-btn" data-scope="layers" style="font-size:12px;padding:4px 12px">Layers</button>
+        <button class="ctdb-scope-btn" data-scope="catalog" style="font-size:12px;padding:4px 12px">Catalog</button>
+        <button class="ctdb-scope-btn" data-scope="maptips" style="font-size:12px;padding:4px 12px">Maptips</button>
+        <button class="ctdb-scope-btn" data-scope="nls" style="font-size:12px;padding:4px 12px">NLS</button>
+      </div>
+    </div>
+    <div style="padding:14px 16px">
+      <button id="ctdb-run" class="primary" style="width:100%">Starten</button>
+      <div id="ctdb-status" style="margin-top:10px;font-size:12px;display:none"></div>
+      <pre id="ctdb-result" style="margin-top:8px;font-size:10px;background:#f5f7fa;border:1px solid #dde;border-radius:4px;padding:8px;max-height:260px;overflow:auto;display:none"></pre>
+    </div>
+  </div>
 </div>
 
 <!-- ===== MAIN ===== -->
@@ -876,6 +969,7 @@ body {
     <div class="ags-import-legend" id="import-legend" style="display:none">
       <span class="leg-item"><span class="leg-dot-new"></span> Noch nicht importiert</span>
       <span class="leg-item"><span class="leg-dot-imp"></span> Bereits importiert</span>
+      <span class="leg-item"><span class="leg-dot-chg"></span> Seit Import geändert</span>
     </div>
     <div class="ags-list" id="import-list" style="display:none"></div>
     <div class="ags-result" id="import-result" style="display:none"></div>
@@ -1168,6 +1262,10 @@ var _agsLastImportCheckbox = null;
 var _agsLastManageCheckbox = null;
 var _agsLastStagingCheckbox = null;
 var _importedServiceNames = {}; // Service-Namen die bereits in raw-conf vorhanden sind
+var _importedServiceMeta = {};  // Import-Metadaten (Hash, Datum) aus PostgreSQL
+var _agsServiceDetails = {};    // Service-Details von der GAPI (Hash, published_at, etc.)
+var _importSortCol = 'name';    // Aktive Sortierspalte
+var _importSortAsc = true;      // Sortierrichtung
 var _stagingOutputData = null;  // Gecachte ImportToCore-Daten für Manifest-Info
 
 /**
@@ -1275,6 +1373,16 @@ function switchTab(tabName, skipHash) {
       iframe.onload = function() {
         document.getElementById('treebuilder-placeholder').style.display = 'none';
         iframe.style.display = 'block';
+        // Karte neu skalieren: war bei display:none initialisiert → fit() hatte 0×0 Container
+        setTimeout(function() {
+          try {
+            var iw = iframe.contentWindow;
+            if (iw && iw.previewMap) {
+              iw.previewMap.updateSize();
+              iw.previewMap.getView().fit(iw.nwOwExtent, { padding: [10, 10, 10, 10] });
+            }
+          } catch(e) {}
+        }, 50);
       };
     }
   } else if (tabName === 'deployed') {
@@ -1311,16 +1419,32 @@ function loadAgsServices() {
   selectBar.style.display = 'none';
   actionsEl.style.display = 'none';
 
-  fetch(API_URL + '?action=ags-services')
+  fetch(API_URL + '?action=ags-services&details=true')
     .then(function(r) { return r.json(); })
     .then(function(resp) {
       if (!resp.success) throw new Error(resp.error || 'Unbekannter Fehler');
-      // Die API gibt {"dienstnamen": [...]} zurück
+      // Die API gibt {"dienstnamen": [...]} oder bei details=true ein Array mit Objekten zurück
       var services = [];
+      _agsServiceDetails = {};
       if (resp.data && Array.isArray(resp.data.dienstnamen)) {
-        services = resp.data.dienstnamen;
+        // Details-Format: Array von {name, hash, published_at, published_by, checked_at}
+        resp.data.dienstnamen.forEach(function(svc) {
+          if (typeof svc === 'string') {
+            services.push(svc);
+          } else if (svc && svc.name) {
+            services.push(svc.name);
+            _agsServiceDetails[svc.name] = svc;
+          }
+        });
       } else if (Array.isArray(resp.data)) {
-        services = resp.data;
+        resp.data.forEach(function(svc) {
+          if (typeof svc === 'string') {
+            services.push(svc);
+          } else if (svc && svc.name) {
+            services.push(svc.name);
+            _agsServiceDetails[svc.name] = svc;
+          }
+        });
       } else if (resp.data && Array.isArray(resp.data.services)) {
         services = resp.data.services;
       } else if (resp.data && typeof resp.data === 'object') {
@@ -1350,6 +1474,7 @@ function loadAgsServices() {
  * Bereits importierte Service-Namen still aus raw-conf nachladen (ohne Verwalten-UI zu berühren)
  */
 function loadImportedNamesSilent() {
+  // 1. Service-Namen aus raw-conf laden
   fetch(API_URL + '?action=ags-list-raw')
     .then(function(r) { return r.json(); })
     .then(function(resp) {
@@ -1358,17 +1483,38 @@ function loadImportedNamesSilent() {
       resp.data.services.forEach(function(s) {
         var k = s.service.toLowerCase();
         _importedServiceNames[k] = true;
-        // Auch letztes Pfad-Segment speichern ("ewn/ewn_nis_gwr" → "ewn_nis_gwr")
         var sl = k.lastIndexOf('/');
         if (sl !== -1) _importedServiceNames[k.substring(sl + 1)] = true;
       });
       refreshImportImportedMarkers();
     })
-    .catch(function() {}); // Stilles Scheitern — Import-Tab bleibt funktionsfähig
+    .catch(function() {});
+
+  // 2. Import-Metadaten aus DB laden (parallel)
+  fetch(API_URL + '?action=ags-import-meta')
+    .then(function(r) { return r.json(); })
+    .then(function(resp) {
+      if (!resp.success || !resp.data || !resp.data.meta) return;
+      _importedServiceMeta = resp.data.meta;
+      refreshImportImportedMarkers();
+    })
+    .catch(function() {});
 }
 
 /**
- * Import-Liste mit Checkboxen rendern
+ * Zeitstempel formatieren: "2024-03-15T14:30:00Z" → "2024-03-15 14:30"
+ */
+function formatDateTime(isoStr) {
+  if (!isoStr) return '—';
+  // ISO oder "YYYY-MM-DD HH:MM:SS" akzeptieren
+  var s = String(isoStr).replace('T', ' ').replace('Z', '');
+  // Auf Minute kürzen
+  if (s.length > 16) s = s.substring(0, 16);
+  return s;
+}
+
+/**
+ * Import-Liste als Tabelle rendern
  */
 function renderImportList(services) {
   var listEl = document.getElementById('import-list');
@@ -1376,23 +1522,52 @@ function renderImportList(services) {
   var selectBar = document.getElementById('import-select-bar');
   var actionsEl = document.getElementById('import-actions');
 
-  listEl.innerHTML = '';
+  // Tabelle aufbauen
+  var tbl = document.createElement('table');
+  tbl.className = 'ags-import-table';
+  tbl.innerHTML = '<thead><tr>'
+    + '<th class="col-cb"></th>'
+    + '<th class="sortable" data-col="name">Dienst</th>'
+    + '<th class="sortable" data-col="author">Autor</th>'
+    + '<th class="sortable" data-col="status">Status</th>'
+    + '<th class="sortable" data-col="published">Publiziert</th>'
+    + '<th class="sortable" data-col="imported">Importiert</th>'
+    + '</tr></thead>';
+  var tbody = document.createElement('tbody');
+  tbl.appendChild(tbody);
+
+  // Sort-Event auf Headerzeile
+  tbl.querySelector('thead tr').addEventListener('click', function(e) {
+    var th = e.target.closest('th.sortable');
+    if (!th) return;
+    sortImportTable(th.dataset.col);
+  });
+
   _agsLastImportCheckbox = null;
   services.forEach(function(svc, i) {
     var name = typeof svc === 'string' ? svc : (svc.name || svc.serviceName || String(svc));
-    var div = document.createElement('div');
-    div.className = 'ags-item';
-    div.dataset.name = name.toLowerCase();
-    div.innerHTML = '<input type="checkbox" data-svc="' + name.replace(/"/g, '&quot;') + '" id="imp-cb-' + i + '">'
-      + '<label for="imp-cb-' + i + '" class="ags-name" style="cursor:pointer;flex:1">' + name + '</label>';
-    div.addEventListener('click', function(e) {
+    var detail = _agsServiceDetails[name];
+
+    var tr = document.createElement('tr');
+    tr.className = 'ags-item';
+    tr.dataset.name = name.toLowerCase();
+
+    // Zellen: Checkbox | Name | Autor | Status | Publiziert | Importiert
+    tr.innerHTML = '<td class="col-cb"><input type="checkbox" data-svc="' + name.replace(/"/g, '&quot;') + '" id="imp-cb-' + i + '"></td>'
+      + '<td class="ags-name"><label for="imp-cb-' + i + '" style="cursor:pointer">' + name + '</label></td>'
+      + '<td class="ags-col-author">' + (detail && detail.published_by ? detail.published_by : '—') + '</td>'
+      + '<td class="ags-col-status"></td>'
+      + '<td class="ags-col-date ags-col-pub">' + (detail && detail.published_at ? formatDateTime(detail.published_at) : '—') + '</td>'
+      + '<td class="ags-col-date ags-col-imp"></td>';
+
+    tr.addEventListener('click', function(e) {
       if (e.target.tagName === 'INPUT') { updateImportSelCount(); return; }
-      var cb = div.querySelector('input');
+      var cb = tr.querySelector('input');
       cb.checked = !cb.checked;
       _agsLastImportCheckbox = cb;
       updateImportSelCount();
     });
-    var cb = div.querySelector('input');
+    var cb = tr.querySelector('input');
     cb.addEventListener('click', function(e) {
       e.stopPropagation();
       if (e.shiftKey && _agsLastImportCheckbox) {
@@ -1401,9 +1576,11 @@ function renderImportList(services) {
       _agsLastImportCheckbox = cb;
       updateImportSelCount();
     });
-    listEl.appendChild(div);
+    tbody.appendChild(tr);
   });
 
+  listEl.innerHTML = '';
+  listEl.appendChild(tbl);
   listEl.style.display = '';
   filterEl.style.display = '';
   filterEl.value = '';
@@ -1411,6 +1588,9 @@ function renderImportList(services) {
   actionsEl.style.display = 'flex';
   refreshImportImportedMarkers();
   updateImportSelCount();
+  // Standard-Sortierindikator setzen
+  var defaultTh = tbl.querySelector('th[data-col="' + _importSortCol + '"]');
+  if (defaultTh) defaultTh.classList.add(_importSortAsc ? 'sort-asc' : 'sort-desc');
 }
 
 /**
@@ -1420,24 +1600,123 @@ function refreshImportImportedMarkers() {
   var hasAny = Object.keys(_importedServiceNames).length > 0;
   var legend = document.getElementById('import-legend');
   var listEl = document.getElementById('import-list');
-  if (legend) legend.style.display = (hasAny && listEl && listEl.children.length) ? '' : 'none';
-  document.querySelectorAll('#import-list .ags-item').forEach(function(div) {
-    var name = div.dataset.name; // bereits lowercase
+  var rowCount = listEl ? listEl.querySelectorAll('.ags-item').length : 0;
+  if (legend) legend.style.display = (hasAny && rowCount > 0) ? '' : 'none';
+  document.querySelectorAll('#import-list .ags-item').forEach(function(row) {
+    var name = row.dataset.name; // bereits lowercase
+    var origName = row.querySelector('input') ? row.querySelector('input').dataset.svc : name;
     // Vergleich: raw-conf nutzt flache Keys (awu_awu_zustand), AGS-Namen haben Slash (awu/awu_zustand)
     var isImp = !!_importedServiceNames[name]
              || !!_importedServiceNames[name.replace('\/', '_')]
              || !!_importedServiceNames[name.substring(name.lastIndexOf('\/') + 1)];
-    div.classList.toggle('imported', isImp);
-    var existing = div.querySelector('.ags-imported-badge');
-    if (isImp && !existing) {
-      var badge = document.createElement('span');
-      badge.className = 'ags-imported-badge';
-      badge.textContent = '\u2713 importiert';
-      div.appendChild(badge);
-    } else if (!isImp && existing) {
-      existing.remove();
+
+    // Hash-Vergleich: Ist der Dienst seit dem letzten Import geändert worden?
+    var isChanged = false;
+    var detail = _agsServiceDetails[origName];
+    var meta = _importedServiceMeta[origName];
+    if (isImp && detail && detail.hash && meta && meta.hash) {
+      isChanged = detail.hash !== meta.hash;
+    }
+
+    row.classList.toggle('imported', isImp && !isChanged);
+    row.classList.toggle('changed', isChanged);
+
+    // Status-Zelle füllen
+    var statusCell = row.querySelector('.ags-col-status');
+    var impCell = row.querySelector('.ags-col-imp');
+    if (!statusCell) return;
+
+    if (isChanged) {
+      statusCell.innerHTML = '<span class="ags-changed-badge" title="Dienst wurde seit Import (' + formatDateTime(meta.imported_at) + ') geändert">⚠ geändert</span>';
+      impCell.textContent = meta && meta.imported_at ? formatDateTime(meta.imported_at) : '—';
+    } else if (isImp) {
+      statusCell.innerHTML = '<span class="ags-imported-badge">✓ importiert</span>';
+      impCell.textContent = meta && meta.imported_at ? formatDateTime(meta.imported_at) : '—';
+    } else {
+      statusCell.innerHTML = '<span class="ags-new-badge">neu</span>';
+      impCell.textContent = '—';
     }
   });
+}
+
+/**
+ * Import-Tabelle nach Spalte sortieren (DOM-Zeilen umsortieren)
+ */
+function sortImportTable(col) {
+  if (_importSortCol === col) {
+    _importSortAsc = !_importSortAsc;
+  } else {
+    _importSortCol = col;
+    _importSortAsc = true;
+  }
+
+  // Header-Indikator aktualisieren
+  var ths = document.querySelectorAll('.ags-import-table th.sortable');
+  ths.forEach(function(th) {
+    th.classList.remove('sort-asc', 'sort-desc');
+    if (th.dataset.col === col) {
+      th.classList.add(_importSortAsc ? 'sort-asc' : 'sort-desc');
+    }
+  });
+
+  var tbody = document.querySelector('#import-list .ags-import-table tbody');
+  if (!tbody) return;
+  var rows = Array.prototype.slice.call(tbody.querySelectorAll('tr.ags-item'));
+
+  // Status-Gewicht: geändert=0 (oben), neu=1, importiert=2
+  function statusWeight(row) {
+    if (row.classList.contains('changed')) return 0;
+    if (row.classList.contains('imported')) return 2;
+    return 1;
+  }
+
+  rows.sort(function(a, b) {
+    var va, vb;
+    var origA = a.querySelector('input') ? a.querySelector('input').dataset.svc : '';
+    var origB = b.querySelector('input') ? b.querySelector('input').dataset.svc : '';
+
+    switch (col) {
+      case 'name':
+        va = a.dataset.name || '';
+        vb = b.dataset.name || '';
+        break;
+      case 'author':
+        var da = _agsServiceDetails[origA];
+        var db = _agsServiceDetails[origB];
+        va = (da && da.published_by) ? da.published_by.toLowerCase() : '';
+        vb = (db && db.published_by) ? db.published_by.toLowerCase() : '';
+        break;
+      case 'status':
+        va = statusWeight(a);
+        vb = statusWeight(b);
+        break;
+      case 'published':
+        var da2 = _agsServiceDetails[origA];
+        var db2 = _agsServiceDetails[origB];
+        va = (da2 && da2.published_at) ? da2.published_at : '';
+        vb = (db2 && db2.published_at) ? db2.published_at : '';
+        break;
+      case 'imported':
+        var ma = _importedServiceMeta[origA];
+        var mb = _importedServiceMeta[origB];
+        va = (ma && ma.imported_at) ? ma.imported_at : '';
+        vb = (mb && mb.imported_at) ? mb.imported_at : '';
+        break;
+      default:
+        va = ''; vb = '';
+    }
+
+    var cmp;
+    if (typeof va === 'number') {
+      cmp = va - vb;
+    } else {
+      cmp = va < vb ? -1 : (va > vb ? 1 : 0);
+    }
+    return _importSortAsc ? cmp : -cmp;
+  });
+
+  // DOM-Zeilen in neuer Reihenfolge einhängen (kein Re-Render)
+  rows.forEach(function(row) { tbody.appendChild(row); });
 }
 
 /**
@@ -1464,6 +1743,14 @@ function exportAgsServices() {
   checkboxes.forEach(function(cb) { dienstnamen.push(cb.dataset.svc); });
   if (dienstnamen.length === 0) return;
 
+  // ServiceDetails für ausgewählte Dienste sammeln (Hash etc.)
+  var serviceDetails = {};
+  dienstnamen.forEach(function(name) {
+    if (_agsServiceDetails[name]) {
+      serviceDetails[name] = _agsServiceDetails[name];
+    }
+  });
+
   _agsExportingCount++;
   refreshImportProgress();
   var resultEl = document.getElementById('import-result');
@@ -1477,7 +1764,7 @@ function exportAgsServices() {
   fetch(API_URL + '?action=ags-export', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ dienstnamen: dienstnamen }),
+    body: JSON.stringify({ dienstnamen: dienstnamen, serviceDetails: serviceDetails }),
     signal: controller.signal
   })
     .then(function(r) { clearTimeout(timeoutId); return r.json(); })
@@ -1539,8 +1826,19 @@ function exportAgsServices() {
       }
       // Selektion leeren
       document.querySelectorAll('#import-list input:checked').forEach(function(cb) { cb.checked = false; });
-      // Neu importierte markieren
-      dienstnamen.forEach(function(n) { _importedServiceNames[n.toLowerCase()] = true; });
+      // Neu importierte markieren + Meta aktualisieren (Hash übernehmen)
+      var now = new Date().toISOString();
+      dienstnamen.forEach(function(n) {
+        _importedServiceNames[n.toLowerCase()] = true;
+        if (_agsServiceDetails[n]) {
+          _importedServiceMeta[n] = {
+            hash: _agsServiceDetails[n].hash || '',
+            published_at: _agsServiceDetails[n].published_at || '',
+            published_by: _agsServiceDetails[n].published_by || '',
+            imported_at: now
+          };
+        }
+      });
       refreshImportImportedMarkers();
       updateImportSelCount();
     })
@@ -1644,34 +1942,165 @@ function renderCoreSourceList() {
   var legendEl = document.getElementById('import-legend');
 
   listEl.innerHTML = '';
-  if (legendEl) legendEl.style.display = 'none';
+  if (legendEl) legendEl.style.display = '';
+
+  // Änderungs-Zusammenfassung-Banner
+  var changedCount = 0;
+  _coreSources.forEach(function(src) {
+    if (src.sourceChanges && src.sourceChanges.hasChanges) changedCount++;
+  });
+  if (changedCount > 0) {
+    var summary = document.createElement('div');
+    summary.className = 'stg-changes-summary';
+    summary.innerHTML = '<span class="stg-cs-count">' + changedCount + '</span> Kürzel in Core geändert — erneuter Import empfohlen';
+    listEl.appendChild(summary);
+  }
+
+  // Tabelle aufbauen
+  var tbl = document.createElement('table');
+  tbl.className = 'ags-import-table';
+  tbl.innerHTML = '<thead><tr>'
+    + '<th class="col-cb"></th>'
+    + '<th>Kürzel</th>'
+    + '<th style="text-align:right">Dateien</th>'
+    + '<th style="text-align:right">Grösse</th>'
+    + '<th>Geändert</th>'
+    + '<th>Status</th>'
+    + '</tr></thead>';
+  var tbody = document.createElement('tbody');
+  tbl.appendChild(tbody);
 
   _coreSources.forEach(function(src, i) {
     var name = src.kuerzel;
     var fileCount = src.files ? src.files.length : 0;
-    var div = document.createElement('div');
-    div.className = 'ags-item';
-    div.dataset.name = name.toLowerCase();
-    var sizeStr = src.size ? formatFileSize(src.size) : '';
-    var badge = src.inRawConf ? '<span class="core-imported-badge">✓ in raw-conf</span>' : '';
-    div.innerHTML = '<input type="checkbox" data-svc="' + name.replace(/"/g, '&quot;') + '" id="core-cb-' + i + '">'
-      + '<label for="core-cb-' + i + '" class="ags-name" style="cursor:pointer;flex:1">' + name + '</label>'
-      + '<span style="font-size:10px;color:#888;margin-right:6px">' + fileCount + ' Dateien' + (sizeStr ? ' · ' + sizeStr : '') + '</span>'
-      + badge;
-    div.addEventListener('click', function(e) {
-      if (e.target.tagName === 'INPUT') { updateImportSelCount(); return; }
-      var cb = div.querySelector('input');
+    var sizeStr = src.size ? formatFileSize(src.size) : '—';
+
+    // Neuestes Änderungsdatum aus allen Dateien ermitteln
+    var newestMod = '—';
+    if (src.files && src.files.length) {
+      var maxTs = src.files.reduce(function(mx, f) { return f.modified > mx ? f.modified : mx; }, '');
+      if (maxTs) {
+        var p = maxTs.split(/[\s:-]/);
+        if (p.length >= 5) newestMod = p[2] + '.' + p[1] + '.' + p[0].slice(2) + ' ' + p[3] + ':' + p[4];
+      }
+    }
+
+    var hasChanges = src.sourceChanges && src.sourceChanges.hasChanges;
+
+    // Status-Badge
+    var badge;
+    if (hasChanges) {
+      var sc = src.sourceChanges;
+      var nTotal = (sc.changed ? sc.changed.length : 0)
+                 + (sc.added  ? sc.added.length  : 0)
+                 + (sc.deleted? sc.deleted.length : 0);
+      badge = '<span class="core-changed-badge">⚠ ' + nTotal + ' Datei' + (nTotal !== 1 ? 'en' : '') + ' geändert</span>';
+    } else if (src.inRawConf) {
+      var lastImpStr = (src.sourceChanges && src.sourceChanges.lastImported)
+        ? ' <span style="font-size:9px;opacity:.7">(' + src.sourceChanges.lastImported.substring(0, 10) + ')</span>' : '';
+      badge = '<span class="core-imported-badge">✓ in raw-conf' + lastImpStr + '</span>';
+    } else {
+      badge = '<span class="ags-new-badge">neu</span>';
+    }
+
+    var tr = document.createElement('tr');
+    tr.className = 'ags-item' + (hasChanges ? ' needs-update' : '');
+    tr.dataset.name = name.toLowerCase();
+
+    // Datei-Toggle-Link für die Anzahl-Zelle
+    var toggleId = 'core-files-' + i;
+    var fileToggleHtml = '<span class="core-files-toggle" data-target="' + toggleId + '">'
+      + '<span class="toggle-arrow">▶</span>' + fileCount + '</span>';
+
+    tr.innerHTML = '<td class="col-cb"><input type="checkbox" data-svc="' + name.replace(/"/g, '&quot;') + '" id="core-cb-' + i + '"></td>'
+      + '<td class="ags-name"><label for="core-cb-' + i + '" style="cursor:pointer">' + name + '</label></td>'
+      + '<td style="text-align:right;font-size:11px">' + fileToggleHtml + '</td>'
+      + '<td style="text-align:right;color:#888;font-size:11px">' + sizeStr + '</td>'
+      + '<td style="color:#555;font-size:11px;white-space:nowrap">' + newestMod + '</td>'
+      + '<td>' + badge + '</td>';
+
+    tr.addEventListener('click', function(e) {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'LABEL') { updateImportSelCount(); return; }
+      // Toggle-Link: Dateiliste auf-/zuklappen
+      var tog = e.target.closest('.core-files-toggle');
+      if (tog) {
+        var targetId = tog.dataset.target;
+        var detailTr = document.getElementById(targetId);
+        if (detailTr) {
+          var hidden = detailTr.style.display === 'none';
+          detailTr.style.display = hidden ? '' : 'none';
+          tog.classList.toggle('open', hidden);
+        }
+        return;
+      }
+      var cb = tr.querySelector('input');
       cb.checked = !cb.checked;
       updateImportSelCount();
     });
-    var cb = div.querySelector('input');
-    cb.addEventListener('click', function(e) {
-      e.stopPropagation();
-      updateImportSelCount();
-    });
-    listEl.appendChild(div);
+    tr.querySelector('input').addEventListener('click', function(e) { e.stopPropagation(); updateImportSelCount(); });
+    tbody.appendChild(tr);
+
+    // Aufklappbare Datei-Detailzeile
+    if (src.files && src.files.length) {
+      // Geänderte Dateinamen für Markierung sammeln
+      var changedFileNames = {};
+      if (hasChanges && src.sourceChanges) {
+        (src.sourceChanges.changed || []).forEach(function(f) { changedFileNames[f.file] = true; });
+        (src.sourceChanges.added  || []).forEach(function(f) { changedFileNames[f]      = true; });
+      }
+      var subHtml = '<table class="core-files-subtable">'
+        + '<thead><tr><th>Datei</th><th>Verzeichnis</th><th>Keys</th><th>Grösse</th><th>Geändert</th></tr></thead><tbody>';
+      src.files.forEach(function(f) {
+        var fSize = f.size ? formatFileSize(f.size) : '';
+        var fMod = '';
+        if (f.modified) {
+          var mp = f.modified.split(/[\s:-]/);
+          if (mp.length >= 5) fMod = mp[2] + '.' + mp[1] + '.' + mp[0].slice(2) + ' ' + mp[3] + ':' + mp[4];
+        }
+        var isChg = changedFileNames[f.name] || false;
+        subHtml += '<tr>'
+          + '<td class="' + (isChg ? 'cfs-changed' : '') + '">' + f.name + (isChg ? ' ●' : '') + '</td>'
+          + '<td class="cfs-dir">' + (f.dir || '') + '</td>'
+          + '<td class="cfs-keys" style="text-align:right">' + (f.keys || 0) + '</td>'
+          + '<td style="text-align:right">' + fSize + '</td>'
+          + '<td style="text-align:right;white-space:nowrap">' + fMod + '</td>'
+          + '</tr>';
+      });
+      subHtml += '</tbody></table>';
+      var fileDetailRow = document.createElement('tr');
+      fileDetailRow.id = toggleId;
+      fileDetailRow.className = 'core-files-detail';
+      fileDetailRow.style.display = 'none';
+      fileDetailRow.dataset.name = name.toLowerCase();
+      fileDetailRow.innerHTML = '<td></td><td colspan="5" style="padding:0 6px 8px">' + subHtml + '</td>';
+      tbody.appendChild(fileDetailRow);
+    }
+
+    // Änderungs-Details als zusätzliche Zeile
+    if (hasChanges) {
+      var sc = src.sourceChanges;
+      var detailHtml = '';
+      (sc.deleted || []).forEach(function(f) {
+        detailHtml += '<div class="core-change-detail"><span class="ccd-deleted">✗ ' + f + '</span> <span style="color:#999">(gelöscht)</span></div>';
+      });
+      (sc.changed || []).forEach(function(f) {
+        var dates = (f.oldModified && f.newModified)
+          ? ' <span style="color:#999;font-size:9px">' + f.oldModified.substring(0, 10) + ' → ' + f.newModified.substring(0, 10) + '</span>' : '';
+        detailHtml += '<div class="core-change-detail"><span class="ccd-modified">~ ' + f.file + '</span>' + dates + '</div>';
+      });
+      (sc.added || []).forEach(function(f) {
+        detailHtml += '<div class="core-change-detail"><span class="ccd-added">+ ' + f + '</span> <span style="color:#999">(neu)</span></div>';
+      });
+      if (detailHtml) {
+        var dtRow = document.createElement('tr');
+        dtRow.dataset.name = name.toLowerCase();
+        dtRow.innerHTML = '<td></td><td colspan="5" class="core-change-details" style="padding:2px 6px 6px">' + detailHtml + '</td>';
+        tbody.appendChild(dtRow);
+      }
+    }
   });
 
+  listEl.appendChild(tbl);
   listEl.style.display = '';
   filterEl.style.display = '';
   filterEl.value = '';
@@ -1739,10 +2168,13 @@ function importCoreSources() {
       document.querySelectorAll('#import-list input:checked').forEach(function(cb) { cb.checked = false; });
       updateImportSelCount();
 
-      // inRawConf-Status im Cache aktualisieren
+      // inRawConf-Status und sourceChanges im Cache aktualisieren
       kuerzelList.forEach(function(k) {
         _coreSources.forEach(function(src) {
-          if (src.kuerzel === k) src.inRawConf = true;
+          if (src.kuerzel === k) {
+            src.inRawConf = true;
+            src.sourceChanges = null; // Nach Import: keine ausstehenden Änderungen
+          }
         });
       });
       renderCoreSourceList();
@@ -2383,7 +2815,7 @@ function saveFileEditor() {
 /**
  * Verfügbare Dienste aus raw-conf für Staging laden
  */
-function loadStagingList() {
+function loadStagingList(onLoaded) {
   var statusEl  = document.getElementById('staging-status');
   var listEl    = document.getElementById('staging-svc-list');
   var filterEl  = document.getElementById('staging-filter');
@@ -2406,6 +2838,7 @@ function loadStagingList() {
       var data = resp.data;
       if (!data.exists || !data.services || data.services.length === 0) {
         statusEl.textContent = 'Keine Konfigurationen in raw-conf vorhanden.';
+        if (onLoaded) onLoaded([]);
         return;
       }
       statusEl.textContent = data.services.length + ' Dienste verfügbar';
@@ -2416,10 +2849,12 @@ function loadStagingList() {
       kRow.style.display = 'flex';
       actionsEl.style.display = 'flex';
       renderStagingList(data.services);
+      if (onLoaded) onLoaded(data.services);
     })
     .catch(function(err) {
       statusEl.textContent = 'Fehler: ' + err.message;
       statusEl.className = 'ags-status error';
+      if (onLoaded) onLoaded([]);
     });
 }
 
@@ -2641,10 +3076,25 @@ function loadStagingOutput() {
         statusEl.textContent = 'Noch keine Ausgaben vorhanden.';
         return;
       }
-      statusEl.textContent = d.kuerzel.length + ' Kürzel';
+      // Anzahl Kürzel mit Änderungen zählen
+      var changedCount = 0;
+      d.kuerzel.forEach(function(k) { if (k.sourceChanges && k.sourceChanges.hasChanges) changedCount++; });
+      if (changedCount > 0) {
+        statusEl.textContent = d.kuerzel.length + ' Kürzel — ' + changedCount + ' veraltet';
+        statusEl.style.color = '#e67e22';
+      } else {
+        statusEl.textContent = d.kuerzel.length + ' Kürzel';
+      }
       _stagingOutputData = d.kuerzel; // Für Manifest-Info cachen
       renderStagingOutput(d.kuerzel);
       updateStagingManifestInfo(); // Info-Panel aktualisieren
+      // Zusammenfassung: Kürzel mit Änderungen
+      if (changedCount > 0) {
+        var summary = document.createElement('div');
+        summary.className = 'stg-changes-summary';
+        summary.innerHTML = '<span class="stg-cs-count">' + changedCount + '</span> Kürzel sollten aktualisiert werden — Quellen in raw-conf haben sich geändert';
+        listEl.insertBefore(summary, listEl.firstChild);
+      }
       // Cross-Kürzel Duplikat-Zusammenfassung
       var crossTotal = 0;
       d.kuerzel.forEach(function(k) { k.files.forEach(function(f) { if (f.crossDuplicateKeys && f.crossDuplicateKeys.length) crossTotal += f.crossDuplicateKeys.length; }); });
@@ -2661,7 +3111,14 @@ function loadStagingOutput() {
 function renderStagingOutput(kuerzelList) {
   var listEl = document.getElementById('stg-output-list');
   listEl.innerHTML = '';
-  kuerzelList.forEach(function(k) {
+  // Geänderte Kürzel nach oben sortieren
+  var sorted = kuerzelList.slice().sort(function(a, b) {
+    var aChanged = (a.sourceChanges && a.sourceChanges.hasChanges) ? 0 : 1;
+    var bChanged = (b.sourceChanges && b.sourceChanges.hasChanges) ? 0 : 1;
+    if (aChanged !== bChanged) return aChanged - bChanged;
+    return a.kuerzel.localeCompare(b.kuerzel);
+  });
+  sorted.forEach(function(k) {
     var totalKB = k.size > 1024 ? (k.size / 1024).toFixed(1) + ' KB' : k.size + ' B';
     var hdr = document.createElement('div');
     hdr.className = 'stg-output-kuerzel';
@@ -2682,47 +3139,77 @@ function renderStagingOutput(kuerzelList) {
     }
     lbl.innerHTML = '<b>' + k.kuerzel + '</b>' + manifestBadge + '&nbsp;<span style="font-weight:400;color:#888;font-size:10px">(' + k.files.length + ' Dateien, ' + totalKB + ')</span>';
     hdr.appendChild(cb); hdr.appendChild(lbl);
-    // 🔄 Aktualisieren-Button (nur wenn Manifest mit Quellen vorhanden)
-    if (k.manifest && k.manifest.sources && k.manifest.sources.length) {
-      var restageBtn = document.createElement('button');
-      restageBtn.className = 'stg-restage-btn';
-      restageBtn.textContent = '🔄';
-      restageBtn.title = 'Erneut stagen — Quellen aus Manifest vorauswählen';
-      // Change-Detection: Button rot färben wenn Quellen geändert
-      var changes = k.sourceChanges;
-      if (changes && changes.hasChanges) {
-        restageBtn.classList.add('has-changes');
-        var tipLines = [];
-        if (changes.missing && changes.missing.length) {
-          tipLines.push('⚠ Gelöscht: ' + changes.missing.join(', '));
-        }
-        if (changes.changed && changes.changed.length) {
-          changes.changed.forEach(function(ch) {
-            var reasons = ch.files.map(function(f) {
-              if (f.reason === 'modified') return f.file + ' (geändert)';
-              if (f.reason === 'added') return f.file + ' (neu)';
-              if (f.reason === 'deleted') return f.file + ' (gelöscht)';
-              return f.file;
-            });
-            tipLines.push(ch.service + ': ' + reasons.join(', '));
-          });
-        }
-        restageBtn.title = 'Quellen haben sich geändert!\n' + tipLines.join('\n');
-      }
-      (function(kuerzel, sources) {
-        restageBtn.addEventListener('click', function(e) {
-          e.stopPropagation();
-          restageFromManifest(kuerzel, sources);
-        });
-      })(k.kuerzel, k.manifest.sources);
-      hdr.appendChild(restageBtn);
+    // Änderungs-Badge direkt nach dem Label einfügen
+    var changes = k.sourceChanges;
+    if (changes && changes.hasChanges) {
+      var hintSpan = document.createElement('span');
+      hintSpan.className = 'stg-change-hint';
+      var nTotal = (changes.changed ? changes.changed.reduce(function(s, ch) { return s + ch.files.length; }, 0) : 0)
+                 + (changes.missing ? changes.missing.length : 0);
+      hintSpan.textContent = '⚠ ' + nTotal + ' Änderung' + (nTotal !== 1 ? 'en' : '') + ' — Neu stagen empfohlen';
+      hdr.appendChild(hintSpan);
     }
+    var actionsDiv = document.createElement('div');
+    actionsDiv.className = 'stg-kuerzel-actions';
+
+    var restageBtn = document.createElement('button');
+    restageBtn.className = 'stg-btn-restage';
+    restageBtn.textContent = '🔄 Re-Stage';
+    // Change-Detection: Button orange färben + Text ändern wenn Quellen geändert
+    var changes = k.sourceChanges;  // Bereits oben deklariert
+    if (changes && changes.hasChanges) {
+      hdr.classList.add('needs-update');
+      restageBtn.classList.add('has-changes');
+      restageBtn.textContent = '⚠ Neu stagen!';
+      var tipLines = [];
+      if (changes.missing && changes.missing.length) tipLines.push('⚠ Gelöscht: ' + changes.missing.join(', '));
+      if (changes.changed && changes.changed.length) {
+        changes.changed.forEach(function(ch) {
+          var reasons = ch.files.map(function(f) {
+            var datePart = (f.reason === 'modified' && f.oldModified && f.newModified)
+              ? ' (' + f.oldModified.substring(0, 10) + ' → ' + f.newModified.substring(0, 10) + ')' : '';
+            return f.file + ' (' + (f.reason === 'modified' ? 'geändert' : f.reason === 'added' ? 'neu' : 'gelöscht') + datePart + ')';
+          });
+          tipLines.push(ch.service + ': ' + reasons.join(', '));
+        });
+      }
+      restageBtn.title = 'Quellen haben sich geändert — jetzt neu stagen!\n' + tipLines.join('\n');
+    } else if (k.manifest && k.manifest.sources && k.manifest.sources.length) {
+      restageBtn.title = 'Erneut stagen — ' + k.manifest.sources.length + ' Quellen aus Manifest vorauswählen';
+    } else {
+      restageBtn.title = 'Kürzel auf der linken Seite vorausfüllen und manuell stagen';
+    }
+    (function(kuerzel, manifest) {
+      restageBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        restageFromManifest(kuerzel, manifest && manifest.sources ? manifest.sources : null);
+      });
+    })(k.kuerzel, k.manifest || null);
+    actionsDiv.appendChild(restageBtn);
+
+    var delBtn = document.createElement('button');
+    delBtn.className = 'stg-btn-del-kuerzel';
+    delBtn.innerHTML = '🗑 Löschen';
+    delBtn.title = 'Kürzel aus ImportToCore löschen';
+    (function(kuerzel) {
+      delBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        if (!confirm('Kürzel «' + kuerzel + '» aus ImportToCore löschen?')) return;
+        fetch(API_URL + '?action=staging-delete-output', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ kuerzel: [kuerzel] })
+        }).then(function() { loadStagingOutput(); }).catch(function() { loadStagingOutput(); });
+      });
+    })(k.kuerzel);
+    actionsDiv.appendChild(delBtn);
+    hdr.appendChild(actionsDiv);
     listEl.appendChild(hdr);
-    // Change-Detail-Zeilen anzeigen (aufklappbar über den Button)
+    // Change-Detail-Zeilen anzeigen (standardmässig sichtbar bei Änderungen)
     if (k.sourceChanges && k.sourceChanges.hasChanges) {
       var changeWrap = document.createElement('div');
       changeWrap.className = 'stg-dup-details-wrap';
-      changeWrap.style.display = 'none';
+      changeWrap.style.display = '';
       if (k.sourceChanges.missing) {
         k.sourceChanges.missing.forEach(function(svc) {
           var dd = document.createElement('div'); dd.className = 'stg-changes-detail';
@@ -2736,13 +3223,19 @@ function renderStagingOutput(kuerzelList) {
             var dd = document.createElement('div'); dd.className = 'stg-changes-detail';
             var cls = 'scd-' + f.reason;
             var label = f.reason === 'modified' ? 'geändert' : f.reason === 'added' ? 'neu' : 'gelöscht';
-            dd.innerHTML = '<span class="scd-service">' + ch.service + '</span> → <span class="scd-file ' + cls + '">' + f.file + ' (' + label + ')</span>';
+            // Bei geänderten Dateien: Datum old→new anzeigen
+            var detail = '';
+            if (f.reason === 'modified' && f.oldModified && f.newModified) {
+              var fmtDate = function(d) { return d ? d.substring(0, 10) : '?'; };
+              detail = ' <span style="color:#999;font-size:9px">' + fmtDate(f.oldModified) + ' → ' + fmtDate(f.newModified) + '</span>';
+            }
+            dd.innerHTML = '<span class="scd-service">' + ch.service + '</span> → <span class="scd-file ' + cls + '">' + f.file + ' (' + label + ')</span>' + detail;
             changeWrap.appendChild(dd);
           });
         });
       }
       listEl.appendChild(changeWrap);
-      // Toggle: Klick auf den restage-btn öffnet/schliesst Details
+      // Toggle: Doppelklick auf restage-btn schliesst/öffnet Details
       var toggleBtn = hdr.querySelector('.stg-restage-btn');
       if (toggleBtn) {
         (function(wrap) {
@@ -2848,6 +3341,18 @@ function deleteStagingOutputFiles() {
  * Fehlende Services (nicht mehr in raw-conf) werden als Warnung angezeigt.
  */
 function restageFromManifest(kuerzel, sources) {
+  // Wenn Staging-Liste noch nicht geladen: erst laden, dann selektieren
+  var listEl = document.getElementById('staging-svc-list');
+  if (!listEl.querySelector('input[type=checkbox]')) {
+    loadStagingList(function() {
+      _applyRestageSelection(kuerzel, sources);
+    });
+    return;
+  }
+  _applyRestageSelection(kuerzel, sources);
+}
+
+function _applyRestageSelection(kuerzel, sources) {
   // Kürzel und Modus setzen
   var kuerzelInput = document.getElementById('staging-kuerzel');
   var modeSelect = document.getElementById('staging-mode');
@@ -2859,6 +3364,30 @@ function restageFromManifest(kuerzel, sources) {
   document.querySelectorAll('#staging-svc-list input[type=checkbox]').forEach(function(cb) {
     cb.checked = false;
   });
+  // Ohne Manifest oder leere Quellen: Services per Kürzel-Präfix vorauswählen
+  if (!sources || sources.length === 0) {
+    var pfx = kuerzel.toLowerCase();
+    var autoFound = [];
+    document.querySelectorAll('#staging-svc-list input[type=checkbox]').forEach(function(cb) {
+      var svc = (cb.dataset.svc || '').toLowerCase();
+      if (svc === pfx || svc.indexOf(pfx + '_') === 0 || svc.indexOf(pfx + '-') === 0) {
+        cb.checked = true;
+        autoFound.push(cb.dataset.svc);
+      }
+    });
+    updateStagingSelCount();
+    updateStagingManifestInfo();
+    var statusEl = document.getElementById('staging-status');
+    if (autoFound.length > 0) {
+      statusEl.className = 'ags-status success';
+      statusEl.textContent = '✓ ' + autoFound.length + ' Services mit Präfix «' + kuerzel + '» vorausgewählt — bitte prüfen und stagen.';
+    } else {
+      statusEl.className = 'ags-status';
+      statusEl.textContent = 'Kürzel «' + kuerzel + '» gesetzt — keine passenden Services gefunden, bitte manuell auswählen.';
+      kuerzelInput.focus();
+    }
+    return;
+  }
   // Manifest-Service-Keys extrahieren
   var wantedServices = sources.map(function(s) { return s.service; });
   var foundServices = [];
@@ -2960,6 +3489,70 @@ document.getElementById('ags-btn-cache-clear').addEventListener('click', functio
     .catch(function(e) {
       btn.textContent = '✗ Fehler';
       setTimeout(function() { btn.textContent = '🗑 Cache leeren'; btn.disabled = false; }, 2000);
+    });
+});
+
+// Config→DB Button: Modal öffnen
+var _ctdbScope = 'full';
+document.getElementById('ags-btn-config-to-db').addEventListener('click', function() {
+  var modal = document.getElementById('ctdb-modal');
+  document.getElementById('ctdb-status').style.display = 'none';
+  document.getElementById('ctdb-result').style.display = 'none';
+  document.getElementById('ctdb-run').disabled = false;
+  document.getElementById('ctdb-run').textContent = 'Starten';
+  // Scope auf 'full' zurücksetzen
+  _ctdbScope = 'full';
+  document.querySelectorAll('.ctdb-scope-btn').forEach(function(b) { b.classList.remove('active'); });
+  document.querySelector('.ctdb-scope-btn[data-scope="full"]').classList.add('active');
+  modal.style.display = 'flex';
+});
+document.getElementById('ctdb-close').addEventListener('click', function() {
+  document.getElementById('ctdb-modal').style.display = 'none';
+});
+document.getElementById('ctdb-modal').addEventListener('click', function(e) {
+  if (e.target === this) this.style.display = 'none';
+});
+// Scope-Auswahl
+document.querySelectorAll('.ctdb-scope-btn').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    document.querySelectorAll('.ctdb-scope-btn').forEach(function(b) { b.classList.remove('active'); });
+    btn.classList.add('active');
+    _ctdbScope = btn.dataset.scope;
+  });
+});
+// Starten
+document.getElementById('ctdb-run').addEventListener('click', function() {
+  var btn = this;
+  var statusEl = document.getElementById('ctdb-status');
+  var resultEl = document.getElementById('ctdb-result');
+  btn.disabled = true;
+  btn.textContent = '⏳ Läuft…';
+  statusEl.style.cssText = 'margin-top:10px;font-size:12px;color:#555;display:block';
+  statusEl.textContent = 'Scope: ' + _ctdbScope + ' — Bitte warten, kann einige Sekunden dauern…';
+  resultEl.style.display = 'none';
+  var url = '/maps/tnet/api/v1/admin?action=configToPG&scope=' + encodeURIComponent(_ctdbScope);
+  var t0 = Date.now();
+  fetch(url)
+    .then(function(r) { return r.json(); })
+    .then(function(j) {
+      var elapsed = ((Date.now() - t0) / 1000).toFixed(1);
+      if (j.success !== false) {
+        statusEl.style.color = '#2a8';
+        statusEl.textContent = '✓ Abgeschlossen in ' + elapsed + 's — Scope: ' + _ctdbScope;
+      } else {
+        statusEl.style.color = '#c33';
+        statusEl.textContent = '✗ Fehler: ' + (j.error || j.message || 'Unbekannt');
+      }
+      resultEl.textContent = JSON.stringify(j.data || j, null, 2);
+      resultEl.style.display = '';
+      btn.textContent = 'Erneut starten';
+      btn.disabled = false;
+    })
+    .catch(function(e) {
+      statusEl.style.color = '#c33';
+      statusEl.textContent = '✗ Netzwerkfehler: ' + e.message;
+      btn.textContent = 'Erneut starten';
+      btn.disabled = false;
     });
 });
 

@@ -293,10 +293,38 @@
         }
     }
 
+    /**
+     * Punkt-Marker auf dem Highlight-Layer platzieren (ohne Geometrie-Abfrage).
+     * x = Northing, y = Easting (LV95)
+     */
+    function addPointMarker(x, y) {
+        var layer = ensureFeatureHighlightLayer();
+        if (!layer || x == null || y == null) return;
+        var view = getMapView();
+        if (!view) return;
+        var mapProj = view.getProjection().getCode();
+        var coord = ol.proj.transform([y, x], 'EPSG:2056', mapProj);
+        var feature = new ol.Feature({ geometry: new ol.geom.Point(coord) });
+        layer.getSource().addFeature(feature);
+    }
+
     function highlightFeature(item) {
         var layer = ensureFeatureHighlightLayer();
         if (!layer) return;
         clearFeatureHighlight();
+
+        // Fallback-Funktion: Pan + Punkt-Marker wenn MapServer fehlschlaegt
+        function fallbackPan() {
+            if (item.x && item.y) {
+                addPointMarker(item.x, item.y);
+                if (item.subtitle === 'Adresse') {
+                    panToResult(item.x, item.y, null, _ADDR_RESOLUTION);
+                } else {
+                    panToResult(item.x, item.y);
+                }
+                TnetLog.log('[DesktopSearch] Fallback: Pan + Marker für', item.label);
+            }
+        }
 
         var url = MAPSERVER_URL + encodeURIComponent(item.layerId)
                 + '/' + encodeURIComponent(item.featureId)
@@ -306,7 +334,11 @@
         xhr.open('GET', url, true);
         xhr.timeout = 8000;
         xhr.onload = function () {
-            if (xhr.status !== 200) return;
+            if (xhr.status !== 200) {
+                TnetLog.warn('[DesktopSearch] MapServer HTTP', xhr.status, 'für', item.layerId);
+                fallbackPan();
+                return;
+            }
             try {
                 var data = JSON.parse(xhr.responseText);
                 var geojson = data.feature || data;
@@ -317,7 +349,10 @@
                     dataProjection: 'EPSG:2056',
                     featureProjection: mapProj
                 });
-                if (!features.length) return;
+                if (!features.length) {
+                    fallbackPan();
+                    return;
+                }
                 layer.getSource().addFeatures(features);
 
                 // Extent direkt aus Geometrie(n) berechnen
@@ -351,10 +386,12 @@
                 }
             } catch (e) {
                 TnetLog.warn('[DesktopSearch] Feature-Geometrie konnte nicht geladen werden:', e);
+                fallbackPan();
             }
         };
         xhr.onerror = xhr.ontimeout = function () {
             TnetLog.warn('[DesktopSearch] Feature-Geometrie Timeout/Fehler');
+            fallbackPan();
         };
         xhr.send();
     }
@@ -578,6 +615,7 @@
                 if (item.subtitle === 'Parzelle' && item.x && item.y) {
                     highlightParcelByCoord(item.x, item.y);
                 } else if (item.subtitle === 'Adresse' && item.x && item.y) {
+                    addPointMarker(item.x, item.y);
                     panToResult(item.x, item.y, null, _ADDR_RESOLUTION);
                 } else {
                     panToResult(item.x, item.y);

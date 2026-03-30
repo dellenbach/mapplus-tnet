@@ -899,3 +899,17 @@
 - **Root-Cause**: Windows-Dateien verwenden CRLF (`\r\n`). PowerShell-`\`n` ist nur LF. `IndexOf` auf CRLF-Inhalt mit LF-Marker gibt -1 oder falschen Offset → `Substring()` schneidet an falscher Stelle.
 - **Fix**: Python-Script mit expliziter Encoding-Kontrolle (`newline=''`) verwenden. Keine PowerShell-Here-Strings für Dateimanipulation grosser Dateien.
 - **Guardrail**: Grosse HTML-Dateien immer mit Python manipulieren, nie mit PowerShell-String-Operationen.
+
+## 2026-03-30 — Adresssuche: kein Pan/Highlight nach Klick auf Suchresultat
+
+- **Symptom**: Desktop- und Mobile-Suche findet Adressen, aber Klick auf ein Resultat zeigt weder Highlight noch Pan/Zoom.
+- **Root-Cause**: swisstopo Geocoder liefert für Adressen `featureId` + `layerId = ch.swisstopo.amtliches-gebaeudeadressverzeichnis`. Dieser Layer ist im MapServer REST-API **nicht vorhanden** (HTTP 404). `highlightFeature()` brach bei non-200 Status ab, ohne Fallback auf `panToResult()`.
+- **Fix**: `highlightFeature()` mit `fallbackPan()`-Funktion ergänzt: bei XHR-Fehler (404, Timeout, Parse-Error) wird `panToResult()` mit Punkt-Marker aufgerufen. Neue Hilfsfunktion `addPointMarker()` platziert roten Kreis auf Highlight-Layer. Fix in Desktop (`tnet-search.js`) und Mobile (`tnet-search-m.js`).
+- **Guardrail**: Bei XHR-basierten Highlight-Funktionen IMMER einen Fallback auf Koordinaten-Pan einbauen. Externe APIs (swisstopo MapServer) können jederzeit Layer entfernen oder umbenennen.
+
+## 2026-03-30 — Druckvorschau: SVG-Preview füllt Rahmen nicht aus
+
+- **Symptom**: Druckrahmen auf der Karte zeigt zwei sichtbare Rechtecke — äusseres Papier und innere MAP_AREA. SVG-Vorschau ragt über den Frame hinaus.
+- **Root-Cause**: `_frameEl` wurde auf MAP_AREA-Grösse dimensioniert, die SVG-Vorschau (gesamtes Papier) war grösser und ragte über den Frame hinaus. Box-Shadow dimmte ab MAP_AREA-Kante, SVG-weisse Ränder lagen darüber → zwei sichtbare Grenzen.
+- **Fix**: `updateFrameSize()` setzt Frame auf Papiergrösse. SVG füllt Frame bei (0,0). Overlay-Offset per `setOffset()` verschiebt Element, damit MAP_AREA-Zentrum auf `_printCenter` bleibt. `transformOrigin` auf MAP_AREA-Zentrum für korrekte Rotation. Mittelpunkt-Marker analog repositioniert.
+- **Guardrail**: Bei WYSIWYG-Print-Vorschauen den äusseren Rahmen immer auf Papiergrösse setzen, nicht auf den inneren Druckbereich. Das SVG-Layout muss den gesamten Rahmen ausfüllen.

@@ -137,6 +137,8 @@ body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sa
     <button class="dt-view-btn" data-view="desktop">Desktop</button>
     <button class="dt-view-btn" data-view="split">Split</button>
   </div>
+  <span class="dt-sep"></span>
+  <button id="dt-source-toggle" style="padding:3px 10px;border:1px solid #ccc;border-radius:3px;cursor:pointer;font-size:11px;font-weight:600">📄 Dateien</button>
 </div>
 
 <!-- Links -->
@@ -179,9 +181,10 @@ body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sa
 // Config / URL-Parameter
 // =====================================================================
 var params = new URLSearchParams(window.location.search);
-var currentGroup = params.get('group') || 'marco';
-var currentPanel = params.get('panel') || 'tree';
-var currentView  = params.get('view')  || 'mobile';
+var currentGroup  = params.get('group')  || 'marco';
+var currentPanel  = params.get('panel')  || 'tree';
+var currentView   = params.get('view')   || 'mobile';
+var currentSource = params.get('source') || 'file'; // file = Config-Dateien (Default), auto = DB wenn verfügbar
 
 // =====================================================================
 // Logger
@@ -288,15 +291,33 @@ function showPanels() {
 })();
 
 function updateUrl() {
-  var u = window.location.pathname + '?group=' + currentGroup + '&panel=' + currentPanel + '&view=' + document.getElementById('dt-canvas').dataset.view;
+  var u = window.location.pathname + '?group=' + currentGroup + '&panel=' + currentPanel + '&view=' + document.getElementById('dt-canvas').dataset.view + '&source=' + currentSource;
   history.replaceState(null, '', u);
   document.getElementById('dt-api-url').textContent = buildApiUrl();
 }
 
 function buildApiUrl() {
-  return '/maps/tnet/api/v1/layers.php?group=' + encodeURIComponent(currentGroup);
+  return '/maps/tnet/api/v1/layers.php?group=' + encodeURIComponent(currentGroup) + '&source=' + currentSource;
 }
 document.getElementById('dt-api-url').textContent = buildApiUrl();
+
+// Quelle-Toggle
+(function() {
+  var btn = document.getElementById('dt-source-toggle');
+  function refresh() {
+    btn.textContent  = currentSource === 'file' ? '📄 Dateien' : '🗄 DB';
+    btn.title = currentSource === 'file' ? 'Quelle: Config-Dateien (klicken für DB)' : 'Quelle: Datenbank (klicken für Dateien)';
+    btn.style.background = currentSource === 'file' ? '#e8f5e9' : '#e3f2fd';
+    btn.style.color = currentSource === 'file' ? '#2e7d32' : '#1565c0';
+  }
+  refresh();
+  btn.addEventListener('click', function() {
+    currentSource = (currentSource === 'file') ? 'auto' : 'file';
+    refresh();
+    updateUrl();
+    reloadData();
+  });
+})();
 
 // =====================================================================
 // MOCK: TnetLMStore (erweitert mit Active-Layer-Emulation)

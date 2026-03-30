@@ -16,6 +16,17 @@ body.tnet-sidepanel-v2 div#freepane {
   flex-direction: column;
 }
 
+/* Freepane verkürzt wenn Spatial-Query-Panel unten angedockt */
+body.tnet-sidepanel-v2 div#freepane.panel-docked {
+  bottom: auto !important;
+}
+
+/* Spring passt sich dem verkürzten Freepane an */
+body.tnet-sidepanel-v2 div#freepane.panel-docked #spring {
+  height: 100% !important;
+  max-height: 100% !important;
+}
+
 /* Während Polygon-Zeichnen: Sidepanel deaktivieren */
 body.tnet-sidepanel-v2.drawing-mode #freepane,
 body.tnet-sidepanel-v2.drawing-mode #freepane * {
@@ -198,12 +209,24 @@ body.tnet-sidepanel-v2 #freepane #scrollToTopBtn {
   transition: opacity 0.3s ease;
 }
 
-/* Während Resize-Drag: alle Transitions abschalten für flüssiges Ziehen */
+/* Während Resize-Drag: Transitions auf Resize-relevanten Elementen abschalten */
 body.tnet-resizing #freepane,
-body.tnet-resizing #freepane *,
 body.tnet-resizing #spring,
-body.tnet-resizing #spring * {
+body.tnet-resizing .tnet-panel-content,
+body.tnet-resizing #lm-tree-container,
+body.tnet-resizing #lm-active-container,
+body.tnet-resizing #kantons_container,
+body.tnet-resizing .tnet-accordion-resize-handle {
   transition: none !important;
+}
+
+/* Während Resize: will-change + contain für GPU-beschleunigtes Layout */
+body.tnet-resizing #lm-tree-container,
+body.tnet-resizing #lm-active-container,
+body.tnet-resizing #kantons_container,
+body.tnet-resizing .tnet-panel-content {
+  will-change: height, max-height !important;
+  contain: layout style !important;
 }
 
 /* Closed state */
@@ -447,4 +470,26 @@ body.tnet-sidepanel-v2 #lm-active-container.lm-container-desktop::-webkit-scroll
 
 body.tnet-sidepanel-v2 .tnet-panel:not([open]) > .tnet-panel-content {
   display: none;
+}
+
+/* ===== NAVIGIEREN OVERVIEW MAP ===== */
+body.tnet-sidepanel-v2 #tp_ov_menu > .tnet-panel-content {
+  overflow: hidden !important;
+  width: 100%;
+}
+
+/* ===== DRUCKEN PANEL IM AKKORDEON ===== */
+/* spring scrollbar: verhindert Clipping bei langen Panel-Inhalten */
+body.tnet-sidepanel-v2 #spring {
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  scrollbar-width: thin;
+  scrollbar-color: #95b5be transparent;
+}
+body.tnet-sidepanel-v2 #spring::-webkit-scrollbar { width: 4px; }
+body.tnet-sidepanel-v2 #spring::-webkit-scrollbar-thumb { background: #95b5be; border-radius: 2px; }
+
+body.tnet-sidepanel-v2 #tp_tnet_print_menu > .tnet-panel-content {
+  overflow-y: auto;
+  max-height: calc(100vh - 160px);
 }

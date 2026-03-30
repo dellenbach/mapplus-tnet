@@ -311,6 +311,7 @@
     // ── Feature-at-Pixel Check ──
     // Blockiert Klicks auf interaktive Vektor-Features (Redlining etc.)
     // AUSNAHME: Zeichenlayer der räumlichen Abfrage, Messungen und PDF-Extent sollen NICHT blockieren
+    // AUSNAHME: GeoJSON-Layer mit registriertem gjsonServiceMapTip → direkt behandeln
     var hasBlockingFeature = false;
     try {
       if (map.hasFeatureAtPixel(evt.pixel) === true) {
@@ -323,6 +324,43 @@
           if (name.indexOf('njs_') === 0 || name.indexOf('pdfExtent') === 0) return;
           // Räumliche-Abfrage-Zeichenlayer ignorieren
           if (name === 'spatial_query_draw' || name === 'tnet_spatial_query') return;
+          // GeoJSON-Maptip-Layer: nicht blockieren, sondern direkt showInfoBubble aufrufen
+          if (am.MapTips) {
+            for (var _mtId in am.MapTips) {
+              var _mt = am.MapTips[_mtId];
+              if (_mt && _mt.linked_layer_id === name && typeof _mt.showInfoBubble === 'function') {
+                _log('Click #' + _clickCount + ': gjsonServiceMapTip-Layer "' + name + '" → showInfoBubble');
+                // Overlay/Popup initialisieren falls noch nicht geschehen
+                if (!am.infoOverlay) {
+                  var _popupContainer = document.getElementById('popup');
+                  var _popupCloser = document.getElementById('popup-closer');
+                  if (_popupContainer && _popupCloser) {
+                    am.infoPopupContainer = _popupContainer;
+                    am.infoPopupContent = document.getElementById('popup-content');
+                    am.infoPopupCloser = _popupCloser;
+                    am.infoOverlay = new ol.Overlay({
+                      element: _popupContainer,
+                      autoPan: true,
+                      autoPanAnimation: { duration: 250 }
+                    });
+                    map.addOverlay(am.infoOverlay);
+                    _popupCloser.onclick = function () {
+                      am.infoOverlay.setPosition(undefined);
+                      _popupCloser.blur();
+                      document.getElementById('popup').style.display = 'none';
+                      return false;
+                    };
+                  }
+                }
+                _mt.showInfoBubble(feature);
+                // Popup sichtbar machen und positionieren
+                var popupEl = document.getElementById('popup');
+                if (popupEl) popupEl.style.display = '';
+                if (am.infoOverlay) am.infoOverlay.setPosition(evt.coordinate);
+                return; // forEachFeatureAtPixel-Callback verlassen (Layer gefunden)
+              }
+            }
+          }
           // Alles andere blockiert
           hasBlockingFeature = true;
           _log('Click #' + _clickCount + ': blockierender Layer: "' + name + '"');

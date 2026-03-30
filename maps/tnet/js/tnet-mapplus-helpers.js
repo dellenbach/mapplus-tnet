@@ -706,3 +706,101 @@ function TnetScheduleSyncMapTips(delay) {
     if (!_listenerInstalled) startInit();
   }, 5000);
 })();
+
+// ===== NAVIGIEREN OL-MAP RESIZE =====
+// OL-Karte in #ovWin wurde in verborgenem Container initialisiert.
+// Beim ersten Öffnen des NAVIGIEREN-Panels updateSize() aufrufen.
+(function () {
+  function resizeOvMaps() {
+    var am = window.njs && njs.AppManager;
+    if (!am) return;
+
+    // (1) Alle registrierten Maps in AppManager.Maps durchsuchen
+    if (am.Maps) {
+      Object.keys(am.Maps).forEach(function (id) {
+        var m = am.Maps[id];
+        if (m && m.mapObj && typeof m.mapObj.updateSize === 'function') {
+          m.mapObj.updateSize();
+          m.mapObj.render();
+        }
+        // Falls mapObj die Target-Element #ovWin ist — explizit erfassen
+        if (m && m.mapObj && typeof m.mapObj.getTargetElement === 'function') {
+          var tgt = m.mapObj.getTargetElement();
+          if (tgt && tgt.id === 'ovWin') {
+            m.mapObj.updateSize();
+            m.mapObj.render();
+          }
+        }
+      });
+    }
+
+    // (2) Direktzugriff über bekannte OV-Map-Property-Namen auf AppManager
+    var ovCandidates = ['ovMap', 'ov_map', 'overviewMap', 'OvMap', 'OVMap', 'ov_main'];
+    ovCandidates.forEach(function (key) {
+      var candidate = am[key] || (am.Maps && am.Maps[key]);
+      if (candidate) {
+        var mapObj = candidate.mapObj || candidate;
+        if (mapObj && typeof mapObj.updateSize === 'function') {
+          mapObj.updateSize();
+          if (typeof mapObj.render === 'function') mapObj.render();
+        }
+      }
+    });
+
+    // (3) OL OverviewMap-Control auf der Hauptkarte suchen
+    var mainMap = am.Maps && am.Maps['main'] && am.Maps['main'].mapObj;
+    if (mainMap && typeof mainMap.getControls === 'function') {
+      mainMap.getControls().forEach(function (ctrl) {
+        if (typeof ctrl.getOverviewMap === 'function') {
+          var ovOl = ctrl.getOverviewMap();
+          if (ovOl && typeof ovOl.updateSize === 'function') {
+            ovOl.updateSize();
+            ovOl.render();
+          }
+        }
+      });
+    }
+
+    // (4) OL-Karte direkt im #ovWin-Container suchen (über .ol-viewport)
+    var ovWin = document.getElementById('ovWin');
+    if (ovWin) {
+      var vp = ovWin.querySelector('.ol-viewport');
+      if (vp) {
+        // OL speichert manchmal die Map-Instanz auf dem Element
+        var possibleKeys = ['_ol_map', '__olmap__', 'olMap', 'map', '$$olMap', '__map__'];
+        possibleKeys.forEach(function (k) {
+          if (vp[k] && typeof vp[k].updateSize === 'function') {
+            vp[k].updateSize();
+            if (typeof vp[k].render === 'function') vp[k].render();
+          }
+        });
+        // OL intern: target-Element selbst prüfen
+        possibleKeys.forEach(function (k) {
+          if (ovWin[k] && typeof ovWin[k].updateSize === 'function') {
+            ovWin[k].updateSize();
+            if (typeof ovWin[k].render === 'function') ovWin[k].render();
+          }
+        });
+      }
+    }
+
+    // (5) Zuverlässigstes Fallback: window-resize-Event dispatchen.
+    // Alle OL-Karten lauschen auf dieses Event und rufen updateSize() selbst auf.
+    try {
+      window.dispatchEvent(new Event('resize'));
+    } catch (e) { /* ignorieren */ }
+  }
+
+  document.addEventListener('DOMContentLoaded', function () {
+    var ovDetails = document.getElementById('tp_ov_menu');
+    if (!ovDetails) return;
+    ovDetails.addEventListener('toggle', function () {
+      if (this.open) {
+        // Mehrfache Versuche: CSS display:block muss zuerst greifen
+        setTimeout(resizeOvMaps, 80);
+        setTimeout(resizeOvMaps, 350);
+        setTimeout(resizeOvMaps, 900);
+      }
+    });
+  });
+})();

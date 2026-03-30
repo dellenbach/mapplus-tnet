@@ -13,9 +13,8 @@ LOCAL_BASE = r"c:\_Daten\mapplus-exp\maps"
 
 # Files to upload
 FILES = [
-    "tnet/js/tnet-accordion-resize.js",
-    "tnet/css/tnet-sidepanel.css",
-    "tnet/css/tnet-lm.css",
+    # Bugfix: fehlendes } + /** in tnet-print.js (IIFE-Syntaxfehler)
+    "tnet/js/tnet-print.js",
 ]
 
 def upload_files():

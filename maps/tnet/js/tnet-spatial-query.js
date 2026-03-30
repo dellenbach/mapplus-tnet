@@ -389,6 +389,10 @@ var spatialQueryConfigPromise = null;
                 document.body.classList.add('drawing-mode');
                 if (btn) btn.classList.add('active');
                 if (panel) panel.classList.remove('hidden');
+                // Panel per Default unten andocken
+                if (!window.isPanelDocked && window.toggleDockPanel) {
+                    window.toggleDockPanel();
+                }
                 statusEl.textContent = 'Zeichnen Sie ein Polygon auf der Karte (Doppelklick zum Beenden)...';
                 resultsEl.innerHTML = '';
             }
@@ -410,7 +414,9 @@ var spatialQueryConfigPromise = null;
         var freepane = document.getElementById('freepane');
         if (freepane) {
             freepane.classList.remove('panel-docked');
-            freepane.style.bottom = '';
+            freepane.style.removeProperty('height');
+            freepane.style.removeProperty('max-height');
+            freepane.style.removeProperty('bottom');
         }
         window.isPanelDocked = false;
         
@@ -2220,6 +2226,7 @@ var spatialQueryConfigPromise = null;
         var panel = document.getElementById('spatial-query-panel');
         var dockBtn = document.getElementById('dock-btn');
         var freepane = document.getElementById('freepane');
+        if (!panel) return;
         
         if (window.isPanelDocked) {
             // Undock - zurück zu floating
@@ -2227,29 +2234,35 @@ var spatialQueryConfigPromise = null;
             panel.style.left = '';
             panel.style.top = '';
             panel.style.height = '';
-            dockBtn.innerHTML = TnetIcons.get('dock-bottom', null, {width: '16', height: '16'});
-            dockBtn.title = 'Unten andocken';
+            if (dockBtn) {
+                dockBtn.innerHTML = TnetIcons.get('dock-bottom', null, {width: '16', height: '16'});
+                dockBtn.title = 'Unten andocken';
+            }
             window.isPanelDocked = false;
             // Freepane wieder auf volle Höhe
             if (freepane) {
                 freepane.classList.remove('panel-docked');
-                freepane.style.bottom = '';
+                freepane.style.removeProperty('height');
+                freepane.style.removeProperty('max-height');
+                freepane.style.removeProperty('bottom');
             }
         } else {
             // Dock - unten andocken
             panel.classList.add('docked-bottom');
             panel.style.left = '';
             panel.style.top = '';
-            dockBtn.innerHTML = TnetIcons.get('undock', null, {width: '16', height: '16'});
-            dockBtn.title = 'Floating';
+            if (dockBtn) {
+                dockBtn.innerHTML = TnetIcons.get('undock', null, {width: '16', height: '16'});
+                dockBtn.title = 'Floating';
+            }
             window.isPanelDocked = true;
             // Freepane kürzen bis Panel-Oberkante
             if (freepane) {
                 freepane.classList.add('panel-docked');
-                // Kurze Verzögerung damit Panel-Höhe korrekt berechnet wird
-                setTimeout(function() {
-                    updateFreepaneHeight();
-                }, 50);
+                // Mehrere Zeitpunkte für robustes Layout-Reflow
+                updateFreepaneHeight();
+                setTimeout(function() { updateFreepaneHeight(); }, 100);
+                setTimeout(function() { updateFreepaneHeight(); }, 300);
             }
         }
     };
@@ -2259,7 +2272,27 @@ var spatialQueryConfigPromise = null;
         var panel = document.getElementById('spatial-query-panel');
         var freepane = document.getElementById('freepane');
         if (panel && freepane && window.isPanelDocked) {
-            var panelHeight = panel.offsetHeight;
-            freepane.style.bottom = (panelHeight + 32) + 'px'; // +32 für footer-bar
+            var panelHeight = panel.offsetHeight || 280; // Fallback: CSS-Default
+            var availableHeight = window.innerHeight - 69 - panelHeight - 32; // 69=Header, 32=Footer
+            var h = Math.max(200, availableHeight);
+            // bottom MUSS auf auto gesetzt werden — CSS hat bottom:0 !important,
+            // daher reicht die CSS-Klasse allein nicht (inline !important > CSS !important)
+            freepane.style.setProperty('bottom', 'auto', 'important');
+            freepane.style.setProperty('height', h + 'px', 'important');
+            freepane.style.setProperty('max-height', h + 'px', 'important');
+            // Accordion-Panels an neue Platzverhältnisse anpassen
+            if (window.TnetAccordionResize && TnetAccordionResize.scheduleRefresh) {
+                TnetAccordionResize.scheduleRefresh('panel-docked');
+            }
         }
     };
+    
+    // ResizeObserver: Freepane automatisch anpassen wenn Panel-Höhe sich ändert
+    (function() {
+        var sqPanel = document.getElementById('spatial-query-panel');
+        if (sqPanel && window.ResizeObserver) {
+            new ResizeObserver(function() {
+                if (window.isPanelDocked) updateFreepaneHeight();
+            }).observe(sqPanel);
+        }
+    })();

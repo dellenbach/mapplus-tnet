@@ -689,6 +689,11 @@ function processLayerItems($items, &$layerDefinitions, $details = true) {
                         $layerData['legendLayers'] = $legendInfo['legendLayers'];
                     }
                 }
+                // Fallback: legend-Feld aus Layer-Definition direkt übernehmen
+                // (für nicht-ArcGIS Layer wie GeoJSON, WMS etc.)
+                if (!isset($layerData['legend']) && !empty($def['legend'])) {
+                    $layerData['legend'] = $def['legend'];
+                }
             }
             // Zusätzlich legendResources auflösen (für nicht-ArcGIS Legenden)
             if (isset($layerData['legend']) && !isset($layerData['legendLink'])) {

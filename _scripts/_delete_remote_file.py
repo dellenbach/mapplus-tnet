@@ -7,7 +7,7 @@ PORT = 22
 USER = "trigonet"
 PASSWORD = "3Zs,k4%Un,<[W(Kx"
 
-REMOTE_FILE = "/www/maps/tnet/js/tnet-basemap-time.js"
+REMOTE_FILE = "/www/maps/tnet/api/v1/_migrate_ags_import.php"
 
 ssh = paramiko.SSHClient()
 ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())

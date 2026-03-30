@@ -282,10 +282,9 @@
 /* ==============================
    ============================== */
 .print-frame-rect {
-  border: 3px solid #333;
+  border: 2px solid #555;
   box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.3);
   position: relative; box-sizing: content-box;
-  transform-origin: center center;
   overflow: visible;
   cursor: move;
   user-select: none;
@@ -333,4 +332,33 @@
   transform: translate(-50%, -50%);
   pointer-events: none;
   z-index: 10;
+}
+
+/* ===== INLINE-MODUS: Print-Panel im Sidebar-Akkordeon ===== */
+.print-panel.print-panel-inline {
+  position: static !important;
+  width: 100% !important;
+  height: auto !important;
+  max-width: none !important;
+  box-shadow: none !important;
+  border: none !important;
+  z-index: auto !important;
+  display: flex !important;
+  flex-direction: column;
+}
+.print-panel.print-panel-inline.hidden {
+  display: flex !important; /* Im Inline-Modus nie per CSS verstecken */
+}
+.print-panel.print-panel-inline .print-panel-header {
+  display: none !important; /* Titelbar ausblenden — Akkordeon-Summary ist der Titel */
+}
+.print-panel.print-panel-inline .print-panel-body {
+  overflow-y: auto;
+  max-height: calc(100vh - 220px);
+  padding: 4px 8px;
+  flex: 1;
+}
+/* Resize-Handle ausblenden (kein Docking) */
+.print-panel.print-panel-inline .print-resize-handle {
+  display: none !important;
 }
