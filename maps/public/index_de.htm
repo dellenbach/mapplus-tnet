@@ -486,7 +486,7 @@
             </details>
 
             <!-- DRUCKEN -->
-            <details id="tp_print_menu" class="tnet-panel">
+            <details id="tp_print_menu" class="tnet-panel" style="display:none">
                 <summary class="tnet-panel-title">Drucken</summary>
                 <div class="tnet-panel-content">
                     <details id="print_menu" class="tnet-panel tnet-panel-nested" open>
@@ -495,6 +495,14 @@
                             <div id="njs_print_wrapper" style="width: 100%; height:100%; border:0"></div>
                         </div>
                     </details>
+                </div>
+            </details>
+
+            <!-- NEU: TNET Drucken / Export -->
+            <details id="tp_tnet_print_menu" class="tnet-panel">
+                <summary class="tnet-panel-title">Drucken</summary>
+                <div class="tnet-panel-content" id="tnet-print-left-container">
+                    <!-- Wird durch tnet-print.js befüllt -->
                 </div>
             </details>
 

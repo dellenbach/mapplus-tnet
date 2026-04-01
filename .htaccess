@@ -1,0 +1,15 @@
+# ===== QGIS Server: /qmap/ URL-Routing =====
+# /qmap/<pfad> -> /qgis?MAP=/data/Client_Data/nwow/qmap/<pfad>.qg[sz]
+# Unterstuetzt .qgz und .qgs — Apache prueft welche Datei existiert.
+# Beispiel: /qmap/test/kulturobjekte_nw_pg -> ...kulturobjekte_nw_pg.qgz (oder .qgs)
+# Query-Parameter (SERVICE, REQUEST, LAYERS etc.) werden durchgereicht (QSA).
+
+RewriteEngine On
+
+# Prioritaet 1: .qgz (komprimiertes Format)
+RewriteCond /data/Client_Data/nwow/qmap/$1.qgz -f
+RewriteRule ^qmap/(.+?)/?$ /qgis?MAP=/data/Client_Data/nwow/qmap/$1.qgz [QSA,PT,L]
+
+# Prioritaet 2: .qgs (XML-Format)
+RewriteCond /data/Client_Data/nwow/qmap/$1.qgs -f
+RewriteRule ^qmap/(.+?)/?$ /qgis?MAP=/data/Client_Data/nwow/qmap/$1.qgs [QSA,PT,L]

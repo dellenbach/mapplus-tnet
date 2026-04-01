@@ -954,6 +954,7 @@ body {
     <div class="import-source-bar">
       <button class="import-source-btn active" data-source="ags">📦 AGS-Dienste</button>
       <button class="import-source-btn" data-source="core">🌐 Core / Produktiv</button>
+      <button class="import-source-btn" data-source="qgis">🗺️ QGIS Server</button>
     </div>
     <div class="ags-status" id="import-status">Dienste werden geladen…</div>
     <div class="ags-progress" id="import-progress">
@@ -1274,6 +1275,13 @@ var _stagingOutputData = null;  // Gecachte ImportToCore-Daten für Manifest-Inf
  * Ohne Wildcards: einfache Substring-Suche (wie bisher).
  * Mehrere Patterns können mit Komma getrennt werden (OR-Logik).
  */
+function esc(s) {
+  if (!s) return '';
+  var d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
 function matchWildcard(text, pattern) {
   if (!pattern) return true;
   // Komma-getrennte Patterns → OR-Logik
@@ -1606,9 +1614,18 @@ function refreshImportImportedMarkers() {
     var name = row.dataset.name; // bereits lowercase
     var origName = row.querySelector('input') ? row.querySelector('input').dataset.svc : name;
     // Vergleich: raw-conf nutzt flache Keys (awu_awu_zustand), AGS-Namen haben Slash (awu/awu_zustand)
+    var nameUnder = name.replace(/\//g, '_');
     var isImp = !!_importedServiceNames[name]
-             || !!_importedServiceNames[name.replace('\/', '_')]
-             || !!_importedServiceNames[name.substring(name.lastIndexOf('\/') + 1)];
+             || !!_importedServiceNames[nameUnder]
+             || !!_importedServiceNames[name.substring(name.lastIndexOf('\/') + 1)]
+             // QGIS-Benennungen: raw-conf Keys haben _singlelayer/_multilayer Suffix
+             || !!_importedServiceNames[nameUnder + '_singlelayer']
+             || !!_importedServiceNames[nameUnder + '_multilayer']
+             // QGIS mit QGIS_ Präfix (Verzeichnis- und Flat-Struktur)
+             || !!_importedServiceNames['qgis_' + name]
+             || !!_importedServiceNames['qgis_' + nameUnder]
+             || !!_importedServiceNames['qgis_' + nameUnder + '_singlelayer']
+             || !!_importedServiceNames['qgis_' + nameUnder + '_multilayer'];
 
     // Hash-Vergleich: Ist der Dienst seit dem letzten Import geändert worden?
     var isChanged = false;
@@ -1681,8 +1698,8 @@ function sortImportTable(col) {
         vb = b.dataset.name || '';
         break;
       case 'author':
-        var da = _agsServiceDetails[origA];
-        var db = _agsServiceDetails[origB];
+        var da = _agsServiceDetails[origA] || _qgisProjectDetails[origA];
+        var db = _agsServiceDetails[origB] || _qgisProjectDetails[origB];
         va = (da && da.published_by) ? da.published_by.toLowerCase() : '';
         vb = (db && db.published_by) ? db.published_by.toLowerCase() : '';
         break;
@@ -1691,10 +1708,10 @@ function sortImportTable(col) {
         vb = statusWeight(b);
         break;
       case 'published':
-        var da2 = _agsServiceDetails[origA];
-        var db2 = _agsServiceDetails[origB];
-        va = (da2 && da2.published_at) ? da2.published_at : '';
-        vb = (db2 && db2.published_at) ? db2.published_at : '';
+        var da2 = _agsServiceDetails[origA] || _qgisProjectDetails[origA];
+        var db2 = _agsServiceDetails[origB] || _qgisProjectDetails[origB];
+        va = (da2 && (da2.published_at || da2.modified)) ? (da2.published_at || da2.modified) : '';
+        vb = (db2 && (db2.published_at || db2.modified)) ? (db2.published_at || db2.modified) : '';
         break;
       case 'imported':
         var ma = _importedServiceMeta[origA];
@@ -1868,7 +1885,7 @@ function exportAgsServices() {
 // =====================================================================
 var _coreSources = [];
 var _coreSourcesLoaded = false;
-var _importActiveSource = 'ags'; // 'ags' | 'core'
+var _importActiveSource = 'ags'; // 'ags' | 'core' | 'qgis'
 
 /**
  * Import-Quelle wechseln (AGS ↔ Core)
@@ -1896,6 +1913,10 @@ function switchImportSource(source) {
   } else if (source === 'core') {
     document.getElementById('import-btn-export').textContent = '📥 In raw-conf importieren';
     loadCoreSources();
+  } else if (source === 'qgis') {
+    document.getElementById('import-btn-export').textContent = '📦 QGIS Importieren';
+    document.getElementById('import-btn-export').disabled = true;
+    loadQgisProjects();
   }
 }
 
@@ -2182,6 +2203,369 @@ function importCoreSources() {
     .catch(function(err) {
       statusEl.textContent = 'Fehler (' + runLabel + '): ' + err.message;
       statusEl.className = 'ags-status error';
+    });
+}
+
+// =====================================================================
+// IMPORT-TAB: QGIS Server Projekte
+// =====================================================================
+var _qgisProjects = [];
+var _qgisProjectsLoaded = false;
+var _qgisProjectDetails = {};
+
+/**
+ * QGIS-Projekte vom Server laden und anzeigen
+ */
+function loadQgisProjects(forceReload) {
+  if (_qgisProjectsLoaded && !forceReload) {
+    renderQgisProjectList();
+    return;
+  }
+
+  var statusEl = document.getElementById('import-status');
+  var listEl = document.getElementById('import-list');
+  statusEl.textContent = 'QGIS-Projekte werden geladen…';
+  statusEl.className = 'ags-status';
+  statusEl.style.display = '';
+  listEl.style.display = 'none';
+
+  // Primär: FastAPI Endpoint (SFTP-basiert, analog AGS-Dienste)
+  fetch(GAPI_URL + '/get-qgis-projects')
+    .then(function(r) {
+      if (!r.ok) throw new Error('FastAPI HTTP ' + r.status);
+      return r.json();
+    })
+    .then(function(resp) {
+      _qgisProjects = resp.projects || [];
+      _qgisProjectsLoaded = true;
+      _buildQgisProjectDetails();
+      statusEl.textContent = _qgisProjects.length + ' QGIS-Projekte gefunden (via FastAPI)';
+      statusEl.className = 'ags-status success';
+      renderQgisProjectList();
+      loadImportedNamesSilent();
+    })
+    .catch(function(gapiErr) {
+      // Fallback: PHP-Endpoint (lokales Dateisystem)
+      console.warn('FastAPI QGIS-Listing fehlgeschlagen, Fallback auf PHP:', gapiErr.message);
+      fetch(API_URL + '?action=qgis-list-projects')
+        .then(function(r) { return r.json(); })
+        .then(function(resp) {
+          if (!resp.success) throw new Error(resp.error || 'Unbekannter Fehler');
+          _qgisProjects = (resp.data && resp.data.projects) ? resp.data.projects : [];
+          _qgisProjectsLoaded = true;
+          _buildQgisProjectDetails();
+          statusEl.textContent = _qgisProjects.length + ' QGIS-Projekte gefunden (via PHP)';
+          statusEl.className = 'ags-status success';
+          renderQgisProjectList();
+          loadImportedNamesSilent();
+        })
+        .catch(function(phpErr) {
+          statusEl.textContent = 'Fehler: ' + phpErr.message;
+          statusEl.className = 'ags-status error';
+        });
+    });
+}
+
+/**
+ * QGIS-Projekt-Details-Lookup aufbauen (analog _agsServiceDetails)
+ */
+function _buildQgisProjectDetails() {
+  _qgisProjectDetails = {};
+  _qgisProjects.forEach(function(proj) {
+    var key = proj.folder + '/' + proj.name;
+    // published_by für Sortierung (analog AGS)
+    proj.published_by = proj.save_user || '';
+    _qgisProjectDetails[key] = proj;
+  });
+}
+
+/**
+ * QGIS-Projekte als Tabelle rendern (gleiches Layout wie AGS-Dienste)
+ */
+function renderQgisProjectList() {
+  var listEl = document.getElementById('import-list');
+  var filterEl = document.getElementById('import-filter');
+  var selectBar = document.getElementById('import-select-bar');
+  var actionsEl = document.getElementById('import-actions');
+  var legendEl = document.getElementById('import-legend');
+
+  listEl.innerHTML = '';
+  if (legendEl) legendEl.style.display = 'none';
+
+  if (_qgisProjects.length === 0) {
+    listEl.innerHTML = '<div style="padding:12px;color:#888">Keine .qgs/.qgz Projekte unter /data/qmap/ gefunden.</div>';
+    listEl.style.display = '';
+    filterEl.style.display = 'none';
+    selectBar.style.display = 'none';
+    actionsEl.style.display = 'none';
+    return;
+  }
+
+  // Tabelle aufbauen (analog AGS)
+  var tbl = document.createElement('table');
+  tbl.className = 'ags-import-table';
+  tbl.innerHTML = '<thead><tr>'
+    + '<th class="col-cb"></th>'
+    + '<th class="sortable" data-col="name">Dienst</th>'
+    + '<th class="sortable" data-col="author">Autor</th>'
+    + '<th>Format</th>'
+    + '<th class="sortable" data-col="status">Status</th>'
+    + '<th class="sortable" data-col="published">Geändert</th>'
+    + '<th class="sortable" data-col="imported">Importiert</th>'
+    + '</tr></thead>';
+  var tbody = document.createElement('tbody');
+  tbl.appendChild(tbody);
+
+  // Sort-Event auf Headerzeile
+  tbl.querySelector('thead tr').addEventListener('click', function(e) {
+    var th = e.target.closest('th.sortable');
+    if (!th) return;
+    sortImportTable(th.dataset.col);
+  });
+
+  _agsLastImportCheckbox = null;
+  _qgisProjects.forEach(function(proj, i) {
+    var svcName = proj.folder + '/' + proj.name;
+    var modStr = '—';
+    if (proj.modified) {
+      modStr = formatDateTime(proj.modified);
+    }
+    var formatBadge = proj.format === 'qgz'
+      ? '<span style="background:#2980b9;color:#fff;padding:1px 5px;border-radius:3px;font-size:10px">QGZ</span>'
+      : '<span style="background:#27ae60;color:#fff;padding:1px 5px;border-radius:3px;font-size:10px">QGS</span>';
+
+    var tr = document.createElement('tr');
+    tr.className = 'ags-item';
+    tr.dataset.name = svcName.toLowerCase();
+    var authorStr = proj.save_user || '—';
+    tr.innerHTML = '<td class="col-cb"><input type="checkbox" data-svc="' + svcName.replace(/"/g, '&quot;') + '" data-name="' + proj.name.replace(/"/g, '&quot;') + '" id="qgis-cb-' + i + '"></td>'
+      + '<td class="ags-name"><label for="qgis-cb-' + i + '" style="cursor:pointer">' + esc(svcName) + '</label></td>'
+      + '<td class="ags-col-author">' + esc(authorStr) + '</td>'
+      + '<td style="text-align:center">' + formatBadge + '</td>'
+      + '<td class="ags-col-status"></td>'
+      + '<td class="ags-col-date ags-col-pub">' + modStr + '</td>'
+      + '<td class="ags-col-date ags-col-imp"></td>';
+
+    tr.addEventListener('click', function(e) {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'LABEL') { updateImportSelCount(); return; }
+      var cb = tr.querySelector('input');
+      cb.checked = !cb.checked;
+      _agsLastImportCheckbox = cb;
+      updateImportSelCount();
+    });
+    var cb = tr.querySelector('input');
+    cb.addEventListener('click', function(e) {
+      e.stopPropagation();
+      if (e.shiftKey && _agsLastImportCheckbox) {
+        applyShiftRangeSelection(getVisibleImportCheckboxes(), _agsLastImportCheckbox, cb, cb.checked);
+      }
+      _agsLastImportCheckbox = cb;
+      updateImportSelCount();
+    });
+    tbody.appendChild(tr);
+  });
+
+  listEl.appendChild(tbl);
+  listEl.style.display = '';
+  filterEl.style.display = '';
+  filterEl.value = '';
+  selectBar.style.display = 'flex';
+  actionsEl.style.display = 'flex';
+  refreshImportImportedMarkers();
+  updateImportSelCount();
+  // Standard-Sortierindikator
+  var defaultTh = tbl.querySelector('th[data-col="' + _importSortCol + '"]');
+  if (defaultTh) defaultTh.classList.add(_importSortAsc ? 'sort-asc' : 'sort-desc');
+}
+
+/**
+ * GetCapabilities für ausgewählte QGIS-Projekte laden und anzeigen
+ */
+function loadQgisCapabilities() {
+  var checkboxes = document.querySelectorAll('#import-list input:checked');
+  var selected = [];
+  checkboxes.forEach(function(cb) {
+    selected.push({ wmsUrl: cb.dataset.svc, name: cb.dataset.name });
+  });
+  if (selected.length === 0) return;
+
+  var statusEl = document.getElementById('import-status');
+  var resultEl = document.getElementById('import-result');
+  var runLabel = new Date().toLocaleTimeString('de-CH', { hour12: false });
+
+  statusEl.textContent = 'Lade GetCapabilities für ' + selected.length + ' Projekt(e)…';
+  statusEl.className = 'ags-status';
+  resultEl.style.display = '';
+
+  var completed = 0;
+  var allHtml = '';
+
+  selected.forEach(function(proj) {
+    fetch(API_URL + '?action=qgis-capabilities&wmsUrl=' + encodeURIComponent(proj.wmsUrl))
+      .then(function(r) { return r.json(); })
+      .then(function(resp) {
+        completed++;
+        if (!resp.success) {
+          allHtml += '<div style="margin:8px 0"><strong style="color:#c33">✗ ' + esc(proj.name) + '</strong>: ' + esc(resp.error || 'Fehler') + '</div>';
+        } else {
+          var d = resp.data;
+          var svcTitle = d.service ? d.service.title : proj.name;
+          var layerCount = d.layers ? d.layers.length : 0;
+          var queryableCount = d.layers ? d.layers.filter(function(l) { return l.queryable; }).length : 0;
+
+          allHtml += '<div class="qgis-caps-result" style="margin:8px 0;border:1px solid #ddd;border-radius:6px;padding:8px">'
+            + '<div style="font-weight:700;font-size:13px;margin-bottom:4px">✓ ' + esc(svcTitle) + '</div>'
+            + '<div style="font-size:11px;color:#666;margin-bottom:6px">'
+            + 'WMS: <a href="' + esc(d.url || '') + '" target="_blank" style="color:#2980b9">' + esc(proj.wmsUrl) + '</a>'
+            + ' — ' + layerCount + ' Layer (' + queryableCount + ' abfragbar)'
+            + '</div>';
+
+          if (d.layers && d.layers.length) {
+            allHtml += '<table style="width:100%;font-size:11px;border-collapse:collapse">'
+              + '<thead><tr style="background:#f4f4f4"><th style="text-align:left;padding:3px 6px">Name</th>'
+              + '<th style="text-align:left;padding:3px 6px">Titel</th>'
+              + '<th style="text-align:center;padding:3px 6px">Abfragbar</th>'
+              + '<th style="text-align:left;padding:3px 6px">Legende</th></tr></thead><tbody>';
+            d.layers.forEach(function(l) {
+              var indent = l.depth > 0 ? 'padding-left:' + (l.depth * 16 + 6) + 'px' : 'padding-left:6px';
+              var qBadge = l.queryable ? '<span style="color:#27ae60">✓</span>' : '<span style="color:#ccc">—</span>';
+              var legLink = l.legendUrl ? '<a href="' + esc(l.legendUrl) + '" target="_blank" style="color:#2980b9;font-size:10px">🖼 Bild</a>' : '';
+              allHtml += '<tr style="border-top:1px solid #eee">'
+                + '<td style="' + indent + ';padding:2px 6px;font-family:monospace">' + esc(l.name) + '</td>'
+                + '<td style="padding:2px 6px">' + esc(l.title) + '</td>'
+                + '<td style="text-align:center;padding:2px 6px">' + qBadge + '</td>'
+                + '<td style="padding:2px 6px">' + legLink + '</td>'
+                + '</tr>';
+            });
+            allHtml += '</tbody></table>';
+          }
+          allHtml += '</div>';
+        }
+
+        // Alle fertig?
+        if (completed === selected.length) {
+          statusEl.textContent = '✓ GetCapabilities geladen (' + runLabel + '): ' + selected.length + ' Projekt(e)';
+          statusEl.className = 'ags-status success';
+          resultEl.innerHTML = '<div style="font-weight:700;font-size:12px;margin:6px 0">[' + runLabel + '] QGIS GetCapabilities</div>' + allHtml;
+        }
+      })
+      .catch(function(err) {
+        completed++;
+        allHtml += '<div style="margin:8px 0"><strong style="color:#c33">✗ ' + esc(proj.name) + '</strong>: ' + esc(err.message) + '</div>';
+        if (completed === selected.length) {
+          statusEl.textContent = 'GetCapabilities geladen (' + runLabel + ') — mit Fehlern';
+          statusEl.className = 'ags-status warning';
+          resultEl.innerHTML = '<div style="font-weight:700;font-size:12px;margin:6px 0">[' + runLabel + '] QGIS GetCapabilities</div>' + allHtml;
+        }
+      });
+  });
+}
+
+/**
+ * QGIS-Projekte exportieren: Config-Dateien generieren und in raw-conf speichern
+ */
+function exportQgisProjects() {
+  var checkboxes = document.querySelectorAll('#import-list input[type="checkbox"]:checked');
+  var projekte = [];
+  checkboxes.forEach(function(cb) {
+    var proj = _qgisProjects.find(function(p) { return p.name === cb.dataset.name; });
+    if (proj) {
+      projekte.push({
+        folder: proj.folder,
+        file: proj.name.replace(/\.(qgs|qgz)$/i, ''),
+        ext: '.' + (proj.format || 'qgs').toLowerCase()
+      });
+    }
+  });
+  if (projekte.length === 0) return;
+
+  var statusEl = document.getElementById('import-status');
+  var resultEl = document.getElementById('import-result');
+  var runLabel = new Date().toLocaleTimeString('de-CH', { hour12: false });
+  resultEl.style.display = '';
+  statusEl.textContent = '⏳ QGIS-Export läuft (' + projekte.length + ' Projekte)…';
+  statusEl.className = 'ags-status';
+  statusEl.style.display = '';
+  document.getElementById('import-btn-export').disabled = true;
+
+  var controller = new AbortController();
+  var timeoutId = setTimeout(function() { controller.abort(); }, 10 * 60 * 1000);
+
+  fetch(API_URL + '?action=qgis-export', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ projekte: projekte }),
+    signal: controller.signal
+  })
+    .then(function(r) { clearTimeout(timeoutId); return r.json(); })
+    .then(function(resp) {
+      document.getElementById('import-btn-export').disabled = false;
+
+      if (!resp.success) throw new Error(resp.error || 'Export fehlgeschlagen');
+
+      var data = resp.data;
+      var savedCount = data.files ? data.files.length : 0;
+      var failedCount = data.failedFiles ? data.failedFiles.length : 0;
+
+      if (savedCount > 0 && failedCount === 0) {
+        statusEl.textContent = '✓ QGIS-Export abgeschlossen (' + runLabel + '): ' + savedCount + ' Dateien in raw-conf gespeichert';
+        statusEl.className = 'ags-status success';
+      } else if (savedCount > 0 && failedCount > 0) {
+        statusEl.textContent = '⚠ QGIS-Export teilweise (' + runLabel + '): ' + savedCount + ' gespeichert, ' + failedCount + ' fehlgeschlagen';
+        statusEl.className = 'ags-status warning';
+      } else {
+        statusEl.textContent = '✗ QGIS-Export fehlgeschlagen (' + runLabel + ')';
+        statusEl.className = 'ags-status error';
+      }
+
+      var html = '<div style="font-weight:700;font-size:12px;margin:6px 0">[' + runLabel + '] QGIS Export: '
+        + projekte.length + ' Projekt(e)</div>';
+      if (data.files && data.files.length > 0) {
+        html += '<div style="font-weight:600;font-size:12px;margin-bottom:6px">Gespeicherte Dateien:</div>';
+        data.files.forEach(function(f) {
+          var size = f.bytes > 1024 ? (f.bytes / 1024).toFixed(1) + ' KB' : f.bytes + ' B';
+          html += '<div class="ags-result-file">'
+            + '<span class="rf-icon">✓</span>'
+            + '<span class="rf-name">' + esc(f.file) + '</span>'
+            + '<span class="rf-size">' + size + '</span>'
+            + '</div>';
+        });
+      }
+      if (data.failedFiles && data.failedFiles.length > 0) {
+        html += '<div style="font-weight:600;font-size:12px;margin:8px 0 6px;color:#c0392b">Fehlgeschlagene Dateien:</div>';
+        data.failedFiles.forEach(function(f) {
+          html += '<div class="ags-result-file">'
+            + '<span class="rf-icon" style="color:#c0392b">✗</span>'
+            + '<span class="rf-name">' + esc(f.file) + '</span>'
+            + '<span class="rf-size" style="color:#c0392b;font-size:10px">' + esc(f.error) + '</span>'
+            + '</div>';
+        });
+      }
+      if (data.timestamp) {
+        html += '<div style="font-size:10px;color:#999;margin-top:6px">Zeitpunkt: ' + esc(data.timestamp) + '</div>';
+      }
+      if (data.zipSize) {
+        html += '<div style="font-size:10px;color:#999">ZIP-Grösse: ' + (data.zipSize / 1024).toFixed(1) + ' KB</div>';
+      }
+      resultEl.innerHTML = html + '<hr style="border:none;border-top:1px solid #eee;margin:8px 0">' + resultEl.innerHTML;
+
+      // Checkboxen leeren
+      checkboxes.forEach(function(cb) { cb.checked = false; });
+      updateImportSelCount();
+    })
+    .catch(function(err) {
+      clearTimeout(timeoutId);
+      document.getElementById('import-btn-export').disabled = false;
+      var msg = err.message || String(err);
+      if (err.name === 'AbortError') {
+        msg = 'Zeitüberschreitung — der Export hat zu lange gedauert (>10 Min).';
+      }
+      statusEl.textContent = 'Fehler (' + runLabel + '): ' + msg;
+      statusEl.className = 'ags-status error';
+      resultEl.innerHTML = '<div style="font-weight:700;font-size:12px;margin:6px 0;color:#c0392b">[' + runLabel + '] ✗ QGIS-Export Fehler</div>'
+        + '<div style="font-size:11px;color:#c0392b">' + esc(msg) + '</div>'
+        + '<hr style="border:none;border-top:1px solid #eee;margin:8px 0">' + resultEl.innerHTML;
+      resultEl.style.display = '';
     });
 }
 
@@ -3587,6 +3971,8 @@ document.getElementById('import-sel-none').addEventListener('click', function() 
 document.getElementById('import-btn-export').addEventListener('click', function() {
   if (_importActiveSource === 'core') {
     importCoreSources();
+  } else if (_importActiveSource === 'qgis') {
+    exportQgisProjects();
   } else {
     exportAgsServices();
   }
@@ -4642,6 +5028,7 @@ function runMultiDeploy() {
   runBtn.disabled = closeBtn.disabled = true;
 
   var done = 0, errors = 0;
+  var allDeployedFiles = [];
 
   function deployNext(i) {
     if (i >= queue.length) {
@@ -4659,6 +5046,8 @@ function runMultiDeploy() {
         runBtn.disabled = false;
         // Cache leeren
         clearCacheAfterDeploy(statusEl);
+        // Git-Batch-Commit fuer alle deployten Dateien
+        gitCommitDeployedFiles(allDeployedFiles, queue.join(', '), statusEl);
       }
       return;
     }
@@ -4677,6 +5066,9 @@ function runMultiDeploy() {
       } else {
         done++;
         if (stEl) { stEl.textContent = '✓ ' + j.deployed + ' deployed'; stEl.className = 'ecm-k-status success'; }
+        // Deployierte Dateien sammeln
+        // Alle Dateien (deployed + skipped) sammeln — koennten noch nicht im Git-Repo sein
+        (j.files || []).forEach(function(f) { if (f.result === 'deployed' || f.result === 'skipped') allDeployedFiles.push(f); });
       }
       deployNext(i + 1);
     })
@@ -4833,6 +5225,9 @@ function openExportConfirmModal(dryData, unsavedCount, prependHtml) {
 /**
  * Cache leeren nach erfolgreichem Deploy
  */
+/**
+ * Cache leeren nach erfolgreichem Deploy
+ */
 function clearCacheAfterDeploy(statusEl) {
   fetch('/maps/tnet/api/v1/cache?action=clear', { method: 'POST' })
     .then(function(r) { return r.json(); })
@@ -4842,6 +5237,32 @@ function clearCacheAfterDeploy(statusEl) {
     .catch(function() {
       if (statusEl) statusEl.textContent = '✓ Deployment verifiziert — Cache-Fehler';
     });
+}
+
+/**
+ * Git-Batch-Commit nach erfolgreichem Deploy (non-blocking)
+ */
+function gitCommitDeployedFiles(deployedFiles, kuerzel, statusEl) {
+  if (!deployedFiles || deployedFiles.length === 0) return;
+  var paths = deployedFiles.map(function(f) { return f.target_path; }).filter(Boolean);
+  if (paths.length === 0) return;
+
+  fetch(GAPI_URL + '/git-commit-batch', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      deployPaths: paths,
+      source: 'deploy-staging',
+      message: 'Deploy ' + kuerzel + ': ' + paths.length + ' Dateien'
+    })
+  })
+    .then(function(r) { return r.json(); })
+    .then(function(g) {
+      if (g.committed && statusEl) {
+        statusEl.textContent += ' — Git ✓ (' + (g.changed || 0) + ' Dateien)';
+      }
+    })
+    .catch(function() { /* Git-Fehler blockieren nicht */ });
 }
 
 /**
@@ -4882,6 +5303,8 @@ function runExportDeploy() {
     }
     // Erfolgreich: Verifikations-Dry-Run
     var deployedCount = j.deployed;
+    // Alle Dateien (deployed + skipped) an Git senden — Dateien koennten noch nicht im Repo sein
+    var deployedFiles = (j.files || []).filter(function(f) { return f.result === 'deployed' || f.result === 'skipped'; });
     statusEl.textContent = '✓ ' + deployedCount + ' Datei(en) deployed — Verifiziere…';
     statusEl.className   = 'ecm-running';
     runBtn.disabled    = true;
@@ -4906,6 +5329,8 @@ function runExportDeploy() {
       editorStatus(deployedCount + ' Datei(en) deployed ✓', 'success');
       // Cache leeren nach erfolgreichem Deploy
       clearCacheAfterDeploy(statusEl);
+      // Git-Batch-Commit (non-blocking)
+      gitCommitDeployedFiles(deployedFiles, kuerzel, statusEl);
     })
     .catch(function() {
       runBtn.disabled    = false;
@@ -4917,6 +5342,8 @@ function runExportDeploy() {
       statusEl.className   = 'ecm-status-success';
       editorStatus(deployedCount + ' Datei(en) deployed ✓', 'success');
       clearCacheAfterDeploy(statusEl);
+      // Git-Batch-Commit auch bei fehlgeschlagener Verifikation
+      gitCommitDeployedFiles(deployedFiles, kuerzel, statusEl);
     });
   })
   .catch(function(e) {

@@ -1,0 +1,7 @@
+# ===== QGIS Server: /qmap/ URL-Routing =====
+# /qmap/<projektname> -> /qgis?MAP=/data/Client_Data/nwow/qmap/test/<projektname>.qgs
+# Query-Parameter (SERVICE, REQUEST, LAYERS etc.) werden durchgereicht (QSA).
+# Application Gateway leitet www.gis-daten.ch/qmap/* hierher weiter.
+
+RewriteEngine On
+RewriteRule ^qmap/([a-zA-Z0-9_-]+)/?$ /qgis?MAP=/data/Client_Data/nwow/qmap/test/.qgs [QSA,PT,L]

@@ -2,66 +2,31 @@
 	"version": "2.0.0",
 	"tasks": [
 		{
-			"label": "SFTP: Upload Changed Files",
+			"label": "SFTP: Upload Changed Files (maps/)",
 			"type": "shell",
-			"command": "${command:sftp.sync.localToRemote}",
+			"command": "C:/Program Files/Python313/python.exe",
+			"args": [
+				"_scripts/_upload_changed.py"
+			],
 			"problemMatcher": [],
 			"presentation": {
-				"reveal": "silent",
+				"reveal": "always",
 				"panel": "shared"
 			}
 		},
 		{
-			"label": "SFTP: Upload Active File",
+			"label": "SFTP: Upload Active File (maps/)",
 			"type": "shell",
-			"command": "${command:sftp.upload.activeFile}",
+			"command": "C:/Program Files/Python313/python.exe",
+			"args": [
+				"_scripts/_upload_active_file.py",
+				"${file}"
+			],
 			"problemMatcher": [],
 			"presentation": {
-				"reveal": "silent",
+				"reveal": "always",
 				"panel": "shared"
 			}
-		},
-		{
-			"label": "SFTP: Upload Folder",
-			"type": "shell",
-			"command": "${command:sftp.upload.activeFolder}",
-			"problemMatcher": [],
-			"presentation": {
-				"reveal": "silent",
-				"panel": "shared"
-			}
-		},
-		{
-			"label": "Deploy: LyrMgr Patch",
-			"type": "shell",
-			"command": "C:/Program Files/Python313/python.exe",
-			"args": [
-				"_scripts/_upload_lyrmgr_patch.py"
-			]
-		},
-		{
-			"label": "Deploy: LyrMgr Patch",
-			"type": "shell",
-			"command": "C:/Program Files/Python313/python.exe",
-			"args": [
-				"_scripts/_upload_lyrmgr_patch.py"
-			]
-		},
-		{
-			"label": "Deploy: LyrMgr Patch",
-			"type": "shell",
-			"command": "C:/Program Files/Python313/python.exe",
-			"args": [
-				"_scripts/_upload_lyrmgr_patch.py"
-			]
-		},
-		{
-			"label": "Deploy: LyrMgr Patch",
-			"type": "shell",
-			"command": "C:/Program Files/Python313/python.exe",
-			"args": [
-				"_scripts/_upload_lyrmgr_patch.py"
-			]
 		},
 		{
 			"label": "Deploy: LyrMgr Patch",

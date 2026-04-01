@@ -11,11 +11,9 @@ REMOTE_BASE = "/www/maps"
 LOCAL_BASE = r"c:\_Daten\mapplus-exp\maps"
 
 FILES = [
-    "tnet/api/includes/JsonCache.php",
-    "tnet/api/v1/cache.php",
-    "tnet/api/v1/layers.php",
-    "tnet/api/v1/server-check.php",
-    "tnet/api/.htaccess",
+    "tnet/api/v1/legend-proxy.php",
+    "tnet/api/v1/legend-proxy-wms.php",
+    "tnet/api/docs/openapi.yaml",
 ]
 
 def main():

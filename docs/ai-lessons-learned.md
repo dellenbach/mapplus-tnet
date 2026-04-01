@@ -682,6 +682,13 @@
 - **Fix**: PHP: `sourceFilePath` (dir + filename) pro Layer hinzugefügt. JS: Gruppen-Header-Tooltip zeigt alle Config-Pfade; Source-Badge-Tooltip zeigt vollen Pfad; Rechtsklick auf Badge/Header öffnet Config im bestehenden Modal via neuem `read-config-file` API-Endpoint.
 - **Guardrail**: Bei API-Erweiterungen die `openCtxMenu()`-Infrastruktur wiederverwenden statt eigene Kontextmenüs zu bauen.
 
+## 2026-04-01 — Tree-Builder Publish ohne Git-Commit
+
+- **Symptom**: `publishLyrmgr()` im Tree-Builder schrieb die lyrmgr.conf via SFTP, aber es wurde kein Git-Commit erstellt. Die Änderung war nicht versioniert.
+- **Root-Cause**: `publishLyrmgr()` rief nur `/publish-lyrmgr-full` auf. Der Git-Commit-Schritt (POST `/git-commit-conf`) fehlte, obwohl er im Deployed-Tab (ags-import.html) bereits implementiert war.
+- **Fix**: Non-blocking `fetch(GAPI_URL + '/git-commit-conf', ...)` nach erfolgreichem Publish eingefügt. Parameter: `deployPath` aus Response, `source: 'tree-builder'`, Message mit Profilname und Blockanzahl. Bei Erfolg wird die Alert-Box auf „Git ✓" aktualisiert.
+- **Guardrail**: Bei jeder SFTP-Schreiboperation auf Config-Dateien prüfen, ob ein anschliessender Git-Commit nötig ist. Muster: non-blocking POST, catch ignoriert Fehler.
+
 ## 2026-03-04 — Neuer LM-Tree: Gruppen-/Subcategory-Namen zeigen Rohpfade statt Labels
 
 - **Symptom**: Im neuen Desktop-Layermanager werden Gruppen als "Gis Basis/nw Basisplan Gis Dynamisch/gemeindegrenzen" und Subcategories als "Grundlagen" (ucfirst) statt NLS-Label "GRUNDLAGEN" angezeigt.

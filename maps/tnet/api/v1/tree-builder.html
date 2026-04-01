@@ -182,6 +182,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 }
 .tb-source-head .src-type.arcgis { background: #d47b2e; }
 .tb-source-head .src-type.wms { background: #2e8bd4; }
+.tb-source-head .src-type.qgis { background: #4a8c50; }
 .tb-source-head .src-type.wmts { background: #6b2ed4; }
 .tb-source-head .src-type.tilewms { background: #2e8bd4; }
 .tb-source-group.collapsed .tb-source-body { display: none; }
@@ -1803,6 +1804,15 @@ function getLayerSourceKey(layer) {
       return { key: 'arcgis:' + p, label: p, typeTag: 'arcgis' };
     }
     return { key: 'arcgis:other', label: 'ArcGIS (andere)', typeTag: 'arcgis' };
+  }
+
+  // QGIS Server: /qmap/{folder}/{project} → nach Projektpfad gruppieren
+  if ((type === 'wms' || type === 'tilewms') && url.indexOf('/qmap/') !== -1) {
+    var qm2 = url.match(/\/qmap\/(.+?)(?:\?|$)/);
+    if (qm2) {
+      return { key: 'qgis:' + qm2[1], label: qm2[1], typeTag: 'qgis' };
+    }
+    return { key: 'qgis:other', label: 'QGIS (andere)', typeTag: 'qgis' };
   }
 
   // WMS / tileWMS: nach Map-Datei gruppieren (cgi-bin), sonst nach Hostname
@@ -7366,11 +7376,32 @@ function publishLyrmgr() {
         });
         // Vorschau nach Publish sofort aktualisieren
         updateLmPreviewIframe();
-        _tbAlert('Publiziert (SFTP)', 'Profil: ' + esc(profileName) + '<br>' +
+        var pubMsg = 'Profil: ' + esc(profileName) + '<br>' +
           'Blöcke: ' + blockKeys.length + '<br>' +
           'Pfad: ' + esc(d.path || '') + '<br>' +
           'Bytes: ' + (d.bytes || '') + '<br>' +
-          'Backup: ' + esc(d.backup || '–'), 'success');
+          'Backup: ' + esc(d.backup || '–');
+        _tbAlert('Publiziert (SFTP)', pubMsg, 'success');
+
+        // Git-Commit (non-blocking) — gleiche Datei ins Git-Repo committen
+        if (d.path) {
+          fetch(GAPI_URL + '/git-commit-conf', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              deployPath: d.path,
+              source: 'tree-builder',
+              message: 'Publish lyrmgr: ' + profileName + ' (' + blockKeys.length + ' Blöcke)'
+            })
+          })
+            .then(function(r) { return r.json(); })
+            .then(function(g) {
+              if (g.committed) {
+                _tbAlert('Publiziert (SFTP) — Git ✓', pubMsg + '<br>Git: ✓ committed', 'success');
+              }
+            })
+            .catch(function() { /* Git-Fehler blockieren nicht */ });
+        }
       } else {
         _tbAlert('Publish fehlgeschlagen', '<pre>' + esc(d.detail || d.error || json.detail || JSON.stringify(json)) + '</pre>', 'error');
       }

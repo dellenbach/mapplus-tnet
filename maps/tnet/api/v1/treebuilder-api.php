@@ -810,6 +810,319 @@ function deployLyrmgr($stageProfile, $targetProfile, $editor) {
 define('AGS_API_BASE', 'https://www.gis-daten.ch/gapi/ags2mapplus');
 define('RAW_CONF_DIR', '/data/Client_Data/nwow/tmp/raw-conf');
 define('IMPORT_TO_CORE_DIR', '/data/Client_Data/nwow/tmp/ImportToCore');
+define('QMAP_DIR', '/data/Client_Data/nwow/qmap');
+define('QMAP_BASE_URL', '/qmap');
+
+// =====================================================================
+// QGIS Server — Projektliste und WMS GetCapabilities
+// =====================================================================
+
+/**
+ * QGIS-Projekte aus QMAP_DIR rekursiv auflisten (.qgs, .qgz)
+ */
+function listQgisProjects() {
+    if (!is_dir(QMAP_DIR)) {
+        return ['success' => false, 'error' => 'QMAP-Verzeichnis nicht gefunden: ' . QMAP_DIR];
+    }
+
+    $projects = [];
+    $iterator = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator(QMAP_DIR, RecursiveDirectoryIterator::SKIP_DOTS),
+        RecursiveIteratorIterator::LEAVES_ONLY
+    );
+
+    foreach ($iterator as $file) {
+        $ext = strtolower($file->getExtension());
+        if ($ext !== 'qgs' && $ext !== 'qgz') continue;
+
+        $fullPath  = $file->getPathname();
+        $relPath   = substr($fullPath, strlen(QMAP_DIR) + 1);
+        // Pfad ohne Extension für die WMS-URL
+        $nameNoExt = preg_replace('/\.(qgs|qgz)$/i', '', $relPath);
+        $wmsUrl    = QMAP_BASE_URL . '/' . $nameNoExt;
+        // Ordner-Teil als Kürzel (erstes Verzeichnis)
+        $parts     = explode('/', $relPath);
+        $folder    = count($parts) > 1 ? $parts[0] : '';
+
+        $projects[] = [
+            'name'     => $file->getBasename('.' . $ext),
+            'file'     => $file->getFilename(),
+            'relPath'  => $relPath,
+            'folder'   => $folder,
+            'format'   => $ext,
+            'size'     => $file->getSize(),
+            'modified' => date('Y-m-d H:i:s', $file->getMTime()),
+            'wmsUrl'   => $wmsUrl,
+        ];
+    }
+
+    usort($projects, function($a, $b) {
+        return strcmp($a['folder'] . '/' . $a['name'], $b['folder'] . '/' . $b['name']);
+    });
+
+    return ['success' => true, 'projects' => $projects];
+}
+
+/**
+ * WMS GetCapabilities eines QGIS-Projekts abrufen und Layer parsen
+ */
+function getQgisCapabilities($wmsUrl) {
+    $capsUrl = 'https://' . $_SERVER['HTTP_HOST'] . $wmsUrl . '?SERVICE=WMS&REQUEST=GetCapabilities';
+
+    $ch = curl_init($capsUrl);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT        => 30,
+        CURLOPT_CONNECTTIMEOUT => 10,
+        CURLOPT_FOLLOWLOCATION => true,
+        CURLOPT_SSL_VERIFYPEER => true,
+        CURLOPT_SSL_VERIFYHOST => 2,
+    ]);
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlErr  = curl_error($ch);
+    curl_close($ch);
+
+    if ($curlErr) {
+        return ['success' => false, 'error' => 'cURL-Fehler: ' . $curlErr];
+    }
+    if ($httpCode !== 200) {
+        return ['success' => false, 'error' => 'HTTP ' . $httpCode . ' von QGIS Server'];
+    }
+
+    // XML parsen
+    libxml_use_internal_errors(true);
+    $xml = simplexml_load_string($response);
+    if (!$xml) {
+        $errors = libxml_get_errors();
+        libxml_clear_errors();
+        $msg = $errors ? $errors[0]->message : 'Ungültiges XML';
+        return ['success' => false, 'error' => 'XML-Parse-Fehler: ' . trim($msg)];
+    }
+
+    // WMS Capabilities Namespace registrieren
+    $ns = $xml->getNamespaces(true);
+
+    // Service-Metadaten
+    $service = [];
+    if (isset($xml->Service)) {
+        $svc = $xml->Service;
+        $service = [
+            'title'    => (string)$svc->Title,
+            'abstract' => (string)$svc->Abstract,
+        ];
+    }
+
+    // Layer rekursiv extrahieren
+    $layers = [];
+    if (isset($xml->Capability->Layer)) {
+        extractWmsLayers($xml->Capability->Layer, $layers, 0);
+    }
+
+    return [
+        'success' => true,
+        'service' => $service,
+        'layers'  => $layers,
+        'url'     => $capsUrl,
+    ];
+}
+
+/**
+ * WMS-Layer aus GetCapabilities rekursiv extrahieren
+ */
+function extractWmsLayers($layerNode, &$layers, $depth) {
+    $queryable = (string)$layerNode['queryable'] === '1';
+    $name  = (string)$layerNode->Name;
+    $title = (string)$layerNode->Title;
+
+    if ($name !== '') {
+        $layer = [
+            'name'      => $name,
+            'title'     => $title,
+            'abstract'  => (string)$layerNode->Abstract,
+            'queryable' => $queryable,
+            'depth'     => $depth,
+        ];
+        // CRS/SRS sammeln
+        $crsList = [];
+        foreach ($layerNode->CRS as $crs) { $crsList[] = (string)$crs; }
+        foreach ($layerNode->SRS as $srs) { $crsList[] = (string)$srs; }
+        if ($crsList) $layer['crs'] = $crsList;
+
+        // BoundingBox
+        foreach ($layerNode->BoundingBox as $bb) {
+            if ((string)$bb['CRS'] === 'EPSG:2056' || (string)$bb['SRS'] === 'EPSG:2056') {
+                $layer['bbox'] = [
+                    (float)$bb['minx'], (float)$bb['miny'],
+                    (float)$bb['maxx'], (float)$bb['maxy']
+                ];
+                break;
+            }
+        }
+
+        // Style / LegendURL
+        if (isset($layerNode->Style)) {
+            $style = $layerNode->Style;
+            if (isset($style->LegendURL->OnlineResource)) {
+                $attrs = $style->LegendURL->OnlineResource->attributes('http://www.w3.org/1999/xlink');
+                $layer['legendUrl'] = (string)$attrs['href'];
+            }
+        }
+
+        $layers[] = $layer;
+    }
+
+    // Sub-Layer rekursiv
+    foreach ($layerNode->Layer as $child) {
+        extractWmsLayers($child, $layers, $depth + 1);
+    }
+}
+
+/**
+ * QGIS-Projekte exportieren: FastAPI-Endpoint aufrufen, ZIP entpacken in raw-conf
+ */
+function exportQgisProjects($projekte) {
+    set_time_limit(0);
+
+    if (!is_array($projekte) || count($projekte) === 0) {
+        return ['success' => false, 'error' => 'Keine Projekte angegeben'];
+    }
+
+    // Beschreibbares Verzeichnis ermitteln
+    $rawConfDir = getWritableRawConfDir();
+    if ($rawConfDir === false) {
+        return ['success' => false, 'error' => 'Verzeichnis nicht beschreibbar: ' . RAW_CONF_DIR];
+    }
+
+    // FastAPI-Endpoint aufrufen
+    $url = AGS_API_BASE . '/qgis-conf-export';
+    $payload = json_encode(['projekte' => $projekte]);
+
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_POST           => true,
+        CURLOPT_POSTFIELDS     => $payload,
+        CURLOPT_HTTPHEADER     => ['Content-Type: application/json', 'Accept: application/zip'],
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT        => 300,
+        CURLOPT_CONNECTTIMEOUT => 30,
+        CURLOPT_FOLLOWLOCATION => true,
+        CURLOPT_SSL_VERIFYPEER => true,
+        CURLOPT_SSL_VERIFYHOST => 2,
+    ]);
+    $zipData = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlErr  = curl_error($ch);
+    curl_close($ch);
+
+    if ($zipData === false || $httpCode === 0) {
+        return ['success' => false, 'error' => 'API nicht erreichbar: ' . ($curlErr ?: 'Verbindung fehlgeschlagen')];
+    }
+    if ($httpCode >= 400) {
+        $errBody = @json_decode($zipData, true);
+        $errMsg = $errBody ? json_encode($errBody, JSON_UNESCAPED_UNICODE) : 'HTTP ' . $httpCode;
+        return ['success' => false, 'error' => 'API-Fehler (HTTP ' . $httpCode . '): ' . $errMsg];
+    }
+
+    // ZIP-Validierung
+    if (strlen($zipData) < 4 || substr($zipData, 0, 2) !== 'PK') {
+        $errData = json_decode($zipData, true);
+        $errMsg = $errData ? json_encode($errData, JSON_UNESCAPED_UNICODE) : 'Kein gültiges ZIP erhalten (' . strlen($zipData) . ' Bytes)';
+        return ['success' => false, 'error' => $errMsg];
+    }
+
+    // ZIP temporär speichern und entpacken
+    $tmpZip = sys_get_temp_dir() . '/qgis_export_' . uniqid() . '.zip';
+    file_put_contents($tmpZip, $zipData);
+
+    $zip = new ZipArchive();
+    $openResult = $zip->open($tmpZip);
+    if ($openResult !== true) {
+        @unlink($tmpZip);
+        return ['success' => false, 'error' => 'ZIP konnte nicht geöffnet werden (Code: ' . $openResult . ')'];
+    }
+
+    $extractedFiles = [];
+    $failedFiles = [];
+    $ts = date('Ymd_His');
+
+    for ($i = 0; $i < $zip->numFiles; $i++) {
+        $entryName = $zip->getNameIndex($i);
+        if (substr($entryName, -1) === '/') continue;
+
+        $content = $zip->getFromIndex($i);
+        if ($content === false) continue;
+
+        $targetPath = $rawConfDir . '/' . $entryName;
+        $targetDir = dirname($targetPath);
+        if (!is_dir($targetDir)) {
+            if (!@mkdir($targetDir, 0777, true)) {
+                $failedFiles[] = ['file' => $entryName, 'error' => 'Verzeichnis konnte nicht erstellt werden'];
+                continue;
+            }
+        }
+
+        // Backup
+        if (file_exists($targetPath)) {
+            $backupPath = $targetPath . '.' . $ts . '.bak';
+            @copy($targetPath, $backupPath);
+        }
+
+        $bytes = @file_put_contents($targetPath, $content);
+        if ($bytes === false) {
+            $err = error_get_last();
+            $failedFiles[] = ['file' => $entryName, 'error' => $err ? $err['message'] : 'Schreibfehler'];
+        } else {
+            $extractedFiles[] = ['file' => $entryName, 'bytes' => $bytes, 'path' => $targetPath];
+        }
+    }
+
+    $zip->close();
+    @unlink($tmpZip);
+
+    if (count($extractedFiles) === 0 && count($failedFiles) > 0) {
+        return ['success' => false, 'error' => 'Keine Datei konnte gespeichert werden', 'failedFiles' => $failedFiles];
+    }
+
+    $result = [
+        'success'   => true,
+        'services'  => array_map(function($p) { return 'qgis_' . strtolower($p['folder']) . '_' . strtolower($p['file']); }, $projekte),
+        'zipSize'   => strlen($zipData),
+        'files'     => $extractedFiles,
+        'directory' => $rawConfDir,
+        'timestamp' => date('Y-m-d H:i:s'),
+    ];
+    if (count($failedFiles) > 0) {
+        $result['failedFiles'] = $failedFiles;
+    }
+
+    // Import-Metadaten in DB speichern (analog AGS)
+    // Alte Einträge löschen + neu einfügen, damit imported_at aktualisiert wird
+    try {
+        $pdo = Database::getConnection();
+        $delStmt = $pdo->prepare(
+            "DELETE FROM mapplusconf.ags_import_history WHERE service_name = ?"
+        );
+        $insStmt = $pdo->prepare(
+            "INSERT INTO mapplusconf.ags_import_history (service_name, hash, published_at, published_by)
+             VALUES (?, ?, ?, ?)"
+        );
+        foreach ($projekte as $p) {
+            $svcName = 'qgis_' . strtolower($p['folder']) . '_' . strtolower($p['file']);
+            $delStmt->execute([$svcName]);
+            $insStmt->execute([
+                $svcName,
+                null,
+                null,
+                null
+            ]);
+        }
+    } catch (Exception $e) {
+        $result['metaWarning'] = 'Import-Metadaten konnten nicht in DB gespeichert werden: ' . $e->getMessage();
+    }
+
+    return $result;
+}
 
 /**
  * Verfügbare AGS-Dienste von der externen API abrufen
@@ -1013,15 +1326,20 @@ function exportAgsServices($dienstnamen, $serviceDetails = []) {
     }
 
     // Import-Metadaten in DB speichern (Hash, Zeitstempel etc.)
+    // Alte Einträge löschen + neu einfügen, damit imported_at aktualisiert wird
     try {
         $pdo = Database::getConnection();
-        $stmt = $pdo->prepare(
+        $delStmt = $pdo->prepare(
+            "DELETE FROM mapplusconf.ags_import_history WHERE service_name = ?"
+        );
+        $insStmt = $pdo->prepare(
             "INSERT INTO mapplusconf.ags_import_history (service_name, hash, published_at, published_by)
              VALUES (?, ?, ?, ?)"
         );
         foreach ($dienstnamen as $svcName) {
             $sd = isset($serviceDetails[$svcName]) ? $serviceDetails[$svcName] : [];
-            $stmt->execute([
+            $delStmt->execute([$svcName]);
+            $insStmt->execute([
                 $svcName,
                 isset($sd['hash'])         ? $sd['hash']         : null,
                 isset($sd['published_at']) ? $sd['published_at'] : null,
@@ -1053,8 +1371,8 @@ function stripRawConfBackupSuffix($filename) {
 /**
  * Inhalt von data/raw-conf auflisten (rekursiv, nach Service gruppiert)
  * Erkennt Service-Namen aus Dateinamen-Pattern:
- *   layers_TNET_<SVC>.conf, lyrmgrResources_TNET_<SVC>.json,
- *   maptipsResources_TNET_<SVC>.json, maptips_TNET_<SVC>.conf,
+ *   layers_TNET(QGIS)?_<SVC>.conf, lyrmgrResources_TNET(QGIS)?_<SVC>.json,
+ *   maptipsResources_TNET(QGIS)?_<SVC>.json, maptips_TNET(QGIS)?_<SVC>.conf,
  *   <SVC>_Layerstruktur.xlsx, merged_Layerstruktur.xlsx → _merged
  */
 function listRawConf($includeBackups = false, $backupOnly = false) {
@@ -1126,18 +1444,20 @@ function listRawConf($includeBackups = false, $backupOnly = false) {
 
 /**
  * Service-Name aus einem flachen Dateinamen extrahieren
- * Pattern: layers_TNET_<SVC>.conf, lyrmgrResources_TNET_<SVC>.json, etc.
+ * Pattern: layers_TNET(QGIS)?_<SVC>.conf, lyrmgrResources_TNET(QGIS)?_<SVC>.json, etc.
  */
 function extractServiceFromFilename($filename) {
-    // layers_TNET_<SVC>.conf
+    // TNETQGIS: QGIS_ Präfix im Service-Key behalten (Unterscheidung zu AGS)
+    if (preg_match('/^layers_TNETQGIS_(.+)\.conf$/i', $filename, $m)) return 'qgis_' . strtolower($m[1]);
+    if (preg_match('/^lyrmgrResources_TNETQGIS_(.+)\.json$/i', $filename, $m)) return 'qgis_' . strtolower($m[1]);
+    if (preg_match('/^maptipsResources_TNETQGIS_(.+)\.json$/i', $filename, $m)) return 'qgis_' . strtolower($m[1]);
+    if (preg_match('/^legendResources_TNETQGIS_(.+)\.json$/i', $filename, $m)) return 'qgis_' . strtolower($m[1]);
+    if (preg_match('/^maptips_TNETQGIS_(.+)\.conf$/i', $filename, $m)) return 'qgis_' . strtolower($m[1]);
+    // TNET (AGS): Kein Präfix
     if (preg_match('/^layers_TNET_(.+)\.conf$/i', $filename, $m)) return $m[1];
-    // lyrmgrResources_TNET_<SVC>.json
     if (preg_match('/^lyrmgrResources_TNET_(.+)\.json$/i', $filename, $m)) return $m[1];
-    // maptipsResources_TNET_<SVC>.json
     if (preg_match('/^maptipsResources_TNET_(.+)\.json$/i', $filename, $m)) return $m[1];
-    // legendResources_TNET_<SVC>.json
     if (preg_match('/^legendResources_TNET_(.+)\.json$/i', $filename, $m)) return $m[1];
-    // maptips_TNET_<SVC>.conf
     if (preg_match('/^maptips_TNET_(.+)\.conf$/i', $filename, $m)) return $m[1];
     // <SVC>_Layerstruktur.xlsx (aber nicht merged_Layerstruktur.xlsx)
     if (preg_match('/^(.+)_Layerstruktur\.xlsx$/i', $filename, $m) && strtolower($m[1]) !== 'merged') return $m[1];
@@ -3525,6 +3845,42 @@ switch ($action) {
         jsonResponse(['success' => true, 'data' => $result]);
         break;
 
+    // ── QGIS Server Projekte ──
+    case 'qgis-list-projects':
+        $result = listQgisProjects();
+        if (!$result['success']) {
+            jsonError($result['error'], 500);
+        }
+        jsonResponse(['success' => true, 'data' => $result]);
+        break;
+
+    case 'qgis-capabilities':
+        $wmsUrl = $_GET['wmsUrl'] ?? '';
+        if (!$wmsUrl) jsonError('Parameter "wmsUrl" erforderlich', 400);
+        // Nur lokale /qmap/ URLs erlauben (Sicherheit)
+        if (strpos($wmsUrl, QMAP_BASE_URL . '/') !== 0) {
+            jsonError('Nur /qmap/ URLs erlaubt', 403);
+        }
+        $result = getQgisCapabilities($wmsUrl);
+        if (!$result['success']) {
+            jsonError($result['error'], 502);
+        }
+        jsonResponse(['success' => true, 'data' => $result]);
+        break;
+
+    case 'qgis-export':
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('POST required', 405);
+        $body = json_decode(file_get_contents('php://input'), true);
+        if (!$body || !isset($body['projekte'])) {
+            jsonError('JSON-Body mit Feld "projekte" (Array) erforderlich', 400);
+        }
+        $result = exportQgisProjects($body['projekte']);
+        if (!$result['success']) {
+            jsonError($result['error'], 500);
+        }
+        jsonResponse(['success' => true, 'data' => $result]);
+        break;
+
     case 'ags-import-meta':
         // Letzter Import pro Dienst aus DB lesen
         try {
@@ -4335,7 +4691,7 @@ switch ($action) {
             'data' => [
                 'name'    => 'Tree-Builder Persistence API',
                 'version' => '3.1',
-                'actions' => ['load', 'save', 'lock', 'unlock', 'lock-status', 'history', 'restore', 'save-groups', 'load-groups', 'save-profile', 'load-profile', 'list-profiles', 'load-lyrmgr', 'save-lyrmgr-draft', 'publish-lyrmgr', 'list-lyrmgr-profiles', 'list-all-layers', 'deploy-lyrmgr', 'ags-services', 'ags-export', 'ags-list-raw', 'ags-delete-raw', 'ags-delete-backups', 'ags-read-raw', 'ags-write-raw', 'staging-layers-flat', 'config-editor-load', 'config-editor-save', 'config-export-to-core', 'core-list-sources', 'core-import'],
+                'actions' => ['load', 'save', 'lock', 'unlock', 'lock-status', 'history', 'restore', 'save-groups', 'load-groups', 'save-profile', 'load-profile', 'list-profiles', 'load-lyrmgr', 'save-lyrmgr-draft', 'publish-lyrmgr', 'list-lyrmgr-profiles', 'list-all-layers', 'deploy-lyrmgr', 'ags-services', 'ags-export', 'ags-list-raw', 'ags-delete-raw', 'ags-delete-backups', 'ags-read-raw', 'ags-write-raw', 'staging-layers-flat', 'config-editor-load', 'config-editor-save', 'config-export-to-core', 'core-list-sources', 'core-import', 'qgis-list-projects', 'qgis-capabilities'],
                 'storage' => DATA_DIR
             ]
         ]);

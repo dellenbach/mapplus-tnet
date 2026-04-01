@@ -92,6 +92,18 @@
 /* ==============================
    Radio-Gruppen / Checkboxen
    ============================== */
+/* Massstab + Auflösung in einer Zeile */
+.print-row-2col {
+  display: flex; gap: 12px; align-items: flex-start; margin-bottom: 14px;
+}
+.print-row-2col .print-section {
+  margin-bottom: 0; flex: 1;
+}
+.print-row-2col .print-section-dpi {
+  flex: 0 0 auto;
+}
+.print-row-2col .print-section select { width: 100%; }
+
 .print-radio-row { display: flex; gap: 14px; }
 .print-radio, .print-checks label {
   display: inline-flex; align-items: center; gap: 4px;

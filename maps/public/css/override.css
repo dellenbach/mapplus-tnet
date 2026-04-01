@@ -799,9 +799,11 @@ body.tnet-lm-legacy-nested #layer_menu .dijitTitlePane[data-lyrmgr-depth="7"] > 
 }
 
 .ol-overviewmap .ol-overviewmap-map {
-  border: 2px solid red;
+  border: none;
+  outline: 2px solid red;
+  outline-offset: -2px;
   height: 240px;
-  width: 315px;
+  width: 100%;
 }
 
 .ol-overviewmap-box {

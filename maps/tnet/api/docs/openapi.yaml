@@ -33,6 +33,7 @@ info:
     | **Tree-Builder** | [`/v1/tree-builder.html`](https://www.gis-daten.ch/maps/tnet/api/v1/tree-builder.html) | Interaktiver Konfigurator: Layer → Gruppen → Tree per Drag & Drop, JSON5 Export. |
     | **AGS Import** | [`/v1/ags-import.html`](https://www.gis-daten.ch/maps/tnet/api/v1/ags-import.html) | ArcGIS Server Roh-Konfigurationen importieren & verwalten. Multi-Import/-Delete. |
     | **Legend-Proxy** | [`/v1/legend-proxy.php`](https://www.gis-daten.ch/maps/tnet/api/v1/legend-proxy.php?service=ewn/EWN_NIS/MapServer) | Formatierte ArcGIS-Legenden mit konfigurierbarer Symbolgrösse (HTML/JSON). |
+    | **Legend-Proxy WMS** | [`/v1/legend-proxy-wms.php`](https://www.gis-daten.ch/maps/tnet/api/v1/legend-proxy-wms.php?service=/qmap/test/kulturobjekte_nw_pg&layer=Kulturobjekte%20Flaeche) | QMAP/WMS-GetLegendGraphic Proxy mit HTML/JSON und Metadata-Injection-Hook. |
     | **Tree-Builder API** | [`/v1/treebuilder-api.php`](https://www.gis-daten.ch/maps/tnet/api/v1/treebuilder-api.php) | Persistenz-Backend: State, Locks, Profile, AGS-Import. |
     | **API Info** | [`/v1/info`](https://www.gis-daten.ch/maps/tnet/api/v1/info) | Health-Check, Endpoint-Übersicht, Server-Statistiken. |
 
@@ -566,6 +567,19 @@ paths:
           type: integer
           enum: [ 0, 1 ]
           default: 0
+      - name: inject
+        in: query
+        description: |
+          Metadata-Injection aktivieren (default: `true`).
+          Lädt `legend_wms_metadata.json` (gleiche Datei wie WMS-Proxy) und fügt pro
+          Layer passende Metadata-Felder (`title`, `description`, ...) hinzu.
+          Lookup-Priorität:
+          1. `service::<servicePfad>::<layerName>` (spezifisch)
+          2. `layer::<layerName>` (global für alle Services)
+          Bei `false`: keine Injection, Cache-Key ändert sich entsprechend.
+        schema:
+          type: boolean
+          default: true
       responses:
         "200":
           description: |
@@ -624,6 +638,154 @@ paths:
                 message: "ArcGIS Legend-Endpunkt nicht erreichbar"
                 service: ewn/EWN_NIS/MapServer
                 statusCode: 0
+
+  /v1/legend-proxy-wms.php:
+    get:
+      tags: [ Legends ]
+      summary: WMS Legende abrufen (QMAP/GetLegendGraphic)
+      description: |
+        Holt WMS-Legenden via `GetLegendGraphic` fuer einen oder mehrere Layer.
+        Ausgabe als HTML (Standard) oder JSON.
+
+        **Fokus:**
+        - QMAP/WMS Services (`/qmap/...`)
+        - Mehrere Layer in einem Request
+        - Base64-eingebettete Symbole
+        - Optionaler Metadata-Injection-Hook (`inject=1`)
+
+        **Beispiel-URL (direkt):**
+        - [`https://www.gis-daten.ch/qmap/test/kulturobjekte_nw_pg?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetLegendGraphic&LAYER=Kulturobjekte%20Flaeche&FORMAT=image/png&STYLE=default&SLD_VERSION=1.1.0`](https://www.gis-daten.ch/qmap/test/kulturobjekte_nw_pg?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetLegendGraphic&LAYER=Kulturobjekte%20Flaeche&FORMAT=image/png&STYLE=default&SLD_VERSION=1.1.0)
+
+        **Proxy-Beispiele:**
+        - Einzel-Layer (HTML): [`/maps/tnet/api/v1/legend-proxy-wms.php?service=/qmap/test/kulturobjekte_nw_pg&layer=Kulturobjekte%20Flaeche`](https://www.gis-daten.ch/maps/tnet/api/v1/legend-proxy-wms.php?service=/qmap/test/kulturobjekte_nw_pg&layer=Kulturobjekte%20Flaeche)
+        - Multi-Layer (HTML): [`/maps/tnet/api/v1/legend-proxy-wms.php?service=/qmap/test/kulturobjekte_nw_pg&layers=Kulturobjekte%20Flaeche,Kulturobjekte%20Linien`](https://www.gis-daten.ch/maps/tnet/api/v1/legend-proxy-wms.php?service=/qmap/test/kulturobjekte_nw_pg&layers=Kulturobjekte%20Flaeche,Kulturobjekte%20Linien)
+        - JSON: [`/maps/tnet/api/v1/legend-proxy-wms.php?service=/qmap/test/kulturobjekte_nw_pg&layers=Kulturobjekte%20Flaeche&format=json`](https://www.gis-daten.ch/maps/tnet/api/v1/legend-proxy-wms.php?service=/qmap/test/kulturobjekte_nw_pg&layers=Kulturobjekte%20Flaeche&format=json)
+      parameters:
+      - name: service
+        in: query
+        required: true
+        description: |
+          WMS-Basispfad ohne Query-String.
+          Erlaubt: relativer Pfad (`/qmap/...`) oder absolute http(s)-URL.
+        schema:
+          type: string
+        examples:
+          qmap_relative:
+            summary: Relativer QMAP-Pfad
+            value: /qmap/test/kulturobjekte_nw_pg
+          qmap_absolute:
+            summary: Absolute URL
+            value: https://www.gis-daten.ch/qmap/test/kulturobjekte_nw_pg
+      - name: layers
+        in: query
+        description: Komma-separierte Layernamen.
+        schema:
+          type: string
+        examples:
+          two_layers:
+            value: Kulturobjekte Flaeche,Kulturobjekte Linien
+      - name: layer
+        in: query
+        description: Einzelner Layername (Alias zu `layers`).
+        schema:
+          type: string
+        examples:
+          one_layer:
+            value: Kulturobjekte Flaeche
+      - name: width
+        in: query
+        description: Gewuenschte Legendengrafik-Breite in Pixel.
+        schema:
+          type: integer
+          default: 32
+          minimum: 8
+          maximum: 512
+      - name: height
+        in: query
+        description: Gewuenschte Legendengrafik-Hoehe in Pixel.
+        schema:
+          type: integer
+          default: 24
+          minimum: 8
+          maximum: 512
+      - name: style
+        in: query
+        description: WMS Style (Default `default`).
+        schema:
+          type: string
+          default: default
+      - name: version
+        in: query
+        description: WMS-Version.
+        schema:
+          type: string
+          default: 1.3.0
+      - name: sld_version
+        in: query
+        description: SLD-Version fuer `GetLegendGraphic`.
+        schema:
+          type: string
+          default: 1.1.0
+      - name: inject
+        in: query
+        description: Metadata-Injection aktivieren (`1`) oder deaktivieren (`0`).
+        schema:
+          type: integer
+          enum: [ 0, 1 ]
+          default: 1
+      - name: format
+        in: query
+        description: Ausgabeformat (`html` oder `json`).
+        schema:
+          type: string
+          enum: [ html, json ]
+          default: html
+      - name: nocache
+        in: query
+        description: Cache umgehen (`1` = ja).
+        schema:
+          type: integer
+          enum: [ 0, 1 ]
+          default: 0
+      responses:
+        "200":
+          description: Erfolgreiche WMS-Legendenantwort (HTML oder JSON)
+          content:
+            text/html:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+              example:
+                success: true
+                service: /qmap/test/kulturobjekte_nw_pg
+                layerCount: 2
+                layers:
+                - layer: Kulturobjekte Flaeche
+                  imageMime: image/png
+                  imageDataUrl: data:image/png;base64,iVBORw0KGgo...
+                - layer: Kulturobjekte Linien
+                  imageMime: image/png
+                  imageDataUrl: data:image/png;base64,iVBORw0KGgo...
+        "400":
+          description: Fehlender oder ungültiger Parameter
+          content:
+            application/json:
+              example:
+                success: false
+                error: Parameter "service" fehlt.
+        "502":
+          description: Kein Layer lieferte eine verwertbare WMS-Legende
+          content:
+            application/json:
+              example:
+                success: false
+                message: Keine WMS-Legende abrufbar.
+                errors:
+                - layer: Kulturobjekte Flaeche
+                  httpCode: 404
+                  error: WMS antwortete nicht mit HTTP 200
 
   /v1/tree-test.html:
     get:

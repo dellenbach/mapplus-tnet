@@ -198,18 +198,18 @@
             '<select id="print-layout"><option value="">Wird geladen...</option></select>' +
           '</div>' +
 
-          // Massstab
-          '<div class="print-section">' +
-            '<label>Massstab</label>' +
-            '<select id="print-scale"></select>' +
-          '</div>' +
-
-          // Auflösung
-          '<div class="print-section">' +
-            '<label>Aufl\u00f6sung</label>' +
-            '<div class="print-radio-row">' +
-              '<label class="print-radio"><input type="radio" name="print-dpi" value="150" checked> 150 dpi</label>' +
-              '<label class="print-radio"><input type="radio" name="print-dpi" value="300"> 300 dpi</label>' +
+          // Massstab + Auflösung nebeneinander
+          '<div class="print-row-2col">' +
+            '<div class="print-section">' +
+              '<label>Massstab</label>' +
+              '<select id="print-scale"></select>' +
+            '</div>' +
+            '<div class="print-section print-section-dpi">' +
+              '<label>Aufl\u00f6sung</label>' +
+              '<div class="print-radio-row">' +
+                '<label class="print-radio"><input type="radio" name="print-dpi" value="150" checked> 150 dpi</label>' +
+                '<label class="print-radio"><input type="radio" name="print-dpi" value="300"> 300 dpi</label>' +
+              '</div>' +
             '</div>' +
           '</div>' +
 
@@ -225,14 +225,14 @@
             '<input type="text" id="print-user" placeholder="Benutzer">' +
           '</div>' +
 
-          // Server-Rendering
-          '<div class="print-section print-checks">' +
+          // Server-Rendering (vorerst ausgeblendet)
+          '<div class="print-section print-checks" style="display:none">' +
             '<label class="print-check"><input type="checkbox" id="print-server-render"> ' +
             'Server-Rendering <span style="color:#888;font-size:11px">(Bilder direkt vom Mapserver)</span></label>' +
           '</div>' +
 
-          // SVG-Vektorgrafik
-          '<div class="print-section print-checks print-svg-section" id="print-svg-section">' +
+          // SVG-Vektorgrafik (vorerst ausgeblendet)
+          '<div class="print-section print-checks print-svg-section" id="print-svg-section" style="display:none">' +
             '<label class="print-check"><input type="checkbox" id="print-svg-format"> ' +
             'Vektorgrafik (SVG) <span style="color:#888;font-size:11px">(schärfer, grössere Datei)</span></label>' +
           '</div>' +
@@ -2003,7 +2003,12 @@
               _printCenter = m.getView().getCenter().slice();
               disableMapInteractions();
               showPrintFrame();
-              setTimeout(function () { adjustZoomForPrintFrame(); }, 450);
+              // Verzögertes Layout-Update: stellt sicher, dass Container
+              // nach dem Öffnen korrekt bemessen ist (erstes Öffnen-Bug)
+              setTimeout(function () {
+                loadLayouts();
+                adjustZoomForPrintFrame();
+              }, 450);
             };
             if (_libsReady) {
               openHelper();

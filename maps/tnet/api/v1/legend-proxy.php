@@ -58,6 +58,11 @@
  *                Cache umgehen: "1" = frische Daten holen.
  *                Cache-TTL: 24 Stunden.
  *
+ *   inject       (bool, default: true)
+ *                Metadata-Injection via legend_wms_metadata.json (gleiche Datei wie WMS-Proxy).
+ *                true  = Mapping laden + pro Layer anwenden (Felder: title, description, ...).
+ *                false = keine Injection, leichterer Cache-Key.
+ *
  *   format       (string, default: "html")
  *                Ausgabeformat: "html" (selbstständige HTML-Seite) oder
  *                "json" (strukturierte JSON-Daten).
@@ -102,6 +107,9 @@ $AGS_TOKEN_PASS  = getenv('GIS_TOKEN_PASS') ?: 'mapplus-imp6370';
 // Token-Cache 3 Ebenen nach oben: tnet/api/v1/ → maps/ (gleiche Datei wie agsproxy.php)
 $AGS_TOKEN_CACHE = dirname(__DIR__, 3) . '/_token_cache/arcgis_token.json';
 $AGS_TOKEN_SKEW  = 60;  // Safety-Skew in Sekunden
+
+// Metadata-Injection-Mapping (gemeinsam mit legend-proxy-wms.php)
+$METADATA_FILE = dirname(__DIR__, 4) . '/core/config/legend_wms_metadata.json';
 
 // ===== CORS & HEADERS =====
 
@@ -375,6 +383,8 @@ $codeField    = isset($_GET['codefield'])  ? trim($_GET['codefield'])  : 'Typ_Da
 $legendGroup  = isset($_GET['legendgroup']) ? trim($_GET['legendgroup']) : '';
 $noCache    = isset($_GET['nocache']) && $_GET['nocache'] === '1';
 $format     = (isset($_GET['format']) && $_GET['format'] === 'json') ? 'json' : 'html';
+$injectRaw  = isset($_GET['inject']) ? strtolower(trim((string)$_GET['inject'])) : '';
+$inject     = ($injectRaw === '0' || $injectRaw === 'false') ? false : true; // default: true
 
 // ArcGIS holt bei voller Grösse + DPI (scharf + dick)
 // Zoom skaliert nur die CSS-Anzeige zusätzlich hoch
@@ -405,13 +415,13 @@ if ($legendGroup !== '' && strtolower($legendGroup) === 'none') {
     $legendGroupExplicit = true; // "none" zählt als explizit gesetzt (= leer)
 }
 
-$cacheKey  = md5($service . '|' . $width . 'x' . $height . '|d' . $dpi . '|z' . $zoom . '|' . $layers . '|r' . ($resolveLabels ? '1' : '0') . '|' . $labelField . '|' . $codeField . '|g' . $legendGroup);
+$cacheKey  = md5($service . '|' . $width . 'x' . $height . '|d' . $dpi . '|z' . $zoom . '|' . $layers . '|r' . ($resolveLabels ? '1' : '0') . '|' . $labelField . '|' . $codeField . '|g' . $legendGroup . '|i' . ($inject ? '1' : '0'));
 $cacheExt  = ($format === 'json') ? '.json' : '.html';
 $cacheFile = $CACHE_DIR . '/' . $cacheKey . $cacheExt;
 
 // Auto-Default-Cache: separater Alias-Key für Aufrufe ohne legendgroup-Parameter.
 // Wird am Ende befüllt und hier sofort geprüft → kein ArcGIS-Kontakt bei HIT.
-$cacheKeyAuto  = md5($service . '|' . $width . 'x' . $height . '|d' . $dpi . '|z' . $zoom . '|' . $layers . '|r' . ($resolveLabels ? '1' : '0') . '|' . $labelField . '|' . $codeField . '|gAUTO');
+$cacheKeyAuto  = md5($service . '|' . $width . 'x' . $height . '|d' . $dpi . '|z' . $zoom . '|' . $layers . '|r' . ($resolveLabels ? '1' : '0') . '|' . $labelField . '|' . $codeField . '|gAUTO|i' . ($inject ? '1' : '0'));
 $cacheFileAuto = $CACHE_DIR . '/' . $cacheKeyAuto . $cacheExt;
 
 // Früh-Cache: explizites legendgroup
@@ -542,7 +552,7 @@ if ($legendGroup === '' && !$legendGroupExplicit) {
         logMessage($LOG_FILE, 'INFO', "Auto-Default: legendgroup=Gemeinde (Code-basierte Layer erkannt)");
 
         // Cache-Key mit neuem legendGroup neu berechnen + prüfen
-        $cacheKey  = md5($service . '|' . $width . 'x' . $height . '|d' . $dpi . '|z' . $zoom . '|' . $layers . '|r' . ($resolveLabels ? '1' : '0') . '|' . $labelField . '|' . $codeField . '|g' . $legendGroup);
+        $cacheKey  = md5($service . '|' . $width . 'x' . $height . '|d' . $dpi . '|z' . $zoom . '|' . $layers . '|r' . ($resolveLabels ? '1' : '0') . '|' . $labelField . '|' . $codeField . '|g' . $legendGroup . '|i' . ($inject ? '1' : '0'));
         $cacheFile = $CACHE_DIR . '/' . $cacheKey . $cacheExt;
 
         if (!$noCache && file_exists($cacheFile) && (time() - filemtime($cacheFile)) < $CACHE_TTL) {
@@ -566,6 +576,19 @@ $agsToken = $auxData['token'];
 // Labels nach Lookup ersetzen (#-Labels → lesbare Bezeichnungen)
 if ($resolveLabels && !empty($auxData['lookup'])) {
     $filteredLayers = applyLabelLookup($filteredLayers, $auxData['lookup'], $LOG_FILE);
+}
+
+// ===== METADATA-INJECTION =====
+
+$metadataMap = $inject ? loadMetadataMap($METADATA_FILE) : [];
+if (!empty($metadataMap)) {
+    foreach ($filteredLayers as &$layer) {
+        $meta = injectMetadata($metadataMap, $service, $layer['layerName'] ?? '');
+        if ($meta !== null) {
+            $layer['metadata'] = $meta;
+        }
+    }
+    unset($layer);
 }
 
 // ===== GRUPPIERUNG NACH FELD (legendgroup) =====
@@ -715,6 +738,55 @@ if (!$legendGroupExplicit) {
 }
 sendCachedFile($cacheFile, 'text/html', $CACHE_TTL, 'MISS');
 
+
+// =========================================================================
+// METADATA-INJECTION
+// =========================================================================
+
+/**
+ * Liest das Metadata-Mapping aus einer JSON-Datei.
+ * Gibt leeres Array zurück falls Datei fehlt oder ungültig.
+ *
+ * @param string $file  Absoluter Pfad zur JSON-Datei
+ * @return array        Mapping-Array (key => ['title'=>..., 'description'=>..., ...])
+ */
+function loadMetadataMap($file) {
+    if (!file_exists($file)) {
+        return [];
+    }
+    $raw = @file_get_contents($file);
+    if ($raw === false || trim($raw) === '') {
+        return [];
+    }
+    $json = json_decode($raw, true);
+    return is_array($json) ? $json : [];
+}
+
+/**
+ * Sucht Metadata-Eintrag für einen ArcGIS-Layer.
+ * Zwei-Stufen-Lookup: zuerst service+layer-spezifisch, dann layer-global.
+ *
+ * Key-Schema (identisch mit WMS-Proxy):
+ *   service::<servicePfad>::<layerName>   (z.B. "service::ewn/EWN_NIS/MapServer::Schutzgebiet")
+ *   layer::<layerName>                    (z.B. "layer::Schutzgebiet")
+ *
+ * @param array  $metadataMap  Geladenes Mapping-Array
+ * @param string $service      ArcGIS MapServer-Pfad (z.B. "ewn/EWN_NIS/MapServer")
+ * @param string $layerName    Layername aus der Legend-Response
+ * @return array|null          Metadata-Array oder null wenn kein Treffer
+ */
+function injectMetadata($metadataMap, $service, $layerName) {
+    $keyServiceLayer = 'service::' . trim($service) . '::' . $layerName;
+    $keyLayer        = 'layer::' . $layerName;
+
+    if (isset($metadataMap[$keyServiceLayer]) && is_array($metadataMap[$keyServiceLayer])) {
+        return $metadataMap[$keyServiceLayer];
+    }
+    if (isset($metadataMap[$keyLayer]) && is_array($metadataMap[$keyLayer])) {
+        return $metadataMap[$keyLayer];
+    }
+    return null;
+}
 
 // =========================================================================
 // LABEL-AUFLÖSUNG (#-Labels → Attribut-Lookup)
@@ -1629,6 +1701,18 @@ function renderLayerLegend($layer, $width, $height) {
         $out .= '  </div>' . "\n";
     }
 
+    // Metadata-Block (falls aus legend_wms_metadata.json injiziert)
+    if (!empty($layer['metadata']) && is_array($layer['metadata'])) {
+        $out .= '  <div class="legend-metadata">' . "\n";
+        if (isset($layer['metadata']['title'])) {
+            $out .= '    <span class="legend-meta-title">' . htmlspecialchars((string)$layer['metadata']['title']) . '</span>' . "\n";
+        }
+        if (isset($layer['metadata']['description'])) {
+            $out .= '    <span class="legend-meta-desc">' . htmlspecialchars((string)$layer['metadata']['description']) . '</span>' . "\n";
+        }
+        $out .= '  </div>' . "\n";
+    }
+
     $out .= '</div>' . "\n";
     return $out;
 }
@@ -1868,6 +1952,27 @@ body {
 }
 .legend-footer a:hover {
     text-decoration: underline;
+}
+
+/* ===== METADATA-INJECTION ===== */
+.legend-metadata {
+    margin-top: 5px;
+    padding: 4px 7px;
+    background: #f0f5f5;
+    border-left: 3px solid #4B7B81;
+    border-radius: 0 4px 4px 0;
+    font-size: 11px;
+    color: #555;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.legend-meta-title {
+    font-weight: 600;
+    color: #4B7B81;
+}
+.legend-meta-desc {
+    color: #666;
 }
 
 /* ===== RESPONSIVE ===== */

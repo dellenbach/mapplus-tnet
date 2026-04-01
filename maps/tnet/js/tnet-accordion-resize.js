@@ -55,6 +55,20 @@
         minHeight: 80,
         maxHeight: null,
         defaultHeight: 300
+      },
+      {
+        id: 'tp_tools_menu',
+        storageKey: 'tnet-tools-height',
+        minHeight: 80,
+        maxHeight: null,
+        defaultHeight: 250
+      },
+      {
+        id: 'tp_tnet_print_menu',
+        storageKey: 'tnet-print-height',
+        minHeight: 120,
+        maxHeight: null,
+        defaultHeight: 250
       }
     ]
   };
@@ -216,6 +230,10 @@
       docEl.style.setProperty('--tnet-catalog-height', clamped + 'px');
     } else if (panelCfg.id === 'tp_sort_menu') {
       docEl.style.setProperty('--tnet-active-height', clamped + 'px');
+    } else if (panelCfg.id === 'tp_tools_menu') {
+      docEl.style.setProperty('--tnet-tools-height', clamped + 'px');
+    } else if (panelCfg.id === 'tp_tnet_print_menu') {
+      docEl.style.setProperty('--tnet-print-height', clamped + 'px');
     }
 
     return clamped;
@@ -240,6 +258,12 @@
       }
       var kc = document.getElementById('kantons_container');
       return kc ? kc.offsetHeight : panelCfg.defaultHeight;
+    } else if (panelCfg.id === 'tp_tools_menu') {
+      var tc = paneEl.querySelector('.tnet-panel-content');
+      return tc ? tc.scrollHeight : panelCfg.defaultHeight;
+    } else if (panelCfg.id === 'tp_tnet_print_menu') {
+      var pc = paneEl.querySelector('.tnet-panel-content');
+      return pc ? pc.scrollHeight : panelCfg.defaultHeight;
     } else {
       if (_useNewActivePanel || hasNewActiveContainer()) {
         var ac = document.getElementById('lm-active-container');
@@ -264,7 +288,9 @@
 
     // Prüfen ob Handle bereits existiert
     var existingHandle = paneEl.nextElementSibling;
-    if (existingHandle && existingHandle.classList.contains('tnet-accordion-resize-handle')) return;
+    var prevHandle = paneEl.previousElementSibling;
+    if ((existingHandle && existingHandle.classList.contains('tnet-accordion-resize-handle') && existingHandle.getAttribute('data-panel') === panelCfg.id) ||
+        (prevHandle && prevHandle.classList.contains('tnet-accordion-resize-handle') && prevHandle.getAttribute('data-panel') === panelCfg.id)) return;
 
     // Handle-Element erstellen
     var handle = document.createElement('div');
@@ -272,7 +298,7 @@
     handle.title = 'Höhe anpassen (ziehen)';
     handle.setAttribute('data-panel', panelCfg.id);
 
-    // Handle NACH dem TitlePane-Element einfügen (als Geschwister im #spring)
+    // Handle-Position: NACH dem Panel einfügen (als Geschwister im #spring)
     paneEl.parentNode.insertBefore(handle, paneEl.nextSibling);
 
     // Gespeicherte Höhe laden und anwenden
