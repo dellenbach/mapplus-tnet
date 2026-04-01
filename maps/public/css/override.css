@@ -2817,7 +2817,7 @@ body:not(.tnet-sidepanel-v2) #lm-active-container.lm-container-desktop::-webkit-
   border: none !important;
 }
 
-/* Header wie Info-Pane */
+/* Header wie Info-Pane - gleiche Höhe */
 #njs_floatlegend_pane .dojoxFloatingPaneTitle {
   display: flex !important;
   flex-direction: row !important;
@@ -2832,8 +2832,6 @@ body:not(.tnet-sidepanel-v2) #lm-active-container.lm-container-desktop::-webkit-
   height: 36px !important;
   min-height: 36px !important;
   box-sizing: border-box !important;
-  position: relative !important;
-  z-index: 1000 !important;
 }
 
 /* Original Dojo-Icons verstecken */
@@ -2910,9 +2908,12 @@ body:not(.tnet-sidepanel-v2) #lm-active-container.lm-container-desktop::-webkit-
   margin: 0 !important;
 }
 
-/* Resize Handle (Dojo original) verstecken */
+/* Resize Handle (Dojo original) - KOMPLETT VERSTECKT */
 #njs_floatlegend_pane .dojoxFloatingResizeHandle {
   display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
 }
 
 /* ===== DARGESTELLTE THEMEN - Active Panel im Desktop-TitlePane ===== */

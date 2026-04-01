@@ -11,19 +11,10 @@ PASSWORD = "3Zs,k4%Un,<[W(Kx"
 REMOTE_BASE = "/www/maps"
 LOCAL_BASE = r"c:\_Daten\mapplus-exp\maps"
 
-# Files to upload — Restore Sidepanel/Print/LM von 4dc47cc
+# Files to upload
 FILES = [
     "public/css/override.css",
-    "tnet/css/tnet-lm.css",
-    "tnet/css/tnet-print.css",
-    "tnet/css/tnet-sidepanel.css",
-    "tnet/js/tnet-accordion-resize.js",
-    "tnet/js/tnet-lm-active.js",
-    "tnet/js/tnet-lm-init.js",
-    "tnet/js/tnet-lm-store.js",
-    "tnet/js/tnet-lm-tree.js",
-    "tnet/js/tnet-mapplus-helpers.js",
-    "tnet/js/tnet-print.js",
+    "tnet/js/tnet-info-panel.js",
 ]
 
 def upload_files():

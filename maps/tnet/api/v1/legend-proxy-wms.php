@@ -27,6 +27,7 @@
  *   sld_version  (string, default: 1.1.0)
  *   format       (string, default: html) -> html|json
  *   inject       (bool, default: true)  -> 1/0, true/false
+ *   debug        (bool, default: false) -> 1/0, true/false — zeigt Service-Info und GetLegendGraphic-URLs
  *   nocache      (string, default: 0)   -> 1 = Cache umgehen
  *
  * Metadata-Injection:
@@ -283,9 +284,11 @@ body { margin: 16px; font-family: Segoe UI, Arial, sans-serif; color: #1f2933; b
 h1 { margin: 0 0 8px; font-size: 20px; }
 .meta { margin: 0 0 16px; color: #52606d; font-size: 13px; }
 .legend-list { display: grid; gap: 10px; }
-.legend-item { background: #fff; border: 1px solid #d9e2ec; border-radius: 8px; padding: 10px; }
+.legend-item { background: #fff; border: none; border-radius: 8px; padding: 10px; }
 .legend-row { display: flex; align-items: center; gap: 10px; }
-.legend-img { display: inline-flex; border: 1px solid #bcccdc; border-radius: 4px; background: #fff; padding: 4px; min-height: 24px; }
+.legend-img { display: inline-flex; border: none; border-radius: 4px; background: #fff; padding: 0; min-height: 24px; }
+.debug-info { margin: 0 0 12px; padding: 6px 10px; background: #fff44f; font-size: 12px; border-radius: 4px; }
+.debug-info code { background: #fff44f; padding: 1px 4px; border-radius: 4px; word-break: break-all; }
 .legend-img img { display: block; max-width: 100%; height: auto; }
 .legend-title { font-weight: 600; }
 .legend-sub { margin-top: 6px; font-size: 12px; color: #52606d; }
@@ -306,6 +309,7 @@ $version = isset($_GET['version']) ? trim((string) $_GET['version']) : $DEFAULT_
 $sldVersion = isset($_GET['sld_version']) ? trim((string) $_GET['sld_version']) : $DEFAULT_SLD_VERSION;
 $format = (isset($_GET['format']) && strtolower(trim((string) $_GET['format'])) === 'json') ? 'json' : 'html';
 $inject = parseBoolParam($_GET['inject'] ?? null, $DEFAULT_INJECT);
+$debug = parseBoolParam($_GET['debug'] ?? null, false);
 $noCache = isset($_GET['nocache']) && (string) $_GET['nocache'] === '1';
 
 if ($serviceRaw === '') {
@@ -349,7 +353,8 @@ $cacheKey = md5(json_encode([
     'version' => $version,
     'sld_version' => $sldVersion,
     'format' => $format,
-    'inject' => $inject
+    'inject' => $inject,
+    'debug' => $debug
 ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
 
 $cacheExt = ($format === 'json') ? '.json' : '.html';
@@ -447,15 +452,17 @@ if ($format === 'json') {
 
 $html = '<!DOCTYPE html><html lang="de"><head><meta charset="utf-8">';
 $html .= '<meta name="viewport" content="width=device-width, initial-scale=1">';
-$html .= '<title>WMS Legende</title>';
+$html .= '<title>Legende</title>';
 $html .= '<style>' . buildCss() . '</style>';
 $html .= '</head><body>';
-$html .= '<h1>WMS Legende</h1>';
-$html .= '<p class="meta">Service: ' . htmlspecialchars($serviceRaw) . ' | Layer: ' . count($entries);
-if (count($errors) > 0) {
-    $html .= ' | Warnungen: ' . count($errors);
+$html .= '<h1>Legende</h1>';
+if ($debug) {
+    $html .= '<p class="debug-info">Service: ' . htmlspecialchars($serviceRaw) . ' | Layer: ' . count($entries);
+    if (count($errors) > 0) {
+        $html .= ' | Warnungen: ' . count($errors);
+    }
+    $html .= '</p>';
 }
-$html .= '</p>';
 
 $html .= '<div class="legend-list">';
 foreach ($entries as $entry) {
@@ -464,11 +471,12 @@ foreach ($entries as $entry) {
     $html .= '    <span class="legend-img"><img alt="' . htmlspecialchars($entry['layer']) . '" src="' . $entry['imageDataUrl'] . '"></span>';
     $html .= '    <span class="legend-title">' . htmlspecialchars($entry['layer']) . '</span>';
     $html .= '  </div>';
-    $html .= '  <div class="legend-sub">GetLegendGraphic: <code>' . htmlspecialchars($entry['legendUrl']) . '</code></div>';
-
-    if (isset($entry['metadata']) && is_array($entry['metadata'])) {
-        $metaJson = json_encode($entry['metadata'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-        $html .= '  <div class="legend-sub">Metadata: <code>' . htmlspecialchars($metaJson) . '</code></div>';
+    if ($debug) {
+        $html .= '  <div class="debug-info">GetLegendGraphic: <code>' . htmlspecialchars($entry['legendUrl']) . '</code></div>';
+        if (isset($entry['metadata']) && is_array($entry['metadata'])) {
+            $metaJson = json_encode($entry['metadata'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            $html .= '  <div class="debug-info">Metadata: <code>' . htmlspecialchars($metaJson) . '</code></div>';
+        }
     }
 
     $html .= '</div>';
