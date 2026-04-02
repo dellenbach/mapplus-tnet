@@ -325,19 +325,10 @@
 /* OL Rotate-Control: Standardverhalten (autoHide) beibehalten,
    damit der Nordpfeil bei Rotation sichtbar wird */
 
-/* ===== POLYGON-TOOL BUTTON ===== */
+/* ===== POLYGON-TOOL BUTTON (ersetzt durch tnet-mapcontrols) ===== */
 #polygon-tool-btn {
-  position: absolute;
-  top: 10px;
-  right: 60px;
-  width: 36px;
-  height: 36px;
-  background: white;
-  border-radius: 4px;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.3);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
+  display: none !important;
+}
   justify-content: center;
   z-index: 1000;
   transition: all 0.2s ease;
@@ -893,22 +884,9 @@
   font-style: italic;
 }
 
-/* ===== ÖREB-TOOL BUTTON ===== */
+/* ===== ÖREB-TOOL BUTTON (ersetzt durch tnet-mapcontrols) ===== */
 #oereb-tool-btn {
-  position: absolute;
-  top: 10px;
-  right: 104px;
-  width: 36px;
-  height: 36px;
-  background: white;
-  border-radius: 4px;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.3);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  transition: all 0.2s ease;
+  display: none !important;
 }
 #oereb-tool-btn:hover {
   background: #f0f0f0;

@@ -1,0 +1,125 @@
+/**
+ * tnet-mapcontrols.css
+ * Styles für die konfigurierbaren Kartensteuerungs-Buttons
+ * (Zoom, GNSS, StreetView, 3D)
+ *
+ * @version    1.0
+ * @date       2026-04-01
+ * @copyright  Trigonet AG
+ * @author     Marco Dellenbach
+ */
+
+/* ===== CONTAINER ===== */
+.tnet-mc-container {
+  position: absolute;
+  z-index: 998; /* unter basemap_selector (z-index: 999) */
+  display: flex;
+  flex-direction: column;
+  gap: var(--mc-group-gap, 10px);
+  pointer-events: none; /* Container selbst nicht klickbar */
+}
+
+/* ===== BUTTON-GRUPPEN ===== */
+.tnet-mc-group {
+  display: flex;
+  flex-direction: column;
+  background: white;
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  overflow: hidden;
+  pointer-events: auto; /* Buttons klickbar */
+}
+
+/* Trennlinie zwischen Buttons innerhalb einer Gruppe */
+.tnet-mc-group .tnet-mc-btn + .tnet-mc-btn {
+  border-top: 1px solid #e0e0e0;
+}
+
+/* ===== BUTTONS ===== */
+.tnet-mc-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: white;
+  color: #444;
+  cursor: pointer;
+  padding: 0;
+  margin: 0;
+  outline: none;
+  transition: background-color 0.15s ease, color 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.tnet-mc-btn:hover {
+  background: #f0f0f0;
+  color: #4b7b81;
+}
+
+.tnet-mc-btn:active {
+  background: #e0e0e0;
+}
+
+/* Aktiver Zustand (Toggle-Buttons wie GNSS, StreetView) */
+.tnet-mc-btn.active {
+  background: #4b7b81;
+  color: white;
+}
+
+.tnet-mc-btn.active:hover {
+  background: #3a6268;
+  color: white;
+}
+
+/* ===== SVG ICONS ===== */
+.tnet-mc-btn svg {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+}
+
+/* Polygon-Button: Grösser damit "i"-Badge lesbar ist + Active-Farben */
+#tnet-mc-polygon svg {
+  width: 28px;
+  height: 28px;
+}
+#tnet-mc-polygon.active {
+  background: #4b7b81;
+}
+#tnet-mc-polygon.active svg path,
+#tnet-mc-polygon.active svg circle:not([fill="#4b7b81"]) {
+  fill: white;
+  stroke: white;
+}
+
+/* ÖREB-Button: Grösserer Button damit Logo + Text lesbar sind */
+#tnet-mc-oereb {
+  width: 40px !important;
+  height: 48px !important;
+}
+#tnet-mc-oereb svg {
+  width: 38px;
+  height: 38px;
+}
+#tnet-mc-oereb.active {
+  background: #e8e8e8;
+  box-shadow: inset 0 0 0 2px #4b7b81;
+}
+
+/* ===== OL ROTATE CONTROL VERSTECKEN (ersetzt durch tnet-mc-compass) ===== */
+.ol-rotate {
+  display: none !important;
+}
+
+/* ===== RESPONSIVE: Kleinere Buttons auf schmalen Bildschirmen ===== */
+@media (max-width: 600px) {
+  .tnet-mc-btn {
+    width: 36px !important;
+    height: 36px !important;
+  }
+
+  .tnet-mc-btn svg {
+    width: 18px;
+    height: 18px;
+  }
+}

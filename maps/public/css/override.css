@@ -94,6 +94,11 @@
   filter: grayscale(100%);
 }
 
+/* ===== FRAMEWORK BUTTON BAR AUSBLENDEN (ersetzt durch tnet-mapcontrols) ===== */
+#mainButtonBar {
+  display: none !important;
+}
+
 div[class^='btn'] {
   background-color: #4b7b81;
 }
@@ -3240,11 +3245,11 @@ body:not(.tnet-sidepanel-v2) #lm-active-container.lm-container-desktop::-webkit-
   width: 20px !important;
   height: 20px !important;
   cursor: nwse-resize !important;
-  background: linear-gradient(135deg, transparent 50%, rgba(75,123,129,0.5) 50%) !important;
+  background: transparent !important;
 }
 
 #njs_floatlegend_pane .legend-pane-resize-corner-br:hover {
-  background: linear-gradient(135deg, transparent 50%, #4b7b81 50%) !important;
+  background: transparent !important;
 }
 
 /* ===== LEGEND PANE DOCK (rechts angedockt) ===== */
