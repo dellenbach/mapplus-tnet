@@ -253,6 +253,9 @@
   function bootstrap(config) {
     var lmConfig = (config && config.layerManager) || {};
 
+    // --- Legend-Config global ablegen (für tnet-lm-tree.js / tnet-lm-active.js) ---
+    window.__TNET_LEGEND_CONFIG = (config && config.legend) || {};
+
     // --- Gruppen-Parameter aus URL übernehmen (z.B. ?group=owpro) ---
     if (!lmConfig.group) {
       var urlGroup = new URLSearchParams(window.location.search).get('group');

@@ -495,6 +495,17 @@
     debugLogMetrics: false,
   },
 
+  // ============================================================
+  // LEGENDE
+  // ============================================================
+  legend: {
+    _description: "Legenden-Proxy Einstellungen",
+    // Metadaten (Metadataproxy) standardmässig anzeigen?
+    // true  = &metadata=1 wird automatisch an legend-proxy URLs angehängt
+    // false = nur Legenden-Symbole, keine Metadaten
+    metadata: true,
+  },
+
   // ── Proxy / iFrame-Login ──────────────────────────────────
   proxy: {
     _description: "Einstellungen für active-maps-proxy.php und proxy-inject.js",

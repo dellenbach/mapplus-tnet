@@ -664,6 +664,13 @@
           legendUrl += '&layers=' + encodeURIComponent(legendLayers);
         }
       }
+
+      // Metadaten anhängen wenn in Config aktiviert
+      var legendCfg = window.__TNET_LEGEND_CONFIG || {};
+      if (legendCfg.metadata && legendUrl.indexOf('legend-proxy') !== -1 && legendUrl.indexOf('metadata=') === -1) {
+        legendUrl += (legendUrl.indexOf('?') !== -1 ? '&' : '?') + 'metadata=1';
+      }
+
       var title = legendTitle || legendKey.split('/').pop() || 'Legende';
 
       var am = window.njs && window.njs.AppManager;

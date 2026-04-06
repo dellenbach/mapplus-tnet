@@ -43,12 +43,12 @@
  *                Die Query gruppiert nach codefield+labelfield und ersetzt
  *                das "#"-Label durch die aufgelöste Bezeichnung.
  *
- *   legendgroup  (string, default: "Gemeinde" wenn #-Labels vorhanden, sonst leer)
+ *   legendgroup  (string, default: "none" = keine Gruppierung)
  *                Attributfeld für die Gruppierung der Legende.
- *                Wenn gesetzt, wird die Legende nach den Werten dieses Felds
- *                in zusammenklappbare Sektionen unterteilt.
+ *                Wenn gesetzt (z.B. "Gemeinde"), wird die Legende nach den Werten
+ *                dieses Felds in zusammenklappbare Sektionen unterteilt.
  *                Pro Sektion nur die Symbole, die in dieser Gruppe vorkommen.
- *                "none" = Gruppierung explizit deaktivieren.
+ *                "none" = Gruppierung explizit deaktivieren (Standard).
  *
  *   layers       (string, default: leer = alle Layer)
  *                Komma-separierte Layer-IDs zum Filtern.
@@ -62,6 +62,10 @@
  *                Metadata-Injection via legend_wms_metadata.json (gleiche Datei wie WMS-Proxy).
  *                true  = Mapping laden + pro Layer anwenden (Felder: title, description, ...).
  *                false = keine Injection, leichterer Cache-Key.
+ *
+ *   debug        (bool, default: false)
+ *                Debug-Modus: 1/true = gelbe Info-Blöcke mit Service-URLs,
+ *                Parametern, ArcGIS-Token-Status und Aux-Abfragen anzeigen.
  *
  *   format       (string, default: "html")
  *                Ausgabeformat: "html" (selbstständige HTML-Seite) oder
@@ -82,9 +86,10 @@
  *   ?service=gis_oereb/nw_nutzungsplanung_DEF/MapServer&nocache=1&format=json
  *   ?service=gis_oereb/nw_nutzungsplanung_DEF/MapServer&legendgroup=none&nocache=1
  *   ?service=gis_oereb/nw_nutzungsplanung_DEF/MapServer&resolve=false&nocache=1
+ *   ?service=ewn/EWN_NIS/MapServer&debug=1&nocache=1
  *
- * @version    1.1
- * @date       2026-03-01
+ * @version    1.2
+ * @date       2026-04-01
  * @copyright  Trigonet AG
  * @author     Marco Dellenbach
  */
@@ -110,6 +115,9 @@ $AGS_TOKEN_SKEW  = 60;  // Safety-Skew in Sekunden
 
 // Metadata-Injection-Mapping (gemeinsam mit legend-proxy-wms.php)
 $METADATA_FILE = dirname(__DIR__, 4) . '/core/config/legend_wms_metadata.json';
+
+// Legendtuner — Parameter-Overrides pro Service
+$TUNER_FILE = dirname(__DIR__, 4) . '/core/config/legend_tuner.json';
 
 // ===== CORS & HEADERS =====
 
@@ -138,6 +146,25 @@ function updateCacheIndex($cacheDir, $basename, $service) {
     }
     $index[$basename] = $service;
     @file_put_contents($indexFile, json_encode($index, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES), LOCK_EX);
+}
+
+// ===== HILFS-FUNKTIONEN (Parameter) =====
+
+/**
+ * Parst einen Bool-Parameter aus GET (1/0, true/false, yes/no, on/off).
+ */
+function parseBoolParam($value, $default = false) {
+    if ($value === null || $value === '') {
+        return $default;
+    }
+    $v = strtolower(trim((string) $value));
+    if ($v === '1' || $v === 'true' || $v === 'yes' || $v === 'on') {
+        return true;
+    }
+    if ($v === '0' || $v === 'false' || $v === 'no' || $v === 'off') {
+        return false;
+    }
+    return $default;
 }
 
 // ===== ACTION-HANDLER (Cache-Verwaltung) =====
@@ -383,8 +410,10 @@ $codeField    = isset($_GET['codefield'])  ? trim($_GET['codefield'])  : 'Typ_Da
 $legendGroup  = isset($_GET['legendgroup']) ? trim($_GET['legendgroup']) : '';
 $noCache    = isset($_GET['nocache']) && $_GET['nocache'] === '1';
 $format     = (isset($_GET['format']) && $_GET['format'] === 'json') ? 'json' : 'html';
+$debug      = parseBoolParam($_GET['debug'] ?? null, false);
 $injectRaw  = isset($_GET['inject']) ? strtolower(trim((string)$_GET['inject'])) : '';
 $inject     = ($injectRaw === '0' || $injectRaw === 'false') ? false : true; // default: true
+$showMetadata = parseBoolParam($_GET['metadata'] ?? null, false);
 
 // ArcGIS holt bei voller Grösse + DPI (scharf + dick)
 // Zoom skaliert nur die CSS-Anzeige zusätzlich hoch
@@ -406,6 +435,88 @@ if (!preg_match('#/MapServer$#i', $service)) {
     $service .= '/MapServer';
 }
 
+// ===== LEGENDTUNER-OVERRIDES =====
+// Parameter-Überschreibung pro Service aus legend_tuner.json
+// Nur Werte überschreiben die NICHT explizit per URL gesetzt wurden.
+
+$tunerConfig = null;
+$tunerApplied = [];
+$tunerHtmlBefore = '';
+$tunerHtmlAfter  = '';
+
+if (file_exists($TUNER_FILE)) {
+    $tunerRaw = @file_get_contents($TUNER_FILE);
+    if ($tunerRaw !== false) {
+        $tunerAll = json_decode($tunerRaw, true);
+        if (is_array($tunerAll)) {
+            // Service-Key matchen: exakt oder ohne /MapServer oder Wildcard (*)
+            $serviceKeyNorm = preg_replace('#/MapServer$#i', '', $service);
+            $tunerConfig = $tunerAll[$service] ?? $tunerAll[$serviceKeyNorm] ?? null;
+
+            // Fallback: Wildcard-Matching (* im Key → fnmatch)
+            if ($tunerConfig === null) {
+                foreach ($tunerAll as $pattern => $cfg) {
+                    if (strpos($pattern, '*') !== false && fnmatch($pattern, $service, FNM_CASEFOLD)) {
+                        $tunerConfig = $cfg;
+                        break;
+                    }
+                }
+            }
+
+            if ($tunerConfig !== null) {
+                // Parameter überschreiben — nur wenn nicht explizit per URL gesetzt
+                if (!isset($_GET['width']) && isset($tunerConfig['width'])) {
+                    $width = max(8, min(512, intval($tunerConfig['width'])));
+                    $tunerApplied[] = 'width=' . $width;
+                }
+                if (!isset($_GET['height']) && isset($tunerConfig['height'])) {
+                    $height = max(8, min(512, intval($tunerConfig['height'])));
+                    $tunerApplied[] = 'height=' . $height;
+                }
+                if (!isset($_GET['dpi']) && isset($tunerConfig['dpi'])) {
+                    $dpi = max(72, min(600, intval($tunerConfig['dpi'])));
+                    $tunerApplied[] = 'dpi=' . $dpi;
+                }
+                if (!isset($_GET['zoom']) && isset($tunerConfig['zoom'])) {
+                    $zoom = max(0.5, min(5, floatval($tunerConfig['zoom'])));
+                    $tunerApplied[] = 'zoom=' . $zoom;
+                }
+                if (!isset($_GET['resolve']) && isset($tunerConfig['resolve'])) {
+                    $resolveLabels = (bool) $tunerConfig['resolve'];
+                    $tunerApplied[] = 'resolve=' . ($resolveLabels ? 'true' : 'false');
+                }
+                if (!isset($_GET['labelfield']) && isset($tunerConfig['labelfield'])) {
+                    $labelField = trim($tunerConfig['labelfield']);
+                    $tunerApplied[] = 'labelfield=' . $labelField;
+                }
+                if (!isset($_GET['codefield']) && isset($tunerConfig['codefield'])) {
+                    $codeField = trim($tunerConfig['codefield']);
+                    $tunerApplied[] = 'codefield=' . $codeField;
+                }
+                if (!isset($_GET['legendgroup']) && isset($tunerConfig['legendgroup'])) {
+                    $legendGroup = trim($tunerConfig['legendgroup']);
+                    $tunerApplied[] = 'legendgroup=' . $legendGroup;
+                }
+                if (!isset($_GET['inject']) && isset($tunerConfig['inject'])) {
+                    $inject = (bool) $tunerConfig['inject'];
+                    $tunerApplied[] = 'inject=' . ($inject ? 'true' : 'false');
+                }
+                // HTML-Injection vor/nach Legende
+                if (!empty($tunerConfig['htmlBefore'])) {
+                    $tunerHtmlBefore = $tunerConfig['htmlBefore'];
+                }
+                if (!empty($tunerConfig['htmlAfter'])) {
+                    $tunerHtmlAfter = $tunerConfig['htmlAfter'];
+                }
+
+                // Display-Masse neu berechnen nach Override
+                $displayWidth  = max(12, round($width * $zoom));
+                $displayHeight = max(12, round($height * $zoom));
+            }
+        }
+    }
+}
+
 // ===== CACHE PRÜFEN (Früh-Cache nur bei explizitem legendgroup) =====
 
 // legendgroup=none → sofort auflösen
@@ -415,13 +526,13 @@ if ($legendGroup !== '' && strtolower($legendGroup) === 'none') {
     $legendGroupExplicit = true; // "none" zählt als explizit gesetzt (= leer)
 }
 
-$cacheKey  = md5($service . '|' . $width . 'x' . $height . '|d' . $dpi . '|z' . $zoom . '|' . $layers . '|r' . ($resolveLabels ? '1' : '0') . '|' . $labelField . '|' . $codeField . '|g' . $legendGroup . '|i' . ($inject ? '1' : '0'));
+$cacheKey  = md5($service . '|' . $width . 'x' . $height . '|d' . $dpi . '|z' . $zoom . '|' . $layers . '|r' . ($resolveLabels ? '1' : '0') . '|' . $labelField . '|' . $codeField . '|g' . $legendGroup . '|i' . ($inject ? '1' : '0') . '|D' . ($debug ? '1' : '0') . '|m' . ($showMetadata ? '1' : '0'));
 $cacheExt  = ($format === 'json') ? '.json' : '.html';
 $cacheFile = $CACHE_DIR . '/' . $cacheKey . $cacheExt;
 
 // Auto-Default-Cache: separater Alias-Key für Aufrufe ohne legendgroup-Parameter.
 // Wird am Ende befüllt und hier sofort geprüft → kein ArcGIS-Kontakt bei HIT.
-$cacheKeyAuto  = md5($service . '|' . $width . 'x' . $height . '|d' . $dpi . '|z' . $zoom . '|' . $layers . '|r' . ($resolveLabels ? '1' : '0') . '|' . $labelField . '|' . $codeField . '|gAUTO|i' . ($inject ? '1' : '0'));
+$cacheKeyAuto  = md5($service . '|' . $width . 'x' . $height . '|d' . $dpi . '|z' . $zoom . '|' . $layers . '|r' . ($resolveLabels ? '1' : '0') . '|' . $labelField . '|' . $codeField . '|gAUTO|i' . ($inject ? '1' : '0') . '|D' . ($debug ? '1' : '0') . '|m' . ($showMetadata ? '1' : '0'));
 $cacheFileAuto = $CACHE_DIR . '/' . $cacheKeyAuto . $cacheExt;
 
 // Früh-Cache: explizites legendgroup
@@ -534,33 +645,9 @@ if ($layers !== '') {
     $filteredLayers = array_values($filteredLayers);
 }
 
-// ===== AUTO-DEFAULT: legendgroup=Gemeinde wenn Code-basierte Layer vorhanden =====
-// Auswertung auf Rohdaten — kein API-Aufruf nötig, muss vor fetchLegendAuxData stehen.
-
-if ($legendGroup === '' && !$legendGroupExplicit) {
-    $hasCodeEntries = false;
-    foreach ($filteredLayers as $layer) {
-        foreach ($layer['legend'] ?? [] as $entry) {
-            if (isset($entry['values']) && is_array($entry['values']) && count($entry['values']) > 0) {
-                $hasCodeEntries = true;
-                break 2;
-            }
-        }
-    }
-    if ($hasCodeEntries) {
-        $legendGroup = 'Gemeinde';
-        logMessage($LOG_FILE, 'INFO', "Auto-Default: legendgroup=Gemeinde (Code-basierte Layer erkannt)");
-
-        // Cache-Key mit neuem legendGroup neu berechnen + prüfen
-        $cacheKey  = md5($service . '|' . $width . 'x' . $height . '|d' . $dpi . '|z' . $zoom . '|' . $layers . '|r' . ($resolveLabels ? '1' : '0') . '|' . $labelField . '|' . $codeField . '|g' . $legendGroup . '|i' . ($inject ? '1' : '0'));
-        $cacheFile = $CACHE_DIR . '/' . $cacheKey . $cacheExt;
-
-        if (!$noCache && file_exists($cacheFile) && (time() - filemtime($cacheFile)) < $CACHE_TTL) {
-            $ctype = ($format === 'json') ? 'application/json' : 'text/html';
-            sendCachedFile($cacheFile, $ctype, $CACHE_TTL, 'HIT');
-        }
-    }
-}
+// ===== AUTO-DEFAULT: legendgroup — deaktiviert (Standard: keine Gruppierung) =====
+// Hinweis: Gruppierung kann explizit via ?legendgroup=Gemeinde oder via Legendtuner aktiviert werden.
+// Die alte Auto-Detection (legendgroup=Gemeinde bei Code-basierten Layern) wurde entfernt.
 
 // ===== ALLE HILFSABFRAGEN IN EINEM CURL_MULTI-BATCH =====
 // Labels (groupBy + Renderer) und Gruppen-Mapping parallel — spart 2 serielle Runden.
@@ -636,6 +723,25 @@ if ($format === 'json') {
             'layers'      => $filteredLayers
         ];
     }
+    if ($debug) {
+        $output['_debug'] = [
+            'legendUrl'    => $legendUrl,
+            'token'        => $agsToken ? substr($agsToken, 0, 20) . '...' : null,
+            'parameters'   => [
+                'width' => $width, 'height' => $height, 'dpi' => $dpi, 'zoom' => $zoom,
+                'resolve' => $resolveLabels, 'labelfield' => $labelField, 'codefield' => $codeField,
+                'legendgroup' => $legendGroup ?: 'none', 'inject' => $inject, 'layers' => $layers
+            ],
+            'tuner'        => $tunerConfig !== null ? [
+                'matched'  => true,
+                'applied'  => $tunerApplied,
+                'config'   => $tunerConfig
+            ] : ['matched' => false],
+            'cacheKey'     => $cacheKey,
+            'totalLayers'  => count($legendData['layers'] ?? []),
+            'filteredLayers' => count($filteredLayers)
+        ];
+    }
     $json = json_encode($output, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     @file_put_contents($cacheFile, $json);
     updateCacheIndex($CACHE_DIR, basename($cacheFile), $service);
@@ -648,6 +754,20 @@ if ($format === 'json') {
 }
 
 // ===== FORMAT: HTML — Legende rendern =====
+
+// Metadaten via Metadataproxy abrufen (wenn metadata=1)
+$metadataBlocks = ['before' => '', 'after' => ''];
+if ($showMetadata) {
+    $servicePathClean = preg_replace('#/MapServer$#i', '', $service);
+    $themenGruppen = fetchMetadataProxy($servicePathClean);
+    if ($themenGruppen !== null && count($themenGruppen) > 0) {
+        // Metadaten auf angezeigte Layer filtern (wenn layers-Parameter gesetzt)
+        if ($layers !== '') {
+            $themenGruppen = filterThemenGruppenByLayers($themenGruppen, $filteredLayers);
+        }
+        $metadataBlocks = renderMetadataBlocks($themenGruppen);
+    }
+}
 
 $serviceName = preg_replace('#/MapServer$#i', '', $service);
 $serviceName = str_replace('/', ' &rsaquo; ', $serviceName);
@@ -671,17 +791,74 @@ $html .= '</style>' . "\n";
 $html .= '</head>' . "\n";
 $html .= '<body>' . "\n";
 
-// Header
-$html .= '<div class="legend-header">' . "\n";
-$html .= '  <h1>' . $serviceName . '</h1>' . "\n";
-$html .= '  <p class="legend-meta">';
-if ($groupedData !== null) {
-    $html .= count($groupedData) . ' Gruppen (' . htmlspecialchars($legendGroup) . '), ';
+// Header (nur bei debug sichtbar)
+if ($debug) {
+    $html .= '<div class="legend-header">' . "\n";
+    $html .= '  <h1>' . $serviceName . '</h1>' . "\n";
+    $html .= '  <p class="legend-meta">';
+    if ($groupedData !== null) {
+        $html .= count($groupedData) . ' Gruppen (' . htmlspecialchars($legendGroup) . '), ';
+    }
+    $html .= count($filteredLayers) . ' Layer, ' . $totalSymbols . ' Symbole';
+    $zoomInfo = ($zoom != 1.0) ? ', Zoom ' . $zoom . '&times;' : '';
+    $html .= ' &mdash; ' . $displayWidth . '&times;' . $displayHeight . 'px, ' . $dpi . ' DPI' . $zoomInfo . '</p>' . "\n";
+    $html .= '</div>' . "\n";
 }
-$html .= count($filteredLayers) . ' Layer, ' . $totalSymbols . ' Symbole';
-$zoomInfo = ($zoom != 1.0) ? ', Zoom ' . $zoom . '&times;' : '';
-$html .= ' &mdash; ' . $displayWidth . '&times;' . $displayHeight . 'px, ' . $dpi . ' DPI' . $zoomInfo . '</p>' . "\n";
-$html .= '</div>' . "\n";
+
+// Debug-Info: Service-Details und Parameter
+if ($debug) {
+    $html .= '<div class="debug-info">' . "\n";
+    $html .= '<strong>Debug-Info</strong><br>' . "\n";
+    $html .= '<span class="debug-label">Service:</span> <code>' . htmlspecialchars($service) . '</code><br>' . "\n";
+    $html .= '<span class="debug-label">ArcGIS URL:</span> <code>' . htmlspecialchars($legendUrl) . '</code><br>' . "\n";
+    $html .= '<span class="debug-label">Token:</span> ' . ($agsToken ? '<code>' . htmlspecialchars(substr($agsToken, 0, 20)) . '&hellip;</code>' : '<em>kein Token</em>') . '<br>' . "\n";
+    $html .= '<span class="debug-label">Parameter:</span> '
+        . 'width=' . $width . ', height=' . $height . ', dpi=' . $dpi . ', zoom=' . $zoom
+        . ', resolve=' . ($resolveLabels ? 'true' : 'false')
+        . ', legendgroup=' . ($legendGroup ?: '<em>none</em>')
+        . ', inject=' . ($inject ? 'true' : 'false')
+        . ', format=' . $format . '<br>' . "\n";
+    $html .= '<span class="debug-label">Layer:</span> ' . count($filteredLayers) . ' (von ' . count($legendData['layers'] ?? []) . ' total)';
+    if ($layers !== '') {
+        $html .= ' | Filter: <code>' . htmlspecialchars($layers) . '</code>';
+    }
+    $html .= '<br>' . "\n";
+    if ($legendGroup !== '') {
+        $html .= '<span class="debug-label">Gruppen:</span> ' . ($groupedData !== null ? count($groupedData) : '0') . ' (Feld: <code>' . htmlspecialchars($legendGroup) . '</code>)<br>' . "\n";
+    }
+    $html .= '<span class="debug-label">Cache-Key:</span> <code>' . $cacheKey . '</code><br>' . "\n";
+    if ($tunerConfig !== null) {
+        $html .= '<span class="debug-label">Legendtuner:</span> <strong>aktiv</strong>';
+        if (!empty($tunerApplied)) {
+            $html .= ' &mdash; Overrides: <code>' . htmlspecialchars(implode(', ', $tunerApplied)) . '</code>';
+        }
+        if (!empty($tunerHtmlBefore)) {
+            $html .= ' | htmlBefore: ' . strlen($tunerHtmlBefore) . ' Bytes';
+        }
+        if (!empty($tunerHtmlAfter)) {
+            $html .= ' | htmlAfter: ' . strlen($tunerHtmlAfter) . ' Bytes';
+        }
+        $html .= '<br>' . "\n";
+    } else {
+        $html .= '<span class="debug-label">Legendtuner:</span> <em>kein Eintrag für diesen Service</em><br>' . "\n";
+    }
+    $html .= '</div>' . "\n";
+}
+
+// Metadaten-Block vor der Legende (Titel, Beschreibung)
+if ($metadataBlocks['before'] !== '') {
+    $html .= $metadataBlocks['before'];
+}
+
+// HTML-Injection vor der Legende (aus Legendtuner)
+if ($tunerHtmlBefore !== '') {
+    $html .= $tunerHtmlBefore . "\n";
+}
+
+// Legenden-Überschrift (wenn Metadaten aktiv)
+if ($showMetadata && $metadataBlocks['before'] !== '') {
+    $html .= '<h3 class="meta-legend-heading">Legende und weiterführende Informationen</h3>' . "\n";
+}
 
 // Layer rendern
 if ($groupedData !== null) {
@@ -706,6 +883,16 @@ if ($groupedData !== null) {
     foreach ($filteredLayers as $layer) {
         $html .= renderLayerLegend($layer, $displayWidth, $displayHeight);
     }
+}
+
+// HTML-Injection nach der Legende (aus Legendtuner)
+if ($tunerHtmlAfter !== '') {
+    $html .= $tunerHtmlAfter . "\n";
+}
+
+// Metadaten-Block nach der Legende (Informationen, Kinder)
+if ($metadataBlocks['after'] !== '') {
+    $html .= $metadataBlocks['after'];
 }
 
 // Footer
@@ -786,6 +973,186 @@ function injectMetadata($metadataMap, $service, $layerName) {
         return $metadataMap[$keyLayer];
     }
     return null;
+}
+
+/**
+ * Ruft Metadaten vom Metadataproxy ab (ThemenGruppe[] mit Kindern).
+ *
+ * @param string $servicePath  Service-Pfad ohne /MapServer (z.B. "gis_fach/nw_raumplanung")
+ * @return array|null          Array von ThemenGruppen oder null bei Fehler/404
+ */
+function fetchMetadataProxy($servicePath) {
+    $url = 'https://www.gis-daten.ch/gapi/metadataproxy/metadaten?pfad=' . urlencode($servicePath);
+    $ctx = stream_context_create([
+        'http' => ['timeout' => 5, 'ignore_errors' => true],
+        'ssl'  => ['verify_peer' => false, 'verify_peer_name' => false],
+    ]);
+    $raw = @file_get_contents($url, false, $ctx);
+    if ($raw === false) return null;
+
+    // HTTP-Status prüfen
+    $status = 200;
+    if (isset($http_response_header)) {
+        foreach ($http_response_header as $h) {
+            if (preg_match('#^HTTP/\S+\s+(\d+)#', $h, $m)) {
+                $status = (int) $m[1];
+            }
+        }
+    }
+    if ($status !== 200) return null;
+
+    $data = json_decode($raw, true);
+    return is_array($data) ? $data : null;
+}
+
+/**
+ * Rendert Metadaten-HTML: Einleitender Block + Informationstabelle.
+ *
+ * @param array $themenGruppen  Array von ThemenGruppen aus dem Metadataproxy
+ * @return array ['before' => HTML vor Legende, 'after' => HTML nach Legende]
+ */
+function renderMetadataBlocks($themenGruppen) {
+    $before = '';
+    $after  = '';
+
+    foreach ($themenGruppen as $tg) {
+        $titel = htmlspecialchars($tg['titel_generell'] ?? '');
+        $beschreibung = htmlspecialchars($tg['kurzbeschreibung'] ?? '');
+        $geobasisdatensatz = htmlspecialchars($tg['id_geobasisdatensatz'] ?? '');
+        $kinder = $tg['kinder'] ?? [];
+
+        // Neuster Datenstand über alle Kinder
+        $datenstandMax = '';
+        foreach ($kinder as $k) {
+            $ds = $k['datenstand'] ?? '';
+            if ($ds > $datenstandMax) $datenstandMax = $ds;
+        }
+        $datenstandFormatted = '';
+        if ($datenstandMax) {
+            $dt = new DateTime($datenstandMax);
+            $datenstandFormatted = $dt->format('d.m.Y');
+        }
+
+        // === BEFORE: Titel + Beschreibung + Datenstand ===
+        if ($titel || $beschreibung || $datenstandFormatted) {
+            $before .= '<div class="meta-intro">' . "\n";
+            if ($titel) {
+                $before .= '  <h2 class="meta-intro-title">' . $titel . '</h2>' . "\n";
+            }
+            if ($beschreibung) {
+                $before .= '  <p class="meta-intro-desc">' . $beschreibung . '</p>' . "\n";
+            }
+            if ($datenstandFormatted) {
+                $before .= '  <p class="meta-intro-date">Letztes Aktualisierungsdatum: ' . $datenstandFormatted . '</p>' . "\n";
+            }
+            $before .= '</div>' . "\n";
+        }
+
+        // === AFTER: Informationen-Tabelle ===
+        $after .= '<div class="meta-info">' . "\n";
+        $after .= '  <h3 class="meta-info-heading">Informationen</h3>' . "\n";
+
+        // Allgemeine Felder
+        $after .= '  <table class="meta-info-table">' . "\n";
+        if ($geobasisdatensatz) {
+            $geobasisdatensatzLabel = $geobasisdatensatz;
+            if ($titel) {
+                $geobasisdatensatzLabel .= ' — ' . $titel;
+            }
+            $after .= '    <tr><td class="meta-label">ID Geobasisdatensatz</td><td>' . $geobasisdatensatzLabel . '</td></tr>' . "\n";
+        }
+        if ($datenstandFormatted) {
+            $after .= '    <tr><td class="meta-label">Datenstand</td><td>' . $datenstandFormatted . '</td></tr>' . "\n";
+        }
+        $after .= '  </table>' . "\n";
+
+        // Kinder-Einträge
+        if (count($kinder) > 0) {
+            $after .= '  <div class="meta-kinder">' . "\n";
+            foreach ($kinder as $kind) {
+                $kindTitel = htmlspecialchars($kind['Titel'] ?? '');
+                $kindDs = '';
+                if (!empty($kind['datenstand'])) {
+                    $kindDt = new DateTime($kind['datenstand']);
+                    $kindDs = $kindDt->format('d.m.Y');
+                }
+                $geocatLink = $kind['link_geocat'] ?? '';
+                $detailLink = $kind['link_detailbeschreibung'] ?? '';
+                $datenbezug = $kind['datenbezug_verfuegbar'] ?? '';
+                $geodienste = $kind['geodienste_verfuegbar'] ?? '';
+                $dienstUrl  = $kind['dienst_url'] ?? '';
+
+                $after .= '    <details class="meta-kind">' . "\n";
+                $after .= '      <summary class="meta-kind-title">' . $kindTitel;
+                if ($kindDs) {
+                    $after .= ' <span class="meta-kind-date">' . $kindDs . '</span>';
+                }
+                $after .= '</summary>' . "\n";
+                $after .= '      <table class="meta-info-table meta-kind-table">' . "\n";
+                if ($geocatLink) {
+                    $after .= '        <tr><td class="meta-label">Metadaten</td><td><a href="' . htmlspecialchars($geocatLink) . '" target="_blank" rel="noopener">Link zu geocat.ch</a></td></tr>' . "\n";
+                }
+                if ($detailLink) {
+                    $after .= '        <tr><td class="meta-label">Detailbeschreibung</td><td><a href="' . htmlspecialchars($detailLink) . '" target="_blank" rel="noopener">Link zur Beschreibung</a></td></tr>' . "\n";
+                }
+                if ($datenbezug) {
+                    $after .= '        <tr><td class="meta-label">Datenbezug</td><td>' . htmlspecialchars($datenbezug) . '</td></tr>' . "\n";
+                }
+                if ($geodienste) {
+                    $after .= '        <tr><td class="meta-label">Geodienste</td><td>' . htmlspecialchars($geodienste) . '</td></tr>' . "\n";
+                }
+                if ($dienstUrl) {
+                    $after .= '        <tr><td class="meta-label">WMS Dienst</td><td><a href="' . htmlspecialchars($dienstUrl) . '" target="_blank" rel="noopener">Link zum WMS</a></td></tr>' . "\n";
+                }
+                $after .= '      </table>' . "\n";
+                $after .= '    </details>' . "\n";
+            }
+            $after .= '  </div>' . "\n";
+        }
+
+        $after .= '</div>' . "\n";
+    }
+
+    return ['before' => $before, 'after' => $after];
+}
+
+/**
+ * Filtert ThemenGruppen auf die tatsächlich dargestellten Layer.
+ * Bidirektionaler Contains-Match zwischen titel_generell und layerName.
+ * Fallback: wenn kein Match → alle ThemenGruppen zurückgeben.
+ *
+ * @param array $themenGruppen  Array von ThemenGruppen aus dem Metadataproxy
+ * @param array $filteredLayers Array von ArcGIS-Layer-Objekten (mit 'layerName')
+ * @return array                Gefilterte ThemenGruppen
+ */
+function filterThemenGruppenByLayers($themenGruppen, $filteredLayers) {
+    // Layer-Namen sammeln (lowercase)
+    $layerNames = [];
+    foreach ($filteredLayers as $layer) {
+        $name = mb_strtolower(trim($layer['layerName'] ?? ''), 'UTF-8');
+        if ($name !== '') {
+            $layerNames[] = $name;
+        }
+    }
+    if (count($layerNames) === 0) {
+        return $themenGruppen;
+    }
+
+    $matched = [];
+    foreach ($themenGruppen as $tg) {
+        $titel = mb_strtolower(trim($tg['titel_generell'] ?? ''), 'UTF-8');
+        if ($titel === '') continue;
+        foreach ($layerNames as $ln) {
+            // Bidirektional: Titel in LayerName ODER LayerName in Titel
+            if (mb_strpos($ln, $titel) !== false || mb_strpos($titel, $ln) !== false) {
+                $matched[] = $tg;
+                break;
+            }
+        }
+    }
+
+    // Fallback: kein Match → alle zurückgeben
+    return count($matched) > 0 ? $matched : $themenGruppen;
 }
 
 // =========================================================================
@@ -1967,12 +2334,192 @@ body {
     flex-direction: column;
     gap: 2px;
 }
+
+/* ===== DEBUG-INFO ===== */
+.debug-info {
+    margin: 0 0 12px;
+    padding: 6px 10px;
+    background: #fff44f;
+    font-size: 12px;
+    border-radius: 4px;
+    line-height: 1.5;
+}
+.debug-info code {
+    background: rgba(0,0,0,0.06);
+    padding: 1px 4px;
+    border-radius: 3px;
+    word-break: break-all;
+    font-size: 11px;
+}
+.debug-info strong {
+    font-weight: 600;
+}
+.debug-info .debug-label {
+    display: inline-block;
+    min-width: 100px;
+    color: #555;
+    font-weight: 500;
+}
 .legend-meta-title {
     font-weight: 600;
     color: #4B7B81;
 }
 .legend-meta-desc {
     color: #666;
+}
+
+/* ===== METADATEN-BLÖCKE ===== */
+.meta-intro {
+    margin-bottom: 14px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #ddd;
+}
+.meta-intro-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: #4B7B81;
+    margin-bottom: 4px;
+}
+.meta-intro-desc {
+    font-size: 12px;
+    color: #555;
+    line-height: 1.5;
+    margin-bottom: 2px;
+}
+.meta-intro-date {
+    font-size: 11px;
+    color: #888;
+    margin-top: 4px;
+}
+.meta-legend-heading {
+    font-size: 13px;
+    font-weight: 700;
+    color: #4B7B81;
+    margin: 10px 0 6px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid #ddd;
+}
+.meta-info {
+    margin-top: 16px;
+    padding-top: 10px;
+    border-top: 2px solid #4B7B81;
+}
+.meta-info-heading {
+    font-size: 13px;
+    font-weight: 700;
+    color: #4B7B81;
+    margin-bottom: 8px;
+}
+.meta-info-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 10px;
+    font-size: 12px;
+}
+.meta-info-table td {
+    padding: 4px 8px;
+    border-bottom: 1px solid #eee;
+    vertical-align: top;
+}
+.meta-info-table td:first-child {
+    width: 180px;
+    font-weight: 500;
+    color: #555;
+    white-space: nowrap;
+}
+.meta-info-table a {
+    color: #4B7B81;
+    text-decoration: none;
+}
+.meta-info-table a:hover {
+    text-decoration: underline;
+}
+.meta-label {
+    font-weight: 500;
+    color: #555;
+}
+.meta-kinder {
+    margin-top: 12px;
+}
+.meta-kind {
+    margin-bottom: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    overflow: hidden;
+}
+.meta-kind summary {
+    padding: 8px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #333;
+    background: #f5f8f8;
+    cursor: pointer;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.meta-kind summary::-webkit-details-marker {
+    display: none;
+}
+.meta-kind summary::before {
+    content: '▶';
+    font-size: 9px;
+    color: #4B7B81;
+    transition: transform 0.2s ease;
+}
+.meta-kind[open] summary::before {
+    transform: rotate(90deg);
+}
+.meta-kind summary:hover {
+    background: #e8eded;
+}
+.meta-kind-title {
+    flex: 1;
+}
+.meta-kind-date {
+    font-weight: 400;
+    font-size: 11px;
+    color: #888;
+    margin-left: auto;
+}
+.meta-kind-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11px;
+}
+.meta-kind-table td {
+    padding: 4px 12px;
+    border-bottom: 1px solid #f0f0f0;
+    vertical-align: top;
+}
+.meta-kind-table td:first-child {
+    width: 160px;
+    font-weight: 500;
+    color: #666;
+}
+.meta-kind-table a {
+    color: #4B7B81;
+    text-decoration: none;
+    word-break: break-all;
+}
+.meta-kind-table a:hover {
+    text-decoration: underline;
+}
+.meta-kind-avail {
+    display: inline-block;
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-size: 10px;
+    font-weight: 600;
+}
+.meta-kind-avail.yes {
+    background: #d4edda;
+    color: #155724;
+}
+.meta-kind-avail.no {
+    background: #f0f0f0;
+    color: #999;
 }
 
 /* ===== RESPONSIVE ===== */

@@ -422,6 +422,12 @@
                   }
 
                   if (fLegendUrl) {
+                    // Metadaten anhängen wenn in Config aktiviert
+                    var legendCfg = window.__TNET_LEGEND_CONFIG || {};
+                    if (legendCfg.metadata && fLegendUrl.indexOf('legend-proxy') !== -1 && fLegendUrl.indexOf('metadata=') === -1) {
+                      fLegendUrl += (fLegendUrl.indexOf('?') !== -1 ? '&' : '?') + 'metadata=1';
+                    }
+
                     var am = window.njs && window.njs.AppManager;
                     if (!am) am = window.top && window.top.njs && window.top.njs.AppManager;
                     if (am && typeof am.showLegend === 'function') {
