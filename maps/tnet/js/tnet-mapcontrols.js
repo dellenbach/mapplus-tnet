@@ -24,19 +24,21 @@
     'zoom-out': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">' +
       '<line x1="6" y1="12" x2="18" y2="12"/></svg>',
 
-    'gnss': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">' +
-      '<circle cx="12" cy="12" r="3"/>' +
-      '<line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/>' +
-      '<line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/></svg>',
+    'gnss': '<svg viewBox="0 0 24 24" fill="none" stroke="#444" stroke-width="2" stroke-linecap="round">' +
+      '<circle cx="12" cy="12" r="8" stroke-width="1.8" fill="none"/>' +
+      '<circle cx="12" cy="12" r="3" fill="#4b7b81" stroke="none"/>' +
+      '<line x1="12" y1="1" x2="12" y2="4"/><line x1="12" y1="20" x2="12" y2="23"/>' +
+      '<line x1="1" y1="12" x2="4" y2="12"/><line x1="20" y1="12" x2="23" y2="12"/></svg>',
 
-    'streetview': '<svg viewBox="0 0 24 24" fill="currentColor">' +
-      '<circle cx="12" cy="4.5" r="2.5"/>' +
-      '<path d="M17 21h-2v-5h-1.5v5H11.5v-5H10v5H8v-7c0-1.66 1.34-3 3-3h2c1.66 0 3 1.34 3 3v7z"/></svg>',
+    'streetview': '<svg viewBox="0 0 24 24" fill="none" stroke="none">' +
+      '<circle cx="12" cy="4" r="2.8" fill="#4b7b81"/>' +
+      '<path d="M9 8h6c1.1 0 2 .9 2 2v3h-2v5h-1.5v-5h-3v5H9v-5H7v-3c0-1.1.9-2 2-2z" fill="#4b7b81"/>' +
+      '<path d="M8 18l-.8 4h1.8l1-3h4l1 3h1.8l-.8-4z" fill="#4b7b81"/></svg>',
 
-    '3d': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round">' +
-      '<path d="M12 2L2 7l10 5 10-5-10-5z"/>' +
-      '<path d="M2 17l10 5 10-5"/>' +
-      '<path d="M2 12l10 5 10-5"/></svg>',
+    '3d': '<svg viewBox="0 0 24 24" fill="none" stroke="#3a6268" stroke-width="1.3" stroke-linejoin="round">' +
+      '<path d="M12 2L22 8L12 14L2 8Z" fill="#a8d0d5" stroke="#3a6268" stroke-width="1.3"/>' +
+      '<path d="M12 14L22 8L22 16L12 22Z" fill="#6a9ea5" stroke="#3a6268" stroke-width="1.3"/>' +
+      '<path d="M12 14L2 8L2 16L12 22Z" fill="#4b7b81" stroke="#3a6268" stroke-width="1.3"/></svg>',
 
     'compass': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">' +
       '<polygon points="12,2 15,11 12,9 9,11" fill="#dd1533" stroke="none"/>' +
@@ -54,14 +56,14 @@
       '<text x="18" y="8.5" text-anchor="middle" fill="white" stroke="none" font-family="serif" font-style="italic" font-weight="bold" font-size="10">i</text></svg>',
 
     'oereb': '<svg viewBox="-4 -4 48 56">' +
-      '<polygon points="2,4 26,4 40,16 40,44 2,44" fill="#8c9ba0" stroke="none"/>' +
+      '<polygon points="2,4 26,4 40,16 40,44 2,44" fill="#4b7b81" stroke="none"/>' +
       '<polygon points="26,4 26,16 40,16" fill="white" stroke="none"/>' +
-      '<circle cx="2" cy="4" r="2.5" fill="white" stroke="#333" stroke-width="0.8"/>' +
-      '<circle cx="26" cy="4" r="2.5" fill="white" stroke="#333" stroke-width="0.8"/>' +
-      '<circle cx="26" cy="16" r="2.5" fill="white" stroke="#333" stroke-width="0.8"/>' +
-      '<circle cx="40" cy="16" r="2.5" fill="white" stroke="#333" stroke-width="0.8"/>' +
-      '<circle cx="40" cy="44" r="2.5" fill="white" stroke="#333" stroke-width="0.8"/>' +
-      '<circle cx="2" cy="44" r="2.5" fill="white" stroke="#333" stroke-width="0.8"/>' +
+      '<circle cx="2" cy="4" r="2.5" fill="white" stroke="#3a6268" stroke-width="0.8"/>' +
+      '<circle cx="26" cy="4" r="2.5" fill="white" stroke="#3a6268" stroke-width="0.8"/>' +
+      '<circle cx="26" cy="16" r="2.5" fill="white" stroke="#3a6268" stroke-width="0.8"/>' +
+      '<circle cx="40" cy="16" r="2.5" fill="white" stroke="#3a6268" stroke-width="0.8"/>' +
+      '<circle cx="40" cy="44" r="2.5" fill="white" stroke="#3a6268" stroke-width="0.8"/>' +
+      '<circle cx="2" cy="44" r="2.5" fill="white" stroke="#3a6268" stroke-width="0.8"/>' +
       '<circle cx="2" cy="4" r="6" fill="#e20000" stroke="white" stroke-width="1.2"/>' +
       '<circle cx="2" cy="4" r="3" fill="white" stroke="none"/>' +
       '<circle cx="2" cy="4" r="1.2" fill="#e20000" stroke="none"/>' +
