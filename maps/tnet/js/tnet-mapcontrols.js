@@ -242,9 +242,11 @@
     var controls = document.getElementById('tnet-mapcontrols');
     if (!controls) return;
 
+    // Referenz einmalig speichern — getElementById findet detached Elemente nicht
+    var basemapSel = document.getElementById('basemap_selector');
+
     var observer = new MutationObserver(function () {
       var splitPanel2D = document.getElementById('split-panel-2d');
-      var basemapSel = document.getElementById('basemap_selector');
       if (splitPanel2D) {
         // 3D-Split ist aktiv → Controls in den linken (2D) Panel verschieben
         if (controls.parentNode !== splitPanel2D) {
