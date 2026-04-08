@@ -109,7 +109,7 @@ function findBookmark($bookmarks, $name) {
  * @return array Bereinigte Daten
  */
 function formatBookmark($bookmark) {
-    $fields = ['map-bookmark', 'aliases', 'basemap', 'layers', 'opacity', 'theme', 'subtheme', 'x', 'y', 'zoom'];
+    $fields = ['map-bookmark', 'aliases', 'basemap', 'layers', 'opacity', 'theme', 'subtheme', 'themes', 'x', 'y', 'zoom'];
     $result = [];
 
     foreach ($fields as $field) {

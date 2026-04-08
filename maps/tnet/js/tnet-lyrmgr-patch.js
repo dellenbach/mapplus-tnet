@@ -14,8 +14,8 @@
  *
  * Muss NACH njs.js und VOR modules.js geladen werden.
  *
- * @version    25.0
- * @date       2026-03-04
+ * @version    26.0
+ * @date       2026-04-08
  * @copyright  Trigonet AG
  * @author     Marco Dellenbach
  */
@@ -109,7 +109,33 @@
   }
   watchLegacyNestedCssScope();
 
-  console.log(LOG, 'v25 geladen — installiere Property-Traps');
+  console.log(LOG, 'v26.2 geladen — installiere Property-Traps');
+
+  // ===== dijit.registry Duplikat-Toleranz =====
+  // Das Framework erstellt CheckBox-Widgets mit layer.name als ID.
+  // Bei Duplikaten im Katalog (gleiche Layer-ID mehrfach) wirft Dojo
+  // „widget with id==X already registered" und bricht das Rendering ab.
+  // Fix: registry.add patchen — bei Duplikat altes Widget entfernen,
+  // neues registrieren. Wird im CLC-Setter aufgerufen (dort ist dijit
+  // garantiert verfügbar, da es im selben require()-Block geladen wird).
+  function patchRegistryAdd(registry) {
+    if (!registry || !registry.add || registry.__tnetDupPatched) return;
+    var _origAdd = registry.add;
+    registry.add = function(widget) {
+      try {
+        return _origAdd.call(this, widget);
+      } catch (e) {
+        if (e && e.message && e.message.indexOf('already registered') !== -1) {
+          console.log(LOG, '  Duplikat-Widget toleriert:', widget.id);
+          registry.remove(widget.id);
+          return _origAdd.call(this, widget);
+        }
+        throw e;
+      }
+    };
+    registry.__tnetDupPatched = true;
+    console.log(LOG, '  dijit.registry.add gepatcht (Duplikat-Toleranz)');
+  }
 
   // ===== TRAP 1: njs.LayerMgr Zuweisung abfangen =====
   var _realLM = njs.LayerMgr; // undefined aktuell
@@ -141,6 +167,11 @@
 
   // ===== TRAP 2: ClassicLayerCategory Zuweisung abfangen =====
   function trapClassicLayerCategory(lm) {
+    // dijit.registry JETZT patchen — im selben require()-Block wie dijit geladen
+    if (window.dijit && dijit.registry) {
+      patchRegistryAdd(dijit.registry);
+    }
+
     // Bereits vorhanden?
     if (lm.ClassicLayerCategory && lm.ClassicLayerCategory.prototype) {
       console.log(LOG, 'ClassicLayerCategory existiert bereits');
@@ -155,6 +186,12 @@
         get: function() { return _realCLC; },
         set: function(val) {
           _realCLC = val;
+          // dijit.registry SYNCHRON patchen — CLC wird im selben require-Block
+          // zugewiesen in dem dijit geladen ist. Das ist der LETZTE sichere Zeitpunkt
+          // vor der Widget-Erstellung.
+          if (window.dijit && dijit.registry) {
+            patchRegistryAdd(dijit.registry);
+          }
           if (val && typeof val === 'function' && !_patched) {
             console.log(LOG, 'ClassicLayerCategory gesetzt');
             schedulePatching(val);
@@ -171,6 +208,10 @@
 
   // ===== MICROTASK: Patching nach allen synchronen prototype-Zuweisungen =====
   function schedulePatching(CLC) {
+    // dijit.registry SYNCHRON patchen (nochmal, für den Fall dass CLC-Setter nicht griff)
+    if (window.dijit && dijit.registry) {
+      patchRegistryAdd(dijit.registry);
+    }
     // Promise.resolve().then → Microtask: läuft nach dem synchronen
     // Code-Block der die Prototype-Methoden zuweist, aber BEVOR
     // der nächste Macrotask (setTimeout, XHR-Callback) feuert.
@@ -520,13 +561,15 @@
     };
     console.log(LOG, '  Init gepatcht');
 
-    // --- 2. _build: Tiefe weiterreichen ---
+    // --- 2. _build: Tiefe weiterreichen + Error-Toleranz ---
     proto._build = function(domLocation, oCatPaneContainer, _depth) {
       var that = this;
       var depth = (typeof _depth === 'number') ? _depth : 0;
       this._domLocation = domLocation;
       this._depth = depth;
       if (oCatPaneContainer == null) oCatPaneContainer = document.createElement("DIV");
+
+      console.log(LOG, '_build:', this.id, 'dom=' + domLocation, 'layers=' + this.arLayers.length, 'cats=' + this.arCategories.length, 'depth=' + depth);
 
       if (this.arCategories.length > 0) {
         if (!this._inNestedContext) {
@@ -544,48 +587,34 @@
         this._buildContentBaseMaps(domLocation, oCatPaneContainer);
       }
       if (this.arLayers.length > 0) {
-        this._buildContentLayers(domLocation, oCatPaneContainer);
+        try {
+          this._buildContentLayers(domLocation, oCatPaneContainer);
+        } catch (e) {
+          console.error(LOG, '_buildContentLayers-Fehler (Rendering fährt fort):', e.message, e);
+        }
       }
       if (this.arCategories.length > 0) {
         this.arCategories.forEach(function(cat) {
-          that._buildContentSubCat(cat, domLocation, depth + 1);
+          try {
+            that._buildContentSubCat(cat, domLocation, depth + 1);
+          } catch (e) {
+            console.error(LOG, '_buildContentSubCat-Fehler (cat=' + (cat && cat.id) + ', Rendering fährt fort):', e.message, e);
+          }
         });
       }
     };
     console.log(LOG, '  _build gepatcht');
 
-    // --- 3. _buildContentLayers: Duplikat-Guard + Leaf-Container depth-basiert markieren ---
+    // --- 3. dijit.registry Duplikat-Toleranz → bereits via defineProperty-Trap gepatcht (s.o.) ---
+    // Sicherheitshalber nochmal prüfen
+    if (window.dijit && dijit.registry && dijit.registry.add && !dijit.registry.__tnetDupPatched) {
+      patchRegistryAdd(dijit.registry);
+    }
+
+    // --- 4. _buildContentLayers: Leaf-Container depth-basiert markieren ---
     var _origBuildContentLayers = proto._buildContentLayers;
-    // Globales Set: merkt sich alle Layer-IDs die bereits ein Widget bekommen haben.
-    // dijit.byId() funktioniert nicht zuverlässig weil das Framework die ID evtl. präfixiert.
-    var _builtLayerWidgetIds = {};
     proto._buildContentLayers = function(domLocation, oCatPaneContainer) {
-      // Duplikat-Guard: Layer überspringen deren Widget-ID bereits gebaut wurde.
-      // Bei Duplikaten im Katalog (gleiche Layer-ID in mehreren Kategorien) würde Dojo
-      // beim zweiten Mal "widget with id==X already registered" werfen.
-      // Die übersprungenen Layer werden trotzdem vom TNET-LM-Store und TnetLayerSwitch bedient.
-      if (this.arLayers && this.arLayers.length) {
-        var orig = this.arLayers;
-        var filtered = [];
-        for (var d = 0; d < orig.length; d++) {
-          var lName = orig[d] && orig[d].name;
-          if (lName && _builtLayerWidgetIds[lName]) {
-            console.log(LOG, '  Duplikat-Layer übersprungen:', lName);
-          } else {
-            filtered.push(orig[d]);
-            if (lName) _builtLayerWidgetIds[lName] = true;
-          }
-        }
-        if (filtered.length < orig.length) {
-          this.arLayers = filtered;
-          _origBuildContentLayers.call(this, domLocation, oCatPaneContainer);
-          this.arLayers = orig; // Original wiederherstellen für Zugriffe via collectDescendantLayers
-        } else {
-          _origBuildContentLayers.call(this, domLocation, oCatPaneContainer);
-        }
-      } else {
-        _origBuildContentLayers.call(this, domLocation, oCatPaneContainer);
-      }
+      _origBuildContentLayers.call(this, domLocation, oCatPaneContainer);
 
       if (!this._inNestedContext || !oCatPaneContainer || !oCatPaneContainer.children) return;
 
@@ -600,7 +629,7 @@
     };
     console.log(LOG, '  _buildContentLayers gepatcht');
 
-    // --- 4. _buildContentSubCat: DER EIGENTLICHE FIX ---
+    // --- 5. _buildContentSubCat: DER EIGENTLICHE FIX ---
     proto._buildContentSubCat = function(_opts, domLocation, _depth) {
       var that = this;
       var depth = (typeof _depth === 'number') ? _depth : 1;
@@ -671,8 +700,11 @@
         _opts._inNestedContext = prevNestedCtx;
         console.log(LOG, '  Tiefe ' + depth + ': ' + _opts.id + ' → #' + childDomLocation);
       } else {
-        // Standard: flat (Original-Verhalten)
-        _opts._build(domLocation, oCatPaneContainer);
+        // Standard: flat — aber mit childDomLocation für eindeutige Input-IDs.
+        // Das Original nutzt domLocation (=Parent), was bei mehreren Subcats unter
+        // demselben Parent zu ID-Kollisionen führt (domLocation + j ist nicht mehr
+        // eindeutig). childDomLocation ist pro TitlePane einzigartig.
+        _opts._build(childDomLocation, oCatPaneContainer);
       }
 
       tp.startup();
@@ -839,7 +871,7 @@
 
     console.log(LOG, '  _buildContentSubCat gepatcht');
 
-    // --- 5. switchLayer: Parent-Checkboxen rekursiv nachziehen + OFF erzwingt removeLayer ---
+    // --- 6. switchLayer: Parent-Checkboxen rekursiv nachziehen + OFF erzwingt removeLayer ---
     var _origSwitchLayer = proto.switchLayer;
     proto.switchLayer = function(id_layer, status) {
       if (typeof _origSwitchLayer === 'function') {
@@ -870,7 +902,7 @@
     };
     console.log(LOG, '  switchLayer gepatcht (Parent-State + removeLayer)');
 
-    // --- 6. switchGroupLayers: rekursives EIN/AUS + Restore-Snapshot ---
+    // --- 7. switchGroupLayers: rekursives EIN/AUS + Restore-Snapshot ---
     var _origSwitchGroupLayers = proto.switchGroupLayers;
     proto.switchGroupLayers = function(idchkbox, idgroup, status) {
       var targetCategory = findCategoryInManager(this, idgroup);

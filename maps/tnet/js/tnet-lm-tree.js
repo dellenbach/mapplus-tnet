@@ -800,6 +800,134 @@
         if (this._catalogNodeContainsLayer(children[i], layerId)) return true;
       }
       return false;
+    },
+
+    // ============================================================
+    //  Oeffentliche Navigation: Subcategory im Baum anzeigen
+    // ============================================================
+
+    /**
+     * Navigiert im Themenbaum zu einer Subcategory anhand ihres Namens.
+     * Wechselt ggf. den Tab, klappt die Subcategory auf, scrollt dorthin.
+     *
+     * @param {string} name        Der Subcategory-Name (z.B. "ÖREB")
+     * @param {string} [categoryId] Optionale Kategorie-ID (z.B. "obwalden") fuer Tab-Wechsel
+     * @returns {boolean} true wenn Navigation gestartet
+     */
+    navigateToSubcategory: function (name, categoryId) {
+      if (!_container || !name) return false;
+      var self = this;
+      var store = window.TnetLMStore;
+      if (!store) return false;
+      var nameLower = name.trim().toLowerCase();
+
+      // Wenn Kategorie angegeben, dort suchen
+      if (categoryId && categoryId !== _activeTabId) {
+        this._switchTab(categoryId);
+      }
+
+      // Subcategory im aktuellen (oder gewechselten) Tab-Content suchen
+      function tryFindSubcat() {
+        // Suche in der richtigen Kategorie oder in allen sichtbaren
+        var searchRoot = _container;
+        if (categoryId) {
+          var catContent = _container.querySelector('[data-cat-content="' + categoryId + '"]');
+          if (catContent) searchRoot = catContent;
+        }
+
+        // Primär: Suche per data-group-id (ID-basiert, z.B. "oereb")
+        var targetSubcat = searchRoot.querySelector('.lm-subcat[data-group-id="' + nameLower + '"]');
+
+        // Fallback: Suche per Display-Name (textContent)
+        if (!targetSubcat) {
+          var allNames = searchRoot.querySelectorAll('.lm-subcat-name');
+          for (var i = 0; i < allNames.length; i++) {
+            if (allNames[i].textContent.trim().toLowerCase() === nameLower) {
+              var el = allNames[i].closest('.lm-subcat');
+              if (el) { targetSubcat = el; break; }
+            }
+          }
+        }
+        return targetSubcat;
+      }
+
+      // Mit Retry wegen Lazy-Loading
+      var attempts = 0;
+      function doFind() {
+        var subcatEl = tryFindSubcat();
+        if (!subcatEl && attempts < 5) {
+          attempts++;
+          setTimeout(doFind, 150);
+          return;
+        }
+        if (!subcatEl) {
+          TnetLog.warn(LOG, 'navigateToSubcategory: nicht gefunden:', name, '(Kategorie:', categoryId || 'alle', ')');
+          return;
+        }
+
+        // Aufklappen
+        subcatEl.classList.add('lm-expanded');
+        subcatEl.classList.remove('lm-collapsed');
+
+        // Scrollen
+        var header = subcatEl.querySelector('.lm-subcat-header');
+        (header || subcatEl).scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+        // Hervorheben
+        subcatEl.classList.add('lm-highlight');
+        setTimeout(function () {
+          subcatEl.classList.remove('lm-highlight');
+        }, 2500);
+        TnetLog.log(LOG, 'navigateToSubcategory:', name, '→', subcatEl.dataset.groupId);
+      }
+      setTimeout(doFind, 80);
+      return true;
+    },
+
+    /**
+     * Klappt mehrere Themen-Subcategories im Baum auf (Bookmark-Integration).
+     * Format: Kommaseparierte IDs (data-group-id), optional mit Kategorie-Prefix.
+     * Prefixe: ow: → obwalden, nw: → nidwalden, ch: → bund, we: → weitere
+     * Beispiel: "ow:oereb, nw:oereb" oder einfach "oereb"
+     *
+     * @param {string} themesStr  Kommaseparierter String der Themen
+     */
+    expandThemes: function (themesStr) {
+      if (!themesStr || !_container) return;
+      var self = this;
+      var prefixMap = { 'ow': 'obwalden', 'nw': 'nidwalden', 'ch': 'bund', 'we': 'weitere' };
+
+      // THEMENKATALOG-Accordion öffnen (tp_overview_menu), sonst ist der Baum nicht sichtbar
+      var overviewEl = document.getElementById('tp_overview_menu');
+      if (overviewEl && !overviewEl.open) {
+        overviewEl.open = true;
+      }
+
+      var parts = themesStr.split(',');
+      for (var i = 0; i < parts.length; i++) {
+        var raw = parts[i].trim();
+        if (!raw) continue;
+
+        var categoryId = null;
+        var themeName = raw;
+
+        // Prefix parsen (z.B. "ow:ÖREB")
+        var colonIdx = raw.indexOf(':');
+        if (colonIdx > 0 && colonIdx <= 3) {
+          var prefix = raw.substring(0, colonIdx).toLowerCase();
+          if (prefixMap[prefix]) {
+            categoryId = prefixMap[prefix];
+            themeName = raw.substring(colonIdx + 1).trim();
+          }
+        }
+
+        // Navigation mit leichtem Delay pro Eintrag (damit Tabs laden koennen)
+        (function (name, catId, delay) {
+          setTimeout(function () {
+            self.navigateToSubcategory(name, catId);
+          }, delay);
+        })(themeName, categoryId, i * 300);
+      }
     }
   };
 

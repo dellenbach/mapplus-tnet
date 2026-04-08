@@ -328,6 +328,12 @@ function _applyBookmark(cfg, bookmarkId) {
   }
   am.setMapBookmark(['main'], params);
   TnetLog.log('[TnetSetBookmark]', bookmarkId, params);
+  // Themen im Themenbaum aufklappen (falls vorhanden)
+  if (cfg.themes && window.TnetLMTree && typeof window.TnetLMTree.expandThemes === 'function') {
+    setTimeout(function () {
+      window.TnetLMTree.expandThemes(cfg.themes);
+    }, 500);
+  }
   return { success: true, bookmarkId: bookmarkId, params: params };
 }
 

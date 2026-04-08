@@ -927,3 +927,10 @@
 - **Root-Cause**: `setMapBookmark()` ruft intern `this.infoFloatWinRemoveallItems()` auf. Diese Funktion existiert erst nach dem Laden des FloatingPane-Moduls (`dojox/layout/FloatingPane`), das bei URL-Bookmarks noch nicht geladen ist.
 - **Fix**: Vor jedem `setMapBookmark()`-Aufruf prüfen und No-Op-Stub setzen: `if (typeof am.infoFloatWinRemoveallItems !== 'function') { am.infoFloatWinRemoveallItems = function() {}; }`. Eingefügt in `tnet-mapplus-helpers.js` (`_applyBookmark`) und `tnet-header.js` (`installSetMapBookmarkHook`).
 - **Guardrail**: Framework-Methoden, die von FloatingPane abhängen, können beim frühen Aufruf fehlen. Vor Verwendung immer auf Existenz prüfen und ggf. stubben.
+
+## 2026-04-08 — Duplikat-Layer: Rendering bricht ab nach erstem Duplikat
+
+- **Symptom**: Layer-Manager rendert keine weiteren Kategorien/Layer mehr nach dem ersten Duplikat-Layer. Konsole: `Tried to register widget with id==capricorn but that id is already registered`.
+- **Root-Cause**: `ClassicLayerMgr._buildContentLayers` erstellt `dijit.form.CheckBox` mit `layer.name` als Widget-ID. Bei Duplikaten im Katalog (gleiche Layer-ID in mehreren Kategorien oder doppelt im selben Array) wirft `dijit.registry.add()` einen Error, der das gesamte Rendering abbricht.
+- **Fix v1 (falsch)**: Layer aus `arLayers` filtern → kein Error, aber Rendering stoppt trotzdem still (Framework-interne DeferredList-Kette bricht ab). **Fix v2 (korrekt)**: `dijit.registry.add` patchen — bei Duplikat altes Widget aus Registry entfernen (`dijit.registry.remove(id)`), neues registrieren. DOM des alten Widgets bleibt intakt. Alle Duplikat-Checkboxen rendern korrekt.
+- **Guardrail**: Dojo-Widget-ID-Konflikte NICHT durch Überspringen lösen — das bricht den Rendering-Flow. Stattdessen `dijit.registry.add` tolerant patchen.

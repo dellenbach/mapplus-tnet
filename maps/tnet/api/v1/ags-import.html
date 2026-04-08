@@ -595,6 +595,7 @@ body {
 .bm-filter-bar label { font-size: 10px; color: #666; white-space: nowrap; }
 .bm-filter-bar input { font-size: 10px; padding: 2px 6px; border: 1px solid #ddd; border-radius: 3px; font-family: monospace; background: #fff; width: 120px; }
 .bm-filter-bar input:last-of-type { flex: 1; min-width: 100px; }
+.bm-summary-themes input::placeholder { color: #bbb; font-style: italic; }
 .bm-table td { padding: 4px 6px; border-bottom: 1px solid #eee; vertical-align: top; overflow: hidden; text-overflow: ellipsis; }
 .bm-table .bm-col-hidden { display: none; }
 .bm-table tr:hover td { background: #fffdf5; }
@@ -1386,6 +1387,7 @@ body {
       <label>Name:</label><input type="text" data-col-filter="name" placeholder="Name…" oninput="bmColumnFilter()">
       <label>Alias:</label><input type="text" data-col-filter="aliases" placeholder="Alias…" oninput="bmColumnFilter()">
       <label>Basemap:</label><input type="text" data-col-filter="basemap" placeholder="Basemap…" oninput="bmColumnFilter()">
+      <label>Themen:</label><input type="text" data-col-filter="themes" placeholder="Themen…" oninput="bmColumnFilter()">
       <label>Layer:</label><input type="text" data-col-filter="layers" placeholder="Layer…" oninput="bmColumnFilter()">
     </div>
     <div class="bm-status" id="bm-status">Wechsle zum Tab oder klicke ↻ um Bookmarks zu laden…</div>
@@ -1396,6 +1398,7 @@ body {
             <th data-sort="name" style="width:160px;position:relative">Name <span class="bm-sort-icon">⇅</span><span class="bm-resize"></span></th>
             <th data-sort="aliases" style="width:110px;position:relative">Aliases <span class="bm-sort-icon">⇅</span><span class="bm-resize"></span></th>
             <th data-sort="basemap" style="width:100px;position:relative">Basemap <span class="bm-sort-icon">⇅</span><span class="bm-resize"></span></th>
+            <th data-sort="themes" style="width:120px;position:relative">Themen <span class="bm-sort-icon">⇅</span><span class="bm-resize"></span></th>
             <th data-sort="layers" style="width:auto;position:relative">Layers <span class="bm-sort-icon">⇅</span><span class="bm-resize"></span></th>
             <th class="bm-col-hidden">Opacity</th>
             <th class="bm-col-hidden">Theme</th>
@@ -6843,6 +6846,7 @@ function createBookmarkRows(bm, idx) {
   var opacity = (bm.opacity || []).join(', ');
   var theme = bm.theme || '';
   var subtheme = bm.subtheme || '';
+  var themes = bm.themes || '';
   var x = bm.x != null ? bm.x : '';
   var y = bm.y != null ? bm.y : '';
   var zoom = bm.zoom != null ? bm.zoom : '';
@@ -6855,6 +6859,7 @@ function createBookmarkRows(bm, idx) {
   summary.dataset.aliases = aliases.toLowerCase();
   summary.dataset.basemap = basemap.toLowerCase();
   summary.dataset.layerText = layerArr.join(' ').toLowerCase();
+  summary.dataset.themes = (themes || '').toLowerCase();
 
   var layerPreview = '';
   for (var lp = 0; lp < Math.min(layerArr.length, 4); lp++) {
@@ -6868,6 +6873,7 @@ function createBookmarkRows(bm, idx) {
     '<td><span class="bm-expand-icon">▶</span><strong style="font-family:monospace;font-size:11px">' + esc(name) + '</strong></td>' +
     '<td style="font-family:monospace;font-size:10px;color:#666">' + esc(aliases) + '</td>' +
     '<td style="font-size:10px;color:#666">' + esc(basemap) + '</td>' +
+    '<td class="bm-summary-themes"><input type="text" value="' + esc(themes) + '" placeholder="nw:oereb, ow:oereb" data-field="themes" oninput="markBmChanged(this);bmSyncSummaryFromSummary(this)" style="width:100%;border:none;background:transparent;font-family:monospace;font-size:10px;padding:2px 4px;box-sizing:border-box"></td>' +
     '<td class="bm-summary-layers">' + layerPreview + '</td>' +
     '<td class="bm-col-hidden"></td><td class="bm-col-hidden"></td><td class="bm-col-hidden"></td>' +
     '<td class="bm-col-hidden"></td><td class="bm-col-hidden"></td><td class="bm-col-hidden"></td>' +
@@ -6881,7 +6887,7 @@ function createBookmarkRows(bm, idx) {
   detail.className = 'bm-row-detail';
   detail.dataset.idx = idx;
   var detailTd = document.createElement('td');
-  detailTd.colSpan = 11;
+  detailTd.colSpan = 12;
   detailTd.innerHTML =
     '<div style="display:grid;grid-template-columns:100px 1fr;gap:4px 8px;max-width:800px;font-size:11px">' +
     '<label>Name:</label><input class="bm-name" data-field="name" value="' + esc(name) + '" oninput="markBmChanged(this);bmSyncSummary(this)">' +
@@ -6891,6 +6897,7 @@ function createBookmarkRows(bm, idx) {
     '<label>Opacity:</label><input class="bm-num" data-field="opacity" value="' + esc(opacity) + '" title="Kommasepariert (0-1)" oninput="markBmChanged(this)">' +
     '<label>Theme:</label><input data-field="theme" value="' + esc(theme) + '" oninput="markBmChanged(this)">' +
     '<label>Subtheme:</label><input data-field="subtheme" value="' + esc(subtheme) + '" oninput="markBmChanged(this)">' +
+    '<label>Themen:</label><input data-field="themes" value="' + esc(themes) + '" title="Kommasepariert, z.B. nw:oereb, ow:oereb" placeholder="nw:oereb, ow:oereb" oninput="markBmChanged(this);bmSyncSummaryThemes(this)">' +
     '<label>X:</label><input class="bm-num" data-field="x" value="' + esc(String(x)) + '" oninput="markBmChanged(this)">' +
     '<label>Y:</label><input class="bm-num" data-field="y" value="' + esc(String(y)) + '" oninput="markBmChanged(this)">' +
     '<label>Zoom:</label><input class="bm-num" data-field="zoom" value="' + esc(String(zoom)) + '" oninput="markBmChanged(this)">' +
@@ -6938,6 +6945,40 @@ function bmSyncSummary(input) {
   summaryRow.dataset.name = (nameInput.value || '').toLowerCase();
   summaryRow.dataset.aliases = (aliasInput.value || '').toLowerCase();
   summaryRow.dataset.basemap = (basemapInput.value || '').toLowerCase();
+  // Themen aus Detail → Summary-Input synchronisieren
+  var themesInput = detailRow.querySelector('[data-field="themes"]');
+  var themesCell = summaryRow.querySelector('.bm-summary-themes input');
+  if (themesInput && themesCell) {
+    themesCell.value = themesInput.value;
+    summaryRow.dataset.themes = (themesInput.value || '').toLowerCase();
+  }
+}
+
+// Themen: Detail → Summary synchronisieren (aus Detail-Form)
+function bmSyncSummaryThemes(input) {
+  var detailRow = input.closest('tr.bm-row-detail');
+  if (!detailRow) return;
+  var idx = detailRow.dataset.idx;
+  var summaryRow = document.querySelector('tr.bm-row-summary[data-idx="' + idx + '"]');
+  if (!summaryRow) return;
+  var themesCell = summaryRow.querySelector('.bm-summary-themes input');
+  if (themesCell) {
+    themesCell.value = input.value;
+    summaryRow.dataset.themes = (input.value || '').toLowerCase();
+  }
+}
+
+// Themen: Summary-Input → Detail synchronisieren (aus Summary-Zeile)
+function bmSyncSummaryFromSummary(input) {
+  var summaryRow = input.closest('tr.bm-row-summary');
+  if (!summaryRow) return;
+  var idx = summaryRow.dataset.idx;
+  var detailRow = document.querySelector('tr.bm-row-detail[data-idx="' + idx + '"]');
+  if (detailRow) {
+    var detailThemes = detailRow.querySelector('[data-field="themes"]');
+    if (detailThemes) detailThemes.value = input.value;
+  }
+  summaryRow.dataset.themes = (input.value || '').toLowerCase();
 }
 
 function markBmChanged(input) {
@@ -6948,6 +6989,12 @@ function markBmChanged(input) {
     var idx = tr.dataset.idx;
     var sum = document.querySelector('tr.bm-row-summary[data-idx="' + idx + '"]');
     if (sum) sum.classList.add('bm-row-changed');
+  }
+  // Umgekehrt: Summary → Detail markieren
+  if (tr && tr.classList.contains('bm-row-summary')) {
+    var idx2 = tr.dataset.idx;
+    var det = document.querySelector('tr.bm-row-detail[data-idx="' + idx2 + '"]');
+    if (det) det.classList.add('bm-row-changed');
   }
 }
 
@@ -7182,6 +7229,9 @@ function collectBookmarkData() {
 
     var subtheme = tr.querySelector('[data-field="subtheme"]').value.trim();
     if (subtheme) entry.subtheme = subtheme;
+
+    var themes = tr.querySelector('[data-field="themes"]').value.trim();
+    if (themes) entry.themes = themes;
 
     var xVal = tr.querySelector('[data-field="x"]').value.trim();
     if (xVal) entry.x = parseFloat(xVal);

@@ -11944,6 +11944,7 @@
       "nw_oereb_test"
     ],
     "basemap": "av_sw",
+    "themes": "nw:oereb",
     "layers": [
       "gis_fach/nw_nutzungsplanung_basisplan/nutzungsplanung",
       "gis_fach/nw_nutzungsplanung_basisplan/nutzungsplanung/bodenbedeckung",
@@ -15928,6 +15929,7 @@
   {
     "map-bookmark": "ow_oereb",
     "basemap": "av_sw",
+    "themes": "ow:oereb",
     "layers": [
       "gis_oereb/ow_gewaesserraum_def",
       "gis_oereb/ow_gewaesserraum_def/gewaesserraum",
