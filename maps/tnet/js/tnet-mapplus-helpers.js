@@ -322,6 +322,10 @@ function _applyBookmark(cfg, bookmarkId) {
            ? window.top.njs.AppManager
            : (window.njs && window.njs.AppManager) ? window.njs.AppManager : null;
   if (!am) throw new Error('njs.AppManager nicht verfügbar');
+  // Stub: FloatingPane ist bei URL-Bookmarks noch nicht geladen
+  if (typeof am.infoFloatWinRemoveallItems !== 'function') {
+      am.infoFloatWinRemoveallItems = function() {};
+  }
   am.setMapBookmark(['main'], params);
   TnetLog.log('[TnetSetBookmark]', bookmarkId, params);
   return { success: true, bookmarkId: bookmarkId, params: params };

@@ -151,13 +151,58 @@ function startBookmarkFromUrl() {
         var bookmarkId = match[1];
 
         // Warte auf TnetSetBookmark-Funktion (wird async geladen)
-        // Polling-Intervall 200ms statt 1500ms → Bookmark wird wesentlich früher angewendet.
-        // infoFloatWinRemoveallItems-Check entfernt — TnetSetBookmark benötigt es nicht direkt.
         function tryStart() {
             if (typeof window.TnetSetBookmark === 'function' &&
                 window.njs && window.njs.AppManager &&
                 typeof window.njs.AppManager.setMapBookmark === 'function') {
-                window.TnetSetBookmark(bookmarkId);
+                window.TnetSetBookmark(bookmarkId).then(function(result) {
+                    if (!result || !result.success || !result.params) return;
+                    var layersMatch = result.params.match(/layers=([^&]+)/);
+                    if (!layersMatch) return;
+                    var layerIds = layersMatch[1].split('|');
+
+                    // Polling: Prüft welche Layer in der OL-Map noch fehlen und
+                    // aktiviert nur diese nach. Stoppt bei Erfolg oder nach maxRetries.
+                    var retryCount = 0;
+                    var maxRetries = 15;       // 15 × 500ms = max 7.5s
+                    var retryInterval = 500;
+
+                    function ensureBookmarkLayers() {
+                        retryCount++;
+                        var am = window.njs && window.njs.AppManager;
+                        if (!am || !am.Maps || !am.Maps['main'] || !am.Maps['main'].mapObj) {
+                            if (retryCount < maxRetries) setTimeout(ensureBookmarkLayers, retryInterval);
+                            return;
+                        }
+                        var map = am.Maps['main'].mapObj;
+
+                        // Noch fehlende Layer ermitteln
+                        var missing = [];
+                        layerIds.forEach(function(lid) {
+                            var found = false;
+                            map.getLayers().forEach(function(l) {
+                                if (!found && l.get('name') === lid && l.getVisible()) found = true;
+                            });
+                            if (!found) missing.push(lid);
+                        });
+
+                        if (missing.length === 0) return; // Alle aktiv → fertig
+
+                        // Fehlende Layer über LyrMgr aktivieren
+                        var missingStr = missing.join('|');
+                        if (am.LyrMgr) {
+                            for (var lm in am.LyrMgr) {
+                                var mgr = am.LyrMgr[lm];
+                                if (mgr && typeof mgr.switchLayersProgr === 'function') {
+                                    mgr.switchLayersProgr(missingStr, null, true);
+                                }
+                            }
+                        }
+
+                        if (retryCount < maxRetries) setTimeout(ensureBookmarkLayers, retryInterval);
+                    }
+                    setTimeout(ensureBookmarkLayers, retryInterval);
+                });
             } else {
                 setTimeout(tryStart, 200);
             }

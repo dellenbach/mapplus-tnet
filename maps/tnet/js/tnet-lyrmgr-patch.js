@@ -554,10 +554,38 @@
     };
     console.log(LOG, '  _build gepatcht');
 
-    // --- 3. _buildContentLayers: Leaf-Container depth-basiert markieren ---
+    // --- 3. _buildContentLayers: Duplikat-Guard + Leaf-Container depth-basiert markieren ---
     var _origBuildContentLayers = proto._buildContentLayers;
+    // Globales Set: merkt sich alle Layer-IDs die bereits ein Widget bekommen haben.
+    // dijit.byId() funktioniert nicht zuverlässig weil das Framework die ID evtl. präfixiert.
+    var _builtLayerWidgetIds = {};
     proto._buildContentLayers = function(domLocation, oCatPaneContainer) {
-      _origBuildContentLayers.call(this, domLocation, oCatPaneContainer);
+      // Duplikat-Guard: Layer überspringen deren Widget-ID bereits gebaut wurde.
+      // Bei Duplikaten im Katalog (gleiche Layer-ID in mehreren Kategorien) würde Dojo
+      // beim zweiten Mal "widget with id==X already registered" werfen.
+      // Die übersprungenen Layer werden trotzdem vom TNET-LM-Store und TnetLayerSwitch bedient.
+      if (this.arLayers && this.arLayers.length) {
+        var orig = this.arLayers;
+        var filtered = [];
+        for (var d = 0; d < orig.length; d++) {
+          var lName = orig[d] && orig[d].name;
+          if (lName && _builtLayerWidgetIds[lName]) {
+            console.log(LOG, '  Duplikat-Layer übersprungen:', lName);
+          } else {
+            filtered.push(orig[d]);
+            if (lName) _builtLayerWidgetIds[lName] = true;
+          }
+        }
+        if (filtered.length < orig.length) {
+          this.arLayers = filtered;
+          _origBuildContentLayers.call(this, domLocation, oCatPaneContainer);
+          this.arLayers = orig; // Original wiederherstellen für Zugriffe via collectDescendantLayers
+        } else {
+          _origBuildContentLayers.call(this, domLocation, oCatPaneContainer);
+        }
+      } else {
+        _origBuildContentLayers.call(this, domLocation, oCatPaneContainer);
+      }
 
       if (!this._inNestedContext || !oCatPaneContainer || !oCatPaneContainer.children) return;
 
@@ -815,7 +843,17 @@
     var _origSwitchLayer = proto.switchLayer;
     proto.switchLayer = function(id_layer, status) {
       if (typeof _origSwitchLayer === 'function') {
-        _origSwitchLayer.call(this, id_layer, status);
+        try {
+          _origSwitchLayer.call(this, id_layer, status);
+        } catch (e) {
+          // Duplikat-Layer: Widget wurde nicht registriert → _lyr ist undefined.
+          // Kein Fehler — der primäre Layer in einem anderen LyrMgr-Block hat das Widget.
+          if (e && e.message && e.message.indexOf('_lyr') !== -1) {
+            console.log(LOG, '  switchLayer: Duplikat-Fallthrough (kein Widget):', id_layer);
+          } else {
+            throw e; // andere Fehler weiterreichen
+          }
+        }
       }
 
       if (status && !_suppressLayerRefresh) {

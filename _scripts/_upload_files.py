@@ -13,8 +13,7 @@ LOCAL_BASE = r"c:\_Daten\mapplus-exp\maps"
 
 # Files to upload
 FILES = [
-    "tnet/api/v1/ags-import.html",
-    "tnet/api/v1/tree-builder.html",
+    "tnet/js/tnet-app.js",
 ]
 
 def upload_files():

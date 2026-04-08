@@ -255,6 +255,10 @@ function installSetMapBookmarkHook() {
             TnetLog.warn('[MapBookmark] Parse-Fehler:', e);
         }
 
+        // Stub: FloatingPane ist bei URL-Bookmarks noch nicht geladen
+        if (typeof am.infoFloatWinRemoveallItems !== 'function') {
+            am.infoFloatWinRemoveallItems = function() {};
+        }
         var result = originalSetMapBookmark.apply(am, arguments);
 
         try {

@@ -792,6 +792,8 @@
       if (layer.visible === visible) return;
 
       layer.visible = visible;
+      // Duplikat-Sync: alle Katalog-Knoten mit derselben ID synchronisieren
+      this._syncDuplicateVisible(layerId, visible, layer);
 
       // ── Coalesce-Pfad: gemeinsamer OL-Layer pro Dienst ──
       var coalGroupId = _layerToCoalesce[layerId];
@@ -1434,6 +1436,36 @@
       return false;
     },
 
+    /**
+     * Duplikat-Sync: Setzt visible auf ALLEN Katalog-Knoten mit derselben ID.
+     * Wenn ein Layer mehrfach im Baum vorkommt (z.B. in verschiedenen Kategorien),
+     * haben alle Instanzen denselben visible-State. Die Karte führt den Layer
+     * nur einmal — das DOM-Update (querySelectorAll) synchronisiert die Checkboxen.
+     * @param {string} layerId
+     * @param {boolean} visible
+     * @param {object} primaryNode  Der bereits aktualisierte Primär-Knoten (wird übersprungen)
+     */
+    _syncDuplicateVisible: function (layerId, visible, primaryNode) {
+      this._syncDupRecursive(layerId, visible, primaryNode, _catalog);
+    },
+
+    _syncDupRecursive: function (layerId, visible, primaryNode, nodes) {
+      if (!nodes) return;
+      for (var i = 0; i < nodes.length; i++) {
+        var n = nodes[i];
+        // Blatt-Knoten mit gleicher ID → visible synchronisieren
+        if (n !== primaryNode && n.id === layerId && n.type !== 'group' && n.type !== 'subcategory') {
+          n.visible = visible;
+        }
+        var childArrays = ['subcategories', 'groups', 'layers', 'children'];
+        for (var c = 0; c < childArrays.length; c++) {
+          if (n[childArrays[c]] && n[childArrays[c]].length) {
+            this._syncDupRecursive(layerId, visible, primaryNode, n[childArrays[c]]);
+          }
+        }
+      }
+    },
+
     _syncZIndices: function () {
       var am = this._getAppManager();
       if (!am || !am.Maps || !am.Maps['main'] || !am.Maps['main'].mapObj) return;
@@ -1544,7 +1576,10 @@
               childIds: childIds
             };
             for (var c = 0; c < childIds.length; c++) {
-              _layerToCoalesce[childIds[c]] = n.id;
+              // Erster Eintrag gewinnt — bei Duplikaten kein Overwrite
+              if (!_layerToCoalesce[childIds[c]]) {
+                _layerToCoalesce[childIds[c]] = n.id;
+              }
             }
           }
         }

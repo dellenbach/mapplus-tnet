@@ -920,3 +920,10 @@
 - **Root-Cause**: `_frameEl` wurde auf MAP_AREA-Grösse dimensioniert, die SVG-Vorschau (gesamtes Papier) war grösser und ragte über den Frame hinaus. Box-Shadow dimmte ab MAP_AREA-Kante, SVG-weisse Ränder lagen darüber → zwei sichtbare Grenzen.
 - **Fix**: `updateFrameSize()` setzt Frame auf Papiergrösse. SVG füllt Frame bei (0,0). Overlay-Offset per `setOffset()` verschiebt Element, damit MAP_AREA-Zentrum auf `_printCenter` bleibt. `transformOrigin` auf MAP_AREA-Zentrum für korrekte Rotation. Mittelpunkt-Marker analog repositioniert.
 - **Guardrail**: Bei WYSIWYG-Print-Vorschauen den äusseren Rahmen immer auf Papiergrösse setzen, nicht auf den inneren Druckbereich. Das SVG-Layout muss den gesamten Rahmen ausfüllen.
+
+## 2026-04-08 — URL-Bookmark Crash: infoFloatWinRemoveallItems is not a function
+
+- **Symptom**: Beim Laden eines URL-Bookmarks (z.B. `/maps/nw_oereb`) stürzt `setMapBookmark()` mit TypeError ab: `am.infoFloatWinRemoveallItems is not a function`. Keine Layer werden geladen.
+- **Root-Cause**: `setMapBookmark()` ruft intern `this.infoFloatWinRemoveallItems()` auf. Diese Funktion existiert erst nach dem Laden des FloatingPane-Moduls (`dojox/layout/FloatingPane`), das bei URL-Bookmarks noch nicht geladen ist.
+- **Fix**: Vor jedem `setMapBookmark()`-Aufruf prüfen und No-Op-Stub setzen: `if (typeof am.infoFloatWinRemoveallItems !== 'function') { am.infoFloatWinRemoveallItems = function() {}; }`. Eingefügt in `tnet-mapplus-helpers.js` (`_applyBookmark`) und `tnet-header.js` (`installSetMapBookmarkHook`).
+- **Guardrail**: Framework-Methoden, die von FloatingPane abhängen, können beim frühen Aufruf fehlen. Vor Verwendung immer auf Existenz prüfen und ggf. stubben.
