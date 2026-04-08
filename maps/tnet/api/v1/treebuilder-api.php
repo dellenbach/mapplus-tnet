@@ -4685,13 +4685,191 @@ switch ($action) {
         ]]);
         break;
 
+    // =====================================================================
+    // LEGENDTUNER — Konfiguration pro Service
+    // =====================================================================
+
+    case 'legend-tuner-load':
+        // Lade Draft aus tmp/legend-conf, falls vorhanden; sonst deployed aus core/config
+        $tunerDir     = '/data/Client_Data/nwow/tmp/legend-conf';
+        $draftFile    = $tunerDir . '/legend_tuner.json';
+        $deployedFile = $docRoot . '/core/config/legend_tuner.json';
+        $source = 'empty';
+        $data   = new \stdClass();
+
+        if (file_exists($draftFile)) {
+            $raw = @file_get_contents($draftFile);
+            if ($raw !== false) {
+                $parsed = json_decode($raw, true);
+                if ($parsed !== null || json_last_error() === JSON_ERROR_NONE) {
+                    $data = $parsed ?: new \stdClass();
+                    $source = 'draft';
+                }
+            }
+        } elseif (file_exists($deployedFile)) {
+            $raw = @file_get_contents($deployedFile);
+            if ($raw !== false) {
+                $parsed = json_decode($raw, true);
+                if ($parsed !== null || json_last_error() === JSON_ERROR_NONE) {
+                    $data = $parsed ?: new \stdClass();
+                    $source = 'deployed';
+                }
+            }
+        }
+
+        // Prüfe ob deployed-Version existiert und identisch ist
+        $deployedExists = file_exists($deployedFile);
+        $deployedSync   = false;
+        if ($deployedExists && $source === 'draft') {
+            $depRaw = @file_get_contents($deployedFile);
+            $deployedSync = ($depRaw !== false && md5($depRaw) === md5(json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)));
+        }
+
+        jsonResponse([
+            'success'        => true,
+            'data'           => $data,
+            'source'         => $source,
+            'draftPath'      => $draftFile,
+            'deployedPath'   => $deployedFile,
+            'deployedExists' => $deployedExists,
+            'deployedSync'   => $deployedSync
+        ]);
+        break;
+
+    case 'legend-tuner-save':
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            jsonError('POST erwartet', 405);
+        }
+        $body = file_get_contents('php://input');
+        if ($body === false || trim($body) === '') {
+            jsonError('Leerer Request-Body', 400);
+        }
+        $data = json_decode($body, true);
+        if ($data === null && json_last_error() !== JSON_ERROR_NONE) {
+            jsonError('Ungültiges JSON: ' . json_last_error_msg(), 400);
+        }
+
+        // Speichere in tmp/legend-conf — PHP hat hier Schreibrecht
+        $tunerDir  = '/data/Client_Data/nwow/tmp/legend-conf';
+        if (!is_dir($tunerDir)) { @mkdir($tunerDir, 0775, true); }
+        $tunerFile = $tunerDir . '/legend_tuner.json';
+
+        // Backup erstellen falls vorhanden
+        if (file_exists($tunerFile)) {
+            $backupFile = $tunerFile . '.' . date('Ymd_His') . '.bak';
+            @copy($tunerFile, $backupFile);
+        }
+
+        $json = json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        $written = @file_put_contents($tunerFile, $json, LOCK_EX);
+        if ($written === false) {
+            jsonError('Konnte legend_tuner.json nicht schreiben: ' . $tunerFile, 500);
+        }
+        jsonResponse([
+            'success' => true,
+            'message' => 'Legendtuner-Entwurf gespeichert',
+            'path'    => $tunerFile,
+            'entries' => count($data),
+            'bytes'   => $written
+        ]);
+        break;
+
+    // =================================================================
+    // BOOKMARKS — Laden & Speichern (Draft in tmp, Deployed im Webroot)
+    // =================================================================
+    case 'bookmarks-load':
+        $bmDraftDir    = '/data/Client_Data/nwow/tmp/bookmarks';
+        $bmDraftFile   = $bmDraftDir . '/map-bookmarks-all.json';
+        $bmDeployedFile = $docRoot . '/maps/tnet/data/map-bookmarks-all.json';
+        $bmSource = 'empty';
+        $bmData   = [];
+
+        if (file_exists($bmDraftFile)) {
+            $raw = @file_get_contents($bmDraftFile);
+            if ($raw !== false) {
+                $parsed = json_decode($raw, true);
+                if ($parsed !== null || json_last_error() === JSON_ERROR_NONE) {
+                    $bmData = $parsed ?: [];
+                    $bmSource = 'draft';
+                }
+            }
+        } elseif (file_exists($bmDeployedFile)) {
+            $raw = @file_get_contents($bmDeployedFile);
+            if ($raw !== false) {
+                $parsed = json_decode($raw, true);
+                if ($parsed !== null || json_last_error() === JSON_ERROR_NONE) {
+                    $bmData = $parsed ?: [];
+                    $bmSource = 'deployed';
+                }
+            }
+        }
+
+        // Prüfe ob deployed-Version existiert und identisch ist
+        $bmDeployedExists = file_exists($bmDeployedFile);
+        $bmDeployedSync   = false;
+        if ($bmDeployedExists && $bmSource === 'draft') {
+            $depRaw = @file_get_contents($bmDeployedFile);
+            $draftJson = json_encode($bmData, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            $bmDeployedSync = ($depRaw !== false && md5($depRaw) === md5($draftJson));
+        }
+
+        jsonResponse([
+            'success'        => true,
+            'data'           => $bmData,
+            'count'          => count($bmData),
+            'source'         => $bmSource,
+            'deployedExists' => $bmDeployedExists,
+            'deployedSync'   => $bmDeployedSync
+        ]);
+        break;
+
+    case 'bookmarks-save':
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            jsonError('POST erwartet', 405);
+        }
+        $body = file_get_contents('php://input');
+        if ($body === false || trim($body) === '') {
+            jsonError('Leerer Request-Body', 400);
+        }
+        $data = json_decode($body, true);
+        if ($data === null && json_last_error() !== JSON_ERROR_NONE) {
+            jsonError('Ungültiges JSON: ' . json_last_error_msg(), 400);
+        }
+        if (!is_array($data)) {
+            jsonError('Array erwartet', 400);
+        }
+
+        // Speichere Draft in tmp — PHP hat hier Schreibrecht
+        $bmDraftDir = '/data/Client_Data/nwow/tmp/bookmarks';
+        if (!is_dir($bmDraftDir)) { @mkdir($bmDraftDir, 0775, true); }
+        $bmDraftFile = $bmDraftDir . '/map-bookmarks-all.json';
+
+        // Backup erstellen falls vorhanden
+        if (file_exists($bmDraftFile)) {
+            $backupFile = $bmDraftFile . '.' . date('Ymd_His') . '.bak';
+            @copy($bmDraftFile, $backupFile);
+        }
+
+        $json = json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        $written = @file_put_contents($bmDraftFile, $json, LOCK_EX);
+        if ($written === false) {
+            jsonError('Konnte Bookmarks-Draft nicht schreiben: ' . $bmDraftFile, 500);
+        }
+        jsonResponse([
+            'success' => true,
+            'message' => 'Bookmarks-Entwurf gespeichert',
+            'count'   => count($data),
+            'bytes'   => $written
+        ]);
+        break;
+
     default:
         jsonResponse([
             'success' => true,
             'data' => [
                 'name'    => 'Tree-Builder Persistence API',
-                'version' => '3.1',
-                'actions' => ['load', 'save', 'lock', 'unlock', 'lock-status', 'history', 'restore', 'save-groups', 'load-groups', 'save-profile', 'load-profile', 'list-profiles', 'load-lyrmgr', 'save-lyrmgr-draft', 'publish-lyrmgr', 'list-lyrmgr-profiles', 'list-all-layers', 'deploy-lyrmgr', 'ags-services', 'ags-export', 'ags-list-raw', 'ags-delete-raw', 'ags-delete-backups', 'ags-read-raw', 'ags-write-raw', 'staging-layers-flat', 'config-editor-load', 'config-editor-save', 'config-export-to-core', 'core-list-sources', 'core-import', 'qgis-list-projects', 'qgis-capabilities'],
+                'version' => '3.2',
+                'actions' => ['load', 'save', 'lock', 'unlock', 'lock-status', 'history', 'restore', 'save-groups', 'load-groups', 'save-profile', 'load-profile', 'list-profiles', 'load-lyrmgr', 'save-lyrmgr-draft', 'publish-lyrmgr', 'list-lyrmgr-profiles', 'list-all-layers', 'deploy-lyrmgr', 'ags-services', 'ags-export', 'ags-list-raw', 'ags-delete-raw', 'ags-delete-backups', 'ags-read-raw', 'ags-write-raw', 'staging-layers-flat', 'config-editor-load', 'config-editor-save', 'config-export-to-core', 'core-list-sources', 'core-import', 'qgis-list-projects', 'qgis-capabilities', 'legend-tuner-load', 'legend-tuner-save', 'bookmarks-load', 'bookmarks-save'],
                 'storage' => DATA_DIR
             ]
         ]);

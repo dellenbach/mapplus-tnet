@@ -38,6 +38,8 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .tb-toolbar button:hover { background: rgba(255,255,255,.2); }
 .tb-toolbar button.primary { background: var(--c-accent); border-color: var(--c-accent); }
 .tb-toolbar button.primary:hover { background: #c9362f; }
+.tb-toolbar button:disabled { opacity: .3; cursor: default; }
+.tb-toolbar button:disabled:hover { background: rgba(255,255,255,.1); }
 
 /* ── 3-Panel Layout ── */
 .tb-layout {
@@ -1078,6 +1080,9 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
       <div class="tb-tree-left">
         <div class="tb-panel-head">
           <h2>LyrMgr-Editor</h2>
+          <button id="tb-btn-undo" title="Rückgängig (Ctrl+Z)" disabled>↩</button>
+          <button id="tb-btn-redo" title="Wiederherstellen (Ctrl+Y)" disabled>↪</button>
+          <span style="width:1px;height:18px;background:rgba(0,0,0,.12);margin:0 2px"></span>
           <button id="tb-btn-add-cat">+ Kategorie</button>
           <button id="tb-btn-add-sub">+ Gruppenlayer</button>
           <button id="tb-btn-save-profile" class="primary" title="Aktives Profil als JSON auf Server speichern">💾</button>
@@ -1448,9 +1453,97 @@ function getActiveTree() {
   return null;
 }
 
+// ── Undo/Redo-System ──
+var _undoStack = [];    // Ältere Snapshots (Zustände VOR der jeweiligen Änderung)
+var _redoStack = [];    // Snapshots nach Undo
+var _undoMax = 50;      // Max Undo-Schritte
+var _undoSkipNext = false; // Flag: nächsten saveState nicht als Undo-Punkt registrieren
+var _lastSavedSnapshot = null; // Letzter gespeicherter Zustand (für Vergleich)
+
+function _pushUndoSnapshot() {
+  try {
+    var currentObj = getStateToPersist();
+    delete currentObj.savedAt; // savedAt ausschliessen — ändert sich bei jedem Aufruf
+    var currentSnap = JSON.stringify(currentObj);
+    if (_lastSavedSnapshot === null) {
+      // Erster Aufruf: nur merken, noch nichts auf den Stack
+      _lastSavedSnapshot = currentSnap;
+      _updateUndoButtons();
+      return;
+    }
+    // Wenn sich nichts geändert hat → nichts tun
+    if (_lastSavedSnapshot === currentSnap) return;
+    // Vorherigen Zustand (VOR der Änderung) auf den Stack
+    _undoStack.push(_lastSavedSnapshot);
+    if (_undoStack.length > _undoMax) _undoStack.shift();
+    _redoStack = []; // Neuer Snapshot: Redo-Stack leeren
+    _lastSavedSnapshot = currentSnap;
+    _updateUndoButtons();
+  } catch(e) { console.warn('_pushUndoSnapshot fehlgeschlagen:', e); }
+}
+
+function _restoreSnapshot(snap) {
+  try {
+    var restored = JSON.parse(snap);
+    state.groups = restored.groups || [];
+    state.clipboard = restored.clipboard || { categories: [] };
+    state.profiles = restored.profiles || {};
+    state.activeProfile = restored.activeProfile || null;
+    state.activeLyrmgr = restored.activeLyrmgr || null;
+    state.nextGroupId = restored.nextGroupId || 1;
+    state.nextCatId = restored.nextCatId || 1;
+    state.nextSubId = restored.nextSubId || 1;
+    // Persistieren ohne neuen Undo-Punkt (MUSS vor renderTree stehen!)
+    _undoSkipNext = true;
+    // UI aktualisieren
+    renderTree();
+    renderClipboard();
+    syncJsonEditor();
+    _updateUndoButtons();
+    // Nochmals speichern ohne Undo-Punkt (renderTree hat _undoSkipNext zurückgesetzt)
+    _undoSkipNext = true;
+    saveState();
+  } catch(e) { console.warn('_restoreSnapshot fehlgeschlagen:', e); }
+}
+
+function tbUndo() {
+  if (_undoStack.length === 0) return;
+  // Aktuellen Stand als Redo-Punkt sichern (ohne savedAt)
+  var currentObj = getStateToPersist();
+  delete currentObj.savedAt;
+  _redoStack.push(JSON.stringify(currentObj));
+  var snap = _undoStack.pop();
+  _lastSavedSnapshot = snap; // Referenz aktualisieren
+  _restoreSnapshot(snap);
+}
+
+function tbRedo() {
+  if (_redoStack.length === 0) return;
+  // Aktuellen Stand als Undo-Punkt sichern (ohne savedAt)
+  var currentObj = getStateToPersist();
+  delete currentObj.savedAt;
+  _undoStack.push(JSON.stringify(currentObj));
+  var snap = _redoStack.pop();
+  _lastSavedSnapshot = snap; // Referenz aktualisieren
+  _restoreSnapshot(snap);
+}
+
+function _updateUndoButtons() {
+  var undoBtn = document.getElementById('tb-btn-undo');
+  var redoBtn = document.getElementById('tb-btn-redo');
+  if (undoBtn) undoBtn.disabled = _undoStack.length === 0;
+  if (redoBtn) redoBtn.disabled = _redoStack.length === 0;
+}
+
 // ── Persistenz: localStorage + Server (debounced) ──
 function saveState() {
   try {
+    // Undo-Snapshot vor dem Speichern erstellen
+    if (!_undoSkipNext) {
+      _pushUndoSnapshot();
+    }
+    _undoSkipNext = false;
+
     var toSave = getStateToPersist();
     localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
     showSaveStatus();
@@ -2555,6 +2648,52 @@ window._tbConfirm = function(title, message, onOk, opts) {
   document.addEventListener('keydown', escHandler);
 };
 
+/**
+ * Commit-Message-Dialog (im Tree-Builder).
+ * Gibt ein Promise zurück:
+ *   - resolve({ message: '...' }) wenn Commit bestätigt
+ *   - resolve({ skip: true }) wenn "Ohne Git" geklickt
+ *   - resolve(null) wenn abgebrochen
+ */
+window._tbCommitDialog = function(defaultMessage) {
+  return new Promise(function(resolve) {
+    var overlay = document.createElement('div');
+    overlay.className = 'tb-confirm-overlay';
+    overlay.innerHTML = '<div class="tb-confirm-box" style="max-width:480px">' +
+      '<h3>📝 Git Commit-Nachricht</h3>' +
+      '<p><label style="font-size:12px;color:#555">Commit-Nachricht (Ctrl+Enter = Commit):</label></p>' +
+      '<textarea id="_tb_commit_msg" rows="3" style="width:100%;font-family:monospace;font-size:12px;padding:8px;border:1px solid #ccc;border-radius:4px;resize:vertical;box-sizing:border-box">' +
+      (defaultMessage || '').replace(/</g, '&lt;') + '</textarea>' +
+      '<div class="tb-confirm-btns" style="gap:6px">' +
+      '<button class="cancel" style="background:#fff;color:#555;border:1px solid #ccc">Abbrechen</button>' +
+      '<button class="skip" style="background:#f0ad4e;color:#fff;border:1px solid #eea236">Ohne Git</button>' +
+      '<button class="primary" style="background:#4B7B81;color:#fff;border:1px solid #3a6166;font-weight:600">✓ Commit &amp; Push</button>' +
+      '</div></div>';
+    document.body.appendChild(overlay);
+    var ta = overlay.querySelector('#_tb_commit_msg');
+    ta.focus();
+    ta.select();
+
+    function cleanup() { overlay.remove(); document.removeEventListener('keydown', escH); }
+    overlay.querySelector('.cancel').onclick = function() { cleanup(); resolve(null); };
+    overlay.querySelector('.skip').onclick = function() { cleanup(); resolve({ skip: true }); };
+    overlay.querySelector('.primary').onclick = function() {
+      var msg = ta.value.trim();
+      if (!msg) { ta.focus(); return; }
+      cleanup(); resolve({ message: msg });
+    };
+    overlay.addEventListener('click', function(e) { if (e.target === overlay) { cleanup(); resolve(null); } });
+    var escH = function(e) {
+      if (e.key === 'Escape') { cleanup(); resolve(null); }
+      if (e.key === 'Enter' && e.ctrlKey) {
+        var msg = ta.value.trim();
+        if (msg) { cleanup(); resolve({ message: msg }); }
+      }
+    };
+    document.addEventListener('keydown', escH);
+  });
+};
+
 // Clipboard leeren
 document.getElementById('tb-btn-clip-clear').addEventListener('click', function() {
   if (!state.clipboard.categories.length) return;
@@ -3097,22 +3236,25 @@ function renderLyrmgrBlock(container, lmKey, profile) {
       if (d.type === 'clip-cat') {
         var newCat = deepCopy(d.cat);
         newCat.id = uid('cat');
-        newCat.items = filterDuplicateItems(newCat.items || [], existingIds);
         profile.categories.push(newCat);
+        // Shift = Move (aus Clipboard entfernen), Default = Kopie
+        if (e.shiftKey && d.srcCat !== undefined) state.clipboard.categories.splice(d.srcCat, 1);
         renderTree();
+        renderClipboard();
       }
       if (d.type === 'clip-item') {
-        var filtered = filterDuplicateItems([deepCopy(d.item)], existingIds);
-        if (filtered.length) {
-          if (profile.categories.length) {
-            var lastCat = profile.categories[profile.categories.length - 1];
-            if (!lastCat.items) lastCat.items = [];
-            filtered.forEach(function(it) { lastCat.items.push(it); });
-          } else {
-            profile.categories.push({ id: uid('cat'), name: 'Aus Clipboard', items: filtered });
-          }
-          renderTree();
+        var clipItem = deepCopy(d.item);
+        if (profile.categories.length) {
+          var lastCat = profile.categories[profile.categories.length - 1];
+          if (!lastCat.items) lastCat.items = [];
+          lastCat.items.push(clipItem);
+        } else {
+          profile.categories.push({ id: uid('cat'), name: 'Aus Clipboard', items: [clipItem] });
         }
+        // Shift = Move (aus Clipboard entfernen), Default = Kopie
+        if (e.shiftKey && d.srcCat !== undefined) spliceItemByPath(state.clipboard.categories[d.srcCat].items, d.srcPath);
+        renderTree();
+        renderClipboard();
       }
     } catch(ex) {}
   });
@@ -3155,8 +3297,12 @@ function renderLyrmgrBlock(container, lmKey, profile) {
           var layer = state.layers[d.idx];
           if (layer && !existIds[layer.id]) { grpItems.push(layer.id); renderTree(); }
         } else if (d.type === 'clip-item') {
-          var filtered = filterDuplicateItems([deepCopy(d.item)], existIds);
-          if (filtered.length) { grpItems.push(filtered[0]); renderTree(); }
+          var clipItem = deepCopy(d.item);
+          grpItems.push(clipItem);
+          // Shift = Move (aus Clipboard entfernen), Default = Kopie
+          if (e.shiftKey && d.srcCat !== undefined) spliceItemByPath(state.clipboard.categories[d.srcCat].items, d.srcPath);
+          renderTree();
+          renderClipboard();
         }
       } catch(ex) {}
     });
@@ -3182,14 +3328,20 @@ function renderLyrmgrBlock(container, lmKey, profile) {
           if (layer && !existingIds[layer.id]) { cat.items.push(layer.id); renderTree(); }
         }
         if (d.type === 'clip-item') {
-          var filtered = filterDuplicateItems([deepCopy(d.item)], existingIds);
-          if (filtered.length) { filtered.forEach(function(it) { cat.items.push(it); }); renderTree(); }
+          var clipItem = deepCopy(d.item);
+          cat.items.push(clipItem);
+          // Shift = Move (aus Clipboard entfernen), Default = Kopie
+          if (e.shiftKey && d.srcCat !== undefined) spliceItemByPath(state.clipboard.categories[d.srcCat].items, d.srcPath);
+          renderTree();
+          renderClipboard();
         }
         if (d.type === 'clip-cat') {
           var clipCat = deepCopy(d.cat);
-          var filteredItems = filterDuplicateItems(clipCat.items || [], existingIds);
-          filteredItems.forEach(function(it) { cat.items.push(it); });
+          (clipCat.items || []).forEach(function(it) { cat.items.push(it); });
+          // Shift = Move (aus Clipboard entfernen), Default = Kopie
+          if (e.shiftKey && d.srcCat !== undefined) state.clipboard.categories.splice(d.srcCat, 1);
           renderTree();
+          renderClipboard();
         }
         if (d.type === 'staging-items' && d.srcCat !== undefined) {
           if (!e.ctrlKey) {
@@ -3451,10 +3603,13 @@ function renderLyrmgrBlock(container, lmKey, profile) {
         }
         if (d.type === 'clip-item') {
           e.preventDefault(); e.stopPropagation();
-          var existIds2 = collectAllStagingIdsGlobal();
-          var filtered2 = filterDuplicateItems([deepCopy(d.item)], existIds2);
-          if (filtered2.length) targetItems.splice(insertAt, 0, filtered2[0]);
-          renderTree(); return;
+          var clipItem = deepCopy(d.item);
+          targetItems.splice(insertAt, 0, clipItem);
+          // Shift = Move (aus Clipboard entfernen), Default = Kopie
+          if (e.shiftKey && d.srcCat !== undefined) spliceItemByPath(state.clipboard.categories[d.srcCat].items, d.srcPath);
+          renderTree();
+          renderClipboard();
+          return;
         }
         if (d.type === 'layer') {
           e.preventDefault(); e.stopPropagation();
@@ -4341,6 +4496,20 @@ function loadListOfProfiles() {
 }
 
 // Save-Button Handlers
+// Undo/Redo Buttons
+document.getElementById('tb-btn-undo').addEventListener('click', tbUndo);
+document.getElementById('tb-btn-redo').addEventListener('click', tbRedo);
+
+// Keyboard-Shortcuts: Ctrl+Z/Y
+document.addEventListener('keydown', function(e) {
+  // Nicht abfangen wenn in Input/Textarea
+  var tag = e.target.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+  if (e.ctrlKey && !e.shiftKey && e.key === 'z') { e.preventDefault(); tbUndo(); }
+  if (e.ctrlKey && !e.shiftKey && e.key === 'y') { e.preventDefault(); tbRedo(); }
+  if (e.ctrlKey && e.shiftKey && e.key === 'Z') { e.preventDefault(); tbRedo(); }
+});
+
 document.getElementById('tb-btn-save-profile').addEventListener('click', function() {
   saveProfileToServer();
 });
@@ -7383,24 +7552,28 @@ function publishLyrmgr() {
           'Backup: ' + esc(d.backup || '–');
         _tbAlert('Publiziert (SFTP)', pubMsg, 'success');
 
-        // Git-Commit (non-blocking) — gleiche Datei ins Git-Repo committen
+        // Git-Commit mit Dialog
         if (d.path) {
-          fetch(GAPI_URL + '/git-commit-conf', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              deployPath: d.path,
-              source: 'tree-builder',
-              message: 'Publish lyrmgr: ' + profileName + ' (' + blockKeys.length + ' Blöcke)'
+          var defaultGitMsg = 'Publish lyrmgr: ' + profileName + ' (' + blockKeys.length + ' Blöcke)';
+          _tbCommitDialog(defaultGitMsg).then(function(result) {
+            if (!result || result.skip) return; // Abgebrochen oder "Ohne Git"
+            fetch(GAPI_URL + '/git-commit-conf', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                deployPath: d.path,
+                source: 'tree-builder',
+                message: result.message
+              })
             })
-          })
-            .then(function(r) { return r.json(); })
-            .then(function(g) {
-              if (g.committed) {
-                _tbAlert('Publiziert (SFTP) — Git ✓', pubMsg + '<br>Git: ✓ committed', 'success');
-              }
-            })
-            .catch(function() { /* Git-Fehler blockieren nicht */ });
+              .then(function(r) { return r.json(); })
+              .then(function(g) {
+                if (g.committed) {
+                  _tbAlert('Git ✓', pubMsg + '<br>Git: ✓ committed', 'success');
+                }
+              })
+              .catch(function() { /* Git-Fehler blockieren nicht */ });
+          });
         }
       } else {
         _tbAlert('Publish fehlgeschlagen', '<pre>' + esc(d.detail || d.error || json.detail || JSON.stringify(json)) + '</pre>', 'error');

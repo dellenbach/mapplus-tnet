@@ -533,6 +533,135 @@ body {
 .ags-tab[data-tab="editor"]  { background: linear-gradient(135deg, #607d8b, #455a64); }
 .ags-tab[data-tab="treebuilder"] { background: linear-gradient(135deg, #8e6aa0, #6a4c7d); }
 .ags-tab[data-tab="deployed"] { background: linear-gradient(135deg, #7e57c2, #5e35b1); }
+.ags-tab[data-tab="legendtuner"] { background: linear-gradient(135deg, #4B7B81, #3a6166); }
+.ags-tab[data-tab="bookmarks"] { background: linear-gradient(135deg, #d4a03c, #b8872e); }
+
+/* ===== COMMIT-MESSAGE-DIALOG ===== */
+#commit-msg-overlay {
+  display: none; position: fixed; inset: 0; z-index: 10200;
+  background: rgba(0,0,0,.5); align-items: center; justify-content: center;
+}
+#commit-msg-overlay.open { display: flex; }
+#commit-msg-dialog {
+  background: #fff; border-radius: 6px; box-shadow: 0 8px 32px rgba(0,0,0,.25);
+  width: 500px; max-width: 94vw; padding: 0; overflow: hidden;
+}
+#commit-msg-dialog .cmd-header {
+  display: flex; align-items: center; gap: 8px; padding: 10px 14px;
+  border-bottom: 1px solid #e0e4e8; background: #f5f7fa;
+}
+#commit-msg-dialog .cmd-header .cmd-icon { font-size: 16px; }
+#commit-msg-dialog .cmd-header .cmd-title { flex: 1; font-weight: 700; font-size: 13px; color: #1e3a4a; }
+#commit-msg-dialog .cmd-body { padding: 14px; }
+#commit-msg-dialog .cmd-body label { display: block; font-size: 12px; color: #555; margin-bottom: 5px; }
+#commit-msg-dialog .cmd-body textarea {
+  width: 100%; min-height: 60px; font-family: monospace; font-size: 12px;
+  padding: 8px; border: 1px solid #ccc; border-radius: 4px; resize: vertical; box-sizing: border-box;
+}
+#commit-msg-dialog .cmd-body textarea:focus { outline: none; border-color: #4B7B81; box-shadow: 0 0 3px rgba(75,123,129,.3); }
+#commit-msg-dialog .cmd-footer {
+  display: flex; justify-content: flex-end; gap: 8px; padding: 10px 14px;
+  border-top: 1px solid #e0e4e8; background: #fafbfc;
+}
+#commit-msg-dialog .cmd-footer button { padding: 6px 16px; font-size: 12px; border-radius: 4px; cursor: pointer; border: 1px solid #ccc; }
+#commit-msg-dialog .cmd-btn-cancel { background: #fff; color: #555; }
+#commit-msg-dialog .cmd-btn-cancel:hover { background: #f5f5f5; }
+#commit-msg-dialog .cmd-btn-skip { background: #f0ad4e; color: #fff; border-color: #eea236; }
+#commit-msg-dialog .cmd-btn-skip:hover { background: #ec971f; }
+#commit-msg-dialog .cmd-btn-commit { background: #4B7B81; color: #fff; border-color: #3a6166; font-weight: 600; }
+#commit-msg-dialog .cmd-btn-commit:hover { background: #3a6166; }
+
+/* ===== BOOKMARKS TAB ===== */
+.bm-toolbar { display: flex; gap: 6px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
+.bm-toolbar button { padding: 5px 12px; font-size: 12px; border: 1px solid #ddd; border-radius: 3px; background: #fff; cursor: pointer; }
+.bm-toolbar button:hover { background: #f0f0f0; }
+.bm-toolbar button:disabled { opacity: .4; cursor: default; }
+.bm-toolbar .bm-btn-save { background: #d4a03c; color: #fff; border-color: #b8872e; font-weight: 600; }
+.bm-toolbar .bm-btn-save:hover { background: #b8872e; }
+.bm-status { padding: 6px 12px; font-size: 12px; color: #666; background: #f5f7fa; border-radius: 4px; margin-bottom: 8px; }
+.bm-count { font-size: 11px; color: #888; margin-left: 4px; }
+.bm-table-wrap { flex: 1; overflow: auto; min-height: 0; }
+.bm-table { width: 100%; border-collapse: collapse; font-size: 11px; table-layout: fixed; }
+.bm-table th { padding: 6px 8px; text-align: left; background: #fdf3e0; border-bottom: 2px solid #d4a03c; color: #333; font-weight: 600; position: sticky; top: 0; z-index: 2; white-space: nowrap; cursor: pointer; user-select: none; overflow: hidden; }
+.bm-table th:last-child { cursor: default; width: 70px; }
+.bm-table th .bm-sort-icon { font-size: 9px; margin-left: 3px; color: #aaa; }
+.bm-table th.bm-sort-asc .bm-sort-icon { color: #333; }
+.bm-table th.bm-sort-desc .bm-sort-icon { color: #333; }
+/* Resize-Handle an Spaltenrand */
+.bm-table th .bm-resize { position: absolute; right: 0; top: 0; bottom: 0; width: 5px; cursor: col-resize; background: transparent; }
+.bm-table th .bm-resize:hover, .bm-table th .bm-resize.bm-resizing { background: #d4a03c; }
+/* Filter-Zeile (über Tabelle) */
+.bm-filter-bar { display: flex; gap: 4px; padding: 4px 0; align-items: center; }
+.bm-filter-bar label { font-size: 10px; color: #666; white-space: nowrap; }
+.bm-filter-bar input { font-size: 10px; padding: 2px 6px; border: 1px solid #ddd; border-radius: 3px; font-family: monospace; background: #fff; width: 120px; }
+.bm-filter-bar input:last-of-type { flex: 1; min-width: 100px; }
+.bm-table td { padding: 4px 6px; border-bottom: 1px solid #eee; vertical-align: top; overflow: hidden; text-overflow: ellipsis; }
+.bm-table .bm-col-hidden { display: none; }
+.bm-table tr:hover td { background: #fffdf5; }
+.bm-table input, .bm-table select { font-size: 11px; padding: 2px 4px; border: 1px solid #ccc; border-radius: 3px; width: 100%; box-sizing: border-box; }
+.bm-table input.bm-name { font-family: monospace; font-weight: 600; }
+.bm-table input.bm-alias { font-family: monospace; font-size: 10px; }
+.bm-table input.bm-layers { font-family: monospace; font-size: 10px; }
+.bm-table input.bm-num { text-align: right; }
+.bm-table .bm-del { background: none; border: none; cursor: pointer; color: #999; font-size: 13px; padding: 2px 6px; }
+.bm-table .bm-del:hover { color: #c44; }
+.bm-table .bm-open { background: none; border: none; cursor: pointer; color: #4B7B81; font-size: 12px; padding: 2px 6px; text-decoration: underline; }
+.bm-row-changed td { background: #fff8e1 !important; }
+/* Einklappbare Zeilen */
+.bm-row-summary { cursor: pointer; }
+.bm-row-summary td { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 5px 6px; border-right: 1px solid #eee; }
+.bm-row-summary td:last-child { border-right: none; }
+.bm-row-summary:hover td { background: #fdf3e0; }
+.bm-row-detail { display: none; }
+.bm-row-detail.bm-expanded { display: table-row !important; }
+.bm-row-detail td { padding: 6px 8px; background: #fafafa; border-bottom: 2px solid #eee; }
+.bm-expand-icon { display: inline-block; width: 14px; font-size: 10px; color: #888; margin-right: 4px; transition: transform .15s; }
+.bm-expanded-row .bm-expand-icon { transform: rotate(90deg); }
+/* Zebra-Streifen: jede zweite Summary-Zeile */
+.bm-row-summary.bm-row-even td { background: #f7f7f7; }
+.bm-row-summary.bm-row-even:hover td { background: #fdf3e0; }
+/* Spalten-Trennung Header */
+.bm-table thead th { border-right: 1px solid #ddd; }
+.bm-table thead th:last-child { border-right: none; }
+.bm-summary-layers { font-size: 10px; color: #888; font-family: monospace; margin-left: 8px; }
+.bm-summary-layers .bm-layer-tag { font-size: 9px; padding: 0 3px; margin: 0 1px; }
+/* Layer-Validierung */
+.bm-layer-tag { display: inline-block; padding: 1px 5px; border-radius: 3px; margin: 1px 2px; font-size: 10px; font-family: monospace; cursor: default; }
+.bm-layer-tag.valid { background: #e8f5e9; color: #2e7d32; border: 1px solid #a5d6a7; }
+.bm-layer-tag.invalid { background: #ffebee; color: #c62828; border: 1px solid #ef9a9a; }
+/* Layer-Feld: Tag-Container + Eingabefeld */
+.bm-layers-wrap { position: relative; min-width: 200px; }
+.bm-layers-tags { display: flex; flex-wrap: wrap; gap: 2px; margin-bottom: 2px; min-height: 18px; }
+.bm-layer-tag .bm-tag-x { cursor: pointer; margin-left: 3px; color: #999; font-weight: bold; }
+.bm-layer-tag .bm-tag-x:hover { color: #c44; }
+.bm-ac-list { position: absolute; left: 0; right: 0; top: 100%; background: #fff; border: 1px solid #ccc; border-radius: 3px; max-height: 180px; overflow-y: auto; z-index: 100; font-size: 11px; font-family: monospace; display: none; }
+.bm-ac-list div { padding: 3px 6px; cursor: pointer; }
+.bm-ac-list div:hover, .bm-ac-list div.bm-ac-active { background: #e3f2fd; }
+.bm-ac-list div .bm-ac-match { font-weight: bold; color: #1565c0; }
+
+/* ===== LEGENDTUNER TAB ===== */
+.lt-toolbar { display: flex; gap: 6px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
+.lt-toolbar button { padding: 5px 12px; font-size: 12px; border: 1px solid #ddd; border-radius: 3px; background: #fff; cursor: pointer; }
+.lt-toolbar button:hover { background: #f0f0f0; }
+.lt-toolbar .lt-btn-save { background: #4B7B81; color: #fff; border-color: #3a6166; font-weight: 600; }
+.lt-toolbar .lt-btn-save:hover { background: #3a6166; }
+.lt-status { padding: 6px 12px; font-size: 12px; color: #666; background: #f5f7fa; border-radius: 4px; margin-bottom: 8px; }
+.lt-table-wrap { flex: 1; overflow: auto; min-height: 0; }
+.lt-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+.lt-table th { padding: 6px 8px; text-align: left; background: #f0f4f5; border-bottom: 2px solid #4B7B81; color: #333; font-weight: 600; position: sticky; top: 0; z-index: 1; white-space: nowrap; }
+.lt-table td { padding: 4px 6px; border-bottom: 1px solid #eee; vertical-align: top; }
+.lt-table tr:hover td { background: #f9fafb; }
+.lt-table input, .lt-table select { font-size: 11px; padding: 2px 4px; border: 1px solid #ccc; border-radius: 3px; width: 100%; box-sizing: border-box; }
+.lt-table input.lt-svc { min-width: 200px; font-family: monospace; }
+.lt-table input.lt-num { width: 55px; text-align: right; }
+.lt-table input.lt-html { min-width: 120px; font-family: monospace; font-size: 10px; }
+.lt-table .lt-del { background: none; border: none; cursor: pointer; color: #c44; font-size: 14px; padding: 2px 6px; }
+.lt-table .lt-del:hover { color: #900; }
+.lt-table .lt-preview { background: none; border: none; cursor: pointer; color: #4B7B81; font-size: 12px; padding: 2px 6px; text-decoration: underline; }
+.lt-preview-wrap { border: 1px solid #ddd; border-radius: 4px; margin-top: 8px; background: #fff; }
+.lt-preview-wrap iframe { width: 100%; height: 400px; border: none; border-radius: 4px; }
+.lt-preview-bar { display: flex; align-items: center; gap: 8px; padding: 4px 8px; background: #f5f7fa; border-bottom: 1px solid #ddd; font-size: 11px; }
+.lt-preview-bar code { font-size: 10px; color: #666; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* ===== DEPLOYED TAB ===== */
 .deployed-toolbar { display: flex; gap: 6px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
@@ -946,6 +1075,8 @@ body {
     <button class="ags-tab" data-tab="editor">④ Config-Editor</button>
     <button class="ags-tab" data-tab="treebuilder">⑤ Tree-Builder</button>
     <button class="ags-tab" data-tab="deployed">⑥ Deployed</button>
+    <button class="ags-tab" data-tab="legendtuner">⑦ Legendtuner</button>
+    <button class="ags-tab" data-tab="bookmarks">⑧ Bookmarks</button>
   </div>
 
   <!-- ===== TAB: IMPORT ===== -->
@@ -1197,6 +1328,89 @@ body {
     </div>
   </div>
 
+  <!-- ===== TAB: LEGENDTUNER ===== -->
+  <div class="ags-pane" id="pane-legendtuner">
+    <div class="lt-toolbar">
+      <button onclick="addTunerEntry()">+ Neuer Eintrag</button>
+      <button class="lt-btn-save" onclick="saveLegendTuner()">💾 Speichern</button>
+      <button onclick="loadLegendTuner()">↻ Laden</button>
+      <button class="lt-btn-deploy" id="lt-btn-deploy" onclick="deployLegendTuner()" disabled>🚀 Deploy</button>
+      <span class="lt-entry-count" id="lt-entry-count"></span>
+      <span class="lt-deploy-status" id="lt-deploy-status"></span>
+    </div>
+    <div class="lt-status" id="lt-status">Wechsle zum Tab oder klicke ↻ um Legendtuner zu laden…</div>
+    <div class="lt-table-wrap">
+      <table class="lt-table" id="lt-table">
+        <thead>
+          <tr>
+            <th>Service-Pfad</th>
+            <th>Label</th>
+            <th>Gruppierung</th>
+            <th>W</th>
+            <th>H</th>
+            <th>DPI</th>
+            <th>Zoom</th>
+            <th>Resolve</th>
+            <th>Inject</th>
+            <th>HTML Vor</th>
+            <th>HTML Nach</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="lt-tbody"></tbody>
+      </table>
+    </div>
+    <div class="lt-preview-wrap" id="lt-preview-wrap" style="display:none;">
+      <div class="lt-preview-bar">
+        <span>Vorschau:</span>
+        <code id="lt-preview-url"></code>
+        <button onclick="document.getElementById('lt-preview-wrap').style.display='none'" style="border:none;background:none;cursor:pointer;font-size:14px" title="Schliessen">✕</button>
+      </div>
+      <iframe id="lt-preview-iframe"></iframe>
+    </div>
+  </div>
+
+  <!-- ===== TAB: BOOKMARKS ===== -->
+  <div class="ags-pane" id="pane-bookmarks">
+    <div class="bm-toolbar">
+      <button onclick="addBookmarkEntry()">+ Neuer Bookmark</button>
+      <button class="bm-btn-save" onclick="saveBookmarks()">💾 Speichern</button>
+      <button onclick="loadBookmarks()">↻ Laden</button>
+      <button id="bm-btn-undo" onclick="bmUndo()" disabled title="Rückgängig (Ctrl+Z)">↩</button>
+      <button id="bm-btn-redo" onclick="bmRedo()" disabled title="Wiederherstellen (Ctrl+Y)">↪</button>
+      <button id="bm-btn-expand-all" onclick="bmToggleAll()" title="Alle auf-/zuklappen">▶ Alle</button>
+      <span class="bm-count" id="bm-count"></span>
+      <span style="flex:1"></span>
+    </div>
+    <div class="bm-filter-bar">
+      <label>Name:</label><input type="text" data-col-filter="name" placeholder="Name…" oninput="bmColumnFilter()">
+      <label>Alias:</label><input type="text" data-col-filter="aliases" placeholder="Alias…" oninput="bmColumnFilter()">
+      <label>Basemap:</label><input type="text" data-col-filter="basemap" placeholder="Basemap…" oninput="bmColumnFilter()">
+      <label>Layer:</label><input type="text" data-col-filter="layers" placeholder="Layer…" oninput="bmColumnFilter()">
+    </div>
+    <div class="bm-status" id="bm-status">Wechsle zum Tab oder klicke ↻ um Bookmarks zu laden…</div>
+    <div class="bm-table-wrap">
+      <table class="bm-table" id="bm-table">
+        <thead>
+          <tr>
+            <th data-sort="name" style="width:160px;position:relative">Name <span class="bm-sort-icon">⇅</span><span class="bm-resize"></span></th>
+            <th data-sort="aliases" style="width:110px;position:relative">Aliases <span class="bm-sort-icon">⇅</span><span class="bm-resize"></span></th>
+            <th data-sort="basemap" style="width:100px;position:relative">Basemap <span class="bm-sort-icon">⇅</span><span class="bm-resize"></span></th>
+            <th data-sort="layers" style="width:auto;position:relative">Layers <span class="bm-sort-icon">⇅</span><span class="bm-resize"></span></th>
+            <th class="bm-col-hidden">Opacity</th>
+            <th class="bm-col-hidden">Theme</th>
+            <th class="bm-col-hidden">Subtheme</th>
+            <th class="bm-col-hidden">X</th>
+            <th class="bm-col-hidden">Y</th>
+            <th class="bm-col-hidden">Zoom</th>
+            <th style="width:70px"></th>
+          </tr>
+        </thead>
+        <tbody id="bm-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
 </div>
 <div id="file-editor-overlay">
   <div id="file-editor-dialog">
@@ -1215,6 +1429,25 @@ body {
       <span id="file-editor-status"></span>
       <button id="file-editor-validate">✓ Validieren</button>
       <button id="file-editor-save">💾 Speichern</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== COMMIT-MESSAGE-DIALOG ===== -->
+<div id="commit-msg-overlay">
+  <div id="commit-msg-dialog">
+    <div class="cmd-header">
+      <span class="cmd-icon">📝</span>
+      <span class="cmd-title">Git Commit-Nachricht</span>
+    </div>
+    <div class="cmd-body">
+      <label for="commit-msg-text">Commit-Nachricht (wird vor dem Commit angezeigt):</label>
+      <textarea id="commit-msg-text" rows="3" placeholder="Commit-Nachricht eingeben…"></textarea>
+    </div>
+    <div class="cmd-footer">
+      <button class="cmd-btn-cancel" id="commit-msg-cancel">Abbrechen</button>
+      <button class="cmd-btn-skip" id="commit-msg-skip" title="Speichern ohne Git-Commit">Ohne Git</button>
+      <button class="cmd-btn-commit" id="commit-msg-ok">✓ Commit &amp; Push</button>
     </div>
   </div>
 </div>
@@ -1252,6 +1485,63 @@ body {
 // =====================================================================
 var API_URL  = '/maps/tnet/api/v1/treebuilder-api.php';
 var GAPI_URL = '/gapi/ags2mapplus';
+
+// =====================================================================
+// COMMIT-MESSAGE-DIALOG
+// =====================================================================
+
+/**
+ * Zeigt einen modalen Dialog für die Git-Commit-Nachricht.
+ * Gibt ein Promise zurück:
+ *   - resolve({ message: '...' }) wenn bestätigt
+ *   - resolve({ skip: true }) wenn "Ohne Git" geklickt
+ *   - resolve(null) wenn abgebrochen
+ */
+function showCommitDialog(defaultMessage) {
+  return new Promise(function(resolve) {
+    var overlay = document.getElementById('commit-msg-overlay');
+    var textarea = document.getElementById('commit-msg-text');
+    var okBtn  = document.getElementById('commit-msg-ok');
+    var skipBtn = document.getElementById('commit-msg-skip');
+    var cancelBtn = document.getElementById('commit-msg-cancel');
+
+    textarea.value = defaultMessage || '';
+    overlay.classList.add('open');
+    textarea.focus();
+    textarea.select();
+
+    function cleanup() {
+      overlay.classList.remove('open');
+      okBtn.removeEventListener('click', onOk);
+      skipBtn.removeEventListener('click', onSkip);
+      cancelBtn.removeEventListener('click', onCancel);
+      textarea.removeEventListener('keydown', onKey);
+    }
+    function onOk() {
+      var msg = textarea.value.trim();
+      if (!msg) { textarea.focus(); return; }
+      cleanup();
+      resolve({ message: msg });
+    }
+    function onSkip() {
+      cleanup();
+      resolve({ skip: true });
+    }
+    function onCancel() {
+      cleanup();
+      resolve(null);
+    }
+    function onKey(e) {
+      if (e.key === 'Escape') onCancel();
+      if (e.key === 'Enter' && e.ctrlKey) onOk();
+    }
+
+    okBtn.addEventListener('click', onOk);
+    skipBtn.addEventListener('click', onSkip);
+    cancelBtn.addEventListener('click', onCancel);
+    textarea.addEventListener('keydown', onKey);
+  });
+}
 
 // =====================================================================
 // STATE
@@ -1396,6 +1686,10 @@ function switchTab(tabName, skipHash) {
   } else if (tabName === 'deployed') {
     loadDeployedConf();
     loadMissingNls();
+  } else if (tabName === 'legendtuner') {
+    loadLegendTuner();
+  } else if (tabName === 'bookmarks') {
+    loadBookmarks();
   }
 }
 
@@ -5247,22 +5541,27 @@ function gitCommitDeployedFiles(deployedFiles, kuerzel, statusEl) {
   var paths = deployedFiles.map(function(f) { return f.target_path; }).filter(Boolean);
   if (paths.length === 0) return;
 
-  fetch(GAPI_URL + '/git-commit-batch', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      deployPaths: paths,
-      source: 'deploy-staging',
-      message: 'Deploy ' + kuerzel + ': ' + paths.length + ' Dateien'
+  var defaultMsg = 'Deploy ' + kuerzel + ': ' + paths.length + ' Dateien';
+  showCommitDialog(defaultMsg).then(function(result) {
+    if (!result || result.skip) return;
+
+    fetch(GAPI_URL + '/git-commit-batch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        deployPaths: paths,
+        source: 'deploy-staging',
+        message: result.message
+      })
     })
-  })
-    .then(function(r) { return r.json(); })
-    .then(function(g) {
-      if (g.committed && statusEl) {
-        statusEl.textContent += ' — Git ✓ (' + (g.changed || 0) + ' Dateien)';
-      }
-    })
-    .catch(function() { /* Git-Fehler blockieren nicht */ });
+      .then(function(r) { return r.json(); })
+      .then(function(g) {
+        if (g.committed && statusEl) {
+          statusEl.textContent += ' — Git ✓ (' + (g.changed || 0) + ' Dateien)';
+        }
+      })
+      .catch(function() { /* Git-Fehler blockieren nicht */ });
+  });
 }
 
 /**
@@ -5894,18 +6193,21 @@ function saveDeployedFile() {
       statusEl.textContent = '✓ Gespeichert via SFTP (' + (content.length / 1024).toFixed(1) + ' KB) — Backup erstellt';
       statusEl.className = 'ok';
 
-      // 3. Git-Commit (non-blocking)
+      // 3. Git-Commit (mit Commit-Dialog)
       if (_deployPath) {
-        fetch(GAPI_URL + '/git-commit-conf', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ deployPath: _deployPath, source: fi.source || '', message: 'Edit: ' + fi.name })
-        })
-          .then(function(r) { return r.json(); })
-          .then(function(g) {
-            if (g.committed) statusEl.textContent += ' — Git ✓';
+        showCommitDialog('Edit: ' + fi.name).then(function(result) {
+          if (!result || result.skip) return;
+          fetch(GAPI_URL + '/git-commit-conf', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ deployPath: _deployPath, source: fi.source || '', message: result.message })
           })
-          .catch(function() { /* Git-Fehler blockieren nicht */ });
+            .then(function(r) { return r.json(); })
+            .then(function(g) {
+              if (g.committed) statusEl.textContent += ' — Git ✓';
+            })
+            .catch(function() { /* Git-Fehler blockieren nicht */ });
+        });
       }
     })
     .catch(function(err) {
@@ -6117,7 +6419,7 @@ function saveNlsEntry(item, value, btn, tr) {
 
 (function initFromHash() {
   var p = parseUrlHash();
-  var validTabs = ['import', 'manage', 'staging', 'editor', 'treebuilder', 'deployed'];
+  var validTabs = ['import', 'manage', 'staging', 'editor', 'treebuilder', 'deployed', 'legendtuner', 'bookmarks'];
   var startTab = (p.tab && validTabs.indexOf(p.tab) !== -1) ? p.tab : 'import';
 
   if (startTab !== 'import') {
@@ -6143,6 +6445,1045 @@ function saveNlsEntry(item, value, btn, tr) {
     };
   }
 })();
+
+// =====================================================================
+// LEGENDTUNER — Parameter-Overrides pro Service
+// =====================================================================
+
+var _tunerData = {};
+var _tunerLoaded = false;
+
+function loadLegendTuner() {
+  var status = document.getElementById('lt-status');
+  status.textContent = 'Lade Legendtuner…';
+  fetch('treebuilder-api.php?action=legend-tuner-load')
+    .then(function(r) { return r.json(); })
+    .then(function(res) {
+      if (!res.success) { status.textContent = 'Fehler: ' + (res.error || 'Unbekannt'); return; }
+      _tunerData = res.data || {};
+      _tunerLoaded = true;
+      renderTunerTable();
+      var n = Object.keys(_tunerData).length;
+      var srcLabel = res.source === 'draft' ? 'Entwurf' : res.source === 'deployed' ? 'Deployed' : 'Leer';
+      status.textContent = n + ' Einträge geladen — Quelle: ' + srcLabel;
+      document.getElementById('lt-entry-count').textContent = n + ' Einträge';
+      updateDeployStatus(res.source, res.deployedSync);
+    })
+    .catch(function(e) { status.textContent = 'Fehler: ' + e.message; });
+}
+
+function renderTunerTable() {
+  var tbody = document.getElementById('lt-tbody');
+  tbody.innerHTML = '';
+  var keys = Object.keys(_tunerData).sort();
+  keys.forEach(function(key) {
+    var cfg = _tunerData[key];
+    tbody.appendChild(buildTunerRow(key, cfg));
+  });
+}
+
+function buildTunerRow(key, cfg) {
+  var tr = document.createElement('tr');
+  tr.dataset.key = key;
+
+  // Service-Pfad
+  var tdSvc = document.createElement('td');
+  var inpSvc = document.createElement('input');
+  inpSvc.className = 'lt-svc';
+  inpSvc.value = key;
+  inpSvc.dataset.field = 'service';
+  tdSvc.appendChild(inpSvc);
+  tr.appendChild(tdSvc);
+
+  // Label
+  tr.appendChild(makeInputTd(cfg.label || '', 'label'));
+
+  // Gruppierung
+  tr.appendChild(makeInputTd(cfg.legendgroup || '', 'legendgroup', 'z.B. Gemeinde'));
+
+  // Width
+  tr.appendChild(makeNumTd(cfg.width, 'width'));
+
+  // Height
+  tr.appendChild(makeNumTd(cfg.height, 'height'));
+
+  // DPI
+  tr.appendChild(makeNumTd(cfg.dpi, 'dpi'));
+
+  // Zoom
+  tr.appendChild(makeNumTd(cfg.zoom, 'zoom'));
+
+  // Resolve
+  var tdRes = document.createElement('td');
+  var selRes = document.createElement('select');
+  selRes.dataset.field = 'resolve';
+  selRes.innerHTML = '<option value="">—</option><option value="true">Ja</option><option value="false">Nein</option>';
+  if (cfg.resolve === true) selRes.value = 'true';
+  else if (cfg.resolve === false) selRes.value = 'false';
+  tdRes.appendChild(selRes);
+  tr.appendChild(tdRes);
+
+  // Inject
+  var tdInj = document.createElement('td');
+  var selInj = document.createElement('select');
+  selInj.dataset.field = 'inject';
+  selInj.innerHTML = '<option value="">—</option><option value="true">Ja</option><option value="false">Nein</option>';
+  if (cfg.inject === true) selInj.value = 'true';
+  else if (cfg.inject === false) selInj.value = 'false';
+  tdInj.appendChild(selInj);
+  tr.appendChild(tdInj);
+
+  // HTML Before
+  tr.appendChild(makeInputTd(cfg.htmlBefore || '', 'htmlBefore', 'HTML…', 'lt-html'));
+
+  // HTML After
+  tr.appendChild(makeInputTd(cfg.htmlAfter || '', 'htmlAfter', 'HTML…', 'lt-html'));
+
+  // Aktionen
+  var tdAct = document.createElement('td');
+  tdAct.style.whiteSpace = 'nowrap';
+  var btnPreview = document.createElement('button');
+  btnPreview.className = 'lt-preview';
+  btnPreview.textContent = '👁';
+  btnPreview.title = 'Vorschau';
+  btnPreview.onclick = function() { previewLegend(tr); };
+  tdAct.appendChild(btnPreview);
+  var btnDel = document.createElement('button');
+  btnDel.className = 'lt-del';
+  btnDel.textContent = '✕';
+  btnDel.title = 'Eintrag entfernen';
+  btnDel.onclick = function() { tr.remove(); updateTunerCount(); };
+  tdAct.appendChild(btnDel);
+  tr.appendChild(tdAct);
+
+  return tr;
+}
+
+function makeInputTd(val, field, placeholder, extraClass) {
+  var td = document.createElement('td');
+  var inp = document.createElement('input');
+  inp.type = 'text';
+  inp.value = val;
+  inp.dataset.field = field;
+  if (placeholder) inp.placeholder = placeholder;
+  if (extraClass) inp.className = extraClass;
+  td.appendChild(inp);
+  return td;
+}
+
+function makeNumTd(val, field) {
+  var td = document.createElement('td');
+  var inp = document.createElement('input');
+  inp.type = 'number';
+  inp.className = 'lt-num';
+  inp.dataset.field = field;
+  if (val !== undefined && val !== null && val !== '') inp.value = val;
+  td.appendChild(inp);
+  return td;
+}
+
+function addTunerEntry() {
+  var tbody = document.getElementById('lt-tbody');
+  tbody.appendChild(buildTunerRow('', {}));
+  updateTunerCount();
+  // Focus auf das Service-Feld der neuen Zeile
+  var rows = tbody.querySelectorAll('tr');
+  var last = rows[rows.length - 1];
+  if (last) {
+    var inp = last.querySelector('input.lt-svc');
+    if (inp) inp.focus();
+  }
+}
+
+function collectTunerData() {
+  var data = {};
+  var rows = document.querySelectorAll('#lt-tbody tr');
+  rows.forEach(function(tr) {
+    var svcInput = tr.querySelector('[data-field="service"]');
+    var key = svcInput ? svcInput.value.trim() : '';
+    if (!key) return; // Leere Service-Keys überspringen
+
+    var cfg = {};
+    var label = getField(tr, 'label');
+    if (label) cfg.label = label;
+
+    var legendgroup = getField(tr, 'legendgroup');
+    if (legendgroup) cfg.legendgroup = legendgroup;
+
+    var width = getNumField(tr, 'width');
+    if (width !== null) cfg.width = width;
+
+    var height = getNumField(tr, 'height');
+    if (height !== null) cfg.height = height;
+
+    var dpi = getNumField(tr, 'dpi');
+    if (dpi !== null) cfg.dpi = dpi;
+
+    var zoom = getNumField(tr, 'zoom');
+    if (zoom !== null) cfg.zoom = zoom;
+
+    var resolve = getSelectField(tr, 'resolve');
+    if (resolve !== null) cfg.resolve = resolve;
+
+    var inject = getSelectField(tr, 'inject');
+    if (inject !== null) cfg.inject = inject;
+
+    var htmlBefore = getField(tr, 'htmlBefore');
+    if (htmlBefore) cfg.htmlBefore = htmlBefore;
+
+    var htmlAfter = getField(tr, 'htmlAfter');
+    if (htmlAfter) cfg.htmlAfter = htmlAfter;
+
+    data[key] = cfg;
+  });
+  return data;
+}
+
+function getField(tr, name) {
+  var el = tr.querySelector('[data-field="' + name + '"]');
+  return el ? el.value.trim() : '';
+}
+
+function getNumField(tr, name) {
+  var el = tr.querySelector('[data-field="' + name + '"]');
+  if (!el || el.value.trim() === '') return null;
+  return parseFloat(el.value);
+}
+
+function getSelectField(tr, name) {
+  var el = tr.querySelector('[data-field="' + name + '"]');
+  if (!el || el.value === '') return null;
+  return el.value === 'true';
+}
+
+function saveLegendTuner() {
+  var data = collectTunerData();
+  var status = document.getElementById('lt-status');
+  status.textContent = 'Speichere…';
+
+  fetch('treebuilder-api.php?action=legend-tuner-save', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(res) {
+    if (res.success) {
+      _tunerData = data;
+      status.textContent = '✓ Gespeichert — ' + (res.entries || 0) + ' Einträge, ' + (res.bytes || 0) + ' Bytes';
+      updateTunerCount();
+      updateDeployStatus('draft', false);
+    } else {
+      status.textContent = 'Fehler: ' + (res.error || 'Unbekannt');
+    }
+  })
+  .catch(function(e) { status.textContent = 'Fehler: ' + e.message; });
+}
+
+function updateTunerCount() {
+  var n = document.querySelectorAll('#lt-tbody tr').length;
+  document.getElementById('lt-entry-count').textContent = n + ' Einträge';
+}
+
+function previewLegend(tr) {
+  var svcInput = tr.querySelector('[data-field="service"]');
+  var key = svcInput ? svcInput.value.trim() : '';
+  if (!key) return;
+
+  // Wildcards können nicht in der Vorschau angezeigt werden
+  if (key.indexOf('*') !== -1) {
+    alert('Wildcard-Einträge (mit *) können nicht in der Vorschau angezeigt werden.\nBitte einen konkreten Service-Pfad eingeben.');
+    return;
+  }
+
+  // Service-Pfad normalisieren (ohne /MapServer)
+  var svc = key.replace(/\/MapServer$/i, '');
+  var url = 'legend-proxy.php?service=' + encodeURIComponent(svc) + '&debug=1&nocache=1';
+
+  var wrap = document.getElementById('lt-preview-wrap');
+  var iframe = document.getElementById('lt-preview-iframe');
+  var urlEl = document.getElementById('lt-preview-url');
+
+  urlEl.textContent = url;
+  iframe.src = url;
+  wrap.style.display = 'block';
+}
+
+function deployLegendTuner() {
+  var status = document.getElementById('lt-status');
+  var deployStatus = document.getElementById('lt-deploy-status');
+  var btn = document.getElementById('lt-btn-deploy');
+  btn.disabled = true;
+  status.textContent = 'Deploye Legendtuner…';
+
+  fetch(GAPI_URL + '/deploy-legend-tuner', { method: 'POST' })
+    .then(function(r) { return r.json(); })
+    .then(function(res) {
+      if (res.success) {
+        if (res.action === 'skipped') {
+          status.textContent = '✓ ' + res.message;
+          deployStatus.textContent = '✓ Synchron';
+          deployStatus.className = 'lt-deploy-status lt-sync';
+        } else {
+          status.textContent = '✓ ' + res.message;
+          deployStatus.textContent = '✓ Deployed';
+          deployStatus.className = 'lt-deploy-status lt-sync';
+        }
+      } else {
+        status.textContent = 'Fehler: ' + (res.detail || 'Unbekannt');
+        btn.disabled = false;
+      }
+    })
+    .catch(function(e) {
+      status.textContent = 'Deploy-Fehler: ' + e.message;
+      btn.disabled = false;
+    });
+}
+
+function updateDeployStatus(source, deployedSync) {
+  var deployStatus = document.getElementById('lt-deploy-status');
+  var btn = document.getElementById('lt-btn-deploy');
+  if (source === 'draft') {
+    if (deployedSync) {
+      deployStatus.textContent = '✓ Synchron';
+      deployStatus.className = 'lt-deploy-status lt-sync';
+      btn.disabled = true;
+    } else {
+      deployStatus.textContent = '⬆ Draft — nicht deployed';
+      deployStatus.className = 'lt-deploy-status lt-unsync';
+      btn.disabled = false;
+    }
+  } else if (source === 'deployed') {
+    deployStatus.textContent = '✓ Deployed (kein Draft)';
+    deployStatus.className = 'lt-deploy-status lt-sync';
+    btn.disabled = true;
+  } else {
+    deployStatus.textContent = '';
+    btn.disabled = true;
+  }
+}
+
+// =====================================================================
+// BOOKMARKS-TAB
+// =====================================================================
+var _bmData = null;       // geladene Bookmark-Daten (Array)
+var _bmLoaded = false;    // wurde bereits geladen?
+var _bmAllLayerKeys = [];  // alle verfügbaren Layer-Keys (für Autocomplete / Validierung)
+var _bmLayersLoaded = false;
+
+// Alle verfügbaren Layer-Keys vom Server laden (einmal gecacht)
+function loadAllLayerKeys() {
+  if (_bmLayersLoaded) return Promise.resolve(_bmAllLayerKeys);
+  return fetch('treebuilder-api.php?action=list-all-layers')
+    .then(function(r) { return r.json(); })
+    .then(function(res) {
+      if (res.success && res.data && Array.isArray(res.data.layers)) {
+        _bmAllLayerKeys = res.data.layers.map(function(l) { return l.id; }).sort();
+      }
+      _bmLayersLoaded = true;
+      return _bmAllLayerKeys;
+    })
+    .catch(function() { _bmLayersLoaded = true; return _bmAllLayerKeys; });
+}
+
+function loadBookmarks() {
+  if (_bmLoaded && _bmData) {
+    // Schon geladen → nur rendern
+    return;
+  }
+  var status = document.getElementById('bm-status');
+  status.textContent = 'Lade Bookmarks…';
+  status.className = 'bm-status';
+
+  // Layer-Keys parallel laden (für Autocomplete / Validierung)
+  loadAllLayerKeys().then(function() {
+    // Falls Tabelle bereits gerendert wurde, Tags nachträglich validieren
+    revalidateAllLayerTags();
+  });
+
+  fetch('treebuilder-api.php?action=bookmarks-load')
+    .then(function(r) { return r.json(); })
+    .then(function(res) {
+      if (res.success && Array.isArray(res.data)) {
+        _bmData = res.data;
+        _bmLoaded = true;
+        renderBookmarkTable(_bmData);
+        status.textContent = '✓ ' + _bmData.length + ' Bookmarks geladen';
+        status.className = 'bm-status success';
+      } else {
+        status.textContent = 'Fehler: ' + (res.error || 'Unbekannt');
+        status.className = 'bm-status error';
+      }
+    })
+    .catch(function(e) {
+      status.textContent = 'Fehler: ' + e.message;
+      status.className = 'bm-status error';
+    });
+}
+
+function renderBookmarkTable(bookmarks) {
+  var tbody = document.getElementById('bm-tbody');
+  tbody.innerHTML = '';
+  for (var i = 0; i < bookmarks.length; i++) {
+    var rows = createBookmarkRows(bookmarks[i], i);
+    // Zebra-Streifen: gerade Zeilen markieren
+    if (i % 2 === 1) rows.summary.classList.add('bm-row-even');
+    tbody.appendChild(rows.summary);
+    tbody.appendChild(rows.detail);
+  }
+  updateBookmarkCount();
+  bmColumnFilter(); // Filter anwenden falls aktiv
+}
+
+function createBookmarkRows(bm, idx) {
+  var name = bm['map-bookmark'] || '';
+  var aliases = (bm.aliases || []).join(', ');
+  var basemap = bm.basemap || '';
+  var layerArr = bm.layers || [];
+  var opacity = (bm.opacity || []).join(', ');
+  var theme = bm.theme || '';
+  var subtheme = bm.subtheme || '';
+  var x = bm.x != null ? bm.x : '';
+  var y = bm.y != null ? bm.y : '';
+  var zoom = bm.zoom != null ? bm.zoom : '';
+
+  // Zusammenfassungs-Zeile (immer sichtbar, einklappbar)
+  var summary = document.createElement('tr');
+  summary.className = 'bm-row-summary';
+  summary.dataset.idx = idx;
+  summary.dataset.name = name.toLowerCase();
+  summary.dataset.aliases = aliases.toLowerCase();
+  summary.dataset.basemap = basemap.toLowerCase();
+  summary.dataset.layerText = layerArr.join(' ').toLowerCase();
+
+  var layerPreview = '';
+  for (var lp = 0; lp < Math.min(layerArr.length, 4); lp++) {
+    var isV = _bmAllLayerKeys.indexOf(layerArr[lp]) !== -1;
+    layerPreview += '<span class="bm-layer-tag ' + (isV ? 'valid' : 'invalid') + '" data-layer="' + esc(layerArr[lp]) + '">' + esc(layerArr[lp]) + '</span>';
+  }
+  if (layerArr.length > 4) layerPreview += '<span style="font-size:10px;color:#888"> +' + (layerArr.length - 4) + '</span>';
+  if (layerArr.length === 0) layerPreview = '<span style="color:#ccc;font-size:10px">–</span>';
+
+  summary.innerHTML =
+    '<td><span class="bm-expand-icon">▶</span><strong style="font-family:monospace;font-size:11px">' + esc(name) + '</strong></td>' +
+    '<td style="font-family:monospace;font-size:10px;color:#666">' + esc(aliases) + '</td>' +
+    '<td style="font-size:10px;color:#666">' + esc(basemap) + '</td>' +
+    '<td class="bm-summary-layers">' + layerPreview + '</td>' +
+    '<td class="bm-col-hidden"></td><td class="bm-col-hidden"></td><td class="bm-col-hidden"></td>' +
+    '<td class="bm-col-hidden"></td><td class="bm-col-hidden"></td><td class="bm-col-hidden"></td>' +
+    '<td>' +
+    '  <button class="bm-open" onclick="event.stopPropagation();openBookmarkUrl(this.closest(\'tr\'))" title="Im Browser öffnen">↗</button>' +
+    '  <button class="bm-del" onclick="event.stopPropagation();deleteBookmarkRow(this.closest(\'tr\'))" title="Löschen">🗑</button>' +
+    '</td>';
+
+  // Detail-Zeile (Formularfelder, default eingeklappt)
+  var detail = document.createElement('tr');
+  detail.className = 'bm-row-detail';
+  detail.dataset.idx = idx;
+  var detailTd = document.createElement('td');
+  detailTd.colSpan = 11;
+  detailTd.innerHTML =
+    '<div style="display:grid;grid-template-columns:100px 1fr;gap:4px 8px;max-width:800px;font-size:11px">' +
+    '<label>Name:</label><input class="bm-name" data-field="name" value="' + esc(name) + '" oninput="markBmChanged(this);bmSyncSummary(this)">' +
+    '<label>Aliases:</label><input class="bm-alias" data-field="aliases" value="' + esc(aliases) + '" title="Kommasepariert" oninput="markBmChanged(this);bmSyncSummary(this)">' +
+    '<label>Basemap:</label><input data-field="basemap" value="' + esc(basemap) + '" oninput="markBmChanged(this);bmSyncSummary(this)">' +
+    '<label>Layers:</label><div class="bm-layers-wrap"><div class="bm-layers-tags"></div><input class="bm-layers-input" data-field="layers" placeholder="Layer hinzufügen…" autocomplete="off"><div class="bm-ac-list"></div></div>' +
+    '<label>Opacity:</label><input class="bm-num" data-field="opacity" value="' + esc(opacity) + '" title="Kommasepariert (0-1)" oninput="markBmChanged(this)">' +
+    '<label>Theme:</label><input data-field="theme" value="' + esc(theme) + '" oninput="markBmChanged(this)">' +
+    '<label>Subtheme:</label><input data-field="subtheme" value="' + esc(subtheme) + '" oninput="markBmChanged(this)">' +
+    '<label>X:</label><input class="bm-num" data-field="x" value="' + esc(String(x)) + '" oninput="markBmChanged(this)">' +
+    '<label>Y:</label><input class="bm-num" data-field="y" value="' + esc(String(y)) + '" oninput="markBmChanged(this)">' +
+    '<label>Zoom:</label><input class="bm-num" data-field="zoom" value="' + esc(String(zoom)) + '" oninput="markBmChanged(this)">' +
+    '</div>';
+  detail.appendChild(detailTd);
+
+  // Layer-Tags rendern im Detail
+  var tagsDiv = detail.querySelector('.bm-layers-tags');
+  var acInput = detail.querySelector('.bm-layers-input');
+  var acList = detail.querySelector('.bm-ac-list');
+  for (var li = 0; li < layerArr.length; li++) {
+    tagsDiv.appendChild(createLayerTag(layerArr[li], detail));
+  }
+  initLayerAutocomplete(acInput, acList, tagsDiv, detail);
+
+  // Klick auf Summary → Detail ein-/ausklappen
+  summary.addEventListener('click', function(e) {
+    if (e.target.closest('button')) return;
+    var expanded = detail.classList.toggle('bm-expanded');
+    summary.classList.toggle('bm-expanded-row', expanded);
+    // Inline-Style muss auch gesetzt werden (bmColumnFilter setzt display inline)
+    detail.style.display = expanded ? 'table-row' : 'none';
+  });
+
+  return { summary: summary, detail: detail };
+}
+
+// Summary-Zeile synchronisieren wenn Detail-Felder geändert werden
+function bmSyncSummary(input) {
+  var detailRow = input.closest('tr.bm-row-detail');
+  if (!detailRow) return;
+  var idx = detailRow.dataset.idx;
+  var summaryRow = document.querySelector('tr.bm-row-summary[data-idx="' + idx + '"]');
+  if (!summaryRow) return;
+  var nameInput = detailRow.querySelector('[data-field="name"]');
+  var aliasInput = detailRow.querySelector('[data-field="aliases"]');
+  var basemapInput = detailRow.querySelector('[data-field="basemap"]');
+  var nameCell = summaryRow.children[0];
+  var aliasCell = summaryRow.children[1];
+  var basemapCell = summaryRow.children[2];
+  nameCell.innerHTML = '<span class="bm-expand-icon" style="transform:rotate(90deg)">▶</span><strong style="font-family:monospace;font-size:11px">' + esc(nameInput.value) + '</strong>';
+  aliasCell.textContent = aliasInput.value;
+  basemapCell.textContent = basemapInput.value;
+  // data-Attribute für Filter aktualisieren
+  summaryRow.dataset.name = (nameInput.value || '').toLowerCase();
+  summaryRow.dataset.aliases = (aliasInput.value || '').toLowerCase();
+  summaryRow.dataset.basemap = (basemapInput.value || '').toLowerCase();
+}
+
+function markBmChanged(input) {
+  var tr = input.closest('tr');
+  if (tr) tr.classList.add('bm-row-changed');
+  // Auch die zugehörige Summary-Zeile als geändert markieren
+  if (tr && tr.classList.contains('bm-row-detail')) {
+    var idx = tr.dataset.idx;
+    var sum = document.querySelector('tr.bm-row-summary[data-idx="' + idx + '"]');
+    if (sum) sum.classList.add('bm-row-changed');
+  }
+}
+
+// ===== LAYER-TAG + AUTOCOMPLETE =====
+
+// Einzelnes Layer-Tag erstellen (farblich validiert)
+function createLayerTag(layerKey, tr) {
+  var span = document.createElement('span');
+  span.className = 'bm-layer-tag';
+  span.dataset.layer = layerKey;
+  var isValid = _bmAllLayerKeys.indexOf(layerKey) !== -1;
+  span.classList.add(isValid ? 'valid' : 'invalid');
+  span.title = isValid ? 'Layer vorhanden' : 'Layer nicht gefunden!';
+  span.innerHTML = esc(layerKey) + '<span class="bm-tag-x" title="Entfernen">×</span>';
+  span.querySelector('.bm-tag-x').addEventListener('click', function() {
+    span.remove();
+    if (tr) tr.classList.add('bm-row-changed');
+  });
+  return span;
+}
+
+// Layer-Tags im Container als Array auslesen
+function getLayerTagValues(tagsDiv) {
+  var tags = tagsDiv.querySelectorAll('.bm-layer-tag');
+  var arr = [];
+  for (var i = 0; i < tags.length; i++) {
+    arr.push(tags[i].dataset.layer);
+  }
+  return arr;
+}
+
+// Autocomplete für Layer-Eingabe initialisieren
+function initLayerAutocomplete(input, acList, tagsDiv, tr) {
+  var activeIdx = -1;
+
+  input.addEventListener('input', function() {
+    var val = input.value.trim().toLowerCase();
+    acList.innerHTML = '';
+    activeIdx = -1;
+    if (val.length < 1) { acList.style.display = 'none'; return; }
+
+    // Bereits vorhandene Tags ausschliessen
+    var existing = getLayerTagValues(tagsDiv);
+    var matches = _bmAllLayerKeys.filter(function(k) {
+      return k.toLowerCase().indexOf(val) !== -1 && existing.indexOf(k) === -1;
+    }).slice(0, 30);
+
+    if (matches.length === 0) { acList.style.display = 'none'; return; }
+
+    for (var i = 0; i < matches.length; i++) {
+      var div = document.createElement('div');
+      // Treffer hervorheben
+      var lowerKey = matches[i].toLowerCase();
+      var pos = lowerKey.indexOf(val);
+      div.innerHTML = esc(matches[i].substring(0, pos)) +
+        '<span class="bm-ac-match">' + esc(matches[i].substring(pos, pos + val.length)) + '</span>' +
+        esc(matches[i].substring(pos + val.length));
+      div.dataset.key = matches[i];
+      div.addEventListener('click', (function(key) {
+        return function() {
+          tagsDiv.appendChild(createLayerTag(key, tr));
+          input.value = '';
+          acList.style.display = 'none';
+          tr.classList.add('bm-row-changed');
+          input.focus();
+        };
+      })(matches[i]));
+      acList.appendChild(div);
+    }
+    acList.style.display = 'block';
+  });
+
+  // Tastaturnavigation in der Autocomplete-Liste
+  input.addEventListener('keydown', function(e) {
+    var items = acList.querySelectorAll('div');
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      activeIdx = Math.min(activeIdx + 1, items.length - 1);
+      updateAcActive(items, activeIdx);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      activeIdx = Math.max(activeIdx - 1, 0);
+      updateAcActive(items, activeIdx);
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (activeIdx >= 0 && items[activeIdx]) {
+        items[activeIdx].click();
+      } else if (input.value.trim()) {
+        // Freitext-Eingabe erlauben (Komma oder Enter)
+        tagsDiv.appendChild(createLayerTag(input.value.trim(), tr));
+        input.value = '';
+        acList.style.display = 'none';
+        tr.classList.add('bm-row-changed');
+      }
+    } else if (e.key === 'Escape') {
+      acList.style.display = 'none';
+    } else if (e.key === 'Backspace' && !input.value) {
+      // Letztes Tag löschen bei Backspace im leeren Feld
+      var lastTag = tagsDiv.querySelector('.bm-layer-tag:last-child');
+      if (lastTag) { lastTag.remove(); tr.classList.add('bm-row-changed'); }
+    }
+  });
+
+  // Komma als Trennzeichen → sofort Tag erzeugen
+  input.addEventListener('keyup', function(e) {
+    if (input.value.indexOf(',') !== -1) {
+      var parts = input.value.split(',');
+      for (var p = 0; p < parts.length; p++) {
+        var v = parts[p].trim();
+        if (v) {
+          tagsDiv.appendChild(createLayerTag(v, tr));
+          tr.classList.add('bm-row-changed');
+        }
+      }
+      input.value = '';
+      acList.style.display = 'none';
+    }
+  });
+
+  // Autocomplete schliessen bei Klick ausserhalb
+  document.addEventListener('click', function(e) {
+    if (!input.contains(e.target) && !acList.contains(e.target)) {
+      acList.style.display = 'none';
+    }
+  });
+}
+
+function updateAcActive(items, idx) {
+  for (var i = 0; i < items.length; i++) {
+    items[i].classList.toggle('bm-ac-active', i === idx);
+  }
+  if (items[idx]) items[idx].scrollIntoView({ block: 'nearest' });
+}
+
+// Alle Layer-Tags nach Laden der Layer-Keys neu validieren
+function revalidateAllLayerTags() {
+  var tags = document.querySelectorAll('#bm-tbody .bm-layer-tag');
+  for (var i = 0; i < tags.length; i++) {
+    var key = tags[i].dataset.layer;
+    var isValid = _bmAllLayerKeys.indexOf(key) !== -1;
+    tags[i].classList.remove('valid', 'invalid');
+    tags[i].classList.add(isValid ? 'valid' : 'invalid');
+    tags[i].title = isValid ? 'Layer vorhanden' : 'Layer nicht gefunden!';
+  }
+}
+
+function addBookmarkEntry() {
+  bmPushUndo();
+  var tbody = document.getElementById('bm-tbody');
+  var idx = tbody.querySelectorAll('tr.bm-row-summary').length;
+  var emptyBm = { 'map-bookmark': '', basemap: '', layers: [] };
+  var rows = createBookmarkRows(emptyBm, idx);
+  rows.summary.classList.add('bm-row-changed');
+  rows.detail.classList.add('bm-expanded'); // Neue Einträge aufgeklappt
+  rows.summary.classList.add('bm-expanded-row');
+  tbody.insertBefore(rows.detail, tbody.firstChild);
+  tbody.insertBefore(rows.summary, rows.detail);
+  // Fokus auf Name-Feld
+  var nameInput = rows.detail.querySelector('[data-field="name"]');
+  if (nameInput) nameInput.focus();
+  updateBookmarkCount();
+}
+
+function deleteBookmarkRow(tr) {
+  if (!confirm('Bookmark löschen?')) return;
+  bmPushUndo();
+  // Summary und Detail entfernen
+  var idx = tr.dataset.idx;
+  if (tr.classList.contains('bm-row-summary')) {
+    var detail = document.querySelector('tr.bm-row-detail[data-idx="' + idx + '"]');
+    if (detail) detail.remove();
+    tr.remove();
+  } else if (tr.classList.contains('bm-row-detail')) {
+    var summary = document.querySelector('tr.bm-row-summary[data-idx="' + idx + '"]');
+    if (summary) summary.remove();
+    tr.remove();
+  } else {
+    tr.remove();
+  }
+  updateBookmarkCount();
+}
+
+function openBookmarkUrl(tr) {
+  // Name aus Summary-data-Attribut oder Detail-Input lesen
+  var name = '';
+  if (tr.classList.contains('bm-row-summary')) {
+    var idx = tr.dataset.idx;
+    var detail = document.querySelector('tr.bm-row-detail[data-idx="' + idx + '"]');
+    if (detail) name = (detail.querySelector('[data-field="name"]').value || '').trim();
+    if (!name) name = (tr.dataset.name || '').trim();
+  } else {
+    var inp = tr.querySelector('[data-field="name"]');
+    name = inp ? inp.value.trim() : '';
+  }
+  if (!name) { alert('Kein Name eingetragen'); return; }
+  var url = 'https://www.gis-daten.ch/maps/' + encodeURIComponent(name);
+  window.open(url, '_blank');
+}
+
+function collectBookmarkData() {
+  var rows = document.querySelectorAll('#bm-tbody tr.bm-row-detail');
+  var result = [];
+  for (var i = 0; i < rows.length; i++) {
+    var tr = rows[i];
+    var name = tr.querySelector('[data-field="name"]').value.trim();
+    if (!name) continue; // Leere Zeilen ignorieren
+
+    var entry = { 'map-bookmark': name };
+
+    var aliasStr = tr.querySelector('[data-field="aliases"]').value.trim();
+    if (aliasStr) {
+      entry.aliases = aliasStr.split(',').map(function(s) { return s.trim(); }).filter(Boolean);
+    }
+
+    var basemap = tr.querySelector('[data-field="basemap"]').value.trim();
+    if (basemap) entry.basemap = basemap;
+
+    // Layer aus Tag-Container lesen
+    var tagsDiv = tr.querySelector('.bm-layers-tags');
+    if (tagsDiv) {
+      var layerTags = getLayerTagValues(tagsDiv);
+      if (layerTags.length) entry.layers = layerTags;
+    }
+
+    var opacityStr = tr.querySelector('[data-field="opacity"]').value.trim();
+    if (opacityStr) {
+      entry.opacity = opacityStr.split(',').map(function(s) { return s.trim(); }).filter(Boolean);
+    }
+
+    var theme = tr.querySelector('[data-field="theme"]').value.trim();
+    if (theme) entry.theme = theme;
+
+    var subtheme = tr.querySelector('[data-field="subtheme"]').value.trim();
+    if (subtheme) entry.subtheme = subtheme;
+
+    var xVal = tr.querySelector('[data-field="x"]').value.trim();
+    if (xVal) entry.x = parseFloat(xVal);
+
+    var yVal = tr.querySelector('[data-field="y"]').value.trim();
+    if (yVal) entry.y = parseFloat(yVal);
+
+    var zoomVal = tr.querySelector('[data-field="zoom"]').value.trim();
+    if (zoomVal) entry.zoom = parseInt(zoomVal, 10);
+
+    result.push(entry);
+  }
+  return result;
+}
+
+function saveBookmarks() {
+  var data = collectBookmarkData();
+  var status = document.getElementById('bm-status');
+
+  // Commit-Dialog vor dem Speichern anzeigen
+  var changedCount = document.querySelectorAll('#bm-tbody tr.bm-row-summary.bm-row-changed').length;
+  var defaultMsg = '[bookmarks] ' + data.length + ' Bookmarks aktualisiert' + (changedCount ? ' (' + changedCount + ' geändert)' : '');
+
+  showCommitDialog(defaultMsg).then(function(result) {
+    if (!result) return; // Abgebrochen
+
+    status.textContent = 'Speichere ' + data.length + ' Bookmarks…';
+    status.className = 'bm-status';
+
+    // 1. PHP: Server-Datei speichern
+    fetch('treebuilder-api.php?action=bookmarks-save', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(res) {
+      if (!res.success) throw new Error(res.error || 'Unbekannt');
+
+      _bmData = data;
+      status.textContent = '✓ Gespeichert — ' + data.length + ' Bookmarks';
+      status.className = 'bm-status success';
+      document.querySelectorAll('#bm-tbody .bm-row-changed').forEach(function(tr) {
+        tr.classList.remove('bm-row-changed');
+      });
+      updateBookmarkCount();
+
+      // 2. FastAPI: SFTP-Deploy + Git-Commit (wenn nicht übersprungen)
+      if (!result.skip) {
+        status.textContent += ' — Deploye…';
+        fetch(GAPI_URL + '/deploy-bookmarks', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: result.message })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(g) {
+          if (g.success && g.action === 'deployed') {
+            status.textContent = '✓ Deployed — ' + data.length + ' Bookmarks';
+            if (g.git_committed) status.textContent += ' — Git ✓';
+          } else if (g.success && g.action === 'skipped') {
+            status.textContent = '✓ Gespeichert — ' + data.length + ' Bookmarks (keine Änderungen)';
+          } else {
+            status.textContent += ' — Deploy-Fehler: ' + (g.detail || 'Unbekannt');
+          }
+        })
+        .catch(function(e) {
+          status.textContent += ' — Deploy-Fehler: ' + e.message;
+        });
+      } else {
+        status.textContent = '✓ Draft gespeichert — ' + data.length + ' Bookmarks (nicht deployed)';
+      }
+    })
+    .catch(function(e) {
+      status.textContent = 'Fehler: ' + e.message;
+      status.className = 'bm-status error';
+    });
+  });
+}
+
+function filterBookmarkTable() {
+  bmColumnFilter();
+}
+
+// ===== SPALTENFILTER =====
+function bmColumnFilter() {
+  var filters = {};
+  document.querySelectorAll('.bm-filter-bar input[data-col-filter]').forEach(function(input) {
+    var col = input.dataset.colFilter;
+    var val = input.value.trim().toLowerCase();
+    if (val) filters[col] = val;
+  });
+  var summaries = document.querySelectorAll('#bm-tbody tr.bm-row-summary');
+  var visible = 0;
+  summaries.forEach(function(sum) {
+    var show = true;
+    for (var col in filters) {
+      var f = filters[col];
+      var cellVal = '';
+      if (col === 'layers') {
+        cellVal = sum.dataset.layerText || '';
+      } else {
+        cellVal = sum.dataset[col] || '';
+      }
+      if (cellVal.indexOf(f) === -1) { show = false; break; }
+    }
+    sum.style.display = show ? '' : 'none';
+    var idx = sum.dataset.idx;
+    var detail = document.querySelector('tr.bm-row-detail[data-idx="' + idx + '"]');
+    if (detail) {
+      if (!show) {
+        detail.style.display = 'none';
+      } else {
+        detail.style.display = detail.classList.contains('bm-expanded') ? 'table-row' : 'none';
+      }
+    }
+    if (show) visible++;
+  });
+  document.getElementById('bm-count').textContent = visible + ' / ' + summaries.length + ' Bookmarks';
+}
+
+function updateBookmarkCount() {
+  var n = document.querySelectorAll('#bm-tbody tr.bm-row-summary').length;
+  document.getElementById('bm-count').textContent = n + ' Bookmarks';
+}
+
+// ===== BOOKMARK-TABELLE: SORTIERUNG =====
+var _bmSortField = null;
+var _bmSortDir = 'asc';
+
+function initBookmarkSort() {
+  var headers = document.querySelectorAll('#bm-table thead th[data-sort]');
+  headers.forEach(function(th) {
+    th.addEventListener('click', function(e) {
+      if (e.target.closest('.bm-resize')) return; // Resize-Handle ignorieren
+      var field = th.dataset.sort;
+      if (_bmSortField === field) {
+        _bmSortDir = _bmSortDir === 'asc' ? 'desc' : 'asc';
+      } else {
+        _bmSortField = field;
+        _bmSortDir = 'asc';
+      }
+      headers.forEach(function(h) { h.classList.remove('bm-sort-asc', 'bm-sort-desc'); var ic = h.querySelector('.bm-sort-icon'); if (ic) ic.textContent = '⇅'; });
+      th.classList.add(_bmSortDir === 'asc' ? 'bm-sort-asc' : 'bm-sort-desc');
+      var icon = th.querySelector('.bm-sort-icon');
+      if (icon) icon.textContent = _bmSortDir === 'asc' ? '▲' : '▼';
+      sortBookmarkTable(field, _bmSortDir);
+    });
+  });
+}
+
+function sortBookmarkTable(field, dir) {
+  var tbody = document.getElementById('bm-tbody');
+  // Paare sammeln: [summary, detail]
+  var pairs = [];
+  var summaries = tbody.querySelectorAll('tr.bm-row-summary');
+  summaries.forEach(function(sum) {
+    var idx = sum.dataset.idx;
+    var detail = tbody.querySelector('tr.bm-row-detail[data-idx="' + idx + '"]');
+    pairs.push({ summary: sum, detail: detail });
+  });
+  pairs.sort(function(a, b) {
+    var va = getBmSortValue(a.summary, a.detail, field);
+    var vb = getBmSortValue(b.summary, b.detail, field);
+    var cmp = va.localeCompare(vb, 'de', { sensitivity: 'base' });
+    return dir === 'desc' ? -cmp : cmp;
+  });
+  pairs.forEach(function(p, i) {
+    // Zebra-Streifen neu berechnen nach Sortierung
+    p.summary.classList.toggle('bm-row-even', i % 2 === 1);
+    tbody.appendChild(p.summary);
+    if (p.detail) tbody.appendChild(p.detail);
+  });
+}
+
+function getBmSortValue(summary, detail, field) {
+  if (field === 'layers') {
+    if (detail) {
+      var tagsDiv = detail.querySelector('.bm-layers-tags');
+      return tagsDiv ? getLayerTagValues(tagsDiv).join(' ') : '';
+    }
+    return summary.dataset.layerText || '';
+  }
+  // Aus data-Attributen der Summary lesen
+  return summary.dataset[field] || '';
+}
+
+// ===== ALLE AUF-/ZUKLAPPEN =====
+var _bmAllExpanded = false;
+function bmToggleAll() {
+  _bmAllExpanded = !_bmAllExpanded;
+  var btn = document.getElementById('bm-btn-expand-all');
+  var summaries = document.querySelectorAll('#bm-tbody tr.bm-row-summary');
+  summaries.forEach(function(sum) {
+    var idx = sum.dataset.idx;
+    var detail = document.querySelector('tr.bm-row-detail[data-idx="' + idx + '"]');
+    if (detail) {
+      if (_bmAllExpanded) {
+        detail.classList.add('bm-expanded');
+        detail.style.display = 'table-row';
+        sum.classList.add('bm-expanded-row');
+      } else {
+        detail.classList.remove('bm-expanded');
+        detail.style.display = 'none';
+        sum.classList.remove('bm-expanded-row');
+      }
+    }
+  });
+  if (btn) btn.textContent = _bmAllExpanded ? '▼ Alle' : '▶ Alle';
+}
+
+// ===== SPALTENBREITE RESIZE =====
+function initBmColumnResize() {
+  var handles = document.querySelectorAll('#bm-table th .bm-resize');
+  handles.forEach(function(handle) {
+    var th = handle.parentElement;
+    handle.addEventListener('mousedown', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      handle.classList.add('bm-resizing');
+      var startX = e.clientX;
+      var startW = th.offsetWidth;
+      function onMove(ev) {
+        var w = Math.max(60, startW + ev.clientX - startX);
+        th.style.width = w + 'px';
+      }
+      function onUp() {
+        handle.classList.remove('bm-resizing');
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+      }
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
+  });
+}
+
+// ===== UNDO/REDO FÜR BOOKMARKS =====
+var _bmUndoStack = [];
+var _bmRedoStack = [];
+var _bmUndoMax = 30;
+
+function bmPushUndo() {
+  var snap = collectBookmarkData();
+  _bmUndoStack.push(JSON.stringify(snap));
+  if (_bmUndoStack.length > _bmUndoMax) _bmUndoStack.shift();
+  _bmRedoStack = [];
+  _updateBmUndoButtons();
+}
+
+function bmUndo() {
+  if (_bmUndoStack.length === 0) return;
+  var currentSnap = JSON.stringify(collectBookmarkData());
+  _bmRedoStack.push(currentSnap);
+  var snap = JSON.parse(_bmUndoStack.pop());
+  renderBookmarkTable(snap);
+  _updateBmUndoButtons();
+}
+
+function bmRedo() {
+  if (_bmRedoStack.length === 0) return;
+  var currentSnap = JSON.stringify(collectBookmarkData());
+  _bmUndoStack.push(currentSnap);
+  var snap = JSON.parse(_bmRedoStack.pop());
+  renderBookmarkTable(snap);
+  _updateBmUndoButtons();
+}
+
+function _updateBmUndoButtons() {
+  var u = document.getElementById('bm-btn-undo');
+  var r = document.getElementById('bm-btn-redo');
+  if (u) u.disabled = _bmUndoStack.length === 0;
+  if (r) r.disabled = _bmRedoStack.length === 0;
+}
+
+// Keyboard-Shortcuts: Ctrl+Z/Y im Bookmark-Tab
+document.addEventListener('keydown', function(e) {
+  // Nur wenn Bookmark-Pane aktiv
+  var bmPane = document.getElementById('pane-bookmarks');
+  if (!bmPane || bmPane.style.display === 'none') return;
+  // Nicht in Autocomplete oder anderen Dialogen
+  if (document.querySelector('.bm-ac-list[style*="block"]')) return;
+  if (e.ctrlKey && !e.shiftKey && e.key === 'z') {
+    // Nicht wenn in einem Input-Feld getippt wird (dort normales Undo)
+    var tag = e.target.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+    e.preventDefault(); bmUndo();
+  }
+  if (e.ctrlKey && !e.shiftKey && e.key === 'y') {
+    var tag2 = e.target.tagName;
+    if (tag2 === 'INPUT' || tag2 === 'TEXTAREA') return;
+    e.preventDefault(); bmRedo();
+  }
+});
+
+// Initialisierung
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', function() { initBookmarkSort(); initBmColumnResize(); });
+} else {
+  initBookmarkSort();
+  initBmColumnResize();
+}
 </script>
 </body>
 </html>

@@ -22,6 +22,8 @@
  *
  *   width        (int, default: 32, min: 8, max: 512)
  *   height       (int, default: 24, min: 8, max: 512)
+ *   symbolwidth  (float, default: 12) — QGIS-Vendor: Breite des Symbol-Icons in mm
+ *   symbolheight (float, default: 3)  — QGIS-Vendor: Höhe des Symbol-Icons in mm
  *   style        (string, default: default)
  *   version      (string, default: 1.3.0)
  *   sld_version  (string, default: 1.1.0)
@@ -50,6 +52,8 @@ $CACHE_DIR = '/data/Client_Data/nwow/tmp/legends_wms';
 $CACHE_TTL = 86400;
 $DEFAULT_WIDTH = 32;
 $DEFAULT_HEIGHT = 24;
+$DEFAULT_SYMBOLWIDTH = 14;
+$DEFAULT_SYMBOLHEIGHT = 2;
 $DEFAULT_STYLE = 'default';
 $DEFAULT_VERSION = '1.3.0';
 $DEFAULT_SLD_VERSION = '1.1.0';
@@ -206,7 +210,7 @@ function splitLayers($layersRaw, $layerRaw, $maxLayers) {
     return $uniq;
 }
 
-function buildLegendUrl($serviceUrl, $layerName, $width, $height, $style, $version, $sldVersion) {
+function buildLegendUrl($serviceUrl, $layerName, $width, $height, $symbolWidth, $symbolHeight, $style, $version, $sldVersion) {
     $params = [
         'SERVICE' => 'WMS',
         'VERSION' => $version,
@@ -214,10 +218,26 @@ function buildLegendUrl($serviceUrl, $layerName, $width, $height, $style, $versi
         'LAYER' => $layerName,
         'FORMAT' => 'image/png',
         'STYLE' => $style,
-        'SLD_VERSION' => $sldVersion,
-        'WIDTH' => $width,
-        'HEIGHT' => $height
+        'SLD_VERSION' => $sldVersion
     ];
+
+    // WIDTH/HEIGHT nur senden wenn explizit per URL-Parameter gesetzt
+    // QGIS Server verwendet sonst eigene Defaults pro Geometrietyp
+    if (isset($_GET['width'])) {
+        $params['WIDTH'] = $width;
+    }
+    if (isset($_GET['height'])) {
+        $params['HEIGHT'] = $height;
+    }
+
+    // QGIS-Vendor-Parameter: Symbol-Icon-Grösse in mm
+    // Nur senden wenn explizit gesetzt — beeinflusst alle Geometrietypen
+    if (isset($_GET['symbolwidth'])) {
+        $params['SYMBOLWIDTH'] = $symbolWidth;
+    }
+    if (isset($_GET['symbolheight'])) {
+        $params['SYMBOLHEIGHT'] = $symbolHeight;
+    }
 
     return rtrim($serviceUrl, '?') . '?' . http_build_query($params);
 }
@@ -304,6 +324,8 @@ $layersRaw = isset($_GET['layers']) ? (string) $_GET['layers'] : '';
 $layerRaw = isset($_GET['layer']) ? (string) $_GET['layer'] : '';
 $width = isset($_GET['width']) ? max(8, min(512, intval($_GET['width']))) : $DEFAULT_WIDTH;
 $height = isset($_GET['height']) ? max(8, min(512, intval($_GET['height']))) : $DEFAULT_HEIGHT;
+$symbolWidth = isset($_GET['symbolwidth']) ? max(1, min(50, floatval($_GET['symbolwidth']))) : $DEFAULT_SYMBOLWIDTH;
+$symbolHeight = isset($_GET['symbolheight']) ? max(1, min(50, floatval($_GET['symbolheight']))) : $DEFAULT_SYMBOLHEIGHT;
 $style = isset($_GET['style']) ? trim((string) $_GET['style']) : $DEFAULT_STYLE;
 $version = isset($_GET['version']) ? trim((string) $_GET['version']) : $DEFAULT_VERSION;
 $sldVersion = isset($_GET['sld_version']) ? trim((string) $_GET['sld_version']) : $DEFAULT_SLD_VERSION;
@@ -372,7 +394,7 @@ $entries = [];
 $errors = [];
 
 foreach ($layers as $layerName) {
-    $legendUrl = buildLegendUrl($serviceUrl, $layerName, $width, $height, $style, $version, $sldVersion);
+    $legendUrl = buildLegendUrl($serviceUrl, $layerName, $width, $height, $symbolWidth, $symbolHeight, $style, $version, $sldVersion);
     $res = fetchLegendImage($legendUrl);
 
     if (!$res['ok']) {
@@ -436,7 +458,9 @@ if ($format === 'json') {
             'sld_version' => $sldVersion,
             'style' => $style,
             'width' => $width,
-            'height' => $height
+            'height' => $height,
+            'symbolwidth' => $symbolWidth,
+            'symbolheight' => $symbolHeight
         ],
         'layerCount' => count($entries),
         'layers' => $entries,

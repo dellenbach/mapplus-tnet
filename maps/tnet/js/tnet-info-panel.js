@@ -1805,8 +1805,11 @@ function initLegendPaneEnhancements() {
         titleBar.appendChild(titleSpan);
         titleBar.appendChild(actions);
 
-        // Dojo-Schatten und Resize-Dreieck per JS entfernen
+        // Dojo-Inline-Styles überschreiben für korrektes Styling
         legendPane.style.setProperty('border', 'none', 'important');
+        legendPane.style.setProperty('overflow', 'hidden', 'important');
+        legendPane.style.setProperty('border-radius', '6px', 'important');
+        legendPane.style.setProperty('box-shadow', '0 4px 16px rgba(0,0,0,0.25)', 'important');
         var resizeHandle = legendPane.querySelector('.dojoxFloatingResizeHandle');
         if (resizeHandle) {
             resizeHandle.parentNode.removeChild(resizeHandle);

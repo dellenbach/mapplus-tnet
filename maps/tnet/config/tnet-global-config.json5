@@ -522,7 +522,7 @@
     // Serverseitiger Cache für die proxied WP-Seite (pro Gruppe).
     // Reduziert Ladezeit und Last auf gis-daten.ch.
     cache: {
-      enabled: false,  // DEAKTIVIERT: WP lädt Karten per AJAX mit session-gebundenem Nonce
+      enabled: true,   // Nur für anonyme User (ohne WP-Cookies) — session-spezifische Nonces werden nicht gecacht
       // Cache-TTL in Sekunden (3600 = 1 Stunde)
       ttlSeconds: 3600,
       // Cache-Verzeichnis (auf dem Server, ausserhalb DocumentRoot)

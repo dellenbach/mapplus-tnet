@@ -13,8 +13,8 @@
  *
  * Läuft auf demselben Server (Loopback). cURL für Robustheit.
  *
- * @version    4.4
- * @date       2026-03-10
+ * @version    5.0
+ * @date       2026-04-07
  * @copyright  Trigonet AG
  * @author     Marco Dellenbach
  */
@@ -79,7 +79,21 @@ $content = false;
 $cacheFile = null;
 $cacheHit = false;
 
-if ($cacheConfig['enabled'] && !$bustCache) {
+// WP-Login-Cookies erkennen → eingeloggte User skippen den Cache
+$hasWpCookies = false;
+foreach ($_COOKIE as $name => $value) {
+    if (strpos($name, 'wordpress_logged_in') === 0) {
+        $hasWpCookies = true;
+        break;
+    }
+}
+
+// Cache nur für anonyme Benutzer nutzen (WP-Nonces sind session-gebunden;
+// anonyme Nonces sind für alle anonymen User identisch → sicher cachebar)
+$useCache = $cacheConfig['enabled'] && !$bustCache && !$hasWpCookies;
+error_log('Proxy: Cache-Entscheidung: enabled=' . ($cacheConfig['enabled'] ? 'ja' : 'nein') . ', bustCache=' . ($bustCache ? 'ja' : 'nein') . ', hasWpCookies=' . ($hasWpCookies ? 'ja' : 'nein') . ' → useCache=' . ($useCache ? 'ja' : 'nein'));
+
+if ($useCache) {
     $cacheDir = $cacheConfig['directory'];
     if (!is_dir($cacheDir)) {
         @mkdir($cacheDir, 0755, true);
@@ -100,10 +114,12 @@ if ($cacheConfig['enabled'] && !$bustCache) {
 }
 
 if ($content === false) {
-    $content = fetchContent($externalUrl);
+    // Cache-Modus: OHNE Cookies fetchen → anonyme Version (cachebar)
+    // Direkt-Modus: MIT Cookies fetchen → personalisierte Version
+    $content = fetchContent($externalUrl, !$useCache);
     
-    // Bei Erfolg in Cache schreiben
-    if ($content !== false && $cacheConfig['enabled'] && $cacheFile) {
+    // Bei Erfolg in Cache schreiben (nur anonyme Fetches)
+    if ($content !== false && $useCache && $cacheFile) {
         @file_put_contents($cacheFile, $content);
         error_log('Proxy Cache WRITE: ' . $cacheFile . ' (' . strlen($content) . ' bytes)');
     }
@@ -307,7 +323,7 @@ function sanitize($str) {
     return preg_replace('/[^a-z0-9_-]/i', '', $str);
 }
 
-function fetchContent($url) {
+function fetchContent($url, $withCookies = true) {
     // Bevorzuge cURL (robuster für Loopback-Requests)
     if (function_exists('curl_init')) {
         $ch = curl_init();
@@ -318,19 +334,21 @@ function fetchContent($url) {
             CURLOPT_MAXREDIRS => 5,
             CURLOPT_TIMEOUT => 15,
             CURLOPT_CONNECTTIMEOUT => 5,
-            CURLOPT_USERAGENT => 'Mozilla/5.0 (compatible; MapProxy/4.1)',
+            CURLOPT_USERAGENT => 'Mozilla/5.0 (compatible; MapProxy/5.0)',
             CURLOPT_SSL_VERIFYPEER => false, // Loopback, SSL nicht nötig
         ]);
 
         // SSO pass-through: Browser-Cookies an gis-daten.ch weiterleiten
-        // Gleicher Server → Browser sendet WP-Session-Cookies an den Proxy
-        if (!empty($_COOKIE)) {
+        // Nur wenn explizit aktiviert (deaktiviert für Cache-Fetches)
+        if ($withCookies && !empty($_COOKIE)) {
             $cookies = [];
             foreach ($_COOKIE as $name => $value) {
                 $cookies[] = $name . '=' . urlencode($value);
             }
             curl_setopt($ch, CURLOPT_COOKIE, implode('; ', $cookies));
             error_log('Proxy: ' . count($cookies) . ' Cookies weitergeleitet');
+        } elseif (!$withCookies) {
+            error_log('Proxy: Fetch OHNE Cookies (für Cache)');
         }
         $result = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
