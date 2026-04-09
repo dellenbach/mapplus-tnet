@@ -2635,8 +2635,10 @@ function renderQgisProjectList() {
     tr.className = 'ags-item';
     tr.dataset.name = svcName.toLowerCase();
     var authorStr = proj.save_user || '—';
+    var capsUrl = (proj.wmsUrl || ('/qmap/' + proj.folder + '/' + proj.name)) + '?SERVICE=WMS&REQUEST=GetCapabilities';
     tr.innerHTML = '<td class="col-cb"><input type="checkbox" data-svc="' + svcName.replace(/"/g, '&quot;') + '" data-name="' + proj.name.replace(/"/g, '&quot;') + '" id="qgis-cb-' + i + '"></td>'
-      + '<td class="ags-name"><label for="qgis-cb-' + i + '" style="cursor:pointer">' + esc(svcName) + '</label></td>'
+      + '<td class="ags-name"><label for="qgis-cb-' + i + '" style="cursor:pointer">' + esc(svcName) + '</label>'
+      + ' <a href="' + esc(capsUrl) + '" target="_blank" title="WMS GetCapabilities" style="font-size:10px;color:#2980b9;text-decoration:none;margin-left:4px" onclick="event.stopPropagation()">WMS&#8599;</a></td>'
       + '<td class="ags-col-author">' + esc(authorStr) + '</td>'
       + '<td style="text-align:center">' + formatBadge + '</td>'
       + '<td class="ags-col-status"></td>'
@@ -2644,7 +2646,7 @@ function renderQgisProjectList() {
       + '<td class="ags-col-date ags-col-imp"></td>';
 
     tr.addEventListener('click', function(e) {
-      if (e.target.tagName === 'INPUT' || e.target.tagName === 'LABEL') { updateImportSelCount(); return; }
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'LABEL' || e.target.tagName === 'A') { updateImportSelCount(); return; }
       var cb = tr.querySelector('input');
       cb.checked = !cb.checked;
       _agsLastImportCheckbox = cb;
