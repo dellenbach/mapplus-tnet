@@ -385,6 +385,20 @@
     });
     map.addOverlay(_frameOverlay);
 
+    // Wheel-Events vom Rahmen an OL-Viewport weiterleiten (stopEvent:true schluckt sie sonst)
+    _frameEl.addEventListener('wheel', function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      var vp = map.getViewport();
+      if (vp) {
+        vp.dispatchEvent(new WheelEvent('wheel', {
+          bubbles: true, cancelable: true,
+          deltaY: e.deltaY, deltaX: e.deltaX, deltaMode: e.deltaMode,
+          clientX: e.clientX, clientY: e.clientY
+        }));
+      }
+    }, { passive: false });
+
     // Mobile: Frame bis nach Zoom-Animation unsichtbar (wird in adjustMapZoomMobile eingeblendet)
     if (_isMobile) {
       _frameEl.style.opacity = '0';

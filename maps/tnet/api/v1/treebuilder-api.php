@@ -4960,6 +4960,135 @@ switch ($action) {
         ]);
         break;
 
+    // ── Dienst-Verfügbarkeit prüfen (Verify) ──
+    case 'verify-services':
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('POST erforderlich', 405);
+        $body = json_decode(file_get_contents('php://input'), true);
+        $urls = is_array($body['urls'] ?? null) ? $body['urls'] : [];
+        if (empty($urls)) jsonError('urls-Array leer', 400);
+        // Maximal 50 URLs pro Request
+        if (count($urls) > 50) $urls = array_slice($urls, 0, 50);
+
+        // Basis-URL für relative Pfade (eigener Server)
+        $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+        $selfBase = $scheme . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost');
+
+        $results = [];
+        $mh = curl_multi_init();
+        $handles = [];
+
+        foreach ($urls as $idx => $urlEntry) {
+            $url = is_string($urlEntry) ? $urlEntry : ($urlEntry['url'] ?? '');
+            if (!$url) continue;
+            $type = is_string($urlEntry) ? 'unknown' : ($urlEntry['type'] ?? 'unknown');
+            $typeLC = strtolower($type);
+
+            // Relative URLs → absolut machen
+            $absUrl = $url;
+            if (strpos($url, '//') === false && strpos($url, '/') === 0) {
+                $absUrl = $selfBase . $url;
+            }
+
+            // Prüf-URL bauen je nach Dienst-Typ
+            $checkUrl = $absUrl;
+            if ($typeLC === 'arcgisrest' || strpos($url, 'agsproxy') !== false) {
+                // ArcGIS REST via Proxy: path-Parameter beibehalten, &f=json anhängen
+                if (strpos($absUrl, 'agsproxy') !== false) {
+                    $sep = strpos($absUrl, '?') !== false ? '&' : '?';
+                    $checkUrl = $absUrl . $sep . 'f=json';
+                } else {
+                    $checkUrl = rtrim(preg_replace('/\?.*/', '', $absUrl), '/') . '?f=json';
+                }
+            } elseif ($typeLC === 'wms' || $typeLC === 'tilewms') {
+                // WMS: GetCapabilities
+                $sep = strpos($absUrl, '?') !== false ? '&' : '?';
+                $checkUrl = $absUrl . $sep . 'SERVICE=WMS&REQUEST=GetCapabilities&VERSION=1.3.0';
+            } elseif ($typeLC === 'wmts') {
+                $sep = strpos($absUrl, '?') !== false ? '&' : '?';
+                $checkUrl = $absUrl . $sep . 'SERVICE=WMTS&REQUEST=GetCapabilities';
+            }
+
+            $ch = curl_init($checkUrl);
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_TIMEOUT        => 15,
+                CURLOPT_CONNECTTIMEOUT => 8,
+                CURLOPT_FOLLOWLOCATION => true,
+                CURLOPT_MAXREDIRS      => 3,
+                CURLOPT_SSL_VERIFYPEER => false,
+                CURLOPT_SSL_VERIFYHOST => 0,
+                CURLOPT_NOBODY         => false,
+                CURLOPT_USERAGENT      => 'MapPlus-ServiceVerify/1.0',
+            ]);
+            curl_multi_add_handle($mh, $ch);
+            $handles[$idx] = ['ch' => $ch, 'url' => $url, 'checkUrl' => $checkUrl, 'type' => $type, 'typeLC' => $typeLC];
+        }
+
+        // Alle parallel ausführen
+        $running = null;
+        do {
+            curl_multi_exec($mh, $running);
+            curl_multi_select($mh, 0.5);
+        } while ($running > 0);
+
+        // Ergebnisse auswerten
+        foreach ($handles as $idx => $h) {
+            $ch = $h['ch'];
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $totalTime = round(curl_getinfo($ch, CURLINFO_TOTAL_TIME) * 1000);
+            $error = curl_error($ch);
+            // 200–399 = OK, 206 = Partial Content (wegen RANGE)
+            $ok = ($httpCode >= 200 && $httpCode < 400);
+
+            $responseBody = curl_multi_getcontent($ch);
+
+            // Bei ArcGIS: Body prüfen ob JSON-Antwort gültig ist
+            if ($h['typeLC'] === 'arcgisrest' && $ok) {
+                $json = @json_decode($responseBody, true);
+                if (!$json || isset($json['error'])) {
+                    $ok = false;
+                    $error = isset($json['error']['message']) ? $json['error']['message'] : 'Ungültige ArcGIS-Antwort';
+                }
+            }
+
+            // Bei WMS: prüfen ob XML / Capabilities zurückkam
+            if (($h['typeLC'] === 'wms' || $h['typeLC'] === 'tilewms') && $ok && $responseBody) {
+                // Einfache Plausibilitätsprüfung: enthält XML?
+                if (strpos($responseBody, '<?xml') === false && stripos($responseBody, '<wms') === false
+                    && stripos($responseBody, 'WMS_Capabilities') === false && stripos($responseBody, 'WMT_MS_Capabilities') === false) {
+                    // Kein gültiges WMS-XML → trotzdem als OK werten wenn HTTP OK (könnte HTML-Fehlerseite sein)
+                    // Nur markieren wenn offensichtlich Fehler
+                    if (stripos($responseBody, 'error') !== false || stripos($responseBody, '404') !== false) {
+                        $ok = false;
+                        $error = 'Antwort ist kein gültiges WMS-XML';
+                    }
+                }
+            }
+
+            $results[] = [
+                'url'      => $h['url'],
+                'type'     => $h['type'],
+                'ok'       => $ok,
+                'httpCode' => $httpCode,
+                'timeMs'   => $totalTime,
+                'error'    => $error ?: null,
+            ];
+            curl_multi_remove_handle($mh, $ch);
+            curl_close($ch);
+        }
+        curl_multi_close($mh);
+
+        jsonResponse([
+            'success' => true,
+            'data'    => [
+                'results'  => $results,
+                'checked'  => count($results),
+                'ok'       => count(array_filter($results, function($r) { return $r['ok']; })),
+                'failed'   => count(array_filter($results, function($r) { return !$r['ok']; })),
+            ]
+        ]);
+        break;
+
     default:
         jsonResponse([
             'success' => true,

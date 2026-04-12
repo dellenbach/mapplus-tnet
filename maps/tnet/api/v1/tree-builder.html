@@ -188,6 +188,27 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .tb-source-head .src-type.wmts { background: #6b2ed4; }
 .tb-source-head .src-type.tilewms { background: #2e8bd4; }
 .tb-source-group.collapsed .tb-source-body { display: none; }
+/* Verify-Button pro Source-Group */
+.tb-source-head .src-verify {
+  font-size: 9px; padding: 1px 5px; border: 1px solid #ccc; border-radius: 3px;
+  background: #fff; cursor: pointer; color: #666; flex-shrink: 0; line-height: 1.2;
+}
+.tb-source-head .src-verify:hover { background: #e8f4e8; border-color: #4a8c50; color: #4a8c50; }
+.tb-source-head .src-verify.checking { color: #999; cursor: wait; }
+/* Verify-Ergebnis-Badge */
+.tb-source-head .src-verify-result {
+  font-size: 8px; padding: 1px 5px; border-radius: 3px; flex-shrink: 0;
+  font-weight: 600;
+}
+.tb-source-head .src-verify-result.ok { background: #d4edda; color: #155724; }
+.tb-source-head .src-verify-result.fail { background: #f8d7da; color: #721c24; }
+.tb-source-head .src-verify-result.partial { background: #fff3cd; color: #856404; }
+/* Layer-Item Verify-Indikator */
+.tb-layer-item .verify-dot {
+  width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; margin-left: auto;
+}
+.tb-layer-item .verify-dot.ok { background: #28a745; }
+.tb-layer-item .verify-dot.fail { background: #dc3545; title: attr(title); }
 
 /* ── Wiederverwendbare Gruppen (Mitte) ── */
 .tb-group-card {
@@ -1049,6 +1070,8 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
       <h2>Verfügbare Layer</h2>
       <span class="badge" id="tb-layer-count">0</span>
       <button id="tb-btn-load" title="Layer vom Server laden">↻ Laden</button>
+      <button id="tb-btn-verify-all" title="Alle Dienste auf Erreichbarkeit prüfen" style="background:#e8f4e8;border-color:#4a8c50;color:#4a8c50">✓ Verify</button>
+      <button id="tb-btn-verify-filter" title="Nur fehlgeschlagene Dienste anzeigen" style="display:none;background:#f8d7da;border-color:#dc3545;color:#721c24">✗ Fehler</button>
     </div>
     <div class="tb-search">
       <input type="text" id="tb-layer-search" placeholder="Layer suchen…">
@@ -2001,6 +2024,7 @@ function renderLayers(filter) {
     if (grp.info.typeTag) html += '<span class="src-type ' + grp.info.typeTag + '">' + esc(grp.info.typeTag) + '</span>';
     html += '<span class="src-label" title="' + esc(groupTip) + '">' + esc(grp.info.label) + '</span>';
     html += '<span class="src-badge">' + grp.items.length + '</span>';
+    html += '<button class="src-verify" data-src-key="' + esc(key) + '" title="Dienst-Verfügbarkeit prüfen">✓ Verify</button>';
     html += '</div>';
     html += '<div class="tb-source-body">';
     grp.items.forEach(function(item) {
@@ -2041,6 +2065,14 @@ function renderLayers(filter) {
     });
   });
 
+  // 3b) Verify-Buttons
+  list.querySelectorAll('.src-verify').forEach(function(btn) {
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      verifySourceGroup(btn.dataset.srcKey);
+    });
+  });
+
   // 4) Drag-Events
   list.querySelectorAll('.tb-layer-item').forEach(function(el) {
     el.addEventListener('dragstart', function(e) {
@@ -2053,6 +2085,120 @@ function renderLayers(filter) {
 
 // Such-Filter
 document.getElementById('tb-layer-search').addEventListener('input', function() { renderLayers(this.value); });
+
+// ===== DIENST-VERIFY =====
+
+/**
+ * Alle eindeutigen URLs einer Source-Group sammeln und per API prüfen
+ */
+function verifySourceGroup(srcKey) {
+  var list = document.getElementById('tb-layer-list');
+  var groupEl = list.querySelector('.tb-source-group[data-src-key="' + CSS.escape(srcKey) + '"]');
+  if (!groupEl) return;
+
+  var btn = groupEl.querySelector('.src-verify');
+  if (btn && btn.classList.contains('checking')) return; // Läuft bereits
+
+  // Gruppe aufklappen
+  groupEl.classList.remove('collapsed');
+  _sourceGroupState[srcKey] = false;
+
+  // Button → Ladezustand
+  if (btn) { btn.classList.add('checking'); btn.textContent = '⏳ …'; }
+
+  // Bisherige Ergebnisse entfernen
+  groupEl.querySelectorAll('.src-verify-result').forEach(function(el) { el.remove(); });
+  groupEl.querySelectorAll('.verify-dot').forEach(function(el) { el.remove(); });
+
+  // Alle Layer-Items dieser Gruppe sammeln
+  var layerItems = groupEl.querySelectorAll('.tb-layer-item');
+  var urlMap = {}; // url → { type, layerEls: [el, ...] }
+
+  layerItems.forEach(function(el) {
+    var idx = parseInt(el.dataset.layerIdx);
+    var layer = state.layers[idx];
+    if (!layer || !layer.url) return;
+    var baseUrl = layer.url.split('?')[0];
+    if (!urlMap[baseUrl]) {
+      urlMap[baseUrl] = { url: layer.url, type: layer.layerType || layer.type || '', layerEls: [] };
+    }
+    urlMap[baseUrl].layerEls.push(el);
+  });
+
+  var urls = Object.values(urlMap).map(function(u) {
+    return { url: u.url, type: u.type };
+  });
+
+  if (urls.length === 0) {
+    if (btn) { btn.classList.remove('checking'); btn.textContent = '✓ Verify'; }
+    return;
+  }
+
+  fetch(API_URL + '?action=verify-services', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ urls: urls })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(resp) {
+    if (!resp.success || !resp.data) throw new Error(resp.error || 'Unbekannter Fehler');
+    var data = resp.data;
+
+    // Ergebnis-Badge im Header
+    var head = groupEl.querySelector('.tb-source-head');
+    if (head) {
+      var badge = document.createElement('span');
+      badge.className = 'src-verify-result';
+      if (data.failed === 0) {
+        badge.classList.add('ok');
+        badge.textContent = '✓ ' + data.ok + '/' + data.checked;
+        badge.title = 'Alle ' + data.checked + ' Dienste erreichbar';
+      } else if (data.ok === 0) {
+        badge.classList.add('fail');
+        badge.textContent = '✗ 0/' + data.checked;
+        badge.title = 'Alle ' + data.checked + ' Dienste nicht erreichbar';
+      } else {
+        badge.classList.add('partial');
+        badge.textContent = '⚠ ' + data.ok + '/' + data.checked;
+        badge.title = data.ok + ' OK, ' + data.failed + ' fehlgeschlagen';
+      }
+      head.insertBefore(badge, btn);
+    }
+
+    // Pro URL → Layer-Items mit Punkt markieren
+    var resultByUrl = {};
+    data.results.forEach(function(r) {
+      var base = r.url.split('?')[0];
+      resultByUrl[base] = r;
+    });
+    Object.keys(urlMap).forEach(function(base) {
+      var r = resultByUrl[base];
+      if (!r) return;
+      urlMap[base].layerEls.forEach(function(el) {
+        var dot = document.createElement('span');
+        dot.className = 'verify-dot ' + (r.ok ? 'ok' : 'fail');
+        dot.title = r.ok
+          ? 'OK (' + r.httpCode + ', ' + r.timeMs + 'ms)'
+          : 'Fehler: ' + (r.error || 'HTTP ' + r.httpCode) + ' (' + r.timeMs + 'ms)';
+        el.appendChild(dot);
+      });
+    });
+
+    if (btn) { btn.classList.remove('checking'); btn.textContent = '✓ Verify'; }
+
+    // Fehler-Filter-Button einblenden wenn es fehlgeschlagene gibt
+    var anyFails = document.querySelectorAll('#tb-layer-list .verify-dot.fail').length;
+    var filterBtn = document.getElementById('tb-btn-verify-filter');
+    if (filterBtn && anyFails > 0) {
+      filterBtn.style.display = '';
+      filterBtn.textContent = '✗ ' + anyFails + ' Fehler';
+    }
+  })
+  .catch(function(err) {
+    if (btn) { btn.classList.remove('checking'); btn.textContent = '✓ Verify'; }
+    alert('Verify fehlgeschlagen: ' + err.message);
+  });
+}
 
 // Konfig-Datei-Filter: Dropdown befüllen
 function updateConffileFilter() {
@@ -6392,6 +6538,51 @@ document.addEventListener('keydown', function(e) {
 // =====================================================================
 document.getElementById('tb-btn-load').addEventListener('click', function() {
   loadLayers(state.activeProfile || 'public');
+});
+
+// Verify-Alle-Button
+document.getElementById('tb-btn-verify-all').addEventListener('click', function() {
+  var groups = document.querySelectorAll('#tb-layer-list .tb-source-group');
+  groups.forEach(function(grp) {
+    var key = grp.dataset.srcKey;
+    if (key) verifySourceGroup(key);
+  });
+});
+
+// Fehler-Filter-Button (Toggle)
+var _verifyFilterActive = false;
+document.getElementById('tb-btn-verify-filter').addEventListener('click', function() {
+  _verifyFilterActive = !_verifyFilterActive;
+  var btn = this;
+  var list = document.getElementById('tb-layer-list');
+  if (_verifyFilterActive) {
+    btn.style.background = '#dc3545';
+    btn.style.color = '#fff';
+    btn.textContent = '✗ Fehler (aktiv)';
+    // Layer ohne fail-dot ausblenden, Groups ohne sichtbare Layer ausblenden
+    list.querySelectorAll('.tb-layer-item').forEach(function(el) {
+      var hasFail = el.querySelector('.verify-dot.fail');
+      el.style.display = hasFail ? '' : 'none';
+    });
+    list.querySelectorAll('.tb-source-group').forEach(function(grp) {
+      var visibleItems = grp.querySelectorAll('.tb-layer-item[style=""], .tb-layer-item:not([style*="display: none"])');
+      // Auch Gruppen ohne Fehler-Items zählen
+      var failCount = grp.querySelectorAll('.tb-layer-item .verify-dot.fail').length;
+      if (failCount === 0) {
+        grp.style.display = 'none';
+      } else {
+        grp.style.display = '';
+        grp.classList.remove('collapsed');
+      }
+    });
+  } else {
+    btn.style.background = '#f8d7da';
+    btn.style.color = '#721c24';
+    btn.textContent = '✗ Fehler';
+    // Alles wieder einblenden
+    list.querySelectorAll('.tb-layer-item').forEach(function(el) { el.style.display = ''; });
+    list.querySelectorAll('.tb-source-group').forEach(function(el) { el.style.display = ''; });
+  }
 });
 
 // =====================================================================
