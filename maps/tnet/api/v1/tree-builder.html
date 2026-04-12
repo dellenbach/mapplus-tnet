@@ -3282,7 +3282,7 @@ function renderLyrmgrBlock(container, lmKey, profile) {
       var grpItems = grpItem.items;
       try {
         var d = JSON.parse(e.dataTransfer.getData('text/plain'));
-        var existIds = collectAllStagingIdsGlobal();
+        var existIds = collectAllStagingIds(profile);
         if (d.type === 'staging-items' && d.srcCat !== undefined) {
           if (!e.ctrlKey) {
             var srcProfile = d.srcLyrmgr ? (state.profiles[state.activeProfile].lyrmgrs[d.srcLyrmgr] || profile) : profile;
@@ -3295,7 +3295,7 @@ function renderLyrmgrBlock(container, lmKey, profile) {
           renderTree();
         } else if (d.type === 'layer') {
           var layer = state.layers[d.idx];
-          if (layer && !existIds[layer.id]) { grpItems.push(layer.id); renderTree(); }
+          if (layer) { grpItems.push(layer.id); renderTree(); }
         } else if (d.type === 'clip-item') {
           var clipItem = deepCopy(d.item);
           grpItems.push(clipItem);
@@ -3322,10 +3322,9 @@ function renderLyrmgrBlock(container, lmKey, profile) {
         var ci = parseInt(catBody.closest('.tb-tree-cat').dataset.catIdx);
         var cat = profile.categories[ci];
         if (!cat.items) cat.items = [];
-        var existingIds = collectAllStagingIdsGlobal();
         if (d.type === 'layer') {
           var layer = state.layers[d.idx];
-          if (layer && !existingIds[layer.id]) { cat.items.push(layer.id); renderTree(); }
+          if (layer) { cat.items.push(layer.id); renderTree(); }
         }
         if (d.type === 'clip-item') {
           var clipItem = deepCopy(d.item);
@@ -3359,12 +3358,32 @@ function renderLyrmgrBlock(container, lmKey, profile) {
     });
   });
 
-  // ===== Name-Änderungen: Kategorien =====
+  // ===== Alias-Änderungen: Kategorien (inline) =====
   lmBody.querySelectorAll('.cname').forEach(function(inp) {
     inp.addEventListener('change', function() {
       var cat = profile.categories[parseInt(this.dataset.catIdx)];
-      cat.name = this.value;
-      // cat.key wird NICHT überschrieben — der Key bleibt stabil für NLS-Lookup
+      var catKey = cat.key || cat.name || '';
+      var newAlias = this.value.trim();
+      // NLS-Alias registrieren statt cat.name zu überschreiben
+      if (catKey && newAlias) {
+        var nlsKey = 'desc_' + catKey.replace(/\//g, '_');
+        var nlsKeySlash = 'desc_' + catKey;
+        state.layerAliases[nlsKey] = newAlias;
+        state.layerAliases[nlsKeySlash] = newAlias;
+        var nlsTarget = (state.activeProfile && state.activeProfile !== 'public') ? 'profile' : 'override';
+        state.nlsEdits[catKey] = {
+          alias: newAlias,
+          nlsFile: 'lyrmgrResources.json',
+          target: nlsTarget,
+          source: 'core',
+          profile: (nlsTarget === 'profile' && state.activeProfile) ? state.activeProfile : null
+        };
+        console.log('NLS-Alias inline geändert:', catKey, '→', newAlias);
+        updatePendingEditsCounter();
+      } else if (!catKey) {
+        // Neue Kategorie ohne Key: name wird zum Key
+        cat.name = newAlias;
+      }
     });
     inp.addEventListener('click', function(e) { e.stopPropagation(); });
   });
@@ -3614,8 +3633,7 @@ function renderLyrmgrBlock(container, lmKey, profile) {
         if (d.type === 'layer') {
           e.preventDefault(); e.stopPropagation();
           var layer = state.layers[d.idx];
-          var existIds3 = collectAllStagingIdsGlobal();
-          if (layer && !existIds3[layer.id]) { targetItems.splice(insertAt, 0, layer.id); renderTree(); }
+          if (layer) { targetItems.splice(insertAt, 0, layer.id); renderTree(); }
           return;
         }
       } catch(ex) {}
@@ -3928,18 +3946,22 @@ function openPropsDialog(type, ref) {
     ]);
   } else if (type === 'cat') {
     title = 'Kategorie: ' + (ref.key || ref.name);
+    var _catKey = ref.key || ref.name || '';
+    var _catAlias = getNlsAlias(_catKey) || ref.name || '';
     body = buildPropsForm([
-      { key: 'key', label: 'Key (ID)', value: ref.key || ref.name, type: 'text', hint: 'Eindeutiger Schlüssel in der lyrmgr.conf' },
-      { key: 'name', label: 'Name', value: ref.name || '', type: 'text' },
+      { key: 'key', label: 'Key (ID)', value: _catKey, type: 'text', hint: 'Eindeutiger Schlüssel in der lyrmgr.conf' },
+      { key: '_alias', label: 'Alias (NLS)', value: _catAlias, type: 'text', hint: 'Anzeigename im Layer-Manager' },
       { key: 'iconClass', label: 'Icon-Klasse', value: ref.iconClass || '', type: 'text', hint: 'z.B. njsCategoryIcon7' },
       { key: 'iconClassActive', label: 'Icon-Klasse (aktiv)', value: ref.iconClassActive || '', type: 'text', hint: 'z.B. njsCategoryIcon7_active' },
       { key: 'open', label: 'Offen', value: ref.open, type: 'bool', hint: 'Kategorie standardmässig aufgeklappt' }
     ]);
   } else if (type === 'group') {
     title = 'Gruppenlayer: ' + (ref.key || ref.name || '(unbenannt)');
+    var _grpKey = ref.key || ref.name || '';
+    var _grpAlias = getNlsAlias(_grpKey) || ref.name || '';
     body = buildPropsForm([
-      { key: 'key', label: 'Key (ID)', value: ref.key || '', type: 'text', hint: 'Eindeutiger Schlüssel im items-Object (nur Top-Level)' },
-      { key: 'name', label: 'Name', value: ref.name || '', type: 'text', hint: 'Anzeige-Name / Legenden-Referenz' },
+      { key: 'key', label: 'Key (ID)', value: _grpKey, type: 'text', hint: 'Eindeutiger Schlüssel im items-Object (nur Top-Level)' },
+      { key: '_alias', label: 'Alias (NLS)', value: _grpAlias, type: 'text', hint: 'Anzeigename im Layer-Manager' },
       { key: 'open', label: 'Offen', value: ref.open, type: 'bool', hint: 'Standardmässig aufgeklappt' },
       { key: 'selectAll', label: 'selectAll', value: ref.selectAll, type: 'bool', hint: 'Alle Layer gleichzeitig schalten' },
       { key: 'legend', label: 'Legende', value: ref.legend || '', type: 'text', hint: 'Legenden-Key (z.B. "gastro", "schweizmobil")' },
@@ -4108,8 +4130,40 @@ document.getElementById('tb-props-save').addEventListener('click', function() {
 
   // ===== Standard-Typen: lyrmgr, cat, group =====
 
+  // === Alias (NLS) für cat/group separat behandeln (analog zu Layer-_alias) ===
+  if (type === 'cat' || type === 'group') {
+    var aliasInput = body.querySelector('input[data-prop="_alias"]');
+    if (aliasInput) {
+      var catId = ref.key || ref.name || '';
+      var newAlias = aliasInput.value.trim();
+      var prevAlias = getNlsAlias(catId) || ref.name || '';
+      if (newAlias !== prevAlias) {
+        var nlsKey = 'desc_' + catId.replace(/\//g, '_');
+        var nlsKeySlash = 'desc_' + catId;
+        if (newAlias) {
+          state.layerAliases[nlsKey] = newAlias;
+          state.layerAliases[nlsKeySlash] = newAlias;
+        } else {
+          delete state.layerAliases[nlsKey];
+          delete state.layerAliases[nlsKeySlash];
+        }
+        var nlsTarget = (state.activeProfile && state.activeProfile !== 'public') ? 'profile' : 'override';
+        state.nlsEdits[catId] = {
+          alias: newAlias || '',
+          nlsFile: 'lyrmgrResources.json',
+          target: nlsTarget,
+          source: 'core',
+          profile: (nlsTarget === 'profile' && state.activeProfile) ? state.activeProfile : null
+        };
+        console.log('NLS-Alias für ' + type + ' gespeichert:', catId, state.nlsEdits[catId]);
+        updatePendingEditsCounter();
+      }
+    }
+  }
+
   body.querySelectorAll('input[data-prop]').forEach(function(input) {
     var key = input.dataset.prop;
+    if (key.charAt(0) === '_') return; // Interne Felder (_alias) überspringen
     var val;
     if (input.type === 'checkbox') {
       val = input.checked;
@@ -4127,7 +4181,7 @@ document.getElementById('tb-props-save').addEventListener('click', function() {
       }
     } else {
       // Direkte Properties auf dem Node
-      if (val === '' && key !== 'name' && key !== 'key') {
+      if (val === '' && key !== 'key') {
         delete ref[key];
       } else if (typeof val === 'boolean') {
         if (val === false && key !== 'open') {
@@ -7550,6 +7604,29 @@ function publishLyrmgr() {
           'Pfad: ' + esc(d.path || '') + '<br>' +
           'Bytes: ' + (d.bytes || '') + '<br>' +
           'Backup: ' + esc(d.backup || '–');
+
+        // === NLS-Aliase automatisch mit-deployen ===
+        var _nlsIds = Object.keys(state.nlsEdits);
+        if (_nlsIds.length > 0) {
+          var _nlsGroups = {};
+          _nlsIds.forEach(function(lid) {
+            var e = state.nlsEdits[lid];
+            var gk = 'nls|' + (e.nlsFile || 'unknown') + '|' + (e.target || 'original') + '|' + (e.source || 'core');
+            if (!_nlsGroups[gk]) {
+              _nlsGroups[gk] = { type: 'nls', sourceFile: e.nlsFile, target: e.target, source: e.source, profile: e.profile, aliases: {} };
+            }
+            var nlsKey = 'desc_' + lid.replace(/\//g, '_');
+            var nlsKeySlash = 'desc_' + lid;
+            _nlsGroups[gk].aliases[nlsKey] = e.alias;
+            _nlsGroups[gk].aliases[nlsKeySlash] = e.alias;
+          });
+          var _nlsGroupArr = [];
+          for (var nk in _nlsGroups) _nlsGroupArr.push(_nlsGroups[nk]);
+          console.log('Auto-Deploy NLS nach Publish:', _nlsGroupArr.length, 'Gruppe(n),', _nlsIds.length, 'Alias(e)');
+          pubMsg += '<br>NLS: ' + _nlsIds.length + ' Alias(e) werden deployt…';
+          _deployAllGroups(_nlsGroupArr);
+        }
+
         _tbAlert('Publiziert (SFTP)', pubMsg, 'success');
 
         // Git-Commit mit Dialog

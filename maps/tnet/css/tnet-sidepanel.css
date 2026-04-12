@@ -440,37 +440,71 @@ body.tnet-sidepanel-v2 .lm-container-desktop .lm-search:focus {
   outline: none !important;
 }
 
-/* Themenkatalog-Liste: Scrollbar ausgeblendet */
+/* Themenkatalog-Liste: dezenter Scrollbar überlagert Content (kein Platzverbrauch) */
 body.tnet-sidepanel-v2 .lm-container-desktop .lm-cat-content {
   overflow-y: auto !important;
   overflow-x: hidden !important;
   min-height: 0 !important;
   padding-bottom: 40px !important;
-  scrollbar-width: none;
+  scrollbar-width: thin;
+  scrollbar-color: #95b5be transparent;
+}
+
+@supports (overflow: overlay) {
+  body.tnet-sidepanel-v2 .lm-container-desktop .lm-cat-content {
+    overflow-y: overlay !important;
+  }
 }
 
 body.tnet-sidepanel-v2 .lm-container-desktop .lm-cat-content::-webkit-scrollbar {
-  display: none;
+  width: 6px;
 }
 
-/* Dargestellte Themen: Scrollbar ausgeblendet */
+body.tnet-sidepanel-v2 .lm-container-desktop .lm-cat-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+body.tnet-sidepanel-v2 .lm-container-desktop .lm-cat-content::-webkit-scrollbar-thumb {
+  background: #95b5be;
+  border-radius: 3px;
+}
+
+body.tnet-sidepanel-v2 .lm-container-desktop .lm-cat-content:hover::-webkit-scrollbar-thumb {
+  background: #b0cdd4;
+}
+
+/* Dargestellte Themen: dezenter Scrollbar überlagert Content */
 body.tnet-sidepanel-v2 #lm-active-container.lm-container-desktop {
   overflow-y: auto !important;
   overflow-x: hidden !important;
   min-height: 0 !important;
   height: var(--tnet-active-height, min(300px, calc(30vh - 50px))) !important;
   max-height: var(--tnet-active-height, min(300px, calc(30vh - 50px))) !important;
-  scrollbar-width: none;
+  scrollbar-width: thin;
+  scrollbar-color: #95b5be transparent;
+}
+
+@supports (overflow: overlay) {
+  body.tnet-sidepanel-v2 #lm-active-container.lm-container-desktop {
+    overflow-y: overlay !important;
+  }
 }
 
 body.tnet-sidepanel-v2 #lm-active-container.lm-container-desktop::-webkit-scrollbar {
-  display: none;
+  width: 6px;
 }
 
-body.tnet-sidepanel-v2 #lm-active-container.lm-container-desktop::-webkit-scrollbar-button {
-  display: none;
-  width: 0;
-  height: 0;
+body.tnet-sidepanel-v2 #lm-active-container.lm-container-desktop::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+body.tnet-sidepanel-v2 #lm-active-container.lm-container-desktop::-webkit-scrollbar-thumb {
+  background: #95b5be;
+  border-radius: 3px;
+}
+
+body.tnet-sidepanel-v2 #lm-active-container.lm-container-desktop:hover::-webkit-scrollbar-thumb {
+  background: #b0cdd4;
 }
 
 body.tnet-sidepanel-v2 .tnet-panel:not([open]) > .tnet-panel-content {

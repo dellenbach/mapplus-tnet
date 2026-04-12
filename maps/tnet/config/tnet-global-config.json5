@@ -161,6 +161,26 @@
   },
   
   // ============================================================
+  // SIDEPANEL / ACCORDION
+  // ============================================================
+  sidepanel: {
+    _description: "Sidepanel-Accordion Konfiguration (Höhen, Verhalten)",
+
+    // Exklusiv-Modus: nur ein Panel gleichzeitig offen
+    // (Ausnahme: Navigieren bleibt immer zusätzlich öffenbar)
+    exclusiveAccordion: true,
+
+    // Standard-Höhen für Accordion-Panels (px, nur beim allerersten Besuch;
+    // danach überschreibt der vom Benutzer gezogene Wert aus localStorage)
+    panels: {
+      tp_overview_menu:   { defaultHeight: 700, minHeight: 250 },
+      tp_sort_menu:       { defaultHeight: 500, minHeight: 250 },
+      tp_tools_menu:      { defaultHeight: 500, minHeight: 500 },
+      tp_tnet_print_menu: { defaultHeight: 600, minHeight: 500 },
+    },
+  },
+
+  // ============================================================
   // 2D SPLITSCREEN (LAYER-VERGLEICH)
   // ============================================================
   splitscreen: {

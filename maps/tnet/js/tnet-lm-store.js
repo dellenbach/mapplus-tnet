@@ -398,11 +398,21 @@
 
       var map = am.Maps['main'].mapObj;
       var olLayers = map.getLayers().getArray();
+      var _seenIds = {}; // Duplikat-Erkennung: nur der erste OL-Layer pro ID bleibt
+      var _dupsToRemove = []; // Duplikate für deferred-Entfernung sammeln
 
       for (var i = 0; i < olLayers.length; i++) {
         var olLayer = olLayers[i];
         var lid = olLayer.get('name') || '';
         if (!lid) continue;
+
+        // Duplikat-Schutz: Zweiter OL-Layer mit gleicher ID → entfernen
+        if (_seenIds[lid] && !olLayer.get('tnet_wms_custom')) {
+          _dupsToRemove.push(olLayer);
+          TnetLog.log(LOG, '_syncFromMap Duplikat erkannt:', lid);
+          continue;
+        }
+        _seenIds[lid] = true;
 
         var storeLayer = this.findLayer(lid);
         if (storeLayer && storeLayer.type !== 'group') {
@@ -418,6 +428,18 @@
         }
       }
 
+      // Duplikate deferred entfernen (nicht synchron während Iteration)
+      if (_dupsToRemove.length > 0) {
+        TnetLog.log(LOG, '_syncFromMap: Entferne', _dupsToRemove.length, 'Duplikat-OL-Layer');
+        setTimeout(function () {
+          _suppressMapSync = true;
+          for (var d = 0; d < _dupsToRemove.length; d++) {
+            try { map.removeLayer(_dupsToRemove[d]); } catch (e) { /* bereits entfernt */ }
+          }
+          _suppressMapSync = false;
+        }, 100);
+      }
+
       if (_activeLayers.length > 0) {
         this._emit('active-layers-changed', _activeLayers);
       }
@@ -427,6 +449,10 @@
 
       // OL-Events überwachen (bidirektionale Sync)
       this._watchMapChanges(map);
+
+      // URL-Duplikate bereinigen (Framework kann layers= mehrfach schreiben)
+      var self2 = this;
+      setTimeout(function () { self2._dedupUrlLayers(); }, 2000);
 
       if (_config.debug) TnetLog.log(LOG, 'Sync von Map:', _activeLayers.length, 'aktive Layer');
     },
@@ -460,6 +486,32 @@
           })(olLayer);
           TnetLog.log(LOG, 'Ghost-Schutz: Bridge-Sublayer deferred entfernt:', lid);
           return;
+        }
+
+        // ── Duplikat-Schutz: Layer existiert bereits in der Karte ──
+        // Wenn der Layer mehrfach im lyrmgr vorkommt (verschiedene Blöcke),
+        // erstellt das Framework je einen OL-Layer. Nur der ERSTE bleibt.
+        // WICHTIG: _findOLLayer findet möglicherweise den NEUEN Layer selbst,
+        // weil er schon in der Collection ist. Daher _findAllOLLayers verwenden.
+        if (lid && !olLayer.get('tnet_wms_custom')) {
+          var allWithName = self._findAllOLLayers(map, lid);
+          if (allWithName.length > 1) {
+            // Es gibt bereits einen anderen OL-Layer → diesen neuen entfernen
+            olLayer.setVisible(false);
+            (function (layerToRemove) {
+              setTimeout(function () {
+                try {
+                  _suppressMapSync = true;
+                  map.removeLayer(layerToRemove);
+                } catch (e) { /* bereits entfernt */ }
+                finally { _suppressMapSync = false; }
+              }, 50);
+            })(olLayer);
+            TnetLog.log(LOG, 'Duplikat-Schutz: OL-Layer #' + allWithName.length + ' entfernt für:', lid);
+            // URL-Duplikate nach kurzer Verzögerung bereinigen
+            setTimeout(function () { self._dedupUrlLayers(); }, 500);
+            return;
+          }
         }
 
         // _olLayerRef IMMER setzen — auch bei Unterdrückung!
@@ -842,6 +894,21 @@
       // Guard nach kurzem Delay zurücksetzen (async OL-Events)
       setTimeout(function () { _suppressMapSync = false; }, 200);
 
+      // Duplikat-OL-Layer synchronisieren (falls Layer mehrfach in der Karte)
+      var _self = this;
+      setTimeout(function () {
+        var am = _self._getAppManager();
+        if (am && am.Maps && am.Maps['main'] && am.Maps['main'].mapObj) {
+          var allOL = _self._findAllOLLayers(am.Maps['main'].mapObj, layerId);
+          if (allOL.length > 1) {
+            TnetLog.log(LOG, 'setLayerVisible Duplikat-Sync:', allOL.length, 'OL-Layer für', layerId);
+            for (var di = 0; di < allOL.length; di++) {
+              allOL[di].setVisible(visible);
+            }
+          }
+        }
+      }, 300);
+
       // Active-Liste aktualisieren
       if (visible && !this._isActive(layerId)) {
         _activeLayers.push(layer);
@@ -971,6 +1038,18 @@
       if (olLayer) {
         _suppressMapSync = true;
         olLayer.setVisible(newVisible);
+        // Duplikat-OL-Layer: Falls derselbe Layer-Name mehrfach in der Karte existiert,
+        // alle Instanzen synchron schalten
+        var am2 = this._getAppManager();
+        if (am2 && am2.Maps && am2.Maps['main'] && am2.Maps['main'].mapObj) {
+          var allOL = this._findAllOLLayers(am2.Maps['main'].mapObj, layerId);
+          if (allOL.length > 1) {
+            TnetLog.log(LOG, 'toggleLayerEye: ' + allOL.length + ' OL-Layer-Instanzen für', layerId);
+            for (var di = 0; di < allOL.length; di++) {
+              allOL[di].setVisible(newVisible);
+            }
+          }
+        }
         setTimeout(function () { _suppressMapSync = false; }, 200);
 
         if (layer) layer.visible = newVisible;
@@ -1033,6 +1112,13 @@
 
       if (olLayer) {
         olLayer.setOpacity(clampedOpacity);
+        // Duplikat-OL-Layer: Opazität auf allen Instanzen setzen
+        if (am && am.Maps && am.Maps['main'] && am.Maps['main'].mapObj) {
+          var allOL = this._findAllOLLayers(am.Maps['main'].mapObj, layerId);
+          for (var di = 0; di < allOL.length; di++) {
+            allOL[di].setOpacity(clampedOpacity);
+          }
+        }
       }
 
       this._emit('layer-opacity', { id: layerId, opacity: clampedOpacity });
@@ -1422,6 +1508,27 @@
       return result;
     },
 
+    /**
+     * ALLE OL-Layer mit derselben ID finden (für Duplikat-Handling).
+     * Das Framework kann denselben Layer mehrfach zur Karte hinzufügen,
+     * wenn er in mehreren lyrmgr-Blöcken vorkommt.
+     */
+    _findAllOLLayers: function (map, layerId) {
+      var results = [];
+      function _searchAll(collection) {
+        collection.forEach(function (layer) {
+          if ((layer.get('name') || '') === layerId) {
+            results.push(layer);
+          }
+          if (layer.getLayers) {
+            _searchAll(layer.getLayers());
+          }
+        });
+      }
+      _searchAll(map.getLayers());
+      return results;
+    },
+
     _findActiveLayer: function (layerId) {
       for (var i = 0; i < _activeLayers.length; i++) {
         if (_activeLayers[i].id === layerId) return _activeLayers[i];
@@ -1434,6 +1541,53 @@
         if (_activeLayers[i].id === layerId) return true;
       }
       return false;
+    },
+
+    /**
+     * URL-Parameter layers= deduplizieren.
+     * Das Framework schreibt bei jedem switchLayersProgr einen Eintrag.
+     * Bei Duplikat-Layern (mehrere LyrMgr-Blöcke) entstehen Doppeleinträge.
+     * Auch op= (Opazität) wird parallel bereinigt.
+     */
+    _dedupUrlLayers: function () {
+      try {
+        var href = window.location.href;
+        var re = /([?&])layers=([^&]*)/;
+        var match = re.exec(href);
+        if (!match) return;
+        var layerStr = match[2];
+        var layers = layerStr.split('|');
+        var seen = {};
+        var deduped = [];
+        for (var i = 0; i < layers.length; i++) {
+          if (!layers[i]) continue;
+          if (seen[layers[i]]) continue;
+          seen[layers[i]] = true;
+          deduped.push(layers[i]);
+        }
+        if (deduped.length === layers.length) return; // Keine Duplikate
+
+        // Opazitäten-Parameter ebenfalls kürzen (gleiche Indizes)
+        var opRe = /([?&])op=([^&]*)/;
+        var opMatch = opRe.exec(href);
+        if (opMatch) {
+          var ops = opMatch[2].split('|');
+          var dedupOps = [];
+          var seenOp = {};
+          for (var j = 0; j < layers.length; j++) {
+            if (!layers[j] || seenOp[layers[j]]) continue;
+            seenOp[layers[j]] = true;
+            dedupOps.push(ops[j] || '1');
+          }
+          href = href.replace(opRe, '$1op=' + dedupOps.join('|'));
+        }
+
+        href = href.replace(re, '$1layers=' + deduped.join('|'));
+        window.history.replaceState(null, '', href);
+        TnetLog.log(LOG, 'URL dedupliziert:', layers.length, '→', deduped.length, 'Layer');
+      } catch (e) {
+        // URL-Manipulation fehlgeschlagen — nicht kritisch
+      }
     },
 
     /**

@@ -40,38 +40,46 @@
   readFlags();
 
   // ===== KONFIGURATION =====
-  var CONFIG = {
-    panels: [
-      {
-        id: 'tp_overview_menu',
-        storageKey: 'tnet-catalog-height',
-        minHeight: 150,
-        maxHeight: null,       // wird dynamisch berechnet
-        defaultHeight: 450
-      },
-      {
-        id: 'tp_sort_menu',
-        storageKey: 'tnet-active-height',
-        minHeight: 80,
-        maxHeight: null,
-        defaultHeight: 300
-      },
-      {
-        id: 'tp_tools_menu',
-        storageKey: 'tnet-tools-height',
-        minHeight: 80,
-        maxHeight: null,
-        defaultHeight: 250
-      },
-      {
-        id: 'tp_tnet_print_menu',
-        storageKey: 'tnet-print-height',
-        minHeight: 120,
-        maxHeight: null,
-        defaultHeight: 250
-      }
-    ]
+
+  // Defaults — werden durch tnet-global-config.json5 → sidepanel überschrieben
+  var PANEL_DEFAULTS = {
+    tp_overview_menu:   { defaultHeight: 450, minHeight: 150 },
+    tp_sort_menu:       { defaultHeight: 300, minHeight: 80 },
+    tp_tools_menu:      { defaultHeight: 250, minHeight: 80 },
+    tp_tnet_print_menu: { defaultHeight: 250, minHeight: 120 }
   };
+
+  // StorageKey-Mapping (fix, nicht konfigurierbar)
+  var STORAGE_KEYS = {
+    tp_overview_menu:   'tnet-catalog-height',
+    tp_sort_menu:       'tnet-active-height',
+    tp_tools_menu:      'tnet-tools-height',
+    tp_tnet_print_menu: 'tnet-print-height'
+  };
+
+  // Global Config auslesen (falls bereits geladen)
+  var _gcfg = (window.TnetGlobalConfig && window.TnetGlobalConfig.sidepanel) || {};
+  var _gcfgPanels = _gcfg.panels || {};
+
+  function buildConfig() {
+    var panelIds = ['tp_overview_menu', 'tp_sort_menu', 'tp_tools_menu', 'tp_tnet_print_menu'];
+    var panels = [];
+    for (var i = 0; i < panelIds.length; i++) {
+      var id = panelIds[i];
+      var def = PANEL_DEFAULTS[id];
+      var ovr = _gcfgPanels[id] || {};
+      panels.push({
+        id: id,
+        storageKey: STORAGE_KEYS[id],
+        minHeight: ovr.minHeight != null ? ovr.minHeight : def.minHeight,
+        maxHeight: null,
+        defaultHeight: ovr.defaultHeight != null ? ovr.defaultHeight : def.defaultHeight
+      });
+    }
+    return { panels: panels };
+  }
+
+  var CONFIG = buildConfig();
 
   // ===== STATE =====
   var _handles = [];
@@ -301,8 +309,9 @@
     // Handle-Position: NACH dem Panel einfügen (als Geschwister im #spring)
     paneEl.parentNode.insertBefore(handle, paneEl.nextSibling);
 
-    // Gespeicherte Höhe laden und anwenden
-    var currentHeight = loadHeight(panelCfg.storageKey, panelCfg.defaultHeight);
+    // Config-Default bei jedem App-Start anwenden (überschreibt localStorage)
+    var currentHeight = panelCfg.defaultHeight;
+    saveHeight(panelCfg.storageKey, currentHeight);
     panelCfg.maxHeight = getMaxHeight(panelCfg.id);
     applyHeight(panelCfg, currentHeight);
 
@@ -517,6 +526,38 @@
     TnetLog.log('[AccordionResize] recalcAllPanels:', reason || '');
   }
 
+  // ===== EXKLUSIV-ACCORDION =====
+  // Nur ein Panel gleichzeitig offen (Ausnahme: tp_ov_menu / Navigieren)
+  // Steuerbar via tnet-global-config.json5 → sidepanel.exclusiveAccordion
+  var _suppressExclusive = false;
+  var _exclusiveEnabled = _gcfg.exclusiveAccordion !== false; // Default: true
+
+  function closeOtherPanels(openedId) {
+    if (!_exclusiveEnabled) return;
+    if (_suppressExclusive) return;
+    _suppressExclusive = true;
+
+    // Alle <details> im #spring durchgehen
+    var spring = document.getElementById('spring');
+    if (!spring) { _suppressExclusive = false; return; }
+
+    var panels = spring.querySelectorAll('details.tnet-panel');
+    for (var i = 0; i < panels.length; i++) {
+      var p = panels[i];
+      // Navigieren (tp_ov_menu) nie schliessen
+      if (p.id === 'tp_ov_menu') continue;
+      // Das gerade geöffnete Panel nicht schliessen
+      if (p.id === openedId) continue;
+      // Versteckte Panels ignorieren
+      if (p.style.display === 'none') continue;
+      if (p.open) {
+        p.open = false;
+      }
+    }
+
+    _suppressExclusive = false;
+  }
+
   function watchTitlePaneOpen(panelCfg) {
     var paneEl = document.getElementById(panelCfg.id);
     if (!paneEl) return;
@@ -525,6 +566,9 @@
     if (paneEl.tagName === 'DETAILS') {
       paneEl.addEventListener('toggle', function () {
         if (paneEl.open) {
+          // Exklusiv-Accordion: andere Panels schliessen (ausser Navigieren)
+          closeOtherPanels(panelCfg.id);
+
           // Beim Öffnen: Inhaltshöhe messen und als Zielgrösse verwenden,
           // damit z.B. alle Level-1-Einträge sichtbar sind (wenn Platz reicht).
           setTimeout(function () {

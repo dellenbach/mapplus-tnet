@@ -951,6 +951,12 @@
     window.TnetLayerSwitch = function (layerId, mode) {
       // Nur 'on'-Aufrufe abfangen
       if (mode === 'on' && _enabled) {
+        // 0. Duplikat-Guard: Layer existiert bereits als OL-Layer
+        // → Aufruf NICHT blockieren (Framework braucht internen State),
+        //   aber den danach erstellten Duplikat-OL-Layer wird vom
+        //   _watchMapChanges add-Handler entfernt.
+        // Kein return true hier — das Framework muss seinen State tracken.
+
         // 1. Bereits von Bridge verwaltet → überspringen
         if (_sublayerToRoot[layerId]) {
           TnetLog.debug(LOG, 'TnetLayerSwitch: Sublayer bereits verwaltet:', layerId);

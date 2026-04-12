@@ -3481,25 +3481,53 @@ switch ($action) {
         if (!$sourceFile) jsonError('sourceFile erforderlich', 400);
         if (!is_array($aliases) || empty($aliases)) jsonError('aliases muss ein nicht-leeres Object sein', 400);
 
-        // NLS-Verzeichnis bestimmen
-        $nlsDir = null;
-        if ($source === 'core') {
-            $nlsDir = $docRoot . '/core/nls/de';
-        } elseif ($source === 'override') {
-            $nlsDir = $docRoot . '/maps/core/nls/de';
-        } elseif ($source === 'profile' && $profile) {
-            $safeProf = preg_replace('/[^a-zA-Z0-9_\-]/', '', $profile);
-            $nlsDir = ($safeProf === 'public' || !$safeProf) ? CONFIG_BASE : CONFIG_BASE . '/' . $safeProf;
+        // === ALLE NLS-Verzeichnisse scannen (core + override + profil) ===
+        // Reihenfolge: Core → Override → Profil (höchste Priorität zuletzt).
+        // Wenn ein Key in mehreren Dateien vorkommt, wird die höchstpriorisierte
+        // Datei aktualisiert (Override schlägt Core, Profil schlägt Override).
+        $nlsScanDirs = [];  // [ ['tag'=>..., 'dir'=>...], ... ]
+        $coreNlsDir = $docRoot . '/core/nls/de';
+        if (is_dir($coreNlsDir)) {
+            $nlsScanDirs[] = ['tag' => 'core', 'dir' => $coreNlsDir];
         }
-        // Fallback
-        if (!$nlsDir || !is_dir($nlsDir)) {
-            $nlsDir = $docRoot . '/core/nls/de';
+        $overNlsDir = $docRoot . '/maps/core/nls/de';
+        if (is_dir($overNlsDir) && realpath($overNlsDir) !== realpath($coreNlsDir)) {
+            $nlsScanDirs[] = ['tag' => 'override', 'dir' => $overNlsDir];
+        }
+        // Profil-spezifische NLS-Datei (Einzeldatei, kein Verzeichnis-Scan)
+        $profileNlsFile = null;
+        if ($profile) {
+            $safeProf = preg_replace('/[^a-zA-Z0-9_\-]/', '', $profile);
+            if ($safeProf) {
+                $profileNlsFile = getProfileNlsPath($safeProf);
+            }
         }
 
-        // Alle lyrmgrResources-Dateien im Verzeichnis scannen
-        $nlsFiles = glob($nlsDir . '/lyrmgrResources*.json');
-        if (empty($nlsFiles)) {
-            jsonError('Keine NLS-Dateien in ' . $nlsDir . ' gefunden', 404);
+        if (empty($nlsScanDirs)) {
+            jsonError('Keine NLS-Verzeichnisse gefunden', 404);
+        }
+
+        // Alle NLS-Dateien sammeln (mit Priorität: core < override < profile)
+        $allNlsFiles = [];  // [ ['path'=>..., 'tag'=>..., 'priority'=>int], ... ]
+        $priority = 0;
+        foreach ($nlsScanDirs as $sd) {
+            $files = glob($sd['dir'] . '/lyrmgrResources*.json');
+            // Backup-Dateien filtern
+            $files = array_filter($files ?: [], function($f) {
+                return !preg_match('/\.\d{8}_\d{6}\./', basename($f));
+            });
+            foreach ($files as $f) {
+                $allNlsFiles[] = ['path' => $f, 'tag' => $sd['tag'], 'priority' => $priority];
+            }
+            $priority++;
+        }
+        // Profil-NLS-Datei separat hinzufügen (höchste Priorität)
+        if ($profileNlsFile && file_exists($profileNlsFile)) {
+            $allNlsFiles[] = ['path' => $profileNlsFile, 'tag' => 'profile', 'priority' => $priority];
+        }
+
+        if (empty($allNlsFiles)) {
+            jsonError('Keine NLS-Dateien gefunden', 404);
         }
 
         $aliasKeys = array_keys($aliases);
@@ -3507,55 +3535,71 @@ switch ($action) {
         $stageDir = $stageBase . '/' . preg_replace('/[^a-zA-Z0-9_\-]/', '_', $target);
         if (!is_dir($stageDir)) @mkdir($stageDir, 0775, true);
 
-        $stagedFiles = [];  // Pro betroffene Datei: { file, stagedPath, deployPath, bytes, changes }
-
-        foreach ($nlsFiles as $nlsFilePath) {
-            $raw = file_get_contents($nlsFilePath);
-            $nls = json_decode($raw, true);
+        // Pro Alias-Key die höchstpriorisierte Datei finden die ihn enthält
+        $keyBestFile = [];  // aliasKey → { path, tag, priority }
+        foreach ($allNlsFiles as $nf) {
+            $raw = @file_get_contents($nf['path']);
+            $nls = $raw ? json_decode($raw, true) : null;
             if (!is_array($nls)) continue;
-
-            // Prüfen ob diese Datei betroffene Keys enthält
-            $hasMatch = false;
             foreach ($aliasKeys as $ak) {
-                if (isset($nls[$ak])) { $hasMatch = true; break; }
+                if (isset($nls[$ak])) {
+                    if (!isset($keyBestFile[$ak]) || $nf['priority'] > $keyBestFile[$ak]['priority']) {
+                        $keyBestFile[$ak] = $nf;
+                    }
+                }
             }
-            if (!$hasMatch) continue;
+        }
 
-            // Aliases mergen
+        // Dateien gruppieren die aktualisiert werden müssen
+        $filesToUpdate = [];  // path → { nls-data, tag, keysToUpdate[] }
+        $unmatchedAliases = $aliases;
+        foreach ($aliases as $ak => $av) {
+            if (!is_string($ak)) continue;
+            if (isset($keyBestFile[$ak])) {
+                $fp = $keyBestFile[$ak]['path'];
+                if (!isset($filesToUpdate[$fp])) {
+                    $raw = file_get_contents($fp);
+                    $nls = json_decode($raw, true);
+                    $filesToUpdate[$fp] = ['nls' => is_array($nls) ? $nls : [], 'tag' => $keyBestFile[$ak]['tag']];
+                }
+                $filesToUpdate[$fp]['keys'][$ak] = $av;
+                unset($unmatchedAliases[$ak]);
+            }
+        }
+
+        // Dateien aktualisieren und stagen
+        $stagedFiles = [];
+        foreach ($filesToUpdate as $nlsFilePath => $info) {
+            $nls = $info['nls'];
+            $tag = $info['tag'];
             $changes = [];
-            foreach ($aliases as $key => $value) {
-                if (!is_string($key)) continue;
-                if (!isset($nls[$key])) continue;  // Nur existierende Keys aktualisieren
+            foreach ($info['keys'] as $key => $value) {
                 if ($value === '' || $value === null) {
                     unset($nls[$key]);
                     $changes[] = $key . ': entfernt';
-                } elseif ($nls[$key] !== $value) {
+                } elseif (!isset($nls[$key]) || $nls[$key] !== $value) {
                     $nls[$key] = $value;
                     $changes[] = $key . ': ' . $value;
                 }
             }
-            if (empty($changes)) continue;  // Keine tatsächlichen Änderungen
+            if (empty($changes)) continue;
 
             $fn = basename($nlsFilePath);
+            // Stage-Pfad: bei Override/Profil-Dateien Prefix hinzufügen um Namenskollisionen zu vermeiden
+            $stagePrefix = ($tag !== 'core') ? $tag . '_' : '';
             $json = json_encode($nls, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-            $stagePath = $stageDir . '/' . $fn;
+            $stagePath = $stageDir . '/' . $stagePrefix . $fn;
             $written = @file_put_contents($stagePath, $json);
             if ($written === false) continue;
 
-            // deployPath = readPath (bei target=original)
+            // Deploy-Pfad = Lese-Pfad (Key wird dort aktualisiert wo er gefunden wurde)
             $deployPath = $nlsFilePath;
-            if ($target === 'override') {
-                $deployPath = $docRoot . '/maps/core/nls/de/' . $fn;
-            } elseif ($target === 'profile' && $profile) {
-                $sp = preg_replace('/[^a-zA-Z0-9_\-]/', '', $profile);
-                $deployPath = ($sp === 'public' || !$sp) ? CONFIG_BASE . '/' . $fn : CONFIG_BASE . '/' . $sp . '/' . $fn;
-            }
-
             $sftpDeploy = str_replace('/var/www/html/nwow', '/www', $deployPath);
             $sftpStaged = str_replace('/data/Client_Data/nwow', '/data', $stagePath);
 
             $stagedFiles[] = [
                 'file'       => $fn,
+                'source'     => $tag,
                 'stagedPath' => $sftpStaged,
                 'deployPath' => $sftpDeploy,
                 'bytes'      => $written,
@@ -3563,8 +3607,61 @@ switch ($action) {
             ];
         }
 
+        // === Fallback: Neue Keys, die in keiner bestehenden Datei existieren ===
+        $newAliases = [];
+        foreach ($unmatchedAliases as $uKey => $uVal) {
+            if (!is_string($uKey) || $uVal === '' || $uVal === null) continue;
+            $newAliases[$uKey] = $uVal;
+        }
+        if (!empty($newAliases)) {
+            // Ziel bestimmen: Override-Datei ist der sinnvollste Standard-Ort
+            // (dort liegen auch die manuell gepflegten Kategorie-NLS-Keys)
+            $fallbackFn = 'lyrmgrResources.json';
+            if ($target === 'profile' && $profile) {
+                // Profil-NLS in den gleichen Pfad wie getProfileNlsPath()
+                $sp = preg_replace('/[^a-zA-Z0-9_\-]/', '', $profile);
+                $fallbackFullPath = getProfileNlsPath($sp);
+                $fallbackFn = basename($fallbackFullPath);
+            } elseif ($target === 'override' || $target === 'original') {
+                // Neue Keys: in Override schreiben (damit sie Core-Werte überschreiben)
+                $fallbackFullPath = $docRoot . '/maps/core/nls/de/' . $fallbackFn;
+            } else {
+                $fallbackFullPath = $docRoot . '/maps/core/nls/de/' . $fallbackFn;
+            }
+            $sftpDeploy = str_replace('/var/www/html/nwow', '/www', $fallbackFullPath);
+
+            // Bestehende Datei lesen (falls vorhanden) und neue Keys hinzufügen
+            $existingNls = [];
+            if (file_exists($fallbackFullPath)) {
+                $raw = file_get_contents($fallbackFullPath);
+                $decoded = json_decode($raw, true);
+                if (is_array($decoded)) $existingNls = $decoded;
+            }
+
+            $changes = [];
+            foreach ($newAliases as $nk => $nv) {
+                $existingNls[$nk] = $nv;
+                $changes[] = $nk . ': ' . $nv . ' (NEU)';
+            }
+
+            $json = json_encode($existingNls, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            $stagePath = $stageDir . '/' . $fallbackFn;
+            $written = @file_put_contents($stagePath, $json);
+            if ($written !== false) {
+                $sftpStaged = str_replace('/data/Client_Data/nwow', '/data', $stagePath);
+                $stagedFiles[] = [
+                    'file'       => $fallbackFn,
+                    'source'     => 'fallback',
+                    'stagedPath' => $sftpStaged,
+                    'deployPath' => $sftpDeploy,
+                    'bytes'      => $written,
+                    'changes'    => $changes
+                ];
+            }
+        }
+
         if (empty($stagedFiles)) {
-            jsonError('Keine NLS-Dateien mit passenden Keys gefunden', 404);
+            jsonError('Keine NLS-Änderungen zu deployen', 404);
         }
 
         jsonResponse(['success' => true, 'data' => [

@@ -13,7 +13,8 @@ LOCAL_BASE = r"c:\_Daten\mapplus-exp\maps"
 
 # Files to upload
 FILES = [
-    "tnet/data/map-bookmarks-all.json",
+    "tnet/js/tnet-lm-store.js",
+    "tnet/js/tnet-coalesce-bridge.js",
 ]
 
 def upload_files():

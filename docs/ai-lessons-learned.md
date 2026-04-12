@@ -854,6 +854,24 @@
 
 ---
 
+### Duplikat-Layer in OL-Map nicht synchron geschaltet (2026-04-10)
+
+- **Symptom**: Layer ausschalten → noch sichtbar (reduzierte Deckkraft), weil nur eine von mehreren OL-Layer-Instanzen geschaltet wurde. Layer erscheint mehrfach in URL (`layers=id|id|id`).
+- **Root-Cause**: `_findOLLayer` findet nur den **ersten** OL-Layer mit dem Namen. Wenn das Framework denselben Layer aus mehreren lyrmgr-Blöcken erstellt, existieren Duplikate in der Karte. Jeder `switchLayersProgr`-Aufruf erstellt einen eigenen OL-Layer.
+- **Fix**: (1) `_findAllOLLayers()` + Sync in `toggleLayerEye`/`setLayerVisible`/`setLayerOpacity`. (2) **Duplikat-Schutz im `add`-Handler** — zweiter OL-Layer mit gleicher ID wird sofort entfernt. (3) **`_syncFromMap` Duplikat-Erkennung** — beim Init nur ersten OL-Layer behalten. (4) **`_dedupUrlLayers()`** — bereinigt `layers=` und `op=` in der URL nach Duplikat-Entfernung + beim Init nach 2s.
+- **Guardrail**: Duplikat-Schutz greift automatisch im `add`-Handler. URL wird automatisch bereinigt.
+
+---
+
+### Name vs. Alias Konzept-Bereinigung (2026-04-10)
+
+- **Symptom**: Kategorie/Gruppen-Namen (gelb markiert) werden nach Publish nicht auf dem Server übernommen.
+- **Root-Cause**: `publishLyrmgr()` schreibt nur die lyrmgr.conf (Struktur mit Keys, keine Namen). Das `name`-Feld im Properties-Dialog war ein Hybrid — weder Key noch NLS-Alias. NLS-Edits wurden nicht automatisch mit-deployt.
+- **Fix**: Properties-Dialog: `name` → `_alias` (NLS) analog zur Layer-Alias-Logik. Save-Handler: `_alias` registriert NLS-Edit. Publish: nach erfolgreichem Conf-Deploy werden pending NLS-Edits automatisch mit-deployt via `_deployAllGroups()`. Inline `.cname` schreibt NLS statt `cat.name`.
+- **Guardrail**: Cat/Group haben nur Key (Struktur) + Alias (NLS). `ref.name` bleibt nur als interner Fallback.
+
+---
+
 ### Kontextmenü im Treebuilder (2025-06-20)
 
 - **Symptom**: `+ Subkategorie`-Button war zu limitiert — kein Einfügen vor/nach Knoten, keine Untergruppen, keine Properties-Bearbeitung
@@ -934,3 +952,10 @@
 - **Root-Cause**: `ClassicLayerMgr._buildContentLayers` erstellt `dijit.form.CheckBox` mit `layer.name` als Widget-ID. Bei Duplikaten im Katalog (gleiche Layer-ID in mehreren Kategorien oder doppelt im selben Array) wirft `dijit.registry.add()` einen Error, der das gesamte Rendering abbricht.
 - **Fix v1 (falsch)**: Layer aus `arLayers` filtern → kein Error, aber Rendering stoppt trotzdem still (Framework-interne DeferredList-Kette bricht ab). **Fix v2 (korrekt)**: `dijit.registry.add` patchen — bei Duplikat altes Widget aus Registry entfernen (`dijit.registry.remove(id)`), neues registrieren. DOM des alten Widgets bleibt intakt. Alle Duplikat-Checkboxen rendern korrekt.
 - **Guardrail**: Dojo-Widget-ID-Konflikte NICHT durch Überspringen lösen — das bricht den Rendering-Flow. Stattdessen `dijit.registry.add` tolerant patchen.
+
+## 2026-04-10 — NLS-Alias Deploy: Änderungen gehen nach Refresh verloren
+
+- **Symptom**: Im Tree-Builder geänderte Aliase (Layer/Kategorie) werden deployed (OK), verschwinden aber nach Seiten-Refresh wieder.
+- **Root-Cause**: `stage-nls-conf` scannte nur EIN NLS-Verzeichnis (basierend auf `$source`-Parameter = Layer-Quelle). Kategorie-Keys wie `desc_Guguseli_Gugus` lagen aber in der Override-Datei (`/www/maps/core/nls/de/lyrmgrResources.json`), nicht in core. PHP fand den Key nicht → Fallback schrieb an falschen Pfad. Override-Datei behielt alten Wert und gewann bei `array_merge`.
+- **Fix**: `stage-nls-conf` scannt jetzt ALLE NLS-Verzeichnisse (core + override + profile). Für jeden Key wird die höchstpriorisierte Datei aktualisiert (Override > Core). Profil-Fallback nutzt `getProfileNlsPath()` statt `CONFIG_BASE`.
+- **Guardrail**: NLS-Keys können in verschiedenen Prioritätsstufen liegen (core < override < profile). Bei NLS-Operationen immer ALLE Stufen durchsuchen, nie nur eine basierend auf Layer-Quelle.
