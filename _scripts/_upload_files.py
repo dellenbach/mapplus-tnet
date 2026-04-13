@@ -13,7 +13,7 @@ LOCAL_BASE = r"c:\_Daten\mapplus-exp\maps"
 
 # Files to upload
 FILES = [
-    "tnet/api/v1/ip-manager.php",
+    "tnet/api/v1/access-control.php",
 ]
 
 def upload_files():

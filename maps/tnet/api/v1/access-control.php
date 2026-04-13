@@ -300,30 +300,10 @@ switch ($action) {
             jsonError('Konfiguration konnte nicht gespeichert werden', 500);
         }
 
-        // .htaccess generieren und schreiben
-        $htaccess = generateHtaccess($input);
-        if (!writeHtaccess($htaccess)) {
-            jsonError('.htaccess konnte nicht geschrieben werden', 500);
-        }
-
         jsonResponse([
             'success' => true,
-            'message' => 'Konfiguration gespeichert und .htaccess generiert',
-            'htaccess_preview' => $htaccess,
+            'message' => 'Konfiguration gespeichert',
         ]);
-        break;
-
-    case 'preview':
-        // Vorschau generieren ohne zu speichern
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            jsonError('POST erwartet', 405);
-        }
-        $input = json_decode(file_get_contents('php://input'), true);
-        if (!$input || !isset($input['ips'])) {
-            jsonError('Ungültige Konfiguration');
-        }
-        $htaccess = generateHtaccess($input);
-        jsonResponse(['success' => true, 'htaccess' => $htaccess]);
         break;
 
     case 'endpoints':
