@@ -640,6 +640,35 @@ body {
 .bm-ac-list div:hover, .bm-ac-list div.bm-ac-active { background: #e3f2fd; }
 .bm-ac-list div .bm-ac-match { font-weight: bold; color: #1565c0; }
 
+/* ===== BOOKMARK JSON-EDITOR ===== */
+.bm-json-panel { display: none; flex: 1; flex-direction: column; min-height: 0; }
+.bm-json-panel.bm-active { display: flex; }
+.bm-json-toolbar { display: flex; gap: 6px; align-items: center; padding: 4px 0; flex-wrap: wrap; }
+.bm-json-toolbar button { padding: 3px 10px; font-size: 11px; border: 1px solid #ddd; border-radius: 3px; background: #fff; cursor: pointer; }
+.bm-json-toolbar button:hover { background: #f0f0f0; }
+.bm-json-toolbar .bm-json-btn-apply { background: #d4a03c; color: #fff; border-color: #b8872e; font-weight: 600; }
+.bm-json-toolbar .bm-json-btn-apply:hover { background: #b8872e; }
+.bm-json-search { display: flex; gap: 4px; align-items: center; margin-left: auto; font-size: 11px; }
+.bm-json-search input { font-size: 11px; padding: 2px 6px; border: 1px solid #ddd; border-radius: 3px; font-family: monospace; width: 160px; }
+.bm-json-search button { padding: 2px 8px; font-size: 11px; border: 1px solid #ddd; border-radius: 3px; background: #fff; cursor: pointer; }
+.bm-json-search button:hover { background: #f0f0f0; }
+.bm-json-search .bm-sr-count { font-size: 10px; color: #888; min-width: 50px; }
+.bm-json-editor { flex: 1; min-height: 200px; font-family: 'Consolas', 'Monaco', monospace; font-size: 12px; line-height: 1.5; padding: 8px; border: 1px solid #ddd; border-radius: 4px; background: #1e1e1e; color: #d4d4d4; tab-size: 2; resize: none; white-space: pre; overflow: auto; }
+.bm-json-editor:focus { outline: 2px solid #d4a03c; border-color: #d4a03c; }
+.bm-json-error { padding: 4px 8px; font-size: 11px; color: #c62828; background: #ffebee; border-radius: 3px; display: none; }
+/* Inline JSON-Editor pro Bookmark */
+.bm-inline-json { display: none; margin-top: 6px; }
+.bm-inline-json.bm-active { display: block; }
+.bm-inline-json textarea { width: 100%; min-height: 120px; font-family: 'Consolas', 'Monaco', monospace; font-size: 11px; line-height: 1.4; padding: 6px; border: 1px solid #ddd; border-radius: 3px; background: #fafafa; tab-size: 2; resize: vertical; }
+.bm-inline-json textarea:focus { outline: 2px solid #d4a03c; border-color: #d4a03c; }
+.bm-inline-json-bar { display: flex; gap: 4px; margin-top: 3px; align-items: center; }
+.bm-inline-json-bar button { padding: 2px 8px; font-size: 10px; border: 1px solid #ddd; border-radius: 3px; background: #fff; cursor: pointer; }
+.bm-inline-json-bar button:hover { background: #f0f0f0; }
+.bm-inline-json-bar .bm-ij-apply { background: #d4a03c; color: #fff; border-color: #b8872e; }
+.bm-inline-json-bar .bm-ij-error { font-size: 10px; color: #c62828; }
+/* Toolbar: aktiver View-Button */
+.bm-toolbar .bm-view-active { background: #d4a03c !important; color: #fff !important; border-color: #b8872e !important; }
+
 /* ===== LEGENDTUNER TAB ===== */
 .lt-toolbar { display: flex; gap: 6px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
 .lt-toolbar button { padding: 5px 12px; font-size: 12px; border: 1px solid #ddd; border-radius: 3px; background: #fff; cursor: pointer; }
@@ -1467,6 +1496,8 @@ body {
       <button id="bm-btn-expand-all" onclick="bmToggleAll()" title="Alle auf-/zuklappen">▶ Alle</button>
       <span class="bm-count" id="bm-count"></span>
       <span style="flex:1"></span>
+      <button id="bm-view-table" class="bm-view-active" onclick="bmSwitchView('table')" title="Tabellenansicht">📋 Tabelle</button>
+      <button id="bm-view-json" onclick="bmSwitchView('json')" title="JSON-Editor">{ } JSON</button>
     </div>
     <div class="bm-filter-bar">
       <label>Name:</label><input type="text" data-col-filter="name" placeholder="Name…" oninput="bmColumnFilter()">
@@ -1497,9 +1528,24 @@ body {
         <tbody id="bm-tbody"></tbody>
       </table>
     </div>
+    <!-- JSON-Editor Panel -->
+    <div class="bm-json-panel" id="bm-json-panel">
+      <div class="bm-json-toolbar">
+        <button class="bm-json-btn-apply" onclick="bmJsonApply()" title="JSON übernehmen → Tabelle aktualisieren">✓ Übernehmen</button>
+        <button onclick="bmJsonFormat()" title="JSON formatieren">Formatieren</button>
+        <button onclick="bmJsonMinify()" title="JSON komprimieren">Komprimieren</button>
+        <div class="bm-json-search">
+          <input type="text" id="bm-sr-find" placeholder="Suchen…" oninput="bmSearchInJson()">
+          <input type="text" id="bm-sr-replace" placeholder="Ersetzen…">
+          <span class="bm-sr-count" id="bm-sr-count"></span>
+          <button onclick="bmReplaceNext()" title="Nächstes ersetzen">Ersetzen</button>
+          <button onclick="bmReplaceAll()" title="Alle ersetzen">Alle ersetzen</button>
+        </div>
+      </div>
+      <div class="bm-json-error" id="bm-json-error"></div>
+      <textarea class="bm-json-editor" id="bm-json-editor" spellcheck="false"></textarea>
+    </div>
   </div>
-
-</div>
 <div id="file-editor-overlay">
   <div id="file-editor-dialog">
     <div id="file-editor-header">
@@ -6966,6 +7012,7 @@ function createBookmarkRows(bm, idx) {
     '<td class="bm-col-hidden"></td><td class="bm-col-hidden"></td><td class="bm-col-hidden"></td>' +
     '<td>' +
     '  <button class="bm-open" onclick="event.stopPropagation();openBookmarkUrl(this.closest(\'tr\'))" title="Im Browser öffnen">↗</button>' +
+    '  <button class="bm-del" onclick="event.stopPropagation();bmInlineJsonToggle(this)" title="JSON bearbeiten" style="color:#d4a03c">{ }</button>' +
     '  <button class="bm-del" onclick="event.stopPropagation();deleteBookmarkRow(this.closest(\'tr\'))" title="Löschen">🗑</button>' +
     '</td>';
 
@@ -6988,7 +7035,14 @@ function createBookmarkRows(bm, idx) {
     '<label>X:</label><input class="bm-num" data-field="x" value="' + esc(String(x)) + '" oninput="markBmChanged(this)">' +
     '<label>Y:</label><input class="bm-num" data-field="y" value="' + esc(String(y)) + '" oninput="markBmChanged(this)">' +
     '<label>Zoom:</label><input class="bm-num" data-field="zoom" value="' + esc(String(zoom)) + '" oninput="markBmChanged(this)">' +
-    '</div>';
+    '</div>' +
+    '<div class="bm-inline-json" data-ij="1">' +
+    '<textarea spellcheck="false"></textarea>' +
+    '<div class="bm-inline-json-bar">' +
+    '<button class="bm-ij-apply" onclick="bmInlineJsonApply(this)">✓ Übernehmen</button>' +
+    '<button onclick="bmInlineJsonCancel(this)">Abbrechen</button>' +
+    '<span class="bm-ij-error"></span>' +
+    '</div></div>';
   detail.appendChild(detailTd);
 
   // Layer-Tags rendern im Detail
@@ -7613,6 +7667,324 @@ document.addEventListener('keydown', function(e) {
     e.preventDefault(); bmRedo();
   }
 });
+
+// Initialisierung
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', function() { initBookmarkSort(); initBmColumnResize(); });
+} else {
+  initBookmarkSort();
+  initBmColumnResize();
+}
+
+// ===== JSON-EDITOR: VIEW SWITCH =====
+var _bmCurrentView = 'table'; // 'table' oder 'json'
+
+function bmSwitchView(view) {
+  _bmCurrentView = view;
+  var tableWrap = document.querySelector('#pane-bookmarks .bm-table-wrap');
+  var filterBar = document.querySelector('#pane-bookmarks .bm-filter-bar');
+  var jsonPanel = document.getElementById('bm-json-panel');
+  var btnTable = document.getElementById('bm-view-table');
+  var btnJson = document.getElementById('bm-view-json');
+
+  if (view === 'json') {
+    tableWrap.style.display = 'none';
+    filterBar.style.display = 'none';
+    jsonPanel.classList.add('bm-active');
+    btnTable.classList.remove('bm-view-active');
+    btnJson.classList.add('bm-view-active');
+    // Tabellendaten → JSON
+    var data = collectBookmarkData();
+    document.getElementById('bm-json-editor').value = JSON.stringify(data, null, 2);
+    document.getElementById('bm-json-error').style.display = 'none';
+    document.getElementById('bm-sr-count').textContent = '';
+  } else {
+    tableWrap.style.display = '';
+    filterBar.style.display = '';
+    jsonPanel.classList.remove('bm-active');
+    btnTable.classList.add('bm-view-active');
+    btnJson.classList.remove('bm-view-active');
+  }
+}
+
+// ===== JSON-EDITOR: ÜBERNEHMEN / FORMAT / MINIFY =====
+function bmJsonApply() {
+  var editor = document.getElementById('bm-json-editor');
+  var errEl = document.getElementById('bm-json-error');
+  try {
+    var data = JSON.parse(editor.value);
+    if (!Array.isArray(data)) throw new Error('Erwartet wird ein JSON-Array');
+    errEl.style.display = 'none';
+    bmPushUndo();
+    _bmData = data;
+    renderBookmarkTable(data);
+    var status = document.getElementById('bm-status');
+    status.textContent = '✓ JSON übernommen — ' + data.length + ' Bookmarks';
+    status.className = 'bm-status success';
+    // Zurück zur Tabelle
+    bmSwitchView('table');
+  } catch (e) {
+    errEl.textContent = 'JSON-Fehler: ' + e.message;
+    errEl.style.display = 'block';
+  }
+}
+
+function bmJsonFormat() {
+  var editor = document.getElementById('bm-json-editor');
+  var errEl = document.getElementById('bm-json-error');
+  try {
+    var data = JSON.parse(editor.value);
+    editor.value = JSON.stringify(data, null, 2);
+    errEl.style.display = 'none';
+  } catch (e) {
+    errEl.textContent = 'JSON-Fehler: ' + e.message;
+    errEl.style.display = 'block';
+  }
+}
+
+function bmJsonMinify() {
+  var editor = document.getElementById('bm-json-editor');
+  var errEl = document.getElementById('bm-json-error');
+  try {
+    var data = JSON.parse(editor.value);
+    editor.value = JSON.stringify(data);
+    errEl.style.display = 'none';
+  } catch (e) {
+    errEl.textContent = 'JSON-Fehler: ' + e.message;
+    errEl.style.display = 'block';
+  }
+}
+
+// ===== JSON-EDITOR: SUCHEN & ERSETZEN =====
+var _bmSearchMatches = [];
+var _bmSearchIdx = -1;
+
+function bmSearchInJson() {
+  var editor = document.getElementById('bm-json-editor');
+  var query = document.getElementById('bm-sr-find').value;
+  var countEl = document.getElementById('bm-sr-count');
+  _bmSearchMatches = [];
+  _bmSearchIdx = -1;
+
+  if (!query) {
+    countEl.textContent = '';
+    return;
+  }
+
+  // Alle Vorkommen finden
+  var text = editor.value;
+  var pos = 0;
+  var lq = query.toLowerCase();
+  var lt = text.toLowerCase();
+  while (true) {
+    var idx = lt.indexOf(lq, pos);
+    if (idx === -1) break;
+    _bmSearchMatches.push(idx);
+    pos = idx + 1;
+  }
+
+  countEl.textContent = _bmSearchMatches.length + ' Treffer';
+
+  // Zum ersten Treffer springen
+  if (_bmSearchMatches.length > 0) {
+    _bmSearchIdx = 0;
+    bmHighlightMatch(editor);
+  }
+}
+
+function bmHighlightMatch(editor) {
+  if (_bmSearchIdx < 0 || _bmSearchIdx >= _bmSearchMatches.length) return;
+  var pos = _bmSearchMatches[_bmSearchIdx];
+  var query = document.getElementById('bm-sr-find').value;
+  editor.focus();
+  editor.setSelectionRange(pos, pos + query.length);
+  // Scroll zur Position: Zeile berechnen
+  var textBefore = editor.value.substring(0, pos);
+  var lines = textBefore.split('\n').length;
+  var lineHeight = 18; // ca. Zeilenhöhe
+  editor.scrollTop = Math.max(0, (lines - 5) * lineHeight);
+}
+
+function bmReplaceNext() {
+  var editor = document.getElementById('bm-json-editor');
+  var findVal = document.getElementById('bm-sr-find').value;
+  var replVal = document.getElementById('bm-sr-replace').value;
+  if (!findVal) return;
+
+  if (_bmSearchMatches.length === 0) bmSearchInJson();
+  if (_bmSearchMatches.length === 0) return;
+
+  if (_bmSearchIdx < 0) _bmSearchIdx = 0;
+  var pos = _bmSearchMatches[_bmSearchIdx];
+  var text = editor.value;
+
+  // Prüfen ob an der Position noch der Suchtext steht (case-insensitive)
+  var atPos = text.substring(pos, pos + findVal.length);
+  if (atPos.toLowerCase() === findVal.toLowerCase()) {
+    editor.value = text.substring(0, pos) + replVal + text.substring(pos + findVal.length);
+  }
+
+  // Suche aktualisieren
+  bmSearchInJson();
+  var countEl = document.getElementById('bm-sr-count');
+  countEl.textContent = _bmSearchMatches.length + ' Treffer';
+
+  if (_bmSearchMatches.length > 0) {
+    _bmSearchIdx = Math.min(_bmSearchIdx, _bmSearchMatches.length - 1);
+    bmHighlightMatch(editor);
+  }
+}
+
+function bmReplaceAll() {
+  var editor = document.getElementById('bm-json-editor');
+  var findVal = document.getElementById('bm-sr-find').value;
+  var replVal = document.getElementById('bm-sr-replace').value;
+  if (!findVal) return;
+
+  // Case-insensitive ersetzen, alle Vorkommen
+  var regex = new RegExp(findVal.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+  var count = (editor.value.match(regex) || []).length;
+  editor.value = editor.value.replace(regex, replVal);
+
+  var countEl = document.getElementById('bm-sr-count');
+  countEl.textContent = count + ' ersetzt';
+  _bmSearchMatches = [];
+  _bmSearchIdx = -1;
+}
+
+// ===== INLINE JSON-EDITOR PRO BOOKMARK =====
+
+// Einzelnes Bookmark aus einer Detail-Zeile als Objekt auslesen
+function bmCollectSingleBookmark(detailRow) {
+  var entry = {};
+  var name = detailRow.querySelector('[data-field="name"]').value.trim();
+  if (name) entry['map-bookmark'] = name;
+  var aliasStr = detailRow.querySelector('[data-field="aliases"]').value.trim();
+  if (aliasStr) entry.aliases = aliasStr.split(',').map(function(s) { return s.trim(); }).filter(Boolean);
+  var basemap = detailRow.querySelector('[data-field="basemap"]').value.trim();
+  if (basemap) entry.basemap = basemap;
+  var tagsDiv = detailRow.querySelector('.bm-layers-tags');
+  if (tagsDiv) {
+    var layerTags = getLayerTagValues(tagsDiv);
+    if (layerTags.length) entry.layers = layerTags;
+  }
+  var opacityStr = detailRow.querySelector('[data-field="opacity"]').value.trim();
+  if (opacityStr) entry.opacity = opacityStr.split(',').map(function(s) { return s.trim(); }).filter(Boolean);
+  var theme = detailRow.querySelector('[data-field="theme"]').value.trim();
+  if (theme) entry.theme = theme;
+  var subtheme = detailRow.querySelector('[data-field="subtheme"]').value.trim();
+  if (subtheme) entry.subtheme = subtheme;
+  var themes = detailRow.querySelector('[data-field="themes"]').value.trim();
+  if (themes) entry.themes = themes;
+  var xVal = detailRow.querySelector('[data-field="x"]').value.trim();
+  if (xVal) entry.x = parseFloat(xVal);
+  var yVal = detailRow.querySelector('[data-field="y"]').value.trim();
+  if (yVal) entry.y = parseFloat(yVal);
+  var zoomVal = detailRow.querySelector('[data-field="zoom"]').value.trim();
+  if (zoomVal) entry.zoom = parseInt(zoomVal, 10);
+  return entry;
+}
+
+// Inline-JSON Toggle (vom { }-Button in der Summary-Zeile)
+function bmInlineJsonToggle(btn) {
+  var summaryRow = btn.closest('tr.bm-row-summary');
+  if (!summaryRow) return;
+  var idx = summaryRow.dataset.idx;
+  var detailRow = document.querySelector('tr.bm-row-detail[data-idx="' + idx + '"]');
+  if (!detailRow) return;
+
+  // Detail aufklappen falls nötig
+  if (!detailRow.classList.contains('bm-expanded')) {
+    detailRow.classList.add('bm-expanded');
+    detailRow.style.display = 'table-row';
+    summaryRow.classList.add('bm-expanded-row');
+  }
+
+  var ijDiv = detailRow.querySelector('.bm-inline-json');
+  var ta = ijDiv.querySelector('textarea');
+  var errSpan = ijDiv.querySelector('.bm-ij-error');
+
+  if (ijDiv.classList.contains('bm-active')) {
+    ijDiv.classList.remove('bm-active');
+    return;
+  }
+
+  // Aktuellen Bookmark als JSON in Textarea laden
+  var bm = bmCollectSingleBookmark(detailRow);
+  ta.value = JSON.stringify(bm, null, 2);
+  errSpan.textContent = '';
+  ijDiv.classList.add('bm-active');
+  ta.focus();
+}
+
+// Inline-JSON übernehmen → Formular-Felder aktualisieren
+function bmInlineJsonApply(btn) {
+  var ijDiv = btn.closest('.bm-inline-json');
+  var detailRow = btn.closest('tr.bm-row-detail');
+  var ta = ijDiv.querySelector('textarea');
+  var errSpan = ijDiv.querySelector('.bm-ij-error');
+
+  try {
+    var bm = JSON.parse(ta.value);
+    if (typeof bm !== 'object' || Array.isArray(bm)) throw new Error('Erwartet wird ein JSON-Objekt');
+    errSpan.textContent = '';
+  } catch (e) {
+    errSpan.textContent = 'JSON-Fehler: ' + e.message;
+    return;
+  }
+
+  bmPushUndo();
+
+  // Felder ins Formular zurückschreiben
+  detailRow.querySelector('[data-field="name"]').value = bm['map-bookmark'] || '';
+  detailRow.querySelector('[data-field="aliases"]').value = (bm.aliases || []).join(', ');
+  detailRow.querySelector('[data-field="basemap"]').value = bm.basemap || '';
+  detailRow.querySelector('[data-field="opacity"]').value = (bm.opacity || []).join(', ');
+  detailRow.querySelector('[data-field="theme"]').value = bm.theme || '';
+  detailRow.querySelector('[data-field="subtheme"]').value = bm.subtheme || '';
+  detailRow.querySelector('[data-field="themes"]').value = bm.themes || '';
+  detailRow.querySelector('[data-field="x"]').value = bm.x != null ? bm.x : '';
+  detailRow.querySelector('[data-field="y"]').value = bm.y != null ? bm.y : '';
+  detailRow.querySelector('[data-field="zoom"]').value = bm.zoom != null ? bm.zoom : '';
+
+  // Layer-Tags neu rendern
+  var tagsDiv = detailRow.querySelector('.bm-layers-tags');
+  tagsDiv.innerHTML = '';
+  var layers = bm.layers || [];
+  for (var i = 0; i < layers.length; i++) {
+    tagsDiv.appendChild(createLayerTag(layers[i], detailRow));
+  }
+
+  // Summary synchronisieren
+  var nameInput = detailRow.querySelector('[data-field="name"]');
+  bmSyncSummary(nameInput);
+  markBmChanged(nameInput);
+
+  // Summary-Layer-Tags aktualisieren
+  var idx = detailRow.dataset.idx;
+  var summaryRow = document.querySelector('tr.bm-row-summary[data-idx="' + idx + '"]');
+  if (summaryRow) {
+    var layerCell = summaryRow.querySelector('.bm-summary-layers');
+    if (layerCell) {
+      var preview = '';
+      for (var lp = 0; lp < Math.min(layers.length, 4); lp++) {
+        var isV = _bmAllLayerKeys.indexOf(layers[lp]) !== -1;
+        preview += '<span class="bm-layer-tag ' + (isV ? 'valid' : 'invalid') + '" data-layer="' + esc(layers[lp]) + '">' + esc(layers[lp]) + '</span>';
+      }
+      if (layers.length > 4) preview += '<span style="font-size:10px;color:#888"> +' + (layers.length - 4) + '</span>';
+      if (layers.length === 0) preview = '<span style="color:#ccc;font-size:10px">–</span>';
+      layerCell.innerHTML = preview;
+    }
+    summaryRow.dataset.layerText = layers.join(' ').toLowerCase();
+  }
+
+  ijDiv.classList.remove('bm-active');
+}
+
+function bmInlineJsonCancel(btn) {
+  var ijDiv = btn.closest('.bm-inline-json');
+  ijDiv.classList.remove('bm-active');
+}
 
 // Initialisierung
 if (document.readyState === 'loading') {
