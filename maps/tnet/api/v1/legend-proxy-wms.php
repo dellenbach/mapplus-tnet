@@ -65,13 +65,9 @@ $METADATA_FILE = dirname(__DIR__, 4) . '/core/config/legend_wms_metadata.json';
 
 // ===== CORS & PRE-FLIGHT =====
 
-header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: GET, OPTIONS');
-
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    http_response_code(204);
-    exit;
-}
+require_once __DIR__ . '/../includes/CorsHelper.php';
+CorsHelper::handlePreflight();
+CorsHelper::setHeaders();
 
 // ===== HILFSFUNKTIONEN =====
 

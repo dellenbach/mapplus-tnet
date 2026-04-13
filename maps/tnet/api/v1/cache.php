@@ -28,17 +28,12 @@ require_once __DIR__ . '/../includes/JsonCache.php';
 $method = $_SERVER['REQUEST_METHOD'];
 
 // OPTIONS Preflight
-if ($method === 'OPTIONS') {
-    header('Access-Control-Allow-Origin: *');
-    header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
-    header('Access-Control-Allow-Headers: Content-Type');
-    http_response_code(204);
-    exit;
-}
+require_once __DIR__ . '/../includes/CorsHelper.php';
+CorsHelper::handlePreflight('GET, POST, OPTIONS');
 
 // Standard API Headers
 header('Content-Type: application/json; charset=utf-8');
-header('Access-Control-Allow-Origin: *');
+CorsHelper::setHeaders('GET, POST, OPTIONS');
 header('X-API-Version: 2.0');
 
 CacheHelper::noCache();

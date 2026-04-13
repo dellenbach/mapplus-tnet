@@ -12,6 +12,46 @@
     AddOutputFilterByType DEFLATE text/plain
 </IfModule>
 
+# === IP-WHITELIST (Apache 2.4) ===
+# Erlaubte IPs für Admin-Zugriff. Anpassen bei Standortwechsel / VPN.
+#   - 127.0.0.1 / ::1       = Localhost (Server-intern)
+#   - 193.135.153.250        = nwow.mapplus.ch (Server selbst)
+#   - 84.241.67.175          = Büro Trigonet
+# Weitere IPs: neue SetEnvIf-Zeile mit TNET_ADMIN=1 ergänzen.
+#
+# Hinweis: www.gis-daten.ch (172.161.100.154) ist ein Reverse-Proxy.
+# Apache sieht dessen IP, nicht die des Clients.
+# → X-Forwarded-For wird zusätzlich geprüft.
+
+# Direktzugriff (Remote_Addr = Client-IP)
+SetEnvIf Remote_Addr "^127\.0\.0\.1$"         TNET_ADMIN=1
+SetEnvIf Remote_Addr "^::1$"                   TNET_ADMIN=1
+SetEnvIf Remote_Addr "^193\.135\.153\.250$"    TNET_ADMIN=1
+SetEnvIf Remote_Addr "^84\.241\.67\.175$"      TNET_ADMIN=1
+
+# Über Reverse-Proxy (X-Forwarded-For enthält echte Client-IP)
+SetEnvIf X-Forwarded-For "84\.241\.67\.175"    TNET_ADMIN=1
+
+# --- Phase 1: SLM Admin-Seiten (HTML) ---
+<FilesMatch "^(ags-import|slm|tree-builder|dev-test|tree-test)\.html$">
+    Require env TNET_ADMIN
+</FilesMatch>
+
+# --- Phase 2: Schreibende / Admin PHP-Endpoints ---
+<FilesMatch "^(admin|migrate|_migrate_ags_import|treebuilder-api)\.php$">
+    Require env TNET_ADMIN
+</FilesMatch>
+
+# --- Phase 2b: Cache-Management (POST = clear) ---
+<FilesMatch "^cache\.php$">
+    <If "%{REQUEST_METHOD} == 'POST'">
+        Require env TNET_ADMIN
+    </If>
+    <Else>
+        Require all granted
+    </Else>
+</FilesMatch>
+
 Options +FollowSymLinks -MultiViews
 RewriteEngine On
 RewriteBase /maps/tnet/api/v1/

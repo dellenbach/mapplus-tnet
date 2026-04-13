@@ -13,10 +13,13 @@ LOCAL_BASE = r"c:\_Daten\mapplus-exp\maps"
 
 # Files to upload
 FILES = [
+    "tnet/api/v1/.htaccess",
+    "tnet/api/includes/ApiResponse.php",
+    "tnet/api/includes/CorsHelper.php",
     "tnet/api/v1/treebuilder-api.php",
-    "tnet/api/v1/tree-builder.html",
-    "tnet/api/v1/slm.html",
-    "tnet/api/docs/openapi.yaml",
+    "tnet/api/v1/cache.php",
+    "tnet/api/v1/legend-proxy.php",
+    "tnet/api/v1/legend-proxy-wms.php",
 ]
 
 def upload_files():
