@@ -25,10 +25,14 @@
  */
 
 require_once __DIR__ . '/../includes/ApiResponse.php';
+require_once __DIR__ . '/../includes/AdminAuth.php';
 require_once __DIR__ . '/../includes/CacheHelper.php';
 require_once __DIR__ . '/../includes/Database.php';
 require_once __DIR__ . '/../includes/ConfigReader.php';
 require_once __DIR__ . '/../includes/LayerImporter.php';
+
+// Cookie-Auth erforderlich
+AdminAuth::requireAuth();
 
 // Standard API Headers
 ApiResponse::setHeaders();

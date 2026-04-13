@@ -65,6 +65,15 @@
             align-items: center;
         }
         .api-nav .link:hover { color: #fff; }
+        .api-nav .login-btn {
+            padding: 6px 14px; margin: auto 0 auto 8px;
+            font-size: 12px; font-weight: 600; text-decoration: none;
+            color: #fff; background: rgba(78,205,196,0.25);
+            border: 1px solid rgba(78,205,196,0.5); border-radius: 4px;
+            display: flex; align-items: center; gap: 5px;
+            transition: background 0.2s;
+        }
+        .api-nav .login-btn:hover { background: rgba(78,205,196,0.4); }
     </style>
 </head>
 <body>
@@ -76,6 +85,7 @@
         </div>
         <span class="spacer"></span>
         <a class="link" href="../v1/info" target="_blank">API Info</a>
+        <a class="login-btn" href="../v1/admin-login.php">🔐 Admin</a>
     </nav>
     <div id="swagger-ui"></div>
 

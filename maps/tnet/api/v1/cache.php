@@ -27,6 +27,12 @@ require_once __DIR__ . '/../includes/JsonCache.php';
 
 $method = $_SERVER['REQUEST_METHOD'];
 
+// Cookie-Auth für schreibende Operationen (POST = Cache leeren)
+if ($method === 'POST') {
+    require_once __DIR__ . '/../includes/AdminAuth.php';
+    AdminAuth::requireAuth();
+}
+
 // OPTIONS Preflight
 require_once __DIR__ . '/../includes/CorsHelper.php';
 CorsHelper::handlePreflight('GET, POST, OPTIONS');

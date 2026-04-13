@@ -535,43 +535,6 @@ body {
 .ags-tab[data-tab="deployed"] { background: linear-gradient(135deg, #7e57c2, #5e35b1); }
 .ags-tab[data-tab="legendtuner"] { background: linear-gradient(135deg, #4B7B81, #3a6166); }
 .ags-tab[data-tab="bookmarks"] { background: linear-gradient(135deg, #d4a03c, #b8872e); }
-.ags-tab[data-tab="access"] { background: linear-gradient(135deg, #c0392b, #96281b); }
-
-/* ===== ZUGRIFFSCHUTZ TAB ===== */
-.ac-toolbar { display: flex; gap: 6px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
-.ac-toolbar button { padding: 5px 12px; font-size: 12px; border: 1px solid #ddd; border-radius: 3px; background: #fff; cursor: pointer; }
-.ac-toolbar button:hover { background: #f0f0f0; }
-.ac-toolbar .ac-btn-save { background: #c0392b; color: #fff; border-color: #96281b; font-weight: 600; }
-.ac-toolbar .ac-btn-save:hover { background: #96281b; }
-.ac-status { padding: 6px 12px; font-size: 12px; color: #666; background: #f5f7fa; border-radius: 4px; margin-bottom: 8px; }
-.ac-section { margin-bottom: 16px; }
-.ac-section h3 { font-size: 13px; font-weight: 700; margin-bottom: 6px; color: #333; border-bottom: 2px solid #c0392b; padding-bottom: 4px; }
-.ac-table { width: 100%; border-collapse: collapse; font-size: 11px; }
-.ac-table th { padding: 5px 6px; text-align: left; background: #fde8e6; border-bottom: 2px solid #c0392b; font-weight: 600; white-space: nowrap; }
-.ac-table td { padding: 4px 6px; border-bottom: 1px solid #eee; vertical-align: middle; }
-.ac-table tr:hover td { background: #fff5f5; }
-.ac-table input[type="text"] { font-size: 11px; padding: 2px 4px; border: 1px solid #ccc; border-radius: 3px; }
-.ac-table input.ac-ip { font-family: monospace; width: 140px; }
-.ac-table input.ac-label { width: 160px; }
-.ac-table .ac-del { background: none; border: none; cursor: pointer; color: #999; font-size: 13px; padding: 2px 6px; }
-.ac-table .ac-del:hover { color: #c44; }
-.ac-add-row { display: flex; gap: 6px; align-items: center; margin-top: 6px; }
-.ac-add-row input { font-size: 11px; padding: 3px 6px; border: 1px solid #ccc; border-radius: 3px; }
-.ac-add-row button { padding: 3px 10px; font-size: 11px; border: 1px solid #c0392b; border-radius: 3px; background: #fff; color: #c0392b; cursor: pointer; }
-.ac-add-row button:hover { background: #fde8e6; }
-.ac-ep-table { width: 100%; border-collapse: collapse; font-size: 11px; }
-.ac-ep-table th { padding: 5px 6px; text-align: left; background: #fde8e6; border-bottom: 2px solid #c0392b; font-weight: 600; }
-.ac-ep-table td { padding: 4px 6px; border-bottom: 1px solid #eee; vertical-align: middle; }
-.ac-ep-table tr:hover td { background: #fff5f5; }
-.ac-ep-table td.ac-ep-name { font-family: monospace; font-weight: 600; }
-.ac-ep-table select { font-size: 11px; padding: 2px 4px; border: 1px solid #ccc; border-radius: 3px; }
-.ac-preview-wrap { margin-top: 12px; }
-.ac-preview-wrap h3 { cursor: pointer; }
-.ac-preview { font-family: 'Consolas', 'Monaco', monospace; font-size: 11px; line-height: 1.4; padding: 8px; border: 1px solid #ddd; border-radius: 4px; background: #1e1e1e; color: #d4d4d4; white-space: pre; overflow: auto; max-height: 400px; tab-size: 4; }
-.ac-layout { display: flex; gap: 16px; flex: 1; min-height: 0; overflow: auto; }
-.ac-layout-left { flex: 1; min-width: 0; overflow: auto; }
-.ac-layout-right { flex: 1; min-width: 0; overflow: auto; }
-
 /* ===== COMMIT-MESSAGE-DIALOG ===== */
 #commit-msg-overlay {
   display: none; position: fixed; inset: 0; z-index: 10200;
@@ -1228,7 +1191,6 @@ body {
     <button class="ags-tab" data-tab="deployed">⑥ Deployed</button>
     <button class="ags-tab" data-tab="legendtuner">⑦ Legendtuner</button>
     <button class="ags-tab" data-tab="bookmarks">⑧ Bookmarks</button>
-    <button class="ags-tab" data-tab="access">⑨ Zugriffschutz</button>
   </div>
 
   <!-- ===== TAB: IMPORT ===== -->
@@ -1584,61 +1546,6 @@ body {
     </div>
   </div>
 
-  <!-- ===== TAB: ZUGRIFFSCHUTZ ===== -->
-  <div class="ags-pane" id="pane-access">
-    <div class="ac-toolbar">
-      <button class="ac-btn-save" onclick="acSave()">💾 Speichern</button>
-      <button onclick="acLoad()">↻ Laden</button>
-      <button onclick="acPreview()">👁 Vorschau</button>
-      <span id="ac-status" class="ac-status">Wechsle zum Tab um die Konfiguration zu laden…</span>
-    </div>
-    <div class="ac-layout">
-      <div class="ac-layout-left">
-        <!-- IP-Whitelist -->
-        <div class="ac-section">
-          <h3>🔒 IP-Whitelist</h3>
-          <table class="ac-table" id="ac-ip-table">
-            <thead>
-              <tr>
-                <th style="width:160px">IP / Muster</th>
-                <th style="width:180px">Bezeichnung</th>
-                <th style="width:60px" title="Auch via X-Forwarded-For prüfen (Reverse-Proxy)">Proxy</th>
-                <th style="width:40px"></th>
-              </tr>
-            </thead>
-            <tbody id="ac-ip-tbody"></tbody>
-          </table>
-          <div class="ac-add-row">
-            <input type="text" id="ac-new-ip" class="ac-ip" placeholder="z.B. 10.203.*.*">
-            <input type="text" id="ac-new-label" class="ac-label" placeholder="Bezeichnung">
-            <label style="font-size:11px"><input type="checkbox" id="ac-new-proxy" checked> Proxy</label>
-            <button onclick="acAddIp()">+ Hinzufügen</button>
-          </div>
-        </div>
-        <!-- Endpoint-Konfiguration -->
-        <div class="ac-section">
-          <h3>📋 Endpoints</h3>
-          <table class="ac-ep-table" id="ac-ep-table">
-            <thead>
-              <tr>
-                <th style="width:200px">Datei</th>
-                <th style="width:60px">Typ</th>
-                <th style="width:180px">Schutz</th>
-              </tr>
-            </thead>
-            <tbody id="ac-ep-tbody"></tbody>
-          </table>
-        </div>
-      </div>
-      <div class="ac-layout-right">
-        <div class="ac-preview-wrap">
-          <h3>📄 .htaccess Vorschau</h3>
-          <pre class="ac-preview" id="ac-preview">Klicke "Vorschau" um die generierte .htaccess zu sehen…</pre>
-        </div>
-      </div>
-    </div>
-  </div>
-
 <div id="file-editor-overlay">
   <div id="file-editor-dialog">
     <div id="file-editor-header">
@@ -1917,8 +1824,6 @@ function switchTab(tabName, skipHash) {
     loadLegendTuner();
   } else if (tabName === 'bookmarks') {
     loadBookmarks();
-  } else if (tabName === 'access') {
-    acLoad();
   }
 }
 
@@ -6650,7 +6555,7 @@ function saveNlsEntry(item, value, btn, tr) {
 
 (function initFromHash() {
   var p = parseUrlHash();
-  var validTabs = ['import', 'manage', 'staging', 'editor', 'treebuilder', 'deployed', 'legendtuner', 'bookmarks', 'access'];
+  var validTabs = ['import', 'manage', 'staging', 'editor', 'treebuilder', 'deployed', 'legendtuner', 'bookmarks'];
   var startTab = (p.tab && validTabs.indexOf(p.tab) !== -1) ? p.tab : 'import';
 
   if (startTab !== 'import') {
@@ -8092,242 +7997,6 @@ if (document.readyState === 'loading') {
 
 <script>
 // =====================================================================
-// ZUGRIFFSCHUTZ-TAB
-// =====================================================================
-var _acConfig = null;   // Geladene Konfiguration
-var _acLoaded = false;  // Bereits geladen?
-var _acEndpoints = [];  // Verfügbare Endpoints vom Server
-
-function acLoad() {
-  var status = document.getElementById('ac-status');
-  status.textContent = 'Lade Konfiguration…';
-  status.className = 'ac-status';
-
-  // Konfiguration und Endpoints parallel laden
-  Promise.all([
-    fetch('access-control.php?action=load').then(function(r) { return r.json(); }),
-    fetch('access-control.php?action=endpoints').then(function(r) { return r.json(); })
-  ])
-  .then(function(results) {
-    var configRes = results[0];
-    var epRes = results[1];
-
-    if (!configRes.success) throw new Error(configRes.error || 'Config-Fehler');
-    _acConfig = configRes.data;
-
-    if (epRes.success) {
-      _acEndpoints = epRes.data;
-    }
-
-    _acLoaded = true;
-    acRenderIpTable();
-    acRenderEndpointTable();
-    status.textContent = '✓ Konfiguration geladen (' + _acConfig.ips.length + ' IPs)';
-    status.className = 'ac-status success';
-  })
-  .catch(function(e) {
-    status.textContent = 'Fehler: ' + e.message;
-    status.className = 'ac-status error';
-  });
-}
-
-// ===== IP-TABELLE RENDERN =====
-function acRenderIpTable() {
-  var tbody = document.getElementById('ac-ip-tbody');
-  tbody.innerHTML = '';
-  var ips = _acConfig.ips || [];
-  for (var i = 0; i < ips.length; i++) {
-    var entry = ips[i];
-    var tr = document.createElement('tr');
-    tr.dataset.idx = i;
-    tr.innerHTML =
-      '<td><input type="text" class="ac-ip" value="' + esc(entry.ip) + '" data-field="ip" onchange="acIpChanged(this)"></td>' +
-      '<td><input type="text" class="ac-label" value="' + esc(entry.label || '') + '" data-field="label" onchange="acIpChanged(this)"></td>' +
-      '<td style="text-align:center"><input type="checkbox"' + (entry.proxy ? ' checked' : '') + ' data-field="proxy" onchange="acIpChanged(this)"></td>' +
-      '<td><button class="ac-del" onclick="acDeleteIp(' + i + ')" title="Entfernen">🗑</button></td>';
-    tbody.appendChild(tr);
-  }
-}
-
-function acIpChanged(input) {
-  var tr = input.closest('tr');
-  var idx = parseInt(tr.dataset.idx, 10);
-  var field = input.dataset.field;
-  if (field === 'proxy') {
-    _acConfig.ips[idx][field] = input.checked;
-  } else {
-    _acConfig.ips[idx][field] = input.value.trim();
-  }
-}
-
-function acDeleteIp(idx) {
-  _acConfig.ips.splice(idx, 1);
-  acRenderIpTable();
-}
-
-function acAddIp() {
-  var ipInput = document.getElementById('ac-new-ip');
-  var labelInput = document.getElementById('ac-new-label');
-  var proxyInput = document.getElementById('ac-new-proxy');
-
-  var ip = ipInput.value.trim();
-  if (!ip) { ipInput.focus(); return; }
-
-  // Einfache Validierung
-  if (!/^[\d\.:*]+$/.test(ip) && ip !== '::1') {
-    alert('Ungültiges IP-Format. Erlaubt: Ziffern, Punkte, Doppelpunkte, Sternchen.');
-    return;
-  }
-
-  _acConfig.ips.push({
-    ip: ip,
-    label: labelInput.value.trim(),
-    proxy: proxyInput.checked,
-  });
-
-  ipInput.value = '';
-  labelInput.value = '';
-  acRenderIpTable();
-}
-
-// ===== ENDPOINT-TABELLE RENDERN =====
-function acRenderEndpointTable() {
-  var tbody = document.getElementById('ac-ep-tbody');
-  tbody.innerHTML = '';
-
-  // Alle Endpoints zusammenführen (Server-Liste + Konfig)
-  var ep = _acConfig.endpoints || {};
-  var allNames = {};
-
-  // Aus Konfiguration
-  (ep.restricted_html || []).forEach(function(n) { allNames[n] = { type: 'html', status: 'restricted' }; });
-  (ep.restricted_php || []).forEach(function(n) { allNames[n] = { type: 'php', status: 'restricted' }; });
-  (ep.cache_post_only || []).forEach(function(n) { allNames[n] = { type: 'php', status: 'cache_post_only' }; });
-  (ep.public || []).forEach(function(n) { allNames[n] = { type: 'php', status: 'public' }; });
-
-  // Vom Server ergänzen (falls nicht in Konfig)
-  _acEndpoints.forEach(function(e) {
-    if (!(e.name in allNames)) {
-      allNames[e.name] = { type: e.type, status: 'public' };
-    } else {
-      allNames[e.name].type = e.type;
-    }
-  });
-
-  // Sortieren: restricted zuerst, dann alphabetisch
-  var names = Object.keys(allNames).sort(function(a, b) {
-    var sa = allNames[a].status === 'restricted' ? 0 : (allNames[a].status === 'cache_post_only' ? 1 : 2);
-    var sb = allNames[b].status === 'restricted' ? 0 : (allNames[b].status === 'cache_post_only' ? 1 : 2);
-    if (sa !== sb) return sa - sb;
-    return a.localeCompare(b);
-  });
-
-  for (var i = 0; i < names.length; i++) {
-    var name = names[i];
-    var info = allNames[name];
-    var isLocked = (name === 'access-control'); // Immer geschützt
-
-    var tr = document.createElement('tr');
-    tr.innerHTML =
-      '<td class="ac-ep-name">' + esc(name) + '.' + info.type + '</td>' +
-      '<td>' + (info.type === 'html' ? '📄 HTML' : '⚙ PHP') + '</td>' +
-      '<td>' +
-      (isLocked
-        ? '<span style="color:#c0392b;font-weight:600;font-size:11px">🔒 Immer geschützt</span>'
-        : '<select data-name="' + esc(name) + '" data-type="' + info.type + '" onchange="acEndpointChanged(this)">' +
-          '<option value="restricted"' + (info.status === 'restricted' ? ' selected' : '') + '>🔒 Geschützt</option>' +
-          '<option value="public"' + (info.status === 'public' ? ' selected' : '') + '>🌐 Öffentlich</option>' +
-          '<option value="cache_post_only"' + (info.status === 'cache_post_only' ? ' selected' : '') + '>🔐 POST geschützt</option>' +
-          '</select>')
-      + '</td>';
-    tbody.appendChild(tr);
-  }
-}
-
-function acEndpointChanged(select) {
-  // Endpoint-Status aus allen Selects neu aufbauen
-  var ep = { restricted_html: [], restricted_php: [], cache_post_only: [], public: [] };
-
-  document.querySelectorAll('#ac-ep-tbody select').forEach(function(sel) {
-    var name = sel.dataset.name;
-    var type = sel.dataset.type;
-    var status = sel.value;
-
-    if (status === 'restricted') {
-      if (type === 'html') ep.restricted_html.push(name);
-      else ep.restricted_php.push(name);
-    } else if (status === 'cache_post_only') {
-      ep.cache_post_only.push(name);
-    } else {
-      ep.public.push(name);
-    }
-  });
-
-  // access-control immer geschützt (nicht im DOM, manuell hinzufügen)
-  if (ep.restricted_php.indexOf('access-control') === -1) {
-    ep.restricted_php.push('access-control');
-  }
-
-  _acConfig.endpoints = ep;
-}
-
-// ===== .HTACCESS VORSCHAU =====
-function acPreview() {
-  // Endpoints aktuell halten
-  acEndpointChanged(null);
-
-  var status = document.getElementById('ac-status');
-  status.textContent = 'Generiere Vorschau…';
-
-  fetch('access-control.php?action=preview', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(_acConfig),
-  })
-  .then(function(r) { return r.json(); })
-  .then(function(res) {
-    if (!res.success) throw new Error(res.error || 'Vorschau-Fehler');
-    document.getElementById('ac-preview').textContent = res.htaccess;
-    status.textContent = '✓ Vorschau generiert';
-    status.className = 'ac-status success';
-  })
-  .catch(function(e) {
-    status.textContent = 'Fehler: ' + e.message;
-    status.className = 'ac-status error';
-  });
-}
-
-// ===== SPEICHERN =====
-function acSave() {
-  // Endpoints aktuell halten
-  acEndpointChanged(null);
-
-  if (!confirm('Konfiguration speichern und .htaccess neu generieren?\n\nÄnderungen werden sofort wirksam!')) return;
-
-  var status = document.getElementById('ac-status');
-  status.textContent = 'Speichere…';
-  status.className = 'ac-status';
-
-  fetch('access-control.php?action=save', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(_acConfig),
-  })
-  .then(function(r) { return r.json(); })
-  .then(function(res) {
-    if (!res.success) throw new Error(res.error || 'Speichern fehlgeschlagen');
-    status.textContent = '✓ Gespeichert — .htaccess wurde neu generiert';
-    status.className = 'ac-status success';
-    // Vorschau aktualisieren
-    if (res.htaccess_preview) {
-      document.getElementById('ac-preview').textContent = res.htaccess_preview;
-    }
-  })
-  .catch(function(e) {
-    status.textContent = 'Fehler: ' + e.message;
-    status.className = 'ac-status error';
-  });
-}
 </script>
 
 <script>

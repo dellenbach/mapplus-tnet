@@ -13,6 +13,10 @@
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
+
+// Cookie-Auth erforderlich
+require_once __DIR__ . '/../includes/AdminAuth.php';
+AdminAuth::requireAuth();
 set_time_limit(120); // 2 Minuten
 
 // OPcache für geänderte Dateien invalidieren

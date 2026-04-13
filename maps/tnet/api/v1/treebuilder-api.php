@@ -28,6 +28,10 @@
 
 header('Content-Type: application/json; charset=utf-8');
 
+// Cookie-Auth erforderlich
+require_once __DIR__ . '/../includes/AdminAuth.php';
+AdminAuth::requireAuth();
+
 require_once __DIR__ . '/../includes/CorsHelper.php';
 CorsHelper::handlePreflight('GET, POST, OPTIONS', 'Content-Type, X-Editor-Name');
 CorsHelper::setHeaders('GET, POST, OPTIONS', 'Content-Type, X-Editor-Name');

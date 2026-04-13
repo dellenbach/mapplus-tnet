@@ -11,10 +11,19 @@
  */
 
 require_once __DIR__ . '/../includes/CorsHelper.php';
+require_once __DIR__ . '/../includes/AdminAuth.php';
 CorsHelper::handlePreflight('GET, POST, OPTIONS');
 CorsHelper::setHeaders('GET, POST, OPTIONS');
 
 header('Content-Type: application/json; charset=utf-8');
+
+// ===== ZUGRIFFSKONTROLLE =====
+// Cookie-Auth erforderlich
+if (!AdminAuth::isAuthenticated()) {
+    http_response_code(401);
+    echo json_encode(['success' => false, 'error' => 'Nicht authentifiziert — bitte einloggen']);
+    exit;
+}
 
 // ===== KONFIGURATION =====
 define('CONFIG_FILE', '/data/Client_Data/nwow/tmp/access-config.json');
@@ -48,7 +57,7 @@ function getDefaultConfig() {
         ],
         'endpoints' => [
             'restricted_html' => ['ags-import', 'slm', 'tree-builder', 'dev-test', 'tree-test'],
-            'restricted_php' => ['admin', 'migrate', '_migrate_ags_import', 'treebuilder-api', 'access-control'],
+            'restricted_php' => ['admin', 'migrate', '_migrate_ags_import', 'treebuilder-api'],
             'cache_post_only' => ['cache'],
             'public' => ['layers', 'basemaps', 'bookmarks', 'info', 'server-check', 'legend-proxy', 'legend-proxy-wms'],
         ],
@@ -283,11 +292,8 @@ switch ($action) {
             jsonError('Ungültige Konfiguration');
         }
 
-        // Validierung: access-control muss immer in restricted_php bleiben
-        $restrictedPhp = $input['endpoints']['restricted_php'] ?? [];
-        if (!in_array('access-control', $restrictedPhp)) {
-            $input['endpoints']['restricted_php'][] = 'access-control';
-        }
+        // Validierung: admin-login, ip-manager, access-control werden
+        // per Cookie-Auth geschützt (nicht in .htaccess nötig)
 
         // Konfiguration speichern
         if (!saveConfig($input)) {

@@ -11,6 +11,8 @@
  */
 
 header('Content-Type: application/json; charset=utf-8');
+require_once __DIR__ . '/../includes/AdminAuth.php';
+AdminAuth::requireAuth();
 require_once __DIR__ . '/../includes/Database.php';
 
 try {
