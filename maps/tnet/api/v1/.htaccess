@@ -17,7 +17,6 @@
 #   - 127.0.0.1 / ::1       = Localhost (Server-intern)
 #   - 193.135.153.250        = nwow.mapplus.ch (Server selbst)
 #   - 193.135.153.10         = Trigonet Server
-#   - 84.241.67.175          = Büro Trigonet
 #   - 10.10.5.36             = Internes Netz
 #   - 10.203.18.133          = Internes Netz
 #   - 10.203.*.*             = Internes Subnetz
@@ -32,7 +31,6 @@ SetEnvIf Remote_Addr "^127\.0\.0\.1$"         TNET_ADMIN=1
 SetEnvIf Remote_Addr "^::1$"                   TNET_ADMIN=1
 SetEnvIf Remote_Addr "^193\.135\.153\.250$"    TNET_ADMIN=1
 SetEnvIf Remote_Addr "^193\.135\.153\.10$"     TNET_ADMIN=1
-SetEnvIf Remote_Addr "^84\.241\.67\.175$"      TNET_ADMIN=1
 SetEnvIf Remote_Addr "^10\.10\.5\.36$"          TNET_ADMIN=1
 SetEnvIf Remote_Addr "^10\.203\.18\.133$"       TNET_ADMIN=1
 SetEnvIf Remote_Addr "^10\.203\."                TNET_ADMIN=1
