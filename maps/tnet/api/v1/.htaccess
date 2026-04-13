@@ -48,7 +48,7 @@ SetEnvIf X-Forwarded-For "10\.203\."             TNET_ADMIN=1
 </FilesMatch>
 
 # --- Phase 2: Schreibende / Admin PHP-Endpoints ---
-<FilesMatch "^(admin|migrate|_migrate_ags_import|treebuilder-api)\.php$">
+<FilesMatch "^(admin|migrate|_migrate_ags_import|treebuilder-api|access-control)\.php$">
     Require env TNET_ADMIN
 </FilesMatch>
 
