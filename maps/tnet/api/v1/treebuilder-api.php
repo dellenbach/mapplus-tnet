@@ -3047,6 +3047,67 @@ function listHistory() {
     return $result;
 }
 
+/**
+ * Alle Backups aus dem Backup-Verzeichnis auflisten (alle Typen)
+ */
+function listAllBackups() {
+    if (!is_dir(BACKUP_DIR)) return ['files' => [], 'totalSize' => 0];
+    $allFiles = scandir(BACKUP_DIR);
+    $result = [];
+    $totalSize = 0;
+    foreach ($allFiles as $f) {
+        if ($f === '.' || $f === '..') continue;
+        $path = BACKUP_DIR . '/' . $f;
+        if (!is_file($path)) continue;
+        $size = filesize($path);
+        $totalSize += $size;
+
+        // Typ erkennen anhand Prefix
+        $type = 'unknown';
+        if (preg_match('/^state_/', $f))                $type = 'state';
+        elseif (preg_match('/^lyrmgr_/', $f))           $type = 'lyrmgr';
+        elseif (preg_match('/^groups_/', $f))            $type = 'groups';
+        elseif (preg_match('/^profile_/', $f))           $type = 'profile';
+        elseif (preg_match('/^lyrmgrResources_/', $f))   $type = 'nls';
+
+        // Zeitstempel aus Dateinamen extrahieren
+        $ts = '';
+        if (preg_match('/(\d{8}_\d{6})/', $f, $m)) {
+            $ts = substr($m[1], 0, 4) . '-' . substr($m[1], 4, 2) . '-' . substr($m[1], 6, 2)
+                . ' ' . substr($m[1], 9, 2) . ':' . substr($m[1], 11, 2) . ':' . substr($m[1], 13, 2);
+        }
+
+        $result[] = [
+            'file'     => $f,
+            'type'     => $type,
+            'size'     => $size,
+            'timestamp'=> $ts,
+            'modified' => date('Y-m-d H:i:s', filemtime($path)),
+        ];
+    }
+    // Neuste zuerst
+    usort($result, function($a, $b) { return strcmp($b['file'], $a['file']); });
+    return ['files' => $result, 'totalSize' => $totalSize, 'count' => count($result)];
+}
+
+/**
+ * Einzelnes Backup löschen
+ */
+function deleteBackupFile($filename) {
+    // Sicherheit: nur Dateinamen ohne Pfadtrenner
+    $safe = basename($filename);
+    if ($safe !== $filename || strpos($safe, '..') !== false) {
+        return ['deleted' => false, 'error' => 'Ungültiger Dateiname'];
+    }
+    $path = BACKUP_DIR . '/' . $safe;
+    if (!file_exists($path)) {
+        return ['deleted' => false, 'error' => 'Datei nicht gefunden'];
+    }
+    $size = filesize($path);
+    @unlink($path);
+    return ['deleted' => true, 'file' => $safe, 'freedBytes' => $size];
+}
+
 function restoreBackup($filename) {
     $path = BACKUP_DIR . '/' . basename($filename);
     if (!file_exists($path)) {
@@ -3125,6 +3186,33 @@ switch ($action) {
     case 'history':
         $history = listHistory();
         jsonResponse(['success' => true, 'data' => $history]);
+        break;
+
+    // ── Alle Backups auflisten ──
+    case 'list-backups':
+        $result = listAllBackups();
+        jsonResponse(['success' => true, 'data' => $result]);
+        break;
+
+    // ── Backup(s) löschen ──
+    case 'delete-backup':
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('POST erforderlich', 405);
+        $body = json_decode(file_get_contents('php://input'), true);
+        $files = is_array($body['files'] ?? null) ? $body['files'] : [];
+        if (empty($files)) jsonError('files-Array leer', 400);
+        $results = [];
+        $freedTotal = 0;
+        foreach ($files as $f) {
+            $r = deleteBackupFile($f);
+            $results[] = $r;
+            if ($r['deleted']) $freedTotal += ($r['freedBytes'] ?? 0);
+        }
+        $deleted = count(array_filter($results, function($r) { return $r['deleted']; }));
+        jsonResponse(['success' => true, 'data' => [
+            'results' => $results,
+            'deleted' => $deleted,
+            'freedBytes' => $freedTotal,
+        ]]);
         break;
 
     case 'restore':
@@ -5053,15 +5141,31 @@ switch ($action) {
 
             // Bei WMS: prüfen ob XML / Capabilities zurückkam
             if (($h['typeLC'] === 'wms' || $h['typeLC'] === 'tilewms') && $ok && $responseBody) {
-                // Einfache Plausibilitätsprüfung: enthält XML?
-                if (strpos($responseBody, '<?xml') === false && stripos($responseBody, '<wms') === false
+                // OGC ServiceException erkennen (MapServer/GeoServer liefern HTTP 200 + Exception-XML)
+                if (stripos($responseBody, 'ServiceException') !== false
+                    || stripos($responseBody, 'msSetError') !== false
+                    || stripos($responseBody, 'ExceptionReport') !== false
+                    || stripos($responseBody, '<ows:Exception') !== false) {
+                    $ok = false;
+                    // Fehlermeldung aus dem XML extrahieren
+                    if (preg_match('/<ServiceException[^>]*>(.*?)<\/ServiceException>/si', $responseBody, $exm)) {
+                        $error = 'OGC: ' . trim(strip_tags($exm[1]));
+                    } else {
+                        $error = 'OGC ServiceException';
+                    }
+                }
+                // Kein XML und kein Capabilities → verdächtig
+                elseif (strpos($responseBody, '<?xml') === false && stripos($responseBody, '<wms') === false
                     && stripos($responseBody, 'WMS_Capabilities') === false && stripos($responseBody, 'WMT_MS_Capabilities') === false) {
-                    // Kein gültiges WMS-XML → trotzdem als OK werten wenn HTTP OK (könnte HTML-Fehlerseite sein)
-                    // Nur markieren wenn offensichtlich Fehler
                     if (stripos($responseBody, 'error') !== false || stripos($responseBody, '404') !== false) {
                         $ok = false;
                         $error = 'Antwort ist kein gültiges WMS-XML';
                     }
+                }
+                // Gültiges Capabilities → prüfen ob mindestens ein <Layer> vorhanden
+                elseif (stripos($responseBody, '<Layer') === false) {
+                    $ok = false;
+                    $error = 'Capabilities ohne Layer-Definition';
                 }
             }
 

@@ -31,10 +31,10 @@ info:
     | **Layer-Tree Vorschau** | [`/v1/tree-test.html`](https://www.gis-daten.ch/maps/tnet/api/v1/tree-test.html) | Interaktiver Layer-Tree zum Testen und Debuggen. Unterstützt `?group=` und `?category=` Parameter. |
     | **Dev-Testseite** | [`/v1/dev-test.html`](https://www.gis-daten.ch/maps/tnet/api/v1/dev-test.html) | Tree + Active Panel mit Mobile/Desktop/Split View, Drag & Drop, emulierte Layer. |
     | **Tree-Builder** | [`/v1/tree-builder.html`](https://www.gis-daten.ch/maps/tnet/api/v1/tree-builder.html) | Interaktiver Konfigurator: Layer → Gruppen → Tree per Drag & Drop, JSON5 Export. |
-    | **AGS Import** | [`/v1/ags-import.html`](https://www.gis-daten.ch/maps/tnet/api/v1/ags-import.html) | ArcGIS Server Roh-Konfigurationen importieren & verwalten. Multi-Import/-Delete. |
+    | **Service- und Layermanager** | [`/v1/slm.html`](https://www.gis-daten.ch/maps/tnet/api/v1/slm.html) | Service-Konfigurationen importieren & verwalten. Multi-Import/-Delete. |
     | **Legend-Proxy** | [`/v1/legend-proxy.php`](https://www.gis-daten.ch/maps/tnet/api/v1/legend-proxy.php?service=ewn/EWN_NIS/MapServer) | Formatierte ArcGIS-Legenden mit konfigurierbarer Symbolgrösse (HTML/JSON). |
     | **Legend-Proxy WMS** | [`/v1/legend-proxy-wms.php`](https://www.gis-daten.ch/maps/tnet/api/v1/legend-proxy-wms.php?service=/qmap/test/kulturobjekte_nw_pg&layer=Kulturobjekte%20Flaeche) | QMAP/WMS-GetLegendGraphic Proxy mit HTML/JSON und Metadata-Injection-Hook. |
-    | **Tree-Builder API** | [`/v1/treebuilder-api.php`](https://www.gis-daten.ch/maps/tnet/api/v1/treebuilder-api.php) | Persistenz-Backend: State, Locks, Profile, AGS-Import. |
+    | **Tree-Builder API** | [`/v1/treebuilder-api.php`](https://www.gis-daten.ch/maps/tnet/api/v1/treebuilder-api.php) | Persistenz-Backend: State, Locks, Profile, Service-Import. |
     | **API Info** | [`/v1/info`](https://www.gis-daten.ch/maps/tnet/api/v1/info) | Health-Check, Endpoint-Übersicht, Server-Statistiken. |
 
   version: "1.0"
@@ -64,10 +64,10 @@ tags:
   description: |
     Persistenz-API für den Tree-Builder (State, Locks, JSON5-Gruppen, Profile, Lyrmgr-Publish).
     Alle Aktionen laufen über `treebuilder-api.php?action=...`.
-- name: AGS Import
+- name: Service- und Layermanager
   description: |
-    ArcGIS Server → MapPlus Roh-Konfiguration.
-    Importiert Config-Dateien von ArcGIS Server-Diensten via `ags2mapplus`-API,
+    Services → MapPlus Roh-Konfiguration.
+    Importiert Config-Dateien von ArcGIS/WMS/WMTS-Diensten via `ags2mapplus`-API,
     speichert sie in `data/tmp/raw-conf/` und ermöglicht Verwaltung (Auflisten, Lesen, Löschen).
 - name: Legends
   description: |
@@ -866,15 +866,15 @@ paths:
               schema:
                 type: string
 
-  /v1/ags-import.html:
+  /v1/slm.html:
     get:
       tags: [ Tools ]
-      summary: AGS Import & Verwaltung
+      summary: Service- und Layermanager
       description: |
-        Eigenständige Seite für ArcGIS Server → MapPlus Roh-Konfiguration Import & Verwaltung.
+        Eigenständige Seite für Service → MapPlus Roh-Konfiguration Import & Verwaltung.
 
         **Direkt im Browser öffnen:**
-        [`/maps/tnet/api/v1/ags-import.html`](https://www.gis-daten.ch/maps/tnet/api/v1/ags-import.html)
+        [`/maps/tnet/api/v1/slm.html`](https://www.gis-daten.ch/maps/tnet/api/v1/slm.html)
 
         Features:
         - **Import-Tab**: Verfügbare AGS-Dienste mit Checkboxen auswählen, Alle/Keine, Shift-Range, Multi-Export nach `data/tmp/raw-conf/`
@@ -883,7 +883,7 @@ paths:
         - Nutzt dieselbe `treebuilder-api.php` API (Aktionen: `ags-services`, `ags-export`, `ags-list-raw`, `ags-delete-raw`, `ags-delete-backups`, `ags-stage-merge`, `staging-list-output`)
       responses:
         "200":
-          description: HTML-Seite mit AGS Import UI
+          description: HTML-Seite mit Service- und Layermanager UI
           content:
             text/html:
               schema:
@@ -1173,11 +1173,11 @@ paths:
         "500":
           description: Speichern fehlgeschlagen
 
-  # ===== AGS IMPORT =====
+  # ===== SERVICE- UND LAYERMANAGER =====
 
   /v1/treebuilder-api.php/ags:
     get:
-      tags: [ AGS Import ]
+      tags: [ Service- und Layermanager ]
       summary: AGS-Dienste & Roh-Konfigurationen abrufen
       description: |
         Abrufen der verfügbaren ArcGIS Server-Dienste von der externen API (`ags2mapplus`)
@@ -1286,7 +1286,7 @@ paths:
           description: Externe API nicht erreichbar
 
     post:
-      tags: [ AGS Import ]
+      tags: [ Service- und Layermanager ]
       summary: AGS-Dienste importieren oder löschen
       description: |
         Importiert ArcGIS Server-Konfigurationen von der externen `ags2mapplus`-API
@@ -1381,7 +1381,7 @@ paths:
 
   /v1/treebuilder-api.php/staging:
     get:
-      tags: [ AGS Import ]
+      tags: [ Service- und Layermanager ]
       summary: Staging-Ausgabe (ImportToCore) auflisten
       description: |
         Listet alle Kürzel-Verzeichnisse unter `ImportToCore/` mit Dateien,
@@ -1429,7 +1429,7 @@ paths:
                               $ref: "#/components/schemas/StagingManifest"
 
     post:
-      tags: [ AGS Import ]
+      tags: [ Service- und Layermanager ]
       summary: Staging-Merge (Services → ImportToCore zusammenführen)
       description: |
         Führt ausgewählte Raw-Conf-Services zu Kürzel-basierten Ausgabedateien zusammen.
@@ -1765,7 +1765,7 @@ components:
                   basemaps:
                     type: integer
 
-    # === AGS Import Schemas ===
+    # === Service- und Layermanager Schemas ===
     AgsServicesResponse:
       allOf:
       - $ref: "#/components/schemas/SuccessResponse"

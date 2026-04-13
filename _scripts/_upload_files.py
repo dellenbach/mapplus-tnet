@@ -15,6 +15,8 @@ LOCAL_BASE = r"c:\_Daten\mapplus-exp\maps"
 FILES = [
     "tnet/api/v1/treebuilder-api.php",
     "tnet/api/v1/tree-builder.html",
+    "tnet/api/v1/slm.html",
+    "tnet/api/docs/openapi.yaml",
 ]
 
 def upload_files():
