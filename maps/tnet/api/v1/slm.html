@@ -1194,7 +1194,7 @@ body {
     <div class="ags-actions" id="import-actions" style="display:none">
       <span class="ags-selcount" id="import-selcount"></span>
       <span class="spacer"></span>
-      <button id="import-btn-export" class="primary" disabled>📦 Exportieren & Speichern</button>
+      <button id="import-btn-export" class="primary" disabled>📦 Importieren & Speichern</button>
     </div>
   </div>
 
@@ -2284,7 +2284,7 @@ function switchImportSource(source) {
   resultEl.innerHTML = '';
 
   if (source === 'ags') {
-    document.getElementById('import-btn-export').textContent = '📦 Exportieren & Speichern';
+    document.getElementById('import-btn-export').textContent = '📦 Importieren & Speichern';
     if (_agsServices.length > 0) {
       renderImportList(_agsServices);
       document.getElementById('import-status').textContent = _agsServices.length + ' Dienste verfügbar';
