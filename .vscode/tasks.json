@@ -2,7 +2,7 @@
 	"version": "2.0.0",
 	"tasks": [
 		{
-			"label": "SFTP: Upload Changed Files (maps/)",
+			"label": "Deploy: Upload Changed Files",
 			"type": "shell",
 			"command": "C:/Program Files/Python313/python.exe",
 			"args": [
@@ -15,7 +15,7 @@
 			}
 		},
 		{
-			"label": "SFTP: Upload Active File (maps/)",
+			"label": "Deploy: Upload Active File",
 			"type": "shell",
 			"command": "C:/Program Files/Python313/python.exe",
 			"args": [
@@ -34,7 +34,12 @@
 			"command": "C:/Program Files/Python313/python.exe",
 			"args": [
 				"_scripts/_upload_lyrmgr_patch.py"
-			]
+			],
+			"problemMatcher": [],
+			"presentation": {
+				"reveal": "always",
+				"panel": "shared"
+			}
 		},
 		{
 			"label": "Deploy: Active Panel Store",
@@ -42,7 +47,12 @@
 			"command": "C:/Program Files/Python313/python.exe",
 			"args": [
 				"_scripts/_upload_files.py"
-			]
+			],
+			"problemMatcher": [],
+			"presentation": {
+				"reveal": "always",
+				"panel": "shared"
+			}
 		}
 	]
 }
