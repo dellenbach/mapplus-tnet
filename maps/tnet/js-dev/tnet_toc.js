@@ -2,7 +2,7 @@
  * tnet_toc.js
  * Table of Contents, Accordion und Tab-Manipulation für TNet
  *
- * @version    1.0
+ * @version    1.01
  * @date       2026-02-12
  * @copyright  Trigonet AG
  * @author     Marco Dellenbach
