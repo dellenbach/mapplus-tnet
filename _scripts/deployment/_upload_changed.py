@@ -1,73 +1,116 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+import sys, io
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
 """
 _upload_changed.py
-Alle git-geaenderten Dateien unter maps/ per SFTP hochladen.
-Erkennt: modified, added, untracked (nur unter maps/).
-JS-Quelldateien (js-dev/) werden automatisch via _build_js.py gebaut,
-nur die minifizierte Version (js/) wird hochgeladen.
+Geaenderte Dateien unter maps/ per SFTP hochladen.
+Erkennung via mtime-State-Datei (upload_state.json) — unabhaengig von git.
+Nach erfolgreichem Upload wird die mtime der Quelldatei gespeichert.
+JS-Quelldateien (js-dev/) werden automatisch gebaut; js/ wird hochgeladen.
 
-@version    1.1
-@date       2026-04-13
+@version    2.0
+@date       2026-04-21
 @copyright  Trigonet AG
 @author     Marco Dellenbach
 """
 import os
-import sys
 import subprocess
+import json
 import paramiko
 
+# ===== KONFIGURATION =====
 BUILD_SCRIPT = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "_build_js.py"))
-LOCAL_BASE_STR = r"c:\_Daten\mapplus-exp\maps"
+LOCAL_BASE   = os.path.normpath(r"c:\_Daten\mapplus-exp\maps")
+STATE_FILE   = os.path.normpath(os.path.join(os.path.dirname(__file__), "upload_state.json"))
 
-# SFTP Config
-HOST = "nwow.mapplus.ch"
-PORT = 22
-USER = "trigonet"
-PASSWORD = "3Zs,k4%Un,<[W(Kx"
-REMOTE_BASE = "/www/maps"
-LOCAL_BASE = os.path.normpath(r"c:\_Daten\mapplus-exp\maps")
-REPO_ROOT = os.path.normpath(r"c:\_Daten\mapplus-exp")
+HOST         = "nwow.mapplus.ch"
+PORT         = 22
+USER         = "trigonet"
+PASSWORD     = "3Zs,k4%Un,<[W(Kx"
+REMOTE_BASE  = "/www/maps"
 
-def get_changed_files():
-    """Git-geaenderte Dateien unter maps/ ermitteln (modified + added + untracked)."""
-    files = set()
+# Verzeichnisse die nie direkt hochgeladen werden duerfen
+BLOCKED_DIRS = ["tnet/js-dev/", "tnet\\js-dev\\"]
 
-    # Modified + Added (staged und unstaged)
-    for cmd in [
-        ["git", "diff", "--name-only", "--", "maps/"],
-        ["git", "diff", "--cached", "--name-only", "--", "maps/"],
-    ]:
-        result = subprocess.run(cmd, capture_output=True, text=True, cwd=REPO_ROOT)
-        if result.returncode == 0:
-            for line in result.stdout.strip().splitlines():
-                line = line.strip()
-                if line:
-                    files.add(line)
 
-    # Untracked unter maps/
-    result = subprocess.run(
-        ["git", "ls-files", "--others", "--exclude-standard", "--", "maps/"],
-        capture_output=True, text=True, cwd=REPO_ROOT
-    )
-    if result.returncode == 0:
-        for line in result.stdout.strip().splitlines():
-            line = line.strip()
-            if line:
-                files.add(line)
+# ===== STATE-VERWALTUNG =====
 
-    return sorted(files)
+def load_state():
+    """Gespeicherte Upload-Timestamps laden."""
+    if os.path.isfile(STATE_FILE):
+        try:
+            with open(STATE_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {}
+
+
+def save_state(state):
+    """Upload-Timestamps speichern."""
+    with open(STATE_FILE, "w", encoding="utf-8") as f:
+        json.dump(state, f, indent=2)
+
+
+def get_mtime(path):
+    """Datei-mtime als float."""
+    return os.path.getmtime(path)
+
+
+# ===== DATEIEN SAMMELN =====
+
+def collect_candidates():
+    """
+    Alle Dateien unter maps/ rekursiv sammeln.
+    js/ (Build-Output) wird uebersprungen — wird via js-dev/ abgedeckt.
+    Verzeichnisse die in .gitignore stehen (core/, public/config/ etc.) werden uebersprungen.
+    """
+    SKIP_DIRS = {
+        os.path.normpath(os.path.join(LOCAL_BASE, "tnet", "js")),
+        os.path.normpath(os.path.join(LOCAL_BASE, "core")),
+        os.path.normpath(os.path.join(LOCAL_BASE, "public", "config")),
+        os.path.normpath(os.path.join(LOCAL_BASE, "public", "guis")),
+    }
+    candidates = []
+    for root, dirs, files in os.walk(LOCAL_BASE):
+        norm_root = os.path.normpath(root)
+        if any(norm_root == sd or norm_root.startswith(sd + os.sep) for sd in SKIP_DIRS):
+            dirs.clear()
+            continue
+        for f in files:
+            candidates.append(os.path.join(root, f))
+    return candidates
+
+
+def get_changed_files(state):
+    """Dateien zurueckgeben deren mtime neuer ist als der letzte Upload."""
+    changed = []
+    for path in collect_candidates():
+        key = os.path.relpath(path, LOCAL_BASE).replace("\\", "/")
+        mtime = get_mtime(path)
+        if key not in state or mtime > state[key]:
+            changed.append(path)
+    return sorted(changed)
+
+
+# ===== UPLOAD =====
 
 def main():
+    state = load_state()
+
     print("Suche geaenderte Dateien unter maps/ ...")
-    changed = get_changed_files()
+    changed = get_changed_files(state)
 
     if not changed:
-        print("Keine geaenderten Dateien unter maps/ gefunden.")
+        print("Keine geaenderten Dateien gefunden.")
         return
 
     print(f"{len(changed)} geaenderte Datei(en) gefunden:\n")
-    for f in changed:
-        print(f"  • {f}")
+    for p in changed:
+        rel = os.path.relpath(p, LOCAL_BASE).replace("\\", "/")
+        print(f"  • {rel}")
 
     print(f"\nVerbinde zu {HOST}...")
     ssh = paramiko.SSHClient()
@@ -78,66 +121,60 @@ def main():
         sftp = ssh.open_sftp()
 
         uploaded = 0
-        skipped = 0
+        skipped  = 0
 
-        for git_path in changed:
-            # git_path ist relativ zum Repo-Root: "maps/tnet/js-dev/foo.js"
+        for local_file in changed:
+            rel = os.path.relpath(local_file, LOCAL_BASE).replace("\\", "/")
 
             # ===== JS-DEV: Build-Schritt =====
-            # Quelldatei aus js-dev/ → minifizieren → js/-Version hochladen
-            if "/tnet/js-dev/" in git_path:
-                src_local = os.path.join(REPO_ROOT, git_path.replace("/", os.sep))
-                if not os.path.isfile(src_local):
-                    print(f"  ⚠ {git_path} (geloescht/fehlt — übersprungen)")
-                    skipped += 1
-                    continue
-                print(f"  ⚙ Build: {git_path}")
+            if rel.startswith("tnet/js-dev/"):
+                print(f"  ⚙ Build: {rel}")
                 build_result = subprocess.run(
-                    [sys.executable, BUILD_SCRIPT, src_local],
+                    [sys.executable, BUILD_SCRIPT, local_file],
                     capture_output=True, text=True
                 )
                 if build_result.returncode != 0:
                     print(f"  ✗ Build fehlgeschlagen: {build_result.stderr.strip() or build_result.stdout.strip()}")
                     skipped += 1
                     continue
-                # Pfad auf js/ umleiten für den Upload
-                out_git_path = git_path.replace("/tnet/js-dev/", "/tnet/js/")
-                local_file = os.path.join(REPO_ROOT, out_git_path.replace("/", os.sep))
-                rel = out_git_path[len("maps/"):]
+                # Auf js/ umleiten
+                upload_rel  = rel.replace("tnet/js-dev/", "tnet/js/")
+                upload_file = os.path.join(LOCAL_BASE, upload_rel.replace("/", os.sep))
             else:
-                local_file = os.path.join(REPO_ROOT, git_path.replace("/", os.sep))
-                rel = git_path[len("maps/"):]
+                upload_rel  = rel
+                upload_file = local_file
 
-            if not os.path.isfile(local_file):
-                print(f"  ⚠ {git_path} (geloescht/fehlt)")
+            # Sicherheitssperre
+            if any(b in upload_rel for b in ["tnet/js-dev/"]):
+                print(f"  ✗ GESPERRT: {upload_rel}")
                 skipped += 1
                 continue
 
-            # Remote-Pfad: maps/ Praefix entfernen
-            remote_file = f"{REMOTE_BASE}/{rel}"
-
-            # Sicherheitssperre: js-dev/ darf nie direkt hochgeladen werden
-            if "/tnet/js-dev/" in remote_file:
-                print(f"  ✗ GESPERRT (js-dev/ darf nicht hochgeladen werden): {rel}")
+            if not os.path.isfile(upload_file):
+                print(f"  ⚠ {upload_rel} (nicht gefunden — uebersprungen)")
                 skipped += 1
                 continue
 
+            remote_file = f"{REMOTE_BASE}/{upload_rel}"
             try:
-                sftp.put(local_file, remote_file)
-                size = os.path.getsize(local_file)
-                print(f"  ✓ {rel} ({size:,} bytes)")
+                sftp.put(upload_file, remote_file)
+                size = os.path.getsize(upload_file)
+                print(f"  ✓ {upload_rel} ({size:,} bytes)")
+                # mtime der Quelldatei merken (nicht des Build-Outputs)
+                state[rel] = get_mtime(local_file)
                 uploaded += 1
             except Exception as e:
-                print(f"  ✗ {rel} — {e}")
+                print(f"  ✗ {upload_rel} — {e}")
                 skipped += 1
 
         sftp.close()
         ssh.close()
-
+        save_state(state)
         print(f"\n✓ Fertig: {uploaded} hochgeladen, {skipped} uebersprungen")
 
     except Exception as e:
         print(f"✗ Verbindungsfehler: {e}")
+
 
 if __name__ == "__main__":
     main()

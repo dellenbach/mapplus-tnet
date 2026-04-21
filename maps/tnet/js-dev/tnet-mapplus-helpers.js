@@ -584,7 +584,14 @@ function TnetSyncMapTips() {
     if (mtId === '_wms_connector' || mtId === '_disablewmsgetfeatureinfo') continue;
 
     var mt = am.MapTips[mtId];
-    if (!mt || !mt.linked_layer_id) continue;
+    // Das Framework setzt linked_layer_id erst bei der ersten Aktivierung via addLayerCallback.
+    // Maptips die noch nie aktiviert wurden haben nur linked_layer (raw config).
+    // → linked_layer als Fallback verwenden und auf linked_layer_id normalisieren.
+    if (!mt) continue;
+    if (!mt.linked_layer_id && mt.linked_layer) {
+      mt.linked_layer_id = mt.linked_layer;
+    }
+    if (!mt.linked_layer_id) continue;
 
     // ── Coalesce: Bridge hat eigenen Mechanismus (_forceActivateMaptip) ──
     if (isCoalesce(mt.linked_layer_id)) {
@@ -608,17 +615,19 @@ function TnetSyncMapTips() {
 
     // ── AKTIVIEREN ──
     if (shouldBeActive && !mt.active) {
-      // Wenn Prefix-Match (nicht exakt) und MapTip kein eigenes wms_layer hat:
-      // → wms_layer auf den Parent-OL-Layer setzen, damit queryconnector
-      //   eine gültige URL hat. Ohne dies würde getLayerByMap() den Sublayer-Key
-      //   nicht finden (er ist nicht im LyrMgr registriert) → crash.
-      //
-      // Für exakte Matches ODER MapTips mit url (= haben wms_layer via Activate()):
-      // → wms_layer NICHT anfassen. getLayerByMap funktioniert korrekt.
-      if (match && !match.exact && !mt.wms_layer && !mt.url) {
+      // wms_layer setzen, wenn es noch nicht gesetzt ist:
+      //   - Prefix-Match: Parent-OL-Layer zuweisen (Sublayer ist nicht im LyrMgr)
+      //   - Exakter Match: OL-Layer direkt zuweisen, falls Framework's Activate()
+      //     noch nicht lief (passiert bei setVisible(true) ohne addLayerCallback →
+      //     queryconnector würde sonst getLayerByMap() aufrufen, das vor dem
+      //     ersten Render leere Ergebnisse liefert).
+      // Wenn mt.url existiert, hat Activate() schon gelaufen → wms_layer nicht anfassen.
+      if (match && !mt.wms_layer && !mt.url) {
         mt.wms_layer = match.olLayer;
-        mt._tnetParentMatch = match.name; // Logging-Marker
-        prefixMatched++;
+        if (!match.exact) {
+          mt._tnetParentMatch = match.name; // Logging-Marker für Prefix-Match
+          prefixMatched++;
+        }
       }
       am.wmsActiveLyrs.push(mt);
       mt.active = true;

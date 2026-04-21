@@ -24,3 +24,6 @@ maps/public/guis/
 # Build-Artefakte (minifizierte JS) — Quelle liegt in js-dev/
 maps/tnet/js/*.js
 maps/tnet/js/mobile/*.js
+
+# Lokaler Upload-State (mtime-Tracking)
+_scripts/deployment/upload_state.json
