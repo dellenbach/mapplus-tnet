@@ -318,6 +318,8 @@
         map.forEachFeatureAtPixel(evt.pixel, function (feature, layer) {
           if (!layer) return;
           var name = layer.get('name') || '';
+          // Layer ohne Namen ignorieren (z.B. MapTip-Highlight-Vektor-Layer)
+          if (!name) return;
           // Kosmetische Layer ignorieren
           if (name === 'cosmetic_maptip' || name === 'cosmetic_search' || name.indexOf('cosmetic_') === 0) return;
           // Framework-interne Layer ignorieren (Messungen, PDF-Extent, Select-Tools)

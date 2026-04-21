@@ -409,6 +409,9 @@ function TnetLayerSwitch(layerId, mode) {
       // Layer existiert bereits im Stack → sichtbar machen
       found.setVisible(true);
       TnetLog.log('[TnetLayerSwitch] Layer eingeblendet:', layerId);
+      // setVisible() löst kein OL 'add'-Event aus → Maptips würden nie aktiviert.
+      // Daher Sync manuell triggern.
+      TnetScheduleSyncMapTips(200);
     } else {
       // Noch nicht im Stack → über LyrMgr (Layer-Manager) laden.
       // WICHTIG: setMapBookmark NICHT verwenden — setzt gesamten Kartenstatus zurück.

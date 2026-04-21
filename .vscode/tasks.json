@@ -6,7 +6,7 @@
 			"type": "shell",
 			"command": "C:/Program Files/Python313/python.exe",
 			"args": [
-				"_scripts/_upload_changed.py"
+				"_scripts/deployment/_upload_changed.py"
 			],
 			"problemMatcher": [],
 			"presentation": {
@@ -19,7 +19,7 @@
 			"type": "shell",
 			"command": "C:/Program Files/Python313/python.exe",
 			"args": [
-				"_scripts/_upload_active_file.py",
+				"_scripts/deployment/_upload_active_file.py",
 				"${file}"
 			],
 			"problemMatcher": [],
@@ -33,7 +33,7 @@
 			"type": "shell",
 			"command": "C:/Program Files/Python313/python.exe",
 			"args": [
-				"_scripts/_upload_lyrmgr_patch.py"
+				"_scripts/deployment/_upload_lyrmgr_patch.py"
 			],
 			"problemMatcher": [],
 			"presentation": {
@@ -46,7 +46,7 @@
 			"type": "shell",
 			"command": "C:/Program Files/Python313/python.exe",
 			"args": [
-				"_scripts/_upload_files.py"
+				"_scripts/deployment/_upload_files.py"
 			],
 			"problemMatcher": [],
 			"presentation": {

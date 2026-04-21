@@ -12,10 +12,11 @@ nur die minifizierte Version (js/) wird hochgeladen.
 @author     Marco Dellenbach
 """
 import os
+import sys
 import subprocess
 import paramiko
 
-BUILD_SCRIPT = os.path.normpath(os.path.join(os.path.dirname(__file__), "_build_js.py"))
+BUILD_SCRIPT = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "_build_js.py"))
 LOCAL_BASE_STR = r"c:\_Daten\mapplus-exp\maps"
 
 # SFTP Config
@@ -92,7 +93,7 @@ def main():
                     continue
                 print(f"  ⚙ Build: {git_path}")
                 build_result = subprocess.run(
-                    ["python", BUILD_SCRIPT, src_local],
+                    [sys.executable, BUILD_SCRIPT, src_local],
                     capture_output=True, text=True
                 )
                 if build_result.returncode != 0:

@@ -16,7 +16,7 @@ import sys
 import subprocess
 import paramiko
 
-BUILD_SCRIPT = os.path.normpath(os.path.join(os.path.dirname(__file__), "_build_js.py"))
+BUILD_SCRIPT = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "_build_js.py"))
 
 # SFTP Config
 HOST = "nwow.mapplus.ch"
@@ -51,7 +51,7 @@ def main():
     if is_js_dev:
         print(f"⚙ Quelldatei erkannt — baue zuerst: {os.path.basename(filepath)}")
         build_result = subprocess.run(
-            ["python", BUILD_SCRIPT, filepath],
+            [sys.executable, BUILD_SCRIPT, filepath],
             capture_output=False  # Ausgabe direkt anzeigen
         )
         if build_result.returncode != 0:
