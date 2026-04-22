@@ -409,8 +409,43 @@ function TnetLayerSwitch(layerId, mode) {
       // Layer existiert bereits im Stack → sichtbar machen
       found.setVisible(true);
       TnetLog.log('[TnetLayerSwitch] Layer eingeblendet:', layerId);
-      // setVisible() löst kein OL 'add'-Event aus → Maptips würden nie aktiviert.
-      // Daher Sync manuell triggern.
+
+      // Map-Render forcieren damit OL-Source initialisiert wird.
+      // Ohne dies kann getFeatureInfoUrl() null zurückgeben bis die Source
+      // zum ersten Mal gerendert wurde (erklärt warum Zoom-out/in das Problem löst).
+      try {
+        if (typeof map.renderSync === 'function') {
+          map.renderSync();
+        } else {
+          map.render();
+        }
+      } catch (eRender) { /* noop */ }
+
+      // setVisible() löst kein OL 'add'-Event aus → Framework's addLayerCallback
+      // läuft nicht → MapTips bleiben inaktiv. Wir simulieren den add-Event manuell
+      // auf allen MapTips, deren linked_layer_id zum layerId passt. Dadurch laufen
+      // fldLookup-Preload, zoomEndListener-Registration und _setActiveIfVisible.
+      try {
+        if (am.MapTips) {
+          var fakeEvt = { element: found };
+          for (var mtId in am.MapTips) {
+            if (!am.MapTips.hasOwnProperty(mtId)) continue;
+            if (mtId === '_wms_connector' || mtId === '_disablewmsgetfeatureinfo') continue;
+            var mt = am.MapTips[mtId];
+            if (!mt) continue;
+            var mtLinked = mt.linked_layer_id || mt.linked_layer;
+            if (mtLinked !== layerId) continue;
+            if (typeof mt.addLayerCallback === 'function') {
+              mt.addLayerCallback(fakeEvt);
+              TnetLog.log('[TnetLayerSwitch] addLayerCallback simuliert für MapTip:', mtId);
+            }
+          }
+        }
+      } catch (eCb) {
+        TnetLog.warn('[TnetLayerSwitch] addLayerCallback-Simulation fehlgeschlagen:', eCb.message);
+      }
+
+      // Zusätzlicher Sync als Sicherheitsnetz (für Prefix-Match-Fälle)
       TnetScheduleSyncMapTips(200);
     } else {
       // Noch nicht im Stack → über LyrMgr (Layer-Manager) laden.
@@ -648,10 +683,23 @@ function TnetSyncMapTips() {
 
   // ── Duplikat-Bereinigung in wmsActiveLyrs ──
   // Race-Condition: addLayerCallback kann parallel feuern → gleicher MapTip doppelt
+  // WICHTIG: Nur IDENTISCHE MapTips sind Duplikate. Mehrere MapTips mit gleichem
+  // linked_layer_id aber unterschiedlichen query_layers (z.B. liegenschaften_eigentuemer_nw
+  // vs _ow) sind KEINE Duplikate — sie decken verschiedene Kantone/Abfragen ab.
+  // → Dedup-Key aus linked_layer_id + query_layers + id zusammensetzen und
+  //   Referenz-Identität zusätzlich prüfen.
   var seen = {};
+  var seenRefs = [];
   var dupes = [];
   am.wmsActiveLyrs.getArray().forEach(function (mt, idx) {
-    var key = mt.linked_layer_id || mt.id || ('idx_' + idx);
+    // 1. Exakte Referenz-Duplikate (echte Race-Condition-Dupes)
+    if (seenRefs.indexOf(mt) !== -1) {
+      dupes.push(mt);
+      return;
+    }
+    seenRefs.push(mt);
+    // 2. Inhaltlich identische MapTips (gleicher linked_layer_id + query_layers + id)
+    var key = (mt.linked_layer_id || '') + '|' + (mt.query_layers || '') + '|' + (mt.id || 'idx_' + idx);
     if (seen[key]) {
       dupes.push(mt);
     }

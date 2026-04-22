@@ -196,27 +196,64 @@
       var urlPath = '(unbekannt)';
       var layerSource = '?';
       var parentMatch = mt._tnetParentMatch || null;
+      var diag = {
+        mt_url: mt.url || null,
+        mt_params: mt.params ? Object.keys(mt.params).join(',') : null,
+        mt_querytype: mt.querytype || null,
+        wms_visible: null,
+        wms_source_url: null,
+        wms_source_params: null,
+        fw_visible: null,
+        fw_source_url: null,
+        fw_source_params: null,
+        map_res: null,
+        mt_minRes: mt.minResolution || null,
+        mt_maxRes: mt.maxResolution || null
+      };
       try {
+        var _am = _getAm();
+        if (_am && _am.Maps && _am.Maps['main']) {
+          diag.map_res = _am.Maps['main'].mapObj.getView().getResolution();
+        }
         if (mt.wms_layer) {
-          // queryconnector nutzt wms_layer direkt
           layerSource = parentMatch ? 'wms_layer(prefix:' + parentMatch + ')' : 'wms_layer';
+          if (mt.wms_layer.getVisible) diag.wms_visible = mt.wms_layer.getVisible();
           if (mt.wms_layer.getSource && typeof mt.wms_layer.getSource === 'function') {
             var src = mt.wms_layer.getSource();
-            urlPath = (src && typeof src.getUrl === 'function') ? (src.getUrl() || '').substring(0, 100) : '(kein getUrl)';
+            if (src) {
+              diag.wms_source_url = (typeof src.getUrl === 'function') ? src.getUrl() : null;
+              if (typeof src.getParams === 'function') {
+                var p = src.getParams();
+                diag.wms_source_params = p ? JSON.stringify(p) : null;
+              }
+              urlPath = diag.wms_source_url ? diag.wms_source_url.substring(0, 100) : '(kein url)';
+            }
           }
         } else {
-          // queryconnector wird getLayerByMap nutzen
           layerSource = 'getLayerByMap';
           var fwLayer = njs.AppManager.getLayerByMap(mt.idmap || 'main', mt.linked_layer_id);
           if (fwLayer && fwLayer._lyr) {
+            if (fwLayer._lyr.getVisible) diag.fw_visible = fwLayer._lyr.getVisible();
             var fwSrc = fwLayer._lyr.getSource ? fwLayer._lyr.getSource() : null;
-            urlPath = (fwSrc && typeof fwSrc.getUrl === 'function') ? (fwSrc.getUrl() || '').substring(0, 100) : '(kein getUrl)';
+            if (fwSrc) {
+              diag.fw_source_url = (typeof fwSrc.getUrl === 'function') ? fwSrc.getUrl() : null;
+              if (typeof fwSrc.getParams === 'function') {
+                var fp = fwSrc.getParams();
+                diag.fw_source_params = fp ? JSON.stringify(fp) : null;
+              }
+              urlPath = diag.fw_source_url ? diag.fw_source_url.substring(0, 100) : '(kein url)';
+            }
           } else {
             urlPath = fwLayer ? '(kein _lyr)' : '(NICHT GEFUNDEN!)';
           }
         }
       } catch (preErr) {
         urlPath = '(pre-flight Fehler: ' + preErr.message + ')';
+      }
+
+      // Debug-Flag: window.TNET_DEBUG_INFO = true aktiviert detailliertes Logging
+      if (window.TNET_DEBUG_INFO) {
+        console.log('[InfoBridge DEBUG]', mtLinkedId, 'ql:', mt.query_layers, 'src:', layerSource, diag);
       }
 
       try {
