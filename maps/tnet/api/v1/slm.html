@@ -222,6 +222,12 @@ body {
 .ags-svc-head .svc-name { flex: 1; font-family: 'Consolas', monospace; font-weight: 600; }
 .ags-svc-head .svc-badge { font-size: 9px; color: #fff; background: var(--c-primary); padding: 1px 6px; border-radius: 7px; }
 .ags-svc-head .svc-size { font-size: 10px; color: #999; }
+.ags-svc-group.needs-restage { border-color: #f0bf8d; }
+.ags-svc-group.needs-restage .ags-svc-head { background: #fff6ed; }
+.ags-svc-head .svc-restage-hint {
+  font-size: 9px; color: #9a4d00; background: #ffe7cf; border: 1px solid #f0bf8d;
+  padding: 1px 6px; border-radius: 8px; font-weight: 700; white-space: nowrap;
+}
 .ags-svc-head .svc-del {
   padding: 2px 8px; font-size: 10px; border: 1px solid #ddd; border-radius: 3px;
   background: #fff; cursor: pointer; color: #c33;
@@ -1619,6 +1625,75 @@ body {
 // =====================================================================
 var API_URL  = '/maps/tnet/api/v1/treebuilder-api.php';
 var GAPI_URL = '/gapi/ags2mapplus';
+
+// =====================================================================
+// AUTH-WRAPPER FÜR fetch()
+// =====================================================================
+// Wenn das Backend wegen fehlendem Login mit einer Login-HTML antwortet
+// (statt mit JSON), dann erkennen wir das hier und leiten auf die Login-
+// Seite um. So vermeiden wir verwirrende "Unexpected token '<'"-Fehler
+// und bieten einen klaren Login-Pfad an.
+(function installAuthAwareFetch() {
+  if (window.__slmFetchWrapped) return;
+  window.__slmFetchWrapped = true;
+
+  var LOGIN_URL = '/maps/tnet/api/v1/admin-login.php?redirect=' +
+                  encodeURIComponent(location.pathname + location.search + location.hash);
+  var SELF_URL  = '/maps/tnet/api/v1/';
+  var alreadyRedirected = false;
+
+  function isApiResponse(url) {
+    if (typeof url !== 'string') url = (url && url.url) || '';
+    return url.indexOf('/maps/tnet/api/') !== -1;
+  }
+
+  function showLoginBanner() {
+    if (document.getElementById('slm-auth-banner')) return;
+    var bar = document.createElement('div');
+    bar.id = 'slm-auth-banner';
+    bar.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;'
+      + 'background:#c62828;color:#fff;padding:12px 18px;font:14px/1.4 -apple-system,Segoe UI,sans-serif;'
+      + 'box-shadow:0 2px 8px rgba(0,0,0,.25);display:flex;align-items:center;gap:12px;';
+    bar.innerHTML = '<span style="font-weight:600">🔒 Nicht eingeloggt</span>'
+      + '<span>Sie sind ausgeloggt oder die Sitzung ist abgelaufen. Bitte neu anmelden.</span>'
+      + '<a href="' + LOGIN_URL + '" style="margin-left:auto;background:#fff;color:#c62828;'
+      + 'padding:6px 14px;border-radius:6px;text-decoration:none;font-weight:600">Zum Login</a>';
+    document.body.appendChild(bar);
+  }
+
+  var origFetch = window.fetch.bind(window);
+  window.fetch = function(input, init) {
+    var p = origFetch(input, init);
+    if (!isApiResponse(input)) return p;
+    return p.then(function(resp) {
+      // 401/403 oder Redirect auf Login → Banner + optional Redirect
+      var ct = (resp.headers && resp.headers.get) ? (resp.headers.get('content-type') || '') : '';
+      var looksLikeLogin = resp.status === 401 || resp.status === 403
+                        || (resp.url && resp.url.indexOf('admin-login') !== -1);
+      if (!looksLikeLogin && ct.indexOf('text/html') === -1) return resp;
+
+      // Response klonen um Body lesen zu können ohne die Original-Chain zu brechen
+      var clone = resp.clone();
+      return clone.text().then(function(body) {
+        if (body.indexOf('Admin Login') === -1 && !looksLikeLogin) return resp;
+        showLoginBanner();
+        // Nur einmal automatisch weiterleiten — wenn der erste Request schon
+        // mit Login geantwortet hat, lassen wir den Banner stehen und der
+        // User klickt manuell. Damit verliert er keine Eingaben.
+        if (!alreadyRedirected && document.readyState === 'loading') {
+          alreadyRedirected = true;
+          location.href = LOGIN_URL;
+        }
+        // Fehler-Objekt zurückgeben, das kompatibel zu .json()-Konsumenten ist
+        var fake = new Response(
+          JSON.stringify({ success: false, error: 'Bitte einloggen (Session abgelaufen)' }),
+          { status: 401, headers: { 'Content-Type': 'application/json' } }
+        );
+        return fake;
+      });
+    });
+  };
+})();
 
 // =====================================================================
 // COMMIT-MESSAGE-DIALOG
@@ -3677,6 +3752,7 @@ function loadStagingList(onLoaded) {
  */
 function renderStagingList(services) {
   var listEl = document.getElementById('staging-svc-list');
+  var restageMap = getStagingRestageServiceMap();
   listEl.innerHTML = '';
   _agsLastStagingCheckbox = null;
 
@@ -3693,6 +3769,13 @@ function renderStagingList(services) {
       + '<span class="svc-name">' + svc.service + '</span>'
       + '<span class="svc-badge">' + svc.files.length + ' Dateien</span>'
       + '<span class="svc-size">' + totalSize + '</span>';
+
+    var restageInfo = restageMap[svc.service] || restageMap[svc.service.toLowerCase()];
+    if (restageInfo) {
+      group.classList.add('needs-restage');
+      head.title = restageInfo.title;
+      head.innerHTML += '<span class="svc-restage-hint" title="' + esc(restageInfo.title) + '">⚠ Re-Stage: ' + restageInfo.kuerzel.length + '</span>';
+    }
 
     var cb = document.createElement('input');
     cb.type = 'checkbox';
@@ -3730,6 +3813,55 @@ function renderStagingList(services) {
   });
 
   updateStagingSelCount();
+}
+
+function getStagingRestageServiceMap() {
+  var serviceMap = {};
+  if (!_stagingOutputData || !_stagingOutputData.length) return serviceMap;
+
+  function ensureService(serviceName, kuerzel) {
+    if (!serviceName) return null;
+    var key = serviceName.toLowerCase();
+    if (!serviceMap[key]) {
+      serviceMap[key] = {
+        service: serviceName,
+        kuerzel: [],
+        reasons: []
+      };
+    }
+    if (serviceMap[key].kuerzel.indexOf(kuerzel) === -1) {
+      serviceMap[key].kuerzel.push(kuerzel);
+    }
+    return serviceMap[key];
+  }
+
+  _stagingOutputData.forEach(function(entry) {
+    var changes = entry.sourceChanges;
+    if (!changes || !changes.hasChanges) return;
+
+    (changes.changed || []).forEach(function(change) {
+      var item = ensureService(change.service, entry.kuerzel);
+      if (!item) return;
+      var fileCount = (change.files || []).length;
+      var reason = change.service + ' -> ' + fileCount + ' Datei' + (fileCount !== 1 ? 'en' : '') + ' geaendert (' + entry.kuerzel + ')';
+      if (item.reasons.indexOf(reason) === -1) item.reasons.push(reason);
+    });
+
+    (changes.missing || []).forEach(function(serviceName) {
+      var item = ensureService(serviceName, entry.kuerzel);
+      if (!item) return;
+      var reason = serviceName + ' fehlt in raw-conf (' + entry.kuerzel + ')';
+      if (item.reasons.indexOf(reason) === -1) item.reasons.push(reason);
+    });
+  });
+
+  Object.keys(serviceMap).forEach(function(key) {
+    var item = serviceMap[key];
+    item.title = 'Bereits in ImportToCore verwendet und fuer Re-Stage markiert:\n'
+      + item.reasons.join('\n');
+  });
+
+  return serviceMap;
 }
 
 function getVisibleStagingCheckboxes() {
@@ -3892,15 +4024,23 @@ function loadStagingOutput() {
       }
       // Anzahl Kürzel mit Änderungen zählen
       var changedCount = 0;
+      var unverifiableCount = 0;
       d.kuerzel.forEach(function(k) { if (k.sourceChanges && k.sourceChanges.hasChanges) changedCount++; });
-      if (changedCount > 0) {
-        statusEl.textContent = d.kuerzel.length + ' Kürzel — ' + changedCount + ' veraltet';
+      d.kuerzel.forEach(function(k) {
+        if (k.sourceChanges && k.sourceChanges.status === 'not-verifiable') unverifiableCount++;
+      });
+      if (changedCount > 0 || unverifiableCount > 0) {
+        var parts = [];
+        if (changedCount > 0) parts.push(changedCount + ' veraltet');
+        if (unverifiableCount > 0) parts.push(unverifiableCount + ' nicht prüfbar');
+        statusEl.textContent = d.kuerzel.length + ' Kürzel — ' + parts.join(', ');
         statusEl.style.color = '#e67e22';
       } else {
         statusEl.textContent = d.kuerzel.length + ' Kürzel';
       }
       _stagingOutputData = d.kuerzel; // Für Manifest-Info cachen
       renderStagingOutput(d.kuerzel);
+      applyStagingRestageMarkers();
       updateStagingManifestInfo(); // Info-Panel aktualisieren
       // Zusammenfassung: Kürzel mit Änderungen
       if (changedCount > 0) {
@@ -3920,6 +4060,28 @@ function loadStagingOutput() {
       }
     })
     .catch(function(err) { statusEl.textContent = '✗ ' + err.message; });
+}
+
+function applyStagingRestageMarkers() {
+  var restageMap = getStagingRestageServiceMap();
+  document.querySelectorAll('#staging-svc-list .ags-svc-group').forEach(function(group) {
+    var key = (group.dataset.svckey || group.dataset.svcname || '').toLowerCase();
+    var head = group.querySelector('.ags-svc-head');
+    var existingHint = head ? head.querySelector('.svc-restage-hint') : null;
+    if (existingHint) existingHint.remove();
+    group.classList.remove('needs-restage');
+    if (head) head.removeAttribute('title');
+
+    var info = restageMap[key];
+    if (!info || !head) return;
+    group.classList.add('needs-restage');
+    head.title = info.title;
+    var hint = document.createElement('span');
+    hint.className = 'svc-restage-hint';
+    hint.textContent = '⚠ Re-Stage: ' + info.kuerzel.length;
+    hint.title = info.title;
+    head.appendChild(hint);
+  });
 }
 
 function renderStagingOutput(kuerzelList) {
@@ -3949,7 +4111,16 @@ function renderStagingOutput(kuerzelList) {
     if (k.manifest && k.manifest.sources) {
       var srcCount = k.manifest.sources.length;
       var lastDate = k.manifest.lastStaged ? k.manifest.lastStaged.replace('T', ' ') : '';
-      manifestBadge = ' <span style="font-size:9px;color:#fff;background:var(--c-primary);padding:1px 5px;border-radius:8px;font-weight:400" title="' + srcCount + ' Quellen, zuletzt: ' + lastDate + '">' + srcCount + ' Quellen</span>';
+      if (srcCount === 0) {
+        var basisTooltip = 'Was bedeutet "Basis"?\n'
+          + 'Basis = gespeicherte Quellenliste vom letzten Staging (welche raw-conf-Dienste verwendet wurden).\n'
+          + 'Hier fehlt diese Liste, daher ist kein Vergleich möglich.\n'
+          + 'Aktion: Auf "Basis fehlt" klicken und einmal "Ersetzen" ausführen.'
+          + (lastDate ? '\nLetztes Staging: ' + lastDate : '');
+        manifestBadge = ' <span style="font-size:9px;color:#9a4d00;background:#ffe7cf;border:1px solid #f0bf8d;padding:1px 5px;border-radius:8px;font-weight:700" title="' + esc(basisTooltip) + '">0 Quellen (keine Basis)</span>';
+      } else {
+        manifestBadge = ' <span style="font-size:9px;color:#fff;background:var(--c-primary);padding:1px 5px;border-radius:8px;font-weight:400" title="' + srcCount + ' Quellen, zuletzt: ' + lastDate + '">' + srcCount + ' Quellen</span>';
+      }
     }
     lbl.innerHTML = '<b>' + k.kuerzel + '</b>' + manifestBadge + '&nbsp;<span style="font-weight:400;color:#888;font-size:10px">(' + k.files.length + ' Dateien, ' + totalKB + ')</span>';
     hdr.appendChild(cb); hdr.appendChild(lbl);
@@ -3988,6 +4159,12 @@ function renderStagingOutput(kuerzelList) {
         });
       }
       restageBtn.title = 'Quellen haben sich geändert — jetzt neu stagen!\n' + tipLines.join('\n');
+    } else if (changes && changes.status === 'not-verifiable') {
+      restageBtn.textContent = '❔ Basis fehlt';
+      restageBtn.title = 'Was bedeutet "Basis fehlt"?\n'
+        + 'Es gibt keine gespeicherte Quellenliste vom letzten Staging.\n'
+        + 'Darum ist kein Vorher/Nachher-Vergleich möglich.\n'
+        + 'Nächster Schritt: klicken, Quellen prüfen und einmal mit "Ersetzen" neu stagen.';
     } else if (k.manifest && k.manifest.sources && k.manifest.sources.length) {
       restageBtn.title = 'Erneut stagen — ' + k.manifest.sources.length + ' Quellen aus Manifest vorauswählen';
     } else {
@@ -4182,22 +4359,59 @@ function _applyRestageSelection(kuerzel, sources) {
   if (!sources || sources.length === 0) {
     var pfx = kuerzel.toLowerCase();
     var autoFound = [];
+    var candidates = [];
+
+    function normalizeSvcName(v) {
+      return (v || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    }
+
+    // Heuristik: exakte/praefix-Matches bevorzugen, sonst tokenbasierte Naehe.
+    var kuerzelNorm = normalizeSvcName(kuerzel);
+    var kuerzelTokens = (kuerzel || '').toLowerCase().split(/[_\-\/]+/).filter(function(t) { return t.length >= 2; });
+
     document.querySelectorAll('#staging-svc-list input[type=checkbox]').forEach(function(cb) {
-      var svc = (cb.dataset.svc || '').toLowerCase();
-      if (svc === pfx || svc.indexOf(pfx + '_') === 0 || svc.indexOf(pfx + '-') === 0) {
-        cb.checked = true;
-        autoFound.push(cb.dataset.svc);
+      var svcRaw = cb.dataset.svc || '';
+      var svc = svcRaw.toLowerCase();
+      var svcNorm = normalizeSvcName(svcRaw);
+      var score = 0;
+
+      if (svc === pfx) score = 120;
+      else if (svc.indexOf(pfx + '_') === 0 || svc.indexOf(pfx + '-') === 0 || svc.indexOf(pfx + '/') === 0) score = 110;
+      else if (svc.indexOf('/' + pfx) !== -1 || svc.indexOf('_' + pfx) !== -1 || svc.indexOf('-' + pfx) !== -1) score = 100;
+      else if (svcNorm === kuerzelNorm) score = 95;
+      else if (kuerzelNorm && svcNorm.indexOf(kuerzelNorm) !== -1) score = 80;
+      else {
+        var tokenHits = 0;
+        kuerzelTokens.forEach(function(tok) {
+          if (svc.indexOf(tok) !== -1) tokenHits++;
+        });
+        if (tokenHits > 0) score = 40 + tokenHits * 10;
+      }
+
+      if (score > 0) {
+        candidates.push({ cb: cb, score: score, svc: svcRaw });
       }
     });
+
+    candidates.sort(function(a, b) { return b.score - a.score; });
+    var topScore = candidates.length ? candidates[0].score : 0;
+    candidates.forEach(function(c) {
+      // Nur die bestpassenden Kandidaten automatisch waehlen.
+      if (c.score === topScore || c.score >= 100) {
+        c.cb.checked = true;
+        autoFound.push(c.svc);
+      }
+    });
+
     updateStagingSelCount();
     updateStagingManifestInfo();
     var statusEl = document.getElementById('staging-status');
     if (autoFound.length > 0) {
       statusEl.className = 'ags-status success';
-      statusEl.textContent = '✓ ' + autoFound.length + ' Services mit Präfix «' + kuerzel + '» vorausgewählt — bitte prüfen und stagen.';
+      statusEl.textContent = '✓ ' + autoFound.length + ' Service(s) für «' + kuerzel + '» automatisch vorausgewählt — bitte prüfen und stagen.';
     } else {
-      statusEl.className = 'ags-status';
-      statusEl.textContent = 'Kürzel «' + kuerzel + '» gesetzt — keine passenden Services gefunden, bitte manuell auswählen.';
+      statusEl.className = 'ags-status error';
+      statusEl.textContent = '⚠ Keine passenden Services für «' + kuerzel + '» gefunden. Bitte links manuell 1+ Service auswählen und dann stagen.';
       kuerzelInput.focus();
     }
     return;
@@ -4245,8 +4459,18 @@ function updateStagingManifestInfo() {
   _stagingOutputData.forEach(function(k) {
     if (k.kuerzel.toLowerCase() === kuerzel && k.manifest) match = k.manifest;
   });
-  if (!match || !match.sources || match.sources.length === 0) {
+  if (!match) {
     infoEl.style.display = 'none';
+    return;
+  }
+  if (!match.sources || match.sources.length === 0) {
+    var htmlEmpty = '<div class="smi-title">Keine Vergleichsbasis gespeichert</div>';
+    htmlEmpty += '<div class="smi-source">Für dieses Kürzel sind im Manifest keine Quellen hinterlegt. Bitte Re-Stage ausführen, damit ein belastbarer Vergleich möglich wird.</div>';
+    if (match.lastStaged) {
+      htmlEmpty += '<div style="color:#aaa;font-size:9px;margin-top:2px">Letztes Staging: ' + match.lastStaged.replace('T', ' ') + '</div>';
+    }
+    infoEl.innerHTML = htmlEmpty;
+    infoEl.style.display = '';
     return;
   }
   var html = '<div class="smi-title">Bereits gestagete Quellen (' + match.sources.length + '):</div>';

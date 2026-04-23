@@ -55,9 +55,12 @@ function getDefaultConfig() {
             ['ip' => '10.203.*.*', 'label' => 'Internes Subnetz', 'proxy' => true],
             ['ip' => '84.241.67.175', 'label' => 'Reverse-Proxy', 'proxy' => true],
         ],
+        'blocked_ips' => [],
         'endpoints' => [
             'restricted_html' => ['ags-import', 'slm', 'tree-builder', 'dev-test', 'tree-test'],
             'restricted_php' => ['admin', 'migrate', '_migrate_ags_import', 'treebuilder-api'],
+            'restricted_with_ip_html' => [],
+            'restricted_with_ip_php' => [],
             'cache_post_only' => ['cache'],
             'public' => ['layers', 'basemaps', 'bookmarks', 'info', 'server-check', 'legend-proxy', 'legend-proxy-wms'],
         ],
@@ -68,14 +71,26 @@ function getDefaultConfig() {
  * Konfiguration laden
  */
 function loadConfig() {
+    $default = getDefaultConfig();
     if (file_exists(CONFIG_FILE)) {
         $json = file_get_contents(CONFIG_FILE);
         $config = json_decode($json, true);
         if ($config && isset($config['ips'])) {
+            if (!isset($config['blocked_ips']) || !is_array($config['blocked_ips'])) {
+                $config['blocked_ips'] = $default['blocked_ips'];
+            }
+            if (!isset($config['endpoints']) || !is_array($config['endpoints'])) {
+                $config['endpoints'] = [];
+            }
+            foreach ($default['endpoints'] as $k => $v) {
+                if (!isset($config['endpoints'][$k]) || !is_array($config['endpoints'][$k])) {
+                    $config['endpoints'][$k] = $v;
+                }
+            }
             return $config;
         }
     }
-    return getDefaultConfig();
+    return $default;
 }
 
 /**
@@ -187,42 +202,9 @@ function generateHtaccess($config) {
         $lines[] = '';
     }
 
-    // Geschützte HTML-Dateien
-    $restrictedHtml = $endpoints['restricted_html'] ?? [];
-    if (!empty($restrictedHtml)) {
-        $lines[] = '# --- Geschützte Admin-Seiten (HTML) ---';
-        $pattern = implode('|', $restrictedHtml);
-        $lines[] = '<FilesMatch "^(' . $pattern . ')\.html$">';
-        $lines[] = '    Require env TNET_ADMIN';
-        $lines[] = '</FilesMatch>';
-        $lines[] = '';
-    }
-
-    // Geschützte PHP-Endpoints
-    $restrictedPhp = $endpoints['restricted_php'] ?? [];
-    if (!empty($restrictedPhp)) {
-        $lines[] = '# --- Geschützte Admin-Endpoints (PHP) ---';
-        $pattern = implode('|', $restrictedPhp);
-        $lines[] = '<FilesMatch "^(' . $pattern . ')\.php$">';
-        $lines[] = '    Require env TNET_ADMIN';
-        $lines[] = '</FilesMatch>';
-        $lines[] = '';
-    }
-
-    // Cache-Management (POST = geschützt, GET = öffentlich)
-    $cachePostOnly = $endpoints['cache_post_only'] ?? [];
-    foreach ($cachePostOnly as $name) {
-        $lines[] = '# --- ' . $name . '.php: POST geschützt, GET öffentlich ---';
-        $lines[] = '<FilesMatch "^' . $name . '\.php$">';
-        $lines[] = '    <If "%{REQUEST_METHOD} == \'POST\'">';
-        $lines[] = '        Require env TNET_ADMIN';
-        $lines[] = '    </If>';
-        $lines[] = '    <Else>';
-        $lines[] = '        Require all granted';
-        $lines[] = '    </Else>';
-        $lines[] = '</FilesMatch>';
-        $lines[] = '';
-    }
+    $lines[] = '# Endpoint-Schutz wird in PHP via AdminAuth::enforceEndpointPolicy() ausgewertet.';
+    $lines[] = '# Dadurch sind Modi wie "Geschützt" und "Geschützt mit IP-Freigabe" pro Endpoint möglich.';
+    $lines[] = '';
 
     // Rewrite-Rules
     $lines[] = 'Options +FollowSymLinks -MultiViews';

@@ -40,19 +40,6 @@
 				"reveal": "always",
 				"panel": "shared"
 			}
-		},
-		{
-			"label": "Deploy: Active Panel Store",
-			"type": "shell",
-			"command": "C:/Program Files/Python313/python.exe",
-			"args": [
-				"_scripts/_upload_files.py"
-			],
-			"problemMatcher": [],
-			"presentation": {
-				"reveal": "always",
-				"panel": "shared"
-			}
 		}
 	]
 }

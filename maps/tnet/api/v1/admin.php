@@ -31,8 +31,8 @@ require_once __DIR__ . '/../includes/Database.php';
 require_once __DIR__ . '/../includes/ConfigReader.php';
 require_once __DIR__ . '/../includes/LayerImporter.php';
 
-// Cookie-Auth erforderlich
-AdminAuth::requireAuth();
+// Zugriff gemäss Endpoint-Policy
+AdminAuth::enforceEndpointPolicy('admin', 'php');
 
 // Standard API Headers
 ApiResponse::setHeaders();

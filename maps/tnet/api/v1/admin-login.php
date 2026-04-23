@@ -17,10 +17,32 @@ $success = '';
 $isSetup = AdminAuth::isSetup();
 $redirect = isset($_GET['redirect']) ? $_GET['redirect'] : 'ip-manager.php';
 
+// Ziel-Endpoint aus Redirect ermitteln (für Modus "Geschützt + IP-Freigabe")
+$redirectEndpoint = null;
+$redirectType = null;
+$redirectPath = parse_url($redirect, PHP_URL_PATH);
+if (is_string($redirectPath)) {
+    if (preg_match('~/maps/tnet/api/v1/([a-zA-Z0-9_-]+)\.html$~', $redirectPath, $m)) {
+        $redirectEndpoint = $m[1];
+        $redirectType = 'html';
+    } elseif (preg_match('~/maps/tnet/api/v1/([a-zA-Z0-9_-]+)\.php$~', $redirectPath, $m)) {
+        $redirectEndpoint = $m[1];
+        $redirectType = 'php';
+    }
+}
+
 // Bereits eingeloggt → weiterleiten
 if ($isSetup && AdminAuth::isAuthenticated()) {
     header('Location: ' . $redirect);
     exit;
+}
+
+// Whitelist-IP + Endpoint im Modus "Geschützt + IP-Freigabe" → Login überspringen
+if ($isSetup && $redirectEndpoint && $redirectType) {
+    if (AdminAuth::endpointAllowsWhitelistedIp($redirectEndpoint, $redirectType) && AdminAuth::isWhitelistedIp()) {
+        header('Location: ' . $redirect);
+        exit;
+    }
 }
 
 // POST: Login oder Setup

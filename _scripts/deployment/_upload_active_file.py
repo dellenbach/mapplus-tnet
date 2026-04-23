@@ -14,6 +14,7 @@ Aufruf: python _upload_active_file.py <dateipfad>
 import os
 import sys
 import subprocess
+import argparse
 import paramiko
 
 BUILD_SCRIPT = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "_build_js.py"))
@@ -26,12 +27,36 @@ PASSWORD = "3Zs,k4%Un,<[W(Kx"
 REMOTE_BASE = "/www/maps"
 LOCAL_BASE = os.path.normpath(r"c:\_Daten\mapplus-exp\maps")
 
-def main():
-    if len(sys.argv) < 2:
-        print("Nutzung: python _upload_active_file.py <dateipfad>")
-        sys.exit(1)
+# Konfigurationsdateien sind API/Git-only und duerfen NICHT versehentlich per FTP deployt werden.
+# Explizite Ausnahme nur via --allow-config --reason "...".
+PROTECTED_EXTENSIONS = (".conf", ".json", ".json5")
+PROTECTED_PREFIXES = (
+    "core/config/",
+    "core/nls/",
+    "public/config/",
+    "tnet/config/",
+)
 
-    filepath = os.path.normpath(sys.argv[1])
+
+def is_protected_config(rel_path):
+    """Prueft, ob eine Datei unter geschuetzte Config-Pfade faellt."""
+    rel = rel_path.replace("\\", "/").lower()
+    if not rel.endswith(PROTECTED_EXTENSIONS):
+        return False
+    return any(rel.startswith(prefix) for prefix in PROTECTED_PREFIXES)
+
+def main():
+    parser = argparse.ArgumentParser(description="Einzelne Datei per SFTP hochladen")
+    parser.add_argument("filepath", help="Pfad zur hochzuladenden Datei")
+    parser.add_argument("--allow-config", action="store_true", help="Erlaubt Upload geschuetzter Config-Dateien")
+    parser.add_argument("--reason", default="", help="Pflicht bei --allow-config: Grund/Referenz")
+    args = parser.parse_args()
+
+    if args.allow_config and not args.reason.strip():
+        print("✗ --allow-config erfordert --reason \"...\"")
+        sys.exit(2)
+
+    filepath = os.path.normpath(args.filepath)
 
     # Sicherheitscheck: nur Dateien unter maps/ erlauben
     if not filepath.lower().startswith(LOCAL_BASE.lower()):
@@ -72,6 +97,18 @@ def main():
 
     # Relativen Pfad berechnen
     rel_path = os.path.relpath(filepath, LOCAL_BASE).replace("\\", "/")
+
+    # Config-Guard
+    if is_protected_config(rel_path) and not args.allow_config:
+        print("✗ Abgelehnt: Geschuetzte Config-Datei (API/Git-only)")
+        print(f"  Datei:  {rel_path}")
+        print("  Verwende fuer Notfaelle explizit: --allow-config --reason \"...\"")
+        sys.exit(3)
+
+    if is_protected_config(rel_path) and args.allow_config:
+        print("⚠ Override aktiv: Geschuetzte Config-Datei wird hochgeladen")
+        print(f"  Grund: {args.reason.strip()}")
+
     remote_path = f"{REMOTE_BASE}/{rel_path}"
     size = os.path.getsize(filepath)
 

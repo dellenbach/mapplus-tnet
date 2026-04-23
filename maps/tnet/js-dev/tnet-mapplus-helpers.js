@@ -296,10 +296,20 @@ function tryAutoLogin(iframe) {
  * @param {Object} cfg - Bookmark-Konfiguration aus der API
  * @returns {string} - z.B. 'basemap=av_sw&layers=layer1|layer2&theme=grundlagen'
  */
+function _normalizeBookmarkLayerIds(layerIds) {
+  if (!layerIds || !layerIds.length) return [];
+  return layerIds
+    .map(function(layerId) {
+      return String(layerId || '').replace(/^[-\s]+/, '').trim();
+    })
+    .filter(function(layerId) { return !!layerId; });
+}
+
 function _buildBookmarkParams(cfg) {
   var parts = [];
+  var normalizedLayers = _normalizeBookmarkLayerIds(cfg.layers || []);
   if (cfg.basemap)                          parts.push('basemap=' + cfg.basemap);
-  if (cfg.layers && cfg.layers.length)      parts.push('layers='  + cfg.layers.join('|'));
+  if (normalizedLayers.length)              parts.push('layers='  + normalizedLayers.join('|'));
   if (cfg.opacity && cfg.opacity.length)    parts.push('op='      + cfg.opacity.join('|'));
   if (cfg.theme)                            parts.push('theme='   + cfg.theme);
   if (cfg.subtheme)                         parts.push('subtheme='+ cfg.subtheme);

@@ -12,7 +12,7 @@
 
 header('Content-Type: application/json; charset=utf-8');
 require_once __DIR__ . '/../includes/AdminAuth.php';
-AdminAuth::requireAuth();
+AdminAuth::enforceEndpointPolicy('_migrate_ags_import', 'php');
 require_once __DIR__ . '/../includes/Database.php';
 
 try {

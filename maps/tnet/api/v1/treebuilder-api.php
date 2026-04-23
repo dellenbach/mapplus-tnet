@@ -30,7 +30,7 @@ header('Content-Type: application/json; charset=utf-8');
 
 // Cookie-Auth erforderlich
 require_once __DIR__ . '/../includes/AdminAuth.php';
-AdminAuth::requireAuth();
+AdminAuth::enforceEndpointPolicy('treebuilder-api', 'php');
 
 require_once __DIR__ . '/../includes/CorsHelper.php';
 CorsHelper::handlePreflight('GET, POST, OPTIONS', 'Content-Type, X-Editor-Name');
@@ -1691,36 +1691,106 @@ function writeRawConfFile($filePath, $content) {
 /**
  * Prüft ob sich raw-conf-Quelldateien seit dem letzten Staging geändert haben.
  * Vergleicht Dateigrösse und Änderungsdatum aus dem Manifest mit dem aktuellen Stand.
- * Gibt zurück: {hasChanges: bool, changed: [{service, files: [{file, reason, old*, new*}]}], missing: [service]}
+ * Gibt zurück: {
+ *   hasChanges: bool,
+ *   status: 'needs-restage'|'up-to-date'|'not-verifiable',
+ *   hasBaseline: bool,
+ *   changed: [{service, files: [{file, reason, old*, new*}]}],
+ *   missing: [service],
+ *   unverifiable: [service],
+ *   message: string
+ * }
  */
 function checkSourceChanges($manifest, $rawDir) {
-    $result = ['hasChanges' => false, 'changed' => [], 'missing' => []];
-    if (!isset($manifest['sources']) || !is_array($manifest['sources'])) return $result;
+    $result = [
+        'hasChanges' => false,
+        'status' => 'not-verifiable',
+        'hasBaseline' => false,
+        'changed' => [],
+        'missing' => [],
+        'unverifiable' => [],
+        'message' => 'Keine Quellenbasis im Staging-Manifest vorhanden'
+    ];
+    if (!isset($manifest['sources']) || !is_array($manifest['sources']) || count($manifest['sources']) === 0) {
+        return $result;
+    }
+
+    // Flache raw-conf-Dateien einmal indizieren (für Services ohne Unterverzeichnis)
+    // Key: Service (aus extractServiceFromFilename) → Liste von ['file', 'size', 'modified', 'path']
+    $flatFilesByService = null;
+    $ensureFlatIndex = function() use (&$flatFilesByService, $rawDir) {
+        if ($flatFilesByService !== null) return;
+        $flatFilesByService = [];
+        if (!is_dir($rawDir)) return;
+        $entries = @scandir($rawDir) ?: [];
+        foreach ($entries as $entry) {
+            if ($entry === '.' || $entry === '..') continue;
+            $full = $rawDir . '/' . $entry;
+            if (!is_file($full)) continue;
+            if (preg_match('/\.\d{8}_\d{6}\.bak$/', $entry)) continue;
+            $ext = strtolower(pathinfo($entry, PATHINFO_EXTENSION));
+            if (!in_array($ext, ['conf', 'json'])) continue;
+            $svc = extractServiceFromFilename($entry);
+            if (!isset($flatFilesByService[$svc])) $flatFilesByService[$svc] = [];
+            $flatFilesByService[$svc][] = [
+                'file'     => $entry,
+                'size'     => filesize($full),
+                'modified' => date('Y-m-d H:i:s', filemtime($full)),
+                'path'     => $full
+            ];
+        }
+    };
 
     foreach ($manifest['sources'] as $src) {
         $svcKey = $src['service'];
         $svcDir = $rawDir . '/' . $svcKey;
+        $isDirBased = is_dir($svcDir);
 
-        // Service existiert nicht mehr in raw-conf?
-        if (!is_dir($svcDir)) {
-            $result['missing'][] = $svcKey;
-            $result['hasChanges'] = true;
-            continue;
+        // Flat-Index für nicht-Verzeichnis-basierte Services
+        $flatCurrent = [];
+        if (!$isDirBased) {
+            $ensureFlatIndex();
+            $flatCurrent = $flatFilesByService[$svcKey] ?? [];
+            // Service existiert weder als Verzeichnis noch als flache Dateien?
+            if (empty($flatCurrent)) {
+                $result['missing'][] = $svcKey;
+                $result['hasChanges'] = true;
+                continue;
+            }
         }
 
         // Keine sourceFiles im Manifest → kann nicht vergleichen (altes Manifest-Format)
-        if (!isset($src['sourceFiles']) || !is_array($src['sourceFiles'])) continue;
+        if (!isset($src['sourceFiles']) || !is_array($src['sourceFiles']) || count($src['sourceFiles']) === 0) {
+            $result['unverifiable'][] = $svcKey;
+            continue;
+        }
+
+        $result['hasBaseline'] = true;
 
         $changedFiles = [];
         foreach ($src['sourceFiles'] as $sf) {
-            // Datei im Service-Verzeichnis suchen (rekursiv, da Unterordner möglich)
-            $found = findFileRecursive($svcDir, $sf['file']);
-            if ($found === null) {
-                $changedFiles[] = ['file' => $sf['file'], 'reason' => 'deleted'];
-                continue;
+            if ($isDirBased) {
+                // Datei im Service-Verzeichnis suchen (rekursiv, da Unterordner möglich)
+                $found = findFileRecursive($svcDir, $sf['file']);
+                if ($found === null) {
+                    $changedFiles[] = ['file' => $sf['file'], 'reason' => 'deleted'];
+                    continue;
+                }
+                $currentSize = filesize($found);
+                $currentMod  = date('Y-m-d H:i:s', filemtime($found));
+            } else {
+                // Flache Struktur: Datei im Flat-Index suchen
+                $found = null;
+                foreach ($flatCurrent as $fc) {
+                    if ($fc['file'] === $sf['file']) { $found = $fc; break; }
+                }
+                if ($found === null) {
+                    $changedFiles[] = ['file' => $sf['file'], 'reason' => 'deleted'];
+                    continue;
+                }
+                $currentSize = $found['size'];
+                $currentMod  = $found['modified'];
             }
-            $currentSize = filesize($found);
-            $currentMod  = date('Y-m-d H:i:s', filemtime($found));
             if ($currentSize !== $sf['size'] || $currentMod !== $sf['modified']) {
                 $changedFiles[] = [
                     'file'        => $sf['file'],
@@ -1733,9 +1803,13 @@ function checkSourceChanges($manifest, $rawDir) {
             }
         }
 
-        // Neue Dateien prüfen (im Service-Verzeichnis aber nicht im Manifest)
+        // Neue Dateien prüfen (aktuell in raw-conf aber nicht im Manifest)
         $manifestFileNames = array_column($src['sourceFiles'], 'file');
-        $currentFiles = listConfFilesRecursive($svcDir);
+        if ($isDirBased) {
+            $currentFiles = listConfFilesRecursive($svcDir);
+        } else {
+            $currentFiles = array_column($flatCurrent, 'file');
+        }
         foreach ($currentFiles as $cf) {
             if (!in_array($cf, $manifestFileNames)) {
                 $changedFiles[] = ['file' => $cf, 'reason' => 'added'];
@@ -1747,6 +1821,18 @@ function checkSourceChanges($manifest, $rawDir) {
             $result['hasChanges'] = true;
         }
     }
+
+    if ($result['hasChanges']) {
+        $result['status'] = 'needs-restage';
+        $result['message'] = 'Quellen haben sich seit dem letzten Staging geändert';
+    } elseif ($result['hasBaseline'] && count($result['unverifiable']) === 0) {
+        $result['status'] = 'up-to-date';
+        $result['message'] = 'Quellenbasis vollständig und ohne Änderungen';
+    } elseif ($result['hasBaseline'] && count($result['unverifiable']) > 0) {
+        $result['status'] = 'not-verifiable';
+        $result['message'] = 'Teilweise ohne Vergleichsbasis: ' . implode(', ', $result['unverifiable']);
+    }
+
     return $result;
 }
 
@@ -2440,7 +2526,6 @@ function stageServicesToImportToCore(array $serviceKeys, string $kuerzel, string
         // Services die nicht in raw-conf gefunden wurden NICHT ins Manifest schreiben,
         // damit sie bei der nächsten Change-Detection nicht als "missing" erscheinen.
         $svcDir = $rawDir . '/' . $svcKey;
-        if (!is_dir($svcDir)) continue;
 
         $svcKeyCounts = [];
         foreach ($buckets as $prefix => $bucket) {
@@ -2452,19 +2537,45 @@ function stageServicesToImportToCore(array $serviceKeys, string $kuerzel, string
             }
             if ($count > 0) $svcKeyCounts[$prefix] = $count;
         }
+
         // Quelldatei-Metadaten erfassen (size + mtime für Change-Detection)
+        // Unterstützt sowohl Verzeichnis-Struktur (group/service oder service_dir)
+        // als auch flache raw-conf-Dateien.
         $srcFiles = [];
-        $it = new RecursiveIteratorIterator(
-            new RecursiveDirectoryIterator($svcDir, RecursiveDirectoryIterator::SKIP_DOTS),
-            RecursiveIteratorIterator::LEAVES_ONLY
-        );
-        foreach ($it as $sf) {
-            $sfn = $sf->getFilename();
-            $sfExt = strtolower(pathinfo($sfn, PATHINFO_EXTENSION));
-            if (!in_array($sfExt, ['conf', 'json'])) continue;
-            if (preg_match('/\.\d{8}_\d{6}\.bak$/', $sfn)) continue;
-            $srcFiles[] = ['file' => $sfn, 'size' => $sf->getSize(), 'modified' => date('Y-m-d H:i:s', $sf->getMTime())];
+        if (is_dir($svcDir)) {
+            $it = new RecursiveIteratorIterator(
+                new RecursiveDirectoryIterator($svcDir, RecursiveDirectoryIterator::SKIP_DOTS),
+                RecursiveIteratorIterator::LEAVES_ONLY
+            );
+            foreach ($it as $sf) {
+                $sfn = $sf->getFilename();
+                $sfExt = strtolower(pathinfo($sfn, PATHINFO_EXTENSION));
+                if (!in_array($sfExt, ['conf', 'json'])) continue;
+                if (preg_match('/\.\d{8}_\d{6}\.bak$/', $sfn)) continue;
+                $srcFiles[] = ['file' => $sfn, 'size' => $sf->getSize(), 'modified' => date('Y-m-d H:i:s', $sf->getMTime())];
+            }
+        } else {
+            $allEntries = @scandir($rawDir);
+            if ($allEntries) {
+                foreach ($allEntries as $entry) {
+                    if ($entry === '.' || $entry === '..') continue;
+                    $fullPath = $rawDir . '/' . $entry;
+                    if (!is_file($fullPath)) continue;
+                    if (extractServiceFromFilename($entry) !== $svcKey) continue;
+                    if (preg_match('/\.\d{8}_\d{6}\.bak$/', $entry)) continue;
+                    $ext = strtolower(pathinfo($entry, PATHINFO_EXTENSION));
+                    if (!in_array($ext, ['conf', 'json'])) continue;
+                    $srcFiles[] = [
+                        'file' => $entry,
+                        'size' => filesize($fullPath),
+                        'modified' => date('Y-m-d H:i:s', filemtime($fullPath))
+                    ];
+                }
+            }
         }
+
+        if (empty($srcFiles)) continue;
+
         $manifestSources[$svcKey] = [
             'service'     => $svcKey,
             'staged'      => date('Y-m-d\TH:i:s'),

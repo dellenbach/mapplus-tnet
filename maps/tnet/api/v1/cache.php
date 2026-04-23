@@ -24,14 +24,12 @@
 require_once __DIR__ . '/../includes/ApiResponse.php';
 require_once __DIR__ . '/../includes/CacheHelper.php';
 require_once __DIR__ . '/../includes/JsonCache.php';
+require_once __DIR__ . '/../includes/AdminAuth.php';
 
 $method = $_SERVER['REQUEST_METHOD'];
 
-// Cookie-Auth für schreibende Operationen (POST = Cache leeren)
-if ($method === 'POST') {
-    require_once __DIR__ . '/../includes/AdminAuth.php';
-    AdminAuth::requireAuth();
-}
+// Zugriff gemäss Endpoint-Policy (public / protected / protected-with-ip / post-only)
+AdminAuth::enforceEndpointPolicy('cache', 'php');
 
 // OPTIONS Preflight
 require_once __DIR__ . '/../includes/CorsHelper.php';

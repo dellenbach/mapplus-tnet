@@ -263,6 +263,7 @@ tbody tr.row-blocked { background: #FFF8E1; }
         </div>
         <p class="help-text" style="margin-top:8px">
             <strong>🔒 Geschützt</strong> = Cookie-Auth erforderlich.
+            <strong>🛡️ Geschützt + IP-Freigabe</strong> = Cookie-Auth oder freigegebene Whitelist-IP.
             <strong>🌐 Öffentlich</strong> = Ohne Login erreichbar.
             <strong>🔐 POST geschützt</strong> = GET öffentlich, POST erfordert Auth.
         </p>
@@ -344,13 +345,18 @@ function renderTable() {
     tbody.innerHTML = '';
     var rows = [];
     var configIps = config.ips || [];
+    var blockedIps = config.blocked_ips || [];
+    var blockedSet = {};
+    blockedIps.forEach(function(ip) { blockedSet[ip] = true; });
     var configIpSet = {};
     configIps.forEach(function(e) { configIpSet[e.ip] = true; });
 
     configIps.forEach(function(entry) {
         var track = trackingData[entry.ip] || null;
+        var isBlocked = !!blockedSet[entry.ip];
         rows.push({
             ip: entry.ip, label: entry.label || '', inWhitelist: true,
+            isBlocked: isBlocked,
             isWildcard: entry.ip.indexOf('*') !== -1,
             count: track ? track.count : 0, blocked: 0,
             firstSeen: track ? track.first_seen : null,
@@ -361,13 +367,17 @@ function renderTable() {
 
     Object.keys(trackingData).forEach(function(ip) {
         if (configIpSet[ip]) return;
+        var explicitlyBlocked = !!blockedSet[ip];
         var matchesWildcard = false;
-        configIps.forEach(function(e) {
-            if (e.ip.indexOf('*') !== -1 && wildcardMatch(e.ip, ip)) matchesWildcard = true;
-        });
+        if (!explicitlyBlocked) {
+            configIps.forEach(function(e) {
+                if (e.ip.indexOf('*') !== -1 && wildcardMatch(e.ip, ip)) matchesWildcard = true;
+            });
+        }
         var track = trackingData[ip];
         rows.push({
             ip: ip, label: '', inWhitelist: matchesWildcard,
+            isBlocked: explicitlyBlocked,
             isTrackedOnly: true, isWildcard: false,
             count: matchesWildcard ? track.count : 0,
             blocked: matchesWildcard ? 0 : track.count,
@@ -386,9 +396,9 @@ function renderTable() {
 
     rows.forEach(function(row) {
         var tr = document.createElement('tr');
-        if (!row.inWhitelist) tr.className = 'row-blocked';
+        if (row.isBlocked || !row.inWhitelist) tr.className = 'row-blocked';
 
-        var statusBadge = row.inWhitelist
+        var statusBadge = (!row.isBlocked && row.inWhitelist)
             ? '<span class="badge badge-ok">✅ Erlaubt</span>'
             : '<span class="badge badge-blocked">🚫 Blockiert</span>';
 
@@ -396,7 +406,7 @@ function renderTable() {
         if (row.isWildcard) ipHtml += '<br><span class="badge-wildcard">🌐 Wildcard</span>';
 
         var labelHtml = '';
-        if (row.inWhitelist && !row.isTrackedOnly) {
+        if (!row.isBlocked && row.inWhitelist && !row.isTrackedOnly) {
             labelHtml = '<input type="text" class="label-input" value="' + escAttr(row.label) + '" data-ip="' + escAttr(row.ip) + '" onchange="updateLabel(this)">';
         } else {
             labelHtml = '<span style="color:var(--text-light)">' + esc(row.label || '') + '</span>';
@@ -406,15 +416,17 @@ function renderTable() {
         if (row.paths.length > 0) {
             pathsHtml = row.paths.slice(0, 5).map(function(p) { return esc(p); }).join(', ');
             if (row.paths.length > 5) pathsHtml += ' <span style="color:var(--text-light)">+' + (row.paths.length - 5) + '</span>';
-        } else if (row.inWhitelist && !row.isTrackedOnly) {
+        } else if (!row.isBlocked && row.inWhitelist && !row.isTrackedOnly) {
             pathsHtml = '<span class="badge-manual">Manuell hinzugefügt</span>';
         } else {
             pathsHtml = '-';
         }
 
         var actionHtml = '';
-        if (row.inWhitelist && !row.isTrackedOnly) {
+        if (!row.isBlocked && row.inWhitelist && !row.isTrackedOnly) {
             actionHtml = '<button class="btn-delete" onclick="removeIp(\'' + escAttr(row.ip) + '\')" title="Entfernen">✕</button>';
+        } else if (row.isBlocked) {
+            actionHtml = '<button class="btn-add-ip" onclick="unblockIp(\'' + escAttr(row.ip) + '\')" title="Entsperren">↺ Entsperren</button>';
         } else if (!row.inWhitelist) {
             actionHtml = '<button class="btn-add-ip" onclick="whitelistIp(\'' + escAttr(row.ip) + '\')" title="Freigeben">+ Freigeben</button>';
         }
@@ -443,6 +455,8 @@ function renderEndpoints() {
     var allNames = {};
     (ep.restricted_html || []).forEach(function(n) { allNames[n] = { type: 'html', status: 'restricted' }; });
     (ep.restricted_php || []).forEach(function(n) { allNames[n] = { type: 'php', status: 'restricted' }; });
+    (ep.restricted_with_ip_html || []).forEach(function(n) { allNames[n] = { type: 'html', status: 'restricted_with_ip' }; });
+    (ep.restricted_with_ip_php || []).forEach(function(n) { allNames[n] = { type: 'php', status: 'restricted_with_ip' }; });
     (ep.cache_post_only || []).forEach(function(n) { allNames[n] = { type: 'php', status: 'cache_post_only' }; });
     (ep.public || []).forEach(function(n) { allNames[n] = { type: 'php', status: 'public' }; });
     _epEndpoints.forEach(function(e) {
@@ -450,8 +464,9 @@ function renderEndpoints() {
         else allNames[e.name].type = e.type;
     });
     var names = Object.keys(allNames).sort(function(a, b) {
-        var sa = allNames[a].status === 'restricted' ? 0 : (allNames[a].status === 'cache_post_only' ? 1 : 2);
-        var sb = allNames[b].status === 'restricted' ? 0 : (allNames[b].status === 'cache_post_only' ? 1 : 2);
+        var order = { restricted: 0, restricted_with_ip: 1, cache_post_only: 2, public: 3 };
+        var sa = order[allNames[a].status] != null ? order[allNames[a].status] : 9;
+        var sb = order[allNames[b].status] != null ? order[allNames[b].status] : 9;
         return sa !== sb ? sa - sb : a.localeCompare(b);
     });
     names.forEach(function(name) {
@@ -462,6 +477,7 @@ function renderEndpoints() {
             '<td>' + (info.type === 'html' ? '📄' : '⚙') + ' ' + info.type.toUpperCase() + '</td>' +
             '<td><select data-name="' + escAttr(name) + '" data-type="' + info.type + '" onchange="epChanged()">' +
             '<option value="restricted"' + (info.status === 'restricted' ? ' selected' : '') + '>🔒 Geschützt</option>' +
+            '<option value="restricted_with_ip"' + (info.status === 'restricted_with_ip' ? ' selected' : '') + '>🛡️ Geschützt + IP-Freigabe</option>' +
             '<option value="public"' + (info.status === 'public' ? ' selected' : '') + '>🌐 Öffentlich</option>' +
             '<option value="cache_post_only"' + (info.status === 'cache_post_only' ? ' selected' : '') + '>🔐 POST geschützt</option>' +
             '</select></td>';
@@ -470,12 +486,22 @@ function renderEndpoints() {
 }
 
 function epChanged() {
-    var newEp = { restricted_html: [], restricted_php: [], cache_post_only: [], public: [] };
+    var newEp = {
+        restricted_html: [],
+        restricted_php: [],
+        restricted_with_ip_html: [],
+        restricted_with_ip_php: [],
+        cache_post_only: [],
+        public: []
+    };
     document.querySelectorAll('#epTableBody select').forEach(function(sel) {
         var name = sel.dataset.name, type = sel.dataset.type, status = sel.value;
         if (status === 'restricted') {
             if (type === 'html') newEp.restricted_html.push(name);
             else newEp.restricted_php.push(name);
+        } else if (status === 'restricted_with_ip') {
+            if (type === 'html') newEp.restricted_with_ip_html.push(name);
+            else newEp.restricted_with_ip_php.push(name);
         } else if (status === 'cache_post_only') { newEp.cache_post_only.push(name); }
         else { newEp.public.push(name); }
     });
@@ -492,6 +518,8 @@ function addIp() {
     if (!/^[\d\.\*:]+$/.test(ip)) { showToast('Ungültiges IP-Format', 'error'); return; }
     var exists = (config.ips || []).some(function(e) { return e.ip === ip; });
     if (exists) { showToast('IP ' + ip + ' ist bereits in der Whitelist', 'error'); return; }
+    if (!Array.isArray(config.blocked_ips)) config.blocked_ips = [];
+    config.blocked_ips = config.blocked_ips.filter(function(b) { return b !== ip; });
     config.ips.push({ ip: ip, label: label, proxy: false });
     ipInput.value = ''; labelInput.value = '';
     setChanged(true); renderTable();
@@ -501,8 +529,10 @@ function addIp() {
 function removeIp(ip) {
     if (!confirm('IP ' + ip + ' aus der Whitelist entfernen?')) return;
     config.ips = config.ips.filter(function(e) { return e.ip !== ip; });
+    if (!Array.isArray(config.blocked_ips)) config.blocked_ips = [];
+    if (config.blocked_ips.indexOf(ip) === -1) config.blocked_ips.push(ip);
     setChanged(true); renderTable();
-    showToast('IP ' + ip + ' entfernt', 'info');
+    showToast('IP ' + ip + ' entfernt und blockiert', 'info');
 }
 
 function updateLabel(input) {
@@ -515,9 +545,18 @@ function updateLabel(input) {
 function whitelistIp(ip) {
     var label = prompt('Label für ' + ip + ' (optional):', '');
     if (label === null) return;
+    if (!Array.isArray(config.blocked_ips)) config.blocked_ips = [];
+    config.blocked_ips = config.blocked_ips.filter(function(b) { return b !== ip; });
     config.ips.push({ ip: ip, label: label || '', proxy: false });
     setChanged(true); renderTable();
     showToast('IP ' + ip + ' zur Whitelist hinzugefügt', 'success');
+}
+
+function unblockIp(ip) {
+    if (!Array.isArray(config.blocked_ips)) return;
+    config.blocked_ips = config.blocked_ips.filter(function(b) { return b !== ip; });
+    setChanged(true); renderTable();
+    showToast('IP ' + ip + ' entsperrt', 'success');
 }
 
 function whitelistSelected() {
@@ -526,6 +565,8 @@ function whitelistSelected() {
     cbs.forEach(function(cb) {
         var ip = cb.dataset.ip;
         var exists = (config.ips || []).some(function(e) { return e.ip === ip; });
+        if (!Array.isArray(config.blocked_ips)) config.blocked_ips = [];
+        config.blocked_ips = config.blocked_ips.filter(function(b) { return b !== ip; });
         if (!exists) { config.ips.push({ ip: ip, label: '', proxy: false }); added++; }
     });
     if (added > 0) { setChanged(true); renderTable(); showToast(added + ' IP(s) zur Whitelist hinzugefügt', 'success'); }

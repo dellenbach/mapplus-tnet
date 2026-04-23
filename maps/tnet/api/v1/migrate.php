@@ -16,7 +16,7 @@ error_reporting(E_ALL);
 
 // Cookie-Auth erforderlich
 require_once __DIR__ . '/../includes/AdminAuth.php';
-AdminAuth::requireAuth();
+AdminAuth::enforceEndpointPolicy('migrate', 'php');
 set_time_limit(120); // 2 Minuten
 
 // OPcache für geänderte Dateien invalidieren

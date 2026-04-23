@@ -26,8 +26,14 @@ if (!$page || !in_array($page, $allowedPages, true)) {
     exit;
 }
 
-// ===== AUTH-CHECK =====
-AdminAuth::requireAuth();
+// ===== AUTH-CHECK gemäss Endpoint-Policy =====
+// Respektiert die in access-config.json hinterlegten Modi pro Endpoint:
+//   - restricted_html          → Cookie-Auth erzwingen
+//   - restricted_with_ip_html  → Cookie-Auth ODER Whitelist-IP
+//   - public / nicht klassifiziert → frei (Seite wird ohne Auth ausgeliefert)
+// Fehlt die Config komplett, erzwingt enforceEndpointPolicy() selbst
+// Cookie-Auth (fail-closed — siehe AdminAuth.php).
+AdminAuth::enforceEndpointPolicy($page, 'html');
 
 // ===== HTML AUSLIEFERN =====
 $htmlFile = __DIR__ . '/' . $page . '.html';

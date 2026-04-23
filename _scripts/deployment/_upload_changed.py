@@ -18,6 +18,7 @@ JS-Quelldateien (js-dev/) werden automatisch gebaut; js/ wird hochgeladen.
 import os
 import subprocess
 import json
+import argparse
 import paramiko
 
 # ===== KONFIGURATION =====
@@ -33,6 +34,16 @@ REMOTE_BASE  = "/www/maps"
 
 # Verzeichnisse die nie direkt hochgeladen werden duerfen
 BLOCKED_DIRS = ["tnet/js-dev/", "tnet\\js-dev\\"]
+
+# Konfigurationsdateien sind API/Git-only und duerfen NICHT versehentlich per FTP deployt werden.
+# Explizite Ausnahme nur via --allow-config --reason "...".
+PROTECTED_EXTENSIONS = (".conf", ".json", ".json5")
+PROTECTED_PREFIXES = (
+    "core/config/",
+    "core/nls/",
+    "public/config/",
+    "tnet/config/",
+)
 
 
 # ===== STATE-VERWALTUNG =====
@@ -57,6 +68,14 @@ def save_state(state):
 def get_mtime(path):
     """Datei-mtime als float."""
     return os.path.getmtime(path)
+
+
+def is_protected_config(rel_path):
+    """Prueft, ob eine Datei unter geschuetzte Config-Pfade faellt."""
+    rel = rel_path.replace("\\", "/").lower()
+    if not rel.endswith(PROTECTED_EXTENSIONS):
+        return False
+    return any(rel.startswith(prefix) for prefix in PROTECTED_PREFIXES)
 
 
 # ===== DATEIEN SAMMELN =====
@@ -98,6 +117,16 @@ def get_changed_files(state):
 # ===== UPLOAD =====
 
 def main():
+    parser = argparse.ArgumentParser(description="Geaenderte Dateien unter maps/ per SFTP hochladen")
+    parser.add_argument("--allow-config", action="store_true", help="Erlaubt Upload geschuetzter Config-Dateien")
+    parser.add_argument("--reason", default="", help="Pflicht bei --allow-config: Grund/Referenz")
+    parser.add_argument("--dry-run", action="store_true", help="Nur anzeigen, nichts hochladen")
+    args = parser.parse_args()
+
+    if args.allow_config and not args.reason.strip():
+        print("✗ --allow-config erfordert --reason \"...\"")
+        sys.exit(2)
+
     state = load_state()
 
     print("Suche geaenderte Dateien unter maps/ ...")
@@ -111,6 +140,29 @@ def main():
     for p in changed:
         rel = os.path.relpath(p, LOCAL_BASE).replace("\\", "/")
         print(f"  • {rel}")
+
+    blocked = []
+    for p in changed:
+        rel = os.path.relpath(p, LOCAL_BASE).replace("\\", "/")
+        if is_protected_config(rel):
+            blocked.append(rel)
+
+    if blocked and not args.allow_config:
+        print("\n✗ Abbruch: Geschuetzte Config-Dateien erkannt (API/Git-only):")
+        for rel in blocked:
+            print(f"  • {rel}")
+        print("\nVerwende fuer Notfaelle explizit: --allow-config --reason \"...\"")
+        sys.exit(3)
+
+    if blocked and args.allow_config:
+        print("\n⚠ Override aktiv: Geschuetzte Config-Dateien werden hochgeladen")
+        print(f"  Grund: {args.reason.strip()}")
+        for rel in blocked:
+            print(f"  • {rel}")
+
+    if args.dry_run:
+        print("\n✓ Dry-Run abgeschlossen (kein Upload ausgefuehrt).")
+        return
 
     print(f"\nVerbinde zu {HOST}...")
     ssh = paramiko.SSHClient()
@@ -147,6 +199,12 @@ def main():
             # Sicherheitssperre
             if any(b in upload_rel for b in ["tnet/js-dev/"]):
                 print(f"  ✗ GESPERRT: {upload_rel}")
+                skipped += 1
+                continue
+
+            # Config-Guard (zweite Sicherung auch waehrend Upload-Schleife)
+            if is_protected_config(upload_rel) and not args.allow_config:
+                print(f"  ✗ GESPERRT (Config API/Git-only): {upload_rel}")
                 skipped += 1
                 continue
 

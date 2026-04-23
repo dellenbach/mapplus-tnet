@@ -13,6 +13,7 @@
 class AdminAuth {
 
     const CONFIG_FILE = '/data/Client_Data/nwow/tmp/admin-env.json';
+    const ACCESS_CONFIG_FILE = '/data/Client_Data/nwow/tmp/access-config.json';
     const COOKIE_NAME = 'tnet_admin';
     const COOKIE_MAX_AGE = 8 * 3600; // 8 Stunden
     const COOKIE_PATH = '/maps/tnet/api/';
@@ -28,6 +29,159 @@ class AdminAuth {
             }
         }
         return null;
+    }
+
+    /**
+     * Zugriffsschutz-Konfiguration lesen (IP-Whitelist)
+     */
+    private static function getAccessConfig() {
+        if (!file_exists(self::ACCESS_CONFIG_FILE)) {
+            return null;
+        }
+        $data = json_decode(file_get_contents(self::ACCESS_CONFIG_FILE), true);
+        if (!$data) {
+            return null;
+        }
+
+        if (!isset($data['ips']) || !is_array($data['ips'])) {
+            $data['ips'] = [];
+        }
+        if (!isset($data['endpoints']) || !is_array($data['endpoints'])) {
+            $data['endpoints'] = [];
+        }
+
+        return $data;
+    }
+
+    /**
+     * Prüft ob eine IP zu einem Pattern passt (exakt oder mit *-Wildcard)
+     */
+    private static function ipMatchesPattern($ip, $pattern) {
+        if ($ip === '' || $pattern === '') {
+            return false;
+        }
+        if (strpos($pattern, '*') === false) {
+            return $ip === $pattern;
+        }
+        $regex = '/^' . str_replace('\\*', '.*', preg_quote($pattern, '/')) . '$/';
+        return preg_match($regex, $ip) === 1;
+    }
+
+    /**
+     * Prüft ob die aktuelle Client-IP in der Whitelist steht.
+     */
+    public static function isWhitelistedIp() {
+        $cfg = self::getAccessConfig();
+        if (!$cfg) return false;
+
+        $clientIp = self::getClientIp();
+        if (!$clientIp || $clientIp === 'unknown') return false;
+
+        // Blockliste hat Vorrang vor Whitelist/Wildcards
+        $blocked = $cfg['blocked_ips'] ?? [];
+        if (is_array($blocked)) {
+            foreach ($blocked as $pattern) {
+                $pattern = trim((string)$pattern);
+                if ($pattern === '') continue;
+                if (self::ipMatchesPattern($clientIp, $pattern)) {
+                    return false;
+                }
+            }
+        }
+
+        foreach ($cfg['ips'] as $entry) {
+            if (!isset($entry['ip'])) continue;
+            $pattern = trim((string)$entry['ip']);
+            if ($pattern === '') continue;
+            if (self::ipMatchesPattern($clientIp, $pattern)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Prüft ob ein Endpoint im Modus "Geschützt mit IP-Freigabe" ist.
+     */
+    public static function endpointAllowsWhitelistedIp($endpointName, $type = 'php') {
+        $cfg = self::getAccessConfig();
+        if (!$cfg || !isset($cfg['endpoints']) || !is_array($cfg['endpoints'])) {
+            return false;
+        }
+
+        $type = strtolower((string)$type);
+        $endpointName = trim((string)$endpointName);
+        if ($endpointName === '') {
+            return false;
+        }
+
+        $key = ($type === 'html') ? 'restricted_with_ip_html' : 'restricted_with_ip_php';
+        $list = $cfg['endpoints'][$key] ?? [];
+        if (!is_array($list)) {
+            return false;
+        }
+
+        return in_array($endpointName, $list, true);
+    }
+
+    /**
+     * Erzwingt Endpoint-Policy gemäss access-config.json.
+     * - restricted                → Cookie-Auth
+     * - restricted_with_ip        → Cookie-Auth ODER Whitelist-IP
+     * - cache_post_only           → nur POST benötigt Cookie-Auth
+     * - public                    → frei
+     */
+    public static function enforceEndpointPolicy($endpointName, $type = 'php') {
+        $cfg = self::getAccessConfig();
+        if (!$cfg || !isset($cfg['endpoints']) || !is_array($cfg['endpoints'])) {
+            // Fallback ohne access-config: konservativ schützen
+            self::requireAuth(false);
+            return;
+        }
+
+        $ep = $cfg['endpoints'];
+        $name = trim((string)$endpointName);
+        $type = strtolower((string)$type);
+        $method = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
+
+        $restrictedHtml = $ep['restricted_html'] ?? [];
+        $restrictedPhp = $ep['restricted_php'] ?? [];
+        $restrictedWithIpHtml = $ep['restricted_with_ip_html'] ?? [];
+        $restrictedWithIpPhp = $ep['restricted_with_ip_php'] ?? [];
+        $cachePostOnly = $ep['cache_post_only'] ?? [];
+
+        if (!is_array($restrictedHtml)) $restrictedHtml = [];
+        if (!is_array($restrictedPhp)) $restrictedPhp = [];
+        if (!is_array($restrictedWithIpHtml)) $restrictedWithIpHtml = [];
+        if (!is_array($restrictedWithIpPhp)) $restrictedWithIpPhp = [];
+        if (!is_array($cachePostOnly)) $cachePostOnly = [];
+
+        if ($type === 'html') {
+            if (in_array($name, $restrictedWithIpHtml, true)) {
+                self::requireAuth(true);
+                return;
+            }
+            if (in_array($name, $restrictedHtml, true)) {
+                self::requireAuth(false);
+                return;
+            }
+            return;
+        }
+
+        // PHP-Endpunkte
+        if (in_array($name, $restrictedWithIpPhp, true)) {
+            self::requireAuth(true);
+            return;
+        }
+        if (in_array($name, $restrictedPhp, true)) {
+            self::requireAuth(false);
+            return;
+        }
+        if (in_array($name, $cachePostOnly, true) && $method === 'POST') {
+            self::requireAuth(false);
+            return;
+        }
+        // public / nicht klassifiziert: keine Auth erzwingen
     }
 
     /**
@@ -108,7 +262,11 @@ class AdminAuth {
     /**
      * Prüft ob der aktuelle Request authentifiziert ist (gültiger Cookie)
      */
-    public static function isAuthenticated() {
+    public static function isAuthenticated($allowWhitelistedIp = false) {
+        if ($allowWhitelistedIp && self::isWhitelistedIp()) {
+            return true;
+        }
+
         $cookie = $_COOKIE[self::COOKIE_NAME] ?? '';
         if (!$cookie) return false;
 
@@ -132,8 +290,8 @@ class AdminAuth {
     /**
      * Erzwingt Authentifizierung — Redirect zu Login bei fehlendem Cookie
      */
-    public static function requireAuth() {
-        if (!self::isAuthenticated()) {
+    public static function requireAuth($allowWhitelistedIp = false) {
+        if (!self::isAuthenticated($allowWhitelistedIp)) {
             $redirect = $_SERVER['REQUEST_URI'] ?? '';
             header('Location: admin-login.php' . ($redirect ? '?redirect=' . urlencode($redirect) : ''));
             exit;
@@ -149,10 +307,17 @@ class AdminAuth {
         } else {
             $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
         }
-        // Port entfernen falls vorhanden
-        if (strpos($ip, ':') !== false && $ip[0] !== '[') {
+
+        // IPv4-Port entfernen falls vorhanden (z.B. 10.0.0.5:52341)
+        if (preg_match('/^\d{1,3}(?:\.\d{1,3}){3}:\d+$/', $ip)) {
             $ip = explode(':', $ip)[0];
         }
+
+        // IPv6 in [addr]:port-Form normalisieren
+        if (preg_match('/^\[(.+)\]:\d+$/', $ip, $m)) {
+            $ip = $m[1];
+        }
+
         return $ip;
     }
 }
