@@ -298,11 +298,103 @@ function tryAutoLogin(iframe) {
  */
 function _normalizeBookmarkLayerIds(layerIds) {
   if (!layerIds || !layerIds.length) return [];
-  return layerIds
+  var normalized = layerIds
     .map(function(layerId) {
       return String(layerId || '').replace(/^[-\s]+/, '').trim();
     })
     .filter(function(layerId) { return !!layerId; });
+
+  // Nur deduplizieren: Child-IDs bleiben erhalten, da sie in manchen
+  // Bookmarks die gewünschte Sub-Layer-Auswahl steuern.
+  var unique = [];
+  var seen = {};
+  normalized.forEach(function(id) {
+    if (!seen[id]) {
+      seen[id] = true;
+      unique.push(id);
+    }
+  });
+
+  return unique;
+}
+
+var _bookmarkEnsureTimers = [];
+var _bookmarkEnsureToken = 0;
+
+function _cancelBookmarkEnsureTimers() {
+  for (var i = 0; i < _bookmarkEnsureTimers.length; i++) {
+    clearTimeout(_bookmarkEnsureTimers[i]);
+  }
+  _bookmarkEnsureTimers = [];
+}
+
+function _scheduleBookmarkLayerEnsure(layerIds, token) {
+  if (!layerIds || !layerIds.length) return;
+
+  var retries = [500, 1500, 3000, 5000, 8000];
+  retries.forEach(function(delay) {
+    var timer = setTimeout(function() {
+      if (token !== _bookmarkEnsureToken) return;
+      if (typeof window.TnetLayerSwitch !== 'function') return;
+      layerIds.forEach(function(layerId) {
+        try {
+          window.TnetLayerSwitch(layerId, 'on');
+        } catch (e) {
+          TnetLog.warn('[TnetSetBookmark] Layer-Ensure fehlgeschlagen:', layerId, e && e.message ? e.message : e);
+        }
+      });
+    }, delay);
+    _bookmarkEnsureTimers.push(timer);
+  });
+}
+
+function _clearThematicLayersBeforeBookmark() {
+  // Stabiler Clear-Pfad ohne per-Layer-Races.
+  try {
+    if (window.TnetLMStore && typeof window.TnetLMStore.removeAllLayers === 'function') {
+      window.TnetLMStore.removeAllLayers();
+      TnetLog.log('[TnetSetBookmark] Fachlayer via LMStore.removeAllLayers geleert');
+      return;
+    }
+  } catch (eStore) {
+    TnetLog.warn('[TnetSetBookmark] removeAllLayers fehlgeschlagen:', eStore && eStore.message ? eStore.message : eStore);
+  }
+
+  // Fallback ohne setMapBookmark('layers='), damit keine Bookmark-Hooks
+  // den eigentlichen Kartenwechsel überlagern.
+  try {
+    var am = (window.top && window.top.njs && window.top.njs.AppManager)
+      ? window.top.njs.AppManager
+      : (window.njs && window.njs.AppManager) ? window.njs.AppManager : null;
+    var map = am && am.Maps && am.Maps.main && am.Maps.main.mapObj;
+    if (map && typeof map.getLayers === 'function') {
+      var cleared = 0;
+      map.getLayers().forEach(function (layer) {
+        if (!layer || typeof layer.get !== 'function' || typeof layer.getVisible !== 'function') return;
+        var name = layer.get('name') || '';
+        if (!name || !layer.getVisible()) return;
+
+        var isThematic = name.indexOf('/') !== -1 || name.indexOf('ch.') === 0;
+        if (!isThematic) return;
+
+        try {
+          if (typeof window.TnetLayerSwitch === 'function') {
+            window.TnetLayerSwitch(name, 'off');
+          } else {
+            layer.setVisible(false);
+          }
+          cleared++;
+        } catch (eOff) {
+          TnetLog.warn('[TnetSetBookmark] Fallback-Clear fehlgeschlagen:', name, eOff && eOff.message ? eOff.message : eOff);
+        }
+      });
+      if (cleared > 0) {
+        TnetLog.log('[TnetSetBookmark] Fachlayer via Map-Fallback geleert:', cleared);
+      }
+    }
+  } catch (eMap) {
+    TnetLog.warn('[TnetSetBookmark] Map-Fallback-Clear fehlgeschlagen:', eMap && eMap.message ? eMap.message : eMap);
+  }
 }
 
 function _buildBookmarkParams(cfg) {
@@ -328,6 +420,8 @@ function _buildBookmarkParams(cfg) {
  */
 function _applyBookmark(cfg, bookmarkId) {
   var params = _buildBookmarkParams(cfg);
+  var layerIds = _normalizeBookmarkLayerIds(cfg.layers || []);
+  var ensureToken;
   var am = (window.top && window.top.njs && window.top.njs.AppManager)
            ? window.top.njs.AppManager
            : (window.njs && window.njs.AppManager) ? window.njs.AppManager : null;
@@ -336,7 +430,17 @@ function _applyBookmark(cfg, bookmarkId) {
   if (typeof am.infoFloatWinRemoveallItems !== 'function') {
       am.infoFloatWinRemoveallItems = function() {};
   }
+
+  _cancelBookmarkEnsureTimers();
+  _bookmarkEnsureToken += 1;
+  ensureToken = _bookmarkEnsureToken;
+
+  _clearThematicLayersBeforeBookmark();
+
   am.setMapBookmark(['main'], params);
+  if (layerIds.length) {
+    _scheduleBookmarkLayerEnsure(layerIds, ensureToken);
+  }
   TnetLog.log('[TnetSetBookmark]', bookmarkId, params);
   // Themen im Themenbaum aufklappen (falls vorhanden)
   if (cfg.themes && window.TnetLMTree && typeof window.TnetLMTree.expandThemes === 'function') {
@@ -354,10 +458,50 @@ function _applyBookmark(cfg, bookmarkId) {
  * @returns {Promise<{success: boolean, bookmarkId?: string, params?: string, error?: string}>}
  */
 function TnetSetBookmark(bookmarkId) {
+  // Wenn der Aufruf aus dem Karten-Dialog-iframe kommt, die eigentliche
+  // Bookmark-Logik im Top-Window ausführen. Sonst wird das iframe beim
+  // Dialog-Close entladen und der laufende Request abgebrochen.
+  if (window.top && window.top !== window && typeof window.top.TnetSetBookmark === 'function') {
+    try { window.top.__tnetLastRequestedBookmark = bookmarkId; } catch (eTopReq) { /* ignore */ }
+    return window.top.TnetSetBookmark(bookmarkId);
+  }
+
+  window.__tnetLastRequestedBookmark = bookmarkId;
+  if (window.top) {
+    try { window.top.__tnetLastRequestedBookmark = bookmarkId; } catch (eTop) { /* ignore */ }
+  }
+
+  // Dialog sofort schliessen, damit der Wechsel auch bei API-Retries/Fallback sauber wirkt.
+  try {
+    if (typeof window.closeMapsInfoDialog === 'function') window.closeMapsInfoDialog();
+    if (window.top && typeof window.top.closeMapsInfoDialog === 'function') window.top.closeMapsInfoDialog();
+  } catch (eClose) { /* ignore */ }
+
+  function fallbackDirectMapBookmark() {
+    try {
+      var am = (window.top && window.top.njs && window.top.njs.AppManager)
+        ? window.top.njs.AppManager
+        : (window.njs && window.njs.AppManager) ? window.njs.AppManager : null;
+      if (!am || typeof am.setMapBookmark !== 'function') return false;
+      if (typeof am.infoFloatWinRemoveallItems !== 'function') {
+        am.infoFloatWinRemoveallItems = function() {};
+      }
+      am.setMapBookmark(['main'], 'map=' + encodeURIComponent(bookmarkId));
+      TnetLog.warn('[TnetSetBookmark] API-Fallback auf Framework map= angewendet:', bookmarkId);
+      return true;
+    } catch (eFallback) {
+      TnetLog.warn('[TnetSetBookmark] API-Fallback fehlgeschlagen:', eFallback && eFallback.message ? eFallback.message : eFallback);
+      return false;
+    }
+  }
+
   return TnetApi.getBookmark(bookmarkId)
     .then(function(cfg) { return _applyBookmark(cfg, bookmarkId); })
     .catch(function(err) {
       TnetLog.error('[TnetSetBookmark] Fehler:', err);
+      if (fallbackDirectMapBookmark()) {
+        return { success: true, bookmarkId: bookmarkId, fallback: true };
+      }
       return { success: false, error: err.message };
     });
 }

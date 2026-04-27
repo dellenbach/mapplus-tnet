@@ -235,13 +235,50 @@ function installSetMapBookmarkHook() {
 
     var originalSetMapBookmark = am.setMapBookmark;
 
+    function closeMapsInfoDialogRobust() {
+        var closed = false;
+
+        function tryClose(winObj) {
+            if (!winObj) return false;
+            try {
+                if (typeof winObj.closeMapsInfoDialog === 'function') {
+                    winObj.closeMapsInfoDialog();
+                    return true;
+                }
+            } catch (eCloseFn) { /* ignore */ }
+            try {
+                if (typeof winObj.dijit !== 'undefined' && typeof winObj.dijit.byId === 'function') {
+                    var dlg = winObj.dijit.byId('mapsInfoDialog');
+                    if (dlg) {
+                        if (typeof dlg.hide === 'function') dlg.hide();
+                        else if (typeof dlg.set === 'function') dlg.set('open', false);
+                        return true;
+                    }
+                }
+            } catch (eDijit) { /* ignore */ }
+            return false;
+        }
+
+        closed = tryClose(window) || closed;
+        closed = tryClose(window.top) || closed;
+
+        if (closed) {
+            TnetLog.log('[MapBookmark] mapsInfoDialog nach Kartenwechsel geschlossen');
+        }
+    }
+
     am.setMapBookmark = function(targetMaps, params) {
         var layersList = null;
+        var requestedName = null;
+        var mapParamName = null;
         try {
-            // Bookmark-Name aus URL-Pfad ableiten (falls /maps/<id>)
+            // Bookmark-Name bevorzugt aus letzter TnetSetBookmark-Anfrage.
+            requestedName = window.__tnetLastRequestedBookmark || (window.top && window.top.__tnetLastRequestedBookmark) || null;
+
+            // Fallback: Bookmark-Name aus URL-Pfad ableiten (falls /maps/<id>)
             try {
                 var pathMatch = window.location.pathname.match(/\/maps\/([^\/]+)\/?$/);
-                if (pathMatch && pathMatch[1]) {
+                if (!requestedName && pathMatch && pathMatch[1]) {
                     TnetLog.log('[MapBookmark] Name:', pathMatch[1]);
                 }
             } catch (eName) { /* ignore */ }
@@ -250,6 +287,9 @@ function installSetMapBookmarkHook() {
                 var parsed = new URLSearchParams(params);
                 var layerParam = parsed.get('layers');
                 var mapParam = parsed.get('map');
+                if (mapParam) {
+                    mapParamName = mapParam;
+                }
 
                 if (layerParam) {
                     layersList = layerParam.split('|').filter(function(x) { return !!x; });
@@ -259,6 +299,12 @@ function installSetMapBookmarkHook() {
                 } else {
                     TnetLog.log('[MapBookmark] params=', params);
                 }
+            }
+
+            if (mapParamName) {
+                TnetLog.log('[MapBookmark] Name:', mapParamName);
+            } else if (requestedName) {
+                TnetLog.log('[MapBookmark] Name:', requestedName);
             }
         } catch (e) {
             TnetLog.warn('[MapBookmark] Parse-Fehler:', e);
@@ -271,13 +317,8 @@ function installSetMapBookmarkHook() {
         var result = originalSetMapBookmark.apply(am, arguments);
 
         try {
-            if (typeof dijit !== 'undefined' && typeof dijit.byId === 'function') {
-                var dialog = dijit.byId('mapsInfoDialog');
-                if (dialog && dialog.open && typeof window.closeMapsInfoDialog === 'function') {
-                    window.closeMapsInfoDialog();
-                    TnetLog.log('[MapBookmark] mapsInfoDialog nach Kartenwechsel geschlossen');
-                }
-            }
+            closeMapsInfoDialogRobust();
+            setTimeout(closeMapsInfoDialogRobust, 150);
         } catch (e2) {
             TnetLog.warn('[MapBookmark] Dialog-Close fehlgeschlagen:', e2);
         }

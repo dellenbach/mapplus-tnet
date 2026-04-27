@@ -993,3 +993,39 @@ Guardrail: Wenn Change-Detection für Kürzel vorhanden ist, immer auch prüfen,
 - **Root-Cause**: Bookmark-JSON enthält pro Parent-Layer noch die IDs aller `linked_layer`-Kinder (Legende-Einträge). Diese Kinder sind aber **keine eigenständigen OL-Layer**, sondern Sublayer-Indizes `show:2,3,4,5,...` im `LAYERS`-Param des Parent-MapServers (`gis_fach/.../MapServer`). Der Server rendert sie automatisch mit. `getLayerById()` im LyrMgr findet sie daher nie und `switchLayersProgr()` läuft ins Leere.
 - **Fix**: Catch-up-Polling in `tnet-header.js` und `tnet-app.js` wieder entfernt. Der `setMapBookmark`-Hook loggt die Layer nur noch. Das Bookmark funktioniert ohne Nachzug, weil der Parent die Sublayer automatisch rendert.
 - **Guardrail**: Bevor Retry-/Catch-up-Logik für Layer eingebaut wird, erst prüfen ob die Layer-IDs als eigenständige OL-Layer existieren (via `map.getLayers()`) oder nur als Sublayer-Indizes in einem Parent-MapServer konfiguriert sind. Bei ArcGIS-Diensten sind Legenden-Einträge oft keine aktivierbaren Layer.
+
+## 2026-04-24 — Bookmark-Layer nicht immer vollständig aktiv trotz erfolgreichem Bookmark-Load
+- **Symptom**: Einzelne Bookmark-Aufrufe (z.B. `nw_agglomeration`) laden die Karte, aber die erwarteten Layer sind nicht immer vollständig sichtbar.
+- **Root-Cause**: Die Bookmark-API liefert gemischte Layer-Listen (Parent + tiefe Child-Pfade). Diese Mischung ist für `setMapBookmark` timing-sensitiv und kann bei der Framework-Race-Condition zu inkonsistenter Layer-Aktivierung führen.
+- **Fix**: In `tnet-mapplus-helpers.js` werden Bookmark-Layer vor dem Anwenden nur bereinigt (trim + dedupe), aber vollständig beibehalten. Zusätzlich läuft ein verstärkter Retry-Ensure (500/1500/3000/5000/8000ms) über `TnetLayerSwitch(..., 'on')` auf der kompletten Bookmark-Liste.
+- **Guardrail**: Bei Bookmark-Layern keine Child-IDs pauschal entfernen. Nur Duplikate bereinigen und die Robustheit über zeitlich gestaffelte Retries herstellen.
+
+## 2026-04-24 — Kartenwechsel per Bookmark stapelt alte Fachlayer statt sauber zu ersetzen
+- **Symptom**: Beim Wechsel von Karte A auf Karte B bleiben Fachlayer von A sichtbar; B-Layer werden nur zusätzlich geladen.
+- **Root-Cause**: `setMapBookmark()` wurde direkt aufgerufen, ohne vorher den bestehenden Fachlayer-Stack explizit zu leeren. In bestimmten Timing-Fällen führt das zu additivem Verhalten.
+- **Fix**: In `_applyBookmark()` (tnet-mapplus-helpers.js) vor `setMapBookmark()` ein Pre-Clear eingebaut: zuerst aktive Layer via `TnetLMStore` deaktivieren (`setLayerVisible(false)`), danach Fallback über sichtbare Kartenlayer (`TnetLayerSwitch(name,'off')` für Fachlayer-Heuristik).
+- **Guardrail**: Bei Bookmark-basiertem Kartenwechsel immer zuerst den thematischen Layer-Stack leeren, dann den neuen Bookmark anwenden.
+
+## 2026-04-24 — Regression: Kartenwechsel blockiert durch Race zwischen Pre-Clear und alten Ensure-Retries
+- **Symptom**: Nach dem Pre-Clear-Fix funktionierte der Kartenwechsel teilweise nicht mehr bzw. verhielt sich inkonsistent.
+- **Root-Cause**: Alte `TnetSetBookmark`-Retry-Timer (`Layer-Ensure`) liefen weiter und griffen in den nächsten Kartenwechsel ein. Gleichzeitig war das per-Layer-Clear timing-anfällig.
+- **Fix**: Vor jedem neuen Bookmark werden alle alten Ensure-Timer gecancelt und per Token invalidiert. Pre-Clear: `TnetLMStore.removeAllLayers()` (primär), Fallback über direkte Layer-Deaktivierung (`TnetLayerSwitch(...,'off')`/`setVisible(false)`) statt Framework-Bookmark-Clear.
+- **Guardrail**: Bei gestaffelten Retry-Strategien immer Cancel/Token-Mechanismus pro neuer Aktion einbauen. Für Clear-Operationen **kein** `setMapBookmark('layers=')` als Fallback verwenden, da das erneut Bookmark-Hooks auslöst.
+
+## 2026-04-24 — Falscher MapBookmark-Name im Log + Kartenauswahl-Dialog bleibt offen
+- **Symptom**: In der Konsole wird weiterhin ein alter/anderer Bookmark-Name geloggt (z.B. `nw_agglomeration`), obwohl eine andere Karte geladen wurde. Zudem schliesst `mapsInfoDialog` nach dem Wechsel nicht zuverlässig.
+- **Root-Cause**: Der Hook leitete den Namen primär aus `window.location.pathname` ab (statisch für die aktuelle URL), nicht aus der tatsächlich angeforderten Bookmark-ID. Das Dialog-Schliessen hing zusätzlich von einem engen Pfad (`dialog.open && window.closeMapsInfoDialog`) ab.
+- **Fix**: `TnetSetBookmark()` schreibt die zuletzt angeforderte ID in `window.__tnetLastRequestedBookmark` (inkl. top-window). Der Hook loggt bevorzugt diese ID. Dialog-Close wurde robust gemacht: Close-Versuch über lokale und top-window Funktion plus dijit-Fallback, inkl. kurzem Follow-up-Delay.
+- **Guardrail**: Für Aktions-Logging niemals nur auf URL-Pfade vertrauen; immer die echte Request-ID mitschreiben. Dialog-Schliessen in eingebetteten/Dojo-Kontexten immer über mehrere Fallback-Pfade absichern.
+
+## 2026-04-24 — Dialog bleibt offen + Bookmark lädt nicht bei API-/Timing-Fehler
+- **Symptom**: Kartenauswahl-Dialog bleibt offen und der gewählte Bookmark wird nicht geladen.
+- **Root-Cause**: `TnetSetBookmark()` war vollständig vom API-Pfad abhängig; bei Fehlern blieb nur `{success:false}` übrig. Das Dialog-Schliessen passierte zu spät und war an nachgelagerte Pfade gekoppelt.
+- **Fix**: In `TnetSetBookmark()` wird der Dialog sofort geschlossen (lokal + top). Bei API-Fehlern wird ein direkter Framework-Fallback ausgeführt: `setMapBookmark(['main'], 'map=<bookmarkId>')`. Im Hook wird Name-Logging priorisiert aus `params.map` statt aus potenziell stale request-state.
+- **Guardrail**: Bei Bookmark-Wechsel immer einen Framework-Fallback auf `map=<id>` vorsehen. Logging-Reihenfolge: `params.map` > request-state > URL-Pfad.
+
+## 2026-04-24 — Sofortiges Dialog-Close hat Bookmark-Load aus dem Iframe abgewürgt
+- **Symptom**: Der Kartenauswahl-Dialog schliesst, aber der Bookmark wird gar nicht geladen.
+- **Root-Cause**: `TnetSetBookmark()` wurde aus dem `mapsInfoFrame`-Iframe aufgerufen. Das frühe Schliessen des Dialogs entfernt `src` am Iframe und entlädt damit genau den Kontext, in dem der Fetch/Promise noch lief.
+- **Fix**: `TnetSetBookmark()` delegiert bei Iframe-Aufruf sofort an `window.top.TnetSetBookmark(bookmarkId)`. Die eigentliche Bookmark-Logik läuft dadurch im Top-Window und überlebt das anschliessende Dialog-Close.
+- **Guardrail**: Aktionen aus modalen Iframes, die asynchron weiterlaufen, immer ins Top-Window delegieren bevor das Iframe geschlossen oder neu geladen wird.
