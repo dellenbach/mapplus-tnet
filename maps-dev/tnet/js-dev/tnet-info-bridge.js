@@ -1,1 +1,606 @@
-(function(){"use strict";var P="InfoBridge",p="main",b="_disablewmsgetfeatureinfo",T="__bridge__",w=!1,L=null,E=!1,y=0;function m(){return window.njs&&njs.AppManager}function o(){var e=["["+P+"]"].concat(Array.prototype.slice.call(arguments));window.TnetLog&&typeof TnetLog.log=="function"?TnetLog.log.apply(TnetLog,e):console.log.apply(console,e)}function h(){var e=["["+P+"]"].concat(Array.prototype.slice.call(arguments));window.TnetLog&&typeof TnetLog.warn=="function"?TnetLog.warn.apply(TnetLog,e):console.warn.apply(console,e)}function F(){if(!E){var e=m();if(e){if(e.infoWMSListener&&e.infoWMSListener!==T)try{ol.Observable.unByKey(e.infoWMSListener),o("Framework infoWMSListener entfernt (ol.Observable.unByKey)")}catch(r){h("Fehler beim Entfernen des Framework-Listeners:",r)}e.infoWMSListener=T,E=!0}}}function S(){var e=m();if(!(!e||!w)&&e.infoWMSListener&&e.infoWMSListener!==T){h("Framework-Handler wurde erneut registriert! Entferne und setze Sentinel neu.");try{ol.Observable.unByKey(e.infoWMSListener)}catch{}e.infoWMSListener=T}}function x(){setTimeout(function(){var e=document.getElementById("njs_info_pane_content");if(e){var r=document.getElementById("infowin_wait");r&&(r.style.display="none");var t=m();if(t&&t.infoRequestsPending&&t.infoRequestsPending>0){setTimeout(function(){var n=document.getElementById("infowin_wait");n&&(n.style.display="none")},3e3);return}var a=e.querySelector(".dijitTitlePane")||e.querySelector(".wms-gfi-result");if(!a&&!(e.querySelector(".noInfoResults")||e.querySelector(".njs-info-no-results")||e.querySelector("#njs_info_pane_content_disc"))){var u=t&&t.nls&&t.nls.maptipsResources&&t.nls.maptipsResources.general_noresults?t.nls.maptipsResources.general_noresults:"Keine Objekte gefunden",s=document.createElement("div");s.id="njs_info_pane_content_disc",s.className="infoWindowMsg noInfoResults",s.textContent=u,e.appendChild(s),o("Keine Ergebnisse \u2192 Meldung angezeigt")}}},5e3)}function N(e){var r=m();if(!r||!r.wmsActiveLyrs)return 0;for(var t=0,a=r.wmsActiveLyrs.getArray(),u=[],s=0;s<a.length;s++){var n=a[s];if(!(!n||!n.active)){if(typeof n.queryconnector!="function"){h("MapTip ohne queryconnector:",n.linked_layer_id||n.id);continue}var f=n.linked_layer_id||n.id||"?",l="(unbekannt)",g="?",c=n._tnetParentMatch||null,i={mt_url:n.url||null,mt_params:n.params?Object.keys(n.params).join(","):null,mt_querytype:n.querytype||null,wms_visible:null,wms_source_url:null,wms_source_params:null,fw_visible:null,fw_source_url:null,fw_source_params:null,map_res:null,mt_minRes:n.minResolution||null,mt_maxRes:n.maxResolution||null};try{var _=m();if(_&&_.Maps&&_.Maps.main&&(i.map_res=_.Maps.main.mapObj.getView().getResolution()),n.wms_layer){if(g=c?"wms_layer(prefix:"+c+")":"wms_layer",n.wms_layer.getVisible&&(i.wms_visible=n.wms_layer.getVisible()),n.wms_layer.getSource&&typeof n.wms_layer.getSource=="function"){var d=n.wms_layer.getSource();if(d){if(i.wms_source_url=typeof d.getUrl=="function"?d.getUrl():null,typeof d.getParams=="function"){var M=d.getParams();i.wms_source_params=M?JSON.stringify(M):null}l=i.wms_source_url?i.wms_source_url.substring(0,100):"(kein url)"}}}else{g="getLayerByMap";var v=njs.AppManager.getLayerByMap(n.idmap||"main",n.linked_layer_id);if(v&&v._lyr){v._lyr.getVisible&&(i.fw_visible=v._lyr.getVisible());var k=v._lyr.getSource?v._lyr.getSource():null;if(k){if(i.fw_source_url=typeof k.getUrl=="function"?k.getUrl():null,typeof k.getParams=="function"){var j=k.getParams();i.fw_source_params=j?JSON.stringify(j):null}l=i.fw_source_url?i.fw_source_url.substring(0,100):"(kein url)"}}else l=v?"(kein _lyr)":"(NICHT GEFUNDEN!)"}}catch(q){l="(pre-flight Fehler: "+q.message+")"}window.TNET_DEBUG_INFO&&console.log("[InfoBridge DEBUG]",f,"ql:",n.query_layers,"src:",g,i);try{n.queryconnector(e),t++,u.push({id:f,type:n.querytype||"default",source:g,url:l,queryLayers:n.query_layers||"?"})}catch(q){h("queryconnector Fehler f\xFCr",f,":",q.message,"| source:",g,"| url:",l)}}}if(y<=3||y%5===0){o("wmsActiveLyrs Inhalt ("+a.length+" Eintr\xE4ge, "+t+" dispatcht):");for(var A=0;A<u.length;A++){var I=u[A];o("  "+(A+1)+". "+I.id+" ["+I.type+"] via:"+I.source+" ql:"+I.queryLayers+" url:"+I.url)}}return t}function C(e,r){if(!window.TnetWmsPanel||typeof TnetWmsPanel.queryCustomLayers!="function")return 0;var t=TnetWmsPanel.getVisibleCustomLayers();return!t||t.length===0?0:(o("WMS-Custom:",t.length,"Layer \u2192",t.map(function(a){return a.title}).join(", ")),TnetWmsPanel.queryCustomLayers(e,t,r),t.length)}function D(e){var r=m();if(!(!r||!r.Maps||!r.Maps[p])){var t=r.Maps[p].mapObj;if(t){if(y++,S(),window.isOerebActive){o("Click #"+y+": \xD6REB-Modus aktiv \u2192 MapTip blockiert");return}if(window.isPolygonDrawing){o("Click #"+y+": Polygon-Zeichnen aktiv \u2192 MapTip blockiert");return}try{if(r.MapTips&&r.MapTips[b]&&r.MapTips[b][p]===!0){var a=C(e,t);a>0?o("Click #"+y+": GFI blockiert, aber",a,"Custom-WMS abgefragt"):o("Click #"+y+": GFI blockiert durch Tool \u2192 Abbruch");return}}catch{}var u=!1;try{t.hasFeatureAtPixel(e.pixel)===!0&&t.forEachFeatureAtPixel(e.pixel,function(l,g){if(g){var c=g.get("name")||"";if(c&&!(c==="cosmetic_maptip"||c==="cosmetic_search"||c.indexOf("cosmetic_")===0)&&!(c.indexOf("njs_")===0||c.indexOf("pdfExtent")===0)&&!(c==="spatial_query_draw"||c==="tnet_spatial_query")){if(r.MapTips)for(var i in r.MapTips){var _=r.MapTips[i];if(_&&_.linked_layer_id===c&&typeof _.showInfoBubble=="function"){if(o("Click #"+y+': gjsonServiceMapTip-Layer "'+c+'" \u2192 showInfoBubble'),!r.infoOverlay){var d=document.getElementById("popup"),M=document.getElementById("popup-closer");d&&M&&(r.infoPopupContainer=d,r.infoPopupContent=document.getElementById("popup-content"),r.infoPopupCloser=M,r.infoOverlay=new ol.Overlay({element:d,autoPan:!0,autoPanAnimation:{duration:250}}),t.addOverlay(r.infoOverlay),M.onclick=function(){return r.infoOverlay.setPosition(void 0),M.blur(),document.getElementById("popup").style.display="none",!1})}_.showInfoBubble(l);var v=document.getElementById("popup");v&&(v.style.display=""),r.infoOverlay&&r.infoOverlay.setPosition(e.coordinate);return}}u=!0,o("Click #"+y+': blockierender Layer: "'+c+'"')}}})}catch{}if(u){o("Click #"+y+": Feature-at-Pixel blockiert Info-Abfrage");return}try{typeof r.prepareInfoRequest=="function"&&r.prepareInfoRequest(e,p)}catch(l){h("prepareInfoRequest Fehler:",l)}var s=N(e),n=C(e,t),f=s+n;o("Click #"+y+": Dispatch",f,"Queries","(MapPlus:",s,"| WMS-Custom:",n+")"),x()}}}function W(){if(!w){var e=m();if(!e||!e.Maps||!e.Maps[p]||!e.Maps[p].mapObj)return!1;var r=e.Maps[p].mapObj;F(),window._tnetInfoBridgeActive=!0,L=r.on("singleclick",D),w=!0;var t=e.wmsActiveLyrs?e.wmsActiveLyrs.getLength():0,a=[];e.wmsActiveLyrs&&t>0&&e.wmsActiveLyrs.getArray().forEach(function(l){a.push(l.linked_layer_id||l.id||"?")});var u=0;for(var s in e.MapTips)e.MapTips.hasOwnProperty(s)&&s!=="_wms_connector"&&s!==b&&u++;o("=== Initialisiert ==="),o("  Framework-Handler: Sentinel gesetzt"),o("  WMS-Panel-Handler: deaktiviert (Flag)"),o("  Bridge singleclick: registriert"),o("  MapTips definiert:",u),o("  wmsActiveLyrs:",t,"\u2192",a.join(", "));var n=0,f=setInterval(function(){n++,S(),n>=12&&clearInterval(f)},1e4);return!0}}function K(){L&&(ol.Observable.unByKey(L),L=null),window._tnetInfoBridgeActive=!1,w=!1,E=!1,o("Deinitialisiert")}function V(){var e=m();if(!e){console.log("[InfoBridge] AppManager nicht verf\xFCgbar");return}console.group("[InfoBridge] Diagnose"),console.log("Bridge aktiv:",w),console.log("Sentinel:",e.infoWMSListener===T?"OK (__bridge__)":"WARNUNG: "+e.infoWMSListener),console.log("_tnetInfoBridgeActive:",!!window._tnetInfoBridgeActive),console.log("Gate (_disablewmsgetfeatureinfo):",e.MapTips&&e.MapTips[b]?e.MapTips[b][p]:"n/a"),console.log("Tool-Exklusivit\xE4t: \xD6REB="+!!window.isOerebActive+" Polygon="+!!window.isPolygonDrawing);var r=e.wmsActiveLyrs?e.wmsActiveLyrs.getArray():[];console.group("wmsActiveLyrs: "+r.length+" Eintr\xE4ge");for(var t=0;t<r.length;t++){var a=r[t];console.log(t+1+".",a.linked_layer_id||a.id||"?","| active:",a.active,"| querytype:",a.querytype||"default","| wms_layer:",!!a.wms_layer,"| url:",a.url?a.url.substring(0,80):"(kein)")}console.groupEnd();var u=[];for(var s in e.MapTips)if(!(!e.MapTips.hasOwnProperty(s)||s==="_wms_connector"||s===b)){var n=e.MapTips[s];u.push({key:s,linked:n.linked_layer_id||"?",active:!!n.active,querytype:n.querytype||"default",wms_layer:!!n.wms_layer})}console.group("Alle MapTips: "+u.length+" definiert");var f=u.filter(function(i){return!i.active}),l=u.filter(function(i){return i.active});if(console.log("Aktiv:",l.length,"| Inaktiv:",f.length),f.length>0&&f.length<=20&&(console.log("Inaktive MapTips:"),f.forEach(function(i){console.log("  "+i.key+" \u2192 linked:"+i.linked)})),console.groupEnd(),e.Maps&&e.Maps[p]&&e.Maps[p].mapObj){var g=e.Maps[p].mapObj.getLayers().getArray(),c=g.filter(function(i){return typeof i.getVisible=="function"&&i.getVisible()});console.log("OL-Layer auf Karte:",g.length,"(sichtbar:",c.length+")")}console.groupEnd()}var B=0,R=40;function O(){if(!w){if(B++,W()){o("Init nach",B,"Versuchen");return}B<R?setTimeout(O,500):h("Init nach",R,"Versuchen fehlgeschlagen")}}document.addEventListener("tnet-app-ready",function(){setTimeout(O,300)},{once:!0}),setTimeout(O,2e3),window.TnetInfoBridge={init:W,destroy:K,diagnose:V,isActive:function(){return w}}})();
+/**
+ * tnet-info-bridge.js
+ * Standardisierte Bridge für Info-Abfragen (MapTip / GetFeatureInfo).
+ *
+ * Zentraler singleclick-Handler, der zu drei Adaptern delegiert:
+ *   1. MapPlus-Adapter  — Framework MapTips (wmsActiveLyrs → queryconnector)
+ *      Enthält SOWOHL Standard-TNET-Layers ALS AUCH Coalesce-Layers.
+ *      TnetSyncMapTips und Coalesce-Bridge füllen wmsActiveLyrs unabhängig.
+ *   2. WMS-Custom-Adapter — Benutzer-WMS aus dem WMS-Panel (_addedLayers)
+ *
+ * Eliminiert:
+ *   - Doppelte Singleclick-Handler (Framework + WMS-Panel)
+ *   - Doppel-Abfragen von Framework-Layern
+ *   - Panel-Clearing Race-Condition
+ *   - mask_layer / nicht-GFI-fähige Layer in GFI-Requests
+ *
+ * @version    2.0
+ * @date       2026-03-06
+ * @copyright  Trigonet AG
+ * @author     Marco Dellenbach
+ */
+(function () {
+  'use strict';
+
+  var MODULE = 'InfoBridge';
+  var MAP_ID = 'main';
+  var GATE_KEY = '_disablewmsgetfeatureinfo';
+  // Sentinel-Wert der verhindert, dass Frameworks Activate() den singleclick-Handler
+  // erneut registriert. Muss truthy sein (Activate prüft: if (infoWMSListener == null)).
+  var SENTINEL = '__bridge__';
+
+  // ===== STATE =====
+  var _initialized = false;
+  var _bridgeListenerKey = null;
+  var _frameworkHandlerRemoved = false;
+  var _clickCount = 0;
+
+  // ===== HILFSFUNKTIONEN =====
+
+  function _getAm() {
+    return window.njs && njs.AppManager;
+  }
+
+  function _log() {
+    var args = ['[' + MODULE + ']'].concat(Array.prototype.slice.call(arguments));
+    if (window.TnetLog && typeof TnetLog.log === 'function') {
+      TnetLog.log.apply(TnetLog, args);
+    } else {
+      console.log.apply(console, args);
+    }
+  }
+
+  function _warn() {
+    var args = ['[' + MODULE + ']'].concat(Array.prototype.slice.call(arguments));
+    if (window.TnetLog && typeof TnetLog.warn === 'function') {
+      TnetLog.warn.apply(TnetLog, args);
+    } else {
+      console.warn.apply(console, args);
+    }
+  }
+
+  // ===== FRAMEWORK-HANDLER MANAGEMENT =====
+
+  /**
+   * Entfernt den Framework-eigenen singleclick-Handler (infoWMSHandler)
+   * und setzt den Sentinel, damit Activate() keinen neuen registriert.
+   *
+   * KRITISCH: Nach dem Entfernen MUSS infoWMSListener auf den Sentinel
+   * gesetzt werden (NICHT null!), weil:
+   *   - Coalesce-Bridge kann _forceActivateMaptip() aufrufen
+   *   - Das Frameworks Activate() wird für neue MapTips aufgerufen
+   *   - Activate() prüft: if (infoWMSListener == null) → registriert Handler
+   *   - Mit null: → doppelter Handler! Mit Sentinel: → kein neuer Handler.
+   */
+  function _removeFrameworkHandler() {
+    if (_frameworkHandlerRemoved) return;
+    var am = _getAm();
+    if (!am) return;
+
+    // Variante 1: Listener-Key existiert → Handler aktiv entfernen
+    if (am.infoWMSListener && am.infoWMSListener !== SENTINEL) {
+      try {
+        ol.Observable.unByKey(am.infoWMSListener);
+        _log('Framework infoWMSListener entfernt (ol.Observable.unByKey)');
+      } catch (e) {
+        _warn('Fehler beim Entfernen des Framework-Listeners:', e);
+      }
+    }
+
+    // IMMER den Sentinel setzen — verhindert erneute Registrierung durch Activate()
+    am.infoWMSListener = SENTINEL;
+    _frameworkHandlerRemoved = true;
+  }
+
+  /**
+   * Periodische Prüfung: Falls Framework Activate() den Sentinel überschrieben hat
+   * (unwahrscheinlich, aber denkbar), setze ihn erneut.
+   */
+  function _ensureSentinel() {
+    var am = _getAm();
+    if (!am || !_initialized) return;
+    if (am.infoWMSListener && am.infoWMSListener !== SENTINEL) {
+      _warn('Framework-Handler wurde erneut registriert! Entferne und setze Sentinel neu.');
+      try {
+        ol.Observable.unByKey(am.infoWMSListener);
+      } catch (e) { /* ignore */ }
+      am.infoWMSListener = SENTINEL;
+    }
+  }
+
+  // ===== NO-RESULTS WATCHDOG =====
+
+  /**
+   * Prüft nach Timeout ob Ergebnisse im Info-Panel vorhanden sind.
+   * Falls nicht, zeigt "Keine Objekte gefunden".
+   * Integriert mit dem Framework: prüft auch infoRequestsPending.
+   */
+  function _startNoResultsWatchdog() {
+    setTimeout(function () {
+      var container = document.getElementById('njs_info_pane_content');
+      if (!container) return;
+
+      // Spinner ausblenden
+      var spinner = document.getElementById('infowin_wait');
+      if (spinner) spinner.style.display = 'none';
+
+      // Framework hat noch laufende Requests → noch warten
+      var am = _getAm();
+      if (am && am.infoRequestsPending && am.infoRequestsPending > 0) {
+        // Nochmal 3s warten
+        setTimeout(function () {
+          var spinner2 = document.getElementById('infowin_wait');
+          if (spinner2) spinner2.style.display = 'none';
+        }, 3000);
+        return;
+      }
+
+      // Prüfe ob bereits Ergebnisse vorhanden
+      var hasResults = container.querySelector('.dijitTitlePane') ||
+                       container.querySelector('.wms-gfi-result');
+      if (hasResults) return;
+
+      // Prüfe ob "Keine Ergebnisse" bereits vorhanden
+      if (container.querySelector('.noInfoResults') ||
+          container.querySelector('.njs-info-no-results') ||
+          container.querySelector('#njs_info_pane_content_disc')) return;
+
+      // Keine Ergebnisse → Meldung anzeigen
+      var noResultsText = (am && am.nls && am.nls.maptipsResources && am.nls.maptipsResources['general_noresults'])
+        ? am.nls.maptipsResources['general_noresults']
+        : 'Keine Objekte gefunden';
+
+      var node = document.createElement('div');
+      node.id = 'njs_info_pane_content_disc';
+      node.className = 'infoWindowMsg noInfoResults';
+      node.textContent = noResultsText;
+      container.appendChild(node);
+      _log('Keine Ergebnisse → Meldung angezeigt');
+    }, 5000);
+  }
+
+  // ===== ADAPTER 1: MAPPLUS (Standard + Coalesce) =====
+
+  /**
+   * Dispatcht Info-Abfragen über das Framework MapTip-System.
+   *
+   * Iteriert wmsActiveLyrs und ruft queryconnector() auf jedem aktiven MapTip.
+   * Das Framework schreibt seine Ergebnisse selbst in #njs_info_pane_content.
+   *
+   * wmsActiveLyrs enthält BEIDE Typen:
+   *   - Standard-MapTips: von TnetSyncMapTips eingefügt (linked_layer sichtbar)
+   *   - Coalesce-MapTips: von _forceActivateMaptip() eingefügt
+   *
+   * Die Bridge unterscheidet NICHT zwischen Coalesce und Standard — sie dispatcht
+   * einfach alles was in wmsActiveLyrs steht. Die Verantwortung für das korrekte
+   * Befüllen liegt bei TnetSyncMapTips (Standard) und Coalesce-Bridge (Coalesce).
+   */
+  function _adapterMapPlus(evt) {
+    var am = _getAm();
+    if (!am || !am.wmsActiveLyrs) return 0;
+
+    var count = 0;
+    var items = am.wmsActiveLyrs.getArray();
+    var dispatched = []; // Für Log
+
+    for (var i = 0; i < items.length; i++) {
+      var mt = items[i];
+      if (!mt || !mt.active) continue;
+      if (typeof mt.queryconnector !== 'function') {
+        _warn('MapTip ohne queryconnector:', mt.linked_layer_id || mt.id);
+        continue;
+      }
+
+      // ── Pre-Flight Diagnose: URL-Pfad loggen den queryconnector nehmen wird ──
+      var mtLinkedId = mt.linked_layer_id || mt.id || '?';
+      var urlPath = '(unbekannt)';
+      var layerSource = '?';
+      var parentMatch = mt._tnetParentMatch || null;
+      var diag = {
+        mt_url: mt.url || null,
+        mt_params: mt.params ? Object.keys(mt.params).join(',') : null,
+        mt_querytype: mt.querytype || null,
+        wms_visible: null,
+        wms_source_url: null,
+        wms_source_params: null,
+        fw_visible: null,
+        fw_source_url: null,
+        fw_source_params: null,
+        map_res: null,
+        mt_minRes: mt.minResolution || null,
+        mt_maxRes: mt.maxResolution || null
+      };
+      try {
+        var _am = _getAm();
+        if (_am && _am.Maps && _am.Maps['main']) {
+          diag.map_res = _am.Maps['main'].mapObj.getView().getResolution();
+        }
+        if (mt.wms_layer) {
+          layerSource = parentMatch ? 'wms_layer(prefix:' + parentMatch + ')' : 'wms_layer';
+          if (mt.wms_layer.getVisible) diag.wms_visible = mt.wms_layer.getVisible();
+          if (mt.wms_layer.getSource && typeof mt.wms_layer.getSource === 'function') {
+            var src = mt.wms_layer.getSource();
+            if (src) {
+              diag.wms_source_url = (typeof src.getUrl === 'function') ? src.getUrl() : null;
+              if (typeof src.getParams === 'function') {
+                var p = src.getParams();
+                diag.wms_source_params = p ? JSON.stringify(p) : null;
+              }
+              urlPath = diag.wms_source_url ? diag.wms_source_url.substring(0, 100) : '(kein url)';
+            }
+          }
+        } else {
+          layerSource = 'getLayerByMap';
+          var fwLayer = njs.AppManager.getLayerByMap(mt.idmap || 'main', mt.linked_layer_id);
+          if (fwLayer && fwLayer._lyr) {
+            if (fwLayer._lyr.getVisible) diag.fw_visible = fwLayer._lyr.getVisible();
+            var fwSrc = fwLayer._lyr.getSource ? fwLayer._lyr.getSource() : null;
+            if (fwSrc) {
+              diag.fw_source_url = (typeof fwSrc.getUrl === 'function') ? fwSrc.getUrl() : null;
+              if (typeof fwSrc.getParams === 'function') {
+                var fp = fwSrc.getParams();
+                diag.fw_source_params = fp ? JSON.stringify(fp) : null;
+              }
+              urlPath = diag.fw_source_url ? diag.fw_source_url.substring(0, 100) : '(kein url)';
+            }
+          } else {
+            urlPath = fwLayer ? '(kein _lyr)' : '(NICHT GEFUNDEN!)';
+          }
+        }
+      } catch (preErr) {
+        urlPath = '(pre-flight Fehler: ' + preErr.message + ')';
+      }
+
+      // Debug-Flag: window.TNET_DEBUG_INFO = true aktiviert detailliertes Logging
+      if (window.TNET_DEBUG_INFO) {
+        console.log('[InfoBridge DEBUG]', mtLinkedId, 'ql:', mt.query_layers, 'src:', layerSource, diag);
+      }
+
+      try {
+        mt.queryconnector(evt);
+        count++;
+        dispatched.push({
+          id: mtLinkedId,
+          type: mt.querytype || 'default',
+          source: layerSource,
+          url: urlPath,
+          queryLayers: mt.query_layers || '?'
+        });
+      } catch (e) {
+        _warn('queryconnector Fehler für', mtLinkedId, ':', e.message,
+              '| source:', layerSource, '| url:', urlPath);
+      }
+    }
+
+    // Detailliertes Log beim ersten Klick und dann alle 5 Klicks
+    if (_clickCount <= 3 || _clickCount % 5 === 0) {
+      _log('wmsActiveLyrs Inhalt (' + items.length + ' Einträge, ' + count + ' dispatcht):');
+      for (var d = 0; d < dispatched.length; d++) {
+        var di = dispatched[d];
+        _log('  ' + (d + 1) + '. ' + di.id + ' [' + di.type + '] via:' + di.source +
+             ' ql:' + di.queryLayers + ' url:' + di.url);
+      }
+    }
+
+    return count;
+  }
+
+  // ===== ADAPTER 2: WMS-CUSTOM (Benutzer-WMS aus Panel) =====
+
+  /**
+   * Dispatcht GFI-Abfragen für Custom-WMS-Layer (vom Benutzer hinzugefügt).
+   * Nutzt die exportierte Query-Methode des WMS-Panels.
+   */
+  function _adapterWmsCustom(evt, map) {
+    if (!window.TnetWmsPanel || typeof TnetWmsPanel.queryCustomLayers !== 'function') {
+      return 0;
+    }
+
+    var customs = TnetWmsPanel.getVisibleCustomLayers();
+    if (!customs || customs.length === 0) return 0;
+
+    _log('WMS-Custom:', customs.length, 'Layer →',
+      customs.map(function (c) { return c.title; }).join(', '));
+
+    TnetWmsPanel.queryCustomLayers(evt, customs, map);
+    return customs.length;
+  }
+
+  // ===== ZENTRALER SINGLECLICK-HANDLER =====
+
+  function _handleClick(evt) {
+    var am = _getAm();
+    if (!am || !am.Maps || !am.Maps[MAP_ID]) return;
+
+    var map = am.Maps[MAP_ID].mapObj;
+    if (!map) return;
+
+    _clickCount++;
+
+    // ── Sicherheitsprüfung: Framework-Handler nicht erneut registriert? ──
+    _ensureSentinel();
+
+    // ── Tool-Exklusivität: Anderes Tool aktiv? ──
+    // Nur ein Tool darf gleichzeitig Klick-Queries auslösen.
+    // ÖREB-Modus, Polygon-Zeichnen und Framework-Tools haben Vorrang.
+    if (window.isOerebActive) {
+      _log('Click #' + _clickCount + ': ÖREB-Modus aktiv → MapTip blockiert');
+      return;
+    }
+    if (window.isPolygonDrawing) {
+      _log('Click #' + _clickCount + ': Polygon-Zeichnen aktiv → MapTip blockiert');
+      return;
+    }
+
+    // ── Gate-Check: Mess-/Zeichen-/Druck-Tool aktiv? ──
+    try {
+      if (am.MapTips && am.MapTips[GATE_KEY] && am.MapTips[GATE_KEY][MAP_ID] === true) {
+        var customCount = _adapterWmsCustom(evt, map);
+        if (customCount > 0) {
+          _log('Click #' + _clickCount + ': GFI blockiert, aber', customCount, 'Custom-WMS abgefragt');
+        } else {
+          _log('Click #' + _clickCount + ': GFI blockiert durch Tool → Abbruch');
+        }
+        return;
+      }
+    } catch (e) { /* Gate-Check fehlgeschlagen → weiter */ }
+
+    // ── Feature-at-Pixel Check ──
+    // Blockiert Klicks auf interaktive Vektor-Features (Redlining etc.)
+    // AUSNAHME: Zeichenlayer der räumlichen Abfrage, Messungen und PDF-Extent sollen NICHT blockieren
+    // AUSNAHME: GeoJSON-Layer mit registriertem gjsonServiceMapTip → direkt behandeln
+    var hasBlockingFeature = false;
+    try {
+      if (map.hasFeatureAtPixel(evt.pixel) === true) {
+        map.forEachFeatureAtPixel(evt.pixel, function (feature, layer) {
+          if (!layer) return;
+          var name = layer.get('name') || '';
+          // Layer ohne Namen ignorieren (z.B. MapTip-Highlight-Vektor-Layer)
+          if (!name) return;
+          // Kosmetische Layer ignorieren
+          if (name === 'cosmetic_maptip' || name === 'cosmetic_search' || name.indexOf('cosmetic_') === 0) return;
+          // Framework-interne Layer ignorieren (Messungen, PDF-Extent, Select-Tools)
+          if (name.indexOf('njs_') === 0 || name.indexOf('pdfExtent') === 0) return;
+          // Räumliche-Abfrage-Zeichenlayer ignorieren
+          if (name === 'spatial_query_draw' || name === 'tnet_spatial_query') return;
+          // GeoJSON-Maptip-Layer: nicht blockieren, sondern direkt showInfoBubble aufrufen
+          if (am.MapTips) {
+            for (var _mtId in am.MapTips) {
+              var _mt = am.MapTips[_mtId];
+              if (_mt && _mt.linked_layer_id === name && typeof _mt.showInfoBubble === 'function') {
+                _log('Click #' + _clickCount + ': gjsonServiceMapTip-Layer "' + name + '" → showInfoBubble');
+                // Overlay/Popup initialisieren falls noch nicht geschehen
+                if (!am.infoOverlay) {
+                  var _popupContainer = document.getElementById('popup');
+                  var _popupCloser = document.getElementById('popup-closer');
+                  if (_popupContainer && _popupCloser) {
+                    am.infoPopupContainer = _popupContainer;
+                    am.infoPopupContent = document.getElementById('popup-content');
+                    am.infoPopupCloser = _popupCloser;
+                    am.infoOverlay = new ol.Overlay({
+                      element: _popupContainer,
+                      autoPan: true,
+                      autoPanAnimation: { duration: 250 }
+                    });
+                    map.addOverlay(am.infoOverlay);
+                    _popupCloser.onclick = function () {
+                      am.infoOverlay.setPosition(undefined);
+                      _popupCloser.blur();
+                      document.getElementById('popup').style.display = 'none';
+                      return false;
+                    };
+                  }
+                }
+                _mt.showInfoBubble(feature);
+                // Popup sichtbar machen und positionieren
+                var popupEl = document.getElementById('popup');
+                if (popupEl) popupEl.style.display = '';
+                if (am.infoOverlay) am.infoOverlay.setPosition(evt.coordinate);
+                return; // forEachFeatureAtPixel-Callback verlassen (Layer gefunden)
+              }
+            }
+          }
+          // Alles andere blockiert
+          hasBlockingFeature = true;
+          _log('Click #' + _clickCount + ': blockierender Layer: "' + name + '"');
+        });
+      }
+    } catch (e) { /* Ignorieren */ }
+
+    if (hasBlockingFeature) {
+      _log('Click #' + _clickCount + ': Feature-at-Pixel blockiert Info-Abfrage');
+      return;
+    }
+
+    // ── Panel vorbereiten (Framework-Funktion, EINMAL) ──
+    try {
+      if (typeof am.prepareInfoRequest === 'function') {
+        am.prepareInfoRequest(evt, MAP_ID);
+      }
+    } catch (e) {
+      _warn('prepareInfoRequest Fehler:', e);
+    }
+
+    // ── Adapter dispatchen ──
+    var mapPlusCount = _adapterMapPlus(evt);
+    var wmsCustomCount = _adapterWmsCustom(evt, map);
+    var totalCount = mapPlusCount + wmsCustomCount;
+
+    _log('Click #' + _clickCount + ': Dispatch', totalCount, 'Queries',
+      '(MapPlus:', mapPlusCount, '| WMS-Custom:', wmsCustomCount + ')');
+
+    // ── No-Results Watchdog ──
+    _startNoResultsWatchdog();
+  }
+
+  // ===== INITIALISIERUNG =====
+
+  function init() {
+    if (_initialized) return;
+
+    var am = _getAm();
+    if (!am || !am.Maps || !am.Maps[MAP_ID] || !am.Maps[MAP_ID].mapObj) {
+      return false;
+    }
+
+    var map = am.Maps[MAP_ID].mapObj;
+
+    // 1. Framework-Handler entfernen + Sentinel setzen
+    _removeFrameworkHandler();
+
+    // 2. WMS-Panel: eigenen singleclick-Handler deaktivieren (Flag)
+    window._tnetInfoBridgeActive = true;
+
+    // 3. Bridge-Handler registrieren
+    _bridgeListenerKey = map.on('singleclick', _handleClick);
+
+    _initialized = true;
+
+    // Diagnostik: Was ist aktuell in wmsActiveLyrs?
+    var activeCount = am.wmsActiveLyrs ? am.wmsActiveLyrs.getLength() : 0;
+    var activeIds = [];
+    if (am.wmsActiveLyrs && activeCount > 0) {
+      am.wmsActiveLyrs.getArray().forEach(function (mt) {
+        activeIds.push(mt.linked_layer_id || mt.id || '?');
+      });
+    }
+
+    // Diagnostik: Wieviele MapTips definiert?
+    var totalMaptips = 0;
+    for (var k in am.MapTips) {
+      if (am.MapTips.hasOwnProperty(k) && k !== '_wms_connector' && k !== GATE_KEY) {
+        totalMaptips++;
+      }
+    }
+
+    _log('=== Initialisiert ===');
+    _log('  Framework-Handler: Sentinel gesetzt');
+    _log('  WMS-Panel-Handler: deaktiviert (Flag)');
+    _log('  Bridge singleclick: registriert');
+    _log('  MapTips definiert:', totalMaptips);
+    _log('  wmsActiveLyrs:', activeCount, '→', activeIds.join(', '));
+
+    // 4. Periodische Sentinel-Prüfung (alle 10s für 2 Minuten)
+    var sentinelChecks = 0;
+    var sentinelInterval = setInterval(function () {
+      sentinelChecks++;
+      _ensureSentinel();
+      if (sentinelChecks >= 12) clearInterval(sentinelInterval);
+    }, 10000);
+
+    return true;
+  }
+
+  function destroy() {
+    if (_bridgeListenerKey) {
+      ol.Observable.unByKey(_bridgeListenerKey);
+      _bridgeListenerKey = null;
+    }
+    window._tnetInfoBridgeActive = false;
+    _initialized = false;
+    _frameworkHandlerRemoved = false;
+    _log('Deinitialisiert');
+  }
+
+  // ===== DIAGNOSE-EXPORT =====
+
+  /**
+   * Gibt eine Übersicht über den aktuellen Zustand aus.
+   * Aufruf: TnetInfoBridge.diagnose()
+   */
+  function diagnose() {
+    var am = _getAm();
+    if (!am) { console.log('[InfoBridge] AppManager nicht verfügbar'); return; }
+
+    console.group('[InfoBridge] Diagnose');
+    console.log('Bridge aktiv:', _initialized);
+    console.log('Sentinel:', am.infoWMSListener === SENTINEL ? 'OK (__bridge__)' : 'WARNUNG: ' + am.infoWMSListener);
+    console.log('_tnetInfoBridgeActive:', !!window._tnetInfoBridgeActive);
+    console.log('Gate (_disablewmsgetfeatureinfo):', am.MapTips && am.MapTips[GATE_KEY] ? am.MapTips[GATE_KEY][MAP_ID] : 'n/a');
+    console.log('Tool-Exklusivität: ÖREB=' + !!window.isOerebActive + ' Polygon=' + !!window.isPolygonDrawing);
+
+    // wmsActiveLyrs Dump
+    var items = am.wmsActiveLyrs ? am.wmsActiveLyrs.getArray() : [];
+    console.group('wmsActiveLyrs: ' + items.length + ' Einträge');
+    for (var i = 0; i < items.length; i++) {
+      var mt = items[i];
+      console.log((i + 1) + '.', mt.linked_layer_id || mt.id || '?',
+        '| active:', mt.active,
+        '| querytype:', mt.querytype || 'default',
+        '| wms_layer:', !!mt.wms_layer,
+        '| url:', mt.url ? mt.url.substring(0, 80) : '(kein)');
+    }
+    console.groupEnd();
+
+    // Alle definierten MapTips
+    var all = [];
+    for (var k in am.MapTips) {
+      if (!am.MapTips.hasOwnProperty(k) || k === '_wms_connector' || k === GATE_KEY) continue;
+      var m = am.MapTips[k];
+      all.push({
+        key: k,
+        linked: m.linked_layer_id || '?',
+        active: !!m.active,
+        querytype: m.querytype || 'default',
+        wms_layer: !!m.wms_layer
+      });
+    }
+    console.group('Alle MapTips: ' + all.length + ' definiert');
+    var inactive = all.filter(function (x) { return !x.active; });
+    var active = all.filter(function (x) { return x.active; });
+    console.log('Aktiv:', active.length, '| Inaktiv:', inactive.length);
+    if (inactive.length > 0 && inactive.length <= 20) {
+      console.log('Inaktive MapTips:');
+      inactive.forEach(function (x) { console.log('  ' + x.key + ' → linked:' + x.linked); });
+    }
+    console.groupEnd();
+
+    // OL-Layer auf Karte
+    if (am.Maps && am.Maps[MAP_ID] && am.Maps[MAP_ID].mapObj) {
+      var layers = am.Maps[MAP_ID].mapObj.getLayers().getArray();
+      var visible = layers.filter(function (l) {
+        return typeof l.getVisible === 'function' && l.getVisible();
+      });
+      console.log('OL-Layer auf Karte:', layers.length, '(sichtbar:', visible.length + ')');
+    }
+
+    console.groupEnd();
+  }
+
+  // ===== AUTO-INIT =====
+
+  var _initAttempts = 0;
+  var _maxInitAttempts = 40;
+
+  function _tryInit() {
+    if (_initialized) return;
+    _initAttempts++;
+
+    if (init()) {
+      _log('Init nach', _initAttempts, 'Versuchen');
+      return;
+    }
+
+    if (_initAttempts < _maxInitAttempts) {
+      setTimeout(_tryInit, 500);
+    } else {
+      _warn('Init nach', _maxInitAttempts, 'Versuchen fehlgeschlagen');
+    }
+  }
+
+  document.addEventListener('tnet-app-ready', function () {
+    setTimeout(_tryInit, 300);
+  }, { once: true });
+
+  setTimeout(_tryInit, 2000);
+
+  // ===== EXPORT =====
+
+  window.TnetInfoBridge = {
+    init: init,
+    destroy: destroy,
+    diagnose: diagnose,
+    isActive: function () { return _initialized; }
+  };
+
+})();

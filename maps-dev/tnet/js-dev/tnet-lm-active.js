@@ -1,1 +1,784 @@
-(function(){"use strict";function E(){return window.__TNET_APP_ROOT||"/maps"}var u="[LM-Active]",g=null,O=[],d=null,R={},l={};function K(){l.eyeOn=TnetIcons.get("eye-on","lm-icon"),l.eyeOff=TnetIcons.get("eye-off","lm-icon"),l.drag=TnetIcons.get("drag-handle","lm-icon lm-icon-drag"),l.remove=TnetIcons.get("close","lm-icon"),l.legend=TnetIcons.get("legend","lm-icon"),l.expand=TnetIcons.get("chevron-right","lm-icon"),l.collapse=TnetIcons.get("chevron-down","lm-icon"),l.group=TnetIcons.get("folder","lm-icon"),l.trash=TnetIcons.get("trash","lm-icon")}var V={init:function(e){if(K(),g=document.getElementById(e),!g){TnetLog.error(u,"Container #"+e+" nicht gefunden");return}var t=window.TnetLMStore;if(!t){TnetLog.error(u,"TnetLMStore nicht geladen");return}O.push(t.on("active-layers-changed",this.render.bind(this))),O.push(t.on("layer-visibility",this._onVisibility.bind(this))),O.push(t.on("layer-opacity",this._onOpacity.bind(this))),this._bindEvents();var n=t.getActiveLayers();this.render(n),TnetLog.log(u,"Init \u2713 \u2192 #"+e)},destroy:function(){O.forEach(function(e){e()}),O=[],g&&(g.innerHTML="")},render:function(e){if(!g){TnetLog.warn(u,"render: Container fehlt");return}if(d){TnetLog.log(u,"render \xFCbersprungen (Drag aktiv)");return}if(!e||!e.length){g.innerHTML='<div class="lm-empty">Keine Themen dargestellt.<br><small style="color:#aaa">Themen im Themenkatalog aktivieren.</small></div>',TnetLog.log(u,"render: Leerzustand");return}var t=this._buildActiveEntries(e),n=e.length;TnetLog.log(u,"render:",n,"Layer,",t.length,"Eintr\xE4ge");var r='<div class="lm-active-toolbar">';r+='<span class="lm-active-count">'+n+" Themen</span>",r+='<button class="lm-btn-remove-all" data-action="remove-all" title="Alle Themen entfernen">',r+=l.trash,r+=" Alle entfernen</button>",r+="</div>",r+='<ul class="lm-active-list">';for(var i=0;i<t.length;i++){var a=t[i];a.type==="group"?r+=this._renderGroup(a):r+=this._renderStandalone(a.layer)}r+="</ul>",g.innerHTML=r},_buildActiveEntries:function(e){for(var t=[],n={},r=window.TnetLMStore,i=0;i<e.length;i++){var a=e[i],o=r?r.getCoalesceInfo(a.id):null;if(o)if(n[o.groupId])n[o.groupId].children.push(a);else{var c={type:"group",groupId:o.groupId,groupName:o.groupName,serviceUrl:o.serviceUrl,children:[a]};t.push(c),n[o.groupId]=c}else t.push({type:"standalone",layer:a})}return t},_renderStandalone:function(e){var t=e.visible?l.eyeOn:l.eyeOff,n=e.visible?"lm-eye":"lm-eye lm-eye-off",r=e.opacity!==void 0&&e.opacity!==null?e.opacity:1,i=Math.round(r*100),a='<li class="lm-active-item" data-layer-id="'+M(e.id)+'">';return a+='<div class="lm-active-row">',a+='<div class="lm-drag-handle" data-action="drag" title="Verschieben">'+l.drag+"</div>",a+='<button class="'+n+'" data-action="eye" title="Sichtbarkeit">'+t+"</button>",a+='<span class="lm-active-name">'+M(e.name)+"</span>",this._hasLegend(e)&&(a+='<button class="lm-btn-legend" data-action="legend" title="Legende anzeigen">'+l.legend+"</button>"),a+='<button class="lm-btn-remove" data-action="remove" title="Entfernen">'+l.remove+"</button>",a+="</div>",a+='<div class="lm-opacity-row">',a+='<span class="lm-opacity-label">Deckkraft</span>',a+='<input type="range" class="lm-opacity-slider" data-action="opacity" min="0" max="100" value="'+i+'">',a+='<span class="lm-opacity-val">'+i+"%</span>",a+="</div>",a+="</li>",a},_renderGroup:function(e){for(var t=e.groupId,n=R[t]!==void 0?R[t]:!0,r=n?"":" lm-collapsed",i=0,a=!1,o=0;o<e.children.length;o++){var c=e.children[o];i+=c.opacity!==void 0&&c.opacity!==null?c.opacity:1,c.visible!==!1&&(a=!0)}var p=e.children.length>0?i/e.children.length:1,y=Math.round(p*100),m=a?l.eyeOn:l.eyeOff,v=a?"lm-eye":"lm-eye lm-eye-off",h=n?l.collapse:l.expand,s='<li class="lm-active-group'+r+'" data-group-id="'+M(t)+'">';s+='<div class="lm-active-group-header">',s+='<div class="lm-drag-handle" data-action="drag" title="Verschieben">'+l.drag+"</div>",s+='<button class="'+v+'" data-action="group-eye" title="Gruppe ein/aus">'+m+"</button>",s+='<span class="lm-active-group-icon">'+l.group+"</span>",s+='<span class="lm-active-group-name">'+M(e.groupName)+"</span>",e.serviceUrl&&(s+='<button class="lm-btn-legend" data-action="group-legend" title="Legende anzeigen">'+l.legend+"</button>"),s+='<button class="lm-btn-expand" data-action="group-expand" title="Auf-/Zuklappen">'+h+"</button>",s+='<button class="lm-btn-remove" data-action="group-remove" title="Gruppe entfernen">'+l.remove+"</button>",s+="</div>",s+='<div class="lm-opacity-row">',s+='<span class="lm-opacity-label">Deckkraft</span>',s+='<input type="range" class="lm-opacity-slider lm-group-opacity" data-action="group-opacity" min="0" max="100" value="'+y+'">',s+='<span class="lm-opacity-val">'+y+"%</span>",s+="</div>",s+='<ul class="lm-active-group-children">';for(var L=0;L<e.children.length;L++)s+=this._renderGroupChild(e.children[L]);return s+="</ul>",s+="</li>",s},_renderGroupChild:function(e){var t=e.visible?l.eyeOn:l.eyeOff,n=e.visible?"lm-eye":"lm-eye lm-eye-off",r='<li class="lm-active-group-child" data-layer-id="'+M(e.id)+'">';return r+='<button class="'+n+'" data-action="child-eye" title="Sichtbarkeit">'+t+"</button>",r+='<span class="lm-active-name">'+M(e.name)+"</span>",r+="</li>",r},_hasLegend:function(e){var t=e.type==="wms"||e.id&&e.id.indexOf("wms:")===0,n=!t&&e.layerType==="arcgisRest"&&e.url&&e.url.indexOf("agsproxy.php")!==-1,r=!t&&!n&&e.legendLink&&e.legendLink!=="";return t||n||r},_bindEvents:function(){var e=this;g.addEventListener("click",function(t){if(!d){var n=t.target.closest("[data-action]");if(n){var r=n.dataset.action;if(r!=="drag"){if(r==="remove-all"){window.TnetLMStore&&window.TnetLMStore.removeAllLayers&&window.TnetLMStore.removeAllLayers();return}var i=n.closest(".lm-active-group");if(r==="group-eye"&&i){var a=i.dataset.groupId;window.TnetLMStore&&window.TnetLMStore.toggleCoalesceGroupEye(a);return}if(r==="group-remove"&&i){var o=i.dataset.groupId;window.TnetLMStore&&window.TnetLMStore.removeCoalesceGroup(o);return}if(r==="group-expand"&&i){var c=i.dataset.groupId,p=!i.classList.contains("lm-collapsed");R[c]=!p,i.classList.toggle("lm-collapsed",p),n.innerHTML=p?l.expand:l.collapse;return}if(r==="group-legend"&&i){e._openGroupLegend(i.dataset.groupId);return}if(r==="child-eye"){var y=n.closest(".lm-active-group-child");if(y){var m=y.dataset.layerId;window.TnetLMStore&&window.TnetLMStore.toggleLayerEye(m)}return}var v=n.closest(".lm-active-item");if(v){var h=v.dataset.layerId;switch(r){case"eye":window.TnetLMStore.toggleLayerEye(h);break;case"remove":window.TnetLMStore.removeLayer(h);break;case"legend":var s=h.indexOf("wms:")===0;if(s){if(window.TnetWmsLegend){var L="",w="";try{for(var C=window.TnetLMStore,S=C?C.getActiveLayers():[],_=0;_<S.length;_++)if(S[_].id===h&&S[_]._olLayerRef){L=S[_]._olLayerRef.get("tnet_wms_legendUrl")||"",w=S[_]._olLayerRef.get("title")||S[_].name||"";break}}catch{}var Y=h.substring(4);window.TnetWmsLegend(Y,w,L)}}else try{for(var B=window.TnetLMStore,N=B?B.getActiveLayers():[],b=null,k=0;k<N.length;k++)if(N[k].id===h){b=N[k];break}if(b){var f=b.legendLink||"",z=b.legendTitle||b.name||"";if(!f){var T=b.url||"";if(!T&&b._olLayerRef)try{var x=b._olLayerRef.getSource();if(x&&typeof x.getUrl=="function"&&(T=x.getUrl()||""),!T&&x&&typeof x.getUrls=="function"){var D=x.getUrls();D&&D.length&&(T=D[0])}}catch{}var H=T.indexOf("agsproxy.php?path=");if(H!==-1){var W=T.substring(H+18);f=E()+"/tnet/api/v1/legend-proxy.php?service="+encodeURIComponent(W),TnetLog.log(u,"Legend-Proxy URL (agsproxy):",f)}if(!f){var j=T.indexOf("/rest/services/");if(j!==-1){var G=T.substring(j+15),F=G.indexOf("?");F!==-1&&(G=G.substring(0,F)),f=E()+"/tnet/api/v1/legend-proxy.php?service="+encodeURIComponent(G),TnetLog.log(u,"Legend-Proxy URL (rest):",f)}}}if(f){var Z=window.__TNET_LEGEND_CONFIG||{};Z.metadata&&f.indexOf("legend-proxy")!==-1&&f.indexOf("metadata=")===-1&&(f+=(f.indexOf("?")!==-1?"&":"?")+"metadata=1");var I=window.njs&&window.njs.AppManager;I||(I=window.top&&window.top.njs&&window.top.njs.AppManager),I&&typeof I.showLegend=="function"?(I.showLegend(f,z,!0,void 0),TnetLog.log(u,"Framework-Legende ge\xF6ffnet:",f)):window.open(f,"_blank","noopener")}else TnetLog.warn(u,"Keine Legenden-URL ermittelbar f\xFCr:",h)}else TnetLog.warn(u,"Kein Store-Eintrag f\xFCr Layer:",h)}catch(q){TnetLog.error(u,"Fehler beim \xD6ffnen der Legende:",q)}break}}}}}}),g.addEventListener("input",function(t){if(t.target.matches(".lm-opacity-slider")){var n=parseInt(t.target.value,10)/100,r=t.target.closest(".lm-opacity-row");if(r){var i=r.querySelector(".lm-opacity-val");i&&(i.textContent=Math.round(n*100)+"%")}if(t.target.matches(".lm-group-opacity")){var a=t.target.closest(".lm-active-group");a&&window.TnetLMStore.setCoalesceGroupOpacity(a.dataset.groupId,n);return}var o=t.target.closest(".lm-active-item");o&&window.TnetLMStore.setLayerOpacity(o.dataset.layerId,n)}}),g.addEventListener("touchstart",function(t){var n=t.target.closest(".lm-drag-handle");if(n){t.preventDefault();var r=t.touches[0];e._dragStart(n,r.clientY)}},{passive:!1}),document.addEventListener("touchmove",function(t){d&&(t.preventDefault(),e._dragMove(t.touches[0].clientY))},{passive:!1}),document.addEventListener("touchend",function(){d&&e._dragEnd()}),document.addEventListener("touchcancel",function(){d&&e._dragCancel()}),g.addEventListener("mousedown",function(t){var n=t.target.closest(".lm-drag-handle");n&&(t.preventDefault(),e._dragStart(n,t.clientY))}),document.addEventListener("mousemove",function(t){d&&(t.preventDefault(),e._dragMove(t.clientY))}),document.addEventListener("mouseup",function(){d&&e._dragEnd()})},_dragStart:function(e,t){var n=e.closest(".lm-active-item")||e.closest(".lm-active-group");if(n){var r=g.querySelector(".lm-active-list");if(r){var i=n.dataset.layerId||n.dataset.groupId||"",a=n.classList.contains("lm-active-group"),o=Array.prototype.slice.call(r.querySelectorAll(":scope > .lm-active-item, :scope > .lm-active-group")),c=o.indexOf(n);if(c!==-1){var p=n.getBoundingClientRect(),y=r.getBoundingClientRect(),m=n.cloneNode(!0);m.classList.add("lm-drag-clone"),m.style.width=p.width+"px",m.style.left=p.left+"px",m.style.top=p.top+"px",document.body.appendChild(m);var v=document.createElement("li");v.className="lm-drag-placeholder",v.style.height=p.height+"px",n.parentNode.insertBefore(v,n),n.classList.add("lm-drag-hidden"),d={item:n,layerId:i,isGroup:a,clone:m,placeholder:v,listEl:r,startY:t,offsetY:t-p.top,startIdx:c,currentIdx:c,itemHeight:p.height,listTop:y.top},r.classList.add("lm-dragging")}}}},_dragMove:function(e){if(d){var t=d;t.clone.style.top=e-t.offsetY+"px";for(var n=":scope > .lm-active-item:not(.lm-drag-hidden), :scope > .lm-active-group:not(.lm-drag-hidden)",r=Array.prototype.slice.call(t.listEl.querySelectorAll(n)),i=t.currentIdx,a=0;a<r.length;a++){var o=r[a].getBoundingClientRect(),c=o.top+o.height/2;if(e<c){i=a;break}i=a+1}i!==t.currentIdx&&(t.placeholder.remove(),i>=r.length?t.listEl.appendChild(t.placeholder):t.listEl.insertBefore(t.placeholder,r[i]),t.currentIdx=i)}},_dragEnd:function(){if(d){var e=d;if(e.clone.remove(),e.placeholder.parentNode.insertBefore(e.item,e.placeholder),e.placeholder.remove(),e.item.classList.remove("lm-drag-hidden"),e.listEl.classList.remove("lm-dragging"),e.startIdx!==e.currentIdx){var t=this._readOrderFromDOM(e.listEl);t.length>0&&window.TnetLMStore&&window.TnetLMStore.setActiveLayerOrder&&window.TnetLMStore.setActiveLayerOrder(t)}d=null}},_dragCancel:function(){if(d){var e=d;e.clone.remove(),e.placeholder.remove(),e.item.classList.remove("lm-drag-hidden"),e.listEl.classList.remove("lm-dragging"),d=null}},_readOrderFromDOM:function(e){for(var t=[],n=e.querySelectorAll(":scope > .lm-active-item, :scope > .lm-active-group"),r=0;r<n.length;r++){var i=n[r];if(i.classList.contains("lm-active-group"))for(var a=i.querySelectorAll(".lm-active-group-child[data-layer-id]"),o=0;o<a.length;o++)t.push(a[o].dataset.layerId);else t.push(i.dataset.layerId)}return t},_openGroupLegend:function(e){try{var t=window.TnetLMStore;if(!t)return;for(var n=t.getActiveLayers(),r=null,i=0;i<n.length&&(r=t.getCoalesceInfo(n[i].id),!(r&&r.groupId===e));i++)r=null;if(!r||!r.serviceUrl){TnetLog.warn(u,"Keine serviceUrl f\xFCr Gruppe:",e);return}var a=r.serviceUrl,o="",c=a.indexOf("agsproxy.php?path=");if(c!==-1){var p=a.substring(c+18),y=p.indexOf("/MapServer");y!==-1&&(p=p.substring(0,y)),o=E()+"/tnet/api/v1/legend-proxy.php?service="+encodeURIComponent(p)}if(!o){var m=a.indexOf("/rest/services/");if(m!==-1){var v=a.substring(m+15),h=v.indexOf("?");h!==-1&&(v=v.substring(0,h));var s=v.indexOf("/MapServer");s!==-1&&(v=v.substring(0,s)),o=E()+"/tnet/api/v1/legend-proxy.php?service="+encodeURIComponent(v)}}if(!o){TnetLog.warn(u,"Keine Legenden-URL konstruierbar f\xFCr:",a);return}var L=r.groupName||e,w=window.njs&&window.njs.AppManager;w||(w=window.top&&window.top.njs&&window.top.njs.AppManager),w&&typeof w.showLegend=="function"?(w.showLegend(o,L,!0,void 0),TnetLog.log(u,"Gruppen-Legende ge\xF6ffnet:",o)):window.open(o,"_blank","noopener")}catch(C){TnetLog.error(u,"Fehler beim \xD6ffnen der Gruppen-Legende:",C)}},_onVisibility:function(e){if(!(!g||d)){var t=g.querySelector('[data-layer-id="'+e.id+'"]');if(t){var n=t.querySelector(".lm-eye");n&&(n.innerHTML=e.visible?l.eyeOn:l.eyeOff,n.classList.toggle("lm-eye-off",!e.visible))}}},_onOpacity:function(e){if(!(!g||d)){var t=g.querySelector('[data-layer-id="'+e.id+'"]');if(t){var n=t.querySelector(".lm-opacity-slider"),r=t.querySelector(".lm-opacity-val"),i=Math.round(e.opacity*100);n&&(n.value=i),r&&(r.textContent=i+"%")}}}},A=null;function M(e){return!e&&e!==0?"":(A||(A=document.createElement("div")),A.textContent=String(e),A.innerHTML)}window.TnetLMActive=V})();
+﻿/**
+ * tnet-lm-active.js — Dargestellte-Themen-Panel (Desktop + Mobile)
+ *
+ * Zeigt aktive Layer mit:
+ *   - Drag-Handle (≡) zum Verschieben per Drag & Drop (Touch + Mouse)
+ *   - Augen-Toggle (sichtbar/unsichtbar ohne Entfernung)
+ *   - Opazitäts-Slider
+ *   - Entfernen-Button
+ *
+ * @version 2.0
+ * @copyright Trigonet AG
+ */
+(function () {
+  'use strict';
+
+  function getAppRoot() {
+    return window.__TNET_APP_ROOT || '/maps';
+  }
+
+  var LOG = '[LM-Active]';
+  var _container = null;
+  var _unlisteners = [];
+
+  // ── Drag & Drop State ──
+  var _dragState = null; // { item, layerId, placeholder, clone, startY, startIdx, currentIdx, listEl }
+
+  // ── Coalesce-Gruppen Expand-State ──
+  var _groupExpanded = {}; // groupId → boolean (default: true = aufgeklappt)
+
+  // SVG-Icons — geladen via TnetIcons (externe .svg Dateien)
+  // Werden in _initIcons() befüllt nachdem TnetIcons.loadAll() abgeschlossen ist
+  var ICON = {};
+
+  function _initIcons() {
+    ICON.eyeOn    = TnetIcons.get('eye-on', 'lm-icon');
+    ICON.eyeOff   = TnetIcons.get('eye-off', 'lm-icon');
+    ICON.drag     = TnetIcons.get('drag-handle', 'lm-icon lm-icon-drag');
+    ICON.remove   = TnetIcons.get('close', 'lm-icon');
+    ICON.legend   = TnetIcons.get('legend', 'lm-icon');
+    ICON.expand   = TnetIcons.get('chevron-right', 'lm-icon');
+    ICON.collapse = TnetIcons.get('chevron-down', 'lm-icon');
+    ICON.group    = TnetIcons.get('folder', 'lm-icon');
+    ICON.trash    = TnetIcons.get('trash', 'lm-icon');
+  }
+
+  var LMActive = {
+
+    init: function (containerId) {
+      _initIcons();
+      _container = document.getElementById(containerId);
+      if (!_container) {
+        TnetLog.error(LOG, 'Container #' + containerId + ' nicht gefunden');
+        return;
+      }
+
+      var store = window.TnetLMStore;
+      if (!store) {
+        TnetLog.error(LOG, 'TnetLMStore nicht geladen');
+        return;
+      }
+
+      _unlisteners.push(store.on('active-layers-changed', this.render.bind(this)));
+      _unlisteners.push(store.on('layer-visibility', this._onVisibility.bind(this)));
+      _unlisteners.push(store.on('layer-opacity', this._onOpacity.bind(this)));
+
+      // Event-Delegation
+      this._bindEvents();
+
+      // Initial-State rendern
+      var active = store.getActiveLayers();
+      this.render(active);
+      TnetLog.log(LOG, 'Init ✓ → #' + containerId);
+    },
+
+    destroy: function () {
+      _unlisteners.forEach(function (fn) { fn(); });
+      _unlisteners = [];
+      if (_container) _container.innerHTML = '';
+    },
+
+    // ============================================================
+    // Render
+    // ============================================================
+
+    render: function (layers) {
+      if (!_container) {
+        TnetLog.warn(LOG, 'render: Container fehlt');
+        return;
+      }
+
+      // Nicht rendern während Drag aktiv (sonst springt alles)
+      if (_dragState) {
+        TnetLog.log(LOG, 'render übersprungen (Drag aktiv)');
+        return;
+      }
+
+      if (!layers || !layers.length) {
+        _container.innerHTML = '<div class="lm-empty">Keine Themen dargestellt.<br><small style="color:#aaa">Themen im Themenkatalog aktivieren.</small></div>';
+        TnetLog.log(LOG, 'render: Leerzustand');
+        return;
+      }
+
+      // Einträge gruppieren (Standalone vs. Coalesce-Gruppen)
+      var entries = this._buildActiveEntries(layers);
+      var totalLayers = layers.length;
+
+      TnetLog.log(LOG, 'render:', totalLayers, 'Layer,', entries.length, 'Einträge');
+
+      var html = '<div class="lm-active-toolbar">';
+      html += '<span class="lm-active-count">' + totalLayers + ' Themen</span>';
+      html += '<button class="lm-btn-remove-all" data-action="remove-all" title="Alle Themen entfernen">';
+      html += ICON.trash;
+      html += ' Alle entfernen</button>';
+      html += '</div>';
+      html += '<ul class="lm-active-list">';
+
+      for (var i = 0; i < entries.length; i++) {
+        var entry = entries[i];
+        if (entry.type === 'group') {
+          html += this._renderGroup(entry);
+        } else {
+          html += this._renderStandalone(entry.layer);
+        }
+      }
+
+      html += '</ul>';
+      _container.innerHTML = html;
+    },
+
+    /**
+     * Gruppiert aktive Layer in Standalone und Coalesce-Gruppen.
+     * Reihenfolge: Erster Layer einer Gruppe bestimmt Position der gesamten Gruppe.
+     */
+    _buildActiveEntries: function (layers) {
+      var entries = [];
+      var seenGroups = {};  // groupId → entry-Object
+      var store = window.TnetLMStore;
+
+      for (var i = 0; i < layers.length; i++) {
+        var l = layers[i];
+        var coalInfo = store ? store.getCoalesceInfo(l.id) : null;
+
+        if (coalInfo) {
+          if (!seenGroups[coalInfo.groupId]) {
+            // Erste Layer dieser Coalesce-Gruppe → neuer Eintrag
+            var entry = {
+              type: 'group',
+              groupId: coalInfo.groupId,
+              groupName: coalInfo.groupName,
+              serviceUrl: coalInfo.serviceUrl,
+              children: [l]
+            };
+            entries.push(entry);
+            seenGroups[coalInfo.groupId] = entry;
+          } else {
+            // Weiterer Layer derselben Gruppe
+            seenGroups[coalInfo.groupId].children.push(l);
+          }
+        } else {
+          entries.push({ type: 'standalone', layer: l });
+        }
+      }
+
+      return entries;
+    },
+
+    /**
+     * Rendert einen einzelnen Standalone-Layer (identisch zum bisherigen Verhalten).
+     */
+    _renderStandalone: function (l) {
+      var eyeIcon = l.visible ? ICON.eyeOn : ICON.eyeOff;
+      var eyeCls = l.visible ? 'lm-eye' : 'lm-eye lm-eye-off';
+      var opacity = (l.opacity !== undefined && l.opacity !== null) ? l.opacity : 1;
+      var opacityPct = Math.round(opacity * 100);
+
+      var html = '<li class="lm-active-item" data-layer-id="' + esc(l.id) + '">';
+
+      // Kopfzeile: Drag-Handle | Auge | Name | Legende | X
+      html += '<div class="lm-active-row">';
+      html += '<div class="lm-drag-handle" data-action="drag" title="Verschieben">' + ICON.drag + '</div>';
+      html += '<button class="' + eyeCls + '" data-action="eye" title="Sichtbarkeit">' + eyeIcon + '</button>';
+      html += '<span class="lm-active-name">' + esc(l.name) + '</span>';
+
+      // Legende-Button
+      if (this._hasLegend(l)) {
+        html += '<button class="lm-btn-legend" data-action="legend" title="Legende anzeigen">' + ICON.legend + '</button>';
+      }
+
+      html += '<button class="lm-btn-remove" data-action="remove" title="Entfernen">' + ICON.remove + '</button>';
+      html += '</div>';
+
+      // Opazitäts-Slider
+      html += '<div class="lm-opacity-row">';
+      html += '<span class="lm-opacity-label">Deckkraft</span>';
+      html += '<input type="range" class="lm-opacity-slider" data-action="opacity" min="0" max="100" value="' + opacityPct + '">';
+      html += '<span class="lm-opacity-val">' + opacityPct + '%</span>';
+      html += '</div>';
+
+      html += '</li>';
+      return html;
+    },
+
+    /**
+     * Rendert eine Coalesce-Gruppe:
+     * - Gruppen-Header: Auge | Ordner-Icon | Name | Expand/Collapse | X
+     * - Gemeinsamer Opazitäts-Slider
+     * - Kind-Layer (wenn aufgeklappt): nur Auge + Name
+     */
+    _renderGroup: function (entry) {
+      var groupId = entry.groupId;
+      var expanded = (_groupExpanded[groupId] !== undefined) ? _groupExpanded[groupId] : true;
+      var expandCls = expanded ? '' : ' lm-collapsed';
+
+      // Mittlere Opazität der Kinder berechnen
+      var totalOpacity = 0;
+      var anyVisible = false;
+      for (var i = 0; i < entry.children.length; i++) {
+        var c = entry.children[i];
+        totalOpacity += (c.opacity !== undefined && c.opacity !== null) ? c.opacity : 1;
+        if (c.visible !== false) anyVisible = true;
+      }
+      var avgOpacity = entry.children.length > 0 ? totalOpacity / entry.children.length : 1;
+      var opacityPct = Math.round(avgOpacity * 100);
+
+      var eyeIcon = anyVisible ? ICON.eyeOn : ICON.eyeOff;
+      var eyeCls = anyVisible ? 'lm-eye' : 'lm-eye lm-eye-off';
+      var expandIcon = expanded ? ICON.collapse : ICON.expand;
+
+      var html = '<li class="lm-active-group' + expandCls + '" data-group-id="' + esc(groupId) + '">';
+
+      // Gruppen-Header
+      html += '<div class="lm-active-group-header">';
+      html += '<div class="lm-drag-handle" data-action="drag" title="Verschieben">' + ICON.drag + '</div>';
+      html += '<button class="' + eyeCls + '" data-action="group-eye" title="Gruppe ein/aus">' + eyeIcon + '</button>';
+      html += '<span class="lm-active-group-icon">' + ICON.group + '</span>';
+      html += '<span class="lm-active-group-name">' + esc(entry.groupName) + '</span>';
+      // Legende-Button (Dienst-URL vorhanden)
+      if (entry.serviceUrl) {
+        html += '<button class="lm-btn-legend" data-action="group-legend" title="Legende anzeigen">' + ICON.legend + '</button>';
+      }
+      html += '<button class="lm-btn-expand" data-action="group-expand" title="Auf-/Zuklappen">' + expandIcon + '</button>';
+      html += '<button class="lm-btn-remove" data-action="group-remove" title="Gruppe entfernen">' + ICON.remove + '</button>';
+      html += '</div>';
+
+      // Gemeinsamer Opazitäts-Slider
+      html += '<div class="lm-opacity-row">';
+      html += '<span class="lm-opacity-label">Deckkraft</span>';
+      html += '<input type="range" class="lm-opacity-slider lm-group-opacity" data-action="group-opacity" min="0" max="100" value="' + opacityPct + '">';
+      html += '<span class="lm-opacity-val">' + opacityPct + '%</span>';
+      html += '</div>';
+
+      // Kind-Layer
+      html += '<ul class="lm-active-group-children">';
+      for (var j = 0; j < entry.children.length; j++) {
+        html += this._renderGroupChild(entry.children[j]);
+      }
+      html += '</ul>';
+
+      html += '</li>';
+      return html;
+    },
+
+    /**
+     * Rendert ein Kind-Layer innerhalb einer Coalesce-Gruppe.
+     * Nur Auge-Toggle + Name (kein Drag, kein eigener Opacity-Slider).
+     */
+    _renderGroupChild: function (l) {
+      var eyeIcon = l.visible ? ICON.eyeOn : ICON.eyeOff;
+      var eyeCls = l.visible ? 'lm-eye' : 'lm-eye lm-eye-off';
+
+      var html = '<li class="lm-active-group-child" data-layer-id="' + esc(l.id) + '">';
+      html += '<button class="' + eyeCls + '" data-action="child-eye" title="Sichtbarkeit">' + eyeIcon + '</button>';
+      html += '<span class="lm-active-name">' + esc(l.name) + '</span>';
+      html += '</li>';
+      return html;
+    },
+
+    /**
+     * Prüft ob ein Layer einen Legenden-Button erhalten soll.
+     */
+    _hasLegend: function (l) {
+      var isWms = (l.type === 'wms' || (l.id && l.id.indexOf('wms:') === 0));
+      var isArcgis = (!isWms && l.layerType === 'arcgisRest' && l.url && l.url.indexOf('agsproxy.php') !== -1);
+      var hasExplicitLegend = (!isWms && !isArcgis && l.legendLink && l.legendLink !== '');
+      return isWms || isArcgis || hasExplicitLegend;
+    },
+
+    // ============================================================
+    // Event-Delegation
+    // ============================================================
+
+    _bindEvents: function () {
+      var self = this;
+
+      // ── Click-Events (Eye, Remove, Remove-All, Gruppen-Aktionen) ──
+      _container.addEventListener('click', function (e) {
+        if (_dragState) return; // Kein Click während Drag
+        var btn = e.target.closest('[data-action]');
+        if (!btn) return;
+        var action = btn.dataset.action;
+        if (action === 'drag') return; // Drag-Handle hat eigene Handler
+
+        // "Alle entfernen" liegt in der Toolbar, nicht in einem Item
+        if (action === 'remove-all') {
+          if (window.TnetLMStore && window.TnetLMStore.removeAllLayers) {
+            window.TnetLMStore.removeAllLayers();
+          }
+          return;
+        }
+
+        // ── Coalesce-Gruppen-Aktionen ──
+        var groupEl = btn.closest('.lm-active-group');
+
+        if (action === 'group-eye' && groupEl) {
+          var gid = groupEl.dataset.groupId;
+          if (window.TnetLMStore) window.TnetLMStore.toggleCoalesceGroupEye(gid);
+          return;
+        }
+        if (action === 'group-remove' && groupEl) {
+          var gid2 = groupEl.dataset.groupId;
+          if (window.TnetLMStore) window.TnetLMStore.removeCoalesceGroup(gid2);
+          return;
+        }
+        if (action === 'group-expand' && groupEl) {
+          var gid3 = groupEl.dataset.groupId;
+          var isExpanded = !groupEl.classList.contains('lm-collapsed');
+          _groupExpanded[gid3] = !isExpanded;
+          groupEl.classList.toggle('lm-collapsed', isExpanded);
+          // Icon austauschen
+          btn.innerHTML = isExpanded ? ICON.expand : ICON.collapse;
+          return;
+        }
+        if (action === 'group-legend' && groupEl) {
+          self._openGroupLegend(groupEl.dataset.groupId);
+          return;
+        }
+        if (action === 'child-eye') {
+          var childEl = btn.closest('.lm-active-group-child');
+          if (childEl) {
+            var childId = childEl.dataset.layerId;
+            if (window.TnetLMStore) window.TnetLMStore.toggleLayerEye(childId);
+          }
+          return;
+        }
+
+        // ── Standalone-Layer-Aktionen ──
+        var item = btn.closest('.lm-active-item');
+        if (!item) return;
+        var layerId = item.dataset.layerId;
+
+        switch (action) {
+          case 'eye':
+            window.TnetLMStore.toggleLayerEye(layerId);
+            break;
+          case 'remove':
+            window.TnetLMStore.removeLayer(layerId);
+            break;
+          case 'legend':
+            // Legende öffnen — unterscheide WMS vs. Framework-Layer
+            var isWmsLayer = (layerId.indexOf('wms:') === 0);
+
+            if (isWmsLayer) {
+              // WMS-Layer: über TnetWmsLegend (legendUrl vom OL-Layer)
+              if (window.TnetWmsLegend) {
+                var wmsLegendUrl = '';
+                var wmsLegendTitle = '';
+                try {
+                  var store = window.TnetLMStore;
+                  var layers = store ? store.getActiveLayers() : [];
+                  for (var li = 0; li < layers.length; li++) {
+                    if (layers[li].id === layerId && layers[li]._olLayerRef) {
+                      wmsLegendUrl = layers[li]._olLayerRef.get('tnet_wms_legendUrl') || '';
+                      wmsLegendTitle = layers[li]._olLayerRef.get('title') || layers[li].name || '';
+                      break;
+                    }
+                  }
+                } catch(e) { /* Fehler ignorieren */ }
+                var wmsName = layerId.substring(4);
+                window.TnetWmsLegend(wmsName, wmsLegendTitle, wmsLegendUrl);
+              }
+            } else {
+              // Framework-Layer: legendLink oder legend-proxy URL
+              try {
+                var fStore = window.TnetLMStore;
+                var fLayers = fStore ? fStore.getActiveLayers() : [];
+                var fEntry = null;
+                for (var fi = 0; fi < fLayers.length; fi++) {
+                  if (fLayers[fi].id === layerId) { fEntry = fLayers[fi]; break; }
+                }
+                if (fEntry) {
+                  var fLegendUrl = fEntry.legendLink || '';
+                  var fLegendTitle = fEntry.legendTitle || fEntry.name || '';
+
+                  // Kein expliziter legendLink → legend-proxy URL aus agsproxy-URL konstruieren
+                  if (!fLegendUrl) {
+                    var svcUrl = fEntry.url || '';
+                    // Auch OL-Layer Source-URL prüfen (Fallback)
+                    if (!svcUrl && fEntry._olLayerRef) {
+                      try {
+                        var src = fEntry._olLayerRef.getSource();
+                        if (src && typeof src.getUrl === 'function') svcUrl = src.getUrl() || '';
+                        if (!svcUrl && src && typeof src.getUrls === 'function') {
+                          var urls = src.getUrls();
+                          if (urls && urls.length) svcUrl = urls[0];
+                        }
+                      } catch(se) { /* Source-Zugriff fehlgeschlagen */ }
+                    }
+                    // Pattern 1: agsproxy.php?path=<service-pfad>
+                    var proxyIdx = svcUrl.indexOf('agsproxy.php?path=');
+                    if (proxyIdx !== -1) {
+                      var svcPath = svcUrl.substring(proxyIdx + 18); // nach 'agsproxy.php?path='
+                      fLegendUrl = getAppRoot() + '/tnet/api/v1/legend-proxy.php?service=' + encodeURIComponent(svcPath);
+                      TnetLog.log(LOG, 'Legend-Proxy URL (agsproxy):', fLegendUrl);
+                    }
+                    // Pattern 2: Fallback /rest/services/<pfad>
+                    if (!fLegendUrl) {
+                      var svcIdx = svcUrl.indexOf('/rest/services/');
+                      if (svcIdx !== -1) {
+                        var svcPath2 = svcUrl.substring(svcIdx + 15);
+                        var qIdx = svcPath2.indexOf('?');
+                        if (qIdx !== -1) svcPath2 = svcPath2.substring(0, qIdx);
+                        fLegendUrl = getAppRoot() + '/tnet/api/v1/legend-proxy.php?service=' + encodeURIComponent(svcPath2);
+                        TnetLog.log(LOG, 'Legend-Proxy URL (rest):', fLegendUrl);
+                      }
+                    }
+                  }
+
+                  if (fLegendUrl) {
+                    // Metadaten anhängen wenn in Config aktiviert
+                    var legendCfg = window.__TNET_LEGEND_CONFIG || {};
+                    if (legendCfg.metadata && fLegendUrl.indexOf('legend-proxy') !== -1 && fLegendUrl.indexOf('metadata=') === -1) {
+                      fLegendUrl += (fLegendUrl.indexOf('?') !== -1 ? '&' : '?') + 'metadata=1';
+                    }
+
+                    var am = window.njs && window.njs.AppManager;
+                    if (!am) am = window.top && window.top.njs && window.top.njs.AppManager;
+                    if (am && typeof am.showLegend === 'function') {
+                      am.showLegend(fLegendUrl, fLegendTitle, true, undefined);
+                      TnetLog.log(LOG, 'Framework-Legende geöffnet:', fLegendUrl);
+                    } else {
+                      window.open(fLegendUrl, '_blank', 'noopener');
+                    }
+                  } else {
+                    TnetLog.warn(LOG, 'Keine Legenden-URL ermittelbar für:', layerId);
+                  }
+                } else {
+                  TnetLog.warn(LOG, 'Kein Store-Eintrag für Layer:', layerId);
+                }
+              } catch(e) {
+                TnetLog.error(LOG, 'Fehler beim Öffnen der Legende:', e);
+              }
+            }
+            break;
+        }
+      });
+
+      // ── Opacity-Slider (Standalone + Gruppen) ──
+      _container.addEventListener('input', function (e) {
+        if (e.target.matches('.lm-opacity-slider')) {
+          var val = parseInt(e.target.value, 10) / 100;
+          var valLabel = e.target.closest('.lm-opacity-row');
+          if (valLabel) {
+            var span = valLabel.querySelector('.lm-opacity-val');
+            if (span) span.textContent = Math.round(val * 100) + '%';
+          }
+
+          // Gruppen-Opazität
+          if (e.target.matches('.lm-group-opacity')) {
+            var groupEl = e.target.closest('.lm-active-group');
+            if (groupEl) {
+              window.TnetLMStore.setCoalesceGroupOpacity(groupEl.dataset.groupId, val);
+            }
+            return;
+          }
+
+          // Standalone-Opazität
+          var item = e.target.closest('.lm-active-item');
+          if (item) {
+            window.TnetLMStore.setLayerOpacity(item.dataset.layerId, val);
+          }
+        }
+      });
+
+      // ── Drag & Drop (Touch + Mouse) ──
+      // Touch
+      _container.addEventListener('touchstart', function (e) {
+        var handle = e.target.closest('.lm-drag-handle');
+        if (!handle) return;
+        e.preventDefault(); // Verhindert Scrolling im Sheet
+        var touch = e.touches[0];
+        self._dragStart(handle, touch.clientY);
+      }, { passive: false });
+
+      document.addEventListener('touchmove', function (e) {
+        if (!_dragState) return;
+        e.preventDefault();
+        self._dragMove(e.touches[0].clientY);
+      }, { passive: false });
+
+      document.addEventListener('touchend', function () {
+        if (_dragState) self._dragEnd();
+      });
+
+      document.addEventListener('touchcancel', function () {
+        if (_dragState) self._dragCancel();
+      });
+
+      // Mouse
+      _container.addEventListener('mousedown', function (e) {
+        var handle = e.target.closest('.lm-drag-handle');
+        if (!handle) return;
+        e.preventDefault();
+        self._dragStart(handle, e.clientY);
+      });
+
+      document.addEventListener('mousemove', function (e) {
+        if (!_dragState) return;
+        e.preventDefault();
+        self._dragMove(e.clientY);
+      });
+
+      document.addEventListener('mouseup', function () {
+        if (_dragState) self._dragEnd();
+      });
+    },
+
+    // ============================================================
+    // Drag & Drop — Logik
+    // ============================================================
+
+    _dragStart: function (handle, clientY) {
+      // Sowohl Standalone-Items als auch Gruppen können gezogen werden
+      var item = handle.closest('.lm-active-item') || handle.closest('.lm-active-group');
+      if (!item) return;
+      var listEl = _container.querySelector('.lm-active-list');
+      if (!listEl) return;
+
+      var layerId = item.dataset.layerId || item.dataset.groupId || '';
+      var isGroup = item.classList.contains('lm-active-group');
+      // Alle Top-Level-Einträge (Items + Gruppen) als sortierbare Elemente
+      var entries = Array.prototype.slice.call(listEl.querySelectorAll(':scope > .lm-active-item, :scope > .lm-active-group'));
+      var startIdx = entries.indexOf(item);
+      if (startIdx === -1) return;
+
+      var rect = item.getBoundingClientRect();
+      var listRect = listEl.getBoundingClientRect();
+
+      // Clone erstellen (schwebendes Element)
+      var clone = item.cloneNode(true);
+      clone.classList.add('lm-drag-clone');
+      clone.style.width = rect.width + 'px';
+      clone.style.left = rect.left + 'px';
+      clone.style.top = rect.top + 'px';
+      document.body.appendChild(clone);
+
+      // Placeholder erstellen (leere Stelle wo Element war)
+      var placeholder = document.createElement('li');
+      placeholder.className = 'lm-drag-placeholder';
+      placeholder.style.height = rect.height + 'px';
+      item.parentNode.insertBefore(placeholder, item);
+
+      // Original ausblenden
+      item.classList.add('lm-drag-hidden');
+
+      _dragState = {
+        item: item,
+        layerId: layerId,
+        isGroup: isGroup,
+        clone: clone,
+        placeholder: placeholder,
+        listEl: listEl,
+        startY: clientY,
+        offsetY: clientY - rect.top,
+        startIdx: startIdx,
+        currentIdx: startIdx,
+        itemHeight: rect.height,
+        listTop: listRect.top
+      };
+
+      listEl.classList.add('lm-dragging');
+    },
+
+    _dragMove: function (clientY) {
+      if (!_dragState) return;
+      var ds = _dragState;
+
+      // Clone Position aktualisieren
+      ds.clone.style.top = (clientY - ds.offsetY) + 'px';
+
+      // Ziel-Index berechnen — alle Top-Level-Einträge (Items + Gruppen)
+      var selector = ':scope > .lm-active-item:not(.lm-drag-hidden), :scope > .lm-active-group:not(.lm-drag-hidden)';
+      var visibleEntries = Array.prototype.slice.call(ds.listEl.querySelectorAll(selector));
+      var newIdx = ds.currentIdx;
+
+      for (var i = 0; i < visibleEntries.length; i++) {
+        var r = visibleEntries[i].getBoundingClientRect();
+        var midY = r.top + r.height / 2;
+        if (clientY < midY) {
+          newIdx = i;
+          break;
+        }
+        newIdx = i + 1;
+      }
+
+      // Placeholder an gewünschte Position verschieben
+      if (newIdx !== ds.currentIdx) {
+        ds.placeholder.remove();
+
+        if (newIdx >= visibleEntries.length) {
+          ds.listEl.appendChild(ds.placeholder);
+        } else {
+          ds.listEl.insertBefore(ds.placeholder, visibleEntries[newIdx]);
+        }
+
+        ds.currentIdx = newIdx;
+      }
+    },
+
+    _dragEnd: function () {
+      if (!_dragState) return;
+      var ds = _dragState;
+
+      // Clone entfernen
+      ds.clone.remove();
+
+      // Element an Placeholder-Position verschieben, dann Placeholder entfernen
+      ds.placeholder.parentNode.insertBefore(ds.item, ds.placeholder);
+      ds.placeholder.remove();
+
+      ds.item.classList.remove('lm-drag-hidden');
+      ds.listEl.classList.remove('lm-dragging');
+
+      // Neue Reihenfolge aus DOM lesen und an Store übergeben
+      if (ds.startIdx !== ds.currentIdx) {
+        var orderedIds = this._readOrderFromDOM(ds.listEl);
+        if (orderedIds.length > 0 && window.TnetLMStore && window.TnetLMStore.setActiveLayerOrder) {
+          window.TnetLMStore.setActiveLayerOrder(orderedIds);
+        }
+      }
+
+      _dragState = null;
+    },
+
+    _dragCancel: function () {
+      if (!_dragState) return;
+      var ds = _dragState;
+      ds.clone.remove();
+      ds.placeholder.remove();
+      ds.item.classList.remove('lm-drag-hidden');
+      ds.listEl.classList.remove('lm-dragging');
+      _dragState = null;
+    },
+
+    // ============================================================
+    // Inkrementelle DOM-Updates
+    // ============================================================
+
+    /**
+     * Liest die Layer-Reihenfolge aus der aktuellen DOM-Struktur.
+     * Gruppen-Kinder werden inline expandiert.
+     * @param {HTMLElement} listEl
+     * @returns {string[]}
+     */
+    _readOrderFromDOM: function (listEl) {
+      var orderedIds = [];
+      var entries = listEl.querySelectorAll(':scope > .lm-active-item, :scope > .lm-active-group');
+      for (var i = 0; i < entries.length; i++) {
+        var el = entries[i];
+        if (el.classList.contains('lm-active-group')) {
+          // Gruppen-Kinder in DOM-Reihenfolge
+          var children = el.querySelectorAll('.lm-active-group-child[data-layer-id]');
+          for (var c = 0; c < children.length; c++) {
+            orderedIds.push(children[c].dataset.layerId);
+          }
+        } else {
+          orderedIds.push(el.dataset.layerId);
+        }
+      }
+      return orderedIds;
+    },
+
+    /**
+     * Öffnet die Legende für eine Coalesce-Gruppe.
+     * Konstruiert die legend-proxy URL aus der Dienst-URL.
+     * @param {string} groupId
+     */
+    _openGroupLegend: function (groupId) {
+      try {
+        var store = window.TnetLMStore;
+        if (!store) return;
+        // Gruppen-Info holen — serviceUrl + groupName
+        var layers = store.getActiveLayers();
+        var coalInfo = null;
+        for (var i = 0; i < layers.length; i++) {
+          coalInfo = store.getCoalesceInfo(layers[i].id);
+          if (coalInfo && coalInfo.groupId === groupId) break;
+          coalInfo = null;
+        }
+        if (!coalInfo || !coalInfo.serviceUrl) {
+          TnetLog.warn(LOG, 'Keine serviceUrl für Gruppe:', groupId);
+          return;
+        }
+
+        var svcUrl = coalInfo.serviceUrl;
+        var legendUrl = '';
+
+        // agsproxy.php?path=<service-pfad>
+        var proxyIdx = svcUrl.indexOf('agsproxy.php?path=');
+        if (proxyIdx !== -1) {
+          var svcPath = svcUrl.substring(proxyIdx + 18);
+          // MapServer und alles danach entfernen
+          var msIdx = svcPath.indexOf('/MapServer');
+          if (msIdx !== -1) svcPath = svcPath.substring(0, msIdx);
+          legendUrl = getAppRoot() + '/tnet/api/v1/legend-proxy.php?service=' + encodeURIComponent(svcPath);
+        }
+        // Fallback: /rest/services/<pfad>/MapServer
+        if (!legendUrl) {
+          var restIdx = svcUrl.indexOf('/rest/services/');
+          if (restIdx !== -1) {
+            var svcPath2 = svcUrl.substring(restIdx + 15);
+            var qIdx = svcPath2.indexOf('?');
+            if (qIdx !== -1) svcPath2 = svcPath2.substring(0, qIdx);
+            var msIdx2 = svcPath2.indexOf('/MapServer');
+            if (msIdx2 !== -1) svcPath2 = svcPath2.substring(0, msIdx2);
+            legendUrl = getAppRoot() + '/tnet/api/v1/legend-proxy.php?service=' + encodeURIComponent(svcPath2);
+          }
+        }
+
+        if (!legendUrl) {
+          TnetLog.warn(LOG, 'Keine Legenden-URL konstruierbar für:', svcUrl);
+          return;
+        }
+
+        var legendTitle = coalInfo.groupName || groupId;
+
+        var am = window.njs && window.njs.AppManager;
+        if (!am) am = window.top && window.top.njs && window.top.njs.AppManager;
+        if (am && typeof am.showLegend === 'function') {
+          am.showLegend(legendUrl, legendTitle, true, undefined);
+          TnetLog.log(LOG, 'Gruppen-Legende geöffnet:', legendUrl);
+        } else {
+          window.open(legendUrl, '_blank', 'noopener');
+        }
+      } catch (e) {
+        TnetLog.error(LOG, 'Fehler beim Öffnen der Gruppen-Legende:', e);
+      }
+    },
+
+    _onVisibility: function (evt) {
+      if (!_container || _dragState) return;
+      var item = _container.querySelector('[data-layer-id="' + evt.id + '"]');
+      if (!item) return;
+
+      var eyeBtn = item.querySelector('.lm-eye');
+      if (eyeBtn) {
+        eyeBtn.innerHTML = evt.visible ? ICON.eyeOn : ICON.eyeOff;
+        eyeBtn.classList.toggle('lm-eye-off', !evt.visible);
+      }
+    },
+
+    _onOpacity: function (evt) {
+      if (!_container || _dragState) return;
+      var item = _container.querySelector('[data-layer-id="' + evt.id + '"]');
+      if (!item) return;
+
+      var slider = item.querySelector('.lm-opacity-slider');
+      var valLabel = item.querySelector('.lm-opacity-val');
+      var pct = Math.round(evt.opacity * 100);
+      if (slider) slider.value = pct;
+      if (valLabel) valLabel.textContent = pct + '%';
+    }
+  };
+
+  // HTML-Escaping
+  var _escDiv = null;
+  function esc(s) {
+    if (!s && s !== 0) return '';
+    if (!_escDiv) _escDiv = document.createElement('div');
+    _escDiv.textContent = String(s);
+    return _escDiv.innerHTML;
+  }
+
+  window.TnetLMActive = LMActive;
+})();

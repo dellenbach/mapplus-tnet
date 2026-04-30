@@ -1,1 +1,1051 @@
-(function(){"use strict";function _(){return window.__TNET_APP_ROOT||"/maps"}for(var s="[Basemap]",v=[4e3,3750,3500,3250,3e3,2750,2500,2250,2e3,1750,1500,1250,1e3,750,650,500,250,100,50,20,10,5,2.5,2,1.5,1,.5,.25,.1],y=[],b=0;b<v.length;b++)y.push(b.toString());window.SWISSTOPO_RESOLUTIONS=v,window.SWISSTOPO_MATRIX_IDS=y;function B(){if(window._basemapTimeConfig)return Promise.resolve(window._basemapTimeConfig);if(typeof JSON5>"u")return TnetLog.error(s,"JSON5-Library nicht verf\xFCgbar!"),Promise.resolve(null);var e=[_()+"/tnet/config/tnet-global-config.json5",_()+"/tnet/tnet-global-config.json5","../tnet/config/tnet-global-config.json5"];function t(a){return a>=e.length?(TnetLog.error(s,"Config nicht gefunden (basemaps.timeDimension)"),Promise.resolve(null)):fetch(e[a]).then(function(n){if(!n.ok)throw new Error("HTTP "+n.status);return n.text()}).then(function(n){var i=JSON5.parse(n);return i&&i.basemaps&&i.basemaps.timeDimension?(TnetLog.log(s,"Config geladen (async):",e[a]),window._basemapTimeConfig=i.basemaps.timeDimension,window._basemapTimeConfig):t(a+1)}).catch(function(n){return TnetLog.warn(s,"Config-Fehler ("+e[a]+"):",n.message),t(a+1)})}return t(0)}window.toggleBasemapWidget=function(){var e=document.getElementById("basemap_widget"),t=document.getElementById("basemap_selector");e&&t&&(e.classList.toggle("basemap-widget-hidden"),t.classList.toggle("hidden"))};function S(){var e=document.getElementById("basemap_widget");if(e){e.addEventListener("pointerdown",function(a){a.stopPropagation()}),e.addEventListener("mousedown",function(a){a.stopPropagation()}),e.addEventListener("click",function(a){var n=a.target.closest(".basemap-card");if(n){var i=n.dataset.basemap;i&&(n.classList.contains("active")||(document.querySelectorAll(".basemap-card").forEach(function(r){r.classList.remove("active")}),n.classList.add("active"),window.njs&&njs.AppManager&&njs.AppManager.Maps&&njs.AppManager.Maps.main&&njs.AppManager.Maps.main.changeBaseMap(i)))}});var t=e.querySelector(".basemap-expand-header");t&&t.addEventListener("click",function(){var a=e.querySelector(".basemap-cards"),n=this.querySelector(".expand-icon");a&&(a.classList.toggle("expanded"),n.textContent=a.classList.contains("expanded")?"\u25BC":"\u25B6")})}}var p={hoehenkurven:"gis_basis/nw_basisplan_gis_dynamisch/hoehenlinien",projektebene:"gis_basis/nw_basisplan_gis_dynamisch/grundbuchplan_projektierte_objekte",gemeindegrenzen:"gis_basis/nw_basisplan_gis_dynamisch/gemeindegrenzen"};window.GRUNDKARTEN_LAYER_MAPPING=p,window.setGrundkartenButtonsDefaultAus=function(){Object.keys(p).forEach(function(e){var t=document.getElementById("btn-"+e+"-ein"),a=document.getElementById("btn-"+e+"-aus");t&&a&&(t.classList.remove("active"),a.classList.add("active"),t.setAttribute("aria-pressed","false"),a.setAttribute("aria-pressed","true"))})};function j(){var e=function(){if(!window.njs||!njs.AppManager||!njs.AppManager.setMapBookmark||!njs.AppManager.infoFloatWinRemoveallItems){setTimeout(e,200);return}Object.keys(p).forEach(function(a){try{var n="layers=-"+p[a];window.top.njs.AppManager.setMapBookmark(["main"],n)}catch(i){TnetLog.warn(s,"GrundkartenSync Fehler:",p[a],i)}});var t=njs.AppManager.Maps&&njs.AppManager.Maps.main&&njs.AppManager.Maps.main.mapObj?njs.AppManager.Maps.main.mapObj:null;t&&(window._olMap=t,TnetLog.log(s,"window._olMap gesetzt \u2713")),M(t)};e()}function M(e){var t={};Object.keys(p).forEach(function(i){t[p[i]]=!1});function a(){if(!e)return[];var i=[],r=Object.keys(t);return e.getLayers().forEach(function(o){if(o.getVisible()){var l=o.get("name")||o.get("title");l&&r.indexOf(l)===-1&&i.push(l)}}),i}var n=document.querySelectorAll(".toggle-btn[data-layer]");n.forEach(function(i){i.addEventListener("click",function(){var r=this.getAttribute("data-layer"),o=this.getAttribute("data-value"),l=p[r];if(l)try{var c=o==="on";t[l]=c;var m=a();Object.keys(t).forEach(function(f){t[f]&&m.push(f)});var u="layers="+m.join("|");window.top.njs.AppManager.setMapBookmark(["main"],u);var h=this.parentElement.querySelectorAll(".toggle-btn");h.forEach(function(f){f.classList.remove("active")}),this.classList.add("active")}catch(f){TnetLog.error(s,"Layer-Toggle Fehler:",f)}})}),TnetLog.log(s,"GrundkartenSync:",n.length,"Buttons registriert")}window.initGrundkartenLayerSync=M;var L={config:null,currentBasemap:null,currentYear:null,currentYears:[],_timeOverlayLayer:null,containerEl:null,sliderEl:null,labelEl:null,resetBtn:null,minEl:null,maxEl:null,infoEl:null,infoTextEl:null,_currentOpacity:1,_isGrayscale:!1,_hideSliderTimer:null,_hideInfoTimer:null,_moveEndHandler:null,_moveEndDebounceTimer:null,_lastIdentifyCenter:null,init:function(){var e=this;B().then(function(t){if(e.config=t,!e.config){TnetLog.warn(s,"Keine timeDimension-Config, Zeitreise deaktiviert");return}e._initDOM()})},_initDOM:function(){var e=this;if(this.containerEl=document.getElementById("basemap-time-container"),this.sliderEl=document.getElementById("basemap-time-slider"),this.labelEl=document.getElementById("basemap-time-label"),this.resetBtn=document.getElementById("basemap-time-reset"),this.minEl=document.getElementById("basemap-time-min"),this.maxEl=document.getElementById("basemap-time-max"),this.infoEl=document.getElementById("basemap-time-info"),this.infoTextEl=document.getElementById("basemap-time-info-text"),!this.containerEl||!this.sliderEl){TnetLog.error(s,"Zeitreise DOM-Elemente nicht gefunden");return}var e=this;this.sliderEl.addEventListener("input",function(){var t=parseInt(this.value,10);e.currentYears[t]!==void 0&&(e.currentYear=e.currentYears[t],e.updateLabel(e.currentYear),e.applyTimeOverlay(e.currentYear))}),this.resetBtn&&this.resetBtn.addEventListener("click",function(){if(e.currentYears.length>0){var t=e.currentYears.length-1;e.sliderEl.value=t,e.currentYear=e.currentYears[t],e.updateLabel(e.currentYear),e.applyTimeOverlay(e.currentYear)}}),this._hookOpacityAndGrayscale(),this.hookChangeBaseMap(),TnetLog.log(s,"Zeitreise initialisiert \u2713")},onBasemapChange:function(e){this.currentBasemap=e,this._cleanupDynamic(),this.removeTimeOverlay();var t=this.config[e];if(!t){this.hideSlider(),this.hideInfo();return}if(t.type==="info"){this.hideSlider(),this.showInfo(t.infoText||t.label);return}this.hideInfo(),t.type==="static"?(this.currentYears=(t.years||[]).slice().sort(function(a,n){return typeof a=="string"||typeof n=="string"?0:a-n}),this.initSlider(),this.currentYears.length>1?this.showSlider():this.hideSlider(),this.applyTimeOverlay(this.currentYear)):t.type==="dynamic"&&(this.currentYears=(t.fallbackYears||[]).slice().sort(function(a,n){return a-n}),this.initSlider(),this.showSlider(),this.applyTimeOverlay(this.currentYear),this.startDynamicYearFetch(t))},initSlider:function(){if(this.currentYears.length!==0){var e=this.currentYears.length-1;this.sliderEl.min=0,this.sliderEl.max=e,this.sliderEl.step=1,this.sliderEl.value=e,this.currentYear=this.currentYears[e],this.minEl&&(this.minEl.textContent=this.currentYears[0]),this.maxEl&&(this.maxEl.textContent=this.currentYears[e]),this.updateLabel(this.currentYear)}},updateLabel:function(e){this.labelEl&&(this.labelEl.textContent=e)},showSlider:function(){this.containerEl&&(this._hideSliderTimer&&(clearTimeout(this._hideSliderTimer),this._hideSliderTimer=null),this.containerEl.style.display="",this.containerEl.offsetHeight,this.containerEl.classList.add("visible"))},hideSlider:function(){if(this.containerEl){this.containerEl.classList.remove("visible"),this._hideSliderTimer&&clearTimeout(this._hideSliderTimer);var e=this.containerEl;this._hideSliderTimer=setTimeout(function(){e.classList.contains("visible")||(e.style.display="none")},400)}},showInfo:function(e){this.infoEl&&this.infoTextEl&&(this._hideInfoTimer&&(clearTimeout(this._hideInfoTimer),this._hideInfoTimer=null),this.infoTextEl.textContent=e,this.infoEl.style.display="",this.infoEl.offsetHeight,this.infoEl.classList.add("visible"))},hideInfo:function(){if(this.infoEl){this.infoEl.classList.remove("visible"),this._hideInfoTimer&&clearTimeout(this._hideInfoTimer);var e=this.infoEl;this._hideInfoTimer=setTimeout(function(){e.classList.contains("visible")||(e.style.display="none")},400)}},applyTimeOverlay:function(e){var t=this.config[this.currentBasemap];if(!(!t||!t.wmtsUrl)){var a;t.timestampFormat==="YYYYMMDD"?a=e+"1231":a=e.toString();var n=t.wmtsUrl.replace("{Time}",a);TnetLog.log(s,"Overlay:",t.wmtsLayer,"\u2192",a),this._createOverlayLayer(n,a),this._dispatchTimeEvent(e,a)}},_createOverlayLayer:function(e,t){try{var a=njs.AppManager.Maps&&njs.AppManager.Maps.main;if(!a||!a.mapObj){TnetLog.warn(s,"Karte noch nicht bereit \u2013 Overlay wird beim ersten changeBaseMap erstellt");return}var n=a.mapObj;this._removeOverlayFromMap(n);var i=new ol.source.WMTS({url:e,layer:"",matrixSet:"2056",format:"image/png",projection:"EPSG:2056",requestEncoding:"REST",style:"default",tileGrid:new ol.tilegrid.WMTS({origin:[242e4,135e4],resolutions:v,matrixIds:y}),crossOrigin:"anonymous"}),r=new ol.layer.Tile({source:i,opacity:this._currentOpacity,visible:!0,zIndex:-1});r.set("_isTimeOverlay",!0),r.set("_timeValue",t);var o=n.getLayers();o.insertAt(0,r),this._timeOverlayLayer=r,this._setBaseLayerVisibility(n,!1),this._isGrayscale&&this._applyGrayscaleCSS(r,!0)}catch(l){TnetLog.error(s,"Overlay-Layer Fehler:",l)}},_removeOverlayFromMap:function(e){if(e)try{for(var t=e.getLayers().getArray().slice(),a=0;a<t.length;a++)t[a].get("_isTimeOverlay")&&e.removeLayer(t[a])}catch{}},_setBaseLayerVisibility:function(e,t){if(e)try{for(var a=e.getLayers().getArray(),n=0;n<a.length;n++){var i=a[n];if(!i.get("_isTimeOverlay")&&i.get("isBaseLayer")){i.setVisible(t);return}}for(var r=0;r<a.length;r++)if(!a[r].get("_isTimeOverlay")){a[r].setVisible(t);break}}catch{}},removeTimeOverlay:function(){try{var e=njs.AppManager.Maps&&njs.AppManager.Maps.main;if(!e||!e.mapObj)return;var t=e.mapObj;this._removeOverlayFromMap(t),this._setBaseLayerVisibility(t,!0)}catch{}this._timeOverlayLayer=null},_hookOpacityAndGrayscale:function(){var e=this;if(njs&&njs.AppManager&&typeof njs.AppManager.setBaseLayerOpacity=="function"){var t=njs.AppManager.setBaseLayerOpacity;njs.AppManager.setBaseLayerOpacity=function(n,i){t.call(njs.AppManager,n,i),n==="main"&&e.syncOpacity(i)},TnetLog.log(s,"setBaseLayerOpacity gehookt \u2713")}else{setTimeout(function(){e._hookOpacityAndGrayscale()},500);return}if(typeof njs.AppManager.toggleBaseLayerColor=="function"){var a=njs.AppManager.toggleBaseLayerColor;njs.AppManager.toggleBaseLayerColor=function(n,i,r){try{a.call(njs.AppManager,n,i,r)}catch(l){TnetLog.warn(s,"toggleBaseLayerColor Fehler (kein aktiver Basemap-Layer?):",l.message)}if(n==="main"){var o=!1;r&&r.getAttribute?o=r.getAttribute("data-value")==="grey":o=!e._isGrayscale,e.syncGrayscale(o)}},TnetLog.log(s,"toggleBaseLayerColor gehookt \u2713")}},syncOpacity:function(e){var t=1-parseInt(e,10)/100;this._currentOpacity=t,this._timeOverlayLayer&&this._timeOverlayLayer.setOpacity(t)},syncGrayscale:function(e){this._isGrayscale=e,this._timeOverlayLayer&&this._applyGrayscaleCSS(this._timeOverlayLayer,this._isGrayscale)},_applyGrayscaleCSS:function(e,t){if(e){var a=t?"grayscale(100%)":"",n=function(r){return r?(r.style.filter=a,!0):!1};try{var i=e.getRenderer?e.getRenderer():null;if(i&&(n(i.container)||n(i.element)||i.canvas&&n(i.canvas.parentElement||i.canvas)))return}catch{}setTimeout(function(){try{var r=njs.AppManager.Maps&&njs.AppManager.Maps.main;if(!r||!r.mapObj)return;var o=r.mapObj,l=e.getRenderer?e.getRenderer():null;if(l&&n(l.container||l.element))return;var c=o.getViewport(),m=c.querySelectorAll(".ol-layer");m.length>1&&n(m[1])}catch(u){TnetLog.warn(s,"Grayscale CSS Fallback Fehler:",u)}},150)}},_dispatchTimeEvent:function(e,t){var a=this.config[this.currentBasemap]||{};document.dispatchEvent(new CustomEvent("basemap-time-change",{detail:{basemapId:this.currentBasemap,year:e,timeValue:t,wmtsUrl:a.wmtsUrl||null,timestampFormat:a.timestampFormat||null}}))},startDynamicYearFetch:function(e){var t=this;this.fetchDynamicYears(e);try{var a=njs.AppManager.Maps&&njs.AppManager.Maps.main,n=a?a.mapObj:null;n&&(this._moveEndHandler=function(){t._moveEndDebounceTimer&&clearTimeout(t._moveEndDebounceTimer),t._moveEndDebounceTimer=setTimeout(function(){t.fetchDynamicYears(e)},e.moveEndDebounce||500)},n.on("moveend",this._moveEndHandler))}catch(i){TnetLog.warn(s,"moveend error:",i)}},fetchDynamicYears:function(e){var t=this;try{var a=njs.AppManager.Maps&&njs.AppManager.Maps.main;if(!a||!a.mapObj)return;var n=a.mapObj,i=n.getView(),r=i.getCenter(),o=i.calculateExtent(n.getSize());if(this._lastIdentifyCenter){var l=Math.abs(r[0]-this._lastIdentifyCenter[0]),c=Math.abs(r[1]-this._lastIdentifyCenter[1]);if(l<100&&c<100)return}this._lastIdentifyCenter=r.slice();var m=e.identifyUrl+"?layers="+encodeURIComponent(e.identifyParams.layers)+"&geometry="+r[0].toFixed(0)+","+r[1].toFixed(0)+"&geometryType="+e.identifyParams.geometryType+"&mapExtent="+o.map(function(u){return u.toFixed(0)}).join(",")+"&imageDisplay="+e.identifyParams.imageDisplay+"&tolerance="+e.identifyParams.tolerance+"&lang=de";fetch(m).then(function(u){return u.json()}).then(function(u){var h=t._extractYearsFromIdentify(u);h.length>0&&t._updateDynamicSlider(h)}).catch(function(u){TnetLog.warn(s,"Identify error:",u)})}catch(u){TnetLog.warn(s,"fetchDynamicYears error:",u)}},_extractYearsFromIdentify:function(e){var t={};try{for(var a=e.results||[],n=0;n<a.length;n++){var i=a[n].attributes||a[n].properties||{},r=i.array_release_years;if(Array.isArray(r))for(var o=0;o<r.length;o++)typeof r[o]=="number"&&(t[r[o]]=!0);i.release_year&&(t[i.release_year]=!0)}}catch{}return Object.keys(t).map(Number).sort(function(l,c){return l-c})},_updateDynamicSlider:function(e){var t=this.currentYear;this.currentYears=e;var a=e.length-1;if(this.sliderEl.min=0,this.sliderEl.max=a,t!==null){var n=e.indexOf(t);if(n>=0)this.sliderEl.value=n,this.currentYear=t;else{var i=this._findNearest(e,t);this.sliderEl.value=e.indexOf(i),this.currentYear=i}}else this.sliderEl.value=a,this.currentYear=e[a];this.minEl&&(this.minEl.textContent=e[0]),this.maxEl&&(this.maxEl.textContent=e[a]),this.updateLabel(this.currentYear)},_findNearest:function(e,t){for(var a=e[0],n=Math.abs(t-e[0]),i=1;i<e.length;i++){var r=Math.abs(t-e[i]);r<n&&(n=r,a=e[i])}return a},_cleanupDynamic:function(){if(this._moveEndHandler){try{var e=njs.AppManager.Maps&&njs.AppManager.Maps.main,t=e?e.mapObj:null;t&&t.un("moveend",this._moveEndHandler)}catch{}this._moveEndHandler=null}this._moveEndDebounceTimer&&(clearTimeout(this._moveEndDebounceTimer),this._moveEndDebounceTimer=null),this._lastIdentifyCenter=null},hookChangeBaseMap:function(){var e=this,t=0,a=30;function n(){if(t++,!njs||!njs.AppManager||!njs.AppManager.Maps||!njs.AppManager.Maps.main){t<a?setTimeout(n,500):TnetLog.warn(s,"Hook aufgegeben nach",a,"Versuchen");return}var i=njs.AppManager.Maps.main;if(!i._basemapTimeHooked){var r=i.changeBaseMap;i._basemapTimeHooked=!0,i._preTimeChangeBaseMap=r,i.changeBaseMap=function(c){e.removeTimeOverlay();var m=c,u=e.config?e.config[c]:null;u&&u.fallbackBasemap&&(m=u.fallbackBasemap),TnetLog.log(s,"changeBaseMap:",c,"\u2192 Framework:",m);var h=!1;try{var f=i.mapObj.getLayers(),T=i.basisMaps[m];if(T){var I=f.item(0);if(I===T)TnetLog.log(s,"Basemap-Layer bereits an Position 0, \xFCberspringe Framework-Aufruf"),h=!0;else for(var O=f.getArray(),g=1;g<O.length;g++)if(O[g]===T){f.removeAt(g),TnetLog.warn(s,"Basemap-Layer an Position",g,"entfernt (war deplatziert)");break}}}catch{}var w;return h||(w=i._preTimeChangeBaseMap.call(i,m)),setTimeout(function(){var d=i.mapObj;if(d){var A=d.getViewport();A&&(A.ondragstart=function(Y){Y.preventDefault()}),d.updateSize()}e.onBasemapChange(c)},200),w},TnetLog.log(s,"changeBaseMap gehookt \u2713");var o=i.currBasisMap||i.basisMap;if(o)TnetLog.log(s,"Framework-Basemap beim Hook:",o),document.querySelectorAll(".basemap-card").forEach(function(c){c.classList.toggle("active",c.dataset.basemap===o)}),e.onBasemapChange(o);else{var l=document.querySelector(".basemap-card.active");l&&l.dataset.basemap&&e.onBasemapChange(l.dataset.basemap)}}}n()},getCurrentTimeValue:function(){if(!this.currentYear||!this.currentBasemap)return null;var e=this.config[this.currentBasemap];return!e||e.type==="info"?null:e.timestampFormat==="YYYYMMDD"?this.currentYear+"1231":this.currentYear.toString()},getCurrentWmtsUrl:function(){return!this.currentBasemap||!this.config[this.currentBasemap]?null:this.config[this.currentBasemap].wmtsUrl||null}};window.BasemapTimeManager=L;function E(){S(),j(),L.init(),k(),TnetLog.log(s,"Modul vollst\xE4ndig initialisiert \u2713")}function k(){var e=new URLSearchParams(window.location.search),t=e.get("basemap");if(t){var a=document.querySelectorAll(".basemap-card[data-basemap]"),n=[];if(a.forEach(function(r){n.push(r.dataset.basemap)}),n.indexOf(t)===-1){TnetLog.warn(s,'URL basemap="'+t+'" ist ung\xFCltig. G\xFCltig:',n.join(", "));return}TnetLog.log(s,"URL-Parameter basemap="+t),a.forEach(function(r){r.classList.toggle("active",r.dataset.basemap===t)});var i=0;(function r(){i++;var o=window.njs&&njs.AppManager&&njs.AppManager.Maps&&njs.AppManager.Maps.main,l=o&&typeof njs.AppManager.Maps.main.changeBaseMap=="function";if(o&&l){var c=njs.AppManager.Maps.main.currBasisMap||njs.AppManager.Maps.main.basisMap;c!==t?(njs.AppManager.Maps.main.changeBaseMap(t),TnetLog.log(s,"Basemap aus URL gesetzt:",t)):TnetLog.log(s,"Basemap aus URL bereits aktiv:",t)}else i<40?setTimeout(r,500):TnetLog.warn(s,"Framework nicht bereit, basemap aus URL konnte nicht gesetzt werden")})()}}document.readyState==="loading"?document.addEventListener("DOMContentLoaded",E):E()})();
+﻿/**
+ * tnet-basemap.js
+ * ================
+ * Zentrales Basemap-Modul für TNET WebGIS.
+ *
+ * Konsolidiert alle Basemap-Funktionalität:
+ *  1. Widget UI: Toggle, Card-Auswahl, Expand, delegierter Click-Handler
+ *  2. Grundkarten-Layer-Sync: Höhenkurven, Projektebene, Gemeindegrenzen EIN/AUS
+ *  3. Zeitreise: WMTS-Overlay für historische Basemaps (Slider, Jahrgänge)
+ *  4. Opacity / Grayscale Hooks auf Framework-Funktionen
+ *  5. changeBaseMap Hook inkl. fallbackBasemap-Logik
+ *
+ * Config: tnet-global-config.json5 → basemaps.timeDimension
+ * Benötigt: JSON5 Library, OpenLayers, njs.AppManager (mapplus Framework)
+ *
+ * @version    2.0
+ * @date       2026-02-19
+ * @copyright  Trigonet AG
+ * @author     Marco Dellenbach
+ */
+(function() {
+    'use strict';
+
+    function getAppRoot() {
+        return window.__TNET_APP_ROOT || '/maps';
+    }
+
+    var LOG_PREFIX = '[Basemap]';
+
+    // =========================================================
+    // 1. KONSTANTEN — swisstopo WMTS TileGrid für EPSG:2056
+    // =========================================================
+
+    var SWISSTOPO_RESOLUTIONS = [
+        4000, 3750, 3500, 3250, 3000, 2750, 2500, 2250, 2000, 1750,
+        1500, 1250, 1000, 750, 650, 500, 250, 100, 50, 20,
+        10, 5, 2.5, 2, 1.5, 1, 0.5, 0.25, 0.1
+    ];
+    var SWISSTOPO_MATRIX_IDS = [];
+    for (var _i = 0; _i < SWISSTOPO_RESOLUTIONS.length; _i++) {
+        SWISSTOPO_MATRIX_IDS.push(_i.toString());
+    }
+
+    // Exportieren für SplitScreen und 3D-Landscape
+    window.SWISSTOPO_RESOLUTIONS = SWISSTOPO_RESOLUTIONS;
+    window.SWISSTOPO_MATRIX_IDS = SWISSTOPO_MATRIX_IDS;
+
+    // =========================================================
+    // 2. CONFIG LOADER
+    // =========================================================
+
+    /**
+     * Lädt die TimeDimension-Config ASYNCHRON via fetch.
+     * Gibt ein Promise zurück, das mit der Config oder null resolved.
+     * Cached in window._basemapTimeConfig.
+     */
+    function loadTimeDimensionConfigAsync() {
+        if (window._basemapTimeConfig) return Promise.resolve(window._basemapTimeConfig);
+        if (typeof JSON5 === 'undefined') {
+            TnetLog.error(LOG_PREFIX, 'JSON5-Library nicht verfügbar!');
+            return Promise.resolve(null);
+        }
+        var paths = [
+            getAppRoot() + '/tnet/config/tnet-global-config.json5',
+            getAppRoot() + '/tnet/tnet-global-config.json5',
+            '../tnet/config/tnet-global-config.json5'
+        ];
+
+        // Sequenziell Pfade durchprobieren (async, nicht-blockierend)
+        function tryPath(index) {
+            if (index >= paths.length) {
+                TnetLog.error(LOG_PREFIX, 'Config nicht gefunden (basemaps.timeDimension)');
+                return Promise.resolve(null);
+            }
+            return fetch(paths[index])
+                .then(function(response) {
+                    if (!response.ok) throw new Error('HTTP ' + response.status);
+                    return response.text();
+                })
+                .then(function(text) {
+                    var parsed = JSON5.parse(text);
+                    if (parsed && parsed.basemaps && parsed.basemaps.timeDimension) {
+                        TnetLog.log(LOG_PREFIX, 'Config geladen (async):', paths[index]);
+                        window._basemapTimeConfig = parsed.basemaps.timeDimension;
+                        return window._basemapTimeConfig;
+                    }
+                    return tryPath(index + 1);
+                })
+                .catch(function(e) {
+                    TnetLog.warn(LOG_PREFIX, 'Config-Fehler (' + paths[index] + '):', e.message);
+                    return tryPath(index + 1);
+                });
+        }
+        return tryPath(0);
+    }
+
+
+    // =========================================================
+    // 3. WIDGET UI — Toggle, Cards, Expand
+    // =========================================================
+
+    /**
+     * Basemap-Widget ein-/ausblenden
+     */
+    window.toggleBasemapWidget = function() {
+        var widget = document.getElementById('basemap_widget');
+        var selector = document.getElementById('basemap_selector');
+        if (widget && selector) {
+            widget.classList.toggle('basemap-widget-hidden');
+            selector.classList.toggle('hidden');
+        }
+    };
+
+    /**
+     * Delegierter Click-Handler für alle Basemap-Cards.
+     * Liest data-basemap aus und ruft changeBaseMap auf.
+     * Setzt Active-Klasse auf die angeklickte Card.
+     */
+    function initBasemapCards() {
+        // Delegierter Handler auf dem Widget
+        var widget = document.getElementById('basemap_widget');
+        if (!widget) return;
+
+        // Pointer-Events im Widget stoppen, damit OL-Map nicht reagiert
+        widget.addEventListener('pointerdown', function(e) { e.stopPropagation(); });
+        widget.addEventListener('mousedown', function(e) { e.stopPropagation(); });
+
+        widget.addEventListener('click', function(e) {
+            var card = e.target.closest('.basemap-card');
+            if (!card) return;
+
+            var basemapId = card.dataset.basemap;
+            if (!basemapId) return;
+
+            // Bereits aktiv → nichts tun
+            if (card.classList.contains('active')) return;
+
+            // Active-Klasse: Alle Cards deaktivieren, diese aktivieren
+            document.querySelectorAll('.basemap-card').forEach(function(c) {
+                c.classList.remove('active');
+            });
+            card.classList.add('active');
+
+            // Basemap wechseln (via gehooktes changeBaseMap)
+            if (window.njs && njs.AppManager && njs.AppManager.Maps && njs.AppManager.Maps.main) {
+                njs.AppManager.Maps['main'].changeBaseMap(basemapId);
+            }
+        });
+
+        // Expand Header — erweiterte Basemap-Auswahl aufklappen
+        var expandHeader = widget.querySelector('.basemap-expand-header');
+        if (expandHeader) {
+            expandHeader.addEventListener('click', function() {
+                var cards = widget.querySelector('.basemap-cards');
+                var icon = this.querySelector('.expand-icon');
+                if (cards) {
+                    cards.classList.toggle('expanded');
+                    icon.textContent = cards.classList.contains('expanded') ? '▼' : '▶';
+                }
+            });
+        }
+    }
+
+
+    // =========================================================
+    // 4. GRUNDKARTEN-LAYER-SYNC — Höhenkurven, Projektebene, Gemeindegrenzen
+    // =========================================================
+
+    var GRUNDKARTEN_LAYER_MAPPING = {
+        'hoehenkurven': 'gis_basis/nw_basisplan_gis_dynamisch/hoehenlinien',
+        'projektebene': 'gis_basis/nw_basisplan_gis_dynamisch/grundbuchplan_projektierte_objekte',
+        'gemeindegrenzen': 'gis_basis/nw_basisplan_gis_dynamisch/gemeindegrenzen'
+    };
+
+    // Global exportieren (für andere Module die darauf zugreifen)
+    window.GRUNDKARTEN_LAYER_MAPPING = GRUNDKARTEN_LAYER_MAPPING;
+
+    /**
+     * Alle Grundkarten-Buttons optisch auf AUS setzen.
+     */
+    window.setGrundkartenButtonsDefaultAus = function() {
+        Object.keys(GRUNDKARTEN_LAYER_MAPPING).forEach(function(btnId) {
+            var btnEin = document.getElementById('btn-' + btnId + '-ein');
+            var btnAus = document.getElementById('btn-' + btnId + '-aus');
+            if (btnEin && btnAus) {
+                btnEin.classList.remove('active');
+                btnAus.classList.add('active');
+                btnEin.setAttribute('aria-pressed', 'false');
+                btnAus.setAttribute('aria-pressed', 'true');
+            }
+        });
+    };
+
+    /**
+     * Grundkarten-Layer beim App-Start ausschalten.
+     */
+    function initGrundkartenDefaults() {
+        var trySet = function() {
+            if (!window.njs || !njs.AppManager || !njs.AppManager.setMapBookmark || !njs.AppManager.infoFloatWinRemoveallItems) {
+                setTimeout(trySet, 200);
+                return;
+            }
+
+            // Alle Grundkarten-Layer auf aus
+            Object.keys(GRUNDKARTEN_LAYER_MAPPING).forEach(function(key) {
+                try {
+                    var params = 'layers=-' + GRUNDKARTEN_LAYER_MAPPING[key];
+                    window.top.njs.AppManager.setMapBookmark(['main'], params);
+                } catch(e) {
+                    TnetLog.warn(LOG_PREFIX, 'GrundkartenSync Fehler:', GRUNDKARTEN_LAYER_MAPPING[key], e);
+                }
+            });
+
+            // OL-Map global verfügbar machen (für ol-pdf-printer und andere Erweiterungen)
+            var map = (njs.AppManager.Maps && njs.AppManager.Maps.main && njs.AppManager.Maps.main.mapObj)
+                    ? njs.AppManager.Maps.main.mapObj : null;
+            if (map) {
+                window._olMap = map;
+                TnetLog.log(LOG_PREFIX, 'window._olMap gesetzt ✓');
+            }
+
+            // Layer-Toggle Buttons initialisieren
+            initGrundkartenLayerSync(map);
+        };
+        trySet();
+    }
+
+    /**
+     * Registriert die EIN/AUS Toggle-Buttons für Grundkarten-Layer.
+     */
+    function initGrundkartenLayerSync(map) {
+        var layerState = {};
+        Object.keys(GRUNDKARTEN_LAYER_MAPPING).forEach(function(key) {
+            layerState[GRUNDKARTEN_LAYER_MAPPING[key]] = false;
+        });
+
+        function getNonGrundkartenLayers() {
+            if (!map) return [];
+            var visibleLayers = [];
+            var grundkartenLayerNames = Object.keys(layerState);
+            map.getLayers().forEach(function(layer) {
+                if (layer.getVisible()) {
+                    var name = layer.get('name') || layer.get('title');
+                    if (name && grundkartenLayerNames.indexOf(name) === -1) {
+                        visibleLayers.push(name);
+                    }
+                }
+            });
+            return visibleLayers;
+        }
+
+        var buttons = document.querySelectorAll('.toggle-btn[data-layer]');
+        buttons.forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                var layerId = this.getAttribute('data-layer');
+                var value = this.getAttribute('data-value');
+
+                var layerName = GRUNDKARTEN_LAYER_MAPPING[layerId];
+                if (!layerName) return; // Farbmodus etc. nicht hier behandelt
+
+                try {
+                    var visible = (value === 'on');
+                    layerState[layerName] = visible;
+
+                    var allLayers = getNonGrundkartenLayers();
+                    Object.keys(layerState).forEach(function(name) {
+                        if (layerState[name]) allLayers.push(name);
+                    });
+
+                    var params = 'layers=' + allLayers.join('|');
+                    window.top.njs.AppManager.setMapBookmark(['main'], params);
+
+                    // Active-Klasse wechseln
+                    var siblings = this.parentElement.querySelectorAll('.toggle-btn');
+                    siblings.forEach(function(s) { s.classList.remove('active'); });
+                    this.classList.add('active');
+                } catch(e) {
+                    TnetLog.error(LOG_PREFIX, 'Layer-Toggle Fehler:', e);
+                }
+            });
+        });
+
+        TnetLog.log(LOG_PREFIX, 'GrundkartenSync:', buttons.length, 'Buttons registriert');
+    }
+
+    // Global exportieren (tnet-app.js referenziert es)
+    window.initGrundkartenLayerSync = initGrundkartenLayerSync;
+
+
+    // =========================================================
+    // 5. ZEITREISE — BasemapTimeManager
+    // =========================================================
+
+    var BasemapTimeManager = {
+        config: null,
+        currentBasemap: null,
+        currentYear: null,
+        currentYears: [],
+        _timeOverlayLayer: null,
+
+        // DOM
+        containerEl: null,
+        sliderEl: null,
+        labelEl: null,
+        resetBtn: null,
+        minEl: null,
+        maxEl: null,
+        infoEl: null,
+        infoTextEl: null,
+
+        // Visual state (synced from widget controls)
+        _currentOpacity: 1,       // 0..1 (1 = fully opaque)
+        _isGrayscale: false,
+
+        // Timers für hide-Animationen (Race-Condition-Schutz)
+        _hideSliderTimer: null,
+        _hideInfoTimer: null,
+
+        // Dynamic (Landeskarte)
+        _moveEndHandler: null,
+        _moveEndDebounceTimer: null,
+        _lastIdentifyCenter: null,
+
+        // ── Init ──
+
+        init: function() {
+            var self = this;
+
+            // Config asynchron laden — blockiert den Main-Thread NICHT mehr
+            loadTimeDimensionConfigAsync().then(function(config) {
+                self.config = config;
+                if (!self.config) {
+                    TnetLog.warn(LOG_PREFIX, 'Keine timeDimension-Config, Zeitreise deaktiviert');
+                    return;
+                }
+                self._initDOM();
+            });
+        },
+
+        /**
+         * DOM-Initialisierung (nach Config-Load)
+         */
+        _initDOM: function() {
+            var self = this;
+
+            this.containerEl = document.getElementById('basemap-time-container');
+            this.sliderEl    = document.getElementById('basemap-time-slider');
+            this.labelEl     = document.getElementById('basemap-time-label');
+            this.resetBtn    = document.getElementById('basemap-time-reset');
+            this.minEl       = document.getElementById('basemap-time-min');
+            this.maxEl       = document.getElementById('basemap-time-max');
+            this.infoEl      = document.getElementById('basemap-time-info');
+            this.infoTextEl  = document.getElementById('basemap-time-info-text');
+
+            if (!this.containerEl || !this.sliderEl) {
+                TnetLog.error(LOG_PREFIX, 'Zeitreise DOM-Elemente nicht gefunden');
+                return;
+            }
+
+            var self = this;
+
+            // Slider input → change year
+            this.sliderEl.addEventListener('input', function() {
+                var idx = parseInt(this.value, 10);
+                if (self.currentYears[idx] !== undefined) {
+                    self.currentYear = self.currentYears[idx];
+                    self.updateLabel(self.currentYear);
+                    self.applyTimeOverlay(self.currentYear);
+                }
+            });
+
+            // Reset → jump to most recent year
+            if (this.resetBtn) {
+                this.resetBtn.addEventListener('click', function() {
+                    if (self.currentYears.length > 0) {
+                        var lastIdx = self.currentYears.length - 1;
+                        self.sliderEl.value = lastIdx;
+                        self.currentYear = self.currentYears[lastIdx];
+                        self.updateLabel(self.currentYear);
+                        self.applyTimeOverlay(self.currentYear);
+                    }
+                });
+            }
+
+            // Detect initial basemap → wird nach hookChangeBaseMap erledigt
+
+            this._hookOpacityAndGrayscale();
+            this.hookChangeBaseMap();
+            TnetLog.log(LOG_PREFIX, 'Zeitreise initialisiert ✓');
+        },
+
+        // ── Basemap Change ──
+
+        onBasemapChange: function(basemapId) {
+            this.currentBasemap = basemapId;
+            this._cleanupDynamic();
+            this.removeTimeOverlay();
+
+            var cfg = this.config[basemapId];
+
+            if (!cfg) {
+                this.hideSlider();
+                this.hideInfo();
+                return;
+            }
+
+            if (cfg.type === 'info') {
+                this.hideSlider();
+                this.showInfo(cfg.infoText || cfg.label);
+                return;
+            }
+
+            this.hideInfo();
+
+            if (cfg.type === 'static') {
+                this.currentYears = (cfg.years || []).slice().sort(function(a, b) {
+                    if (typeof a === 'string' || typeof b === 'string') return 0;
+                    return a - b;
+                });
+                this.initSlider();
+                if (this.currentYears.length > 1) {
+                    this.showSlider();
+                } else {
+                    this.hideSlider();
+                }
+                this.applyTimeOverlay(this.currentYear);
+            } else if (cfg.type === 'dynamic') {
+                this.currentYears = (cfg.fallbackYears || []).slice().sort(function(a, b) { return a - b; });
+                this.initSlider();
+                this.showSlider();
+                this.applyTimeOverlay(this.currentYear);
+                this.startDynamicYearFetch(cfg);
+            }
+        },
+
+        // ── Slider ──
+
+        initSlider: function() {
+            if (this.currentYears.length === 0) return;
+            var maxIdx = this.currentYears.length - 1;
+            this.sliderEl.min = 0;
+            this.sliderEl.max = maxIdx;
+            this.sliderEl.step = 1;
+            this.sliderEl.value = maxIdx;
+            this.currentYear = this.currentYears[maxIdx];
+            if (this.minEl) this.minEl.textContent = this.currentYears[0];
+            if (this.maxEl) this.maxEl.textContent = this.currentYears[maxIdx];
+            this.updateLabel(this.currentYear);
+        },
+
+        updateLabel: function(year) {
+            if (this.labelEl) this.labelEl.textContent = year;
+        },
+
+        showSlider: function() {
+            if (!this.containerEl) return;
+            // Laufenden hide-Timer abbrechen (Race-Condition-Schutz)
+            if (this._hideSliderTimer) {
+                clearTimeout(this._hideSliderTimer);
+                this._hideSliderTimer = null;
+            }
+            this.containerEl.style.display = '';
+            // Reflow erzwingen → Browser berechnet max-height:0 BEVOR
+            // .visible (max-height:100px) die Transition auslöst.
+            // Ein einzelner requestAnimationFrame reicht in modernen
+            // Browsern nicht mehr zuverlässig aus.
+            void this.containerEl.offsetHeight;
+            this.containerEl.classList.add('visible');
+        },
+
+        hideSlider: function() {
+            if (!this.containerEl) return;
+            this.containerEl.classList.remove('visible');
+            if (this._hideSliderTimer) clearTimeout(this._hideSliderTimer);
+            var el = this.containerEl;
+            this._hideSliderTimer = setTimeout(function() {
+                if (!el.classList.contains('visible')) el.style.display = 'none';
+            }, 400);
+        },
+
+        showInfo: function(text) {
+            if (this.infoEl && this.infoTextEl) {
+                // Laufenden hide-Timer abbrechen
+                if (this._hideInfoTimer) {
+                    clearTimeout(this._hideInfoTimer);
+                    this._hideInfoTimer = null;
+                }
+                this.infoTextEl.textContent = text;
+                this.infoEl.style.display = '';
+                // Reflow erzwingen (gleiche Logik wie showSlider)
+                void this.infoEl.offsetHeight;
+                this.infoEl.classList.add('visible');
+            }
+        },
+
+        hideInfo: function() {
+            if (!this.infoEl) return;
+            this.infoEl.classList.remove('visible');
+            if (this._hideInfoTimer) clearTimeout(this._hideInfoTimer);
+            var el = this.infoEl;
+            this._hideInfoTimer = setTimeout(function() {
+                if (!el.classList.contains('visible')) el.style.display = 'none';
+            }, 400);
+        },
+
+        // ── WMTS Overlay Layer ──
+
+        applyTimeOverlay: function(year) {
+            var cfg = this.config[this.currentBasemap];
+            if (!cfg || !cfg.wmtsUrl) return;
+
+            var timeValue;
+            if (cfg.timestampFormat === 'YYYYMMDD') {
+                timeValue = year + '1231';
+            } else {
+                timeValue = year.toString();
+            }
+
+            var wmtsUrl = cfg.wmtsUrl.replace('{Time}', timeValue);
+            TnetLog.log(LOG_PREFIX, 'Overlay:', cfg.wmtsLayer, '→', timeValue);
+            this._createOverlayLayer(wmtsUrl, timeValue);
+            this._dispatchTimeEvent(year, timeValue);
+        },
+
+        _createOverlayLayer: function(wmtsUrl, timeValue) {
+            try {
+                var mapEntry = njs.AppManager.Maps && njs.AppManager.Maps.main;
+                if (!mapEntry || !mapEntry.mapObj) {
+                    TnetLog.warn(LOG_PREFIX, 'Karte noch nicht bereit – Overlay wird beim ersten changeBaseMap erstellt');
+                    return;
+                }
+                var mainMap = mapEntry.mapObj;
+
+                this._removeOverlayFromMap(mainMap);
+
+                var source = new ol.source.WMTS({
+                    url: wmtsUrl,
+                    layer: '',
+                    matrixSet: '2056',
+                    format: 'image/png',
+                    projection: 'EPSG:2056',
+                    requestEncoding: 'REST',
+                    style: 'default',
+                    tileGrid: new ol.tilegrid.WMTS({
+                        origin: [2420000, 1350000],
+                        resolutions: SWISSTOPO_RESOLUTIONS,
+                        matrixIds: SWISSTOPO_MATRIX_IDS
+                    }),
+                    crossOrigin: 'anonymous'
+                });
+
+                var layer = new ol.layer.Tile({
+                    source: source,
+                    opacity: this._currentOpacity,
+                    visible: true,
+                    zIndex: -1
+                });
+                layer.set('_isTimeOverlay', true);
+                layer.set('_timeValue', timeValue);
+
+                // An Position 0 einfügen (unter allen Fachlayern) + zIndex -1 als Absicherung
+                var layers = mainMap.getLayers();
+                layers.insertAt(0, layer);
+
+                this._timeOverlayLayer = layer;
+                this._setBaseLayerVisibility(mainMap, false);
+
+                if (this._isGrayscale) {
+                    this._applyGrayscaleCSS(layer, true);
+                }
+            } catch (e) {
+                TnetLog.error(LOG_PREFIX, 'Overlay-Layer Fehler:', e);
+            }
+        },
+
+        _removeOverlayFromMap: function(map) {
+            if (!map) return;
+            try {
+                var layers = map.getLayers().getArray().slice();
+                for (var i = 0; i < layers.length; i++) {
+                    if (layers[i].get('_isTimeOverlay')) {
+                        map.removeLayer(layers[i]);
+                    }
+                }
+            } catch (e) { /* ignore */ }
+        },
+
+        _setBaseLayerVisibility: function(map, visible) {
+            if (!map) return;
+            try {
+                var layers = map.getLayers().getArray();
+                for (var i = 0; i < layers.length; i++) {
+                    var lyr = layers[i];
+                    // Nur den echten Basemap-Layer (nicht Time-Overlay, nicht Fachlayer)
+                    if (!lyr.get('_isTimeOverlay') && lyr.get('isBaseLayer')) {
+                        lyr.setVisible(visible);
+                        return;
+                    }
+                }
+                // Fallback: erster Nicht-Overlay-Layer
+                for (var j = 0; j < layers.length; j++) {
+                    if (!layers[j].get('_isTimeOverlay')) {
+                        layers[j].setVisible(visible);
+                        break;
+                    }
+                }
+            } catch (e) { /* ignore */ }
+        },
+
+        removeTimeOverlay: function() {
+            try {
+                var mapEntry = njs.AppManager.Maps && njs.AppManager.Maps.main;
+                if (!mapEntry || !mapEntry.mapObj) return;
+                var mainMap = mapEntry.mapObj;
+                this._removeOverlayFromMap(mainMap);
+                this._setBaseLayerVisibility(mainMap, true);
+            } catch (e) { /* ignore */ }
+            this._timeOverlayLayer = null;
+        },
+
+        // ── Opacity / Grayscale Sync ──
+
+        _hookOpacityAndGrayscale: function() {
+            var self = this;
+
+            if (njs && njs.AppManager && typeof njs.AppManager.setBaseLayerOpacity === 'function') {
+                var origOpacity = njs.AppManager.setBaseLayerOpacity;
+                njs.AppManager.setBaseLayerOpacity = function(mapId, value) {
+                    origOpacity.call(njs.AppManager, mapId, value);
+                    if (mapId === 'main') self.syncOpacity(value);
+                };
+                TnetLog.log(LOG_PREFIX, 'setBaseLayerOpacity gehookt ✓');
+            } else {
+                setTimeout(function() { self._hookOpacityAndGrayscale(); }, 500);
+                return;
+            }
+
+            if (typeof njs.AppManager.toggleBaseLayerColor === 'function') {
+                var origColor = njs.AppManager.toggleBaseLayerColor;
+                njs.AppManager.toggleBaseLayerColor = function(mapId, toolId, btnEl) {
+                    try {
+                        origColor.call(njs.AppManager, mapId, toolId, btnEl);
+                    } catch (e) {
+                        TnetLog.warn(LOG_PREFIX, 'toggleBaseLayerColor Fehler (kein aktiver Basemap-Layer?):', e.message);
+                    }
+                    if (mapId === 'main') {
+                        var isGrey = false;
+                        if (btnEl && btnEl.getAttribute) {
+                            isGrey = (btnEl.getAttribute('data-value') === 'grey');
+                        } else {
+                            isGrey = !self._isGrayscale;
+                        }
+                        self.syncGrayscale(isGrey);
+                    }
+                };
+                TnetLog.log(LOG_PREFIX, 'toggleBaseLayerColor gehookt ✓');
+            }
+        },
+
+        syncOpacity: function(value) {
+            var olOpacity = 1 - (parseInt(value, 10) / 100);
+            this._currentOpacity = olOpacity;
+            if (this._timeOverlayLayer) {
+                this._timeOverlayLayer.setOpacity(olOpacity);
+            }
+        },
+
+        syncGrayscale: function(isGrey) {
+            this._isGrayscale = isGrey;
+            if (this._timeOverlayLayer) {
+                this._applyGrayscaleCSS(this._timeOverlayLayer, this._isGrayscale);
+            }
+        },
+
+        _applyGrayscaleCSS: function(layer, grayscale) {
+            if (!layer) return;
+            var filterVal = grayscale ? 'grayscale(100%)' : '';
+
+            var applyToEl = function(el) {
+                if (el) { el.style.filter = filterVal; return true; }
+                return false;
+            };
+
+            try {
+                var renderer = layer.getRenderer ? layer.getRenderer() : null;
+                if (renderer) {
+                    if (applyToEl(renderer.container)) return;
+                    if (applyToEl(renderer.element)) return;
+                    if (renderer.canvas) {
+                        if (applyToEl(renderer.canvas.parentElement || renderer.canvas)) return;
+                    }
+                }
+            } catch (e) { /* continue to fallback */ }
+
+            setTimeout(function() {
+                try {
+                    var mapEntry = njs.AppManager.Maps && njs.AppManager.Maps.main;
+                    if (!mapEntry || !mapEntry.mapObj) return;
+                    var mainMap = mapEntry.mapObj;
+                    var r = layer.getRenderer ? layer.getRenderer() : null;
+                    if (r && applyToEl(r.container || r.element)) return;
+                    var viewport = mainMap.getViewport();
+                    var olLayerDivs = viewport.querySelectorAll('.ol-layer');
+                    if (olLayerDivs.length > 1) applyToEl(olLayerDivs[1]);
+                } catch (e2) {
+                    TnetLog.warn(LOG_PREFIX, 'Grayscale CSS Fallback Fehler:', e2);
+                }
+            }, 150);
+        },
+
+        _dispatchTimeEvent: function(year, timeValue) {
+            var cfg = this.config[this.currentBasemap] || {};
+            document.dispatchEvent(new CustomEvent('basemap-time-change', {
+                detail: {
+                    basemapId: this.currentBasemap,
+                    year: year,
+                    timeValue: timeValue,
+                    wmtsUrl: cfg.wmtsUrl || null,
+                    timestampFormat: cfg.timestampFormat || null
+                }
+            }));
+        },
+
+        // ── Dynamische Jahrgänge (Landeskarte) ──
+
+        startDynamicYearFetch: function(cfg) {
+            var self = this;
+            this.fetchDynamicYears(cfg);
+            try {
+                var mapEntry = njs.AppManager.Maps && njs.AppManager.Maps.main;
+                var mainMap = mapEntry ? mapEntry.mapObj : null;
+                if (mainMap) {
+                    this._moveEndHandler = function() {
+                        if (self._moveEndDebounceTimer) clearTimeout(self._moveEndDebounceTimer);
+                        self._moveEndDebounceTimer = setTimeout(function() {
+                            self.fetchDynamicYears(cfg);
+                        }, cfg.moveEndDebounce || 500);
+                    };
+                    mainMap.on('moveend', this._moveEndHandler);
+                }
+            } catch (e) {
+                TnetLog.warn(LOG_PREFIX, 'moveend error:', e);
+            }
+        },
+
+        fetchDynamicYears: function(cfg) {
+            var self = this;
+            try {
+                var mapEntry = njs.AppManager.Maps && njs.AppManager.Maps.main;
+                if (!mapEntry || !mapEntry.mapObj) return;
+                var mainMap = mapEntry.mapObj;
+                var view = mainMap.getView();
+                var center = view.getCenter();
+                var extent = view.calculateExtent(mainMap.getSize());
+
+                if (this._lastIdentifyCenter) {
+                    var dx = Math.abs(center[0] - this._lastIdentifyCenter[0]);
+                    var dy = Math.abs(center[1] - this._lastIdentifyCenter[1]);
+                    if (dx < 100 && dy < 100) return;
+                }
+                this._lastIdentifyCenter = center.slice();
+
+                var url = cfg.identifyUrl +
+                    '?layers=' + encodeURIComponent(cfg.identifyParams.layers) +
+                    '&geometry=' + center[0].toFixed(0) + ',' + center[1].toFixed(0) +
+                    '&geometryType=' + cfg.identifyParams.geometryType +
+                    '&mapExtent=' + extent.map(function(v) { return v.toFixed(0); }).join(',') +
+                    '&imageDisplay=' + cfg.identifyParams.imageDisplay +
+                    '&tolerance=' + cfg.identifyParams.tolerance +
+                    '&lang=de';
+
+                fetch(url)
+                    .then(function(r) { return r.json(); })
+                    .then(function(data) {
+                        var years = self._extractYearsFromIdentify(data);
+                        if (years.length > 0) self._updateDynamicSlider(years);
+                    })
+                    .catch(function(err) {
+                        TnetLog.warn(LOG_PREFIX, 'Identify error:', err);
+                    });
+            } catch (e) {
+                TnetLog.warn(LOG_PREFIX, 'fetchDynamicYears error:', e);
+            }
+        },
+
+        _extractYearsFromIdentify: function(data) {
+            var yearsSet = {};
+            try {
+                var results = data.results || [];
+                for (var i = 0; i < results.length; i++) {
+                    var attrs = results[i].attributes || results[i].properties || {};
+                    var arr = attrs.array_release_years;
+                    if (Array.isArray(arr)) {
+                        for (var j = 0; j < arr.length; j++) {
+                            if (typeof arr[j] === 'number') yearsSet[arr[j]] = true;
+                        }
+                    }
+                    if (attrs.release_year) yearsSet[attrs.release_year] = true;
+                }
+            } catch (e) { /* ignore */ }
+            return Object.keys(yearsSet).map(Number).sort(function(a, b) { return a - b; });
+        },
+
+        _updateDynamicSlider: function(newYears) {
+            var prevYear = this.currentYear;
+            this.currentYears = newYears;
+            var maxIdx = newYears.length - 1;
+            this.sliderEl.min = 0;
+            this.sliderEl.max = maxIdx;
+
+            if (prevYear !== null) {
+                var idx = newYears.indexOf(prevYear);
+                if (idx >= 0) {
+                    this.sliderEl.value = idx;
+                    this.currentYear = prevYear;
+                } else {
+                    var nearest = this._findNearest(newYears, prevYear);
+                    this.sliderEl.value = newYears.indexOf(nearest);
+                    this.currentYear = nearest;
+                }
+            } else {
+                this.sliderEl.value = maxIdx;
+                this.currentYear = newYears[maxIdx];
+            }
+
+            if (this.minEl) this.minEl.textContent = newYears[0];
+            if (this.maxEl) this.maxEl.textContent = newYears[maxIdx];
+            this.updateLabel(this.currentYear);
+        },
+
+        _findNearest: function(arr, target) {
+            var closest = arr[0], minDiff = Math.abs(target - arr[0]);
+            for (var i = 1; i < arr.length; i++) {
+                var diff = Math.abs(target - arr[i]);
+                if (diff < minDiff) { minDiff = diff; closest = arr[i]; }
+            }
+            return closest;
+        },
+
+        _cleanupDynamic: function() {
+            if (this._moveEndHandler) {
+                try {
+                    var mapEntry = njs.AppManager.Maps && njs.AppManager.Maps.main;
+                    var mainMap = mapEntry ? mapEntry.mapObj : null;
+                    if (mainMap) mainMap.un('moveend', this._moveEndHandler);
+                } catch (e) { /* ignore */ }
+                this._moveEndHandler = null;
+            }
+            if (this._moveEndDebounceTimer) {
+                clearTimeout(this._moveEndDebounceTimer);
+                this._moveEndDebounceTimer = null;
+            }
+            this._lastIdentifyCenter = null;
+        },
+
+        // ── changeBaseMap Hook ──
+
+        hookChangeBaseMap: function() {
+            var self = this;
+            var attempts = 0, maxAttempts = 30;
+
+            function tryHook() {
+                attempts++;
+                if (!njs || !njs.AppManager || !njs.AppManager.Maps || !njs.AppManager.Maps.main) {
+                    if (attempts < maxAttempts) setTimeout(tryHook, 500);
+                    else TnetLog.warn(LOG_PREFIX, 'Hook aufgegeben nach', maxAttempts, 'Versuchen');
+                    return;
+                }
+
+                var mapInstance = njs.AppManager.Maps.main;
+                if (mapInstance._basemapTimeHooked) return;
+
+                var currentFn = mapInstance.changeBaseMap;
+                mapInstance._basemapTimeHooked = true;
+                mapInstance._preTimeChangeBaseMap = currentFn;
+
+                mapInstance.changeBaseMap = function(basemapId) {
+                    self.removeTimeOverlay();
+
+                    var actualBasemapId = basemapId;
+                    var cfg = self.config ? self.config[basemapId] : null;
+                    if (cfg && cfg.fallbackBasemap) {
+                        actualBasemapId = cfg.fallbackBasemap;
+                    }
+
+                    TnetLog.log(LOG_PREFIX, 'changeBaseMap:', basemapId, '→ Framework:', actualBasemapId);
+
+                    // Guard: Duplikat-Fehler vermeiden — OpenLayers Collection.setAt() wirft
+                    // "Duplicate item added to a unique collection" wenn dasselbe Layer-Objekt
+                    // bereits irgendwo in der Collection ist (nicht nur an Position 0).
+                    var skipFramework = false;
+                    try {
+                        var layers = mapInstance.mapObj.getLayers();
+                        var targetLayer = mapInstance.basisMaps[actualBasemapId];
+                        if (targetLayer) {
+                            var currentAtZero = layers.item(0);
+                            if (currentAtZero === targetLayer) {
+                                // Bereits an Position 0 → Framework-Aufruf komplett unnötig
+                                TnetLog.log(LOG_PREFIX, 'Basemap-Layer bereits an Position 0, überspringe Framework-Aufruf');
+                                skipFramework = true;
+                            } else {
+                                // Layer an anderer Position? → erst entfernen, damit setAt(0) nicht kracht
+                                var arr = layers.getArray();
+                                for (var idx = 1; idx < arr.length; idx++) {
+                                    if (arr[idx] === targetLayer) {
+                                        layers.removeAt(idx);
+                                        TnetLog.warn(LOG_PREFIX, 'Basemap-Layer an Position', idx, 'entfernt (war deplatziert)');
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    } catch (e) { /* ignore */ }
+
+                    var result;
+                    if (!skipFramework) {
+                        result = mapInstance._preTimeChangeBaseMap.call(mapInstance, actualBasemapId);
+                    }
+                    setTimeout(function() {
+                        // Fix: Nach View-Ersatz Viewport stabilisieren
+                        var map = mapInstance.mapObj;
+                        if (map) {
+                            var viewport = map.getViewport();
+                            if (viewport) {
+                                // ondragstart (Property, nicht addEventListener → ersetzt sich selbst)
+                                viewport.ondragstart = function(e) { e.preventDefault(); };
+                            }
+                            map.updateSize();
+                        }
+                        self.onBasemapChange(basemapId);
+                    }, 200);
+                    return result;
+                };
+
+                TnetLog.log(LOG_PREFIX, 'changeBaseMap gehookt ✓');
+
+                // Nach dem Hook: aktuelle Framework-Basemap erkennen und Zeitreise nachholen
+                var currBm = mapInstance.currBasisMap || mapInstance.basisMap;
+                if (currBm) {
+                    TnetLog.log(LOG_PREFIX, 'Framework-Basemap beim Hook:', currBm);
+                    // Card im DOM synchronisieren
+                    document.querySelectorAll('.basemap-card').forEach(function(c) {
+                        c.classList.toggle('active', c.dataset.basemap === currBm);
+                    });
+                    // Zeitreise-Overlay anwenden (z.B. für void-Basemaps siegfried/pk_color/dufour)
+                    self.onBasemapChange(currBm);
+                } else {
+                    // Fallback: aus DOM lesen
+                    var activeCard = document.querySelector('.basemap-card.active');
+                    if (activeCard && activeCard.dataset.basemap) {
+                        self.onBasemapChange(activeCard.dataset.basemap);
+                    }
+                }
+            }
+            tryHook();
+        },
+
+        // ── Public API ──
+
+        getCurrentTimeValue: function() {
+            if (!this.currentYear || !this.currentBasemap) return null;
+            var cfg = this.config[this.currentBasemap];
+            if (!cfg || cfg.type === 'info') return null;
+            if (cfg.timestampFormat === 'YYYYMMDD') return this.currentYear + '1231';
+            return this.currentYear.toString();
+        },
+
+        getCurrentWmtsUrl: function() {
+            if (!this.currentBasemap || !this.config[this.currentBasemap]) return null;
+            return this.config[this.currentBasemap].wmtsUrl || null;
+        }
+    };
+
+
+    // =========================================================
+    // 6. INIT — Alles starten
+    // =========================================================
+
+    window.BasemapTimeManager = BasemapTimeManager;
+
+    function initAll() {
+        // Widget UI (Cards, Expand)
+        initBasemapCards();
+
+        // Grundkarten-Layer Defaults
+        initGrundkartenDefaults();
+
+        // Zeitreise
+        BasemapTimeManager.init();
+
+        // URL-Parameter ?basemap= auswerten
+        applyBasemapFromUrl();
+
+        TnetLog.log(LOG_PREFIX, 'Modul vollständig initialisiert ✓');
+    }
+
+    /**
+     * Liest ?basemap=<id> aus der URL und wechselt die Basemap.
+     * Wartet auf Framework-Bereitschaft UND aktiven Hook.
+     */
+    function applyBasemapFromUrl() {
+        var urlParams = new URLSearchParams(window.location.search);
+        var basemapParam = urlParams.get('basemap');
+        if (!basemapParam) return;
+
+        // Gültige IDs: alle data-basemap Attribute im DOM
+        var validCards = document.querySelectorAll('.basemap-card[data-basemap]');
+        var validIds = [];
+        validCards.forEach(function(c) { validIds.push(c.dataset.basemap); });
+        if (validIds.indexOf(basemapParam) === -1) {
+            TnetLog.warn(LOG_PREFIX, 'URL basemap="' + basemapParam + '" ist ungültig. Gültig:', validIds.join(', '));
+            return;
+        }
+
+        TnetLog.log(LOG_PREFIX, 'URL-Parameter basemap=' + basemapParam);
+
+        // Active-Card im Widget sofort aktualisieren
+        validCards.forEach(function(c) {
+            c.classList.toggle('active', c.dataset.basemap === basemapParam);
+        });
+
+        // Warte auf Framework UND Hook, dann Basemap wechseln
+        var attempts = 0;
+        (function waitAndSwitch() {
+            attempts++;
+            var ready = window.njs && njs.AppManager && njs.AppManager.Maps && njs.AppManager.Maps.main;
+            var hasChangeBaseMap = ready && typeof njs.AppManager.Maps.main.changeBaseMap === 'function';
+            if (ready && hasChangeBaseMap) {
+                // Nur wechseln wenn nicht schon die richtige Basemap aktiv
+                var curr = njs.AppManager.Maps.main.currBasisMap || njs.AppManager.Maps.main.basisMap;
+                if (curr !== basemapParam) {
+                    njs.AppManager.Maps['main'].changeBaseMap(basemapParam);
+                    TnetLog.log(LOG_PREFIX, 'Basemap aus URL gesetzt:', basemapParam);
+                } else {
+                    TnetLog.log(LOG_PREFIX, 'Basemap aus URL bereits aktiv:', basemapParam);
+                }
+            } else if (attempts < 40) {
+                setTimeout(waitAndSwitch, 500);
+            } else {
+                TnetLog.warn(LOG_PREFIX, 'Framework nicht bereit, basemap aus URL konnte nicht gesetzt werden');
+            }
+        })();
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initAll);
+    } else {
+        initAll();
+    }
+
+})();

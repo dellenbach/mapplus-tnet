@@ -1,3 +1,1765 @@
-(function(){"use strict";function x(){return window.__TNET_APP_ROOT||"/maps"}var Z=[{name:"Swisstopo WMS",url:"https://wms.geo.admin.ch/?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetCapabilities"},{name:"Kt. Nidwalden",url:"https://www.gis-daten.ch/wms/nw/service?REQUEST=GetCapabilities&SERVICE=WMS"},{name:"Kt. Obwalden",url:"https://www.gis-daten.ch/wms/ow/service?REQUEST=GetCapabilities&SERVICE=WMS"},{name:"Kt. Uri",url:"https://geo.ur.ch/wms?request=getCapabilities"},{name:"Geodienste AV",url:"https://geodienste.ch/db/av_0/deu?SERVICE=WMS&REQUEST=GetCapabilities"}],oe=!1,m=[],J=!1,U=null,C=[],k="";function S(e){return document.getElementById(e)}window.toggleWmsPanel=function(){var e=S("wms-panel");if(e){var n=document.getElementById("header_menu");n&&n.classList.remove("open"),e.classList.toggle("hidden"),e.classList.contains("hidden")||TnetLog.log("[WMS-Panel] Ge\xF6ffnet")}},window.closeWmsPanel=function(){var e=S("wms-panel");e&&(J&&se(),e.classList.add("hidden"))},window.toggleWmsDock=function(){J?se():Me()};function Me(){var e=S("wms-panel"),n=S("wms-dock-btn"),t=document.getElementById("mapContainer");if(e){var a=e.getBoundingClientRect();U={top:e.style.top||a.top+"px",left:e.style.left||a.left+"px",width:e.style.width||a.width+"px",height:e.style.height||a.height+"px"},e.classList.add("docked-right");var o=window._savedWmsDockedWidth||400,i=document.getElementById("centerPaneLayout"),r=document.getElementById("streetviewContainer"),s=0;if(r&&r.offsetWidth>0&&r.style.display!=="none"&&(s=r.offsetWidth),e.style.setProperty("width",o+"px","important"),e.style.setProperty("right",s+"px","important"),t){var u=i?i.offsetWidth:window.innerWidth,W=u-s-o;t.style.setProperty("width",W+"px","important"),le()}n&&(n.title="Floating",n.innerHTML=TnetIcons.get("undock")),J=!0,window.isWmsPanelDocked=!0}}function se(){var e=S("wms-panel"),n=S("wms-dock-btn"),t=document.getElementById("mapContainer");e&&(e.classList.remove("docked-right"),t&&(t.style.setProperty("width","100%","important"),setTimeout(function(){le()},100)),U?(e.style.setProperty("top",U.top,"important"),e.style.setProperty("left",U.left,"important"),e.style.setProperty("width",U.width,"important"),e.style.setProperty("height",U.height,"important")):(e.style.setProperty("top","80px","important"),e.style.setProperty("left","calc(50vw - 220px)","important"),e.style.setProperty("width","440px","important"),e.style.setProperty("height","520px","important")),e.style.setProperty("right","auto","important"),e.style.setProperty("bottom","auto","important"),n&&(n.title="Rechts andocken",n.innerHTML=TnetIcons.get("dock")),J=!1,window.isWmsPanelDocked=!1)}function le(){try{if(window.njs&&njs.AppManager&&njs.AppManager.Maps&&njs.AppManager.Maps.main){var e=njs.AppManager.Maps.main.mapObj;e&&e.updateSize&&e.updateSize()}}catch{}}window.loadWmsCapabilities=function(){var e=S("wms-url-input"),n=S("wms-load-btn"),t=e?e.value.trim():"";if(!t){N("Bitte eine WMS-URL eingeben.","error");return}var a=Ee(t);k=We(t),N("Lade GetCapabilities\u2026",""),n&&(n.disabled=!0),fetch(a).then(function(o){if(!o.ok)throw new Error("HTTP "+o.status);return o.text()}).then(function(o){ce(o),n&&(n.disabled=!1)}).catch(function(o){TnetLog.warn("[WMS-Panel] Direkter Zugriff fehlgeschlagen, versuche Proxy:",o.message);var i=x()+"/wmsproxy.php?url="+encodeURIComponent(a);fetch(i).then(function(r){if(!r.ok)throw new Error("HTTP "+r.status);return r.text()}).then(function(r){ce(r),n&&(n.disabled=!1)}).catch(function(r){N("Fehler beim Laden: "+r.message,"error"),n&&(n.disabled=!1)})})};function Ee(e){if(e.toLowerCase().indexOf("request=getcapabilities")>-1)return e;var n=e.indexOf("?")>-1?"&":"?";return e+n+"SERVICE=WMS&REQUEST=GetCapabilities&VERSION=1.3.0"}function We(e){var n=e.indexOf("?");return n>-1?e.substring(0,n):e}function ce(e){try{var n=new ol.format.WMSCapabilities,t=n.read(e);if(!t||!t.Capability){N("Keine g\xFCltige WMS-Antwort erhalten.","error");return}var a=t.Service&&t.Service.Title?t.Service.Title:"WMS";C=[],D(t.Capability.Layer,C),N(a+" \u2014 "+C.length+" Layer gefunden","success"),be(C);var o=S("wms-filter-row");o&&(o.style.display=C.length>5?"":"none")}catch(i){TnetLog.error("[WMS-Panel] Parse-Fehler:",i),N("XML-Parse-Fehler: "+i.message,"error")}}function D(e,n){if(e){if(e.Name){var t="",a="";try{if(e.Style&&e.Style.length>0){var o=e.Style[0];o.LegendURL&&o.LegendURL.length>0&&o.LegendURL[0].OnlineResource&&(t=o.LegendURL[0].OnlineResource)}e.MetadataURL&&e.MetadataURL.length>0&&e.MetadataURL[0].OnlineResource&&(a=e.MetadataURL[0].OnlineResource)}catch{}n.push({name:e.Name,title:e.Title||e.Name,abstract:e.Abstract||"",bbox:e.BoundingBox||e.EX_GeographicBoundingBox||null,queryable:e.queryable!==!1,legendUrl:t,metadataUrl:a})}e.Layer&&(Array.isArray(e.Layer)?e.Layer.forEach(function(i){D(i,n)}):D(e.Layer,n))}}function N(e,n){var t=S("wms-status");t&&(t.textContent=e,t.className="wms-status visible"+(n?" "+n:""))}function be(e){var n=S("wms-layer-list");if(n){if(n.innerHTML="",!e||e.length===0){n.innerHTML='<div style="padding:12px;color:#888;text-align:center;font-size:12px">Keine Layer gefunden</div>';return}e.forEach(function(t,a){var o=m.some(function(g){return g.name===t.name&&g.wmsUrl===k}),i=document.createElement("div");i.className="wms-layer-item"+(o?" added":""),i.dataset.idx=a,i.dataset.layerName=t.name;var r=document.createElement("input");r.type="checkbox",r.className="wms-layer-cb",r.checked=o;var s=document.createElement("div");s.className="wms-layer-info";var u='<div class="wms-layer-name" title="'+P(t.name)+'">'+P(t.title)+"</div>";if(s.innerHTML=u,t.abstract){var W=document.createElement("div");if(W.className="wms-layer-abstract",W.textContent=t.abstract,s.appendChild(W),t.abstract.length>80){var p=document.createElement("button");p.className="wms-layer-more-btn",p.textContent="...mehr",p.onclick=function(g){g.stopPropagation();var l=W.classList.toggle("expanded");p.textContent=l?"weniger":"...mehr"},s.appendChild(p)}}var w=document.createElement("div");w.className="wms-layer-actions";var v=document.createElement("button");if(v.className="wms-layer-action-btn wms-layer-legend-btn",v.title="Legende anzeigen",v.innerHTML=TnetIcons.get("legend"),function(g){v.onclick=function(l){l.stopPropagation(),te(g.name,g.title,g.legendUrl)}}(t),w.appendChild(v),t.bbox){var c=document.createElement("button");c.className="wms-layer-action-btn",c.title="Auf Layer zoomen",c.innerHTML=TnetIcons.get("zoom"),c.onclick=function(g){g.stopPropagation(),Pe(t)},w.appendChild(c)}i.appendChild(r),i.appendChild(s),i.appendChild(w),r.addEventListener("click",function(g){g.stopPropagation()}),r.addEventListener("change",function(){TnetLog.log("[WMS-Panel] cb.change:",t.name,"\u2192 checked:",r.checked),r.checked?(Ie(t),i.classList.add("added")):(ge(t.name),i.classList.remove("added"))}),i.addEventListener("click",function(g){g.target===r||g.target.closest("input")||g.target.closest(".wms-layer-more-btn")||g.target.closest(".wms-layer-action-btn")||(r.checked=!r.checked,r.dispatchEvent(new Event("change")))}),n.appendChild(i)})}}function Fe(e,n){try{var t=window.njs&&window.njs.AppManager;if(t||(t=window.top&&window.top.njs&&window.top.njs.AppManager),!t||!t.Maps||!t.Maps.main)return;for(var a=t.Maps.main,o=["layers","Layers","layerConf","layersConf","conf"],i=0;i<o.length;i++){var r=a[o[i]];if(r&&typeof r=="object"&&!Array.isArray(r)){r[e]||(r[e]={minResolution:0,maxResolution:999999,resol_visibility:[0,999999],url:n,type:"wms",visible:!0,name:e,tnet_wms_custom:!0},TnetLog.log("[WMS-Panel] Dummy-Config injiziert in mainMap."+o[i]+":",e));break}}if(t.MapTips&&t.MapTips,window.njs&&window.njs.MapTip&&window.njs.MapTip.addLayerCallback){var s=window.njs.MapTip.addLayerCallback;s.__tnetWrapped||(window.njs.MapTip.addLayerCallback=function(){try{return s.apply(this,arguments)}catch(u){TnetLog.warn("[WMS-Panel] addLayerCallback-Fehler abgefangen:",u.message)}},window.njs.MapTip.addLayerCallback.__tnetWrapped=!0,TnetLog.log("[WMS-Panel] addLayerCallback mit try/catch gewrapped"))}}catch(u){TnetLog.warn("[WMS-Panel] Config-Injection fehlgeschlagen:",u.message)}}function Ie(e){var n=m.some(function(p){return p.name===e.name&&p.wmsUrl===k});if(n){TnetLog.warn("[WMS-Panel] Duplikat verhindert (interne Liste):",e.name);return}try{var t=window.njs&&window.njs.AppManager;if(t||(t=window.top&&window.top.njs&&window.top.njs.AppManager),t&&t.Maps&&t.Maps.main&&t.Maps.main.mapObj){var a=t.Maps.main.mapObj.getLayers().getArray(),o=a.some(function(p){return p.get("name")===e.name&&p.get("tnet_wms_custom")});if(o){TnetLog.warn("[WMS-Panel] Duplikat verhindert (bereits auf Karte):",e.name);return}}}catch{}var i=k,r=new ol.layer.Image({source:new ol.source.ImageWMS({url:i,params:{LAYERS:e.name,FORMAT:"image/png",TRANSPARENT:!0},crossOrigin:"anonymous"}),opacity:.8,visible:!0,zIndex:500});r.set("title",e.title),r.set("name",e.name),r.set("tnet_wms_custom",!0),r.setMinResolution(0),r.setMaxResolution(1/0),Fe(e.name,i);try{if(window.TnetSplitScreen&&window.TnetSplitScreen.addLayerToMaps)window.TnetSplitScreen.addLayerToMaps(r);else{var t=window.njs&&window.njs.AppManager;t||(t=window.top&&window.top.njs&&window.top.njs.AppManager);var s=t.Maps.main.mapObj;s.addLayer(r)}}catch(p){TnetLog.warn("[WMS-Panel] addLayer Framework-Fehler abgefangen:",p.message)}var u=e.legendUrl||"";if(!u&&i){var W=i.indexOf("?")>-1?"&":"?";u=i+W+"SERVICE=WMS&VERSION=1.3.0&REQUEST=GetLegendGraphic&LAYER="+encodeURIComponent(e.name)+"&FORMAT=image/png"}r.set("tnet_wms_legendUrl",u),r.set("tnet_wms_metadataUrl",e.metadataUrl||""),m.push({olLayer:r,name:e.name,title:e.title,wmsUrl:i,opacity:.8,legendUrl:u,metadataUrl:e.metadataUrl||""}),ee(),TnetLog.log("[WMS-Panel] Layer hinzugef\xFCgt:",e.title,"| name:",e.name,"| olLayer:",!!r,"| _addedLayers:",m.length)}function ge(e){TnetLog.log("[WMS-Panel] _removeWmsLayer aufgerufen:",e,"| _addedLayers:",m.length);var n="wms:"+e;if(window.TnetLMStore&&typeof window.TnetLMStore.removeLayer=="function"){TnetLog.log("[WMS-Panel] Entferne via TnetLMStore:",n),window.TnetLMStore.removeLayer(n);return}TnetLog.warn("[WMS-Panel] TnetLMStore nicht verf\xFCgbar, Fallback-Entfernung:",e),Ce(e)}function Ce(e){for(var n=-1,t=0;t<m.length;t++)if(m[t].name===e){n=t;break}if(n===-1){TnetLog.warn("[WMS-Panel] Fallback: Layer nicht in _addedLayers gefunden:",e);return}var a=m[n];try{var o=window.njs&&window.njs.AppManager;if(o||(o=window.top&&window.top.njs&&window.top.njs.AppManager),o&&o.Maps&&o.Maps.main&&o.Maps.main.mapObj){var i=o.Maps.main.mapObj;i.removeLayer(a.olLayer),i.getLayers().forEach(function(s){s.get("name")===e&&s.get("tnet_wms_custom")&&i.removeLayer(s)})}}catch(s){TnetLog.error("[WMS-Panel] Fallback-Entfernung fehlgeschlagen:",s)}if(window.TnetSplitScreen&&window.TnetSplitScreen.map2)try{var r=window.TnetSplitScreen.map2.getLayers().getArray().slice();r.forEach(function(s){s.get("name")===e&&s.get("tnet_wms_custom")&&window.TnetSplitScreen.map2.removeLayer(s)})}catch(s){TnetLog.warn("[WMS-Panel] SplitScreen-Entfernung fehlgeschlagen:",s)}m.splice(n,1),ee(),fe(e,!1),TnetLog.log("[WMS-Panel] Layer entfernt (Fallback):",e,"| verbleibend:",m.length)}function fe(e,n){var t=S("wms-layer-list");if(t){var a=!1,o=t.querySelectorAll(".wms-layer-item");o.forEach(function(i){var r=parseInt(i.dataset.idx),s=C[r]&&C[r].name===e;if(!s&&i.dataset.layerName===e&&(s=!0),s){var u=i.querySelector(".wms-layer-cb");u&&(u.checked=n),i.classList.toggle("added",n),a=!0}}),TnetLog.log("[WMS-Panel] _updateLayerListCheckbox:",e,"\u2192",n,"| gefunden:",a)}}function ee(){var e=S("wms-added-section"),n=S("wms-added-list");if(!(!e||!n)){if(m.length===0){e.style.display="none";return}e.style.display="",n.innerHTML="",m.forEach(function(t){var a=document.createElement("div");a.className="wms-added-item";var o=document.createElement("span");o.className="wms-added-item-name",o.textContent=t.title,o.title=t.name;var i=document.createElement("input");i.type="range",i.className="wms-added-opacity",i.min=0,i.max=100,i.value=Math.round(t.opacity*100),i.title="Deckkraft",i.oninput=function(){var u=parseInt(i.value)/100;t.opacity=u,t.olLayer.setOpacity(u)};var r=document.createElement("button");r.className="wms-added-legend",r.title="Legende anzeigen",r.innerHTML=TnetIcons.get("legend",null,{width:"16",height:"16"}),function(u){r.onclick=function(){te(u.name,u.title,u.legendUrl)}}(t);var s=document.createElement("button");s.className="wms-added-remove",s.title="Entfernen",s.innerHTML="&times;",s.onclick=function(){ge(t.name)},a.appendChild(o),a.appendChild(i),a.appendChild(r),a.appendChild(s),n.appendChild(a)})}}function te(e,n,t){if(TnetLog.log("[WMS-Panel] Legende anzeigen:",n,"| URL:",t),!t&&k){var a=k.indexOf("?")>-1?"&":"?";t=k+a+"SERVICE=WMS&VERSION=1.3.0&REQUEST=GetLegendGraphic&LAYER="+encodeURIComponent(e)+"&FORMAT=image/png"}if(!t){for(var o=0;o<m.length;o++)if(m[o].name===e){if(t=m[o].legendUrl,!t&&m[o].wmsUrl){var i=m[o].wmsUrl.indexOf("?")>-1?"&":"?";t=m[o].wmsUrl+i+"SERVICE=WMS&VERSION=1.3.0&REQUEST=GetLegendGraphic&LAYER="+encodeURIComponent(e)+"&FORMAT=image/png"}break}}if(!t){TnetLog.warn("[WMS-Panel] Keine Legenden-URL f\xFCr:",e);return}try{var r=window.njs&&window.njs.AppManager;if(r||(r=window.top&&window.top.njs&&window.top.njs.AppManager),r&&typeof r.showLegend=="function"){r.showLegend(t,"Legende: "+(n||e),!0,void 0),TnetLog.log("[WMS-Panel] Legende \xFCber Framework ge\xF6ffnet");return}}catch(s){TnetLog.warn("[WMS-Panel] Framework showLegend fehlgeschlagen:",s.message)}window.open(t,"_blank","noopener")}window.TnetWmsLegend=te;function Pe(e){if(e.bbox)try{var n=njs.AppManager.Maps.main.mapObj,t=e.bbox,a=null;if(Array.isArray(t)){var o=t.find(function(r){return r.crs==="EPSG:2056"});if(o)a=[o.extent[0],o.extent[1],o.extent[2],o.extent[3]];else{var i=t.find(function(r){return r.crs==="EPSG:4326"||r.crs==="CRS:84"});i?a=ol.proj.transformExtent([i.extent[0],i.extent[1],i.extent[2],i.extent[3]],"EPSG:4326",n.getView().getProjection()):t[0]&&t[0].extent&&(a=ol.proj.transformExtent(t[0].extent,t[0].crs||"EPSG:4326",n.getView().getProjection()))}}else t&&typeof t=="object"&&t.length===4&&(a=ol.proj.transformExtent(t,"EPSG:4326",n.getView().getProjection()));a&&n.getView().fit(a,{duration:500,padding:[50,50,50,50]})}catch(r){TnetLog.warn("[WMS-Panel] Zoom fehlgeschlagen:",r)}}function Re(){var e=S("wms-layer-filter");if(e){var n=null;e.addEventListener("input",function(){clearTimeout(n);var t=e.value.trim().toLowerCase();n=setTimeout(function(){_e(t)},200)})}}function _e(e){var n=S("wms-layer-list");if(n){var t=n.querySelectorAll(".wms-layer-item");t.forEach(function(a){var o=parseInt(a.dataset.idx),i=C[o];if(!e){a.style.display="";return}var r=(i.title+" "+i.name+" "+i.abstract).toLowerCase();a.style.display=r.indexOf(e)>-1?"":"none"})}}function xe(){var e=S("wms-preset-select"),n=S("wms-url-input");!e||!n||(Z.forEach(function(t){var a=document.createElement("option");a.value=t.url,a.textContent=t.name,e.appendChild(a)}),e.addEventListener("change",function(){e.value&&(n.value=e.value)}),n.addEventListener("keydown",function(t){t.key==="Enter"&&window.loadWmsCapabilities()}))}function P(e){return e?e.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"):""}function de(){var e=window.njs&&window.njs.AppManager;return e||(e=window.top&&window.top.njs&&window.top.njs.AppManager),e}var ne=!1,X=0,re=15;function ae(){if(!ne){var e=de();if(!e||!e.Maps||!e.Maps.main||!e.Maps.main.mapObj){X++,X<=re?(TnetLog.log("[WMS-GFI] Karte nicht bereit, Retry "+X+"/"+re),setTimeout(ae,2e3)):TnetLog.warn("[WMS-GFI] Karte nach "+re+" Versuchen nicht bereit");return}var n=e.Maps.main.mapObj;ne=!0,TnetLog.log("[WMS-GFI] singleclick-Handler auf Hauptkarte registriert (nach "+X+" Retries)"),n.on("singleclick",function(t){if(window._tnetInfoBridgeActive){TnetLog.log("[WMS-GFI] singleclick ignoriert \u2014 Info-Bridge aktiv");return}TnetLog.log("[WMS-GFI] === singleclick Event empfangen (Legacy-Modus) ===");try{var a=de(),o=!1;try{o=!!(a&&a.MapTips&&a.MapTips._disablewmsgetfeatureinfo&&a.MapTips._disablewmsgetfeatureinfo.main)}catch{}if(TnetLog.log("[WMS-GFI] gfiDisabled:",o,"| _addedLayers:",m.length),o&&m.length===0){TnetLog.log("[WMS-GFI] GFI durch Tool blockiert und keine Custom-WMS-Layer \u2192 Abbruch");return}var i=[],r={};if(m.forEach(function(c){if(c.olLayer&&c.olLayer.getVisible()){var g=c.olLayer.getSource();if(g&&typeof g.getFeatureInfoUrl=="function"){var l="";try{l=g.getParams().LAYERS||""}catch{}r[l]=!0,i.push({source:g,title:c.title||c.name,name:c.name,isCustom:!0}),TnetLog.log("[WMS-GFI] Custom-Layer:",c.title,"| LAYERS:",l)}else TnetLog.log("[WMS-GFI] Custom-Layer \xFCbersprungen (kein getFeatureInfoUrl):",c.name)}}),!o)try{var s=n.getLayers().getArray();TnetLog.log("[WMS-GFI] OL-Layer auf Karte:",s.length),s.forEach(function(c,g){if(!(!c||typeof c.getVisible!="function"||typeof c.getSource!="function")&&c.getVisible()){var l=c.getSource();if(l&&typeof l.getFeatureInfoUrl=="function"){var L=null;if(typeof l.getUrl=="function"&&(L=l.getUrl()),!L&&typeof l.getUrls=="function"){var f=l.getUrls();f&&f.length>0&&(L=f[0])}if(!L&&l.url_&&(L=l.url_),!(L&&L.indexOf("agsproxy.php")>-1)){var y=c.get("name")||"";if(y!=="mask_layer"){var M=typeof l.getParams=="function"?l.getParams():null,h=M&&M.LAYERS?M.LAYERS:"";if(!(!h||h==="mask_layer")&&!r[h]&&(r[h]=!0,!c.get("tnet_wms_custom"))){var F=c.get("name")||c.get("title")||h,b=c.get("title")||c.get("name")||h;i.push({source:l,title:b,name:F,isCustom:!1}),TnetLog.log("[WMS-GFI] Framework-Layer:",b,"| LAYERS:",h)}}}}}})}catch(c){TnetLog.warn("[WMS-GFI] Fehler beim Scannen der Karten-Layer:",c)}if(TnetLog.log("[WMS-GFI] Gesamt WMS-Layer zum Abfragen:",i.length,"(Custom:",i.filter(function(c){return c.isCustom}).length,", Framework:",i.filter(function(c){return!c.isCustom}).length+")"),i.length===0){TnetLog.log("[WMS-GFI] Keine abfragbaren WMS-Layer gefunden \u2192 Abbruch");return}var u=t.coordinate,W=n.getView().getResolution(),p=n.getView().getProjection(),w=[],v=[];i.forEach(function(c){var g=c.source,l=c.title,L=["application/json","application/geojson","application/vnd.ogc.gml","text/html","text/plain"],f=function(y){if(y>=L.length)return TnetLog.warn("[WMS-GFI] Alle Formate fehlgeschlagen f\xFCr",l),Promise.resolve();var M=L[y],h=g.getFeatureInfoUrl(u,W,p,{INFO_FORMAT:M,FEATURE_COUNT:10});if(!h)return TnetLog.warn("[WMS-GFI] getFeatureInfoUrl liefert null f\xFCr",l,M),Promise.resolve();if(h.indexOf("QUERY_LAYERS")===-1){var F=g.getParams();F&&F.LAYERS&&(h+="&QUERY_LAYERS="+F.LAYERS)}var b=h;return h.indexOf(location.origin)===-1&&h.indexOf(x()+"/")!==0&&(h=x()+"/wmsproxy.php?url="+encodeURIComponent(h)),TnetLog.log("[WMS-GFI] Request:",l,"| Format:",M,"| URL:",h.substring(0,120)+"..."),fetch(h).then(function(d){return TnetLog.log("[WMS-GFI] Response:",l,"| Status:",d.status,"| ContentType:",d.headers.get("Content-Type")),d.text()}).then(function(d){if(!d||d.length===0)return TnetLog.log("[WMS-GFI] Leere Response f\xFCr",l,M),f(y+1);if(TnetLog.log("[WMS-GFI] Response-Text ("+d.length+" bytes):",d.substring(0,200)),d.indexOf("ServiceException")>-1)return TnetLog.log("[WMS-GFI] ServiceException f\xFCr",l,M),f(y+1);if(M.indexOf("json")>-1)try{var G=JSON.parse(d);if(G.features&&G.features.length>0){var B=G.features.map(function(q){return{properties:q.properties||q.attributes||{}}});v.push({layer:l,data:B}),TnetLog.log("[WMS-GFI] JSON Features gefunden:",B.length,"f\xFCr",l);return}else TnetLog.log("[WMS-GFI] JSON ok aber keine Features f\xFCr",l)}catch(q){TnetLog.log("[WMS-GFI] JSON-Parse-Fehler f\xFCr",l,q.message)}if(d.indexOf("<?xml")===0||d.indexOf("<")===0)try{var V=new DOMParser,Q=V.parseFromString(d,"text/xml"),R=Q.getElementsByTagName("gml:featureMember");if(R.length===0&&(R=Q.getElementsByTagName("featureMember")),R.length>0){for(var A=[],T=0;T<R.length;T++){var E={},H=R[T].children[0];if(H)for(var Y=0;Y<H.children.length;Y++){var _=H.children[Y],j=_.localName||_.tagName;_.textContent&&j!=="boundedBy"&&(E[j]=_.textContent)}Object.keys(E).length>0&&A.push({properties:E})}if(A.length>0){v.push({layer:l,data:A}),TnetLog.log("[WMS-GFI] GML Features gefunden:",A.length,"f\xFCr",l);return}}}catch(q){TnetLog.log("[WMS-GFI] GML-Parse-Fehler f\xFCr",l,q.message)}if(M.indexOf("html")>-1&&d.indexOf("<")>-1){var I=document.createElement("div");I.innerHTML=d;var z=I.getElementsByTagName("table");if(z.length>0){for(var E={},O=z[0].getElementsByTagName("tr"),T=0;T<O.length;T++){var K=O[T].getElementsByTagName("td");K.length>=2&&(E[K[0].textContent.trim()]=K[1].textContent.trim());var ve=O[T].getElementsByTagName("th"),we=O[T].getElementsByTagName("td");ve.length>=1&&we.length>=1&&(E[ve[0].textContent.trim()]=we[0].textContent.trim())}if(Object.keys(E).length>0){v.push({layer:l,data:[{properties:E}]}),TnetLog.log("[WMS-GFI] HTML-Tabelle Features gefunden f\xFCr",l);return}}var ie=d.replace(/<\/?html[^>]*>/gi,"").replace(/<\/?body[^>]*>/gi,"").replace(/<\/?head[^>]*>/gi,"").trim();if(ie.length>10&&ie.indexOf("ServiceException")===-1){v.push({layer:l,rawHtml:ie}),TnetLog.log("[WMS-GFI] HTML-Rohinhalt f\xFCr",l);return}}if(M==="text/plain"&&d.indexOf("<?xml")!==0){for(var E={},Le=d.split(`
-`),T=0;T<Le.length;T++){var $=Le[T].trim();if($&&$.indexOf("=")>-1&&!$.match(/^(Layer|Feature|GetFeatureInfo)/)){var ye=$.split("="),Se=ye[0].trim(),Te=ye.slice(1).join("=").trim().replace(/^'|'$/g,"");Se&&Te&&(E[Se]=Te)}}if(Object.keys(E).length>0){v.push({layer:l,data:[{properties:E}]}),TnetLog.log("[WMS-GFI] text/plain Features gefunden f\xFCr",l);return}}return TnetLog.log("[WMS-GFI] Keine Features extrahiert aus",M,"f\xFCr",l),f(y+1)}).catch(function(d){return TnetLog.warn("[WMS-GFI] Fetch-Fehler f\xFCr",l,M,d.message||d),f(y+1)})};w.push(f(0))}),w.length>0&&Promise.all(w).then(function(){TnetLog.log("[WMS-GFI] Alle Requests fertig | Features:",v.length),v.length>0&&pe(v,u)})}catch(c){TnetLog.error("[WMS-GFI] Unerwarteter Fehler im singleclick-Handler:",c)}})}}function ue(e){var n=e.querySelectorAll(".noInfoResults, .njs-info-no-results");n.forEach(function(o){o.remove()});for(var t=e.childNodes,a=t.length-1;a>=0;a--)t[a].nodeType===3&&t[a].textContent.indexOf("Keine")>-1&&e.removeChild(t[a])}function ke(e){if(!(typeof MutationObserver>"u")){var n=new MutationObserver(function(t){if(e.querySelector(".wms-gfi-result")){for(var a=!1,o=0;o<t.length;o++)for(var i=t[o].addedNodes,r=0;r<i.length;r++){var s=i[r];(s.nodeType===3&&s.textContent.indexOf("Keine")>-1||s.nodeType===1&&(s.classList.contains("noInfoResults")||s.classList.contains("njs-info-no-results")||s.textContent&&s.textContent.indexOf("Keine Objekte")>-1&&!s.querySelector(".dijitTitlePane")))&&(a=!0)}a&&(TnetLog.log('[WMS-GFI] Observer: "Keine Objekte" nachtr\xE4glich entfernt'),ue(e))}});n.observe(e,{childList:!0,subtree:!1}),setTimeout(function(){n.disconnect()},5e3)}}function pe(e,n){TnetLog.log("[WMS-GFI] Ergebnisse anzeigen:",e.length,"Layer"),Ge();var t=0,a=20,o=!1;function i(){t++;var r=document.getElementById("njs_info_pane_content");if(!r){t<a?setTimeout(i,200):TnetLog.warn("[WMS-GFI] njs_info_pane_content nach",a,"Versuchen nicht gefunden");return}if(!o){var s=r.querySelector(".dijitTitlePane"),u=r.textContent.indexOf("Keine")>-1||r.querySelector(".noInfoResults"),W=t>=8;if(!s&&!u&&!W){setTimeout(i,200);return}o=!0,TnetLog.log("[WMS-GFI] Injiziere Ergebnisse (Versuch "+t+")"),ue(r),ke(r),e.forEach(function(p){if(p.rawHtml){me(r,p.layer,p.rawHtml);return}p.data.forEach(function(w,v){var c=w.properties||{},g=Object.keys(c).filter(function(f){return f!=="geometry"&&f!=="boundedBy"&&c[f]!==null&&c[f]!==""});if(g.length!==0){var l=p.layer;p.data.length>1&&(l+=" ("+(v+1)+"/"+p.data.length+")");var L='<table class="wms-gfi-table">';g.forEach(function(f){var y=String(c[f]);y.match(/^https?:\/\//)?y='<a href="'+P(y)+'" target="_blank" rel="noopener">'+P(y)+"</a>":y=P(y),L+='<tr><td class="wms-gfi-key">'+P(f)+"</td>",L+='<td class="wms-gfi-val">'+y+"</td></tr>"}),L+="</table>",me(r,l,L)}})})}}setTimeout(i,400)}function Ge(){try{if(typeof dijit<"u"&&dijit.byId){var e=dijit.byId("njs_info_pane");if(e){e.domNode&&(e.domNode.style.visibility="visible",e.domNode.style.display="block"),typeof e.show=="function"&&e.show(),TnetLog.log("[WMS-GFI] Info-Panel per dijit sichtbar gemacht");return}}}catch{}var n=document.getElementById("njs_info_pane");n&&(n.style.visibility="visible",n.style.display="block",TnetLog.log("[WMS-GFI] Info-Panel per DOM sichtbar gemacht"))}function me(e,n,t){var a=document.createElement("div");if(a.className="wms-gfi-result",typeof dijit<"u"&&dijit.TitlePane)try{var o=document.createElement("div");o.innerHTML=t,e.appendChild(a);var i=new dijit.TitlePane({title:'<span class="wms-gfi-title-icon">WMS</span> '+P(n),content:o,open:!0});a.appendChild(i.domNode),i.startup(),TnetLog.log("[WMS-GFI] TitlePane erstellt:",n);return}catch(r){TnetLog.warn("[WMS-GFI] TitlePane Fehler, Fallback:",r)}a.innerHTML='<details class="wms-gfi-details" open><summary class="wms-gfi-summary"><span class="wms-gfi-title-icon">WMS</span> '+P(n)+'</summary><div class="wms-gfi-content">'+t+"</div></details>",e.appendChild(a)}document.addEventListener("tnet-wms-layer-removed",function(e){var n=e.detail&&e.detail.name;if(n){TnetLog.log("[WMS-Panel] tnet-wms-layer-removed empfangen:",n);for(var t=-1,a=0;a<m.length;a++)if(m[a].name===n){t=a;break}t!==-1&&(m.splice(t,1),ee()),fe(n,!1),TnetLog.log("[WMS-Panel] Layer extern entfernt:",n,"| _addedLayers:",m.length)}});function he(){Ae().then(function(){xe(),Re(),ae(),TnetLog.log("[WMS-Panel] Initialisiert")})}function Ae(){if(oe||typeof JSON5>"u")return Promise.resolve();var e=[x()+"/tnet/config/tnet-global-config.json5",x()+"/tnet/tnet-global-config.json5","../tnet/config/tnet-global-config.json5"];function n(t){return t>=e.length?Promise.resolve():fetch(e[t]).then(function(a){if(!a.ok)throw new Error(a.status);return a.text()}).then(function(a){var o=JSON5.parse(a);o&&o.wmsPanel&&Array.isArray(o.wmsPanel.presets)&&o.wmsPanel.presets.length&&(Z=o.wmsPanel.presets,TnetLog.log("[WMS-Panel] Presets aus Config geladen:",Z.length,"Dienste")),oe=!0}).catch(function(){return n(t+1)})}return n(0)}document.addEventListener("tnet-app-ready",function(){ne||(TnetLog.log("[WMS-GFI] tnet-app-ready empfangen \u2014 versuche Handler-Registrierung"),ae())},{once:!0}),document.readyState==="loading"?document.addEventListener("DOMContentLoaded",he):he(),window._savedWmsDockedWidth=400,window.isWmsPanelDocked=!1;function je(){var e=[];return m.forEach(function(n){if(n.olLayer&&n.olLayer.getVisible()){var t=n.olLayer.getSource();t&&typeof t.getFeatureInfoUrl=="function"&&e.push({source:t,title:n.title||n.name,name:n.name,isCustom:!0})}}),e}function Oe(e,n,t){if(!(!n||n.length===0)){var a=e.coordinate,o=t.getView().getResolution(),i=t.getView().getProjection(),r=[],s=[],u=["application/json","application/geojson","application/vnd.ogc.gml","text/html","text/plain"];n.forEach(function(W){var p=W.source,w=W.title,v=function(c){if(c>=u.length)return TnetLog.warn("[WMS-GFI] Alle Formate fehlgeschlagen f\xFCr",w),Promise.resolve();var g=u[c],l=p.getFeatureInfoUrl(a,o,i,{INFO_FORMAT:g,FEATURE_COUNT:10});if(!l)return TnetLog.warn("[WMS-GFI] getFeatureInfoUrl liefert null f\xFCr",w,g),Promise.resolve();if(l.indexOf("QUERY_LAYERS")===-1){var L=p.getParams();L&&L.LAYERS&&(l+="&QUERY_LAYERS="+L.LAYERS)}return l.indexOf(location.origin)===-1&&l.indexOf(x()+"/")!==0&&(l=x()+"/wmsproxy.php?url="+encodeURIComponent(l)),TnetLog.log("[WMS-GFI:Bridge] Request:",w,"| Format:",g),fetch(l).then(function(f){return f.text()}).then(function(f){if(!f||f.length===0||f.indexOf("ServiceException")>-1)return v(c+1);if(g.indexOf("json")>-1)try{var y=JSON.parse(f);if(y.features&&y.features.length>0){r.push({layer:w,data:y.features.map(function(j){return{properties:j.properties||j.attributes||{}}})});return}}catch{}if(f.indexOf("<")===0||f.indexOf("<?xml")===0)try{var M=new DOMParser().parseFromString(f,"text/xml"),h=M.getElementsByTagName("gml:featureMember");if(h.length===0&&(h=M.getElementsByTagName("featureMember")),h.length>0){for(var F=[],b=0;b<h.length;b++){var d={},G=h[b].children[0];if(G)for(var B=0;B<G.children.length;B++){var V=G.children[B],Q=V.localName||V.tagName;V.textContent&&Q!=="boundedBy"&&(d[Q]=V.textContent)}Object.keys(d).length>0&&F.push({properties:d})}if(F.length>0){r.push({layer:w,data:F});return}}}catch{}if(g.indexOf("html")>-1&&f.indexOf("<")>-1){var R=document.createElement("div");R.innerHTML=f;var A=R.getElementsByTagName("table");if(A.length>0){for(var d={},T=A[0].getElementsByTagName("tr"),b=0;b<T.length;b++){var E=T[b].getElementsByTagName("td");E.length>=2&&(d[E[0].textContent.trim()]=E[1].textContent.trim());var H=T[b].getElementsByTagName("th"),Y=T[b].getElementsByTagName("td");H.length>=1&&Y.length>=1&&(d[H[0].textContent.trim()]=Y[0].textContent.trim())}if(Object.keys(d).length>0){r.push({layer:w,data:[{properties:d}]});return}}var _=f.replace(/<\/?html[^>]*>/gi,"").replace(/<\/?body[^>]*>/gi,"").replace(/<\/?head[^>]*>/gi,"").trim();if(_.length>10&&_.indexOf("ServiceException")===-1){r.push({layer:w,rawHtml:_});return}}if(g==="text/plain"&&f.indexOf("<?xml")!==0){var d={};if(f.split(`
-`).forEach(function(I){if(I=I.trim(),I&&I.indexOf("=")>-1&&!I.match(/^(Layer|Feature|GetFeatureInfo)/)){var z=I.split("="),O=z[0].trim(),K=z.slice(1).join("=").trim().replace(/^'|'$/g,"");O&&K&&(d[O]=K)}}),Object.keys(d).length>0){r.push({layer:w,data:[{properties:d}]});return}}return v(c+1)}).catch(function(f){return TnetLog.warn("[WMS-GFI:Bridge] Fetch-Fehler:",w,f.message||f),v(c+1)})};s.push(v(0))}),s.length>0&&Promise.all(s).then(function(){TnetLog.log("[WMS-GFI:Bridge] Alle Custom-Requests fertig | Features:",r.length),r.length>0&&pe(r,a)})}}window.TnetWmsPanel=window.TnetWmsPanel||{},window.TnetWmsPanel.getVisibleCustomLayers=je,window.TnetWmsPanel.queryCustomLayers=Oe})();
+﻿/**
+ * tnet-wms-panel.js
+ * Externe Kartendienste (WMS) — Eigenes Floating-Panel, Dojo-frei.
+ * GetCapabilities-Abfrage via ol.format.WMSCapabilities,
+ * Layer-Hinzufügen via ol.layer.Image + ol.source.ImageWMS.
+ *
+ * @version    1.0
+ * @date       2026-03-02
+ * @copyright  Trigonet AG
+ * @author     Marco Dellenbach
+ */
+
+(function() {
+  'use strict';
+
+  function getAppRoot() {
+    return window.__TNET_APP_ROOT || '/maps';
+  }
+
+  // ===== KONFIGURATION =====
+
+  // Vordefinierte WMS-Dienste — Fallback-Defaults, werden durch tnet-global-config.json5 überschrieben
+  var WMS_PRESETS = [
+    { name: 'Swisstopo WMS', url: 'https://wms.geo.admin.ch/?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetCapabilities' },
+    { name: 'Kt. Nidwalden', url: 'https://www.gis-daten.ch/wms/nw/service?REQUEST=GetCapabilities&SERVICE=WMS' },
+    { name: 'Kt. Obwalden', url: 'https://www.gis-daten.ch/wms/ow/service?REQUEST=GetCapabilities&SERVICE=WMS' },
+    { name: 'Kt. Uri', url: 'https://geo.ur.ch/wms?request=getCapabilities' },
+    { name: 'Geodienste AV', url: 'https://geodienste.ch/db/av_0/deu?SERVICE=WMS&REQUEST=GetCapabilities' }
+  ];
+  var _configLoaded = false;
+
+  // State
+  var _addedLayers = [];  // { olLayer, name, title, wmsUrl, opacity }
+  var _isWmsDocked = false;
+  var _savedWmsPosition = null;
+  var _capabilitiesLayers = [];  // Letzte GetCapabilities-Ergebnisse
+  var _currentWmsUrl = '';
+
+  // ===== DOM-REFERENZEN =====
+
+  function $(id) { return document.getElementById(id); }
+
+  // ===== PANEL TOGGLE =====
+
+  window.toggleWmsPanel = function() {
+    var panel = $('wms-panel');
+    if (!panel) return;
+    // Hamburger-Menü schliessen
+    var menu = document.getElementById('header_menu');
+    if (menu) menu.classList.remove('open');
+
+    panel.classList.toggle('hidden');
+    if (!panel.classList.contains('hidden')) {
+      TnetLog.log('[WMS-Panel] Geöffnet');
+    }
+  };
+
+  window.closeWmsPanel = function() {
+    var panel = $('wms-panel');
+    if (!panel) return;
+    // Falls gedockt: undocken beim Schliessen
+    if (_isWmsDocked) {
+      _undockWms();
+    }
+    panel.classList.add('hidden');
+  };
+
+  // ===== DOCK/UNDOCK =====
+
+  window.toggleWmsDock = function() {
+    if (_isWmsDocked) {
+      _undockWms();
+    } else {
+      _dockWms();
+    }
+  };
+
+  function _dockWms() {
+    var panel = $('wms-panel');
+    var dockBtn = $('wms-dock-btn');
+    var mapContainer = document.getElementById('mapContainer');
+    if (!panel) return;
+
+    // Position speichern
+    var rect = panel.getBoundingClientRect();
+    _savedWmsPosition = {
+      top: panel.style.top || rect.top + 'px',
+      left: panel.style.left || rect.left + 'px',
+      width: panel.style.width || rect.width + 'px',
+      height: panel.style.height || rect.height + 'px'
+    };
+
+    panel.classList.add('docked-right');
+
+    var panelWidth = window._savedWmsDockedWidth || 400;
+    var centerPane = document.getElementById('centerPaneLayout');
+    var streetviewContainer = document.getElementById('streetviewContainer');
+    var streetviewWidth = 0;
+    if (streetviewContainer && streetviewContainer.offsetWidth > 0 && streetviewContainer.style.display !== 'none') {
+      streetviewWidth = streetviewContainer.offsetWidth;
+    }
+
+    panel.style.setProperty('width', panelWidth + 'px', 'important');
+    panel.style.setProperty('right', streetviewWidth + 'px', 'important');
+
+    if (mapContainer) {
+      var centerPaneWidth = centerPane ? centerPane.offsetWidth : window.innerWidth;
+      var mapWidth = centerPaneWidth - streetviewWidth - panelWidth;
+      mapContainer.style.setProperty('width', mapWidth + 'px', 'important');
+      _triggerMapUpdate();
+    }
+
+    if (dockBtn) {
+      dockBtn.title = 'Floating';
+      dockBtn.innerHTML = TnetIcons.get('undock');
+    }
+
+    _isWmsDocked = true;
+    window.isWmsPanelDocked = true;
+  }
+
+  function _undockWms() {
+    var panel = $('wms-panel');
+    var dockBtn = $('wms-dock-btn');
+    var mapContainer = document.getElementById('mapContainer');
+    if (!panel) return;
+
+    panel.classList.remove('docked-right');
+
+    if (mapContainer) {
+      mapContainer.style.setProperty('width', '100%', 'important');
+      setTimeout(function() { _triggerMapUpdate(); }, 100);
+    }
+
+    if (_savedWmsPosition) {
+      panel.style.setProperty('top', _savedWmsPosition.top, 'important');
+      panel.style.setProperty('left', _savedWmsPosition.left, 'important');
+      panel.style.setProperty('width', _savedWmsPosition.width, 'important');
+      panel.style.setProperty('height', _savedWmsPosition.height, 'important');
+    } else {
+      panel.style.setProperty('top', '80px', 'important');
+      panel.style.setProperty('left', 'calc(50vw - 220px)', 'important');
+      panel.style.setProperty('width', '440px', 'important');
+      panel.style.setProperty('height', '520px', 'important');
+    }
+    panel.style.setProperty('right', 'auto', 'important');
+    panel.style.setProperty('bottom', 'auto', 'important');
+
+    if (dockBtn) {
+      dockBtn.title = 'Rechts andocken';
+      dockBtn.innerHTML = TnetIcons.get('dock');
+    }
+
+    _isWmsDocked = false;
+    window.isWmsPanelDocked = false;
+  }
+
+  function _triggerMapUpdate() {
+    try {
+      if (window.njs && njs.AppManager && njs.AppManager.Maps && njs.AppManager.Maps['main']) {
+        var mapObj = njs.AppManager.Maps['main'].mapObj;
+        if (mapObj && mapObj.updateSize) mapObj.updateSize();
+      }
+    } catch (e) { /* ignorieren */ }
+  }
+
+  // ===== GET CAPABILITIES =====
+
+  window.loadWmsCapabilities = function() {
+    var urlInput = $('wms-url-input');
+    var loadBtn = $('wms-load-btn');
+    var url = (urlInput ? urlInput.value.trim() : '');
+    if (!url) {
+      _setStatus('Bitte eine WMS-URL eingeben.', 'error');
+      return;
+    }
+
+    // URL normalisieren: GetCapabilities-Parameter hinzufügen falls nicht vorhanden
+    var capUrl = _buildCapabilitiesUrl(url);
+    _currentWmsUrl = _extractBaseUrl(url);
+
+    _setStatus('Lade GetCapabilities…', '');
+    if (loadBtn) loadBtn.disabled = true;
+
+    // Zuerst direkt probieren, bei CORS-Fehler über Proxy
+    fetch(capUrl)
+      .then(function(resp) {
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        return resp.text();
+      })
+      .then(function(xml) {
+        _parseCapabilities(xml);
+        if (loadBtn) loadBtn.disabled = false;
+      })
+      .catch(function(err) {
+        TnetLog.warn('[WMS-Panel] Direkter Zugriff fehlgeschlagen, versuche Proxy:', err.message);
+        // Über Proxy versuchen
+        var proxyUrl = getAppRoot() + '/wmsproxy.php?url=' + encodeURIComponent(capUrl);
+        fetch(proxyUrl)
+          .then(function(resp) {
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            return resp.text();
+          })
+          .then(function(xml) {
+            _parseCapabilities(xml);
+            if (loadBtn) loadBtn.disabled = false;
+          })
+          .catch(function(err2) {
+            _setStatus('Fehler beim Laden: ' + err2.message, 'error');
+            if (loadBtn) loadBtn.disabled = false;
+          });
+      });
+  };
+
+  function _buildCapabilitiesUrl(url) {
+    // Falls schon GetCapabilities-Parameter vorhanden → direkt verwenden
+    if (url.toLowerCase().indexOf('request=getcapabilities') > -1) return url;
+    // Separator bestimmen
+    var sep = url.indexOf('?') > -1 ? '&' : '?';
+    return url + sep + 'SERVICE=WMS&REQUEST=GetCapabilities&VERSION=1.3.0';
+  }
+
+  function _extractBaseUrl(url) {
+    // Alles vor dem '?' oder die ganze URL
+    var idx = url.indexOf('?');
+    return idx > -1 ? url.substring(0, idx) : url;
+  }
+
+  function _parseCapabilities(xml) {
+    try {
+      var parser = new ol.format.WMSCapabilities();
+      var result = parser.read(xml);
+
+      if (!result || !result.Capability) {
+        _setStatus('Keine gültige WMS-Antwort erhalten.', 'error');
+        return;
+      }
+
+      // Dienst-Name anzeigen
+      var serviceTitle = (result.Service && result.Service.Title) ? result.Service.Title : 'WMS';
+
+      // Layer extrahieren (rekursiv — WMS hat verschachtelte Layer)
+      _capabilitiesLayers = [];
+      _flattenLayers(result.Capability.Layer, _capabilitiesLayers);
+
+      _setStatus(serviceTitle + ' — ' + _capabilitiesLayers.length + ' Layer gefunden', 'success');
+      _renderLayerList(_capabilitiesLayers);
+      // Filter-Zeile anzeigen
+      var filterRow = $('wms-filter-row');
+      if (filterRow) filterRow.style.display = _capabilitiesLayers.length > 5 ? '' : 'none';
+
+    } catch (e) {
+      TnetLog.error('[WMS-Panel] Parse-Fehler:', e);
+      _setStatus('XML-Parse-Fehler: ' + e.message, 'error');
+    }
+  }
+
+  /**
+   * Rekursive Layer-Extraktion aus WMS Capabilities.
+   * Nur Layer mit Name (= abfragbar) werden aufgenommen.
+   */
+  function _flattenLayers(layerObj, list) {
+    if (!layerObj) return;
+    // Einzelner Layer
+    if (layerObj.Name) {
+      // LegendURL aus Style extrahieren (OL WMSCapabilities Parser liefert Style-Array)
+      var legendUrl = '';
+      var metadataUrl = '';
+      try {
+        if (layerObj.Style && layerObj.Style.length > 0) {
+          var style = layerObj.Style[0];
+          if (style.LegendURL && style.LegendURL.length > 0 && style.LegendURL[0].OnlineResource) {
+            legendUrl = style.LegendURL[0].OnlineResource;
+          }
+        }
+        if (layerObj.MetadataURL && layerObj.MetadataURL.length > 0 && layerObj.MetadataURL[0].OnlineResource) {
+          metadataUrl = layerObj.MetadataURL[0].OnlineResource;
+        }
+      } catch (e) { /* Style/Metadata nicht vorhanden */ }
+
+      list.push({
+        name: layerObj.Name,
+        title: layerObj.Title || layerObj.Name,
+        abstract: layerObj.Abstract || '',
+        bbox: layerObj.BoundingBox || layerObj.EX_GeographicBoundingBox || null,
+        queryable: layerObj.queryable !== false,
+        legendUrl: legendUrl,
+        metadataUrl: metadataUrl
+      });
+    }
+    // Kind-Layer
+    if (layerObj.Layer) {
+      if (Array.isArray(layerObj.Layer)) {
+        layerObj.Layer.forEach(function(child) {
+          _flattenLayers(child, list);
+        });
+      } else {
+        _flattenLayers(layerObj.Layer, list);
+      }
+    }
+  }
+
+  // ===== STATUS =====
+
+  function _setStatus(msg, type) {
+    var el = $('wms-status');
+    if (!el) return;
+    el.textContent = msg;
+    el.className = 'wms-status visible' + (type ? ' ' + type : '');
+  }
+
+  // ===== LAYER-LISTE RENDERN =====
+
+  function _renderLayerList(layers) {
+    var container = $('wms-layer-list');
+    if (!container) return;
+    container.innerHTML = '';
+
+    if (!layers || layers.length === 0) {
+      container.innerHTML = '<div style="padding:12px;color:#888;text-align:center;font-size:12px">Keine Layer gefunden</div>';
+      return;
+    }
+
+    layers.forEach(function(layer, idx) {
+      var isAdded = _addedLayers.some(function(a) { return a.name === layer.name && a.wmsUrl === _currentWmsUrl; });
+
+      var div = document.createElement('div');
+      div.className = 'wms-layer-item' + (isAdded ? ' added' : '');
+      div.dataset.idx = idx;
+      div.dataset.layerName = layer.name;
+
+      var cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.className = 'wms-layer-cb';
+      cb.checked = isAdded;
+
+      var info = document.createElement('div');
+      info.className = 'wms-layer-info';
+
+      var nameHtml = '<div class="wms-layer-name" title="' + _escHtml(layer.name) + '">' + _escHtml(layer.title) + '</div>';
+      info.innerHTML = nameHtml;
+
+      if (layer.abstract) {
+        var abstractDiv = document.createElement('div');
+        abstractDiv.className = 'wms-layer-abstract';
+        abstractDiv.textContent = layer.abstract;
+
+        info.appendChild(abstractDiv);
+
+        // "...mehr" Button nur bei längeren Texten
+        if (layer.abstract.length > 80) {
+          var moreBtn = document.createElement('button');
+          moreBtn.className = 'wms-layer-more-btn';
+          moreBtn.textContent = '...mehr';
+          moreBtn.onclick = function(e) {
+            e.stopPropagation();
+            var isExpanded = abstractDiv.classList.toggle('expanded');
+            moreBtn.textContent = isExpanded ? 'weniger' : '...mehr';
+          };
+          info.appendChild(moreBtn);
+        }
+      }
+
+      var actions = document.createElement('div');
+      actions.className = 'wms-layer-actions';
+
+      // Legende-Button (immer sichtbar — Fallback-URL wird konstruiert)
+      var legendBtn = document.createElement('button');
+      legendBtn.className = 'wms-layer-action-btn wms-layer-legend-btn';
+      legendBtn.title = 'Legende anzeigen';
+      legendBtn.innerHTML = TnetIcons.get('legend');
+      (function(l) {
+        legendBtn.onclick = function(e) {
+          e.stopPropagation();
+          _showWmsLegend(l.name, l.title, l.legendUrl);
+        };
+      })(layer);
+      actions.appendChild(legendBtn);
+
+      // Zoom-Button
+      if (layer.bbox) {
+        var zoomBtn = document.createElement('button');
+        zoomBtn.className = 'wms-layer-action-btn';
+        zoomBtn.title = 'Auf Layer zoomen';
+        zoomBtn.innerHTML = TnetIcons.get('zoom');
+        zoomBtn.onclick = function(e) {
+          e.stopPropagation();
+          _zoomToLayer(layer);
+        };
+        actions.appendChild(zoomBtn);
+      }
+
+      div.appendChild(cb);
+      div.appendChild(info);
+      div.appendChild(actions);
+
+      // Checkbox-Click: stopPropagation verhindert, dass div.onclick
+      // die Checkbox ein zweites Mal toggled (Double-Toggle-Bug)
+      cb.addEventListener('click', function(e) {
+        e.stopPropagation();
+      });
+
+      // Change-Handler: Layer hinzufügen/entfernen
+      cb.addEventListener('change', function() {
+        TnetLog.log('[WMS-Panel] cb.change:', layer.name, '→ checked:', cb.checked);
+        if (cb.checked) {
+          _addWmsLayer(layer);
+          div.classList.add('added');
+        } else {
+          _removeWmsLayer(layer.name);
+          div.classList.remove('added');
+        }
+      });
+
+      // Klick auf Zeile (nicht Checkbox) → Checkbox togglen
+      div.addEventListener('click', function(e) {
+        // Checkbox, Mehr-Button, Zoom-Button → ignorieren
+        if (e.target === cb || e.target.closest('input') || e.target.closest('.wms-layer-more-btn') || e.target.closest('.wms-layer-action-btn')) return;
+        cb.checked = !cb.checked;
+        cb.dispatchEvent(new Event('change'));
+      });
+
+      container.appendChild(div);
+    });
+  }
+
+  // ===== FRAMEWORK-KOMPATIBILITÄT =====
+
+  /**
+   * Injiziert einen Dummy-Eintrag in die Framework-Layer-Config (njs.AppManager.Maps['main'].layers),
+   * damit njs.MapTip.addLayerCallback beim addLayer-Event keinen Null-Zugriff auf
+   * minResolution/maxResolution bekommt.
+   */
+  function _injectFrameworkLayerConfig(layerName, wmsUrl) {
+    try {
+      var am = window.njs && window.njs.AppManager;
+      if (!am) am = window.top && window.top.njs && window.top.njs.AppManager;
+      if (!am || !am.Maps || !am.Maps['main']) return;
+
+      var mainMap = am.Maps['main'];
+
+      // Layers-Objekt: Framework speichert Layer-Configs als Objekt mit layerName als Key
+      // Verschiedene mögliche Speicherorte prüfen
+      var configStores = ['layers', 'Layers', 'layerConf', 'layersConf', 'conf'];
+      for (var i = 0; i < configStores.length; i++) {
+        var store = mainMap[configStores[i]];
+        if (store && typeof store === 'object' && !Array.isArray(store)) {
+          if (!store[layerName]) {
+            store[layerName] = {
+              minResolution: 0,
+              maxResolution: 999999,
+              resol_visibility: [0, 999999],
+              url: wmsUrl,
+              type: 'wms',
+              visible: true,
+              name: layerName,
+              tnet_wms_custom: true
+            };
+            TnetLog.log('[WMS-Panel] Dummy-Config injiziert in mainMap.' + configStores[i] + ':', layerName);
+          }
+          break;
+        }
+      }
+
+      // Auch MapTip-Konfiguration: Leeres Objekt damit kein null-Zugriff
+      if (am.MapTips && typeof am.MapTips === 'object') {
+        // Nicht überschreiben falls vorhanden
+      }
+
+      // Sicherheitsnetz: addLayerCallback wrappen falls vorhanden
+      if (window.njs && window.njs.MapTip && window.njs.MapTip.addLayerCallback) {
+        var origFn = window.njs.MapTip.addLayerCallback;
+        if (!origFn.__tnetWrapped) {
+          window.njs.MapTip.addLayerCallback = function() {
+            try {
+              return origFn.apply(this, arguments);
+            } catch (e) {
+              TnetLog.warn('[WMS-Panel] addLayerCallback-Fehler abgefangen:', e.message);
+            }
+          };
+          window.njs.MapTip.addLayerCallback.__tnetWrapped = true;
+          TnetLog.log('[WMS-Panel] addLayerCallback mit try/catch gewrapped');
+        }
+      }
+    } catch (e) {
+      TnetLog.warn('[WMS-Panel] Config-Injection fehlgeschlagen:', e.message);
+    }
+  }
+
+  // ===== LAYER ZUR KARTE HINZUFÜGEN =====
+
+  function _addWmsLayer(layerDef) {
+    // Duplikat-Schutz: interne Liste prüfen
+    var exists = _addedLayers.some(function(a) { return a.name === layerDef.name && a.wmsUrl === _currentWmsUrl; });
+    if (exists) {
+      TnetLog.warn('[WMS-Panel] Duplikat verhindert (interne Liste):', layerDef.name);
+      return;
+    }
+    // Duplikat-Schutz: auch auf OL-Karte prüfen (falls State desynchronisiert)
+    try {
+      var am = window.njs && window.njs.AppManager;
+      if (!am) am = window.top && window.top.njs && window.top.njs.AppManager;
+      if (am && am.Maps && am.Maps['main'] && am.Maps['main'].mapObj) {
+        var mapLayers = am.Maps['main'].mapObj.getLayers().getArray();
+        var onMap = mapLayers.some(function(l) {
+          return l.get('name') === layerDef.name && l.get('tnet_wms_custom');
+        });
+        if (onMap) {
+          TnetLog.warn('[WMS-Panel] Duplikat verhindert (bereits auf Karte):', layerDef.name);
+          return;
+        }
+      }
+    } catch (e) { /* Karte nicht erreichbar — weiter */ }
+
+    var wmsUrl = _currentWmsUrl;
+    var olLayer = new ol.layer.Image({
+      source: new ol.source.ImageWMS({
+        url: wmsUrl,
+        params: {
+          'LAYERS': layerDef.name,
+          'FORMAT': 'image/png',
+          'TRANSPARENT': true
+        },
+        crossOrigin: 'anonymous'
+      }),
+      opacity: 0.8,
+      visible: true,
+      zIndex: 500
+    });
+
+    olLayer.set('title', layerDef.title);
+    olLayer.set('name', layerDef.name);
+    olLayer.set('tnet_wms_custom', true);
+
+    // Framework-Kompatibilität: minResolution/maxResolution setzen,
+    // damit njs.MapTip.addLayerCallback keinen Null-Zugriff macht
+    olLayer.setMinResolution(0);
+    olLayer.setMaxResolution(Infinity);
+
+    // Dummy-Eintrag in Framework-Layer-Config injizieren,
+    // damit das Framework beim addLayer-Event keinen Null-Zugriff bekommt.
+    // Das Framework sucht per Layer-Name in der Config und crasht wenn null.
+    _injectFrameworkLayerConfig(layerDef.name, wmsUrl);
+
+    // Zur Karte hinzufügen (SplitScreen-kompatibel)
+    // WICHTIG: try/catch um addLayer — njs.MapTip.addLayerCallback crasht bei
+    // Custom-WMS-Layern mit "Cannot read properties of null (reading 'minResolution')",
+    // weil die Framework-Config-Injection den richtigen Speicherort nicht immer trifft.
+    // Der Layer wird trotzdem zur OL-Collection hinzugefügt (push passiert vor dem Event).
+    try {
+      if (window.TnetSplitScreen && window.TnetSplitScreen.addLayerToMaps) {
+        window.TnetSplitScreen.addLayerToMaps(olLayer);
+      } else {
+        var am = window.njs && window.njs.AppManager;
+        if (!am) am = window.top && window.top.njs && window.top.njs.AppManager;
+        var map = am.Maps['main'].mapObj;
+        map.addLayer(olLayer);
+      }
+    } catch (e) {
+      // Framework-Callback-Fehler abfangen — Layer ist TROTZDEM auf der Karte
+      // (OL Collection.insertAt fügt Element ein BEVOR Event gefeuert wird)
+      TnetLog.warn('[WMS-Panel] addLayer Framework-Fehler abgefangen:', e.message);
+    }
+
+    // LegendURL: aus Capabilities oder Fallback via GetLegendGraphic
+    var legendUrl = layerDef.legendUrl || '';
+    if (!legendUrl && wmsUrl) {
+      // Fallback: GetLegendGraphic-URL konstruieren
+      var sep = wmsUrl.indexOf('?') > -1 ? '&' : '?';
+      legendUrl = wmsUrl + sep + 'SERVICE=WMS&VERSION=1.3.0&REQUEST=GetLegendGraphic&LAYER=' +
+        encodeURIComponent(layerDef.name) + '&FORMAT=image/png';
+    }
+    olLayer.set('tnet_wms_legendUrl', legendUrl);
+    olLayer.set('tnet_wms_metadataUrl', layerDef.metadataUrl || '');
+
+    _addedLayers.push({
+      olLayer: olLayer,
+      name: layerDef.name,
+      title: layerDef.title,
+      wmsUrl: wmsUrl,
+      opacity: 0.8,
+      legendUrl: legendUrl,
+      metadataUrl: layerDef.metadataUrl || ''
+    });
+
+    _renderAddedLayers();
+    TnetLog.log('[WMS-Panel] Layer hinzugefügt:', layerDef.title, '| name:', layerDef.name, '| olLayer:', !!olLayer, '| _addedLayers:', _addedLayers.length);
+  }
+
+  // ===== LAYER ENTFERNEN =====
+
+  function _removeWmsLayer(layerName) {
+    TnetLog.log('[WMS-Panel] _removeWmsLayer aufgerufen:', layerName, '| _addedLayers:', _addedLayers.length);
+
+    // Primär: über TnetLMStore entfernen (synchronisiert Store, Karte und Dargestellte Themen)
+    var storeId = 'wms:' + layerName;
+    if (window.TnetLMStore && typeof window.TnetLMStore.removeLayer === 'function') {
+      TnetLog.log('[WMS-Panel] Entferne via TnetLMStore:', storeId);
+      window.TnetLMStore.removeLayer(storeId);
+      // Event-Listener 'tnet-wms-layer-removed' kümmert sich um _addedLayers + Checkbox
+      return;
+    }
+
+    // Fallback: Store nicht verfügbar → direkte Entfernung
+    TnetLog.warn('[WMS-Panel] TnetLMStore nicht verfügbar, Fallback-Entfernung:', layerName);
+    _removeWmsFromMapDirect(layerName);
+  }
+
+  // Direktes Entfernen von der Karte (Fallback wenn Store nicht verfügbar)
+  function _removeWmsFromMapDirect(layerName) {
+    var idx = -1;
+    for (var i = 0; i < _addedLayers.length; i++) {
+      if (_addedLayers[i].name === layerName) { idx = i; break; }
+    }
+    if (idx === -1) {
+      TnetLog.warn('[WMS-Panel] Fallback: Layer nicht in _addedLayers gefunden:', layerName);
+      return;
+    }
+    var entry = _addedLayers[idx];
+
+    try {
+      var am = window.njs && window.njs.AppManager;
+      if (!am) am = window.top && window.top.njs && window.top.njs.AppManager;
+      if (am && am.Maps && am.Maps['main'] && am.Maps['main'].mapObj) {
+        var map = am.Maps['main'].mapObj;
+        map.removeLayer(entry.olLayer);
+        // Zusätzlich per Name suchen (falls Referenz veraltet)
+        map.getLayers().forEach(function(l) {
+          if (l.get('name') === layerName && l.get('tnet_wms_custom')) {
+            map.removeLayer(l);
+          }
+        });
+      }
+    } catch (e) {
+      TnetLog.error('[WMS-Panel] Fallback-Entfernung fehlgeschlagen:', e);
+    }
+
+    // SplitScreen: auch von Map2 entfernen
+    if (window.TnetSplitScreen && window.TnetSplitScreen.map2) {
+      try {
+        var layers2 = window.TnetSplitScreen.map2.getLayers().getArray().slice();
+        layers2.forEach(function(l) {
+          if (l.get('name') === layerName && l.get('tnet_wms_custom')) {
+            window.TnetSplitScreen.map2.removeLayer(l);
+          }
+        });
+      } catch (e) { TnetLog.warn('[WMS-Panel] SplitScreen-Entfernung fehlgeschlagen:', e); }
+    }
+
+    _addedLayers.splice(idx, 1);
+    _renderAddedLayers();
+    _updateLayerListCheckbox(layerName, false);
+    TnetLog.log('[WMS-Panel] Layer entfernt (Fallback):', layerName, '| verbleibend:', _addedLayers.length);
+  }
+
+  function _updateLayerListCheckbox(layerName, checked) {
+    var container = $('wms-layer-list');
+    if (!container) return;
+    var found = false;
+    var items = container.querySelectorAll('.wms-layer-item');
+    items.forEach(function(item) {
+      var idx = parseInt(item.dataset.idx);
+      // Primär: über _capabilitiesLayers-Index matchen
+      var match = _capabilitiesLayers[idx] && _capabilitiesLayers[idx].name === layerName;
+      // Fallback: über data-name Attribut matchen
+      if (!match && item.dataset.layerName === layerName) match = true;
+      if (match) {
+        var cb = item.querySelector('.wms-layer-cb');
+        if (cb) cb.checked = checked;
+        item.classList.toggle('added', checked);
+        found = true;
+      }
+    });
+    TnetLog.log('[WMS-Panel] _updateLayerListCheckbox:', layerName, '→', checked, '| gefunden:', found);
+  }
+
+  // ===== HINZUGEFÜGTE LAYER RENDERN =====
+
+  function _renderAddedLayers() {
+    var section = $('wms-added-section');
+    var list = $('wms-added-list');
+    if (!section || !list) return;
+
+    if (_addedLayers.length === 0) {
+      section.style.display = 'none';
+      return;
+    }
+
+    section.style.display = '';
+    list.innerHTML = '';
+
+    _addedLayers.forEach(function(entry) {
+      var div = document.createElement('div');
+      div.className = 'wms-added-item';
+
+      var name = document.createElement('span');
+      name.className = 'wms-added-item-name';
+      name.textContent = entry.title;
+      name.title = entry.name;
+
+      var slider = document.createElement('input');
+      slider.type = 'range';
+      slider.className = 'wms-added-opacity';
+      slider.min = 0;
+      slider.max = 100;
+      slider.value = Math.round(entry.opacity * 100);
+      slider.title = 'Deckkraft';
+      slider.oninput = function() {
+        var val = parseInt(slider.value) / 100;
+        entry.opacity = val;
+        entry.olLayer.setOpacity(val);
+      };
+
+      // Legende-Button
+      var legendBtn = document.createElement('button');
+      legendBtn.className = 'wms-added-legend';
+      legendBtn.title = 'Legende anzeigen';
+      legendBtn.innerHTML = TnetIcons.get('legend', null, {width: '16', height: '16'});
+      (function(e) {
+        legendBtn.onclick = function() {
+          _showWmsLegend(e.name, e.title, e.legendUrl);
+        };
+      })(entry);
+
+      var removeBtn = document.createElement('button');
+      removeBtn.className = 'wms-added-remove';
+      removeBtn.title = 'Entfernen';
+      removeBtn.innerHTML = '&times;';
+      removeBtn.onclick = function() {
+        _removeWmsLayer(entry.name);
+      };
+
+      div.appendChild(name);
+      div.appendChild(slider);
+      div.appendChild(legendBtn);
+      div.appendChild(removeBtn);
+      list.appendChild(div);
+    });
+  }
+
+  // ===== WMS-LEGENDE ANZEIGEN =====
+
+  /**
+   * Öffnet die WMS-Legende im bestehenden Legend-FloatingPane.
+   * Nutzt njs.AppManager.showLegend() falls verfügbar, sonst window.open().
+   * Falls keine legendUrl vorhanden, wird eine GetLegendGraphic-Fallback-URL konstruiert.
+   */
+  function _showWmsLegend(layerName, layerTitle, legendUrl) {
+    TnetLog.log('[WMS-Panel] Legende anzeigen:', layerTitle, '| URL:', legendUrl);
+
+    // Falls keine URL: Fallback aus der aktuellen WMS-URL konstruieren
+    if (!legendUrl && _currentWmsUrl) {
+      var sep = _currentWmsUrl.indexOf('?') > -1 ? '&' : '?';
+      legendUrl = _currentWmsUrl + sep + 'SERVICE=WMS&VERSION=1.3.0&REQUEST=GetLegendGraphic&LAYER=' +
+        encodeURIComponent(layerName) + '&FORMAT=image/png';
+    }
+    // Auch in _addedLayers suchen (falls über Dargestellte Themen aufgerufen)
+    if (!legendUrl) {
+      for (var i = 0; i < _addedLayers.length; i++) {
+        if (_addedLayers[i].name === layerName) {
+          legendUrl = _addedLayers[i].legendUrl;
+          if (!legendUrl && _addedLayers[i].wmsUrl) {
+            var s = _addedLayers[i].wmsUrl.indexOf('?') > -1 ? '&' : '?';
+            legendUrl = _addedLayers[i].wmsUrl + s + 'SERVICE=WMS&VERSION=1.3.0&REQUEST=GetLegendGraphic&LAYER=' +
+              encodeURIComponent(layerName) + '&FORMAT=image/png';
+          }
+          break;
+        }
+      }
+    }
+
+    if (!legendUrl) {
+      TnetLog.warn('[WMS-Panel] Keine Legenden-URL für:', layerName);
+      return;
+    }
+
+    // Versuch 1: Framework-Methode (öffnet im bestehenden Legend-FloatingPane)
+    try {
+      var am = window.njs && window.njs.AppManager;
+      if (!am) am = window.top && window.top.njs && window.top.njs.AppManager;
+      if (am && typeof am.showLegend === 'function') {
+        am.showLegend(legendUrl, 'Legende: ' + (layerTitle || layerName), true, undefined);
+        TnetLog.log('[WMS-Panel] Legende über Framework geöffnet');
+        return;
+      }
+    } catch (e) {
+      TnetLog.warn('[WMS-Panel] Framework showLegend fehlgeschlagen:', e.message);
+    }
+
+    // Versuch 2: Neues Fenster/Tab
+    window.open(legendUrl, '_blank', 'noopener');
+  }
+
+  // Export für tnet-lm-active.js (Dargestellte Themen)
+  window.TnetWmsLegend = _showWmsLegend;
+
+  // ===== ZOOM AUF LAYER =====
+
+  function _zoomToLayer(layerDef) {
+    if (!layerDef.bbox) return;
+    try {
+      var map = njs.AppManager.Maps['main'].mapObj;
+      var bbox = layerDef.bbox;
+      var extent = null;
+
+      // WMS Capabilities liefern BoundingBox als Array von Objekten
+      if (Array.isArray(bbox)) {
+        // EPSG:2056 bevorzugen, sonst EPSG:4326
+        var found = bbox.find(function(b) { return b.crs === 'EPSG:2056'; });
+        if (found) {
+          extent = [found.extent[0], found.extent[1], found.extent[2], found.extent[3]];
+        } else {
+          var wgs = bbox.find(function(b) { return b.crs === 'EPSG:4326' || b.crs === 'CRS:84'; });
+          if (wgs) {
+            extent = ol.proj.transformExtent(
+              [wgs.extent[0], wgs.extent[1], wgs.extent[2], wgs.extent[3]],
+              'EPSG:4326', map.getView().getProjection()
+            );
+          } else if (bbox[0] && bbox[0].extent) {
+            // Erster Eintrag als Fallback
+            extent = ol.proj.transformExtent(
+              bbox[0].extent,
+              bbox[0].crs || 'EPSG:4326', map.getView().getProjection()
+            );
+          }
+        }
+      } else if (bbox && typeof bbox === 'object' && bbox.length === 4) {
+        // EX_GeographicBoundingBox → WGS84
+        extent = ol.proj.transformExtent(bbox, 'EPSG:4326', map.getView().getProjection());
+      }
+
+      if (extent) {
+        map.getView().fit(extent, { duration: 500, padding: [50, 50, 50, 50] });
+      }
+    } catch (e) {
+      TnetLog.warn('[WMS-Panel] Zoom fehlgeschlagen:', e);
+    }
+  }
+
+  // ===== FILTER =====
+
+  function _initFilter() {
+    var input = $('wms-layer-filter');
+    if (!input) return;
+    var timer = null;
+
+    input.addEventListener('input', function() {
+      clearTimeout(timer);
+      var q = input.value.trim().toLowerCase();
+      timer = setTimeout(function() {
+        _filterLayerList(q);
+      }, 200);
+    });
+  }
+
+  function _filterLayerList(query) {
+    var container = $('wms-layer-list');
+    if (!container) return;
+    var items = container.querySelectorAll('.wms-layer-item');
+
+    items.forEach(function(item) {
+      var idx = parseInt(item.dataset.idx);
+      var layer = _capabilitiesLayers[idx];
+      if (!query) {
+        item.style.display = '';
+        return;
+      }
+      var text = (layer.title + ' ' + layer.name + ' ' + layer.abstract).toLowerCase();
+      item.style.display = text.indexOf(query) > -1 ? '' : 'none';
+    });
+  }
+
+  // ===== PRESETS =====
+
+  function _initPresets() {
+    var select = $('wms-preset-select');
+    var urlInput = $('wms-url-input');
+    if (!select || !urlInput) return;
+
+    WMS_PRESETS.forEach(function(preset) {
+      var opt = document.createElement('option');
+      opt.value = preset.url;
+      opt.textContent = preset.name;
+      select.appendChild(opt);
+    });
+
+    select.addEventListener('change', function() {
+      if (select.value) {
+        urlInput.value = select.value;
+      }
+    });
+
+    // Enter → Laden
+    urlInput.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') {
+        window.loadWmsCapabilities();
+      }
+    });
+  }
+
+  // ===== HILFSFUNKTIONEN =====
+
+  function _escHtml(str) {
+    if (!str) return '';
+    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function _getAppManager() {
+    var am = window.njs && window.njs.AppManager;
+    if (!am) am = window.top && window.top.njs && window.top.njs.AppManager;
+    return am;
+  }
+
+  // ===== WMS GETFEATUREINFO (OBJEKTABFRAGE) =====
+
+  var _gfiHandlerRegistered = false;
+  var _gfiRetryCount = 0;
+  var _GFI_MAX_RETRIES = 15; // 15 × 2s = 30 Sekunden max
+
+  /**
+   * Registriert einen singleclick-Handler auf der Hauptkarte,
+   * der für alle sichtbaren Custom-WMS-Layer GetFeatureInfo abfragt
+   * und die Ergebnisse im Objektinfo-Panel (njs_info_pane) anzeigt.
+   */
+  function _setupWmsGetFeatureInfo() {
+    if (_gfiHandlerRegistered) return;
+    var am = _getAppManager();
+    if (!am || !am.Maps || !am.Maps['main'] || !am.Maps['main'].mapObj) {
+      _gfiRetryCount++;
+      if (_gfiRetryCount <= _GFI_MAX_RETRIES) {
+        TnetLog.log('[WMS-GFI] Karte nicht bereit, Retry ' + _gfiRetryCount + '/' + _GFI_MAX_RETRIES);
+        setTimeout(_setupWmsGetFeatureInfo, 2000);
+      } else {
+        TnetLog.warn('[WMS-GFI] Karte nach ' + _GFI_MAX_RETRIES + ' Versuchen nicht bereit');
+      }
+      return;
+    }
+    var map = am.Maps['main'].mapObj;
+    _gfiHandlerRegistered = true;
+    TnetLog.log('[WMS-GFI] singleclick-Handler auf Hauptkarte registriert (nach ' + _gfiRetryCount + ' Retries)');
+
+    map.on('singleclick', function(evt) {
+      // ── Bridge-Gate: Wenn die Info-Bridge aktiv ist, übernimmt sie den Dispatch ──
+      if (window._tnetInfoBridgeActive) {
+        TnetLog.log('[WMS-GFI] singleclick ignoriert — Info-Bridge aktiv');
+        return;
+      }
+      TnetLog.log('[WMS-GFI] === singleclick Event empfangen (Legacy-Modus) ===');
+
+      try {
+        // Gate-Check: Framework's _disablewmsgetfeatureinfo prüfen
+        // (wird gesetzt wenn Mess-/Zeichen-/Druck-Tool aktiv ist)
+        var currentAm = _getAppManager();
+        var gfiDisabled = false;
+        try {
+          gfiDisabled = !!(currentAm && currentAm.MapTips &&
+            currentAm.MapTips['_disablewmsgetfeatureinfo'] &&
+            currentAm.MapTips['_disablewmsgetfeatureinfo']['main']);
+        } catch (e) { /* ignore */ }
+
+        TnetLog.log('[WMS-GFI] gfiDisabled:', gfiDisabled, '| _addedLayers:', _addedLayers.length);
+
+        // Wenn GFI durch Tool blockiert UND keine Custom-WMS-Layer → nichts tun
+        if (gfiDisabled && _addedLayers.length === 0) {
+          TnetLog.log('[WMS-GFI] GFI durch Tool blockiert und keine Custom-WMS-Layer → Abbruch');
+          return;
+        }
+
+        // ===== ALLE sichtbaren WMS-Layer auf der Karte sammeln =====
+        var wmsLayers = []; // { source, title, name, isCustom }
+        var processedLayerParams = {};
+
+        // 1) Custom-WMS-Layer aus Panel (IMMER abfragen, auch ohne picking)
+        _addedLayers.forEach(function(entry) {
+          if (entry.olLayer && entry.olLayer.getVisible()) {
+            var source = entry.olLayer.getSource();
+            if (source && typeof source.getFeatureInfoUrl === 'function') {
+              var layerParam = '';
+              try { layerParam = source.getParams().LAYERS || ''; } catch(e) {}
+              processedLayerParams[layerParam] = true;
+              wmsLayers.push({
+                source: source,
+                title: entry.title || entry.name,
+                name: entry.name,
+                isCustom: true
+              });
+              TnetLog.log('[WMS-GFI] Custom-Layer:', entry.title, '| LAYERS:', layerParam);
+            } else {
+              TnetLog.log('[WMS-GFI] Custom-Layer übersprungen (kein getFeatureInfoUrl):', entry.name);
+            }
+          }
+        });
+
+        // 2) Framework-WMS-Layer (sofern GFI nicht durch Tool blockiert)
+        if (!gfiDisabled) {
+          try {
+            var allLayers = map.getLayers().getArray();
+            TnetLog.log('[WMS-GFI] OL-Layer auf Karte:', allLayers.length);
+            allLayers.forEach(function(layer, idx) {
+              if (!layer || typeof layer.getVisible !== 'function' || typeof layer.getSource !== 'function') return;
+              if (!layer.getVisible()) return;
+
+              var source = layer.getSource();
+              if (!source) return;
+              if (typeof source.getFeatureInfoUrl !== 'function') return;
+
+              // URL ermitteln
+              var url = null;
+              if (typeof source.getUrl === 'function') url = source.getUrl();
+              if (!url && typeof source.getUrls === 'function') {
+                var urls = source.getUrls();
+                if (urls && urls.length > 0) url = urls[0];
+              }
+              if (!url && source.url_) url = source.url_;
+
+              // ArcGIS-Proxy-Layer überspringen
+              if (url && url.indexOf('agsproxy.php') > -1) return;
+
+              // mask_layer (Kantonsmaske) überspringen — unterstützt kein GFI
+              var layerName = layer.get('name') || '';
+              if (layerName === 'mask_layer') return;
+
+              // Params holen
+              var params = (typeof source.getParams === 'function') ? source.getParams() : null;
+              var layerParam = params && params.LAYERS ? params.LAYERS : '';
+              if (!layerParam || layerParam === 'mask_layer') return;
+
+              // Duplikat-Check per LAYERS-Param
+              if (processedLayerParams[layerParam]) return;
+              processedLayerParams[layerParam] = true;
+
+              // Custom-WMS-Layer Marker
+              if (layer.get('tnet_wms_custom')) return;
+
+              var name = layer.get('name') || layer.get('title') || layerParam;
+              var title = layer.get('title') || layer.get('name') || layerParam;
+
+              wmsLayers.push({
+                source: source,
+                title: title,
+                name: name,
+                isCustom: false
+              });
+              TnetLog.log('[WMS-GFI] Framework-Layer:', title, '| LAYERS:', layerParam);
+            });
+          } catch(e) {
+            TnetLog.warn('[WMS-GFI] Fehler beim Scannen der Karten-Layer:', e);
+          }
+        }
+
+        TnetLog.log('[WMS-GFI] Gesamt WMS-Layer zum Abfragen:', wmsLayers.length,
+          '(Custom:', wmsLayers.filter(function(l){return l.isCustom;}).length,
+          ', Framework:', wmsLayers.filter(function(l){return !l.isCustom;}).length + ')');
+
+        if (wmsLayers.length === 0) {
+          TnetLog.log('[WMS-GFI] Keine abfragbaren WMS-Layer gefunden → Abbruch');
+          return;
+        }
+
+        var coordinate = evt.coordinate;
+        var viewResolution = map.getView().getResolution();
+        var projection = map.getView().getProjection();
+        var requests = [];
+        var features = [];
+
+      wmsLayers.forEach(function(entry) {
+        var source = entry.source;
+        var layerTitle = entry.title;
+
+        // Format-Fallback-Kette: JSON → GML → HTML → text/plain
+        var formats = [
+          'application/json',
+          'application/geojson',
+          'application/vnd.ogc.gml',
+          'text/html',
+          'text/plain'
+        ];
+
+        var tryFormat = function(formatIndex) {
+          if (formatIndex >= formats.length) {
+            TnetLog.warn('[WMS-GFI] Alle Formate fehlgeschlagen für', layerTitle);
+            return Promise.resolve();
+          }
+          var format = formats[formatIndex];
+          var url = source.getFeatureInfoUrl(
+            coordinate, viewResolution, projection,
+            { 'INFO_FORMAT': format, 'FEATURE_COUNT': 10 }
+          );
+          if (!url) {
+            TnetLog.warn('[WMS-GFI] getFeatureInfoUrl liefert null für', layerTitle, format);
+            return Promise.resolve();
+          }
+
+          // QUERY_LAYERS ergänzen falls fehlend
+          if (url.indexOf('QUERY_LAYERS') === -1) {
+            var params = source.getParams();
+            if (params && params.LAYERS) {
+              url += '&QUERY_LAYERS=' + params.LAYERS;
+            }
+          }
+
+          // Proxy nutzen für CORS (externe URLs)
+          var originalUrl = url;
+          if (url.indexOf(location.origin) === -1 && url.indexOf(getAppRoot() + '/') !== 0) {
+            url = getAppRoot() + '/wmsproxy.php?url=' + encodeURIComponent(url);
+          }
+
+          TnetLog.log('[WMS-GFI] Request:', layerTitle, '| Format:', format, '| URL:', url.substring(0, 120) + '...');
+
+          return fetch(url)
+            .then(function(r) {
+              TnetLog.log('[WMS-GFI] Response:', layerTitle, '| Status:', r.status, '| ContentType:', r.headers.get('Content-Type'));
+              return r.text();
+            })
+            .then(function(text) {
+              if (!text || text.length === 0) {
+                TnetLog.log('[WMS-GFI] Leere Response für', layerTitle, format);
+                return tryFormat(formatIndex + 1);
+              }
+
+              TnetLog.log('[WMS-GFI] Response-Text (' + text.length + ' bytes):', text.substring(0, 200));
+
+              // ServiceException → nächstes Format
+              if (text.indexOf('ServiceException') > -1) {
+                TnetLog.log('[WMS-GFI] ServiceException für', layerTitle, format);
+                return tryFormat(formatIndex + 1);
+              }
+
+              // JSON parsen
+              if (format.indexOf('json') > -1) {
+                try {
+                  var data = JSON.parse(text);
+                  if (data.features && data.features.length > 0) {
+                    var normalized = data.features.map(function(f) {
+                      return { properties: f.properties || f.attributes || {} };
+                    });
+                    features.push({ layer: layerTitle, data: normalized });
+                    TnetLog.log('[WMS-GFI] JSON Features gefunden:', normalized.length, 'für', layerTitle);
+                    return;
+                  } else {
+                    TnetLog.log('[WMS-GFI] JSON ok aber keine Features für', layerTitle);
+                  }
+                } catch(e) {
+                  TnetLog.log('[WMS-GFI] JSON-Parse-Fehler für', layerTitle, e.message);
+                }
+              }
+
+              // GML/XML parsen
+              if (text.indexOf('<?xml') === 0 || text.indexOf('<') === 0) {
+                try {
+                  var parser = new DOMParser();
+                  var xmlDoc = parser.parseFromString(text, 'text/xml');
+                  // gml:featureMember und featureMember (ohne Namespace) prüfen
+                  var featureMembers = xmlDoc.getElementsByTagName('gml:featureMember');
+                  if (featureMembers.length === 0) featureMembers = xmlDoc.getElementsByTagName('featureMember');
+                  if (featureMembers.length > 0) {
+                    var xmlFeatures = [];
+                    for (var i = 0; i < featureMembers.length; i++) {
+                      var attrs = {};
+                      var featureNode = featureMembers[i].children[0];
+                      if (featureNode) {
+                        for (var j = 0; j < featureNode.children.length; j++) {
+                          var child = featureNode.children[j];
+                          var tagName = child.localName || child.tagName;
+                          if (child.textContent && tagName !== 'boundedBy') {
+                            attrs[tagName] = child.textContent;
+                          }
+                        }
+                      }
+                      if (Object.keys(attrs).length > 0) xmlFeatures.push({ properties: attrs });
+                    }
+                    if (xmlFeatures.length > 0) {
+                      features.push({ layer: layerTitle, data: xmlFeatures });
+                      TnetLog.log('[WMS-GFI] GML Features gefunden:', xmlFeatures.length, 'für', layerTitle);
+                      return;
+                    }
+                  }
+                } catch(e) {
+                  TnetLog.log('[WMS-GFI] GML-Parse-Fehler für', layerTitle, e.message);
+                }
+              }
+
+              // HTML-Tabelle parsen
+              if (format.indexOf('html') > -1 && text.indexOf('<') > -1) {
+                var tempDiv = document.createElement('div');
+                tempDiv.innerHTML = text;
+                var tables = tempDiv.getElementsByTagName('table');
+                if (tables.length > 0) {
+                  var attrs = {};
+                  var rows = tables[0].getElementsByTagName('tr');
+                  for (var i = 0; i < rows.length; i++) {
+                    var cells = rows[i].getElementsByTagName('td');
+                    if (cells.length >= 2) {
+                      attrs[cells[0].textContent.trim()] = cells[1].textContent.trim();
+                    }
+                    // th/td Kombination
+                    var ths = rows[i].getElementsByTagName('th');
+                    var tds = rows[i].getElementsByTagName('td');
+                    if (ths.length >= 1 && tds.length >= 1) {
+                      attrs[ths[0].textContent.trim()] = tds[0].textContent.trim();
+                    }
+                  }
+                  if (Object.keys(attrs).length > 0) {
+                    features.push({ layer: layerTitle, data: [{ properties: attrs }] });
+                    TnetLog.log('[WMS-GFI] HTML-Tabelle Features gefunden für', layerTitle);
+                    return;
+                  }
+                }
+                // HTML ohne Tabelle → als Raw-HTML anzeigen
+                var bodyContent = text.replace(/<\/?html[^>]*>/gi, '').replace(/<\/?body[^>]*>/gi, '').replace(/<\/?head[^>]*>/gi, '').trim();
+                if (bodyContent.length > 10 && bodyContent.indexOf('ServiceException') === -1) {
+                  features.push({ layer: layerTitle, rawHtml: bodyContent });
+                  TnetLog.log('[WMS-GFI] HTML-Rohinhalt für', layerTitle);
+                  return;
+                }
+              }
+
+              // text/plain parsen (MapServer key = 'value')
+              if (format === 'text/plain' && text.indexOf('<?xml') !== 0) {
+                var attrs = {};
+                var lines = text.split('\n');
+                for (var i = 0; i < lines.length; i++) {
+                  var line = lines[i].trim();
+                  if (line && line.indexOf('=') > -1 && !line.match(/^(Layer|Feature|GetFeatureInfo)/)) {
+                    var parts = line.split('=');
+                    var key = parts[0].trim();
+                    var value = parts.slice(1).join('=').trim().replace(/^'|'$/g, '');
+                    if (key && value) attrs[key] = value;
+                  }
+                }
+                if (Object.keys(attrs).length > 0) {
+                  features.push({ layer: layerTitle, data: [{ properties: attrs }] });
+                  TnetLog.log('[WMS-GFI] text/plain Features gefunden für', layerTitle);
+                  return;
+                }
+              }
+
+              TnetLog.log('[WMS-GFI] Keine Features extrahiert aus', format, 'für', layerTitle);
+              return tryFormat(formatIndex + 1);
+            })
+            .catch(function(err) {
+              TnetLog.warn('[WMS-GFI] Fetch-Fehler für', layerTitle, format, err.message || err);
+              return tryFormat(formatIndex + 1);
+            });
+        };
+
+        requests.push(tryFormat(0));
+      });
+
+      // Alle Requests abwarten, dann Ergebnisse anzeigen
+      if (requests.length > 0) {
+        Promise.all(requests).then(function() {
+          TnetLog.log('[WMS-GFI] Alle Requests fertig | Features:', features.length);
+          if (features.length > 0) {
+            _showWmsInfoResults(features, coordinate);
+          }
+        });
+      }
+
+      } catch(gfiErr) {
+        TnetLog.error('[WMS-GFI] Unerwarteter Fehler im singleclick-Handler:', gfiErr);
+      }
+    });
+  }
+
+  /**
+   * Entfernt alle "Keine Objekte/Ergebnisse"-Meldungen aus dem Container.
+   * Bereinigt: .noInfoResults, .njs-info-no-results Elemente UND
+   * lose Textknoten die "Keine" enthalten.
+   */
+  function _removeNoResultsMessages(container) {
+    // Element-basierte Meldungen
+    var noResults = container.querySelectorAll('.noInfoResults, .njs-info-no-results');
+    noResults.forEach(function(n) { n.remove(); });
+    // Textknoten mit "Keine Ergebnisse" oder ähnlich
+    var childNodes = container.childNodes;
+    for (var n = childNodes.length - 1; n >= 0; n--) {
+      if (childNodes[n].nodeType === 3 && childNodes[n].textContent.indexOf('Keine') > -1) {
+        container.removeChild(childNodes[n]);
+      }
+    }
+  }
+
+  /**
+   * MutationObserver: Überwacht den Info-Container nach der WMS-Injection.
+   * Falls das Framework nachträglich "Keine Objekte gefunden" schreibt
+   * (Race-Condition), wird die Meldung sofort entfernt — aber NUR wenn
+   * WMS-Ergebnisse (.wms-gfi-result) im Container vorhanden sind.
+   * Disconnected automatisch nach 5 Sekunden.
+   */
+  function _watchForNoResultsMessages(container) {
+    if (typeof MutationObserver === 'undefined') return;
+    var observer = new MutationObserver(function(mutations) {
+      // Nur handeln wenn WMS-Ergebnisse vorhanden sind
+      if (!container.querySelector('.wms-gfi-result')) return;
+      var hasKeineText = false;
+      for (var i = 0; i < mutations.length; i++) {
+        var added = mutations[i].addedNodes;
+        for (var j = 0; j < added.length; j++) {
+          var node = added[j];
+          if (node.nodeType === 3 && node.textContent.indexOf('Keine') > -1) {
+            hasKeineText = true;
+          } else if (node.nodeType === 1 && (
+            node.classList.contains('noInfoResults') ||
+            node.classList.contains('njs-info-no-results') ||
+            (node.textContent && node.textContent.indexOf('Keine Objekte') > -1 && !node.querySelector('.dijitTitlePane'))
+          )) {
+            hasKeineText = true;
+          }
+        }
+      }
+      if (hasKeineText) {
+        TnetLog.log('[WMS-GFI] Observer: "Keine Objekte" nachträglich entfernt');
+        _removeNoResultsMessages(container);
+      }
+    });
+    observer.observe(container, { childList: true, subtree: false });
+    // Auto-Disconnect nach 5 Sekunden
+    setTimeout(function() { observer.disconnect(); }, 5000);
+  }
+
+  /**
+   * Ergebnisse im Objektinfo-Panel anzeigen.
+   * Wartet bis das Framework seine Ergebnisse geschrieben hat,
+   * dann hängt unsere WMS-GFI-Ergebnisse an.
+   */
+  function _showWmsInfoResults(features, coordinate) {
+    TnetLog.log('[WMS-GFI] Ergebnisse anzeigen:', features.length, 'Layer');
+
+    // Info-Panel sichtbar machen — NICHT InitInfoFloatingWindow
+    // (das löst im Framework ein erneutes Clearing aus).
+    // Stattdessen Panel direkt per Dijit/DOM öffnen.
+    _ensureInfoPaneVisible();
+
+    // Ergebnisse per Polling einsetzen: warten bis Framework fertig ist
+    var attempts = 0;
+    var maxAttempts = 20;
+    var injected = false;
+
+    function _tryInject() {
+      attempts++;
+      var container = document.getElementById('njs_info_pane_content');
+      if (!container) {
+        if (attempts < maxAttempts) setTimeout(_tryInject, 200);
+        else TnetLog.warn('[WMS-GFI] njs_info_pane_content nach', maxAttempts, 'Versuchen nicht gefunden');
+        return;
+      }
+      if (injected) return;
+
+      // Prüfe ob Framework seine Arbeit beendet hat:
+      // - Hat TitlePanes (Framework-Ergebnisse), ODER
+      // - Zeigt "Keine Ergebnisse" / ist leer, ODER
+      // - Nach 1.5 Sekunden → erzwingen
+      var hasTitlePanes = container.querySelector('.dijitTitlePane');
+      var hasNoResults = container.textContent.indexOf('Keine') > -1 ||
+                         container.querySelector('.noInfoResults');
+      var forceInject = (attempts >= 8); // 8 × 200ms = 1.6s
+
+      if (!hasTitlePanes && !hasNoResults && !forceInject) {
+        setTimeout(_tryInject, 200);
+        return;
+      }
+
+      injected = true;
+      TnetLog.log('[WMS-GFI] Injiziere Ergebnisse (Versuch ' + attempts + ')');
+
+      // "Keine Ergebnisse" Meldungen des Frameworks entfernen
+      _removeNoResultsMessages(container);
+
+      // MutationObserver: Framework kann "Keine Objekte" auch NACH unserer
+      // Injection schreiben (asynchrone Race-Condition).
+      // Observer entfernt solche Meldungen solange WMS-Ergebnisse vorhanden sind.
+      _watchForNoResultsMessages(container);
+
+      features.forEach(function(item) {
+        // Raw HTML Ergebnisse
+        if (item.rawHtml) {
+          _createInfoTitlePane(container, item.layer, item.rawHtml);
+          return;
+        }
+
+        item.data.forEach(function(feature, featIdx) {
+          var props = feature.properties || {};
+          var propKeys = Object.keys(props).filter(function(k) {
+            return k !== 'geometry' && k !== 'boundedBy' && props[k] !== null && props[k] !== '';
+          });
+          if (propKeys.length === 0) return;
+
+          // Titel: Layer-Name + Feature-Index
+          var title = item.layer;
+          if (item.data.length > 1) title += ' (' + (featIdx + 1) + '/' + item.data.length + ')';
+
+          // Attribut-Tabelle
+          var tableHtml = '<table class="wms-gfi-table">';
+          propKeys.forEach(function(key) {
+            var val = String(props[key]);
+            if (val.match(/^https?:\/\//)) {
+              val = '<a href="' + _escHtml(val) + '" target="_blank" rel="noopener">' + _escHtml(val) + '</a>';
+            } else {
+              val = _escHtml(val);
+            }
+            tableHtml += '<tr><td class="wms-gfi-key">' + _escHtml(key) + '</td>';
+            tableHtml += '<td class="wms-gfi-val">' + val + '</td></tr>';
+          });
+          tableHtml += '</table>';
+
+          _createInfoTitlePane(container, title, tableHtml);
+        });
+      });
+    }
+
+    // Erste Injektion nach 400ms (Framework hat sein Clearing begonnen)
+    setTimeout(_tryInject, 400);
+  }
+
+  /**
+   * Info-Panel sichtbar machen ohne Framework-Clearing auszulösen.
+   * Nutzt dijit.byId (falls verfügbar) oder direkten DOM-Zugriff.
+   */
+  function _ensureInfoPaneVisible() {
+    // Versuch 1: dijit FloatingPane öffnen
+    try {
+      if (typeof dijit !== 'undefined' && dijit.byId) {
+        var widget = dijit.byId('njs_info_pane');
+        if (widget) {
+          if (widget.domNode) {
+            widget.domNode.style.visibility = 'visible';
+            widget.domNode.style.display = 'block';
+          }
+          if (typeof widget.show === 'function') widget.show();
+          TnetLog.log('[WMS-GFI] Info-Panel per dijit sichtbar gemacht');
+          return;
+        }
+      }
+    } catch(e) {}
+
+    // Versuch 2: DOM-Element direkt zeigen
+    var pane = document.getElementById('njs_info_pane');
+    if (pane) {
+      pane.style.visibility = 'visible';
+      pane.style.display = 'block';
+      TnetLog.log('[WMS-GFI] Info-Panel per DOM sichtbar gemacht');
+    }
+  }
+
+  /**
+   * Erstellt ein aufklappbares TitlePane für ein GFI-Ergebnis.
+   * Nutzt Dojo dijit/TitlePane falls verfügbar, sonst HTML-Fallback.
+   */
+  function _createInfoTitlePane(container, title, contentHtml) {
+    var wrapper = document.createElement('div');
+    wrapper.className = 'wms-gfi-result';
+
+    // Dojo TitlePane (gleich wie Framework)
+    if (typeof dijit !== 'undefined' && dijit.TitlePane) {
+      try {
+        var contentDiv = document.createElement('div');
+        contentDiv.innerHTML = contentHtml;
+        container.appendChild(wrapper);
+        var tp = new dijit.TitlePane({
+          title: '<span class="wms-gfi-title-icon">WMS</span> ' + _escHtml(title),
+          content: contentDiv,
+          open: true
+        });
+        wrapper.appendChild(tp.domNode);
+        tp.startup();
+        TnetLog.log('[WMS-GFI] TitlePane erstellt:', title);
+        return;
+      } catch(e) {
+        TnetLog.warn('[WMS-GFI] TitlePane Fehler, Fallback:', e);
+      }
+    }
+
+    // HTML-Fallback
+    wrapper.innerHTML =
+      '<details class="wms-gfi-details" open>' +
+      '<summary class="wms-gfi-summary"><span class="wms-gfi-title-icon">WMS</span> ' + _escHtml(title) + '</summary>' +
+      '<div class="wms-gfi-content">' + contentHtml + '</div>' +
+      '</details>';
+    container.appendChild(wrapper);
+  }
+
+  // ===== SYNC MIT DARGESTELLTE THEMEN =====
+
+  // Event-Listener: Layer wurde aus "Dargestellte Themen" entfernt
+  document.addEventListener('tnet-wms-layer-removed', function(e) {
+    var layerName = e.detail && e.detail.name;
+    if (!layerName) return;
+    TnetLog.log('[WMS-Panel] tnet-wms-layer-removed empfangen:', layerName);
+    // Aus interner Liste entfernen
+    var idx = -1;
+    for (var i = 0; i < _addedLayers.length; i++) {
+      if (_addedLayers[i].name === layerName) { idx = i; break; }
+    }
+    if (idx !== -1) {
+      _addedLayers.splice(idx, 1);
+      _renderAddedLayers();
+    }
+    // Checkbox IMMER aktualisieren (auch wenn Layer nicht in _addedLayers war)
+    _updateLayerListCheckbox(layerName, false);
+    TnetLog.log('[WMS-Panel] Layer extern entfernt:', layerName, '| _addedLayers:', _addedLayers.length);
+  });
+
+  // ===== INITIALISIERUNG =====
+
+  function _init() {
+    _loadWmsConfig().then(function() {
+      _initPresets();
+      _initFilter();
+      // GetFeatureInfo-Handler registrieren (wartet auf Karte)
+      _setupWmsGetFeatureInfo();
+      TnetLog.log('[WMS-Panel] Initialisiert');
+    });
+  }
+
+  // WMS-Presets aus tnet-global-config.json5 laden
+  function _loadWmsConfig() {
+    if (_configLoaded || typeof JSON5 === 'undefined') return Promise.resolve();
+    var paths = [
+      getAppRoot() + '/tnet/config/tnet-global-config.json5',
+      getAppRoot() + '/tnet/tnet-global-config.json5',
+      '../tnet/config/tnet-global-config.json5'
+    ];
+    function tryPath(i) {
+      if (i >= paths.length) return Promise.resolve();
+      return fetch(paths[i])
+        .then(function(r) { if (!r.ok) throw new Error(r.status); return r.text(); })
+        .then(function(t) {
+          var parsed = JSON5.parse(t);
+          if (parsed && parsed.wmsPanel && Array.isArray(parsed.wmsPanel.presets) && parsed.wmsPanel.presets.length) {
+            WMS_PRESETS = parsed.wmsPanel.presets;
+            TnetLog.log('[WMS-Panel] Presets aus Config geladen:', WMS_PRESETS.length, 'Dienste');
+          }
+          _configLoaded = true;
+        })
+        .catch(function() { return tryPath(i + 1); });
+    }
+    return tryPath(0);
+  }
+
+  // Auch auf tnet-app-ready reagieren (Karte ist dann sicher bereit)
+  document.addEventListener('tnet-app-ready', function() {
+    if (!_gfiHandlerRegistered) {
+      TnetLog.log('[WMS-GFI] tnet-app-ready empfangen — versuche Handler-Registrierung');
+      _setupWmsGetFeatureInfo();
+    }
+  }, { once: true });
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', _init);
+  } else {
+    _init();
+  }
+
+  // Globale Referenz für Drag/Resize-Erweiterung
+  window._savedWmsDockedWidth = 400;
+  window.isWmsPanelDocked = false;
+
+  // ===== BRIDGE-API: Exportierte Funktionen für tnet-info-bridge.js =====
+
+  /**
+   * Liefert alle sichtbaren Custom-WMS-Layer (vom Benutzer hinzugefügt).
+   * Wird von der Info-Bridge aufgerufen.
+   * @returns {Array<{source: ol.source.TileWMS, title: string, name: string}>}
+   */
+  function _getVisibleCustomLayers() {
+    var result = [];
+    _addedLayers.forEach(function (entry) {
+      if (entry.olLayer && entry.olLayer.getVisible()) {
+        var source = entry.olLayer.getSource();
+        if (source && typeof source.getFeatureInfoUrl === 'function') {
+          result.push({
+            source: source,
+            title: entry.title || entry.name,
+            name: entry.name,
+            isCustom: true
+          });
+        }
+      }
+    });
+    return result;
+  }
+
+  /**
+   * Führt GFI-Abfragen für die übergebenen Custom-WMS-Layer aus und
+   * zeigt Ergebnisse im Info-Panel an.
+   * Wird von der Info-Bridge aufgerufen.
+   * @param {ol.MapBrowserEvent} evt - Das Click-Event
+   * @param {Array} customLayers - Ergebnis von getVisibleCustomLayers()
+   * @param {ol.Map} map - Die Karte
+   */
+  function _queryCustomLayersForBridge(evt, customLayers, map) {
+    if (!customLayers || customLayers.length === 0) return;
+
+    var coordinate = evt.coordinate;
+    var viewResolution = map.getView().getResolution();
+    var projection = map.getView().getProjection();
+    var features = [];
+    var requests = [];
+
+    // Format-Fallback-Kette (identisch mit dem Haupt-Handler)
+    var formats = [
+      'application/json',
+      'application/geojson',
+      'application/vnd.ogc.gml',
+      'text/html',
+      'text/plain'
+    ];
+
+    customLayers.forEach(function (entry) {
+      var source = entry.source;
+      var layerTitle = entry.title;
+
+      var tryFormat = function (formatIndex) {
+        if (formatIndex >= formats.length) {
+          TnetLog.warn('[WMS-GFI] Alle Formate fehlgeschlagen für', layerTitle);
+          return Promise.resolve();
+        }
+        var format = formats[formatIndex];
+        var url = source.getFeatureInfoUrl(
+          coordinate, viewResolution, projection,
+          { 'INFO_FORMAT': format, 'FEATURE_COUNT': 10 }
+        );
+        if (!url) {
+          TnetLog.warn('[WMS-GFI] getFeatureInfoUrl liefert null für', layerTitle, format);
+          return Promise.resolve();
+        }
+
+        // QUERY_LAYERS ergänzen falls fehlend
+        if (url.indexOf('QUERY_LAYERS') === -1) {
+          var params = source.getParams();
+          if (params && params.LAYERS) {
+            url += '&QUERY_LAYERS=' + params.LAYERS;
+          }
+        }
+
+        // Proxy für CORS
+        if (url.indexOf(location.origin) === -1 && url.indexOf(getAppRoot() + '/') !== 0) {
+          url = getAppRoot() + '/wmsproxy.php?url=' + encodeURIComponent(url);
+        }
+
+        TnetLog.log('[WMS-GFI:Bridge] Request:', layerTitle, '| Format:', format);
+
+        return fetch(url)
+          .then(function (r) { return r.text(); })
+          .then(function (text) {
+            if (!text || text.length === 0) return tryFormat(formatIndex + 1);
+            if (text.indexOf('ServiceException') > -1) return tryFormat(formatIndex + 1);
+
+            // JSON
+            if (format.indexOf('json') > -1) {
+              try {
+                var data = JSON.parse(text);
+                if (data.features && data.features.length > 0) {
+                  features.push({
+                    layer: layerTitle,
+                    data: data.features.map(function (f) {
+                      return { properties: f.properties || f.attributes || {} };
+                    })
+                  });
+                  return;
+                }
+              } catch (e) { /* weiter */ }
+            }
+
+            // GML/XML
+            if (text.indexOf('<') === 0 || text.indexOf('<?xml') === 0) {
+              try {
+                var xmlDoc = new DOMParser().parseFromString(text, 'text/xml');
+                var fm = xmlDoc.getElementsByTagName('gml:featureMember');
+                if (fm.length === 0) fm = xmlDoc.getElementsByTagName('featureMember');
+                if (fm.length > 0) {
+                  var xmlFeatures = [];
+                  for (var i = 0; i < fm.length; i++) {
+                    var attrs = {};
+                    var fn = fm[i].children[0];
+                    if (fn) {
+                      for (var j = 0; j < fn.children.length; j++) {
+                        var c = fn.children[j];
+                        var tag = c.localName || c.tagName;
+                        if (c.textContent && tag !== 'boundedBy') attrs[tag] = c.textContent;
+                      }
+                    }
+                    if (Object.keys(attrs).length > 0) xmlFeatures.push({ properties: attrs });
+                  }
+                  if (xmlFeatures.length > 0) {
+                    features.push({ layer: layerTitle, data: xmlFeatures });
+                    return;
+                  }
+                }
+              } catch (e) { /* weiter */ }
+            }
+
+            // HTML
+            if (format.indexOf('html') > -1 && text.indexOf('<') > -1) {
+              var tempDiv = document.createElement('div');
+              tempDiv.innerHTML = text;
+              var tables = tempDiv.getElementsByTagName('table');
+              if (tables.length > 0) {
+                var attrs = {};
+                var rows = tables[0].getElementsByTagName('tr');
+                for (var i = 0; i < rows.length; i++) {
+                  var cells = rows[i].getElementsByTagName('td');
+                  if (cells.length >= 2) attrs[cells[0].textContent.trim()] = cells[1].textContent.trim();
+                  var ths = rows[i].getElementsByTagName('th');
+                  var tds = rows[i].getElementsByTagName('td');
+                  if (ths.length >= 1 && tds.length >= 1) attrs[ths[0].textContent.trim()] = tds[0].textContent.trim();
+                }
+                if (Object.keys(attrs).length > 0) {
+                  features.push({ layer: layerTitle, data: [{ properties: attrs }] });
+                  return;
+                }
+              }
+              var bodyContent = text.replace(/<\/?html[^>]*>/gi, '').replace(/<\/?body[^>]*>/gi, '').replace(/<\/?head[^>]*>/gi, '').trim();
+              if (bodyContent.length > 10 && bodyContent.indexOf('ServiceException') === -1) {
+                features.push({ layer: layerTitle, rawHtml: bodyContent });
+                return;
+              }
+            }
+
+            // text/plain
+            if (format === 'text/plain' && text.indexOf('<?xml') !== 0) {
+              var attrs = {};
+              text.split('\n').forEach(function (line) {
+                line = line.trim();
+                if (line && line.indexOf('=') > -1 && !line.match(/^(Layer|Feature|GetFeatureInfo)/)) {
+                  var parts = line.split('=');
+                  var key = parts[0].trim();
+                  var value = parts.slice(1).join('=').trim().replace(/^'|'$/g, '');
+                  if (key && value) attrs[key] = value;
+                }
+              });
+              if (Object.keys(attrs).length > 0) {
+                features.push({ layer: layerTitle, data: [{ properties: attrs }] });
+                return;
+              }
+            }
+
+            return tryFormat(formatIndex + 1);
+          })
+          .catch(function (err) {
+            TnetLog.warn('[WMS-GFI:Bridge] Fetch-Fehler:', layerTitle, err.message || err);
+            return tryFormat(formatIndex + 1);
+          });
+      };
+
+      requests.push(tryFormat(0));
+    });
+
+    if (requests.length > 0) {
+      Promise.all(requests).then(function () {
+        TnetLog.log('[WMS-GFI:Bridge] Alle Custom-Requests fertig | Features:', features.length);
+        if (features.length > 0) {
+          _showWmsInfoResults(features, coordinate);
+        }
+      });
+    }
+  }
+
+  // ── Export für Info-Bridge ──
+  window.TnetWmsPanel = window.TnetWmsPanel || {};
+  window.TnetWmsPanel.getVisibleCustomLayers = _getVisibleCustomLayers;
+  window.TnetWmsPanel.queryCustomLayers = _queryCustomLayersForBridge;
+
+})();

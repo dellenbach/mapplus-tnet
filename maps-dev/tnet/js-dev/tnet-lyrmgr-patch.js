@@ -1,1 +1,941 @@
-(function(){"use strict";var l="[LyrMgr-Nested]",p=!1,j={},x=!1,_=!1;function K(){try{if(window.__tnetLMFlags&&typeof window.__tnetLMFlags.useLegacyNestedHierarchyStyle=="boolean")return!!window.__tnetLMFlags.useLegacyNestedHierarchyStyle;if(window.TnetGlobalConfig&&window.TnetGlobalConfig.layerManager){var n=window.TnetGlobalConfig.layerManager;return!!(n.useLegacyNestedHierarchyStyle||n.useExtendedLegacyHierarchy||n.legacyNestedHierarchyStyle)}}catch{}return!1}function A(){if(!document.body)return!1;var n=K();return n?document.body.classList.add("tnet-lm-legacy-nested"):document.body.classList.remove("tnet-lm-legacy-nested"),!0}function ie(){var n=0,c=setInterval(function(){n++,A(),n>150&&clearInterval(c),window.__tnetLMFlags&&typeof window.__tnetLMFlags.useLegacyNestedHierarchyStyle=="boolean"&&document.body&&clearInterval(c)},100)}if(window.TnetDumpNestedCss=function(){var n=[],c=document.querySelectorAll("#layer_menu .dijitTitlePane[data-lyrmgr-depth]");return c.forEach(function(d,g){var w=d.querySelector(".dijitTitlePaneTitle"),C=d.querySelector(".appendtitle"),v=d.querySelector(".dijitTitlePaneContentOuter"),h=w?window.getComputedStyle(w):null;n.push({i:g,depth:d.getAttribute("data-lyrmgr-depth")||"-",id:d.id||"-",label:C?(C.textContent||"").trim():"-",openClass:d.classList.contains("lyrmgr-open")?"open":"closed",bg:h?h.backgroundColor:"-",titlePaddingLeft:h?h.paddingLeft:"-",titleBorderLeftColor:h?h.borderLeftColor:"-",titleBorderLeftWidth:h?h.borderLeftWidth:"-",borderLeft:window.getComputedStyle(d).borderLeftColor,paneBorderLeftWidth:window.getComputedStyle(d).borderLeftWidth,paneBorderLeftStyle:window.getComputedStyle(d).borderLeftStyle,marginLeft:window.getComputedStyle(d).marginLeft,contentDisplay:v?window.getComputedStyle(v).display:"-",contentHeight:v?window.getComputedStyle(v).height:"-"})}),console.group(l+" CSS-Dump"),console.log("featureFlag(useLegacyNestedHierarchyStyle)=",K()),console.log("bodyClass contains tnet-lm-legacy-nested =",document.body&&document.body.classList.contains("tnet-lm-legacy-nested")),console.table(n),console.groupEnd(),n},typeof njs>"u"){console.error(l,"njs nicht definiert! Patch \xFCbersprungen.");return}A(),document.readyState==="loading"&&document.addEventListener("DOMContentLoaded",A,{once:!0}),ie(),console.log(l,"v26.2 geladen \u2014 installiere Property-Traps");function k(n){if(!(!n||!n.add||n.__tnetDupPatched)){var c=n.add;n.add=function(d){try{return c.call(this,d)}catch(g){if(g&&g.message&&g.message.indexOf("already registered")!==-1)return console.log(l,"  Duplikat-Widget toleriert:",d.id),n.remove(d.id),c.call(this,d);throw g}},n.__tnetDupPatched=!0,console.log(l,"  dijit.registry.add gepatcht (Duplikat-Toleranz)")}}var N=njs.LayerMgr;try{Object.defineProperty(njs,"LayerMgr",{get:function(){return N},set:function(n){N=n,n&&(typeof n=="function"||typeof n=="object")&&!p&&(console.log(l,"njs.LayerMgr gesetzt (Typ: "+typeof n+")"),q(n))},configurable:!0,enumerable:!0})}catch(n){console.warn(l,"defineProperty auf njs.LayerMgr fehlgeschlagen:",n),P();return}N&&(console.log(l,"njs.LayerMgr existiert bereits"),q(N));function q(n){if(window.dijit&&dijit.registry&&k(dijit.registry),n.ClassicLayerCategory&&n.ClassicLayerCategory.prototype){console.log(l,"ClassicLayerCategory existiert bereits"),z(n.ClassicLayerCategory);return}var c;try{Object.defineProperty(n,"ClassicLayerCategory",{get:function(){return c},set:function(d){c=d,window.dijit&&dijit.registry&&k(dijit.registry),d&&typeof d=="function"&&!p&&(console.log(l,"ClassicLayerCategory gesetzt"),z(d))},configurable:!0,enumerable:!0})}catch(d){console.warn(l,"defineProperty auf ClassicLayerCategory fehlgeschlagen:",d),P()}}function z(n){window.dijit&&dijit.registry&&k(dijit.registry),Promise.resolve().then(function(){if(!p){if(!n.prototype||!n.prototype._buildContentSubCat||!n.prototype._build){console.warn(l,"Prototype-Methoden fehlen \u2014 Polling-Fallback"),P();return}p=!0,U(n.prototype)}})}function P(){if(!p){console.log(l,"Starte Polling-Fallback (50ms Intervall)...");var n=0,c=setInterval(function(){if(n++,p||n>200){clearInterval(c),p||console.error(l,"Timeout nach 10s \u2014 ClassicLayerCategory nicht gefunden");return}try{var d=njs.LayerMgr;d&&d.ClassicLayerCategory&&d.ClassicLayerCategory.prototype&&d.ClassicLayerCategory.prototype._buildContentSubCat&&(p=!0,clearInterval(c),console.log(l,"Polling: ClassicLayerCategory gefunden ("+n*50+"ms)"),U(d.ClassicLayerCategory.prototype))}catch{}},50)}}function U(n){console.log(l,"Wende Patches an...");function c(e){try{return!window.njs||!njs.AppManager||!njs.AppManager.LyrMgr?null:njs.AppManager.LyrMgr[e.id_lyr_mgr]||null}catch{return null}}function d(e){if(!e)return!1;var t=window.dijit&&e.name?dijit.byId(e.name):null;return t&&typeof t.get=="function"?!!t.get("checked"):!!e.visible}function g(e,t){!e||!t||(e.arLayers&&e.arLayers.length&&e.arLayers.forEach(function(r){t.push(r)}),e.arCategories&&e.arCategories.length&&e.arCategories.forEach(function(r){g(r,t)}))}function w(e,t){var r=[];g(e,r);for(var i=0,o=0;o<r.length;o++)t&&d(r[o])&&i++;return{checked:i,total:r.length}}function C(e,t){if(!e)return null;if(e.id===t)return e;if(!e.arCategories||!e.arCategories.length)return null;for(var r=0;r<e.arCategories.length;r++){var i=C(e.arCategories[r],t);if(i)return i}return null}function v(e,t){if(!t)return null;var r=c(e);if(r&&r.arCategories&&r.arCategories.length)for(var i=0;i<r.arCategories.length;i++){var o=C(r.arCategories[i],t);if(o)return o}return C(e,t)}function h(e,t){if(!e||!t)return null;if(e.arLayers&&e.arLayers.length){for(var r=0;r<e.arLayers.length;r++)if(e.arLayers[r]&&e.arLayers[r].name===t)return e.arLayers[r]}if(e.arCategories&&e.arCategories.length)for(var i=0;i<e.arCategories.length;i++){var o=h(e.arCategories[i],t);if(o)return o}return null}function ne(e,t){var r=c(e);if(r&&r.arCategories&&r.arCategories.length)for(var i=0;i<r.arCategories.length;i++){var o=h(r.arCategories[i],t);if(o)return o}return h(e,t)}function B(e,t,r){if(!e||!t||!r)return!1;if(e.arLayers&&e.arLayers.length){for(var i=0;i<e.arLayers.length;i++)if(e.arLayers[i]&&e.arLayers[i].name===t)return r.unshift(e),!0}if(e.arCategories&&e.arCategories.length){for(var o=0;o<e.arCategories.length;o++)if(B(e.arCategories[o],t,r))return r.unshift(e),!0}return!1}function ae(e,t){var r=[],i=c(e);if(i&&i.arCategories&&i.arCategories.length){for(var o=0;o<i.arCategories.length;o++)if(B(i.arCategories[o],t,r))return r}return B(e,t,r),r}function J(e){if(!(!e||typeof e.removeLayer!="function"))try{e.removeLayer()}catch{}}function b(e,t){if(!(!e||!e.domNode||!window.dojo)){var r=e.domNode,i=t==="all"||t==="mixed";x=!0;try{e.set("checked",i)}finally{x=!1}dojo.removeClass(r,"tmpdirCheckBox"),dojo.removeClass(r,"tmpdirCheckBoxMixed"),dojo.removeClass(r,"dijitMixed"),dojo.removeClass(r,"dijitCheckBoxChecked"),dojo.removeClass(r,"dijitChecked"),dojo.addClass(r,"dijitCheckBox"),t==="all"?(dojo.addClass(r,"dijitCheckBoxChecked"),dojo.addClass(r,"dijitChecked")):t==="mixed"&&(dojo.addClass(r,"tmpdirCheckBox"),dojo.addClass(r,"tmpdirCheckBoxMixed"),dojo.addClass(r,"dijitMixed"))}}function I(e){var t=w(e,!0);if(t.total>0)return t.checked===0?"none":t.checked===t.total?"all":"mixed";if(e&&e.arCategories&&e.arCategories.length){for(var r=!1,i=!0,o=0;o<e.arCategories.length;o++){var f=I(e.arCategories[o]);if(f==="mixed")return"mixed";f==="all"?r=!0:(i=!1,f!=="none"&&(r=!0))}return i?"all":r?"mixed":"none"}return e&&e.checkBoxAll&&typeof e.checkBoxAll.get=="function"&&e.checkBoxAll.get("checked")?"all":"none"}function O(e){e&&(e.arCategories&&e.arCategories.length&&e.arCategories.forEach(function(t){O(t)}),e.checkBoxAll&&b(e.checkBoxAll,I(e)))}function T(e){var t=c(e);if(t&&t.arCategories&&t.arCategories.length){t.arCategories.forEach(function(r){O(r)});return}O(e)}function oe(e){!window.njs||!njs.AppManager||(njs.AppManager.LyrMgr&&njs.AppManager.LyrMgr[e.id_lyr_mgr]&&njs.AppManager.LyrMgr[e.id_lyr_mgr].mod_sortlayers!=null&&njs.AppManager.LyrMgr[e.id_lyr_mgr].updateSortLyrMod(),njs.AppManager.Tools&&njs.AppManager.Tools.TrackBookmark&&njs.AppManager.updateMapStatusUrl(njs.AppManager.LyrMgr[e.id_lyr_mgr].targetMap[0]))}function Q(e,t){var r=e&&e.id_lyr_mgr?String(e.id_lyr_mgr):"default";return r+"::"+String(t||"")}function se(e,t){if(!(!t||!t.length))for(var r=0;r<t.length;r++)!t[r]||!t[r].id||delete j[Q(e,t[r].id)]}function le(e){var t=[],r={};return g(e,t),t.forEach(function(i){i&&i.name&&(r[i.name]=d(i))}),r}function X(e,t,r,i){var o=[];g(t,o),_=!0;try{o.forEach(function(f){if(!(!f||!f.name)){var u=i;r&&Object.prototype.hasOwnProperty.call(r,f.name)&&(u=!!r[f.name]);var E=d(f);E!==u&&e.switchLayer(f.name,u),u||J(f)}})}finally{_=!1}}var de=n.Init;n.Init=function(e){de.call(this,e),e&&e.nested&&(this.nested=!0)},console.log(l,"  Init gepatcht"),n._build=function(e,t,r){var i=this,o=typeof r=="number"?r:0;if(this._domLocation=e,this._depth=o,t==null&&(t=document.createElement("DIV")),console.log(l,"_build:",this.id,"dom="+e,"layers="+this.arLayers.length,"cats="+this.arCategories.length,"depth="+o),this.arCategories.length>0&&(this._inNestedContext?dojo.removeClass(t,"categoryHeader"):dojo.attr(t,{class:"categoryHeader"})),this._inNestedContext||this._buildContentHeader(e,t),this.arBMap.length>0&&this._buildContentBaseMaps(e,t),this.arLayers.length>0)try{this._buildContentLayers(e,t)}catch(f){console.error(l,"_buildContentLayers-Fehler (Rendering f\xE4hrt fort):",f.message,f)}this.arCategories.length>0&&this.arCategories.forEach(function(f){try{i._buildContentSubCat(f,e,o+1)}catch(u){console.error(l,"_buildContentSubCat-Fehler (cat="+(f&&f.id)+", Rendering f\xE4hrt fort):",u.message,u)}})},console.log(l,"  _build gepatcht"),window.dijit&&dijit.registry&&dijit.registry.add&&!dijit.registry.__tnetDupPatched&&k(dijit.registry);var fe=n._buildContentLayers;n._buildContentLayers=function(e,t){if(fe.call(this,e,t),!(!this._inNestedContext||!t||!t.children))for(var r=typeof this._depth=="number"?this._depth:1,i=0;i<t.children.length;i++){var o=t.children[i];o&&(o.classList&&o.classList.contains("dijitTitlePane")||(o.classList.add("tnet-lm-nested-leaf"),o.setAttribute("data-lyrmgr-parent-depth",String(r))))}},console.log(l,"  _buildContentLayers gepatcht"),n._buildContentSubCat=function(e,t,r){var i=this,o=typeof r=="number"?r:1,f=e.nested||this.nested||this._inNestedContext,u="";if(e.legend){var E=e.legend.link,ce=e.legend.title,ue=e.legend.print,ge=e.legend.extern;u+=`<a class='imagelink' href='javascript:void(0)' onclick='event.stopPropagation();njs.AppManager.showLegend("`+E+'","'+escape(ce)+'",'+ue+","+ge+");'><img title='"+this.tt_legend+"' style='vertical-align: middle;' src='../core/templates/"+njs.AppManager.template+"/img/buttons/map.png' alt='' /></a>&nbsp;"}if(e.tool){var he=e.tool.link;u+=`<a class='imagelink' href='javascript:void(0)' onclick='event.stopPropagation();window.open("`+he+`","shop");'><div class='grpShop'></div></a>`}e.selectAll&&(u+="<input id='"+t+"_"+e.id+"_groupckbx' />");var ye=e.description;u+="<span class='appendtitle'>"+e.description+"</span>",e.restricted&&(u+="&nbsp;<span class='categoryLocked'>&nbsp;&nbsp;&nbsp;</span>");var S=new dijit.TitlePane({id:t+"_"+e.id,style:"width:100%",title:u,content:"",open:e.open?e.open:!1});f&&S.domNode.setAttribute("data-lyrmgr-depth",o),dojo.byId(t).appendChild(S.domNode),e.description="";var M=t+"_"+e.id+"_pane",$=dojo.byId(M);if(f){var pe=e._inNestedContext;e._inNestedContext=!0,e._build(M,$,o),e._inNestedContext=pe,console.log(l,"  Tiefe "+o+": "+e.id+" \u2192 #"+M)}else e._build(M,$);S.startup(),f&&function(a){a._wipeIn&&a._wipeIn.stop&&a._wipeIn.stop(),a._wipeOut&&a._wipeOut.stop&&a._wipeOut.stop();function H(s){var y=s?"block":"none";a.wipeNode&&a.wipeNode.style&&a.wipeNode.style.setProperty&&(a.wipeNode.style.setProperty("display",y,"important"),a.wipeNode.style.setProperty("height",s?"auto":"0px","important"),a.wipeNode.style.setProperty("overflow",s?"visible":"hidden","important"),a.wipeNode.style.setProperty("visibility","visible","important"))}var W=0;a._setOpenAttr=function(s){s=!!s;var y=Date.now();if(!this.__tnetSettingOpen){if(y<W&&s!==this.open){console.log(l,"[setOpen] IGNORE "+this.id+" \u2192 "+(s?"OPEN":"CLOSE")+" (guard)");return}W=y+220,this.__tnetSettingOpen=!0;try{H(s),this._set("open",s),dojo[s?"addClass":"removeClass"](this.domNode,"lyrmgr-open"),dojo[s?"removeClass":"addClass"](this.domNode,"dijitClosed"),this._setCss(),this.focusNode&&this.focusNode.setAttribute("aria-pressed",String(s)),this.containerNode&&this.containerNode.setAttribute("aria-hidden",String(!s)),s&&this._started&&this._onShow&&this._onShow()}finally{this.__tnetSettingOpen=!1}console.log(l,"[setOpen] "+this.id+" \u2192 "+(s?"OPEN":"CLOSE")),setTimeout(function(){console.log(l,"[state] "+a.id+" hide="+(a.hideNode?getComputedStyle(a.hideNode).display:"n/a")+" wipe="+getComputedStyle(a.wipeNode).display+" scrollHeight="+a.containerNode.scrollHeight)},0)}},a.titleBarNode&&(a.titleBarNode.style.cursor="pointer"),a.toggle=function(){a._setOpenAttr(!a.open)},a._onTitleClick=function(s){s&&s.preventDefault&&s.preventDefault(),s&&s.stopPropagation&&s.stopPropagation()},a.titleBarNode&&!a.titleBarNode.__tnetNestedClickBound&&(a.titleBarNode.__tnetNestedClickBound=!0,a.titleBarNode.addEventListener("click",function(s){var y=s.target;if(!(y&&(y.tagName==="A"||y.tagName==="INPUT"||y.tagName==="IMG"))&&!(y&&y.closest&&y.closest("a,input"))){if(s.ctrlKey||s.metaKey){var ee=!a.open,V=a.domNode.getAttribute("data-lyrmgr-depth"),te=a.domNode.parentElement;if(te&&V){for(var re=te.children,R=0;R<re.length;R++){var m=re[R];if(m.classList&&m.classList.contains("dijitTitlePane")&&m.getAttribute("data-lyrmgr-depth")===V){var L=null;try{L=dijit.byNode(m)}catch{}!L&&m.id&&(L=dijit.byId(m.id)),L&&typeof L._setOpenAttr=="function"&&L._setOpenAttr(ee)}}console.log(l,"[Ctrl+Click] depth="+V+" \u2192 "+(ee?"OPEN":"CLOSE")+" alle Geschwister")}else a.toggle()}else a.toggle();s&&s.preventDefault&&s.preventDefault(),s&&s.stopPropagation&&s.stopPropagation(),s&&s.stopImmediatePropagation&&s.stopImmediatePropagation()}},!0)),a._wipeIn={play:function(){a._setOpenAttr(!0)},stop:function(){},status:function(){return"stopped"}},a._wipeOut={play:function(){a._setOpenAttr(!1)},stop:function(){},status:function(){return"stopped"}},a.open?(H(!0),dojo.addClass(a.domNode,"lyrmgr-open"),dojo.removeClass(a.domNode,"dijitClosed")):(H(!1),dojo.removeClass(a.domNode,"lyrmgr-open"),dojo.addClass(a.domNode,"dijitClosed"))}(S);var D=w(e,!i.hasStartLayers),Ce=D.checked>0,G=D.checked,F=D.total;e.selectAll&&(e.checkBoxAll=new dijit.form.CheckBox({id:t+"_"+e.id+"_groupckbx",name:t+"_"+e.id+"_groupckbx",value:e.id,checked:Ce,onClick:function(a){x||(a&&a.stopPropagation&&a.stopPropagation(),njs.AppManager.currentSubTheme=null,njs.AppManager.currentTheme=null,i.switchGroupLayers(this.id,this.value,this.checked))}},t+"_"+e.id+"_groupckbx")),e.checkBoxAll&&(G<F&&G>0?b(e.checkBoxAll,"mixed"):F>0&&G===F?b(e.checkBoxAll,"all"):b(e.checkBoxAll,"none")),e.description=ye},console.log(l,"  _buildContentSubCat gepatcht");var Y=n.switchLayer;n.switchLayer=function(e,t){if(typeof Y=="function")try{Y.call(this,e,t)}catch(r){if(r&&r.message&&r.message.indexOf("_lyr")!==-1)console.log(l,"  switchLayer: Duplikat-Fallthrough (kein Widget):",e);else throw r}t&&!_&&se(this,ae(this,e)),t||J(ne(this,e)),_||T(this)},console.log(l,"  switchLayer gepatcht (Parent-State + removeLayer)");var Z=n.switchGroupLayers;n.switchGroupLayers=function(e,t,r){var i=v(this,t);if(!i){typeof Z=="function"&&Z.call(this,e,t,r),T(this);return}var o=Q(this,t);if(!r)j[o]=le(i),X(this,i,null,!1);else{var f=j[o]||null;X(this,i,f,!0),delete j[o]}if(T(this),i.checkBoxAll){var u=I(i);r&&u==="none"&&(u="all"),b(i.checkBoxAll,u)}oe(this)},console.log(l,"  switchGroupLayers gepatcht (rekursiv + restore)"),console.log(l,'Alle Patches angewendet \u2713 \u2014 Kategorien mit "nested":true werden verschachtelt')}})();
+/**
+ * tnet-lyrmgr-patch.js
+ * Monkey-Patch für ClassicLayerMgr: echte DOM-Verschachtelung
+ * der Sub-Kategorien (TitlePanes) statt flacher Anordnung.
+ *
+ * Problem: njs.LayerMgr wird per Dojo AMD geladen und existiert
+ * erst NACH initApp(). Deshalb nutzen wir Object.defineProperty
+ * als Trap: sobald njs.LayerMgr zugewiesen wird, fangen wir
+ * auch ClassicLayerCategory ab und patchen den Prototype per
+ * Microtask (Promise.resolve().then) — BEVOR der Code die
+ * Klasse verwendet um TitlePanes zu bauen.
+ *
+ * Konfiguration: In lyrmgr.conf "nested": true setzen.
+ *
+ * Muss NACH njs.js und VOR modules.js geladen werden.
+ *
+ * @version    26.0
+ * @date       2026-04-08
+ * @copyright  Trigonet AG
+ * @author     Marco Dellenbach
+ */
+(function() {
+  'use strict';
+
+  var LOG = '[LyrMgr-Nested]';
+  var _patched = false;
+  var _groupVisibilitySnapshots = {};
+  var _suppressGroupCheckboxClick = false;
+  var _suppressLayerRefresh = false;
+
+  function isLegacyNestedCssEnabled() {
+    try {
+      if (window.__tnetLMFlags && typeof window.__tnetLMFlags.useLegacyNestedHierarchyStyle === 'boolean') {
+        return !!window.__tnetLMFlags.useLegacyNestedHierarchyStyle;
+      }
+      if (window.TnetGlobalConfig && window.TnetGlobalConfig.layerManager) {
+        var lmCfg = window.TnetGlobalConfig.layerManager;
+        return !!(lmCfg.useLegacyNestedHierarchyStyle || lmCfg.useExtendedLegacyHierarchy || lmCfg.legacyNestedHierarchyStyle);
+      }
+    } catch (e) {}
+    return false;
+  }
+
+  function applyLegacyNestedCssScope() {
+    if (!document.body) return false;
+    var enabled = isLegacyNestedCssEnabled();
+    if (enabled) {
+      document.body.classList.add('tnet-lm-legacy-nested');
+    } else {
+      document.body.classList.remove('tnet-lm-legacy-nested');
+    }
+    return true;
+  }
+
+  function watchLegacyNestedCssScope() {
+    var tries = 0;
+    var timer = setInterval(function() {
+      tries++;
+      applyLegacyNestedCssScope();
+      if (tries > 150) clearInterval(timer);
+      if (window.__tnetLMFlags && typeof window.__tnetLMFlags.useLegacyNestedHierarchyStyle === 'boolean' && document.body) {
+        clearInterval(timer);
+      }
+    }, 100);
+  }
+
+  window.TnetDumpNestedCss = function() {
+    var rows = [];
+    var panes = document.querySelectorAll('#layer_menu .dijitTitlePane[data-lyrmgr-depth]');
+    panes.forEach(function(node, index) {
+      var titleNode = node.querySelector('.dijitTitlePaneTitle');
+      var labelNode = node.querySelector('.appendtitle');
+      var contentNode = node.querySelector('.dijitTitlePaneContentOuter');
+      var cs = titleNode ? window.getComputedStyle(titleNode) : null;
+      rows.push({
+        i: index,
+        depth: node.getAttribute('data-lyrmgr-depth') || '-',
+        id: node.id || '-',
+        label: labelNode ? (labelNode.textContent || '').trim() : '-',
+        openClass: node.classList.contains('lyrmgr-open') ? 'open' : 'closed',
+        bg: cs ? cs.backgroundColor : '-',
+        titlePaddingLeft: cs ? cs.paddingLeft : '-',
+        titleBorderLeftColor: cs ? cs.borderLeftColor : '-',
+        titleBorderLeftWidth: cs ? cs.borderLeftWidth : '-',
+        borderLeft: window.getComputedStyle(node).borderLeftColor,
+        paneBorderLeftWidth: window.getComputedStyle(node).borderLeftWidth,
+        paneBorderLeftStyle: window.getComputedStyle(node).borderLeftStyle,
+        marginLeft: window.getComputedStyle(node).marginLeft,
+        contentDisplay: contentNode ? window.getComputedStyle(contentNode).display : '-',
+        contentHeight: contentNode ? window.getComputedStyle(contentNode).height : '-'
+      });
+    });
+    console.group(LOG + ' CSS-Dump');
+    console.log('featureFlag(useLegacyNestedHierarchyStyle)=', isLegacyNestedCssEnabled());
+    console.log('bodyClass contains tnet-lm-legacy-nested =', document.body && document.body.classList.contains('tnet-lm-legacy-nested'));
+    console.table(rows);
+    console.groupEnd();
+    return rows;
+  };
+
+  if (typeof njs === 'undefined') {
+    console.error(LOG, 'njs nicht definiert! Patch übersprungen.');
+    return;
+  }
+
+  applyLegacyNestedCssScope();
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', applyLegacyNestedCssScope, { once: true });
+  }
+  watchLegacyNestedCssScope();
+
+  console.log(LOG, 'v26.2 geladen — installiere Property-Traps');
+
+  // ===== dijit.registry Duplikat-Toleranz =====
+  // Das Framework erstellt CheckBox-Widgets mit layer.name als ID.
+  // Bei Duplikaten im Katalog (gleiche Layer-ID mehrfach) wirft Dojo
+  // „widget with id==X already registered" und bricht das Rendering ab.
+  // Fix: registry.add patchen — bei Duplikat altes Widget entfernen,
+  // neues registrieren. Wird im CLC-Setter aufgerufen (dort ist dijit
+  // garantiert verfügbar, da es im selben require()-Block geladen wird).
+  function patchRegistryAdd(registry) {
+    if (!registry || !registry.add || registry.__tnetDupPatched) return;
+    var _origAdd = registry.add;
+    registry.add = function(widget) {
+      try {
+        return _origAdd.call(this, widget);
+      } catch (e) {
+        if (e && e.message && e.message.indexOf('already registered') !== -1) {
+          console.log(LOG, '  Duplikat-Widget toleriert:', widget.id);
+          registry.remove(widget.id);
+          return _origAdd.call(this, widget);
+        }
+        throw e;
+      }
+    };
+    registry.__tnetDupPatched = true;
+    console.log(LOG, '  dijit.registry.add gepatcht (Duplikat-Toleranz)');
+  }
+
+  // ===== TRAP 1: njs.LayerMgr Zuweisung abfangen =====
+  var _realLM = njs.LayerMgr; // undefined aktuell
+
+  try {
+    Object.defineProperty(njs, 'LayerMgr', {
+      get: function() { return _realLM; },
+      set: function(val) {
+        _realLM = val;
+        if (val && (typeof val === 'function' || typeof val === 'object') && !_patched) {
+          console.log(LOG, 'njs.LayerMgr gesetzt (Typ: ' + typeof val + ')');
+          trapClassicLayerCategory(val);
+        }
+      },
+      configurable: true,
+      enumerable: true
+    });
+  } catch (e) {
+    console.warn(LOG, 'defineProperty auf njs.LayerMgr fehlgeschlagen:', e);
+    startPolling();
+    return;
+  }
+
+  // Falls bereits gesetzt (unwahrscheinlich laut Console)
+  if (_realLM) {
+    console.log(LOG, 'njs.LayerMgr existiert bereits');
+    trapClassicLayerCategory(_realLM);
+  }
+
+  // ===== TRAP 2: ClassicLayerCategory Zuweisung abfangen =====
+  function trapClassicLayerCategory(lm) {
+    // dijit.registry JETZT patchen — im selben require()-Block wie dijit geladen
+    if (window.dijit && dijit.registry) {
+      patchRegistryAdd(dijit.registry);
+    }
+
+    // Bereits vorhanden?
+    if (lm.ClassicLayerCategory && lm.ClassicLayerCategory.prototype) {
+      console.log(LOG, 'ClassicLayerCategory existiert bereits');
+      schedulePatching(lm.ClassicLayerCategory);
+      return;
+    }
+
+    // Trap auf ClassicLayerCategory Property
+    var _realCLC;
+    try {
+      Object.defineProperty(lm, 'ClassicLayerCategory', {
+        get: function() { return _realCLC; },
+        set: function(val) {
+          _realCLC = val;
+          // dijit.registry SYNCHRON patchen — CLC wird im selben require-Block
+          // zugewiesen in dem dijit geladen ist. Das ist der LETZTE sichere Zeitpunkt
+          // vor der Widget-Erstellung.
+          if (window.dijit && dijit.registry) {
+            patchRegistryAdd(dijit.registry);
+          }
+          if (val && typeof val === 'function' && !_patched) {
+            console.log(LOG, 'ClassicLayerCategory gesetzt');
+            schedulePatching(val);
+          }
+        },
+        configurable: true,
+        enumerable: true
+      });
+    } catch (e) {
+      console.warn(LOG, 'defineProperty auf ClassicLayerCategory fehlgeschlagen:', e);
+      startPolling();
+    }
+  }
+
+  // ===== MICROTASK: Patching nach allen synchronen prototype-Zuweisungen =====
+  function schedulePatching(CLC) {
+    // dijit.registry SYNCHRON patchen (nochmal, für den Fall dass CLC-Setter nicht griff)
+    if (window.dijit && dijit.registry) {
+      patchRegistryAdd(dijit.registry);
+    }
+    // Promise.resolve().then → Microtask: läuft nach dem synchronen
+    // Code-Block der die Prototype-Methoden zuweist, aber BEVOR
+    // der nächste Macrotask (setTimeout, XHR-Callback) feuert.
+    Promise.resolve().then(function() {
+      if (_patched) return;
+      if (!CLC.prototype || !CLC.prototype._buildContentSubCat || !CLC.prototype._build) {
+        console.warn(LOG, 'Prototype-Methoden fehlen — Polling-Fallback');
+        startPolling();
+        return;
+      }
+      _patched = true;
+      applyPatches(CLC.prototype);
+    });
+  }
+
+  // ===== FALLBACK: Polling (falls defineProperty nicht funktioniert) =====
+  function startPolling() {
+    if (_patched) return;
+    console.log(LOG, 'Starte Polling-Fallback (50ms Intervall)...');
+    var checks = 0;
+    var timer = setInterval(function() {
+      checks++;
+      if (_patched || checks > 200) {
+        clearInterval(timer);
+        if (!_patched) console.error(LOG, 'Timeout nach 10s — ClassicLayerCategory nicht gefunden');
+        return;
+      }
+      try {
+        var lm = njs.LayerMgr;
+        if (lm &&
+            lm.ClassicLayerCategory &&
+            lm.ClassicLayerCategory.prototype &&
+            lm.ClassicLayerCategory.prototype._buildContentSubCat) {
+          _patched = true;
+          clearInterval(timer);
+          console.log(LOG, 'Polling: ClassicLayerCategory gefunden (' + (checks * 50) + 'ms)');
+          applyPatches(lm.ClassicLayerCategory.prototype);
+        }
+      } catch (e) { /* weiter warten */ }
+    }, 50);
+  }
+
+  // ===== PATCHES ANWENDEN =====
+  function applyPatches(proto) {
+    console.log(LOG, 'Wende Patches an...');
+
+    function getLayerManagerRoot(scope) {
+      try {
+        if (!window.njs || !njs.AppManager || !njs.AppManager.LyrMgr) return null;
+        return njs.AppManager.LyrMgr[scope.id_lyr_mgr] || null;
+      } catch (e) {
+        return null;
+      }
+    }
+
+    function getLayerChecked(layer) {
+      if (!layer) return false;
+      var widget = (window.dijit && layer.name) ? dijit.byId(layer.name) : null;
+      if (widget && typeof widget.get === 'function') return !!widget.get('checked');
+      return !!layer.visible;
+    }
+
+    function collectDescendantLayers(category, out) {
+      if (!category || !out) return;
+      if (category.arLayers && category.arLayers.length) {
+        category.arLayers.forEach(function(lay) { out.push(lay); });
+      }
+      if (category.arCategories && category.arCategories.length) {
+        category.arCategories.forEach(function(subCat) {
+          collectDescendantLayers(subCat, out);
+        });
+      }
+    }
+
+    function collectLayerStats(category, allowVisible) {
+      var list = [];
+      collectDescendantLayers(category, list);
+      var checked = 0;
+      for (var i = 0; i < list.length; i++) {
+        if (allowVisible && getLayerChecked(list[i])) checked++;
+      }
+      return {
+        checked: checked,
+        total: list.length
+      };
+    }
+
+    function findCategoryById(category, groupId) {
+      if (!category) return null;
+      if (category.id === groupId) return category;
+      if (!category.arCategories || !category.arCategories.length) return null;
+      for (var i = 0; i < category.arCategories.length; i++) {
+        var found = findCategoryById(category.arCategories[i], groupId);
+        if (found) return found;
+      }
+      return null;
+    }
+
+    function findCategoryInManager(scope, groupId) {
+      if (!groupId) return null;
+
+      var mgr = getLayerManagerRoot(scope);
+      if (mgr && mgr.arCategories && mgr.arCategories.length) {
+        for (var i = 0; i < mgr.arCategories.length; i++) {
+          var hit = findCategoryById(mgr.arCategories[i], groupId);
+          if (hit) return hit;
+        }
+      }
+
+      return findCategoryById(scope, groupId);
+    }
+
+    function findLayerByName(category, layerName) {
+      if (!category || !layerName) return null;
+
+      if (category.arLayers && category.arLayers.length) {
+        for (var i = 0; i < category.arLayers.length; i++) {
+          if (category.arLayers[i] && category.arLayers[i].name === layerName) {
+            return category.arLayers[i];
+          }
+        }
+      }
+
+      if (category.arCategories && category.arCategories.length) {
+        for (var j = 0; j < category.arCategories.length; j++) {
+          var found = findLayerByName(category.arCategories[j], layerName);
+          if (found) return found;
+        }
+      }
+
+      return null;
+    }
+
+    function findLayerInManager(scope, layerName) {
+      var mgr = getLayerManagerRoot(scope);
+      if (mgr && mgr.arCategories && mgr.arCategories.length) {
+        for (var i = 0; i < mgr.arCategories.length; i++) {
+          var hit = findLayerByName(mgr.arCategories[i], layerName);
+          if (hit) return hit;
+        }
+      }
+      return findLayerByName(scope, layerName);
+    }
+
+    function collectAncestorPathForLayer(category, layerName, pathOut) {
+      if (!category || !layerName || !pathOut) return false;
+
+      if (category.arLayers && category.arLayers.length) {
+        for (var i = 0; i < category.arLayers.length; i++) {
+          if (category.arLayers[i] && category.arLayers[i].name === layerName) {
+            pathOut.unshift(category);
+            return true;
+          }
+        }
+      }
+
+      if (category.arCategories && category.arCategories.length) {
+        for (var j = 0; j < category.arCategories.length; j++) {
+          if (collectAncestorPathForLayer(category.arCategories[j], layerName, pathOut)) {
+            pathOut.unshift(category);
+            return true;
+          }
+        }
+      }
+
+      return false;
+    }
+
+    function findAncestorCategoriesInManager(scope, layerName) {
+      var path = [];
+      var mgr = getLayerManagerRoot(scope);
+
+      if (mgr && mgr.arCategories && mgr.arCategories.length) {
+        for (var i = 0; i < mgr.arCategories.length; i++) {
+          if (collectAncestorPathForLayer(mgr.arCategories[i], layerName, path)) {
+            return path;
+          }
+        }
+      }
+
+      collectAncestorPathForLayer(scope, layerName, path);
+      return path;
+    }
+
+    function removeLayerIfPossible(layer) {
+      if (!layer || typeof layer.removeLayer !== 'function') return;
+      try {
+        layer.removeLayer();
+      } catch (e) {}
+    }
+
+    function setCheckboxVisualState(checkboxWidget, state) {
+      if (!checkboxWidget || !checkboxWidget.domNode || !window.dojo) return;
+      var node = checkboxWidget.domNode;
+      var isChecked = (state === 'all' || state === 'mixed');
+
+      _suppressGroupCheckboxClick = true;
+      try {
+        checkboxWidget.set('checked', isChecked);
+      } finally {
+        _suppressGroupCheckboxClick = false;
+      }
+
+      dojo.removeClass(node, 'tmpdirCheckBox');
+      dojo.removeClass(node, 'tmpdirCheckBoxMixed');
+      dojo.removeClass(node, 'dijitMixed');
+      dojo.removeClass(node, 'dijitCheckBoxChecked');
+      dojo.removeClass(node, 'dijitChecked');
+      dojo.addClass(node, 'dijitCheckBox');
+
+      if (state === 'all') {
+        dojo.addClass(node, 'dijitCheckBoxChecked');
+        dojo.addClass(node, 'dijitChecked');
+      } else if (state === 'mixed') {
+        dojo.addClass(node, 'tmpdirCheckBox');
+        dojo.addClass(node, 'tmpdirCheckBoxMixed');
+        dojo.addClass(node, 'dijitMixed');
+      }
+    }
+
+    function deriveCategoryState(category) {
+      var stats = collectLayerStats(category, true);
+      if (stats.total > 0) {
+        if (stats.checked === 0) return 'none';
+        if (stats.checked === stats.total) return 'all';
+        return 'mixed';
+      }
+
+      if (category && category.arCategories && category.arCategories.length) {
+        var hasAnyActive = false;
+        var allActive = true;
+
+        for (var i = 0; i < category.arCategories.length; i++) {
+          var subState = deriveCategoryState(category.arCategories[i]);
+          if (subState === 'mixed') return 'mixed';
+          if (subState === 'all') {
+            hasAnyActive = true;
+          } else {
+            allActive = false;
+            if (subState !== 'none') hasAnyActive = true;
+          }
+        }
+
+        if (allActive) return 'all';
+        if (hasAnyActive) return 'mixed';
+        return 'none';
+      }
+
+      if (category && category.checkBoxAll && typeof category.checkBoxAll.get === 'function') {
+        return category.checkBoxAll.get('checked') ? 'all' : 'none';
+      }
+
+      return 'none';
+    }
+
+    function refreshCategoryCheckboxState(category) {
+      if (!category) return;
+
+      if (category.arCategories && category.arCategories.length) {
+        category.arCategories.forEach(function(subCat) {
+          refreshCategoryCheckboxState(subCat);
+        });
+      }
+
+      if (category.checkBoxAll) {
+        setCheckboxVisualState(category.checkBoxAll, deriveCategoryState(category));
+      }
+    }
+
+    function refreshAllCategoryCheckboxes(scope) {
+      var mgr = getLayerManagerRoot(scope);
+      if (mgr && mgr.arCategories && mgr.arCategories.length) {
+        mgr.arCategories.forEach(function(rootCat) {
+          refreshCategoryCheckboxState(rootCat);
+        });
+        return;
+      }
+      refreshCategoryCheckboxState(scope);
+    }
+
+    function notifyAfterLayerChange(scope) {
+      if (!window.njs || !njs.AppManager) return;
+
+      if (njs.AppManager.LyrMgr && njs.AppManager.LyrMgr[scope.id_lyr_mgr] && njs.AppManager.LyrMgr[scope.id_lyr_mgr].mod_sortlayers != null) {
+        njs.AppManager.LyrMgr[scope.id_lyr_mgr].updateSortLyrMod();
+      }
+
+      if (njs.AppManager.Tools && njs.AppManager.Tools.TrackBookmark) {
+        njs.AppManager.updateMapStatusUrl(njs.AppManager.LyrMgr[scope.id_lyr_mgr].targetMap[0]);
+      }
+    }
+
+    function getSnapshotKey(scope, groupId) {
+      var mgrId = scope && scope.id_lyr_mgr ? String(scope.id_lyr_mgr) : 'default';
+      return mgrId + '::' + String(groupId || '');
+    }
+
+    function clearSnapshotsForCategories(scope, categories) {
+      if (!categories || !categories.length) return;
+      for (var i = 0; i < categories.length; i++) {
+        if (!categories[i] || !categories[i].id) continue;
+        delete _groupVisibilitySnapshots[getSnapshotKey(scope, categories[i].id)];
+      }
+    }
+
+    function makeVisibilitySnapshot(category) {
+      var layers = [];
+      var snap = {};
+      collectDescendantLayers(category, layers);
+      layers.forEach(function(lay) {
+        if (lay && lay.name) snap[lay.name] = getLayerChecked(lay);
+      });
+      return snap;
+    }
+
+    function applyVisibilityBySnapshot(scope, category, snapshot, fallbackVisible) {
+      var layers = [];
+      collectDescendantLayers(category, layers);
+      _suppressLayerRefresh = true;
+      try {
+        layers.forEach(function(lay) {
+          if (!lay || !lay.name) return;
+          var targetVisible = fallbackVisible;
+          if (snapshot && Object.prototype.hasOwnProperty.call(snapshot, lay.name)) {
+            targetVisible = !!snapshot[lay.name];
+          }
+          var currentVisible = getLayerChecked(lay);
+          if (currentVisible !== targetVisible) {
+            scope.switchLayer(lay.name, targetVisible);
+          }
+          if (!targetVisible) {
+            removeLayerIfPossible(lay);
+          }
+        });
+      } finally {
+        _suppressLayerRefresh = false;
+      }
+    }
+
+    // --- 1. Init: "nested" Flag aus Config lesen ---
+    var _origInit = proto.Init;
+    proto.Init = function(options) {
+      _origInit.call(this, options);
+      if (options && options.nested) {
+        this.nested = true;
+      }
+    };
+    console.log(LOG, '  Init gepatcht');
+
+    // --- 2. _build: Tiefe weiterreichen + Error-Toleranz ---
+    proto._build = function(domLocation, oCatPaneContainer, _depth) {
+      var that = this;
+      var depth = (typeof _depth === 'number') ? _depth : 0;
+      this._domLocation = domLocation;
+      this._depth = depth;
+      if (oCatPaneContainer == null) oCatPaneContainer = document.createElement("DIV");
+
+      console.log(LOG, '_build:', this.id, 'dom=' + domLocation, 'layers=' + this.arLayers.length, 'cats=' + this.arCategories.length, 'depth=' + depth);
+
+      if (this.arCategories.length > 0) {
+        if (!this._inNestedContext) {
+          dojo.attr(oCatPaneContainer, {"class": "categoryHeader"});
+        } else {
+          dojo.removeClass(oCatPaneContainer, "categoryHeader");
+        }
+      }
+
+      if (!this._inNestedContext) {
+        this._buildContentHeader(domLocation, oCatPaneContainer);
+      }
+
+      if (this.arBMap.length > 0) {
+        this._buildContentBaseMaps(domLocation, oCatPaneContainer);
+      }
+      if (this.arLayers.length > 0) {
+        try {
+          this._buildContentLayers(domLocation, oCatPaneContainer);
+        } catch (e) {
+          console.error(LOG, '_buildContentLayers-Fehler (Rendering fährt fort):', e.message, e);
+        }
+      }
+      if (this.arCategories.length > 0) {
+        this.arCategories.forEach(function(cat) {
+          try {
+            that._buildContentSubCat(cat, domLocation, depth + 1);
+          } catch (e) {
+            console.error(LOG, '_buildContentSubCat-Fehler (cat=' + (cat && cat.id) + ', Rendering fährt fort):', e.message, e);
+          }
+        });
+      }
+    };
+    console.log(LOG, '  _build gepatcht');
+
+    // --- 3. dijit.registry Duplikat-Toleranz → bereits via defineProperty-Trap gepatcht (s.o.) ---
+    // Sicherheitshalber nochmal prüfen
+    if (window.dijit && dijit.registry && dijit.registry.add && !dijit.registry.__tnetDupPatched) {
+      patchRegistryAdd(dijit.registry);
+    }
+
+    // --- 4. _buildContentLayers: Leaf-Container depth-basiert markieren ---
+    var _origBuildContentLayers = proto._buildContentLayers;
+    proto._buildContentLayers = function(domLocation, oCatPaneContainer) {
+      _origBuildContentLayers.call(this, domLocation, oCatPaneContainer);
+
+      if (!this._inNestedContext || !oCatPaneContainer || !oCatPaneContainer.children) return;
+
+      var parentDepth = (typeof this._depth === 'number') ? this._depth : 1;
+      for (var i = 0; i < oCatPaneContainer.children.length; i++) {
+        var child = oCatPaneContainer.children[i];
+        if (!child) continue;
+        if (child.classList && child.classList.contains('dijitTitlePane')) continue;
+        child.classList.add('tnet-lm-nested-leaf');
+        child.setAttribute('data-lyrmgr-parent-depth', String(parentDepth));
+      }
+    };
+    console.log(LOG, '  _buildContentLayers gepatcht');
+
+    // --- 5. _buildContentSubCat: DER EIGENTLICHE FIX ---
+    proto._buildContentSubCat = function(_opts, domLocation, _depth) {
+      var that = this;
+      var depth = (typeof _depth === 'number') ? _depth : 1;
+
+      // Nesting aktiv? (eigenes Flag oder vom Parent geerbt)
+      var applyNesting = _opts.nested || this.nested || this._inNestedContext;
+
+      var title_html = '';
+
+      // Legenden-Link
+      if (_opts.legend) {
+        var _leg = _opts.legend.link;
+        var _title = _opts.legend.title;
+        var _print = _opts.legend.print;
+        var _extern = _opts.legend.extern;
+        title_html += "<a class='imagelink' href='javascript:void(0)' onclick='event.stopPropagation();njs.AppManager.showLegend(\"" + _leg + "\",\"" + escape(_title) + "\"," + _print + "," + _extern + ");'><img title='" + this.tt_legend + "' style='vertical-align: middle;' src='../core/templates/" + njs.AppManager.template + "/img/buttons/map.png' alt='' /></a>&nbsp;";
+      }
+
+      // Tool-Link
+      if (_opts.tool) {
+        var _toollink = _opts.tool.link;
+        title_html += "<a class='imagelink' href='javascript:void(0)' onclick='event.stopPropagation();window.open(\"" + _toollink + "\",\"shop\");'><div class='grpShop'></div></a>";
+      }
+
+      // SelectAll Checkbox Placeholder
+      if (_opts.selectAll) title_html += "<input id='" + domLocation + "_" + _opts.id + "_groupckbx' />";
+
+      // Beschreibung / Titel
+      var desc = _opts.description;
+      title_html += "<span class='appendtitle'>" + _opts.description + "</span>";
+      if (_opts.restricted)
+        title_html += "&nbsp;<span class='categoryLocked'>&nbsp;&nbsp;&nbsp;</span>";
+
+      // TitlePane erstellen
+      var tp = new dijit.TitlePane({
+        id: domLocation + "_" + _opts.id,
+        style: "width:100%",
+        title: title_html,
+        content: "",
+        open: _opts.open ? _opts.open : false
+      });
+
+      // CSS-Tiefe setzen
+      if (applyNesting) {
+        tp.domNode.setAttribute('data-lyrmgr-depth', depth);
+      }
+
+      // TitlePane an den Container hängen
+      dojo.byId(domLocation).appendChild(tp.domNode);
+
+      _opts.description = "";
+
+      // Content-Pane des neuen TitlePane
+      var childDomLocation = domLocation + "_" + _opts.id + "_pane";
+      var oCatPaneContainer = dojo.byId(childDomLocation);
+
+      // ===== DER FIX =====
+      // Original: _opts._build(domLocation, oCatPaneContainer)
+      //   → Kinder landen flat am Root-Container
+      // Fix: _opts._build(childDomLocation, oCatPaneContainer, depth)
+      //   → Kinder landen im Content-Pane des Parent-TitlePane.
+      // Wichtig: _buildContentHeader wird im Nested-Context unterdrückt,
+      // damit oCatPaneContainer nicht aus dem Pane verschoben wird.
+      if (applyNesting) {
+        var prevNestedCtx = _opts._inNestedContext;
+        _opts._inNestedContext = true;
+        _opts._build(childDomLocation, oCatPaneContainer, depth);
+        _opts._inNestedContext = prevNestedCtx;
+        console.log(LOG, '  Tiefe ' + depth + ': ' + _opts.id + ' → #' + childDomLocation);
+      } else {
+        // Standard: flat — aber mit childDomLocation für eindeutige Input-IDs.
+        // Das Original nutzt domLocation (=Parent), was bei mehreren Subcats unter
+        // demselben Parent zu ID-Kollisionen führt (domLocation + j ist nicht mehr
+        // eindeutig). childDomLocation ist pro TitlePane einzigartig.
+        _opts._build(childDomLocation, oCatPaneContainer);
+      }
+
+      tp.startup();
+
+      // ===== FIX 2: Dojo komplett umgehen — eigener Click + Display-Toggle =====
+      // Problem: Dojos interne Click-Chain (_onTitleClick→toggle→_setOpenAttr→play)
+      //          funktioniert nicht zuverlässig bei verschachtelten Panes.
+      // Lösung:  1. Dojos _onTitleClick deaktivieren (noop)
+      //          2. Eigener DOM addEventListener auf titleBarNode
+      //          3. Reines display-toggle statt Animation
+      if (applyNesting) {
+        (function(pane) {
+          // Bestehende Animationen stoppen
+          if (pane._wipeIn && pane._wipeIn.stop) pane._wipeIn.stop();
+          if (pane._wipeOut && pane._wipeOut.stop) pane._wipeOut.stop();
+
+          function forceContentVisibility(open) {
+            var displayValue = open ? 'block' : 'none';
+            if (pane.wipeNode && pane.wipeNode.style && pane.wipeNode.style.setProperty) {
+              pane.wipeNode.style.setProperty('display', displayValue, 'important');
+              pane.wipeNode.style.setProperty('height', open ? 'auto' : '0px', 'important');
+              pane.wipeNode.style.setProperty('overflow', open ? 'visible' : 'hidden', 'important');
+              pane.wipeNode.style.setProperty('visibility', 'visible', 'important');
+            }
+          }
+
+          // --- 1. NUR _setOpenAttr überschreiben (Sichtbarkeit/State zentral) ---
+          var _toggleGuardUntil = 0;
+          pane._setOpenAttr = function(open) {
+            open = !!open;
+            var now = Date.now();
+            if (this.__tnetSettingOpen) return;
+            if (now < _toggleGuardUntil && open !== this.open) {
+              console.log(LOG, '[setOpen] IGNORE ' + this.id + ' → ' + (open ? 'OPEN' : 'CLOSE') + ' (guard)');
+              return;
+            }
+            _toggleGuardUntil = now + 220;
+            this.__tnetSettingOpen = true;
+            try {
+              forceContentVisibility(open);
+              this._set('open', open);
+              dojo[open ? 'addClass' : 'removeClass'](this.domNode, 'lyrmgr-open');
+              dojo[open ? 'removeClass' : 'addClass'](this.domNode, 'dijitClosed');
+              this._setCss();
+              if (this.focusNode) this.focusNode.setAttribute('aria-pressed', String(open));
+              if (this.containerNode) this.containerNode.setAttribute('aria-hidden', String(!open));
+              if (open && this._started && this._onShow) this._onShow();
+            } finally {
+              this.__tnetSettingOpen = false;
+            }
+            console.log(LOG, '[setOpen] ' + this.id + ' → ' + (open ? 'OPEN' : 'CLOSE'));
+            setTimeout(function() {
+              console.log(LOG, '[state] ' + pane.id +
+                ' hide=' + (pane.hideNode ? getComputedStyle(pane.hideNode).display : 'n/a') +
+                ' wipe=' + getComputedStyle(pane.wipeNode).display +
+                ' scrollHeight=' + pane.containerNode.scrollHeight);
+            }, 0);
+          };
+          if (pane.titleBarNode) pane.titleBarNode.style.cursor = 'pointer';
+
+          // --- 2. Eindeutiger Toggle-Pfad: nur nativer TitleBar-Click ---
+          pane.toggle = function() { pane._setOpenAttr(!pane.open); };
+          pane._onTitleClick = function(e) {
+            if (e && e.preventDefault) e.preventDefault();
+            if (e && e.stopPropagation) e.stopPropagation();
+            return;
+          };
+
+          // --- 3. Nativer DOM-Click als einzige Toggle-Quelle ---
+          // Ctrl+Klick: alle Geschwister derselben Hierarchiestufe öffnen/schliessen
+          if (pane.titleBarNode && !pane.titleBarNode.__tnetNestedClickBound) {
+            pane.titleBarNode.__tnetNestedClickBound = true;
+            pane.titleBarNode.addEventListener('click', function(e) {
+              var t = e.target;
+              if (t && (t.tagName === 'A' || t.tagName === 'INPUT' || t.tagName === 'IMG')) return;
+              if (t && t.closest && t.closest('a,input')) return;
+
+              if (e.ctrlKey || e.metaKey) {
+                // Ctrl+Klick: Alle Geschwister-Panes auf derselben Tiefe toggeln
+                var targetOpen = !pane.open;
+                var depth = pane.domNode.getAttribute('data-lyrmgr-depth');
+                var parentContainer = pane.domNode.parentElement;
+                if (parentContainer && depth) {
+                  var children = parentContainer.children;
+                  for (var ci = 0; ci < children.length; ci++) {
+                    var sib = children[ci];
+                    if (sib.classList && sib.classList.contains('dijitTitlePane') &&
+                        sib.getAttribute('data-lyrmgr-depth') === depth) {
+                      var sibWidget = null;
+                      try { sibWidget = dijit.byNode(sib); } catch (ex) {}
+                      if (!sibWidget && sib.id) sibWidget = dijit.byId(sib.id);
+                      if (sibWidget && typeof sibWidget._setOpenAttr === 'function') {
+                        sibWidget._setOpenAttr(targetOpen);
+                      }
+                    }
+                  }
+                  console.log(LOG, '[Ctrl+Click] depth=' + depth + ' → ' + (targetOpen ? 'OPEN' : 'CLOSE') + ' alle Geschwister');
+                } else {
+                  pane.toggle();
+                }
+              } else {
+                pane.toggle();
+              }
+
+              if (e && e.preventDefault) e.preventDefault();
+              if (e && e.stopPropagation) e.stopPropagation();
+              if (e && e.stopImmediatePropagation) e.stopImmediatePropagation();
+            }, true);
+          }
+
+          // --- 4. Dummy-Animationen ---
+          pane._wipeIn = { play: function() { pane._setOpenAttr(true); }, stop: function() {}, status: function() { return 'stopped'; } };
+          pane._wipeOut = { play: function() { pane._setOpenAttr(false); }, stop: function() {}, status: function() { return 'stopped'; } };
+
+          // --- 5. Initialen State setzen ---
+          if (!pane.open) {
+            forceContentVisibility(false);
+            dojo.removeClass(pane.domNode, 'lyrmgr-open');
+            dojo.addClass(pane.domNode, 'dijitClosed');
+          } else {
+            forceContentVisibility(true);
+            dojo.addClass(pane.domNode, 'lyrmgr-open');
+            dojo.removeClass(pane.domNode, 'dijitClosed');
+          }
+        })(tp);
+      }
+
+      // SelectAll Checkbox Logik (rekursiv über alle Unterebenen)
+      var stats = collectLayerStats(_opts, !that.hasStartLayers);
+      var _box_checked = stats.checked > 0;
+      var nbLayChecked = stats.checked;
+      var nbLayTot = stats.total;
+
+      if (_opts.selectAll) {
+        _opts.checkBoxAll = new dijit.form.CheckBox({
+          id: domLocation + "_" + _opts.id + "_groupckbx",
+          name: domLocation + "_" + _opts.id + "_groupckbx",
+          value: _opts.id,
+          checked: _box_checked,
+          onClick: function(evt) {
+            if (_suppressGroupCheckboxClick) {
+              return;
+            }
+            if (evt && evt.stopPropagation) evt.stopPropagation();
+            njs.AppManager.currentSubTheme = null;
+            njs.AppManager.currentTheme = null;
+            that.switchGroupLayers(this.id, this.value, this.checked);
+          }
+        }, domLocation + "_" + _opts.id + "_groupckbx");
+      }
+
+      if (_opts.checkBoxAll) {
+        if (nbLayChecked < nbLayTot && nbLayChecked > 0) {
+          setCheckboxVisualState(_opts.checkBoxAll, 'mixed');
+        } else if (nbLayTot > 0 && nbLayChecked === nbLayTot) {
+          setCheckboxVisualState(_opts.checkBoxAll, 'all');
+        } else {
+          setCheckboxVisualState(_opts.checkBoxAll, 'none');
+        }
+      }
+
+      _opts.description = desc;
+    };
+
+    console.log(LOG, '  _buildContentSubCat gepatcht');
+
+    // --- 6. switchLayer: Parent-Checkboxen rekursiv nachziehen + OFF erzwingt removeLayer ---
+    var _origSwitchLayer = proto.switchLayer;
+    proto.switchLayer = function(id_layer, status) {
+      if (typeof _origSwitchLayer === 'function') {
+        try {
+          _origSwitchLayer.call(this, id_layer, status);
+        } catch (e) {
+          // Duplikat-Layer: Widget wurde nicht registriert → _lyr ist undefined.
+          // Kein Fehler — der primäre Layer in einem anderen LyrMgr-Block hat das Widget.
+          if (e && e.message && e.message.indexOf('_lyr') !== -1) {
+            console.log(LOG, '  switchLayer: Duplikat-Fallthrough (kein Widget):', id_layer);
+          } else {
+            throw e; // andere Fehler weiterreichen
+          }
+        }
+      }
+
+      if (status && !_suppressLayerRefresh) {
+        clearSnapshotsForCategories(this, findAncestorCategoriesInManager(this, id_layer));
+      }
+
+      if (!status) {
+        removeLayerIfPossible(findLayerInManager(this, id_layer));
+      }
+
+      if (!_suppressLayerRefresh) {
+        refreshAllCategoryCheckboxes(this);
+      }
+    };
+    console.log(LOG, '  switchLayer gepatcht (Parent-State + removeLayer)');
+
+    // --- 7. switchGroupLayers: rekursives EIN/AUS + Restore-Snapshot ---
+    var _origSwitchGroupLayers = proto.switchGroupLayers;
+    proto.switchGroupLayers = function(idchkbox, idgroup, status) {
+      var targetCategory = findCategoryInManager(this, idgroup);
+      if (!targetCategory) {
+        if (typeof _origSwitchGroupLayers === 'function') {
+          _origSwitchGroupLayers.call(this, idchkbox, idgroup, status);
+        }
+        refreshAllCategoryCheckboxes(this);
+        return;
+      }
+
+      var snapshotKey = getSnapshotKey(this, idgroup);
+
+      if (!status) {
+        _groupVisibilitySnapshots[snapshotKey] = makeVisibilitySnapshot(targetCategory);
+        applyVisibilityBySnapshot(this, targetCategory, null, false);
+      } else {
+        var snapshot = _groupVisibilitySnapshots[snapshotKey] || null;
+        applyVisibilityBySnapshot(this, targetCategory, snapshot, true);
+        delete _groupVisibilitySnapshots[snapshotKey];
+      }
+
+      refreshAllCategoryCheckboxes(this);
+      if (targetCategory.checkBoxAll) {
+        var targetState = deriveCategoryState(targetCategory);
+        if (status && targetState === 'none') targetState = 'all';
+        setCheckboxVisualState(targetCategory.checkBoxAll, targetState);
+      }
+      notifyAfterLayerChange(this);
+    };
+    console.log(LOG, '  switchGroupLayers gepatcht (rekursiv + restore)');
+
+    console.log(LOG, 'Alle Patches angewendet ✓ — Kategorien mit "nested":true werden verschachtelt');
+  }
+
+})();

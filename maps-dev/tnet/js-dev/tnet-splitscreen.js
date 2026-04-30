@@ -1,2 +1,2336 @@
-(function(){"use strict";function A(){return window.__TNET_APP_ROOT||"/maps"}var C={enabled:!1,map2:null,originalMapContainer:null,dividerPosition:50,isDragging:!1,layerControlPanel:null,layerControlButton:null,layerCatalog:null,layerMapping:{},layerSyncActive:!1,basemapConfig:null,currentBasemapId:null,init:function(){if(console.log("[SplitScreen] Initializing..."),this.createSplitLayout(),this.initializeMap2(),this.setupSynchronization(),this.setupLayerSync(),this.setupResizer(),this.createLayerControl(),this.setupMap2Maptips(),typeof window.TnetLayerCatalog<"u"){var e=this;setTimeout(function(){e.map2&&(e.layerCatalog=Object.create(window.TnetLayerCatalog),e.layerCatalog.init(e.map2),console.log("[SplitScreen] Layer catalog initialized for map2"))},500)}this.enabled=!0,console.log("[SplitScreen] Initialized successfully")},createSplitLayout:function(){var e=document.getElementById("mapContainer"),r=document.getElementById("map");this.originalMapContainer=e;var n=document.createElement("div");n.id="split-wrapper",n.style.cssText="display: flex; width: 100%; height: 100%; position: relative;";var a=document.createElement("div");a.id="split-panel-left",a.style.cssText="flex: 1; position: relative; overflow: hidden;";var o=document.createElement("div");o.id="split-divider",o.style.cssText="width: 4px; background: #2c5f6f; cursor: col-resize; position: relative; z-index: 1000; box-shadow: 0 0 5px rgba(0,0,0,0.3);",o.innerHTML='<div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 20px; height: 40px; background: rgba(44, 95, 111, 0.8); border-radius: 4px; display: flex; align-items: center; justify-content: center; color: white; font-size: 10px;">\u22EE</div>';var i=document.createElement("div");i.id="split-panel-right",i.style.cssText="flex: 1; position: relative; overflow: hidden; background: #f0f0f0;";var t=document.createElement("div");t.id="map2",t.className="map-cont",t.style.cssText="width: 100%; height: 100%;";var l=document.createElement("div");l.style.cssText="position: absolute; top: 80px; left: 10px; background: rgba(255,255,255,0.9); padding: 5px 10px; border-radius: 4px; font-size: 12px; font-weight: bold; z-index: 1000; box-shadow: 0 2px 4px rgba(0,0,0,0.2);",l.textContent="Karte A";var s=document.createElement("div");s.style.cssText="position: absolute; top: 80px; left: 10px; background: rgba(255,255,255,0.9); padding: 5px 10px; border-radius: 4px; font-size: 12px; font-weight: bold; z-index: 1000; box-shadow: 0 2px 4px rgba(0,0,0,0.2);",s.textContent="Karte B",a.appendChild(l),i.appendChild(s),i.appendChild(t),n.appendChild(a),n.appendChild(o),n.appendChild(i),a.appendChild(r),e.appendChild(n)},initializeMap2:function(){var e=this,r=setInterval(function(){if(typeof njs<"u"&&njs.AppManager&&njs.AppManager.Maps&&njs.AppManager.Maps.main&&njs.AppManager.Maps.main.mapObj){clearInterval(r);var n=njs.AppManager.Maps.main.mapObj,a=n.getView();console.log("[SplitScreen] Main map found, creating map2...");var o=a.getCenter(),i=a.getProjection(),t=a.getZoom();if(console.log("[SplitScreen] Main view state:",{center:o,centerType:o?typeof o:"null",centerIsArray:Array.isArray(o),centerLength:o?o.length:0,centerValues:o||null,zoom:t,projection:i?i.getCode():"null"}),!o||!Array.isArray(o)||o.length!==2||!i||typeof t>"u"){console.warn("[SplitScreen] Main map view not ready yet, waiting...",{hasCenter:!!o,isArray:Array.isArray(o),length:o?o.length:0,hasProjection:!!i,hasZoom:typeof t<"u"}),setTimeout(function(){e.initializeMap2()},500);return}try{e.map2=new ol.Map({target:"map2",view:a}),console.log("[SplitScreen] Map2 created with shared view:",{center:a.getCenter(),zoom:a.getZoom(),projection:a.getProjection().getCode()})}catch(s){console.error("[SplitScreen] Error creating map2:",s);return}var l=0;console.log("[SplitScreen] ===== Starting layer cloning (non-base layers only) ====="),console.log("[SplitScreen] Total layers in Map A:",n.getLayers().getLength()),n.getLayers().forEach(function(s,p){var d=s.get("name")||"unnamed",S=s.constructor.name,m=s.getZIndex(),b=s.getVisible(),c=s instanceof ol.layer.Group;console.log("[SplitScreen] Layer "+p+":",d,"(type:",S,", group:",c,", zIndex:",m,", visible:",b+")");var g=c||s.get("isBaseLayer")===!0||m!=null&&m<=0;if(g){console.log("[SplitScreen]   -> Skipping baselayer (handled by setupBaseLayerSync)");return}if(s instanceof ol.layer.Layer){var w=e.cloneLayer(s);if(w)e.map2.addLayer(w),l++,console.log("[SplitScreen]   -> \u2713 Cloned (visible: "+w.getVisible()+")");else{var f=new ol.layer.Vector({source:new ol.source.Vector,visible:!1});e.map2.addLayer(f),console.warn("[SplitScreen]   -> \u2717 Placeholder created")}var u=s.get("name")||s.get("title")||"Layer_"+p;e.layerMapping["layer_"+p+"_"+u]={map1Layer:s,map2Layer:w||null,name:u,index:p}}}),console.log("[SplitScreen] Non-base layers cloned: "+l),e.setupBaseLayerSync(),setTimeout(function(){if(e.map2&&a){var s=a.getCenter(),p=a.getZoom(),d=a.getResolution(),S=a.getRotation(),m=e.map2.getView();m.setCenter(s),m.setZoom(p),m.setResolution(d),m.setRotation(S),e.map2.updateSize(),e.map2.renderSync(),console.log("[SplitScreen] Initial sync complete:",{zoom:p,resolution:d,center:s,map2Zoom:m.getZoom(),map2Resolution:m.getResolution()})}},500),setTimeout(function(){e.populateLayerControl();var s=document.getElementById("splitscreen-layer-control");s&&(s.style.display="flex")},200)}},100)},cloneLayer:function(e){if(!e)return null;var c=e.get("name")||e.get("title")||"unnamed";if(console.log("[SplitScreen] Attempting to clone layer:",c),console.log("[SplitScreen]   -> Constructor:",e.constructor.name),e instanceof ol.layer.Group){console.log("[SplitScreen]   -> This is a LayerGroup (Multilayer)");var r=this,n=[],a=e.getVisible(),o=e.get("isBaseLayer")===!0;if(console.log("[SplitScreen]   -> Group visible:",a,"isBaseLayer:",o),e.getLayers().forEach(function(u){console.log("[SplitScreen]     -> Cloning sublayer:",u.get("name")||"unnamed"),o&&u.set("isBaseLayer",!0);var M=r.cloneLayer(u);M&&(M.setVisible(a),n.push(M),console.log("[SplitScreen]       -> \u2713 Sublayer cloned (visible:",M.getVisible()+")"))}),n.length>0){var i=new ol.layer.Group({layers:n,opacity:e.getOpacity(),visible:a,zIndex:e.getZIndex()});return i.set("name",c),i.set("title",e.get("title")),i.set("isBaseLayer",o),console.log("[SplitScreen]   -> \u2713 LayerGroup cloned with",n.length,"sublayers (visible:",a+")"),i}else return console.warn("[SplitScreen]   -> \u2717 LayerGroup has no cloneable sublayers"),null}if(!e.getSource)return console.warn("[SplitScreen]   -> Layer has no getSource method"),null;var t=e.getSource();if(!t)return console.warn("[SplitScreen]   -> Layer has no source"),null;var l=null;console.log("[SplitScreen]   -> Source constructor:",t.constructor.name);try{var s=t.constructor.name;if(console.log("[SplitScreen] Source constructor:",s),t instanceof ol.source.TileWMS){var p=t.getParams?t.getParams():{},d="mapserver";try{t.getServerType&&(d=t.getServerType())}catch{}l=new ol.source.TileWMS({url:t.getUrl(),params:Object.assign({},p),serverType:d,crossOrigin:"anonymous"}),console.log("[SplitScreen] Created TileWMS source")}else if(t instanceof ol.source.ImageWMS){var p=t.getParams?t.getParams():{},d="mapserver";try{t.getServerType&&(d=t.getServerType())}catch{}l=new ol.source.ImageWMS({url:t.getUrl(),params:Object.assign({},p),serverType:d,crossOrigin:"anonymous"}),console.log("[SplitScreen] Created ImageWMS source")}else if(t instanceof ol.source.TileArcGISRest){var p=t.getParams?t.getParams():{};l=new ol.source.TileArcGISRest({url:t.getUrl(),params:Object.assign({},p),crossOrigin:"anonymous"}),console.log("[SplitScreen] Created TileArcGISRest source")}else if(t instanceof ol.source.ImageArcGISRest){var p=t.getParams?t.getParams():{};l=new ol.source.ImageArcGISRest({url:t.getUrl(),params:Object.assign({},p),crossOrigin:"anonymous"}),console.log("[SplitScreen] Created ImageArcGISRest source")}else if(t instanceof ol.source.XYZ){var S=t.getUrl?t.getUrl():t.getUrls?t.getUrls()[0]:null;S&&(l=new ol.source.XYZ({url:S,crossOrigin:"anonymous"}),console.log("[SplitScreen] Created XYZ source"))}else if(t instanceof ol.source.OSM)l=new ol.source.OSM,console.log("[SplitScreen] Created OSM source");else if(t instanceof ol.source.WMTS)try{l=new ol.source.WMTS({url:t.getUrls?t.getUrls()[0]:void 0,layer:t.getLayer?t.getLayer():"",matrixSet:t.getMatrixSet?t.getMatrixSet():"",format:t.getFormat?t.getFormat():"image/png",projection:t.getProjection(),tileGrid:t.getTileGrid(),style:t.getStyle?t.getStyle():"default",crossOrigin:"anonymous"}),console.log("[SplitScreen] Created WMTS source")}catch(u){return console.warn("[SplitScreen] WMTS clone failed, skipping:",u.message),null}else if(t instanceof ol.source.Vector){var m=t.getFeatures?t.getFeatures():[];if(console.log("[SplitScreen] Vector layer with",m.length,"features"),m.length===0)return console.log("[SplitScreen] Skipping empty Vector layer (tool layer)"),null;l=new ol.source.Vector({features:m.map(function(u){return u.clone()})}),console.log("[SplitScreen] Created Vector source")}else return console.warn("[SplitScreen] Unknown/unsupported source type:",s),null}catch(u){return console.error("[SplitScreen] Error cloning source:",u.message,u.stack),null}if(!l)return null;var b=!1,c=e.get("name")||e.get("title")||"unnamed",g=!1;try{var w=e.getZIndex();w!==void 0&&w<=0&&(g=!0),e.get("isBaseLayer")===!0&&(g=!0),(c.includes("base")||c.includes("background")||c.includes("fond")||c.includes("ortho")||c.includes("hintergrund")||c.includes("swissimage")||c.includes("swisstopo"))&&(g=!0)}catch{}g&&(b=e.getVisible(),console.log("[SplitScreen]   -> Baselayer detected, using original visibility:",b));var f=null;try{e instanceof ol.layer.Tile?f=new ol.layer.Tile({source:l,opacity:e.getOpacity(),visible:b,zIndex:e.getZIndex()}):e instanceof ol.layer.Image?f=new ol.layer.Image({source:l,opacity:e.getOpacity(),visible:b,zIndex:e.getZIndex()}):e instanceof ol.layer.Vector?f=new ol.layer.Vector({source:t,opacity:e.getOpacity(),visible:b,zIndex:e.getZIndex()}):(console.warn("[SplitScreen] Unknown layer type, trying generic Layer"),f=new ol.layer.Layer({source:l,opacity:e.getOpacity(),visible:b,zIndex:e.getZIndex()}))}catch(u){return console.error("[SplitScreen] Error creating layer:",u.message),null}return f&&(f.set("name",e.get("name")),f.set("title",e.get("title")),f.set("isBaseLayer",e.get("isBaseLayer")),console.log("[SplitScreen]   -> \u2713 Layer created (visible:",f.getVisible(),", zIndex:",f.getZIndex()+")")),f},setupBaseLayerSync:function(){var e=this;if(!this.map2){console.warn("[SplitScreen] setupBaseLayerSync: map2 not ready");return}console.log("[SplitScreen] ===== Setting up Basemap Sync =====");var r=this.detectCurrentBasemap();console.log("[SplitScreen] Current basemap detected:",r),fetch(A()+"/tnet/php/basemaps-to-json.php").then(function(n){return n.json()}).then(function(n){if(e.basemapConfig=n,console.log("[SplitScreen] Basemap config loaded, keys:",Object.keys(n)),r&&n[r])e.createBasemapInMap2(r,n[r]);else{console.warn('[SplitScreen] Basemap "'+r+'" not found in config, trying first available');for(var a in n)if(n[a].type!=="void"){e.createBasemapInMap2(a,n[a]);break}}e.hookChangeBaseMap(),e._hookTimeDimensionSync()}).catch(function(n){console.error("[SplitScreen] Failed to load basemap config:",n)})},detectCurrentBasemap:function(){var e=new URLSearchParams(window.location.search),r=e.get("basemap");if(r)return r;var n=document.querySelector(".basemap-card.active");return n&&n.dataset.basemap?n.dataset.basemap:"swissimage"},createBasemapInMap2:function(e,r){var n=this;if(console.log("[SplitScreen] Creating basemap in map2:",e),this.removeBasemapFromMap2(),this.currentBasemapId=e,r.type==="void"||e==="leer"||e==="none"){console.log("[SplitScreen] Basemap is void/none - no layers to add");return}if(r.multisource&&r.items){console.log("[SplitScreen] Creating multisource basemap with",r.items.length,"items");var a=[],o=[];r.items.forEach(function(i,t){o.push(n.createBasemapLayerFromItem(i,r,t).then(function(l){l&&a.push({layer:l,index:t})}))}),Promise.all(o).then(function(){a.sort(function(l,s){return l.index-s.index});var i=a.map(function(l){return l.layer});if(i.length>0){var t=new ol.layer.Group({layers:i,opacity:r.opacity||1,visible:!0,zIndex:0});t.set("name","basemap_"+e),t.set("isBaseLayer",!0),t.set("basemapId",e),n.map2.getLayers().insertAt(0,t),console.log("[SplitScreen] \u2713 Multisource basemap added with",i.length,"sublayers"),n.map2.renderSync()}})}else console.log("[SplitScreen] Creating single-source basemap"),this.createBasemapLayerFromItem(r,r,0).then(function(i){i&&(i.set("name","basemap_"+e),i.set("isBaseLayer",!0),i.set("basemapId",e),i.setZIndex(0),n.map2.getLayers().insertAt(0,i),console.log("[SplitScreen] \u2713 Single-source basemap added"),n.map2.renderSync())})},createBasemapLayerFromItem:function(e,r,n){var a=this,o=(e.type||"").toLowerCase();if(console.log("[SplitScreen]   Creating basemap item",n,"- type:",e.type),o==="wmtscapabilities")return fetch(e.url).then(function(p){return p.text()}).then(function(p){var d=new ol.format.WMTSCapabilities,S=d.read(p),m=ol.source.WMTS.optionsFromCapabilities(S,{layer:e.layer,matrixSet:"EPSG:2056"});if(m||(m=ol.source.WMTS.optionsFromCapabilities(S,{layer:e.layer})),m){m.crossOrigin="anonymous";var b=new ol.source.WMTS(m),c={source:b,opacity:e.opacity||r.opacity||1,visible:!0};e.resol_visibility&&(c.minResolution=e.resol_visibility[0],c.maxResolution=e.resol_visibility[1]),r.minResolution!==void 0&&(c.minResolution=Math.max(c.minResolution||0,r.minResolution));var g=new ol.layer.Tile(c);return g.set("isBaseLayer",!0),console.log("[SplitScreen]     \u2713 WMTS layer created:",e.layer),g}else return console.warn("[SplitScreen]     \u2717 WMTS options not found for layer:",e.layer),null}).catch(function(p){return console.error("[SplitScreen]     \u2717 WMTS capabilities fetch failed:",p.message),null});if(o==="wms"){var i=e.options&&e.options.singleTile,t;if(i){var l=new ol.source.ImageWMS({url:e.url,params:e.params||{},crossOrigin:"anonymous"}),s={source:l,opacity:e.opacity||r.opacity||1,visible:!0};e.resol_visibility&&(s.minResolution=e.resol_visibility[0],s.maxResolution=e.resol_visibility[1]),t=new ol.layer.Image(s)}else{var l=new ol.source.TileWMS({url:e.url,params:e.params||{},crossOrigin:"anonymous"}),s={source:l,opacity:e.opacity||r.opacity||1,visible:!0};e.resol_visibility&&(s.minResolution=e.resol_visibility[0],s.maxResolution=e.resol_visibility[1]),t=new ol.layer.Tile(s)}return t.set("isBaseLayer",!0),console.log("[SplitScreen]     \u2713 WMS layer created:",e.params&&e.params.layers||"unnamed"),Promise.resolve(t)}if(o==="arcgisrest"||o==="arcgis"){var l=new ol.source.TileArcGISRest({url:e.url,params:e.params||{},crossOrigin:"anonymous"}),t=new ol.layer.Tile({source:l,opacity:e.opacity||r.opacity||1,visible:!0});return t.set("isBaseLayer",!0),console.log("[SplitScreen]     \u2713 ArcGIS REST layer created"),Promise.resolve(t)}return console.warn("[SplitScreen]     \u2717 Unknown basemap item type:",e.type),Promise.resolve(null)},removeBasemapFromMap2:function(){if(this.map2){var e=this.map2,r=[];e.getLayers().forEach(function(n){(n.get("isBaseLayer")||n.get("basemapId"))&&r.push(n)}),r.forEach(function(n){e.removeLayer(n)}),r.length>0&&console.log("[SplitScreen] Removed",r.length,"basemap layers from map2")}},hookChangeBaseMap:function(){var e=this;if(!njs||!njs.AppManager||!njs.AppManager.Maps||!njs.AppManager.Maps.main){console.warn("[SplitScreen] Cannot hook changeBaseMap - njs not ready");return}var r=njs.AppManager.Maps.main;r._originalChangeBaseMap||(r._originalChangeBaseMap=r.changeBaseMap,r.changeBaseMap=function(n){console.log("[SplitScreen] changeBaseMap intercepted:",n);var a=r.mapObj,o=a?a.getView():null,i=r._originalChangeBaseMap.call(r,n);if(a&&e.map2){var t=a.getView();o&&t&&o!==t&&(console.log("[SplitScreen] \u26A1 View replaced by changeBaseMap! Updating map2..."),e.map2.setView(t),e._attachViewListener(t),e.map2.renderSync())}return e.enabled&&e.map2&&e.basemapConfig&&(e.basemapConfig[n]?e.createBasemapInMap2(n,e.basemapConfig[n]):(n==="none"||n==="leer")&&(e.removeBasemapFromMap2(),e.currentBasemapId=n)),i},console.log("[SplitScreen] \u2713 changeBaseMap hooked for map2 sync"))},_hookTimeDimensionSync:function(){var e=this;this._timeDimensionHandler&&document.removeEventListener("basemap-time-change",this._timeDimensionHandler),this._timeDimensionHandler=function(r){if(!(!e.enabled||!e.map2)){var n=r.detail;console.log("[SplitScreen] Time overlay sync:",n.year,"("+n.timeValue+")");try{if(e._removeTimeOverlaysFromMap(e.map2),!n.timeValue||!n.wmtsUrl){e._setMap2BaseLayerVisibility(!0);return}for(var a=n.wmtsUrl.replace("{Time}",n.timeValue),o=[4e3,3750,3500,3250,3e3,2750,2500,2250,2e3,1750,1500,1250,1e3,750,650,500,250,100,50,20,10,5,2.5,2,1.5,1,.5,.25,.1],i=[],t=0;t<o.length;t++)i.push(t.toString());var l=new ol.source.WMTS({url:a,layer:"",matrixSet:"2056",format:"image/png",projection:"EPSG:2056",requestEncoding:"REST",style:"default",tileGrid:new ol.tilegrid.WMTS({origin:[242e4,135e4],resolutions:o,matrixIds:i}),crossOrigin:"anonymous"}),s=window.BasemapTimeManager&&window.BasemapTimeManager._currentOpacity!==void 0?window.BasemapTimeManager._currentOpacity:1,p=new ol.layer.Tile({source:l,opacity:s,visible:!0});p.set("_isTimeOverlay",!0),p.set("_timeValue",n.timeValue);var d=e.map2.getLayers();d.getLength()>0?d.insertAt(1,p):d.push(p),window.BasemapTimeManager&&window.BasemapTimeManager._isGrayscale&&window.BasemapTimeManager._applyGrayscaleCSS(p,!0),e._setMap2BaseLayerVisibility(!1),console.log("[SplitScreen] \u2713 Time overlay synced to map2")}catch(S){console.warn("[SplitScreen] Time overlay sync error:",S)}}},document.addEventListener("basemap-time-change",this._timeDimensionHandler),console.log("[SplitScreen] \u2713 Time dimension sync hooked")},_removeTimeOverlaysFromMap:function(e){if(e)try{for(var r=e.getLayers().getArray().slice(),n=0;n<r.length;n++)r[n].get("_isTimeOverlay")&&e.removeLayer(r[n])}catch{}},_setMap2BaseLayerVisibility:function(e){if(this.map2)try{for(var r=this.map2.getLayers().getArray(),n=0;n<r.length;n++)if(!r[n].get("_isTimeOverlay")){r[n].setVisible(e);break}}catch{}},setupSynchronization:function(){var e=this;this._viewChangeListenerKey=null;var r=setInterval(function(){if(typeof njs<"u"&&njs.AppManager&&njs.AppManager.Maps&&njs.AppManager.Maps.main&&njs.AppManager.Maps.main.mapObj){clearInterval(r);var n=njs.AppManager.Maps.main.mapObj;e._attachViewListener(n.getView()),n.on("change:view",function(){var a=n.getView();console.log("[SplitScreen] \u26A1 Main map View replaced! Re-syncing map2..."),e.map2&&a&&(e.map2.setView(a),e._attachViewListener(a),e.map2.renderSync(),console.log("[SplitScreen] \u2713 map2 re-synced to new View:",{center:a.getCenter(),zoom:a.getZoom()}))}),console.log("[SplitScreen] View sync: shared View instance + change:view watcher")}},100)},_attachViewListener:function(e){var r=this;this._viewChangeListenerKey&&(ol.Observable.unByKey(this._viewChangeListenerKey),this._viewChangeListenerKey=null),this._viewChangeListenerKey=e.on("change",function(){r.map2&&r.map2.render()})},setupLayerSync:function(){var e=this;if(this.map2){var r=njs.AppManager.Maps.main.mapObj;if(r){console.log("[SplitScreen] Setting up layer synchronization (including baselayers)");var n=r.getLayers(),a=this.map2.getLayers();n.on("add",function(o){var i=o.element,t=i.get("name")||"unnamed",l=i instanceof ol.layer.Group;if(console.log("[SplitScreen] Layer added in Map A:",t,"(isGroup:",l+")"),l||i.get("isBaseLayer")===!0){console.log("[SplitScreen]   -> Skipping basemap layer (handled by hookChangeBaseMap)");return}var s=-1;r.getLayers().forEach(function(d,S){d===i&&(s=S)});var p=e.cloneLayer(i);p&&(s>=0&&s<a.getLength()?(a.insertAt(s,p),console.log("[SplitScreen] Layer inserted at index",s,"in Map B")):(e.map2.addLayer(p),console.log("[SplitScreen] Layer added to Map B")),e.layerMapping[t]=p),setTimeout(function(){e.populateLayerControl()},100)}),n.on("remove",function(o){var i=o.element,t=i.get("name")||"unnamed";if(i instanceof ol.layer.Group||i.get("isBaseLayer")===!0){console.log("[SplitScreen] Basemap layer removed from Map A:",t,"(handled by hookChangeBaseMap)");return}console.log("[SplitScreen] Layer removed from Map A:",t);var l=e.layerMapping[t];l&&(a.remove(l),delete e.layerMapping[t],console.log("[SplitScreen] Removed corresponding layer from Map B")),setTimeout(function(){e.populateLayerControl()},100)}),n.forEach(function(o){o.on("change:visible",function(){var i=o.get("name")||o.get("title")||"unnamed",t=o.getVisible(),l=e.layerMapping[i];l&&(l.setVisible(t),console.log("[SplitScreen] Layer visibility sync:",i,"- now",t));var s=document.getElementById("layer-cb-"+i);s&&(s.checked=t)}),o.on("change:opacity",function(){var i=o.get("name")||o.get("title")||"unnamed",t=o.getOpacity(),l=e.layerMapping[i];l&&(l.setOpacity(t),console.log("[SplitScreen] Layer opacity sync:",i,"- now",t))})}),console.log("[SplitScreen] Layer synchronization initialized")}}},setupResizer:function(){var e=this,r=document.getElementById("split-divider"),n=document.getElementById("split-panel-left"),a=document.getElementById("split-panel-right");!r||!n||!a||(r.addEventListener("mousedown",function(o){e.isDragging=!0,document.body.style.cursor="col-resize",document.body.style.userSelect="none",o.preventDefault()}),document.addEventListener("mousemove",function(o){if(e.isDragging){var i=document.getElementById("split-wrapper"),t=i.getBoundingClientRect(),l=o.clientX-t.left,s=l/t.width*100;s=Math.max(20,Math.min(80,s)),n.style.flex=s,a.style.flex=100-s,njs.AppManager.Maps.main&&njs.AppManager.Maps.main.mapObj&&njs.AppManager.Maps.main.mapObj.updateSize(),e.map2&&e.map2.updateSize()}}),document.addEventListener("mouseup",function(){e.isDragging&&(e.isDragging=!1,document.body.style.cursor="",document.body.style.userSelect="")}))},createLayerControl:function(){var e=this,r=document.getElementById("split-panel-right");if(r){var n=document.createElement("button");n.id="split-layer-btn",n.title="Layer f\xFCr Karte B ausw\xE4hlen",n.style.cssText="position: absolute; top: 10px; right: 10px; width: 36px; height: 36px; background: white; border: none; border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.2); cursor: pointer; z-index: 1002; display: flex; align-items: center; justify-content: center;",n.innerHTML=TnetIcons.get("hamburger",null,{width:"20",height:"20"});var a=document.createElement("div");a.id="splitscreen-layer-control",a.style.cssText="position: absolute; top: 52px; right: 10px; width: 260px; max-height: 400px; background: white; border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.3); z-index: 1003; display: none; flex-direction: column;";var o=document.createElement("div");o.style.cssText="padding: 10px; background: #2c5f6f; color: white; font-weight: bold; font-size: 13px; border-radius: 4px 4px 0 0; display: flex; justify-content: space-between; align-items: center;",o.innerHTML='<span>Layer f\xFCr Karte B</span><div><button id="layer-control-reload" style="background: none; border: none; color: white; cursor: pointer; margin-right: 8px; font-size: 16px;" title="Layer neu laden">\u21BB</button><span style="cursor: pointer; font-size: 18px;" id="layer-control-close">\xD7</span></div>',o.querySelector("#layer-control-close").addEventListener("click",function(){a.style.display="none"}),o.querySelector("#layer-control-reload").addEventListener("click",function(){console.log("[SplitScreen] Manual reload requested"),e.populateLayerControl()});var i=document.createElement("div");i.id="splitscreen-layer-list",i.style.cssText="padding: 8px; overflow-y: auto; max-height: 340px; font-size: 12px;",i.innerHTML='<div style="padding: 10px; color: #666; text-align: center;">Layer werden geladen...</div>',a.appendChild(o),a.appendChild(i),n.addEventListener("click",function(){a.style.display=a.style.display==="none"?"flex":"none"}),r.appendChild(n),r.appendChild(a),this.layerControlPanel=a,this.layerControlButton=n}},populateLayerControl:function(){var e=this,r=document.getElementById("splitscreen-layer-list");if(!r){console.error("[SplitScreen] Layer list element not found!"),alert("Fehler: Layer-Liste-Element nicht gefunden!");return}if(console.log("[SplitScreen] populateLayerControl called"),r.innerHTML='<div style="padding: 10px; color: #666; text-align: center;">Lade Layer...</div>',typeof njs>"u"){console.error("[SplitScreen] njs is undefined!"),r.innerHTML='<div style="padding: 10px; color: #f00; text-align: center;">Fehler: njs nicht verf\xFCgbar</div>';return}if(!njs.AppManager||!njs.AppManager.Maps||!njs.AppManager.Maps.main){console.error("[SplitScreen] njs.AppManager.Maps.main not available!"),r.innerHTML='<div style="padding: 10px; color: #f00; text-align: center;">Fehler: AppManager nicht verf\xFCgbar</div>';return}var n=njs.AppManager.Maps.main.mapObj;if(!n){console.error("[SplitScreen] Main map not found!"),r.innerHTML='<div style="padding: 10px; color: #f00; text-align: center;">Fehler: Hauptkarte nicht gefunden</div>';return}if(!this.map2){console.error("[SplitScreen] Map2 not initialized!"),r.innerHTML='<div style="padding: 10px; color: #f00; text-align: center;">Fehler: Karte B nicht initialisiert</div>';return}var a=n.getLayers().getArray(),o=this.map2.getLayers().getArray();console.log("[SplitScreen] ========================================"),console.log("[SplitScreen] Populating layer control from Map A"),console.log("[SplitScreen] Map A layers:",a.length),console.log("[SplitScreen] Map B layers:",o.length),console.log("[SplitScreen] ========================================"),r.innerHTML="";var i=0;if(a.forEach(function(t,l){var s=t.get("name")||t.get("title")||"Layer "+l;console.log("[SplitScreen] Processing layer",l+":",s);var p=!1;try{var d=t.getZIndex();d!==void 0&&d<=0&&(p=!0),t.get("isBaseLayer")===!0&&(p=!0),(s.includes("base")||s.includes("background")||s.includes("fond")||s.includes("ortho")||s.includes("hintergrund")||s.includes("wmts")||s.includes("basemap"))&&(p=!0)}catch{}if(p){console.log("[SplitScreen]   -> Skipping baselayer (auto-synced)");return}if(s.toLowerCase().includes("cosmetic")||s.toLowerCase().includes("graphic")||s.toLowerCase().includes("highlight")){console.log("[SplitScreen]   -> Skipping system layer");return}var S=o[l];if(!S){console.warn("[SplitScreen]   -> No map2 layer at index",l);return}var m=S.getVisible(),b=!1,c=!1;try{var g=S.getSource&&S.getSource();if(console.log("[SplitScreen]   -> Source type:",g?g.constructor.name:"no source"),g)if(g.constructor.name==="Vector"||g.constructor.name.includes("Vector")){var w=g.getFeatures?g.getFeatures():[];w.length===0?(c=!0,b=!1):b=!0}else b=!0}catch(x){console.warn("[SplitScreen]   -> Error checking source:",x)}var f=b,u=document.createElement("div");u.style.cssText="display: flex; align-items: center; padding: 6px; border-bottom: 1px solid #eee; cursor: pointer;"+(f?"":" opacity: 0.5;"),u.innerHTML='<input type="checkbox" id="layer-cb-'+l+'" style="margin-right: 8px;" '+(m?"checked":"")+(f?"":" disabled")+'><label for="layer-cb-'+l+'" style="cursor: pointer; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">'+s+(c?" (Werkzeug)":"")+"</label>";var M=u.querySelector("input");console.log("[SplitScreen]   -> Added to list - visible:",m,"toggleable:",f,"has map2Layer:",!!S),f&&(function(x,T,v){M.addEventListener("change",function(y){if(console.log("[SplitScreen] Checkbox change event fired for:",T,"checked:",this.checked,"has m2Layer:",!!v),v)try{v.setVisible(this.checked),console.log('[SplitScreen] Layer "'+T+'" (index '+x+") in Karte B set to:",this.checked),console.log("[SplitScreen]   -> Layer type:",v.constructor.name),console.log("[SplitScreen]   -> Actual visible:",v.getVisible()),console.log("[SplitScreen]   -> Opacity:",v.getOpacity()),console.log("[SplitScreen]   -> zIndex:",v.getZIndex()),console.log("[SplitScreen]   -> Source:",v.getSource());var E=v.getSource();E&&E.getUrl&&console.log("[SplitScreen]   -> Source URL:",E.getUrl()),E&&E.getParams&&console.log("[SplitScreen]   -> WMS Params:",E.getParams()),e.map2&&(e.map2.render(),console.log("[SplitScreen]   -> Map2 rendered"))}catch(j){console.error("[SplitScreen] Error setting layer visibility:",j)}else console.warn('[SplitScreen] Layer "'+T+'" (index '+x+") not found in map2")})}(l,s,S),u.addEventListener("click",function(x){if(x.target!==M){console.log("[SplitScreen] Item clicked, toggling checkbox"),M.checked=!M.checked;var T=new Event("change",{bubbles:!0});M.dispatchEvent(T)}})),r.appendChild(u),i++}),console.log("[SplitScreen] ========================================"),console.log("[SplitScreen] Layer control populated with",i,"layers"),console.log("[SplitScreen] ========================================"),this.map2){console.log("[SplitScreen] === Map2 Layer Summary ===");var o=this.map2.getLayers().getArray();o.forEach(function(l,s){var p=l.get("name")||"unnamed",d=l.getVisible(),S=l.getOpacity(),m=l.getZIndex();console.log("[SplitScreen] Map2 Layer "+s+': "'+p+'" visible:'+d+" opacity:"+S+" zIndex:"+m)}),console.log("[SplitScreen] ===========================")}i===0&&(r.innerHTML='<div style="padding: 10px; color: #999; text-align: center;">Keine Layer verf\xFCgbar<br><small>Klicken Sie auf \u21BB um neu zu laden</small></div>')},disable:function(){if(this.enabled){console.log("[SplitScreen] Disabling...");try{if(this.enabled=!1,this.layerCatalog&&this.layerCatalog.destroy&&(this.layerCatalog.destroy(),this.layerCatalog=null,console.log("[SplitScreen] Layer catalog destroyed")),this.map2)try{var e=this.map2.getLayers().getArray().slice();e.forEach(function(i){this.map2.removeLayer(i)},this),this.map2.setTarget(null),this.map2.dispose&&this.map2.dispose(),this.map2=null,console.log("[SplitScreen] Map2 destroyed")}catch(i){console.warn("[SplitScreen] Error destroying map2:",i),this.map2=null}this.layerMapping={},this.basemapConfig=null,this.currentBasemapId=null,this._viewChangeListenerKey&&(ol.Observable.unByKey(this._viewChangeListenerKey),this._viewChangeListenerKey=null),this._timeDimensionHandler&&(document.removeEventListener("basemap-time-change",this._timeDimensionHandler),this._timeDimensionHandler=null,console.log("[SplitScreen] Time dimension sync listener removed"));try{var r=njs.AppManager.Maps.main;r&&r._originalChangeBaseMap&&(r.changeBaseMap=r._originalChangeBaseMap,delete r._originalChangeBaseMap,console.log("[SplitScreen] changeBaseMap hook removed"))}catch(i){console.warn("[SplitScreen] Error removing changeBaseMap hook:",i)}var n=document.getElementById("mapContainer"),a=document.getElementById("split-wrapper"),o=document.getElementById("map");a&&n&&o?(o.parentNode&&o.parentNode!==n&&(n.appendChild(o),console.log("[SplitScreen] Original map restored to container")),a.parentNode&&(a.parentNode.removeChild(a),console.log("[SplitScreen] Split wrapper removed")),setTimeout(function(){njs.AppManager.Maps.main&&njs.AppManager.Maps.main.mapObj&&(njs.AppManager.Maps.main.mapObj.updateSize(),console.log("[SplitScreen] Main map size updated"))},100),console.log("[SplitScreen] Disabled successfully")):console.warn("[SplitScreen] DOM elements not found for cleanup")}catch(i){console.error("[SplitScreen] Error during disable:",i)}}},addLayerToMaps:function(e){if(!e)return console.warn("[SplitScreen] No layer provided"),null;var r=njs.AppManager.Maps.main.mapObj;if(!r)return console.warn("[SplitScreen] Main map not available"),null;try{r.addLayer(e)}catch(o){console.warn("[SplitScreen] addLayer Framework-Fehler abgefangen:",o.message)}if(console.log("[SplitScreen] Layer added to Map A:",e.get("name")||"unnamed"),this.enabled&&this.map2){var n=this.cloneLayer(e);if(n){this.map2.addLayer(n);var a=e.get("name")||e.get("title")||"unnamed";return this.layerMapping[a]=n,console.log("[SplitScreen] Layer cloned and added to Map B:",a),setTimeout(function(){window.TnetSplitScreen&&window.TnetSplitScreen.populateLayerControl()},100),n}}else this.enabled||console.log("[SplitScreen] Splitscreen not active - layer only added to Map A");return null},toggle:function(){var e=document.getElementById("split-screen-btn");this.enabled?(this.disable(),e&&e.classList.remove("active")):(this.init(),e&&e.classList.add("active"))},setupMap2Maptips:function(){var e=this,r=setInterval(function(){if(e.map2){clearInterval(r),console.log("[SplitScreen] Setting up native OpenLayers maptips for map2...");var n=document.createElement("div");n.id="map2-popup",n.className="ol-popup",n.style.cssText="position: absolute; background: white; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.3); min-width: 200px; max-width: 400px; max-height: 300px; overflow: auto;";var a=document.createElement("a");a.href="#",a.className="ol-popup-closer",a.style.cssText="position: absolute; top: 5px; right: 5px; text-decoration: none; color: #999; font-size: 18px; font-weight: bold;",a.innerHTML="\xD7";var o=document.createElement("div");o.id="map2-popup-content",n.appendChild(a),n.appendChild(o),document.body.appendChild(n);var i=new ol.Overlay({element:n,autoPan:!0,autoPanAnimation:{duration:250}});e.map2.addOverlay(i),a.onclick=function(){return i.setPosition(void 0),a.blur(),!1},e.map2.on("singleclick",function(t){var l=t.coordinate,s=t.pixel;console.log("[SplitScreen] Map2 clicked at coordinate:",l,"pixel:",s);var p=[],d=[],S=0,m=e.map2.getView().getResolution(),b=e.map2.getView().getProjection();e.map2.getLayers().forEach(function(c){if(c.getVisible()&&!(c instanceof ol.layer.Group)&&typeof c.getSource=="function"){S++;var g=c.getSource();if(g){var w=c.get("title")||c.get("name")||c.get("catalogId")||"Unknown";console.log("[SplitScreen] Querying layer:",w),console.log("[SplitScreen] - source:",g),console.log("[SplitScreen] - source type:",g?g.constructor.name:"null"),console.log("[SplitScreen] - has getUrl:",g&&typeof g.getUrl=="function"),console.log("[SplitScreen] - has getFeatureInfoUrl:",g&&typeof g.getFeatureInfoUrl=="function");var f=g instanceof ol.source.ImageArcGISRest||g instanceof ol.source.TileArcGISRest||typeof g.getUrl=="function"&&g.constructor&&g.constructor.name&&g.constructor.name.indexOf("ArcGISRest")>-1;if(f&&typeof g.getUrl=="function")try{var u=g.getUrl(),M=g.getParams?g.getParams():{},x=e.map2.getView().calculateExtent(e.map2.getSize()),T=M.LAYERS||M.layers||"0",v;u.indexOf("agsproxy.php")>-1?v=u.replace(/\/MapServer\/?/,"/MapServer/identify")+"&f=json&geometry="+l[0]+","+l[1]+"&geometryType=esriGeometryPoint&sr="+b.getCode().split(":")[1]+"&layers=all:"+T.replace(/^show:/,"")+"&tolerance=5&mapExtent="+x.join(",")+"&imageDisplay="+e.map2.getSize().join(",")+",96&returnGeometry=false":v=u.replace(/\/export\/?$/,"")+"/identify?f=json&geometry="+l[0]+","+l[1]+"&geometryType=esriGeometryPoint&sr="+b.getCode().split(":")[1]+"&layers=all:"+T.replace(/^show:/,"")+"&tolerance=5&mapExtent="+x.join(",")+"&imageDisplay="+e.map2.getSize().join(",")+",96&returnGeometry=false",console.log("[SplitScreen] ArcGIS identify URL:",v),d.push(fetch(v).then(function(y){return y.json()}).then(function(y){if(console.log("[SplitScreen] ArcGIS response:",y),y.results&&y.results.length>0){var E=y.results.map(function(j){return{properties:j.attributes}});p.push({layer:w,data:E})}}).catch(function(y){console.warn("[SplitScreen] ArcGIS error:",y)}))}catch(y){console.warn("[SplitScreen] Error building ArcGIS query:",y)}else g&&typeof g.getFeatureInfoUrl=="function"&&function(y){var E=["application/json","application/geojson","text/html","application/vnd.ogc.gml","text/plain"],j=function(k){if(k>=E.length)return console.warn("[SplitScreen] All WMS formats failed for",y),Promise.resolve();var I=E[k],O=g.getFeatureInfoUrl(l,m,b,{INFO_FORMAT:I,FEATURE_COUNT:10});if(!O)return Promise.resolve();if(O.indexOf("QUERY_LAYERS")===-1){var V=g.getParams();if(V&&V.LAYERS)O+="&QUERY_LAYERS="+encodeURIComponent(V.LAYERS);else if(O.indexOf("layers=")>-1){var q=O.match(/layers=([^&]+)/i);q&&(O+="&QUERY_LAYERS="+q[1])}}return console.log("[SplitScreen] WMS trying format",I,"for",y),console.log("[SplitScreen] WMS URL:",O),fetch(O).then(function(h){return h.text()}).then(function(h){if(console.log("[SplitScreen] WMS response for format",I,"- length:",h.length,"- preview:",h.substring(0,300)),h.indexOf("ServiceExceptionReport")>-1||h.indexOf("ServiceException")>-1){var G=new DOMParser,W=G.parseFromString(h,"text/xml"),F=W.getElementsByTagName("ServiceException"),U="";if(F.length>0)for(var L=0;L<F.length;L++)U+=F[L].textContent+" ";else U="Unknown error - full response: "+h.substring(0,500);return console.error("[SplitScreen] WMS ServiceException for format",I),console.error("[SplitScreen] Exception message:",U),console.error("[SplitScreen] Failed URL:",O),j(k+1)}if(I==="text/plain"&&h.length>0&&h.indexOf("<?xml")!==0){console.log("[SplitScreen] text/plain response:",h);for(var B={},X=h.split(`
-`),L=0;L<X.length;L++){var R=X[L].trim();if(R&&R.indexOf("=")>-1&&!R.match(/^(Layer|Feature|GetFeatureInfo)/)){var Q=R.split("="),$=Q[0].trim(),_=Q.slice(1).join("=").trim();_=_.replace(/^'|'$/g,"").replace(/^"|"$/g,""),$&&_&&(B[$]=_)}}if(Object.keys(B).length>0){console.log("[SplitScreen] text/plain parsed attributes:",B),p.push({layer:y,data:[{properties:B}]}),console.log("[SplitScreen] WMS text/plain success for",y,"with",Object.keys(B).length,"attributes");return}}if(I.indexOf("json")>-1)try{var H=JSON.parse(h);if(H.features&&H.features.length>0){var J=H.features.map(function(Y){return{properties:Y.properties||Y.attributes||{}}});p.push({layer:y,data:J}),console.log("[SplitScreen] WMS JSON success for",y,":",J.length,"features");return}}catch{}if(I.indexOf("html")>-1&&h.indexOf("<table")>-1){var ee=document.createElement("div");ee.innerHTML=h;var ne=ee.getElementsByTagName("table");if(ne.length>0){for(var B={},te=ne[0].getElementsByTagName("tr"),L=0;L<te.length;L++){var N=te[L].getElementsByTagName("td");N.length>=2&&(B[N[0].textContent.trim()]=N[1].textContent.trim())}if(Object.keys(B).length>0){p.push({layer:y,data:[{properties:B}]}),console.log("[SplitScreen] WMS HTML success for",y);return}}}if(h.indexOf("<?xml")===0||h.indexOf("<")===0){var G=new DOMParser,W=G.parseFromString(h,"text/xml"),D=W.getElementsByTagName("gml:featureMember");if(D.length>0){for(var P=[],L=0;L<D.length;L++){var B={},Z=D[L].children[0];if(Z)for(var K=0;K<Z.children.length;K++){var z=Z.children[K],re=z.localName||z.tagName;z.textContent&&re!=="boundedBy"&&(B[re]=z.textContent)}Object.keys(B).length>0&&P.push({properties:B})}if(P.length>0){p.push({layer:y,data:P}),console.log("[SplitScreen] WMS GML success for",y,":",P.length,"features");return}}}return j(k+1)}).catch(function(h){return console.warn("[SplitScreen] WMS fetch error for format",I,":",h),j(k+1)})};d.push(j(0))}(w)}}}),console.log("[SplitScreen] Layers checked:",S,"Requests:",d.length),d.length>0?Promise.all(d).then(function(){if(p.length>0){console.log("[SplitScreen] Total features from",p.length,"layers");var c='<div style="font-family: Arial, sans-serif;">';c+='<div style="font-size: 13px; font-weight: bold; margin-bottom: 10px; padding-bottom: 5px; border-bottom: 2px solid #2c5f6f; color: #2c5f6f;">Objekt-Informationen ('+p.length+" Layer)</div>",p.forEach(function(g,w){var f="accordion-"+w,u=w===0;c+='<div style="margin-bottom: 8px; border: 1px solid #ddd; border-radius: 4px; overflow: hidden;">',c+=`<div onclick="var content = document.getElementById('`+f+`'); var icon = this.querySelector('.accordion-icon'); if(content.style.display === 'none'){content.style.display = 'block'; icon.innerHTML = '\u25BC';}else{content.style.display = 'none'; icon.innerHTML = '\u25BA';}" `,c+='style="background: #f5f5f5; padding: 8px 12px; cursor: pointer; font-weight: bold; font-size: 12px; color: #333; display: flex; justify-content: space-between; align-items: center; user-select: none;">',c+="<span>"+g.layer+" ("+g.data.length+")</span>",c+='<span class="accordion-icon" style="color: #2c5f6f; font-size: 10px;">'+(u?"\u25BC":"\u25BA")+"</span>",c+="</div>",c+='<div id="'+f+'" style="display: '+(u?"block":"none")+'; padding: 10px; background: white;">',g.data.forEach(function(M,x){x>0&&(c+='<hr style="margin: 10px 0; border: none; border-top: 1px solid #eee;">');var T=M.properties||M.attributes||{};c+='<table style="font-size: 11px; width: 100%; border-collapse: collapse;">';for(var v in T)T.hasOwnProperty(v)&&v!=="geometry"&&T[v]&&(c+="<tr>",c+='<td style="padding: 3px 8px 3px 0; font-weight: 600; color: #555; vertical-align: top; width: 40%;">'+v+":</td>",c+='<td style="padding: 3px 0; color: #333; vertical-align: top;">'+T[v]+"</td>",c+="</tr>");c+="</table>"}),c+="</div>",c+="</div>"}),c+="</div>",o.innerHTML=c,i.setPosition(l)}else console.log("[SplitScreen] No features found"),o.innerHTML='<div style="padding: 10px; color: #999; text-align: center;">Keine Informationen gefunden</div>',i.setPosition(l)}):console.log("[SplitScreen] No queryable layers visible")}),console.log("[SplitScreen] Native maptips enabled for map2")}},100)}};window.TnetSplitScreen=C,window.toggleSplitScreen=function(){window.TnetSplitScreen?window.TnetSplitScreen.toggle():console.error("[SplitScreen] Module not loaded")}})();function addWmsLayer(A,C,e,r){if(!A||!C)return console.error("[SplitScreen] addWmsLayer requires wmsUrl and layerName"),null;var n=Object.assign({LAYERS:C,FORMAT:"image/png",TRANSPARENT:!0},r||{}),a=new ol.layer.Image({source:new ol.source.ImageWMS({url:A,params:n,serverType:"geoserver",crossOrigin:"anonymous"}),opacity:.8,visible:!0});return e?(a.set("title",e),a.set("name",e)):a.set("name",C),window.TnetSplitScreen?window.TnetSplitScreen.addLayerToMaps(a):(console.error("[SplitScreen] Module not loaded"),null)}function addTileWmsLayer(A,C,e,r){if(!A||!C)return console.error("[SplitScreen] addTileWmsLayer requires wmsUrl and layerName"),null;var n=Object.assign({LAYERS:C,FORMAT:"image/png",TRANSPARENT:!0},r||{}),a=new ol.layer.Tile({source:new ol.source.TileWMS({url:A,params:n,serverType:"geoserver",crossOrigin:"anonymous"}),opacity:.8,visible:!0});return e?(a.set("title",e),a.set("name",e)):a.set("name",C),window.TnetSplitScreen?window.TnetSplitScreen.addLayerToMaps(a):(console.error("[SplitScreen] Module not loaded"),null)}function addCustomLayer(A){return window.TnetSplitScreen?window.TnetSplitScreen.addLayerToMaps(A):(console.error("[SplitScreen] Module not loaded"),null)}
+/**
+ * tnet-splitscreen.js
+ * Split-screen functionality for layer comparison
+ *
+ * Enables side-by-side map view with synchronized navigation
+ * and independent layer selection for each map panel.
+ *
+ * @version    1.3
+ * @date       2026-02-12
+ * @copyright  Trigonet AG
+ * @author     Marco Dellenbach
+ */
+
+(function() {
+    'use strict';
+
+    function getAppRoot() {
+        return window.__TNET_APP_ROOT || '/maps';
+    }
+
+    var SplitScreen = {
+        enabled: false,
+        map2: null,
+        originalMapContainer: null,
+        dividerPosition: 50, // percentage
+        isDragging: false,
+        layerControlPanel: null,
+        layerControlButton: null,
+        layerCatalog: null, // Layer catalog instance
+        layerMapping: {}, // Maps layer name -> map2 layer
+        layerSyncActive: false,
+        basemapConfig: null, // Cached basemap configuration
+        currentBasemapId: null, // Currently active basemap ID
+
+        /**
+         * Initialize split-screen mode
+         */
+        init: function() {
+            console.log('[SplitScreen] Initializing...');
+            
+            // Create the split-screen container structure
+            this.createSplitLayout();
+            
+            // Initialize the second map
+            this.initializeMap2();
+            
+            // Setup synchronization between maps
+            this.setupSynchronization();
+            
+            // Setup layer synchronization (visibility, opacity changes)
+            this.setupLayerSync();
+            
+            // Setup resizable divider
+            this.setupResizer();
+            
+            // Create layer control panel
+            this.createLayerControl();
+            
+            // Setup maptips for map2
+            this.setupMap2Maptips();
+            
+            // Initialize layer catalog for map2 (if available)
+            if (typeof window.TnetLayerCatalog !== 'undefined') {
+                var self = this;
+                setTimeout(function() {
+                    if (self.map2) {
+                        self.layerCatalog = Object.create(window.TnetLayerCatalog);
+                        self.layerCatalog.init(self.map2);
+                        console.log('[SplitScreen] Layer catalog initialized for map2');
+                    }
+                }, 500);
+            }
+            
+            this.enabled = true;
+            console.log('[SplitScreen] Initialized successfully');
+        },
+
+        /**
+         * Create the HTML structure for split-screen layout
+         */
+        createSplitLayout: function() {
+            var mapContainer = document.getElementById('mapContainer');
+            var originalMap = document.getElementById('map');
+            
+            // Store original container
+            this.originalMapContainer = mapContainer;
+            
+            // Create wrapper for split view
+            var splitWrapper = document.createElement('div');
+            splitWrapper.id = 'split-wrapper';
+            splitWrapper.style.cssText = 'display: flex; width: 100%; height: 100%; position: relative;';
+            
+            // Create left panel for original map
+            var leftPanel = document.createElement('div');
+            leftPanel.id = 'split-panel-left';
+            leftPanel.style.cssText = 'flex: 1; position: relative; overflow: hidden;';
+            
+            // Create divider
+            var divider = document.createElement('div');
+            divider.id = 'split-divider';
+            divider.style.cssText = 'width: 4px; background: #2c5f6f; cursor: col-resize; position: relative; z-index: 1000; box-shadow: 0 0 5px rgba(0,0,0,0.3);';
+            divider.innerHTML = '<div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 20px; height: 40px; background: rgba(44, 95, 111, 0.8); border-radius: 4px; display: flex; align-items: center; justify-content: center; color: white; font-size: 10px;">⋮</div>';
+            
+            // Create right panel for second map
+            var rightPanel = document.createElement('div');
+            rightPanel.id = 'split-panel-right';
+            rightPanel.style.cssText = 'flex: 1; position: relative; overflow: hidden; background: #f0f0f0;';
+            
+            // Create second map container
+            var map2Container = document.createElement('div');
+            map2Container.id = 'map2';
+            map2Container.className = 'map-cont';
+            map2Container.style.cssText = 'width: 100%; height: 100%;';
+            
+            // Create label for map panels
+            var leftLabel = document.createElement('div');
+            leftLabel.style.cssText = 'position: absolute; top: 80px; left: 10px; background: rgba(255,255,255,0.9); padding: 5px 10px; border-radius: 4px; font-size: 12px; font-weight: bold; z-index: 1000; box-shadow: 0 2px 4px rgba(0,0,0,0.2);';
+            leftLabel.textContent = 'Karte A';
+            
+            var rightLabel = document.createElement('div');
+            rightLabel.style.cssText = 'position: absolute; top: 80px; left: 10px; background: rgba(255,255,255,0.9); padding: 5px 10px; border-radius: 4px; font-size: 12px; font-weight: bold; z-index: 1000; box-shadow: 0 2px 4px rgba(0,0,0,0.2);';
+            rightLabel.textContent = 'Karte B';
+            
+            // Assemble the structure
+            leftPanel.appendChild(leftLabel);
+            rightPanel.appendChild(rightLabel);
+            rightPanel.appendChild(map2Container);
+            
+            splitWrapper.appendChild(leftPanel);
+            splitWrapper.appendChild(divider);
+            splitWrapper.appendChild(rightPanel);
+            
+            // Move original map to left panel
+            leftPanel.appendChild(originalMap);
+            
+            // Insert split wrapper into map container
+            mapContainer.appendChild(splitWrapper);
+        },
+
+        /**
+         * Initialize the second map instance
+         */
+        initializeMap2: function() {
+            var self = this;
+            
+            // Wait for the main map to be initialized
+            var checkMainMap = setInterval(function() {
+                if (typeof njs !== 'undefined' && 
+                    njs.AppManager && 
+                    njs.AppManager.Maps && 
+                    njs.AppManager.Maps.main && 
+                    njs.AppManager.Maps.main.mapObj) {
+                    
+                    clearInterval(checkMainMap);
+                    
+                    var mainMap = njs.AppManager.Maps.main.mapObj;
+                    var mainView = mainMap.getView();
+                    
+                    console.log('[SplitScreen] Main map found, creating map2...');
+                    
+                    // Get view parameters with fallbacks
+                    var center = mainView.getCenter();
+                    var projection = mainView.getProjection();
+                    var zoom = mainView.getZoom();
+                    
+                    console.log('[SplitScreen] Main view state:', {
+                        center: center,
+                        centerType: center ? typeof center : 'null',
+                        centerIsArray: Array.isArray(center),
+                        centerLength: center ? center.length : 0,
+                        centerValues: center ? center : null,
+                        zoom: zoom,
+                        projection: projection ? projection.getCode() : 'null'
+                    });
+                    
+                    // Wait for view to be ready if center is invalid
+                    if (!center || !Array.isArray(center) || center.length !== 2 || !projection || typeof zoom === 'undefined') {
+                        console.warn('[SplitScreen] Main map view not ready yet, waiting...', {
+                            hasCenter: !!center,
+                            isArray: Array.isArray(center),
+                            length: center ? center.length : 0,
+                            hasProjection: !!projection,
+                            hasZoom: typeof zoom !== 'undefined'
+                        });
+                        setTimeout(function() {
+                            self.initializeMap2();
+                        }, 500);
+                        return;
+                    }
+                    
+                    try {
+                        // WICHTIG: Beide Karten teilen sich die GLEICHE View-Instanz
+                        // Das verhindert View-Initialisierungsprobleme und synchronisiert automatisch
+                        self.map2 = new ol.Map({
+                            target: 'map2',
+                            view: mainView  // Verwende die existierende View direkt!
+                        });
+                        
+                        console.log('[SplitScreen] Map2 created with shared view:', {
+                            center: mainView.getCenter(),
+                            zoom: mainView.getZoom(),
+                            projection: mainView.getProjection().getCode()
+                        });
+                    } catch (e) {
+                        console.error('[SplitScreen] Error creating map2:', e);
+                        return;
+                    }
+                    
+                    // Clone layers from main map - OHNE Baselayer (die werden separat geladen)
+                    var layerCount = 0;
+                    console.log('[SplitScreen] ===== Starting layer cloning (non-base layers only) =====');
+                    console.log('[SplitScreen] Total layers in Map A:', mainMap.getLayers().getLength());
+                    
+                    mainMap.getLayers().forEach(function(layer, idx) {
+                        var layerName = layer.get('name') || 'unnamed';
+                        var layerType = layer.constructor.name;
+                        var zIndex = layer.getZIndex();
+                        var visible = layer.getVisible();
+                        var isGroup = layer instanceof ol.layer.Group;
+                        
+                        console.log('[SplitScreen] Layer ' + idx + ':', layerName, '(type:', layerType, ', group:', isGroup, ', zIndex:', zIndex, ', visible:', visible + ')');
+                        
+                        // Skip Baselayer - werden über setupBaseLayerSync() geladen
+                        // Baselayer sind: LayerGroups, oder Layer mit isBaseLayer=true, zIndex<=0
+                        var isBaseLayer = isGroup || 
+                                         layer.get('isBaseLayer') === true ||
+                                         (zIndex !== undefined && zIndex !== null && zIndex <= 0);
+                        
+                        if (isBaseLayer) {
+                            console.log('[SplitScreen]   -> Skipping baselayer (handled by setupBaseLayerSync)');
+                            return;
+                        }
+                        
+                        if (layer instanceof ol.layer.Layer) {
+                            var clonedLayer = self.cloneLayer(layer);
+                            if (clonedLayer) {
+                                self.map2.addLayer(clonedLayer);
+                                layerCount++;
+                                console.log('[SplitScreen]   -> ✓ Cloned (visible: ' + clonedLayer.getVisible() + ')');
+                            } else {
+                                // Platzhalter für nicht klonbare Layer
+                                var placeholderLayer = new ol.layer.Vector({
+                                    source: new ol.source.Vector(),
+                                    visible: false
+                                });
+                                self.map2.addLayer(placeholderLayer);
+                                console.warn('[SplitScreen]   -> ✗ Placeholder created');
+                            }
+                            
+                            var uName = layer.get('name') || layer.get('title') || 'Layer_' + idx;
+                            self.layerMapping['layer_' + idx + '_' + uName] = {
+                                map1Layer: layer,
+                                map2Layer: clonedLayer || null,
+                                name: uName,
+                                index: idx
+                            };
+                        }
+                    });
+                    
+                    console.log('[SplitScreen] Non-base layers cloned: ' + layerCount);
+                    
+                    // *** Baselayer aus basemaps.conf laden und in map2 erstellen ***
+                    self.setupBaseLayerSync();
+                    
+                    // WICHTIG: Synchronisiere Zoom/Center nach map2 Initialisierung
+                    setTimeout(function() {
+                        if (self.map2 && mainView) {
+                            var currentCenter = mainView.getCenter();
+                            var currentZoom = mainView.getZoom();
+                            var currentResolution = mainView.getResolution();
+                            var currentRotation = mainView.getRotation();
+                            
+                            var map2View = self.map2.getView();
+                            map2View.setCenter(currentCenter);
+                            map2View.setZoom(currentZoom);
+                            map2View.setResolution(currentResolution);
+                            map2View.setRotation(currentRotation);
+                            
+                            // Force render
+                            self.map2.updateSize();
+                            self.map2.renderSync();
+                            
+                            console.log('[SplitScreen] Initial sync complete:', {
+                                zoom: currentZoom,
+                                resolution: currentResolution,
+                                center: currentCenter,
+                                map2Zoom: map2View.getZoom(),
+                                map2Resolution: map2View.getResolution()
+                            });
+                        }
+                    }, 500);
+                    
+                    // Aktualisiere Layer-Control Panel NACHDEM map2 fertig ist
+                    setTimeout(function() {
+                        self.populateLayerControl();
+                        // Öffne Panel automatisch beim Start
+                        var panel = document.getElementById('splitscreen-layer-control');
+                        if (panel) {
+                            panel.style.display = 'flex';
+                        }
+                    }, 200);
+                }
+            }, 100);
+        },
+
+        /**
+         * Clone a layer for the second map
+         */
+        cloneLayer: function(layer) {
+            if (!layer) return null;
+            
+            var layerName = layer.get('name') || layer.get('title') || 'unnamed';
+            
+            console.log('[SplitScreen] Attempting to clone layer:', layerName);
+            console.log('[SplitScreen]   -> Constructor:', layer.constructor.name);
+            
+            // Handle LayerGroup (Multilayer wie Basemaps)
+            if (layer instanceof ol.layer.Group) {
+                console.log('[SplitScreen]   -> This is a LayerGroup (Multilayer)');
+                var self = this;
+                var clonedLayers = [];
+                var groupVisible = layer.getVisible();
+                var groupIsBaseLayer = layer.get('isBaseLayer') === true;
+                
+                console.log('[SplitScreen]   -> Group visible:', groupVisible, 'isBaseLayer:', groupIsBaseLayer);
+                
+                layer.getLayers().forEach(function(subLayer) {
+                    console.log('[SplitScreen]     -> Cloning sublayer:', subLayer.get('name') || 'unnamed');
+                    
+                    // Vererbe isBaseLayer Property an Sublayer
+                    if (groupIsBaseLayer) {
+                        subLayer.set('isBaseLayer', true);
+                    }
+                    
+                    var clonedSubLayer = self.cloneLayer(subLayer);
+                    if (clonedSubLayer) {
+                        // Setze Sichtbarkeit des Sublayers auf Gruppen-Sichtbarkeit
+                        clonedSubLayer.setVisible(groupVisible);
+                        clonedLayers.push(clonedSubLayer);
+                        console.log('[SplitScreen]       -> ✓ Sublayer cloned (visible:', clonedSubLayer.getVisible() + ')');
+                    }
+                });
+                
+                if (clonedLayers.length > 0) {
+                    var clonedGroup = new ol.layer.Group({
+                        layers: clonedLayers,
+                        opacity: layer.getOpacity(),
+                        visible: groupVisible,
+                        zIndex: layer.getZIndex()
+                    });
+                    
+                    // Copy metadata
+                    clonedGroup.set('name', layerName);
+                    clonedGroup.set('title', layer.get('title'));
+                    clonedGroup.set('isBaseLayer', groupIsBaseLayer);
+                    
+                    console.log('[SplitScreen]   -> ✓ LayerGroup cloned with', clonedLayers.length, 'sublayers (visible:', groupVisible + ')');
+                    return clonedGroup;
+                } else {
+                    console.warn('[SplitScreen]   -> ✗ LayerGroup has no cloneable sublayers');
+                    return null;
+                }
+            }
+            
+            // Regular layer handling
+            if (!layer.getSource) {
+                console.warn('[SplitScreen]   -> Layer has no getSource method');
+                return null;
+            }
+            
+            var source = layer.getSource();
+            if (!source) {
+                console.warn('[SplitScreen]   -> Layer has no source');
+                return null;
+            }
+            
+            var newSource = null;
+            
+            console.log('[SplitScreen]   -> Source constructor:', source.constructor.name);
+            
+            try {
+                // Bestimme Source-Typ über constructor.name
+                var constructorName = source.constructor.name;
+                console.log('[SplitScreen] Source constructor:', constructorName);
+                
+                // TileWMS
+                if (source instanceof ol.source.TileWMS) {
+                    var params = source.getParams ? source.getParams() : {};
+                    var serverType = 'mapserver'; // Default
+                    try {
+                        if (source.getServerType) serverType = source.getServerType();
+                    } catch (e) {}
+                    
+                    newSource = new ol.source.TileWMS({
+                        url: source.getUrl(),
+                        params: Object.assign({}, params),
+                        serverType: serverType,
+                        crossOrigin: 'anonymous'
+                    });
+                    console.log('[SplitScreen] Created TileWMS source');
+                }
+                // ImageWMS
+                else if (source instanceof ol.source.ImageWMS) {
+                    var params = source.getParams ? source.getParams() : {};
+                    var serverType = 'mapserver';
+                    try {
+                        if (source.getServerType) serverType = source.getServerType();
+                    } catch (e) {}
+                    
+                    newSource = new ol.source.ImageWMS({
+                        url: source.getUrl(),
+                        params: Object.assign({}, params),
+                        serverType: serverType,
+                        crossOrigin: 'anonymous'
+                    });
+                    console.log('[SplitScreen] Created ImageWMS source');
+                }
+                // TileArcGISRest
+                else if (source instanceof ol.source.TileArcGISRest) {
+                    var params = source.getParams ? source.getParams() : {};
+                    newSource = new ol.source.TileArcGISRest({
+                        url: source.getUrl(),
+                        params: Object.assign({}, params),
+                        crossOrigin: 'anonymous'
+                    });
+                    console.log('[SplitScreen] Created TileArcGISRest source');
+                }
+                // ImageArcGISRest
+                else if (source instanceof ol.source.ImageArcGISRest) {
+                    var params = source.getParams ? source.getParams() : {};
+                    newSource = new ol.source.ImageArcGISRest({
+                        url: source.getUrl(),
+                        params: Object.assign({}, params),
+                        crossOrigin: 'anonymous'
+                    });
+                    console.log('[SplitScreen] Created ImageArcGISRest source');
+                }
+                // XYZ
+                else if (source instanceof ol.source.XYZ) {
+                    var url = source.getUrl ? source.getUrl() : (source.getUrls ? source.getUrls()[0] : null);
+                    if (url) {
+                        newSource = new ol.source.XYZ({
+                            url: url,
+                            crossOrigin: 'anonymous'
+                        });
+                        console.log('[SplitScreen] Created XYZ source');
+                    }
+                }
+                // OSM
+                else if (source instanceof ol.source.OSM) {
+                    newSource = new ol.source.OSM();
+                    console.log('[SplitScreen] Created OSM source');
+                }
+                // WMTS
+                else if (source instanceof ol.source.WMTS) {
+                    // WMTS ist komplex - versuche zu klonen
+                    try {
+                        newSource = new ol.source.WMTS({
+                            url: source.getUrls ? source.getUrls()[0] : undefined,
+                            layer: source.getLayer ? source.getLayer() : '',
+                            matrixSet: source.getMatrixSet ? source.getMatrixSet() : '',
+                            format: source.getFormat ? source.getFormat() : 'image/png',
+                            projection: source.getProjection(),
+                            tileGrid: source.getTileGrid(),
+                            style: source.getStyle ? source.getStyle() : 'default',
+                            crossOrigin: 'anonymous'
+                        });
+                        console.log('[SplitScreen] Created WMTS source');
+                    } catch (e) {
+                        console.warn('[SplitScreen] WMTS clone failed, skipping:', e.message);
+                        return null;
+                    }
+                }
+                // Vector - nur wenn Features vorhanden
+                else if (source instanceof ol.source.Vector) {
+                    var features = source.getFeatures ? source.getFeatures() : [];
+                    console.log('[SplitScreen] Vector layer with', features.length, 'features');
+                    
+                    // Skip tool/drawing layers (keine Features)
+                    if (features.length === 0) {
+                        console.log('[SplitScreen] Skipping empty Vector layer (tool layer)');
+                        return null;
+                    }
+                    
+                    // Klone Vector-Source mit Features
+                    newSource = new ol.source.Vector({
+                        features: features.map(function(f) { return f.clone(); })
+                    });
+                    console.log('[SplitScreen] Created Vector source');
+                }
+                // Unbekannter Typ
+                else {
+                    console.warn('[SplitScreen] Unknown/unsupported source type:', constructorName);
+                    return null;
+                }
+            } catch (e) {
+                console.error('[SplitScreen] Error cloning source:', e.message, e.stack);
+                return null;
+            }
+            
+            if (!newSource) return null;
+            
+            // Bestimme initiale Sichtbarkeit
+            // Baselayer sollten die gleiche Sichtbarkeit wie in Map A haben
+            // Andere Layer sollten standardmäßig UNSICHTBAR sein
+            var initialVisible = false;
+            var layerName = layer.get('name') || layer.get('title') || 'unnamed';
+            
+            // Prüfe ob Layer als BaseLayer markiert ist (z-index 0 oder property)
+            var isBaseLayer = false;
+            try {
+                // Baselayer haben typischerweise zIndex 0 oder negative Werte
+                var zIndex = layer.getZIndex();
+                if (zIndex !== undefined && zIndex <= 0) {
+                    isBaseLayer = true;
+                }
+                
+                // Oder explizit als isBaseLayer markiert
+                if (layer.get('isBaseLayer') === true) {
+                    isBaseLayer = true;
+                }
+                
+                // Oder Namen enthalten typische Baselayer-Begriffe
+                if (layerName.includes('base') || 
+                    layerName.includes('background') ||
+                    layerName.includes('fond') ||
+                    layerName.includes('ortho') ||
+                    layerName.includes('hintergrund') ||
+                    layerName.includes('swissimage') ||
+                    layerName.includes('swisstopo')) {
+                    isBaseLayer = true;
+                }
+            } catch (e) {
+                // Ignore errors
+            }
+            
+            // Baselayer übernehmen die Sichtbarkeit vom Original
+            if (isBaseLayer) {
+                initialVisible = layer.getVisible();
+                console.log('[SplitScreen]   -> Baselayer detected, using original visibility:', initialVisible);
+            }
+            
+            var newLayer = null;
+            try {
+                if (layer instanceof ol.layer.Tile) {
+                    newLayer = new ol.layer.Tile({
+                        source: newSource,
+                        opacity: layer.getOpacity(),
+                        visible: initialVisible,
+                        zIndex: layer.getZIndex()
+                    });
+                } else if (layer instanceof ol.layer.Image) {
+                    newLayer = new ol.layer.Image({
+                        source: newSource,
+                        opacity: layer.getOpacity(),
+                        visible: initialVisible,
+                        zIndex: layer.getZIndex()
+                    });
+                } else if (layer instanceof ol.layer.Vector) {
+                    // Für Vector-Layer: Source direkt referenzieren
+                    newLayer = new ol.layer.Vector({
+                        source: source,
+                        opacity: layer.getOpacity(),
+                        visible: initialVisible,
+                        zIndex: layer.getZIndex()
+                    });
+                } else {
+                    console.warn('[SplitScreen] Unknown layer type, trying generic Layer');
+                    newLayer = new ol.layer.Layer({
+                        source: newSource,
+                        opacity: layer.getOpacity(),
+                        visible: initialVisible,
+                        zIndex: layer.getZIndex()
+                    });
+                }
+            } catch (e) {
+                console.error('[SplitScreen] Error creating layer:', e.message);
+                return null;
+            }
+            
+            // Copy layer metadata
+            if (newLayer) {
+                newLayer.set('name', layer.get('name'));
+                newLayer.set('title', layer.get('title'));
+                newLayer.set('isBaseLayer', layer.get('isBaseLayer'));
+                
+                console.log('[SplitScreen]   -> ✓ Layer created (visible:', newLayer.getVisible(), ', zIndex:', newLayer.getZIndex() + ')');
+            }
+            
+            return newLayer;
+        },
+
+        /**
+         * Setup basemap synchronization for map2
+         * Loads basemaps.conf via PHP service, determines active basemap,
+         * creates it in map2, and hooks changeBaseMap for ongoing sync.
+         */
+        setupBaseLayerSync: function() {
+            var self = this;
+            
+            if (!this.map2) {
+                console.warn('[SplitScreen] setupBaseLayerSync: map2 not ready');
+                return;
+            }
+            
+            console.log('[SplitScreen] ===== Setting up Basemap Sync =====');
+            
+            // Determine current basemap from URL or DOM
+            var currentBasemap = this.detectCurrentBasemap();
+            console.log('[SplitScreen] Current basemap detected:', currentBasemap);
+            
+            // Fetch basemaps.conf via PHP service
+            fetch(getAppRoot() + '/tnet/php/basemaps-to-json.php')
+                .then(function(response) { return response.json(); })
+                .then(function(basemapConfig) {
+                    self.basemapConfig = basemapConfig;
+                    console.log('[SplitScreen] Basemap config loaded, keys:', Object.keys(basemapConfig));
+                    
+                    // Create basemap in map2
+                    if (currentBasemap && basemapConfig[currentBasemap]) {
+                        self.createBasemapInMap2(currentBasemap, basemapConfig[currentBasemap]);
+                    } else {
+                        console.warn('[SplitScreen] Basemap "' + currentBasemap + '" not found in config, trying first available');
+                        // Try first non-void basemap
+                        for (var key in basemapConfig) {
+                            if (basemapConfig[key].type !== 'void') {
+                                self.createBasemapInMap2(key, basemapConfig[key]);
+                                break;
+                            }
+                        }
+                    }
+                    
+                    // Hook into changeBaseMap calls
+                    self.hookChangeBaseMap();
+                    
+                    // Hook into BasemapTimeManager time changes
+                    self._hookTimeDimensionSync();
+                })
+                .catch(function(err) {
+                    console.error('[SplitScreen] Failed to load basemap config:', err);
+                });
+        },
+
+        /**
+         * Detect the currently active basemap
+         */
+        detectCurrentBasemap: function() {
+            // 1. Try URL parameter
+            var urlParams = new URLSearchParams(window.location.search);
+            var basemapParam = urlParams.get('basemap');
+            if (basemapParam) {
+                return basemapParam;
+            }
+            
+            // 2. Try active basemap card in DOM
+            var activeCard = document.querySelector('.basemap-card.active');
+            if (activeCard && activeCard.dataset.basemap) {
+                return activeCard.dataset.basemap;
+            }
+            
+            // 3. Default
+            return 'swissimage';
+        },
+
+        /**
+         * Create a basemap in map2 from basemaps.conf configuration
+         */
+        createBasemapInMap2: function(basemapId, config) {
+            var self = this;
+            
+            console.log('[SplitScreen] Creating basemap in map2:', basemapId);
+            
+            // Remove existing basemap layers from map2
+            this.removeBasemapFromMap2();
+            
+            this.currentBasemapId = basemapId;
+            
+            // Handle "leer" / "none" / "void"
+            if (config.type === 'void' || basemapId === 'leer' || basemapId === 'none') {
+                console.log('[SplitScreen] Basemap is void/none - no layers to add');
+                return;
+            }
+            
+            // Handle multisource basemaps
+            if (config.multisource && config.items) {
+                console.log('[SplitScreen] Creating multisource basemap with', config.items.length, 'items');
+                var layerGroup = [];
+                var wmtsPromises = [];
+                
+                config.items.forEach(function(item, idx) {
+                    wmtsPromises.push(
+                        self.createBasemapLayerFromItem(item, config, idx)
+                            .then(function(layer) {
+                                if (layer) {
+                                    layerGroup.push({ layer: layer, index: idx });
+                                }
+                            })
+                    );
+                });
+                
+                Promise.all(wmtsPromises).then(function() {
+                    // Sort by original index
+                    layerGroup.sort(function(a, b) { return a.index - b.index; });
+                    
+                    var layers = layerGroup.map(function(item) { return item.layer; });
+                    
+                    if (layers.length > 0) {
+                        var group = new ol.layer.Group({
+                            layers: layers,
+                            opacity: config.opacity || 1,
+                            visible: true,
+                            zIndex: 0
+                        });
+                        group.set('name', 'basemap_' + basemapId);
+                        group.set('isBaseLayer', true);
+                        group.set('basemapId', basemapId);
+                        
+                        // Insert at bottom (index 0)
+                        self.map2.getLayers().insertAt(0, group);
+                        console.log('[SplitScreen] ✓ Multisource basemap added with', layers.length, 'sublayers');
+                        self.map2.renderSync();
+                    }
+                });
+            }
+            // Handle single-source basemaps
+            else {
+                console.log('[SplitScreen] Creating single-source basemap');
+                this.createBasemapLayerFromItem(config, config, 0)
+                    .then(function(layer) {
+                        if (layer) {
+                            layer.set('name', 'basemap_' + basemapId);
+                            layer.set('isBaseLayer', true);
+                            layer.set('basemapId', basemapId);
+                            layer.setZIndex(0);
+                            
+                            // Insert at bottom (index 0)
+                            self.map2.getLayers().insertAt(0, layer);
+                            console.log('[SplitScreen] ✓ Single-source basemap added');
+                            self.map2.renderSync();
+                        }
+                    });
+            }
+        },
+
+        /**
+         * Create a single layer from a basemap item config
+         * Returns a Promise that resolves to the layer
+         */
+        createBasemapLayerFromItem: function(item, parentConfig, idx) {
+            var self = this;
+            var itemType = (item.type || '').toLowerCase();
+            
+            console.log('[SplitScreen]   Creating basemap item', idx, '- type:', item.type);
+            
+            // WMTS from capabilities
+            if (itemType === 'wmtscapabilities') {
+                return fetch(item.url)
+                    .then(function(response) { return response.text(); })
+                    .then(function(text) {
+                        var parser = new ol.format.WMTSCapabilities();
+                        var result = parser.read(text);
+                        
+                        var options = ol.source.WMTS.optionsFromCapabilities(result, {
+                            layer: item.layer,
+                            matrixSet: 'EPSG:2056'
+                        });
+                        
+                        if (!options) {
+                            // Try without specific matrixSet
+                            options = ol.source.WMTS.optionsFromCapabilities(result, {
+                                layer: item.layer
+                            });
+                        }
+                        
+                        if (options) {
+                            options.crossOrigin = 'anonymous';
+                            var source = new ol.source.WMTS(options);
+                            
+                            var layerOptions = {
+                                source: source,
+                                opacity: item.opacity || parentConfig.opacity || 1,
+                                visible: true
+                            };
+                            
+                            // Resolution visibility
+                            if (item.resol_visibility) {
+                                layerOptions.minResolution = item.resol_visibility[0];
+                                layerOptions.maxResolution = item.resol_visibility[1];
+                            }
+                            if (parentConfig.minResolution !== undefined) {
+                                layerOptions.minResolution = Math.max(layerOptions.minResolution || 0, parentConfig.minResolution);
+                            }
+                            
+                            var layer = new ol.layer.Tile(layerOptions);
+                            layer.set('isBaseLayer', true);
+                            
+                            console.log('[SplitScreen]     ✓ WMTS layer created:', item.layer);
+                            return layer;
+                        } else {
+                            console.warn('[SplitScreen]     ✗ WMTS options not found for layer:', item.layer);
+                            return null;
+                        }
+                    })
+                    .catch(function(err) {
+                        console.error('[SplitScreen]     ✗ WMTS capabilities fetch failed:', err.message);
+                        return null;
+                    });
+            }
+            
+            // WMS
+            if (itemType === 'wms') {
+                var singleTile = item.options && item.options.singleTile;
+                var layer;
+                
+                if (singleTile) {
+                    var source = new ol.source.ImageWMS({
+                        url: item.url,
+                        params: item.params || {},
+                        crossOrigin: 'anonymous'
+                    });
+                    
+                    var layerOptions = {
+                        source: source,
+                        opacity: item.opacity || parentConfig.opacity || 1,
+                        visible: true
+                    };
+                    
+                    if (item.resol_visibility) {
+                        layerOptions.minResolution = item.resol_visibility[0];
+                        layerOptions.maxResolution = item.resol_visibility[1];
+                    }
+                    
+                    layer = new ol.layer.Image(layerOptions);
+                } else {
+                    var source = new ol.source.TileWMS({
+                        url: item.url,
+                        params: item.params || {},
+                        crossOrigin: 'anonymous'
+                    });
+                    
+                    var layerOptions = {
+                        source: source,
+                        opacity: item.opacity || parentConfig.opacity || 1,
+                        visible: true
+                    };
+                    
+                    if (item.resol_visibility) {
+                        layerOptions.minResolution = item.resol_visibility[0];
+                        layerOptions.maxResolution = item.resol_visibility[1];
+                    }
+                    
+                    layer = new ol.layer.Tile(layerOptions);
+                }
+                
+                layer.set('isBaseLayer', true);
+                console.log('[SplitScreen]     ✓ WMS layer created:', (item.params && item.params.layers) || 'unnamed');
+                return Promise.resolve(layer);
+            }
+            
+            // ArcGIS REST
+            if (itemType === 'arcgisrest' || itemType === 'arcgis') {
+                var source = new ol.source.TileArcGISRest({
+                    url: item.url,
+                    params: item.params || {},
+                    crossOrigin: 'anonymous'
+                });
+                
+                var layer = new ol.layer.Tile({
+                    source: source,
+                    opacity: item.opacity || parentConfig.opacity || 1,
+                    visible: true
+                });
+                
+                layer.set('isBaseLayer', true);
+                console.log('[SplitScreen]     ✓ ArcGIS REST layer created');
+                return Promise.resolve(layer);
+            }
+            
+            console.warn('[SplitScreen]     ✗ Unknown basemap item type:', item.type);
+            return Promise.resolve(null);
+        },
+
+        /**
+         * Remove all basemap layers from map2
+         */
+        removeBasemapFromMap2: function() {
+            if (!this.map2) return;
+            
+            var map2 = this.map2;
+            var layersToRemove = [];
+            map2.getLayers().forEach(function(layer) {
+                if (layer.get('isBaseLayer') || layer.get('basemapId')) {
+                    layersToRemove.push(layer);
+                }
+            });
+            
+            layersToRemove.forEach(function(layer) {
+                map2.removeLayer(layer);
+            });
+            
+            if (layersToRemove.length > 0) {
+                console.log('[SplitScreen] Removed', layersToRemove.length, 'basemap layers from map2');
+            }
+        },
+
+        /**
+         * Hook into changeBaseMap to sync basemap changes to map2
+         */
+        hookChangeBaseMap: function() {
+            var self = this;
+            
+            if (!njs || !njs.AppManager || !njs.AppManager.Maps || !njs.AppManager.Maps.main) {
+                console.warn('[SplitScreen] Cannot hook changeBaseMap - njs not ready');
+                return;
+            }
+            
+            var mainMapInstance = njs.AppManager.Maps.main;
+            
+            // Store original function
+            if (!mainMapInstance._originalChangeBaseMap) {
+                mainMapInstance._originalChangeBaseMap = mainMapInstance.changeBaseMap;
+                
+                // Replace with hooked version
+                mainMapInstance.changeBaseMap = function(basemapId) {
+                    console.log('[SplitScreen] changeBaseMap intercepted:', basemapId);
+                    
+                    // Remember view BEFORE the switch
+                    var mainMap = mainMapInstance.mapObj;
+                    var viewBefore = mainMap ? mainMap.getView() : null;
+                    
+                    // Call original
+                    var result = mainMapInstance._originalChangeBaseMap.call(mainMapInstance, basemapId);
+                    
+                    // Check if the View was replaced by the framework
+                    if (mainMap && self.map2) {
+                        var viewAfter = mainMap.getView();
+                        if (viewBefore && viewAfter && viewBefore !== viewAfter) {
+                            console.log('[SplitScreen] ⚡ View replaced by changeBaseMap! Updating map2...');
+                            self.map2.setView(viewAfter);
+                            self._attachViewListener(viewAfter);
+                            self.map2.renderSync();
+                        }
+                    }
+                    
+                    // Sync basemap to map2
+                    if (self.enabled && self.map2 && self.basemapConfig) {
+                        if (self.basemapConfig[basemapId]) {
+                            self.createBasemapInMap2(basemapId, self.basemapConfig[basemapId]);
+                        } else if (basemapId === 'none' || basemapId === 'leer') {
+                            self.removeBasemapFromMap2();
+                            self.currentBasemapId = basemapId;
+                        }
+                    }
+                    
+                    return result;
+                };
+                
+                console.log('[SplitScreen] ✓ changeBaseMap hooked for map2 sync');
+            }
+        },
+
+        /**
+         * Hook into BasemapTimeManager's time-change events to sync TIME dimension to map2.
+         * Listens for the 'basemap-time-change' custom event dispatched by tnet-basemap-time.js.
+         */
+        _hookTimeDimensionSync: function() {
+            var self = this;
+            
+            // Remove previous listener if any
+            if (this._timeDimensionHandler) {
+                document.removeEventListener('basemap-time-change', this._timeDimensionHandler);
+            }
+            
+            this._timeDimensionHandler = function(evt) {
+                if (!self.enabled || !self.map2) return;
+                
+                var detail = evt.detail;
+                console.log('[SplitScreen] Time overlay sync:', detail.year, '(' + detail.timeValue + ')');
+                
+                try {
+                    // Remove existing time overlays from map2
+                    self._removeTimeOverlaysFromMap(self.map2);
+                    
+                    // If timeValue is null → "current" year, no overlay needed
+                    if (!detail.timeValue || !detail.wmtsUrl) {
+                        // Restore base layer visibility on map2
+                        self._setMap2BaseLayerVisibility(true);
+                        return;
+                    }
+                    
+                    // Build the WMTS URL with time baked in
+                    var wmtsUrl = detail.wmtsUrl.replace('{Time}', detail.timeValue);
+                    
+                    // swisstopo WMTS TileGrid
+                    var resolutions = [
+                        4000, 3750, 3500, 3250, 3000, 2750, 2500, 2250, 2000, 1750,
+                        1500, 1250, 1000, 750, 650, 500, 250, 100, 50, 20,
+                        10, 5, 2.5, 2, 1.5, 1, 0.5, 0.25, 0.1
+                    ];
+                    var matrixIds = [];
+                    for (var mi = 0; mi < resolutions.length; mi++) matrixIds.push(mi.toString());
+                    
+                    var source = new ol.source.WMTS({
+                        url: wmtsUrl,
+                        layer: '',
+                        matrixSet: '2056',
+                        format: 'image/png',
+                        projection: 'EPSG:2056',
+                        requestEncoding: 'REST',
+                        style: 'default',
+                        tileGrid: new ol.tilegrid.WMTS({
+                            origin: [2420000, 1350000],
+                            resolutions: resolutions,
+                            matrixIds: matrixIds
+                        }),
+                        crossOrigin: 'anonymous'
+                    });
+                    
+                    var overlayOpacity = (window.BasemapTimeManager && window.BasemapTimeManager._currentOpacity !== undefined)
+                        ? window.BasemapTimeManager._currentOpacity : 1;
+                    var layer = new ol.layer.Tile({ source: source, opacity: overlayOpacity, visible: true });
+                    layer.set('_isTimeOverlay', true);
+                    layer.set('_timeValue', detail.timeValue);
+                    
+                    var layers = self.map2.getLayers();
+                    if (layers.getLength() > 0) {
+                        layers.insertAt(1, layer);
+                    } else {
+                        layers.push(layer);
+                    }
+
+                    // Apply grayscale if active
+                    if (window.BasemapTimeManager && window.BasemapTimeManager._isGrayscale) {
+                        window.BasemapTimeManager._applyGrayscaleCSS(layer, true);
+                    }
+
+                    // Hide base layer on map2 so it doesn't show through
+                    self._setMap2BaseLayerVisibility(false);
+                    console.log('[SplitScreen] ✓ Time overlay synced to map2');
+                    
+                } catch (e) {
+                    console.warn('[SplitScreen] Time overlay sync error:', e);
+                }
+            };
+            
+            document.addEventListener('basemap-time-change', this._timeDimensionHandler);
+            console.log('[SplitScreen] ✓ Time dimension sync hooked');
+        },
+        
+        /**
+         * Remove all time overlay layers (marked _isTimeOverlay) from a map.
+         */
+        _removeTimeOverlaysFromMap: function(map) {
+            if (!map) return;
+            try {
+                var layers = map.getLayers().getArray().slice();
+                for (var i = 0; i < layers.length; i++) {
+                    if (layers[i].get('_isTimeOverlay')) {
+                        map.removeLayer(layers[i]);
+                    }
+                }
+            } catch (e) { /* ignore */ }
+        },
+
+        /**
+         * Hide or show the base layer (index 0) on map2 to prevent the
+         * original basemap from showing through the time overlay.
+         */
+        _setMap2BaseLayerVisibility: function(visible) {
+            if (!this.map2) return;
+            try {
+                var layers = this.map2.getLayers().getArray();
+                for (var i = 0; i < layers.length; i++) {
+                    if (!layers[i].get('_isTimeOverlay')) {
+                        layers[i].setVisible(visible);
+                        break;
+                    }
+                }
+            } catch (e) { /* ignore */ }
+        },
+
+        /**
+         * Setup synchronization between the two maps.
+         * Both maps share the SAME View instance (view: mainView),
+         * so zoom/center/rotation are automatically in sync.
+         * We also watch for View replacement (e.g. after basemap switch)
+         * and re-attach map2 to the new View.
+         */
+        setupSynchronization: function() {
+            var self = this;
+            this._viewChangeListenerKey = null;
+            
+            var checkMainMap = setInterval(function() {
+                if (typeof njs !== 'undefined' && 
+                    njs.AppManager && 
+                    njs.AppManager.Maps && 
+                    njs.AppManager.Maps.main && 
+                    njs.AppManager.Maps.main.mapObj) {
+                    
+                    clearInterval(checkMainMap);
+                    
+                    var mainMap = njs.AppManager.Maps.main.mapObj;
+                    
+                    // Attach render-trigger to the current View
+                    self._attachViewListener(mainMap.getView());
+                    
+                    // CRITICAL: Watch for View replacement on the main map
+                    // Framework's changeBaseMap may create a NEW View instance
+                    mainMap.on('change:view', function() {
+                        var newView = mainMap.getView();
+                        console.log('[SplitScreen] ⚡ Main map View replaced! Re-syncing map2...');
+                        
+                        if (self.map2 && newView) {
+                            // Transfer map2 to the new View so both maps stay in sync
+                            self.map2.setView(newView);
+                            
+                            // Re-attach the render listener to the new View
+                            self._attachViewListener(newView);
+                            
+                            // Force immediate re-render
+                            self.map2.renderSync();
+                            
+                            console.log('[SplitScreen] ✓ map2 re-synced to new View:', {
+                                center: newView.getCenter(),
+                                zoom: newView.getZoom()
+                            });
+                        }
+                    });
+                    
+                    console.log('[SplitScreen] View sync: shared View instance + change:view watcher');
+                }
+            }, 100);
+        },
+        
+        /**
+         * Attach a render-trigger listener to a View instance.
+         * Removes old listener if one exists.
+         */
+        _attachViewListener: function(view) {
+            var self = this;
+            
+            // Remove old listener
+            if (this._viewChangeListenerKey) {
+                ol.Observable.unByKey(this._viewChangeListenerKey);
+                this._viewChangeListenerKey = null;
+            }
+            
+            // Attach new listener
+            this._viewChangeListenerKey = view.on('change', function() {
+                if (self.map2) {
+                    self.map2.render();
+                }
+            });
+        },
+
+        /**
+         * Setup layer synchronization - wenn Layer in Map A ändern, auch in Map B ändern
+         */
+        setupLayerSync: function() {
+            var self = this;
+            
+            if (!this.map2) return;
+            
+            var mainMap = njs.AppManager.Maps.main.mapObj;
+            if (!mainMap) return;
+            
+            console.log('[SplitScreen] Setting up layer synchronization (including baselayers)');
+            
+            // Watch für Layer-Änderungen in der Hauptkarte
+            var layerCollection = mainMap.getLayers();
+            var map2LayerCollection = this.map2.getLayers();
+            
+            // Wenn neue Layer hinzugefügt werden
+            // HINWEIS: Basemap-Wechsel werden von hookChangeBaseMap() behandelt, hier überspringen!
+            layerCollection.on('add', function(event) {
+                var addedLayer = event.element;
+                var layerName = addedLayer.get('name') || 'unnamed';
+                var isLayerGroup = addedLayer instanceof ol.layer.Group;
+                
+                console.log('[SplitScreen] Layer added in Map A:', layerName, '(isGroup:', isLayerGroup + ')');
+                
+                // Basemap-Layer überspringen - hookChangeBaseMap() kümmert sich darum
+                if (isLayerGroup || addedLayer.get('isBaseLayer') === true) {
+                    console.log('[SplitScreen]   -> Skipping basemap layer (handled by hookChangeBaseMap)');
+                    return;
+                }
+                
+                // Finde die Position des neuen Layers in Map A
+                var layerIndex = -1;
+                mainMap.getLayers().forEach(function(lyr, idx) {
+                    if (lyr === addedLayer) {
+                        layerIndex = idx;
+                    }
+                });
+                
+                // Klone den neuen Layer für Map B
+                var clonedLayer = self.cloneLayer(addedLayer);
+                if (clonedLayer) {
+                    // Füge den Layer an der gleichen Position ein
+                    if (layerIndex >= 0 && layerIndex < map2LayerCollection.getLength()) {
+                        map2LayerCollection.insertAt(layerIndex, clonedLayer);
+                        console.log('[SplitScreen] Layer inserted at index', layerIndex, 'in Map B');
+                    } else {
+                        self.map2.addLayer(clonedLayer);
+                        console.log('[SplitScreen] Layer added to Map B');
+                    }
+                    
+                    // Speichere Mapping
+                    self.layerMapping[layerName] = clonedLayer;
+                }
+                
+                // Aktualisiere Layer-Control Panel
+                setTimeout(function() {
+                    self.populateLayerControl();
+                }, 100);
+            });
+            
+            // Wenn Layer entfernt werden
+            layerCollection.on('remove', function(event) {
+                var removedLayer = event.element;
+                var layerName = removedLayer.get('name') || 'unnamed';
+                
+                // Basemap-Layer überspringen - hookChangeBaseMap() kümmert sich darum
+                if (removedLayer instanceof ol.layer.Group || removedLayer.get('isBaseLayer') === true) {
+                    console.log('[SplitScreen] Basemap layer removed from Map A:', layerName, '(handled by hookChangeBaseMap)');
+                    return;
+                }
+                
+                console.log('[SplitScreen] Layer removed from Map A:', layerName);
+                
+                // Entferne entsprechenden Layer aus Map B
+                var map2Layer = self.layerMapping[layerName];
+                if (map2Layer) {
+                    map2LayerCollection.remove(map2Layer);
+                    delete self.layerMapping[layerName];
+                    console.log('[SplitScreen] Removed corresponding layer from Map B');
+                }
+                
+                // Aktualisiere Layer-Control Panel
+                setTimeout(function() {
+                    self.populateLayerControl();
+                }, 100);
+            });
+            
+            // Beobachte Visibility-Änderungen in allen Layern von Map A
+            layerCollection.forEach(function(layer) {
+                layer.on('change:visible', function() {
+                    var layerName = layer.get('name') || layer.get('title') || 'unnamed';
+                    var visibility = layer.getVisible();
+                    
+                    // Finde entsprechenden Layer in Map B
+                    var map2Layer = self.layerMapping[layerName];
+                    if (map2Layer) {
+                        map2Layer.setVisible(visibility);
+                        console.log('[SplitScreen] Layer visibility sync:', layerName, '- now', visibility);
+                    }
+                    
+                    // Aktualisiere Checkbox im Panel
+                    var checkbox = document.getElementById('layer-cb-' + layerName);
+                    if (checkbox) {
+                        checkbox.checked = visibility;
+                    }
+                });
+                
+                // Beobachte auch Opacity-Änderungen
+                layer.on('change:opacity', function() {
+                    var layerName = layer.get('name') || layer.get('title') || 'unnamed';
+                    var opacity = layer.getOpacity();
+                    
+                    var map2Layer = self.layerMapping[layerName];
+                    if (map2Layer) {
+                        map2Layer.setOpacity(opacity);
+                        console.log('[SplitScreen] Layer opacity sync:', layerName, '- now', opacity);
+                    }
+                });
+            });
+            
+            console.log('[SplitScreen] Layer synchronization initialized');
+        },
+
+        /**
+         * Setup resizable divider between the two map panels
+         */
+        setupResizer: function() {
+            var self = this;
+            var divider = document.getElementById('split-divider');
+            var leftPanel = document.getElementById('split-panel-left');
+            var rightPanel = document.getElementById('split-panel-right');
+            
+            if (!divider || !leftPanel || !rightPanel) return;
+            
+            divider.addEventListener('mousedown', function(e) {
+                self.isDragging = true;
+                document.body.style.cursor = 'col-resize';
+                document.body.style.userSelect = 'none';
+                e.preventDefault();
+            });
+            
+            document.addEventListener('mousemove', function(e) {
+                if (!self.isDragging) return;
+                
+                var container = document.getElementById('split-wrapper');
+                var containerRect = container.getBoundingClientRect();
+                var offsetX = e.clientX - containerRect.left;
+                var percentage = (offsetX / containerRect.width) * 100;
+                
+                // Limit to 20%-80%
+                percentage = Math.max(20, Math.min(80, percentage));
+                
+                leftPanel.style.flex = percentage;
+                rightPanel.style.flex = (100 - percentage);
+                
+                // Update maps
+                if (njs.AppManager.Maps.main && njs.AppManager.Maps.main.mapObj) {
+                    njs.AppManager.Maps.main.mapObj.updateSize();
+                }
+                if (self.map2) {
+                    self.map2.updateSize();
+                }
+            });
+            
+            document.addEventListener('mouseup', function() {
+                if (self.isDragging) {
+                    self.isDragging = false;
+                    document.body.style.cursor = '';
+                    document.body.style.userSelect = '';
+                }
+            });
+        },
+
+        /**
+         * Create layer control panel to select which layers appear in map B
+         */
+        createLayerControl: function() {
+            var self = this;
+            var rightPanel = document.getElementById('split-panel-right');
+            if (!rightPanel) return;
+            
+            // Create toggle button (icon) in map B
+            var btn = document.createElement('button');
+            btn.id = 'split-layer-btn';
+            btn.title = 'Layer für Karte B auswählen';
+            btn.style.cssText = 'position: absolute; top: 10px; right: 10px; width: 36px; height: 36px; background: white; border: none; border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.2); cursor: pointer; z-index: 1002; display: flex; align-items: center; justify-content: center;';
+            btn.innerHTML = TnetIcons.get('hamburger', null, {width: '20', height: '20'});
+            
+            // Create panel container (popup)
+            var panel = document.createElement('div');
+            panel.id = 'splitscreen-layer-control';
+            panel.style.cssText = 'position: absolute; top: 52px; right: 10px; width: 260px; max-height: 400px; background: white; border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.3); z-index: 1003; display: none; flex-direction: column;';
+            
+            // Header
+            var header = document.createElement('div');
+            header.style.cssText = 'padding: 10px; background: #2c5f6f; color: white; font-weight: bold; font-size: 13px; border-radius: 4px 4px 0 0; display: flex; justify-content: space-between; align-items: center;';
+            header.innerHTML = '<span>Layer für Karte B</span><div><button id="layer-control-reload" style="background: none; border: none; color: white; cursor: pointer; margin-right: 8px; font-size: 16px;" title="Layer neu laden">↻</button><span style="cursor: pointer; font-size: 18px;" id="layer-control-close">×</span></div>';
+            
+            // Close button handler
+            header.querySelector('#layer-control-close').addEventListener('click', function() {
+                panel.style.display = 'none';
+            });
+            
+            // Reload button handler
+            header.querySelector('#layer-control-reload').addEventListener('click', function() {
+                console.log('[SplitScreen] Manual reload requested');
+                self.populateLayerControl();
+            });
+            
+            // Layer list container
+            var layerList = document.createElement('div');
+            layerList.id = 'splitscreen-layer-list';
+            layerList.style.cssText = 'padding: 8px; overflow-y: auto; max-height: 340px; font-size: 12px;';
+            layerList.innerHTML = '<div style="padding: 10px; color: #666; text-align: center;">Layer werden geladen...</div>';
+            
+            panel.appendChild(header);
+            panel.appendChild(layerList);
+            
+            // Button toggle handler
+            btn.addEventListener('click', function() {
+                panel.style.display = (panel.style.display === 'none') ? 'flex' : 'none';
+            });
+            
+            rightPanel.appendChild(btn);
+            rightPanel.appendChild(panel);
+            
+            this.layerControlPanel = panel;
+            this.layerControlButton = btn;
+            
+            // Layer-Liste wird nach Initialisierung von map2 gefüllt (siehe initializeMap2)
+        },
+
+        /**
+         * Populate layer control with layers from map A
+         */
+        populateLayerControl: function() {
+            var self = this;
+            var layerList = document.getElementById('splitscreen-layer-list');
+            if (!layerList) {
+                console.error('[SplitScreen] Layer list element not found!');
+                alert('Fehler: Layer-Liste-Element nicht gefunden!');
+                return;
+            }
+            
+            console.log('[SplitScreen] populateLayerControl called');
+            layerList.innerHTML = '<div style="padding: 10px; color: #666; text-align: center;">Lade Layer...</div>';
+            
+            // Check if njs is available
+            if (typeof njs === 'undefined') {
+                console.error('[SplitScreen] njs is undefined!');
+                layerList.innerHTML = '<div style="padding: 10px; color: #f00; text-align: center;">Fehler: njs nicht verfügbar</div>';
+                return;
+            }
+            
+            if (!njs.AppManager || !njs.AppManager.Maps || !njs.AppManager.Maps.main) {
+                console.error('[SplitScreen] njs.AppManager.Maps.main not available!');
+                layerList.innerHTML = '<div style="padding: 10px; color: #f00; text-align: center;">Fehler: AppManager nicht verfügbar</div>';
+                return;
+            }
+            
+            var mainMap = njs.AppManager.Maps.main.mapObj;
+            if (!mainMap) {
+                console.error('[SplitScreen] Main map not found!');
+                layerList.innerHTML = '<div style="padding: 10px; color: #f00; text-align: center;">Fehler: Hauptkarte nicht gefunden</div>';
+                return;
+            }
+            
+            if (!this.map2) {
+                console.error('[SplitScreen] Map2 not initialized!');
+                layerList.innerHTML = '<div style="padding: 10px; color: #f00; text-align: center;">Fehler: Karte B nicht initialisiert</div>';
+                return;
+            }
+            
+            // Hole alle Layer direkt von Map A
+            var layers = mainMap.getLayers().getArray();
+            var map2Layers = this.map2.getLayers().getArray();
+            
+            console.log('[SplitScreen] ========================================');
+            console.log('[SplitScreen] Populating layer control from Map A');
+            console.log('[SplitScreen] Map A layers:', layers.length);
+            console.log('[SplitScreen] Map B layers:', map2Layers.length);
+            console.log('[SplitScreen] ========================================');
+            
+            layerList.innerHTML = '';
+            var layerCount = 0;
+            
+            // Durchsuche ALLE Layer aus Map A
+            layers.forEach(function(layer, index) {
+                var layerName = layer.get('name') || layer.get('title') || 'Layer ' + index;
+                
+                console.log('[SplitScreen] Processing layer', index + ':', layerName);
+                
+                // Skip System-Layer UND Baselayer
+                // Baselayer werden automatisch synchronisiert, müssen nicht im Panel sein
+                var isBaseLayer = false;
+                try {
+                    var zIndex = layer.getZIndex();
+                    if (zIndex !== undefined && zIndex <= 0) {
+                        isBaseLayer = true;
+                    }
+                    if (layer.get('isBaseLayer') === true) {
+                        isBaseLayer = true;
+                    }
+                    if (layerName.includes('base') || layerName.includes('background') ||
+                        layerName.includes('fond') || layerName.includes('ortho') ||
+                        layerName.includes('hintergrund') || layerName.includes('wmts') ||
+                        layerName.includes('basemap')) {
+                        isBaseLayer = true;
+                    }
+                } catch (e) {
+                    // Ignore
+                }
+                
+                if (isBaseLayer) {
+                    console.log('[SplitScreen]   -> Skipping baselayer (auto-synced)');
+                    return;
+                }
+                
+                // Skip NUR echte System-Layer (cosmetic, graphic, highlight)
+                // NICHT oereb - das sind echte Daten-Layer!
+                if (layerName.toLowerCase().includes('cosmetic') || 
+                    layerName.toLowerCase().includes('graphic') ||
+                    layerName.toLowerCase().includes('highlight')) {
+                    console.log('[SplitScreen]   -> Skipping system layer');
+                    return;
+                }
+                
+                // Finde entsprechenden Layer in Map B (by index)
+                var map2Layer = map2Layers[index];
+                
+                if (!map2Layer) {
+                    console.warn('[SplitScreen]   -> No map2 layer at index', index);
+                    return;
+                }
+                
+                var isVisible = map2Layer.getVisible();
+                
+                // Prüfe ob Layer eine echte Source hat
+                var hasRealSource = false;
+                var isToolLayer = false;
+                try {
+                    var source = map2Layer.getSource && map2Layer.getSource();
+                    console.log('[SplitScreen]   -> Source type:', source ? source.constructor.name : 'no source');
+                    
+                    if (source) {
+                        // Prüfe ob es ein Vector-Layer OHNE Features ist (Werkzeug-Layer)
+                        if (source.constructor.name === 'Vector' || source.constructor.name.includes('Vector')) {
+                            var features = source.getFeatures ? source.getFeatures() : [];
+                            if (features.length === 0) {
+                                isToolLayer = true;
+                                hasRealSource = false;
+                            } else {
+                                // Vector mit Features ist OK
+                                hasRealSource = true;
+                            }
+                        } else {
+                            // Alle anderen Source-Typen (TileWMS, ImageWMS, XYZ, OSM, etc.) sind OK
+                            hasRealSource = true;
+                        }
+                    }
+                } catch (e) {
+                    console.warn('[SplitScreen]   -> Error checking source:', e);
+                }
+                
+                var canBeToggled = hasRealSource;
+                
+                // Create checkbox item
+                var item = document.createElement('div');
+                item.style.cssText = 'display: flex; align-items: center; padding: 6px; border-bottom: 1px solid #eee; cursor: pointer;' +
+                    (canBeToggled ? '' : ' opacity: 0.5;');
+                
+                item.innerHTML = '<input type="checkbox" id="layer-cb-' + index + '" style="margin-right: 8px;" ' + 
+                    (isVisible ? 'checked' : '') + 
+                    (canBeToggled ? '' : ' disabled') +
+                    '><label for="layer-cb-' + index + '" style="cursor: pointer; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">' + 
+                    layerName + 
+                    (isToolLayer ? ' (Werkzeug)' : '') + '</label>';
+                
+                var checkbox = item.querySelector('input');
+                
+                console.log('[SplitScreen]   -> Added to list - visible:', isVisible, 'toggleable:', canBeToggled, 'has map2Layer:', !!map2Layer);
+                
+                // Checkbox change handler - nur für togglebare Layer
+                if (canBeToggled) {
+                    (function(idx, lname, m2Layer) {
+                        checkbox.addEventListener('change', function(e) {
+                            console.log('[SplitScreen] Checkbox change event fired for:', lname, 'checked:', this.checked, 'has m2Layer:', !!m2Layer);
+                            if (m2Layer) {
+                                try {
+                                    m2Layer.setVisible(this.checked);
+                                    console.log('[SplitScreen] Layer "' + lname + '" (index ' + idx + ') in Karte B set to:', this.checked);
+                                    console.log('[SplitScreen]   -> Layer type:', m2Layer.constructor.name);
+                                    console.log('[SplitScreen]   -> Actual visible:', m2Layer.getVisible());
+                                    console.log('[SplitScreen]   -> Opacity:', m2Layer.getOpacity());
+                                    console.log('[SplitScreen]   -> zIndex:', m2Layer.getZIndex());
+                                    console.log('[SplitScreen]   -> Source:', m2Layer.getSource());
+                                    
+                                    // Check if source has URL for WMS layers
+                                    var src = m2Layer.getSource();
+                                    if (src && src.getUrl) {
+                                        console.log('[SplitScreen]   -> Source URL:', src.getUrl());
+                                    }
+                                    if (src && src.getParams) {
+                                        console.log('[SplitScreen]   -> WMS Params:', src.getParams());
+                                    }
+                                    
+                                    // Force map update
+                                    if (self.map2) {
+                                        self.map2.render();
+                                        console.log('[SplitScreen]   -> Map2 rendered');
+                                    }
+                                } catch (err) {
+                                    console.error('[SplitScreen] Error setting layer visibility:', err);
+                                }
+                            } else {
+                                console.warn('[SplitScreen] Layer "' + lname + '" (index ' + idx + ') not found in map2');
+                            }
+                        });
+                    })(index, layerName, map2Layer);
+                    
+                    // Click on item toggles checkbox
+                    item.addEventListener('click', function(e) {
+                        if (e.target !== checkbox) {
+                            console.log('[SplitScreen] Item clicked, toggling checkbox');
+                            checkbox.checked = !checkbox.checked;
+                            var event = new Event('change', { bubbles: true });
+                            checkbox.dispatchEvent(event);
+                        }
+                    });
+                }
+                
+                layerList.appendChild(item);
+                layerCount++;
+            });
+            
+            console.log('[SplitScreen] ========================================');
+            console.log('[SplitScreen] Layer control populated with', layerCount, 'layers');
+            console.log('[SplitScreen] ========================================');
+            
+            // Debug: Log all map2 layers after population
+            if (this.map2) {
+                console.log('[SplitScreen] === Map2 Layer Summary ===');
+                var map2Layers = this.map2.getLayers().getArray();
+                map2Layers.forEach(function(lyr, idx) {
+                    var name = lyr.get('name') || 'unnamed';
+                    var visible = lyr.getVisible();
+                    var opacity = lyr.getOpacity();
+                    var zIndex = lyr.getZIndex();
+                    console.log('[SplitScreen] Map2 Layer ' + idx + ': "' + name + '" visible:' + visible + ' opacity:' + opacity + ' zIndex:' + zIndex);
+                });
+                console.log('[SplitScreen] ===========================');
+            }
+            
+            // Add info text if no layers
+            if (layerCount === 0) {
+                layerList.innerHTML = '<div style="padding: 10px; color: #999; text-align: center;">Keine Layer verfügbar<br><small>Klicken Sie auf ↻ um neu zu laden</small></div>';
+            }
+        },
+
+        /**
+         * Disable split-screen mode
+         */
+        disable: function() {
+            if (!this.enabled) return;
+            
+            console.log('[SplitScreen] Disabling...');
+            
+            try {
+                // Set flag immediately to prevent race conditions
+                this.enabled = false;
+                
+                // Destroy layer catalog
+                if (this.layerCatalog && this.layerCatalog.destroy) {
+                    this.layerCatalog.destroy();
+                    this.layerCatalog = null;
+                    console.log('[SplitScreen] Layer catalog destroyed');
+                }
+                
+                // Destroy second map FIRST (before removing DOM)
+                if (this.map2) {
+                    try {
+                        // Clear all layers
+                        var map2Layers = this.map2.getLayers().getArray().slice();
+                        map2Layers.forEach(function(layer) {
+                            this.map2.removeLayer(layer);
+                        }, this);
+                        
+                        // Detach from DOM and dispose
+                        this.map2.setTarget(null);
+                        if (this.map2.dispose) {
+                            this.map2.dispose();
+                        }
+                        this.map2 = null;
+                        console.log('[SplitScreen] Map2 destroyed');
+                    } catch (e) {
+                        console.warn('[SplitScreen] Error destroying map2:', e);
+                        this.map2 = null;
+                    }
+                }
+                
+                // Clear layer mapping
+                this.layerMapping = {};
+                this.basemapConfig = null;
+                this.currentBasemapId = null;
+                
+                // Clean up View change listener
+                if (this._viewChangeListenerKey) {
+                    ol.Observable.unByKey(this._viewChangeListenerKey);
+                    this._viewChangeListenerKey = null;
+                }
+                
+                // Clean up time dimension sync listener
+                if (this._timeDimensionHandler) {
+                    document.removeEventListener('basemap-time-change', this._timeDimensionHandler);
+                    this._timeDimensionHandler = null;
+                    console.log('[SplitScreen] Time dimension sync listener removed');
+                }
+                
+                // Restore original changeBaseMap if hooked
+                try {
+                    var mainMapInstance = njs.AppManager.Maps.main;
+                    if (mainMapInstance && mainMapInstance._originalChangeBaseMap) {
+                        mainMapInstance.changeBaseMap = mainMapInstance._originalChangeBaseMap;
+                        delete mainMapInstance._originalChangeBaseMap;
+                        console.log('[SplitScreen] changeBaseMap hook removed');
+                    }
+                } catch (e) {
+                    console.warn('[SplitScreen] Error removing changeBaseMap hook:', e);
+                }
+                
+                // Get DOM elements
+                var mapContainer = document.getElementById('mapContainer');
+                var splitWrapper = document.getElementById('split-wrapper');
+                var originalMap = document.getElementById('map');
+                
+                if (splitWrapper && mapContainer && originalMap) {
+                    // Extract original map from split structure
+                    if (originalMap.parentNode && originalMap.parentNode !== mapContainer) {
+                        mapContainer.appendChild(originalMap);
+                        console.log('[SplitScreen] Original map restored to container');
+                    }
+                    
+                    // Remove split wrapper completely
+                    if (splitWrapper.parentNode) {
+                        splitWrapper.parentNode.removeChild(splitWrapper);
+                        console.log('[SplitScreen] Split wrapper removed');
+                    }
+                    
+                    // Force map size update
+                    setTimeout(function() {
+                        if (njs.AppManager.Maps.main && njs.AppManager.Maps.main.mapObj) {
+                            njs.AppManager.Maps.main.mapObj.updateSize();
+                            console.log('[SplitScreen] Main map size updated');
+                        }
+                    }, 100);
+                    
+                    console.log('[SplitScreen] Disabled successfully');
+                } else {
+                    console.warn('[SplitScreen] DOM elements not found for cleanup');
+                }
+            } catch (e) {
+                console.error('[SplitScreen] Error during disable:', e);
+            }
+        },
+
+        /**
+         * Add a layer to both maps
+         * @param {ol.layer.Layer} layer - The layer to add
+         * @returns {ol.layer.Layer|null} - The cloned layer added to map2, or null if not in splitscreen mode
+         */
+        addLayerToMaps: function(layer) {
+            if (!layer) {
+                console.warn('[SplitScreen] No layer provided');
+                return null;
+            }
+            
+            var mainMap = njs.AppManager.Maps.main.mapObj;
+            if (!mainMap) {
+                console.warn('[SplitScreen] Main map not available');
+                return null;
+            }
+            
+            // Add to main map
+            // try/catch: njs.MapTip.addLayerCallback kann bei Custom-WMS-Layern
+            // crashen, der Layer wird trotzdem zur OL-Collection hinzugefügt.
+            try {
+                mainMap.addLayer(layer);
+            } catch(e) {
+                console.warn('[SplitScreen] addLayer Framework-Fehler abgefangen:', e.message);
+            }
+            console.log('[SplitScreen] Layer added to Map A:', layer.get('name') || 'unnamed');
+            
+            // Clone and add to map B if splitscreen is active
+            if (this.enabled && this.map2) {
+                var clonedLayer = this.cloneLayer(layer);
+                if (clonedLayer) {
+                    this.map2.addLayer(clonedLayer);
+                    var layerName = layer.get('name') || layer.get('title') || 'unnamed';
+                    this.layerMapping[layerName] = clonedLayer;
+                    console.log('[SplitScreen] Layer cloned and added to Map B:', layerName);
+                    
+                    // Update layer control panel
+                    setTimeout(function() {
+                        if (window.TnetSplitScreen) {
+                            window.TnetSplitScreen.populateLayerControl();
+                        }
+                    }, 100);
+                    
+                    return clonedLayer;
+                }
+            } else if (!this.enabled) {
+                console.log('[SplitScreen] Splitscreen not active - layer only added to Map A');
+            }
+            
+            return null;
+        },
+
+        /**
+         * Toggle split-screen mode
+         */
+        toggle: function() {
+            var btn = document.getElementById('split-screen-btn');
+            
+            if (this.enabled) {
+                this.disable();
+                if (btn) btn.classList.remove('active');
+            } else {
+                this.init();
+                if (btn) btn.classList.add('active');
+            }
+        },
+
+        /**
+         * Setup maptips (click info) for map2
+         */
+        setupMap2Maptips: function() {
+            var self = this;
+            
+            // Wait for map2 to be ready
+            var checkMap2 = setInterval(function() {
+                if (self.map2) {
+                    clearInterval(checkMap2);
+                    
+                    console.log('[SplitScreen] Setting up native OpenLayers maptips for map2...');
+                    
+                    // Create popup overlay
+                    var popupContainer = document.createElement('div');
+                    popupContainer.id = 'map2-popup';
+                    popupContainer.className = 'ol-popup';
+                    popupContainer.style.cssText = 'position: absolute; background: white; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.3); min-width: 200px; max-width: 400px; max-height: 300px; overflow: auto;';
+                    
+                    var popupCloser = document.createElement('a');
+                    popupCloser.href = '#';
+                    popupCloser.className = 'ol-popup-closer';
+                    popupCloser.style.cssText = 'position: absolute; top: 5px; right: 5px; text-decoration: none; color: #999; font-size: 18px; font-weight: bold;';
+                    popupCloser.innerHTML = '×';
+                    
+                    var popupContent = document.createElement('div');
+                    popupContent.id = 'map2-popup-content';
+                    
+                    popupContainer.appendChild(popupCloser);
+                    popupContainer.appendChild(popupContent);
+                    document.body.appendChild(popupContainer);
+                    
+                    var overlay = new ol.Overlay({
+                        element: popupContainer,
+                        autoPan: true,
+                        autoPanAnimation: {
+                            duration: 250
+                        }
+                    });
+                    
+                    self.map2.addOverlay(overlay);
+                    
+                    // Close popup handler
+                    popupCloser.onclick = function() {
+                        overlay.setPosition(undefined);
+                        popupCloser.blur();
+                        return false;
+                    };
+                    
+                    // Add click listener to map2
+                    self.map2.on('singleclick', function(evt) {
+                        var coordinate = evt.coordinate;
+                        var pixel = evt.pixel;
+                        
+                        console.log('[SplitScreen] Map2 clicked at coordinate:', coordinate, 'pixel:', pixel);
+                        
+                        // Independent maptip implementation for map2
+                        var features = [];
+                        var requests = [];
+                        var layersChecked = 0;
+                        var viewResolution = self.map2.getView().getResolution();
+                        var projection = self.map2.getView().getProjection();
+                        
+                        // Query all visible layers (skip LayerGroups/basemaps)
+                        self.map2.getLayers().forEach(function(layer) {
+                            if (!layer.getVisible()) {
+                                return;
+                            }
+                            
+                            // Skip LayerGroups (basemaps) and layers without getSource
+                            if (layer instanceof ol.layer.Group) {
+                                return;
+                            }
+                            if (typeof layer.getSource !== 'function') {
+                                return;
+                            }
+                            
+                            layersChecked++;
+                            var source = layer.getSource();
+                            if (!source) return;
+                            
+                            var layerTitle = layer.get('title') || layer.get('name') || layer.get('catalogId') || 'Unknown';
+                            
+                            console.log('[SplitScreen] Querying layer:', layerTitle);
+                            console.log('[SplitScreen] - source:', source);
+                            console.log('[SplitScreen] - source type:', source ? source.constructor.name : 'null');
+                            console.log('[SplitScreen] - has getUrl:', source && typeof source.getUrl === 'function');
+                            console.log('[SplitScreen] - has getFeatureInfoUrl:', source && typeof source.getFeatureInfoUrl === 'function');
+                            
+                            // ArcGIS REST identify (Image and Tile)
+                            // Detect ArcGIS sources: ImageArcGISRest or TileArcGISRest
+                            var isArcGIS = (source instanceof ol.source.ImageArcGISRest) ||
+                                           (source instanceof ol.source.TileArcGISRest) ||
+                                           (typeof source.getUrl === 'function' && 
+                                            source.constructor && source.constructor.name && 
+                                            source.constructor.name.indexOf('ArcGISRest') > -1);
+                            
+                            if (isArcGIS && typeof source.getUrl === 'function') {
+                                
+                                try {
+                                    var url = source.getUrl();
+                                    var params = source.getParams ? source.getParams() : {};
+                                    var mapExtent = self.map2.getView().calculateExtent(self.map2.getSize());
+                                    var layerIds = params.LAYERS || params.layers || '0';
+                                    
+                                    // Build identify URL - handle agsproxy.php URLs
+                                    var identifyUrl;
+                                    if (url.indexOf('agsproxy.php') > -1) {
+                                        // Proxy URL: /maps/agsproxy.php?path=.../MapServer
+                                        // Append /identify to the path parameter, use & for rest
+                                        identifyUrl = url.replace(/\/MapServer\/?/, '/MapServer/identify') +
+                                            '&f=json' +
+                                            '&geometry=' + coordinate[0] + ',' + coordinate[1] +
+                                            '&geometryType=esriGeometryPoint' +
+                                            '&sr=' + projection.getCode().split(':')[1] +
+                                            '&layers=all:' + layerIds.replace(/^show:/, '') +
+                                            '&tolerance=5' +
+                                            '&mapExtent=' + mapExtent.join(',') +
+                                            '&imageDisplay=' + self.map2.getSize().join(',') + ',96' +
+                                            '&returnGeometry=false';
+                                    } else {
+                                        // Direct ArcGIS URL
+                                        identifyUrl = url.replace(/\/export\/?$/, '') + '/identify' + 
+                                            '?f=json' +
+                                            '&geometry=' + coordinate[0] + ',' + coordinate[1] +
+                                            '&geometryType=esriGeometryPoint' +
+                                            '&sr=' + projection.getCode().split(':')[1] +
+                                            '&layers=all:' + layerIds.replace(/^show:/, '') +
+                                            '&tolerance=5' +
+                                            '&mapExtent=' + mapExtent.join(',') +
+                                            '&imageDisplay=' + self.map2.getSize().join(',') + ',96' +
+                                            '&returnGeometry=false';
+                                    }
+                                    
+                                    console.log('[SplitScreen] ArcGIS identify URL:', identifyUrl);
+                                    
+                                    requests.push(
+                                        fetch(identifyUrl)
+                                            .then(function(response) { return response.json(); })
+                                            .then(function(data) {
+                                                console.log('[SplitScreen] ArcGIS response:', data);
+                                                if (data.results && data.results.length > 0) {
+                                                    var feats = data.results.map(function(r) {
+                                                        return { properties: r.attributes };
+                                                    });
+                                                    features.push({
+                                                        layer: layerTitle,
+                                                        data: feats
+                                                    });
+                                                }
+                                            })
+                                            .catch(function(err) {
+                                                console.warn('[SplitScreen] ArcGIS error:', err);
+                                            })
+                                    );
+                                } catch(e) {
+                                    console.warn('[SplitScreen] Error building ArcGIS query:', e);
+                                }
+                            }
+                            
+                            // WMS GetFeatureInfo - try multiple formats
+                            else if (source && typeof source.getFeatureInfoUrl === 'function') {
+                                (function(layerTitle) {
+                                    var formats = [
+                                        'application/json',
+                                        'application/geojson', 
+                                        'text/html',
+                                        'application/vnd.ogc.gml',
+                                        'text/plain'
+                                    ];
+                                    
+                                    var tryFormat = function(formatIndex) {
+                                        if (formatIndex >= formats.length) {
+                                            console.warn('[SplitScreen] All WMS formats failed for', layerTitle);
+                                            return Promise.resolve();
+                                        }
+                                        
+                                        var format = formats[formatIndex];
+                                        var url = source.getFeatureInfoUrl(
+                                            coordinate,
+                                            viewResolution,
+                                            projection,
+                                            {'INFO_FORMAT': format, 'FEATURE_COUNT': 10}
+                                        );
+                                        
+                                        if (!url) return Promise.resolve();
+                                        
+                                        // Add QUERY_LAYERS if not already present (ImageWMS adds it automatically)
+                                        if (url.indexOf('QUERY_LAYERS') === -1) {
+                                            var params = source.getParams();
+                                            if (params && params.LAYERS) {
+                                                url += '&QUERY_LAYERS=' + encodeURIComponent(params.LAYERS);
+                                            } else if (url.indexOf('layers=') > -1) {
+                                                // Extract layers from URL and add as QUERY_LAYERS
+                                                var layersMatch = url.match(/layers=([^&]+)/i);
+                                                if (layersMatch) {
+                                                    url += '&QUERY_LAYERS=' + layersMatch[1];
+                                                }
+                                            }
+                                        }
+                                        
+                                        console.log('[SplitScreen] WMS trying format', format, 'for', layerTitle);
+                                        console.log('[SplitScreen] WMS URL:', url);
+                                        
+                                        return fetch(url)
+                                            .then(function(response) { return response.text(); })
+                                            .then(function(text) {
+                                                console.log('[SplitScreen] WMS response for format', format, '- length:', text.length, '- preview:', text.substring(0, 300));
+                                                
+                                                // Check for ServiceException
+                                                if (text.indexOf('ServiceExceptionReport') > -1 || text.indexOf('ServiceException') > -1) {
+                                                    // Parse exception message
+                                                    var parser = new DOMParser();
+                                                    var xmlDoc = parser.parseFromString(text, 'text/xml');
+                                                    var exceptionNodes = xmlDoc.getElementsByTagName('ServiceException');
+                                                    var exceptionMsg = '';
+                                                    if (exceptionNodes.length > 0) {
+                                                        for (var i = 0; i < exceptionNodes.length; i++) {
+                                                            exceptionMsg += exceptionNodes[i].textContent + ' ';
+                                                        }
+                                                    } else {
+                                                        exceptionMsg = 'Unknown error - full response: ' + text.substring(0, 500);
+                                                    }
+                                                    console.error('[SplitScreen] WMS ServiceException for format', format);
+                                                    console.error('[SplitScreen] Exception message:', exceptionMsg);
+                                                    console.error('[SplitScreen] Failed URL:', url);
+                                                    return tryFormat(formatIndex + 1);
+                                                }
+                                                
+                                                // Try text/plain format (simple text output)
+                                                if (format === 'text/plain' && text.length > 0 && text.indexOf('<?xml') !== 0) {
+                                                    console.log('[SplitScreen] text/plain response:', text);
+                                                    // Parse simple text response (key = 'value' format from MapServer)
+                                                    var attrs = {};
+                                                    var lines = text.split('\n');
+                                                    for (var i = 0; i < lines.length; i++) {
+                                                        var line = lines[i].trim();
+                                                        // Match: key = 'value' or key = value
+                                                        if (line && line.indexOf('=') > -1 && !line.match(/^(Layer|Feature|GetFeatureInfo)/)) {
+                                                            var parts = line.split('=');
+                                                            var key = parts[0].trim();
+                                                            var value = parts.slice(1).join('=').trim();
+                                                            // Remove quotes
+                                                            value = value.replace(/^'|'$/g, '').replace(/^"|"$/g, '');
+                                                            if (key && value) {
+                                                                attrs[key] = value;
+                                                            }
+                                                        }
+                                                    }
+                                                    if (Object.keys(attrs).length > 0) {
+                                                        console.log('[SplitScreen] text/plain parsed attributes:', attrs);
+                                                        features.push({ layer: layerTitle, data: [{ properties: attrs }] });
+                                                        console.log('[SplitScreen] WMS text/plain success for', layerTitle, 'with', Object.keys(attrs).length, 'attributes');
+                                                        return;
+                                                    }
+                                                }
+                                                
+                                                // Try JSON
+                                                if (format.indexOf('json') > -1) {
+                                                    try {
+                                                        var data = JSON.parse(text);
+                                                        if (data.features && data.features.length > 0) {
+                                                            var normalized = data.features.map(function(f) {
+                                                                return { properties: f.properties || f.attributes || {} };
+                                                            });
+                                                            features.push({ layer: layerTitle, data: normalized });
+                                                            console.log('[SplitScreen] WMS JSON success for', layerTitle, ':', normalized.length, 'features');
+                                                            return;
+                                                        }
+                                                    } catch(e) {}
+                                                }
+                                                
+                                                // Try HTML (extract table data)
+                                                if (format.indexOf('html') > -1 && text.indexOf('<table') > -1) {
+                                                    var tempDiv = document.createElement('div');
+                                                    tempDiv.innerHTML = text;
+                                                    var tables = tempDiv.getElementsByTagName('table');
+                                                    if (tables.length > 0) {
+                                                        var attrs = {};
+                                                        var rows = tables[0].getElementsByTagName('tr');
+                                                        for (var i = 0; i < rows.length; i++) {
+                                                            var cells = rows[i].getElementsByTagName('td');
+                                                            if (cells.length >= 2) {
+                                                                attrs[cells[0].textContent.trim()] = cells[1].textContent.trim();
+                                                            }
+                                                        }
+                                                        if (Object.keys(attrs).length > 0) {
+                                                            features.push({ layer: layerTitle, data: [{ properties: attrs }] });
+                                                            console.log('[SplitScreen] WMS HTML success for', layerTitle);
+                                                            return;
+                                                        }
+                                                    }
+                                                }
+                                                
+                                                // Try GML/XML
+                                                if (text.indexOf('<?xml') === 0 || text.indexOf('<') === 0) {
+                                                    var parser = new DOMParser();
+                                                    var xmlDoc = parser.parseFromString(text, 'text/xml');
+                                                    var featureMembers = xmlDoc.getElementsByTagName('gml:featureMember');
+                                                    
+                                                    if (featureMembers.length > 0) {
+                                                        var xmlFeatures = [];
+                                                        for (var i = 0; i < featureMembers.length; i++) {
+                                                            var attrs = {};
+                                                            var featureNode = featureMembers[i].children[0];
+                                                            if (featureNode) {
+                                                                for (var j = 0; j < featureNode.children.length; j++) {
+                                                                    var child = featureNode.children[j];
+                                                                    var tagName = child.localName || child.tagName;
+                                                                    if (child.textContent && tagName !== 'boundedBy') {
+                                                                        attrs[tagName] = child.textContent;
+                                                                    }
+                                                                }
+                                                            }
+                                                            if (Object.keys(attrs).length > 0) {
+                                                                xmlFeatures.push({ properties: attrs });
+                                                            }
+                                                        }
+                                                        
+                                                        if (xmlFeatures.length > 0) {
+                                                            features.push({ layer: layerTitle, data: xmlFeatures });
+                                                            console.log('[SplitScreen] WMS GML success for', layerTitle, ':', xmlFeatures.length, 'features');
+                                                            return;
+                                                        }
+                                                    }
+                                                }
+                                                
+                                                // Try next format
+                                                return tryFormat(formatIndex + 1);
+                                            })
+                                            .catch(function(err) {
+                                                console.warn('[SplitScreen] WMS fetch error for format', format, ':', err);
+                                                return tryFormat(formatIndex + 1);
+                                            });
+                                    };
+                                    
+                                    requests.push(tryFormat(0));
+                                })(layerTitle);
+                            }
+                        });
+                        
+                        console.log('[SplitScreen] Layers checked:', layersChecked, 'Requests:', requests.length);
+                        
+                        // Wait for all requests and show popup
+                        if (requests.length > 0) {
+                            Promise.all(requests).then(function() {
+                                if (features.length > 0) {
+                                    console.log('[SplitScreen] Total features from', features.length, 'layers');
+                                    
+                                    // Accordion-Style HTML mit klappbaren Layer-Ergebnissen
+                                    var html = '<div style="font-family: Arial, sans-serif;">';
+                                    html += '<div style="font-size: 13px; font-weight: bold; margin-bottom: 10px; padding-bottom: 5px; border-bottom: 2px solid #2c5f6f; color: #2c5f6f;">Objekt-Informationen (' + features.length + ' Layer)</div>';
+                                    
+                                    features.forEach(function(item, idx) {
+                                        var accordionId = 'accordion-' + idx;
+                                        var isFirstItem = idx === 0;
+                                        
+                                        // Accordion Header (klappbar)
+                                        html += '<div style="margin-bottom: 8px; border: 1px solid #ddd; border-radius: 4px; overflow: hidden;">';
+                                        html += '<div onclick="var content = document.getElementById(\'' + accordionId + '\'); var icon = this.querySelector(\'.accordion-icon\'); if(content.style.display === \'none\'){content.style.display = \'block\'; icon.innerHTML = \'▼\';}else{content.style.display = \'none\'; icon.innerHTML = \'►\';}" ';
+                                        html += 'style="background: #f5f5f5; padding: 8px 12px; cursor: pointer; font-weight: bold; font-size: 12px; color: #333; display: flex; justify-content: space-between; align-items: center; user-select: none;">';
+                                        html += '<span>' + item.layer + ' (' + item.data.length + ')</span>';
+                                        html += '<span class="accordion-icon" style="color: #2c5f6f; font-size: 10px;">' + (isFirstItem ? '▼' : '►') + '</span>';
+                                        html += '</div>';
+                                        
+                                        // Accordion Content (anfangs nur erstes Item offen)
+                                        html += '<div id="' + accordionId + '" style="display: ' + (isFirstItem ? 'block' : 'none') + '; padding: 10px; background: white;">';
+                                        
+                                        item.data.forEach(function(feature, featIdx) {
+                                            if (featIdx > 0) {
+                                                html += '<hr style="margin: 10px 0; border: none; border-top: 1px solid #eee;">';
+                                            }
+                                            
+                                            var props = feature.properties || feature.attributes || {};
+                                            html += '<table style="font-size: 11px; width: 100%; border-collapse: collapse;">';
+                                            for (var key in props) {
+                                                if (props.hasOwnProperty(key) && key !== 'geometry' && props[key]) {
+                                                    html += '<tr>';
+                                                    html += '<td style="padding: 3px 8px 3px 0; font-weight: 600; color: #555; vertical-align: top; width: 40%;">' + key + ':</td>';
+                                                    html += '<td style="padding: 3px 0; color: #333; vertical-align: top;">' + props[key] + '</td>';
+                                                    html += '</tr>';
+                                                }
+                                            }
+                                            html += '</table>';
+                                        });
+                                        
+                                        html += '</div>'; // Close accordion content
+                                        html += '</div>'; // Close accordion item
+                                    });
+                                    
+                                    html += '</div>';
+                                    
+                                    popupContent.innerHTML = html;
+                                    overlay.setPosition(coordinate);
+                                } else {
+                                    console.log('[SplitScreen] No features found');
+                                    popupContent.innerHTML = '<div style="padding: 10px; color: #999; text-align: center;">Keine Informationen gefunden</div>';
+                                    overlay.setPosition(coordinate);
+                                }
+                            });
+                        } else {
+                            console.log('[SplitScreen] No queryable layers visible');
+                        }
+                    });
+                    
+                    console.log('[SplitScreen] Native maptips enabled for map2');
+                }
+            }, 100);
+        }
+    };
+
+    // Export to global scope
+    window.TnetSplitScreen = SplitScreen;
+    
+    // Export global toggle function
+    window.toggleSplitScreen = function() {
+        if (window.TnetSplitScreen) {
+            window.TnetSplitScreen.toggle();
+        } else {
+            console.error('[SplitScreen] Module not loaded');
+        }
+    };
+})();
+
+/**
+ * Global function to add a WMS layer to both maps
+ * @param {string} wmsUrl - WMS server URL
+ * @param {string} layerName - Layer name (LAYERS parameter)
+ * @param {string} title - Display title for the layer (optional)
+ * @param {object} params - Additional WMS parameters (optional)
+ * @returns {ol.layer.Image|null}
+ * 
+ * Example usage:
+ * addWmsLayer('http://wms.server.com/wms', 'my_layer', 'My Layer Title');
+ * addWmsLayer('http://wms.server.com/wms', 'layer1', 'Layer 1', {
+ *     'FORMAT': 'image/png',
+ *     'TRANSPARENT': true
+ * });
+ */
+function addWmsLayer(wmsUrl, layerName, title, params) {
+    if (!wmsUrl || !layerName) {
+        console.error('[SplitScreen] addWmsLayer requires wmsUrl and layerName');
+        return null;
+    }
+    
+    var wmsParams = Object.assign({
+        'LAYERS': layerName,
+        'FORMAT': 'image/png',
+        'TRANSPARENT': true
+    }, params || {});
+    
+    var layer = new ol.layer.Image({
+        source: new ol.source.ImageWMS({
+            url: wmsUrl,
+            params: wmsParams,
+            serverType: 'geoserver',
+            crossOrigin: 'anonymous'
+        }),
+        opacity: 0.8,
+        visible: true
+    });
+    
+    // Set title/name
+    if (title) {
+        layer.set('title', title);
+        layer.set('name', title);
+    } else {
+        layer.set('name', layerName);
+    }
+    
+    // Add through SplitScreen manager
+    if (window.TnetSplitScreen) {
+        return window.TnetSplitScreen.addLayerToMaps(layer);
+    } else {
+        console.error('[SplitScreen] Module not loaded');
+        return null;
+    }
+}
+
+/**
+ * Global function to add a TileWMS layer to both maps
+ * @param {string} wmsUrl - WMS server URL
+ * @param {string} layerName - Layer name (LAYERS parameter)
+ * @param {string} title - Display title for the layer (optional)
+ * @param {object} params - Additional WMS parameters (optional)
+ * @returns {ol.layer.Tile|null}
+ * 
+ * Example usage:
+ * addTileWmsLayer('http://wms.server.com/wms', 'my_layer', 'My Layer Title');
+ */
+function addTileWmsLayer(wmsUrl, layerName, title, params) {
+    if (!wmsUrl || !layerName) {
+        console.error('[SplitScreen] addTileWmsLayer requires wmsUrl and layerName');
+        return null;
+    }
+    
+    var wmsParams = Object.assign({
+        'LAYERS': layerName,
+        'FORMAT': 'image/png',
+        'TRANSPARENT': true
+    }, params || {});
+    
+    var layer = new ol.layer.Tile({
+        source: new ol.source.TileWMS({
+            url: wmsUrl,
+            params: wmsParams,
+            serverType: 'geoserver',
+            crossOrigin: 'anonymous'
+        }),
+        opacity: 0.8,
+        visible: true
+    });
+    
+    // Set title/name
+    if (title) {
+        layer.set('title', title);
+        layer.set('name', title);
+    } else {
+        layer.set('name', layerName);
+    }
+    
+    // Add through SplitScreen manager
+    if (window.TnetSplitScreen) {
+        return window.TnetSplitScreen.addLayerToMaps(layer);
+    } else {
+        console.error('[SplitScreen] Module not loaded');
+        return null;
+    }
+}
+
+/**
+ * Global function to add a custom layer to both maps
+ * @param {ol.layer.Layer} layer - The OpenLayers layer to add
+ * @returns {ol.layer.Layer|null} - The cloned layer in map2
+ * 
+ * Example usage:
+ * const myLayer = new ol.layer.Vector({ ... });
+ * addCustomLayer(myLayer);
+ */
+function addCustomLayer(layer) {
+    if (window.TnetSplitScreen) {
+        return window.TnetSplitScreen.addLayerToMaps(layer);
+    } else {
+        console.error('[SplitScreen] Module not loaded');
+        return null;
+    }
+}

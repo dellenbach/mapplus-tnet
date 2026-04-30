@@ -1,1 +1,904 @@
-(function(){"use strict";function T(){return window.__TNET_APP_ROOT||"/maps"}var X=T()+"/tnet/api/search-proxy.php",Y="https://api3.geo.admin.ch/rest/services/api/MapServer/",P=null,O=null,U="",k=null,M=null,b={},v=new Map,B=3e5,V=50,R=.28,w=null,F=!1,C=!1;function I(){try{return njs.AppManager.Maps.main.mapObj.getView()}catch{return null}}function $(){try{var e=njs.AppManager.Maps.main.currBasisMap||njs.AppManager.Maps.main.basisMap||"";if(/swissimage|ortho/i.test(e))return!0}catch{}var t=document.querySelector(".basemap-card.active");return!!(t&&/swissimage|ortho/i.test(t.dataset.basemap||""))}function A(){var e=$()?"orthophoto":"other";if(M&&M[e]){var t=M[e];return{point:t.point!=null?t.point:e==="orthophoto"?25:24,fitMax:t.fitMax!=null?t.fitMax:e==="orthophoto"?25:24,fitMin:t.fitMin!=null?t.fitMin:e==="orthophoto"?16:15,panDefault:t.panDefault!=null?t.panDefault:e==="orthophoto"?25:24}}return e==="orthophoto"?{point:25,fitMax:25,fitMin:16,panDefault:25}:{point:24,fitMax:24,fitMin:15,panDefault:24}}function p(e,t,a,o){var n=I();if(!(!n||e==null||t==null)){var s=n.getProjection().getCode(),r=typeof ol<"u"&&ol.proj?ol.proj.transform([t,e],"EPSG:2056",s):[t,e];if(o)n.animate({center:r,resolution:o,duration:400});else{var i=A();n.animate({center:r,zoom:a||i.panDefault,duration:400})}}}function Q(e){var t=window.TnetLMStore;if(t&&typeof t.findLayer=="function"){var a=t.findLayer(e);if(a&&a.type!=="group"){t.setLayerVisible(e,!0),TnetLog.log("[DesktopSearch] Layer via Store aktiviert:",e);return}for(var o=e.split("/");o.length>1;){o.pop();var n=o.join("/"),s=t.findLayer(n);if(s&&s.type!=="group"){t.setLayerVisible(n,!0),TnetLog.log("[DesktopSearch] Eltern-Layer aktiviert:",n,"(statt:",e,")");return}}}if(typeof window.TnetLayerSwitch=="function"){window.TnetLayerSwitch(e,"on");return}try{var r=window.top&&window.top.njs?window.top.njs.AppManager:window.njs?window.njs.AppManager:null;if(r&&typeof r.setMapBookmark=="function"){r.setMapBookmark(["main"],"layers="+e);return}}catch{}TnetLog.warn("[DesktopSearch] Layer-Aktivierung fehlgeschlagen:",e)}var ee={nidwalden:"NW",obwalden:"OW",bund:"CH",weitere:"Weitere"},te={nidwalden:0,obwalden:1,bund:2,weitere:3};function re(){if(!(F||C)){C=!0;var e=T()+"/tnet/api/v1/layers.php?flat=true&details=false";fetch(e).then(function(t){return t.ok?t.json():Promise.reject(t.status)}).then(function(t){w=t.data||t||[],Array.isArray(w)&&w.length>0?(F=!0,TnetLog.log("[DesktopSearch] Layer-Index geladen:",w.length,"Layer")):TnetLog.warn("[DesktopSearch] Layer-Index leer oder ungueltiges Format"),C=!1}).catch(function(t){C=!1,TnetLog.warn("[DesktopSearch] Layer-Index konnte nicht geladen werden:",t)})}}function ne(e,t){if(!w||!w.length)return[];for(var a=e.toLowerCase(),o=[],n=0;n<w.length;n++){var s=w[n],r=s.name||"",i=r.toLowerCase(),f=(s.id||"").replace(/[_\/]/g," ").toLowerCase(),u=0;if(i===a?u=100:i.indexOf(a)===0?u=80:i.indexOf(a)!==-1?u=60:f.indexOf(a)!==-1&&(u=20),u!==0){var l=(s.path||"").split(" > "),d=(s.category||"").toLowerCase();if(l.length>0&&(l[0]=ee[d]||l[0]),l.length>2){var c=l[l.length-1];c.toLowerCase().replace(/[\s_-]/g,"")===i.replace(/[\s_-]/g,"")&&l.pop()}var g=l.join(" \u203A ");o.push({id:s.id,label:r,subtitle:g,type:"layer",layer:s.id,category:s.category||"",x:null,y:null,_score:u,_catOrder:te[d]||99})}}o.sort(function(y,L){return y._score!==L._score?L._score-y._score:y._catOrder-L._catOrder}),o=o.slice(0,t||10);for(var h=0;h<o.length;h++)delete o[h]._score,delete o[h]._catOrder;return o}function _(e,t){if(!t||!t.length)return e||[];if(!e||!e.length)return[{label:"Themen",type:"layer",items:t}];for(var a=[],o=0;o<e.length;o++)e[o].type!=="layer"&&a.push(e[o]);return a.push({label:"Themen",type:"layer",items:t}),a}function ae(e,t){window.TnetLMTree&&typeof window.TnetLMTree.navigateToLayer=="function"&&window.TnetLMTree.navigateToLayer(e,t)}function z(){if(k)return k;try{var e=njs.AppManager.Maps.main.mapObj;k=new ol.layer.Vector({source:new ol.source.Vector,name:"tnet_feature_highlight",zIndex:9999,style:new ol.style.Style({stroke:new ol.style.Stroke({color:"#e74c3c",width:4}),fill:new ol.style.Fill({color:"rgba(231,76,60,0.15)"}),image:new ol.style.Circle({radius:8,fill:new ol.style.Fill({color:"#e74c3c"}),stroke:new ol.style.Stroke({color:"#fff",width:2})})})}),e.addLayer(k)}catch(t){TnetLog.warn("[DesktopSearch] Feature-Highlight-Layer konnte nicht erstellt werden:",t)}return k}function D(){k&&k.getSource().clear()}function q(e,t){var a=z();if(!(!a||e==null||t==null)){var o=I();if(o){var n=o.getProjection().getCode(),s=ol.proj.transform([t,e],"EPSG:2056",n),r=new ol.Feature({geometry:new ol.geom.Point(s)});a.getSource().addFeature(r)}}}function oe(e){var t=z();if(!t)return;D();function a(){e.x&&e.y&&(q(e.x,e.y),e.subtitle==="Adresse"?p(e.x,e.y,null,R):p(e.x,e.y),TnetLog.log("[DesktopSearch] Fallback: Pan + Marker f\xFCr",e.label))}var o=Y+encodeURIComponent(e.layerId)+"/"+encodeURIComponent(e.featureId)+"?sr=2056&geometryFormat=geojson",n=new XMLHttpRequest;n.open("GET",o,!0),n.timeout=8e3,n.onload=function(){if(n.status!==200){TnetLog.warn("[DesktopSearch] MapServer HTTP",n.status,"f\xFCr",e.layerId),a();return}try{var s=JSON.parse(n.responseText),r=s.feature||s,i=I();if(!i)return;var f=i.getProjection().getCode(),u=new ol.format.GeoJSON().readFeatures(r,{dataProjection:"EPSG:2056",featureProjection:f});if(!u.length){a();return}t.getSource().addFeatures(u);for(var l=u[0].getGeometry().getExtent().slice(),d=1;d<u.length;d++)ol.extent.extend(l,u[d].getGeometry().getExtent());TnetLog.log("[DesktopSearch] Feature extent:",l);var c=l[2]-l[0],g=l[3]-l[1];if(c>1||g>1){var h=A();i.fit(l,{padding:[50,50,50,50],minZoom:h.fitMin,maxZoom:h.fitMax,duration:500,constrainResolution:!1})}else{var y=(l[0]+l[2])/2,L=(l[1]+l[3])/2;if(e.subtitle==="Adresse")i.animate({center:[y,L],resolution:R,duration:500});else{var N=A();i.animate({center:[y,L],zoom:N.point,duration:500})}}}catch(he){TnetLog.warn("[DesktopSearch] Feature-Geometrie konnte nicht geladen werden:",he),a()}},n.onerror=n.ontimeout=function(){TnetLog.warn("[DesktopSearch] Feature-Geometrie Timeout/Fehler"),a()},n.send()}function ie(e,t){var a=z();if(a){D();var o=Math.round(t),n=Math.round(e),s="https://api3.geo.admin.ch/rest/services/ech/MapServer/identify?geometryType=esriGeometryPoint&geometry="+o+","+n+"&tolerance=0&layers=all:ch.kantone.cadastralwebmap-farbe&returnGeometry=true&sr=2056&geometryFormat=geojson",r=new XMLHttpRequest;r.open("GET",s,!0),r.timeout=8e3,r.onload=function(){if(r.status===200)try{var i=JSON.parse(r.responseText);if(!i.results||!i.results.length){p(e,t);return}var f=I();if(!f)return;var u=f.getProjection().getCode(),l=i.results[0],d=l.geometry;if(!d){p(e,t);return}var c={type:"Feature",geometry:d,properties:l.properties||{}},g=new ol.format.GeoJSON().readFeatures(c,{dataProjection:"EPSG:2056",featureProjection:u});if(!g.length){p(e,t);return}a.getSource().addFeatures(g);for(var h=g[0].getGeometry().getExtent().slice(),y=1;y<g.length;y++)ol.extent.extend(h,g[y].getGeometry().getExtent());TnetLog.log("[DesktopSearch] Parcel extent:",h);var L=A();f.fit(h,{padding:[50,50,50,50],minZoom:L.fitMin,maxZoom:L.fitMax,duration:500,constrainResolution:!1})}catch(N){TnetLog.warn("[DesktopSearch] Parcel-Geometrie Fehler:",N),p(e,t)}},r.onerror=r.ontimeout=function(){TnetLog.warn("[DesktopSearch] Parcel-Identify Timeout"),p(e,t)},r.send()}}var se=T()+"/tnet/resources/icons/",E="dt-search-item-icon",j={},H={layer:'<svg class="'+E+'" viewBox="0 0 24 24"><path d="M11.99 2L2 7l10 5 10-5-10.01-5zM2 17l10 5 10-5-10-5-10 5zM2 12l10 5 10-5-10-5-10 5z"/></svg>',location:'<svg class="'+E+'" viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5S10.62 6.5 12 6.5s2.5 1.12 2.5 2.5S13.38 11.5 12 11.5z"/></svg>',address:'<svg class="'+E+'" viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>',street:'<svg class="'+E+'" viewBox="0 0 24 24"><path d="M11 2h2v4h-2V2zm0 6h2v4h-2V8zm0 6h2v4h-2v-4zm0 6h2v2h-2v-2zM4 2h3v20H4V2zm13 0h3v20h-3V2z"/></svg>',terrain:'<svg class="'+E+'" viewBox="0 0 24 24"><path d="M14 6l-3.75 5 2.85 3.8-1.6 1.2C9.81 13.75 7 10 7 10l-6 8h22L14 6z"/></svg>'};function le(e){j[e]||(j[e]=H[e]||H.location,fetch(se+"search-"+e+".svg").then(function(t){return t.ok?t.text():Promise.reject(t.status)}).then(function(t){j[e]=t.replace("<svg",'<svg class="'+E+'"')}).catch(function(){}))}["layer","location","address","street","terrain"].forEach(le);function m(e){return j[e]||H.location}function ce(e){if(e.type==="layer")return m("layer");var t=(e.subtitle||"").toLowerCase();return t==="strasse"?m("street"):t==="adresse"?m("address"):t==="gemeinde"||t==="plz"||t==="kanton"||t==="ortschaft"||t==="bezirk"?m("location"):e.type==="feature"&&e.layerId==="ch.swisstopo.swissnames3d"?/gipfel|berg|pass|gletscher|huegel/i.test(t)?m("terrain"):m("location"):t==="lokalname"?m("location"):e.featureId?m("address"):m("location")}function S(e,t){var a=document.getElementById("dt-search-results");if(a){a.innerHTML="";var o=!1;e&&e.length?e.forEach(function(n){if(!(!n.items||!n.items.length)){var s=document.createElement("li");s.className="dt-search-group-header",s.setAttribute("role","presentation"),s.textContent=n.label,a.appendChild(s),n.items.forEach(function(r){a.appendChild(J(r)),o=!0})}}):t&&t.length&&t.forEach(function(n){a.appendChild(J(n)),o=!0}),a.classList.toggle("open",o)}}function ue(e,t){if(!t)return e;var a=t.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");if(/^CH\d{6,}/i.test(t)){var o=a.substring(0,2),n=a.substring(2);a=o+"\\s*"+n.split("").join("\\s*")}return e.replace(new RegExp("("+a+")","gi"),'<b class="dt-search-highlight">$1</b>')}function J(e){var t=document.createElement("li");t.className="dt-search-item",t.setAttribute("role","option"),t.setAttribute("tabindex","-1");var a=ce(e),o=ue(e.label||"",U),n=a+'<span class="dt-search-item-text"><span class="dt-search-item-label">'+o+"</span>";return e.subtitle&&(n+='<span class="dt-search-item-subtitle">'+e.subtitle+"</span>"),n+="</span>",t.innerHTML=n,t.addEventListener("click",function(){var s=document.getElementById("dt-search-input"),r=document.getElementById("dt-search-results"),i=document.getElementById("dt-search-clear");D(),e.type==="layer"?(s&&(s.value=""),i&&(i.style.display="none"),r&&(r.classList.remove("open"),r.innerHTML=""),Q(e.layer||e.id),ae(e.layer||e.id,e.category)):e.type==="feature"||e.featureId?(s&&(s.value=e.label),r&&r.classList.remove("open"),e.layerId&&e.featureId?oe(e):e.x&&e.y&&p(e.x,e.y)):(s&&(s.value=e.label),r&&r.classList.remove("open"),e.subtitle==="Parzelle"&&e.x&&e.y?ie(e.x,e.y):e.subtitle==="Adresse"&&e.x&&e.y?(q(e.x,e.y),p(e.x,e.y,null,R)):p(e.x,e.y))}),t}function Z(e,t){var a=document.querySelector('input[name="dt-canton"]:checked'),o=a?a.value:"",n=document.getElementById("dt-filter-orte"),s=document.getElementById("dt-filter-adressen"),r=document.getElementById("dt-filter-layers"),i=n?n.checked:!0,f=s?s.checked:!0,u=r?r.checked:!0,l=[];(!i||!f||!u)&&(i&&l.push("orte"),f&&l.push("adressen"),u&&l.push("layers"));var d=l.join(","),c=X+"?q="+encodeURIComponent(e)+"&limit=10";return b.maxAddresses&&(c+="&maxAddr="+b.maxAddresses),b.maxLocations&&(c+="&maxLoc="+b.maxLocations),b.maxLayers&&(c+="&maxLay="+b.maxLayers),o&&(c+="&canton="+encodeURIComponent(o)),d&&(c+="&scope="+encodeURIComponent(d)),t&&(c+="&mode="+encodeURIComponent(t)),c}function ve(e){return e}var G=0;function x(e){if(U=e,O)try{O.abort()}catch{}var t=++G,a=document.getElementById("dt-filter-layers"),o=a?a.checked:!0,n=o&&F?ne(e,10):[];n.length&&S([{label:"Themen",type:"layer",items:n}],null);var s=Z(e),r=s,i=v.get(r);if(i&&Date.now()-i.ts<B){S(_(i.data.groups,n),i.data.items);return}var f=Z(e,"fast"),u=f,l=v.get(u),d=new AbortController;O=d,l&&Date.now()-l.ts<B?S(_(l.data.groups,n),l.data.items):fetch(f,{signal:d.signal}).then(function(c){return c.ok?c.json():Promise.reject(c.status)}).then(function(c){G===t&&(v.size>=V&&v.delete(v.keys().next().value),v.set(u,{data:c,ts:Date.now()}),(!v.has(r)||Date.now()-v.get(r).ts>=B)&&S(_(c.groups,n),c.items))}).catch(function(){}),fetch(s,{signal:d.signal}).then(function(c){return c.ok?c.json():Promise.reject(c.status)}).then(function(c){G===t&&(v.size>=V&&v.delete(v.keys().next().value),v.set(r,{data:c,ts:Date.now()}),S(_(c.groups,n),c.items))}).catch(function(c){c.name!=="AbortError"&&n.length===0&&S(null,[])})}function K(){var e=document.getElementById("dt-search-input"),t=document.getElementById("dt-search-results"),a=document.getElementById("dt-search-clear"),o=document.getElementById("dt-search-filter-btn"),n=document.getElementById("dt-search-filter-popup");if(!e||!t)return;o&&n&&o.addEventListener("click",function(r){r.stopPropagation();var i=n.classList.toggle("open");o.classList.toggle("active",i)});function s(){if(o){var r=document.querySelector('input[name="dt-canton"]:checked'),i=r?r.value:"",f=document.getElementById("dt-filter-orte"),u=document.getElementById("dt-filter-adressen"),l=document.getElementById("dt-filter-layers"),d=f?f.checked:!0,c=u?u.checked:!0,g=l?l.checked:!0,h=i===""&&d&&c&&g;o.classList.toggle("has-filter",!h)}}s(),n&&n.addEventListener("change",function(){s();var r=e.value.trim();r.length>=3&&x(r)}),e.addEventListener("input",function(){var r=e.value.trim();if(a&&(a.style.display=r?"flex":"none"),P&&clearTimeout(P),r.length<3){t.classList.remove("open"),t.innerHTML="";return}P=setTimeout(function(){x(r)},280)}),a&&a.addEventListener("click",function(){e.value="",a.style.display="none",t.classList.remove("open"),t.innerHTML="",D(),e.focus()}),e.addEventListener("keydown",function(r){var i=t.querySelectorAll(".dt-search-item");r.key==="Enter"&&(i.length?i[0].click():e.value.trim().length>=3&&x(e.value.trim()),r.preventDefault()),r.key==="Escape"&&(t.classList.remove("open"),e.blur()),r.key==="ArrowDown"&&i.length&&(i[0].focus(),r.preventDefault(),r.stopPropagation())}),t.addEventListener("keydown",function(r){var i=t.querySelectorAll(".dt-search-item"),f=document.activeElement,u=Array.prototype.indexOf.call(i,f);r.key==="ArrowDown"&&u<i.length-1&&(i[u+1].focus(),r.preventDefault(),r.stopPropagation()),r.key==="ArrowUp"&&(u>0?i[u-1].focus():e.focus(),r.preventDefault(),r.stopPropagation()),r.key==="Enter"&&u>=0&&i[u].click(),r.key==="Escape"&&(t.classList.remove("open"),e.focus())}),document.addEventListener("click",function(r){r.target.closest("#dt-search-bar")||t.classList.remove("open"),n&&!r.target.closest("#dt-search-filter-popup")&&!r.target.closest("#dt-search-filter-btn")&&(n.classList.remove("open"),o&&o.classList.remove("active"))}),e.addEventListener("focus",function(){e.value.trim().length>=3&&!t.children.length&&x(e.value.trim())})}function fe(){if(typeof JSON5>"u")return Promise.resolve(null);var e=[T()+"/tnet/config/tnet-global-config.json5",T()+"/tnet/tnet-global-config.json5","../tnet/config/tnet-global-config.json5"];function t(a){return a>=e.length?Promise.resolve(null):fetch(e[a]).then(function(o){if(!o.ok)throw new Error(o.status);return o.text()}).then(function(o){var n=JSON5.parse(o);return n&&n.search&&n.search.zoom&&(M=n.search.zoom),n&&n.search&&(b={maxAddresses:n.search.maxAddresses||0,maxLocations:n.search.maxLocations||0,maxLayers:n.search.maxLayers||0}),n&&n.search?n.search:null}).catch(function(){return t(a+1)})}return t(0)}function de(e){if(e){if(e.njsSearchEnabled===!1){var t=document.getElementById("njs_search_wrapper");t&&(t.style.display="none"),TnetLog.log("[DesktopSearch] njs/MapPlus-Suche deaktiviert (Config)")}if(e.tnetSearchEnabled===!1){var a=document.getElementById("dt-search-bar");a&&(a.style.display="none"),TnetLog.log("[DesktopSearch] TNET-Suche deaktiviert (Config)")}}}function W(){K(),fe().then(de),re()}document.readyState==="loading"?document.addEventListener("DOMContentLoaded",W):W(),window.DesktopSearch={init:K,search:x}})();
+﻿/*
+ * tnet-search.js  v2.0
+ * Desktop-Suchfeld (parallel zur bestehenden njs/SOLR-Suche)
+ * Nutzt search-proxy.php fuer Geo-Suche + lokalen Layer-Index fuer Themen-Suche.
+ * v1.5: Filter-Popup (Radios + Checkboxen), Lupe links, Tune rechts
+ * v1.6: Feature-Suche (Strassen/Gebaeude) mit Geometrie-Highlighting
+ * v1.7: Subtitles, Deduplizierung, featureId-Highlight fuer Geocoder-Adressen
+ * v2.0: Lokale Themen-Suche via Layer-API-Index, Breadcrumb-Subtitles,
+ *       Relevanz-Ranking, Tree-Navigation bei Klick
+ *
+ * @version    2.0
+ * @date       2026-03-07
+ * @copyright  Trigonet AG
+ */
+(function () {
+    'use strict';
+
+    function getAppRoot() {
+        return window.__TNET_APP_ROOT || '/maps';
+    }
+
+    var PROXY_URL    = getAppRoot() + '/tnet/api/search-proxy.php';
+    var MAPSERVER_URL = 'https://api3.geo.admin.ch/rest/services/api/MapServer/';
+    var debounceTimer = null;
+    var currentAbort  = null;   // AbortController
+    var lastQuery    = '';
+    var featureHighlightLayer = null;
+    var _searchZoomConfig = null;   // aus tnet-global-config.json5 geladen
+    var _searchLimits = {};          // {maxAddresses, maxLocations, maxLayers} aus Config
+    var _resultCache = new Map();   // Client-Cache: query-key → {data, ts}
+    var _CACHE_TTL   = 300000;      // 5 min (ms)
+    var _CACHE_MAX   = 50;          // max Einträge
+    var _ADDR_RESOLUTION = 0.28;    // 1:1000 Massstab (OGC: 1000 × 0.00028 m/px)
+    var _layerIndex = null;        // Flache Layer-Liste von API fuer lokale Themen-Suche
+    var _layerIndexReady = false;
+    var _layerIndexLoading = false;
+
+    // -- Map/Layer Helpers ---------------------------------------------------
+
+    function getMapView() {
+        try { return njs.AppManager.Maps['main'].mapObj.getView(); } catch (e) { return null; }
+    }
+
+    /** Prüft ob die aktive Basemap ein Orthophoto ist */
+    function isOrthophotoActive() {
+        try {
+            var bm = njs.AppManager.Maps['main'].currBasisMap || njs.AppManager.Maps['main'].basisMap || '';
+            if (/swissimage|ortho/i.test(bm)) return true;
+        } catch (e) {}
+        var card = document.querySelector('.basemap-card.active');
+        if (card && /swissimage|ortho/i.test(card.dataset.basemap || '')) return true;
+        return false;
+    }
+
+    /** Basemap-abhängige Zoom-Stufen (aus Config oder Fallback) */
+    function getZoomLevels() {
+        var key = isOrthophotoActive() ? 'orthophoto' : 'other';
+        if (_searchZoomConfig && _searchZoomConfig[key]) {
+            var c = _searchZoomConfig[key];
+            return {
+                point:      c.point      != null ? c.point      : (key === 'orthophoto' ? 25 : 24),
+                fitMax:     c.fitMax     != null ? c.fitMax     : (key === 'orthophoto' ? 25 : 24),
+                fitMin:     c.fitMin     != null ? c.fitMin     : (key === 'orthophoto' ? 16 : 15),
+                panDefault: c.panDefault != null ? c.panDefault : (key === 'orthophoto' ? 25 : 24)
+            };
+        }
+        // Fallback falls Config nicht geladen
+        if (key === 'orthophoto') return { point: 25, fitMax: 25, fitMin: 16, panDefault: 25 };
+        return { point: 24, fitMax: 24, fitMin: 15, panDefault: 24 };
+    }
+
+    /** Zur Koordinate animieren. x=Northing, y=Easting (LV95) */
+    function panToResult(x, y, zoom, resolution) {
+        var view = getMapView();
+        if (!view || x == null || y == null) return;
+        var mapProj = view.getProjection().getCode();
+        var coord = (typeof ol !== 'undefined' && ol.proj)
+            ? ol.proj.transform([y, x], 'EPSG:2056', mapProj)
+            : [y, x];
+        if (resolution) {
+            view.animate({ center: coord, resolution: resolution, duration: 400 });
+        } else {
+            var zl = getZoomLevels();
+            view.animate({ center: coord, zoom: zoom || zl.panDefault, duration: 400 });
+        }
+    }
+
+    /**
+     * Layer einschalten — dreistufig:
+     * 1. Über TnetLMStore (respektiert Coalesce, Sichtbarkeit, Active-Liste)
+     * 2. Eltern-Pfad-Fallback: wenn exakte ID nicht im Store → Pfadsegmente
+     *    kürzen bis ein bekannter Layer gefunden wird (z.B. Service-Root)
+     * 3. TnetLayerSwitch / setMapBookmark als letzter Fallback
+     */
+    function activateLayer(layerId) {
+        var store = window.TnetLMStore;
+
+        // 1. Exakte Suche im Store
+        if (store && typeof store.findLayer === 'function') {
+            var layer = store.findLayer(layerId);
+            if (layer && layer.type !== 'group') {
+                store.setLayerVisible(layerId, true);
+                TnetLog.log('[DesktopSearch] Layer via Store aktiviert:', layerId);
+                return;
+            }
+
+            // 2. Eltern-Pfad-Fallback: "a/b/c/d" → "a/b/c" → "a/b" → "a"
+            var parts = layerId.split('/');
+            while (parts.length > 1) {
+                parts.pop();
+                var parentId = parts.join('/');
+                var parent = store.findLayer(parentId);
+                if (parent && parent.type !== 'group') {
+                    store.setLayerVisible(parentId, true);
+                    TnetLog.log('[DesktopSearch] Eltern-Layer aktiviert:', parentId, '(statt:', layerId, ')');
+                    return;
+                }
+            }
+        }
+
+        // 3. TnetLayerSwitch (Dojo LyrMgr)
+        if (typeof window.TnetLayerSwitch === 'function') {
+            window.TnetLayerSwitch(layerId, 'on');
+            return;
+        }
+
+        // 4. Letzter Fallback: setMapBookmark
+        try {
+            var njsAM = (window.top && window.top.njs) ? window.top.njs.AppManager
+                       : (window.njs ? window.njs.AppManager : null);
+            if (njsAM && typeof njsAM.setMapBookmark === 'function') {
+                njsAM.setMapBookmark(['main'], 'layers=' + layerId);
+                return;
+            }
+        } catch (e) {}
+        TnetLog.warn('[DesktopSearch] Layer-Aktivierung fehlgeschlagen:', layerId);
+    }
+
+    // -- Layer-Index fuer lokale Themen-Suche ----------------------------------
+
+    /** Kategorie-Abkuerzungen und Sortierung */
+    var CATEGORY_ABBR = { 'nidwalden': 'NW', 'obwalden': 'OW', 'bund': 'CH', 'weitere': 'Weitere' };
+    var CATEGORY_ORDER = { 'nidwalden': 0, 'obwalden': 1, 'bund': 2, 'weitere': 3 };
+
+    /**
+     * Laedt den flachen Layer-Katalog von der API und cached ihn im Client.
+     * Wird einmalig beim Init aufgerufen — alle Themen-Suchen nutzen dann den lokalen Index.
+     */
+    function loadLayerIndex() {
+        if (_layerIndexReady || _layerIndexLoading) return;
+        _layerIndexLoading = true;
+        var apiUrl = getAppRoot() + '/tnet/api/v1/layers.php?flat=true&details=false';
+        fetch(apiUrl)
+            .then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); })
+            .then(function (json) {
+                _layerIndex = json.data || json || [];
+                if (Array.isArray(_layerIndex) && _layerIndex.length > 0) {
+                    _layerIndexReady = true;
+                    TnetLog.log('[DesktopSearch] Layer-Index geladen:', _layerIndex.length, 'Layer');
+                } else {
+                    TnetLog.warn('[DesktopSearch] Layer-Index leer oder ungueltiges Format');
+                }
+                _layerIndexLoading = false;
+            })
+            .catch(function (e) {
+                _layerIndexLoading = false;
+                TnetLog.warn('[DesktopSearch] Layer-Index konnte nicht geladen werden:', e);
+            });
+    }
+
+    /**
+     * Durchsucht den lokalen Layer-Index nach dem Suchbegriff.
+     * Gibt Ergebnisse mit Breadcrumb-Subtitle und Relevanz-Ranking zurueck.
+     * Viel besser als PHP-Suche: volle Layer-IDs, Pfad-Kontext, Kategorie-Info.
+     */
+    function searchLayersLocal(query, limit) {
+        if (!_layerIndex || !_layerIndex.length) return [];
+        var qLower = query.toLowerCase();
+        var results = [];
+
+        for (var i = 0; i < _layerIndex.length; i++) {
+            var layer = _layerIndex[i];
+            var name = layer.name || '';
+            var nameLower = name.toLowerCase();
+            // ID-basierter Suchtext: Unterstriche und Slashes durch Leerzeichen
+            var idText = (layer.id || '').replace(/[_\/]/g, ' ').toLowerCase();
+
+            // Relevanz-Score berechnen
+            var score = 0;
+            if (nameLower === qLower) score = 100;                // Exakter Treffer
+            else if (nameLower.indexOf(qLower) === 0) score = 80; // Beginnt mit
+            else if (nameLower.indexOf(qLower) !== -1) score = 60; // Enthaelt im Namen
+            else if (idText.indexOf(qLower) !== -1) score = 20;    // Enthaelt in ID
+            if (score === 0) continue;
+
+            // Breadcrumb-Subtitle aus Pfad bauen (z.B. "NW > OEREB > Raumplanung")
+            var pathParts = (layer.path || '').split(' > ');
+            var cat = (layer.category || '').toLowerCase();
+            if (pathParts.length > 0) {
+                pathParts[0] = CATEGORY_ABBR[cat] || pathParts[0];
+            }
+            // Letztes Segment entfernen wenn es dem Layer-Namen aehnelt
+            if (pathParts.length > 2) {
+                var lastPart = pathParts[pathParts.length - 1];
+                if (lastPart.toLowerCase().replace(/[\s_-]/g, '') ===
+                    nameLower.replace(/[\s_-]/g, '')) {
+                    pathParts.pop();
+                }
+            }
+            var subtitle = pathParts.join(' \u203A ');
+
+            results.push({
+                id: layer.id,
+                label: name,
+                subtitle: subtitle,
+                type: 'layer',
+                layer: layer.id,
+                category: layer.category || '',
+                x: null,
+                y: null,
+                _score: score,
+                _catOrder: CATEGORY_ORDER[cat] || 99
+            });
+        }
+
+        // Sortieren: Relevanz absteigend, dann Kategorie-Reihenfolge
+        results.sort(function (a, b) {
+            if (a._score !== b._score) return b._score - a._score;
+            return a._catOrder - b._catOrder;
+        });
+
+        // Limit anwenden und interne Score-Felder entfernen
+        results = results.slice(0, limit || 10);
+        for (var j = 0; j < results.length; j++) {
+            delete results[j]._score;
+            delete results[j]._catOrder;
+        }
+        return results;
+    }
+
+    /**
+     * Verschmilzt PHP-Geo-Ergebnisse (Gruppen) mit lokalen Layer-Ergebnissen.
+     * Ersetzt die PHP-Layer-Gruppe durch die (bessere) lokale Variante.
+     */
+    function mergeWithLocalLayers(phpGroups, localLayers) {
+        if (!localLayers || !localLayers.length) return phpGroups || [];
+        if (!phpGroups || !phpGroups.length) {
+            return [{ label: 'Themen', type: 'layer', items: localLayers }];
+        }
+        var merged = [];
+        for (var i = 0; i < phpGroups.length; i++) {
+            if (phpGroups[i].type !== 'layer') {
+                merged.push(phpGroups[i]);
+            }
+        }
+        merged.push({ label: 'Themen', type: 'layer', items: localLayers });
+        return merged;
+    }
+
+    /** Navigiert im Themenbaum zum Layer und klappt die Elternknoten auf */
+    function navigateTreeToLayer(layerId, categoryId) {
+        if (window.TnetLMTree && typeof window.TnetLMTree.navigateToLayer === 'function') {
+            window.TnetLMTree.navigateToLayer(layerId, categoryId);
+        }
+    }
+
+    // -- Feature Highlight ----------------------------------------------------
+
+    function ensureFeatureHighlightLayer() {
+        if (featureHighlightLayer) return featureHighlightLayer;
+        try {
+            var map = njs.AppManager.Maps['main'].mapObj;
+            featureHighlightLayer = new ol.layer.Vector({
+                source: new ol.source.Vector(),
+                name: 'tnet_feature_highlight',
+                zIndex: 9999,
+                style: new ol.style.Style({
+                    stroke: new ol.style.Stroke({ color: '#e74c3c', width: 4 }),
+                    fill: new ol.style.Fill({ color: 'rgba(231,76,60,0.15)' }),
+                    image: new ol.style.Circle({
+                        radius: 8,
+                        fill: new ol.style.Fill({ color: '#e74c3c' }),
+                        stroke: new ol.style.Stroke({ color: '#fff', width: 2 })
+                    })
+                })
+            });
+            map.addLayer(featureHighlightLayer);
+        } catch (e) {
+            TnetLog.warn('[DesktopSearch] Feature-Highlight-Layer konnte nicht erstellt werden:', e);
+        }
+        return featureHighlightLayer;
+    }
+
+    function clearFeatureHighlight() {
+        if (featureHighlightLayer) {
+            featureHighlightLayer.getSource().clear();
+        }
+    }
+
+    /**
+     * Punkt-Marker auf dem Highlight-Layer platzieren (ohne Geometrie-Abfrage).
+     * x = Northing, y = Easting (LV95)
+     */
+    function addPointMarker(x, y) {
+        var layer = ensureFeatureHighlightLayer();
+        if (!layer || x == null || y == null) return;
+        var view = getMapView();
+        if (!view) return;
+        var mapProj = view.getProjection().getCode();
+        var coord = ol.proj.transform([y, x], 'EPSG:2056', mapProj);
+        var feature = new ol.Feature({ geometry: new ol.geom.Point(coord) });
+        layer.getSource().addFeature(feature);
+    }
+
+    function highlightFeature(item) {
+        var layer = ensureFeatureHighlightLayer();
+        if (!layer) return;
+        clearFeatureHighlight();
+
+        // Fallback-Funktion: Pan + Punkt-Marker wenn MapServer fehlschlaegt
+        function fallbackPan() {
+            if (item.x && item.y) {
+                addPointMarker(item.x, item.y);
+                if (item.subtitle === 'Adresse') {
+                    panToResult(item.x, item.y, null, _ADDR_RESOLUTION);
+                } else {
+                    panToResult(item.x, item.y);
+                }
+                TnetLog.log('[DesktopSearch] Fallback: Pan + Marker für', item.label);
+            }
+        }
+
+        var url = MAPSERVER_URL + encodeURIComponent(item.layerId)
+                + '/' + encodeURIComponent(item.featureId)
+                + '?sr=2056&geometryFormat=geojson';
+
+        var xhr = new XMLHttpRequest();
+        xhr.open('GET', url, true);
+        xhr.timeout = 8000;
+        xhr.onload = function () {
+            if (xhr.status !== 200) {
+                TnetLog.warn('[DesktopSearch] MapServer HTTP', xhr.status, 'für', item.layerId);
+                fallbackPan();
+                return;
+            }
+            try {
+                var data = JSON.parse(xhr.responseText);
+                var geojson = data.feature || data;
+                var view = getMapView();
+                if (!view) return;
+                var mapProj = view.getProjection().getCode();
+                var features = new ol.format.GeoJSON().readFeatures(geojson, {
+                    dataProjection: 'EPSG:2056',
+                    featureProjection: mapProj
+                });
+                if (!features.length) {
+                    fallbackPan();
+                    return;
+                }
+                layer.getSource().addFeatures(features);
+
+                // Extent direkt aus Geometrie(n) berechnen
+                var extent = features[0].getGeometry().getExtent().slice();
+                for (var i = 1; i < features.length; i++) {
+                    ol.extent.extend(extent, features[i].getGeometry().getExtent());
+                }
+                TnetLog.log('[DesktopSearch] Feature extent:', extent);
+
+                var w = extent[2] - extent[0];
+                var h = extent[3] - extent[1];
+                if (w > 1 || h > 1) {
+                    var zl = getZoomLevels();
+                    view.fit(extent, {
+                        padding: [50, 50, 50, 50],
+                        minZoom: zl.fitMin,
+                        maxZoom: zl.fitMax,
+                        duration: 500,
+                        constrainResolution: false
+                    });
+                } else {
+                    // Punkt-Geometrie: zur Mitte zoomen
+                    var cx = (extent[0] + extent[2]) / 2;
+                    var cy = (extent[1] + extent[3]) / 2;
+                    if (item.subtitle === 'Adresse') {
+                        view.animate({ center: [cx, cy], resolution: _ADDR_RESOLUTION, duration: 500 });
+                    } else {
+                        var zl2 = getZoomLevels();
+                        view.animate({ center: [cx, cy], zoom: zl2.point, duration: 500 });
+                    }
+                }
+            } catch (e) {
+                TnetLog.warn('[DesktopSearch] Feature-Geometrie konnte nicht geladen werden:', e);
+                fallbackPan();
+            }
+        };
+        xhr.onerror = xhr.ontimeout = function () {
+            TnetLog.warn('[DesktopSearch] Feature-Geometrie Timeout/Fehler');
+            fallbackPan();
+        };
+        xhr.send();
+    }
+
+    /** Parzellen-Geometrie via swisstopo Identify-API laden und highlighten */
+    function highlightParcelByCoord(x, y) {
+        var layer = ensureFeatureHighlightLayer();
+        if (!layer) return;
+        clearFeatureHighlight();
+
+        // x = Northing, y = Easting (swisstopo Geocoder-Konvention)
+        var easting  = Math.round(y);
+        var northing = Math.round(x);
+
+        var url = 'https://api3.geo.admin.ch/rest/services/ech/MapServer/identify'
+            + '?geometryType=esriGeometryPoint'
+            + '&geometry=' + easting + ',' + northing
+            + '&tolerance=0'
+            + '&layers=all:ch.kantone.cadastralwebmap-farbe'
+            + '&returnGeometry=true'
+            + '&sr=2056'
+            + '&geometryFormat=geojson';
+
+        var xhr = new XMLHttpRequest();
+        xhr.open('GET', url, true);
+        xhr.timeout = 8000;
+        xhr.onload = function () {
+            if (xhr.status !== 200) return;
+            try {
+                var data = JSON.parse(xhr.responseText);
+                if (!data.results || !data.results.length) {
+                    // Kein Polygon gefunden, Fallback: nur hinzoomen
+                    panToResult(x, y);
+                    return;
+                }
+
+                var view = getMapView();
+                if (!view) return;
+                var mapProj = view.getProjection().getCode();
+
+                // Erstes Resultat verwenden (genauester Treffer)
+                var result = data.results[0];
+                var geom = result.geometry;
+                if (!geom) { panToResult(x, y); return; }
+
+                var geojson = { type: 'Feature', geometry: geom, properties: result.properties || {} };
+                var features = new ol.format.GeoJSON().readFeatures(geojson, {
+                    dataProjection: 'EPSG:2056',
+                    featureProjection: mapProj
+                });
+                if (!features.length) { panToResult(x, y); return; }
+
+                layer.getSource().addFeatures(features);
+
+                var extent = features[0].getGeometry().getExtent().slice();
+                for (var i = 1; i < features.length; i++) {
+                    ol.extent.extend(extent, features[i].getGeometry().getExtent());
+                }
+                TnetLog.log('[DesktopSearch] Parcel extent:', extent);
+
+                var zl = getZoomLevels();
+                view.fit(extent, {
+                    padding: [50, 50, 50, 50],
+                    minZoom: zl.fitMin,
+                    maxZoom: zl.fitMax,
+                    duration: 500,
+                    constrainResolution: false
+                });
+            } catch (e) {
+                TnetLog.warn('[DesktopSearch] Parcel-Geometrie Fehler:', e);
+                panToResult(x, y);
+            }
+        };
+        xhr.onerror = xhr.ontimeout = function () {
+            TnetLog.warn('[DesktopSearch] Parcel-Identify Timeout');
+            panToResult(x, y);
+        };
+        xhr.send();
+    }
+
+    // -- Icons (extern aus /maps/tnet/resources/icons/) -----------------------
+
+    var ICON_BASE = getAppRoot() + '/tnet/resources/icons/';
+    var ICON_CSS  = 'dt-search-item-icon';
+    var _iconCache = {};
+
+    // Inline-Fallbacks (falls fetch fehlschlägt)
+    var ICON_FALLBACK = {
+        layer:    '<svg class="' + ICON_CSS + '" viewBox="0 0 24 24"><path d="M11.99 2L2 7l10 5 10-5-10.01-5zM2 17l10 5 10-5-10-5-10 5zM2 12l10 5 10-5-10-5-10 5z"/></svg>',
+        location: '<svg class="' + ICON_CSS + '" viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5S10.62 6.5 12 6.5s2.5 1.12 2.5 2.5S13.38 11.5 12 11.5z"/></svg>',
+        address:  '<svg class="' + ICON_CSS + '" viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>',
+        street:   '<svg class="' + ICON_CSS + '" viewBox="0 0 24 24"><path d="M11 2h2v4h-2V2zm0 6h2v4h-2V8zm0 6h2v4h-2v-4zm0 6h2v2h-2v-2zM4 2h3v20H4V2zm13 0h3v20h-3V2z"/></svg>',
+        terrain:  '<svg class="' + ICON_CSS + '" viewBox="0 0 24 24"><path d="M14 6l-3.75 5 2.85 3.8-1.6 1.2C9.81 13.75 7 10 7 10l-6 8h22L14 6z"/></svg>',
+    };
+
+    /** SVG-Datei laden und im Cache speichern. Setzt CSS-Klasse auf das <svg>. */
+    function loadIcon(name) {
+        if (_iconCache[name]) return;
+        _iconCache[name] = ICON_FALLBACK[name] || ICON_FALLBACK.location;
+        fetch(ICON_BASE + 'search-' + name + '.svg')
+            .then(function (r) { return r.ok ? r.text() : Promise.reject(r.status); })
+            .then(function (svg) {
+                _iconCache[name] = svg.replace('<svg', '<svg class="' + ICON_CSS + '"');
+            })
+            .catch(function () { /* Fallback bleibt */ });
+    }
+
+    // Icons vorladen
+    ['layer', 'location', 'address', 'street', 'terrain'].forEach(loadIcon);
+
+    function getIconHtml(name) {
+        return _iconCache[name] || ICON_FALLBACK.location;
+    }
+
+    function getItemIcon(item) {
+        if (item.type === 'layer') return getIconHtml('layer');
+        var sub = (item.subtitle || '').toLowerCase();
+        if (sub === 'strasse') return getIconHtml('street');
+        if (sub === 'adresse') return getIconHtml('address');
+        if (sub === 'gemeinde' || sub === 'plz' || sub === 'kanton' ||
+            sub === 'ortschaft' || sub === 'bezirk') return getIconHtml('location');
+        if (item.type === 'feature' && item.layerId === 'ch.swisstopo.swissnames3d') {
+            if (/gipfel|berg|pass|gletscher|huegel/i.test(sub)) return getIconHtml('terrain');
+            return getIconHtml('location');
+        }
+        if (sub === 'lokalname') return getIconHtml('location');
+        if (item.featureId) return getIconHtml('address');
+        return getIconHtml('location');
+    }
+
+    // -- DOM-Render -----------------------------------------------------------
+
+    function showGroupedResults(groups, itemsFallback) {
+        var list = document.getElementById('dt-search-results');
+        if (!list) return;
+        list.innerHTML = '';
+
+        var hasItems = false;
+
+        if (groups && groups.length) {
+            groups.forEach(function (group) {
+                if (!group.items || !group.items.length) return;
+
+                var header = document.createElement('li');
+                header.className = 'dt-search-group-header';
+                header.setAttribute('role', 'presentation');
+                header.textContent = group.label;
+                list.appendChild(header);
+
+                group.items.forEach(function (item) {
+                    list.appendChild(makeItem(item));
+                    hasItems = true;
+                });
+            });
+        } else if (itemsFallback && itemsFallback.length) {
+            itemsFallback.forEach(function (item) {
+                list.appendChild(makeItem(item));
+                hasItems = true;
+            });
+        }
+
+        list.classList.toggle('open', hasItems);
+    }
+
+    /** Suchbegriff im Label fett hervorheben */
+    function highlightText(text, query) {
+        if (!query) return text;
+        var safe = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        // EGRID-Suche (z.B. CH310515347747): optionale Leerzeichen zwischen Ziffern,
+        // weil swisstopo das Label mit Leerzeichen liefert (CH 3105 1534 7747)
+        if (/^CH\d{6,}/i.test(query)) {
+            var prefix = safe.substring(0, 2);
+            var digits = safe.substring(2);
+            safe = prefix + '\\s*' + digits.split('').join('\\s*');
+        }
+        return text.replace(new RegExp('(' + safe + ')', 'gi'), '<b class="dt-search-highlight">$1</b>');
+    }
+
+    function makeItem(item) {
+        var li = document.createElement('li');
+        li.className = 'dt-search-item';
+        li.setAttribute('role', 'option');
+        li.setAttribute('tabindex', '-1');
+        var icon = getItemIcon(item);
+        var label = highlightText(item.label || '', lastQuery);
+        var html = icon + '<span class="dt-search-item-text">' +
+            '<span class="dt-search-item-label">' + label + '</span>';
+        if (item.subtitle) {
+            html += '<span class="dt-search-item-subtitle">' + item.subtitle + '</span>';
+        }
+        html += '</span>';
+        li.innerHTML = html;
+
+        li.addEventListener('click', function () {
+            var inp  = document.getElementById('dt-search-input');
+            var lst  = document.getElementById('dt-search-results');
+            var clr  = document.getElementById('dt-search-clear');
+
+            // Immer vorherigen Feature-Highlight entfernen
+            clearFeatureHighlight();
+
+            if (item.type === 'layer') {
+                if (inp)  { inp.value = ''; }
+                if (clr)  { clr.style.display = 'none'; }
+                if (lst)  { lst.classList.remove('open'); lst.innerHTML = ''; }
+                activateLayer(item.layer || item.id);
+                // Im Themenbaum zum Layer navigieren, Elternknoten aufklappen
+                navigateTreeToLayer(item.layer || item.id, item.category);
+            } else if (item.type === 'feature' || item.featureId) {
+                if (inp) inp.value = item.label;
+                if (lst) lst.classList.remove('open');
+                if (item.layerId && item.featureId) {
+                    highlightFeature(item);
+                } else if (item.x && item.y) {
+                    panToResult(item.x, item.y);
+                }
+            } else {
+                if (inp) inp.value = item.label;
+                if (lst) lst.classList.remove('open');
+                // Parzellen: Flächengeometrie via Identify-API highlighten
+                if (item.subtitle === 'Parzelle' && item.x && item.y) {
+                    highlightParcelByCoord(item.x, item.y);
+                } else if (item.subtitle === 'Adresse' && item.x && item.y) {
+                    addPointMarker(item.x, item.y);
+                    panToResult(item.x, item.y, null, _ADDR_RESOLUTION);
+                } else {
+                    panToResult(item.x, item.y);
+                }
+            }
+        });
+
+        return li;
+    }
+
+    // -- Search ---------------------------------------------------------------
+
+    function buildSearchUrl(query, mode) {
+        var cantonRadio = document.querySelector('input[name="dt-canton"]:checked');
+        var canton = cantonRadio ? cantonRadio.value : '';
+        var orteCb = document.getElementById('dt-filter-orte');
+        var adrCb  = document.getElementById('dt-filter-adressen');
+        var layCb  = document.getElementById('dt-filter-layers');
+        var hasOrte = orteCb ? orteCb.checked : true;
+        var hasAdr  = adrCb  ? adrCb.checked  : true;
+        var hasLay  = layCb  ? layCb.checked  : true;
+        var scopes = [];
+        if (!hasOrte || !hasAdr || !hasLay) {
+            if (hasOrte) scopes.push('orte');
+            if (hasAdr)  scopes.push('adressen');
+            if (hasLay)  scopes.push('layers');
+        }
+        var scope = scopes.join(',');
+        var url = PROXY_URL + '?q=' + encodeURIComponent(query) + '&limit=10';
+        // Resultat-Limits aus Konfiguration übergeben
+        if (_searchLimits.maxAddresses) url += '&maxAddr=' + _searchLimits.maxAddresses;
+        if (_searchLimits.maxLocations) url += '&maxLoc='  + _searchLimits.maxLocations;
+        if (_searchLimits.maxLayers)    url += '&maxLay='  + _searchLimits.maxLayers;
+        if (canton) url += '&canton=' + encodeURIComponent(canton);
+        if (scope)  url += '&scope='  + encodeURIComponent(scope);
+        if (mode)   url += '&mode='   + encodeURIComponent(mode);
+        return url;
+    }
+
+    function getCacheKey(url) { return url; }
+
+    var _searchId = 0;  // Monoton steigend, verhindert Race Conditions
+
+    function doSearch(query) {
+        lastQuery = query;
+        if (currentAbort) { try { currentAbort.abort(); } catch (e) {} }
+
+        var myId = ++_searchId;
+
+        // Phase 0: Sofortige lokale Layer-Suche (instant, kein Netzwerk)
+        var layCb = document.getElementById('dt-filter-layers');
+        var hasLay = layCb ? layCb.checked : true;
+        var localLayers = (hasLay && _layerIndexReady) ? searchLayersLocal(query, 10) : [];
+        if (localLayers.length) {
+            showGroupedResults([{ label: 'Themen', type: 'layer', items: localLayers }], null);
+        }
+
+        var fullUrl = buildSearchUrl(query);
+        var fullCacheKey = getCacheKey(fullUrl);
+
+        // Client-Cache: Vollergebnis vorhanden? Mit lokalen Layern mergen.
+        var cachedFull = _resultCache.get(fullCacheKey);
+        if (cachedFull && (Date.now() - cachedFull.ts) < _CACHE_TTL) {
+            showGroupedResults(mergeWithLocalLayers(cachedFull.data.groups, localLayers), cachedFull.data.items);
+            return;
+        }
+
+        // Phase 1: Fast-Modus (Adressen + Layers)
+        var fastUrl = buildSearchUrl(query, 'fast');
+        var fastCacheKey = getCacheKey(fastUrl);
+        var cachedFast = _resultCache.get(fastCacheKey);
+
+        var ac = new AbortController();
+        currentAbort = ac;
+
+        if (cachedFast && (Date.now() - cachedFast.ts) < _CACHE_TTL) {
+            showGroupedResults(mergeWithLocalLayers(cachedFast.data.groups, localLayers), cachedFast.data.items);
+        } else {
+            fetch(fastUrl, { signal: ac.signal })
+                .then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); })
+                .then(function (data) {
+                    if (_searchId !== myId) return;
+                    if (_resultCache.size >= _CACHE_MAX) {
+                        _resultCache.delete(_resultCache.keys().next().value);
+                    }
+                    _resultCache.set(fastCacheKey, { data: data, ts: Date.now() });
+                    if (!_resultCache.has(fullCacheKey) || (Date.now() - _resultCache.get(fullCacheKey).ts) >= _CACHE_TTL) {
+                        showGroupedResults(mergeWithLocalLayers(data.groups, localLayers), data.items);
+                    }
+                })
+                .catch(function () {});
+        }
+
+        // Phase 2: Full-Request (parallel, Geo-Ergebnisse hinzufuegen)
+        fetch(fullUrl, { signal: ac.signal })
+            .then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); })
+            .then(function (data) {
+                if (_searchId !== myId) return;
+                if (_resultCache.size >= _CACHE_MAX) {
+                    _resultCache.delete(_resultCache.keys().next().value);
+                }
+                _resultCache.set(fullCacheKey, { data: data, ts: Date.now() });
+                showGroupedResults(mergeWithLocalLayers(data.groups, localLayers), data.items);
+            })
+            .catch(function (e) {
+                if (e.name !== 'AbortError' && localLayers.length === 0) showGroupedResults(null, []);
+            });
+    }
+
+    // -- Event-Binding --------------------------------------------------------
+
+    function init() {
+        var input    = document.getElementById('dt-search-input');
+        var list     = document.getElementById('dt-search-results');
+        var clearBtn = document.getElementById('dt-search-clear');
+        var filterBtn = document.getElementById('dt-search-filter-btn');
+        var popup    = document.getElementById('dt-search-filter-popup');
+
+        if (!input || !list) return;
+
+        // Filter-Button: Popup öffnen/schliessen
+        if (filterBtn && popup) {
+            filterBtn.addEventListener('click', function (e) {
+                e.stopPropagation();
+                var isOpen = popup.classList.toggle('open');
+                filterBtn.classList.toggle('active', isOpen);
+            });
+        }
+
+        // Filter-Indikator aktualisieren
+        function updateFilterIndicator() {
+            if (!filterBtn) return;
+            var cantonRadio = document.querySelector('input[name="dt-canton"]:checked');
+            var canton = cantonRadio ? cantonRadio.value : '';
+            var orteCb = document.getElementById('dt-filter-orte');
+            var adrCb  = document.getElementById('dt-filter-adressen');
+            var layCb  = document.getElementById('dt-filter-layers');
+            var hasOrte = orteCb ? orteCb.checked : true;
+            var hasAdr  = adrCb  ? adrCb.checked  : true;
+            var hasLay  = layCb  ? layCb.checked  : true;
+            var isDefault = (canton === '') && hasOrte && hasAdr && hasLay;
+            filterBtn.classList.toggle('has-filter', !isDefault);
+        }
+        updateFilterIndicator();
+
+        // Radio/Checkbox-Änderungen: sofort neu suchen
+        if (popup) {
+            popup.addEventListener('change', function () {
+                updateFilterIndicator();
+                var q = input.value.trim();
+                if (q.length >= 3) doSearch(q);
+            });
+        }
+
+        input.addEventListener('input', function () {
+            var q = input.value.trim();
+            if (clearBtn) clearBtn.style.display = q ? 'flex' : 'none';
+            if (debounceTimer) clearTimeout(debounceTimer);
+            if (q.length < 3) {
+                list.classList.remove('open');
+                list.innerHTML = '';
+                return;
+            }
+            debounceTimer = setTimeout(function () { doSearch(q); }, 280);
+        });
+
+        if (clearBtn) {
+            clearBtn.addEventListener('click', function () {
+                input.value = '';
+                clearBtn.style.display = 'none';
+                list.classList.remove('open');
+                list.innerHTML = '';
+                clearFeatureHighlight();
+                input.focus();
+            });
+        }
+
+        input.addEventListener('keydown', function (e) {
+            var items = list.querySelectorAll('.dt-search-item');
+            if (e.key === 'Enter') {
+                if (items.length) items[0].click();
+                else if (input.value.trim().length >= 3) doSearch(input.value.trim());
+                e.preventDefault();
+            }
+            if (e.key === 'Escape') { list.classList.remove('open'); input.blur(); }
+            if (e.key === 'ArrowDown' && items.length) { items[0].focus(); e.preventDefault(); e.stopPropagation(); }
+        });
+
+        list.addEventListener('keydown', function (e) {
+            var items   = list.querySelectorAll('.dt-search-item');
+            var focused = document.activeElement;
+            var idx     = Array.prototype.indexOf.call(items, focused);
+            if (e.key === 'ArrowDown' && idx < items.length - 1) { items[idx + 1].focus(); e.preventDefault(); e.stopPropagation(); }
+            if (e.key === 'ArrowUp') {
+                if (idx > 0) items[idx - 1].focus(); else input.focus();
+                e.preventDefault(); e.stopPropagation();
+            }
+            if (e.key === 'Enter' && idx >= 0) items[idx].click();
+            if (e.key === 'Escape') { list.classList.remove('open'); input.focus(); }
+        });
+
+        document.addEventListener('click', function (e) {
+            if (!e.target.closest('#dt-search-bar')) {
+                list.classList.remove('open');
+            }
+            // Popup schliessen bei Klick ausserhalb
+            if (popup && !e.target.closest('#dt-search-filter-popup') && !e.target.closest('#dt-search-filter-btn')) {
+                popup.classList.remove('open');
+                if (filterBtn) filterBtn.classList.remove('active');
+            }
+        });
+
+        input.addEventListener('focus', function () {
+            if (input.value.trim().length >= 3 && !list.children.length) {
+                doSearch(input.value.trim());
+            }
+        });
+    }
+
+    // -- Config-basierte Steuerung: njs- und/oder tnet-Suche deaktivieren -----
+
+    function loadSearchConfig() {
+        if (typeof JSON5 === 'undefined') return Promise.resolve(null);
+        var paths = [
+            getAppRoot() + '/tnet/config/tnet-global-config.json5',
+            getAppRoot() + '/tnet/tnet-global-config.json5',
+            '../tnet/config/tnet-global-config.json5'
+        ];
+        function tryPath(i) {
+            if (i >= paths.length) return Promise.resolve(null);
+            return fetch(paths[i])
+                .then(function (r) { if (!r.ok) throw new Error(r.status); return r.text(); })
+                .then(function (t) {
+                    var parsed = JSON5.parse(t);
+                    if (parsed && parsed.search && parsed.search.zoom) {
+                        _searchZoomConfig = parsed.search.zoom;
+                    }
+                    // Resultat-Limits laden
+                    if (parsed && parsed.search) {
+                        _searchLimits = {
+                            maxAddresses: parsed.search.maxAddresses || 0,
+                            maxLocations: parsed.search.maxLocations || 0,
+                            maxLayers:    parsed.search.maxLayers    || 0,
+                        };
+                    }
+                    return (parsed && parsed.search) ? parsed.search : null;
+                })
+                .catch(function () { return tryPath(i + 1); });
+        }
+        return tryPath(0);
+    }
+
+    function applySearchConfig(cfg) {
+        if (!cfg) return;
+        // njs/TYDAC-Suche deaktivieren
+        if (cfg.njsSearchEnabled === false) {
+            var njsWrap = document.getElementById('njs_search_wrapper');
+            if (njsWrap) njsWrap.style.display = 'none';
+            TnetLog.log('[DesktopSearch] njs/MapPlus-Suche deaktiviert (Config)');
+        }
+        // tnet-Suche deaktivieren
+        if (cfg.tnetSearchEnabled === false) {
+            var dtBar = document.getElementById('dt-search-bar');
+            if (dtBar) dtBar.style.display = 'none';
+            TnetLog.log('[DesktopSearch] TNET-Suche deaktiviert (Config)');
+        }
+    }
+
+    function initWithConfig() {
+        init();
+        loadSearchConfig().then(applySearchConfig);
+        loadLayerIndex();
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initWithConfig);
+    } else {
+        initWithConfig();
+    }
+
+    window.DesktopSearch = { init: init, search: doSearch };
+})();

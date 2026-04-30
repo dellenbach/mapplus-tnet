@@ -1,1 +1,518 @@
-function getAppRoot(){return window.__TNET_APP_ROOT||"/maps"}var iframeHistory=[],iframeHistoryIndex=-1;(function(){var t=null,n=null,a=!1,r=!1;window.addEventListener("message",function(o){!o.data||typeof o.data!="object"||(o.data.type==="tnet-oauth-popup"&&o.data.url&&(console.log("[tnet-header] OAuth-Request empfangen:",o.data.url),s(o.data.url)),o.data.type==="tnet-oauth-done"&&(console.log("[tnet-header] OAuth-Done empfangen"),l()))});function i(){if(!(r||a)&&!(!window.njs||!njs.AppManager||!njs.AppManager.auth_user||njs.AppManager.auth_user==="")){r=!0;var o="https://www.gis-daten.ch",d=o+getAppRoot()+"/tnet/views/oauth-callback.html",p=o+"/?option=oauthredirect&app_name=adfs&redirect_url="+encodeURIComponent(d);console.log("[tnet-header] Pre-Auth: User angemeldet \u2192 starte WP-OAuth im Hintergrund"),s(p)}}window._tnetAppReadyFired&&i(),document.addEventListener("tnet-app-ready",function(){i()},{once:!0});function s(o){a=!1,c(),t=document.createElement("iframe"),t.id="_tnet_oauth_frame",t.style.cssText="position:fixed;width:1px;height:1px;left:-9999px;top:-9999px;opacity:0;pointer-events:none;",t.src=o,document.body.appendChild(t),console.log("[tnet-header] Versteckter OAuth-iframe erstellt"),n=setTimeout(function(){a||(console.warn("[tnet-header] OAuth silent timeout (8s) \u2192 Fallback: Popup"),c(),u(o))},8e3)}function u(o){var d=520,p=650,f=(screen.width-d)/2,g=(screen.height-p)/2,m=window.open(o,"tnet_oauth","width="+d+",height="+p+",left="+f+",top="+g+",menubar=no,toolbar=no,status=no,scrollbars=yes");if(!m){console.warn("[tnet-header] Popup blockiert \u2014 bitte Popup-Blocker deaktivieren");return}var h=setInterval(function(){m&&m.closed&&(clearInterval(h),l())},500)}function l(){if(!a){a=!0,c();var o=document.getElementById("mapsInfoFrame");if(o&&o.getAttribute("src")&&o.getAttribute("src")!==""){var d=o.getAttribute("data-src")||getAppRoot()+"/tnet/views/inframe-maps.html";o.src=d+(d.indexOf("?")===-1?"?t=":"&t=")+Date.now(),console.log("[tnet-header] iframe refresht nach OAuth")}else console.log("[tnet-header] Pre-Auth abgeschlossen (iframe noch nicht geladen \u2014 OK)")}}function c(){n&&(clearTimeout(n),n=null),t&&t.parentNode&&(t.parentNode.removeChild(t),t=null)}})(),window.setupIframeMonitoring=function(){var e=document.getElementById("mapsInfoFrame");e&&e.addEventListener("load",function(){try{var t=e.contentWindow.location.href;(iframeHistoryIndex===-1||iframeHistory[iframeHistoryIndex]!==t)&&(iframeHistory=iframeHistory.slice(0,iframeHistoryIndex+1),iframeHistory.push(t),iframeHistoryIndex=iframeHistory.length-1)}catch{}})},window.openMapsInfoDialog=function(){var e=dijit.byId("mapsInfoDialog");if(e){if(e.open){window.closeMapsInfoDialog();return}e.show();var t=document.getElementById("mapsInfoFrame");if(t){var n=t.getAttribute("data-src")||"/maps/tnet/views/inframe-maps.html";t.getAttribute("src")||(t.src=n)}window.setupIframeMonitoring()}},window.closeMapsInfoDialog=function(){var e=dijit.byId("mapsInfoDialog");if(e){e.hide(),iframeHistory=[],iframeHistoryIndex=-1;var t=document.getElementById("mapsInfoFrame");t&&t.removeAttribute("src")}},window.goBackInIframe=function(){var e=document.getElementById("mapsInfoFrame");if(e)try{e.contentWindow.history.back()}catch{iframeHistoryIndex>0&&(iframeHistoryIndex--,e.src=iframeHistory[iframeHistoryIndex])}},window.refreshIframe=function(){var e=document.getElementById("mapsInfoFrame");if(e){var t=e.getAttribute("data-src")||"/maps/tnet/views/inframe-maps.html";if(!e.getAttribute("src"))e.src=t;else{var n=t+(t.indexOf("?")===-1?"?t=":"&t=")+Date.now();e.src=n}}};function installSetMapBookmarkHook(){if(window.__tnetSetMapBookmarkHookInstalled)return!0;var e=window.njs&&window.njs.AppManager?window.njs.AppManager:null;if(!e||typeof e.setMapBookmark!="function")return!1;var t=e.setMapBookmark;function n(){var a=!1;function r(i){if(!i)return!1;try{if(typeof i.closeMapsInfoDialog=="function")return i.closeMapsInfoDialog(),!0}catch{}try{if(typeof i.dijit<"u"&&typeof i.dijit.byId=="function"){var s=i.dijit.byId("mapsInfoDialog");if(s)return typeof s.hide=="function"?s.hide():typeof s.set=="function"&&s.set("open",!1),!0}}catch{}return!1}a=r(window)||a,a=r(window.top)||a,a&&TnetLog.log("[MapBookmark] mapsInfoDialog nach Kartenwechsel geschlossen")}return e.setMapBookmark=function(a,r){var i=null,s=null,u=null;try{s=window.__tnetLastRequestedBookmark||window.top&&window.top.__tnetLastRequestedBookmark||null;try{var l=window.location.pathname.match(/\/maps\/([^\/]+)\/?$/);!s&&l&&l[1]&&TnetLog.log("[MapBookmark] Name:",l[1])}catch{}if(typeof r=="string"&&r){var c=new URLSearchParams(r),o=c.get("layers"),d=c.get("map");d&&(u=d),o?(i=o.split("|").filter(function(f){return!!f}),TnetLog.log("[MapBookmark] Layer ON ("+i.length+"):",i)):d?TnetLog.log("[MapBookmark] map=",d):TnetLog.log("[MapBookmark] params=",r)}u?TnetLog.log("[MapBookmark] Name:",u):s&&TnetLog.log("[MapBookmark] Name:",s)}catch(f){TnetLog.warn("[MapBookmark] Parse-Fehler:",f)}typeof e.infoFloatWinRemoveallItems!="function"&&(e.infoFloatWinRemoveallItems=function(){});var p=t.apply(e,arguments);try{n(),setTimeout(n,150)}catch(f){TnetLog.warn("[MapBookmark] Dialog-Close fehlgeschlagen:",f)}return i&&i.length&&scheduleBookmarkLayerCatchup(i),p},window.__tnetSetMapBookmarkHookInstalled=!0,TnetLog.log("[MapBookmark] setMapBookmark-Hook installiert"),!0}function scheduleBookmarkLayerCatchup(e){if(!e||!e.length)return;function t(){if(typeof window.TnetLayerSwitch!="function")return 0;var n=window.njs&&window.njs.AppManager,a=n&&n.Maps&&n.Maps.main,r=a&&a.mapObj;if(!r||typeof r.getLayers!="function")return 0;var i={};r.getLayers().forEach(function(u){var l=u.get&&u.get("name");l&&(i[l]=u)});var s=0;return e.forEach(function(u){var l=i[u];if(l&&l.getVisible&&!l.getVisible())try{window.TnetLayerSwitch(u,"on"),s++}catch{}}),s>0&&TnetLog.log("[MapBookmark] Catch-up: "+s+" Layer aktiviert"),s}setTimeout(t,500),setTimeout(t,1500),setTimeout(t,3e3)}function installSetMapBookmarkHookWithRetry(){installSetMapBookmarkHook()||(setTimeout(installSetMapBookmarkHook,500),setTimeout(installSetMapBookmarkHook,1500),setTimeout(installSetMapBookmarkHook,3e3))}window.updateLoginStatus=function(){var e=document.getElementById("header_login"),t=document.getElementById("header_logout"),n=document.getElementById("header_username");if(window.njs&&njs.AppManager&&njs.AppManager.auth_user&&njs.AppManager.auth_user!==""){var a=njs.AppManager.auth_user;e&&(e.style.display="none"),t&&(t.style.display="flex"),n&&(n.textContent=a)}else e&&(e.style.display="flex"),t&&(t.style.display="none")},window.doLogout=function(){window.location.href="logout.php"},window.toggleHeaderMenu=function(){var e=document.getElementById("header_menu");e&&e.classList.toggle("open")},window.openHelp=function(){toggleHeaderMenu(),window.njs&&njs.AppManager&&njs.AppManager.toggleCustomPaneContent&&njs.AppManager.toggleCustomPaneContent("help","custompane","./core/help/help_de.htm","","")},document.addEventListener("click",function(e){var t=document.getElementById("header_menu");t&&t.classList.contains("open")&&!t.contains(e.target)&&t.classList.remove("open")}),window._tnetAppReadyFired?(updateLoginStatus(),installSetMapBookmarkHookWithRetry()):document.addEventListener("tnet-app-ready",function(){updateLoginStatus(),installSetMapBookmarkHookWithRetry()},{once:!0});var headerHeight=69,minTopViewport=headerHeight+11;function adjustPanePosition(e){if(e&&!e.classList.contains("docked-right")){var t=e.getBoundingClientRect();if(t.top<minTopViewport){var n=parseInt(e.style.top)||0,a=minTopViewport-t.top;e.style.setProperty("top",n+a+"px","important")}}}var floatingPaneContainer=document.getElementById("NeapoljsContainer")||document.body,bodyObserver=new MutationObserver(function(e){for(var t=0;t<e.length;t++){var n=e[t];if(n.type==="childList")for(var a=0;a<n.addedNodes.length;a++){var r=n.addedNodes[a];if(r.nodeType===1&&r.classList&&r.classList.contains("dojoxFloatingPane")){adjustPanePosition(r);var i=new MutationObserver(function(s){return function(){adjustPanePosition(s)}}(r));i.observe(r,{attributes:!0,attributeFilter:["style"]})}}}});bodyObserver.observe(floatingPaneContainer,{childList:!0,subtree:!0}),document.querySelectorAll(".dojoxFloatingPane").forEach(function(e){adjustPanePosition(e);var t=new MutationObserver(function(){adjustPanePosition(e)});t.observe(e,{attributes:!0,attributeFilter:["style"]})});var preloaded=!1;function preloadMapsInfoIframe(){if(!preloaded){var e=document.getElementById("mapsInfoFrame");if(e){var t=e.getAttribute("data-src")||"/maps/tnet/views/inframe-maps.html";e.getAttribute("src")||(e.src=t),preloaded=!0}}}var opts={once:!0,passive:!0};document.addEventListener("pointerdown",preloadMapsInfoIframe,opts),document.addEventListener("keydown",preloadMapsInfoIframe,opts),document.addEventListener("touchstart",preloadMapsInfoIframe,opts),document.addEventListener("mouseover",preloadMapsInfoIframe,opts);
+/**
+ * tnet-header.js (ES Module) - Header, Login, Splash, Maps-Dialog, Basemap-Widget, FloatingPane-Fix
+ * 
+ * Enthält:
+ * - Maps-Info-Dialog (iframe: öffnen/schliessen/zurück/refresh)
+ * - Basemap Widget Toggle
+ * - Login/Logout Status
+ * - Hamburger Menü + Hilfe
+ * - Splash Screen ausblenden
+ * - App-Ready Check
+ * - Basemap Widget Interaktion (Toggle Buttons, Cards, Expand)
+ * - FloatingPane unter Header positionieren
+ * - Iframe Preload bei erster Interaktion
+ *
+ * @version    1.0
+ * @date       2026-02-12
+ * @copyright  Trigonet AG
+ * @author     Marco Dellenbach
+ */
+
+function getAppRoot() {
+    return window.__TNET_APP_ROOT || '/maps';
+}
+
+// ===== MAPS-INFO-DIALOG (IFRAME) =====
+var iframeHistory = [];
+var iframeHistoryIndex = -1;
+
+// ===== OAUTH SILENT-HANDLER =====
+// Pre-Authentifizierung: Wenn User in MapPlus angemeldet ist, wird WP-OAuth
+// sofort im Hintergrund gestartet — noch bevor das Maps-Panel geöffnet wird.
+// So sind die WP-Cookies gesetzt, wenn der User das Panel erstmals öffnet.
+(function _installOAuthHandler() {
+  var _hiddenFrame = null;
+  var _timeoutId = null;
+  var _done = false;
+  var _preAuthStarted = false;
+
+  // 1. postMessage-Listener
+  window.addEventListener('message', function(evt) {
+    if (!evt.data || typeof evt.data !== 'object') return;
+
+    // Popup/iframe-Request von proxy-inject.js (manueller Klick auf Login-Button)
+    if (evt.data.type === 'tnet-oauth-popup' && evt.data.url) {
+      console.log('[tnet-header] OAuth-Request empfangen:', evt.data.url);
+      _startSilentOAuth(evt.data.url);
+    }
+
+    // Callback von oauth-callback.html (versteckter iframe ODER Popup)
+    if (evt.data.type === 'tnet-oauth-done') {
+      console.log('[tnet-header] OAuth-Done empfangen');
+      _onOAuthComplete();
+    }
+  });
+
+  // 2. Pre-Auth: sofort starten wenn User in MapPlus angemeldet
+  function _tryPreAuth() {
+    if (_preAuthStarted || _done) return;
+    if (!window.njs || !njs.AppManager || !njs.AppManager.auth_user || njs.AppManager.auth_user === '') {
+      return; // Nicht angemeldet → kein Pre-Auth
+    }
+    _preAuthStarted = true;
+    var base = 'https://www.gis-daten.ch';
+    var callbackUrl = base + getAppRoot() + '/tnet/views/oauth-callback.html';
+    var oauthUrl = base + '/?option=oauthredirect&app_name=adfs&redirect_url=' + encodeURIComponent(callbackUrl);
+    console.log('[tnet-header] Pre-Auth: User angemeldet → starte WP-OAuth im Hintergrund');
+    _startSilentOAuth(oauthUrl);
+  }
+
+  // Pre-Auth bei App-Ready auslösen
+  if (window._tnetAppReadyFired) {
+    _tryPreAuth();
+  }
+  document.addEventListener('tnet-app-ready', function() {
+    _tryPreAuth();
+  }, { once: true });
+
+  // 3. Versteckten iframe im Top-Frame erstellen
+  function _startSilentOAuth(url) {
+    _done = false;
+    _cleanup();
+    // Versteckter iframe — nicht sandboxed, direkt im Top-Frame
+    _hiddenFrame = document.createElement('iframe');
+    _hiddenFrame.id = '_tnet_oauth_frame';
+    _hiddenFrame.style.cssText = 'position:fixed;width:1px;height:1px;left:-9999px;top:-9999px;opacity:0;pointer-events:none;';
+    _hiddenFrame.src = url;
+    document.body.appendChild(_hiddenFrame);
+    console.log('[tnet-header] Versteckter OAuth-iframe erstellt');
+
+    // Timeout: falls IdP-Session abgelaufen → Login-Seite kann nicht im iframe rendern
+    // → Fallback auf Popup
+    _timeoutId = setTimeout(function() {
+      if (!_done) {
+        console.warn('[tnet-header] OAuth silent timeout (8s) → Fallback: Popup');
+        _cleanup();
+        _openFallbackPopup(url);
+      }
+    }, 8000);
+  }
+
+  // 3. Fallback: Popup (falls IdP-Session abgelaufen)
+  function _openFallbackPopup(url) {
+    var w = 520, h = 650;
+    var left = (screen.width - w) / 2;
+    var top = (screen.height - h) / 2;
+    var popup = window.open(url, 'tnet_oauth',
+      'width=' + w + ',height=' + h + ',left=' + left + ',top=' + top +
+      ',menubar=no,toolbar=no,status=no,scrollbars=yes');
+    if (!popup) {
+      console.warn('[tnet-header] Popup blockiert — bitte Popup-Blocker deaktivieren');
+      return;
+    }
+    // Polling: popup.closed
+    var pollTimer = setInterval(function() {
+      if (popup && popup.closed) {
+        clearInterval(pollTimer);
+        _onOAuthComplete();
+      }
+    }, 500);
+  }
+
+  // 5. OAuth abgeschlossen → ggf. sichtbaren iframe refreshen
+  function _onOAuthComplete() {
+    if (_done) return; // Doppel-Aufruf verhindern
+    _done = true;
+    _cleanup();
+    // Nur refreshen wenn das Maps-Panel bereits geladen ist
+    // Bei Pre-Auth ist das iframe noch nicht da → kein Refresh nötig
+    var iframe = document.getElementById('mapsInfoFrame');
+    if (iframe && iframe.getAttribute('src') && iframe.getAttribute('src') !== '') {
+            var baseSrc = iframe.getAttribute('data-src') || (getAppRoot() + '/tnet/views/inframe-maps.html');
+      iframe.src = baseSrc + (baseSrc.indexOf('?') === -1 ? '?t=' : '&t=') + Date.now();
+      console.log('[tnet-header] iframe refresht nach OAuth');
+    } else {
+      console.log('[tnet-header] Pre-Auth abgeschlossen (iframe noch nicht geladen — OK)');
+    }
+  }
+
+  // 5. Aufräumen
+  function _cleanup() {
+    if (_timeoutId) { clearTimeout(_timeoutId); _timeoutId = null; }
+    if (_hiddenFrame && _hiddenFrame.parentNode) {
+      _hiddenFrame.parentNode.removeChild(_hiddenFrame);
+      _hiddenFrame = null;
+    }
+  }
+})();
+
+window.setupIframeMonitoring = function() {
+    var iframe = document.getElementById("mapsInfoFrame");
+    if (iframe) {
+        iframe.addEventListener('load', function() {
+            try {
+                var currentUrl = iframe.contentWindow.location.href;
+                if (iframeHistoryIndex === -1 || iframeHistory[iframeHistoryIndex] !== currentUrl) {
+                    iframeHistory = iframeHistory.slice(0, iframeHistoryIndex + 1);
+                    iframeHistory.push(currentUrl);
+                    iframeHistoryIndex = iframeHistory.length - 1;
+                }
+            } catch(e) {
+                // console.log("Iframe URL nicht zugänglich (cross-origin)");
+            }
+        });
+    }
+};
+
+window.openMapsInfoDialog = function() {
+    var dialog = dijit.byId("mapsInfoDialog");
+    if (dialog) {
+        // Toggle: Wenn Dialog offen ist, schliessen
+        if (dialog.open) {
+            window.closeMapsInfoDialog();
+            return;
+        }
+        dialog.show();
+        var iframe = document.getElementById("mapsInfoFrame");
+        if (iframe) {
+            var lazySrc = iframe.getAttribute('data-src') || '/maps/tnet/views/inframe-maps.html';
+            if (!iframe.getAttribute('src')) {
+                iframe.src = lazySrc;
+            }
+        }
+        window.setupIframeMonitoring();
+    }
+};
+
+window.closeMapsInfoDialog = function() {
+    var dialog = dijit.byId("mapsInfoDialog");
+    if (dialog) {
+        dialog.hide();
+        iframeHistory = [];
+        iframeHistoryIndex = -1;
+        var iframe = document.getElementById("mapsInfoFrame");
+        if (iframe) {
+            // iframe entladen, um Ressourcen freizugeben
+            iframe.removeAttribute('src');
+        }
+    }
+};
+
+window.goBackInIframe = function() {
+    var iframe = document.getElementById("mapsInfoFrame");
+    if (!iframe) return;
+    
+    try {
+        iframe.contentWindow.history.back();
+    } catch(e) {
+        if (iframeHistoryIndex > 0) {
+            iframeHistoryIndex--;
+            iframe.src = iframeHistory[iframeHistoryIndex];
+        } else {
+            // console.log("Keine vorherige Seite in der History");
+        }
+    }
+};
+
+window.refreshIframe = function() {
+    var iframe = document.getElementById("mapsInfoFrame");
+    if (!iframe) return;
+    var baseSrc = iframe.getAttribute('data-src') || '/maps/tnet/views/inframe-maps.html';
+    if (!iframe.getAttribute('src')) {
+        iframe.src = baseSrc;
+    } else {
+        var newSrc = baseSrc + (baseSrc.indexOf('?') === -1 ? '?t=' : '&t=') + Date.now();
+        iframe.src = newSrc;
+    }
+};
+
+// ===== BOOKMARK-HOOK (LOGGING + DIALOG-AUTO-CLOSE) =====
+function installSetMapBookmarkHook() {
+    if (window.__tnetSetMapBookmarkHookInstalled) {
+        return true;
+    }
+
+    var am = (window.njs && window.njs.AppManager) ? window.njs.AppManager : null;
+    if (!am || typeof am.setMapBookmark !== 'function') {
+        return false;
+    }
+
+    var originalSetMapBookmark = am.setMapBookmark;
+
+    function closeMapsInfoDialogRobust() {
+        var closed = false;
+
+        function tryClose(winObj) {
+            if (!winObj) return false;
+            try {
+                if (typeof winObj.closeMapsInfoDialog === 'function') {
+                    winObj.closeMapsInfoDialog();
+                    return true;
+                }
+            } catch (eCloseFn) { /* ignore */ }
+            try {
+                if (typeof winObj.dijit !== 'undefined' && typeof winObj.dijit.byId === 'function') {
+                    var dlg = winObj.dijit.byId('mapsInfoDialog');
+                    if (dlg) {
+                        if (typeof dlg.hide === 'function') dlg.hide();
+                        else if (typeof dlg.set === 'function') dlg.set('open', false);
+                        return true;
+                    }
+                }
+            } catch (eDijit) { /* ignore */ }
+            return false;
+        }
+
+        closed = tryClose(window) || closed;
+        closed = tryClose(window.top) || closed;
+
+        if (closed) {
+            TnetLog.log('[MapBookmark] mapsInfoDialog nach Kartenwechsel geschlossen');
+        }
+    }
+
+    am.setMapBookmark = function(targetMaps, params) {
+        var layersList = null;
+        var requestedName = null;
+        var mapParamName = null;
+        try {
+            // Bookmark-Name bevorzugt aus letzter TnetSetBookmark-Anfrage.
+            requestedName = window.__tnetLastRequestedBookmark || (window.top && window.top.__tnetLastRequestedBookmark) || null;
+
+            // Fallback: Bookmark-Name aus URL-Pfad ableiten (falls /maps/<id>)
+            try {
+                var pathMatch = window.location.pathname.match(/\/maps\/([^\/]+)\/?$/);
+                if (!requestedName && pathMatch && pathMatch[1]) {
+                    TnetLog.log('[MapBookmark] Name:', pathMatch[1]);
+                }
+            } catch (eName) { /* ignore */ }
+
+            if (typeof params === 'string' && params) {
+                var parsed = new URLSearchParams(params);
+                var layerParam = parsed.get('layers');
+                var mapParam = parsed.get('map');
+                if (mapParam) {
+                    mapParamName = mapParam;
+                }
+
+                if (layerParam) {
+                    layersList = layerParam.split('|').filter(function(x) { return !!x; });
+                    TnetLog.log('[MapBookmark] Layer ON (' + layersList.length + '):', layersList);
+                } else if (mapParam) {
+                    TnetLog.log('[MapBookmark] map=', mapParam);
+                } else {
+                    TnetLog.log('[MapBookmark] params=', params);
+                }
+            }
+
+            if (mapParamName) {
+                TnetLog.log('[MapBookmark] Name:', mapParamName);
+            } else if (requestedName) {
+                TnetLog.log('[MapBookmark] Name:', requestedName);
+            }
+        } catch (e) {
+            TnetLog.warn('[MapBookmark] Parse-Fehler:', e);
+        }
+
+        // Stub: FloatingPane ist bei URL-Bookmarks noch nicht geladen
+        if (typeof am.infoFloatWinRemoveallItems !== 'function') {
+            am.infoFloatWinRemoveallItems = function() {};
+        }
+        var result = originalSetMapBookmark.apply(am, arguments);
+
+        try {
+            closeMapsInfoDialogRobust();
+            setTimeout(closeMapsInfoDialogRobust, 150);
+        } catch (e2) {
+            TnetLog.warn('[MapBookmark] Dialog-Close fehlgeschlagen:', e2);
+        }
+
+        // Catch-up: OL-Layer werden z.T. erst nach setMapBookmark erstellt.
+        // Aktiviere nur Layer, die als OL-Layer existieren aber noch unsichtbar sind.
+        if (layersList && layersList.length) {
+            scheduleBookmarkLayerCatchup(layersList);
+        }
+
+        return result;
+    };
+
+    window.__tnetSetMapBookmarkHookInstalled = true;
+    TnetLog.log('[MapBookmark] setMapBookmark-Hook installiert');
+    return true;
+}
+
+function scheduleBookmarkLayerCatchup(wanted) {
+    if (!wanted || !wanted.length) return;
+
+    function applyOnce() {
+        if (typeof window.TnetLayerSwitch !== 'function') return 0;
+        var am = window.njs && window.njs.AppManager;
+        var map = am && am.Maps && am.Maps['main'];
+        var mapObj = map && map.mapObj;
+        if (!mapObj || typeof mapObj.getLayers !== 'function') return 0;
+        var existingIds = {};
+        mapObj.getLayers().forEach(function(l) {
+            var name = l.get && l.get('name');
+            if (name) existingIds[name] = l;
+        });
+        var activated = 0;
+        wanted.forEach(function(id) {
+            var lyr = existingIds[id];
+            if (lyr && lyr.getVisible && !lyr.getVisible()) {
+                try { window.TnetLayerSwitch(id, 'on'); activated++; } catch (e) { /* ignore */ }
+            }
+        });
+        if (activated > 0) {
+            TnetLog.log('[MapBookmark] Catch-up: ' + activated + ' Layer aktiviert');
+        }
+        return activated;
+    }
+
+    setTimeout(applyOnce, 500);
+    setTimeout(applyOnce, 1500);
+    setTimeout(applyOnce, 3000);
+}
+
+function installSetMapBookmarkHookWithRetry() {
+    if (installSetMapBookmarkHook()) return;
+    setTimeout(installSetMapBookmarkHook, 500);
+    setTimeout(installSetMapBookmarkHook, 1500);
+    setTimeout(installSetMapBookmarkHook, 3000);
+}
+
+// Basemap Widget Toggle → verschoben nach tnet-basemap.js
+
+// ===== LOGIN / LOGOUT =====
+window.updateLoginStatus = function() {
+    var loginBtn = document.getElementById('header_login');
+    var logoutSection = document.getElementById('header_logout');
+    var usernameEl = document.getElementById('header_username');
+    
+    // Prüfe ob njs.AppManager und auth_user verfügbar
+    if (window.njs && njs.AppManager && njs.AppManager.auth_user && njs.AppManager.auth_user !== '') {
+        var username = njs.AppManager.auth_user;
+        // Angemeldet
+        if (loginBtn) loginBtn.style.display = 'none';
+        if (logoutSection) logoutSection.style.display = 'flex';
+        if (usernameEl) usernameEl.textContent = username;
+    } else {
+        // Nicht angemeldet
+        if (loginBtn) loginBtn.style.display = 'flex';
+        if (logoutSection) logoutSection.style.display = 'none';
+    }
+};
+
+window.doLogout = function() {
+    window.location.href = 'logout.php';
+};
+
+// ===== HAMBURGER MENÜ =====
+window.toggleHeaderMenu = function() {
+    var menu = document.getElementById('header_menu');
+    if (menu) {
+        menu.classList.toggle('open');
+    }
+};
+
+window.openHelp = function() {
+    toggleHeaderMenu(); // Menü schließen
+    if (window.njs && njs.AppManager && njs.AppManager.toggleCustomPaneContent) {
+        njs.AppManager.toggleCustomPaneContent('help', 'custompane', './core/help/help_de.htm', '', '');
+    }
+};
+
+// Menü schließen bei Klick außerhalb
+document.addEventListener('click', function(e) {
+    var menu = document.getElementById('header_menu');
+    if (menu && menu.classList.contains('open') && !menu.contains(e.target)) {
+        menu.classList.remove('open');
+    }
+});
+
+// ===== SPLASH SCREEN =====
+// hideSplashScreen + checkAppReady sind jetzt als Early-Inline-Script
+// direkt in index_de.htm, damit sie SOFORT starten (nicht erst nach Module-Load).
+// Login-Status wird hier nachgeholt sobald das Module läuft:
+// Event-basiert statt Polling-Loop
+if (window._tnetAppReadyFired) {
+    updateLoginStatus();
+    installSetMapBookmarkHookWithRetry();
+} else {
+    document.addEventListener('tnet-app-ready', function() {
+        updateLoginStatus();
+        installSetMapBookmarkHookWithRetry();
+    }, { once: true });
+}
+
+// Basemap Widget Interaktion → verschoben nach tnet-basemap.js
+
+// ===== FLOATING PANE POSITION FIX =====
+// FloatingPane (Maptips Dialog) unter Header positionieren
+var headerHeight = 69;
+var minTopViewport = headerHeight + 11; // 80px vom Viewport-Rand
+
+function adjustPanePosition(pane) {
+    if (!pane) return;
+    // Docked-Panes nicht verschieben (haben eigene Position via CSS)
+    if (pane.classList.contains('docked-right')) return;
+    // Tatsächliche Viewport-Position prüfen statt CSS-top-Wert
+    var rect = pane.getBoundingClientRect();
+    if (rect.top < minTopViewport) {
+        var currentTop = parseInt(pane.style.top) || 0;
+        var delta = minTopViewport - rect.top;
+        // setProperty mit important, damit Dojo-Werte überschrieben werden
+        pane.style.setProperty('top', (currentTop + delta) + 'px', 'important');
+    }
+}
+
+// Observer NUR auf dem Karten-Container — FloatingPanes werden DORT eingefügt
+// (statt document.body mit subtree:true, was bei Dojo parser.parse() hunderte
+// unnötige Callbacks auslöst)
+var floatingPaneContainer = document.getElementById('NeapoljsContainer') || document.body;
+var bodyObserver = new MutationObserver(function(mutations) {
+    for (var m = 0; m < mutations.length; m++) {
+        var mutation = mutations[m];
+        if (mutation.type !== 'childList') continue;
+        for (var n = 0; n < mutation.addedNodes.length; n++) {
+            var node = mutation.addedNodes[n];
+            if (node.nodeType === 1 && node.classList && 
+                node.classList.contains('dojoxFloatingPane')) {
+                adjustPanePosition(node);
+                // Observer für Style-Änderungen auf diesem Pane
+                var styleObserver = new MutationObserver(function(targetNode) {
+                    return function() { adjustPanePosition(targetNode); };
+                }(node));
+                styleObserver.observe(node, { attributes: true, attributeFilter: ['style'] });
+            }
+        }
+    }
+});
+bodyObserver.observe(floatingPaneContainer, { childList: true, subtree: true });
+
+// Bestehende Panes auch behandeln
+document.querySelectorAll('.dojoxFloatingPane').forEach(function(pane) {
+    adjustPanePosition(pane);
+    var styleObserver = new MutationObserver(function() {
+        adjustPanePosition(pane);
+    });
+    styleObserver.observe(pane, { attributes: true, attributeFilter: ['style'] });
+});
+
+// ===== IFRAME PRELOAD =====
+// Preload des iFrames bei erster Nutzerinteraktion
+var preloaded = false;
+function preloadMapsInfoIframe(){
+    if (preloaded) return;
+    var iframe = document.getElementById('mapsInfoFrame');
+    if (!iframe) return;
+    var lazySrc = iframe.getAttribute('data-src') || '/maps/tnet/views/inframe-maps.html';
+    if (!iframe.getAttribute('src')) {
+        iframe.src = lazySrc;
+    }
+    preloaded = true;
+}
+var opts = { once: true, passive: true };
+document.addEventListener('pointerdown', preloadMapsInfoIframe, opts);
+document.addEventListener('keydown', preloadMapsInfoIframe, opts);
+document.addEventListener('touchstart', preloadMapsInfoIframe, opts);
+document.addEventListener('mouseover', preloadMapsInfoIframe, opts);

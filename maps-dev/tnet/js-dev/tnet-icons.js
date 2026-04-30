@@ -1,1 +1,156 @@
-(function(){"use strict";function l(){return window.__TNET_APP_ROOT||"/maps"}var f=l()+"/tnet/resources/icons/",o={},c=["eye-on","eye-off","drag-handle","close","legend","chevron-right","chevron-down","folder","trash","legend-colors","clipboard","dock","undock","dock-bottom","printer","crosshair","list","hamburger","zoom","compass","select-arrow","close-white","checkmark"];function i(n){return fetch(f+n+".svg").then(function(e){if(!e.ok)throw new Error("Icon "+n+": HTTP "+e.status);return e.text()}).then(function(e){return e=e.trim().replace(/\r?\n/g,""),o[n]=e,e}).catch(function(e){return console.warn('[TnetIcons] Fehler beim Laden von "'+n+'":',e.message),""})}window.TnetIcons={loadAll:function(){var n=c.map(function(e){return o[e]?Promise.resolve(o[e]):i(e)});return Promise.all(n).then(function(){console.log("[TnetIcons] "+c.length+" Icons geladen")})},get:function(n,e,t){var r=o[n];if(!r)return i(n),"";if(e&&(r=r.replace("<svg",'<svg class="'+e+'"')),t){var u="";for(var s in t)t.hasOwnProperty(s)&&(u+=" "+s+'="'+t[s]+'"');u&&(r=r.replace("<svg","<svg"+u))}return r},getAsync:function(n,e,t){var r=this;return o[n]?Promise.resolve(r.get(n,e,t)):i(n).then(function(){return r.get(n,e,t)})},has:function(n){return!!o[n]},set:function(n,e){o[n]=e},ALL:c,BASE:f}})();
+/**
+ * tnet-icons.js
+ * Zentraler Icon-Loader — lädt SVG-Dateien aus /maps/tnet/resources/icons/
+ * und stellt sie per TnetIcons.get('name') als HTML-String bereit.
+ *
+ * @version    1.0
+ * @date       2025-01-27
+ * @copyright  Trigonet AG
+ * @author     Marco Dellenbach
+ */
+
+// ===== TNET ICONS MODULE =====
+(function () {
+  'use strict';
+
+  function getAppRoot() {
+    return window.__TNET_APP_ROOT || '/maps';
+  }
+
+  var BASE = getAppRoot() + '/tnet/resources/icons/';
+
+  // Cache: name → SVG-HTML-String
+  var _cache = {};
+
+  // Alle bekannten Icon-Namen
+  var ALL_ICONS = [
+    'eye-on', 'eye-off', 'drag-handle', 'close', 'legend',
+    'chevron-right', 'chevron-down', 'folder', 'trash',
+    'legend-colors', 'clipboard', 'dock', 'undock', 'dock-bottom',
+    'printer', 'crosshair', 'list', 'hamburger', 'zoom', 'compass',
+    'select-arrow', 'close-white', 'checkmark'
+  ];
+
+  // ===== PRIVATE HELPERS =====
+
+  /**
+   * Lädt eine einzelne SVG-Datei via fetch() und speichert im Cache.
+   * @param {string} name  Icon-Name (ohne .svg)
+   * @returns {Promise<string>}  SVG-HTML-String
+   */
+  function _fetchIcon(name) {
+    return fetch(BASE + name + '.svg')
+      .then(function (r) {
+        if (!r.ok) throw new Error('Icon ' + name + ': HTTP ' + r.status);
+        return r.text();
+      })
+      .then(function (svg) {
+        // Zeilenumbrüche entfernen für sauberes innerHTML
+        svg = svg.trim().replace(/\r?\n/g, '');
+        _cache[name] = svg;
+        return svg;
+      })
+      .catch(function (err) {
+        console.warn('[TnetIcons] Fehler beim Laden von "' + name + '":', err.message);
+        return '';
+      });
+  }
+
+  // ===== PUBLIC API =====
+
+  window.TnetIcons = {
+
+    /**
+     * Lädt alle Icons parallel vor (Preload).
+     * @returns {Promise<void>}
+     */
+    loadAll: function () {
+      var promises = ALL_ICONS.map(function (name) {
+        if (_cache[name]) return Promise.resolve(_cache[name]);
+        return _fetchIcon(name);
+      });
+      return Promise.all(promises).then(function () {
+        console.log('[TnetIcons] ' + ALL_ICONS.length + ' Icons geladen');
+      });
+    },
+
+    /**
+     * Gibt den SVG-HTML-String für ein Icon zurück (synchron aus Cache).
+     * Falls noch nicht geladen, wird ein leerer String zurückgegeben
+     * und das Icon asynchron nachgeladen.
+     *
+     * @param {string} name       Icon-Name (z.B. 'dock', 'close', 'eye-on')
+     * @param {string} [cssClass] Optionale CSS-Klasse, die auf das <svg> gesetzt wird
+     * @param {object} [attrs]    Optionale Attribute (z.B. {width:'16', height:'16'})
+     * @returns {string}  SVG-HTML-String
+     */
+    get: function (name, cssClass, attrs) {
+      var svg = _cache[name];
+      if (!svg) {
+        // Async nachladen (für den nächsten Aufruf bereit)
+        _fetchIcon(name);
+        return '';
+      }
+      // CSS-Klasse einfügen
+      if (cssClass) {
+        svg = svg.replace('<svg', '<svg class="' + cssClass + '"');
+      }
+      // Zusätzliche Attribute
+      if (attrs) {
+        var attrStr = '';
+        for (var key in attrs) {
+          if (attrs.hasOwnProperty(key)) {
+            attrStr += ' ' + key + '="' + attrs[key] + '"';
+          }
+        }
+        if (attrStr) {
+          svg = svg.replace('<svg', '<svg' + attrStr);
+        }
+      }
+      return svg;
+    },
+
+    /**
+     * Gibt ein einzelnes Icon per Promise zurück (garantiert geladen).
+     *
+     * @param {string} name       Icon-Name
+     * @param {string} [cssClass] Optionale CSS-Klasse
+     * @param {object} [attrs]    Optionale Attribute
+     * @returns {Promise<string>}
+     */
+    getAsync: function (name, cssClass, attrs) {
+      var self = this;
+      if (_cache[name]) {
+        return Promise.resolve(self.get(name, cssClass, attrs));
+      }
+      return _fetchIcon(name).then(function () {
+        return self.get(name, cssClass, attrs);
+      });
+    },
+
+    /**
+     * Prüft ob ein Icon im Cache ist.
+     * @param {string} name
+     * @returns {boolean}
+     */
+    has: function (name) {
+      return !!_cache[name];
+    },
+
+    /**
+     * Setzt ein Icon manuell in den Cache (für Inline-Fallbacks).
+     * @param {string} name
+     * @param {string} svg
+     */
+    set: function (name, svg) {
+      _cache[name] = svg;
+    },
+
+    /** Liste aller bekannten Icon-Namen */
+    ALL: ALL_ICONS,
+
+    /** Basis-URL */
+    BASE: BASE
+  };
+
+})();

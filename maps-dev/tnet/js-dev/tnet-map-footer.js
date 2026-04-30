@@ -1,3 +1,475 @@
-var currentCoordSystem="lv95";window.switchCoordSystem=function(e){currentCoordSystem=e,updateCoordDisplay()},window.toggleCoordPicker=function(){var e=document.getElementById("map-coord-picker-btn");njs&&njs.AppManager&&njs.AppManager.Tools&&njs.AppManager.Tools.CoordDisplay&&njs.AppManager.Tools.CoordDisplay.map&&njs.AppManager.Tools.CoordDisplay.map.coord2&&njs.AppManager.Tools.CoordDisplay.map.coord2.togglePicker("map"),setTimeout(function(){var t=document.getElementById("coord2_picker");t&&e&&(t.classList.contains("njsIconButtonCoordPickerChecked")?e.classList.add("active"):e.classList.remove("active"))},50)};function syncPickerStatus(){var e=document.getElementById("map-coord-picker-btn"),t=document.getElementById("coord2_picker");t&&e&&(t.classList.contains("njsIconButtonCoordPickerChecked")?e.classList.add("active"):e.classList.remove("active"))}function updateCoordDisplay(){var e=document.getElementById("map-coord-display"),t=document.getElementById("xy_coord2"),r=document.getElementById("xy_coord3");e&&(currentCoordSystem==="lv95"&&t?e.textContent=t.value||"--":currentCoordSystem==="wgs84"&&r&&(e.textContent=r.value||"--"))}function updateAltitudeDisplay(){var e=document.getElementById("map-coord-altitude"),t=document.getElementById("z_alti1");if(e&&t){var r=t.value;r&&(r=r.replace(/m\.?ü\.?M\.?/gi,"").trim()),e.textContent=r||"--"}}function hideOriginalCoordWidget(){var e=document.getElementById("njs_coordinates_wrapper");e&&(e.style.display="none");var t=document.getElementById("xy_coord2");if(t&&typeof t.closest=="function"){var r=t.closest(".dojoxFloatingPane")||t.closest(".dojoxFloatingPaneContent")||t.closest(".dijitFloatingPane");r&&(r.style.display="none")}}function setupObservers(){njs&&njs.AppManager&&njs.AppManager.Maps&&njs.AppManager.Maps.main;var e=document.getElementById("xy_coord2"),t=document.getElementById("xy_coord3"),r=document.getElementById("z_alti1");if(!njs||!njs.AppManager||!njs.AppManager.Maps||!njs.AppManager.Maps.main||!njs.AppManager.Maps.main.mapObj){setTimeout(setupObservers,500);return}var a=njs.AppManager.Maps.main.mapObj,n=a.getView();hideOriginalCoordWidget(),syncPickerStatus(),updateScaleDisplay(),updateCopyrightDisplay(),loadScalesFromConfig(),n.on("change:resolution",updateScaleDisplay),a.on("moveend",updateScaleDisplay),a.on("moveend",updateCopyrightDisplay),a.getLayers().on(["add","remove"],updateCopyrightDisplay),setTimeout(function(){var i=document.querySelector(".ol-attribution ul");i&&new MutationObserver(updateCopyrightDisplay).observe(i,{childList:!0,subtree:!0,characterData:!0})},2e3),setInterval(function(){updateCoordDisplay(),updateAltitudeDisplay(),syncPickerStatus()},500)}function getMapScale(e){var t=e.getView(),r=t.getResolution(),a=t.getProjection();if(!r||!a)return null;var n=r*a.getMetersPerUnit(),i=96,s=39.37,c=n*s*i;return Math.round(c)}var predefinedScales=[100,250,500,1e3,2500,5e3,1e4,25e3,5e4,75e3,1e5,25e4,5e5,1e6];function loadScalesFromConfig(){var e=window.__TNET_APP_ROOT||"/maps",t=[e+"/tnet/config/tnet-global-config.json5",e+"/tnet/tnet-global-config.json5","../tnet/config/tnet-global-config.json5"];function r(a){if(!(a>=t.length)){var n=new XMLHttpRequest;n.open("GET",t[a],!0),n.onload=function(){if(n.status===200)try{for(var i=n.responseText,s=i.split(`
-`),c=[],u=0;u<s.length;u++){for(var o=s[u],l=!1,d=null,f=-1,p=0;p<o.length;p++){var v=o[p];if((v==='"'||v==="'")&&(p===0||o[p-1]!=="\\")&&(l?v===d&&(l=!1):(l=!0,d=v)),!l&&p<o.length-1&&o[p]==="/"&&o[p+1]==="/"){f=p;break}}f>-1&&(o=o.substring(0,f)),o.trim()&&c.push(o)}var m=c.join(`
-`).replace(/,(\s*[}\]])/g,"$1").replace(/((?:^|[{,])\s*)([a-zA-Z_][a-zA-Z0-9_-]*)\s*:/gm,'$1"$2":').replace(/'([^'\\]*(?:\\.[^'\\]*)*)'/g,'"$1"'),g=JSON.parse(m);g.scales&&Array.isArray(g.scales)&&g.scales.length>0&&(predefinedScales=g.scales,window._tnetScales=g.scales,rebuildScaleDropdown())}catch(M){TnetLog.warn("[MapFooter] Config-Parse-Fehler:",M)}else r(a+1)},n.onerror=function(){r(a+1)},n.send()}}r(0)}function rebuildScaleDropdown(){var e=document.getElementById("map-scale-select");if(e){var t=e.value;e.innerHTML="";for(var r=0;r<predefinedScales.length;r++){var a=predefinedScales[r],n=document.createElement("option");n.value=a.toString(),n.textContent="1:"+a.toLocaleString("de-CH"),e.appendChild(n)}t&&(e.value=t),updateScaleDisplay()}}function getResolutionFromScale(e){if(!njs||!njs.AppManager||!njs.AppManager.Maps||!njs.AppManager.Maps.main||!njs.AppManager.Maps.main.mapObj)return null;var t=njs.AppManager.Maps.main.mapObj,r=t.getView(),a=r.getProjection(),n=96,i=39.37,s=a.getMetersPerUnit(),c=e/(s*i*n);return c}window.setMapScale=function(e){var t=parseInt(e);if(t){var r=getResolutionFromScale(t);if(r){var a=njs.AppManager.Maps.main.mapObj,n=a.getView();n.animate({resolution:r,duration:250})}}};function findClosestScale(e){for(var t=predefinedScales[0],r=Math.abs(e-t),a=1;a<predefinedScales.length;a++){var n=Math.abs(e-predefinedScales[a]);n<r&&(r=n,t=predefinedScales[a])}return t}function updateScaleDisplay(){var e=document.getElementById("map-scale-select");if(e&&njs&&njs.AppManager&&njs.AppManager.Maps&&njs.AppManager.Maps.main&&njs.AppManager.Maps.main.mapObj){var t=njs.AppManager.Maps.main.mapObj,r=getMapScale(t);if(!r)return;var a=findClosestScale(r);e.value=a.toString()}}function updateCopyrightDisplay(){var e=document.getElementById("map-footer-copyright");if(e){var t=document.querySelector(".ol-attribution ul");if(t&&t.innerHTML.trim()){for(var r=t.querySelectorAll("li"),a=[],n=0;n<r.length;n++){var i=r[n].innerHTML.trim();i&&a.indexOf(i)===-1&&a.push(i)}if(a.length>0){var s=deduplicateAttributions(a);e.innerHTML=s.join(" | ");return}}var c=document.getElementById("disclaimer_copyright");if(c&&c.textContent.trim()){e.textContent=c.textContent.trim();return}setTimeout(updateCopyrightDisplay,1e3)}}function deduplicateAttributions(e){if(e.length<=1)return e;function t(o){var l=document.createElement("div");return l.innerHTML=o,l.textContent.replace(/\s+/g," ").trim().toLowerCase()}function r(o){var l=[];return/swisstopo/i.test(o)&&l.push("swisstopo"),/kantone|cantons|cantoni/i.test(o)&&l.push("kantone"),/openstreetmap/i.test(o)&&l.push("osm"),/tydac/i.test(o)&&l.push("tydac"),l}function a(o,l){for(var d=0;d<o.length;d++)if(l.indexOf(o[d])===-1)return!1;return!0}for(var n=e.map(function(o){return{html:o,text:t(o),sources:r(t(o))}}),i=[],s=0;s<n.length;s++){for(var c=!1,u=0;u<n.length;u++)if(s!==u){if(n[s].sources.length>0&&a(n[s].sources,n[u].sources)&&n[u].sources.length>n[s].sources.length){c=!0;break}if(n[s].sources.length>0&&n[s].sources.length===n[u].sources.length&&a(n[s].sources,n[u].sources)&&n[s].text.length<n[u].text.length){c=!0;break}}c||i.push(n[s].html)}return i.length>0?i:e}document.readyState==="loading"?document.addEventListener("DOMContentLoaded",function(){setupObservers()}):setupObservers();
+﻿/**
+ * tnet-map-footer.js (ES Module) - Koordinaten-Leiste / Map Footer Bar
+ * 
+ * Enthält:
+ * - Koordinaten-Anzeige (LV95 / WGS84 umschaltbar)
+ * - Höhen-Anzeige
+ * - Maßstab-Dropdown mit Zoom-Steuerung
+ * - Koordinaten-Picker (fixieren/mitlaufen)
+ * - Copyright-Anzeige
+ * - ScaleLine (OpenLayers)
+ *
+ * @version    1.0
+ * @date       2026-02-12
+ * @copyright  Trigonet AG
+ * @author     Marco Dellenbach
+ */
+
+// ===== KOORDINATEN-LEISTE AUF DER KARTE =====
+// console.log('Footer Bar Script gestartet');
+var currentCoordSystem = 'lv95';
+
+// Koordinaten-System umschalten
+window.switchCoordSystem = function(system) {
+    currentCoordSystem = system;
+    updateCoordDisplay();
+};
+
+// Picker toggle (Koordinaten fixieren)
+// Wenn aktiv = Koordinaten sind FIXIERT (laufen nicht mit)
+// Wenn inaktiv = Koordinaten laufen mit Mauszeiger
+window.toggleCoordPicker = function() {
+    var btn = document.getElementById('map-coord-picker-btn');
+
+    // Original CoordDisplay Picker aufrufen
+    if (njs && njs.AppManager && njs.AppManager.Tools && 
+        njs.AppManager.Tools.CoordDisplay && 
+        njs.AppManager.Tools.CoordDisplay['map'] && 
+        njs.AppManager.Tools.CoordDisplay['map']['coord2']) {
+        njs.AppManager.Tools.CoordDisplay['map']['coord2'].togglePicker('map');
+    }
+
+    // Button-Status aus dem Original-Picker synchronisieren
+    setTimeout(function() {
+        var pickerBtn = document.getElementById('coord2_picker');
+        if (pickerBtn && btn) {
+            // Wenn original Picker "Checked" hat, ist er aktiv (fixiert)
+            if (pickerBtn.classList.contains('njsIconButtonCoordPickerChecked')) {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
+        }
+    }, 50);
+};
+
+// Initialen Status synchronisieren
+function syncPickerStatus() {
+    var btn = document.getElementById('map-coord-picker-btn');
+    var pickerBtn = document.getElementById('coord2_picker');
+    if (pickerBtn && btn) {
+        if (pickerBtn.classList.contains('njsIconButtonCoordPickerChecked')) {
+            btn.classList.add('active');
+        } else {
+            btn.classList.remove('active');
+        }
+    }
+}
+
+// Koordinaten-Anzeige aktualisieren
+function updateCoordDisplay() {
+    var coordDisplay = document.getElementById('map-coord-display');
+    var lv95Input = document.getElementById('xy_coord2');
+    var wgs84Input = document.getElementById('xy_coord3');
+
+    if (!coordDisplay) return;
+
+    if (currentCoordSystem === 'lv95' && lv95Input) {
+        coordDisplay.textContent = lv95Input.value || '--';
+    } else if (currentCoordSystem === 'wgs84' && wgs84Input) {
+        coordDisplay.textContent = wgs84Input.value || '--';
+    }
+}
+
+// Höhen-Anzeige aktualisieren
+function updateAltitudeDisplay() {
+    var altDisplay = document.getElementById('map-coord-altitude');
+    var altInput = document.getElementById('z_alti1');
+
+    if (altDisplay && altInput) {
+        var val = altInput.value;
+        if (val) {
+            // Entferne m.ü.M und andere Texte, behalte nur Zahlen und | 
+            val = val.replace(/m\.?ü\.?M\.?/gi, '').trim();
+        }
+        altDisplay.textContent = val ? val : '--';
+    }
+}
+
+// Originales Koordinaten-Widget verstecken (ersetzt durch eigene Footer-Leiste)
+function hideOriginalCoordWidget() {
+    var wrapper = document.getElementById('njs_coordinates_wrapper');
+    if (wrapper) {
+        wrapper.style.display = 'none';
+    }
+
+    var lv95Input = document.getElementById('xy_coord2');
+    if (lv95Input && typeof lv95Input.closest === 'function') {
+        var pane = lv95Input.closest('.dojoxFloatingPane') || lv95Input.closest('.dojoxFloatingPaneContent') || lv95Input.closest('.dijitFloatingPane');
+        if (pane) {
+            pane.style.display = 'none';
+        }
+    }
+}
+
+// Observer für Änderungen an den Original-Inputs
+function setupObservers() {
+    // console.log('Footer Bar: setupObservers aufgerufen');
+
+    // Debug: Was ist verfügbar?
+    // console.log('njs:', typeof njs);
+    if (njs) {
+        // console.log('njs.AppManager:', typeof njs.AppManager);
+        if (njs.AppManager) {
+            // console.log('njs.AppManager.Maps:', njs.AppManager.Maps);
+            if (njs.AppManager.Maps && njs.AppManager.Maps['main']) {
+                // console.log('Maps[main]:', njs.AppManager.Maps['main']);
+                // console.log('Maps[main].map:', njs.AppManager.Maps['main'].map);
+                // console.log('Maps[main] keys:', Object.keys(njs.AppManager.Maps['main']));
+            }
+        }
+    }
+
+    var lv95Input = document.getElementById('xy_coord2');
+    var wgs84Input = document.getElementById('xy_coord3');
+    var altInput = document.getElementById('z_alti1');
+
+    // Warte auf Map statt auf Inputs
+    if (!njs || !njs.AppManager || !njs.AppManager.Maps || !njs.AppManager.Maps['main'] || !njs.AppManager.Maps['main'].mapObj) {
+        // Map noch nicht da, später nochmal versuchen
+        // console.log('Footer Bar: Map noch nicht bereit, warte 500ms...');
+        setTimeout(setupObservers, 500);
+        return;
+    }
+
+    // console.log('Footer Bar: Map gefunden!');
+    var map = njs.AppManager.Maps['main'].mapObj;
+    var view = map.getView();
+    // console.log('Footer Bar: View:', view);
+
+    // Originales Koordinaten-Widget verstecken
+    hideOriginalCoordWidget();
+
+    // Initialen Picker-Status synchronisieren
+    syncPickerStatus();
+
+    // Initiales Update
+    updateScaleDisplay();
+    updateCopyrightDisplay();
+
+    // Scales aus tnet-global-config.json5 laden (async, Dropdown wird nachgebaut)
+    loadScalesFromConfig();
+
+    // Event-Listener für Zoom/Resolution-Änderungen
+    view.on('change:resolution', updateScaleDisplay);
+
+    // Auch bei Bewegung aktualisieren (für den Fall)
+    map.on('moveend', updateScaleDisplay);
+
+    // Copyright bei Layer-Änderung aktualisieren
+    map.on('moveend', updateCopyrightDisplay);
+    map.getLayers().on(['add', 'remove'], updateCopyrightDisplay);
+
+    // MutationObserver: wenn OL die Attribution-UL ändert, Copyright aktualisieren
+    setTimeout(function() {
+        var attrUl = document.querySelector('.ol-attribution ul');
+        if (attrUl) {
+            new MutationObserver(updateCopyrightDisplay)
+                .observe(attrUl, { childList: true, subtree: true, characterData: true });
+        }
+    }, 2000);
+
+    // console.log('Map Footer Bar: Scale Listener registriert auf View', view);
+
+    // Polling für Koordinaten und andere Updates (nur wenn Picker nicht fixiert)
+    setInterval(function() {
+        updateCoordDisplay();
+        updateAltitudeDisplay();
+        syncPickerStatus();
+    }, 500);
+
+    // console.log('Map Footer Bar: Initialisiert');
+}
+
+// Maßstab berechnen (korrekt mit Projektion)
+function getMapScale(map) {
+    var view = map.getView();
+    var resolution = view.getResolution();
+    var projection = view.getProjection();
+
+    if (!resolution || !projection) return null;
+
+    // Meter pro Pixel unter Berücksichtigung der Projektion
+    var metersPerPixel = resolution * projection.getMetersPerUnit();
+
+    // DPI-Konstante (96 dpi): 1 inch = 0.0254 m
+    var DPI = 96;
+    var inchesPerMeter = 39.37;
+
+    // Maßstab 1 : N
+    var scale = metersPerPixel * inchesPerMeter * DPI;
+    return Math.round(scale);
+}
+
+// Vordefinierte Maßstäbe für die Auswahl
+// Werden beim Init aus tnet-global-config.json5 geladen, Fallback auf Defaults
+var predefinedScales = [100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 75000, 100000, 250000, 500000, 1000000];
+
+// Scales aus Config laden und Dropdown neu befüllen
+function loadScalesFromConfig() {
+    var appRoot = window.__TNET_APP_ROOT || '/maps';
+    var paths = [
+        appRoot + '/tnet/config/tnet-global-config.json5',
+        appRoot + '/tnet/tnet-global-config.json5',
+        '../tnet/config/tnet-global-config.json5'
+    ];
+    function tryPath(idx) {
+        if (idx >= paths.length) return; // alle Pfade fehlgeschlagen, Defaults bleiben
+        var xhr = new XMLHttpRequest();
+        xhr.open('GET', paths[idx], true);
+        xhr.onload = function() {
+            if (xhr.status === 200) {
+                try {
+                    // JSON5-Parser: Kommentare (string-aware), trailing commas, unquoted keys, single quotes
+                    var text = xhr.responseText;
+                    var lines = text.split('\n');
+                    var cleaned = [];
+                    for (var j = 0; j < lines.length; j++) {
+                        var line = lines[j];
+                        var inStr = false, strCh = null, cp = -1;
+                        for (var k = 0; k < line.length; k++) {
+                            var c = line[k];
+                            if ((c === '"' || c === "'") && (k === 0 || line[k - 1] !== '\\')) {
+                                if (!inStr) { inStr = true; strCh = c; }
+                                else if (c === strCh) { inStr = false; }
+                            }
+                            if (!inStr && k < line.length - 1 && line[k] === '/' && line[k + 1] === '/') { cp = k; break; }
+                        }
+                        if (cp > -1) line = line.substring(0, cp);
+                        if (line.trim()) cleaned.push(line);
+                    }
+                    var jsonText = cleaned.join('\n')
+                        .replace(/,(\s*[}\]])/g, '$1')
+                        .replace(/((?:^|[{,])\s*)([a-zA-Z_][a-zA-Z0-9_-]*)\s*:/gm, '$1"$2":')
+                        .replace(/'([^'\\]*(?:\\.[^'\\]*)*)'/g, '"$1"');
+                    var cfg = JSON.parse(jsonText);
+                    if (cfg.scales && Array.isArray(cfg.scales) && cfg.scales.length > 0) {
+                        predefinedScales = cfg.scales;
+                        window._tnetScales = cfg.scales;
+                        rebuildScaleDropdown();
+                    }
+                } catch (e) {
+                    TnetLog.warn('[MapFooter] Config-Parse-Fehler:', e);
+                }
+            } else {
+                tryPath(idx + 1);
+            }
+        };
+        xhr.onerror = function() { tryPath(idx + 1); };
+        xhr.send();
+    }
+    tryPath(0);
+}
+
+// Dropdown-Optionen neu aufbauen aus predefinedScales
+function rebuildScaleDropdown() {
+    var scaleSelect = document.getElementById('map-scale-select');
+    if (!scaleSelect) return;
+    var currentVal = scaleSelect.value;
+    scaleSelect.innerHTML = '';
+    for (var i = 0; i < predefinedScales.length; i++) {
+        var s = predefinedScales[i];
+        var opt = document.createElement('option');
+        opt.value = s.toString();
+        opt.textContent = '1:' + s.toLocaleString('de-CH');
+        scaleSelect.appendChild(opt);
+    }
+    // Aktuellen Wert wiederherstellen oder nächsten finden
+    if (currentVal) scaleSelect.value = currentVal;
+    updateScaleDisplay();
+}
+
+// Resolution aus Maßstab berechnen (umgekehrte Formel)
+function getResolutionFromScale(scale) {
+    if (!njs || !njs.AppManager || !njs.AppManager.Maps || !njs.AppManager.Maps['main'] || !njs.AppManager.Maps['main'].mapObj) return null;
+    var map = njs.AppManager.Maps['main'].mapObj;
+    var view = map.getView();
+    var projection = view.getProjection();
+
+    var DPI = 96;
+    var inchesPerMeter = 39.37;
+    var metersPerUnit = projection.getMetersPerUnit();
+
+    // scale = resolution * metersPerUnit * inchesPerMeter * DPI
+    // resolution = scale / (metersPerUnit * inchesPerMeter * DPI)
+    var resolution = scale / (metersPerUnit * inchesPerMeter * DPI);
+    return resolution;
+}
+
+// Maßstab setzen (Zoom ändern)
+window.setMapScale = function(scaleValue) {
+    var scale = parseInt(scaleValue);
+    if (!scale) return;
+
+    var resolution = getResolutionFromScale(scale);
+    if (!resolution) return;
+
+    var map = njs.AppManager.Maps['main'].mapObj;
+    var view = map.getView();
+
+    // Sanft zum neuen Zoom animieren
+    view.animate({
+        resolution: resolution,
+        duration: 250
+    });
+};
+
+// Nächsten vordefinierten Maßstab finden
+function findClosestScale(actualScale) {
+    var closest = predefinedScales[0];
+    var minDiff = Math.abs(actualScale - closest);
+
+    for (var i = 1; i < predefinedScales.length; i++) {
+        var diff = Math.abs(actualScale - predefinedScales[i]);
+        if (diff < minDiff) {
+            minDiff = diff;
+            closest = predefinedScales[i];
+        }
+    }
+    return closest;
+}
+
+// Maßstab im Footer aktualisieren (Dropdown)
+function updateScaleDisplay() {
+    var scaleSelect = document.getElementById('map-scale-select');
+    if (!scaleSelect) {
+        // console.log('Scale: Element #map-scale-select nicht gefunden');
+        return;
+    }
+
+    if (njs && njs.AppManager && njs.AppManager.Maps && njs.AppManager.Maps['main'] && njs.AppManager.Maps['main'].mapObj) {
+        var map = njs.AppManager.Maps['main'].mapObj;
+        var scale = getMapScale(map);
+
+        if (!scale) {
+            // console.log('Scale: Konnte Maßstab nicht berechnen');
+            return;
+        }
+
+        // Nächsten vordefinierten Maßstab finden und im Dropdown auswählen
+        var closestScale = findClosestScale(scale);
+        scaleSelect.value = closestScale.toString();
+    } else {
+        // console.log('Scale: Map nicht verfügbar');
+    }
+}
+
+// Copyright aus OL-Attribution übernehmen
+function updateCopyrightDisplay() {
+    var target = document.getElementById('map-footer-copyright');
+    if (!target) return;
+
+    // 1) Versuche OL-Attribution auszulesen
+    var olAttr = document.querySelector('.ol-attribution ul');
+    if (olAttr && olAttr.innerHTML.trim()) {
+        // Alle <li>-Texte sammeln
+        var items = olAttr.querySelectorAll('li');
+        var rawParts = [];
+        for (var i = 0; i < items.length; i++) {
+            var html = items[i].innerHTML.trim();
+            if (html && rawParts.indexOf(html) === -1) {
+                rawParts.push(html);
+            }
+        }
+
+        if (rawParts.length > 0) {
+            // Intelligente Deduplizierung: kürzere Einträge entfernen wenn in längerem enthalten
+            var parts = deduplicateAttributions(rawParts);
+            target.innerHTML = parts.join(' | ');
+            return;
+        }
+    }
+
+    // 2) Fallback: disclaimer_copyright
+    var fallback = document.getElementById('disclaimer_copyright');
+    if (fallback && fallback.textContent.trim()) {
+        target.textContent = fallback.textContent.trim();
+        return;
+    }
+
+    // 3) Wenn noch nichts da, später nochmal versuchen
+    setTimeout(updateCopyrightDisplay, 1000);
+}
+
+// Attribution-Texte intelligent deduplizieren
+// Entfernt Einträge deren Quellen bereits in einem umfassenderen Eintrag enthalten sind
+function deduplicateAttributions(parts) {
+    if (parts.length <= 1) return parts;
+
+    // Hilfsfunktion: HTML-Tags entfernen, Text normalisieren
+    function textOnly(html) {
+        var div = document.createElement('div');
+        div.innerHTML = html;
+        return div.textContent.replace(/\s+/g, ' ').trim().toLowerCase();
+    }
+
+    // Quellen-Schlüsselwörter aus einem Attribution-Text extrahieren
+    function extractSources(text) {
+        var sources = [];
+        // Bekannte Quellen erkennen
+        if (/swisstopo/i.test(text)) sources.push('swisstopo');
+        if (/kantone|cantons|cantoni/i.test(text)) sources.push('kantone');
+        if (/openstreetmap/i.test(text)) sources.push('osm');
+        if (/tydac/i.test(text)) sources.push('tydac');
+        return sources;
+    }
+
+    // Prüfe ob alle Quellen von A auch in B vorkommen
+    function isSubsetOf(sourcesA, sourcesB) {
+        for (var i = 0; i < sourcesA.length; i++) {
+            if (sourcesB.indexOf(sourcesA[i]) === -1) return false;
+        }
+        return true;
+    }
+
+    // Quellen pro Eintrag analysieren
+    var entries = parts.map(function(html) {
+        return { html: html, text: textOnly(html), sources: extractSources(textOnly(html)) };
+    });
+
+    // Einträge filtern: entferne solche deren Quellen vollständig in einem anderen enthalten sind
+    var result = [];
+    for (var i = 0; i < entries.length; i++) {
+        var dominated = false;
+        for (var j = 0; j < entries.length; j++) {
+            if (i === j) continue;
+            // Wenn A.sources Teilmenge von B.sources UND B hat mehr Quellen → A ist überflüssig
+            if (entries[i].sources.length > 0 &&
+                isSubsetOf(entries[i].sources, entries[j].sources) &&
+                entries[j].sources.length > entries[i].sources.length) {
+                dominated = true;
+                break;
+            }
+            // Spezialfall: gleiche Quellen, aber einer ist kürzer (weniger Detail) → kürzeren entfernen
+            if (entries[i].sources.length > 0 &&
+                entries[i].sources.length === entries[j].sources.length &&
+                isSubsetOf(entries[i].sources, entries[j].sources) &&
+                entries[i].text.length < entries[j].text.length) {
+                dominated = true;
+                break;
+            }
+        }
+        if (!dominated) result.push(entries[i].html);
+    }
+
+    return result.length > 0 ? result : parts;
+}
+
+// Initialisieren wenn DOM bereit
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function() {
+        setupObservers();
+    });
+} else {
+    setupObservers();
+}

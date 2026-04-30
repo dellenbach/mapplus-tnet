@@ -1,3 +1,166 @@
-(function(){"use strict";function o(t){if(typeof JSON5<"u")return JSON5.parse(t);for(var r=t.split(`
-`),i=[],f=!1,e=0;e<r.length;e++){var n=r[e];if(n.indexOf("/*")>-1&&(f=!0,n=n.substring(0,n.indexOf("/*"))),f)if(n.indexOf("*/")>-1)f=!1,n=n.substring(n.indexOf("*/")+2);else continue;for(var l=-1,g=!1,p=null,a=0;a<n.length;a++){var c=n[a];if((c==='"'||c==="'")&&(a===0||n[a-1]!=="\\")&&(g?c===p&&(g=!1,p=null):(g=!0,p=c)),!g&&a<n.length-1&&n[a]==="/"&&n[a+1]==="/"){l=a;break}}l>-1&&(n=n.substring(0,l)),n.trim()&&i.push(n)}var d=i.join(`
-`);return d=d.replace(/,(\s*[}\]])/g,"$1"),d=d.replace(/(\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g,'$1"$2":'),JSON.parse(d)}function s(){for(var t=window.__TNET_APP_ROOT||"/maps",r=[t+"/tnet/config/tnet-global-config.json5",t+"/tnet/tnet-global-config.json5","../tnet/config/tnet-global-config.json5"],i=0;i<r.length;i++)try{var f=new XMLHttpRequest;if(f.open("GET",r[i],!1),f.send(),f.status===200){var e=o(f.responseText);if(e&&e["3d-landscape"])return TnetLog.log("[Landscape3DConfig] Loaded from:",r[i]),e.logLevel&&(window.TnetGlobalLogLevel=e.logLevel),e["3d-landscape"]}}catch(n){TnetLog.warn("[Landscape3DConfig] Failed to load from:",r[i],n.message)}return TnetLog.error("[Landscape3DConfig] FEHLER: Konfiguration konnte nicht geladen werden!"),null}window.Landscape3DConfig=s(),window.Landscape3DConfig||TnetLog.error("[Landscape3DConfig] 3D Landscape wird nicht funktionieren - keine Konfiguration vorhanden!")})(),window.setWebSceneFromConfig=function(o){if(!window.Landscape3DConfig||!window.Landscape3DConfig.availableScenes){TnetLog.error("[Landscape3DConfig] Keine Konfiguration verf\xFCgbar");return}var s=window.Landscape3DConfig.availableScenes.find(function(t){return t.name===o});s?(TnetLog.log("[Landscape3DConfig] Switching to scene:",o),typeof toggleLandscape3D<"u"&&toggleLandscape3D(s.id)):TnetLog.error("[Landscape3DConfig] Scene not found:",o)},window.listAvailableScenes=function(){if(!window.Landscape3DConfig||!window.Landscape3DConfig.availableScenes){TnetLog.error("[Landscape3DConfig] Keine Konfiguration verf\xFCgbar");return}TnetLog.log("[Landscape3DConfig] Available 3D Scenes:"),window.Landscape3DConfig.availableScenes.forEach(function(o,s){TnetLog.log(" ["+(s+1)+"] "+o.name+" - "+o.id)})};
+﻿/**
+ * tnet-3d-landscape-config.js
+ * Configuration for 3D Landscape Model
+ * 
+ * Lädt die zentrale Konfiguration aus tnet-global-config.json5
+ * und stellt sie als window.Landscape3DConfig bereit.
+ *
+ * @version    1.0
+ * @date       2026-02-12
+ * @copyright  Trigonet AG
+ * @author     Marco Dellenbach
+ */
+
+(function() {
+    'use strict';
+    
+    /**
+     * Einfacher JSON5-Parser
+     */
+    function parseJSON5Simple(text) {
+        if (typeof JSON5 !== 'undefined') {
+            return JSON5.parse(text);
+        }
+        
+        var lines = text.split('\n');
+        var cleaned = [];
+        var inMultilineComment = false;
+        
+        for (var i = 0; i < lines.length; i++) {
+            var line = lines[i];
+            
+            if (line.indexOf('/*') > -1) {
+                inMultilineComment = true;
+                line = line.substring(0, line.indexOf('/*'));
+            }
+            if (inMultilineComment) {
+                if (line.indexOf('*/') > -1) {
+                    inMultilineComment = false;
+                    line = line.substring(line.indexOf('*/') + 2);
+                } else {
+                    continue;
+                }
+            }
+            
+            var commentPos = -1;
+            var inString = false;
+            var stringChar = null;
+            
+            for (var j = 0; j < line.length; j++) {
+                var c = line[j];
+                if ((c === '"' || c === "'") && (j === 0 || line[j-1] !== '\\')) {
+                    if (!inString) {
+                        inString = true;
+                        stringChar = c;
+                    } else if (c === stringChar) {
+                        inString = false;
+                        stringChar = null;
+                    }
+                }
+                
+                if (!inString && j < line.length - 1 && line[j] === '/' && line[j+1] === '/') {
+                    commentPos = j;
+                    break;
+                }
+            }
+            
+            if (commentPos > -1) {
+                line = line.substring(0, commentPos);
+            }
+            
+            if (line.trim()) {
+                cleaned.push(line);
+            }
+        }
+        
+        var jsonText = cleaned.join('\n');
+        jsonText = jsonText.replace(/,(\s*[}\]])/g, '$1');
+        jsonText = jsonText.replace(/(\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g, '$1"$2":');
+        
+        return JSON.parse(jsonText);
+    }
+    
+    /**
+     * Lade Konfiguration aus JSON5-Datei
+     */
+    function loadConfigFromJson() {
+        var appRoot = window.__TNET_APP_ROOT || '/maps';
+        var possiblePaths = [
+            appRoot + '/tnet/config/tnet-global-config.json5',
+            appRoot + '/tnet/tnet-global-config.json5',
+            '../tnet/config/tnet-global-config.json5'
+        ];
+        
+        for (var i = 0; i < possiblePaths.length; i++) {
+            try {
+                var xhr = new XMLHttpRequest();
+                xhr.open('GET', possiblePaths[i], false);
+                xhr.send();
+                
+                if (xhr.status === 200) {
+                    var globalConfig = parseJSON5Simple(xhr.responseText);
+                    
+                    if (globalConfig && globalConfig['3d-landscape']) {
+                        TnetLog.log('[Landscape3DConfig] Loaded from:', possiblePaths[i]);
+                        // Globales logLevel separat speichern (liegt auf Root-Ebene)
+                        if (globalConfig.logLevel) {
+                            window.TnetGlobalLogLevel = globalConfig.logLevel;
+                        }
+                        return globalConfig['3d-landscape'];
+                    }
+                }
+            } catch(e) {
+                TnetLog.warn('[Landscape3DConfig] Failed to load from:', possiblePaths[i], e.message);
+            }
+        }
+        
+        TnetLog.error('[Landscape3DConfig] FEHLER: Konfiguration konnte nicht geladen werden!');
+        return null;
+    }
+    
+    // Lade Config aus JSON5
+    window.Landscape3DConfig = loadConfigFromJson();
+    
+    if (!window.Landscape3DConfig) {
+        TnetLog.error('[Landscape3DConfig] 3D Landscape wird nicht funktionieren - keine Konfiguration vorhanden!');
+    }
+    
+})();
+
+/**
+ * Helper-Funktion: WebScene wechseln
+ */
+window.setWebSceneFromConfig = function(sceneName) {
+    if (!window.Landscape3DConfig || !window.Landscape3DConfig.availableScenes) {
+        TnetLog.error('[Landscape3DConfig] Keine Konfiguration verfügbar');
+        return;
+    }
+    
+    var scene = window.Landscape3DConfig.availableScenes.find(function(s) {
+        return s.name === sceneName;
+    });
+    
+    if (scene) {
+        TnetLog.log('[Landscape3DConfig] Switching to scene:', sceneName);
+        if (typeof toggleLandscape3D !== 'undefined') {
+            toggleLandscape3D(scene.id);
+        }
+    } else {
+        TnetLog.error('[Landscape3DConfig] Scene not found:', sceneName);
+    }
+};
+
+/**
+ * Helper-Funktion: Alle verfügbaren Szenen auflisten
+ */
+window.listAvailableScenes = function() {
+    if (!window.Landscape3DConfig || !window.Landscape3DConfig.availableScenes) {
+        TnetLog.error('[Landscape3DConfig] Keine Konfiguration verfügbar');
+        return;
+    }
+    
+    TnetLog.log('[Landscape3DConfig] Available 3D Scenes:');
+    window.Landscape3DConfig.availableScenes.forEach(function(scene, index) {
+        TnetLog.log(' [' + (index + 1) + '] ' + scene.name + ' - ' + scene.id);
+    });
+};

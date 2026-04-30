@@ -1,4 +1,2122 @@
-(function(){"use strict";function se(){return window.__TNET_APP_ROOT||"/maps"}var M=null,T=null,c=null,y=null,Ke={},xe={},Mt=!1,x=/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent),Lt=se()+"/tnet/php/pdf-save.php",Ye=se()+"/tnet/php/pdf-log.php",de=[],P={},k=[],G=null,$e=0,Ge=!1,ee=[100,250,500,1e3,2500,5e3,1e4,25e3,5e4,75e3,1e5,25e4,5e5,1e6],J=!0,Fe=380,me=!1,te=null,F=null,z=0,ge=[],ue={},g=null,pe=null,Ie=!1,he=null,ce=se()+"/tnet/ol-pdf-printer/js/",et=[ce+"jspdf.umd.min.js",ce+"svg2pdf.umd.min.js",ce+"pdf-fonts.js",ce+"template-pdf-export.js",ce+"pdf-printer-init.js"];function tt(e){return fetch(e).then(function(t){if(!t.ok)throw new Error("HTTP "+t.status+" beim Laden von "+e);return t.text()}).then(function(t){var n=window.define;window.define=void 0;try{(0,eval)(t)}finally{window.define=n}})}function Be(){return he||(window._pdfPrinterConfig={filename:"tnet_Kartenexport",templatesBasePath:se()+"/tnet/ol-pdf-printer/qgis-templates"},he=et.reduce(function(e,t){return e.then(function(){return tt(t)})},Promise.resolve()).then(function(){Ie=!0,TnetLog.log("[Drucken] PDF-Libraries geladen \u2713")}),he)}function nt(){try{var e=new XMLHttpRequest;if(e.open("GET",se()+"/tnet/config/tnet-global-config.json5",!1),e.send(),e.status===200){for(var t=e.responseText,n=t.split(`
-`),r=[],a=0;a<n.length;a++){for(var i=n[a],o=!1,l=null,u=-1,s=0;s<i.length;s++){var d=i[s];if((d==='"'||d==="'")&&(s===0||i[s-1]!=="\\")&&(o?d===l&&(o=!1):(o=!0,l=d)),!o&&s<i.length-1&&i[s]==="/"&&i[s+1]==="/"){u=s;break}}u>-1&&(i=i.substring(0,u)),i.trim()&&r.push(i)}var f=r.join(`
-`).replace(/,(\s*[}\]])/g,"$1").replace(/((?:^|[{,])\s*)([a-zA-Z_][a-zA-Z0-9_-]*)\s*:/gm,'$1"$2":').replace(/'([^'\\]*(?:\\.[^'\\]*)*)'/g,'"$1"'),v=JSON.parse(f);P=v,v.scales&&Array.isArray(v.scales)&&(ee=v.scales,window._tnetScales=ee,TnetLog.log("[Drucken] "+ee.length+" Massst\xE4be aus Config geladen"))}}catch(p){TnetLog.warn("[Drucken] Config nicht geladen:",p.message)}}function rt(){var e=document.getElementById("print-scale");e&&(e.innerHTML="",ee.forEach(function(t){var n=document.createElement("option");n.value=t,n.textContent="1 : "+t.toLocaleString("de-CH"),t===1e4&&(n.selected=!0),e.appendChild(n)}))}function it(){return'<div id="print-panel" class="print-panel hidden"><div class="print-panel-header"><span class="print-panel-title">\u{1F5A8} Drucken / Export</span><div class="print-panel-actions"><button class="print-panel-btn" id="print-dock-btn" onclick="togglePrintPanelDock()" title="Floating">'+TnetIcons.get("undock",null,{width:"16",height:"16"})+'</button><button class="print-panel-btn print-panel-close" onclick="closePrintPanel()" title="Schliessen">&times;</button></div></div><div class="print-panel-body"><div class="print-section"><label>Layout</label><select id="print-layout"><option value="">Wird geladen...</option></select></div><div class="print-row-2col"><div class="print-section"><label>Massstab</label><select id="print-scale"></select></div><div class="print-section print-section-dpi"><label>Aufl\xF6sung</label><div class="print-radio-row"><label class="print-radio"><input type="radio" name="print-dpi" value="150" checked> 150 dpi</label><label class="print-radio"><input type="radio" name="print-dpi" value="300"> 300 dpi</label></div></div></div><div class="print-section"><label>Kartentitel</label><input type="text" id="print-title" placeholder="Kartentitel" value="Situationsplan"></div><div class="print-section"><label>Benutzer</label><input type="text" id="print-user" placeholder="Benutzer"></div><div class="print-section print-checks" style="display:none"><label class="print-check"><input type="checkbox" id="print-server-render"> Server-Rendering <span style="color:#888;font-size:11px">(Bilder direkt vom Mapserver)</span></label></div><div class="print-section print-checks print-svg-section" id="print-svg-section" style="display:none"><label class="print-check"><input type="checkbox" id="print-svg-format"> Vektorgrafik (SVG) <span style="color:#888;font-size:11px">(sch\xE4rfer, gr\xF6ssere Datei)</span></label></div><div class="print-section print-frame-info"><label>Kartenrotation</label><div class="print-rotation-row"><input type="range" id="print-rotation" min="-180" max="180" value="0" step="1"><span id="print-rotation-val">0\xB0</span></div><div class="print-frame-controls"><button class="print-ctrl-btn" onclick="printRotateBy(-15)" title="-15\xB0">\u21BA 15\xB0</button><button class="print-ctrl-btn" onclick="printRotateBy(15)" title="+15\xB0">\u21BB 15\xB0</button><button class="print-ctrl-btn" onclick="printResetRotation()" title="Auf 0\xB0 zur\xFCcksetzen">\u27F3 0\xB0</button></div></div><div class="print-section print-hint-box">Rahmen verschieben: auf den Rahmen klicken und ziehen. Drehen: an einer Ecke ziehen. Zoomen: Mausrad.</div><div class="print-section"><button class="print-action-btn" id="print-exec-btn" onclick="executePrint()">'+TnetIcons.get("printer",null,{width:"18",height:"18"})+` PDF erstellen</button></div><div class="print-section print-progress" id="print-progress" style="display:none"><div class="print-progress-bar"><div class="print-progress-fill" id="print-progress-fill"></div></div><div class="print-progress-text" id="print-progress-text">Wird erstellt...</div></div><div class="print-accordion" id="print-jobs-acc" style="display:none"><div class="print-acc-header" onclick="togglePrintAccordion('print-jobs-acc')"><span class="print-acc-arrow">&#9654;</span> \u{1F4CB} PDF Auftr\xE4ge (<span id="print-jobs-count">0</span>)</div><div class="print-acc-panel"><div id="print-jobs-list" class="print-jobs-list"></div><iframe id="print-preview-frame" class="print-preview-frame" style="display:none"></iframe></div></div></div></div>`}function V(){if(M)return M;try{M=window._olMap||njs.AppManager.Maps&&njs.AppManager.Maps.main&&njs.AppManager.Maps.main.mapObj||null}catch{}return M&&!window._olMap&&(window._olMap=M),M}function ke(){if(typeof getAvailableLayouts!="function"){TnetLog.warn("[Drucken] getAvailableLayouts() nicht verf\xFCgbar");return}getAvailableLayouts().then(function(e){de=e;var t=document.getElementById("print-layout");if(t){if(t.innerHTML="",e.length===0){t.innerHTML='<option value="">Keine Layouts verf\xFCgbar</option>';return}for(var n=0,r=0;r<e.length;r++)if(e[r].paper==="A4"&&e[r].orientation==="portrait"){n=r;break}e.forEach(function(a,i){var o=document.createElement("option");o.value=a.value,o.textContent=a.label,i===n&&(o.selected=!0),t.appendChild(o)}),W(),De(),TnetLog.log("[Drucken] "+e.length+" Layouts geladen")}})}function He(){var e=V();if(e){if(ye(),c=document.createElement("div"),c.className="print-frame-rect",y=document.createElement("img"),y.className="print-frame-svg-preview",y.style.display="none",y.draggable=!1,c.appendChild(y),!x){["nw","ne","sw","se"].forEach(function(n){var r=document.createElement("div");r.className="print-corner-handle print-corner-"+n,r.setAttribute("data-corner",n),c.appendChild(r)});var t=document.createElement("div");t.className="print-center-dot",c.appendChild(t)}T=new ol.Overlay({element:c,positioning:"center-center",position:F,stopEvent:!0,className:"print-frame-overlay-container"}),e.addOverlay(T),c.addEventListener("wheel",function(n){n.preventDefault(),n.stopPropagation();var r=e.getViewport();r&&r.dispatchEvent(new WheelEvent("wheel",{bubbles:!0,cancelable:!0,deltaY:n.deltaY,deltaX:n.deltaX,deltaMode:n.deltaMode,clientX:n.clientX,clientY:n.clientY}))},{passive:!1}),x&&(c.style.opacity="0",c.style.transition="opacity 0.2s"),x||at(e),W(),De(),e.getView().on("change:center",ne),e.getView().on("change:resolution",ne),e.getView().on("change:rotation",ne)}}function ne(){if(x){var e=V();e&&(F=e.getView().getCenter().slice(),T&&T.setPosition(F))}W()}function W(){if(!(!c||!M)){var e=(document.getElementById("print-layout")||{}).value||"",t=de.find(function(K){return K.value===e}),n,r;t&&t.mapFrame?(n=t.mapFrame.width_mm,r=t.mapFrame.height_mm):(n=t&&t.width_mm||210,r=t&&t.height_mm||297);var a=parseInt((document.getElementById("print-scale")||{}).value)||1e4,i=M.getView(),o=i.getProjection().getMetersPerUnit()||1,l=i.getCenter(),u=i.getResolution(),s=n/1e3*a/(2*o),d=r/1e3*a/(2*o),f=s*2/u,v=d*2/u,p=t&&t.width_mm||210,m=t&&t.height_mm||297,L=f*(p/n),h=v*(m/r);c.style.width=Math.round(L)+"px",c.style.height=Math.round(h)+"px";var b=t&&t.mapFrame&&t.mapFrame.x_mm||0,w=t&&t.mapFrame&&t.mapFrame.y_mm||0;w+r>m*1.05&&(w=w-r);var C=(b+n/2)/p*100,D=(w+r/2)/m*100;if(c.style.transformOrigin=C.toFixed(2)+"% "+D.toFixed(2)+"%",T){T.setPosition(F||l);var A=C/100*L,q=D/100*h;T.setOffset([Math.round(L/2-A),Math.round(h/2-q)])}var I=c.querySelector(".print-center-dot");I&&(I.style.left=C.toFixed(2)+"%",I.style.top=D.toFixed(2)+"%"),y&&y.style.display!=="none"&&t&&(y.style.width=Math.round(L)+"px",y.style.height=Math.round(h)+"px",y.style.left="0px",y.style.top="0px")}}function ye(){pe&&(document.removeEventListener("mousemove",pe.move),document.removeEventListener("mouseup",pe.up),pe=null),g=null,document.body.style.cursor="",T&&M&&(M.removeOverlay(T),M.getView().un("change:center",ne),M.getView().un("change:resolution",ne),M.getView().un("change:rotation",ne)),T=null,c=null,y=null}function at(e){function t(i){if(!i.target.classList.contains("print-corner-handle")){var o=e.getView().getResolution(),l=e.getView().getRotation();g={type:"move",startPx:[i.clientX,i.clientY],startCenter:F.slice(),res:o,cosR:Math.cos(l),sinR:Math.sin(l)},document.body.style.cursor="grabbing",i.preventDefault(),i.stopPropagation()}}var n=c.querySelectorAll(".print-corner-handle");n.forEach(function(i){i.addEventListener("mousedown",function(o){var l=e.getTargetElement().getBoundingClientRect(),u=e.getPixelFromCoordinate(F),s=o.clientX-l.left-u[0],d=o.clientY-l.top-u[1];g={type:"rotate",startAngle:Math.atan2(d,s),startFrameRotation:z,mapLeft:l.left,mapTop:l.top,centerPx:u},document.body.style.cursor="crosshair",o.preventDefault(),o.stopPropagation()})});function r(i){if(g){if(g.type==="move"){var o=i.clientX-g.startPx[0],l=i.clientY-g.startPx[1],u=g.res,s=g.cosR,d=g.sinR;F[0]=g.startCenter[0]+(o*s-l*d)*u,F[1]=g.startCenter[1]+(o*d+l*s)*-u,T.setPosition(F.slice())}else if(g.type==="rotate"){var f=i.clientX-g.mapLeft-g.centerPx[0],v=i.clientY-g.mapTop-g.centerPx[1],p=Math.atan2(v,f),m=p-g.startAngle;z=g.startFrameRotation+m,be(),H()}}}function a(){g&&(g=null,document.body.style.cursor="")}c.addEventListener("mousedown",t),document.addEventListener("mousemove",r),document.addEventListener("mouseup",a),pe={move:r,up:a}}function De(){if(y){var e=(document.getElementById("print-layout")||{}).value||"",t=de.find(function(n){return n.value===e});if(!t||!t.files||!t.files.svg){y.style.display="none";return}if(xe[e]){H();return}if(typeof TemplatePdfExport>"u"||!TemplatePdfExport.loadTemplateSvg){y.style.display="none";return}TemplatePdfExport.loadTemplateSvg(t).then(function(n){for(var r=new DOMParser,a=r.parseFromString(n,"image/svg+xml"),i=a.documentElement,o=a.querySelectorAll("[id]"),l=0;l<o.length;l++){var u=o[l].getAttribute("id")||"";u.indexOf("MAP_AREA")>=0&&u.indexOf("LABEL")<0&&o[l].setAttribute("visibility","hidden")}for(var s=a.querySelectorAll("text"),d=0;d<s.length;d++)(s[d].textContent||"").indexOf("MAP AREA")>=0&&s[d].setAttribute("visibility","hidden");for(var f=a.querySelectorAll("rect"),v=0;v<f.length;v++){var p=f[v].getAttribute("style")||"",m=f[v].getAttribute("stroke-dasharray")||"",L=f[v].getAttribute("stroke")||"";(p.indexOf("dash")>=0||m)&&(L.indexOf("2196")>=0||p.indexOf("2196")>=0)&&f[v].setAttribute("visibility","hidden")}var h=i.getAttribute("viewBox"),b=h?h.split(/[\s,]+/).map(Number):null;if(b)for(var w=b[2],C=b[3],D=a.querySelectorAll('g[fill="#ffffff"], g[fill="white"]'),A=0;A<D.length;A++)for(var q=D[A].querySelectorAll("path"),I=0;I<q.length;I++){var K=q[I].getAttribute("d")||"",E=K.match(/-?\d+\.?\d*/g);if(E&&E.length>=8){var S=[parseFloat(E[0]),parseFloat(E[2]),parseFloat(E[4]),parseFloat(E[6])],re=[parseFloat(E[1]),parseFloat(E[3]),parseFloat(E[5]),parseFloat(E[7])],ve=Math.min.apply(null,S),Y=Math.max.apply(null,S),ie=Math.min.apply(null,re),Re=Math.max.apply(null,re),O=Y-ve,N=Re-ie;O>=w*.9&&N>=C*.9&&(D[A].setAttribute("visibility","hidden"),TnetLog.log("[Drucken] QGIS-Seitenhintergrund ausgeblendet"))}}if(h&&t.mapFrame){var Q=h.split(/[\s,]+/).map(Number),ze=t.width_mm||210,j=t.height_mm||297,Pe=Q[2]/ze,fe=Q[3]/j,_=t.mapFrame,Z=_.y_mm;Z+_.height_mm>j*1.05&&(Z=Z-_.height_mm);var B=Q[0],ae=Q[1],R=Q[2],oe=Q[3],X=_.x_mm*Pe,le=Z*fe,$=_.width_mm*Pe,Me=_.height_mm*fe,Le="M"+B+","+ae+" L"+(B+R)+","+ae+" L"+(B+R)+","+(ae+oe)+" L"+B+","+(ae+oe)+" Z M"+X.toFixed(2)+","+le.toFixed(2)+" L"+X.toFixed(2)+","+(le+Me).toFixed(2)+" L"+(X+$).toFixed(2)+","+(le+Me).toFixed(2)+" L"+(X+$).toFixed(2)+","+le.toFixed(2)+" Z",U=a.createElementNS("http://www.w3.org/2000/svg","path");U.setAttribute("d",Le),U.setAttribute("fill","white"),U.setAttribute("fill-rule","evenodd"),i.firstChild?i.insertBefore(U,i.firstChild):i.appendChild(U)}var Ve=new XMLSerializer().serializeToString(a);xe[e]=Ve,H(),TnetLog.log("[Drucken] SVG-Vorschau geladen f\xFCr:",e)}).catch(function(n){TnetLog.warn("[Drucken] SVG-Vorschau Fehler:",n.message),y&&(y.style.display="none")})}}function ot(){var e=parseInt((document.getElementById("print-scale")||{}).value)||1e4,t=new Date;return{title:(document.getElementById("print-title")||{}).value||"",scaleText:"1:"+e.toLocaleString("de-CH"),date:t.toLocaleDateString("de-CH"),time:t.toLocaleTimeString("de-CH",{hour:"2-digit",minute:"2-digit"}),user:(document.getElementById("print-user")||{}).value||"",coords:M?Math.round(M.getView().getCenter()[0]).toLocaleString("de-CH")+" / "+Math.round(M.getView().getCenter()[1]).toLocaleString("de-CH"):"",rotationDeg:parseInt((document.getElementById("print-rotation")||{}).value)||0}}function H(){if(y){var e=(document.getElementById("print-layout")||{}).value||"",t=xe[e];if(t){var n=ot(),r=t,a={TITLE:n.title,SCALE:n.scaleText,SCALETEXT:n.scaleText,SCALEDOT:n.scaleText,COORDINATES:n.coords,DATE:n.date,TIME:n.time,USER:n.user};for(var i in a)if(a.hasOwnProperty(i)){var o="{{"+i+"}}";r.indexOf(o)!==-1&&(r=r.split(o).join(a[i]))}r=r.replace(/\{\{[A-Z_]+\}\}/g,""),r=st(r,n);var l="data:image/svg+xml;charset=utf-8,"+encodeURIComponent(r);Ke[e]=l,y.src=l,y.style.display=""}}}function lt(e,t){for(var n=e*t/1e3,r=n/5,a=Math.pow(10,Math.floor(Math.log10(r))),i=[1,2,2.5,5,10],o=0;o<i.length;o++)if(i[o]*a>=r*.8)return i[o]*a;return a*10}function st(e,t){var n=new DOMParser,r=n.parseFromString(e,"image/svg+xml"),a=r.documentElement,i="http://www.w3.org/2000/svg",o=0;if(t.scaleText){var l=t.scaleText.match(/1\s*:\s*([\d\s''\u2019\u2018\u00A0.,]+)/);l&&(o=parseInt(l[1].replace(/[^0-9]/g,""),10)||0)}for(var u=r.querySelectorAll("rect[data-dynamic-type]"),s=0;s<u.length;s++){var d=u[s],f=d.getAttribute("data-dynamic-type")||"",v=parseFloat(d.getAttribute("x"))||0,p=parseFloat(d.getAttribute("y"))||0,m=parseFloat(d.getAttribute("width"))||0,L=parseFloat(d.getAttribute("height"))||0;if(d.setAttribute("visibility","hidden"),f==="scaleBar"&&o>0){var h=a.getAttribute("viewBox"),b=h?h.split(/[\s,]+/).map(Number):[0,0,2480,3507],w=de.find(function(Pt){return Pt.value===((document.getElementById("print-layout")||{}).value||"")}),C=w&&w.width_mm||210,D=w&&w.height_mm||297,A=C/b[2],q=m*A,I=lt(q,o),K=I*1e3/o,E=K/A,S=Math.floor(m/E);S=Math.max(2,Math.min(S,6));var re=Math.min(L*.45,2/A),ve=p+.5/A,Y=r.createElementNS(i,"g");Y.setAttribute("id","preview-scalebar");for(var ie=0;ie<S;ie++){var Re=v+ie*E,O=r.createElementNS(i,"rect");O.setAttribute("x",Re.toFixed(2)),O.setAttribute("y",ve.toFixed(2)),O.setAttribute("width",E.toFixed(2)),O.setAttribute("height",re.toFixed(2)),O.setAttribute("fill",ie%2===0?"#000000":"#ffffff"),O.setAttribute("stroke","#000000"),O.setAttribute("stroke-width","1.5"),Y.appendChild(O)}var N=r.createElementNS(i,"rect");N.setAttribute("x",v.toFixed(2)),N.setAttribute("y",ve.toFixed(2)),N.setAttribute("width",(S*E).toFixed(2)),N.setAttribute("height",re.toFixed(2)),N.setAttribute("fill","none"),N.setAttribute("stroke","#000000"),N.setAttribute("stroke-width","2"),Y.appendChild(N);for(var Q=ve+re+14/A,ze=Math.max(16,Math.min(24,7/A)),j=0;j<=S;j++){var Pe=v+j*E,fe=j*I,_;I>=1e3?(_=(fe/1e3).toLocaleString("de-CH"),j===S&&(_+=" km")):(_=fe.toLocaleString("de-CH"),j===S&&(_+=" m"));var Z="middle";j===0&&(Z="start"),j===S&&(Z="end");var B=r.createElementNS(i,"text");B.setAttribute("x",Pe.toFixed(2)),B.setAttribute("y",Q.toFixed(2)),B.setAttribute("font-family","Arial, sans-serif"),B.setAttribute("font-size",ze.toFixed(1)),B.setAttribute("fill","#000000"),B.setAttribute("text-anchor",Z),B.textContent=_,Y.appendChild(B)}a.appendChild(Y)}else if(f==="scaleLabel"&&t.scaleText){var ae=Math.min(L*.7,50),R=r.createElementNS(i,"text");R.setAttribute("x",(v+5).toFixed(2)),R.setAttribute("y",(p+L*.7).toFixed(2)),R.setAttribute("font-family","Arial, sans-serif"),R.setAttribute("font-size",ae.toFixed(1)),R.setAttribute("font-weight","bold"),R.setAttribute("fill","#000000"),R.textContent=t.scaleText,a.appendChild(R)}}if(t.rotationDeg)for(var oe=r.querySelectorAll("path"),X=0;X<oe.length;X++){var le=oe[X].getAttribute("d")||"";if(le.indexOf("M8.003,-9.593")===0){var $=oe[X].parentNode,Me=$.getAttribute("transform")||"",Le=Me.match(/matrix\(([^)]+)\)/);if(Le){var U=Le[1].split(",").map(Number),Ve=U[0],mt=U[3],gt=U[4],ht=U[5],yt=8.03,bt=-18.66,wt=Ve*yt+gt,Et=mt*bt+ht,Ae=r.createElementNS(i,"g");Ae.setAttribute("id","preview-northarrow-rotate"),Ae.setAttribute("transform","rotate("+-t.rotationDeg+", "+wt.toFixed(2)+", "+Et.toFixed(2)+")"),$.parentNode.insertBefore(Ae,$),Ae.appendChild($)}break}}return new XMLSerializer().serializeToString(r)}function be(){c&&(c.style.transform="rotate("+(z*180/Math.PI).toFixed(2)+"deg)"),Oe()}function Oe(){var e;if(x){var t=V();e=t?Math.round(t.getView().getRotation()*180/Math.PI):0}else e=Math.round(z*180/Math.PI);var n=document.getElementById("print-rotation");n&&(n.value=e);var r=document.getElementById("print-rotation-val");r&&(r.textContent=e+"\xB0")}window.printRotateBy=function(e){z+=e*Math.PI/180,be(),H()},window.printResetRotation=function(){z=0,be(),H()},window.setScale=function(e){var t=document.getElementById("print-scale");t&&(t.value=e)};function Ne(){ge=[],ue={};var e=V();e&&(x||e.getInteractions().getArray().slice().forEach(function(a){var i=a.constructor&&a.constructor.name||"";(i==="DragPan"||i==="KeyboardPan")&&a.getActive()&&(ge.push(a),a.setActive(!1))}));try{var t=window.njs&&njs.AppManager,n=t&&t.Maps;if(n)for(var r in n)n[r]&&n[r].picking!==void 0&&(ue[r]=n[r].picking,n[r].picking=!1);t&&t.MapTips&&(t.MapTips._disablewmsgetfeatureinfo||(t.MapTips._disablewmsgetfeatureinfo={}),t.MapTips._disablewmsgetfeatureinfo.main=!0)}catch{}}function _e(){ge.forEach(function(r){r.setActive(!0)}),ge=[];try{var e=window.njs&&njs.AppManager,t=e&&e.Maps;if(t)for(var n in t)t[n]&&ue[n]!==void 0&&(t[n].picking=ue[n]);e&&e.MapTips&&e.MapTips._disablewmsgetfeatureinfo&&(e.MapTips._disablewmsgetfeatureinfo.main=!1)}catch{}ue={}}function Ue(){var e=V();if(!(!e||!c)){var t=P.print&&P.print.autoAdjustZoom!==!1;if(t){var n=P.print&&P.print.targetFramePercent||70;n=Math.max(40,Math.min(95,n));var r=e.getTargetElement();if(r){var a=r.clientWidth,i=r.clientHeight,o=parseFloat(c.style.width)||0,l=parseFloat(c.style.height)||0;if(!(o<=0||l<=0)){var u=o/a*100,s=l/i*100,d=Math.max(u,s);if(d>=40&&d<=90){TnetLog.log("[Drucken] Frame-Gr\xF6sse OK:",Math.round(d)+"% des Viewports");return}var f=d/n,v=e.getView(),p=v.getResolution(),m=p*f;v.animate({resolution:m,duration:300}),TnetLog.log("[Drucken] Zoom angepasst:",Math.round(d)+"% \u2192 "+n+"% (Resolution:",p.toFixed(2),"\u2192",m.toFixed(2)+")"),e.once("moveend",function(){W(),H()})}}}}}function We(e){var t=V();if(!t)return;var n=t.getView().getProjection().getMetersPerUnit()||1,r=ee.slice().sort(function(s,d){return s-d}),a=window.innerHeight*.25,i=window.innerWidth*.8,o=.4,l=0;function u(){W();var s=c?parseFloat(c.style.width):0,d=c?parseFloat(c.style.height):0;if((s<=0||d<=0)&&l++<8){setTimeout(u,200);return}if(s<=0||d<=0){c&&(c.style.opacity="1");return}var f=s/i,v=d/a,p=Math.max(f,v);if(p<=o){c&&(c.style.opacity="1"),TnetLog.log("[Drucken Mobile] Frame passt ("+Math.round(p*100)+"% \u2264 "+Math.round(o*100)+"%)");return}for(var m=p/o,L=t.getView(),h=L.getResolution()*m,b=null,w=0;w<r.length;w++)if(r[w]>e&&r[w]*28e-5/n>=h){b=r[w];break}b===null&&(b=r[r.length-1]);var C=b*28e-5/n;L.animate({resolution:C,duration:300}),t.once("moveend",function(){W(),c&&(c.style.opacity="1")}),TnetLog.log("[Drucken Mobile] Zoom: 1:"+b+" (Frame "+Math.round(p*100)+"% \u2192 Ziel "+Math.round(o*100)+"%)")}setTimeout(u,100)}window.openPdfPrinter=function(){if(typeof toggleHeaderMenu=="function"&&toggleHeaderMenu(),me){var e=document.getElementById("tp_tnet_print_menu");e&&(e.open||(e.open=!0),setTimeout(function(){e.scrollIntoView({behavior:"smooth",block:"nearest"})},50));return}if(!V()){alert("Drucken ist erst verf\xFCgbar, wenn die Karte vollst\xE4ndig geladen ist.");return}var t=function(){z=0,ke();var n=V();if(n){for(var r=n.getView().getProjection().getMetersPerUnit()||1,a=Math.round(n.getView().getResolution()*r/28e-5),i=ee.slice().sort(function(d,f){return d-f}),o=null,l=i.length-1;l>=0;l--)if(i[l]<a){o=i[l];break}o===null&&(o=i[0]),document.getElementById("print-scale").value=o}Oe(),document.getElementById("print-panel").classList.remove("hidden"),J&&Qe(),F=n.getView().getCenter().slice(),Ne(),He();var u=document.getElementById("print-user");if(u&&!u.value&&window.njs&&njs.AppManager&&njs.AppManager.auth_user&&(u.value=njs.AppManager.auth_user),!x)setTimeout(function(){Ue()},450);else{var s=parseInt(document.getElementById("print-scale").value)||1e4;setTimeout(function(){We(s)},450)}};Ie?t():Be().then(t).catch(function(n){TnetLog.error("[Drucken] Libraries konnten nicht geladen werden:",n),alert(`PDF-Export konnte nicht initialisiert werden.
-`+n.message)})},window.closePrintPanel=function(){if(me){var e=document.getElementById("tp_tnet_print_menu");e&&e.open?e.open=!1:(ye(),_e());return}var t=document.getElementById("print-panel");if(t&&t.classList.add("hidden"),ye(),_e(),J){if(!x){var n=document.getElementById("mapContainer");n&&n.style.setProperty("width","100%","important")}Ee(),Se()}},window.executePrint=function(){var e=V();if(!e){alert("Karte nicht bereit.");return}if(typeof templatePdfPrint!="function"){alert("PDF-Export-API nicht geladen.");return}var t=document.getElementById("print-layout").value,n=parseInt(document.getElementById("print-scale").value)||1e4,r=document.querySelector('input[name="print-dpi"]:checked'),a=r?parseInt(r.value):150,i=document.getElementById("print-title").value||"",o=document.getElementById("print-user").value||"",l=document.getElementById("print-grid"),u=l?l.checked:!1,s=document.querySelector('input[name="print-gridcolor"]:checked'),d=s?s.value:"schwarz",f=Math.round(x?e.getView().getRotation()*180/Math.PI:z*180/Math.PI),v=document.getElementById("print-server-render"),p=v?v.checked:!1,m=document.getElementById("print-svg-format"),L=m?m.checked:!1,h=de.find(function(E){return E.value===t}),b=new Date,w=b.getFullYear()+String(b.getMonth()+1).padStart(2,"0")+String(b.getDate()).padStart(2,"0")+"_"+String(b.getHours()).padStart(2,"0")+String(b.getMinutes()).padStart(2,"0"),C=(i||"Kartenexport").replace(/[<>:"/\\|?*]/g,"").replace(/\s+/g,"_").substring(0,50),D=h&&h.paper||"";h&&h.orientation==="landscape"?D+="_quer":h&&h.orientation==="portrait"&&(D+="_hoch");var A=C+"_"+D+"_"+w+".pdf",q=++$e,I=F?F.slice():e.getView().getCenter().slice(),K={id:q,status:"pending",title:A,progress:0,error:null,blob:null,filename:null,timestamp:new Date().toLocaleString("de-CH"),params:{massstab:n,layout:t,aufloesung:a,rotation:f,kartentitel:i,benutzer:o,koordinatennetz:u,netzfarbe:d,printCenter:I,serverRender:p,svgFormat:L,jpegQuality:P.print&&P.print.jpegQuality||.7,serverDpi:P.print&&P.print.serverDpi||96}};k.push(K),TnetLog.log("[Print-Queue] Job #"+q+" hinzugef\xFCgt. Queue-L\xE4nge:",k.length),we(),Te()};function Te(){if(!Ge&&G===null){var e=k.find(function(t){return t.status==="pending"});e&&(G=e.id,e.status="processing",we(),TnetLog.log("[Print-Queue] Starte Job #"+e.id+": "+e.title),templatePdfPrint({massstab:e.params.massstab,layout:e.params.layout,aufloesung:e.params.aufloesung,rotation:e.params.rotation,kartentitel:e.params.kartentitel,benutzer:e.params.benutzer,koordinatennetz:e.params.koordinatennetz,netzfarbe:e.params.netzfarbe,printCenter:e.params.printCenter,serverRender:e.params.serverRender,svgFormat:e.params.svgFormat,jpegQuality:e.params.jpegQuality,serverDpi:e.params.serverDpi,onProgress:function(t,n){e.progress=Math.round(t/7*100);var r=document.querySelector(".pj-processing .pj-progress-fill"),a=document.querySelector(".pj-processing .pj-progress-text");r&&(r.style.width=e.progress+"%"),a&&(a.textContent=e.progress+"%"),e.id===G&&(document.getElementById("print-progress-fill").style.width=e.progress+"%",document.getElementById("print-progress-text").textContent=n)},onSuccess:function(t){e.blob=t.blob,e.filename=t.filename,e.title=t.filename,e.status="completed",e.progress=100,dt(e.blob,e.filename),TnetLog.log("[Print-Queue] Job #"+e.id+" abgeschlossen: "+e.filename),qe(),G=null,we(),setTimeout(function(){Te()},500)},onError:function(t){e.status="failed",e.error=t.message,TnetLog.error("[Print-Queue] Job #"+e.id+" Fehler:",t),qe(),G=null,we(),setTimeout(function(){Te()},500)}}))}}function qe(){var e=document.getElementById("print-exec-btn");e.disabled=!1,e.classList.remove("printing"),e.innerHTML=TnetIcons.get("printer",null,{width:"18",height:"18"})+" PDF erstellen",setTimeout(function(){document.getElementById("print-progress").style.display="none",document.getElementById("print-progress-fill").style.width="0%"},2e3)}function Ce(){var e=document.getElementById("print-jobs-list"),t=document.getElementById("print-jobs-acc"),n=document.getElementById("print-jobs-count");if(e){if(n.textContent=k.length,k.length>0)t.style.display="block",t.classList.add("is-open");else{t.style.display="none",Je();return}var r="",a=k.slice().reverse();a.forEach(function(i){var o="pj-"+i.status,l={pending:"\u23F3 In Warteschlange",processing:"\u2699 Wird verarbeitet",completed:"\u2713 Fertig",failed:"\u2715 Fehler"}[i.status]||i.status;if(r+='<div class="print-job '+o+'"><div class="pj-header"><span class="pj-title">'+i.title+'</span><span class="pj-status">'+l+"</span></div>",i.status==="processing"&&(r+='<div class="pj-progress"><div class="pj-progress-bar"><div class="pj-progress-fill" style="width:'+i.progress+'%"></div></div><span class="pj-progress-text">'+i.progress+"%</span></div>"),i.status==="completed"&&i.blobUrl){var u="";i.completedDate&&(u=String(i.completedDate.getHours()).padStart(2,"0")+":"+String(i.completedDate.getMinutes()).padStart(2,"0"));var s=pt(i.size),d=[];u&&d.push(u),s&&d.push(s),r+='<div class="pj-meta">'+d.join(" \xB7 ")+'</div><div class="pj-actions"><a class="pj-btn pj-btn-dl" href="'+i.blobUrl+'" download="'+i.filename+'" title="Herunterladen">\u2B07 Download</a>',x||(r+='<button class="pj-btn pj-btn-preview" onclick="previewJob('+i.id+')" title="Vorschau">\u{1F50D}</button>'),r+='<button class="pj-btn pj-btn-remove" onclick="removeJob('+i.id+')" title="Entfernen">&times;</button></div>'}i.status==="failed"&&(r+='<div class="pj-error">'+i.error+"</div>"),r+="</div>"}),e.innerHTML=r}}var we=Ce;window.removeJob=function(e){var t=k.findIndex(function(r){return r.id===e});if(!(t<0)){var n=k[t];n.blobUrl&&URL.revokeObjectURL(n.blobUrl),k.splice(t,1),Ce()}},window.previewJob=function(e){var t=k.find(function(n){return n.id===e});!t||!t.blobUrl||Xe(t.blobUrl)},window.downloadJobPdf=function(e){var t=k.find(function(r){return r.id===e});if(!(!t||!t.blobUrl)){var n=document.createElement("a");n.href=t.blobUrl,n.download=t.filename,document.body.appendChild(n),n.click(),document.body.removeChild(n)}};function dt(e,t){var n=URL.createObjectURL(e),r=k.find(function(i){return i.id===G});if(r&&(r.blobUrl=n,r.size=e.size,r.completedDate=new Date),Ce(),!x)Xe(n);else{var a=document.createElement("a");a.href=n,a.download=t,document.body.appendChild(a),a.click(),document.body.removeChild(a)}TnetLog.log("[Drucken] PDF fertig:",t,"("+e.size+" Bytes)"),ut(e,t)}function ut(e,t){var n=new FormData;n.append("pdf",e,t),n.append("filename",t);var r=P.print&&P.print.pdfRetentionDays||1,a=Ye+"?retention="+r;fetch(a,{method:"POST",body:n}).then(function(i){return i.json()}).then(function(i){i.ok?TnetLog.log("[Drucken] PDF archiviert:",i.path):TnetLog.warn("[Drucken] PDF-Archivierung fehlgeschlagen:",i.error)}).catch(function(i){TnetLog.warn("[Drucken] PDF-Archivierung Fehler:",i.message)})}function Xe(e){if(!x){var t=document.getElementById("print-preview-frame");t&&(t.src=e,t.style.display="",t.scrollIntoView({behavior:"smooth",block:"nearest"}))}}function Je(){var e=document.getElementById("print-preview-frame");e&&(e.src="about:blank",e.style.display="none")}window.closePrintPreview=Je,window.togglePrintAccordion=function(e){var t=document.getElementById(e);t&&t.classList.toggle("is-open")};function pt(e){return e?e<1024?e+" B":e<1048576?(e/1024).toFixed(0)+" KB":(e/1048576).toFixed(1)+" MB":""}function Ee(){setTimeout(function(){if(window.njs&&njs.AppManager&&njs.AppManager.Maps&&njs.AppManager.Maps.main){var e=njs.AppManager.Maps.main.mapObj;e&&e.updateSize&&e.updateSize()}typeof dijit<"u"&&dijit.byId("NeapolisContainer")&&dijit.byId("NeapolisContainer").resize(),W()},350)}function Qe(){if(!me){var e=document.getElementById("print-panel"),t=document.getElementById("print-dock-btn"),n=document.getElementById("mapContainer");if(e){if(e.classList.add("docked-right"),J=!0,!x&&n){var r=Fe||380,a=document.getElementById("centerPaneLayout"),i=document.getElementById("streetviewContainer"),o=0;i&&i.offsetWidth>0&&i.style.display!=="none"&&(o=i.offsetWidth);var l=a?a.getBoundingClientRect():n.getBoundingClientRect();e.style.setProperty("top",l.top+"px","important"),e.style.setProperty("right",o+"px","important"),e.style.setProperty("bottom",window.innerHeight-l.bottom+"px","important"),e.style.setProperty("left","auto","important"),e.style.setProperty("width",r+"px","important"),e.style.setProperty("height","auto","important");var u=a?a.offsetWidth:window.innerWidth,s=u-o-r;n.style.setProperty("width",s+"px","important")}Ee(),vt(),t&&(t.title="Floating",t.innerHTML=TnetIcons.get("undock",null,{width:"16",height:"16"}))}}}function ct(){var e=document.getElementById("print-panel"),t=document.getElementById("print-dock-btn"),n=document.getElementById("mapContainer");e&&(e.classList.remove("docked-right"),Se(),J=!1,n&&(n.style.setProperty("width","100%","important"),setTimeout(function(){Ee()},100)),e.style.setProperty("top","80px","important"),e.style.setProperty("left","calc(100vw - 420px)","important"),e.style.setProperty("width","380px","important"),e.style.setProperty("height","calc(100vh - 160px)","important"),e.style.setProperty("right","auto","important"),e.style.setProperty("bottom","auto","important"),e.style.maxHeight="",t&&(t.title="Rechts andocken",t.innerHTML=TnetIcons.get("dock",null,{width:"16",height:"16"})))}window.togglePrintPanelDock=function(){J?ct():Qe()};function vt(){Se();var e=document.getElementById("mapContainer");if(!(!e||!window.ResizeObserver)){te=new ResizeObserver(function(){J&&je()}),te.observe(e);var t=document.getElementById("streetviewContainer");t&&te.observe(t),window.addEventListener("resize",je)}}function Se(){te&&(te.disconnect(),te=null),window.removeEventListener("resize",je)}function je(){var e=document.getElementById("print-panel"),t=document.getElementById("mapContainer");if(!(!e||!J)){var n=e.offsetWidth||Fe,r=document.getElementById("centerPaneLayout"),a=document.getElementById("streetviewContainer"),i=0;a&&a.offsetWidth>0&&a.style.display!=="none"&&(i=a.offsetWidth);var o=r?r.getBoundingClientRect():t?t.getBoundingClientRect():{top:60,bottom:window.innerHeight};if(e.style.setProperty("top",o.top+"px","important"),e.style.setProperty("right",i+"px","important"),e.style.setProperty("bottom",window.innerHeight-o.bottom+"px","important"),t){var l=r?r.offsetWidth:window.innerWidth,u=l-i-n;t.style.setProperty("width",u+"px","important")}}}function ft(){var e=document.getElementById("print-panel");if(!(!e||e.querySelector(".print-resize-handle"))){var t=document.createElement("div");t.className="print-resize-handle",e.appendChild(t);var n=!1,r,a;t.addEventListener("mousedown",function(i){J&&(n=!0,r=i.clientX,a=e.offsetWidth,document.body.style.userSelect="none",i.preventDefault())}),document.addEventListener("mousemove",function(i){if(n){var o=i.clientX-r,l=Math.max(300,Math.min(a-o,window.innerWidth-200));e.style.setProperty("width",l+"px","important"),Fe=l;var u=document.getElementById("mapContainer");u&&u.style.setProperty("width","calc(100% - "+l+"px)","important"),i.preventDefault()}}),document.addEventListener("mouseup",function(){n&&(n=!1,document.body.style.userSelect="",Ee())})}}function Ze(){try{nt();var e=document.createElement("div");try{e.innerHTML=it()}catch(p){TnetLog.error("[Drucken] createPanelHTML() Fehler:",p),e.innerHTML='<div id="print-panel" class="print-panel print-panel-inline"><div class="print-panel-body"><p style="padding:10px;color:#c00">Drucken konnte nicht initialisiert werden.</p></div></div>'}var t=e.firstElementChild;if(!t){TnetLog.error("[Drucken] createPanelHTML() lieferte kein Element zur\xFCck");return}var n=document.getElementById("tnet-print-left-container");if(n){me=!0,t.classList.add("print-panel-inline"),t.classList.remove("hidden"),n.appendChild(t);var r=document.getElementById("tp_print_menu");r&&P.print&&P.print.enableLegacyPrint===!1&&(r.style.display="none");var a=document.getElementById("tp_tnet_print_menu");a&&a.addEventListener("toggle",function(){if(this.open){var p=function(){ke();var m=V();m&&(z=0,F=m.getView().getCenter().slice(),Ne(),He(),setTimeout(function(){ke(),Ue()},450))};Ie?p():Be().then(p).catch(function(m){TnetLog.error("[Drucken] Libraries konnten nicht geladen werden:",m)})}else ye(),_e()})}else document.body.appendChild(t);rt();var i=document.getElementById("print-layout");i&&i.addEventListener("change",function(){W(),De()});var o=document.getElementById("print-scale");o&&o.addEventListener("change",function(){if(W(),H(),x){var p=parseInt(o.value)||1e4;We(p)}});var l=document.getElementById("print-title");l&&l.addEventListener("input",H);var u=document.getElementById("print-user");u&&u.addEventListener("input",H);var s=document.getElementById("print-grid");s&&s.addEventListener("change",function(){document.getElementById("print-grid-color").style.display=s.checked?"flex":"none"});var d=document.getElementById("print-server-render");d&&P.print&&P.print.serverRenderDefault&&(d.checked=!0);var f=document.getElementById("print-svg-format");f&&P.print&&P.print.svgFormatDefault&&(f.checked=!0);var v=document.getElementById("print-rotation");v&&v.addEventListener("input",function(){var p=parseInt(v.value);z=p*Math.PI/180,be(),H()}),TnetLog.log("[Drucken] tnet-print.js initialisiert"),ft(),Be().catch(function(p){TnetLog.warn("[Drucken] Vorladen der PDF-Libraries fehlgeschlagen:",p)})}catch(p){TnetLog.error("[Drucken] init() Fehler:",p)}}document.readyState==="loading"?document.addEventListener("DOMContentLoaded",Ze):Ze()})();
+﻿/**
+ * tnet-print.js
+ *
+ * Drucken Side-Panel für tnet WebGIS.
+ * Nutzt die QGIS-Template PDF-Export API (templatePdfPrint / getAvailableLayouts)
+ * aus ol-pdf-printer/js/pdf-printer-init.js.
+ *
+ * Erzeugt das Panel-HTML dynamisch, lädt Layouts aus manifest.json,
+ * zeigt einen Druckrahmen als OL-Overlay auf der Karte und steuert
+ * den gesamten Export-Workflow.
+ *
+ * Einbindung in index_de.htm:
+ *   <link rel="stylesheet" href="/maps/tnet/css/tnet-print.css">
+ *   <script src="/maps/tnet/js/tnet-print.js"></script>
+ *
+ * @version    1.3
+ * @date       2026-02-22
+ * @copyright  Trigonet AG
+ * @author     Marco Dellenbach
+ */
+(function () {
+  'use strict';
+
+  function getAppRoot() {
+    return window.__TNET_APP_ROOT || '/maps';
+  }
+
+  // ================================================================
+  //  State
+  // ================================================================
+  var _map = null;
+  var _frameOverlay = null;
+  var _frameEl = null;
+  var _svgPreviewImg = null;   // <img> für Template-SVG-Vorschau
+  var _svgPreviewCache = {};   // {layoutValue: dataUrl}
+  var _svgRawCache = {};        // {layoutValue: serializedSvg} — vor Variablen-Ersetzung
+  var _isPrinting = false;
+  var _isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
+  var PDF_SAVE_URL = getAppRoot() + '/tnet/php/pdf-save.php';
+  var PDF_LOG_URL = getAppRoot() + '/tnet/php/pdf-log.php';  // Parallel-Logging
+  var _layouts = [];
+  var _globalConfig = {};  // Wird aus tnet-global-config.json5 befuellt
+  // ── Print-Job-Queue (für Background-Processing) ──
+  var _printQueue = [];  // Array von Job-Objekten
+  var _currentJobId = null;  // Job-ID des aktuellen Jobs
+  var _jobIdCounter = 0;  // Für Job-ID-Generierung
+  var _queueWorkerScheduled = false;  // Flag für setTimeout
+  // Fallback Scales (werden aus tnet-global-config.json5 überschrieben)
+  var _scales = [100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 75000, 100000, 250000, 500000, 1000000];
+  // Dock-State
+  var _isPrintPanelDocked = true;  // Default: angedockt
+  var _savedPrintDockedWidth = 380;
+  var _inlineMode = false;          // true = Panel im Sidebar-Akkordeon (tp_tnet_print_menu)
+  var _printResizeObserver = null;
+  var _printCenter = null;           // Druckrahmen-Mittelpunkt in Kartenkoordinaten (unabhängig vom View-Center)
+  var _frameRotation = 0;            // Rahmen-Rotation in Radiant (unabhängig von Kartenrotation)
+  var _savedInteractions = [];       // Deaktivierte OL-Interaktionen (nach Schliessen wiederhergestellt)
+  var _savedPickingStates = {};      // Gespeicherter Picking-Zustand pro Map-ID
+  var _frameDrag = null;             // Aktiver Drag-State: {type:'move'|'rotate', ...}
+  var _frameDragHandlers = null;     // Document-Event-Handler-Referenzen für Cleanup
+
+  // ================================================================
+  //  Library-Loader — lädt UMD-Scripts per fetch+eval,
+  //  sodass «define» nur während der Ausführung versteckt ist
+  //  und Dojos AMD-Loader nicht gestört wird.
+  // ================================================================
+  var _libsReady = false;
+  var _libsPromise = null;
+  var LIB_BASE = getAppRoot() + '/tnet/ol-pdf-printer/js/';
+  var LIBS = [
+    LIB_BASE + 'jspdf.umd.min.js',
+    LIB_BASE + 'svg2pdf.umd.min.js',
+    LIB_BASE + 'pdf-fonts.js',
+    LIB_BASE + 'template-pdf-export.js',
+    LIB_BASE + 'pdf-printer-init.js'
+  ];
+
+  /**
+   * Lädt ein Script per fetch(), versteckt «define» nur
+   * für den synchronen eval-Aufruf und stellt es danach
+   * sofort wieder her.
+   */
+  function loadScriptSafe(src) {
+    return fetch(src).then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status + ' beim Laden von ' + src);
+      return r.text();
+    }).then(function (code) {
+      var saved = window.define;
+      window.define = undefined;
+      try {
+        // indirect eval → globaler Scope
+        (0, eval)(code);   // jshint ignore:line
+      } finally {
+        window.define = saved;
+      }
+    });
+  }
+
+  /**
+   * Lädt alle PDF-Libraries sequenziell.
+   * Gibt ein Promise zurück, das resolved wenn alle bereit sind.
+   */
+  function loadLibraries() {
+    if (_libsPromise) return _libsPromise;
+
+    // Config muss gesetzt sein BEVOR pdf-printer-init.js geladen wird
+    window._pdfPrinterConfig = {
+      filename: 'tnet_Kartenexport',
+      templatesBasePath: getAppRoot() + '/tnet/ol-pdf-printer/qgis-templates'
+    };
+
+    _libsPromise = LIBS.reduce(function (chain, src) {
+      return chain.then(function () { return loadScriptSafe(src); });
+    }, Promise.resolve()).then(function () {
+      _libsReady = true;
+      TnetLog.log('[Drucken] PDF-Libraries geladen ✓');
+    });
+
+    return _libsPromise;
+  }
+
+  // ================================================================
+  //  Config laden (tnet-global-config.json5 → scales)
+  // ================================================================
+  function loadScalesFromConfig() {
+    try {
+      var xhr = new XMLHttpRequest();
+      xhr.open('GET', getAppRoot() + '/tnet/config/tnet-global-config.json5', false);
+      xhr.send();
+      if (xhr.status === 200) {
+          var text = xhr.responseText;
+          // Einfacher JSON5-Parser: Kommentare + trailing commas + unquoted keys
+          var lines = text.split('\n');
+          var cleaned = [];
+          for (var j = 0; j < lines.length; j++) {
+            var line = lines[j];
+            var inStr = false, strCh = null, cp = -1;
+            for (var k = 0; k < line.length; k++) {
+              var c = line[k];
+              if ((c === '"' || c === "'") && (k === 0 || line[k - 1] !== '\\')) {
+                if (!inStr) { inStr = true; strCh = c; }
+                else if (c === strCh) { inStr = false; }
+              }
+              if (!inStr && k < line.length - 1 && line[k] === '/' && line[k + 1] === '/') { cp = k; break; }
+            }
+            if (cp > -1) line = line.substring(0, cp);
+            if (line.trim()) cleaned.push(line);
+          }
+          var jsonText = cleaned.join('\n')
+            .replace(/,(\s*[}\]])/g, '$1')
+            .replace(/((?:^|[{,])\s*)([a-zA-Z_][a-zA-Z0-9_-]*)\s*:/gm, '$1"$2":')
+            .replace(/'([^'\\]*(?:\\.[^'\\]*)*)'/g, '"$1"');
+        var config = JSON.parse(jsonText);
+        _globalConfig = config;  // Gesamte Config speichern (fuer print.pdfRetentionDays etc.)
+        if (config.scales && Array.isArray(config.scales)) {
+          _scales = config.scales;
+          window._tnetScales = _scales;
+          TnetLog.log('[Drucken] ' + _scales.length + ' Massstäbe aus Config geladen');
+        }
+      }
+    } catch (e) {
+      TnetLog.warn('[Drucken] Config nicht geladen:', e.message);
+    }
+  }
+
+  // ================================================================
+  //  Massstab-Dropdown dynamisch rendern
+  // ================================================================
+  function renderScaleDropdown() {
+    var select = document.getElementById('print-scale');
+    if (!select) return;
+    select.innerHTML = '';
+    _scales.forEach(function (s) {
+      var opt = document.createElement('option');
+      opt.value = s;
+      opt.textContent = '1 : ' + s.toLocaleString('de-CH');
+      if (s === 10000) opt.selected = true;
+      select.appendChild(opt);
+    });
+  }
+
+  // ================================================================
+  //  Panel-HTML erzeugen
+  // ================================================================
+  function createPanelHTML() {
+    return '' +
+      '<div id="print-panel" class="print-panel hidden">' +
+        '<div class="print-panel-header">' +
+          '<span class="print-panel-title">\uD83D\uDDA8 Drucken / Export</span>' +
+          '<div class="print-panel-actions">' +
+            '<button class="print-panel-btn" id="print-dock-btn" onclick="togglePrintPanelDock()" title="Floating">' +
+              TnetIcons.get('undock', null, {width: '16', height: '16'}) +
+            '</button>' +
+            '<button class="print-panel-btn print-panel-close" onclick="closePrintPanel()" title="Schliessen">&times;</button>' +
+          '</div>' +
+        '</div>' +
+        '<div class="print-panel-body">' +
+
+          // Layout
+          '<div class="print-section">' +
+            '<label>Layout</label>' +
+            '<select id="print-layout"><option value="">Wird geladen...</option></select>' +
+          '</div>' +
+
+          // Massstab + Auflösung nebeneinander
+          '<div class="print-row-2col">' +
+            '<div class="print-section">' +
+              '<label>Massstab</label>' +
+              '<select id="print-scale"></select>' +
+            '</div>' +
+            '<div class="print-section print-section-dpi">' +
+              '<label>Aufl\u00f6sung</label>' +
+              '<div class="print-radio-row">' +
+                '<label class="print-radio"><input type="radio" name="print-dpi" value="150" checked> 150 dpi</label>' +
+                '<label class="print-radio"><input type="radio" name="print-dpi" value="300"> 300 dpi</label>' +
+              '</div>' +
+            '</div>' +
+          '</div>' +
+
+          // Kartentitel
+          '<div class="print-section">' +
+            '<label>Kartentitel</label>' +
+            '<input type="text" id="print-title" placeholder="Kartentitel" value="Situationsplan">' +
+          '</div>' +
+
+          // Benutzer
+          '<div class="print-section">' +
+            '<label>Benutzer</label>' +
+            '<input type="text" id="print-user" placeholder="Benutzer">' +
+          '</div>' +
+
+          // Server-Rendering (vorerst ausgeblendet)
+          '<div class="print-section print-checks" style="display:none">' +
+            '<label class="print-check"><input type="checkbox" id="print-server-render"> ' +
+            'Server-Rendering <span style="color:#888;font-size:11px">(Bilder direkt vom Mapserver)</span></label>' +
+          '</div>' +
+
+          // SVG-Vektorgrafik (vorerst ausgeblendet)
+          '<div class="print-section print-checks print-svg-section" id="print-svg-section" style="display:none">' +
+            '<label class="print-check"><input type="checkbox" id="print-svg-format"> ' +
+            'Vektorgrafik (SVG) <span style="color:#888;font-size:11px">(schärfer, grössere Datei)</span></label>' +
+          '</div>' +
+
+          // Koordinatennetz (vorerst deaktiviert)
+          // '<div class="print-section print-checks">' +
+          //   '<label><input type="checkbox" id="print-grid"> Koordinatennetz</label>' +
+          //   '<div id="print-grid-color" class="print-grid-colors" style="display:none">' +
+          //     '<label class="print-radio"><input type="radio" name="print-gridcolor" value="schwarz" checked> Schwarz</label>' +
+          //     '<label class="print-radio"><input type="radio" name="print-gridcolor" value="weiss"> Weiss</label>' +
+          //   '</div>' +
+          // '</div>' +
+
+          // Rotation
+          '<div class="print-section print-frame-info">' +
+            '<label>Kartenrotation</label>' +
+            '<div class="print-rotation-row">' +
+              '<input type="range" id="print-rotation" min="-180" max="180" value="0" step="1">' +
+              '<span id="print-rotation-val">0\u00b0</span>' +
+            '</div>' +
+            '<div class="print-frame-controls">' +
+              '<button class="print-ctrl-btn" onclick="printRotateBy(-15)" title="-15\u00b0">\u21ba 15\u00b0</button>' +
+              '<button class="print-ctrl-btn" onclick="printRotateBy(15)" title="+15\u00b0">\u21bb 15\u00b0</button>' +
+              '<button class="print-ctrl-btn" onclick="printResetRotation()" title="Auf 0\u00b0 zur\u00fccksetzen">\u27f3 0\u00b0</button>' +
+            '</div>' +
+          '</div>' +
+
+          // Hinweis
+          '<div class="print-section print-hint-box">' +
+            'Rahmen verschieben: auf den Rahmen klicken und ziehen. Drehen: an einer Ecke ziehen. Zoomen: Mausrad.' +
+          '</div>' +
+
+          // Drucken-Button
+          '<div class="print-section">' +
+            '<button class="print-action-btn" id="print-exec-btn" onclick="executePrint()">' +
+              TnetIcons.get('printer', null, {width: '18', height: '18'}) +
+              ' PDF erstellen' +
+            '</button>' +
+          '</div>' +
+
+          // Fortschritt
+          '<div class="print-section print-progress" id="print-progress" style="display:none">' +
+            '<div class="print-progress-bar"><div class="print-progress-fill" id="print-progress-fill"></div></div>' +
+            '<div class="print-progress-text" id="print-progress-text">Wird erstellt...</div>' +
+          '</div>' +
+
+          // PDF Auftr\u00e4ge (vereinigtes Accordion: Queue + Downloads)
+          '<div class="print-accordion" id="print-jobs-acc" style="display:none">' +
+            '<div class="print-acc-header" onclick="togglePrintAccordion(\'print-jobs-acc\')">' +
+              '<span class="print-acc-arrow">&#9654;</span> \uD83D\uDCCB PDF Auftr\u00e4ge (<span id="print-jobs-count">0</span>)' +
+            '</div>' +
+            '<div class="print-acc-panel">' +
+              '<div id="print-jobs-list" class="print-jobs-list"></div>' +
+              '<iframe id="print-preview-frame" class="print-preview-frame" style="display:none"></iframe>' +
+            '</div>' +
+          '</div>' +
+
+        '</div>' +
+      '</div>';
+  }
+
+  // ================================================================
+  //  Map holen
+  // ================================================================
+  function getMap() {
+    if (_map) return _map;
+    try {
+      _map = window._olMap ||
+        (njs.AppManager.Maps && njs.AppManager.Maps.main && njs.AppManager.Maps.main.mapObj) || null;
+    } catch (e) { /* noop */ }
+    if (_map && !window._olMap) window._olMap = _map;
+    return _map;
+  }
+
+  // ================================================================
+  //  Layouts laden
+  // ================================================================
+  function loadLayouts() {
+    if (typeof getAvailableLayouts !== 'function') {
+      TnetLog.warn('[Drucken] getAvailableLayouts() nicht verfügbar');
+      return;
+    }
+    getAvailableLayouts().then(function (layouts) {
+      _layouts = layouts;
+      var select = document.getElementById('print-layout');
+      if (!select) return;
+      select.innerHTML = '';
+      if (layouts.length === 0) {
+        select.innerHTML = '<option value="">Keine Layouts verfügbar</option>';
+        return;
+      }
+      // Standard-Layout: A4 Hoch bevorzugen
+      var defaultIdx = 0;
+      for (var di = 0; di < layouts.length; di++) {
+        if (layouts[di].paper === 'A4' && layouts[di].orientation === 'portrait') {
+          defaultIdx = di;
+          break;
+        }
+      }
+      layouts.forEach(function (l, idx) {
+        var opt = document.createElement('option');
+        opt.value = l.value;
+        opt.textContent = l.label;
+        if (idx === defaultIdx) opt.selected = true;
+        select.appendChild(opt);
+      });
+      updateFrameSize();
+      loadSvgPreview();
+      TnetLog.log('[Drucken] ' + layouts.length + ' Layouts geladen');
+    });
+  }
+
+  // ================================================================
+  //  Druckrahmen (OL Overlay) + SVG-Template-Vorschau
+  // ================================================================
+  function showPrintFrame() {
+    var map = getMap();
+    if (!map) return;
+    removePrintFrame();
+
+    _frameEl = document.createElement('div');
+    _frameEl.className = 'print-frame-rect';
+
+    // SVG-Vorschau-Bild (wird per loadSvgPreview befüllt)
+    _svgPreviewImg = document.createElement('img');
+    _svgPreviewImg.className = 'print-frame-svg-preview';
+    _svgPreviewImg.style.display = 'none';
+    _svgPreviewImg.draggable = false;
+    _frameEl.appendChild(_svgPreviewImg);
+
+    // Ecken-Handles (Drehen) + Mittelpunkt-Marker — nur auf Desktop
+    if (!_isMobile) {
+      ['nw', 'ne', 'sw', 'se'].forEach(function (corner) {
+        var h = document.createElement('div');
+        h.className = 'print-corner-handle print-corner-' + corner;
+        h.setAttribute('data-corner', corner);
+        _frameEl.appendChild(h);
+      });
+      var centerDot = document.createElement('div');
+      centerDot.className = 'print-center-dot';
+      _frameEl.appendChild(centerDot);
+    }
+
+    _frameOverlay = new ol.Overlay({
+      element: _frameEl,
+      positioning: 'center-center',
+      position: _printCenter,
+      stopEvent: true,
+      className: 'print-frame-overlay-container'
+    });
+    map.addOverlay(_frameOverlay);
+
+    // Wheel-Events vom Rahmen an OL-Viewport weiterleiten (stopEvent:true schluckt sie sonst)
+    _frameEl.addEventListener('wheel', function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      var vp = map.getViewport();
+      if (vp) {
+        vp.dispatchEvent(new WheelEvent('wheel', {
+          bubbles: true, cancelable: true,
+          deltaY: e.deltaY, deltaX: e.deltaX, deltaMode: e.deltaMode,
+          clientX: e.clientX, clientY: e.clientY
+        }));
+      }
+    }, { passive: false });
+
+    // Mobile: Frame bis nach Zoom-Animation unsichtbar (wird in adjustMapZoomMobile eingeblendet)
+    if (_isMobile) {
+      _frameEl.style.opacity = '0';
+      _frameEl.style.transition = 'opacity 0.2s';
+    }
+
+    // Drag/Rotate-Interaktion — nur auf Desktop
+    if (!_isMobile) {
+      initFrameInteraction(map);
+    }
+
+    // Initiale Grösse und Position berechnen
+    updateFrameSize();
+    // SVG-Vorschau laden
+    loadSvgPreview();
+
+    map.getView().on('change:center', _onViewChange);
+    map.getView().on('change:resolution', _onViewChange);
+    map.getView().on('change:rotation', _onViewChange);
+  }
+
+  function _onViewChange() {
+    // Mobile: Frame folgt der Kartenmitte (Benutzer verschiebt die Karte, nicht den Rahmen)
+    if (_isMobile) {
+      var m = getMap();
+      if (m) {
+        _printCenter = m.getView().getCenter().slice();
+        if (_frameOverlay) _frameOverlay.setPosition(_printCenter);
+      }
+    }
+    updateFrameSize();
+  }
+
+  function updateFrameSize() {
+    if (!_frameEl || !_map) return;
+    var layoutVal = (document.getElementById('print-layout') || {}).value || '';
+    var layout = _layouts.find(function (l) { return l.value === layoutVal; });
+
+    // mapFrame-Dimensionen aus dem Manifest (mm auf Papier)
+    var mapFrameW_mm, mapFrameH_mm;
+    if (layout && layout.mapFrame) {
+      mapFrameW_mm = layout.mapFrame.width_mm;
+      mapFrameH_mm = layout.mapFrame.height_mm;
+    } else {
+      mapFrameW_mm = (layout && layout.width_mm) || 210;
+      mapFrameH_mm = (layout && layout.height_mm) || 297;
+    }
+
+    // Gewählter Druckmassstab
+    var scaleVal = parseInt((document.getElementById('print-scale') || {}).value) || 10000;
+
+    var view = _map.getView();
+    var mpu  = view.getProjection().getMetersPerUnit() || 1;
+    var center = view.getCenter();
+    var res  = view.getResolution();
+
+    // ── Geographische Ausdehnung in Projektionseinheiten (LV95: Meter) ──
+    var halfW = (mapFrameW_mm / 1000) * scaleVal / (2 * mpu);
+    var halfH = (mapFrameH_mm / 1000) * scaleVal / (2 * mpu);
+
+    // ── Pixelgrösse MAP_AREA ──
+    var w = (halfW * 2) / res;
+    var h = (halfH * 2) / res;
+
+    // ── Papiergrösse in Pixeln — Rahmen zeigt gesamtes Papier ──
+    var paperW_mm = (layout && layout.width_mm) || 210;
+    var paperH_mm = (layout && layout.height_mm) || 297;
+    var wPaper = w * (paperW_mm / mapFrameW_mm);
+    var hPaper = h * (paperH_mm / mapFrameH_mm);
+
+    _frameEl.style.width  = Math.round(wPaper) + 'px';
+    _frameEl.style.height = Math.round(hPaper) + 'px';
+
+    // ── MAP_AREA-Offset im Papier (für Overlay-Offset und Transform-Origin) ──
+    var mfX_mm = (layout && layout.mapFrame && layout.mapFrame.x_mm) || 0;
+    var mfY_mm = (layout && layout.mapFrame && layout.mapFrame.y_mm) || 0;
+    // Auto-Fix: Falls y_mm die Unterkante ist (QGIS bottom-left-Origin)
+    if (mfY_mm + mapFrameH_mm > paperH_mm * 1.05) {
+      mfY_mm = mfY_mm - mapFrameH_mm;
+    }
+    // MAP_AREA-Zentrum relativ zum Papier (Prozent)
+    var mapCenterPctX = (mfX_mm + mapFrameW_mm / 2) / paperW_mm * 100;
+    var mapCenterPctY = (mfY_mm + mapFrameH_mm / 2) / paperH_mm * 100;
+
+    // Transform-Origin auf MAP_AREA-Zentrum legen (für korrekte Rotation)
+    _frameEl.style.transformOrigin = mapCenterPctX.toFixed(2) + '% ' + mapCenterPctY.toFixed(2) + '%';
+
+    // Overlay-Position = _printCenter (= MAP_AREA-Zentrum auf der Karte).
+    // Offset verschiebt den Rahmen, damit das MAP_AREA-Zentrum auf _printCenter liegt
+    // (da positioning:center-center das Papier-Zentrum auf die Position setzt).
+    if (_frameOverlay) {
+      _frameOverlay.setPosition(_printCenter || center);
+      var mapCenterPxX = mapCenterPctX / 100 * wPaper;
+      var mapCenterPxY = mapCenterPctY / 100 * hPaper;
+      _frameOverlay.setOffset([
+        Math.round(wPaper / 2 - mapCenterPxX),
+        Math.round(hPaper / 2 - mapCenterPxY)
+      ]);
+    }
+
+    // Mittelpunkt-Marker auf MAP_AREA-Zentrum verschieben
+    var centerDot = _frameEl.querySelector('.print-center-dot');
+    if (centerDot) {
+      centerDot.style.left = mapCenterPctX.toFixed(2) + '%';
+      centerDot.style.top  = mapCenterPctY.toFixed(2) + '%';
+    }
+
+    // ── SVG-Vorschau: füllt den gesamten Rahmen (= Papiergrösse) ──
+    if (_svgPreviewImg && _svgPreviewImg.style.display !== 'none' && layout) {
+      _svgPreviewImg.style.width  = Math.round(wPaper) + 'px';
+      _svgPreviewImg.style.height = Math.round(hPaper) + 'px';
+      _svgPreviewImg.style.left = '0px';
+      _svgPreviewImg.style.top  = '0px';
+    }
+  }
+
+  function removePrintFrame() {
+    // Drag-Handler entfernen
+    if (_frameDragHandlers) {
+      document.removeEventListener('mousemove', _frameDragHandlers.move);
+      document.removeEventListener('mouseup', _frameDragHandlers.up);
+      _frameDragHandlers = null;
+    }
+    _frameDrag = null;
+    document.body.style.cursor = '';
+
+    if (_frameOverlay && _map) {
+      _map.removeOverlay(_frameOverlay);
+      _map.getView().un('change:center', _onViewChange);
+      _map.getView().un('change:resolution', _onViewChange);
+      _map.getView().un('change:rotation', _onViewChange);
+    }
+    _frameOverlay = null;
+    _frameEl = null;
+    _svgPreviewImg = null;
+  }
+
+  // ================================================================
+  //  Rahmen-Drag (Verschieben) + Ecken-Drag (Drehen)
+  // ================================================================
+  function initFrameInteraction(map) {
+    // ── Verschieben: Mousedown auf Frame (nicht Ecke) ──
+    function onFrameMouseDown(e) {
+      if (e.target.classList.contains('print-corner-handle')) return;
+      var res = map.getView().getResolution();
+      var rot = map.getView().getRotation();
+      _frameDrag = {
+        type:        'move',
+        startPx:     [e.clientX, e.clientY],
+        startCenter: _printCenter.slice(),
+        res:         res,
+        cosR:        Math.cos(rot),
+        sinR:        Math.sin(rot)
+      };
+      document.body.style.cursor = 'grabbing';
+      e.preventDefault();
+      e.stopPropagation();
+    }
+
+    // ── Drehen: Mousedown auf Ecken-Handle ──
+    var corners = _frameEl.querySelectorAll('.print-corner-handle');
+    corners.forEach(function (corner) {
+      corner.addEventListener('mousedown', function (e) {
+        // mapRect + centerPx einmalig beim Drag-Start lesen – kein Reflow im mousemove
+        var mapRect  = map.getTargetElement().getBoundingClientRect();
+        var centerPx = map.getPixelFromCoordinate(_printCenter);
+        var dx = e.clientX - mapRect.left - centerPx[0];
+        var dy = e.clientY - mapRect.top  - centerPx[1];
+        _frameDrag = {
+          type:               'rotate',
+          startAngle:         Math.atan2(dy, dx),
+          startFrameRotation: _frameRotation,
+          mapLeft:            mapRect.left,   // gecacht – kein Reflow während Drag
+          mapTop:             mapRect.top,
+          centerPx:           centerPx        // gecacht – kein getPixelFromCoordinate während Drag
+        };
+        document.body.style.cursor = 'crosshair';
+        e.preventDefault();
+        e.stopPropagation();
+      });
+    });
+
+    // ── Document-Level Move/Up ──
+    function onDocMouseMove(e) {
+      if (!_frameDrag) return;
+
+      if (_frameDrag.type === 'move') {
+        // Auflösung + Rotation wurden beim mousedown gecacht → kein DOM-Zugriff hier
+        var dpx = e.clientX - _frameDrag.startPx[0];
+        var dpy = e.clientY - _frameDrag.startPx[1];
+        var res = _frameDrag.res;
+        var cosR = _frameDrag.cosR;
+        var sinR = _frameDrag.sinR;
+        // Screen-Delta → Map-Delta (korrekt auch bei rotierter Karte)
+        _printCenter[0] = _frameDrag.startCenter[0] + (dpx * cosR - dpy * sinR) * res;
+        _printCenter[1] = _frameDrag.startCenter[1] + (dpx * sinR + dpy * cosR) * (-res);
+        _frameOverlay.setPosition(_printCenter.slice());
+
+      } else if (_frameDrag.type === 'rotate') {
+        // mapLeft/mapTop + centerPx wurden beim mousedown gecacht → kein DOM-Zugriff hier
+        var dx = e.clientX - _frameDrag.mapLeft - _frameDrag.centerPx[0];
+        var dy = e.clientY - _frameDrag.mapTop  - _frameDrag.centerPx[1];
+        var currentAngle = Math.atan2(dy, dx);
+        var angleDiff    = currentAngle - _frameDrag.startAngle;
+        _frameRotation = _frameDrag.startFrameRotation + angleDiff;
+        applyFrameRotation();
+        refreshSvgPreviewValues();
+      }
+    }
+
+    function onDocMouseUp() {
+      if (!_frameDrag) return;
+      _frameDrag = null;
+      document.body.style.cursor = '';
+    }
+
+    _frameEl.addEventListener('mousedown', onFrameMouseDown);
+    document.addEventListener('mousemove', onDocMouseMove);
+    document.addEventListener('mouseup',   onDocMouseUp);
+
+    // Referenzen für Cleanup in removePrintFrame()
+    _frameDragHandlers = { move: onDocMouseMove, up: onDocMouseUp };
+  }
+
+  // ================================================================
+  //  SVG-Template-Vorschau laden
+  //
+  //  Lädt das SVG des gewählten Layouts, stanzt die MAP_AREA aus
+  //  (transparent), und zeigt es als Bild über dem Druckrahmen.
+  // ================================================================
+  function loadSvgPreview() {
+    if (!_svgPreviewImg) return;
+    var layoutVal = (document.getElementById('print-layout') || {}).value || '';
+    var layout = _layouts.find(function (l) { return l.value === layoutVal; });
+    if (!layout || !layout.files || !layout.files.svg) {
+      _svgPreviewImg.style.display = 'none';
+      return;
+    }
+
+    // Cache prüfen — wenn Roh-SVG bereits vorhanden, nur Variablen neu einsetzen
+    if (_svgRawCache[layoutVal]) {
+      refreshSvgPreviewValues();
+      return;
+    }
+
+    // SVG laden über die TemplatePdfExport-API
+    if (typeof TemplatePdfExport === 'undefined' || !TemplatePdfExport.loadTemplateSvg) {
+      _svgPreviewImg.style.display = 'none';
+      return;
+    }
+
+    TemplatePdfExport.loadTemplateSvg(layout).then(function (svgText) {
+      var parser = new DOMParser();
+      var doc = parser.parseFromString(svgText, 'image/svg+xml');
+      var svg = doc.documentElement;
+
+      // MAP_AREA-Elemente ausblenden
+      var allEls = doc.querySelectorAll('[id]');
+      for (var i = 0; i < allEls.length; i++) {
+        var elId = allEls[i].getAttribute('id') || '';
+        if (elId.indexOf('MAP_AREA') >= 0 && elId.indexOf('LABEL') < 0) {
+          allEls[i].setAttribute('visibility', 'hidden');
+        }
+      }
+
+      // "[ MAP AREA ]" Text entfernen
+      var texts = doc.querySelectorAll('text');
+      for (var j = 0; j < texts.length; j++) {
+        if ((texts[j].textContent || '').indexOf('MAP AREA') >= 0) {
+          texts[j].setAttribute('visibility', 'hidden');
+        }
+      }
+
+      // Gestrichelte blaue MAP_AREA-Rects ausblenden
+      var svgRects = doc.querySelectorAll('rect');
+      for (var k = 0; k < svgRects.length; k++) {
+        var st = svgRects[k].getAttribute('style') || '';
+        var da = svgRects[k].getAttribute('stroke-dasharray') || '';
+        var sk = svgRects[k].getAttribute('stroke') || '';
+        if ((st.indexOf('dash') >= 0 || da) &&
+            (sk.indexOf('2196') >= 0 || st.indexOf('2196') >= 0)) {
+          svgRects[k].setAttribute('visibility', 'hidden');
+        }
+      }
+
+      // Originalen QGIS-Seitenhintergrund (weisser Full-Page-Path) entfernen
+      // QGIS exportiert <g fill="#ffffff"><path d="M-2,-2 L3510,-2 ..."/></g>
+      var vb = svg.getAttribute('viewBox');
+      var vbParts = vb ? vb.split(/[\s,]+/).map(Number) : null;
+      if (vbParts) {
+        var vbW = vbParts[2], vbH = vbParts[3];
+        var bgGroups = doc.querySelectorAll('g[fill="#ffffff"], g[fill="white"]');
+        for (var bg = 0; bg < bgGroups.length; bg++) {
+          var bgPaths = bgGroups[bg].querySelectorAll('path');
+          for (var bp = 0; bp < bgPaths.length; bp++) {
+            var pd = bgPaths[bp].getAttribute('d') || '';
+            var coords = pd.match(/-?\d+\.?\d*/g);
+            if (coords && coords.length >= 8) {
+              var xs = [parseFloat(coords[0]), parseFloat(coords[2]), parseFloat(coords[4]), parseFloat(coords[6])];
+              var ys = [parseFloat(coords[1]), parseFloat(coords[3]), parseFloat(coords[5]), parseFloat(coords[7])];
+              var minX = Math.min.apply(null, xs), maxX = Math.max.apply(null, xs);
+              var minY = Math.min.apply(null, ys), maxY = Math.max.apply(null, ys);
+              var pathW = maxX - minX, pathH = maxY - minY;
+              if (pathW >= vbW * 0.9 && pathH >= vbH * 0.9) {
+                bgGroups[bg].setAttribute('visibility', 'hidden');
+                TnetLog.log('[Drucken] QGIS-Seitenhintergrund ausgeblendet');
+              }
+            }
+          }
+        }
+      }
+
+      // Weisses Blatt mit MAP_AREA-Loch (Compound Path, fill-rule evenodd)
+      if (vb && layout.mapFrame) {
+        var parts = vb.split(/[\s,]+/).map(Number);
+        var paperW = layout.width_mm || 210;
+        var paperH = layout.height_mm || 297;
+        var sx = parts[2] / paperW;
+        var sy = parts[3] / paperH;
+        var mf = layout.mapFrame;
+        var mfY = mf.y_mm;
+        if (mfY + mf.height_mm > paperH * 1.05) mfY = mfY - mf.height_mm;
+
+        // Outer rect (CW) = ganzes Blatt, Inner rect (CCW) = MAP_AREA Loch
+        var ox = parts[0], oy = parts[1], ow = parts[2], oh = parts[3];
+        var ix = (mf.x_mm * sx), iy = (mfY * sy);
+        var iw = (mf.width_mm * sx), ih = (mf.height_mm * sy);
+
+        var d = 'M' + ox + ',' + oy
+              + ' L' + (ox + ow) + ',' + oy
+              + ' L' + (ox + ow) + ',' + (oy + oh)
+              + ' L' + ox + ',' + (oy + oh)
+              + ' Z'
+              + ' M' + ix.toFixed(2) + ',' + iy.toFixed(2)
+              + ' L' + ix.toFixed(2) + ',' + (iy + ih).toFixed(2)
+              + ' L' + (ix + iw).toFixed(2) + ',' + (iy + ih).toFixed(2)
+              + ' L' + (ix + iw).toFixed(2) + ',' + iy.toFixed(2)
+              + ' Z';
+
+        var maskPath = doc.createElementNS('http://www.w3.org/2000/svg', 'path');
+        maskPath.setAttribute('d', d);
+        maskPath.setAttribute('fill', 'white');
+        maskPath.setAttribute('fill-rule', 'evenodd');
+        // Als allererstes Element einfügen (unter allen SVG-Inhalten)
+        if (svg.firstChild) svg.insertBefore(maskPath, svg.firstChild);
+        else svg.appendChild(maskPath);
+      }
+
+      var serialized = new XMLSerializer().serializeToString(doc);
+      // Roh-SVG cachen (ohne Variablen-Ersetzung) für Live-Aktualisierung
+      _svgRawCache[layoutVal] = serialized;
+      // Variablen ersetzen und Vorschau anzeigen
+      refreshSvgPreviewValues();
+      TnetLog.log('[Drucken] SVG-Vorschau geladen für:', layoutVal);
+    }).catch(function (err) {
+      TnetLog.warn('[Drucken] SVG-Vorschau Fehler:', err.message);
+      if (_svgPreviewImg) _svgPreviewImg.style.display = 'none';
+    });
+  }
+
+  // ================================================================
+  //  SVG-Vorschau: Live-Variablen-Ersetzung
+  //
+  //  Ersetzt {{PLACEHOLDER}} im gecachten Roh-SVG mit aktuellen
+  //  Formularwerten. Wird bei Änderungen an Titel, Benutzer,
+  //  Massstab etc. automatisch aufgerufen.
+  // ================================================================
+
+  /**
+   * Sammelt aktuelle Formularwerte für die Vorschau-Ersetzung.
+   */
+  function getPreviewValues() {
+    var scaleVal = parseInt((document.getElementById('print-scale') || {}).value) || 10000;
+    var now = new Date();
+    return {
+      title:       (document.getElementById('print-title') || {}).value || '',
+      scaleText:   '1:' + scaleVal.toLocaleString('de-CH'),
+      date:        now.toLocaleDateString('de-CH'),
+      time:        now.toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' }),
+      user:        (document.getElementById('print-user') || {}).value || '',
+      coords:      _map ? (Math.round(_map.getView().getCenter()[0]).toLocaleString('de-CH') + ' / ' +
+                           Math.round(_map.getView().getCenter()[1]).toLocaleString('de-CH')) : '',
+      rotationDeg: parseInt((document.getElementById('print-rotation') || {}).value) || 0
+    };
+  }
+
+  /**
+   * Ersetzt {{PLACEHOLDER}} im gecachten Roh-SVG, zeichnet dynamische
+   * Grafik-Elemente (Massstabsbalken, Massstabstext, Nordpfeil-Rotation)
+   * und aktualisiert das Vorschaubild.
+   * Wird bei Formularänderungen und initial nach loadSvgPreview() aufgerufen.
+   */
+  function refreshSvgPreviewValues() {
+    if (!_svgPreviewImg) return;
+    var layoutVal = (document.getElementById('print-layout') || {}).value || '';
+    var rawSvg = _svgRawCache[layoutVal];
+    if (!rawSvg) return;  // Noch nicht geladen
+
+    var values = getPreviewValues();
+    var result = rawSvg;
+
+    // Bekannte Platzhalter ersetzen
+    var replacements = {
+      'TITLE':       values.title,
+      'SCALE':       values.scaleText,
+      'SCALETEXT':   values.scaleText,
+      'SCALEDOT':    values.scaleText,
+      'COORDINATES': values.coords,
+      'DATE':        values.date,
+      'TIME':        values.time,
+      'USER':        values.user
+    };
+
+    for (var key in replacements) {
+      if (!replacements.hasOwnProperty(key)) continue;
+      var placeholder = '{{' + key + '}}';
+      if (result.indexOf(placeholder) !== -1) {
+        result = result.split(placeholder).join(replacements[key]);
+      }
+    }
+
+    // Unbekannte {{VARIABLE}} entfernen
+    result = result.replace(/\{\{[A-Z_]+\}\}/g, '');
+
+    // ── Dynamische Grafik-Elemente in SVG einsetzen ──
+    // Massstabsbalken + Massstabstext als SVG erzeugen
+    result = insertDynamicSvgElements(result, values);
+
+    var dataUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(result);
+    // Fertigen dataUrl im Bild-Cache aktualisieren (für updateFrameSize)
+    _svgPreviewCache[layoutVal] = dataUrl;
+    _svgPreviewImg.src = dataUrl;
+    _svgPreviewImg.style.display = '';
+  }
+
+  /**
+   * Berechnet ein "schönes" rundes Segment für den Massstabsbalken.
+   * (Gleiche Logik wie niceScaleSegment in template-pdf-export.js)
+   */
+  function niceScaleSegmentPreview(maxWidthMm, scaleNumber) {
+    var maxDistM  = maxWidthMm * scaleNumber / 1000;
+    var targetSeg = maxDistM / 5;
+    var magnitude = Math.pow(10, Math.floor(Math.log10(targetSeg)));
+    var niceVals  = [1, 2, 2.5, 5, 10];
+    for (var i = 0; i < niceVals.length; i++) {
+      if (niceVals[i] * magnitude >= targetSeg * 0.8) {
+        return niceVals[i] * magnitude;
+      }
+    }
+    return magnitude * 10;
+  }
+
+  /**
+   * Sucht rote Bbox-Rects (data-dynamic-type) im SVG,
+   * blendet sie aus und fügt dynamische SVG-Elemente ein:
+   * - scaleBar: alternierende Schwarz/Weiss-Segmente mit Beschriftung
+   * - scaleLabel: Massstabstext (z.B. "1:10'000")
+   * Zusätzlich wird der QGIS-Nordpfeil bei Rotation gedreht.
+   */
+  function insertDynamicSvgElements(svgText, values) {
+    var parser = new DOMParser();
+    var doc = parser.parseFromString(svgText, 'image/svg+xml');
+    var svg = doc.documentElement;
+    var NS = 'http://www.w3.org/2000/svg';
+
+    // Massstab aus Text parsen
+    var scaleNumber = 0;
+    if (values.scaleText) {
+      var m = values.scaleText.match(/1\s*:\s*([\d\s''\u2019\u2018\u00A0.,]+)/);
+      if (m) scaleNumber = parseInt(m[1].replace(/[^0-9]/g, ''), 10) || 0;
+    }
+
+    // Alle <rect> mit data-dynamic-type finden
+    var rects = doc.querySelectorAll('rect[data-dynamic-type]');
+    for (var i = 0; i < rects.length; i++) {
+      var rect = rects[i];
+      var dynType = rect.getAttribute('data-dynamic-type') || '';
+      var rx = parseFloat(rect.getAttribute('x')) || 0;
+      var ry = parseFloat(rect.getAttribute('y')) || 0;
+      var rw = parseFloat(rect.getAttribute('width')) || 0;
+      var rh = parseFloat(rect.getAttribute('height')) || 0;
+
+      // Rotes Rect ausblenden
+      rect.setAttribute('visibility', 'hidden');
+
+      if (dynType === 'scaleBar' && scaleNumber > 0) {
+        // ── Massstabsbalken als SVG ──
+        // ViewBox → mm Umrechnung für niceScaleSegment
+        var vb = svg.getAttribute('viewBox');
+        var vbParts = vb ? vb.split(/[\s,]+/).map(Number) : [0, 0, 2480, 3507];
+        var layout = _layouts.find(function (l) { return l.value === ((document.getElementById('print-layout') || {}).value || ''); });
+        var paperW = (layout && layout.width_mm) || 210;
+        var paperH = (layout && layout.height_mm) || 297;
+        var sxMm = paperW / vbParts[2];  // mm pro SVG-Unit
+        var maxWidthMm = rw * sxMm;
+
+        var segDistM   = niceScaleSegmentPreview(maxWidthMm, scaleNumber);
+        var segWidthMm = segDistM * 1000 / scaleNumber;
+        var segWidthSvg = segWidthMm / sxMm;  // Zurück in SVG-Units
+        var numSegs    = Math.floor(rw / segWidthSvg);
+        numSegs = Math.max(2, Math.min(numSegs, 6));
+
+        var barH     = Math.min(rh * 0.45, 2.0 / sxMm);
+        var barY     = ry + 0.5 / sxMm;
+
+        var g = doc.createElementNS(NS, 'g');
+        g.setAttribute('id', 'preview-scalebar');
+
+        // Alternierende Segmente
+        for (var s = 0; s < numSegs; s++) {
+          var segX = rx + s * segWidthSvg;
+          var segRect = doc.createElementNS(NS, 'rect');
+          segRect.setAttribute('x', segX.toFixed(2));
+          segRect.setAttribute('y', barY.toFixed(2));
+          segRect.setAttribute('width', segWidthSvg.toFixed(2));
+          segRect.setAttribute('height', barH.toFixed(2));
+          segRect.setAttribute('fill', s % 2 === 0 ? '#000000' : '#ffffff');
+          segRect.setAttribute('stroke', '#000000');
+          segRect.setAttribute('stroke-width', '1.5');
+          g.appendChild(segRect);
+        }
+
+        // Äusserer Rahmen
+        var outerRect = doc.createElementNS(NS, 'rect');
+        outerRect.setAttribute('x', rx.toFixed(2));
+        outerRect.setAttribute('y', barY.toFixed(2));
+        outerRect.setAttribute('width', (numSegs * segWidthSvg).toFixed(2));
+        outerRect.setAttribute('height', barH.toFixed(2));
+        outerRect.setAttribute('fill', 'none');
+        outerRect.setAttribute('stroke', '#000000');
+        outerRect.setAttribute('stroke-width', '2');
+        g.appendChild(outerRect);
+
+        // Beschriftungen
+        var labelY = barY + barH + 14 / sxMm;
+        var fontSize = Math.max(16, Math.min(24, 7 / sxMm));
+
+        for (var l = 0; l <= numSegs; l++) {
+          var labelX = rx + l * segWidthSvg;
+          var distM  = l * segDistM;
+          var label;
+          if (segDistM >= 1000) {
+            label = (distM / 1000).toLocaleString('de-CH');
+            if (l === numSegs) label += ' km';
+          } else {
+            label = distM.toLocaleString('de-CH');
+            if (l === numSegs) label += ' m';
+          }
+          var anchor = 'middle';
+          if (l === 0)        anchor = 'start';
+          if (l === numSegs)  anchor = 'end';
+
+          var text = doc.createElementNS(NS, 'text');
+          text.setAttribute('x', labelX.toFixed(2));
+          text.setAttribute('y', labelY.toFixed(2));
+          text.setAttribute('font-family', 'Arial, sans-serif');
+          text.setAttribute('font-size', fontSize.toFixed(1));
+          text.setAttribute('fill', '#000000');
+          text.setAttribute('text-anchor', anchor);
+          text.textContent = label;
+          g.appendChild(text);
+        }
+
+        svg.appendChild(g);
+
+      } else if (dynType === 'scaleLabel' && values.scaleText) {
+        // ── Massstabstext als SVG ──
+        var scaleFontSize = Math.min(rh * 0.7, 50);
+        var scaleText = doc.createElementNS(NS, 'text');
+        scaleText.setAttribute('x', (rx + 5).toFixed(2));
+        scaleText.setAttribute('y', (ry + rh * 0.7).toFixed(2));
+        scaleText.setAttribute('font-family', 'Arial, sans-serif');
+        scaleText.setAttribute('font-size', scaleFontSize.toFixed(1));
+        scaleText.setAttribute('font-weight', 'bold');
+        scaleText.setAttribute('fill', '#000000');
+        scaleText.textContent = values.scaleText;
+        svg.appendChild(scaleText);
+      }
+    }
+
+    // ── Nordpfeil rotieren (falls Rotation vorhanden) ──
+    if (values.rotationDeg) {
+      // Nordpfeil-Path identifizieren (einheitlich in allen QGIS-Templates)
+      var allPaths = doc.querySelectorAll('path');
+      for (var p = 0; p < allPaths.length; p++) {
+        var pathD = allPaths[p].getAttribute('d') || '';
+        if (pathD.indexOf('M8.003,-9.593') === 0) {
+          var arrowGroup = allPaths[p].parentNode;
+
+          // Transform-Matrix parsen: matrix(sx,0,0,sy,tx,ty)
+          var tfm = arrowGroup.getAttribute('transform') || '';
+          var mMatch = tfm.match(/matrix\(([^)]+)\)/);
+          if (mMatch) {
+            var mParts = mMatch[1].split(',').map(Number);
+            var arrowSx = mParts[0], arrowSy = mParts[3];
+            var arrowTx = mParts[4], arrowTy = mParts[5];
+
+            // Zentrum des Nordpfeils in SVG-Viewport-Koordinaten
+            // Path-Bbox lokal: x=[0..16.06], y=[-37.31..0]
+            var localCX = 8.03;
+            var localCY = -18.66;
+            var arrowCx = arrowSx * localCX + arrowTx;
+            var arrowCy = arrowSy * localCY + arrowTy;
+
+            // Rotation-Wrapper: Karte CW → Nordpfeil CCW
+            var wrapper = doc.createElementNS(NS, 'g');
+            wrapper.setAttribute('id', 'preview-northarrow-rotate');
+            wrapper.setAttribute('transform',
+              'rotate(' + (-values.rotationDeg) + ', ' +
+              arrowCx.toFixed(2) + ', ' + arrowCy.toFixed(2) + ')');
+            arrowGroup.parentNode.insertBefore(wrapper, arrowGroup);
+            wrapper.appendChild(arrowGroup);
+          }
+          break;
+        }
+      }
+    }
+
+    return new XMLSerializer().serializeToString(doc);
+  }
+
+  // ================================================================
+  //  Rotation
+  // ================================================================
+
+  /** CSS-Transform auf Rahmen anwenden und UI synchronisieren. */
+  function applyFrameRotation() {
+    if (_frameEl) {
+      _frameEl.style.transform = 'rotate(' + (_frameRotation * 180 / Math.PI).toFixed(2) + 'deg)';
+    }
+    syncRotationUI();
+  }
+
+  function syncRotationUI() {
+    var deg;
+    if (_isMobile) {
+      // Mobile: Rotation aus der Karten-View lesen
+      var m = getMap();
+      deg = m ? Math.round(m.getView().getRotation() * 180 / Math.PI) : 0;
+    } else {
+      deg = Math.round(_frameRotation * 180 / Math.PI);
+    }
+    var el = document.getElementById('print-rotation');
+    if (el) el.value = deg;
+    var lbl = document.getElementById('print-rotation-val');
+    if (lbl) lbl.textContent = deg + '\u00b0';
+  }
+
+  window.printRotateBy = function (deg) {
+    _frameRotation += deg * Math.PI / 180;
+    applyFrameRotation();
+    refreshSvgPreviewValues();
+  };
+
+  window.printResetRotation = function () {
+    _frameRotation = 0;
+    applyFrameRotation();
+    refreshSvgPreviewValues();
+  };
+
+  // ================================================================
+  //  Massstab-Preset
+  // ================================================================
+  window.setScale = function (val) {
+    var el = document.getElementById('print-scale');
+    if (el) el.value = val;
+  };
+
+  // ================================================================
+  //  Karten-Interaktionen deaktivieren (während Druck-Panel aktiv)
+  // ================================================================
+
+  function disableMapInteractions() {
+    _savedInteractions = [];
+    _savedPickingStates = {};
+    var map = getMap();
+    if (map) {
+      // Mobile: Pan-Interaktionen bleiben aktiv (Benutzer schiebt Karte unter Rahmen)
+      if (!_isMobile) {
+        map.getInteractions().getArray().slice().forEach(function (interaction) {
+          var cname = (interaction.constructor && interaction.constructor.name) || '';
+          if ((cname === 'DragPan' || cname === 'KeyboardPan') && interaction.getActive()) {
+            _savedInteractions.push(interaction);
+            interaction.setActive(false);
+          }
+        });
+      }
+    }
+    // Maptip-Picking deaktivieren + Info-Bridge Gate setzen
+    try {
+      var am = window.njs && njs.AppManager;
+      var maps = am && am.Maps;
+      if (maps) {
+        for (var id in maps) {
+          if (maps[id] && maps[id].picking !== undefined) {
+            _savedPickingStates[id] = maps[id].picking;
+            maps[id].picking = false;
+          }
+        }
+      }
+      // Info-Bridge Gate: blockiert singleclick-Objektabfragen
+      if (am && am.MapTips) {
+        if (!am.MapTips['_disablewmsgetfeatureinfo']) {
+          am.MapTips['_disablewmsgetfeatureinfo'] = {};
+        }
+        am.MapTips['_disablewmsgetfeatureinfo']['main'] = true;
+      }
+    } catch (e) { /* noop */ }
+  }
+
+  function restoreMapInteractions() {
+    _savedInteractions.forEach(function (i) { i.setActive(true); });
+    _savedInteractions = [];
+    // Picking wiederherstellen + Info-Bridge Gate zurücksetzen
+    try {
+      var am = window.njs && njs.AppManager;
+      var maps = am && am.Maps;
+      if (maps) {
+        for (var id in maps) {
+          if (maps[id] && _savedPickingStates[id] !== undefined) {
+            maps[id].picking = _savedPickingStates[id];
+          }
+        }
+      }
+      // Info-Bridge Gate zurücksetzen
+      if (am && am.MapTips && am.MapTips['_disablewmsgetfeatureinfo']) {
+        am.MapTips['_disablewmsgetfeatureinfo']['main'] = false;
+      }
+    } catch (e) { /* noop */ }
+    _savedPickingStates = {};
+  }
+
+  // ================================================================
+  //  Zoom anpassen für Druckrahmen
+  // ================================================================
+  /**
+   * Passt den Kartenausschnitt an, damit der Druckrahmen ca. 70% des
+   * sichtbaren Viewports ausfüllt (nicht zu gross, nicht zu klein).
+   */
+  function adjustZoomForPrintFrame() {
+    var map = getMap();
+    if (!map || !_frameEl) return;
+
+    // Konfiguration aus Global Config
+    var autoAdjust = (_globalConfig.print && _globalConfig.print.autoAdjustZoom !== false);
+    if (!autoAdjust) return;
+    
+    var targetPercent = (_globalConfig.print && _globalConfig.print.targetFramePercent) || 70;
+    targetPercent = Math.max(40, Math.min(95, targetPercent)); // Clamp 40-95%
+
+    // Aktuelles Viewport ermitteln
+    var mapEl = map.getTargetElement();
+    if (!mapEl) return;
+    var vpW = mapEl.clientWidth;
+    var vpH = mapEl.clientHeight;
+
+    // Aktuelle Frame-Grösse berechnen
+    var frameW = parseFloat(_frameEl.style.width) || 0;
+    var frameH = parseFloat(_frameEl.style.height) || 0;
+    if (frameW <= 0 || frameH <= 0) return;
+
+    // Verhältnis: wie viel % des Viewports nimmt der Frame ein?
+    var ratioW = (frameW / vpW) * 100;
+    var ratioH = (frameH / vpH) * 100;
+    var currentRatio = Math.max(ratioW, ratioH);
+
+    // Abweichung vom Ziel berechnen
+    // Wenn Frame < 40% oder > 90% des Viewports, anpassen
+    if (currentRatio >= 40 && currentRatio <= 90) {
+      TnetLog.log('[Drucken] Frame-Grösse OK:', Math.round(currentRatio) + '% des Viewports');
+      return; // Passt schon
+    }
+
+    // Faktor berechnen: um wie viel muss Resolution geändert werden?
+    var scaleFactor = currentRatio / targetPercent;
+    var view = map.getView();
+    var currentRes = view.getResolution();
+    var newRes = currentRes * scaleFactor;
+
+    // Resolution setzen
+    view.animate({ resolution: newRes, duration: 300 });
+    TnetLog.log('[Drucken] Zoom angepasst:', Math.round(currentRatio) + '% → ' + 
+      targetPercent + '% (Resolution:', currentRes.toFixed(2), '→', newRes.toFixed(2) + ')');
+
+    // Nach Zoom-Animation: Frame und SVG-Vorschau aktualisieren
+    // moveend ist zuverlässiger als setTimeout (feuert exakt nach Animations-Ende)
+    map.once('moveend', function () {
+      updateFrameSize();
+      refreshSvgPreviewValues();
+    });
+  }
+
+  /**
+   * Rahmen nach der Zoom-Animation ein.
+   *
+   * Basis: tatsächliche Frame-Pixelgrösse (nach updateFrameSize), da
+   * _layouts async geladen wird und bei Erstaufruf noch leer sein kann.
+   * Retry bis Frame-Grösse verfügbar (max. 8 Versuche à 200ms).
+   */
+  function adjustMapZoomMobile(printScale) {
+    var map = getMap();
+    if (!map) return;
+    var mpu = map.getView().getProjection().getMetersPerUnit() || 1;
+    var sortedAsc = _scales.slice().sort(function (a, b) { return a - b; });
+
+    // Verfügbarer Kartenbereich über dem Bottom-Sheet:
+    // Bottom-Sheet ~50vh + Toolbar ~10vh = ~60vh belegt → verbleibende Map-Fläche ~32%
+    var availH = window.innerHeight * 0.25;
+    var availW = window.innerWidth  * 0.80;
+    var targetFill = 0.40;  // Frame soll max. 40% des verfügbaren Bereichs füllen
+
+    var attempt = 0;
+    function tryAdjust() {
+      // Sicherstellen dass updateFrameSize() mit aktuellem Layout + Scale läuft
+      updateFrameSize();
+      var frameW = _frameEl ? parseFloat(_frameEl.style.width)  : 0;
+      var frameH = _frameEl ? parseFloat(_frameEl.style.height) : 0;
+
+      // Noch kein Layout geladen → nochmal warten
+      if ((frameW <= 0 || frameH <= 0) && attempt++ < 8) {
+        setTimeout(tryAdjust, 200);
+        return;
+      }
+
+      if (frameW <= 0 || frameH <= 0) {
+        // Fallback: einfach eine Stufe herauszoomen
+        if (_frameEl) _frameEl.style.opacity = '1';
+        return;
+      }
+
+      // Aktuelles Verhältnis Frame / verfügbarer Bereich
+      var ratioW = frameW / availW;
+      var ratioH = frameH / availH;
+      var currentRatio = Math.max(ratioW, ratioH);
+
+      if (currentRatio <= targetFill) {
+        // Passt bereits — nur einblenden
+        if (_frameEl) _frameEl.style.opacity = '1';
+        TnetLog.log('[Drucken Mobile] Frame passt (' + Math.round(currentRatio * 100) + '% ≤ ' + Math.round(targetFill * 100) + '%)');
+        return;
+      }
+
+      // Skalierungsfaktor: um wieviel muss herausgezoomt werden?
+      var scaleFactor = currentRatio / targetFill;
+      var view = map.getView();
+      var neededRes = view.getResolution() * scaleFactor;
+
+      // Nächsten Massstab aus _scales wählen: grösser als printScale UND gross genug
+      var mapScale = null;
+      for (var i = 0; i < sortedAsc.length; i++) {
+        if (sortedAsc[i] > printScale && (sortedAsc[i] * 0.00028 / mpu) >= neededRes) {
+          mapScale = sortedAsc[i]; break;
+        }
+      }
+      if (mapScale === null) mapScale = sortedAsc[sortedAsc.length - 1];
+
+      var finalRes = mapScale * 0.00028 / mpu;
+      view.animate({ resolution: finalRes, duration: 300 });
+
+      map.once('moveend', function () {
+        updateFrameSize();
+        if (_frameEl) _frameEl.style.opacity = '1';
+      });
+
+      TnetLog.log('[Drucken Mobile] Zoom: 1:' + mapScale + ' (Frame ' + Math.round(currentRatio * 100) + '% → Ziel ' + Math.round(targetFill * 100) + '%)');
+    }
+
+    // Kurz warten damit DOM-Render und updateFrameSize() stabil sind
+    setTimeout(tryAdjust, 100);
+  }
+
+  // ================================================================
+  //  Panel öffnen / schliessen
+  // ================================================================
+  window.openPdfPrinter = function () {
+    if (typeof toggleHeaderMenu === 'function') toggleHeaderMenu();
+
+    // Inline-Modus: Akkordeon öffnen statt floating Panel
+    // (Map-Check entfällt hier — Form zeigen geht immer, Frame nur wenn Map bereit)
+    if (_inlineMode) {
+      var tnetPrintDetailsInline = document.getElementById('tp_tnet_print_menu');
+      if (tnetPrintDetailsInline) {
+        if (!tnetPrintDetailsInline.open) {
+          tnetPrintDetailsInline.open = true; // löst toggle-Event aus
+        }
+        // Akkordeon in Sicht scrollen (falls unten im Panel)
+        setTimeout(function () {
+          tnetPrintDetailsInline.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }, 50);
+      }
+      return;
+    }
+
+    if (!getMap()) {
+      alert('Drucken ist erst verfügbar, wenn die Karte vollständig geladen ist.');
+      return;
+    }
+
+    // Libraries bei Bedarf laden, dann Layouts holen
+    var doOpen = function () {
+      _frameRotation = 0;  // Rotation bei jedem Öffnen zurücksetzen
+      loadLayouts();
+      // Aktuellen Massstab im Dropdown auf nächsten Wert setzen
+      var map = getMap();
+      if (map) {
+        var mpu = map.getView().getProjection().getMetersPerUnit() || 1;
+        var currentScale = Math.round(map.getView().getResolution() * mpu / 0.00028);
+        // Nächst grösserer Massstab = nächst kleinere Zahl (mehr Detail).
+        // Suche den grössten _scales-Wert der < currentScale ist.
+        // Falls keiner existiert (Karte bereits am detailliertesten), kleinsten nehmen.
+        var sortedAsc = _scales.slice().sort(function (a, b) { return a - b; });
+        var nextLarger = null;
+        for (var si = sortedAsc.length - 1; si >= 0; si--) {
+          if (sortedAsc[si] < currentScale) { nextLarger = sortedAsc[si]; break; }
+        }
+        if (nextLarger === null) nextLarger = sortedAsc[0];
+        document.getElementById('print-scale').value = nextLarger;
+      }
+      syncRotationUI();
+      document.getElementById('print-panel').classList.remove('hidden');
+      // Panel andocken (Default) oder floating
+      if (_isPrintPanelDocked) {
+        dockPrintPanel();
+      }
+      // Druckrahmen-Center initialisieren: immer aktuelle Kartenmitte beim Öffnen
+      _printCenter = map.getView().getCenter().slice();
+      disableMapInteractions();
+      showPrintFrame();
+      // Benutzer-Feld vorausfüllen (aus Login)
+      var userInput = document.getElementById('print-user');
+      if (userInput && !userInput.value) {
+        if (window.njs && njs.AppManager && njs.AppManager.auth_user) {
+          userInput.value = njs.AppManager.auth_user;
+        }
+      }
+      // Kartenausschnitt anpassen: Frame sollte ca. 60-80% des Viewports füllen
+      // Auf Mobile übernimmt der Bottom-Sheet-Patch die Zoom-Steuerung
+      // Verzögerung notwendig: dockPrintPanel() ändert mapContainer-Breite,
+      // map.updateSize() wird erst nach 350ms aufgerufen → Frame-Berechnung
+      // und Viewport-Dimensionen stimmen erst danach.
+      if (!_isMobile) {
+        setTimeout(function () { adjustZoomForPrintFrame(); }, 450);
+      } else {
+        // Mobile: Kartenmassstab eine Stufe kleiner setzen damit Rahmen sichtbar bleibt
+        var printScaleVal = parseInt(document.getElementById('print-scale').value) || 10000;
+        setTimeout(function () { adjustMapZoomMobile(printScaleVal); }, 450);
+      }
+    };
+
+    if (_libsReady) {
+      doOpen();
+    } else {
+      loadLibraries().then(doOpen).catch(function (err) {
+        TnetLog.error('[Drucken] Libraries konnten nicht geladen werden:', err);
+        alert('PDF-Export konnte nicht initialisiert werden.\n' + err.message);
+      });
+    }
+  };
+
+  window.closePrintPanel = function () {
+    // Inline-Modus: Akkordeon schliessen
+    if (_inlineMode) {
+      var tnetPrintDetailsClose = document.getElementById('tp_tnet_print_menu');
+      if (tnetPrintDetailsClose && tnetPrintDetailsClose.open) {
+        tnetPrintDetailsClose.open = false; // löst toggle-Event aus (removePrintFrame)
+      } else {
+        removePrintFrame();
+        restoreMapInteractions();
+      }
+      return;
+    }
+    var panel = document.getElementById('print-panel');
+    if (panel) panel.classList.add('hidden');
+    removePrintFrame();
+    restoreMapInteractions();
+    // Falls angedockt: mapContainer zurücksetzen (nur Desktop — Mobile hat kein Width-Override)
+    if (_isPrintPanelDocked) {
+      if (!_isMobile) {
+        var mapContainer = document.getElementById('mapContainer');
+        if (mapContainer) {
+          mapContainer.style.setProperty('width', '100%', 'important');
+        }
+      }
+      triggerPrintMapUpdate();
+      stopPrintObservers();
+    }
+  };
+
+  // ================================================================
+  //  PDF erstellen (zur Queue hinzufügen)
+  // ================================================================
+  window.executePrint = function () {
+    var map = getMap();
+    if (!map) { alert('Karte nicht bereit.'); return; }
+    if (typeof templatePdfPrint !== 'function') { alert('PDF-Export-API nicht geladen.'); return; }
+
+    var layout         = document.getElementById('print-layout').value;
+    var massstab       = parseInt(document.getElementById('print-scale').value) || 10000;
+    var dpiEl          = document.querySelector('input[name="print-dpi"]:checked');
+    var aufloesung     = dpiEl ? parseInt(dpiEl.value) : 150;
+    var kartentitel    = document.getElementById('print-title').value || '';
+    var benutzer        = document.getElementById('print-user').value || '';
+    var gridEl          = document.getElementById('print-grid');
+    var koordinatennetz = gridEl ? gridEl.checked : false;
+    var netzfarbeEl    = document.querySelector('input[name="print-gridcolor"]:checked');
+    var netzfarbe      = netzfarbeEl ? netzfarbeEl.value : 'schwarz';
+    // Mobile: Rotation aus der Karten-View; Desktop: aus _frameRotation (CSS-Frame-Rotation)
+    var rotation = _isMobile
+      ? Math.round(map.getView().getRotation() * 180 / Math.PI)
+      : Math.round(_frameRotation * 180 / Math.PI);
+    var serverRenderEl  = document.getElementById('print-server-render');
+    var serverRender    = serverRenderEl ? serverRenderEl.checked : false;
+    var svgFormatEl     = document.getElementById('print-svg-format');
+    var svgFormat       = svgFormatEl ? svgFormatEl.checked : false;
+
+    // ─ Dateiname vorab generieren (gleiche Logik wie template-pdf-export.js) ─
+    var layoutObj = _layouts.find(function (l) { return l.value === layout; });
+    var now = new Date();
+    var ts = now.getFullYear() +
+      String(now.getMonth() + 1).padStart(2, '0') +
+      String(now.getDate()).padStart(2, '0') + '_' +
+      String(now.getHours()).padStart(2, '0') +
+      String(now.getMinutes()).padStart(2, '0');
+    var safeTitle = (kartentitel || 'Kartenexport')
+      .replace(/[<>:"/\\|?*]/g, '').replace(/\s+/g, '_').substring(0, 50);
+    var paperInfo = (layoutObj && layoutObj.paper) || '';
+    if (layoutObj && layoutObj.orientation === 'landscape') paperInfo += '_quer';
+    else if (layoutObj && layoutObj.orientation === 'portrait') paperInfo += '_hoch';
+    var preFilename = safeTitle + '_' + paperInfo + '_' + ts + '.pdf';
+
+    // ─ Neuer Job ─
+    var jobId = ++_jobIdCounter;
+    var printCenter = _printCenter ? _printCenter.slice() : map.getView().getCenter().slice();
+    var job = {
+      id: jobId,
+      status: 'pending',  // pending, processing, completed, failed
+      title: preFilename,
+      progress: 0,
+      error: null,
+      blob: null,
+      filename: null,
+      timestamp: new Date().toLocaleString('de-CH'),
+      params: {
+        massstab: massstab,
+        layout: layout,
+        aufloesung: aufloesung,
+        rotation: rotation,
+        kartentitel: kartentitel,
+        benutzer: benutzer,
+        koordinatennetz: koordinatennetz,
+        netzfarbe: netzfarbe,
+        printCenter: printCenter,
+        serverRender: serverRender,
+        svgFormat: svgFormat,
+        jpegQuality: (_globalConfig.print && _globalConfig.print.jpegQuality) || 0.7,
+        serverDpi: (_globalConfig.print && _globalConfig.print.serverDpi) || 96
+      }
+    };
+
+    _printQueue.push(job);
+    TnetLog.log('[Print-Queue] Job #' + jobId + ' hinzugefügt. Queue-Länge:', _printQueue.length);
+    updateQueueUI();
+    processNextQueueJob();
+  };
+
+  // ================================================================
+  //  Queue-Worker: Verarbeitet Jobs sequenziell
+  // ================================================================
+  function processNextQueueJob() {
+    if (_queueWorkerScheduled) return;
+    if (_currentJobId !== null) return;  // Job läuft bereits
+    
+    var job = _printQueue.find(function (j) { return j.status === 'pending'; });
+    if (!job) return;
+
+    _currentJobId = job.id;
+    job.status = 'processing';
+    updateQueueUI();
+
+    TnetLog.log('[Print-Queue] Starte Job #' + job.id + ': ' + job.title);
+
+    templatePdfPrint({
+      massstab:        job.params.massstab,
+      layout:          job.params.layout,
+      aufloesung:      job.params.aufloesung,
+      rotation:        job.params.rotation,
+      kartentitel:     job.params.kartentitel,
+      benutzer:        job.params.benutzer,
+      koordinatennetz: job.params.koordinatennetz,
+      netzfarbe:       job.params.netzfarbe,
+      printCenter:     job.params.printCenter,
+      serverRender:    job.params.serverRender,
+      svgFormat:       job.params.svgFormat,
+      jpegQuality:     job.params.jpegQuality,
+      serverDpi:       job.params.serverDpi,
+
+      onProgress: function (step, msg) {
+        job.progress = Math.round((step / 7) * 100);
+        // Nur Fortschrittsbalken direkt aktualisieren (kein volles renderJobs!)
+        var pjFill = document.querySelector('.pj-processing .pj-progress-fill');
+        var pjText = document.querySelector('.pj-processing .pj-progress-text');
+        if (pjFill) pjFill.style.width = job.progress + '%';
+        if (pjText) pjText.textContent = job.progress + '%';
+        // Globaler Fortschrittsbalken
+        if (job.id === _currentJobId) {
+          document.getElementById('print-progress-fill').style.width = job.progress + '%';
+          document.getElementById('print-progress-text').textContent = msg;
+        }
+      },
+
+      onSuccess: function (result) {
+        job.blob = result.blob;
+        job.filename = result.filename;
+        job.title = result.filename;  // Titel = tatsächlicher Dateiname
+        job.status = 'completed';
+        job.progress = 100;
+        
+        handlePdfResult(job.blob, job.filename);
+        TnetLog.log('[Print-Queue] Job #' + job.id + ' abgeschlossen: ' + job.filename);
+        
+        finishQueueJobUI();
+        _currentJobId = null;
+        updateQueueUI();
+        
+        // Nächsten Job nach kurzer Verzögerung starten
+        setTimeout(function () {
+          processNextQueueJob();
+        }, 500);
+      },
+
+      onError: function (err) {
+        job.status = 'failed';
+        job.error = err.message;
+        TnetLog.error('[Print-Queue] Job #' + job.id + ' Fehler:', err);
+        
+        finishQueueJobUI();
+        _currentJobId = null;
+        updateQueueUI();
+        
+        // Nächsten Job starten trotz Fehler
+        setTimeout(function () {
+          processNextQueueJob();
+        }, 500);
+      }
+    });
+  }
+
+  function finishQueueJobUI() {
+    var btn = document.getElementById('print-exec-btn');
+    btn.disabled = false;
+    btn.classList.remove('printing');
+    btn.innerHTML =
+      TnetIcons.get('printer', null, {width: '18', height: '18'}) + ' PDF erstellen';
+
+    setTimeout(function () {
+      document.getElementById('print-progress').style.display = 'none';
+      document.getElementById('print-progress-fill').style.width = '0%';
+    }, 2000);
+  }
+
+  function renderJobs() {
+    var jobsList = document.getElementById('print-jobs-list');
+    var jobsAcc = document.getElementById('print-jobs-acc');
+    var jobsCount = document.getElementById('print-jobs-count');
+
+    if (!jobsList) return;
+
+    jobsCount.textContent = _printQueue.length;
+
+    // Zeige Accordion wenn Jobs vorhanden
+    if (_printQueue.length > 0) {
+      jobsAcc.style.display = 'block';
+      jobsAcc.classList.add('is-open');
+    } else {
+      jobsAcc.style.display = 'none';
+      closePrintPreview();
+      return;
+    }
+
+    var html = '';
+    // Neueste Jobs zuerst
+    var sorted = _printQueue.slice().reverse();
+    sorted.forEach(function (job) {
+      var statusClass = 'pj-' + job.status;
+      var statusLabel = {
+        pending: '\u23f3 In Warteschlange',
+        processing: '\u2699 Wird verarbeitet',
+        completed: '\u2713 Fertig',
+        failed: '\u2715 Fehler'
+      }[job.status] || job.status;
+
+      html +=
+        '<div class="print-job ' + statusClass + '">' +
+          '<div class="pj-header">' +
+            '<span class="pj-title">' + job.title + '</span>' +
+            '<span class="pj-status">' + statusLabel + '</span>' +
+          '</div>';
+
+      if (job.status === 'processing') {
+        html +=
+          '<div class="pj-progress">' +
+            '<div class="pj-progress-bar"><div class="pj-progress-fill" style="width:' + job.progress + '%"></div></div>' +
+            '<span class="pj-progress-text">' + job.progress + '%</span>' +
+          '</div>';
+      }
+
+      if (job.status === 'completed' && job.blobUrl) {
+        var time = '';
+        if (job.completedDate) {
+          time = String(job.completedDate.getHours()).padStart(2, '0') + ':' +
+                 String(job.completedDate.getMinutes()).padStart(2, '0');
+        }
+        var sizeStr = formatFileSize(job.size);
+        var meta = [];
+        if (time) meta.push(time);
+        if (sizeStr) meta.push(sizeStr);
+        html +=
+          '<div class="pj-meta">' + meta.join(' \u00b7 ') + '</div>' +
+          '<div class="pj-actions">' +
+            '<a class="pj-btn pj-btn-dl" href="' + job.blobUrl + '" download="' + job.filename + '" title="Herunterladen">\u2B07 Download</a>';
+        if (!_isMobile) {
+          html += '<button class="pj-btn pj-btn-preview" onclick="previewJob(' + job.id + ')" title="Vorschau">\uD83D\uDD0D</button>';
+        }
+        html +=
+            '<button class="pj-btn pj-btn-remove" onclick="removeJob(' + job.id + ')" title="Entfernen">&times;</button>' +
+          '</div>';
+      }
+
+      if (job.status === 'failed') {
+        html +=
+          '<div class="pj-error">' + job.error + '</div>';
+      }
+
+      html += '</div>';
+    });
+
+    jobsList.innerHTML = html;
+  }
+
+  // Alias für bestehende updateQueueUI()-Aufrufe
+  var updateQueueUI = renderJobs;
+
+  window.removeJob = function (jobId) {
+    var idx = _printQueue.findIndex(function (j) { return j.id === jobId; });
+    if (idx < 0) return;
+    var job = _printQueue[idx];
+    if (job.blobUrl) URL.revokeObjectURL(job.blobUrl);
+    _printQueue.splice(idx, 1);
+    renderJobs();
+  };
+
+  window.previewJob = function (jobId) {
+    var job = _printQueue.find(function (j) { return j.id === jobId; });
+    if (!job || !job.blobUrl) return;
+    showPdfPreview(job.blobUrl);
+  };
+
+  window.downloadJobPdf = function (jobId) {
+    var job = _printQueue.find(function (j) { return j.id === jobId; });
+    if (!job || !job.blobUrl) return;
+    var link = document.createElement('a');
+    link.href = job.blobUrl;
+    link.download = job.filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // ================================================================
+  //  PDF im Memory behalten + parallel auf Server loggen
+  // ================================================================
+  function handlePdfResult(blob, filename) {
+    // Blob-URL erstellen und am Job speichern
+    var blobUrl = URL.createObjectURL(blob);
+    var job = _printQueue.find(function (j) { return j.id === _currentJobId; });
+    if (job) {
+      job.blobUrl = blobUrl;
+      job.size = blob.size;
+      job.completedDate = new Date();
+    }
+
+    // Jobs-Liste aktualisieren
+    renderJobs();
+
+    // Vorschau nur auf Desktop anzeigen
+    if (!_isMobile) {
+      showPdfPreview(blobUrl);
+    } else {
+      // Mobile: Auto-Download triggern
+      var link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
+    TnetLog.log('[Drucken] PDF fertig:', filename, '(' + blob.size + ' Bytes)');
+
+    // Parallel: PDF auf Server loggen (fire-and-forget)
+    logPdfToServer(blob, filename);
+  }
+  
+  /**
+   * Sendet PDF an Server zur Archivierung im Log-Verzeichnis.
+   * Fire-and-forget — Fehler werden nur geloggt, nicht dem User gezeigt.
+   */
+  function logPdfToServer(blob, filename) {
+    var formData = new FormData();
+    formData.append('pdf', blob, filename);
+    formData.append('filename', filename);
+    
+    // Retention aus Config (Default: 1 Tag)
+    var retentionDays = (_globalConfig.print && _globalConfig.print.pdfRetentionDays) || 1;
+    var url = PDF_LOG_URL + '?retention=' + retentionDays;
+    
+    fetch(url, { method: 'POST', body: formData })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (data.ok) {
+          TnetLog.log('[Drucken] PDF archiviert:', data.path);
+        } else {
+          TnetLog.warn('[Drucken] PDF-Archivierung fehlgeschlagen:', data.error);
+        }
+      })
+      .catch(function(err) {
+        TnetLog.warn('[Drucken] PDF-Archivierung Fehler:', err.message);
+      });
+  }
+
+  // ================================================================
+  //  PDF-Vorschau (iframe, nur Desktop)
+  // ================================================================
+  function showPdfPreview(url) {
+    if (_isMobile) return;  // Kein iframe-Preview auf Mobile
+    var iframe = document.getElementById('print-preview-frame');
+    if (!iframe) return;
+    iframe.src = url;
+    iframe.style.display = '';
+    // Zum Vorschau-Bereich scrollen
+    iframe.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  function closePrintPreview() {
+    var iframe = document.getElementById('print-preview-frame');
+    if (iframe) {
+      iframe.src = 'about:blank';
+      iframe.style.display = 'none';
+    }
+  }
+  window.closePrintPreview = closePrintPreview;
+
+  // ================================================================
+  //  Accordion Toggle
+  // ================================================================
+  window.togglePrintAccordion = function (id) {
+    var acc = document.getElementById(id);
+    if (!acc) return;
+    acc.classList.toggle('is-open');
+  };
+
+  // ================================================================
+  //  Download-Liste
+  // ================================================================
+  function formatFileSize(bytes) {
+    if (!bytes) return '';
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1048576) return (bytes / 1024).toFixed(0) + ' KB';
+    return (bytes / 1048576).toFixed(1) + ' MB';
+  }
+
+  // addDownload, renderDownloads, removePrintDownload entfernt
+  // → ersetzt durch renderJobs() und window.removeJob()
+
+  // ================================================================
+  //  Dock / Undock (analog Info-Panel + ÖREB)
+  // ================================================================
+  function triggerPrintMapUpdate() {
+    setTimeout(function () {
+      if (window.njs && njs.AppManager && njs.AppManager.Maps && njs.AppManager.Maps['main']) {
+        var mapObj = njs.AppManager.Maps['main'].mapObj;
+        if (mapObj && mapObj.updateSize) mapObj.updateSize();
+      }
+      if (typeof dijit !== 'undefined' && dijit.byId('NeapolisContainer')) {
+        dijit.byId('NeapolisContainer').resize();
+      }
+      // Nach updateSize den Druckrahmen neu berechnen,
+      // damit die initiale Skalierung stimmt (nicht erst nach Pan)
+      updateFrameSize();
+    }, 350);
+  }
+
+  function dockPrintPanel() {
+    if (_inlineMode) return; // Kein Docking im Inline-Modus
+    var panel = document.getElementById('print-panel');
+    var dockBtn = document.getElementById('print-dock-btn');
+    var mapContainer = document.getElementById('mapContainer');
+    if (!panel) return;
+
+    panel.classList.add('docked-right');
+    _isPrintPanelDocked = true;
+
+    // Desktop: Panel rechts andocken, mapContainer verschmälern.
+    // Mobile: Panel ist Bottom-Sheet (CSS steuert Layout) — keine Breitenanpassung!
+    if (!_isMobile && mapContainer) {
+      var panelWidth = _savedPrintDockedWidth || 380;
+      var centerPane = document.getElementById('centerPaneLayout');
+      var streetviewContainer = document.getElementById('streetviewContainer');
+      var streetviewWidth = 0;
+      if (streetviewContainer && streetviewContainer.offsetWidth > 0 && streetviewContainer.style.display !== 'none') {
+        streetviewWidth = streetviewContainer.offsetWidth;
+      }
+      var centerRect = centerPane ? centerPane.getBoundingClientRect() : mapContainer.getBoundingClientRect();
+      panel.style.setProperty('top', centerRect.top + 'px', 'important');
+      panel.style.setProperty('right', streetviewWidth + 'px', 'important');
+      panel.style.setProperty('bottom', (window.innerHeight - centerRect.bottom) + 'px', 'important');
+      panel.style.setProperty('left', 'auto', 'important');
+      panel.style.setProperty('width', panelWidth + 'px', 'important');
+      panel.style.setProperty('height', 'auto', 'important');
+
+      var centerPaneWidth = centerPane ? centerPane.offsetWidth : window.innerWidth;
+      var mapWidth = centerPaneWidth - streetviewWidth - panelWidth;
+      mapContainer.style.setProperty('width', mapWidth + 'px', 'important');
+    }
+    triggerPrintMapUpdate();
+
+    startPrintObservers();
+
+    if (dockBtn) {
+      dockBtn.title = 'Floating';
+      dockBtn.innerHTML = TnetIcons.get('undock', null, {width: '16', height: '16'});
+    }
+  }
+
+  function undockPrintPanel() {
+    var panel = document.getElementById('print-panel');
+    var dockBtn = document.getElementById('print-dock-btn');
+    var mapContainer = document.getElementById('mapContainer');
+    if (!panel) return;
+
+    panel.classList.remove('docked-right');
+    stopPrintObservers();
+    _isPrintPanelDocked = false;
+
+    if (mapContainer) {
+      mapContainer.style.setProperty('width', '100%', 'important');
+      setTimeout(function () { triggerPrintMapUpdate(); }, 100);
+    }
+
+    // Floating-Position
+    panel.style.setProperty('top', '80px', 'important');
+    panel.style.setProperty('left', 'calc(100vw - 420px)', 'important');
+    panel.style.setProperty('width', '380px', 'important');
+    panel.style.setProperty('height', 'calc(100vh - 160px)', 'important');
+    panel.style.setProperty('right', 'auto', 'important');
+    panel.style.setProperty('bottom', 'auto', 'important');
+    panel.style.maxHeight = '';
+
+    if (dockBtn) {
+      dockBtn.title = 'Rechts andocken';
+      dockBtn.innerHTML = TnetIcons.get('dock', null, {width: '16', height: '16'});
+    }
+  }
+
+  window.togglePrintPanelDock = function () {
+    if (_isPrintPanelDocked) {
+      undockPrintPanel();
+    } else {
+      dockPrintPanel();
+    }
+  };
+
+  // ── Observers für Layout-Änderungen (StreetView, Fenster-Resize) ──
+  function startPrintObservers() {
+    stopPrintObservers();
+    var mapContainer = document.getElementById('mapContainer');
+    if (!mapContainer || !window.ResizeObserver) return;
+
+    _printResizeObserver = new ResizeObserver(function () {
+      if (!_isPrintPanelDocked) return;
+      updateDockedPrintPosition();
+    });
+    _printResizeObserver.observe(mapContainer);
+
+    var sv = document.getElementById('streetviewContainer');
+    if (sv) _printResizeObserver.observe(sv);
+
+    window.addEventListener('resize', updateDockedPrintPosition);
+  }
+
+  function stopPrintObservers() {
+    if (_printResizeObserver) {
+      _printResizeObserver.disconnect();
+      _printResizeObserver = null;
+    }
+    window.removeEventListener('resize', updateDockedPrintPosition);
+  }
+
+  function updateDockedPrintPosition() {
+    var panel = document.getElementById('print-panel');
+    var mapContainer = document.getElementById('mapContainer');
+    if (!panel || !_isPrintPanelDocked) return;
+
+    var panelWidth = panel.offsetWidth || _savedPrintDockedWidth;
+    var centerPane = document.getElementById('centerPaneLayout');
+    var streetviewContainer = document.getElementById('streetviewContainer');
+    var streetviewWidth = 0;
+    if (streetviewContainer && streetviewContainer.offsetWidth > 0 && streetviewContainer.style.display !== 'none') {
+      streetviewWidth = streetviewContainer.offsetWidth;
+    }
+    var centerRect = centerPane ? centerPane.getBoundingClientRect() : (mapContainer ? mapContainer.getBoundingClientRect() : { top: 60, bottom: window.innerHeight });
+    panel.style.setProperty('top', centerRect.top + 'px', 'important');
+    panel.style.setProperty('right', streetviewWidth + 'px', 'important');
+    panel.style.setProperty('bottom', (window.innerHeight - centerRect.bottom) + 'px', 'important');
+
+    if (mapContainer) {
+      var centerPaneWidth = centerPane ? centerPane.offsetWidth : window.innerWidth;
+      var mapWidth = centerPaneWidth - streetviewWidth - panelWidth;
+      mapContainer.style.setProperty('width', mapWidth + 'px', 'important');
+    }
+  }
+
+  // ── Resize-Handle (links) im angedockten Modus ──
+  function initPrintPanelResize() {
+    var panel = document.getElementById('print-panel');
+    if (!panel || panel.querySelector('.print-resize-handle')) return;
+
+    var handle = document.createElement('div');
+    handle.className = 'print-resize-handle';
+    panel.appendChild(handle);
+
+    var isResizing = false;
+    var startX, startWidth;
+
+    handle.addEventListener('mousedown', function (e) {
+      if (!_isPrintPanelDocked) return;
+      isResizing = true;
+      startX = e.clientX;
+      startWidth = panel.offsetWidth;
+      document.body.style.userSelect = 'none';
+      e.preventDefault();
+    });
+
+    document.addEventListener('mousemove', function (e) {
+      if (!isResizing) return;
+      var dx = e.clientX - startX;
+      var newWidth = Math.max(300, Math.min(startWidth - dx, window.innerWidth - 200));
+      panel.style.setProperty('width', newWidth + 'px', 'important');
+      _savedPrintDockedWidth = newWidth;
+
+      var mapContainer = document.getElementById('mapContainer');
+      if (mapContainer) {
+        mapContainer.style.setProperty('width', 'calc(100% - ' + newWidth + 'px)', 'important');
+      }
+      e.preventDefault();
+    });
+
+    document.addEventListener('mouseup', function () {
+      if (isResizing) {
+        isResizing = false;
+        document.body.style.userSelect = '';
+        triggerPrintMapUpdate();
+      }
+    });
+  }
+
+  // ================================================================
+  //  Init: Panel-HTML einfügen + Event-Listener
+  // ================================================================
+  function init() {
+    try {
+    // Config laden (Massstäbe aus tnet-global-config.json5)
+    loadScalesFromConfig();
+
+    // Panel-HTML einfügen: Inline in Sidebar-Akkordeon ODER an body anhängen
+    var container = document.createElement('div');
+    try {
+      container.innerHTML = createPanelHTML();
+    } catch (htmlErr) {
+      TnetLog.error('[Drucken] createPanelHTML() Fehler:', htmlErr);
+      // Fallback: minimaler Platzhalter
+      container.innerHTML = '<div id="print-panel" class="print-panel print-panel-inline"><div class="print-panel-body"><p style="padding:10px;color:#c00">Drucken konnte nicht initialisiert werden.</p></div></div>';
+    }
+    var panel = container.firstElementChild;
+    if (!panel) {
+      TnetLog.error('[Drucken] createPanelHTML() lieferte kein Element zurück');
+      return;
+    }
+
+    var _inlineContainer = document.getElementById('tnet-print-left-container');
+    if (_inlineContainer) {
+      // ── Inline-Modus: Panel in Sidebar-Akkordeon einbetten ──
+      _inlineMode = true;
+      panel.classList.add('print-panel-inline');
+      panel.classList.remove('hidden');
+      _inlineContainer.appendChild(panel);
+
+      // Altes DRUCKEN sicherheitshalber ausblenden
+      var legacyMenu = document.getElementById('tp_print_menu');
+      if (legacyMenu && _globalConfig.print && _globalConfig.print.enableLegacyPrint === false) {
+        legacyMenu.style.display = 'none';
+      }
+
+      // Akkordeon-Toggle: Libraries + Layouts laden, Frame zeigen
+      var tnetPrintDetails = document.getElementById('tp_tnet_print_menu');
+      if (tnetPrintDetails) {
+        tnetPrintDetails.addEventListener('toggle', function () {
+          if (this.open) {
+            var openHelper = function () {
+              // Layouts laden (brauchen keine Map)
+              loadLayouts();
+              // Massstab setzen falls Map vorhanden
+              var m = getMap();
+              if (!m) return; // Form ist sichtbar, nur kein Rahmen
+              _frameRotation = 0;
+              _printCenter = m.getView().getCenter().slice();
+              disableMapInteractions();
+              showPrintFrame();
+              // Verzögertes Layout-Update: stellt sicher, dass Container
+              // nach dem Öffnen korrekt bemessen ist (erstes Öffnen-Bug)
+              setTimeout(function () {
+                loadLayouts();
+                adjustZoomForPrintFrame();
+              }, 450);
+            };
+            if (_libsReady) {
+              openHelper();
+            } else {
+              loadLibraries().then(openHelper).catch(function (err) {
+                TnetLog.error('[Drucken] Libraries konnten nicht geladen werden:', err);
+              });
+            }
+          } else {
+            removePrintFrame();
+            restoreMapInteractions();
+          }
+        });
+      }
+    } else {
+      document.body.appendChild(panel);
+    }
+
+    // Massstab-Dropdown dynamisch aus Config rendern
+    renderScaleDropdown();
+
+    // Layout-Wechsel → Rahmen + SVG-Vorschau anpassen
+    var layoutSel = document.getElementById('print-layout');
+    if (layoutSel) layoutSel.addEventListener('change', function () {
+      updateFrameSize();
+      loadSvgPreview();
+    });
+
+    // Massstab-Wechsel → Rahmen anpassen + Mobile: Kartenzoom nachführen
+    var scaleSel = document.getElementById('print-scale');
+    if (scaleSel) scaleSel.addEventListener('change', function () {
+      updateFrameSize();
+      refreshSvgPreviewValues();
+      if (_isMobile) {
+        var ps = parseInt(scaleSel.value) || 10000;
+        adjustMapZoomMobile(ps);
+      }
+    });
+    var titleInput = document.getElementById('print-title');
+    if (titleInput) titleInput.addEventListener('input', refreshSvgPreviewValues);
+    var userInputEl = document.getElementById('print-user');
+    if (userInputEl) userInputEl.addEventListener('input', refreshSvgPreviewValues);
+
+    // Koordinatennetz Checkbox → Farbwahl ein-/ausblenden
+    var gridCb = document.getElementById('print-grid');
+    if (gridCb) gridCb.addEventListener('change', function () {
+      document.getElementById('print-grid-color').style.display = gridCb.checked ? 'flex' : 'none';
+    });
+
+    // Server-Rendering Checkbox: Default aus Config
+    var srCb = document.getElementById('print-server-render');
+    if (srCb && _globalConfig.print && _globalConfig.print.serverRenderDefault) {
+      srCb.checked = true;
+    }
+
+    // SVG-Format Checkbox: immer sichtbar (SVG auch ohne Server-Rendering nutzbar)
+    var svgCb = document.getElementById('print-svg-format');
+    if (svgCb && _globalConfig.print && _globalConfig.print.svgFormatDefault) {
+      svgCb.checked = true;
+    }
+
+    // Rotation-Slider
+    var rotSlider = document.getElementById('print-rotation');
+    if (rotSlider) rotSlider.addEventListener('input', function () {
+      var deg = parseInt(rotSlider.value);
+      _frameRotation = deg * Math.PI / 180;
+      applyFrameRotation();
+      refreshSvgPreviewValues();
+    });
+
+    TnetLog.log('[Drucken] tnet-print.js initialisiert');
+
+    // Resize-Handle für Dock-Modus
+    initPrintPanelResize();
+
+    // Libraries im Hintergrund vorladen (kein Blockieren)
+    loadLibraries().catch(function (err) {
+      TnetLog.warn('[Drucken] Vorladen der PDF-Libraries fehlgeschlagen:', err);
+    });
+
+    } catch (initErr) {
+      TnetLog.error('[Drucken] init() Fehler:', initErr);
+    }
+  }
+
+  // Auto-Init bei DOMContentLoaded oder sofort falls DOM schon bereit
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+
+})();

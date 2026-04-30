@@ -1,1 +1,596 @@
-(function(){"use strict";function u(){if(typeof window.TnetSplitScreen>"u"){setTimeout(u,100);return}TnetLog.log("[SplitScreenCatalog] Extending TnetSplitScreen with catalog functionality"),window.TnetSplitScreen.populateLayerControl=function(){var e=this;TnetLog.log("[SplitScreen] Populating layer control using PHP service...");var t=document.getElementById("splitscreen-layer-list");if(!t){TnetLog.error("[SplitScreen] Layer list element not found");return}t.innerHTML='<div style="padding: 10px; text-align: center; color: #999;">Lade Katalog...</div>',fetch("tnet/php/lyrmgr-to-json.php").then(function(n){if(!n.ok)throw new Error("HTTP "+n.status);return n.json()}).then(function(n){TnetLog.log("[SplitScreen] Catalog data loaded:",n),e.renderCatalogHierarchy(n,t)}).catch(function(n){TnetLog.error("[SplitScreen] Error loading catalog:",n),t.innerHTML='<div style="padding: 10px; text-align: center; color: #f00;">Fehler beim Laden: '+n.message+"</div>"})},window.TnetSplitScreen.renderCatalogHierarchy=function(e,t){var n=this;if(t.innerHTML="",!e.categories||e.categories.length===0){t.innerHTML='<div style="padding: 10px; color: #999; text-align: center;">Keine Kategorien gefunden</div>';return}TnetLog.log("[SplitScreen] Rendering",e.categories.length,"top-level categories"),e.categories.forEach(function(r){var o=n.createTopCategoryElement(r);t.appendChild(o)})},window.TnetSplitScreen.createTopCategoryElement=function(e){var t=this,n=document.createElement("div");n.style.cssText="margin-bottom: 6px;";var r=document.createElement("div");r.style.cssText="padding: 7px; background: #2c5f6f; color: white; font-weight: 600; cursor: pointer; border-radius: 3px; display: flex; align-items: center; font-size: 11px;",r.innerHTML='<span style="margin-right: 6px; font-size: 9px;">\u25B6</span>'+e.name;var o=document.createElement("div");o.style.cssText="display: none; padding-left: 6px; margin-top: 3px;",e.subcategories&&e.subcategories.length>0&&e.subcategories.forEach(function(i){var l=t.createSubcategoryElement(i);o.appendChild(l)});var a=!1;return r.addEventListener("click",function(){a=!a,o.style.display=a?"block":"none",r.querySelector("span").textContent=a?"\u25BC":"\u25B6"}),n.appendChild(r),n.appendChild(o),n},window.TnetSplitScreen.createSubcategoryElement=function(e){var t=this,n=document.createElement("div");n.style.cssText="margin-bottom: 5px;";var r=document.createElement("div");r.style.cssText="padding: 5px 6px; background: #e8f4f8; font-weight: 500; cursor: pointer; border-radius: 2px; display: flex; align-items: center; font-size: 10px;",r.innerHTML='<span style="margin-right: 5px; font-size: 8px;">\u25B6</span>'+e.name;var o=document.createElement("div");o.style.cssText="display: none; padding-left: 6px; margin-top: 2px;",e.groups&&e.groups.length>0&&e.groups.forEach(function(i){var l=t.createGroupElement(i);o.appendChild(l)});var a=!1;return r.addEventListener("click",function(){a=!a,o.style.display=a?"block":"none",r.querySelector("span").textContent=a?"\u25BC":"\u25B6"}),n.appendChild(r),n.appendChild(o),n},window.TnetSplitScreen.createGroupElement=function(e){var t=this,n=document.createElement("div");n.style.cssText="margin-bottom: 4px;";var r=document.createElement("div");r.style.cssText="padding: 4px 5px; background: #f5f5f5; cursor: pointer; border-radius: 2px; display: flex; align-items: center; font-size: 10px; color: #333;",r.innerHTML='<span style="margin-right: 4px; font-size: 7px;">\u25B6</span>'+e.name;var o=document.createElement("div");o.style.cssText="display: none; padding-left: 6px; margin-top: 2px;",e.layers&&e.layers.length>0&&e.layers.forEach(function(i){var l=t.createLayerElementFromCatalog(i);o.appendChild(l)});var a=e.open||!1;return a&&(o.style.display="block",r.querySelector("span").textContent="\u25BC"),r.addEventListener("click",function(){a=!a,o.style.display=a?"block":"none",r.querySelector("span").textContent=a?"\u25BC":"\u25B6"}),n.appendChild(r),n.appendChild(o),n},window.TnetSplitScreen.createLayerElementFromCatalog=function(e){var t=this;if(e.type==="group"&&e.layers){var n=document.createElement("div");n.style.cssText="margin-bottom: 3px;";var r=document.createElement("div");r.style.cssText="padding: 3px 4px; background: #fafafa; cursor: pointer; border-radius: 2px; display: flex; align-items: center; font-size: 9px;",r.innerHTML='<span style="margin-right: 3px; font-size: 7px;">\u25B6</span>'+e.name;var o=document.createElement("div");o.style.cssText="display: none; padding-left: 6px; margin-top: 1px;",e.layers.forEach(function(s){var c=t.createLayerElementFromCatalog(s);o.appendChild(c)});var a=e.open||!1;return a&&(o.style.display="block",r.querySelector("span").textContent="\u25BC"),r.addEventListener("click",function(){a=!a,o.style.display=a?"block":"none",r.querySelector("span").textContent=a?"\u25BC":"\u25B6"}),n.appendChild(r),n.appendChild(o),n}var i=document.createElement("div");i.style.cssText="padding: 3px 4px; margin: 1px 0; cursor: pointer; border-radius: 2px; display: flex; align-items: center; font-size: 9px; background: #fff;",i.setAttribute("data-layer-id",e.id);var l=document.createElement("input");l.type="checkbox",l.style.cssText="margin-right: 5px; cursor: pointer;",l.checked=!1;var p=document.createElement("span");return p.textContent=e.name,p.style.cssText="flex: 1;",i.appendChild(l),i.appendChild(p),l.addEventListener("change",function(){var s=this.checked;if(TnetLog.log("[SplitScreenCatalog] Layer checkbox changed:",e.id,"checked:",s),s){if(t.map2){var c=[];t.map2.getLayers().forEach(function(g){var d=g.get("catalogId");d===e.id&&c.push(g)}),TnetLog.log("[SplitScreenCatalog] Removing",c.length,"old instances of",e.id),c.forEach(function(g){t.map2.removeLayer(g)})}TnetLog.log("[SplitScreenCatalog] Creating new layer:",e.id),e.url?t.createLayerFromDefinition(e):t.addLayerToMap2(e.id,!0)}else if(t.map2){var c=[];t.map2.getLayers().forEach(function(d){var m=d.get("catalogId");m===e.id&&c.push(d)}),TnetLog.log("[SplitScreenCatalog] Removing",c.length,"instances of",e.id),c.forEach(function(d){t.map2.removeLayer(d)}),t.map2.render()}}),i.addEventListener("click",function(s){s.target!==l&&(l.checked=!l.checked,l.dispatchEvent(new Event("change")))}),i.addEventListener("mouseenter",function(){this.style.background="#e8f4f8"}),i.addEventListener("mouseleave",function(){this.style.background="#fff"}),i},window.TnetSplitScreen.createLayerFromDefinition=function(e){if(!this.map2){TnetLog.warn("[SplitScreenCatalog] map2 not available");return}TnetLog.log("[SplitScreenCatalog] Creating layer from definition:",e);try{var t=null,n=null,r={};if(e.params){var o={layers:"LAYERS",format:"FORMAT",transparent:"TRANSPARENT",styles:"STYLES",version:"VERSION",srs:"SRS",crs:"CRS",bgcolor:"BGCOLOR",exceptions:"EXCEPTIONS",time:"TIME",sld:"SLD",sld_body:"SLD_BODY",filter:"FILTER",tiled:"TILED",tilesorigin:"TILESORIGIN"};for(var a in e.params){var i=o[a.toLowerCase()]||a.toUpperCase();r[i]=e.params[a]}}(e.layerType==="wms"||e.layerType==="WMS")&&!r.LAYERS&&(r.LAYERS=e.id);var l=e.options&&e.options.singleTile;if(e.layerType==="wms"||e.layerType==="WMS")l?(n=new ol.source.ImageWMS({url:e.url,params:r,serverType:"mapserver",crossOrigin:"anonymous"}),t=new ol.layer.Image({source:n,opacity:e.opacity||1,visible:!0,zIndex:100}),TnetLog.log("[SplitScreenCatalog] Created ImageWMS (singleTile) layer")):(n=new ol.source.TileWMS({url:e.url,params:r,serverType:"mapserver",crossOrigin:"anonymous"}),t=new ol.layer.Tile({source:n,opacity:e.opacity||1,visible:!0,zIndex:100}),TnetLog.log("[SplitScreenCatalog] Created TileWMS layer"));else if(e.layerType==="arcgisRest"||e.layerType==="ArcGISRest"){var p=Object.assign({LAYERS:"show:0",FORMAT:"PNG32",TRANSPARENT:!0},e.params||{});l?(n=new ol.source.ImageArcGISRest({url:e.url,params:p,crossOrigin:"anonymous"}),t=new ol.layer.Image({source:n,opacity:e.opacity||.65,visible:!0,zIndex:100})):(n=new ol.source.TileArcGISRest({url:e.url,params:p,crossOrigin:"anonymous"}),t=new ol.layer.Tile({source:n,opacity:e.opacity||.65,visible:!0,zIndex:100}))}else{TnetLog.warn("[SplitScreenCatalog] Unknown layer type:",e.layerType);return}t.set("name",e.id),t.set("title",e.name),t.set("catalogId",e.id),this.map2.addLayer(t),TnetLog.log("[SplitScreenCatalog] Layer created and added to map2:",e.id),TnetLog.log("[SplitScreenCatalog]   -> Visible:",t.getVisible()),TnetLog.log("[SplitScreenCatalog]   -> Opacity:",t.getOpacity()),TnetLog.log("[SplitScreenCatalog]   -> ZIndex:",t.getZIndex()),TnetLog.log("[SplitScreenCatalog]   -> Source:",t.getSource()),this.map2.updateSize(),this.map2.render()}catch(s){TnetLog.error("[SplitScreenCatalog] Error creating layer from definition:",s)}},window.TnetSplitScreen.addLayerToMap2=function(e,t){if(!this.map2){TnetLog.warn("[SplitScreenCatalog] map2 not available");return}TnetLog.log("[SplitScreenCatalog] Adding layer to map2:",e,"visible:",t);try{if(window.top&&window.top.njs&&window.top.njs.AppManager){var n=window.top.njs.AppManager.Maps.main.mapObj,r=n.getLayers().getLength(),o="layers="+e;TnetLog.log("[SplitScreenCatalog] Loading layer via setMapBookmark:",o),window.top.njs.AppManager.setMapBookmark(["main"],o);var a=this;setTimeout(function(){var i=n.getLayers().getLength();if(i>r){for(var l=n.getLayers().getArray(),p=[],s=r;s<i;s++)p.push(l[s]);p.forEach(function(c){TnetLog.log("[SplitScreenCatalog] New layer detected:",c.get("name"));var g=a.cloneLayerForMap2(c);g&&(g.setVisible(t),g.set("catalogId",e),a.map2.addLayer(g),TnetLog.log("[SplitScreenCatalog] Layer cloned to map2:",c.get("name"),"visible:",t)),n.removeLayer(c),TnetLog.log("[SplitScreenCatalog] Layer removed from main map:",c.get("name"))})}else TnetLog.warn("[SplitScreenCatalog] No new layer detected in main map")},1e3)}else TnetLog.error("[SplitScreenCatalog] njs.AppManager not available")}catch(i){TnetLog.error("[SplitScreenCatalog] Error adding layer:",i)}},window.TnetSplitScreen.cloneLayerForMap2=function(e){if(!e||!e.getSource)return null;var t=e.getSource();if(!t)return null;var n=null;try{if(t.constructor.name==="TileWMS"){var r=t.getParams?t.getParams():{};n=new ol.source.TileWMS({url:t.getUrl(),params:Object.assign({},r),serverType:t.getServerType(),crossOrigin:"anonymous"})}else if(t.constructor.name==="ImageWMS"){var r=t.getParams?t.getParams():{};n=new ol.source.ImageWMS({url:t.getUrl(),params:Object.assign({},r),serverType:t.getServerType(),crossOrigin:"anonymous"})}else if(t.constructor.name==="XYZ")n=new ol.source.XYZ({url:t.getUrl?t.getUrl():t.getUrls()[0],crossOrigin:"anonymous"});else if(t.constructor.name==="OSM")n=new ol.source.OSM;else return TnetLog.warn("[SplitScreenCatalog] Unknown source type:",t.constructor.name),null;var o=e.constructor,a=new o({source:n,opacity:e.getOpacity(),visible:e.getVisible(),zIndex:e.getZIndex()});return a.set("name",e.get("name")),a.set("title",e.get("title")),a}catch(i){return TnetLog.error("[SplitScreenCatalog] Error cloning layer:",i),null}},window.TnetSplitScreen.findLayerInMap2=function(e){if(!this.map2)return null;for(var t=this.map2.getLayers().getArray(),n=0;n<t.length;n++){var r=t[n],o=r.get("catalogId");if(o===e)return r;var a=r.get("name")||"";if(a===e||a.indexOf(e)!==-1||e.indexOf(a)!==-1)return r}return null},TnetLog.log("[SplitScreenCatalog] Catalog integration complete")}u()})();
+﻿/**
+ * Split-Screen Layer Catalog Integration
+ * Erweitert tnet-splitscreen.js um hierarchischen Layer-Katalog
+ *
+ * @version    1.1
+ * @date       2026-02-12
+ * @copyright  Trigonet AG
+ * @author     Marco Dellenbach
+ */
+
+(function() {
+    'use strict';
+    
+    // Warte bis SplitScreen verfügbar ist
+    function initCatalog() {
+        if (typeof window.TnetSplitScreen === 'undefined') {
+            setTimeout(initCatalog, 100);
+            return;
+        }
+        
+        TnetLog.log('[SplitScreenCatalog] Extending TnetSplitScreen with catalog functionality');
+        
+        // Überschreibe populateLayerControl
+        window.TnetSplitScreen.populateLayerControl = function() {
+            var self = this;
+            
+            TnetLog.log('[SplitScreen] Populating layer control using PHP service...');
+            
+            var layerList = document.getElementById('splitscreen-layer-list');
+            if (!layerList) {
+                TnetLog.error('[SplitScreen] Layer list element not found');
+                return;
+            }
+            
+            // Clear existing content
+            layerList.innerHTML = '<div style="padding: 10px; text-align: center; color: #999;">Lade Katalog...</div>';
+            
+            // Load catalog data from PHP service
+            fetch('tnet/php/lyrmgr-to-json.php')
+                .then(function(response) {
+                    if (!response.ok) {
+                        throw new Error('HTTP ' + response.status);
+                    }
+                    return response.json();
+                })
+                .then(function(data) {
+                    TnetLog.log('[SplitScreen] Catalog data loaded:', data);
+                    self.renderCatalogHierarchy(data, layerList);
+                })
+                .catch(function(error) {
+                    TnetLog.error('[SplitScreen] Error loading catalog:', error);
+                    layerList.innerHTML = '<div style="padding: 10px; text-align: center; color: #f00;">Fehler beim Laden: ' + error.message + '</div>';
+                });
+        };
+        
+        // Neue Methode: Hierarchie rendern
+        window.TnetSplitScreen.renderCatalogHierarchy = function(data, container) {
+            var self = this;
+            
+            container.innerHTML = '';
+            
+            if (!data.categories || data.categories.length === 0) {
+                container.innerHTML = '<div style="padding: 10px; color: #999; text-align: center;">Keine Kategorien gefunden</div>';
+                return;
+            }
+            
+            TnetLog.log('[SplitScreen] Rendering', data.categories.length, 'top-level categories');
+            
+            // Render each top-level category (Nidwalden, Obwalden, Bund, Weitere)
+            data.categories.forEach(function(topCategory) {
+                var topCatEl = self.createTopCategoryElement(topCategory);
+                container.appendChild(topCatEl);
+            });
+        };
+        
+        // Top-Level Category (Nidwalden, Obwalden, etc.)
+        window.TnetSplitScreen.createTopCategoryElement = function(topCategory) {
+            var self = this;
+            var container = document.createElement('div');
+            container.style.cssText = 'margin-bottom: 6px;';
+            
+            var header = document.createElement('div');
+            header.style.cssText = 'padding: 7px; background: #2c5f6f; color: white; font-weight: 600; cursor: pointer; border-radius: 3px; display: flex; align-items: center; font-size: 11px;';
+            header.innerHTML = '<span style="margin-right: 6px; font-size: 9px;">▶</span>' + topCategory.name;
+            
+            var content = document.createElement('div');
+            content.style.cssText = 'display: none; padding-left: 6px; margin-top: 3px;';
+            
+            if (topCategory.subcategories && topCategory.subcategories.length > 0) {
+                topCategory.subcategories.forEach(function(subcategory) {
+                    var subcatEl = self.createSubcategoryElement(subcategory);
+                    content.appendChild(subcatEl);
+                });
+            }
+            
+            var isOpen = false;
+            header.addEventListener('click', function() {
+                isOpen = !isOpen;
+                content.style.display = isOpen ? 'block' : 'none';
+                header.querySelector('span').textContent = isOpen ? '▼' : '▶';
+            });
+            
+            container.appendChild(header);
+            container.appendChild(content);
+            
+            return container;
+        };
+        
+        // Subcategory (Grundlagen, ÖREB, etc.)
+        window.TnetSplitScreen.createSubcategoryElement = function(subcategory) {
+            var self = this;
+            var container = document.createElement('div');
+            container.style.cssText = 'margin-bottom: 5px;';
+            
+            var header = document.createElement('div');
+            header.style.cssText = 'padding: 5px 6px; background: #e8f4f8; font-weight: 500; cursor: pointer; border-radius: 2px; display: flex; align-items: center; font-size: 10px;';
+            header.innerHTML = '<span style="margin-right: 5px; font-size: 8px;">▶</span>' + subcategory.name;
+            
+            var content = document.createElement('div');
+            content.style.cssText = 'display: none; padding-left: 6px; margin-top: 2px;';
+            
+            if (subcategory.groups && subcategory.groups.length > 0) {
+                subcategory.groups.forEach(function(group) {
+                    var groupEl = self.createGroupElement(group);
+                    content.appendChild(groupEl);
+                });
+            }
+            
+            var isOpen = false;
+            header.addEventListener('click', function() {
+                isOpen = !isOpen;
+                content.style.display = isOpen ? 'block' : 'none';
+                header.querySelector('span').textContent = isOpen ? '▼' : '▶';
+            });
+            
+            container.appendChild(header);
+            container.appendChild(content);
+            
+            return container;
+        };
+        
+        // Group Element
+        window.TnetSplitScreen.createGroupElement = function(group) {
+            var self = this;
+            var container = document.createElement('div');
+            container.style.cssText = 'margin-bottom: 4px;';
+            
+            var header = document.createElement('div');
+            header.style.cssText = 'padding: 4px 5px; background: #f5f5f5; cursor: pointer; border-radius: 2px; display: flex; align-items: center; font-size: 10px; color: #333;';
+            header.innerHTML = '<span style="margin-right: 4px; font-size: 7px;">▶</span>' + group.name;
+            
+            var content = document.createElement('div');
+            content.style.cssText = 'display: none; padding-left: 6px; margin-top: 2px;';
+            
+            if (group.layers && group.layers.length > 0) {
+                group.layers.forEach(function(layer) {
+                    var layerEl = self.createLayerElementFromCatalog(layer);
+                    content.appendChild(layerEl);
+                });
+            }
+            
+            var isOpen = group.open || false;
+            if (isOpen) {
+                content.style.display = 'block';
+                header.querySelector('span').textContent = '▼';
+            }
+            
+            header.addEventListener('click', function() {
+                isOpen = !isOpen;
+                content.style.display = isOpen ? 'block' : 'none';
+                header.querySelector('span').textContent = isOpen ? '▼' : '▶';
+            });
+            
+            container.appendChild(header);
+            container.appendChild(content);
+            
+            return container;
+        };
+        
+        // Layer Element
+        window.TnetSplitScreen.createLayerElementFromCatalog = function(layer) {
+            var self = this;
+            
+            // Check if nested group
+            if (layer.type === 'group' && layer.layers) {
+                var nestedGroup = document.createElement('div');
+                nestedGroup.style.cssText = 'margin-bottom: 3px;';
+                
+                var nestedHeader = document.createElement('div');
+                nestedHeader.style.cssText = 'padding: 3px 4px; background: #fafafa; cursor: pointer; border-radius: 2px; display: flex; align-items: center; font-size: 9px;';
+                nestedHeader.innerHTML = '<span style="margin-right: 3px; font-size: 7px;">▶</span>' + layer.name;
+                
+                var nestedContent = document.createElement('div');
+                nestedContent.style.cssText = 'display: none; padding-left: 6px; margin-top: 1px;';
+                
+                layer.layers.forEach(function(subLayer) {
+                    var subLayerEl = self.createLayerElementFromCatalog(subLayer);
+                    nestedContent.appendChild(subLayerEl);
+                });
+                
+                var isOpen = layer.open || false;
+                if (isOpen) {
+                    nestedContent.style.display = 'block';
+                    nestedHeader.querySelector('span').textContent = '▼';
+                }
+                
+                nestedHeader.addEventListener('click', function() {
+                    isOpen = !isOpen;
+                    nestedContent.style.display = isOpen ? 'block' : 'none';
+                    nestedHeader.querySelector('span').textContent = isOpen ? '▼' : '▶';
+                });
+                
+                nestedGroup.appendChild(nestedHeader);
+                nestedGroup.appendChild(nestedContent);
+                
+                return nestedGroup;
+            }
+            
+            // It's a layer - create checkbox item
+            var item = document.createElement('div');
+            item.style.cssText = 'padding: 3px 4px; margin: 1px 0; cursor: pointer; border-radius: 2px; display: flex; align-items: center; font-size: 9px; background: #fff;';
+            item.setAttribute('data-layer-id', layer.id);
+            
+            var checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.style.cssText = 'margin-right: 5px; cursor: pointer;';
+            checkbox.checked = false; // Immer false beim Rendern - der tatsächliche Status wird beim Click geprüft
+            
+            var label = document.createElement('span');
+            label.textContent = layer.name;
+            label.style.cssText = 'flex: 1;';
+            
+            item.appendChild(checkbox);
+            item.appendChild(label);
+            
+            // Add event handler to load/toggle layer directly from catalog definition
+            checkbox.addEventListener('change', function() {
+                var isChecked = this.checked;
+                TnetLog.log('[SplitScreenCatalog] Layer checkbox changed:', layer.id, 'checked:', isChecked);
+                
+                if (isChecked) {
+                    // Erst ALLE Layer mit dieser ID entfernen
+                    if (self.map2) {
+                        var layersToRemove = [];
+                        self.map2.getLayers().forEach(function(mapLayer) {
+                            var catalogId = mapLayer.get('catalogId');
+                            if (catalogId === layer.id) {
+                                layersToRemove.push(mapLayer);
+                            }
+                        });
+                        
+                        TnetLog.log('[SplitScreenCatalog] Removing', layersToRemove.length, 'old instances of', layer.id);
+                        layersToRemove.forEach(function(oldLayer) {
+                            self.map2.removeLayer(oldLayer);
+                        });
+                    }
+                    
+                    // Dann neu erstellen
+                    TnetLog.log('[SplitScreenCatalog] Creating new layer:', layer.id);
+                    if (layer.url) {
+                        self.createLayerFromDefinition(layer);
+                    } else {
+                        self.addLayerToMap2(layer.id, true);
+                    }
+                } else {
+                    // Alle Layer mit dieser ID entfernen
+                    if (self.map2) {
+                        var layersToRemove = [];
+                        self.map2.getLayers().forEach(function(mapLayer) {
+                            var catalogId = mapLayer.get('catalogId');
+                            if (catalogId === layer.id) {
+                                layersToRemove.push(mapLayer);
+                            }
+                        });
+                        
+                        TnetLog.log('[SplitScreenCatalog] Removing', layersToRemove.length, 'instances of', layer.id);
+                        layersToRemove.forEach(function(oldLayer) {
+                            self.map2.removeLayer(oldLayer);
+                        });
+                        
+                        self.map2.render();
+                    }
+                }
+            });
+            
+            item.addEventListener('click', function(e) {
+                if (e.target !== checkbox) {
+                    checkbox.checked = !checkbox.checked;
+                    checkbox.dispatchEvent(new Event('change'));
+                }
+            });
+            
+            // Hover effect
+            item.addEventListener('mouseenter', function() {
+                this.style.background = '#e8f4f8';
+            });
+            item.addEventListener('mouseleave', function() {
+                this.style.background = '#fff';
+            });
+            
+            return item;
+        };
+        
+        // Create layer directly from catalog definition (without loading in main map)
+        window.TnetSplitScreen.createLayerFromDefinition = function(layerDef) {
+            if (!this.map2) {
+                TnetLog.warn('[SplitScreenCatalog] map2 not available');
+                return;
+            }
+            
+            TnetLog.log('[SplitScreenCatalog] Creating layer from definition:', layerDef);
+            
+            try {
+                var layer = null;
+                var source = null;
+                
+                // Normalize WMS params to uppercase (OGC standard)
+                var normalizedParams = {};
+                if (layerDef.params) {
+                    var paramMap = {
+                        'layers': 'LAYERS', 'format': 'FORMAT', 'transparent': 'TRANSPARENT',
+                        'styles': 'STYLES', 'version': 'VERSION', 'srs': 'SRS', 'crs': 'CRS',
+                        'bgcolor': 'BGCOLOR', 'exceptions': 'EXCEPTIONS', 'time': 'TIME',
+                        'sld': 'SLD', 'sld_body': 'SLD_BODY', 'filter': 'FILTER',
+                        'tiled': 'TILED', 'tilesorigin': 'TILESORIGIN'
+                    };
+                    for (var key in layerDef.params) {
+                        var upperKey = paramMap[key.toLowerCase()] || key.toUpperCase();
+                        normalizedParams[upperKey] = layerDef.params[key];
+                    }
+                }
+                
+                // Ensure LAYERS param exists for WMS
+                if ((layerDef.layerType === 'wms' || layerDef.layerType === 'WMS') && !normalizedParams['LAYERS']) {
+                    normalizedParams['LAYERS'] = layerDef.id;
+                }
+                
+                // Check singleTile option
+                var useSingleTile = layerDef.options && layerDef.options.singleTile;
+                
+                // Create source based on layer type
+                if (layerDef.layerType === 'wms' || layerDef.layerType === 'WMS') {
+                    
+                    if (useSingleTile) {
+                        // ImageWMS for singleTile (one request per viewport)
+                        source = new ol.source.ImageWMS({
+                            url: layerDef.url,
+                            params: normalizedParams,
+                            serverType: 'mapserver',
+                            crossOrigin: 'anonymous'
+                        });
+                        
+                        layer = new ol.layer.Image({
+                            source: source,
+                            opacity: layerDef.opacity || 1.0,
+                            visible: true,
+                            zIndex: 100
+                        });
+                        
+                        TnetLog.log('[SplitScreenCatalog] Created ImageWMS (singleTile) layer');
+                    } else {
+                        // TileWMS for tiled requests
+                        source = new ol.source.TileWMS({
+                            url: layerDef.url,
+                            params: normalizedParams,
+                            serverType: 'mapserver',
+                            crossOrigin: 'anonymous'
+                        });
+                        
+                        layer = new ol.layer.Tile({
+                            source: source,
+                            opacity: layerDef.opacity || 1.0,
+                            visible: true,
+                            zIndex: 100
+                        });
+                        
+                        TnetLog.log('[SplitScreenCatalog] Created TileWMS layer');
+                    }
+                } else if (layerDef.layerType === 'arcgisRest' || layerDef.layerType === 'ArcGISRest') {
+                    // ArcGIS REST Layer
+                    var arcParams = Object.assign({
+                        LAYERS: 'show:0',
+                        FORMAT: 'PNG32',
+                        TRANSPARENT: true
+                    }, layerDef.params || {});
+                    
+                    if (useSingleTile) {
+                        // ImageArcGISRest für singleTile (schneller)
+                        source = new ol.source.ImageArcGISRest({
+                            url: layerDef.url,
+                            params: arcParams,
+                            crossOrigin: 'anonymous'
+                        });
+                        
+                        layer = new ol.layer.Image({
+                            source: source,
+                            opacity: layerDef.opacity || 0.65,
+                            visible: true,
+                            zIndex: 100
+                        });
+                    } else {
+                        // TileArcGISRest für gekachelte Layer
+                        source = new ol.source.TileArcGISRest({
+                            url: layerDef.url,
+                            params: arcParams,
+                            crossOrigin: 'anonymous'
+                        });
+                        
+                        layer = new ol.layer.Tile({
+                            source: source,
+                            opacity: layerDef.opacity || 0.65,
+                            visible: true,
+                            zIndex: 100
+                        });
+                    }
+                } else {
+                    TnetLog.warn('[SplitScreenCatalog] Unknown layer type:', layerDef.layerType);
+                    return;
+                }
+                
+                // Set metadata
+                layer.set('name', layerDef.id);
+                layer.set('title', layerDef.name);
+                layer.set('catalogId', layerDef.id);
+                
+                // Add to map2
+                this.map2.addLayer(layer);
+                TnetLog.log('[SplitScreenCatalog] Layer created and added to map2:', layerDef.id);
+                TnetLog.log('[SplitScreenCatalog]   -> Visible:', layer.getVisible());
+                TnetLog.log('[SplitScreenCatalog]   -> Opacity:', layer.getOpacity());
+                TnetLog.log('[SplitScreenCatalog]   -> ZIndex:', layer.getZIndex());
+                TnetLog.log('[SplitScreenCatalog]   -> Source:', layer.getSource());
+                
+                // Force render and update size
+                this.map2.updateSize();
+                this.map2.render();
+            } catch (e) {
+                TnetLog.error('[SplitScreenCatalog] Error creating layer from definition:', e);
+            }
+        };
+        
+        // Add layer to map2 using LayerManager (setMapBookmark) - Fallback method
+        window.TnetSplitScreen.addLayerToMap2 = function(layerId, visible) {
+            if (!this.map2) {
+                TnetLog.warn('[SplitScreenCatalog] map2 not available');
+                return;
+            }
+            
+            TnetLog.log('[SplitScreenCatalog] Adding layer to map2:', layerId, 'visible:', visible);
+            
+            try {
+                if (window.top && window.top.njs && window.top.njs.AppManager) {
+                    // Get main map
+                    var mainMap = window.top.njs.AppManager.Maps.main.mapObj;
+                    var beforeCount = mainMap.getLayers().getLength();
+                    
+                    // Build params string
+                    var params = 'layers=' + layerId;
+                    
+                    TnetLog.log('[SplitScreenCatalog] Loading layer via setMapBookmark:', params);
+                    
+                    // Load layer in main map
+                    window.top.njs.AppManager.setMapBookmark(['main'], params);
+                    
+                    // Wait for layer to be added, then clone to map2
+                    var self = this;
+                    setTimeout(function() {
+                        var afterCount = mainMap.getLayers().getLength();
+                        
+                        if (afterCount > beforeCount) {
+                            // Get the newly added layer(s)
+                            var layers = mainMap.getLayers().getArray();
+                            var newLayers = [];
+                            
+                            // Sammle neue Layer
+                            for (var i = beforeCount; i < afterCount; i++) {
+                                newLayers.push(layers[i]);
+                            }
+                            
+                            // Klone zu map2 und entferne aus main
+                            newLayers.forEach(function(mainLayer) {
+                                TnetLog.log('[SplitScreenCatalog] New layer detected:', mainLayer.get('name'));
+                                
+                                // Clone to map2
+                                var clonedLayer = self.cloneLayerForMap2(mainLayer);
+                                if (clonedLayer) {
+                                    clonedLayer.setVisible(visible);
+                                    clonedLayer.set('catalogId', layerId); // Store catalog ID
+                                    self.map2.addLayer(clonedLayer);
+                                    TnetLog.log('[SplitScreenCatalog] Layer cloned to map2:', mainLayer.get('name'), 'visible:', visible);
+                                }
+                                
+                                // WICHTIG: Entferne Layer aus Karte A (main)
+                                mainMap.removeLayer(mainLayer);
+                                TnetLog.log('[SplitScreenCatalog] Layer removed from main map:', mainLayer.get('name'));
+                            });
+                        } else {
+                            TnetLog.warn('[SplitScreenCatalog] No new layer detected in main map');
+                        }
+                    }, 1000); // Warte 1 Sekunde auf Layer-Laden
+                } else {
+                    TnetLog.error('[SplitScreenCatalog] njs.AppManager not available');
+                }
+            } catch (e) {
+                TnetLog.error('[SplitScreenCatalog] Error adding layer:', e);
+            }
+        };
+        
+        // Clone layer from main to map2
+        window.TnetSplitScreen.cloneLayerForMap2 = function(layer) {
+            if (!layer || !layer.getSource) return null;
+            
+            var source = layer.getSource();
+            if (!source) return null;
+            
+            var newSource = null;
+            
+            try {
+                if (source.constructor.name === 'TileWMS') {
+                    var params = source.getParams ? source.getParams() : {};
+                    newSource = new ol.source.TileWMS({
+                        url: source.getUrl(),
+                        params: Object.assign({}, params),
+                        serverType: source.getServerType(),
+                        crossOrigin: 'anonymous'
+                    });
+                } else if (source.constructor.name === 'ImageWMS') {
+                    var params = source.getParams ? source.getParams() : {};
+                    newSource = new ol.source.ImageWMS({
+                        url: source.getUrl(),
+                        params: Object.assign({}, params),
+                        serverType: source.getServerType(),
+                        crossOrigin: 'anonymous'
+                    });
+                } else if (source.constructor.name === 'XYZ') {
+                    newSource = new ol.source.XYZ({
+                        url: source.getUrl ? source.getUrl() : source.getUrls()[0],
+                        crossOrigin: 'anonymous'
+                    });
+                } else if (source.constructor.name === 'OSM') {
+                    newSource = new ol.source.OSM();
+                } else {
+                    TnetLog.warn('[SplitScreenCatalog] Unknown source type:', source.constructor.name);
+                    return null;
+                }
+                
+                // Create new layer
+                var LayerClass = layer.constructor;
+                var newLayer = new LayerClass({
+                    source: newSource,
+                    opacity: layer.getOpacity(),
+                    visible: layer.getVisible(),
+                    zIndex: layer.getZIndex()
+                });
+                
+                // Copy metadata
+                newLayer.set('name', layer.get('name'));
+                newLayer.set('title', layer.get('title'));
+                
+                return newLayer;
+            } catch (e) {
+                TnetLog.error('[SplitScreenCatalog] Error cloning layer:', e);
+                return null;
+            }
+        };
+        
+        // Find layer in map2
+        window.TnetSplitScreen.findLayerInMap2 = function(layerId) {
+            if (!this.map2) return null;
+            
+            var layers = this.map2.getLayers().getArray();
+            for (var i = 0; i < layers.length; i++) {
+                var layer = layers[i];
+                
+                // Check catalogId first (if set by our catalog)
+                var catalogId = layer.get('catalogId');
+                if (catalogId === layerId) {
+                    return layer;
+                }
+                
+                // Fallback: check name
+                var name = layer.get('name') || '';
+                if (name === layerId || name.indexOf(layerId) !== -1 || layerId.indexOf(name) !== -1) {
+                    return layer;
+                }
+            }
+            
+            return null;
+        };
+        
+        TnetLog.log('[SplitScreenCatalog] Catalog integration complete');
+    }
+    
+    // Start initialization
+    initCatalog();
+})();

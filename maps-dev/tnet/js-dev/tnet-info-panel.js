@@ -1,7 +1,2178 @@
-function initInfoPaneEnhancements(){function r(){return!!window.__TNET_MOBILE_ENTRY}var u={},p=null,v=null,a=!1,d=!1,y=null;window.TnetLMStore&&TnetLMStore.on&&TnetLMStore.on("catalog-loaded",function(){u={}});function P(e){if(e==null)return"";var n=String(e).replace(/&nbsp;/gi," ").replace(/[äÄ]/g,"ae").replace(/[öÖ]/g,"oe").replace(/[üÜ]/g,"ue").replace(/[ß]/g,"ss").toLowerCase().replace(/[^a-z0-9]+/g,"");return n}function h(e){return e==null?"":String(e).replace(/\s+/g," ").trim()}function w(e){var n=h(e);if(!n)return"";var t=n.split("/"),i=t[t.length-1]||n;return i=i.split(".").pop()||i,i=i.replace(/^nw_|^ow_|^ch_/i,""),i=i.replace(/[_\-]+/g," "),h(i.replace(/\b\w/g,function(o){return o.toUpperCase()}))}function k(){try{return window.njs&&njs.AppManager&&njs.AppManager.nls&&njs.AppManager.nls.lyrmgrResources||null}catch{return null}}function E(e,n){if(!e||!n)return"";var t=n["desc_"+e];return t?h(t):""}function T(e,n){if(!e)return"";var t="";return e.description&&(t=h(e.description)),!t&&e.id&&(t=E(e.id,n)),!t&&e.name&&(t=E(e.name,n)),!t&&e.id&&(t=w(e.id)),!t&&e.name&&(t=w(e.name)),h(t)}function j(e,n){if(!e)return"";var t="";return e.description&&(t=h(e.description)),!t&&e.name&&(t=E(e.name,n)),!t&&e.id&&(t=E(e.id,n)),!t&&e.name&&(t=w(e.name)),!t&&e.id&&(t=w(e.id)),h(t)}function z(){try{var e=window.njs&&njs.AppManager&&njs.AppManager.LyrMgr;if(!e)return[];var n=[];for(var t in e)if(e.hasOwnProperty(t)){var i=e[t];i&&i.arCategories&&i.arCategories.length&&n.push(i)}return n}catch{return[]}}function l(e,n,t){if(!e||!n)return null;var i=t.slice();if(i.push(e),e.arLayers&&e.arLayers.length)for(var o=0;o<e.arLayers.length;o++){var s=e.arLayers[o];if(s&&s.name===n)return{categories:i,layer:s}}if(e.arCategories&&e.arCategories.length)for(var c=0;c<e.arCategories.length;c++){var f=l(e.arCategories[c],n,i);if(f)return f}return null}function g(e,n,t){if(!e||!n)return null;var i=t.slice();if(i.push(e),e.id===n||e.name===n)return i;if(e.arCategories&&e.arCategories.length)for(var o=0;o<e.arCategories.length;o++){var s=g(e.arCategories[o],n,i);if(s)return s}return null}function b(e,n){if(!e||!n||!n.length)return null;for(var t=0;t<n.length;t++){var i=n[t];if(!(!i||!i.arCategories))for(var o=0;o<i.arCategories.length;o++){var s=l(i.arCategories[o],e,[]);if(s)return s}}return null}function L(e,n){if(!e||!n||!n.length)return null;for(var t=0;t<n.length;t++){var i=n[t];if(!(!i||!i.arCategories))for(var o=0;o<i.arCategories.length;o++){var s=g(i.arCategories[o],e,[]);if(s)return s}}return null}function M(e,n,t){if(!(!e||typeof t!="function")){var i=n.slice();if(i.push(e),e.arLayers&&e.arLayers.length)for(var o=0;o<e.arLayers.length;o++)t(e.arLayers[o],i);if(e.arCategories&&e.arCategories.length)for(var s=0;s<e.arCategories.length;s++)M(e.arCategories[s],i,t)}}function H(e,n,t,i){var o=P(n);if(!e||!o||!t||!t.length)return null;var s=null;function c(_,S){var I=S;return _===o?I+=1e3:I+=100,I}function f(_,S){if(!(!_||!_.name)){var I=_.name,A=I===e||I.indexOf(e+"/")===0||e.indexOf(I+"/")===0;if(A){var R=j(_,i),B=P(R);if(B){var N=B===o||B.indexOf(o)>-1||o.indexOf(B)>-1;if(N){var J=c(B,S.length);(!s||J>s.score)&&(s={score:J,categories:S.slice()})}}}}}for(var C=0;C<t.length;C++){var m=t[C];if(!(!m||!m.arCategories))for(var x=0;x<m.arCategories.length;x++)M(m.arCategories[x],[],f)}return s?s.categories:null}function q(e,n){if(!e||!e.length)return"";for(var t=[],i=0;i<e.length;i++){var o=T(e[i],n);o&&(t.length&&t[t.length-1]===o||t.push(o))}return t.join(" > ")}function F(e){try{return!e||!window.njs||!njs.AppManager||!njs.AppManager.MapTips?null:njs.AppManager.MapTips[e]||null}catch{return null}}function Q(e,n){var t=h(e||"");if(!t)return"";if(window.TnetLMStore&&TnetLMStore.isLoaded&&TnetLMStore.isLoaded()){var i=TnetLMStore.getLayerCatalogPath(t);if(console.log("[Breadcrumb] TNET-Katalog abgefragt f\xFCr:",t,"\u2192",i),i&&i.length)return i.join(" > ");console.log("[Breadcrumb] TNET-Katalog: kein Treffer, Fallback auf Dojo")}else console.log("[Breadcrumb] TnetLMStore nicht verf\xFCgbar, Fallback auf Dojo. loaded=",window.TnetLMStore?TnetLMStore.isLoaded():"kein Store");if(a||(a=!0,v=ee()),!v)return"";var o=P(n||""),s=null,c=-1;for(var f in v)if(v.hasOwnProperty(f)){var C=f===t||f.indexOf(t+"/")===0||t.indexOf(f+"/")===0;if(C){var m=v[f],x=P(m.layerLabel||""),_=0;o&&x&&(x===o?_=1e3:(o.indexOf(x)>-1||x.indexOf(o)>-1)&&(_=500)),_+=m.path?m.path.length:0,_>c&&(c=_,s=m.path)}}return s&&s.length?s.join(" > "):""}function ee(){try{var e=window.njs&&njs.AppManager&&njs.AppManager.LyrMgr;if(!e)return null;var n=k(),t={};for(var i in e)if(e.hasOwnProperty(i)){var o=e[i];if(!(!o||!o.arCategories||!o.arCategories.length))for(var s=0;s<o.arCategories.length;s++)U(o.arCategories[s],[],n,t)}return Object.keys(t).length>0?t:null}catch(c){return console.warn("[Breadcrumb] Fehler beim Aufbau der Lookup-Map:",c),null}}function U(e,n,t,i){if(e){var o=T(e,t),s=n.slice();if(o&&s.push(o),e.arLayers&&e.arLayers.length)for(var c=0;c<e.arLayers.length;c++){var f=e.arLayers[c];if(!(!f||!f.name)){var C=j(f,t);i[f.name]={path:s.slice(),layerLabel:C}}}if(e.arCategories&&e.arCategories.length)for(var m=0;m<e.arCategories.length;m++)U(e.arCategories[m],s,t,i)}}function te(e,n){var t=e+"|"+P(n);if(Object.prototype.hasOwnProperty.call(u,t))return console.log("[Breadcrumb] Cache-Hit:",t,"\u2192",u[t]||"(leer)"),u[t];var i=F(e);if(!i)return console.log("[Breadcrumb] Kein Maptip f\xFCr:",e),u[t]="","";var o=h(i.linked_layer_id||i.linked_layer||"");if(!o)return console.log("[Breadcrumb] Kein linked_layer f\xFCr maptip:",e),u[t]="","";console.log("[Breadcrumb] Resolve:",e,"linked=",o,"title=",n);var s=Q(o,n);return u[t]=s,s}function K(e){if(!e||typeof dijit>"u")return null;if(typeof dijit.byNode=="function")try{var n=dijit.byNode(e);if(n)return n}catch{}var t=e.getAttribute("widgetid")||e.getAttribute("data-dojo-widget-id");return!t||typeof dijit.byId!="function"?null:dijit.byId(t)||null}function ne(e){if(!e)return null;var n=document.getElementById("lm-tree-container");if(n){var t=n.querySelector('[data-layer-id="'+e+'"]');if(t)return console.log("[ScrollToCatalog] Gefunden via data-layer-id im neuen Tree"),t}var i=document.getElementById("div_"+e);if(i)return console.log("[ScrollToCatalog] Gefunden via div_"+e+" (Legacy)"),i;if(typeof dijit<"u"&&typeof dijit.byId=="function"){var o=dijit.byId(e);if(o&&o.domNode){var s=o.domNode.closest(".layercontainer")||o.domNode.parentElement;if(s)return console.log("[ScrollToCatalog] Gefunden via dijit.byId("+e+") (Legacy)"),s}}if(n){for(var c=n.querySelectorAll("[data-layer-id]"),f=null,C=0,m=0;m<c.length;m++){var x=c[m].getAttribute("data-layer-id");x&&(x.indexOf(e)===0&&x.length>C&&(f=c[m],C=x.length),e.indexOf(x)===0&&x.length>C&&(f=c[m],C=x.length))}if(f)return console.log("[ScrollToCatalog] Gefunden via Prefix-Match im neuen Tree: "+f.getAttribute("data-layer-id")+" (f\xFCr: "+e+")"),f}if(typeof dijit<"u"&&dijit.registry){var _=null,S=typeof dijit.registry.toArray=="function"?dijit.registry.toArray():typeof dijit.registry.forEach=="function"?null:[];if(S===null)dijit.registry.forEach(function(B){if(!_&&B.declaredClass==="dijit.form.CheckBox"&&B.id&&B.id.indexOf(e)===0){var N=B.domNode?B.domNode.closest(".layercontainer")||B.domNode.parentElement:null;N&&(console.log("[ScrollToCatalog] Gefunden via Prefix-Match (Legacy): "+B.id),_=N)}});else for(var I=0;I<S.length;I++){var A=S[I];if(A.declaredClass==="dijit.form.CheckBox"&&A.id&&A.id.indexOf(e)===0){var R=A.domNode?A.domNode.closest(".layercontainer")||A.domNode.parentElement:null;if(R){console.log("[ScrollToCatalog] Gefunden via Prefix-Match (Legacy): "+A.id),_=R;break}}}if(_)return _}return console.log("[ScrollToCatalog] NICHT gefunden f\xFCr:",e),null}function Y(e){if(console.log("[ScrollToCatalog] Aufgerufen mit:",e),!!e){var n=ne(e);if(n){var t=document.getElementById("lm-tree-container"),i=t&&t.contains(n);console.log("[ScrollToCatalog] Modus:",i?"Neuer Tree":"Legacy");var o=document.getElementById("tp_overview_menu");o&&!o.open&&(o.open=!0,console.log("[ScrollToCatalog] tp_overview_menu ge\xF6ffnet")),i?re(n,t):ie(n),G(n,0)}}}function re(e,n){var t=e.closest(".lm-cat-content");if(t){var i=t.getAttribute("data-cat-content");if(i){var o=n.querySelector('.lm-tab[data-cat-id="'+i+'"]');o&&!o.classList.contains("lm-tab-active")&&(o.click(),console.log("[ScrollToCatalog] Neuer Tree: Tab aktiviert:",i)),t.style.display=""}}for(var s=e.parentElement;s&&s!==n;)s.classList.contains("lm-nested-group")&&s.classList.contains("lm-collapsed")&&(s.classList.remove("lm-collapsed"),s.classList.add("lm-expanded"),console.log("[ScrollToCatalog] Neuer Tree: Gruppe aufgeklappt:",s.getAttribute("data-group-id")||"(kein)")),s=s.parentElement}function ie(e){if(!(typeof dijit>"u")){for(var n=["tp_layer_menu","tp_layer_menu2","tp_layer_menu3","tp_layer_menu4"],t=null,i=0;i<n.length;i++){var o=document.getElementById(n[i]);if(o&&o.contains(e)){t=n[i];break}}if(console.log("[ScrollToCatalog] Legacy Kantons-Tab:",t||"keiner"),t){var s=document.getElementById("kantons_tab_bar");if(s){var c=s.querySelector('.kanton-tab[data-target="'+t+'"]');c&&!c.classList.contains("active")&&(c.click(),console.log("[ScrollToCatalog] Legacy Tab aktiviert:",t))}var f=document.getElementById(t);f&&f.classList.add("active-tab")}for(var C=[],m=e.parentElement;m;){if(m.classList&&m.classList.contains("dijitTitlePane")){if(m.id&&m.id.match(/^tp_layer_menu\d?$/)){m=m.parentElement;continue}if(m.id==="tp_overview_menu"){m=m.parentElement;continue}C.push(m)}m=m.parentElement}console.log("[ScrollToCatalog] Legacy TitlePanes:",C.length,C.map(function(_){return _.id||"(kein)"}));for(var x=C.length-1;x>=0;x--)oe(C[x])}}function oe(e){var n=e.id||"(kein)",t=null;try{e.id&&(t=dijit.byId(e.id))}catch{}if(!t)try{dijit.byNode&&(t=dijit.byNode(e))}catch{}if(!t){var i=e.getAttribute("widgetid");if(i)try{t=dijit.byId(i)}catch{}}if(t)try{typeof t._setOpenAttr=="function"?(t._setOpenAttr(!0),console.log("[ScrollToCatalog] _setOpenAttr(true):",n)):typeof t.set=="function"&&(t.set("open",!0),console.log("[ScrollToCatalog] set(open,true):",n))}catch(x){console.warn("[ScrollToCatalog] Widget-Open Fehler:",n,x)}else console.log("[ScrollToCatalog] Kein Widget f\xFCr:",n,"\u2192 nur DOM-Fallback");for(var o=e.children,s=0;s<o.length;s++){var c=o[s];if(c.classList.contains("dijitTitlePaneContentOuter")){c.style.setProperty("display","block","important"),c.style.setProperty("height","auto","important"),c.style.setProperty("overflow","visible","important"),c.style.setProperty("visibility","visible","important");for(var f=c.children,C=0;C<f.length;C++){var m=f[C];(m.classList.contains("dijitReset")||m.getAttribute("data-dojo-attach-point")==="wipeNode"||m.classList.contains("dijitTitlePaneContentInner"))&&(m.style.setProperty("display","block","important"),m.style.setProperty("height","auto","important"),m.style.setProperty("overflow","visible","important"),m.style.setProperty("visibility","visible","important"))}break}}e.classList.remove("dijitClosed"),e.classList.remove("dijitTitlePaneClosed"),e.hasAttribute("data-lyrmgr-depth")&&e.classList.add("lyrmgr-open")}function G(e,n){var t=n===0?300:500;setTimeout(function(){for(var i=document.querySelectorAll(".tnet-catalog-highlight"),o=0;o<i.length;o++)i[o].classList.remove("tnet-catalog-highlight");var s=e.getBoundingClientRect();if(console.log("[ScrollToCatalog] Element-Position (Versuch "+(n+1)+"):",Math.round(s.top),Math.round(s.left),Math.round(s.width),Math.round(s.height)),s.width===0&&s.height===0){for(var c=e;c&&c!==document.body;){var f=window.getComputedStyle(c);(f.display==="none"||f.visibility==="hidden")&&(console.warn("[ScrollToCatalog] Versteckter Ancestor:",c.tagName+"#"+(c.id||""),"display:",f.display,"visibility:",f.visibility,"classes:",c.className.substring(0,80)),f.display==="none"&&c.style.setProperty("display","block","important"),f.visibility==="hidden"&&c.style.setProperty("visibility","visible","important")),c=c.parentElement}if(n<3){console.log("[ScrollToCatalog] Retry nach Brute-Force-Fix..."),G(e,n+1);return}console.warn("[ScrollToCatalog] Alle Retry-Versuche ersch\xF6pft.")}e.scrollIntoView({behavior:"smooth",block:"center"}),e.classList.add("tnet-catalog-highlight"),setTimeout(function(){e.classList.remove("tnet-catalog-highlight")},3e3)},t)}window.TnetScrollToLayerInCatalog=Y;function ae(e,n,t){if(e){var i=e.querySelector(".tnet-maptip-breadcrumb");if(!n){i&&i.remove();return}i||(i=document.createElement("div"),i.className="tnet-maptip-breadcrumb",e.appendChild(i)),i.textContent!==n&&(i.textContent=n);var o=n+(t?`
-Klicken \u2192 Im Katalog anzeigen`:"");i.title!==o&&(i.title=o),t&&(i.getAttribute("data-linked-layer")!==t&&i.setAttribute("data-linked-layer",t),i.classList.contains("tnet-maptip-breadcrumb-clickable")||i.classList.add("tnet-maptip-breadcrumb-clickable"),i._tnetClickBound||(i._tnetClickBound=!0,i.addEventListener("click",function(s){s.stopPropagation();var c=this.getAttribute("data-linked-layer");c&&Y(c)})))}}function X(){if(!r()){var e=document.getElementById("njs_info_pane_content");if(e){var n=e.querySelectorAll(".dijitTitlePane");if(!n||!n.length){console.log("[Breadcrumb] enhanceMapTipResultBreadcrumbs: keine TitlePanes gefunden");return}var t=!1,i=0;console.log("[Breadcrumb] enhanceMapTipResultBreadcrumbs:",n.length,"TitlePanes");for(var o=0;o<n.length;o++){var s=n[o],c=s.querySelector(".dijitTitlePaneTitle");if(c){var f=K(s);if(!f||!f.id_maptip){t=!0;continue}var C="";if(typeof f.get=="function"&&(C=h(f.get("title")||"")),!C){var m=c.querySelector(".dijitTitlePaneTextNode");C=h(m?m.textContent:"")}var x=te(f.id_maptip,C),_="",S=F(f.id_maptip);S&&(_=h(S.linked_layer_id||S.linked_layer||"")),console.log("[Breadcrumb] Pane",o,": maptip=",f.id_maptip,"\u2192",x||"(leer)","layer=",_),ae(c,x,_),x&&i++}}t&&(y&&clearTimeout(y),y=setTimeout(function(){y=null,console.log("[Breadcrumb] Retry: Panes hatten kein id_maptip, versuche erneut..."),d=!0;try{X()}finally{setTimeout(function(){d=!1},200)}},300))}}}function V(){r()||d||(p&&clearTimeout(p),p=setTimeout(function(){p=null,d=!0;try{X()}finally{setTimeout(function(){d=!1},200)}},150))}function O(){var e=document.getElementById("njs_info_pane");if(!e)return!1;var n=e.querySelector(".dojoxFloatingPaneTitle");if(!n)return!1;if(n.querySelector(".info-pane-custom-title"))return!r()&&!e.querySelector(".info-pane-resize-left")&&initInfoPaneResize(e),!0;var t="Objektinformation",i=n.querySelector(".dojoxFloatingPaneTitleText");if(i){var o=(i.value||"").trim();o&&o.indexOf("<")===-1&&o.length<80&&(t=o)}for(;n.firstChild;)n.removeChild(n.firstChild);n.style.setProperty("text-align","left","important"),n.style.setProperty("justify-content","flex-start","important");var s=document.createElement("span");s.className="info-pane-custom-title",s.textContent=t;var c=document.createElement("div");c.className="info-pane-actions";var f=document.createElement("button");f.className="info-pane-btn",f.title="In Zwischenablage kopieren",f.innerHTML=TnetIcons.get("clipboard"),f.onmousedown=function(x){x.stopPropagation()},f.onclick=function(x){x.stopPropagation(),window.copyInfoPaneToClipboard()};var C=document.createElement("button");C.className="info-pane-btn",C.id="info-pane-dock-btn",C.title="Rechts andocken",C.innerHTML=TnetIcons.get("dock"),C.onmousedown=function(x){x.stopPropagation()},C.onclick=function(x){x.stopPropagation(),window.toggleInfoPaneDock()};var m=document.createElement("button");return m.className="info-pane-btn info-pane-close",m.title="Schlie\xDFen",m.innerHTML=TnetIcons.get("close"),m.onmousedown=function(x){x.stopPropagation()},m.onclick=function(x){if(x.stopPropagation(),isInfoPaneDocked){var _=document.getElementById("mapContainer");_&&(_.style.setProperty("width","100%","important"),setTimeout(function(){triggerMapUpdate()},100)),stopMapContainerObserver(),isInfoPaneDocked=!1,e.classList.remove("docked-right")}var S=typeof dijit<"u"?dijit.byId("njs_info_pane"):null;S&&S.close?S.close():e.style.visibility="hidden"},c.appendChild(f),r()||c.appendChild(C),c.appendChild(m),n.appendChild(s),n.appendChild(c),r()?addMobileInfoSheetHandle(e):initInfoPaneResize(e),!0}O();function se(e){if(!(!isInfoPaneDocked||!e.classList.contains("docked-right"))){var n=window._savedDockedPanelWidth||350,t=document.getElementById("streetviewContainer"),i=document.getElementById("centerPaneLayout"),o=0;t&&t.offsetWidth>0&&t.style.display!=="none"&&(o=t.offsetWidth),e.style.setProperty("width",n+"px","important"),e.style.setProperty("right",o+"px","important");var s=document.getElementById("mapContainer");if(s){var c=i?i.offsetWidth:window.innerWidth,f=c-o-n;s.style.setProperty("width",f+"px","important")}}}function le(e){!e||e.classList.contains("docked-right")||r()||requestAnimationFrame(function(){var n=e.getBoundingClientRect();if(n.top<80){var t=parseInt(e.style.top)||0,i=80-n.top;e.style.setProperty("top",t+i+"px","important")}})}function Z(e){return e?e.style.visibility!=="hidden":!1}function $(e){if(Z(e)){if(window.isOerebActive){var n=typeof dijit<"u"?dijit.byId("njs_info_pane"):null;n&&n.close?n.close():e.style.visibility="hidden";return}O(),V(),se(e),le(e)}}var D=null;function W(e){D||(D=new MutationObserver(function(n){$(e)}),D.observe(e,{attributes:!0,attributeFilter:["style","class"],childList:!0,subtree:!0}))}var de=setInterval(function(){var e=document.getElementById("njs_info_pane");e&&(clearInterval(de),W(e),$(e))},500);setInterval(function(){var e=document.getElementById("njs_info_pane");if(e&&(W(e),Z(e))){O();var n=document.getElementById("njs_info_pane_content");if(n){for(var t=n.querySelectorAll(".dijitTitlePane"),i=!1,o=0;o<t.length;o++){var s=t[o].querySelector(".dijitTitlePaneTitle");if(s&&!s.querySelector(".tnet-maptip-breadcrumb")){var c=K(t[o]);if(c&&c.id_maptip){i=!0;break}}}i&&(console.log("[Breadcrumb] Periodischer Fallback: fehlende Breadcrumbs entdeckt"),V())}}},2e3),r()&&(window.addEventListener("njsInfoPaneShow",function(e){var n=document.getElementById("njs_info_pane");n&&(W(n),O())}),window.addEventListener("njsInfoPaneHide",function(){}))}initInfoPaneEnhancements();function addMobileInfoSheetHandle(r){if(!r||r.querySelector(".info-sheet-handle"))return;var u=document.createElement("div");u.className="m-sheet-handle info-sheet-handle";var p=document.createElement("div");p.className="m-sheet-bar",u.appendChild(p),r.insertBefore(u,r.firstChild);var v=0;function a(){typeof window.attachSheetResize=="function"?window.attachSheetResize(u):v<25&&(v++,setTimeout(a,200))}a()}function initInfoPaneResize(r){if(window.__TNET_MOBILE_ENTRY)return;var u=r.querySelectorAll('[class*="info-pane-resize"]');u.forEach(function(l){l.remove()});var p={top:v("info-pane-resize-top","position:absolute; top:0; left:0; right:0; height:6px; cursor:ns-resize; z-index:1000;"),bottom:v("info-pane-resize-bottom","position:absolute; bottom:0; left:0; right:0; height:6px; cursor:ns-resize; z-index:1000;"),left:v("info-pane-resize-left","position:absolute; left:0; top:0; bottom:0; width:8px; cursor:ew-resize; z-index:1000; background:linear-gradient(to right, rgba(75,123,129,0.15), transparent);"),right:v("info-pane-resize-right","position:absolute; right:0; top:0; bottom:0; width:8px; cursor:ew-resize; z-index:1000; background:linear-gradient(to left, rgba(75,123,129,0.15), transparent);"),tl:v("info-pane-resize-corner-tl","position:absolute; top:0; left:0; width:12px; height:12px; cursor:nwse-resize; z-index:1001;"),tr:v("info-pane-resize-corner-tr","position:absolute; top:0; right:0; width:12px; height:12px; cursor:nesw-resize; z-index:1001;"),bl:v("info-pane-resize-corner-bl","position:absolute; bottom:0; left:0; width:12px; height:12px; cursor:nesw-resize; z-index:1001;")};function v(l,g){var b=document.createElement("div");return b.className=l,b.style.cssText=g,r.appendChild(b),b}var a=!1,d="",y,P,h,w,k,E;function T(l,g){if(!(r.classList.contains("docked-right")&&g!=="left"&&g!=="tl"&&g!=="bl")){a=!0,d=g,y=l.clientX,P=l.clientY;var b=r.getBoundingClientRect();h=b.width,w=b.height,k=b.left,E=b.top,document.body.style.userSelect="none",l.preventDefault(),l.stopPropagation()}}p.top.onmousedown=function(l){T(l,"top")},p.bottom.onmousedown=function(l){T(l,"bottom")},p.left.onmousedown=function(l){T(l,"left")},p.right.onmousedown=function(l){T(l,"right")},p.tl.onmousedown=function(l){T(l,"tl")},p.tr.onmousedown=function(l){T(l,"tr")},p.bl.onmousedown=function(l){T(l,"bl")};var j=function(l){if(a){var g=l.clientX-y,b=l.clientY-P,L=h,M=w;if(r.classList.contains("docked-right")){if(d==="left"||d==="tl"||d==="bl"){L=Math.max(300,Math.min(h-g,window.innerWidth-100)),r.style.setProperty("width",L+"px","important");var H=document.getElementById("mapContainer");if(H&&isInfoPaneDocked){var q=r.offsetWidth;H.style.setProperty("width","calc(100% - "+q+"px)","important")}}l.preventDefault();return}switch(d){case"top":M=Math.max(150,w-b),r.style.setProperty("height",M+"px","important"),r.style.setProperty("top",E+b+"px","important");break;case"bottom":M=Math.max(150,w+b),r.style.setProperty("height",M+"px","important");break;case"left":L=Math.max(350,h-g),r.style.setProperty("width",L+"px","important"),r.style.setProperty("left",k+g+"px","important");break;case"right":L=Math.max(350,h+g),r.style.setProperty("width",L+"px","important");break;case"tl":L=Math.max(350,h-g),M=Math.max(150,w-b),r.style.setProperty("width",L+"px","important"),r.style.setProperty("height",M+"px","important"),r.style.setProperty("left",k+g+"px","important"),r.style.setProperty("top",E+b+"px","important");break;case"tr":L=Math.max(350,h+g),M=Math.max(150,w-b),r.style.setProperty("width",L+"px","important"),r.style.setProperty("height",M+"px","important"),r.style.setProperty("top",E+b+"px","important");break;case"bl":L=Math.max(350,h-g),M=Math.max(150,w+b),r.style.setProperty("width",L+"px","important"),r.style.setProperty("height",M+"px","important"),r.style.setProperty("left",k+g+"px","important");break;case"br":L=Math.max(350,h+g),M=Math.max(150,w+b),r.style.setProperty("width",L+"px","important"),r.style.setProperty("height",M+"px","important");break}l.preventDefault()}},z=function(){a&&(r.classList.contains("docked-right")&&triggerMapUpdate(),a=!1,d="",document.body.style.cursor="",document.body.style.userSelect="")};window._infoPaneMouseMove&&document.removeEventListener("mousemove",window._infoPaneMouseMove),window._infoPaneMouseUp&&document.removeEventListener("mouseup",window._infoPaneMouseUp),window._infoPaneMouseMove=j,window._infoPaneMouseUp=z,document.addEventListener("mousemove",j),document.addEventListener("mouseup",z)}window.copyInfoPaneToClipboard=function(){var r=document.getElementById("njs_info_pane_content");if(r){var u=r.querySelectorAll("table"),p="";u.length>0?u.forEach(function(v,a){a>0&&(p+=`
+/**
+ * tnet-info-panel.js (ES Module)
+ * Info-Panel Erweiterungen: Buttons (Clipboard, Dock, Close), Resize-Handles,
+ * Dock/Undock-Logik mit mapContainer-Anpassung, MutationObserver
+ *
+ * @version    1.1
+ * @date       2026-02-12
+ * @copyright  Trigonet AG
+ * @author     Marco Dellenbach
+ */
 
-`);var d=v.previousElementSibling;d&&(d.tagName==="H3"||d.tagName==="H4"||d.className.indexOf("title")>-1)&&(p+=d.textContent.trim()+`
-`,p+="=".repeat(d.textContent.trim().length)+`
-`);var y=v.querySelectorAll("tr");y.forEach(function(P){var h=P.querySelectorAll("td, th"),w=[];h.forEach(function(k){w.push(k.textContent.trim())}),p+=w.join("	")+`
-`})}):p=r.textContent.trim(),navigator.clipboard&&navigator.clipboard.writeText?navigator.clipboard.writeText(p).then(function(){showCopyNotification("In Zwischenablage kopiert!")}).catch(function(v){console.error("Clipboard Error:",v),fallbackCopy(p)}):fallbackCopy(p)}};function fallbackCopy(r){var u=document.createElement("textarea");u.value=r,u.style.position="fixed",u.style.opacity="0",document.body.appendChild(u),u.select();try{document.execCommand("copy"),showCopyNotification("In Zwischenablage kopiert!")}catch{alert("Kopieren fehlgeschlagen")}document.body.removeChild(u)}function showCopyNotification(r){var u=document.createElement("div");u.textContent=r,u.style.cssText="position:fixed;bottom:60px;left:50%;transform:translateX(-50%);background:#4b7b81;color:white;padding:10px 20px;border-radius:4px;z-index:10000;box-shadow:0 2px 8px rgba(0,0,0,0.3);",document.body.appendChild(u),setTimeout(function(){u.style.transition="opacity 0.3s",u.style.opacity="0",setTimeout(function(){document.body.removeChild(u)},300)},2e3)}var isInfoPaneDocked=!1,savedInfoPanePosition=null;function triggerMapUpdate(){setTimeout(function(){if(window.njs&&njs.AppManager&&njs.AppManager.Maps&&njs.AppManager.Maps.main){var r=njs.AppManager.Maps.main.mapObj;r&&r.updateSize&&r.updateSize()}typeof dijit<"u"&&dijit.byId("NeapolisContainer")&&dijit.byId("NeapolisContainer").resize()},350)}window.toggleInfoPaneDock=function(){var r=document.getElementById("njs_info_pane"),u=document.getElementById("info-pane-dock-btn"),p=document.getElementById("mapContainer");if(r){if(isInfoPaneDocked)r.classList.remove("docked-right"),stopMapContainerObserver(),p&&(p.style.setProperty("width","100%","important"),setTimeout(function(){triggerMapUpdate()},100)),savedInfoPanePosition?(r.style.setProperty("top",savedInfoPanePosition.top,"important"),r.style.setProperty("left",savedInfoPanePosition.left,"important"),r.style.setProperty("width",savedInfoPanePosition.width,"important"),r.style.setProperty("height",savedInfoPanePosition.height,"important")):(r.style.setProperty("top","150px","important"),r.style.setProperty("left","400px","important"),r.style.setProperty("width","720px","important"),r.style.setProperty("height","360px","important")),r.style.setProperty("right","auto","important"),r.style.setProperty("bottom","auto","important"),r.style.setProperty("position","absolute","important"),r.style.maxHeight="",u&&(u.title="Rechts andocken",u.innerHTML=TnetIcons.get("dock")),isInfoPaneDocked=!1;else{if(savedInfoPanePosition={top:r.style.top||"150px",left:r.style.left||"400px",width:r.style.width||"720px",height:r.style.height||"360px"},r.classList.add("docked-right"),p){var v=window._savedDockedPanelWidth||350,a=document.getElementById("centerPaneLayout"),d=document.getElementById("streetviewContainer"),y=0;d&&d.offsetWidth>0&&d.style.display!=="none"&&(y=d.offsetWidth);var P=a?a.getBoundingClientRect():p.getBoundingClientRect();r.style.setProperty("position","fixed","important"),r.style.setProperty("top",P.top+"px","important"),r.style.setProperty("right",y+"px","important"),r.style.setProperty("bottom",window.innerHeight-P.bottom+"px","important"),r.style.setProperty("left","auto","important"),r.style.setProperty("width",v+"px","important"),r.style.setProperty("height","auto","important");var h=a?a.offsetWidth:window.innerWidth,w=h-y-v;p.style.setProperty("width",w+"px","important"),triggerMapUpdate()}startMapContainerObserver(),u&&(u.title="Floating",u.innerHTML=TnetIcons.get("undock")),isInfoPaneDocked=!0}}};var mapContainerObserver=null,streetviewObserver=null;function startMapContainerObserver(){mapContainerObserver&&mapContainerObserver.disconnect(),streetviewObserver&&streetviewObserver.disconnect();var r=document.getElementById("mapContainer"),u=document.getElementById("streetviewContainer"),p=document.getElementById("njs_info_pane");!r||!p||(window.ResizeObserver&&(mapContainerObserver=new ResizeObserver(function(){isInfoPaneDocked&&updateDockedInfoPanePosition()}),mapContainerObserver.observe(r),u&&(streetviewObserver=new ResizeObserver(function(){isInfoPaneDocked&&updateDockedInfoPanePosition()}),streetviewObserver.observe(u))),window.addEventListener("resize",updateDockedInfoPanePosition))}function stopMapContainerObserver(){mapContainerObserver&&(mapContainerObserver.disconnect(),mapContainerObserver=null),streetviewObserver&&(streetviewObserver.disconnect(),streetviewObserver=null),window.removeEventListener("resize",updateDockedInfoPanePosition)}function updateDockedInfoPanePosition(){if(isInfoPaneDocked){var r=document.getElementById("mapContainer"),u=document.getElementById("njs_info_pane"),p=document.getElementById("centerPaneLayout"),v=document.getElementById("streetviewContainer");if(!(!r||!u)){var a=window._savedDockedPanelWidth||u.offsetWidth||350,d=0;v&&v.offsetWidth>0&&v.style.display!=="none"&&(d=v.offsetWidth);var y=p?p.getBoundingClientRect():{top:69,bottom:window.innerHeight-32};u.style.setProperty("top",y.top+"px","important"),u.style.setProperty("right",d+"px","important"),u.style.setProperty("bottom",window.innerHeight-y.bottom+"px","important"),u.style.setProperty("width",a+"px","important");var P=p?p.offsetWidth:window.innerWidth,h=P-d-a;r.style.setProperty("width",h+"px","important"),triggerMapUpdate()}}}function updateContainerForInfoPane(){}function initLegendPaneEnhancements(){function r(){return!!window.__TNET_MOBILE_ENTRY}function u(){var a=document.getElementById("njs_floatlegend_pane");if(!a)return!1;var d=a.querySelector(".dojoxFloatingPaneTitle");if(!d)return!1;if(d.querySelector(".legend-pane-custom-title"))return p(a),!0;var y="Legende",P=d.querySelector(".dijitTitleNode");if(P){var h=P.querySelector("td");if(h){var w=(h.textContent||"").trim();w&&w.length<120&&(y=w)}else{var k=(P.textContent||"").trim();k&&k.indexOf("<")===-1&&k.length<120&&(y=k)}}for(;d.firstChild;)d.removeChild(d.firstChild);d.style.setProperty("text-align","left","important"),d.style.setProperty("justify-content","flex-start","important"),d.style.setProperty("position","relative","important"),d.style.setProperty("width","100%","important");var E=document.createElement("span");E.className="legend-pane-custom-title",E.textContent=y;var T=document.createElement("div");if(T.className="legend-pane-actions",!r()){var j=document.createElement("button");j.id="legend-pane-dock-btn",j.className="legend-pane-btn",j.title="Rechts andocken",j.innerHTML=TnetIcons.get("dock"),j.onmousedown=function(g){g.stopPropagation()},j.onclick=function(g){g.stopPropagation(),window.toggleLegendPaneDock&&window.toggleLegendPaneDock()},T.appendChild(j)}var z=document.createElement("button");z.className="legend-pane-btn legend-pane-close",z.title="Schliessen",z.innerHTML=TnetIcons.get("close"),z.onmousedown=function(g){g.stopPropagation()},z.onclick=function(g){g.stopPropagation(),window._isLegendPaneDocked&&window.toggleLegendPaneDock();var b=typeof dijit<"u"?dijit.byId("njs_floatlegend_pane"):null;b&&b.close?b.close():a.style.visibility="hidden"},T.appendChild(z),d.appendChild(E),d.appendChild(T),a.style.setProperty("border","none","important"),a.style.setProperty("overflow","hidden","important"),a.style.setProperty("border-radius","6px","important"),a.style.setProperty("box-shadow","0 4px 16px rgba(0,0,0,0.25)","important");var l=a.querySelector(".dojoxFloatingResizeHandle");return l&&l.parentNode.removeChild(l),r()||initLegendPaneResize(a),p(a),!0}function p(a){!a||r()||requestAnimationFrame(function(){var d=a.getBoundingClientRect();if(d.top<80){var y=parseInt(a.style.top)||0,P=80-d.top;a.style.setProperty("top",y+P+"px","important")}})}u();var v=new MutationObserver(function(a){for(var d=0;d<a.length;d++){var y=a[d];if(y.type==="attributes"&&y.attributeName==="style"){var P=document.getElementById("njs_floatlegend_pane");P&&P.style.visibility==="visible"&&u()}if(y.type==="childList"&&y.addedNodes.length)for(var h=0;h<y.addedNodes.length;h++){var w=y.addedNodes[h];(w.id==="njs_floatlegend_pane"||w.querySelector&&w.querySelector("#njs_floatlegend_pane"))&&setTimeout(u,100)}}});v.observe(document.body,{childList:!0,subtree:!0,attributes:!0,attributeFilter:["style"]})}document.readyState==="loading"?document.addEventListener("DOMContentLoaded",initLegendPaneEnhancements):initLegendPaneEnhancements();function initLegendPaneResize(r){var u=r.querySelectorAll('[class*="legend-pane-resize"]');u.forEach(function(l){l.remove()});function p(l,g){var b=document.createElement("div");return b.className=l,b.style.cssText=g,r.appendChild(b),b}var v={top:p("legend-pane-resize-top","position:absolute; top:0; left:0; right:0; height:6px; cursor:ns-resize; z-index:1100;"),bottom:p("legend-pane-resize-bottom","position:absolute; bottom:0; left:0; right:0; height:6px; cursor:ns-resize; z-index:1100;"),left:p("legend-pane-resize-left","position:absolute; left:0; top:0; bottom:0; width:8px; cursor:ew-resize; z-index:1100;"),right:p("legend-pane-resize-right","position:absolute; right:0; top:0; bottom:0; width:8px; cursor:ew-resize; z-index:1100;"),tl:p("legend-pane-resize-corner-tl","position:absolute; top:0; left:0; width:12px; height:12px; cursor:nwse-resize; z-index:1101;"),tr:p("legend-pane-resize-corner-tr","position:absolute; top:0; right:0; width:12px; height:12px; cursor:nesw-resize; z-index:1101;"),bl:p("legend-pane-resize-corner-bl","position:absolute; bottom:0; left:0; width:12px; height:12px; cursor:nesw-resize; z-index:1101;"),br:p("legend-pane-resize-corner-br","position:absolute; bottom:0; right:0; width:20px; height:20px; cursor:nwse-resize; z-index:1101;")},a=!1,d="",y,P,h,w,k,E;function T(l,g){a=!0,d=g,y=l.clientX,P=l.clientY;var b=r.getBoundingClientRect();h=b.width,w=b.height,k=b.left,E=b.top,document.body.style.userSelect="none",l.preventDefault(),l.stopPropagation()}v.top.onmousedown=function(l){T(l,"top")},v.bottom.onmousedown=function(l){T(l,"bottom")},v.left.onmousedown=function(l){T(l,"left")},v.right.onmousedown=function(l){T(l,"right")},v.tl.onmousedown=function(l){T(l,"tl")},v.tr.onmousedown=function(l){T(l,"tr")},v.bl.onmousedown=function(l){T(l,"bl")},v.br.onmousedown=function(l){T(l,"br")};var j=function(l){if(a){var g=l.clientX-y,b=l.clientY-P,L,M;switch(d){case"top":M=Math.max(150,w-b),r.style.setProperty("height",M+"px","important"),r.style.setProperty("top",E+b+"px","important");break;case"bottom":M=Math.max(150,w+b),r.style.setProperty("height",M+"px","important");break;case"left":L=Math.max(350,h-g),r.style.setProperty("width",L+"px","important"),r.style.setProperty("left",k+g+"px","important");break;case"right":L=Math.max(350,h+g),r.style.setProperty("width",L+"px","important");break;case"tl":L=Math.max(350,h-g),M=Math.max(150,w-b),r.style.setProperty("width",L+"px","important"),r.style.setProperty("height",M+"px","important"),r.style.setProperty("left",k+g+"px","important"),r.style.setProperty("top",E+b+"px","important");break;case"tr":L=Math.max(350,h+g),M=Math.max(150,w-b),r.style.setProperty("width",L+"px","important"),r.style.setProperty("height",M+"px","important"),r.style.setProperty("top",E+b+"px","important");break;case"bl":L=Math.max(350,h-g),M=Math.max(150,w+b),r.style.setProperty("width",L+"px","important"),r.style.setProperty("height",M+"px","important"),r.style.setProperty("left",k+g+"px","important");break;case"br":L=Math.max(350,h+g),M=Math.max(150,w+b),r.style.setProperty("width",L+"px","important"),r.style.setProperty("height",M+"px","important");break}l.preventDefault()}},z=function(){a&&(a=!1,d="",document.body.style.cursor="",document.body.style.userSelect="")};window._legendPaneMouseMove&&document.removeEventListener("mousemove",window._legendPaneMouseMove),window._legendPaneMouseUp&&document.removeEventListener("mouseup",window._legendPaneMouseUp),window._legendPaneMouseMove=j,window._legendPaneMouseUp=z,document.addEventListener("mousemove",j),document.addEventListener("mouseup",z)}(function(){"use strict";window._isLegendPaneDocked=!1;var r=null,u=null;function p(){setTimeout(function(){if(window.njs&&njs.AppManager&&njs.AppManager.Maps&&njs.AppManager.Maps.main){var a=njs.AppManager.Maps.main.mapObj;a&&a.updateSize&&a.updateSize()}},50)}window.toggleLegendPaneDock=function(){var a=document.getElementById("njs_floatlegend_pane"),d=document.getElementById("legend-pane-dock-btn"),y=document.getElementById("mapContainer"),P=document.getElementById("centerPaneLayout");if(a)if(window._isLegendPaneDocked){a.classList.remove("legend-docked-right"),u&&(u.disconnect(),u=null),window.removeEventListener("resize",v),y&&(y.style.setProperty("width","100%","important"),p()),r&&(a.style.setProperty("position","absolute","important"),a.style.setProperty("top",r.top,"important"),a.style.setProperty("left",r.left,"important"),a.style.setProperty("width",r.width,"important"),a.style.setProperty("height",r.height,"important"),a.style.setProperty("right","auto","important"),a.style.setProperty("bottom","auto","important"));var h=a.querySelectorAll('[class*="legend-pane-resize"]');h.forEach(function(l){l.style.display=""}),d&&(d.title="Rechts andocken",d.innerHTML=TnetIcons.get("dock")),window._isLegendPaneDocked=!1}else{r={top:a.style.top||"80px",left:a.style.left||"100px",width:a.style.width||"400px",height:a.style.height||"500px"},a.classList.add("legend-docked-right");var w=window._savedLegendDockedWidth||380,k=document.getElementById("streetviewContainer"),E=0;k&&k.offsetWidth>0&&k.style.display!=="none"&&(E=k.offsetWidth);var T=P?P.getBoundingClientRect():{top:69,bottom:window.innerHeight-32};if(a.style.setProperty("position","fixed","important"),a.style.setProperty("top",T.top+"px","important"),a.style.setProperty("right",E+"px","important"),a.style.setProperty("bottom",window.innerHeight-T.bottom+"px","important"),a.style.setProperty("left","auto","important"),a.style.setProperty("width",w+"px","important"),a.style.setProperty("height","auto","important"),y&&P){var j=P.offsetWidth,z=j-E-w;y.style.setProperty("width",z+"px","important"),p()}var h=a.querySelectorAll('[class*="legend-pane-resize"]');h.forEach(function(g){g.className.indexOf("left")!==-1?g.style.display="":g.style.display="none"}),window.ResizeObserver&&y&&(u=new ResizeObserver(function(){window._isLegendPaneDocked&&v()}),u.observe(y)),window.addEventListener("resize",v),d&&(d.title="Floating",d.innerHTML=TnetIcons.get("undock")),window._isLegendPaneDocked=!0}};function v(){if(window._isLegendPaneDocked){var a=document.getElementById("njs_floatlegend_pane"),d=document.getElementById("mapContainer"),y=document.getElementById("centerPaneLayout"),P=document.getElementById("streetviewContainer");if(!(!a||!d)){var h=window._savedLegendDockedWidth||a.offsetWidth||380,w=0;P&&P.offsetWidth>0&&P.style.display!=="none"&&(w=P.offsetWidth);var k=y?y.getBoundingClientRect():{top:69,bottom:window.innerHeight-32};a.style.setProperty("top",k.top+"px","important"),a.style.setProperty("right",w+"px","important"),a.style.setProperty("bottom",window.innerHeight-k.bottom+"px","important"),a.style.setProperty("width",h+"px","important");var E=y?y.offsetWidth:window.innerWidth,T=E-w-h;d.style.setProperty("width",T+"px","important"),p()}}}window._savedLegendDockedWidth=380})();
+// ===== INFO PANE ERWEITERUNGEN =====
+// Buttons zum Info-Panel hinzufügen und Resize aktivieren
+// Verwendet MutationObserver um auch bei Neuöffnen zu funktionieren
+function initInfoPaneEnhancements() {
+    function isMobile() { return !!window.__TNET_MOBILE_ENTRY; }
+
+    var maptipBreadcrumbCache = {};
+    var breadcrumbEnhanceTimer = null;
+    var breadcrumbLookupMap = null;       // { layerId: ['ÖREB','RAUMPLANUNG',...] }
+    var breadcrumbLookupBuilt = false;
+    var _isEnhancingBreadcrumbs = false;  // Suppression-Flag gegen Mutations-Loop
+    var _breadcrumbRetryTimer = null;     // Retry-Timer für spät initialisierte Widgets
+
+    // Cache invalidieren wenn TnetLMStore geladen wird (TNET-Katalogpfad wird bevorzugt)
+    if (window.TnetLMStore && TnetLMStore.on) {
+        TnetLMStore.on('catalog-loaded', function () {
+            maptipBreadcrumbCache = {};
+        });
+    }
+
+    // ===== MAPTIP BREADCRUMB (DESKTOP) =====
+    function normalizeCompareText(value) {
+        if (value == null) return '';
+        var text = String(value)
+            .replace(/&nbsp;/gi, ' ')
+            .replace(/[äÄ]/g, 'ae')
+            .replace(/[öÖ]/g, 'oe')
+            .replace(/[üÜ]/g, 'ue')
+            .replace(/[ß]/g, 'ss')
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '');
+        return text;
+    }
+
+    function normalizeWhitespace(value) {
+        if (value == null) return '';
+        return String(value).replace(/\s+/g, ' ').trim();
+    }
+
+    function humanizeLayerKey(value) {
+        var text = normalizeWhitespace(value);
+        if (!text) return '';
+
+        var parts = text.split('/');
+        var last = parts[parts.length - 1] || text;
+        last = last.split('.').pop() || last;
+        last = last.replace(/^nw_|^ow_|^ch_/i, '');
+        last = last.replace(/[_\-]+/g, ' ');
+        return normalizeWhitespace(last.replace(/\b\w/g, function(match) { return match.toUpperCase(); }));
+    }
+
+    function getLyrmgrResources() {
+        try {
+            return (window.njs && njs.AppManager && njs.AppManager.nls && njs.AppManager.nls.lyrmgrResources) || null;
+        } catch (e) {
+            return null;
+        }
+    }
+
+    function resolveDescFromResources(key, resources) {
+        if (!key || !resources) return '';
+        var value = resources['desc_' + key];
+        if (!value) return '';
+        return normalizeWhitespace(value);
+    }
+
+    function resolveCategoryLabel(category, resources) {
+        if (!category) return '';
+
+        var text = '';
+        if (category.description) {
+            text = normalizeWhitespace(category.description);
+        }
+
+        if (!text && category.id) {
+            text = resolveDescFromResources(category.id, resources);
+        }
+
+        if (!text && category.name) {
+            text = resolveDescFromResources(category.name, resources);
+        }
+
+        if (!text && category.id) {
+            text = humanizeLayerKey(category.id);
+        }
+
+        if (!text && category.name) {
+            text = humanizeLayerKey(category.name);
+        }
+
+        return normalizeWhitespace(text);
+    }
+
+    function resolveLayerLabel(layer, resources) {
+        if (!layer) return '';
+
+        var text = '';
+        if (layer.description) {
+            text = normalizeWhitespace(layer.description);
+        }
+
+        if (!text && layer.name) {
+            text = resolveDescFromResources(layer.name, resources);
+        }
+
+        if (!text && layer.id) {
+            text = resolveDescFromResources(layer.id, resources);
+        }
+
+        if (!text && layer.name) {
+            text = humanizeLayerKey(layer.name);
+        }
+
+        if (!text && layer.id) {
+            text = humanizeLayerKey(layer.id);
+        }
+
+        return normalizeWhitespace(text);
+    }
+
+    function getLayerManagerRoots() {
+        try {
+            var managers = window.njs && njs.AppManager && njs.AppManager.LyrMgr;
+            if (!managers) return [];
+
+            var roots = [];
+            for (var key in managers) {
+                if (!managers.hasOwnProperty(key)) continue;
+                var root = managers[key];
+                if (root && root.arCategories && root.arCategories.length) {
+                    roots.push(root);
+                }
+            }
+            return roots;
+        } catch (e) {
+            return [];
+        }
+    }
+
+    function findLayerPathInCategory(category, layerName, categoryPath) {
+        if (!category || !layerName) return null;
+
+        var path = categoryPath.slice();
+        path.push(category);
+
+        if (category.arLayers && category.arLayers.length) {
+            for (var i = 0; i < category.arLayers.length; i++) {
+                var layer = category.arLayers[i];
+                if (layer && layer.name === layerName) {
+                    return { categories: path, layer: layer };
+                }
+            }
+        }
+
+        if (category.arCategories && category.arCategories.length) {
+            for (var j = 0; j < category.arCategories.length; j++) {
+                var found = findLayerPathInCategory(category.arCategories[j], layerName, path);
+                if (found) return found;
+            }
+        }
+
+        return null;
+    }
+
+    function findCategoryPathInCategory(category, key, categoryPath) {
+        if (!category || !key) return null;
+
+        var path = categoryPath.slice();
+        path.push(category);
+
+        if (category.id === key || category.name === key) {
+            return path;
+        }
+
+        if (category.arCategories && category.arCategories.length) {
+            for (var i = 0; i < category.arCategories.length; i++) {
+                var found = findCategoryPathInCategory(category.arCategories[i], key, path);
+                if (found) return found;
+            }
+        }
+
+        return null;
+    }
+
+    function findLayerPathInManagers(layerName, roots) {
+        if (!layerName || !roots || !roots.length) return null;
+
+        for (var r = 0; r < roots.length; r++) {
+            var root = roots[r];
+            if (!root || !root.arCategories) continue;
+            for (var c = 0; c < root.arCategories.length; c++) {
+                var found = findLayerPathInCategory(root.arCategories[c], layerName, []);
+                if (found) return found;
+            }
+        }
+
+        return null;
+    }
+
+    function findCategoryPathInManagers(key, roots) {
+        if (!key || !roots || !roots.length) return null;
+
+        for (var r = 0; r < roots.length; r++) {
+            var root = roots[r];
+            if (!root || !root.arCategories) continue;
+            for (var c = 0; c < root.arCategories.length; c++) {
+                var found = findCategoryPathInCategory(root.arCategories[c], key, []);
+                if (found) return found;
+            }
+        }
+
+        return null;
+    }
+
+    function scanLayersInCategory(category, categoryPath, callback) {
+        if (!category || typeof callback !== 'function') return;
+
+        var path = categoryPath.slice();
+        path.push(category);
+
+        if (category.arLayers && category.arLayers.length) {
+            for (var i = 0; i < category.arLayers.length; i++) {
+                callback(category.arLayers[i], path);
+            }
+        }
+
+        if (category.arCategories && category.arCategories.length) {
+            for (var j = 0; j < category.arCategories.length; j++) {
+                scanLayersInCategory(category.arCategories[j], path, callback);
+            }
+        }
+    }
+
+    function findTitleMatchedPath(linkedLayerId, titleText, roots, resources) {
+        var titleNorm = normalizeCompareText(titleText);
+        if (!linkedLayerId || !titleNorm || !roots || !roots.length) return null;
+
+        var best = null;
+
+        function scoreCandidate(layerLabelNorm, depth) {
+            var score = depth;
+            if (layerLabelNorm === titleNorm) score += 1000;
+            else score += 100;
+            return score;
+        }
+
+        function checkLayer(layer, categoryPath) {
+            if (!layer || !layer.name) return;
+
+            var name = layer.name;
+            var matchesLinked = (name === linkedLayerId) ||
+                (name.indexOf(linkedLayerId + '/') === 0) ||
+                (linkedLayerId.indexOf(name + '/') === 0);
+            if (!matchesLinked) return;
+
+            var layerLabel = resolveLayerLabel(layer, resources);
+            var layerNorm = normalizeCompareText(layerLabel);
+            if (!layerNorm) return;
+
+            var isMatch = (layerNorm === titleNorm) ||
+                (layerNorm.indexOf(titleNorm) > -1) ||
+                (titleNorm.indexOf(layerNorm) > -1);
+            if (!isMatch) return;
+
+            var score = scoreCandidate(layerNorm, categoryPath.length);
+            if (!best || score > best.score) {
+                best = {
+                    score: score,
+                    categories: categoryPath.slice()
+                };
+            }
+        }
+
+        for (var r = 0; r < roots.length; r++) {
+            var root = roots[r];
+            if (!root || !root.arCategories) continue;
+            for (var c = 0; c < root.arCategories.length; c++) {
+                scanLayersInCategory(root.arCategories[c], [], checkLayer);
+            }
+        }
+
+        return best ? best.categories : null;
+    }
+
+    function buildBreadcrumbText(categories, resources) {
+        if (!categories || !categories.length) return '';
+
+        var labels = [];
+        for (var i = 0; i < categories.length; i++) {
+            var label = resolveCategoryLabel(categories[i], resources);
+            if (!label) continue;
+            if (labels.length && labels[labels.length - 1] === label) continue;
+            labels.push(label);
+        }
+
+        return labels.join(' > ');
+    }
+
+    function getMapTipEntry(maptipId) {
+        try {
+            if (!maptipId || !window.njs || !njs.AppManager || !njs.AppManager.MapTips) return null;
+            return njs.AppManager.MapTips[maptipId] || null;
+        } catch (e) {
+            return null;
+        }
+    }
+
+    function resolveFastBreadcrumb(linkedLayerId, titleText) {
+        var linked = normalizeWhitespace(linkedLayerId || '');
+        if (!linked) return '';
+
+        // ── Primär: TNET-Katalogpfad verwenden (autoritativ) ──
+        // Der TNET-Katalog (aus der API / lyrmgr.conf) ist die definitive Quelle
+        // für die Platzierung im Katalog. Vermeidet falsche Pfade durch den
+        // Dojo-LyrMgr, der den tiefsten/letzten Pfad bei Mehrfachvorkommen nimmt.
+        if (window.TnetLMStore && TnetLMStore.isLoaded && TnetLMStore.isLoaded()) {
+            var catalogPath = TnetLMStore.getLayerCatalogPath(linked);
+            console.log('[Breadcrumb] TNET-Katalog abgefragt für:', linked, '→', catalogPath);
+            if (catalogPath && catalogPath.length) {
+                return catalogPath.join(' > ');
+            }
+            console.log('[Breadcrumb] TNET-Katalog: kein Treffer, Fallback auf Dojo');
+        } else {
+            console.log('[Breadcrumb] TnetLMStore nicht verfügbar, Fallback auf Dojo. loaded=',
+                window.TnetLMStore ? TnetLMStore.isLoaded() : 'kein Store');
+        }
+
+        // ── Fallback: Dojo-LyrMgr-Baum (wenn TNET-Katalog nicht verfügbar) ──
+        if (!breadcrumbLookupBuilt) {
+            breadcrumbLookupBuilt = true;
+            breadcrumbLookupMap = buildBreadcrumbLookupMap();
+        }
+
+        if (!breadcrumbLookupMap) return '';
+
+        var titleNorm = normalizeCompareText(titleText || '');
+        var bestPath = null;
+        var bestScore = -1;
+
+        for (var layerId in breadcrumbLookupMap) {
+            if (!breadcrumbLookupMap.hasOwnProperty(layerId)) continue;
+
+            // Layer muss zum linked_layer passen (gleich, oder Prefix-Match)
+            var match = (layerId === linked) ||
+                (layerId.indexOf(linked + '/') === 0) ||
+                (linked.indexOf(layerId + '/') === 0);
+            if (!match) continue;
+
+            var entry = breadcrumbLookupMap[layerId];
+            var layerLabelNorm = normalizeCompareText(entry.layerLabel || '');
+
+            // Titel-Matching scoren
+            var score = 0;
+            if (titleNorm && layerLabelNorm) {
+                if (layerLabelNorm === titleNorm) {
+                    score = 1000;
+                } else if (titleNorm.indexOf(layerLabelNorm) > -1 || layerLabelNorm.indexOf(titleNorm) > -1) {
+                    score = 500;
+                }
+            }
+            // Tieferer Pfad bevorzugen
+            score += (entry.path ? entry.path.length : 0);
+
+            if (score > bestScore) {
+                bestScore = score;
+                bestPath = entry.path;
+            }
+        }
+
+        if (bestPath && bestPath.length) {
+            return bestPath.join(' > ');
+        }
+
+        return '';
+    }
+
+    // ===== BREADCRUMB LOOKUP-MAP AUS LYRMGR-BAUM AUFBAUEN =====
+    // Wird einmalig aufgerufen, traversiert alle LyrMgr-Instanzen.
+    // Ergebnis: { 'gis_oereb/.../grundnutzung': { path: ['ÖREB','RAUMPLANUNG',...], layerLabel: '...' } }
+    function buildBreadcrumbLookupMap() {
+        try {
+            var managers = window.njs && njs.AppManager && njs.AppManager.LyrMgr;
+            if (!managers) return null;
+
+            var resources = getLyrmgrResources();
+            var map = {};
+
+            for (var mgrKey in managers) {
+                if (!managers.hasOwnProperty(mgrKey)) continue;
+                var mgr = managers[mgrKey];
+                if (!mgr || !mgr.arCategories || !mgr.arCategories.length) continue;
+
+                for (var c = 0; c < mgr.arCategories.length; c++) {
+                    traverseCategoryForMap(mgr.arCategories[c], [], resources, map);
+                }
+            }
+
+            return (Object.keys(map).length > 0) ? map : null;
+        } catch (e) {
+            console.warn('[Breadcrumb] Fehler beim Aufbau der Lookup-Map:', e);
+            return null;
+        }
+    }
+
+    function traverseCategoryForMap(category, parentPath, resources, map) {
+        if (!category) return;
+
+        var label = resolveCategoryLabel(category, resources);
+        var path = parentPath.slice();
+        if (label) path.push(label);
+
+        // Blatt-Layer registrieren
+        if (category.arLayers && category.arLayers.length) {
+            for (var i = 0; i < category.arLayers.length; i++) {
+                var layer = category.arLayers[i];
+                if (!layer || !layer.name) continue;
+
+                var layerLabel = resolveLayerLabel(layer, resources);
+                map[layer.name] = {
+                    path: path.slice(),
+                    layerLabel: layerLabel
+                };
+            }
+        }
+
+        // Rekursiv in Unterkategorien
+        if (category.arCategories && category.arCategories.length) {
+            for (var j = 0; j < category.arCategories.length; j++) {
+                traverseCategoryForMap(category.arCategories[j], path, resources, map);
+            }
+        }
+    }
+
+    function resolveBreadcrumbForMaptip(maptipId, titleText) {
+        var cacheKey = maptipId + '|' + normalizeCompareText(titleText);
+        if (Object.prototype.hasOwnProperty.call(maptipBreadcrumbCache, cacheKey)) {
+            console.log('[Breadcrumb] Cache-Hit:', cacheKey, '→', maptipBreadcrumbCache[cacheKey] || '(leer)');
+            return maptipBreadcrumbCache[cacheKey];
+        }
+
+        var maptip = getMapTipEntry(maptipId);
+        if (!maptip) {
+            console.log('[Breadcrumb] Kein Maptip für:', maptipId);
+            maptipBreadcrumbCache[cacheKey] = '';
+            return '';
+        }
+
+        var linkedLayerId = normalizeWhitespace(maptip.linked_layer_id || maptip.linked_layer || '');
+        if (!linkedLayerId) {
+            console.log('[Breadcrumb] Kein linked_layer für maptip:', maptipId);
+            maptipBreadcrumbCache[cacheKey] = '';
+            return '';
+        }
+
+        console.log('[Breadcrumb] Resolve:', maptipId, 'linked=', linkedLayerId, 'title=', titleText);
+        var breadcrumb = resolveFastBreadcrumb(linkedLayerId, titleText);
+        maptipBreadcrumbCache[cacheKey] = breadcrumb;
+        return breadcrumb;
+    }
+
+    function getTitlePaneWidget(paneNode) {
+        if (!paneNode || typeof dijit === 'undefined') return null;
+
+        if (typeof dijit.byNode === 'function') {
+            try {
+                var byNode = dijit.byNode(paneNode);
+                if (byNode) return byNode;
+            } catch (e) {}
+        }
+
+        var widgetId = paneNode.getAttribute('widgetid') || paneNode.getAttribute('data-dojo-widget-id');
+        if (!widgetId || typeof dijit.byId !== 'function') return null;
+        return dijit.byId(widgetId) || null;
+    }
+
+    // ===== BREADCRUMB-KLICK → LAYER IM KATALOG HERVORHEBEN =====
+
+    /**
+     * Sucht das DOM-Element eines Layers im Themenkatalog.
+     * Prüft zuerst den neuen LM-Tree (falls aktiv), dann Legacy-LyrMgr.
+     */
+    function findLayerElementInCatalog(layerId) {
+        if (!layerId) return null;
+
+        // 1. Neuer Tree (Priorität!): data-layer-id Attribut in #lm-tree-container
+        //    Wenn useNewTree=true, ist der Legacy-Baum versteckt im Hintergrund.
+        //    Ohne diese Priorität wird das Element im unsichtbaren Legacy-Baum gefunden.
+        var treeContainer = document.getElementById('lm-tree-container');
+        if (treeContainer) {
+            var treeEl = treeContainer.querySelector('[data-layer-id="' + layerId + '"]');
+            if (treeEl) {
+                console.log('[ScrollToCatalog] Gefunden via data-layer-id im neuen Tree');
+                return treeEl;
+            }
+        }
+
+        // 2. Legacy-LyrMgr: div_<layerName>
+        var el = document.getElementById('div_' + layerId);
+        if (el) {
+            console.log('[ScrollToCatalog] Gefunden via div_' + layerId + ' (Legacy)');
+            return el;
+        }
+
+        // 3. Dijit Checkbox-Widget
+        if (typeof dijit !== 'undefined' && typeof dijit.byId === 'function') {
+            var cbWidget = dijit.byId(layerId);
+            if (cbWidget && cbWidget.domNode) {
+                var containerEl = cbWidget.domNode.closest('.layercontainer') || cbWidget.domNode.parentElement;
+                if (containerEl) {
+                    console.log('[ScrollToCatalog] Gefunden via dijit.byId(' + layerId + ') (Legacy)');
+                    return containerEl;
+                }
+            }
+        }
+
+        // 4. Prefix-Match: layerId könnte ein Prefix des tatsächlichen Keys sein,
+        //    ODER layerId ist ein Sublayer-Key der länger ist als der Tree-Eintrag.
+        //    Beispiel A: layerId='gis_fach/nw_fff' → Tree hat 'gis_fach/nw_fff/sub'
+        //    Beispiel B: layerId='gis_fach/nw_fff/sub' → Tree hat 'gis_fach/nw_fff'
+        //    Suche in beiden Richtungen, bevorzuge den längsten/spezifischsten Match.
+        if (treeContainer) {
+            var prefixEls = treeContainer.querySelectorAll('[data-layer-id]');
+            var bestMatch = null;
+            var bestMatchLen = 0;
+            for (var pe = 0; pe < prefixEls.length; pe++) {
+                var dlid = prefixEls[pe].getAttribute('data-layer-id');
+                if (!dlid) continue;
+                // Richtung A: Tree-ID beginnt mit layerId (Tree ist spezifischer)
+                if (dlid.indexOf(layerId) === 0 && dlid.length > bestMatchLen) {
+                    bestMatch = prefixEls[pe];
+                    bestMatchLen = dlid.length;
+                }
+                // Richtung B: layerId beginnt mit Tree-ID (layerId ist spezifischer/Sublayer)
+                if (layerId.indexOf(dlid) === 0 && dlid.length > bestMatchLen) {
+                    bestMatch = prefixEls[pe];
+                    bestMatchLen = dlid.length;
+                }
+            }
+            if (bestMatch) {
+                console.log('[ScrollToCatalog] Gefunden via Prefix-Match im neuen Tree: ' +
+                    bestMatch.getAttribute('data-layer-id') + ' (für: ' + layerId + ')');
+                return bestMatch;
+            }
+        }
+        if (typeof dijit !== 'undefined' && dijit.registry) {
+            var found = null;
+            // dijit.registry kann WidgetSet (forEach) oder AMD-Registry (toArray) sein
+            var widgets = typeof dijit.registry.toArray === 'function'
+                ? dijit.registry.toArray()
+                : (typeof dijit.registry.forEach === 'function' ? null : []);
+            if (widgets === null) {
+                // WidgetSet mit forEach
+                dijit.registry.forEach(function(w) {
+                    if (found) return;
+                    if (w.declaredClass === 'dijit.form.CheckBox' && w.id && w.id.indexOf(layerId) === 0) {
+                        var cEl = w.domNode ? (w.domNode.closest('.layercontainer') || w.domNode.parentElement) : null;
+                        if (cEl) {
+                            console.log('[ScrollToCatalog] Gefunden via Prefix-Match (Legacy): ' + w.id);
+                            found = cEl;
+                        }
+                    }
+                });
+            } else {
+                for (var wi = 0; wi < widgets.length; wi++) {
+                    var w = widgets[wi];
+                    if (w.declaredClass === 'dijit.form.CheckBox' && w.id && w.id.indexOf(layerId) === 0) {
+                        var cEl = w.domNode ? (w.domNode.closest('.layercontainer') || w.domNode.parentElement) : null;
+                        if (cEl) {
+                            console.log('[ScrollToCatalog] Gefunden via Prefix-Match (Legacy): ' + w.id);
+                            found = cEl;
+                            break;
+                        }
+                    }
+                }
+            }
+            if (found) return found;
+        }
+
+        console.log('[ScrollToCatalog] NICHT gefunden für:', layerId);
+        return null;
+    }
+
+    /**
+     * Öffnet den Themenkatalog, navigiert zum Layer und hebt ihn hervor.
+     * Wird bei Klick auf den Breadcrumb im Info-Panel ausgelöst.
+     * Unterstützt sowohl den neuen LM-Tree als auch den Legacy-Dojo-Baum.
+     */
+    function scrollToLayerInCatalog(linkedLayerId) {
+        console.log('[ScrollToCatalog] Aufgerufen mit:', linkedLayerId);
+        if (!linkedLayerId) return;
+
+        // 1. Layer-DOM-Element finden
+        var layerEl = findLayerElementInCatalog(linkedLayerId);
+        if (!layerEl) return;
+
+        // 2. Prüfen ob Element im neuen LM-Tree oder im Legacy-Baum liegt
+        var treeContainer = document.getElementById('lm-tree-container');
+        var isNewTree = treeContainer && treeContainer.contains(layerEl);
+        console.log('[ScrollToCatalog] Modus:', isNewTree ? 'Neuer Tree' : 'Legacy');
+
+        // 3. Themenkatalog-Pane öffnen (tp_overview_menu) — gilt für beide Modi
+        var overviewEl = document.getElementById('tp_overview_menu');
+        if (overviewEl && !overviewEl.open) {
+            overviewEl.open = true;
+            console.log('[ScrollToCatalog] tp_overview_menu geöffnet');
+        }
+
+        if (isNewTree) {
+            // ===== NEUER TREE: Tab aktivieren + Gruppen aufklappen =====
+            _scrollInNewTree(layerEl, treeContainer);
+        } else {
+            // ===== LEGACY BAUM: Tab aktivieren + TitlePanes öffnen =====
+            _scrollInLegacyTree(layerEl);
+        }
+
+        // 4. Scroll & Highlight (verzögert)
+        _scrollAndHighlight(layerEl, 0);
+    }
+
+    /**
+     * Navigation im neuen LM-Tree: Tab aktivieren und Gruppen aufklappen.
+     */
+    function _scrollInNewTree(layerEl, treeContainer) {
+        // 1. Richtigen Tab aktivieren (Eltern-catContent finden)
+        var catContent = layerEl.closest('.lm-cat-content');
+        if (catContent) {
+            var catId = catContent.getAttribute('data-cat-content');
+            if (catId) {
+                // Tab-Button klicken
+                var tabBtn = treeContainer.querySelector('.lm-tab[data-cat-id="' + catId + '"]');
+                if (tabBtn && !tabBtn.classList.contains('lm-tab-active')) {
+                    tabBtn.click();
+                    console.log('[ScrollToCatalog] Neuer Tree: Tab aktiviert:', catId);
+                }
+                // Sicherstellen dass Content sichtbar ist
+                catContent.style.display = '';
+            }
+        }
+
+        // 2. Alle Eltern-Gruppen aufklappen (von innen nach aussen)
+        var parent = layerEl.parentElement;
+        while (parent && parent !== treeContainer) {
+            if (parent.classList.contains('lm-nested-group')) {
+                if (parent.classList.contains('lm-collapsed')) {
+                    parent.classList.remove('lm-collapsed');
+                    parent.classList.add('lm-expanded');
+                    console.log('[ScrollToCatalog] Neuer Tree: Gruppe aufgeklappt:',
+                        parent.getAttribute('data-group-id') || '(kein)');
+                }
+            }
+            parent = parent.parentElement;
+        }
+    }
+
+    /**
+     * Navigation im Legacy-Dojo-Baum: Kantons-Tab aktivieren und TitlePanes öffnen.
+     */
+    function _scrollInLegacyTree(layerEl) {
+        if (typeof dijit === 'undefined') return;
+
+        // 1. Bestimme welcher Kantons-Tab das Layer enthält
+        var kantonsPanes = [
+            'tp_layer_menu', 'tp_layer_menu2', 'tp_layer_menu3', 'tp_layer_menu4'
+        ];
+        var targetTab = null;
+        for (var i = 0; i < kantonsPanes.length; i++) {
+            var paneEl = document.getElementById(kantonsPanes[i]);
+            if (paneEl && paneEl.contains(layerEl)) {
+                targetTab = kantonsPanes[i];
+                break;
+            }
+        }
+        console.log('[ScrollToCatalog] Legacy Kantons-Tab:', targetTab || 'keiner');
+
+        // 2. Richtigen Kantons-Tab aktivieren
+        if (targetTab) {
+            var tabBar = document.getElementById('kantons_tab_bar');
+            if (tabBar) {
+                var tabBtn = tabBar.querySelector('.kanton-tab[data-target="' + targetTab + '"]');
+                if (tabBtn && !tabBtn.classList.contains('active')) {
+                    tabBtn.click();
+                    console.log('[ScrollToCatalog] Legacy Tab aktiviert:', targetTab);
+                }
+            }
+            var tabPane = document.getElementById(targetTab);
+            if (tabPane) {
+                tabPane.classList.add('active-tab');
+            }
+        }
+
+        // 3. Ancestor-TitlePanes sammeln und öffnen
+        var ancestorPanes = [];
+        var parent = layerEl.parentElement;
+        while (parent) {
+            if (parent.classList && parent.classList.contains('dijitTitlePane')) {
+                if (parent.id && parent.id.match(/^tp_layer_menu\d?$/)) {
+                    parent = parent.parentElement;
+                    continue;
+                }
+                if (parent.id === 'tp_overview_menu') {
+                    parent = parent.parentElement;
+                    continue;
+                }
+                ancestorPanes.push(parent);
+            }
+            parent = parent.parentElement;
+        }
+        console.log('[ScrollToCatalog] Legacy TitlePanes:', ancestorPanes.length,
+            ancestorPanes.map(function(n) { return n.id || '(kein)'; }));
+
+        for (var p = ancestorPanes.length - 1; p >= 0; p--) {
+            _forceOpenTitlePane(ancestorPanes[p]);
+        }
+    }
+
+    /**
+     * Erzwingt das Öffnen eines TitlePane sowohl via Widget-API als auch brute-force via DOM.
+     */
+    function _forceOpenTitlePane(paneNode) {
+        var id = paneNode.id || '(kein)';
+
+        // 1. Widget finden
+        var pw = null;
+        try {
+            if (paneNode.id) pw = dijit.byId(paneNode.id);
+        } catch (e) {}
+        if (!pw) {
+            try { if (dijit.byNode) pw = dijit.byNode(paneNode); } catch (e) {}
+        }
+        if (!pw) {
+            var wid = paneNode.getAttribute('widgetid');
+            if (wid) try { pw = dijit.byId(wid); } catch (e) {}
+        }
+
+        // 2. Widget-basiert öffnen (wenn verfügbar)
+        if (pw) {
+            try {
+                if (typeof pw._setOpenAttr === 'function') {
+                    pw._setOpenAttr(true);
+                    console.log('[ScrollToCatalog] _setOpenAttr(true):', id);
+                } else if (typeof pw.set === 'function') {
+                    pw.set('open', true);
+                    console.log('[ScrollToCatalog] set(open,true):', id);
+                }
+            } catch (e) {
+                console.warn('[ScrollToCatalog] Widget-Open Fehler:', id, e);
+            }
+        } else {
+            console.log('[ScrollToCatalog] Kein Widget für:', id, '→ nur DOM-Fallback');
+        }
+
+        // 3. Brute-force DOM: ContentOuter + wipeNode direkt sichtbar machen
+        //    Traversiert Kinder des paneNode, NICHT querySelectorAll (findet sonst verschachtelte)
+        var children = paneNode.children;
+        for (var c = 0; c < children.length; c++) {
+            var child = children[c];
+            if (child.classList.contains('dijitTitlePaneContentOuter')) {
+                child.style.setProperty('display', 'block', 'important');
+                child.style.setProperty('height', 'auto', 'important');
+                child.style.setProperty('overflow', 'visible', 'important');
+                child.style.setProperty('visibility', 'visible', 'important');
+
+                // Auch das wipeNode (erstes Kind von ContentOuter) sichtbar machen
+                var innerChildren = child.children;
+                for (var w = 0; w < innerChildren.length; w++) {
+                    var inner = innerChildren[w];
+                    if (inner.classList.contains('dijitReset') ||
+                        inner.getAttribute('data-dojo-attach-point') === 'wipeNode' ||
+                        inner.classList.contains('dijitTitlePaneContentInner')) {
+                        inner.style.setProperty('display', 'block', 'important');
+                        inner.style.setProperty('height', 'auto', 'important');
+                        inner.style.setProperty('overflow', 'visible', 'important');
+                        inner.style.setProperty('visibility', 'visible', 'important');
+                    }
+                }
+                break;
+            }
+        }
+
+        // 4. Klassen korrigieren
+        paneNode.classList.remove('dijitClosed');
+        paneNode.classList.remove('dijitTitlePaneClosed');
+        if (paneNode.hasAttribute('data-lyrmgr-depth')) {
+            paneNode.classList.add('lyrmgr-open');
+        }
+    }
+
+    /**
+     * Scrollt zum Element und hebt es hervor. Retry falls Element noch den Rect 0,0,0,0 hat.
+     */
+    function _scrollAndHighlight(layerEl, attempt) {
+        var delay = attempt === 0 ? 300 : 500;
+        setTimeout(function() {
+            // Vorherige Highlights entfernen
+            var prev = document.querySelectorAll('.tnet-catalog-highlight');
+            for (var j = 0; j < prev.length; j++) {
+                prev[j].classList.remove('tnet-catalog-highlight');
+            }
+
+            var rect = layerEl.getBoundingClientRect();
+            console.log('[ScrollToCatalog] Element-Position (Versuch ' + (attempt + 1) + '):', 
+                Math.round(rect.top), Math.round(rect.left), Math.round(rect.width), Math.round(rect.height));
+
+            // Element immer noch unsichtbar → Diagnose & Retry
+            if (rect.width === 0 && rect.height === 0) {
+                // Diagnose: Welcher Ancestor ist unsichtbar?
+                var node = layerEl;
+                while (node && node !== document.body) {
+                    var cs = window.getComputedStyle(node);
+                    if (cs.display === 'none' || cs.visibility === 'hidden') {
+                        console.warn('[ScrollToCatalog] Versteckter Ancestor:', 
+                            node.tagName + '#' + (node.id || ''), 
+                            'display:', cs.display, 'visibility:', cs.visibility,
+                            'classes:', node.className.substring(0, 80));
+                        // Brute-force: Element sichtbar machen
+                        if (cs.display === 'none') {
+                            node.style.setProperty('display', 'block', 'important');
+                        }
+                        if (cs.visibility === 'hidden') {
+                            node.style.setProperty('visibility', 'visible', 'important');
+                        }
+                    }
+                    node = node.parentElement;
+                }
+
+                if (attempt < 3) {
+                    console.log('[ScrollToCatalog] Retry nach Brute-Force-Fix...');
+                    _scrollAndHighlight(layerEl, attempt + 1);
+                    return;
+                }
+                console.warn('[ScrollToCatalog] Alle Retry-Versuche erschöpft.');
+            }
+
+            layerEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            layerEl.classList.add('tnet-catalog-highlight');
+
+            // Animation nach 3s entfernen
+            setTimeout(function() {
+                layerEl.classList.remove('tnet-catalog-highlight');
+            }, 3000);
+        }, delay);
+    }
+
+    // Funktion global verfügbar machen für externe Nutzung
+    window.TnetScrollToLayerInCatalog = scrollToLayerInCatalog;
+
+    function renderBreadcrumbInTitleBar(titleBar, breadcrumbText, linkedLayerId) {
+        if (!titleBar) return;
+
+        var node = titleBar.querySelector('.tnet-maptip-breadcrumb');
+
+        if (!breadcrumbText) {
+            if (node) node.remove();
+            return;
+        }
+
+        if (!node) {
+            node = document.createElement('div');
+            node.className = 'tnet-maptip-breadcrumb';
+            titleBar.appendChild(node);
+        }
+
+        // NUR updaten wenn sich Werte geändert haben (verhindert Mutations-Loop)
+        if (node.textContent !== breadcrumbText) {
+            node.textContent = breadcrumbText;
+        }
+        var newTitle = breadcrumbText + (linkedLayerId ? '\nKlicken \u2192 Im Katalog anzeigen' : '');
+        if (node.title !== newTitle) {
+            node.title = newTitle;
+        }
+
+        // Layer-ID als Data-Attribut speichern und Klick-Handler setzen
+        if (linkedLayerId) {
+            if (node.getAttribute('data-linked-layer') !== linkedLayerId) {
+                node.setAttribute('data-linked-layer', linkedLayerId);
+            }
+            if (!node.classList.contains('tnet-maptip-breadcrumb-clickable')) {
+                node.classList.add('tnet-maptip-breadcrumb-clickable');
+            }
+
+            // Event-Listener nur einmal setzen (Flag am Node)
+            if (!node._tnetClickBound) {
+                node._tnetClickBound = true;
+                node.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    var layerId = this.getAttribute('data-linked-layer');
+                    if (layerId) scrollToLayerInCatalog(layerId);
+                });
+            }
+        }
+    }
+
+    function enhanceMapTipResultBreadcrumbs() {
+        if (isMobile()) return;
+
+        var contentRoot = document.getElementById('njs_info_pane_content');
+        if (!contentRoot) return;
+
+        var panes = contentRoot.querySelectorAll('.dijitTitlePane');
+        if (!panes || !panes.length) {
+            console.log('[Breadcrumb] enhanceMapTipResultBreadcrumbs: keine TitlePanes gefunden');
+            return;
+        }
+
+        var hasUnreadyPanes = false;
+        var enhancedCount = 0;
+        console.log('[Breadcrumb] enhanceMapTipResultBreadcrumbs:', panes.length, 'TitlePanes');
+        for (var i = 0; i < panes.length; i++) {
+            var pane = panes[i];
+            var titleBar = pane.querySelector('.dijitTitlePaneTitle');
+            if (!titleBar) continue;
+
+            var widget = getTitlePaneWidget(pane);
+            if (!widget || !widget.id_maptip) {
+                // Widget noch nicht initialisiert → später erneut versuchen
+                hasUnreadyPanes = true;
+                continue;
+            }
+
+            var titleText = '';
+            if (typeof widget.get === 'function') {
+                titleText = normalizeWhitespace(widget.get('title') || '');
+            }
+            if (!titleText) {
+                var textNode = titleBar.querySelector('.dijitTitlePaneTextNode');
+                titleText = normalizeWhitespace(textNode ? textNode.textContent : '');
+            }
+
+            var breadcrumb = resolveBreadcrumbForMaptip(widget.id_maptip, titleText);
+
+            // linked_layer_id für Klick-Navigation auflösen
+            var linkedLayerId = '';
+            var maptipEntry = getMapTipEntry(widget.id_maptip);
+            if (maptipEntry) {
+                linkedLayerId = normalizeWhitespace(maptipEntry.linked_layer_id || maptipEntry.linked_layer || '');
+            }
+
+            console.log('[Breadcrumb] Pane', i, ': maptip=', widget.id_maptip, '→', breadcrumb || '(leer)', 'layer=', linkedLayerId);
+            renderBreadcrumbInTitleBar(titleBar, breadcrumb, linkedLayerId);
+            if (breadcrumb) enhancedCount++;
+        }
+
+        // Retry wenn Panes ohne id_maptip existieren (Framework hat Widgets noch nicht initialisiert)
+        if (hasUnreadyPanes) {
+            if (_breadcrumbRetryTimer) clearTimeout(_breadcrumbRetryTimer);
+            _breadcrumbRetryTimer = setTimeout(function() {
+                _breadcrumbRetryTimer = null;
+                console.log('[Breadcrumb] Retry: Panes hatten kein id_maptip, versuche erneut...');
+                _isEnhancingBreadcrumbs = true;
+                try {
+                    enhanceMapTipResultBreadcrumbs();
+                } finally {
+                    setTimeout(function() { _isEnhancingBreadcrumbs = false; }, 200);
+                }
+            }, 300);
+        }
+    }
+
+    function scheduleMapTipBreadcrumbEnhancement() {
+        if (isMobile()) return;
+        if (_isEnhancingBreadcrumbs) return; // Keine Neuplanung während Enhancement (Mutations-Loop verhindern)
+        if (breadcrumbEnhanceTimer) {
+            clearTimeout(breadcrumbEnhanceTimer);
+        }
+        breadcrumbEnhanceTimer = setTimeout(function() {
+            breadcrumbEnhanceTimer = null;
+            _isEnhancingBreadcrumbs = true;
+            try {
+                enhanceMapTipResultBreadcrumbs();
+            } finally {
+                // Kurze Karenzzeit bevor Observer wieder schedulen darf
+                setTimeout(function() { _isEnhancingBreadcrumbs = false; }, 200);
+            }
+        }, 150);
+    }
+
+    function enhanceInfoPane() {
+        var infoPane = document.getElementById('njs_info_pane');
+        if (!infoPane) return false;
+
+        var titleBar = infoPane.querySelector('.dojoxFloatingPaneTitle');
+        if (!titleBar) return false;
+
+        // Prüfe ob Custom-Titlebar bereits vorhanden
+        if (titleBar.querySelector('.info-pane-custom-title')) {
+            if (!isMobile() && !infoPane.querySelector('.info-pane-resize-left')) {
+                initInfoPaneResize(infoPane);
+            }
+            return true;
+        }
+
+        // ── Custom Titelbar: Dojo-Kinder leeren, unseren Inhalt einsetzen ─────
+        // Wir entfernen NICHT den titleBar selbst — Dojo berechnet offsetHeight
+        // des Titelbars um die contentInfo absolut zu positionieren.
+        // Stattdessen leeren wir ihn und befüllen ihn neu.
+
+        // Titel fix: dijit.get('title') liefert HTML-Inhalt zurück — NICHT verwenden!
+        var titleText = 'Objektinformation';
+        var dojoTitleEl = titleBar.querySelector('.dojoxFloatingPaneTitleText');
+        if (dojoTitleEl) {
+            var _t = (dojoTitleEl.value || '').trim();
+            if (_t && _t.indexOf('<') === -1 && _t.length < 80) titleText = _t;
+        }
+
+        // Alle bestehenden Dojo-Kinder entfernen (per loop, da innerHTML = '' Dojo-Widgets beschädigt)
+        while (titleBar.firstChild) { titleBar.removeChild(titleBar.firstChild); }
+
+        // Dojo setzt text-align:center inline — überschreiben
+        titleBar.style.setProperty('text-align', 'left', 'important');
+        titleBar.style.setProperty('justify-content', 'flex-start', 'important');
+
+        // Titel-Span
+        var titleSpan = document.createElement('span');
+        titleSpan.className = 'info-pane-custom-title';
+        titleSpan.textContent = titleText;
+
+        // Actions Container
+        var actions = document.createElement('div');
+        actions.className = 'info-pane-actions';
+
+        // Clipboard Button
+        var clipboardBtn = document.createElement('button');
+        clipboardBtn.className = 'info-pane-btn';
+        clipboardBtn.title = 'In Zwischenablage kopieren';
+        clipboardBtn.innerHTML = TnetIcons.get('clipboard');
+        clipboardBtn.onmousedown = function(e) { e.stopPropagation(); };
+        clipboardBtn.onclick = function(e) {
+            e.stopPropagation();
+            window.copyInfoPaneToClipboard();
+        };
+
+        // Dock Button (nur Desktop)
+        var dockBtn = document.createElement('button');
+        dockBtn.className = 'info-pane-btn';
+        dockBtn.id = 'info-pane-dock-btn';
+        dockBtn.title = 'Rechts andocken';
+        dockBtn.innerHTML = TnetIcons.get('dock');
+        dockBtn.onmousedown = function(e) { e.stopPropagation(); };
+        dockBtn.onclick = function(e) {
+            e.stopPropagation();
+            window.toggleInfoPaneDock();
+        };
+
+        // Close Button
+        var closeBtn = document.createElement('button');
+        closeBtn.className = 'info-pane-btn info-pane-close';
+        closeBtn.title = 'Schließen';
+        closeBtn.innerHTML = TnetIcons.get('close');
+        closeBtn.onmousedown = function(e) { e.stopPropagation(); };
+        closeBtn.onclick = function(e) {
+            e.stopPropagation();
+            if (isInfoPaneDocked) {
+                var mapContainer = document.getElementById('mapContainer');
+                if (mapContainer) {
+                    mapContainer.style.setProperty('width', '100%', 'important');
+                    setTimeout(function() { triggerMapUpdate(); }, 100);
+                }
+                stopMapContainerObserver();
+                isInfoPaneDocked = false;
+                infoPane.classList.remove('docked-right');
+            }
+            var widget = (typeof dijit !== 'undefined') ? dijit.byId('njs_info_pane') : null;
+            if (widget && widget.close) {
+                widget.close();
+            } else {
+                infoPane.style.visibility = 'hidden';
+            }
+        };
+
+        actions.appendChild(clipboardBtn);
+        if (!isMobile()) actions.appendChild(dockBtn);
+        actions.appendChild(closeBtn);
+
+        // Direkt in den Dojo-titleBar einfügen (nicht als separaten DIV)
+        // So bleibt Dojo's offsetHeight-Berechnung für die contentInfo intakt.
+        titleBar.appendChild(titleSpan);
+        titleBar.appendChild(actions);
+
+        // MutationObserver: nicht mehr nötig (lesen per Dojo-Widget bei jedem show)
+
+        // Custom Resize-Handle hinzufügen (nur Desktop)
+        if (!isMobile()) {
+            initInfoPaneResize(infoPane);
+        } else {
+            addMobileInfoSheetHandle(infoPane);
+        }
+
+        return true;
+    }
+
+    // Initial versuchen
+    enhanceInfoPane();
+
+    // Hilfsfunktion: Docked-Zustand wiederherstellen (verhindert Flackern)
+    function restoreDockedLayout(infoPane) {
+        if (!isInfoPaneDocked || !infoPane.classList.contains('docked-right')) return;
+        var savedWidth = window._savedDockedPanelWidth || 350;
+        var streetviewContainer = document.getElementById('streetviewContainer');
+        var centerPane = document.getElementById('centerPaneLayout');
+        var streetviewWidth = 0;
+        if (streetviewContainer && streetviewContainer.offsetWidth > 0 && streetviewContainer.style.display !== 'none') {
+            streetviewWidth = streetviewContainer.offsetWidth;
+        }
+
+        infoPane.style.setProperty('width', savedWidth + 'px', 'important');
+        infoPane.style.setProperty('right', streetviewWidth + 'px', 'important');
+
+        var mapContainer = document.getElementById('mapContainer');
+        if (mapContainer) {
+            var centerPaneWidth = centerPane ? centerPane.offsetWidth : window.innerWidth;
+            var mapWidth = centerPaneWidth - streetviewWidth - savedWidth;
+            mapContainer.style.setProperty('width', mapWidth + 'px', 'important');
+        }
+    }
+
+    // Info-Pane unter Header positionieren (69px Header + 11px Puffer)
+    function ensureBelowHeader(infoPane) {
+        if (!infoPane || infoPane.classList.contains('docked-right')) return;
+        if (isMobile()) return; // auf Mobile positioniert das CSS fix als Bottom-Sheet
+        requestAnimationFrame(function() {
+            var rect = infoPane.getBoundingClientRect();
+            if (rect.top < 80) {
+                var currentTop = parseInt(infoPane.style.top) || 0;
+                var delta = 80 - rect.top;
+                infoPane.style.setProperty('top', (currentTop + delta) + 'px', 'important');
+            }
+        });
+    }
+
+    // Hilfsfunktion: ist die Pane sichtbar?
+    // (Mock: visibility:hidden/visible; CSS hat display:flex !important, daher kein display-Check)
+    function isPaneVisible(infoPane) {
+        if (!infoPane) return false;
+        return infoPane.style.visibility !== 'hidden';
+    }
+
+    // Callback wenn Info-Pane sichtbar wird
+    function onInfoPaneChange(infoPane) {
+        if (!isPaneVisible(infoPane)) return;
+
+        // ÖREB-Modus: Info-Pane sofort schliessen (keine Objektinfo während ÖREB)
+        if (window.isOerebActive) {
+            var oerebWidget = (typeof dijit !== 'undefined') ? dijit.byId('njs_info_pane') : null;
+            if (oerebWidget && oerebWidget.close) {
+                oerebWidget.close();
+            } else {
+                infoPane.style.visibility = 'hidden';
+            }
+            return;
+        }
+
+        enhanceInfoPane();
+        scheduleMapTipBreadcrumbEnhancement();
+        restoreDockedLayout(infoPane);
+        ensureBelowHeader(infoPane);
+    }
+
+    // Gezielter Observer: Nur njs_info_pane selbst beobachten (nicht document.body)
+    var paneObserver = null;
+
+    function attachPaneObserver(infoPane) {
+        if (paneObserver) return; // Bereits aktiv
+        paneObserver = new MutationObserver(function(mutations) {
+            onInfoPaneChange(infoPane);
+        });
+        // Attribut-Änderungen (style/class) UND DOM-Rebuilds (childList) beobachten
+        paneObserver.observe(infoPane, {
+            attributes: true,
+            attributeFilter: ['style', 'class'],
+            childList: true,
+            subtree: true
+        });
+    }
+
+    // Warten bis njs_info_pane im DOM erscheint, dann gezielten Observer setzen
+    var waitInterval = setInterval(function() {
+        var infoPane = document.getElementById('njs_info_pane');
+        if (infoPane) {
+            clearInterval(waitInterval);
+            attachPaneObserver(infoPane);
+            onInfoPaneChange(infoPane);
+        }
+    }, 500);
+
+    // Fallback-Check: periodisch prüfen ob Buttons (noch) vorhanden sind
+    // UND Breadcrumbs nachsetzen falls beim ersten Enhancement nicht bereit
+    setInterval(function() {
+        var infoPane = document.getElementById('njs_info_pane');
+        if (infoPane) {
+            attachPaneObserver(infoPane); // Observer setzen falls noch nicht aktiv
+            if (isPaneVisible(infoPane)) {
+                enhanceInfoPane();
+                // Breadcrumbs nachrüsten falls fehlend (Timing-Fallback)
+                var contentRoot = document.getElementById('njs_info_pane_content');
+                if (contentRoot) {
+                    var panes = contentRoot.querySelectorAll('.dijitTitlePane');
+                    var hasMissingBreadcrumbs = false;
+                    for (var k = 0; k < panes.length; k++) {
+                        var tb = panes[k].querySelector('.dijitTitlePaneTitle');
+                        if (tb && !tb.querySelector('.tnet-maptip-breadcrumb')) {
+                            var w = getTitlePaneWidget(panes[k]);
+                            if (w && w.id_maptip) {
+                                hasMissingBreadcrumbs = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (hasMissingBreadcrumbs) {
+                        console.log('[Breadcrumb] Periodischer Fallback: fehlende Breadcrumbs entdeckt');
+                        scheduleMapTipBreadcrumbEnhancement();
+                    }
+                }
+            }
+        }
+    }, 2000);
+
+    // Mobile: Custom-Event vom FloatingPane-Mock (zuverlässiger als MutationObserver)
+    if (isMobile()) {
+        window.addEventListener('njsInfoPaneShow', function(e) {
+            var infoPane = document.getElementById('njs_info_pane');
+            if (!infoPane) return;
+            attachPaneObserver(infoPane);
+            enhanceInfoPane();
+        });
+        window.addEventListener('njsInfoPaneHide', function() {
+            // kein Action nötig
+        });
+    }
+}
+initInfoPaneEnhancements();
+
+// Mobile: Sheet-Handle in #njs_info_pane injizieren und Drag-to-Resize aktivieren
+function addMobileInfoSheetHandle(infoPane) {
+    if (!infoPane) return;
+    if (infoPane.querySelector('.info-sheet-handle')) return; // bereits vorhanden
+
+    // Handle als allererstes Kind einfügen (vor dojoxFloatingPaneTitle)
+    var handle = document.createElement('div');
+    handle.className = 'm-sheet-handle info-sheet-handle';
+    var bar = document.createElement('div');
+    bar.className = 'm-sheet-bar';
+    handle.appendChild(bar);
+    infoPane.insertBefore(handle, infoPane.firstChild);
+
+    // attachSheetResize ggf. noch nicht bereit (mDrawerInit läuft asynchron)
+    var retryCount = 0;
+    function tryAttach() {
+        if (typeof window.attachSheetResize === 'function') {
+            window.attachSheetResize(handle);
+        } else if (retryCount < 25) {
+            retryCount++;
+            setTimeout(tryAttach, 200);
+        }
+    }
+    tryAttach();
+}
+
+// Custom Resize für Info-Panel
+function initInfoPaneResize(pane) {
+    if (window.__TNET_MOBILE_ENTRY) return; // keine Resize-Handles auf Mobile
+    // Bestehende Resize-Handles entfernen (falls vorhanden)
+    var existingHandles = pane.querySelectorAll('[class*="info-pane-resize"]');
+    existingHandles.forEach(function(h) { h.remove(); });
+    
+    // Alle Resize-Handles erstellen
+    var handles = {
+        top: createHandle('info-pane-resize-top', 'position:absolute; top:0; left:0; right:0; height:6px; cursor:ns-resize; z-index:1000;'),
+        bottom: createHandle('info-pane-resize-bottom', 'position:absolute; bottom:0; left:0; right:0; height:6px; cursor:ns-resize; z-index:1000;'),
+        left: createHandle('info-pane-resize-left', 'position:absolute; left:0; top:0; bottom:0; width:8px; cursor:ew-resize; z-index:1000; background:linear-gradient(to right, rgba(75,123,129,0.15), transparent);'),
+        right: createHandle('info-pane-resize-right', 'position:absolute; right:0; top:0; bottom:0; width:8px; cursor:ew-resize; z-index:1000; background:linear-gradient(to left, rgba(75,123,129,0.15), transparent);'),
+        tl: createHandle('info-pane-resize-corner-tl', 'position:absolute; top:0; left:0; width:12px; height:12px; cursor:nwse-resize; z-index:1001;'),
+        tr: createHandle('info-pane-resize-corner-tr', 'position:absolute; top:0; right:0; width:12px; height:12px; cursor:nesw-resize; z-index:1001;'),
+        bl: createHandle('info-pane-resize-corner-bl', 'position:absolute; bottom:0; left:0; width:12px; height:12px; cursor:nesw-resize; z-index:1001;')
+    };
+    
+    function createHandle(className, style) {
+        var handle = document.createElement('div');
+        handle.className = className;
+        handle.style.cssText = style;
+        pane.appendChild(handle);
+        return handle;
+    }
+    
+    var isResizing = false;
+    var resizeDirection = '';
+    var startX, startY, startWidth, startHeight, startLeft, startTop;
+    
+    function startResize(e, direction) {
+        // Im angedockten Modus nur linken Rand erlauben
+        if (pane.classList.contains('docked-right') && direction !== 'left' && direction !== 'tl' && direction !== 'bl') return;
+        
+        isResizing = true;
+        resizeDirection = direction;
+        startX = e.clientX;
+        startY = e.clientY;
+        
+        var rect = pane.getBoundingClientRect();
+        startWidth = rect.width;
+        startHeight = rect.height;
+        startLeft = rect.left;
+        startTop = rect.top;
+        
+        document.body.style.userSelect = 'none';
+        e.preventDefault();
+        e.stopPropagation();
+    }
+    
+    // Mousedown für alle Handles
+    handles.top.onmousedown = function(e) { startResize(e, 'top'); };
+    handles.bottom.onmousedown = function(e) { startResize(e, 'bottom'); };
+    handles.left.onmousedown = function(e) { startResize(e, 'left'); };
+    handles.right.onmousedown = function(e) { startResize(e, 'right'); };
+    handles.tl.onmousedown = function(e) { startResize(e, 'tl'); };
+    handles.tr.onmousedown = function(e) { startResize(e, 'tr'); };
+    handles.bl.onmousedown = function(e) { startResize(e, 'bl'); };
+    
+    // Mousemove Handler
+    var mouseMoveHandler = function(e) {
+        if (!isResizing) return;
+        
+        var dx = e.clientX - startX;
+        var dy = e.clientY - startY;
+        var newWidth = startWidth;
+        var newHeight = startHeight;
+        
+        // Angedockt: nur Breite über linken Rand ändern
+        if (pane.classList.contains('docked-right')) {
+            if (resizeDirection === 'left' || resizeDirection === 'tl' || resizeDirection === 'bl') {
+                newWidth = Math.max(300, Math.min(startWidth - dx, window.innerWidth - 100));
+                pane.style.setProperty('width', newWidth + 'px', 'important');
+                
+                // mapContainer anpassen
+                var mapContainer = document.getElementById('mapContainer');
+                if (mapContainer && isInfoPaneDocked) {
+                    var actualPanelWidth = pane.offsetWidth;
+                    mapContainer.style.setProperty('width', 'calc(100% - ' + actualPanelWidth + 'px)', 'important');
+                }
+            }
+            e.preventDefault();
+            return;
+        }
+        
+        // Freischwebend: alle Richtungen
+        switch(resizeDirection) {
+            case 'top':
+                newHeight = Math.max(150, startHeight - dy);
+                pane.style.setProperty('height', newHeight + 'px', 'important');
+                pane.style.setProperty('top', (startTop + dy) + 'px', 'important');
+                break;
+            case 'bottom':
+                newHeight = Math.max(150, startHeight + dy);
+                pane.style.setProperty('height', newHeight + 'px', 'important');
+                break;
+            case 'left':
+                newWidth = Math.max(350, startWidth - dx);
+                pane.style.setProperty('width', newWidth + 'px', 'important');
+                pane.style.setProperty('left', (startLeft + dx) + 'px', 'important');
+                break;
+            case 'right':
+                newWidth = Math.max(350, startWidth + dx);
+                pane.style.setProperty('width', newWidth + 'px', 'important');
+                break;
+            case 'tl':
+                newWidth = Math.max(350, startWidth - dx);
+                newHeight = Math.max(150, startHeight - dy);
+                pane.style.setProperty('width', newWidth + 'px', 'important');
+                pane.style.setProperty('height', newHeight + 'px', 'important');
+                pane.style.setProperty('left', (startLeft + dx) + 'px', 'important');
+                pane.style.setProperty('top', (startTop + dy) + 'px', 'important');
+                break;
+            case 'tr':
+                newWidth = Math.max(350, startWidth + dx);
+                newHeight = Math.max(150, startHeight - dy);
+                pane.style.setProperty('width', newWidth + 'px', 'important');
+                pane.style.setProperty('height', newHeight + 'px', 'important');
+                pane.style.setProperty('top', (startTop + dy) + 'px', 'important');
+                break;
+            case 'bl':
+                newWidth = Math.max(350, startWidth - dx);
+                newHeight = Math.max(150, startHeight + dy);
+                pane.style.setProperty('width', newWidth + 'px', 'important');
+                pane.style.setProperty('height', newHeight + 'px', 'important');
+                pane.style.setProperty('left', (startLeft + dx) + 'px', 'important');
+                break;
+            case 'br':
+                newWidth = Math.max(350, startWidth + dx);
+                newHeight = Math.max(150, startHeight + dy);
+                pane.style.setProperty('width', newWidth + 'px', 'important');
+                pane.style.setProperty('height', newHeight + 'px', 'important');
+                break;
+        }
+        e.preventDefault();
+    };
+    
+    var mouseUpHandler = function() {
+        if (isResizing) {
+            // Nach Resize Map aktualisieren falls angedockt
+            if (pane.classList.contains('docked-right')) {
+                triggerMapUpdate();
+            }
+            isResizing = false;
+            resizeDirection = '';
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+        }
+    };
+    
+    // Alte Handler entfernen falls vorhanden
+    if (window._infoPaneMouseMove) {
+        document.removeEventListener('mousemove', window._infoPaneMouseMove);
+    }
+    if (window._infoPaneMouseUp) {
+        document.removeEventListener('mouseup', window._infoPaneMouseUp);
+    }
+    
+    // Neue Handler speichern und registrieren
+    window._infoPaneMouseMove = mouseMoveHandler;
+    window._infoPaneMouseUp = mouseUpHandler;
+    
+    document.addEventListener('mousemove', mouseMoveHandler);
+    document.addEventListener('mouseup', mouseUpHandler);
+    
+    // CSS-Sichtbarkeit wird über CSS gesteuert - die .docked-right Klasse verbirgt die nicht-benötigten Handles automatisch
+}
+
+// Info-Panel Inhalt in Zwischenablage kopieren
+window.copyInfoPaneToClipboard = function() {
+    var content = document.getElementById('njs_info_pane_content');
+    if (!content) return;
+    
+    // Versuche Tabellen-Daten zu extrahieren
+    var tables = content.querySelectorAll('table');
+    var text = '';
+    
+    if (tables.length > 0) {
+        tables.forEach(function(table, idx) {
+            if (idx > 0) text += '\n\n';
+            
+            // Titel falls vorhanden
+            var prevEl = table.previousElementSibling;
+            if (prevEl && (prevEl.tagName === 'H3' || prevEl.tagName === 'H4' || prevEl.className.indexOf('title') > -1)) {
+                text += prevEl.textContent.trim() + '\n';
+                text += '='.repeat(prevEl.textContent.trim().length) + '\n';
+            }
+            
+            var rows = table.querySelectorAll('tr');
+            rows.forEach(function(row) {
+                var cells = row.querySelectorAll('td, th');
+                var rowText = [];
+                cells.forEach(function(cell) {
+                    rowText.push(cell.textContent.trim());
+                });
+                text += rowText.join('\t') + '\n';
+            });
+        });
+    } else {
+        // Fallback: Nur Text
+        text = content.textContent.trim();
+    }
+    
+    // In Zwischenablage kopieren
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(function() {
+            showCopyNotification('In Zwischenablage kopiert!');
+        }).catch(function(err) {
+            console.error('Clipboard Error:', err);
+            fallbackCopy(text);
+        });
+    } else {
+        fallbackCopy(text);
+    }
+};
+
+function fallbackCopy(text) {
+    var textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    document.body.appendChild(textarea);
+    textarea.select();
+    try {
+        document.execCommand('copy');
+        showCopyNotification('In Zwischenablage kopiert!');
+    } catch (err) {
+        alert('Kopieren fehlgeschlagen');
+    }
+    document.body.removeChild(textarea);
+}
+
+function showCopyNotification(message) {
+    var notification = document.createElement('div');
+    notification.textContent = message;
+    notification.style.cssText = 'position:fixed;bottom:60px;left:50%;transform:translateX(-50%);background:#4b7b81;color:white;padding:10px 20px;border-radius:4px;z-index:10000;box-shadow:0 2px 8px rgba(0,0,0,0.3);';
+    document.body.appendChild(notification);
+    setTimeout(function() {
+        notification.style.transition = 'opacity 0.3s';
+        notification.style.opacity = '0';
+        setTimeout(function() {
+            document.body.removeChild(notification);
+        }, 300);
+    }, 2000);
+}
+
+// Info-Panel andocken/abdocken
+var isInfoPaneDocked = false;
+var savedInfoPanePosition = null;
+
+// Hilfsfunktion um Map-Update zu triggern
+function triggerMapUpdate() {
+    setTimeout(function() {
+        // Neapolis/OpenLayers Map
+        if (window.njs && njs.AppManager && njs.AppManager.Maps && njs.AppManager.Maps['main']) {
+            var mapObj = njs.AppManager.Maps['main'].mapObj;
+            if (mapObj && mapObj.updateSize) {
+                mapObj.updateSize();
+            }
+        }
+        // Dijit Layout Container neu berechnen
+        if (typeof dijit !== 'undefined' && dijit.byId('NeapolisContainer')) {
+            dijit.byId('NeapolisContainer').resize();
+        }
+    }, 350);
+}
+
+window.toggleInfoPaneDock = function() {
+    var infoPane = document.getElementById('njs_info_pane');
+    var dockBtn = document.getElementById('info-pane-dock-btn');
+    var mapContainer = document.getElementById('mapContainer');
+    if (!infoPane) return;
+    
+    if (isInfoPaneDocked) {
+        // Undock - zurück zur gespeicherten Position oder Default
+        infoPane.classList.remove('docked-right');
+        
+        // Observer stoppen
+        stopMapContainerObserver();
+        
+        // mapContainer wieder auf volle Breite
+        if (mapContainer) {
+            mapContainer.style.setProperty('width', '100%', 'important');
+            setTimeout(function() {
+                triggerMapUpdate();
+            }, 100);
+        }
+        
+        if (savedInfoPanePosition) {
+            infoPane.style.setProperty('top', savedInfoPanePosition.top, 'important');
+            infoPane.style.setProperty('left', savedInfoPanePosition.left, 'important');
+            infoPane.style.setProperty('width', savedInfoPanePosition.width, 'important');
+            infoPane.style.setProperty('height', savedInfoPanePosition.height, 'important');
+        } else {
+            infoPane.style.setProperty('top', '150px', 'important');
+            infoPane.style.setProperty('left', '400px', 'important');
+            infoPane.style.setProperty('width', '720px', 'important');
+            infoPane.style.setProperty('height', '360px', 'important');
+        }
+        infoPane.style.setProperty('right', 'auto', 'important');
+        infoPane.style.setProperty('bottom', 'auto', 'important');
+        infoPane.style.setProperty('position', 'absolute', 'important');
+        infoPane.style.maxHeight = '';
+        
+        if (dockBtn) {
+            dockBtn.title = 'Rechts andocken';
+            dockBtn.innerHTML = TnetIcons.get('dock');
+        }
+        isInfoPaneDocked = false;
+    } else {
+        // Position speichern vor dem Andocken
+        savedInfoPanePosition = {
+            top: infoPane.style.top || '150px',
+            left: infoPane.style.left || '400px',
+            width: infoPane.style.width || '720px',
+            height: infoPane.style.height || '360px'
+        };
+        
+        // Dock - Panel rechts am centerPaneLayout, mapContainer passt sich an
+        infoPane.classList.add('docked-right');
+        
+        if (mapContainer) {
+            // Gespeicherte Breite verwenden falls vorhanden, sonst 350px
+            var panelWidth = window._savedDockedPanelWidth || 350;
+            var centerPane = document.getElementById('centerPaneLayout');
+            var streetviewContainer = document.getElementById('streetviewContainer');
+            
+            // Berechne den rechten Offset (falls StreetView offen)
+            var streetviewWidth = 0;
+            if (streetviewContainer && streetviewContainer.offsetWidth > 0 && streetviewContainer.style.display !== 'none') {
+                streetviewWidth = streetviewContainer.offsetWidth;
+            }
+            
+            // Panel am rechten Rand positionieren (neben StreetView falls offen)
+            var centerRect = centerPane ? centerPane.getBoundingClientRect() : mapContainer.getBoundingClientRect();
+            infoPane.style.setProperty('position', 'fixed', 'important');
+            infoPane.style.setProperty('top', centerRect.top + 'px', 'important');
+            infoPane.style.setProperty('right', streetviewWidth + 'px', 'important');
+            infoPane.style.setProperty('bottom', (window.innerHeight - centerRect.bottom) + 'px', 'important');
+            infoPane.style.setProperty('left', 'auto', 'important');
+            infoPane.style.setProperty('width', panelWidth + 'px', 'important');
+            infoPane.style.setProperty('height', 'auto', 'important');
+            
+            // mapContainer verkleinern: Absolute Berechnung
+            var centerPaneWidth = centerPane ? centerPane.offsetWidth : window.innerWidth;
+            var mapWidth = centerPaneWidth - streetviewWidth - panelWidth;
+            mapContainer.style.setProperty('width', mapWidth + 'px', 'important');
+            triggerMapUpdate();
+        }
+        
+        // Observer für Layout-Änderungen starten (passt Panel an wenn StreetView etc. geöffnet wird)
+        startMapContainerObserver();
+        
+        if (dockBtn) {
+            dockBtn.title = 'Floating';
+            dockBtn.innerHTML = TnetIcons.get('undock');
+        }
+        isInfoPaneDocked = true;
+    }
+    
+    // Container-Breite bei Panel-Resize synchron halten
+    updateContainerForInfoPane();
+};
+
+// Observer für Layout-Änderungen (z.B. wenn StreetView geöffnet wird)
+var mapContainerObserver = null;
+var streetviewObserver = null;
+function startMapContainerObserver() {
+    if (mapContainerObserver) mapContainerObserver.disconnect();
+    if (streetviewObserver) streetviewObserver.disconnect();
+    
+    var mapContainer = document.getElementById('mapContainer');
+    var streetviewContainer = document.getElementById('streetviewContainer');
+    var infoPane = document.getElementById('njs_info_pane');
+    if (!mapContainer || !infoPane) return;
+    
+    // ResizeObserver für Größenänderungen des mapContainer
+    if (window.ResizeObserver) {
+        mapContainerObserver = new ResizeObserver(function() {
+            if (!isInfoPaneDocked) return;
+            updateDockedInfoPanePosition();
+        });
+        mapContainerObserver.observe(mapContainer);
+        
+        // Auch streetviewContainer beobachten
+        if (streetviewContainer) {
+            streetviewObserver = new ResizeObserver(function() {
+                if (!isInfoPaneDocked) return;
+                updateDockedInfoPanePosition();
+            });
+            streetviewObserver.observe(streetviewContainer);
+        }
+    }
+    
+    // Auch auf Window-Resize reagieren
+    window.addEventListener('resize', updateDockedInfoPanePosition);
+}
+
+function stopMapContainerObserver() {
+    if (mapContainerObserver) {
+        mapContainerObserver.disconnect();
+        mapContainerObserver = null;
+    }
+    if (streetviewObserver) {
+        streetviewObserver.disconnect();
+        streetviewObserver = null;
+    }
+    window.removeEventListener('resize', updateDockedInfoPanePosition);
+}
+
+function updateDockedInfoPanePosition() {
+    if (!isInfoPaneDocked) return;
+    var mapContainer = document.getElementById('mapContainer');
+    var infoPane = document.getElementById('njs_info_pane');
+    var centerPane = document.getElementById('centerPaneLayout');
+    var streetviewContainer = document.getElementById('streetviewContainer');
+    if (!mapContainer || !infoPane) return;
+    
+    var panelWidth = window._savedDockedPanelWidth || infoPane.offsetWidth || 350;
+    
+    // Berechne den rechten Offset (falls StreetView offen)
+    var streetviewWidth = 0;
+    if (streetviewContainer && streetviewContainer.offsetWidth > 0 && streetviewContainer.style.display !== 'none') {
+        streetviewWidth = streetviewContainer.offsetWidth;
+    }
+    
+    // Panel-Position aktualisieren - rechts neben StreetView
+    var centerRect = centerPane ? centerPane.getBoundingClientRect() : { top: 69, bottom: window.innerHeight - 32 };
+    infoPane.style.setProperty('top', centerRect.top + 'px', 'important');
+    infoPane.style.setProperty('right', streetviewWidth + 'px', 'important');
+    infoPane.style.setProperty('bottom', (window.innerHeight - centerRect.bottom) + 'px', 'important');
+    infoPane.style.setProperty('width', panelWidth + 'px', 'important');
+    
+    // mapContainer-Breite: Absolute Berechnung
+    // Verfügbare Breite = centerPaneLayout.width - streetviewWidth - panelWidth
+    var centerPaneWidth = centerPane ? centerPane.offsetWidth : window.innerWidth;
+    var mapWidth = centerPaneWidth - streetviewWidth - panelWidth;
+    mapContainer.style.setProperty('width', mapWidth + 'px', 'important');
+    
+    triggerMapUpdate();
+}
+
+// Funktion um Panel-Position bei Resize zu aktualisieren (ohne Container zu ändern)
+function updateContainerForInfoPane() {
+    // Nichts zu tun - mapContainer wird nicht mehr verändert
+    // Panel passt sich automatisch über updateDockedInfoPanePosition an
+}
+
+// ===== LEGEND PANE ERWEITERUNGEN =====
+// Legenden-Popup identisch zum Info-Panel stylen
+// Custom Titelbar mit Titel + Close-Button, Positionierung unter Header
+function initLegendPaneEnhancements() {
+    function isMobile() { return !!window.__TNET_MOBILE_ENTRY; }
+
+    function enhanceLegendPane() {
+        var legendPane = document.getElementById('njs_floatlegend_pane');
+        if (!legendPane) return false;
+
+        var titleBar = legendPane.querySelector('.dojoxFloatingPaneTitle');
+        if (!titleBar) return false;
+
+        // Prüfe ob Custom-Titlebar bereits vorhanden
+        if (titleBar.querySelector('.legend-pane-custom-title')) {
+            ensureLegendBelowHeader(legendPane);
+            return true;
+        }
+
+        // Titel aus dem Dojo-TitleNode lesen
+        var titleText = 'Legende';
+        var titleNode = titleBar.querySelector('.dijitTitleNode');
+        if (titleNode) {
+            var td = titleNode.querySelector('td');
+            if (td) {
+                var _t = (td.textContent || '').trim();
+                if (_t && _t.length < 120) titleText = _t;
+            } else {
+                var _t2 = (titleNode.textContent || '').trim();
+                if (_t2 && _t2.indexOf('<') === -1 && _t2.length < 120) titleText = _t2;
+            }
+        }
+
+        // ── Custom Titelbar: Dojo-Kinder leeren, unseren Inhalt einsetzen ─────
+        // titleBar NICHT entfernen — Dojo berechnet offsetHeight für contentInfo
+        while (titleBar.firstChild) { titleBar.removeChild(titleBar.firstChild); }
+
+        // Dojo Inline-Styles überschreiben
+        titleBar.style.setProperty('text-align', 'left', 'important');
+        titleBar.style.setProperty('justify-content', 'flex-start', 'important');
+        titleBar.style.setProperty('position', 'relative', 'important');
+        titleBar.style.setProperty('width', '100%', 'important');
+
+        // Titel-Span
+        var titleSpan = document.createElement('span');
+        titleSpan.className = 'legend-pane-custom-title';
+        titleSpan.textContent = titleText;
+
+        // Actions Container
+        var actions = document.createElement('div');
+        actions.className = 'legend-pane-actions';
+
+        // Dock Button (nur Desktop)
+        if (!isMobile()) {
+            var dockBtn = document.createElement('button');
+            dockBtn.id = 'legend-pane-dock-btn';
+            dockBtn.className = 'legend-pane-btn';
+            dockBtn.title = 'Rechts andocken';
+            dockBtn.innerHTML = TnetIcons.get('dock');
+            dockBtn.onmousedown = function(e) { e.stopPropagation(); };
+            dockBtn.onclick = function(e) {
+                e.stopPropagation();
+                if (window.toggleLegendPaneDock) window.toggleLegendPaneDock();
+            };
+            actions.appendChild(dockBtn);
+        }
+
+        // Close Button
+        var closeBtn = document.createElement('button');
+        closeBtn.className = 'legend-pane-btn legend-pane-close';
+        closeBtn.title = 'Schliessen';
+        closeBtn.innerHTML = TnetIcons.get('close');
+        closeBtn.onmousedown = function(e) { e.stopPropagation(); };
+        closeBtn.onclick = function(e) {
+            e.stopPropagation();
+            // Falls angedockt, zuerst abdocken
+            if (window._isLegendPaneDocked) {
+                window.toggleLegendPaneDock();
+            }
+            var widget = (typeof dijit !== 'undefined') ? dijit.byId('njs_floatlegend_pane') : null;
+            if (widget && widget.close) {
+                widget.close();
+            } else {
+                legendPane.style.visibility = 'hidden';
+            }
+        };
+
+        actions.appendChild(closeBtn);
+        titleBar.appendChild(titleSpan);
+        titleBar.appendChild(actions);
+
+        // Dojo-Inline-Styles überschreiben für korrektes Styling
+        legendPane.style.setProperty('border', 'none', 'important');
+        legendPane.style.setProperty('overflow', 'hidden', 'important');
+        legendPane.style.setProperty('border-radius', '6px', 'important');
+        legendPane.style.setProperty('box-shadow', '0 4px 16px rgba(0,0,0,0.25)', 'important');
+        var resizeHandle = legendPane.querySelector('.dojoxFloatingResizeHandle');
+        if (resizeHandle) {
+            resizeHandle.parentNode.removeChild(resizeHandle);
+        }
+
+        // Custom Resize-Handles hinzufügen (nur Desktop)
+        if (!isMobile()) {
+            initLegendPaneResize(legendPane);
+        }
+
+        // Unter Header positionieren
+        ensureLegendBelowHeader(legendPane);
+
+        return true;
+    }
+
+    // Legend-Pane unter Header positionieren (69px Header + 11px Puffer)
+    function ensureLegendBelowHeader(legendPane) {
+        if (!legendPane || isMobile()) return;
+        requestAnimationFrame(function() {
+            var rect = legendPane.getBoundingClientRect();
+            if (rect.top < 80) {
+                var currentTop = parseInt(legendPane.style.top) || 0;
+                var delta = 80 - rect.top;
+                legendPane.style.setProperty('top', (currentTop + delta) + 'px', 'important');
+            }
+        });
+    }
+
+    // Initial versuchen
+    enhanceLegendPane();
+
+    // MutationObserver: UI-Elemente hinzufügen wenn Legende geöffnet wird
+    var observer = new MutationObserver(function(mutations) {
+        for (var i = 0; i < mutations.length; i++) {
+            var m = mutations[i];
+            if (m.type === 'attributes' && m.attributeName === 'style') {
+                var legendPane = document.getElementById('njs_floatlegend_pane');
+                if (legendPane && legendPane.style.visibility === 'visible') {
+                    enhanceLegendPane();
+                }
+            }
+            if (m.type === 'childList' && m.addedNodes.length) {
+                for (var j = 0; j < m.addedNodes.length; j++) {
+                    var node = m.addedNodes[j];
+                    if (node.id === 'njs_floatlegend_pane' || (node.querySelector && node.querySelector('#njs_floatlegend_pane'))) {
+                        setTimeout(enhanceLegendPane, 100);
+                    }
+                }
+            }
+        }
+    });
+
+    observer.observe(document.body, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['style']
+    });
+}
+
+// Legend-Pane Initialisierung
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initLegendPaneEnhancements);
+} else {
+    initLegendPaneEnhancements();
+}
+
+// ===== LEGEND PANE RESIZE =====
+// Resize-Handles für Legend-Pane (identisch zu Info-Pane, ohne Dock-Logik)
+function initLegendPaneResize(pane) {
+    // Bestehende Resize-Handles entfernen (falls vorhanden)
+    var existingHandles = pane.querySelectorAll('[class*="legend-pane-resize"]');
+    existingHandles.forEach(function(h) { h.remove(); });
+
+    function createHandle(className, style) {
+        var handle = document.createElement('div');
+        handle.className = className;
+        handle.style.cssText = style;
+        pane.appendChild(handle);
+        return handle;
+    }
+
+    // Alle Resize-Handles erstellen
+    var handles = {
+        top: createHandle('legend-pane-resize-top', 'position:absolute; top:0; left:0; right:0; height:6px; cursor:ns-resize; z-index:1100;'),
+        bottom: createHandle('legend-pane-resize-bottom', 'position:absolute; bottom:0; left:0; right:0; height:6px; cursor:ns-resize; z-index:1100;'),
+        left: createHandle('legend-pane-resize-left', 'position:absolute; left:0; top:0; bottom:0; width:8px; cursor:ew-resize; z-index:1100;'),
+        right: createHandle('legend-pane-resize-right', 'position:absolute; right:0; top:0; bottom:0; width:8px; cursor:ew-resize; z-index:1100;'),
+        tl: createHandle('legend-pane-resize-corner-tl', 'position:absolute; top:0; left:0; width:12px; height:12px; cursor:nwse-resize; z-index:1101;'),
+        tr: createHandle('legend-pane-resize-corner-tr', 'position:absolute; top:0; right:0; width:12px; height:12px; cursor:nesw-resize; z-index:1101;'),
+        bl: createHandle('legend-pane-resize-corner-bl', 'position:absolute; bottom:0; left:0; width:12px; height:12px; cursor:nesw-resize; z-index:1101;'),
+        br: createHandle('legend-pane-resize-corner-br', 'position:absolute; bottom:0; right:0; width:20px; height:20px; cursor:nwse-resize; z-index:1101;')
+    };
+
+    var isResizing = false;
+    var resizeDirection = '';
+    var startX, startY, startWidth, startHeight, startLeft, startTop;
+
+    function startResize(e, direction) {
+        isResizing = true;
+        resizeDirection = direction;
+        startX = e.clientX;
+        startY = e.clientY;
+
+        var rect = pane.getBoundingClientRect();
+        startWidth = rect.width;
+        startHeight = rect.height;
+        startLeft = rect.left;
+        startTop = rect.top;
+
+        document.body.style.userSelect = 'none';
+        e.preventDefault();
+        e.stopPropagation();
+    }
+
+    // Mousedown für alle Handles
+    handles.top.onmousedown = function(e) { startResize(e, 'top'); };
+    handles.bottom.onmousedown = function(e) { startResize(e, 'bottom'); };
+    handles.left.onmousedown = function(e) { startResize(e, 'left'); };
+    handles.right.onmousedown = function(e) { startResize(e, 'right'); };
+    handles.tl.onmousedown = function(e) { startResize(e, 'tl'); };
+    handles.tr.onmousedown = function(e) { startResize(e, 'tr'); };
+    handles.bl.onmousedown = function(e) { startResize(e, 'bl'); };
+    handles.br.onmousedown = function(e) { startResize(e, 'br'); };
+
+    // Mousemove Handler
+    var mouseMoveHandler = function(e) {
+        if (!isResizing) return;
+
+        var dx = e.clientX - startX;
+        var dy = e.clientY - startY;
+        var newWidth, newHeight;
+
+        switch(resizeDirection) {
+            case 'top':
+                newHeight = Math.max(150, startHeight - dy);
+                pane.style.setProperty('height', newHeight + 'px', 'important');
+                pane.style.setProperty('top', (startTop + dy) + 'px', 'important');
+                break;
+            case 'bottom':
+                newHeight = Math.max(150, startHeight + dy);
+                pane.style.setProperty('height', newHeight + 'px', 'important');
+                break;
+            case 'left':
+                newWidth = Math.max(350, startWidth - dx);
+                pane.style.setProperty('width', newWidth + 'px', 'important');
+                pane.style.setProperty('left', (startLeft + dx) + 'px', 'important');
+                break;
+            case 'right':
+                newWidth = Math.max(350, startWidth + dx);
+                pane.style.setProperty('width', newWidth + 'px', 'important');
+                break;
+            case 'tl':
+                newWidth = Math.max(350, startWidth - dx);
+                newHeight = Math.max(150, startHeight - dy);
+                pane.style.setProperty('width', newWidth + 'px', 'important');
+                pane.style.setProperty('height', newHeight + 'px', 'important');
+                pane.style.setProperty('left', (startLeft + dx) + 'px', 'important');
+                pane.style.setProperty('top', (startTop + dy) + 'px', 'important');
+                break;
+            case 'tr':
+                newWidth = Math.max(350, startWidth + dx);
+                newHeight = Math.max(150, startHeight - dy);
+                pane.style.setProperty('width', newWidth + 'px', 'important');
+                pane.style.setProperty('height', newHeight + 'px', 'important');
+                pane.style.setProperty('top', (startTop + dy) + 'px', 'important');
+                break;
+            case 'bl':
+                newWidth = Math.max(350, startWidth - dx);
+                newHeight = Math.max(150, startHeight + dy);
+                pane.style.setProperty('width', newWidth + 'px', 'important');
+                pane.style.setProperty('height', newHeight + 'px', 'important');
+                pane.style.setProperty('left', (startLeft + dx) + 'px', 'important');
+                break;
+            case 'br':
+                newWidth = Math.max(350, startWidth + dx);
+                newHeight = Math.max(150, startHeight + dy);
+                pane.style.setProperty('width', newWidth + 'px', 'important');
+                pane.style.setProperty('height', newHeight + 'px', 'important');
+                break;
+        }
+        e.preventDefault();
+    };
+
+    var mouseUpHandler = function() {
+        if (isResizing) {
+            isResizing = false;
+            resizeDirection = '';
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+        }
+    };
+
+    // Alte Handler entfernen falls vorhanden
+    if (window._legendPaneMouseMove) {
+        document.removeEventListener('mousemove', window._legendPaneMouseMove);
+    }
+    if (window._legendPaneMouseUp) {
+        document.removeEventListener('mouseup', window._legendPaneMouseUp);
+    }
+
+    // Neue Handler speichern und registrieren
+    window._legendPaneMouseMove = mouseMoveHandler;
+    window._legendPaneMouseUp = mouseUpHandler;
+    document.addEventListener('mousemove', mouseMoveHandler);
+    document.addEventListener('mouseup', mouseUpHandler);
+}
+
+// ===== LEGEND PANE DOCK FUNKTIONALITÄT =====
+// Andockbar analog zum Info-Panel
+(function() {
+    'use strict';
+
+    window._isLegendPaneDocked = false;
+    var _savedLegendPosition = null;
+    var _legendDockObserver = null;
+
+    function triggerMapUpdate() {
+        setTimeout(function() {
+            if (window.njs && njs.AppManager && njs.AppManager.Maps && njs.AppManager.Maps['main']) {
+                var mapObj = njs.AppManager.Maps['main'].mapObj;
+                if (mapObj && mapObj.updateSize) mapObj.updateSize();
+            }
+        }, 50);
+    }
+
+    window.toggleLegendPaneDock = function() {
+        var legendPane = document.getElementById('njs_floatlegend_pane');
+        var dockBtn = document.getElementById('legend-pane-dock-btn');
+        var mapContainer = document.getElementById('mapContainer');
+        var centerPane = document.getElementById('centerPaneLayout');
+        if (!legendPane) return;
+
+        if (window._isLegendPaneDocked) {
+            // === UNDOCK ===
+            legendPane.classList.remove('legend-docked-right');
+
+            // Observer stoppen
+            if (_legendDockObserver) {
+                _legendDockObserver.disconnect();
+                _legendDockObserver = null;
+            }
+            window.removeEventListener('resize', _updateDockedLegendPosition);
+
+            // mapContainer wieder auf volle Breite
+            if (mapContainer) {
+                mapContainer.style.setProperty('width', '100%', 'important');
+                triggerMapUpdate();
+            }
+
+            // Position wiederherstellen
+            if (_savedLegendPosition) {
+                legendPane.style.setProperty('position', 'absolute', 'important');
+                legendPane.style.setProperty('top', _savedLegendPosition.top, 'important');
+                legendPane.style.setProperty('left', _savedLegendPosition.left, 'important');
+                legendPane.style.setProperty('width', _savedLegendPosition.width, 'important');
+                legendPane.style.setProperty('height', _savedLegendPosition.height, 'important');
+                legendPane.style.setProperty('right', 'auto', 'important');
+                legendPane.style.setProperty('bottom', 'auto', 'important');
+            }
+
+            // Resize Handle Visibility: alle wieder sichtbar
+            var allHandles = legendPane.querySelectorAll('[class*="legend-pane-resize"]');
+            allHandles.forEach(function(h) { h.style.display = ''; });
+
+            if (dockBtn) {
+                dockBtn.title = 'Rechts andocken';
+                dockBtn.innerHTML = TnetIcons.get('dock');
+            }
+            window._isLegendPaneDocked = false;
+
+        } else {
+            // === DOCK ===
+            // Position speichern
+            _savedLegendPosition = {
+                top: legendPane.style.top || '80px',
+                left: legendPane.style.left || '100px',
+                width: legendPane.style.width || '400px',
+                height: legendPane.style.height || '500px'
+            };
+
+            legendPane.classList.add('legend-docked-right');
+
+            var panelWidth = window._savedLegendDockedWidth || 380;
+            var streetviewContainer = document.getElementById('streetviewContainer');
+            var streetviewWidth = 0;
+            if (streetviewContainer && streetviewContainer.offsetWidth > 0 && streetviewContainer.style.display !== 'none') {
+                streetviewWidth = streetviewContainer.offsetWidth;
+            }
+
+            var centerRect = centerPane ? centerPane.getBoundingClientRect() : { top: 69, bottom: window.innerHeight - 32 };
+
+            legendPane.style.setProperty('position', 'fixed', 'important');
+            legendPane.style.setProperty('top', centerRect.top + 'px', 'important');
+            legendPane.style.setProperty('right', streetviewWidth + 'px', 'important');
+            legendPane.style.setProperty('bottom', (window.innerHeight - centerRect.bottom) + 'px', 'important');
+            legendPane.style.setProperty('left', 'auto', 'important');
+            legendPane.style.setProperty('width', panelWidth + 'px', 'important');
+            legendPane.style.setProperty('height', 'auto', 'important');
+
+            // mapContainer verkleinern
+            if (mapContainer && centerPane) {
+                var centerPaneWidth = centerPane.offsetWidth;
+                var mapWidth = centerPaneWidth - streetviewWidth - panelWidth;
+                mapContainer.style.setProperty('width', mapWidth + 'px', 'important');
+                triggerMapUpdate();
+            }
+
+            // Resize Handles: nur linken Rand sichtbar lassen
+            var allHandles = legendPane.querySelectorAll('[class*="legend-pane-resize"]');
+            allHandles.forEach(function(h) {
+                if (h.className.indexOf('left') !== -1) {
+                    h.style.display = '';
+                } else {
+                    h.style.display = 'none';
+                }
+            });
+
+            // ResizeObserver für Layout-Änderungen
+            if (window.ResizeObserver && mapContainer) {
+                _legendDockObserver = new ResizeObserver(function() {
+                    if (!window._isLegendPaneDocked) return;
+                    _updateDockedLegendPosition();
+                });
+                _legendDockObserver.observe(mapContainer);
+            }
+            window.addEventListener('resize', _updateDockedLegendPosition);
+
+            if (dockBtn) {
+                dockBtn.title = 'Floating';
+                dockBtn.innerHTML = TnetIcons.get('undock');
+            }
+            window._isLegendPaneDocked = true;
+        }
+    };
+
+    function _updateDockedLegendPosition() {
+        if (!window._isLegendPaneDocked) return;
+        var legendPane = document.getElementById('njs_floatlegend_pane');
+        var mapContainer = document.getElementById('mapContainer');
+        var centerPane = document.getElementById('centerPaneLayout');
+        var streetviewContainer = document.getElementById('streetviewContainer');
+        if (!legendPane || !mapContainer) return;
+
+        var panelWidth = window._savedLegendDockedWidth || legendPane.offsetWidth || 380;
+        var streetviewWidth = 0;
+        if (streetviewContainer && streetviewContainer.offsetWidth > 0 && streetviewContainer.style.display !== 'none') {
+            streetviewWidth = streetviewContainer.offsetWidth;
+        }
+
+        var centerRect = centerPane ? centerPane.getBoundingClientRect() : { top: 69, bottom: window.innerHeight - 32 };
+        legendPane.style.setProperty('top', centerRect.top + 'px', 'important');
+        legendPane.style.setProperty('right', streetviewWidth + 'px', 'important');
+        legendPane.style.setProperty('bottom', (window.innerHeight - centerRect.bottom) + 'px', 'important');
+        legendPane.style.setProperty('width', panelWidth + 'px', 'important');
+
+        var centerPaneWidth = centerPane ? centerPane.offsetWidth : window.innerWidth;
+        var mapWidth = centerPaneWidth - streetviewWidth - panelWidth;
+        mapContainer.style.setProperty('width', mapWidth + 'px', 'important');
+        triggerMapUpdate();
+    }
+
+    // Gespeicherte Dock-Breite global verfügbar machen
+    window._savedLegendDockedWidth = 380;
+})();

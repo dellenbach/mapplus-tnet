@@ -1,5 +1,2303 @@
-import{waitForMap as D,getMainMap as X}from"./tnet-utils.js";function Z(){return window.__TNET_APP_ROOT||"/maps"}window.isPolygonDrawing=!1;var P=null,A=null,T=!1,x=null,k=null;function R(){return{maxVisibleColumns:10,tolerancePixels:10,minBuffer:1,maxBuffer:50,globalBlacklist:[],layerBlacklist:{},bufferDistances:[10,25,50,100,250,500,1e3]}}function ee(e){var n=R(),a=e||{},t=parseInt(a.maxVisibleColumns,10);return{maxVisibleColumns:isNaN(t)||t<1?n.maxVisibleColumns:t,globalBlacklist:Array.isArray(a.globalBlacklist)?a.globalBlacklist:n.globalBlacklist,layerBlacklist:a.layerBlacklist&&typeof a.layerBlacklist=="object"?a.layerBlacklist:n.layerBlacklist,bufferDistances:Array.isArray(a.bufferDistances)?a.bufferDistances:n.bufferDistances}}function re(){if(x)return Promise.resolve(x);if(k)return k;if(typeof JSON5>"u")return x=R(),Promise.resolve(x);var e=window.__TNET_APP_ROOT||"/maps",n=[e+"/tnet/config/tnet-global-config.json5",e+"/tnet/tnet-global-config.json5","../tnet/config/tnet-global-config.json5"];function a(t){return t>=n.length?(x=R(),Promise.resolve(x)):fetch(n[t]).then(function(r){if(!r.ok)throw new Error("HTTP "+r.status);return r.text()}).then(function(r){var o=JSON5.parse(r);return x=ee(o&&o.spatialQuery?o.spatialQuery:null),x}).catch(function(){return a(t+1)})}return k=a(0).then(function(t){return k=null,t}).catch(function(){return k=null,x=R(),x}),k}function C(e){return e?e.indexOf("agsproxy.php")>-1||e.indexOf("tnet/agsproxy/")>-1:!1}function K(e){if(!e)return e;var n=e.match(/^(.*agsproxy\.php)\?path=([^&]+)(.*)$/);return n?n[1]+"/"+n[2]:e}var j={};function te(e){e.forEach(function(t){var r=ne(t);r&&(t.nlsAlias=r,t.alias=r)});var n={};e.forEach(function(t){t.type==="arcgis"&&t.serviceUrl&&t.layerId&&(n[t.serviceUrl]||(n[t.serviceUrl]=[]),n[t.serviceUrl].push(t))});var a=Object.keys(n).map(function(t){return j[t]?(H(n[t],j[t]),Promise.resolve()):fetch(t+"?f=json").then(function(r){return r.json()}).then(function(r){j[t]=r,H(n[t],r)}).catch(function(r){console.warn("[SpatialQuery] Service-Info Abruf fehlgeschlagen:",t,r)})});return Promise.all(a).then(function(){e.forEach(function(t){t.alias&&(t.name=t.alias)})})}function ne(e){if(!njs||!njs.AppManager||!njs.AppManager.nls)return null;for(var n=njs.AppManager.nls.lyrmgrResources||{},a=njs.AppManager.nls.maptipsResources||{},t=e.olLayerName||e.name||"",r=[t,t.replace(/^[^/]+\//,""),t.replace(/\//g,"_")],o=0;o<r.length;o++){var s=r[o];if(n["desc_"+s])return n["desc_"+s];var i=s.replace(/(def|prj)/gi,function(l){return l.toUpperCase()});if(i!==s&&n["desc_"+i])return n["desc_"+i]}if(e.type==="arcgis"&&e.layerId){for(var c=r.map(function(l){return l+"_"+e.layerId}),y=0;y<c.length;y++)if(a[c[y]+"_title"])return a[c[y]+"_title"]}return null}function H(e,n){if(!(!n||!n.layers)){var a={};n.layers.forEach(function(t){a[String(t.id)]=t.name}),e.forEach(function(t){if(t.layerId&&a[String(t.layerId)]){var r=a[String(t.layerId)];t.nlsAlias?t.alias=t.nlsAlias+" \u2014 "+r:t.alias=r}})}}function ae(e){return A||(A=new ol.layer.Vector({source:new ol.source.Vector,style:new ol.style.Style({fill:new ol.style.Fill({color:"rgba(75, 123, 129, 0.2)"}),stroke:new ol.style.Stroke({color:"#4b7b81",width:2,lineDash:[5,5]}),image:new ol.style.Circle({radius:5,fill:new ol.style.Fill({color:"#4b7b81"}),stroke:new ol.style.Stroke({color:"white",width:2})})}),zIndex:1e3}),e.addLayer(A)),A}window.togglePolygonDraw=function(){re().then(function(){D(function(e){var n=document.getElementById("polygon-tool-btn"),a=document.getElementById("spatial-query-panel"),t=document.getElementById("spatial-query-status"),r=document.getElementById("spatial-query-results");if(T)P&&(e.removeInteraction(P),P=null),T=!1,window.isPolygonDrawing=!1,document.body.classList.remove("drawing-mode"),n&&n.classList.remove("active"),a&&a.classList.add("hidden"),A&&A.getSource().clear();else{window.isOerebActive&&typeof window.toggleOerebMode=="function"&&window.toggleOerebMode(),typeof window.closeDrawer=="function"&&window.closeDrawer();var o=ae(e);o.getSource().clear(),P=new ol.interaction.Draw({source:o.getSource(),type:"Polygon",style:new ol.style.Style({fill:new ol.style.Fill({color:"rgba(75, 123, 129, 0.1)"}),stroke:new ol.style.Stroke({color:"#4b7b81",width:2,lineDash:[5,5]}),image:new ol.style.Circle({radius:5,fill:new ol.style.Fill({color:"#4b7b81"}),stroke:new ol.style.Stroke({color:"white",width:2})})})}),P.on("drawend",function(s){var i=s.feature.getGeometry(),c=i.getCoordinates()[0];T=!1,window.isPolygonDrawing=!1,document.body.classList.remove("drawing-mode"),D(function(y){P&&(y.removeInteraction(P),P=null)}),t.textContent="Abfrage l\xE4uft...",r.innerHTML='<div class="loading-spinner"></div>',oe(c),setTimeout(function(){e.removeInteraction(P),P=null},100)}),e.addInteraction(P),T=!0,window.isPolygonDrawing=!0,document.body.classList.add("drawing-mode"),n&&n.classList.add("active"),a&&a.classList.remove("hidden"),!window.isPanelDocked&&window.toggleDockPanel&&window.toggleDockPanel(),t.textContent="Zeichnen Sie ein Polygon auf der Karte (Doppelklick zum Beenden)...",r.innerHTML=""}})})},window.closeSpatialQueryPanel=function(){var e=document.getElementById("spatial-query-panel"),n=document.getElementById("polygon-tool-btn");e&&e.classList.add("hidden"),n&&n.classList.remove("active"),T=!1,window.isPolygonDrawing=!1,document.body.classList.remove("drawing-mode");var a=document.getElementById("freepane");a&&(a.classList.remove("panel-docked"),a.style.removeProperty("height"),a.style.removeProperty("max-height"),a.style.removeProperty("bottom")),window.isPanelDocked=!1,D(function(t){P&&(t.removeInteraction(P),P=null),A&&A.getSource().clear()})};function ie(e,n){return new Promise(function(a,t){var r=e.wmsLayers;r&&(r.endsWith(".oereb")&&(r=r.substring(0,r.length-6)),r=r.replace(/_v\d+_\d+$/,""));var o=[n.map(function(g){return[Math.round(g[0]),Math.round(g[1])]})],s={rings:o,spatialReference:{wkid:2056}},i="https://api3.geo.admin.ch/rest/services/api/MapServer/identify",c="de",y=new URLSearchParams({geometry:JSON.stringify(s),geometryType:"esriGeometryPolygon",layers:"all:"+r,tolerance:"0",mapExtent:"0,0,0,0",imageDisplay:"0,0,0",sr:"2056",returnGeometry:"true",geometryFormat:"geojson",lang:c}),l=i+"?"+y.toString();fetch(l).then(function(g){return g.json()}).then(function(g){var f=[];g.results&&g.results.length>0&&(f=g.results.map(function(p){var d=p.attributes||p.properties||{};return Object.keys(d).forEach(function(w){var S=d[w];if(typeof S=="string"&&/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2})?/.test(S))try{var b=new Date(S);if(!isNaN(b.getTime())){var h=("0"+b.getDate()).slice(-2),m=("0"+(b.getMonth()+1)).slice(-2),L=b.getFullYear();d[w]=h+"."+m+"."+L}}catch{}}),{attributes:d,geometry:p.geometry||null}}));var u=e.wmsLayers||e.name||"Unbekannter Layer";u=u.replace(/_v\d+_\d+(\.oereb)?$/,""),u=u.replace(/\.oereb$/,""),a({layerName:u+" (geo.admin.ch)",baseLayerName:e.name||u,layerUrl:e.url||"",layerKey:e.wmsLayers||"",features:f,error:null})}).catch(function(g){TnetLog.error("geo.admin.ch API Fehler:",g);var f=e.wmsLayers||e.name||"Unbekannter Layer";f=f.replace(/_v\d+_\d+(\.oereb)?$/,""),f=f.replace(/\.oereb$/,""),a({layerName:f+" (geo.admin.ch)",baseLayerName:e.name||f,layerUrl:e.url||"",layerKey:e.wmsLayers||"",features:[],error:"API-Fehler: "+g.message})})})}function oe(e){var n=document.getElementById("spatial-query-status"),a=document.getElementById("spatial-query-results"),t=ce();if(t.length===0){n.textContent="Keine abfragbaren Layer aktiv.",a.innerHTML='<p class="no-results">Aktivieren Sie Layer im Layer-Manager, die abgefragt werden k\xF6nnen.</p>';return}var r=1/0,o=1/0,s=-1/0,i=-1/0;e.forEach(function(f){f[0]<r&&(r=f[0]),f[1]<o&&(o=f[1]),f[0]>s&&(s=f[0]),f[1]>i&&(i=f[1])});var c=[r,o,s,i],y=[(r+s)/2,(o+i)/2],l=[e.map(function(f){return[Math.round(f[0]),Math.round(f[1])]})],g=JSON.stringify({rings:l,spatialReference:{wkid:2056}});n.textContent="Layer-Namen aufl\xF6sen...",te(t).then(function(){n.textContent="Abfrage von "+t.length+" Layer(n)...";var f=t.map(function(u){return u.type==="wms"?se(u,c,e):fe(u,g)});return Promise.all(f).then(function(u){pe(u,t)})}).catch(function(f){TnetLog.error("Spatial Query Error:",f),console.error("Spatial Query Error:",f),n.textContent="Fehler bei der Abfrage.",a.innerHTML='<p class="error">'+B(f&&f.message?f.message:"Unbekannter Fehler")+"</p>"})}function se(e,n,a){return new Promise(function(t,r){var o=e.url&&e.url.indexOf("geo.admin.ch")>-1||e.wmsLayers&&e.wmsLayers.indexOf("ch.")===0;if(o)return ie(e,a).then(t).catch(r);var s=e.url,i=e.mapParam||"";if(!i&&e.sourceParams&&(i=e.sourceParams.map||e.sourceParams.MAP||""),!i&&e.url){var c=e.url.match(/[?&]map=([^&]+)/i);c&&(i=decodeURIComponent(c[1]))}function y(u){var p=new URLSearchParams({SERVICE:"WFS",VERSION:"2.0.0",REQUEST:"GetFeature",TYPENAMES:u,BBOX:n.join(",")+",EPSG:2056",COUNT:"1000"});i&&p.set("map",i);var d=s+"?"+p.toString();return fetch(d).then(function(w){return w.text()})}var l=e.wmsLayers,g=i&&i.indexOf("av_ls_eigentuemer")>-1;if(g){var f=new URLSearchParams({SERVICE:"WFS",VERSION:"2.0.0",REQUEST:"GetCapabilities"});i&&f.set("map",i),fetch(s+"?"+f.toString()).then(function(u){return u.text()}).then(function(u){var p=new DOMParser,d=p.parseFromString(u,"text/xml"),w=d.querySelectorAll("FeatureType Name, FeatureType > Name"),S=Array.from(w).map(function(m){return m.textContent.trim()}),b=S.filter(function(m){return m.indexOf("liegenschaften_")>-1});b.sort(function(m,L){return m.indexOf("_nw")>-1?-1:L.indexOf("_nw")>-1?1:0});var h=b.map(function(m){return y(m).then(function(L){if(L&&L.indexOf("FeatureCollection")>-1){var N=W(L,m,a);return{typeName:m,data:N}}return{typeName:m,data:{features:[]}}}).catch(function(L){return TnetLog.error("WFS Query f\xFCr "+m+" fehlgeschlagen:",L),{typeName:m,data:{features:[]}}})});return Promise.all(h)}).then(function(u){var p=[];u.forEach(function(d){d.data&&d.data.features&&d.data.features.length>0&&d.data.features.forEach(function(w){p.push({attributes:w.properties||w.attributes||{},geometry:w.geometry||null})})}),t({layerName:e.name+" (WFS Multi-Kanton)",baseLayerName:e.name||"",layerUrl:e.url||"",layerKey:e.wmsLayers||"",features:p,error:null})}).catch(function(u){TnetLog.error("Multi-Kanton WFS Fehler:",u),t({layerName:e.name+" (WFS)",baseLayerName:e.name||"",layerUrl:e.url||"",layerKey:e.wmsLayers||"",features:[],error:"Multi-Kanton WFS Fehler: "+u.message})});return}y(l).then(function(u){if(u.indexOf("doesn't exist")>-1||u.indexOf("does not exist")>-1){var p=new URLSearchParams({SERVICE:"WFS",VERSION:"2.0.0",REQUEST:"GetCapabilities"});return i&&p.set("map",i),fetch(s+"?"+p.toString()).then(function(d){return d.text()}).then(function(d){var w=new DOMParser,S=w.parseFromString(d,"text/xml"),b=S.querySelectorAll("FeatureType Name, FeatureType > Name");if(b.length>0){var h=Array.from(b).map(function(v){return v.textContent.trim()}),m=null;if(m=h.find(function(v){return v===l}),m||(m=h.find(function(v){return l.toLowerCase().indexOf(v.toLowerCase())>-1})),m||(m=h.find(function(v){return v.toLowerCase().indexOf(l.toLowerCase())>-1})),!m){var L=l.match(/_(nw|ow|ur|sz|gl|zg|be|lu|ag|zh|so|bs|bl|sh|sg|ai|ar|ti|tg|vs|ge|fr|ne|ju|vd)_/i);if(L){var N=L[1].toLowerCase();m=h.find(function(v){return v.toLowerCase().indexOf("_"+N)>-1||v.toLowerCase().endsWith("_"+N)})}}return m||(m=h[0],TnetLog.warn("Kein passender FeatureType gefunden, verwende ersten:",m)),y(m)}return u})}return u}).then(function(u){if(u&&u._combined)return u;var p=u;return p.indexOf("ExceptionReport")>-1||p.indexOf("Exception")>-1?(TnetLog.warn("WFS Exception oder Fehler:",p.substring(0,500)),{features:[],error:"WFS nicht verf\xFCgbar oder Layer nicht gefunden"}):W(p,e.wmsLayers,a)}).then(function(u){var p=[];u&&u.features&&u.features.forEach(function(d){var w=d.geometry,S=d.properties||d.attributes||{};p.push({attributes:S,geometry:w||null})}),t({layerName:e.name+" (WFS)",baseLayerName:e.name||"",layerUrl:e.url||"",layerKey:e.wmsLayers||"",features:p,error:null})}).catch(function(u){TnetLog.error("WFS Query Error:",u),t({layerName:e.name+" (WFS)",baseLayerName:e.name||"",layerUrl:e.url||"",layerKey:e.wmsLayers||"",features:[],error:u.message})})})}function ve(e,n){if(!e)return!1;function a(r,o,s){for(var i=!1,c=0,y=s.length-1;c<s.length;y=c++){var l=s[c][0],g=s[c][1],f=s[y][0],u=s[y][1];g>o!=u>o&&r<(f-l)*(o-g)/(u-g)+l&&(i=!i)}return i}if(e.type==="Point")return a(e.coordinates[0],e.coordinates[1],n);if(e.type==="MultiPoint")return e.coordinates.some(function(r){return a(r[0],r[1],n)});if(e.type==="LineString")return e.coordinates.some(function(r){return a(r[0],r[1],n)});if(e.type==="Polygon"||e.type==="MultiPolygon"){var t=e.type==="Polygon"?e.coordinates[0]:e.coordinates[0][0];return t.some(function(r){return a(r[0],r[1],n)})}return!0}function W(e,n,a){var t=[];try{var r=JSON.parse(e);return r}catch{}if(e.indexOf("ExceptionReport")>-1||e.indexOf("Exception")>-1)return TnetLog.error("WFS Exception:",e),{features:[],error:e};if(e.indexOf('numberReturned="0"')>-1||e.indexOf("FeatureCollection")>-1&&e.indexOf("member>")===-1&&e.indexOf("featureMember>")===-1)return{features:[]};try{var o=new DOMParser,s=o.parseFromString(e,"text/xml"),i=s.getElementsByTagNameNS("http://www.opengis.net/wfs/2.0","member");if(i.length===0&&(i=s.getElementsByTagNameNS("http://www.opengis.net/gml/3.2","featureMember")),i.length===0&&(i=s.getElementsByTagNameNS("http://www.opengis.net/gml","featureMember")),i.length===0&&(i=s.querySelectorAll("member, featureMember")),i.length===0&&n){var c=s.getElementsByTagNameNS("http://mapserver.gis.umn.edu/mapserver",n);c.length===0&&(c=s.getElementsByTagName(n)),c.length===0&&(c=s.getElementsByTagName("ms:"+n)),c.length>0&&(i=Array.from(c).map(function(y){return{firstElementChild:y,children:[y]}}))}Array.from(i).forEach(function(y){var l={properties:{},geometry:null},g=y.firstElementChild||y;g&&Array.from(g.children||g.childNodes).forEach(function(f){if(f.nodeType===1){var u=f.localName||f.tagName;if(u.indexOf(":")>-1&&(u=u.split(":")[1]),u==="geom_gml"||u==="msGeometry"||u==="geometry"||u==="geom"||u==="the_geom"||u==="shape"||u==="wkb_geometry"){var p=le(f);p&&(l.geometry=p);return}if(!(u==="boundedBy"||u==="Envelope")){var d=f.textContent||"";d.trim()&&(l.properties[u]=d.trim())}}}),Object.keys(l.properties).length>0&&t.push(l)})}catch(y){TnetLog.warn("GML Parse Error:",y)}return{features:t}}function le(e){try{for(var n="http://www.opengis.net/gml/3.2",a="http://www.opengis.net/gml",t=["Point","MultiPoint","LineString","MultiLineString","Polygon","MultiPolygon","MultiSurface","MultiCurve"],r=null,o=0;o<t.length&&!r;o++)r=e.getElementsByTagNameNS(n,t[o])[0]||e.getElementsByTagNameNS(a,t[o])[0];if(r||(r=e.querySelector("Point, MultiPoint, LineString, MultiLineString, Polygon, MultiPolygon, MultiSurface, MultiCurve")),!r)return null;var s=(r.localName||r.tagName).replace(/^gml:/,"");if(s==="Point"){var i=q(r);if(i.length>=1)return{type:"Point",coordinates:i[0]}}else if(s==="MultiPoint"){var i=q(r);return{type:"MultiPoint",coordinates:i}}else if(s==="LineString"){var i=q(r);return{type:"LineString",coordinates:i}}else if(s==="Polygon"){var i=Q(r);if(i.length>0)return{type:"Polygon",coordinates:i}}else if(s==="MultiPolygon"||s==="MultiSurface"){var i=ue(r);return i.length===1?{type:"Polygon",coordinates:i[0]}:{type:"MultiPolygon",coordinates:i}}}catch(c){TnetLog.warn("GML Geometry Parse Error:",c)}return null}function q(e){var n=[],a="http://www.opengis.net/gml/3.2",t="http://www.opengis.net/gml",r=e.getElementsByTagNameNS(a,"posList")[0]||e.getElementsByTagNameNS(t,"posList")[0]||e.querySelector("posList");if(r){for(var o=r.textContent.trim().split(/\s+/),s=parseInt(r.getAttribute("srsDimension"))||2,i=0;i<o.length-(s-1);i+=s)n.push([parseFloat(o[i]),parseFloat(o[i+1])]);return n}var c=e.getElementsByTagNameNS(a,"pos")[0]||e.getElementsByTagNameNS(t,"pos")[0]||e.querySelector("pos");if(c){var o=c.textContent.trim().split(/\s+/);return n.push([parseFloat(o[0]),parseFloat(o[1])]),n}var y=e.querySelector("coordinates");if(y){var l=y.textContent.trim().split(/\s+/);l.forEach(function(g){var f=g.split(",");f.length>=2&&n.push([parseFloat(f[0]),parseFloat(f[1])])})}return n}function Q(e){var n=[],a="http://www.opengis.net/gml/3.2",t="http://www.opengis.net/gml",r=e.getElementsByTagNameNS(a,"exterior")[0]||e.getElementsByTagNameNS(t,"exterior")[0]||e.querySelector("exterior, outerBoundaryIs");if(r){var o=r.getElementsByTagNameNS(a,"LinearRing")[0]||r.getElementsByTagNameNS(t,"LinearRing")[0]||r.querySelector("LinearRing");o&&n.push(q(o))}var s=e.getElementsByTagNameNS(a,"interior");return s.length===0&&(s=e.getElementsByTagNameNS(t,"interior")),s.length===0&&(s=e.querySelectorAll("interior, innerBoundaryIs")),Array.from(s).forEach(function(i){var c=i.getElementsByTagNameNS(a,"LinearRing")[0]||i.getElementsByTagNameNS(t,"LinearRing")[0]||i.querySelector("LinearRing");c&&n.push(q(c))}),n}function ue(e){var n=[],a="http://www.opengis.net/gml/3.2",t="http://www.opengis.net/gml",r=e.getElementsByTagNameNS(a,"surfaceMember");if(r.length===0&&(r=e.getElementsByTagNameNS(t,"surfaceMember")),r.length===0&&(r=e.getElementsByTagNameNS(a,"polygonMember")),r.length===0&&(r=e.getElementsByTagNameNS(t,"polygonMember")),r.length===0&&(r=e.querySelectorAll("polygonMember, surfaceMember")),Array.from(r).forEach(function(s){var i=s.getElementsByTagNameNS(a,"Polygon")[0]||s.getElementsByTagNameNS(t,"Polygon")[0]||s.querySelector("Polygon");if(i){var c=Q(i);c.length>0&&n.push(c)}}),n.length===0){var o=e.getElementsByTagNameNS(a,"Polygon");o.length===0&&(o=e.getElementsByTagNameNS(t,"Polygon")),o.length===0&&(o=e.querySelectorAll("Polygon")),Array.from(o).forEach(function(s){var i=Q(s);i.length>0&&n.push(i)})}return n}function Y(){var e=x||R(),n=parseFloat(e.tolerancePixels)||10,a=parseFloat(e.minBuffer),t=parseFloat(e.maxBuffer);(isNaN(a)||a<0)&&(a=1),(isNaN(t)||t<1)&&(t=50);var r=1;try{var o=njs.AppManager.Maps.main;o&&o.mapObj&&(r=o.mapObj.getView().getResolution()||1)}catch{}var s=r*n;return s=Math.max(a,Math.min(t,s)),s=Math.round(s*10)/10,s}function fe(e,n){return new Promise(function(a,t){var r=K(e.url);if(console.log("[querySingleLayer]",e.name,"serviceUrl:",r,"isProxy:",C(r)),C(r)){var o=r+"/query",s=Y(),i=new URLSearchParams({f:"json",geometry:n,geometryType:"esriGeometryPolygon",spatialRel:"esriSpatialRelIntersects",distance:s,units:"esriSRUnit_Meter",outFields:"*",returnGeometry:"true",inSR:"2056",outSR:"2056"}),c=o+"?"+i.toString();fetch(c).then(function(l){return l.json()}).then(function(l){a({layerName:e.name,baseLayerName:e.name||"",layerUrl:e.url||"",layerKey:e.layerId||"",features:l.features||[],error:l.error?l.error.message:null})}).catch(function(l){TnetLog.error('Fetch Error f\xFCr "'+e.name+'":',l),a({layerName:e.name,baseLayerName:e.name||"",layerUrl:e.url||"",layerKey:e.layerId||"",features:[],error:l.message})})}else{var o=r+"/query",s=Y(),i=new URLSearchParams({f:"json",geometry:n,geometryType:"esriGeometryPolygon",spatialRel:"esriSpatialRelIntersects",distance:s,units:"esriSRUnit_Meter",outFields:"*",returnGeometry:"true",inSR:"2056",outSR:"2056"}),y=Z()+"/agsproxy.php?"+encodeURIComponent(o+"?"+i.toString());fetch(y).then(function(u){return u.json()}).then(function(u){a({layerName:e.name,baseLayerName:e.name||"",layerUrl:e.url||"",layerKey:e.layerId||"",features:u.features||[],error:u.error?u.error.message:null})}).catch(function(u){TnetLog.error('Fetch Error f\xFCr "'+e.name+'":',u),a({layerName:e.name,baseLayerName:e.name||"",layerUrl:e.url||"",layerKey:e.layerId||"",features:[],error:u.message})})}})}function ce(){var e=[];if(console.log("=== LAYER DETECTION DEBUG ==="),njs&&njs.AppManager&&njs.AppManager.Maps&&njs.AppManager.Maps.main){var n=njs.AppManager.Maps.main,a=n.mapObj;if(console.log("Map gefunden:",!!a),a){var t=a.getLayers().getArray();t.forEach(function(r,o){if(!(!r||typeof r.getVisible!="function"||typeof r.getSource!="function")){var s=r.getVisible(),i=r.getSource(),c=r.get("name")||r.get("title")||"Layer "+o,y=i?i.constructor.name:"no source";if(console.log("Layer "+o+":",{name:c,visible:s,sourceType:y,hasGetUrl:!!(i&&i.getUrl),hasGetUrls:!!(i&&i.getUrls),hasParams:!!(i&&i.getParams)}),s&&i){var l=null;if(typeof i.getUrl=="function")l=i.getUrl();else if(typeof i.getUrls=="function"){var g=i.getUrls();g&&g.length>0&&(l=g[0])}!l&&i.url_&&(l=i.url_),!l&&i.urls_&&i.urls_.length>0&&(l=i.urls_[0]),l?console.log("  URL:",l):console.log("  KEINE URL gefunden!");var f=null;typeof i.getParams=="function"&&(f=i.getParams()),l&&(l=K(l));var u=l&&(C(l)||l.indexOf("MapServer")>-1&&l.indexOf("cgi-bin")===-1&&l.indexOf("geo.admin.ch")===-1||l.indexOf("FeatureServer")>-1);console.log("  isProxyUrl:",l?C(l):"no url","isArcGIS:",u);var p=!1;if(u||((y==="TileWMS"||y==="ImageWMS")&&(p=!0),l&&(l.indexOf("mapserv")>-1||l.indexOf("cgi-bin")>-1||l.indexOf("geo.admin.ch")>-1)&&(p=!0),f&&f.SERVICE==="WMS"&&(p=!0),f&&f.LAYERS&&f.LAYERS.indexOf("ch.")===0&&(p=!0)),u){console.log("  ArcGIS Layer erkannt");var d=l,w=null,S=l.match(/\/(\d+)\/?$/);if(S&&(w=S[1],d=l.replace(/\/\d+\/?$/,"")),console.log("  sourceParams:",f),console.log("  layerMatch:",S,"layerId:",w),!w&&f&&f.LAYERS){var b=f.LAYERS.replace("show:","");if(b!=="all"&&/^\d/.test(b)){var h=b.split(",");console.log("  LAYERS param:",f.LAYERS,"-> layerIds:",h),h.forEach(function(E){if(E=E.trim(),!!/^\d+$/.test(E)){var F=d+"/"+E;console.log("  -> Layer hinzugef\xFCgt (LAYERS):",F),e.push({name:c+" (Layer "+E+")",olLayerName:c,serviceUrl:d,url:F,layerId:E,type:"arcgis"})}})}else console.log('  LAYERS ist "'+f.LAYERS+'" \u2192 Fallback auf Layer 0'),e.push({name:c,olLayerName:c,serviceUrl:d,url:d+"/0",layerId:"0",type:"arcgis"})}else w?(console.log("  -> Layer hinzugef\xFCgt (URL-ID):",d+"/"+w),e.push({name:c,olLayerName:c,serviceUrl:d,url:d+"/"+w,layerId:w,type:"arcgis"})):(console.log("  -> Fallback Layer 0:",d+"/0"),e.push({name:c,olLayerName:c,serviceUrl:d,url:d+"/0",layerId:"0",type:"arcgis"}))}else if(p){var m=l.split("?")[0],L=null,N=l.match(/[?&]map=([^&]+)/i);N&&(L=decodeURIComponent(N[1]));var v=f&&f.LAYERS?f.LAYERS:"";v&&v!=="mask_layer"&&v.toLowerCase()!=="mask_layer"?e.push({name:c,olLayerName:c,url:m,wmsLayers:v,type:"wms",sourceParams:f,mapParam:L}):v==="mask_layer"||v.toLowerCase()}}}})}}return e}var M=null,_=[],U=[];function ge(e){return M||(M=new ol.layer.Vector({source:new ol.source.Vector,style:new ol.style.Style({fill:new ol.style.Fill({color:"rgba(255, 200, 0, 0.4)"}),stroke:new ol.style.Stroke({color:"#ff8c00",width:3}),image:new ol.style.Circle({radius:8,fill:new ol.style.Fill({color:"#ff8c00"}),stroke:new ol.style.Stroke({color:"white",width:2})})}),zIndex:1001}),e.addLayer(M)),M}window.highlightFeature=function(e,n){var a=X();if(!a){TnetLog.warn("Map nicht verf\xFCgbar");return}var t=ge(a);if(t.getSource().clear(),_[e]&&_[e][n]){var r=_[e][n],o=r.geometry;if(o){var s=null;if(o.rings?s=new ol.geom.Polygon(o.rings):o.paths?s=new ol.geom.MultiLineString(o.paths):o.x!==void 0&&o.y!==void 0?s=new ol.geom.Point([o.x,o.y]):o.points?s=new ol.geom.MultiPoint(o.points):o.type==="Point"&&o.coordinates?s=new ol.geom.Point(o.coordinates):o.type==="MultiPoint"&&o.coordinates?s=new ol.geom.MultiPoint(o.coordinates):o.type==="LineString"&&o.coordinates?s=new ol.geom.LineString(o.coordinates):o.type==="MultiLineString"&&o.coordinates?s=new ol.geom.MultiLineString(o.coordinates):o.type==="Polygon"&&o.coordinates?s=new ol.geom.Polygon(o.coordinates):o.type==="MultiPolygon"&&o.coordinates&&(s=new ol.geom.MultiPolygon(o.coordinates)),s){var i=s.getFirstCoordinate(),c=i&&i[0]>4&&i[0]<12&&i[1]>44&&i[1]<50,y=i&&i[0]>44&&i[0]<50&&i[1]>4&&i[1]<12;if((c||y)&&window.proj4){var l=y?"[lat,lon]":"[lon,lat]";s.applyTransform(function(h,m,L){for(var N=L||2,v=0;v<h.length;v+=N){var E=y?h[v+1]:h[v],F=y?h[v]:h[v+1],z=proj4("EPSG:4326","EPSG:2056",[E,F]);m[v]=z[0],m[v+1]=z[1];for(var I=2;I<N;I++)m[v+I]=h[v+I]}return m})}i=s.getFirstCoordinate();var g=i&&i[0]>4e5&&i[0]<9e5&&i[1]>5e4&&i[1]<4e5;g&&s.applyTransform(function(h,m,L){for(var N=L||2,v=0;v<h.length;v+=N){m[v]=h[v]+2e6,m[v+1]=h[v+1]+1e6;for(var E=2;E<N;E++)m[v+E]=h[v+E]}return m});var f=new ol.Feature({geometry:s});t.getSource().addFeature(f);var u=s.getExtent(),p=100,d=u[2]-u[0],w=u[3]-u[1];if(d<p||w<p){var S=(u[0]+u[2])/2,b=(u[1]+u[3])/2;u=[S-p,b-p,S+p,b+p]}a.getView().fit(u,{padding:[50,50,50,50],duration:500})}}}},window.clearHighlight=function(){M&&M.getSource().clear()};function B(e){return e==null?"":String(e).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;")}function O(e){return e==null?"":String(e).toLowerCase().trim()}function G(e,n){var a=O(e),t=O(n);if(!t)return!1;var r=t.replace(/[.+^${}()|[\]\\]/g,"\\$&").replace(/\*/g,".*"),o=new RegExp("^"+r+"$","i");return o.test(a)}function $(e,n){var a=O(e);if(!a)return!1;var t=[n&&n.layerName,n&&n.baseLayerName,n&&n.layerUrl,n&&n.layerKey],r=a.indexOf("*")>-1;return t.some(function(o){var s=O(o);return s?r?G(s,a):s.indexOf(a)>-1:!1})}function de(e){var n=x||R(),a=n.layerBlacklist||{},t=[];function r(o){o&&(Array.isArray(o)?o.forEach(function(s){s!=null&&t.push(String(s))}):typeof o=="string"&&t.push(o))}return Array.isArray(a)?a.forEach(function(o){!o||typeof o!="object"||$(o.target,e)&&r(o.attributes)}):a&&typeof a=="object"&&Object.keys(a).forEach(function(o){var s=a[o];$(o,e)&&(s&&typeof s=="object"&&!Array.isArray(s)&&s.attributes?r(s.attributes):r(s))}),t}function ye(e,n){var a=O(e);if(!a)return!0;var t=x||R(),r=Array.isArray(t.globalBlacklist)?t.globalBlacklist:[],o=de(n),s=r.concat(o);return s.some(function(i){var c=O(i);return c?c.indexOf("*")>-1?G(a,c):a===c:!1})}function V(e,n){var a=e||{},t={};return Object.keys(a).forEach(function(r){ye(r,n)||(t[r]=a[r])}),t}function J(e,n){var a=[],t={};return(e||[]).forEach(function(r){var o=r&&r.attributes?r.attributes:{},s=V(o,n);Object.keys(s).forEach(function(i){t[i]||(t[i]=!0,a.push(i))})}),a}function pe(e,n){var a=document.getElementById("spatial-query-status"),t=document.getElementById("spatial-query-results");e=e.filter(function(g){return g.layerName!=="mask_layer (WFS)"&&g.layerName.toLowerCase().indexOf("mask_layer")===-1}),U=e,_=e.map(function(g){return g.features||[]});var r=x||R(),o=parseInt(r.maxVisibleColumns,10);(isNaN(o)||o<1)&&(o=R().maxVisibleColumns);var s=[],i=[],c=[];e.forEach(function(g,f){var u=g.features?g.features.length:0;g.error&&(g.error.indexOf("WFS nicht verf\xFCgbar")>-1||g.error.indexOf("nicht unterst\xFCtzt")>-1)?c.push({result:g,layerIdx:f}):u===0&&!g.error?i.push({result:g,layerIdx:f}):u>0?s.push({result:g,layerIdx:f}):c.push({result:g,layerIdx:f})});var y=s.reduce(function(g,f){return g+(f.result.features?f.result.features.length:0)},0),l="";s.forEach(function(g){var f=g.result,u=g.layerIdx,p=f.features.length;l+='<div class="query-result-layer">',l+='<div class="query-result-header" onclick="toggleQueryResult(this)">',l+='<span class="query-result-icon">\u25B6</span>',l+='<span class="query-result-name">'+B(f.layerName)+"</span>",l+='<span class="query-result-count">'+p+"</span>",l+="</div>",l+='<div class="query-result-content hidden">';var d="sq-table-"+u;l+='<div class="query-result-table-wrap">',l+='<table class="query-result-table" id="'+d+'">';var w=J(f.features,f),S=Math.max(0,w.length-o);l+="<thead><tr>",l+="<th></th>",w.forEach(function(b,h){var m=h>=o?" sq-col-hidden":"";l+='<th class="'+m.replace(/^\s+/,"")+'">'+B(b)+"</th>"}),l+="</tr></thead>",l+="<tbody>",f.features.slice(0,50).forEach(function(b,h){var m=b.geometry?"true":"false",L=V(b.attributes,f);l+='<tr class="query-result-row" data-layer="'+u+'" data-feature="'+h+'" onclick="highlightFeature('+u+","+h+')">',l+='<td class="zoom-cell"><span class="zoom-icon" title="In Karte zeigen">'+TnetIcons.get("crosshair",null,{width:"16",height:"16"})+"</span></td>",w.forEach(function(N,v){var E=L[N];E==null&&(E="-");var F=v>=o?" sq-col-hidden":"";l+='<td class="'+F.replace(/^\s+/,"")+'">'+B(E)+"</td>"}),l+="</tr>"}),l+="</tbody></table>",l+="</div>",S>0&&(l+='<div class="sq-more-wrap">',l+='<button class="sq-show-more-btn" data-table-id="'+d+'" onclick="window.showAllQueryColumns(this)">Mehr anzeigen ('+S+")</button>",l+="</div>"),p>50&&(l+='<p class="more-results">... und '+(p-50)+" weitere</p>"),l+="</div>",l+="</div>"}),i.length>0&&(l+='<div class="query-result-layer query-result-empty">',l+='<div class="query-result-header" onclick="toggleQueryResult(this)">',l+='<span class="query-result-icon">\u25B6</span>',l+='<span class="query-result-name">Keine Objekte gefunden</span>',l+='<span class="query-result-count">'+i.length+"</span>",l+="</div>",l+='<div class="query-result-content hidden">',l+='<ul class="empty-layers-list">',i.forEach(function(g){l+="<li>"+B(g.result.layerName)+"</li>"}),l+="</ul>",l+="</div>",l+="</div>"),c.length>0&&(l+='<div class="query-result-layer query-result-not-queryable">',l+='<div class="query-result-header" onclick="toggleQueryResult(this)">',l+='<span class="query-result-icon">\u25B6</span>',l+='<span class="query-result-name">R\xE4umliche Abfrage nicht unterst\xFCtzt</span>',l+='<span class="query-result-count">'+c.length+"</span>",l+="</div>",l+='<div class="query-result-content hidden">',l+='<ul class="not-queryable-layers-list">',c.forEach(function(g){var f=g.result.error||"Unbekannter Fehler";l+="<li>"+B(g.result.layerName)+' <span class="error-hint">('+B(f)+")</span></li>"}),l+="</ul>",l+="</div>",l+="</div>"),a.textContent=y+" Objekte in "+s.length+" Layer(n) gefunden",t.innerHTML=l}window.toggleQueryResult=function(e){var n=e.nextElementSibling,a=e.querySelector(".query-result-icon");n.classList.contains("hidden")?(n.classList.remove("hidden"),a.textContent="\u25BC"):(n.classList.add("hidden"),a.textContent="\u25B6")},window.showAllQueryColumns=function(e){if(e){var n=e.getAttribute("data-table-id");if(n){var a=document.getElementById(n);a&&(a.querySelectorAll(".sq-col-hidden").forEach(function(t){t.classList.remove("sq-col-hidden")}),e.style.display="none")}}},window.exportQueryToExcel=function(){if(!U||U.length===0){alert("Keine Daten zum Exportieren vorhanden.");return}var e="",n=!1;if(U.forEach(function(s,i){var c=s&&s.features?s.features:[];if(c&&c.length>0){n=!0;var y=s&&s.layerName?s.layerName:"Layer "+i;e+=`
-"`+String(y).replace(/"/g,'""')+`"
-`;var l=J(c,s);if(l.length===0)return;e+=l.map(function(g){return'"'+g+'"'}).join(";")+`
-`,c.forEach(function(g){var f=V(g.attributes,s),u=l.map(function(p){var d=f[p];return d==null&&(d=""),d=String(d).replace(/"/g,'""'),'"'+d+'"'});e+=u.join(";")+`
-`})}}),!n){alert("Keine Daten zum Exportieren vorhanden.");return}var a="\uFEFF",t=new Blob([a+e],{type:"text/csv;charset=utf-8;"}),r=URL.createObjectURL(t),o=document.createElement("a");o.href=r,o.download="raeumliche_abfrage_"+new Date().toISOString().slice(0,10)+".csv",o.click(),URL.revokeObjectURL(r)},window.isPanelDocked=!1,window.toggleDockPanel=function(){var e=document.getElementById("spatial-query-panel"),n=document.getElementById("dock-btn"),a=document.getElementById("freepane");e&&(window.isPanelDocked?(e.classList.remove("docked-bottom"),e.style.left="",e.style.top="",e.style.height="",n&&(n.innerHTML=TnetIcons.get("dock-bottom",null,{width:"16",height:"16"}),n.title="Unten andocken"),window.isPanelDocked=!1,a&&(a.classList.remove("panel-docked"),a.style.removeProperty("height"),a.style.removeProperty("max-height"),a.style.removeProperty("bottom"))):(e.classList.add("docked-bottom"),e.style.left="",e.style.top="",n&&(n.innerHTML=TnetIcons.get("undock",null,{width:"16",height:"16"}),n.title="Floating"),window.isPanelDocked=!0,a&&(a.classList.add("panel-docked"),updateFreepaneHeight(),setTimeout(function(){updateFreepaneHeight()},100),setTimeout(function(){updateFreepaneHeight()},300))))},window.updateFreepaneHeight=function(){var e=document.getElementById("spatial-query-panel"),n=document.getElementById("freepane");if(e&&n&&window.isPanelDocked){var a=e.offsetHeight||280,t=window.innerHeight-69-a-32,r=Math.max(200,t);n.style.setProperty("bottom","auto","important"),n.style.setProperty("height",r+"px","important"),n.style.setProperty("max-height",r+"px","important"),window.TnetAccordionResize&&TnetAccordionResize.scheduleRefresh&&TnetAccordionResize.scheduleRefresh("panel-docked")}},function(){var e=document.getElementById("spatial-query-panel");e&&window.ResizeObserver&&new ResizeObserver(function(){window.isPanelDocked&&updateFreepaneHeight()}).observe(e)}();
+﻿/**
+ * tnet-spatial-query.js (ES Module)
+ * Polygon-Zeichnen und räumliche Abfrage: WFS, ArcGIS, geo.admin.ch
+ * Layer-Erkennung, GML-Parsing, Feature-Highlighting, Ergebnis-Anzeige, Excel-Export
+ *
+ * @version    1.3
+ * @date       2026-02-12
+ * @copyright  Trigonet AG
+ * @author     Marco Dellenbach
+ */
+
+import { waitForMap, getMainMap } from './tnet-utils.js';
+
+function getAppRoot() {
+    return window.__TNET_APP_ROOT || '/maps';
+}
+
+// ===== POLYGON-ZEICHNEN UND RÄUMLICHE ABFRAGE =====
+// Globale Variable um Zeichenmodus zu tracken
+window.isPolygonDrawing = false;
+
+var drawInteraction = null;
+var drawLayer = null;
+var isDrawing = false;
+var spatialQueryConfig = null;
+var spatialQueryConfigPromise = null;
+
+    function getDefaultSpatialQueryConfig() {
+        return {
+            maxVisibleColumns: 10,
+            tolerancePixels: 10,
+            minBuffer: 1.0,
+            maxBuffer: 50.0,
+            globalBlacklist: [],
+            layerBlacklist: {},
+            bufferDistances: [10, 25, 50, 100, 250, 500, 1000]
+        };
+    }
+
+    function normalizeSpatialQueryConfig(rawConfig) {
+        var defaults = getDefaultSpatialQueryConfig();
+        var cfg = rawConfig || {};
+        var maxCols = parseInt(cfg.maxVisibleColumns, 10);
+
+        return {
+            maxVisibleColumns: isNaN(maxCols) || maxCols < 1 ? defaults.maxVisibleColumns : maxCols,
+            globalBlacklist: Array.isArray(cfg.globalBlacklist) ? cfg.globalBlacklist : defaults.globalBlacklist,
+            layerBlacklist: cfg.layerBlacklist && typeof cfg.layerBlacklist === 'object' ? cfg.layerBlacklist : defaults.layerBlacklist,
+            bufferDistances: Array.isArray(cfg.bufferDistances) ? cfg.bufferDistances : defaults.bufferDistances
+        };
+    }
+
+    function loadSpatialQueryConfigAsync() {
+        if (spatialQueryConfig) {
+            return Promise.resolve(spatialQueryConfig);
+        }
+        if (spatialQueryConfigPromise) {
+            return spatialQueryConfigPromise;
+        }
+
+        if (typeof JSON5 === 'undefined') {
+            spatialQueryConfig = getDefaultSpatialQueryConfig();
+            return Promise.resolve(spatialQueryConfig);
+        }
+
+        var appRoot = window.__TNET_APP_ROOT || '/maps';
+        var paths = [
+            appRoot + '/tnet/config/tnet-global-config.json5',
+            appRoot + '/tnet/tnet-global-config.json5',
+            '../tnet/config/tnet-global-config.json5'
+        ];
+
+        function tryPath(index) {
+            if (index >= paths.length) {
+                spatialQueryConfig = getDefaultSpatialQueryConfig();
+                return Promise.resolve(spatialQueryConfig);
+            }
+
+            return fetch(paths[index])
+                .then(function(response) {
+                    if (!response.ok) throw new Error('HTTP ' + response.status);
+                    return response.text();
+                })
+                .then(function(text) {
+                    var parsed = JSON5.parse(text);
+                    spatialQueryConfig = normalizeSpatialQueryConfig(parsed && parsed.spatialQuery ? parsed.spatialQuery : null);
+                    return spatialQueryConfig;
+                })
+                .catch(function() {
+                    return tryPath(index + 1);
+                });
+        }
+
+        spatialQueryConfigPromise = tryPath(0).then(function(cfg) {
+            spatialQueryConfigPromise = null;
+            return cfg;
+        }).catch(function() {
+            spatialQueryConfigPromise = null;
+            spatialQueryConfig = getDefaultSpatialQueryConfig();
+            return spatialQueryConfig;
+        });
+
+        return spatialQueryConfigPromise;
+    }
+
+    // ===== PROXY-URL NORMALISIERUNG =====
+
+    /**
+     * Prüft ob eine URL über den ArcGIS-Proxy läuft.
+     * Erkennt beide Formate:
+     *   - Legacy:    /maps/agsproxy.php?path=... oder /maps/agsproxy.php/...
+     *   - Clean-URL: /maps/tnet/agsproxy/...
+     */
+    function isProxyUrl(url) {
+        if (!url) return false;
+        return url.indexOf('agsproxy.php') > -1 || url.indexOf('tnet/agsproxy/') > -1;
+    }
+
+    /**
+     * Normalisiert Proxy-URLs in ein direkt verwendbares Format.
+     * - Legacy ?path=:  /maps/agsproxy.php?path=X  → /maps/agsproxy.php/X
+     * - Clean-URLs:     /maps/tnet/agsproxy/X       → unverändert (bereits sauber)
+     * - Andere URLs:    unverändert zurückgegeben
+     */
+    function normalizeProxyUrl(url) {
+        if (!url) return url;
+        // Legacy-Format: ?path= → PATH_INFO
+        var match = url.match(/^(.*agsproxy\.php)\?path=([^&]+)(.*)$/);
+        if (match) {
+            // match[1] = /maps/agsproxy.php
+            // match[2] = gis_fach/.../MapServer (der Pfad)
+            // match[3] = restliche Query-Params (z.B. &foo=bar), normalerweise leer
+            return match[1] + '/' + match[2];
+        }
+        // Clean-URL-Format: bereits sauber, unverändert zurückgeben
+        return url;
+    }
+
+    // ===== ALIAS-AUFLÖSUNG FÜR LAYER-NAMEN =====
+
+    // Cache für ArcGIS Service-Metadaten (serviceUrl → {layers: [{id, name}]})
+    var _serviceInfoCache = {};
+
+    /**
+     * Löst Aliase/Anzeigenamen für Layer auf.
+     * - ArcGIS: Holt Service-Metadaten um Sublayer-Namen zu ermitteln
+     * - Alle: Versucht NLS-Lookup in lyrmgrResources und maptipsResources
+     * - Fallback: Technischer Name bleibt erhalten
+     * @param {Array} layers - Layer-Array aus getVisibleQueryableLayers()
+     * @returns {Promise} Resolved wenn alle Namen aufgelöst sind
+     */
+    function resolveLayerAliases(layers) {
+        // 1. Synchrone NLS-Lookups zuerst (liefert Gruppen-/Dienst-Namen)
+        layers.forEach(function(layer) {
+            var alias = _lookupNlsAlias(layer);
+            if (alias) {
+                layer.nlsAlias = alias;  // NLS-Name merken, aber noch nicht als finalen Alias setzen
+                layer.alias = alias;
+            }
+        });
+
+        // 2. ArcGIS Service-Metadaten asynchron holen
+        // IMMER für Sublayer (layerId gesetzt) holen, auch wenn NLS schon was gefunden hat
+        // Der Sublayer-Name hat Priorität über den Gruppen-Namen
+        var serviceGroups = {};
+        layers.forEach(function(layer) {
+            if (layer.type === 'arcgis' && layer.serviceUrl && layer.layerId) {
+                if (!serviceGroups[layer.serviceUrl]) {
+                    serviceGroups[layer.serviceUrl] = [];
+                }
+                serviceGroups[layer.serviceUrl].push(layer);
+            }
+        });
+
+        var fetchPromises = Object.keys(serviceGroups).map(function(svcUrl) {
+            // Cache prüfen
+            if (_serviceInfoCache[svcUrl]) {
+                _applyServiceInfo(serviceGroups[svcUrl], _serviceInfoCache[svcUrl]);
+                return Promise.resolve();
+            }
+
+            return fetch(svcUrl + '?f=json')
+                .then(function(resp) { return resp.json(); })
+                .then(function(info) {
+                    _serviceInfoCache[svcUrl] = info;
+                    _applyServiceInfo(serviceGroups[svcUrl], info);
+                })
+                .catch(function(err) {
+                    // Fehler ignorieren, Fallback auf NLS- oder technischen Namen
+                    console.warn('[SpatialQuery] Service-Info Abruf fehlgeschlagen:', svcUrl, err);
+                });
+        });
+
+        return Promise.all(fetchPromises).then(function() {
+            // Layer-Namen mit aufgelösten Aliasen aktualisieren
+            layers.forEach(function(layer) {
+                if (layer.alias) {
+                    layer.name = layer.alias;
+                }
+            });
+        });
+    }
+
+    /**
+     * Synchroner NLS-Lookup: Versucht über lyrmgrResources und maptipsResources
+     * einen benutzerfreundlichen Namen zu finden.
+     */
+    function _lookupNlsAlias(layer) {
+        if (!njs || !njs.AppManager || !njs.AppManager.nls) return null;
+
+        var lyrmgr = njs.AppManager.nls.lyrmgrResources || {};
+        var maptips = njs.AppManager.nls.maptipsResources || {};
+
+        // Basisnamen extrahieren (OL-Layername ohne Suffixe)
+        var baseName = layer.olLayerName || layer.name || '';
+
+        // Verschiedene Key-Varianten versuchen
+        // z.B. "gis_oereb/nw_nutzungsplanung_def" → versuche desc_gis_oereb/nw_nutzungsplanung_def,
+        //   desc_nw_nutzungsplanung_def, desc_nw_nutzungsplanung_DEF etc.
+        var keyVariants = [
+            baseName,
+            baseName.replace(/^[^/]+\//, ''),  // Ordner-Prefix entfernen
+            baseName.replace(/\//g, '_')         // Slashes durch Underscores
+        ];
+
+        for (var i = 0; i < keyVariants.length; i++) {
+            var key = keyVariants[i];
+            if (lyrmgr['desc_' + key]) return lyrmgr['desc_' + key];
+            // Auch Case-insensitive versuchen (DEF/def Varianten)
+            var keyUpper = key.replace(/(def|prj)/gi, function(m) { return m.toUpperCase(); });
+            if (keyUpper !== key && lyrmgr['desc_' + keyUpper]) return lyrmgr['desc_' + keyUpper];
+        }
+
+        // MapTips-Lookup: maptipKey + "_title"
+        if (layer.type === 'arcgis' && layer.layerId) {
+            var maptipKeys = keyVariants.map(function(k) { return k + '_' + layer.layerId; });
+            for (var j = 0; j < maptipKeys.length; j++) {
+                if (maptips[maptipKeys[j] + '_title']) return maptips[maptipKeys[j] + '_title'];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Wendet ArcGIS Service-Metadaten auf Layer an:
+     * Mappt Sublayer-IDs auf ihre Anzeigenamen.
+     */
+    function _applyServiceInfo(layers, serviceInfo) {
+        if (!serviceInfo || !serviceInfo.layers) return;
+
+        // ID → Name Mapping aufbauen
+        var layerMap = {};
+        serviceInfo.layers.forEach(function(l) {
+            layerMap[String(l.id)] = l.name;
+        });
+
+        layers.forEach(function(layer) {
+            if (layer.layerId && layerMap[String(layer.layerId)]) {
+                // Sublayer-Name aus ArcGIS-Metadaten hat Priorität
+                // Optional: NLS-Gruppenname als Prefix behalten
+                var sublayerName = layerMap[String(layer.layerId)];
+                if (layer.nlsAlias) {
+                    // z.B. "NW Nutzungsplanung (rechtskräftig) — Objektbezogene Festlegung"
+                    layer.alias = layer.nlsAlias + ' — ' + sublayerName;
+                } else {
+                    layer.alias = sublayerName;
+                }
+            }
+        });
+    }
+    
+    // Zeichnen-Layer erstellen
+    function getDrawLayer(map) {
+        if (!drawLayer) {
+            drawLayer = new ol.layer.Vector({
+                source: new ol.source.Vector(),
+                style: new ol.style.Style({
+                    fill: new ol.style.Fill({
+                        color: 'rgba(75, 123, 129, 0.2)'
+                    }),
+                    stroke: new ol.style.Stroke({
+                        color: '#4b7b81',
+                        width: 2,
+                        lineDash: [5, 5]
+                    }),
+                    image: new ol.style.Circle({
+                        radius: 5,
+                        fill: new ol.style.Fill({ color: '#4b7b81' }),
+                        stroke: new ol.style.Stroke({ color: 'white', width: 2 })
+                    })
+                }),
+                zIndex: 1000
+            });
+            map.addLayer(drawLayer);
+        }
+        return drawLayer;
+    }
+    
+    // Polygon-Zeichnen aktivieren/deaktivieren
+    window.togglePolygonDraw = function() {
+        loadSpatialQueryConfigAsync().then(function() {
+            waitForMap(function(map) {
+            var btn = document.getElementById('polygon-tool-btn');
+            var panel = document.getElementById('spatial-query-panel');
+            var statusEl = document.getElementById('spatial-query-status');
+            var resultsEl = document.getElementById('spatial-query-results');
+            
+            if (isDrawing) {
+                // Deaktivieren
+                if (drawInteraction) {
+                    map.removeInteraction(drawInteraction);
+                    drawInteraction = null;
+                }
+                isDrawing = false;
+                window.isPolygonDrawing = false;
+                document.body.classList.remove('drawing-mode');
+                if (btn) btn.classList.remove('active');
+                if (panel) panel.classList.add('hidden');
+                
+                // Layer leeren
+                if (drawLayer) {
+                    drawLayer.getSource().clear();
+                }
+            } else {
+                // ÖREB-Modus deaktivieren falls aktiv
+                if (window.isOerebActive && typeof window.toggleOerebMode === 'function') {
+                    window.toggleOerebMode();
+                }
+
+                // Mobile Drawer schließen falls offen
+                if (typeof window.closeDrawer === 'function') {
+                    window.closeDrawer();
+                }
+
+                // Aktivieren
+                var layer = getDrawLayer(map);
+                layer.getSource().clear();
+                
+                drawInteraction = new ol.interaction.Draw({
+                    source: layer.getSource(),
+                    type: 'Polygon',
+                    style: new ol.style.Style({
+                        fill: new ol.style.Fill({
+                            color: 'rgba(75, 123, 129, 0.1)'
+                        }),
+                        stroke: new ol.style.Stroke({
+                            color: '#4b7b81',
+                            width: 2,
+                            lineDash: [5, 5]
+                        }),
+                        image: new ol.style.Circle({
+                            radius: 5,
+                            fill: new ol.style.Fill({ color: '#4b7b81' }),
+                            stroke: new ol.style.Stroke({ color: 'white', width: 2 })
+                        })
+                    })
+                });
+                
+                drawInteraction.on('drawend', function(evt) {
+                    var polygon = evt.feature.getGeometry();
+                    var coords = polygon.getCoordinates()[0];
+                    
+                    // Zeichenmodus beenden
+                    isDrawing = false;
+                    window.isPolygonDrawing = false;
+                    document.body.classList.remove('drawing-mode');
+                    
+                    // DrawInteraction sofort entfernen damit normale Klicks wieder funktionieren
+                    waitForMap(function(map) {
+                        if (drawInteraction) {
+                            map.removeInteraction(drawInteraction);
+                            drawInteraction = null;
+                        }
+                    });
+                    
+                    // Abfrage starten
+                    statusEl.textContent = 'Abfrage läuft...';
+                    resultsEl.innerHTML = '<div class="loading-spinner"></div>';
+                    
+                    // Räumliche Abfrage ausführen
+                    executeSpatialQuery(coords);
+                    
+                    // Zeichnen beenden
+                    setTimeout(function() {
+                        map.removeInteraction(drawInteraction);
+                        drawInteraction = null;
+                    }, 100);
+                });
+                
+                map.addInteraction(drawInteraction);
+                isDrawing = true;
+                window.isPolygonDrawing = true;
+                document.body.classList.add('drawing-mode');
+                if (btn) btn.classList.add('active');
+                if (panel) panel.classList.remove('hidden');
+                // Panel per Default unten andocken
+                if (!window.isPanelDocked && window.toggleDockPanel) {
+                    window.toggleDockPanel();
+                }
+                statusEl.textContent = 'Zeichnen Sie ein Polygon auf der Karte (Doppelklick zum Beenden)...';
+                resultsEl.innerHTML = '';
+            }
+            });
+        });
+    };
+    
+    // Panel schließen
+    window.closeSpatialQueryPanel = function() {
+        var panel = document.getElementById('spatial-query-panel');
+        var btn = document.getElementById('polygon-tool-btn');
+        if (panel) panel.classList.add('hidden');
+        if (btn) btn.classList.remove('active');
+        isDrawing = false;
+        window.isPolygonDrawing = false;
+        document.body.classList.remove('drawing-mode');
+        
+        // Freepane zurücksetzen falls Panel angedockt war
+        var freepane = document.getElementById('freepane');
+        if (freepane) {
+            freepane.classList.remove('panel-docked');
+            freepane.style.removeProperty('height');
+            freepane.style.removeProperty('max-height');
+            freepane.style.removeProperty('bottom');
+        }
+        window.isPanelDocked = false;
+        
+        waitForMap(function(map) {
+            if (drawInteraction) {
+                map.removeInteraction(drawInteraction);
+                drawInteraction = null;
+            }
+            if (drawLayer) {
+                drawLayer.getSource().clear();
+            }
+        });
+    };
+    
+    // geo.admin.ch REST API Abfrage
+    function queryGeoAdminLayer(layer, polygonCoords) {
+        return new Promise(function(resolve, reject) {
+            // console.log('geo.admin.ch REST API Query für:', layer.name, layer.wmsLayers);
+            
+            // Layer-Name anpassen: ÖREB-Layer haben _v2_0.oereb Suffix, das muss entfernt werden
+            // Beispiel: ch.astra.baulinien-nationalstrassen_v2_0.oereb → ch.astra.baulinien-nationalstrassen
+            var layerName = layer.wmsLayers;
+            if (layerName) {
+                // Entferne .oereb Suffix
+                if (layerName.endsWith('.oereb')) {
+                    layerName = layerName.substring(0, layerName.length - 6);
+                    // console.log('Nach Entfernung von .oereb:', layerName);
+                }
+                // Entferne _vX_Y Versions-Suffix (z.B. _v2_0, _v1_0)
+                layerName = layerName.replace(/_v\d+_\d+$/, '');
+                // console.log('ÖREB Layer-Name für API:', layerName);
+            }
+            
+            // Polygon zu ESRI JSON Format konvertieren
+            var rings = [polygonCoords.map(function(coord) {
+                return [Math.round(coord[0]), Math.round(coord[1])];
+            })];
+            
+            var geometryJson = {
+                rings: rings,
+                spatialReference: { wkid: 2056 }
+            };
+            
+            // API-Endpunkt
+            var apiUrl = 'https://api3.geo.admin.ch/rest/services/api/MapServer/identify';
+            
+            // Sprache fix auf Deutsch
+            var lang = 'de';
+            // console.log('API Sprache:', lang);
+            
+            // Parameter
+            var params = new URLSearchParams({
+                geometry: JSON.stringify(geometryJson),
+                geometryType: 'esriGeometryPolygon',
+                layers: 'all:' + layerName, // Layer-Name (ohne _vX_Y.oereb)
+                tolerance: '0',
+                mapExtent: '0,0,0,0',
+                imageDisplay: '0,0,0',
+                sr: '2056',
+                returnGeometry: 'true',
+                geometryFormat: 'geojson',
+                lang: lang
+            });
+            
+            var queryUrl = apiUrl + '?' + params.toString();
+            // console.log('geo.admin.ch API URL:', queryUrl);
+            
+            fetch(queryUrl)
+                .then(function(response) { return response.json(); })
+                .then(function(data) {
+                    // console.log('geo.admin.ch Response:', data);
+                    
+                    var features = [];
+                    if (data.results && data.results.length > 0) {
+                        features = data.results.map(function(result) {
+                            var attrs = result.attributes || result.properties || {};
+                            
+                            // Datumsfelder formatieren (z.B. 2019-07-30T00:00:00 → 30.07.2019)
+                            Object.keys(attrs).forEach(function(key) {
+                                var value = attrs[key];
+                                // Prüfe ob es ein ISO-Datum ist (YYYY-MM-DDTHH:mm:ss oder YYYY-MM-DD)
+                                if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2})?/.test(value)) {
+                                    try {
+                                        var date = new Date(value);
+                                        if (!isNaN(date.getTime())) {
+                                            // Formatiere als DD.MM.YYYY
+                                            var day = ('0' + date.getDate()).slice(-2);
+                                            var month = ('0' + (date.getMonth() + 1)).slice(-2);
+                                            var year = date.getFullYear();
+                                            attrs[key] = day + '.' + month + '.' + year;
+                                        }
+                                    } catch(e) {
+                                        // Bei Fehler Original-Wert behalten
+                                    }
+                                }
+                            });
+                            
+                            return {
+                                attributes: attrs,
+                                geometry: result.geometry || null
+                            };
+                        });
+                    }
+                    
+                    // console.log('geo.admin.ch Features:', features.length);
+                    
+                    // Besseren Layer-Namen verwenden (wmsLayers statt layer.name)
+                    var displayName = layer.wmsLayers || layer.name || 'Unbekannter Layer';
+                    // Entferne .oereb und _vX_Y Suffixe für Anzeige
+                    displayName = displayName.replace(/_v\d+_\d+(\.oereb)?$/, '');
+                    displayName = displayName.replace(/\.oereb$/, '');
+                    
+                    resolve({
+                        layerName: displayName + ' (geo.admin.ch)',
+                        baseLayerName: layer.name || displayName,
+                        layerUrl: layer.url || '',
+                        layerKey: layer.wmsLayers || '',
+                        features: features,
+                        error: null
+                    });
+                })
+                .catch(function(err) {
+                    TnetLog.error('geo.admin.ch API Fehler:', err);
+                    
+                    var displayName = layer.wmsLayers || layer.name || 'Unbekannter Layer';
+                    displayName = displayName.replace(/_v\d+_\d+(\.oereb)?$/, '');
+                    displayName = displayName.replace(/\.oereb$/, '');
+                    
+                    resolve({
+                        layerName: displayName + ' (geo.admin.ch)',
+                        baseLayerName: layer.name || displayName,
+                        layerUrl: layer.url || '',
+                        layerKey: layer.wmsLayers || '',
+                        features: [],
+                        error: 'API-Fehler: ' + err.message
+                    });
+                });
+        });
+    }
+    
+    // Räumliche Abfrage gegen ArcGIS Server
+    function executeSpatialQuery(polygonCoords) {
+        var statusEl = document.getElementById('spatial-query-status');
+        var resultsEl = document.getElementById('spatial-query-results');
+        
+        // Aktive Layer aus dem Layer-Manager holen
+        var visibleLayers = getVisibleQueryableLayers();
+        
+        // console.log('=== SPATIAL QUERY DEBUG ===');
+        // console.log('Gefundene Layer:', visibleLayers.length, visibleLayers);
+        // console.log('Polygon Koordinaten:', polygonCoords);
+        // console.log('Abfrage-Buffer:', getQueryBuffer(), 'm');
+        
+        if (visibleLayers.length === 0) {
+            statusEl.textContent = 'Keine abfragbaren Layer aktiv.';
+            resultsEl.innerHTML = '<p class="no-results">Aktivieren Sie Layer im Layer-Manager, die abgefragt werden können.</p>';
+            return;
+        }
+        
+        // Polygon-BBOX berechnen für WMS GetFeatureInfo
+        var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        polygonCoords.forEach(function(coord) {
+            if (coord[0] < minX) minX = coord[0];
+            if (coord[1] < minY) minY = coord[1];
+            if (coord[0] > maxX) maxX = coord[0];
+            if (coord[1] > maxY) maxY = coord[1];
+        });
+        var polygonBbox = [minX, minY, maxX, maxY];
+        var polygonCenter = [(minX + maxX) / 2, (minY + maxY) / 2];
+        
+        // Polygon zu ArcGIS JSON Format konvertieren
+        var rings = [polygonCoords.map(function(coord) {
+            return [Math.round(coord[0]), Math.round(coord[1])];
+        })];
+        
+        var geometryJson = JSON.stringify({
+            rings: rings,
+            spatialReference: { wkid: 2056 }
+        });
+        
+        // console.log('Geometry JSON:', geometryJson);
+        // console.log('Polygon BBOX:', polygonBbox);
+        
+        statusEl.textContent = 'Layer-Namen auflösen...';
+        // console.log('Starte resolveLayerAliases...');
+        
+        // Aliase/Anzeigenamen für Layer auflösen, dann Abfragen starten
+        resolveLayerAliases(visibleLayers).then(function() {
+            // console.log('Aliase aufgelöst, starte Queries für', visibleLayers.length, 'Layer');
+            statusEl.textContent = 'Abfrage von ' + visibleLayers.length + ' Layer(n)...';
+            
+            var promises = visibleLayers.map(function(layer) {
+                // console.log('Query Layer:', layer.name, layer.type, layer.url);
+                if (layer.type === 'wms') {
+                    return queryWfsLayer(layer, polygonBbox, polygonCoords);
+                } else {
+                    return querySingleLayer(layer, geometryJson);
+                }
+            });
+            
+            return Promise.all(promises).then(function(results) {
+                // console.log('Query Results:', results);
+                displayResults(results, visibleLayers);
+            });
+        }).catch(function(err) {
+            TnetLog.error('Spatial Query Error:', err);
+            console.error('Spatial Query Error:', err);
+            statusEl.textContent = 'Fehler bei der Abfrage.';
+            resultsEl.innerHTML = '<p class="error">' + escapeHtml(err && err.message ? err.message : 'Unbekannter Fehler') + '</p>';
+        });
+    }
+    
+    // WFS/API Layer abfragen (echte räumliche Abfrage mit Polygon)
+    // HINWEIS: Bei MapServer kann der WFS TYPENAME vom WMS LAYERS abweichen
+    function queryWfsLayer(layer, bbox, polygonCoords) {
+        return new Promise(function(resolve, reject) {
+            // console.log('Query für Layer:', layer.name, layer.url, layer.mapParam);
+            
+            // geo.admin.ch / Schweizer Bundesdienste: Verwende REST API statt WFS
+            // Erkennung: URL enthält geo.admin.ch ODER Layer-Name beginnt mit "ch."
+            var isGeoAdmin = (layer.url && layer.url.indexOf('geo.admin.ch') > -1) ||
+                             (layer.wmsLayers && layer.wmsLayers.indexOf('ch.') === 0);
+            
+            if (isGeoAdmin) {
+                // console.log('Schweizer Bundeslayer erkannt (geo.admin.ch), verwende REST API');
+                return queryGeoAdminLayer(layer, polygonCoords).then(resolve).catch(reject);
+            }
+            
+            // WFS URL aus WMS URL ableiten
+            var wfsUrl = layer.url;
+            
+            // MapServer: map Parameter (direkt aus Layer-Objekt)
+            var mapParam = layer.mapParam || '';
+            
+            // Fallback: Versuche aus sourceParams oder URL zu extrahieren
+            if (!mapParam && layer.sourceParams) {
+                mapParam = layer.sourceParams.map || layer.sourceParams.MAP || '';
+            }
+            if (!mapParam && layer.url) {
+                var urlMatch = layer.url.match(/[?&]map=([^&]+)/i);
+                if (urlMatch) {
+                    mapParam = decodeURIComponent(urlMatch[1]);
+                }
+            }
+            
+            // console.log('MapServer map Parameter:', mapParam);
+            
+            // Funktion um WFS GetFeature auszuführen
+            function executeWfsQuery(typeName) {
+                var params = new URLSearchParams({
+                    SERVICE: 'WFS',
+                    VERSION: '2.0.0',
+                    REQUEST: 'GetFeature',
+                    TYPENAMES: typeName,  // WFS 2.0 nutzt TYPENAMES (Plural)
+                    BBOX: bbox.join(',') + ',EPSG:2056',  // WFS 2.0: BBOX enthält CRS
+                    COUNT: '1000'  // WFS 2.0 nutzt COUNT statt MAXFEATURES
+                });
+                
+                if (mapParam) {
+                    params.set('map', mapParam);
+                }
+                
+                var queryUrl = wfsUrl + '?' + params.toString();
+                // console.log('WFS 2.0 Query URL (BBOX):', queryUrl);
+                // console.log('  TYPENAMES:', typeName);
+                // console.log('  BBOX:', bbox.join(',') + ',EPSG:2056');
+                
+                return fetch(queryUrl).then(function(response) {
+                    return response.text();
+                });
+            }
+            
+            // Zuerst: Versuche mit WMS Layer-Name
+            var wmsLayerName = layer.wmsLayers;
+            
+            // Spezialfall: Liegenschaften-Layer (av_ls_eigentuemer.map)
+            // Dieser enthält mehrere Kantone - abfrage direkt via GetCapabilities alle
+            var isLiegenschaftenLayer = mapParam && mapParam.indexOf('av_ls_eigentuemer') > -1;
+            
+            if (isLiegenschaftenLayer) {
+                // console.log('Liegenschaften-Layer erkannt (av_ls_eigentuemer.map), lade GetCapabilities für Multi-Kanton-Abfrage...');
+                
+                var capParams = new URLSearchParams({
+                    SERVICE: 'WFS',
+                    VERSION: '2.0.0',
+                    REQUEST: 'GetCapabilities'
+                });
+                if (mapParam) capParams.set('map', mapParam);
+                
+                fetch(wfsUrl + '?' + capParams.toString())
+                    .then(function(r) { return r.text(); })
+                    .then(function(capText) {
+                        // console.log('GetCapabilities Response (first 1000):', capText.substring(0, 1000));
+                        var parser = new DOMParser();
+                        var capXml = parser.parseFromString(capText, 'text/xml');
+                        var featureTypes = capXml.querySelectorAll('FeatureType Name, FeatureType > Name');
+                        // console.log('FeatureType Elements gefunden:', featureTypes.length);
+                        var allTypes = Array.from(featureTypes).map(function(ft) { return ft.textContent.trim(); });
+                        // console.log('Alle FeatureTypes:', allTypes);
+                        
+                        var liegenschaftenTypes = allTypes.filter(function(t) {
+                            return t.indexOf('liegenschaften_') > -1;
+                        });
+                        
+                        // Sortiere NW vor OW (für Test)
+                        liegenschaftenTypes.sort(function(a, b) {
+                            if (a.indexOf('_nw') > -1) return -1;
+                            if (b.indexOf('_nw') > -1) return 1;
+                            return 0;
+                        });
+                        
+                        // console.log('Liegenschaften-Kantone (NW zuerst):', liegenschaftenTypes.join(', '));
+                        
+                        // Abfrage alle Kantone parallel
+                        var queries = liegenschaftenTypes.map(function(typeName) {
+                            // console.log('Starte WFS Query für:', typeName);
+                            return executeWfsQuery(typeName)
+                                .then(function(response) {
+                                    // console.log('Response für ' + typeName + ':', response ? response.substring(0, 200) : 'null');
+                                    if (response && response.indexOf('FeatureCollection') > -1) {
+                                        var parsed = parseWfsGmlResponse(response, typeName, polygonCoords);
+                                        // console.log('Geparste Features für ' + typeName + ':', parsed.features ? parsed.features.length : 0);
+                                        return { typeName: typeName, data: parsed };
+                                    }
+                                    // console.log('Keine FeatureCollection für ' + typeName);
+                                    return { typeName: typeName, data: { features: [] } };
+                                })
+                                .catch(function(err) {
+                                    TnetLog.error('WFS Query für ' + typeName + ' fehlgeschlagen:', err);
+                                    return { typeName: typeName, data: { features: [] } };
+                                });
+                        });
+                        
+                        return Promise.all(queries);
+                    })
+                    .then(function(results) {
+                        // Kombiniere alle Features
+                        var allFeatures = [];
+                        results.forEach(function(result) {
+                            if (result.data && result.data.features && result.data.features.length > 0) {
+                                // console.log('Features von ' + result.typeName + ':', result.data.features.length);
+                                // Konvertiere Features in das erwartete Format
+                                result.data.features.forEach(function(f) {
+                                    allFeatures.push({
+                                        attributes: f.properties || f.attributes || {},
+                                        geometry: f.geometry || null
+                                    });
+                                });
+                            }
+                        });
+                        
+                        // console.log('Gesamt Features aus allen Kantonen:', allFeatures.length);
+                        
+                        resolve({
+                            layerName: layer.name + ' (WFS Multi-Kanton)',
+                            baseLayerName: layer.name || '',
+                            layerUrl: layer.url || '',
+                            layerKey: layer.wmsLayers || '',
+                            features: allFeatures,
+                            error: null
+                        });
+                    })
+                    .catch(function(err) {
+                        TnetLog.error('Multi-Kanton WFS Fehler:', err);
+                        resolve({
+                            layerName: layer.name + ' (WFS)',
+                            baseLayerName: layer.name || '',
+                            layerUrl: layer.url || '',
+                            layerKey: layer.wmsLayers || '',
+                            features: [],
+                            error: 'Multi-Kanton WFS Fehler: ' + err.message
+                        });
+                    });
+                
+                return; // Beende Funktion hier für Liegenschaften
+            }
+            
+            // Normaler Single-Layer WFS Query
+            executeWfsQuery(wmsLayerName)
+                .then(function(text) {
+                    // Prüfe auf "TYPENAME doesn't exist" Fehler
+                    if (text.indexOf("doesn't exist") > -1 || text.indexOf('does not exist') > -1) {
+                        // console.log('TYPENAME "' + wmsLayerName + '" nicht gefunden, lade GetCapabilities...');
+                        // GetCapabilities abrufen um verfügbare Layer zu finden
+                        var capParams = new URLSearchParams({
+                            SERVICE: 'WFS',
+                            VERSION: '2.0.0',
+                            REQUEST: 'GetCapabilities'
+                        });
+                        if (mapParam) capParams.set('map', mapParam);
+                        
+                        return fetch(wfsUrl + '?' + capParams.toString())
+                            .then(function(r) { return r.text(); })
+                            .then(function(capText) {
+                                // Parse XML und finde FeatureType Names
+                                var parser = new DOMParser();
+                                var capXml = parser.parseFromString(capText, 'text/xml');
+                                var featureTypes = capXml.querySelectorAll('FeatureType Name, FeatureType > Name');
+                                
+                                if (featureTypes.length > 0) {
+                                    var allTypes = Array.from(featureTypes).map(function(ft) { return ft.textContent.trim(); });
+                                    // console.log('Verfügbare FeatureTypes:', allTypes.join(', '));
+                                    
+                                    // Suche nach passenden FeatureType basierend auf WMS Layer-Name
+                                    var matchingType = null;
+                                    
+                                    // 1. Versuch: Exakte Übereinstimmung
+                                    matchingType = allTypes.find(function(t) { return t === wmsLayerName; });
+                                    
+                                    // 2. Versuch: WMS Layer-Name enthält FeatureType
+                                    if (!matchingType) {
+                                        matchingType = allTypes.find(function(t) { 
+                                            return wmsLayerName.toLowerCase().indexOf(t.toLowerCase()) > -1; 
+                                        });
+                                    }
+                                    
+                                    // 3. Versuch: FeatureType enthält WMS Layer-Name
+                                    if (!matchingType) {
+                                        matchingType = allTypes.find(function(t) { 
+                                            return t.toLowerCase().indexOf(wmsLayerName.toLowerCase()) > -1; 
+                                        });
+                                    }
+                                    
+                                    // 4. Versuch: Suche nach Kanton-Kürzel (nw, ow, etc.) im WMS-Namen
+                                    if (!matchingType) {
+                                        var kantonMatch = wmsLayerName.match(/_(nw|ow|ur|sz|gl|zg|be|lu|ag|zh|so|bs|bl|sh|sg|ai|ar|ti|tg|vs|ge|fr|ne|ju|vd)_/i);
+                                        if (kantonMatch) {
+                                            var kanton = kantonMatch[1].toLowerCase();
+                                            matchingType = allTypes.find(function(t) { 
+                                                return t.toLowerCase().indexOf('_' + kanton) > -1 || t.toLowerCase().endsWith('_' + kanton);
+                                            });
+                                            // console.log('Suche nach Kanton "' + kanton + '" in FeatureTypes...');
+                                        }
+                                    }
+                                    
+                                    // Fallback: erster FeatureType
+                                    if (!matchingType) {
+                                        matchingType = allTypes[0];
+                                        TnetLog.warn('Kein passender FeatureType gefunden, verwende ersten:', matchingType);
+                                    } else {
+                                        // console.log('Passender FeatureType gefunden:', matchingType);
+                                    }
+                                    
+                                    return executeWfsQuery(matchingType);
+                                }
+                                return text; // Gib Original-Fehler zurück
+                            });
+                    }
+                    return text;
+                })
+                .then(function(textOrData) {
+                    // Spezialfall: Kombinierte Daten (von Multi-Kanton-Abfrage)
+                    if (textOrData && textOrData._combined) {
+                        // console.log('Kombinierte Multi-Kanton-Daten erhalten:', textOrData.features.length, 'Features');
+                        return textOrData; // Bereits geparste Daten
+                    }
+                    
+                    var text = textOrData;
+                    
+                    // Prüfe auf WFS Exception oder Fehler
+                    if (text.indexOf('ExceptionReport') > -1 || text.indexOf('Exception') > -1) {
+                        TnetLog.warn('WFS Exception oder Fehler:', text.substring(0, 500));
+                        // WFS nicht verfügbar - leere Ergebnisse zurückgeben
+                        return { features: [], error: 'WFS nicht verfügbar oder Layer nicht gefunden' };
+                    }
+                    
+                    // GML Response parsen
+                    return parseWfsGmlResponse(text, layer.wmsLayers, polygonCoords);
+                })
+                .then(function(data) {
+                    var features = [];
+                    
+                    if (data && data.features) {
+                        // Features aus GML/GeoJSON
+                        data.features.forEach(function(f) {
+                            var geom = f.geometry;
+                            var attrs = f.properties || f.attributes || {};
+                            
+                            // WFS 2.0 mit BBOX filtert bereits serverseitig
+                            // Nur noch prüfen ob Geometrie vorhanden, nicht mehr punktgenau filtern
+                            // (die BBOX-Abfrage ist bereits räumlich korrekt)
+                            features.push({
+                                attributes: attrs,
+                                geometry: geom || null
+                            });
+                        });
+                    }
+                    
+                    // console.log('WFS Features nach BBOX-Filterung:', features.length);
+                    resolve({
+                        layerName: layer.name + ' (WFS)',
+                        baseLayerName: layer.name || '',
+                        layerUrl: layer.url || '',
+                        layerKey: layer.wmsLayers || '',
+                        features: features,
+                        error: null
+                    });
+                })
+                .catch(function(err) {
+                    TnetLog.error('WFS Query Error:', err);
+                    resolve({
+                        layerName: layer.name + ' (WFS)',
+                        baseLayerName: layer.name || '',
+                        layerUrl: layer.url || '',
+                        layerKey: layer.wmsLayers || '',
+                        features: [],
+                        error: err.message
+                    });
+                });
+        });
+    }
+    
+    // Prüfe ob eine Geometrie das Polygon schneidet
+    function isGeometryInPolygon(geom, polygonCoords) {
+        if (!geom) return false;
+        
+        // Punkt in Polygon prüfen
+        function pointInPolygon(x, y, polygon) {
+            var inside = false;
+            for (var i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+                var xi = polygon[i][0], yi = polygon[i][1];
+                var xj = polygon[j][0], yj = polygon[j][1];
+                if (((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi)) {
+                    inside = !inside;
+                }
+            }
+            return inside;
+        }
+        
+        if (geom.type === 'Point') {
+            return pointInPolygon(geom.coordinates[0], geom.coordinates[1], polygonCoords);
+        } else if (geom.type === 'MultiPoint') {
+            return geom.coordinates.some(function(c) {
+                return pointInPolygon(c[0], c[1], polygonCoords);
+            });
+        } else if (geom.type === 'LineString') {
+            return geom.coordinates.some(function(c) {
+                return pointInPolygon(c[0], c[1], polygonCoords);
+            });
+        } else if (geom.type === 'Polygon' || geom.type === 'MultiPolygon') {
+            // Für Polygone: Prüfe ob ein Punkt im Suchpolygon liegt
+            var coords = geom.type === 'Polygon' ? geom.coordinates[0] : geom.coordinates[0][0];
+            return coords.some(function(c) {
+                return pointInPolygon(c[0], c[1], polygonCoords);
+            });
+        }
+        
+        return true; // Im Zweifelsfall akzeptieren
+    }
+    
+    // Parse WFS GML Response (MapServer GML3)
+    function parseWfsGmlResponse(text, layerName, polygonCoords) {
+        var features = [];
+        
+        // console.log('Parsing WFS Response, length:', text.length);
+        // console.log('WFS Response (first 500):', text.substring(0, 500));
+        
+        // Versuche als JSON zu parsen (falls doch JSON)
+        try {
+            var json = JSON.parse(text);
+            return json;
+        } catch (e) {}
+        
+        // Prüfe auf Exception
+        if (text.indexOf('ExceptionReport') > -1 || text.indexOf('Exception') > -1) {
+            TnetLog.error('WFS Exception:', text);
+            return { features: [], error: text };
+        }
+        
+        // Prüfe auf leere FeatureCollection
+        if (text.indexOf('numberReturned="0"') > -1 || 
+            (text.indexOf('FeatureCollection') > -1 && text.indexOf('member>') === -1 && text.indexOf('featureMember>') === -1)) {
+            // console.log('Leere FeatureCollection');
+            return { features: [] };
+        }
+        
+        // GML/XML parsen
+        try {
+            var parser = new DOMParser();
+            var xml = parser.parseFromString(text, 'text/xml');
+            
+            // Debug: Log XML structure
+            // console.log('XML Root:', xml.documentElement ? xml.documentElement.tagName : 'null');
+            
+            // WFS 2.0: wfs:member
+            var members = xml.getElementsByTagNameNS('http://www.opengis.net/wfs/2.0', 'member');
+            
+            // WFS 1.1/1.0: gml:featureMember
+            if (members.length === 0) {
+                members = xml.getElementsByTagNameNS('http://www.opengis.net/gml/3.2', 'featureMember');
+            }
+            if (members.length === 0) {
+                members = xml.getElementsByTagNameNS('http://www.opengis.net/gml', 'featureMember');
+            }
+            
+            // Fallback ohne Namespace
+            if (members.length === 0) {
+                members = xml.querySelectorAll('member, featureMember');
+            }
+            
+            // MapServer-spezifisch: Suche nach Layer-Namen als Element
+            if (members.length === 0 && layerName) {
+                // Versuche mit ms: Namespace
+                var layerElements = xml.getElementsByTagNameNS('http://mapserver.gis.umn.edu/mapserver', layerName);
+                if (layerElements.length === 0) {
+                    layerElements = xml.getElementsByTagName(layerName);
+                }
+                if (layerElements.length === 0) {
+                    layerElements = xml.getElementsByTagName('ms:' + layerName);
+                }
+                if (layerElements.length > 0) {
+                    members = Array.from(layerElements).map(function(el) {
+                        return { firstElementChild: el, children: [el] };
+                    });
+                }
+            }
+            
+            // console.log('Found', members.length, 'feature members');
+            
+            Array.from(members).forEach(function(member) {
+                var feature = { properties: {}, geometry: null };
+                
+                // Extrahiere alle Kind-Elemente als Properties
+                var featureElement = member.firstElementChild || member;
+                if (featureElement) {
+                    Array.from(featureElement.children || featureElement.childNodes).forEach(function(child) {
+                        if (child.nodeType !== 1) return; // Nur Element-Nodes
+                        
+                        var tagName = child.localName || child.tagName;
+                        // Entferne Namespace-Präfix
+                        if (tagName.indexOf(':') > -1) {
+                            tagName = tagName.split(':')[1];
+                        }
+                        
+                        // Geometrie-Elemente speziell behandeln für Highlighting
+                        if (tagName === 'geom_gml' || tagName === 'msGeometry' || 
+                            tagName === 'geometry' || tagName === 'geom' || tagName === 'the_geom' ||
+                            tagName === 'shape' || tagName === 'wkb_geometry') {
+                            // Versuche GML-Geometrie zu parsen
+                            var gmlGeom = parseGmlGeometry(child);
+                            if (gmlGeom) {
+                                feature.geometry = gmlGeom;
+                            }
+                            return;
+                        }
+                        
+                        // Überspringe Geometrie-Container
+                        if (tagName === 'boundedBy' || tagName === 'Envelope') {
+                            return;
+                        }
+                        
+                        // Extrahiere Text-Inhalt
+                        var value = child.textContent || '';
+                        if (value.trim()) {
+                            feature.properties[tagName] = value.trim();
+                        }
+                    });
+                }
+                
+                if (Object.keys(feature.properties).length > 0) {
+                    features.push(feature);
+                }
+            });
+            
+            // console.log('Parsed', features.length, 'features from GML');
+            
+        } catch (e) {
+            TnetLog.warn('GML Parse Error:', e);
+        }
+        
+        return { features: features };
+    }
+    
+    // GML Geometrie zu GeoJSON parsen
+    function parseGmlGeometry(gmlElement) {
+        try {
+            // GML Namespaces (3.2 und 3.1)
+            var gmlNs32 = 'http://www.opengis.net/gml/3.2';
+            var gmlNs31 = 'http://www.opengis.net/gml';
+            
+            // Finde das eigentliche Geometrie-Element (verschiedene Namespaces)
+            var geomTypes = ['Point', 'MultiPoint', 'LineString', 'MultiLineString', 'Polygon', 'MultiPolygon', 'MultiSurface', 'MultiCurve'];
+            var geomEl = null;
+            
+            for (var i = 0; i < geomTypes.length && !geomEl; i++) {
+                geomEl = gmlElement.getElementsByTagNameNS(gmlNs32, geomTypes[i])[0] ||
+                         gmlElement.getElementsByTagNameNS(gmlNs31, geomTypes[i])[0];
+            }
+            
+            // Fallback ohne Namespace
+            if (!geomEl) {
+                geomEl = gmlElement.querySelector('Point, MultiPoint, LineString, MultiLineString, Polygon, MultiPolygon, MultiSurface, MultiCurve');
+            }
+            
+            if (!geomEl) return null;
+            
+            var geomType = (geomEl.localName || geomEl.tagName).replace(/^gml:/, '');
+            
+            if (geomType === 'Point') {
+                var coords = extractGmlCoords(geomEl);
+                if (coords.length >= 1) {
+                    return { type: 'Point', coordinates: coords[0] };
+                }
+            } else if (geomType === 'MultiPoint') {
+                var coords = extractGmlCoords(geomEl);
+                return { type: 'MultiPoint', coordinates: coords };
+            } else if (geomType === 'LineString') {
+                var coords = extractGmlCoords(geomEl);
+                return { type: 'LineString', coordinates: coords };
+            } else if (geomType === 'Polygon') {
+                var coords = extractGmlPolygonCoords(geomEl);
+                if (coords.length > 0) {
+                    return { type: 'Polygon', coordinates: coords };
+                }
+            } else if (geomType === 'MultiPolygon' || geomType === 'MultiSurface') {
+                // MultiSurface wird wie MultiPolygon behandelt
+                var coords = extractGmlMultiPolygonCoords(geomEl);
+                if (coords.length === 1) {
+                    // Nur ein Polygon - vereinfachen
+                    return { type: 'Polygon', coordinates: coords[0] };
+                }
+                return { type: 'MultiPolygon', coordinates: coords };
+            }
+        } catch (e) {
+            TnetLog.warn('GML Geometry Parse Error:', e);
+        }
+        return null;
+    }
+    
+    // GML Koordinaten extrahieren
+    function extractGmlCoords(element) {
+        var coords = [];
+        var gmlNs32 = 'http://www.opengis.net/gml/3.2';
+        var gmlNs31 = 'http://www.opengis.net/gml';
+        
+        // Versuche pos oder posList (GML 3.x)
+        var posList = element.getElementsByTagNameNS(gmlNs32, 'posList')[0] ||
+                      element.getElementsByTagNameNS(gmlNs31, 'posList')[0] ||
+                      element.querySelector('posList');
+        if (posList) {
+            var values = posList.textContent.trim().split(/\s+/);
+            var dim = parseInt(posList.getAttribute('srsDimension')) || 2;
+            for (var i = 0; i < values.length - (dim - 1); i += dim) {
+                coords.push([parseFloat(values[i]), parseFloat(values[i + 1])]);
+            }
+            return coords;
+        }
+        
+        // Versuche pos (einzelner Punkt)
+        var pos = element.getElementsByTagNameNS(gmlNs32, 'pos')[0] ||
+                  element.getElementsByTagNameNS(gmlNs31, 'pos')[0] ||
+                  element.querySelector('pos');
+        if (pos) {
+            var values = pos.textContent.trim().split(/\s+/);
+            coords.push([parseFloat(values[0]), parseFloat(values[1])]);
+            return coords;
+        }
+        
+        // Versuche coordinates (GML 2)
+        var coordinates = element.querySelector('coordinates');
+        if (coordinates) {
+            var pairs = coordinates.textContent.trim().split(/\s+/);
+            pairs.forEach(function(pair) {
+                var xy = pair.split(',');
+                if (xy.length >= 2) {
+                    coords.push([parseFloat(xy[0]), parseFloat(xy[1])]);
+                }
+            });
+        }
+        
+        return coords;
+    }
+    
+    // GML Polygon Koordinaten extrahieren
+    function extractGmlPolygonCoords(element) {
+        var rings = [];
+        var gmlNs32 = 'http://www.opengis.net/gml/3.2';
+        var gmlNs31 = 'http://www.opengis.net/gml';
+        
+        // Exterior Ring
+        var exterior = element.getElementsByTagNameNS(gmlNs32, 'exterior')[0] ||
+                       element.getElementsByTagNameNS(gmlNs31, 'exterior')[0] ||
+                       element.querySelector('exterior, outerBoundaryIs');
+        if (exterior) {
+            var linearRing = exterior.getElementsByTagNameNS(gmlNs32, 'LinearRing')[0] ||
+                             exterior.getElementsByTagNameNS(gmlNs31, 'LinearRing')[0] ||
+                             exterior.querySelector('LinearRing');
+            if (linearRing) {
+                rings.push(extractGmlCoords(linearRing));
+            }
+        }
+        
+        // Interior Rings (Löcher)
+        var interiors = element.getElementsByTagNameNS(gmlNs32, 'interior');
+        if (interiors.length === 0) {
+            interiors = element.getElementsByTagNameNS(gmlNs31, 'interior');
+        }
+        if (interiors.length === 0) {
+            interiors = element.querySelectorAll('interior, innerBoundaryIs');
+        }
+        Array.from(interiors).forEach(function(interior) {
+            var linearRing = interior.getElementsByTagNameNS(gmlNs32, 'LinearRing')[0] ||
+                             interior.getElementsByTagNameNS(gmlNs31, 'LinearRing')[0] ||
+                             interior.querySelector('LinearRing');
+            if (linearRing) {
+                rings.push(extractGmlCoords(linearRing));
+            }
+        });
+        
+        return rings;
+    }
+    
+    // GML MultiPolygon Koordinaten extrahieren
+    function extractGmlMultiPolygonCoords(element) {
+        var polygons = [];
+        var gmlNs32 = 'http://www.opengis.net/gml/3.2';
+        var gmlNs31 = 'http://www.opengis.net/gml';
+        
+        // Suche nach verschiedenen Member-Typen
+        var members = element.getElementsByTagNameNS(gmlNs32, 'surfaceMember');
+        if (members.length === 0) {
+            members = element.getElementsByTagNameNS(gmlNs31, 'surfaceMember');
+        }
+        if (members.length === 0) {
+            members = element.getElementsByTagNameNS(gmlNs32, 'polygonMember');
+        }
+        if (members.length === 0) {
+            members = element.getElementsByTagNameNS(gmlNs31, 'polygonMember');
+        }
+        if (members.length === 0) {
+            members = element.querySelectorAll('polygonMember, surfaceMember');
+        }
+        
+        Array.from(members).forEach(function(member) {
+            var polygon = member.getElementsByTagNameNS(gmlNs32, 'Polygon')[0] ||
+                          member.getElementsByTagNameNS(gmlNs31, 'Polygon')[0] ||
+                          member.querySelector('Polygon');
+            if (polygon) {
+                var polyCoords = extractGmlPolygonCoords(polygon);
+                if (polyCoords.length > 0) {
+                    polygons.push(polyCoords);
+                }
+            }
+        });
+        
+        // Falls keine Members gefunden, versuche direkt Polygone zu finden
+        if (polygons.length === 0) {
+            var directPolygons = element.getElementsByTagNameNS(gmlNs32, 'Polygon');
+            if (directPolygons.length === 0) {
+                directPolygons = element.getElementsByTagNameNS(gmlNs31, 'Polygon');
+            }
+            if (directPolygons.length === 0) {
+                directPolygons = element.querySelectorAll('Polygon');
+            }
+            Array.from(directPolygons).forEach(function(polygon) {
+                var polyCoords = extractGmlPolygonCoords(polygon);
+                if (polyCoords.length > 0) {
+                    polygons.push(polyCoords);
+                }
+            });
+        }
+        
+        return polygons;
+    }
+    
+    // ===== MASSSTABSABHÄNGIGER ABFRAGE-BUFFER =====
+
+    /**
+     * Berechnet einen massstabsabhängigen Buffer für die räumliche Abfrage.
+     * Wichtig für Punkt- und Linienobjekte, da diese ohne Buffer
+     * bei kleinem Polygon oft nicht getroffen werden.
+     *
+     * Der Buffer wird aus der aktuellen Kartenauflösung (m/px) berechnet:
+     *   buffer = resolution * tolerancePixels
+     *
+     * Beispiele (bei tolerancePixels = 10):
+     *   1:1'000  (res ~0.28)  →  ~3m
+     *   1:5'000  (res ~1.4)   →  ~14m
+     *   1:25'000 (res ~7.0)   →  ~70m  (gedeckelt auf maxBuffer)
+     *   1:100'000 (res ~28)   →  ~50m  (gedeckelt auf maxBuffer)
+     *
+     * @returns {number} Buffer in Metern
+     */
+    function getQueryBuffer() {
+        var cfg = spatialQueryConfig || getDefaultSpatialQueryConfig();
+        var tolerancePixels = parseFloat(cfg.tolerancePixels) || 10;
+        var minBuffer = parseFloat(cfg.minBuffer);
+        var maxBuffer = parseFloat(cfg.maxBuffer);
+        if (isNaN(minBuffer) || minBuffer < 0) minBuffer = 1.0;
+        if (isNaN(maxBuffer) || maxBuffer < 1) maxBuffer = 50.0;
+
+        var resolution = 1.0;
+        try {
+            var mapWrapper = njs.AppManager.Maps['main'];
+            if (mapWrapper && mapWrapper.mapObj) {
+                resolution = mapWrapper.mapObj.getView().getResolution() || 1.0;
+            }
+        } catch (e) {
+            // Fallback auf 1.0 m/px
+        }
+
+        var buffer = resolution * tolerancePixels;
+        buffer = Math.max(minBuffer, Math.min(maxBuffer, buffer));
+        buffer = Math.round(buffer * 10) / 10;  // 1 Dezimalstelle
+        return buffer;
+    }
+
+    // Einzelnen ArcGIS Layer abfragen
+    function querySingleLayer(layer, geometryJson) {
+        return new Promise(function(resolve, reject) {
+            // Die layer.url kann verschiedene Formate haben:
+            // 1. Clean-URL:      /maps/tnet/agsproxy/gis_fach/service/MapServer/0
+            // 2. Legacy Proxy:   /maps/agsproxy.php/gis_oereb/service/MapServer/0
+            // 3. Legacy ?path=:  /maps/agsproxy.php?path=gis_oereb/service/MapServer/0
+            // 4. Direkte URL:    https://server/arcgis/rest/services/...
+            
+            // Proxy-URL normalisieren: ?path= → PATH_INFO (verhindert doppeltes ?)
+            var serviceUrl = normalizeProxyUrl(layer.url);
+            console.log('[querySingleLayer]', layer.name, 'serviceUrl:', serviceUrl, 'isProxy:', isProxyUrl(serviceUrl));
+            
+            // Falls es eine Proxy-URL ist (Clean oder Legacy), benutze direkt mit /query
+            // Die .htaccess-Regel leitet tnet/agsproxy/... an agsproxy.php weiter
+            if (isProxyUrl(serviceUrl)) {
+                // URL funktioniert direkt — /query anhängen
+                var queryUrl = serviceUrl + '/query';
+                
+                // Massstabsabhängiger Buffer für Punkt-/Linienobjekte
+                var buffer = getQueryBuffer();
+                
+                var params = new URLSearchParams({
+                    f: 'json',
+                    geometry: geometryJson,
+                    geometryType: 'esriGeometryPolygon',
+                    spatialRel: 'esriSpatialRelIntersects',
+                    distance: buffer,
+                    units: 'esriSRUnit_Meter',
+                    outFields: '*',
+                    returnGeometry: 'true',
+                    inSR: '2056',
+                    outSR: '2056'
+                });
+                
+                // Proxy-URL mit Query-Parametern
+                var fullUrl = queryUrl + '?' + params.toString();
+                
+                // console.log('Query URL für Layer "' + layer.name + '":', fullUrl);
+                
+                fetch(fullUrl)
+                    .then(function(response) { 
+                        // console.log('Response Status:', response.status);
+                        return response.json(); 
+                    })
+                    .then(function(data) {
+                        // console.log('Response Data für "' + layer.name + '":', data);
+                        resolve({
+                            layerName: layer.name,
+                            baseLayerName: layer.name || '',
+                            layerUrl: layer.url || '',
+                            layerKey: layer.layerId || '',
+                            features: data.features || [],
+                            error: data.error ? data.error.message : null
+                        });
+                    })
+                    .catch(function(err) {
+                        TnetLog.error('Fetch Error für "' + layer.name + '":', err);
+                        resolve({
+                            layerName: layer.name,
+                            baseLayerName: layer.name || '',
+                            layerUrl: layer.url || '',
+                            layerKey: layer.layerId || '',
+                            features: [],
+                            error: err.message
+                        });
+                    });
+            } else {
+                // Direkte URL - über Proxy leiten
+                var queryUrl = serviceUrl + '/query';
+                
+                // Massstabsabhängiger Buffer für Punkt-/Linienobjekte
+                var buffer = getQueryBuffer();
+                
+                var params = new URLSearchParams({
+                    f: 'json',
+                    geometry: geometryJson,
+                    geometryType: 'esriGeometryPolygon',
+                    spatialRel: 'esriSpatialRelIntersects',
+                    distance: buffer,
+                    units: 'esriSRUnit_Meter',
+                    outFields: '*',
+                    returnGeometry: 'true',
+                    inSR: '2056',
+                    outSR: '2056'
+                });
+                
+                var proxyUrl = getAppRoot() + '/agsproxy.php?' + encodeURIComponent(queryUrl + '?' + params.toString());
+                
+                // console.log('Proxy Query URL für Layer "' + layer.name + '":', proxyUrl);
+                
+                fetch(proxyUrl)
+                    .then(function(response) { 
+                        // console.log('Response Status:', response.status);
+                        return response.json(); 
+                    })
+                    .then(function(data) {
+                        // console.log('Response Data für "' + layer.name + '":', data);
+                        resolve({
+                            layerName: layer.name,
+                            baseLayerName: layer.name || '',
+                            layerUrl: layer.url || '',
+                            layerKey: layer.layerId || '',
+                            features: data.features || [],
+                            error: data.error ? data.error.message : null
+                        });
+                    })
+                    .catch(function(err) {
+                        TnetLog.error('Fetch Error für "' + layer.name + '":', err);
+                        resolve({
+                            layerName: layer.name,
+                            baseLayerName: layer.name || '',
+                            layerUrl: layer.url || '',
+                            layerKey: layer.layerId || '',
+                            features: [],
+                            error: err.message
+                        });
+                    });
+            }
+        });
+    }
+    
+    // Sichtbare abfragbare Layer ermitteln
+    function getVisibleQueryableLayers() {
+        var layers = [];
+        
+        console.log('=== LAYER DETECTION DEBUG ===');
+        
+        // Versuche Layer aus dem njs Layer-Manager zu holen
+        if (njs && njs.AppManager && njs.AppManager.Maps && njs.AppManager.Maps['main']) {
+            var mapWrapper = njs.AppManager.Maps['main'];
+            var map = mapWrapper.mapObj;
+            
+            console.log('Map gefunden:', !!map);
+            
+            if (map) {
+                var allLayers = map.getLayers().getArray();
+                // console.log('Anzahl Layer in Map:', allLayers.length);
+                
+                allLayers.forEach(function(layer, idx) {
+                    // Prüfe ob es ein gültiger Layer mit getSource ist
+                    if (!layer || typeof layer.getVisible !== 'function' || typeof layer.getSource !== 'function') {
+                        // console.log('Layer ' + idx + ': Kein gültiger Layer (evtl. LayerGroup)');
+                        return;
+                    }
+                    
+                    var visible = layer.getVisible();
+                    var source = layer.getSource();
+                    var name = layer.get('name') || layer.get('title') || 'Layer ' + idx;
+                    var sourceType = source ? source.constructor.name : 'no source';
+                    
+                    console.log('Layer ' + idx + ':', {
+                        name: name,
+                        visible: visible,
+                        sourceType: sourceType,
+                        hasGetUrl: !!(source && source.getUrl),
+                        hasGetUrls: !!(source && source.getUrls),
+                        hasParams: !!(source && source.getParams)
+                    });
+                    
+                    if (visible && source) {
+                        var url = null;
+                        
+                        // Versuche verschiedene Methoden, die URL zu bekommen
+                        if (typeof source.getUrl === 'function') {
+                            url = source.getUrl();
+                        } else if (typeof source.getUrls === 'function') {
+                            var urls = source.getUrls();
+                            if (urls && urls.length > 0) url = urls[0];
+                        }
+                        
+                        // Falls source.url_ direkt verfügbar
+                        if (!url && source.url_) {
+                            url = source.url_;
+                        }
+                        
+                        // Falls TileArcGISRest oder ImageArcGISRest
+                        if (!url && source.urls_ && source.urls_.length > 0) {
+                            url = source.urls_[0];
+                        }
+                        
+                        if (url) {
+                            console.log('  URL:', url);
+                        } else {
+                            console.log('  KEINE URL gefunden!');
+                        }
+                        
+                        // Hole auch die Source-Parameter für zusätzliche Infos
+                        var sourceParams = null;
+                        if (typeof source.getParams === 'function') {
+                            sourceParams = source.getParams();
+                            // console.log('  Source Params:', sourceParams);
+                        }
+                        
+                        // Proxy-URL normalisieren: ?path= → PATH_INFO
+                        // Sonst entsteht beim Anhängen von /0/query?params ein doppeltes ?
+                        if (url) {
+                            url = normalizeProxyUrl(url);
+                        }
+
+                        // Prüfe ob es ein ArcGIS Layer ist (über Proxy oder direkt)
+                        // agsproxy.php oder tnet/agsproxy/ = ArcGIS Server Proxy
+                        var isArcGIS = url && (isProxyUrl(url) || 
+                            (url.indexOf('MapServer') > -1 && url.indexOf('cgi-bin') === -1 && url.indexOf('geo.admin.ch') === -1) || 
+                            url.indexOf('FeatureServer') > -1);
+                        
+                        console.log('  isProxyUrl:', url ? isProxyUrl(url) : 'no url', 'isArcGIS:', isArcGIS);
+                        
+                        // Prüfe ob es ein WMS/MapServer Layer ist (UMN MapServer via cgi-bin)
+                        // WICHTIG: Nur wenn es NICHT bereits als ArcGIS erkannt wurde
+                        // Schweizer Bundeslayer (geo.admin.ch oder ch.* Layer) werden auch als WMS behandelt
+                        var isWMS = false;
+                        if (!isArcGIS) {
+                            if (sourceType === 'TileWMS' || sourceType === 'ImageWMS') {
+                                isWMS = true;
+                            }
+                            if (url && (url.indexOf('mapserv') > -1 || url.indexOf('cgi-bin') > -1 || url.indexOf('geo.admin.ch') > -1)) {
+                                isWMS = true;
+                            }
+                            if (sourceParams && sourceParams.SERVICE === 'WMS') {
+                                isWMS = true;
+                            }
+                            // Bundeslayer erkennen (ch.* Layer-Namen)
+                            if (sourceParams && sourceParams.LAYERS && sourceParams.LAYERS.indexOf('ch.') === 0) {
+                                isWMS = true;
+                                // console.log('  Schweizer Bundeslayer erkannt (ch.* Layer)');
+                            }
+                        }
+                        
+                        // console.log('  Layer-Typ:', isArcGIS ? 'ArcGIS' : (isWMS ? 'WMS/MapServer' : 'Unbekannt'));
+                        
+                        if (isArcGIS) {
+                            console.log('  ArcGIS Layer erkannt');
+                            
+                            // Extrahiere den Service-Pfad
+                            var serviceUrl = url;
+                            var layerId = null;
+                            
+                            // Verschiedene URL-Formate handhaben:
+                            // 1. /maps/tnet/agsproxy/gis_fach/service/MapServer/0 (Clean-URL)
+                            // 2. /maps/agsproxy.php/gis_oereb/service/MapServer (Legacy)
+                            // 3. https://server/arcgis/rest/services/folder/service/MapServer/0
+                            
+                            // Layer-ID am Ende der URL?
+                            var layerMatch = url.match(/\/(\d+)\/?$/);
+                            if (layerMatch) {
+                                layerId = layerMatch[1];
+                                serviceUrl = url.replace(/\/\d+\/?$/, '');
+                            }
+                            
+                            console.log('  sourceParams:', sourceParams);
+                            console.log('  layerMatch:', layerMatch, 'layerId:', layerId);
+                            
+                            // Falls LAYERS Parameter vorhanden und keine Layer-ID in URL
+                            // "show:all" bedeutet: alle Sublayer sichtbar → Fallback auf Layer 0
+                            if (!layerId && sourceParams && sourceParams.LAYERS) {
+                                var layerStr = sourceParams.LAYERS.replace('show:', '');
+                                
+                                // "all" ist kein numerischer Layer-ID → überspringen
+                                if (layerStr !== 'all' && /^\d/.test(layerStr)) {
+                                    var layerIds = layerStr.split(',');
+                                    console.log('  LAYERS param:', sourceParams.LAYERS, '-> layerIds:', layerIds);
+                                    
+                                    // Für jeden Layer-ID einen Eintrag erstellen
+                                    layerIds.forEach(function(lid) {
+                                        lid = lid.trim();
+                                        if (!/^\d+$/.test(lid)) return; // Nur numerische IDs
+                                        var fullUrl = serviceUrl + '/' + lid;
+                                        console.log('  -> Layer hinzugefügt (LAYERS):', fullUrl);
+                                        layers.push({
+                                            name: name + ' (Layer ' + lid + ')',
+                                            olLayerName: name,
+                                            serviceUrl: serviceUrl,
+                                            url: fullUrl,
+                                            layerId: lid,
+                                            type: 'arcgis'
+                                        });
+                                    });
+                                } else {
+                                    // "show:all" → alle Sublayer sichtbar, frage alle ab (Layer 0 als Einstieg)
+                                    console.log('  LAYERS ist "' + sourceParams.LAYERS + '" → Fallback auf Layer 0');
+                                    layers.push({
+                                        name: name,
+                                        olLayerName: name,
+                                        serviceUrl: serviceUrl,
+                                        url: serviceUrl + '/0',
+                                        layerId: '0',
+                                        type: 'arcgis'
+                                    });
+                                }
+                            } else if (layerId) {
+                                // Einzelner Layer mit ID in URL
+                                console.log('  -> Layer hinzugefügt (URL-ID):', serviceUrl + '/' + layerId);
+                                layers.push({
+                                    name: name,
+                                    olLayerName: name,
+                                    serviceUrl: serviceUrl,
+                                    url: serviceUrl + '/' + layerId,
+                                    layerId: layerId,
+                                    type: 'arcgis'
+                                });
+                            } else {
+                                // Fallback: Versuche alle Layer des Service abzufragen (Layer 0)
+                                console.log('  -> Fallback Layer 0:', serviceUrl + '/0');
+                                layers.push({
+                                    name: name,
+                                    olLayerName: name,
+                                    serviceUrl: serviceUrl,
+                                    url: serviceUrl + '/0',
+                                    layerId: '0',
+                                    type: 'arcgis'
+                                });
+                            }
+                        } else if (isWMS) {
+                            // console.log('  WMS Layer erkannt');
+                            
+                            // Extrahiere Basis-URL (ohne Query-Parameter)
+                            var baseUrl = url.split('?')[0];
+                            
+                            // Extrahiere map-Parameter aus der URL (für MapServer)
+                            var mapParam = null;
+                            var urlMapMatch = url.match(/[?&]map=([^&]+)/i);
+                            if (urlMapMatch) {
+                                mapParam = decodeURIComponent(urlMapMatch[1]);
+                                // console.log('  MapServer map Parameter:', mapParam);
+                            }
+                            
+                            // Hole LAYERS aus den Params
+                            var wmsLayers = sourceParams && sourceParams.LAYERS ? sourceParams.LAYERS : '';
+                            
+                            // Filtere mask_layer aus (wird nicht abgefragt)
+                            if (wmsLayers && wmsLayers !== 'mask_layer' && wmsLayers.toLowerCase() !== 'mask_layer') {
+                                // console.log('  -> WMS Layer hinzugefügt:', baseUrl, 'LAYERS:', wmsLayers);
+                                layers.push({
+                                    name: name,
+                                    olLayerName: name,
+                                    url: baseUrl,
+                                    wmsLayers: wmsLayers,
+                                    type: 'wms',
+                                    sourceParams: sourceParams,
+                                    mapParam: mapParam  // MapServer map-Parameter
+                                });
+                            } else if (wmsLayers === 'mask_layer' || wmsLayers.toLowerCase() === 'mask_layer') {
+                                // console.log('  -> mask_layer übersprungen (wird nicht abgefragt)');
+                            }
+                        }
+                    }
+                });
+            }
+        }
+        
+        // console.log('Gefundene abfragbare Layer:', layers);
+        return layers;
+    }
+    
+    // Highlight-Layer für Feature-Hervorhebung
+    var highlightLayer = null;
+    var allQueryFeatures = []; // Speichert alle Features für Klick-Zugriff
+    var allQueryResults = []; // Speichert Result-Metadaten für Export/Filter
+    
+    function getHighlightLayer(map) {
+        if (!highlightLayer) {
+            highlightLayer = new ol.layer.Vector({
+                source: new ol.source.Vector(),
+                style: new ol.style.Style({
+                    fill: new ol.style.Fill({
+                        color: 'rgba(255, 200, 0, 0.4)'
+                    }),
+                    stroke: new ol.style.Stroke({
+                        color: '#ff8c00',
+                        width: 3
+                    }),
+                    image: new ol.style.Circle({
+                        radius: 8,
+                        fill: new ol.style.Fill({ color: '#ff8c00' }),
+                        stroke: new ol.style.Stroke({ color: 'white', width: 2 })
+                    })
+                }),
+                zIndex: 1001
+            });
+            map.addLayer(highlightLayer);
+        }
+        return highlightLayer;
+    }
+    
+    // Feature auf Karte hervorheben
+    window.highlightFeature = function(layerIdx, featureIdx) {
+        // Map direkt holen
+        var map = getMainMap();
+        
+        if (!map) {
+            TnetLog.warn('Map nicht verfügbar');
+            return;
+        }
+        
+        var layer = getHighlightLayer(map);
+        layer.getSource().clear();
+        
+        // Feature aus gespeicherten Daten holen
+        // console.log('highlightFeature:', layerIdx, featureIdx, allQueryFeatures);
+        
+        if (allQueryFeatures[layerIdx] && allQueryFeatures[layerIdx][featureIdx]) {
+            var featureData = allQueryFeatures[layerIdx][featureIdx];
+            var geometry = featureData.geometry;
+            
+            // console.log('Feature data:', featureData);
+            // console.log('Geometry:', geometry);
+            
+            if (geometry) {
+                var olGeom = null;
+                
+                // ArcGIS Geometrie zu OpenLayers konvertieren
+                if (geometry.rings) {
+                    // ArcGIS Polygon
+                    olGeom = new ol.geom.Polygon(geometry.rings);
+                } else if (geometry.paths) {
+                    // ArcGIS Polyline
+                    olGeom = new ol.geom.MultiLineString(geometry.paths);
+                } else if (geometry.x !== undefined && geometry.y !== undefined) {
+                    // ArcGIS Point
+                    olGeom = new ol.geom.Point([geometry.x, geometry.y]);
+                } else if (geometry.points) {
+                    // ArcGIS MultiPoint
+                    olGeom = new ol.geom.MultiPoint(geometry.points);
+                }
+                // GeoJSON Geometrien
+                else if (geometry.type === 'Point' && geometry.coordinates) {
+                    olGeom = new ol.geom.Point(geometry.coordinates);
+                } else if (geometry.type === 'MultiPoint' && geometry.coordinates) {
+                    olGeom = new ol.geom.MultiPoint(geometry.coordinates);
+                } else if (geometry.type === 'LineString' && geometry.coordinates) {
+                    olGeom = new ol.geom.LineString(geometry.coordinates);
+                } else if (geometry.type === 'MultiLineString' && geometry.coordinates) {
+                    olGeom = new ol.geom.MultiLineString(geometry.coordinates);
+                } else if (geometry.type === 'Polygon' && geometry.coordinates) {
+                    olGeom = new ol.geom.Polygon(geometry.coordinates);
+                } else if (geometry.type === 'MultiPolygon' && geometry.coordinates) {
+                    olGeom = new ol.geom.MultiPolygon(geometry.coordinates);
+                }
+                
+                if (olGeom) {
+                    // Koordinatensystem erkennen und nach LV95 transformieren
+                    var coords = olGeom.getFirstCoordinate();
+                    
+                    // WGS84 Erkennung: Schweiz liegt bei Lon ~5-11°, Lat ~45-49°
+                    // Koordinaten können als [lon, lat] ODER [lat, lon] kommen
+                    var isWGS84_lonlat = coords && 
+                        coords[0] > 4 && coords[0] < 12 && 
+                        coords[1] > 44 && coords[1] < 50;
+                    var isWGS84_latlon = coords && 
+                        coords[0] > 44 && coords[0] < 50 && 
+                        coords[1] > 4 && coords[1] < 12;
+                    
+                    if ((isWGS84_lonlat || isWGS84_latlon) && window.proj4) {
+                        var axisOrder = isWGS84_latlon ? '[lat,lon]' : '[lon,lat]';
+                        // proj4 direkt nutzen: erwartet [lon, lat], liefert [E, N] in LV95
+                        olGeom.applyTransform(function(input, output, dim) {
+                            var d = dim || 2;
+                            for (var i = 0; i < input.length; i += d) {
+                                var lon = isWGS84_latlon ? input[i + 1] : input[i];
+                                var lat = isWGS84_latlon ? input[i] : input[i + 1];
+                                var lv95 = proj4('EPSG:4326', 'EPSG:2056', [lon, lat]);
+                                output[i] = lv95[0];
+                                output[i + 1] = lv95[1];
+                                for (var j = 2; j < d; j++) {
+                                    output[i + j] = input[i + j];
+                                }
+                            }
+                            return output;
+                        });
+                    }
+                    
+                    // LV03 → LV95 Konvertierung falls nötig
+                    // LV03: E ~480'000-840'000, N ~75'000-300'000
+                    // LV95: E ~2'480'000-2'840'000, N ~1'075'000-1'300'000
+                    coords = olGeom.getFirstCoordinate();
+                    var isLV03 = coords && 
+                        coords[0] > 400000 && coords[0] < 900000 && 
+                        coords[1] > 50000 && coords[1] < 400000;
+                    if (isLV03) {
+                        // console.log('LV03 Koordinaten erkannt, konvertiere zu LV95:', coords);
+                        olGeom.applyTransform(function(input, output, dim) {
+                            var d = dim || 2;
+                            for (var i = 0; i < input.length; i += d) {
+                                output[i] = input[i] + 2000000;
+                                output[i + 1] = input[i + 1] + 1000000;
+                                // Weitere Dimensionen (z.B. Z) unverändert lassen
+                                for (var j = 2; j < d; j++) {
+                                    output[i + j] = input[i + j];
+                                }
+                            }
+                            return output;
+                        });
+                        // console.log('Konvertiert zu LV95:', olGeom.getFirstCoordinate());
+                    }
+                    
+                    var feature = new ol.Feature({ geometry: olGeom });
+                    layer.getSource().addFeature(feature);
+                    
+                    // Zur Geometrie zoomen
+                    var extent = olGeom.getExtent();
+                    
+                    // Bei Punkten oder sehr kleinen Extents: Mindestgrösse setzen
+                    var minSize = 100; // Mindestens 100m in jede Richtung
+                    var width = extent[2] - extent[0];
+                    var height = extent[3] - extent[1];
+                    if (width < minSize || height < minSize) {
+                        var centerX = (extent[0] + extent[2]) / 2;
+                        var centerY = (extent[1] + extent[3]) / 2;
+                        extent = [
+                            centerX - minSize,
+                            centerY - minSize,
+                            centerX + minSize,
+                            centerY + minSize
+                        ];
+                    }
+                    
+                    map.getView().fit(extent, {
+                        padding: [50, 50, 50, 50],
+                        duration: 500
+                    });
+                }
+            }
+        }
+    };
+    
+    // Highlight entfernen
+    window.clearHighlight = function() {
+        if (highlightLayer) {
+            highlightLayer.getSource().clear();
+        }
+    };
+    
+    function escapeHtml(value) {
+        if (value === null || value === undefined) return '';
+        return String(value)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    function normalizeForMatch(value) {
+        if (value === null || value === undefined) return '';
+        return String(value).toLowerCase().trim();
+    }
+
+    function matchesGlob(value, pattern) {
+        var normalizedValue = normalizeForMatch(value);
+        var normalizedPattern = normalizeForMatch(pattern);
+        if (!normalizedPattern) return false;
+        var escaped = normalizedPattern.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*');
+        var regex = new RegExp('^' + escaped + '$', 'i');
+        return regex.test(normalizedValue);
+    }
+
+    function matchesLayerTarget(target, resultMeta) {
+        var pattern = normalizeForMatch(target);
+        if (!pattern) return false;
+
+        var candidates = [
+            resultMeta && resultMeta.layerName,
+            resultMeta && resultMeta.baseLayerName,
+            resultMeta && resultMeta.layerUrl,
+            resultMeta && resultMeta.layerKey
+        ];
+
+        var hasGlob = pattern.indexOf('*') > -1;
+        return candidates.some(function(candidate) {
+            var normalizedCandidate = normalizeForMatch(candidate);
+            if (!normalizedCandidate) return false;
+            if (hasGlob) {
+                return matchesGlob(normalizedCandidate, pattern);
+            }
+            return normalizedCandidate.indexOf(pattern) > -1;
+        });
+    }
+
+    function getLayerBlacklistPatterns(resultMeta) {
+        var cfg = spatialQueryConfig || getDefaultSpatialQueryConfig();
+        var layerBlacklist = cfg.layerBlacklist || {};
+        var patterns = [];
+
+        function pushPatterns(attributes) {
+            if (!attributes) return;
+            if (Array.isArray(attributes)) {
+                attributes.forEach(function(attr) {
+                    if (attr !== null && attr !== undefined) {
+                        patterns.push(String(attr));
+                    }
+                });
+            } else if (typeof attributes === 'string') {
+                patterns.push(attributes);
+            }
+        }
+
+        if (Array.isArray(layerBlacklist)) {
+            layerBlacklist.forEach(function(entry) {
+                if (!entry || typeof entry !== 'object') return;
+                if (matchesLayerTarget(entry.target, resultMeta)) {
+                    pushPatterns(entry.attributes);
+                }
+            });
+        } else if (layerBlacklist && typeof layerBlacklist === 'object') {
+            Object.keys(layerBlacklist).forEach(function(target) {
+                var value = layerBlacklist[target];
+                if (matchesLayerTarget(target, resultMeta)) {
+                    if (value && typeof value === 'object' && !Array.isArray(value) && value.attributes) {
+                        pushPatterns(value.attributes);
+                    } else {
+                        pushPatterns(value);
+                    }
+                }
+            });
+        }
+
+        return patterns;
+    }
+
+    function isBlacklistedAttribute(attributeName, resultMeta) {
+        var attrName = normalizeForMatch(attributeName);
+        if (!attrName) return true;
+
+        var cfg = spatialQueryConfig || getDefaultSpatialQueryConfig();
+        var globalPatterns = Array.isArray(cfg.globalBlacklist) ? cfg.globalBlacklist : [];
+        var layerPatterns = getLayerBlacklistPatterns(resultMeta);
+        var allPatterns = globalPatterns.concat(layerPatterns);
+
+        return allPatterns.some(function(pattern) {
+            var normalizedPattern = normalizeForMatch(pattern);
+            if (!normalizedPattern) return false;
+            if (normalizedPattern.indexOf('*') > -1) {
+                return matchesGlob(attrName, normalizedPattern);
+            }
+            return attrName === normalizedPattern;
+        });
+    }
+
+    function filterFeatureAttributes(attrs, resultMeta) {
+        var source = attrs || {};
+        var filtered = {};
+        Object.keys(source).forEach(function(key) {
+            if (!isBlacklistedAttribute(key, resultMeta)) {
+                filtered[key] = source[key];
+            }
+        });
+        return filtered;
+    }
+
+    function collectColumnKeys(features, resultMeta) {
+        var keys = [];
+        var seen = {};
+        (features || []).forEach(function(feature) {
+            var attrs = feature && feature.attributes ? feature.attributes : {};
+            var filtered = filterFeatureAttributes(attrs, resultMeta);
+            Object.keys(filtered).forEach(function(key) {
+                if (!seen[key]) {
+                    seen[key] = true;
+                    keys.push(key);
+                }
+            });
+        });
+        return keys;
+    }
+
+    // Ergebnisse anzeigen
+    function displayResults(results, layers) {
+        var statusEl = document.getElementById('spatial-query-status');
+        var resultsEl = document.getElementById('spatial-query-results');
+
+        // Filtere mask_layer aus den Ergebnissen aus
+        results = results.filter(function(result) {
+            return result.layerName !== 'mask_layer (WFS)' && 
+                   result.layerName.toLowerCase().indexOf('mask_layer') === -1;
+        });
+
+        allQueryResults = results;
+        allQueryFeatures = results.map(function(r) { return r.features || []; });
+
+        var cfg = spatialQueryConfig || getDefaultSpatialQueryConfig();
+        var maxVisibleColumns = parseInt(cfg.maxVisibleColumns, 10);
+        if (isNaN(maxVisibleColumns) || maxVisibleColumns < 1) {
+            maxVisibleColumns = getDefaultSpatialQueryConfig().maxVisibleColumns;
+        }
+        
+        // Layer in Kategorien einteilen
+        var layersWithResults = [];
+        var layersWithoutResults = [];
+        var layersNotQueryable = [];
+        
+        results.forEach(function(result, layerIdx) {
+            var count = result.features ? result.features.length : 0;
+            
+            if (result.error && (result.error.indexOf('WFS nicht verfügbar') > -1 || result.error.indexOf('nicht unterstützt') > -1)) {
+                layersNotQueryable.push({ result: result, layerIdx: layerIdx });
+            } else if (count === 0 && !result.error) {
+                layersWithoutResults.push({ result: result, layerIdx: layerIdx });
+            } else if (count > 0) {
+                layersWithResults.push({ result: result, layerIdx: layerIdx });
+            } else {
+                // Fehler - zu layersNotQueryable
+                layersNotQueryable.push({ result: result, layerIdx: layerIdx });
+            }
+        });
+        
+        var totalFeatures = layersWithResults.reduce(function(sum, item) {
+            return sum + (item.result.features ? item.result.features.length : 0);
+        }, 0);
+        
+        var html = '';
+        
+        // 1. Layer mit Resultaten
+        layersWithResults.forEach(function(item) {
+            var result = item.result;
+            var layerIdx = item.layerIdx;
+            var count = result.features.length;
+            
+            html += '<div class="query-result-layer">';
+            html += '<div class="query-result-header" onclick="toggleQueryResult(this)">';
+            html += '<span class="query-result-icon">▶</span>';
+            html += '<span class="query-result-name">' + escapeHtml(result.layerName) + '</span>';
+            html += '<span class="query-result-count">' + count + '</span>';
+            html += '</div>';
+            html += '<div class="query-result-content hidden">';
+            var tableId = 'sq-table-' + layerIdx;
+            html += '<div class="query-result-table-wrap">';
+            html += '<table class="query-result-table" id="' + tableId + '">';
+
+            var keys = collectColumnKeys(result.features, result);
+            var hiddenColumns = Math.max(0, keys.length - maxVisibleColumns);
+            html += '<thead><tr>';
+            html += '<th></th>'; // Spalte für Zoom-Button
+            keys.forEach(function(key, keyIdx) {
+                var hiddenClass = keyIdx >= maxVisibleColumns ? ' sq-col-hidden' : '';
+                html += '<th class="' + hiddenClass.replace(/^\s+/, '') + '">' + escapeHtml(key) + '</th>';
+            });
+            html += '</tr></thead>';
+            
+            // Daten (max 50 Zeilen)
+            html += '<tbody>';
+            result.features.slice(0, 50).forEach(function(feature, featureIdx) {
+                var hasGeom = feature.geometry ? 'true' : 'false';
+                var filteredAttrs = filterFeatureAttributes(feature.attributes, result);
+                html += '<tr class="query-result-row" data-layer="' + layerIdx + '" data-feature="' + featureIdx + '" onclick="highlightFeature(' + layerIdx + ',' + featureIdx + ')">';
+                html += '<td class="zoom-cell"><span class="zoom-icon" title="In Karte zeigen">' + TnetIcons.get('crosshair', null, {width: '16', height: '16'}) + '</span></td>';
+                keys.forEach(function(key, keyIdx) {
+                    var val = filteredAttrs[key];
+                    if (val === null || val === undefined) val = '-';
+                    var hiddenClass = keyIdx >= maxVisibleColumns ? ' sq-col-hidden' : '';
+                    html += '<td class="' + hiddenClass.replace(/^\s+/, '') + '">' + escapeHtml(val) + '</td>';
+                });
+                html += '</tr>';
+            });
+            html += '</tbody></table>';
+            html += '</div>';
+
+            if (hiddenColumns > 0) {
+                html += '<div class="sq-more-wrap">';
+                html += '<button class="sq-show-more-btn" data-table-id="' + tableId + '" onclick="window.showAllQueryColumns(this)">Mehr anzeigen (' + hiddenColumns + ')</button>';
+                html += '</div>';
+            }
+            
+            if (count > 50) {
+                html += '<p class="more-results">... und ' + (count - 50) + ' weitere</p>';
+            }
+            html += '</div>';
+            html += '</div>';
+        });
+        
+        // 2. Accordion für Layer ohne Treffer
+        if (layersWithoutResults.length > 0) {
+            html += '<div class="query-result-layer query-result-empty">';
+            html += '<div class="query-result-header" onclick="toggleQueryResult(this)">';
+            html += '<span class="query-result-icon">▶</span>';
+            html += '<span class="query-result-name">Keine Objekte gefunden</span>';
+            html += '<span class="query-result-count">' + layersWithoutResults.length + '</span>';
+            html += '</div>';
+            html += '<div class="query-result-content hidden">';
+            html += '<ul class="empty-layers-list">';
+            layersWithoutResults.forEach(function(item) {
+                html += '<li>' + escapeHtml(item.result.layerName) + '</li>';
+            });
+            html += '</ul>';
+            html += '</div>';
+            html += '</div>';
+        }
+        
+        // 3. Accordion für nicht abfragbare Layer
+        if (layersNotQueryable.length > 0) {
+            html += '<div class="query-result-layer query-result-not-queryable">';
+            html += '<div class="query-result-header" onclick="toggleQueryResult(this)">';
+            html += '<span class="query-result-icon">▶</span>';
+            html += '<span class="query-result-name">Räumliche Abfrage nicht unterstützt</span>';
+            html += '<span class="query-result-count">' + layersNotQueryable.length + '</span>';
+            html += '</div>';
+            html += '<div class="query-result-content hidden">';
+            html += '<ul class="not-queryable-layers-list">';
+            layersNotQueryable.forEach(function(item) {
+                var errorMsg = item.result.error || 'Unbekannter Fehler';
+                html += '<li>' + escapeHtml(item.result.layerName) + ' <span class="error-hint">(' + escapeHtml(errorMsg) + ')</span></li>';
+            });
+            html += '</ul>';
+            html += '</div>';
+            html += '</div>';
+        }
+        
+        statusEl.textContent = totalFeatures + ' Objekte in ' + layersWithResults.length + ' Layer(n) gefunden';
+        resultsEl.innerHTML = html;
+    }
+    
+    // Ergebnis auf-/zuklappen
+    window.toggleQueryResult = function(header) {
+        var content = header.nextElementSibling;
+        var icon = header.querySelector('.query-result-icon');
+        
+        if (content.classList.contains('hidden')) {
+            content.classList.remove('hidden');
+            icon.textContent = '▼';
+        } else {
+            content.classList.add('hidden');
+            icon.textContent = '▶';
+        }
+    };
+
+    window.showAllQueryColumns = function(buttonEl) {
+        if (!buttonEl) return;
+        var tableId = buttonEl.getAttribute('data-table-id');
+        if (!tableId) return;
+
+        var table = document.getElementById(tableId);
+        if (!table) return;
+
+        table.querySelectorAll('.sq-col-hidden').forEach(function(cell) {
+            cell.classList.remove('sq-col-hidden');
+        });
+        buttonEl.style.display = 'none';
+    };
+    
+    // Excel Export
+    window.exportQueryToExcel = function() {
+        if (!allQueryResults || allQueryResults.length === 0) {
+            alert('Keine Daten zum Exportieren vorhanden.');
+            return;
+        }
+        
+        var csvContent = '';
+        var hasData = false;
+        
+        allQueryResults.forEach(function(result, layerIdx) {
+            var features = result && result.features ? result.features : [];
+            if (features && features.length > 0) {
+                hasData = true;
+                
+                // Layer-Name als Überschrift
+                var layerName = (result && result.layerName) ? result.layerName : ('Layer ' + layerIdx);
+                csvContent += '\n"' + String(layerName).replace(/"/g, '""') + '"\n';
+                
+                // Header
+                var keys = collectColumnKeys(features, result);
+                if (keys.length === 0) {
+                    return;
+                }
+                csvContent += keys.map(function(k) { return '"' + k + '"'; }).join(';') + '\n';
+                
+                // Daten
+                features.forEach(function(feature) {
+                    var filteredAttrs = filterFeatureAttributes(feature.attributes, result);
+                    var row = keys.map(function(key) {
+                        var val = filteredAttrs[key];
+                        if (val === null || val === undefined) val = '';
+                        // Escape quotes
+                        val = String(val).replace(/"/g, '""');
+                        return '"' + val + '"';
+                    });
+                    csvContent += row.join(';') + '\n';
+                });
+            }
+        });
+        
+        if (!hasData) {
+            alert('Keine Daten zum Exportieren vorhanden.');
+            return;
+        }
+        
+        // BOM für UTF-8 hinzufügen
+        var BOM = '\uFEFF';
+        var blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
+        var url = URL.createObjectURL(blob);
+        var link = document.createElement('a');
+        link.href = url;
+        link.download = 'raeumliche_abfrage_' + new Date().toISOString().slice(0,10) + '.csv';
+        link.click();
+        URL.revokeObjectURL(url);
+    };
+    
+    // Panel andocken (unten)
+    window.isPanelDocked = false;  // Globale Variable für Drag/Resize Checks
+    window.toggleDockPanel = function() {
+        var panel = document.getElementById('spatial-query-panel');
+        var dockBtn = document.getElementById('dock-btn');
+        var freepane = document.getElementById('freepane');
+        if (!panel) return;
+        
+        if (window.isPanelDocked) {
+            // Undock - zurück zu floating
+            panel.classList.remove('docked-bottom');
+            panel.style.left = '';
+            panel.style.top = '';
+            panel.style.height = '';
+            if (dockBtn) {
+                dockBtn.innerHTML = TnetIcons.get('dock-bottom', null, {width: '16', height: '16'});
+                dockBtn.title = 'Unten andocken';
+            }
+            window.isPanelDocked = false;
+            // Freepane wieder auf volle Höhe
+            if (freepane) {
+                freepane.classList.remove('panel-docked');
+                freepane.style.removeProperty('height');
+                freepane.style.removeProperty('max-height');
+                freepane.style.removeProperty('bottom');
+            }
+        } else {
+            // Dock - unten andocken
+            panel.classList.add('docked-bottom');
+            panel.style.left = '';
+            panel.style.top = '';
+            if (dockBtn) {
+                dockBtn.innerHTML = TnetIcons.get('undock', null, {width: '16', height: '16'});
+                dockBtn.title = 'Floating';
+            }
+            window.isPanelDocked = true;
+            // Freepane kürzen bis Panel-Oberkante
+            if (freepane) {
+                freepane.classList.add('panel-docked');
+                // Mehrere Zeitpunkte für robustes Layout-Reflow
+                updateFreepaneHeight();
+                setTimeout(function() { updateFreepaneHeight(); }, 100);
+                setTimeout(function() { updateFreepaneHeight(); }, 300);
+            }
+        }
+    };
+    
+    // Freepane-Höhe anpassen wenn Panel angedockt
+    window.updateFreepaneHeight = function() {
+        var panel = document.getElementById('spatial-query-panel');
+        var freepane = document.getElementById('freepane');
+        if (panel && freepane && window.isPanelDocked) {
+            var panelHeight = panel.offsetHeight || 280; // Fallback: CSS-Default
+            var availableHeight = window.innerHeight - 69 - panelHeight - 32; // 69=Header, 32=Footer
+            var h = Math.max(200, availableHeight);
+            // bottom MUSS auf auto gesetzt werden — CSS hat bottom:0 !important,
+            // daher reicht die CSS-Klasse allein nicht (inline !important > CSS !important)
+            freepane.style.setProperty('bottom', 'auto', 'important');
+            freepane.style.setProperty('height', h + 'px', 'important');
+            freepane.style.setProperty('max-height', h + 'px', 'important');
+            // Accordion-Panels an neue Platzverhältnisse anpassen
+            if (window.TnetAccordionResize && TnetAccordionResize.scheduleRefresh) {
+                TnetAccordionResize.scheduleRefresh('panel-docked');
+            }
+        }
+    };
+    
+    // ResizeObserver: Freepane automatisch anpassen wenn Panel-Höhe sich ändert
+    (function() {
+        var sqPanel = document.getElementById('spatial-query-panel');
+        if (sqPanel && window.ResizeObserver) {
+            new ResizeObserver(function() {
+                if (window.isPanelDocked) updateFreepaneHeight();
+            }).observe(sqPanel);
+        }
+    })();

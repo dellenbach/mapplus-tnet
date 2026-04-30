@@ -1,1 +1,1600 @@
-(function(){function x(){return window.__TNET_APP_ROOT||"/maps"}function ne(r){if(!r)return r;r=String(r);var e=x();if(r.indexOf("http")===0||r.indexOf("//")===0)return r;if(/^\/maps(?:-dev)?\/tnet\//i.test(r)||/^\/maps(?:-dev)?\/agsproxy\.php/i.test(r))return e+r.replace(/^\/maps(?:-dev)?/i,"");if(r.indexOf("/tnet/")===0||r.indexOf("/agsproxy.php")===0)return e+r;if(r.indexOf("tnet/")===0||r.indexOf("agsproxy.php")===0)return e+"/"+r;return r.indexOf("/")===0?r:e+"/"+r}var a="[CoalesceBridge]",M=!1,c={},w={},E=!1,m=null,A=0,C="";try{var W=new URL(window.location.href);C=W.searchParams.get("layers")||"",C&&TnetLog.log(a,"Urspr\xFCngliche URL-Layers gesichert:",C)}catch{}function k(r){if(!r||typeof r!="string")return null;var e=r.lastIndexOf("/");return e<=0?null:r.substring(0,e)}function te(r){try{var e=window.njs&&window.njs.AppManager;if(!e)return!1;if(e.Layers&&e.Layers[r]||e.Maps&&e.Maps.main&&e.Maps.main.layers&&e.Maps.main.layers[r])return!0;if(e.LyrMgr){for(var t in e.LyrMgr)if(e.LyrMgr.hasOwnProperty(t)){var n=e.LyrMgr[t];if(n&&n.layers&&n.layers[r])return!0}}}catch{}return!1}function B(r){try{var e=window.njs&&window.njs.AppManager;if(!e)return null;var t=[];e.Layers&&e.Layers[r]&&t.push(e.Layers[r]),e.Maps&&e.Maps.main&&e.Maps.main.layers&&e.Maps.main.layers[r]&&t.push(e.Maps.main.layers[r]);for(var n=0;n<t.length;n++){var i=t[n];if(i.params&&i.params.LAYERS)return i.params.LAYERS;if(i.LAYERS)return i.LAYERS}}catch{}return null}function O(r){try{var e=window.njs&&window.njs.AppManager;if(!e||!e.Maps||!e.Maps.main||!e.Maps.main.mapObj)return null;for(var t=e.Maps.main.mapObj,n=t.getLayers().getArray(),i=r.toLowerCase(),o=0;o<n.length;o++){var u=n[o].get("name")||"";if(u===r)return n[o]}for(var s=0;s<n.length;s++){var l=(n[s].get("name")||"").toLowerCase();if(l===i)return n[s]}for(var f=0;f<n.length;f++){var p=n[f].getSource&&n[f].getSource();if(p&&typeof p.getUrl=="function"){var g=(p.getUrl()||"").toLowerCase();if(g.indexOf(i+"/mapserver")!==-1||g.indexOf("path="+i+"/")!==-1)return n[f]}}}catch(v){TnetLog.warn(a,"_findFrameworkOLLayer Fehler:",v.message)}return null}function q(r){var e=[];for(var t in r)r.hasOwnProperty(t)&&e.push(r[t]);return e.sort(function(n,i){return n-i}),e.length===0?"show:-1":"show:"+e.join(",")}function G(r,e,t){var n=window.TnetLMStore,i=null,o=1;if(n&&typeof n.getCoalesceInfo=="function"){var u=n.getCoalesceInfo(t);u&&u.serviceUrl&&(i=u.serviceUrl)}if(!i)return TnetLog.warn(a,"_createRootOLLayer: Kein serviceUrl fuer",r),null;i=ne(i);var s=window.njs&&window.njs.AppManager||null;if(!s||!s.Maps||!s.Maps.main||!s.Maps.main.mapObj)return TnetLog.warn(a,"_createRootOLLayer: Map nicht bereit fuer",r),null;var l=s.Maps.main.mapObj;if(n&&typeof n.findLayer=="function"){var f=n.findLayer(t);f&&f.options&&f.options.opacity!==void 0?o=f.options.opacity:f&&f.opacity!==void 0&&(o=f.opacity)}var p=q(e.visibleSublayers),g={LAYERS:p,FORMAT:"PNG32",TRANSPARENT:!0,DPI:96},v=new ol.source.ImageArcGISRest({url:i,params:g,ratio:1}),L=new ol.layer.Image({source:v,opacity:o,visible:!0,zIndex:200});L.set("name",r),L.set("tnet_bridge_created",!0);try{l.addLayer(L)}catch(_){TnetLog.warn(a,"_createRootOLLayer: Fehler in Framework-Callback bei addLayer (ignoriert):",_.message)}return TnetLog.log(a,"Bridge OL-Layer erstellt:",r,"| URL:",i,"| LAYERS:",p,"| Opacity:",o),L}function P(r,e){try{var t=window.njs&&window.njs.AppManager;if(!t||!t.MapTips||!t.wmsActiveLyrs){TnetLog.debug(a,"_forceActivateMaptip: Framework nicht bereit, Retry in 1s f\xFCr:",r),setTimeout(function(){P(r,e)},1e3);return}var n=k(r),i=0,o=[];for(var u in t.MapTips)if(t.MapTips.hasOwnProperty(u)&&!(u==="_wms_connector"||u==="_disablewmsgetfeatureinfo")){var s=t.MapTips[u];s&&s.linked_layer_id===r&&(s.wms_layer=e,s.active||(t.wmsActiveLyrs.push(s),s.active=!0,i++),s.query_layers&&o.push(s.query_layers))}if(n&&o.length>0){var l=0;for(var f in t.MapTips)if(t.MapTips.hasOwnProperty(f)&&!(f==="_wms_connector"||f==="_disablewmsgetfeatureinfo")){var p=t.MapTips[f];!p||!p.active||p.linked_layer_id===n&&p.query_layers&&o.indexOf(p.query_layers)!==-1&&(t.wmsActiveLyrs.remove(p),p.active=!1,l++,TnetLog.debug(a,"Root-MapTip deaktiviert (Dedup):",f,"query_layers:",p.query_layers,"\u2192 Sublayer hat Vorrang:",r))}l>0&&TnetLog.log(a,"Root-MapTip Dedup:",l,"entfernt f\xFCr",r)}i>0?TnetLog.log(a,"MapTip force-aktiviert:",r,"("+i+" MapTips)"):TnetLog.debug(a,"Kein MapTip gefunden f\xFCr Sublayer:",r)}catch(g){TnetLog.warn(a,"_forceActivateMaptip Fehler:",g.message)}}function z(r){try{var e=window.njs&&window.njs.AppManager;if(!e||!e.MapTips||!e.wmsActiveLyrs)return;var t=0;for(var n in e.MapTips)if(e.MapTips.hasOwnProperty(n)&&!(n==="_wms_connector"||n==="_disablewmsgetfeatureinfo")){var i=e.MapTips[n];i&&i.linked_layer_id===r&&(i.active&&(e.wmsActiveLyrs.remove(i),i.active=!1,t++),i.wms_layer=null)}t>0&&TnetLog.debug(a,"MapTip deaktiviert:",r,"("+t+" MapTips)")}catch(o){TnetLog.debug(a,"_forceDeactivateMaptip Fehler:",o.message)}}function U(r,e){try{var t=window.njs&&window.njs.AppManager;if(!t||!t.MapTips||!t.MapTips._wms_connector){TnetLog.debug(a,"_registerLookupCallbacks: _wms_connector nicht verf\xFCgbar, Retry in 1s"),setTimeout(function(){U(r,e)},1e3);return}var n=[];for(var i in t.MapTips)if(t.MapTips.hasOwnProperty(i)&&i!=="_wms_connector"){var o=t.MapTips[i];o&&o.linked_layer_id===r&&n.push({id:i,mt:o})}if(n.length===0){TnetLog.debug(a,"Kein MapTip f\xFCr Sublayer:",r);return}var u=c[e];if(!u||!u.olLayer){TnetLog.debug(a,"_registerLookupCallbacks: OL-Layer noch nicht bereit f\xFCr",e);return}var s=u.olLayer.getSource(),l="";if(s&&typeof s.getUrl=="function"&&(l=s.getUrl()||""),!l){TnetLog.warn(a,"_registerLookupCallbacks: Keine Source-URL f\xFCr",e);return}for(var f=t.MapTips._wms_connector,p=0,g=0;g<n.length;g++)for(var v=n[g],L=v.mt.query_layers?v.mt.query_layers.split(","):[],_=v.mt.query_layers_alias?v.mt.query_layers_alias.split(","):[],T=0;T<L.length;T++){var S=[],R=_[T]||"";if(R)for(var b=R.split("|"),h=0;h<b.length;h++)S.push(b[h].toLowerCase().replace(/[^\w]/gi,"_"));else S.push(L[T].toLowerCase().replace(/[^\w]/gi,"_"));for(var d=0;d<S.length;d++){var y=l+"~"+S[d];for(var F in f)if(f.hasOwnProperty(F)&&F!=="_wms_connector"){var j=f[F];if(!(!j||!j.lookupCallbacks)){j.lookupCallbacks[y]||(j.lookupCallbacks[y]=[]);for(var J=!1,D=0;D<j.lookupCallbacks[y].length;D++)if(j.lookupCallbacks[y][D]===v.mt){J=!0;break}J||(j.lookupCallbacks[y].push(v.mt),p++,TnetLog.debug(a,"lookupCallback registriert:",y,"\u2192",v.id))}}}}p>0&&TnetLog.log(a,"lookupCallbacks f\xFCr",r,":",p,"Eintr\xE4ge")}catch(re){TnetLog.warn(a,"_registerLookupCallbacks Fehler:",re.message)}}function V(r,e){try{var t=window.njs&&window.njs.AppManager;if(!t||!t.MapTips||!t.MapTips._wms_connector)return;var n=[];for(var i in t.MapTips)if(t.MapTips.hasOwnProperty(i)&&i!=="_wms_connector"){var o=t.MapTips[i];o&&o.linked_layer_id===r&&n.push(o)}if(n.length===0)return;var u=t.MapTips._wms_connector;for(var s in u)if(u.hasOwnProperty(s)&&s!=="_wms_connector"){var l=u[s];if(!(!l||!l.lookupCallbacks)){for(var f in l.lookupCallbacks)if(l.lookupCallbacks.hasOwnProperty(f)){for(var p=l.lookupCallbacks[f],g=0;g<n.length;g++){var v=p.indexOf(n[g]);v!==-1&&(p.splice(v,1),TnetLog.debug(a,"lookupCallback entfernt:",f,"\u2192 Sublayer:",r))}p.length===0&&delete l.lookupCallbacks[f]}}}}catch(L){TnetLog.debug(a,"_unregisterLookupCallbacks Fehler:",L.message)}}function $(){if(!E)try{var r=window.njs&&window.njs.AppManager;if(!r||!r.Maps||!r.Maps.main){TnetLog.debug(a,"MapTip-Patch: Framework nicht bereit, Retry in 2s"),setTimeout($,2e3);return}var e=0;for(var t in c)if(c.hasOwnProperty(t)){var n=c[t];if(n.olLayer||(n.olLayer=O(t)),n.olLayer)for(var i in n.registeredSublayers)n.registeredSublayers.hasOwnProperty(i)&&(U(i,t),P(i,n.olLayer),e++)}X(),Q(),E=!0,TnetLog.log(a,"MapTip-Patch installiert,",e,"Sublayer-Callbacks, queryconnector + URL-Sync gepatcht")}catch(o){TnetLog.warn(a,"MapTip-Patch Fehler:",o.message)}}function X(){try{var r=njs.MapTip.wmsServiceMapTip.prototype;if(r._tnet_origQueryconnector)return;var e=r.queryconnector;r._tnet_origQueryconnector=e,r.queryconnector=function(t){var n=this.linked_layer_id;if(n){var i=null;if(c[n])i=n;else if(w[n])i=w[n];else{var o=k(n);o&&c[o]&&(i=o)}if(i){var u=c[i];if(u&&!u.maptipOnly){var s=N(i),l=parseInt(this.query_layers,10);if(!isNaN(l)&&s.length>0&&s.indexOf(l)===-1){TnetLog.debug(a,"queryconnector Skip (nicht sichtbar):",n,"query_layers:",this.query_layers,"rootKey:",i,"visible:",s.join(","));return}}}}return e.call(this,t)},TnetLog.log(a,"queryconnector-Patch installiert (Sublayer-Sichtbarkeitsfilter)")}catch(t){TnetLog.warn(a,"_patchQueryconnector Fehler:",t.message)}}function Q(){try{var r=njs.AppManager;if(!r||!r.updateMapStatusUrl){TnetLog.debug(a,"updateMapStatusUrl nicht verf\xFCgbar, URL-Patch nicht installiert");return}if(r._tnet_origUpdateMapStatusUrl)return;var e=r.updateMapStatusUrl;r._tnet_origUpdateMapStatusUrl=e,r.updateMapStatusUrl=function(t){e.call(this,t),Z()},TnetLog.log(a,"updateMapStatusUrl-Patch installiert (Root-Key \u2192 Sublayer-Key URL-Fix)")}catch(t){TnetLog.warn(a,"_patchUpdateMapStatusUrl Fehler:",t.message)}}function Z(){try{var r={};for(var e in c)if(c.hasOwnProperty(e)){var t=c[e];if(!t.maptipOnly)for(var n in t.visibleSublayers)t.visibleSublayers.hasOwnProperty(n)&&(r[n]=!0)}var i={};if(window.TnetLMStore&&typeof window.TnetLMStore.getCoalesceIndex=="function"){var o=window.TnetLMStore.getCoalesceIndex();for(var u in o)if(o.hasOwnProperty(u)){i[u]=!0;var s=o[u].childIds;if(s)for(var l=0;l<s.length;l++)i[s[l]]=!0}}for(var f in c)c.hasOwnProperty(f)&&(i[f]=!0);var p=new URL(window.location.href),g=p.searchParams.get("layers")||"",v=Object.keys(r);if(!g&&v.length===0)return;for(var L=g?g.split("|"):[],_=!1,T=[],S=0;S<L.length;S++){var R=L[S];if(i[R]){_=!0;continue}T.push(R)}for(var b=0;b<v.length;b++)T.indexOf(v[b])===-1&&(T.push(v[b]),_=!0);if(_){var h=T.join("|"),d=window.location.href,y=/([?&])layers=[^&]*/;h?y.test(d)?d=d.replace(y,"$1layers="+h):d+=(d.indexOf("?")===-1?"?":"&")+"layers="+h:d=d.replace(y,"").replace(/[?&]$/,"").replace(/\?&/,"?"),window.history.replaceState(null,"",d),TnetLog.debug(a,"URL-Fix:",h||"(layers entfernt)")}}catch(F){TnetLog.debug(a,"_fixUrlForBridgeLayers Fehler:",F.message)}}function N(r){var e=c[r];if(!e)return[];var t=[];for(var n in e.visibleSublayers)e.visibleSublayers.hasOwnProperty(n)&&t.push(e.visibleSublayers[n]);return t}function H(r,e){try{if(typeof dijit<"u"&&dijit.byId){var t=dijit.byId(r);t&&typeof t.set=="function"&&t.set("checked",e)}}catch{}}function Y(){m&&clearTimeout(m),m=setTimeout(I,300)}function I(){try{var r={},e={};for(var t in c)if(c.hasOwnProperty(t)){var n=c[t];if(!n.maptipOnly){r[t]=!0;for(var i in n.visibleSublayers)n.visibleSublayers.hasOwnProperty(i)&&(e[i]=!0)}}var o={};if(window.TnetLMStore&&typeof window.TnetLMStore.getCoalesceIndex=="function"){var u=window.TnetLMStore.getCoalesceIndex();for(var s in u)if(u.hasOwnProperty(s))for(var l=u[s].childIds,f=0;f<l.length;f++)o[l[f]]=s}for(var p=new URL(window.location.href),g=p.searchParams.get("layers")||"",v=g?g.split("|"):[],L=!1,_=[],T=0;T<v.length;T++){var S=v[T];if(r[S]){L=!0;continue}if(o[S]&&!e[S]){L=!0;continue}_.push(S)}for(var R in e)e.hasOwnProperty(R)&&_.indexOf(R)===-1&&(_.push(R),L=!0);if(L){var b=_.join("|"),h=window.location.href,d=/([?&])layers=[^&]*/;b?d.test(h)?h=h.replace(d,"$1layers="+b):h+=(h.indexOf("?")===-1?"?":"&")+"layers="+b:h=h.replace(d,"").replace(/[?&]$/,"").replace(/\?&/,"?"),window.history.replaceState(null,"",h),TnetLog.debug(a,"URL-Sync:",b||"(leer)")}}catch(y){TnetLog.debug(a,"_syncUrl Fehler:",y.message)}}function K(){if(typeof window.TnetLayerSwitch!="function"){TnetLog.debug(a,"TnetLayerSwitch nicht verf\xFCgbar, Patch nicht installiert");return}if(!window._tnet_origTnetLayerSwitch){var r=window.TnetLayerSwitch;window._tnet_origTnetLayerSwitch=r,window.TnetLayerSwitch=function(e,t){if(t==="on"&&M){if(w[e])return TnetLog.debug(a,"TnetLayerSwitch: Sublayer bereits verwaltet:",e),!0;var n=window.TnetLMStore;if(n&&typeof n.isCoalesceSublayer=="function"&&n.isCoalesceSublayer(e)){if(typeof n.findLayer=="function"&&n.findLayer(e))return n.setLayerVisible(e,!0),TnetLog.log(a,"TnetLayerSwitch \u2192 Store route (Coalesce-Sublayer):",e),!0;TnetLog.debug(a,"TnetLayerSwitch: Coalesce-Sublayer nicht im Store-Katalog:",e,"\u2192 Fallback")}}return r.apply(this,arguments)},TnetLog.log(a,"TnetLayerSwitch-Patch installiert (Coalesce-Sublayer \u2192 Store-Route)")}}var ee={init:function(r){if(M=!!(r&&r.coalesceFrameworkBridge),!M){TnetLog.log(a,"Bridge deaktiviert (coalesceFrameworkBridge = false)");return}TnetLog.log(a,"Bridge v2 initialisiert (Root-Dienst-Strategie)"),K(),Q();var e=function(){E||$()};document.addEventListener("tnet-app-ready",function(){setTimeout(e,1500)}),setTimeout(e,5e3)},isEnabled:function(){return M},canHandle:function(r){if(!M)return!1;var e=k(r);return!!e},registerSublayer:function(r,e){if(!M)return!1;var t=k(r);if(!t)return TnetLog.debug(a,"registerSublayer: Kein Root-Key extrahierbar f\xFCr:",r),!1;if(typeof e!="number"||e<0)return TnetLog.warn(a,"registerSublayer: Ung\xFCltige Sublayer-Nr:",e),!1;w[r]=t;var n=c[t],i=!n;if(!n)if(c[t]={olLayer:null,registeredSublayers:{},visibleSublayers:{},debounceTimer:null,originalLAYERS:null},n=c[t],TnetLog.log(a,"\u2605 Root-Dienst aktivieren:",t),n.olLayer=O(t),n.olLayer||(n.olLayer=G(t,n,r)),n.olLayer)n.originalLAYERS=B(t)||"show:all",TnetLog.log(a,"Root-OL-Layer bereit:",t,n.olLayer.get("tnet_bridge_created")?"(Bridge-erstellt)":"(Framework)");else{TnetLog.log(a,"Root-Dienst OL-Layer noch nicht erstellbar:",t,"\u2192 Deferred Retry");var f=this,o=0,u=function(){if(c[t])if(n.olLayer=O(t),n.olLayer||(n.olLayer=G(t,n,r)),n.olLayer){n.originalLAYERS=B(t)||"show:all",TnetLog.log(a,"Root-OL-Layer bereit nach Retry",o,":",t),f._applyLAYERSParam(t);for(var g in n.registeredSublayers)n.registeredSublayers.hasOwnProperty(g)&&(U(g,t),P(g,n.olLayer))}else if(o<8)o++,setTimeout(u,300*o);else{TnetLog.warn(a,"Root-OL-Layer nicht erstellbar nach 8 Retries:",t);for(var v in n.registeredSublayers)n.registeredSublayers.hasOwnProperty(v)&&delete w[v];delete c[t]}};setTimeout(u,500)}n.registeredSublayers[r]=e,n.visibleSublayers[r]=e;var s=O(r);if(s&&s!==n.olLayer)try{var l=window.njs&&window.njs.AppManager?window.njs.AppManager:null;l&&l.Maps&&l.Maps.main&&l.Maps.main.mapObj&&(l.Maps.main.mapObj.removeLayer(s),TnetLog.log(a,"Framework-Startup-OL-Layer entfernt (Doppel-Schutz):",r))}catch{}TnetLog.log(a,"Sublayer registriert:",r,"(#"+e+") \u2192 Root:",t,"| Total:",Object.keys(n.registeredSublayers).length),this._updateLAYERSDebounced(t);var f=this;return setTimeout(function(){n.olLayer||(n.olLayer=O(t)),U(r,t),n.olLayer&&P(r,n.olLayer)},i?500:100),A===0&&(H(r,!0),Y()),!0},unregisterSublayer:function(r){var e=w[r];if(e||(e=k(r)),!e)return!1;var t=c[e];if(!t)return!1;V(r,e),z(r),delete t.registeredSublayers[r],delete t.visibleSublayers[r],delete w[r];var n=O(r);if(n)try{var i=window.njs&&window.njs.AppManager?window.njs.AppManager:null;i&&i.Maps&&i.Maps.main&&i.Maps.main.mapObj&&(i.Maps.main.mapObj.removeLayer(n),TnetLog.log(a,"Framework-Startup-OL-Layer entfernt (Ghost-Schutz):",r))}catch{}var o=Object.keys(t.registeredSublayers).length;if(TnetLog.log(a,"Sublayer entfernt:",r,"\u2192 Root:",e,"| verbleibend:",o),o===0){t.debounceTimer&&clearTimeout(t.debounceTimer),delete c[e],TnetLog.log(a,"\u2605 Root-Dienst deaktivieren:",e);var u=O(e);if(u)try{var s=window.njs&&window.njs.AppManager?window.njs.AppManager:null;s&&s.Maps&&s.Maps.main&&s.Maps.main.mapObj&&(s.Maps.main.mapObj.removeLayer(u),TnetLog.log(a,"OL-Layer direkt entfernt:",e))}catch{}try{TnetLayerSwitch(e,"off")}catch(l){TnetLog.error(a,"TnetLayerSwitch OFF Fehler:",e,l.message)}}else this._updateLAYERSDebounced(e);return A===0&&(H(r,!1),Y()),!0},hideSublayer:function(r){var e=w[r];if(e){var t=c[e];t&&(delete t.visibleSublayers[r],this._updateLAYERSDebounced(e),TnetLog.log(a,"Sublayer versteckt:",r))}},showSublayer:function(r,e){var t=w[r];if(t){var n=c[t];n&&(n.visibleSublayers[r]=e,this._updateLAYERSDebounced(t),TnetLog.log(a,"Sublayer angezeigt:",r,"#"+e))}},unregisterGroup:function(r,e){if(M){for(var t in e)e.hasOwnProperty(t)&&this.unregisterSublayer(t);TnetLog.log(a,"Gruppe deregistriert:",r)}},_updateLAYERSDebounced:function(r){var e=c[r];if(e){e.debounceTimer&&clearTimeout(e.debounceTimer);var t=80;try{t=TnetGlobalConfig.get("layerManager.coalesceDebounceMs",80)}catch{}var n=this;e.debounceTimer=setTimeout(function(){e.debounceTimer=null,n._applyLAYERSParam(r)},t)}},_applyLAYERSParam:function(r){var e=c[r];if(e){var t=q(e.visibleSublayers);if(TnetLog.log(a,"LAYERS update:",r,"\u2192",t),e.olLayer||(e.olLayer=O(r)),!e.olLayer){var n=this,i=0,o=function(){e.olLayer=O(r),e.olLayer?n._setLayersOnSource(e.olLayer,t,r):i<8?(i++,TnetLog.debug(a,"OL-Layer Retry",i,"f\xFCr",r),setTimeout(o,250*i)):TnetLog.warn(a,"OL-Layer nicht gefunden nach 8 Retries:",r)};setTimeout(o,200);return}this._setLayersOnSource(e.olLayer,t,r)}},_setLayersOnSource:function(r,e,t){if(r){var n=r.getSource();n&&typeof n.updateParams=="function"?(n.updateParams({LAYERS:e}),TnetLog.debug(a,"OL-Source LAYERS gesetzt:",t,"\u2192",e),setTimeout(function(){try{var i=njs.AppManager.Maps.main.mapObj;i&&typeof i.render=="function"&&i.render()}catch{}},100)):TnetLog.warn(a,"OL-Source hat kein updateParams:",t)}},scheduleUrlSync:function(){Y()},getOLLayerForSublayer:function(r){var e=w[r];if(!e)return null;var t=c[e];return t?(t.olLayer||(t.olLayer=O(e)),t.olLayer||null):null},getRootKey:function(r){return w[r]||k(r)||null},isManagedSublayer:function(r){return!!w[r]},beginBatch:function(){A++,TnetLog.debug(a,"beginBatch, Tiefe:",A)},endBatch:function(){A--,A<=0&&(A=0,Y(),TnetLog.debug(a,"endBatch: URL-Sync ausgel\xF6st"))},isRootActive:function(r){return!!c[r]},patchMaptipForCoalesceLayer:function(r,e,t){if(!(!M||!e)){var n=k(r);if(n){c[n]||(c[n]={olLayer:e,registeredSublayers:{},visibleSublayers:{},debounceTimer:null,originalLAYERS:null,maptipOnly:!0});var i=c[n];i.olLayer||(i.olLayer=e),w[r]=n,i.registeredSublayers[r]=t,setTimeout(function(){U(r,n),P(r,e)},300),TnetLog.log(a,"MapTip-Patch f\xFCr Coalesce-Sublayer:",r,"\u2192 Root:",n,"(#"+t+")")}}},unpatchMaptipForCoalesceLayer:function(r){var e=w[r];if(e){var t=c[e];!t||!t.maptipOnly||(V(r,e),z(r),delete t.registeredSublayers[r],delete w[r],Object.keys(t.registeredSublayers).length===0&&delete c[e],TnetLog.debug(a,"MapTip-Unpatch f\xFCr Coalesce-Sublayer:",r))}},restoreFromUrl:function(r){if(!(!M||!r))try{var e=C;if(!e){var t=new URL(window.location.href);e=t.searchParams.get("layers")||""}if(!e)return;for(var n=e.split(/[|,]/),i=0,o=0;o<n.length;o++){var u=decodeURIComponent(n[o]).trim();if(u){var s=k(u);if(s){var l=r.findLayer(u);l&&!l.visible&&(r.setLayerVisible(u,!0),i++)}}}i>0&&TnetLog.log(a,"URL-Restore:",i,"Coalesce-Layer aus gesicherten URL-Params wiederhergestellt")}catch(f){TnetLog.warn(a,"restoreFromUrl Fehler:",f.message)}},getStatus:function(){var r={};for(var e in c)if(c.hasOwnProperty(e)){var t=c[e];r[e]={olLayerFound:!!t.olLayer,maptipOnly:!!t.maptipOnly,registeredCount:Object.keys(t.registeredSublayers).length,visibleCount:Object.keys(t.visibleSublayers).length,registered:Object.assign({},t.registeredSublayers),visible:Object.assign({},t.visibleSublayers),originalLAYERS:t.originalLAYERS}}return{enabled:M,maptipPatched:E,tnetLayerSwitchPatched:!!window._tnet_origTnetLayerSwitch,urlSyncPatched:!!(njs&&njs.AppManager&&njs.AppManager._tnet_origUpdateMapStatusUrl),rootServices:r,sublayerToRoot:Object.assign({},w),hint:Object.keys(r).length===0?"Keine Root-Dienste aktiv. Falls Standard-Coalesce l\xE4uft, werden MapTip-Callbacks \xFCber patchMaptipForCoalesceLayer registriert.":null}}};window.TnetCoalesceBridge=ee})();
+/**
+ * tnet-coalesce-bridge.js
+ * Framework-Bridge v2: Steuert Coalesce-Layer über den Root-Dienst des
+ * MapPlus-Frameworks statt eigene __coalesce__-OL-Layer zu erstellen.
+ *
+ * Strategie:
+ *   Die Root-Dienste (z.B. "gis_oereb/nw_nutzungsplanung_def") sind
+ *   bereits in layers_tnet_oereb_multi.conf registriert. Die Bridge:
+ *     1. Aktiviert den Root-Dienst via TnetLayerSwitch(rootKey, 'on')
+ *     2. Steuert Sublayer über source.updateParams({LAYERS: 'show:0,3,5'})
+ *     3. Registriert lookupCallbacks für MapTip (Sublayer → Root-OL-Layer)
+ *     4. Synchronisiert Dojo-Checkboxen und URL-State
+ *
+ *   Da der OL-Layer vom Framework erstellt wird, funktionieren MapTip,
+ *   Legende, Bookmark und Layer-Sortierung automatisch.
+ *
+ * Aktivierung: tnet-global-config.json5 → layerManager.coalesceFrameworkBridge = true
+ *
+ * @version    2.0
+ * @date       2025-03-05
+ * @copyright  Trigonet AG
+ * @author     Marco Dellenbach
+ */
+(function () {
+  function getAppRoot() {
+    return window.__TNET_APP_ROOT || '/maps';
+  }
+
+  function normalizeServiceUrl(url) {
+    if (!url) return url;
+    var value = String(url);
+    var appRoot = getAppRoot();
+
+    if (value.indexOf('http') === 0 || value.indexOf('//') === 0) return value;
+    if (/^\/maps(?:-dev)?\/tnet\//i.test(value) || /^\/maps(?:-dev)?\/agsproxy\.php/i.test(value)) {
+      return appRoot + value.replace(/^\/maps(?:-dev)?/i, '');
+    }
+    if (value.indexOf('/tnet/') === 0 || value.indexOf('/agsproxy.php') === 0) return appRoot + value;
+    if (value.indexOf('tnet/') === 0 || value.indexOf('agsproxy.php') === 0) return appRoot + '/' + value;
+    return value.indexOf('/') === 0 ? value : appRoot + '/' + value;
+  }
+
+  'use strict';
+
+  var LOG = '[CoalesceBridge]';
+
+  // ===== INTERNER STATE =====
+  var _enabled = false;
+
+  /**
+   * Registry der aktiven Root-Dienste.
+   * Key = Root-Dienst-Key (z.B. "gis_oereb/nw_nutzungsplanung_def")
+   * Value = {
+   *   olLayer:              ol.layer.Layer|null,
+   *   registeredSublayers:  { sublayerKey: sublayerNum },
+   *   visibleSublayers:     { sublayerKey: sublayerNum },
+   *   debounceTimer:        number|null,
+   *   originalLAYERS:       string
+   * }
+   */
+  var _rootServices = {};
+
+  /** Reverse-Mapping: Sublayer-Key → Root-Dienst-Key */
+  var _sublayerToRoot = {};
+
+  /** MapTip-Patch installiert */
+  var _maptipPatched = false;
+
+  /** URL-Sync Timer */
+  var _urlSyncTimer = null;
+
+  /**
+   * Batch-Modus: Unterdrückt _syncDojoCheckbox und _scheduleUrlSync
+   * während setGroupAllVisible mehrere Layer auf einmal verarbeitet.
+   * Verhindert Dojo-Framework-Seiteneffekte (switchLayersProgr Ghost-Layer).
+   */
+  var _batchDepth = 0;
+
+  /** Ursprüngliche layers= aus URL — beim Script-Laden gespeichert, bevor Framework die URL überschreibt */
+  var _originalUrlLayers = '';
+  try {
+    var _urlInit = new URL(window.location.href);
+    _originalUrlLayers = _urlInit.searchParams.get('layers') || '';
+    if (_originalUrlLayers) {
+      TnetLog.log(LOG, 'Ursprüngliche URL-Layers gesichert:', _originalUrlLayers);
+    }
+  } catch (e) { /* URL-Parsing nicht verfügbar */ }
+
+  // ===== HILFSFUNKTIONEN =====
+
+  /**
+   * Ermittelt den Root-Dienst-Key aus einem Sublayer-Key.
+   * "gis_oereb/nw_nutzungsplanung_def/grundnutzung"
+   *   → "gis_oereb/nw_nutzungsplanung_def"
+   * @param {string} sublayerKey
+   * @returns {string|null}
+   */
+  function _extractRootKey(sublayerKey) {
+    if (!sublayerKey || typeof sublayerKey !== 'string') return null;
+    var idx = sublayerKey.lastIndexOf('/');
+    if (idx <= 0) return null;
+    return sublayerKey.substring(0, idx);
+  }
+
+  /**
+   * Prüft ob ein Root-Dienst im Framework existiert.
+   * @param {string} rootKey
+   * @returns {boolean}
+   */
+  function _rootExistsInFramework(rootKey) {
+    try {
+      var am = window.njs && window.njs.AppManager;
+      if (!am) return false;
+      if (am.Layers && am.Layers[rootKey]) return true;
+      if (am.Maps && am.Maps['main'] && am.Maps['main'].layers) {
+        if (am.Maps['main'].layers[rootKey]) return true;
+      }
+      if (am.LyrMgr) {
+        for (var mgrId in am.LyrMgr) {
+          if (!am.LyrMgr.hasOwnProperty(mgrId)) continue;
+          var mgr = am.LyrMgr[mgrId];
+          if (mgr && mgr.layers && mgr.layers[rootKey]) return true;
+        }
+      }
+    } catch (e) { /* ignore */ }
+    return false;
+  }
+
+  /**
+   * Liest die Original-LAYERS-Config eines Root-Dienstes.
+   * @param {string} rootKey
+   * @returns {string|null}
+   */
+  function _getOriginalLAYERS(rootKey) {
+    try {
+      var am = window.njs && window.njs.AppManager;
+      if (!am) return null;
+      var configs = [];
+      if (am.Layers && am.Layers[rootKey]) configs.push(am.Layers[rootKey]);
+      if (am.Maps && am.Maps['main'] && am.Maps['main'].layers && am.Maps['main'].layers[rootKey]) {
+        configs.push(am.Maps['main'].layers[rootKey]);
+      }
+      for (var i = 0; i < configs.length; i++) {
+        var c = configs[i];
+        if (c.params && c.params.LAYERS) return c.params.LAYERS;
+        if (c.LAYERS) return c.LAYERS;
+      }
+    } catch (e) { /* ignore */ }
+    return null;
+  }
+
+  /**
+   * Findet den OL-Layer, den das Framework (oder Standard-Coalesce) für
+   * einen Layer-Key erstellt hat. Sucht in drei Stufen:
+   *   1. Exakter Name-Match
+   *   2. Case-insensitiver Name-Match
+   *   3. URL-basierter Match (Source-URL enthält den Dienst-Pfad)
+   * @param {string} layerKey
+   * @returns {ol.layer.Layer|null}
+   */
+  function _findFrameworkOLLayer(layerKey) {
+    try {
+      var am = window.njs && window.njs.AppManager;
+      if (!am || !am.Maps || !am.Maps['main'] || !am.Maps['main'].mapObj) return null;
+      var mapObj = am.Maps['main'].mapObj;
+      var layers = mapObj.getLayers().getArray();
+      var layerKeyLc = layerKey.toLowerCase();
+
+      // 1. Exakter Name-Match
+      for (var i = 0; i < layers.length; i++) {
+        var name = layers[i].get('name') || '';
+        if (name === layerKey) return layers[i];
+      }
+      // 2. Case-insensitiver Name-Match
+      for (var j = 0; j < layers.length; j++) {
+        var name2 = (layers[j].get('name') || '').toLowerCase();
+        if (name2 === layerKeyLc) return layers[j];
+      }
+      // 3. URL-basierter Match: Source-URL enthält den Dienst-Pfad
+      for (var k = 0; k < layers.length; k++) {
+        var src = layers[k].getSource && layers[k].getSource();
+        if (src && typeof src.getUrl === 'function') {
+          var url = (src.getUrl() || '').toLowerCase();
+          if (url.indexOf(layerKeyLc + '/mapserver') !== -1 ||
+              url.indexOf('path=' + layerKeyLc + '/') !== -1) {
+            return layers[k];
+          }
+        }
+      }
+    } catch (e) {
+      TnetLog.warn(LOG, '_findFrameworkOLLayer Fehler:', e.message);
+    }
+    return null;
+  }
+
+  /**
+   * Baut den LAYERS-Parameter aus sichtbaren Sublayer-Nummern.
+   * @param {Object} visibleSublayers  { sublayerKey: sublayerNum }
+   * @returns {string}  z.B. "show:0,3,5" oder "show:-1"
+   */
+  function _buildLayersParam(visibleSublayers) {
+    var nums = [];
+    for (var lid in visibleSublayers) {
+      if (visibleSublayers.hasOwnProperty(lid)) {
+        nums.push(visibleSublayers[lid]);
+      }
+    }
+    nums.sort(function (a, b) { return a - b; });
+    if (nums.length === 0) return 'show:-1';
+    return 'show:' + nums.join(',');
+  }
+
+  // ===== OL-LAYER-ERSTELLUNG =====
+
+  /**
+   * Erstellt einen OL-Layer für einen Root-Dienst direkt in der Bridge.
+   * Wird verwendet wenn das Framework den Root-Key nicht kennt und
+   * keinen eigenen OL-Layer erstellt.
+   * @param {string} rootKey      z.B. "gis_oereb/nw_nutzungsplanung_def"
+   * @param {Object} entry        _rootServices[rootKey] Eintrag
+   * @param {string} sublayerKey  Erster Sublayer-Key (zur ServiceUrl-Ermittlung)
+   * @returns {ol.layer.Layer|null}
+   * @private
+   */
+  function _createRootOLLayer(rootKey, entry, sublayerKey) {
+    var store = window.TnetLMStore;
+    var serviceUrl = null;
+    var opacity = 1.0;
+
+    // ServiceUrl aus Store-CoalesceIndex holen
+    if (store && typeof store.getCoalesceInfo === 'function') {
+      var info = store.getCoalesceInfo(sublayerKey);
+      if (info && info.serviceUrl) {
+        serviceUrl = info.serviceUrl;
+      }
+    }
+    if (!serviceUrl) {
+      TnetLog.warn(LOG, '_createRootOLLayer: Kein serviceUrl fuer', rootKey);
+      return null;
+    }
+
+    serviceUrl = normalizeServiceUrl(serviceUrl);
+
+    var am = (window.njs && window.njs.AppManager) || null;
+    if (!am || !am.Maps || !am.Maps['main'] || !am.Maps['main'].mapObj) {
+      TnetLog.warn(LOG, '_createRootOLLayer: Map nicht bereit fuer', rootKey);
+      return null;
+    }
+    var map = am.Maps['main'].mapObj;
+
+    // Opacity aus erstem Sublayer-Layer übernehmen
+    if (store && typeof store.findLayer === 'function') {
+      var firstLayer = store.findLayer(sublayerKey);
+      if (firstLayer && firstLayer.options && firstLayer.options.opacity !== undefined) {
+        opacity = firstLayer.options.opacity;
+      } else if (firstLayer && firstLayer.opacity !== undefined) {
+        opacity = firstLayer.opacity;
+      }
+    }
+
+    // LAYERS-Parameter aus aktuell sichtbaren Sublayern bauen
+    var layersParam = _buildLayersParam(entry.visibleSublayers);
+
+    var arcParams = { LAYERS: layersParam, FORMAT: 'PNG32', TRANSPARENT: true, DPI: 96 };
+    var source = new ol.source.ImageArcGISRest({
+      url: serviceUrl,
+      params: arcParams,
+      ratio: 1
+    });
+    var olLayer = new ol.layer.Image({
+      source: source,
+      opacity: opacity,
+      visible: true,
+      zIndex: 200
+    });
+    olLayer.set('name', rootKey);
+    olLayer.set('tnet_bridge_created', true);
+
+    // map.addLayer() kann in Dojo-Callbacks crashen (z.B. MapTip.addLayerCallback
+    // versucht layerConf.minResolution zu lesen, aber layerConf ist null für
+    // Bridge-erstellte Layer). Try-catch verhindert, dass der Fehler
+    // den gesamten Coalesce-Pfad abbricht und Events nicht mehr feuern.
+    try {
+      map.addLayer(olLayer);
+    } catch (e) {
+      TnetLog.warn(LOG, '_createRootOLLayer: Fehler in Framework-Callback bei addLayer (ignoriert):', e.message);
+    }
+    TnetLog.log(LOG, 'Bridge OL-Layer erstellt:', rootKey,
+      '| URL:', serviceUrl, '| LAYERS:', layersParam, '| Opacity:', opacity);
+
+    return olLayer;
+  }
+
+  // ===== MAPTIP: FORCE-AKTIVIERUNG =====
+
+  /**
+   * Aktiviert Maptips für einen Coalesce-Sublayer direkt.
+   * Das Framework aktiviert Maptips nur wenn ein OL-Layer mit name == linked_layer_id
+   * hinzugefügt wird. Bei Coalesce-Layern stimmt der Name nicht überein, daher
+   * müssen wir die Maptips manuell in wmsActiveLyrs einfügen.
+   * @param {string} sublayerKey  z.B. "gis_oereb/nw_nutzungsplanung_def/grundnutzung"
+   * @param {ol.layer.Layer} olLayer  Coalesce/Root-OL-Layer für die Identify-Abfrage
+   * @private
+   */
+  function _forceActivateMaptip(sublayerKey, olLayer) {
+    try {
+      var am = window.njs && window.njs.AppManager;
+      if (!am || !am.MapTips || !am.wmsActiveLyrs) {
+        // Framework noch nicht bereit — Retry
+        TnetLog.debug(LOG, '_forceActivateMaptip: Framework nicht bereit, Retry in 1s für:', sublayerKey);
+        setTimeout(function () { _forceActivateMaptip(sublayerKey, olLayer); }, 1000);
+        return;
+      }
+
+      // Root-Key ermitteln für Dedup gegen Root-Level-MapTips
+      var rootKey = _extractRootKey(sublayerKey);
+
+      var count = 0;
+      var activatedQueryLayers = []; // query_layers der aktivierten Sublayer-MapTips sammeln
+      for (var mtId in am.MapTips) {
+        if (!am.MapTips.hasOwnProperty(mtId)) continue;
+        if (mtId === '_wms_connector' || mtId === '_disablewmsgetfeatureinfo') continue;
+        var mt = am.MapTips[mtId];
+        if (mt && mt.linked_layer_id === sublayerKey) {
+          // OL-Layer setzen damit queryconnector die Source-URL findet
+          mt.wms_layer = olLayer;
+          if (!mt.active) {
+            am.wmsActiveLyrs.push(mt);
+            mt.active = true;
+            count++;
+          }
+          // query_layers merken für Root-Dedup
+          if (mt.query_layers) {
+            activatedQueryLayers.push(mt.query_layers);
+          }
+        }
+      }
+
+      // ── Dedup: Root-Level-MapTips deaktivieren die gleiche query_layers haben ──
+      // Wenn ein spezifischer Sublayer-MapTip aktiv ist (z.B. .../grundnutzung_12),
+      // muss der generische Root-MapTip (z.B. ..._def_12) deaktiviert werden,
+      // sonst liefert queryconnector() doppelte Requests.
+      if (rootKey && activatedQueryLayers.length > 0) {
+        var dedupCount = 0;
+        for (var rMtId in am.MapTips) {
+          if (!am.MapTips.hasOwnProperty(rMtId)) continue;
+          if (rMtId === '_wms_connector' || rMtId === '_disablewmsgetfeatureinfo') continue;
+          var rMt = am.MapTips[rMtId];
+          if (!rMt || !rMt.active) continue;
+          // Root-Level-MapTip erkennen: linked_layer_id == rootKey (nicht sublayerKey)
+          if (rMt.linked_layer_id === rootKey && rMt.query_layers) {
+            if (activatedQueryLayers.indexOf(rMt.query_layers) !== -1) {
+              am.wmsActiveLyrs.remove(rMt);
+              rMt.active = false;
+              dedupCount++;
+              TnetLog.debug(LOG, 'Root-MapTip deaktiviert (Dedup):', rMtId,
+                'query_layers:', rMt.query_layers, '→ Sublayer hat Vorrang:', sublayerKey);
+            }
+          }
+        }
+        if (dedupCount > 0) {
+          TnetLog.log(LOG, 'Root-MapTip Dedup:', dedupCount, 'entfernt für', sublayerKey);
+        }
+      }
+
+      if (count > 0) {
+        TnetLog.log(LOG, 'MapTip force-aktiviert:', sublayerKey, '(' + count + ' MapTips)');
+      } else {
+        TnetLog.debug(LOG, 'Kein MapTip gefunden für Sublayer:', sublayerKey);
+      }
+    } catch (e) {
+      TnetLog.warn(LOG, '_forceActivateMaptip Fehler:', e.message);
+    }
+  }
+
+  /**
+   * Deaktiviert Maptips für einen Coalesce-Sublayer.
+   * Entfernt die MapTip-Objekte aus wmsActiveLyrs und setzt wms_layer zurück.
+   * @param {string} sublayerKey
+   * @private
+   */
+  function _forceDeactivateMaptip(sublayerKey) {
+    try {
+      var am = window.njs && window.njs.AppManager;
+      if (!am || !am.MapTips || !am.wmsActiveLyrs) return;
+      var count = 0;
+      for (var mtId in am.MapTips) {
+        if (!am.MapTips.hasOwnProperty(mtId)) continue;
+        if (mtId === '_wms_connector' || mtId === '_disablewmsgetfeatureinfo') continue;
+        var mt = am.MapTips[mtId];
+        if (mt && mt.linked_layer_id === sublayerKey) {
+          if (mt.active) {
+            am.wmsActiveLyrs.remove(mt);
+            mt.active = false;
+            count++;
+          }
+          mt.wms_layer = null;
+        }
+      }
+      if (count > 0) {
+        TnetLog.debug(LOG, 'MapTip deaktiviert:', sublayerKey, '(' + count + ' MapTips)');
+      }
+    } catch (e) {
+      TnetLog.debug(LOG, '_forceDeactivateMaptip Fehler:', e.message);
+    }
+  }
+
+  // ===== MAPTIP: LOOKUPCALLBACKS =====
+
+  /**
+   * Registriert lookupCallback-Einträge für einen Sublayer.
+   * Sucht den passenden MapTip (linked_layer = sublayerKey) und erstellt
+   * lookupCallback-Keys mit der Root-Service-URL.
+   * @param {string} sublayerKey
+   * @param {string} rootKey
+   * @private
+   */
+  function _registerLookupCallbacks(sublayerKey, rootKey) {
+    try {
+      var am = window.njs && window.njs.AppManager;
+      if (!am || !am.MapTips || !am.MapTips._wms_connector) {
+        TnetLog.debug(LOG, '_registerLookupCallbacks: _wms_connector nicht verfügbar, Retry in 1s');
+        setTimeout(function () { _registerLookupCallbacks(sublayerKey, rootKey); }, 1000);
+        return;
+      }
+
+      // MapTips finden, die auf diesen Sublayer zeigen
+      var linkedMTs = [];
+      for (var mtId in am.MapTips) {
+        if (!am.MapTips.hasOwnProperty(mtId)) continue;
+        if (mtId === '_wms_connector') continue;
+        var mt = am.MapTips[mtId];
+        if (mt && mt.linked_layer_id === sublayerKey) {
+          linkedMTs.push({ id: mtId, mt: mt });
+        }
+      }
+
+      if (linkedMTs.length === 0) {
+        TnetLog.debug(LOG, 'Kein MapTip für Sublayer:', sublayerKey);
+        return;
+      }
+
+      // OL-Layer des Root-Dienstes finden → URL für lookupCallback-Key
+      var entry = _rootServices[rootKey];
+      if (!entry || !entry.olLayer) {
+        TnetLog.debug(LOG, '_registerLookupCallbacks: OL-Layer noch nicht bereit für', rootKey);
+        return;
+      }
+
+      var src = entry.olLayer.getSource();
+      var sourceUrl = '';
+      if (src && typeof src.getUrl === 'function') sourceUrl = src.getUrl() || '';
+
+      if (!sourceUrl) {
+        TnetLog.warn(LOG, '_registerLookupCallbacks: Keine Source-URL für', rootKey);
+        return;
+      }
+
+      var connector = am.MapTips._wms_connector;
+      var count = 0;
+
+      for (var mi = 0; mi < linkedMTs.length; mi++) {
+        var mtInfo = linkedMTs[mi];
+        var qLayers = mtInfo.mt.query_layers ? mtInfo.mt.query_layers.split(',') : [];
+        var qAlias = mtInfo.mt.query_layers_alias ? mtInfo.mt.query_layers_alias.split(',') : [];
+
+        for (var q = 0; q < qLayers.length; q++) {
+          var layerNames = [];
+          var alias = qAlias[q] || '';
+          if (alias) {
+            var aliases = alias.split('|');
+            for (var a = 0; a < aliases.length; a++) {
+              layerNames.push(aliases[a].toLowerCase().replace(/[^\w]/gi, '_'));
+            }
+          } else {
+            layerNames.push(qLayers[q].toLowerCase().replace(/[^\w]/gi, '_'));
+          }
+
+          for (var n = 0; n < layerNames.length; n++) {
+            var cbKey = sourceUrl + '~' + layerNames[n];
+
+            for (var mapId in connector) {
+              if (!connector.hasOwnProperty(mapId)) continue;
+              if (mapId === '_wms_connector') continue;
+              var mapConn = connector[mapId];
+              if (!mapConn || !mapConn.lookupCallbacks) continue;
+
+              if (!mapConn.lookupCallbacks[cbKey]) {
+                mapConn.lookupCallbacks[cbKey] = [];
+              }
+
+              // Duplikat-Prüfung
+              var alreadyIn = false;
+              for (var cb = 0; cb < mapConn.lookupCallbacks[cbKey].length; cb++) {
+                if (mapConn.lookupCallbacks[cbKey][cb] === mtInfo.mt) {
+                  alreadyIn = true;
+                  break;
+                }
+              }
+              if (!alreadyIn) {
+                mapConn.lookupCallbacks[cbKey].push(mtInfo.mt);
+                count++;
+                TnetLog.debug(LOG, 'lookupCallback registriert:', cbKey, '→', mtInfo.id);
+              }
+            }
+          }
+        }
+      }
+
+      if (count > 0) {
+        TnetLog.log(LOG, 'lookupCallbacks für', sublayerKey, ':', count, 'Einträge');
+      }
+    } catch (e) {
+      TnetLog.warn(LOG, '_registerLookupCallbacks Fehler:', e.message);
+    }
+  }
+
+  /**
+   * Entfernt lookupCallback-Einträge für einen Sublayer.
+   * @param {string} sublayerKey
+   * @param {string} rootKey
+   * @private
+   */
+  function _unregisterLookupCallbacks(sublayerKey, rootKey) {
+    try {
+      var am = window.njs && window.njs.AppManager;
+      if (!am || !am.MapTips || !am.MapTips._wms_connector) return;
+
+      var linkedMTs = [];
+      for (var mtId in am.MapTips) {
+        if (!am.MapTips.hasOwnProperty(mtId)) continue;
+        if (mtId === '_wms_connector') continue;
+        var mt = am.MapTips[mtId];
+        if (mt && mt.linked_layer_id === sublayerKey) {
+          linkedMTs.push(mt);
+        }
+      }
+      if (linkedMTs.length === 0) return;
+
+      var connector = am.MapTips._wms_connector;
+      for (var mapId in connector) {
+        if (!connector.hasOwnProperty(mapId)) continue;
+        if (mapId === '_wms_connector') continue;
+        var mapConn = connector[mapId];
+        if (!mapConn || !mapConn.lookupCallbacks) continue;
+
+        for (var cbKey in mapConn.lookupCallbacks) {
+          if (!mapConn.lookupCallbacks.hasOwnProperty(cbKey)) continue;
+          var arr = mapConn.lookupCallbacks[cbKey];
+          for (var m = 0; m < linkedMTs.length; m++) {
+            var idx = arr.indexOf(linkedMTs[m]);
+            if (idx !== -1) {
+              arr.splice(idx, 1);
+              TnetLog.debug(LOG, 'lookupCallback entfernt:', cbKey, '→ Sublayer:', sublayerKey);
+            }
+          }
+          if (arr.length === 0) {
+            delete mapConn.lookupCallbacks[cbKey];
+          }
+        }
+      }
+    } catch (e) {
+      TnetLog.debug(LOG, '_unregisterLookupCallbacks Fehler:', e.message);
+    }
+  }
+
+  /**
+   * MapTip-Patch installieren:
+   *   1. lookupCallbacks für alle aktiven Sublayer nachholen
+   *   2. queryconnector patchen: Sublayer-Sichtbarkeitsfilter
+   * @private
+   */
+  function _installMaptipPatch() {
+    if (_maptipPatched) return;
+    try {
+      var am = window.njs && window.njs.AppManager;
+      if (!am || !am.Maps || !am.Maps['main']) {
+        TnetLog.debug(LOG, 'MapTip-Patch: Framework nicht bereit, Retry in 2s');
+        setTimeout(_installMaptipPatch, 2000);
+        return;
+      }
+
+      // ── Patch 1: lookupCallbacks + force-activate nachholen ──
+      var count = 0;
+      for (var rootKey in _rootServices) {
+        if (!_rootServices.hasOwnProperty(rootKey)) continue;
+        var entry = _rootServices[rootKey];
+        if (!entry.olLayer) entry.olLayer = _findFrameworkOLLayer(rootKey);
+        if (entry.olLayer) {
+          for (var lid in entry.registeredSublayers) {
+            if (entry.registeredSublayers.hasOwnProperty(lid)) {
+              _registerLookupCallbacks(lid, rootKey);
+              _forceActivateMaptip(lid, entry.olLayer);
+              count++;
+            }
+          }
+        }
+      }
+
+      // ── Patch 2: queryconnector wrappen — Sublayer-Sichtbarkeitsfilter ──
+      _patchQueryconnector();
+
+      // ── Patch 3: Framework-URL-Sync wrappen — Root-Keys durch Sublayer-Keys ersetzen ──
+      _patchUpdateMapStatusUrl();
+
+      _maptipPatched = true;
+      TnetLog.log(LOG, 'MapTip-Patch installiert,', count, 'Sublayer-Callbacks, queryconnector + URL-Sync gepatcht');
+    } catch (e) {
+      TnetLog.warn(LOG, 'MapTip-Patch Fehler:', e.message);
+    }
+  }
+
+  /**
+   * Patcht wmsServiceMapTip.queryconnector():
+   * Vor dem Original-Call wird geprüft, ob der query_layers-Sublayer
+   * aktuell in den sichtbaren LAYERS des OL-Layers enthalten ist.
+   * Unsichtbare Sublayer werden übersprungen → kein Request.
+   * @private
+   */
+  function _patchQueryconnector() {
+    try {
+      var proto = njs.MapTip.wmsServiceMapTip.prototype;
+      if (proto._tnet_origQueryconnector) return; // Bereits gepatcht
+
+      var origFn = proto.queryconnector;
+      proto._tnet_origQueryconnector = origFn;
+
+      proto.queryconnector = function (evt) {
+        var linkedId = this.linked_layer_id;
+        if (linkedId) {
+          // Root-Key ermitteln: 3 Strategien
+          var rootKey = null;
+
+          // 1) linked_layer_id IST direkt ein Root-Key (z.B. "gis_oereb/nw_nutzungsplanung_def")
+          //    → MapTips wie gis_oereb/nw_nutzungsplanung_def_11 mit linked_layer = Root-Key
+          if (_rootServices[linkedId]) {
+            rootKey = linkedId;
+          }
+          // 2) linked_layer_id ist ein Sublayer-Key im _sublayerToRoot Mapping
+          else if (_sublayerToRoot[linkedId]) {
+            rootKey = _sublayerToRoot[linkedId];
+          }
+          // 3) Fallback: Root-Key aus linked_layer_id extrahieren
+          else {
+            var extracted = _extractRootKey(linkedId);
+            if (extracted && _rootServices[extracted]) {
+              rootKey = extracted;
+            }
+          }
+
+          // Sichtbarkeitscheck gegen Bridge-State
+          if (rootKey) {
+            var entry = _rootServices[rootKey];
+            if (entry && !entry.maptipOnly) {
+              var visibleNums = _getVisibleSublayerNums(rootKey);
+              var queryNum = parseInt(this.query_layers, 10);
+              if (!isNaN(queryNum) && visibleNums.length > 0 && visibleNums.indexOf(queryNum) === -1) {
+                TnetLog.debug(LOG, 'queryconnector Skip (nicht sichtbar):',
+                  linkedId, 'query_layers:', this.query_layers,
+                  'rootKey:', rootKey, 'visible:', visibleNums.join(','));
+                return; // Sublayer nicht sichtbar → Request überspringen
+              }
+            }
+          }
+        }
+
+        // Original aufrufen
+        return origFn.call(this, evt);
+      };
+
+      TnetLog.log(LOG, 'queryconnector-Patch installiert (Sublayer-Sichtbarkeitsfilter)');
+    } catch (e) {
+      TnetLog.warn(LOG, '_patchQueryconnector Fehler:', e.message);
+    }
+  }
+
+  /**
+   * Patcht njs.AppManager.updateMapStatusUrl():
+   * Das Framework schreibt bei jedem moveend/loadend die gesamte URL.
+   * Es nutzt dabei LyrMgr-Root-Keys (z.B. "gis_oereb/nw_nutzungsplanung_def"),
+   * nicht die von uns benötigten Sublayer-Keys ("gis_oereb/.../grundnutzung").
+   *
+   * Der Patch:
+   *   1. Lässt das Original laufen (schreibt Root-Key in URL)
+   *   2. Danach: ersetzt Root-Keys in layers= durch die aktiven Sublayer-Keys
+   * @private
+   */
+  function _patchUpdateMapStatusUrl() {
+    try {
+      var am = njs.AppManager;
+      if (!am || !am.updateMapStatusUrl) {
+        TnetLog.debug(LOG, 'updateMapStatusUrl nicht verfügbar, URL-Patch nicht installiert');
+        return;
+      }
+      if (am._tnet_origUpdateMapStatusUrl) return; // Bereits gepatcht
+
+      var origFn = am.updateMapStatusUrl;
+      am._tnet_origUpdateMapStatusUrl = origFn;
+
+      am.updateMapStatusUrl = function (map_name) {
+        // Original aufrufen — schreibt URL mit Root-Keys
+        origFn.call(this, map_name);
+
+        // URL nachkorrigieren: Root-Keys → Sublayer-Keys
+        _fixUrlForBridgeLayers();
+      };
+
+      TnetLog.log(LOG, 'updateMapStatusUrl-Patch installiert (Root-Key → Sublayer-Key URL-Fix)');
+    } catch (e) {
+      TnetLog.warn(LOG, '_patchUpdateMapStatusUrl Fehler:', e.message);
+    }
+  }
+
+  /**
+   * Korrigiert den layers= URL-Parameter:
+   *   - Bekannte Coalesce Root-Keys UND Sublayer-Keys entfernen
+   *   - Nur aktive Sublayer-Keys wieder einfügen
+   * Wird nach jedem Framework-URL-Update UND nach Layer-Änderungen aufgerufen.
+   * @private
+   */
+  function _fixUrlForBridgeLayers() {
+    try {
+      // Aktive Sublayer-Keys aus Bridge-State sammeln
+      var activeSublayerKeys = {};
+      for (var rootKey in _rootServices) {
+        if (!_rootServices.hasOwnProperty(rootKey)) continue;
+        var entry = _rootServices[rootKey];
+        if (entry.maptipOnly) continue;
+        for (var lid in entry.visibleSublayers) {
+          if (entry.visibleSublayers.hasOwnProperty(lid)) {
+            activeSublayerKeys[lid] = true;
+          }
+        }
+      }
+
+      // Alle bekannten Coalesce-Keys sammeln (Root-Keys UND Sublayer-Keys)
+      // Diese müssen aus der URL entfernt werden, egal ob aktiv oder nicht.
+      // Nur aktive Sublayer-Keys werden anschliessend wieder eingefügt.
+      var keysToFilter = {};
+      if (window.TnetLMStore && typeof window.TnetLMStore.getCoalesceIndex === 'function') {
+        var coalIdx = window.TnetLMStore.getCoalesceIndex();
+        for (var gid in coalIdx) {
+          if (!coalIdx.hasOwnProperty(gid)) continue;
+          // Root-Key (groupId)
+          keysToFilter[gid] = true;
+          // Alle Sublayer-Keys dieser Gruppe
+          var cids = coalIdx[gid].childIds;
+          if (cids) {
+            for (var c = 0; c < cids.length; c++) {
+              keysToFilter[cids[c]] = true;
+            }
+          }
+        }
+      }
+      // Auch aktive Root-Keys (falls nicht im Coalesce-Index)
+      for (var rk in _rootServices) {
+        if (_rootServices.hasOwnProperty(rk)) keysToFilter[rk] = true;
+      }
+
+      var url = new URL(window.location.href);
+      var existingLayers = url.searchParams.get('layers') || '';
+      var activeSublayerList = Object.keys(activeSublayerKeys);
+      if (!existingLayers && activeSublayerList.length === 0) return;
+
+      var layerList = existingLayers ? existingLayers.split('|') : [];
+      var changed = false;
+
+      // Bekannte Coalesce-Keys filtern
+      var cleanList = [];
+      for (var i = 0; i < layerList.length; i++) {
+        var lyr = layerList[i];
+        if (keysToFilter[lyr]) {
+          changed = true;
+          continue;
+        }
+        cleanList.push(lyr);
+      }
+
+      // Aktive Sublayer-Keys wieder hinzufügen
+      for (var j = 0; j < activeSublayerList.length; j++) {
+        if (cleanList.indexOf(activeSublayerList[j]) === -1) {
+          cleanList.push(activeSublayerList[j]);
+          changed = true;
+        }
+      }
+
+      if (changed) {
+        var newParam = cleanList.join('|');
+        var href = window.location.href;
+        var re = /([?&])layers=[^&]*/;
+        if (newParam) {
+          if (re.test(href)) {
+            href = href.replace(re, '$1layers=' + newParam);
+          } else {
+            href += (href.indexOf('?') === -1 ? '?' : '&') + 'layers=' + newParam;
+          }
+        } else {
+          // Kein Layer mehr → layers= komplett entfernen
+          href = href.replace(re, '').replace(/[?&]$/, '').replace(/\?&/, '?');
+        }
+        window.history.replaceState(null, '', href);
+        TnetLog.debug(LOG, 'URL-Fix:', newParam || '(layers entfernt)');
+      }
+    } catch (e) {
+      TnetLog.debug(LOG, '_fixUrlForBridgeLayers Fehler:', e.message);
+    }
+  }
+
+  /**
+   * Gibt die aktuell sichtbaren Sublayer-Nummern eines Root-Dienstes zurück.
+   * Liest aus dem visibleSublayers-State der Bridge.
+   * @param {string} rootKey
+   * @returns {number[]}
+   */
+  function _getVisibleSublayerNums(rootKey) {
+    var entry = _rootServices[rootKey];
+    if (!entry) return [];
+    var nums = [];
+    for (var lid in entry.visibleSublayers) {
+      if (entry.visibleSublayers.hasOwnProperty(lid)) {
+        nums.push(entry.visibleSublayers[lid]);
+      }
+    }
+    return nums;
+  }
+
+  // ===== DOJO-SYNC =====
+
+  /**
+   * Synchronisiert die Dojo-Checkbox im Legacy-Tree.
+   * @param {string} layerId
+   * @param {boolean} visible
+   * @private
+   */
+  function _syncDojoCheckbox(layerId, visible) {
+    try {
+      if (typeof dijit !== 'undefined' && dijit.byId) {
+        var widget = dijit.byId(layerId);
+        if (widget && typeof widget.set === 'function') {
+          widget.set('checked', visible);
+        }
+      }
+    } catch (e) { /* Dojo nicht verfügbar */ }
+  }
+
+  // ===== URL-STATE =====
+
+  /**
+   * Aktualisiert den URL-State (debounced).
+   * @private
+   */
+  function _scheduleUrlSync() {
+    if (_urlSyncTimer) clearTimeout(_urlSyncTimer);
+    _urlSyncTimer = setTimeout(_syncUrl, 300);
+  }
+
+  /**
+   * Synchronisiert den URL-Parameter layers= mit aktiven Coalesce-Layern.
+   * Entfernt Root-Keys UND nicht mehr aktive Sublayer-Keys,
+   * fügt aktive Sublayer-Keys hinzu.
+   * @private
+   */
+  function _syncUrl() {
+    try {
+      // Aktive Root-Keys und Sublayer-Keys aus Bridge-State sammeln
+      var activeRootKeys = {};
+      var activeSublayerKeys = {};
+      for (var rootKey in _rootServices) {
+        if (!_rootServices.hasOwnProperty(rootKey)) continue;
+        var entry = _rootServices[rootKey];
+        if (entry.maptipOnly) continue;
+        activeRootKeys[rootKey] = true;
+        for (var lid in entry.visibleSublayers) {
+          if (entry.visibleSublayers.hasOwnProperty(lid)) {
+            activeSublayerKeys[lid] = true;
+          }
+        }
+      }
+
+      // Alle Sublayer-Keys sammeln die jemals Bridge-managed waren
+      // (aus _layerToCoalesce im Store, falls verfügbar)
+      var allKnownBridgeSublayers = {};
+      if (window.TnetLMStore && typeof window.TnetLMStore.getCoalesceIndex === 'function') {
+        var coalIdx = window.TnetLMStore.getCoalesceIndex();
+        for (var gid in coalIdx) {
+          if (!coalIdx.hasOwnProperty(gid)) continue;
+          var cids = coalIdx[gid].childIds;
+          for (var c = 0; c < cids.length; c++) {
+            allKnownBridgeSublayers[cids[c]] = gid;
+          }
+        }
+      }
+
+      var url = new URL(window.location.href);
+      var existingLayers = url.searchParams.get('layers') || '';
+      var layerList = existingLayers ? existingLayers.split('|') : [];
+      var changed = false;
+
+      // Vorhandene Einträge filtern: Root-Keys entfernen, inaktive Sublayer-Keys entfernen
+      var cleanList = [];
+      for (var i = 0; i < layerList.length; i++) {
+        var lyr = layerList[i];
+        // Root-Key entfernen (wird durch Sublayer-Keys ersetzt)
+        if (activeRootKeys[lyr]) {
+          changed = true;
+          continue;
+        }
+        // Sublayer-Key entfernen wenn er Bridge-managed ist aber nicht mehr aktiv
+        if (allKnownBridgeSublayers[lyr] && !activeSublayerKeys[lyr]) {
+          changed = true;
+          continue;
+        }
+        cleanList.push(lyr);
+      }
+
+      // Aktive Sublayer-Keys hinzufügen (wenn nicht bereits drin)
+      for (var sk in activeSublayerKeys) {
+        if (activeSublayerKeys.hasOwnProperty(sk) && cleanList.indexOf(sk) === -1) {
+          cleanList.push(sk);
+          changed = true;
+        }
+      }
+
+      if (changed) {
+        var newParam = cleanList.join('|');
+        var href = window.location.href;
+        var re = /([?&])layers=[^&]*/;
+        if (newParam) {
+          if (re.test(href)) {
+            href = href.replace(re, '$1layers=' + newParam);
+          } else {
+            href += (href.indexOf('?') === -1 ? '?' : '&') + 'layers=' + newParam;
+          }
+        } else {
+          // Kein Layer mehr aktiv → layers=-Parameter komplett entfernen
+          href = href.replace(re, '').replace(/[?&]$/, '').replace(/\?&/, '?');
+        }
+        window.history.replaceState(null, '', href);
+        TnetLog.debug(LOG, 'URL-Sync:', newParam || '(leer)');
+      }
+    } catch (e) {
+      TnetLog.debug(LOG, '_syncUrl Fehler:', e.message);
+    }
+  }
+
+  /**
+   * Patcht window.TnetLayerSwitch():
+   * Wenn TnetLayerSwitch mit einem Coalesce-Sublayer-Key aufgerufen wird
+   * (z.B. via ensureUrlLayers beim Reload), wird der Aufruf über den
+   * Store geroutet statt direkt ein individuelles OL-Layer zu erstellen.
+   *
+   * Muss früh installiert werden (in init()), da ensureUrlLayers
+   * 500ms nach tnet-app-ready läuft.
+   * @private
+   */
+  function _patchTnetLayerSwitch() {
+    if (typeof window.TnetLayerSwitch !== 'function') {
+      TnetLog.debug(LOG, 'TnetLayerSwitch nicht verfügbar, Patch nicht installiert');
+      return;
+    }
+    if (window._tnet_origTnetLayerSwitch) return; // Bereits gepatcht
+
+    var origFn = window.TnetLayerSwitch;
+    window._tnet_origTnetLayerSwitch = origFn;
+
+    window.TnetLayerSwitch = function (layerId, mode) {
+      // Nur 'on'-Aufrufe abfangen
+      if (mode === 'on' && _enabled) {
+        // 0. Duplikat-Guard: Layer existiert bereits als OL-Layer
+        // → Aufruf NICHT blockieren (Framework braucht internen State),
+        //   aber den danach erstellten Duplikat-OL-Layer wird vom
+        //   _watchMapChanges add-Handler entfernt.
+        // Kein return true hier — das Framework muss seinen State tracken.
+
+        // 1. Bereits von Bridge verwaltet → überspringen
+        if (_sublayerToRoot[layerId]) {
+          TnetLog.debug(LOG, 'TnetLayerSwitch: Sublayer bereits verwaltet:', layerId);
+          return true;
+        }
+
+        // 2. Store fragen: ist es ein Coalesce-Sublayer?
+        //    WICHTIG: Zusätzlich prüfen ob der Layer im Store existiert!
+        //    Ohne findLayer-Check gibt setLayerVisible() still auf wenn
+        //    die Search-API Layer-IDs liefert die nicht im Katalog sind.
+        //    Der Patch würde dann true zurückgeben → kein Fallback auf Original.
+        var store = window.TnetLMStore;
+        if (store && typeof store.isCoalesceSublayer === 'function' &&
+            store.isCoalesceSublayer(layerId)) {
+          // Verifizieren dass der Layer wirklich im Store-Katalog existiert
+          if (typeof store.findLayer === 'function' && store.findLayer(layerId)) {
+            store.setLayerVisible(layerId, true);
+            TnetLog.log(LOG, 'TnetLayerSwitch → Store route (Coalesce-Sublayer):', layerId);
+            return true;
+          }
+          // Layer in _layerToCoalesce aber nicht im Katalog → Fallback
+          TnetLog.debug(LOG, 'TnetLayerSwitch: Coalesce-Sublayer nicht im Store-Katalog:', layerId, '→ Fallback');
+        }
+      }
+      // Kein Coalesce-Sublayer oder mode !== 'on' → Original aufrufen
+      return origFn.apply(this, arguments);
+    };
+
+    TnetLog.log(LOG, 'TnetLayerSwitch-Patch installiert (Coalesce-Sublayer → Store-Route)');
+  }
+
+  // ===== ÖFFENTLICHE API =====
+
+  var Bridge = {
+
+    /**
+     * Initialisiert die Bridge (wird vom Store nach Katalog-Load aufgerufen).
+     * @param {Object} config  layerManager-Config aus tnet-global-config.json5
+     */
+    init: function (config) {
+      _enabled = !!(config && config.coalesceFrameworkBridge);
+      if (!_enabled) {
+        TnetLog.log(LOG, 'Bridge deaktiviert (coalesceFrameworkBridge = false)');
+        return;
+      }
+      TnetLog.log(LOG, 'Bridge v2 initialisiert (Root-Dienst-Strategie)');
+
+      // Patch 0: TnetLayerSwitch sofort patchen — vor ensureUrlLayers (500ms nach tnet-app-ready)
+      _patchTnetLayerSwitch();
+
+      // Patch 1: URL-Sync sofort patchen — Framework überschreibt URL bei jedem moveend/loadend
+      _patchUpdateMapStatusUrl();
+
+      // MapTip-Patch deferred installieren (queryconnector + lookupCallbacks)
+      var patchFn = function () {
+        if (!_maptipPatched) _installMaptipPatch();
+      };
+      document.addEventListener('tnet-app-ready', function () {
+        setTimeout(patchFn, 1500);
+      });
+      setTimeout(patchFn, 5000);
+    },
+
+    /** Prüft ob Bridge aktiv ist. @returns {boolean} */
+    isEnabled: function () {
+      return _enabled;
+    },
+
+    /**
+     * Prüft ob die Bridge einen Sublayer handeln kann.
+     * Optimistisch: Prüft nur ob Bridge aktiv und Key hierarchisch ist.
+     * Tatsächliche Root-Dienst-Verfügbarkeit wird in registerSublayer verifiziert.
+     * @param {string} sublayerKey
+     * @returns {boolean}
+     */
+    canHandle: function (sublayerKey) {
+      if (!_enabled) return false;
+      var rootKey = _extractRootKey(sublayerKey);
+      return !!rootKey;
+    },
+
+    /**
+     * Registriert einen Sublayer. Beim ersten Sublayer wird der Root-Dienst
+     * via TnetLayerSwitch aktiviert.
+     * @param {string} sublayerKey   z.B. "gis_oereb/nw.../grundnutzung"
+     * @param {number} sublayerNum   Sublayer-Nummer (z.B. 0, 3, 5)
+     * @returns {boolean}
+     */
+    registerSublayer: function (sublayerKey, sublayerNum) {
+      if (!_enabled) return false;
+
+      var rootKey = _extractRootKey(sublayerKey);
+      if (!rootKey) {
+        TnetLog.debug(LOG, 'registerSublayer: Kein Root-Key extrahierbar für:', sublayerKey);
+        return false;
+      }
+      if (typeof sublayerNum !== 'number' || sublayerNum < 0) {
+        TnetLog.warn(LOG, 'registerSublayer: Ungültige Sublayer-Nr:', sublayerNum);
+        return false;
+      }
+
+      _sublayerToRoot[sublayerKey] = rootKey;
+      var entry = _rootServices[rootKey];
+      var isFirst = !entry;
+
+      if (!entry) {
+        // ── Erster Sublayer: Root-Dienst aktivieren ──
+        _rootServices[rootKey] = {
+          olLayer: null,
+          registeredSublayers: {},
+          visibleSublayers: {},
+          debounceTimer: null,
+          originalLAYERS: null
+        };
+        entry = _rootServices[rootKey];
+
+        TnetLog.log(LOG, '★ Root-Dienst aktivieren:', rootKey);
+
+        // 1. Prüfe ob Framework bereits einen OL-Layer hat (von vorherigem Session/Startup)
+        entry.olLayer = _findFrameworkOLLayer(rootKey);
+
+        if (!entry.olLayer) {
+          // 2. Framework kennt den Root-Key evtl. nicht (nur Sublayer-Keys konfiguriert)
+          //    → OL-Layer direkt in der Bridge erstellen (synchron, kein async-Timing-Problem)
+          entry.olLayer = _createRootOLLayer(rootKey, entry, sublayerKey);
+        }
+
+        if (entry.olLayer) {
+          entry.originalLAYERS = _getOriginalLAYERS(rootKey) || 'show:all';
+          TnetLog.log(LOG, 'Root-OL-Layer bereit:', rootKey,
+            entry.olLayer.get('tnet_bridge_created') ? '(Bridge-erstellt)' : '(Framework)');
+        } else {
+          // Map noch nicht bereit → Retry (z.B. beim allerersten Startup)
+          TnetLog.log(LOG, 'Root-Dienst OL-Layer noch nicht erstellbar:', rootKey,
+            '→ Deferred Retry');
+          var self = this;
+          var retryCount = 0;
+          var retryFn = function () {
+            if (!_rootServices[rootKey]) return; // bereits aufgeräumt
+            entry.olLayer = _findFrameworkOLLayer(rootKey);
+            if (!entry.olLayer) {
+              entry.olLayer = _createRootOLLayer(rootKey, entry, sublayerKey);
+            }
+            if (entry.olLayer) {
+              entry.originalLAYERS = _getOriginalLAYERS(rootKey) || 'show:all';
+              TnetLog.log(LOG, 'Root-OL-Layer bereit nach Retry', retryCount, ':', rootKey);
+              self._applyLAYERSParam(rootKey);
+              for (var lid in entry.registeredSublayers) {
+                if (entry.registeredSublayers.hasOwnProperty(lid)) {
+                  _registerLookupCallbacks(lid, rootKey);
+                  _forceActivateMaptip(lid, entry.olLayer);
+                }
+              }
+            } else if (retryCount < 8) {
+              retryCount++;
+              setTimeout(retryFn, 300 * retryCount);
+            } else {
+              TnetLog.warn(LOG, 'Root-OL-Layer nicht erstellbar nach 8 Retries:', rootKey);
+              for (var k in entry.registeredSublayers) {
+                if (entry.registeredSublayers.hasOwnProperty(k)) {
+                  delete _sublayerToRoot[k];
+                }
+              }
+              delete _rootServices[rootKey];
+            }
+          };
+          setTimeout(retryFn, 500);
+        }
+      }
+
+      entry.registeredSublayers[sublayerKey] = sublayerNum;
+      entry.visibleSublayers[sublayerKey] = sublayerNum;
+
+      // ── Doppel-Layer-Schutz: individuellen Framework-Startup-OL-Layer entfernen ──
+      // Das Framework erstellt beim Startup eigene OL-Layer pro Sublayer (name=sublayerKey).
+      // Jetzt hat die Bridge einen Root-OL-Layer erstellt (name=rootKey) der ALLE Sublayer
+      // enthält → individueller Layer wäre doppelt und muss weg.
+      var individualStartupOL = _findFrameworkOLLayer(sublayerKey);
+      if (individualStartupOL && individualStartupOL !== entry.olLayer) {
+        try {
+          var amClean = (window.njs && window.njs.AppManager) ? window.njs.AppManager : null;
+          if (amClean && amClean.Maps && amClean.Maps['main'] && amClean.Maps['main'].mapObj) {
+            amClean.Maps['main'].mapObj.removeLayer(individualStartupOL);
+            TnetLog.log(LOG, 'Framework-Startup-OL-Layer entfernt (Doppel-Schutz):', sublayerKey);
+          }
+        } catch (e) { /* bereits entfernt */ }
+      }
+
+      TnetLog.log(LOG, 'Sublayer registriert:', sublayerKey,
+        '(#' + sublayerNum + ') → Root:', rootKey,
+        '| Total:', Object.keys(entry.registeredSublayers).length);
+
+      // LAYERS-Parameter aktualisieren (debounced)
+      this._updateLAYERSDebounced(rootKey);
+
+      // MapTip: lookupCallbacks + force-activate deferred registrieren
+      var self = this;
+      setTimeout(function () {
+        if (!entry.olLayer) entry.olLayer = _findFrameworkOLLayer(rootKey);
+        _registerLookupCallbacks(sublayerKey, rootKey);
+        // MapTip direkt in wmsActiveLyrs einfügen damit queryconnector aufgerufen wird
+        if (entry.olLayer) {
+          _forceActivateMaptip(sublayerKey, entry.olLayer);
+        }
+      }, isFirst ? 500 : 100);
+
+      // Dojo-Checkbox + URL-State (nur außerhalb von Batch-Modus)
+      if (_batchDepth === 0) {
+        _syncDojoCheckbox(sublayerKey, true);
+        _scheduleUrlSync();
+      }
+
+      return true;
+    },
+
+    /**
+     * Entfernt einen Sublayer komplett. Beim letzten wird der Root-Dienst deaktiviert.
+     * @param {string} sublayerKey
+     * @returns {boolean}
+     */
+    unregisterSublayer: function (sublayerKey) {
+      var rootKey = _sublayerToRoot[sublayerKey];
+      if (!rootKey) rootKey = _extractRootKey(sublayerKey);
+      if (!rootKey) return false;
+
+      var entry = _rootServices[rootKey];
+      if (!entry) return false;
+
+      _unregisterLookupCallbacks(sublayerKey, rootKey);
+      _forceDeactivateMaptip(sublayerKey);
+      delete entry.registeredSublayers[sublayerKey];
+      delete entry.visibleSublayers[sublayerKey];
+      delete _sublayerToRoot[sublayerKey];
+
+      // ── Ghost-Layer-Schutz: individuellen Framework-Startup-OL-Layer entfernen ──
+      // Das Framework erstellt beim Startup pro Sublayer eigene OL-Layer
+      // (via switchLayersProgr → lay.switchLayer(true) → map.insertAt).
+      // Diese haben name === sublayerKey und existieren NEBEN dem Root-OL-Layer.
+      // Ohne diesen Cleanup bleiben sie als Ghost sichtbar.
+      var individualOL = _findFrameworkOLLayer(sublayerKey);
+      if (individualOL) {
+        try {
+          var amClean = (window.njs && window.njs.AppManager) ? window.njs.AppManager : null;
+          if (amClean && amClean.Maps && amClean.Maps['main'] && amClean.Maps['main'].mapObj) {
+            amClean.Maps['main'].mapObj.removeLayer(individualOL);
+            TnetLog.log(LOG, 'Framework-Startup-OL-Layer entfernt (Ghost-Schutz):', sublayerKey);
+          }
+        } catch (e) { /* bereits entfernt */ }
+      }
+
+      var remaining = Object.keys(entry.registeredSublayers).length;
+      TnetLog.log(LOG, 'Sublayer entfernt:', sublayerKey,
+        '→ Root:', rootKey, '| verbleibend:', remaining);
+
+      if (remaining === 0) {
+        if (entry.debounceTimer) clearTimeout(entry.debounceTimer);
+        delete _rootServices[rootKey];
+
+        TnetLog.log(LOG, '★ Root-Dienst deaktivieren:', rootKey);
+
+        // OL-Layer frisch von der Map holen (gespeicherte Referenz kann veraltet sein
+        // durch Framework ADD→REMOVE→ADD Race Condition beim Startup)
+        var olLayer = _findFrameworkOLLayer(rootKey);
+        if (olLayer) {
+          try {
+            var am = (window.njs && window.njs.AppManager) ? window.njs.AppManager : null;
+            if (am && am.Maps && am.Maps['main'] && am.Maps['main'].mapObj) {
+              am.Maps['main'].mapObj.removeLayer(olLayer);
+              TnetLog.log(LOG, 'OL-Layer direkt entfernt:', rootKey);
+            }
+          } catch (e) { /* bereits entfernt */ }
+        }
+
+        // Framework-State-Cleanup (LyrMgr-Checkboxen, URL-Tracking)
+        try {
+          TnetLayerSwitch(rootKey, 'off');
+        } catch (e) {
+          TnetLog.error(LOG, 'TnetLayerSwitch OFF Fehler:', rootKey, e.message);
+        }
+      } else {
+        this._updateLAYERSDebounced(rootKey);
+      }
+
+      if (_batchDepth === 0) {
+        _syncDojoCheckbox(sublayerKey, false);
+        _scheduleUrlSync();
+      }
+      return true;
+    },
+
+    /**
+     * Versteckt einen Sublayer (Auge aus): entfernt aus LAYERS, bleibt registriert.
+     * @param {string} sublayerKey
+     */
+    hideSublayer: function (sublayerKey) {
+      var rootKey = _sublayerToRoot[sublayerKey];
+      if (!rootKey) return;
+      var entry = _rootServices[rootKey];
+      if (!entry) return;
+
+      delete entry.visibleSublayers[sublayerKey];
+      this._updateLAYERSDebounced(rootKey);
+      TnetLog.log(LOG, 'Sublayer versteckt:', sublayerKey);
+    },
+
+    /**
+     * Zeigt einen Sublayer wieder an (Auge an): fügt in LAYERS ein.
+     * @param {string} sublayerKey
+     * @param {number} sublayerNum
+     */
+    showSublayer: function (sublayerKey, sublayerNum) {
+      var rootKey = _sublayerToRoot[sublayerKey];
+      if (!rootKey) return;
+      var entry = _rootServices[rootKey];
+      if (!entry) return;
+
+      entry.visibleSublayers[sublayerKey] = sublayerNum;
+      this._updateLAYERSDebounced(rootKey);
+      TnetLog.log(LOG, 'Sublayer angezeigt:', sublayerKey, '#' + sublayerNum);
+    },
+
+    /**
+     * Entfernt alle Sublayer einer Gruppe.
+     * @param {string} rootKey
+     * @param {Object} activeSublayers  { sublayerKey: sublayerNum }
+     */
+    unregisterGroup: function (rootKey, activeSublayers) {
+      if (!_enabled) return;
+      for (var lid in activeSublayers) {
+        if (activeSublayers.hasOwnProperty(lid)) {
+          this.unregisterSublayer(lid);
+        }
+      }
+      TnetLog.log(LOG, 'Gruppe deregistriert:', rootKey);
+    },
+
+    /**
+     * LAYERS-Parameter aktualisieren (debounced).
+     * @param {string} rootKey
+     * @private
+     */
+    _updateLAYERSDebounced: function (rootKey) {
+      var entry = _rootServices[rootKey];
+      if (!entry) return;
+      if (entry.debounceTimer) clearTimeout(entry.debounceTimer);
+
+      var delay = 80;
+      try { delay = TnetGlobalConfig.get('layerManager.coalesceDebounceMs', 80); }
+      catch (e) { /* default */ }
+
+      var self = this;
+      entry.debounceTimer = setTimeout(function () {
+        entry.debounceTimer = null;
+        self._applyLAYERSParam(rootKey);
+      }, delay);
+    },
+
+    /**
+     * Setzt den LAYERS-Parameter auf dem Framework-OL-Layer.
+     * @param {string} rootKey
+     * @private
+     */
+    _applyLAYERSParam: function (rootKey) {
+      var entry = _rootServices[rootKey];
+      if (!entry) return;
+      var layersParam = _buildLayersParam(entry.visibleSublayers);
+      TnetLog.log(LOG, 'LAYERS update:', rootKey, '→', layersParam);
+
+      if (!entry.olLayer) entry.olLayer = _findFrameworkOLLayer(rootKey);
+
+      if (!entry.olLayer) {
+        var self = this;
+        var retryCount = 0;
+        var retryFn = function () {
+          entry.olLayer = _findFrameworkOLLayer(rootKey);
+          if (entry.olLayer) {
+            self._setLayersOnSource(entry.olLayer, layersParam, rootKey);
+          } else if (retryCount < 8) {
+            retryCount++;
+            TnetLog.debug(LOG, 'OL-Layer Retry', retryCount, 'für', rootKey);
+            setTimeout(retryFn, 250 * retryCount);
+          } else {
+            TnetLog.warn(LOG, 'OL-Layer nicht gefunden nach 8 Retries:', rootKey);
+          }
+        };
+        setTimeout(retryFn, 200);
+        return;
+      }
+      this._setLayersOnSource(entry.olLayer, layersParam, rootKey);
+    },
+
+    /**
+     * Setzt LAYERS auf der OL-Source.
+     * @param {ol.layer.Layer} olLayer
+     * @param {string} layersParam
+     * @param {string} rootKey
+     * @private
+     */
+    _setLayersOnSource: function (olLayer, layersParam, rootKey) {
+      if (!olLayer) return;
+      var src = olLayer.getSource();
+      if (src && typeof src.updateParams === 'function') {
+        src.updateParams({ LAYERS: layersParam });
+        TnetLog.debug(LOG, 'OL-Source LAYERS gesetzt:', rootKey, '→', layersParam);
+        // Karten-Render erzwingen — ohne expliziten Render-Zyklus zeigt OL
+        // die neuen Tiles erst bei der nächsten User-Interaktion (Pan/Zoom)
+        setTimeout(function () {
+          try {
+            var mapObj = njs.AppManager.Maps['main'].mapObj;
+            if (mapObj && typeof mapObj.render === 'function') {
+              mapObj.render();
+            }
+          } catch (e) { /* ignore */ }
+        }, 100);
+      } else {
+        TnetLog.warn(LOG, 'OL-Source hat kein updateParams:', rootKey);
+      }
+    },
+
+    /**
+     * Öffentliche URL-Sync (für Store-Fallback wenn Bridge nicht aktiv).
+     * Debounced mit 300ms wie die interne Variante.
+     */
+    scheduleUrlSync: function () {
+      _scheduleUrlSync();
+    },
+
+    /**
+     * Gibt den OL-Layer für einen Bridge-verwalteten Sublayer zurück.
+     * @param {string} sublayerKey
+     * @returns {ol.layer.Layer|null}
+     */
+    getOLLayerForSublayer: function (sublayerKey) {
+      var rootKey = _sublayerToRoot[sublayerKey];
+      if (!rootKey) return null;
+      var entry = _rootServices[rootKey];
+      if (!entry) return null;
+      if (!entry.olLayer) entry.olLayer = _findFrameworkOLLayer(rootKey);
+      return entry.olLayer || null;
+    },
+
+    /**
+     * Gibt den Root-Key für einen Sublayer zurück.
+     * @param {string} sublayerKey
+     * @returns {string|null}
+     */
+    getRootKey: function (sublayerKey) {
+      return _sublayerToRoot[sublayerKey] || _extractRootKey(sublayerKey) || null;
+    },
+
+    /**
+     * Prüft ob ein Sublayer über die Bridge verwaltet wird.
+     * @param {string} sublayerKey
+     * @returns {boolean}
+     */
+    isManagedSublayer: function (sublayerKey) {
+      return !!_sublayerToRoot[sublayerKey];
+    },
+
+    /**
+     * Startet den Batch-Modus: unterdrückt Dojo-Checkbox-Sync und URL-Sync
+     * für nachfolgende register/unregisterSublayer-Aufrufe.
+     * Muss mit endBatch() abgeschlossen werden.
+     */
+    beginBatch: function () {
+      _batchDepth++;
+      TnetLog.debug(LOG, 'beginBatch, Tiefe:', _batchDepth);
+    },
+
+    /**
+     * Beendet den Batch-Modus. Beim letzten endBatch wird URL-Sync ausgelöst.
+     * Dojo-Checkboxen werden bewusst NICHT synchronisiert — das würde
+     * switchLayersProgr/Ghost-Layer-Probleme verursachen.
+     */
+    endBatch: function () {
+      _batchDepth--;
+      if (_batchDepth <= 0) {
+        _batchDepth = 0;
+        _scheduleUrlSync();
+        TnetLog.debug(LOG, 'endBatch: URL-Sync ausgelöst');
+      }
+    },
+
+    /**
+     * Prüft ob ein Root-Dienst aktiv ist.
+     * @param {string} rootKey
+     * @returns {boolean}
+     */
+    isRootActive: function (rootKey) {
+      return !!_rootServices[rootKey];
+    },
+
+    /**
+     * Registriert MapTip-Callbacks für einen Standard-Coalesce-OL-Layer.
+     * Wird als Fallback verwendet wenn Root-Dienst nicht verfügbar ist.
+     * Der OL-Layer wurde bereits vom Standard-Coalesce-Pfad erstellt.
+     * @param {string} sublayerKey   z.B. "gis_oereb/nw_nutzungsplanung_def/grundnutzung"
+     * @param {ol.layer.Layer} olLayer  Standard-Coalesce OL-Layer
+     * @param {number} sublayerNum   Sublayer-Nummer (z.B. 12)
+     */
+    patchMaptipForCoalesceLayer: function (sublayerKey, olLayer, sublayerNum) {
+      if (!_enabled || !olLayer) return;
+      var rootKey = _extractRootKey(sublayerKey);
+      if (!rootKey) return;
+
+      // Pseudo-Root-Service für MapTip-Callbacks erstellen/erweitern
+      if (!_rootServices[rootKey]) {
+        _rootServices[rootKey] = {
+          olLayer: olLayer,
+          registeredSublayers: {},
+          visibleSublayers: {},
+          debounceTimer: null,
+          originalLAYERS: null,
+          maptipOnly: true
+        };
+      }
+      var entry = _rootServices[rootKey];
+      if (!entry.olLayer) entry.olLayer = olLayer;
+      _sublayerToRoot[sublayerKey] = rootKey;
+      entry.registeredSublayers[sublayerKey] = sublayerNum;
+
+      // lookupCallbacks + force-activate deferred registrieren
+      setTimeout(function () {
+        _registerLookupCallbacks(sublayerKey, rootKey);
+        _forceActivateMaptip(sublayerKey, olLayer);
+      }, 300);
+
+      TnetLog.log(LOG, 'MapTip-Patch für Coalesce-Sublayer:', sublayerKey,
+        '→ Root:', rootKey, '(#' + sublayerNum + ')');
+    },
+
+    /**
+     * Entfernt MapTip-Callbacks für einen Standard-Coalesce-Sublayer.
+     * @param {string} sublayerKey
+     */
+    unpatchMaptipForCoalesceLayer: function (sublayerKey) {
+      var rootKey = _sublayerToRoot[sublayerKey];
+      if (!rootKey) return;
+      var entry = _rootServices[rootKey];
+      if (!entry || !entry.maptipOnly) return;
+
+      _unregisterLookupCallbacks(sublayerKey, rootKey);
+      _forceDeactivateMaptip(sublayerKey);
+      delete entry.registeredSublayers[sublayerKey];
+      delete _sublayerToRoot[sublayerKey];
+
+      if (Object.keys(entry.registeredSublayers).length === 0) {
+        delete _rootServices[rootKey];
+      }
+      TnetLog.debug(LOG, 'MapTip-Unpatch für Coalesce-Sublayer:', sublayerKey);
+    },
+
+    /**
+     * Stellt Coalesce-Layer aus dem URL-Parameter wieder her.
+     * @param {Object} store  TnetLMStore-Instanz
+     */
+    restoreFromUrl: function (store) {
+      if (!_enabled || !store) return;
+      try {
+        // Gesicherte URL-Layers verwenden — aktuelle URL kann bereits vom Framework
+        // überschrieben sein (updateMapStatusUrl bei jedem moveend/loadend)
+        var layersParam = _originalUrlLayers;
+        if (!layersParam) {
+          // Fallback: aktuelle URL (falls Sicherung fehlschlug)
+          var url = new URL(window.location.href);
+          layersParam = url.searchParams.get('layers') || '';
+        }
+        if (!layersParam) return;
+
+        var layerIds = layersParam.split(/[|,]/);
+        var restored = 0;
+        for (var i = 0; i < layerIds.length; i++) {
+          var lid = decodeURIComponent(layerIds[i]).trim();
+          if (!lid) continue;
+          var rootKey = _extractRootKey(lid);
+          if (rootKey) {
+            var layer = store.findLayer(lid);
+            if (layer && !layer.visible) {
+              store.setLayerVisible(lid, true);
+              restored++;
+            }
+          }
+        }
+        if (restored > 0) {
+          TnetLog.log(LOG, 'URL-Restore:', restored, 'Coalesce-Layer aus gesicherten URL-Params wiederhergestellt');
+        }
+      } catch (e) {
+        TnetLog.warn(LOG, 'restoreFromUrl Fehler:', e.message);
+      }
+    },
+
+    /**
+     * Debug-Info.
+     * @returns {Object}
+     */
+    getStatus: function () {
+      var state = {};
+      for (var rk in _rootServices) {
+        if (!_rootServices.hasOwnProperty(rk)) continue;
+        var e = _rootServices[rk];
+        state[rk] = {
+          olLayerFound: !!e.olLayer,
+          maptipOnly: !!e.maptipOnly,
+          registeredCount: Object.keys(e.registeredSublayers).length,
+          visibleCount: Object.keys(e.visibleSublayers).length,
+          registered: Object.assign({}, e.registeredSublayers),
+          visible: Object.assign({}, e.visibleSublayers),
+          originalLAYERS: e.originalLAYERS
+        };
+      }
+      return {
+        enabled: _enabled,
+        maptipPatched: _maptipPatched,
+        tnetLayerSwitchPatched: !!window._tnet_origTnetLayerSwitch,
+        urlSyncPatched: !!(njs && njs.AppManager && njs.AppManager._tnet_origUpdateMapStatusUrl),
+        rootServices: state,
+        sublayerToRoot: Object.assign({}, _sublayerToRoot),
+        hint: Object.keys(state).length === 0
+          ? 'Keine Root-Dienste aktiv. Falls Standard-Coalesce läuft, werden MapTip-Callbacks über patchMaptipForCoalesceLayer registriert.'
+          : null
+      };
+    }
+  };
+
+  window.TnetCoalesceBridge = Bridge;
+})();

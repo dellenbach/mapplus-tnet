@@ -1,3 +1,166 @@
-(function(){"use strict";var e={none:0,error:1,warn:2,info:3,debug:4},a=e.warn,w=!1,s={log:console.log.bind(console),info:console.info.bind(console),warn:console.warn.bind(console),error:console.error.bind(console),debug:(console.debug||console.log).bind(console)};function d(o){typeof o=="string"&&e.hasOwnProperty(o)&&(a=e[o])}function N(){for(var o in e)if(e[o]===a)return o;return"unknown"}var T={log:function(){a>=e.debug&&s.log.apply(null,arguments)},info:function(){a>=e.info&&s.info.apply(null,arguments)},warn:function(){a>=e.warn&&s.warn.apply(null,arguments)},error:function(){a>=e.error&&s.error.apply(null,arguments)},debug:function(){a>=e.debug&&s.debug.apply(null,arguments)},setLevel:d,getLevel:N,isConfigLoaded:function(){return w}};function _(){for(var o=window.__TNET_APP_ROOT||"/maps",p=[o+"/tnet/config/tnet-global-config.json5",o+"/tnet/tnet-global-config.json5","../tnet/config/tnet-global-config.json5"],i=0;i<p.length;i++)try{var u=new XMLHttpRequest;if(u.open("GET",p[i],!1),u.send(),u.status===200){for(var h=u.responseText,b=h.split(`
-`),y=[],c=0;c<b.length;c++){for(var n=b[c],g=!1,L=null,v=-1,r=0;r<n.length;r++){var f=n[r];if((f==='"'||f==="'")&&(r===0||n[r-1]!=="\\")&&(g?f===L&&(g=!1):(g=!0,L=f)),!g&&r<n.length-1&&n[r]==="/"&&n[r+1]==="/"){v=r;break}}v>-1&&(n=n.substring(0,v)),n.trim()&&y.push(n)}var P=y.join(`
-`).replace(/,(\s*[}\]])/g,"$1").replace(/((?:^|[{,])\s*)([a-zA-Z_][a-zA-Z0-9_-]*)\s*:/gm,'$1"$2":').replace(/'([^'\\]*(?:\\.[^'\\]*)*)'/g,'"$1"'),l=JSON.parse(P);l.logLevel&&d(l.logLevel),window.TnetGlobalLogLevel=l.logLevel||"warn";var t=l.layerManager||{},A=!!(t.useLegacyNestedHierarchyStyle||t.useExtendedLegacyHierarchy||t.legacyNestedHierarchyStyle);window.__tnetLMFlags={useNewActivePanel:!!(t.useNewActivePanel||t.useNew),useNewTree:!!t.useNewTree,useNewWmsPanel:!!t.useNewWmsPanel,useLegacyNestedHierarchyStyle:A},window.TnetGlobalConfig=l,w=!0;break}}catch{}}_(),window.TnetLog=T})();
+/**
+ * tnet-log.js
+ * Zentrale Logging-Utility für alle TNET-Module.
+ * Respektiert logLevel aus tnet-global-config.json5.
+ *
+ * Nutzung:
+ *   TnetLog.log('[Modul]', 'Nachricht', daten);   // nur bei debug
+ *   TnetLog.info('[Modul]', 'Nachricht');           // nur bei info+
+ *   TnetLog.warn('[Modul]', 'Nachricht');           // nur bei warn+
+ *   TnetLog.error('[Modul]', 'Nachricht');          // nur bei error+
+ *   TnetLog.debug('[Modul]', 'Nachricht');          // nur bei debug
+ *
+ * logLevel-Stufen: 'none' (0) | 'error' (1) | 'warn' (2) | 'info' (3) | 'debug' (4)
+ * Default: 'warn' — wird durch Config überschrieben sobald geladen.
+ *
+ * @version    1.0
+ * @date       2026-03-04
+ * @copyright  Trigonet AG
+ * @author     Marco Dellenbach
+ */
+
+// ===== ZENTRALE LOG-UTILITY =====
+(function () {
+  'use strict';
+
+  var LEVELS = { none: 0, error: 1, warn: 2, info: 3, debug: 4 };
+  var _level = LEVELS.warn; // Default bis Config geladen
+  var _configLoaded = false;
+
+  // Echte Console-Referenzen (werden nie überschrieben)
+  var _con = {
+    log:   console.log.bind(console),
+    info:  console.info.bind(console),
+    warn:  console.warn.bind(console),
+    error: console.error.bind(console),
+    debug: (console.debug || console.log).bind(console)
+  };
+
+  /**
+   * LogLevel setzen (wird automatisch von Config-Loader aufgerufen)
+   * @param {string} level - 'none', 'error', 'warn', 'info', 'debug'
+   */
+  function setLevel(level) {
+    if (typeof level === 'string' && LEVELS.hasOwnProperty(level)) {
+      _level = LEVELS[level];
+    }
+  }
+
+  /**
+   * Aktuellen LogLevel-Namen zurückgeben
+   */
+  function getLevel() {
+    for (var name in LEVELS) {
+      if (LEVELS[name] === _level) return name;
+    }
+    return 'unknown';
+  }
+
+  // ===== PUBLIC API =====
+  var TnetLog = {
+    /** Nur bei debug-Level */
+    log: function () {
+      if (_level >= LEVELS.debug) _con.log.apply(null, arguments);
+    },
+    /** Nur bei info-Level oder höher */
+    info: function () {
+      if (_level >= LEVELS.info) _con.info.apply(null, arguments);
+    },
+    /** Nur bei warn-Level oder höher */
+    warn: function () {
+      if (_level >= LEVELS.warn) _con.warn.apply(null, arguments);
+    },
+    /** Immer bei error-Level oder höher */
+    error: function () {
+      if (_level >= LEVELS.error) _con.error.apply(null, arguments);
+    },
+    /** Nur bei debug-Level */
+    debug: function () {
+      if (_level >= LEVELS.debug) _con.debug.apply(null, arguments);
+    },
+    /** LogLevel setzen */
+    setLevel: setLevel,
+    /** LogLevel abfragen */
+    getLevel: getLevel,
+    /** Config geladen? */
+    isConfigLoaded: function () { return _configLoaded; }
+  };
+
+  // ===== CONFIG LADEN =====
+  function loadConfig() {
+    var appRoot = window.__TNET_APP_ROOT || '/maps';
+    var paths = [
+      appRoot + '/tnet/config/tnet-global-config.json5',
+      appRoot + '/tnet/tnet-global-config.json5',
+      '../tnet/config/tnet-global-config.json5'
+    ];
+
+    for (var i = 0; i < paths.length; i++) {
+      try {
+        var xhr = new XMLHttpRequest();
+        xhr.open('GET', paths[i], false); // synchron — muss vor allen anderen Modulen fertig sein
+        xhr.send();
+        if (xhr.status === 200) {
+          var text = xhr.responseText;
+          // JSON5-Parser: Kommentare (string-aware), trailing commas, unquoted keys, single quotes
+          var lines = text.split('\n');
+          var cleaned = [];
+          for (var j = 0; j < lines.length; j++) {
+            var line = lines[j];
+            var inStr = false, strCh = null, cp = -1;
+            for (var k = 0; k < line.length; k++) {
+              var c = line[k];
+              if ((c === '"' || c === "'") && (k === 0 || line[k - 1] !== '\\')) {
+                if (!inStr) { inStr = true; strCh = c; }
+                else if (c === strCh) { inStr = false; }
+              }
+              if (!inStr && k < line.length - 1 && line[k] === '/' && line[k + 1] === '/') { cp = k; break; }
+            }
+            if (cp > -1) line = line.substring(0, cp);
+            if (line.trim()) cleaned.push(line);
+          }
+          var jsonText = cleaned.join('\n')
+            .replace(/,(\s*[}\]])/g, '$1')
+            .replace(/((?:^|[{,])\s*)([a-zA-Z_][a-zA-Z0-9_-]*)\s*:/gm, '$1"$2":')
+            .replace(/'([^'\\]*(?:\\.[^'\\]*)*)'/g, '"$1"');
+          var config = JSON.parse(jsonText);
+
+          if (config.logLevel) {
+            setLevel(config.logLevel);
+          }
+          window.TnetGlobalLogLevel = config.logLevel || 'warn';
+
+          // Layer-Manager Feature-Flags auf window exponieren,
+          // damit tnet_toc.js, tnet-catalog-filter.js und tnet-accordion-resize.js
+          // synchron prüfen können ob sie aktiv sein sollen (ohne eigenen Config-Fetch).
+          var lm = config.layerManager || {};
+          var useLegacyNestedHierarchyStyle = !!(
+            lm.useLegacyNestedHierarchyStyle ||
+            lm.useExtendedLegacyHierarchy ||
+            lm.legacyNestedHierarchyStyle
+          );
+          window.__tnetLMFlags = {
+            useNewActivePanel: !!(lm.useNewActivePanel || lm.useNew),
+            useNewTree: !!lm.useNewTree,
+            useNewWmsPanel: !!lm.useNewWmsPanel,
+            useLegacyNestedHierarchyStyle: useLegacyNestedHierarchyStyle
+          };
+
+          window.TnetGlobalConfig = config;
+
+          _configLoaded = true;
+          break; // Erfolg — Schleife verlassen
+        }
+      } catch (e) {
+        // Pfad fehlgeschlagen, nächsten versuchen
+      }
+    }
+  }
+
+  // Sofort Config laden (synchron)
+  loadConfig();
+
+  // Global verfügbar machen
+  window.TnetLog = TnetLog;
+
+})();

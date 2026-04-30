@@ -1,3 +1,15 @@
+## 2026-04-30 — DEV lud nach Fix weiterhin gecachte modules.js und Legacy-tnet_toc
+- **Symptom**: `/maps-dev` startete trotz lokaler Fixes unvollstaendig; `njs.AppManager.Maps.main` blieb leer und der Browser lief in `layout.js:initTitleFreePaneItems` auf `Cannot read properties of null (reading 'style')`.
+- **Root-Cause**: Remote-DEV hatte zwar die gepatchte `public/config/modules.js`, die Seite lud aber weiter `modules.js?v=v4.0.0` aus dem Cache. Zusaetzlich zeigte der `tnet_toc.js`-Script-Tag noch auf den alten Legacy-Pfad `/tnet/tnet_toc.js`, waehrend der Build nach `/tnet/js/tnet_toc.js` deployt.
+- **Fix**: DEV-HTML auf `/tnet/js/tnet_toc.js` umgestellt und den `modules.js`-Query-String fuer DEV gebumpt. Danach wurde der vorhandene `<details>`-Monkey-Patch fuer `initTitleFreePaneItems` live und die App initialisierte wieder bis `tnet-app-ready`.
+- **Guardrail**: Nach Upload von Einstiegsskripten mit stabilen Query-Strings immer Cachebuster pruefen. Legacy-Script-Pfade muessen zum Build-/Deploy-Ziel passen, sonst landet der Fix nicht im Browser.
+
+## 2026-04-30 — maps-dev/js-dev enthielt irrtuemlich minifizierte Build-Artefakte
+- **Symptom**: Fast alle Dateien unter `maps-dev/tnet/js-dev` waren Einzeiler, obwohl die Originalquellen unter `maps/tnet/js-dev` lesbar und unminifiziert sind.
+- **Root-Cause**: Beim initialen DEV-Seed wurden offenbar Dateien aus dem Build-Ziel `tnet/js` statt aus dem Source-Ziel `tnet/js-dev` nach `maps-dev/tnet/js-dev` uebernommen.
+- **Fix**: `maps-dev/tnet/js-dev` aus den lesbaren Originalquellen `maps/tnet/js-dev` restauriert. DEV-spezifische Runtime-Normalisierung fuer Proxy-/Service-URLs danach wieder in `tnet-lm-store.js` und `tnet-coalesce-bridge.js` als lesbaren Source-Code eingepflegt.
+- **Guardrail**: Bei DEV/PROD-Sync immer Source nach Source (`js-dev -> js-dev`) und Build-Output nach Build-Output (`js -> js`) kopieren. Nach Seed per Zeilenzahl/Stichprobe pruefen, dass `js-dev` keine Einzeiler-Artefakte enthaelt.
+
 ## 2026-04-30 — DEV normalisiert PROD-Proxy-Pfade aus Layer-Configs erst zur Laufzeit
 - **Symptom**: DEV erzeugte trotz korrektem App-Root weiterhin Proxy-URLs wie `/maps-dev//maps/tnet/agsproxy/...` oder lieferte in `flat=true` alte Config-URLs wie `/maps/agsproxy.php?path=...` aus.
 - **Root-Cause**: Layer-Configs und DB-Importe enthalten historisch PROD-Webpfade (`/maps/...`). Das ist fuer Produktion gueltig, wurde aber beim Ausliefern in DEV nicht an der API-Grenze normalisiert; Client-Code hat nur den aktuellen Root erkannt und alte absolute App-Pfade erneut geprefixt.

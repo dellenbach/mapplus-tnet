@@ -1,1 +1,1449 @@
-import{waitForMap as F,getMainMap as Z}from"./tnet-utils.js";import{isEmpty as ue}from"https://cdn.jsdelivr.net/npm/ol@v10.8.0/extent.js";var K="https://www.gis-daten.ch/app/oereb/graphicsLayerOereb-nw",J="folder=nwow&site=maps&uprofile=public&ugroup=public",fe={OW0200001401:"Sarnen",OW0200001402:"Alpnach",OW0200001403:"Giswil",OW0200001404:"Kerns",OW0200001405:"Lungern",OW0200001406:"Sachseln",OW0200001407:"Engelberg",NW0200001321:"Stans",NW0200001322:"Stansstad",NW0200001323:"Buochs",NW0200001324:"Ennetb\xFCrgen",NW0200001325:"Hergiswil",NW0200001326:"Beckenried",NW0200001327:"Emmetten",NW0200001328:"Wolfenschiessen",NW0200001329:"Dallenwil",NW0200001330:"Oberdorf",NW0200001331:"Ennetmoos"};function E(){return window.innerWidth<=768||document.body.classList.contains("mobile-view")}function G(){return window.__TNET_MOBILE_ENTRY===!0}var _=!1,A=null,v=null,w=null,U=!1,C=!1,O=null,T=null,I=null,m=null;window.isOerebActive=!1,window.isOerebPanelDocked=!0;var k=null,x=null,q=null,de=!0,W=!1,z=[];(function(){if(typeof JSON5>"u")return;var r=window.__TNET_APP_ROOT||"/maps",a=[r+"/tnet/config/tnet-global-config.json5",r+"/tnet/tnet-global-config.json5","../tnet/config/tnet-global-config.json5"];function l(s){s>=a.length||fetch(a[s]).then(function(c){if(!c.ok)throw new Error(c.status);return c.text()}).then(function(c){var d=JSON5.parse(c);d&&d.oereb&&(m=d.oereb,TnetLog.log("[OEREB] Config geladen: maxZoomOrthophoto="+m.maxZoomOrthophoto+", maxZoomOther="+m.maxZoomOther))}).catch(function(){l(s+1)})}l(0)})();var R=[];function Y(e){for(var r=e.length,a=0,l=0;l<r;l++){var s=(l+1)%r;a+=e[l][0]*e[s][1],a-=e[s][0]*e[l][1]}return Math.abs(a)/2}function $(e){if(!e||!e.coordinates)return 0;if(e.type==="Polygon")return Y(e.coordinates[0]);if(e.type==="MultiPolygon"){var r=0;return e.coordinates.forEach(function(a){r+=Y(a[0])}),r}return 0}function Q(e){return e<=0?"":e>=1e4?(e/1e4).toFixed(2)+" ha":Math.round(e).toLocaleString("de-CH")+" m\xB2"}function X(e){return e&&fe[e]||""}function ee(e,r){return r||(e&&/^\(.*\)$/.test(String(e).trim())?"Baurecht":"Liegenschaft")}window.toggleOerebMode=function(){_?te():pe()};function pe(){_=!0,window.isOerebActive=!0;var e=document.getElementById("oereb-tool-btn");e&&e.classList.add("active"),window.isPolygonDrawing&&typeof window.togglePolygonDraw=="function"&&window.togglePolygonDraw(),document.body.classList.add("oereb-mode");var r=document.getElementById("map");r&&(r.style.cursor="crosshair"),Le(),L(""),he(),F(function(a){ae(a),x&&clearInterval(x),x=setInterval(function(){window.isOerebActive&&oe(a)},100),A=a.on("singleclick",function(l){l.stopPropagation();try{l.originalEvent&&(l.originalEvent.stopPropagation(),l.originalEvent.stopImmediatePropagation())}catch{}ge(l.coordinate,a),ve(a)})})}function te(){_=!1,window.isOerebActive=!1;var e=document.getElementById("oereb-tool-btn");e&&e.classList.remove("active"),document.body.classList.remove("oereb-mode");var r=document.getElementById("map");r&&(r.style.cursor=""),A&&(ol.Observable.unByKey(A),A=null),k&&(clearTimeout(k),k=null),x&&(clearInterval(x),x=null),R=[],W=!1,z.length?(z.forEach(function(a){a.layer.setVisible(a.wasVisible)}),z=[]):q&&q.setVisible(de),F(function(a){D(a)}),H(),we(),w=null,L(""),V(),window.isOerebPanelDocked=!0,Ee()}function ge(e,r){var a=Math.round(e[0]),l=Math.round(e[1]);L('<div class="oereb-info-text"><div class="loading-spinner"></div> Grundst\xFCck wird abgefragt...</div>'),V(),H();var s="https://api3.geo.admin.ch/rest/services/ech/MapServer/identify?geometryType=esriGeometryPoint&geometry="+a+","+l+"&tolerance=0&layers=all:ch.kantone.cadastralwebmap-farbe&returnGeometry=true&sr=2056&geometryFormat=geojson";fetch(s).then(function(c){if(!c.ok)throw new Error("HTTP "+c.status);return c.json()}).then(function(c){if(!c.results||c.results.length===0){L('<div class="oereb-info-text">Kein Grundst\xFCck gefunden an dieser Position.</div>');return}w=c.results,c.results.length===1?re(c.results[0],r):ne(c.results,r)}).catch(function(c){L('<div class="oereb-info-text oereb-error">Fehler: '+c.message+"</div>")})}function re(e,r){var a=e.properties||e.attributes,l=a.egris_egrid||"",s=a.number||"?",c=a.ak||"",d=a.identnd||"",g=ee(s,a.realestate_type),y=X(d),h=$(e.geometry),t='<div class="oereb-selected-info">';if(t+='<div class="oereb-sel-row">',t+='<span class="oereb-sel-label">Parzelle '+s+"</span>",t+='<span class="oereb-sel-egrid">'+l+"</span>",t+='<span class="oereb-sel-kanton">'+c+"</span>",t+='<span class="oereb-sel-typ">'+g+"</span>",t+="</div>",(y||h>0)&&(t+='<div class="oereb-sel-row2">',y&&(t+='<span class="oereb-sel-gemeinde">'+y+"</span>"),h>0&&(t+='<span class="oereb-sel-area">'+Q(h)+"</span>"),t+="</div>"),w&&w.length>1&&(t+='<button class="oereb-back-btn" id="oereb-back-btn">\u25C0 Alle '+w.length+" Grundst\xFCcke</button>"),t+="</div>",L(t),w&&w.length>1){var n=document.getElementById("oereb-back-btn");n&&n.addEventListener("click",function(){F(function(o){ne(w,o)})})}if(e.geometry&&me(e.geometry,r),l){ye(l,g,c);var i=document.getElementById("oereb-iframe");i&&(i.onload=function(){i.src&&i.src!=="about:blank"&&L(""),i.onload=null})}}function ne(e,r){var a='<div class="oereb-multi-header">'+e.length+" Grundst\xFCcke gefunden \u2013 bitte w\xE4hlen:</div>";a+='<div class="oereb-result-list">',e.forEach(function(s,c){var d=s.properties||s.attributes,g=d.egris_egrid||"?",y=d.number||"?",h=ee(y,d.realestate_type),t=d.ak||"",n=d.identnd||"",i=X(n),o=$(s.geometry);a+='<div class="oereb-result-item" data-index="'+c+'">',a+='<div class="oereb-ri-main">',a+='<span class="oereb-ri-nr">Nr. '+y+"</span>",a+='<span class="oereb-ri-typ">'+h+"</span>",t&&(a+='<span class="oereb-ri-kanton">'+t+"</span>"),a+="</div>",a+='<div class="oereb-ri-details">',a+='<span class="oereb-ri-egrid">'+g+"</span>",i&&(a+='<span class="oereb-ri-gemeinde">'+i+"</span>"),o>0&&(a+='<span class="oereb-ri-area">'+Q(o)+"</span>"),a+="</div>",a+="</div>"}),a+="</div>",L(a),V();var l=document.getElementById("oereb-selection");l&&l.querySelectorAll(".oereb-result-item").forEach(function(s){s.addEventListener("click",function(){var c=parseInt(s.getAttribute("data-index"));re(e[c],r)})})}function ie(){if(G()&&!U){if(typeof window.define!="function"||!window.define.amd){TnetLog.warn("[OEREB] Dojo define() nicht verf\xFCgbar, Mobile-GraphicsLayer kann nicht registriert werden");return}U=!0,window.define("app/oereb/graphicsLayer",[],function(){function e(){this.displayLayer=null,this.mappedTocNodes=null,this.mapping=null,this.flexActive=!1,this.activatedTocNodes=[]}var r=e.prototype;r.getMap=function(){var t=null;try{window.njs?t=window.njs:parent&&parent.njs&&(t=parent.njs)}catch{}return!t||!t.AppManager||!t.AppManager.Maps||!t.AppManager.Maps.main?(TnetLog.warn("[OEREB-Mobile] getMap: Karte nicht gefunden"),{mapplus_obj:null,mapObj:null,mapname:"main"}):{mapplus_obj:t,mapObj:t.AppManager.Maps.main.mapObj,mapname:"main"}};function a(t){if(t==null)return null;if(typeof t=="string"||typeof t=="number")return String(t);for(var n=[t.id,t.tocId,t.layerId,t.layer,t.layerName,t.name,t.title,t.label,t.mapElementId,t.themeId],i=0;i<n.length;i++)if(n[i]!=null&&String(n[i]).trim()!=="")return String(n[i]);return null}function l(t){return t?Array.isArray(t)?t:[t]:[]}function s(t,n){if(t){if(typeof t.setVisible=="function"){t.setVisible(!!n);return}typeof t.visible<"u"&&(t.visible=!!n)}}function c(t,n){if(t){var i=Number(n);if(isFinite(i)){if(typeof t.setOpacity=="function"){t.setOpacity(i);return}typeof t.opacity<"u"&&(t.opacity=i)}}}function d(t){if(t==null)return[];if(Array.isArray(t)){var n=[];return t.forEach(function(u){d(u).forEach(function(f){n.indexOf(f)===-1&&n.push(f)})}),n}var i=[],o=a(t);return o&&i.push(o),typeof t=="object"&&[t.id,t.tocId,t.layerId,t.layer,t.layerName,t.name,t.title,t.label,t.mapElementId,t.themeId].forEach(function(u){if(u!=null){var f=String(u).trim();f&&i.indexOf(f)===-1&&i.push(f)}}),i}function g(t){if(!t||!window.TnetLMStore||typeof window.TnetLMStore.findLayer!="function")return null;var n=window.TnetLMStore.findLayer(t);if(n&&n.id)return n.id;var i=typeof window.TnetLMStore.getCatalog=="function"?window.TnetLMStore.getCatalog():null;if(!i||!Array.isArray(i.layers))return null;for(var o=String(t).toLowerCase(),u=0;u<i.layers.length;u++){var f=i.layers[u];if(!(!f||f.type==="group")){var p=(f.id||"").toString(),b=(f.name||"").toString(),M=(f.title||"").toString();if(p.toLowerCase()===o||b.toLowerCase()===o||M.toLowerCase()===o||p.toLowerCase().indexOf(o)!==-1||b.toLowerCase().indexOf(o)!==-1||M.toLowerCase().indexOf(o)!==-1)return f.id}}return null}function y(t,n){var i=g(t);if(!i)return!1;try{if(window.TnetLMStore&&typeof window.TnetLMStore.setLayerVisible=="function")return window.TnetLMStore.setLayerVisible(i,!!n),!0;if(typeof window.TnetLayerSwitch=="function")return window.TnetLayerSwitch(i,n?"on":"off"),!0}catch(o){TnetLog.warn("[OEREB-Mobile] setStoreLayerVisible Fehler:",o)}return!1}function h(t,n){var i=g(t);if(!i)return!1;try{if(window.TnetLMStore&&typeof window.TnetLMStore.setLayerOpacity=="function")return window.TnetLMStore.setLayerOpacity(i,Number(n)),!0}catch(o){TnetLog.warn("[OEREB-Mobile] setStoreLayerOpacity Fehler:",o)}return!1}return r.findMapLayers=function(t){var n=(t==null?"":String(t)).toLowerCase().trim();if(!n)return[];var i=this.getMap(),o=i?i.mapObj:null;if(!o||!o.getLayers||!o.getLayers())return[];var u=[];try{typeof o.getLayers().getArray=="function"?u=o.getLayers().getArray():typeof o.getLayers().forEach=="function"&&o.getLayers().forEach(function(p){u.push(p)})}catch{u=[]}function f(p){return p==null?!1:String(p).toLowerCase().indexOf(n)!==-1}return u.filter(function(p){try{return f(p.get&&p.get("id"))||f(p.get&&p.get("name"))||f(p.get&&p.get("title"))||f(p.get&&p.get("layerName"))||f(p.id)||f(p.name)||f(p.title)||f(p.layerName)}catch{return!1}})},r.addLayer=function(){var t=this.getMap(),n=t?t.mapObj:null;if(n&&!this.displayLayer){var i=this;n.getLayers().forEach(function(o){o.get("id")==="OerebGraphics"&&(i.displayLayer=o)}),this.displayLayer||(this.displayLayer=new ol.layer.Vector({source:new ol.source.Vector,zIndex:999,style:new ol.style.Style({stroke:new ol.style.Stroke({color:"rgba(0, 255, 0, 0.8)",width:6}),fill:new ol.style.Fill({color:"rgba(0,255,0,0.3)"}),image:new ol.style.Circle({radius:12,fill:new ol.style.Fill({color:"rgba(0, 255, 0, 0.2)"}),stroke:new ol.style.Stroke({color:"rgba(0, 255, 0, 0.8)",width:6})})})}),this.displayLayer.set("id","OerebGraphics"),n.addLayer(this.displayLayer),TnetLog.log("[OEREB-Mobile] OerebGraphics-Layer erstellt"))}},r.clearLayer=function(){this.displayLayer&&this.displayLayer.getSource()&&this.displayLayer.getSource().clear()},r.removeLayer=function(){var t=this.getMap(),n=t?t.mapObj:null;if(n&&this.displayLayer){try{n.removeLayer(this.displayLayer)}catch{}this.displayLayer=null}},r.addOerebGraphicPolygon=function(t){if(this.addLayer(),!!this.displayLayer){var n=t.map(function(u){var f=u[0],p=u[u.length-1];return(f[0]!==p[0]||f[1]!==p[1])&&u.push([f[0],f[1]]),u}),i={type:"FeatureCollection",features:[{type:"Feature",properties:{},geometry:{type:"Polygon",coordinates:n}}]},o=new ol.format.GeoJSON().readFeatures(i,{dataProjection:"EPSG:2056",featureProjection:"EPSG:2056"});this.displayLayer.getSource().addFeatures(o),TnetLog.log("[OEREB-Mobile] Polygon gezeichnet, Ringe:",n.length)}},r.addOerebGraphicPolyline=function(t){if(this.addLayer(),!!this.displayLayer){var n={type:"FeatureCollection",features:[{type:"Feature",properties:{},geometry:{type:"LineString",coordinates:t}}]},i=new ol.format.GeoJSON().readFeatures(n,{dataProjection:"EPSG:2056",featureProjection:"EPSG:2056"});this.displayLayer.getSource().addFeatures(i),TnetLog.log("[OEREB-Mobile] Polyline gezeichnet")}},r.addOerebGraphicPoint=function(t){if(this.addLayer(),!!this.displayLayer){var n={type:"FeatureCollection",features:[{type:"Feature",properties:{},geometry:{type:"Point",coordinates:t}}]},i=new ol.format.GeoJSON().readFeatures(n,{dataProjection:"EPSG:2056",featureProjection:"EPSG:2056"});this.displayLayer.getSource().addFeatures(i),TnetLog.log("[OEREB-Mobile] Point gezeichnet")}},r.toggleLayer=function(t,n){var i=d(t),o=n!==!1,u=[];if(i.forEach(function(p){if(y(p,o)){var b=g(p)||p;u.indexOf(b)===-1&&u.push(b)}}),u.length>0)return u;var f=[];return i.forEach(function(p){var b=this.findMapLayers(p);b.forEach(function(M){s(M,o),f.indexOf(M)===-1&&f.push(M)})},this),f},r.addLayerByThemeId=function(t){var n=this.extractMapElementByThemeId(t),i=this.activateLayerByMappedElement(n);return this.clearLayer(),i},r.deactivateTocLayers=function(){var t=this;l(this.activatedTocNodes).forEach(function(n){t.toggleLayer(n,!1)}),this.activatedTocNodes=[]},r.setMappingTable=function(t){return this.mapping=t||null,this.mapping},r.changeTocOpacityByTocId=function(t,n){var i=d(t);if(i.length){var o=!1;i.forEach(function(u){h(u,n)&&(o=!0)}),!o&&i.forEach(function(u){this.findMapLayers(u).forEach(function(f){c(f,n)})},this)}},r.extractMapElementByThemeId=function(t){var n=this.mapping;if(!n||t==null)return{};if(Array.isArray(n)){for(var i=0;i<n.length;i++){var o=n[i];if(o&&(String(o.themeId)===String(t)||String(o.id)===String(t)))return o}return{}}return n[t]||n[String(t)]||{}},r.activateLayerByMappedElement=function(t){var n=this,i=this.mapTocNodes(t);return this.deactivateTocLayers(),this.activatedTocNodes=i.slice(),i.forEach(function(o){n.toggleLayer(o,!0)}),i},r.searchTocByName=function(t){var n=d(t);if(!n.length)return!1;for(var i=0;i<n.length;i++)if(g(n[i]))return!0;for(var o=0;o<n.length;o++){var u=this.findMapLayers(n[o]);if(u&&u.length>0)return!0}return!1},r.mapTocNodes=function(t){var n=t;t&&typeof t=="object"&&(Array.isArray(t.tocNodes)?n=t.tocNodes:Array.isArray(t.layers)?n=t.layers:Array.isArray(t.mappedTocNodes)&&(n=t.mappedTocNodes));var i=l(n).filter(function(o){return a(o)!=null});return this.mappedTocNodes=i,i},r.getSymbology=function(){return null},r.extractLayers={byIdAndType:function(t){var n=a(t);return n?this.findMapLayers(n):[]}},r.extractLayers.byIdAndType=r.extractLayers.byIdAndType.bind(r),e}),TnetLog.log("[OEREB] Mobile-GraphicsLayer Modul registriert")}}function ye(e,r,a){var l=document.getElementById("oereb-iframe");if(l){var s=K+"?typ="+encodeURIComponent(r||"Liegenschaft")+"&EGRID="+encodeURIComponent(e)+(a?"&canton="+encodeURIComponent(a):"")+"&"+J;G()&&ie(),l.src=s}}function V(){var e=document.getElementById("oereb-iframe");e&&(e.src="about:blank")}function he(){var e=document.getElementById("oereb-iframe");e&&(G()&&ie(),e.src=K+"?"+J)}function ae(e){e&&e.getLayers().forEach(function(r){if(r instanceof ol.layer.Vector){var a=(r.get("name")||"").toString().toLowerCase(),l=(r.get("id")||"").toString();if(r!==v&&!r.get("isOereb")&&l!=="OerebGraphics"&&r.getSource()&&typeof r.getSource().clear=="function"&&a==="cosmetic_maptip"){r.getSource().clear();return}}})}function ve(e){k&&clearTimeout(k),k=setTimeout(function(){window.isOerebActive&&(ae(e),oe(e))},400)}function oe(e){if(e)for(var r=e.getLayers().getArray(),a=!1,l=0;l<r.length;l++){var s=r[l];if(s instanceof ol.layer.Vector){var c=(s.get("name")||"").toString().toLowerCase(),d=(s.get("id")||"").toString();if(!(s===v||s.get("isOereb")||d==="OerebGraphics")&&c==="cosmetic_maptip"&&s.getSource()){var g=s.getSource().getFeatures();g.length>0&&(g.forEach(function(y){var h=R.some(function(t){return t.feature===y});h||R.push({layer:s,feature:y})}),s.getSource().clear(),a=!0,!W&&R.length>0&&(W=!0,TnetLog.log("[\xD6REB] Objektinfo-Unterdr\xFCckung aktiv: "+R.length+" Features zwischengespeichert")))}}}}function me(e,r){if(H(),!r){TnetLog.warn("[OEREB] highlightOerebParcel: map ist null");return}if(!e||!e.coordinates){TnetLog.warn("[OEREB] highlightOerebParcel: keine Geometrie",e);return}TnetLog.log("[OEREB] Highlight Geometrie:",e.type,"coords:",JSON.stringify(e.coordinates).substring(0,100));try{v||(v=new ol.layer.Vector({source:new ol.source.Vector,zIndex:998,properties:{isOereb:!0},style:new ol.style.Style({fill:new ol.style.Fill({color:"rgba(255, 200, 0, 0.3)"}),stroke:new ol.style.Stroke({color:"#e8423f",width:3})})}),r.addLayer(v),TnetLog.log("[OEREB] Highlight-Layer erstellt und zur Karte hinzugef\xFCgt"));var a=r.getView().getProjection();TnetLog.log("[OEREB] Karten-Projektion:",a.getCode());var l=new ol.format.GeoJSON,s=l.readFeature({type:"Feature",geometry:e},{dataProjection:"EPSG:2056",featureProjection:a});if(!s||!s.getGeometry()){TnetLog.error("[OEREB] Feature konnte nicht aus GeoJSON gelesen werden");return}TnetLog.log("[OEREB] Feature erstellt, Geometry-Type:",s.getGeometry().getType()),v.getSource().addFeature(s),TnetLog.log("[OEREB] Feature zu Highlight-Layer hinzugef\xFCgt, Anzahl Features:",v.getSource().getFeatures().length);var c=s.getGeometry().getExtent();if(TnetLog.log("[OEREB] Feature-Extent:",c),c&&!ue(c)){var d=E()?Math.round(window.innerHeight*.55):80;TnetLog.log("[OEREB] view.fit mit padding [80, 80, "+d+", 80], mobile="+E()),C=!0,E()&&(window._tnetBlockResize=!0),D(r);var g=m&&m.maxZoomOrthophoto!=null?m.maxZoomOrthophoto:23,y=m&&m.maxZoomOther!=null?m.maxZoomOther:18,h=y;try{var t=njs.AppManager.Maps.main.currBasisMap||njs.AppManager.Maps.main.basisMap||"";/swissimage|ortho/i.test(t)&&(h=g)}catch{}if(h===y){var n=document.querySelector(".basemap-card.active");n&&/swissimage|ortho/i.test(n.dataset.basemap||"")&&(h=g)}var i=E()?0:600;r.getView().fit(c,{padding:[80,80,d,80],maxZoom:h,duration:i,callback:function(o){var u=r.getView();O={center:u.getCenter().slice(),zoom:u.getZoom(),time:Date.now()},TnetLog.log("[OEREB] Zoom nach fit:",O.zoom,"completed:",o,"maxZoom:",h),be(r)}}),setTimeout(function(){C=!1,window._tnetBlockResize=!1},5e3)}else TnetLog.warn("[OEREB] Extent ist leer oder ung\xFCltig:",c);TnetLog.log("[OEREB] Layer visible:",v.getVisible(),"opacity:",v.getOpacity(),"zIndex:",v.getZIndex())}catch(o){TnetLog.error("[OEREB] Fehler in highlightOerebParcel:",o)}}function be(e){!e||!O||(T&&ol.Observable.unByKey(T),T=e.on("moveend",function(){if(O){var r=e.getView(),a=r.getZoom(),l=r.getCenter(),s=O.zoom,c=O.center,d=Math.abs(a-s),g=Math.abs(l[0]-c[0]),y=Math.abs(l[1]-c[1]);if(d>.3||g>100||y>100){TnetLog.warn("[OEREB] View wurde ver\xE4ndert (zoom: "+a.toFixed(2)+" vs "+s.toFixed(2)+", dy: "+y.toFixed(0)+"), stelle wieder her");try{r.cancelAnimations()}catch{}r.setCenter(c),r.setZoom(s)}}}),I&&clearTimeout(I),I=setTimeout(function(){D(e)},5e3))}function D(e){C=!1,O=null,T&&(ol.Observable.unByKey(T),T=null),I&&(clearTimeout(I),I=null),window._tnetBlockResize=!1}function H(){v&&v.getSource().clear()}function we(){try{var e=Z?Z():null;if(!e)return;e.getLayers().forEach(function(r){r.get&&r.get("id")==="OerebGraphics"&&r.getSource&&r.getSource().clear()})}catch{}}var S=null,P=null,B=null,se=440;function N(){setTimeout(function(){if(C){TnetLog.log("[OEREB] triggerMapUpdate \xFCbersprungen (view.fit Animation l\xE4uft)");return}if(window.njs&&njs.AppManager&&njs.AppManager.Maps&&njs.AppManager.Maps.main){var e=njs.AppManager.Maps.main.mapObj;e&&e.updateSize&&e.updateSize()}typeof dijit<"u"&&dijit.byId("NeapolisContainer")&&dijit.byId("NeapolisContainer").resize()},350)}function Le(){var e=document.getElementById("oereb-dock-panel");e&&(e.classList.remove("hidden"),!E()&&window.isOerebPanelDocked&&le())}function Ee(){var e=document.getElementById("oereb-dock-panel");if(e){if(E()){e.classList.add("hidden");return}if(window.isOerebPanelDocked){var r=document.getElementById("mapContainer");r&&(r.style.setProperty("width","100%","important"),N()),ce()}e.classList.add("hidden")}}window.closeOerebPanel=function(){te()};function L(e){var r=document.getElementById("oereb-selection");r&&(r.innerHTML=e)}function le(){var e=document.getElementById("oereb-dock-panel"),r=document.getElementById("oereb-dock-btn"),a=document.getElementById("mapContainer");if(e&&!E()){if(e.classList.add("docked-right"),a){var l=se||440,s=document.getElementById("centerPaneLayout"),c=document.getElementById("streetviewContainer"),d=0;c&&c.offsetWidth>0&&c.style.display!=="none"&&(d=c.offsetWidth);var g=s?s.getBoundingClientRect():a.getBoundingClientRect();e.style.setProperty("position","fixed","important"),e.style.setProperty("top",g.top+"px","important"),e.style.setProperty("right",d+"px","important"),e.style.setProperty("bottom",window.innerHeight-g.bottom+"px","important"),e.style.setProperty("left","auto","important"),e.style.setProperty("width",l+"px","important"),e.style.setProperty("height","auto","important");var y=s?s.offsetWidth:window.innerWidth,h=y-d-l;a.style.setProperty("width",h+"px","important"),N()}Se(),r&&(r.title="Floating",r.innerHTML=TnetIcons.get("undock",null,{width:"16",height:"16"})),window.isOerebPanelDocked=!0}}function Oe(){var e=document.getElementById("oereb-dock-panel"),r=document.getElementById("oereb-dock-btn"),a=document.getElementById("mapContainer");e&&(e.classList.remove("docked-right"),ce(),a&&(a.style.setProperty("width","100%","important"),setTimeout(function(){N()},100)),S?(e.style.setProperty("top",S.top,"important"),e.style.setProperty("left",S.left,"important"),e.style.setProperty("width",S.width,"important"),e.style.setProperty("height",S.height,"important")):(e.style.setProperty("top","80px","important"),e.style.setProperty("left","calc(100vw - 500px)","important"),e.style.setProperty("width","440px","important"),e.style.setProperty("height","calc(100vh - 160px)","important")),e.style.setProperty("right","auto","important"),e.style.setProperty("bottom","auto","important"),e.style.setProperty("position","fixed","important"),e.style.maxHeight="",r&&(r.title="Rechts andocken",r.innerHTML=TnetIcons.get("dock",null,{width:"16",height:"16"})),window.isOerebPanelDocked=!1)}window.toggleOerebDock=function(){if(window.isOerebPanelDocked){var e=document.getElementById("oereb-dock-panel");e&&(S={top:"80px",left:"calc(100vw - 500px)",width:"440px",height:"calc(100vh - 160px)"}),Oe()}else{var e=document.getElementById("oereb-dock-panel");e&&(S={top:e.style.top||"80px",left:e.style.left||"calc(100vw - 500px)",width:e.style.width||"440px",height:e.style.height||"calc(100vh - 160px)"}),le()}};function Se(){P&&P.disconnect(),B&&B.disconnect();var e=document.getElementById("mapContainer"),r=document.getElementById("streetviewContainer");e&&(window.ResizeObserver&&(P=new ResizeObserver(function(){window.isOerebPanelDocked&&j()}),P.observe(e),r&&(B=new ResizeObserver(function(){window.isOerebPanelDocked&&j()}),B.observe(r))),window.addEventListener("resize",j))}function ce(){P&&(P.disconnect(),P=null),B&&(B.disconnect(),B=null),window.removeEventListener("resize",j)}function j(){if(window.isOerebPanelDocked){var e=document.getElementById("oereb-dock-panel"),r=document.getElementById("mapContainer"),a=document.getElementById("centerPaneLayout"),l=document.getElementById("streetviewContainer");if(!(!e||!r||e.classList.contains("hidden"))){var s=se||e.offsetWidth||440,c=0;l&&l.offsetWidth>0&&l.style.display!=="none"&&(c=l.offsetWidth);var d=a?a.getBoundingClientRect():{top:69,bottom:window.innerHeight-32};e.style.setProperty("top",d.top+"px","important"),e.style.setProperty("right",c+"px","important"),e.style.setProperty("bottom",window.innerHeight-d.bottom+"px","important"),e.style.setProperty("width",s+"px","important");var g=a?a.offsetWidth:window.innerWidth,y=g-c-s;r.style.setProperty("width",y+"px","important"),N()}}}
+﻿/**
+ * tnet-oereb.js (ES Module) - ÖREB Grundstückabfrage
+ * 
+ * Enthält:
+ * - ÖREB-Button auf der Karte (Klick-Modus aktivieren)
+ * - Klick auf Karte → EGRID(s) von geo.admin.ch API holen
+ * - Multi-EGRID: Auswahlliste mit Fläche & Gemeinde bei mehreren Grundstücken
+ * - Grundstück auf Karte hervorheben
+ * - Dock-Panel rechts (ab-/andockbar) mit iframe (ÖREB-Auszug von gis-daten.ch)
+ * - Interaktions-Unterdrückung während ÖREB-Modus
+ *
+ * @version    1.2
+ * @date       2026-02-12
+ * @copyright  Trigonet AG
+ * @author     Marco Dellenbach
+ */
+
+import { waitForMap, getMainMap, showToast } from './tnet-utils.js';
+import { isEmpty as extentIsEmpty } from 'https://cdn.jsdelivr.net/npm/ol@v10.8.0/extent.js';
+
+// ===== CONFIG =====
+var OEREB_IFRAME_BASE = 'https://www.gis-daten.ch/app/oereb/graphicsLayerOereb-nw';
+var OEREB_IFRAME_PARAMS = 'folder=nwow&site=maps&uprofile=public&ugroup=public';
+
+// Gemeinde-Mapping (identdn-Prefix → Gemeindename)
+var GEMEINDE_MAP = {
+    'OW0200001401': 'Sarnen',
+    'OW0200001402': 'Alpnach',
+    'OW0200001403': 'Giswil',
+    'OW0200001404': 'Kerns',
+    'OW0200001405': 'Lungern',
+    'OW0200001406': 'Sachseln',
+    'OW0200001407': 'Engelberg',
+    'NW0200001321': 'Stans',
+    'NW0200001322': 'Stansstad',
+    'NW0200001323': 'Buochs',
+    'NW0200001324': 'Ennetbürgen',
+    'NW0200001325': 'Hergiswil',
+    'NW0200001326': 'Beckenried',
+    'NW0200001327': 'Emmetten',
+    'NW0200001328': 'Wolfenschiessen',
+    'NW0200001329': 'Dallenwil',
+    'NW0200001330': 'Oberdorf',
+    'NW0200001331': 'Ennetmoos'
+};
+
+// ===== MOBILE ERKENNUNG =====
+function isMobileView() {
+    return window.innerWidth <= 768 || document.body.classList.contains('mobile-view');
+}
+
+function isMobileEntry() {
+    return window.__TNET_MOBILE_ENTRY === true;
+}
+
+// ===== STATE =====
+var oerebActive = false;
+var oerebClickListener = null;
+var oerebHighlightLayer = null;
+var currentResults = null;
+var _mobileGraphicsLayerRegistered = false;
+var _oerebFitAnimating = false;  // Guard: view.fit() Animation läuft
+var _oerebSavedView = null;        // Gespeicherte View nach view.fit() (center + zoom)
+var _oerebMoveEndKey = null;        // OL-Listener Key für moveend-Überwachung
+var _oerebViewGuardTimer = null;    // Timer für View-Guard Timeout
+var _oerebMaxZoomConfig = null;     // aus tnet-global-config.json5 geladen
+
+// Globaler Flag für andere Module (analog isPolygonDrawing)
+window.isOerebActive = false;
+window.isOerebPanelDocked = true; // Default: angedockt rechts
+
+// Cleanup-Timer für njs-Highlight-Unterdrückung
+var _njsHighlightCleanupTimer = null;
+// Kontinuierlicher Interval zum Leeren von cosmetic_maptip
+var _njsHighlightSuppressionInterval = null;
+// Referenz auf Objektinfo-Highlight-Layer (wenn gefunden)
+var _njsInfoHighlightLayer = null;
+var _njsInfoHighlightWasVisible = true;
+var _njsInfoHighlightLogged = false;
+var _njsInfoHighlightLayers = [];
+
+// -- Config-Loading: maxZoom aus tnet-global-config.json5 laden ---------------
+(function loadOerebConfig() {
+    if (typeof JSON5 === 'undefined') return;
+    var appRoot = window.__TNET_APP_ROOT || '/maps';
+    var paths = [
+        appRoot + '/tnet/config/tnet-global-config.json5',
+        appRoot + '/tnet/tnet-global-config.json5',
+        '../tnet/config/tnet-global-config.json5'
+    ];
+    function tryPath(i) {
+        if (i >= paths.length) return;
+        fetch(paths[i])
+            .then(function (r) { if (!r.ok) throw new Error(r.status); return r.text(); })
+            .then(function (t) {
+                var parsed = JSON5.parse(t);
+                if (parsed && parsed.oereb) {
+                    _oerebMaxZoomConfig = parsed.oereb;
+                    TnetLog.log('[OEREB] Config geladen: maxZoomOrthophoto=' +
+                        _oerebMaxZoomConfig.maxZoomOrthophoto + ', maxZoomOther=' +
+                        _oerebMaxZoomConfig.maxZoomOther);
+                }
+            })
+            .catch(function () { tryPath(i + 1); });
+    }
+    tryPath(0);
+})();
+// Gespeicherte Features vor dem Leeren
+var _njsInfoHighlightFeatures = [];
+
+// ===== HILFSFUNKTIONEN =====
+
+/** Fläche eines Polygons berechnen (Shoelace) in m² */
+function calcPolygonArea(coords) {
+    var n = coords.length;
+    var area = 0;
+    for (var i = 0; i < n; i++) {
+        var j = (i + 1) % n;
+        area += coords[i][0] * coords[j][1];
+        area -= coords[j][0] * coords[i][1];
+    }
+    return Math.abs(area) / 2;
+}
+
+/** Fläche aus GeoJSON-Geometrie berechnen */
+function getArea(geom) {
+    if (!geom || !geom.coordinates) return 0;
+    if (geom.type === 'Polygon') {
+        return calcPolygonArea(geom.coordinates[0]);
+    } else if (geom.type === 'MultiPolygon') {
+        var total = 0;
+        geom.coordinates.forEach(function(poly) { total += calcPolygonArea(poly[0]); });
+        return total;
+    }
+    return 0;
+}
+
+/** Fläche formatieren */
+function formatArea(m2) {
+    if (m2 <= 0) return '';
+    if (m2 >= 10000) return (m2 / 10000).toFixed(2) + ' ha';
+    return Math.round(m2).toLocaleString('de-CH') + ' m²';
+}
+
+/** Gemeinde aus identnd ableiten */
+function getGemeinde(identnd) {
+    if (!identnd) return '';
+    return GEMEINDE_MAP[identnd] || '';
+}
+
+/** Typ erkennen: Nummer in Klammern = Baurecht, sonst Liegenschaft */
+function detectType(nummer, realestate_type) {
+    if (realestate_type) return realestate_type;
+    if (nummer && /^\(.*\)$/.test(String(nummer).trim())) return 'Baurecht';
+    return 'Liegenschaft';
+}
+
+// ===== ÖREB MODUS TOGGLE =====
+window.toggleOerebMode = function() {
+    if (oerebActive) {
+        deactivateOereb();
+    } else {
+        activateOereb();
+    }
+};
+
+function activateOereb() {
+    oerebActive = true;
+    window.isOerebActive = true;
+    var btn = document.getElementById('oereb-tool-btn');
+    if (btn) btn.classList.add('active');
+
+    // Polygon-Tool deaktivieren falls aktiv
+    if (window.isPolygonDrawing && typeof window.togglePolygonDraw === 'function') {
+        window.togglePolygonDraw();
+    }
+
+    // Interaktionen unterdrücken (analog drawing-mode)
+    document.body.classList.add('oereb-mode');
+
+    // Cursor ändern
+    var mapEl = document.getElementById('map');
+    if (mapEl) mapEl.style.cursor = 'crosshair';
+
+    // Dock-Panel zeigen
+    showOerebDockPanel();
+    setOerebSelection('');
+
+    // iframe mit Basis-URL vorladen (zeigt ÖREB-Oberfläche)
+    preloadOerebIframe();
+
+    // Klick-Listener registrieren (callback-basiert!)
+    waitForMap(function(map) {
+        // Bestehende njs-Highlights entfernen
+        clearNjsHighlights(map);
+
+        // KONTINUIERLICH cosmetic_maptip leeren (alle 100ms) - stoppt bei deactivateOereb
+        if (_njsHighlightSuppressionInterval) clearInterval(_njsHighlightSuppressionInterval);
+        _njsHighlightSuppressionInterval = setInterval(function() {
+            if (!window.isOerebActive) return;
+            suppressInfoHighlightLayer(map);
+        }, 100);
+
+        oerebClickListener = map.on('singleclick', function(evt) {
+            // njs-Identify unterdrücken: sowohl OL-Event als auch DOM-Event stoppen
+            evt.stopPropagation();
+            try {
+                if (evt.originalEvent) {
+                    evt.originalEvent.stopPropagation();
+                    evt.originalEvent.stopImmediatePropagation();
+                }
+            } catch(e) {}
+            handleOerebClick(evt.coordinate, map);
+            // njs-Highlights zusätzlich verzögert aufräumen
+            scheduleNjsHighlightCleanup(map);
+        });
+    });
+}
+
+function deactivateOereb() {
+    oerebActive = false;
+    window.isOerebActive = false;
+    var btn = document.getElementById('oereb-tool-btn');
+    if (btn) btn.classList.remove('active');
+
+    // Interaktionen wiederherstellen
+    document.body.classList.remove('oereb-mode');
+
+    // Cursor zurücksetzen
+    var mapEl = document.getElementById('map');
+    if (mapEl) mapEl.style.cursor = '';
+
+    // Klick-Listener entfernen
+    if (oerebClickListener) {
+        ol.Observable.unByKey(oerebClickListener);
+        oerebClickListener = null;
+    }
+
+    // Cleanup-Timer stoppen
+    if (_njsHighlightCleanupTimer) {
+        clearTimeout(_njsHighlightCleanupTimer);
+        _njsHighlightCleanupTimer = null;
+    }
+    
+    // Kontinuierlichen Suppression-Interval stoppen
+    if (_njsHighlightSuppressionInterval) {
+        clearInterval(_njsHighlightSuppressionInterval);
+        _njsHighlightSuppressionInterval = null;
+    }
+
+    // Objektinfo-Highlight-Layer Features NICHT wiederherstellen (bleiben gelöscht)
+    // Speichern wurde nur für Zwischenspeicherung, aber nicht beim Deactivate zurückgeben
+    _njsInfoHighlightFeatures = [];
+    _njsInfoHighlightLogged = false; // Für nächste Aktivierung
+    
+    if (_njsInfoHighlightLayers.length) {
+        _njsInfoHighlightLayers.forEach(function(item) {
+            item.layer.setVisible(item.wasVisible);
+        });
+        _njsInfoHighlightLayers = [];
+    } else if (_njsInfoHighlightLayer) {
+        _njsInfoHighlightLayer.setVisible(_njsInfoHighlightWasVisible);
+    }
+
+    // View-Guard stoppen
+    waitForMap(function(m) { stopOerebViewGuard(m); });
+
+    // Highlight entfernen
+    clearOerebHighlight();
+    // OerebGraphics-Layer (Detail-Geometrien vom iframe) leeren
+    clearOerebGraphicsLayer();
+
+    // ÖREB-Daten und UI komplett clearen
+    currentResults = null;
+    setOerebSelection('');
+    clearOerebIframe();
+    window.isOerebPanelDocked = true;  // Auf Standard zurücksetzen
+
+    // Panel schliessen
+    hideOerebDockPanel();
+}
+
+// ===== KLICK-HANDLER =====
+function handleOerebClick(coordinate, map) {
+    var x = Math.round(coordinate[0]);
+    var y = Math.round(coordinate[1]);
+
+    // Ladeanzeige
+    setOerebSelection('<div class="oereb-info-text"><div class="loading-spinner"></div> Grundstück wird abgefragt...</div>');
+    clearOerebIframe();
+    clearOerebHighlight();
+
+    // geo.admin.ch API abfragen
+    var url = 'https://api3.geo.admin.ch/rest/services/ech/MapServer/identify'
+        + '?geometryType=esriGeometryPoint'
+        + '&geometry=' + x + ',' + y
+        + '&tolerance=0'
+        + '&layers=all:ch.kantone.cadastralwebmap-farbe'
+        + '&returnGeometry=true'
+        + '&sr=2056'
+        + '&geometryFormat=geojson';
+
+    fetch(url)
+        .then(function(response) {
+            if (!response.ok) throw new Error('HTTP ' + response.status);
+            return response.json();
+        })
+        .then(function(data) {
+            if (!data.results || data.results.length === 0) {
+                setOerebSelection('<div class="oereb-info-text">Kein Grundstück gefunden an dieser Position.</div>');
+                return;
+            }
+
+            currentResults = data.results;
+
+            if (data.results.length === 1) {
+                // Einziges Ergebnis → direkt anzeigen
+                selectOerebResult(data.results[0], map);
+            } else {
+                // Mehrere Ergebnisse → Auswahlliste
+                showOerebResultList(data.results, map);
+            }
+        })
+        .catch(function(err) {
+            setOerebSelection('<div class="oereb-info-text oereb-error">Fehler: ' + err.message + '</div>');
+        });
+}
+
+// ===== ERGEBNIS AUSWÄHLEN =====
+function selectOerebResult(result, map) {
+    var props = result.properties || result.attributes;
+    var egrid = props.egris_egrid || '';
+    var nummer = props.number || '?';
+    var kanton = props.ak || '';
+    var identnd = props.identnd || '';
+    var typ = detectType(nummer, props.realestate_type);
+    var gemeinde = getGemeinde(identnd);
+    var area = getArea(result.geometry);
+
+    // Kompakte Info-Zeile
+    var html = '<div class="oereb-selected-info">';
+    html += '<div class="oereb-sel-row">';
+    html += '<span class="oereb-sel-label">Parzelle ' + nummer + '</span>';
+    html += '<span class="oereb-sel-egrid">' + egrid + '</span>';
+    html += '<span class="oereb-sel-kanton">' + kanton + '</span>';
+    html += '<span class="oereb-sel-typ">' + typ + '</span>';
+    html += '</div>';
+    // Zweite Zeile: Gemeinde + Fläche
+    if (gemeinde || area > 0) {
+        html += '<div class="oereb-sel-row2">';
+        if (gemeinde) html += '<span class="oereb-sel-gemeinde">' + gemeinde + '</span>';
+        if (area > 0) html += '<span class="oereb-sel-area">' + formatArea(area) + '</span>';
+        html += '</div>';
+    }
+
+    // Mehrere Ergebnisse? → Zurück-Button
+    if (currentResults && currentResults.length > 1) {
+        html += '<button class="oereb-back-btn" id="oereb-back-btn">◀ Alle ' + currentResults.length + ' Grundstücke</button>';
+    }
+
+    html += '</div>';
+    setOerebSelection(html);
+
+    // Zurück-Button Handler
+    if (currentResults && currentResults.length > 1) {
+        var backBtn = document.getElementById('oereb-back-btn');
+        if (backBtn) {
+            backBtn.addEventListener('click', function() {
+                waitForMap(function(m) { showOerebResultList(currentResults, m); });
+            });
+        }
+    }
+
+    // Geometrie highlighten
+    if (result.geometry) {
+        highlightOerebParcel(result.geometry, map);
+    }
+
+    // iframe laden + Vorselektor ausblenden sobald iframe geladen
+    if (egrid) {
+        loadOerebIframe(egrid, typ, kanton);
+        var iframe = document.getElementById('oereb-iframe');
+        if (iframe) {
+            iframe.onload = function() {
+                // Vorselektor ausblenden nach Start der Auswertung
+                if (iframe.src && iframe.src !== 'about:blank') {
+                    setOerebSelection('');
+                }
+                iframe.onload = null;
+            };
+        }
+    }
+}
+
+// ===== AUSWAHLLISTE (mehrere EGRID) =====
+function showOerebResultList(results, map) {
+    var html = '<div class="oereb-multi-header">' + results.length + ' Grundstücke gefunden – bitte wählen:</div>';
+    html += '<div class="oereb-result-list">';
+
+    results.forEach(function(r, i) {
+        var props = r.properties || r.attributes;
+        var egrid = props.egris_egrid || '?';
+        var nummer = props.number || '?';
+        var typ = detectType(nummer, props.realestate_type);
+        var kanton = props.ak || '';
+        var identnd = props.identnd || '';
+        var gemeinde = getGemeinde(identnd);
+        var area = getArea(r.geometry);
+
+        html += '<div class="oereb-result-item" data-index="' + i + '">';
+        html += '<div class="oereb-ri-main">';
+        html += '<span class="oereb-ri-nr">Nr. ' + nummer + '</span>';
+        html += '<span class="oereb-ri-typ">' + typ + '</span>';
+        if (kanton) html += '<span class="oereb-ri-kanton">' + kanton + '</span>';
+        html += '</div>';
+        html += '<div class="oereb-ri-details">';
+        html += '<span class="oereb-ri-egrid">' + egrid + '</span>';
+        if (gemeinde) html += '<span class="oereb-ri-gemeinde">' + gemeinde + '</span>';
+        if (area > 0) html += '<span class="oereb-ri-area">' + formatArea(area) + '</span>';
+        html += '</div>';
+        html += '</div>';
+    });
+    html += '</div>';
+
+    setOerebSelection(html);
+    clearOerebIframe();
+
+    // Klick-Handler für Auswahl
+    var container = document.getElementById('oereb-selection');
+    if (container) {
+        container.querySelectorAll('.oereb-result-item').forEach(function(item) {
+            item.addEventListener('click', function() {
+                var idx = parseInt(item.getAttribute('data-index'));
+                selectOerebResult(results[idx], map);
+            });
+        });
+    }
+}
+
+// ===== MOBILE GRAPHICSLAYER BRIDGE =====
+/**
+ * Registriert ein mobil-kompatibles graphicsLayer-Modul via Dojo define().
+ * Wenn die OEREB-Seite im iframe parent.require(["app/oereb/graphicsLayer"]) aufruft,
+ * erhält sie diese Version statt der Server-Version, die WebOffice-APIs benötigt.
+ * Zeichenfunktionen (Polygon, Polyline, Point) arbeiten direkt mit OpenLayers.
+ * WebOffice-spezifische Methoden sind auf den lokalen Layer-Manager gebrückt.
+ */
+function registerMobileGraphicsLayer() {
+    if (!isMobileEntry()) return;
+    if (_mobileGraphicsLayerRegistered) return;
+    if (typeof window.define !== 'function' || !window.define.amd) {
+        TnetLog.warn('[OEREB] Dojo define() nicht verfügbar, Mobile-GraphicsLayer kann nicht registriert werden');
+        return;
+    }
+    _mobileGraphicsLayerRegistered = true;
+
+    window.define('app/oereb/graphicsLayer', [], function() {
+        // Constructor
+        function MobileGraphicsLayer() {
+            this.displayLayer = null;
+            this.mappedTocNodes = null;
+            this.mapping = null;
+            this.flexActive = false;
+            this.activatedTocNodes = [];
+        }
+
+        var proto = MobileGraphicsLayer.prototype;
+
+        proto.getMap = function() {
+            var mapplus_obj = null;
+            try {
+                if (window.njs) mapplus_obj = window.njs;
+                else if (parent && parent.njs) mapplus_obj = parent.njs;
+            } catch(e) {}
+            if (!mapplus_obj || !mapplus_obj.AppManager || !mapplus_obj.AppManager.Maps || !mapplus_obj.AppManager.Maps['main']) {
+                TnetLog.warn('[OEREB-Mobile] getMap: Karte nicht gefunden');
+                return { mapplus_obj: null, mapObj: null, mapname: 'main' };
+            }
+            return {
+                mapplus_obj: mapplus_obj,
+                mapObj: mapplus_obj.AppManager.Maps['main'].mapObj,
+                mapname: 'main'
+            };
+        };
+
+        function readNodeToken(node) {
+            if (node == null) return null;
+            if (typeof node === 'string' || typeof node === 'number') return String(node);
+            var candidates = [
+                node.id,
+                node.tocId,
+                node.layerId,
+                node.layer,
+                node.layerName,
+                node.name,
+                node.title,
+                node.label,
+                node.mapElementId,
+                node.themeId
+            ];
+            for (var i = 0; i < candidates.length; i++) {
+                if (candidates[i] != null && String(candidates[i]).trim() !== '') return String(candidates[i]);
+            }
+            return null;
+        }
+
+        function normalizeNodes(value) {
+            if (!value) return [];
+            if (Array.isArray(value)) return value;
+            return [value];
+        }
+
+        function setLayerVisible(layer, visible) {
+            if (!layer) return;
+            if (typeof layer.setVisible === 'function') {
+                layer.setVisible(!!visible);
+                return;
+            }
+            if (typeof layer.visible !== 'undefined') {
+                layer.visible = !!visible;
+            }
+        }
+
+        function setLayerOpacity(layer, opacity) {
+            if (!layer) return;
+            var value = Number(opacity);
+            if (!isFinite(value)) return;
+            if (typeof layer.setOpacity === 'function') {
+                layer.setOpacity(value);
+                return;
+            }
+            if (typeof layer.opacity !== 'undefined') {
+                layer.opacity = value;
+            }
+        }
+
+        function readNodeTokens(nodeOrToken) {
+            if (nodeOrToken == null) return [];
+            if (Array.isArray(nodeOrToken)) {
+                var listTokens = [];
+                nodeOrToken.forEach(function(entry) {
+                    readNodeTokens(entry).forEach(function(token) {
+                        if (listTokens.indexOf(token) === -1) listTokens.push(token);
+                    });
+                });
+                return listTokens;
+            }
+
+            var values = [];
+            var baseToken = readNodeToken(nodeOrToken);
+            if (baseToken) values.push(baseToken);
+
+            if (typeof nodeOrToken === 'object') {
+                [
+                    nodeOrToken.id,
+                    nodeOrToken.tocId,
+                    nodeOrToken.layerId,
+                    nodeOrToken.layer,
+                    nodeOrToken.layerName,
+                    nodeOrToken.name,
+                    nodeOrToken.title,
+                    nodeOrToken.label,
+                    nodeOrToken.mapElementId,
+                    nodeOrToken.themeId
+                ].forEach(function(candidate) {
+                    if (candidate == null) return;
+                    var token = String(candidate).trim();
+                    if (token && values.indexOf(token) === -1) values.push(token);
+                });
+            }
+
+            return values;
+        }
+
+        function findStoreLayerIdByToken(token) {
+            if (!token) return null;
+            if (!window.TnetLMStore || typeof window.TnetLMStore.findLayer !== 'function') return null;
+
+            var direct = window.TnetLMStore.findLayer(token);
+            if (direct && direct.id) return direct.id;
+
+            var catalog = (typeof window.TnetLMStore.getCatalog === 'function')
+                ? window.TnetLMStore.getCatalog()
+                : null;
+            if (!catalog || !Array.isArray(catalog.layers)) return null;
+
+            var lowerToken = String(token).toLowerCase();
+            for (var i = 0; i < catalog.layers.length; i++) {
+                var layer = catalog.layers[i];
+                if (!layer || layer.type === 'group') continue;
+                var id = (layer.id || '').toString();
+                var name = (layer.name || '').toString();
+                var title = (layer.title || '').toString();
+                if (
+                    id.toLowerCase() === lowerToken
+                    || name.toLowerCase() === lowerToken
+                    || title.toLowerCase() === lowerToken
+                    || id.toLowerCase().indexOf(lowerToken) !== -1
+                    || name.toLowerCase().indexOf(lowerToken) !== -1
+                    || title.toLowerCase().indexOf(lowerToken) !== -1
+                ) {
+                    return layer.id;
+                }
+            }
+
+            return null;
+        }
+
+        function setStoreLayerVisible(token, visible) {
+            var layerId = findStoreLayerIdByToken(token);
+            if (!layerId) return false;
+
+            try {
+                if (window.TnetLMStore && typeof window.TnetLMStore.setLayerVisible === 'function') {
+                    window.TnetLMStore.setLayerVisible(layerId, !!visible);
+                    return true;
+                }
+                if (typeof window.TnetLayerSwitch === 'function') {
+                    window.TnetLayerSwitch(layerId, visible ? 'on' : 'off');
+                    return true;
+                }
+            } catch (e) {
+                TnetLog.warn('[OEREB-Mobile] setStoreLayerVisible Fehler:', e);
+            }
+
+            return false;
+        }
+
+        function setStoreLayerOpacity(token, opacity) {
+            var layerId = findStoreLayerIdByToken(token);
+            if (!layerId) return false;
+
+            try {
+                if (window.TnetLMStore && typeof window.TnetLMStore.setLayerOpacity === 'function') {
+                    window.TnetLMStore.setLayerOpacity(layerId, Number(opacity));
+                    return true;
+                }
+            } catch (e) {
+                TnetLog.warn('[OEREB-Mobile] setStoreLayerOpacity Fehler:', e);
+            }
+
+            return false;
+        }
+
+        proto.findMapLayers = function(token) {
+            var normalizedToken = (token == null ? '' : String(token)).toLowerCase().trim();
+            if (!normalizedToken) return [];
+
+            var mapResult = this.getMap();
+            var map = mapResult ? mapResult.mapObj : null;
+            if (!map || !map.getLayers || !map.getLayers()) return [];
+
+            var layers = [];
+            try {
+                if (typeof map.getLayers().getArray === 'function') {
+                    layers = map.getLayers().getArray();
+                } else if (typeof map.getLayers().forEach === 'function') {
+                    map.getLayers().forEach(function(layer) { layers.push(layer); });
+                }
+            } catch (e) {
+                layers = [];
+            }
+
+            function contains(haystack) {
+                if (haystack == null) return false;
+                return String(haystack).toLowerCase().indexOf(normalizedToken) !== -1;
+            }
+
+            return layers.filter(function(layer) {
+                try {
+                    return contains(layer.get && layer.get('id'))
+                        || contains(layer.get && layer.get('name'))
+                        || contains(layer.get && layer.get('title'))
+                        || contains(layer.get && layer.get('layerName'))
+                        || contains(layer.id)
+                        || contains(layer.name)
+                        || contains(layer.title)
+                        || contains(layer.layerName);
+                } catch (e) {
+                    return false;
+                }
+            });
+        };
+
+        proto.addLayer = function() {
+            var mapResult = this.getMap();
+            var map = mapResult ? mapResult.mapObj : null;
+            if (!map) return;
+
+            if (!this.displayLayer) {
+                // Prüfen, ob Layer bereits existiert
+                var self = this;
+                map.getLayers().forEach(function(layer) {
+                    if (layer.get('id') === 'OerebGraphics') {
+                        self.displayLayer = layer;
+                    }
+                });
+
+                if (!this.displayLayer) {
+                    this.displayLayer = new ol.layer.Vector({
+                        source: new ol.source.Vector(),
+                        zIndex: 999,
+                        style: new ol.style.Style({
+                            stroke: new ol.style.Stroke({ color: 'rgba(0, 255, 0, 0.8)', width: 6 }),
+                            fill: new ol.style.Fill({ color: 'rgba(0,255,0,0.3)' }),
+                            image: new ol.style.Circle({
+                                radius: 12,
+                                fill: new ol.style.Fill({ color: 'rgba(0, 255, 0, 0.2)' }),
+                                stroke: new ol.style.Stroke({ color: 'rgba(0, 255, 0, 0.8)', width: 6 })
+                            })
+                        })
+                    });
+                    this.displayLayer.set('id', 'OerebGraphics');
+                    map.addLayer(this.displayLayer);
+                    TnetLog.log('[OEREB-Mobile] OerebGraphics-Layer erstellt');
+                }
+            }
+        };
+
+        proto.clearLayer = function() {
+            if (this.displayLayer && this.displayLayer.getSource()) {
+                this.displayLayer.getSource().clear();
+            }
+        };
+
+        proto.removeLayer = function() {
+            var mapResult = this.getMap();
+            var map = mapResult ? mapResult.mapObj : null;
+            if (map && this.displayLayer) {
+                try { map.removeLayer(this.displayLayer); } catch(e) {}
+                this.displayLayer = null;
+            }
+        };
+
+        proto.addOerebGraphicPolygon = function(argGeometryString) {
+            this.addLayer();
+            if (!this.displayLayer) return;
+            var rings = argGeometryString.map(function(ring) {
+                var first = ring[0];
+                var last = ring[ring.length - 1];
+                if (first[0] !== last[0] || first[1] !== last[1]) {
+                    ring.push([first[0], first[1]]);
+                }
+                return ring;
+            });
+            var geojson = {
+                type: 'FeatureCollection',
+                features: [{ type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: rings } }]
+            };
+            var features = new ol.format.GeoJSON().readFeatures(geojson, {
+                dataProjection: 'EPSG:2056', featureProjection: 'EPSG:2056'
+            });
+            this.displayLayer.getSource().addFeatures(features);
+            TnetLog.log('[OEREB-Mobile] Polygon gezeichnet, Ringe:', rings.length);
+        };
+
+        proto.addOerebGraphicPolyline = function(argGeometryString) {
+            this.addLayer();
+            if (!this.displayLayer) return;
+            var geojson = {
+                type: 'FeatureCollection',
+                features: [{ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: argGeometryString } }]
+            };
+            var features = new ol.format.GeoJSON().readFeatures(geojson, {
+                dataProjection: 'EPSG:2056', featureProjection: 'EPSG:2056'
+            });
+            this.displayLayer.getSource().addFeatures(features);
+            TnetLog.log('[OEREB-Mobile] Polyline gezeichnet');
+        };
+
+        proto.addOerebGraphicPoint = function(argGeometryString) {
+            this.addLayer();
+            if (!this.displayLayer) return;
+            var geojson = {
+                type: 'FeatureCollection',
+                features: [{ type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: argGeometryString } }]
+            };
+            var features = new ol.format.GeoJSON().readFeatures(geojson, {
+                dataProjection: 'EPSG:2056', featureProjection: 'EPSG:2056'
+            });
+            this.displayLayer.getSource().addFeatures(features);
+            TnetLog.log('[OEREB-Mobile] Point gezeichnet');
+        };
+
+        // WebOffice-spezifische Methoden: Mobile-Implementierung via Tnet-Layersteuerung
+        proto.toggleLayer = function(nodeOrToken, active) {
+            var tokens = readNodeTokens(nodeOrToken);
+            var visible = (active !== false);
+            var updatedLayerIds = [];
+
+            tokens.forEach(function(token) {
+                if (setStoreLayerVisible(token, visible)) {
+                    var layerId = findStoreLayerIdByToken(token) || token;
+                    if (updatedLayerIds.indexOf(layerId) === -1) updatedLayerIds.push(layerId);
+                }
+            });
+
+            if (updatedLayerIds.length > 0) return updatedLayerIds;
+
+            // Fallback: direkte OL-Sichtbarkeit
+            var mapLayers = [];
+            tokens.forEach(function(token) {
+                var matches = this.findMapLayers(token);
+                matches.forEach(function(layer) {
+                    setLayerVisible(layer, visible);
+                    if (mapLayers.indexOf(layer) === -1) mapLayers.push(layer);
+                });
+            }, this);
+            return mapLayers;
+        };
+        proto.addLayerByThemeId = function(themeId) {
+            var mapped = this.extractMapElementByThemeId(themeId);
+            var activated = this.activateLayerByMappedElement(mapped);
+            this.clearLayer();
+            return activated;
+        };
+        proto.deactivateTocLayers = function() {
+            var self = this;
+            normalizeNodes(this.activatedTocNodes).forEach(function(node) {
+                self.toggleLayer(node, false);
+            });
+            this.activatedTocNodes = [];
+        };
+        proto.setMappingTable = function(mapping) {
+            this.mapping = mapping || null;
+            return this.mapping;
+        };
+        proto.changeTocOpacityByTocId = function(tocId, opacity) {
+            var tokens = readNodeTokens(tocId);
+            if (!tokens.length) return;
+
+            var handledByStore = false;
+            tokens.forEach(function(token) {
+                if (setStoreLayerOpacity(token, opacity)) handledByStore = true;
+            });
+            if (handledByStore) return;
+
+            tokens.forEach(function(token) {
+                this.findMapLayers(token).forEach(function(layer) {
+                    setLayerOpacity(layer, opacity);
+                });
+            }, this);
+        };
+        proto.extractMapElementByThemeId = function(themeId) {
+            var mapping = this.mapping;
+            if (!mapping || themeId == null) return {};
+            if (Array.isArray(mapping)) {
+                for (var i = 0; i < mapping.length; i++) {
+                    var entry = mapping[i];
+                    if (!entry) continue;
+                    if (String(entry.themeId) === String(themeId)) return entry;
+                    if (String(entry.id) === String(themeId)) return entry;
+                }
+                return {};
+            }
+            return mapping[themeId] || mapping[String(themeId)] || {};
+        };
+        proto.activateLayerByMappedElement = function(mappedElement) {
+            var self = this;
+            var nodes = this.mapTocNodes(mappedElement);
+            this.deactivateTocLayers();
+            this.activatedTocNodes = nodes.slice();
+            nodes.forEach(function(node) {
+                self.toggleLayer(node, true);
+            });
+            return nodes;
+        };
+        proto.searchTocByName = function(name) {
+            var tokens = readNodeTokens(name);
+            if (!tokens.length) return false;
+
+            for (var i = 0; i < tokens.length; i++) {
+                if (findStoreLayerIdByToken(tokens[i])) return true;
+            }
+
+            for (var j = 0; j < tokens.length; j++) {
+                var layers = this.findMapLayers(tokens[j]);
+                if (layers && layers.length > 0) return true;
+            }
+            return false;
+        };
+        proto.mapTocNodes = function(elements) {
+            var source = elements;
+            if (elements && typeof elements === 'object') {
+                if (Array.isArray(elements.tocNodes)) source = elements.tocNodes;
+                else if (Array.isArray(elements.layers)) source = elements.layers;
+                else if (Array.isArray(elements.mappedTocNodes)) source = elements.mappedTocNodes;
+            }
+            var mapped = normalizeNodes(source).filter(function(item) {
+                return readNodeToken(item) != null;
+            });
+            this.mappedTocNodes = mapped;
+            return mapped;
+        };
+        proto.getSymbology = function() { return null; };
+        proto.extractLayers = {
+            byIdAndType: function(idOrName) {
+                var token = readNodeToken(idOrName);
+                if (!token) return [];
+                return this.findMapLayers(token);
+            }
+        };
+
+        proto.extractLayers.byIdAndType = proto.extractLayers.byIdAndType.bind(proto);
+
+        return MobileGraphicsLayer;
+    });
+
+    TnetLog.log('[OEREB] Mobile-GraphicsLayer Modul registriert');
+}
+
+// ===== IFRAME =====
+function loadOerebIframe(egrid, typ, canton) {
+    var iframe = document.getElementById('oereb-iframe');
+    if (!iframe) return;
+
+    var src = OEREB_IFRAME_BASE
+        + '?typ=' + encodeURIComponent(typ || 'Liegenschaft')
+        + '&EGRID=' + encodeURIComponent(egrid)
+        + (canton ? '&canton=' + encodeURIComponent(canton) : '')
+        + '&' + OEREB_IFRAME_PARAMS;
+
+    // graphicsLayer registrieren (OL-Drawing-Support statt WebOffice-API)
+    // Das iframe ruft parent.require(["app/oereb/graphicsLayer"]) auf
+    if (isMobileEntry()) registerMobileGraphicsLayer();
+
+    iframe.src = src;
+}
+
+function clearOerebIframe() {
+    var iframe = document.getElementById('oereb-iframe');
+    if (iframe) iframe.src = 'about:blank';
+}
+
+function preloadOerebIframe() {
+    var iframe = document.getElementById('oereb-iframe');
+    if (!iframe) return;
+    // Basis-URL ohne EGRID laden → zeigt ÖREB-Startseite
+    if (isMobileEntry()) registerMobileGraphicsLayer();
+    iframe.src = OEREB_IFRAME_BASE + '?' + OEREB_IFRAME_PARAMS;
+}
+
+// ===== NJS-FRAMEWORK HIGHLIGHT UNTERDRÜCKUNG =====
+/** Features aus allen nicht-ÖREB Vector-Layern entfernen (gezielt, kein Verstecken) */
+function clearNjsHighlights(map) {
+    if (!map) return;
+    map.getLayers().forEach(function(layer) {
+        if (!(layer instanceof ol.layer.Vector)) return;
+        var name = (layer.get('name') || '').toString().toLowerCase();
+        var id = (layer.get('id') || '').toString();
+        if (layer === oerebHighlightLayer) return;
+        if (layer.get('isOereb')) return;
+        if (id === 'OerebGraphics') return;
+        if (layer.getSource() && typeof layer.getSource().clear === 'function') {
+            // Objektinfo-Layer gezielt leeren (cosmetic_maptip)
+            if (name === 'cosmetic_maptip') {
+                layer.getSource().clear();
+                return;
+            }
+        }
+    });
+}
+
+/** Verzögertes Aufräumen nach Klick (njs-Identify ist asynchron) */
+function scheduleNjsHighlightCleanup(map) {
+    if (_njsHighlightCleanupTimer) clearTimeout(_njsHighlightCleanupTimer);
+    _njsHighlightCleanupTimer = setTimeout(function() {
+        if (!window.isOerebActive) return;
+        clearNjsHighlights(map);
+        suppressInfoHighlightLayer(map);
+    }, 400);
+}
+
+/** Objektinfo-Highlight-Layer erkennen und Features leeren (gezielt) */
+function suppressInfoHighlightLayer(map) {
+    if (!map) return;
+    
+    var layers = map.getLayers().getArray();
+    var found = false;
+    
+    // Suche cosmetic_maptip Layer und leere Features
+    for (var i = 0; i < layers.length; i++) {
+        var layer = layers[i];
+        if (!(layer instanceof ol.layer.Vector)) continue;
+        var name = (layer.get('name') || '').toString().toLowerCase();
+        var id = (layer.get('id') || '').toString();
+        
+        // Ignoriere ÖREB-Layer
+        if (layer === oerebHighlightLayer || layer.get('isOereb') || id === 'OerebGraphics') continue;
+        
+        // Leere cosmetic_maptip Layer
+        if (name === 'cosmetic_maptip' && layer.getSource()) {
+            var features = layer.getSource().getFeatures();
+            if (features.length > 0) {
+                // Speichere Features bevor wir sie leeren (aber nur einmal pro Objekt)
+                features.forEach(function(feature) {
+                    var alreadySaved = _njsInfoHighlightFeatures.some(function(item) { 
+                        return item.feature === feature; 
+                    });
+                    if (!alreadySaved) {
+                        _njsInfoHighlightFeatures.push({ layer: layer, feature: feature });
+                    }
+                });
+                layer.getSource().clear();
+                found = true;
+                // Log nur beim ersten Mal - dann ist die cosmetic_maptip leer und wir brauchen kein Spam
+                if (!_njsInfoHighlightLogged && _njsInfoHighlightFeatures.length > 0) {
+                    _njsInfoHighlightLogged = true;
+                    TnetLog.log('[ÖREB] Objektinfo-Unterdrückung aktiv: ' + _njsInfoHighlightFeatures.length + ' Features zwischengespeichert');
+                }
+            }
+        }
+    }
+}
+
+// ===== HIGHLIGHT =====
+function highlightOerebParcel(geojsonGeom, map) {
+    clearOerebHighlight();
+
+    if (!map) {
+        TnetLog.warn('[OEREB] highlightOerebParcel: map ist null');
+        return;
+    }
+
+    if (!geojsonGeom || !geojsonGeom.coordinates) {
+        TnetLog.warn('[OEREB] highlightOerebParcel: keine Geometrie', geojsonGeom);
+        return;
+    }
+
+    TnetLog.log('[OEREB] Highlight Geometrie:', geojsonGeom.type, 
+        'coords:', JSON.stringify(geojsonGeom.coordinates).substring(0, 100));
+
+    try {
+        if (!oerebHighlightLayer) {
+            oerebHighlightLayer = new ol.layer.Vector({
+                source: new ol.source.Vector(),
+                zIndex: 998,
+                properties: { isOereb: true },
+                style: new ol.style.Style({
+                    fill: new ol.style.Fill({ color: 'rgba(255, 200, 0, 0.3)' }),
+                    stroke: new ol.style.Stroke({ color: '#e8423f', width: 3 })
+                })
+            });
+            map.addLayer(oerebHighlightLayer);
+            TnetLog.log('[OEREB] Highlight-Layer erstellt und zur Karte hinzugefügt');
+        }
+
+        var mapProj = map.getView().getProjection();
+        TnetLog.log('[OEREB] Karten-Projektion:', mapProj.getCode());
+
+        var format = new ol.format.GeoJSON();
+        var feature = format.readFeature({
+            type: 'Feature',
+            geometry: geojsonGeom
+        }, {
+            dataProjection: 'EPSG:2056',
+            featureProjection: mapProj
+        });
+
+        if (!feature || !feature.getGeometry()) {
+            TnetLog.error('[OEREB] Feature konnte nicht aus GeoJSON gelesen werden');
+            return;
+        }
+
+        TnetLog.log('[OEREB] Feature erstellt, Geometry-Type:', feature.getGeometry().getType());
+
+        oerebHighlightLayer.getSource().addFeature(feature);
+        TnetLog.log('[OEREB] Feature zu Highlight-Layer hinzugefügt, Anzahl Features:',
+            oerebHighlightLayer.getSource().getFeatures().length);
+
+        // Auf Parzelle zoomen/pannen
+        var extent = feature.getGeometry().getExtent();
+        TnetLog.log('[OEREB] Feature-Extent:', extent);
+
+        if (extent && !extentIsEmpty(extent)) {
+            // Auf Mobile: Bottom-Sheet belegt ~50% unten, Padding grosszügig
+            var bottomPad = isMobileView() ? Math.round(window.innerHeight * 0.55) : 80;
+            TnetLog.log('[OEREB] view.fit mit padding [80, 80, ' + bottomPad + ', 80], mobile=' + isMobileView());
+
+            // Guard setzen: triggerMapUpdate() darf kein updateSize()/resize() aufrufen
+            _oerebFitAnimating = true;
+            // Resize-Handler auf Mobile blockieren (Tastatur/Viewport-Änderungen)
+            if (isMobileView()) window._tnetBlockResize = true;
+
+            // Bestehenden View-Guard aufräumen
+            stopOerebViewGuard(map);
+
+            // Basemap-abhängiger maxZoom: Orthophoto braucht höhere Werte
+            // Werte aus Config, Fallback auf hardcoded
+            var oerebMaxZoomOrtho = (_oerebMaxZoomConfig && _oerebMaxZoomConfig.maxZoomOrthophoto != null)
+                ? _oerebMaxZoomConfig.maxZoomOrthophoto : 23;
+            var oerebMaxZoomPlan  = (_oerebMaxZoomConfig && _oerebMaxZoomConfig.maxZoomOther != null)
+                ? _oerebMaxZoomConfig.maxZoomOther : 18;
+            var oerebMaxZoom = oerebMaxZoomPlan;
+            try {
+                var bm = njs.AppManager.Maps['main'].currBasisMap || njs.AppManager.Maps['main'].basisMap || '';
+                if (/swissimage|ortho/i.test(bm)) oerebMaxZoom = oerebMaxZoomOrtho;
+            } catch (e) {}
+            if (oerebMaxZoom === oerebMaxZoomPlan) {
+                var card = document.querySelector('.basemap-card.active');
+                if (card && /swissimage|ortho/i.test(card.dataset.basemap || '')) oerebMaxZoom = oerebMaxZoomOrtho;
+            }
+
+            // Auf Mobile duration:0 (sofort), damit kein updateSize() dazwischen feuern kann.
+            // Auf Desktop: animation 600ms wie bisher.
+            var fitDuration = isMobileView() ? 0 : 600;
+            map.getView().fit(extent, {
+                padding: [80, 80, bottomPad, 80],
+                maxZoom: oerebMaxZoom,
+                duration: fitDuration,
+                callback: function(completed) {
+                    // View-State speichern und Überwachung starten
+                    var view = map.getView();
+                    _oerebSavedView = {
+                        center: view.getCenter().slice(),
+                        zoom: view.getZoom(),
+                        time: Date.now()
+                    };
+                    TnetLog.log('[OEREB] Zoom nach fit:', _oerebSavedView.zoom, 'completed:', completed, 'maxZoom:', oerebMaxZoom);
+                    startOerebViewGuard(map);
+                }
+            });
+
+            // Fallback: Guard nach 5s sicherheitshalber zurücksetzen
+            setTimeout(function() {
+                _oerebFitAnimating = false;
+                window._tnetBlockResize = false;
+            }, 5000);
+        } else {
+            TnetLog.warn('[OEREB] Extent ist leer oder ungültig:', extent);
+        }
+
+        // Prüfe ob Layer sichtbar ist
+        TnetLog.log('[OEREB] Layer visible:', oerebHighlightLayer.getVisible(),
+            'opacity:', oerebHighlightLayer.getOpacity(),
+            'zIndex:', oerebHighlightLayer.getZIndex());
+
+    } catch (err) {
+        TnetLog.error('[OEREB] Fehler in highlightOerebParcel:', err);
+    }
+}
+
+/**
+ * View-Guard starten: Nach view.fit() die View 3s lang überwachen.
+ * Falls irgendetwas (njs, dijit, iframe) die View ändert, sofort wiederherstellen.
+ */
+function startOerebViewGuard(map) {
+    if (!map || !_oerebSavedView) return;
+
+    // moveend-Listener: prüft ob View noch stimmt
+    if (_oerebMoveEndKey) ol.Observable.unByKey(_oerebMoveEndKey);
+    _oerebMoveEndKey = map.on('moveend', function() {
+        if (!_oerebSavedView) return;
+        var view = map.getView();
+        var currentZoom = view.getZoom();
+        var currentCenter = view.getCenter();
+        var savedZoom = _oerebSavedView.zoom;
+        var savedCenter = _oerebSavedView.center;
+
+        // Toleranz: Zoom-Differenz > 0.3 oder Center-Verschiebung > 100m
+        var zoomDiff = Math.abs(currentZoom - savedZoom);
+        var centerDx = Math.abs(currentCenter[0] - savedCenter[0]);
+        var centerDy = Math.abs(currentCenter[1] - savedCenter[1]);
+
+        if (zoomDiff > 0.3 || centerDx > 100 || centerDy > 100) {
+            TnetLog.warn('[OEREB] View wurde ver\u00e4ndert (zoom: ' + currentZoom.toFixed(2) + ' vs ' + savedZoom.toFixed(2) +
+                ', dy: ' + centerDy.toFixed(0) + '), stelle wieder her');
+            // Sofort setzen (kein animate!) damit kein updateSize dazwischenfunken kann
+            try { view.cancelAnimations(); } catch (e) {}
+            view.setCenter(savedCenter);
+            view.setZoom(savedZoom);
+        }
+    });
+
+    // Guard nach 5s beenden (3s war zu kurz für Mobile Container-Resize)
+    if (_oerebViewGuardTimer) clearTimeout(_oerebViewGuardTimer);
+    _oerebViewGuardTimer = setTimeout(function() {
+        stopOerebViewGuard(map);
+    }, 5000);
+}
+
+/** View-Guard stoppen */
+function stopOerebViewGuard(map) {
+    _oerebFitAnimating = false;
+    _oerebSavedView = null;
+    if (_oerebMoveEndKey) {
+        ol.Observable.unByKey(_oerebMoveEndKey);
+        _oerebMoveEndKey = null;
+    }
+    if (_oerebViewGuardTimer) {
+        clearTimeout(_oerebViewGuardTimer);
+        _oerebViewGuardTimer = null;
+    }
+    window._tnetBlockResize = false;
+}
+
+function clearOerebHighlight() {
+    if (oerebHighlightLayer) {
+        oerebHighlightLayer.getSource().clear();
+    }
+}
+
+/** OerebGraphics-Layer (Detail-Geometrien vom iframe/graphicsLayer) leeren */
+function clearOerebGraphicsLayer() {
+    try {
+        var map = getMainMap ? getMainMap() : null;
+        if (!map) return;
+        map.getLayers().forEach(function(layer) {
+            if (layer.get && layer.get('id') === 'OerebGraphics' && layer.getSource) {
+                layer.getSource().clear();
+            }
+        });
+    } catch(e) {}
+}
+
+// ===== DOCK-PANEL (identisch mit Objektinfo-Logik) =====
+var savedOerebPanePosition = null;
+var oerebMapContainerObserver = null;
+var oerebStreetviewObserver = null;
+var _savedOerebDockedWidth = 440;
+
+function triggerMapUpdate() {
+    setTimeout(function() {
+        // Während view.fit()-Animation kein updateSize() aufrufen (würde Zoom zurücksetzen)
+        if (_oerebFitAnimating) {
+            TnetLog.log('[OEREB] triggerMapUpdate übersprungen (view.fit Animation läuft)');
+            return;
+        }
+        if (window.njs && njs.AppManager && njs.AppManager.Maps && njs.AppManager.Maps['main']) {
+            var mapObj = njs.AppManager.Maps['main'].mapObj;
+            if (mapObj && mapObj.updateSize) {
+                mapObj.updateSize();
+            }
+        }
+        if (typeof dijit !== 'undefined' && dijit.byId('NeapolisContainer')) {
+            dijit.byId('NeapolisContainer').resize();
+        }
+    }, 350);
+}
+
+function showOerebDockPanel() {
+    var panel = document.getElementById('oereb-dock-panel');
+    if (!panel) return;
+    panel.classList.remove('hidden');
+    // Auf Mobile: CSS-Bottom-Sheet übernimmt, kein JS-Docking
+    if (isMobileView()) return;
+    // Desktop: Default = angedockt
+    if (window.isOerebPanelDocked) {
+        dockOerebPanel();
+    }
+}
+
+function hideOerebDockPanel() {
+    var panel = document.getElementById('oereb-dock-panel');
+    if (!panel) return;
+    // Auf Mobile: nur hidden setzen, CSS erledigt den Rest
+    if (isMobileView()) {
+        panel.classList.add('hidden');
+        return;
+    }
+    // Desktop: Falls angedockt, mapContainer zurücksetzen
+    if (window.isOerebPanelDocked) {
+        var mapContainer = document.getElementById('mapContainer');
+        if (mapContainer) {
+            mapContainer.style.setProperty('width', '100%', 'important');
+            triggerMapUpdate();
+        }
+        stopOerebObservers();
+    }
+    panel.classList.add('hidden');
+}
+
+window.closeOerebPanel = function() {
+    deactivateOereb();
+};
+
+function setOerebSelection(html) {
+    var el = document.getElementById('oereb-selection');
+    if (el) el.innerHTML = html;
+}
+
+// ===== DOCK / UNDOCK (identisch mit toggleInfoPaneDock) =====
+function dockOerebPanel() {
+    var panel = document.getElementById('oereb-dock-panel');
+    var dockBtn = document.getElementById('oereb-dock-btn');
+    var mapContainer = document.getElementById('mapContainer');
+    if (!panel) return;
+
+    // Auf Mobile: CSS-Bottom-Sheet, kein Desktop-Docking
+    if (isMobileView()) return;
+
+    panel.classList.add('docked-right');
+
+    if (mapContainer) {
+        var panelWidth = _savedOerebDockedWidth || 440;
+        var centerPane = document.getElementById('centerPaneLayout');
+        var streetviewContainer = document.getElementById('streetviewContainer');
+        var streetviewWidth = 0;
+        if (streetviewContainer && streetviewContainer.offsetWidth > 0 && streetviewContainer.style.display !== 'none') {
+            streetviewWidth = streetviewContainer.offsetWidth;
+        }
+        var centerRect = centerPane ? centerPane.getBoundingClientRect() : mapContainer.getBoundingClientRect();
+        panel.style.setProperty('position', 'fixed', 'important');
+        panel.style.setProperty('top', centerRect.top + 'px', 'important');
+        panel.style.setProperty('right', streetviewWidth + 'px', 'important');
+        panel.style.setProperty('bottom', (window.innerHeight - centerRect.bottom) + 'px', 'important');
+        panel.style.setProperty('left', 'auto', 'important');
+        panel.style.setProperty('width', panelWidth + 'px', 'important');
+        panel.style.setProperty('height', 'auto', 'important');
+
+        var centerPaneWidth = centerPane ? centerPane.offsetWidth : window.innerWidth;
+        var mapWidth = centerPaneWidth - streetviewWidth - panelWidth;
+        mapContainer.style.setProperty('width', mapWidth + 'px', 'important');
+        triggerMapUpdate();
+    }
+    startOerebObservers();
+
+    if (dockBtn) {
+        dockBtn.title = 'Floating';
+        dockBtn.innerHTML = TnetIcons.get('undock', null, {width: '16', height: '16'});
+    }
+    window.isOerebPanelDocked = true;
+}
+
+function undockOerebPanel() {
+    var panel = document.getElementById('oereb-dock-panel');
+    var dockBtn = document.getElementById('oereb-dock-btn');
+    var mapContainer = document.getElementById('mapContainer');
+    if (!panel) return;
+
+    panel.classList.remove('docked-right');
+    stopOerebObservers();
+
+    // mapContainer wieder auf volle Breite
+    if (mapContainer) {
+        mapContainer.style.setProperty('width', '100%', 'important');
+        setTimeout(function() { triggerMapUpdate(); }, 100);
+    }
+
+    // Floating-Position wiederherstellen oder Default
+    if (savedOerebPanePosition) {
+        panel.style.setProperty('top', savedOerebPanePosition.top, 'important');
+        panel.style.setProperty('left', savedOerebPanePosition.left, 'important');
+        panel.style.setProperty('width', savedOerebPanePosition.width, 'important');
+        panel.style.setProperty('height', savedOerebPanePosition.height, 'important');
+    } else {
+        panel.style.setProperty('top', '80px', 'important');
+        panel.style.setProperty('left', 'calc(100vw - 500px)', 'important');
+        panel.style.setProperty('width', '440px', 'important');
+        panel.style.setProperty('height', 'calc(100vh - 160px)', 'important');
+    }
+    panel.style.setProperty('right', 'auto', 'important');
+    panel.style.setProperty('bottom', 'auto', 'important');
+    panel.style.setProperty('position', 'fixed', 'important');
+    panel.style.maxHeight = '';
+
+    if (dockBtn) {
+        dockBtn.title = 'Rechts andocken';
+        dockBtn.innerHTML = TnetIcons.get('dock', null, {width: '16', height: '16'});
+    }
+    window.isOerebPanelDocked = false;
+}
+
+window.toggleOerebDock = function() {
+    if (window.isOerebPanelDocked) {
+        // Position speichern
+        var panel = document.getElementById('oereb-dock-panel');
+        if (panel) {
+            savedOerebPanePosition = {
+                top: '80px',
+                left: 'calc(100vw - 500px)',
+                width: '440px',
+                height: 'calc(100vh - 160px)'
+            };
+        }
+        undockOerebPanel();
+    } else {
+        // Floating-Position speichern
+        var panel = document.getElementById('oereb-dock-panel');
+        if (panel) {
+            savedOerebPanePosition = {
+                top: panel.style.top || '80px',
+                left: panel.style.left || 'calc(100vw - 500px)',
+                width: panel.style.width || '440px',
+                height: panel.style.height || 'calc(100vh - 160px)'
+            };
+        }
+        dockOerebPanel();
+    }
+};
+
+// ===== OBSERVER (identisch mit Objektinfo) =====
+function startOerebObservers() {
+    if (oerebMapContainerObserver) oerebMapContainerObserver.disconnect();
+    if (oerebStreetviewObserver) oerebStreetviewObserver.disconnect();
+
+    var mapContainer = document.getElementById('mapContainer');
+    var streetviewContainer = document.getElementById('streetviewContainer');
+    if (!mapContainer) return;
+
+    if (window.ResizeObserver) {
+        oerebMapContainerObserver = new ResizeObserver(function() {
+            if (!window.isOerebPanelDocked) return;
+            updateDockedOerebPosition();
+        });
+        oerebMapContainerObserver.observe(mapContainer);
+
+        if (streetviewContainer) {
+            oerebStreetviewObserver = new ResizeObserver(function() {
+                if (!window.isOerebPanelDocked) return;
+                updateDockedOerebPosition();
+            });
+            oerebStreetviewObserver.observe(streetviewContainer);
+        }
+    }
+    window.addEventListener('resize', updateDockedOerebPosition);
+}
+
+function stopOerebObservers() {
+    if (oerebMapContainerObserver) { oerebMapContainerObserver.disconnect(); oerebMapContainerObserver = null; }
+    if (oerebStreetviewObserver) { oerebStreetviewObserver.disconnect(); oerebStreetviewObserver = null; }
+    window.removeEventListener('resize', updateDockedOerebPosition);
+}
+
+function updateDockedOerebPosition() {
+    if (!window.isOerebPanelDocked) return;
+    var panel = document.getElementById('oereb-dock-panel');
+    var mapContainer = document.getElementById('mapContainer');
+    var centerPane = document.getElementById('centerPaneLayout');
+    var streetviewContainer = document.getElementById('streetviewContainer');
+    if (!panel || !mapContainer || panel.classList.contains('hidden')) return;
+
+    var panelWidth = _savedOerebDockedWidth || panel.offsetWidth || 440;
+    var streetviewWidth = 0;
+    if (streetviewContainer && streetviewContainer.offsetWidth > 0 && streetviewContainer.style.display !== 'none') {
+        streetviewWidth = streetviewContainer.offsetWidth;
+    }
+
+    var centerRect = centerPane ? centerPane.getBoundingClientRect() : { top: 69, bottom: window.innerHeight - 32 };
+    panel.style.setProperty('top', centerRect.top + 'px', 'important');
+    panel.style.setProperty('right', streetviewWidth + 'px', 'important');
+    panel.style.setProperty('bottom', (window.innerHeight - centerRect.bottom) + 'px', 'important');
+    panel.style.setProperty('width', panelWidth + 'px', 'important');
+
+    var centerPaneWidth = centerPane ? centerPane.offsetWidth : window.innerWidth;
+    var mapWidth = centerPaneWidth - streetviewWidth - panelWidth;
+    mapContainer.style.setProperty('width', mapWidth + 'px', 'important');
+    triggerMapUpdate();
+}

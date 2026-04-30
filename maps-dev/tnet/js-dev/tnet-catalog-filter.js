@@ -1,1 +1,263 @@
-(function(){"use strict";if(window.__tnetLMFlags&&window.__tnetLMFlags.useNewTree){console.log("[tnet-catalog-filter.js] Neuer Layer-Manager-Tree aktiv \u2192 \xFCbersprungen");return}var p=200,i="tnet-filter-hidden",E=null,y=null;function h(a){if(a=a.trim().toLowerCase(),!a)return null;var n=a.indexOf("*")!==-1||a.indexOf("?")!==-1;if(n){var t=a.replace(/([.+^${}()|[\]\\])/g,"\\$1");return t=t.replace(/\*/g,".*").replace(/\?/g,"."),new RegExp(t,"i")}else return new RegExp(a.replace(/([.+*?^${}()|[\]\\])/g,"\\$1"),"i")}function L(){return document.querySelectorAll("#kantons_container > .dijitTitlePane")}function _(a){for(var n=h(a),t=L(),e=0;e<t.length;e++)k(t[e],n)}function k(a,n){if(!n){g(a);return}for(var t=a.querySelectorAll(".tabs2acc-header"),e=0;e<t.length;e++){var r=t[e],l=r.nextElementSibling;if(!(!l||!l.classList.contains("tabs2acc-panel"))){var s=x(l,n),c=n.test(r.textContent||"");s||c?(r.classList.remove(i),l.classList.remove(i),s&&(l.classList.add("is-open"),l.style.display="block")):(r.classList.add(i),l.classList.add(i))}}}function x(a,n){for(var t=!1,e=a.querySelectorAll(".dijitTitlePane"),r=0;r<e.length;r++){var l=e[r],s=l.querySelector(".dijitTitlePaneTextNode, .appendtitle"),c=s?s.textContent:"",f=l.querySelector(".dijitTitlePaneContentInner"),u=f?S(f,n):!1;if(u||n.test(c)){if(l.classList.remove(i),t=!0,u){var o=l.querySelector(".dijitTitlePaneContentOuter");o&&(o.style.display="block")}}else l.classList.add(i)}return t}function S(a,n){for(var t=!1,e=a.querySelectorAll('[id^="div_head_"]'),r=0;r<e.length;r++){var l=e[r],s=l.querySelector("label"),c=s?s.textContent:"",f=n.test(c),u=l.id.replace("div_head_","div_gis_"),o=document.getElementById(u),m=!1;o&&(m=F(o,n)),f||m?(l.classList.remove(i),o&&(o.classList.remove(i),m&&(o.style.display="block")),t=!0):(l.classList.add(i),o&&o.classList.add(i))}return t}function F(a,n){for(var t=!1,e=a.children,r=0;r<e.length;r++){var l=e[r].querySelector("label"),s=l?l.textContent:"";n.test(s)?(e[r].classList.remove(i),t=!0):e[r].classList.add(i)}return t}function g(a){for(var n=a.querySelectorAll("."+i),t=0;t<n.length;t++)n[t].classList.remove(i)}function v(){for(var a=L(),n=0;n<a.length;n++)g(a[n])}function b(){var a=document.getElementById("kantons_container");if(!a)return!1;var n=document.getElementById("kantons_tab_bar");if(!n)return!1;if(document.getElementById("kantons_filter_box"))return!0;var t=document.createElement("div");t.id="kantons_filter_box",t.className="tnet-catalog-filter";var e=document.createElement("input");e.type="text",e.id="kantons_filter_input",e.className="tnet-catalog-filter-input",e.placeholder="Themen filtern... (* = Wildcard)",e.autocomplete="off",e.spellcheck=!1;var r=document.createElement("button");return r.className="tnet-catalog-filter-clear",r.innerHTML="&times;",r.title="Filter l\xF6schen",r.style.display="none",t.appendChild(e),t.appendChild(r),n.parentNode.insertBefore(t,n.nextSibling),E=e,e.addEventListener("input",function(){var l=e.value;r.style.display=l?"block":"none",clearTimeout(y),y=setTimeout(function(){_(l)},p)}),e.addEventListener("keydown",function(l){l.key==="Escape"&&(e.value="",r.style.display="none",v(),e.blur())}),r.addEventListener("click",function(){e.value="",r.style.display="none",v(),e.focus()}),TnetLog.log("[CatalogFilter] Filterbox eingef\xFCgt"),!0}var T=!1;function d(){T||b()&&(T=!0)}document.addEventListener("tnet-app-ready",function(){setTimeout(d,800)},{once:!0}),setTimeout(d,3e3),setTimeout(d,5e3),setTimeout(d,7e3),window.TnetCatalogFilter={init:b,applyFilter:_,clearAllFilters:v}})();
+﻿/**
+ * tnet-catalog-filter.js
+ * Filterbox für den Themenkatalog-Baum. Ermöglicht Wildcard-Suche
+ * in Layer-Labels aller Kantons-Tabs. Matching-Eltern bleiben sichtbar,
+ * nicht-passende Elemente werden per CSS-Klasse ausgeblendet.
+ *
+ * @version    1.0
+ * @date       2026-03-02
+ * @copyright  Trigonet AG
+ * @author     Marco Dellenbach
+ */
+(function () {
+  'use strict';
+
+  // Wenn neuer Themenkatalog-Baum aktiv → Filter überflüssig
+  // (tnet-lm-tree.js hat eigene Inline-Suche)
+  if (window.__tnetLMFlags && window.__tnetLMFlags.useNewTree) {
+    console.log('[tnet-catalog-filter.js] Neuer Layer-Manager-Tree aktiv → übersprungen');
+    return;
+  }
+
+  // ===== KONFIGURATION =====
+  var FILTER_DEBOUNCE = 200;
+  var HIDDEN_CLASS = 'tnet-filter-hidden';
+
+  // ===== STATE =====
+  var _filterInput = null;
+  var _debounceTimer = null;
+
+  // ===== HILFSFUNKTIONEN =====
+
+  /**
+   * Wildcard-Pattern in RegExp umwandeln.
+   * '*' → '.*', '?' → '.', ohne Wildcard → Substring-Suche
+   */
+  function buildRegex(query) {
+    query = query.trim().toLowerCase();
+    if (!query) return null;
+
+    var hasWildcard = query.indexOf('*') !== -1 || query.indexOf('?') !== -1;
+    if (hasWildcard) {
+      var escaped = query.replace(/([.+^${}()|[\]\\])/g, '\\$1');
+      escaped = escaped.replace(/\*/g, '.*').replace(/\?/g, '.');
+      return new RegExp(escaped, 'i');
+    } else {
+      return new RegExp(query.replace(/([.+*?^${}()|[\]\\])/g, '\\$1'), 'i');
+    }
+  }
+
+  function getAllTabContents() {
+    return document.querySelectorAll('#kantons_container > .dijitTitlePane');
+  }
+
+  // ===== FILTER-LOGIK =====
+
+  function applyFilter(query) {
+    var regex = buildRegex(query);
+    var tabs = getAllTabContents();
+    for (var t = 0; t < tabs.length; t++) {
+      filterTab(tabs[t], regex);
+    }
+  }
+
+  function filterTab(tabEl, regex) {
+    if (!regex) { clearFilter(tabEl); return; }
+
+    // Ebene 2: Accordion-Header + Panels
+    var accHeaders = tabEl.querySelectorAll('.tabs2acc-header');
+    for (var i = 0; i < accHeaders.length; i++) {
+      var header = accHeaders[i];
+      var panel = header.nextElementSibling;
+      if (!panel || !panel.classList.contains('tabs2acc-panel')) continue;
+
+      var panelHasMatch = filterPanel(panel, regex);
+      var headerMatches = regex.test(header.textContent || '');
+
+      if (panelHasMatch || headerMatches) {
+        header.classList.remove(HIDDEN_CLASS);
+        panel.classList.remove(HIDDEN_CLASS);
+        if (panelHasMatch) {
+          panel.classList.add('is-open');
+          panel.style.display = 'block';
+        }
+      } else {
+        header.classList.add(HIDDEN_CLASS);
+        panel.classList.add(HIDDEN_CLASS);
+      }
+    }
+  }
+
+  function filterPanel(panelEl, regex) {
+    var hasMatch = false;
+    var innerPanes = panelEl.querySelectorAll('.dijitTitlePane');
+
+    for (var i = 0; i < innerPanes.length; i++) {
+      var pane = innerPanes[i];
+      var titleNode = pane.querySelector('.dijitTitlePaneTextNode, .appendtitle');
+      var titleText = titleNode ? titleNode.textContent : '';
+      var contentInner = pane.querySelector('.dijitTitlePaneContentInner');
+      var paneHasMatch = contentInner ? filterDirectItems(contentInner, regex) : false;
+
+      if (paneHasMatch || regex.test(titleText)) {
+        pane.classList.remove(HIDDEN_CLASS);
+        hasMatch = true;
+        if (paneHasMatch) {
+          var outer = pane.querySelector('.dijitTitlePaneContentOuter');
+          if (outer) outer.style.display = 'block';
+        }
+      } else {
+        pane.classList.add(HIDDEN_CLASS);
+      }
+    }
+    return hasMatch;
+  }
+
+  function filterDirectItems(container, regex) {
+    var hasMatch = false;
+    var groupHeaders = container.querySelectorAll('[id^="div_head_"]');
+
+    for (var i = 0; i < groupHeaders.length; i++) {
+      var gh = groupHeaders[i];
+      var ghLabel = gh.querySelector('label');
+      var ghText = ghLabel ? ghLabel.textContent : '';
+      var ghMatches = regex.test(ghText);
+
+      // Zugehörigen Gruppen-Container finden
+      var groupId = gh.id.replace('div_head_', 'div_gis_');
+      var groupContent = document.getElementById(groupId);
+
+      var groupHasMatch = false;
+      if (groupContent) {
+        groupHasMatch = filterGroupContent(groupContent, regex);
+      }
+
+      if (ghMatches || groupHasMatch) {
+        gh.classList.remove(HIDDEN_CLASS);
+        if (groupContent) {
+          groupContent.classList.remove(HIDDEN_CLASS);
+          if (groupHasMatch) groupContent.style.display = 'block';
+        }
+        hasMatch = true;
+      } else {
+        gh.classList.add(HIDDEN_CLASS);
+        if (groupContent) groupContent.classList.add(HIDDEN_CLASS);
+      }
+    }
+    return hasMatch;
+  }
+
+  function filterGroupContent(groupEl, regex) {
+    var hasMatch = false;
+    var items = groupEl.children;
+    for (var i = 0; i < items.length; i++) {
+      var label = items[i].querySelector('label');
+      var text = label ? label.textContent : '';
+      if (regex.test(text)) {
+        items[i].classList.remove(HIDDEN_CLASS);
+        hasMatch = true;
+      } else {
+        items[i].classList.add(HIDDEN_CLASS);
+      }
+    }
+    return hasMatch;
+  }
+
+  function clearFilter(tabEl) {
+    var hidden = tabEl.querySelectorAll('.' + HIDDEN_CLASS);
+    for (var i = 0; i < hidden.length; i++) {
+      hidden[i].classList.remove(HIDDEN_CLASS);
+    }
+  }
+
+  function clearAllFilters() {
+    var tabs = getAllTabContents();
+    for (var i = 0; i < tabs.length; i++) clearFilter(tabs[i]);
+  }
+
+  // ===== UI ERSTELLEN =====
+
+  function createFilterBox() {
+    var container = document.getElementById('kantons_container');
+    if (!container) return false;
+    var tabBar = document.getElementById('kantons_tab_bar');
+    if (!tabBar) return false;
+    if (document.getElementById('kantons_filter_box')) return true;
+
+    // Container
+    var filterBox = document.createElement('div');
+    filterBox.id = 'kantons_filter_box';
+    filterBox.className = 'tnet-catalog-filter';
+
+    // Input
+    var input = document.createElement('input');
+    input.type = 'text';
+    input.id = 'kantons_filter_input';
+    input.className = 'tnet-catalog-filter-input';
+    input.placeholder = 'Themen filtern... (* = Wildcard)';
+    input.autocomplete = 'off';
+    input.spellcheck = false;
+
+    // Clear-Button
+    var clearBtn = document.createElement('button');
+    clearBtn.className = 'tnet-catalog-filter-clear';
+    clearBtn.innerHTML = '&times;';
+    clearBtn.title = 'Filter löschen';
+    clearBtn.style.display = 'none';
+
+    filterBox.appendChild(input);
+    filterBox.appendChild(clearBtn);
+
+    // Nach Tab-Bar einfügen
+    tabBar.parentNode.insertBefore(filterBox, tabBar.nextSibling);
+    _filterInput = input;
+
+    // Event-Handler
+    input.addEventListener('input', function () {
+      var query = input.value;
+      clearBtn.style.display = query ? 'block' : 'none';
+      clearTimeout(_debounceTimer);
+      _debounceTimer = setTimeout(function () { applyFilter(query); }, FILTER_DEBOUNCE);
+    });
+
+    input.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') {
+        input.value = '';
+        clearBtn.style.display = 'none';
+        clearAllFilters();
+        input.blur();
+      }
+    });
+
+    clearBtn.addEventListener('click', function () {
+      input.value = '';
+      clearBtn.style.display = 'none';
+      clearAllFilters();
+      input.focus();
+    });
+
+    TnetLog.log('[CatalogFilter] Filterbox eingefügt');
+    return true;
+  }
+
+  // ===== INIT =====
+  var initDone = false;
+  function tryInit() {
+    if (initDone) return;
+    if (createFilterBox()) initDone = true;
+  }
+
+  document.addEventListener('tnet-app-ready', function () {
+    setTimeout(tryInit, 800);
+  }, { once: true });
+
+  setTimeout(tryInit, 3000);
+  setTimeout(tryInit, 5000);
+  setTimeout(tryInit, 7000);
+
+  window.TnetCatalogFilter = {
+    init: createFilterBox,
+    applyFilter: applyFilter,
+    clearAllFilters: clearAllFilters
+  };
+})();
