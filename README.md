@@ -114,7 +114,8 @@ Details stehen in [DEV- und Deploy-Workflow](docs/DEV_DEPLOY_WORKFLOW.md).
 - `maps/tnet/tests/`: Pytest-Test-Suite (Smoke, Integration, externe Tests)
 - `maps/public/`: Öffentliche Einstiegspunkte (u. a. mobile/desktop HTML)
 - `core/`: Core-Konfiguration, Layer-Definitionen, Templates und Lookups
-- `_scripts/`: Hilfs-, Upload- und Validierungsskripte für Betrieb/Deployment
+- `_scripts/deployment/`: offizielle DEV/PROD-Deploy-Skripte
+- `_scripts/diagnostics/`, `_scripts/tests/`, `_scripts/legacy/`: Diagnose-, manuelle Test- und Legacy-Helfer
 
 ## Weiterführende Doku
 

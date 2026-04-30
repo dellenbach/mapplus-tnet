@@ -4,12 +4,14 @@
 Beschreibt den pragmatischen Deployment-Pfad für geänderte TNET-Dateien.
 
 ## Einstiegspunkte
-- `_scripts/_upload_files.py`
-- weitere Upload-Helfer in `_scripts/`
+- `_scripts/deployment/_upload_changed.py`
+- `_scripts/deployment/_upload_active_file.py`
+- `_scripts/deployment/_promote_dev_to_prod.py`
+- weitere Spezial-Upload-Helfer in `_scripts/`
 
 ## Hauptfluss
-1. Geänderte Pfade in der `FILES`-Liste von `_upload_files.py` eintragen.
-2. Upload-Skript lokal ausführen.
+1. Änderungen zuerst in `maps-dev/` umsetzen und prüfen.
+2. Geänderte Dateien mit `_scripts/deployment/_upload_changed.py --env dev` oder Einzeldateien mit `_scripts/deployment/_upload_active_file.py --env dev <datei>` hochladen.
 3. Zielpfade auf Server aktualisieren.
 4. Browser mit Hard-Reload neu laden und Funktion prüfen.
 
@@ -18,14 +20,16 @@ Beschreibt den pragmatischen Deployment-Pfad für geänderte TNET-Dateien.
 - Vollständige Dateiliste (bei Multi-Pfad-Dateien ggf. Spezialskript nutzen).
 
 ## Risiken/Guardrails
-- Unvollständige FILES-Liste führt zu Teil-Deployments.
-- Bei Dateien mit mehreren Remote-Pfaden beide Ziele explizit bedienen.
+- Deploy-Ziel (`dev`/`prod`) immer explizit setzen.
+- Bei Dateien mit mehreren Remote-Pfaden Spezialskript oder Active-File-Upload bewusst prüfen.
 
 ## Troubleshooting
 - Datei nicht aktualisiert: lokales/remote Pfad-Mapping prüfen.
 - Änderung sichtbar erst nach Cache-Leerung: Hard-Reload (`Ctrl+Shift+R`) durchführen.
 
 ## Relevante Dateien
-- `_scripts/_upload_files.py`
+- `_scripts/deployment/_upload_changed.py`
+- `_scripts/deployment/_upload_active_file.py`
+- `_scripts/deployment/_promote_dev_to_prod.py`
 - `_scripts/_upload_helpers.py`
-- `_scripts/_upload_all.py`
+- `_scripts/_upload_lyrmgr_patch.py`

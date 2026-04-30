@@ -435,9 +435,11 @@ Backups werden unter `/data/tmp/deploy-backups/<kürzel>/<timestamp>/` angelegt.
 ### Typischer Workflow
 
 ```bash
-# 1. FILES-Liste in _upload_files.py anpassen (geänderte Dateien eintragen)
-# 2. Upload ausführen
-py _scripts/_upload_files.py
+# 1. Geänderte Dateien nach DEV hochladen
+py _scripts/deployment/_upload_changed.py --env dev
+
+# Alternative: aktive Einzeldatei hochladen
+py _scripts/deployment/_upload_active_file.py --env dev <datei>
 
 # 3. Hard-Reload im Browser (Ctrl+Shift+R)
 ```
@@ -451,30 +453,27 @@ Remote: /www/maps/tnet/js/tnet-basemap.js
 
 ---
 
-## Upload-Skripte
+## Deploy-Skripte
 
-### Haupt-Skript: _upload_files.py
+### Offizielle Einstiegspunkte
 
-Generisches Upload-Skript mit manuell gepflegter `FILES`-Liste:
+| Skript | Zweck |
+|---|---|
+| `_scripts/deployment/_upload_changed.py` | Geänderte Dateien fuer DEV oder PROD hochladen |
+| `_scripts/deployment/_upload_active_file.py` | Einzelne aktive Datei fuer DEV oder PROD hochladen |
+| `_scripts/deployment/_promote_dev_to_prod.py` | DEV nach PROD promoten und optional deployen |
+| `_scripts/deployment/_upload_all_js.py` | JS-Build-Artefakte gezielt hochladen |
+| `_scripts/deployment/deploy_env.py` | DEV/PROD-Pfade und Deploy-Konfiguration |
 
-```python
-FILES = [
-    "tnet/js/tnet-lm-store.js",
-    "tnet/js/tnet-info-panel.js",
-    "tnet/js/tnet-coalesce-bridge.js",
-    "tnet/js/tnet-lyrmgr-patch.js",
-    "public/css/override.css",
-]
-```
+### Build-Helfer
 
-→ Vor jedem Upload: gewünschte Dateien in der Liste ergänzen/anpassen.
+`_scripts/_build_js.py` baut `tnet/js-dev/*.js` nach `tnet/js/*.js`. Die Deploy-Skripte rufen den Build-Helfer automatisch auf, wenn JS-Quellen betroffen sind.
 
-### Spezialisierte Skripte
+### Spezialisierte Skripte im Root
 
 | Skript | Was wird hochgeladen |
 |---|---|
 | `_upload_helpers.py` | `tnet-mapplus-helpers.js` an `/maps/tnet/` UND `/maps/tnet/js/` |
-| `_upload_all.py` | Proxy, Helpers, Bookmark, Override-CSS (Multi-Pfad-Mapping) |
 | `_upload_basemap_js.py` | Basemap-Konfiguration (override.css, index, basemaps_mgr, tnet-basemap.js, Config, Previews) |
 | `_upload_search.py` | Such-Komponenten |
 | `_upload_proxy.py` | Proxy-PHP |
@@ -482,7 +481,9 @@ FILES = [
 | `_upload_db_api.py` | Datenbank-API |
 | `_upload_lyrmgr_patch.py` | Layermanager-Patch + zugehörige Dateien |
 
-### Multi-Pfad-Mapping (_upload_all.py)
+Alte oder ersetzte Spezialuploads liegen unter `_scripts/legacy/` und sind nicht mehr Standardworkflow.
+
+### Multi-Pfad-Mapping
 
 Manche Dateien müssen an mehrere Server-Pfade hochgeladen werden:
 
@@ -497,10 +498,11 @@ In `.vscode/tasks.json` sind folgende Aufgaben definiert:
 
 | Task | Beschreibung |
 |---|---|
-| `Deploy: Active Panel Store` | Führt `_upload_files.py` aus |
-| `Deploy: LyrMgr Patch` | Führt `_upload_lyrmgr_patch.py` aus |
-| `SFTP: Upload Active File` | Aktive Datei per SFTP hochladen (VS Code SFTP-Extension) |
-| `SFTP: Upload Changed Files` | Alle geänderten Dateien synchronisieren |
+| `Deploy DEV: Upload Changed Files` | Führt `_scripts/deployment/_upload_changed.py --env dev` aus |
+| `Deploy PROD: Upload Changed Files` | Führt `_scripts/deployment/_upload_changed.py --env prod` aus |
+| `Deploy DEV: Upload Active File` | Führt `_scripts/deployment/_upload_active_file.py --env dev` aus |
+| `Release: Promote DEV to PROD` | Führt `_scripts/deployment/_promote_dev_to_prod.py` aus |
+| `Deploy DEV/PROD: LyrMgr Patch` | Führt `_scripts/_upload_lyrmgr_patch.py` aus |
 
 ### Nach Upload
 

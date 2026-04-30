@@ -103,34 +103,31 @@
 
 ### Upload-Workflow
 
-1. **Haupt-Upload-Skript**: `_scripts/_upload_files.py`
-   - Enthält eine `FILES`-Liste mit relativen Pfaden (relativ zu `maps/`)
-   - Vor Upload: gewünschte Dateien in der `FILES`-Liste ergänzen/anpassen
-   - Aufruf: `py _scripts/_upload_files.py`
-   - Lokaler Basispfad: `c:\_Daten\mapplus-exp\maps`
-   - Remote-Basispfad: `/www/maps`
-   - Pfad-Mapping: `tnet/js/datei.js` → lokal `maps\tnet\js\datei.js` → remote `/www/maps/tnet/js/datei.js`
+1. **Offizielle Deploy-Skripte**: `_scripts/deployment/`
+   - DEV geaenderte Dateien: `C:\Program Files\Python313\python.exe _scripts/deployment/_upload_changed.py --env dev`
+   - DEV aktive Datei: `C:\Program Files\Python313\python.exe _scripts/deployment/_upload_active_file.py --env dev <datei>`
+   - PROD geaenderte Dateien: `C:\Program Files\Python313\python.exe _scripts/deployment/_upload_changed.py --env prod`
+   - Release DEV → PROD: `C:\Program Files\Python313\python.exe _scripts/deployment/_promote_dev_to_prod.py --deploy-prod`
+   - Lokale/remote Root-Zuordnung kommt aus `_scripts/deployment/deploy_env.py`
 
-2. **Spezialisierte Upload-Skripte** (gleiche SFTP-Credentials):
-   - `_upload_helpers.py` — `tnet-mapplus-helpers.js` an beide Server-Pfade
-   - `_upload_all.py` — Proxy, Helpers, Bookmark, Override-CSS (mit Multi-Pfad-Mapping)
-   - `_upload_basemap_js.py` — Basemap-Konfiguration
-   - `_upload_search.py` — Such-Komponenten
-   - `_upload_proxy.py` — Proxy-PHP
-   - `_upload_bookmark.py` — Bookmark-Service
-   - `_upload_db_api.py` — Datenbank-API
+2. **Build-Helfer**: `_scripts/_build_js.py`
+   - Wird von den Deploy-Skripten fuer `tnet/js-dev/*.js` automatisch genutzt.
+   - Nicht ohne Grund direkt fuer PROD/DEV-Mischzustaende aufrufen.
 
-3. **Typischer Ablauf für KI**:
+3. **Spezialisierte Upload-Skripte**:
+   - Aktive Spezialfaelle bleiben im `_scripts/`-Root, z.B. `_upload_lyrmgr_patch.py`, `_upload_helpers.py`, `_upload_basemap_js.py`, `_upload_search.py`, `_upload_proxy.py`, `_upload_bookmark.py`, `_upload_db_api.py`.
+   - Alte/ersetzte Spezialuploads liegen unter `_scripts/legacy/` und sind nicht Standardworkflow.
+
+4. **Typischer Ablauf fuer KI**:
    ```
-   # 1. FILES-Liste in _upload_files.py anpassen (geänderte Dateien eintragen)
-   # 2. Upload ausführen
-   py _scripts/_upload_files.py
+   # 1. Aenderung in maps-dev/ vornehmen und lokal pruefen
+   # 2. DEV deployen
+   C:\Program Files\Python313\python.exe _scripts/deployment/_upload_changed.py --env dev
    # 3. Benutzer informieren: Hard-Reload (Ctrl+Shift+R) im Browser
    ```
 
-4. **Wichtig**: Manche Dateien liegen auf dem Server an **mehreren Pfaden**
-   (z.B. `tnet-mapplus-helpers.js` unter `/maps/tnet/` UND `/maps/tnet/js/`).
-   Bei solchen Dateien das passende Spezial-Skript verwenden oder beide Pfade manuell uploaden.
+5. **Wichtig**: Manche Dateien liegen auf dem Server an **mehreren Pfaden**.
+   Bei solchen Dateien bevorzugt `_upload_active_file.py` oder ein gepflegtes Spezialskript verwenden und nach dem Upload den Remote-Pfad gezielt pruefen.
 
 - ⚠ Passwort steht im Klartext in den Skripten — Empfehlung: auf Umgebungsvariable umstellen
 

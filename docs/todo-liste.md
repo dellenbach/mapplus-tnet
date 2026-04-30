@@ -23,8 +23,8 @@ Stand: 2026-03-05
 
 ## Deployment-Checkliste
 
-- [ ] Geänderte Dateien in `_scripts/_upload_files.py` (`FILES`) eintragen
-- [ ] Upload ausführen: `py _scripts/_upload_files.py`
+- [ ] Geänderte Dateien mit `_scripts/deployment/_upload_changed.py --env dev` nach DEV hochladen
+- [ ] Bei Einzeldateien `_scripts/deployment/_upload_active_file.py --env dev <datei>` verwenden
 - [ ] Hard-Reload im Browser durchführen (`Ctrl+Shift+R`)
 
 ## Notizen
