@@ -42,6 +42,35 @@ function resolveAppBasePath($scriptName, $requestUri) {
     return '';
 }
 
+function normalizeAppProxyUrl($url) {
+    global $appBasePath;
+
+    if (!is_string($url) || $url === '') {
+        return $url;
+    }
+
+    $normalizedUrl = str_replace('\\', '/', $url);
+    if (preg_match('#^https?://#i', $normalizedUrl) || strpos($normalizedUrl, '//') === 0) {
+        return $url;
+    }
+
+    $root = $appBasePath !== '' ? $appBasePath : '';
+    if (preg_match('#^/maps(?:-dev)?(/tnet/agsproxy/.*)$#i', $normalizedUrl, $matches)) {
+        return $root . $matches[1];
+    }
+    if (preg_match('#^/maps(?:-dev)?(/agsproxy\.php(?:\?.*)?)$#i', $normalizedUrl, $matches)) {
+        return $root . $matches[1];
+    }
+    if (preg_match('#^/tnet/agsproxy/#i', $normalizedUrl) || preg_match('#^/agsproxy\.php#i', $normalizedUrl)) {
+        return $root . $normalizedUrl;
+    }
+    if (preg_match('#^(tnet/agsproxy/.*|agsproxy\.php(?:\?.*)?)$#i', $normalizedUrl)) {
+        return ($root !== '' ? $root . '/' : '/') . $normalizedUrl;
+    }
+
+    return $url;
+}
+
 $appBasePath = resolveAppBasePath($_SERVER['SCRIPT_NAME'] ?? '', $_SERVER['REQUEST_URI'] ?? '');
 
 // === Parameter lesen ===
@@ -685,7 +714,7 @@ function processLayerItems($items, &$layerDefinitions, $details = true) {
             $def = findLayerDefinition($item, $layerDefinitions);
 
             if ($details && $def) {
-                $layerData['url']       = $def['url'] ?? null;
+                $layerData['url']       = isset($def['url']) ? normalizeAppProxyUrl($def['url']) : null;
                 $layerData['layerType'] = $def['type'] ?? null;
                 $layerData['opacity']   = $def['opacity'] ?? ($def['options']['opacity'] ?? 1.0);
                 $layerData['visible']   = (bool)($def['visible'] ?? false);
@@ -748,7 +777,7 @@ function processLayerItems($items, &$layerDefinitions, $details = true) {
                 $def = findLayerDefinition($item['name'], $layerDefinitions);
                 if ($def) {
                     if ($details) {
-                        $layerData['url']       = $def['url'] ?? null;
+                        $layerData['url']       = isset($def['url']) ? normalizeAppProxyUrl($def['url']) : null;
                         $layerData['layerType'] = $def['type'] ?? null;
                         $layerData['opacity']   = $def['opacity'] ?? ($def['options']['opacity'] ?? 1.0);
                         $layerData['visible']   = (bool)($def['visible'] ?? false);
@@ -1230,7 +1259,7 @@ function fetchLayerFromDb($layerId) {
         return [
             'id'              => $layerId,
             'name'            => $row['display_name'] ?: extractLayerName($layerId),
-            'url'             => $row['url'],
+            'url'             => normalizeAppProxyUrl($row['url']),
             'layerType'       => $row['layer_type'],
             'icon'            => $row['icon'],
             'legendTitle'     => $row['legend_title'],
@@ -1313,7 +1342,7 @@ function buildCatalogTree(array $rows, bool $details): array {
 
         // Coalesce-Infos für Gruppen anhängen
         if (!empty($row['service_url'])) {
-            $node['serviceUrl']     = $row['service_url'];
+            $node['serviceUrl']     = normalizeAppProxyUrl($row['service_url']);
             $node['coalesceGroup']  = $row['coalesce_group'];
         }
 
@@ -1336,7 +1365,7 @@ function buildCatalogTree(array $rows, bool $details): array {
 
         // Layer-Details anhängen (nur bei details=true)
         if ($details && $row['layer_id'] && isset($row['url'])) {
-            $node['url']           = $row['url'];
+            $node['url']           = normalizeAppProxyUrl($row['url']);
             $node['layerType']     = $row['layer_type'];
             $node['displayName']   = $row['layer_display_name'] ?? null;
             $node['icon']          = $row['layer_icon'] ?? null;

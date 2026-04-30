@@ -1,3 +1,9 @@
+## 2026-04-30 — DEV normalisiert PROD-Proxy-Pfade aus Layer-Configs erst zur Laufzeit
+- **Symptom**: DEV erzeugte trotz korrektem App-Root weiterhin Proxy-URLs wie `/maps-dev//maps/tnet/agsproxy/...` oder lieferte in `flat=true` alte Config-URLs wie `/maps/agsproxy.php?path=...` aus.
+- **Root-Cause**: Layer-Configs und DB-Importe enthalten historisch PROD-Webpfade (`/maps/...`). Das ist fuer Produktion gueltig, wurde aber beim Ausliefern in DEV nicht an der API-Grenze normalisiert; Client-Code hat nur den aktuellen Root erkannt und alte absolute App-Pfade erneut geprefixt.
+- **Fix**: `layers.php` normalisiert `url` und `serviceUrl` vor der JSON-Ausgabe auf den aktuellen App-Root (`/maps` oder `/maps-dev`). `tnet-lm-store.js` und `tnet-coalesce-bridge.js` normalisieren zusaetzlich defensiv vor der OL-Source-Erzeugung.
+- **Guardrail**: Config-Dateien duerfen kanonische PROD-Pfade behalten. Environment-Wechsel gehoert an die Runtime-Grenze (API/Client-Normalisierung), nicht in eine massenhafte Config-Umschreibung oder relative Pfadlogik.
+
 ## 2026-04-30 — AGS-Proxy-URLs in layers.php liefen auf maps-dev in falsche App-Roots
 - **Symptom**: Coalesce-Layer erzeugten auf DEV Proxy-Requests wie `/maps-dev//maps/tnet/agsproxy/...` bzw. zwischenzeitlich `/tnet/agsproxy/...` oder `/maps-dev/tnet/api/v1/tnet/agsproxy/...`, wodurch ArcGIS-Requests fehlschlugen.
 - **Root-Cause**: `tnet/api/v1/layers.php` setzte `serviceUrl` fuer Coalesce-Knoten noch mit hart codiertem `/maps/tnet/agsproxy/`. Beim ersten Fix war zusaetzlich `$appBasePath` in `enrichCoalesceWalk()` nicht im Scope; danach zeigte sich noch, dass die API-Root-Hilfe faelschlich das komplette Skriptverzeichnis statt nur `/maps` oder `/maps-dev` lieferte.
