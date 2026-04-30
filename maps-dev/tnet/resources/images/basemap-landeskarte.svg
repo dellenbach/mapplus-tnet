@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="100" height="80" viewBox="0 0 100 80">
+  <rect fill="#f5efe6" width="100" height="80"/>
+  <!-- Höhenlinien -->
+  <path stroke="#c4a060" stroke-width="0.5" fill="none" d="M0,15 Q25,10 50,18 T100,12"/>
+  <path stroke="#c4a060" stroke-width="0.5" fill="none" d="M0,25 Q30,20 60,28 T100,22"/>
+  <path stroke="#c4a060" stroke-width="1" fill="none" d="M0,35 Q35,28 70,38 T100,32"/>
+  <path stroke="#c4a060" stroke-width="0.5" fill="none" d="M0,45 Q25,40 55,48 T100,42"/>
+  <path stroke="#c4a060" stroke-width="0.5" fill="none" d="M0,55 Q30,50 65,58 T100,52"/>
+  <path stroke="#c4a060" stroke-width="1" fill="none" d="M0,65 Q40,58 75,68 T100,62"/>
+  <path stroke="#c4a060" stroke-width="0.5" fill="none" d="M0,75 Q35,70 60,78 T100,72"/>
+  <!-- Wald -->
+  <ellipse fill="#8cb070" cx="20" cy="25" rx="12" ry="10"/>
+  <ellipse fill="#8cb070" cx="75" cy="60" rx="15" ry="12"/>
+  <!-- Strassen -->
+  <path stroke="#e04040" stroke-width="2" fill="none" d="M0,40 L45,38 L100,42"/>
+  <path stroke="#fff" stroke-width="1.5" fill="none" d="M50,0 L48,40 L52,80"/>
+  <!-- Ortschaft -->
+  <rect fill="#ffd" x="40" y="32" width="20" height="15"/>
+  <text x="45" y="42" font-size="5" fill="#333">Dorf</text>
+</svg>

@@ -21,6 +21,10 @@
 (function() {
     'use strict';
 
+    function getAppRoot() {
+        return window.__TNET_APP_ROOT || '/maps';
+    }
+
     var LOG_PREFIX = '[Basemap]';
 
     // =========================================================
@@ -57,8 +61,8 @@
             return Promise.resolve(null);
         }
         var paths = [
-            '/maps/tnet/config/tnet-global-config.json5',
-            '/maps/tnet/tnet-global-config.json5',
+            getAppRoot() + '/tnet/config/tnet-global-config.json5',
+            getAppRoot() + '/tnet/tnet-global-config.json5',
             '../tnet/config/tnet-global-config.json5'
         ];
 

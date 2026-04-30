@@ -13,6 +13,10 @@
 (function () {
   'use strict';
 
+  function getAppRoot() {
+    return window.__TNET_APP_ROOT || '/maps';
+  }
+
   var LOG = '[LM-Tree]';
   var _container = null;
   var _searchTimeout = null;
@@ -28,10 +32,10 @@
   }
 
   var CATEGORY_ICONS = {
-    'nidwalden': { label: 'NW', wappen: '/maps/tnet/resources/wappen_nidwalden.svg' },
-    'obwalden':  { label: 'OW', wappen: '/maps/tnet/resources/wappen_obwalden.svg' },
-    'bund':      { label: 'CH', wappen: '/maps/tnet/resources/wappen_bund.svg' },
-    'weitere':   { label: '…',  wappen: '/maps/tnet/resources/icon_weitere.svg' }
+    'nidwalden': { label: 'NW', wappen: getAppRoot() + '/tnet/resources/wappen_nidwalden.svg' },
+    'obwalden':  { label: 'OW', wappen: getAppRoot() + '/tnet/resources/wappen_obwalden.svg' },
+    'bund':      { label: 'CH', wappen: getAppRoot() + '/tnet/resources/wappen_bund.svg' },
+    'weitere':   { label: '…',  wappen: getAppRoot() + '/tnet/resources/icon_weitere.svg' }
   };
 
   var LMTree = {
@@ -659,7 +663,7 @@
         legendUrl = legendLink;
       } else {
         // ArcGIS-Dienst → legend-proxy
-        legendUrl = '/maps/tnet/api/v1/legend-proxy.php?service=' + encodeURIComponent(legendKey);
+        legendUrl = getAppRoot() + '/tnet/api/v1/legend-proxy.php?service=' + encodeURIComponent(legendKey);
         if (legendLayers) {
           legendUrl += '&layers=' + encodeURIComponent(legendLayers);
         }

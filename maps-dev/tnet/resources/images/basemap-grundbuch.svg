@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="100" height="80" viewBox="0 0 100 80">
+  <rect fill="#fff" width="100" height="80"/>
+  <!-- Parzellen -->
+  <path stroke="#333" stroke-width="0.8" fill="none" d="M0,25 L40,25 L40,0"/>
+  <path stroke="#333" stroke-width="0.8" fill="none" d="M40,25 L40,55 L0,55"/>
+  <path stroke="#333" stroke-width="0.8" fill="none" d="M40,25 L70,15 L100,15"/>
+  <path stroke="#333" stroke-width="0.8" fill="none" d="M40,55 L70,45 L100,45"/>
+  <path stroke="#333" stroke-width="0.8" fill="none" d="M70,15 L70,45"/>
+  <path stroke="#333" stroke-width="0.8" fill="none" d="M0,70 L50,70 L50,80"/>
+  <path stroke="#333" stroke-width="0.8" fill="none" d="M50,55 L50,70"/>
+  <path stroke="#333" stroke-width="0.8" fill="none" d="M70,45 L70,80"/>
+  <!-- Gebäude -->
+  <rect fill="none" stroke="#333" stroke-width="1" x="12" y="30" width="15" height="12"/>
+  <rect fill="none" stroke="#333" stroke-width="1" x="50" y="20" width="12" height="10"/>
+  <rect fill="none" stroke="#333" stroke-width="1" x="75" y="50" width="18" height="14"/>
+  <rect fill="none" stroke="#333" stroke-width="1" x="8" y="58" width="10" height="8"/>
+  <!-- Parzellennummern -->
+  <text x="20" y="48" font-size="6" fill="#666">234</text>
+  <text x="55" y="38" font-size="6" fill="#666">235</text>
+  <text x="80" y="35" font-size="6" fill="#666">236</text>
+  <text x="25" y="75" font-size="6" fill="#666">237</text>
+</svg>

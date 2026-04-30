@@ -20,17 +20,18 @@ import subprocess
 import json
 import argparse
 import paramiko
+from deploy_env import add_env_argument, ensure_local_base_exists, resolve_deploy_config
 
 # ===== KONFIGURATION =====
 BUILD_SCRIPT = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "_build_js.py"))
-LOCAL_BASE   = os.path.normpath(r"c:\_Daten\mapplus-exp\maps")
-STATE_FILE   = os.path.normpath(os.path.join(os.path.dirname(__file__), "upload_state.json"))
+LOCAL_BASE   = ""
+STATE_FILE   = ""
 
 HOST         = "nwow.mapplus.ch"
 PORT         = 22
 USER         = "trigonet"
 PASSWORD     = "3Zs,k4%Un,<[W(Kx"
-REMOTE_BASE  = "/www/maps"
+REMOTE_BASE  = ""
 
 # Verzeichnisse die nie direkt hochgeladen werden duerfen
 BLOCKED_DIRS = ["tnet/js-dev/", "tnet\\js-dev\\"]
@@ -117,19 +118,29 @@ def get_changed_files(state):
 # ===== UPLOAD =====
 
 def main():
+    global LOCAL_BASE, STATE_FILE, REMOTE_BASE
+
     parser = argparse.ArgumentParser(description="Geaenderte Dateien unter maps/ per SFTP hochladen")
+    add_env_argument(parser)
     parser.add_argument("--allow-config", action="store_true", help="Erlaubt Upload geschuetzter Config-Dateien")
     parser.add_argument("--reason", default="", help="Pflicht bei --allow-config: Grund/Referenz")
     parser.add_argument("--dry-run", action="store_true", help="Nur anzeigen, nichts hochladen")
     args = parser.parse_args()
+
+    deploy_config = resolve_deploy_config(args.env)
+    LOCAL_BASE = os.path.normpath(deploy_config["local_base"])
+    STATE_FILE = os.path.normpath(deploy_config["state_file"])
+    REMOTE_BASE = deploy_config["remote_base"]
+    ensure_local_base_exists(LOCAL_BASE)
 
     if args.allow_config and not args.reason.strip():
         print("✗ --allow-config erfordert --reason \"...\"")
         sys.exit(2)
 
     state = load_state()
+    source_name = os.path.basename(LOCAL_BASE)
 
-    print("Suche geaenderte Dateien unter maps/ ...")
+    print(f"Suche geaenderte Dateien unter {source_name}/ (env={deploy_config['env']}) ...")
     changed = get_changed_files(state)
 
     if not changed:
@@ -164,7 +175,7 @@ def main():
         print("\n✓ Dry-Run abgeschlossen (kein Upload ausgefuehrt).")
         return
 
-    print(f"\nVerbinde zu {HOST}...")
+    print(f"\nVerbinde zu {HOST} ({deploy_config['env']} -> {REMOTE_BASE})...")
     ssh = paramiko.SSHClient()
     ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 

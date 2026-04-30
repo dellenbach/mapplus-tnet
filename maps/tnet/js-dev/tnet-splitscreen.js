@@ -14,6 +14,10 @@
 (function() {
     'use strict';
 
+    function getAppRoot() {
+        return window.__TNET_APP_ROOT || '/maps';
+    }
+
     var SplitScreen = {
         enabled: false,
         map2: null,
@@ -606,7 +610,7 @@
             console.log('[SplitScreen] Current basemap detected:', currentBasemap);
             
             // Fetch basemaps.conf via PHP service
-            fetch('/maps/tnet/php/basemaps-to-json.php')
+            fetch(getAppRoot() + '/tnet/php/basemaps-to-json.php')
                 .then(function(response) { return response.json(); })
                 .then(function(basemapConfig) {
                     self.basemapConfig = basemapConfig;

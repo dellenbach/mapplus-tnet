@@ -12,18 +12,44 @@
 
 class AdminAuth {
 
-    const CONFIG_FILE = '/data/Client_Data/nwow/tmp/admin-env.json';
-    const ACCESS_CONFIG_FILE = '/data/Client_Data/nwow/tmp/access-config.json';
     const COOKIE_NAME = 'tnet_admin';
     const COOKIE_MAX_AGE = 8 * 3600; // 8 Stunden
-    const COOKIE_PATH = '/maps/tnet/api/';
+
+    private static function getAppBasePath() {
+        $scriptName = $_SERVER['SCRIPT_NAME'] ?? '';
+        $appBasePath = rtrim(str_replace('\\', '/', dirname(dirname(dirname(dirname($scriptName))))), '/');
+        if ($appBasePath === '' || $appBasePath === '.') {
+            $appBasePath = '';
+        }
+        return $appBasePath;
+    }
+
+    public static function getClientDataRoot() {
+        return self::getAppBasePath() === '/maps-dev'
+            ? '/data/Client_Data/nwow-dev'
+            : '/data/Client_Data/nwow';
+    }
+
+    public static function getConfigFilePath() {
+        return self::getClientDataRoot() . '/tmp/admin-env.json';
+    }
+
+    public static function getAccessConfigFilePath() {
+        return self::getClientDataRoot() . '/tmp/access-config.json';
+    }
+
+    private static function getCookiePath() {
+        $appBasePath = self::getAppBasePath();
+        return ($appBasePath !== '' ? $appBasePath : '') . '/tnet/api/';
+    }
 
     /**
      * Konfiguration lesen (Passwort-Hash + Cookie-Secret)
      */
     private static function getConfig() {
-        if (file_exists(self::CONFIG_FILE)) {
-            $data = json_decode(file_get_contents(self::CONFIG_FILE), true);
+        $configFile = self::getConfigFilePath();
+        if (file_exists($configFile)) {
+            $data = json_decode(file_get_contents($configFile), true);
             if ($data && isset($data['password_hash'])) {
                 return $data;
             }
@@ -35,10 +61,11 @@ class AdminAuth {
      * Zugriffsschutz-Konfiguration lesen (IP-Whitelist)
      */
     private static function getAccessConfig() {
-        if (!file_exists(self::ACCESS_CONFIG_FILE)) {
+        $configFile = self::getAccessConfigFilePath();
+        if (!file_exists($configFile)) {
             return null;
         }
-        $data = json_decode(file_get_contents(self::ACCESS_CONFIG_FILE), true);
+        $data = json_decode(file_get_contents($configFile), true);
         if (!$data) {
             return null;
         }
@@ -203,12 +230,13 @@ class AdminAuth {
             'cookie_secret' => bin2hex(random_bytes(32)),
             'created' => date('c'),
         ];
-        $dir = dirname(self::CONFIG_FILE);
+        $configFile = self::getConfigFilePath();
+        $dir = dirname($configFile);
         if (!is_dir($dir)) {
             mkdir($dir, 0755, true);
         }
         return file_put_contents(
-            self::CONFIG_FILE,
+            $configFile,
             json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)
         ) !== false;
     }
@@ -240,7 +268,7 @@ class AdminAuth {
         $value = self::createCookieValue();
         setcookie(self::COOKIE_NAME, $value, [
             'expires' => time() + self::COOKIE_MAX_AGE,
-            'path' => self::COOKIE_PATH,
+            'path' => self::getCookiePath(),
             'secure' => true,
             'httponly' => true,
             'samesite' => 'Strict',
@@ -253,7 +281,7 @@ class AdminAuth {
     public static function clearAuthCookie() {
         setcookie(self::COOKIE_NAME, '', [
             'expires' => time() - 3600,
-            'path' => self::COOKIE_PATH,
+            'path' => self::getCookiePath(),
             'secure' => true,
             'httponly' => true,
         ]);

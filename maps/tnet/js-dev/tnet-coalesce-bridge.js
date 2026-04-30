@@ -22,6 +22,10 @@
  * @author     Marco Dellenbach
  */
 (function () {
+  function getAppRoot() {
+    return window.__TNET_APP_ROOT || '/maps';
+  }
+
   'use strict';
 
   var LOG = '[CoalesceBridge]';
@@ -222,8 +226,8 @@
     }
 
     // Proxy-Prefix sicherstellen
-    if (serviceUrl.indexOf('/maps/') !== 0 && serviceUrl.indexOf('http') !== 0) {
-      serviceUrl = '/maps/' + serviceUrl;
+    if (serviceUrl.indexOf(getAppRoot() + '/') !== 0 && serviceUrl.indexOf('http') !== 0) {
+      serviceUrl = getAppRoot() + '/' + serviceUrl;
     }
 
     var am = (window.njs && window.njs.AppManager) || null;

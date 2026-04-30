@@ -1,0 +1,7 @@
+# Cache-Control für inframe-maps.html
+# Verhindert Browser-Caching → Änderungen sofort sichtbar ohne Hard-Reload
+<Files "inframe-maps.html">
+  Header set Cache-Control "no-store, no-cache, must-revalidate"
+  Header set Pragma "no-cache"
+  Header set Expires "0"
+</Files>

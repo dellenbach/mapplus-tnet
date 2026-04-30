@@ -14,6 +14,10 @@
 
 import { lv95ToWgs84, showToast, waitForMapAndDOM } from './tnet-utils.js';
 
+function getAppRoot() {
+    return window.__TNET_APP_ROOT || '/maps';
+}
+
 // ===== RECHTSKLICK-KONTEXTMENÜ =====
 var contextMenu = null;
 var ctxCoordsDisplay = null;
@@ -52,7 +56,7 @@ var clickedCoords = null; // {lv95: [E, N], wgs84: [lon, lat], pixel: [x, y]}
                     anchor: [0.5, 70],
                     anchorXUnits: 'fraction',
                     anchorYUnits: 'pixels',
-                    src: '/maps/tnet/resources/icons/marker-pin.svg',
+                    src: getAppRoot() + '/tnet/resources/icons/marker-pin.svg',
                     scale: 0.75
                 })
             });

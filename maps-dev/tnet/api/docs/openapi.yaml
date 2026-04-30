@@ -1,0 +1,2164 @@
+openapi: 3.0.3
+info:
+  title: TNET API
+  description: |
+    REST API für MAP+ GIS Applikation der Trigonet AG.
+
+    Liefert Layer-Kataloge, Hintergrundkarten und Bookmarks als JSON.  
+    Designed für Split-Screen, Mobile und Desktop Clients.
+
+    ## Gruppen / Profile
+
+    Der `group`-Parameter wählt ein Profil (Unterordner unter maps/):
+    - `public` (Standard) — Öffentlicher Zugang
+    - `nwpro` — Nidwalden Professional
+    - `owpro` — Obwalden Professional
+    - `uwpro` — Unterwalden Professional
+    - `marco` — Entwickler-Profil
+
+    ## Kategorien
+
+    Layer sind in 4 Hauptkategorien organisiert:
+    - `nidwalden` — Kanton Nidwalden
+    - `obwalden` — Kanton Obwalden
+    - `bund` — Bund (Bundesebene)
+    - `weitere` — Weitere Datenquellen
+
+    ## Tools
+
+    | Tool | URL | Beschreibung |
+    |------|-----|--------------|
+    | **Layer-Tree Vorschau** | [`/v1/tree-test.html`](https://www.gis-daten.ch/maps/tnet/api/v1/tree-test.html) | Interaktiver Layer-Tree zum Testen und Debuggen. Unterstützt `?group=` und `?category=` Parameter. |
+    | **Dev-Testseite** | [`/v1/dev-test.html`](https://www.gis-daten.ch/maps/tnet/api/v1/dev-test.html) | Tree + Active Panel mit Mobile/Desktop/Split View, Drag & Drop, emulierte Layer. |
+    | **Tree-Builder** | [`/v1/tree-builder.html`](https://www.gis-daten.ch/maps/tnet/api/v1/tree-builder.html) | Interaktiver Konfigurator: Layer → Gruppen → Tree per Drag & Drop, JSON5 Export. |
+    | **Service- und Layermanager** | [`/v1/slm.html`](https://www.gis-daten.ch/maps/tnet/api/v1/slm.html) | Service-Konfigurationen importieren & verwalten. Multi-Import/-Delete. |
+    | **Legend-Proxy** | [`/v1/legend-proxy.php`](https://www.gis-daten.ch/maps/tnet/api/v1/legend-proxy.php?service=ewn/EWN_NIS/MapServer) | Formatierte ArcGIS-Legenden mit konfigurierbarer Symbolgrösse (HTML/JSON). |
+    | **Legend-Proxy WMS** | [`/v1/legend-proxy-wms.php`](https://www.gis-daten.ch/maps/tnet/api/v1/legend-proxy-wms.php?service=/qmap/test/kulturobjekte_nw_pg&layer=Kulturobjekte%20Flaeche) | QMAP/WMS-GetLegendGraphic Proxy mit HTML/JSON und Metadata-Injection-Hook. |
+    | **Tree-Builder API** | [`/v1/treebuilder-api.php`](https://www.gis-daten.ch/maps/tnet/api/v1/treebuilder-api.php) | Persistenz-Backend: State, Locks, Profile, Service-Import. |
+    | **API Info** | [`/v1/info`](https://www.gis-daten.ch/maps/tnet/api/v1/info) | Health-Check, Endpoint-Übersicht, Server-Statistiken. |
+
+  version: "1.0"
+  contact:
+    name: Trigonet AG
+    url: https://www.gis-daten.ch
+  license:
+    name: Proprietary
+    url: https://www.trigonet.ch
+
+servers:
+- url: https://www.gis-daten.ch/maps/tnet/api
+  description: Produktion
+- url: http://localhost/maps/tnet/api
+  description: Lokale Entwicklung
+
+tags:
+- name: Layers
+  description: Layer-Katalog (Themen, Gruppen, Layer)
+- name: Basemaps
+  description: Hintergrundkarten
+- name: Bookmarks
+  description: Vorkonfigurierte Kartenansichten
+- name: Cache
+  description: Cache-Management
+- name: Tree-Builder
+  description: |
+    Persistenz-API für den Tree-Builder (State, Locks, JSON5-Gruppen, Profile, Lyrmgr-Publish).
+    Alle Aktionen laufen über `treebuilder-api.php?action=...`.
+- name: Service- und Layermanager
+  description: |
+    Services → MapPlus Roh-Konfiguration.
+    Importiert Config-Dateien von ArcGIS/WMS/WMTS-Diensten via `ags2mapplus`-API,
+    speichert sie in `data/tmp/raw-conf/` und ermöglicht Verwaltung (Auflisten, Lesen, Löschen).
+- name: Legends
+  description: |
+    ArcGIS Server Legenden-Proxy.
+    Holt Legend-JSON via agsproxy.php (inkl. Token-Management),
+    rendert kompaktes HTML mit eingebetteten Base64-Symbolen oder gibt JSON zurück.
+- name: System
+  description: API-Info und Health-Check
+- name: Tools
+  description: Interaktive Test- und Vorschau-Tools
+
+paths:
+  /v1/layers:
+    get:
+      tags: [ Layers ]
+      summary: Layer-Katalog abrufen
+      description: |
+        Liefert den hierarchischen Layer-Katalog als JSON.  
+        Unterstützt Filterung nach Kategorie, flache Ausgabe und Einzelabfrage.  
+        Ergebnisse werden automatisch gecacht (1h, invalidiert bei Config-Änderung).
+
+        **Performance-Tipps:**
+        - `?details=false` für schnelles Laden (~570ms statt 3.7s)
+        - `?id=xxx` für Einzelabfrage (~168ms)
+        - Zweiter Aufruf dank Cache ~15ms
+      parameters:
+      - name: group
+        in: query
+        description: "Profil/Gruppe (default: public)"
+        schema:
+          type: string
+          default: public
+          enum: [ public, av, intranet, marco, nwpro, oereb, owpro, playground1, playground2, playground3, uwpro, wmi ]
+      - name: category
+        in: query
+        description: Nur eine bestimmte Kategorie zurückgeben
+        schema:
+          type: string
+          enum: [ nidwalden, obwalden, bund, weitere ]
+      - name: flat
+        in: query
+        description: "Flache Liste statt Baumstruktur (true/false)"
+        schema:
+          type: string
+          enum: [ "true", "false" ]
+          default: "false"
+      - name: details
+        in: query
+        description: "Layer-Details (url, params, options) laden. false = nur IDs+Namen, viel schneller."
+        schema:
+          type: string
+          enum: [ "true", "false" ]
+          default: "true"
+      - name: id
+        in: query
+        description: "Einzelnen Layer per ID laden (schneller Lookup, ~168ms)"
+        schema:
+          type: string
+        example: gis_basis/nw_basisplan_gis_dynamisch
+      - name: debug
+        in: query
+        description: "Debug-Informationen einblenden, Cache überspringen (1/0)"
+        schema:
+          type: string
+          enum: [ "1", "0" ]
+          default: "0"
+      - name: source
+        in: query
+        description: "Datenquelle: auto = DB bevorzugt mit File-Fallback, db = nur PostgreSQL, file = nur Config-Dateien"
+        schema:
+          type: string
+          enum: [ auto, db, file ]
+          default: auto
+      responses:
+        "200":
+          description: Erfolgreiche Antwort
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LayerCatalogResponse"
+              examples:
+                tree:
+                  summary: Hierarchische Antwort
+                  value:
+                    success: true
+                    data:
+                      version: "2.0"
+                      categories:
+                      - id: nidwalden
+                        name: Nidwalden
+                        icon: njsCategoryIcon8
+                        subcategories:
+                        - id: grundlagen
+                          name: Grundlagen
+                          groups:
+                          - id: "grundlagen/av"
+                            name: AV
+                            layers:
+                            - id: "TNET_gis_basis/nw_amtliche_vermessung"
+                              name: Amtliche Vermessung
+                              type: layer
+                              layerType: arcgisRest
+                    meta:
+                      group: public
+                      categoriesCount: 4
+                      format: tree
+        "404":
+          description: Konfiguration nicht gefunden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "405":
+          description: Methode nicht erlaubt (nur GET)
+        "500":
+          description: Server-Fehler
+
+  /v1/basemaps:
+    get:
+      tags: [ Basemaps ]
+      summary: Hintergrundkarten abrufen
+      description: Liefert die verfügbaren Basemaps aus basemaps.conf.
+      responses:
+        "200":
+          description: Erfolgreiche Antwort
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BasemapsResponse"
+        "404":
+          description: basemaps.conf nicht gefunden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /v1/bookmarks:
+    get:
+      tags: [ Bookmarks ]
+      summary: Bookmarks abrufen
+      description: |
+        Ohne `name`-Parameter: Liste aller Bookmark-Namen.  
+        Mit `name`-Parameter: Ein einzelner Bookmark mit Konfiguration.
+      parameters:
+      - name: name
+        in: query
+        description: Name des gesuchten Bookmarks
+        schema:
+          type: string
+        example: nw_nutzungsplanung
+      responses:
+        "200":
+          description: Erfolgreiche Antwort
+          content:
+            application/json:
+              schema:
+                oneOf:
+                - $ref: "#/components/schemas/BookmarkListResponse"
+                - $ref: "#/components/schemas/BookmarkDetailResponse"
+              examples:
+                list:
+                  summary: Alle Bookmarks
+                  value:
+                    success: true
+                    data:
+                    - name: nw_nutzungsplanung
+                      aliases: [ nw_np ]
+                    - name: ow_nutzungsplanung
+                    meta:
+                      count: 42
+                detail:
+                  summary: Einzelner Bookmark
+                  value:
+                    success: true
+                    data:
+                      map-bookmark: nw_nutzungsplanung
+                      basemap: landeskarte_farbe
+                      layers:
+                      - nw_nutzungsplanung_grundnutzung
+                      theme: grundlagen
+                      subtheme: raumplanung
+        "404":
+          description: Bookmark nicht gefunden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /v1/cache:
+    get:
+      tags: [ Cache ]
+      summary: Cache-Statistiken
+      description: Zeigt Anzahl gecachter Einträge, Grösse und Alter.
+      responses:
+        "200":
+          description: Cache-Status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      entries:
+                        type: integer
+                        example: 5
+                      totalFormatted:
+                        type: string
+                        example: "2.1 MB"
+                      files:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            key:
+                              type: string
+                            sizeFormatted:
+                              type: string
+                            ageFormatted:
+                              type: string
+    post:
+      tags: [ Cache ]
+      summary: Cache leeren
+      description: Löscht alle gecachten JSON-Dateien. Nächster API-Aufruf baut Cache neu auf.
+      parameters:
+      - name: action
+        in: query
+        required: true
+        schema:
+          type: string
+          enum: [ clear ]
+      responses:
+        "200":
+          description: Cache geleert
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  message: "Cache cleared successfully"
+                  entriesRemoved: 5
+
+  /v1/info:
+    get:
+      tags: [ System ]
+      summary: API-Info und Health-Check
+      description: |
+        Liefert Informationen über die API, verfügbare Endpoints,  
+        Server-Status und Statistiken.
+      responses:
+        "200":
+          description: Erfolgreiche Antwort
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InfoResponse"
+
+  /v1/legend-proxy.php:
+    get:
+      tags: [ Legends ]
+      summary: ArcGIS Server Legende abrufen
+      description: |
+        Holt die Legende eines ArcGIS MapServer-Dienstes und rendert sie als
+        selbstständiges HTML mit eingebetteten Base64-Symbolen.
+        Alternativ als JSON abrufbar.
+
+        **Funktionsweise:**
+        1. Holt Legend-JSON vom ArcGIS Server via `agsproxy.php` (Token-Management inklusive)
+        2. Skaliert Symbole auf konfigurierbare Grösse (width×height bei einstellbarem DPI)
+        3. Zusätzliche CSS-Vergrösserung via `zoom` (Endgrösse = width×zoom × height×zoom)
+        4. `#`-Labels werden per Attribut-Query aufgelöst (2-Pass: groupBy + Renderer)
+        5. Einträge ohne Lookup-Treffer werden automatisch entfernt
+        6. Wenn Code-basierte Layer vorhanden → automatische Gruppierung nach `Gemeinde`
+        7. Cache mit 24h TTL (umgehbar mit `nocache=1`)
+
+        **Beispiel-URLs (direkt im Browser öffnen):**
+        - Ganzer Dienst: [`?service=ewn/EWN_NIS/MapServer`](https://www.gis-daten.ch/maps/tnet/api/v1/legend-proxy.php?service=ewn/EWN_NIS/MapServer)
+        - Kleine Symbole: [`?service=ewn/EWN_NIS/MapServer&width=64&height=32`](https://www.gis-daten.ch/maps/tnet/api/v1/legend-proxy.php?service=ewn/EWN_NIS/MapServer&width=64&height=32)
+        - Gefiltert (Layer 0–2): [`?service=awu/AWU_WERKPLAN/MapServer&layers=0,1,2`](https://www.gis-daten.ch/maps/tnet/api/v1/legend-proxy.php?service=awu/AWU_WERKPLAN/MapServer&layers=0,1,2)
+        - GWR-Gebäude: [`?service=ewn/EWN_NIS_gwr/MapServer`](https://www.gis-daten.ch/maps/tnet/api/v1/legend-proxy.php?service=ewn/EWN_NIS_gwr/MapServer)
+        - Werkplan Cache: [`?service=awu/AWU_WERKPLAN_cache/MapServer`](https://www.gis-daten.ch/maps/tnet/api/v1/legend-proxy.php?service=awu/AWU_WERKPLAN_cache/MapServer)
+        - JSON-Ausgabe: [`?service=ewn/EWN_NIS/MapServer&format=json`](https://www.gis-daten.ch/maps/tnet/api/v1/legend-proxy.php?service=ewn/EWN_NIS/MapServer&format=json)
+        - Ohne Cache: [`?service=ewn/EWN_NIS/MapServer&nocache=1`](https://www.gis-daten.ch/maps/tnet/api/v1/legend-proxy.php?service=ewn/EWN_NIS/MapServer&nocache=1)
+        - Nutzungsplanung (Auto-Gruppierung): [`?service=gis_oereb/nw_nutzungsplanung_DEF/MapServer&nocache=1`](https://www.gis-daten.ch/maps/tnet/api/v1/legend-proxy.php?service=gis_oereb/nw_nutzungsplanung_DEF/MapServer&nocache=1)
+        - Ohne Gruppierung: [`?service=gis_oereb/nw_nutzungsplanung_DEF/MapServer&legendgroup=none&nocache=1`](https://www.gis-daten.ch/maps/tnet/api/v1/legend-proxy.php?service=gis_oereb/nw_nutzungsplanung_DEF/MapServer&legendgroup=none&nocache=1)
+        - Ohne Label-Auflösung: [`?service=gis_oereb/nw_nutzungsplanung_DEF/MapServer&resolve=false&nocache=1`](https://www.gis-daten.ch/maps/tnet/api/v1/legend-proxy.php?service=gis_oereb/nw_nutzungsplanung_DEF/MapServer&resolve=false&nocache=1)
+
+        **Integration in legendResources:**
+        ```json
+        {
+          "ewn/ewn_nis_link": "/maps/tnet/api/v1/legend-proxy.php?service=ewn/EWN_NIS/MapServer",
+          "ewn/ewn_nis_title": "Legende: EWN NIS"
+        }
+        ```
+      parameters:
+      - name: service
+        in: query
+        required: true
+        description: |
+          ArcGIS MapServer-Pfad (ohne Basis-URL).
+          `/MapServer` wird automatisch angehängt falls fehlend.
+          Entspricht dem `path`-Parameter in `agsproxy.php`.
+        schema:
+          type: string
+        examples:
+          ewn_nis:
+            summary: EWN NIS (69 Layer, ~1000 Symbole)
+            value: ewn/EWN_NIS/MapServer
+          awu_werkplan:
+            summary: AWU Werkplan
+            value: awu/AWU_WERKPLAN/MapServer
+          awu_werkplan_cache:
+            summary: AWU Werkplan (Cache-Dienst)
+            value: awu/AWU_WERKPLAN_cache/MapServer
+          ewn_gwr:
+            summary: EWN Gebäude- und Wohnungsregister
+            value: ewn/EWN_NIS_gwr/MapServer
+          awu_eigentum:
+            summary: AWU Eigentum
+            value: awu/AWU_EIGENTUM/MapServer
+          kbs:
+            summary: NW Belastete Standorte
+            value: gis_fach/nw_kbs/MapServer
+          oereb:
+            summary: ÖREB Nutzungsplanung (mit #-Labels + Gemeinde-Gruppierung)
+            value: gis_oereb/nw_nutzungsplanung_DEF/MapServer
+      - name: width
+        in: query
+        description: |
+          Symbolbreite in Pixel für die ArcGIS-Anfrage.
+          ArcGIS rendert das Symbol in dieser Grösse. Die Anzeige wird zusätzlich
+          mit dem `zoom`-Faktor skaliert (Endgrösse = width × zoom).
+        schema:
+          type: integer
+          default: 16
+          minimum: 8
+          maximum: 512
+        examples:
+          standard:
+            summary: Standard (16px)
+            value: 16
+          gross:
+            summary: Gross (32px)
+            value: 32
+      - name: height
+        in: query
+        description: |
+          Symbolhöhe in Pixel für die ArcGIS-Anfrage.
+          Endgrösse = height × zoom.
+        schema:
+          type: integer
+          default: 10
+          minimum: 8
+          maximum: 512
+        examples:
+          standard:
+            summary: Standard (10px)
+            value: 10
+          quadratisch:
+            summary: Quadratisch (16px)
+            value: 16
+      - name: dpi
+        in: query
+        description: |
+          DPI für das ArcGIS-Symbol-Rendering. Höherer DPI = dickere Linien und Punkte.
+          Symbolgrössen in ArcGIS sind in pt definiert — höherer DPI = mehr Pixel pro pt.
+          - `96` = ArcGIS-Standard (dünn)
+          - `192` = 2× dicker
+          - `288` = 3× dicker (Standard)
+        schema:
+          type: integer
+          default: 288
+          minimum: 72
+          maximum: 600
+        examples:
+          standard:
+            summary: Standard (288 DPI, 3× dicker)
+            value: 288
+          arcgis_default:
+            summary: ArcGIS-Standard (96 DPI, dünn)
+            value: 96
+          mittel:
+            summary: Mittel (192 DPI, 2× dicker)
+            value: 192
+      - name: zoom
+        in: query
+        description: |
+          Zusätzliche CSS-Vergrösserung der Symbol-Anzeige.
+          Endgrösse = width×zoom × height×zoom Pixel.
+          `1.0` = keine Vergrösserung, `3.0` = 3-fach (Standard).
+        schema:
+          type: number
+          format: float
+          default: 3.0
+          minimum: 0.5
+          maximum: 5.0
+        examples:
+          standard:
+            summary: Standard (3×)
+            value: 3.0
+          original:
+            summary: Originalgrösse (1×)
+            value: 1.0
+      - name: resolve
+        in: query
+        description: |
+          Aktiviert die Auflösung von `#`-Labels via Attribut-Queries.
+          Wenn `true` (Standard): Labels mit `#` werden durch lesbare Bezeichnungen
+          ersetzt (via `codefield`/`labelfield`). Einträge ohne Lookup-Treffer
+          werden aus der Legende entfernt.
+          Wenn `false`: Labels bleiben unverändert (Roh-Darstellung mit Codes wie `W3a#Wohnzone`).
+        schema:
+          type: boolean
+          default: true
+        examples:
+          aktiv:
+            summary: Label-Auflösung aktiv (Standard)
+            value: true
+          deaktiviert:
+            summary: Roh-Labels anzeigen
+            value: false
+      - name: labelfield
+        in: query
+        description: |
+          Feldname für die Legendenbezeichnung bei `#`-Label-Auflösung.
+          Wird zusammen mit `codefield` per `groupByFieldsForStatistics` abgefragt.
+          Nur relevant wenn `resolve=true`.
+        schema:
+          type: string
+          default: Typ_Bezeichnung
+      - name: codefield
+        in: query
+        description: |
+          Feldname für den Darstellungscode bei `#`-Label-Auflösung.
+          Die Query gruppiert nach `codefield` + `labelfield` und ersetzt das
+          `#`-Label durch die aufgelöste Bezeichnung.
+          Nur relevant wenn `resolve=true`.
+        schema:
+          type: string
+          default: Typ_Darstellungscode
+      - name: legendgroup
+        in: query
+        description: |
+          Attributfeld für die Gruppierung der Legende in zusammenklappbare Sektionen.
+          Wenn gesetzt, wird für jeden Wert des Felds (z.B. jede Gemeinde) eine eigene
+          Sektion erzeugt, die nur die dort vorkommenden Symbole enthält.
+
+          **Auto-Default:** Wenn nicht angegeben und Code-basierte Layer vorhanden (values-Array),
+          wird automatisch `Gemeinde` als Gruppierungsfeld gesetzt.
+
+          Spezialwert `none` deaktiviert die Gruppierung explizit.
+        schema:
+          type: string
+          default: "Gemeinde (auto bei Code-Layern)"
+        examples:
+          gemeinde:
+            summary: Nach Gemeinde gruppieren
+            value: Gemeinde
+          keine:
+            summary: Gruppierung deaktivieren
+            value: none
+      - name: layers
+        in: query
+        description: |
+          Komma-separierte Layer-IDs zum Filtern.
+          Ohne diesen Parameter werden alle Layer des Dienstes angezeigt.
+        schema:
+          type: string
+        examples:
+          erste_drei:
+            summary: Layer 0, 1 und 2
+            value: "0,1,2"
+          einzeln:
+            summary: Nur Layer 5
+            value: "5"
+      - name: format
+        in: query
+        description: |
+          Ausgabeformat: `html` (Standard) oder `json`.
+          JSON liefert die rohen Legenddaten inkl. Base64-Bildern.
+          Bei Gruppierung enthält die JSON-Antwort ein `groups`-Array statt `layers`.
+        schema:
+          type: string
+          enum: [ html, json ]
+          default: html
+      - name: nocache
+        in: query
+        description: |
+          Cache umgehen (`1` = ja). Erzwingt eine frische Abfrage vom ArcGIS Server.
+          Nützlich nach Server-Updates oder Symboländerungen.
+          Cache-TTL: 24 Stunden.
+        schema:
+          type: integer
+          enum: [ 0, 1 ]
+          default: 0
+      - name: inject
+        in: query
+        description: |
+          Metadata-Injection aktivieren (default: `true`).
+          Lädt `legend_wms_metadata.json` (gleiche Datei wie WMS-Proxy) und fügt pro
+          Layer passende Metadata-Felder (`title`, `description`, ...) hinzu.
+          Lookup-Priorität:
+          1. `service::<servicePfad>::<layerName>` (spezifisch)
+          2. `layer::<layerName>` (global für alle Services)
+          Bei `false`: keine Injection, Cache-Key ändert sich entsprechend.
+        schema:
+          type: boolean
+          default: true
+      responses:
+        "200":
+          description: |
+            Erfolgreiche Antwort.
+            Bei `format=html`: Selbstständige HTML-Seite mit eingebetteten Symbolen.
+            Bei `format=json`: Strukturiertes JSON mit Layer- und Symbol-Informationen.
+
+            **Live-Vorschau (HTML — direkt im Browser öffnen):**
+            - [EWN NIS — Standard](https://www.gis-daten.ch/maps/tnet/api/v1/legend-proxy.php?service=ewn/EWN_NIS/MapServer)
+            - [AWU Werkplan](https://www.gis-daten.ch/maps/tnet/api/v1/legend-proxy.php?service=awu/AWU_WERKPLAN/MapServer)
+            - [ÖREB Nutzungsplanung — Gruppiert nach Gemeinde](https://www.gis-daten.ch/maps/tnet/api/v1/legend-proxy.php?service=gis_oereb/nw_nutzungsplanung_DEF/MapServer&nocache=1)
+            - [ÖREB Nutzungsplanung — Ohne Gruppierung](https://www.gis-daten.ch/maps/tnet/api/v1/legend-proxy.php?service=gis_oereb/nw_nutzungsplanung_DEF/MapServer&legendgroup=none&nocache=1)
+            - [ÖREB Nutzungsplanung — Roh-Labels (resolve=false)](https://www.gis-daten.ch/maps/tnet/api/v1/legend-proxy.php?service=gis_oereb/nw_nutzungsplanung_DEF/MapServer&resolve=false&legendgroup=none&nocache=1)
+
+            **Live-Vorschau (JSON):**
+            - [EWN NIS — JSON](https://www.gis-daten.ch/maps/tnet/api/v1/legend-proxy.php?service=ewn/EWN_NIS/MapServer&format=json)
+            - [ÖREB Nutzungsplanung — JSON gruppiert](https://www.gis-daten.ch/maps/tnet/api/v1/legend-proxy.php?service=gis_oereb/nw_nutzungsplanung_DEF/MapServer&format=json&nocache=1)
+          content:
+            text/html:
+              schema:
+                type: string
+                description: Selbstständige HTML-Seite mit CSS, Base64-Symbolen und responsivem Layout.
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LegendJsonResponse"
+              example:
+                service: ewn/EWN_NIS/MapServer
+                requestedSize:
+                  width: 80
+                  height: 160
+                layerCount: 69
+                symbolCount: 1019
+                layers:
+                - layerId: 0
+                  layerName: Trassee Elektro
+                  symbolCount: 5
+                  symbols:
+                  - label: "110kV"
+                    width: 106
+                    height: 20
+                    contentType: image/png
+                    imageData: "iVBORw0KGgo..."
+        "400":
+          description: Fehlender oder ungültiger `service`-Parameter
+          content:
+            application/json:
+              example:
+                error: true
+                message: "Parameter 'service' fehlt. Beispiel: ?service=ewn/EWN_NIS/MapServer"
+        "502":
+          description: ArcGIS Server nicht erreichbar oder ungültige Antwort
+          content:
+            application/json:
+              example:
+                error: true
+                message: "ArcGIS Legend-Endpunkt nicht erreichbar"
+                service: ewn/EWN_NIS/MapServer
+                statusCode: 0
+
+  /v1/legend-proxy-wms.php:
+    get:
+      tags: [ Legends ]
+      summary: WMS Legende abrufen (QMAP/GetLegendGraphic)
+      description: |
+        Holt WMS-Legenden via `GetLegendGraphic` fuer einen oder mehrere Layer.
+        Ausgabe als HTML (Standard) oder JSON.
+
+        **Fokus:**
+        - QMAP/WMS Services (`/qmap/...`)
+        - Mehrere Layer in einem Request
+        - Base64-eingebettete Symbole
+        - Optionaler Metadata-Injection-Hook (`inject=1`)
+
+        **Beispiel-URL (direkt):**
+        - [`https://www.gis-daten.ch/qmap/test/kulturobjekte_nw_pg?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetLegendGraphic&LAYER=Kulturobjekte%20Flaeche&FORMAT=image/png&STYLE=default&SLD_VERSION=1.1.0`](https://www.gis-daten.ch/qmap/test/kulturobjekte_nw_pg?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetLegendGraphic&LAYER=Kulturobjekte%20Flaeche&FORMAT=image/png&STYLE=default&SLD_VERSION=1.1.0)
+
+        **Proxy-Beispiele:**
+        - Einzel-Layer (HTML): [`/maps/tnet/api/v1/legend-proxy-wms.php?service=/qmap/test/kulturobjekte_nw_pg&layer=Kulturobjekte%20Flaeche`](https://www.gis-daten.ch/maps/tnet/api/v1/legend-proxy-wms.php?service=/qmap/test/kulturobjekte_nw_pg&layer=Kulturobjekte%20Flaeche)
+        - Multi-Layer (HTML): [`/maps/tnet/api/v1/legend-proxy-wms.php?service=/qmap/test/kulturobjekte_nw_pg&layers=Kulturobjekte%20Flaeche,Kulturobjekte%20Linien`](https://www.gis-daten.ch/maps/tnet/api/v1/legend-proxy-wms.php?service=/qmap/test/kulturobjekte_nw_pg&layers=Kulturobjekte%20Flaeche,Kulturobjekte%20Linien)
+        - JSON: [`/maps/tnet/api/v1/legend-proxy-wms.php?service=/qmap/test/kulturobjekte_nw_pg&layers=Kulturobjekte%20Flaeche&format=json`](https://www.gis-daten.ch/maps/tnet/api/v1/legend-proxy-wms.php?service=/qmap/test/kulturobjekte_nw_pg&layers=Kulturobjekte%20Flaeche&format=json)
+      parameters:
+      - name: service
+        in: query
+        required: true
+        description: |
+          WMS-Basispfad ohne Query-String.
+          Erlaubt: relativer Pfad (`/qmap/...`) oder absolute http(s)-URL.
+        schema:
+          type: string
+        examples:
+          qmap_relative:
+            summary: Relativer QMAP-Pfad
+            value: /qmap/test/kulturobjekte_nw_pg
+          qmap_absolute:
+            summary: Absolute URL
+            value: https://www.gis-daten.ch/qmap/test/kulturobjekte_nw_pg
+      - name: layers
+        in: query
+        description: Komma-separierte Layernamen.
+        schema:
+          type: string
+        examples:
+          two_layers:
+            value: Kulturobjekte Flaeche,Kulturobjekte Linien
+      - name: layer
+        in: query
+        description: Einzelner Layername (Alias zu `layers`).
+        schema:
+          type: string
+        examples:
+          one_layer:
+            value: Kulturobjekte Flaeche
+      - name: width
+        in: query
+        description: Gewuenschte Legendengrafik-Breite in Pixel.
+        schema:
+          type: integer
+          default: 32
+          minimum: 8
+          maximum: 512
+      - name: height
+        in: query
+        description: Gewuenschte Legendengrafik-Hoehe in Pixel.
+        schema:
+          type: integer
+          default: 24
+          minimum: 8
+          maximum: 512
+      - name: style
+        in: query
+        description: WMS Style (Default `default`).
+        schema:
+          type: string
+          default: default
+      - name: version
+        in: query
+        description: WMS-Version.
+        schema:
+          type: string
+          default: 1.3.0
+      - name: sld_version
+        in: query
+        description: SLD-Version fuer `GetLegendGraphic`.
+        schema:
+          type: string
+          default: 1.1.0
+      - name: inject
+        in: query
+        description: Metadata-Injection aktivieren (`1`) oder deaktivieren (`0`).
+        schema:
+          type: integer
+          enum: [ 0, 1 ]
+          default: 1
+      - name: format
+        in: query
+        description: Ausgabeformat (`html` oder `json`).
+        schema:
+          type: string
+          enum: [ html, json ]
+          default: html
+      - name: nocache
+        in: query
+        description: Cache umgehen (`1` = ja).
+        schema:
+          type: integer
+          enum: [ 0, 1 ]
+          default: 0
+      responses:
+        "200":
+          description: Erfolgreiche WMS-Legendenantwort (HTML oder JSON)
+          content:
+            text/html:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+              example:
+                success: true
+                service: /qmap/test/kulturobjekte_nw_pg
+                layerCount: 2
+                layers:
+                - layer: Kulturobjekte Flaeche
+                  imageMime: image/png
+                  imageDataUrl: data:image/png;base64,iVBORw0KGgo...
+                - layer: Kulturobjekte Linien
+                  imageMime: image/png
+                  imageDataUrl: data:image/png;base64,iVBORw0KGgo...
+        "400":
+          description: Fehlender oder ungültiger Parameter
+          content:
+            application/json:
+              example:
+                success: false
+                error: Parameter "service" fehlt.
+        "502":
+          description: Kein Layer lieferte eine verwertbare WMS-Legende
+          content:
+            application/json:
+              example:
+                success: false
+                message: Keine WMS-Legende abrufbar.
+                errors:
+                - layer: Kulturobjekte Flaeche
+                  httpCode: 404
+                  error: WMS antwortete nicht mit HTTP 200
+
+  /v1/tree-test.html:
+    get:
+      tags: [ Tools ]
+      summary: Layer-Tree Vorschau
+      description: |
+        Interaktive HTML-Seite zum Testen und Vorschauen des Layer-Tree.
+        Rendert den echten `tnet-lm-tree.js` gegen die Live-API.
+
+        **Direkt im Browser öffnen:**  
+        [`/maps/tnet/api/v1/tree-test.html`](https://www.gis-daten.ch/maps/tnet/api/v1/tree-test.html)
+
+        Die Seite bietet eine Gruppen-Auswahlliste zum schnellen Wechseln zwischen Profilen.
+      parameters:
+      - name: group
+        in: query
+        description: "Profil/Gruppe (default: marco). Verfügbare Gruppen werden dynamisch vom Info-Endpoint geladen."
+        schema:
+          type: string
+          default: marco
+          enum: [ public, av, intranet, marco, nwpro, oereb, owpro, playground1, playground2, playground3, uwpro, wmi ]
+      - name: category
+        in: query
+        description: Nur eine bestimmte Kategorie anzeigen
+        schema:
+          type: string
+          enum: [ nidwalden, obwalden, bund, weitere ]
+      responses:
+        "200":
+          description: HTML-Seite mit interaktivem Layer-Tree
+          content:
+            text/html:
+              schema:
+                type: string
+
+  /v1/dev-test.html:
+    get:
+      tags: [ Tools ]
+      summary: Dev-Testseite (Tree + Active Panel)
+      description: |
+        Erweiterte Entwickler-Testseite für 1:1 Integration in Desktop und Mobile Clients.
+
+        **Direkt im Browser öffnen:**  
+        [`/maps/tnet/api/v1/dev-test.html`](https://www.gis-daten.ch/maps/tnet/api/v1/dev-test.html)
+
+        Features:
+        - **Themenkatalog** (Tree) und **Dargestellte Themen** (Active Panel) getrennt oder zusammen
+        - **Mobile / Desktop / Split View** zum Vergleich
+        - **Emulierte aktive Layer** mit Drag & Drop, Opacity, Eye-Toggle
+        - **Live-Gruppenwechsel** ohne Page-Reload
+        - Layer ein/ausschalten im Tree aktualisiert Active Panel live
+      parameters:
+      - name: group
+        in: query
+        description: "Profil/Gruppe (default: marco)"
+        schema:
+          type: string
+          default: marco
+      - name: panel
+        in: query
+        description: "Anzuzeigendes Panel"
+        schema:
+          type: string
+          default: tree
+          enum: [ tree, active, both ]
+      - name: view
+        in: query
+        description: "Ansichtsmodus (Gerätebreite)"
+        schema:
+          type: string
+          default: mobile
+          enum: [ mobile, desktop, split ]
+      responses:
+        "200":
+          description: HTML-Seite mit Dev-Test UI
+          content:
+            text/html:
+              schema:
+                type: string
+
+  /v1/slm.html:
+    get:
+      tags: [ Tools ]
+      summary: Service- und Layermanager
+      description: |
+        Eigenständige Seite für Service → MapPlus Roh-Konfiguration Import & Verwaltung.
+
+        **Direkt im Browser öffnen:**
+        [`/maps/tnet/api/v1/slm.html`](https://www.gis-daten.ch/maps/tnet/api/v1/slm.html)
+
+        Features:
+        - **Import-Tab**: Verfügbare AGS-Dienste mit Checkboxen auswählen, Alle/Keine, Shift-Range, Multi-Export nach `data/tmp/raw-conf/`
+        - **Verwalten-Tab**: Bestehende Roh-Konfigurationen anzeigen, Multi-Select mit Checkboxen auf Service-Ebene, Multi-Delete, Backup-Filter und Backup-Delete
+        - **Staging-Tab**: Services zu Kürzel-basierten Ausgabedateien zusammenführen. Unterstützt inkrementellen Merge (mode=merge), Ersetzen (mode=replace) und Vorschau (mode=preview). Staging-Manifest trackt Quell-Services.
+        - Nutzt dieselbe `treebuilder-api.php` API (Aktionen: `ags-services`, `ags-export`, `ags-list-raw`, `ags-delete-raw`, `ags-delete-backups`, `ags-stage-merge`, `staging-list-output`)
+      responses:
+        "200":
+          description: HTML-Seite mit Service- und Layermanager UI
+          content:
+            text/html:
+              schema:
+                type: string
+
+  /v1/admin:
+    get:
+      tags: [ Admin ]
+      summary: DB-Management und Synchronisation
+      description: |
+        Steuert die PostgreSQL-Datenbank (Schema `mapplusconf`):
+        - **status** — DB-Verbindung und Schema prüfen
+        - **schema** — Schema anlegen/aktualisieren (idempotent)
+        - **configToPG** — Config-Dateien → PostgreSQL synchronisieren
+        - **stats** — Tabellenstatistiken
+        - **log** — Import-Historie
+      parameters:
+      - name: action
+        in: query
+        required: true
+        description: "Auszuführende Aktion"
+        schema:
+          type: string
+          enum: [ status, schema, configToPG, stats, log ]
+      - name: scope
+        in: query
+        description: "Sync-Bereich (nur bei action=configToPG)"
+        schema:
+          type: string
+          enum: [ full, layers, catalog, maptips, nls ]
+          default: full
+      - name: limit
+        in: query
+        description: "Max. Anzahl Log-Einträge (nur bei action=log, max 100)"
+        schema:
+          type: integer
+          default: 10
+          maximum: 100
+      responses:
+        "200":
+          description: Erfolgreiche Antwort
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+              examples:
+                status:
+                  summary: DB-Status
+                  value:
+                    success: true
+                    data:
+                      database: { available: true, message: "OK" }
+                      schema: { exists: true, tables: 9 }
+                    meta: { action: status, responseTime: "45ms" }
+                configToPG:
+                  summary: Full-Sync Resultat
+                  value:
+                    success: true
+                    data:
+                      message: "configToPG abgeschlossen (scope: full)"
+                      stats:
+                        layers_upserted: 10010
+                        layers_deleted: 0
+                        nodes_upserted: 7875
+                        nodes_deleted: 0
+                        maptips_upserted: 25900
+                        maptips_deleted: 0
+                    meta: { action: configToPG, scope: full, responseTime: "20777ms" }
+                stats:
+                  summary: Tabellenstatistiken
+                  value:
+                    success: true
+                    data:
+                      tableCounts:
+                        profile: 5
+                        category_mapping: 4
+                        layer_definition: 9999
+                        catalog_node: 7875
+                        layer_maptip: 25900
+                        nls_resource: 158
+                      sourceFiles: 378
+                      activeProfiles: 5
+                    meta: { action: stats, responseTime: "47ms" }
+        "400":
+          description: Unbekannte Aktion
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Fehler bei der Ausführung
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ===== TREE-BUILDER API =====
+
+  /v1/treebuilder-api.php:
+    get:
+      tags: [ Tree-Builder ]
+      summary: Tree-Builder State & Daten abrufen
+      description: |
+        Liest den aktuellen State, Lock-Status, Backup-Historie, Gruppen-Dateien,
+        Profile und Lyrmgr-Konfiguration.
+
+        **Verfügbare GET-Aktionen:**
+        | Aktion | Beschreibung | Zusatzparameter |
+        |--------|-------------|-----------------|
+        | `load` | Aktuellen State + Lock-Info laden | — |
+        | `lock` | Lock setzen (Header `X-Editor-Name` oder `?editor=`) | `editor` |
+        | `unlock` | Lock freigeben | `editor` |
+        | `lock-status` | Lock-Status abfragen | — |
+        | `history` | Backup-Historie auflisten | — |
+        | `restore` | Backup wiederherstellen | `file` |
+        | `load-groups` | JSON5-Gruppendatei laden | — |
+        | `load-profile` | Einzelnes Profil laden | `name` |
+        | `list-profiles` | Alle Profile auflisten | — |
+        | `load-lyrmgr` | Lyrmgr.conf eines Profils laden | `profile` |
+        | `list-lyrmgr-profiles` | Lyrmgr-Profile auflisten | — |
+      operationId: treebuilderGet
+      parameters:
+      - name: action
+        in: query
+        required: true
+        description: "Auszuführende Aktion"
+        schema:
+          type: string
+          enum: [ load, lock, unlock, lock-status, history, restore, load-groups, load-profile, list-profiles, load-lyrmgr, list-lyrmgr-profiles ]
+      - name: editor
+        in: query
+        description: "Editor-Name für Lock-Operationen (alternativ: Header `X-Editor-Name`)"
+        schema:
+          type: string
+        example: Marco
+      - name: file
+        in: query
+        description: "Backup-Dateiname (nur bei action=restore)"
+        schema:
+          type: string
+        example: state_20250101_120000.json
+      - name: name
+        in: query
+        description: "Profil-Name (nur bei action=load-profile)"
+        schema:
+          type: string
+        example: nwpro
+      - name: profile
+        in: query
+        description: "Lyrmgr-Profil (nur bei action=load-lyrmgr)"
+        schema:
+          type: string
+        example: public
+      responses:
+        "200":
+          description: Erfolgreiche Antwort
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+              examples:
+                load:
+                  summary: "State laden"
+                  value:
+                    success: true
+                    data:
+                      exists: true
+                      data: { layers: [], groups: [], _meta: {} }
+                      lock: null
+                      size: 4096
+                lockStatus:
+                  summary: "Lock-Status"
+                  value:
+                    success: true
+                    data:
+                      locked: true
+                      lock: { editor: "Marco", datetime: "2025-01-15 10:30:00" }
+                      age_min: 5.2
+                history:
+                  summary: "Backup-Historie"
+                  value:
+                    success: true
+                    data:
+                    - file: state_20250115_103000.json
+                      size: 4096
+                      modified: "2025-01-15 10:30:00"
+                listProfiles:
+                  summary: "Profile auflisten"
+                  value:
+                    success: true
+                    data:
+                    - name: nwpro
+                      size: 12345
+                      modified: "2025-01-15 10:30:00"
+                    - name: owpro
+                      size: 8765
+                      modified: "2025-01-14 09:00:00"
+        "400":
+          description: Fehlende Parameter
+        "405":
+          description: Methode nicht erlaubt
+        "423":
+          description: Gesperrt von anderem Editor
+
+    post:
+      tags: [ Tree-Builder ]
+      summary: Tree-Builder State & Daten speichern
+      description: |
+        Speichert State, JSON5-Gruppen, Profile und publiziert Lyrmgr-Blöcke.
+        Erstellt automatisch Backups beim Speichern.
+
+        **Verfügbare POST-Aktionen:**
+        | Aktion | Beschreibung | Body |
+        |--------|-------------|------|
+        | `save` | State speichern (mit Backup) | Vollständiger State als JSON |
+        | `save-groups` | JSON5-Gruppendatei speichern | Raw JSON5-Text |
+        | `save-profile` | Profil speichern (`?name=...`) | Raw JSON5-Text |
+        | `publish-lyrmgr` | Lyrmgr-Block publizieren | `{ profile, lyrmgrKey, data }` |
+      operationId: treebuilderPost
+      parameters:
+      - name: action
+        in: query
+        required: true
+        description: "Auszuführende Aktion"
+        schema:
+          type: string
+          enum: [ save, save-groups, save-profile, publish-lyrmgr ]
+      - name: name
+        in: query
+        description: "Profil-Name (nur bei action=save-profile)"
+        schema:
+          type: string
+        example: nwpro
+      - name: editor
+        in: query
+        description: "Editor-Name (alternativ: Header `X-Editor-Name`)"
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: "Inhalt abhängig von der Aktion"
+            examples:
+              save:
+                summary: "State speichern"
+                value:
+                  layers: []
+                  groups: []
+                  profiles: {}
+              publishLyrmgr:
+                summary: "Lyrmgr publizieren"
+                value:
+                  profile: nwpro
+                  lyrmgrKey: grundlagen/av
+                  data:
+                    layers:
+                    - TNET_gis_basis/nw_amtliche_vermessung
+          text/plain:
+            schema:
+              type: string
+              description: "Raw JSON5-Text (für action=save-groups, save-profile)"
+      responses:
+        "200":
+          description: Erfolgreiche Antwort
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+              examples:
+                saved:
+                  summary: "State gespeichert"
+                  value:
+                    success: true
+                    data:
+                      saved: true
+                      bytes: 4096
+                      backup: state_20250115_103000.json
+        "400":
+          description: Ungültiger Body oder fehlende Parameter
+        "405":
+          description: Methode nicht erlaubt (POST required)
+        "423":
+          description: Gesperrt von anderem Editor
+        "500":
+          description: Speichern fehlgeschlagen
+
+  # ===== SERVICE- UND LAYERMANAGER =====
+
+  /v1/treebuilder-api.php/ags:
+    get:
+      tags: [ Service- und Layermanager ]
+      summary: AGS-Dienste & Roh-Konfigurationen abrufen
+      description: |
+        Abrufen der verfügbaren ArcGIS Server-Dienste von der externen API (`ags2mapplus`)
+        und Verwalten der lokal gespeicherten Roh-Konfigurationsdateien.
+
+        **Verfügbare GET-Aktionen:**
+        | Aktion | Beschreibung | Zusatzparameter |
+        |--------|-------------|-----------------|
+        | `ags-services` | Verfügbare AGS-Dienste von der externen API abrufen | — |
+        | `ags-list-raw` | Importierte Roh-Konfigurationen auflisten (gruppiert nach Service) | `includeBackups`, `backupOnly` |
+        | `ags-read-raw` | Einzelne Roh-Konfigurationsdatei lesen | `file` |
+
+        **Hinweis:** Der tatsächliche Endpunkt ist `treebuilder-api.php?action=ags-*`.
+        Die Pfad-Darstellung `/ags` dient nur der besseren Übersicht in der Dokumentation.
+      operationId: agsGet
+      parameters:
+      - name: action
+        in: query
+        required: true
+        description: "Auszuführende AGS-Aktion"
+        schema:
+          type: string
+          enum: [ ags-services, ags-list-raw, ags-read-raw ]
+      - name: includeBackups
+        in: query
+        description: "Backups zusätzlich einbeziehen (nur bei action=ags-list-raw)"
+        schema:
+          type: string
+          enum: [ "1", "0" ]
+          default: "0"
+      - name: backupOnly
+        in: query
+        description: "Nur Backup-Dateien listen (nur bei action=ags-list-raw)"
+        schema:
+          type: string
+          enum: [ "1", "0" ]
+          default: "0"
+      - name: file
+        in: query
+        description: "Relativer Dateipfad innerhalb von `data/tmp/raw-conf/` (nur bei action=ags-read-raw)"
+        schema:
+          type: string
+        example: awu/AWU_EIGENTUM/layers_TNET_awu_AWU_EIGENTUM.conf
+      responses:
+        "200":
+          description: Erfolgreiche Antwort
+          content:
+            application/json:
+              schema:
+                oneOf:
+                - $ref: "#/components/schemas/AgsServicesResponse"
+                - $ref: "#/components/schemas/AgsListRawResponse"
+                - $ref: "#/components/schemas/AgsReadRawResponse"
+              examples:
+                services:
+                  summary: "AGS-Dienste auflisten"
+                  value:
+                    success: true
+                    data:
+                      dienstnamen:
+                      - awu/AWU_EIGENTUM
+                      - awu/AWU_WERKPLAN
+                      - ewn/ewn_fernwaerme_agp
+                      - gis_basis/nw_amtliche_vermessung
+                listRaw:
+                  summary: "Roh-Konfigurationen auflisten"
+                  value:
+                    success: true
+                    data:
+                      exists: true
+                      directory: /data/Client_Data/nwow/tmp/raw-conf
+                      includeBackups: false
+                      backupOnly: false
+                      services:
+                      - service: awu/AWU_EIGENTUM
+                        totalSize: 8234
+                        files:
+                        - file: awu/AWU_EIGENTUM/layers_TNET_awu_AWU_EIGENTUM.conf
+                          size: 4567
+                          modified: "2025-01-15 10:30:00"
+                          isBackup: false
+                        - file: awu/AWU_EIGENTUM/layers_TNET_awu_AWU_EIGENTUM_cache.conf
+                          size: 3667
+                          modified: "2025-01-15 10:30:00"
+                          isBackup: false
+                      files:
+                      - file: awu/AWU_EIGENTUM/layers_TNET_awu_AWU_EIGENTUM.conf
+                        size: 4567
+                        modified: "2025-01-15 10:30:00"
+                        isBackup: false
+                readRaw:
+                  summary: "Einzelne Datei lesen"
+                  value:
+                    success: true
+                    data:
+                      file: awu/AWU_EIGENTUM/layers_TNET_awu_AWU_EIGENTUM.conf
+                      content: "[layers_TNET_awu_AWU_EIGENTUM]
+
+                        type=arcgisRest
+
+                        ..."
+                      size: 4567
+        "404":
+          description: Datei nicht gefunden
+        "502":
+          description: Externe API nicht erreichbar
+
+    post:
+      tags: [ Service- und Layermanager ]
+      summary: AGS-Dienste importieren oder löschen
+      description: |
+        Importiert ArcGIS Server-Konfigurationen von der externen `ags2mapplus`-API
+        (ZIP-Download + Extraktion) oder löscht bestehende Roh-Konfigurationen.
+
+        **Verfügbare POST-Aktionen:**
+        | Aktion | Beschreibung | Body |
+        |--------|-------------|------|
+        | `ags-export` | Dienste von externer API importieren → ZIP entpacken → `data/tmp/raw-conf/` | `{ "dienstnamen": ["awu/AWU_EIGENTUM", ...] }` |
+        | `ags-delete-raw` | Alle Dateien eines Services löschen (inkl. Backups) | `{ "service": "awu/AWU_EIGENTUM" }` |
+        | `ags-delete-backups` | Nur Backup-Dateien eines Services löschen | `{ "service": "awu/AWU_EIGENTUM" }` |
+
+        **Hinweis:** Der tatsächliche Endpunkt ist `treebuilder-api.php?action=ags-*`.
+        Die Pfad-Darstellung `/ags` dient nur der besseren Übersicht in der Dokumentation.
+
+        ### Import-Ablauf (ags-export)
+        1. POST an externe API `ags2mapplus/mapplus-conf-export` mit Dienstnamen
+        2. ZIP-Antwort empfangen, Magic-Bytes validieren
+        3. Bestehende Dateien werden mit Timestamp-Suffix gesichert (`.bak`)
+        4. ZIP nach `data/tmp/raw-conf/` entpacken
+      operationId: agsPost
+      parameters:
+      - name: action
+        in: query
+        required: true
+        description: "Auszuführende AGS-Aktion"
+        schema:
+          type: string
+          enum: [ ags-export, ags-delete-raw, ags-delete-backups ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+              - $ref: "#/components/schemas/AgsExportRequest"
+              - $ref: "#/components/schemas/AgsDeleteRequest"
+            examples:
+              export:
+                summary: "Dienste importieren"
+                value:
+                  dienstnamen:
+                  - awu/AWU_EIGENTUM
+                  - awu/AWU_WERKPLAN
+              delete:
+                summary: "Service löschen"
+                value:
+                  service: awu/AWU_EIGENTUM
+      responses:
+        "200":
+          description: Erfolgreiche Antwort
+          content:
+            application/json:
+              schema:
+                oneOf:
+                - $ref: "#/components/schemas/AgsExportResponse"
+                - $ref: "#/components/schemas/AgsDeleteResponse"
+              examples:
+                exported:
+                  summary: "Import erfolgreich"
+                  value:
+                    success: true
+                    data:
+                      success: true
+                      services:
+                      - awu/AWU_EIGENTUM
+                      - awu/AWU_WERKPLAN
+                      zipSize: 45678
+                      files:
+                      - file: awu/AWU_EIGENTUM/layers_TNET_awu_AWU_EIGENTUM.conf
+                        bytes: 4567
+                      - file: awu/AWU_WERKPLAN/layers_TNET_awu_AWU_WERKPLAN.conf
+                        bytes: 3456
+                      timestamp: "2025-01-15 10:30:00"
+                deleted:
+                  summary: "Service gelöscht"
+                  value:
+                    success: true
+                    data:
+                      success: true
+                      service: awu/AWU_EIGENTUM
+                      deleted:
+                      - awu/AWU_EIGENTUM/layers_TNET_awu_AWU_EIGENTUM.conf
+                      - awu/AWU_EIGENTUM/layers_TNET_awu_AWU_EIGENTUM_cache.conf
+                      count: 2
+        "400":
+          description: Fehlende oder ungültige Parameter
+        "405":
+          description: Methode nicht erlaubt (POST required)
+        "500":
+          description: Import oder Löschung fehlgeschlagen
+
+  /v1/treebuilder-api.php/staging:
+    get:
+      tags: [ Service- und Layermanager ]
+      summary: Staging-Ausgabe (ImportToCore) auflisten
+      description: |
+        Listet alle Kürzel-Verzeichnisse unter `ImportToCore/` mit Dateien,
+        Duplikat-Metadaten, Cross-Kürzel-Konflikten und Staging-Manifest.
+
+        **Hinweis:** Der tatsächliche Endpunkt ist `treebuilder-api.php?action=staging-list-output`.
+      operationId: stagingListOutput
+      parameters:
+      - name: action
+        in: query
+        required: true
+        schema:
+          type: string
+          enum: [ staging-list-output ]
+      responses:
+        "200":
+          description: Kürzel-Liste mit Dateien und Manifest-Info
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      exists:
+                        type: boolean
+                      kuerzel:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            kuerzel:
+                              type: string
+                              example: "ewn"
+                            files:
+                              type: array
+                              items:
+                                type: object
+                            size:
+                              type: integer
+                            manifest:
+                              $ref: "#/components/schemas/StagingManifest"
+
+    post:
+      tags: [ Service- und Layermanager ]
+      summary: Staging-Merge (Services → ImportToCore zusammenführen)
+      description: |
+        Führt ausgewählte Raw-Conf-Services zu Kürzel-basierten Ausgabedateien zusammen.
+
+        **Merge-Modi:**
+        | Modus | Verhalten |
+        |-------|-----------|
+        | `merge` | Bestehende ImportToCore-Datei als Basis laden, neue Keys hinzufügen/aktualisieren. Bestehende bleiben erhalten. |
+        | `replace` | Alles neu aufbauen — bestehende Ausgabe wird komplett überschrieben (bisheriges Verhalten). |
+        | `preview` | Dry-Run: berechnet Diff-Statistik (added/updated/unchanged), schreibt nichts. |
+
+        **Merge-Ablauf (mode=merge):**
+        1. Bestehende `<prefix>_<kuerzel>.<ext>` aus `ImportToCore/<kuerzel>/` laden
+        2. Neue Keys aus den ausgewählten raw-conf-Services darüber mergen (letzter gewinnt bei Duplikaten)
+        3. Output schreiben + `.staging-manifest.json` mit Source-Tracking aktualisieren
+        4. Statistik zurückgeben: `mergeStats` pro Bucket (added, updated, unchanged)
+
+        **Manifest:** Bei `merge` und `replace` wird `.staging-manifest.json` geschrieben mit:
+        - `sources[]`: Array aller Services die in diese Ausgabe eingeflossen sind (kumulativ bei merge)
+        - `buckets`: Datei-Übersicht pro Prefix mit Key-Counts
+        - `lastStaged`: Zeitstempel
+
+        **Hinweis:** Der tatsächliche Endpunkt ist `treebuilder-api.php?action=ags-stage-merge`.
+      operationId: stagingMerge
+      parameters:
+      - name: action
+        in: query
+        required: true
+        schema:
+          type: string
+          enum: [ ags-stage-merge, staging-delete-output ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StagingMergeRequest"
+            examples:
+              merge:
+                summary: "Inkrementell zusammenführen"
+                value:
+                  services: [ "ewn/ewn_EWN_NIS_gwr" ]
+                  kuerzel: "ewn"
+                  mode: "merge"
+              replace:
+                summary: "Komplett ersetzen"
+                value:
+                  services: [ "ewn/ewn_EWN_NIS", "ewn/ewn_EWN_NIS_gwr" ]
+                  kuerzel: "ewn"
+                  mode: "replace"
+              preview:
+                summary: "Nur Vorschau"
+                value:
+                  services: [ "ewn/ewn_EWN_NIS_gwr" ]
+                  kuerzel: "ewn"
+                  mode: "preview"
+      responses:
+        "200":
+          description: Merge-Ergebnis
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: "#/components/schemas/StagingMergeResponse"
+              examples:
+                merged:
+                  summary: "Inkrementeller Merge erfolgreich"
+                  value:
+                    success: true
+                    data:
+                      success: true
+                      kuerzel: "ewn"
+                      mode: "merge"
+                      files:
+                      - file: "ewn/layers_ewn.conf"
+                        bytes: 12345
+                        keys: 57
+                        mergeStats: { added: 12, updated: 3, unchanged: 42 }
+                      mergeStats:
+                        layers: { added: 12, updated: 3, unchanged: 42 }
+                        maptips: { added: 24, updated: 0, unchanged: 84 }
+                      duplicates: []
+                      errors: []
+                      timestamp: "2026-03-01 14:30:00"
+        "400":
+          description: Fehlende oder ungültige Parameter
+        "405":
+          description: Methode nicht erlaubt (POST required)
+
+components:
+  schemas:
+    # === Base Response ===
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+        meta:
+          type: object
+      required: [ success, data ]
+
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: object
+          properties:
+            code:
+              type: integer
+              example: 404
+            message:
+              type: string
+              example: "Resource not found"
+      required: [ success, error ]
+
+    # === Layer Schemas ===
+    LayerCatalogResponse:
+      allOf:
+      - $ref: "#/components/schemas/SuccessResponse"
+      - type: object
+        properties:
+          data:
+            type: object
+            properties:
+              version:
+                type: string
+                example: "2.0"
+              categories:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Category"
+
+    Category:
+      type: object
+      properties:
+        id:
+          type: string
+          example: nidwalden
+        name:
+          type: string
+          example: Nidwalden
+        icon:
+          type: string
+          example: njsCategoryIcon8
+        subcategories:
+          type: array
+          items:
+            $ref: "#/components/schemas/Subcategory"
+
+    Subcategory:
+      type: object
+      properties:
+        id:
+          type: string
+          example: grundlagen
+        name:
+          type: string
+          example: Grundlagen
+        icon:
+          type: string
+        groups:
+          type: array
+          items:
+            $ref: "#/components/schemas/LayerGroup"
+
+    LayerGroup:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        open:
+          type: boolean
+          default: false
+        layers:
+          type: array
+          items:
+            $ref: "#/components/schemas/Layer"
+
+    Layer:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "TNET_gis_basis/nw_amtliche_vermessung"
+        name:
+          type: string
+          example: "Amtliche Vermessung"
+        type:
+          type: string
+          enum: [ layer, group ]
+        url:
+          type: string
+          example: "/maps/agsproxy.php?path=gis_basis/nw_amtliche_vermessung/MapServer"
+        layerType:
+          type: string
+          enum: [ arcgisRest, wms, wmts, tileWMS ]
+        opacity:
+          type: number
+          format: float
+          example: 0.65
+        visible:
+          type: boolean
+          default: false
+        params:
+          type: object
+        options:
+          type: object
+        layers:
+          type: array
+          description: "Nur bei type=group: verschachtelte Layer (max. 3 Ebenen tief)"
+          items:
+            type: object
+            description: "Verschachtelter Layer oder Gruppe"
+            properties:
+              id:
+                type: string
+              name:
+                type: string
+              type:
+                type: string
+                enum: [ layer, group ]
+
+    # === Basemaps ===
+    BasemapsResponse:
+      allOf:
+      - $ref: "#/components/schemas/SuccessResponse"
+      - type: object
+        properties:
+          data:
+            type: object
+            description: "Basemaps-Konfiguration (Struktur aus basemaps.conf)"
+
+    # === Bookmarks ===
+    BookmarkListResponse:
+      allOf:
+      - $ref: "#/components/schemas/SuccessResponse"
+      - type: object
+        properties:
+          data:
+            type: array
+            items:
+              type: object
+              properties:
+                name:
+                  type: string
+                aliases:
+                  type: array
+                  items:
+                    type: string
+
+    BookmarkDetailResponse:
+      allOf:
+      - $ref: "#/components/schemas/SuccessResponse"
+      - type: object
+        properties:
+          data:
+            type: object
+            properties:
+              map-bookmark:
+                type: string
+              aliases:
+                type: array
+                items:
+                  type: string
+              basemap:
+                type: string
+              layers:
+                type: array
+                items:
+                  type: string
+              theme:
+                type: string
+              subtheme:
+                type: string
+
+    # === Info ===
+    InfoResponse:
+      allOf:
+      - $ref: "#/components/schemas/SuccessResponse"
+      - type: object
+        properties:
+          data:
+            type: object
+            properties:
+              api:
+                type: object
+                properties:
+                  name:
+                    type: string
+                  version:
+                    type: string
+              endpoints:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    path:
+                      type: string
+                    description:
+                      type: string
+                    parameters:
+                      type: array
+                      items:
+                        type: string
+              server:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  php:
+                    type: string
+                  groups:
+                    type: array
+                    items:
+                      type: string
+                  layerFiles:
+                    type: integer
+                  layerDefinitions:
+                    type: integer
+                  basemaps:
+                    type: integer
+
+    # === Service- und Layermanager Schemas ===
+    AgsServicesResponse:
+      allOf:
+      - $ref: "#/components/schemas/SuccessResponse"
+      - type: object
+        properties:
+          data:
+            type: object
+            properties:
+              dienstnamen:
+                type: array
+                description: "Liste der verfügbaren ArcGIS Server-Dienste"
+                items:
+                  type: string
+                  example: awu/AWU_EIGENTUM
+
+    AgsListRawResponse:
+      allOf:
+      - $ref: "#/components/schemas/SuccessResponse"
+      - type: object
+        properties:
+          data:
+            type: object
+            properties:
+              exists:
+                type: boolean
+                description: "true wenn data/tmp/raw-conf existiert"
+              directory:
+                type: string
+                example: /data/Client_Data/nwow/tmp/raw-conf
+              includeBackups:
+                type: boolean
+                description: "true wenn Backups in der Liste enthalten sind"
+              backupOnly:
+                type: boolean
+                description: "true wenn nur Backup-Dateien gelistet sind"
+              services:
+                type: array
+                description: "Dateien gruppiert nach Service-Key"
+                items:
+                  $ref: "#/components/schemas/AgsServiceGroup"
+              files:
+                type: array
+                description: "Flache Liste aller Dateien"
+                items:
+                  $ref: "#/components/schemas/AgsFileInfo"
+
+    AgsServiceGroup:
+      type: object
+      properties:
+        service:
+          type: string
+          description: "Service-Key (z.B. awu/AWU_EIGENTUM)"
+          example: awu/AWU_EIGENTUM
+        totalSize:
+          type: integer
+          description: "Gesamtgrösse aller Dateien in Bytes"
+          example: 8234
+        files:
+          type: array
+          items:
+            $ref: "#/components/schemas/AgsFileInfo"
+
+    AgsFileInfo:
+      type: object
+      properties:
+        file:
+          type: string
+          description: "Relativer Pfad innerhalb data/tmp/raw-conf/"
+          example: awu/AWU_EIGENTUM/layers_TNET_awu_AWU_EIGENTUM.conf
+        size:
+          type: integer
+          example: 4567
+        modified:
+          type: string
+          example: "2025-01-15 10:30:00"
+        isBackup:
+          type: boolean
+          description: "true wenn Datei ein Backup (*.bak) ist"
+          example: false
+
+    AgsReadRawResponse:
+      allOf:
+      - $ref: "#/components/schemas/SuccessResponse"
+      - type: object
+        properties:
+          data:
+            type: object
+            properties:
+              file:
+                type: string
+                example: awu/AWU_EIGENTUM/layers_TNET_awu_AWU_EIGENTUM.conf
+              content:
+                type: string
+                description: "Dateiinhalt als Text"
+              size:
+                type: integer
+                example: 4567
+
+    AgsExportRequest:
+      type: object
+      required: [ dienstnamen ]
+      properties:
+        dienstnamen:
+          type: array
+          description: "Liste der zu importierenden Service-Namen"
+          items:
+            type: string
+          example: [ "awu/AWU_EIGENTUM", "awu/AWU_WERKPLAN" ]
+
+    AgsDeleteRequest:
+      type: object
+      required: [ service ]
+      properties:
+        service:
+          type: string
+          description: "Service-Key zum Löschen (z.B. awu/AWU_EIGENTUM)"
+          example: awu/AWU_EIGENTUM
+
+    AgsExportResponse:
+      allOf:
+      - $ref: "#/components/schemas/SuccessResponse"
+      - type: object
+        properties:
+          data:
+            type: object
+            properties:
+              success:
+                type: boolean
+              services:
+                type: array
+                items:
+                  type: string
+              zipSize:
+                type: integer
+                description: "Grösse des empfangenen ZIP in Bytes"
+              files:
+                type: array
+                description: "Liste der extrahierten Dateien"
+                items:
+                  type: object
+                  properties:
+                    file:
+                      type: string
+                    bytes:
+                      type: integer
+              directory:
+                type: string
+              timestamp:
+                type: string
+
+    AgsDeleteResponse:
+      allOf:
+      - $ref: "#/components/schemas/SuccessResponse"
+      - type: object
+        properties:
+          data:
+            type: object
+            properties:
+              success:
+                type: boolean
+              service:
+                type: string
+                example: awu/AWU_EIGENTUM
+              deleted:
+                type: array
+                description: "Liste der gelöschten Dateien"
+                items:
+                  type: string
+              count:
+                type: integer
+                description: "Anzahl gelöschter Dateien"
+
+    LegendJsonResponse:
+      type: object
+      description: |
+        JSON-Antwort des Legend-Proxy.
+        Enthält alle Layer des Dienstes mit ihren Symbolen als Base64-Bilder.
+      properties:
+        service:
+          type: string
+          example: ewn/EWN_NIS/MapServer
+        requestedSize:
+          type: object
+          properties:
+            width:
+              type: integer
+              example: 80
+            height:
+              type: integer
+              example: 160
+        layerCount:
+          type: integer
+          example: 69
+        symbolCount:
+          type: integer
+          example: 1019
+        layers:
+          type: array
+          items:
+            type: object
+            properties:
+              layerId:
+                type: integer
+                example: 0
+              layerName:
+                type: string
+                example: Trassee Elektro
+              symbolCount:
+                type: integer
+                example: 5
+              symbols:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    label:
+                      type: string
+                      example: "110kV"
+                    width:
+                      type: integer
+                      description: Tatsächliche Breite des gelieferten Symbols (kann von requestedSize abweichen)
+                      example: 106
+                    height:
+                      type: integer
+                      description: Tatsächliche Höhe des gelieferten Symbols
+                      example: 20
+                    contentType:
+                      type: string
+                      example: image/png
+                    imageData:
+                      type: string
+                      description: Base64-kodierte Bilddaten
+                      example: "iVBORw0KGgo..."
+
+    # === Staging Schemas ===
+    StagingMergeRequest:
+      type: object
+      required: [ services, kuerzel ]
+      properties:
+        services:
+          type: array
+          description: "Zu mergende Service-Keys aus raw-conf"
+          items:
+            type: string
+          example: [ "ewn/ewn_EWN_NIS", "ewn/ewn_EWN_NIS_gwr" ]
+        kuerzel:
+          type: string
+          description: "Ziel-Kürzel für die Ausgabe (z.B. ewn, nodi_ch)"
+          example: ewn
+        mode:
+          type: string
+          description: |
+            Merge-Modus:
+            - `merge`: Bestehende ImportToCore-Datei als Basis, neue Keys darüber (Standard)
+            - `replace`: Alles komplett neu aufbauen, bestehende Ausgabe wird überschrieben
+            - `preview`: Dry-Run — nur Diff-Statistik berechnen, nichts schreiben
+          enum: [ merge, replace, preview ]
+          default: replace
+          example: merge
+
+    StagingMergeResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        kuerzel:
+          type: string
+          example: ewn
+        mode:
+          type: string
+          enum: [ merge, replace, preview ]
+          example: merge
+        files:
+          type: array
+          description: "Geschriebene/berechnete Ausgabedateien"
+          items:
+            type: object
+            properties:
+              file:
+                type: string
+                example: "ewn/layers_ewn.conf"
+              bytes:
+                type: integer
+                description: "0 bei preview"
+              keys:
+                type: integer
+                description: "Gesamtzahl der Keys in der Ausgabe"
+              mergeStats:
+                type: object
+                description: "Diff-Statistik (nur bei merge/preview)"
+                properties:
+                  added:
+                    type: integer
+                    description: "Neue Keys hinzugefügt"
+                  updated:
+                    type: integer
+                    description: "Bestehende Keys aktualisiert (Wert geändert)"
+                  unchanged:
+                    type: integer
+                    description: "Keys unverändert"
+              preview:
+                type: boolean
+                description: "true bei mode=preview"
+        mergeStats:
+          type: object
+          description: "Aggregierte Statistik pro Bucket-Prefix"
+          additionalProperties:
+            type: object
+            properties:
+              added:
+                type: integer
+              updated:
+                type: integer
+              unchanged:
+                type: integer
+        duplicates:
+          type: array
+          description: "Intra-Quell-Duplikate (gleicher Key in verschiedenen Quelldateien)"
+          items:
+            type: object
+            properties:
+              file:
+                type: string
+              keys:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    key:
+                      type: string
+                    count:
+                      type: integer
+                    sources:
+                      type: array
+                      items:
+                        type: string
+              count:
+                type: integer
+        errors:
+          type: array
+          items:
+            type: string
+        timestamp:
+          type: string
+          example: "2026-03-01 14:30:00"
+
+    StagingManifest:
+      type: object
+      description: |
+        Staging-Manifest (`.staging-manifest.json`) — trackt welche Services in eine
+        ImportToCore-Ausgabe eingeflossen sind. Wird bei merge kumulativ ergänzt.
+      properties:
+        kuerzel:
+          type: string
+          example: ewn
+        lastStaged:
+          type: string
+          description: "ISO 8601 Zeitstempel"
+          example: "2026-03-01T14:30:00"
+        mode:
+          type: string
+          description: "Modus der letzten Staging-Operation"
+          enum: [ merge, replace ]
+        sources:
+          type: array
+          description: "Alle Services die in diese Ausgabe eingeflossen sind"
+          items:
+            type: object
+            properties:
+              service:
+                type: string
+                example: "ewn/ewn_EWN_NIS"
+              staged:
+                type: string
+                description: "Zeitpunkt an dem dieser Service gestagete wurde"
+                example: "2026-03-01T14:30:00"
+              keys:
+                type: object
+                description: "Key-Counts pro Bucket-Prefix"
+                additionalProperties:
+                  type: integer
+                example:
+                  layers: 45
+                  maptips: 90
+        buckets:
+          type: object
+          description: "Ausgabedateien pro Prefix"
+          additionalProperties:
+            type: object
+            properties:
+              file:
+                type: string
+                example: "layers_ewn.conf"
+              totalKeys:
+                type: integer
+                example: 57

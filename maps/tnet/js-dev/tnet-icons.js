@@ -13,7 +13,11 @@
 (function () {
   'use strict';
 
-  var BASE = '/maps/tnet/resources/icons/';
+  function getAppRoot() {
+    return window.__TNET_APP_ROOT || '/maps';
+  }
+
+  var BASE = getAppRoot() + '/tnet/resources/icons/';
 
   // Cache: name → SVG-HTML-String
   var _cache = {};

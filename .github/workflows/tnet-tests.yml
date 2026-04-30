@@ -6,11 +6,23 @@ on:
     paths:
       - 'maps/tnet/tests/**'
       - 'maps/tnet/php/**'
+      - 'maps/tnet/api/**'
+      - 'maps-dev/tnet/php/**'
+      - 'maps-dev/tnet/api/**'
+      - '_scripts/deployment/**'
+      - '_scripts/_build_js.py'
+      - 'docs/DEV_DEPLOY_WORKFLOW.md'
       - '.github/workflows/tnet-tests.yml'
   pull_request:
     paths:
       - 'maps/tnet/tests/**'
       - 'maps/tnet/php/**'
+      - 'maps/tnet/api/**'
+      - 'maps-dev/tnet/php/**'
+      - 'maps-dev/tnet/api/**'
+      - '_scripts/deployment/**'
+      - '_scripts/_build_js.py'
+      - 'docs/DEV_DEPLOY_WORKFLOW.md'
       - '.github/workflows/tnet-tests.yml'
 
 jobs:
@@ -18,7 +30,7 @@ jobs:
     name: Standard Tests
     runs-on: ubuntu-latest
     env:
-      TNET_BASE_URL: ${{ vars.TNET_BASE_URL != '' && vars.TNET_BASE_URL || 'https://www.gis-daten.ch/maps/tnet/php' }}
+      TNET_BASE_URL: https://www.gis-daten.ch/maps-dev/tnet/php
 
     steps:
       - name: Checkout
@@ -50,7 +62,7 @@ jobs:
     name: External Tests
     runs-on: ubuntu-latest
     env:
-      TNET_BASE_URL: ${{ vars.TNET_BASE_URL != '' && vars.TNET_BASE_URL || 'https://www.gis-daten.ch/maps/tnet/php' }}
+      TNET_BASE_URL: https://www.gis-daten.ch/maps-dev/tnet/php
       TNET_RUN_EXTERNAL: '1'
 
     steps:

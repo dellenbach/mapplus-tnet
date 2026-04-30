@@ -18,6 +18,10 @@
 (function() {
   'use strict';
 
+  function getAppRoot() {
+    return window.__TNET_APP_ROOT || '/maps';
+  }
+
   // ===========================================================================
   // TABS TO ACCORDION CONVERTER (dijit TabContainer)
   // ===========================================================================
@@ -156,10 +160,10 @@
 
   var TitlePane2Tabs = {
     icons: {
-      'Nidwalden': '/maps/tnet/resources/wappen_nidwalden.svg',
-      'Obwalden': '/maps/tnet/resources/wappen_obwalden.svg',
-      'Bund': '/maps/tnet/resources/wappen_bund.svg',
-      'Weitere': '/maps/tnet/resources/icon_weitere.svg'
+      'Nidwalden': getAppRoot() + '/tnet/resources/wappen_nidwalden.svg',
+      'Obwalden': getAppRoot() + '/tnet/resources/wappen_obwalden.svg',
+      'Bund': getAppRoot() + '/tnet/resources/wappen_bund.svg',
+      'Weitere': getAppRoot() + '/tnet/resources/icon_weitere.svg'
     },
 
     panes: [

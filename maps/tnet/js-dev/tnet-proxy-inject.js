@@ -18,6 +18,10 @@
 (function () {
   'use strict';
 
+  function getAppRoot() {
+    return window.__TNET_APP_ROOT || '/maps';
+  }
+
   var TAG = '[proxy-inject]';
 
   // Konfiguration aus tnet-global-config.json5 (via PHP injiziert)
@@ -226,7 +230,7 @@
     // tnet-header.js öffnet ein Popup-Fenster für den OAuth-Flow
     // und refresht danach nur den iframe (kein ganzer App-Reload).
     var base = 'https://www.gis-daten.ch';
-    var callbackUrl = base + '/maps/tnet/views/oauth-callback.html';
+    var callbackUrl = base + getAppRoot() + '/tnet/views/oauth-callback.html';
     var oauthUrl = base + '/?option=oauthredirect&app_name=adfs&redirect_url=' + encodeURIComponent(callbackUrl);
     console.log(TAG, 'OAuth → postMessage an top (Popup-Request)');
     console.log(TAG, '  callback URL:', callbackUrl);

@@ -1,0 +1,17 @@
+<mxfile host="app.diagrams.net" modified="2026-02-27T00:00:00.000Z" agent="GPT-5.3-Codex" version="22.1.0" type="device">
+  <diagram id="infopanel" name="TNET KOMPONENTE 05 INFO PANEL PICKING">
+    <mxGraphModel dx="1200" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="827" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="i1" value="Map Klick\nPicking aktiv" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1"><mxGeometry x="60" y="140" width="200" height="70" as="geometry" /></mxCell>
+        <mxCell id="i2" value="Feature Query\nLayerabfrage" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1"><mxGeometry x="320" y="80" width="220" height="70" as="geometry" /></mxCell>
+        <mxCell id="i3" value="tnet-info-panel.js\nUI-Aufbereitung" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1"><mxGeometry x="320" y="220" width="220" height="70" as="geometry" /></mxCell>
+        <mxCell id="i4" value="Info Panel\nDesktop/Mobile" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1"><mxGeometry x="620" y="140" width="220" height="70" as="geometry" /></mxCell>
+        <mxCell id="ie1" style="endArrow=block;html=1;rounded=0;" edge="1" parent="1" source="i1" target="i2"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="ie2" style="endArrow=block;html=1;rounded=0;" edge="1" parent="1" source="i2" target="i3"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="ie3" style="endArrow=block;html=1;rounded=0;" edge="1" parent="1" source="i3" target="i4"><mxGeometry relative="1" as="geometry" /></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

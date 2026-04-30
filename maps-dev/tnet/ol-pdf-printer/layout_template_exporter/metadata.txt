@@ -1,0 +1,59 @@
+[general]
+name=Layout Template Exporter
+qgisMinimumVersion=3.0
+description=Exportiert leere Layout-Vorlagen (A4–A0) als SVG/PDF für Web-App-Templates (ol-pdf-printer).
+version=1.5.0
+author=Trigonet AG / Marco Dellenbach
+email=info@trigonet.ch
+
+about=Erzeugt leere QGIS-Layouts mit Platzhaltern (Kartenfläche, Titelblock, Legende, Logo, Maßstab) und exportiert diese als SVG oder PDF. Die Templates können anschließend in einer Web-App (z.B. ol-pdf-printer) als statische Vorlagen verwendet werden.
+
+tracker=https://github.com/example/layout-template-exporter/issues
+repository=https://github.com/example/layout-template-exporter
+
+changelog=
+    1.5.0 - 04.03.2026
+        * Build-Datum und Zeitstempel aktualisiert
+        * Plugin-Installation via install.bat verifiziert
+    1.4.0 - 13.02.2026
+        * Fix: Nordpfeil-Erkennung (linkedMap-Check für QGIS-Nordpfeile)
+        * Neu: Automatischer Nordpfeil-Platzhalter wenn keiner erkannt
+        * Fix: Logo/Bild-Export mit Rendering-Fallback (renderRegionToImage)
+        * Fix: Verbesserte Bildpfad-Auflösung (SVG-Suchpfade + pkgDataPath)
+        * Fix: Zentrale manifest.json im übergeordneten Verzeichnis
+        * Fix: Relative Dateipfade inkl. Unterordner-Prefix im Manifest
+        * Manifest-Version 1.4 (zentrales Format)
+        * Copyright: Trigonet AG
+    1.2.1 - 11.02.2026
+        * Fix: Syntax-Fehler in Koordinaten-Regex (Unicode-Apostroph)
+        * Neu: {{SCALE_BAR}} Platzhalter für grafischen Massstabsbalken
+        * Neu: {{NORTH_ARROW}} Platzhalter (statt hartkodiertem "N ↑")
+        * Plugin-Zeitstempel jetzt automatisch als lokale Zeit
+    1.2.0 - 11.02.2026
+        * SVG-Export mit textRenderFormat=AlwaysText (Text als <text>-Elemente)
+        * {{PLACEHOLDER}}-Muster in Labels ({{TITLE}}, {{SCALE}}, etc.)
+        * SVG-Nachbearbeitung: IDs automatisch zu Platzhalter-Elementen
+        * Manifest v1.3: vollständige Element-Metadaten (Position, Grösse,
+          Font, Variable, Alignment) pro Template
+        * Element-Scanning für bestehende QGIS-Layouts (Heuristik-basiert)
+        * Temporäre Platzhalter-Ersetzung vor Export + Wiederherstellung
+    1.1.0 - 11.02.2026
+        * Dynamische Element-IDs (TITLE_TEXT, SCALE_TEXT, etc.)
+        * Nordpfeil mit Rotations-Unterstützung
+        * Footer mit 3 separaten Texten (Maßstab, Koordinaten, Datum)
+        * Version und Zeitstempel im Dialog
+        * Templates direkt ins Root-Verzeichnis exportieren
+    1.0.0 - Erstveröffentlichung
+        * Export von leeren Layout-Vorlagen
+        * Unterstützung für A4, A3, A2, A1, A0
+        * Hoch- und Querformat
+        * SVG- und PDF-Export
+
+tags=layout,template,export,svg,pdf,print,ol-printer
+
+homepage=https://github.com/example/layout-template-exporter
+category=Sketching
+icon=icon.png
+
+experimental=False
+deprecated=False

@@ -13,6 +13,10 @@
 (function () {
   'use strict';
 
+  function getAppRoot() {
+    return window.__TNET_APP_ROOT || '/maps';
+  }
+
   var LOG = '[LM-Active]';
   var _container = null;
   var _unlisteners = [];
@@ -405,7 +409,7 @@
                     var proxyIdx = svcUrl.indexOf('agsproxy.php?path=');
                     if (proxyIdx !== -1) {
                       var svcPath = svcUrl.substring(proxyIdx + 18); // nach 'agsproxy.php?path='
-                      fLegendUrl = '/maps/tnet/api/v1/legend-proxy.php?service=' + encodeURIComponent(svcPath);
+                      fLegendUrl = getAppRoot() + '/tnet/api/v1/legend-proxy.php?service=' + encodeURIComponent(svcPath);
                       TnetLog.log(LOG, 'Legend-Proxy URL (agsproxy):', fLegendUrl);
                     }
                     // Pattern 2: Fallback /rest/services/<pfad>
@@ -415,7 +419,7 @@
                         var svcPath2 = svcUrl.substring(svcIdx + 15);
                         var qIdx = svcPath2.indexOf('?');
                         if (qIdx !== -1) svcPath2 = svcPath2.substring(0, qIdx);
-                        fLegendUrl = '/maps/tnet/api/v1/legend-proxy.php?service=' + encodeURIComponent(svcPath2);
+                        fLegendUrl = getAppRoot() + '/tnet/api/v1/legend-proxy.php?service=' + encodeURIComponent(svcPath2);
                         TnetLog.log(LOG, 'Legend-Proxy URL (rest):', fLegendUrl);
                       }
                     }
@@ -707,7 +711,7 @@
           // MapServer und alles danach entfernen
           var msIdx = svcPath.indexOf('/MapServer');
           if (msIdx !== -1) svcPath = svcPath.substring(0, msIdx);
-          legendUrl = '/maps/tnet/api/v1/legend-proxy.php?service=' + encodeURIComponent(svcPath);
+          legendUrl = getAppRoot() + '/tnet/api/v1/legend-proxy.php?service=' + encodeURIComponent(svcPath);
         }
         // Fallback: /rest/services/<pfad>/MapServer
         if (!legendUrl) {
@@ -718,7 +722,7 @@
             if (qIdx !== -1) svcPath2 = svcPath2.substring(0, qIdx);
             var msIdx2 = svcPath2.indexOf('/MapServer');
             if (msIdx2 !== -1) svcPath2 = svcPath2.substring(0, msIdx2);
-            legendUrl = '/maps/tnet/api/v1/legend-proxy.php?service=' + encodeURIComponent(svcPath2);
+            legendUrl = getAppRoot() + '/tnet/api/v1/legend-proxy.php?service=' + encodeURIComponent(svcPath2);
           }
         }
 

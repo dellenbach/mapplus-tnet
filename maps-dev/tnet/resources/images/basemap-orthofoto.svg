@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="100" height="80" viewBox="0 0 100 80">
+  <rect fill="#3a6b35" width="100" height="80"/>
+  <rect fill="#4a7b43" x="10" y="5" width="25" height="20" rx="2"/>
+  <rect fill="#2d5a27" x="40" y="10" width="30" height="25"/>
+  <rect fill="#5a8b53" x="75" y="0" width="25" height="35"/>
+  <rect fill="#4a7b43" x="0" y="30" width="35" height="25"/>
+  <rect fill="#2d5a27" x="45" y="40" width="20" height="20"/>
+  <rect fill="#5a8b53" x="70" y="45" width="30" height="35"/>
+  <rect fill="#4a7b43" x="5" y="60" width="40" height="20"/>
+  <rect fill="#2d5a27" x="50" y="65" width="15" height="15"/>
+  <!-- Strassen -->
+  <path stroke="#888" stroke-width="2" fill="none" d="M0,40 L100,40"/>
+  <path stroke="#888" stroke-width="2" fill="none" d="M50,0 L50,80"/>
+  <!-- Gebäude -->
+  <rect fill="#c4a882" x="20" y="35" width="8" height="10"/>
+  <rect fill="#c4a882" x="55" y="15" width="12" height="8"/>
+  <rect fill="#c4a882" x="70" y="55" width="10" height="12"/>
+</svg>

@@ -1,3 +1,33 @@
+## 2026-04-30 — AGS-Proxy-URLs in layers.php liefen auf maps-dev in falsche App-Roots
+- **Symptom**: Coalesce-Layer erzeugten auf DEV Proxy-Requests wie `/maps-dev//maps/tnet/agsproxy/...` bzw. zwischenzeitlich `/tnet/agsproxy/...` oder `/maps-dev/tnet/api/v1/tnet/agsproxy/...`, wodurch ArcGIS-Requests fehlschlugen.
+- **Root-Cause**: `tnet/api/v1/layers.php` setzte `serviceUrl` fuer Coalesce-Knoten noch mit hart codiertem `/maps/tnet/agsproxy/`. Beim ersten Fix war zusaetzlich `$appBasePath` in `enrichCoalesceWalk()` nicht im Scope; danach zeigte sich noch, dass die API-Root-Hilfe faelschlich das komplette Skriptverzeichnis statt nur `/maps` oder `/maps-dev` lieferte.
+- **Fix**: In `layers.php` eine app-root-basierte Aufloesung auf den ersten Pfadteil (`/maps` oder `/maps-dev`) eingebaut, `$appBasePath` in `enrichCoalesceWalk()` per `global` verfuegbar gemacht und die `serviceUrl` daraus erzeugt. DEV-Datei anschliessend gezielt nach `/www/maps-dev/tnet/api/v1/layers.php` hochgeladen und gegen den Live-JSON-Output verifiziert.
+- **Guardrail**: API-Endpunkte duerfen fuer Webpfade nie `dirname($_SERVER['SCRIPT_NAME'])` als App-Root missverstehen. Fuer Multi-App-Setups immer nur den ersten App-Pfadteil (`/maps`, `/maps-dev`) ableiten und in rekursiven Helfern explizit in den Scope holen.
+
+## 2026-04-30 — DEV-Upload uebersprang maps-dev-JS-Builds wegen hart verdrahteter maps-Pfade
+- **Symptom**: Nach lokalem Seed `maps -> maps-dev` blieb `/maps-dev/nw_oereb` serverseitig unvollstaendig; zentrale Assets wie `tnet-lyrmgr-patch.js`, `tnet-log.js`, `tnet-icons.js`, `tnet-mapcontrols.js` und `tnet-coalesce-bridge.js` liefen auf `/www/maps-dev` in 404.
+- **Root-Cause**: `_upload_changed.py` baut geaenderte `tnet/js-dev/*` Dateien vor dem Upload einzeln ueber `_build_js.py`. Das Build-Skript kannte aber nur die fest verdrahteten `maps/tnet/js-dev` und `maps/tnet/js` Wurzeln. Bei `maps-dev` wurde der Output dadurch auf den Inputpfad zurueckgerechnet und esbuild brach mit `Refusing to overwrite input file` ab.
+- **Fix**: `_build_js.py` auf pfadbasierte Root-Erkennung fuer `maps` und `maps-dev` umgestellt. Danach den DEV-Upload mit `--allow-config --reason ...` erneut ausgefuehrt; die zuvor fehlenden Build-Artefakte wurden erfolgreich nach `/www/maps-dev/tnet/js` hochgeladen und die 404s waren weg.
+- **Guardrail**: Build-/Deploy-Skripte fuer Einzeldateien duerfen `maps` und `maps-dev` nie ueber hart kodierte Output-Wurzeln unterscheiden. Die Zielwurzel muss immer aus dem uebergebenen Quellpfad abgeleitet werden.
+
+## 2026-04-30 — Remote-DEV kann trotz identischem Local-Tree auf altem Einstiegspunkt stehen
+- **Symptom**: `/maps-dev/nw_oereb` zeigte noch das alte Panel-Layout und lud zentrale Assets wie `tnet-log.js`, `tnet-mapcontrols.js`, `tnet-sidepanel.css` und `tnet-coalesce-bridge.js` nicht, obwohl lokal `maps/` und `maps-dev/` bereits denselben Stand hatten.
+- **Root-Cause**: Nicht der Local-Tree war auseinander, sondern der Remote-Stand unter `/www/maps-dev`. Dort lagen `index.php`, `public/index_de.htm` und `public/config/modules.js` noch in einer älteren Version, sodass DEV weiterhin den alten Einstiegspfad auslieferte.
+- **Fix**: Unterschied zuerst mit Local-Hashes und cache-busted Remote-Fetches getrennt verifiziert, danach die drei DEV-Einstiegsdateien gezielt per Active-File-Upload nach `/www/maps-dev` hochgeladen und die Route erneut gegen PROD validiert.
+- **Guardrail**: Bei DEV/PROD-Mismatch immer zuerst `lokal gleich?` und `remote gleich?` getrennt prüfen. Ein erfolgreiches Changed-Files-Deploy oder identische lokale Bäume beweisen nicht, dass der Remote-Einstiegspunkt schon synchron ist.
+
+## 2026-04-30 — maps-dev griff im Treebuilder und in JS-Modulen weiterhin auf prod-Pfade zu
+- **Symptom**: Trotz getrennter Deploy-Ziele landeten API-, Proxy-, Config- und Bookmark-Zugriffe in Teilen weiterhin unter `/maps` bzw. `/data/Client_Data/nwow` statt unter der aktiven App-Root.
+- **Root-Cause**: Die Trennung war zuerst nur im Deploy umgesetzt; mehrere Runtime-Module und `treebuilder-api.php` konstruierten Web- und Datenpfade weiterhin statisch für Produktion.
+- **Fix**: App-Root zentral aus `SCRIPT_NAME` bzw. `window.__TNET_APP_ROOT` abgeleitet und daraus Webroot-/Cookie-/Config-/Tmp-Pfade aufgebaut. In `treebuilder-api.php` zusätzlich einen zentralen `CLIENT_DATA_ROOT` und `toSftpPath()` eingeführt.
+- **Guardrail**: Bei Multi-Environment-Setups nie `'/maps'`, `'/www/maps'` oder `'/data/Client_Data/nwow'` direkt in Runtime-Code verdrahten. Immer erst App-Root und Daten-Root zentral auflösen und alle Folgepfade daraus ableiten.
+
+## 2026-04-30 — Directory-Index-Requests verloren den App-Root und luden /maps-Assets in /maps-dev
+- **Symptom**: Die DEV-Startseite unter `/maps-dev/` lief mit `window.__TNET_APP_ROOT = ''` an und zog CSS/JS weiter aus `/maps/tnet/...`, was Folgefehler wie `TnetLog is not defined` auslöste.
+- **Root-Cause**: Die Root-Erkennung in `index.php` leitete den App-Root nur aus `dirname($_SERVER['SCRIPT_NAME'])` ab. Bei Directory-Index-Requests kann dieser Wert leer bzw. `/` sein, obwohl der Request faktisch unter `/maps-dev/` läuft.
+- **Fix**: Fallback auf den ersten Pfadteil aus `REQUEST_URI` eingebaut und damit `/maps` bzw. `/maps-dev` robust auch ohne explizites `index.php` im Request erkannt. Die API-Discovery in `info.php` verwendet denselben Request-basierten App-Root.
+- **Guardrail**: Für Root-/App-Erkennung nie nur `SCRIPT_NAME` vertrauen. Bei Verzeichnis-Requests immer einen Fallback auf den Pfadanteil aus `REQUEST_URI` einbauen.
+
 Symptom: Im SLM-Staging war nur das ImportToCore-Kürzel als veraltet markiert, nicht aber die betroffenen raw-conf-Dienste links in der Quellenliste.
 Root-Cause: Die Re-Stage-Erkennung existierte nur auf Kürzel-Ebene; die Manifest-/Change-Daten wurden nicht auf die linke Dienstliste projiziert.
 Fix: Im linken Staging-Listing werden Dienste jetzt anhand der gecachten ImportToCore-Manifestdaten markiert und mit Re-Stage-Hinweis pro betroffenem Kürzel versehen.

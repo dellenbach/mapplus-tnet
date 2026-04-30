@@ -33,6 +33,32 @@ ESBUILD_EXE      = os.path.join(TOOLS_DIR, "esbuild.exe")
 JS_DEV_DIR       = os.path.normpath(r"c:\_Daten\mapplus-exp\maps\tnet\js-dev")
 JS_OUT_DIR       = os.path.normpath(r"c:\_Daten\mapplus-exp\maps\tnet\js")
 
+
+def resolve_js_roots(src_path=None):
+    """Passende js-dev/js Wurzeln fuer maps oder maps-dev bestimmen."""
+    if not src_path:
+        return JS_DEV_DIR, JS_OUT_DIR
+
+    norm_src = os.path.normpath(src_path)
+    js_dev_marker = os.path.normpath(os.path.join("tnet", "js-dev"))
+    js_out_marker = os.path.normpath(os.path.join("tnet", "js"))
+
+    if js_dev_marker in norm_src:
+        app_root = norm_src.split(js_dev_marker)[0].rstrip("\\/")
+        return (
+            os.path.join(app_root, "tnet", "js-dev"),
+            os.path.join(app_root, "tnet", "js"),
+        )
+
+    if js_out_marker in norm_src:
+        app_root = norm_src.split(js_out_marker)[0].rstrip("\\/")
+        return (
+            os.path.join(app_root, "tnet", "js-dev"),
+            os.path.join(app_root, "tnet", "js"),
+        )
+
+    return JS_DEV_DIR, JS_OUT_DIR
+
 # ===== ESBUILD SETUP =====
 
 def ensure_esbuild():
@@ -88,8 +114,9 @@ def build_file(src_path):
     Gibt (ok, bytes_vorher, bytes_nachher) zurück.
     """
     # Relativen Pfad ermitteln: js-dev/foo.js oder js-dev/mobile/foo.js
-    rel = os.path.relpath(src_path, JS_DEV_DIR)        # z.B. tnet-app.js oder mobile\tnet-toc-m.js
-    out_path = os.path.join(JS_OUT_DIR, rel)
+    js_dev_dir, js_out_dir = resolve_js_roots(src_path)
+    rel = os.path.relpath(src_path, js_dev_dir)        # z.B. tnet-app.js oder mobile\tnet-toc-m.js
+    out_path = os.path.join(js_out_dir, rel)
 
     # Ausgabe-Unterordner anlegen
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
@@ -136,8 +163,9 @@ def main():
     # Einzelne Datei oder Full-Build?
     if len(sys.argv) >= 2:
         src = os.path.normpath(sys.argv[1])
+        js_dev_dir, js_out_dir = resolve_js_roots(src)
         # Pfad darf auch aus js/ kommen → auf js-dev/ umleiten
-        src = src.replace(JS_OUT_DIR + os.sep, JS_DEV_DIR + os.sep)
+        src = src.replace(js_out_dir + os.sep, js_dev_dir + os.sep)
         if not os.path.isfile(src):
             print(f"✗ Datei nicht gefunden: {src}")
             sys.exit(1)

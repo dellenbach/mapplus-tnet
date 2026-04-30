@@ -1,0 +1,376 @@
+﻿/* ================================================================
+   tnet-print.css
+   Drucken Side-Panel + Druckrahmen (OL Overlay)
+
+   @version    1.0
+   @date       2026-02-12
+   @copyright  Trigonet AG
+   @author     Marco Dellenbach
+   ================================================================ */
+
+/* ==============================
+   Side-Panel
+   ============================== */
+.print-panel {
+  position: fixed;
+  top: 60px;
+  right: 0;
+  width: 340px;
+  max-width: 90vw;
+  height: calc(100vh - 60px);
+  background: white;
+  box-shadow: -4px 0 16px rgba(0,0,0,0.2);
+  z-index: 1002;
+  display: flex;
+  flex-direction: column;
+  font-family: 'Roboto Condensed', Arial, sans-serif;
+  font-size: 13px;
+}
+.print-panel.hidden { display: none !important; }
+
+/* Angedockter Modus */
+.print-panel.docked-right {
+  position: fixed !important;
+  right: 0 !important;
+  box-shadow: -2px 0 8px rgba(0,0,0,0.15);
+  border-left: 1px solid #ccc;
+  max-width: none;
+}
+
+.print-panel-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 14px; background: #4b7b81; color: white;
+  font-weight: 500; font-size: 14px; flex-shrink: 0;
+  min-height: 42px; box-sizing: border-box;
+}
+.print-panel-actions {
+  display: flex; align-items: center; gap: 4px;
+}
+.print-panel-btn {
+  background: transparent; border: none; color: white;
+  cursor: pointer; opacity: 0.8; padding: 2px 4px; line-height: 1;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 3px; transition: opacity 0.15s, background 0.15s;
+}
+.print-panel-btn:hover { opacity: 1; background: rgba(255,255,255,0.15); }
+.print-panel-close {
+  font-size: 22px; padding: 0 4px;
+}
+
+/* Resize-Handle (linker Rand im Dock-Modus) */
+.print-resize-handle {
+  position: absolute; left: 0; top: 0; bottom: 0; width: 6px;
+  cursor: ew-resize; z-index: 1003;
+  background: linear-gradient(to right, rgba(75,123,129,0.15), transparent);
+  display: none;
+}
+.print-panel.docked-right .print-resize-handle { display: block; }
+
+.print-panel-body { flex: 1; overflow-y: auto; padding: 12px 14px; }
+
+.print-section { margin-bottom: 14px; }
+.print-section > label {
+  display: block; font-size: 11px; color: #666;
+  margin-bottom: 3px; font-weight: 500;
+}
+.print-section select,
+.print-section input[type="text"],
+.print-section input[type="number"] {
+  width: 100%; padding: 6px 8px; border: 1px solid #bbb;
+  border-radius: 4px; font-size: 13px; box-sizing: border-box; font-family: inherit;
+}
+.print-section select:focus,
+.print-section input:focus { outline: none; border-color: #4b7b81; }
+
+/* ==============================
+   Massstab (Dropdown)
+   ============================== */
+#print-scale {
+  appearance: auto; cursor: pointer;
+}
+
+/* ==============================
+   Radio-Gruppen / Checkboxen
+   ============================== */
+/* Massstab + Auflösung in einer Zeile */
+.print-row-2col {
+  display: flex; gap: 12px; align-items: flex-start; margin-bottom: 14px;
+}
+.print-row-2col .print-section {
+  margin-bottom: 0; flex: 1;
+}
+.print-row-2col .print-section-dpi {
+  flex: 0 0 auto;
+}
+.print-row-2col .print-section select { width: 100%; }
+
+.print-radio-row { display: flex; gap: 14px; }
+.print-radio, .print-checks label {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 12px; color: #444; cursor: pointer; font-weight: 400;
+}
+.print-checks input[type="checkbox"],
+.print-radio input[type="radio"] { margin: 0; }
+.print-grid-colors { margin-top: 6px; display: flex; gap: 14px; padding-left: 4px; }
+
+/* ==============================
+   Rotation
+   ============================== */
+.print-rotation-row {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
+}
+.print-rotation-row input[type="range"] { flex: 1; }
+#print-rotation-val { font-size: 12px; color: #444; min-width: 36px; text-align: right; }
+
+/* Rahmen-Steuerung */
+.print-frame-info {
+  background: #f0f6f6; border: 1px solid #d0e0e0; border-radius: 6px; padding: 10px;
+}
+.print-frame-info > label { margin-bottom: 6px; }
+.print-frame-controls { display: flex; gap: 6px; }
+.print-ctrl-btn {
+  flex: 1; padding: 5px; background: white; border: 1px solid #bbb;
+  border-radius: 4px; font-size: 12px; cursor: pointer; font-family: inherit;
+}
+.print-ctrl-btn:hover { background: #e8f0f0; border-color: #4b7b81; }
+
+/* ==============================
+   Hinweis-Box
+   ============================== */
+.print-hint-box {
+  background: #fffce6; border: 1px solid #e8dfa0; border-radius: 4px;
+  padding: 8px 10px; font-size: 11px; color: #666; line-height: 1.4;
+}
+
+/* ==============================
+   Drucken-Button
+   ============================== */
+.print-action-btn {
+  width: 100%; padding: 10px 16px; background: #4b7b81; color: white;
+  border: none; border-radius: 6px; font-size: 15px; font-weight: 500;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  gap: 8px; transition: background 0.15s; font-family: inherit;
+}
+.print-action-btn:hover { background: #3a6268; }
+.print-action-btn:disabled { background: #999; cursor: not-allowed; }
+.print-action-btn.printing { background: #c0392b; }
+
+/* ==============================
+   Fortschrittsanzeige
+   ============================== */
+.print-progress-bar {
+  height: 6px; background: #e0e0e0; border-radius: 3px;
+  overflow: hidden; margin-bottom: 4px;
+}
+.print-progress-fill {
+  height: 100%; background: #4b7b81; border-radius: 3px;
+  width: 0%; transition: width 0.3s ease;
+}
+.print-progress-text { font-size: 11px; color: #666; }
+
+/* ==============================
+   PDF Aufträge (vereinigte Job-Liste)
+   ============================== */
+.print-jobs-list {
+  display: flex; flex-direction: column; gap: 4px; max-height: 400px;
+  overflow-y: auto;
+}
+.print-job {
+  border: 1px solid #ddd; border-radius: 4px; padding: 6px 8px;
+  background: #fafafa; font-size: 11px;
+}
+.pj-header {
+  display: flex; align-items: center; justify-content: space-between;
+}
+.pj-title {
+  font-weight: 500; color: #333;
+  flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap; font-size: 11px;
+}
+.pj-status {
+  font-size: 10px; color: #666; margin-left: 6px; white-space: nowrap;
+}
+.pj-meta {
+  font-size: 10px; color: #888; margin-top: 2px;
+}
+/* Status-Farben */
+.pj-pending { background: #fafafa; border-color: #ddd; }
+.pj-processing { background: #e3f2fd; border-color: #90caf9; }
+.pj-completed { background: #e8f5e9; border-color: #a5d6a7; }
+.pj-failed { background: #ffebee; border-color: #ef9a9a; }
+/* Fortschritt */
+.pj-progress {
+  margin-top: 4px; display: flex; align-items: center; gap: 6px;
+}
+.pj-progress-bar {
+  flex: 1; height: 4px; background: #e0e0e0; border-radius: 2px;
+  overflow: hidden;
+}
+.pj-progress-fill {
+  height: 100%; background: #4b7b81; border-radius: 2px;
+  width: 0%; transition: width 0.2s ease;
+}
+.pj-progress-text {
+  font-size: 10px; color: #666; min-width: 24px; text-align: right;
+}
+/* Fehler */
+.pj-error {
+  margin-top: 4px; padding: 4px 6px; background: #ffcdd2;
+  border: 1px solid #ef5350; border-radius: 3px; color: #c62828;
+  font-size: 10px; line-height: 1.3;
+}
+/* Aktionen (Download/Vorschau/Entfernen) */
+.pj-actions {
+  margin-top: 4px; display: flex; gap: 3px; align-items: center;
+}
+.pj-btn {
+  padding: 3px 8px; border: 1px solid #ccc; border-radius: 3px;
+  font-size: 11px; cursor: pointer; background: white; color: #555;
+  text-decoration: none; display: inline-flex; align-items: center;
+  justify-content: center; gap: 3px; line-height: 1.2;
+  font-family: inherit; transition: background 0.15s, border-color 0.15s;
+}
+.pj-btn:hover {
+  background: #e8f0f0; border-color: #4b7b81; color: #4b7b81;
+}
+.pj-btn-dl {
+  flex: 1; font-weight: 500; border-color: #4b7b81; color: #4b7b81;
+}
+.pj-btn-dl:hover {
+  background: #4b7b81; color: white;
+}
+.pj-btn-remove {
+  border: none; color: #999; font-size: 16px; padding: 2px 6px;
+}
+.pj-btn-remove:hover { color: #c0392b; background: transparent; border: none; }
+
+/* ==============================
+   Accordion (Vorschau + Downloads)
+   ============================== */
+.print-accordion {
+  border: 1px solid #ddd; border-radius: 6px;
+  margin-bottom: 10px; overflow: hidden;
+  background: #fafafa;
+}
+.print-acc-header {
+  display: flex; align-items: center; gap: 6px;
+  padding: 8px 12px; cursor: pointer;
+  font-size: 12px; font-weight: 600; color: #333;
+  background: #f0f0f0; user-select: none;
+  border-bottom: 1px solid transparent;
+  transition: background 0.15s;
+}
+.print-acc-header:hover { background: #e8f0f0; }
+.print-acc-arrow {
+  display: inline-block; font-size: 10px;
+  transition: transform 0.2s;
+}
+.print-accordion.is-open > .print-acc-header { border-bottom-color: #ddd; }
+.print-accordion.is-open > .print-acc-header .print-acc-arrow {
+  transform: rotate(90deg);
+}
+.print-acc-panel {
+  max-height: 0; overflow: hidden;
+  transition: max-height 0.25s ease;
+  padding: 0 10px;
+}
+.print-accordion.is-open > .print-acc-panel {
+  max-height: 1200px; padding: 10px;
+}
+
+/* ==============================
+   PDF-Vorschau (iframe im Accordion)
+   ============================== */
+.print-preview-frame {
+  width: 100%; height: 360px; border: 1px solid #ddd;
+  border-radius: 4px; background: #f0f0f0;
+}
+.print-jobs-list + .print-preview-frame {
+  margin-top: 10px;
+}
+
+/* (Job-Queue-Klassen entfernt – ersetzt durch .print-job / .pj-* oben) */
+
+/* ==============================
+   ============================== */
+.print-frame-rect {
+  border: 2px solid #555;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.3);
+  position: relative; box-sizing: content-box;
+  overflow: visible;
+  cursor: move;
+  user-select: none;
+}
+
+/* SVG-Template-Vorschau im Druckrahmen */
+.print-frame-svg-preview {
+  position: absolute;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* ==============================
+   Ecken-Handles (Drehen) + Mittelpunkt
+   ============================== */
+.print-corner-handle {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  background: #cc0000;
+  border: 2px solid #ffffff;
+  border-radius: 50%;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.5);
+  z-index: 10;
+  touch-action: none;
+}
+/* Cursor gibt Dreh-Richtungshinweis */
+.print-corner-nw { top: -7px; left: -7px;   cursor: crosshair; }
+.print-corner-ne { top: -7px; right: -7px;  cursor: crosshair; }
+.print-corner-sw { bottom: -7px; left: -7px;  cursor: crosshair; }
+.print-corner-se { bottom: -7px; right: -7px; cursor: crosshair; }
+
+/* Mittelpunkt-Marker (nur visuell) */
+.print-center-dot {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  background: #cc0000;
+  border: 2px solid #ffffff;
+  border-radius: 50%;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.5);
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 10;
+}
+
+/* ===== INLINE-MODUS: Print-Panel im Sidebar-Akkordeon ===== */
+.print-panel.print-panel-inline {
+  position: static !important;
+  width: 100% !important;
+  height: auto !important;
+  max-width: none !important;
+  box-shadow: none !important;
+  border: none !important;
+  z-index: auto !important;
+  display: flex !important;
+  flex-direction: column;
+}
+.print-panel.print-panel-inline.hidden {
+  display: flex !important; /* Im Inline-Modus nie per CSS verstecken */
+}
+.print-panel.print-panel-inline .print-panel-header {
+  display: none !important; /* Titelbar ausblenden — Akkordeon-Summary ist der Titel */
+}
+.print-panel.print-panel-inline .print-panel-body {
+  overflow-y: auto;
+  max-height: calc(100vh - 220px);
+  padding: 4px 8px;
+  flex: 1;
+}
+/* Resize-Handle ausblenden (kein Docking) */
+.print-panel.print-panel-inline .print-resize-handle {
+  display: none !important;
+}

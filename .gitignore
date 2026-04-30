@@ -13,6 +13,9 @@ test-results/*.xml
 
 # Zugangsdaten
 .htpasswd
+.env
+.env.*
+!.env.example
 
 # Core-Konfigurationsdateien (werden via Deploy-API verwaltet)
 core/
@@ -20,10 +23,16 @@ core/
 maps/core/
 maps/public/config/
 maps/public/guis/
+maps-dev/core/
+maps-dev/public/config/
+maps-dev/public/guis/
 
 # Build-Artefakte (minifizierte JS) — Quelle liegt in js-dev/
 maps/tnet/js/*.js
 maps/tnet/js/mobile/*.js
+maps-dev/tnet/js/*.js
+maps-dev/tnet/js/mobile/*.js
 
 # Lokaler Upload-State (mtime-Tracking)
 _scripts/deployment/upload_state.json
+_scripts/deployment/upload_state.*.json

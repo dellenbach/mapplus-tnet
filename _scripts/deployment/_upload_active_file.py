@@ -16,6 +16,7 @@ import sys
 import subprocess
 import argparse
 import paramiko
+from deploy_env import add_env_argument, ensure_local_base_exists, resolve_deploy_config
 
 BUILD_SCRIPT = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "_build_js.py"))
 
@@ -24,8 +25,8 @@ HOST = "nwow.mapplus.ch"
 PORT = 22
 USER = "trigonet"
 PASSWORD = "3Zs,k4%Un,<[W(Kx"
-REMOTE_BASE = "/www/maps"
-LOCAL_BASE = os.path.normpath(r"c:\_Daten\mapplus-exp\maps")
+REMOTE_BASE = ""
+LOCAL_BASE = ""
 
 # Konfigurationsdateien sind API/Git-only und duerfen NICHT versehentlich per FTP deployt werden.
 # Explizite Ausnahme nur via --allow-config --reason "...".
@@ -46,11 +47,19 @@ def is_protected_config(rel_path):
     return any(rel.startswith(prefix) for prefix in PROTECTED_PREFIXES)
 
 def main():
+    global LOCAL_BASE, REMOTE_BASE
+
     parser = argparse.ArgumentParser(description="Einzelne Datei per SFTP hochladen")
+    add_env_argument(parser)
     parser.add_argument("filepath", help="Pfad zur hochzuladenden Datei")
     parser.add_argument("--allow-config", action="store_true", help="Erlaubt Upload geschuetzter Config-Dateien")
     parser.add_argument("--reason", default="", help="Pflicht bei --allow-config: Grund/Referenz")
     args = parser.parse_args()
+
+    deploy_config = resolve_deploy_config(args.env)
+    LOCAL_BASE = os.path.normpath(deploy_config["local_base"])
+    REMOTE_BASE = deploy_config["remote_base"]
+    ensure_local_base_exists(LOCAL_BASE)
 
     if args.allow_config and not args.reason.strip():
         print("✗ --allow-config erfordert --reason \"...\"")
@@ -58,9 +67,9 @@ def main():
 
     filepath = os.path.normpath(args.filepath)
 
-    # Sicherheitscheck: nur Dateien unter maps/ erlauben
+    # Sicherheitscheck: nur Dateien unter dem aktiven Source-Tree erlauben
     if not filepath.lower().startswith(LOCAL_BASE.lower()):
-        print(f"✗ Abgelehnt: Datei liegt nicht unter maps/")
+        print("✗ Abgelehnt: Datei liegt nicht unter dem aktiven Source-Tree")
         print(f"  Pfad: {filepath}")
         print(f"  Erlaubt: {LOCAL_BASE}")
         sys.exit(1)
@@ -112,7 +121,7 @@ def main():
     remote_path = f"{REMOTE_BASE}/{rel_path}"
     size = os.path.getsize(filepath)
 
-    print(f"Upload: {rel_path}")
+    print(f"Upload ({deploy_config['env']}): {rel_path}")
     print(f"  Lokal:  {filepath}")
     print(f"  Remote: {remote_path}")
 

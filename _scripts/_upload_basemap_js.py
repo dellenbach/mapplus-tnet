@@ -1,15 +1,20 @@
 #!/usr/bin/env python3
 """Upload basemap JS consolidation files to SFTP server"""
 import os
+import sys
+import argparse
 import paramiko
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "deployment"))
+from deploy_env import add_env_argument, ensure_local_base_exists, resolve_deploy_config
 
 # SFTP Config
 HOST = "nwow.mapplus.ch"
 PORT = 22
 USER = "trigonet"
 PASSWORD = "3Zs,k4%Un,<[W(Kx"
-REMOTE_BASE = "/www/maps"
-LOCAL_BASE = r"c:\_Daten\mapplus-exp\maps"
+REMOTE_BASE = ""
+LOCAL_BASE = ""
 
 # Files to upload - Basemap Selector Fixes
 FILES = [
@@ -26,13 +31,40 @@ FILES = [
     "tnet/resources/preview-dufour.png",
 ]
 
-# Extra: basemaps.conf liegt unter core/, nicht maps/
-EXTRA_FILES = [
-    (r"c:\_Daten\mapplus-exp\core\config\basemaps.conf", "/www/core/config/basemaps.conf"),
-]
+WORKSPACE_ROOT = os.path.normpath(os.path.join(os.path.dirname(__file__), ".."))
+
+
+def get_extra_files(env_name, local_base):
+    """Liefert env-spezifische Zusatzdateien ausserhalb des normalen maps-Trees."""
+    if env_name == "prod":
+        return [
+            (
+                os.path.normpath(os.path.join(WORKSPACE_ROOT, "core", "config", "basemaps.conf")),
+                "/www/core/config/basemaps.conf",
+            ),
+        ]
+
+    dev_core_file = os.path.normpath(os.path.join(local_base, "core", "config", "basemaps.conf"))
+    return [
+        (
+            dev_core_file,
+            "/www/maps-dev/core/config/basemaps.conf",
+        ),
+    ]
 
 def upload_files():
-    print(f"Verbinde zu {HOST}...")
+    global LOCAL_BASE, REMOTE_BASE
+
+    parser = argparse.ArgumentParser(description="Basemap-Dateien fuer dev oder prod deployen")
+    add_env_argument(parser)
+    args = parser.parse_args()
+
+    deploy_config = resolve_deploy_config(args.env)
+    LOCAL_BASE = os.path.normpath(deploy_config["local_base"])
+    REMOTE_BASE = deploy_config["remote_base"]
+    ensure_local_base_exists(LOCAL_BASE)
+
+    print(f"Verbinde zu {HOST} ({deploy_config['env']} -> {REMOTE_BASE})...")
     
     ssh = paramiko.SSHClient()
     ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
@@ -62,9 +94,9 @@ def upload_files():
                 print(f"  ✗ {file_path} - Fehler: {e}")
                 skipped += 1
 
-        for local_file, remote_file in EXTRA_FILES:
+        for local_file, remote_file in get_extra_files(deploy_config["env"], LOCAL_BASE):
             if not os.path.exists(local_file):
-                print(f"  ⚠ {remote_file} (nicht gefunden)")
+                print(f"  ⚠ {remote_file} (lokale Quelle fehlt: {local_file})")
                 skipped += 1
                 continue
             try:

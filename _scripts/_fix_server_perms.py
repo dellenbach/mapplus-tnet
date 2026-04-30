@@ -1,18 +1,23 @@
 #!/usr/bin/env python3
 """Upload fixed files, check parent .htaccess, test cache + clean URLs"""
-import paramiko
 import os
+import sys
+import argparse
 import urllib.request
 import json
 import ssl
+import paramiko
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "deployment"))
+from deploy_env import add_env_argument, ensure_local_base_exists, resolve_deploy_config
 
 HOST = "nwow.mapplus.ch"
 PORT = 22
 USER = "trigonet"
 PASSWORD = "3Zs,k4%Un,<[W(Kx"
-REMOTE_BASE = "/www/maps"
-LOCAL_BASE = r"c:\_Daten\mapplus-exp\maps"
-BASE_URL = "https://www.gis-daten.ch/maps/tnet/api"
+REMOTE_BASE = ""
+LOCAL_BASE = ""
+BASE_URL = ""
 
 def sftp_connect():
     ssh = paramiko.SSHClient()
@@ -33,8 +38,20 @@ def http_get(path):
         return 0, str(e)
 
 def main():
+    global REMOTE_BASE, LOCAL_BASE, BASE_URL
+
+    parser = argparse.ArgumentParser(description="Server-Permissions und API fuer dev oder prod pruefen")
+    add_env_argument(parser)
+    args = parser.parse_args()
+
+    deploy_config = resolve_deploy_config(args.env)
+    LOCAL_BASE = os.path.normpath(deploy_config["local_base"])
+    REMOTE_BASE = deploy_config["remote_base"]
+    BASE_URL = f"https://www.gis-daten.ch/{os.path.basename(REMOTE_BASE)}/tnet/api"
+    ensure_local_base_exists(LOCAL_BASE)
+
     # 1. Upload fixed JsonCache.php
-    print("=== Upload ===")
+    print(f"=== Upload ({deploy_config['env']}) ===")
     ssh, sftp = sftp_connect()
     
     files = [
@@ -49,7 +66,7 @@ def main():
     # 2. Download parent .htaccess
     print("\n=== Parent .htaccess ===")
     try:
-        with sftp.open("/www/maps/.htaccess", "r") as f:
+        with sftp.open(f"{REMOTE_BASE}/.htaccess", "r") as f:
             content = f.read().decode()
             print(content)
     except Exception as e:

@@ -33,6 +33,10 @@
   // Debounce-Timer für Coalesce LAYERS-Param-Updates
   var _coalesceDebounceTimers = {};  // { groupId: timerHandle }
 
+  function getAppRoot() {
+    return window.__TNET_APP_ROOT || '/maps';
+  }
+
   var LMStore = {
 
     // ============================================================
@@ -69,7 +73,7 @@
      */
     _loadLyrmgrFromFile: function (group) {
       var self = this;
-      var apiUrl = _config.apiUrl || '/maps/tnet/api/v1/layers.php';
+      var apiUrl = _config.apiUrl || (getAppRoot() + '/tnet/api/v1/layers.php');
       var url = apiUrl + '?source=file&group=' + encodeURIComponent(group);
       if (_config.cache === false) url += '&nocache=1';
 
@@ -126,7 +130,7 @@
      */
     _loadLyrmgrFromApi: function (group) {
       var self = this;
-      var url = _config.apiUrl || '/maps/tnet/api/v1/layers.php';
+      var url = _config.apiUrl || (getAppRoot() + '/tnet/api/v1/layers.php');
       url += (url.indexOf('?') > -1 ? '&' : '?') + 'group=' + encodeURIComponent(group);
       if (_config.cache === false) url += '&nocache=1';
 
@@ -1957,8 +1961,8 @@
         var map = am.Maps['main'].mapObj;
         var serviceUrl = info.serviceUrl;
         // Proxy-Prefix sicherstellen
-        if (serviceUrl.indexOf('/maps/') !== 0 && serviceUrl.indexOf('http') !== 0) {
-          serviceUrl = '/maps/' + serviceUrl;
+        if (serviceUrl.indexOf(getAppRoot() + '/') !== 0 && serviceUrl.indexOf('http') !== 0) {
+          serviceUrl = getAppRoot() + '/' + serviceUrl;
         }
 
         var activeSublayers = {};

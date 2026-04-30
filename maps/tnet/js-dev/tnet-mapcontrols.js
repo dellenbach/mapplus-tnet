@@ -14,7 +14,11 @@
 (function () {
   'use strict';
 
-  var CONFIG_PATH = '/maps/tnet/config/tnet-mapcontrols-config.json5';
+  function getAppRoot() {
+    return window.__TNET_APP_ROOT || '/maps';
+  }
+
+  var CONFIG_PATH = getAppRoot() + '/tnet/config/tnet-mapcontrols-config.json5';
 
   // ===== SVG ICON DEFINITIONEN =====
   var ICONS = {

@@ -11,6 +11,10 @@
 
 import { waitForMap, getMainMap } from './tnet-utils.js';
 
+function getAppRoot() {
+    return window.__TNET_APP_ROOT || '/maps';
+}
+
 // ===== POLYGON-ZEICHNEN UND RÄUMLICHE ABFRAGE =====
 // Globale Variable um Zeichenmodus zu tracken
 window.isPolygonDrawing = false;
@@ -59,9 +63,10 @@ var spatialQueryConfigPromise = null;
             return Promise.resolve(spatialQueryConfig);
         }
 
+        var appRoot = window.__TNET_APP_ROOT || '/maps';
         var paths = [
-            '/maps/tnet/config/tnet-global-config.json5',
-            '/maps/tnet/tnet-global-config.json5',
+            appRoot + '/tnet/config/tnet-global-config.json5',
+            appRoot + '/tnet/tnet-global-config.json5',
             '../tnet/config/tnet-global-config.json5'
         ];
 
@@ -1411,7 +1416,7 @@ var spatialQueryConfigPromise = null;
                     outSR: '2056'
                 });
                 
-                var proxyUrl = '/maps/agsproxy.php?' + encodeURIComponent(queryUrl + '?' + params.toString());
+                var proxyUrl = getAppRoot() + '/agsproxy.php?' + encodeURIComponent(queryUrl + '?' + params.toString());
                 
                 // console.log('Proxy Query URL für Layer "' + layer.name + '":', proxyUrl);
                 

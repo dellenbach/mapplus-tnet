@@ -1,0 +1,112 @@
+/*
+ * inframe-maps.css
+ * External CSS for inframe maps (served via proxy)
+ *
+ * @version    1.0
+ * @date       2026-02-12
+ * @copyright  Trigonet AG
+ * @author     Marco Dellenbach
+ */
+/* Ziel: aktive Sidebar-Navigation nach vorn (höherer z-index) */
+
+/* Disable transitions and animations for performance */
+* {
+	transition: none !important;
+	animation: none !important;
+}
+
+/* Header - sticky at top */
+.cdt-frontpage-maps-header {
+	position: sticky !important;
+	top: 0 !important;
+	z-index: 1000 !important;
+	background: white !important;
+}
+
+/* Sidebar - HIDDEN by default to keep buttons accessible */
+.cdt-frontpage-maps-sidebar {
+	position: sticky !important;
+	top: 0 !important;
+	align-self: flex-start !important;
+	max-height: 100vh !important;
+	overflow-y: auto !important;
+	z-index: 1500 !important;
+	display: none !important;
+	pointer-events: none !important;
+}
+
+/* Active navigation - highest z-index */
+body > div > main > article > div > div > div.cdt-frontpage-maps-wrapper > div.cdt-frontpage-maps-sidebar > div.cdt-frontpage-maps-sidebar-nav.cdt-frontpage-maps-sidebar-nav-active {
+	position: absolute !important;
+	z-index: 2000 !important;
+	top: 0 !important;
+	left: 0 !important;
+	right: 0 !important;
+}
+
+/* Hide header and main divs that are not needed */
+body > div > header,
+body > div > main > div {
+	display: none !important;
+	position: absolute !important;
+	top: 0 !important;
+	left: 0 !important;
+	width: 0 !important;
+	height: 0 !important;
+	max-width: 0 !important;
+	max-height: 0 !important;
+	margin: 0 !important;
+	padding: 0 !important;
+	border: 0 !important;
+	overflow: hidden !important;
+	visibility: hidden !important;
+	pointer-events: none !important;
+}
+
+/* Adjust main padding for active map page */
+.home.cdt-front-page-active-map main {
+	padding-top: 0 !important;
+}
+
+/* Header buttons container - visible and clickable */
+body > div > main > article > div > div > div.cdt-frontpage-maps-wrapper > div.cdt-frontpage-maps-content > div.cdt-frontpage-maps-header > div.cdt-frontpage-maps-header-buttons {
+	padding-top: 15px !important;
+	position: relative !important;
+	z-index: 3000 !important;
+	pointer-events: auto !important;
+	visibility: visible !important;
+	display: flex !important;
+}
+
+/* Header buttons - individual buttons clickable */
+body > div > main > article > div > div > div.cdt-frontpage-maps-wrapper > div.cdt-frontpage-maps-content > div.cdt-frontpage-maps-header > div.cdt-frontpage-maps-header-buttons button {
+	position: relative !important;
+	z-index: 3001 !important;
+	pointer-events: auto !important;
+	cursor: pointer !important;
+	visibility: visible !important;
+}
+
+/* Hide original header content but keep layout */
+body > div > main > article > div > div > div.cdt-frontpage-maps-wrapper > div.cdt-frontpage-maps-content > div.cdt-frontpage-maps-header > div.cdt-frontpage-maps-header-content {
+	display: block !important;
+	visibility: hidden !important;
+	pointer-events: none !important;
+}
+
+/* Map lists spacing */
+body > div > main > article > div > div > div.cdt-frontpage-maps-wrapper > div.cdt-frontpage-maps-content > div.cdt-frontpage-maps-maplists {
+	padding-top: 20px !important;
+}
+
+/* Überlagernde Elemente entfernen die Buttons blockieren könnten */
+.overlay, .modal-backdrop, .spinner-overlay {
+	pointer-events: none !important;
+	opacity: 0 !important;
+	z-index: -1 !important;
+}
+
+/* Ensure article is clickable */
+main > article {
+	pointer-events: auto !important;
+}

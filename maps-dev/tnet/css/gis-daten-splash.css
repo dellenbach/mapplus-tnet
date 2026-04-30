@@ -1,0 +1,131 @@
+/**
+ * gis-daten-splash.css
+ * GIS Daten AG – Splash Screen Cube Styles
+ *
+ * Drehender 3D-Cube auf dem Splash Screen (positioniert auf dem "I" im GIS-Logo).
+ * Enthält Rotation, Farbgebung und frontcolor-Animation (Flächen blitzen weiß auf).
+ *
+ * @version    1.0
+ * @date       2026-02-13
+ * @copyright  GIS Daten AG
+ * @author     Marco Dellenbach
+ */
+
+/* ===== CSS-VARIABLEN ===== */
+:root {
+    --cube-size: 30px;
+    --cube-half: calc(var(--cube-size) / 2);
+    --cube-speed: 1s;
+}
+
+/* ===== CUBE CONTAINER ===== */
+/* Drehender Cube auf dem I von GIS – ausserhalb #splash-logo damit filter:invert nicht greift */
+#splash-cube-container {
+    width: var(--cube-size);
+    height: var(--cube-size);
+    -webkit-perspective: 300px;
+    -moz-perspective: 300px;
+    perspective: 300px;
+    margin-top: -11.5em;
+}
+
+/* ===== CUBE ===== */
+#splash-cube {
+    width: 100%;
+    height: 100%;
+    position: relative;
+    -webkit-transform-style: preserve-3d;
+    -moz-transform-style: preserve-3d;
+    transform-style: preserve-3d;
+    -webkit-animation: splashRotate var(--cube-speed) infinite;
+    -moz-animation: splashRotate var(--cube-speed) infinite;
+    animation: splashRotate var(--cube-speed) infinite;
+    animation-timing-function: linear;
+}
+
+/* ===== CUBE FACES (Basis) ===== */
+#splash-cube .cube-face {
+    width: var(--cube-size);
+    height: var(--cube-size);
+    display: block;
+    position: absolute;
+    border: none;
+    line-height: var(--cube-size);
+}
+
+/* ===== FARBEN ===== */
+#splash-cube .cube-face.cube-back,
+#splash-cube .cube-face.cube-right,
+#splash-cube .cube-face.cube-left,
+#splash-cube .cube-face.cube-front,
+#splash-cube .cube-face.cube-bottom {
+    background: hsl(357deg 64% 51%);
+}
+
+#splash-cube .cube-face.cube-top {
+    background: hsl(11deg 73% 72%);
+}
+
+/* ===== FRONTCOLOR-ANIMATION (Flächen blitzen weiß auf) ===== */
+#splash-cube .cube-face.cube-front,
+#splash-cube .cube-face.cube-bottom,
+#splash-cube .cube-face.cube-left {
+    -webkit-animation: splashFrontColor var(--cube-speed) infinite;
+    animation: splashFrontColor var(--cube-speed) infinite;
+    transition: all 500ms cubic-bezier(0.550, 0.055, 0.675, 0.190);
+    transition-timing-function: cubic-bezier(0.550, 0.055, 0.675, 0.190);
+}
+
+@-webkit-keyframes splashFrontColor {
+    0%   { background: hsl(357deg 64% 51%); }
+    60%  { background: white; }
+    100% { background: white; }
+}
+@keyframes splashFrontColor {
+    0%   { background: hsl(357deg 64% 51%); }
+    60%  { background: white; }
+    100% { background: white; }
+}
+
+/* ===== FACE TRANSFORMS ===== */
+#splash-cube .cube-face.cube-front {
+    -webkit-transform: rotateY(0deg) translateZ(var(--cube-half));
+    -moz-transform: rotateY(0deg) translateZ(var(--cube-half));
+    transform: rotateY(0deg) translateZ(var(--cube-half));
+}
+#splash-cube .cube-face.cube-back {
+    -webkit-transform: rotateX(180deg) translateZ(var(--cube-half));
+    -moz-transform: rotateX(180deg) translateZ(var(--cube-half));
+    transform: rotateX(180deg) translateZ(var(--cube-half));
+}
+#splash-cube .cube-face.cube-right {
+    -webkit-transform: rotateY(90deg) translateZ(var(--cube-half));
+    -moz-transform: rotateY(90deg) translateZ(var(--cube-half));
+    transform: rotateY(90deg) translateZ(var(--cube-half));
+}
+#splash-cube .cube-face.cube-left {
+    -webkit-transform: rotateY(-90deg) translateZ(var(--cube-half));
+    -moz-transform: rotateY(-90deg) translateZ(var(--cube-half));
+    transform: rotateY(-90deg) translateZ(var(--cube-half));
+}
+#splash-cube .cube-face.cube-top {
+    -webkit-transform: rotateX(90deg) translateZ(var(--cube-half));
+    -moz-transform: rotateX(90deg) translateZ(var(--cube-half));
+    transform: rotateX(90deg) translateZ(var(--cube-half));
+}
+#splash-cube .cube-face.cube-bottom {
+    -webkit-transform: rotateX(-90deg) translateZ(var(--cube-half));
+    -moz-transform: rotateX(-90deg) translateZ(var(--cube-half));
+    transform: rotateX(-90deg) translateZ(var(--cube-half));
+}
+
+/* ===== ROTATION KEYFRAMES ===== */
+@-webkit-keyframes splashRotate {
+    0%   { -webkit-transform: rotateX(-22deg) rotateY(0deg) rotateZ(0deg); }
+    100% { -webkit-transform: rotateX(-22deg) rotateY(-90deg) rotateZ(0deg); }
+}
+@keyframes splashRotate {
+    0%   { transform: rotateX(-22deg) rotateY(0deg) rotateZ(0deg); }
+    100% { transform: rotateX(-22deg) rotateY(-90deg) rotateZ(0deg); }
+}
+

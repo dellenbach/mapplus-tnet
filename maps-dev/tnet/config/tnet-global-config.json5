@@ -1,0 +1,553 @@
+//
+// tnet-global-config.json5
+// Zentrale Konfiguration für TNET MapPlus Erweiterungen
+// JSON5 Format: Kommentare, trailing commas, unquoted keys erlaubt
+//
+// @version    1.0
+// @date       2026-02-12
+// @copyright  Trigonet AG
+// @author     Marco Dellenbach
+//
+{
+  // Log-Level für Konsolenausgaben (gilt für alle Module):
+  // 'none' = aus | 'error' = nur Fehler | 'warn' = + Warnungen | 'info' = + Info | 'debug' = alles
+  logLevel: 'debug',
+
+  // Vordefinierte Kartenmassstäbe (für Footer-Dropdown + Druck-Panel)
+  scales: [100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 75000, 100000, 250000, 500000, 1000000],
+
+  // ============================================================
+  // 3D LANDSCAPE / SPLITSCREEN
+  // ============================================================
+  "3d-landscape": {
+    // WebScene ID vom ESRI Portal (NICHT die App-ID!)
+    // App: 4fb284b0495643de8bc05c8792706d78 → WebScene: cad01fff18f44a0787e544be0e48339f
+    defaultWebSceneId: "cad01fff18f44a0787e544be0e48339f",
+    
+    // Alternative Szenen für schnellen Wechsel
+    availableScenes: [
+      {
+        name: "3D Nidwalden / Obwalden",
+        id: "cad01fff18f44a0787e544be0e48339f",
+      },
+      {
+        name: "Terrain + Topo (ohne WebScene)",
+        id: "__terrain__",
+      },
+      {
+        name: "Swiss Mountain Summits",
+        id: "ac98048566114b83807f8e0aec9332a4",
+      },
+    ],
+    
+    // 3D SceneView Einstellungen
+    sceneViewOptions: {
+      qualityProfile: 'high',  // 'low', 'medium', 'high'
+      ui: {
+        components: ['zoom', 'compass', 'attribution'],
+      },
+      environment: {
+        lighting: {
+          type: 'sun',  // 'virtual', 'sun', 'none'
+          directShadowsEnabled: true,
+          ambientOcclusionEnabled: true,
+        },
+        atmosphere: {
+          quality: 'high',
+        },
+      },
+    },
+    
+    // Split-Screen Layout
+    layout: {
+      defaultDividerPosition: 50,  // Prozent (0-100)
+      minPanelWidth: 20,            // Minimale Panelbreite in %
+      maxPanelWidth: 80,            // Maximale Panelbreite in %
+    },
+    
+    // Kamera-Synchronisation zwischen 2D und 3D
+    synchronization: {
+      enabledByDefault: true,       // Sync standardmäßig aktiv
+      syncDelay: 100,               // Verzögerung in ms
+      sourceProjection: "EPSG:2056", // LV95 (Schweizer Koordinatensystem)
+      
+      // Massstab → Kamerahöhe Lookup-Tabelle
+      // Bei 2D-Pan wird die Kamerahöhe NICHT geändert, nur die Position.
+      // Bei 2D-Zoom wird der 2D-Massstab in eine 3D-Kamerahöhe umgerechnet.
+      scaleToCameraHeight: [
+        { scale:    100, height:    10 },
+        { scale:    250, height:    25 },
+        { scale:    500, height:    50 },
+        { scale:   1000, height:   100 },
+        { scale:   2500, height:   250 },
+        { scale:   5000, height:   500 },
+        { scale:  10000, height:  800 },
+        { scale:  25000, height:  1000 },
+        { scale:  50000, height:  1500 },
+        { scale:  75000, height:  2000 },
+        { scale: 100000, height: 3000 },
+        { scale: 250000, height: 4000 },
+        { scale: 500000, height: 5000 },
+        { scale: 750000, height: 7500 },
+        { scale: 1000000, height: 10000 },
+      ],
+    },
+    
+    // GeoAdmin API für Höhenabfragen
+    geoAdmin: {
+      heightApiUrl: "https://api3.geo.admin.ch/rest/services/height",
+      heightApiTimeout: 3000,       // Timeout in ms
+      coordinateSystem: "2056",     // LV95
+    },
+    
+    // Kamera & Terrain
+    camera: {
+      terrainHeightOffset: 100,     // Kamerahöhe über Terrain (m)
+      fallbackTerrainHeight: 500,   // Fallback wenn API fehlschlägt (m ü.M.)
+      defaultHeading: 0,            // Ausrichtung (0 = Nord)
+      defaultTilt: 60,              // Neigung (0 = senkrecht nach unten, 90 = horizontal)
+      defaultFov: 55,               // Field of View (Grad)
+    },
+    
+    // Highlight-Styling (Hervorhebung bei Klick/Hover auf Abfrage-Ergebnisse)
+    highlight: {
+      point: {
+        color: [0, 255, 0, 0.7],             // Giftgrün, 70% deckend
+        size: 14,
+        outlineColor: [0, 220, 0, 1],
+        outlineWidth: 3,
+      },
+      line: {
+        color: [0, 220, 0, 1],               // Giftgrün, voll deckend
+        width: 4,
+      },
+      fill: {
+        color: [0, 255, 0, 0.55],            // Giftgrün, 55% deckend
+        outlineColor: [0, 220, 0, 1],        // Giftgrüner Rand, deckend
+        outlineWidth: 4,
+      },
+    },
+    
+    // Frustum (Sichtfeld-Indikator in 2D-Karte)
+    frustum: {
+      // Styling
+      style: {
+        fillColor: "rgba(0, 120, 255, 0.15)",      // Füllung (wird nicht mehr verwendet)
+        strokeColor: "rgba(0, 120, 255, 0.75)",    // Umrandung
+        strokeWidth: 3,
+        sideLineColor: "rgba(0, 120, 255, 0.8)",   // Schenkel-Farbe
+        sideLineWidth: 5,                           // Schenkel-Breite
+        farEdgeColor: "rgba(0, 120, 255, 0.6)",    // Ferne Kante (wird nicht mehr verwendet)
+        farEdgeWidth: 4,
+        cameraMarkerRadius: 10,                     // Radius Kamera-Punkt
+        cameraMarkerFill: "rgba(0, 120, 255, 0.95)",
+        cameraMarkerStroke: "white",
+        cameraMarkerStrokeWidth: 3,
+        cornerRadius: 7,                            // Radius Eck-Griffe
+        cornerFill: "rgba(255, 255, 255, 0.95)",
+        cornerStroke: "rgba(220, 50, 50, 0.9)",
+        cornerStrokeWidth: 2.5,
+      },
+      
+      // Geometrie
+      geometry: {
+        maxVisibleDistance: 30,    // Max. Sichtweite = altitude × dieser Faktor
+        minVisibleDistance: 500,   // Mindest-Sichtweite (m)
+        hitTolerance: 10,          // Pixel-Toleranz für Klick-Erkennung
+      },
+      
+      zIndex: 9999,                // Layer z-Index (sehr hoch = immer oben)
+    },
+  },
+  
+  // ============================================================
+  // SIDEPANEL / ACCORDION
+  // ============================================================
+  sidepanel: {
+    _description: "Sidepanel-Accordion Konfiguration (Höhen, Verhalten)",
+
+    // Exklusiv-Modus: nur ein Panel gleichzeitig offen
+    // (Ausnahme: Navigieren bleibt immer zusätzlich öffenbar)
+    exclusiveAccordion: true,
+
+    // Standard-Höhen für Accordion-Panels (px, nur beim allerersten Besuch;
+    // danach überschreibt der vom Benutzer gezogene Wert aus localStorage)
+    panels: {
+      tp_overview_menu:   { defaultHeight: 700, minHeight: 250 },
+      tp_sort_menu:       { defaultHeight: 500, minHeight: 250 },
+      tp_tools_menu:      { defaultHeight: 500, minHeight: 500 },
+      tp_tnet_print_menu: { defaultHeight: 600, minHeight: 500 },
+    },
+  },
+
+  // ============================================================
+  // 2D SPLITSCREEN (LAYER-VERGLEICH)
+  // ============================================================
+  splitscreen: {
+    _description: "2D Splitscreen / Layer-Vergleich Konfiguration",
+    enabled: true,
+    defaultDividerPosition: 50,
+  },
+  
+  // ============================================================
+  // LAYER CATALOG
+  // ============================================================
+  layerCatalog: {
+    _description: "Layer Catalog Konfiguration",
+    enabled: true,
+    searchEnabled: true,
+    maxResults: 50,
+  },
+
+  // ============================================================
+  // LAYER MANAGER (NEU – eigener Themenkatalog + Dargestellte Themen)
+  // ============================================================
+  layerManager: {
+    _description: "Eigener Layer-Manager als Ersatz für den Dojo-basierten TOC",
+
+    // Feature-Flag: neues Active-Panel (Dargestellte Themen) verwenden?
+    // true = neues Drag&Drop-Panel | false = Legacy njs_main_lyrsorter_wrapper
+    useNewActivePanel: true,
+
+    // Feature-Flag: neuen Themenkatalog-Baum verwenden?
+    // true = TNET-Tree mit Wappen-Tabs + Suche | false = Legacy Dojo-Baum (kantons_container)
+    // HINWEIS: Legacy-Tree bleibt im Hintergrund geladen (Parallel-Betrieb),
+    // damit Feature-Edit-Tools und andere Werkzeuge weiterhin funktionieren.
+    useNewTree: true,
+
+    // Feature-Flag: Legacy-WMS-TitlePane (#tp_wms_menu) ausblenden?
+    // true = versteckt (neues WMS-Panel im Hamburger-Menü aktiv)
+    // false = Legacy WMS-TitlePane in Sidebar sichtbar
+    useNewWmsPanel: true,
+
+    // ===== DATENQUELLE FÜR DEN LYRMGR (Themenkatalog-Hierarchie) =====
+    // Betrifft NUR die lyrmgr.conf (Baumstruktur / Kategorien / Layer-Zuordnung).
+    // Layer-Details (URL, Typ, WMS-Params, Legenden) kommen IMMER aus der DB/API.
+    //
+    // 'api' = LyrMgr-Hierarchie + Layer-Details komplett aus API (DB-basiert, bisheriges Verhalten)
+    // 'file' = LyrMgr-Hierarchie direkt aus lyrmgr.conf lesen (via API ?source=file),
+    //          Layer-Details werden separat aus der DB nachgeladen.
+    //          Kein DB-Import nötig nach Conf-Änderung → schnellerer Turnaround.
+    lyrmgrSource: 'file',
+
+    // API-Endpoint für Layer-Katalog (Hierarchie + Details)
+    apiUrl: '/maps/tnet/api/v1/layers.php',
+    // Legacy Dojo-LayerManager: zusätzliche Hierarchiestufen optisch hervorheben?
+    // true = dunkler→heller Verlauf + Einrückung für data-lyrmgr-depth
+    // false = keine speziellen Nested-Hierarchie-CSS-Regeln
+    useLegacyNestedHierarchyStyle: true,
+    // Coalesce-Framework-Bridge aktivieren (MapTip, URL-State, Dojo-Sync)
+    // MUSS aktiv sein, damit Maptips für Coalesce-Layer funktionieren
+    coalesceFrameworkBridge: true,
+    // Debounce-Verzögerung (ms) beim schnellen Aktivieren mehrerer Sublayer
+    coalesceDebounceMs: 80,
+    // Debug-Modus (erweiterte Console-Ausgabe)
+    debug: true,
+
+    // ===== SERVER-CACHE =====
+    // Steuert den serverseitigen JSON-Cache für API-Responses (layers.php).
+    // Der Cache speichert aufwendig generierte Katalog-JSONs und invalidiert
+    // automatisch wenn sich Quell-Configs (lyrmgr.conf, mapping) ändern.
+    //
+    // true  = Cache nutzen (Standard, empfohlen für Produktion)
+    // false = Cache umgehen (nützlich bei Entwicklung / nach Conf-Änderungen)
+    //
+    // Cache manuell leeren:
+    //   POST https://www.gis-daten.ch/maps/tnet/api/v1/cache.php?action=clear
+    //   Cache-Status: GET https://www.gis-daten.ch/maps/tnet/api/v1/cache.php
+    cache: true,
+  },
+
+  // ============================================================
+  // WMS-PANEL (Externe Kartendienste)
+  // ============================================================
+  wmsPanel: {
+    _description: "Konfiguration für das WMS-Panel (Externe Kartendienste)",
+    // Vordefinierte WMS-Dienste im Dropdown
+    presets: [
+      { name: 'Swisstopo WMS',        url: 'https://wms.geo.admin.ch/?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetCapabilities' },
+      { name: 'Kt. Nidwalden',         url: 'https://www.gis-daten.ch/wms/nw/service?REQUEST=GetCapabilities&SERVICE=WMS' },
+      { name: 'Kt. Obwalden',          url: 'https://www.gis-daten.ch/wms/ow/service?REQUEST=GetCapabilities&SERVICE=WMS' },
+      { name: 'Kt. Uri',              url: 'https://geo.ur.ch/wms?request=getCapabilities' },
+      { name: 'Geodienste AV',        url: 'https://geodienste.ch/db/av_0/deu?SERVICE=WMS&REQUEST=GetCapabilities' },
+    ],
+  },
+
+  // ============================================================
+  // SUCHE
+  // ============================================================
+  search: {
+    _description: "Such-Konfiguration: Standard MapPlus/TYDAC-Suche vs. TNET-Suche",
+    // Standard MapPlus/TYDAC-Suche (njs search.js) ein-/ausblenden
+    // false = deaktiviert (Suchfeld wird versteckt)
+    njsSearchEnabled: false,
+    // TNET-Suche (tnet-search.js / search-proxy.php) ein-/ausblenden
+    tnetSearchEnabled: true,
+
+    // ---- Resultat-Limits pro Kategorie ----
+    // Maximale Anzahl Adress-Resultate in der Ergebnisliste
+    maxAddresses: 10,
+    // Maximale Anzahl Orts-/Strassen-Resultate
+    maxLocations: 10,
+    // Maximale Anzahl Themen-Resultate
+    maxLayers: 10,
+
+    // ---- Zoom-Stufen (Swisstopo TileGrid, 29 Stufen, Zoom 0-28) ----
+    // Zoom-Werte sind basemap-abhängig weil das Orthophoto höhere
+    // Zoom-Level unterstützt als Plan/Basisplan.
+    //
+    // Referenz: Swisstopo-Resolutions
+    //   Zoom 15 = 500m/px   (~1:1'800'000)
+    //   Zoom 18 = 50m/px    (~1:180'000)
+    //   Zoom 20 = 10m/px    (~1:36'000)
+    //   Zoom 22 = 2.5m/px   (~1:9'000)
+    //   Zoom 23 = 2.0m/px   (~1:7'200)
+    //   Zoom 24 = 1.5m/px   (~1:5'400)
+    //   Zoom 25 = 1.0m/px   (~1:3'600)
+    //   Zoom 26 = 0.5m/px   (~1:1'800)
+    //   Zoom 27 = 0.25m/px  (~1:900)
+    //   Zoom 28 = 0.1m/px   (~1:360)
+    zoom: {
+      // Orthophoto (swissimage): höhere Zoom-Level verfügbar
+      orthophoto: {
+        point: 27,        // Punkt-Geometrie / Adresse
+        fitMax: 27,       // Flächen-Geometrie: maximaler Zoom bei view.fit()
+        fitMin: 16,       // Flächen-Geometrie: minimaler Zoom bei view.fit()
+        panDefault: 27,   // Standard-Zoom bei panToResult() (Geocoder)
+      },
+      // Plan / Basisplan / andere Basemaps
+      other: {
+        point: 26,
+        fitMax: 26,
+        fitMin: 15,
+        panDefault: 26,
+      },
+    },
+  },
+
+  // ============================================================
+  // ÖREB KATASTER
+  // ============================================================
+  oereb: {
+    _description: "ÖREB Kataster Integration",
+    enabled: true,
+    apiUrl: "https://api.geo.admin.ch/rest/services/api/MapServer",
+    // Basemap-abhängiger maxZoom für Parzellen-Fit
+    maxZoomOrthophoto: 23,
+    maxZoomOther: 18,
+    timeout: 5000,
+  },
+  
+  // ============================================================
+  // SPATIAL QUERY
+  // ============================================================
+  spatialQuery: {
+    _description: "Räumliche Abfragen",
+    enabled: true,
+    maxVisibleColumns: 10,  // Initial sichtbare Spalten (Rest via "Mehr")
+    
+    // Massstabsabhängiger Abfrage-Buffer (für Punkt-/Linienobjekte)
+    // buffer = resolution(m/px) * tolerancePixels, gedeckelt auf [minBuffer, maxBuffer]
+    tolerancePixels: 10,    // Pixel-Toleranz → bestimmt Buffer-Grösse
+    minBuffer: 1.0,         // Minimaler Buffer in Metern
+    maxBuffer: 50.0,        // Maximaler Buffer in Metern
+    
+    globalBlacklist: [      // Glob-Patterns (case-insensitive)
+      "OBJECTID*",
+      "Shape*",
+      "GlobalID",
+      "gml_id",
+      "*_gml_id",
+      "SHAPE.STArea*",
+      "SHAPE.STLength*",
+    ],
+    layerBlacklist: {       // Key matcht auf Layer-Name ODER URL-Fragment
+      // "av_ls_eigentuemer": ["fid", "created_at"],
+      // "geo.admin.ch": ["legend_text"],
+    },
+    bufferDistances: [10, 25, 50, 100, 250, 500, 1000],  // Puffer-Distanzen in Metern
+  },
+  
+  // ============================================================
+  // BASEMAP / ZEITREISE
+  // ============================================================
+  basemaps: {
+    _description: "Basemap-Konfiguration inkl. Zeitreise (Time-Dimension)",
+
+    // Basemaps mit Zeitdimension
+    // Jeder Eintrag hat:
+    //   type:    "static"   = feste Jahrgangs-Liste (Slider)
+    //            "dynamic"  = Jahre dynamisch per API abfragen (Slider)
+    //            "info"     = kein Slider, nur Info-Label
+    //   label:   Anzeigename im Widget
+    timeDimension: {
+
+      // ── Orthofoto (Swissimage) ──
+      // Historische Jahrgänge via ch.swisstopo.swissimage-product (WMTS REST)
+      // URL: https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.swissimage-product/default/{year}/2056/{z}/{x}/{y}.png
+      // Time-Wert = reines Jahr (z.B. "2022")
+      swissimage: {
+        type: 'static',
+        label: 'Orthofoto',
+        defaultYear: 'current',
+        wmtsLayer: 'ch.swisstopo.swissimage-product',
+        wmtsUrl: 'https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.swissimage-product/default/{Time}/2056/{TileMatrix}/{TileCol}/{TileRow}.png',
+        timestampFormat: 'YYYY',       // Time-Wert = reines Jahr
+        years: [
+          1926, 1943, 1944, 1954, 1955, 1956, 1959, 1960, 1962, 1965,
+          1969, 1970, 1975, 1976, 1980, 1981, 1986, 1987, 1993, 1998,
+          1999, 2000, 2004, 2006, 2007, 2009, 2010, 2012, 2013, 2015,
+          2016, 2018, 2021, 2024,
+        ],
+      },
+
+      // ── Landeskarte (Zeitreihen) ──
+      // Historische LK via ch.swisstopo.zeitreihen (WMTS REST)
+      // URL: https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.zeitreihen/default/{YYYYMMDD}/2056/{z}/{x}/{y}.png
+      // Time-Wert = YYYY1231 (z.B. "19561231")
+      // Dynamische Jahrgänge je nach Kartenblatt, abgefragt via swisstopo Identify-API
+      pk_color: {
+        type: 'dynamic',
+        label: 'Landeskarte',
+        defaultYear: 'current',
+        wmtsLayer: 'ch.swisstopo.zeitreihen',
+        wmtsUrl: 'https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.zeitreihen/default/{Time}/2056/{TileMatrix}/{TileCol}/{TileRow}.png',
+        timestampFormat: 'YYYYMMDD',   // Time-Wert = YYYY1231
+        // swisstopo Identify-API: gibt array_release_years pro Kartenblatt zurück
+        identifyUrl: 'https://api3.geo.admin.ch/rest/services/api/MapServer/identify',
+        identifyParams: {
+          layers: 'all:ch.swisstopo.zeitreihen',
+          geometryType: 'esriGeometryPoint',
+          imageDisplay: '1,1,96',
+          tolerance: 0,
+        },
+        // Fallback-Jahrgänge wenn API nicht antwortet
+        fallbackYears: [
+          1864, 1880, 1900, 1920, 1940, 1956, 1966, 1971, 1976,
+          1982, 1988, 1994, 2000, 2007, 2013, 2020,
+        ],
+        // Debounce-Zeit (ms) für API-Abfrage bei Kartenverschiebung
+        moveEndDebounce: 500,
+      },
+
+      // ── Siegfriedkarten ──
+      // Historische Kartenblätter via ch.swisstopo.hiks-siegfried (WMTS REST)
+      // URL: https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.hiks-siegfried/default/{Time}/2056/{z}/{x}/{y}.png
+      // Time-Wert = reines Jahr (z.B. "1900"), verfügbar 1870–1949
+      siegfried: {
+        type: 'static',
+        label: 'Siegfriedkarten',
+        defaultYear: 'current',
+        wmtsLayer: 'ch.swisstopo.hiks-siegfried',
+        wmtsUrl: 'https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.hiks-siegfried/default/{Time}/2056/{TileMatrix}/{TileCol}/{TileRow}.png',
+        timestampFormat: 'YYYY',       // Time-Wert = reines Jahr
+        years: [
+          1870, 1871, 1872, 1873, 1874, 1875, 1876, 1877, 1878, 1879,
+          1880, 1881, 1882, 1883, 1884, 1885, 1886, 1887, 1888, 1889,
+          1890, 1891, 1892, 1893, 1894, 1895, 1896, 1897, 1898, 1899,
+          1900, 1901, 1902, 1903, 1904, 1905, 1906, 1907, 1908, 1909,
+          1910, 1911, 1912, 1913, 1914, 1915, 1916, 1917, 1918, 1919,
+          1920, 1921, 1922, 1923, 1924, 1925, 1926, 1927, 1928, 1929,
+          1930, 1931, 1932, 1933, 1934, 1935, 1936, 1937, 1938, 1939,
+          1940, 1941, 1942, 1943, 1944, 1945, 1946, 1947, 1948, 1949,
+        ],
+      },
+
+      // ── Dufourkarte ──
+      // Erstausgabe 1844–1864, Nachführungen bis 1939
+      // Nur ein einziger Time-Wert "current" (keine Zeitreise)
+      // URL: https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.hiks-dufour/default/current/2056/{z}/{x}/{y}.png
+      dufour: {
+        type: 'static',
+        label: 'Dufourkarte',
+        wmtsLayer: 'ch.swisstopo.hiks-dufour',
+        wmtsUrl: 'https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.hiks-dufour/default/{Time}/2056/{TileMatrix}/{TileCol}/{TileRow}.png',
+        timestampFormat: 'YYYY',
+        // Einziger Wert – kein Slider nötig
+        years: ['current'],
+      },
+    },
+  },
+
+  // ============================================================
+  // DRUCK / PDF EXPORT
+  // ============================================================
+  print: {
+    _description: "PDF-Druck Einstellungen",
+    // Anzahl Tage, nach denen archivierte PDFs gelöscht werden
+    pdfRetentionDays: 1,
+    // Automatisch Zoom anpassen beim Öffnen des Druckpanels
+    autoAdjustZoom: true,
+    // Ziel: Frame soll ca. X% des Viewports füllen (50-90)
+    targetFramePercent: 40,
+    // JPEG-Qualität für Kartenbild im PDF (0.0 - 1.0)
+    // Niedriger = kleinere Datei, etwas unschärfer
+    // 0.7 = guter Kompromiss, 0.85 = hohe Qualität, 0.5 = sehr klein
+    jpegQuality: 0.85,
+    // Server-Rendering: Kartenbilder direkt vom Mapserver anfordern
+    // statt OL-Viewport zu resizen. Genauere Massstäbe, kein
+    // Viewport-Resize, aber kein Rotation-Support und VectorSource
+    // (Redlining) wird als Overlay darübergelegt.
+    // false = Standard (OL-Canvas), true = Server-Rendering Default
+    serverRenderDefault: false,
+    // SVG-Format: Layer als Vektorgrafik (SVG) anfordern statt Raster.
+    // Nur in Kombination mit Server-Rendering wirksam.
+    // false = Standard (Raster PNG/JPEG), true = SVG Default
+    svgFormatDefault: false,
+    // Server-DPI: Auflösung für Mapserver-Requests (Client-Rendering)
+    // Die Mapserver-Layer-Styles sind für 96 DPI optimiert.
+    // Dieser Wert sollte NIEDRIGER als die PDF-DPI-Einstellung sein,
+    // um zu enge Schraffuren bei hoher PDF-Auflösung zu vermeiden.
+    //   96  = Standard (empfohlen, lockere Schraffuren)
+    //   120 = mittlere Dichte
+    //   150 = hohe Dichte (bei PDF-DPI 300 evtl. zu eng)
+    serverDpi: 96,
+    // Bildformat für Kartenbild im PDF:
+    //   'image/jpeg' = kleinere Datei (Standard)
+    //   'image/png'  = verlustfrei, transparente Bereiche bleiben weiss
+    imageFormat: 'image/jpeg',
+    // ── Debug-Optionen ──
+    // Erweiterte Konsolenausgaben (Massstab, DPI, Pixel, Extent etc.)
+    debug: false,
+    // 100 mm Kalibrier-Linie im PDF zeichnen (zum Nachmessen mit Lineal)
+    debugTestLine: false,
+    // Alle Metriken (Scale, Resolution, DPI, Pixel, Extent) in Konsole loggen
+    debugLogMetrics: false,
+  },
+
+  // ============================================================
+  // LEGENDE
+  // ============================================================
+  legend: {
+    _description: "Legenden-Proxy Einstellungen",
+    // Metadaten (Metadataproxy) standardmässig anzeigen?
+    // true  = &metadata=1 wird automatisch an legend-proxy URLs angehängt
+    // false = nur Legenden-Symbole, keine Metadaten
+    metadata: true,
+  },
+
+  // ── Proxy / iFrame-Login ──────────────────────────────────
+  proxy: {
+    _description: "Einstellungen für active-maps-proxy.php und proxy-inject.js",
+    // true = ausführliche Konsolenausgaben in proxy-inject.js (im Proxy-iframe)
+    debug: true,
+    // Auto-Login: WP OAuth-Button automatisch klicken wenn noch nicht eingeloggt
+    autoLogin: true,
+    // Polling-Intervall (ms) beim Suchen des Login-Buttons
+    autoLoginPollMs: 300,
+    // Maximale Polling-Versuche (Gesamtzeit = autoLoginPollMs × autoLoginPollMax)
+    autoLoginPollMax: 20,
+
+    // ── Cache ──
+    // Serverseitiger Cache für die proxied WP-Seite (pro Gruppe).
+    // Reduziert Ladezeit und Last auf gis-daten.ch.
+    cache: {
+      enabled: true,   // Nur für anonyme User (ohne WP-Cookies) — session-spezifische Nonces werden nicht gecacht
+      // Cache-TTL in Sekunden (3600 = 1 Stunde)
+      ttlSeconds: 3600,
+      // Cache-Verzeichnis (auf dem Server, ausserhalb DocumentRoot)
+      // __DIR__ wird in PHP aufgelöst relativ zu active-maps-proxy.php
+      directory: '/data/Client_Data/nwow/tmp/proxy-cache',
+    },
+  },
+}

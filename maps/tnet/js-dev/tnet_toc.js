@@ -11,6 +11,10 @@
 (function() {
   'use strict';
 
+  function getAppRoot() {
+    return window.__TNET_APP_ROOT || '/maps';
+  }
+
   // Wenn neuer Themenkatalog-Baum aktiv → tnet_toc.js komplett überspringen
   // (Tabs2Accordion, TitlePane2Tabs, watchThemenkatalog werden nicht benötigt)
   if (window.__tnetLMFlags && window.__tnetLMFlags.useNewTree) {
@@ -161,10 +165,10 @@
 
   var TitlePane2Tabs = {
     icons: {
-      'Nidwalden': '/maps/tnet/resources/wappen_nidwalden.svg',
-      'Obwalden': '/maps/tnet/resources/wappen_obwalden.svg',
-      'Bund': '/maps/tnet/resources/wappen_bund.svg',
-      'Weitere': '/maps/tnet/resources/icon_weitere.svg'
+      'Nidwalden': getAppRoot() + '/tnet/resources/wappen_nidwalden.svg',
+      'Obwalden': getAppRoot() + '/tnet/resources/wappen_obwalden.svg',
+      'Bund': getAppRoot() + '/tnet/resources/wappen_bund.svg',
+      'Weitere': getAppRoot() + '/tnet/resources/icon_weitere.svg'
     },
 
     panes: [

@@ -1,0 +1,105 @@
+//
+// tnet-mapcontrols-config.json5
+// Konfiguration für die Kartensteuerungs-Buttons (Zoom, GNSS, StreetView, 3D etc.)
+// Ersetzt die Framework-generierte mainButtonBar.
+//
+// @version    1.0
+// @date       2026-04-01
+// @copyright  Trigonet AG
+// @author     Marco Dellenbach
+//
+{
+  // Position der Control-Leiste auf der Karte
+  // Mögliche Werte: 'bottom-right', 'bottom-left', 'top-right', 'top-left'
+  position: 'top-right',
+
+  // Abstand vom Kartenrand in Pixel
+  offset: {
+    top: 10,
+    right: 20,
+  },
+
+  // Button-Grösse in Pixel
+  buttonSize: 40,
+
+  // Abstand zwischen Button-Gruppen in Pixel
+  groupGap: 10,
+
+  // Button-Gruppen (werden vertikal gestapelt, Gruppen getrennt durch Lücke)
+  groups: [
+    {
+      id: 'navigation',
+      buttons: [
+        {
+          id: 'zoom-in',
+          icon: 'zoom-in',       // Interner Icon-Name (definiert in tnet-mapcontrols.js)
+          tooltip: 'Hineinzoomen',
+          action: 'zoomIn',
+        },
+        {
+          id: 'zoom-out',
+          icon: 'zoom-out',
+          tooltip: 'Herauszoomen',
+          action: 'zoomOut',
+        },
+      ],
+    },
+    {
+      // Kompass: erscheint nur bei rotierter Karte (autoHide via JS)
+      id: 'compass',
+      buttons: [
+        {
+          id: 'compass',
+          icon: 'compass',
+          tooltip: 'Rotation zurücksetzen (Nord oben)',
+          action: 'resetRotation',
+        },
+      ],
+    },
+    {
+      id: 'tools',
+      buttons: [
+        {
+          id: 'gnss',
+          icon: 'gnss',
+          tooltip: 'Standort anzeigen (GNSS)',
+          action: 'locate',
+          // Toggle-Modus: Button hat aktiven Zustand
+          toggle: true,
+        },
+        {
+          id: 'streetview',
+          icon: 'streetview',
+          tooltip: 'StreetView',
+          action: 'streetview',
+          toggle: true,
+        },
+        {
+          id: '3d',
+          icon: '3d',
+          tooltip: '3D-Ansicht',
+          action: '3d',
+        },
+      ],
+    },
+    {
+      id: 'analysis',
+      buttons: [
+        {
+          id: 'polygon',
+          icon: 'polygon',
+          tooltip: 'Flächenanalyse - Polygon zeichnen',
+          action: 'polygonDraw',
+          toggle: true,
+        },
+        {
+          id: 'oereb',
+          icon: 'oereb',
+          tooltip: 'ÖREB Grundstückabfrage',
+          action: 'oerebMode',
+          toggle: true,
+        },
+      ],
+    },
+  ],
+}

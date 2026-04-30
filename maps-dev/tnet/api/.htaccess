@@ -1,0 +1,26 @@
+# TNET API - Clean URLs (ohne .php Endung)
+#
+# Ermöglicht Aufrufe wie:
+#   /maps/tnet/api/v1/layers?group=marco
+# statt:
+#   /maps/tnet/api/v1/layers.php?group=marco
+#
+# Voraussetzung: Apache mod_rewrite + AllowOverride All
+
+RewriteEngine On
+
+# Admin-HTML-Seiten IMMER durch admin-gate.php (Auth-Check) routen —
+# zwingend VOR der Existenzprüfung, damit die statische .html-Datei nicht
+# direkt ausgeliefert wird.
+RewriteRule ^v1/(slm|ags-import|tree-builder|dev-test|tree-test)\.html$ v1/admin-gate.php?page=$1 [L,QSA]
+
+# Wenn die angeforderte Datei/Ordner existiert → nichts tun
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+
+# /v1/layers → /v1/layers.php (mit Query-String weiterreichen)
+RewriteRule ^v1/([a-zA-Z0-9_-]+)$ v1/$1.php [L,QSA]
+
+# /v1/ oder /v1 → /v1/info.php (API Root = Info/Discovery)
+RewriteRule ^v1/?$ v1/info.php [L,QSA]

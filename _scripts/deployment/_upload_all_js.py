@@ -16,23 +16,37 @@ Nuetzlich fuer initialen Deploy oder wenn unklar ob alle Dateien aktuell sind.
 """
 import os
 import subprocess
+import argparse
 import paramiko
+from deploy_env import add_env_argument, ensure_local_base_exists, resolve_deploy_config
 
 # ===== KONFIGURATION =====
 BUILD_SCRIPT = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "_build_js.py"))
-LOCAL_JS     = os.path.normpath(r"c:\_Daten\mapplus-exp\maps\tnet\js")
-LOCAL_BASE   = os.path.normpath(r"c:\_Daten\mapplus-exp\maps")
+LOCAL_JS     = ""
+LOCAL_BASE   = ""
 HOST         = "nwow.mapplus.ch"
 PORT         = 22
 USER         = "trigonet"
 PASSWORD     = "3Zs,k4%Un,<[W(Kx"
-REMOTE_BASE  = "/www/maps"
+REMOTE_BASE  = ""
 
 
 def main():
+    global LOCAL_JS, LOCAL_BASE, REMOTE_BASE
+
+    parser = argparse.ArgumentParser(description="Alle JS-Dateien fuer dev oder prod bauen und deployen")
+    add_env_argument(parser)
+    args = parser.parse_args()
+
+    deploy_config = resolve_deploy_config(args.env)
+    LOCAL_BASE = os.path.normpath(deploy_config["local_base"])
+    LOCAL_JS = os.path.normpath(os.path.join(LOCAL_BASE, "tnet", "js"))
+    REMOTE_BASE = deploy_config["remote_base"]
+    ensure_local_base_exists(LOCAL_BASE)
+
     # ===== SCHRITT 1: Full-Build =====
     print("=" * 60)
-    print("Schritt 1: Full-Build (js-dev/ → js/)")
+    print(f"Schritt 1: Full-Build (env={deploy_config['env']}, js-dev/ -> js/)")
     print("=" * 60)
     result = subprocess.run([sys.executable, BUILD_SCRIPT])
     if result.returncode != 0:
@@ -42,7 +56,7 @@ def main():
     # ===== SCHRITT 2: Alle JS hochladen =====
     print()
     print("=" * 60)
-    print(f"Schritt 2: Upload aller JS-Dateien → {HOST}")
+    print(f"Schritt 2: Upload aller JS-Dateien → {HOST} ({REMOTE_BASE})")
     print("=" * 60)
 
     ssh = paramiko.SSHClient()
@@ -52,7 +66,7 @@ def main():
         sftp = ssh.open_sftp()
 
         # Remote-Verzeichnisse sicherstellen
-        for d in ["/www/maps/tnet/js", "/www/maps/tnet/js/mobile"]:
+        for d in [f"{REMOTE_BASE}/tnet/js", f"{REMOTE_BASE}/tnet/js/mobile"]:
             try:
                 sftp.mkdir(d)
             except Exception:

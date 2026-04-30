@@ -13,6 +13,10 @@
 (function() {
   'use strict';
 
+  function getAppRoot() {
+    return window.__TNET_APP_ROOT || '/maps';
+  }
+
   // ===== KONFIGURATION =====
 
   // Vordefinierte WMS-Dienste — Fallback-Defaults, werden durch tnet-global-config.json5 überschrieben
@@ -191,7 +195,7 @@
       .catch(function(err) {
         TnetLog.warn('[WMS-Panel] Direkter Zugriff fehlgeschlagen, versuche Proxy:', err.message);
         // Über Proxy versuchen
-        var proxyUrl = '/maps/wmsproxy.php?url=' + encodeURIComponent(capUrl);
+        var proxyUrl = getAppRoot() + '/wmsproxy.php?url=' + encodeURIComponent(capUrl);
         fetch(proxyUrl)
           .then(function(resp) {
             if (!resp.ok) throw new Error('HTTP ' + resp.status);
@@ -1097,8 +1101,8 @@
 
           // Proxy nutzen für CORS (externe URLs)
           var originalUrl = url;
-          if (url.indexOf(location.origin) === -1 && url.indexOf('/maps/') !== 0) {
-            url = '/maps/wmsproxy.php?url=' + encodeURIComponent(url);
+          if (url.indexOf(location.origin) === -1 && url.indexOf(getAppRoot() + '/') !== 0) {
+            url = getAppRoot() + '/wmsproxy.php?url=' + encodeURIComponent(url);
           }
 
           TnetLog.log('[WMS-GFI] Request:', layerTitle, '| Format:', format, '| URL:', url.substring(0, 120) + '...');
@@ -1513,8 +1517,8 @@
   function _loadWmsConfig() {
     if (_configLoaded || typeof JSON5 === 'undefined') return Promise.resolve();
     var paths = [
-      '/maps/tnet/config/tnet-global-config.json5',
-      '/maps/tnet/tnet-global-config.json5',
+      getAppRoot() + '/tnet/config/tnet-global-config.json5',
+      getAppRoot() + '/tnet/tnet-global-config.json5',
       '../tnet/config/tnet-global-config.json5'
     ];
     function tryPath(i) {
@@ -1631,8 +1635,8 @@
         }
 
         // Proxy für CORS
-        if (url.indexOf(location.origin) === -1 && url.indexOf('/maps/') !== 0) {
-          url = '/maps/wmsproxy.php?url=' + encodeURIComponent(url);
+        if (url.indexOf(location.origin) === -1 && url.indexOf(getAppRoot() + '/') !== 0) {
+          url = getAppRoot() + '/wmsproxy.php?url=' + encodeURIComponent(url);
         }
 
         TnetLog.log('[WMS-GFI:Bridge] Request:', layerTitle, '| Format:', format);

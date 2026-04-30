@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>TNET Search API - Dokumentation</title>
+    <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css">
+    <style>
+        html { box-sizing: border-box; overflow-y: scroll; }
+        *, *:before, *:after { box-sizing: inherit; }
+        body { margin: 0; background: #fafafa; }
+        .swagger-ui .topbar { display: none !important; }
+        .swagger-ui .info { margin: 30px 0; }
+        .swagger-ui .info .title { font-size: 2em; }
+        #swagger-ui { max-width: 1200px; margin: 0 auto; padding: 20px; }
+        .api-nav {
+            background: #1e3a4a;
+            color: white;
+            padding: 0 20px;
+            font-family: Arial, sans-serif;
+            display: flex;
+            align-items: stretch;
+            gap: 0;
+        }
+        .api-nav .brand {
+            font-size: 15px;
+            font-weight: 600;
+            padding: 10px 16px 10px 0;
+            color: #8cb8c8;
+            border-right: 1px solid rgba(255,255,255,0.1);
+            display: flex;
+            align-items: center;
+        }
+        .api-nav .tabs { display: flex; gap: 0; }
+        .api-nav .tab {
+            padding: 10px 18px;
+            font-size: 14px;
+            text-decoration: none;
+            color: #8cb8c8;
+            border-bottom: 3px solid transparent;
+            transition: all 0.15s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .api-nav .tab:hover { color: #fff; background: rgba(255,255,255,0.05); }
+        .api-nav .tab.active {
+            color: #fff;
+            border-bottom-color: #4ecdc4;
+            background: rgba(255,255,255,0.08);
+        }
+        .api-nav .tab .ver {
+            font-size: 11px;
+            background: rgba(255,255,255,0.15);
+            padding: 1px 6px;
+            border-radius: 3px;
+        }
+        .api-nav .spacer { flex: 1; }
+        .api-nav .link {
+            padding: 10px 12px;
+            font-size: 13px;
+            text-decoration: none;
+            color: #8cb8c8;
+            display: flex;
+            align-items: center;
+        }
+        .api-nav .link:hover { color: #fff; }
+        .api-nav .login-btn {
+            padding: 6px 14px; margin: auto 0 auto 8px;
+            font-size: 12px; font-weight: 600; text-decoration: none;
+            color: #fff; background: rgba(78,205,196,0.25);
+            border: 1px solid rgba(78,205,196,0.5); border-radius: 4px;
+            display: flex; align-items: center; gap: 5px;
+            transition: background 0.2s;
+        }
+        .api-nav .login-btn:hover { background: rgba(78,205,196,0.4); }
+    </style>
+</head>
+<body>
+    <nav class="api-nav">
+        <span class="brand">TNET API</span>
+        <div class="tabs">
+            <a class="tab" href="index.html">GIS API <span class="ver">v1.0</span></a>
+            <a class="tab active" href="search.html">Search API <span class="ver">v2.0</span></a>
+        </div>
+        <span class="spacer"></span>
+        <a class="link" href="https://www.agvchapp.bfs.admin.ch/de/communes/query" target="_blank">BFS Verzeichnis</a>
+        <a class="link" href="../search-proxy.php?action=boundaries" target="_blank">Boundaries</a>
+        <a class="login-btn" href="../v1/admin-login.php">🔐 Admin</a>
+    </nav>
+    <div id="swagger-ui"></div>
+
+    <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
+    <script>
+        window.onload = function () {
+            SwaggerUIBundle({
+                url: "openapi-search.yaml",
+                dom_id: '#swagger-ui',
+                deepLinking: true,
+                presets: [
+                    SwaggerUIBundle.presets.apis,
+                    SwaggerUIBundle.SwaggerUIStandalonePreset
+                ],
+                layout: "BaseLayout",
+                defaultModelsExpandDepth: 1,
+                defaultModelExpandDepth: 1,
+                docExpansion: "list",
+                filter: true,
+                tryItOutEnabled: true,
+                syntaxHighlight: { activated: false }
+            });
+        };
+    </script>
+</body>
+</html>

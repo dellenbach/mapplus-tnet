@@ -1,0 +1,1068 @@
+<!DOCTYPE HTML>
+<!--
+  index_de_m.htm
+  GIS NW/OW - Mobile Ansicht
+  Abgeleitet aus index_de.htm (Desktop)
+  Hamburger-Drawer statt Sidebar, Touch-optimiert
+
+  @version    1.0
+  @date       2026-02-19
+  @copyright  Trigonet AG
+  @author     Marco Dellenbach
+-->
+<html>
+
+<head>
+    <meta http-equiv="Content-Type" content="text/html;charset=utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="preconnect" href="https://www.gis-daten.ch" crossorigin>
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+    <link rel="dns-prefetch" href="//www.gis-daten.ch">
+    <link rel="dns-prefetch" href="//cdn.jsdelivr.net">
+    <link rel="dns-prefetch" href="//cdnjs.cloudflare.com">
+    <!-- Preload: kritische Ressourcen -->
+    <link rel="preload" href="https://cdn.jsdelivr.net/npm/ol@v10.8.0/dist/ol.js" as="script">
+    <link rel="preload" href="/mapplus-lib/dojo-release/dojo-release-1.17.3/dojo/dojo.js" as="script">
+    <link rel="preload" href="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.12.1/proj4.min.js" as="script" crossorigin="anonymous">
+    <link rel="preload" href="https://cdn.jsdelivr.net/npm/sortablejs@1.15.6/Sortable.min.js" as="script">
+    <link rel="preload" href="https://cdn.jsdelivr.net/npm/ol@v10.8.0/ol.css" as="style">
+    <link rel="preload" href="https://cdn.jsdelivr.net/npm/ol-ext/dist/ol-ext.min.js" as="script" crossorigin="anonymous">
+    <link rel="preload" href="https://cdn.jsdelivr.net/npm/ol-ext/dist/ol-ext.min.css" as="style" crossorigin="anonymous">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <title>MAP+ GIS Daten AG</title>
+
+    <!-- Critical CSS für Splash Screen -->
+    <style>
+        #splash-screen{position:fixed;top:0;left:0;width:100%;height:100%;background:linear-gradient(135deg,#4b7b81 0%,#3a6268 100%);display:flex;flex-direction:column;justify-content:center;align-items:center;z-index:99999}
+    </style>
+
+    <!-- Feature Flags für Mobile Layout Migrationen -->
+    <script>
+        window.FEATURE_FLAGS = {
+            USE_TITLEPANE_NATIVE: false,   // Phase 3: → true nach TitlePane→details Migration
+            USE_HTML5_DIALOG: false,       // Phase 2: → true nach Dialog→HTML5 Migration
+            USE_FLEXBOX_LAYOUT: false,     // Phase 4: → true nach BorderContainer→Flexbox Migration
+            DEBUG_MODE: false              // Set true für console.log() von Resize-Events
+        };
+    </script>
+
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@v10.8.0/ol.css"
+        onerror="this.href='/mapplus-lib/openlayers/v10.6.0-package/ol.css';">
+
+    <link rel="stylesheet" type="text/css"
+        href="/mapplus-lib/dojo-release/dojo-release-1.17.3/dijit/themes/tundra/tundra.css" />
+    <link rel="icon" type="image/png" href="favicon.png">
+    <link rel="apple-touch-icon" href="favicon.png">
+
+    <!-- Google Fonts (non-blocking) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;600;700&family=Roboto+Condensed:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet" media="print" onload="this.media='all'" />
+
+    <!-- Layout CSS -->
+    <link rel="stylesheet" href="../core/templates/nwow_floating/css/FloatingPane.css" media="print" onload="this.media='all'" />
+    <link rel="stylesheet" href="../core/templates/nwow_floating/css/ResizeHandle.css" media="print" onload="this.media='all'" />
+    <link rel="stylesheet" href="../core/templates/nwow_floating/css/Dialog.css" media="print" onload="this.media='all'" />
+    <link rel="stylesheet" href="../core/templates/nwow_floating/css/Disclaimer.css" media="print" onload="this.media='all'" />
+    <link rel="stylesheet" href="../core/templates/nwow_floating/css/PoiManager.css" media="print" onload="this.media='all'" />
+    <link rel="stylesheet" href="../core/templates/nwow_floating/css/ClassicLayerMgr.css" media="print" onload="this.media='all'" />
+    <!-- Mobile Base CSS -->
+    <link rel="stylesheet" type="text/css" href="../core/templates/nwow_floating/css/style_m.css" />
+    <link rel="stylesheet" type="text/css" href="../core/templates/nwow_floating/css/tundraGrid.css"
+        media="print" onload="this.media='all'" />
+
+    <!-- Scripts (vor Dojo laden) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.12.1/proj4.min.js" crossorigin="anonymous"
+        referrerpolicy="no-referrer"></script>
+    <script>window.proj4 || document.write('<script src="/mapplus-lib/proj4js/2.12.1/dist/proj4.js">\x3C/script>')</script>
+    <script src="//cdn.jsdelivr.net/npm/ol@v10.8.0/dist/ol.js"></script>
+    <script>window.ol || document.write('<script src="/mapplus-lib/openlayers/v10.6.0-package/dist/ol.js">\x3C/script>')</script>
+
+    <script type="text/javascript">
+        var dojoConfig = {
+            parseOnLoad: false,
+            isDebug: false,
+            baseUrl: "",
+            async: true,
+            mblAlwaysHideAddressBar: true,
+            packages: [
+                { name: "njs",   location: "/mapplus-lib/mapplus-dojo/v4.0.0/extended" },
+                { name: "dojo",  location: "/mapplus-lib/dojo-release/dojo-release-1.17.3/dojo" },
+                { name: "dijit", location: "/mapplus-lib/dojo-release/dojo-release-1.17.3/dijit" },
+                { name: "dojox", location: "/mapplus-lib/dojo-release/dojo-release-1.17.3/dojox" },
+                { name: "app",   location: "/app" }
+            ],
+            locale: "de"
+        };
+
+        var hideLoader = function() {
+            dojo.fadeOut({
+                node: "preloader",
+                onEnd: function() {
+                    dojo.style("preloader", "display", "none");
+                }
+            }).play();
+        }
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.6/Sortable.min.js"></script>
+    <script>window.Sortable || document.write('<script src="/mapplus-lib/Sortable/1.15.0/Sortable.min.js">\x3C/script>')</script>
+    <script src="/mapplus-lib/dojo-release/dojo-release-1.17.3/dojo/dojo.js"></script>
+    <script>window.define || document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/dojo/1.17.3/dojo.js">\x3C/script>')</script>
+
+    <!-- TNET CSS -->
+    <link rel="stylesheet" href="/maps/tnet/css/tnet_toc.css" media="print" onload="this.media='all'" />
+    <link rel="stylesheet" href="/maps/tnet/css/tnet-components.css" media="print" onload="this.media='all'" />
+    <link rel="stylesheet" href="/maps/tnet/css/tnet-3d-landscape.css" media="print" onload="this.media='all'" />
+    <link rel="stylesheet" href="/maps/tnet/css/gis-daten-splash.css" />
+    <link rel="stylesheet" href="/maps/tnet/css/tnet-print.css" media="print" onload="this.media='all'" />
+    <!-- Neuer Layer-Manager -->
+    <link rel="stylesheet" href="/maps/tnet/css/tnet-lm.css?v=20260222c" media="print" onload="this.media='all'" />
+    <!-- ol-pdf-printer CSS (VOR mobile override laden) -->
+    <link rel="stylesheet" href="/maps/tnet/ol-pdf-printer/css/ol-pdf-printer.css" media="print" onload="this.media='all'" />
+    <!-- TNET Mobile Master-CSS (muss ZULETZT kommen) -->
+    <link rel="stylesheet" href="/maps/tnet/css/mobile/tnet_override_m.css?v=20260221c" />
+</head>
+
+<body class="tundra">
+    <!-- Preloader -->
+    <style>
+      #preloader{position:fixed;top:0;left:0;right:0;bottom:0;width:100%;height:100%;background:rgba(255,255,255,0.95);background-image:none!important;display:flex;align-items:center;justify-content:center;z-index:99999;perspective:200px}
+      #preloader .preloader-cube{width:32px;height:32px;position:relative;transform-style:preserve-3d;transform:rotateX(-30deg) rotateY(-30deg);animation:pRotate 1s infinite linear;will-change:transform;backface-visibility:hidden}
+      #preloader .preloader-cube .cube-face{position:absolute;width:32px;height:32px;backface-visibility:hidden}
+      #preloader .preloader-cube .cube-front{transform:rotateY(0deg) translateZ(16px);background:#f00}
+      #preloader .preloader-cube .cube-back{transform:rotateY(180deg) translateZ(16px);background:#8a0000}
+      #preloader .preloader-cube .cube-left{transform:rotateY(-90deg) translateZ(16px);background:#8a0000}
+      #preloader .preloader-cube .cube-right{transform:rotateY(90deg) translateZ(16px);background:#ffe4e4}
+      #preloader .preloader-cube .cube-top{transform:rotateX(90deg) translateZ(16px);background:#f69f9f}
+      #preloader .preloader-cube .cube-bottom{transform:rotateX(-90deg) translateZ(16px);background:#8a0000}
+      @keyframes pRotate{from{transform:rotateX(-30deg) rotateY(0deg)}to{transform:rotateX(-30deg) rotateY(360deg)}}
+    </style>
+    <div id="preloader">
+      <div class="preloader-cube"><div class="cube-face cube-front"></div><div class="cube-face cube-back"></div><div class="cube-face cube-left"></div><div class="cube-face cube-right"></div><div class="cube-face cube-top"></div><div class="cube-face cube-bottom"></div></div>
+    </div>
+
+    <!-- Libs (body) -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol-ext/dist/ol-ext.min.css"
+        crossorigin="anonymous"
+        onerror="this.href='/mapplus-lib/openlayers/ol-ext/dist/ol-ext.min.css';">
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/ol-ext/dist/ol-ext.min.js" crossorigin="anonymous"></script>
+    <script>window.ol && window.ol.ext || document.write('<script src="/mapplus-lib/openlayers/ol-ext/dist/ol-ext.min.js">\x3C/script>')</script>
+
+    <script type="text/javascript" src="/mapplus-lib/mapplus-dojo/v4.0.0/common.js"></script>
+    <script type="text/javascript" src="/mapplus-lib/mapplus-dojo/v4.0.0/njs.js"></script>
+    <script type="text/javascript" src="/mapplus-lib/mapplus-dojo/v4.0.0/layout.js"></script>
+    <script type="text/javascript" src="/mapplus-lib/mapplus-dojo/v4.0.0/appmanager.js"></script>
+    <script type="text/javascript" src="/mapplus-lib/mapplus-dojo/v4.0.0/search.js"></script>
+    <script type="text/javascript" src="/mapplus-lib/mapplus-dojo/v4.0.0/provider/OLPlus/openlayers.js"></script>
+
+    <script type="text/javascript">
+        /* Application configuration */
+        njs.AppManager.Version = "v4.0.0";
+        njs.AppManager.apipath = "/mapplus-lib/mapplus-dojo/";
+        njs.AppManager.Provider = "OLPlus";
+        njs.AppManager.template = "nwow_floating";
+        njs.AppManager.keepalivetimeout = 180000;
+        njs.AppManager.keepalivepage = "/mapplus-lib/mapplus-dojo/v4.0.0/php/sso/keepalive.php"
+    </script>
+    <?php print $set_vars?>
+
+    <!-- JSON5 Parser (vor mobile Config-Load) -->
+    <script>window.__define = window.define; window.define = undefined;</script>
+    <script src="https://cdn.jsdelivr.net/npm/json5@2.2.3/dist/index.min.js"></script>
+    <script>window.define = window.__define; delete window.__define;</script>
+
+    <!-- TNET Mobile Config (synchron vor tnet_modules_m.js laden) -->
+    <script>
+    (function() {
+        var fallbackConfig = {
+            splash: { cubeExtraOffsetPx: 0, hideTimeoutMs: 8000, checkIntervalMs: 80 },
+            topbar: { heightPx: 56 },
+            drawer: { autoCloseDelayMs: 200 },
+            sheets: { resize: { minVh: 0.30, maxVh: 0.85, snapCloseVh: 0.20 } },
+            timing: { drawerInitFallbackMs: 3000, layersFixDelaysMs: [100, 400, 1000] },
+            menuActions: { enabled: { print: true, oereb: true, landscape3d: true, basemaps: true, layers: true, help: true } }
+        };
+
+        window.tnetMobileConfig = fallbackConfig;
+
+        // Async Config-Load (kein blocking sync XHR)
+        try {
+            fetch('/maps/tnet/config/tnet-mobile-config.json5?v=20260220a')
+              .then(function(r) { return r.ok ? r.text() : Promise.reject(r.status); })
+              .then(function(txt) {
+                  var parsed = (window.JSON5 && typeof window.JSON5.parse === 'function')
+                      ? window.JSON5.parse(txt) : JSON.parse(txt);
+                  if (parsed && typeof parsed === 'object') {
+                      window.tnetMobileConfig = parsed;
+                  }
+              })
+              .catch(function(e) { /* fallback bleibt aktiv */ });
+        } catch (e) {
+            /* fallback bleibt aktiv */
+        }
+
+        function cfg(path, fallback) {
+            var obj = window.tnetMobileConfig || {};
+            var parts = path.split('.');
+            for (var i = 0; i < parts.length; i++) {
+                if (!obj || typeof obj !== 'object' || !(parts[i] in obj)) return fallback;
+                obj = obj[parts[i]];
+            }
+            return (obj === undefined || obj === null) ? fallback : obj;
+        }
+
+        var topbarH = Number(cfg('topbar.heightPx', 56));
+        var splashOffset = Number(cfg('splash.cubeExtraOffsetPx', 0));
+        if (!isNaN(topbarH) && topbarH > 0) {
+            document.documentElement.style.setProperty('--m-topbar-h', topbarH + 'px');
+        }
+        if (!isNaN(splashOffset)) {
+            document.documentElement.style.setProperty('--m-splash-cube-extra-offset-px', splashOffset + 'px');
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            var enabled = cfg('menuActions.enabled', {});
+            if (!enabled || typeof enabled !== 'object') return;
+            Object.keys(enabled).forEach(function(action) {
+                if (enabled[action] === false) {
+                    document.querySelectorAll('.m-menu-item[data-m-action="' + action + '"]').forEach(function(item) {
+                        item.style.display = 'none';
+                    });
+                }
+            });
+        });
+
+        document.addEventListener('DOMContentLoaded', function() {
+            var tools = cfg('tools', {});
+            if (!tools || typeof tools !== 'object') return;
+
+            var selectorMap = {
+                'wms': '[data-m-toggle="wms"]',
+                'active': '[data-m-toggle="active-layers"]',
+                'measure': '[data-m-toggle="tools"]',
+                'print': '[data-m-action="print"]',
+                'oereb': '[data-m-action="oereb"]',
+                'landscape3d': '[data-m-action="3d"]',
+            };
+
+            Object.keys(tools).forEach(function(toolKey) {
+                var toolCfg = tools[toolKey] || {};
+                var selector = selectorMap[toolKey];
+                if (!selector) return;
+
+                var el = document.querySelector(selector);
+                if (!el) return;
+
+                // Visible
+                if (toolCfg.visible === false) {
+                    el.setAttribute('hidden', '');
+                } else {
+                    el.removeAttribute('hidden');
+                }
+
+                // Enabled
+                if (toolCfg.enabled === false) {
+                    el.setAttribute('aria-disabled', 'true');
+                    el.classList.add('is-disabled');
+                } else {
+                    el.removeAttribute('aria-disabled');
+                    el.classList.remove('is-disabled');
+                }
+            });
+        });
+    })();
+    </script>
+
+    <!-- TNET Mobile Dojo modules -->
+    <script type="text/javascript" src="/maps/tnet/js/mobile/tnet_modules_m.js?v=v4.0.0"></script>
+    <script type="text/javascript" src="/maps/tnet/js/mobile/tnet-search-m.js?v=20260222b"></script>
+
+    <!-- Early Splash-Hide -->
+    <script>
+    (function() {
+        var _t0 = Date.now();
+        var cfg = window.tnetMobileConfig || {};
+        var splashTimeoutMs = (cfg.splash && Number(cfg.splash.hideTimeoutMs)) || 8000;
+        var splashCheckIntervalMs = (cfg.splash && Number(cfg.splash.checkIntervalMs)) || 80;
+        if (!(splashTimeoutMs > 0)) splashTimeoutMs = 8000;
+        if (!(splashCheckIntervalMs > 0)) splashCheckIntervalMs = 80;
+        window.hideSplashScreen = function() {
+            var splash = document.getElementById('splash-screen');
+            var preloader = document.getElementById('preloader');
+            if (preloader) preloader.style.display = 'none';
+            if (splash) {
+                splash.classList.add('hidden');
+                setTimeout(function() { splash.remove(); }, 1000);
+            }
+        };
+        function earlyCheckAppReady() {
+            if (window.njs && njs.AppManager && njs.AppManager.Maps && njs.AppManager.Maps['main']) {
+                hideSplashScreen();
+                if (!window._tnetAppReadyFired) {
+                    window._tnetAppReadyFired = true;
+                    document.dispatchEvent(new CustomEvent('tnet-app-ready', {
+                        detail: { map: njs.AppManager.Maps['main'].mapObj }
+                    }));
+                    console.log('[App] tnet-app-ready Event dispatched (mobile)');
+                }
+                return;
+            }
+            if (Date.now() - _t0 > splashTimeoutMs) {
+                hideSplashScreen();
+                // Splash-Timeout erreicht, aber App noch nicht bereit →
+                // weiter pollen (langsamer) damit tnet-app-ready noch gefeuert wird
+                var _latePollCount = 0;
+                var _latePoll = setInterval(function () {
+                    _latePollCount++;
+                    if (window._tnetAppReadyFired) { clearInterval(_latePoll); return; }
+                    if (window.njs && njs.AppManager && njs.AppManager.Maps && njs.AppManager.Maps['main']) {
+                        clearInterval(_latePoll);
+                        if (!window._tnetAppReadyFired) {
+                            window._tnetAppReadyFired = true;
+                            document.dispatchEvent(new CustomEvent('tnet-app-ready', {
+                                detail: { map: njs.AppManager.Maps['main'].mapObj }
+                            }));
+                            console.log('[App] tnet-app-ready Event dispatched (late, nach Splash-Timeout)');
+                        }
+                    }
+                    if (_latePollCount > 60) clearInterval(_latePoll); // max 30s
+                }, 500);
+                return;
+            }
+            setTimeout(earlyCheckAppReady, splashCheckIntervalMs);
+        }
+        earlyCheckAppReady();
+    })();
+    </script>
+
+    <!-- URL-Parameter (x/y/zl) so früh wie möglich und dauerhaft anwenden -->
+    <script>
+    (function() {
+        // Bei WMTS-basierten Basemaps erstellt changeBaseMap() nach dem async Fetch
+        // eine neue OL-View mit initialExtent → vorherige setCenter/setZoom-Aufrufe gehen
+        // verloren. Fix: change:view-Listener registrieren sobald Map verfügbar ist,
+        // damit jede neue View sofort den URL-Extent bekommt.
+
+        var params = new URLSearchParams(window.location.search);
+        var urlX = parseFloat(params.get('x'));
+        var urlY = parseFloat(params.get('y'));
+        var urlZl = params.get('zl');
+
+        if (isNaN(urlX) || isNaN(urlY)) return; // Kein x/y → nichts zu tun
+
+        var targetCenter = [urlX, urlY];
+        var targetZl     = urlZl != null ? parseInt(urlZl, 10) : null;
+        var _hookInstalled = false;
+
+        // Wendet URL-Center+Zoom direkt auf eine OL-View an
+        function applyToView(view) {
+            if (!view) return;
+            view.setCenter(targetCenter);
+            if (targetZl != null) view.setZoom(targetZl);
+        }
+
+        // Installiert change:view-Listener auf dem Map-Objekt:
+        // Jede neue OL-View (z.B. nach WMTS-Init) bekommt sofort den URL-Extent.
+        function installViewHook(olMap) {
+            if (_hookInstalled) return;
+            _hookInstalled = true;
+
+            // Sofort auf aktuelle View anwenden
+            applyToView(olMap.getView());
+            console.log('[App] URL-Extent angewendet (früh): x=' + urlX + ' y=' + urlY + ' zl=' + targetZl);
+
+            // Bei jeder neuen View (WMTS-Neuinit etc.) erneut anwenden
+            olMap.on('change:view', function() {
+                // Minimal warten bis neue View fertig initialisiert ist
+                setTimeout(function() {
+                    applyToView(olMap.getView());
+                    console.log('[App] URL-Extent nach change:view erneut angewendet');
+                }, 40);
+            });
+        }
+
+        // Polling: so früh wie möglich starten (vor tnet-app-ready)
+        function earlyPoll() {
+            if (_hookInstalled) return;
+            var mapObj = window.njs && window.njs.AppManager &&
+                         window.njs.AppManager.Maps && window.njs.AppManager.Maps['main'];
+            if (!mapObj || !mapObj.mapObj) { setTimeout(earlyPoll, 80); return; }
+            var view = mapObj.mapObj.getView();
+            if (!view || !view.getCenter()) { setTimeout(earlyPoll, 80); return; }
+            installViewHook(mapObj.mapObj);
+        }
+        earlyPoll();
+
+        // Sicherheits-Fallback nach tnet-app-ready (falls Polling zu spät war)
+        document.addEventListener('tnet-app-ready', function() {
+            var mapObj = njs.AppManager.Maps && njs.AppManager.Maps['main'];
+            if (!mapObj || !mapObj.mapObj) return;
+            installViewHook(mapObj.mapObj);
+
+            // Zusätzliche Fallbacks: WMTS kann auch nach tnet-app-ready noch initialisieren
+            setTimeout(function() { applyToView(mapObj.mapObj.getView()); }, 500);
+            setTimeout(function() { applyToView(mapObj.mapObj.getView()); }, 2000);
+        }, { once: true });
+    })();
+    </script>
+
+    <!-- URL-Layer nach App-Start sicherstellen -->
+    <!-- Das Framework liest layers= zwar selbst, aber bei WMTS-Neuinit kann die Layer-Liste
+         verloren gehen. Dieser Code stellt sicher dass URL-Layer dauerhaft aktiv sind. -->
+    <script>
+    (function() {
+        var params = new URLSearchParams(window.location.search);
+        var urlLayersRaw  = params.get('layers') || '';
+        var urlOpacity    = parseFloat(params.get('op'));
+        if (!urlLayersRaw) return;
+
+        // Layers können | oder , getrennt sein
+        var urlLayerIds = urlLayersRaw.split(/[|,]/).map(function(s) { return s.trim(); }).filter(Boolean);
+        if (!urlLayerIds.length) return;
+
+        function ensureUrlLayers() {
+            var am = window.njs && window.njs.AppManager;
+            if (!am || !am.Maps || !am.Maps['main'] || !am.Maps['main'].mapObj) return;
+            var map = am.Maps['main'].mapObj;
+
+            urlLayerIds.forEach(function(layerId) {
+                // Ist der Layer bereits im OL-Stack und sichtbar?
+                var found = null;
+                map.getLayers().forEach(function(l) {
+                    if (!found && (l.get('name') || '') === layerId) found = l;
+                });
+                if (found && found.getVisible()) return; // bereits aktiv
+
+                // Layer fehlt oder nicht sichtbar → laden
+                if (typeof TnetLayerSwitch === 'function') {
+                    TnetLayerSwitch(layerId, 'on');
+                } else if (am.LyrMgr) {
+                    for (var lm in am.LyrMgr) {
+                        var mgr = am.LyrMgr[lm];
+                        if (mgr.targetMap && mgr.switchLayersProgr &&
+                            (typeof mgr.targetMap === 'string' ? mgr.targetMap === 'main' : mgr.targetMap.indexOf('main') > -1)) {
+                            mgr.switchLayersProgr(layerId, null, true);
+                            break;
+                        }
+                    }
+                }
+
+                // Opazität aus URL setzen
+                if (!isNaN(urlOpacity) && found) {
+                    found.setOpacity(urlOpacity);
+                }
+            });
+        }
+
+        document.addEventListener('tnet-app-ready', function() {
+            // Mehrere Versuche: Framework-Initialisierung kann Layer kurz entfernen
+            setTimeout(ensureUrlLayers, 500);
+            setTimeout(ensureUrlLayers, 1500);
+            setTimeout(ensureUrlLayers, 3000);
+        }, { once: true });
+    })();
+    </script>
+    <div id="disclaimer_copyright" class="njsDisclaimer"></div>
+    <div id="disclaimer_tips" class="njsDisclaimer"></div>
+    <div id="disclaimer_news" class="njsDisclaimer"></div>
+    <div id="disclaimer_pdf" class="njsDisclaimer" style='visibility:hidden'></div>
+
+    <!-- Modaler Dialog mit iframe (Fullscreen auf Mobile) -->
+    <div id="mapsInfoDialog" data-dojo-type="dijit/Dialog" title="" style="display:none;">
+        <div class="customRefreshBtn" onclick="refreshIframe()" title="Seite neu laden">↻</div>
+        <div class="customBackBtn" onclick="goBackInIframe()">‹</div>
+        <div class="customCloseBtn" onclick="closeMapsInfoDialog()">×</div>
+        <iframe id="mapsInfoFrame" name="mapsInfoFrame" data-src="/maps/tnet/inframe-maps.html"
+            loading="lazy" sandbox="allow-same-origin allow-scripts" referrerpolicy="no-referrer"
+            style="width: 100%; height: 100%; border: none;"></iframe>
+    </div>
+
+    <!-- Splash Screen -->
+    <div id="splash-screen">
+        <div id="splash-logo"></div>
+        <div id="splash-cube-container">
+            <div id="splash-cube">
+                <div class="cube-face cube-front"></div>
+                <div class="cube-face cube-back"></div>
+                <div class="cube-face cube-right"></div>
+                <div class="cube-face cube-left"></div>
+                <div class="cube-face cube-top"></div>
+                <div class="cube-face cube-bottom"></div>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- ============================================================
+         MOBILE TOP-BAR: Logo + Suchfeld + Hamburger
+         ============================================================ -->
+    <!-- Framework-Suche versteckt halten (style_m.css-Konflikt mit m-topbar) -->
+    <div id="njs_search_wrapper" style="display:none!important;"></div>
+
+    <div id="m-topbar">
+        <div class="m-logo">
+            <a href="https://www.gis-daten.ch" target="_blank">
+                <svg viewBox="0 0 228.55 174.96" xmlns="http://www.w3.org/2000/svg" aria-label="GIS Daten AG"><g transform="matrix(1.3333333,0,0,-1.3333333,0,174.96)"><g transform="scale(0.1)"><path style="fill:#fff" d="M 70.3945,0 H 49.6523 L 16.3516,91.7383 V 0 H 0 V 131.422 H 19.3438 L 54.043,35.8281 V 131.422 H 70.3945 V 0"/><path style="fill:#fff" d="m 119.105,0 h -16.347 v 131.422 h 16.347 V 0"/><path style="fill:#fff" d="M 205.719,22.5391 V 109.07 c 0,3.989 -2.211,6 -6.621,6 H 168.023 V 16.3516 h 31.075 c 4.41,0 6.621,2.0586 6.621,6.1875 z m 16.351,-1.4102 c 0,-5.8398 -2.066,-10.8281 -6.187,-14.94921 C 211.762,2.05078 206.781,0 200.934,0 h -49.258 v 131.422 h 49.258 c 5.847,0 10.828,-2.07 14.949,-6.192 4.121,-4.121 6.187,-9.101 6.187,-14.941 V 21.1289"/><path style="fill:#fff" d="m 340.598,21.1289 c 0,-5.8398 -2.067,-10.8281 -6.18,-14.94921 C 330.293,2.05078 325.309,0 319.457,0 H 309.293 C 304.77,0 300.445,1.39063 296.328,4.17969 292.473,1.39063 288.148,0 283.363,0 h -10.367 c -5.851,0 -10.801,2.05078 -14.855,6.17969 -4.059,4.12111 -6.086,9.10941 -6.086,14.94921 V 131.422 h 16.351 V 22.5313 c 0,-4.1211 2.196,-6.1797 6.578,-6.1797 h 6.586 c 4.387,0 6.578,2.0586 6.578,6.1797 V 131.422 h 16.36 V 22.5313 c 0,-4.1211 2.187,-6.1797 6.578,-6.1797 h 6.574 c 4.391,0 6.586,2.0586 6.586,6.1797 V 131.422 h 16.352 V 21.1289"/><path style="fill:#fff" d="m 424.836,65.6016 v 43.4574 c 0,4 -2.207,6.011 -6.617,6.011 h -24.457 c -4.414,0 -6.621,-2.011 -6.621,-6.011 V 65.6016 Z M 441.188,0 H 424.836 V 49.25 H 387.141 V 0 h -16.348 v 110.289 c 0,5.84 2.023,10.82 6.082,14.941 4.059,4.122 9.004,6.192 14.855,6.192 h 28.321 c 5.847,0 10.832,-2.07 14.949,-6.192 4.121,-4.121 6.188,-9.101 6.188,-14.941 L 441.188,0"/><path style="fill:#fff" d="m 532.133,0 h -60.82 v 131.422 h 16.355 V 16.3516 h 44.465 V 0"/><path style="fill:#fff" d="M 600.938,22.5391 V 109.07 c 0,3.989 -2.208,6 -6.618,6 H 563.246 V 16.3516 h 31.074 c 4.41,0 6.618,2.0586 6.618,6.1875 z m 16.351,-1.4102 c 0,-5.8398 -2.059,-10.8281 -6.18,-14.94921 C 606.988,2.05078 602.004,0 596.152,0 h -49.257 v 131.422 h 49.257 c 5.852,0 10.836,-2.07 14.957,-6.192 4.121,-4.121 6.18,-9.101 6.18,-14.941 V 21.1289"/><path style="fill:#fff" d="M 717.734,0 H 647.34 v 131.422 h 70.394 V 115.07 H 663.688 V 77.3789 h 42.48 V 61.0195 h -42.48 V 16.3516 h 54.046 V 0"/><path style="fill:#fff" d="M 818.02,0 H 797.281 L 763.977,91.7383 V 0 h -16.356 v 131.422 h 19.348 L 801.672,35.8281 V 131.422 H 818.02 V 0"/><path style="fill:#fff" d="M 934.742,344.746 H 779.094 V 900.793 H 934.742 V 344.746"/><path style="fill:#fff" d="m 1714.09,494.754 c 0,-41.52 -14.64,-76.891 -43.89,-106.145 -29.25,-29.246 -64.61,-43.863 -106.12,-43.863 h -233.51 c -41.53,0 -76.66,14.617 -105.44,43.863 -28.78,29.254 -43.15,64.625 -43.15,106.145 v 100.648 h 155.64 v -62.437 c 0,-20.762 10,-31.141 29.94,-31.141 h 158.1 c 21.8,0 32.74,9.906 32.74,29.723 v 195.726 c 0,23.571 -10.9,35.395 -32.66,35.395 h -194.63 c -42.61,0 -78.16,14.379 -106.54,43.148 -28.4,28.782 -42.59,64.391 -42.59,106.864 v 214.67 c 0,41.49 14.37,76.9 43.15,106.14 28.78,29.22 63.91,43.86 105.44,43.86 h 233.51 c 41.51,0 76.87,-14.64 106.12,-43.86 29.25,-29.24 43.89,-64.65 43.89,-106.14 V 1026.7 H 1558.4 v 62.43 c 0,20.74 -9.94,31.15 -29.9,31.15 h -156.67 c -22.81,0 -34.21,-9.91 -34.21,-29.72 V 936.715 c 0,-23.574 11.34,-35.363 33.98,-35.363 h 192.48 c 42.44,0 78.05,-14.149 106.84,-42.45 28.76,-28.304 43.17,-63.699 43.17,-106.136 V 494.754"/><path style="fill:#dd1533" d="m 857.125,1202.8 -0.215,-210.042 175.19,56.702 v 211 l -164.944,51.71 -175.258,-56.72"/><path style="fill:#fff" d="m 532.363,495.023 c 0,-41.656 -14.644,-77.16 -43.89,-106.492 -29.25,-29.332 -64.625,-43.984 -106.145,-43.984 H 148.84 c -43.414,0 -79.0509,14.133 -106.8517,42.437 C 14.1602,415.285 0.230469,451.137 0.230469,494.547 v 632.593 c 0,41.51 14.375031,76.88 43.175831,106.13 28.7695,29.25 63.9137,43.89 105.4337,43.89 h 233.488 c 41.52,0 76.895,-14.64 106.145,-43.89 29.246,-29.25 43.89,-64.62 43.89,-106.13 V 1026.48 H 376.68 v 63.87 c 0,19.81 -10.457,29.72 -31.325,29.72 H 185.82 c -19.925,0 -29.914,-10.41 -29.914,-31.14 V 535.594 c 0,-22.656 10.91,-33.985 32.742,-33.985 h 156.707 c 20.868,0 31.325,9.911 31.325,29.727 V 673.531 H 276.035 v 157.102 h 256.328 v -335.61"/><path style="fill:#ef8a83" d="m 857.125,1202.8 174.975,57.66 -164.944,51.71 -175.258,-56.72 165.227,-52.65"/><path style="fill:#fff" d="M 996.289,22.5391 V 109.07 c 0,3.989 -2.203,6 -6.617,6 H 964.82 c -4.152,0 -6.222,-2.14 -6.222,-6.41 V 23.5508 c 0,-1.8711 0.636,-3.5391 1.91,-5 1.262,-1.4727 2.836,-2.1992 4.707,-2.1992 h 24.457 c 4.414,0 6.617,2.0586 6.617,6.1875 z m 16.361,-1.4102 c 0,-5.8398 -2.07,-10.8281 -6.19,-14.94921 C 1002.35,2.05078 997.348,0 991.516,0 h -28.325 c -6.121,0 -11.14,1.98828 -15.062,5.98047 -3.918,3.98828 -5.879,9.03903 -5.879,15.14843 v 89.1601 c 0,5.84 2.023,10.82 6.078,14.941 4.059,4.122 9.012,6.192 14.863,6.192 h 28.325 c 5.832,0 10.834,-2.07 14.944,-6.192 4.12,-4.121 6.19,-9.101 6.19,-14.941 V 21.1289"/><path style="fill:#fff" d="m 1096.73,23.5313 v 30.9101 c 0,4.3867 -2,6.5781 -6.01,6.5781 h -31.68 V 16.3516 h 31.08 c 1.86,0 3.43,0.7265 4.7,2.1992 1.27,1.4492 1.91,3.1094 1.91,4.9805 z m 0,61.0585 v 24.0582 c 0,4.282 -2,6.422 -6.01,6.422 h -31.68 V 77.3789 h 31.08 c 1.86,0 3.43,0.7227 4.7,2.1914 1.27,1.4805 1.91,3.1485 1.91,5.0195 z m 16.35,-63.4609 c 0,-6.1094 -1.99,-11.16015 -5.98,-15.14843 C 1103.11,1.98828 1098.07,0 1091.95,0 h -49.26 v 131.422 h 49.26 c 5.83,0 10.82,-2.07 14.96,-6.192 4.11,-4.121 6.17,-9.101 6.17,-14.941 V 82.1719 c 0,-4.793 -1.46,-9.1836 -4.38,-13.1719 2.92,-3.9883 4.38,-8.2383 4.38,-12.7695 V 21.1289"/><path style="fill:#fff" d="m 1231.52,21.1289 c 0,-5.8398 -2.06,-10.8281 -6.18,-14.94921 C 1221.21,2.05078 1216.23,0 1210.39,0 h -10.18 c -4.52,0 -8.84,1.39063 -12.95,4.17969 C 1183.39,1.39063 1179.07,0 1174.28,0 h -10.37 c -5.84,0 -10.78,2.05078 -14.85,6.17969 -4.05,4.12111 -6.08,9.10941 -6.08,14.94921 V 131.422 h 16.35 V 22.5313 c 0,-4.1211 2.2,-6.1797 6.59,-6.1797 h 6.57 c 4.39,0 6.58,2.0586 6.58,6.1797 V 131.422 h 16.36 V 22.5313 c 0,-4.1211 2.2,-6.1797 6.58,-6.1797 h 6.58 c 4.38,0 6.59,2.0586 6.59,6.1797 V 131.422 h 16.34 V 21.1289"/><path style="fill:#fff" d="m 1315.72,65.6016 v 43.4574 c 0,4 -2.22,6.011 -6.62,6.011 h -24.46 c -4.41,0 -6.61,-2.011 -6.61,-6.011 V 65.6016 Z M 1332.07,0 h -16.35 v 49.25 h -37.69 V 0 h -16.35 v 110.289 c 0,5.84 2.03,10.82 6.07,14.941 4.06,4.122 9.01,6.192 14.86,6.192 h 28.32 c 5.85,0 10.83,-2.07 14.96,-6.192 4.11,-4.121 6.18,-9.101 6.18,-14.941 V 0"/><path style="fill:#fff" d="m 1423.01,0 h -60.82 v 131.422 h 16.35 V 16.3516 h 44.47 V 0"/><path style="fill:#fff" d="M 1491.82,22.5391 V 109.07 c 0,3.989 -2.2,6 -6.61,6 h -31.09 V 16.3516 h 31.09 c 4.41,0 6.61,2.0586 6.61,6.1875 z m 16.34,-1.4102 c 0,-5.8398 -2.05,-10.8281 -6.17,-14.94921 C 1497.87,2.05078 1492.88,0 1487.03,0 h -49.26 v 131.422 h 49.26 c 5.85,0 10.84,-2.07 14.96,-6.192 4.12,-4.121 6.17,-9.101 6.17,-14.941 V 21.1289"/><path style="fill:#fff" d="m 1608.62,0 h -70.4 v 131.422 h 70.4 V 115.07 h -54.04 V 77.3789 h 42.47 V 61.0195 h -42.47 V 16.3516 h 54.04 V 0"/><path style="fill:#fff" d="m 1708.91,0 h -20.75 l -33.3,91.7383 V 0 h -16.34 v 131.422 h 19.33 l 34.71,-95.5939 v 95.5939 h 16.35 V 0"/></g></g></svg>
+            </a>
+        </div>
+
+        <!-- Natives Suchfeld v1.5 (Lupe links, Filter-Popup rechts) -->
+        <div id="m-search-bar" role="search">
+            <svg class="m-search-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
+            </svg>
+            <input type="search" id="m-search-input"
+                   placeholder="Suchen …"
+                   autocomplete="off" autocorrect="off" autocapitalize="off"
+                   spellcheck="false" enterkeyhint="search">
+            <button id="m-search-clear" aria-label="Suche leeren" style="display:none">&times;</button>
+            <button id="m-search-filter-btn" aria-label="Filter" type="button">
+                <svg viewBox="0 0 24 24"><path d="M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z"/></svg>
+            </button>
+            <div id="m-search-filter-popup">
+                <div class="m-filter-section">
+                    <div class="m-filter-title">Ortsauswahl</div>
+                    <label class="m-filter-radio"><input type="radio" name="m-canton" value="" checked> Nidwalden + Obwalden</label>
+                    <label class="m-filter-radio"><input type="radio" name="m-canton" value="NW"> Nidwalden</label>
+                    <label class="m-filter-radio"><input type="radio" name="m-canton" value="OW"> Obwalden</label>
+                </div>
+                <hr class="m-filter-hr">
+                <div class="m-filter-section">
+                    <div class="m-filter-title">Inhalte</div>
+                    <label class="m-filter-check"><input type="checkbox" id="m-filter-orte" checked> Orte, Strassen &amp; Gebiete</label>
+                    <label class="m-filter-check"><input type="checkbox" id="m-filter-adressen" checked> Adressen</label>
+                    <label class="m-filter-check"><input type="checkbox" id="m-filter-layers" checked> Themen</label>
+                </div>
+            </div>
+            <ul id="m-search-results" role="listbox" aria-label="Suchresultate"></ul>
+        </div>
+
+        <button id="m-hamburger" aria-label="Menü öffnen">
+            <svg viewBox="0 0 24 24"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg>
+        </button>
+    </div>
+
+
+    <!-- ============================================================
+         DRAWER OVERLAY (Backdrop)
+         ============================================================ -->
+    <div id="m-drawer-overlay"></div>
+
+
+    <!-- ============================================================
+         DRAWER (Slide-in von rechts)
+         ============================================================ -->
+    <div id="m-drawer">
+        <div class="m-drawer-header">
+            <span class="m-drawer-title">
+                <img src="/maps/tnet/resources/Logo-GIS-Daten-AG_wuerfel.svg" alt="">
+                MAP+
+            </span>
+            <button class="m-drawer-close" id="m-drawer-close" aria-label="Menü schliessen">&times;</button>
+        </div>
+        <div class="m-drawer-content">
+
+            <!-- Login/Logout -->
+            <div class="m-menu-section">
+                <div id="m-login" class="m-menu-item m-menu-user" onclick="window.location.href=window.location.href+'&amp;group=?'">
+                    <svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+                    <span class="m-menu-label">Anmelden</span>
+                    <svg class="m-menu-arrow" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                </div>
+                <div id="m-logout" class="m-menu-item m-menu-user" style="display:none;" onclick="doLogout()">
+                    <svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+                    <span class="m-menu-label"><span id="m-username"></span> &middot; Abmelden</span>
+                </div>
+            </div>
+
+            <!-- Kartenauswahl -->
+            <div class="m-menu-section">
+                <div class="m-menu-item" data-m-action="maps" onclick="openMapsInfoDialog()">
+                    <svg viewBox="0 0 24 24"><path d="M20.5 3l-.16.03L15 5.1 9 3 3.36 4.9c-.21.07-.36.25-.36.48V20.5c0 .28.22.5.5.5l.16-.03L9 18.9l6 2.1 5.64-1.9c.21-.07.36-.25.36-.48V3.5c0-.28-.22-.5-.5-.5zM15 19l-6-2.11V5l6 2.11V19z"/></svg>
+                    <span class="m-menu-label">Kartenauswahl</span>
+                </div>
+            </div>
+
+            <!-- Hintergrundkarte → öffnet Bottom-Sheet -->
+            <div class="m-menu-section">
+                <div class="m-menu-item" data-m-action="basemap" onclick="openBasemapSheet()">
+                    <svg viewBox="0 0 24 24"><path d="M11.99 18.54l-7.37-5.73L3 14.07l9 7 9-7-1.63-1.27-7.38 5.74zM12 16l7.36-5.73L21 9l-9-7-9 7 1.63 1.27L12 16z"/></svg>
+                    <span class="m-menu-label">Hintergrundkarte</span>
+                </div>
+            </div>
+
+            <!-- Themenkatalog (4 Kantone) -->
+            <div class="m-menu-section">
+                <div class="m-menu-item" data-m-action="layers" onclick="openLayersSheet()">
+                    <svg viewBox="0 0 24 24"><path d="M11.99 18.54l-7.37-5.73L3 14.07l9 7 9-7-1.63-1.27-7.38 5.74zM12 16l7.36-5.73L21 9l-9-7-9 7 1.63 1.27L12 16zm0-11.47L17.74 9 12 13.47 6.26 9 12 4.53z"/></svg>
+                    <span class="m-menu-label">Themenkatalog</span>
+                </div>
+            </div>
+
+            <!-- Externe WMS -->
+            <div class="m-menu-section">
+                <div class="m-menu-item" data-m-toggle="m-panel-wms">
+                    <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+                    <span class="m-menu-label">Externe WMS</span>
+                    <svg class="m-menu-arrow" viewBox="0 0 24 24"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
+                </div>
+                <div id="m-panel-wms" class="m-sub-panel">
+                    <div id="wms_menu" data-dojo-type="dijit.layout.ContentPane" title="Externe Kartendienste">
+                        <div id="njs_wmsimport_dialog" style="width:100%; height:100%;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Dargestellte Themen → Bottom-Sheet -->
+            <div class="m-menu-section">
+                <div class="m-menu-item" data-m-action="active" onclick="openActiveSheet()">
+                    <svg viewBox="0 0 24 24"><path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/></svg>
+                    <span class="m-menu-label">Dargestellte Themen</span>
+                    <svg class="m-menu-arrow" viewBox="0 0 24 24"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
+                </div>
+            </div>
+            <!-- Legacy sort_menu (versteckt, für Dojo-Kompatibilität) -->
+            <div id="sort_menu" style="display:none">
+                <div id="njs_main_lyrsorter_wrapper" style="width: 100%; height:100%; border:0">
+                    <div id="main_lyrsorter_txt" style="display:block;text-align: center;">--- Keine Daten ausgewählt ---</div>
+                    <ul id="main_lyrsorter" style="list-style-type: none; padding: 0;"></ul>
+                </div>
+            </div>
+
+            <!-- Werkzeuge -->
+            <div class="m-menu-section">
+                <div class="m-menu-item" data-m-toggle="m-panel-tools">
+                    <svg viewBox="0 0 24 24"><path d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z"/></svg>
+                    <span class="m-menu-label">Werkzeuge</span>
+                    <svg class="m-menu-arrow" viewBox="0 0 24 24"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
+                </div>
+                <div id="m-panel-tools" class="m-sub-panel">
+                    <div id="tools_menu">
+                        <div id="njs_measure_wrapper"></div>
+                        <div id="njs_redlining_wrapper"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Drucken -->
+            <div class="m-menu-section">
+                <div class="m-menu-item" data-m-action="print" onclick="closeDrawer(); if(window._olMap) window._printSavedCenter = window._olMap.getView().getCenter().slice(); if(typeof openPdfPrinter==='function') openPdfPrinter();">
+                    <svg viewBox="0 0 24 24"><path d="M19 8H5c-1.66 0-3 1.34-3 3v6h4v4h12v-4h4v-6c0-1.66-1.34-3-3-3zm-3 11H8v-5h8v5zm3-7c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm-1-9H6v4h12V3z"/></svg>
+                    <span class="m-menu-label">Drucken</span>
+                </div>
+            </div>
+
+            <!-- Separator -->
+            <div class="m-menu-section">
+                <!-- ÖREB -->
+                <div class="m-menu-item" data-m-action="oereb" onclick="toggleOerebMode()">
+                    <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><path fill="currentColor" d="M7 7h4v4H7zM13 7h4v2h-4zM7 13h4v2H7zM13 13h4v4h-4z"/><circle fill="currentColor" cx="17" cy="7" r="1.5"/></svg>
+                    <span class="m-menu-label">ÖREB Grundstückabfrage</span>
+                </div>
+                <div class="m-menu-item" data-m-action="spatialquery" onclick="togglePolygonDraw()">
+                    <svg viewBox="0 0 24 24"><path d="M4 5h3v3H4zM17 4h3v3h-3zM18 17h3v3h-3zM4 17h3v3H4z" fill="currentColor"/><path d="M8.5 6.5L15.5 5.5 18.5 12.5 14.5 18.5 6.5 16.5 5.5 10.5z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+                    <span class="m-menu-label">Räumliche Abfrage</span>
+                </div>
+                <!-- 3D Landschaftsmodell -->
+                <div class="m-menu-item" data-m-action="3d" onclick="toggleLandscape3D()">
+                    <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm3.5-9c.83 0 1.5-.67 1.5-1.5S16.33 8 15.5 8 14 8.67 14 9.5s.67 1.5 1.5 1.5zm-7 0c.83 0 1.5-.67 1.5-1.5S9.33 8 8.5 8 7 8.67 7 9.5 7.67 11 8.5 11zm3.5 6.5c2.33 0 4.31-1.46 5.11-3.5H6.89c.8 2.04 2.78 3.5 5.11 3.5z" fill="currentColor"/></svg>
+                    <span class="m-menu-label">3D Landschaftsmodell</span>
+                </div>
+            </div>
+
+            <!-- Hilfe & Links -->
+            <div class="m-menu-section">
+                <div class="m-menu-item" data-m-action="help" onclick="openHelp()">
+                    <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17h-2v-2h2v2zm2.07-7.75l-.9.92C13.45 12.9 13 13.5 13 15h-2v-.5c0-1.1.45-2.1 1.17-2.83l1.24-1.26c.37-.36.59-.86.59-1.41 0-1.1-.9-2-2-2s-2 .9-2 2H8c0-2.21 1.79-4 4-4s4 1.79 4 4c0 .88-.36 1.68-.93 2.25z"/></svg>
+                    <span class="m-menu-label">Hilfe</span>
+                </div>
+                <a class="m-menu-item" href="https://www.gis-daten.ch/news-termine/news/" target="_blank" style="text-decoration:none;">
+                    <svg viewBox="0 0 24 24"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2zm-2 1H8v-6c0-2.48 1.51-4.5 4-4.5s4 2.02 4 4.5v6z"/></svg>
+                    <span class="m-menu-label">News</span>
+                </a>
+                <a class="m-menu-item" href="https://www.gis-daten.ch/ueber-uns/support/" target="_blank" style="text-decoration:none;">
+                    <svg viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
+                    <span class="m-menu-label">Support</span>
+                </a>
+            </div>
+
+        </div><!-- /.m-drawer-content -->
+    </div><!-- /#m-drawer -->
+
+
+    <!-- ============================================================
+         MAP (Dojo BorderContainer - Fullscreen)
+         ============================================================ -->
+    <div id="NeapoljsContainer" data-dojo-type="dijit.layout.BorderContainer" design="headline" gutters="false"
+        style="width:100%; height:100%;">
+
+        <div id="centerPane" class="edgePanel" data-dojo-type="dijit.layout.ContentPane"
+            data-dojo-props="region: 'center'"
+            style="margin:0;padding:0;border:none;">
+            <div id="centerPaneLayout" class="demoLayout" data-dojo-type="dijit.layout.BorderContainer"
+                data-dojo-props="design: 'headline'" style="margin:0;padding:0;border:none">
+                <div data-dojo-type="dijit.layout.ContentPane" id='mapContainer' region="center" style="overflow:hidden;">
+                    <div id="popup" class="ol-popup" style="display:none;">
+                        <a href="#" id="popup-closer" class="ol-popup-closer"></a>
+                        <div id="popup-content"></div>
+                    </div>
+
+                    <div id="njs_main_shop_wrapper" style="display:none"></div>
+                    <div id="map" class="map-cont" style="height:100%;"></div>
+
+                    <!-- ÖREB Button auf Karte -->
+                    <div id="oereb-tool-btn" onclick="toggleOerebMode()" title="ÖREB Grundstückabfrage">
+                        <svg viewBox="0 0 24 24" width="20" height="20">
+                            <rect x="3" y="3" width="18" height="18" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/>
+                            <path fill="currentColor" d="M7 7h4v4H7zM13 7h4v2h-4zM7 13h4v2H7zM13 13h4v4h-4z"/>
+                            <circle fill="currentColor" cx="17" cy="7" r="1.5"/>
+                        </svg>
+                    </div>
+
+                    <div id="mainButtonBar"></div>
+
+                    <!-- Versteckte Controls (für Basemap BW/Opacity) -->
+                    <div id='mapcontrols_div' style="display:none;">
+                        <div id='toggle_coltool1_div' style="visibility:hidden;">
+                            <input type="button" class="toggle_coltool" id="btnBW"
+                                onclick="njs.AppManager.toggleBaseLayerColor('main','toggle_coltool1',this);">
+                        </div>
+                        <div id='opacitytool1_rangediv' style="visibility:hidden;">
+                            <input type='range' min='0' max='100' value='0' id='opacitytool1_range'
+                                oninput="njs.AppManager.setBaseLayerOpacity('main',this.value);"
+                                onchange="njs.AppManager.setBaseLayerOpacity('main',this.value);">
+                        </div>
+                    </div>
+
+                    <!-- Koordinaten + Scale direkt auf Karte -->
+                    <div id="njs_coordinates_wrapper"></div>
+                    <div id="scale-line"></div>
+
+                    <div id="paneSwitcher" class="edgePanel" style="position:absolute;left:0;top:0;display:none"></div>
+
+                    <!-- Basemap Selector (klein, rechts unten) -->
+                    <div id="basemap_selector" title="Hintergrundkarte wählen">
+                        <div class="basemap-preview"></div>
+                        <span class="basemap-label">Hintergrund</span>
+                    </div>
+
+                    <!-- Desktop Basemap Widget (versteckt, JS referenziert es) -->
+                    <div id="basemap_widget" class="basemap-widget-hidden" style="display:none;"></div>
+
+                </div>
+                <!-- /mapContainer -->
+
+                <!-- Info-Panel als Bottom-Sheet -->
+                <div data-dojo-type="dijit.layout.ContentPane" id='custompaneContainer' class="outer"
+                    style="display:none; width:100%; -webkit-overflow-scrolling:touch !important; margin:0;padding:0;border:none;"
+                    data-dojo-props="region: 'right', splitter: false" doLayout="false">
+                    <iframe id="custompaneFrame" src="" height="100%"
+                        style="-webkit-overflow-scrolling:touch !important; border:none; width:100%; height:100%;"></iframe>
+                    <iframe id="custompaneFrameForm" src="" height="100%"
+                        style="-webkit-overflow-scrolling:touch !important; display:none; border:none; width:100%; height:100%;"></iframe>
+                </div>
+
+                <!-- StreetView Container (versteckt) -->
+                <div data-dojo-type="dijit.layout.ContentPane" id='streetviewContainer' class="outer"
+                    style="width:100%; display:none; -webkit-overflow-scrolling:touch !important; margin:0;padding:0;border:none;"
+                    data-dojo-props="region: 'right', splitter: false">
+                    <iframe id="streetviewFrame" src="" height="100%"
+                        style="border:0; width:100%; height:100%;"></iframe>
+                </div>
+
+            </div><!-- /centerPaneLayout -->
+        </div><!-- /centerPane -->
+
+        <!-- FooterPane (versteckt, für Dojo-Kompatibilität) -->
+        <div id="footPane_main" class="edgePanel" data-dojo-type="dijit.layout.ContentPane"
+            data-dojo-props="region: 'bottom'" style="display:none;">
+            <div id="footPane" class="edgePanel" data-dojo-type="dijit.layout.ContentPane"
+                data-dojo-props="region: 'bottom'">
+                <div id="leftPaneFooter" class="njsFooter">
+                </div>
+            </div>
+        </div>
+
+    </div><!-- /NeapoljsContainer -->
+
+
+    <!-- ============================================================
+         BOTTOM-SHEETS (ausserhalb NeapoljsContainer für korrektes position:fixed)
+         ============================================================ -->
+    <div id="m-sheet-overlay" class="m-sheet-overlay"></div>
+
+    <!-- Themenkatalog -->
+    <div id="m-layers-sheet" class="m-bottom-sheet">
+        <div class="m-sheet-handle"><div class="m-sheet-bar"></div></div>
+        <div class="m-sheet-header">
+            <span class="m-sheet-title">Themenkatalog</span>
+            <button class="m-sheet-close" onclick="closeLayersSheet()" aria-label="Schliessen">&times;</button>
+        </div>
+        <div class="m-sheet-body">
+            <div id="kantons_container">
+                <div id="tp_layer_menu" data-dojo-type="dijit/TitlePane" data-dojo-props="title: 'Nidwalden', open:true"
+                    style="padding:0px;margin:0px;">
+                    <div id="layer_menu" data-dojo-type="dijit.layout.ContentPane" title="Titel 1">
+                        <div id="njs_main_lyrmgr_wrapper" style="width: 100%;"></div>
+                    </div>
+                </div>
+                <div id="tp_layer_menu2" data-dojo-type="dijit/TitlePane" data-dojo-props="title: 'Obwalden', open:true"
+                    style="padding:0px;margin:0px;">
+                    <div id="layer_menu2" data-dojo-type="dijit.layout.ContentPane" title="Titel 2">
+                        <div id="njs_second_lyrmgr_wrapper" style="width: 100%;"></div>
+                    </div>
+                </div>
+                <div id="tp_layer_menu3" data-dojo-type="dijit/TitlePane" data-dojo-props="title: 'Bund', open:true"
+                    style="padding:0px;margin:0px;">
+                    <div id="layer_menu3" data-dojo-type="dijit.layout.ContentPane" title="Titel 3">
+                        <div id="njs_third_lyrmgr_wrapper" style="width: 100%;"></div>
+                    </div>
+                </div>
+                <div id="tp_layer_menu4" data-dojo-type="dijit/TitlePane" data-dojo-props="title: 'Weitere', open:true"
+                    style="padding:0px;margin:0px;">
+                    <div id="layer_menu4" data-dojo-type="dijit.layout.ContentPane" title="Titel 4">
+                        <div id="njs_forth_lyrmgr_wrapper" style="width: 100%;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Dargestellte Themen Bottom-Sheet -->
+    <div id="m-active-sheet" class="m-bottom-sheet">
+        <div class="m-sheet-handle"><div class="m-sheet-bar"></div></div>
+        <div class="m-sheet-header">
+            <span class="m-sheet-title">Dargestellte Themen</span>
+            <button class="m-sheet-close" onclick="closeActiveSheet()" aria-label="Schliessen">&times;</button>
+        </div>
+        <div class="m-sheet-body">
+            <div id="lm-active-container" class="lm-container"></div>
+            <div id="sort_menu_sheet">
+                <div id="njs_main_lyrsorter_wrapper_sheet" style="width: 100%; border:0"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Basemap Bottom-Sheet -->
+    <div id="m-basemap-overlay" class="m-basemap-overlay"></div>
+    <div id="m-basemap-sheet">
+        <div class="m-sheet-handle m-basemap-sheet-handle"><div class="m-sheet-bar m-basemap-sheet-bar"></div></div>
+        <div class="m-basemap-sheet-header">
+            <span class="m-basemap-sheet-title">Hintergrundkarte</span>
+            <button class="m-basemap-sheet-close" id="m-basemap-sheet-close" aria-label="Schliessen">&times;</button>
+        </div>
+        <div class="m-basemap-sheet-body">
+            <div class="basemap-widget-content">
+                <div class="basemap-layer-section">
+                    <div class="basemap-layer-row">
+                        <span class="layer-icon">〜</span>
+                        <span class="layer-label">Höhenkurven</span>
+                        <div class="layer-toggle">
+                            <button class="toggle-btn" data-layer="hoehenkurven" data-value="on">EIN</button>
+                            <button class="toggle-btn active" data-layer="hoehenkurven" data-value="off">AUS</button>
+                        </div>
+                    </div>
+                    <div class="basemap-layer-row">
+                        <span class="layer-icon">⊞</span>
+                        <span class="layer-label">Projektebene</span>
+                        <div class="layer-toggle">
+                            <button class="toggle-btn" data-layer="projektebene" data-value="on">EIN</button>
+                            <button class="toggle-btn active" data-layer="projektebene" data-value="off">AUS</button>
+                        </div>
+                    </div>
+                    <div class="basemap-layer-row">
+                        <span class="layer-icon">◯</span>
+                        <span class="layer-label">Gemeindegrenzen</span>
+                        <div class="layer-toggle">
+                            <button class="toggle-btn" data-layer="gemeindegrenzen" data-value="on">EIN</button>
+                            <button class="toggle-btn active" data-layer="gemeindegrenzen" data-value="off">AUS</button>
+                        </div>
+                    </div>
+                    <div class="basemap-layer-row">
+                        <span class="layer-icon">◧</span>
+                        <span class="layer-label">Farbig / Grau</span>
+                        <div class="layer-toggle">
+                            <button class="toggle-btn active" data-layer="farbmodus" data-value="color"
+                                onclick="njs.AppManager.toggleBaseLayerColor('main','toggle_coltool1',this); this.classList.add('active'); this.nextElementSibling.classList.remove('active');">FARBE</button>
+                            <button class="toggle-btn" data-layer="farbmodus" data-value="grey"
+                                onclick="njs.AppManager.toggleBaseLayerColor('main','toggle_coltool1',this); this.classList.add('active'); this.previousElementSibling.classList.remove('active');">GRAU</button>
+                        </div>
+                    </div>
+                    <div class="basemap-layer-row">
+                        <span class="layer-label">Transparenz</span>
+                        <input type="range" class="transparency-slider" min="0" max="100" value="0"
+                            oninput="njs.AppManager.setBaseLayerOpacity('main',this.value); this.nextElementSibling.textContent=this.value;"
+                            onchange="njs.AppManager.setBaseLayerOpacity('main',this.value);">
+                        <span class="transparency-value">0</span>
+                    </div>
+                </div>
+
+                <!-- Zeitreise -->
+                <div id="basemap-time-container" class="basemap-time-container" style="display:none;">
+                    <div class="basemap-time-header">
+                        <span class="basemap-time-icon">⏱</span>
+                        <span class="basemap-time-title">Zeitreise</span>
+                        <span id="basemap-time-label" class="basemap-time-label">2024</span>
+                        <button id="basemap-time-reset" class="basemap-time-reset" title="Aktuell">
+                            <svg viewBox="0 0 16 16" width="14" height="14"><path fill="currentColor" d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm0 12.5A5.5 5.5 0 1 1 13.5 8 5.51 5.51 0 0 1 8 13.5zM8.5 4v4.25l3.15 1.88-.75 1.23L7 9V4z"/></svg>
+                        </button>
+                    </div>
+                    <input type="range" id="basemap-time-slider" class="basemap-time-slider"
+                        min="0" max="33" value="33" step="1">
+                    <div class="basemap-time-range">
+                        <span id="basemap-time-min">1926</span>
+                        <span id="basemap-time-max">2024</span>
+                    </div>
+                </div>
+                <div id="basemap-time-info" class="basemap-time-info" style="display:none;">
+                    <span class="basemap-time-icon">⏱</span>
+                    <span id="basemap-time-info-text"></span>
+                </div>
+
+                <!-- Basemap Kacheln -->
+                <div class="basemap-cards-scroll">
+                    <div class="basemap-card active" data-basemap="swissimage">
+                        <span class="basemap-card-time-badge">⏱</span>
+                        <div class="basemap-card-preview orthofoto"></div>
+                        <span class="basemap-card-label">Orthofoto</span>
+                    </div>
+                    <div class="basemap-card" data-basemap="av_sw">
+                        <div class="basemap-card-preview basisplan"></div>
+                        <span class="basemap-card-label">Basisplan</span>
+                    </div>
+                    <div class="basemap-card" data-basemap="plan_fuer_grundbuch_bund">
+                        <div class="basemap-card-preview grundbuch"></div>
+                        <span class="basemap-card-label">Plan f. Grundbuch</span>
+                    </div>
+                    <div class="basemap-cards-spacer">Weitere</div>
+                    <div class="basemap-card" data-basemap="pk_color">
+                        <span class="basemap-card-time-badge">⏱</span>
+                        <div class="basemap-card-preview landeskarte"></div>
+                        <span class="basemap-card-label">Landeskarte</span>
+                    </div>
+                    <div class="basemap-card" data-basemap="siegfried">
+                        <span class="basemap-card-time-badge">⏱</span>
+                        <div class="basemap-card-preview siegfried"></div>
+                        <span class="basemap-card-label">Siegfriedkarten</span>
+                    </div>
+                    <div class="basemap-card" data-basemap="dufour">
+                        <span class="basemap-card-time-badge">⏱</span>
+                        <div class="basemap-card-preview dufour"></div>
+                        <span class="basemap-card-label">Dufourkarte</span>
+                    </div>
+                    <div class="basemap-card" data-basemap="swiss_tlm">
+                        <div class="basemap-card-preview swisstlm"></div>
+                        <span class="basemap-card-label">swissTLM</span>
+                    </div>
+                    <div class="basemap-card" data-basemap="osm_ch">
+                        <div class="basemap-card-preview osm"></div>
+                        <span class="basemap-card-label">OpenStreetMap</span>
+                    </div>
+                    <div class="basemap-card" data-basemap="leer">
+                        <div class="basemap-card-preview keine"></div>
+                        <span class="basemap-card-label">Leer</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- ============================================================
+         TNET Module (selektiv für Mobile)
+         ============================================================ -->
+    <!-- TNET Zentrale Log-Utility (muss VOR allen anderen TNET-Scripts geladen werden) -->
+    <script type="text/javascript" src="/maps/tnet/js/tnet-log.js"></script>
+
+    <!-- TNET Icon-Loader (lädt SVG-Icons aus /resources/icons/) -->
+    <script type="text/javascript" src="/maps/tnet/js/tnet-icons.js"></script>
+    <script>TnetIcons.loadAll();</script>
+
+    <!-- TNET Shared Utils -->
+    <script type="module" src="/maps/tnet/js/tnet-utils.js"></script>
+
+    <!-- TNET Helpers (Bookmarks) -->
+    <script type="text/javascript" src="/maps/tnet/js/tnet-mapplus-helpers.js" defer></script>
+
+    <!-- TNET TOC Konverter (mobile Version ohne aggressive Observer) -->
+    <script type="text/javascript" src="/maps/tnet/js/mobile/tnet-toc-m.js" defer></script>
+
+    <!-- TNET App-Init -->
+    <script type="module" src="/maps/tnet/js/tnet-app.js"></script>
+
+    <!-- TNET Header: Login, Splash, Maps-Dialog -->
+    <script type="module" src="/maps/tnet/js/tnet-header.js"></script>
+
+    <!-- TNET Info Panel (Bottom-Sheet Variante) -->
+    <script type="module" src="/maps/tnet/js/tnet-info-panel.js"></script>
+
+    <!-- TNET Info-Bridge: Zentraler singleclick-Dispatcher für MapTips/GFI -->
+    <script src="/maps/tnet/js/tnet-info-bridge.js?v=20260306"></script>
+
+    <!-- TNET Basemap: Widget UI, Grundkarten-Layer-Sync, Zeitreise -->
+    <script src="/maps/tnet/js/tnet-basemap.js" defer></script>
+
+    <!-- TNET 3D Landscape -->
+    <script src="/maps/tnet/js/tnet-3d-landscape.js?v=20260211c" defer></script>
+
+    <!-- TNET Spatial Query -->
+    <script type="module" src="/maps/tnet/js/tnet-spatial-query.js"></script>
+
+    <script>
+        window.__TNET_MOBILE_ENTRY = true;
+    </script>
+
+    <!-- TNET ÖREB -->
+    <script type="module" src="/maps/tnet/js/tnet-oereb.js"></script>
+
+    <!-- TNET Drucken / PDF-Export -->
+    <script src="/maps/tnet/js/tnet-print.js" defer></script>
+
+    <!-- Neuer Layer-Manager (Feature-Flag in tnet-global-config.json5 → layerManager.useNew) -->
+    <script src="/maps/tnet/js/tnet-lm-store.js?v=20260222c" defer></script>
+    <script src="/maps/tnet/js/tnet-lm-tree.js?v=20260222c" defer></script>
+    <script src="/maps/tnet/js/tnet-lm-active.js?v=20260222c" defer></script>
+    <script src="/maps/tnet/js/tnet-lm-init.js?v=20260222c" defer></script>
+
+
+    <!-- ============================================================
+         Panels (ausserhalb mapContainer)
+         ============================================================ -->
+
+    <!-- ÖREB Dock-Panel (als Bottom-Sheet auf Mobile) -->
+    <div id="oereb-dock-panel" class="oereb-dock-panel docked-right hidden">
+        <div class="oereb-dock-header" id="oereb-dock-header">
+            <span class="oereb-dock-title">ÖREB Grundstückabfrage</span>
+            <div class="oereb-dock-actions">
+                <button class="oereb-dock-close" onclick="closeOerebPanel()">&times;</button>
+            </div>
+        </div>
+        <div id="oereb-selection" class="oereb-selection"></div>
+        <div class="oereb-iframe-container">
+            <iframe id="oereb-iframe" src="about:blank" style="border:none;width:100%;height:100%;display:block;"></iframe>
+        </div>
+    </div>
+
+    <!-- Spatial Query Panel (vereinfacht, Bottom-Sheet) -->
+    <div id="spatial-query-panel" class="spatial-query-panel hidden">
+        <div class="spatial-query-header" id="spatial-query-header">
+            <span class="spatial-query-title">Räumliche Abfrage</span>
+            <div class="spatial-query-actions">
+                <button class="spatial-query-btn" onclick="exportQueryToExcel()" title="Als Excel exportieren">
+                    <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm4 18H6V4h7v5h5v11zm-5-7l-3 3.5L7 13h2.5V9h3v4H15z"/></svg>
+                </button>
+                <button class="spatial-query-close" onclick="closeSpatialQueryPanel()">&times;</button>
+            </div>
+        </div>
+        <div class="spatial-query-status" id="spatial-query-status">Zeichnen Sie ein Polygon auf der Karte...</div>
+        <div class="spatial-query-results" id="spatial-query-results"></div>
+    </div>
+
+    <!-- Stub für TouchCursorMeasure.buildUI (erwartet #btnMeasure im DOM, auf Mobile nicht sichtbar) -->
+    <div id="btnMeasure" style="display:none;"></div>
+
+</body>
+</html>

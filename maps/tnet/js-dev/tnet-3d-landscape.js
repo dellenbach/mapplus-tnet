@@ -17,6 +17,10 @@
 (function() {
     'use strict';
 
+    function getAppRoot() {
+        return window.__TNET_APP_ROOT || '/maps';
+    }
+
     // =========================================================
     // Log Level System
     // Nutzt jetzt die zentrale TnetLog-Utility (tnet-log.js).
@@ -36,8 +40,8 @@
         }
         
         var paths = [
-            '/maps/tnet/config/tnet-global-config.json5',
-            '/maps/tnet/tnet-global-config.json5',
+            getAppRoot() + '/tnet/config/tnet-global-config.json5',
+            getAppRoot() + '/tnet/tnet-global-config.json5',
             '../tnet/config/tnet-global-config.json5'
         ];
         for (var i = 0; i < paths.length; i++) {
@@ -371,7 +375,7 @@
                 TnetLog.log('[3DLandscape] Altitude after offset (' + cameraAltitudeOffset + 'm):', Math.round(cameraAltitude), 'm');
                 
                 // Build iframe URL (absolute for iframe context)
-                var iframeSrc = window.location.origin + '/maps/tnet/tnet-3d-viewer.html?webscene=' + encodeURIComponent(self.webSceneId);
+                var iframeSrc = window.location.origin + getAppRoot() + '/tnet/views/tnet-3d-viewer.html?webscene=' + encodeURIComponent(self.webSceneId);
                 if (initParams) {
                     iframeSrc += '&lon=' + initParams.longitude;
                     iframeSrc += '&lat=' + initParams.latitude;

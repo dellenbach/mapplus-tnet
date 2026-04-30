@@ -1,0 +1,29 @@
+{
+  "comment": "Mapping zwischen Layer-Manager-Definitionen und UI-Kategorien",
+  "categories": [
+    {
+      "id": "nidwalden",
+      "name": "Nidwalden",
+      "lyrmgr": "main_lyrmgr",
+      "icon": "njsCategoryIcon8"
+    },
+    {
+      "id": "obwalden",
+      "name": "Obwalden",
+      "lyrmgr": "second_lyrmgr",
+      "icon": "njsCategoryIcon8"
+    },
+    {
+      "id": "bund",
+      "name": "Bund",
+      "lyrmgr": "third_lyrmgr",
+      "icon": "njsCategoryIcon5"
+    },
+    {
+      "id": "weitere",
+      "name": "Weitere",
+      "lyrmgr": "forth_lyrmgr",
+      "icon": "njsCategoryIcon7"
+    }
+  ]
+}

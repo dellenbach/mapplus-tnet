@@ -18,6 +18,10 @@
  * @author     Marco Dellenbach
  */
 
+function getAppRoot() {
+    return window.__TNET_APP_ROOT || '/maps';
+}
+
 // ===== MAPS-INFO-DIALOG (IFRAME) =====
 var iframeHistory = [];
 var iframeHistoryIndex = -1;
@@ -57,7 +61,7 @@ var iframeHistoryIndex = -1;
     }
     _preAuthStarted = true;
     var base = 'https://www.gis-daten.ch';
-    var callbackUrl = base + '/maps/tnet/views/oauth-callback.html';
+    var callbackUrl = base + getAppRoot() + '/tnet/views/oauth-callback.html';
     var oauthUrl = base + '/?option=oauthredirect&app_name=adfs&redirect_url=' + encodeURIComponent(callbackUrl);
     console.log('[tnet-header] Pre-Auth: User angemeldet → starte WP-OAuth im Hintergrund');
     _startSilentOAuth(oauthUrl);
@@ -124,7 +128,7 @@ var iframeHistoryIndex = -1;
     // Bei Pre-Auth ist das iframe noch nicht da → kein Refresh nötig
     var iframe = document.getElementById('mapsInfoFrame');
     if (iframe && iframe.getAttribute('src') && iframe.getAttribute('src') !== '') {
-      var baseSrc = iframe.getAttribute('data-src') || '/maps/tnet/views/inframe-maps.html';
+            var baseSrc = iframe.getAttribute('data-src') || (getAppRoot() + '/tnet/views/inframe-maps.html');
       iframe.src = baseSrc + (baseSrc.indexOf('?') === -1 ? '?t=' : '&t=') + Date.now();
       console.log('[tnet-header] iframe refresht nach OAuth');
     } else {

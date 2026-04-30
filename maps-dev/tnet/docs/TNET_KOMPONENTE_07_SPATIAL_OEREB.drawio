@@ -1,0 +1,17 @@
+<mxfile host="app.diagrams.net" modified="2026-02-27T00:00:00.000Z" agent="GPT-5.3-Codex" version="22.1.0" type="device">
+  <diagram id="spatialoereb" name="TNET KOMPONENTE 07 SPATIAL OEREB">
+    <mxGraphModel dx="1200" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="827" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="o1" value="Geometrie/Klick\nSpatial Trigger" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1"><mxGeometry x="60" y="140" width="220" height="70" as="geometry" /></mxCell>
+        <mxCell id="o2" value="tnet-spatial-query.js\nRäumliche Abfrage" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1"><mxGeometry x="320" y="80" width="220" height="70" as="geometry" /></mxCell>
+        <mxCell id="o3" value="tnet-oereb.js\nOEREB-Verarbeitung" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1"><mxGeometry x="320" y="220" width="220" height="70" as="geometry" /></mxCell>
+        <mxCell id="o4" value="Ausgabe\nPanel/Overlay" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1"><mxGeometry x="620" y="140" width="220" height="70" as="geometry" /></mxCell>
+        <mxCell id="oe1" style="endArrow=block;html=1;rounded=0;" edge="1" parent="1" source="o1" target="o2"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="oe2" style="endArrow=block;html=1;rounded=0;" edge="1" parent="1" source="o2" target="o3"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="oe3" style="endArrow=block;html=1;rounded=0;" edge="1" parent="1" source="o3" target="o4"><mxGeometry relative="1" as="geometry" /></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

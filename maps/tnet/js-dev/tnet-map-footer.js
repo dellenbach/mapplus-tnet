@@ -217,9 +217,10 @@ var predefinedScales = [100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 75
 
 // Scales aus Config laden und Dropdown neu befüllen
 function loadScalesFromConfig() {
+    var appRoot = window.__TNET_APP_ROOT || '/maps';
     var paths = [
-        '/maps/tnet/config/tnet-global-config.json5',
-        '/maps/tnet/tnet-global-config.json5',
+        appRoot + '/tnet/config/tnet-global-config.json5',
+        appRoot + '/tnet/tnet-global-config.json5',
         '../tnet/config/tnet-global-config.json5'
     ];
     function tryPath(idx) {

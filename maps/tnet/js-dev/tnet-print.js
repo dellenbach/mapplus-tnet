@@ -21,6 +21,10 @@
 (function () {
   'use strict';
 
+  function getAppRoot() {
+    return window.__TNET_APP_ROOT || '/maps';
+  }
+
   // ================================================================
   //  State
   // ================================================================
@@ -32,8 +36,8 @@
   var _svgRawCache = {};        // {layoutValue: serializedSvg} — vor Variablen-Ersetzung
   var _isPrinting = false;
   var _isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
-  var PDF_SAVE_URL = '/maps/tnet/php/pdf-save.php';
-  var PDF_LOG_URL = '/maps/tnet/php/pdf-log.php';  // Parallel-Logging
+  var PDF_SAVE_URL = getAppRoot() + '/tnet/php/pdf-save.php';
+  var PDF_LOG_URL = getAppRoot() + '/tnet/php/pdf-log.php';  // Parallel-Logging
   var _layouts = [];
   var _globalConfig = {};  // Wird aus tnet-global-config.json5 befuellt
   // ── Print-Job-Queue (für Background-Processing) ──
@@ -62,7 +66,7 @@
   // ================================================================
   var _libsReady = false;
   var _libsPromise = null;
-  var LIB_BASE = '/maps/tnet/ol-pdf-printer/js/';
+  var LIB_BASE = getAppRoot() + '/tnet/ol-pdf-printer/js/';
   var LIBS = [
     LIB_BASE + 'jspdf.umd.min.js',
     LIB_BASE + 'svg2pdf.umd.min.js',
@@ -102,7 +106,7 @@
     // Config muss gesetzt sein BEVOR pdf-printer-init.js geladen wird
     window._pdfPrinterConfig = {
       filename: 'tnet_Kartenexport',
-      templatesBasePath: '/maps/tnet/ol-pdf-printer/qgis-templates'
+      templatesBasePath: getAppRoot() + '/tnet/ol-pdf-printer/qgis-templates'
     };
 
     _libsPromise = LIBS.reduce(function (chain, src) {
@@ -121,7 +125,7 @@
   function loadScalesFromConfig() {
     try {
       var xhr = new XMLHttpRequest();
-      xhr.open('GET', '/maps/tnet/config/tnet-global-config.json5', false);
+      xhr.open('GET', getAppRoot() + '/tnet/config/tnet-global-config.json5', false);
       xhr.send();
       if (xhr.status === 200) {
           var text = xhr.responseText;

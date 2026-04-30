@@ -15,7 +15,11 @@
 (function () {
     'use strict';
 
-    var PROXY_URL    = '/maps/tnet/api/search-proxy.php';
+    function getAppRoot() {
+        return window.__TNET_APP_ROOT || '/maps';
+    }
+
+    var PROXY_URL    = getAppRoot() + '/tnet/api/search-proxy.php';
     var MAPSERVER_URL = 'https://api3.geo.admin.ch/rest/services/api/MapServer/';
     var debounceTimer = null;
     var currentAbort  = null;   // AbortController
@@ -145,7 +149,7 @@
     function loadLayerIndex() {
         if (_layerIndexReady || _layerIndexLoading) return;
         _layerIndexLoading = true;
-        var apiUrl = '/maps/tnet/api/v1/layers.php?flat=true&details=false';
+        var apiUrl = getAppRoot() + '/tnet/api/v1/layers.php?flat=true&details=false';
         fetch(apiUrl)
             .then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); })
             .then(function (json) {
@@ -474,7 +478,7 @@
 
     // -- Icons (extern aus /maps/tnet/resources/icons/) -----------------------
 
-    var ICON_BASE = '/maps/tnet/resources/icons/';
+    var ICON_BASE = getAppRoot() + '/tnet/resources/icons/';
     var ICON_CSS  = 'dt-search-item-icon';
     var _iconCache = {};
 
@@ -840,8 +844,8 @@
     function loadSearchConfig() {
         if (typeof JSON5 === 'undefined') return Promise.resolve(null);
         var paths = [
-            '/maps/tnet/config/tnet-global-config.json5',
-            '/maps/tnet/tnet-global-config.json5',
+            getAppRoot() + '/tnet/config/tnet-global-config.json5',
+            getAppRoot() + '/tnet/tnet-global-config.json5',
             '../tnet/config/tnet-global-config.json5'
         ];
         function tryPath(i) {

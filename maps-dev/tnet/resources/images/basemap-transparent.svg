@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="100" height="80" viewBox="0 0 100 80">
+  <!-- Transparenz-Schachbrettmuster -->
+  <defs>
+    <pattern id="checkerboard" width="16" height="16" patternUnits="userSpaceOnUse">
+      <rect fill="#fff" width="16" height="16"/>
+      <rect fill="#ccc" width="8" height="8"/>
+      <rect fill="#ccc" x="8" y="8" width="8" height="8"/>
+    </pattern>
+  </defs>
+  <rect fill="url(#checkerboard)" width="100" height="80"/>
+</svg>

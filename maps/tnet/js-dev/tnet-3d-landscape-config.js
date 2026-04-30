@@ -84,9 +84,10 @@
      * Lade Konfiguration aus JSON5-Datei
      */
     function loadConfigFromJson() {
+        var appRoot = window.__TNET_APP_ROOT || '/maps';
         var possiblePaths = [
-            '/maps/tnet/config/tnet-global-config.json5',
-            '/maps/tnet/tnet-global-config.json5',
+            appRoot + '/tnet/config/tnet-global-config.json5',
+            appRoot + '/tnet/tnet-global-config.json5',
             '../tnet/config/tnet-global-config.json5'
         ];
         

@@ -12,7 +12,11 @@
 // TnetApi — Zentraler API-Client für alle /api/v1/* Aufrufe
 // =====================================================================
 var TnetApi = (function() {
-  var BASE = '/maps/tnet/api/v1';
+  function getAppRoot() {
+    return window.__TNET_APP_ROOT || '/maps';
+  }
+
+  var BASE = getAppRoot() + '/tnet/api/v1';
 
   /**
    * Zentraler GET-Request an die TNET API
