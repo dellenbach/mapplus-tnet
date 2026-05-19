@@ -43,7 +43,7 @@ header('X-API-Version: 2.0');
 CacheHelper::noCache();
 
 // --- Proxy-Cache-Verzeichnis und TTL aus Config lesen ---
-$proxyCacheDir = '/data/Client_Data/nwow/tmp/proxy-cache';
+$proxyCacheDir = '/data/Client_Data/nwow/tmp/maps-dev/proxy-cache';
 $proxyCacheTtl = 3600;
 $proxyCacheEnabled = false;
 $configPath = __DIR__ . '/../../config/tnet-global-config.json5';
@@ -189,7 +189,7 @@ if ($method === 'GET') {
             'cacheDir'   => realpath($apiCache->getCacheDir()) ?: $apiCache->getCacheDir(),
             'writable'   => $apiCache->isWritable(),
             'dirExists'  => is_dir($apiCache->getCacheDir()),
-            'phpUser'    => function_exists('posix_getpwuid') 
+            'phpUser'    => (function_exists('posix_getpwuid') && function_exists('posix_geteuid')) 
                 ? posix_getpwuid(posix_geteuid())['name'] 
                 : get_current_user(),
             'permissions' => is_dir($apiCache->getCacheDir()) 

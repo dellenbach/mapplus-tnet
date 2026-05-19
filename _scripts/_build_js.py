@@ -5,13 +5,14 @@ sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='repla
 sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
 """
 _build_js.py
-Minifizierung und Obfuskation aller JS-Quelldateien aus js-dev/ nach js/.
+Build aller JS-Quelldateien aus js-dev/ nach js/.
 Verwendet esbuild (Standalone-Binary, kein Node.js nötig).
 Bei fehlendem esbuild.exe wird die Binary automatisch heruntergeladen.
 
 Aufruf:
-  py _scripts/_build_js.py                        # Alle Dateien bauen
-  py _scripts/_build_js.py maps/tnet/js-dev/foo.js  # Einzelne Datei bauen
+    py _scripts/_build_js.py                          # Alle Dateien fuer PROD bauen
+    py _scripts/_build_js.py --mode dev maps-dev/tnet/js-dev/foo.js
+    py _scripts/_build_js.py --mode prod maps/tnet/js-dev/foo.js
 
 @version    1.0
 @date       2026-04-13
@@ -23,6 +24,7 @@ import sys
 import subprocess
 import urllib.request
 import zipfile
+import argparse
 
 # ===== KONFIGURATION =====
 ESBUILD_VERSION  = "0.25.2"
@@ -108,9 +110,17 @@ def ensure_esbuild():
 
 # ===== BUILD =====
 
-def build_file(src_path):
+def detect_build_mode(src_path=None):
+    """Leitet den Buildmodus aus dem Quellpfad ab, falls kein Modus angegeben wurde."""
+    if src_path and f"{os.sep}maps-dev{os.sep}" in os.path.normpath(src_path):
+        return "dev"
+    return "prod"
+
+
+def build_file(src_path, mode="prod"):
     """
-    Einzelne Datei minifizieren + obfuskieren.
+    Einzelne Datei bauen.
+    DEV bleibt lesbar, PROD wird minifiziert.
     Gibt (ok, bytes_vorher, bytes_nachher) zurück.
     """
     # Relativen Pfad ermitteln: js-dev/foo.js oder js-dev/mobile/foo.js
@@ -123,15 +133,16 @@ def build_file(src_path):
 
     size_before = os.path.getsize(src_path)
 
-    result = subprocess.run(
-        [ESBUILD_EXE,
-         src_path,
-         "--bundle=false",
-         "--minify",
-         f"--outfile={out_path}"],
-        capture_output=True,
-        text=True
-    )
+    args = [
+        ESBUILD_EXE,
+        src_path,
+        "--bundle=false",
+        f"--outfile={out_path}",
+    ]
+    if mode == "prod":
+        args.insert(-1, "--minify")
+
+    result = subprocess.run(args, capture_output=True, text=True)
 
     if result.returncode != 0:
         return False, size_before, 0, result.stderr.strip()
@@ -157,12 +168,17 @@ def collect_sources(root):
 
 
 def main():
+    parser = argparse.ArgumentParser(description="Baut TNET JS-Dateien aus tnet/js-dev nach tnet/js")
+    parser.add_argument("src", nargs="?", help="Optionale Einzeldatei aus tnet/js-dev oder tnet/js")
+    parser.add_argument("--mode", choices=["dev", "prod"], help="Buildmodus: dev ohne Minify, prod mit Minify")
+    args = parser.parse_args()
+
     if not ensure_esbuild():
         sys.exit(1)
 
     # Einzelne Datei oder Full-Build?
-    if len(sys.argv) >= 2:
-        src = os.path.normpath(sys.argv[1])
+    if args.src:
+        src = os.path.normpath(args.src)
         js_dev_dir, js_out_dir = resolve_js_roots(src)
         # Pfad darf auch aus js/ kommen → auf js-dev/ umleiten
         src = src.replace(js_out_dir + os.sep, js_dev_dir + os.sep)
@@ -170,10 +186,12 @@ def main():
             print(f"✗ Datei nicht gefunden: {src}")
             sys.exit(1)
         sources = [src]
-        print(f"Einzelbuild: {os.path.basename(src)}")
+        mode = args.mode or detect_build_mode(src)
+        print(f"Einzelbuild ({mode}): {os.path.basename(src)}")
     else:
         sources = collect_sources(JS_DEV_DIR)
-        print(f"Full-Build: {len(sources)} Dateien aus {JS_DEV_DIR}\n")
+        mode = args.mode or "prod"
+        print(f"Full-Build ({mode}): {len(sources)} Dateien aus {JS_DEV_DIR}\n")
 
     ok_count = 0
     err_count = 0
@@ -182,10 +200,13 @@ def main():
 
     for src in sources:
         rel = os.path.relpath(src, JS_DEV_DIR).replace("\\", "/")
-        ok, before, after, err = build_file(src)
+        ok, before, after, err = build_file(src, mode)
         if ok:
             ratio = (1 - after / before) * 100 if before > 0 else 0
-            print(f"  ✓ {rel:<45} {before:>7,} → {after:>7,} bytes  ({ratio:.0f}% kleiner)")
+            if mode == "prod":
+                print(f"  ✓ {rel:<45} {before:>7,} → {after:>7,} bytes  ({ratio:.0f}% kleiner)")
+            else:
+                print(f"  ✓ {rel:<45} {before:>7,} → {after:>7,} bytes  (lesbar)")
             ok_count += 1
             total_before += before
             total_after += after

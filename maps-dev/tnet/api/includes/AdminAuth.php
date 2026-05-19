@@ -25,17 +25,19 @@ class AdminAuth {
     }
 
     public static function getClientDataRoot() {
-        return self::getAppBasePath() === '/maps-dev'
-            ? '/data/Client_Data/nwow-dev'
-            : '/data/Client_Data/nwow';
+        return '/data/Client_Data/nwow';
+    }
+
+    private static function getTmpRoot() {
+        return self::getClientDataRoot() . '/tmp/' . (self::getAppBasePath() === '/maps-dev' ? 'maps-dev' : 'maps');
     }
 
     public static function getConfigFilePath() {
-        return self::getClientDataRoot() . '/tmp/admin-env.json';
+        return self::getTmpRoot() . '/admin-env.json';
     }
 
     public static function getAccessConfigFilePath() {
-        return self::getClientDataRoot() . '/tmp/access-config.json';
+        return self::getTmpRoot() . '/access-config.json';
     }
     
     private static function getCookiePath() {
@@ -232,13 +234,34 @@ class AdminAuth {
         ];
         $configFile = self::getConfigFilePath();
         $dir = dirname($configFile);
+        
+        // Verzeichnis prüfen und erstellen
         if (!is_dir($dir)) {
-            mkdir($dir, 0755, true);
+            if (!@mkdir($dir, 0755, true)) {
+                error_log('AdminAuth::setup() - Verzeichnis konnte nicht erstellt werden: ' . $dir);
+                return false;
+            }
         }
-        return file_put_contents(
+        
+        // Schreibberechtigung prüfen
+        if (!is_writable($dir)) {
+            error_log('AdminAuth::setup() - Verzeichnis nicht beschreibbar: ' . $dir . ' (Berechtigungen: ' . substr(sprintf('%o', fileperms($dir)), -4) . ')');
+            return false;
+        }
+        
+        // Datei schreiben
+        $result = @file_put_contents(
             $configFile,
-            json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)
-        ) !== false;
+            json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE),
+            LOCK_EX
+        );
+        
+        if ($result === false) {
+            error_log('AdminAuth::setup() - Datei konnte nicht geschrieben werden: ' . $configFile);
+            return false;
+        }
+        
+        return true;
     }
 
     /**

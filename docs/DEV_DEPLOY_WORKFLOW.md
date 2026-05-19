@@ -48,7 +48,18 @@ Hier sollten Aenderungen im Normalfall nicht zuerst entwickelt werden. Der Regel
 
 Geteilte Basis fuer beide Umgebungen.
 
-Aenderungen unter `core/` wirken potenziell auf DEV und PROD. Solche Aenderungen muessen daher bewusster validiert werden als reine `maps-dev/`-Edits.
+`core/` bleibt der produktive Basis-Core. Aenderungen dort wirken potenziell auf PROD und duerfen nicht als normaler DEV-Edit behandelt werden.
+
+### `core-dev/`
+
+Getrennter DEV-Core fuer Laufzeitdaten.
+
+Mindestens diese Bereiche werden in DEV bevorzugt aus `core-dev/` gelesen:
+
+- `core-dev/config/`
+- `core-dev/nls/`
+
+Wenn ein Unterordner in `core-dev/` noch fehlt, darf die DEV-Runtime nicht auf `core/` zurueckfallen. Fehlende DEV-Core-Dateien muessen sichtbar fehlschlagen, damit DEV nicht versehentlich produktive Core-Dateien verwendet.
 
 ### `_scripts/`
 
@@ -100,6 +111,12 @@ Diese Werte sollten in Runtime-Code nicht direkt hart codiert werden:
 - `/maps`
 - `/www/maps`
 - `/data/Client_Data/nwow`
+- `/www/core`
+
+Fuer Core-Config und Core-NLS in PHP den zentralen Resolver `TnetCorePaths` verwenden:
+
+- DEV: `core-dev/config`, `core-dev/nls/<lang>`
+- PROD: `core/config`, `core/nls/<lang>`
 
 ### Frontend-Regel
 
@@ -216,6 +233,13 @@ Config-Deploys nie nebenbei ausfuehren. Immer bewusst mit Grund.
 
 `js-dev/` ist die Quelle. `js/` ist das Build-/Deploy-Ziel.
 
+Build-Modi:
+
+- DEV (`--env dev`): lesbarer Build ohne Minify
+- PROD (`--env prod`): minifizierter Build
+
+Die Deploy-Skripte leiten den Modus automatisch aus `--env` ab und rufen `_scripts/_build_js.py --mode dev|prod` auf.
+
 Wichtig:
 
 - `tnet/js-dev/*.js` niemals direkt auf den Server laden
@@ -231,6 +255,30 @@ Wenn ein JS-Fix nicht auf dem Server ankommt, zuerst pruefen:
 1. wurde die Quelldatei unter `js-dev/` geaendert?
 2. lief der Build erfolgreich?
 3. existiert danach die erwartete Datei unter `tnet/js/`?
+
+## PostgreSQL
+
+PostgreSQL ist fuer normale DEV-Kartenentwicklung nicht zwingend. Der DEV-Default fuer den LayerManager bleibt dateibasiert, wenn `layerManager.lyrmgrSource: 'file'` gesetzt ist.
+
+Wenn DB-Workflows genutzt werden:
+
+- PROD nutzt standardmaessig Schema `mapplusconf`
+- DEV nutzt standardmaessig Schema `mapplusconf_dev`
+- Override ist per `MAPPLUS_DB_SCHEMA` oder `db_config.php`-Schluessel `schema` moeglich
+
+Der PHP-Wrapper `Database.php` setzt den `search_path` und schreibt historische `mapplusconf.`-SQL-Qualifizierungen zur Laufzeit auf das aktive Schema um.
+
+## FastAPI / ags2mapplus
+
+Der FastAPI-Dienst unter `/gapi/ags2mapplus` ist serverseitig separat von SFTP-Deploys unter `/www`.
+
+DEV-Regel:
+
+- PHP-Aufrufe an ags2mapplus senden `target=dev`
+- DEV-Admin-HTMLs ergaenzen bei direkten `/gapi/ags2mapplus`-Fetches automatisch `target=dev`
+- Pfade aus DEV-PHP muessen bereits auf `/data/Client_Data/nwow-dev` oder `/www/core-dev` zeigen, bevor FastAPI deployed
+
+Wichtig: Aenderungen am eigentlichen FastAPI-Code unter `C:\FastAPI\ags2mapplus` koennen nicht per SFTP-Deploy aus diesem Workspace aktualisiert werden.
 
 ## DEV-Validierung
 

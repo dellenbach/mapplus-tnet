@@ -1,3 +1,51 @@
+## 2026-05-19 — FastAPI-Publish schrieb DEV-Konfigurationen potenziell nach PROD
+- **Symptom**: `maps-dev`-UIs sendeten zwar `target=dev` an `/gapi/ags2mapplus`, FastAPI-Publish-Endpunkte konnten aber weiterhin harte PROD-Pfade wie `/www/core` oder `/www/maps` verwenden.
+- **Root-Cause**: `ags2mapplus_api.py` und `ags2mapplus_lyrmgr.py` hatten globale PROD-Konstanten fuer Staging, Core/NLS, LyrMgr, Legendtuner, Bookmarks und Git-Pfadmapping; `deploy-staged-conf` akzeptierte pauschal `/www/...`.
+- **Fix**: DEV/PROD-Zielresolver in FastAPI eingefuehrt. `target=dev` routet nun auf `/data/tmp/maps-dev`, `/www/core-dev` und `/www/maps-dev`; Publish/Delete/Git-Endpunkte validieren Pfade gegen Ziel-Whitelists und geben Ziel/Deploy-Pfade explizit in der Response aus.
+- **Guardrail**: Frontend-Parameter wie `target=dev` reichen nie allein. Der Backend-Publish muss Zielpfade selbst aufloesen und falsche DEV/PROD-Kombinationen aktiv ablehnen.
+
+## 2026-05-19 — maps-dev hatte noch harte /maps-API-URLs in Admin-UI und LayerManager-Config
+- **Symptom**: Die `maps-dev`-Admin/Test-Seiten und der neue LayerManager konnten trotz getrenntem App-Root noch Endpunkte unter `/maps` ansprechen.
+- **Root-Cause**: Mehrere Admin-HTML-Dateien enthielten absolute `/maps/...` Links und `tnet-global-config.json5` setzte `layerManager.apiUrl` hart auf `/maps/tnet/api/v1/layers.php`; `tnet-lm-store.js` uebernahm diese URL ohne App-Root-Normalisierung.
+- **Fix**: Admin/Test-Seiten auf relative URLs umgestellt, DEV-Config auf `/maps-dev/tnet/api/v1/layers.php` gesetzt und `tnet-lm-store.js` normalisiert `/maps`/`/maps-dev` API-Pfade defensiv auf den aktuellen App-Root.
+- **Guardrail**: In `maps-dev` duerfen UI-Links und Config-URLs nie absolute `/maps`-Endpunkte enthalten. Client-Code, der Config-URLs ausfuehrt, muss bekannte App-Root-Pfade normalisieren.
+
+## 2026-05-19 — DEV-DB-Schema wurde durch Config-to-DB nicht angelegt
+- **Symptom**: `maps-dev` sollte `mapplusconf_dev` verwenden, das Schema war aber noch nicht angelegt; der SLM-Button `Config → DB` zielte zudem hart auf `/maps`.
+- **Root-Cause**: `admin?action=schema` fuehrte `schema.sql` roh aus, wodurch `CREATE SCHEMA mapplusconf` und `SET search_path TO mapplusconf` nicht auf das aktive DEV-Schema umgeschrieben wurden. Der UI-Button startete nur `configToPG`, nicht vorher die Schema-Initialisierung.
+- **Fix**: `Database::rewriteSql()` schreibt nun auch `CREATE SCHEMA` und `SET search_path` auf das aktive Schema um. `Config → DB` nutzt den aktuellen App-Root und ruft vor dem Import `admin?action=schema` auf.
+- **Guardrail**: DEV-DB-Aktionen muessen immer erst das aktive Schema (`Database::getSchema()`) verwenden und duerfen keine hart kodierten `/maps`-URLs oder `mapplusconf`-DDL ausfuehren.
+
+## 2026-05-19 — maps-dev fiel bei fehlenden DEV-Core-Pfaden auf PROD-Core zurueck
+- **Symptom**: `maps-dev` konnte trotz vorhandenem `/www/core-dev` weiterhin Dateien aus `/www/core` oder app-lokalen `maps-dev/core`-Overrides verwenden.
+- **Root-Cause**: `TnetCorePaths` hatte DEV-Fallbacks auf `core`, und einzelne DEV-Einstiege nutzten direkte `../core`-Includes bzw. Treebuilder-Override-Pfade.
+- **Fix**: DEV-Core-Aufloesung strikt auf `core-dev` umgestellt; direkte Includes laufen ueber `TnetCorePaths::resolveCoreFile()`, Treebuilder-Override-Konstanten zeigen in DEV auf `CORE_CONFIG_DIR`/`CORE_NLS_DIR`.
+- **Guardrail**: DEV darf fuer Core-Ressourcen nie still auf PROD-Core fallen. Wenn `core-dev` fehlt, muss der Fehler sichtbar werden statt produktive Dateien zu laden.
+
+## 2026-05-19 — DEV/PROD-Trennung fuer Core, Build, DB und FastAPI
+- **Symptom**: DEV konnte trotz eigenem `maps-dev` weiterhin gemeinsame Core-Dateien, minifizierte DEV-Builds, PROD-DB-Schema und FastAPI-Publikationsziele verwenden.
+- **Root-Cause**: Die Trennung war an mehreren Stellen nur ueber App-Pfade umgesetzt; Core-Config/NLS, JS-Buildmodus, PostgreSQL-Schema und ags2mapplus-Ziel waren nicht zentral environment-aware.
+- **Fix**: `TnetCorePaths` fuer `core-dev`/`core` eingefuehrt, DEV-JS-Build ohne Minify umgesetzt, `Database.php` auf `mapplusconf_dev` fuer DEV vorbereitet und FastAPI-Aufrufe aus DEV mit `target=dev` versehen.
+- **Guardrail**: Jede neue DEV/PROD-Trennung braucht einen zentralen Resolver oder Modusparameter. Keine Runtime-Komponente darf ihr Ziel aus hart codierten PROD-Pfaden ableiten.
+
+## 2026-05-19 — Admin-Setup schreibt in falschen DEV-Datenpfad
+- **Symptom**: Erstmaliges Admin-Passwort auf `/maps-dev` meldete `Einrichtung fehlgeschlagen (Dateisystem-Fehler)`, obwohl SFTP-Verzeichnisse angelegt wurden.
+- **Root-Cause**: `AdminAuth` leitete fuer DEV `/data/Client_Data/nwow-dev/tmp` ab. Der bekannte schreibbare PHP-Tmp-Bereich liegt aber unter `/data/Client_Data/nwow/tmp` (SFTP-Sicht: `/data/tmp`).
+- **Fix**: Admin- und Access-Konfigurationsdateien liegen nun immer unter `/data/Client_Data/nwow/tmp`; DEV nutzt getrennte Dateinamen `admin-env-dev.json` und `access-config-dev.json`.
+- **Guardrail**: Bei PHP/SFTP-Pfaden immer PHP-Sicht und SFTP-Sicht auseinanderhalten. Fuer DEV/PROD-Trennung im gemeinsamen Tmp-Bereich lieber eindeutige Dateinamen statt erfundene Datenroots verwenden.
+
+## 2026-05-19 — DEV raw-conf nutzt nicht beschreibbaren nwow-dev-Tmp-Root
+- **Symptom**: AGS-Import/Raw-Conf-Funktionen auf `/maps-dev` zielten auf `/data/Client_Data/nwow-dev/tmp/raw-conf` und scheiterten an fehlenden Schreibrechten.
+- **Root-Cause**: `treebuilder-api.php` leitete temporaere Arbeitsverzeichnisse aus `CLIENT_DATA_ROOT` ab; fuer DEV zeigte dieser Root auf einen nicht dauerhaft beschreibbaren Datenbaum.
+- **Fix**: Neuer `TNET_TMP_ROOT`: PROD nutzt `/data/Client_Data/nwow/tmp/maps`, DEV nutzt `/data/Client_Data/nwow/tmp/maps-dev` (SFTP-Sicht: `/data/tmp/maps` bzw. `/data/tmp/maps-dev`). Raw-Conf, ImportToCore, Layertree, StageConf, Legend- und Bookmark-Drafts haengen daran.
+- **Guardrail**: DEV/PROD-Trennung fuer beschreibbare Runtime-Arbeitsdaten immer unter dem bekannten schreibbaren Tmp-Root mit Umgebungs-Unterordner loesen, nicht ueber separate ClientData-Roots.
+
+## 2026-05-19 — PROD Runtime-Tmp-Daten lagen flach unter /data/tmp
+- **Symptom**: Nach der DEV-Trennung lagen PROD-Arbeitsdaten weiter flach unter `/data/tmp/raw-conf`, `/data/tmp/ImportToCore`, usw.; das war inkonsistent zur DEV-Struktur.
+- **Root-Cause**: Historisch war PROD der implizite Default im gemeinsamen Tmp-Root. Dadurch hatten Scripts und Runtime-Code keinen expliziten Environment-Unterordner fuer `/maps`.
+- **Fix**: PROD nutzt nun `/data/Client_Data/nwow/tmp/maps` (SFTP-Sicht: `/data/tmp/maps`), DEV `/data/Client_Data/nwow/tmp/maps-dev`. Bestehende PROD-Verzeichnisse und Admin-Dateien wurden per SFTP in den neuen `maps`-Ordner verschoben.
+- **Guardrail**: Runtime-Tmp-Daten immer unter expliziten App-Ordnern halten (`maps`, `maps-dev`). Deploy-/Migrationsskripte duerfen nicht mehr vom flachen `/data/tmp` als PROD-Default ausgehen.
+
 ## 2026-04-30 — DEV lud nach Fix weiterhin gecachte modules.js und Legacy-tnet_toc
 - **Symptom**: `/maps-dev` startete trotz lokaler Fixes unvollstaendig; `njs.AppManager.Maps.main` blieb leer und der Browser lief in `layout.js:initTitleFreePaneItems` auf `Cannot read properties of null (reading 'style')`.
 - **Root-Cause**: Remote-DEV hatte zwar die gepatchte `public/config/modules.js`, die Seite lud aber weiter `modules.js?v=v4.0.0` aus dem Cache. Zusaetzlich zeigte der `tnet_toc.js`-Script-Tag noch auf den alten Legacy-Pfad `/tnet/tnet_toc.js`, waehrend der Build nach `/tnet/js/tnet_toc.js` deployt.

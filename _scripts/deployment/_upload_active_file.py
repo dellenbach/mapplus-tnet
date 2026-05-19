@@ -85,7 +85,7 @@ def main():
     if is_js_dev:
         print(f"⚙ Quelldatei erkannt — baue zuerst: {os.path.basename(filepath)}")
         build_result = subprocess.run(
-            [sys.executable, BUILD_SCRIPT, filepath],
+            [sys.executable, BUILD_SCRIPT, "--mode", deploy_config["env"], filepath],
             capture_output=False  # Ausgabe direkt anzeigen
         )
         if build_result.returncode != 0:

@@ -193,7 +193,7 @@ def main():
             if rel.startswith("tnet/js-dev/"):
                 print(f"  ⚙ Build: {rel}")
                 build_result = subprocess.run(
-                    [sys.executable, BUILD_SCRIPT, local_file],
+                    [sys.executable, BUILD_SCRIPT, "--mode", deploy_config["env"], local_file],
                     capture_output=True, text=True
                 )
                 if build_result.returncode != 0:

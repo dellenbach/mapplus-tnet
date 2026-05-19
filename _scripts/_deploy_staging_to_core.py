@@ -5,7 +5,7 @@ Kopiert Konfigurationsdateien vom Staging-Bereich (ImportToCore) in die
 produktiven Core-Verzeichnisse auf dem Server via SFTP.
 
 Hintergrund: Die PHP-API (config-export-to-core) kann wegen Berechtigungen
-nicht von /data/tmp/ImportToCore/ nach /www/maps/core/ kopieren. Dieses
+nicht von /data/tmp/maps/ImportToCore/ nach /www/maps/core/ kopieren. Dieses
 Skript nutzt den SFTP-User 'trigonet', der die nötigen Rechte hat.
 
 WICHTIG: Der Server erlaubt NUR SFTP, keine SSH-Shell-Befehle.
@@ -14,7 +14,7 @@ Dateien können in Unterordnern der Kürzel-Verzeichnisse liegen und
 werden flach ins Zielverzeichnis kopiert.
 
 Ablauf:
-  1. Staging-Verzeichnis /data/tmp/ImportToCore/<kuerzel>/ rekursiv lesen
+    1. Staging-Verzeichnis /data/tmp/maps/ImportToCore/<kuerzel>/ rekursiv lesen
   2. Dateien nach Prefix routen:
      - layers_*, maptips_*        → /www/maps/core/config/
      - lyrmgrResources_*, etc.    → /www/maps/core/nls/de/
@@ -56,12 +56,12 @@ USER = "trigonet"
 PASSWORD = "3Zs,k4%Un,<[W(Kx"
 
 # SFTP-Pfade (aus Sicht des SFTP-Users — NICHT der PHP-Pfad!)
-# PHP sieht:  /data/Client_Data/nwow/tmp/ImportToCore
-# SFTP sieht: /data/tmp/ImportToCore
-STAGING_BASE    = "/data/tmp/ImportToCore"
+# PHP sieht:  /data/Client_Data/nwow/tmp/maps/ImportToCore
+# SFTP sieht: /data/tmp/maps/ImportToCore
+STAGING_BASE    = "/data/tmp/maps/ImportToCore"
 CORE_CONFIG_DIR = "/www/core/config"
 CORE_NLS_DIR    = "/www/core/nls/de"
-BACKUP_DIR      = "/data/tmp/deploy-backups"  # Backups separat, nicht in core/config oder core/nls/de
+BACKUP_DIR      = "/data/tmp/maps/deploy-backups"  # Backups separat, nicht in core/config oder core/nls/de
 
 # Prefix → Zielverzeichnis
 PREFIX_ROUTING = {

@@ -31,9 +31,9 @@ if ($appCookiePath === '//') {
 
 function getProxyCacheDirForAppBase($appBasePath) {
     if ($appBasePath === '/maps-dev') {
-        return '/data/Client_Data/nwow-dev/tmp/proxy-cache';
+        return '/data/Client_Data/nwow/tmp/maps-dev/proxy-cache';
     }
-    return '/data/Client_Data/nwow/tmp/proxy-cache';
+    return '/data/Client_Data/nwow/tmp/maps/proxy-cache';
 }
 
 // Session starten um mapplus-Login zu prüfen

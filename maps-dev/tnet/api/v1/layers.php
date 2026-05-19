@@ -93,11 +93,11 @@ if ($action === 'nls_check') {
     header('Content-Type: application/json; charset=utf-8');
 
     // 1. Alle lyrmgrResources_*.json laden
-    //    Basis:       /www/core/nls/de/          (4 Ebenen hoch)
-    //    Überladungen: /www/maps/core/nls/de/     (3 Ebenen hoch)
+    //    Basis: Umgebungs-Core (DEV: core-dev, PROD: core)
+    //    Überladungen: app-lokaler core/nls/de Pfad
     //    Überladungen überschreiben gleichnamige Keys aus der Basis.
-    $nlsDirBase     = realpath(__DIR__ . '/../../../../core/nls/de');
-    $nlsDirOverride = realpath(__DIR__ . '/../../../core/nls/de');
+    $nlsDirBase     = ConfigReader::getCoreNlsPath('de');
+    $nlsDirOverride = TnetCorePaths::getAppCoreNlsPath('de');
     $allNls = [];       // nlsKey => { label, file }
     $nlsFiles = [];     // filename => count
     $nlsDirs = [];      // Debug: welche Verzeichnisse geladen wurden
@@ -937,7 +937,7 @@ function extractLayerName($layerId) {
 /**
  * Lädt ALLE NLS-Labels (lyrmgrResources*.json) und gibt den Display-Namen zurück.
  * Cacht die Dateien nach dem ersten Laden.
- * Pfad: /www/core/nls/de/ (4 Ebenen über __DIR__).
+ * Pfad: Umgebungs-Core nls/de (DEV: core-dev, PROD: core).
  * 
  * @param string $key  Schlüssel (z.B. 'grundlagen', 'gis_oereb/nw_nutzungsplanung_def')
  * @return string|null  NLS-Label oder null wenn nicht gefunden
@@ -946,8 +946,8 @@ function getNlsLabel($key) {
     static $nls = null;
     if ($nls === null) {
         $nls = [];
-        // Basis: /www/core/nls/de/ (4 Ebenen hoch)
-        $nlsDirBase = realpath(__DIR__ . '/../../../../core/nls/de');
+        // Basis: Umgebungs-Core (DEV: core-dev, PROD: core)
+        $nlsDirBase = ConfigReader::getCoreNlsPath('de');
         if ($nlsDirBase && is_dir($nlsDirBase)) {
             foreach (glob($nlsDirBase . '/lyrmgrResources*.json') as $f) {
                 $data = json_decode(file_get_contents($f), true);
@@ -956,8 +956,8 @@ function getNlsLabel($key) {
                 }
             }
         }
-        // Überladungen: /www/maps/core/nls/de/ (3 Ebenen hoch, überschreibt Basis)
-        $nlsDirOverride = realpath(__DIR__ . '/../../../core/nls/de');
+        // Überladungen: app-lokaler core/nls/de Pfad, überschreibt Basis
+        $nlsDirOverride = TnetCorePaths::getAppCoreNlsPath('de');
         if ($nlsDirOverride && is_dir($nlsDirOverride) && $nlsDirOverride !== $nlsDirBase) {
             foreach (glob($nlsDirOverride . '/lyrmgrResources*.json') as $f) {
                 $data = json_decode(file_get_contents($f), true);
@@ -986,7 +986,7 @@ function getLegendLink($legendKey) {
     static $legendRes = null;
     if ($legendRes === null) {
         $legendRes = [];
-        $nlsDirBase = realpath(__DIR__ . '/../../../../core/nls/de');
+        $nlsDirBase = ConfigReader::getCoreNlsPath('de');
         if ($nlsDirBase && is_dir($nlsDirBase)) {
             foreach (glob($nlsDirBase . '/legendResources*.json') as $f) {
                 // Backup-Dateien (.bak) ignorieren
@@ -997,7 +997,7 @@ function getLegendLink($legendKey) {
                 }
             }
         }
-        $nlsDirOverride = realpath(__DIR__ . '/../../../core/nls/de');
+        $nlsDirOverride = TnetCorePaths::getAppCoreNlsPath('de');
         if ($nlsDirOverride && is_dir($nlsDirOverride) && $nlsDirOverride !== $nlsDirBase) {
             foreach (glob($nlsDirOverride . '/legendResources*.json') as $f) {
                 if (preg_match('/\.bak$/', $f)) continue;

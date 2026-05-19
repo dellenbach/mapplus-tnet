@@ -11,6 +11,8 @@
  * @author     Marco Dellenbach
  */
 
+require_once __DIR__ . '/CorePaths.php';
+
 class ConfigReader {
 
     /** @var string Basispfad zu core/config/ */
@@ -29,21 +31,32 @@ class ConfigReader {
             return self::$coreConfigPath;
         }
 
-        // Primärer Pfad: includes/ → api/ → tnet/ → maps/ → PROJECT_ROOT/ → core/config/
-        $primary = realpath(__DIR__ . '/../../../../core/config');
-        if ($primary && is_dir($primary)) {
-            self::$coreConfigPath = $primary;
-            return self::$coreConfigPath;
-        }
-
-        // Alternativer Pfad (relativ zu DOCUMENT_ROOT)
-        $alt = $_SERVER['DOCUMENT_ROOT'] . '/nwow/core/config';
-        if (is_dir($alt)) {
-            self::$coreConfigPath = realpath($alt);
+        self::$coreConfigPath = TnetCorePaths::getConfigPath();
+        if (self::$coreConfigPath) {
             return self::$coreConfigPath;
         }
 
         return null;
+    }
+
+    /**
+     * Ermittelt den NLS-Pfad der aktiven Umgebung.
+     *
+     * @param string $lang Sprachkuerzel
+     * @return string|null Pfad oder null wenn nicht gefunden
+     */
+    public static function getCoreNlsPath($lang = 'de') {
+        return TnetCorePaths::getNlsPath($lang);
+    }
+
+    /**
+     * Ermittelt alle NLS-Pfade in Lade-Reihenfolge: Umgebungs-Core, Shared-Core, App-Override.
+     *
+     * @param string $lang Sprachkuerzel
+     * @return array Liste existierender Pfade
+     */
+    public static function getNlsSearchPaths($lang = 'de') {
+        return TnetCorePaths::getNlsSearchPaths($lang);
     }
 
     /**

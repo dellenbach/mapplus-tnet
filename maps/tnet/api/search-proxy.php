@@ -22,6 +22,8 @@ header('Access-Control-Allow-Origin: *');
 header('Cache-Control: public, max-age=300');
 header('Vary: Accept-Encoding');
 
+require_once __DIR__ . '/includes/CorePaths.php';
+
 // Gzip-Komprimierung aktivieren
 if (!ob_start('ob_gzhandler')) ob_start();
 
@@ -794,21 +796,10 @@ exit;
  */
 function searchLayers(string $q, int $limit): array
 {
-    $nlsDirs = [
-        '/www/core/nls/de',
-        dirname(__DIR__, 3) . '/core/nls/de',
-    ];
-
-    $nlsDir = null;
-    foreach ($nlsDirs as $dir) {
-        if (is_dir($dir)) {
-            $nlsDir = $dir;
-            break;
-        }
+    $files = [];
+    foreach (TnetCorePaths::getNlsSearchPaths('de') as $nlsDir) {
+        $files = array_merge($files, glob($nlsDir . '/lyrmgrResources*.json'));
     }
-    if (!$nlsDir) return [];
-
-    $files = glob($nlsDir . '/lyrmgrResources*.json');
     if (empty($files)) return [];
 
     $qLower  = mb_strtolower($q, 'UTF-8');

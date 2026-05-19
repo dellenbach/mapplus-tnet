@@ -13,11 +13,13 @@
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
 
+require_once __DIR__ . '/../api/includes/CorePaths.php';
+
 // Path to basemaps.conf
-$basemapsPath = __DIR__ . '/../../../core/config/basemaps.conf';
+$basemapsPath = TnetCorePaths::resolveConfigFile('basemaps.conf');
 
 // Check if file exists
-if (!file_exists($basemapsPath)) {
+if (!$basemapsPath || !file_exists($basemapsPath)) {
     http_response_code(404);
     echo json_encode([
         'error' => 'basemaps.conf not found',

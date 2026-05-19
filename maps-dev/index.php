@@ -21,6 +21,17 @@ $appCookiePath = ($appBasePath !== '' ? $appBasePath : '') . '/';
 if ($appCookiePath === '//') {
     $appCookiePath = '/';
 }
+require_once __DIR__ . '/tnet/api/includes/CorePaths.php';
+
+function resolveCoreNlsFiles($lang, $filename) {
+    $paths = [];
+    $coreNls = TnetCorePaths::getNlsPath($lang);
+    if ($coreNls) {
+        $paths[] = $coreNls . '/' . $filename;
+    }
+
+    return $paths;
+}
 if ($host === 'nwow.mapplus.ch' && $requestUri === '/maps/') {
     //header('Location: https://dev.gis-daten.ch/maps/');
     //exit;
@@ -28,14 +39,14 @@ if ($host === 'nwow.mapplus.ch' && $requestUri === '/maps/') {
 
 function getTokenDirForAppBase($appBasePath) {
     if ($appBasePath === '/maps-dev') {
-        return '/data/Client_Data/nwow-dev/tmp/token';
+        return '/data/Client_Data/nwow/tmp/maps-dev/token';
     }
-    return '/data/Client_Data/nwow/tmp/token';
+    return '/data/Client_Data/nwow/tmp/maps/token';
 }
 
 /**
  * Cleanup alte Token-Dateien (älter als 1 Tag)
- * - Session-Tokens: /data/Client_Data/nwow/tmp/token/mapplus_token_*
+ * - Session-Tokens: /data/Client_Data/nwow/tmp/<app>/token/mapplus_token_*
  * - ArcGIS-Cache: _token_cache/arcgis_token.json (wenn abgelaufen)
  */
 function cleanupOldTokens($appBasePath) {
@@ -126,7 +137,12 @@ $accept_lang = array("de");
 if ($_GET['lang'] && in_array($_GET['lang'],$accept_lang)){
     $lang=$_GET['lang'];
 }else{
-    include_once("../core/detect_lang.inc.php");
+    $detectLangFile = TnetCorePaths::resolveCoreFile('detect_lang.inc.php');
+    if (!$detectLangFile) {
+        http_response_code(500);
+        exit('core-dev/detect_lang.inc.php nicht gefunden');
+    }
+    include_once($detectLangFile);
     $lang=detect_lang($accept_lang,$default_lang);
 }
 $_SESSION["app_language"]=$lang;
@@ -191,7 +207,12 @@ if ($_GET["group"]=="" && is_dir("./public")){
         exit;
     }else{
         $usernames="'".str_replace("*","%",str_replace(",","','",$_SESSION['OIDC_CLAIM_group'])."'");
-        include_once __DIR__.'/../core/config.php';
+        $coreConfigFile = TnetCorePaths::resolveCoreFile('config.php');
+        if (!$coreConfigFile) {
+            http_response_code(500);
+            exit('core-dev/config.php nicht gefunden');
+        }
+        include_once $coreConfigFile;
         include API_PATH.API_VERSION.'/php/conf/db.conf.php';
         include API_PATH.API_VERSION.'/php/db.connect.php';
 
@@ -301,7 +322,7 @@ else $set_vars.= "\n\tnjs.AppManager.isMobile = false;";
 $set_vars.="\n\t</script>\n";
 
 // Get the title of the page from the nls
-$main_title_arr = mergeJsonFiles(array("./core/nls/$lang/toolsResources.json"));
+$main_title_arr = mergeJsonFiles(resolveCoreNlsFiles($lang, 'toolsResources.json'));
 $main_title = ($main_title_arr["main_title_".$app_group]) ? $main_title_arr["main_title_".$app_group] : null;
 if ($main_title==null) $main_title = ($main_title_arr["main_title_".$app_profile]) ? $main_title_arr["main_title_".$app_profile] : null;
 

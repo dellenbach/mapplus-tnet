@@ -13,10 +13,12 @@
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');
 
+require_once __DIR__ . '/../api/includes/CorePaths.php';
+
 // Path to configuration files
 $confPath = __DIR__ . '/../../public/config/lyrmgr.conf';
 $mappingPath = __DIR__ . '/lyrmgr-mapping.json';
-$coreConfigPath = __DIR__ . '/../../../core/config';
+$coreConfigPath = TnetCorePaths::getConfigPath();
 
 if (!file_exists($confPath)) {
     echo json_encode(['error' => 'lyrmgr.conf not found']);
@@ -38,7 +40,7 @@ $mapping = json_decode($mappingContent, true);
 // Read layer definitions from core/config/layers_*.conf files
 $layerDefinitions = [];
 $layerFilesFound = 0;
-if (is_dir($coreConfigPath)) {
+if ($coreConfigPath && is_dir($coreConfigPath)) {
     $layerFiles = glob($coreConfigPath . '/layers_*.conf');
     $layerFilesFound = count($layerFiles);
     foreach ($layerFiles as $layerFile) {
@@ -47,21 +49,6 @@ if (is_dir($coreConfigPath)) {
         if (json_last_error() === JSON_ERROR_NONE && is_array($layers)) {
             // Merge layer definitions
             $layerDefinitions = array_merge($layerDefinitions, $layers);
-        }
-    }
-} else {
-    // Try alternative path (relative to document root)
-    $altPath = $_SERVER['DOCUMENT_ROOT'] . '/www/core/config';
-    if (is_dir($altPath)) {
-        $coreConfigPath = $altPath;
-        $layerFiles = glob($coreConfigPath . '/layers_*.conf');
-        $layerFilesFound = count($layerFiles);
-        foreach ($layerFiles as $layerFile) {
-            $content = file_get_contents($layerFile);
-            $layers = json_decode($content, true);
-            if (json_last_error() === JSON_ERROR_NONE && is_array($layers)) {
-                $layerDefinitions = array_merge($layerDefinitions, $layers);
-            }
         }
     }
 }

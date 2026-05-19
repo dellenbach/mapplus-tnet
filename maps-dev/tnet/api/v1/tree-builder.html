@@ -43,7 +43,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 
 /* ── 3-Panel Layout ── */
 .tb-layout {
-  display: flex; height: calc(100vh - 42px); gap: 0;
+  display: flex; height: calc(100vh - 72px); gap: 0;
 }
 
 .tb-panel {
@@ -854,6 +854,13 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .deployed-toolbar .tb-ags-filter { flex: 1; min-width: 120px; margin-bottom: 0; }
 .deployed-toolbar button { padding: 4px 10px; font-size: 12px; border: 1px solid #ddd; border-radius: 3px; background: #fff; cursor: pointer; }
 .deployed-toolbar button:hover { background: #f0f0f0; }
+.runtime-paths { display: flex; gap: 6px 10px; align-items: center; flex-wrap: wrap; padding: 6px 8px; margin-bottom: 8px; border: 1px solid #e0e4e8; border-radius: 4px; background: #fff; font-size: 10px; color: #555; }
+.runtime-paths .rp-title { font-weight: 700; color: #333; }
+.runtime-paths .rp-item { display: inline-flex; gap: 4px; align-items: center; max-width: 100%; }
+.runtime-paths .rp-label { color: #777; }
+.runtime-paths code { font-family: Consolas, monospace; background: #f5f7fa; color: #333; padding: 1px 4px; border-radius: 3px; white-space: nowrap; }
+.runtime-paths .rp-warn { color: #c33; font-weight: 700; }
+.runtime-paths.tb-runtime-main { height: 30px; margin: 0; border-left: 0; border-right: 0; border-radius: 0; overflow: hidden; }
 .deployed-legend { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; padding: 6px 8px; background: #f5f7fa; border-radius: 4px; margin-bottom: 8px; font-size: 11px; }
 .dep-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 3px; vertical-align: middle; }
 .dep-override-hint { color: #e67e22; font-size: 10px; margin-left: 8px; }
@@ -1099,7 +1106,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
   <span class="brand">🔧 Tree-Builder</span>
   <span class="sep"></span>
   <button id="tb-btn-ags-import" title="Service- und Layermanager">🌐 Manager</button>
-  <a href="/maps/tnet/api/v1/slm.html" target="_blank" style="color:rgba(255,255,255,.45);font-size:10px;text-decoration:none;margin-left:-4px" title="Service- und Layermanager in separater Seite öffnen">↗</a>
+  <a href="slm.html" target="_blank" style="color:rgba(255,255,255,.45);font-size:10px;text-decoration:none;margin-left:-4px" title="Service- und Layermanager in separater Seite öffnen">↗</a>
   <button id="tb-btn-backup-toolbar" title="Server-Backups anzeigen, wiederherstellen und löschen" style="margin-left:6px;background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.25);color:rgba(255,255,255,.8)">📁 Backups</button>
   <span class="sep"></span>
   <button class="tb-toggle active" id="tb-toggle-layers" title="Layer-Katalog ein/aus">🗂</button>
@@ -1111,8 +1118,10 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
   <span id="tb-lock-indicator" style="font-size:13px;cursor:pointer" title="Lock-Status">⚪</span>
   <span id="tb-lock-info" style="color:rgba(255,255,255,.45);font-size:10px"></span>
   <span class="spacer"></span>
-  <a href="/maps/tnet/api/docs/" target="_blank" style="color:rgba(255,255,255,.5);font-size:11px;text-decoration:none">Docs</a>
+  <a href="../docs/" target="_blank" style="color:rgba(255,255,255,.5);font-size:11px;text-decoration:none">Docs</a>
 </div>
+
+<div class="runtime-paths tb-runtime-main" id="tb-main-runtime-paths">Pfade werden geladen…</div>
 
 <!-- 3-Panel Layout -->
 <div class="tb-layout">
@@ -1301,6 +1310,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
       <button class="tb-ags-tab" data-ags-tab="staging">③ Staging</button>
       <button class="tb-ags-tab" data-ags-tab="deployed">④ Deployed</button>
     </div>
+    <div class="runtime-paths" id="tb-ags-runtime-paths">Pfade werden geladen…</div>
     <div class="tb-ags-body">
       <!-- Tab: Import -->
       <div class="tb-ags-pane active" id="tb-ags-pane-import">
@@ -1411,6 +1421,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
           </select>
           <button id="tb-deployed-refresh" title="Aktualisieren">↻</button>
         </div>
+        <div class="runtime-paths" id="tb-runtime-paths">Pfade werden geladen…</div>
         <div class="deployed-legend" id="tb-deployed-legend" style="display:none">
           <span class="leg-item"><span class="dep-dot" style="background:#4caf50"></span> Core</span>
           <span class="leg-item"><span class="dep-dot" style="background:#2196f3"></span> Core NLS</span>
@@ -1501,8 +1512,22 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 // State
 // =====================================================================
 var STORAGE_KEY = 'treebuilder_state';
-var API_URL = '/maps/tnet/api/v1/treebuilder-api.php';
+var API_URL = '/maps-dev/tnet/api/v1/treebuilder-api.php';
 var GAPI_URL = '/gapi/ags2mapplus';
+
+(function installDevFastApiTarget() {
+  if (location.pathname.indexOf('/maps-dev/') !== 0 || window.__tnetDevFastApiTarget) return;
+  window.__tnetDevFastApiTarget = true;
+  var nativeFetch = window.fetch;
+  window.fetch = function(input, init) {
+    var url = typeof input === 'string' ? input : (input && input.url);
+    if (typeof url === 'string' && url.indexOf(GAPI_URL + '/') === 0 && url.indexOf('target=') === -1) {
+      url += (url.indexOf('?') === -1 ? '?' : '&') + 'target=dev';
+      input = typeof input === 'string' ? url : new Request(url, input);
+    }
+    return nativeFetch.call(this, input, init);
+  };
+})();
 
 // Staging-Modus: ?source=staging in der URL → Layer aus ImportToCore laden
 var _urlParams = new URLSearchParams(window.location.search);
@@ -4228,7 +4253,7 @@ function openPropsDialog(type, ref) {
     var lSource = layer ? (layer.source || 'core') : 'core';
     var lSourceFile = layer ? (layer.sourceFile || '') : '';
     var targetOpts = '<option value="original">Original (' + esc(lSourceFile || 'layers_*.conf') + ')</option>';
-    targetOpts += '<option value="override">Site-Override (maps/core/config/)</option>';
+    targetOpts += '<option value="override">Core-DEV (core-dev/config/)</option>';
     if (profileName && profileName !== 'public') {
       targetOpts += '<option value="profile">Profil: ' + esc(profileName) + '</option>';
     }
@@ -4867,8 +4892,8 @@ function importFromAPI() {
     '[Abbrechen] = Zusammenführen (merge)'
   );
 
-  var treeUrl = '/maps/tnet/api/v1/layers.php?group=' + encodeURIComponent(profileName);
-  var flatUrl = '/maps/tnet/api/v1/layers.php?flat=true&details=true&group=' + encodeURIComponent(profileName);
+  var treeUrl = 'layers.php?group=' + encodeURIComponent(profileName);
+  var flatUrl = 'layers.php?flat=true&details=true&group=' + encodeURIComponent(profileName);
 
   document.getElementById('tb-layer-count').textContent = '…';
 
@@ -5110,6 +5135,7 @@ function refreshTbAgsImportProgress() {
  */
 function openAgsModal() {
   document.getElementById('tb-ags-modal').classList.add('open');
+  loadRuntimePaths('tb-ags-runtime-paths');
   document.getElementById('tb-ags-result').style.display = 'none';
   document.getElementById('tb-ags-result').innerHTML = '';
   // Aktiven Tab beibehalten oder Import zeigen
@@ -5555,6 +5581,7 @@ function loadDeployedConf() {
   var statusEl = document.getElementById('tb-deployed-status');
   var listEl = document.getElementById('tb-deployed-list');
   var legendEl = document.getElementById('tb-deployed-legend');
+  loadRuntimePaths('tb-runtime-paths');
   statusEl.textContent = 'Lade Dateien…';
   statusEl.style.display = '';
   listEl.innerHTML = '';
@@ -5576,6 +5603,38 @@ function loadDeployedConf() {
     .catch(function(err) {
       statusEl.textContent = 'Fehler: ' + err.message;
     });
+}
+
+function loadRuntimePaths(targetId) {
+  var el = document.getElementById(targetId);
+  if (!el) return;
+  el.textContent = 'Pfade werden geladen…';
+  fetch(API_URL + '?action=runtime-paths')
+    .then(function(r) { return r.json(); })
+    .then(function(json) {
+      if (!json.success) {
+        el.textContent = 'Pfade: Fehler beim Laden';
+        return;
+      }
+      renderRuntimePaths(el, json.data || {});
+    })
+    .catch(function() { el.textContent = 'Pfade: Fehler beim Laden'; });
+}
+
+function renderRuntimePaths(el, data) {
+  var paths = data.paths || [];
+  var pick = {};
+  paths.forEach(function(p) { pick[p.label] = p; });
+  var labels = ['Core Config', 'Core NLS de', 'Profil-Config', 'raw-conf', 'ImportToCore', 'Tmp Root'];
+  var html = '<span class="rp-title">Pfade ' + esc((data.environment || '').toUpperCase()) + '</span>';
+  if (data.dbSchema) html += '<span class="rp-item"><span class="rp-label">DB</span><code>' + esc(data.dbSchema) + '</code></span>';
+  labels.forEach(function(label) {
+    var p = pick[label];
+    if (!p) return;
+    var flag = p.exists ? '' : '<span class="rp-warn">fehlt</span>';
+    html += '<span class="rp-item" title="PHP: ' + esc(p.phpPath) + '\nSFTP: ' + esc(p.sftpPath) + '"><span class="rp-label">' + esc(label) + '</span><code>' + esc(p.sftpPath) + '</code>' + flag + '</span>';
+  });
+  el.innerHTML = html;
 }
 
 function renderDeployedList() {
@@ -5839,9 +5898,10 @@ function exportAgsServices() {
       var statusEl = document.getElementById('tb-ags-status');
       var savedCount = data.files ? data.files.length : 0;
       var failedCount = data.failedFiles ? data.failedFiles.length : 0;
+      var targetDirectory = data.directory || 'data/tmp/maps-dev/raw-conf';
 
       if (savedCount > 0 && failedCount === 0) {
-        statusEl.textContent = '✓ Export abgeschlossen (' + runLabel + '): ' + savedCount + ' Dateien in data/Client_Data/nwow/tmp/raw-conf/ gespeichert';
+        statusEl.textContent = '✓ Export abgeschlossen (' + runLabel + '): ' + savedCount + ' Dateien in ' + targetDirectory + '/ gespeichert';
         statusEl.className = 'tb-ags-status success';
       } else if (savedCount > 0 && failedCount > 0) {
         statusEl.textContent = '⚠ Export teilweise (' + runLabel + '): ' + savedCount + ' gespeichert, ' + failedCount + ' fehlgeschlagen';
@@ -5950,7 +6010,7 @@ function loadRawConfList() {
         statusEl.className = 'tb-ags-manage-status';
         return;
       }
-      statusEl.textContent = data.services.length + ' Dienste, ' + data.files.length + ' Dateien in data/Client_Data/nwow/tmp/raw-conf/';
+      statusEl.textContent = data.services.length + ' Dienste, ' + data.files.length + ' Dateien in ' + (data.directory || 'data/tmp/maps-dev/raw-conf') + '/';
       statusEl.className = 'tb-ags-manage-status success';
       filterEl.style.display = '';
       filterEl.value = '';
@@ -7862,6 +7922,7 @@ function _deployAllGroups(groups) {
         html += (r.success ? '✅' : '❌') + ' ' + icon + ' ' + esc(r.sourceFile) + ' → ' + esc(r.target);
         if (r.error) html += '<br><span style="color:#c00;font-size:11px">' + esc(r.error) + '</span>';
         if (r.bytes) html += ' (' + r.bytes + ' bytes)';
+        if (r.deployPath) html += '<br><span style="font-size:11px;color:#555">Deploy [' + esc(r.envTarget || (location.pathname.indexOf('/maps-dev/') === 0 ? 'dev' : 'prod')) + ']: ' + esc(r.deployPath) + '</span>';
         html += '<br>';
       });
       _tbAlert('Deploy', html, fail > 0 ? 'warn' : 'success');
@@ -7941,7 +8002,7 @@ function _deployAllGroups(groups) {
           .then(function(j2) {
             var d2 = j2.data || j2;
             if (j2.success || d2.success) {
-              results.push({ type: 'nls', sourceFile: nf.file, target: g.target, success: true, bytes: d2.bytes || nf.bytes || 0 });
+              results.push({ type: 'nls', sourceFile: nf.file, target: g.target, success: true, envTarget: d2.target || 'prod', deployPath: d2.deployPath || nf.deployPath, bytes: d2.bytes || nf.bytes || 0 });
             } else {
               var errMsg = j2.detail || j2.error || d2.error || 'Unbekannt';
               if (typeof errMsg === 'object') errMsg = JSON.stringify(errMsg);
@@ -7966,7 +8027,7 @@ function _deployAllGroups(groups) {
         .then(function(j2) {
           var d2 = j2.data || j2;
           if (j2.success || d2.success) {
-            results.push({ type: g.type, sourceFile: g.sourceFile, target: g.target, success: true, bytes: d2.bytes || staged.bytes || 0 });
+            results.push({ type: g.type, sourceFile: g.sourceFile, target: g.target, success: true, envTarget: d2.target || 'prod', deployPath: d2.deployPath || staged.deployPath, bytes: d2.bytes || staged.bytes || 0 });
           } else {
             var errMsg = j2.detail || j2.error || d2.error || 'Unbekannt';
             if (typeof errMsg === 'object') errMsg = JSON.stringify(errMsg);
@@ -8042,6 +8103,7 @@ function publishLyrmgr() {
         // Vorschau nach Publish sofort aktualisieren
         updateLmPreviewIframe();
         var pubMsg = 'Profil: ' + esc(profileName) + '<br>' +
+          'Ziel: ' + esc(d.target || 'prod') + '<br>' +
           'Blöcke: ' + blockKeys.length + '<br>' +
           'Pfad: ' + esc(d.path || '') + '<br>' +
           'Bytes: ' + (d.bytes || '') + '<br>' +
@@ -8168,7 +8230,7 @@ function buildLmPreviewUrl(panel) {
   var group = state.activeProfile || 'public';
   var p = panel || document.getElementById('tb-lm-panel-select').value || 'both';
   var src = (document.getElementById('tb-lm-source-select') || {}).value || 'file';
-  return '/maps/tnet/api/v1/dev-test.html?group=' + encodeURIComponent(group) + '&panel=' + p + '&source=' + src;
+  return 'dev-test.html?group=' + encodeURIComponent(group) + '&panel=' + p + '&source=' + src;
 }
 function updateLmPreviewIframe() {
   var iframe = document.getElementById('tb-lm-preview-iframe');
@@ -8331,6 +8393,7 @@ document.getElementById('tb-json-apply').addEventListener('click', function() {
 // =====================================================================
 var restored = loadState();
 if (restored) console.log('Tree-Builder: State aus localStorage wiederhergestellt (Profil: ' + state.activeProfile + ', LyrMgr: ' + state.activeLyrmgr + ')');
+loadRuntimePaths('tb-main-runtime-paths');
 
 // Schritt 1: Profile-Dropdown befüllen
 loadAvailableProfiles(function() {

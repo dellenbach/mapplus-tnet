@@ -36,6 +36,7 @@ require_once __DIR__ . '/../includes/CorsHelper.php';
 CorsHelper::handlePreflight('GET, POST, OPTIONS', 'Content-Type, X-Editor-Name');
 CorsHelper::setHeaders('GET, POST, OPTIONS', 'Content-Type, X-Editor-Name');
 
+require_once __DIR__ . '/../includes/CorePaths.php';
 require_once __DIR__ . '/../includes/Database.php';
 
 // =====================================================================
@@ -52,12 +53,13 @@ $clientDataRoot = ($appBasePath === '/maps-dev') ? '/data/Client_Data/nwow-dev' 
 define('APP_BASE_PATH', $appBasePath);
 define('APP_WEB_ROOT', $docRoot . APP_BASE_PATH);
 define('CLIENT_DATA_ROOT', $clientDataRoot);
-define('CORE_CONFIG_DIR', $docRoot . '/core/config');
-define('CORE_NLS_DIR', $docRoot . '/core/nls/de');
-define('APP_CORE_CONFIG_DIR', APP_WEB_ROOT . '/core/config');
-define('APP_CORE_NLS_DIR', APP_WEB_ROOT . '/core/nls/de');
+define('TNET_TMP_ROOT', '/data/Client_Data/nwow/tmp/' . (APP_BASE_PATH === '/maps-dev' ? 'maps-dev' : 'maps'));
+define('CORE_CONFIG_DIR', TnetCorePaths::getConfigPath());
+define('CORE_NLS_DIR', TnetCorePaths::getNlsPath('de'));
+define('APP_CORE_CONFIG_DIR', APP_BASE_PATH === '/maps-dev' ? CORE_CONFIG_DIR : APP_WEB_ROOT . '/core/config');
+define('APP_CORE_NLS_DIR', APP_BASE_PATH === '/maps-dev' ? CORE_NLS_DIR : APP_WEB_ROOT . '/core/nls/de');
 define('CONFIG_BASE', APP_WEB_ROOT . '/public/config');
-define('DATA_DIR', CLIENT_DATA_ROOT . '/tmp/layertree');
+define('DATA_DIR', TNET_TMP_ROOT . '/layertree');
 define('STATE_FILE', DATA_DIR . '/treebuilder-state.json');
 define('GROUPS_FILE', DATA_DIR . '/groups.json5');
 define('PROFILES_DIR', DATA_DIR . '/profiles');
@@ -81,7 +83,19 @@ function jsonError($message, $code = 400) {
 
 function toSftpPath($path) {
     $path = str_replace('/var/www/html/nwow', '/www', $path);
+    $path = str_replace('/data/Client_Data/nwow/tmp', '/data/tmp', $path);
     return str_replace(CLIENT_DATA_ROOT, '/data', $path);
+}
+
+function runtimePathInfo($label, $path) {
+    return [
+        'label'    => $label,
+        'phpPath'  => $path,
+        'sftpPath' => toSftpPath($path),
+        'exists'   => file_exists($path),
+        'isDir'    => is_dir($path),
+        'writable' => is_dir($path) ? is_writable($path) : (file_exists($path) ? is_writable($path) : is_writable(dirname($path))),
+    ];
 }
 
 function getEditorName() {
@@ -710,9 +724,8 @@ function saveProfileNls($profile, $data) {
  * Liegt unter core/nls/de/legendResources_Profile_<Name>.json
  */
 function getProfileLegendPath($profile) {
-    global $docRoot;
     $safe = preg_replace('/[^a-zA-Z0-9_\-]/', '', $profile);
-    return $docRoot . '/core/nls/de/legendResources_Profile_' . $safe . '.json';
+    return CORE_NLS_DIR . '/legendResources_Profile_' . $safe . '.json';
 }
 
 /**
@@ -824,10 +837,19 @@ function deployLyrmgr($stageProfile, $targetProfile, $editor) {
 // AGS → MapPlus Roh-Konfiguration (ags2mapplus API)
 // =====================================================================
 define('AGS_API_BASE', 'https://www.gis-daten.ch/gapi/ags2mapplus');
-define('RAW_CONF_DIR', CLIENT_DATA_ROOT . '/tmp/raw-conf');
-define('IMPORT_TO_CORE_DIR', CLIENT_DATA_ROOT . '/tmp/ImportToCore');
+define('RAW_CONF_DIR', TNET_TMP_ROOT . '/raw-conf');
+define('IMPORT_TO_CORE_DIR', TNET_TMP_ROOT . '/ImportToCore');
 define('QMAP_DIR', CLIENT_DATA_ROOT . '/qmap');
 define('QMAP_BASE_URL', '/qmap');
+
+function getFastApiTarget() {
+    return APP_BASE_PATH === '/maps-dev' ? 'dev' : 'prod';
+}
+
+function agsApiUrl($path, $query = []) {
+    $query['target'] = getFastApiTarget();
+    return AGS_API_BASE . $path . '?' . http_build_query($query);
+}
 
 // =====================================================================
 // QGIS Server — Projektliste und WMS GetCapabilities
@@ -1011,7 +1033,7 @@ function exportQgisProjects($projekte) {
     }
 
     // FastAPI-Endpoint aufrufen
-    $url = AGS_API_BASE . '/qgis-conf-export';
+    $url = agsApiUrl('/qgis-conf-export');
     $payload = json_encode(['projekte' => $projekte]);
 
     $ch = curl_init($url);
@@ -1145,7 +1167,7 @@ function exportQgisProjects($projekte) {
  */
 function getAgsServices() {
     $details = isset($_GET['details']) && $_GET['details'] === 'true';
-    $url = AGS_API_BASE . '/get-ags-services' . ($details ? '?details=true' : '');
+    $url = agsApiUrl('/get-ags-services', $details ? ['details' => 'true'] : []);
 
     $ch = curl_init($url);
     curl_setopt_array($ch, [
@@ -1177,7 +1199,7 @@ function getAgsServices() {
 
 /**
  * Ermittelt den tatsächlich nutzbaren Pfad für raw-conf.
- * RAW_CONF_DIR liegt unter /data/Client_Data/nwow/tmp/raw-conf — dieses Verzeichnis
+ * RAW_CONF_DIR liegt unter TNET_TMP_ROOT/raw-conf — dieses Verzeichnis
  * gehört www-data (gid 33) und ist dauerhaft beschreibbar.
  * Cacht das Ergebnis für den aktuellen Request.
  */
@@ -1228,7 +1250,7 @@ function exportAgsServices($dienstnamen, $serviceDetails = []) {
     }
 
     // Externe API aufrufen → ZIP (cURL für bessere Fehler-Meldungen)
-    $url = AGS_API_BASE . '/mapplus-conf-export';
+    $url = agsApiUrl('/mapplus-conf-export');
     $payload = json_encode(['dienstnamen' => $dienstnamen]);
 
     $ch = curl_init($url);
@@ -1897,8 +1919,8 @@ function listConfFilesRecursive($dir) {
  */
 function listCoreSources() {
     global $docRoot;
-    $coreConfigDir = $docRoot . '/core/config';
-    $coreNlsDir    = $docRoot . '/core/nls/de';
+    $coreConfigDir = CORE_CONFIG_DIR;
+    $coreNlsDir    = CORE_NLS_DIR;
     if (!is_dir($coreConfigDir)) return ['success' => false, 'error' => 'core/config/ nicht gefunden'];
     if (!is_dir($coreNlsDir))    return ['success' => false, 'error' => 'core/nls/de/ nicht gefunden'];
 
@@ -2076,8 +2098,8 @@ function importCoreToRawConf($kuerzelList) {
         return ['success' => false, 'error' => 'raw-conf Verzeichnis nicht beschreibbar'];
     }
 
-    $coreConfigDir = $docRoot . '/core/config';
-    $coreNlsDir    = $docRoot . '/core/nls/de';
+    $coreConfigDir = CORE_CONFIG_DIR;
+    $coreNlsDir    = CORE_NLS_DIR;
 
     $prefixes = ['layers', 'maptips', 'lyrmgrResources', 'maptipsResources', 'legendResources'];
     $ts = date('Ymd_His');
@@ -2950,8 +2972,8 @@ function configExportToCore($kuerzel) {
     $srcDir = IMPORT_TO_CORE_DIR . '/' . $safe;
     if (!is_dir($srcDir)) return ['success' => false, 'error' => 'Quell-Ordner nicht gefunden'];
 
-    $coreConfigDir = $docRoot . '/core/config';
-    $coreNlsDir    = $docRoot . '/core/nls/de';
+    $coreConfigDir = CORE_CONFIG_DIR;
+    $coreNlsDir    = CORE_NLS_DIR;
 
     // Prüfen ob Zielverzeichnisse existieren
     if (!is_dir($coreConfigDir)) return ['success' => false, 'error' => 'core/config/ nicht gefunden auf Server'];
@@ -3470,7 +3492,7 @@ switch ($action) {
         // legendResources aus core/nls/de und maps/core/nls/de laden
         $legendRes = [];
         $nlsDirs = [];
-        $nlsBase = realpath($docRoot . '/core/nls/de');
+        $nlsBase = realpath(CORE_NLS_DIR);
         if ($nlsBase && is_dir($nlsBase)) $nlsDirs[] = $nlsBase;
         $nlsOver = realpath(APP_CORE_NLS_DIR);
         if ($nlsOver && is_dir($nlsOver) && $nlsOver !== $nlsBase) $nlsDirs[] = $nlsOver;
@@ -3640,8 +3662,8 @@ switch ($action) {
             $changedLayers[] = $layerId . ': ' . implode(', ', $layerChanges);
         }
 
-        // Staging-Verzeichnis: /data/Client_Data/nwow/tmp/stageConf/<target>/
-        $stageBase = CLIENT_DATA_ROOT . '/tmp/stageConf';
+        // Staging-Verzeichnis: TNET_TMP_ROOT/stageConf/<target>/
+        $stageBase = TNET_TMP_ROOT . '/stageConf';
         $stageDir = $stageBase . '/' . preg_replace('/[^a-zA-Z0-9_\-]/', '_', $target);
         if (!is_dir($stageDir)) {
             @mkdir($stageDir, 0775, true);
@@ -3746,7 +3768,7 @@ switch ($action) {
         }
 
         $aliasKeys = array_keys($aliases);
-        $stageBase = CLIENT_DATA_ROOT . '/tmp/stageConf';
+        $stageBase = TNET_TMP_ROOT . '/stageConf';
         $stageDir = $stageBase . '/' . preg_replace('/[^a-zA-Z0-9_\-]/', '_', $target);
         if (!is_dir($stageDir)) @mkdir($stageDir, 0775, true);
 
@@ -4382,7 +4404,7 @@ switch ($action) {
             'realpath' => @realpath(RAW_CONF_DIR),
             'owner' => function_exists('posix_getpwuid') ? @posix_getpwuid(fileowner(RAW_CONF_DIR))['name'] : fileowner(RAW_CONF_DIR),
             'perms' => substr(sprintf('%o', fileperms(RAW_CONF_DIR)), -4),
-            'php_user' => function_exists('posix_getpwuid') ? posix_getpwuid(posix_geteuid())['name'] : get_current_user(),
+            'php_user' => (function_exists('posix_getpwuid') && function_exists('posix_geteuid')) ? posix_getpwuid(posix_geteuid())['name'] : get_current_user(),
         ];
         // Schreibtest
         $testFile = RAW_CONF_DIR . '/_write_test_' . time() . '.tmp';
@@ -4454,6 +4476,28 @@ switch ($action) {
         jsonResponse(['success' => true, 'data' => $info]);
         break;
 
+    // ── Runtime-Pfade: Sicherheitsanzeige fuer DEV/PROD-Trennung ──
+    case 'runtime-paths':
+        jsonResponse(['success' => true, 'data' => [
+            'environment' => APP_BASE_PATH === '/maps-dev' ? 'dev' : 'prod',
+            'appBasePath' => APP_BASE_PATH,
+            'paths' => [
+                runtimePathInfo('App Webroot', APP_WEB_ROOT),
+                runtimePathInfo('Core Config', CORE_CONFIG_DIR),
+                runtimePathInfo('Core NLS de', CORE_NLS_DIR),
+                runtimePathInfo('Site-Core Config', APP_CORE_CONFIG_DIR),
+                runtimePathInfo('Site-Core NLS de', APP_CORE_NLS_DIR),
+                runtimePathInfo('Profil-Config', CONFIG_BASE),
+                runtimePathInfo('Tmp Root', TNET_TMP_ROOT),
+                runtimePathInfo('raw-conf', RAW_CONF_DIR),
+                runtimePathInfo('ImportToCore', IMPORT_TO_CORE_DIR),
+                runtimePathInfo('LayerTree', DATA_DIR),
+                runtimePathInfo('StageConf', TNET_TMP_ROOT . '/stageConf'),
+            ],
+            'dbSchema' => class_exists('Database') ? Database::getSchema() : null,
+        ]]);
+        break;
+
     // ── Deployed-Conf: Einzelne Datei lesen (für Editor-Ansicht) ──
     case 'read-deployed-conf':
         $file    = $_GET['file'] ?? '';
@@ -4467,7 +4511,7 @@ switch ($action) {
         // Verzeichnis bestimmen (gleiche Logik wie list-deployed-conf)
         $targetDir = null;
         switch ($source) {
-            case 'core':         $targetDir = realpath($docRoot . '/core/config'); break;
+            case 'core':         $targetDir = realpath(CORE_CONFIG_DIR); break;
             case 'core_nls':     $targetDir = realpath(CORE_NLS_DIR); break;
             case 'override':     $targetDir = realpath(APP_CORE_CONFIG_DIR); break;
             case 'override_nls': $targetDir = realpath(APP_CORE_NLS_DIR); break;
@@ -4972,7 +5016,7 @@ switch ($action) {
         }
 
         // Content in Temp-Datei (staged) schreiben — gleicher Pfad wie stage-layer-conf
-        $stagedDir = CLIENT_DATA_ROOT . '/tmp/stageConf/edit';
+        $stagedDir = TNET_TMP_ROOT . '/stageConf/edit';
         if (!is_dir($stagedDir)) @mkdir($stagedDir, 0775, true);
         $stagedFile = $stagedDir . '/' . $safeFile;
         if (file_put_contents($stagedFile, $content) === false) {
@@ -5000,9 +5044,9 @@ switch ($action) {
 
     case 'legend-tuner-load':
         // Lade Draft aus tmp/legend-conf, falls vorhanden; sonst deployed aus core/config
-        $tunerDir     = CLIENT_DATA_ROOT . '/tmp/legend-conf';
+        $tunerDir     = TNET_TMP_ROOT . '/legend-conf';
         $draftFile    = $tunerDir . '/legend_tuner.json';
-        $deployedFile = $docRoot . '/core/config/legend_tuner.json';
+        $deployedFile = CORE_CONFIG_DIR . '/legend_tuner.json';
         $source = 'empty';
         $data   = new \stdClass();
 
@@ -5059,7 +5103,7 @@ switch ($action) {
         }
 
         // Speichere in tmp/legend-conf — PHP hat hier Schreibrecht
-        $tunerDir  = CLIENT_DATA_ROOT . '/tmp/legend-conf';
+        $tunerDir  = TNET_TMP_ROOT . '/legend-conf';
         if (!is_dir($tunerDir)) { @mkdir($tunerDir, 0775, true); }
         $tunerFile = $tunerDir . '/legend_tuner.json';
 
@@ -5087,7 +5131,7 @@ switch ($action) {
     // BOOKMARKS — Laden & Speichern (Draft in tmp, Deployed im Webroot)
     // =================================================================
     case 'bookmarks-load':
-        $bmDraftDir    = CLIENT_DATA_ROOT . '/tmp/bookmarks';
+        $bmDraftDir    = TNET_TMP_ROOT . '/bookmarks';
         $bmDraftFile   = $bmDraftDir . '/map-bookmarks-all.json';
         $bmDeployedFile = APP_WEB_ROOT . '/tnet/data/map-bookmarks-all.json';
         $bmSource = 'empty';
@@ -5149,7 +5193,7 @@ switch ($action) {
         }
 
         // Speichere Draft in tmp — PHP hat hier Schreibrecht
-        $bmDraftDir = CLIENT_DATA_ROOT . '/tmp/bookmarks';
+        $bmDraftDir = TNET_TMP_ROOT . '/bookmarks';
         if (!is_dir($bmDraftDir)) { @mkdir($bmDraftDir, 0775, true); }
         $bmDraftFile = $bmDraftDir . '/map-bookmarks-all.json';
 

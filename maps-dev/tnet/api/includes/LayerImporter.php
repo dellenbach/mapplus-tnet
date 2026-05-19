@@ -844,18 +844,17 @@ class LayerImporter {
     }
 
     /**
-     * Ermittelt den Basis-NLS-Pfad (/www/core/nls/de — 4 Ebenen hoch)
+      * Ermittelt den Basis-NLS-Pfad der aktiven Umgebung.
      */
     private function getNlsPath(): ?string {
-        $path = realpath(__DIR__ . '/../../../../core/nls/de');
-        return ($path && is_dir($path)) ? $path : null;
+          return ConfigReader::getCoreNlsPath('de');
     }
 
     /**
-     * Ermittelt den Override-NLS-Pfad (/www/maps/core/nls/de — 3 Ebenen hoch)
+      * Ermittelt den app-lokalen Override-NLS-Pfad.
      */
     private function getNlsOverridePath(): ?string {
-        $path = realpath(__DIR__ . '/../../../core/nls/de');
+          $path = TnetCorePaths::getAppCoreNlsPath('de');
         $basePath = $this->getNlsPath();
         // Nur zurückgeben wenn es ein anderes Verzeichnis ist als die Basis
         if ($path && is_dir($path) && $path !== $basePath) {

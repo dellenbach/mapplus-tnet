@@ -2298,9 +2298,10 @@ function exportAgsServices() {
       var statusEl = document.getElementById('import-status');
       var savedCount = data.files ? data.files.length : 0;
       var failedCount = data.failedFiles ? data.failedFiles.length : 0;
+      var targetDirectory = data.directory || 'data/tmp/maps/raw-conf';
 
       if (savedCount > 0 && failedCount === 0) {
-        statusEl.textContent = '✓ Export abgeschlossen (' + runLabel + '): ' + savedCount + ' Dateien in data/Client_Data/nwow/tmp/raw-conf/ gespeichert';
+        statusEl.textContent = '✓ Export abgeschlossen (' + runLabel + '): ' + savedCount + ' Dateien in ' + targetDirectory + '/ gespeichert';
         statusEl.className = 'ags-status success';
       } else if (savedCount > 0 && failedCount > 0) {
         statusEl.textContent = '⚠ Export teilweise (' + runLabel + '): ' + savedCount + ' gespeichert, ' + failedCount + ' fehlgeschlagen';
@@ -3114,7 +3115,7 @@ function loadRawConfList() {
         statusEl.className = 'ags-status';
         return;
       }
-      statusEl.textContent = data.services.length + ' Services, ' + data.files.length + ' Dateien in data/Client_Data/nwow/tmp/raw-conf/';
+      statusEl.textContent = data.services.length + ' Services, ' + data.files.length + ' Dateien in ' + (data.directory || 'data/tmp/maps/raw-conf') + '/';
       statusEl.className = 'ags-status success';
       filterEl.style.display = '';
       filterEl.value = '';

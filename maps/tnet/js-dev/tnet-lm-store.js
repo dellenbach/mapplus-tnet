@@ -37,6 +37,15 @@
     return window.__TNET_APP_ROOT || '/maps';
   }
 
+  function normalizeApiUrl(url) {
+    var value = String(url || '');
+    if (!value) return getAppRoot() + '/tnet/api/v1/layers.php';
+    if (/^\/maps(?:-dev)?\/tnet\/api\//i.test(value)) {
+      return getAppRoot() + value.replace(/^\/maps(?:-dev)?/i, '');
+    }
+    return value;
+  }
+
   var LMStore = {
 
     // ============================================================
@@ -73,7 +82,7 @@
      */
     _loadLyrmgrFromFile: function (group) {
       var self = this;
-      var apiUrl = _config.apiUrl || (getAppRoot() + '/tnet/api/v1/layers.php');
+      var apiUrl = normalizeApiUrl(_config.apiUrl);
       var url = apiUrl + '?source=file&group=' + encodeURIComponent(group);
       if (_config.cache === false) url += '&nocache=1';
 
@@ -130,7 +139,7 @@
      */
     _loadLyrmgrFromApi: function (group) {
       var self = this;
-      var url = _config.apiUrl || (getAppRoot() + '/tnet/api/v1/layers.php');
+      var url = normalizeApiUrl(_config.apiUrl);
       url += (url.indexOf('?') > -1 ? '&' : '?') + 'group=' + encodeURIComponent(group);
       if (_config.cache === false) url += '&nocache=1';
 

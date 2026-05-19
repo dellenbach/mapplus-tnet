@@ -68,7 +68,7 @@
  * VORAUSSETZUNGEN
  * ---------------
  * - PHP 7.4+ mit cURL Extension
- * - Schreibrechte: /data/Client_Data/nwow/tmp/ (Logs, Aggregation, Print-Sessions)
+ * - Schreibrechte: /data/Client_Data/nwow/tmp/maps/ (Logs, Aggregation, Print-Sessions)
  * - Optional: Schreibrechte für Token-Cache-Verzeichnis (_token_cache/)
  *
  * DATEISTRUKTUR
@@ -98,7 +98,7 @@
 $accessControlEnabled = false;
 
 // Verzeichnis für Token-Dateien (mapplus_token_<hash>)
-$accessControlTokenDir = '/data/Client_Data/nwow/tmp/token/';
+$accessControlTokenDir = '/data/Client_Data/nwow/tmp/maps/token/';
 
 // Erlaubte Referer-Muster (reguläre Ausdrücke, case-insensitive)
 $accessControlAllowedPatterns = [
@@ -113,11 +113,11 @@ $accessControlAllowedPatterns = [
 
 // --- 1.2 Logging -----------------------------------------------------------
 // Log-Datei (absoluter Pfad auf dem Server)
-$agsProxyLogFile = '/data/Client_Data/nwow/tmp/agsProxy.log';
+$agsProxyLogFile = '/data/Client_Data/nwow/tmp/maps/agsProxy.log';
 
 // Access-Log: Protokolliert JEDEN Request (wie Apache access.log)
 // Leer lassen ('') um Access-Log zu deaktivieren.
-$agsProxyAccessLog = '/data/Client_Data/nwow/tmp/agsProxy_access.log';
+$agsProxyAccessLog = '/data/Client_Data/nwow/tmp/maps/agsProxy_access.log';
 
 // Access-Log-Level: 'info' | 'debug'
 //   info:   Kompakt — IP, Method, Path, HTTP-Status, Zeit, Grösse
@@ -158,14 +158,14 @@ $cacheFile   = $cacheDir . DIRECTORY_SEPARATOR . "arcgis_token.json";
 $aggregationEnabled           = false;    // Aggregation aktivieren/deaktivieren
 $aggregationWindowMs          = 80;      // Initiales Sliding Window in Millisekunden
 $aggregationWindowExtensionMs = 5;       // Verlängerung pro eingehender Request (ms)
-$aggregationTempDir           = '/data/Client_Data/nwow/tmp/';
+$aggregationTempDir           = '/data/Client_Data/nwow/tmp/maps/';
 $aggregationSavePng           = false;   // PNG-Responses in Datei speichern
-$aggregationPngDir            = '/data/Client_Data/nwow/tmp/aggregation_png/';
+$aggregationPngDir            = '/data/Client_Data/nwow/tmp/maps/aggregation_png/';
 
 // --- 1.6 Druck-Session -----------------------------------------------------
 // Tracking aller Requests eines Druckvorgangs (erkennt anhand DPI).
 // Timer-Prozess finalisiert Session nach Inaktivitäts-Timeout.
-$aggregationPrintSessionFile      = '/data/Client_Data/nwow/tmp/print_session.json';
+$aggregationPrintSessionFile      = '/data/Client_Data/nwow/tmp/maps/print_session.json';
 $aggregationPrintSessionTimeoutMs = 2000;  // Wartezeit nach letztem Request bevor DONE (ms)
 $aggregationPrintSessionExpireMs  = 5000;  // Session-Ablauf ohne neuen Request (ms)
 $aggregationPrintDpiThreshold     = 100;   // Ab dieser DPI gilt als Druck-Request

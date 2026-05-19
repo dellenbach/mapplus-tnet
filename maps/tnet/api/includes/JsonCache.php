@@ -20,9 +20,9 @@ class JsonCache {
     private ?string $lastError = null;
     
     /** @var string Beschreibbares Datenverzeichnis für Cache */
-    private const DATA_CACHE_DIR = '/data/Client_Data/nwow/tmp/api-cache';
+    private const DATA_CACHE_DIR = '/data/Client_Data/nwow/tmp/maps/api-cache';
     
-    public function __construct(string $cacheDir = null) {
+    public function __construct(?string $cacheDir = null) {
         $preferredDir = $cacheDir ?? __DIR__ . '/../cache';
         
         // 1. Bevorzugt: lokales cache/ Verzeichnis (wenn beschreibbar)
@@ -40,7 +40,7 @@ class JsonCache {
             return;
         }
         
-        // 2. Fallback: /data/Client_Data/nwow/tmp/api-cache/ (beschreibbar für www-data)
+        // 2. Fallback: /data/Client_Data/nwow/tmp/maps/api-cache/ (beschreibbar für www-data)
         $dataDir = self::DATA_CACHE_DIR;
         if (!is_dir($dataDir)) {
             @mkdir($dataDir, 0775, true);

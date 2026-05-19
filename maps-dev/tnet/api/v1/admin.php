@@ -64,14 +64,18 @@ switch ($action) {
             // Tabellen-Details
             try {
                 $pdo = Database::getConnection();
-                $stmt = $pdo->query(
+                $stmt = $pdo->prepare(
                     "SELECT table_name, 
                             (SELECT COUNT(*) FROM information_schema.columns c 
-                             WHERE c.table_schema = 'mapplusconf' AND c.table_name = t.table_name) AS columns
+                             WHERE c.table_schema = :schema_columns AND c.table_name = t.table_name) AS columns
                      FROM information_schema.tables t
-                     WHERE t.table_schema = 'mapplusconf' AND t.table_type = 'BASE TABLE'
+                     WHERE t.table_schema = :schema_tables AND t.table_type = 'BASE TABLE'
                      ORDER BY t.table_name"
                 );
+                $stmt->execute([
+                    'schema_columns' => Database::getSchema(),
+                    'schema_tables'  => Database::getSchema(),
+                ]);
                 $result['tables'] = $stmt->fetchAll();
             } catch (\Exception $e) {
                 $result['tables'] = [];
@@ -93,7 +97,7 @@ switch ($action) {
 
         try {
             $pdo = Database::getConnection();
-            $sql = file_get_contents($schemaFile);
+            $sql = Database::rewriteSql(file_get_contents($schemaFile));
             $pdo->exec($sql);
 
             $schemaInfo = Database::schemaReady();

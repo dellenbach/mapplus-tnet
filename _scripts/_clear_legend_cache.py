@@ -6,7 +6,7 @@ HOST = "nwow.mapplus.ch"
 PORT = 22
 USER = "trigonet"
 PASSWORD = "3Zs,k4%Un,<[W(Kx"
-CACHE_DIR = "/data/Client_Data/nwow/tmp/legends"
+CACHE_DIR = "/data/Client_Data/nwow/tmp/maps/legends"
 
 ssh = paramiko.SSHClient()
 ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())

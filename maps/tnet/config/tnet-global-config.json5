@@ -547,7 +547,7 @@
       ttlSeconds: 3600,
       // Cache-Verzeichnis (auf dem Server, ausserhalb DocumentRoot)
       // __DIR__ wird in PHP aufgelöst relativ zu active-maps-proxy.php
-      directory: '/data/Client_Data/nwow/tmp/proxy-cache',
+      directory: '/data/Client_Data/nwow/tmp/maps/proxy-cache',
     },
   },
 }

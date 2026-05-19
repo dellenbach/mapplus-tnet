@@ -96,9 +96,11 @@
 
 // ===== KONFIGURATION =====
 
-$CACHE_DIR    = '/data/Client_Data/nwow/tmp/legends';
+require_once __DIR__ . '/../includes/CorePaths.php';
+
+$CACHE_DIR    = '/data/Client_Data/nwow/tmp/maps-dev/legends';
 $CACHE_TTL    = 86400;   // 24 Stunden in Sekunden
-$LOG_FILE     = '/data/Client_Data/nwow/tmp/legend-proxy.log';
+$LOG_FILE     = '/data/Client_Data/nwow/tmp/maps-dev/legend-proxy.log';
 $DEFAULT_WIDTH  = 16;
 $DEFAULT_HEIGHT = 10;
 $DEFAULT_DPI    = 192;    // 2× DPI: kräftige Linien/Punkte, kleinere Payload als 288
@@ -114,10 +116,10 @@ $AGS_TOKEN_CACHE = dirname(__DIR__, 3) . '/_token_cache/arcgis_token.json';
 $AGS_TOKEN_SKEW  = 60;  // Safety-Skew in Sekunden
 
 // Metadata-Injection-Mapping (gemeinsam mit legend-proxy-wms.php)
-$METADATA_FILE = dirname(__DIR__, 4) . '/core/config/legend_wms_metadata.json';
+$METADATA_FILE = TnetCorePaths::resolveConfigFile('legend_wms_metadata.json');
 
 // Legendtuner — Parameter-Overrides pro Service
-$TUNER_FILE = dirname(__DIR__, 4) . '/core/config/legend_tuner.json';
+$TUNER_FILE = TnetCorePaths::resolveConfigFile('legend_tuner.json');
 
 // ===== CORS & HEADERS =====
 
@@ -440,7 +442,7 @@ $tunerApplied = [];
 $tunerHtmlBefore = '';
 $tunerHtmlAfter  = '';
 
-if (file_exists($TUNER_FILE)) {
+if ($TUNER_FILE && file_exists($TUNER_FILE)) {
     $tunerRaw = @file_get_contents($TUNER_FILE);
     if ($tunerRaw !== false) {
         $tunerAll = json_decode($tunerRaw, true);
@@ -934,7 +936,7 @@ sendCachedFile($cacheFile, 'text/html', $CACHE_TTL, 'MISS');
  * @return array        Mapping-Array (key => ['title'=>..., 'description'=>..., ...])
  */
 function loadMetadataMap($file) {
-    if (!file_exists($file)) {
+    if (!$file || !file_exists($file)) {
         return [];
     }
     $raw = @file_get_contents($file);
@@ -1707,7 +1709,7 @@ function fetchLegendAuxData($layers, $service, $labelField, $codeField, $groupFi
 
     $hashCount  = count(array_filter($layerMeta, function($m) { return $m['hasHash'];  }));
     $grpCount   = $groupField !== '' ? count($layerMeta) : 0;
-    logMessage($logFile, 'INFO', "Aux-Fetch: $totalReq parallele Requests ($hashCount×2 Label/Renderer + $grpCount Gruppen-Mapping)");
+    logMessage($logFile, 'INFO', "Aux-Fetch: $totalReq parallele Requests ({$hashCount}×2 Label/Renderer + $grpCount Gruppen-Mapping)");
 
     $running = null;
     do {
