@@ -1,9 +1,10 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="de">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Service- und Layermanager — TNET API</title>
+<script>document.documentElement.setAttribute('data-env',location.pathname.indexOf('/maps-dev/')===0?'dev':'prod');</script>
 <style>
 /**
  * ags-import.html
@@ -1023,6 +1024,20 @@ body {
 .core-files-subtable .cfs-keys { color: #888; font-size: 9px; }
 .core-files-subtable .cfs-changed { color: #e67e22; font-weight: 600; }
 
+
+/* ===== ENV-BADGE (DEV / PROD) ===== */
+#env-badge { display: none; }
+html[data-env] #env-badge {
+  display: inline-block !important;
+  color: #fff; padding: 2px 10px; border-radius: 3px;
+  font-size: 12px; font-weight: 700; letter-spacing: .6px;
+  vertical-align: middle;
+}
+html[data-env="dev"] #env-badge { background: #e67e22; }
+html[data-env="dev"] #env-badge::before { content: 'DEV'; }
+html[data-env="prod"] #env-badge { background: #2e7d32; }
+html[data-env="prod"] #env-badge::before { content: 'PROD'; }
+html[data-env="dev"] .ags-toolbar { border-bottom: 3px solid #e67e22; }
 </style>
 </head>
 <body>
@@ -1030,6 +1045,7 @@ body {
 <!-- ===== TOOLBAR ===== -->
 <div class="ags-toolbar">
   <span class="brand">🌐 Service- und Layermanager</span>
+  <span id="env-badge"></span>
   <span class="sep"></span>
   <button id="ags-btn-refresh" title="Daten neu laden">↻ Aktualisieren</button>
   <button id="ags-btn-cache-clear" title="Layermanager-Cache auf dem Server leeren">🗑 Cache leeren</button>
@@ -1038,6 +1054,8 @@ body {
   <a href="tree-builder.html">← Tree-Builder</a>
   <span class="sep"></span>
   <a href="../docs/" target="_blank">API Docs</a>
+  <span class="sep"></span>
+  <span id="ags-build-ts" title="Release-Zeitstempel (letzter Deploy)" style="font-size:10px;color:rgba(255,255,255,.55);font-family:monospace;white-space:nowrap"></span>
 </div>
 
 <!-- ===== CONFIG-TO-DB MODAL ===== -->
@@ -7561,5 +7579,16 @@ if (document.readyState === 'loading') {
   initBmColumnResize();
 }
 </script>
+
+<script>
+function _showBuildTs(id) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  var d = new Date(document.lastModified);
+  var z = function(n) { return n < 10 ? '0' + n : String(n); };
+  el.textContent = 'Release ' + z(d.getDate()) + '.' + z(d.getMonth()+1) + '.' + d.getFullYear() + ' ' + z(d.getHours()) + ':' + z(d.getMinutes());
+}_showBuildTs('ags-build-ts');
+</script>
+
 </body>
 </html>

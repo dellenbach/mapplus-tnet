@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """
-_upload_active_file.py
-Einzelne Datei per SFTP hochladen — nur wenn sie unter maps/ liegt.
-JS-Quelldateien aus js-dev/ werden automatisch via _build_js.py gebaut;
+upload_active_file.py
+Einzelne Datei per SFTP hochladen — nur wenn sie unter maps/ bzw. maps-dev/ liegt.
+JS-Quelldateien aus js-dev/ werden automatisch via build_js.py gebaut;
 nur die minifizierte Version aus js/ wird hochgeladen.
-Aufruf: python _upload_active_file.py <dateipfad>
 
-@version    1.1
-@date       2026-04-13
+Aufruf: python upload_active_file.py --env dev <dateipfad>
+
+@version    1.2
+@date       2026-05-27
 @copyright  Trigonet AG
 @author     Marco Dellenbach
 """
@@ -18,7 +19,7 @@ import argparse
 import paramiko
 from deploy_env import add_env_argument, ensure_local_base_exists, resolve_deploy_config
 
-BUILD_SCRIPT = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "_build_js.py"))
+BUILD_SCRIPT = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "build", "build_js.py"))
 
 # SFTP Config
 HOST = "nwow.mapplus.ch"
@@ -29,7 +30,6 @@ REMOTE_BASE = ""
 LOCAL_BASE = ""
 
 # Konfigurationsdateien sind API/Git-only und duerfen NICHT versehentlich per FTP deployt werden.
-# Explizite Ausnahme nur via --allow-config --reason "...".
 PROTECTED_EXTENSIONS = (".conf", ".json", ".json5")
 PROTECTED_PREFIXES = (
     "core/config/",
@@ -45,6 +45,7 @@ def is_protected_config(rel_path):
     if not rel.endswith(PROTECTED_EXTENSIONS):
         return False
     return any(rel.startswith(prefix) for prefix in PROTECTED_PREFIXES)
+
 
 def main():
     global LOCAL_BASE, REMOTE_BASE
@@ -62,20 +63,20 @@ def main():
     ensure_local_base_exists(LOCAL_BASE)
 
     if args.allow_config and not args.reason.strip():
-        print("✗ --allow-config erfordert --reason \"...\"")
+        print("[ERR] --allow-config erfordert --reason \"...\"")
         sys.exit(2)
 
     filepath = os.path.normpath(args.filepath)
 
     # Sicherheitscheck: nur Dateien unter dem aktiven Source-Tree erlauben
     if not filepath.lower().startswith(LOCAL_BASE.lower()):
-        print("✗ Abgelehnt: Datei liegt nicht unter dem aktiven Source-Tree")
-        print(f"  Pfad: {filepath}")
+        print("[ERR] Abgelehnt: Datei liegt nicht unter dem aktiven Source-Tree")
+        print(f"  Pfad:    {filepath}")
         print(f"  Erlaubt: {LOCAL_BASE}")
         sys.exit(1)
 
     if not os.path.isfile(filepath):
-        print(f"✗ Datei nicht gefunden: {filepath}")
+        print(f"[ERR] Datei nicht gefunden: {filepath}")
         sys.exit(1)
 
     # ===== JS-DEV: Build-Schritt =====
@@ -83,25 +84,25 @@ def main():
     is_js_dev = filepath.lower().startswith(js_dev_marker.lower())
 
     if is_js_dev:
-        print(f"⚙ Quelldatei erkannt — baue zuerst: {os.path.basename(filepath)}")
+        print(f"[BUILD] Quelldatei erkannt -- baue zuerst: {os.path.basename(filepath)}")
         build_result = subprocess.run(
             [sys.executable, BUILD_SCRIPT, "--mode", deploy_config["env"], filepath],
             capture_output=False  # Ausgabe direkt anzeigen
         )
         if build_result.returncode != 0:
-            print("✗ Build fehlgeschlagen")
+            print("[ERR] Build fehlgeschlagen")
             sys.exit(1)
         # Auf js/ umleiten
         js_out = os.path.normpath(os.path.join(LOCAL_BASE, "tnet", "js"))
         filepath = filepath.replace(js_dev_marker, js_out)
         if not os.path.isfile(filepath):
-            print(f"✗ Build-Output nicht gefunden: {filepath}")
+            print(f"[ERR] Build-Output nicht gefunden: {filepath}")
             sys.exit(1)
 
     # Sicherheitssperre: js-dev/ darf nie direkt hochgeladen werden
     js_dev_remote_marker = os.path.normpath(os.path.join(LOCAL_BASE, "tnet", "js-dev"))
     if filepath.lower().startswith(js_dev_remote_marker.lower()):
-        print("✗ GESPERRT: js-dev/-Dateien dürfen nicht direkt hochgeladen werden")
+        print("[ERR] GESPERRT: js-dev/-Dateien duerfen nicht direkt hochgeladen werden")
         sys.exit(1)
 
     # Relativen Pfad berechnen
@@ -109,13 +110,13 @@ def main():
 
     # Config-Guard
     if is_protected_config(rel_path) and not args.allow_config:
-        print("✗ Abgelehnt: Geschuetzte Config-Datei (API/Git-only)")
+        print("[ERR] Abgelehnt: Geschuetzte Config-Datei (API/Git-only)")
         print(f"  Datei:  {rel_path}")
         print("  Verwende fuer Notfaelle explizit: --allow-config --reason \"...\"")
         sys.exit(3)
 
     if is_protected_config(rel_path) and args.allow_config:
-        print("⚠ Override aktiv: Geschuetzte Config-Datei wird hochgeladen")
+        print("[WARN] Override aktiv: Geschuetzte Config-Datei wird hochgeladen")
         print(f"  Grund: {args.reason.strip()}")
 
     remote_path = f"{REMOTE_BASE}/{rel_path}"
@@ -134,10 +135,11 @@ def main():
         sftp.put(filepath, remote_path)
         sftp.close()
         ssh.close()
-        print(f"  ✓ Hochgeladen ({size:,} bytes)")
+        print(f"  [OK] Hochgeladen ({size:,} bytes)")
     except Exception as e:
-        print(f"  ✗ Fehler: {e}")
+        print(f"  [ERR] Fehler: {e}")
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

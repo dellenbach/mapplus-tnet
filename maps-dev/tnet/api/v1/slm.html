@@ -1,9 +1,10 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="de">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Service- und Layermanager — TNET API</title>
+<script>document.documentElement.setAttribute('data-env',location.pathname.indexOf('/maps-dev/')===0?'dev':'prod');</script>
 <style>
 /**
  * slm.html
@@ -1108,6 +1109,8 @@ body {
 .bk-type.groups { background: #6b2ed4; }
 .bk-type.profile { background: #4a8c50; }
 .bk-type.nls { background: #d42e6b; }
+.bk-type.legend { background: #c0392b; }
+.bk-type.rawconf { background: #1a73e8; }
 .bk-type.unknown { background: #999; }
 .slm-bk-table .bk-actions button {
   padding: 2px 6px; font-size: 10px; border: 1px solid #ccc; border-radius: 3px; background: #fff; cursor: pointer; margin-right: 3px;
@@ -1116,6 +1119,33 @@ body {
 .slm-bk-table .bk-actions .bk-del:hover { background: #fef0f0; color: #c33; border-color: #c33; }
 .slm-bk-status { padding: 8px 14px; font-size: 11px; border-top: 1px solid #eee; flex-shrink: 0; }
 
+
+/* ===== ENV-BADGE (DEV / PROD) ===== */
+#env-badge { display: none; }
+html[data-env] #env-badge {
+  display: inline-block !important;
+  color: #fff; padding: 2px 10px; border-radius: 3px;
+  font-size: 12px; font-weight: 700; letter-spacing: .6px;
+  vertical-align: middle;
+}
+html[data-env="dev"] #env-badge { background: #e67e22; }
+html[data-env="dev"] #env-badge::before { content: 'DEV'; }
+html[data-env="prod"] #env-badge { background: #2e7d32; }
+html[data-env="prod"] #env-badge::before { content: 'PROD'; }
+html[data-env="dev"] .ags-toolbar { border-bottom: 3px solid #e67e22; }
+
+/* ===== PFAD-INFO-BAR (Staging / Editor) ===== */
+.path-info-bar {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 4px 14px; border-bottom: 1px solid #d0dde2;
+  font-size: 11px; color: #555; background: #eef3f5;
+}
+.path-info-bar .pib-lbl { font-family: -apple-system,sans-serif; font-weight: 700; color: #2c4a50; white-space: nowrap; }
+.path-info-bar .pib-path { font-family: Consolas,monospace; color: #3a6a6a; }
+.path-info-bar .pib-arrow { color: #999; }
+html[data-env="dev"] .path-info-bar { background: #fff5ed; border-bottom-color: #e8b880; }
+html[data-env="dev"] .path-info-bar .pib-path { color: #a04a00; }
+html[data-env="dev"] .path-info-bar .pib-lbl { color: #7a3000; }
 </style>
 </head>
 <body>
@@ -1137,7 +1167,10 @@ body {
         <option value="groups">Groups</option>
         <option value="profile">Profile</option>
         <option value="nls">NLS</option>
+        <option value="legend">Legend</option>
+        <option value="rawconf">Raw-Conf (.bak)</option>
       </select>
+      <button class="bk-btn-delete" id="slm-bk-delete-rawconf" title="Alle Raw-Conf Backups löschen" style="display:none">🧹 Raw-Conf Backups löschen</button>
       <button class="bk-btn-delete" id="slm-bk-delete-sel" disabled>🗑 Auswahl löschen</button>
       <span class="bk-summary" id="slm-bk-summary"></span>
     </div>
@@ -1154,6 +1187,7 @@ body {
 <!-- ===== TOOLBAR ===== -->
 <div class="ags-toolbar">
   <span class="brand">🌐 Service- und Layermanager</span>
+  <span id="env-badge"></span>
   <span class="sep"></span>
   <button id="ags-btn-refresh" title="Daten neu laden">↻ Aktualisieren</button>
   <button id="ags-btn-cache-clear" title="Layermanager-Cache auf dem Server leeren">🗑 Cache leeren</button>
@@ -1163,13 +1197,18 @@ body {
   <a href="tree-builder.html">← Tree-Builder</a>
   <span class="sep"></span>
   <a href="../docs/" target="_blank">API Docs</a>
+  <span class="sep"></span>
+  <span id="slm-build-ts" title="Release-Zeitstempel (letzter Deploy)" style="font-size:10px;color:rgba(255,255,255,.55);font-family:monospace;white-space:nowrap"></span>
 </div>
 
 <!-- ===== CONFIG-TO-DB MODAL ===== -->
 <div id="ctdb-modal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.45);align-items:center;justify-content:center">
   <div style="background:#fff;border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,.25);width:480px;max-width:95vw;overflow:hidden">
-    <div style="background:#2c4a50;color:#fff;padding:12px 16px;display:flex;align-items:center;gap:8px">
-      <span style="font-weight:700;flex:1">🗄 Config → DB (configToPG)</span>
+    <div style="color:#fff;padding:12px 16px;display:flex;align-items:center;gap:8px" id="ctdb-header">
+      <div style="flex:1">
+        <div style="font-weight:700" id="ctdb-title">🗄 Config → DB (configToPG)</div>
+        <div style="font-size:10px;opacity:.75;margin-top:2px" id="ctdb-db-info"></div>
+      </div>
       <button id="ctdb-close" style="background:transparent;border:none;color:#fff;font-size:18px;cursor:pointer;line-height:1;padding:0">×</button>
     </div>
     <div style="padding:14px 16px;border-bottom:1px solid #eee">
@@ -1632,6 +1671,45 @@ body {
 // =====================================================================
 var API_URL  = '/maps-dev/tnet/api/v1/treebuilder-api.php';
 var GAPI_URL = '/gapi/ags2mapplus';
+var _envLabel  = location.pathname.indexOf('/maps-dev/') === 0 ? '[DEV]' : '[PROD]';
+var _isDevEnv  = location.pathname.indexOf('/maps-dev/') === 0;
+var _envShort  = _isDevEnv ? 'DEV' : 'PROD';
+var _dbSchema  = _isDevEnv ? 'mapplusconf_dev' : 'mapplusconf';
+var _tmpLabel  = _isDevEnv ? 'maps-dev' : 'maps';
+
+// ── Env-sensitive Beschriftungen (Tooltips, Dialog-Titel) ─────────────────────
+(function initEnvLabels() {
+  // "Cache leeren"-Button: zeigt welcher Cache betroffen ist
+  var cacheBtn = document.getElementById('ags-btn-cache-clear');
+  if (cacheBtn) {
+    cacheBtn.title = _envShort + '-Cache leeren\n'
+      + 'API-Cache in tmp/' + _tmpLabel + '/\n'
+      + 'Betrifft nur die ' + _envShort + '-Umgebung';
+  }
+
+  // "Config → DB"-Button: zeigt Zieldatenbank
+  var ctdbBtn = document.getElementById('ags-btn-config-to-db');
+  if (ctdbBtn) {
+    ctdbBtn.title = 'Config-Dateien → ' + _envShort + '-Datenbank einlesen\n'
+      + 'Schema: ' + _dbSchema + '\n'
+      + 'Quelle: ' + (_isDevEnv ? 'core-dev/config/ + nls/' : 'core/config/ + nls/');
+  }
+
+  // Dialog-Kopfzeile + DB-Info-Subtitle
+  var ctdbHeader = document.getElementById('ctdb-header');
+  if (ctdbHeader) {
+    ctdbHeader.style.background = _isDevEnv ? '#8B4500' : '#2c4a50'; // orange DEV / teal PROD
+  }
+  var ctdbTitle = document.getElementById('ctdb-title');
+  if (ctdbTitle) {
+    ctdbTitle.textContent = '🗄 Config → ' + _envShort + '-DB  (configToPG)';
+  }
+  var ctdbDbInfo = document.getElementById('ctdb-db-info');
+  if (ctdbDbInfo) {
+    ctdbDbInfo.textContent = 'Schema: ' + _dbSchema
+      + '  ·  Quelle: ' + (_isDevEnv ? '/www/core-dev/' : '/www/core/');
+  }
+})();
 
 (function installDevFastApiTarget() {
   if (location.pathname.indexOf('/maps-dev/') !== 0 || window.__tnetDevFastApiTarget) return;
@@ -3973,8 +4051,14 @@ function executeStagingMerge() {
 
       // Merge/Replace: Ergebnis anzeigen
       var modeInfo = d.mode === 'merge' ? ' (zusammengeführt)' : ' (ersetzt)';
-      statusEl.textContent = '✓ ' + d.files.length + ' Dateien → ImportToCore/' + d.kuerzel + '/' + modeInfo;
-      statusEl.className = 'ags-status success';
+      if (d.files.length === 0) {
+        statusEl.textContent = '⚠ 0 Dateien → ImportToCore/' + d.kuerzel + '/ — keine verarbeitbaren Konfig-Dateien gefunden';
+        statusEl.className = 'ags-status';
+        statusEl.style.color = '#e67e22';
+      } else {
+        statusEl.textContent = '✓ ' + d.files.length + ' Dateien → ImportToCore/' + d.kuerzel + '/' + modeInfo;
+        statusEl.className = 'ags-status success';
+      }
 
       // Merge-Statistik anzeigen wenn vorhanden
       if (d.mode === 'merge' && d.mergeStats) {
@@ -4010,7 +4094,10 @@ function executeStagingMerge() {
         });
       }
       if (d.errors && d.errors.length) {
-        html += '<div style="color:#c33;font-size:11px">Warnungen: ' + d.errors.join('; ') + '</div>';
+        html += '<div style="color:#c33;font-size:11px">Fehler: ' + d.errors.join('; ') + '</div>';
+      }
+      if (d.skipped && d.skipped.length) {
+        html += '<div style="color:#e67e22;font-size:11px;margin-top:4px">Übersprungen (' + d.skipped.length + '): ' + d.skipped.join(', ') + '</div>';
       }
       if (html) { resultEl.innerHTML = html; resultEl.style.display = ''; }
       else { resultEl.style.display = 'none'; }
@@ -4559,7 +4646,7 @@ document.getElementById('ags-btn-config-to-db').addEventListener('click', functi
   document.getElementById('ctdb-status').style.display = 'none';
   document.getElementById('ctdb-result').style.display = 'none';
   document.getElementById('ctdb-run').disabled = false;
-  document.getElementById('ctdb-run').textContent = 'Starten';
+  document.getElementById('ctdb-run').textContent = '→ ' + _envShort + '-DB starten  (' + _dbSchema + ')';
   // Scope auf 'full' zurücksetzen
   _ctdbScope = 'full';
   document.querySelectorAll('.ctdb-scope-btn').forEach(function(b) { b.classList.remove('active'); });
@@ -4588,7 +4675,7 @@ document.getElementById('ctdb-run').addEventListener('click', function() {
   btn.disabled = true;
   btn.textContent = '⏳ Läuft…';
   statusEl.style.cssText = 'margin-top:10px;font-size:12px;color:#555;display:block';
-  statusEl.textContent = 'Scope: ' + _ctdbScope + ' — Bitte warten, kann einige Sekunden dauern…';
+  statusEl.textContent = '[' + _envShort + '] Scope: ' + _ctdbScope + ' → ' + _dbSchema + ' — Bitte warten…';
   resultEl.style.display = 'none';
   var appRoot = window.location.pathname.indexOf('/maps-dev/') === 0 ? '/maps-dev' : '/maps';
   var schemaUrl = appRoot + '/tnet/api/v1/admin?action=schema';
@@ -4607,14 +4694,15 @@ document.getElementById('ctdb-run').addEventListener('click', function() {
       var elapsed = ((Date.now() - t0) / 1000).toFixed(1);
       if (j.success !== false) {
         statusEl.style.color = '#2a8';
-        statusEl.textContent = '✓ Abgeschlossen in ' + elapsed + 's — Scope: ' + _ctdbScope;
+        statusEl.textContent = '✓ [' + _envShort + '] Abgeschlossen in ' + elapsed + 's'
+          + ' — Scope: ' + _ctdbScope + ' — Schema: ' + _dbSchema;
       } else {
         statusEl.style.color = '#c33';
-        statusEl.textContent = '✗ Fehler: ' + (j.error || j.message || 'Unbekannt');
+        statusEl.textContent = '✗ [' + _envShort + '] Fehler: ' + (j.error || j.message || 'Unbekannt');
       }
       resultEl.textContent = JSON.stringify(j.data || j, null, 2);
       resultEl.style.display = '';
-      btn.textContent = 'Erneut starten';
+      btn.textContent = '→ ' + _envShort + '-DB starten  (' + _dbSchema + ')';
       btn.disabled = false;
     })
     .catch(function(e) {
@@ -5932,7 +6020,7 @@ function gitCommitDeployedFiles(deployedFiles, kuerzel, statusEl) {
   var paths = deployedFiles.map(function(f) { return f.target_path; }).filter(Boolean);
   if (paths.length === 0) return;
 
-  var defaultMsg = 'Deploy ' + kuerzel + ': ' + paths.length + ' Dateien';
+  var defaultMsg = _envLabel + ' Deploy ' + kuerzel + ': ' + paths.length + ' Dateien';
   showCommitDialog(defaultMsg).then(function(result) {
     if (!result || result.skip) return;
 
@@ -6619,7 +6707,7 @@ function saveDeployedFile() {
 
       // 3. Git-Commit (mit Commit-Dialog)
       if (_deployPath) {
-        showCommitDialog('Edit: ' + fi.name).then(function(result) {
+        showCommitDialog(_envLabel + ' Edit: ' + fi.name).then(function(result) {
           if (!result || result.skip) return;
           fetch(GAPI_URL + '/git-commit-conf', {
             method: 'POST',
@@ -7682,7 +7770,7 @@ function saveBookmarks() {
 
   // Commit-Dialog vor dem Speichern anzeigen
   var changedCount = document.querySelectorAll('#bm-tbody tr.bm-row-summary.bm-row-changed').length;
-  var defaultMsg = '[bookmarks] ' + data.length + ' Bookmarks aktualisiert' + (changedCount ? ' (' + changedCount + ' geändert)' : '');
+  var defaultMsg = _envLabel + ' [bookmarks] ' + data.length + ' Bookmarks aktualisiert' + (changedCount ? ' (' + changedCount + ' geändert)' : '');
 
   showCommitDialog(defaultMsg).then(function(result) {
     if (!result) return; // Abgebrochen
@@ -8311,6 +8399,7 @@ document.getElementById('slm-bk-checkall').addEventListener('change', function()
   slmUpdateDeleteBtn();
 });
 document.getElementById('slm-bk-delete-sel').addEventListener('click', slmDeleteSelected);
+document.getElementById('slm-bk-delete-rawconf').addEventListener('click', slmDeleteAllRawConfBackups);
 
 function slmLoadBackupList() {
   var tbody = document.getElementById('slm-bk-tbody');
@@ -8338,6 +8427,12 @@ function slmRenderBackupTable() {
   var filter = document.getElementById('slm-bk-type-filter').value;
   var filtered = filter ? _slmBackupData.filter(function(b) { return b.type === filter; }) : _slmBackupData;
 
+  // "Alle Raw-Conf Backups löschen"-Button nur bei rawconf-Filter zeigen
+  var rawconfBtn = document.getElementById('slm-bk-delete-rawconf');
+  var rawconfCount = _slmBackupData.filter(function(b) { return b.type === 'rawconf'; }).length;
+  rawconfBtn.style.display = (filter === 'rawconf' || rawconfCount > 0) ? '' : 'none';
+  rawconfBtn.textContent = '🧹 Raw-Conf Backups löschen (' + rawconfCount + ')';
+
   if (filtered.length === 0) {
     tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;color:#999">Keine Backups' + (filter ? ' vom Typ "' + filter + '"' : '') + '</td></tr>';
     return;
@@ -8346,22 +8441,25 @@ function slmRenderBackupTable() {
   var html = '';
   filtered.forEach(function(b) {
     var sizeStr = b.size > 1048576 ? (b.size / 1048576).toFixed(1) + ' MB' : (b.size / 1024).toFixed(0) + ' KB';
-    var isState = b.type === 'state';
+    var canRestore = b.type === 'state' || b.type === 'rawconf';
+    // rawconf: nur den Dateinamen anzeigen, voller Pfad als title
+    var displayName = b.type === 'rawconf' ? b.file.split('/').pop() : b.file;
+    var titleAttr = b.type === 'rawconf' ? ' title="' + esc(b.file) + '"' : '';
     html += '<tr data-file="' + esc(b.file) + '">';
     html += '<td><input type="checkbox" class="bk-cb" data-file="' + esc(b.file) + '"></td>';
-    html += '<td style="font-family:Consolas,monospace;font-size:10px;word-break:break-all">' + esc(b.file) + '</td>';
+    html += '<td style="font-family:Consolas,monospace;font-size:10px;word-break:break-all"' + titleAttr + '>' + esc(displayName) + '</td>';
     html += '<td><span class="bk-type ' + b.type + '">' + esc(b.type) + '</span></td>';
     html += '<td style="white-space:nowrap">' + sizeStr + '</td>';
     html += '<td style="white-space:nowrap">' + esc(b.timestamp || b.modified) + '</td>';
     html += '<td class="bk-actions">';
-    if (isState) html += '<button class="bk-restore" data-file="' + esc(b.file) + '" title="Dieses Backup wiederherstellen">↩ Restore</button>';
+    if (canRestore) html += '<button class="bk-restore" data-file="' + esc(b.file) + '" data-type="' + esc(b.type) + '" title="Dieses Backup wiederherstellen">↩ Restore</button>';
     html += '<button class="bk-del" data-file="' + esc(b.file) + '" title="Löschen">🗑</button>';
     html += '</td></tr>';
   });
   tbody.innerHTML = html;
 
   tbody.querySelectorAll('.bk-restore').forEach(function(btn) {
-    btn.addEventListener('click', function(e) { e.stopPropagation(); slmRestoreBackup(btn.dataset.file); });
+    btn.addEventListener('click', function(e) { e.stopPropagation(); slmRestoreBackup(btn.dataset.file, btn.dataset.type); });
   });
   tbody.querySelectorAll('.bk-del').forEach(function(btn) {
     btn.addEventListener('click', function(e) { e.stopPropagation(); slmDeleteSingle(btn.dataset.file); });
@@ -8415,19 +8513,106 @@ function slmDeleteSelected() {
   .catch(function(err) { statusEl.textContent = '✗ Fehler: ' + err.message; });
 }
 
-function slmRestoreBackup(filename) {
-  if (!confirm('Backup wiederherstellen?\n\n' + filename + '\n\nDer aktuelle Zustand wird vorher gesichert.')) return;
+function slmDeleteAllRawConfBackups() {
+  var rawconfFiles = _slmBackupData.filter(function(b) { return b.type === 'rawconf'; });
+  if (rawconfFiles.length === 0) return;
+  if (!confirm('Alle ' + rawconfFiles.length + ' Raw-Conf Backups (.bak) löschen?\n\nDiese Aktion kann nicht rückgängig gemacht werden.')) return;
+  var statusEl = document.getElementById('slm-bk-status');
+  statusEl.textContent = '⏳ Lösche ' + rawconfFiles.length + ' Raw-Conf Backups…';
+  var files = rawconfFiles.map(function(b) { return b.file; });
+  fetch(API_URL + '?action=delete-backup', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ files: files })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(resp) {
+    if (!resp.success) throw new Error(resp.error || 'Fehler');
+    var freedMB = (resp.data.freedBytes / 1024 / 1024).toFixed(1);
+    statusEl.textContent = '✓ ' + resp.data.deleted + ' Raw-Conf Backup(s) gelöscht (' + freedMB + ' MB freigegeben)';
+    slmLoadBackupList();
+  })
+  .catch(function(err) { statusEl.textContent = '✗ Fehler: ' + err.message; });
+}
+
+function slmRestoreBackup(filename, type) {
+  var msg = type === 'rawconf'
+    ? 'Raw-Conf-Datei wiederherstellen?\n\n' + filename + '\n\n⚠ Die aktuelle Datei wird überschrieben (vorher automatisch gesichert).'
+    : 'Backup wiederherstellen?\n\n' + filename + '\n\nDer aktuelle Zustand wird vorher gesichert.';
+  if (!confirm(msg)) return;
   var statusEl = document.getElementById('slm-bk-status');
   statusEl.textContent = '⏳ Wiederherstellen…';
-  fetch(API_URL + '?action=restore&file=' + encodeURIComponent(filename))
+  var action = type === 'rawconf' ? 'restore-rawconf' : 'restore';
+  fetch(API_URL + '?action=' + action + '&file=' + encodeURIComponent(filename))
     .then(function(r) { return r.json(); })
     .then(function(resp) {
       if (!resp.success) throw new Error(resp.error || 'Fehler');
-      statusEl.textContent = '✓ Wiederhergestellt aus: ' + filename;
+      var to = (resp.data && resp.data.to) ? ' → ' + resp.data.to : '';
+      statusEl.textContent = '✓ Wiederhergestellt: ' + filename + to;
       slmLoadBackupList();
     })
     .catch(function(err) { statusEl.textContent = '✗ Fehler: ' + err.message; });
 }
 </script>
+
+<script>
+function _showBuildTs(id) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  var d = new Date(document.lastModified);
+  var z = function(n) { return n < 10 ? '0' + n : String(n); };
+  el.textContent = 'Release ' + z(d.getDate()) + '.' + z(d.getMonth()+1) + '.' + d.getFullYear() + ' ' + z(d.getHours()) + ':' + z(d.getMinutes());
+}_showBuildTs('slm-build-ts');
+</script>
+
+
+<script>
+/* ===== PFAD-INFO-BARS + DEV-BUTTON ===== */
+(function() {
+  var isDev     = location.pathname.indexOf('/maps-dev/') === 0;
+  var coreName  = isDev ? 'core-dev' : 'core';
+  var rawConf   = isDev ? 'data/tmp/maps-dev/raw-conf'    : 'data/tmp/maps/raw-conf';
+  var impCore   = isDev ? 'data/tmp/maps-dev/ImportToCore' : 'data/tmp/maps/ImportToCore';
+  var coreCfg   = '/www/' + coreName + '/config/';
+  var coreNls   = '/www/' + coreName + '/nls/de/';
+
+  // Button-Text + Tooltip
+  var expBtn = document.getElementById('editor-btn-export');
+  if (expBtn) {
+    expBtn.title = 'Dateien nach ' + coreName + '/config/ und ' + coreName + '/nls/de/ exportieren';
+  }
+  var expTitle = document.getElementById('export-confirm-title');
+  if (expTitle) expTitle.textContent = '\u{1F4E4} Nach ' + coreName + ' exportieren';
+
+  // Hilfsfunktion: Pfad-Bar erstellen
+  function makeBar(items) {
+    var bar = document.createElement('div');
+    bar.className = 'path-info-bar';
+    var html = '';
+    items.forEach(function(item, i) {
+      if (i > 0) html += '<span class="pib-arrow">&rarr;</span>';
+      html += '<span class="pib-lbl">' + item[0] + '</span> <span class="pib-path">' + item[1] + '</span>';
+    });
+    bar.innerHTML = html;
+    return bar;
+  }
+
+  // Staging-Tab: raw-conf → ImportToCore
+  var paneStaging = document.getElementById('pane-staging');
+  if (paneStaging && !paneStaging.querySelector('.path-info-bar')) {
+    paneStaging.insertBefore(
+      makeBar([['raw-conf', rawConf], ['ImportToCore', impCore]]),
+      paneStaging.firstChild
+    );
+  }
+
+  // Editor-Tab: ImportToCore → core-dev/config + nls
+  var paneEditor = document.getElementById('pane-editor');
+  if (paneEditor && !paneEditor.querySelector('.path-info-bar')) {
+    paneEditor.insertBefore(
+      makeBar([['ImportToCore', impCore], [coreName + '/config', coreCfg], [coreName + '/nls/de', coreNls]]),
+      paneEditor.firstChild
+    );
+  }
+})();
+</script>
 </body>
-</html>

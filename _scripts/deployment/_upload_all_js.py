@@ -21,7 +21,7 @@ import paramiko
 from deploy_env import add_env_argument, ensure_local_base_exists, resolve_deploy_config
 
 # ===== KONFIGURATION =====
-BUILD_SCRIPT = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "_build_js.py"))
+BUILD_SCRIPT = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "build", "build_js.py"))
 LOCAL_JS     = ""
 LOCAL_BASE   = ""
 HOST         = "nwow.mapplus.ch"

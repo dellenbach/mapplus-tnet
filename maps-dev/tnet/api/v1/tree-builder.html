@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="de">
 <head>
 <meta charset="UTF-8">
@@ -1166,6 +1166,8 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
       <div class="tb-tree-left">
         <div class="tb-panel-head">
           <h2>LyrMgr-Editor</h2>
+          <span id="tb-dev-env-badge" style="display:none;background:#e67e22;color:#fff;padding:1px 8px;border-radius:3px;font-size:11px;font-weight:700;letter-spacing:.5px;margin-left:2px">DEV</span>
+          <span id="tb-build-ts" title="Release-Zeitstempel (letzter Deploy)" style="font-size:10px;color:rgba(0,0,0,.35);font-family:monospace;white-space:nowrap;margin-left:6px"></span>
           <button id="tb-btn-undo" title="Rückgängig (Ctrl+Z)" disabled>↩</button>
           <button id="tb-btn-redo" title="Wiederherstellen (Ctrl+Y)" disabled>↪</button>
           <span style="width:1px;height:18px;background:rgba(0,0,0,.12);margin:0 2px"></span>
@@ -1514,6 +1516,16 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 var STORAGE_KEY = 'treebuilder_state';
 var API_URL = '/maps-dev/tnet/api/v1/treebuilder-api.php';
 var GAPI_URL = '/gapi/ags2mapplus';
+var _envLabel = location.pathname.indexOf('/maps-dev/') === 0 ? '[DEV]' : '[PROD]';
+if (_envLabel === '[DEV]') { var _devBadgeEl = document.getElementById('tb-dev-env-badge'); if (_devBadgeEl) _devBadgeEl.style.display = ''; }
+function _showBuildTs(id) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  var d = new Date(document.lastModified);
+  var z = function(n) { return n < 10 ? '0' + n : String(n); };
+  el.textContent = 'Release ' + z(d.getDate()) + '.' + z(d.getMonth()+1) + '.' + d.getFullYear() + ' ' + z(d.getHours()) + ':' + z(d.getMinutes());
+}
+_showBuildTs('tb-build-ts');
 
 (function installDevFastApiTarget() {
   if (location.pathname.indexOf('/maps-dev/') !== 0 || window.__tnetDevFastApiTarget) return;
@@ -2916,7 +2928,7 @@ window._tbCommitDialog = function(defaultMessage) {
     var overlay = document.createElement('div');
     overlay.className = 'tb-confirm-overlay';
     overlay.innerHTML = '<div class="tb-confirm-box" style="max-width:480px">' +
-      '<h3>📝 Git Commit-Nachricht</h3>' +
+      '<h3>📝 Git Commit-Nachricht' + (location.pathname.indexOf('/maps-dev/') === 0 ? ' <span style="background:#e67e22;color:#fff;padding:0 6px;border-radius:3px;font-size:10px;font-weight:700;vertical-align:middle">DEV</span>' : '') + '</h3>' +
       '<p><label style="font-size:12px;color:#555">Commit-Nachricht (Ctrl+Enter = Commit):</label></p>' +
       '<textarea id="_tb_commit_msg" rows="3" style="width:100%;font-family:monospace;font-size:12px;padding:8px;border:1px solid #ccc;border-radius:4px;resize:vertical;box-sizing:border-box">' +
       (defaultMessage || '').replace(/</g, '&lt;') + '</textarea>' +
@@ -8079,12 +8091,14 @@ function publishLyrmgr() {
     }
   });
 
+  var _isDev = location.pathname.indexOf('/maps-dev/') === 0;
+  var _dlgDevBadge = _isDev ? ' <span style="background:#e67e22;color:#fff;padding:1px 7px;border-radius:3px;font-size:11px;font-weight:700;vertical-align:middle">DEV</span>' : '';
   var msg = '<strong>Profil:</strong> ' + esc(profileName) + '<br>' +
     '<strong>Blöcke:</strong> ' + blockKeys.length + '<br>' +
     rtSummary.join('<br>') + '<br><br>' +
-    'Dies überschreibt die <strong>gesamte</strong> produktive lyrmgr.conf!';
+    'Dies überschreibt die <strong>gesamte</strong> ' + (_isDev ? '<strong style="color:#c0392b">DEV</strong>' : 'produktive') + ' lyrmgr.conf!';
 
-  _tbConfirm('Lyrmgr publizieren?', msg, function() {
+  _tbConfirm('Lyrmgr publizieren?' + _dlgDevBadge, msg, function() {
     var editor = _editorName || 'anonym';
 
     fetch(GAPI_URL + '/publish-lyrmgr-full', {
@@ -8135,7 +8149,7 @@ function publishLyrmgr() {
 
         // Git-Commit mit Dialog
         if (d.path) {
-          var defaultGitMsg = 'Publish lyrmgr: ' + profileName + ' (' + blockKeys.length + ' Blöcke)';
+          var defaultGitMsg = _envLabel + ' Publish lyrmgr: ' + profileName + ' (' + blockKeys.length + ' Blöcke)';
           _tbCommitDialog(defaultGitMsg).then(function(result) {
             if (!result || result.skip) return; // Abgebrochen oder "Ohne Git"
             fetch(GAPI_URL + '/git-commit-conf', {

@@ -4,14 +4,14 @@ import sys, io
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
 sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
 """
-_upload_changed.py
-Geaenderte Dateien unter maps/ per SFTP hochladen.
-Erkennung via mtime-State-Datei (upload_state.json) — unabhaengig von git.
+upload_changed.py
+Geaenderte Dateien unter maps/ bzw. maps-dev/ per SFTP hochladen.
+Erkennung via mtime-State-Datei — unabhaengig von git.
 Nach erfolgreichem Upload wird die mtime der Quelldatei gespeichert.
 JS-Quelldateien (js-dev/) werden automatisch gebaut; js/ wird hochgeladen.
 
-@version    2.0
-@date       2026-04-21
+@version    2.1
+@date       2026-05-27
 @copyright  Trigonet AG
 @author     Marco Dellenbach
 """
@@ -23,7 +23,7 @@ import paramiko
 from deploy_env import add_env_argument, ensure_local_base_exists, resolve_deploy_config
 
 # ===== KONFIGURATION =====
-BUILD_SCRIPT = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "_build_js.py"))
+BUILD_SCRIPT = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "build", "build_js.py"))
 LOCAL_BASE   = ""
 STATE_FILE   = ""
 
@@ -83,7 +83,7 @@ def is_protected_config(rel_path):
 
 def collect_candidates():
     """
-    Alle Dateien unter maps/ rekursiv sammeln.
+    Alle Dateien unter maps/ oder maps-dev/ rekursiv sammeln.
     js/ (Build-Output) wird uebersprungen — wird via js-dev/ abgedeckt.
     Verzeichnisse die in .gitignore stehen (core/, public/config/ etc.) werden uebersprungen.
     """
@@ -120,7 +120,7 @@ def get_changed_files(state):
 def main():
     global LOCAL_BASE, STATE_FILE, REMOTE_BASE
 
-    parser = argparse.ArgumentParser(description="Geaenderte Dateien unter maps/ per SFTP hochladen")
+    parser = argparse.ArgumentParser(description="Geaenderte Dateien per SFTP hochladen")
     add_env_argument(parser)
     parser.add_argument("--allow-config", action="store_true", help="Erlaubt Upload geschuetzter Config-Dateien")
     parser.add_argument("--reason", default="", help="Pflicht bei --allow-config: Grund/Referenz")
@@ -134,7 +134,7 @@ def main():
     ensure_local_base_exists(LOCAL_BASE)
 
     if args.allow_config and not args.reason.strip():
-        print("✗ --allow-config erfordert --reason \"...\"")
+        print("[ERR] --allow-config erfordert --reason \"...\"")
         sys.exit(2)
 
     state = load_state()
@@ -150,7 +150,7 @@ def main():
     print(f"{len(changed)} geaenderte Datei(en) gefunden:\n")
     for p in changed:
         rel = os.path.relpath(p, LOCAL_BASE).replace("\\", "/")
-        print(f"  • {rel}")
+        print(f"  * {rel}")
 
     blocked = []
     for p in changed:
@@ -159,20 +159,20 @@ def main():
             blocked.append(rel)
 
     if blocked and not args.allow_config:
-        print("\n✗ Abbruch: Geschuetzte Config-Dateien erkannt (API/Git-only):")
+        print("\n[ERR] Abbruch: Geschuetzte Config-Dateien erkannt (API/Git-only):")
         for rel in blocked:
-            print(f"  • {rel}")
+            print(f"  * {rel}")
         print("\nVerwende fuer Notfaelle explizit: --allow-config --reason \"...\"")
         sys.exit(3)
 
     if blocked and args.allow_config:
-        print("\n⚠ Override aktiv: Geschuetzte Config-Dateien werden hochgeladen")
+        print("\n[WARN] Override aktiv: Geschuetzte Config-Dateien werden hochgeladen")
         print(f"  Grund: {args.reason.strip()}")
         for rel in blocked:
-            print(f"  • {rel}")
+            print(f"  * {rel}")
 
     if args.dry_run:
-        print("\n✓ Dry-Run abgeschlossen (kein Upload ausgefuehrt).")
+        print("\n[OK] Dry-Run abgeschlossen (kein Upload ausgefuehrt).")
         return
 
     print(f"\nVerbinde zu {HOST} ({deploy_config['env']} -> {REMOTE_BASE})...")
@@ -191,13 +191,13 @@ def main():
 
             # ===== JS-DEV: Build-Schritt =====
             if rel.startswith("tnet/js-dev/"):
-                print(f"  ⚙ Build: {rel}")
+                print(f"  [BUILD] {rel}")
                 build_result = subprocess.run(
                     [sys.executable, BUILD_SCRIPT, "--mode", deploy_config["env"], local_file],
                     capture_output=True, text=True
                 )
                 if build_result.returncode != 0:
-                    print(f"  ✗ Build fehlgeschlagen: {build_result.stderr.strip() or build_result.stdout.strip()}")
+                    print(f"  [ERR] Build fehlgeschlagen: {build_result.stderr.strip() or build_result.stdout.strip()}")
                     skipped += 1
                     continue
                 # Auf js/ umleiten
@@ -209,18 +209,18 @@ def main():
 
             # Sicherheitssperre
             if any(b in upload_rel for b in ["tnet/js-dev/"]):
-                print(f"  ✗ GESPERRT: {upload_rel}")
+                print(f"  [ERR] GESPERRT: {upload_rel}")
                 skipped += 1
                 continue
 
             # Config-Guard (zweite Sicherung auch waehrend Upload-Schleife)
             if is_protected_config(upload_rel) and not args.allow_config:
-                print(f"  ✗ GESPERRT (Config API/Git-only): {upload_rel}")
+                print(f"  [ERR] GESPERRT (Config API/Git-only): {upload_rel}")
                 skipped += 1
                 continue
 
             if not os.path.isfile(upload_file):
-                print(f"  ⚠ {upload_rel} (nicht gefunden — uebersprungen)")
+                print(f"  [WARN] {upload_rel} (nicht gefunden — uebersprungen)")
                 skipped += 1
                 continue
 
@@ -228,21 +228,21 @@ def main():
             try:
                 sftp.put(upload_file, remote_file)
                 size = os.path.getsize(upload_file)
-                print(f"  ✓ {upload_rel} ({size:,} bytes)")
+                print(f"  [OK] {upload_rel} ({size:,} bytes)")
                 # mtime der Quelldatei merken (nicht des Build-Outputs)
                 state[rel] = get_mtime(local_file)
                 uploaded += 1
             except Exception as e:
-                print(f"  ✗ {upload_rel} — {e}")
+                print(f"  [ERR] {upload_rel} -- {e}")
                 skipped += 1
 
         sftp.close()
         ssh.close()
         save_state(state)
-        print(f"\n✓ Fertig: {uploaded} hochgeladen, {skipped} uebersprungen")
+        print(f"\n[OK] Fertig: {uploaded} hochgeladen, {skipped} uebersprungen")
 
     except Exception as e:
-        print(f"✗ Verbindungsfehler: {e}")
+        print(f"[ERR] Verbindungsfehler: {e}")
 
 
 if __name__ == "__main__":

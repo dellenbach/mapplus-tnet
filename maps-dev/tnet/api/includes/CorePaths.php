@@ -89,9 +89,8 @@ class TnetCorePaths {
     }
 
     public static function getAppCoreNlsPath($lang = 'de') {
-        if (self::isDevApp()) {
-            return null;
-        }
+        // App-lokale NLS-Überladungen: /www/maps(-dev)/core/nls/<lang>/
+        // Gilt für DEV und PROD gleichermassen (app-eigene Kategorie-Labels etc.)
         $path = realpath(__DIR__ . '/../../../core/nls/' . $lang);
         return ($path && is_dir($path)) ? $path : null;
     }
@@ -126,11 +125,12 @@ class TnetCorePaths {
 
     public static function getNlsSearchPaths($lang = 'de') {
         $paths = [];
-        self::appendPath($paths, self::getNlsPath($lang));
+        self::appendPath($paths, self::getNlsPath($lang));         // /www/core(-dev)/nls/<lang>
         if (!self::isDevApp()) {
-            self::appendPath($paths, self::getSharedNlsPath($lang));
-            self::appendPath($paths, self::getAppCoreNlsPath($lang));
+            self::appendPath($paths, self::getSharedNlsPath($lang)); // nur PROD: shared core
         }
+        // App-lokale NLS-Überladungen für DEV und PROD (/www/maps(-dev)/core/nls/<lang>)
+        self::appendPath($paths, self::getAppCoreNlsPath($lang));
         return $paths;
     }
 

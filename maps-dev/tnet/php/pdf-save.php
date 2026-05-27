@@ -22,9 +22,11 @@
 
 header('Content-Type: application/json; charset=utf-8');
 
+require_once __DIR__ . '/../api/includes/CorePaths.php';
+
 // ── Konfiguration ──────────────────────────────────────────
 $tmpDir     = __DIR__ . '/pdf-tmp';
-$tmpUrlBase = '/maps/tnet/php/pdf-tmp';
+$tmpUrlBase = TnetCorePaths::getAppBasePath() . '/tnet/php/pdf-tmp';
 $maxAge     = 2 * 3600;  // 2 Stunden
 
 // ── Verzeichnis sicherstellen ──────────────────────────────

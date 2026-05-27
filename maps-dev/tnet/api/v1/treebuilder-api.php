@@ -48,7 +48,7 @@ $appBasePath = rtrim(str_replace('\\', '/', dirname(dirname(dirname(dirname($scr
 if ($appBasePath === '' || $appBasePath === '.') {
     $appBasePath = '/maps';
 }
-$clientDataRoot = ($appBasePath === '/maps-dev') ? '/data/Client_Data/nwow-dev' : '/data/Client_Data/nwow';
+$clientDataRoot = '/data/Client_Data/nwow'; // Kein nwow-dev: Server hat nur ein nwow-Verzeichnis
 
 define('APP_BASE_PATH', $appBasePath);
 define('APP_WEB_ROOT', $docRoot . APP_BASE_PATH);
@@ -57,7 +57,8 @@ define('TNET_TMP_ROOT', '/data/Client_Data/nwow/tmp/' . (APP_BASE_PATH === '/map
 define('CORE_CONFIG_DIR', TnetCorePaths::getConfigPath());
 define('CORE_NLS_DIR', TnetCorePaths::getNlsPath('de'));
 define('APP_CORE_CONFIG_DIR', APP_BASE_PATH === '/maps-dev' ? CORE_CONFIG_DIR : APP_WEB_ROOT . '/core/config');
-define('APP_CORE_NLS_DIR', APP_BASE_PATH === '/maps-dev' ? CORE_NLS_DIR : APP_WEB_ROOT . '/core/nls/de');
+// App-lokale NLS-Überladungen: /www/maps(-dev)/core/nls/de/ — enthält z.B. Kategorie-Labels (desc_grundlagen etc.)
+define('APP_CORE_NLS_DIR', APP_WEB_ROOT . '/core/nls/de');
 define('CONFIG_BASE', APP_WEB_ROOT . '/public/config');
 define('DATA_DIR', TNET_TMP_ROOT . '/layertree');
 define('STATE_FILE', DATA_DIR . '/treebuilder-state.json');
@@ -2394,6 +2395,7 @@ function stageServicesToImportToCore(array $serviceKeys, string $kuerzel, string
     // Datei-Typ-Buckets (dynamisch, Key = Prefix vor erstem Unterstrich)
     $buckets    = [];
     $errors     = [];
+    $skipped    = []; // Übersprungene Dateien mit Grund (für Debug-Ausgabe)
 
     foreach ($serviceKeys as $svcKey) {
         $svcDir = $rawDir . '/' . $svcKey;
@@ -2426,11 +2428,11 @@ function stageServicesToImportToCore(array $serviceKeys, string $kuerzel, string
         $it = new ArrayIterator($svcFiles);
         foreach ($it as $file) {
             $fname = $file->getFilename();
-            if (preg_match('/\.\d{8}_\d{6}\.bak$/', $fname)) continue; // Backups überspringen
-            if (preg_match('/\.xlsx$/i', $fname))             continue; // Excel-Dateien überspringen
+            if (preg_match('/\.\d{8}_\d{6}\.bak$/', $fname)) { $skipped[] = $fname . ' (Backup)'; continue; }
+            if (preg_match('/\.xlsx$/i', $fname))             { $skipped[] = $fname . ' (Excel)';  continue; }
 
             $ext = strtolower(pathinfo($fname, PATHINFO_EXTENSION));
-            if (!in_array($ext, ['conf', 'json'])) continue; // nur Konfig-Dateien
+            if (!in_array($ext, ['conf', 'json'])) { $skipped[] = $fname . ' (Typ .' . $ext . ' nicht verarbeitbar)'; continue; }
 
             $content = @file_get_contents($file->getPathname());
             if ($content === false) { $errors[] = 'Lesefehler: ' . $file->getPathname(); continue; }
@@ -2664,6 +2666,7 @@ function stageServicesToImportToCore(array $serviceKeys, string $kuerzel, string
         'mergeStats' => $mergeStats,
         'duplicates' => $duplicates,
         'errors'     => $errors,
+        'skipped'    => $skipped,
         'timestamp'  => date('Y-m-d H:i:s'),
     ];
 }
@@ -3197,53 +3200,102 @@ function listHistory() {
 }
 
 /**
- * Alle Backups aus dem Backup-Verzeichnis auflisten (alle Typen)
+ * Alle Backups auflisten: BACKUP_DIR (state/lyrmgr/…) + RAW_CONF_DIR (.bak-Dateien)
  */
 function listAllBackups() {
-    if (!is_dir(BACKUP_DIR)) return ['files' => [], 'totalSize' => 0];
-    $allFiles = scandir(BACKUP_DIR);
-    $result = [];
+    $result    = [];
     $totalSize = 0;
-    foreach ($allFiles as $f) {
-        if ($f === '.' || $f === '..') continue;
-        $path = BACKUP_DIR . '/' . $f;
-        if (!is_file($path)) continue;
-        $size = filesize($path);
-        $totalSize += $size;
 
-        // Typ erkennen anhand Prefix
-        $type = 'unknown';
-        if (preg_match('/^state_/', $f))                $type = 'state';
-        elseif (preg_match('/^lyrmgr_/', $f))           $type = 'lyrmgr';
-        elseif (preg_match('/^groups_/', $f))            $type = 'groups';
-        elseif (preg_match('/^profile_/', $f))           $type = 'profile';
-        elseif (preg_match('/^lyrmgrResources_/', $f))   $type = 'nls';
+    // ── BACKUP_DIR: state, lyrmgr, groups, profile, nls, legend ─────────────────
+    if (is_dir(BACKUP_DIR)) {
+        foreach (scandir(BACKUP_DIR) as $f) {
+            if ($f === '.' || $f === '..') continue;
+            $path = BACKUP_DIR . '/' . $f;
+            if (!is_file($path)) continue;
+            $size = filesize($path);
+            $totalSize += $size;
 
-        // Zeitstempel aus Dateinamen extrahieren
-        $ts = '';
-        if (preg_match('/(\d{8}_\d{6})/', $f, $m)) {
-            $ts = substr($m[1], 0, 4) . '-' . substr($m[1], 4, 2) . '-' . substr($m[1], 6, 2)
-                . ' ' . substr($m[1], 9, 2) . ':' . substr($m[1], 11, 2) . ':' . substr($m[1], 13, 2);
+            $type = 'unknown';
+            if      (preg_match('/^state_/', $f))               $type = 'state';
+            elseif  (preg_match('/^lyrmgr_/', $f))              $type = 'lyrmgr';
+            elseif  (preg_match('/^groups_/', $f))              $type = 'groups';
+            elseif  (preg_match('/^profile_/', $f))             $type = 'profile';
+            elseif  (preg_match('/^lyrmgrResources_/', $f))     $type = 'nls';
+            elseif  (preg_match('/^legendResources_/', $f))     $type = 'legend';
+
+            $ts = '';
+            if (preg_match('/(\d{8}_\d{6})/', $f, $m)) {
+                $ts = substr($m[1],0,4).'-'.substr($m[1],4,2).'-'.substr($m[1],6,2)
+                    . ' '.substr($m[1],9,2).':'.substr($m[1],11,2).':'.substr($m[1],13,2);
+            }
+            $result[] = ['file' => $f, 'type' => $type, 'size' => $size, 'timestamp' => $ts,
+                         'modified' => date('Y-m-d H:i:s', filemtime($path))];
         }
-
-        $result[] = [
-            'file'     => $f,
-            'type'     => $type,
-            'size'     => $size,
-            'timestamp'=> $ts,
-            'modified' => date('Y-m-d H:i:s', filemtime($path)),
-        ];
     }
-    // Neuste zuerst
-    usort($result, function($a, $b) { return strcmp($b['file'], $a['file']); });
+
+    // ── RAW_CONF_DIR: .bak-Dateien (Sicherungen überschriebener Conf-Dateien) ───
+    $rawBase = (defined('RAW_CONF_DIR') && is_dir(RAW_CONF_DIR)) ? realpath(RAW_CONF_DIR) : null;
+    if ($rawBase) {
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($rawBase, RecursiveDirectoryIterator::SKIP_DOTS),
+            RecursiveIteratorIterator::LEAVES_ONLY
+        );
+        foreach ($iterator as $item) {
+            if (!$item->isFile() || !isRawConfBackupFile($item->getFilename())) continue;
+            $relPath = ltrim(str_replace('\\', '/', str_replace($rawBase, '', $item->getPathname())), '/');
+            $size = $item->getSize();
+            $totalSize += $size;
+            $ts = '';
+            if (preg_match('/\.(\d{8}_\d{6})\.bak$/', $item->getFilename(), $m)) {
+                $d = $m[1];
+                $ts = substr($d,0,4).'-'.substr($d,4,2).'-'.substr($d,6,2)
+                    . ' '.substr($d,9,2).':'.substr($d,11,2).':'.substr($d,13,2);
+            }
+            $result[] = ['file' => $relPath, 'type' => 'rawconf', 'size' => $size,
+                         'timestamp' => $ts, 'modified' => date('Y-m-d H:i:s', $item->getMTime())];
+        }
+    }
+
+    // Neuste zuerst (Zeitstempel, fallback Modified)
+    usort($result, function($a, $b) {
+        $ta = $a['timestamp'] ?: $a['modified'];
+        $tb = $b['timestamp'] ?: $b['modified'];
+        return strcmp($tb, $ta);
+    });
     return ['files' => $result, 'totalSize' => $totalSize, 'count' => count($result)];
 }
 
 /**
- * Einzelnes Backup löschen
+ * Einzelnes Backup löschen.
+ * Unterstützt BACKUP_DIR-Dateien (flacher Name) und
+ * RAW_CONF_DIR-.bak-Dateien (relativer Pfad mit '/').
  */
 function deleteBackupFile($filename) {
-    // Sicherheit: nur Dateinamen ohne Pfadtrenner
+    // rawconf-Backup: relativer Pfad (enthält '/') oder .bak-Endung ohne Slash
+    if (strpos($filename, '/') !== false || isRawConfBackupFile(basename($filename))) {
+        if (strpos($filename, '..') !== false || strpos($filename, '\\') !== false) {
+            return ['deleted' => false, 'error' => 'Ungültiger Pfad'];
+        }
+        $safe = ltrim($filename, '/');
+        if (!isRawConfBackupFile(basename($safe))) {
+            return ['deleted' => false, 'error' => 'Nur .bak-Dateien können über diesen Pfad gelöscht werden'];
+        }
+        $rawDir = getWritableRawConfDir();
+        if ($rawDir === false) $rawDir = RAW_CONF_DIR;
+        $realBase = realpath($rawDir);
+        $realPath = realpath($rawDir . '/' . $safe);
+        if (!$realPath || !$realBase || strpos($realPath, $realBase) !== 0) {
+            return ['deleted' => false, 'error' => 'Pfad ausserhalb raw-conf'];
+        }
+        if (!is_file($realPath)) {
+            return ['deleted' => false, 'error' => 'Datei nicht gefunden'];
+        }
+        $size = filesize($realPath);
+        @unlink($realPath);
+        return ['deleted' => true, 'file' => $filename, 'freedBytes' => $size];
+    }
+
+    // Standard BACKUP_DIR (flacher Dateiname ohne '/')
     $safe = basename($filename);
     if ($safe !== $filename || strpos($safe, '..') !== false) {
         return ['deleted' => false, 'error' => 'Ungültiger Dateiname'];
@@ -3278,6 +3330,54 @@ function restoreBackup($filename) {
         'restored' => true,
         'from'     => $filename,
         'data'     => $data
+    ];
+}
+
+/**
+ * Raw-Conf-.bak-Datei wiederherstellen:
+ * Kopiert <file>.TIMESTAMP.bak → <file> im raw-conf-Verzeichnis.
+ * Die aktuell vorhandene Datei wird vorher neu gesichert.
+ */
+function restoreRawConfBackup($relPath) {
+    if (strpos($relPath, '..') !== false || strpos($relPath, '\\') !== false) {
+        jsonError('Ungültiger Pfad', 400);
+    }
+    $safe = ltrim($relPath, '/');
+    if (!isRawConfBackupFile(basename($safe))) {
+        jsonError('Nur .bak-Dateien können wiederhergestellt werden', 400);
+    }
+
+    $rawDir  = getWritableRawConfDir();
+    if ($rawDir === false) $rawDir = RAW_CONF_DIR;
+    $realBase = realpath($rawDir);
+    $bakPath  = realpath($rawDir . '/' . $safe);
+
+    if (!$bakPath || !$realBase || strpos($bakPath, $realBase) !== 0) {
+        jsonError('Pfad ausserhalb raw-conf Verzeichnisses', 400);
+    }
+    if (!is_file($bakPath)) {
+        jsonError('Backup-Datei nicht gefunden: ' . $safe, 404);
+    }
+
+    // Ziel-Dateiname: .TIMESTAMP.bak entfernen
+    $origName = stripRawConfBackupSuffix(basename($bakPath));
+    $origPath = dirname($bakPath) . '/' . $origName;
+
+    // Aktuelle Datei vorher sichern
+    if (is_file($origPath)) {
+        $ts = date('Ymd_His');
+        @copy($origPath, $origPath . '.' . $ts . '.bak');
+    }
+
+    if (!copy($bakPath, $origPath)) {
+        jsonError('Wiederherstellen fehlgeschlagen (copy error)', 500);
+    }
+
+    $relOrig = ltrim(str_replace('\\', '/', str_replace($realBase, '', realpath($origPath))), '/');
+    return [
+        'restored' => true,
+        'from'     => $safe,
+        'to'       => $relOrig,
     ];
 }
 
@@ -3373,6 +3473,13 @@ switch ($action) {
             jsonError('Gesperrt von ' . $lock['editor'], 423);
         }
         $result = restoreBackup($file);
+        jsonResponse(['success' => true, 'data' => $result]);
+        break;
+
+    case 'restore-rawconf':
+        $file = $_GET['file'] ?? '';
+        if (!$file) jsonError('Parameter file= erforderlich', 400);
+        $result = restoreRawConfBackup($file);
         jsonResponse(['success' => true, 'data' => $result]);
         break;
 

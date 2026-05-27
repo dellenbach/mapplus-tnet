@@ -643,6 +643,11 @@
                     } catch (e) {
                         TnetLog.warn(LOG_PREFIX, 'toggleBaseLayerColor Fehler (kein aktiver Basemap-Layer?):', e.message);
                     }
+                    // Undo: .grayscale auf .ol-basemap-Divs betrifft alle Child-Layer
+                    // (Overlay-Themen werden sonst ebenfalls grau). Stattdessen
+                    // werden nur canvas/img-Elemente in .ol-basemap gefiltert.
+                    var _bDivs = document.querySelectorAll('.ol-basemap');
+                    for (var _bi = 0; _bi < _bDivs.length; _bi++) { _bDivs[_bi].classList.remove('grayscale'); }
                     if (mapId === 'main') {
                         var isGrey = false;
                         if (btnEl && btnEl.getAttribute) {
@@ -667,6 +672,12 @@
 
         syncGrayscale: function(isGrey) {
             this._isGrayscale = isGrey;
+            var _filterVal = isGrey ? 'grayscale(100%)' : '';
+            // Nur <canvas> und <img> innerhalb von .ol-basemap filtern.
+            // CSS filter auf dem DIV würde auch Overlay-Themen (Geschwister-Layer)
+            // grau machen – canvas/img-Filter sind isoliert.
+            var _bMedia = document.querySelectorAll('.ol-basemap canvas, .ol-basemap img');
+            for (var _mi = 0; _mi < _bMedia.length; _mi++) { _bMedia[_mi].style.filter = _filterVal; }
             if (this._timeOverlayLayer) {
                 this._applyGrayscaleCSS(this._timeOverlayLayer, this._isGrayscale);
             }

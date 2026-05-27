@@ -6,6 +6,9 @@
 # Temporäre Analyse-/Debug-Dateien
 _temp_*
 
+# Claude Code interne Dateien
+.claude/
+
 # DB credentials (nie committen!)
 **/db_config.php
 

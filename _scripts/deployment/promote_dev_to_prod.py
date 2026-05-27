@@ -1,10 +1,16 @@
 #!/usr/bin/env python3
 """
-_promote_dev_to_prod.py
+promote_dev_to_prod.py
 Lokale Promotion von maps-dev nach maps mit optionalem anschliessendem PROD-Deploy.
 
-@version    1.0
-@date       2026-04-30
+Aufruf:
+    python promote_dev_to_prod.py                          # Nur lokal (kein Upload)
+    python promote_dev_to_prod.py --deploy-prod            # Lokal + Upload zu /www/maps
+    python promote_dev_to_prod.py --dry-run --deploy-prod  # Vorschau beider Schritte
+    python promote_dev_to_prod.py --mirror                 # Mit Loeschung von Dateien, die in maps-dev fehlen
+
+@version    1.1
+@date       2026-05-27
 @copyright  Trigonet AG
 @author     Marco Dellenbach
 """
@@ -17,7 +23,7 @@ from deploy_env import resolve_deploy_config, ensure_local_base_exists
 
 
 SCRIPT_DIR = os.path.dirname(__file__)
-UPLOAD_CHANGED_SCRIPT = os.path.join(SCRIPT_DIR, "_upload_changed.py")
+UPLOAD_CHANGED_SCRIPT = os.path.join(SCRIPT_DIR, "upload_changed.py")
 
 
 def run_command(command, description):
@@ -114,7 +120,7 @@ def main():
     if args.deploy_prod:
         run_prod_deploy(dry_run=args.dry_run)
 
-    print("\n✓ Promotion abgeschlossen")
+    print("\n[OK] Promotion abgeschlossen")
 
 
 if __name__ == "__main__":

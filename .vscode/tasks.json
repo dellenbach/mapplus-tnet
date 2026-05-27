@@ -1,170 +1,239 @@
 {
 	"version": "2.0.0",
 	"tasks": [
+
+		// ── DEV ────────────────────────────────────────────────────────────────
+
 		{
 			"label": "DEV: Seed maps-dev from maps",
 			"type": "shell",
 			"command": "robocopy",
-			"args": [
-				"maps",
-				"maps-dev",
-				"/E",
-				"/NFL",
-				"/NDL",
-				"/NJH",
-				"/NJS",
-				"/NP",
-				"/R:1",
-				"/W:1"
-			],
+			"args": [ "maps", "maps-dev", "/E", "/NFL", "/NDL", "/NJH", "/NJS", "/NP", "/R:1", "/W:1" ],
 			"problemMatcher": [],
-			"presentation": {
-				"reveal": "always",
-				"panel": "shared"
-			}
-		},
-		{
-			"label": "PROD: Sync maps-dev to maps (local robocopy)",
-			"type": "shell",
-			"command": "robocopy",
-			"args": [
-				"maps-dev",
-				"maps",
-				"/E",
-				"/NFL",
-				"/NDL",
-				"/NJH",
-				"/NJS",
-				"/NP",
-				"/R:1",
-				"/W:1"
-			],
-			"problemMatcher": [],
-			"presentation": {
-				"reveal": "always",
-				"panel": "shared"
-			}
-		},
-		{
-			"label": "Release: Promote DEV to PROD (local robocopy + SFTP)",
-			"type": "shell",
-			"command": "C:/Program Files/Python313/python.exe",
-			"args": [
-				"_scripts/deployment/_promote_dev_to_prod.py",
-				"--deploy-prod"
-			],
-			"problemMatcher": [],
-			"presentation": {
-				"reveal": "always",
-				"panel": "shared"
-			}
-		},
-		{
-			"label": "Release: Promote DEV to PROD (Dry Run, local robocopy + SFTP)",
-			"type": "shell",
-			"command": "C:/Program Files/Python313/python.exe",
-			"args": [
-				"_scripts/deployment/_promote_dev_to_prod.py",
-				"--dry-run",
-				"--deploy-prod"
-			],
-			"problemMatcher": [],
-			"presentation": {
-				"reveal": "always",
-				"panel": "shared"
-			}
+			"presentation": { "reveal": "always", "panel": "shared" }
 		},
 		{
 			"label": "Deploy DEV: Upload Changed Files",
 			"type": "shell",
 			"command": "C:/Program Files/Python313/python.exe",
-			"args": [
-				"_scripts/deployment/_upload_changed.py",
-				"--env",
-				"dev"
-			],
+			"args": [ "_scripts/deployment/upload_changed.py", "--env", "dev" ],
 			"problemMatcher": [],
-			"presentation": {
-				"reveal": "always",
-				"panel": "shared"
-			}
+			"presentation": { "reveal": "always", "panel": "shared" }
 		},
 		{
-			"label": "Deploy PROD: Upload Changed Files",
+			"label": "Deploy DEV: Dry-Run (Vorschau)",
 			"type": "shell",
 			"command": "C:/Program Files/Python313/python.exe",
-			"args": [
-				"_scripts/deployment/_upload_changed.py",
-				"--env",
-				"prod"
-			],
+			"args": [ "_scripts/deployment/upload_changed.py", "--env", "dev", "--dry-run" ],
 			"problemMatcher": [],
-			"presentation": {
-				"reveal": "always",
-				"panel": "shared"
-			}
+			"presentation": { "reveal": "always", "panel": "shared" }
 		},
 		{
 			"label": "Deploy DEV: Upload Active File",
 			"type": "shell",
 			"command": "C:/Program Files/Python313/python.exe",
-			"args": [
-				"_scripts/deployment/_upload_active_file.py",
-				"--env",
-				"dev",
-				"${file}"
-			],
+			"args": [ "_scripts/deployment/upload_active_file.py", "--env", "dev", "${file}" ],
 			"problemMatcher": [],
-			"presentation": {
-				"reveal": "always",
-				"panel": "shared"
-			}
-		},
-		{
-			"label": "Deploy PROD: Upload Active File",
-			"type": "shell",
-			"command": "C:/Program Files/Python313/python.exe",
-			"args": [
-				"_scripts/deployment/_upload_active_file.py",
-				"--env",
-				"prod",
-				"${file}"
-			],
-			"problemMatcher": [],
-			"presentation": {
-				"reveal": "always",
-				"panel": "shared"
-			}
+			"presentation": { "reveal": "always", "panel": "shared" }
 		},
 		{
 			"label": "Deploy DEV: LyrMgr Patch",
 			"type": "shell",
 			"command": "C:/Program Files/Python313/python.exe",
-			"args": [
-				"_scripts/_upload_lyrmgr_patch.py",
-				"--env",
-				"dev"
-			],
+			"args": [ "_scripts/_upload_lyrmgr_patch.py", "--env", "dev" ],
 			"problemMatcher": [],
-			"presentation": {
-				"reveal": "always",
-				"panel": "shared"
-			}
+			"presentation": { "reveal": "always", "panel": "shared" }
+		},
+
+		// ── BUILD ──────────────────────────────────────────────────────────────
+
+		{
+			"label": "Build: JS DEV (maps-dev, lesbar)",
+			"type": "shell",
+			"command": "C:/Program Files/Python313/python.exe",
+			"args": [ "_scripts/build/build_js.py", "--mode", "dev" ],
+			"problemMatcher": [],
+			"presentation": { "reveal": "always", "panel": "shared" }
+		},
+		{
+			"label": "Build: JS PROD (maps, minifiziert)",
+			"type": "shell",
+			"command": "C:/Program Files/Python313/python.exe",
+			"args": [ "_scripts/build/build_js.py", "--mode", "prod" ],
+			"problemMatcher": [],
+			"presentation": { "reveal": "always", "panel": "shared" }
+		},
+
+		// ── PROD ───────────────────────────────────────────────────────────────
+
+		{
+			"label": "PROD: Sync maps-dev to maps (local robocopy)",
+			"type": "shell",
+			"command": "robocopy",
+			"args": [ "maps-dev", "maps", "/E", "/NFL", "/NDL", "/NJH", "/NJS", "/NP", "/R:1", "/W:1" ],
+			"problemMatcher": [],
+			"presentation": { "reveal": "always", "panel": "shared" }
+		},
+		{
+			"label": "Deploy PROD: Upload Changed Files",
+			"type": "shell",
+			"command": "C:/Program Files/Python313/python.exe",
+			"args": [ "_scripts/deployment/upload_changed.py", "--env", "prod" ],
+			"problemMatcher": [],
+			"presentation": { "reveal": "always", "panel": "shared" }
+		},
+		{
+			"label": "Deploy PROD: Dry-Run (Vorschau)",
+			"type": "shell",
+			"command": "C:/Program Files/Python313/python.exe",
+			"args": [ "_scripts/deployment/upload_changed.py", "--env", "prod", "--dry-run" ],
+			"problemMatcher": [],
+			"presentation": { "reveal": "always", "panel": "shared" }
+		},
+		{
+			"label": "Deploy PROD: Upload Active File",
+			"type": "shell",
+			"command": "C:/Program Files/Python313/python.exe",
+			"args": [ "_scripts/deployment/upload_active_file.py", "--env", "prod", "${file}" ],
+			"problemMatcher": [],
+			"presentation": { "reveal": "always", "panel": "shared" }
 		},
 		{
 			"label": "Deploy PROD: LyrMgr Patch",
 			"type": "shell",
 			"command": "C:/Program Files/Python313/python.exe",
-			"args": [
-				"_scripts/_upload_lyrmgr_patch.py",
-				"--env",
-				"prod"
-			],
+			"args": [ "_scripts/_upload_lyrmgr_patch.py", "--env", "prod" ],
 			"problemMatcher": [],
-			"presentation": {
-				"reveal": "always",
-				"panel": "shared"
-			}
+			"presentation": { "reveal": "always", "panel": "shared" }
+		},
+
+		// ── CONFIG ─────────────────────────────────────────────────────────────
+		// CORE (layers_*.conf, NLS):   primaer ueber SLM (slm.html)!
+		// Core-Fallback / Massen-Upload -> upload_core_config.py
+		// App-Config (tnet/config/) + Portal-Configs (public/config/) -> upload_config.py
+
+		{
+			"label": "Core Config DEV: config/ deployen -> /www/core-dev/config/",
+			"type": "shell",
+			"command": "C:/Program Files/Python313/python.exe",
+			"args": [ "_scripts/deployment/upload_core_config.py", "--type", "config", "--env", "dev" ],
+			"problemMatcher": [],
+			"presentation": { "reveal": "always", "panel": "shared" }
+		},
+		{
+			"label": "Core Config DEV: nls/ deployen -> /www/core-dev/nls/",
+			"type": "shell",
+			"command": "C:/Program Files/Python313/python.exe",
+			"args": [ "_scripts/deployment/upload_core_config.py", "--type", "nls", "--env", "dev" ],
+			"problemMatcher": [],
+			"presentation": { "reveal": "always", "panel": "shared" }
+		},
+		{
+			"label": "Core Config PROD: config/ deployen -> /www/core/config/",
+			"type": "shell",
+			"command": "C:/Program Files/Python313/python.exe",
+			"args": [ "_scripts/deployment/upload_core_config.py", "--type", "config", "--env", "prod" ],
+			"problemMatcher": [],
+			"presentation": { "reveal": "always", "panel": "shared" }
+		},
+		{
+			"label": "Core Config PROD: nls/ deployen -> /www/core/nls/",
+			"type": "shell",
+			"command": "C:/Program Files/Python313/python.exe",
+			"args": [ "_scripts/deployment/upload_core_config.py", "--type", "nls", "--env", "prod" ],
+			"problemMatcher": [],
+			"presentation": { "reveal": "always", "panel": "shared" }
+		},
+		{
+			"label": "Core Config: Dry-Run alle -> DEV (Vorschau)",
+			"type": "shell",
+			"command": "C:/Program Files/Python313/python.exe",
+			"args": [ "_scripts/deployment/upload_core_config.py", "--type", "all", "--env", "dev", "--dry-run" ],
+			"problemMatcher": [],
+			"presentation": { "reveal": "always", "panel": "shared" }
+		},
+
+		{
+			"label": "Config DEV: App-Config deployen (tnet/config/)",
+			"type": "shell",
+			"command": "C:/Program Files/Python313/python.exe",
+			"args": [ "_scripts/deployment/upload_config.py", "--type", "app", "--env", "dev" ],
+			"problemMatcher": [],
+			"presentation": { "reveal": "always", "panel": "shared" }
+		},
+		{
+			"label": "Config PROD: App-Config deployen (tnet/config/)",
+			"type": "shell",
+			"command": "C:/Program Files/Python313/python.exe",
+			"args": [ "_scripts/deployment/upload_config.py", "--type", "app", "--env", "prod" ],
+			"problemMatcher": [],
+			"presentation": { "reveal": "always", "panel": "shared" }
+		},
+		{
+			"label": "Config DEV: Portal-Configs deployen (public/config/)",
+			"type": "shell",
+			"command": "C:/Program Files/Python313/python.exe",
+			"args": [ "_scripts/deployment/upload_config.py", "--type", "portals", "--env", "dev" ],
+			"problemMatcher": [],
+			"presentation": { "reveal": "always", "panel": "shared" }
+		},
+		{
+			"label": "Config PROD: Portal-Configs deployen (public/config/)",
+			"type": "shell",
+			"command": "C:/Program Files/Python313/python.exe",
+			"args": [ "_scripts/deployment/upload_config.py", "--type", "portals", "--env", "prod" ],
+			"problemMatcher": [],
+			"presentation": { "reveal": "always", "panel": "shared" }
+		},
+		{
+			"label": "Config: Dry-Run App-Config DEV (Vorschau)",
+			"type": "shell",
+			"command": "C:/Program Files/Python313/python.exe",
+			"args": [ "_scripts/deployment/upload_config.py", "--type", "app", "--env", "dev", "--dry-run" ],
+			"problemMatcher": [],
+			"presentation": { "reveal": "always", "panel": "shared" }
+		},
+
+		// ── RELEASE ────────────────────────────────────────────────────────────
+
+		{
+			"label": "Release: Promote DEV to PROD (Dry Run)",
+			"type": "shell",
+			"command": "C:/Program Files/Python313/python.exe",
+			"args": [ "_scripts/deployment/promote_dev_to_prod.py", "--dry-run", "--deploy-prod" ],
+			"problemMatcher": [],
+			"presentation": { "reveal": "always", "panel": "shared" }
+		},
+		{
+			"label": "Release: Promote DEV to PROD (local robocopy + SFTP)",
+			"type": "shell",
+			"command": "C:/Program Files/Python313/python.exe",
+			"args": [ "_scripts/deployment/promote_dev_to_prod.py", "--deploy-prod" ],
+			"problemMatcher": [],
+			"presentation": { "reveal": "always", "panel": "shared" }
+		},
+
+		// ── GIT ────────────────────────────────────────────────────────────────
+
+		{
+			"label": "Git: Stage + Commit (maps + maps-dev)",
+			"type": "shell",
+			"command": "_scripts/deploy-prod/git-commit.bat",
+			"args": [],
+			"problemMatcher": [],
+			"presentation": { "reveal": "always", "panel": "shared" }
+		},
+
+		// ── SETUP ──────────────────────────────────────────────────────────────
+
+		{
+			"label": "Setup: Create Desktop Shortcuts",
+			"type": "shell",
+			"command": "powershell",
+			"args": [ "-ExecutionPolicy", "Bypass", "-File", "_scripts/create-desktop-shortcuts.ps1" ],
+			"problemMatcher": [],
+			"presentation": { "reveal": "always", "panel": "shared" }
 		}
+
 	]
 }
