@@ -1,9 +1,10 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="de">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Service- und Layermanager — TNET API</title>
+<script>document.documentElement.setAttribute('data-env',location.pathname.indexOf('/maps-dev/')===0?'dev':'prod');</script>
 <style>
 /**
  * ags-import.html
@@ -1023,6 +1024,20 @@ body {
 .core-files-subtable .cfs-keys { color: #888; font-size: 9px; }
 .core-files-subtable .cfs-changed { color: #e67e22; font-weight: 600; }
 
+
+/* ===== ENV-BADGE (DEV / PROD) ===== */
+#env-badge { display: none; }
+html[data-env] #env-badge {
+  display: inline-block !important;
+  color: #fff; padding: 2px 10px; border-radius: 3px;
+  font-size: 12px; font-weight: 700; letter-spacing: .6px;
+  vertical-align: middle;
+}
+html[data-env="dev"] #env-badge { background: #e67e22; }
+html[data-env="dev"] #env-badge::before { content: 'DEV'; }
+html[data-env="prod"] #env-badge { background: #2e7d32; }
+html[data-env="prod"] #env-badge::before { content: 'PROD'; }
+html[data-env="dev"] .ags-toolbar { border-bottom: 3px solid #e67e22; }
 </style>
 </head>
 <body>
@@ -1030,14 +1045,17 @@ body {
 <!-- ===== TOOLBAR ===== -->
 <div class="ags-toolbar">
   <span class="brand">🌐 Service- und Layermanager</span>
+  <span id="env-badge"></span>
   <span class="sep"></span>
   <button id="ags-btn-refresh" title="Daten neu laden">↻ Aktualisieren</button>
   <button id="ags-btn-cache-clear" title="Layermanager-Cache auf dem Server leeren">🗑 Cache leeren</button>
   <button id="ags-btn-config-to-db" title="Konfigurationsdateien in PostgreSQL-Datenbank einlesen (configToPG)">🗄 Config → DB</button>
   <span class="spacer"></span>
-  <a href="/maps/tnet/api/v1/tree-builder.html">← Tree-Builder</a>
+  <a href="tree-builder.html">← Tree-Builder</a>
   <span class="sep"></span>
-  <a href="/maps/tnet/api/docs/" target="_blank">API Docs</a>
+  <a href="../docs/" target="_blank">API Docs</a>
+  <span class="sep"></span>
+  <span id="ags-build-ts" title="Release-Zeitstempel (letzter Deploy)" style="font-size:10px;color:rgba(255,255,255,.55);font-family:monospace;white-space:nowrap"></span>
 </div>
 
 <!-- ===== CONFIG-TO-DB MODAL ===== -->
@@ -1486,8 +1504,22 @@ body {
 // =====================================================================
 // KONFIGURATION
 // =====================================================================
-var API_URL  = '/maps/tnet/api/v1/treebuilder-api.php';
+var API_URL  = '/maps-dev/tnet/api/v1/treebuilder-api.php';
 var GAPI_URL = '/gapi/ags2mapplus';
+
+(function installDevFastApiTarget() {
+  if (location.pathname.indexOf('/maps-dev/') !== 0 || window.__tnetDevFastApiTarget) return;
+  window.__tnetDevFastApiTarget = true;
+  var nativeFetch = window.fetch;
+  window.fetch = function(input, init) {
+    var url = typeof input === 'string' ? input : (input && input.url);
+    if (typeof url === 'string' && url.indexOf(GAPI_URL + '/') === 0 && url.indexOf('target=') === -1) {
+      url += (url.indexOf('?') === -1 ? '?' : '&') + 'target=dev';
+      input = typeof input === 'string' ? url : new Request(url, input);
+    }
+    return nativeFetch.call(this, input, init);
+  };
+})();
 
 // =====================================================================
 // COMMIT-MESSAGE-DIALOG
@@ -2092,7 +2124,7 @@ function exportAgsServices() {
       var statusEl = document.getElementById('import-status');
       var savedCount = data.files ? data.files.length : 0;
       var failedCount = data.failedFiles ? data.failedFiles.length : 0;
-      var targetDirectory = data.directory || 'data/tmp/maps/raw-conf';
+      var targetDirectory = data.directory || 'data/tmp/maps-dev/raw-conf';
 
       if (savedCount > 0 && failedCount === 0) {
         statusEl.textContent = '✓ Export abgeschlossen (' + runLabel + '): ' + savedCount + ' Dateien in ' + targetDirectory + '/ gespeichert';
@@ -2909,7 +2941,7 @@ function loadRawConfList() {
         statusEl.className = 'ags-status';
         return;
       }
-      statusEl.textContent = data.services.length + ' Services, ' + data.files.length + ' Dateien in ' + (data.directory || 'data/tmp/maps/raw-conf') + '/';
+      statusEl.textContent = data.services.length + ' Services, ' + data.files.length + ' Dateien in ' + (data.directory || 'data/tmp/maps-dev/raw-conf') + '/';
       statusEl.className = 'ags-status success';
       filterEl.style.display = '';
       filterEl.value = '';
@@ -4164,7 +4196,7 @@ document.getElementById('ags-btn-cache-clear').addEventListener('click', functio
   var btn = this;
   btn.disabled = true;
   btn.textContent = '⏳ Cache…';
-  fetch('/maps/tnet/api/v1/cache?action=clear', { method: 'POST' })
+  fetch('cache?action=clear', { method: 'POST' })
     .then(function(r) { return r.json(); })
     .then(function(j) {
       btn.textContent = '✓ Cache geleert';
@@ -4214,9 +4246,18 @@ document.getElementById('ctdb-run').addEventListener('click', function() {
   statusEl.style.cssText = 'margin-top:10px;font-size:12px;color:#555;display:block';
   statusEl.textContent = 'Scope: ' + _ctdbScope + ' — Bitte warten, kann einige Sekunden dauern…';
   resultEl.style.display = 'none';
-  var url = '/maps/tnet/api/v1/admin?action=configToPG&scope=' + encodeURIComponent(_ctdbScope);
+  var appRoot = window.location.pathname.indexOf('/maps-dev/') === 0 ? '/maps-dev' : '/maps';
+  var schemaUrl = appRoot + '/tnet/api/v1/admin?action=schema';
+  var url = appRoot + '/tnet/api/v1/admin?action=configToPG&scope=' + encodeURIComponent(_ctdbScope);
   var t0 = Date.now();
-  fetch(url)
+  fetch(schemaUrl)
+    .then(function(r) { return r.json(); })
+    .then(function(schemaResult) {
+      if (schemaResult.success === false) {
+        throw new Error(schemaResult.error || schemaResult.message || 'Schema-Erstellung fehlgeschlagen');
+      }
+      return fetch(url);
+    })
     .then(function(r) { return r.json(); })
     .then(function(j) {
       var elapsed = ((Date.now() - t0) / 1000).toFixed(1);
@@ -5529,7 +5570,7 @@ function openExportConfirmModal(dryData, unsavedCount, prependHtml) {
  * Cache leeren nach erfolgreichem Deploy
  */
 function clearCacheAfterDeploy(statusEl) {
-  fetch('/maps/tnet/api/v1/cache?action=clear', { method: 'POST' })
+  fetch('cache?action=clear', { method: 'POST' })
     .then(function(r) { return r.json(); })
     .then(function(j) {
       if (statusEl) statusEl.textContent = '✓ Deployment verifiziert — Cache geleert';
@@ -6196,7 +6237,7 @@ function saveDeployedFile() {
       var d = json.data || json;
       if (!json.success && !d.success) throw new Error('Deploy: ' + (json.detail || json.error || d.error || 'Unbekannt'));
       saveBtn.disabled = false;
-      statusEl.textContent = '✓ Gespeichert via SFTP (' + (content.length / 1024).toFixed(1) + ' KB) — Backup erstellt';
+      statusEl.textContent = '✓ Gespeichert via SFTP [' + (d.target || (location.pathname.indexOf('/maps-dev/') === 0 ? 'dev' : 'prod')) + '] ' + (d.deployPath || _deployPath) + ' (' + (content.length / 1024).toFixed(1) + ' KB) — Backup erstellt';
       statusEl.className = 'ok';
 
       // 3. Git-Commit (mit Commit-Dialog)
@@ -7538,5 +7579,16 @@ if (document.readyState === 'loading') {
   initBmColumnResize();
 }
 </script>
+
+<script>
+function _showBuildTs(id) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  var d = new Date(document.lastModified);
+  var z = function(n) { return n < 10 ? '0' + n : String(n); };
+  el.textContent = 'Release ' + z(d.getDate()) + '.' + z(d.getMonth()+1) + '.' + d.getFullYear() + ' ' + z(d.getHours()) + ':' + z(d.getMinutes());
+}_showBuildTs('ags-build-ts');
+</script>
+
 </body>
 </html>

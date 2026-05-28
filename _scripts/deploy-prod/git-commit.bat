@@ -1,11 +1,33 @@
 @echo off
 title Git -- Stage und Commit
-cd /d "C:\_Daten\mapplus-exp"
+call "%~dp0..\dev_and_deploy_config.bat"
+if errorlevel 1 exit /b 1
+cd /d "%MAPPLUS_WORKSPACE_ROOT%"
+
+:: Zweck:
+:: Source-Stand aus maps-dev\ und maps\ gemeinsam committen.
+:: Optional kann davor der lokale maps-dev -> maps Abgleich ausgefuehrt werden.
+
 echo.
 echo ============================================
 echo  GIT -- Stage und Commit
 echo ============================================
 echo.
+set "SYNC_GITHUB="
+set /p "SYNC_GITHUB=Vor dem Git-Commit maps-dev -^> maps synchronisieren? (J/n): "
+if /i not "%SYNC_GITHUB%"=="n" (
+    echo.
+    echo --- Lokaler Abgleich fuer GitHub (maps-dev -^> maps) ---
+    "%MAPPLUS_PYTHON_EXE%" _scripts\deployment\promote_dev_to_prod.py
+    if errorlevel 1 (
+        echo.
+        echo [FEHLER] Lokaler Abgleich fehlgeschlagen.
+        pause
+        exit /b 1
+    )
+    echo.
+)
+
 echo Aktueller Branch:
 git branch --show-current
 echo.
@@ -13,7 +35,9 @@ echo --- Status vor Staging ---
 git status --short
 echo.
 
-:: Source-Dateien stagen (maps/ und maps-dev/), Build-Output js/ ausschliessen
+:: Source-Dateien stagen (maps/ und maps-dev/), Build-Output js/ bewusst ausschliessen.
+:: Die gebauten JS-Dateien werden auf dem Server erzeugt bzw. aus dem Build-Schritt geliefert,
+:: sollen aber nicht als Primaerquelle in Git dienen.
 echo --- Staging: Source-Dateien (maps/ und maps-dev/, ohne js/) ---
 git add -- maps/ maps-dev/
 git restore --staged -- maps/tnet/js/ maps-dev/tnet/js/ 2>nul

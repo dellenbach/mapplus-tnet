@@ -7,7 +7,8 @@ sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='repla
 build_js.py
 Build aller JS-Quelldateien aus js-dev/ nach js/.
 Verwendet esbuild (Standalone-Binary, kein Node.js noetig).
-Bei fehlendem esbuild.exe wird die Binary automatisch heruntergeladen.
+PROD-Builds werden zusaetzlich per Closure Compiler obfuskiert.
+Bei fehlenden Tools werden die Binaries automatisch heruntergeladen.
 
 Aufruf:
     py _scripts/build/build_js.py                              # Alle PROD-Dateien (maps/) bauen
@@ -15,17 +16,20 @@ Aufruf:
     py _scripts/build/build_js.py --mode dev  maps-dev/tnet/js-dev/foo.js
     py _scripts/build/build_js.py --mode prod maps/tnet/js-dev/foo.js
 
-@version    1.1
-@date       2026-05-27
+@version    1.2
+@date       2026-05-28
 @copyright  Trigonet AG
 @author     Marco Dellenbach
 """
 import os
 import sys
 import subprocess
+import tempfile
 import urllib.request
-import zipfile
 import argparse
+import re
+import json
+import hashlib
 
 # ===== KONFIGURATION =====
 _SCRIPT_DIR      = os.path.dirname(os.path.abspath(__file__))
@@ -35,6 +39,10 @@ ESBUILD_VERSION  = "0.25.2"
 ESBUILD_URL      = f"https://registry.npmjs.org/@esbuild/win32-x64/-/win32-x64-{ESBUILD_VERSION}.tgz"
 TOOLS_DIR        = os.path.normpath(os.path.join(_SCRIPT_DIR, "..", "tools"))
 ESBUILD_EXE      = os.path.join(TOOLS_DIR, "esbuild.exe")
+CLOSURE_VERSION  = "v20240317"
+CLOSURE_URL      = f"https://repo1.maven.org/maven2/com/google/javascript/closure-compiler/{CLOSURE_VERSION}/closure-compiler-{CLOSURE_VERSION}.jar"
+CLOSURE_JAR      = os.path.join(TOOLS_DIR, "closure-compiler.jar")
+BUILD_CACHE_TAG  = "2026-05-28-hash-skip-v1"
 
 # Standard-Pfade fuer PROD (maps/) — bei Full-Build mit --mode dev auf maps-dev/ umgeleitet
 JS_DEV_DIR       = os.path.normpath(os.path.join(_WORKSPACE_ROOT, "maps", "tnet", "js-dev"))
@@ -65,6 +73,56 @@ def resolve_js_roots(src_path=None):
         )
 
     return JS_DEV_DIR, JS_OUT_DIR
+
+
+def get_build_state_file(mode):
+    """Liefert die State-Datei fuer den Hash-basierten Full-Build-Cache."""
+    return os.path.join(_SCRIPT_DIR, f"build_state.{mode}.json")
+
+
+def load_build_state(mode):
+    """Laedt den Build-State fuer den angegebenen Modus."""
+    state_path = get_build_state_file(mode)
+    if not os.path.isfile(state_path):
+        return {}
+
+    try:
+        with open(state_path, "r", encoding="utf-8") as handle:
+            data = json.load(handle)
+    except Exception:
+        return {}
+
+    if not isinstance(data, dict):
+        return {}
+    return data
+
+
+def save_build_state(mode, state):
+    """Speichert den Hash-State fuer spaetere Full-Builds."""
+    state_path = get_build_state_file(mode)
+    with open(state_path, "w", encoding="utf-8") as handle:
+        json.dump(state, handle, indent=2, sort_keys=True)
+
+
+def hash_file(path):
+    """Berechnet einen stabilen SHA256-Hash fuer eine Datei."""
+    digest = hashlib.sha256()
+    with open(path, "rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def get_output_path(src_path):
+    """Leitet den js-Outputpfad aus einer Quelldatei ab."""
+    js_dev_dir, js_out_dir = resolve_js_roots(src_path)
+    rel = os.path.relpath(src_path, js_dev_dir)
+    return os.path.join(js_out_dir, rel)
+
+
+def get_build_fingerprint(mode):
+    """Versions-Fingerprint fuer Cache-Invalidierung bei Build-Aenderungen."""
+    return f"{BUILD_CACHE_TAG}|mode={mode}|esbuild={ESBUILD_VERSION}|closure={CLOSURE_VERSION}"
 
 
 # ===== ESBUILD SETUP =====
@@ -112,6 +170,27 @@ def ensure_esbuild():
         return False
 
 
+def ensure_closure_compiler():
+    """Closure Compiler JAR herunterladen falls nicht vorhanden."""
+    if os.path.isfile(CLOSURE_JAR):
+        return True
+
+    os.makedirs(TOOLS_DIR, exist_ok=True)
+    print(f"Closure Compiler nicht gefunden - lade herunter ({CLOSURE_URL})...")
+    try:
+        urllib.request.urlretrieve(CLOSURE_URL, CLOSURE_JAR)
+    except Exception as e:
+        print(f"[ERR] Download des Closure Compilers fehlgeschlagen: {e}")
+        return False
+
+    if os.path.isfile(CLOSURE_JAR):
+        print(f"[OK] Closure Compiler heruntergeladen nach {CLOSURE_JAR}")
+        return True
+
+    print("[ERR] Closure Compiler nach Download nicht gefunden")
+    return False
+
+
 # ===== BUILD =====
 
 def detect_build_mode(src_path=None):
@@ -119,6 +198,43 @@ def detect_build_mode(src_path=None):
     if src_path and f"{os.sep}maps-dev{os.sep}" in os.path.normpath(src_path):
         return "dev"
     return "prod"
+
+
+def obfuscate_file(src_path, out_path):
+    """Obfuskiert eine gebaute JS-Datei fuer PROD via Closure Compiler."""
+    if not ensure_closure_compiler():
+        return False, "Closure Compiler nicht verfuegbar"
+
+    args = [
+        "java",
+        "-jar",
+        CLOSURE_JAR,
+        "--compilation_level",
+        "SIMPLE",
+        "--warning_level",
+        "QUIET",
+        "--language_in",
+        "ECMASCRIPT_NEXT",
+        "--js",
+        src_path,
+        "--js_output_file",
+        out_path,
+    ]
+    result = subprocess.run(args, capture_output=True, text=True)
+    if result.returncode != 0:
+        return False, result.stderr.strip() or result.stdout.strip()
+    return True, ""
+
+
+def is_es_module_source(src_path):
+    """Erkennt einfache ES-Modul-Dateien ueber import/export-Statements."""
+    try:
+        with open(src_path, "r", encoding="utf-8") as handle:
+            content = handle.read()
+    except Exception:
+        return False
+
+    return re.search(r"(^|\n)\s*(import|export)\b", content) is not None
 
 
 def build_file(src_path, mode="prod"):
@@ -134,12 +250,19 @@ def build_file(src_path, mode="prod"):
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
 
     size_before = os.path.getsize(src_path)
+    temp_out_path = out_path
+
+    is_es_module = is_es_module_source(src_path) if mode == "prod" else False
+
+    if mode == "prod":
+        fd, temp_out_path = tempfile.mkstemp(prefix="tnet-prod-", suffix=".js", dir=os.path.dirname(out_path))
+        os.close(fd)
 
     args = [
         ESBUILD_EXE,
         src_path,
         "--bundle=false",
-        f"--outfile={out_path}",
+        f"--outfile={temp_out_path}",
     ]
     if mode == "prod":
         args.insert(-1, "--minify")
@@ -147,7 +270,27 @@ def build_file(src_path, mode="prod"):
     result = subprocess.run(args, capture_output=True, text=True)
 
     if result.returncode != 0:
+        if mode == "prod" and os.path.isfile(temp_out_path):
+            os.remove(temp_out_path)
         return False, size_before, 0, result.stderr.strip()
+
+    if mode == "prod":
+        if is_es_module:
+            try:
+                os.replace(temp_out_path, out_path)
+            except Exception as exc:
+                return False, size_before, 0, f"Minify-Output konnte nicht uebernommen werden: {exc}"
+            size_after = os.path.getsize(out_path)
+            return True, size_before, size_after, "nur minifiziert (ES-Modul, keine Einzeldatei-Obfuscation)"
+
+        ok, err = obfuscate_file(temp_out_path, out_path)
+        try:
+            if os.path.isfile(temp_out_path):
+                os.remove(temp_out_path)
+        except Exception:
+            pass
+        if not ok:
+            return False, size_before, 0, err
 
     size_after = os.path.getsize(out_path)
     return True, size_before, size_after, ""
@@ -172,6 +315,11 @@ def collect_sources(root):
     return files
 
 
+def log_line(message=""):
+    """Schreibt eine Zeile sofort sichtbar in die Konsole."""
+    print(message, flush=True)
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Baut TNET JS-Dateien aus tnet/js-dev nach tnet/js.\n"
@@ -179,6 +327,7 @@ def main():
     )
     parser.add_argument("src", nargs="?", help="Optionale Einzeldatei aus tnet/js-dev oder tnet/js")
     parser.add_argument("--mode", choices=["dev", "prod"], help="Buildmodus: dev ohne Minify, prod mit Minify")
+    parser.add_argument("--rebuild-all", action="store_true", help="Ignoriert den Hash-Cache und baut alle Dateien neu")
     args = parser.parse_args()
 
     if not ensure_esbuild():
@@ -191,11 +340,11 @@ def main():
         # Pfad darf auch aus js/ kommen → auf js-dev/ umleiten
         src = src.replace(js_out_dir + os.sep, js_dev_dir + os.sep)
         if not os.path.isfile(src):
-            print(f"[ERR] Datei nicht gefunden: {src}")
+            log_line(f"[ERR] Datei nicht gefunden: {src}")
             sys.exit(1)
         sources = [src]
         mode = args.mode or detect_build_mode(src)
-        print(f"Einzelbuild ({mode}): {os.path.basename(src)}")
+        log_line(f"Einzelbuild ({mode}): {os.path.basename(src)}")
     else:
         # --- Full-Build ---
         mode = args.mode or "prod"
@@ -207,38 +356,83 @@ def main():
             build_root = JS_DEV_DIR
         sources = collect_sources(build_root)
         if not sources:
-            print(f"[ERR] Keine .js-Quelldateien gefunden in: {build_root}")
+            log_line(f"[ERR] Keine .js-Quelldateien gefunden in: {build_root}")
             sys.exit(1)
-        print(f"Full-Build ({mode}): {len(sources)} Dateien aus {build_root}\n")
+        log_line(f"Full-Build ({mode}): {len(sources)} Dateien aus {build_root}")
+        log_line("")
 
     ok_count = 0
     err_count = 0
+    skipped_count = 0
     total_before = 0
     total_after = 0
+    build_state = {}
+    state_changed = False
+    fingerprint = get_build_fingerprint(mode)
+
+    if not args.src:
+        build_state = load_build_state(mode)
+        if args.rebuild_all:
+            log_line("Hash-Check deaktiviert: kompletter Rebuild erzwungen.")
+        else:
+            log_line("Hash-Check aktiv: nur geaenderte JS-Dateien werden neu gebaut.")
+        log_line("")
 
     js_dev_dir_display, _ = resolve_js_roots(sources[0]) if sources else (JS_DEV_DIR, JS_OUT_DIR)
 
-    for src in sources:
+    total_sources = len(sources)
+
+    for index, src in enumerate(sources, start=1):
         rel = os.path.relpath(src, js_dev_dir_display).replace("\\", "/")
+        state_key = rel
+        src_hash = hash_file(src)
+        out_path = get_output_path(src)
+
+        if not args.src and not args.rebuild_all:
+            cached = build_state.get(state_key, {})
+            if (
+                cached.get("source_hash") == src_hash and
+                cached.get("fingerprint") == fingerprint and
+                os.path.isfile(out_path)
+            ):
+                before = os.path.getsize(src)
+                after = os.path.getsize(out_path)
+                total_before += before
+                total_after += after
+                skipped_count += 1
+                log_line(f"  [{index:02d}/{total_sources:02d}] [SKIP] {rel} (Hash unveraendert)")
+                continue
+
+        log_line(f"  [{index:02d}/{total_sources:02d}] Starte {rel}")
         ok, before, after, err = build_file(src, mode)
         if ok:
             ratio = (1 - after / before) * 100 if before > 0 else 0
             if mode == "prod":
-                print(f"  [OK] {rel:<45} {before:>7,} -> {after:>7,} bytes  ({ratio:.0f}% kleiner)")
+                note = err or f"minifiziert + obfuskiert, {ratio:.0f}% kleiner"
+                log_line(f"  [OK] {rel:<45} {before:>7,} -> {after:>7,} bytes  ({note})")
             else:
-                print(f"  [OK] {rel:<45} {before:>7,} -> {after:>7,} bytes  (lesbar)")
+                log_line(f"  [OK] {rel:<45} {before:>7,} -> {after:>7,} bytes  (lesbar)")
             ok_count += 1
             total_before += before
             total_after += after
+            if not args.src:
+                build_state[state_key] = {
+                    "source_hash": src_hash,
+                    "fingerprint": fingerprint,
+                }
+                state_changed = True
         else:
-            print(f"  [ERR] {rel} -- {err}")
+            log_line(f"  [ERR] {rel} -- {err}")
             err_count += 1
 
     if len(sources) > 1:
         total_ratio = (1 - total_after / total_before) * 100 if total_before > 0 else 0
-        print(f"\n{'─'*70}")
-        print(f"  Gesamt: {ok_count} OK, {err_count} Fehler")
-        print(f"  Groesse: {total_before:,} -> {total_after:,} bytes  ({total_ratio:.0f}% kleiner)")
+        log_line(f"\n{'─'*70}")
+        log_line(f"  Gesamt: {ok_count} gebaut, {skipped_count} uebersprungen, {err_count} Fehler")
+        log_line(f"  Groesse: {total_before:,} -> {total_after:,} bytes  ({total_ratio:.0f}% kleiner)")
+
+    if not args.src and state_changed and err_count == 0:
+        save_build_state(mode, build_state)
 
     if err_count > 0:
         sys.exit(1)

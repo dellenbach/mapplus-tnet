@@ -1,3 +1,15 @@
+## 2026-05-28 — PROD-Upload startete trotz Full-Build erneut Einzelbuilds fuer JS
+- **Symptom**: Nach Schritt 2 liefen in Schritt 3 fuer `tnet/js-dev/*.js` nochmals Einzelbuilds an, obwohl die passenden Dateien unter `tnet/js/` bereits gebaut waren.
+- **Root-Cause**: `upload_changed.py` hat bei jedem JS-Quellfile pauschal den Einzelbuild gestartet und den vorhandenen Build-Output nicht darauf geprueft, ob er bereits aktuell ist.
+- **Fix**: Der Upload leitet jetzt zuerst das Ziel unter `tnet/js/` ab und vergleicht dessen mtime mit der Quelldatei. Nur wenn der Output fehlt oder aelter ist, wird noch gebaut; sonst laeuft der Upload mit `BUILD-SKIP` direkt weiter.
+- **Guardrail**: Wenn ein Workflow einen vorgelagerten Full-Build hat, darf der Upload-Schritt Build-Artefakte nicht blind neu erzeugen. Erst Zielpfad und Aktualitaet pruefen, dann gegebenenfalls gezielt nachbauen.
+
+## 2026-05-28 — Code-Only-Deploy wirkte bei ausgeschlossenen Assets haengengeblieben
+- **Symptom**: Der PROD-Deploy schien in der Konsole bei Dateien wie `clipboard.svg` stehenzubleiben, obwohl diese im Code-Only-Modus gar nicht deployt werden sollten.
+- **Root-Cause**: `upload_changed.py` listete zuerst alle geaenderten Dateien roh auf und filterte erst danach auf `php/js/html/htm`. Dadurch sah die letzte sichtbare Datei wie ein haengender Upload aus, obwohl sie spaeter nur ausgeschlossen wurde.
+- **Fix**: Die Filterung laeuft jetzt vor der Detailausgabe. Im Code-Only-Modus werden nur noch echte Deploy-Kandidaten gelistet; der Upload selbst zeigt zusaetzlich einen klaren Fortschrittszaehler `[aktuell/gesamt]` pro Datei.
+- **Guardrail**: Bei gefilterten Deploys nie ungefilterte Rohlisten als Hauptfortschritt anzeigen. Konsolen-Ausgabe muss immer dem tatsaechlichen Arbeitsset entsprechen, sonst werden harmlose Filterphasen als Haenger fehlinterpretiert.
+
 ## 2026-05-28 — Basemap-Grauschalter toggelte den Zustand, aber die Darstellung wechselte sichtbar nicht
 - **Symptom**: Der FARBE/GRAU-Schalter wurde geklickt, aber die Basemap blieb optisch unveraendert oder verlor den Zustand nach einem Basemap-Wechsel.
 - **Root-Cause**: Mehrere konkurrierende Graustufen-Pfade hatten sich ueberlagert: globale Framework-Filter auf `.ol-layer`, experimentelle Source-Wrappers und der eigentliche `prerender/postrender`-Pfad. Dadurch wurde entweder der falsche Layer beeinflusst oder der sichtbare Basemap-Layer gar nicht mehr konsistent getroffen.

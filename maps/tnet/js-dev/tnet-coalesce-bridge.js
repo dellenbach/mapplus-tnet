@@ -26,6 +26,20 @@
     return window.__TNET_APP_ROOT || '/maps';
   }
 
+  function normalizeServiceUrl(url) {
+    if (!url) return url;
+    var value = String(url);
+    var appRoot = getAppRoot();
+
+    if (value.indexOf('http') === 0 || value.indexOf('//') === 0) return value;
+    if (/^\/maps(?:-dev)?\/tnet\//i.test(value) || /^\/maps(?:-dev)?\/agsproxy\.php/i.test(value)) {
+      return appRoot + value.replace(/^\/maps(?:-dev)?/i, '');
+    }
+    if (value.indexOf('/tnet/') === 0 || value.indexOf('/agsproxy.php') === 0) return appRoot + value;
+    if (value.indexOf('tnet/') === 0 || value.indexOf('agsproxy.php') === 0) return appRoot + '/' + value;
+    return value.indexOf('/') === 0 ? value : appRoot + '/' + value;
+  }
+
   'use strict';
 
   var LOG = '[CoalesceBridge]';
@@ -225,10 +239,7 @@
       return null;
     }
 
-    // Proxy-Prefix sicherstellen
-    if (serviceUrl.indexOf(getAppRoot() + '/') !== 0 && serviceUrl.indexOf('http') !== 0) {
-      serviceUrl = getAppRoot() + '/' + serviceUrl;
-    }
+    serviceUrl = normalizeServiceUrl(serviceUrl);
 
     var am = (window.njs && window.njs.AppManager) || null;
     if (!am || !am.Maps || !am.Maps['main'] || !am.Maps['main'].mapObj) {

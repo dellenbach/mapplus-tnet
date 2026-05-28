@@ -1,0 +1,200 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "$id": "https://gis-daten.ch/maps-dev/tnet/data/bookmark.schema.json",
+  "title": "Map Bookmark v2",
+  "description": "Schema fuer Bookmarks (Kartenthemen) in MapPlus. v2 fuehrt per-Layer-State und optionale Kartenansichten ein. Layer-IDs bleiben die Hierarchie-Strings wie z. B. 'gis_oereb/nw_nutzungsplanung_def/grundnutzung'.",
+  "type": "object",
+  "required": ["id", "basemap", "layers"],
+  "additionalProperties": false,
+
+  "properties": {
+
+    "id": {
+      "type": "string",
+      "description": "Technischer Identifier des Bookmarks. Wird per URL /maps/{id} aufgerufen. Frueher 'map-bookmark'.",
+      "pattern": "^[a-zA-Z0-9_-]+$",
+      "minLength": 1
+    },
+
+    "name": {
+      "type": "string",
+      "description": "Anzeigename fuer UI (Karteninhalt-Panel, Dropdown, Bookmark-Liste). Optional - fehlt der Wert, wird 'id' angezeigt.",
+      "minLength": 1
+    },
+
+    "aliases": {
+      "type": "array",
+      "description": "Alternative Identifier (z. B. '_intern', '_edit'-Varianten). Werden ebenfalls in URL-Aufrufen aufgeloest.",
+      "items": { "type": "string", "pattern": "^[a-zA-Z0-9_-]+$" },
+      "uniqueItems": true,
+      "default": []
+    },
+
+    "basemap": {
+      "type": "string",
+      "description": "Hintergrundkarte (z. B. 'av_sw', 'swissimage'). Pflichtfeld.",
+      "minLength": 1
+    },
+
+    "theme": {
+      "type": ["string", "null"],
+      "description": "Optionale Theme-Selektion (Tree-Navigation)."
+    },
+
+    "subtheme": {
+      "type": ["string", "null"],
+      "description": "Optionale Subtheme-Selektion."
+    },
+
+    "themes": {
+      "type": ["string", "null"],
+      "description": "Optionaler Theme-Tree-Selektor im Format 'kanton:theme' (z. B. 'nw:oereb'). Wird vom Loader ausgewertet, um den Theme-Tree zu expandieren."
+    },
+
+    "viewport": {
+      "type": ["object", "null"],
+      "description": "Optionale Start-Position der Karte. Wenn null/fehlt: Default-Extent des Karten-Frameworks.",
+      "additionalProperties": false,
+      "properties": {
+        "x":    { "type": "number" },
+        "y":    { "type": "number" },
+        "zoom": { "type": "number" }
+      }
+    },
+
+    "layers": {
+      "type": "array",
+      "description": "Liste der Layer, die beim Aktivieren des Bookmarks in die Karte geladen werden. Achtung: 'visible:false' laedt den Layer trotzdem in den Karteninhalt - er ist nur initial unsichtbar (Default-Zustand, kann via Kartenansicht oder TOC umgeschaltet werden).",
+      "items": { "$ref": "#/definitions/LayerEntry" }
+    },
+
+    "views": {
+      "type": "array",
+      "description": "Optionale Kartenansichten. Jede Ansicht beschreibt ein Sichtbarkeitsprofil ueber die geladenen Layer (NUR Sichtbarkeit - Opacity, Order und Filter werden NICHT pro Ansicht ueberschrieben, diese bleiben auf Layer-Ebene). Layer, die in 'layerStates' nicht erwaehnt sind, behalten ihre Bookmark-Default-Sichtbarkeit. Wenn 'views' leer ist, gibt es nur den Default.",
+      "items": { "$ref": "#/definitions/ViewEntry" },
+      "default": []
+    },
+
+    "meta": {
+      "type": "object",
+      "description": "Metadaten - nicht funktional, dient Editor/Liste.",
+      "additionalProperties": false,
+      "properties": {
+        "description":    { "type": "string", "default": "" },
+        "tags":           { "type": "array", "items": { "type": "string" }, "default": [] },
+        "schemaVersion":  { "type": "integer", "const": 2 }
+      }
+    }
+  },
+
+  "definitions": {
+
+    "LayerEntry": {
+      "type": "object",
+      "required": ["id"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Hierarchie-ID des Layers (z. B. 'gis_oereb/nw_nutzungsplanung_def/grundnutzung'). Steuert die Karte direkt - keine Aenderung gegenueber v1.",
+          "minLength": 1
+        },
+        "visible": {
+          "type": "boolean",
+          "description": "Initiale Sichtbarkeit beim Laden des Bookmarks. Default true. Wenn false: Layer wird in den Karteninhalt geladen, aber NICHT angezeigt (User kann ihn manuell einschalten, oder eine Kartenansicht schaltet ihn ein).",
+          "default": true
+        },
+        "opacity": {
+          "type": ["number", "null"],
+          "description": "Deckkraft 0-1. null = Default aus Layer-Config.",
+          "minimum": 0,
+          "maximum": 1,
+          "default": null
+        },
+        "order": {
+          "type": ["integer", "null"],
+          "description": "Optionale Uebersteuerung des Z-Index. null = globaler Z-Index aus Layer-Config wird verwendet.",
+          "default": null
+        },
+        "filter": {
+          "type": ["string", "null"],
+          "description": "Optionaler Filter / Definition-Query (z. B. \"GEMEINDE = 'Stans'\"). null = kein Filter. RESERVIERT - aktuell vom Loader noch nicht ausgewertet.",
+          "default": null
+        }
+      }
+    },
+
+    "ViewEntry": {
+      "type": "object",
+      "required": ["id", "layerStates"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Technischer Identifier der Ansicht (innerhalb des Bookmarks eindeutig).",
+          "pattern": "^[a-zA-Z0-9_-]+$",
+          "minLength": 1
+        },
+        "name": {
+          "type": "string",
+          "description": "Anzeigename der Ansicht im Dropdown."
+        },
+        "isDefault": {
+          "type": "boolean",
+          "description": "Wenn true: Diese Ansicht wird beim Bookmark-Aufruf initial ausgewaehlt, sofern in der URL keine explizite Ansicht angegeben ist (URL-Pattern '/maps/{id-oder-alias}/{viewId}' uebersteuert isDefault). Maximal eine Ansicht pro Bookmark sollte isDefault=true setzen. Wenn keine Ansicht das setzt und keine URL-Vorgabe existiert: Es greift die Default-Sichtbarkeit aus dem 'layers'-Array.",
+          "default": false
+        },
+        "layerStates": {
+          "type": "object",
+          "description": "Patch auf die Default-Layer-Sichtbarkeit. Schluessel = Layer-ID, Wert = Sichtbarkeits-Override. Layer, die hier nicht aufgefuehrt sind, behalten ihre Default-Sichtbarkeit aus dem 'layers'-Array.",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["visible"],
+            "properties": {
+              "visible": { "type": "boolean" }
+            }
+          }
+        }
+      }
+    }
+  },
+
+  "examples": [
+    {
+      "id": "nw_nutzungsplanung",
+      "name": "Nutzungsplanung",
+      "aliases": ["nw_nutzungsplanung_intern"],
+      "basemap": "av_sw",
+      "theme": "2",
+      "subtheme": "nupla",
+      "layers": [
+        { "id": "gis_oereb/nw_nutzungsplanung_def/grundnutzung",       "visible": true,  "opacity": null, "order": null, "filter": null },
+        { "id": "gis_oereb/nw_nutzungsplanung_def/ueberlagernde_festlegung", "visible": false, "opacity": 0.7, "order": null, "filter": null },
+        { "id": "gis_oereb/nw_nutzungsplanung_def/gefahrenzone",       "visible": false, "opacity": null, "order": null, "filter": null }
+      ],
+      "views": [
+        {
+          "id": "grundnutzung",
+          "name": "Grundnutzung",
+          "isDefault": true,
+          "layerStates": {
+            "gis_oereb/nw_nutzungsplanung_def/grundnutzung":             { "visible": true },
+            "gis_oereb/nw_nutzungsplanung_def/ueberlagernde_festlegung": { "visible": false },
+            "gis_oereb/nw_nutzungsplanung_def/gefahrenzone":             { "visible": false }
+          }
+        },
+        {
+          "id": "ueberlagerung",
+          "name": "Ueberlagerungen",
+          "layerStates": {
+            "gis_oereb/nw_nutzungsplanung_def/grundnutzung":             { "visible": false },
+            "gis_oereb/nw_nutzungsplanung_def/ueberlagernde_festlegung": { "visible": true },
+            "gis_oereb/nw_nutzungsplanung_def/gefahrenzone":             { "visible": true }
+          }
+        }
+      ],
+      "meta": { "schemaVersion": 2 }
+    }
+  ]
+}

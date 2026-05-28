@@ -964,8 +964,9 @@ class LayerImporter {
      * Extrahiert die Basis-URL eines MapServer-Dienstes.
      * Entfernt query_layers, show-Parameter und Trailing-Slashes.
      *
-     * Beispiel: "/maps/tnet/agsproxy/gis_basis/nw_basisplan_gis_dynamisch/MapServer"
-     *        → "/maps/tnet/agsproxy/gis_basis/nw_basisplan_gis_dynamisch/MapServer"
+     * Beispiel: "/maps-dev/tnet/agsproxy/gis_basis/nw_basisplan_gis_dynamisch/MapServer"
+     *        → "/maps-dev/tnet/agsproxy/gis_basis/nw_basisplan_gis_dynamisch/MapServer"
+     *         (Prefix /maps/ bzw. /maps-dev/ wird aus der Eingabe-URL übernommen)
      *
      * @param  string $url  Volle URL aus layer_definition
      * @return string|null  Basis-URL oder null falls nicht parsebar
@@ -977,12 +978,12 @@ class LayerImporter {
         if (preg_match('#(tnet/agsproxy/[^?]+/MapServer)#i', $url, $m)) {
             // Pfad bis /MapServer extrahieren, ohne Sublayer-IDs
             $base = preg_replace('#/MapServer/.*$#i', '/MapServer', $m[0]);
-            // Vollständigen Pfad mit /maps/ Prefix zurückgeben
+            // Vollständigen Pfad mit App-Root-Prefix zurückgeben (/maps oder /maps-dev)
             $pos = strpos($url, $base);
             if ($pos !== false) {
                 return substr($url, 0, $pos) . $base;
             }
-            return '/maps/' . $base;
+            return TnetCorePaths::getAppBasePath() . '/' . $base;
         }
         // Legacy AGS-Proxy-URLs: agsproxy.php?path=.../MapServer[/...]
         if (preg_match('#(agsproxy\.php\?path=[^&]+/MapServer)#i', $url, $m)) {

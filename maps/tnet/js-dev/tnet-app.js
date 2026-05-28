@@ -145,10 +145,20 @@ if (document.readyState === 'loading') {
 function startBookmarkFromUrl() {
     var currentPath = window.location.pathname;
 
-    var match = currentPath.match(/\/maps\/([^\/]+)$/);
+    // Erlaubt sowohl PROD (/maps/{id}) als auch DEV (/maps-dev/{id}).
+    // Pattern fuer ID entspricht der .htaccess-Rewrite-Regel: [a-zA-Z0-9_-]+
+    var match = currentPath.match(/\/maps(?:-dev)?\/([a-zA-Z0-9_-]+)$/);
 
     if (match && match[1]) {
         var bookmarkId = match[1];
+
+        // Kartenansicht (Schema v2) wird via Query-String ?view={viewId} uebergeben.
+        // Path-Style wuerde relative Asset-URLs in der Seite kaputtmachen.
+        var viewId = null;
+        try {
+            var rawView = new URLSearchParams(window.location.search).get('view');
+            if (rawView && /^[a-zA-Z0-9_-]+$/.test(rawView)) viewId = rawView;
+        } catch (eUrl) { /* URLSearchParams notfalls weggelassen */ }
 
         // Warte auf TnetSetBookmark-Funktion (wird async geladen).
         // Catch-up + Bookmark-Name-Logging laufen im setMapBookmark-Wrapper (tnet-header.js).
@@ -156,7 +166,7 @@ function startBookmarkFromUrl() {
             if (typeof window.TnetSetBookmark === 'function' &&
                 window.njs && window.njs.AppManager &&
                 typeof window.njs.AppManager.setMapBookmark === 'function') {
-                window.TnetSetBookmark(bookmarkId);
+                window.TnetSetBookmark(bookmarkId, viewId);
             } else {
                 setTimeout(tryStart, 200);
             }

@@ -10,8 +10,8 @@ Erkennung via mtime-State-Datei — unabhaengig von git.
 Nach erfolgreichem Upload wird die mtime der Quelldatei gespeichert.
 JS-Quelldateien (js-dev/) werden automatisch gebaut; js/ wird hochgeladen.
 
-@version    2.1
-@date       2026-05-27
+@version    2.4
+@date       2026-05-28
 @copyright  Trigonet AG
 @author     Marco Dellenbach
 """
@@ -45,6 +45,7 @@ PROTECTED_PREFIXES = (
     "public/config/",
     "tnet/config/",
 )
+CODE_ONLY_EXTENSIONS = {".php", ".js", ".html", ".htm"}
 
 
 # ===== STATE-VERWALTUNG =====
@@ -79,27 +80,52 @@ def is_protected_config(rel_path):
     return any(rel.startswith(prefix) for prefix in PROTECTED_PREFIXES)
 
 
+def is_code_only_candidate(rel_path):
+    """Prueft, ob eine Datei zum reinen Code-Deploy gehoert."""
+    ext = os.path.splitext(rel_path)[1].lower()
+    return ext in CODE_ONLY_EXTENSIONS
+
+
+def resolve_js_upload_target(local_file):
+    """Leitet Upload-Ziel und Build-Bedarf fuer eine js-dev-Quelldatei ab."""
+    rel = os.path.relpath(local_file, LOCAL_BASE).replace("\\", "/")
+    upload_rel = rel.replace("tnet/js-dev/", "tnet/js/")
+    upload_file = os.path.join(LOCAL_BASE, upload_rel.replace("/", os.sep))
+
+    needs_build = True
+    if os.path.isfile(upload_file):
+        needs_build = get_mtime(upload_file) < get_mtime(local_file)
+
+    return upload_rel, upload_file, needs_build
+
+
 # ===== DATEIEN SAMMELN =====
 
 def collect_candidates():
     """
     Alle Dateien unter maps/ oder maps-dev/ rekursiv sammeln.
     js/ (Build-Output) wird uebersprungen — wird via js-dev/ abgedeckt.
-    Verzeichnisse die in .gitignore stehen (core/, public/config/ etc.) werden uebersprungen.
+    Nicht fuer Code-Deploy gedachte Doku-/Test-/Cache-Artefakte werden uebersprungen.
     """
     SKIP_DIRS = {
         os.path.normpath(os.path.join(LOCAL_BASE, "tnet", "js")),
         os.path.normpath(os.path.join(LOCAL_BASE, "core")),
         os.path.normpath(os.path.join(LOCAL_BASE, "public", "config")),
         os.path.normpath(os.path.join(LOCAL_BASE, "public", "guis")),
+        os.path.normpath(os.path.join(LOCAL_BASE, "tnet", "docs")),
+        os.path.normpath(os.path.join(LOCAL_BASE, "tnet", "tests")),
     }
+    SKIP_FILE_EXTENSIONS = {".drawio", ".md", ".pyc", ".xlsx"}
     candidates = []
     for root, dirs, files in os.walk(LOCAL_BASE):
         norm_root = os.path.normpath(root)
         if any(norm_root == sd or norm_root.startswith(sd + os.sep) for sd in SKIP_DIRS):
             dirs.clear()
             continue
+        dirs[:] = [d for d in dirs if d != "__pycache__"]
         for f in files:
+            if os.path.splitext(f)[1].lower() in SKIP_FILE_EXTENSIONS:
+                continue
             candidates.append(os.path.join(root, f))
     return candidates
 
@@ -122,6 +148,7 @@ def main():
 
     parser = argparse.ArgumentParser(description="Geaenderte Dateien per SFTP hochladen")
     add_env_argument(parser)
+    parser.add_argument("--code-only", action="store_true", help="Deployt nur geaenderte PHP/JS/HTML-Dateien")
     parser.add_argument("--allow-config", action="store_true", help="Erlaubt Upload geschuetzter Config-Dateien")
     parser.add_argument("--reason", default="", help="Pflicht bei --allow-config: Grund/Referenz")
     parser.add_argument("--dry-run", action="store_true", help="Nur anzeigen, nichts hochladen")
@@ -147,29 +174,53 @@ def main():
         print("Keine geaenderten Dateien gefunden.")
         return
 
-    print(f"{len(changed)} geaenderte Datei(en) gefunden:\n")
-    for p in changed:
-        rel = os.path.relpath(p, LOCAL_BASE).replace("\\", "/")
-        print(f"  * {rel}")
+    print(f"{len(changed)} geaenderte Datei(en) gefunden.")
 
     blocked = []
+    deploy_candidates = []
+    code_filtered = []
+    deploy_candidate_rels = []
     for p in changed:
         rel = os.path.relpath(p, LOCAL_BASE).replace("\\", "/")
+        if args.code_only and not is_code_only_candidate(rel):
+            code_filtered.append(rel)
+            continue
         if is_protected_config(rel):
             blocked.append(rel)
+            if args.allow_config:
+                deploy_candidates.append(p)
+                deploy_candidate_rels.append(rel)
+            continue
+        deploy_candidates.append(p)
+        deploy_candidate_rels.append(rel)
+
+    if args.code_only:
+        print("\n[INFO] Code-Only-Modus aktiv: erlaubt sind nur PHP/JS/HTML-Dateien.")
+        if code_filtered:
+            print(f"[INFO] {len(code_filtered)} Datei(en) wurden wegen Code-Only uebersprungen.")
 
     if blocked and not args.allow_config:
-        print("\n[ERR] Abbruch: Geschuetzte Config-Dateien erkannt (API/Git-only):")
+        print("\n[INFO] Geschuetzte Config-Dateien werden fuer diesen Code-Deploy uebersprungen:")
         for rel in blocked:
             print(f"  * {rel}")
-        print("\nVerwende fuer Notfaelle explizit: --allow-config --reason \"...\"")
-        sys.exit(3)
+        print("\nFuer Notfaelle explizit freigeben mit: --allow-config --reason \"...\"")
 
     if blocked and args.allow_config:
         print("\n[WARN] Override aktiv: Geschuetzte Config-Dateien werden hochgeladen")
         print(f"  Grund: {args.reason.strip()}")
         for rel in blocked:
             print(f"  * {rel}")
+
+    if not deploy_candidates:
+        print("\n[OK] Keine deploybaren Code-Dateien gefunden.")
+        return
+
+    if len(deploy_candidates) != len(changed):
+        print(f"\n[INFO] Es werden {len(deploy_candidates)} Datei(en) deployt, {len(blocked)} geschuetzte Config-Datei(en) bleiben unberuehrt.")
+
+    print(f"\n[INFO] Deploy-Kandidaten ({len(deploy_candidate_rels)}):")
+    for rel in deploy_candidate_rels:
+        print(f"  * {rel}")
 
     if args.dry_run:
         print("\n[OK] Dry-Run abgeschlossen (kein Upload ausgefuehrt).")
@@ -186,41 +237,44 @@ def main():
         uploaded = 0
         skipped  = 0
 
-        for local_file in changed:
+        total_candidates = len(deploy_candidates)
+
+        for index, local_file in enumerate(deploy_candidates, start=1):
             rel = os.path.relpath(local_file, LOCAL_BASE).replace("\\", "/")
+            progress = f"[{index:03d}/{total_candidates:03d}]"
 
             # ===== JS-DEV: Build-Schritt =====
             if rel.startswith("tnet/js-dev/"):
-                print(f"  [BUILD] {rel}")
-                build_result = subprocess.run(
-                    [sys.executable, BUILD_SCRIPT, "--mode", deploy_config["env"], local_file],
-                    capture_output=True, text=True
-                )
-                if build_result.returncode != 0:
-                    print(f"  [ERR] Build fehlgeschlagen: {build_result.stderr.strip() or build_result.stdout.strip()}")
-                    skipped += 1
-                    continue
-                # Auf js/ umleiten
-                upload_rel  = rel.replace("tnet/js-dev/", "tnet/js/")
-                upload_file = os.path.join(LOCAL_BASE, upload_rel.replace("/", os.sep))
+                upload_rel, upload_file, needs_build = resolve_js_upload_target(local_file)
+                if needs_build:
+                    print(f"  {progress} [BUILD] {rel}")
+                    build_result = subprocess.run(
+                        [sys.executable, "-u", BUILD_SCRIPT, "--mode", deploy_config["env"], local_file]
+                    )
+                    if build_result.returncode != 0:
+                        print(f"  {progress} [ERR] Build fehlgeschlagen: {rel}")
+                        skipped += 1
+                        continue
+                else:
+                    print(f"  {progress} [BUILD-SKIP] {rel} (bereits gebaut)")
             else:
                 upload_rel  = rel
                 upload_file = local_file
 
             # Sicherheitssperre
             if any(b in upload_rel for b in ["tnet/js-dev/"]):
-                print(f"  [ERR] GESPERRT: {upload_rel}")
+                print(f"  {progress} [ERR] GESPERRT: {upload_rel}")
                 skipped += 1
                 continue
 
             # Config-Guard (zweite Sicherung auch waehrend Upload-Schleife)
             if is_protected_config(upload_rel) and not args.allow_config:
-                print(f"  [ERR] GESPERRT (Config API/Git-only): {upload_rel}")
+                print(f"  {progress} [ERR] GESPERRT (Config API/Git-only): {upload_rel}")
                 skipped += 1
                 continue
 
             if not os.path.isfile(upload_file):
-                print(f"  [WARN] {upload_rel} (nicht gefunden — uebersprungen)")
+                print(f"  {progress} [WARN] {upload_rel} (nicht gefunden — uebersprungen)")
                 skipped += 1
                 continue
 
@@ -228,12 +282,12 @@ def main():
             try:
                 sftp.put(upload_file, remote_file)
                 size = os.path.getsize(upload_file)
-                print(f"  [OK] {upload_rel} ({size:,} bytes)")
+                print(f"  {progress} [OK] {upload_rel} ({size:,} bytes)")
                 # mtime der Quelldatei merken (nicht des Build-Outputs)
                 state[rel] = get_mtime(local_file)
                 uploaded += 1
             except Exception as e:
-                print(f"  [ERR] {upload_rel} -- {e}")
+                print(f"  {progress} [ERR] {upload_rel} -- {e}")
                 skipped += 1
 
         sftp.close()

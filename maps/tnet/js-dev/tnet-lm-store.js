@@ -46,6 +46,20 @@
     return value;
   }
 
+  function normalizeServiceUrl(url) {
+    if (!url) return url;
+    var value = String(url);
+    var appRoot = getAppRoot();
+
+    if (value.indexOf('http') === 0 || value.indexOf('//') === 0) return value;
+    if (/^\/maps(?:-dev)?\/tnet\//i.test(value) || /^\/maps(?:-dev)?\/agsproxy\.php/i.test(value)) {
+      return appRoot + value.replace(/^\/maps(?:-dev)?/i, '');
+    }
+    if (value.indexOf('/tnet/') === 0 || value.indexOf('/agsproxy.php') === 0) return appRoot + value;
+    if (value.indexOf('tnet/') === 0 || value.indexOf('agsproxy.php') === 0) return appRoot + '/' + value;
+    return value.indexOf('/') === 0 ? value : appRoot + '/' + value;
+  }
+
   var LMStore = {
 
     // ============================================================
@@ -1968,11 +1982,7 @@
           return;
         }
         var map = am.Maps['main'].mapObj;
-        var serviceUrl = info.serviceUrl;
-        // Proxy-Prefix sicherstellen
-        if (serviceUrl.indexOf(getAppRoot() + '/') !== 0 && serviceUrl.indexOf('http') !== 0) {
-          serviceUrl = getAppRoot() + '/' + serviceUrl;
-        }
+        var serviceUrl = normalizeServiceUrl(info.serviceUrl);
 
         var activeSublayers = {};
         activeSublayers[layerId] = subNum;

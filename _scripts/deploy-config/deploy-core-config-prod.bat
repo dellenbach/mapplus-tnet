@@ -1,10 +1,12 @@
 @echo off
-title Core Config -> PROD (/www/core/)
-cd /d "C:\_Daten\mapplus-exp"
+title Core Config -^> PROD (/www/core/)
+call "%~dp0..\dev_and_deploy_config.bat"
+if errorlevel 1 exit /b 1
+cd /d "%MAPPLUS_WORKSPACE_ROOT%"
 echo.
 echo ============================================
 echo  CORE CONFIG DEPLOY -- PROD
-echo  core\config\ + core\nls\ -> /www/core/
+echo  core\config\ + core\nls\ -^> /www/core/
 echo.
 echo  HINWEIS: Layer-Configs primaer ueber den
 echo  SLM deployen (slm.html)!
@@ -28,7 +30,7 @@ if not defined TYPE (
 )
 
 echo.
-"C:\Program Files\Python313\python.exe" _scripts\deployment\upload_core_config.py --type %TYPE% --env prod
+"%MAPPLUS_PYTHON_EXE%" _scripts\deployment\upload_core_config.py --type %TYPE% --env prod
 if errorlevel 1 (
     echo.
     echo [FEHLER] Deploy fehlgeschlagen.

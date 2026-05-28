@@ -1,24 +1,25 @@
 <?php
 /**
  * TNET API v1 - Bookmarks Endpoint
- * 
- * Liefert Karten-Bookmarks (vorkonfigurierte Kartenansichten).
- * Refactored aus bookmark-service.php mit API-Wrapper.
- * 
+ *
+ * Liefert Karten-Bookmarks (vorkonfigurierte Kartenansichten) im Schema v2.
+ * v1-Daten in der Quelldatei werden zur Laufzeit normalisiert
+ * (siehe BookmarkNormalizer).
+ *
  * Verwendung:
- *   GET /api/v1/bookmarks.php           → Liste aller Bookmark-Namen
- *   GET /api/v1/bookmarks.php?name=xxx  → Einzelner Bookmark
- * 
- * @version    1.0
- * @date       2026-02-20
+ *   GET /api/v1/bookmarks.php           -> Liste aller Bookmarks (id, name?, aliases?)
+ *   GET /api/v1/bookmarks.php?name=xxx  -> Einzelner Bookmark als v2-Objekt
+ *
+ * @version    2.0
+ * @date       2026-05-27
  * @copyright  Trigonet AG
  * @author     Marco Dellenbach
  */
 
 require_once __DIR__ . '/../includes/ApiResponse.php';
 require_once __DIR__ . '/../includes/CacheHelper.php';
+require_once __DIR__ . '/../includes/BookmarkNormalizer.php';
 
-// Standard API Headers
 ApiResponse::setHeaders();
 
 // === Bookmarks-Datei laden ===
@@ -35,6 +36,10 @@ if (json_last_error() !== JSON_ERROR_NONE) {
     ApiResponse::serverError('Failed to parse bookmarks: ' . json_last_error_msg());
 }
 
+if (!is_array($bookmarks)) {
+    ApiResponse::serverError('Bookmarks file is not a JSON array');
+}
+
 // === Caching ===
 CacheHelper::setNoCache();
 CacheHelper::handleLastModified($bookmarksFile);
@@ -44,8 +49,7 @@ $name = $_GET['name'] ?? $_GET['bookmark'] ?? null;
 
 // === Einzelner Bookmark ===
 if ($name !== null) {
-    $name = trim($name);
-    $found = findBookmark($bookmarks, $name);
+    $found = BookmarkNormalizer::findByName($bookmarks, (string)$name);
 
     if ($found !== null) {
         ApiResponse::success($found);
@@ -54,69 +58,29 @@ if ($name !== null) {
     }
 }
 
-// === Alle Bookmarks auflisten ===
-$allNames = [];
+// === Alle Bookmarks auflisten (v2-Style) ===
+$listing = [];
 foreach ($bookmarks as $bookmark) {
-    if (isset($bookmark['map-bookmark'])) {
-        $entry = ['name' => $bookmark['map-bookmark']];
-        if (isset($bookmark['aliases']) && !empty($bookmark['aliases'])) {
-            $entry['aliases'] = $bookmark['aliases'];
-        }
-        $allNames[] = $entry;
+    if (!is_array($bookmark)) continue;
+
+    // id aus v2 oder v1 ableiten
+    $id = $bookmark['id'] ?? ($bookmark['map-bookmark'] ?? null);
+    if (!$id) continue;
+
+    $entry = ['id' => $id];
+    if (!empty($bookmark['name'])) {
+        $entry['name'] = $bookmark['name'];
     }
+    if (!empty($bookmark['aliases']) && is_array($bookmark['aliases'])) {
+        $entry['aliases'] = array_values($bookmark['aliases']);
+    }
+    $listing[] = $entry;
 }
 
 $meta = [
-    'count' => count($allNames),
-    'usage' => 'GET /api/v1/bookmarks.php?name=bookmark_name'
+    'count' => count($listing),
+    'usage' => 'GET /api/v1/bookmarks.php?name=bookmark_id_or_alias',
+    'schemaVersion' => 2
 ];
 
-ApiResponse::success($allNames, $meta);
-
-// =====================================================================
-// Hilfsfunktionen
-// =====================================================================
-
-/**
- * Sucht Bookmark nach Name oder Alias
- * 
- * @param array  $bookmarks Alle Bookmarks
- * @param string $name      Gesuchter Name
- * @return array|null Gefundener Bookmark oder null
- */
-function findBookmark($bookmarks, $name) {
-    foreach ($bookmarks as $bookmark) {
-        // Hauptname prüfen
-        if (isset($bookmark['map-bookmark']) && $bookmark['map-bookmark'] === $name) {
-            return formatBookmark($bookmark);
-        }
-
-        // Aliases prüfen
-        if (isset($bookmark['aliases']) && is_array($bookmark['aliases'])) {
-            if (in_array($name, $bookmark['aliases'], true)) {
-                return formatBookmark($bookmark);
-            }
-        }
-    }
-
-    return null;
-}
-
-/**
- * Formatiert Bookmark (nur relevante Felder)
- * 
- * @param array $bookmark Original-Bookmark
- * @return array Bereinigte Daten
- */
-function formatBookmark($bookmark) {
-    $fields = ['map-bookmark', 'aliases', 'basemap', 'layers', 'opacity', 'theme', 'subtheme', 'themes', 'x', 'y', 'zoom'];
-    $result = [];
-
-    foreach ($fields as $field) {
-        if (isset($bookmark[$field])) {
-            $result[$field] = $bookmark[$field];
-        }
-    }
-
-    return $result;
-}
+ApiResponse::success($listing, $meta);

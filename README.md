@@ -19,10 +19,12 @@ VS-Code-Tasks dafür:
 
 - `DEV: Seed maps-dev from maps` — initiale oder erneute Basis-Kopie von prod nach dev
 - `Deploy DEV: Upload Changed Files` — Änderungen aus `maps-dev/` nach `/www/maps-dev`
+- `Deploy DEV: Upload Active File` — einzelne Datei gezielt nach `/www/maps-dev`
 - `PROD: Sync maps-dev to maps (local robocopy)` — nur lokaler Abgleich von dev nach prod
 - `Release: Promote DEV to PROD (Dry Run, local robocopy + SFTP)` — kompletter Release-Ablauf als Vorschau
 - `Release: Promote DEV to PROD (local robocopy + SFTP)` — lokale Promotion plus anschliessender PROD-Deploy
 - `Deploy PROD: Upload Changed Files` — Änderungen aus `maps/` nach `/www/maps`
+- `Deploy PROD: Upload Active File` — einzelne Datei gezielt nach `/www/maps`; Pfade unter `maps-dev/` werden davor lokal nach `maps/` synchronisiert
 
 Hinweis: Der Sync-Task nutzt bewusst `robocopy /E` und löscht keine Dateien im Ziel. Falls später eine harte 1:1-Spiegelung inklusive Löschungen gewünscht ist, sollte das bewusst separat entschieden werden.
 
@@ -34,6 +36,13 @@ CLI-Alternative:
 ```
 
 Optional kann mit `--mirror` statt `/E` eine harte 1:1-Spiegelung inklusive Löschungen in `maps/` erzwungen werden.
+
+Für Batch-Workflows stehen ausserdem diese Wrapper bereit:
+
+- `_scripts/deploy-dev/deploy-active-file.bat <datei>`
+- `_scripts/deploy-prod/deploy-active-file.bat <datei>`
+
+PROD-Builds laufen dabei über den zentralen JS-Build mit Minify + Obfuscation. Für den GitHub-Pfad kann `_scripts/deploy-prod/git-commit.bat` vor dem Staging direkt den lokalen Abgleich `maps-dev -> maps` ausführen.
 
 ## Testen
 

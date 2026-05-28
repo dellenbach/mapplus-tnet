@@ -231,7 +231,7 @@
     lyrmgrSource: 'file',
 
     // API-Endpoint für Layer-Katalog (Hierarchie + Details)
-    apiUrl: '/maps/tnet/api/v1/layers.php',
+    apiUrl: '/maps-dev/tnet/api/v1/layers.php',
     // Legacy Dojo-LayerManager: zusätzliche Hierarchiestufen optisch hervorheben?
     // true = dunkler→heller Verlauf + Einrückung für data-lyrmgr-depth
     // false = keine speziellen Nested-Hierarchie-CSS-Regeln
@@ -271,6 +271,16 @@
       { name: 'Kt. Uri',              url: 'https://geo.ur.ch/wms?request=getCapabilities' },
       { name: 'Geodienste AV',        url: 'https://geodienste.ch/db/av_0/deu?SERVICE=WMS&REQUEST=GetCapabilities' },
     ],
+  },
+
+  // ============================================================
+  // INFO-PANEL / OBJEKTANFRAGE
+  // ============================================================
+  infoPanel: {
+    _description: "Objektinformation / MapTip-Fenster",
+    // true = Objektinformation beim ersten Anzeigen rechts andocken
+    // false = bisheriges Verhalten als frei schwebendes Fenster
+    defaultDockedRight: true,
   },
 
   // ============================================================
@@ -547,7 +557,7 @@
       ttlSeconds: 3600,
       // Cache-Verzeichnis (auf dem Server, ausserhalb DocumentRoot)
       // __DIR__ wird in PHP aufgelöst relativ zu active-maps-proxy.php
-      directory: '/data/Client_Data/nwow/tmp/maps/proxy-cache',
+      directory: '/data/Client_Data/nwow/tmp/maps-dev/proxy-cache',
     },
   },
 }

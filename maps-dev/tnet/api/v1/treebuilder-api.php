@@ -5236,8 +5236,11 @@ switch ($action) {
 
     // =================================================================
     // BOOKMARKS — Laden & Speichern (Draft in tmp, Deployed im Webroot)
+    // Daten werden via BookmarkNormalizer immer auf Schema v2 normalisiert.
     // =================================================================
     case 'bookmarks-load':
+        require_once __DIR__ . '/../includes/BookmarkNormalizer.php';
+
         $bmDraftDir    = TNET_TMP_ROOT . '/bookmarks';
         $bmDraftFile   = $bmDraftDir . '/map-bookmarks-all.json';
         $bmDeployedFile = APP_WEB_ROOT . '/tnet/data/map-bookmarks-all.json';
@@ -5264,13 +5267,21 @@ switch ($action) {
             }
         }
 
-        // Prüfe ob deployed-Version existiert und identisch ist
+        // Auf Schema v2 normalisieren (Editor erwartet jetzt v2-Struktur).
+        $bmData = BookmarkNormalizer::normalizeAll(is_array($bmData) ? $bmData : []);
+
+        // Prüfe ob deployed-Version existiert und identisch ist (nach Normalisierung).
         $bmDeployedExists = file_exists($bmDeployedFile);
         $bmDeployedSync   = false;
         if ($bmDeployedExists && $bmSource === 'draft') {
             $depRaw = @file_get_contents($bmDeployedFile);
-            $draftJson = json_encode($bmData, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-            $bmDeployedSync = ($depRaw !== false && md5($depRaw) === md5($draftJson));
+            if ($depRaw !== false) {
+                $depParsed = json_decode($depRaw, true);
+                if (is_array($depParsed)) {
+                    $depNormalized = BookmarkNormalizer::normalizeAll($depParsed);
+                    $bmDeployedSync = (json_encode($bmData) === json_encode($depNormalized));
+                }
+            }
         }
 
         jsonResponse([
@@ -5279,11 +5290,14 @@ switch ($action) {
             'count'          => count($bmData),
             'source'         => $bmSource,
             'deployedExists' => $bmDeployedExists,
-            'deployedSync'   => $bmDeployedSync
+            'deployedSync'   => $bmDeployedSync,
+            'schemaVersion'  => 2
         ]);
         break;
 
     case 'bookmarks-save':
+        require_once __DIR__ . '/../includes/BookmarkNormalizer.php';
+
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             jsonError('POST erwartet', 405);
         }
@@ -5298,6 +5312,9 @@ switch ($action) {
         if (!is_array($data)) {
             jsonError('Array erwartet', 400);
         }
+
+        // Normalisiere alles auf v2 — Editor darf gemischtes oder unvollständiges Format senden.
+        $data = BookmarkNormalizer::normalizeAll($data);
 
         // Speichere Draft in tmp — PHP hat hier Schreibrecht
         $bmDraftDir = TNET_TMP_ROOT . '/bookmarks';
@@ -5316,10 +5333,11 @@ switch ($action) {
             jsonError('Konnte Bookmarks-Draft nicht schreiben: ' . $bmDraftFile, 500);
         }
         jsonResponse([
-            'success' => true,
-            'message' => 'Bookmarks-Entwurf gespeichert',
-            'count'   => count($data),
-            'bytes'   => $written
+            'success'       => true,
+            'message'       => 'Bookmarks-Entwurf gespeichert',
+            'count'         => count($data),
+            'bytes'         => $written,
+            'schemaVersion' => 2
         ]);
         break;
 

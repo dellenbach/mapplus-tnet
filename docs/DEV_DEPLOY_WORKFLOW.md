@@ -200,6 +200,10 @@ VS-Code-Task:
 
 - `Deploy DEV: Upload Active File`
 
+Batch-Wrapper:
+
+- `_scripts/deploy-dev/deploy-active-file.bat <datei>`
+
 CLI:
 
 ```powershell
@@ -207,6 +211,22 @@ CLI:
 ```
 
 Diese Variante ist die sicherste, wenn gezielt nur ein Fix auf DEV aktualisiert werden soll.
+
+### Einzeldatei direkt nach PROD
+
+VS-Code-Task:
+
+- `Deploy PROD: Upload Active File`
+
+Batch-Wrapper:
+
+- `_scripts/deploy-prod/deploy-active-file.bat <datei>`
+
+Wichtig:
+
+- bei `--env prod` duerfen Dateipfade sowohl unter `maps/` als auch unter `maps-dev/` liegen
+- Dateipfade unter `maps-dev/` werden vor dem Upload lokal nach `maps/` synchronisiert
+- fuer `tnet/js-dev/*.js` laeuft danach automatisch der PROD-Build
 
 ### Spezialfall: geschuetzte Config-Dateien
 
@@ -236,7 +256,7 @@ Config-Deploys nie nebenbei ausfuehren. Immer bewusst mit Grund.
 Build-Modi:
 
 - DEV (`--env dev`): lesbarer Build ohne Minify
-- PROD (`--env prod`): minifizierter Build
+- PROD (`--env prod`): minifizierter + obfuskierter Build
 
 Die Deploy-Skripte leiten den Modus automatisch aus `--env` ab und rufen `_scripts/_build_js.py --mode dev|prod` auf.
 
@@ -249,6 +269,8 @@ Das gilt fuer:
 
 - `_upload_changed.py`
 - `_upload_active_file.py`
+
+Fuer GitHub-/Release-Commits kann `_scripts/deploy-prod/git-commit.bat` vor dem Staging den lokalen Abgleich `maps-dev -> maps` anstossen, damit beide Baeume vor dem Commit konsistent sind.
 
 Wenn ein JS-Fix nicht auf dem Server ankommt, zuerst pruefen:
 

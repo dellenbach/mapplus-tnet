@@ -51,7 +51,7 @@ var TnetApi = (function() {
     /**
      * Einzelnen Bookmark laden
      * @param {string} name - Bookmark-ID oder Alias
-     * @returns {Promise<Object>} - Bookmark-Daten {map-bookmark, basemap, layers, ...}
+     * @returns {Promise<Object>} - Bookmark-Daten (Schema v2): {id, basemap, layers:[{id,visible,opacity,order,filter}], aliases?, viewport?, views?, theme?, subtheme?, themes?, meta?}
      */
     getBookmark: function(name) {
       return get('bookmarks', { name: name }).then(function(res) {
@@ -62,7 +62,7 @@ var TnetApi = (function() {
 
     /**
      * Alle Bookmark-Namen auflisten
-     * @returns {Promise<Array>} - [{name, aliases}, ...]
+     * @returns {Promise<Array>} - [{id, name?, aliases?}, ...]
      */
     listBookmarks: function() {
       return get('bookmarks').then(function(res) {
@@ -304,6 +304,9 @@ function _normalizeBookmarkLayerIds(layerIds) {
   if (!layerIds || !layerIds.length) return [];
   var normalized = layerIds
     .map(function(layerId) {
+      // Schema v2: Layer ist ein Objekt {id, visible, opacity, ...}.
+      // Schema v1: Layer ist ein reiner ID-String. Beides akzeptieren.
+      if (layerId && typeof layerId === 'object') layerId = layerId.id;
       return String(layerId || '').replace(/^[-\s]+/, '').trim();
     })
     .filter(function(layerId) { return !!layerId; });
@@ -350,6 +353,91 @@ function _scheduleBookmarkLayerEnsure(layerIds, token) {
     }, delay);
     _bookmarkEnsureTimers.push(timer);
   });
+}
+
+/**
+ * Variante des Ensure-Mechanismus, die per-Layer Sichtbarkeit (on/off) setzt.
+ * Erlaubt das Konzept "Layer wird vom Bookmark geladen, ist aber initial unsichtbar"
+ * und das Anwenden einer Kartenansicht (views[].layerStates).
+ * @param {Object<string, boolean>} visibilityMap - {layerId: visible}
+ * @param {number} token
+ */
+function _scheduleBookmarkVisibilityEnsure(visibilityMap, token) {
+  var ids = visibilityMap ? Object.keys(visibilityMap) : [];
+  if (!ids.length) return;
+
+  var retries = [500, 1500, 3000, 5000, 8000];
+  retries.forEach(function(delay) {
+    var timer = setTimeout(function() {
+      if (token !== _bookmarkEnsureToken) return;
+      if (typeof window.TnetLayerSwitch !== 'function') return;
+      ids.forEach(function(layerId) {
+        var state = visibilityMap[layerId] ? 'on' : 'off';
+        try {
+          window.TnetLayerSwitch(layerId, state);
+        } catch (e) {
+          TnetLog.warn('[TnetSetBookmark] Visibility-Ensure fehlgeschlagen:', layerId, state, e && e.message ? e.message : e);
+        }
+      });
+    }, delay);
+    _bookmarkEnsureTimers.push(timer);
+  });
+}
+
+/**
+ * Aktive Kartenansicht aus cfg auflösen.
+ *  - Wenn viewId angegeben und View existiert: diese
+ *  - Sonst: erste View mit isDefault:true
+ *  - Sonst: null (Layer-Defaults greifen)
+ * @param {Object} cfg
+ * @param {string|null} viewId
+ * @returns {Object|null}
+ */
+function _resolveActiveBookmarkView(cfg, viewId) {
+  var views = cfg && cfg.views;
+  if (!views || !views.length) return null;
+  if (viewId) {
+    for (var i = 0; i < views.length; i++) {
+      if (views[i] && views[i].id === viewId) return views[i];
+    }
+  }
+  for (var j = 0; j < views.length; j++) {
+    if (views[j] && views[j].isDefault === true) return views[j];
+  }
+  return null;
+}
+
+/**
+ * Berechnet die Soll-Sichtbarkeit aller Layer:
+ *  Default = cfg.layers[i].visible (oder true bei v1-Strings)
+ *  Übersteuert von activeView.layerStates[id].visible (falls vorhanden)
+ * @param {Object} cfg
+ * @param {Object|null} activeView
+ * @returns {Object<string, boolean>}
+ */
+function _computeBookmarkVisibility(cfg, activeView) {
+  var result = {};
+  var layers = (cfg && cfg.layers) || [];
+  var states = (activeView && activeView.layerStates) || null;
+
+  layers.forEach(function(l) {
+    if (!l) return;
+    var id, visible;
+    if (typeof l === 'object') {
+      id = l.id;
+      visible = ('visible' in l) ? !!l.visible : true;
+    } else {
+      id = String(l);
+      visible = true;
+    }
+    if (!id) return;
+    if (states && Object.prototype.hasOwnProperty.call(states, id)) {
+      var ov = states[id];
+      if (ov && 'visible' in ov) visible = !!ov.visible;
+    }
+    result[id] = visible;
+  });
+  return result;
 }
 
 function _clearThematicLayersBeforeBookmark() {
@@ -406,25 +494,48 @@ function _buildBookmarkParams(cfg) {
   var normalizedLayers = _normalizeBookmarkLayerIds(cfg.layers || []);
   if (cfg.basemap)                          parts.push('basemap=' + cfg.basemap);
   if (normalizedLayers.length)              parts.push('layers='  + normalizedLayers.join('|'));
-  if (cfg.opacity && cfg.opacity.length)    parts.push('op='      + cfg.opacity.join('|'));
+
+  // Opacity:
+  //  - v1: cfg.opacity ist Array paralleler Werte zur Layer-Liste
+  //  - v2: opacity ist pro Layer (cfg.layers[i].opacity). Wir bauen das Array hier.
+  var opacityList = null;
+  if (cfg.opacity && cfg.opacity.length) {
+    opacityList = cfg.opacity;
+  } else if (cfg.layers && cfg.layers.length && typeof cfg.layers[0] === 'object') {
+    var hasAny = false;
+    var derived = cfg.layers.map(function (l) {
+      if (l && l.opacity != null) { hasAny = true; return l.opacity; }
+      return '';
+    });
+    if (hasAny) opacityList = derived;
+  }
+  if (opacityList && opacityList.length) parts.push('op=' + opacityList.join('|'));
+
   if (cfg.theme)                            parts.push('theme='   + cfg.theme);
   if (cfg.subtheme)                         parts.push('subtheme='+ cfg.subtheme);
-  if (cfg.x && cfg.y) {
-    parts.push('x=' + cfg.x, 'y=' + cfg.y);
-    if (cfg.zoom) parts.push('zl=' + cfg.zoom);
+
+  // Viewport: v1 flach (cfg.x/y/zoom), v2 verschachtelt (cfg.viewport.x/y/zoom).
+  var vp = (cfg.viewport && typeof cfg.viewport === 'object') ? cfg.viewport : cfg;
+  if (vp.x && vp.y) {
+    parts.push('x=' + vp.x, 'y=' + vp.y);
+    if (vp.zoom) parts.push('zl=' + vp.zoom);
   }
   return parts.join('&');
 }
 
 /**
  * Wendet einen Bookmark auf die Hauptkarte an (Framework-Aufruf)
- * @param {Object} cfg - Bookmark-Konfiguration
+ * @param {Object} cfg - Bookmark-Konfiguration (v2)
  * @param {string} bookmarkId - Bookmark-ID (für Logging/Return)
- * @returns {{success: boolean, bookmarkId: string, params: string}}
+ * @param {string|null} [viewId] - optionale Kartenansicht (überstüpfelt isDefault-View)
+ * @returns {{success: boolean, bookmarkId: string, viewId: string|null, params: string}}
  */
-function _applyBookmark(cfg, bookmarkId) {
+function _applyBookmark(cfg, bookmarkId, viewId) {
   var params = _buildBookmarkParams(cfg);
   var layerIds = _normalizeBookmarkLayerIds(cfg.layers || []);
+  var activeView = _resolveActiveBookmarkView(cfg, viewId || null);
+  var visibilityMap = _computeBookmarkVisibility(cfg, activeView);
+
   var ensureToken;
   var am = (window.top && window.top.njs && window.top.njs.AppManager)
            ? window.top.njs.AppManager
@@ -442,32 +553,44 @@ function _applyBookmark(cfg, bookmarkId) {
   _clearThematicLayersBeforeBookmark();
 
   am.setMapBookmark(['main'], params);
-  if (layerIds.length) {
+  // Sichtbarkeit pro Layer durchsetzen (lädt alle, schaltet 'visible:false' wieder aus).
+  // Fällt auf die alte "alle on"-Logik zurück, wenn keine Sichtbarkeits-Differenzen existieren.
+  var hasAnyOff = false;
+  for (var id in visibilityMap) {
+    if (visibilityMap[id] === false) { hasAnyOff = true; break; }
+  }
+  if (hasAnyOff || activeView) {
+    _scheduleBookmarkVisibilityEnsure(visibilityMap, ensureToken);
+  } else if (layerIds.length) {
     _scheduleBookmarkLayerEnsure(layerIds, ensureToken);
   }
-  TnetLog.log('[TnetSetBookmark]', bookmarkId, params);
+
+  var activeViewId = activeView ? activeView.id : null;
+  TnetLog.log('[TnetSetBookmark]', bookmarkId + (activeViewId ? '/' + activeViewId : ''), params);
+
   // Themen im Themenbaum aufklappen (falls vorhanden)
   if (cfg.themes && window.TnetLMTree && typeof window.TnetLMTree.expandThemes === 'function') {
     setTimeout(function () {
       window.TnetLMTree.expandThemes(cfg.themes);
     }, 500);
   }
-  return { success: true, bookmarkId: bookmarkId, params: params };
+  return { success: true, bookmarkId: bookmarkId, viewId: activeViewId, params: params };
 }
 
 /**
  * Lädt einen Bookmark über die TNET API und setzt den Kartenstatus.
  *
  * @param {string} bookmarkId - ID oder Alias des Bookmarks
- * @returns {Promise<{success: boolean, bookmarkId?: string, params?: string, error?: string}>}
+ * @param {string|null} [viewId] - optionale Kartenansicht (Schema v2: views[].id)
+ * @returns {Promise<{success: boolean, bookmarkId?: string, viewId?: string|null, params?: string, error?: string}>}
  */
-function TnetSetBookmark(bookmarkId) {
+function TnetSetBookmark(bookmarkId, viewId) {
   // Wenn der Aufruf aus dem Karten-Dialog-iframe kommt, die eigentliche
   // Bookmark-Logik im Top-Window ausführen. Sonst wird das iframe beim
   // Dialog-Close entladen und der laufende Request abgebrochen.
   if (window.top && window.top !== window && typeof window.top.TnetSetBookmark === 'function') {
     try { window.top.__tnetLastRequestedBookmark = bookmarkId; } catch (eTopReq) { /* ignore */ }
-    return window.top.TnetSetBookmark(bookmarkId);
+    return window.top.TnetSetBookmark(bookmarkId, viewId);
   }
 
   window.__tnetLastRequestedBookmark = bookmarkId;
@@ -500,7 +623,7 @@ function TnetSetBookmark(bookmarkId) {
   }
 
   return TnetApi.getBookmark(bookmarkId)
-    .then(function(cfg) { return _applyBookmark(cfg, bookmarkId); })
+    .then(function(cfg) { return _applyBookmark(cfg, bookmarkId, viewId || null); })
     .catch(function(err) {
       TnetLog.error('[TnetSetBookmark] Fehler:', err);
       if (fallbackDirectMapBookmark()) {

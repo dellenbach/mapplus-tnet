@@ -6,7 +6,7 @@
  * - POST ?action=log   → JSON-Metadaten ins print.log schreiben
  * - POST (ohne action) → PDF-Blob speichern (Archivierung)
  *
- * Log-Verzeichnis: /data/Client_Data/nwow/tmp/maps/pdf/
+ * Log-Verzeichnis: /data/Client_Data/nwow/tmp/maps-dev/pdf/
  *
  * @version    1.1
  * @date       2026-02-12
@@ -17,7 +17,7 @@
 header('Content-Type: application/json; charset=utf-8');
 
 // ── Konfiguration ──────────────────────────────────────────
-$logDir   = '/data/Client_Data/nwow/tmp/maps/pdf';
+$logDir   = '/data/Client_Data/nwow/tmp/maps-dev/pdf';
 $printLog = $logDir . '/print.log';
 
 $retentionDays = isset($_GET['retention']) ? max(1, intval($_GET['retention'])) : 1;

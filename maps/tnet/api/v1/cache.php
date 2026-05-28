@@ -43,7 +43,7 @@ header('X-API-Version: 2.0');
 CacheHelper::noCache();
 
 // --- Proxy-Cache-Verzeichnis und TTL aus Config lesen ---
-$proxyCacheDir = '/data/Client_Data/nwow/tmp/maps/proxy-cache';
+$proxyCacheDir = '/data/Client_Data/nwow/tmp/maps-dev/proxy-cache';
 $proxyCacheTtl = 3600;
 $proxyCacheEnabled = false;
 $configPath = __DIR__ . '/../../config/tnet-global-config.json5';

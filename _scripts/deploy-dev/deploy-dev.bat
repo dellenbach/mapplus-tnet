@@ -1,14 +1,17 @@
 @echo off
-title Deploy DEV -- maps-dev -> /www/maps-dev
-cd /d "C:\_Daten\mapplus-exp"
+title Deploy DEV -- maps-dev nach /www/maps-dev
+call "%~dp0..\dev_and_deploy_config.bat"
+if errorlevel 1 exit /b 1
+cd /d "%MAPPLUS_WORKSPACE_ROOT%"
 echo.
 echo ============================================
 echo  DEPLOY DEV -- ANWENDUNGSCODE
-echo  Geaenderte Dateien -> /www/maps-dev
+echo  Geaenderte Dateien -^> /www/maps-dev
 echo  (JS, PHP, CSS, HTML -- KEIN Config-Deploy)
+echo  Einzeldatei: deploy-active-file.bat ^<pfad^>
 echo ============================================
 echo.
-"C:\Program Files\Python313\python.exe" _scripts\deployment\upload_changed.py --env dev
+"%MAPPLUS_PYTHON_EXE%" _scripts\deployment\upload_changed.py --env dev
 if errorlevel 1 (
     echo.
     echo [FEHLER] Deploy fehlgeschlagen.

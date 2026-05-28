@@ -113,17 +113,17 @@
     <script>window.define || document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/dojo/1.17.3/dojo.js">\x3C/script>')</script>
 
     <!-- TNET CSS -->
-    <link rel="stylesheet" href="/maps/tnet/css/tnet_toc.css" media="print" onload="this.media='all'" />
-    <link rel="stylesheet" href="/maps/tnet/css/tnet-components.css" media="print" onload="this.media='all'" />
-    <link rel="stylesheet" href="/maps/tnet/css/tnet-3d-landscape.css" media="print" onload="this.media='all'" />
-    <link rel="stylesheet" href="/maps/tnet/css/gis-daten-splash.css" />
-    <link rel="stylesheet" href="/maps/tnet/css/tnet-print.css" media="print" onload="this.media='all'" />
+    <link rel="stylesheet" href="/maps-dev/tnet/css/tnet_toc.css" media="print" onload="this.media='all'" />
+    <link rel="stylesheet" href="/maps-dev/tnet/css/tnet-components.css" media="print" onload="this.media='all'" />
+    <link rel="stylesheet" href="/maps-dev/tnet/css/tnet-3d-landscape.css" media="print" onload="this.media='all'" />
+    <link rel="stylesheet" href="/maps-dev/tnet/css/gis-daten-splash.css" />
+    <link rel="stylesheet" href="/maps-dev/tnet/css/tnet-print.css" media="print" onload="this.media='all'" />
     <!-- Neuer Layer-Manager -->
-    <link rel="stylesheet" href="/maps/tnet/css/tnet-lm.css?v=20260222c" media="print" onload="this.media='all'" />
+    <link rel="stylesheet" href="/maps-dev/tnet/css/tnet-lm.css?v=20260222c" media="print" onload="this.media='all'" />
     <!-- ol-pdf-printer CSS (VOR mobile override laden) -->
-    <link rel="stylesheet" href="/maps/tnet/ol-pdf-printer/css/ol-pdf-printer.css" media="print" onload="this.media='all'" />
+    <link rel="stylesheet" href="/maps-dev/tnet/ol-pdf-printer/css/ol-pdf-printer.css" media="print" onload="this.media='all'" />
     <!-- TNET Mobile Master-CSS (muss ZULETZT kommen) -->
-    <link rel="stylesheet" href="/maps/tnet/css/mobile/tnet_override_m.css?v=20260221c" />
+    <link rel="stylesheet" href="/maps-dev/tnet/css/mobile/tnet_override_m.css?v=20260221c" />
 </head>
 
 <body class="tundra">
@@ -190,7 +190,7 @@
 
         // Async Config-Load (kein blocking sync XHR)
         try {
-            fetch('/maps/tnet/config/tnet-mobile-config.json5?v=20260220a')
+            fetch('/maps-dev/tnet/config/tnet-mobile-config.json5?v=20260220a')
               .then(function(r) { return r.ok ? r.text() : Promise.reject(r.status); })
               .then(function(txt) {
                   var parsed = (window.JSON5 && typeof window.JSON5.parse === 'function')
@@ -277,8 +277,8 @@
     </script>
 
     <!-- TNET Mobile Dojo modules -->
-    <script type="text/javascript" src="/maps/tnet/js/mobile/tnet_modules_m.js?v=v4.0.0"></script>
-    <script type="text/javascript" src="/maps/tnet/js/mobile/tnet-search-m.js?v=20260222b"></script>
+    <script type="text/javascript" src="/maps-dev/tnet/js/mobile/tnet_modules_m.js?v=v4.0.0"></script>
+    <script type="text/javascript" src="/maps-dev/tnet/js/mobile/tnet-search-m.js?v=20260222b"></script>
 
     <!-- Early Splash-Hide -->
     <script>
@@ -475,7 +475,7 @@
         <div class="customRefreshBtn" onclick="refreshIframe()" title="Seite neu laden">↻</div>
         <div class="customBackBtn" onclick="goBackInIframe()">‹</div>
         <div class="customCloseBtn" onclick="closeMapsInfoDialog()">×</div>
-        <iframe id="mapsInfoFrame" name="mapsInfoFrame" data-src="/maps/tnet/inframe-maps.html"
+        <iframe id="mapsInfoFrame" name="mapsInfoFrame" data-src="/maps-dev/tnet/inframe-maps.html"
             loading="lazy" sandbox="allow-same-origin allow-scripts" referrerpolicy="no-referrer"
             style="width: 100%; height: 100%; border: none;"></iframe>
     </div>
@@ -558,7 +558,7 @@
     <div id="m-drawer">
         <div class="m-drawer-header">
             <span class="m-drawer-title">
-                <img src="/maps/tnet/resources/Logo-GIS-Daten-AG_wuerfel.svg" alt="">
+                <img src="/maps-dev/tnet/resources/Logo-GIS-Daten-AG_wuerfel.svg" alt="">
                 MAP+
             </span>
             <button class="m-drawer-close" id="m-drawer-close" aria-label="Menü schliessen">&times;</button>
@@ -975,57 +975,57 @@
          TNET Module (selektiv für Mobile)
          ============================================================ -->
     <!-- TNET Zentrale Log-Utility (muss VOR allen anderen TNET-Scripts geladen werden) -->
-    <script type="text/javascript" src="/maps/tnet/js/tnet-log.js"></script>
+    <script type="text/javascript" src="/maps-dev/tnet/js/tnet-log.js"></script>
 
     <!-- TNET Icon-Loader (lädt SVG-Icons aus /resources/icons/) -->
-    <script type="text/javascript" src="/maps/tnet/js/tnet-icons.js"></script>
+    <script type="text/javascript" src="/maps-dev/tnet/js/tnet-icons.js"></script>
     <script>TnetIcons.loadAll();</script>
 
     <!-- TNET Shared Utils -->
-    <script type="module" src="/maps/tnet/js/tnet-utils.js"></script>
+    <script type="module" src="/maps-dev/tnet/js/tnet-utils.js"></script>
 
     <!-- TNET Helpers (Bookmarks) -->
-    <script type="text/javascript" src="/maps/tnet/js/tnet-mapplus-helpers.js" defer></script>
+    <script type="text/javascript" src="/maps-dev/tnet/js/tnet-mapplus-helpers.js" defer></script>
 
     <!-- TNET TOC Konverter (mobile Version ohne aggressive Observer) -->
-    <script type="text/javascript" src="/maps/tnet/js/mobile/tnet-toc-m.js" defer></script>
+    <script type="text/javascript" src="/maps-dev/tnet/js/mobile/tnet-toc-m.js" defer></script>
 
     <!-- TNET App-Init -->
-    <script type="module" src="/maps/tnet/js/tnet-app.js"></script>
+    <script type="module" src="/maps-dev/tnet/js/tnet-app.js"></script>
 
     <!-- TNET Header: Login, Splash, Maps-Dialog -->
-    <script type="module" src="/maps/tnet/js/tnet-header.js"></script>
+    <script type="module" src="/maps-dev/tnet/js/tnet-header.js"></script>
 
     <!-- TNET Info Panel (Bottom-Sheet Variante) -->
-    <script type="module" src="/maps/tnet/js/tnet-info-panel.js"></script>
+    <script type="module" src="/maps-dev/tnet/js/tnet-info-panel.js"></script>
 
     <!-- TNET Info-Bridge: Zentraler singleclick-Dispatcher für MapTips/GFI -->
-    <script src="/maps/tnet/js/tnet-info-bridge.js?v=20260306"></script>
+    <script src="/maps-dev/tnet/js/tnet-info-bridge.js?v=20260306"></script>
 
     <!-- TNET Basemap: Widget UI, Grundkarten-Layer-Sync, Zeitreise -->
-    <script src="/maps/tnet/js/tnet-basemap.js" defer></script>
+    <script src="/maps-dev/tnet/js/tnet-basemap.js" defer></script>
 
     <!-- TNET 3D Landscape -->
-    <script src="/maps/tnet/js/tnet-3d-landscape.js?v=20260211c" defer></script>
+    <script src="/maps-dev/tnet/js/tnet-3d-landscape.js?v=20260211c" defer></script>
 
     <!-- TNET Spatial Query -->
-    <script type="module" src="/maps/tnet/js/tnet-spatial-query.js"></script>
+    <script type="module" src="/maps-dev/tnet/js/tnet-spatial-query.js"></script>
 
     <script>
         window.__TNET_MOBILE_ENTRY = true;
     </script>
 
     <!-- TNET ÖREB -->
-    <script type="module" src="/maps/tnet/js/tnet-oereb.js"></script>
+    <script type="module" src="/maps-dev/tnet/js/tnet-oereb.js"></script>
 
     <!-- TNET Drucken / PDF-Export -->
-    <script src="/maps/tnet/js/tnet-print.js" defer></script>
+    <script src="/maps-dev/tnet/js/tnet-print.js" defer></script>
 
     <!-- Neuer Layer-Manager (Feature-Flag in tnet-global-config.json5 → layerManager.useNew) -->
-    <script src="/maps/tnet/js/tnet-lm-store.js?v=20260222c" defer></script>
-    <script src="/maps/tnet/js/tnet-lm-tree.js?v=20260222c" defer></script>
-    <script src="/maps/tnet/js/tnet-lm-active.js?v=20260222c" defer></script>
-    <script src="/maps/tnet/js/tnet-lm-init.js?v=20260222c" defer></script>
+    <script src="/maps-dev/tnet/js/tnet-lm-store.js?v=20260222c" defer></script>
+    <script src="/maps-dev/tnet/js/tnet-lm-tree.js?v=20260222c" defer></script>
+    <script src="/maps-dev/tnet/js/tnet-lm-active.js?v=20260222c" defer></script>
+    <script src="/maps-dev/tnet/js/tnet-lm-init.js?v=20260222c" defer></script>
 
 
     <!-- ============================================================

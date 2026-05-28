@@ -178,6 +178,15 @@
       { id: 'tp_layer_menu4', name: 'Weitere' }
     ],
 
+    setPaneOpenSafe: function(widget) {
+      if (!widget) return;
+      try {
+        widget.set('open', true);
+      } catch (e) {
+        TnetLog.warn('[tnet_toc.js] TitlePane konnte noch nicht geoeffnet werden:', e.message);
+      }
+    },
+
     convert: function() {
       var self = this;
       var container = document.getElementById('kantons_container');
@@ -228,11 +237,11 @@
               if (widget && !widget.get('open')) {
                 // Prüfe ob TitlePane-Animation bereits initialisiert ist
                 if (widget._wipeIn) {
-                  widget.set('open', true);
+                  self.setPaneOpenSafe(widget);
                 } else {
                   // Widget noch nicht vollständig gestartet, verzögert öffnen
                   setTimeout(function() {
-                    try { widget.set('open', true); } catch(e) {}
+                    self.setPaneOpenSafe(widget);
                   }, 200);
                 }
               }
@@ -256,9 +265,9 @@
         if (typeof dijit !== 'undefined' && typeof dijit.byId === 'function') {
           var widget = dijit.byId(self.panes[0].id);
           if (widget) {
-            widget.set('open', true);
+            self.setPaneOpenSafe(widget);
             setTimeout(function() {
-              widget.set('open', true);
+              self.setPaneOpenSafe(widget);
               if (widget.resize) widget.resize();
             }, 200);
           }

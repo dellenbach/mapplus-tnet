@@ -98,9 +98,9 @@
 
 require_once __DIR__ . '/../includes/CorePaths.php';
 
-$CACHE_DIR    = '/data/Client_Data/nwow/tmp/maps/legends';
+$CACHE_DIR    = '/data/Client_Data/nwow/tmp/maps-dev/legends';
 $CACHE_TTL    = 86400;   // 24 Stunden in Sekunden
-$LOG_FILE     = '/data/Client_Data/nwow/tmp/maps/legend-proxy.log';
+$LOG_FILE     = '/data/Client_Data/nwow/tmp/maps-dev/legend-proxy.log';
 $DEFAULT_WIDTH  = 16;
 $DEFAULT_HEIGHT = 10;
 $DEFAULT_DPI    = 192;    // 2× DPI: kräftige Linien/Punkte, kleinere Payload als 288
@@ -116,11 +116,10 @@ $AGS_TOKEN_CACHE = dirname(__DIR__, 3) . '/_token_cache/arcgis_token.json';
 $AGS_TOKEN_SKEW  = 60;  // Safety-Skew in Sekunden
 
 // Metadata-Injection-Mapping (gemeinsam mit legend-proxy-wms.php)
-$sharedConfigPath = TnetCorePaths::getSharedConfigPath();
-$METADATA_FILE = TnetCorePaths::resolveConfigFile('legend_wms_metadata.json') ?: ($sharedConfigPath ? $sharedConfigPath . '/legend_wms_metadata.json' : null);
+$METADATA_FILE = TnetCorePaths::resolveConfigFile('legend_wms_metadata.json');
 
 // Legendtuner — Parameter-Overrides pro Service
-$TUNER_FILE = TnetCorePaths::resolveConfigFile('legend_tuner.json') ?: ($sharedConfigPath ? $sharedConfigPath . '/legend_tuner.json' : null);
+$TUNER_FILE = TnetCorePaths::resolveConfigFile('legend_tuner.json');
 
 // ===== CORS & HEADERS =====
 

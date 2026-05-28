@@ -1,13 +1,20 @@
 @echo off
-title [2/3] Build PROD -- JS minifizieren (maps/)
-cd /d "C:\_Daten\mapplus-exp"
+title [2/3] Build PROD -- JS minifizieren + obfuskieren (maps/)
+call "%~dp0..\dev_and_deploy_config.bat"
+if errorlevel 1 exit /b 1
+cd /d "%MAPPLUS_WORKSPACE_ROOT%"
+
+:: Zweck:
+:: Baut alle JS-Quellen aus maps\tnet\js-dev nach maps\tnet\js.
+:: PROD nutzt den zentralen Build mit Minify + Obfuscation.
+
 echo.
 echo ============================================
 echo  SCHRITT 2/3 -- JS Full-Build PROD
-echo  maps\tnet\js-dev\ -> maps\tnet\js\ (minifiziert)
+echo  maps\tnet\js-dev\ -^> maps\tnet\js\ (minifiziert + obfuskiert)
 echo ============================================
 echo.
-"C:\Program Files\Python313\python.exe" _scripts\build\build_js.py --mode prod
+"%MAPPLUS_PYTHON_EXE%" -u _scripts\build\build_js.py --mode prod
 if errorlevel 1 (
     echo.
     echo [FEHLER] Build fehlgeschlagen.

@@ -2,16 +2,19 @@
 /**
  * Map Bookmark Service
  *
- * Nimmt einen Bookmark-Namen entgegen und liefert die zugehörigen
- * Kartenkonfigurationen zurück (basemap, layers, theme, subtheme)
+ * Nimmt einen Bookmark-Namen (Hauptname oder Alias) entgegen und liefert die
+ * normalisierten Kartenkonfigurationen im Schema v2 zurueck. v1-Daten in der
+ * Quelldatei werden zur Laufzeit nach v2 konvertiert (via BookmarkNormalizer).
  *
  * Usage: bookmark-service.php?name=nw_nutzungsplanung
  *
- * @version    1.0
- * @date       2026-02-12
+ * @version    2.0
+ * @date       2026-05-27
  * @copyright  Trigonet AG
  * @author     Marco Dellenbach
  */
+
+require_once __DIR__ . '/../api/includes/BookmarkNormalizer.php';
 
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
@@ -19,125 +22,71 @@ header('Access-Control-Allow-Origin: *');
 class BookmarkService {
     private static $bookmarks = null;
     private static $jsonFile = __DIR__ . '/../data/map-bookmarks-all.json';
-    
+
     /**
-     * Lädt Bookmarks aus JSON (mit OPcache gecacht)
+     * Laedt Bookmarks aus JSON (Roh - keine Normalisierung).
      */
     private static function loadBookmarks() {
         if (self::$bookmarks === null) {
             if (!file_exists(self::$jsonFile)) {
-                return [];
+                self::$bookmarks = [];
+                return self::$bookmarks;
             }
-            
+
             $json = file_get_contents(self::$jsonFile);
-            self::$bookmarks = json_decode($json, true);
-            
+            $parsed = json_decode($json, true);
+
             if (json_last_error() !== JSON_ERROR_NONE) {
                 error_log('Bookmark JSON Parse Error: ' . json_last_error_msg());
-                return [];
+                self::$bookmarks = [];
+                return self::$bookmarks;
             }
+
+            self::$bookmarks = is_array($parsed) ? $parsed : [];
         }
-        
+
         return self::$bookmarks;
     }
-    
+
     /**
-     * Sucht Bookmark nach Namen (im Hauptfeld oder in Aliases)
-     * 
-     * @param string $name Der gesuchte Bookmark-Name
-     * @return array|null Das gefundene Bookmark oder null
+     * Sucht Bookmark nach Hauptname (id / map-bookmark) oder Alias.
+     * Liefert normalisiert v2 oder null.
      */
     public static function findBookmark($name) {
-        if (empty($name)) {
-            return null;
-        }
-        
         $bookmarks = self::loadBookmarks();
-        $name = trim($name);
-        
-        foreach ($bookmarks as $bookmark) {
-            // Prüfe Hauptname
-            if (isset($bookmark['map-bookmark']) && $bookmark['map-bookmark'] === $name) {
-                return self::formatBookmark($bookmark);
-            }
-            
-            // Prüfe Aliases
-            if (isset($bookmark['aliases']) && is_array($bookmark['aliases'])) {
-                if (in_array($name, $bookmark['aliases'], true)) {
-                    return self::formatBookmark($bookmark);
-                }
-            }
-        }
-        
-        return null;
+        return BookmarkNormalizer::findByName($bookmarks, (string)$name);
     }
-    
+
     /**
-     * Formatiert Bookmark (extrahiert nur relevante Felder)
-     * 
-     * @param array $bookmark Das Original-Bookmark
-     * @return array Gefilterte Daten
-     */
-    private static function formatBookmark($bookmark) {
-        $result = [];
-        
-        // Übernehme alle Felder in derselben Struktur
-        if (isset($bookmark['map-bookmark'])) {
-            $result['map-bookmark'] = $bookmark['map-bookmark'];
-        }
-        
-        if (isset($bookmark['aliases'])) {
-            $result['aliases'] = $bookmark['aliases'];
-        }
-        
-        if (isset($bookmark['basemap'])) {
-            $result['basemap'] = $bookmark['basemap'];
-        }
-        
-        if (isset($bookmark['layers'])) {
-            $result['layers'] = $bookmark['layers'];
-        }
-        
-        if (isset($bookmark['theme'])) {
-            $result['theme'] = $bookmark['theme'];
-        }
-        
-        if (isset($bookmark['subtheme'])) {
-            $result['subtheme'] = $bookmark['subtheme'];
-        }
-        
-        return $result;
-    }
-    
-    /**
-     * Listet alle verfügbaren Bookmark-Namen auf
-     * 
-     * @return array Liste aller Namen inkl. Aliases
+     * Listet alle verfuegbaren Bookmark-Namen auf (Haupt-IDs + Aliases).
      */
     public static function listAllNames() {
         $bookmarks = self::loadBookmarks();
         $names = [];
-        
+
         foreach ($bookmarks as $bookmark) {
-            if (isset($bookmark['map-bookmark'])) {
-                $names[] = $bookmark['map-bookmark'];
+            if (!is_array($bookmark)) continue;
+            $primary = $bookmark['id'] ?? ($bookmark['map-bookmark'] ?? null);
+            if ($primary !== null && $primary !== '') {
+                $names[] = $primary;
             }
-            
-            if (isset($bookmark['aliases']) && is_array($bookmark['aliases'])) {
-                $names = array_merge($names, $bookmark['aliases']);
+            if (!empty($bookmark['aliases']) && is_array($bookmark['aliases'])) {
+                foreach ($bookmark['aliases'] as $al) {
+                    if (is_string($al) && $al !== '') $names[] = $al;
+                }
             }
         }
-        
-        return array_unique($names);
+
+        return array_values(array_unique($names));
     }
 }
 
 // API Handler
 try {
     $name = $_GET['name'] ?? $_GET['bookmark'] ?? '';
-    
+
     // Listet alle Bookmarks auf wenn kein Name angegeben
-    if (empty($name)) {
+    if ($name === '' || $name === null) {
         $allNames = BookmarkService::listAllNames();
         echo json_encode([
             'success' => true,
@@ -147,29 +96,27 @@ try {
         ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
         exit;
     }
-    
-    // Suche nach Bookmark
+
     $bookmark = BookmarkService::findBookmark($name);
-    
+
     if ($bookmark !== null) {
         echo json_encode([
-            'success' => true,
+            'success'  => true,
             'bookmark' => $bookmark
         ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
     } else {
-        // Kein 404 senden - JSON-API gibt immer 200 mit success:false zurück
         echo json_encode([
-            'success' => false,
-            'error' => 'Bookmark not found',
+            'success'   => false,
+            'error'     => 'Bookmark not found',
             'requested' => $name
         ], JSON_PRETTY_PRINT);
     }
-    
+
 } catch (Exception $e) {
     http_response_code(500);
     echo json_encode([
         'success' => false,
-        'error' => 'Internal server error',
+        'error'   => 'Internal server error',
         'message' => $e->getMessage()
     ], JSON_PRETTY_PRINT);
 }

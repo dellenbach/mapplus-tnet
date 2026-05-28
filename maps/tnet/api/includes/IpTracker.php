@@ -15,7 +15,7 @@ if (defined('TNET_IP_TRACKED')) return;
 define('TNET_IP_TRACKED', true);
 
 // ===== KONFIGURATION =====
-define('IP_LOG_FILE', '/data/Client_Data/nwow/tmp/maps/ip-access.log');
+define('IP_LOG_FILE', '/data/Client_Data/nwow/tmp/maps-dev/ip-access.log');
 define('IP_LOG_MAX_AGE', 7 * 86400); // 7 Tage behalten
 
 // ===== TRACKING =====
@@ -36,8 +36,8 @@ if (strpos($_tnet_ip, ':') !== false && $_tnet_ip[0] !== '[') {
 $_tnet_path = isset($_SERVER['REQUEST_URI']) ? $_SERVER['REQUEST_URI'] : '/';
 // Query-String kürzen (keine Sensiblen Daten loggen)
 $_tnet_path = strtok($_tnet_path, '?');
-// Basis-Pfad kürzen
-$_tnet_path = str_replace('/maps/tnet/api/v1/', '/', $_tnet_path);
+// Basis-Pfad kürzen (funktioniert für /maps/ und /maps-dev/)
+$_tnet_path = preg_replace('#^/(maps(?:-dev)?)/tnet/api/v1/#', '/', $_tnet_path);
 
 $_tnet_time = date('c');
 

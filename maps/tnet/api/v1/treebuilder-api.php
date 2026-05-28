@@ -48,15 +48,16 @@ $appBasePath = rtrim(str_replace('\\', '/', dirname(dirname(dirname(dirname($scr
 if ($appBasePath === '' || $appBasePath === '.') {
     $appBasePath = '/maps';
 }
-$clientDataRoot = ($appBasePath === '/maps-dev') ? '/data/Client_Data/nwow-dev' : '/data/Client_Data/nwow';
+$clientDataRoot = '/data/Client_Data/nwow'; // Kein nwow-dev: Server hat nur ein nwow-Verzeichnis
 
 define('APP_BASE_PATH', $appBasePath);
 define('APP_WEB_ROOT', $docRoot . APP_BASE_PATH);
 define('CLIENT_DATA_ROOT', $clientDataRoot);
 define('TNET_TMP_ROOT', '/data/Client_Data/nwow/tmp/' . (APP_BASE_PATH === '/maps-dev' ? 'maps-dev' : 'maps'));
-define('CORE_CONFIG_DIR', TnetCorePaths::getConfigPath() ?: $docRoot . '/core/config');
-define('CORE_NLS_DIR', TnetCorePaths::getNlsPath('de') ?: $docRoot . '/core/nls/de');
-define('APP_CORE_CONFIG_DIR', APP_WEB_ROOT . '/core/config');
+define('CORE_CONFIG_DIR', TnetCorePaths::getConfigPath());
+define('CORE_NLS_DIR', TnetCorePaths::getNlsPath('de'));
+define('APP_CORE_CONFIG_DIR', APP_BASE_PATH === '/maps-dev' ? CORE_CONFIG_DIR : APP_WEB_ROOT . '/core/config');
+// App-lokale NLS-Überladungen: /www/maps(-dev)/core/nls/de/ — enthält z.B. Kategorie-Labels (desc_grundlagen etc.)
 define('APP_CORE_NLS_DIR', APP_WEB_ROOT . '/core/nls/de');
 define('CONFIG_BASE', APP_WEB_ROOT . '/public/config');
 define('DATA_DIR', TNET_TMP_ROOT . '/layertree');
@@ -85,6 +86,17 @@ function toSftpPath($path) {
     $path = str_replace('/var/www/html/nwow', '/www', $path);
     $path = str_replace('/data/Client_Data/nwow/tmp', '/data/tmp', $path);
     return str_replace(CLIENT_DATA_ROOT, '/data', $path);
+}
+
+function runtimePathInfo($label, $path) {
+    return [
+        'label'    => $label,
+        'phpPath'  => $path,
+        'sftpPath' => toSftpPath($path),
+        'exists'   => file_exists($path),
+        'isDir'    => is_dir($path),
+        'writable' => is_dir($path) ? is_writable($path) : (file_exists($path) ? is_writable($path) : is_writable(dirname($path))),
+    ];
 }
 
 function getEditorName() {
@@ -2383,6 +2395,7 @@ function stageServicesToImportToCore(array $serviceKeys, string $kuerzel, string
     // Datei-Typ-Buckets (dynamisch, Key = Prefix vor erstem Unterstrich)
     $buckets    = [];
     $errors     = [];
+    $skipped    = []; // Übersprungene Dateien mit Grund (für Debug-Ausgabe)
 
     foreach ($serviceKeys as $svcKey) {
         $svcDir = $rawDir . '/' . $svcKey;
@@ -2415,11 +2428,11 @@ function stageServicesToImportToCore(array $serviceKeys, string $kuerzel, string
         $it = new ArrayIterator($svcFiles);
         foreach ($it as $file) {
             $fname = $file->getFilename();
-            if (preg_match('/\.\d{8}_\d{6}\.bak$/', $fname)) continue; // Backups überspringen
-            if (preg_match('/\.xlsx$/i', $fname))             continue; // Excel-Dateien überspringen
+            if (preg_match('/\.\d{8}_\d{6}\.bak$/', $fname)) { $skipped[] = $fname . ' (Backup)'; continue; }
+            if (preg_match('/\.xlsx$/i', $fname))             { $skipped[] = $fname . ' (Excel)';  continue; }
 
             $ext = strtolower(pathinfo($fname, PATHINFO_EXTENSION));
-            if (!in_array($ext, ['conf', 'json'])) continue; // nur Konfig-Dateien
+            if (!in_array($ext, ['conf', 'json'])) { $skipped[] = $fname . ' (Typ .' . $ext . ' nicht verarbeitbar)'; continue; }
 
             $content = @file_get_contents($file->getPathname());
             if ($content === false) { $errors[] = 'Lesefehler: ' . $file->getPathname(); continue; }
@@ -2653,6 +2666,7 @@ function stageServicesToImportToCore(array $serviceKeys, string $kuerzel, string
         'mergeStats' => $mergeStats,
         'duplicates' => $duplicates,
         'errors'     => $errors,
+        'skipped'    => $skipped,
         'timestamp'  => date('Y-m-d H:i:s'),
     ];
 }
@@ -3186,53 +3200,102 @@ function listHistory() {
 }
 
 /**
- * Alle Backups aus dem Backup-Verzeichnis auflisten (alle Typen)
+ * Alle Backups auflisten: BACKUP_DIR (state/lyrmgr/…) + RAW_CONF_DIR (.bak-Dateien)
  */
 function listAllBackups() {
-    if (!is_dir(BACKUP_DIR)) return ['files' => [], 'totalSize' => 0];
-    $allFiles = scandir(BACKUP_DIR);
-    $result = [];
+    $result    = [];
     $totalSize = 0;
-    foreach ($allFiles as $f) {
-        if ($f === '.' || $f === '..') continue;
-        $path = BACKUP_DIR . '/' . $f;
-        if (!is_file($path)) continue;
-        $size = filesize($path);
-        $totalSize += $size;
 
-        // Typ erkennen anhand Prefix
-        $type = 'unknown';
-        if (preg_match('/^state_/', $f))                $type = 'state';
-        elseif (preg_match('/^lyrmgr_/', $f))           $type = 'lyrmgr';
-        elseif (preg_match('/^groups_/', $f))            $type = 'groups';
-        elseif (preg_match('/^profile_/', $f))           $type = 'profile';
-        elseif (preg_match('/^lyrmgrResources_/', $f))   $type = 'nls';
+    // ── BACKUP_DIR: state, lyrmgr, groups, profile, nls, legend ─────────────────
+    if (is_dir(BACKUP_DIR)) {
+        foreach (scandir(BACKUP_DIR) as $f) {
+            if ($f === '.' || $f === '..') continue;
+            $path = BACKUP_DIR . '/' . $f;
+            if (!is_file($path)) continue;
+            $size = filesize($path);
+            $totalSize += $size;
 
-        // Zeitstempel aus Dateinamen extrahieren
-        $ts = '';
-        if (preg_match('/(\d{8}_\d{6})/', $f, $m)) {
-            $ts = substr($m[1], 0, 4) . '-' . substr($m[1], 4, 2) . '-' . substr($m[1], 6, 2)
-                . ' ' . substr($m[1], 9, 2) . ':' . substr($m[1], 11, 2) . ':' . substr($m[1], 13, 2);
+            $type = 'unknown';
+            if      (preg_match('/^state_/', $f))               $type = 'state';
+            elseif  (preg_match('/^lyrmgr_/', $f))              $type = 'lyrmgr';
+            elseif  (preg_match('/^groups_/', $f))              $type = 'groups';
+            elseif  (preg_match('/^profile_/', $f))             $type = 'profile';
+            elseif  (preg_match('/^lyrmgrResources_/', $f))     $type = 'nls';
+            elseif  (preg_match('/^legendResources_/', $f))     $type = 'legend';
+
+            $ts = '';
+            if (preg_match('/(\d{8}_\d{6})/', $f, $m)) {
+                $ts = substr($m[1],0,4).'-'.substr($m[1],4,2).'-'.substr($m[1],6,2)
+                    . ' '.substr($m[1],9,2).':'.substr($m[1],11,2).':'.substr($m[1],13,2);
+            }
+            $result[] = ['file' => $f, 'type' => $type, 'size' => $size, 'timestamp' => $ts,
+                         'modified' => date('Y-m-d H:i:s', filemtime($path))];
         }
-
-        $result[] = [
-            'file'     => $f,
-            'type'     => $type,
-            'size'     => $size,
-            'timestamp'=> $ts,
-            'modified' => date('Y-m-d H:i:s', filemtime($path)),
-        ];
     }
-    // Neuste zuerst
-    usort($result, function($a, $b) { return strcmp($b['file'], $a['file']); });
+
+    // ── RAW_CONF_DIR: .bak-Dateien (Sicherungen überschriebener Conf-Dateien) ───
+    $rawBase = (defined('RAW_CONF_DIR') && is_dir(RAW_CONF_DIR)) ? realpath(RAW_CONF_DIR) : null;
+    if ($rawBase) {
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($rawBase, RecursiveDirectoryIterator::SKIP_DOTS),
+            RecursiveIteratorIterator::LEAVES_ONLY
+        );
+        foreach ($iterator as $item) {
+            if (!$item->isFile() || !isRawConfBackupFile($item->getFilename())) continue;
+            $relPath = ltrim(str_replace('\\', '/', str_replace($rawBase, '', $item->getPathname())), '/');
+            $size = $item->getSize();
+            $totalSize += $size;
+            $ts = '';
+            if (preg_match('/\.(\d{8}_\d{6})\.bak$/', $item->getFilename(), $m)) {
+                $d = $m[1];
+                $ts = substr($d,0,4).'-'.substr($d,4,2).'-'.substr($d,6,2)
+                    . ' '.substr($d,9,2).':'.substr($d,11,2).':'.substr($d,13,2);
+            }
+            $result[] = ['file' => $relPath, 'type' => 'rawconf', 'size' => $size,
+                         'timestamp' => $ts, 'modified' => date('Y-m-d H:i:s', $item->getMTime())];
+        }
+    }
+
+    // Neuste zuerst (Zeitstempel, fallback Modified)
+    usort($result, function($a, $b) {
+        $ta = $a['timestamp'] ?: $a['modified'];
+        $tb = $b['timestamp'] ?: $b['modified'];
+        return strcmp($tb, $ta);
+    });
     return ['files' => $result, 'totalSize' => $totalSize, 'count' => count($result)];
 }
 
 /**
- * Einzelnes Backup löschen
+ * Einzelnes Backup löschen.
+ * Unterstützt BACKUP_DIR-Dateien (flacher Name) und
+ * RAW_CONF_DIR-.bak-Dateien (relativer Pfad mit '/').
  */
 function deleteBackupFile($filename) {
-    // Sicherheit: nur Dateinamen ohne Pfadtrenner
+    // rawconf-Backup: relativer Pfad (enthält '/') oder .bak-Endung ohne Slash
+    if (strpos($filename, '/') !== false || isRawConfBackupFile(basename($filename))) {
+        if (strpos($filename, '..') !== false || strpos($filename, '\\') !== false) {
+            return ['deleted' => false, 'error' => 'Ungültiger Pfad'];
+        }
+        $safe = ltrim($filename, '/');
+        if (!isRawConfBackupFile(basename($safe))) {
+            return ['deleted' => false, 'error' => 'Nur .bak-Dateien können über diesen Pfad gelöscht werden'];
+        }
+        $rawDir = getWritableRawConfDir();
+        if ($rawDir === false) $rawDir = RAW_CONF_DIR;
+        $realBase = realpath($rawDir);
+        $realPath = realpath($rawDir . '/' . $safe);
+        if (!$realPath || !$realBase || strpos($realPath, $realBase) !== 0) {
+            return ['deleted' => false, 'error' => 'Pfad ausserhalb raw-conf'];
+        }
+        if (!is_file($realPath)) {
+            return ['deleted' => false, 'error' => 'Datei nicht gefunden'];
+        }
+        $size = filesize($realPath);
+        @unlink($realPath);
+        return ['deleted' => true, 'file' => $filename, 'freedBytes' => $size];
+    }
+
+    // Standard BACKUP_DIR (flacher Dateiname ohne '/')
     $safe = basename($filename);
     if ($safe !== $filename || strpos($safe, '..') !== false) {
         return ['deleted' => false, 'error' => 'Ungültiger Dateiname'];
@@ -3267,6 +3330,54 @@ function restoreBackup($filename) {
         'restored' => true,
         'from'     => $filename,
         'data'     => $data
+    ];
+}
+
+/**
+ * Raw-Conf-.bak-Datei wiederherstellen:
+ * Kopiert <file>.TIMESTAMP.bak → <file> im raw-conf-Verzeichnis.
+ * Die aktuell vorhandene Datei wird vorher neu gesichert.
+ */
+function restoreRawConfBackup($relPath) {
+    if (strpos($relPath, '..') !== false || strpos($relPath, '\\') !== false) {
+        jsonError('Ungültiger Pfad', 400);
+    }
+    $safe = ltrim($relPath, '/');
+    if (!isRawConfBackupFile(basename($safe))) {
+        jsonError('Nur .bak-Dateien können wiederhergestellt werden', 400);
+    }
+
+    $rawDir  = getWritableRawConfDir();
+    if ($rawDir === false) $rawDir = RAW_CONF_DIR;
+    $realBase = realpath($rawDir);
+    $bakPath  = realpath($rawDir . '/' . $safe);
+
+    if (!$bakPath || !$realBase || strpos($bakPath, $realBase) !== 0) {
+        jsonError('Pfad ausserhalb raw-conf Verzeichnisses', 400);
+    }
+    if (!is_file($bakPath)) {
+        jsonError('Backup-Datei nicht gefunden: ' . $safe, 404);
+    }
+
+    // Ziel-Dateiname: .TIMESTAMP.bak entfernen
+    $origName = stripRawConfBackupSuffix(basename($bakPath));
+    $origPath = dirname($bakPath) . '/' . $origName;
+
+    // Aktuelle Datei vorher sichern
+    if (is_file($origPath)) {
+        $ts = date('Ymd_His');
+        @copy($origPath, $origPath . '.' . $ts . '.bak');
+    }
+
+    if (!copy($bakPath, $origPath)) {
+        jsonError('Wiederherstellen fehlgeschlagen (copy error)', 500);
+    }
+
+    $relOrig = ltrim(str_replace('\\', '/', str_replace($realBase, '', realpath($origPath))), '/');
+    return [
+        'restored' => true,
+        'from'     => $safe,
+        'to'       => $relOrig,
     ];
 }
 
@@ -3362,6 +3473,13 @@ switch ($action) {
             jsonError('Gesperrt von ' . $lock['editor'], 423);
         }
         $result = restoreBackup($file);
+        jsonResponse(['success' => true, 'data' => $result]);
+        break;
+
+    case 'restore-rawconf':
+        $file = $_GET['file'] ?? '';
+        if (!$file) jsonError('Parameter file= erforderlich', 400);
+        $result = restoreRawConfBackup($file);
         jsonResponse(['success' => true, 'data' => $result]);
         break;
 
@@ -4465,6 +4583,28 @@ switch ($action) {
         jsonResponse(['success' => true, 'data' => $info]);
         break;
 
+    // ── Runtime-Pfade: Sicherheitsanzeige fuer DEV/PROD-Trennung ──
+    case 'runtime-paths':
+        jsonResponse(['success' => true, 'data' => [
+            'environment' => APP_BASE_PATH === '/maps-dev' ? 'dev' : 'prod',
+            'appBasePath' => APP_BASE_PATH,
+            'paths' => [
+                runtimePathInfo('App Webroot', APP_WEB_ROOT),
+                runtimePathInfo('Core Config', CORE_CONFIG_DIR),
+                runtimePathInfo('Core NLS de', CORE_NLS_DIR),
+                runtimePathInfo('Site-Core Config', APP_CORE_CONFIG_DIR),
+                runtimePathInfo('Site-Core NLS de', APP_CORE_NLS_DIR),
+                runtimePathInfo('Profil-Config', CONFIG_BASE),
+                runtimePathInfo('Tmp Root', TNET_TMP_ROOT),
+                runtimePathInfo('raw-conf', RAW_CONF_DIR),
+                runtimePathInfo('ImportToCore', IMPORT_TO_CORE_DIR),
+                runtimePathInfo('LayerTree', DATA_DIR),
+                runtimePathInfo('StageConf', TNET_TMP_ROOT . '/stageConf'),
+            ],
+            'dbSchema' => class_exists('Database') ? Database::getSchema() : null,
+        ]]);
+        break;
+
     // ── Deployed-Conf: Einzelne Datei lesen (für Editor-Ansicht) ──
     case 'read-deployed-conf':
         $file    = $_GET['file'] ?? '';
@@ -5096,8 +5236,11 @@ switch ($action) {
 
     // =================================================================
     // BOOKMARKS — Laden & Speichern (Draft in tmp, Deployed im Webroot)
+    // Daten werden via BookmarkNormalizer immer auf Schema v2 normalisiert.
     // =================================================================
     case 'bookmarks-load':
+        require_once __DIR__ . '/../includes/BookmarkNormalizer.php';
+
         $bmDraftDir    = TNET_TMP_ROOT . '/bookmarks';
         $bmDraftFile   = $bmDraftDir . '/map-bookmarks-all.json';
         $bmDeployedFile = APP_WEB_ROOT . '/tnet/data/map-bookmarks-all.json';
@@ -5124,13 +5267,21 @@ switch ($action) {
             }
         }
 
-        // Prüfe ob deployed-Version existiert und identisch ist
+        // Auf Schema v2 normalisieren (Editor erwartet jetzt v2-Struktur).
+        $bmData = BookmarkNormalizer::normalizeAll(is_array($bmData) ? $bmData : []);
+
+        // Prüfe ob deployed-Version existiert und identisch ist (nach Normalisierung).
         $bmDeployedExists = file_exists($bmDeployedFile);
         $bmDeployedSync   = false;
         if ($bmDeployedExists && $bmSource === 'draft') {
             $depRaw = @file_get_contents($bmDeployedFile);
-            $draftJson = json_encode($bmData, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-            $bmDeployedSync = ($depRaw !== false && md5($depRaw) === md5($draftJson));
+            if ($depRaw !== false) {
+                $depParsed = json_decode($depRaw, true);
+                if (is_array($depParsed)) {
+                    $depNormalized = BookmarkNormalizer::normalizeAll($depParsed);
+                    $bmDeployedSync = (json_encode($bmData) === json_encode($depNormalized));
+                }
+            }
         }
 
         jsonResponse([
@@ -5139,11 +5290,14 @@ switch ($action) {
             'count'          => count($bmData),
             'source'         => $bmSource,
             'deployedExists' => $bmDeployedExists,
-            'deployedSync'   => $bmDeployedSync
+            'deployedSync'   => $bmDeployedSync,
+            'schemaVersion'  => 2
         ]);
         break;
 
     case 'bookmarks-save':
+        require_once __DIR__ . '/../includes/BookmarkNormalizer.php';
+
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             jsonError('POST erwartet', 405);
         }
@@ -5158,6 +5312,9 @@ switch ($action) {
         if (!is_array($data)) {
             jsonError('Array erwartet', 400);
         }
+
+        // Normalisiere alles auf v2 — Editor darf gemischtes oder unvollständiges Format senden.
+        $data = BookmarkNormalizer::normalizeAll($data);
 
         // Speichere Draft in tmp — PHP hat hier Schreibrecht
         $bmDraftDir = TNET_TMP_ROOT . '/bookmarks';
@@ -5176,10 +5333,11 @@ switch ($action) {
             jsonError('Konnte Bookmarks-Draft nicht schreiben: ' . $bmDraftFile, 500);
         }
         jsonResponse([
-            'success' => true,
-            'message' => 'Bookmarks-Entwurf gespeichert',
-            'count'   => count($data),
-            'bytes'   => $written
+            'success'       => true,
+            'message'       => 'Bookmarks-Entwurf gespeichert',
+            'count'         => count($data),
+            'bytes'         => $written,
+            'schemaVersion' => 2
         ]);
         break;
 

@@ -21,6 +21,9 @@ RewriteRule ^marco$ index_oidc.php?group=marco [QSA,L]
 
 # CATCH-ALL: Alle anderen /maps/xxx URLs -> Interner Rewrite zu index.php mit bookmark Parameter
 # Ausnahmen werden bereits ueber REQUEST_FILENAME und das Segment-Muster abgefangen.
+# Kartenansichten (Schema v2) werden via Query-String uebergeben: /{bookmark}?view={viewId}
+# (Path-Style /{bookmark}/{view} bewusst NICHT genutzt: relative URLs im HTML/JS wuerden
+#  durch das zweite Pfad-Segment kaputtgehen.)
 RewriteRule ^([a-zA-Z0-9_-]+)$ index.php?bookmark=$1 [QSA,L]
 
 

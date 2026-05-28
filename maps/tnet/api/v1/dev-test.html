@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Layer-Manager Dev — TNET API</title>
-<link rel="stylesheet" href="/maps/tnet/css/tnet-lm.css?v=dev">
+<link rel="stylesheet" href="../../css/tnet-lm.css?v=dev">
 <style>
 * { box-sizing: border-box; }
 body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f0f2f5; }
@@ -146,9 +146,9 @@ body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sa
   <span>API: <code id="dt-api-url">…</code></span>
   <span id="dt-stats-span"></span>
   <span style="margin-left:auto"></span>
-  <a href="/maps/tnet/api/docs/" target="_blank">Swagger Docs</a>
-  <a href="/maps/tnet/api/v1/info" target="_blank">API Info</a>
-  <a href="/maps/tnet/api/v1/tree-test.html" target="_blank">Simple Tree-Test</a>
+  <a href="../docs/" target="_blank">Swagger Docs</a>
+  <a href="info" target="_blank">API Info</a>
+  <a href="tree-test.html" target="_blank">Simple Tree-Test</a>
 </div>
 
 <!-- Canvas -->
@@ -256,7 +256,7 @@ function showPanels() {
 // =====================================================================
 (function() {
   var sel = document.getElementById('dt-group');
-  fetch('/maps/tnet/api/v1/info')
+  fetch('info')
     .then(function(r) { return r.json(); })
     .then(function(json) {
       var groups = (json.data && json.data.server && json.data.server.groups) || [];
@@ -297,7 +297,7 @@ function updateUrl() {
 }
 
 function buildApiUrl() {
-  return '/maps/tnet/api/v1/layers.php?group=' + encodeURIComponent(currentGroup) + '&source=' + currentSource;
+  return 'layers.php?group=' + encodeURIComponent(currentGroup) + '&source=' + currentSource;
 }
 document.getElementById('dt-api-url').textContent = buildApiUrl();
 
@@ -670,12 +670,12 @@ log('=== Dev-Test [group=' + currentGroup + ', panel=' + currentPanel + ', view=
 </script>
 
 <!-- Abhängigkeiten (TnetLog, TnetIcons) -->
-<script src="/maps/tnet/js/tnet-log.js?v=dev"></script>
-<script src="/maps/tnet/js/tnet-icons.js?v=dev"></script>
+<script src="../../js/tnet-log.js?v=dev"></script>
+<script src="../../js/tnet-icons.js?v=dev"></script>
 
 <!-- Echte JS-Module -->
-<script src="/maps/tnet/js/tnet-lm-tree.js?v=dev"></script>
-<script src="/maps/tnet/js/tnet-lm-active.js?v=dev"></script>
+<script src="../../js/tnet-lm-tree.js?v=dev"></script>
+<script src="../../js/tnet-lm-active.js?v=dev"></script>
 
 <script>
 // Icons vorladen, dann Module initialisieren

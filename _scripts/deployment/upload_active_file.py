@@ -3,12 +3,13 @@
 upload_active_file.py
 Einzelne Datei per SFTP hochladen — nur wenn sie unter maps/ bzw. maps-dev/ liegt.
 JS-Quelldateien aus js-dev/ werden automatisch via build_js.py gebaut;
-nur die minifizierte Version aus js/ wird hochgeladen.
+im PROD-Fall minifiziert + obfuskiert. Bei `--env prod` darf die Quelldatei
+auch unter maps-dev/ liegen und wird davor lokal nach maps/ synchronisiert.
 
 Aufruf: python upload_active_file.py --env dev <dateipfad>
 
-@version    1.2
-@date       2026-05-27
+@version    1.3
+@date       2026-05-28
 @copyright  Trigonet AG
 @author     Marco Dellenbach
 """
@@ -16,6 +17,7 @@ import os
 import sys
 import subprocess
 import argparse
+import shutil
 import paramiko
 from deploy_env import add_env_argument, ensure_local_base_exists, resolve_deploy_config
 
@@ -47,6 +49,16 @@ def is_protected_config(rel_path):
     return any(rel.startswith(prefix) for prefix in PROTECTED_PREFIXES)
 
 
+def is_within_tree(path, base_dir):
+    """Prueft robust, ob path innerhalb von base_dir liegt."""
+    try:
+        norm_path = os.path.normcase(os.path.abspath(path))
+        norm_base = os.path.normcase(os.path.abspath(base_dir))
+        return os.path.commonpath([norm_path, norm_base]) == norm_base
+    except ValueError:
+        return False
+
+
 def main():
     global LOCAL_BASE, REMOTE_BASE
 
@@ -61,6 +73,8 @@ def main():
     LOCAL_BASE = os.path.normpath(deploy_config["local_base"])
     REMOTE_BASE = deploy_config["remote_base"]
     ensure_local_base_exists(LOCAL_BASE)
+    dev_config = resolve_deploy_config("dev")
+    dev_local_base = os.path.normpath(dev_config["local_base"])
 
     if args.allow_config and not args.reason.strip():
         print("[ERR] --allow-config erfordert --reason \"...\"")
@@ -68,15 +82,26 @@ def main():
 
     filepath = os.path.normpath(args.filepath)
 
-    # Sicherheitscheck: nur Dateien unter dem aktiven Source-Tree erlauben
-    if not filepath.lower().startswith(LOCAL_BASE.lower()):
-        print("[ERR] Abgelehnt: Datei liegt nicht unter dem aktiven Source-Tree")
-        print(f"  Pfad:    {filepath}")
-        print(f"  Erlaubt: {LOCAL_BASE}")
-        sys.exit(1)
-
     if not os.path.isfile(filepath):
         print(f"[ERR] Datei nicht gefunden: {filepath}")
+        sys.exit(1)
+
+    # Sicherheitscheck: DEV erlaubt nur maps-dev/. PROD erlaubt maps/ oder maps-dev/ mit lokalem Sync.
+    if is_within_tree(filepath, LOCAL_BASE):
+        pass
+    elif deploy_config["env"] == "prod" and is_within_tree(filepath, dev_local_base):
+        rel_from_dev = os.path.relpath(filepath, dev_local_base)
+        promoted_path = os.path.normpath(os.path.join(LOCAL_BASE, rel_from_dev))
+        os.makedirs(os.path.dirname(promoted_path), exist_ok=True)
+        shutil.copy2(filepath, promoted_path)
+        print(f"[SYNC] maps-dev -> maps: {rel_from_dev.replace(os.sep, '/')}")
+        filepath = promoted_path
+    else:
+        print("[ERR] Abgelehnt: Datei liegt nicht unter dem erlaubten Source-Tree")
+        print(f"  Pfad:        {filepath}")
+        print(f"  Erlaubt:     {LOCAL_BASE}")
+        if deploy_config["env"] == "prod":
+            print(f"  Zusaetzlich: {dev_local_base}")
         sys.exit(1)
 
     # ===== JS-DEV: Build-Schritt =====

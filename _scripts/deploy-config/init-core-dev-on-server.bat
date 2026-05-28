@@ -1,7 +1,9 @@
 @echo off
 setlocal enabledelayedexpansion
 title EINMALIG -- /www/core-dev/ auf Server initialisieren
-cd /d "C:\_Daten\mapplus-exp"
+call "%~dp0..\dev_and_deploy_config.bat"
+if errorlevel 1 exit /b 1
+cd /d "%MAPPLUS_WORKSPACE_ROOT%"
 echo.
 echo ============================================================
 echo  EINMALIG: /www/core-dev/ initialisieren
@@ -22,7 +24,7 @@ echo.
 set /p "CHOICE=Auswahl (1/2/3): "
 
 if "%CHOICE%"=="1" (
-    "C:\Program Files\Python313\python.exe" _scripts\deployment\init_core_dev.py
+    "%MAPPLUS_PYTHON_EXE%" _scripts\deployment\init_core_dev.py
     goto :check_result
 )
 
@@ -31,12 +33,12 @@ if "%CHOICE%"=="2" (
     echo [WARN] --overwrite ueberschreibt alle bestehenden Dateien in /www/core-dev/
     set /p "CONFIRM=Fortfahren? (j/n): "
     if /i not "!CONFIRM!"=="j" ( echo [ABBRUCH] & pause & exit /b 0 )
-    "C:\Program Files\Python313\python.exe" _scripts\deployment\init_core_dev.py --overwrite
+    "%MAPPLUS_PYTHON_EXE%" _scripts\deployment\init_core_dev.py --overwrite
     goto :check_result
 )
 
 if "%CHOICE%"=="3" (
-    "C:\Program Files\Python313\python.exe" _scripts\deployment\init_core_dev.py --dry-run
+    "%MAPPLUS_PYTHON_EXE%" _scripts\deployment\init_core_dev.py --dry-run
     goto :check_result
 )
 

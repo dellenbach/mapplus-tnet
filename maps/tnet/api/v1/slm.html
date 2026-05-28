@@ -1,9 +1,10 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="de">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Service- und Layermanager — TNET API</title>
+<script>document.documentElement.setAttribute('data-env',location.pathname.indexOf('/maps-dev/')===0?'dev':'prod');</script>
 <style>
 /**
  * slm.html
@@ -635,6 +636,51 @@ body {
 .bm-layer-tag { display: inline-block; padding: 1px 5px; border-radius: 3px; margin: 1px 2px; font-size: 10px; font-family: monospace; cursor: default; }
 .bm-layer-tag.valid { background: #e8f5e9; color: #2e7d32; border: 1px solid #a5d6a7; }
 .bm-layer-tag.invalid { background: #ffebee; color: #c62828; border: 1px solid #ef9a9a; }
+/* Layer mit visible:false — geladen aber initial unsichtbar (Schema v2) */
+.bm-layer-tag.bm-layer-off { opacity: 0.55; text-decoration: line-through; }
+
+/* ===== Layer-Matrix (Schema v2 mit Kartenansichten) ===== */
+.bm-mtx-wrap { margin-top: 6px; }
+.bm-mtx-toolbar { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-bottom: 4px; font-size: 11px; }
+.bm-mtx-toolbar input.bm-mtx-filter { flex: 1 1 200px; padding: 3px 6px; font-size: 11px; border: 1px solid #ccc; border-radius: 3px; }
+.bm-mtx-toolbar button { padding: 3px 8px; font-size: 11px; cursor: pointer; }
+.bm-mtx-scroll { max-height: 460px; overflow: auto; border: 1px solid #ddd; border-radius: 3px; background: #fff; }
+table.bm-mtx { width: 100%; border-collapse: collapse; font-size: 11px; font-family: monospace; }
+table.bm-mtx thead th { position: sticky; top: 0; background: #f4f4f4; border-bottom: 2px solid #999; padding: 4px 6px; text-align: left; font-weight: 600; z-index: 1; }
+table.bm-mtx tbody td { border-bottom: 1px solid #eee; padding: 2px 6px; vertical-align: middle; }
+table.bm-mtx tbody tr:hover td { background: #fafafa; }
+.bm-mtx-lname { font-size: 10px; color: #333; white-space: nowrap; max-width: 380px; overflow: hidden; text-overflow: ellipsis; }
+.bm-mtx-lname.invalid { color: #c62828; }
+.bm-mtx-cell-default, .bm-mtx-cell-view { text-align: center; width: 60px; }
+.bm-mtx-cell-default input { transform: scale(1.1); cursor: pointer; }
+.bm-mtx-cell-op, .bm-mtx-cell-filter { width: 70px; }
+.bm-mtx-cell-op input, .bm-mtx-cell-filter input { width: 100%; box-sizing: border-box; font-size: 10px; padding: 1px 3px; font-family: monospace; }
+.bm-mtx-cell-del { width: 24px; text-align: center; }
+.bm-mtx-cell-del button { background: transparent; border: none; color: #c62828; cursor: pointer; font-size: 12px; padding: 0; }
+.bm-mtx-cell-del button:hover { color: #f44336; }
+
+/* Tri-State-Button fuer View-Zellen */
+.bm-mtx-tri { width: 28px; height: 22px; border: 1px solid #aaa; border-radius: 3px; background: #fff; cursor: pointer; font-weight: bold; font-family: sans-serif; font-size: 12px; padding: 0; }
+.bm-mtx-tri[data-state="on"]      { background: #c8e6c9; color: #2e7d32; border-color: #81c784; }
+.bm-mtx-tri[data-state="off"]     { background: #ffcdd2; color: #c62828; border-color: #ef9a9a; }
+.bm-mtx-tri[data-state="inherit"] { background: #f5f5f5; color: #999;    border-color: #ddd; }
+.bm-mtx-tri:hover { filter: brightness(0.95); }
+
+/* View-Spalten-Header */
+.bm-mtx-vhead { min-width: 110px; }
+.bm-mtx-vhead-row { display: flex; flex-direction: column; gap: 2px; align-items: stretch; }
+.bm-mtx-vname { width: 100%; box-sizing: border-box; font-size: 10px; padding: 1px 4px; border: 1px solid #ccc; border-radius: 2px; font-family: monospace; }
+.bm-mtx-vhead-ctl { display: flex; gap: 4px; align-items: center; font-size: 9px; color: #555; }
+.bm-mtx-vhead-ctl label { display: flex; gap: 2px; align-items: center; cursor: pointer; }
+.bm-mtx-vdel { background: transparent; border: none; color: #c62828; cursor: pointer; font-size: 12px; padding: 0 2px; margin-left: auto; }
+.bm-mtx-addview-cell { text-align: center; width: 40px; }
+.bm-mtx-addview { background: #fff8e1; border: 1px dashed #b8872e; color: #b8872e; cursor: pointer; padding: 2px 6px; border-radius: 3px; font-size: 14px; }
+.bm-mtx-addview:hover { background: #ffecb3; }
+
+/* Add-Layer-Input (Header zur Matrix) */
+.bm-mtx-add-layer { position: relative; flex: 1 1 240px; }
+.bm-mtx-add-layer input { width: 100%; box-sizing: border-box; padding: 3px 6px; font-size: 11px; border: 1px solid #ccc; border-radius: 3px; }
+.bm-mtx-add-layer .bm-ac-list { position: absolute; left: 0; right: 0; top: 100%; background: #fff; border: 1px solid #ccc; max-height: 200px; overflow-y: auto; z-index: 10; display: none; }
 /* Layer-Feld: Tag-Container + Eingabefeld */
 .bm-layers-wrap { position: relative; min-width: 200px; }
 .bm-layers-tags { display: flex; flex-wrap: wrap; gap: 2px; margin-bottom: 2px; min-height: 18px; }
@@ -704,6 +750,12 @@ body {
 .deployed-toolbar button { padding: 5px 12px; font-size: 12px; border: 1px solid #ddd; border-radius: 3px; background: #fff; cursor: pointer; }
 .deployed-toolbar button:hover { background: #f0f0f0; }
 .deployed-toolbar select { padding: 5px 8px; font-size: 11px; border: 1px solid #ccc; border-radius: 3px; background: #fff; }
+.runtime-paths { display: flex; gap: 6px 10px; align-items: center; flex-wrap: wrap; padding: 6px 8px; margin-bottom: 8px; border: 1px solid #e0e4e8; border-radius: 4px; background: #fff; font-size: 10px; color: #555; }
+.runtime-paths .rp-title { font-weight: 700; color: #333; }
+.runtime-paths .rp-item { display: inline-flex; gap: 4px; align-items: center; max-width: 100%; }
+.runtime-paths .rp-label { color: #777; }
+.runtime-paths code { font-family: Consolas, monospace; background: #f5f7fa; color: #333; padding: 1px 4px; border-radius: 3px; white-space: nowrap; }
+.runtime-paths .rp-warn { color: #c33; font-weight: 700; }
 .deployed-status { padding: 8px 12px; font-size: 12px; color: #666; background: #f5f7fa; border-radius: 4px; margin-bottom: 8px; flex-shrink: 0; }
 .deployed-table-wrap { flex: 1; overflow: auto; min-height: 0; }
 .dep-table { width: 100%; border-collapse: collapse; font-size: 11px; }
@@ -1102,6 +1154,8 @@ body {
 .bk-type.groups { background: #6b2ed4; }
 .bk-type.profile { background: #4a8c50; }
 .bk-type.nls { background: #d42e6b; }
+.bk-type.legend { background: #c0392b; }
+.bk-type.rawconf { background: #1a73e8; }
 .bk-type.unknown { background: #999; }
 .slm-bk-table .bk-actions button {
   padding: 2px 6px; font-size: 10px; border: 1px solid #ccc; border-radius: 3px; background: #fff; cursor: pointer; margin-right: 3px;
@@ -1110,6 +1164,33 @@ body {
 .slm-bk-table .bk-actions .bk-del:hover { background: #fef0f0; color: #c33; border-color: #c33; }
 .slm-bk-status { padding: 8px 14px; font-size: 11px; border-top: 1px solid #eee; flex-shrink: 0; }
 
+
+/* ===== ENV-BADGE (DEV / PROD) ===== */
+#env-badge { display: none; }
+html[data-env] #env-badge {
+  display: inline-block !important;
+  color: #fff; padding: 2px 10px; border-radius: 3px;
+  font-size: 12px; font-weight: 700; letter-spacing: .6px;
+  vertical-align: middle;
+}
+html[data-env="dev"] #env-badge { background: #e67e22; }
+html[data-env="dev"] #env-badge::before { content: 'DEV'; }
+html[data-env="prod"] #env-badge { background: #2e7d32; }
+html[data-env="prod"] #env-badge::before { content: 'PROD'; }
+html[data-env="dev"] .ags-toolbar { border-bottom: 3px solid #e67e22; }
+
+/* ===== PFAD-INFO-BAR (Staging / Editor) ===== */
+.path-info-bar {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 4px 14px; border-bottom: 1px solid #d0dde2;
+  font-size: 11px; color: #555; background: #eef3f5;
+}
+.path-info-bar .pib-lbl { font-family: -apple-system,sans-serif; font-weight: 700; color: #2c4a50; white-space: nowrap; }
+.path-info-bar .pib-path { font-family: Consolas,monospace; color: #3a6a6a; }
+.path-info-bar .pib-arrow { color: #999; }
+html[data-env="dev"] .path-info-bar { background: #fff5ed; border-bottom-color: #e8b880; }
+html[data-env="dev"] .path-info-bar .pib-path { color: #a04a00; }
+html[data-env="dev"] .path-info-bar .pib-lbl { color: #7a3000; }
 </style>
 </head>
 <body>
@@ -1131,7 +1212,10 @@ body {
         <option value="groups">Groups</option>
         <option value="profile">Profile</option>
         <option value="nls">NLS</option>
+        <option value="legend">Legend</option>
+        <option value="rawconf">Raw-Conf (.bak)</option>
       </select>
+      <button class="bk-btn-delete" id="slm-bk-delete-rawconf" title="Alle Raw-Conf Backups löschen" style="display:none">🧹 Raw-Conf Backups löschen</button>
       <button class="bk-btn-delete" id="slm-bk-delete-sel" disabled>🗑 Auswahl löschen</button>
       <span class="bk-summary" id="slm-bk-summary"></span>
     </div>
@@ -1148,22 +1232,28 @@ body {
 <!-- ===== TOOLBAR ===== -->
 <div class="ags-toolbar">
   <span class="brand">🌐 Service- und Layermanager</span>
+  <span id="env-badge"></span>
   <span class="sep"></span>
   <button id="ags-btn-refresh" title="Daten neu laden">↻ Aktualisieren</button>
   <button id="ags-btn-cache-clear" title="Layermanager-Cache auf dem Server leeren">🗑 Cache leeren</button>
   <button id="ags-btn-config-to-db" title="Konfigurationsdateien in PostgreSQL-Datenbank einlesen (configToPG)">🗄 Config → DB</button>
   <button id="slm-btn-backups" title="Server-Backups anzeigen, wiederherstellen und löschen" style="margin-left:6px">📁 Backups</button>
   <span class="spacer"></span>
-  <a href="/maps/tnet/api/v1/tree-builder.html">← Tree-Builder</a>
+  <a href="tree-builder.html">← Tree-Builder</a>
   <span class="sep"></span>
-  <a href="/maps/tnet/api/docs/" target="_blank">API Docs</a>
+  <a href="../docs/" target="_blank">API Docs</a>
+  <span class="sep"></span>
+  <span id="slm-build-ts" title="Release-Zeitstempel (letzter Deploy)" style="font-size:10px;color:rgba(255,255,255,.55);font-family:monospace;white-space:nowrap"></span>
 </div>
 
 <!-- ===== CONFIG-TO-DB MODAL ===== -->
 <div id="ctdb-modal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.45);align-items:center;justify-content:center">
   <div style="background:#fff;border-radius:8px;box-shadow:0 8px 32px rgba(0,0,0,.25);width:480px;max-width:95vw;overflow:hidden">
-    <div style="background:#2c4a50;color:#fff;padding:12px 16px;display:flex;align-items:center;gap:8px">
-      <span style="font-weight:700;flex:1">🗄 Config → DB (configToPG)</span>
+    <div style="color:#fff;padding:12px 16px;display:flex;align-items:center;gap:8px" id="ctdb-header">
+      <div style="flex:1">
+        <div style="font-weight:700" id="ctdb-title">🗄 Config → DB (configToPG)</div>
+        <div style="font-size:10px;opacity:.75;margin-top:2px" id="ctdb-db-info"></div>
+      </div>
       <button id="ctdb-close" style="background:transparent;border:none;color:#fff;font-size:18px;cursor:pointer;line-height:1;padding:0">×</button>
     </div>
     <div style="padding:14px 16px;border-bottom:1px solid #eee">
@@ -1399,6 +1489,7 @@ body {
         <span id="deployed-sel-count">0 gewählt</span>
         <button id="deployed-delete-sel" title="Ausgewählte Dateien löschen">🗑 Löschen</button>
       </div>
+      <div class="runtime-paths" id="deployed-runtime-paths">Pfade werden geladen…</div>
       <div class="deployed-status" id="deployed-status">Wechsle zum Tab oder klicke ↻ um Dateien zu laden…</div>
       <div class="deployed-table-wrap" id="deployed-table-wrap">
         <table class="dep-table" id="deployed-table">
@@ -1623,8 +1714,61 @@ body {
 // =====================================================================
 // KONFIGURATION
 // =====================================================================
-var API_URL  = '/maps/tnet/api/v1/treebuilder-api.php';
+var API_URL  = '/maps-dev/tnet/api/v1/treebuilder-api.php';
 var GAPI_URL = '/gapi/ags2mapplus';
+var _envLabel  = location.pathname.indexOf('/maps-dev/') === 0 ? '[DEV]' : '[PROD]';
+var _isDevEnv  = location.pathname.indexOf('/maps-dev/') === 0;
+var _envShort  = _isDevEnv ? 'DEV' : 'PROD';
+var _dbSchema  = _isDevEnv ? 'mapplusconf_dev' : 'mapplusconf';
+var _tmpLabel  = _isDevEnv ? 'maps-dev' : 'maps';
+
+// ── Env-sensitive Beschriftungen (Tooltips, Dialog-Titel) ─────────────────────
+(function initEnvLabels() {
+  // "Cache leeren"-Button: zeigt welcher Cache betroffen ist
+  var cacheBtn = document.getElementById('ags-btn-cache-clear');
+  if (cacheBtn) {
+    cacheBtn.title = _envShort + '-Cache leeren\n'
+      + 'API-Cache in tmp/' + _tmpLabel + '/\n'
+      + 'Betrifft nur die ' + _envShort + '-Umgebung';
+  }
+
+  // "Config → DB"-Button: zeigt Zieldatenbank
+  var ctdbBtn = document.getElementById('ags-btn-config-to-db');
+  if (ctdbBtn) {
+    ctdbBtn.title = 'Config-Dateien → ' + _envShort + '-Datenbank einlesen\n'
+      + 'Schema: ' + _dbSchema + '\n'
+      + 'Quelle: ' + (_isDevEnv ? 'core-dev/config/ + nls/' : 'core/config/ + nls/');
+  }
+
+  // Dialog-Kopfzeile + DB-Info-Subtitle
+  var ctdbHeader = document.getElementById('ctdb-header');
+  if (ctdbHeader) {
+    ctdbHeader.style.background = _isDevEnv ? '#8B4500' : '#2c4a50'; // orange DEV / teal PROD
+  }
+  var ctdbTitle = document.getElementById('ctdb-title');
+  if (ctdbTitle) {
+    ctdbTitle.textContent = '🗄 Config → ' + _envShort + '-DB  (configToPG)';
+  }
+  var ctdbDbInfo = document.getElementById('ctdb-db-info');
+  if (ctdbDbInfo) {
+    ctdbDbInfo.textContent = 'Schema: ' + _dbSchema
+      + '  ·  Quelle: ' + (_isDevEnv ? '/www/core-dev/' : '/www/core/');
+  }
+})();
+
+(function installDevFastApiTarget() {
+  if (location.pathname.indexOf('/maps-dev/') !== 0 || window.__tnetDevFastApiTarget) return;
+  window.__tnetDevFastApiTarget = true;
+  var nativeFetch = window.fetch;
+  window.fetch = function(input, init) {
+    var url = typeof input === 'string' ? input : (input && input.url);
+    if (typeof url === 'string' && url.indexOf(GAPI_URL + '/') === 0 && url.indexOf('target=') === -1) {
+      url += (url.indexOf('?') === -1 ? '?' : '&') + 'target=dev';
+      input = typeof input === 'string' ? url : new Request(url, input);
+    }
+    return nativeFetch.call(this, input, init);
+  };
+})();
 
 // =====================================================================
 // AUTH-WRAPPER FÜR fetch()
@@ -1637,14 +1781,14 @@ var GAPI_URL = '/gapi/ags2mapplus';
   if (window.__slmFetchWrapped) return;
   window.__slmFetchWrapped = true;
 
-  var LOGIN_URL = '/maps/tnet/api/v1/admin-login.php?redirect=' +
+  var LOGIN_URL = 'admin-login.php?redirect=' +
                   encodeURIComponent(location.pathname + location.search + location.hash);
-  var SELF_URL  = '/maps/tnet/api/v1/';
+  var SELF_URL  = './';
   var alreadyRedirected = false;
 
   function isApiResponse(url) {
     if (typeof url !== 'string') url = (url && url.url) || '';
-    return url.indexOf('/maps/tnet/api/') !== -1;
+    return url.indexOf('/tnet/api/') !== -1 || /^[a-z0-9_-]+(?:\.php)?(?:\?|$)/i.test(url);
   }
 
   function showLoginBanner() {
@@ -2298,7 +2442,7 @@ function exportAgsServices() {
       var statusEl = document.getElementById('import-status');
       var savedCount = data.files ? data.files.length : 0;
       var failedCount = data.failedFiles ? data.failedFiles.length : 0;
-      var targetDirectory = data.directory || 'data/tmp/maps/raw-conf';
+      var targetDirectory = data.directory || 'data/tmp/maps-dev/raw-conf';
 
       if (savedCount > 0 && failedCount === 0) {
         statusEl.textContent = '✓ Export abgeschlossen (' + runLabel + '): ' + savedCount + ' Dateien in ' + targetDirectory + '/ gespeichert';
@@ -3115,7 +3259,7 @@ function loadRawConfList() {
         statusEl.className = 'ags-status';
         return;
       }
-      statusEl.textContent = data.services.length + ' Services, ' + data.files.length + ' Dateien in ' + (data.directory || 'data/tmp/maps/raw-conf') + '/';
+      statusEl.textContent = data.services.length + ' Services, ' + data.files.length + ' Dateien in ' + (data.directory || 'data/tmp/maps-dev/raw-conf') + '/';
       statusEl.className = 'ags-status success';
       filterEl.style.display = '';
       filterEl.value = '';
@@ -3952,8 +4096,14 @@ function executeStagingMerge() {
 
       // Merge/Replace: Ergebnis anzeigen
       var modeInfo = d.mode === 'merge' ? ' (zusammengeführt)' : ' (ersetzt)';
-      statusEl.textContent = '✓ ' + d.files.length + ' Dateien → ImportToCore/' + d.kuerzel + '/' + modeInfo;
-      statusEl.className = 'ags-status success';
+      if (d.files.length === 0) {
+        statusEl.textContent = '⚠ 0 Dateien → ImportToCore/' + d.kuerzel + '/ — keine verarbeitbaren Konfig-Dateien gefunden';
+        statusEl.className = 'ags-status';
+        statusEl.style.color = '#e67e22';
+      } else {
+        statusEl.textContent = '✓ ' + d.files.length + ' Dateien → ImportToCore/' + d.kuerzel + '/' + modeInfo;
+        statusEl.className = 'ags-status success';
+      }
 
       // Merge-Statistik anzeigen wenn vorhanden
       if (d.mode === 'merge' && d.mergeStats) {
@@ -3989,7 +4139,10 @@ function executeStagingMerge() {
         });
       }
       if (d.errors && d.errors.length) {
-        html += '<div style="color:#c33;font-size:11px">Warnungen: ' + d.errors.join('; ') + '</div>';
+        html += '<div style="color:#c33;font-size:11px">Fehler: ' + d.errors.join('; ') + '</div>';
+      }
+      if (d.skipped && d.skipped.length) {
+        html += '<div style="color:#e67e22;font-size:11px;margin-top:4px">Übersprungen (' + d.skipped.length + '): ' + d.skipped.join(', ') + '</div>';
       }
       if (html) { resultEl.innerHTML = html; resultEl.style.display = ''; }
       else { resultEl.style.display = 'none'; }
@@ -4519,7 +4672,7 @@ document.getElementById('ags-btn-cache-clear').addEventListener('click', functio
   var btn = this;
   btn.disabled = true;
   btn.textContent = '⏳ Cache…';
-  fetch('/maps/tnet/api/v1/cache?action=clear', { method: 'POST' })
+  fetch('cache?action=clear', { method: 'POST' })
     .then(function(r) { return r.json(); })
     .then(function(j) {
       btn.textContent = '✓ Cache geleert';
@@ -4538,7 +4691,7 @@ document.getElementById('ags-btn-config-to-db').addEventListener('click', functi
   document.getElementById('ctdb-status').style.display = 'none';
   document.getElementById('ctdb-result').style.display = 'none';
   document.getElementById('ctdb-run').disabled = false;
-  document.getElementById('ctdb-run').textContent = 'Starten';
+  document.getElementById('ctdb-run').textContent = '→ ' + _envShort + '-DB starten  (' + _dbSchema + ')';
   // Scope auf 'full' zurücksetzen
   _ctdbScope = 'full';
   document.querySelectorAll('.ctdb-scope-btn').forEach(function(b) { b.classList.remove('active'); });
@@ -4567,24 +4720,34 @@ document.getElementById('ctdb-run').addEventListener('click', function() {
   btn.disabled = true;
   btn.textContent = '⏳ Läuft…';
   statusEl.style.cssText = 'margin-top:10px;font-size:12px;color:#555;display:block';
-  statusEl.textContent = 'Scope: ' + _ctdbScope + ' — Bitte warten, kann einige Sekunden dauern…';
+  statusEl.textContent = '[' + _envShort + '] Scope: ' + _ctdbScope + ' → ' + _dbSchema + ' — Bitte warten…';
   resultEl.style.display = 'none';
-  var url = '/maps/tnet/api/v1/admin?action=configToPG&scope=' + encodeURIComponent(_ctdbScope);
+  var appRoot = window.location.pathname.indexOf('/maps-dev/') === 0 ? '/maps-dev' : '/maps';
+  var schemaUrl = appRoot + '/tnet/api/v1/admin?action=schema';
+  var url = appRoot + '/tnet/api/v1/admin?action=configToPG&scope=' + encodeURIComponent(_ctdbScope);
   var t0 = Date.now();
-  fetch(url)
+  fetch(schemaUrl)
+    .then(function(r) { return r.json(); })
+    .then(function(schemaResult) {
+      if (schemaResult.success === false) {
+        throw new Error(schemaResult.error || schemaResult.message || 'Schema-Erstellung fehlgeschlagen');
+      }
+      return fetch(url);
+    })
     .then(function(r) { return r.json(); })
     .then(function(j) {
       var elapsed = ((Date.now() - t0) / 1000).toFixed(1);
       if (j.success !== false) {
         statusEl.style.color = '#2a8';
-        statusEl.textContent = '✓ Abgeschlossen in ' + elapsed + 's — Scope: ' + _ctdbScope;
+        statusEl.textContent = '✓ [' + _envShort + '] Abgeschlossen in ' + elapsed + 's'
+          + ' — Scope: ' + _ctdbScope + ' — Schema: ' + _dbSchema;
       } else {
         statusEl.style.color = '#c33';
-        statusEl.textContent = '✗ Fehler: ' + (j.error || j.message || 'Unbekannt');
+        statusEl.textContent = '✗ [' + _envShort + '] Fehler: ' + (j.error || j.message || 'Unbekannt');
       }
       resultEl.textContent = JSON.stringify(j.data || j, null, 2);
       resultEl.style.display = '';
-      btn.textContent = 'Erneut starten';
+      btn.textContent = '→ ' + _envShort + '-DB starten  (' + _dbSchema + ')';
       btn.disabled = false;
     })
     .catch(function(e) {
@@ -5884,7 +6047,7 @@ function openExportConfirmModal(dryData, unsavedCount, prependHtml) {
  * Cache leeren nach erfolgreichem Deploy
  */
 function clearCacheAfterDeploy(statusEl) {
-  fetch('/maps/tnet/api/v1/cache?action=clear', { method: 'POST' })
+  fetch('cache?action=clear', { method: 'POST' })
     .then(function(r) { return r.json(); })
     .then(function(j) {
       if (statusEl) statusEl.textContent = '✓ Deployment verifiziert — Cache geleert';
@@ -5902,7 +6065,7 @@ function gitCommitDeployedFiles(deployedFiles, kuerzel, statusEl) {
   var paths = deployedFiles.map(function(f) { return f.target_path; }).filter(Boolean);
   if (paths.length === 0) return;
 
-  var defaultMsg = 'Deploy ' + kuerzel + ': ' + paths.length + ' Dateien';
+  var defaultMsg = _envLabel + ' Deploy ' + kuerzel + ': ' + paths.length + ' Dateien';
   showCommitDialog(defaultMsg).then(function(result) {
     if (!result || result.skip) return;
 
@@ -6138,6 +6301,7 @@ var _deployedColumns = [];      // Dynamische Spalten: ['core', 'override', 'pro
 function loadDeployedConf() {
   var statusEl = document.getElementById('deployed-status');
   var tbody = document.getElementById('deployed-tbody');
+  loadRuntimePaths('deployed-runtime-paths');
   statusEl.textContent = 'Lade Dateien…';
   statusEl.style.display = '';
   tbody.innerHTML = '';
@@ -6169,6 +6333,38 @@ function loadDeployedConf() {
     .catch(function(err) {
       statusEl.textContent = 'Fehler: ' + err.message;
     });
+}
+
+function loadRuntimePaths(targetId) {
+  var el = document.getElementById(targetId);
+  if (!el) return;
+  el.textContent = 'Pfade werden geladen…';
+  fetch(API_URL + '?action=runtime-paths')
+    .then(function(r) { return r.json(); })
+    .then(function(json) {
+      if (!json.success) {
+        el.textContent = 'Pfade: Fehler beim Laden';
+        return;
+      }
+      renderRuntimePaths(el, json.data || {});
+    })
+    .catch(function() { el.textContent = 'Pfade: Fehler beim Laden'; });
+}
+
+function renderRuntimePaths(el, data) {
+  var paths = data.paths || [];
+  var pick = {};
+  paths.forEach(function(p) { pick[p.label] = p; });
+  var labels = ['Core Config', 'Core NLS de', 'Profil-Config', 'raw-conf', 'ImportToCore', 'Tmp Root'];
+  var html = '<span class="rp-title">Pfade ' + esc((data.environment || '').toUpperCase()) + '</span>';
+  if (data.dbSchema) html += '<span class="rp-item"><span class="rp-label">DB</span><code>' + esc(data.dbSchema) + '</code></span>';
+  labels.forEach(function(label) {
+    var p = pick[label];
+    if (!p) return;
+    var flag = p.exists ? '' : '<span class="rp-warn">fehlt</span>';
+    html += '<span class="rp-item" title="PHP: ' + esc(p.phpPath) + '\nSFTP: ' + esc(p.sftpPath) + '"><span class="rp-label">' + esc(label) + '</span><code>' + esc(p.sftpPath) + '</code>' + flag + '</span>';
+  });
+  el.innerHTML = html;
 }
 
 // Tabellenkopf dynamisch erzeugen
@@ -6551,12 +6747,12 @@ function saveDeployedFile() {
       var d = json.data || json;
       if (!json.success && !d.success) throw new Error('Deploy: ' + (json.detail || json.error || d.error || 'Unbekannt'));
       saveBtn.disabled = false;
-      statusEl.textContent = '✓ Gespeichert via SFTP (' + (content.length / 1024).toFixed(1) + ' KB) — Backup erstellt';
+      statusEl.textContent = '✓ Gespeichert via SFTP [' + (d.target || (location.pathname.indexOf('/maps-dev/') === 0 ? 'dev' : 'prod')) + '] ' + (d.deployPath || _deployPath) + ' (' + (content.length / 1024).toFixed(1) + ' KB) — Backup erstellt';
       statusEl.className = 'ok';
 
       // 3. Git-Commit (mit Commit-Dialog)
       if (_deployPath) {
-        showCommitDialog('Edit: ' + fi.name).then(function(result) {
+        showCommitDialog(_envLabel + ' Edit: ' + fi.name).then(function(result) {
           if (!result || result.skip) return;
           fetch(GAPI_URL + '/git-commit-conf', {
             method: 'POST',
@@ -7125,12 +7321,266 @@ function updateDeployStatus(source, deployedSync) {
 }
 
 // =====================================================================
-// BOOKMARKS-TAB
+// BOOKMARKS-TAB (Schema v2)
 // =====================================================================
-var _bmData = null;       // geladene Bookmark-Daten (Array)
+var _bmData = null;       // geladene Bookmark-Daten (Array, v2)
 var _bmLoaded = false;    // wurde bereits geladen?
 var _bmAllLayerKeys = [];  // alle verfügbaren Layer-Keys (für Autocomplete / Validierung)
 var _bmLayersLoaded = false;
+
+// ---- Schema-v2 Helper -------------------------------------------------
+// Layer kann v1-String ODER v2-Objekt sein. Liefert die Layer-ID.
+function bmLayerId(l) {
+  if (l && typeof l === 'object') return l.id || '';
+  return l == null ? '' : String(l);
+}
+// Liefert ein vollständiges v2-Layer-Objekt mit Defaults.
+function bmLayerObj(l) {
+  if (l && typeof l === 'object') {
+    return {
+      id:      l.id || '',
+      visible: ('visible' in l) ? !!l.visible : true,
+      opacity: (l.opacity != null && isFinite(l.opacity)) ? +l.opacity : null,
+      order:   (l.order   != null && isFinite(l.order))   ? +l.order   : null,
+      filter:  (typeof l.filter === 'string' && l.filter !== '') ? l.filter : null
+    };
+  }
+  return { id: String(l || ''), visible: true, opacity: null, order: null, filter: null };
+}
+
+// ---- Schema-v2 State (im detail-Row als JSON in dataset) -----------------
+function bmGetLayers(detailRow) {
+  try { return (JSON.parse(detailRow.dataset.bmLayers || '[]') || []).map(bmLayerObj); }
+  catch (e) { return []; }
+}
+function bmSetLayers(detailRow, arr) {
+  detailRow.dataset.bmLayers = JSON.stringify((arr || []).map(bmLayerObj));
+}
+function bmGetViews(detailRow) {
+  try { return (JSON.parse(detailRow.dataset.bmViews || '[]') || []); }
+  catch (e) { return []; }
+}
+function bmSetViews(detailRow, arr) {
+  detailRow.dataset.bmViews = JSON.stringify(Array.isArray(arr) ? arr : []);
+}
+function bmEscAttr(s) { return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// View-State eines Layers ermitteln: 'on' | 'off' | 'inherit'
+function bmViewLayerState(view, layerId) {
+  if (!view || !view.layerStates || !view.layerStates[layerId]) return 'inherit';
+  return view.layerStates[layerId].visible ? 'on' : 'off';
+}
+
+// Generiert eindeutige View-ID (view-1, view-2, ...)
+function bmNextViewId(views) {
+  var n = 1;
+  var taken = {};
+  (views || []).forEach(function(v) { if (v && v.id) taken[v.id] = true; });
+  while (taken['view-' + n]) n++;
+  return 'view-' + n;
+}
+
+// ---- Matrix-Rendering ----------------------------------------------------
+function bmRenderMatrix(detailRow) {
+  var container = detailRow.querySelector('.bm-mtx-scroll');
+  if (!container) return;
+  var layers = bmGetLayers(detailRow);
+  var views  = bmGetViews(detailRow);
+  var idx    = detailRow.dataset.idx;
+
+  var html = '<table class="bm-mtx"><thead><tr>';
+  html += '<th>Layer</th>';
+  html += '<th title="Sichtbar beim Bookmark-Aufruf ohne View">Default</th>';
+
+  views.forEach(function(v) {
+    var vid = v.id || '';
+    var vname = v.name != null ? v.name : vid;
+    var isDef = v.isDefault === true;
+    html += '<th class="bm-mtx-vhead" data-vid="' + bmEscAttr(vid) + '">' +
+              '<div class="bm-mtx-vhead-row">' +
+                '<input class="bm-mtx-vname" data-vid="' + bmEscAttr(vid) + '" value="' + bmEscAttr(vname) + '" title="Anzeigename">' +
+                '<div class="bm-mtx-vhead-ctl">' +
+                  '<label title="Default-View beim Bookmark-Aufruf"><input type="radio" name="bm-defview-' + bmEscAttr(idx) + '" data-vid="' + bmEscAttr(vid) + '"' + (isDef ? ' checked' : '') + '>Def</label>' +
+                  '<code style="font-size:9px;color:#888" title="View-ID (URL ?view=' + bmEscAttr(vid) + ')">' + bmEscAttr(vid) + '</code>' +
+                  '<button class="bm-mtx-vdel" data-vid="' + bmEscAttr(vid) + '" title="Ansicht löschen">×</button>' +
+                '</div>' +
+              '</div>' +
+            '</th>';
+  });
+
+  html += '<th class="bm-mtx-addview-cell"><button class="bm-mtx-addview" title="Neue Ansicht hinzufügen">+</button></th>';
+  html += '<th title="Opacity (0–1)">Op</th>';
+  html += '<th title="Filter / Definition-Query">Filter</th>';
+  html += '<th></th>';
+  html += '</tr></thead><tbody>';
+
+  layers.forEach(function(l) {
+    var lid = l.id;
+    var isValid = _bmAllLayerKeys.indexOf(lid) !== -1;
+    html += '<tr data-lid="' + bmEscAttr(lid) + '">';
+    html += '<td class="bm-mtx-lname' + (isValid ? '' : ' invalid') + '" title="' + bmEscAttr(lid) + (isValid ? '' : ' (Layer nicht im Katalog)') + '">' + bmEscAttr(lid) + '</td>';
+    html += '<td class="bm-mtx-cell-default"><input type="checkbox" data-lid="' + bmEscAttr(lid) + '"' + (l.visible ? ' checked' : '') + '></td>';
+
+    views.forEach(function(v) {
+      var state = bmViewLayerState(v, lid);
+      var sym = state === 'on' ? '✓' : (state === 'off' ? '✗' : '○');
+      html += '<td class="bm-mtx-cell-view"><button class="bm-mtx-tri" data-lid="' + bmEscAttr(lid) + '" data-vid="' + bmEscAttr(v.id) + '" data-state="' + state + '" title="' + (state === 'inherit' ? 'erbt vom Default' : (state === 'on' ? 'sichtbar' : 'ausgeblendet')) + '">' + sym + '</button></td>';
+    });
+
+    html += '<td></td>'; // unter dem "+ Ansicht"-Header bleibt frei
+    html += '<td class="bm-mtx-cell-op"><input type="text" data-lid="' + bmEscAttr(lid) + '" data-prop="opacity" value="' + bmEscAttr(l.opacity != null ? l.opacity : '') + '" placeholder="–"></td>';
+    html += '<td class="bm-mtx-cell-filter"><input type="text" data-lid="' + bmEscAttr(lid) + '" data-prop="filter" value="' + bmEscAttr(l.filter != null ? l.filter : '') + '" placeholder="–"></td>';
+    html += '<td class="bm-mtx-cell-del"><button data-lid="' + bmEscAttr(lid) + '" title="Layer entfernen">×</button></td>';
+    html += '</tr>';
+  });
+
+  if (!layers.length) {
+    var cols = 5 + views.length;
+    html += '<tr><td colspan="' + cols + '" style="text-align:center;color:#999;padding:12px">Keine Layer. Über das Eingabefeld oben hinzufügen.</td></tr>';
+  }
+
+  html += '</tbody></table>';
+  container.innerHTML = html;
+
+  // Filter erneut anwenden, falls aktiv
+  var filterInput = detailRow.querySelector('.bm-mtx-filter');
+  if (filterInput && filterInput.value) bmApplyMatrixFilter(detailRow);
+}
+
+function bmApplyMatrixFilter(detailRow) {
+  var input = detailRow.querySelector('.bm-mtx-filter');
+  var q = (input && input.value || '').trim().toLowerCase();
+  var rows = detailRow.querySelectorAll('table.bm-mtx tbody tr[data-lid]');
+  rows.forEach(function(tr) {
+    var lid = (tr.dataset.lid || '').toLowerCase();
+    tr.style.display = (!q || lid.indexOf(q) !== -1) ? '' : 'none';
+  });
+}
+
+// ---- Mutationen via Event-Delegation -------------------------------------
+function bmMatrixHandleClick(e, detailRow) {
+  var t = e.target;
+  // View-Spalte: Tri-State-Cycle
+  if (t.classList.contains('bm-mtx-tri')) {
+    var lid = t.dataset.lid;
+    var vid = t.dataset.vid;
+    var cur = t.dataset.state;
+    var next = cur === 'on' ? 'off' : (cur === 'off' ? 'inherit' : 'on');
+    var views = bmGetViews(detailRow);
+    var v = views.find(function(x) { return x && x.id === vid; });
+    if (!v) return;
+    if (!v.layerStates) v.layerStates = {};
+    if (next === 'inherit') { delete v.layerStates[lid]; }
+    else { v.layerStates[lid] = { visible: next === 'on' }; }
+    bmSetViews(detailRow, views);
+    bmRenderMatrix(detailRow);
+    markBmChanged(detailRow);
+    return;
+  }
+  // View löschen
+  if (t.classList.contains('bm-mtx-vdel')) {
+    var vidDel = t.dataset.vid;
+    if (!confirm('Ansicht "' + vidDel + '" löschen?')) return;
+    var views2 = bmGetViews(detailRow).filter(function(v) { return v && v.id !== vidDel; });
+    bmSetViews(detailRow, views2);
+    bmRenderMatrix(detailRow);
+    markBmChanged(detailRow);
+    return;
+  }
+  // Layer löschen
+  if (t.closest('.bm-mtx-cell-del')) {
+    var btn = t.closest('button[data-lid]');
+    if (!btn) return;
+    var lidDel = btn.dataset.lid;
+    var layers2 = bmGetLayers(detailRow).filter(function(l) { return l.id !== lidDel; });
+    // Aus allen Views layerStates entfernen
+    var views3 = bmGetViews(detailRow).map(function(v) {
+      if (v && v.layerStates) delete v.layerStates[lidDel];
+      return v;
+    });
+    bmSetLayers(detailRow, layers2);
+    bmSetViews(detailRow, views3);
+    bmRenderMatrix(detailRow);
+    markBmChanged(detailRow);
+    return;
+  }
+  // Neue Ansicht
+  if (t.classList.contains('bm-mtx-addview')) {
+    var views4 = bmGetViews(detailRow);
+    var newId = bmNextViewId(views4);
+    views4.push({ id: newId, name: newId, isDefault: false, layerStates: {} });
+    bmSetViews(detailRow, views4);
+    bmRenderMatrix(detailRow);
+    markBmChanged(detailRow);
+    return;
+  }
+}
+
+function bmMatrixHandleChange(e, detailRow) {
+  var t = e.target;
+  // Default-Visible-Checkbox
+  if (t.matches('.bm-mtx-cell-default input[type=checkbox]')) {
+    var lid = t.dataset.lid;
+    var layers = bmGetLayers(detailRow);
+    var l = layers.find(function(x) { return x.id === lid; });
+    if (l) { l.visible = !!t.checked; bmSetLayers(detailRow, layers); markBmChanged(detailRow); }
+    return;
+  }
+  // isDefault-Radio (Default-View)
+  if (t.matches('input[type=radio][name^="bm-defview-"]')) {
+    var vid = t.dataset.vid;
+    var viewsR = bmGetViews(detailRow).map(function(v) { return v ? Object.assign({}, v, { isDefault: v.id === vid }) : v; });
+    bmSetViews(detailRow, viewsR);
+    markBmChanged(detailRow);
+    return;
+  }
+  // View-Name umbenennen
+  if (t.matches('.bm-mtx-vname')) {
+    var vidR = t.dataset.vid;
+    var viewsN = bmGetViews(detailRow).map(function(v) {
+      if (v && v.id === vidR) v.name = t.value;
+      return v;
+    });
+    bmSetViews(detailRow, viewsN);
+    markBmChanged(detailRow);
+    return;
+  }
+  // Opacity / Filter per Layer
+  if (t.matches('input[data-prop]')) {
+    var lidO = t.dataset.lid;
+    var prop = t.dataset.prop;
+    var val  = t.value.trim();
+    var layersO = bmGetLayers(detailRow);
+    var lo = layersO.find(function(x) { return x.id === lidO; });
+    if (lo) {
+      if (prop === 'opacity') {
+        lo.opacity = (val === '' || !isFinite(+val)) ? null : Math.max(0, Math.min(1, +val));
+      } else if (prop === 'filter') {
+        lo.filter = val === '' ? null : val;
+      }
+      bmSetLayers(detailRow, layersO);
+      markBmChanged(detailRow);
+    }
+    return;
+  }
+  // Matrix-Filter
+  if (t.matches('.bm-mtx-filter')) {
+    bmApplyMatrixFilter(detailRow);
+    return;
+  }
+}
+
+function bmMatrixAddLayer(detailRow, layerId) {
+  layerId = (layerId || '').trim();
+  if (!layerId) return false;
+  var layers = bmGetLayers(detailRow);
+  if (layers.some(function(l) { return l.id === layerId; })) return false; // schon drin
+  layers.push(bmLayerObj({ id: layerId }));
+  bmSetLayers(detailRow, layers);
+  bmRenderMatrix(detailRow);
+  markBmChanged(detailRow);
+  return true;
+}
 
 // Alle verfügbaren Layer-Keys vom Server laden (einmal gecacht)
 function loadAllLayerKeys() {
@@ -7197,17 +7647,27 @@ function renderBookmarkTable(bookmarks) {
 }
 
 function createBookmarkRows(bm, idx) {
-  var name = bm['map-bookmark'] || '';
+  // Akzeptiert v2-Schema (id, viewport, layers:[obj]) und faellt auf v1-Felder zurueck
+  // damit zwischenzeitlich gespeicherte v1-Daten im Editor noch korrekt geoeffnet werden.
+  var name = bm.id || bm['map-bookmark'] || '';
   var aliases = (bm.aliases || []).join(', ');
   var basemap = bm.basemap || '';
-  var layerArr = bm.layers || [];
-  var opacity = (bm.opacity || []).join(', ');
+  var layerArr = bm.layers || [];                    // Layer-Objekte (v2) oder Strings (v1)
   var theme = bm.theme || '';
   var subtheme = bm.subtheme || '';
   var themes = bm.themes || '';
-  var x = bm.x != null ? bm.x : '';
-  var y = bm.y != null ? bm.y : '';
-  var zoom = bm.zoom != null ? bm.zoom : '';
+  var vp = (bm.viewport && typeof bm.viewport === 'object') ? bm.viewport : bm;
+  var x = (vp.x != null) ? vp.x : '';
+  var y = (vp.y != null) ? vp.y : '';
+  var zoom = (vp.zoom != null) ? vp.zoom : '';
+
+  // Passthrough: views[] und meta werden im Editor (noch) nicht visuell editiert,
+  // muessen aber beim Save erhalten bleiben. Spaeter ersetzt Phase 5c die Views-Pass-through.
+  var bmViewsJson = JSON.stringify(bm.views || []);
+  var bmMetaJson  = JSON.stringify(bm.meta  || { schemaVersion: 2 });
+
+  // Layer-IDs fuer Anzeige und Suche aus Objekt-Array extrahieren
+  var layerIds = layerArr.map(bmLayerId);
 
   // Zusammenfassungs-Zeile (immer sichtbar, einklappbar)
   var summary = document.createElement('tr');
@@ -7216,16 +7676,17 @@ function createBookmarkRows(bm, idx) {
   summary.dataset.name = name.toLowerCase();
   summary.dataset.aliases = aliases.toLowerCase();
   summary.dataset.basemap = basemap.toLowerCase();
-  summary.dataset.layerText = layerArr.join(' ').toLowerCase();
+  summary.dataset.layerText = layerIds.join(' ').toLowerCase();
   summary.dataset.themes = (themes || '').toLowerCase();
 
   var layerPreview = '';
-  for (var lp = 0; lp < Math.min(layerArr.length, 4); lp++) {
-    var isV = _bmAllLayerKeys.indexOf(layerArr[lp]) !== -1;
-    layerPreview += '<span class="bm-layer-tag ' + (isV ? 'valid' : 'invalid') + '" data-layer="' + esc(layerArr[lp]) + '">' + esc(layerArr[lp]) + '</span>';
+  for (var lp = 0; lp < Math.min(layerIds.length, 4); lp++) {
+    var lid = layerIds[lp];
+    var isV = _bmAllLayerKeys.indexOf(lid) !== -1;
+    layerPreview += '<span class="bm-layer-tag ' + (isV ? 'valid' : 'invalid') + '" data-layer="' + esc(lid) + '">' + esc(lid) + '</span>';
   }
-  if (layerArr.length > 4) layerPreview += '<span style="font-size:10px;color:#888"> +' + (layerArr.length - 4) + '</span>';
-  if (layerArr.length === 0) layerPreview = '<span style="color:#ccc;font-size:10px">–</span>';
+  if (layerIds.length > 4) layerPreview += '<span style="font-size:10px;color:#888"> +' + (layerIds.length - 4) + '</span>';
+  if (layerIds.length === 0) layerPreview = '<span style="color:#ccc;font-size:10px">–</span>';
 
   summary.innerHTML =
     '<td><span class="bm-expand-icon">▶</span><strong style="font-family:monospace;font-size:11px">' + esc(name) + '</strong></td>' +
@@ -7245,21 +7706,35 @@ function createBookmarkRows(bm, idx) {
   var detail = document.createElement('tr');
   detail.className = 'bm-row-detail';
   detail.dataset.idx = idx;
+  // Schema-v2 State: Layer + Views + Meta als JSON im dataset (Single Source of Truth)
+  detail.dataset.bmLayers = JSON.stringify(layerArr.map(bmLayerObj));
+  detail.dataset.bmViews  = bmViewsJson;
+  detail.dataset.bmMeta   = bmMetaJson;
+
   var detailTd = document.createElement('td');
   detailTd.colSpan = 12;
   detailTd.innerHTML =
-    '<div style="display:grid;grid-template-columns:100px 1fr;gap:4px 8px;max-width:800px;font-size:11px">' +
+    '<div style="display:grid;grid-template-columns:100px 1fr;gap:4px 8px;font-size:11px">' +
     '<label>Name:</label><input class="bm-name" data-field="name" value="' + esc(name) + '" oninput="markBmChanged(this);bmSyncSummary(this)">' +
     '<label>Aliases:</label><input class="bm-alias" data-field="aliases" value="' + esc(aliases) + '" title="Kommasepariert" oninput="markBmChanged(this);bmSyncSummary(this)">' +
     '<label>Basemap:</label><input data-field="basemap" value="' + esc(basemap) + '" oninput="markBmChanged(this);bmSyncSummary(this)">' +
-    '<label>Layers:</label><div class="bm-layers-wrap"><div class="bm-layers-tags"></div><input class="bm-layers-input" data-field="layers" placeholder="Layer hinzufügen…" autocomplete="off"><div class="bm-ac-list"></div></div>' +
-    '<label>Opacity:</label><input class="bm-num" data-field="opacity" value="' + esc(opacity) + '" title="Kommasepariert (0-1)" oninput="markBmChanged(this)">' +
     '<label>Theme:</label><input data-field="theme" value="' + esc(theme) + '" oninput="markBmChanged(this)">' +
     '<label>Subtheme:</label><input data-field="subtheme" value="' + esc(subtheme) + '" oninput="markBmChanged(this)">' +
-    '<label>Themen:</label><input data-field="themes" value="' + esc(themes) + '" title="Kommasepariert, z.B. nw:oereb, ow:oereb" placeholder="nw:oereb, ow:oereb" oninput="markBmChanged(this);bmSyncSummaryThemes(this)">' +
+    '<label>Themen:</label><input data-field="themes" value="' + esc(themes) + '" title="z.B. nw:oereb" placeholder="nw:oereb" oninput="markBmChanged(this);bmSyncSummaryThemes(this)">' +
     '<label>X:</label><input class="bm-num" data-field="x" value="' + esc(String(x)) + '" oninput="markBmChanged(this)">' +
     '<label>Y:</label><input class="bm-num" data-field="y" value="' + esc(String(y)) + '" oninput="markBmChanged(this)">' +
     '<label>Zoom:</label><input class="bm-num" data-field="zoom" value="' + esc(String(zoom)) + '" oninput="markBmChanged(this)">' +
+    '<label>Layer:</label>' +
+      '<div class="bm-mtx-wrap">' +
+        '<div class="bm-mtx-toolbar">' +
+          '<div class="bm-mtx-add-layer">' +
+            '<input class="bm-layers-input" data-field="layers" placeholder="Layer hinzufügen…" autocomplete="off">' +
+            '<div class="bm-ac-list"></div>' +
+          '</div>' +
+          '<input class="bm-mtx-filter" placeholder="Layer filtern…">' +
+        '</div>' +
+        '<div class="bm-mtx-scroll"></div>' +
+      '</div>' +
     '</div>' +
     '<div class="bm-inline-json" data-ij="1">' +
     '<textarea spellcheck="false"></textarea>' +
@@ -7270,14 +7745,33 @@ function createBookmarkRows(bm, idx) {
     '</div></div>';
   detail.appendChild(detailTd);
 
-  // Layer-Tags rendern im Detail
-  var tagsDiv = detail.querySelector('.bm-layers-tags');
+  // Matrix initial rendern
+  bmRenderMatrix(detail);
+
+  // Event-Delegation: Click + Change auf die Matrix
+  var mtxWrap = detail.querySelector('.bm-mtx-wrap');
+  mtxWrap.addEventListener('click', function(e) { bmMatrixHandleClick(e, detail); });
+  mtxWrap.addEventListener('change', function(e) { bmMatrixHandleChange(e, detail); });
+  mtxWrap.addEventListener('input',  function(e) {
+    // Live-Filter und Live-Edit für Inputs
+    if (e.target.matches('.bm-mtx-filter')) bmApplyMatrixFilter(detail);
+    if (e.target.matches('.bm-mtx-vname') || e.target.matches('input[data-prop]')) bmMatrixHandleChange(e, detail);
+  });
+
+  // Add-Layer-Input: Autocomplete mit onAdd-Callback, der die Matrix erweitert.
+  // getLayerTagValues(fakeTags) liefert die aktuell vorhandenen Layer-IDs (Existing-Check).
   var acInput = detail.querySelector('.bm-layers-input');
-  var acList = detail.querySelector('.bm-ac-list');
-  for (var li = 0; li < layerArr.length; li++) {
-    tagsDiv.appendChild(createLayerTag(layerArr[li], detail));
-  }
-  initLayerAutocomplete(acInput, acList, tagsDiv, detail);
+  var acList  = detail.querySelector('.bm-ac-list');
+  var fakeTags = {
+    querySelectorAll: function() {
+      return bmGetLayers(detail).map(function(l) {
+        return { dataset: { layer: l.id } };
+      });
+    }
+  };
+  initLayerAutocomplete(acInput, acList, fakeTags, detail, function(layerId) {
+    bmMatrixAddLayer(detail, layerId);
+  });
 
   // Klick auf Summary → Detail ein-/ausklappen
   summary.addEventListener('click', function(e) {
@@ -7367,13 +7861,21 @@ function markBmChanged(input) {
 // ===== LAYER-TAG + AUTOCOMPLETE =====
 
 // Einzelnes Layer-Tag erstellen (farblich validiert)
-function createLayerTag(layerKey, tr) {
+// Akzeptiert v1-String ODER v2-Layer-Objekt. Speichert das volle Objekt
+// in dataset.layerObj, damit per-Layer-State (visible/opacity/order/filter)
+// beim Save erhalten bleibt, auch wenn 5b die Felder noch nicht im UI editiert.
+function createLayerTag(layer, tr) {
+  var obj = bmLayerObj(layer);
+  var layerKey = obj.id;
   var span = document.createElement('span');
   span.className = 'bm-layer-tag';
   span.dataset.layer = layerKey;
+  span.dataset.layerObj = JSON.stringify(obj);
   var isValid = _bmAllLayerKeys.indexOf(layerKey) !== -1;
   span.classList.add(isValid ? 'valid' : 'invalid');
   span.title = isValid ? 'Layer vorhanden' : 'Layer nicht gefunden!';
+  // Optisches Off-Indiz wenn visible:false (per-Layer-Edit folgt in 5c)
+  if (!obj.visible) span.classList.add('bm-layer-off');
   span.innerHTML = esc(layerKey) + '<span class="bm-tag-x" title="Entfernen">×</span>';
   span.querySelector('.bm-tag-x').addEventListener('click', function() {
     span.remove();
@@ -7382,7 +7884,7 @@ function createLayerTag(layerKey, tr) {
   return span;
 }
 
-// Layer-Tags im Container als Array auslesen
+// Layer-Tags im Container als String-Array auslesen (nur IDs — z. B. fuer Existenz-Check im Autocomplete).
 function getLayerTagValues(tagsDiv) {
   var tags = tagsDiv.querySelectorAll('.bm-layer-tag');
   var arr = [];
@@ -7392,9 +7894,41 @@ function getLayerTagValues(tagsDiv) {
   return arr;
 }
 
-// Autocomplete für Layer-Eingabe initialisieren
-function initLayerAutocomplete(input, acList, tagsDiv, tr) {
+// Layer-Tags als v2-Objekt-Array auslesen (fuer Save). Rekonstruiert
+// Default-Objekt wenn dataset.layerObj fehlt (neu hinzugefuegte Tags).
+function getLayerTagObjects(tagsDiv) {
+  var tags = tagsDiv.querySelectorAll('.bm-layer-tag');
+  var arr = [];
+  for (var i = 0; i < tags.length; i++) {
+    var raw = tags[i].dataset.layerObj;
+    if (raw) {
+      try { arr.push(bmLayerObj(JSON.parse(raw))); continue; } catch (e) { /* fallthrough */ }
+    }
+    arr.push(bmLayerObj(tags[i].dataset.layer));
+  }
+  return arr;
+}
+
+// Autocomplete für Layer-Eingabe initialisieren.
+// onAdd(key) ist OPTIONAL — wenn gesetzt, wird der Callback statt
+// tagsDiv.appendChild verwendet (fuer die Matrix). Backward-compat: ohne
+// onAdd wird ein neuer Layer-Tag in tagsDiv eingehaengt.
+function initLayerAutocomplete(input, acList, tagsDiv, tr, onAdd) {
   var activeIdx = -1;
+  function addLayer(key) {
+    if (typeof onAdd === 'function') {
+      onAdd(key);
+    } else {
+      tagsDiv.appendChild(createLayerTag(key, tr));
+      tr.classList.add('bm-row-changed');
+    }
+    input.value = '';
+    acList.style.display = 'none';
+    input.focus();
+  }
+  function getExisting() {
+    return getLayerTagValues(tagsDiv);
+  }
 
   input.addEventListener('input', function() {
     var val = input.value.trim().toLowerCase();
@@ -7402,8 +7936,8 @@ function initLayerAutocomplete(input, acList, tagsDiv, tr) {
     activeIdx = -1;
     if (val.length < 1) { acList.style.display = 'none'; return; }
 
-    // Bereits vorhandene Tags ausschliessen
-    var existing = getLayerTagValues(tagsDiv);
+    // Bereits vorhandene Layer ausschliessen
+    var existing = getExisting();
     var matches = _bmAllLayerKeys.filter(function(k) {
       return k.toLowerCase().indexOf(val) !== -1 && existing.indexOf(k) === -1;
     }).slice(0, 30);
@@ -7412,7 +7946,6 @@ function initLayerAutocomplete(input, acList, tagsDiv, tr) {
 
     for (var i = 0; i < matches.length; i++) {
       var div = document.createElement('div');
-      // Treffer hervorheben
       var lowerKey = matches[i].toLowerCase();
       var pos = lowerKey.indexOf(val);
       div.innerHTML = esc(matches[i].substring(0, pos)) +
@@ -7420,13 +7953,7 @@ function initLayerAutocomplete(input, acList, tagsDiv, tr) {
         esc(matches[i].substring(pos + val.length));
       div.dataset.key = matches[i];
       div.addEventListener('click', (function(key) {
-        return function() {
-          tagsDiv.appendChild(createLayerTag(key, tr));
-          input.value = '';
-          acList.style.display = 'none';
-          tr.classList.add('bm-row-changed');
-          input.focus();
-        };
+        return function() { addLayer(key); };
       })(matches[i]));
       acList.appendChild(div);
     }
@@ -7449,16 +7976,12 @@ function initLayerAutocomplete(input, acList, tagsDiv, tr) {
       if (activeIdx >= 0 && items[activeIdx]) {
         items[activeIdx].click();
       } else if (input.value.trim()) {
-        // Freitext-Eingabe erlauben (Komma oder Enter)
-        tagsDiv.appendChild(createLayerTag(input.value.trim(), tr));
-        input.value = '';
-        acList.style.display = 'none';
-        tr.classList.add('bm-row-changed');
+        addLayer(input.value.trim());
       }
     } else if (e.key === 'Escape') {
       acList.style.display = 'none';
-    } else if (e.key === 'Backspace' && !input.value) {
-      // Letztes Tag löschen bei Backspace im leeren Feld
+    } else if (e.key === 'Backspace' && !input.value && typeof onAdd !== 'function') {
+      // Backspace-Loeschen nur im alten Tag-Modus (Matrix hat Loesch-Spalte)
       var lastTag = tagsDiv.querySelector('.bm-layer-tag:last-child');
       if (lastTag) { lastTag.remove(); tr.classList.add('bm-row-changed'); }
     }
@@ -7497,6 +8020,7 @@ function updateAcActive(items, idx) {
 
 // Alle Layer-Tags nach Laden der Layer-Keys neu validieren
 function revalidateAllLayerTags() {
+  // Summary-Preview-Tags
   var tags = document.querySelectorAll('#bm-tbody .bm-layer-tag');
   for (var i = 0; i < tags.length; i++) {
     var key = tags[i].dataset.layer;
@@ -7505,13 +8029,18 @@ function revalidateAllLayerTags() {
     tags[i].classList.add(isValid ? 'valid' : 'invalid');
     tags[i].title = isValid ? 'Layer vorhanden' : 'Layer nicht gefunden!';
   }
+  // Matrix-Zeilen re-rendern (Layer-Name-Spalte färbt sich nach Validierung um)
+  var details = document.querySelectorAll('#bm-tbody tr.bm-row-detail');
+  for (var j = 0; j < details.length; j++) {
+    if (details[j].querySelector('.bm-mtx-scroll')) bmRenderMatrix(details[j]);
+  }
 }
 
 function addBookmarkEntry() {
   bmPushUndo();
   var tbody = document.getElementById('bm-tbody');
   var idx = tbody.querySelectorAll('tr.bm-row-summary').length;
-  var emptyBm = { 'map-bookmark': '', basemap: '', layers: [] };
+  var emptyBm = { id: '', basemap: '', layers: [], meta: { schemaVersion: 2 } };
   var rows = createBookmarkRows(emptyBm, idx);
   rows.summary.classList.add('bm-row-changed');
   rows.detail.classList.add('bm-expanded'); // Neue Einträge aufgeklappt
@@ -7568,7 +8097,7 @@ function collectBookmarkData() {
     var name = tr.querySelector('[data-field="name"]').value.trim();
     if (!name) continue; // Leere Zeilen ignorieren
 
-    var entry = { 'map-bookmark': name };
+    var entry = { id: name };
 
     var aliasStr = tr.querySelector('[data-field="aliases"]').value.trim();
     if (aliasStr) {
@@ -7578,35 +8107,39 @@ function collectBookmarkData() {
     var basemap = tr.querySelector('[data-field="basemap"]').value.trim();
     if (basemap) entry.basemap = basemap;
 
-    // Layer aus Tag-Container lesen
-    var tagsDiv = tr.querySelector('.bm-layers-tags');
-    if (tagsDiv) {
-      var layerTags = getLayerTagValues(tagsDiv);
-      if (layerTags.length) entry.layers = layerTags;
-    }
-
-    var opacityStr = tr.querySelector('[data-field="opacity"]').value.trim();
-    if (opacityStr) {
-      entry.opacity = opacityStr.split(',').map(function(s) { return s.trim(); }).filter(Boolean);
-    }
-
     var theme = tr.querySelector('[data-field="theme"]').value.trim();
     if (theme) entry.theme = theme;
-
     var subtheme = tr.querySelector('[data-field="subtheme"]').value.trim();
     if (subtheme) entry.subtheme = subtheme;
-
     var themes = tr.querySelector('[data-field="themes"]').value.trim();
     if (themes) entry.themes = themes;
 
+    // Viewport zusammenbauen (v2-Struktur)
+    var vp = {};
     var xVal = tr.querySelector('[data-field="x"]').value.trim();
-    if (xVal) entry.x = parseFloat(xVal);
-
+    if (xVal) vp.x = parseFloat(xVal);
     var yVal = tr.querySelector('[data-field="y"]').value.trim();
-    if (yVal) entry.y = parseFloat(yVal);
-
+    if (yVal) vp.y = parseFloat(yVal);
     var zoomVal = tr.querySelector('[data-field="zoom"]').value.trim();
-    if (zoomVal) entry.zoom = parseInt(zoomVal, 10);
+    if (zoomVal) vp.zoom = parseInt(zoomVal, 10);
+    if (Object.keys(vp).length) entry.viewport = vp;
+
+    // Layer aus Matrix-State (dataset.bmLayers) lesen
+    var layerObjs = bmGetLayers(tr);
+    if (layerObjs.length) entry.layers = layerObjs;
+
+    // Views aus Matrix-State (dataset.bmViews)
+    var v = bmGetViews(tr);
+    if (Array.isArray(v) && v.length) entry.views = v;
+
+    try {
+      var m = JSON.parse(tr.dataset.bmMeta || '{}');
+      if (!m || typeof m !== 'object') m = {};
+      m.schemaVersion = 2;
+      entry.meta = m;
+    } catch (eMeta) {
+      entry.meta = { schemaVersion: 2 };
+    }
 
     result.push(entry);
   }
@@ -7619,7 +8152,7 @@ function saveBookmarks() {
 
   // Commit-Dialog vor dem Speichern anzeigen
   var changedCount = document.querySelectorAll('#bm-tbody tr.bm-row-summary.bm-row-changed').length;
-  var defaultMsg = '[bookmarks] ' + data.length + ' Bookmarks aktualisiert' + (changedCount ? ' (' + changedCount + ' geändert)' : '');
+  var defaultMsg = _envLabel + ' [bookmarks] ' + data.length + ' Bookmarks aktualisiert' + (changedCount ? ' (' + changedCount + ' geändert)' : '');
 
   showCommitDialog(defaultMsg).then(function(result) {
     if (!result) return; // Abgebrochen
@@ -7776,8 +8309,8 @@ function sortBookmarkTable(field, dir) {
 function getBmSortValue(summary, detail, field) {
   if (field === 'layers') {
     if (detail) {
-      var tagsDiv = detail.querySelector('.bm-layers-tags');
-      return tagsDiv ? getLayerTagValues(tagsDiv).join(' ') : '';
+      // Matrix-State (Schema v2)
+      return bmGetLayers(detail).map(function(l) { return l.id; }).join(' ');
     }
     return summary.dataset.layerText || '';
   }
@@ -8083,30 +8616,42 @@ function bmReplaceAll() {
 function bmCollectSingleBookmark(detailRow) {
   var entry = {};
   var name = detailRow.querySelector('[data-field="name"]').value.trim();
-  if (name) entry['map-bookmark'] = name;
+  if (name) entry.id = name;
   var aliasStr = detailRow.querySelector('[data-field="aliases"]').value.trim();
   if (aliasStr) entry.aliases = aliasStr.split(',').map(function(s) { return s.trim(); }).filter(Boolean);
   var basemap = detailRow.querySelector('[data-field="basemap"]').value.trim();
   if (basemap) entry.basemap = basemap;
-  var tagsDiv = detailRow.querySelector('.bm-layers-tags');
-  if (tagsDiv) {
-    var layerTags = getLayerTagValues(tagsDiv);
-    if (layerTags.length) entry.layers = layerTags;
-  }
-  var opacityStr = detailRow.querySelector('[data-field="opacity"]').value.trim();
-  if (opacityStr) entry.opacity = opacityStr.split(',').map(function(s) { return s.trim(); }).filter(Boolean);
   var theme = detailRow.querySelector('[data-field="theme"]').value.trim();
   if (theme) entry.theme = theme;
   var subtheme = detailRow.querySelector('[data-field="subtheme"]').value.trim();
   if (subtheme) entry.subtheme = subtheme;
   var themes = detailRow.querySelector('[data-field="themes"]').value.trim();
   if (themes) entry.themes = themes;
+
+  var vp = {};
   var xVal = detailRow.querySelector('[data-field="x"]').value.trim();
-  if (xVal) entry.x = parseFloat(xVal);
+  if (xVal) vp.x = parseFloat(xVal);
   var yVal = detailRow.querySelector('[data-field="y"]').value.trim();
-  if (yVal) entry.y = parseFloat(yVal);
+  if (yVal) vp.y = parseFloat(yVal);
   var zoomVal = detailRow.querySelector('[data-field="zoom"]').value.trim();
-  if (zoomVal) entry.zoom = parseInt(zoomVal, 10);
+  if (zoomVal) vp.zoom = parseInt(zoomVal, 10);
+  if (Object.keys(vp).length) entry.viewport = vp;
+
+  var layerObjs = bmGetLayers(detailRow);
+  if (layerObjs.length) entry.layers = layerObjs;
+
+  var v = bmGetViews(detailRow);
+  if (Array.isArray(v) && v.length) entry.views = v;
+
+  try {
+    var m = JSON.parse(detailRow.dataset.bmMeta || '{}');
+    if (!m || typeof m !== 'object') m = {};
+    m.schemaVersion = 2;
+    entry.meta = m;
+  } catch (eM) {
+    entry.meta = { schemaVersion: 2 };
+  }
+
   return entry;
 }
 
@@ -8160,25 +8705,26 @@ function bmInlineJsonApply(btn) {
 
   bmPushUndo();
 
-  // Felder ins Formular zurückschreiben
-  detailRow.querySelector('[data-field="name"]').value = bm['map-bookmark'] || '';
+  // Felder ins Formular zurückschreiben (v2-Schema mit v1-Fallback)
+  detailRow.querySelector('[data-field="name"]').value = bm.id || bm['map-bookmark'] || '';
   detailRow.querySelector('[data-field="aliases"]').value = (bm.aliases || []).join(', ');
   detailRow.querySelector('[data-field="basemap"]').value = bm.basemap || '';
-  detailRow.querySelector('[data-field="opacity"]').value = (bm.opacity || []).join(', ');
   detailRow.querySelector('[data-field="theme"]').value = bm.theme || '';
   detailRow.querySelector('[data-field="subtheme"]').value = bm.subtheme || '';
   detailRow.querySelector('[data-field="themes"]').value = bm.themes || '';
-  detailRow.querySelector('[data-field="x"]').value = bm.x != null ? bm.x : '';
-  detailRow.querySelector('[data-field="y"]').value = bm.y != null ? bm.y : '';
-  detailRow.querySelector('[data-field="zoom"]').value = bm.zoom != null ? bm.zoom : '';
+  var vp = (bm.viewport && typeof bm.viewport === 'object') ? bm.viewport : bm;
+  detailRow.querySelector('[data-field="x"]').value = vp.x != null ? vp.x : '';
+  detailRow.querySelector('[data-field="y"]').value = vp.y != null ? vp.y : '';
+  detailRow.querySelector('[data-field="zoom"]').value = vp.zoom != null ? vp.zoom : '';
 
-  // Layer-Tags neu rendern
-  var tagsDiv = detailRow.querySelector('.bm-layers-tags');
-  tagsDiv.innerHTML = '';
-  var layers = bm.layers || [];
-  for (var i = 0; i < layers.length; i++) {
-    tagsDiv.appendChild(createLayerTag(layers[i], detailRow));
-  }
+  // State aktualisieren (dataset.bmLayers / bmViews / bmMeta) und Matrix neu rendern
+  var layers = (bm.layers || []).map(bmLayerObj);
+  bmSetLayers(detailRow, layers);
+  bmSetViews(detailRow, bm.views || []);
+  detailRow.dataset.bmMeta = JSON.stringify(bm.meta || { schemaVersion: 2 });
+  bmRenderMatrix(detailRow);
+  // Layer-IDs fuer Summary/Suche
+  var layerIds = layers.map(bmLayerId);
 
   // Summary synchronisieren
   var nameInput = detailRow.querySelector('[data-field="name"]');
@@ -8192,15 +8738,16 @@ function bmInlineJsonApply(btn) {
     var layerCell = summaryRow.querySelector('.bm-summary-layers');
     if (layerCell) {
       var preview = '';
-      for (var lp = 0; lp < Math.min(layers.length, 4); lp++) {
-        var isV = _bmAllLayerKeys.indexOf(layers[lp]) !== -1;
-        preview += '<span class="bm-layer-tag ' + (isV ? 'valid' : 'invalid') + '" data-layer="' + esc(layers[lp]) + '">' + esc(layers[lp]) + '</span>';
+      for (var lp = 0; lp < Math.min(layerIds.length, 4); lp++) {
+        var lid = layerIds[lp];
+        var isV = _bmAllLayerKeys.indexOf(lid) !== -1;
+        preview += '<span class="bm-layer-tag ' + (isV ? 'valid' : 'invalid') + '" data-layer="' + esc(lid) + '">' + esc(lid) + '</span>';
       }
-      if (layers.length > 4) preview += '<span style="font-size:10px;color:#888"> +' + (layers.length - 4) + '</span>';
-      if (layers.length === 0) preview = '<span style="color:#ccc;font-size:10px">–</span>';
+      if (layerIds.length > 4) preview += '<span style="font-size:10px;color:#888"> +' + (layerIds.length - 4) + '</span>';
+      if (layerIds.length === 0) preview = '<span style="color:#ccc;font-size:10px">–</span>';
       layerCell.innerHTML = preview;
     }
-    summaryRow.dataset.layerText = layers.join(' ').toLowerCase();
+    summaryRow.dataset.layerText = layerIds.join(' ').toLowerCase();
   }
 
   ijDiv.classList.remove('bm-active');
@@ -8248,6 +8795,7 @@ document.getElementById('slm-bk-checkall').addEventListener('change', function()
   slmUpdateDeleteBtn();
 });
 document.getElementById('slm-bk-delete-sel').addEventListener('click', slmDeleteSelected);
+document.getElementById('slm-bk-delete-rawconf').addEventListener('click', slmDeleteAllRawConfBackups);
 
 function slmLoadBackupList() {
   var tbody = document.getElementById('slm-bk-tbody');
@@ -8275,6 +8823,12 @@ function slmRenderBackupTable() {
   var filter = document.getElementById('slm-bk-type-filter').value;
   var filtered = filter ? _slmBackupData.filter(function(b) { return b.type === filter; }) : _slmBackupData;
 
+  // "Alle Raw-Conf Backups löschen"-Button nur bei rawconf-Filter zeigen
+  var rawconfBtn = document.getElementById('slm-bk-delete-rawconf');
+  var rawconfCount = _slmBackupData.filter(function(b) { return b.type === 'rawconf'; }).length;
+  rawconfBtn.style.display = (filter === 'rawconf' || rawconfCount > 0) ? '' : 'none';
+  rawconfBtn.textContent = '🧹 Raw-Conf Backups löschen (' + rawconfCount + ')';
+
   if (filtered.length === 0) {
     tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;color:#999">Keine Backups' + (filter ? ' vom Typ "' + filter + '"' : '') + '</td></tr>';
     return;
@@ -8283,22 +8837,25 @@ function slmRenderBackupTable() {
   var html = '';
   filtered.forEach(function(b) {
     var sizeStr = b.size > 1048576 ? (b.size / 1048576).toFixed(1) + ' MB' : (b.size / 1024).toFixed(0) + ' KB';
-    var isState = b.type === 'state';
+    var canRestore = b.type === 'state' || b.type === 'rawconf';
+    // rawconf: nur den Dateinamen anzeigen, voller Pfad als title
+    var displayName = b.type === 'rawconf' ? b.file.split('/').pop() : b.file;
+    var titleAttr = b.type === 'rawconf' ? ' title="' + esc(b.file) + '"' : '';
     html += '<tr data-file="' + esc(b.file) + '">';
     html += '<td><input type="checkbox" class="bk-cb" data-file="' + esc(b.file) + '"></td>';
-    html += '<td style="font-family:Consolas,monospace;font-size:10px;word-break:break-all">' + esc(b.file) + '</td>';
+    html += '<td style="font-family:Consolas,monospace;font-size:10px;word-break:break-all"' + titleAttr + '>' + esc(displayName) + '</td>';
     html += '<td><span class="bk-type ' + b.type + '">' + esc(b.type) + '</span></td>';
     html += '<td style="white-space:nowrap">' + sizeStr + '</td>';
     html += '<td style="white-space:nowrap">' + esc(b.timestamp || b.modified) + '</td>';
     html += '<td class="bk-actions">';
-    if (isState) html += '<button class="bk-restore" data-file="' + esc(b.file) + '" title="Dieses Backup wiederherstellen">↩ Restore</button>';
+    if (canRestore) html += '<button class="bk-restore" data-file="' + esc(b.file) + '" data-type="' + esc(b.type) + '" title="Dieses Backup wiederherstellen">↩ Restore</button>';
     html += '<button class="bk-del" data-file="' + esc(b.file) + '" title="Löschen">🗑</button>';
     html += '</td></tr>';
   });
   tbody.innerHTML = html;
 
   tbody.querySelectorAll('.bk-restore').forEach(function(btn) {
-    btn.addEventListener('click', function(e) { e.stopPropagation(); slmRestoreBackup(btn.dataset.file); });
+    btn.addEventListener('click', function(e) { e.stopPropagation(); slmRestoreBackup(btn.dataset.file, btn.dataset.type); });
   });
   tbody.querySelectorAll('.bk-del').forEach(function(btn) {
     btn.addEventListener('click', function(e) { e.stopPropagation(); slmDeleteSingle(btn.dataset.file); });
@@ -8352,19 +8909,106 @@ function slmDeleteSelected() {
   .catch(function(err) { statusEl.textContent = '✗ Fehler: ' + err.message; });
 }
 
-function slmRestoreBackup(filename) {
-  if (!confirm('Backup wiederherstellen?\n\n' + filename + '\n\nDer aktuelle Zustand wird vorher gesichert.')) return;
+function slmDeleteAllRawConfBackups() {
+  var rawconfFiles = _slmBackupData.filter(function(b) { return b.type === 'rawconf'; });
+  if (rawconfFiles.length === 0) return;
+  if (!confirm('Alle ' + rawconfFiles.length + ' Raw-Conf Backups (.bak) löschen?\n\nDiese Aktion kann nicht rückgängig gemacht werden.')) return;
+  var statusEl = document.getElementById('slm-bk-status');
+  statusEl.textContent = '⏳ Lösche ' + rawconfFiles.length + ' Raw-Conf Backups…';
+  var files = rawconfFiles.map(function(b) { return b.file; });
+  fetch(API_URL + '?action=delete-backup', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ files: files })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(resp) {
+    if (!resp.success) throw new Error(resp.error || 'Fehler');
+    var freedMB = (resp.data.freedBytes / 1024 / 1024).toFixed(1);
+    statusEl.textContent = '✓ ' + resp.data.deleted + ' Raw-Conf Backup(s) gelöscht (' + freedMB + ' MB freigegeben)';
+    slmLoadBackupList();
+  })
+  .catch(function(err) { statusEl.textContent = '✗ Fehler: ' + err.message; });
+}
+
+function slmRestoreBackup(filename, type) {
+  var msg = type === 'rawconf'
+    ? 'Raw-Conf-Datei wiederherstellen?\n\n' + filename + '\n\n⚠ Die aktuelle Datei wird überschrieben (vorher automatisch gesichert).'
+    : 'Backup wiederherstellen?\n\n' + filename + '\n\nDer aktuelle Zustand wird vorher gesichert.';
+  if (!confirm(msg)) return;
   var statusEl = document.getElementById('slm-bk-status');
   statusEl.textContent = '⏳ Wiederherstellen…';
-  fetch(API_URL + '?action=restore&file=' + encodeURIComponent(filename))
+  var action = type === 'rawconf' ? 'restore-rawconf' : 'restore';
+  fetch(API_URL + '?action=' + action + '&file=' + encodeURIComponent(filename))
     .then(function(r) { return r.json(); })
     .then(function(resp) {
       if (!resp.success) throw new Error(resp.error || 'Fehler');
-      statusEl.textContent = '✓ Wiederhergestellt aus: ' + filename;
+      var to = (resp.data && resp.data.to) ? ' → ' + resp.data.to : '';
+      statusEl.textContent = '✓ Wiederhergestellt: ' + filename + to;
       slmLoadBackupList();
     })
     .catch(function(err) { statusEl.textContent = '✗ Fehler: ' + err.message; });
 }
 </script>
+
+<script>
+function _showBuildTs(id) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  var d = new Date(document.lastModified);
+  var z = function(n) { return n < 10 ? '0' + n : String(n); };
+  el.textContent = 'Release ' + z(d.getDate()) + '.' + z(d.getMonth()+1) + '.' + d.getFullYear() + ' ' + z(d.getHours()) + ':' + z(d.getMinutes());
+}_showBuildTs('slm-build-ts');
+</script>
+
+
+<script>
+/* ===== PFAD-INFO-BARS + DEV-BUTTON ===== */
+(function() {
+  var isDev     = location.pathname.indexOf('/maps-dev/') === 0;
+  var coreName  = isDev ? 'core-dev' : 'core';
+  var rawConf   = isDev ? 'data/tmp/maps-dev/raw-conf'    : 'data/tmp/maps/raw-conf';
+  var impCore   = isDev ? 'data/tmp/maps-dev/ImportToCore' : 'data/tmp/maps/ImportToCore';
+  var coreCfg   = '/www/' + coreName + '/config/';
+  var coreNls   = '/www/' + coreName + '/nls/de/';
+
+  // Button-Text + Tooltip
+  var expBtn = document.getElementById('editor-btn-export');
+  if (expBtn) {
+    expBtn.title = 'Dateien nach ' + coreName + '/config/ und ' + coreName + '/nls/de/ exportieren';
+  }
+  var expTitle = document.getElementById('export-confirm-title');
+  if (expTitle) expTitle.textContent = '\u{1F4E4} Nach ' + coreName + ' exportieren';
+
+  // Hilfsfunktion: Pfad-Bar erstellen
+  function makeBar(items) {
+    var bar = document.createElement('div');
+    bar.className = 'path-info-bar';
+    var html = '';
+    items.forEach(function(item, i) {
+      if (i > 0) html += '<span class="pib-arrow">&rarr;</span>';
+      html += '<span class="pib-lbl">' + item[0] + '</span> <span class="pib-path">' + item[1] + '</span>';
+    });
+    bar.innerHTML = html;
+    return bar;
+  }
+
+  // Staging-Tab: raw-conf → ImportToCore
+  var paneStaging = document.getElementById('pane-staging');
+  if (paneStaging && !paneStaging.querySelector('.path-info-bar')) {
+    paneStaging.insertBefore(
+      makeBar([['raw-conf', rawConf], ['ImportToCore', impCore]]),
+      paneStaging.firstChild
+    );
+  }
+
+  // Editor-Tab: ImportToCore → core-dev/config + nls
+  var paneEditor = document.getElementById('pane-editor');
+  if (paneEditor && !paneEditor.querySelector('.path-info-bar')) {
+    paneEditor.insertBefore(
+      makeBar([['ImportToCore', impCore], [coreName + '/config', coreCfg], [coreName + '/nls/de', coreNls]]),
+      paneEditor.firstChild
+    );
+  }
+})();
+</script>
 </body>
-</html>

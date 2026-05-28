@@ -42,6 +42,35 @@ function resolveAppBasePath($scriptName, $requestUri) {
     return '';
 }
 
+function normalizeAppProxyUrl($url) {
+    global $appBasePath;
+
+    if (!is_string($url) || $url === '') {
+        return $url;
+    }
+
+    $normalizedUrl = str_replace('\\', '/', $url);
+    if (preg_match('#^https?://#i', $normalizedUrl) || strpos($normalizedUrl, '//') === 0) {
+        return $url;
+    }
+
+    $root = $appBasePath !== '' ? $appBasePath : '';
+    if (preg_match('#^/maps(?:-dev)?(/tnet/agsproxy/.*)$#i', $normalizedUrl, $matches)) {
+        return $root . $matches[1];
+    }
+    if (preg_match('#^/maps(?:-dev)?(/agsproxy\.php(?:\?.*)?)$#i', $normalizedUrl, $matches)) {
+        return $root . $matches[1];
+    }
+    if (preg_match('#^/tnet/agsproxy/#i', $normalizedUrl) || preg_match('#^/agsproxy\.php#i', $normalizedUrl)) {
+        return $root . $normalizedUrl;
+    }
+    if (preg_match('#^(tnet/agsproxy/.*|agsproxy\.php(?:\?.*)?)$#i', $normalizedUrl)) {
+        return ($root !== '' ? $root . '/' : '/') . $normalizedUrl;
+    }
+
+    return $url;
+}
+
 $appBasePath = resolveAppBasePath($_SERVER['SCRIPT_NAME'] ?? '', $_SERVER['REQUEST_URI'] ?? '');
 
 // === Parameter lesen ===
@@ -64,8 +93,8 @@ if ($action === 'nls_check') {
     header('Content-Type: application/json; charset=utf-8');
 
     // 1. Alle lyrmgrResources_*.json laden
-    //    Basis:       /www/core/nls/de/          (4 Ebenen hoch)
-    //    Überladungen: /www/maps/core/nls/de/     (3 Ebenen hoch)
+    //    Basis: Umgebungs-Core (DEV: core-dev, PROD: core)
+    //    Überladungen: app-lokaler core/nls/de Pfad
     //    Überladungen überschreiben gleichnamige Keys aus der Basis.
     $nlsDirBase     = ConfigReader::getCoreNlsPath('de');
     $nlsDirOverride = TnetCorePaths::getAppCoreNlsPath('de');
@@ -685,7 +714,7 @@ function processLayerItems($items, &$layerDefinitions, $details = true) {
             $def = findLayerDefinition($item, $layerDefinitions);
 
             if ($details && $def) {
-                $layerData['url']       = $def['url'] ?? null;
+                $layerData['url']       = isset($def['url']) ? normalizeAppProxyUrl($def['url']) : null;
                 $layerData['layerType'] = $def['type'] ?? null;
                 $layerData['opacity']   = $def['opacity'] ?? ($def['options']['opacity'] ?? 1.0);
                 $layerData['visible']   = (bool)($def['visible'] ?? false);
@@ -748,7 +777,7 @@ function processLayerItems($items, &$layerDefinitions, $details = true) {
                 $def = findLayerDefinition($item['name'], $layerDefinitions);
                 if ($def) {
                     if ($details) {
-                        $layerData['url']       = $def['url'] ?? null;
+                        $layerData['url']       = isset($def['url']) ? normalizeAppProxyUrl($def['url']) : null;
                         $layerData['layerType'] = $def['type'] ?? null;
                         $layerData['opacity']   = $def['opacity'] ?? ($def['options']['opacity'] ?? 1.0);
                         $layerData['visible']   = (bool)($def['visible'] ?? false);
@@ -908,7 +937,7 @@ function extractLayerName($layerId) {
 /**
  * Lädt ALLE NLS-Labels (lyrmgrResources*.json) und gibt den Display-Namen zurück.
  * Cacht die Dateien nach dem ersten Laden.
- * Pfad: /www/core/nls/de/ (4 Ebenen über __DIR__).
+ * Pfad: Umgebungs-Core nls/de (DEV: core-dev, PROD: core).
  * 
  * @param string $key  Schlüssel (z.B. 'grundlagen', 'gis_oereb/nw_nutzungsplanung_def')
  * @return string|null  NLS-Label oder null wenn nicht gefunden
@@ -917,7 +946,7 @@ function getNlsLabel($key) {
     static $nls = null;
     if ($nls === null) {
         $nls = [];
-        // Basis: /www/core/nls/de/ (4 Ebenen hoch)
+        // Basis: Umgebungs-Core (DEV: core-dev, PROD: core)
         $nlsDirBase = ConfigReader::getCoreNlsPath('de');
         if ($nlsDirBase && is_dir($nlsDirBase)) {
             foreach (glob($nlsDirBase . '/lyrmgrResources*.json') as $f) {
@@ -927,7 +956,7 @@ function getNlsLabel($key) {
                 }
             }
         }
-        // Überladungen: /www/maps/core/nls/de/ (3 Ebenen hoch, überschreibt Basis)
+        // Überladungen: app-lokaler core/nls/de Pfad, überschreibt Basis
         $nlsDirOverride = TnetCorePaths::getAppCoreNlsPath('de');
         if ($nlsDirOverride && is_dir($nlsDirOverride) && $nlsDirOverride !== $nlsDirBase) {
             foreach (glob($nlsDirOverride . '/lyrmgrResources*.json') as $f) {
@@ -1230,7 +1259,7 @@ function fetchLayerFromDb($layerId) {
         return [
             'id'              => $layerId,
             'name'            => $row['display_name'] ?: extractLayerName($layerId),
-            'url'             => $row['url'],
+            'url'             => normalizeAppProxyUrl($row['url']),
             'layerType'       => $row['layer_type'],
             'icon'            => $row['icon'],
             'legendTitle'     => $row['legend_title'],
@@ -1313,7 +1342,7 @@ function buildCatalogTree(array $rows, bool $details): array {
 
         // Coalesce-Infos für Gruppen anhängen
         if (!empty($row['service_url'])) {
-            $node['serviceUrl']     = $row['service_url'];
+            $node['serviceUrl']     = normalizeAppProxyUrl($row['service_url']);
             $node['coalesceGroup']  = $row['coalesce_group'];
         }
 
@@ -1336,7 +1365,7 @@ function buildCatalogTree(array $rows, bool $details): array {
 
         // Layer-Details anhängen (nur bei details=true)
         if ($details && $row['layer_id'] && isset($row['url'])) {
-            $node['url']           = $row['url'];
+            $node['url']           = normalizeAppProxyUrl($row['url']);
             $node['layerType']     = $row['layer_type'];
             $node['displayName']   = $row['layer_display_name'] ?? null;
             $node['icon']          = $row['layer_icon'] ?? null;

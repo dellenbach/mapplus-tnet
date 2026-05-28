@@ -41,4 +41,14 @@ def test_bookmark_service_resolves_at_least_one_listed_name(tnet_base_url: str) 
 
     assert resolved is not None
     assert "bookmark" in resolved
-    assert "map-bookmark" in resolved["bookmark"]
+    bm = resolved["bookmark"]
+    # Schema v2: 'id' ist Pflichtfeld; 'basemap' und 'layers' ebenfalls.
+    assert isinstance(bm.get("id"), str) and bm["id"] != ""
+    assert isinstance(bm.get("basemap"), str)
+    assert isinstance(bm.get("layers"), list)
+    if bm["layers"]:
+        first = bm["layers"][0]
+        assert isinstance(first, dict)
+        assert isinstance(first.get("id"), str) and first["id"] != ""
+        assert "visible" in first
+    assert bm.get("meta", {}).get("schemaVersion") == 2

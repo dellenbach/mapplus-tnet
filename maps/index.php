@@ -30,15 +30,6 @@ function resolveCoreNlsFiles($lang, $filename) {
         $paths[] = $coreNls . '/' . $filename;
     }
 
-    $appNls = __DIR__ . '/core/nls/' . $lang . '/' . $filename;
-    if (is_file($appNls) && !in_array($appNls, $paths, true)) {
-        $paths[] = $appNls;
-    }
-
-    if (empty($paths)) {
-        $paths[] = './core/nls/' . $lang . '/' . $filename;
-    }
-
     return $paths;
 }
 if ($host === 'nwow.mapplus.ch' && $requestUri === '/maps/') {
@@ -146,7 +137,12 @@ $accept_lang = array("de");
 if ($_GET['lang'] && in_array($_GET['lang'],$accept_lang)){
     $lang=$_GET['lang'];
 }else{
-    include_once("../core/detect_lang.inc.php");
+    $detectLangFile = TnetCorePaths::resolveCoreFile('detect_lang.inc.php');
+    if (!$detectLangFile) {
+        http_response_code(500);
+        exit('core-dev/detect_lang.inc.php nicht gefunden');
+    }
+    include_once($detectLangFile);
     $lang=detect_lang($accept_lang,$default_lang);
 }
 $_SESSION["app_language"]=$lang;
@@ -211,7 +207,12 @@ if ($_GET["group"]=="" && is_dir("./public")){
         exit;
     }else{
         $usernames="'".str_replace("*","%",str_replace(",","','",$_SESSION['OIDC_CLAIM_group'])."'");
-        include_once __DIR__.'/../core/config.php';
+        $coreConfigFile = TnetCorePaths::resolveCoreFile('config.php');
+        if (!$coreConfigFile) {
+            http_response_code(500);
+            exit('core-dev/config.php nicht gefunden');
+        }
+        include_once $coreConfigFile;
         include API_PATH.API_VERSION.'/php/conf/db.conf.php';
         include API_PATH.API_VERSION.'/php/db.connect.php';
 

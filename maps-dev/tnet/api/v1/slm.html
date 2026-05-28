@@ -636,6 +636,56 @@ body {
 .bm-layer-tag { display: inline-block; padding: 1px 5px; border-radius: 3px; margin: 1px 2px; font-size: 10px; font-family: monospace; cursor: default; }
 .bm-layer-tag.valid { background: #e8f5e9; color: #2e7d32; border: 1px solid #a5d6a7; }
 .bm-layer-tag.invalid { background: #ffebee; color: #c62828; border: 1px solid #ef9a9a; }
+/* Layer mit visible:false — geladen aber initial unsichtbar (Schema v2) */
+.bm-layer-tag.bm-layer-off { opacity: 0.55; text-decoration: line-through; }
+
+/* ===== Layer-Matrix (Schema v2 mit Kartenansichten) ===== */
+.bm-mtx-wrap { margin-top: 6px; }
+.bm-mtx-toolbar { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-bottom: 4px; font-size: 11px; }
+.bm-mtx-toolbar input.bm-mtx-filter { flex: 1 1 200px; padding: 3px 6px; font-size: 11px; border: 1px solid #ccc; border-radius: 3px; }
+.bm-mtx-toolbar button { padding: 3px 8px; font-size: 11px; cursor: pointer; }
+.bm-mtx-scroll { max-height: 460px; overflow: auto; border: 1px solid #ddd; border-radius: 3px; background: #fff; }
+table.bm-mtx { width: 100%; border-collapse: collapse; font-size: 11px; font-family: monospace; }
+table.bm-mtx thead th { position: sticky; top: 0; background: #f4f4f4; border-bottom: 2px solid #999; padding: 4px 6px; text-align: left; font-weight: 600; z-index: 1; }
+table.bm-mtx tbody td { border-bottom: 1px solid #eee; padding: 2px 6px; vertical-align: middle; }
+table.bm-mtx tbody tr:hover td { background: #fafafa; }
+.bm-mtx-lname { font-size: 10px; color: #333; white-space: nowrap; max-width: 380px; overflow: hidden; text-overflow: ellipsis; }
+.bm-mtx-lname.invalid { color: #c62828; }
+.bm-mtx-cell-default, .bm-mtx-cell-view { text-align: center; width: 60px; }
+.bm-mtx-cell-default input { transform: scale(1.1); cursor: pointer; }
+.bm-mtx-cell-op, .bm-mtx-cell-filter { width: 70px; }
+.bm-mtx-cell-op input, .bm-mtx-cell-filter input { width: 100%; box-sizing: border-box; font-size: 10px; padding: 1px 3px; font-family: monospace; }
+/* Auswahl-Checkbox-Spalte (Bulk-Delete) */
+.bm-mtx-cell-sel { width: 28px; text-align: center; }
+.bm-mtx-cell-sel input { cursor: pointer; }
+table.bm-mtx tbody tr.bm-mtx-row-sel td { background: #fff3e0; }
+table.bm-mtx tbody tr.bm-mtx-row-sel:hover td { background: #ffe0b2; }
+.bm-mtx-bulkdel { background: #ffebee; border: 1px solid #ef9a9a; color: #c62828; padding: 3px 10px; border-radius: 3px; cursor: pointer; font-size: 11px; }
+.bm-mtx-bulkdel:disabled { background: #f5f5f5; color: #aaa; border-color: #ddd; cursor: not-allowed; }
+.bm-mtx-bulkdel:not(:disabled):hover { background: #ffcdd2; }
+
+/* Tri-State-Button fuer View-Zellen */
+.bm-mtx-tri { width: 28px; height: 22px; border: 1px solid #aaa; border-radius: 3px; background: #fff; cursor: pointer; font-weight: bold; font-family: sans-serif; font-size: 12px; padding: 0; }
+.bm-mtx-tri[data-state="on"]      { background: #c8e6c9; color: #2e7d32; border-color: #81c784; }
+.bm-mtx-tri[data-state="off"]     { background: #ffcdd2; color: #c62828; border-color: #ef9a9a; }
+.bm-mtx-tri[data-state="inherit"] { background: #f5f5f5; color: #999;    border-color: #ddd; }
+.bm-mtx-tri:hover { filter: brightness(0.95); }
+
+/* View-Spalten-Header */
+.bm-mtx-vhead { min-width: 110px; }
+.bm-mtx-vhead-row { display: flex; flex-direction: column; gap: 2px; align-items: stretch; }
+.bm-mtx-vname { width: 100%; box-sizing: border-box; font-size: 10px; padding: 1px 4px; border: 1px solid #ccc; border-radius: 2px; font-family: monospace; }
+.bm-mtx-vhead-ctl { display: flex; gap: 4px; align-items: center; font-size: 9px; color: #555; }
+.bm-mtx-vhead-ctl label { display: flex; gap: 2px; align-items: center; cursor: pointer; }
+.bm-mtx-vdel { background: transparent; border: none; color: #c62828; cursor: pointer; font-size: 12px; padding: 0 2px; margin-left: auto; }
+.bm-mtx-addview-cell { text-align: center; width: 40px; }
+.bm-mtx-addview { background: #fff8e1; border: 1px dashed #b8872e; color: #b8872e; cursor: pointer; padding: 2px 6px; border-radius: 3px; font-size: 14px; }
+.bm-mtx-addview:hover { background: #ffecb3; }
+
+/* Add-Layer-Input (Header zur Matrix) */
+.bm-mtx-add-layer { position: relative; flex: 1 1 240px; }
+.bm-mtx-add-layer input { width: 100%; box-sizing: border-box; padding: 3px 6px; font-size: 11px; border: 1px solid #ccc; border-radius: 3px; }
+.bm-mtx-add-layer .bm-ac-list { position: absolute; left: 0; right: 0; top: 100%; background: #fff; border: 1px solid #ccc; max-height: 200px; overflow-y: auto; z-index: 10; display: none; }
 /* Layer-Feld: Tag-Container + Eingabefeld */
 .bm-layers-wrap { position: relative; min-width: 200px; }
 .bm-layers-tags { display: flex; flex-wrap: wrap; gap: 2px; margin-bottom: 2px; min-height: 18px; }
@@ -7276,12 +7326,323 @@ function updateDeployStatus(source, deployedSync) {
 }
 
 // =====================================================================
-// BOOKMARKS-TAB
+// BOOKMARKS-TAB (Schema v2)
 // =====================================================================
-var _bmData = null;       // geladene Bookmark-Daten (Array)
+var _bmData = null;       // geladene Bookmark-Daten (Array, v2)
 var _bmLoaded = false;    // wurde bereits geladen?
 var _bmAllLayerKeys = [];  // alle verfügbaren Layer-Keys (für Autocomplete / Validierung)
 var _bmLayersLoaded = false;
+
+// ---- Schema-v2 Helper -------------------------------------------------
+// Layer kann v1-String ODER v2-Objekt sein. Liefert die Layer-ID.
+function bmLayerId(l) {
+  if (l && typeof l === 'object') return l.id || '';
+  return l == null ? '' : String(l);
+}
+// Liefert ein vollständiges v2-Layer-Objekt mit Defaults.
+function bmLayerObj(l) {
+  if (l && typeof l === 'object') {
+    return {
+      id:      l.id || '',
+      visible: ('visible' in l) ? !!l.visible : true,
+      opacity: (l.opacity != null && isFinite(l.opacity)) ? +l.opacity : null,
+      order:   (l.order   != null && isFinite(l.order))   ? +l.order   : null,
+      filter:  (typeof l.filter === 'string' && l.filter !== '') ? l.filter : null
+    };
+  }
+  return { id: String(l || ''), visible: true, opacity: null, order: null, filter: null };
+}
+
+// ---- Schema-v2 State (im detail-Row als JSON in dataset) -----------------
+function bmGetLayers(detailRow) {
+  try { return (JSON.parse(detailRow.dataset.bmLayers || '[]') || []).map(bmLayerObj); }
+  catch (e) { return []; }
+}
+function bmSetLayers(detailRow, arr) {
+  detailRow.dataset.bmLayers = JSON.stringify((arr || []).map(bmLayerObj));
+}
+function bmGetViews(detailRow) {
+  try { return (JSON.parse(detailRow.dataset.bmViews || '[]') || []); }
+  catch (e) { return []; }
+}
+function bmSetViews(detailRow, arr) {
+  detailRow.dataset.bmViews = JSON.stringify(Array.isArray(arr) ? arr : []);
+}
+function bmEscAttr(s) { return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// View-State eines Layers ermitteln: 'on' | 'off' | 'inherit'
+function bmViewLayerState(view, layerId) {
+  if (!view || !view.layerStates || !view.layerStates[layerId]) return 'inherit';
+  return view.layerStates[layerId].visible ? 'on' : 'off';
+}
+
+// Generiert eindeutige View-ID (view-1, view-2, ...)
+function bmNextViewId(views) {
+  var n = 1;
+  var taken = {};
+  (views || []).forEach(function(v) { if (v && v.id) taken[v.id] = true; });
+  while (taken['view-' + n]) n++;
+  return 'view-' + n;
+}
+
+// Selektierte Layer pro Detail-Row (überlebt Re-Renders).
+function bmGetSelSet(detailRow) {
+  if (!detailRow._bmSelLayers) detailRow._bmSelLayers = new Set();
+  return detailRow._bmSelLayers;
+}
+function bmUpdateBulkDelButton(detailRow) {
+  var sel = bmGetSelSet(detailRow);
+  var btn = detailRow.querySelector('.bm-mtx-bulkdel');
+  var cnt = detailRow.querySelector('.bm-mtx-selcount');
+  if (cnt) cnt.textContent = String(sel.size);
+  if (btn) btn.disabled = sel.size === 0;
+}
+
+// ---- Matrix-Rendering ----------------------------------------------------
+function bmRenderMatrix(detailRow) {
+  var container = detailRow.querySelector('.bm-mtx-scroll');
+  if (!container) return;
+  var layers = bmGetLayers(detailRow);
+  var views  = bmGetViews(detailRow);
+  var idx    = detailRow.dataset.idx;
+  var sel    = bmGetSelSet(detailRow);
+  // Selektion auf existierende Layer beschränken
+  var validIds = {};
+  layers.forEach(function(l) { validIds[l.id] = true; });
+  Array.from(sel).forEach(function(id) { if (!validIds[id]) sel.delete(id); });
+
+  var allChecked = layers.length > 0 && layers.every(function(l) { return sel.has(l.id); });
+  var someChecked = sel.size > 0 && !allChecked;
+
+  var html = '<table class="bm-mtx"><thead><tr>';
+  html += '<th class="bm-mtx-cell-sel"><input type="checkbox" class="bm-mtx-selall"' + (allChecked ? ' checked' : '') + (someChecked ? ' data-indeterminate="1"' : '') + ' title="Alle markieren"></th>';
+  html += '<th>Layer</th>';
+  html += '<th title="Sichtbar beim Bookmark-Aufruf ohne View">Default</th>';
+
+  views.forEach(function(v) {
+    var vid = v.id || '';
+    var vname = v.name != null ? v.name : vid;
+    var isDef = v.isDefault === true;
+    html += '<th class="bm-mtx-vhead" data-vid="' + bmEscAttr(vid) + '">' +
+              '<div class="bm-mtx-vhead-row">' +
+                '<input class="bm-mtx-vname" data-vid="' + bmEscAttr(vid) + '" value="' + bmEscAttr(vname) + '" title="Anzeigename">' +
+                '<div class="bm-mtx-vhead-ctl">' +
+                  '<label title="Default-View beim Bookmark-Aufruf"><input type="radio" name="bm-defview-' + bmEscAttr(idx) + '" data-vid="' + bmEscAttr(vid) + '"' + (isDef ? ' checked' : '') + '>Def</label>' +
+                  '<code style="font-size:9px;color:#888" title="View-ID (URL ?view=' + bmEscAttr(vid) + ')">' + bmEscAttr(vid) + '</code>' +
+                  '<button class="bm-mtx-vdel" data-vid="' + bmEscAttr(vid) + '" title="Ansicht löschen">×</button>' +
+                '</div>' +
+              '</div>' +
+            '</th>';
+  });
+
+  html += '<th class="bm-mtx-addview-cell"><button class="bm-mtx-addview" title="Neue Ansicht hinzufügen">+</button></th>';
+  html += '<th title="Opacity (0–1)">Op</th>';
+  html += '<th title="Filter / Definition-Query">Filter</th>';
+  html += '</tr></thead><tbody>';
+
+  layers.forEach(function(l) {
+    var lid = l.id;
+    var isValid = _bmAllLayerKeys.indexOf(lid) !== -1;
+    var isSel = sel.has(lid);
+    html += '<tr data-lid="' + bmEscAttr(lid) + '"' + (isSel ? ' class="bm-mtx-row-sel"' : '') + '>';
+    html += '<td class="bm-mtx-cell-sel"><input type="checkbox" class="bm-mtx-rowsel" data-lid="' + bmEscAttr(lid) + '"' + (isSel ? ' checked' : '') + '></td>';
+    html += '<td class="bm-mtx-lname' + (isValid ? '' : ' invalid') + '" title="' + bmEscAttr(lid) + (isValid ? '' : ' (Layer nicht im Katalog)') + '">' + bmEscAttr(lid) + '</td>';
+    html += '<td class="bm-mtx-cell-default"><input type="checkbox" data-lid="' + bmEscAttr(lid) + '"' + (l.visible ? ' checked' : '') + '></td>';
+
+    views.forEach(function(v) {
+      var state = bmViewLayerState(v, lid);
+      var sym = state === 'on' ? '✓' : (state === 'off' ? '✗' : '○');
+      html += '<td class="bm-mtx-cell-view"><button class="bm-mtx-tri" data-lid="' + bmEscAttr(lid) + '" data-vid="' + bmEscAttr(v.id) + '" data-state="' + state + '" title="' + (state === 'inherit' ? 'erbt vom Default' : (state === 'on' ? 'sichtbar' : 'ausgeblendet')) + '">' + sym + '</button></td>';
+    });
+
+    html += '<td></td>'; // unter dem "+ Ansicht"-Header bleibt frei
+    html += '<td class="bm-mtx-cell-op"><input type="text" data-lid="' + bmEscAttr(lid) + '" data-prop="opacity" value="' + bmEscAttr(l.opacity != null ? l.opacity : '') + '" placeholder="–"></td>';
+    html += '<td class="bm-mtx-cell-filter"><input type="text" data-lid="' + bmEscAttr(lid) + '" data-prop="filter" value="' + bmEscAttr(l.filter != null ? l.filter : '') + '" placeholder="–"></td>';
+    html += '</tr>';
+  });
+
+  if (!layers.length) {
+    var cols = 6 + views.length;
+    html += '<tr><td colspan="' + cols + '" style="text-align:center;color:#999;padding:12px">Keine Layer. Über das Eingabefeld oben hinzufügen.</td></tr>';
+  }
+
+  html += '</tbody></table>';
+  container.innerHTML = html;
+
+  // Tri-State-Checkbox des Header-Selektors (CSS hat keine pseudo-class, JS-property setzen)
+  var selAll = container.querySelector('.bm-mtx-selall');
+  if (selAll) selAll.indeterminate = !!someChecked;
+
+  // Filter erneut anwenden, falls aktiv
+  var filterInput = detailRow.querySelector('.bm-mtx-filter');
+  if (filterInput && filterInput.value) bmApplyMatrixFilter(detailRow);
+
+  bmUpdateBulkDelButton(detailRow);
+}
+
+function bmApplyMatrixFilter(detailRow) {
+  var input = detailRow.querySelector('.bm-mtx-filter');
+  var q = (input && input.value || '').trim().toLowerCase();
+  var rows = detailRow.querySelectorAll('table.bm-mtx tbody tr[data-lid]');
+  rows.forEach(function(tr) {
+    var lid = (tr.dataset.lid || '').toLowerCase();
+    tr.style.display = (!q || lid.indexOf(q) !== -1) ? '' : 'none';
+  });
+}
+
+// ---- Mutationen via Event-Delegation -------------------------------------
+function bmMatrixHandleClick(e, detailRow) {
+  var t = e.target;
+  // View-Spalte: Tri-State-Cycle
+  if (t.classList.contains('bm-mtx-tri')) {
+    var lid = t.dataset.lid;
+    var vid = t.dataset.vid;
+    var cur = t.dataset.state;
+    var next = cur === 'on' ? 'off' : (cur === 'off' ? 'inherit' : 'on');
+    var views = bmGetViews(detailRow);
+    var v = views.find(function(x) { return x && x.id === vid; });
+    if (!v) return;
+    if (!v.layerStates) v.layerStates = {};
+    if (next === 'inherit') { delete v.layerStates[lid]; }
+    else { v.layerStates[lid] = { visible: next === 'on' }; }
+    bmSetViews(detailRow, views);
+    bmRenderMatrix(detailRow);
+    markBmChanged(detailRow);
+    return;
+  }
+  // View löschen
+  if (t.classList.contains('bm-mtx-vdel')) {
+    var vidDel = t.dataset.vid;
+    if (!confirm('Ansicht "' + vidDel + '" löschen?')) return;
+    var views2 = bmGetViews(detailRow).filter(function(v) { return v && v.id !== vidDel; });
+    bmSetViews(detailRow, views2);
+    bmRenderMatrix(detailRow);
+    markBmChanged(detailRow);
+    return;
+  }
+  // Bulk-Delete: alle markierten Layer entfernen
+  if (t.classList.contains('bm-mtx-bulkdel')) {
+    var selSet = bmGetSelSet(detailRow);
+    if (selSet.size === 0) return;
+    if (!confirm(selSet.size + ' Layer entfernen?')) return;
+    var toRemove = selSet; // Set
+    var layers2 = bmGetLayers(detailRow).filter(function(l) { return !toRemove.has(l.id); });
+    var views3 = bmGetViews(detailRow).map(function(v) {
+      if (v && v.layerStates) {
+        toRemove.forEach(function(rid) { delete v.layerStates[rid]; });
+      }
+      return v;
+    });
+    bmSetLayers(detailRow, layers2);
+    bmSetViews(detailRow, views3);
+    selSet.clear();
+    bmRenderMatrix(detailRow);
+    markBmChanged(detailRow);
+    return;
+  }
+  // Neue Ansicht
+  if (t.classList.contains('bm-mtx-addview')) {
+    var views4 = bmGetViews(detailRow);
+    var newId = bmNextViewId(views4);
+    views4.push({ id: newId, name: newId, isDefault: false, layerStates: {} });
+    bmSetViews(detailRow, views4);
+    bmRenderMatrix(detailRow);
+    markBmChanged(detailRow);
+    return;
+  }
+}
+
+function bmMatrixHandleChange(e, detailRow) {
+  var t = e.target;
+  // Row-Selektion (Bulk-Delete)
+  if (t.classList && t.classList.contains('bm-mtx-rowsel')) {
+    var sel = bmGetSelSet(detailRow);
+    var lid0 = t.dataset.lid;
+    if (t.checked) sel.add(lid0); else sel.delete(lid0);
+    var tr = t.closest('tr');
+    if (tr) tr.classList.toggle('bm-mtx-row-sel', t.checked);
+    // Header-Checkbox-State anpassen
+    var selAll = detailRow.querySelector('.bm-mtx-selall');
+    if (selAll) {
+      var total = bmGetLayers(detailRow).length;
+      selAll.checked = sel.size === total && total > 0;
+      selAll.indeterminate = sel.size > 0 && sel.size < total;
+    }
+    bmUpdateBulkDelButton(detailRow);
+    return;
+  }
+  // Alle markieren / abwählen
+  if (t.classList && t.classList.contains('bm-mtx-selall')) {
+    var selA = bmGetSelSet(detailRow);
+    var layersA = bmGetLayers(detailRow);
+    if (t.checked) layersA.forEach(function(l) { selA.add(l.id); });
+    else selA.clear();
+    bmRenderMatrix(detailRow);
+    return;
+  }
+  // Default-Visible-Checkbox
+  if (t.matches('.bm-mtx-cell-default input[type=checkbox]')) {
+    var lid = t.dataset.lid;
+    var layers = bmGetLayers(detailRow);
+    var l = layers.find(function(x) { return x.id === lid; });
+    if (l) { l.visible = !!t.checked; bmSetLayers(detailRow, layers); markBmChanged(detailRow); }
+    return;
+  }
+  // isDefault-Radio (Default-View)
+  if (t.matches('input[type=radio][name^="bm-defview-"]')) {
+    var vid = t.dataset.vid;
+    var viewsR = bmGetViews(detailRow).map(function(v) { return v ? Object.assign({}, v, { isDefault: v.id === vid }) : v; });
+    bmSetViews(detailRow, viewsR);
+    markBmChanged(detailRow);
+    return;
+  }
+  // View-Name umbenennen
+  if (t.matches('.bm-mtx-vname')) {
+    var vidR = t.dataset.vid;
+    var viewsN = bmGetViews(detailRow).map(function(v) {
+      if (v && v.id === vidR) v.name = t.value;
+      return v;
+    });
+    bmSetViews(detailRow, viewsN);
+    markBmChanged(detailRow);
+    return;
+  }
+  // Opacity / Filter per Layer
+  if (t.matches('input[data-prop]')) {
+    var lidO = t.dataset.lid;
+    var prop = t.dataset.prop;
+    var val  = t.value.trim();
+    var layersO = bmGetLayers(detailRow);
+    var lo = layersO.find(function(x) { return x.id === lidO; });
+    if (lo) {
+      if (prop === 'opacity') {
+        lo.opacity = (val === '' || !isFinite(+val)) ? null : Math.max(0, Math.min(1, +val));
+      } else if (prop === 'filter') {
+        lo.filter = val === '' ? null : val;
+      }
+      bmSetLayers(detailRow, layersO);
+      markBmChanged(detailRow);
+    }
+    return;
+  }
+  // Matrix-Filter
+  if (t.matches('.bm-mtx-filter')) {
+    bmApplyMatrixFilter(detailRow);
+    return;
+  }
+}
+
+function bmMatrixAddLayer(detailRow, layerId) {
+  layerId = (layerId || '').trim();
+  if (!layerId) return false;
+  var layers = bmGetLayers(detailRow);
+  if (layers.some(function(l) { return l.id === layerId; })) return false; // schon drin
+  layers.push(bmLayerObj({ id: layerId }));
+  bmSetLayers(detailRow, layers);
+  bmRenderMatrix(detailRow);
+  markBmChanged(detailRow);
+  return true;
+}
 
 // Alle verfügbaren Layer-Keys vom Server laden (einmal gecacht)
 function loadAllLayerKeys() {
@@ -7348,17 +7709,27 @@ function renderBookmarkTable(bookmarks) {
 }
 
 function createBookmarkRows(bm, idx) {
-  var name = bm['map-bookmark'] || '';
+  // Akzeptiert v2-Schema (id, viewport, layers:[obj]) und faellt auf v1-Felder zurueck
+  // damit zwischenzeitlich gespeicherte v1-Daten im Editor noch korrekt geoeffnet werden.
+  var name = bm.id || bm['map-bookmark'] || '';
   var aliases = (bm.aliases || []).join(', ');
   var basemap = bm.basemap || '';
-  var layerArr = bm.layers || [];
-  var opacity = (bm.opacity || []).join(', ');
+  var layerArr = bm.layers || [];                    // Layer-Objekte (v2) oder Strings (v1)
   var theme = bm.theme || '';
   var subtheme = bm.subtheme || '';
   var themes = bm.themes || '';
-  var x = bm.x != null ? bm.x : '';
-  var y = bm.y != null ? bm.y : '';
-  var zoom = bm.zoom != null ? bm.zoom : '';
+  var vp = (bm.viewport && typeof bm.viewport === 'object') ? bm.viewport : bm;
+  var x = (vp.x != null) ? vp.x : '';
+  var y = (vp.y != null) ? vp.y : '';
+  var zoom = (vp.zoom != null) ? vp.zoom : '';
+
+  // Passthrough: views[] und meta werden im Editor (noch) nicht visuell editiert,
+  // muessen aber beim Save erhalten bleiben. Spaeter ersetzt Phase 5c die Views-Pass-through.
+  var bmViewsJson = JSON.stringify(bm.views || []);
+  var bmMetaJson  = JSON.stringify(bm.meta  || { schemaVersion: 2 });
+
+  // Layer-IDs fuer Anzeige und Suche aus Objekt-Array extrahieren
+  var layerIds = layerArr.map(bmLayerId);
 
   // Zusammenfassungs-Zeile (immer sichtbar, einklappbar)
   var summary = document.createElement('tr');
@@ -7367,16 +7738,17 @@ function createBookmarkRows(bm, idx) {
   summary.dataset.name = name.toLowerCase();
   summary.dataset.aliases = aliases.toLowerCase();
   summary.dataset.basemap = basemap.toLowerCase();
-  summary.dataset.layerText = layerArr.join(' ').toLowerCase();
+  summary.dataset.layerText = layerIds.join(' ').toLowerCase();
   summary.dataset.themes = (themes || '').toLowerCase();
 
   var layerPreview = '';
-  for (var lp = 0; lp < Math.min(layerArr.length, 4); lp++) {
-    var isV = _bmAllLayerKeys.indexOf(layerArr[lp]) !== -1;
-    layerPreview += '<span class="bm-layer-tag ' + (isV ? 'valid' : 'invalid') + '" data-layer="' + esc(layerArr[lp]) + '">' + esc(layerArr[lp]) + '</span>';
+  for (var lp = 0; lp < Math.min(layerIds.length, 4); lp++) {
+    var lid = layerIds[lp];
+    var isV = _bmAllLayerKeys.indexOf(lid) !== -1;
+    layerPreview += '<span class="bm-layer-tag ' + (isV ? 'valid' : 'invalid') + '" data-layer="' + esc(lid) + '">' + esc(lid) + '</span>';
   }
-  if (layerArr.length > 4) layerPreview += '<span style="font-size:10px;color:#888"> +' + (layerArr.length - 4) + '</span>';
-  if (layerArr.length === 0) layerPreview = '<span style="color:#ccc;font-size:10px">–</span>';
+  if (layerIds.length > 4) layerPreview += '<span style="font-size:10px;color:#888"> +' + (layerIds.length - 4) + '</span>';
+  if (layerIds.length === 0) layerPreview = '<span style="color:#ccc;font-size:10px">–</span>';
 
   summary.innerHTML =
     '<td><span class="bm-expand-icon">▶</span><strong style="font-family:monospace;font-size:11px">' + esc(name) + '</strong></td>' +
@@ -7396,21 +7768,36 @@ function createBookmarkRows(bm, idx) {
   var detail = document.createElement('tr');
   detail.className = 'bm-row-detail';
   detail.dataset.idx = idx;
+  // Schema-v2 State: Layer + Views + Meta als JSON im dataset (Single Source of Truth)
+  detail.dataset.bmLayers = JSON.stringify(layerArr.map(bmLayerObj));
+  detail.dataset.bmViews  = bmViewsJson;
+  detail.dataset.bmMeta   = bmMetaJson;
+
   var detailTd = document.createElement('td');
   detailTd.colSpan = 12;
   detailTd.innerHTML =
-    '<div style="display:grid;grid-template-columns:100px 1fr;gap:4px 8px;max-width:800px;font-size:11px">' +
+    '<div style="display:grid;grid-template-columns:100px 1fr;gap:4px 8px;font-size:11px">' +
     '<label>Name:</label><input class="bm-name" data-field="name" value="' + esc(name) + '" oninput="markBmChanged(this);bmSyncSummary(this)">' +
     '<label>Aliases:</label><input class="bm-alias" data-field="aliases" value="' + esc(aliases) + '" title="Kommasepariert" oninput="markBmChanged(this);bmSyncSummary(this)">' +
     '<label>Basemap:</label><input data-field="basemap" value="' + esc(basemap) + '" oninput="markBmChanged(this);bmSyncSummary(this)">' +
-    '<label>Layers:</label><div class="bm-layers-wrap"><div class="bm-layers-tags"></div><input class="bm-layers-input" data-field="layers" placeholder="Layer hinzufügen…" autocomplete="off"><div class="bm-ac-list"></div></div>' +
-    '<label>Opacity:</label><input class="bm-num" data-field="opacity" value="' + esc(opacity) + '" title="Kommasepariert (0-1)" oninput="markBmChanged(this)">' +
     '<label>Theme:</label><input data-field="theme" value="' + esc(theme) + '" oninput="markBmChanged(this)">' +
     '<label>Subtheme:</label><input data-field="subtheme" value="' + esc(subtheme) + '" oninput="markBmChanged(this)">' +
-    '<label>Themen:</label><input data-field="themes" value="' + esc(themes) + '" title="Kommasepariert, z.B. nw:oereb, ow:oereb" placeholder="nw:oereb, ow:oereb" oninput="markBmChanged(this);bmSyncSummaryThemes(this)">' +
+    '<label>Themen:</label><input data-field="themes" value="' + esc(themes) + '" title="z.B. nw:oereb" placeholder="nw:oereb" oninput="markBmChanged(this);bmSyncSummaryThemes(this)">' +
     '<label>X:</label><input class="bm-num" data-field="x" value="' + esc(String(x)) + '" oninput="markBmChanged(this)">' +
     '<label>Y:</label><input class="bm-num" data-field="y" value="' + esc(String(y)) + '" oninput="markBmChanged(this)">' +
     '<label>Zoom:</label><input class="bm-num" data-field="zoom" value="' + esc(String(zoom)) + '" oninput="markBmChanged(this)">' +
+    '<label>Layer:</label>' +
+      '<div class="bm-mtx-wrap">' +
+        '<div class="bm-mtx-toolbar">' +
+          '<div class="bm-mtx-add-layer">' +
+            '<input class="bm-layers-input" data-field="layers" placeholder="Layer hinzufügen…" autocomplete="off">' +
+            '<div class="bm-ac-list"></div>' +
+          '</div>' +
+          '<input class="bm-mtx-filter" placeholder="Layer filtern…">' +
+          '<button type="button" class="bm-mtx-bulkdel" disabled title="Markierte Layer entfernen">🗑 Markierte löschen (<span class="bm-mtx-selcount">0</span>)</button>' +
+        '</div>' +
+        '<div class="bm-mtx-scroll"></div>' +
+      '</div>' +
     '</div>' +
     '<div class="bm-inline-json" data-ij="1">' +
     '<textarea spellcheck="false"></textarea>' +
@@ -7421,14 +7808,33 @@ function createBookmarkRows(bm, idx) {
     '</div></div>';
   detail.appendChild(detailTd);
 
-  // Layer-Tags rendern im Detail
-  var tagsDiv = detail.querySelector('.bm-layers-tags');
+  // Matrix initial rendern
+  bmRenderMatrix(detail);
+
+  // Event-Delegation: Click + Change auf die Matrix
+  var mtxWrap = detail.querySelector('.bm-mtx-wrap');
+  mtxWrap.addEventListener('click', function(e) { bmMatrixHandleClick(e, detail); });
+  mtxWrap.addEventListener('change', function(e) { bmMatrixHandleChange(e, detail); });
+  mtxWrap.addEventListener('input',  function(e) {
+    // Live-Filter und Live-Edit für Inputs
+    if (e.target.matches('.bm-mtx-filter')) bmApplyMatrixFilter(detail);
+    if (e.target.matches('.bm-mtx-vname') || e.target.matches('input[data-prop]')) bmMatrixHandleChange(e, detail);
+  });
+
+  // Add-Layer-Input: Autocomplete mit onAdd-Callback, der die Matrix erweitert.
+  // getLayerTagValues(fakeTags) liefert die aktuell vorhandenen Layer-IDs (Existing-Check).
   var acInput = detail.querySelector('.bm-layers-input');
-  var acList = detail.querySelector('.bm-ac-list');
-  for (var li = 0; li < layerArr.length; li++) {
-    tagsDiv.appendChild(createLayerTag(layerArr[li], detail));
-  }
-  initLayerAutocomplete(acInput, acList, tagsDiv, detail);
+  var acList  = detail.querySelector('.bm-ac-list');
+  var fakeTags = {
+    querySelectorAll: function() {
+      return bmGetLayers(detail).map(function(l) {
+        return { dataset: { layer: l.id } };
+      });
+    }
+  };
+  initLayerAutocomplete(acInput, acList, fakeTags, detail, function(layerId) {
+    bmMatrixAddLayer(detail, layerId);
+  });
 
   // Klick auf Summary → Detail ein-/ausklappen
   summary.addEventListener('click', function(e) {
@@ -7518,13 +7924,21 @@ function markBmChanged(input) {
 // ===== LAYER-TAG + AUTOCOMPLETE =====
 
 // Einzelnes Layer-Tag erstellen (farblich validiert)
-function createLayerTag(layerKey, tr) {
+// Akzeptiert v1-String ODER v2-Layer-Objekt. Speichert das volle Objekt
+// in dataset.layerObj, damit per-Layer-State (visible/opacity/order/filter)
+// beim Save erhalten bleibt, auch wenn 5b die Felder noch nicht im UI editiert.
+function createLayerTag(layer, tr) {
+  var obj = bmLayerObj(layer);
+  var layerKey = obj.id;
   var span = document.createElement('span');
   span.className = 'bm-layer-tag';
   span.dataset.layer = layerKey;
+  span.dataset.layerObj = JSON.stringify(obj);
   var isValid = _bmAllLayerKeys.indexOf(layerKey) !== -1;
   span.classList.add(isValid ? 'valid' : 'invalid');
   span.title = isValid ? 'Layer vorhanden' : 'Layer nicht gefunden!';
+  // Optisches Off-Indiz wenn visible:false (per-Layer-Edit folgt in 5c)
+  if (!obj.visible) span.classList.add('bm-layer-off');
   span.innerHTML = esc(layerKey) + '<span class="bm-tag-x" title="Entfernen">×</span>';
   span.querySelector('.bm-tag-x').addEventListener('click', function() {
     span.remove();
@@ -7533,7 +7947,7 @@ function createLayerTag(layerKey, tr) {
   return span;
 }
 
-// Layer-Tags im Container als Array auslesen
+// Layer-Tags im Container als String-Array auslesen (nur IDs — z. B. fuer Existenz-Check im Autocomplete).
 function getLayerTagValues(tagsDiv) {
   var tags = tagsDiv.querySelectorAll('.bm-layer-tag');
   var arr = [];
@@ -7543,9 +7957,41 @@ function getLayerTagValues(tagsDiv) {
   return arr;
 }
 
-// Autocomplete für Layer-Eingabe initialisieren
-function initLayerAutocomplete(input, acList, tagsDiv, tr) {
+// Layer-Tags als v2-Objekt-Array auslesen (fuer Save). Rekonstruiert
+// Default-Objekt wenn dataset.layerObj fehlt (neu hinzugefuegte Tags).
+function getLayerTagObjects(tagsDiv) {
+  var tags = tagsDiv.querySelectorAll('.bm-layer-tag');
+  var arr = [];
+  for (var i = 0; i < tags.length; i++) {
+    var raw = tags[i].dataset.layerObj;
+    if (raw) {
+      try { arr.push(bmLayerObj(JSON.parse(raw))); continue; } catch (e) { /* fallthrough */ }
+    }
+    arr.push(bmLayerObj(tags[i].dataset.layer));
+  }
+  return arr;
+}
+
+// Autocomplete für Layer-Eingabe initialisieren.
+// onAdd(key) ist OPTIONAL — wenn gesetzt, wird der Callback statt
+// tagsDiv.appendChild verwendet (fuer die Matrix). Backward-compat: ohne
+// onAdd wird ein neuer Layer-Tag in tagsDiv eingehaengt.
+function initLayerAutocomplete(input, acList, tagsDiv, tr, onAdd) {
   var activeIdx = -1;
+  function addLayer(key) {
+    if (typeof onAdd === 'function') {
+      onAdd(key);
+    } else {
+      tagsDiv.appendChild(createLayerTag(key, tr));
+      tr.classList.add('bm-row-changed');
+    }
+    input.value = '';
+    acList.style.display = 'none';
+    input.focus();
+  }
+  function getExisting() {
+    return getLayerTagValues(tagsDiv);
+  }
 
   input.addEventListener('input', function() {
     var val = input.value.trim().toLowerCase();
@@ -7553,8 +7999,8 @@ function initLayerAutocomplete(input, acList, tagsDiv, tr) {
     activeIdx = -1;
     if (val.length < 1) { acList.style.display = 'none'; return; }
 
-    // Bereits vorhandene Tags ausschliessen
-    var existing = getLayerTagValues(tagsDiv);
+    // Bereits vorhandene Layer ausschliessen
+    var existing = getExisting();
     var matches = _bmAllLayerKeys.filter(function(k) {
       return k.toLowerCase().indexOf(val) !== -1 && existing.indexOf(k) === -1;
     }).slice(0, 30);
@@ -7563,7 +8009,6 @@ function initLayerAutocomplete(input, acList, tagsDiv, tr) {
 
     for (var i = 0; i < matches.length; i++) {
       var div = document.createElement('div');
-      // Treffer hervorheben
       var lowerKey = matches[i].toLowerCase();
       var pos = lowerKey.indexOf(val);
       div.innerHTML = esc(matches[i].substring(0, pos)) +
@@ -7571,13 +8016,7 @@ function initLayerAutocomplete(input, acList, tagsDiv, tr) {
         esc(matches[i].substring(pos + val.length));
       div.dataset.key = matches[i];
       div.addEventListener('click', (function(key) {
-        return function() {
-          tagsDiv.appendChild(createLayerTag(key, tr));
-          input.value = '';
-          acList.style.display = 'none';
-          tr.classList.add('bm-row-changed');
-          input.focus();
-        };
+        return function() { addLayer(key); };
       })(matches[i]));
       acList.appendChild(div);
     }
@@ -7600,16 +8039,12 @@ function initLayerAutocomplete(input, acList, tagsDiv, tr) {
       if (activeIdx >= 0 && items[activeIdx]) {
         items[activeIdx].click();
       } else if (input.value.trim()) {
-        // Freitext-Eingabe erlauben (Komma oder Enter)
-        tagsDiv.appendChild(createLayerTag(input.value.trim(), tr));
-        input.value = '';
-        acList.style.display = 'none';
-        tr.classList.add('bm-row-changed');
+        addLayer(input.value.trim());
       }
     } else if (e.key === 'Escape') {
       acList.style.display = 'none';
-    } else if (e.key === 'Backspace' && !input.value) {
-      // Letztes Tag löschen bei Backspace im leeren Feld
+    } else if (e.key === 'Backspace' && !input.value && typeof onAdd !== 'function') {
+      // Backspace-Loeschen nur im alten Tag-Modus (Matrix hat Loesch-Spalte)
       var lastTag = tagsDiv.querySelector('.bm-layer-tag:last-child');
       if (lastTag) { lastTag.remove(); tr.classList.add('bm-row-changed'); }
     }
@@ -7648,6 +8083,7 @@ function updateAcActive(items, idx) {
 
 // Alle Layer-Tags nach Laden der Layer-Keys neu validieren
 function revalidateAllLayerTags() {
+  // Summary-Preview-Tags
   var tags = document.querySelectorAll('#bm-tbody .bm-layer-tag');
   for (var i = 0; i < tags.length; i++) {
     var key = tags[i].dataset.layer;
@@ -7656,13 +8092,18 @@ function revalidateAllLayerTags() {
     tags[i].classList.add(isValid ? 'valid' : 'invalid');
     tags[i].title = isValid ? 'Layer vorhanden' : 'Layer nicht gefunden!';
   }
+  // Matrix-Zeilen re-rendern (Layer-Name-Spalte färbt sich nach Validierung um)
+  var details = document.querySelectorAll('#bm-tbody tr.bm-row-detail');
+  for (var j = 0; j < details.length; j++) {
+    if (details[j].querySelector('.bm-mtx-scroll')) bmRenderMatrix(details[j]);
+  }
 }
 
 function addBookmarkEntry() {
   bmPushUndo();
   var tbody = document.getElementById('bm-tbody');
   var idx = tbody.querySelectorAll('tr.bm-row-summary').length;
-  var emptyBm = { 'map-bookmark': '', basemap: '', layers: [] };
+  var emptyBm = { id: '', basemap: '', layers: [], meta: { schemaVersion: 2 } };
   var rows = createBookmarkRows(emptyBm, idx);
   rows.summary.classList.add('bm-row-changed');
   rows.detail.classList.add('bm-expanded'); // Neue Einträge aufgeklappt
@@ -7719,7 +8160,7 @@ function collectBookmarkData() {
     var name = tr.querySelector('[data-field="name"]').value.trim();
     if (!name) continue; // Leere Zeilen ignorieren
 
-    var entry = { 'map-bookmark': name };
+    var entry = { id: name };
 
     var aliasStr = tr.querySelector('[data-field="aliases"]').value.trim();
     if (aliasStr) {
@@ -7729,35 +8170,39 @@ function collectBookmarkData() {
     var basemap = tr.querySelector('[data-field="basemap"]').value.trim();
     if (basemap) entry.basemap = basemap;
 
-    // Layer aus Tag-Container lesen
-    var tagsDiv = tr.querySelector('.bm-layers-tags');
-    if (tagsDiv) {
-      var layerTags = getLayerTagValues(tagsDiv);
-      if (layerTags.length) entry.layers = layerTags;
-    }
-
-    var opacityStr = tr.querySelector('[data-field="opacity"]').value.trim();
-    if (opacityStr) {
-      entry.opacity = opacityStr.split(',').map(function(s) { return s.trim(); }).filter(Boolean);
-    }
-
     var theme = tr.querySelector('[data-field="theme"]').value.trim();
     if (theme) entry.theme = theme;
-
     var subtheme = tr.querySelector('[data-field="subtheme"]').value.trim();
     if (subtheme) entry.subtheme = subtheme;
-
     var themes = tr.querySelector('[data-field="themes"]').value.trim();
     if (themes) entry.themes = themes;
 
+    // Viewport zusammenbauen (v2-Struktur)
+    var vp = {};
     var xVal = tr.querySelector('[data-field="x"]').value.trim();
-    if (xVal) entry.x = parseFloat(xVal);
-
+    if (xVal) vp.x = parseFloat(xVal);
     var yVal = tr.querySelector('[data-field="y"]').value.trim();
-    if (yVal) entry.y = parseFloat(yVal);
-
+    if (yVal) vp.y = parseFloat(yVal);
     var zoomVal = tr.querySelector('[data-field="zoom"]').value.trim();
-    if (zoomVal) entry.zoom = parseInt(zoomVal, 10);
+    if (zoomVal) vp.zoom = parseInt(zoomVal, 10);
+    if (Object.keys(vp).length) entry.viewport = vp;
+
+    // Layer aus Matrix-State (dataset.bmLayers) lesen
+    var layerObjs = bmGetLayers(tr);
+    if (layerObjs.length) entry.layers = layerObjs;
+
+    // Views aus Matrix-State (dataset.bmViews)
+    var v = bmGetViews(tr);
+    if (Array.isArray(v) && v.length) entry.views = v;
+
+    try {
+      var m = JSON.parse(tr.dataset.bmMeta || '{}');
+      if (!m || typeof m !== 'object') m = {};
+      m.schemaVersion = 2;
+      entry.meta = m;
+    } catch (eMeta) {
+      entry.meta = { schemaVersion: 2 };
+    }
 
     result.push(entry);
   }
@@ -7927,8 +8372,8 @@ function sortBookmarkTable(field, dir) {
 function getBmSortValue(summary, detail, field) {
   if (field === 'layers') {
     if (detail) {
-      var tagsDiv = detail.querySelector('.bm-layers-tags');
-      return tagsDiv ? getLayerTagValues(tagsDiv).join(' ') : '';
+      // Matrix-State (Schema v2)
+      return bmGetLayers(detail).map(function(l) { return l.id; }).join(' ');
     }
     return summary.dataset.layerText || '';
   }
@@ -8234,30 +8679,42 @@ function bmReplaceAll() {
 function bmCollectSingleBookmark(detailRow) {
   var entry = {};
   var name = detailRow.querySelector('[data-field="name"]').value.trim();
-  if (name) entry['map-bookmark'] = name;
+  if (name) entry.id = name;
   var aliasStr = detailRow.querySelector('[data-field="aliases"]').value.trim();
   if (aliasStr) entry.aliases = aliasStr.split(',').map(function(s) { return s.trim(); }).filter(Boolean);
   var basemap = detailRow.querySelector('[data-field="basemap"]').value.trim();
   if (basemap) entry.basemap = basemap;
-  var tagsDiv = detailRow.querySelector('.bm-layers-tags');
-  if (tagsDiv) {
-    var layerTags = getLayerTagValues(tagsDiv);
-    if (layerTags.length) entry.layers = layerTags;
-  }
-  var opacityStr = detailRow.querySelector('[data-field="opacity"]').value.trim();
-  if (opacityStr) entry.opacity = opacityStr.split(',').map(function(s) { return s.trim(); }).filter(Boolean);
   var theme = detailRow.querySelector('[data-field="theme"]').value.trim();
   if (theme) entry.theme = theme;
   var subtheme = detailRow.querySelector('[data-field="subtheme"]').value.trim();
   if (subtheme) entry.subtheme = subtheme;
   var themes = detailRow.querySelector('[data-field="themes"]').value.trim();
   if (themes) entry.themes = themes;
+
+  var vp = {};
   var xVal = detailRow.querySelector('[data-field="x"]').value.trim();
-  if (xVal) entry.x = parseFloat(xVal);
+  if (xVal) vp.x = parseFloat(xVal);
   var yVal = detailRow.querySelector('[data-field="y"]').value.trim();
-  if (yVal) entry.y = parseFloat(yVal);
+  if (yVal) vp.y = parseFloat(yVal);
   var zoomVal = detailRow.querySelector('[data-field="zoom"]').value.trim();
-  if (zoomVal) entry.zoom = parseInt(zoomVal, 10);
+  if (zoomVal) vp.zoom = parseInt(zoomVal, 10);
+  if (Object.keys(vp).length) entry.viewport = vp;
+
+  var layerObjs = bmGetLayers(detailRow);
+  if (layerObjs.length) entry.layers = layerObjs;
+
+  var v = bmGetViews(detailRow);
+  if (Array.isArray(v) && v.length) entry.views = v;
+
+  try {
+    var m = JSON.parse(detailRow.dataset.bmMeta || '{}');
+    if (!m || typeof m !== 'object') m = {};
+    m.schemaVersion = 2;
+    entry.meta = m;
+  } catch (eM) {
+    entry.meta = { schemaVersion: 2 };
+  }
+
   return entry;
 }
 
@@ -8311,25 +8768,26 @@ function bmInlineJsonApply(btn) {
 
   bmPushUndo();
 
-  // Felder ins Formular zurückschreiben
-  detailRow.querySelector('[data-field="name"]').value = bm['map-bookmark'] || '';
+  // Felder ins Formular zurückschreiben (v2-Schema mit v1-Fallback)
+  detailRow.querySelector('[data-field="name"]').value = bm.id || bm['map-bookmark'] || '';
   detailRow.querySelector('[data-field="aliases"]').value = (bm.aliases || []).join(', ');
   detailRow.querySelector('[data-field="basemap"]').value = bm.basemap || '';
-  detailRow.querySelector('[data-field="opacity"]').value = (bm.opacity || []).join(', ');
   detailRow.querySelector('[data-field="theme"]').value = bm.theme || '';
   detailRow.querySelector('[data-field="subtheme"]').value = bm.subtheme || '';
   detailRow.querySelector('[data-field="themes"]').value = bm.themes || '';
-  detailRow.querySelector('[data-field="x"]').value = bm.x != null ? bm.x : '';
-  detailRow.querySelector('[data-field="y"]').value = bm.y != null ? bm.y : '';
-  detailRow.querySelector('[data-field="zoom"]').value = bm.zoom != null ? bm.zoom : '';
+  var vp = (bm.viewport && typeof bm.viewport === 'object') ? bm.viewport : bm;
+  detailRow.querySelector('[data-field="x"]').value = vp.x != null ? vp.x : '';
+  detailRow.querySelector('[data-field="y"]').value = vp.y != null ? vp.y : '';
+  detailRow.querySelector('[data-field="zoom"]').value = vp.zoom != null ? vp.zoom : '';
 
-  // Layer-Tags neu rendern
-  var tagsDiv = detailRow.querySelector('.bm-layers-tags');
-  tagsDiv.innerHTML = '';
-  var layers = bm.layers || [];
-  for (var i = 0; i < layers.length; i++) {
-    tagsDiv.appendChild(createLayerTag(layers[i], detailRow));
-  }
+  // State aktualisieren (dataset.bmLayers / bmViews / bmMeta) und Matrix neu rendern
+  var layers = (bm.layers || []).map(bmLayerObj);
+  bmSetLayers(detailRow, layers);
+  bmSetViews(detailRow, bm.views || []);
+  detailRow.dataset.bmMeta = JSON.stringify(bm.meta || { schemaVersion: 2 });
+  bmRenderMatrix(detailRow);
+  // Layer-IDs fuer Summary/Suche
+  var layerIds = layers.map(bmLayerId);
 
   // Summary synchronisieren
   var nameInput = detailRow.querySelector('[data-field="name"]');
@@ -8343,15 +8801,16 @@ function bmInlineJsonApply(btn) {
     var layerCell = summaryRow.querySelector('.bm-summary-layers');
     if (layerCell) {
       var preview = '';
-      for (var lp = 0; lp < Math.min(layers.length, 4); lp++) {
-        var isV = _bmAllLayerKeys.indexOf(layers[lp]) !== -1;
-        preview += '<span class="bm-layer-tag ' + (isV ? 'valid' : 'invalid') + '" data-layer="' + esc(layers[lp]) + '">' + esc(layers[lp]) + '</span>';
+      for (var lp = 0; lp < Math.min(layerIds.length, 4); lp++) {
+        var lid = layerIds[lp];
+        var isV = _bmAllLayerKeys.indexOf(lid) !== -1;
+        preview += '<span class="bm-layer-tag ' + (isV ? 'valid' : 'invalid') + '" data-layer="' + esc(lid) + '">' + esc(lid) + '</span>';
       }
-      if (layers.length > 4) preview += '<span style="font-size:10px;color:#888"> +' + (layers.length - 4) + '</span>';
-      if (layers.length === 0) preview = '<span style="color:#ccc;font-size:10px">–</span>';
+      if (layerIds.length > 4) preview += '<span style="font-size:10px;color:#888"> +' + (layerIds.length - 4) + '</span>';
+      if (layerIds.length === 0) preview = '<span style="color:#ccc;font-size:10px">–</span>';
       layerCell.innerHTML = preview;
     }
-    summaryRow.dataset.layerText = layers.join(' ').toLowerCase();
+    summaryRow.dataset.layerText = layerIds.join(' ').toLowerCase();
   }
 
   ijDiv.classList.remove('bm-active');

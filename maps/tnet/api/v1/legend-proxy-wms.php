@@ -50,7 +50,7 @@
 
 require_once __DIR__ . '/../includes/CorePaths.php';
 
-$CACHE_DIR = '/data/Client_Data/nwow/tmp/maps/legends_wms';
+$CACHE_DIR = '/data/Client_Data/nwow/tmp/maps-dev/legends_wms';
 $CACHE_TTL = 86400;
 $DEFAULT_WIDTH = 32;
 $DEFAULT_HEIGHT = 24;
@@ -63,8 +63,7 @@ $DEFAULT_INJECT = true;
 $MAX_LAYERS = 80;
 
 // Optionales Metadata-Mapping (falls vorhanden)
-$sharedConfigPath = TnetCorePaths::getSharedConfigPath();
-$METADATA_FILE = TnetCorePaths::resolveConfigFile('legend_wms_metadata.json') ?: ($sharedConfigPath ? $sharedConfigPath . '/legend_wms_metadata.json' : null);
+$METADATA_FILE = TnetCorePaths::resolveConfigFile('legend_wms_metadata.json');
 
 // ===== CORS & PRE-FLIGHT =====
 

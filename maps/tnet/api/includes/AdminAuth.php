@@ -39,7 +39,7 @@ class AdminAuth {
     public static function getAccessConfigFilePath() {
         return self::getTmpRoot() . '/access-config.json';
     }
-
+    
     private static function getCookiePath() {
         $appBasePath = self::getAppBasePath();
         return ($appBasePath !== '' ? $appBasePath : '') . '/tnet/api/';
