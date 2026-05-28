@@ -1,3 +1,21 @@
+## 2026-05-28 — Bookmark-Initialload liess den Karteninhalt leer, obwohl der Bookmark geladen war
+- **Symptom**: Beim Direktstart eines Bookmarks unter `/maps-dev/{id}` blieb der Bereich Karteninhalt leer, obwohl die Karte und der Bookmark-Aufruf selbst liefen.
+- **Root-Cause**: Der Karteninhalt hing weiterhin am asynchronen Map-Sync des LMStore. Nach dem Deaktivieren von `loadActiveLayersFromBookmark()` gab es beim Bookmark-Start keinen fruehen Datenpfad mehr fuer die UI, daher renderte das Panel leer.
+- **Fix**: Der Bookmark-Apply-Pfad baut jetzt sofort einen Runtime-Layerstand aus dem Bookmark-JSON auf, speichert ihn in `window.__tnetActiveBookmark.layers`, befuellt parallel den LMStore wieder direkt aus dem Bookmark und synchronisiert spaeter eintreffende OL-Layer ueber einen Layer-Add-Hook auf Visibility/Opacity.
+- **Guardrail**: Der Karteninhalt darf beim Bookmark-Start nie ausschliesslich von spaet eintreffenden Map-Events abhaengen. Bookmark-JSON muss immer sofort einen renderbaren Layerzustand fuer die UI liefern.
+
+## 2026-05-28 — FastAPI-Bookmark-Deploy brach an geschuetztem PHP-Load und fehlendem dulwich ab
+- **Symptom**: `POST /gapi/ags2mapplus/deploy-bookmarks?target=dev` lieferte 500; der direkte Browseraufruf per GET zeigte 405.
+- **Root-Cause**: Der Deploy-Handler holte Bookmarks zunaechst ueber `treebuilder-api.php?action=bookmarks-load`, das hinter dem Admin-Gate Login-HTML statt JSON lieferte. Nach der Umstellung auf direkten SFTP-Read scheiterte der naechste Schritt daran, dass `dulwich` im laufenden FastAPI-Prozess noch nicht verfuegbar war.
+- **Fix**: FastAPI liest Bookmark-Drafts jetzt direkt per SFTP aus `/data/tmp/maps(-dev)/bookmarks/map-bookmarks-all.json` und faellt bei Bedarf auf die deployed JSON-Datei zurueck. Fuer Git-Schritte muss `dulwich` in der Server-Python-Umgebung installiert sein; nach einer Nachinstallation ist ein Dienst-Neustart noetig.
+- **Guardrail**: Interne Deploy-Pfade nie ueber login-geschuetzte HTTP-Admin-Endpunkte aufloesen, wenn SFTP/Dateizugriff verfuegbar ist. Bei optionalen Python-Abhaengigkeiten immer Installation und Neustart des laufenden Dienstes zusammen pruefen.
+
+## 2026-05-28 — Bookmark-Publish hing implizit am globalen DEV-Fetch-Wrapper
+- **Symptom**: Im Bookmarks-Tab war fuer `maps-dev` nicht transparent bzw. nicht robust abgesichert, ob der Publish wirklich nach DEV ging.
+- **Root-Cause**: `saveBookmarks()` schickte an `/deploy-bookmarks` nur die Commit-Message. Das Ziel `dev` kam damit nur indirekt ueber den globalen `fetch()`-Wrapper in die Query-String-Parameter.
+- **Fix**: Die Bookmarks-Deploy-Requests in `slm.html` und `ags-import.html` senden das Publish-Ziel jetzt explizit im JSON-Body (`target: dev|prod`). Die UI zeigt das vom Backend bestaetigte Ziel anschliessend sichtbar in der Statusmeldung an.
+- **Guardrail**: Bei umgebungssensitiven Publish-Aktionen das Ziel nie nur implizit ueber Wrapper oder URL-Umschreibung ableiten. Das Frontend muss `target` explizit mitsenden und die Backend-Response sichtbar auswerten.
+
 ## 2026-05-28 — PROD-Upload startete trotz Full-Build erneut Einzelbuilds fuer JS
 - **Symptom**: Nach Schritt 2 liefen in Schritt 3 fuer `tnet/js-dev/*.js` nochmals Einzelbuilds an, obwohl die passenden Dateien unter `tnet/js/` bereits gebaut waren.
 - **Root-Cause**: `upload_changed.py` hat bei jedem JS-Quellfile pauschal den Einzelbuild gestartet und den vorhandenen Build-Output nicht darauf geprueft, ob er bereits aktuell ist.

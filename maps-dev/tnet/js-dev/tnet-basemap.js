@@ -191,6 +191,18 @@
         });
     };
 
+    function shouldSkipGrundkartenDefaults() {
+        try {
+            if (window.__tnetActiveBookmark || window.__tnetLastRequestedBookmark) {
+                return true;
+            }
+            var path = String((window.location && window.location.pathname) || '');
+            return /\/maps(?:-dev)?\/[a-zA-Z0-9_-]+\/?$/.test(path);
+        } catch (ePath) {
+            return false;
+        }
+    }
+
     /**
      * Grundkarten-Layer beim App-Start ausschalten.
      */
@@ -198,6 +210,18 @@
         var trySet = function() {
             if (!window.njs || !njs.AppManager || !njs.AppManager.setMapBookmark || !njs.AppManager.infoFloatWinRemoveallItems) {
                 setTimeout(trySet, 200);
+                return;
+            }
+
+            if (shouldSkipGrundkartenDefaults()) {
+                TnetLog.log(LOG_PREFIX, 'GrundkartenDefaults übersprungen (Bookmark-Start aktiv)');
+
+                var bookmarkMap = (njs.AppManager.Maps && njs.AppManager.Maps.main && njs.AppManager.Maps.main.mapObj)
+                        ? njs.AppManager.Maps.main.mapObj : null;
+                if (bookmarkMap) {
+                    window._olMap = bookmarkMap;
+                    initGrundkartenLayerSync(bookmarkMap);
+                }
                 return;
             }
 

@@ -31,6 +31,116 @@
   // Werden in _initIcons() befüllt nachdem TnetIcons.loadAll() abgeschlossen ist
   var ICON = {};
 
+  function getBookmarkInfo() {
+    var bookmark = window.__tnetActiveBookmark;
+    if (!bookmark || !Array.isArray(bookmark.layers)) return null;
+    return bookmark;
+  }
+
+  function emitBookmarkStateChanged(reason) {
+    var bookmark = getBookmarkInfo();
+    if (!bookmark) return;
+    try {
+      document.dispatchEvent(new CustomEvent('tnet-bookmark-state-changed', {
+        detail: { reason: reason || null, bookmark: bookmark }
+      }));
+    } catch (eEvent) { /* ignore */ }
+  }
+
+  function updateBookmarkLayerState(layerId, patch) {
+    var bookmark = getBookmarkInfo();
+    var changed = false;
+    if (!bookmark) return false;
+
+    bookmark.layers.forEach(function(layer) {
+      if (!layer || layer.id !== layerId) return;
+      Object.keys(patch || {}).forEach(function(key) {
+        layer[key] = patch[key];
+        changed = true;
+      });
+    });
+
+    return changed;
+  }
+
+  function removeBookmarkLayerState(layerId) {
+    var bookmark = getBookmarkInfo();
+    var before;
+    if (!bookmark) return false;
+    before = bookmark.layers.length;
+    bookmark.layers = bookmark.layers.filter(function(layer) {
+      return layer && layer.id !== layerId;
+    });
+    return bookmark.layers.length !== before;
+  }
+
+  function removeBookmarkGroupState(groupId) {
+    var bookmark = getBookmarkInfo();
+    var store = window.TnetLMStore;
+    var index = store && typeof store.getCoalesceIndex === 'function' ? store.getCoalesceIndex() : null;
+    var info = index && index[groupId] ? index[groupId] : null;
+    var before;
+    if (!bookmark || !info || !info.childIds || !info.childIds.length) return false;
+    before = bookmark.layers.length;
+    bookmark.layers = bookmark.layers.filter(function(layer) {
+      return layer && info.childIds.indexOf(layer.id) === -1;
+    });
+    return bookmark.layers.length !== before;
+  }
+
+  function reorderBookmarkLayerState(orderedIds) {
+    var bookmark = getBookmarkInfo();
+    var byId = {};
+    var reordered = [];
+    if (!bookmark || !orderedIds || !orderedIds.length) return false;
+
+    bookmark.layers.forEach(function(layer) {
+      if (layer && layer.id) byId[layer.id] = layer;
+    });
+
+    orderedIds.forEach(function(layerId, index) {
+      if (!byId[layerId]) return;
+      byId[layerId].order = index;
+      reordered.push(byId[layerId]);
+      delete byId[layerId];
+    });
+
+    Object.keys(byId).forEach(function(layerId) {
+      reordered.push(byId[layerId]);
+    });
+
+    bookmark.layers = reordered;
+    return true;
+  }
+
+  function mergeBookmarkLayers(bookmarkLayers, liveLayers) {
+    var liveById = {};
+
+    (liveLayers || []).forEach(function(layer) {
+      if (layer && layer.id) liveById[layer.id] = layer;
+    });
+
+    return (bookmarkLayers || []).map(function(layer, index) {
+      var merged = {};
+      var live = layer && layer.id ? liveById[layer.id] : null;
+      var key;
+
+      for (key in layer) {
+        if (Object.prototype.hasOwnProperty.call(layer, key)) merged[key] = layer[key];
+      }
+      if (live) {
+        for (key in live) {
+          if (Object.prototype.hasOwnProperty.call(live, key) && live[key] != null) merged[key] = live[key];
+        }
+      }
+
+      if (!merged.name) merged.name = merged.id || ('Layer ' + (index + 1));
+      if (merged.visible === undefined) merged.visible = true;
+      if (merged.opacity == null) merged.opacity = 1;
+      return merged;
+    });
+  }
+
   function _initIcons() {
     ICON.eyeOn    = TnetIcons.get('eye-on', 'lm-icon');
     ICON.eyeOff   = TnetIcons.get('eye-off', 'lm-icon');
@@ -63,6 +173,17 @@
       _unlisteners.push(store.on('layer-visibility', this._onVisibility.bind(this)));
       _unlisteners.push(store.on('layer-opacity', this._onOpacity.bind(this)));
 
+      var self = this;
+      var rerender = function () {
+        self.render(store.getActiveLayers());
+      };
+      document.addEventListener('tnet-bookmark-loaded', rerender);
+      document.addEventListener('tnet-bookmark-state-changed', rerender);
+      _unlisteners.push(function () {
+        document.removeEventListener('tnet-bookmark-loaded', rerender);
+        document.removeEventListener('tnet-bookmark-state-changed', rerender);
+      });
+
       // Event-Delegation
       this._bindEvents();
 
@@ -88,29 +209,55 @@
         return;
       }
 
+      var bookmarkInfo = getBookmarkInfo();
+      var effectiveLayers = bookmarkInfo
+        ? mergeBookmarkLayers(bookmarkInfo.layers, Array.isArray(layers) ? layers : [])
+        : layers;
+
       // Nicht rendern während Drag aktiv (sonst springt alles)
       if (_dragState) {
         TnetLog.log(LOG, 'render übersprungen (Drag aktiv)');
         return;
       }
 
-      if (!layers || !layers.length) {
+      if (!effectiveLayers || !effectiveLayers.length) {
         _container.innerHTML = '<div class="lm-empty">Keine Themen dargestellt.<br><small style="color:#aaa">Themen im Themenkatalog aktivieren.</small></div>';
         TnetLog.log(LOG, 'render: Leerzustand');
         return;
       }
 
       // Einträge gruppieren (Standalone vs. Coalesce-Gruppen)
-      var entries = this._buildActiveEntries(layers);
-      var totalLayers = layers.length;
+      var entries = this._buildActiveEntries(effectiveLayers);
+      var totalLayers = effectiveLayers.length;
 
       TnetLog.log(LOG, 'render:', totalLayers, 'Layer,', entries.length, 'Einträge');
 
-      var html = '<div class="lm-active-toolbar">';
+      // Bookmark-Name + Views-Dropdown aus globalem State lesen
+      var bmName    = bookmarkInfo && (bookmarkInfo.name || bookmarkInfo.id) || null;
+      var bmViews   = bookmarkInfo && bookmarkInfo.views || [];
+      var bmViewId  = bookmarkInfo && bookmarkInfo.activeViewId || null;
+
+      var html = '<div class="lm-active-header">';
+      if (bmName) {
+        html += '<div class="lm-active-bookmark-row">';
+        html += '<span class="lm-active-bookmark-name" title="Geladenes Bookmark">' + esc(bmName) + '</span>';
+        if (bmViews.length) {
+          html += '<select class="lm-active-view-select" data-action="switch-view" title="Kartenansicht wählen">';
+          html += '<option value="">(Standard)</option>';
+          bmViews.forEach(function(v) {
+            var sel = (v.id === bmViewId) ? ' selected' : '';
+            html += '<option value="' + esc(v.id) + '"' + sel + '>' + esc(v.name || v.id) + '</option>';
+          });
+          html += '</select>';
+        }
+        html += '</div>';
+      }
+      html += '<div class="lm-active-toolbar">';
       html += '<span class="lm-active-count">' + totalLayers + ' Themen</span>';
       html += '<button class="lm-btn-remove-all" data-action="remove-all" title="Alle Themen entfernen">';
       html += ICON.trash;
       html += ' Alle entfernen</button>';
+      html += '</div>';
       html += '</div>';
       html += '<ul class="lm-active-list">';
 
@@ -292,6 +439,20 @@
     _bindEvents: function () {
       var self = this;
 
+      // ── View-Dropdown (Kartenansicht wechseln) ──
+      _container.addEventListener('change', function (e) {
+        var sel = e.target.closest('[data-action="switch-view"]');
+        if (!sel) return;
+        var viewId = sel.value || null;
+        var bm = window.__tnetActiveBookmark;
+        if (!bm) return;
+        bm.activeViewId = viewId;
+        // TnetSetBookmark mit neuer View aufrufen
+        if (typeof window.TnetSetBookmark === 'function') {
+          window.TnetSetBookmark(bm.id || bm['map-bookmark'], viewId || null);
+        }
+      });
+
       // ── Click-Events (Eye, Remove, Remove-All, Gruppen-Aktionen) ──
       _container.addEventListener('click', function (e) {
         if (_dragState) return; // Kein Click während Drag
@@ -302,6 +463,10 @@
 
         // "Alle entfernen" liegt in der Toolbar, nicht in einem Item
         if (action === 'remove-all') {
+          if (getBookmarkInfo()) {
+            window.__tnetActiveBookmark.layers = [];
+            emitBookmarkStateChanged('remove-all');
+          }
           if (window.TnetLMStore && window.TnetLMStore.removeAllLayers) {
             window.TnetLMStore.removeAllLayers();
           }
@@ -318,6 +483,9 @@
         }
         if (action === 'group-remove' && groupEl) {
           var gid2 = groupEl.dataset.groupId;
+          if (removeBookmarkGroupState(gid2)) {
+            emitBookmarkStateChanged('remove-group');
+          }
           if (window.TnetLMStore) window.TnetLMStore.removeCoalesceGroup(gid2);
           return;
         }
@@ -353,6 +521,9 @@
             window.TnetLMStore.toggleLayerEye(layerId);
             break;
           case 'remove':
+            if (removeBookmarkLayerState(layerId)) {
+              emitBookmarkStateChanged('remove-layer');
+            }
             window.TnetLMStore.removeLayer(layerId);
             break;
           case 'legend':
@@ -633,6 +804,9 @@
       // Neue Reihenfolge aus DOM lesen und an Store übergeben
       if (ds.startIdx !== ds.currentIdx) {
         var orderedIds = this._readOrderFromDOM(ds.listEl);
+        if (reorderBookmarkLayerState(orderedIds)) {
+          emitBookmarkStateChanged('reorder');
+        }
         if (orderedIds.length > 0 && window.TnetLMStore && window.TnetLMStore.setActiveLayerOrder) {
           window.TnetLMStore.setActiveLayerOrder(orderedIds);
         }
@@ -747,6 +921,7 @@
     },
 
     _onVisibility: function (evt) {
+      updateBookmarkLayerState(evt.id, { visible: !!evt.visible });
       if (!_container || _dragState) return;
       var item = _container.querySelector('[data-layer-id="' + evt.id + '"]');
       if (!item) return;
@@ -759,6 +934,7 @@
     },
 
     _onOpacity: function (evt) {
+      updateBookmarkLayerState(evt.id, { opacity: evt.opacity });
       if (!_container || _dragState) return;
       var item = _container.querySelector('[data-layer-id="' + evt.id + '"]');
       if (!item) return;

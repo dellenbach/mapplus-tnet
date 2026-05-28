@@ -500,7 +500,8 @@
         if (lid && window.TnetCoalesceBridge && window.TnetCoalesceBridge.isEnabled &&
             window.TnetCoalesceBridge.isEnabled() &&
             window.TnetCoalesceBridge.isManagedSublayer &&
-            window.TnetCoalesceBridge.isManagedSublayer(lid)) {
+            window.TnetCoalesceBridge.isManagedSublayer(lid) &&
+            !(window.__tnetActiveBookmark && window.__tnetActiveBookmark.layers && window.__tnetActiveBookmark.layers.length)) {
           olLayer.setVisible(false);
           (function (layerToRemove) {
             setTimeout(function () {
@@ -1238,6 +1239,44 @@
       ids.forEach(function (id) {
         self.removeLayer(id);
       });
+    },
+
+    /**
+     * Aktive Layer-Liste direkt aus einem Bookmark-JSON setzen — SOFORT,
+     * ohne auf Map-Sync zu warten. Karteninhalt zeigt damit das Bookmark
+     * mit korrektem Visibility-Status, während das Framework asynchron
+     * im Hintergrund die echten OL-Layer lädt.
+     *
+     * @param {Array<{id:string, visible?:boolean, opacity?:number}>} bookmarkLayers
+     */
+    loadActiveLayersFromBookmark: function (bookmarkLayers) {
+      if (!Array.isArray(bookmarkLayers)) return;
+      var self = this;
+      var newActive = [];
+      bookmarkLayers.forEach(function (spec) {
+        if (!spec || !spec.id) return;
+        // Layer aus dem Katalog suchen (für name, etc.)
+        var fromCatalog = self.findLayer(spec.id);
+        // Layer-Objekt aufbauen: aus Katalog klonen, sonst Stub
+        var layer;
+        if (fromCatalog) {
+          layer = {};
+          for (var k in fromCatalog) {
+            if (fromCatalog.hasOwnProperty(k)) layer[k] = fromCatalog[k];
+          }
+        } else {
+          // Stub falls Katalog den Layer nicht kennt (z.B. gis_fach-Services
+          // die nicht im LyrMgr-Tree registriert sind)
+          var nameParts = String(spec.id).split('/');
+          layer = { id: spec.id, name: nameParts[nameParts.length - 1] || spec.id };
+        }
+        layer.visible = ('visible' in spec) ? !!spec.visible : true;
+        if (spec.opacity != null && isFinite(spec.opacity)) layer.opacity = +spec.opacity;
+        newActive.push(layer);
+      });
+      _activeLayers = newActive;
+      this._emit('active-layers-changed', _activeLayers);
+      if (_config.debug) TnetLog.log(LOG, 'loadActiveLayersFromBookmark:', _activeLayers.length, 'Layer');
     },
 
     /**

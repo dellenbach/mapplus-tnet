@@ -338,7 +338,9 @@ function _cancelBookmarkEnsureTimers() {
 function _scheduleBookmarkLayerEnsure(layerIds, token) {
   if (!layerIds || !layerIds.length) return;
 
-  var retries = [500, 1500, 3000, 5000, 8000];
+  // Nur 2 Retries, möglichst schnell. Framework lädt im setMapBookmark-Aufruf
+  // direkt, Ensure-Calls sind nur Race-Absicherung.
+  var retries = [300, 1200];
   retries.forEach(function(delay) {
     var timer = setTimeout(function() {
       if (token !== _bookmarkEnsureToken) return;
@@ -356,9 +358,87 @@ function _scheduleBookmarkLayerEnsure(layerIds, token) {
 }
 
 /**
- * Variante des Ensure-Mechanismus, die per-Layer Sichtbarkeit (on/off) setzt.
- * Erlaubt das Konzept "Layer wird vom Bookmark geladen, ist aber initial unsichtbar"
- * und das Anwenden einer Kartenansicht (views[].layerStates).
+ * Wartet bis die OL-Layer geladen sind (via map.getLayers events) und wendet dann
+ * EINMALIG die View-Visibility an. Robuster als Timer-Retries gegen das asynchrone
+ * Framework-Service-Loading.
+ *
+ * @param {Object<string, boolean>} visibilityMap
+ * @param {number} token
+ */
+function _scheduleViewVisibilityWhenLayersReady(visibilityMap, token) {
+  var am = (window.top && window.top.njs && window.top.njs.AppManager)
+            ? window.top.njs.AppManager
+            : (window.njs && window.njs.AppManager) ? window.njs.AppManager : null;
+  var map = am && am.Maps && am.Maps['main'] && am.Maps['main'].mapObj;
+  if (!map || typeof map.getLayers !== 'function') return;
+
+  // IDs der erwarteten Layer (für die wir Visibility setzen müssen)
+  var needIds = Object.keys(visibilityMap || {});
+  if (!needIds.length) return;
+
+  // Funktion zum Anwenden: schaltet Visibility für alle Layer die JETZT in der Map sind
+  function applyOnce() {
+    if (token !== _bookmarkEnsureToken) return false;
+    var olByName = {};
+    map.getLayers().forEach(function(olLayer) {
+      if (!olLayer || typeof olLayer.get !== 'function') return;
+      var n = olLayer.get('name') || '';
+      if (n) olByName[n] = olLayer;
+    });
+    var foundAll = true;
+    needIds.forEach(function(layerId) {
+      var olLayer = olByName[layerId];
+      if (!olLayer) { foundAll = false; return; }
+      var should = !!visibilityMap[layerId];
+      if (typeof olLayer.setVisible === 'function' && olLayer.getVisible() !== should) {
+        olLayer.setVisible(should);
+        if (window.TnetLMStore && typeof window.TnetLMStore._emit === 'function') {
+          try {
+            window.TnetLMStore._emit('layer-visibility', { id: layerId, visible: should, source: 'bookmark-init' });
+          } catch (eEmit) { /* ignore */ }
+        }
+      }
+    });
+    return foundAll;
+  }
+
+  // Initial-Versuch + bei jedem Layer-Add nochmal probieren (bis alle gefunden)
+  var coll = map.getLayers();
+  var addKey;
+  function onAdd() {
+    if (token !== _bookmarkEnsureToken) {
+      if (addKey && typeof coll.un === 'function') coll.un('add', onAdd);
+      return;
+    }
+    if (applyOnce()) {
+      // Fertig — Listener entfernen
+      if (addKey && typeof coll.un === 'function') coll.un('add', onAdd);
+    }
+  }
+  // Erster Versuch (sofort) — falls schon alle Layer da, sind wir fertig
+  if (!applyOnce()) {
+    // Sonst auf weitere Layer-Adds reagieren
+    if (typeof coll.on === 'function') {
+      addKey = coll.on('add', onAdd);
+    }
+    // Sicherheits-Timeout: nach 15s aufgeben
+    setTimeout(function() {
+      if (addKey && typeof coll.un === 'function') {
+        try { coll.un('add', onAdd); } catch (e) {}
+      }
+    }, 15000);
+  }
+}
+
+/**
+ * Variante des Ensure-Mechanismus, die invisible Layer (visible:false) direkt
+ * per OL-API ausschaltet — ohne sie aus dem LMStore._activeLayers zu entfernen.
+ * Der Layer bleibt im Karteninhalt aufgelistet, nur das Augen-Icon zeigt "aus".
+ *
+ * Hintergrund: TnetLayerSwitch('off') würde den Layer aus _activeLayers entfernen
+ * (TOC-Eintrag verschwindet). Wir wollen aber den Bookmark-Layer-Stack als Inhalt
+ * im Karteninhalt behalten, mit per-Layer-Visibility.
+ *
  * @param {Object<string, boolean>} visibilityMap - {layerId: visible}
  * @param {number} token
  */
@@ -366,17 +446,38 @@ function _scheduleBookmarkVisibilityEnsure(visibilityMap, token) {
   var ids = visibilityMap ? Object.keys(visibilityMap) : [];
   if (!ids.length) return;
 
-  var retries = [500, 1500, 3000, 5000, 8000];
+  var retries = [400, 1200, 3000];
   retries.forEach(function(delay) {
     var timer = setTimeout(function() {
       if (token !== _bookmarkEnsureToken) return;
-      if (typeof window.TnetLayerSwitch !== 'function') return;
+      var am = (window.top && window.top.njs && window.top.njs.AppManager)
+                ? window.top.njs.AppManager
+                : (window.njs && window.njs.AppManager) ? window.njs.AppManager : null;
+      var map = am && am.Maps && am.Maps['main'] && am.Maps['main'].mapObj;
+      if (!map || typeof map.getLayers !== 'function') return;
+
+      // OL-Layer-Lookup
+      var olByName = {};
+      map.getLayers().forEach(function(olLayer) {
+        if (!olLayer || typeof olLayer.get !== 'function') return;
+        var n = olLayer.get('name') || '';
+        if (n) olByName[n] = olLayer;
+      });
+
       ids.forEach(function(layerId) {
-        var state = visibilityMap[layerId] ? 'on' : 'off';
-        try {
-          window.TnetLayerSwitch(layerId, state);
-        } catch (e) {
-          TnetLog.warn('[TnetSetBookmark] Visibility-Ensure fehlgeschlagen:', layerId, state, e && e.message ? e.message : e);
+        var should = !!visibilityMap[layerId];
+        var olLayer = olByName[layerId];
+        if (!olLayer || typeof olLayer.setVisible !== 'function') return;
+        if (olLayer.getVisible() !== should) {
+          olLayer.setVisible(should);
+          // TOC-Event: Augen-Icon synchronisieren (kein TnetLayerSwitch → kein removeLayer)
+          if (window.TnetLMStore && typeof window.TnetLMStore._emit === 'function') {
+            try {
+              window.TnetLMStore._emit('layer-visibility', {
+                id: layerId, visible: should, source: 'bookmark-init'
+              });
+            } catch (eEmit) { /* ignore */ }
+          }
         }
       });
     }, delay);
@@ -438,6 +539,158 @@ function _computeBookmarkVisibility(cfg, activeView) {
     result[id] = visible;
   });
   return result;
+}
+
+function _copyOwnProps(target, source) {
+  if (!target || !source) return target;
+  Object.keys(source).forEach(function(key) {
+    target[key] = source[key];
+  });
+  return target;
+}
+
+function _buildBookmarkRuntimeLayers(cfg, activeView) {
+  var visibilityMap = _computeBookmarkVisibility(cfg, activeView);
+  var store = window.TnetLMStore;
+  var previous = window.__tnetActiveBookmark && Array.isArray(window.__tnetActiveBookmark.layers)
+    ? window.__tnetActiveBookmark.layers
+    : [];
+  var prevById = {};
+
+  previous.forEach(function(layer) {
+    if (layer && layer.id) prevById[layer.id] = layer;
+  });
+
+  return ((cfg && cfg.layers) || []).map(function(entry, index) {
+    var spec = (entry && typeof entry === 'object') ? entry : { id: String(entry || '') };
+    var layerId = spec.id || '';
+    var catalogLayer = (store && typeof store.findLayer === 'function' && layerId)
+      ? store.findLayer(layerId)
+      : null;
+    var previousLayer = layerId ? prevById[layerId] : null;
+    var runtimeLayer = {};
+
+    if (!layerId) return null;
+
+    _copyOwnProps(runtimeLayer, catalogLayer || {});
+    _copyOwnProps(runtimeLayer, previousLayer || {});
+    _copyOwnProps(runtimeLayer, spec);
+
+    runtimeLayer.id = layerId;
+    runtimeLayer.name = runtimeLayer.name || layerId.split('/').pop() || layerId;
+    runtimeLayer.visible = Object.prototype.hasOwnProperty.call(visibilityMap, layerId)
+      ? !!visibilityMap[layerId]
+      : (runtimeLayer.visible !== false);
+
+    if (runtimeLayer.opacity == null || !isFinite(runtimeLayer.opacity)) {
+      runtimeLayer.opacity = 1;
+    } else {
+      runtimeLayer.opacity = +runtimeLayer.opacity;
+    }
+
+    runtimeLayer.order = (runtimeLayer.order != null && isFinite(runtimeLayer.order))
+      ? +runtimeLayer.order
+      : index;
+
+    return runtimeLayer;
+  }).filter(function(layer) { return !!layer; });
+}
+
+function _emitActiveBookmarkEvent(eventName, reason) {
+  try {
+    document.dispatchEvent(new CustomEvent(eventName, {
+      detail: {
+        reason: reason || null,
+        bookmark: window.__tnetActiveBookmark || null
+      }
+    }));
+  } catch (eEvent) { /* ignore */ }
+}
+
+var _bookmarkLayerStateSync = null;
+
+function _detachBookmarkLayerStateSync() {
+  if (!_bookmarkLayerStateSync) return;
+  try {
+    if (_bookmarkLayerStateSync.collection && typeof _bookmarkLayerStateSync.collection.un === 'function') {
+      _bookmarkLayerStateSync.collection.un('add', _bookmarkLayerStateSync.handler);
+    }
+  } catch (eDetach) { /* ignore */ }
+  _bookmarkLayerStateSync = null;
+}
+
+function _syncBookmarkLayerStateToOL(olLayer) {
+  var bookmark = window.__tnetActiveBookmark;
+  var layerId;
+  var runtimeLayer;
+
+  if (!bookmark || !Array.isArray(bookmark.layers) || !olLayer || typeof olLayer.get !== 'function') return false;
+
+  layerId = olLayer.get('name') || '';
+  if (!layerId) return false;
+
+  runtimeLayer = bookmark.layers.find(function(layer) {
+    return layer && layer.id === layerId;
+  });
+  if (!runtimeLayer) return false;
+
+  if (typeof olLayer.setVisible === 'function' && typeof olLayer.getVisible === 'function') {
+    var shouldBeVisible = runtimeLayer.visible !== false;
+    if (olLayer.getVisible() !== shouldBeVisible) {
+      olLayer.setVisible(shouldBeVisible);
+    }
+  }
+
+  if (runtimeLayer.opacity != null && isFinite(runtimeLayer.opacity) && typeof olLayer.setOpacity === 'function') {
+    olLayer.setOpacity(+runtimeLayer.opacity);
+  }
+
+  return true;
+}
+
+function _applyBookmarkRuntimeStateToMap() {
+  var am = (window.top && window.top.njs && window.top.njs.AppManager)
+            ? window.top.njs.AppManager
+            : (window.njs && window.njs.AppManager) ? window.njs.AppManager : null;
+  var map = am && am.Maps && am.Maps['main'] && am.Maps['main'].mapObj;
+  if (!map || typeof map.getLayers !== 'function') return;
+
+  map.getLayers().forEach(function(olLayer) {
+    _syncBookmarkLayerStateToOL(olLayer);
+  });
+}
+
+function _installBookmarkLayerStateSync(token) {
+  var am = (window.top && window.top.njs && window.top.njs.AppManager)
+            ? window.top.njs.AppManager
+            : (window.njs && window.njs.AppManager) ? window.njs.AppManager : null;
+  var map = am && am.Maps && am.Maps['main'] && am.Maps['main'].mapObj;
+  var collection;
+
+  _detachBookmarkLayerStateSync();
+  if (!map || typeof map.getLayers !== 'function') return;
+
+  collection = map.getLayers();
+  if (!collection || typeof collection.on !== 'function') {
+    _applyBookmarkRuntimeStateToMap();
+    return;
+  }
+
+  function onAdd(evt) {
+    if (token !== _bookmarkEnsureToken) {
+      _detachBookmarkLayerStateSync();
+      return;
+    }
+    _syncBookmarkLayerStateToOL(evt && evt.element ? evt.element : evt);
+  }
+
+  collection.on('add', onAdd);
+  _bookmarkLayerStateSync = {
+    collection: collection,
+    handler: onAdd
+  };
+
+  _applyBookmarkRuntimeStateToMap();
 }
 
 function _clearThematicLayersBeforeBookmark() {
@@ -530,11 +783,96 @@ function _buildBookmarkParams(cfg) {
  * @param {string|null} [viewId] - optionale Kartenansicht (überstüpfelt isDefault-View)
  * @returns {{success: boolean, bookmarkId: string, viewId: string|null, params: string}}
  */
+// View-only Switch: gleiches Bookmark, nur Visibility-Diff pro Layer anwenden.
+// Kein removeAllLayers, kein setMapBookmark — Layer-Stack im TOC bleibt erhalten,
+// nur die OL-Layer-Sichtbarkeit (und LMStore-State) wird umgeschaltet.
+function _applyViewSwitchOnly(cfg, viewId) {
+  var activeView   = _resolveActiveBookmarkView(cfg, viewId || null);
+  var visibilityMap = _computeBookmarkVisibility(cfg, activeView);
+
+  var am  = (window.top && window.top.njs && window.top.njs.AppManager)
+            ? window.top.njs.AppManager
+            : (window.njs && window.njs.AppManager) ? window.njs.AppManager : null;
+  var map = am && am.Maps && am.Maps['main'] && am.Maps['main'].mapObj;
+  if (!map || typeof map.getLayers !== 'function') {
+    TnetLog.warn('[TnetSetBookmark] View-Switch: Map nicht verfügbar');
+    return { success: false };
+  }
+
+  // Für jeden Layer im Visibility-Map den State umsetzen.
+  // 1) Versuche LMStore.setLayerVisible (aktualisiert _activeLayers für TOC)
+  // 2) Fallback: direkt OL-Layer setVisible (falls LMStore den Layer nicht kennt)
+  var changed = 0;
+  var lmStore = window.TnetLMStore;
+  // OL-Layer-Lookup vorbereiten (für Fallback und Pre-Check)
+  var olByName = {};
+  map.getLayers().forEach(function (olLayer) {
+    if (!olLayer || typeof olLayer.get !== 'function') return;
+    var n = olLayer.get('name') || '';
+    if (n) olByName[n] = olLayer;
+  });
+
+  Object.keys(visibilityMap).forEach(function (layerId) {
+    var should = !!visibilityMap[layerId];
+    var olLayer = olByName[layerId];
+    // Aktuellen IST-State ermitteln (LMStore _activeLayers oder OL-Layer-visible)
+    var isActive = false;
+    if (lmStore && typeof lmStore._isActive === 'function') {
+      isActive = lmStore._isActive(layerId);
+    } else if (olLayer && typeof olLayer.getVisible === 'function') {
+      isActive = olLayer.getVisible();
+    }
+    if (isActive === should) return; // bereits korrekt
+    // LMStore-API bevorzugt (synct _activeLayers + dispatcht Events)
+    if (lmStore && typeof lmStore.setLayerVisible === 'function') {
+      try { lmStore.setLayerVisible(layerId, should); changed++; return; }
+      catch (eSL) { /* fallthrough zu OL-Direct */ }
+    }
+    if (olLayer && typeof olLayer.setVisible === 'function') {
+      olLayer.setVisible(should);
+      changed++;
+    }
+  });
+
+  TnetLog.log('[TnetSetBookmark] View-Switch nur Visibility:', viewId || '(none)', changed + ' Layer geändert');
+  if (window.__tnetActiveBookmark) {
+    window.__tnetActiveBookmark.activeViewId = activeView ? activeView.id : null;
+    window.__tnetActiveBookmark.layers = _buildBookmarkRuntimeLayers(cfg, activeView);
+    _applyBookmarkRuntimeStateToMap();
+    _emitActiveBookmarkEvent('tnet-bookmark-state-changed', 'view-switch');
+  }
+  return { success: true, bookmarkId: cfg.id, viewId: activeView ? activeView.id : null, viewSwitchOnly: true };
+}
+
 function _applyBookmark(cfg, bookmarkId, viewId) {
-  var params = _buildBookmarkParams(cfg);
-  var layerIds = _normalizeBookmarkLayerIds(cfg.layers || []);
+  // View-only Switch erkennen: gleiches Bookmark (id übereinstimmt), nur viewId anders
+  var prev = window.__tnetActiveBookmark;
+  if (prev && prev.id === bookmarkId && prev._cfg) {
+    var prevViewId = prev.activeViewId || null;
+    var newViewIdCheck = viewId || null;
+    if (prevViewId !== newViewIdCheck) {
+      var res = _applyViewSwitchOnly(cfg, newViewIdCheck);
+      if (res.success) {
+        prev.activeViewId = newViewIdCheck;
+        if (window.TnetLMStore && typeof window.TnetLMStore._emit === 'function') {
+          try { window.TnetLMStore._emit('active-layers-changed', window.TnetLMStore.getActiveLayers()); }
+          catch (eR) { /* ignore */ }
+        }
+        return res;
+      }
+    }
+  }
+
   var activeView = _resolveActiveBookmarkView(cfg, viewId || null);
   var visibilityMap = _computeBookmarkVisibility(cfg, activeView);
+  var runtimeLayers = _buildBookmarkRuntimeLayers(cfg, activeView);
+
+  // ALLE Bookmark-Layer in den Framework-Aufruf — sodass das Framework den
+  // kompletten Service-Stack lädt und LMStore alle Layer per Map-Sync übernimmt.
+  // Visibility wird DANACH per OL-Layer.setVisible() für visible:false-Layer auf
+  // aus geschaltet (mit Map-Sync-Suppression, damit der Layer im TOC bleibt).
+  var params = _buildBookmarkParams(cfg);
+  var layerIds = _normalizeBookmarkLayerIds(cfg.layers || []);
 
   var ensureToken;
   var am = (window.top && window.top.njs && window.top.njs.AppManager)
@@ -550,23 +888,31 @@ function _applyBookmark(cfg, bookmarkId, viewId) {
   _bookmarkEnsureToken += 1;
   ensureToken = _bookmarkEnsureToken;
 
+  // Globaler Bookmark-State SOFORT setzen — damit LM-Active beim nächsten render
+  // (durch loadActiveLayersFromBookmark unten) Name + Views-Dropdown sieht.
+  var activeViewIdEarly = activeView ? activeView.id : null;
+  window.__tnetActiveBookmark = {
+    id:           bookmarkId,
+    name:         cfg.name || null,
+    views:        (cfg.views || []).filter(function(v) { return v && v.id; }),
+    activeViewId: activeViewIdEarly,
+    layers:       runtimeLayers,
+    _cfg:         cfg
+  };
+  _emitActiveBookmarkEvent('tnet-bookmark-loaded', 'apply-start');
+
   _clearThematicLayersBeforeBookmark();
 
+  _installBookmarkLayerStateSync(ensureToken);
+
   am.setMapBookmark(['main'], params);
-  // Sichtbarkeit pro Layer durchsetzen (lädt alle, schaltet 'visible:false' wieder aus).
-  // Fällt auf die alte "alle on"-Logik zurück, wenn keine Sichtbarkeits-Differenzen existieren.
-  var hasAnyOff = false;
-  for (var id in visibilityMap) {
-    if (visibilityMap[id] === false) { hasAnyOff = true; break; }
-  }
-  if (hasAnyOff || activeView) {
-    _scheduleBookmarkVisibilityEnsure(visibilityMap, ensureToken);
-  } else if (layerIds.length) {
-    _scheduleBookmarkLayerEnsure(layerIds, ensureToken);
-  }
+
+  _scheduleViewVisibilityWhenLayersReady(visibilityMap, ensureToken);
+  _applyBookmarkRuntimeStateToMap();
 
   var activeViewId = activeView ? activeView.id : null;
   TnetLog.log('[TnetSetBookmark]', bookmarkId + (activeViewId ? '/' + activeViewId : ''), params);
+  // window.__tnetActiveBookmark wurde bereits weiter oben gesetzt (vor loadActiveLayersFromBookmark)
 
   // Themen im Themenbaum aufklappen (falls vorhanden)
   if (cfg.themes && window.TnetLMTree && typeof window.TnetLMTree.expandThemes === 'function') {

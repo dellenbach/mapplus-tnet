@@ -162,10 +162,32 @@ function startBookmarkFromUrl() {
 
         // Warte auf TnetSetBookmark-Funktion (wird async geladen).
         // Catch-up + Bookmark-Name-Logging laufen im setMapBookmark-Wrapper (tnet-header.js).
+        function isLayerManagerReady() {
+            try {
+                var am = window.njs && window.njs.AppManager;
+                var lyrMgrs = am && am.LyrMgr;
+                var mainWidget = window.dijit && typeof window.dijit.byId === 'function'
+                    ? window.dijit.byId('main_lyrmgr')
+                    : null;
+
+                if (!lyrMgrs) return false;
+                if (!lyrMgrs.main_lyrmgr || typeof lyrMgrs.main_lyrmgr.switchLayersProgr !== 'function') {
+                    return false;
+                }
+                if (mainWidget && mainWidget.domNode && mainWidget.domNode.childNodes && mainWidget.domNode.childNodes.length) {
+                    return true;
+                }
+                return Object.keys(lyrMgrs).length >= 1;
+            } catch (eLyrMgr) {
+                return false;
+            }
+        }
+
         function tryStart() {
             if (typeof window.TnetSetBookmark === 'function' &&
                 window.njs && window.njs.AppManager &&
-                typeof window.njs.AppManager.setMapBookmark === 'function') {
+                typeof window.njs.AppManager.setMapBookmark === 'function' &&
+                isLayerManagerReady()) {
                 window.TnetSetBookmark(bookmarkId, viewId);
             } else {
                 setTimeout(tryStart, 200);
