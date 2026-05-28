@@ -311,6 +311,9 @@
         // Visual state (synced from widget controls)
         _currentOpacity: 1,       // 0..1 (1 = fully opaque)
         _isGrayscale: false,
+        _grayscaleListeners: {},  // prerender/postrender-Listener je Layer-Key
+        _grayscaleListenerCnt: 0, // Zaehler fuer eindeutige Listener-Keys
+        _grayscaleSourceEntries: [],
 
         // Timers für hide-Animationen (Race-Condition-Schutz)
         _hideSliderTimer: null,
@@ -395,6 +398,12 @@
             this.currentBasemap = basemapId;
             this._cleanupDynamic();
             this.removeTimeOverlay();
+
+            // Nach Basemap-Wechsel: Grau/Farbe auf den neuen Basemap-Renderpfad uebertragen.
+            if (this._isGrayscale) {
+                var self = this;
+                setTimeout(function() { self.syncGrayscale(true); }, 50);
+            }
 
             var cfg = this.config[basemapId];
 
@@ -566,7 +575,7 @@
                 this._setBaseLayerVisibility(mainMap, false);
 
                 if (this._isGrayscale) {
-                    this._applyGrayscaleCSS(layer, true);
+                    this._applyGrayscaleViaPrerender(true);
                 }
             } catch (e) {
                 TnetLog.error(LOG_PREFIX, 'Overlay-Layer Fehler:', e);
@@ -636,18 +645,17 @@
             }
 
             if (typeof njs.AppManager.toggleBaseLayerColor === 'function') {
-                var origColor = njs.AppManager.toggleBaseLayerColor;
+                // MutationObserver: Framework-Filter dauerhaft entfernen (auch
+                // wenn Framework ihn nachträglich oder wiederholt setzt).
+                self._installFilterStripObserver();
+
                 njs.AppManager.toggleBaseLayerColor = function(mapId, toolId, btnEl) {
-                    try {
-                        origColor.call(njs.AppManager, mapId, toolId, btnEl);
-                    } catch (e) {
-                        TnetLog.warn(LOG_PREFIX, 'toggleBaseLayerColor Fehler (kein aktiver Basemap-Layer?):', e.message);
-                    }
-                    // Undo: .grayscale auf .ol-basemap-Divs betrifft alle Child-Layer
-                    // (Overlay-Themen werden sonst ebenfalls grau). Stattdessen
-                    // werden nur canvas/img-Elemente in .ol-basemap gefiltert.
+                    // Framework-Filter entfernen: CSS-Klasse (.grayscale) und
+                    // Inline-Style auf .ol-layer-Divs – verhindert CSS-Overgriff
+                    // auf Overlay-Themen. Unser Grau laeuft via prerender/postrender.
                     var _bDivs = document.querySelectorAll('.ol-basemap');
                     for (var _bi = 0; _bi < _bDivs.length; _bi++) { _bDivs[_bi].classList.remove('grayscale'); }
+                    self._stripGrayFilterFromOlLayers();
                     if (mapId === 'main') {
                         var isGrey = false;
                         if (btnEl && btnEl.getAttribute) {
@@ -662,6 +670,51 @@
             }
         },
 
+        _stripGrayFilterFromOlLayers: function() {
+            var lyrs = document.querySelectorAll('.ol-layer');
+            for (var i = 0; i < lyrs.length; i++) {
+                var s = lyrs[i].style;
+                if (s && s.filter && (s.filter.indexOf('gray') >= 0 || s.filter.indexOf('grey') >= 0)) {
+                    s.filter = '';
+                }
+            }
+        },
+
+        // Entfernt Framework-Inline-Filter von .ol-layer-Divs synchron.
+        _captureAndStripGrayFilter: function() {
+            var lyrs = document.querySelectorAll('.ol-layer');
+            for (var i = 0; i < lyrs.length; i++) {
+                var s = lyrs[i].style;
+                if (s && s.filter && (s.filter.indexOf('gray') >= 0 || s.filter.indexOf('grey') >= 0)) {
+                    s.filter = '';
+                }
+            }
+        },
+
+        _installFilterStripObserver: function() {
+            if (this._filterObserver) return;
+            var self = this;
+            try {
+                var mo = new MutationObserver(function(mutations) {
+                    for (var m = 0; m < mutations.length; m++) {
+                        var t = mutations[m].target;
+                        if (t && t.classList && t.classList.contains('ol-layer')) {
+                            var st = t.style;
+                            if (st && st.filter && (st.filter.indexOf('gray') >= 0 || st.filter.indexOf('grey') >= 0)) {
+                                st.filter = ''; // Framework-Filter sofort entfernen
+                            }
+                        }
+                    }
+                });
+                mo.observe(document.body, {
+                    attributes: true, subtree: true, attributeFilter: ['style']
+                });
+                this._filterObserver = mo;
+            } catch(e) {
+                TnetLog.warn(LOG_PREFIX, 'MutationObserver-Setup fehlgeschlagen:', e);
+            }
+        },
+
         syncOpacity: function(value) {
             var olOpacity = 1 - (parseInt(value, 10) / 100);
             this._currentOpacity = olOpacity;
@@ -672,14 +725,271 @@
 
         syncGrayscale: function(isGrey) {
             this._isGrayscale = isGrey;
-            var _filterVal = isGrey ? 'grayscale(100%)' : '';
-            // Nur <canvas> und <img> innerhalb von .ol-basemap filtern.
-            // CSS filter auf dem DIV würde auch Overlay-Themen (Geschwister-Layer)
-            // grau machen – canvas/img-Filter sind isoliert.
-            var _bMedia = document.querySelectorAll('.ol-basemap canvas, .ol-basemap img');
-            for (var _mi = 0; _mi < _bMedia.length; _mi++) { _bMedia[_mi].style.filter = _filterVal; }
-            if (this._timeOverlayLayer) {
-                this._applyGrayscaleCSS(this._timeOverlayLayer, this._isGrayscale);
+            try {
+                var mapInfo = njs.AppManager.Maps && njs.AppManager.Maps.main;
+                var currentBasemapId = mapInfo ? (mapInfo.currBasisMap || mapInfo.basisMap || this.currentBasemap) : this.currentBasemap;
+                TnetLog.log(LOG_PREFIX, 'syncGrayscale:', isGrey, 'basemap=', currentBasemapId, 'activeLayers=', this._getActiveBasemapLayers().length, 'domTargets=', document.querySelectorAll('.ol-basemap canvas, .ol-basemap img').length);
+            } catch (e) {
+                TnetLog.warn(LOG_PREFIX, 'syncGrayscale Debug-Log Fehler:', e);
+            }
+            this._clearGrayscaleSourceFilters();
+            this._applyGrayscaleViaPrerender(isGrey);
+        },
+
+        // Entfernt alle gespeicherten prerender/postrender-Listener.
+        _clearGrayscaleListeners: function() {
+            var keys = Object.keys(this._grayscaleListeners);
+            for (var ki = 0; ki < keys.length; ki++) {
+                var entry = this._grayscaleListeners[keys[ki]];
+                try { entry.layer.un('prerender',  entry.pre);  } catch(e) {}
+                try { entry.layer.un('postrender', entry.post); } catch(e) {}
+                try { entry.layer.changed(); } catch(e) {}
+            }
+            this._grayscaleListeners = {};
+        },
+
+        _clearGrayscaleSourceFilters: function() {
+            for (var i = 0; i < this._grayscaleSourceEntries.length; i++) {
+                var entry = this._grayscaleSourceEntries[i];
+                try {
+                    if (entry.kind === 'tile' && entry.source.setTileLoadFunction) {
+                        entry.source.setTileLoadFunction(entry.originalFn);
+                    } else if (entry.kind === 'image' && entry.source.setImageLoadFunction) {
+                        entry.source.setImageLoadFunction(entry.originalFn);
+                    }
+                    if (entry.source.refresh) entry.source.refresh();
+                } catch (e) {
+                    TnetLog.warn(LOG_PREFIX, '_clearGrayscaleSourceFilters Fehler:', e);
+                }
+            }
+            this._grayscaleSourceEntries = [];
+        },
+
+        _applyGrayToImageElement: function(imgEl) {
+            if (!imgEl) return;
+            try {
+                imgEl.style.filter = this._isGrayscale ? 'grayscale(100%)' : '';
+            } catch (e) {
+                TnetLog.warn(LOG_PREFIX, '_applyGrayToImageElement Fehler:', e);
+            }
+        },
+
+        _wrapTileLoadFunctionForGrayscale: function(source, originalFn) {
+            var self = this;
+            return function(tile, src) {
+                originalFn.call(source, tile, src);
+
+                var imgEl = tile && tile.getImage ? tile.getImage() : null;
+                if (!imgEl) return;
+
+                var process = function() {
+                    if (!self._isGrayscale) return;
+                    self._applyGrayToImageElement(imgEl);
+                };
+
+                if (imgEl.complete && (imgEl.naturalWidth || imgEl.width)) {
+                    process();
+                } else if (imgEl.addEventListener) {
+                    imgEl.addEventListener('load', process, { once: true });
+                }
+            };
+        },
+
+        _wrapImageLoadFunctionForGrayscale: function(source, originalFn) {
+            var self = this;
+            return function(imageObj, src) {
+                originalFn.call(source, imageObj, src);
+
+                var imgEl = imageObj && imageObj.getImage ? imageObj.getImage() : null;
+                if (!imgEl) return;
+
+                var process = function() {
+                    if (!self._isGrayscale) return;
+                    self._applyGrayToImageElement(imgEl);
+                };
+
+                if (imgEl.complete && (imgEl.naturalWidth || imgEl.width)) {
+                    process();
+                } else if (imgEl.addEventListener) {
+                    imgEl.addEventListener('load', process, { once: true });
+                }
+            };
+        },
+
+        _applyBasemapSourceGrayscale: function(grayscale) {
+            this._clearGrayscaleListeners();
+            this._clearGrayscaleSourceFilters();
+
+            if (!grayscale) return;
+
+            var activeLayers = this._getActiveBasemapLayers();
+            TnetLog.log(LOG_PREFIX, '_applyBasemapSourceGrayscale:', 'layers=', activeLayers.length, 'grayscale=', grayscale);
+
+            for (var i = 0; i < activeLayers.length; i++) {
+                var layer = activeLayers[i];
+                var source = layer && layer.getSource ? layer.getSource() : null;
+                if (!source) continue;
+
+                try {
+                    if (source.setTileLoadFunction && source.getTileLoadFunction) {
+                        var originalTileFn = source.getTileLoadFunction();
+                        this._grayscaleSourceEntries.push({ source: source, kind: 'tile', originalFn: originalTileFn });
+                        source.setTileLoadFunction(this._wrapTileLoadFunctionForGrayscale(source, originalTileFn));
+                        if (source.refresh) source.refresh();
+                        continue;
+                    }
+
+                    if (source.setImageLoadFunction && source.getImageLoadFunction) {
+                        var originalImageFn = source.getImageLoadFunction();
+                        this._grayscaleSourceEntries.push({ source: source, kind: 'image', originalFn: originalImageFn });
+                        source.setImageLoadFunction(this._wrapImageLoadFunctionForGrayscale(source, originalImageFn));
+                        if (source.refresh) source.refresh();
+                    }
+                } catch (e) {
+                    TnetLog.warn(LOG_PREFIX, '_applyBasemapSourceGrayscale Fehler:', e);
+                }
+            }
+        },
+
+        _getActiveBasemapLayers: function() {
+            var result = [];
+            var seen = [];
+
+            function pushLeaf(layer, allowTimeOverlay) {
+                if (!layer || seen.indexOf(layer) >= 0) return;
+                seen.push(layer);
+
+                if (!allowTimeOverlay && layer.get && layer.get('_isTimeOverlay')) return;
+
+                if (typeof layer.getLayers === 'function') {
+                    var children = layer.getLayers().getArray();
+                    for (var ci = 0; ci < children.length; ci++) {
+                        pushLeaf(children[ci], allowTimeOverlay);
+                    }
+                    return;
+                }
+
+                result.push(layer);
+            }
+
+            try {
+                var mapInfo = njs.AppManager.Maps && njs.AppManager.Maps.main;
+                if (!mapInfo) return result;
+
+                var currentCfg = this.currentBasemap && this.config ? this.config[this.currentBasemap] : null;
+                if (this._timeOverlayLayer && currentCfg && (currentCfg.type === 'static' || currentCfg.type === 'dynamic')) {
+                    pushLeaf(this._timeOverlayLayer, true);
+                    return result;
+                }
+
+                var bmId = mapInfo.currBasisMap || mapInfo.basisMap || this.currentBasemap;
+                var basemapLayer = mapInfo.basisMaps && bmId ? mapInfo.basisMaps[bmId] : null;
+
+                if (!basemapLayer && mapInfo.mapObj && mapInfo.mapObj.getLayers) {
+                    var mapLayers = mapInfo.mapObj.getLayers().getArray();
+                    for (var li = 0; li < mapLayers.length; li++) {
+                        var mapLayer = mapLayers[li];
+                        if (mapLayer && mapLayer.get && mapLayer.get('isBaseLayer') && !mapLayer.get('_isTimeOverlay')) {
+                            basemapLayer = mapLayer;
+                            break;
+                        }
+                    }
+                }
+
+                pushLeaf(basemapLayer);
+            } catch (e) {
+                TnetLog.warn(LOG_PREFIX, '_getActiveBasemapLayers Fehler:', e);
+            }
+
+            return result;
+        },
+
+        // Setzt ctx.filter='grayscale(1)' via OL prerender/postrender-Events.
+        // Der filter gilt NUR fuer den Canvas-Draw-Pass dieses Layers – keine
+        // CSS-Kaskade, kein Einfluss auf Geschwister-/Overlay-Layer.
+        _applyGrayscaleViaPrerender: function(isGrey) {
+            this._clearGrayscaleListeners();
+
+            if (!isGrey) return;
+
+            try {
+                var self = this;
+                var activeLayers = this._getActiveBasemapLayers();
+                if (!activeLayers.length) return;
+
+                for (var li = 0; li < activeLayers.length; li++) {
+                    (function(layer) {
+                    var pre = function(evt) {
+                        try {
+                            if (evt.context) evt.context.filter = 'grayscale(1)';
+                        } catch (e) {}
+                    };
+                    var post = function(evt) {
+                        try {
+                            if (evt.context) evt.context.filter = 'none';
+                        } catch (e) {}
+                    };
+
+                    layer.on('prerender', pre);
+                    layer.on('postrender', post);
+
+                    var key = 'gl' + (self._grayscaleListenerCnt++);
+                    self._grayscaleListeners[key] = { layer: layer, pre: pre, post: post };
+                    try { layer.changed(); } catch (e) {}
+                    })(activeLayers[li]);
+                }
+            } catch(e) {
+                TnetLog.warn(LOG_PREFIX, '_applyGrayscaleViaPrerender Fehler:', e);
+            }
+        },
+
+        _applyBasemapGrayscaleCSS: function(grayscale) {
+            var activeLayers = this._getActiveBasemapLayers();
+            TnetLog.log(LOG_PREFIX, '_applyBasemapGrayscaleCSS:', 'layers=', activeLayers.length, 'grayscale=', grayscale);
+            for (var i = 0; i < activeLayers.length; i++) {
+                this._applyBasemapLayerFilter(activeLayers[i], grayscale);
+            }
+        },
+
+        _applyBasemapLayerFilter: function(layer, grayscale) {
+            if (!layer) return;
+
+            var filterVal = grayscale ? 'grayscale(100%)' : '';
+            var applied = false;
+
+            var applyToMedia = function(rootEl) {
+                if (!rootEl || !rootEl.querySelectorAll) return false;
+                var media = rootEl.querySelectorAll('canvas, img');
+                if (!media.length) return false;
+                for (var mi = 0; mi < media.length; mi++) {
+                    media[mi].style.filter = filterVal;
+                }
+                return true;
+            };
+
+            try {
+                var renderer = layer.getRenderer ? layer.getRenderer() : null;
+                if (renderer) {
+                    applied = applyToMedia(renderer.container) || applied;
+                    applied = applyToMedia(renderer.element) || applied;
+                    if (!applied && renderer.canvas) {
+                        renderer.canvas.style.filter = filterVal;
+                        applied = true;
+                    }
+                }
+            } catch (e) {
+                TnetLog.warn(LOG_PREFIX, '_applyBasemapLayerFilter Fehler:', e);
+            }
+
+            TnetLog.log(LOG_PREFIX, '_applyBasemapLayerFilter:', 'applied=', applied, 'grayscale=', grayscale);
+        },
+
+        _applyBasemapDomGrayscale: function(grayscale) {
+            var filterVal = grayscale ? 'grayscale(100%)' : '';
+            var targets = document.querySelectorAll('.ol-basemap canvas, .ol-basemap img');
+            TnetLog.log(LOG_PREFIX, '_applyBasemapDomGrayscale:', 'targets=', targets.length, 'filter=', filterVal || '(leer)');
+            for (var i = 0; i < targets.length; i++) {
+                targets[i].style.filter = filterVal;
             }
         },
 
@@ -692,9 +1002,22 @@
                 return false;
             };
 
+            var applyToRendererMedia = function(rootEl) {
+                if (!rootEl || !rootEl.querySelectorAll) return false;
+                var media = rootEl.querySelectorAll('canvas, img');
+                if (!media.length) return false;
+                for (var mi = 0; mi < media.length; mi++) {
+                    media[mi].style.filter = filterVal;
+                }
+                return true;
+            };
+
             try {
                 var renderer = layer.getRenderer ? layer.getRenderer() : null;
                 if (renderer) {
+                    if (applyToRendererMedia(renderer.container)) return;
+                    if (applyToRendererMedia(renderer.element)) return;
+                    if (renderer.canvas && applyToEl(renderer.canvas)) return;
                     if (applyToEl(renderer.container)) return;
                     if (applyToEl(renderer.element)) return;
                     if (renderer.canvas) {
@@ -709,10 +1032,15 @@
                     if (!mapEntry || !mapEntry.mapObj) return;
                     var mainMap = mapEntry.mapObj;
                     var r = layer.getRenderer ? layer.getRenderer() : null;
+                    if (r) {
+                        if (applyToRendererMedia(r.container)) return;
+                        if (applyToRendererMedia(r.element)) return;
+                        if (r.canvas && applyToEl(r.canvas)) return;
+                    }
                     if (r && applyToEl(r.container || r.element)) return;
                     var viewport = mainMap.getViewport();
-                    var olLayerDivs = viewport.querySelectorAll('.ol-layer');
-                    if (olLayerDivs.length > 1) applyToEl(olLayerDivs[1]);
+                    var media = viewport.querySelectorAll('.ol-layer canvas, .ol-layer img');
+                    if (media.length > 0) applyToEl(media[0]);
                 } catch (e2) {
                     TnetLog.warn(LOG_PREFIX, 'Grayscale CSS Fallback Fehler:', e2);
                 }

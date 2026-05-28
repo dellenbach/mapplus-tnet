@@ -1,3 +1,15 @@
+## 2026-05-28 — Basemap-Grauschalter toggelte den Zustand, aber die Darstellung wechselte sichtbar nicht
+- **Symptom**: Der FARBE/GRAU-Schalter wurde geklickt, aber die Basemap blieb optisch unveraendert oder verlor den Zustand nach einem Basemap-Wechsel.
+- **Root-Cause**: Mehrere konkurrierende Graustufen-Pfade hatten sich ueberlagert: globale Framework-Filter auf `.ol-layer`, experimentelle Source-Wrappers und der eigentliche `prerender/postrender`-Pfad. Dadurch wurde entweder der falsche Layer beeinflusst oder der sichtbare Basemap-Layer gar nicht mehr konsistent getroffen.
+- **Fix**: Aktive Basemap-Layer werden jetzt zentral aufgeloest, Framework-Filter werden aus dem Steuerpfad entfernt und der Zustand wird nur noch ueber den Render-Hook auf den aktiven Basemap-Layern gesetzt. Nach Basemap-Wechsel wird derselbe zentrale Pfad ueber `syncGrayscale(true)` erneut angewendet.
+- **Guardrail**: Visuelle Zustandslogik fuer Basemaps darf nur einen einzigen Besitzer haben. Sobald mehrere Filterpfade parallel existieren, wird Debugging unzuverlaessig und Basemap-Wechsel brechen den Zustand leicht wieder auf.
+
+## 2026-05-28 — Basemap-Graustufe wirkte nicht und wurde beim Basemap-Wechsel nicht wieder angewendet
+- **Symptom**: Der Schalter `FARBE/GRAU` hatte auf die Basemap keine sichtbare Wirkung; nach Basemap-Wechsel blieb der Zustand zudem unberuecksichtigt.
+- **Root-Cause**: `_applyGrayscaleViaPrerender()` in `tnet-basemap.js` war faktisch nur noch Diagnose-Code: Listener wurden geloescht, aber keine `prerender/postrender`-Handler mehr auf den aktiven Basemap-Layern registriert.
+- **Fix**: Die Funktion registriert wieder echte `prerender/postrender`-Handler auf dem aktuell aktiven Basemap-Layer bzw. dessen Kind-Layern, inklusive Fallback auf den real in der Karte liegenden `isBaseLayer`. Beim Entfernen/Setzen wird `layer.changed()` aufgerufen, damit Farbe/Grau sofort neu gerendert wird.
+- **Guardrail**: Temporaere DOM-/Renderer-Diagnostik nie in der produktiven Graustufen-Pipeline stehen lassen. Wenn eine Funktion visuelle Zustandslogik steuert, muss sie nach dem Cleanup immer den konkreten Render-Pfad wieder herstellen oder explizit frueh `return`en.
+
 ## 2026-05-19 — FastAPI-Publish schrieb DEV-Konfigurationen potenziell nach PROD
 - **Symptom**: `maps-dev`-UIs sendeten zwar `target=dev` an `/gapi/ags2mapplus`, FastAPI-Publish-Endpunkte konnten aber weiterhin harte PROD-Pfade wie `/www/core` oder `/www/maps` verwenden.
 - **Root-Cause**: `ags2mapplus_api.py` und `ags2mapplus_lyrmgr.py` hatten globale PROD-Konstanten fuer Staging, Core/NLS, LyrMgr, Legendtuner, Bookmarks und Git-Pfadmapping; `deploy-staged-conf` akzeptierte pauschal `/www/...`.
