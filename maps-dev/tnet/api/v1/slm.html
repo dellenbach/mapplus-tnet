@@ -674,9 +674,22 @@ table.bm-mtx tbody tr.bm-mtx-row-sel:hover td { background: #ffe0b2; }
 /* View-Spalten-Header */
 .bm-mtx-vhead { min-width: 110px; }
 .bm-mtx-vhead-row { display: flex; flex-direction: column; gap: 2px; align-items: stretch; }
-.bm-mtx-vname { width: 100%; box-sizing: border-box; font-size: 10px; padding: 1px 4px; border: 1px solid #ccc; border-radius: 2px; font-family: monospace; }
+/* Einziges Feld pro View = id (URL-Anker, auch Anzeigename). Grün=ok, Rot=ungültig/Konflikt. */
+.bm-mtx-vid {
+  width: 100%; box-sizing: border-box; font-size: 11px; padding: 2px 5px;
+  border: 1.5px solid #4caf50; background: #f1f8e9; border-radius: 2px; font-family: monospace; font-weight: 600;
+}
+.bm-mtx-vid.invalid { border-color: #f44336; background: #ffebee; color: #c62828; }
 .bm-mtx-vhead-ctl { display: flex; gap: 4px; align-items: center; font-size: 9px; color: #555; }
-.bm-mtx-vhead-ctl label { display: flex; gap: 2px; align-items: center; cursor: pointer; }
+.bm-mtx-vhead-ctl label { display: flex; gap: 2px; align-items: center; cursor: pointer; background: transparent; }
+/* Browser-Autofill-/Autocomplete-Highlight (pink-magenta in Edge/Chrome) unterdruecken */
+.bm-mtx-vhead-ctl input[type="radio"],
+.bm-mtx-vhead-ctl input[type="radio"]:-webkit-autofill,
+.bm-mtx-vhead-ctl input[type="radio"]:-internal-autofill-selected {
+  background-color: transparent !important;
+  -webkit-box-shadow: 0 0 0 1000px transparent inset !important;
+  box-shadow: none !important;
+}
 .bm-mtx-vdel { background: transparent; border: none; color: #c62828; cursor: pointer; font-size: 12px; padding: 0 2px; margin-left: auto; }
 .bm-mtx-addview-cell { text-align: center; width: 40px; }
 .bm-mtx-addview { background: #fff8e1; border: 1px dashed #b8872e; color: #b8872e; cursor: pointer; padding: 2px 6px; border-radius: 3px; font-size: 14px; }
@@ -7385,6 +7398,16 @@ function bmNextViewId(views) {
   return 'view-' + n;
 }
 
+// Validiert eine View-ID gegen Schema-Pattern + Eindeutigkeit innerhalb des Bookmarks.
+function bmIsValidViewId(value, views, ownView) {
+  if (!/^[a-zA-Z0-9_-]+$/.test(value || '')) return false;
+  for (var i = 0; i < (views || []).length; i++) {
+    var v = views[i];
+    if (v && v !== ownView && v.id === value) return false;
+  }
+  return true;
+}
+
 // Selektierte Layer pro Detail-Row (überlebt Re-Renders).
 function bmGetSelSet(detailRow) {
   if (!detailRow._bmSelLayers) detailRow._bmSelLayers = new Set();
@@ -7396,6 +7419,61 @@ function bmUpdateBulkDelButton(detailRow) {
   var cnt = detailRow.querySelector('.bm-mtx-selcount');
   if (cnt) cnt.textContent = String(sel.size);
   if (btn) btn.disabled = sel.size === 0;
+}
+
+// ---- Shift-Click-Range fuer Default-Visible / Tri-State-View ------------
+// Last-Click pro Spalte (key='default' oder key='view:<vid>') wird im
+// detailRow als JS-Property gehalten (ueberlebt Re-Renders).
+function bmGetLastClick(detailRow, key) {
+  if (!detailRow._bmLastClick) detailRow._bmLastClick = {};
+  return detailRow._bmLastClick[key];
+}
+function bmSetLastClick(detailRow, key, lid) {
+  if (!detailRow._bmLastClick) detailRow._bmLastClick = {};
+  detailRow._bmLastClick[key] = lid;
+}
+// Liefert die Layer-IDs zwischen lidA und lidB (in DOM-Reihenfolge), nur sichtbare Zeilen.
+function bmShiftRangeIds(detailRow, lidA, lidB) {
+  var rows = detailRow.querySelectorAll('table.bm-mtx tbody tr[data-lid]');
+  var visIds = [];
+  var iA = -1, iB = -1;
+  for (var i = 0; i < rows.length; i++) {
+    if (rows[i].style.display === 'none') continue;
+    var lid = rows[i].dataset.lid;
+    if (lid === lidA) iA = visIds.length;
+    if (lid === lidB) iB = visIds.length;
+    visIds.push(lid);
+  }
+  if (iA < 0 || iB < 0) return [];
+  var lo = Math.min(iA, iB), hi = Math.max(iA, iB);
+  return visIds.slice(lo, hi + 1);
+}
+function bmRangeApplyDefault(detailRow, ids, visible) {
+  var layers = bmGetLayers(detailRow);
+  var byId = {};
+  layers.forEach(function(l) { byId[l.id] = l; });
+  ids.forEach(function(lid) {
+    if (byId[lid]) byId[lid].visible = !!visible;
+    var cb = detailRow.querySelector('tr[data-lid="' + lid.replace(/"/g, '\\"') + '"] .bm-mtx-cell-default input[type=checkbox]');
+    if (cb) cb.checked = !!visible;
+  });
+  bmSetLayers(detailRow, layers);
+  markBmChanged(detailRow);
+}
+function bmRangeApplyView(detailRow, ids, vid, state) {
+  var views = bmGetViews(detailRow);
+  var v = views.find(function(x) { return x && x.id === vid; });
+  if (!v) return;
+  if (!v.layerStates) v.layerStates = {};
+  var sym = state === 'on' ? '✓' : (state === 'off' ? '✗' : '○');
+  ids.forEach(function(lid) {
+    if (state === 'inherit') delete v.layerStates[lid];
+    else v.layerStates[lid] = { visible: state === 'on' };
+    var btn = detailRow.querySelector('tr[data-lid="' + lid.replace(/"/g, '\\"') + '"] .bm-mtx-tri[data-vid="' + vid.replace(/"/g, '\\"') + '"]');
+    if (btn) { btn.dataset.state = state; btn.firstChild ? (btn.firstChild.nodeValue = sym) : (btn.textContent = sym); }
+  });
+  bmSetViews(detailRow, views);
+  markBmChanged(detailRow);
 }
 
 // ---- Matrix-Rendering ----------------------------------------------------
@@ -7423,13 +7501,12 @@ function bmRenderMatrix(detailRow) {
     var vid = v.id || '';
     var vname = v.name != null ? v.name : vid;
     var isDef = v.isDefault === true;
+    var vidValid = bmIsValidViewId(vid, views, v);
     html += '<th class="bm-mtx-vhead" data-vid="' + bmEscAttr(vid) + '">' +
               '<div class="bm-mtx-vhead-row">' +
-                '<input class="bm-mtx-vname" data-vid="' + bmEscAttr(vid) + '" value="' + bmEscAttr(vname) + '" title="Anzeigename">' +
+                '<input class="bm-mtx-vid' + (vidValid ? '' : ' invalid') + '" data-vid="' + bmEscAttr(vid) + '" value="' + bmEscAttr(vid) + '" title="View-ID — URL: ?view=' + bmEscAttr(vid) + '">' +
                 '<div class="bm-mtx-vhead-ctl">' +
-                  '<label title="Default-View beim Bookmark-Aufruf"><input type="radio" name="bm-defview-' + bmEscAttr(idx) + '" data-vid="' + bmEscAttr(vid) + '"' + (isDef ? ' checked' : '') + '>Def</label>' +
-                  '<code style="font-size:9px;color:#888" title="View-ID (URL ?view=' + bmEscAttr(vid) + ')">' + bmEscAttr(vid) + '</code>' +
-                  '<button class="bm-mtx-vdel" data-vid="' + bmEscAttr(vid) + '" title="Ansicht löschen">×</button>' +
+                  '<button class="bm-mtx-vdel" data-vid="' + bmEscAttr(vid) + '" title="Ansicht löschen">× löschen</button>' +
                 '</div>' +
               '</div>' +
             '</th>';
@@ -7493,12 +7570,39 @@ function bmApplyMatrixFilter(detailRow) {
 // ---- Mutationen via Event-Delegation -------------------------------------
 function bmMatrixHandleClick(e, detailRow) {
   var t = e.target;
-  // View-Spalte: Tri-State-Cycle
+  // Default-Visible-Checkbox: Shift+Click setzt Range zwischen letztem und aktuellem Klick.
+  // Der normale change-Handler kuemmert sich danach um Single-Update (idempotent).
+  if (t.matches('.bm-mtx-cell-default input[type=checkbox]')) {
+    var dlid = t.dataset.lid;
+    // t.checked ist hier bereits der NEUE Wert (Click → Toggle → Click-Handler)
+    if (e.shiftKey) {
+      var lastDLid = bmGetLastClick(detailRow, 'default');
+      if (lastDLid && lastDLid !== dlid) {
+        var dids = bmShiftRangeIds(detailRow, lastDLid, dlid);
+        if (dids.length) bmRangeApplyDefault(detailRow, dids, t.checked);
+      }
+    }
+    bmSetLastClick(detailRow, 'default', dlid);
+    return; // change-Handler macht ggf. den Single-Update
+  }
+  // View-Spalte: Tri-State-Cycle (Shift+Click: Range bis zum letzten Klick in derselben Spalte)
   if (t.classList.contains('bm-mtx-tri')) {
     var lid = t.dataset.lid;
     var vid = t.dataset.vid;
     var cur = t.dataset.state;
     var next = cur === 'on' ? 'off' : (cur === 'off' ? 'inherit' : 'on');
+    var key = 'view:' + vid;
+    if (e.shiftKey) {
+      var lastLid = bmGetLastClick(detailRow, key);
+      if (lastLid && lastLid !== lid) {
+        var ids = bmShiftRangeIds(detailRow, lastLid, lid);
+        if (ids.length) {
+          bmRangeApplyView(detailRow, ids, vid, next);
+          bmSetLastClick(detailRow, key, lid);
+          return;
+        }
+      }
+    }
     var views = bmGetViews(detailRow);
     var v = views.find(function(x) { return x && x.id === vid; });
     if (!v) return;
@@ -7506,7 +7610,10 @@ function bmMatrixHandleClick(e, detailRow) {
     if (next === 'inherit') { delete v.layerStates[lid]; }
     else { v.layerStates[lid] = { visible: next === 'on' }; }
     bmSetViews(detailRow, views);
-    bmRenderMatrix(detailRow);
+    // In-place DOM-Update statt full re-render (Performance + behaelt Selektion)
+    t.dataset.state = next;
+    t.textContent = next === 'on' ? '✓' : (next === 'off' ? '✗' : '○');
+    bmSetLastClick(detailRow, key, lid);
     markBmChanged(detailRow);
     return;
   }
@@ -7548,6 +7655,9 @@ function bmMatrixHandleClick(e, detailRow) {
     bmSetViews(detailRow, views4);
     bmRenderMatrix(detailRow);
     markBmChanged(detailRow);
+    // Fokus aufs neue ID-Feld, Text selektieren — User tippt direkt die gewünschte ID
+    var newIdInput = detailRow.querySelector('.bm-mtx-vid[data-vid="' + newId + '"]');
+    if (newIdInput) { newIdInput.focus(); newIdInput.select(); }
     return;
   }
 }
@@ -7596,13 +7706,45 @@ function bmMatrixHandleChange(e, detailRow) {
     markBmChanged(detailRow);
     return;
   }
-  // View-Name umbenennen
-  if (t.matches('.bm-mtx-vname')) {
-    var vidR = t.dataset.vid;
-    var viewsN = bmGetViews(detailRow).map(function(v) {
-      if (v && v.id === vidR) v.name = t.value;
-      return v;
-    });
+  // View-ID umbenennen (live, single Feld = id = name). Bei valid (Pattern + eindeutig)
+  // wird die id direkt aktualisiert; bei invalid bleibt die alte id (Feld zeigt rot).
+  if (t.matches('.bm-mtx-vid')) {
+    var oldVid = t.dataset.vid;
+    var newVal = String(t.value);
+    var viewsN = bmGetViews(detailRow);
+    var vItem = viewsN.find(function(v) { return v && v.id === oldVid; });
+    if (!vItem) return;
+
+    var isValid = bmIsValidViewId(newVal, viewsN, vItem);
+    t.classList.toggle('invalid', !isValid);
+    if (!isValid) {
+      t.title = !newVal ? 'View-ID darf nicht leer sein'
+              : (!/^[a-zA-Z0-9_-]+$/.test(newVal) ? 'Ungültige Zeichen. Erlaubt: a-z A-Z 0-9 _ -'
+              : 'Diese View-ID ist bereits vergeben');
+    } else {
+      t.title = 'View-ID — URL: ?view=' + newVal;
+    }
+
+    // Anzeigename immer mit Wert mitziehen (auch bei invalid — sichtbarer Editor-State)
+    vItem.name = newVal;
+
+    if (isValid && newVal !== oldVid) {
+      vItem.id = newVal;
+      // alle data-vid im Detail-Row vom alten auf den neuen Wert ziehen
+      var sel = '[data-vid="' + oldVid.replace(/"/g, '\\"') + '"]';
+      detailRow.querySelectorAll(sel).forEach(function(el) { el.dataset.vid = newVal; });
+      var th = t.closest('th.bm-mtx-vhead');
+      if (th) th.dataset.vid = newVal;
+      // Shift-Range Last-Click mitziehen
+      if (detailRow._bmLastClick) {
+        var oldKey = 'view:' + oldVid;
+        if (detailRow._bmLastClick[oldKey] !== undefined) {
+          detailRow._bmLastClick['view:' + newVal] = detailRow._bmLastClick[oldKey];
+          delete detailRow._bmLastClick[oldKey];
+        }
+      }
+    }
+
     bmSetViews(detailRow, viewsN);
     markBmChanged(detailRow);
     return;
@@ -7818,7 +7960,7 @@ function createBookmarkRows(bm, idx) {
   mtxWrap.addEventListener('input',  function(e) {
     // Live-Filter und Live-Edit für Inputs
     if (e.target.matches('.bm-mtx-filter')) bmApplyMatrixFilter(detail);
-    if (e.target.matches('.bm-mtx-vname') || e.target.matches('input[data-prop]')) bmMatrixHandleChange(e, detail);
+    if (e.target.matches('.bm-mtx-vid') || e.target.matches('input[data-prop]')) bmMatrixHandleChange(e, detail);
   });
 
   // Add-Layer-Input: Autocomplete mit onAdd-Callback, der die Matrix erweitert.
@@ -8209,6 +8351,38 @@ function collectBookmarkData() {
   return result;
 }
 
+function showBookmarkDeployToast(message, type) {
+  var toast = document.getElementById('bm-deploy-toast');
+  var colors = {
+    success: { bg: '#1f7a4d', border: '#145233' },
+    info: { bg: '#2f5f8f', border: '#1f4060' },
+    error: { bg: '#a33a2f', border: '#6e251f' }
+  };
+  var palette = colors[type] || colors.success;
+
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'bm-deploy-toast';
+    toast.style.cssText = 'position:fixed;top:18px;right:18px;z-index:10050;min-width:280px;max-width:420px;'
+      + 'padding:14px 16px;border-radius:10px;color:#fff;font:14px/1.45 -apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;'
+      + 'box-shadow:0 10px 28px rgba(0,0,0,.22);opacity:0;transform:translateY(-8px);'
+      + 'transition:opacity .18s ease, transform .18s ease;pointer-events:none;';
+    document.body.appendChild(toast);
+  }
+
+  toast.textContent = message;
+  toast.style.background = palette.bg;
+  toast.style.border = '1px solid ' + palette.border;
+  toast.style.opacity = '1';
+  toast.style.transform = 'translateY(0)';
+
+  if (window.__bmDeployToastTimer) clearTimeout(window.__bmDeployToastTimer);
+  window.__bmDeployToastTimer = setTimeout(function() {
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateY(-8px)';
+  }, 3800);
+}
+
 function saveBookmarks() {
   var data = collectBookmarkData();
   var status = document.getElementById('bm-status');
@@ -8243,25 +8417,30 @@ function saveBookmarks() {
 
       // 2. FastAPI: SFTP-Deploy + Git-Commit (wenn nicht übersprungen)
       if (!result.skip) {
+          var deployTarget = _isDevEnv ? 'dev' : 'prod';
         status.textContent += ' — Deploye…';
         fetch(GAPI_URL + '/deploy-bookmarks', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message: result.message })
+            body: JSON.stringify({ message: result.message, target: deployTarget })
         })
         .then(function(r) { return r.json(); })
         .then(function(g) {
           if (g.success && g.action === 'deployed') {
-            status.textContent = '✓ Deployed — ' + data.length + ' Bookmarks';
+              status.textContent = '✓ Deployed [' + (g.target || deployTarget) + '] — ' + data.length + ' Bookmarks';
             if (g.git_committed) status.textContent += ' — Git ✓';
+            showBookmarkDeployToast('Bookmarks erfolgreich nach ' + String(g.target || deployTarget).toUpperCase() + ' publiziert.', 'success');
           } else if (g.success && g.action === 'skipped') {
-            status.textContent = '✓ Gespeichert — ' + data.length + ' Bookmarks (keine Änderungen)';
+              status.textContent = '✓ Gespeichert [' + (g.target || deployTarget) + '] — ' + data.length + ' Bookmarks (keine Änderungen)';
+            showBookmarkDeployToast('Bookmarks auf ' + String(g.target || deployTarget).toUpperCase() + ' sind bereits aktuell.', 'info');
           } else {
             status.textContent += ' — Deploy-Fehler: ' + (g.detail || 'Unbekannt');
+            showBookmarkDeployToast('Bookmark-Deploy fehlgeschlagen: ' + (g.detail || 'Unbekannt'), 'error');
           }
         })
         .catch(function(e) {
           status.textContent += ' — Deploy-Fehler: ' + e.message;
+          showBookmarkDeployToast('Bookmark-Deploy fehlgeschlagen: ' + e.message, 'error');
         });
       } else {
         status.textContent = '✓ Draft gespeichert — ' + data.length + ' Bookmarks (nicht deployed)';

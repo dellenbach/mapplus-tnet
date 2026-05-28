@@ -1045,6 +1045,42 @@
   font-size: 12px;
 }
 
+/* ── Karteninhalt: Bookmark-Header ── */
+.lm-active-header {
+  border-bottom: 1px solid #e0e0e0;
+  background: #f5f9fa;
+}
+.lm-active-bookmark-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px 3px;
+  border-bottom: 1px solid #eee;
+}
+.lm-active-bookmark-name {
+  flex: 1;
+  font-size: 12px;
+  font-weight: 600;
+  color: #1e3a4a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.lm-active-view-select {
+  flex-shrink: 0;
+  max-width: 120px;
+  font-size: 11px;
+  padding: 2px 4px;
+  border: 1px solid #b0bec5;
+  border-radius: 3px;
+  background: #fff;
+  color: #333;
+  cursor: pointer;
+}
+.lm-active-view-select:hover {
+  border-color: #1e3a4a;
+}
+
 /* Empty-State */
 .lm-container-desktop .lm-empty {
   padding: 16px 10px;
