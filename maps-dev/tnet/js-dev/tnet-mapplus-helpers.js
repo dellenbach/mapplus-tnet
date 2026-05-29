@@ -653,11 +653,16 @@ function _applyBookmarkRuntimeStateToMap() {
             ? window.top.njs.AppManager
             : (window.njs && window.njs.AppManager) ? window.njs.AppManager : null;
   var map = am && am.Maps && am.Maps['main'] && am.Maps['main'].mapObj;
+  var bookmark = window.__tnetActiveBookmark;
   if (!map || typeof map.getLayers !== 'function') return;
 
   map.getLayers().forEach(function(olLayer) {
     _syncBookmarkLayerStateToOL(olLayer);
   });
+
+  if (bookmark && window.BasemapTimeManager && typeof window.BasemapTimeManager.syncGrayscale === 'function') {
+    window.BasemapTimeManager.syncGrayscale(bookmark.basemapColorMode === 'grey');
+  }
 }
 
 function _installBookmarkLayerStateSync(token) {
@@ -893,7 +898,9 @@ function _applyBookmark(cfg, bookmarkId, viewId) {
   var activeViewIdEarly = activeView ? activeView.id : null;
   window.__tnetActiveBookmark = {
     id:           bookmarkId,
-    name:         cfg.name || null,
+    name:         cfg.name || bookmarkId,
+    basemap:      cfg.basemap || null,
+    basemapColorMode: cfg.basemapColorMode === 'grey' ? 'grey' : 'color',
     views:        (cfg.views || []).filter(function(v) { return v && v.id; }),
     activeViewId: activeViewIdEarly,
     layers:       runtimeLayers,

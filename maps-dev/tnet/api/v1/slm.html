@@ -630,7 +630,7 @@ body {
 /* Spalten-Trennung Header */
 .bm-table thead th { border-right: 1px solid #ddd; }
 .bm-table thead th:last-child { border-right: none; }
-.bm-summary-layers { font-size: 10px; color: #888; font-family: monospace; margin-left: 8px; }
+.bm-summary-layers { display: flex; flex-wrap: wrap; gap: 2px; max-width: 240px; max-height: 44px; overflow: hidden; font-size: 10px; color: #888; font-family: monospace; margin-left: 8px; }
 .bm-summary-layers .bm-layer-tag { font-size: 9px; padding: 0 3px; margin: 0 1px; }
 /* Layer-Validierung */
 .bm-layer-tag { display: inline-flex; align-items: flex-start; gap: 4px; max-width: 280px; padding: 1px 5px; border-radius: 3px; margin: 1px 2px; font-size: 10px; font-family: monospace; cursor: default; }
@@ -653,11 +653,11 @@ body {
 .bm-mtx-toolbar input.bm-mtx-filter { flex: 1 1 200px; padding: 3px 6px; font-size: 11px; border: 1px solid #ccc; border-radius: 3px; }
 .bm-mtx-toolbar button { padding: 3px 8px; font-size: 11px; cursor: pointer; }
 .bm-mtx-scroll { max-height: 460px; overflow: auto; border: 1px solid #ddd; border-radius: 3px; background: #fff; }
-table.bm-mtx { width: 100%; border-collapse: collapse; font-size: 11px; font-family: monospace; }
-table.bm-mtx thead th { position: sticky; top: 0; background: #f4f4f4; border-bottom: 2px solid #999; padding: 4px 6px; text-align: left; font-weight: 600; z-index: 1; }
+table.bm-mtx { width: max-content; border-collapse: collapse; font-size: 11px; font-family: monospace; table-layout: fixed; }
+table.bm-mtx thead th { position: sticky; top: 0; background: #f4f4f4; border-bottom: 2px solid #999; padding: 4px 6px; text-align: left; font-weight: 600; z-index: 1; position: sticky; }
 table.bm-mtx tbody td { border-bottom: 1px solid #eee; padding: 2px 6px; vertical-align: middle; }
 table.bm-mtx tbody tr:hover td { background: #fafafa; }
-.bm-mtx-lname { font-size: 10px; color: #333; white-space: normal; max-width: 420px; overflow: hidden; text-overflow: ellipsis; line-height: 1.2; }
+.bm-mtx-lname { font-size: 10px; color: #333; white-space: normal; max-width: 220px; overflow: hidden; text-overflow: ellipsis; line-height: 1.2; }
 .bm-mtx-lname.invalid { color: #c62828; }
 .bm-mtx-cell-default, .bm-mtx-cell-view { text-align: center; width: 60px; }
 .bm-mtx-cell-default input { transform: scale(1.1); cursor: pointer; }
@@ -671,6 +671,8 @@ table.bm-mtx tbody tr.bm-mtx-row-sel:hover td { background: #ffe0b2; }
 .bm-mtx-bulkdel { background: #ffebee; border: 1px solid #ef9a9a; color: #c62828; padding: 3px 10px; border-radius: 3px; cursor: pointer; font-size: 11px; }
 .bm-mtx-bulkdel:disabled { background: #f5f5f5; color: #aaa; border-color: #ddd; cursor: not-allowed; }
 .bm-mtx-bulkdel:not(:disabled):hover { background: #ffcdd2; }
+.bm-mtx-col-resize { position: absolute; top: 0; right: 0; bottom: 0; width: 6px; cursor: col-resize; background: transparent; z-index: 3; }
+.bm-mtx-col-resize:hover, .bm-mtx-col-resize.bm-resizing { background: #d4a03c; }
 
 /* Tri-State-Button fuer View-Zellen */
 .bm-mtx-tri { width: 28px; height: 22px; border: 1px solid #aaa; border-radius: 3px; background: #fff; cursor: pointer; font-weight: bold; font-family: sans-serif; font-size: 12px; padding: 0; }
@@ -688,6 +690,10 @@ table.bm-mtx tbody tr.bm-mtx-row-sel:hover td { background: #ffe0b2; }
   border: 1.5px solid #4caf50; background: #f1f8e9; border-radius: 2px; font-family: monospace; font-weight: 600;
 }
 .bm-mtx-vid.invalid { border-color: #f44336; background: #ffebee; color: #c62828; }
+.bm-mtx-vname {
+  width: 100%; box-sizing: border-box; font-size: 10px; padding: 2px 5px;
+  border: 1px solid #ccc; background: #fff; border-radius: 2px;
+}
 .bm-mtx-vhead-ctl { display: flex; gap: 4px; align-items: center; font-size: 9px; color: #555; }
 .bm-mtx-vhead-ctl label { display: flex; gap: 2px; align-items: center; cursor: pointer; background: transparent; }
 /* Browser-Autofill-/Autocomplete-Highlight (pink-magenta in Edge/Chrome) unterdruecken */
@@ -1622,9 +1628,10 @@ html[data-env="dev"] .path-info-bar .pib-lbl { color: #7a3000; }
       <button id="bm-view-json" onclick="bmSwitchView('json')" title="JSON-Editor">{ } JSON</button>
     </div>
     <div class="bm-filter-bar">
-      <label>Name:</label><input type="text" data-col-filter="name" placeholder="Name…" oninput="bmColumnFilter()">
-      <label>Alias:</label><input type="text" data-col-filter="aliases" placeholder="Alias…" oninput="bmColumnFilter()">
+      <label>IDs:</label><input type="text" data-col-filter="idaliases" placeholder="IDs…" oninput="bmColumnFilter()">
+      <label>Alias:</label><input type="text" data-col-filter="name" placeholder="Alias…" oninput="bmColumnFilter()">
       <label>Basemap:</label><input type="text" data-col-filter="basemap" placeholder="Basemap…" oninput="bmColumnFilter()">
+      <label>Modus:</label><input type="text" data-col-filter="basemapmode" placeholder="color / grey…" oninput="bmColumnFilter()">
       <label>Themen:</label><input type="text" data-col-filter="themes" placeholder="Themen…" oninput="bmColumnFilter()">
       <label>Layer:</label><input type="text" data-col-filter="layers" placeholder="Layer…" oninput="bmColumnFilter()">
     </div>
@@ -1633,11 +1640,12 @@ html[data-env="dev"] .path-info-bar .pib-lbl { color: #7a3000; }
       <table class="bm-table" id="bm-table">
         <thead>
           <tr>
-            <th data-sort="name" style="width:160px;position:relative">Name <span class="bm-sort-icon">⇅</span><span class="bm-resize"></span></th>
-            <th data-sort="aliases" style="width:110px;position:relative">Aliases <span class="bm-sort-icon">⇅</span><span class="bm-resize"></span></th>
+            <th data-sort="idaliases" style="width:170px;position:relative">IDs <span class="bm-sort-icon">⇅</span><span class="bm-resize"></span></th>
+            <th data-sort="name" style="width:150px;position:relative">Alias <span class="bm-sort-icon">⇅</span><span class="bm-resize"></span></th>
             <th data-sort="basemap" style="width:100px;position:relative">Basemap <span class="bm-sort-icon">⇅</span><span class="bm-resize"></span></th>
+            <th data-sort="basemapmode" style="width:80px;position:relative">Modus <span class="bm-sort-icon">⇅</span><span class="bm-resize"></span></th>
             <th data-sort="themes" style="width:120px;position:relative">Themen <span class="bm-sort-icon">⇅</span><span class="bm-resize"></span></th>
-            <th data-sort="layers" style="width:auto;position:relative">Layers <span class="bm-sort-icon">⇅</span><span class="bm-resize"></span></th>
+            <th data-sort="layers" style="width:260px;position:relative">Layers <span class="bm-sort-icon">⇅</span><span class="bm-resize"></span></th>
             <th class="bm-col-hidden">Opacity</th>
             <th class="bm-col-hidden">Theme</th>
             <th class="bm-col-hidden">Subtheme</th>
@@ -7390,6 +7398,53 @@ function bmSetViews(detailRow, arr) {
   detailRow.dataset.bmViews = JSON.stringify(Array.isArray(arr) ? arr : []);
 }
 function bmEscAttr(s) { return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function bmGetMatrixColumnWidths(detailRow, views) {
+  var defaults = {
+    sel: 28,
+    layer: 220,
+    default: 72,
+    addview: 40,
+    op: 70,
+    filter: 70
+  };
+  var raw = detailRow && detailRow.dataset ? detailRow.dataset.bmMtxWidths : '';
+  var parsed = null;
+  var result = {};
+  try {
+    parsed = raw ? JSON.parse(raw) : null;
+  } catch (e) {
+    parsed = null;
+  }
+  Object.keys(defaults).forEach(function(key) {
+    result[key] = parsed && isFinite(parsed[key]) ? Math.max(28, +parsed[key]) : defaults[key];
+  });
+  (views || []).forEach(function(view) {
+    var key = 'view:' + (view && view.id ? view.id : '');
+    result[key] = parsed && isFinite(parsed[key]) ? Math.max(90, +parsed[key]) : 110;
+  });
+  return result;
+}
+function bmSetMatrixColumnWidth(detailRow, key, width) {
+  var current = bmGetMatrixColumnWidths(detailRow, bmGetViews(detailRow));
+  current[key] = width;
+  detailRow.dataset.bmMtxWidths = JSON.stringify(current);
+}
+function bmMatrixResizeHandle(key) {
+  return '<span class="bm-mtx-col-resize" data-col-key="' + bmEscAttr(key) + '" title="Spaltenbreite ziehen"></span>';
+}
+function bmParseCsvList(str) {
+  return String(str || '').split(',').map(function(part) { return part.trim(); }).filter(Boolean);
+}
+function bmBookmarkIdsValue(bm) {
+  var primaryId = bm.id || bm['map-bookmark'] || '';
+  var parts = primaryId ? [primaryId] : [];
+  if (Array.isArray(bm.aliases)) parts = parts.concat(bm.aliases);
+  return parts.filter(Boolean).join(', ');
+}
+function bmPrimaryBookmarkId(idsValue) {
+  var parts = bmParseCsvList(idsValue);
+  return parts.length ? parts[0] : '';
+}
 
 // View-State eines Layers ermitteln: 'on' | 'off' | 'inherit'
 function bmViewLayerState(view, layerId) {
@@ -7490,6 +7545,7 @@ function bmRenderMatrix(detailRow) {
   if (!container) return;
   var layers = bmGetLayers(detailRow);
   var views  = bmGetViews(detailRow);
+  var widths = bmGetMatrixColumnWidths(detailRow, views);
   var idx    = detailRow.dataset.idx;
   var sel    = bmGetSelSet(detailRow);
   // Selektion auf existierende Layer beschränken
@@ -7500,29 +7556,40 @@ function bmRenderMatrix(detailRow) {
   var allChecked = layers.length > 0 && layers.every(function(l) { return sel.has(l.id); });
   var someChecked = sel.size > 0 && !allChecked;
 
-  var html = '<table class="bm-mtx"><thead><tr>';
+  var html = '<table class="bm-mtx"><colgroup>';
+  html += '<col data-col-key="sel" style="width:' + widths.sel + 'px">';
+  html += '<col data-col-key="layer" style="width:' + widths.layer + 'px">';
+  html += '<col data-col-key="default" style="width:' + widths['default'] + 'px">';
+  views.forEach(function(v) {
+    html += '<col data-col-key="view:' + bmEscAttr(v.id || '') + '" style="width:' + widths['view:' + (v.id || '')] + 'px">';
+  });
+  html += '<col data-col-key="addview" style="width:' + widths.addview + 'px">';
+  html += '<col data-col-key="op" style="width:' + widths.op + 'px">';
+  html += '<col data-col-key="filter" style="width:' + widths.filter + 'px">';
+  html += '</colgroup><thead><tr>';
   html += '<th class="bm-mtx-cell-sel"><input type="checkbox" class="bm-mtx-selall"' + (allChecked ? ' checked' : '') + (someChecked ? ' data-indeterminate="1"' : '') + ' title="Alle markieren"></th>';
-  html += '<th>Layer</th>';
-  html += '<th title="Sichtbar beim Bookmark-Aufruf ohne View">Default</th>';
+  html += '<th data-col-key="layer">Layer' + bmMatrixResizeHandle('layer') + '</th>';
+  html += '<th data-col-key="default" title="Sichtbar beim Bookmark-Aufruf ohne View">Default' + bmMatrixResizeHandle('default') + '</th>';
 
   views.forEach(function(v) {
     var vid = v.id || '';
     var vname = v.name != null ? v.name : vid;
     var isDef = v.isDefault === true;
     var vidValid = bmIsValidViewId(vid, views, v);
-    html += '<th class="bm-mtx-vhead" data-vid="' + bmEscAttr(vid) + '">' +
+    html += '<th class="bm-mtx-vhead" data-vid="' + bmEscAttr(vid) + '" data-col-key="view:' + bmEscAttr(vid) + '">' +
               '<div class="bm-mtx-vhead-row">' +
                 '<input class="bm-mtx-vid' + (vidValid ? '' : ' invalid') + '" data-vid="' + bmEscAttr(vid) + '" value="' + bmEscAttr(vid) + '" title="View-ID — URL: ?view=' + bmEscAttr(vid) + '">' +
+                '<input class="bm-mtx-vname" data-vid="' + bmEscAttr(vid) + '" value="' + bmEscAttr(vname) + '" placeholder="Alias…" title="Anzeigename der Ansicht">' +
                 '<div class="bm-mtx-vhead-ctl">' +
                   '<button class="bm-mtx-vdel" data-vid="' + bmEscAttr(vid) + '" title="Ansicht löschen">× löschen</button>' +
                 '</div>' +
-              '</div>' +
+              '</div>' + bmMatrixResizeHandle('view:' + vid) +
             '</th>';
   });
 
   html += '<th class="bm-mtx-addview-cell"><button class="bm-mtx-addview" title="Neue Ansicht hinzufügen">+</button></th>';
-  html += '<th title="Opacity (0–1)">Op</th>';
-  html += '<th title="Filter / Definition-Query">Filter</th>';
+  html += '<th data-col-key="op" title="Opacity (0–1)">Op' + bmMatrixResizeHandle('op') + '</th>';
+  html += '<th data-col-key="filter" title="Filter / Definition-Query">Filter' + bmMatrixResizeHandle('filter') + '</th>';
   html += '</tr></thead><tbody>';
 
   layers.forEach(function(l) {
@@ -7563,6 +7630,42 @@ function bmRenderMatrix(detailRow) {
   if (filterInput && filterInput.value) bmApplyMatrixFilter(detailRow);
 
   bmUpdateBulkDelButton(detailRow);
+  bmInitMatrixColumnResize(detailRow);
+}
+
+function bmInitMatrixColumnResize(detailRow) {
+  var table = detailRow.querySelector('table.bm-mtx');
+  if (!table) return;
+  table.querySelectorAll('.bm-mtx-col-resize').forEach(function(handle) {
+    handle.onmousedown = function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      var key = handle.dataset.colKey;
+      var col = table.querySelector('col[data-col-key="' + key.replace(/"/g, '\\"') + '"]');
+      var th = handle.parentElement;
+      if (!key || !col || !th) return;
+      var minWidth = key.indexOf('view:') === 0 ? 90 : (key === 'layer' ? 140 : 50);
+      var startX = e.clientX;
+      var startW = col.offsetWidth || th.offsetWidth;
+      handle.classList.add('bm-resizing');
+
+      function onMove(ev) {
+        var width = Math.max(minWidth, startW + ev.clientX - startX);
+        col.style.width = width + 'px';
+      }
+
+      function onUp() {
+        var finalWidth = parseInt(col.style.width, 10) || startW;
+        bmSetMatrixColumnWidth(detailRow, key, finalWidth);
+        handle.classList.remove('bm-resizing');
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+      }
+
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    };
+  });
 }
 
 function bmApplyMatrixFilter(detailRow) {
@@ -7714,6 +7817,16 @@ function bmMatrixHandleChange(e, detailRow) {
     markBmChanged(detailRow);
     return;
   }
+  if (t.matches('.bm-mtx-vname')) {
+    var viewNameVid = t.dataset.vid;
+    var viewsVN = bmGetViews(detailRow);
+    var viewNameItem = viewsVN.find(function(v) { return v && v.id === viewNameVid; });
+    if (!viewNameItem) return;
+    viewNameItem.name = t.value;
+    bmSetViews(detailRow, viewsVN);
+    markBmChanged(detailRow);
+    return;
+  }
   // View-ID umbenennen (live, single Feld = id = name). Bei valid (Pattern + eindeutig)
   // wird die id direkt aktualisiert; bei invalid bleibt die alte id (Feld zeigt rot).
   if (t.matches('.bm-mtx-vid')) {
@@ -7733,11 +7846,9 @@ function bmMatrixHandleChange(e, detailRow) {
       t.title = 'View-ID — URL: ?view=' + newVal;
     }
 
-    // Anzeigename immer mit Wert mitziehen (auch bei invalid — sichtbarer Editor-State)
-    vItem.name = newVal;
-
     if (isValid && newVal !== oldVid) {
       vItem.id = newVal;
+      if (!vItem.name || vItem.name === oldVid) vItem.name = newVal;
       // alle data-vid im Detail-Row vom alten auf den neuen Wert ziehen
       var sel = '[data-vid="' + oldVid.replace(/"/g, '\\"') + '"]';
       detailRow.querySelectorAll(sel).forEach(function(el) { el.dataset.vid = newVal; });
@@ -7861,9 +7972,10 @@ function renderBookmarkTable(bookmarks) {
 function createBookmarkRows(bm, idx) {
   // Akzeptiert v2-Schema (id, viewport, layers:[obj]) und faellt auf v1-Felder zurueck
   // damit zwischenzeitlich gespeicherte v1-Daten im Editor noch korrekt geoeffnet werden.
-  var name = bm.id || bm['map-bookmark'] || '';
-  var aliases = (bm.aliases || []).join(', ');
+  var idsValue = bmBookmarkIdsValue(bm);
+  var aliasName = bm.name || bm.id || bm['map-bookmark'] || '';
   var basemap = bm.basemap || '';
+  var basemapMode = bm.basemapColorMode || 'color';
   var layerArr = bm.layers || [];                    // Layer-Objekte (v2) oder Strings (v1)
   var theme = bm.theme || '';
   var subtheme = bm.subtheme || '';
@@ -7885,9 +7997,10 @@ function createBookmarkRows(bm, idx) {
   var summary = document.createElement('tr');
   summary.className = 'bm-row-summary';
   summary.dataset.idx = idx;
-  summary.dataset.name = name.toLowerCase();
-  summary.dataset.aliases = aliases.toLowerCase();
+  summary.dataset.idaliases = idsValue.toLowerCase();
+  summary.dataset.name = aliasName.toLowerCase();
   summary.dataset.basemap = basemap.toLowerCase();
+  summary.dataset.basemapmode = basemapMode.toLowerCase();
   summary.dataset.layerText = layerIds.join(' ').toLowerCase();
   summary.dataset.themes = (themes || '').toLowerCase();
 
@@ -7901,9 +8014,10 @@ function createBookmarkRows(bm, idx) {
   if (layerIds.length === 0) layerPreview = '<span style="color:#ccc;font-size:10px">–</span>';
 
   summary.innerHTML =
-    '<td><span class="bm-expand-icon">▶</span><strong style="font-family:monospace;font-size:11px">' + esc(name) + '</strong></td>' +
-    '<td style="font-family:monospace;font-size:10px;color:#666">' + esc(aliases) + '</td>' +
+    '<td><span class="bm-expand-icon">▶</span><strong style="font-family:monospace;font-size:11px">' + esc(idsValue) + '</strong></td>' +
+    '<td style="font-family:monospace;font-size:10px;color:#666">' + esc(aliasName) + '</td>' +
     '<td style="font-size:10px;color:#666">' + esc(basemap) + '</td>' +
+    '<td style="font-size:10px;color:#666">' + esc(basemapMode) + '</td>' +
     '<td class="bm-summary-themes"><input type="text" value="' + esc(themes) + '" placeholder="nw:oereb, ow:oereb" data-field="themes" oninput="markBmChanged(this);bmSyncSummaryFromSummary(this)" style="width:100%;border:none;background:transparent;font-family:monospace;font-size:10px;padding:2px 4px;box-sizing:border-box"></td>' +
     '<td class="bm-summary-layers">' + layerPreview + '</td>' +
     '<td class="bm-col-hidden"></td><td class="bm-col-hidden"></td><td class="bm-col-hidden"></td>' +
@@ -7924,12 +8038,13 @@ function createBookmarkRows(bm, idx) {
   detail.dataset.bmMeta   = bmMetaJson;
 
   var detailTd = document.createElement('td');
-  detailTd.colSpan = 12;
+  detailTd.colSpan = 13;
   detailTd.innerHTML =
     '<div style="display:grid;grid-template-columns:100px 1fr;gap:4px 8px;font-size:11px">' +
-    '<label>Name:</label><input class="bm-name" data-field="name" value="' + esc(name) + '" oninput="markBmChanged(this);bmSyncSummary(this)">' +
-    '<label>Aliases:</label><input class="bm-alias" data-field="aliases" value="' + esc(aliases) + '" title="Kommasepariert" oninput="markBmChanged(this);bmSyncSummary(this)">' +
+    '<label>IDs:</label><input class="bm-name" data-field="idaliases" value="' + esc(idsValue) + '" title="Primaere ID zuerst, weitere IDs kommasepariert" oninput="markBmChanged(this);bmSyncSummary(this)">' +
+    '<label>Alias:</label><input class="bm-alias" data-field="name" value="' + esc(aliasName) + '" title="Sichtbarer Anzeigename" oninput="markBmChanged(this);bmSyncSummary(this)">' +
     '<label>Basemap:</label><input data-field="basemap" value="' + esc(basemap) + '" oninput="markBmChanged(this);bmSyncSummary(this)">' +
+    '<label>Basemap-Modus:</label><select data-field="basemapcolormode" onchange="markBmChanged(this);bmSyncSummary(this)"><option value="color"' + (basemapMode === 'color' ? ' selected' : '') + '>color</option><option value="grey"' + (basemapMode === 'grey' ? ' selected' : '') + '>grey</option></select>' +
     '<label>Theme:</label><input data-field="theme" value="' + esc(theme) + '" oninput="markBmChanged(this)">' +
     '<label>Subtheme:</label><input data-field="subtheme" value="' + esc(subtheme) + '" oninput="markBmChanged(this)">' +
     '<label>Themen:</label><input data-field="themes" value="' + esc(themes) + '" title="z.B. nw:oereb" placeholder="nw:oereb" oninput="markBmChanged(this);bmSyncSummaryThemes(this)">' +
@@ -7968,7 +8083,7 @@ function createBookmarkRows(bm, idx) {
   mtxWrap.addEventListener('input',  function(e) {
     // Live-Filter und Live-Edit für Inputs
     if (e.target.matches('.bm-mtx-filter')) bmApplyMatrixFilter(detail);
-    if (e.target.matches('.bm-mtx-vid') || e.target.matches('input[data-prop]')) bmMatrixHandleChange(e, detail);
+    if (e.target.matches('.bm-mtx-vid') || e.target.matches('.bm-mtx-vname') || e.target.matches('input[data-prop]')) bmMatrixHandleChange(e, detail);
   });
 
   // Add-Layer-Input: Autocomplete mit onAdd-Callback, der die Matrix erweitert.
@@ -8005,19 +8120,23 @@ function bmSyncSummary(input) {
   var idx = detailRow.dataset.idx;
   var summaryRow = document.querySelector('tr.bm-row-summary[data-idx="' + idx + '"]');
   if (!summaryRow) return;
-  var nameInput = detailRow.querySelector('[data-field="name"]');
-  var aliasInput = detailRow.querySelector('[data-field="aliases"]');
+  var idsInput = detailRow.querySelector('[data-field="idaliases"]');
+  var aliasInput = detailRow.querySelector('[data-field="name"]');
   var basemapInput = detailRow.querySelector('[data-field="basemap"]');
-  var nameCell = summaryRow.children[0];
+  var basemapModeInput = detailRow.querySelector('[data-field="basemapcolormode"]');
+  var idsCell = summaryRow.children[0];
   var aliasCell = summaryRow.children[1];
   var basemapCell = summaryRow.children[2];
-  nameCell.innerHTML = '<span class="bm-expand-icon" style="transform:rotate(90deg)">▶</span><strong style="font-family:monospace;font-size:11px">' + esc(nameInput.value) + '</strong>';
+  var basemapModeCell = summaryRow.children[3];
+  idsCell.innerHTML = '<span class="bm-expand-icon" style="transform:rotate(90deg)">▶</span><strong style="font-family:monospace;font-size:11px">' + esc(idsInput.value) + '</strong>';
   aliasCell.textContent = aliasInput.value;
   basemapCell.textContent = basemapInput.value;
+  basemapModeCell.textContent = basemapModeInput.value;
   // data-Attribute für Filter aktualisieren
-  summaryRow.dataset.name = (nameInput.value || '').toLowerCase();
-  summaryRow.dataset.aliases = (aliasInput.value || '').toLowerCase();
+  summaryRow.dataset.idaliases = (idsInput.value || '').toLowerCase();
+  summaryRow.dataset.name = (aliasInput.value || '').toLowerCase();
   summaryRow.dataset.basemap = (basemapInput.value || '').toLowerCase();
+  summaryRow.dataset.basemapmode = (basemapModeInput.value || '').toLowerCase();
   // Themen aus Detail → Summary-Input synchronisieren
   var themesInput = detailRow.querySelector('[data-field="themes"]');
   var themesCell = summaryRow.querySelector('.bm-summary-themes input');
@@ -8281,16 +8400,16 @@ function addBookmarkEntry() {
   bmPushUndo();
   var tbody = document.getElementById('bm-tbody');
   var idx = tbody.querySelectorAll('tr.bm-row-summary').length;
-  var emptyBm = { id: '', basemap: '', layers: [], meta: { schemaVersion: 2 } };
+  var emptyBm = { id: '', name: '', aliases: [], basemap: '', basemapColorMode: 'color', layers: [], meta: { schemaVersion: 2 } };
   var rows = createBookmarkRows(emptyBm, idx);
   rows.summary.classList.add('bm-row-changed');
   rows.detail.classList.add('bm-expanded'); // Neue Einträge aufgeklappt
   rows.summary.classList.add('bm-expanded-row');
   tbody.insertBefore(rows.detail, tbody.firstChild);
   tbody.insertBefore(rows.summary, rows.detail);
-  // Fokus auf Name-Feld
-  var nameInput = rows.detail.querySelector('[data-field="name"]');
-  if (nameInput) nameInput.focus();
+  // Fokus auf ID-Feld
+  var idsInput = rows.detail.querySelector('[data-field="idaliases"]');
+  if (idsInput) idsInput.focus();
   updateBookmarkCount();
 }
 
@@ -8314,19 +8433,20 @@ function deleteBookmarkRow(tr) {
 }
 
 function openBookmarkUrl(tr) {
-  // Name aus Summary-data-Attribut oder Detail-Input lesen
-  var name = '';
+  // Primaere ID aus Summary-data-Attribut oder Detail-Input lesen
+  var idValue = '';
   if (tr.classList.contains('bm-row-summary')) {
     var idx = tr.dataset.idx;
     var detail = document.querySelector('tr.bm-row-detail[data-idx="' + idx + '"]');
-    if (detail) name = (detail.querySelector('[data-field="name"]').value || '').trim();
-    if (!name) name = (tr.dataset.name || '').trim();
+    if (detail) idValue = (detail.querySelector('[data-field="idaliases"]').value || '').trim();
+    if (!idValue) idValue = (tr.dataset.idaliases || '').trim();
   } else {
-    var inp = tr.querySelector('[data-field="name"]');
-    name = inp ? inp.value.trim() : '';
+    var inp = tr.querySelector('[data-field="idaliases"]');
+    idValue = inp ? inp.value.trim() : '';
   }
-  if (!name) { alert('Kein Name eingetragen'); return; }
-  var url = 'https://www.gis-daten.ch/maps/' + encodeURIComponent(name);
+  var primaryId = bmPrimaryBookmarkId(idValue);
+  if (!primaryId) { alert('Keine Bookmark-ID eingetragen'); return; }
+  var url = 'https://www.gis-daten.ch/maps/' + encodeURIComponent(primaryId);
   window.open(url, '_blank');
 }
 
@@ -8335,18 +8455,22 @@ function collectBookmarkData() {
   var result = [];
   for (var i = 0; i < rows.length; i++) {
     var tr = rows[i];
-    var name = tr.querySelector('[data-field="name"]').value.trim();
-    if (!name) continue; // Leere Zeilen ignorieren
+    var idsValue = tr.querySelector('[data-field="idaliases"]').value.trim();
+    var ids = bmParseCsvList(idsValue);
+    if (!ids.length) continue; // Leere Zeilen ignorieren
 
-    var entry = { id: name };
+    var entry = { id: ids[0] };
 
-    var aliasStr = tr.querySelector('[data-field="aliases"]').value.trim();
-    if (aliasStr) {
-      entry.aliases = aliasStr.split(',').map(function(s) { return s.trim(); }).filter(Boolean);
-    }
+    if (ids.length > 1) entry.aliases = ids.slice(1);
+
+    var aliasName = tr.querySelector('[data-field="name"]').value.trim();
+    if (aliasName) entry.name = aliasName;
 
     var basemap = tr.querySelector('[data-field="basemap"]').value.trim();
     if (basemap) entry.basemap = basemap;
+
+    var basemapMode = tr.querySelector('[data-field="basemapcolormode"]').value.trim();
+    if (basemapMode) entry.basemapColorMode = basemapMode;
 
     var theme = tr.querySelector('[data-field="theme"]').value.trim();
     if (theme) entry.theme = theme;
@@ -8893,12 +9017,16 @@ function bmReplaceAll() {
 // Einzelnes Bookmark aus einer Detail-Zeile als Objekt auslesen
 function bmCollectSingleBookmark(detailRow) {
   var entry = {};
-  var name = detailRow.querySelector('[data-field="name"]').value.trim();
-  if (name) entry.id = name;
-  var aliasStr = detailRow.querySelector('[data-field="aliases"]').value.trim();
-  if (aliasStr) entry.aliases = aliasStr.split(',').map(function(s) { return s.trim(); }).filter(Boolean);
+  var idsValue = detailRow.querySelector('[data-field="idaliases"]').value.trim();
+  var ids = bmParseCsvList(idsValue);
+  if (ids.length) entry.id = ids[0];
+  if (ids.length > 1) entry.aliases = ids.slice(1);
+  var aliasName = detailRow.querySelector('[data-field="name"]').value.trim();
+  if (aliasName) entry.name = aliasName;
   var basemap = detailRow.querySelector('[data-field="basemap"]').value.trim();
   if (basemap) entry.basemap = basemap;
+  var basemapMode = detailRow.querySelector('[data-field="basemapcolormode"]').value.trim();
+  if (basemapMode) entry.basemapColorMode = basemapMode;
   var theme = detailRow.querySelector('[data-field="theme"]').value.trim();
   if (theme) entry.theme = theme;
   var subtheme = detailRow.querySelector('[data-field="subtheme"]').value.trim();
@@ -8984,9 +9112,10 @@ function bmInlineJsonApply(btn) {
   bmPushUndo();
 
   // Felder ins Formular zurückschreiben (v2-Schema mit v1-Fallback)
-  detailRow.querySelector('[data-field="name"]').value = bm.id || bm['map-bookmark'] || '';
-  detailRow.querySelector('[data-field="aliases"]').value = (bm.aliases || []).join(', ');
+  detailRow.querySelector('[data-field="idaliases"]').value = bmBookmarkIdsValue(bm);
+  detailRow.querySelector('[data-field="name"]').value = bm.name || bm.id || bm['map-bookmark'] || '';
   detailRow.querySelector('[data-field="basemap"]').value = bm.basemap || '';
+  detailRow.querySelector('[data-field="basemapcolormode"]').value = bm.basemapColorMode || 'color';
   detailRow.querySelector('[data-field="theme"]').value = bm.theme || '';
   detailRow.querySelector('[data-field="subtheme"]').value = bm.subtheme || '';
   detailRow.querySelector('[data-field="themes"]').value = bm.themes || '';
@@ -9005,9 +9134,9 @@ function bmInlineJsonApply(btn) {
   var layerIds = layers.map(bmLayerId);
 
   // Summary synchronisieren
-  var nameInput = detailRow.querySelector('[data-field="name"]');
-  bmSyncSummary(nameInput);
-  markBmChanged(nameInput);
+  var idsInput = detailRow.querySelector('[data-field="idaliases"]');
+  bmSyncSummary(idsInput);
+  markBmChanged(idsInput);
 
   // Summary-Layer-Tags aktualisieren
   var idx = detailRow.dataset.idx;

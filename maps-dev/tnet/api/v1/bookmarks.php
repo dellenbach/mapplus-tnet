@@ -63,17 +63,14 @@ $listing = [];
 foreach ($bookmarks as $bookmark) {
     if (!is_array($bookmark)) continue;
 
-    // id aus v2 oder v1 ableiten
-    $id = $bookmark['id'] ?? ($bookmark['map-bookmark'] ?? null);
+    $normalized = BookmarkNormalizer::normalize($bookmark);
+    $id = $normalized['id'] ?? null;
     if (!$id) continue;
 
     $entry = ['id' => $id];
-    if (!empty($bookmark['name'])) {
-        $entry['name'] = $bookmark['name'];
-    }
-    if (!empty($bookmark['aliases']) && is_array($bookmark['aliases'])) {
-        $entry['aliases'] = array_values($bookmark['aliases']);
-    }
+    $entry['name'] = $normalized['name'] ?? $id;
+    $entry['aliases'] = $normalized['aliases'] ?? [];
+    $entry['basemapColorMode'] = $normalized['basemapColorMode'] ?? 'color';
     $listing[] = $entry;
 }
 

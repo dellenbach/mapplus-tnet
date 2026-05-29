@@ -1,3 +1,9 @@
+## 2026-05-29 — Karteninhalt darf keine nicht renderbaren Bookmark-Layer anzeigen
+- **Symptom**: Im Karteninhalt erschienen Bookmark-Eintraege, deren Sichtbarkeit sich nicht verlaesslich schalten liess, weil sie technisch gar keinen belastbaren Layer im Themenkatalog bzw. Store hatten.
+- **Root-Cause**: Bookmark-Layer wurden im Active-Panel direkt mit dem Live-State gemischt; dabei konnten unbekannte IDs als reine Bookmark-Stubs bis ins UI durchrutschen.
+- **Fix**: `tnet-lm-store.js` filtert beim Bookmark-Load nicht renderbare IDs heraus und baut dafuer einen performanten Layer-Index auf; `tnet-lm-active.js` filtert Bookmark-Layer vor dem Merge zusaetzlich ueber dieselbe Store-Regel.
+- **Guardrail**: Active-Panels duerfen nur Layer rendern, die im Store belastbar aufloesbar oder explizit als Spezialfall verwaltet sind. Bookmark-Stubs gehoeren nie direkt ins UI.
+
 ## 2026-05-29 — Bookmark-Start muss den Karteninhalt aktiv fokussieren
 - **Symptom**: Beim Start eines Bookmarks blieb im Sidepanel oft der Themenkatalog offen, obwohl der Bookmark-Inhalt im Karteninhalt kontrolliert werden sollte.
 - **Root-Cause**: Das Bookmark-System emitierte bereits die passenden Events, aber das Active-Panel reagierte nur mit Re-Render und schaltete die sichtbare Desktop-/Mobile-UI nicht auf den Karteninhalt um.

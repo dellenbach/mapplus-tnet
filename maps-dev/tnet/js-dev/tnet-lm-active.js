@@ -141,6 +141,16 @@
     });
   }
 
+  function filterRenderableBookmarkLayers(bookmarkLayers) {
+    var store = window.TnetLMStore;
+    if (!Array.isArray(bookmarkLayers)) return [];
+    if (!store || typeof store.isRenderableLayerId !== 'function') return bookmarkLayers.slice();
+
+    return bookmarkLayers.filter(function(layer) {
+      return layer && layer.id && store.isRenderableLayerId(layer.id);
+    });
+  }
+
   function _initIcons() {
     ICON.eyeOn    = TnetIcons.get('eye-on', 'lm-icon');
     ICON.eyeOff   = TnetIcons.get('eye-off', 'lm-icon');
@@ -239,8 +249,9 @@
       }
 
       var bookmarkInfo = getBookmarkInfo();
+      var bookmarkLayers = bookmarkInfo ? filterRenderableBookmarkLayers(bookmarkInfo.layers) : null;
       var effectiveLayers = bookmarkInfo
-        ? mergeBookmarkLayers(bookmarkInfo.layers, Array.isArray(layers) ? layers : [])
+        ? mergeBookmarkLayers(bookmarkLayers, Array.isArray(layers) ? layers : [])
         : layers;
 
       // Nicht rendern während Drag aktiv (sonst springt alles)

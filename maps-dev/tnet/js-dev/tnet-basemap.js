@@ -27,6 +27,27 @@
 
     var LOG_PREFIX = '[Basemap]';
 
+    function syncActiveBookmarkBasemapState(basemapId, basemapColorMode, reason) {
+        var bookmark = window.__tnetActiveBookmark;
+        if (!bookmark) return;
+
+        if (typeof basemapId === 'string' && basemapId !== '') {
+            bookmark.basemap = basemapId;
+        }
+        if (typeof basemapColorMode === 'string' && basemapColorMode !== '') {
+            bookmark.basemapColorMode = basemapColorMode === 'grey' ? 'grey' : 'color';
+        }
+
+        try {
+            document.dispatchEvent(new CustomEvent('tnet-bookmark-state-changed', {
+                detail: {
+                    reason: reason || 'basemap-change',
+                    bookmark: bookmark
+                }
+            }));
+        } catch (eEvent) { /* ignore */ }
+    }
+
     // =========================================================
     // 1. KONSTANTEN — swisstopo WMTS TileGrid für EPSG:2056
     // =========================================================
@@ -144,6 +165,7 @@
             // Basemap wechseln (via gehooktes changeBaseMap)
             if (window.njs && njs.AppManager && njs.AppManager.Maps && njs.AppManager.Maps.main) {
                 njs.AppManager.Maps['main'].changeBaseMap(basemapId);
+                syncActiveBookmarkBasemapState(basemapId, null, 'basemap-change');
             }
         });
 
@@ -696,6 +718,7 @@
                             isGrey = !self._isGrayscale;
                         }
                         self.syncGrayscale(isGrey);
+                        syncActiveBookmarkBasemapState(null, isGrey ? 'grey' : 'color', 'basemap-color-mode');
                     }
                 };
                 TnetLog.log(LOG_PREFIX, 'toggleBaseLayerColor gehookt ✓');
