@@ -7,6 +7,7 @@ Stand: 2026-03-05
 - [ ] Offene Bugs sammeln und priorisieren
 - [ ] Änderungen lokal prüfen (Desktop + Mobile)
 - [ ] Betroffene Konfig-Dateien auf Key-Konsistenz prüfen
+- [ ] Bookmark-Regression nachziehen: URL-Varianten mit `bookmarkId`/`view`/`layers` auf Desktop+Mobile querprüfen
 
 ## Umsetzungs-Tasks
 
