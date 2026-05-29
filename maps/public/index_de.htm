@@ -301,7 +301,7 @@
     <!-- Header Toolbar rechts oben -->
     <div id="header_toolbar">
         <!-- Anmelde-Button (nicht angemeldet) -->
-        <div id="header_login" title="Anmelden" onclick="window.location.href=window.location.href+'&amp;group=?'">
+        <div id="header_login" title="Anmelden" onclick="window.location.href = window.location.href + (window.location.href.indexOf('?') === -1 ? '?group=?' : '&amp;group=?')">
             <span class="login-text">Anmelden</span>
             <svg class="login-arrow" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
         </div>

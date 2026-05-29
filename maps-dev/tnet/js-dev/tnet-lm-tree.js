@@ -900,10 +900,12 @@
       if (!themesStr || !_container) return;
       var self = this;
       var prefixMap = { 'ow': 'obwalden', 'nw': 'nidwalden', 'ch': 'bund', 'we': 'weitere' };
+      var bookmarkInfo = window.__tnetActiveBookmark;
+      var skipOverviewOpen = !!(bookmarkInfo && Array.isArray(bookmarkInfo.layers));
 
       // THEMENKATALOG-Accordion öffnen (tp_overview_menu), sonst ist der Baum nicht sichtbar
       var overviewEl = document.getElementById('tp_overview_menu');
-      if (overviewEl && !overviewEl.open) {
+      if (!skipOverviewOpen && overviewEl && !overviewEl.open) {
         overviewEl.open = true;
       }
 

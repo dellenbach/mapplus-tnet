@@ -153,6 +153,30 @@
     ICON.trash    = TnetIcons.get('trash', 'lm-icon');
   }
 
+  function focusActivePanelForBookmark() {
+    if (!getBookmarkInfo()) return;
+
+    if (window.__TNET_MOBILE_ENTRY) {
+      if (typeof window.closeLayersSheet === 'function') {
+        window.closeLayersSheet();
+      }
+      if (typeof window.openActiveSheet === 'function') {
+        window.openActiveSheet();
+      }
+      return;
+    }
+
+    var activePanel = document.getElementById('tp_sort_menu');
+    var overviewPanel = document.getElementById('tp_overview_menu');
+
+    if (overviewPanel && overviewPanel.open) {
+      overviewPanel.open = false;
+    }
+    if (activePanel && !activePanel.open) {
+      activePanel.open = true;
+    }
+  }
+
   var LMActive = {
 
     init: function (containerId) {
@@ -174,13 +198,17 @@
       _unlisteners.push(store.on('layer-opacity', this._onOpacity.bind(this)));
 
       var self = this;
+      var rerenderAndFocus = function () {
+        focusActivePanelForBookmark();
+        self.render(store.getActiveLayers());
+      };
       var rerender = function () {
         self.render(store.getActiveLayers());
       };
-      document.addEventListener('tnet-bookmark-loaded', rerender);
+      document.addEventListener('tnet-bookmark-loaded', rerenderAndFocus);
       document.addEventListener('tnet-bookmark-state-changed', rerender);
       _unlisteners.push(function () {
-        document.removeEventListener('tnet-bookmark-loaded', rerender);
+        document.removeEventListener('tnet-bookmark-loaded', rerenderAndFocus);
         document.removeEventListener('tnet-bookmark-state-changed', rerender);
       });
 
@@ -190,6 +218,7 @@
       // Initial-State rendern
       var active = store.getActiveLayers();
       this.render(active);
+      focusActivePanelForBookmark();
       TnetLog.log(LOG, 'Init ✓ → #' + containerId);
     },
 

@@ -202,8 +202,26 @@ if ($_GET["group"]=="" && is_dir("./public")){
     $_SESSION["app_group"]='public';
     $_SESSION["app_credentials"][$site]['public']='public';
 }else {
-    if (!isset($_SESSION['OIDC_CLAIM_group'])){      
-        header("Location:/mapplus-protected/?".$_SERVER['QUERY_STRING']);
+    if (!isset($_SESSION['OIDC_CLAIM_group'])){
+        // Alten PHPSESSID-Cookie loeschen, damit nach OIDC-Login kein konkurrierender
+        // Cookie mit Pfad /maps-dev/ die neue Session aus mapplus-protected verdraengt.
+        $_SESSION = [];
+        setcookie(session_name(), '', [
+            'expires'  => time() - 3600,
+            'path'     => $appCookiePath,
+            'secure'   => true,
+            'httponly' => false,
+            'samesite' => 'none',
+        ]);
+        session_destroy();
+        $queryString = isset($_SERVER['QUERY_STRING']) ? $_SERVER['QUERY_STRING'] : '';
+        if ($queryString !== '') {
+            parse_str($queryString, $queryParams);
+            unset($queryParams['target']);
+            $queryString = http_build_query($queryParams);
+        }
+        $targetParam = 'target=' . rawurlencode('/maps-dev/index.php');
+        header("Location:/mapplus-protected/?" . $targetParam . ($queryString !== '' ? ('&' . $queryString) : ''));
         exit;
     }else{
         $usernames="'".str_replace("*","%",str_replace(",","','",$_SESSION['OIDC_CLAIM_group'])."'");

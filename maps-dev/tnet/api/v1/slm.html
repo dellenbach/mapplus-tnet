@@ -633,11 +633,19 @@ body {
 .bm-summary-layers { font-size: 10px; color: #888; font-family: monospace; margin-left: 8px; }
 .bm-summary-layers .bm-layer-tag { font-size: 9px; padding: 0 3px; margin: 0 1px; }
 /* Layer-Validierung */
-.bm-layer-tag { display: inline-block; padding: 1px 5px; border-radius: 3px; margin: 1px 2px; font-size: 10px; font-family: monospace; cursor: default; }
+.bm-layer-tag { display: inline-flex; align-items: flex-start; gap: 4px; max-width: 280px; padding: 1px 5px; border-radius: 3px; margin: 1px 2px; font-size: 10px; font-family: monospace; cursor: default; }
 .bm-layer-tag.valid { background: #e8f5e9; color: #2e7d32; border: 1px solid #a5d6a7; }
 .bm-layer-tag.invalid { background: #ffebee; color: #c62828; border: 1px solid #ef9a9a; }
 /* Layer mit visible:false — geladen aber initial unsichtbar (Schema v2) */
 .bm-layer-tag.bm-layer-off { opacity: 0.55; text-decoration: line-through; }
+.bm-layer-path { display: flex; flex-direction: column; min-width: 0; line-height: 1.15; }
+.bm-layer-path-leaf { font-weight: 700; color: inherit; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bm-layer-path-prefix { font-size: 9px; color: inherit; opacity: 0.68; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bm-layer-path-row { position: relative; padding-left: calc(var(--bm-layer-depth, 0) * 14px); max-width: 100%; }
+.bm-layer-path-row.has-depth::before { content: ''; position: absolute; left: calc(var(--bm-layer-depth, 0) * 14px - 8px); top: 2px; bottom: 2px; width: 3px; border-radius: 3px; background: linear-gradient(180deg, rgba(75,123,129,0.12), rgba(75,123,129,0.42)); }
+.bm-layer-path-tag { max-width: 220px; }
+.bm-layer-path-tag .bm-layer-path-prefix { font-size: 8px; opacity: 0.58; }
+.bm-summary-layers .bm-layer-path-tag { max-width: 170px; }
 
 /* ===== Layer-Matrix (Schema v2 mit Kartenansichten) ===== */
 .bm-mtx-wrap { margin-top: 6px; }
@@ -649,7 +657,7 @@ table.bm-mtx { width: 100%; border-collapse: collapse; font-size: 11px; font-fam
 table.bm-mtx thead th { position: sticky; top: 0; background: #f4f4f4; border-bottom: 2px solid #999; padding: 4px 6px; text-align: left; font-weight: 600; z-index: 1; }
 table.bm-mtx tbody td { border-bottom: 1px solid #eee; padding: 2px 6px; vertical-align: middle; }
 table.bm-mtx tbody tr:hover td { background: #fafafa; }
-.bm-mtx-lname { font-size: 10px; color: #333; white-space: nowrap; max-width: 380px; overflow: hidden; text-overflow: ellipsis; }
+.bm-mtx-lname { font-size: 10px; color: #333; white-space: normal; max-width: 420px; overflow: hidden; text-overflow: ellipsis; line-height: 1.2; }
 .bm-mtx-lname.invalid { color: #c62828; }
 .bm-mtx-cell-default, .bm-mtx-cell-view { text-align: center; width: 60px; }
 .bm-mtx-cell-default input { transform: scale(1.1); cursor: pointer; }
@@ -702,7 +710,7 @@ table.bm-mtx tbody tr.bm-mtx-row-sel:hover td { background: #ffe0b2; }
 /* Layer-Feld: Tag-Container + Eingabefeld */
 .bm-layers-wrap { position: relative; min-width: 200px; }
 .bm-layers-tags { display: flex; flex-wrap: wrap; gap: 2px; margin-bottom: 2px; min-height: 18px; }
-.bm-layer-tag .bm-tag-x { cursor: pointer; margin-left: 3px; color: #999; font-weight: bold; }
+.bm-layer-tag .bm-tag-x { cursor: pointer; margin-left: 0; color: #999; font-weight: bold; flex: 0 0 auto; padding-top: 1px; }
 .bm-layer-tag .bm-tag-x:hover { color: #c44; }
 .bm-ac-list { position: absolute; left: 0; right: 0; top: 100%; background: #fff; border: 1px solid #ccc; border-radius: 3px; max-height: 180px; overflow-y: auto; z-index: 100; font-size: 11px; font-family: monospace; display: none; }
 .bm-ac-list div { padding: 3px 6px; cursor: pointer; }
@@ -7523,7 +7531,7 @@ function bmRenderMatrix(detailRow) {
     var isSel = sel.has(lid);
     html += '<tr data-lid="' + bmEscAttr(lid) + '"' + (isSel ? ' class="bm-mtx-row-sel"' : '') + '>';
     html += '<td class="bm-mtx-cell-sel"><input type="checkbox" class="bm-mtx-rowsel" data-lid="' + bmEscAttr(lid) + '"' + (isSel ? ' checked' : '') + '></td>';
-    html += '<td class="bm-mtx-lname' + (isValid ? '' : ' invalid') + '" title="' + bmEscAttr(lid) + (isValid ? '' : ' (Layer nicht im Katalog)') + '">' + bmEscAttr(lid) + '</td>';
+    html += '<td class="bm-mtx-lname' + (isValid ? '' : ' invalid') + '" title="' + bmEscAttr(lid) + (isValid ? '' : ' (Layer nicht im Katalog)') + '">' + bmLayerHierarchyHtml(lid, 'row') + '</td>';
     html += '<td class="bm-mtx-cell-default"><input type="checkbox" data-lid="' + bmEscAttr(lid) + '"' + (l.visible ? ' checked' : '') + '></td>';
 
     views.forEach(function(v) {
@@ -7887,7 +7895,7 @@ function createBookmarkRows(bm, idx) {
   for (var lp = 0; lp < Math.min(layerIds.length, 4); lp++) {
     var lid = layerIds[lp];
     var isV = _bmAllLayerKeys.indexOf(lid) !== -1;
-    layerPreview += '<span class="bm-layer-tag ' + (isV ? 'valid' : 'invalid') + '" data-layer="' + esc(lid) + '">' + esc(lid) + '</span>';
+    layerPreview += '<span class="bm-layer-tag ' + (isV ? 'valid' : 'invalid') + '" data-layer="' + esc(lid) + '">' + bmLayerHierarchyHtml(lid, 'tag') + '</span>';
   }
   if (layerIds.length > 4) layerPreview += '<span style="font-size:10px;color:#888"> +' + (layerIds.length - 4) + '</span>';
   if (layerIds.length === 0) layerPreview = '<span style="color:#ccc;font-size:10px">–</span>';
@@ -8065,6 +8073,34 @@ function markBmChanged(input) {
 
 // ===== LAYER-TAG + AUTOCOMPLETE =====
 
+function bmLayerPathInfo(layerKey) {
+  var full = String(layerKey || '');
+  var parts = full.split('/').filter(function(part) { return part !== ''; });
+  if (!parts.length) {
+    return { full: full, leaf: full, prefix: '', depth: 0 };
+  }
+  return {
+    full: full,
+    leaf: parts[parts.length - 1],
+    prefix: parts.slice(0, -1).join(' / '),
+    depth: Math.max(0, parts.length - 1)
+  };
+}
+
+function bmLayerHierarchyHtml(layerKey, variant) {
+  var info = bmLayerPathInfo(layerKey);
+  var depth = Math.min(info.depth, 8);
+  var cls = 'bm-layer-path bm-layer-path-' + (variant || 'row') + (depth ? ' has-depth' : '');
+  var style = depth ? ' style="--bm-layer-depth:' + depth + '"' : '';
+  var html = '<span class="' + cls + '"' + style + '>' +
+    '<span class="bm-layer-path-leaf">' + esc(info.leaf || info.full) + '</span>';
+  if (info.prefix) {
+    html += '<span class="bm-layer-path-prefix">' + esc(info.prefix) + '</span>';
+  }
+  html += '</span>';
+  return html;
+}
+
 // Einzelnes Layer-Tag erstellen (farblich validiert)
 // Akzeptiert v1-String ODER v2-Layer-Objekt. Speichert das volle Objekt
 // in dataset.layerObj, damit per-Layer-State (visible/opacity/order/filter)
@@ -8081,7 +8117,7 @@ function createLayerTag(layer, tr) {
   span.title = isValid ? 'Layer vorhanden' : 'Layer nicht gefunden!';
   // Optisches Off-Indiz wenn visible:false (per-Layer-Edit folgt in 5c)
   if (!obj.visible) span.classList.add('bm-layer-off');
-  span.innerHTML = esc(layerKey) + '<span class="bm-tag-x" title="Entfernen">×</span>';
+  span.innerHTML = bmLayerHierarchyHtml(layerKey, 'tag') + '<span class="bm-tag-x" title="Entfernen">×</span>';
   span.querySelector('.bm-tag-x').addEventListener('click', function() {
     span.remove();
     if (tr) tr.classList.add('bm-row-changed');

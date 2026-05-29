@@ -191,9 +191,17 @@
         });
     };
 
+    function hasRecentBookmarkStartRequest() {
+        var now = Date.now();
+        var topWin = (window.top && window.top !== window) ? window.top : null;
+        var requestedAt = Number(window.__tnetLastRequestedBookmarkAt || (topWin && topWin.__tnetLastRequestedBookmarkAt) || 0);
+
+        return requestedAt > 0 && (now - requestedAt) < 15000;
+    }
+
     function shouldSkipGrundkartenDefaults() {
         try {
-            if (window.__tnetActiveBookmark || window.__tnetLastRequestedBookmark) {
+            if (hasRecentBookmarkStartRequest()) {
                 return true;
             }
             var path = String((window.location && window.location.pathname) || '');

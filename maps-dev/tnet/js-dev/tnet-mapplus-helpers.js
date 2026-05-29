@@ -934,14 +934,23 @@ function TnetSetBookmark(bookmarkId, viewId) {
   // Wenn der Aufruf aus dem Karten-Dialog-iframe kommt, die eigentliche
   // Bookmark-Logik im Top-Window ausführen. Sonst wird das iframe beim
   // Dialog-Close entladen und der laufende Request abgebrochen.
+  var requestTs = Date.now();
+
   if (window.top && window.top !== window && typeof window.top.TnetSetBookmark === 'function') {
-    try { window.top.__tnetLastRequestedBookmark = bookmarkId; } catch (eTopReq) { /* ignore */ }
+    try {
+      window.top.__tnetLastRequestedBookmark = bookmarkId;
+      window.top.__tnetLastRequestedBookmarkAt = requestTs;
+    } catch (eTopReq) { /* ignore */ }
     return window.top.TnetSetBookmark(bookmarkId, viewId);
   }
 
   window.__tnetLastRequestedBookmark = bookmarkId;
+  window.__tnetLastRequestedBookmarkAt = requestTs;
   if (window.top) {
-    try { window.top.__tnetLastRequestedBookmark = bookmarkId; } catch (eTop) { /* ignore */ }
+    try {
+      window.top.__tnetLastRequestedBookmark = bookmarkId;
+      window.top.__tnetLastRequestedBookmarkAt = requestTs;
+    } catch (eTop) { /* ignore */ }
   }
 
   // Dialog sofort schliessen, damit der Wechsel auch bei API-Retries/Fallback sauber wirkt.

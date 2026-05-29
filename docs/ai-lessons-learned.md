@@ -1,3 +1,75 @@
+## 2026-05-29 — Bookmark-Start muss den Karteninhalt aktiv fokussieren
+- **Symptom**: Beim Start eines Bookmarks blieb im Sidepanel oft der Themenkatalog offen, obwohl der Bookmark-Inhalt im Karteninhalt kontrolliert werden sollte.
+- **Root-Cause**: Das Bookmark-System emitierte bereits die passenden Events, aber das Active-Panel reagierte nur mit Re-Render und schaltete die sichtbare Desktop-/Mobile-UI nicht auf den Karteninhalt um.
+- **Fix**: `tnet-lm-active.js` fokussiert bei `tnet-bookmark-loaded` gezielt das Karteninhalt-Panel: Desktop oeffnet `tp_sort_menu` und schliesst `tp_overview_menu`, Mobile wechselt vom Layers-Sheet auf `openActiveSheet()`.
+- **Guardrail**: Wenn Bookmark-Flow und Ziel-UI bereits ueber Events gekoppelt sind, gehoert der Fokuswechsel ins owning UI-Modul statt in den Bookmark-Core.
+
+## 2026-05-29 — Grundkarten-Defaults duften nicht an dauerhaft gesetzten Bookmark-Markern haengen
+- **Symptom**: Der Schutz gegen Grundkarten-Overrides beim Bookmark-Start hing an globalen Bookmark-Markern und blieb dadurch potenziell laenger aktiv als der eigentliche Startup-Moment.
+- **Root-Cause**: `tnet-basemap.js` pruefte pauschal auf `__tnetActiveBookmark` bzw. `__tnetLastRequestedBookmark`, waehrend `__tnetLastRequestedBookmark` im Bookmark-Flow nie wieder geloescht wurde.
+- **Fix**: Der Basemap-Guard nutzt jetzt einen kurzen Zeitkorridor ueber `__tnetLastRequestedBookmarkAt`; `TnetSetBookmark()` schreibt dafuer bei jedem Request einen Timestamp statt nur eines dauerhaften Namensmarkers.
+- **Guardrail**: Startup-Guards fuer Bookmark-Races immer zeitlich oder phasenbasiert modellieren, nie ueber dauerhaft gesetzte globale Flags.
+
+## 2026-05-29 — Logout in Edit musste den zentralen ADFS-Signout treffen
+- **Symptom**: UI zeigte zwar `Logout`, aber die Abmeldung lief nur app-lokal und entsprach nicht dem gewuenschten zentralen SSO-Signout.
+- **Root-Cause**: Logout-Link zeigte auf app-/core-lokale Endpunkte statt auf den ADFS-Endpoint mit `wa=wsignout1.0`.
+- **Fix**: In `edit/index.php` wurde das Logout-Ziel im UI-Patch auf `https://idp.gis-daten.ch/adfs/ls/?wa=wsignout1.0&wreply=...` umgestellt; `wreply` verweist auf die Edit-App.
+- **Guardrail**: Bei OIDC/ADFS-Setups Logout-Endpunkte immer gegen den IdP-Flow validieren. Ein lokaler Logout-Link reicht oft nicht fuer echtes SSO-Signout.
+
+## 2026-05-29 — Edit-Toolbar nutzte fuer Login kein klassisches Anchor-Element
+- **Symptom**: `Angemeldet als: ...` wurde korrekt angezeigt, aber der sichtbare Toolbar-Eintrag blieb bei `Login` und bot kein funktionierendes Logout.
+- **Root-Cause**: Der Login-Eintrag wurde in der Legacy-Toolbar als generisches UI-Element (Label/Container mit `title`) gerendert, nicht als `a[href*="/core/sso/login.php"]`. Der erste Patch traf daher nur den Anchor-Fall.
+- **Fix**: `applyEditAuthUi()` in `edit/index.php` erweitert: neben Anchor-Update werden auch Toolbar-Labels (`Login`/`Anmelden`) und `title`-basierte Container erkannt, auf `Logout`/`Abmelden` umgestellt und per `onclick` auf `/core/sso/logout.php?site=edit` verdrahtet.
+- **Guardrail**: In Legacy-Dojo-Toolbars Login/Logout nie nur über `a[href]` umschalten. Immer zusätzlich text- und title-basierte UI-Knoten berücksichtigen.
+
+## 2026-05-29 — Edit zeigte trotz gueltiger Session weiter den Login-Link
+- **Symptom**: In `/edit` blieb nach erfolgreichem OIDC-Login der sichtbare Login-Button bestehen; ein klarer Hinweis auf den angemeldeten Benutzer fehlte.
+- **Root-Cause**: Der Legacy-Header in `edit` schaltete die Login-UI nicht aktiv um, obwohl `app_username` in der Session vorhanden war. `njs.AppManager.auth_user` wurde zudem unsicher als roher String in JS injiziert.
+- **Fix**: In `edit/index.php` wurde `auth_user` sicher per `json_encode(...)` eingebettet, die Originalzeile dokumentiert auskommentiert belassen und ein kleiner UI-Patch ergänzt (Login-Link -> `/core/sso/logout.php`, Text auf `Logout`, Badge `Angemeldet als: ...`).
+- **Guardrail**: Bei Legacy-UIs nach Auth-Fixes immer auch die sichtbare Header-Logik pruefen. Sessionstate allein reicht nicht, wenn Login-/Logout-Elemente clientseitig nicht explizit aktualisiert werden.
+
+## 2026-05-29 — target-Parameter stapelte sich ueber Entry-Redirects und verstaerkte Redirect-Loops
+- **Symptom**: URLs wuchsen auf `...&target=...&target=...` an; Browser endete bei `ERR_TOO_MANY_REDIRECTS`.
+- **Root-Cause**: Entry-Redirects zu `/mapplus-protected/` haengten `target=` immer an den bestehenden Query-String an, ohne bereits vorhandenes `target` vorher zu entfernen.
+- **Fix**: In `maps/index.php` und `maps-dev/index.php` wird vor dem Redirect `$_SERVER['QUERY_STRING']` geparst und `target` entfernt; danach wird genau ein frisches `target=` gesetzt.
+- **Guardrail**: Bei Redirect-Ketten mit Steuerparametern (`target`, `redirect`, `returnTo`) immer zuerst existierende Werte deduplizieren, dann exakt einen neuen Wert setzen.
+
+## 2026-05-29 — Redirect-Loop durch konkurrierende PHPSESSID-Pfade zwischen Login-Bridge und App
+- **Symptom**: Browser meldete `ERR_TOO_MANY_REDIRECTS` zwischen `/mapplus-protected/` und `/maps-dev/` bzw. `/maps/`; IDP-Dialog erschien teils nicht oder nur kurz.
+- **Root-Cause**: `mapplus-protected/index.php` nutzte einen anderen Session-Cookie-Pfad als der Ziel-Entry. Dadurch existierten parallel mehrere `PHPSESSID`-Cookies, und der Entry sah den in der Bridge gesetzten OIDC-Sessionstate nicht.
+- **Fix**: In `mapplus-protected/index.php` wird der Session-Cookie-Pfad vor `session_start()` dynamisch aus `target` abgeleitet (`/<app>/`). So teilen Bridge und Ziel-Entry denselben Session-Cookie.
+- **Guardrail**: Bei Login-Bridges muss der Session-Cookie-Pfad mit dem Ziel-Entry konsistent sein. Unterschiedliche Cookie-Pfade mit gleichem Cookie-Namen erzeugen schwer erkennbare Redirect-Loops.
+
+## 2026-05-29 — Anmelden-Button baute auf cleanen URLs einen ungueltigen Query-Start
+- **Symptom**: Klick auf "Anmelden" in `/maps-dev/` bzw. `/maps/` zeigte keinen IDP-Dialog; der Login-Flow sprang nicht in den SSO-Zweig.
+- **Root-Cause**: Das OnClick hing immer `&group=?` an `window.location.href`. Ohne vorhandene Query wurde damit kein gueltiger Query-Start erzeugt.
+- **Fix**: In Desktop/Mobile-Templates auf bedingte Verknuepfung umgestellt: bei fehlendem `?` zuerst `?group=?`, sonst `&group=?`.
+- **Guardrail**: Beim clientseitigen URL-Aufbau nie blind `&` anhaengen. Immer zuerst pruefen, ob bereits Query-Parameter vorhanden sind.
+
+## 2026-05-29 — mapplus-protected auf generische target-Weiterleitung vereinfacht
+- **Symptom**: Starre App-Checks in der Login-Bridge machten Rueckspruenge unflexibel und erschwerten neue Einstiegspfade.
+- **Root-Cause**: Der Redirect-Teil war auf explizite Ziel-Whitelists/Fallback-Mappings zugeschnitten statt auf einen generischen Pfadfluss.
+- **Fix**: `mapplus-protected/index.php` leitet jetzt generisch ueber `target` weiter, normalisiert nur den Pfad (`/`, `.../`, fehlendes `.php`) und behaelt bestehende Query-Parameter; `target` selbst wird vor der Rueckleitung entfernt.
+- **Guardrail**: Fuer flexible Einstiege den Ruecksprungpfad im Entry setzen (`target`) und in der Bridge nur minimale Normalisierung vornehmen, statt App-Namen fest zu verdrahten.
+
+## 2026-05-29 — Redirect-Kette brach bei group=%3F im Login-Ruecksprung
+- **Symptom**: Aufrufe ueber `/mapplus-protected/?target=...&group=%3F` endeten in fehlerhaften bzw. wiederholten Redirects statt stabil im Ziel-Einstieg.
+- **Root-Cause**: Der Query-Parameter `group=?` wurde unveraendert in den Ziel-Redirect uebernommen und kollidierte mit der spaeteren Gruppenauflosung im Entry-Flow.
+- **Fix**: Entscheidend war nicht das Filtern von `group=?`, sondern die korrekte Query-Verkettung im Login-Button (`?group=?` oder `&group=?`). In `mapplus-protected/index.php` bleibt `group` unveraendert erhalten, weil `group=?` im Legacy-Entry den Auth-Zweig bewusst triggert.
+- **Guardrail**: In diesem Legacy-Flow ist `group=?` ein technischer Trigger und darf in der Login-Bridge nicht entfernt werden. Stabilitaet entsteht ueber korrekten URL-Aufbau im Frontend, nicht ueber pauschales Filtern des Parameters.
+
+## 2026-05-29 — mapplus-protected war fest auf /maps verdrahtet und brach Rueckspruenge fuer maps-dev/edit
+- **Symptom**: Login ueber `/mapplus-protected/` landete immer in `/maps`, auch wenn der Aufruf aus `/maps-dev` oder `/edit` kam.
+- **Root-Cause**: In `mapplus-protected/index.php` war der Erfolgs-Redirect statisch auf `/maps/index.php` gesetzt.
+- **Fix**: Der Redirect nutzt jetzt ein validiertes Ziel (`target` oder fallback `app`) mit Whitelist auf `/maps/index.php`, `/maps-dev/index.php`, `/edit/index.php`; Aufrufer senden ihr Ziel explizit als `target` mit.
+- **Guardrail**: Login-Bridges duerfen Zielpfade nie hart codieren und nie frei uebernehmen; immer explizit uebergeben und serverseitig whitelisten.
+
+## 2026-05-29 — Edit-Entry liess geschuetzten Bereich ohne expliziten OIDC-Guard laufen
+- **Symptom**: Aufrufe in `edit/index.php` konnten ohne klaren Vor-Redirect in einen inkonsistenten SSO-Flow fallen.
+- **Root-Cause**: Der Legacy-Flow verliess sich nur auf `sso.php/auth.php`, ohne vorab hart zu pruefen, ob `OIDC_CLAIM_group` bereits vorhanden ist.
+- **Fix**: In `edit/index.php` vor dem Auth-Include einen expliziten OIDC-Check eingefuegt; bei fehlendem Claim Redirect auf `/mapplus-protected/` inkl. Query-String. `app_group/app_profile` werden defensiv aus der Session gelesen.
+- **Guardrail**: In alten Entry-Skripten zuerst harte Session-Vorbedingung pruefen (OIDC-Claim), danach erst Legacy-Auth-Includes ausfuehren.
+
 ## 2026-05-28 — Bookmark-Initialload liess den Karteninhalt leer, obwohl der Bookmark geladen war
 - **Symptom**: Beim Direktstart eines Bookmarks unter `/maps-dev/{id}` blieb der Bereich Karteninhalt leer, obwohl die Karte und der Bookmark-Aufruf selbst liefen.
 - **Root-Cause**: Der Karteninhalt hing weiterhin am asynchronen Map-Sync des LMStore. Nach dem Deaktivieren von `loadActiveLayersFromBookmark()` gab es beim Bookmark-Start keinen fruehen Datenpfad mehr fuer die UI, daher renderte das Panel leer.
