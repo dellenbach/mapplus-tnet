@@ -204,7 +204,7 @@ if ($_GET["group"]=="" && is_dir("./public")){
 }else {
     if (!isset($_SESSION['OIDC_CLAIM_group'])){
         // Alten PHPSESSID-Cookie loeschen, damit nach OIDC-Login kein konkurrierender
-        // Cookie mit Pfad /maps/ die neue Session aus mapplus-protected verdraengt.
+        // Cookie mit Pfad /maps-dev/ die neue Session aus mapplus-protected verdraengt.
         $_SESSION = [];
         setcookie(session_name(), '', [
             'expires'  => time() - 3600,
@@ -220,7 +220,8 @@ if ($_GET["group"]=="" && is_dir("./public")){
             unset($queryParams['target']);
             $queryString = http_build_query($queryParams);
         }
-        $targetParam = 'target=' . rawurlencode('/maps/index.php');
+        $targetPath = ($appBasePath ?: '/maps-dev') . '/index.php';
+        $targetParam = 'target=' . rawurlencode($targetPath);
         header("Location:/mapplus-protected/?" . $targetParam . ($queryString !== '' ? ('&' . $queryString) : ''));
         exit;
     }else{
@@ -357,10 +358,5 @@ if (is_file('./'.$app_profile.'/index_'.$lang.$mobile_ext.'.htm')){
     include($entryFile);
 }
 $pageContent = ob_get_clean();
-
-if ($appBasePath !== '' && $appBasePath !== '/maps') {
-    $pageContent = str_replace('/maps/', $appBasePath . '/', $pageContent);
-}
-
 echo $pageContent;
 ?>

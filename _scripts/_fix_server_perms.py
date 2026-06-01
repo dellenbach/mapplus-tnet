@@ -8,7 +8,7 @@ import json
 import ssl
 import paramiko
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "deployment"))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "deployment", "deployengine"))
 from deploy_env import add_env_argument, ensure_local_base_exists, resolve_deploy_config
 
 HOST = "nwow.mapplus.ch"

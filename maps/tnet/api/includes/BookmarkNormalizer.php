@@ -81,15 +81,14 @@ class BookmarkNormalizer {
         foreach ($bookmarks as $bm) {
             if (!is_array($bm)) continue;
 
-            // v2: 'id', v1: 'map-bookmark'
-            $primary = $bm['id'] ?? ($bm['map-bookmark'] ?? null);
-            if ($primary === $needle) {
-                return self::normalize($bm);
+            $normalized = self::normalize($bm);
+            if (($normalized['id'] ?? '') === $needle) {
+                return $normalized;
             }
 
-            $aliases = $bm['aliases'] ?? [];
-            if (is_array($aliases) && in_array($needle, $aliases, true)) {
-                return self::normalize($bm);
+            $aliases = $normalized['aliases'] ?? [];
+            if (in_array($needle, $aliases, true)) {
+                return $normalized;
             }
         }
         return null;
@@ -103,13 +102,22 @@ class BookmarkNormalizer {
         $id = $bm['map-bookmark'] ?? '';
         $out['id'] = is_string($id) ? $id : '';
 
+        $name = $bm['name'] ?? '';
+        $out['name'] = is_string($name) && trim($name) !== ''
+            ? trim($name)
+            : $out['id'];
+
         if (!empty($bm['aliases']) && is_array($bm['aliases'])) {
-            $out['aliases'] = array_values($bm['aliases']);
+            $out['aliases'] = self::normalizeAliases($bm['aliases'], $out['id']);
+        } else {
+            $out['aliases'] = [];
         }
 
         $out['basemap'] = isset($bm['basemap']) && is_string($bm['basemap']) && $bm['basemap'] !== ''
             ? $bm['basemap']
             : 'av_sw'; // Fallback (siehe Migrations-Skript)
+
+        $out['basemapColorMode'] = self::normalizeBasemapColorMode($bm['basemapColorMode'] ?? null);
 
         foreach (['theme', 'subtheme', 'themes'] as $f) {
             if (isset($bm[$f]) && $bm[$f] !== null && $bm[$f] !== '') {
@@ -165,6 +173,20 @@ class BookmarkNormalizer {
         }
         $bm['meta']['schemaVersion'] = 2;
 
+        $id = isset($bm['id']) && is_string($bm['id']) ? trim($bm['id']) : '';
+        $bm['id'] = $id;
+
+        $name = isset($bm['name']) && is_string($bm['name']) ? trim($bm['name']) : '';
+        $bm['name'] = $name !== '' ? $name : $id;
+
+        $bm['aliases'] = self::normalizeAliases($bm['aliases'] ?? [], $id);
+
+        $bm['basemap'] = isset($bm['basemap']) && is_string($bm['basemap']) && trim($bm['basemap']) !== ''
+            ? trim($bm['basemap'])
+            : 'av_sw';
+
+        $bm['basemapColorMode'] = self::normalizeBasemapColorMode($bm['basemapColorMode'] ?? null);
+
         // Layer-Defaults vervollstaendigen
         if (isset($bm['layers']) && is_array($bm['layers'])) {
             $bm['layers'] = array_map([self::class, 'completeLayer'], $bm['layers']);
@@ -193,5 +215,32 @@ class BookmarkNormalizer {
             'order'   => isset($layer['order']) && is_numeric($layer['order']) ? (int)$layer['order'] : null,
             'filter'  => isset($layer['filter']) && is_string($layer['filter']) && $layer['filter'] !== '' ? $layer['filter'] : null,
         ];
+    }
+
+    private static function normalizeAliases($aliases, string $primaryId): array {
+        if (!is_array($aliases)) {
+            return [];
+        }
+
+        $out = [];
+        $seen = [];
+        foreach ($aliases as $alias) {
+            if (!is_string($alias)) continue;
+            $value = trim($alias);
+            if ($value === '' || $value === $primaryId || isset($seen[$value])) continue;
+            $seen[$value] = true;
+            $out[] = $value;
+        }
+        return $out;
+    }
+
+    private static function normalizeBasemapColorMode($value): string {
+        if (is_string($value)) {
+            $mode = strtolower(trim($value));
+            if ($mode === 'grey' || $mode === 'color') {
+                return $mode;
+            }
+        }
+        return 'color';
     }
 }

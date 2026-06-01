@@ -15,9 +15,10 @@ Aufruf:
     py _scripts/build/build_js.py --mode dev                   # Alle DEV-Dateien (maps-dev/) bauen
     py _scripts/build/build_js.py --mode dev  maps-dev/tnet/js-dev/foo.js
     py _scripts/build/build_js.py --mode prod maps/tnet/js-dev/foo.js
+    py _scripts/build/build_js.py --mode prod --src-root maps/tnet/js_ori --out-root maps/tnet/js --rebuild-all
 
-@version    1.2
-@date       2026-05-28
+@version    1.3
+@date       2026-06-01
 @copyright  Trigonet AG
 @author     Marco Dellenbach
 """
@@ -49,8 +50,13 @@ JS_DEV_DIR       = os.path.normpath(os.path.join(_WORKSPACE_ROOT, "maps", "tnet"
 JS_OUT_DIR       = os.path.normpath(os.path.join(_WORKSPACE_ROOT, "maps", "tnet", "js"))
 
 
-def resolve_js_roots(src_path=None):
+def resolve_js_roots(src_path=None, src_root=None, out_root=None):
     """Passende js-dev/js Wurzeln fuer maps oder maps-dev bestimmen."""
+    if src_root or out_root:
+        if not src_root or not out_root:
+            raise ValueError("--src-root und --out-root muessen gemeinsam angegeben werden")
+        return os.path.normpath(src_root), os.path.normpath(out_root)
+
     if not src_path:
         return JS_DEV_DIR, JS_OUT_DIR
 
@@ -113,9 +119,9 @@ def hash_file(path):
     return digest.hexdigest()
 
 
-def get_output_path(src_path):
+def get_output_path(src_path, src_root=None, out_root=None):
     """Leitet den js-Outputpfad aus einer Quelldatei ab."""
-    js_dev_dir, js_out_dir = resolve_js_roots(src_path)
+    js_dev_dir, js_out_dir = resolve_js_roots(src_path, src_root, out_root)
     rel = os.path.relpath(src_path, js_dev_dir)
     return os.path.join(js_out_dir, rel)
 
@@ -237,13 +243,32 @@ def is_es_module_source(src_path):
     return re.search(r"(^|\n)\s*(import|export)\b", content) is not None
 
 
-def build_file(src_path, mode="prod"):
+def cleanup_prod_temp_files(js_out_dir):
+    """Entfernt liegen gebliebene PROD-Temp-Dateien aus frueheren Builds."""
+    removed = 0
+    if not os.path.isdir(js_out_dir):
+        return removed
+
+    for root, _, files in os.walk(js_out_dir):
+        for filename in files:
+            if not filename.startswith("tnet-prod-") or not filename.endswith(".js"):
+                continue
+            path = os.path.join(root, filename)
+            try:
+                os.remove(path)
+                removed += 1
+            except Exception:
+                pass
+    return removed
+
+
+def build_file(src_path, mode="prod", src_root=None, out_root=None):
     """
     Einzelne Datei bauen.
     DEV bleibt lesbar, PROD wird minifiziert.
     Gibt (ok, bytes_vorher, bytes_nachher, fehlermeldung) zurueck.
     """
-    js_dev_dir, js_out_dir = resolve_js_roots(src_path)
+    js_dev_dir, js_out_dir = resolve_js_roots(src_path, src_root, out_root)
     rel = os.path.relpath(src_path, js_dev_dir)
     out_path = os.path.join(js_out_dir, rel)
 
@@ -328,7 +353,13 @@ def main():
     parser.add_argument("src", nargs="?", help="Optionale Einzeldatei aus tnet/js-dev oder tnet/js")
     parser.add_argument("--mode", choices=["dev", "prod"], help="Buildmodus: dev ohne Minify, prod mit Minify")
     parser.add_argument("--rebuild-all", action="store_true", help="Ignoriert den Hash-Cache und baut alle Dateien neu")
+    parser.add_argument("--src-root", help="Explizites Quellverzeichnis fuer Full-Builds, z.B. maps/tnet/js_ori")
+    parser.add_argument("--out-root", help="Explizites Zielverzeichnis fuer Full-Builds, z.B. maps/tnet/js")
     args = parser.parse_args()
+
+    if bool(args.src_root) != bool(args.out_root):
+        log_line("[ERR] --src-root und --out-root muessen gemeinsam angegeben werden")
+        sys.exit(2)
 
     if not ensure_esbuild():
         sys.exit(1)
@@ -336,8 +367,8 @@ def main():
     if args.src:
         # --- Einzeldatei-Build ---
         src = os.path.normpath(args.src)
-        js_dev_dir, js_out_dir = resolve_js_roots(src)
-        # Pfad darf auch aus js/ kommen → auf js-dev/ umleiten
+        js_dev_dir, js_out_dir = resolve_js_roots(src, args.src_root, args.out_root)
+        # Pfad darf auch aus js/ kommen → auf die Quellwurzel umleiten
         src = src.replace(js_out_dir + os.sep, js_dev_dir + os.sep)
         if not os.path.isfile(src):
             log_line(f"[ERR] Datei nicht gefunden: {src}")
@@ -348,17 +379,26 @@ def main():
     else:
         # --- Full-Build ---
         mode = args.mode or "prod"
-        if mode == "dev":
+        if args.src_root:
+            build_root = os.path.normpath(args.src_root)
+            js_out_dir = os.path.normpath(args.out_root)
+        elif mode == "dev":
             # DEV: maps-dev/tnet/js-dev/
             build_root = os.path.normpath(os.path.join(_WORKSPACE_ROOT, "maps-dev", "tnet", "js-dev"))
+            js_out_dir = os.path.normpath(os.path.join(_WORKSPACE_ROOT, "maps-dev", "tnet", "js"))
         else:
             # PROD: maps/tnet/js-dev/
             build_root = JS_DEV_DIR
+            js_out_dir = JS_OUT_DIR
         sources = collect_sources(build_root)
         if not sources:
             log_line(f"[ERR] Keine .js-Quelldateien gefunden in: {build_root}")
             sys.exit(1)
         log_line(f"Full-Build ({mode}): {len(sources)} Dateien aus {build_root}")
+        if mode == "prod":
+            removed_temps = cleanup_prod_temp_files(js_out_dir)
+            if removed_temps:
+                log_line(f"Temp-Cleanup: {removed_temps} alte tnet-prod-*.js Datei(en) entfernt")
         log_line("")
 
     ok_count = 0
@@ -378,7 +418,9 @@ def main():
             log_line("Hash-Check aktiv: nur geaenderte JS-Dateien werden neu gebaut.")
         log_line("")
 
-    js_dev_dir_display, _ = resolve_js_roots(sources[0]) if sources else (JS_DEV_DIR, JS_OUT_DIR)
+    js_dev_dir_display, js_out_dir_display = resolve_js_roots(
+        sources[0], args.src_root, args.out_root
+    ) if sources else (JS_DEV_DIR, JS_OUT_DIR)
 
     total_sources = len(sources)
 
@@ -386,7 +428,7 @@ def main():
         rel = os.path.relpath(src, js_dev_dir_display).replace("\\", "/")
         state_key = rel
         src_hash = hash_file(src)
-        out_path = get_output_path(src)
+        out_path = get_output_path(src, js_dev_dir_display, js_out_dir_display)
 
         if not args.src and not args.rebuild_all:
             cached = build_state.get(state_key, {})
@@ -404,7 +446,7 @@ def main():
                 continue
 
         log_line(f"  [{index:02d}/{total_sources:02d}] Starte {rel}")
-        ok, before, after, err = build_file(src, mode)
+        ok, before, after, err = build_file(src, mode, js_dev_dir_display, js_out_dir_display)
         if ok:
             ratio = (1 - after / before) * 100 if before > 0 else 0
             if mode == "prod":

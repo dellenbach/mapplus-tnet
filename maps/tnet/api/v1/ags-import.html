@@ -7291,6 +7291,37 @@ function collectBookmarkData() {
   return result;
 }
 
+function showBookmarkDeployToast(message, type) {
+  var toast = document.getElementById('bm-deploy-toast');
+  var colors = {
+    success: { bg: '#1f7a4d', border: '#145233' },
+    info: { bg: '#2f5f8f', border: '#1f4060' },
+    error: { bg: '#a33a2f', border: '#6e251f' }
+  };
+  var palette = colors[type] || colors.success;
+
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'bm-deploy-toast';
+    toast.style.cssText = 'position:fixed;top:18px;right:18px;z-index:10050;min-width:280px;max-width:420px;'
+      + 'padding:14px 16px;border-radius:10px;color:#fff;font:14px/1.45 -apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;'
+      + 'box-shadow:0 10px 28px rgba(0,0,0,.22);opacity:0;transform:translateY(-8px);'
+      + 'transition:opacity .18s ease, transform .18s ease;pointer-events:none;';
+    document.body.appendChild(toast);
+  }
+
+  toast.textContent = message;
+  toast.style.background = palette.bg;
+  toast.style.border = '1px solid ' + palette.border;
+  toast.style.opacity = '1';
+  toast.style.transform = 'translateY(0)';
+
+  if (window.__bmDeployToastTimer) clearTimeout(window.__bmDeployToastTimer);
+  window.__bmDeployToastTimer = setTimeout(function() {
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateY(-8px)';
+  }, 3800);
+}
 function saveBookmarks() {
   var data = collectBookmarkData();
   var status = document.getElementById('bm-status');
@@ -7325,20 +7356,41 @@ function saveBookmarks() {
 
       // 2. FastAPI: SFTP-Deploy + Git-Commit (wenn nicht übersprungen)
       if (!result.skip) {
+        var deployTarget = location.pathname.indexOf('/maps-dev/') === 0 ? 'dev' : 'prod';
         status.textContent += ' — Deploye…';
         fetch(GAPI_URL + '/deploy-bookmarks', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message: result.message })
+          body: JSON.stringify({ message: result.message, target: deployTarget })
         })
         .then(function(r) { return r.json(); })
         .then(function(g) {
           if (g.success && g.action === 'deployed') {
-            status.textContent = '✓ Deployed — ' + data.length + ' Bookmarks';
+            status.textContent = '✓ Deployed [' + (g.target || deployTarget) + '] — ' + data.length + ' Bookmarks';
             if (g.git_committed) status.textContent += ' — Git ✓';
+            showBookmarkDeployToast('Bookmarks erfolgreich nach ' + String(g.target || deployTarget).toUpperCase() + ' publiziert.', 'success');
           } else if (g.success && g.action === 'skipped') {
-            status.textContent = '✓ Gespeichert — ' + data.length + ' Bookmarks (keine Änderungen)';
+            status.textContent = '✓ Gespeichert [' + (g.target || deployTarget) + '] — ' + data.length + ' Bookmarks (keine Änderungen)';
+            showBookmarkDeployToast('Bookmarks auf ' + String(g.target || deployTarget).toUpperCase() + ' sind bereits aktuell.', 'info');
           } else {
+            status.textContent += ' — Deploy-Fehler: ' + (g.detail || 'Unbekannt');
+            showBookmarkDeployToast('Bookmark-Deploy fehlgeschlagen: ' + (g.detail || 'Unbekannt'), 'error');
+          }
+        })
+        .catch(function(e) {
+          status.textContent += ' — Deploy-Fehler: ' + e.message;
+          showBookmarkDeployToast('Bookmark-Deploy fehlgeschlagen: ' + e.message, 'error');
+        });
+      } else {
+            status.textContent += '' — Deploy-Fehler: '' + (g.detail || ''Unbekannt'');
+            showBookmarkDeployToast(''Bookmark-Deploy fehlgeschlagen: '' + (g.detail || ''Unbekannt''), ''error'');
+          }
+        })
+        .catch(function(e) {
+          status.textContent += '' — Deploy-Fehler: '' + e.message;
+          showBookmarkDeployToast(''Bookmark-Deploy fehlgeschlagen: '' + e.message, ''error'');
+        });
+      } else {
             status.textContent += ' — Deploy-Fehler: ' + (g.detail || 'Unbekannt');
           }
         })

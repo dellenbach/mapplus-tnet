@@ -24,6 +24,8 @@
   var _renderedTabs = {};
   var _unlisteners = [];
   var _currentFilter = '';
+  // Koalesziert active-layers-changed (Bookmark-Load) → ein Checkbox-Resync/Frame.
+  var _resyncRaf = null;
 
   /** Wappen-/Icon-Mapping */
   // SVG Legend-Icon (Farbquadrate mit Linien) — geladen via TnetIcons
@@ -55,6 +57,7 @@
 
       _unlisteners.push(store.on('catalog-loaded', this.render.bind(this)));
       _unlisteners.push(store.on('layer-visibility', this._onLayerVisibility.bind(this)));
+      _unlisteners.push(store.on('active-layers-changed', this._onActiveLayersChanged.bind(this)));
       _unlisteners.push(store.on('group-toggled', this._onGroupToggled.bind(this)));
 
       if (store.isLoaded()) {
@@ -68,6 +71,11 @@
     },
 
     destroy: function () {
+      if (_resyncRaf) {
+        if (typeof cancelAnimationFrame === 'function') cancelAnimationFrame(_resyncRaf);
+        else clearTimeout(_resyncRaf);
+        _resyncRaf = null;
+      }
       _unlisteners.forEach(function (fn) { fn(); });
       _unlisteners = [];
       if (_container) _container.innerHTML = '';
@@ -126,6 +134,7 @@
 
       _container.innerHTML = html;
       this._bindEvents();
+      this._resyncLayerCheckboxes();
     },
 
     /** Rendert den ganzen Inhalt einer Kategorie als Accordion */
@@ -424,6 +433,11 @@
         }
       }
 
+      // Frisch gerenderte Tabs starten mit Katalog-Defaults; effektiven Store-Zustand
+      // nachziehen, damit Themenkatalog und Karteninhalt synchron bleiben
+      // (Bookmarks, externe Aktivierung).
+      this._resyncLayerCheckboxes();
+
       // Re-apply Filter wenn aktiv
       if (_currentFilter) {
         this._applyFilter(_currentFilter);
@@ -529,6 +543,18 @@
       this._updateSelectAllCheckboxes();
     },
 
+    _onActiveLayersChanged: function () {
+      if (_resyncRaf) return;
+      var self = this;
+      var flush = function () {
+        _resyncRaf = null;
+        self._resyncLayerCheckboxes();
+      };
+      _resyncRaf = (typeof requestAnimationFrame === 'function')
+        ? requestAnimationFrame(flush)
+        : setTimeout(flush, 16);
+    },
+
     _onGroupToggled: function (evt) {
       if (!_container) return;
       var els = _container.querySelectorAll('[data-group-id="' + evt.id + '"]');
@@ -559,6 +585,22 @@
           groupEl.classList.toggle('lm-partial', state === 'partial');
         }
       }
+    },
+
+    _resyncLayerCheckboxes: function () {
+      if (!_container) return;
+      var store = window.TnetLMStore;
+      if (!store || typeof store.isLayerEffectivelyVisible !== 'function') return;
+      var els = _container.querySelectorAll('.lm-layer[data-layer-id]');
+      for (var i = 0; i < els.length; i++) {
+        var layerId = els[i].dataset.layerId;
+        if (!layerId) continue;
+        var isVisible = store.isLayerEffectivelyVisible(layerId);
+        var cb = els[i].querySelector('.lm-cb');
+        if (cb) cb.checked = isVisible;
+        els[i].classList.toggle('lm-active', isVisible);
+      }
+      this._updateSelectAllCheckboxes();
     },
 
     // ============================================================
@@ -634,8 +676,7 @@
           var layerId = layerEls[i].dataset.layerId;
           var store = window.TnetLMStore;
           if (store) {
-            var layer = store.findLayer(layerId);
-            if (layer && layer.visible === visible) {
+            if (store.isLayerEffectivelyVisible(layerId) === visible) {
               cb.checked = visible;
               layerEls[i].classList.toggle('lm-active', visible);
               synced++;
@@ -900,10 +941,12 @@
       if (!themesStr || !_container) return;
       var self = this;
       var prefixMap = { 'ow': 'obwalden', 'nw': 'nidwalden', 'ch': 'bund', 'we': 'weitere' };
+      var bookmarkInfo = window.__tnetActiveBookmark;
+      var skipOverviewOpen = !!(bookmarkInfo && Array.isArray(bookmarkInfo.layers));
 
       // THEMENKATALOG-Accordion öffnen (tp_overview_menu), sonst ist der Baum nicht sichtbar
       var overviewEl = document.getElementById('tp_overview_menu');
-      if (overviewEl && !overviewEl.open) {
+      if (!skipOverviewOpen && overviewEl && !overviewEl.open) {
         overviewEl.open = true;
       }
 

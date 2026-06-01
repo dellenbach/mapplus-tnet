@@ -630,14 +630,22 @@ body {
 /* Spalten-Trennung Header */
 .bm-table thead th { border-right: 1px solid #ddd; }
 .bm-table thead th:last-child { border-right: none; }
-.bm-summary-layers { font-size: 10px; color: #888; font-family: monospace; margin-left: 8px; }
+.bm-summary-layers { display: flex; flex-wrap: wrap; gap: 2px; max-width: 240px; max-height: 44px; overflow: hidden; font-size: 10px; color: #888; font-family: monospace; margin-left: 8px; }
 .bm-summary-layers .bm-layer-tag { font-size: 9px; padding: 0 3px; margin: 0 1px; }
 /* Layer-Validierung */
-.bm-layer-tag { display: inline-block; padding: 1px 5px; border-radius: 3px; margin: 1px 2px; font-size: 10px; font-family: monospace; cursor: default; }
+.bm-layer-tag { display: inline-flex; align-items: flex-start; gap: 4px; max-width: 280px; padding: 1px 5px; border-radius: 3px; margin: 1px 2px; font-size: 10px; font-family: monospace; cursor: default; }
 .bm-layer-tag.valid { background: #e8f5e9; color: #2e7d32; border: 1px solid #a5d6a7; }
 .bm-layer-tag.invalid { background: #ffebee; color: #c62828; border: 1px solid #ef9a9a; }
 /* Layer mit visible:false — geladen aber initial unsichtbar (Schema v2) */
 .bm-layer-tag.bm-layer-off { opacity: 0.55; text-decoration: line-through; }
+.bm-layer-path { display: flex; flex-direction: column; min-width: 0; line-height: 1.15; }
+.bm-layer-path-leaf { font-weight: 700; color: inherit; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bm-layer-path-prefix { font-size: 9px; color: inherit; opacity: 0.68; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bm-layer-path-row { position: relative; padding-left: calc(var(--bm-layer-depth, 0) * 14px); max-width: 100%; }
+.bm-layer-path-row.has-depth::before { content: ''; position: absolute; left: calc(var(--bm-layer-depth, 0) * 14px - 8px); top: 2px; bottom: 2px; width: 3px; border-radius: 3px; background: linear-gradient(180deg, rgba(75,123,129,0.12), rgba(75,123,129,0.42)); }
+.bm-layer-path-tag { max-width: 220px; }
+.bm-layer-path-tag .bm-layer-path-prefix { font-size: 8px; opacity: 0.58; }
+.bm-summary-layers .bm-layer-path-tag { max-width: 170px; }
 
 /* ===== Layer-Matrix (Schema v2 mit Kartenansichten) ===== */
 .bm-mtx-wrap { margin-top: 6px; }
@@ -645,19 +653,26 @@ body {
 .bm-mtx-toolbar input.bm-mtx-filter { flex: 1 1 200px; padding: 3px 6px; font-size: 11px; border: 1px solid #ccc; border-radius: 3px; }
 .bm-mtx-toolbar button { padding: 3px 8px; font-size: 11px; cursor: pointer; }
 .bm-mtx-scroll { max-height: 460px; overflow: auto; border: 1px solid #ddd; border-radius: 3px; background: #fff; }
-table.bm-mtx { width: 100%; border-collapse: collapse; font-size: 11px; font-family: monospace; }
-table.bm-mtx thead th { position: sticky; top: 0; background: #f4f4f4; border-bottom: 2px solid #999; padding: 4px 6px; text-align: left; font-weight: 600; z-index: 1; }
+table.bm-mtx { width: max-content; border-collapse: collapse; font-size: 11px; font-family: monospace; table-layout: fixed; }
+table.bm-mtx thead th { position: sticky; top: 0; background: #f4f4f4; border-bottom: 2px solid #999; padding: 4px 6px; text-align: left; font-weight: 600; z-index: 1; position: sticky; }
 table.bm-mtx tbody td { border-bottom: 1px solid #eee; padding: 2px 6px; vertical-align: middle; }
 table.bm-mtx tbody tr:hover td { background: #fafafa; }
-.bm-mtx-lname { font-size: 10px; color: #333; white-space: nowrap; max-width: 380px; overflow: hidden; text-overflow: ellipsis; }
+.bm-mtx-lname { font-size: 10px; color: #333; white-space: normal; max-width: 220px; overflow: hidden; text-overflow: ellipsis; line-height: 1.2; }
 .bm-mtx-lname.invalid { color: #c62828; }
 .bm-mtx-cell-default, .bm-mtx-cell-view { text-align: center; width: 60px; }
 .bm-mtx-cell-default input { transform: scale(1.1); cursor: pointer; }
 .bm-mtx-cell-op, .bm-mtx-cell-filter { width: 70px; }
 .bm-mtx-cell-op input, .bm-mtx-cell-filter input { width: 100%; box-sizing: border-box; font-size: 10px; padding: 1px 3px; font-family: monospace; }
-.bm-mtx-cell-del { width: 24px; text-align: center; }
-.bm-mtx-cell-del button { background: transparent; border: none; color: #c62828; cursor: pointer; font-size: 12px; padding: 0; }
-.bm-mtx-cell-del button:hover { color: #f44336; }
+/* Auswahl-Checkbox-Spalte (Bulk-Delete) */
+.bm-mtx-cell-sel { width: 28px; text-align: center; }
+.bm-mtx-cell-sel input { cursor: pointer; }
+table.bm-mtx tbody tr.bm-mtx-row-sel td { background: #fff3e0; }
+table.bm-mtx tbody tr.bm-mtx-row-sel:hover td { background: #ffe0b2; }
+.bm-mtx-bulkdel { background: #ffebee; border: 1px solid #ef9a9a; color: #c62828; padding: 3px 10px; border-radius: 3px; cursor: pointer; font-size: 11px; }
+.bm-mtx-bulkdel:disabled { background: #f5f5f5; color: #aaa; border-color: #ddd; cursor: not-allowed; }
+.bm-mtx-bulkdel:not(:disabled):hover { background: #ffcdd2; }
+.bm-mtx-col-resize { position: absolute; top: 0; right: 0; bottom: 0; width: 6px; cursor: col-resize; background: transparent; z-index: 3; }
+.bm-mtx-col-resize:hover, .bm-mtx-col-resize.bm-resizing { background: #d4a03c; }
 
 /* Tri-State-Button fuer View-Zellen */
 .bm-mtx-tri { width: 28px; height: 22px; border: 1px solid #aaa; border-radius: 3px; background: #fff; cursor: pointer; font-weight: bold; font-family: sans-serif; font-size: 12px; padding: 0; }
@@ -669,9 +684,26 @@ table.bm-mtx tbody tr:hover td { background: #fafafa; }
 /* View-Spalten-Header */
 .bm-mtx-vhead { min-width: 110px; }
 .bm-mtx-vhead-row { display: flex; flex-direction: column; gap: 2px; align-items: stretch; }
-.bm-mtx-vname { width: 100%; box-sizing: border-box; font-size: 10px; padding: 1px 4px; border: 1px solid #ccc; border-radius: 2px; font-family: monospace; }
+/* Einziges Feld pro View = id (URL-Anker, auch Anzeigename). Grün=ok, Rot=ungültig/Konflikt. */
+.bm-mtx-vid {
+  width: 100%; box-sizing: border-box; font-size: 11px; padding: 2px 5px;
+  border: 1.5px solid #4caf50; background: #f1f8e9; border-radius: 2px; font-family: monospace; font-weight: 600;
+}
+.bm-mtx-vid.invalid { border-color: #f44336; background: #ffebee; color: #c62828; }
+.bm-mtx-vname {
+  width: 100%; box-sizing: border-box; font-size: 10px; padding: 2px 5px;
+  border: 1px solid #ccc; background: #fff; border-radius: 2px;
+}
 .bm-mtx-vhead-ctl { display: flex; gap: 4px; align-items: center; font-size: 9px; color: #555; }
-.bm-mtx-vhead-ctl label { display: flex; gap: 2px; align-items: center; cursor: pointer; }
+.bm-mtx-vhead-ctl label { display: flex; gap: 2px; align-items: center; cursor: pointer; background: transparent; }
+/* Browser-Autofill-/Autocomplete-Highlight (pink-magenta in Edge/Chrome) unterdruecken */
+.bm-mtx-vhead-ctl input[type="radio"],
+.bm-mtx-vhead-ctl input[type="radio"]:-webkit-autofill,
+.bm-mtx-vhead-ctl input[type="radio"]:-internal-autofill-selected {
+  background-color: transparent !important;
+  -webkit-box-shadow: 0 0 0 1000px transparent inset !important;
+  box-shadow: none !important;
+}
 .bm-mtx-vdel { background: transparent; border: none; color: #c62828; cursor: pointer; font-size: 12px; padding: 0 2px; margin-left: auto; }
 .bm-mtx-addview-cell { text-align: center; width: 40px; }
 .bm-mtx-addview { background: #fff8e1; border: 1px dashed #b8872e; color: #b8872e; cursor: pointer; padding: 2px 6px; border-radius: 3px; font-size: 14px; }
@@ -684,7 +716,7 @@ table.bm-mtx tbody tr:hover td { background: #fafafa; }
 /* Layer-Feld: Tag-Container + Eingabefeld */
 .bm-layers-wrap { position: relative; min-width: 200px; }
 .bm-layers-tags { display: flex; flex-wrap: wrap; gap: 2px; margin-bottom: 2px; min-height: 18px; }
-.bm-layer-tag .bm-tag-x { cursor: pointer; margin-left: 3px; color: #999; font-weight: bold; }
+.bm-layer-tag .bm-tag-x { cursor: pointer; margin-left: 0; color: #999; font-weight: bold; flex: 0 0 auto; padding-top: 1px; }
 .bm-layer-tag .bm-tag-x:hover { color: #c44; }
 .bm-ac-list { position: absolute; left: 0; right: 0; top: 100%; background: #fff; border: 1px solid #ccc; border-radius: 3px; max-height: 180px; overflow-y: auto; z-index: 100; font-size: 11px; font-family: monospace; display: none; }
 .bm-ac-list div { padding: 3px 6px; cursor: pointer; }
@@ -1596,9 +1628,10 @@ html[data-env="dev"] .path-info-bar .pib-lbl { color: #7a3000; }
       <button id="bm-view-json" onclick="bmSwitchView('json')" title="JSON-Editor">{ } JSON</button>
     </div>
     <div class="bm-filter-bar">
-      <label>Name:</label><input type="text" data-col-filter="name" placeholder="Name…" oninput="bmColumnFilter()">
-      <label>Alias:</label><input type="text" data-col-filter="aliases" placeholder="Alias…" oninput="bmColumnFilter()">
+      <label>IDs:</label><input type="text" data-col-filter="idaliases" placeholder="IDs…" oninput="bmColumnFilter()">
+      <label>Alias:</label><input type="text" data-col-filter="name" placeholder="Alias…" oninput="bmColumnFilter()">
       <label>Basemap:</label><input type="text" data-col-filter="basemap" placeholder="Basemap…" oninput="bmColumnFilter()">
+      <label>Modus:</label><input type="text" data-col-filter="basemapmode" placeholder="color / grey…" oninput="bmColumnFilter()">
       <label>Themen:</label><input type="text" data-col-filter="themes" placeholder="Themen…" oninput="bmColumnFilter()">
       <label>Layer:</label><input type="text" data-col-filter="layers" placeholder="Layer…" oninput="bmColumnFilter()">
     </div>
@@ -1607,11 +1640,12 @@ html[data-env="dev"] .path-info-bar .pib-lbl { color: #7a3000; }
       <table class="bm-table" id="bm-table">
         <thead>
           <tr>
-            <th data-sort="name" style="width:160px;position:relative">Name <span class="bm-sort-icon">⇅</span><span class="bm-resize"></span></th>
-            <th data-sort="aliases" style="width:110px;position:relative">Aliases <span class="bm-sort-icon">⇅</span><span class="bm-resize"></span></th>
+            <th data-sort="idaliases" style="width:170px;position:relative">IDs <span class="bm-sort-icon">⇅</span><span class="bm-resize"></span></th>
+            <th data-sort="name" style="width:150px;position:relative">Alias <span class="bm-sort-icon">⇅</span><span class="bm-resize"></span></th>
             <th data-sort="basemap" style="width:100px;position:relative">Basemap <span class="bm-sort-icon">⇅</span><span class="bm-resize"></span></th>
+            <th data-sort="basemapmode" style="width:80px;position:relative">Modus <span class="bm-sort-icon">⇅</span><span class="bm-resize"></span></th>
             <th data-sort="themes" style="width:120px;position:relative">Themen <span class="bm-sort-icon">⇅</span><span class="bm-resize"></span></th>
-            <th data-sort="layers" style="width:auto;position:relative">Layers <span class="bm-sort-icon">⇅</span><span class="bm-resize"></span></th>
+            <th data-sort="layers" style="width:260px;position:relative">Layers <span class="bm-sort-icon">⇅</span><span class="bm-resize"></span></th>
             <th class="bm-col-hidden">Opacity</th>
             <th class="bm-col-hidden">Theme</th>
             <th class="bm-col-hidden">Subtheme</th>
@@ -7364,6 +7398,53 @@ function bmSetViews(detailRow, arr) {
   detailRow.dataset.bmViews = JSON.stringify(Array.isArray(arr) ? arr : []);
 }
 function bmEscAttr(s) { return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function bmGetMatrixColumnWidths(detailRow, views) {
+  var defaults = {
+    sel: 28,
+    layer: 220,
+    default: 72,
+    addview: 40,
+    op: 70,
+    filter: 70
+  };
+  var raw = detailRow && detailRow.dataset ? detailRow.dataset.bmMtxWidths : '';
+  var parsed = null;
+  var result = {};
+  try {
+    parsed = raw ? JSON.parse(raw) : null;
+  } catch (e) {
+    parsed = null;
+  }
+  Object.keys(defaults).forEach(function(key) {
+    result[key] = parsed && isFinite(parsed[key]) ? Math.max(28, +parsed[key]) : defaults[key];
+  });
+  (views || []).forEach(function(view) {
+    var key = 'view:' + (view && view.id ? view.id : '');
+    result[key] = parsed && isFinite(parsed[key]) ? Math.max(90, +parsed[key]) : 110;
+  });
+  return result;
+}
+function bmSetMatrixColumnWidth(detailRow, key, width) {
+  var current = bmGetMatrixColumnWidths(detailRow, bmGetViews(detailRow));
+  current[key] = width;
+  detailRow.dataset.bmMtxWidths = JSON.stringify(current);
+}
+function bmMatrixResizeHandle(key) {
+  return '<span class="bm-mtx-col-resize" data-col-key="' + bmEscAttr(key) + '" title="Spaltenbreite ziehen"></span>';
+}
+function bmParseCsvList(str) {
+  return String(str || '').split(',').map(function(part) { return part.trim(); }).filter(Boolean);
+}
+function bmBookmarkIdsValue(bm) {
+  var primaryId = bm.id || bm['map-bookmark'] || '';
+  var parts = primaryId ? [primaryId] : [];
+  if (Array.isArray(bm.aliases)) parts = parts.concat(bm.aliases);
+  return parts.filter(Boolean).join(', ');
+}
+function bmPrimaryBookmarkId(idsValue) {
+  var parts = bmParseCsvList(idsValue);
+  return parts.length ? parts[0] : '';
+}
 
 // View-State eines Layers ermitteln: 'on' | 'off' | 'inherit'
 function bmViewLayerState(view, layerId) {
@@ -7380,45 +7461,144 @@ function bmNextViewId(views) {
   return 'view-' + n;
 }
 
+// Validiert eine View-ID gegen Schema-Pattern + Eindeutigkeit innerhalb des Bookmarks.
+function bmIsValidViewId(value, views, ownView) {
+  if (!/^[a-zA-Z0-9_-]+$/.test(value || '')) return false;
+  for (var i = 0; i < (views || []).length; i++) {
+    var v = views[i];
+    if (v && v !== ownView && v.id === value) return false;
+  }
+  return true;
+}
+
+// Selektierte Layer pro Detail-Row (überlebt Re-Renders).
+function bmGetSelSet(detailRow) {
+  if (!detailRow._bmSelLayers) detailRow._bmSelLayers = new Set();
+  return detailRow._bmSelLayers;
+}
+function bmUpdateBulkDelButton(detailRow) {
+  var sel = bmGetSelSet(detailRow);
+  var btn = detailRow.querySelector('.bm-mtx-bulkdel');
+  var cnt = detailRow.querySelector('.bm-mtx-selcount');
+  if (cnt) cnt.textContent = String(sel.size);
+  if (btn) btn.disabled = sel.size === 0;
+}
+
+// ---- Shift-Click-Range fuer Default-Visible / Tri-State-View ------------
+// Last-Click pro Spalte (key='default' oder key='view:<vid>') wird im
+// detailRow als JS-Property gehalten (ueberlebt Re-Renders).
+function bmGetLastClick(detailRow, key) {
+  if (!detailRow._bmLastClick) detailRow._bmLastClick = {};
+  return detailRow._bmLastClick[key];
+}
+function bmSetLastClick(detailRow, key, lid) {
+  if (!detailRow._bmLastClick) detailRow._bmLastClick = {};
+  detailRow._bmLastClick[key] = lid;
+}
+// Liefert die Layer-IDs zwischen lidA und lidB (in DOM-Reihenfolge), nur sichtbare Zeilen.
+function bmShiftRangeIds(detailRow, lidA, lidB) {
+  var rows = detailRow.querySelectorAll('table.bm-mtx tbody tr[data-lid]');
+  var visIds = [];
+  var iA = -1, iB = -1;
+  for (var i = 0; i < rows.length; i++) {
+    if (rows[i].style.display === 'none') continue;
+    var lid = rows[i].dataset.lid;
+    if (lid === lidA) iA = visIds.length;
+    if (lid === lidB) iB = visIds.length;
+    visIds.push(lid);
+  }
+  if (iA < 0 || iB < 0) return [];
+  var lo = Math.min(iA, iB), hi = Math.max(iA, iB);
+  return visIds.slice(lo, hi + 1);
+}
+function bmRangeApplyDefault(detailRow, ids, visible) {
+  var layers = bmGetLayers(detailRow);
+  var byId = {};
+  layers.forEach(function(l) { byId[l.id] = l; });
+  ids.forEach(function(lid) {
+    if (byId[lid]) byId[lid].visible = !!visible;
+    var cb = detailRow.querySelector('tr[data-lid="' + lid.replace(/"/g, '\\"') + '"] .bm-mtx-cell-default input[type=checkbox]');
+    if (cb) cb.checked = !!visible;
+  });
+  bmSetLayers(detailRow, layers);
+  markBmChanged(detailRow);
+}
+function bmRangeApplyView(detailRow, ids, vid, state) {
+  var views = bmGetViews(detailRow);
+  var v = views.find(function(x) { return x && x.id === vid; });
+  if (!v) return;
+  if (!v.layerStates) v.layerStates = {};
+  var sym = state === 'on' ? '✓' : (state === 'off' ? '✗' : '○');
+  ids.forEach(function(lid) {
+    if (state === 'inherit') delete v.layerStates[lid];
+    else v.layerStates[lid] = { visible: state === 'on' };
+    var btn = detailRow.querySelector('tr[data-lid="' + lid.replace(/"/g, '\\"') + '"] .bm-mtx-tri[data-vid="' + vid.replace(/"/g, '\\"') + '"]');
+    if (btn) { btn.dataset.state = state; btn.firstChild ? (btn.firstChild.nodeValue = sym) : (btn.textContent = sym); }
+  });
+  bmSetViews(detailRow, views);
+  markBmChanged(detailRow);
+}
+
 // ---- Matrix-Rendering ----------------------------------------------------
 function bmRenderMatrix(detailRow) {
   var container = detailRow.querySelector('.bm-mtx-scroll');
   if (!container) return;
   var layers = bmGetLayers(detailRow);
   var views  = bmGetViews(detailRow);
+  var widths = bmGetMatrixColumnWidths(detailRow, views);
   var idx    = detailRow.dataset.idx;
+  var sel    = bmGetSelSet(detailRow);
+  // Selektion auf existierende Layer beschränken
+  var validIds = {};
+  layers.forEach(function(l) { validIds[l.id] = true; });
+  Array.from(sel).forEach(function(id) { if (!validIds[id]) sel.delete(id); });
 
-  var html = '<table class="bm-mtx"><thead><tr>';
-  html += '<th>Layer</th>';
-  html += '<th title="Sichtbar beim Bookmark-Aufruf ohne View">Default</th>';
+  var allChecked = layers.length > 0 && layers.every(function(l) { return sel.has(l.id); });
+  var someChecked = sel.size > 0 && !allChecked;
+
+  var html = '<table class="bm-mtx"><colgroup>';
+  html += '<col data-col-key="sel" style="width:' + widths.sel + 'px">';
+  html += '<col data-col-key="layer" style="width:' + widths.layer + 'px">';
+  html += '<col data-col-key="default" style="width:' + widths['default'] + 'px">';
+  views.forEach(function(v) {
+    html += '<col data-col-key="view:' + bmEscAttr(v.id || '') + '" style="width:' + widths['view:' + (v.id || '')] + 'px">';
+  });
+  html += '<col data-col-key="addview" style="width:' + widths.addview + 'px">';
+  html += '<col data-col-key="op" style="width:' + widths.op + 'px">';
+  html += '<col data-col-key="filter" style="width:' + widths.filter + 'px">';
+  html += '</colgroup><thead><tr>';
+  html += '<th class="bm-mtx-cell-sel"><input type="checkbox" class="bm-mtx-selall"' + (allChecked ? ' checked' : '') + (someChecked ? ' data-indeterminate="1"' : '') + ' title="Alle markieren"></th>';
+  html += '<th data-col-key="layer">Layer' + bmMatrixResizeHandle('layer') + '</th>';
+  html += '<th data-col-key="default" title="Sichtbar beim Bookmark-Aufruf ohne View">Default' + bmMatrixResizeHandle('default') + '</th>';
 
   views.forEach(function(v) {
     var vid = v.id || '';
     var vname = v.name != null ? v.name : vid;
     var isDef = v.isDefault === true;
-    html += '<th class="bm-mtx-vhead" data-vid="' + bmEscAttr(vid) + '">' +
+    var vidValid = bmIsValidViewId(vid, views, v);
+    html += '<th class="bm-mtx-vhead" data-vid="' + bmEscAttr(vid) + '" data-col-key="view:' + bmEscAttr(vid) + '">' +
               '<div class="bm-mtx-vhead-row">' +
-                '<input class="bm-mtx-vname" data-vid="' + bmEscAttr(vid) + '" value="' + bmEscAttr(vname) + '" title="Anzeigename">' +
+                '<input class="bm-mtx-vid' + (vidValid ? '' : ' invalid') + '" data-vid="' + bmEscAttr(vid) + '" value="' + bmEscAttr(vid) + '" title="View-ID — URL: ?view=' + bmEscAttr(vid) + '">' +
+                '<input class="bm-mtx-vname" data-vid="' + bmEscAttr(vid) + '" value="' + bmEscAttr(vname) + '" placeholder="Alias…" title="Anzeigename der Ansicht">' +
                 '<div class="bm-mtx-vhead-ctl">' +
-                  '<label title="Default-View beim Bookmark-Aufruf"><input type="radio" name="bm-defview-' + bmEscAttr(idx) + '" data-vid="' + bmEscAttr(vid) + '"' + (isDef ? ' checked' : '') + '>Def</label>' +
-                  '<code style="font-size:9px;color:#888" title="View-ID (URL ?view=' + bmEscAttr(vid) + ')">' + bmEscAttr(vid) + '</code>' +
-                  '<button class="bm-mtx-vdel" data-vid="' + bmEscAttr(vid) + '" title="Ansicht löschen">×</button>' +
+                  '<button class="bm-mtx-vdel" data-vid="' + bmEscAttr(vid) + '" title="Ansicht löschen">× löschen</button>' +
                 '</div>' +
-              '</div>' +
+              '</div>' + bmMatrixResizeHandle('view:' + vid) +
             '</th>';
   });
 
   html += '<th class="bm-mtx-addview-cell"><button class="bm-mtx-addview" title="Neue Ansicht hinzufügen">+</button></th>';
-  html += '<th title="Opacity (0–1)">Op</th>';
-  html += '<th title="Filter / Definition-Query">Filter</th>';
-  html += '<th></th>';
+  html += '<th data-col-key="op" title="Opacity (0–1)">Op' + bmMatrixResizeHandle('op') + '</th>';
+  html += '<th data-col-key="filter" title="Filter / Definition-Query">Filter' + bmMatrixResizeHandle('filter') + '</th>';
   html += '</tr></thead><tbody>';
 
   layers.forEach(function(l) {
     var lid = l.id;
     var isValid = _bmAllLayerKeys.indexOf(lid) !== -1;
-    html += '<tr data-lid="' + bmEscAttr(lid) + '">';
-    html += '<td class="bm-mtx-lname' + (isValid ? '' : ' invalid') + '" title="' + bmEscAttr(lid) + (isValid ? '' : ' (Layer nicht im Katalog)') + '">' + bmEscAttr(lid) + '</td>';
+    var isSel = sel.has(lid);
+    html += '<tr data-lid="' + bmEscAttr(lid) + '"' + (isSel ? ' class="bm-mtx-row-sel"' : '') + '>';
+    html += '<td class="bm-mtx-cell-sel"><input type="checkbox" class="bm-mtx-rowsel" data-lid="' + bmEscAttr(lid) + '"' + (isSel ? ' checked' : '') + '></td>';
+    html += '<td class="bm-mtx-lname' + (isValid ? '' : ' invalid') + '" title="' + bmEscAttr(lid) + (isValid ? '' : ' (Layer nicht im Katalog)') + '">' + bmLayerHierarchyHtml(lid, 'row') + '</td>';
     html += '<td class="bm-mtx-cell-default"><input type="checkbox" data-lid="' + bmEscAttr(lid) + '"' + (l.visible ? ' checked' : '') + '></td>';
 
     views.forEach(function(v) {
@@ -7430,21 +7610,62 @@ function bmRenderMatrix(detailRow) {
     html += '<td></td>'; // unter dem "+ Ansicht"-Header bleibt frei
     html += '<td class="bm-mtx-cell-op"><input type="text" data-lid="' + bmEscAttr(lid) + '" data-prop="opacity" value="' + bmEscAttr(l.opacity != null ? l.opacity : '') + '" placeholder="–"></td>';
     html += '<td class="bm-mtx-cell-filter"><input type="text" data-lid="' + bmEscAttr(lid) + '" data-prop="filter" value="' + bmEscAttr(l.filter != null ? l.filter : '') + '" placeholder="–"></td>';
-    html += '<td class="bm-mtx-cell-del"><button data-lid="' + bmEscAttr(lid) + '" title="Layer entfernen">×</button></td>';
     html += '</tr>';
   });
 
   if (!layers.length) {
-    var cols = 5 + views.length;
+    var cols = 6 + views.length;
     html += '<tr><td colspan="' + cols + '" style="text-align:center;color:#999;padding:12px">Keine Layer. Über das Eingabefeld oben hinzufügen.</td></tr>';
   }
 
   html += '</tbody></table>';
   container.innerHTML = html;
 
+  // Tri-State-Checkbox des Header-Selektors (CSS hat keine pseudo-class, JS-property setzen)
+  var selAll = container.querySelector('.bm-mtx-selall');
+  if (selAll) selAll.indeterminate = !!someChecked;
+
   // Filter erneut anwenden, falls aktiv
   var filterInput = detailRow.querySelector('.bm-mtx-filter');
   if (filterInput && filterInput.value) bmApplyMatrixFilter(detailRow);
+
+  bmUpdateBulkDelButton(detailRow);
+  bmInitMatrixColumnResize(detailRow);
+}
+
+function bmInitMatrixColumnResize(detailRow) {
+  var table = detailRow.querySelector('table.bm-mtx');
+  if (!table) return;
+  table.querySelectorAll('.bm-mtx-col-resize').forEach(function(handle) {
+    handle.onmousedown = function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      var key = handle.dataset.colKey;
+      var col = table.querySelector('col[data-col-key="' + key.replace(/"/g, '\\"') + '"]');
+      var th = handle.parentElement;
+      if (!key || !col || !th) return;
+      var minWidth = key.indexOf('view:') === 0 ? 90 : (key === 'layer' ? 140 : 50);
+      var startX = e.clientX;
+      var startW = col.offsetWidth || th.offsetWidth;
+      handle.classList.add('bm-resizing');
+
+      function onMove(ev) {
+        var width = Math.max(minWidth, startW + ev.clientX - startX);
+        col.style.width = width + 'px';
+      }
+
+      function onUp() {
+        var finalWidth = parseInt(col.style.width, 10) || startW;
+        bmSetMatrixColumnWidth(detailRow, key, finalWidth);
+        handle.classList.remove('bm-resizing');
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+      }
+
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    };
+  });
 }
 
 function bmApplyMatrixFilter(detailRow) {
@@ -7460,12 +7681,39 @@ function bmApplyMatrixFilter(detailRow) {
 // ---- Mutationen via Event-Delegation -------------------------------------
 function bmMatrixHandleClick(e, detailRow) {
   var t = e.target;
-  // View-Spalte: Tri-State-Cycle
+  // Default-Visible-Checkbox: Shift+Click setzt Range zwischen letztem und aktuellem Klick.
+  // Der normale change-Handler kuemmert sich danach um Single-Update (idempotent).
+  if (t.matches('.bm-mtx-cell-default input[type=checkbox]')) {
+    var dlid = t.dataset.lid;
+    // t.checked ist hier bereits der NEUE Wert (Click → Toggle → Click-Handler)
+    if (e.shiftKey) {
+      var lastDLid = bmGetLastClick(detailRow, 'default');
+      if (lastDLid && lastDLid !== dlid) {
+        var dids = bmShiftRangeIds(detailRow, lastDLid, dlid);
+        if (dids.length) bmRangeApplyDefault(detailRow, dids, t.checked);
+      }
+    }
+    bmSetLastClick(detailRow, 'default', dlid);
+    return; // change-Handler macht ggf. den Single-Update
+  }
+  // View-Spalte: Tri-State-Cycle (Shift+Click: Range bis zum letzten Klick in derselben Spalte)
   if (t.classList.contains('bm-mtx-tri')) {
     var lid = t.dataset.lid;
     var vid = t.dataset.vid;
     var cur = t.dataset.state;
     var next = cur === 'on' ? 'off' : (cur === 'off' ? 'inherit' : 'on');
+    var key = 'view:' + vid;
+    if (e.shiftKey) {
+      var lastLid = bmGetLastClick(detailRow, key);
+      if (lastLid && lastLid !== lid) {
+        var ids = bmShiftRangeIds(detailRow, lastLid, lid);
+        if (ids.length) {
+          bmRangeApplyView(detailRow, ids, vid, next);
+          bmSetLastClick(detailRow, key, lid);
+          return;
+        }
+      }
+    }
     var views = bmGetViews(detailRow);
     var v = views.find(function(x) { return x && x.id === vid; });
     if (!v) return;
@@ -7473,7 +7721,10 @@ function bmMatrixHandleClick(e, detailRow) {
     if (next === 'inherit') { delete v.layerStates[lid]; }
     else { v.layerStates[lid] = { visible: next === 'on' }; }
     bmSetViews(detailRow, views);
-    bmRenderMatrix(detailRow);
+    // In-place DOM-Update statt full re-render (Performance + behaelt Selektion)
+    t.dataset.state = next;
+    t.textContent = next === 'on' ? '✓' : (next === 'off' ? '✗' : '○');
+    bmSetLastClick(detailRow, key, lid);
     markBmChanged(detailRow);
     return;
   }
@@ -7487,19 +7738,22 @@ function bmMatrixHandleClick(e, detailRow) {
     markBmChanged(detailRow);
     return;
   }
-  // Layer löschen
-  if (t.closest('.bm-mtx-cell-del')) {
-    var btn = t.closest('button[data-lid]');
-    if (!btn) return;
-    var lidDel = btn.dataset.lid;
-    var layers2 = bmGetLayers(detailRow).filter(function(l) { return l.id !== lidDel; });
-    // Aus allen Views layerStates entfernen
+  // Bulk-Delete: alle markierten Layer entfernen
+  if (t.classList.contains('bm-mtx-bulkdel')) {
+    var selSet = bmGetSelSet(detailRow);
+    if (selSet.size === 0) return;
+    if (!confirm(selSet.size + ' Layer entfernen?')) return;
+    var toRemove = selSet; // Set
+    var layers2 = bmGetLayers(detailRow).filter(function(l) { return !toRemove.has(l.id); });
     var views3 = bmGetViews(detailRow).map(function(v) {
-      if (v && v.layerStates) delete v.layerStates[lidDel];
+      if (v && v.layerStates) {
+        toRemove.forEach(function(rid) { delete v.layerStates[rid]; });
+      }
       return v;
     });
     bmSetLayers(detailRow, layers2);
     bmSetViews(detailRow, views3);
+    selSet.clear();
     bmRenderMatrix(detailRow);
     markBmChanged(detailRow);
     return;
@@ -7512,12 +7766,41 @@ function bmMatrixHandleClick(e, detailRow) {
     bmSetViews(detailRow, views4);
     bmRenderMatrix(detailRow);
     markBmChanged(detailRow);
+    // Fokus aufs neue ID-Feld, Text selektieren — User tippt direkt die gewünschte ID
+    var newIdInput = detailRow.querySelector('.bm-mtx-vid[data-vid="' + newId + '"]');
+    if (newIdInput) { newIdInput.focus(); newIdInput.select(); }
     return;
   }
 }
 
 function bmMatrixHandleChange(e, detailRow) {
   var t = e.target;
+  // Row-Selektion (Bulk-Delete)
+  if (t.classList && t.classList.contains('bm-mtx-rowsel')) {
+    var sel = bmGetSelSet(detailRow);
+    var lid0 = t.dataset.lid;
+    if (t.checked) sel.add(lid0); else sel.delete(lid0);
+    var tr = t.closest('tr');
+    if (tr) tr.classList.toggle('bm-mtx-row-sel', t.checked);
+    // Header-Checkbox-State anpassen
+    var selAll = detailRow.querySelector('.bm-mtx-selall');
+    if (selAll) {
+      var total = bmGetLayers(detailRow).length;
+      selAll.checked = sel.size === total && total > 0;
+      selAll.indeterminate = sel.size > 0 && sel.size < total;
+    }
+    bmUpdateBulkDelButton(detailRow);
+    return;
+  }
+  // Alle markieren / abwählen
+  if (t.classList && t.classList.contains('bm-mtx-selall')) {
+    var selA = bmGetSelSet(detailRow);
+    var layersA = bmGetLayers(detailRow);
+    if (t.checked) layersA.forEach(function(l) { selA.add(l.id); });
+    else selA.clear();
+    bmRenderMatrix(detailRow);
+    return;
+  }
   // Default-Visible-Checkbox
   if (t.matches('.bm-mtx-cell-default input[type=checkbox]')) {
     var lid = t.dataset.lid;
@@ -7534,13 +7817,53 @@ function bmMatrixHandleChange(e, detailRow) {
     markBmChanged(detailRow);
     return;
   }
-  // View-Name umbenennen
   if (t.matches('.bm-mtx-vname')) {
-    var vidR = t.dataset.vid;
-    var viewsN = bmGetViews(detailRow).map(function(v) {
-      if (v && v.id === vidR) v.name = t.value;
-      return v;
-    });
+    var viewNameVid = t.dataset.vid;
+    var viewsVN = bmGetViews(detailRow);
+    var viewNameItem = viewsVN.find(function(v) { return v && v.id === viewNameVid; });
+    if (!viewNameItem) return;
+    viewNameItem.name = t.value;
+    bmSetViews(detailRow, viewsVN);
+    markBmChanged(detailRow);
+    return;
+  }
+  // View-ID umbenennen (live, single Feld = id = name). Bei valid (Pattern + eindeutig)
+  // wird die id direkt aktualisiert; bei invalid bleibt die alte id (Feld zeigt rot).
+  if (t.matches('.bm-mtx-vid')) {
+    var oldVid = t.dataset.vid;
+    var newVal = String(t.value);
+    var viewsN = bmGetViews(detailRow);
+    var vItem = viewsN.find(function(v) { return v && v.id === oldVid; });
+    if (!vItem) return;
+
+    var isValid = bmIsValidViewId(newVal, viewsN, vItem);
+    t.classList.toggle('invalid', !isValid);
+    if (!isValid) {
+      t.title = !newVal ? 'View-ID darf nicht leer sein'
+              : (!/^[a-zA-Z0-9_-]+$/.test(newVal) ? 'Ungültige Zeichen. Erlaubt: a-z A-Z 0-9 _ -'
+              : 'Diese View-ID ist bereits vergeben');
+    } else {
+      t.title = 'View-ID — URL: ?view=' + newVal;
+    }
+
+    if (isValid && newVal !== oldVid) {
+      vItem.id = newVal;
+      if (!vItem.name || vItem.name === oldVid) vItem.name = newVal;
+      // alle data-vid im Detail-Row vom alten auf den neuen Wert ziehen
+      var sel = '[data-vid="' + oldVid.replace(/"/g, '\\"') + '"]';
+      detailRow.querySelectorAll(sel).forEach(function(el) { el.dataset.vid = newVal; });
+      var th = t.closest('th.bm-mtx-vhead');
+      if (th) th.dataset.vid = newVal;
+      // Shift-Range Last-Click mitziehen
+      if (detailRow._bmLastClick) {
+        var oldKey = 'view:' + oldVid;
+        if (detailRow._bmLastClick[oldKey] !== undefined) {
+          detailRow._bmLastClick['view:' + newVal] = detailRow._bmLastClick[oldKey];
+          delete detailRow._bmLastClick[oldKey];
+        }
+      }
+    }
+
     bmSetViews(detailRow, viewsN);
     markBmChanged(detailRow);
     return;
@@ -7649,9 +7972,10 @@ function renderBookmarkTable(bookmarks) {
 function createBookmarkRows(bm, idx) {
   // Akzeptiert v2-Schema (id, viewport, layers:[obj]) und faellt auf v1-Felder zurueck
   // damit zwischenzeitlich gespeicherte v1-Daten im Editor noch korrekt geoeffnet werden.
-  var name = bm.id || bm['map-bookmark'] || '';
-  var aliases = (bm.aliases || []).join(', ');
+  var idsValue = bmBookmarkIdsValue(bm);
+  var aliasName = bm.name || bm.id || bm['map-bookmark'] || '';
   var basemap = bm.basemap || '';
+  var basemapMode = bm.basemapColorMode || 'color';
   var layerArr = bm.layers || [];                    // Layer-Objekte (v2) oder Strings (v1)
   var theme = bm.theme || '';
   var subtheme = bm.subtheme || '';
@@ -7673,9 +7997,10 @@ function createBookmarkRows(bm, idx) {
   var summary = document.createElement('tr');
   summary.className = 'bm-row-summary';
   summary.dataset.idx = idx;
-  summary.dataset.name = name.toLowerCase();
-  summary.dataset.aliases = aliases.toLowerCase();
+  summary.dataset.idaliases = idsValue.toLowerCase();
+  summary.dataset.name = aliasName.toLowerCase();
   summary.dataset.basemap = basemap.toLowerCase();
+  summary.dataset.basemapmode = basemapMode.toLowerCase();
   summary.dataset.layerText = layerIds.join(' ').toLowerCase();
   summary.dataset.themes = (themes || '').toLowerCase();
 
@@ -7683,15 +8008,16 @@ function createBookmarkRows(bm, idx) {
   for (var lp = 0; lp < Math.min(layerIds.length, 4); lp++) {
     var lid = layerIds[lp];
     var isV = _bmAllLayerKeys.indexOf(lid) !== -1;
-    layerPreview += '<span class="bm-layer-tag ' + (isV ? 'valid' : 'invalid') + '" data-layer="' + esc(lid) + '">' + esc(lid) + '</span>';
+    layerPreview += '<span class="bm-layer-tag ' + (isV ? 'valid' : 'invalid') + '" data-layer="' + esc(lid) + '">' + bmLayerHierarchyHtml(lid, 'tag') + '</span>';
   }
   if (layerIds.length > 4) layerPreview += '<span style="font-size:10px;color:#888"> +' + (layerIds.length - 4) + '</span>';
   if (layerIds.length === 0) layerPreview = '<span style="color:#ccc;font-size:10px">–</span>';
 
   summary.innerHTML =
-    '<td><span class="bm-expand-icon">▶</span><strong style="font-family:monospace;font-size:11px">' + esc(name) + '</strong></td>' +
-    '<td style="font-family:monospace;font-size:10px;color:#666">' + esc(aliases) + '</td>' +
+    '<td><span class="bm-expand-icon">▶</span><strong style="font-family:monospace;font-size:11px">' + esc(idsValue) + '</strong></td>' +
+    '<td style="font-family:monospace;font-size:10px;color:#666">' + esc(aliasName) + '</td>' +
     '<td style="font-size:10px;color:#666">' + esc(basemap) + '</td>' +
+    '<td style="font-size:10px;color:#666">' + esc(basemapMode) + '</td>' +
     '<td class="bm-summary-themes"><input type="text" value="' + esc(themes) + '" placeholder="nw:oereb, ow:oereb" data-field="themes" oninput="markBmChanged(this);bmSyncSummaryFromSummary(this)" style="width:100%;border:none;background:transparent;font-family:monospace;font-size:10px;padding:2px 4px;box-sizing:border-box"></td>' +
     '<td class="bm-summary-layers">' + layerPreview + '</td>' +
     '<td class="bm-col-hidden"></td><td class="bm-col-hidden"></td><td class="bm-col-hidden"></td>' +
@@ -7712,12 +8038,13 @@ function createBookmarkRows(bm, idx) {
   detail.dataset.bmMeta   = bmMetaJson;
 
   var detailTd = document.createElement('td');
-  detailTd.colSpan = 12;
+  detailTd.colSpan = 13;
   detailTd.innerHTML =
     '<div style="display:grid;grid-template-columns:100px 1fr;gap:4px 8px;font-size:11px">' +
-    '<label>Name:</label><input class="bm-name" data-field="name" value="' + esc(name) + '" oninput="markBmChanged(this);bmSyncSummary(this)">' +
-    '<label>Aliases:</label><input class="bm-alias" data-field="aliases" value="' + esc(aliases) + '" title="Kommasepariert" oninput="markBmChanged(this);bmSyncSummary(this)">' +
+    '<label>IDs:</label><input class="bm-name" data-field="idaliases" value="' + esc(idsValue) + '" title="Primaere ID zuerst, weitere IDs kommasepariert" oninput="markBmChanged(this);bmSyncSummary(this)">' +
+    '<label>Alias:</label><input class="bm-alias" data-field="name" value="' + esc(aliasName) + '" title="Sichtbarer Anzeigename" oninput="markBmChanged(this);bmSyncSummary(this)">' +
     '<label>Basemap:</label><input data-field="basemap" value="' + esc(basemap) + '" oninput="markBmChanged(this);bmSyncSummary(this)">' +
+    '<label>Basemap-Modus:</label><select data-field="basemapcolormode" onchange="markBmChanged(this);bmSyncSummary(this)"><option value="color"' + (basemapMode === 'color' ? ' selected' : '') + '>color</option><option value="grey"' + (basemapMode === 'grey' ? ' selected' : '') + '>grey</option></select>' +
     '<label>Theme:</label><input data-field="theme" value="' + esc(theme) + '" oninput="markBmChanged(this)">' +
     '<label>Subtheme:</label><input data-field="subtheme" value="' + esc(subtheme) + '" oninput="markBmChanged(this)">' +
     '<label>Themen:</label><input data-field="themes" value="' + esc(themes) + '" title="z.B. nw:oereb" placeholder="nw:oereb" oninput="markBmChanged(this);bmSyncSummaryThemes(this)">' +
@@ -7732,6 +8059,7 @@ function createBookmarkRows(bm, idx) {
             '<div class="bm-ac-list"></div>' +
           '</div>' +
           '<input class="bm-mtx-filter" placeholder="Layer filtern…">' +
+          '<button type="button" class="bm-mtx-bulkdel" disabled title="Markierte Layer entfernen">🗑 Markierte löschen (<span class="bm-mtx-selcount">0</span>)</button>' +
         '</div>' +
         '<div class="bm-mtx-scroll"></div>' +
       '</div>' +
@@ -7755,7 +8083,7 @@ function createBookmarkRows(bm, idx) {
   mtxWrap.addEventListener('input',  function(e) {
     // Live-Filter und Live-Edit für Inputs
     if (e.target.matches('.bm-mtx-filter')) bmApplyMatrixFilter(detail);
-    if (e.target.matches('.bm-mtx-vname') || e.target.matches('input[data-prop]')) bmMatrixHandleChange(e, detail);
+    if (e.target.matches('.bm-mtx-vid') || e.target.matches('.bm-mtx-vname') || e.target.matches('input[data-prop]')) bmMatrixHandleChange(e, detail);
   });
 
   // Add-Layer-Input: Autocomplete mit onAdd-Callback, der die Matrix erweitert.
@@ -7792,19 +8120,23 @@ function bmSyncSummary(input) {
   var idx = detailRow.dataset.idx;
   var summaryRow = document.querySelector('tr.bm-row-summary[data-idx="' + idx + '"]');
   if (!summaryRow) return;
-  var nameInput = detailRow.querySelector('[data-field="name"]');
-  var aliasInput = detailRow.querySelector('[data-field="aliases"]');
+  var idsInput = detailRow.querySelector('[data-field="idaliases"]');
+  var aliasInput = detailRow.querySelector('[data-field="name"]');
   var basemapInput = detailRow.querySelector('[data-field="basemap"]');
-  var nameCell = summaryRow.children[0];
+  var basemapModeInput = detailRow.querySelector('[data-field="basemapcolormode"]');
+  var idsCell = summaryRow.children[0];
   var aliasCell = summaryRow.children[1];
   var basemapCell = summaryRow.children[2];
-  nameCell.innerHTML = '<span class="bm-expand-icon" style="transform:rotate(90deg)">▶</span><strong style="font-family:monospace;font-size:11px">' + esc(nameInput.value) + '</strong>';
+  var basemapModeCell = summaryRow.children[3];
+  idsCell.innerHTML = '<span class="bm-expand-icon" style="transform:rotate(90deg)">▶</span><strong style="font-family:monospace;font-size:11px">' + esc(idsInput.value) + '</strong>';
   aliasCell.textContent = aliasInput.value;
   basemapCell.textContent = basemapInput.value;
+  basemapModeCell.textContent = basemapModeInput.value;
   // data-Attribute für Filter aktualisieren
-  summaryRow.dataset.name = (nameInput.value || '').toLowerCase();
-  summaryRow.dataset.aliases = (aliasInput.value || '').toLowerCase();
+  summaryRow.dataset.idaliases = (idsInput.value || '').toLowerCase();
+  summaryRow.dataset.name = (aliasInput.value || '').toLowerCase();
   summaryRow.dataset.basemap = (basemapInput.value || '').toLowerCase();
+  summaryRow.dataset.basemapmode = (basemapModeInput.value || '').toLowerCase();
   // Themen aus Detail → Summary-Input synchronisieren
   var themesInput = detailRow.querySelector('[data-field="themes"]');
   var themesCell = summaryRow.querySelector('.bm-summary-themes input');
@@ -7860,6 +8192,34 @@ function markBmChanged(input) {
 
 // ===== LAYER-TAG + AUTOCOMPLETE =====
 
+function bmLayerPathInfo(layerKey) {
+  var full = String(layerKey || '');
+  var parts = full.split('/').filter(function(part) { return part !== ''; });
+  if (!parts.length) {
+    return { full: full, leaf: full, prefix: '', depth: 0 };
+  }
+  return {
+    full: full,
+    leaf: parts[parts.length - 1],
+    prefix: parts.slice(0, -1).join(' / '),
+    depth: Math.max(0, parts.length - 1)
+  };
+}
+
+function bmLayerHierarchyHtml(layerKey, variant) {
+  var info = bmLayerPathInfo(layerKey);
+  var depth = Math.min(info.depth, 8);
+  var cls = 'bm-layer-path bm-layer-path-' + (variant || 'row') + (depth ? ' has-depth' : '');
+  var style = depth ? ' style="--bm-layer-depth:' + depth + '"' : '';
+  var html = '<span class="' + cls + '"' + style + '>' +
+    '<span class="bm-layer-path-leaf">' + esc(info.leaf || info.full) + '</span>';
+  if (info.prefix) {
+    html += '<span class="bm-layer-path-prefix">' + esc(info.prefix) + '</span>';
+  }
+  html += '</span>';
+  return html;
+}
+
 // Einzelnes Layer-Tag erstellen (farblich validiert)
 // Akzeptiert v1-String ODER v2-Layer-Objekt. Speichert das volle Objekt
 // in dataset.layerObj, damit per-Layer-State (visible/opacity/order/filter)
@@ -7876,7 +8236,7 @@ function createLayerTag(layer, tr) {
   span.title = isValid ? 'Layer vorhanden' : 'Layer nicht gefunden!';
   // Optisches Off-Indiz wenn visible:false (per-Layer-Edit folgt in 5c)
   if (!obj.visible) span.classList.add('bm-layer-off');
-  span.innerHTML = esc(layerKey) + '<span class="bm-tag-x" title="Entfernen">×</span>';
+  span.innerHTML = bmLayerHierarchyHtml(layerKey, 'tag') + '<span class="bm-tag-x" title="Entfernen">×</span>';
   span.querySelector('.bm-tag-x').addEventListener('click', function() {
     span.remove();
     if (tr) tr.classList.add('bm-row-changed');
@@ -8040,16 +8400,16 @@ function addBookmarkEntry() {
   bmPushUndo();
   var tbody = document.getElementById('bm-tbody');
   var idx = tbody.querySelectorAll('tr.bm-row-summary').length;
-  var emptyBm = { id: '', basemap: '', layers: [], meta: { schemaVersion: 2 } };
+  var emptyBm = { id: '', name: '', aliases: [], basemap: '', basemapColorMode: 'color', layers: [], meta: { schemaVersion: 2 } };
   var rows = createBookmarkRows(emptyBm, idx);
   rows.summary.classList.add('bm-row-changed');
   rows.detail.classList.add('bm-expanded'); // Neue Einträge aufgeklappt
   rows.summary.classList.add('bm-expanded-row');
   tbody.insertBefore(rows.detail, tbody.firstChild);
   tbody.insertBefore(rows.summary, rows.detail);
-  // Fokus auf Name-Feld
-  var nameInput = rows.detail.querySelector('[data-field="name"]');
-  if (nameInput) nameInput.focus();
+  // Fokus auf ID-Feld
+  var idsInput = rows.detail.querySelector('[data-field="idaliases"]');
+  if (idsInput) idsInput.focus();
   updateBookmarkCount();
 }
 
@@ -8073,19 +8433,20 @@ function deleteBookmarkRow(tr) {
 }
 
 function openBookmarkUrl(tr) {
-  // Name aus Summary-data-Attribut oder Detail-Input lesen
-  var name = '';
+  // Primaere ID aus Summary-data-Attribut oder Detail-Input lesen
+  var idValue = '';
   if (tr.classList.contains('bm-row-summary')) {
     var idx = tr.dataset.idx;
     var detail = document.querySelector('tr.bm-row-detail[data-idx="' + idx + '"]');
-    if (detail) name = (detail.querySelector('[data-field="name"]').value || '').trim();
-    if (!name) name = (tr.dataset.name || '').trim();
+    if (detail) idValue = (detail.querySelector('[data-field="idaliases"]').value || '').trim();
+    if (!idValue) idValue = (tr.dataset.idaliases || '').trim();
   } else {
-    var inp = tr.querySelector('[data-field="name"]');
-    name = inp ? inp.value.trim() : '';
+    var inp = tr.querySelector('[data-field="idaliases"]');
+    idValue = inp ? inp.value.trim() : '';
   }
-  if (!name) { alert('Kein Name eingetragen'); return; }
-  var url = 'https://www.gis-daten.ch/maps/' + encodeURIComponent(name);
+  var primaryId = bmPrimaryBookmarkId(idValue);
+  if (!primaryId) { alert('Keine Bookmark-ID eingetragen'); return; }
+  var url = 'https://www.gis-daten.ch/maps/' + encodeURIComponent(primaryId);
   window.open(url, '_blank');
 }
 
@@ -8094,18 +8455,22 @@ function collectBookmarkData() {
   var result = [];
   for (var i = 0; i < rows.length; i++) {
     var tr = rows[i];
-    var name = tr.querySelector('[data-field="name"]').value.trim();
-    if (!name) continue; // Leere Zeilen ignorieren
+    var idsValue = tr.querySelector('[data-field="idaliases"]').value.trim();
+    var ids = bmParseCsvList(idsValue);
+    if (!ids.length) continue; // Leere Zeilen ignorieren
 
-    var entry = { id: name };
+    var entry = { id: ids[0] };
 
-    var aliasStr = tr.querySelector('[data-field="aliases"]').value.trim();
-    if (aliasStr) {
-      entry.aliases = aliasStr.split(',').map(function(s) { return s.trim(); }).filter(Boolean);
-    }
+    if (ids.length > 1) entry.aliases = ids.slice(1);
+
+    var aliasName = tr.querySelector('[data-field="name"]').value.trim();
+    if (aliasName) entry.name = aliasName;
 
     var basemap = tr.querySelector('[data-field="basemap"]').value.trim();
     if (basemap) entry.basemap = basemap;
+
+    var basemapMode = tr.querySelector('[data-field="basemapcolormode"]').value.trim();
+    if (basemapMode) entry.basemapColorMode = basemapMode;
 
     var theme = tr.querySelector('[data-field="theme"]').value.trim();
     if (theme) entry.theme = theme;
@@ -8146,6 +8511,38 @@ function collectBookmarkData() {
   return result;
 }
 
+function showBookmarkDeployToast(message, type) {
+  var toast = document.getElementById('bm-deploy-toast');
+  var colors = {
+    success: { bg: '#1f7a4d', border: '#145233' },
+    info: { bg: '#2f5f8f', border: '#1f4060' },
+    error: { bg: '#a33a2f', border: '#6e251f' }
+  };
+  var palette = colors[type] || colors.success;
+
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'bm-deploy-toast';
+    toast.style.cssText = 'position:fixed;top:18px;right:18px;z-index:10050;min-width:280px;max-width:420px;'
+      + 'padding:14px 16px;border-radius:10px;color:#fff;font:14px/1.45 -apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;'
+      + 'box-shadow:0 10px 28px rgba(0,0,0,.22);opacity:0;transform:translateY(-8px);'
+      + 'transition:opacity .18s ease, transform .18s ease;pointer-events:none;';
+    document.body.appendChild(toast);
+  }
+
+  toast.textContent = message;
+  toast.style.background = palette.bg;
+  toast.style.border = '1px solid ' + palette.border;
+  toast.style.opacity = '1';
+  toast.style.transform = 'translateY(0)';
+
+  if (window.__bmDeployToastTimer) clearTimeout(window.__bmDeployToastTimer);
+  window.__bmDeployToastTimer = setTimeout(function() {
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateY(-8px)';
+  }, 3800);
+}
+
 function saveBookmarks() {
   var data = collectBookmarkData();
   var status = document.getElementById('bm-status');
@@ -8180,25 +8577,30 @@ function saveBookmarks() {
 
       // 2. FastAPI: SFTP-Deploy + Git-Commit (wenn nicht übersprungen)
       if (!result.skip) {
+          var deployTarget = _isDevEnv ? 'dev' : 'prod';
         status.textContent += ' — Deploye…';
         fetch(GAPI_URL + '/deploy-bookmarks', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message: result.message })
+            body: JSON.stringify({ message: result.message, target: deployTarget })
         })
         .then(function(r) { return r.json(); })
         .then(function(g) {
           if (g.success && g.action === 'deployed') {
-            status.textContent = '✓ Deployed — ' + data.length + ' Bookmarks';
+              status.textContent = '✓ Deployed [' + (g.target || deployTarget) + '] — ' + data.length + ' Bookmarks';
             if (g.git_committed) status.textContent += ' — Git ✓';
+            showBookmarkDeployToast('Bookmarks erfolgreich nach ' + String(g.target || deployTarget).toUpperCase() + ' publiziert.', 'success');
           } else if (g.success && g.action === 'skipped') {
-            status.textContent = '✓ Gespeichert — ' + data.length + ' Bookmarks (keine Änderungen)';
+              status.textContent = '✓ Gespeichert [' + (g.target || deployTarget) + '] — ' + data.length + ' Bookmarks (keine Änderungen)';
+            showBookmarkDeployToast('Bookmarks auf ' + String(g.target || deployTarget).toUpperCase() + ' sind bereits aktuell.', 'info');
           } else {
             status.textContent += ' — Deploy-Fehler: ' + (g.detail || 'Unbekannt');
+            showBookmarkDeployToast('Bookmark-Deploy fehlgeschlagen: ' + (g.detail || 'Unbekannt'), 'error');
           }
         })
         .catch(function(e) {
           status.textContent += ' — Deploy-Fehler: ' + e.message;
+          showBookmarkDeployToast('Bookmark-Deploy fehlgeschlagen: ' + e.message, 'error');
         });
       } else {
         status.textContent = '✓ Draft gespeichert — ' + data.length + ' Bookmarks (nicht deployed)';
@@ -8615,12 +9017,16 @@ function bmReplaceAll() {
 // Einzelnes Bookmark aus einer Detail-Zeile als Objekt auslesen
 function bmCollectSingleBookmark(detailRow) {
   var entry = {};
-  var name = detailRow.querySelector('[data-field="name"]').value.trim();
-  if (name) entry.id = name;
-  var aliasStr = detailRow.querySelector('[data-field="aliases"]').value.trim();
-  if (aliasStr) entry.aliases = aliasStr.split(',').map(function(s) { return s.trim(); }).filter(Boolean);
+  var idsValue = detailRow.querySelector('[data-field="idaliases"]').value.trim();
+  var ids = bmParseCsvList(idsValue);
+  if (ids.length) entry.id = ids[0];
+  if (ids.length > 1) entry.aliases = ids.slice(1);
+  var aliasName = detailRow.querySelector('[data-field="name"]').value.trim();
+  if (aliasName) entry.name = aliasName;
   var basemap = detailRow.querySelector('[data-field="basemap"]').value.trim();
   if (basemap) entry.basemap = basemap;
+  var basemapMode = detailRow.querySelector('[data-field="basemapcolormode"]').value.trim();
+  if (basemapMode) entry.basemapColorMode = basemapMode;
   var theme = detailRow.querySelector('[data-field="theme"]').value.trim();
   if (theme) entry.theme = theme;
   var subtheme = detailRow.querySelector('[data-field="subtheme"]').value.trim();
@@ -8706,9 +9112,10 @@ function bmInlineJsonApply(btn) {
   bmPushUndo();
 
   // Felder ins Formular zurückschreiben (v2-Schema mit v1-Fallback)
-  detailRow.querySelector('[data-field="name"]').value = bm.id || bm['map-bookmark'] || '';
-  detailRow.querySelector('[data-field="aliases"]').value = (bm.aliases || []).join(', ');
+  detailRow.querySelector('[data-field="idaliases"]').value = bmBookmarkIdsValue(bm);
+  detailRow.querySelector('[data-field="name"]').value = bm.name || bm.id || bm['map-bookmark'] || '';
   detailRow.querySelector('[data-field="basemap"]').value = bm.basemap || '';
+  detailRow.querySelector('[data-field="basemapcolormode"]').value = bm.basemapColorMode || 'color';
   detailRow.querySelector('[data-field="theme"]').value = bm.theme || '';
   detailRow.querySelector('[data-field="subtheme"]').value = bm.subtheme || '';
   detailRow.querySelector('[data-field="themes"]').value = bm.themes || '';
@@ -8727,9 +9134,9 @@ function bmInlineJsonApply(btn) {
   var layerIds = layers.map(bmLayerId);
 
   // Summary synchronisieren
-  var nameInput = detailRow.querySelector('[data-field="name"]');
-  bmSyncSummary(nameInput);
-  markBmChanged(nameInput);
+  var idsInput = detailRow.querySelector('[data-field="idaliases"]');
+  bmSyncSummary(idsInput);
+  markBmChanged(idsInput);
 
   // Summary-Layer-Tags aktualisieren
   var idx = detailRow.dataset.idx;

@@ -547,6 +547,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  position: relative;
   width: 36px;
   height: 36px;
   border: none;
@@ -565,7 +566,60 @@
 }
 
 .lm-eye.lm-eye-off {
-  color: #bbb;
+  color: #ccc;
+  opacity: 0.45;
+}
+
+/* Teil-Sichtbarkeit: nicht alle Sublayer der Gruppe sind sichtbar.
+   Auge bleibt "an", wird aber heller dargestellt zur Signalisierung. */
+.lm-eye.lm-eye-partial {
+  opacity: 0.5;
+}
+
+@keyframes lm-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.lm-eye.lm-eye-loading::after {
+  content: '';
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  border: 2px solid rgba(75, 123, 129, 0.22);
+  border-top-color: var(--m-color-primary, #4B7B81);
+  border-radius: 50%;
+  animation: lm-spin 0.8s linear infinite;
+}
+
+.lm-layer-loading .lm-icon,
+.lm-layer-slow .lm-icon {
+  opacity: 0.35;
+}
+
+.lm-layer-status {
+  flex-shrink: 0;
+  max-width: 92px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(75, 123, 129, 0.10);
+  color: var(--m-color-primary, #4B7B81);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lm-layer-slow .lm-layer-status {
+  background: rgba(170, 120, 20, 0.12);
+  color: #8a6416;
+}
+
+.lm-layer-error .lm-layer-status {
+  background: rgba(180, 50, 50, 0.12);
+  color: #a43a3a;
 }
 
 .lm-btn-remove {
@@ -988,8 +1042,8 @@
    Default 300px, wird per JS-Variable --tnet-active-height überschrieben.
    !important weil Dojo bei TitlePane-Open Inline-Styles setzt. */
 #lm-active-container.lm-container-desktop {
-  max-height: var(--tnet-active-height, 300px);
-  min-height: 80px;
+  flex: 1;
+  min-height: 0;
   overflow-y: auto !important;
   overflow-x: hidden !important;
 }
@@ -1008,7 +1062,7 @@
 }
 
 .lm-container-desktop .lm-active-item {
-  padding: 4px 8px;
+  padding: 2px 6px;
 }
 
 .lm-container-desktop .lm-active-name {
@@ -1032,7 +1086,7 @@
 }
 
 .lm-container-desktop .lm-opacity-row {
-  padding: 1px 0 1px 24px;
+  padding: 0 0 0 24px;
 }
 
 .lm-container-desktop .lm-opacity-label {
@@ -1045,6 +1099,63 @@
   font-size: 12px;
 }
 
+/* ── Karteninhalt: Bookmark-Header ── */
+.lm-active-header {
+  border-bottom: 1px solid #e0e0e0;
+  background: #f5f9fa;
+}
+.lm-active-bookmark-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px 3px;
+  border-bottom: 1px solid #eee;
+}
+.lm-active-bookmark-name {
+  flex: 1;
+  font-size: 12px;
+  font-weight: 600;
+  color: #1e3a4a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.lm-bm-modified-badge {
+  flex-shrink: 0;
+  font-size: 14px;
+  line-height: 1;
+  color: #c47a00;
+  cursor: default;
+}
+.lm-btn-bm-reset {
+  flex-shrink: 0;
+  background: transparent;
+  border: none;
+  font-size: 16px;
+  line-height: 1;
+  color: #c47a00;
+  cursor: pointer;
+  padding: 0 2px;
+  border-radius: 3px;
+}
+.lm-btn-bm-reset:hover {
+  background: rgba(196, 122, 0, 0.12);
+}
+.lm-active-view-select {
+  flex-shrink: 0;
+  max-width: 120px;
+  font-size: 11px;
+  padding: 2px 4px;
+  border: 1px solid #b0bec5;
+  border-radius: 3px;
+  background: #fff;
+  color: #333;
+  cursor: pointer;
+}
+.lm-active-view-select:hover {
+  border-color: #1e3a4a;
+}
+
 /* Empty-State */
 .lm-container-desktop .lm-empty {
   padding: 16px 10px;
@@ -1053,8 +1164,8 @@
 
 /* Desktop: Gruppen kompakter */
 .lm-container-desktop .lm-active-group-header {
-  min-height: 30px;
-  padding: 4px 6px;
+  min-height: 26px;
+  padding: 2px 4px;
 }
 
 .lm-container-desktop .lm-active-group-name {
@@ -1062,12 +1173,12 @@
 }
 
 .lm-container-desktop .lm-active-group-child {
-  min-height: 26px;
-  padding: 2px 6px 2px 20px;
+  min-height: 22px;
+  padding: 1px 6px 1px 18px;
 }
 
 .lm-container-desktop .lm-active-group > .lm-opacity-row {
-  padding: 1px 6px 2px 36px;
+  padding: 0 6px 1px 36px;
 }
 
 /* ============================================================

@@ -220,7 +220,8 @@ if ($_GET["group"]=="" && is_dir("./public")){
             unset($queryParams['target']);
             $queryString = http_build_query($queryParams);
         }
-        $targetParam = 'target=' . rawurlencode('/maps-dev/index.php');
+        $targetPath = ($appBasePath ?: '/maps-dev') . '/index.php';
+        $targetParam = 'target=' . rawurlencode($targetPath);
         header("Location:/mapplus-protected/?" . $targetParam . ($queryString !== '' ? ('&' . $queryString) : ''));
         exit;
     }else{
@@ -357,10 +358,5 @@ if (is_file('./'.$app_profile.'/index_'.$lang.$mobile_ext.'.htm')){
     include($entryFile);
 }
 $pageContent = ob_get_clean();
-
-if ($appBasePath !== '' && $appBasePath !== '/maps') {
-    $pageContent = str_replace('/maps/', $appBasePath . '/', $pageContent);
-}
-
 echo $pageContent;
 ?>

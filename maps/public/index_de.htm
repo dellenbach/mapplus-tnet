@@ -1,4 +1,4 @@
-﻿<!DOCTYPE HTML>
+<!DOCTYPE HTML>
 <!--
   index_de.htm
   GIS NW/OW - Hauptseite Desktop
@@ -149,7 +149,7 @@
     <link rel="stylesheet" href="public/css/override.css" />
 
     <!-- ol-pdf-printer (Karten-Export als PDF/PNG/JPEG) -->
-    <link rel="stylesheet" href="/maps-dev/tnet/ol-pdf-printer/css/ol-pdf-printer.css" />
+    <link rel="stylesheet" href="tnet/ol-pdf-printer/css/ol-pdf-printer.css" />
 
     <script>
         var isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
@@ -199,7 +199,7 @@
     <script type="text/javascript" src="/mapplus-lib/mapplus-dojo/v4.0.0/provider/OLPlus/openlayers.js"></script>
 
     <!-- TNET Patch: Verschachtelte Layer-Manager Hierarchie (MUSS vor modules.js stehen) -->
-    <script type="text/javascript" src="/maps-dev/tnet/js/tnet-lyrmgr-patch.js"></script>
+    <script type="text/javascript" src="tnet/js/tnet-lyrmgr-patch.js"></script>
 
     <script type="text/javascript">
         /* Application configuration */
@@ -270,7 +270,7 @@
         <div class="customRefreshBtn" onclick="refreshIframe()" title="Seite neu laden">↻</div>
         <div class="customBackBtn" onclick="goBackInIframe()">‹</div>
         <div class="customCloseBtn" onclick="closeMapsInfoDialog()">×</div>
-        <iframe id="mapsInfoFrame" name="mapsInfoFrame" data-src="/maps-dev/tnet/inframe-maps.html" 
+        <iframe id="mapsInfoFrame" name="mapsInfoFrame" data-src="tnet/inframe-maps.html"
             loading="lazy" sandbox="allow-same-origin allow-scripts allow-top-navigation-by-user-activation" referrerpolicy="no-referrer"
             style="width: 100%; height: 100%; border: none;"></iframe>
     </div>
@@ -359,7 +359,7 @@
     
     <!-- Kartenauswahl Button links oben -->
     <div id="header_maps_select" onclick="openMapsInfoDialog()" title="Kartenauswahl öffnen">
-        <span class="maps-icon"><img src="/maps-dev/tnet/resources/icon-maps.svg" alt=""></span>
+        <span class="maps-icon"><img src="tnet/resources/icon-maps.svg" alt=""></span>
         <span class="maps-text">Karten</span>
     </div>
     
@@ -394,8 +394,8 @@
     
     <!-- GIS Logo links oben (SVG + drehender Würfel) -->
     <a id="gis_logo_container" href="https://www.gis-daten.ch" target="_blank" title="GIS Daten AG - Nidwalden Obwalden">
-        <img class="gis-logo-svg" src="/maps-dev/tnet/resources/Logo-GIS-Daten-AG.svg" alt="GIS Daten AG">
-        <img class="gis-logo-cube" src="/maps-dev/tnet/resources/gis-cube.gif" alt="">
+        <img class="gis-logo-svg" src="tnet/resources/Logo-GIS-Daten-AG.svg" alt="GIS Daten AG">
+        <img class="gis-logo-cube" src="tnet/resources/gis-cube.gif" alt="">
     </a>
 
     <div id="freepane" style="position: absolute;left:20px;top:20px;z-index: 50;width:340px;">
@@ -446,9 +446,9 @@
                 </div>
             </details>
 
-            <!-- DARGESTELLTE THEMEN -->
+            <!-- KARTENINHALT -->
             <details id="tp_sort_menu" class="tnet-panel">
-                <summary class="tnet-panel-title">Dargestellte Themen</summary>
+                <summary class="tnet-panel-title">Karteninhalt</summary>
                 <div class="tnet-panel-content">
                     <div id="sort_menu">
                         <div id="njs_main_lyrsorter_wrapper" style="width: 100%; height:100%; border:0">
@@ -871,57 +871,57 @@
 
     <!-- TNET------------------------->
     <!-- TNET Zentrale Log-Utility (muss VOR allen anderen TNET-Scripts geladen werden) -->
-    <script type="text/javascript" src="/maps-dev/tnet/js/tnet-log.js"></script>
+    <script type="text/javascript" src="tnet/js/tnet-log.js"></script>
 
     <!-- TNET Icon-Loader (lädt SVG-Icons aus /resources/icons/) -->
-    <script type="text/javascript" src="/maps-dev/tnet/js/tnet-icons.js"></script>
+    <script type="text/javascript" src="tnet/js/tnet-icons.js"></script>
     <script>TnetIcons.loadAll();</script>
 
     <!-- TNET Shared Utils: Koordinaten, waitForMap, Toast -->
-    <script type="module" src="/maps-dev/tnet/js/tnet-utils.js"></script>
+    <script type="module" src="tnet/js/tnet-utils.js"></script>
 
     <!-- TNET helpers for bookmarks&Co. -->
-    <script type="text/javascript" src="/maps-dev/tnet/js/tnet-mapplus-helpers.js" defer></script>
+    <script type="text/javascript" src="tnet/js/tnet-mapplus-helpers.js" defer></script>
     
     <!-- TNET Accordion/Tab-Konverter -->
-    <link rel="stylesheet" href="/maps-dev/tnet/css/tnet_toc.css" />
+    <link rel="stylesheet" href="tnet/css/tnet_toc.css" />
     <!-- TNET Komponenten: Kontextmenü, Footer, Kompass, Polygon-Tool, Spatial Query -->
-    <link rel="stylesheet" href="/maps-dev/tnet/css/tnet-components.css" />
+    <link rel="stylesheet" href="tnet/css/tnet-components.css" />
     <!-- TNET Split-Screen CSS -->
-    <link rel="stylesheet" href="/maps-dev/tnet/css/tnet-splitscreen.css" />
+    <link rel="stylesheet" href="tnet/css/tnet-splitscreen.css" />
     <!-- TNET 3D Landscape CSS -->
-    <link rel="stylesheet" href="/maps-dev/tnet/css/tnet-3d-landscape.css" />
+    <link rel="stylesheet" href="tnet/css/tnet-3d-landscape.css" />
     <!-- TNET MapControls: Zoom, GNSS, StreetView, 3D Buttons -->
-    <link rel="stylesheet" href="/maps-dev/tnet/css/tnet-mapcontrols.css" />
+    <link rel="stylesheet" href="tnet/css/tnet-mapcontrols.css" />
     <!-- GIS Daten AG Splash Screen Cube -->
-    <link rel="stylesheet" href="/maps-dev/tnet/css/gis-daten-splash.css" />
-    <script type="text/javascript" src="/maps-dev/tnet/js/tnet_toc.js" defer></script>
+    <link rel="stylesheet" href="tnet/css/gis-daten-splash.css" />
+    <script type="text/javascript" src="tnet/js/tnet_toc.js" defer></script>
 
     <!-- TNET App-Init: Panel-Schatten, Scroll-to-Top, Bookmark Auto-Start -->
-    <script type="module" src="/maps-dev/tnet/js/tnet-app.js"></script>
+    <script type="module" src="tnet/js/tnet-app.js"></script>
 
     <!-- TNET Header: Login, Splash, Maps-Dialog, Basemap-Widget, FloatingPane-Fix -->
-    <script type="module" src="/maps-dev/tnet/js/tnet-header.js"></script>
+    <script type="module" src="tnet/js/tnet-header.js"></script>
 
     <!-- TNET Kontextmenü: Rechtsklick, Marker, Koordinaten, Routing -->
-    <script type="module" src="/maps-dev/tnet/js/tnet-context-menu.js"></script>
+    <script type="module" src="tnet/js/tnet-context-menu.js"></script>
 
     <!-- TNET Map Footer: Koordinaten, Maßstab, Copyright -->
-    <script type="module" src="/maps-dev/tnet/js/tnet-map-footer.js"></script>
+    <script type="module" src="tnet/js/tnet-map-footer.js"></script>
 
     <!-- TNET Info Panel: Buttons, Resize, Dock/Undock -->
-    <script type="module" src="/maps-dev/tnet/js/tnet-info-panel.js"></script>
-    <script type="module" src="/maps-dev/tnet/js/tnet-info-panel-default-dock.js"></script>
+    <script type="module" src="tnet/js/tnet-info-panel.js"></script>
+    <script type="module" src="tnet/js/tnet-info-panel-default-dock.js"></script>
 
 
     <!-- TNET Spatial Query: Polygon-Zeichnen, WFS/ArcGIS/geo.admin.ch Abfragen, Ergebnis-Anzeige -->
-    <script type="module" src="/maps-dev/tnet/js/tnet-spatial-query.js"></script>
+    <script type="module" src="tnet/js/tnet-spatial-query.js"></script>
 
     <!-- TNET Split-Screen: Layer-Vergleich mit geteilter Karte -->
-    <script src="/maps-dev/tnet/js/tnet-splitscreen.js"></script>
+    <script src="tnet/js/tnet-splitscreen.js"></script>
     
     <!-- TNET Split-Screen Catalog: Hierarchischer Layer-Katalog für Karte B -->
-    <script src="/maps-dev/tnet/js/tnet-splitscreen-catalog.js"></script>
+    <script src="tnet/js/tnet-splitscreen-catalog.js"></script>
 
     <!-- JSON5 Parser Library (offizielle v2.2.3 via jsDelivr CDN) -->
     <!-- define verstecken, damit JSON5 UMD-Wrapper nicht Dojos AMD-Loader stört -->
@@ -930,31 +930,31 @@
     <script>window.define = window.__define; delete window.__define;</script>
 
     <!-- TNET MapControls: Konfigurierbare Kartensteuerungs-Buttons -->
-    <script src="/maps-dev/tnet/js/tnet-mapcontrols.js"></script>
+    <script src="tnet/js/tnet-mapcontrols.js"></script>
 
     <!-- TNET Basemap: Widget UI, Grundkarten-Layer-Sync, Zeitreise -->
-    <script src="/maps-dev/tnet/js/tnet-basemap.js"></script>
+    <script src="tnet/js/tnet-basemap.js"></script>
 
     <!-- TNET Layer-Manager: Themenkatalog + Dargestellte Themen (Store, Tree, Active-Panel, Init) -->
-    <link rel="stylesheet" href="/maps-dev/tnet/css/tnet-lm.css" />
-    <link rel="stylesheet" href="/maps-dev/tnet/css/tnet-sidepanel.css" />
-    <script src="/maps-dev/tnet/js/tnet-coalesce-bridge.js" defer></script>
-    <script src="/maps-dev/tnet/js/tnet-lm-store.js" defer></script>
-    <script src="/maps-dev/tnet/js/tnet-lm-tree.js" defer></script>
-    <script src="/maps-dev/tnet/js/tnet-lm-active.js" defer></script>
-    <script src="/maps-dev/tnet/js/tnet-lm-init.js" defer></script>
+    <link rel="stylesheet" href="tnet/css/tnet-lm.css" />
+    <link rel="stylesheet" href="tnet/css/tnet-sidepanel.css" />
+    <script src="tnet/js/tnet-coalesce-bridge.js" defer></script>
+    <script src="tnet/js/tnet-lm-store.js" defer></script>
+    <script src="tnet/js/tnet-lm-tree.js" defer></script>
+    <script src="tnet/js/tnet-lm-active.js" defer></script>
+    <script src="tnet/js/tnet-lm-init.js" defer></script>
 
     <!-- TNET Accordion-Resize: Höhenverstellbare Themenkatalog/Dargestellte Themen -->
-    <script src="/maps-dev/tnet/js/tnet-accordion-resize.js" defer></script>
+    <script src="tnet/js/tnet-accordion-resize.js" defer></script>
 
     <!-- TNET Catalog-Filter: Wildcard-Suche im Themenkatalog -->
-    <script src="/maps-dev/tnet/js/tnet-catalog-filter.js" defer></script>
+    <script src="tnet/js/tnet-catalog-filter.js" defer></script>
 
     <!-- TNET 3D Landscape: Config wird lazy bei Bedarf geladen -->
-    <script src="/maps-dev/tnet/js/tnet-3d-landscape.js?v=20260211c"></script>
+    <script src="tnet/js/tnet-3d-landscape.js?v=20260211c"></script>
 
     <!-- TNET ÖREB: Grundstückabfrage, EGRID, Katasterauszug -->
-    <script type="module" src="/maps-dev/tnet/js/tnet-oereb.js"></script>
+    <script type="module" src="tnet/js/tnet-oereb.js"></script>
 
     <!-- Ergebnis-Panel für räumliche Abfrage (ausserhalb mapContainer für korrekte Pointer-Events) -->
     <div id="spatial-query-panel" class="spatial-query-panel hidden">
@@ -1008,7 +1008,7 @@
     </div>
 
     <!-- TNET Panel Drag & Resize: Verschieben und Größe ändern des Spatial Query Panels -->
-    <script type="module" src="/maps-dev/tnet/js/tnet-panel-drag-resize.js"></script>
+    <script type="module" src="tnet/js/tnet-panel-drag-resize.js"></script>
 
     <!-- WMS-Panel: Externe Kartendienste (Dojo-frei, eigenes Floating-Panel) -->
     <div id="wms-panel" class="wms-panel hidden">
@@ -1053,16 +1053,16 @@
             </div>
         </div>
     </div>
-    <script src="/maps-dev/tnet/js/tnet-wms-panel.js?v=20260306"></script>
+    <script src="tnet/js/tnet-wms-panel.js?v=20260306"></script>
 
     <!-- TNET Info-Bridge: Zentraler singleclick-Dispatcher für MapTips/GFI -->
-    <script src="/maps-dev/tnet/js/tnet-info-bridge.js?v=20260306"></script>
+    <script src="tnet/js/tnet-info-bridge.js?v=20260306"></script>
 
     <!-- Drucken / PDF-Export (Libraries werden dynamisch in tnet-print.js geladen) -->
-    <link rel="stylesheet" href="/maps-dev/tnet/css/tnet-print.css">
-    <script src="/maps-dev/tnet/js/tnet-print.js"></script>
+    <link rel="stylesheet" href="tnet/css/tnet-print.css">
+    <script src="tnet/js/tnet-print.js"></script>
 
     <!-- Desktop-Suche: search-proxy.php (Layer + Geocoder) -->
-    <script defer src="/maps-dev/tnet/js/tnet-search.js?v=20260222b"></script>
+    <script defer src="tnet/js/tnet-search.js?v=20260222b"></script>
 
 </body>

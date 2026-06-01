@@ -1,3 +1,15 @@
+## 2026-06-01 — Deploy-Workflow braucht klare JS-Ordnerrollen
+- **Symptom:** Nach PROD-Updates war unklar, ob `/maps/tnet/js` lesbare DEV-Dateien, DEV-Builds oder minifizierte PROD-Artefakte enthaelt; alte Temp-Dateien `tnet-prod-*.js` lagen im Runtime-Ordner.
+- **Root-Cause:** `js-dev` und `js` wurden gleichzeitig als Quelle, Build-Ziel und Deploy-Signal verwendet. PROD-Promotion kopierte DEV 1:1 nach `maps`, danach wurde derselbe `js`-Ordner ueberschrieben; ein lesbarer PROD-Zwischenstand fehlte.
+- **Fix:** DEV nutzt kuenftig `maps-dev/tnet/js` als direkte Original-Quelle. PROD-Promotion sichert den lesbaren Stand nach `maps/tnet/js_ori`; der PROD-Build erzeugt daraus `maps/tnet/js` und bereinigt alte `tnet-prod-*.js` Temp-Artefakte.
+- **Guardrail:** Runtime-Pfad darf gleich bleiben (`tnet/js/...`), aber die Ordnerrolle muss pro Umgebung eindeutig sein: DEV `js` = Quelle, PROD `js_ori` = lesbare Quelle, PROD `js` = Build-Artefakt.
+
+## 2026-06-01 — PROD-Templates duerfen keine absoluten DEV-Assetpfade enthalten
+- **Symptom:** Nach einem PROD-Update lud `/maps/` TNET-JS/CSS weiterhin aus `/maps-dev/tnet/...`; PROD nutzte damit nicht zuverlaessig die minifizierten/obfuskierten Assets aus `maps/tnet/js`.
+- **Root-Cause:** Die per Promotion kopierten HTML-Templates enthielten absolute `/maps-dev/tnet/...` Pfade; die nachgelagerte PHP-Transformation konnte nur kanonische `/maps/...` Pfade auf DEV umbiegen, nicht aber DEV-Pfade in PROD verhindern.
+- **Fix:** TNET-Assetreferenzen in Desktop- und Mobile-Templates auf relative `tnet/...` Pfade umgestellt und die app-root String-Transformation im Entry entfernt; der Login-Redirect verwendet nun den ermittelten App-Root.
+- **Guardrail:** Gemeinsame `maps`/`maps-dev` Templates duerfen fuer App-Assets keine absoluten `/maps` oder `/maps-dev` Pfade enthalten. Relative Pfade oder `window.__TNET_APP_ROOT` verwenden, damit DEV/PROD ohne Transform-Schritt korrekt laden.
+
 ## 2026-06-01 — Coalesce-Gruppenauge muss Root-Layer aktiv reconciliieren
 - **Symptom:** Bei Gruppen wie `Kbs (rechtskräftig)` zeigte das Gruppenauge nach EIN einen sichtbaren Zustand, aber die Objekte wurden erst dargestellt, nachdem einzelne Unterlayer aus/ein geschaltet wurden.
 - **Root-Cause:** Der Gruppenpfad aktualisierte Store/Kindzustände, aber bei Framework-kombinierten bzw. Bridge-verwalteten Coalesce-Layern wurde die tatsächliche Root-`LAYERS=show:...`-Liste nicht immer neu aufgebaut. Einzelkind-Toggles durchliefen den Register-/Show-Pfad und reparierten den Root-Layer dadurch nachträglich.

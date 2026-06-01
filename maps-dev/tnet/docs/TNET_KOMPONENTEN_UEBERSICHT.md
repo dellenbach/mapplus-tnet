@@ -26,4 +26,4 @@ Kompakte Architekturübersicht des TNET-Stacks im aktuellen Repo-Stand. Aussagen
 - Layer-Runtime: `maps/tnet/js/tnet-lm-init.js`
 - Feature-Module: `maps/tnet/js/tnet-info-panel.js`, `maps/tnet/js/tnet-search.js`, `maps/tnet/js/tnet-spatial-query.js`, `maps/tnet/js/tnet-oereb.js`
 - Proxies/API: `maps/agsproxy.php`, `maps/tnet/api/search-proxy.php`, `maps/tnet/php/active-maps-proxy.php`, `maps/tnet/api/v1/layers.php`, `maps/tnet/api/docs/openapi.yaml`
-- Deployment-Helfer: `_scripts/deployment/_upload_changed.py`, `_scripts/deployment/_upload_active_file.py`
+- Deployment-Helfer: `_scripts/deployment/deployengine/upload_changed.py`, `_scripts/deployment/deployengine/upload_active_file.py`

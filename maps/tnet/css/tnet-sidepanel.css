@@ -391,6 +391,17 @@ body.tnet-sidepanel-v2 #tp_sort_menu > .tnet-panel-content {
   overflow: hidden;
   scrollbar-width: none;
   -ms-overflow-style: none;
+  display: flex;
+  flex-direction: column;
+}
+
+body.tnet-sidepanel-v2 #tp_sort_menu > .tnet-panel-content > #sort_menu {
+  flex: 1;
+  min-height: 0;
+  max-height: none !important;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 body.tnet-sidepanel-v2 #tp_sort_menu > .tnet-panel-content::-webkit-scrollbar {
@@ -475,11 +486,10 @@ body.tnet-sidepanel-v2 .lm-container-desktop .lm-cat-content:hover::-webkit-scro
 
 /* Dargestellte Themen: dezenter Scrollbar überlagert Content */
 body.tnet-sidepanel-v2 #lm-active-container.lm-container-desktop {
+  flex: 1;
+  min-height: 0;
   overflow-y: auto !important;
   overflow-x: hidden !important;
-  min-height: 0 !important;
-  height: var(--tnet-active-height, min(300px, calc(30vh - 50px))) !important;
-  max-height: var(--tnet-active-height, min(300px, calc(30vh - 50px))) !important;
   scrollbar-width: thin;
   scrollbar-color: #95b5be transparent;
 }

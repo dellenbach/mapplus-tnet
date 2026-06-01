@@ -31,12 +31,18 @@ maps-dev/core/
 maps-dev/public/config/
 maps-dev/public/guis/
 
-# Build-Artefakte (minifizierte JS) — Quelle liegt in js-dev/
+# Build-Artefakte (minifizierte JS) — DEV-Quelle liegt in maps-dev/tnet/js/, PROD-Backup in maps/tnet/js_ori/
 maps/tnet/js/*.js
 maps/tnet/js/mobile/*.js
-maps-dev/tnet/js/*.js
-maps-dev/tnet/js/mobile/*.js
+maps/tnet/js/tnet-prod-*.js
+maps/tnet/js/mobile/tnet-prod-*.js
 
-# Lokaler Upload-State (mtime-Tracking)
-_scripts/deployment/upload_state.json
-_scripts/deployment/upload_state.*.json
+# Lokaler Upload-State (mtime/sha256-Tracking)
+_scripts/deployment/deployengine/upload_state.json
+_scripts/deployment/deployengine/upload_state.*.json
+_scripts/build/build_state.*.json
+_scripts/tools/*.jar
+
+# Lokale Arbeits- und Cookie-Artefakte
+edit/
+redirect-cookies.txt

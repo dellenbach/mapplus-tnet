@@ -436,10 +436,10 @@ Backups werden unter `/data/tmp/deploy-backups/<kürzel>/<timestamp>/` angelegt.
 
 ```bash
 # 1. Geänderte Dateien nach DEV hochladen
-py _scripts/deployment/_upload_changed.py --env dev
+py _scripts/deployment/deployengine/upload_changed.py --env dev
 
 # Alternative: aktive Einzeldatei hochladen
-py _scripts/deployment/_upload_active_file.py --env dev <datei>
+py _scripts/deployment/deployengine/upload_active_file.py --env dev <datei>
 
 # 3. Hard-Reload im Browser (Ctrl+Shift+R)
 ```
@@ -459,11 +459,11 @@ Remote: /www/maps/tnet/js/tnet-basemap.js
 
 | Skript | Zweck |
 |---|---|
-| `_scripts/deployment/_upload_changed.py` | Geänderte Dateien fuer DEV oder PROD hochladen |
-| `_scripts/deployment/_upload_active_file.py` | Einzelne aktive Datei fuer DEV oder PROD hochladen |
-| `_scripts/deployment/_promote_dev_to_prod.py` | DEV nach PROD promoten und optional deployen |
-| `_scripts/deployment/_upload_all_js.py` | JS-Build-Artefakte gezielt hochladen |
-| `_scripts/deployment/deploy_env.py` | DEV/PROD-Pfade und Deploy-Konfiguration |
+| `_scripts/deployment/deployengine/upload_changed.py` | Geänderte Dateien fuer DEV oder PROD hochladen |
+| `_scripts/deployment/deployengine/upload_active_file.py` | Einzelne aktive Datei fuer DEV oder PROD hochladen |
+| `_scripts/deployment/deployengine/promote_dev_to_prod.py` | DEV nach PROD promoten und optional deployen |
+| `_scripts/legacy/_upload_all_js.py` | JS-Build-Artefakte gezielt hochladen |
+| `_scripts/deployment/deployengine/deploy_env.py` | DEV/PROD-Pfade und Deploy-Konfiguration |
 
 ### Build-Helfer
 
@@ -498,10 +498,10 @@ In `.vscode/tasks.json` sind folgende Aufgaben definiert:
 
 | Task | Beschreibung |
 |---|---|
-| `Deploy DEV: Upload Changed Files` | Führt `_scripts/deployment/_upload_changed.py --env dev` aus |
-| `Deploy PROD: Upload Changed Files` | Führt `_scripts/deployment/_upload_changed.py --env prod` aus |
-| `Deploy DEV: Upload Active File` | Führt `_scripts/deployment/_upload_active_file.py --env dev` aus |
-| `Release: Promote DEV to PROD` | Führt `_scripts/deployment/_promote_dev_to_prod.py` aus |
+| `Deploy DEV: Upload Changed Files` | Führt `_scripts/deployment/deployengine/upload_changed.py --env dev` aus |
+| `Deploy PROD: Upload Changed Files` | Führt `_scripts/deployment/deployengine/upload_changed.py --env prod` aus |
+| `Deploy DEV: Upload Active File` | Führt `_scripts/deployment/deployengine/upload_active_file.py --env dev` aus |
+| `Release: Promote DEV to PROD` | Führt `_scripts/deployment/deployengine/promote_dev_to_prod.py` aus |
 | `Deploy DEV/PROD: LyrMgr Patch` | Führt `_scripts/_upload_lyrmgr_patch.py` aus |
 
 ### Nach Upload

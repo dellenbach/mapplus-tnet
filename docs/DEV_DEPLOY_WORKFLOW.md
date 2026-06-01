@@ -67,10 +67,10 @@ Geteilte Betriebs- und Deploy-Skripte.
 
 Aenderungen hier betreffen den Workflow selbst, nicht nur die Anwendung. Besonders wichtig sind:
 
-- `_scripts/deployment/deploy_env.py`
-- `_scripts/deployment/_upload_changed.py`
-- `_scripts/deployment/_upload_active_file.py`
-- `_scripts/deployment/_promote_dev_to_prod.py`
+- `_scripts/deployment/deployengine/deploy_env.py`
+- `_scripts/deployment/deployengine/upload_changed.py`
+- `_scripts/deployment/deployengine/upload_active_file.py`
+- `_scripts/deployment/deployengine/promote_dev_to_prod.py`
 - `_scripts/_build_js.py`
 
 ## Kuenftiges Editieren
@@ -191,7 +191,7 @@ VS-Code-Task:
 CLI:
 
 ```powershell
-& "C:/Program Files/Python313/python.exe" _scripts/deployment/_upload_changed.py --env dev
+& "C:/Program Files/Python313/python.exe" _scripts/deployment/deployengine/upload_changed.py --env dev
 ```
 
 ### Standardfall: einzelne Datei
@@ -202,12 +202,12 @@ VS-Code-Task:
 
 Batch-Wrapper:
 
-- `_scripts/deploy-dev/deploy-active-file.bat <datei>`
+- `_scripts/deployment/deploy-dev/deploy-active-file.bat <datei>`
 
 CLI:
 
 ```powershell
-& "C:/Program Files/Python313/python.exe" _scripts/deployment/_upload_active_file.py --env dev <datei>
+& "C:/Program Files/Python313/python.exe" _scripts/deployment/deployengine/upload_active_file.py --env dev <datei>
 ```
 
 Diese Variante ist die sicherste, wenn gezielt nur ein Fix auf DEV aktualisiert werden soll.
@@ -220,7 +220,7 @@ VS-Code-Task:
 
 Batch-Wrapper:
 
-- `_scripts/deploy-prod/deploy-active-file.bat <datei>`
+- `_scripts/deployment/deploy-prod/deploy-active-file.bat <datei>`
 
 Wichtig:
 
@@ -242,7 +242,7 @@ Beispiele:
 Wenn solche Dateien bewusst deployt werden sollen, muss das explizit freigegeben werden:
 
 ```powershell
-& "C:/Program Files/Python313/python.exe" _scripts/deployment/_upload_changed.py --env dev --allow-config --reason "kurze Begruendung"
+& "C:/Program Files/Python313/python.exe" _scripts/deployment/deployengine/upload_changed.py --env dev --allow-config --reason "kurze Begruendung"
 ```
 
 Guardrail:
@@ -270,7 +270,7 @@ Das gilt fuer:
 - `_upload_changed.py`
 - `_upload_active_file.py`
 
-Fuer GitHub-/Release-Commits kann `_scripts/deploy-prod/git-commit.bat` vor dem Staging den lokalen Abgleich `maps-dev -> maps` anstossen, damit beide Baeume vor dem Commit konsistent sind.
+Fuer GitHub-/Release-Commits kann `_scripts/deployment/deploy-prod/git-commit.bat` vor dem Staging den lokalen Abgleich `maps-dev -> maps` anstossen, damit beide Baeume vor dem Commit konsistent sind.
 
 Wenn ein JS-Fix nicht auf dem Server ankommt, zuerst pruefen:
 
@@ -350,7 +350,7 @@ VS-Code-Task:
 CLI:
 
 ```powershell
-& "C:/Program Files/Python313/python.exe" _scripts/deployment/_promote_dev_to_prod.py --dry-run --deploy-prod
+& "C:/Program Files/Python313/python.exe" _scripts/deployment/deployengine/promote_dev_to_prod.py --dry-run --deploy-prod
 ```
 
 Verwendung:
@@ -367,7 +367,7 @@ VS-Code-Task:
 CLI:
 
 ```powershell
-& "C:/Program Files/Python313/python.exe" _scripts/deployment/_promote_dev_to_prod.py --deploy-prod
+& "C:/Program Files/Python313/python.exe" _scripts/deployment/deployengine/promote_dev_to_prod.py --deploy-prod
 ```
 
 ### 4. Optional: separater PROD-Deploy
@@ -379,7 +379,7 @@ Wenn `maps/` bereits lokal aktuell ist:
 CLI:
 
 ```powershell
-& "C:/Program Files/Python313/python.exe" _scripts/deployment/_upload_changed.py --env prod
+& "C:/Program Files/Python313/python.exe" _scripts/deployment/deployengine/upload_changed.py --env prod
 ```
 
 ## GitHub-Workflow
@@ -558,9 +558,9 @@ Moegliche Ursachen:
 - `.github/ISSUE_TEMPLATE/feature_request.md`
 - `.github/workflows/tnet-tests.yml`
 - `.vscode/tasks.json`
-- `_scripts/deployment/deploy_env.py`
-- `_scripts/deployment/_upload_changed.py`
-- `_scripts/deployment/_upload_active_file.py`
-- `_scripts/deployment/_promote_dev_to_prod.py`
+- `_scripts/deployment/deployengine/deploy_env.py`
+- `_scripts/deployment/deployengine/upload_changed.py`
+- `_scripts/deployment/deployengine/upload_active_file.py`
+- `_scripts/deployment/deployengine/promote_dev_to_prod.py`
 - `_scripts/_build_js.py`
 - `docs/ai-lessons-learned.md`
