@@ -32,6 +32,12 @@
   var _bmLoadedRecently = false; // Schonfrist nach tnet-bookmark-loaded (Store noch nicht synchron)
   var _bmLoadTimer = null;
 
+  // ── Render-Debounce ──
+  // Viele active-layers-changed-Events (Bookmark-Load, Massen-Toggles) wuerden
+  // sonst je einen vollstaendigen innerHTML-Rebuild ausloesen → Flicker + 70+
+  // [LM-Active] render. Wir koaleszieren alle Renders eines Frames zu einem.
+  var _renderRaf = null;
+
   // SVG-Icons — geladen via TnetIcons (externe .svg Dateien)
   // Werden in _initIcons() befüllt nachdem TnetIcons.loadAll() abgeschlossen ist
   var ICON = {};
@@ -244,9 +250,10 @@
         return;
       }
 
-      _unlisteners.push(store.on('active-layers-changed', this.render.bind(this)));
+      _unlisteners.push(store.on('active-layers-changed', this._scheduleRender.bind(this)));
       _unlisteners.push(store.on('layer-visibility', this._onVisibility.bind(this)));
       _unlisteners.push(store.on('layer-opacity', this._onOpacity.bind(this)));
+      _unlisteners.push(store.on('layer-loading', this._scheduleRender.bind(this)));
 
       var self = this;
       var rerenderAndFocus = function () {
@@ -279,6 +286,11 @@
     },
 
     destroy: function () {
+      if (_renderRaf) {
+        if (typeof cancelAnimationFrame === 'function') cancelAnimationFrame(_renderRaf);
+        else clearTimeout(_renderRaf);
+        _renderRaf = null;
+      }
       _unlisteners.forEach(function (fn) { fn(); });
       _unlisteners = [];
       if (_container) _container.innerHTML = '';
@@ -287,6 +299,24 @@
     // ============================================================
     // Render
     // ============================================================
+
+    /**
+     * Koalesziert mehrere active-layers-changed-Events eines Frames zu
+     * einem einzigen render(). Verhindert Flicker beim Bookmark-Load.
+     * Liest beim Flush immer den aktuellen Store-Zustand.
+     */
+    _scheduleRender: function () {
+      if (_renderRaf) return;
+      var self = this;
+      var flush = function () {
+        _renderRaf = null;
+        var store = window.TnetLMStore;
+        self.render(store ? store.getActiveLayers() : []);
+      };
+      _renderRaf = (typeof requestAnimationFrame === 'function')
+        ? requestAnimationFrame(flush)
+        : setTimeout(flush, 16);
+    },
 
     render: function (layers) {
       if (!_container) {
@@ -417,16 +447,28 @@
     _renderStandalone: function (l) {
       var eyeIcon = l.visible ? ICON.eyeOn : ICON.eyeOff;
       var eyeCls = l.visible ? 'lm-eye' : 'lm-eye lm-eye-off';
+      var itemCls = 'lm-active-item';
+      var statusHtml = '';
+      if (l.loading) {
+        eyeCls += ' lm-eye-loading';
+        itemCls += ' lm-layer-loading';
+        statusHtml = '<span class="lm-layer-status">' + esc(l.loadingMessage || 'lädt...') + '</span>';
+      } else if (l.loadingError) {
+        itemCls += ' lm-layer-error';
+        statusHtml = '<span class="lm-layer-status">' + esc(l.loadingMessage || 'Fehler') + '</span>';
+      }
+      if (l.loadingSlow) itemCls += ' lm-layer-slow';
       var opacity = (l.opacity !== undefined && l.opacity !== null) ? l.opacity : 1;
       var opacityPct = Math.round(opacity * 100);
 
-      var html = '<li class="lm-active-item" data-layer-id="' + esc(l.id) + '">';
+      var html = '<li class="' + itemCls + '" data-layer-id="' + esc(l.id) + '">';
 
       // Kopfzeile: Drag-Handle | Auge | Name | Legende | X
       html += '<div class="lm-active-row">';
       html += '<div class="lm-drag-handle" data-action="drag" title="Verschieben">' + ICON.drag + '</div>';
       html += '<button class="' + eyeCls + '" data-action="eye" title="Sichtbarkeit">' + eyeIcon + '</button>';
       html += '<span class="lm-active-name">' + esc(l.name) + '</span>';
+      html += statusHtml;
 
       // Legende-Button
       if (this._hasLegend(l)) {
@@ -458,22 +500,45 @@
       var expanded = (_groupExpanded[groupId] !== undefined) ? _groupExpanded[groupId] : false;
       var expandCls = expanded ? '' : ' lm-collapsed';
 
-      // Mittlere Opazität der Kinder berechnen
+      // Mittlere Opazität der Kinder berechnen + Sichtbarkeits-Zustand
       var totalOpacity = 0;
       var anyVisible = false;
+      var allVisible = entry.children.length > 0;
+      var anyLoading = false;
+      var anyLoadingSlow = false;
+      var anyLoadingError = false;
       for (var i = 0; i < entry.children.length; i++) {
         var c = entry.children[i];
         totalOpacity += (c.opacity !== undefined && c.opacity !== null) ? c.opacity : 1;
         if (c.visible !== false) anyVisible = true;
+        else allVisible = false;
+        if (c.loading) anyLoading = true;
+        if (c.loadingSlow) anyLoadingSlow = true;
+        if (c.loadingError) anyLoadingError = true;
       }
       var avgOpacity = entry.children.length > 0 ? totalOpacity / entry.children.length : 1;
       var opacityPct = Math.round(avgOpacity * 100);
 
+      // Teil-Sichtbarkeit: einige (aber nicht alle) Sublayer sichtbar → Auge heller.
+      var partialVisible = anyVisible && !allVisible;
       var eyeIcon = anyVisible ? ICON.eyeOn : ICON.eyeOff;
-      var eyeCls = anyVisible ? 'lm-eye' : 'lm-eye lm-eye-off';
+      var eyeCls = 'lm-eye';
+      if (!anyVisible) eyeCls += ' lm-eye-off';
+      else if (partialVisible) eyeCls += ' lm-eye-partial';
+      if (anyLoading) eyeCls += ' lm-eye-loading';
       var expandIcon = expanded ? ICON.collapse : ICON.expand;
+      var groupCls = 'lm-active-group' + expandCls;
+      var groupStatusHtml = '';
+      if (anyLoading) {
+        groupCls += ' lm-layer-loading';
+        if (anyLoadingSlow) groupCls += ' lm-layer-slow';
+        groupStatusHtml = '<span class="lm-layer-status">' + (anyLoadingSlow ? 'lädt noch...' : 'lädt...') + '</span>';
+      } else if (anyLoadingError) {
+        groupCls += ' lm-layer-error';
+        groupStatusHtml = '<span class="lm-layer-status">Fehler</span>';
+      }
 
-      var html = '<li class="lm-active-group' + expandCls + '" data-group-id="' + esc(groupId) + '">';
+      var html = '<li class="' + groupCls + '" data-group-id="' + esc(groupId) + '">';
 
       // Gruppen-Header
       html += '<div class="lm-active-group-header">';
@@ -481,6 +546,7 @@
       html += '<button class="' + eyeCls + '" data-action="group-eye" title="Gruppe ein/aus">' + eyeIcon + '</button>';
       html += '<span class="lm-active-group-icon">' + ICON.group + '</span>';
       html += '<span class="lm-active-group-name">' + esc(entry.groupName) + '</span>';
+      html += groupStatusHtml;
       // Legende-Button (Dienst-URL vorhanden)
       if (entry.serviceUrl) {
         html += '<button class="lm-btn-legend" data-action="group-legend" title="Legende anzeigen">' + ICON.legend + '</button>';
@@ -514,10 +580,22 @@
     _renderGroupChild: function (l) {
       var eyeIcon = l.visible ? ICON.eyeOn : ICON.eyeOff;
       var eyeCls = l.visible ? 'lm-eye' : 'lm-eye lm-eye-off';
+      var childCls = 'lm-active-group-child';
+      var statusHtml = '';
+      if (l.loading) {
+        eyeCls += ' lm-eye-loading';
+        childCls += ' lm-layer-loading';
+        if (l.loadingSlow) childCls += ' lm-layer-slow';
+        statusHtml = '<span class="lm-layer-status">' + esc(l.loadingMessage || 'lädt...') + '</span>';
+      } else if (l.loadingError) {
+        childCls += ' lm-layer-error';
+        statusHtml = '<span class="lm-layer-status">' + esc(l.loadingMessage || 'Fehler') + '</span>';
+      }
 
-      var html = '<li class="lm-active-group-child" data-layer-id="' + esc(l.id) + '">';
+      var html = '<li class="' + childCls + '" data-layer-id="' + esc(l.id) + '">';
       html += '<button class="' + eyeCls + '" data-action="child-eye" title="Sichtbarkeit">' + eyeIcon + '</button>';
       html += '<span class="lm-active-name">' + esc(l.name) + '</span>';
+      html += statusHtml;
       html += '</li>';
       return html;
     },

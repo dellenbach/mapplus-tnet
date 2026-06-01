@@ -59,6 +59,115 @@
     }
   }
 
+  function _forEachMapLayer(collection, callback) {
+    if (!collection || typeof collection.forEach !== 'function') return;
+    collection.forEach(function (layer) {
+      if (!layer) return;
+      if (layer.getLayers && typeof layer.getLayers === 'function') {
+        _forEachMapLayer(layer.getLayers(), callback);
+        return;
+      }
+      callback(layer);
+    });
+  }
+
+  function _getLayerName(layer) {
+    return layer && typeof layer.get === 'function' ? (layer.get('name') || '') : '';
+  }
+
+  function _getLayerParams(layer) {
+    var src = layer && typeof layer.getSource === 'function' ? layer.getSource() : null;
+    return src && typeof src.getParams === 'function' ? src.getParams() : null;
+  }
+
+  function _findMapTipLayer(map, linkedLayerId, queryLayers) {
+    var exact = null;
+    var host = null;
+    var servicePrefix = linkedLayerId && linkedLayerId.lastIndexOf('/') > 0
+      ? linkedLayerId.substring(0, linkedLayerId.lastIndexOf('/') + 1)
+      : '';
+    var queryNum = queryLayers != null ? String(queryLayers).split(',')[0] : '';
+
+    _forEachMapLayer(map.getLayers(), function (layer) {
+      if (exact) return;
+      var name = _getLayerName(layer);
+      if (name === linkedLayerId) {
+        exact = layer;
+        return;
+      }
+      if (!host && servicePrefix && name.indexOf(servicePrefix) === 0) {
+        var params = _getLayerParams(layer);
+        var layersParam = params && (params.LAYERS || params.layers) || '';
+        if (!queryNum || layersParam.indexOf('show:' + queryNum) >= 0 || layersParam.indexOf(',' + queryNum) >= 0 || layersParam.indexOf('show:') === 0) {
+          host = layer;
+        }
+      }
+    });
+
+    return exact || host;
+  }
+
+  function _isMapTipVisible(mt, map) {
+    var linkedLayerId = mt.linked_layer_id || mt.linked_layer || '';
+    if (!linkedLayerId) return false;
+
+    var store = window.TnetLMStore;
+    if (store && typeof store.isRenderableLayerId === 'function' && store.isRenderableLayerId(linkedLayerId) &&
+        typeof store.isLayerEffectivelyVisible === 'function') {
+      return !!store.isLayerEffectivelyVisible(linkedLayerId);
+    }
+
+    var olLayer = mt.wms_layer || _findMapTipLayer(map, linkedLayerId, mt.query_layers);
+    if (olLayer && typeof olLayer.getVisible === 'function') return !!olLayer.getVisible();
+
+    try {
+      var fwLayer = njs.AppManager.getLayerByMap(mt.idmap || MAP_ID, linkedLayerId);
+      if (fwLayer && fwLayer._lyr && fwLayer._lyr.getVisible) return !!fwLayer._lyr.getVisible();
+    } catch (e) { /* ignore */ }
+
+    return false;
+  }
+
+  function _syncMapTipsBeforeDispatch(map) {
+    var am = _getAm();
+    if (!am || !am.MapTips || !am.wmsActiveLyrs || !map) return;
+
+    if (typeof window.TnetSyncMapTips === 'function') {
+      try { window.TnetSyncMapTips(); } catch (eSync) { _warn('TnetSyncMapTips vor Info-Abfrage fehlgeschlagen:', eSync.message); }
+    }
+
+    var activated = 0;
+    var deactivated = 0;
+    for (var mtId in am.MapTips) {
+      if (!am.MapTips.hasOwnProperty(mtId)) continue;
+      if (mtId === '_wms_connector' || mtId === GATE_KEY) continue;
+
+      var mt = am.MapTips[mtId];
+      if (!mt) continue;
+      if (!mt.linked_layer_id && mt.linked_layer) mt.linked_layer_id = mt.linked_layer;
+      if (!mt.linked_layer_id) continue;
+
+      var shouldBeActive = _isMapTipVisible(mt, map);
+      if (shouldBeActive) {
+        var hostLayer = mt.wms_layer || _findMapTipLayer(map, mt.linked_layer_id, mt.query_layers);
+        if (hostLayer && !mt.wms_layer && !mt.url) mt.wms_layer = hostLayer;
+        if (!mt.active) {
+          am.wmsActiveLyrs.push(mt);
+          mt.active = true;
+          activated++;
+        }
+      } else if (mt.active) {
+        am.wmsActiveLyrs.remove(mt);
+        mt.active = false;
+        deactivated++;
+      }
+    }
+
+    if (window.TNET_DEBUG_INFO && (activated || deactivated)) {
+      console.log('[InfoBridge DEBUG] MapTips sync vor Dispatch: +' + activated + ' -' + deactivated);
+    }
+  }
+
   // ===== FRAMEWORK-HANDLER MANAGEMENT =====
 
   /**
@@ -420,6 +529,12 @@
     } catch (e) {
       _warn('prepareInfoRequest Fehler:', e);
     }
+
+    // Direkt vor dem Dispatch mit dem effektiven Karteninhalt synchronisieren.
+    // wmsActiveLyrs ist Framework-State und kann nach Coalesce-/Store-Toggles
+    // stale sein: ausgeschaltete Layer bleiben aktiv oder sichtbare Sublayer
+    // fehlen. Die Info-Abfrage darf nur sichtbare Runtime-Layer verwenden.
+    _syncMapTipsBeforeDispatch(map);
 
     // ── Adapter dispatchen ──
     var mapPlusCount = _adapterMapPlus(evt);

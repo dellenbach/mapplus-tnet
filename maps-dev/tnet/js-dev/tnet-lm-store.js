@@ -25,6 +25,7 @@
   var _loaded = false;
   var _suppressMapSync = false; // Guard gegen Endlosschleifen Store↔Map
   var _catalogLayerIndex = {};  // { layerId: true } für performante Katalog-Lookups
+  var _loadingTimers = {};      // { layerId: { slow, timeout, clearError, keys } }
 
   // Coalesce: Gruppen-Index (groupNodeId → Info) und Reverse-Lookup (layerId → groupNodeId)
   var _coalesceIndex = {};     // { groupId: { serviceUrl, coalesceGroup, name, childIds: [] } }
@@ -836,6 +837,7 @@
           childId = info.childIds[i];
           if (currentState[childId]) this._setCoalesceChildVisible(childId, false);
         }
+        this._forceCoalesceGroupRender(groupId);
         TnetLog.log(LOG, 'toggleCoalesceGroupEye AUS (Snapshot gemerkt):', groupId);
       } else {
         // → Gruppe EIN: gemerkten Subset wiederherstellen; ohne Snapshot alle ein.
@@ -845,9 +847,91 @@
           var target = snap ? (snap[childId] === true) : true;
           if (target) this._setCoalesceChildVisible(childId, true);
         }
+        this._forceCoalesceGroupRender(groupId);
         TnetLog.log(LOG, 'toggleCoalesceGroupEye EIN (' + (snap ? 'Snapshot' : 'alle') + '):', groupId);
       }
       this._emit('active-layers-changed', _activeLayers);
+    },
+
+    _forceCoalesceGroupRender: function (groupId, retryDone) {
+      var info = _coalesceIndex[groupId];
+      if (!info || !info.childIds || !info.childIds.length) return;
+
+      var visiblePairs = [];
+      var servicePrefix = null;
+      for (var index = 0; index < info.childIds.length; index++) {
+        var childId = info.childIds[index];
+        var layer = this.findLayer(childId);
+        var activeEntry = this._findActiveLayer(childId);
+        var isVisible = activeEntry ? (activeEntry.visible !== false) : (layer ? layer.visible !== false : false);
+        if (!servicePrefix) servicePrefix = childId.substring(0, childId.lastIndexOf('/') + 1);
+        if (!isVisible || !layer) {
+          if (window.TnetCoalesceBridge && typeof window.TnetCoalesceBridge.hideSublayer === 'function') {
+            try { window.TnetCoalesceBridge.hideSublayer(childId); } catch (eHide) { /* ignore */ }
+          }
+          continue;
+        }
+        var subNum = this._extractSublayerNum(layer);
+        if (subNum === null) continue;
+        visiblePairs.push({ id: childId, num: subNum, order: index, layer: layer });
+
+        if (window.TnetCoalesceBridge && typeof window.TnetCoalesceBridge.registerSublayer === 'function') {
+          try { window.TnetCoalesceBridge.registerSublayer(childId, subNum); } catch (eReg) { /* ignore */ }
+        }
+        if (window.TnetCoalesceBridge && typeof window.TnetCoalesceBridge.showSublayer === 'function') {
+          try { window.TnetCoalesceBridge.showSublayer(childId, subNum); } catch (eShow) { /* ignore */ }
+        }
+      }
+
+      var cEntry = _coalesceOLLayers[groupId];
+      if (cEntry) {
+        cEntry.activeSublayers = {};
+        for (var pairIndex = 0; pairIndex < visiblePairs.length; pairIndex++) {
+          cEntry.activeSublayers[visiblePairs[pairIndex].id] = visiblePairs[pairIndex].num;
+        }
+      }
+
+      var am = this._getAppManager();
+      var map = am && am.Maps && am.Maps['main'] && am.Maps['main'].mapObj;
+      if (!map || !servicePrefix) return;
+
+      var renderLayer = null;
+      for (var bridgeIndex = 0; bridgeIndex < visiblePairs.length && !renderLayer; bridgeIndex++) {
+        if (window.TnetCoalesceBridge && typeof window.TnetCoalesceBridge.getOLLayerForSublayer === 'function') {
+          renderLayer = window.TnetCoalesceBridge.getOLLayerForSublayer(visiblePairs[bridgeIndex].id);
+        }
+      }
+      if (!renderLayer) {
+        map.getLayers().forEach(function (olLayer) {
+          if (renderLayer || !olLayer) return;
+          if (olLayer.getLayers && typeof olLayer.getLayers === 'function') return;
+          var name = (typeof olLayer.get === 'function' ? olLayer.get('name') : '') || '';
+          if (name.indexOf(servicePrefix) !== 0) return;
+          var src = typeof olLayer.getSource === 'function' ? olLayer.getSource() : null;
+          var params = src && typeof src.getParams === 'function' ? src.getParams() : null;
+          var layersParam = params && (params.LAYERS || params.layers) || '';
+          if (typeof layersParam === 'string' && layersParam.indexOf('show:') === 0) renderLayer = olLayer;
+        });
+      }
+
+      if (!renderLayer) {
+        if (!retryDone && visiblePairs.length && typeof TnetLayerSwitch === 'function') {
+          try { TnetLayerSwitch(visiblePairs[0].id, 'on'); } catch (eSwitch) { /* ignore */ }
+          var self = this;
+          setTimeout(function () { self._forceCoalesceGroupRender(groupId, true); }, 500);
+        }
+        return;
+      }
+
+      visiblePairs.sort(function (left, right) { return left.order - right.order; });
+      var nums = visiblePairs.map(function (pair) { return pair.num; });
+      var layersVal = nums.length ? ('show:' + nums.join(',')) : 'show:-1';
+      var source = typeof renderLayer.getSource === 'function' ? renderLayer.getSource() : null;
+      if (source && typeof source.updateParams === 'function') source.updateParams({ LAYERS: layersVal });
+      if (typeof renderLayer.setVisible === 'function') renderLayer.setVisible(nums.length > 0);
+      if (nums.length && visiblePairs[0]) this._beginLayerLoading(visiblePairs[0].id, renderLayer);
+
+      TnetLog.log(LOG, 'Coalesce Gruppen-Render reconciled:', groupId, '→', layersVal);
     },
 
     /**
@@ -1084,6 +1168,7 @@
         if (this._setFrameworkCombinedSublayer(layerId, layer, fwWant)) {
           layer.visible = fwWant;
           if (activeEntry) activeEntry.visible = fwWant;
+          if (!fwWant) this._endLayerLoading(layerId, false);
           this._emit('layer-visibility', { id: layerId, visible: fwWant, source: 'ui' });
           this._emit('active-layers-changed', _activeLayers);
           TnetLog.log(LOG, 'toggleLayerEye Coalesce via Framework-Combined:', layerId, '→', fwWant);
@@ -1113,6 +1198,7 @@
           if (layer && this._setFrameworkCombinedSublayer(layerId, layer, fbWant)) {
             layer.visible = fbWant;
             if (activeEntry) activeEntry.visible = fbWant;
+            if (!fbWant) this._endLayerLoading(layerId, false);
             this._emit('layer-visibility', { id: layerId, visible: fbWant, source: 'ui' });
             this._emit('active-layers-changed', _activeLayers);
             TnetLog.log(LOG, 'toggleLayerEye Fallback (Framework-Combined):', layerId, '→', fbWant);
@@ -1148,6 +1234,8 @@
           }
           layer.visible = fbWant;
           if (activeEntry) activeEntry.visible = fbWant;
+          if (fbWant) this._beginLayerLoading(layerId, olFb || this._findRenderableOLLayerForLayer(layerId, layer));
+          else this._endLayerLoading(layerId, false);
           this._emit('layer-visibility', { id: layerId, visible: fbWant, source: 'ui' });
           this._emit('active-layers-changed', _activeLayers);
           TnetLog.log(LOG, 'toggleLayerEye Fallback (Framework-OL-Layer):', layerId, '→', fbWant, olFb ? '(geladen)' : '(LazyLoad)');
@@ -1156,6 +1244,8 @@
         if (!cEntry.bridgeManaged && !cEntry.olLayer) return;
         var currentlyVisible = (activeEntry && activeEntry.visible !== false);
         var newVisible = !currentlyVisible;
+        if (newVisible) this._beginLayerLoading(layerId, cEntry.olLayer || this._findRenderableOLLayerForLayer(layerId, layer));
+        else this._endLayerLoading(layerId, false);
         _suppressMapSync = true;
         if (cEntry.bridgeManaged) {
           // ── Bridge v2: über Root-Dienst steuern ──
@@ -1215,6 +1305,7 @@
       if (layer && this._setFrameworkCombinedSublayer(layerId, layer, !_combinedCur)) {
         if (layer) layer.visible = !_combinedCur;
         if (activeEntry) activeEntry.visible = !_combinedCur;
+        if (_combinedCur) this._endLayerLoading(layerId, false);
         this._emit('layer-visibility', { id: layerId, visible: !_combinedCur, source: 'ui' });
         this._emit('active-layers-changed', _activeLayers);
         TnetLog.log(LOG, 'toggleLayerEye Combined-Sublayer:', layerId, '→', !_combinedCur);
@@ -1263,6 +1354,8 @@
 
         if (layer) layer.visible = newVisible;
         if (activeEntry) activeEntry.visible = newVisible;
+        if (newVisible) this._beginLayerLoading(layerId, olLayer);
+        else this._endLayerLoading(layerId, false);
         this._emit('layer-visibility', { id: layerId, visible: newVisible, source: 'ui' });
         this._emit('active-layers-changed', _activeLayers);
       } else {
@@ -1278,6 +1371,8 @@
 
           if (layer) layer.visible = newVisible;
           if (activeEntry) activeEntry.visible = newVisible;
+          if (newVisible) this._beginLayerLoading(layerId, this._findRenderableOLLayerForLayer(layerId, layer));
+          else this._endLayerLoading(layerId, false);
           this._emit('layer-visibility', { id: layerId, visible: newVisible, source: 'ui' });
           this._emit('active-layers-changed', _activeLayers);
         } else {
@@ -1352,6 +1447,8 @@
         if (exList.length <= 1 && (exList.length === 0 || exList[0] === subStr)) {
           // Dedizierter Einzel-Sublayer-Layer → direkt schalten
           _suppressMapSync = true;
+          if (shouldBeVisible) this._beginLayerLoading(layerId, exact.layer);
+          else this._endLayerLoading(layerId, false);
           exact.layer.setVisible(!!shouldBeVisible);
           setTimeout(function () { _suppressMapSync = false; }, 200);
           return true;
@@ -1402,6 +1499,8 @@
         if (entry.layer.getVisible()) entry.layer.setVisible(false);
       } else {
         var newLayers = 'show:' + nums.join(',');
+        if (shouldBeVisible) this._beginLayerLoading(layerId, entry.layer);
+        else this._endLayerLoading(layerId, false);
         if (curLayers !== newLayers) entry.src.updateParams({ LAYERS: newLayers });
         if (!entry.layer.getVisible()) entry.layer.setVisible(true);
       }
@@ -1431,6 +1530,7 @@
       if (layer && this._setFrameworkCombinedSublayer(layerId, layer, visible)) {
         if (layer) layer.visible = visible;
         if (activeEntry) activeEntry.visible = visible;
+        if (!visible) this._endLayerLoading(layerId, false);
         this._emit('layer-visibility', { id: layerId, visible: visible, source: 'set' });
         this._emit('active-layers-changed', _activeLayers);
         return true;
@@ -1453,6 +1553,7 @@
           setTimeout(function () { _suppressMapSync = false; }, 200);
           if (layer) layer.visible = true;
           if (activeEntry) activeEntry.visible = true;
+          this._beginLayerLoading(layerId, null);
           // Opacity nach dem (ggf. async) Layer-Aufbau nachziehen
           setTimeout(function () {
             var m2 = selfLazy._getAppManager();
@@ -1490,6 +1591,8 @@
         setTimeout(function () { _suppressMapSync = false; }, 200);
         if (layer) layer.visible = visible;
         if (activeEntry) activeEntry.visible = visible;
+        if (visible) this._beginLayerLoading(layerId, olLayer);
+        else this._endLayerLoading(layerId, false);
         this._emit('layer-visibility', { id: layerId, visible: visible, source: 'set' });
         this._emit('active-layers-changed', _activeLayers);
         return true;
@@ -2079,6 +2182,159 @@
       (_listeners[event] || []).forEach(function (cb) {
         try { cb(data); } catch (e) { TnetLog.error(LOG, event, e); }
       });
+    },
+
+    _clearLayerLoadingTimers: function (layerId) {
+      var timers = _loadingTimers[layerId];
+      if (!timers) return;
+      if (timers.slow) clearTimeout(timers.slow);
+      if (timers.timeout) clearTimeout(timers.timeout);
+      if (timers.retry) clearTimeout(timers.retry);
+      if (timers.settle) clearTimeout(timers.settle);
+      if (timers.delayedError) clearTimeout(timers.delayedError);
+      if (timers.clearError) clearTimeout(timers.clearError);
+      if (timers.keys && window.ol && ol.Observable && typeof ol.Observable.unByKey === 'function') {
+        for (var i = 0; i < timers.keys.length; i++) {
+          try { ol.Observable.unByKey(timers.keys[i]); } catch (eKey) { /* ignore */ }
+        }
+      }
+      delete _loadingTimers[layerId];
+    },
+
+    _setLayerLoadingState: function (layerId, state) {
+      var activeEntry = this._findActiveLayer(layerId);
+      var layer = this.findLayer(layerId);
+      var target = activeEntry || layer;
+      if (!target) return;
+
+      target.loading = !!state.loading;
+      target.loadingSlow = !!state.loadingSlow;
+      target.loadingError = !!state.loadingError;
+      target.loadingMessage = state.message || '';
+      if (activeEntry && layer && activeEntry !== layer) {
+        layer.loading = target.loading;
+        layer.loadingSlow = target.loadingSlow;
+        layer.loadingError = target.loadingError;
+        layer.loadingMessage = target.loadingMessage;
+      }
+      this._emit('layer-loading', { id: layerId, state: state });
+      this._emit('active-layers-changed', _activeLayers);
+    },
+
+    _beginLayerLoading: function (layerId, olLayer, retryDone) {
+      var self = this;
+      var source = olLayer && typeof olLayer.getSource === 'function' ? olLayer.getSource() : null;
+      var timers = { keys: [], pending: 0, successes: 0, errors: 0, finished: false };
+
+      this._clearLayerLoadingTimers(layerId);
+      this._setLayerLoadingState(layerId, { loading: true, message: 'lädt...' });
+
+      function finish(hasError) {
+        if (timers.finished) return;
+        timers.finished = true;
+        self._endLayerLoading(layerId, !!hasError);
+      }
+      function startLoad() {
+        timers.pending++;
+      }
+      function endLoad() {
+        if (timers.pending > 0) timers.pending--;
+        timers.successes++;
+        finish(false);
+      }
+      function softError(isImageError) {
+        if (timers.pending > 0) timers.pending--;
+        timers.errors++;
+
+        // Einzelne Tile-Fehler sind bei WMS/ArcGIS-Services haeufig transient
+        // oder betreffen nur einen Ausschnitt. Wenn spaeter doch Kacheln/Bilder
+        // kommen, waere ein roter Layer-Fehler irrefuehrend.
+        if (!isImageError) return;
+        if (timers.delayedError) clearTimeout(timers.delayedError);
+        timers.delayedError = setTimeout(function () {
+          if (!timers.finished && timers.successes === 0 && timers.errors > 0) {
+            finish(true);
+          }
+        }, 3500);
+      }
+      function addSourceListener(eventName, handler) {
+        if (!source || typeof source.on !== 'function') return;
+        try { timers.keys.push(source.on(eventName, handler)); } catch (eOn) { /* ignore */ }
+      }
+
+      addSourceListener('imageloadstart', startLoad);
+      addSourceListener('tileloadstart', startLoad);
+      addSourceListener('imageloadend', endLoad);
+      addSourceListener('tileloadend', endLoad);
+      addSourceListener('imageloaderror', function () { softError(true); });
+      addSourceListener('tileloaderror', function () { softError(false); });
+
+      if (!source && !retryDone) {
+        timers.retry = setTimeout(function () {
+          var delayedLayer = self._findRenderableOLLayerForLayer(layerId, self.findLayer(layerId));
+          if (delayedLayer) self._beginLayerLoading(layerId, delayedLayer, true);
+        }, 450);
+      }
+
+      timers.settle = setTimeout(function () {
+        if (!timers.finished && timers.pending === 0 && timers.successes === 0 && timers.errors === 0) {
+          finish(false);
+        }
+      }, 1200);
+
+      timers.slow = setTimeout(function () {
+        self._setLayerLoadingState(layerId, { loading: true, loadingSlow: true, message: 'lädt noch...' });
+      }, 1800);
+      timers.timeout = setTimeout(function () {
+        self._setLayerLoadingState(layerId, { loading: false, loadingSlow: false, loadingError: false, message: '' });
+        self._clearLayerLoadingTimers(layerId);
+      }, 9000);
+
+      _loadingTimers[layerId] = timers;
+    },
+
+    _endLayerLoading: function (layerId, hasError) {
+      var self = this;
+      this._clearLayerLoadingTimers(layerId);
+      if (hasError) {
+        this._setLayerLoadingState(layerId, { loading: false, loadingError: true, message: 'Fehler' });
+        _loadingTimers[layerId] = {
+          clearError: setTimeout(function () {
+            self._setLayerLoadingState(layerId, { loading: false, loadingError: false, message: '' });
+            self._clearLayerLoadingTimers(layerId);
+          }, 5000)
+        };
+      } else {
+        this._setLayerLoadingState(layerId, { loading: false, loadingError: false, message: '' });
+      }
+    },
+
+    _findRenderableOLLayerForLayer: function (layerId, layer) {
+      var am = this._getAppManager();
+      var map = am && am.Maps && am.Maps['main'] && am.Maps['main'].mapObj;
+      var exact = map ? this._findOLLayer(map, layerId) : null;
+      if (exact) return exact;
+      var subNum = this._extractSublayerNum(layer || this.findLayer(layerId));
+      var lastSlash = layerId.lastIndexOf('/');
+      var servicePrefix = lastSlash >= 0 ? layerId.substring(0, lastSlash + 1) : '';
+      var fallback = null;
+      if (!map || !servicePrefix) return null;
+      function scan(collection) {
+        collection.forEach(function (olLayer) {
+          if (fallback || !olLayer) return;
+          if (olLayer.getLayers && typeof olLayer.getLayers === 'function') { scan(olLayer.getLayers()); return; }
+          var name = (typeof olLayer.get === 'function' ? olLayer.get('name') : '') || '';
+          if (name.indexOf(servicePrefix) !== 0 && name !== servicePrefix.replace(/\/$/, '')) return;
+          var src = typeof olLayer.getSource === 'function' ? olLayer.getSource() : null;
+          var params = src && typeof src.getParams === 'function' ? src.getParams() : null;
+          var layersParam = params && (params.LAYERS || params.layers) || '';
+          if (subNum === null || layersParam.indexOf('show:' + subNum) >= 0 || layersParam.indexOf('show:') === 0) {
+            fallback = olLayer;
+          }
+        });
+      }
+      scan(map.getLayers());
+      return fallback;
     },
 
     _getAppManager: function () {

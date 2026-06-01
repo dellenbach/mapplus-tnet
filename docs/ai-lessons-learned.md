@@ -1,3 +1,21 @@
+## 2026-06-01 — Coalesce-Gruppenauge muss Root-Layer aktiv reconciliieren
+- **Symptom:** Bei Gruppen wie `Kbs (rechtskräftig)` zeigte das Gruppenauge nach EIN einen sichtbaren Zustand, aber die Objekte wurden erst dargestellt, nachdem einzelne Unterlayer aus/ein geschaltet wurden.
+- **Root-Cause:** Der Gruppenpfad aktualisierte Store/Kindzustände, aber bei Framework-kombinierten bzw. Bridge-verwalteten Coalesce-Layern wurde die tatsächliche Root-`LAYERS=show:...`-Liste nicht immer neu aufgebaut. Einzelkind-Toggles durchliefen den Register-/Show-Pfad und reparierten den Root-Layer dadurch nachträglich.
+- **Fix:** Nach Gruppen-AUS/EIN wird der Coalesce-Root-Layer aktiv reconciled: sichtbare Kinder werden registriert/gezeigt, unsichtbare per Bridge versteckt, `activeSublayers` neu aufgebaut und der gerenderte OL-Layer direkt auf `show:<nums>` bzw. `show:-1` gesetzt.
+- **Guardrail:** Gruppenaugen bei Coalesce nie nur als Store-Massenupdate behandeln. Nach jedem Gruppen-Toggle den tatsächlichen Root-Render-Layer gegen die sichtbare Kindliste abgleichen.
+
+## 2026-06-01 — Objektinfo muss sichtbare Runtime-Layer filtern
+- **Symptom:** Objektinformationen lieferten Resultate von ausgeschalteten Layern; gleichzeitig fehlten sichtbare Coalesce-Sublayer wie `Grundnutzung` teilweise in der Abfrage.
+- **Root-Cause:** Die InfoBridge dispatchte stur `am.wmsActiveLyrs`; diese Framework-Liste kann nach Store-/Coalesce-Toggles stale sein. Der Coalesce-`queryconnector` liess ausserdem Root-Queries bei leerer `visibleSublayers`-Liste durch.
+- **Fix:** Vor jedem Info-Klick synchronisiert die InfoBridge MapTips gegen den effektiven Store-/OL-Zustand. Der Coalesce-Queryconnector blockt nicht sichtbare Store-Sublayer und behandelt eine leere sichtbare Sublayer-Liste als „nichts abfragen“.
+- **Guardrail:** Objektinfo nie direkt aus `wmsActiveLyrs` als Wahrheit ableiten. Vor dem Dispatch immer gegen den effektiven Karteninhalt/Store filtern; bei Coalesce ist eine leere `show:`-/visible-Liste ein harter Skip.
+
+## 2026-06-01 — Ladefeedback darf nicht von zuverlässigen OL-End-Events abhängen
+- **Symptom:** Langsame Layer wie KBS wirkten nach dem Einschalten sekundenlang inaktiv; ein reines `loadend`-Warten kann bei kombinierten/Framework-Layern zudem zu lange sichtbare Spinner oder falsche Fehler erzeugen.
+- **Root-Cause:** Store und Karteninhalt setzten Sichtbarkeit sofort, aber es gab keinen UI-Zwischenzustand; einzelne OpenLayers-Sources liefern in diesem Legacy-Stack nicht immer passende End-Events für den konkreten Sublayer. Zusaetzlich koennen Tile-/Zwischenfehler auftreten, obwohl spaetere Kacheln/Bilder noch erfolgreich rendern.
+- **Fix:** Der Store führt pro Layer `loading`/`loadingSlow`/`loadingError` und triggert es beim Einschalten. Der Karteninhalt rendert Spinner und Status direkt am Layer; fehlende End-Events laufen nach kurzer Zeit neutral aus, Tile-Fehler erzeugen keinen roten Layer-Fehler und Image-Fehler werden nur verzögert gewertet, falls kein Erfolg nachkommt. Wenn beim Wiedereinschalten gar kein Load-Event kommt (Cache/bereits gerendert), wird das Feedback vor `lädt noch...` neutral beendet.
+- **Guardrail:** Ladefeedback in diesem Stack als UX-Zustand modellieren: sofort beim User-Toggle starten, OL-Events nutzen wenn vorhanden, aber niemals fehlende End-Events, einzelne Tile-Errors oder komplette No-Event-Cache-Faelle als Layerfehler werten.
+
 ## 2026-06-01 — Coalesce-Sublayer durfte nicht vom cEntry-Status abhängen
 - **Symptom:** `Grundnutzung` wurde im Karteninhalt auf EIN gesetzt, erschien aber erst nach Group-AUS/EIN auf der Karte.
 - **Root-Cause:** `toggleLayerEye` lief in den Coalesce-Pfad und verließ sich auf `cEntry`/Bridge-Status; bei Framework-kombiniertem `show:`-Layer wurde dadurch nicht immer der tatsächlich gerenderte OL-Layer aktualisiert.

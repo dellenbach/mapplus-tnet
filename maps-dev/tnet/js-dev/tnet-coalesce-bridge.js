@@ -749,6 +749,13 @@
       proto.queryconnector = function (evt) {
         var linkedId = this.linked_layer_id;
         if (linkedId) {
+          var store = window.TnetLMStore;
+          if (store && typeof store.isRenderableLayerId === 'function' && store.isRenderableLayerId(linkedId) &&
+              typeof store.isLayerEffectivelyVisible === 'function' && !store.isLayerEffectivelyVisible(linkedId)) {
+            TnetLog.debug(LOG, 'queryconnector Skip (Store nicht sichtbar):', linkedId, 'query_layers:', this.query_layers);
+            return;
+          }
+
           // Root-Key ermitteln: 3 Strategien
           var rootKey = null;
 
@@ -775,7 +782,7 @@
             if (entry && !entry.maptipOnly) {
               var visibleNums = _getVisibleSublayerNums(rootKey);
               var queryNum = parseInt(this.query_layers, 10);
-              if (!isNaN(queryNum) && visibleNums.length > 0 && visibleNums.indexOf(queryNum) === -1) {
+              if (!isNaN(queryNum) && (visibleNums.length === 0 || visibleNums.indexOf(queryNum) === -1)) {
                 TnetLog.debug(LOG, 'queryconnector Skip (nicht sichtbar):',
                   linkedId, 'query_layers:', this.query_layers,
                   'rootKey:', rootKey, 'visible:', visibleNums.join(','));
