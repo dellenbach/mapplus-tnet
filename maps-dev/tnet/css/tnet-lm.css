@@ -565,7 +565,8 @@
 }
 
 .lm-eye.lm-eye-off {
-  color: #bbb;
+  color: #ccc;
+  opacity: 0.45;
 }
 
 .lm-btn-remove {
@@ -988,8 +989,8 @@
    Default 300px, wird per JS-Variable --tnet-active-height überschrieben.
    !important weil Dojo bei TitlePane-Open Inline-Styles setzt. */
 #lm-active-container.lm-container-desktop {
-  max-height: var(--tnet-active-height, 300px);
-  min-height: 80px;
+  flex: 1;
+  min-height: 0;
   overflow-y: auto !important;
   overflow-x: hidden !important;
 }
@@ -1008,7 +1009,7 @@
 }
 
 .lm-container-desktop .lm-active-item {
-  padding: 4px 8px;
+  padding: 2px 6px;
 }
 
 .lm-container-desktop .lm-active-name {
@@ -1032,7 +1033,7 @@
 }
 
 .lm-container-desktop .lm-opacity-row {
-  padding: 1px 0 1px 24px;
+  padding: 0 0 0 24px;
 }
 
 .lm-container-desktop .lm-opacity-label {
@@ -1066,6 +1067,27 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.lm-bm-modified-badge {
+  flex-shrink: 0;
+  font-size: 14px;
+  line-height: 1;
+  color: #c47a00;
+  cursor: default;
+}
+.lm-btn-bm-reset {
+  flex-shrink: 0;
+  background: transparent;
+  border: none;
+  font-size: 16px;
+  line-height: 1;
+  color: #c47a00;
+  cursor: pointer;
+  padding: 0 2px;
+  border-radius: 3px;
+}
+.lm-btn-bm-reset:hover {
+  background: rgba(196, 122, 0, 0.12);
+}
 .lm-active-view-select {
   flex-shrink: 0;
   max-width: 120px;
@@ -1089,8 +1111,8 @@
 
 /* Desktop: Gruppen kompakter */
 .lm-container-desktop .lm-active-group-header {
-  min-height: 30px;
-  padding: 4px 6px;
+  min-height: 26px;
+  padding: 2px 4px;
 }
 
 .lm-container-desktop .lm-active-group-name {
@@ -1098,12 +1120,12 @@
 }
 
 .lm-container-desktop .lm-active-group-child {
-  min-height: 26px;
-  padding: 2px 6px 2px 20px;
+  min-height: 22px;
+  padding: 1px 6px 1px 18px;
 }
 
 .lm-container-desktop .lm-active-group > .lm-opacity-row {
-  padding: 1px 6px 2px 36px;
+  padding: 0 6px 1px 36px;
 }
 
 /* ============================================================

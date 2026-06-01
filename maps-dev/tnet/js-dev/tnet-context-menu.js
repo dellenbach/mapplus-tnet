@@ -109,8 +109,12 @@ var clickedCoords = null; // {lv95: [E, N], wgs84: [lon, lat], pixel: [x, y]}
             e.preventDefault();
             e.stopPropagation();
             e.stopImmediatePropagation();
-            
-            // console.log('Context Menu: Rechtsklick bei', e.clientX, e.clientY);
+
+            // Ctrl+Rechtsklick → Bookmark-Export Dialog
+            if (e.ctrlKey) {
+                showBookmarkExportDialog();
+                return false;
+            }
             
             // Pixel-Koordinaten
             var rect = mapEl.getBoundingClientRect();
@@ -197,6 +201,169 @@ var clickedCoords = null; // {lv95: [E, N], wgs84: [lon, lat], pixel: [x, y]}
     }, ['map-context-menu', 'map']);
     
     // Menü-Aktionen
+    // ===== BOOKMARK-EXPORT DIALOG =====
+
+    function buildBookmarkJson(id, name, aliases, opts) {
+        opts = opts || {};
+        var ignoreOpacity = !!opts.ignoreOpacity;
+        var includeView   = !!opts.includeView;
+
+        // Layer-Snapshot
+        var layers = [];
+        if (window.TnetLMStore && typeof window.TnetLMStore.getActiveLayers === 'function') {
+            var active = window.TnetLMStore.getActiveLayers();
+            for (var i = 0; i < active.length; i++) {
+                var l = active[i];
+                if (!l || !l.id) continue;
+                var entry = { id: l.id };
+                if (!ignoreOpacity && l.opacity !== undefined && l.opacity !== null && l.opacity !== 1) entry.opacity = l.opacity;
+                if (l.visible === false) entry.visible = false;
+                layers.push(entry);
+            }
+        }
+
+        // Kartenausschnitt (nur wenn Option aktiv)
+        var center = null, zoom = null;
+        if (includeView) {
+            try {
+                var mapView = njs.AppManager.Maps['main'].mapObj.getView();
+                center = mapView.getCenter().map(Math.round);
+                zoom = mapView.getZoom();
+            } catch (ex) {}
+        }
+
+        // Basemap
+        var basemap = 'av_sw';
+        try { basemap = window.BasemapTimeManager.currentBasemap || basemap; } catch (ex) {}
+
+        // Farb-Modus
+        var colorMode = 'color';
+        try { colorMode = (window.__tnetActiveBookmark && window.__tnetActiveBookmark.basemapColorMode) || colorMode; } catch (ex) {}
+
+        // Aliases parsen
+        var aliasArr = aliases.split(',').map(function(a) { return a.trim(); }).filter(Boolean);
+
+        var obj = {
+            id: id,
+            name: name || id,
+            layers: layers,
+            basemap: basemap,
+            basemapColorMode: colorMode
+        };
+        if (aliasArr.length) obj.aliases = aliasArr;
+        if (center) obj.center = center;
+        if (zoom !== null) obj.zoom = zoom;
+        return JSON.stringify(obj, null, 2);
+    }
+
+    function showBookmarkExportDialog() {
+        // Modal einmalig erstellen
+        var modal = document.getElementById('bm-export-modal');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'bm-export-modal';
+            modal.className = 'bm-export-modal';
+            modal.innerHTML = [
+                '<div class="bm-export-backdrop"></div>',
+                '<div class="bm-export-dialog">',
+                '  <div class="bm-export-header">',
+                '    <span>Bookmark-Snippet erstellen</span>',
+                '    <button class="bm-export-close" title="Schliessen">&#x2715;</button>',
+                '  </div>',
+                '  <div class="bm-export-body">',
+                '    <label class="bm-export-label">ID <span class="bm-export-req">*</span><input class="bm-export-input" id="bm-exp-id" type="text" placeholder="Bookmark-ID vergeben" autocomplete="off"></label>',
+                '    <label class="bm-export-label">Name (Anzeige)<input class="bm-export-input" id="bm-exp-name" type="text" placeholder="Wird mit ID vorausgefüllt" autocomplete="off"></label>',
+                '    <label class="bm-export-label">Aliases <span class="bm-export-hint">(kommagetrennt)</span><input class="bm-export-input" id="bm-exp-aliases" type="text" placeholder="z.B. oereb, nw" autocomplete="off"></label>',
+                '    <label class="bm-export-label">JSON-Vorschau<textarea class="bm-export-preview" id="bm-exp-preview" readonly></textarea></label>',
+                '    <div class="bm-export-options">',
+                '      <label class="bm-export-check"><input type="checkbox" id="bm-exp-ignore-opacity"> Opacity ignorieren</label>',
+                '      <label class="bm-export-check"><input type="checkbox" id="bm-exp-include-view" checked> Zoom &amp; Center übernehmen</label>',
+                '    </div>',
+                '  </div>',
+                '  <div class="bm-export-footer">',
+                '    <button class="bm-export-btn-copy" id="bm-exp-copy">&#x2398; Kopieren</button>',
+                '    <button class="bm-export-btn-slm" id="bm-exp-slm">Im SLM einfügen</button>',
+                '  </div>',
+                '</div>'
+            ].join('');
+            document.body.appendChild(modal);
+
+            // Events einmalig binden
+            modal.querySelector('.bm-export-backdrop').addEventListener('click', function() { modal.classList.remove('open'); });
+            modal.querySelector('.bm-export-close').addEventListener('click', function() { modal.classList.remove('open'); });
+
+            function updatePreview() {
+                var id = document.getElementById('bm-exp-id').value.trim();
+                var name = document.getElementById('bm-exp-name').value.trim() || id;
+                var aliases = document.getElementById('bm-exp-aliases').value;
+                var opts = {
+                    ignoreOpacity: document.getElementById('bm-exp-ignore-opacity').checked,
+                    includeView:   document.getElementById('bm-exp-include-view').checked
+                };
+                document.getElementById('bm-exp-preview').value = id ? buildBookmarkJson(id, name, aliases, opts) : '';
+            }
+
+            document.getElementById('bm-exp-id').addEventListener('input', function() {
+                // Name mit ID vorausfüllen wenn Name noch leer
+                var nameInput = document.getElementById('bm-exp-name');
+                if (!nameInput.dataset.userEdited) nameInput.value = this.value;
+                updatePreview();
+            });
+            document.getElementById('bm-exp-name').addEventListener('input', function() {
+                this.dataset.userEdited = this.value ? '1' : '';
+                updatePreview();
+            });
+            document.getElementById('bm-exp-aliases').addEventListener('input', updatePreview);
+            document.getElementById('bm-exp-ignore-opacity').addEventListener('change', updatePreview);
+            document.getElementById('bm-exp-include-view').addEventListener('change', updatePreview);
+
+            document.getElementById('bm-exp-copy').addEventListener('click', function() {
+                var json = document.getElementById('bm-exp-preview').value;
+                if (!json) { showToast('Bitte zuerst eine ID eingeben.'); return; }
+                navigator.clipboard.writeText(json).then(function() { showToast('JSON kopiert!'); });
+            });
+
+            document.getElementById('bm-exp-slm').addEventListener('click', function() {
+                var json = document.getElementById('bm-exp-preview').value;
+                if (!json) { showToast('Bitte zuerst eine ID eingeben.'); return; }
+                localStorage.setItem('tnet-bm-import-pending', json);
+                window.open(getAppRoot() + '/tnet/api/v1/slm.html#bookmarks', '_blank');
+                modal.classList.remove('open');
+            });
+        }
+
+        // Felder zurücksetzen
+        var idInput = document.getElementById('bm-exp-id');
+        var nameInput = document.getElementById('bm-exp-name');
+        var aliasInput = document.getElementById('bm-exp-aliases');
+        // Mit Aktiv-Bookmark vorausfüllen falls vorhanden
+        var bm = window.__tnetActiveBookmark;
+        idInput.value = (bm && bm.id) ? bm.id : '';
+        nameInput.value = (bm && bm.name) ? bm.name : '';
+        nameInput.dataset.userEdited = nameInput.value ? '1' : '';
+        aliasInput.value = (bm && bm.aliases && bm.aliases.length) ? bm.aliases.join(', ') : '';
+        // JSON-Vorschau initial
+        var id = idInput.value;
+        var initOpts = {
+            ignoreOpacity: document.getElementById('bm-exp-ignore-opacity').checked,
+            includeView:   document.getElementById('bm-exp-include-view').checked
+        };
+        document.getElementById('bm-exp-preview').value = id ? buildBookmarkJson(id, nameInput.value, aliasInput.value, initOpts) : '';
+
+        modal.classList.add('open');
+        idInput.focus();
+    }
+
+    // Ctrl+Rechtsklick auch auf dem Sidepanel (Karteninhalt-Bereich)
+    document.addEventListener('contextmenu', function(e) {
+        if (!e.ctrlKey) return;
+        var spring = document.getElementById('spring');
+        if (!spring || !spring.contains(e.target)) return;
+        e.preventDefault();
+        e.stopPropagation();
+        showBookmarkExportDialog();
+    }, true);
+
     window.ctxCopyCoords = function(format) {
         if (!clickedCoords) return;
         var text;

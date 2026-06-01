@@ -55,6 +55,7 @@
 
       _unlisteners.push(store.on('catalog-loaded', this.render.bind(this)));
       _unlisteners.push(store.on('layer-visibility', this._onLayerVisibility.bind(this)));
+      _unlisteners.push(store.on('active-layers-changed', this._onActiveLayersChanged.bind(this)));
       _unlisteners.push(store.on('group-toggled', this._onGroupToggled.bind(this)));
 
       if (store.isLoaded()) {
@@ -126,6 +127,7 @@
 
       _container.innerHTML = html;
       this._bindEvents();
+      this._resyncLayerCheckboxes();
     },
 
     /** Rendert den ganzen Inhalt einer Kategorie als Accordion */
@@ -424,6 +426,11 @@
         }
       }
 
+      // Frisch gerenderte Tabs starten mit Katalog-Defaults; effektiven Store-Zustand
+      // nachziehen, damit Themenkatalog und Karteninhalt synchron bleiben
+      // (Bookmarks, externe Aktivierung).
+      this._resyncLayerCheckboxes();
+
       // Re-apply Filter wenn aktiv
       if (_currentFilter) {
         this._applyFilter(_currentFilter);
@@ -529,6 +536,10 @@
       this._updateSelectAllCheckboxes();
     },
 
+    _onActiveLayersChanged: function () {
+      this._resyncLayerCheckboxes();
+    },
+
     _onGroupToggled: function (evt) {
       if (!_container) return;
       var els = _container.querySelectorAll('[data-group-id="' + evt.id + '"]');
@@ -559,6 +570,22 @@
           groupEl.classList.toggle('lm-partial', state === 'partial');
         }
       }
+    },
+
+    _resyncLayerCheckboxes: function () {
+      if (!_container) return;
+      var store = window.TnetLMStore;
+      if (!store || typeof store.isLayerEffectivelyVisible !== 'function') return;
+      var els = _container.querySelectorAll('.lm-layer[data-layer-id]');
+      for (var i = 0; i < els.length; i++) {
+        var layerId = els[i].dataset.layerId;
+        if (!layerId) continue;
+        var isVisible = store.isLayerEffectivelyVisible(layerId);
+        var cb = els[i].querySelector('.lm-cb');
+        if (cb) cb.checked = isVisible;
+        els[i].classList.toggle('lm-active', isVisible);
+      }
+      this._updateSelectAllCheckboxes();
     },
 
     // ============================================================
@@ -634,8 +661,7 @@
           var layerId = layerEls[i].dataset.layerId;
           var store = window.TnetLMStore;
           if (store) {
-            var layer = store.findLayer(layerId);
-            if (layer && layer.visible === visible) {
+            if (store.isLayerEffectivelyVisible(layerId) === visible) {
               cb.checked = visible;
               layerEls[i].classList.toggle('lm-active', visible);
               synced++;

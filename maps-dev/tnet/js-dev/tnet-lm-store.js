@@ -24,6 +24,7 @@
   var _config = {};            // layerManager-Config aus tnet-global-config.json5
   var _loaded = false;
   var _suppressMapSync = false; // Guard gegen Endlosschleifen Store↔Map
+  var _catalogLayerIndex = {};  // { layerId: true } für performante Katalog-Lookups
 
   // Coalesce: Gruppen-Index (groupNodeId → Info) und Reverse-Lookup (layerId → groupNodeId)
   var _coalesceIndex = {};     // { groupId: { serviceUrl, coalesceGroup, name, childIds: [] } }
@@ -647,6 +648,21 @@
 
     getCatalog: function () { return _catalog; },
     getActiveLayers: function () { return _activeLayers.slice(); },
+    isLayerEffectivelyVisible: function (layerId) {
+      return this._getEffectiveLayerVisible(layerId);
+    },
+
+    /**
+     * Prüft, ob eine Layer-ID im Themenkatalog belastbar auflösbar ist.
+     * Coalesce-Sublayer gelten ebenfalls als renderbar.
+     * @param {string} layerId
+     * @returns {boolean}
+     */
+    isRenderableLayerId: function (layerId) {
+      if (!layerId) return false;
+      if (String(layerId).indexOf('wms:') === 0) return true;
+      return !!(_catalogLayerIndex[layerId] || _layerToCoalesce[layerId]);
+    },
     isLoaded: function () { return _loaded; },
 
     /**
@@ -748,9 +764,26 @@
       var clamped = Math.max(0, Math.min(1, opacity));
       // Gemeinsamen OL-Layer updaten (Coalesce-Modus)
       var cEntry = _coalesceOLLayers[groupId];
+      var rootApplied = false;
       if (cEntry && cEntry.olLayer) {
         cEntry.olLayer.setOpacity(clamped);
-      } else {
+        rootApplied = true;
+      }
+      // Bridge-verwalteter Root-Dienst: Root-OL-Layer ueber Bridge aufloesen.
+      // Ohne diesen Pfad bleibt die Gruppen-Deckkraft im Bridge-Modus wirkungslos,
+      // weil _coalesceOLLayers[groupId].olLayer dort bewusst null ist.
+      if (!rootApplied && window.TnetCoalesceBridge && typeof window.TnetCoalesceBridge.getOLLayerForSublayer === 'function') {
+        for (var bi = 0; bi < info.childIds.length; bi++) {
+          var rootOl = window.TnetCoalesceBridge.getOLLayerForSublayer(info.childIds[bi]);
+          if (rootOl && typeof rootOl.setOpacity === 'function') {
+            rootOl.setOpacity(clamped);
+            if (cEntry && !cEntry.olLayer) cEntry.olLayer = rootOl;
+            rootApplied = true;
+            break;
+          }
+        }
+      }
+      if (!rootApplied) {
         // Legacy-Fallback: einzelne OL-Layer pro Kind-Layer (useNewTree=false)
         var am = this._getAppManager();
         var map = am && am.Maps && am.Maps['main'] && am.Maps['main'].mapObj;
@@ -869,17 +902,42 @@
     setLayerVisible: function (layerId, visible) {
       var layer = this.findLayer(layerId);
       if (!layer || layer.type === 'group') return;
-      if (layer.visible === visible) return;
+      var activeEntry = this._findActiveLayer(layerId);
+      var targetVisible = !!visible;
+      var currentVisible = this._getEffectiveLayerVisible(layerId, layer, activeEntry);
+      var needsActivation = targetVisible && !activeEntry;
+      var hasStateDrift = layer.visible !== targetVisible ||
+        (activeEntry && activeEntry.visible !== targetVisible) ||
+        needsActivation;
 
-      layer.visible = visible;
+      // Sync-only nur wenn Sichtbarkeit identisch UND keine Erst-Aktivierung
+      // ansteht. Beim Erst-Aktivieren muessen Bridge-/Coalesce-Register- bzw.
+      // Framework-Switch-Pfade unten zwingend durchlaufen, sonst bleibt der
+      // Layer zwar als aktiv markiert, aber unsichtbar auf der Karte.
+      if (currentVisible === targetVisible && !needsActivation) {
+        if (!hasStateDrift) return;
+        layer.visible = targetVisible;
+        this._syncDuplicateVisible(layerId, targetVisible, layer);
+        if (activeEntry) activeEntry.visible = targetVisible;
+        if (!targetVisible) {
+          _activeLayers = _activeLayers.filter(function (l) { return l.id !== layerId; });
+        }
+        this._emit('layer-visibility', { id: layerId, visible: targetVisible, source: 'sync' });
+        this._emit('active-layers-changed', _activeLayers);
+        if (_config.debug) TnetLog.log(LOG, 'setLayerVisible Sync-only:', layerId, targetVisible ? 'EIN' : 'AUS');
+        return;
+      }
+
+      layer.visible = targetVisible;
+      if (activeEntry) activeEntry.visible = targetVisible;
       // Duplikat-Sync: alle Katalog-Knoten mit derselben ID synchronisieren
-      this._syncDuplicateVisible(layerId, visible, layer);
+      this._syncDuplicateVisible(layerId, targetVisible, layer);
 
       // ── Coalesce-Pfad: gemeinsamer OL-Layer pro Dienst ──
       var coalGroupId = _layerToCoalesce[layerId];
       if (coalGroupId) {
         _suppressMapSync = true;
-        if (visible) {
+        if (targetVisible) {
           this._addToCoalesceOLLayer(coalGroupId, layerId, layer);
         } else {
           this._removeFromCoalesceOLLayer(coalGroupId, layerId);
@@ -887,15 +945,15 @@
         setTimeout(function () { _suppressMapSync = false; }, 200);
 
         // Active-Liste aktualisieren
-        if (visible && !this._isActive(layerId)) {
+        if (targetVisible && !activeEntry) {
           _activeLayers.push(layer);
-        } else if (!visible) {
+        } else if (!targetVisible) {
           _activeLayers = _activeLayers.filter(function (l) { return l.id !== layerId; });
         }
 
-        this._emit('layer-visibility', { id: layerId, visible: visible, source: 'ui' });
+        this._emit('layer-visibility', { id: layerId, visible: targetVisible, source: 'ui' });
         this._emit('active-layers-changed', _activeLayers);
-        if (_config.debug) TnetLog.log(LOG, 'Coalesce setLayerVisible', layerId, visible ? 'EIN' : 'AUS', '(Gruppe:', coalGroupId, ')');
+        if (_config.debug) TnetLog.log(LOG, 'Coalesce setLayerVisible', layerId, targetVisible ? 'EIN' : 'AUS', '(Gruppe:', coalGroupId, ')');
         return;
       }
 
@@ -903,8 +961,8 @@
       _suppressMapSync = true;
       try {
         if (typeof TnetLayerSwitch === 'function') {
-          TnetLayerSwitch(layerId, visible ? 'on' : 'off');
-          if (_config.debug) TnetLog.log(LOG, 'TnetLayerSwitch', layerId, visible ? 'on' : 'off');
+          TnetLayerSwitch(layerId, targetVisible ? 'on' : 'off');
+          if (_config.debug) TnetLog.log(LOG, 'TnetLayerSwitch', layerId, targetVisible ? 'on' : 'off');
         } else {
           TnetLog.warn(LOG, 'TnetLayerSwitch nicht verfügbar');
         }
@@ -922,29 +980,45 @@
       // Guard nach kurzem Delay zurücksetzen (async OL-Events)
       setTimeout(function () { _suppressMapSync = false; }, 200);
 
-      // Duplikat-OL-Layer synchronisieren (falls Layer mehrfach in der Karte)
+      // OL-Layer hart auf Zielzustand setzen.
+      // TnetLayerSwitch kann no-op werden, wenn Dojo-Widget-State und tatsaechlicher
+      // OL-Layer-Zustand auseinander laufen (z.B. wenn ein externer Aktivator wie
+      // OEREB den Store aktiviert, der Framework-Layer aber unsichtbar geblieben ist).
+      // Daher Sichtbarkeit und (falls gesetzt) Opacity zusaetzlich direkt auf allen
+      // gefundenen OL-Layer-Instanzen anwenden – sowohl sofort als auch nochmal nach
+      // dem Switch-Async-Delay, damit lazy erstellte Layer ebenfalls erfasst werden.
       var _self = this;
-      setTimeout(function () {
+      var _applyOLState = function () {
         var am = _self._getAppManager();
-        if (am && am.Maps && am.Maps['main'] && am.Maps['main'].mapObj) {
-          var allOL = _self._findAllOLLayers(am.Maps['main'].mapObj, layerId);
-          if (allOL.length > 1) {
-            TnetLog.log(LOG, 'setLayerVisible Duplikat-Sync:', allOL.length, 'OL-Layer für', layerId);
-            for (var di = 0; di < allOL.length; di++) {
-              allOL[di].setVisible(visible);
-            }
+        if (!am || !am.Maps || !am.Maps['main'] || !am.Maps['main'].mapObj) return;
+        var allOL = _self._findAllOLLayers(am.Maps['main'].mapObj, layerId);
+        if (!allOL || !allOL.length) return;
+        var hasOpacity = layer && layer.opacity != null && isFinite(layer.opacity);
+        for (var di = 0; di < allOL.length; di++) {
+          allOL[di].setVisible(targetVisible);
+          if (targetVisible && hasOpacity) {
+            allOL[di].setOpacity(Math.max(0, Math.min(1, +layer.opacity)));
           }
         }
-      }, 300);
+        if (allOL.length > 1) {
+          TnetLog.log(LOG, 'setLayerVisible Duplikat-Sync:', allOL.length, 'OL-Layer für', layerId);
+        }
+      };
+      _applyOLState();
+      setTimeout(_applyOLState, 300);
 
-      // Active-Liste aktualisieren
-      if (visible && !this._isActive(layerId)) {
+      // Active-Liste aktualisieren.
+      // WICHTIG: activeEntry wurde VOR TnetLayerSwitch gecacht. forceMapLayerState
+      // (via ClassicLayerMgr.switchLayer-Patch) kann den Layer bereits synchron
+      // gepusht haben – daher nach dem Switch erneut prüfen (Stale-Reference-Bug).
+      var alreadyActive = this._findActiveLayer(layerId);
+      if (targetVisible && !alreadyActive) {
         _activeLayers.push(layer);
-      } else if (!visible) {
+      } else if (!targetVisible) {
         _activeLayers = _activeLayers.filter(function (l) { return l.id !== layerId; });
       }
 
-      this._emit('layer-visibility', { id: layerId, visible: visible, source: 'ui' });
+      this._emit('layer-visibility', { id: layerId, visible: targetVisible, source: 'ui' });
       this._emit('active-layers-changed', _activeLayers);
       if (_config.debug) TnetLog.log(LOG, 'Active-Layer-Liste:', _activeLayers.length, 'Layer, IDs:', _activeLayers.map(function(l) { return l.id; }));
     },
@@ -1137,6 +1211,11 @@
         olLayer = this._findOLLayer(map, layerId);
         if (olLayer && activeEntry) activeEntry._olLayerRef = olLayer;
       }
+      // Bridge-verwaltete Coalesce-Sublayer: Root-OL-Layer ueber die Bridge aufloesen,
+      // da _findOLLayer den Root-Dienst nicht unter der Sublayer-ID kennt.
+      if (!olLayer && window.TnetCoalesceBridge && typeof window.TnetCoalesceBridge.getOLLayerForSublayer === 'function') {
+        olLayer = window.TnetCoalesceBridge.getOLLayerForSublayer(layerId);
+      }
 
       if (olLayer) {
         olLayer.setOpacity(clampedOpacity);
@@ -1255,9 +1334,13 @@
       var newActive = [];
       bookmarkLayers.forEach(function (spec) {
         if (!spec || !spec.id) return;
+        if (!self.isRenderableLayerId(spec.id)) {
+          TnetLog.warn(LOG, 'Bookmark-Layer ignoriert (nicht renderbar):', spec.id);
+          return;
+        }
         // Layer aus dem Katalog suchen (für name, etc.)
         var fromCatalog = self.findLayer(spec.id);
-        // Layer-Objekt aufbauen: aus Katalog klonen, sonst Stub
+        // Layer-Objekt aufbauen: aus Katalog klonen, sonst WMS-/Coalesce-Fallback
         var layer;
         if (fromCatalog) {
           layer = {};
@@ -1265,13 +1348,18 @@
             if (fromCatalog.hasOwnProperty(k)) layer[k] = fromCatalog[k];
           }
         } else {
-          // Stub falls Katalog den Layer nicht kennt (z.B. gis_fach-Services
-          // die nicht im LyrMgr-Tree registriert sind)
           var nameParts = String(spec.id).split('/');
           layer = { id: spec.id, name: nameParts[nameParts.length - 1] || spec.id };
         }
         layer.visible = ('visible' in spec) ? !!spec.visible : true;
         if (spec.opacity != null && isFinite(spec.opacity)) layer.opacity = +spec.opacity;
+        // Katalog-Knoten mitziehen, damit Themenkatalog ohne Active-Entry
+        // bereits den korrekten Bookmark-Zustand zeigt (Tab-Lazy-Render).
+        if (fromCatalog) {
+          fromCatalog.visible = layer.visible;
+          if (layer.opacity != null) fromCatalog.opacity = layer.opacity;
+          self._syncDuplicateVisible(spec.id, layer.visible, fromCatalog);
+        }
         newActive.push(layer);
       });
       _activeLayers = newActive;
@@ -1473,11 +1561,12 @@
     getGroupVisibilityState: function (groupId) {
       var node = this._findGroupNode(groupId);
       if (!node) return 'none';
+      var self = this;
       var total = 0;
       var visibleCount = 0;
       this._walkLayers([node], function (layer) {
         total++;
-        if (layer.visible) visibleCount++;
+        if (self._getEffectiveLayerVisible(layer.id, layer)) visibleCount++;
       });
       if (total === 0) return 'none';
       if (visibleCount === 0) return 'none';
@@ -1606,6 +1695,36 @@
       for (var i = 0; i < _activeLayers.length; i++) {
         if (_activeLayers[i].id === layerId) return true;
       }
+      return false;
+    },
+
+    _getEffectiveLayerVisible: function (layerId, layer, activeEntry) {
+      var currentLayer = typeof layer === 'undefined' ? this.findLayer(layerId) : layer;
+      var currentActiveEntry = typeof activeEntry === 'undefined' ? this._findActiveLayer(layerId) : activeEntry;
+
+      if (currentActiveEntry && currentActiveEntry.visible !== undefined) {
+        return !!currentActiveEntry.visible;
+      }
+
+      var olLayer = currentActiveEntry && currentActiveEntry._olLayerRef ? currentActiveEntry._olLayerRef : null;
+      if (!olLayer) {
+        var am = this._getAppManager();
+        if (am && am.Maps && am.Maps['main'] && am.Maps['main'].mapObj) {
+          olLayer = this._findOLLayer(am.Maps['main'].mapObj, layerId);
+          if (olLayer && currentActiveEntry) {
+            currentActiveEntry._olLayerRef = olLayer;
+          }
+        }
+      }
+
+      if (olLayer) {
+        return !!olLayer.getVisible();
+      }
+
+      if (currentLayer && currentLayer.visible !== undefined) {
+        return !!currentLayer.visible;
+      }
+
       return false;
     },
 
@@ -1760,9 +1879,33 @@
     _initCoalesceInfo: function (categories) {
       _coalesceIndex = {};
       _layerToCoalesce = {};
+      _catalogLayerIndex = {};
+      this._indexCatalogLayers(categories);
       this._scanCoalesceNodes(categories);
       if (_config.debug && Object.keys(_coalesceIndex).length > 0) {
         TnetLog.log(LOG, 'Coalesce-Index:', JSON.stringify(_coalesceIndex));
+      }
+    },
+
+    _indexCatalogLayers: function (nodes) {
+      if (!nodes) return;
+      for (var i = 0; i < nodes.length; i++) {
+        var n = nodes[i];
+        var hasChildren = !!(n && (
+          (n.subcategories && n.subcategories.length) ||
+          (n.groups && n.groups.length) ||
+          (n.layers && n.layers.length) ||
+          (n.children && n.children.length)
+        ));
+        if (n && n.id && !hasChildren && n.type !== 'group') {
+          _catalogLayerIndex[n.id] = true;
+        }
+        var childArrays = ['subcategories', 'groups', 'layers', 'children'];
+        for (var a = 0; a < childArrays.length; a++) {
+          if (n && n[childArrays[a]] && n[childArrays[a]].length) {
+            this._indexCatalogLayers(n[childArrays[a]]);
+          }
+        }
       }
     },
 
@@ -2274,8 +2417,167 @@
      */
     getCoalesceOLLayer: function (groupId) {
       return _coalesceOLLayers[groupId] || null;
+    },
+
+    /**
+     * Erzwingt den OL-Layer-/Bridge-Zustand fuer einen Layer ohne erneuten
+     * TnetLayerSwitch (vermeidet Endlosschleife mit ClassicLayerMgr).
+     * Wird vom ClassicLayerMgr.switchLayer-Wrapper am Ende jedes externen
+     * Switches gerufen, damit OEREB-Aktivierungen (graphicsLayer.js) wirklich
+     * sichtbar werden und die im Katalog hinterlegte Opacity uebernehmen.
+     *
+     * Wichtig: nur aktiv werden, wenn der Layer im Store bekannt ist UND sich
+     * der Zustand tatsaechlich aendert – sonst wuerde jeder externe Switch
+     * einen Render-Sturm im Karteninhalt ausloesen (OEREB-Auswertung schaltet
+     * viele Layer kurz hintereinander).
+     *
+     * @param {string} layerId
+     * @param {boolean} visible
+     * @param {Object} [opts]   z.B. { source: 'switchLayer' }
+     */
+    forceMapLayerState: function (layerId, visible, opts) {
+      if (!layerId) return;
+      var targetVisible = !!visible;
+      var layer = this.findLayer(layerId);
+      var activeEntry = this._findActiveLayer(layerId);
+      if (!layer && !activeEntry) return; // unbekannter Layer → nichts tun
+
+      // Bookmark-Lookup nur fuer Opacity-Fallback. Visibility wird NICHT
+      // ueberschrieben — sonst kann ein switchLayer('off') (z.B. von OEREB
+      // oder vom User) nie mehr aus sein, weil der Bookmark-Eintrag im
+      // Default visible:true mitfuehrt.
+      var bmRuntime = null;
+      try {
+        var bm = window.__tnetActiveBookmark;
+        if (bm && bm.layers && bm.layers.length) {
+          for (var bi = 0; bi < bm.layers.length; bi++) {
+            if (bm.layers[bi] && bm.layers[bi].id === layerId) {
+              bmRuntime = bm.layers[bi];
+              break;
+            }
+          }
+        }
+      } catch (eBm) { /* ignore */ }
+
+      var prevVisible = activeEntry ? !!activeEntry.visible :
+        (layer ? !!layer.visible : false);
+      var prevInActive = !!activeEntry;
+      var changed = (prevVisible !== targetVisible) || (targetVisible !== prevInActive);
+
+      // Store-Zustand still pflegen.
+      if (layer) layer.visible = targetVisible;
+      if (activeEntry) activeEntry.visible = targetVisible;
+      if (changed) this._syncDuplicateVisible(layerId, targetVisible, layer);
+
+      if (targetVisible) {
+        if (!activeEntry && layer) {
+          _activeLayers.push(layer);
+        }
+      } else if (prevInActive) {
+        _activeLayers = _activeLayers.filter(function (l) { return l.id !== layerId; });
+      }
+
+      // Coalesce-Pfad nur bei echter Aenderung anstossen.
+      if (changed) {
+        var coalGroupId = _layerToCoalesce[layerId];
+        if (coalGroupId && layer) {
+          if (targetVisible) {
+            this._addToCoalesceOLLayer(coalGroupId, layerId, layer);
+            var subNum = this._extractSublayerNum(layer);
+            if (subNum !== null && window.TnetCoalesceBridge &&
+                typeof window.TnetCoalesceBridge.showSublayer === 'function') {
+              window.TnetCoalesceBridge.showSublayer(layerId, subNum);
+            }
+          } else {
+            this._removeFromCoalesceOLLayer(coalGroupId, layerId);
+          }
+        }
+      }
+
+      // OL-Layer hart auf Zielzustand. Opacity vorzugsweise aus Bookmark,
+      // sonst aus Katalog-Layer (sofern definiert).
+      var am = this._getAppManager();
+      if (am && am.Maps && am.Maps['main'] && am.Maps['main'].mapObj) {
+        var allOL = this._findAllOLLayers(am.Maps['main'].mapObj, layerId);
+        if (allOL && allOL.length) {
+          var op = null;
+          if (bmRuntime && bmRuntime.opacity != null && isFinite(bmRuntime.opacity)) {
+            op = Math.max(0, Math.min(1, +bmRuntime.opacity));
+          } else if (layer && layer.opacity != null && isFinite(layer.opacity)) {
+            op = Math.max(0, Math.min(1, +layer.opacity));
+          }
+          for (var di = 0; di < allOL.length; di++) {
+            if (allOL[di].getVisible() !== targetVisible) {
+              allOL[di].setVisible(targetVisible);
+            }
+            if (op != null && allOL[di].getOpacity() !== op) {
+              allOL[di].setOpacity(op);
+            }
+          }
+        }
+      }
+
+      // Events nur bei echter Aenderung emittieren (kein Render-Sturm).
+      if (changed) {
+        this._emit('layer-visibility', { id: layerId, visible: targetVisible, source: (opts && opts.source) || 'force' });
+        this._emit('active-layers-changed', _activeLayers);
+        if (_config.debug) {
+          TnetLog.log(LOG, 'forceMapLayerState:', layerId, '→', targetVisible ? 'EIN' : 'AUS',
+            '(', (opts && opts.source) || 'force', ')');
+        }
+      }
     }
   };
 
   window.TnetLMStore = LMStore;
+
+  // ============================================================
+  // OEREB-Bridge: ClassicLayerMgr.switchLayer patchen
+  // ============================================================
+  // Externe Module (WebOffice OEREB via graphicsLayer.js -> oereb.js) rufen
+  // njs.LayerMgr.ClassicLayerMgr.prototype.switchLayer direkt auf und umgehen
+  // damit den TnetLMStore komplett. Ergebnis: der Layer ist im Framework "on",
+  // unsere Store-Synchronisation laeuft aber nie -> Karteninhalt zeigt Auge,
+  // OL-Layer bleibt unsichtbar bis der User selbst nochmal aufs Auge klickt.
+  //
+  // Loesung: ClassicLayerMgr.switchLayer einmalig wrappen und nach dem
+  // Original-Call den Store-Pfad triggern (forceMapLayerState), der die
+  // Bridge-/Coalesce-/OL-Layer-Sichtbarkeit hart erzwingt und Opacity
+  // mitzieht.
+  (function _patchClassicLayerMgrSwitchLayer() {
+    var attempts = 0;
+    function tryPatch() {
+      attempts++;
+      var Cls = window.njs && window.njs.LayerMgr && window.njs.LayerMgr.ClassicLayerMgr;
+      var Proto = Cls && Cls.prototype;
+      if (!Proto || typeof Proto.switchLayer !== 'function') {
+        if (attempts < 40) setTimeout(tryPatch, 250);
+        return;
+      }
+      if (Proto.__tnet_switchLayer_patched) return;
+      var orig = Proto.switchLayer;
+      Proto.switchLayer = function (layerId, action) {
+        var result;
+        var prevSuppress = _suppressMapSync;
+        _suppressMapSync = true;
+        try {
+          result = orig.apply(this, arguments);
+        } finally {
+          // Suppress erst nach Microtask zuruecksetzen, damit synchron emittierte
+          // OL-Layer-Events nicht erneut zurueck in den Store schwappen.
+          setTimeout(function () { _suppressMapSync = prevSuppress; }, 200);
+        }
+        try {
+          var on = (action === 'on' || action === true || action === 1 || action === '1');
+          if (window.TnetLMStore && typeof window.TnetLMStore.forceMapLayerState === 'function') {
+            window.TnetLMStore.forceMapLayerState(layerId, on, { source: 'switchLayer' });
+          }
+        } catch (e) { /* nicht den Original-Switch brechen */ }
+        return result;
+      };
+      Proto.__tnet_switchLayer_patched = true;
+      TnetLog.log(LOG, 'ClassicLayerMgr.switchLayer gepatcht (OEREB-Bridge aktiv)');
+    }
+    setTimeout(tryPatch, 300);
+  })();
 })();

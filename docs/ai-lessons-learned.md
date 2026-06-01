@@ -1,3 +1,21 @@
+## 2026-05-29 — Bookmark-Start: visible:false Layer bleiben nach setMapBookmark sichtbar
+- **Symptom**: Nach `TnetSetBookmark('nw_oereb')` blieben 4 Layer sichtbar, die im Bookmark als `visible:false` definiert waren.
+- **Root-Cause**: `_scheduleBookmarkVisibilityEnsure` (mit 400/1200/3000ms Retry-Timern) war zwar implementiert, wurde aber nie aus `_applyBookmark` aufgerufen. Der `add`-Listener allein reichte nicht, da das Framework nach dem `add`-Event noch eigene Visibility-Resets durchführt.
+- **Fix**: `_scheduleBookmarkVisibilityEnsure(visibilityMap, ensureToken)` in `_applyBookmark` direkt nach `_scheduleViewVisibilityWhenLayersReady` eingebaut. Die Timer korrigieren zuverlässig alle `visible:false`-Layer nach dem Framework-Load.
+- **Guardrail**: Bookmark-Visibility-Correction immer als zweistufig anlegen: (1) `add`-Listener für sofortige Korrektur, (2) Retry-Timer als Absicherung gegen Framework-eigene Post-Load-Resets.
+
+## 2026-05-29 — Bookmark-Direktstart darf Views nicht implizit als Default behandeln
+- **Symptom**: Beim Direktstart von Karten wie `nw_oereb` sprang der Bookmark ungefragt in die einzige vorhandene View und blendete danach Layer wieder aus dem Kartenbild aus.
+- **Root-Cause**: Die Bookmark-Logik behandelte eine einzelne vorhandene View implizit wie einen Default und kombinierte das mit einem nachgelagerten Visibility-Ensure, der den normalen Bookmark-Start nochmals ueberschrieb.
+- **Fix**: `tnet-mapplus-helpers.js` nutzt eine View nur noch bei explizitem `view=` oder bei `isDefault:true`; der aggressive Post-Load-Visibility-Ensure bleibt aus dem normalen Bookmark-Start draussen.
+- **Guardrail**: In Bookmark-Schema-v2 gilt nur `isDefault:true` oder ein explizit angeforderter `viewId` als aktive View. Eine einzelne vorhandene View ist fachlich nicht automatisch der Startzustand.
+
+## 2026-05-29 — Themenkatalog und Karteninhalt muessen gegen denselben Laufzeitzustand synchronisieren
+- **Symptom**: Nach externen Aktivierungen, Bookmark-States oder Coalesce-Pfaden konnte der Themenkatalog einen anderen Sichtbarkeitszustand zeigen als der Karteninhalt bzw. die Karte selbst.
+- **Root-Cause**: Sichtbarkeits-Guards und Gruppenstatus stuetzten sich teilweise auf rohes `layer.visible` aus dem Katalog, waehrend Active-Entry und OL-Layer bereits einen abweichenden Laufzeitzustand hatten.
+- **Fix**: `tnet-lm-store.js` bewertet Sichtbarkeit jetzt ueber den effektiven Laufzeitzustand und synchronisiert interne Drift ohne unnoetigen zweiten Map-Toggle; `tnet-lm-tree.js` zieht Checkboxen per Vollabgleich auf `active-layers-changed` nach.
+- **Guardrail**: In diesem Stack duerfen Themenkatalog und Karteninhalt nie lokale UI-Annahmen als Wahrheit verwenden. Massgeblich ist immer der effektive Store-/Runtime-Zustand.
+
 ## 2026-05-29 — Karteninhalt darf keine nicht renderbaren Bookmark-Layer anzeigen
 - **Symptom**: Im Karteninhalt erschienen Bookmark-Eintraege, deren Sichtbarkeit sich nicht verlaesslich schalten liess, weil sie technisch gar keinen belastbaren Layer im Themenkatalog bzw. Store hatten.
 - **Root-Cause**: Bookmark-Layer wurden im Active-Panel direkt mit dem Live-State gemischt; dabei konnten unbekannte IDs als reine Bookmark-Stubs bis ins UI durchrutschen.
@@ -111,6 +129,12 @@
 - **Root-Cause**: Mehrere konkurrierende Graustufen-Pfade hatten sich ueberlagert: globale Framework-Filter auf `.ol-layer`, experimentelle Source-Wrappers und der eigentliche `prerender/postrender`-Pfad. Dadurch wurde entweder der falsche Layer beeinflusst oder der sichtbare Basemap-Layer gar nicht mehr konsistent getroffen.
 - **Fix**: Aktive Basemap-Layer werden jetzt zentral aufgeloest, Framework-Filter werden aus dem Steuerpfad entfernt und der Zustand wird nur noch ueber den Render-Hook auf den aktiven Basemap-Layern gesetzt. Nach Basemap-Wechsel wird derselbe zentrale Pfad ueber `syncGrayscale(true)` erneut angewendet.
 - **Guardrail**: Visuelle Zustandslogik fuer Basemaps darf nur einen einzigen Besitzer haben. Sobald mehrere Filterpfade parallel existieren, wird Debugging unzuverlaessig und Basemap-Wechsel brechen den Zustand leicht wieder auf.
+
+## 2026-05-29 — Non-Coalesce-Layer erschien doppelt im Karteninhalt
+- **Symptom**: Layer aus dem Themenkatalog (z.B. `hangneigungen_bund`) erschien nach dem ersten Aktivieren zweimal im Karteninhalt-Panel.
+- **Root-Cause**: `setLayerVisible` cachte `activeEntry = this._findActiveLayer(layerId)` vor dem Aufruf von `TnetLayerSwitch`. Dieser rief synchron `forceMapLayerState` auf (via `ClassicLayerMgr.switchLayer`-Patch), der den Layer bereits zu `_activeLayers` pushte. Danach nutzte `setLayerVisible` das veraltete `activeEntry = null` und pushte erneut.
+- **Fix**: Nach `TnetLayerSwitch` wird nicht mehr das gecachte `activeEntry` geprüft, sondern `_findActiveLayer` erneut aufgerufen (`alreadyActive`). Nur bei `!alreadyActive` wird gepusht.
+- **Guardrail**: Keinen Zustand vor synchron auslösenden Seiteneffekten cachen. Immer erst nach dem Aufruf prüfen, ob ein Eintrag bereits existiert.
 
 ## 2026-05-28 — Basemap-Graustufe wirkte nicht und wurde beim Basemap-Wechsel nicht wieder angewendet
 - **Symptom**: Der Schalter `FARBE/GRAU` hatte auf die Basemap keine sichtbare Wirkung; nach Basemap-Wechsel blieb der Zustand zudem unberuecksichtigt.

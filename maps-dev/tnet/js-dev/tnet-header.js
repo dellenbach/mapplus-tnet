@@ -273,6 +273,7 @@ function installSetMapBookmarkHook() {
 
     am.setMapBookmark = function(targetMaps, params) {
         var layersList = null;
+        var opacityList = null;
         var requestedName = null;
         var mapParamName = null;
         try {
@@ -290,6 +291,7 @@ function installSetMapBookmarkHook() {
             if (typeof params === 'string' && params) {
                 var parsed = new URLSearchParams(params);
                 var layerParam = parsed.get('layers');
+                var opParam = parsed.get('op');
                 var mapParam = parsed.get('map');
                 if (mapParam) {
                     mapParamName = mapParam;
@@ -298,6 +300,12 @@ function installSetMapBookmarkHook() {
                 if (layerParam) {
                     layersList = layerParam.split('|').filter(function(x) { return !!x; });
                     TnetLog.log('[MapBookmark] Layer ON (' + layersList.length + '):', layersList);
+                    if (opParam) {
+                        opacityList = opParam.split('|').map(function(x) {
+                            var value = Number(x);
+                            return isFinite(value) ? value : null;
+                        });
+                    }
                 } else if (mapParam) {
                     TnetLog.log('[MapBookmark] map=', mapParam);
                 } else {
@@ -331,6 +339,9 @@ function installSetMapBookmarkHook() {
         // Aktiviere nur Layer, die als OL-Layer existieren aber noch unsichtbar sind.
         if (layersList && layersList.length) {
             scheduleBookmarkLayerCatchup(layersList);
+            if (opacityList && opacityList.length) {
+                scheduleBookmarkOpacityCatchup(layersList, opacityList);
+            }
         }
 
         return result;
@@ -366,6 +377,33 @@ function scheduleBookmarkLayerCatchup(wanted) {
             TnetLog.log('[MapBookmark] Catch-up: ' + activated + ' Layer aktiviert');
         }
         return activated;
+    }
+
+    setTimeout(applyOnce, 500);
+    setTimeout(applyOnce, 1500);
+    setTimeout(applyOnce, 3000);
+}
+
+function scheduleBookmarkOpacityCatchup(wanted, opacities) {
+    if (!wanted || !wanted.length || !opacities || !opacities.length) return;
+
+    function applyOnce() {
+        if (!window.TnetLMStore || typeof window.TnetLMStore.setLayerOpacity !== 'function') return 0;
+        var changed = 0;
+
+        wanted.forEach(function(id, index) {
+            var raw = opacities[index];
+            if (raw == null || !isFinite(raw)) return;
+            try {
+                window.TnetLMStore.setLayerOpacity(id, raw);
+                changed++;
+            } catch (e) { /* ignore */ }
+        });
+
+        if (changed > 0) {
+            TnetLog.log('[MapBookmark] Opacity-Catch-up: ' + changed + ' Layer aktualisiert');
+        }
+        return changed;
     }
 
     setTimeout(applyOnce, 500);

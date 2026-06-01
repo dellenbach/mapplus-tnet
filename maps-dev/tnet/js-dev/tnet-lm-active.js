@@ -27,6 +27,11 @@
   // ── Coalesce-Gruppen Expand-State ──
   var _groupExpanded = {}; // groupId → boolean (default: true = aufgeklappt)
 
+  // ── Bookmark Dirty State ──
+  var _bmModified = false;      // true sobald der Nutzer explizit etwas geändert hat
+  var _bmLoadedRecently = false; // Schonfrist nach tnet-bookmark-loaded (Store noch nicht synchron)
+  var _bmLoadTimer = null;
+
   // SVG-Icons — geladen via TnetIcons (externe .svg Dateien)
   // Werden in _initIcons() befüllt nachdem TnetIcons.loadAll() abgeschlossen ist
   var ICON = {};
@@ -45,6 +50,23 @@
         detail: { reason: reason || null, bookmark: bookmark }
       }));
     } catch (eEvent) { /* ignore */ }
+  }
+
+  // Prüft ob der aktive Bookmark-Zustand vom Original (_cfg) abweicht.
+  // _bmModified wird gesetzt via emitBookmarkStateChanged (Remove, Reorder)
+  // und via render() (Katalog-Layer-Erkennung aus effectiveLayers).
+  function _isActiveBookmarkModified() {
+    if (_bmModified) return true;
+    // Strukturvergleich bm.layers vs _cfg (wird bei Remove/Reorder aktualisiert)
+    var bm = window.__tnetActiveBookmark;
+    if (!bm || !bm._cfg || !Array.isArray(bm._cfg.layers) || !Array.isArray(bm.layers)) return false;
+    var origIds = bm._cfg.layers.map(function(l) { return l && l.id; }).filter(Boolean);
+    var currIds = bm.layers.map(function(l) { return l && l.id; }).filter(Boolean);
+    if (origIds.length !== currIds.length) return true;
+    for (var i = 0; i < origIds.length; i++) {
+      if (origIds[i] !== currIds[i]) return true;
+    }
+    return false;
   }
 
   function updateBookmarkLayerState(layerId, patch) {
@@ -115,30 +137,49 @@
 
   function mergeBookmarkLayers(bookmarkLayers, liveLayers) {
     var liveById = {};
+    var usedLiveIds = {};
 
     (liveLayers || []).forEach(function(layer) {
       if (layer && layer.id) liveById[layer.id] = layer;
     });
 
-    return (bookmarkLayers || []).map(function(layer, index) {
-      var merged = {};
+    var merged = (bookmarkLayers || []).map(function(layer, index) {
+      var out = {};
       var live = layer && layer.id ? liveById[layer.id] : null;
       var key;
 
       for (key in layer) {
-        if (Object.prototype.hasOwnProperty.call(layer, key)) merged[key] = layer[key];
+        if (Object.prototype.hasOwnProperty.call(layer, key)) out[key] = layer[key];
       }
       if (live) {
         for (key in live) {
-          if (Object.prototype.hasOwnProperty.call(live, key) && live[key] != null) merged[key] = live[key];
+          if (Object.prototype.hasOwnProperty.call(live, key) && live[key] != null) out[key] = live[key];
         }
+        usedLiveIds[layer.id] = true;
       }
 
-      if (!merged.name) merged.name = merged.id || ('Layer ' + (index + 1));
-      if (merged.visible === undefined) merged.visible = true;
-      if (merged.opacity == null) merged.opacity = 1;
-      return merged;
+      if (!out.name) out.name = out.id || ('Layer ' + (index + 1));
+      if (out.visible === undefined) out.visible = true;
+      if (out.opacity == null) out.opacity = 1;
+      return out;
     });
+
+    // Live-Layer ohne Bookmark-Eintrag anhaengen, damit nach dem Laden eines
+    // Bookmarks zusaetzlich aktivierte Themen weiterhin im Karteninhalt erscheinen.
+    (liveLayers || []).forEach(function(layer) {
+      if (!layer || !layer.id) return;
+      if (usedLiveIds[layer.id]) return;
+      var copy = {};
+      for (var k in layer) {
+        if (Object.prototype.hasOwnProperty.call(layer, k)) copy[k] = layer[k];
+      }
+      if (!copy.name) copy.name = copy.id;
+      if (copy.visible === undefined) copy.visible = true;
+      if (copy.opacity == null) copy.opacity = 1;
+      merged.push(copy);
+    });
+
+    return merged;
   }
 
   function filterRenderableBookmarkLayers(bookmarkLayers) {
@@ -209,6 +250,11 @@
 
       var self = this;
       var rerenderAndFocus = function () {
+        // Schonfrist setzen: Store noch nicht synchron nach Bookmark-Load
+        _bmModified = false;
+        _bmLoadedRecently = true;
+        if (_bmLoadTimer) clearTimeout(_bmLoadTimer);
+        _bmLoadTimer = setTimeout(function () { _bmLoadedRecently = false; }, 800);
         focusActivePanelForBookmark();
         self.render(store.getActiveLayers());
       };
@@ -277,10 +323,24 @@
       var bmViews   = bookmarkInfo && bookmarkInfo.views || [];
       var bmViewId  = bookmarkInfo && bookmarkInfo.activeViewId || null;
 
+      // Katalog-Additions erkennen: Layer in effectiveLayers, die nicht in _cfg stehen
+      if (!_bmLoadedRecently && bookmarkInfo && bookmarkInfo._cfg && Array.isArray(bookmarkInfo._cfg.layers)) {
+        var _cfgIdSet = {};
+        bookmarkInfo._cfg.layers.forEach(function (l) { if (l && l.id) _cfgIdSet[l.id] = true; });
+        for (var _ei = 0; _ei < effectiveLayers.length; _ei++) {
+          var _el = effectiveLayers[_ei];
+          if (_el && _el.id && !_cfgIdSet[_el.id]) { _bmModified = true; break; }
+        }
+      }
+      var bmModified = bmName ? _isActiveBookmarkModified() : false;
       var html = '<div class="lm-active-header">';
       if (bmName) {
         html += '<div class="lm-active-bookmark-row">';
         html += '<span class="lm-active-bookmark-name" title="Geladenes Bookmark">' + esc(bmName) + '</span>';
+        if (bmModified) {
+          html += '<span class="lm-bm-modified-badge" title="Bookmark wurde verändert">&#10033;</span>';
+          html += '<button class="lm-btn-bm-reset" data-action="bm-reset" title="Bookmark zurücksetzen">&#8635;</button>';
+        }
         if (bmViews.length) {
           html += '<select class="lm-active-view-select" data-action="switch-view" title="Kartenansicht wählen">';
           html += '<option value="">(Standard)</option>';
@@ -395,7 +455,7 @@
      */
     _renderGroup: function (entry) {
       var groupId = entry.groupId;
-      var expanded = (_groupExpanded[groupId] !== undefined) ? _groupExpanded[groupId] : true;
+      var expanded = (_groupExpanded[groupId] !== undefined) ? _groupExpanded[groupId] : false;
       var expandCls = expanded ? '' : ' lm-collapsed';
 
       // Mittlere Opazität der Kinder berechnen
@@ -503,12 +563,22 @@
 
         // "Alle entfernen" liegt in der Toolbar, nicht in einem Item
         if (action === 'remove-all') {
-          if (getBookmarkInfo()) {
-            window.__tnetActiveBookmark.layers = [];
-            emitBookmarkStateChanged('remove-all');
-          }
+          // Bookmark komplett aufheben (Tabula rasa)
+          window.__tnetActiveBookmark = null;
+          _bmModified = false;
+          _bmLoadedRecently = false;
           if (window.TnetLMStore && window.TnetLMStore.removeAllLayers) {
             window.TnetLMStore.removeAllLayers();
+          }
+          return;
+        }
+
+        // Bookmark auf Original zurücksetzen
+        if (action === 'bm-reset') {
+          var bm = window.__tnetActiveBookmark;
+          if (bm && bm.id && typeof window.TnetSetBookmark === 'function') {
+            _bmModified = false;
+            window.TnetSetBookmark(bm.id);
           }
           return;
         }

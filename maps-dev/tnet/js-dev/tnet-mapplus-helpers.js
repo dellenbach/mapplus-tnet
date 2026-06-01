@@ -454,6 +454,7 @@ function _scheduleBookmarkVisibilityEnsure(visibilityMap, token) {
                 ? window.top.njs.AppManager
                 : (window.njs && window.njs.AppManager) ? window.njs.AppManager : null;
       var map = am && am.Maps && am.Maps['main'] && am.Maps['main'].mapObj;
+      var changedAny = false;
       if (!map || typeof map.getLayers !== 'function') return;
 
       // OL-Layer-Lookup
@@ -468,8 +469,52 @@ function _scheduleBookmarkVisibilityEnsure(visibilityMap, token) {
         var should = !!visibilityMap[layerId];
         var olLayer = olByName[layerId];
         if (!olLayer || typeof olLayer.setVisible !== 'function') return;
-        if (olLayer.getVisible() !== should) {
+        var olChanged = olLayer.getVisible() !== should;
+        var storeChanged = false;
+        if (olChanged) {
           olLayer.setVisible(should);
+          changedAny = true;
+        }
+
+        if (window.TnetLMStore) {
+          try {
+            var storeLayer = typeof window.TnetLMStore.findLayer === 'function'
+              ? window.TnetLMStore.findLayer(layerId)
+              : null;
+            var activeEntry = typeof window.TnetLMStore._findActiveLayer === 'function'
+              ? window.TnetLMStore._findActiveLayer(layerId)
+              : null;
+            if (storeLayer && storeLayer.visible !== should) {
+              storeLayer.visible = should;
+              storeChanged = true;
+            }
+            if (activeEntry && activeEntry.visible !== should) {
+              activeEntry.visible = should;
+              storeChanged = true;
+            }
+          } catch (eStoreSync) { /* ignore */ }
+        }
+
+        try {
+          var bookmark = window.__tnetActiveBookmark;
+          if (bookmark && Array.isArray(bookmark.layers)) {
+            for (var bi = 0; bi < bookmark.layers.length; bi++) {
+              if (bookmark.layers[bi] && bookmark.layers[bi].id === layerId) {
+                if (bookmark.layers[bi].visible !== should) {
+                  bookmark.layers[bi].visible = should;
+                  storeChanged = true;
+                }
+                break;
+              }
+            }
+          }
+        } catch (eBmSync) { /* ignore */ }
+
+        if (storeChanged) {
+          changedAny = true;
+        }
+
+        if (olChanged || storeChanged) {
           // TOC-Event: Augen-Icon synchronisieren (kein TnetLayerSwitch → kein removeLayer)
           if (window.TnetLMStore && typeof window.TnetLMStore._emit === 'function') {
             try {
@@ -480,6 +525,13 @@ function _scheduleBookmarkVisibilityEnsure(visibilityMap, token) {
           }
         }
       });
+
+      if (changedAny && window.TnetLMStore && typeof window.TnetLMStore._emit === 'function' &&
+          typeof window.TnetLMStore.getActiveLayers === 'function') {
+        try {
+          window.TnetLMStore._emit('active-layers-changed', window.TnetLMStore.getActiveLayers());
+        } catch (eActiveEmit) { /* ignore */ }
+      }
     }, delay);
     _bookmarkEnsureTimers.push(timer);
   });
@@ -583,7 +635,10 @@ function _buildBookmarkRuntimeLayers(cfg, activeView) {
       : (runtimeLayer.visible !== false);
 
     if (runtimeLayer.opacity == null || !isFinite(runtimeLayer.opacity)) {
-      runtimeLayer.opacity = 1;
+      // Kein expliziter Bookmark-Wert → Layer-Config-Default (options.opacity) bevorzugen,
+      // Fallback auf 1 nur wenn auch die Config keinen Wert hat.
+      var cfgOp = catalogLayer && catalogLayer.options && catalogLayer.options.opacity;
+      runtimeLayer.opacity = (cfgOp != null && isFinite(cfgOp)) ? +cfgOp : 1;
     } else {
       runtimeLayer.opacity = +runtimeLayer.opacity;
     }
@@ -623,6 +678,7 @@ function _syncBookmarkLayerStateToOL(olLayer) {
   var bookmark = window.__tnetActiveBookmark;
   var layerId;
   var runtimeLayer;
+  var spec;
 
   if (!bookmark || !Array.isArray(bookmark.layers) || !olLayer || typeof olLayer.get !== 'function') return false;
 
@@ -634,15 +690,55 @@ function _syncBookmarkLayerStateToOL(olLayer) {
   });
   if (!runtimeLayer) return false;
 
+  // Original-Spec aus _cfg holen, damit wir wissen, was der Bookmark
+  // EXPLIZIT vorgibt (vs. was nur per Default-Fallback im runtimeLayer
+  // gelandet ist). Visibility/Opacity nur erzwingen, wenn der Bookmark
+  // dies wirklich explizit angibt — sonst soll der Layer im Zustand
+  // bleiben, den die Karte/Theme (z.B. OEREB) vorgegeben hat.
+  spec = null;
+  try {
+    var specLayers = bookmark._cfg && Array.isArray(bookmark._cfg.layers)
+      ? bookmark._cfg.layers : null;
+    if (specLayers) {
+      for (var si = 0; si < specLayers.length; si++) {
+        var s = specLayers[si];
+        if (!s) continue;
+        var sid = (typeof s === 'object') ? s.id : String(s);
+        if (sid === layerId) { spec = s; break; }
+      }
+    }
+  } catch (eSpec) { /* ignore */ }
+
+  // Visibility nur setzen, wenn der Bookmark explizit visible:false
+  // angibt (also den Layer aktiv ausblenden will). Ein implizites
+  // visible:true (Default fuer v1-Strings oder nicht gesetzte v2-Felder)
+  // ueberschreibt den Karten-/Theme-Zustand nicht.
   if (typeof olLayer.setVisible === 'function' && typeof olLayer.getVisible === 'function') {
-    var shouldBeVisible = runtimeLayer.visible !== false;
-    if (olLayer.getVisible() !== shouldBeVisible) {
-      olLayer.setVisible(shouldBeVisible);
+    var hasExplicitVisible = (spec && typeof spec === 'object' && 'visible' in spec);
+    if (hasExplicitVisible && spec.visible === false) {
+      if (olLayer.getVisible() !== false) olLayer.setVisible(false);
     }
   }
 
-  if (runtimeLayer.opacity != null && isFinite(runtimeLayer.opacity) && typeof olLayer.setOpacity === 'function') {
-    olLayer.setOpacity(+runtimeLayer.opacity);
+  // Opacity: Bookmark-explizit übersteuert, sonst Layer-Config-Default aus Store
+  if (typeof olLayer.setOpacity === 'function') {
+    var targetOp = null;
+    if (spec && typeof spec === 'object' && spec.opacity != null && isFinite(spec.opacity)) {
+      // Explizit im Bookmark definiert
+      targetOp = Math.max(0, Math.min(1, +spec.opacity));
+    } else {
+      // Kein Bookmark-Wert → options.opacity aus Layer-Config via Store
+      try {
+        var storeL = window.TnetLMStore && typeof window.TnetLMStore.findLayer === 'function'
+          ? window.TnetLMStore.findLayer(layerId) : null;
+        if (storeL && storeL.options && storeL.options.opacity != null && isFinite(storeL.options.opacity)) {
+          targetOp = Math.max(0, Math.min(1, +storeL.options.opacity));
+        }
+      } catch (eOp) { /* ignore */ }
+    }
+    if (targetOp !== null && olLayer.getOpacity() !== targetOp) {
+      olLayer.setOpacity(targetOp);
+    }
   }
 
   return true;
@@ -915,6 +1011,7 @@ function _applyBookmark(cfg, bookmarkId, viewId) {
   am.setMapBookmark(['main'], params);
 
   _scheduleViewVisibilityWhenLayersReady(visibilityMap, ensureToken);
+  _scheduleBookmarkVisibilityEnsure(visibilityMap, ensureToken);
   _applyBookmarkRuntimeStateToMap();
 
   var activeViewId = activeView ? activeView.id : null;
