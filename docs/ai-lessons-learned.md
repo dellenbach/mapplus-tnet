@@ -1,3 +1,9 @@
+## 2026-06-01 — Coalesce-Sublayer durfte nicht vom cEntry-Status abhängen
+- **Symptom:** `Grundnutzung` wurde im Karteninhalt auf EIN gesetzt, erschien aber erst nach Group-AUS/EIN auf der Karte.
+- **Root-Cause:** `toggleLayerEye` lief in den Coalesce-Pfad und verließ sich auf `cEntry`/Bridge-Status; bei Framework-kombiniertem `show:`-Layer wurde dadurch nicht immer der tatsächlich gerenderte OL-Layer aktualisiert.
+- **Fix:** Coalesce-Toggle nutzt jetzt zuerst den Framework-Combined-Fast-Path (`_setFrameworkCombinedSublayer`) und schreibt direkt in den aktuellen `show:`-Layer; Bridge-Referenzen werden bei LAYERS-Updates zusätzlich auf verwaiste OL-Instanzen geprüft und neu aufgelöst.
+- **Guardrail:** Bei Framework-kombinierten Sublayern immer zuerst den real gerenderten `show:`-Layer aktualisieren; Coalesce-Bookkeeping (`cEntry`) ist sekundär und kann stale sein.
+
 ## 2026-06-01 — Bookmark-View-Visibility muss Basis-Visibility uebersteuern
 - **Symptom:** Baulinien Nationalstrassen war auf der Karte sichtbar, im Karteninhalt aber ohne aktives Auge; der erste Klick synchronisierte nur den Store statt den Layer auszuschalten.
 - **Root-Cause:** `_syncBookmarkLayerStateToOL()` bewertete `cfg.layers[].visible:false` als explizite Wahrheit und ignorierte `views[].layerStates[id].visible:true` der aktiven NPL-View.

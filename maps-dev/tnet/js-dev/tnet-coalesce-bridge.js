@@ -194,6 +194,56 @@
   }
 
   /**
+   * Prüft, ob eine OL-Layer-Instanz aktuell noch in der Hauptkarte hängt.
+   * @param {ol.layer.Layer} targetLayer
+   * @returns {boolean}
+   */
+  function _isLayerAttachedToMainMap(targetLayer) {
+    try {
+      if (!targetLayer) return false;
+      var am = window.njs && window.njs.AppManager;
+      if (!am || !am.Maps || !am.Maps['main'] || !am.Maps['main'].mapObj) return false;
+      var mapObj = am.Maps['main'].mapObj;
+      var found = false;
+      function _scan(coll) {
+        if (!coll || found) return;
+        coll.forEach(function (l) {
+          if (!l || found) return;
+          if (l === targetLayer) { found = true; return; }
+          if (l.getLayers && typeof l.getLayers === 'function') {
+            _scan(l.getLayers());
+          }
+        });
+      }
+      _scan(mapObj.getLayers());
+      return found;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /**
+   * Fallback: sucht einen Framework-Layer über registrierte/aktive Sublayer.
+   * @param {Object} entry
+   * @returns {ol.layer.Layer|null}
+   */
+  function _findFrameworkOLLayerFromEntry(entry) {
+    if (!entry) return null;
+    var lid;
+    for (lid in entry.visibleSublayers) {
+      if (!entry.visibleSublayers.hasOwnProperty(lid)) continue;
+      var vLayer = _findFrameworkOLLayer(lid);
+      if (vLayer) return vLayer;
+    }
+    for (lid in entry.registeredSublayers) {
+      if (!entry.registeredSublayers.hasOwnProperty(lid)) continue;
+      var rLayer = _findFrameworkOLLayer(lid);
+      if (rLayer) return rLayer;
+    }
+    return null;
+  }
+
+  /**
    * Baut den LAYERS-Parameter aus sichtbaren Sublayer-Nummern.
    * @param {Object} visibleSublayers  { sublayerKey: sublayerNum }
    * @returns {string}  z.B. "show:0,3,5" oder "show:-1"
@@ -202,12 +252,83 @@
     var nums = [];
     for (var lid in visibleSublayers) {
       if (visibleSublayers.hasOwnProperty(lid)) {
+        // Flicker-Schutz: Während eines Bookmark-Loads via Bookmark ausgeblendete
+        // Sublayer NICHT in den show:-Parameter aufnehmen, auch wenn das Framework
+        // sie aktiviert hat. Greift nur im Lade-Fenster (siehe _isBookmarkSublayerHidden).
+        if (_isBookmarkSublayerHidden(lid)) continue;
         nums.push(visibleSublayers[lid]);
       }
     }
     nums.sort(function (a, b) { return a - b; });
     if (nums.length === 0) return 'show:-1';
     return 'show:' + nums.join(',');
+  }
+
+  /**
+   * Prüft, ob ein Sublayer während eines laufenden Bookmark-Loads vom Bookmark
+   * explizit auf visible:false gesetzt wird.
+   *
+   * Hintergrund: Beim Bookmark-Load aktiviert das Framework ALLE Bookmark-Layer
+   * (Layer ON). Ohne diese Prüfung würde registerSublayer jeden Sublayer in
+   * visibleSublayers aufnehmen → der kombinierte show:-Parameter enthielte erst
+   * alle Indizes, und die Ensure-Logik im Helper würde die unsichtbaren danach
+   * wieder ausblenden = sichtbarer Lade-Flicker. Wird der Sublayer hier als
+   * unsichtbar erkannt, bleibt er aus visibleSublayers → show: ist von Anfang
+   * an korrekt.
+   *
+   * Nur innerhalb des Lade-Fensters (__tnetActiveBookmark._loadUntil) aktiv,
+   * damit spätere Benutzer-Klicks (Layer einschalten) nicht unterdrückt werden.
+   *
+   * @param {string} sublayerKey
+   * @returns {boolean} true wenn das Bookmark den Sublayer aktuell ausblendet
+   * @private
+   */
+  function _isBookmarkSublayerHidden(sublayerKey) {
+    var bm = _getActiveBookmark();
+    if (!bm || !Array.isArray(bm.layers)) return false;
+    // Nur während des frischen Bookmark-Loads (Flicker-Fenster) greifen.
+    if (!bm._loadUntil || Date.now() >= bm._loadUntil) return false;
+    for (var i = 0; i < bm.layers.length; i++) {
+      var l = bm.layers[i];
+      if (l && l.id === sublayerKey) {
+        return l.visible === false;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Liefert das aktive Bookmark-Runtime-Objekt (__tnetActiveBookmark).
+   *
+   * Scope-Fallback: _applyBookmark läuft im Top-Window und setzt dort
+   * __tnetActiveBookmark. Die Bridge kann (je nach Einstiegspunkt) im selben
+   * oder im Karten-Window laufen — daher beide Scopes prüfen.
+   *
+   * @returns {Object|null}
+   * @private
+   */
+  function _getActiveBookmark() {
+    var bm = window.__tnetActiveBookmark;
+    if ((!bm || !Array.isArray(bm.layers)) && window.top && window.top !== window) {
+      try { bm = window.top.__tnetActiveBookmark; } catch (e) { /* cross-origin */ }
+    }
+    return bm || null;
+  }
+
+  /**
+   * Prüft, ob aktuell ein frischer Bookmark-Load läuft (Lade-Fenster aktiv).
+   *
+   * Während dieses Fensters werden LAYERS-Updates SOFORT (statt debounced)
+   * angewendet, damit der kombinierte OL-Layer nie kurz alle Sublayer zeigt
+   * und danach wieder ausblendet (= Lade-Flicker). Ausserhalb des Fensters
+   * (normale Benutzer-Klicks) bleibt das Debounce-Verhalten erhalten.
+   *
+   * @returns {boolean}
+   * @private
+   */
+  function _isBookmarkLoadActive() {
+    var bm = _getActiveBookmark();
+    return !!(bm && bm._loadUntil && Date.now() < bm._loadUntil);
   }
 
   // ===== OL-LAYER-ERSTELLUNG =====
@@ -1103,6 +1224,14 @@
           entry.originalLAYERS = _getOriginalLAYERS(rootKey) || 'show:all';
           TnetLog.log(LOG, 'Root-OL-Layer bereit:', rootKey,
             entry.olLayer.get('tnet_bridge_created') ? '(Bridge-erstellt)' : '(Framework)');
+          // Flicker-Schutz: Beim Bookmark-Load hat der adoptierte Framework-Layer
+          // u.U. noch LAYERS=show:all (alle Sublayer) → würde kurz alles malen,
+          // bevor das Debounce-Update auf den korrekten Stand reduziert. Daher
+          // SOFORT auf den aktuell gefilterten Stand setzen (anfangs show:-1 =
+          // nichts), damit nur progressiv aufgedeckt wird statt erst alles zu zeigen.
+          if (_isBookmarkLoadActive()) {
+            this._applyLAYERSParam(rootKey);
+          }
         } else {
           // Map noch nicht bereit → Retry (z.B. beim allerersten Startup)
           TnetLog.log(LOG, 'Root-Dienst OL-Layer noch nicht erstellbar:', rootKey,
@@ -1143,7 +1272,15 @@
       }
 
       entry.registeredSublayers[sublayerKey] = sublayerNum;
-      entry.visibleSublayers[sublayerKey] = sublayerNum;
+      // Bookmark-Sichtbarkeit respektieren: Während eines Bookmark-Loads
+      // visible:false-Sublayer registrieren, aber NICHT in den kombinierten
+      // show:-Parameter aufnehmen → kein Lade-Flicker (siehe _isBookmarkSublayerHidden).
+      if (_isBookmarkSublayerHidden(sublayerKey)) {
+        delete entry.visibleSublayers[sublayerKey];
+        TnetLog.log(LOG, 'Sublayer registriert, aber via Bookmark unsichtbar:', sublayerKey, '(#' + sublayerNum + ')');
+      } else {
+        entry.visibleSublayers[sublayerKey] = sublayerNum;
+      }
 
       // ── Doppel-Layer-Schutz: individuellen Framework-Startup-OL-Layer entfernen ──
       // Das Framework erstellt beim Startup eigene OL-Layer pro Sublayer (name=sublayerKey).
@@ -1318,6 +1455,16 @@
       if (!entry) return;
       if (entry.debounceTimer) clearTimeout(entry.debounceTimer);
 
+      // Flicker-Schutz: Während eines frischen Bookmark-Loads SOFORT anwenden
+      // (kein Debounce). Sonst zeigt der Framework-Layer kurz alle Sublayer und
+      // blendet erst nach Ablauf des Debounce wieder aus. Die Updates während des
+      // Loads sind rein additiv (nur sichtbare Sublayer kommen dazu) → kein Flicker.
+      if (_isBookmarkLoadActive()) {
+        entry.debounceTimer = null;
+        this._applyLAYERSParam(rootKey);
+        return;
+      }
+
       var delay = 80;
       try { delay = TnetGlobalConfig.get('layerManager.coalesceDebounceMs', 80); }
       catch (e) { /* default */ }
@@ -1340,13 +1487,22 @@
       var layersParam = _buildLayersParam(entry.visibleSublayers);
       TnetLog.log(LOG, 'LAYERS update:', rootKey, '→', layersParam);
 
+      if (entry.olLayer && !_isLayerAttachedToMainMap(entry.olLayer)) {
+        entry.olLayer = null;
+      }
+
       if (!entry.olLayer) entry.olLayer = _findFrameworkOLLayer(rootKey);
+      if (!entry.olLayer) entry.olLayer = _findFrameworkOLLayerFromEntry(entry);
 
       if (!entry.olLayer) {
         var self = this;
         var retryCount = 0;
         var retryFn = function () {
+          if (entry.olLayer && !_isLayerAttachedToMainMap(entry.olLayer)) {
+            entry.olLayer = null;
+          }
           entry.olLayer = _findFrameworkOLLayer(rootKey);
+          if (!entry.olLayer) entry.olLayer = _findFrameworkOLLayerFromEntry(entry);
           if (entry.olLayer) {
             self._setLayersOnSource(entry.olLayer, layersParam, rootKey);
           } else if (retryCount < 8) {
@@ -1376,6 +1532,19 @@
       if (src && typeof src.updateParams === 'function') {
         src.updateParams({ LAYERS: layersParam });
         TnetLog.debug(LOG, 'OL-Source LAYERS gesetzt:', rootKey, '→', layersParam);
+
+        // Flicker-Schutz: Sichtbarkeit des kombinierten Layers an den LAYERS-Param
+        // koppeln. Bei "show:-1" (kein Sublayer sichtbar) den Layer UNSICHTBAR
+        // schalten, damit ein evtl. noch in Flight befindliches show:all-Bild
+        // (vom Framework-Startup) nie gemalt wird. Sobald sichtbare Sublayer da
+        // sind, wird der Layer wieder sichtbar und malt direkt nur den Subset.
+        try {
+          var shouldBeVisible = (layersParam !== 'show:-1');
+          if (olLayer.getVisible() !== shouldBeVisible) {
+            olLayer.setVisible(shouldBeVisible);
+          }
+        } catch (e) { /* setVisible nicht verfügbar */ }
+
         // Karten-Render erzwingen — ohne expliziten Render-Zyklus zeigt OL
         // die neuen Tiles erst bei der nächsten User-Interaktion (Pan/Zoom)
         setTimeout(function () {

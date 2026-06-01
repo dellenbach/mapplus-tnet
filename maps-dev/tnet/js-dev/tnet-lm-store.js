@@ -1072,6 +1072,24 @@
         var layer = this.findLayer(layerId);
         var cEntry = _coalesceOLLayers[coalGroupId];
         if (!layer) return;
+
+        // Fast-Path: Wenn der Sublayer bereits über einen Framework-kombinierten
+        // Dienst-Layer (show:...) gerendert wird, immer zuerst diesen aktualisieren.
+        // Das verhindert Inkonsistenzen durch veraltete Coalesce-Entries und
+        // vermeidet langsames Lazy-Nachladen via TnetLayerSwitch.
+        var fwCur = (activeEntry && activeEntry.visible !== undefined)
+          ? !!activeEntry.visible
+          : (layer.visible !== undefined ? !!layer.visible : false);
+        var fwWant = !fwCur;
+        if (this._setFrameworkCombinedSublayer(layerId, layer, fwWant)) {
+          layer.visible = fwWant;
+          if (activeEntry) activeEntry.visible = fwWant;
+          this._emit('layer-visibility', { id: layerId, visible: fwWant, source: 'ui' });
+          this._emit('active-layers-changed', _activeLayers);
+          TnetLog.log(LOG, 'toggleLayerEye Coalesce via Framework-Combined:', layerId, '→', fwWant);
+          return;
+        }
+
         // Fallback für Framework-OL-Layer (beim Startup individuell erstellt, kein Coalesce-OL-Layer)
         if (!cEntry) {
           // OL-Layer robust suchen: gespeicherte Referenz ODER echter Map-Layer.
@@ -1086,6 +1104,20 @@
             : (activeEntry && activeEntry.visible !== undefined ? !!activeEntry.visible
               : (layer.visible !== undefined ? !!layer.visible : false));
           var fbWant = !fbCur;
+
+          // WICHTIG: Bei Framework-kombinierten Sublayern existiert oft KEIN
+          // eigener OL-Layer mit exaktem Namen. In diesem Fall den bereits
+          // geladenen kombinierten Dienst-Layer direkt über show:-Param
+          // aktualisieren (schnell + konsistent), statt per TnetLayerSwitch
+          // einen dedizierten Layer nachzuladen.
+          if (layer && this._setFrameworkCombinedSublayer(layerId, layer, fbWant)) {
+            layer.visible = fbWant;
+            if (activeEntry) activeEntry.visible = fbWant;
+            this._emit('layer-visibility', { id: layerId, visible: fbWant, source: 'ui' });
+            this._emit('active-layers-changed', _activeLayers);
+            TnetLog.log(LOG, 'toggleLayerEye Fallback (Framework-Combined):', layerId, '→', fbWant);
+            return;
+          }
 
           if (olFb) {
             // Geladener Einzel-Sublayer → direkt schalten (kein Merge/Duplikat)
@@ -1131,6 +1163,15 @@
             var subNum = this._extractSublayerNum(layer);
             if (subNum !== null) {
               cEntry.activeSublayers[layerId] = subNum;
+              // Kann beim Bookmark-Start passieren: der Sublayer ist im Store,
+              // aber in der Bridge noch nicht registriert (visible:false beim
+              // initialen Register). Vor showSublayer deshalb immer registrieren,
+              // damit _sublayerToRoot gesetzt ist und der Show-Call wirkt.
+              try {
+                if (window.TnetCoalesceBridge && typeof window.TnetCoalesceBridge.registerSublayer === 'function') {
+                  window.TnetCoalesceBridge.registerSublayer(layerId, subNum);
+                }
+              } catch (eRegShow) { /* ignore */ }
               window.TnetCoalesceBridge.showSublayer(layerId, subNum);
             }
           } else {
@@ -1384,7 +1425,18 @@
       var activeEntry = this._findActiveLayer(layerId);
       var layer = this.findLayer(layerId);
 
-      // 0) BRIDGE-LAZY-LOAD: Coalesce-/Framework-Sublayer ohne eigenen OL-Layer
+      // 0) Framework-Combined ArcGIS-Sublayer (Bookmark/URL-Load)
+      // Vor Lazy-Load prüfen: wenn der Sublayer bereits in einem kombinierten
+      // Dienst-Layer gerendert wird, nur dessen show:-Param aktualisieren.
+      if (layer && this._setFrameworkCombinedSublayer(layerId, layer, visible)) {
+        if (layer) layer.visible = visible;
+        if (activeEntry) activeEntry.visible = visible;
+        this._emit('layer-visibility', { id: layerId, visible: visible, source: 'set' });
+        this._emit('active-layers-changed', _activeLayers);
+        return true;
+      }
+
+      // 1) BRIDGE-LAZY-LOAD: Coalesce-/Framework-Sublayer ohne eigenen OL-Layer
       //    EINSCHALTEN → als individuellen Framework-Layer (show:N) nachladen,
       //    genau wie der initiale Framework-Load. NICHT in einen fremden Dienst-
       //    Layer mergen (das erzeugt Duplikat-Render bei individuellen Layern).
@@ -1417,15 +1469,6 @@
           TnetLog.log(LOG, 'setLayerEye Bridge-LazyLoad:', layerId, '→ EIN (Framework-Switch)');
           return true;
         }
-      }
-
-      // 1) Framework-Combined ArcGIS-Sublayer (Bookmark/URL-Load)
-      if (layer && this._setFrameworkCombinedSublayer(layerId, layer, visible)) {
-        if (layer) layer.visible = visible;
-        if (activeEntry) activeEntry.visible = visible;
-        this._emit('layer-visibility', { id: layerId, visible: visible, source: 'set' });
-        this._emit('active-layers-changed', _activeLayers);
-        return true;
       }
 
       // 2) Standalone OL-Layer direkt setzen — bevorzugt den echten Map-Layer
