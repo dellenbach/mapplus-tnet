@@ -813,48 +813,63 @@
     toggleCoalesceGroupEye: function (groupId) {
       var info = _coalesceIndex[groupId];
       if (!info) return;
-      var cEntry = _coalesceOLLayers[groupId];
 
-      if (cEntry && cEntry.olLayer) {
-        // Coalesce-Modus: ein gemeinsamer OL-Layer
-        var newVisible = !cEntry.olLayer.getVisible();
-        _suppressMapSync = true;
-        cEntry.olLayer.setVisible(newVisible);
-        setTimeout(function () { _suppressMapSync = false; }, 200);
-        for (var j = 0; j < info.childIds.length; j++) {
-          var childId = info.childIds[j];
-          var layer = this.findLayer(childId);
-          if (layer) layer.visible = newVisible;
-          var ae = this._findActiveLayer(childId);
-          if (ae) ae.visible = newVisible;
+      // Aktuellen Sichtbarkeitszustand pro Kind-Layer ermitteln.
+      var currentState = {};
+      var anyVisible = false;
+      var i, childId, ae, layer, vis;
+      for (i = 0; i < info.childIds.length; i++) {
+        childId = info.childIds[i];
+        ae = this._findActiveLayer(childId);
+        layer = this.findLayer(childId);
+        vis = ae ? (ae.visible !== false) : (layer ? layer.visible !== false : false);
+        currentState[childId] = vis;
+        if (vis) anyVisible = true;
+      }
+
+      if (anyVisible) {
+        // → Gruppe AUS: aktuellen Subset merken (Snapshot), dann nur die aktuell
+        //   sichtbaren Kinder ausblenden. Der Snapshot bewahrt den Initial-/
+        //   Teilzustand für das spätere Wieder-Einschalten.
+        info._eyeSnapshot = currentState;
+        for (i = 0; i < info.childIds.length; i++) {
+          childId = info.childIds[i];
+          if (currentState[childId]) this._setCoalesceChildVisible(childId, false);
         }
-        this._emit('active-layers-changed', _activeLayers);
-        TnetLog.log(LOG, 'toggleCoalesceGroupEye (coalesce)', groupId, '→', newVisible);
+        TnetLog.log(LOG, 'toggleCoalesceGroupEye AUS (Snapshot gemerkt):', groupId);
       } else {
-        // Legacy-Fallback: einzelne OL-Layer pro Kind-Layer (useNewTree=false)
-        var am = this._getAppManager();
-        var map = am && am.Maps && am.Maps['main'] && am.Maps['main'].mapObj;
-        // Sichtbarkeitszustand aus erstem aktiven Kind-Layer ableiten
-        var firstVisible = false;
-        for (var k = 0; k < info.childIds.length; k++) {
-          var kid = info.childIds[k];
-          var kae = this._findActiveLayer(kid);
-          if (kae) { firstVisible = (kae.visible !== false); break; }
+        // → Gruppe EIN: gemerkten Subset wiederherstellen; ohne Snapshot alle ein.
+        var snap = info._eyeSnapshot;
+        for (i = 0; i < info.childIds.length; i++) {
+          childId = info.childIds[i];
+          var target = snap ? (snap[childId] === true) : true;
+          if (target) this._setCoalesceChildVisible(childId, true);
         }
-        var newVis = !firstVisible;
-        _suppressMapSync = true;
-        for (var m = 0; m < info.childIds.length; m++) {
-          var mid = info.childIds[m];
-          var mae = this._findActiveLayer(mid);
-          var mol = (mae && mae._olLayerRef) || (map ? this._findOLLayer(map, mid) : null);
-          if (mol) mol.setVisible(newVis);
-          var ml = this.findLayer(mid);
-          if (ml) ml.visible = newVis;
-          if (mae) mae.visible = newVis;
-        }
-        setTimeout(function () { _suppressMapSync = false; }, 200);
-        this._emit('active-layers-changed', _activeLayers);
-        TnetLog.log(LOG, 'toggleCoalesceGroupEye (legacy)', groupId, '→', newVis);
+        TnetLog.log(LOG, 'toggleCoalesceGroupEye EIN (' + (snap ? 'Snapshot' : 'alle') + '):', groupId);
+      }
+      this._emit('active-layers-changed', _activeLayers);
+    },
+
+    /**
+     * Setzt die Sichtbarkeit eines Coalesce-Kind-Layers explizit auf den Zielwert.
+     * Nutzt den idempotenten setLayerEye-Setter (findet den echten Map-Layer via
+     * _findOLLayer und behandelt Framework-Combined-Sublayer + Standalone-Layer),
+     * damit OL-Layer-Sichtbarkeit und Store-/Active-Liste konsistent bleiben.
+     * @param {string} childId
+     * @param {boolean} target
+     * @private
+     */
+    _setCoalesceChildVisible: function (childId, target) {
+      if (typeof this.setLayerEye === 'function') {
+        this.setLayerEye(childId, !!target);
+        return;
+      }
+      // Fallback (aeltere Version ohne setLayerEye): per Guard toggeln.
+      var ae = this._findActiveLayer(childId);
+      var layer = this.findLayer(childId);
+      var cur = ae ? (ae.visible !== false) : (layer ? layer.visible !== false : false);
+      if (cur !== !!target) {
+        this.toggleLayerEye(childId);
       }
     },
 
@@ -1059,17 +1074,51 @@
         if (!layer) return;
         // Fallback für Framework-OL-Layer (beim Startup individuell erstellt, kein Coalesce-OL-Layer)
         if (!cEntry) {
-          if (activeEntry && activeEntry._olLayerRef) {
-            var newVis = !activeEntry._olLayerRef.getVisible();
-            _suppressMapSync = true;
-            activeEntry._olLayerRef.setVisible(newVis);
-            setTimeout(function () { _suppressMapSync = false; }, 200);
-            layer.visible = newVis;
-            if (activeEntry) activeEntry.visible = newVis;
-            this._emit('layer-visibility', { id: layerId, visible: newVis, source: 'ui' });
-            this._emit('active-layers-changed', _activeLayers);
-            TnetLog.log(LOG, 'toggleLayerEye Fallback (Framework-OL-Layer):', layerId, '→', newVis);
+          // OL-Layer robust suchen: gespeicherte Referenz ODER echter Map-Layer.
+          var amFb = this._getAppManager();
+          var mapFb = amFb && amFb.Maps && amFb.Maps['main'] && amFb.Maps['main'].mapObj;
+          var olFb = (activeEntry && activeEntry._olLayerRef) ? activeEntry._olLayerRef : null;
+          if (!olFb && mapFb) {
+            olFb = this._findOLLayer(mapFb, layerId);
+            if (olFb && activeEntry) activeEntry._olLayerRef = olFb;
           }
+          var fbCur = olFb ? !!olFb.getVisible()
+            : (activeEntry && activeEntry.visible !== undefined ? !!activeEntry.visible
+              : (layer.visible !== undefined ? !!layer.visible : false));
+          var fbWant = !fbCur;
+
+          if (olFb) {
+            // Geladener Einzel-Sublayer → direkt schalten (kein Merge/Duplikat)
+            _suppressMapSync = true;
+            olFb.setVisible(fbWant);
+            if (mapFb) {
+              var allFb = this._findAllOLLayers(mapFb, layerId);
+              for (var fi = 0; fi < allFb.length; fi++) allFb[fi].setVisible(fbWant);
+            }
+            setTimeout(function () { _suppressMapSync = false; }, 200);
+          } else if (fbWant && typeof TnetLayerSwitch === 'function') {
+            // BRIDGE-LAZY-LOAD: nicht geladenen Off-Sublayer als eigenen
+            // Framework-Layer (show:N) nachladen — wie der initiale Load.
+            var selfFb = this;
+            _suppressMapSync = true;
+            try { TnetLayerSwitch(layerId, 'on'); } catch (eFb) { /* ignore */ }
+            setTimeout(function () { _suppressMapSync = false; }, 200);
+            setTimeout(function () {
+              var m3 = selfFb._getAppManager();
+              m3 = m3 && m3.Maps && m3.Maps['main'] && m3.Maps['main'].mapObj;
+              if (m3 && layer.opacity != null && isFinite(layer.opacity)) {
+                var ol3 = selfFb._findAllOLLayers(m3, layerId);
+                for (var ki = 0; ki < ol3.length; ki++) {
+                  ol3[ki].setOpacity(Math.max(0, Math.min(1, +layer.opacity)));
+                }
+              }
+            }, 300);
+          }
+          layer.visible = fbWant;
+          if (activeEntry) activeEntry.visible = fbWant;
+          this._emit('layer-visibility', { id: layerId, visible: fbWant, source: 'ui' });
+          this._emit('active-layers-changed', _activeLayers);
+          TnetLog.log(LOG, 'toggleLayerEye Fallback (Framework-OL-Layer):', layerId, '→', fbWant, olFb ? '(geladen)' : '(LazyLoad)');
           return;
         }
         if (!cEntry.bridgeManaged && !cEntry.olLayer) return;
@@ -1113,6 +1162,23 @@
       // ── Standard-Pfad ──
       var layer = this.findLayer(layerId);
       if (!layer && !activeEntry) return;
+
+      // ── Framework-Combined-Sublayer (Bookmark/URL-Load) ──
+      // Mehrere ArcGIS-Sublayer eines Dienstes werden vom Framework in EINEM
+      // OL-Layer via LAYERS:"show:a,b,c" gerendert (benannt nach dem ersten
+      // Sublayer). Einzelnen Sublayer ueber seinen show:-Index ein-/ausblenden,
+      // statt den ganzen OL-Layer per setVisible zu schalten.
+      var _combinedCur = (activeEntry && activeEntry.visible !== undefined)
+        ? !!activeEntry.visible
+        : (layer && layer.visible !== undefined ? !!layer.visible : false);
+      if (layer && this._setFrameworkCombinedSublayer(layerId, layer, !_combinedCur)) {
+        if (layer) layer.visible = !_combinedCur;
+        if (activeEntry) activeEntry.visible = !_combinedCur;
+        this._emit('layer-visibility', { id: layerId, visible: !_combinedCur, source: 'ui' });
+        this._emit('active-layers-changed', _activeLayers);
+        TnetLog.log(LOG, 'toggleLayerEye Combined-Sublayer:', layerId, '→', !_combinedCur);
+        return;
+      }
 
       // OL-Layer finden: bevorzugt gespeicherte Referenz, Fallback auf Suche
       var olLayer = (activeEntry && activeEntry._olLayerRef) ? activeEntry._olLayerRef : null;
@@ -1177,6 +1243,216 @@
           TnetLog.warn(LOG, 'toggleLayerEye: OL-Layer nicht gefunden und TnetLayerSwitch fehlt für', layerId);
         }
       }
+    },
+
+    /**
+     * Blendet einen einzelnen ArcGIS-Sublayer eines Framework-kombinierten
+     * OL-Layers ueber dessen LAYERS:"show:..."-Param ein/aus.
+     *
+     * Hintergrund: Beim Bookmark-/URL-Load fasst das Framework alle Sublayer
+     * eines Dienstes in EINEM OL-Layer zusammen (benannt nach dem ersten
+     * Sublayer). Ein einzelner Sublayer laesst sich daher NICHT per setVisible
+     * auf einem eigenen OL-Layer schalten — er hat keinen. Stattdessen wird die
+     * show:-Indexliste des kombinierten Layers rekonstruiert.
+     *
+     * Die Liste wird immer komplett aus dem Store-Zustand aller aktiven Sublayer
+     * desselben Dienstes neu aufgebaut (idempotent, reihenfolge-unabhaengig).
+     *
+     * @param {string} layerId         Sublayer-ID (z.B. ".../gefahrenzone")
+     * @param {Object} layer           Katalog-Layer-Objekt (fuer show:-Index)
+     * @param {boolean} shouldBeVisible Zielzustand fuer DIESEN Sublayer
+     * @returns {boolean} true, wenn ein kombinierter OL-Layer behandelt wurde
+     */
+    _setFrameworkCombinedSublayer: function (layerId, layer, shouldBeVisible) {
+      var subNum = this._extractSublayerNum(layer);
+      if (subNum === null) return false; // kein ArcGIS-show:-Sublayer
+
+      var lastSlash = layerId.lastIndexOf('/');
+      if (lastSlash < 0) return false;
+      var servicePrefix = layerId.substring(0, lastSlash + 1); // inkl. '/'
+
+      var am = this._getAppManager();
+      var map = am && am.Maps && am.Maps['main'] && am.Maps['main'].mapObj;
+      if (!map || typeof map.getLayers !== 'function') return false;
+
+      // Alle OL-Layer dieses Dienstes mit "show:"-Param sammeln; exakten Namens-
+      // treffer merken. Das Framework rendert je nach Lade-Timing entweder
+      // EINEN kombinierten Layer (show:a,b,c) oder pro Sublayer einen eigenen
+      // Layer (show:N) — beide Faelle muessen behandelt werden.
+      var candidates = [];
+      var exact = null;
+      function _collect(coll) {
+        coll.forEach(function (l) {
+          if (!l) return;
+          if (l.getLayers) { _collect(l.getLayers()); return; }
+          var n = (typeof l.get === 'function' ? l.get('name') : '') || '';
+          if (n.indexOf(servicePrefix) !== 0) return;
+          var src = (typeof l.getSource === 'function') ? l.getSource() : null;
+          var params = (src && typeof src.getParams === 'function') ? src.getParams() : null;
+          var lp = params && (params.LAYERS || params.layers);
+          if (typeof lp !== 'string' || lp.indexOf('show:') !== 0) return;
+          var entry = { layer: l, src: src, show: lp };
+          candidates.push(entry);
+          if (n === layerId && !exact) exact = entry;
+        });
+      }
+      _collect(map.getLayers());
+      if (!candidates.length) return false;
+
+      function _parse(showStr) {
+        var ss = showStr.replace(/^show:/, '').trim();
+        return ss.length ? ss.split(',').map(function (x) { return x.trim(); }).filter(Boolean) : [];
+      }
+      var subStr = String(subNum);
+
+      // Fall 1: Eigener OL-Layer mit EXAKTEM Namen
+      if (exact) {
+        var exList = _parse(exact.show);
+        if (exList.length <= 1 && (exList.length === 0 || exList[0] === subStr)) {
+          // Dedizierter Einzel-Sublayer-Layer → direkt schalten
+          _suppressMapSync = true;
+          exact.layer.setVisible(!!shouldBeVisible);
+          setTimeout(function () { _suppressMapSync = false; }, 200);
+          return true;
+        }
+        // Kombinierter Layer (nach diesem Sublayer benannt) → show-Liste editieren
+        return this._rebuildCombinedShow(exact, servicePrefix, layerId, subNum, shouldBeVisible);
+      }
+
+      // Fall 2: Sublayer wird von einem kombinierten Layer mitgerendert
+      // (benannt nach einem ANDEREN Sublayer des Dienstes).
+      var hosting = null;
+      for (var i = 0; i < candidates.length; i++) {
+        if (_parse(candidates[i].show).indexOf(subStr) >= 0) { hosting = candidates[i]; break; }
+      }
+      if (hosting) {
+        return this._rebuildCombinedShow(hosting, servicePrefix, layerId, subNum, shouldBeVisible);
+      }
+      // Sublayer wird aktuell nirgends gerendert: ausblenden = nichts zu tun;
+      // einblenden = an den ersten Kombi-Layer des Dienstes anhaengen.
+      if (!shouldBeVisible) return true;
+      return this._rebuildCombinedShow(candidates[0], servicePrefix, layerId, subNum, shouldBeVisible);
+    },
+
+    /**
+     * Baut die show:-Indexliste eines kombinierten OL-Layers komplett aus dem
+     * Store-Zustand aller aktiven Sublayer desselben Dienstes neu auf
+     * (idempotent, reihenfolge-unabhaengig). Der Zielzustand fuer den gerade
+     * geschalteten Sublayer wird hart durchgesetzt.
+     */
+    _rebuildCombinedShow: function (entry, servicePrefix, layerId, subNum, shouldBeVisible) {
+      var wanted = {};
+      for (var i = 0; i < _activeLayers.length; i++) {
+        var ae = _activeLayers[i];
+        if (!ae || !ae.id || ae.id.indexOf(servicePrefix) !== 0) continue;
+        var visEff = (ae.id === layerId) ? !!shouldBeVisible : (ae.visible !== false);
+        if (!visEff) continue;
+        var sn = (ae.id === layerId) ? subNum : this._extractSublayerNum(this.findLayer(ae.id));
+        if (sn !== null && sn !== undefined) wanted[sn] = true;
+      }
+      if (shouldBeVisible) wanted[subNum] = true; else delete wanted[subNum];
+
+      var nums = Object.keys(wanted).map(Number).sort(function (a, b) { return a - b; });
+      var curParams = entry.src.getParams();
+      var curLayers = (curParams && (curParams.LAYERS || curParams.layers)) || '';
+
+      _suppressMapSync = true;
+      if (nums.length === 0) {
+        if (entry.layer.getVisible()) entry.layer.setVisible(false);
+      } else {
+        var newLayers = 'show:' + nums.join(',');
+        if (curLayers !== newLayers) entry.src.updateParams({ LAYERS: newLayers });
+        if (!entry.layer.getVisible()) entry.layer.setVisible(true);
+      }
+      setTimeout(function () { _suppressMapSync = false; }, 200);
+      return true;
+    },
+
+    /**
+     * Setzt die Sichtbarkeit eines Layers idempotent auf einen Zielzustand
+     * (im Gegensatz zu toggleLayerEye, das nur umschaltet). Vertraut NICHT dem
+     * gespeicherten Store-Zustand, sondern reconciled den echten Karten-Render —
+     * noetig fuer Bookmark-/URL-Loads, bei denen Framework-Render und Store-State
+     * auseinanderlaufen koennen.
+     *
+     * @param {string} layerId  Layer-ID
+     * @param {boolean} visible  Zielzustand
+     * @returns {boolean} true, wenn behandelt
+     */
+    setLayerEye: function (layerId, visible) {
+      visible = !!visible;
+      var activeEntry = this._findActiveLayer(layerId);
+      var layer = this.findLayer(layerId);
+
+      // 0) BRIDGE-LAZY-LOAD: Coalesce-/Framework-Sublayer ohne eigenen OL-Layer
+      //    EINSCHALTEN → als individuellen Framework-Layer (show:N) nachladen,
+      //    genau wie der initiale Framework-Load. NICHT in einen fremden Dienst-
+      //    Layer mergen (das erzeugt Duplikat-Render bei individuellen Layern).
+      //    Greift nur, wenn der Layer aktuell NICHT auf der Karte ist und
+      //    eingeschaltet werden soll; sonst laufen die normalen Pfade unten.
+      if (visible && _layerToCoalesce[layerId] && typeof TnetLayerSwitch === 'function') {
+        var amLazy = this._getAppManager();
+        var mapLazy = amLazy && amLazy.Maps && amLazy.Maps['main'] && amLazy.Maps['main'].mapObj;
+        var ownOL = mapLazy ? this._findOLLayer(mapLazy, layerId) : null;
+        if (!ownOL) {
+          var selfLazy = this;
+          _suppressMapSync = true;
+          try { TnetLayerSwitch(layerId, 'on'); } catch (eLazy) { /* ignore */ }
+          setTimeout(function () { _suppressMapSync = false; }, 200);
+          if (layer) layer.visible = true;
+          if (activeEntry) activeEntry.visible = true;
+          // Opacity nach dem (ggf. async) Layer-Aufbau nachziehen
+          setTimeout(function () {
+            var m2 = selfLazy._getAppManager();
+            m2 = m2 && m2.Maps && m2.Maps['main'] && m2.Maps['main'].mapObj;
+            if (m2 && layer && layer.opacity != null && isFinite(layer.opacity)) {
+              var ols = selfLazy._findAllOLLayers(m2, layerId);
+              for (var oi = 0; oi < ols.length; oi++) {
+                ols[oi].setOpacity(Math.max(0, Math.min(1, +layer.opacity)));
+              }
+            }
+          }, 300);
+          this._emit('layer-visibility', { id: layerId, visible: true, source: 'set' });
+          this._emit('active-layers-changed', _activeLayers);
+          TnetLog.log(LOG, 'setLayerEye Bridge-LazyLoad:', layerId, '→ EIN (Framework-Switch)');
+          return true;
+        }
+      }
+
+      // 1) Framework-Combined ArcGIS-Sublayer (Bookmark/URL-Load)
+      if (layer && this._setFrameworkCombinedSublayer(layerId, layer, visible)) {
+        if (layer) layer.visible = visible;
+        if (activeEntry) activeEntry.visible = visible;
+        this._emit('layer-visibility', { id: layerId, visible: visible, source: 'set' });
+        this._emit('active-layers-changed', _activeLayers);
+        return true;
+      }
+
+      // 2) Standalone OL-Layer direkt setzen — bevorzugt den echten Map-Layer
+      //    (eine evtl. gespeicherte _olLayerRef kann auf einen verwaisten,
+      //    nicht mehr in der Karte haengenden Layer zeigen).
+      var am = this._getAppManager();
+      var map = am && am.Maps && am.Maps['main'] && am.Maps['main'].mapObj;
+      var olLayer = null;
+      if (map) olLayer = this._findOLLayer(map, layerId);
+      if (!olLayer && activeEntry && activeEntry._olLayerRef) olLayer = activeEntry._olLayerRef;
+
+      if (olLayer) {
+        _suppressMapSync = true;
+        olLayer.setVisible(visible);
+        if (map) {
+          var allOL = this._findAllOLLayers(map, layerId);
+          for (var i = 0; i < allOL.length; i++) allOL[i].setVisible(visible);
+        }
+        setTimeout(function () { _suppressMapSync = false; }, 200);
+        if (layer) layer.visible = visible;
+        if (activeEntry) activeEntry.visible = visible;
+        this._emit('layer-visibility', { id: layerId, visible: visible, source: 'set' });
+        this._emit('active-layers-changed', _activeLayers);
+        return true;
+      }
+
+      return false;
     },
 
     /**
@@ -1332,11 +1608,33 @@
       if (!Array.isArray(bookmarkLayers)) return;
       var self = this;
       var newActive = [];
+      var pendingExternal = []; // nicht-renderbare Layer ohne OL -> async Retry
+      var amBm = self._getAppManager();
+      var mapBm = amBm && amBm.Maps && amBm.Maps['main'] && amBm.Maps['main'].mapObj;
       bookmarkLayers.forEach(function (spec) {
         if (!spec || !spec.id) return;
+        // Externe WMS-Layer (z.B. geoadmin 'ch.astra.baulinien-nationalstrassen')
+        // sind nicht im Themenkatalog/Coalesce-Index, werden vom Framework aber
+        // über 'layers=' geladen und liegen als OL-Layer auf der Karte. Diese
+        // ebenfalls registrieren, damit ihr Sichtbarkeits-Status im Karteninhalt
+        // korrekt erscheint (sonst Diskrepanz: sichtbar auf Karte, im TOC aus).
+        // WICHTIG: Der OL-Layer entsteht ASYNCHRON erst nach setMapBookmark.
+        // Daher: ist jetzt noch kein OL-Layer da, NICHT sofort registrieren,
+        // sondern fuer einen async Retry vormerken. Taucht nie ein OL-Layer
+        // auf, ist der Layer nicht verfuegbar -> Fehler loggen + nicht anzeigen
+        // (irrtuemlicher Bookmark-Eintrag, Konfig muss bereinigt werden).
+        var olOnMap = null;
         if (!self.isRenderableLayerId(spec.id)) {
-          TnetLog.warn(LOG, 'Bookmark-Layer ignoriert (nicht renderbar):', spec.id);
-          return;
+          olOnMap = mapBm ? self._findOLLayer(mapBm, spec.id) : null;
+          if (!olOnMap) {
+            var wantVisible = ('visible' in spec) ? !!spec.visible : true;
+            if (wantVisible) {
+              pendingExternal.push(spec); // spaeter erneut nach OL-Layer suchen
+            } else {
+              TnetLog.warn(LOG, 'Bookmark-Layer ignoriert (nicht renderbar, unsichtbar):', spec.id);
+            }
+            return; // jetzt nicht registrieren
+          }
         }
         // Layer aus dem Katalog suchen (für name, etc.)
         var fromCatalog = self.findLayer(spec.id);
@@ -1353,6 +1651,20 @@
         }
         layer.visible = ('visible' in spec) ? !!spec.visible : true;
         if (spec.opacity != null && isFinite(spec.opacity)) layer.opacity = +spec.opacity;
+        // OL-Referenz für externe WMS-Layer mitführen (Toggle/Opacity-Zugriff)
+        if (olOnMap) layer._olLayerRef = olOnMap;
+        // Externe (nicht-Katalog) Layer: Store mit der Soll-Sichtbarkeit der
+        // aktiven View aktiv setzen UND den OL-Layer passend schalten, damit
+        // Karte und Karteninhalt (aktives Auge) konsistent sind.
+        if (olOnMap && !fromCatalog) {
+          layer._external = true;
+          if (typeof olOnMap.getVisible === 'function' && olOnMap.getVisible() !== layer.visible) {
+            _suppressMapSync = true;
+            olOnMap.setVisible(layer.visible);
+            setTimeout(function () { _suppressMapSync = false; }, 200);
+          }
+          self._bindExternalLayerVisibility(layer, olOnMap);
+        }
         // Katalog-Knoten mitziehen, damit Themenkatalog ohne Active-Entry
         // bereits den korrekten Bookmark-Zustand zeigt (Tab-Lazy-Render).
         if (fromCatalog) {
@@ -1365,6 +1677,99 @@
       _activeLayers = newActive;
       this._emit('active-layers-changed', _activeLayers);
       if (_config.debug) TnetLog.log(LOG, 'loadActiveLayersFromBookmark:', _activeLayers.length, 'Layer');
+      // Externe Layer ohne (noch) vorhandenen OL-Layer asynchron nachziehen.
+      if (pendingExternal.length) this._scheduleExternalLayerRegistration(pendingExternal);
+    },
+
+    /**
+     * Bindet einen externen OL-Layer an seinen TOC-Active-Eintrag, sodass
+     * dessen Sichtbarkeit synchron bleibt. Das Framework schaltet externe
+     * Layer (z.B. geoadmin-WMS) ggf. erst NACH der Registrierung sichtbar —
+     * ohne Listener bliebe der TOC-Eintrag fälschlich auf visible:false
+     * (kein aktives Auge). Idempotent pro OL-Layer.
+     * @param {Object} layer - Active-Eintrag im Store
+     * @param {Object} olLayer - OpenLayers-Layer
+     */
+    _bindExternalLayerVisibility: function (layer, olLayer) {
+      if (!layer || !olLayer || typeof olLayer.on !== 'function') return;
+      if (olLayer.__tnetVisBound) return;
+      olLayer.__tnetVisBound = true;
+      var self = this;
+      // Initialen Status sofort übernehmen.
+      if (typeof olLayer.getVisible === 'function') {
+        layer.visible = olLayer.getVisible();
+      }
+      olLayer.on('change:visible', function () {
+        // Vom Store ausgelöste Änderungen nicht doppelt verarbeiten.
+        if (_suppressMapSync) return;
+        var v = olLayer.getVisible();
+        if (layer.visible === v) return;
+        layer.visible = v;
+        self._emit('layer-visibility', { layerId: layer.id, visible: v });
+        self._emit('active-layers-changed', _activeLayers);
+      });
+    },
+
+    /**
+     * Externe Bookmark-Layer (nicht im Katalog/Coalesce) nachträglich
+     * registrieren, sobald ihr OL-Layer auf der Karte erscheint. Der
+     * Framework-Aufruf erzeugt diese Layer asynchron nach setMapBookmark.
+     * Erscheint nach allen Versuchen kein OL-Layer, ist der Layer nicht
+     * verfügbar (irrtümlicher Bookmark-Eintrag) -> Fehler loggen und nicht
+     * im Karteninhalt anzeigen.
+     * @param {Array<Object>} specs - Layer-Specs ({id, visible, opacity})
+     */
+    _scheduleExternalLayerRegistration: function (specs) {
+      var self = this;
+      var remaining = specs.slice();
+      function attempt(isFinal) {
+        var am = self._getAppManager();
+        var map = am && am.Maps && am.Maps['main'] && am.Maps['main'].mapObj;
+        if (!map) {
+          if (isFinal) reportMissing();
+          return;
+        }
+        var still = [];
+        var added = 0;
+        remaining.forEach(function (spec) {
+          var ol = self._findOLLayer(map, spec.id);
+          if (!ol) { still.push(spec); return; }
+          if (self._findActiveLayer(spec.id)) return; // bereits aktiv
+          var fromCatalog = self.findLayer(spec.id);
+          var layer;
+          if (fromCatalog) {
+            layer = {};
+            for (var k in fromCatalog) {
+              if (fromCatalog.hasOwnProperty(k)) layer[k] = fromCatalog[k];
+            }
+          } else {
+            var nameParts = String(spec.id).split('/');
+            layer = { id: spec.id, name: nameParts[nameParts.length - 1] || spec.id };
+          }
+          // OL-Layer ist die Wahrheit: tatsächlichen Sichtbarkeitsstatus
+          // übernehmen, damit das aktive Auge im TOC stimmt.
+          layer.visible = (typeof ol.getVisible === 'function')
+            ? ol.getVisible()
+            : (('visible' in spec) ? !!spec.visible : true);
+          if (spec.opacity != null && isFinite(spec.opacity)) layer.opacity = +spec.opacity;
+          layer._olLayerRef = ol;
+          layer._external = true;
+          self._bindExternalLayerVisibility(layer, ol);
+          _activeLayers.push(layer);
+          added++;
+        });
+        remaining = still;
+        if (added > 0) self._emit('active-layers-changed', _activeLayers);
+        if (isFinal) reportMissing();
+      }
+      function reportMissing() {
+        remaining.forEach(function (spec) {
+          TnetLog.error(LOG, 'Bookmark-Layer nicht verfügbar (kein renderbarer Layer/OL-Layer gefunden), nicht im Karteninhalt angezeigt — Bookmark-Konfiguration bereinigen:', spec.id);
+        });
+      }
+      setTimeout(function () { attempt(false); }, 800);
+      setTimeout(function () { attempt(false); }, 2000);
+      setTimeout(function () { attempt(true); }, 4000);
     },
 
     /**
@@ -2435,12 +2840,60 @@
      * @param {boolean} visible
      * @param {Object} [opts]   z.B. { source: 'switchLayer' }
      */
+    /**
+     * Gleicht einen NICHT im Store-Katalog gefuehrten Layer direkt auf der
+     * OL-Karte ab. ÖREB-/Bookmark-Layer werden vom Framework (ClassicLayerMgr)
+     * geladen und tauchen weder im Katalog noch in _activeLayers auf. Der
+     * manuelle Eye-Klick laeuft ueber switchLayer → forceMapLayerState, das
+     * sonst mangels Store-Eintrag frueh aussteigt und den Kartenzustand nicht
+     * nachzieht. Hier wird der/die OL-Layer mit exaktem Namen gesucht und hart
+     * auf den Zielzustand gesetzt (gilt fuer eigenstaendige Layer wie auch
+     * Sublayer, die im Dedicated-Modus je einen eigenen show:N-OL-Layer haben).
+     * @returns {boolean} true, wenn mindestens ein OL-Layer abgeglichen wurde.
+     */
+    _reconcileUntrackedMapLayer: function (layerId, targetVisible) {
+      var am = this._getAppManager();
+      var map = am && am.Maps && am.Maps['main'] && am.Maps['main'].mapObj;
+      if (!map) return false;
+      var allOL = this._findAllOLLayers(map, layerId);
+      if (!allOL || !allOL.length) return false;
+
+      // Opacity vorzugsweise aus dem aktiven Bookmark-Eintrag uebernehmen.
+      var op = null;
+      try {
+        var bm = window.__tnetActiveBookmark;
+        if (bm && bm.layers) {
+          for (var bi = 0; bi < bm.layers.length; bi++) {
+            if (bm.layers[bi] && bm.layers[bi].id === layerId &&
+                bm.layers[bi].opacity != null && isFinite(bm.layers[bi].opacity)) {
+              op = Math.max(0, Math.min(1, +bm.layers[bi].opacity));
+              break;
+            }
+          }
+        }
+      } catch (e) { /* ignore */ }
+
+      _suppressMapSync = true;
+      for (var i = 0; i < allOL.length; i++) {
+        if (allOL[i].getVisible() !== targetVisible) allOL[i].setVisible(targetVisible);
+        if (op != null && allOL[i].getOpacity() !== op) allOL[i].setOpacity(op);
+      }
+      setTimeout(function () { _suppressMapSync = false; }, 200);
+      this._emit('layer-visibility', { id: layerId, visible: targetVisible, source: 'untracked' });
+      return true;
+    },
+
     forceMapLayerState: function (layerId, visible, opts) {
       if (!layerId) return;
       var targetVisible = !!visible;
       var layer = this.findLayer(layerId);
       var activeEntry = this._findActiveLayer(layerId);
-      if (!layer && !activeEntry) return; // unbekannter Layer → nichts tun
+      if (!layer && !activeEntry) {
+        // Framework-verwalteter Layer (ÖREB/Bookmark) ist nicht im Store-Katalog.
+        // Direkt die OL-Karte abgleichen, statt wirkungslos auszusteigen.
+        this._reconcileUntrackedMapLayer(layerId, targetVisible);
+        return;
+      }
 
       // Bookmark-Lookup nur fuer Opacity-Fallback. Visibility wird NICHT
       // ueberschrieben — sonst kann ein switchLayer('off') (z.B. von OEREB

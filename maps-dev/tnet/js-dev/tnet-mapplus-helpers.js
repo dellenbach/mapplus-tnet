@@ -387,9 +387,14 @@ function _scheduleViewVisibilityWhenLayersReady(visibilityMap, token) {
     });
     var foundAll = true;
     needIds.forEach(function(layerId) {
+      var should = !!visibilityMap[layerId];
+      // visible:false → Store-API (Coalesce-faehig), unabhaengig vom OL-Lookup
+      if (!should) {
+        _setBookmarkLayerEye(layerId, false);
+        return;
+      }
       var olLayer = olByName[layerId];
       if (!olLayer) { foundAll = false; return; }
-      var should = !!visibilityMap[layerId];
       if (typeof olLayer.setVisible === 'function' && olLayer.getVisible() !== should) {
         olLayer.setVisible(should);
         if (window.TnetLMStore && typeof window.TnetLMStore._emit === 'function') {
@@ -442,11 +447,63 @@ function _scheduleViewVisibilityWhenLayersReady(visibilityMap, token) {
  * @param {Object<string, boolean>} visibilityMap - {layerId: visible}
  * @param {number} token
  */
+// ===== BOOKMARK-LAYER VISIBILITY (Coalesce-faehig) =====
+
+/**
+ * Setzt die Sichtbarkeit eines Bookmark-Layers ueber die Store-API.
+ *
+ * Wichtig: Viele OEREB-Layer sind Coalesce-Sublayer (gemeinsamer WMS-Layer,
+ * gesteuert ueber den LAYERS-Param) und existieren NICHT als eigener OL-Layer.
+ * Ein direktes map.getLayers()-Lookup + setVisible() findet diese Sublayer
+ * nicht. Daher wird die Store-API toggleLayerEye() genutzt — sie behandelt
+ * Coalesce-Sublayer (hideSublayer/LAYERS-Param) UND Standard-Layer korrekt,
+ * behaelt den Layer im TOC (outlined-eye statt entfernt) und emittiert die
+ * passenden Events.
+ *
+ * Da toggleLayerEye() toggelt (kein direktes Set), wird vorher die effektive
+ * Sichtbarkeit geprueft und nur bei Abweichung umgeschaltet.
+ *
+ * @param {string} layerId
+ * @param {boolean} shouldBeVisible Zielzustand
+ * @returns {boolean} true, wenn eine Aenderung vorgenommen wurde
+ */
+function _setBookmarkLayerEye(layerId, shouldBeVisible) {
+  var store = window.TnetLMStore;
+  if (!store) return false;
+
+  // Bevorzugt idempotenter Setter: reconciled den echten Karten-Render und
+  // vertraut NICHT dem (evtl. desynchronen) gespeicherten Store-Zustand.
+  if (typeof store.setLayerEye === 'function') {
+    try {
+      return store.setLayerEye(layerId, !!shouldBeVisible);
+    } catch (eSet) {
+      return false;
+    }
+  }
+
+  // Fallback (aeltere Store-Version ohne setLayerEye): toggeln per Guard.
+  if (typeof store.toggleLayerEye !== 'function') return false;
+  var isVisible;
+  try {
+    isVisible = typeof store._getEffectiveLayerVisible === 'function'
+      ? !!store._getEffectiveLayerVisible(layerId)
+      : null;
+  } catch (eVis) { isVisible = null; }
+  if (isVisible === null) return false;
+  if (isVisible === !!shouldBeVisible) return false;
+  try {
+    store.toggleLayerEye(layerId);
+    return true;
+  } catch (eToggle) {
+    return false;
+  }
+}
+
 function _scheduleBookmarkVisibilityEnsure(visibilityMap, token) {
   var ids = visibilityMap ? Object.keys(visibilityMap) : [];
   if (!ids.length) return;
 
-  var retries = [400, 1200, 3000];
+  var retries = [400, 1200, 3000, 6000];
   retries.forEach(function(delay) {
     var timer = setTimeout(function() {
       if (token !== _bookmarkEnsureToken) return;
@@ -457,72 +514,25 @@ function _scheduleBookmarkVisibilityEnsure(visibilityMap, token) {
       var changedAny = false;
       if (!map || typeof map.getLayers !== 'function') return;
 
-      // OL-Layer-Lookup
-      var olByName = {};
-      map.getLayers().forEach(function(olLayer) {
-        if (!olLayer || typeof olLayer.get !== 'function') return;
-        var n = olLayer.get('name') || '';
-        if (n) olByName[n] = olLayer;
-      });
-
+      // Nur visible:false-Layer korrigieren. visible:true-Layer sind durch den
+      // Framework-Load bereits geladen/sichtbar und werden nicht angetastet.
       ids.forEach(function(layerId) {
         var should = !!visibilityMap[layerId];
-        var olLayer = olByName[layerId];
-        if (!olLayer || typeof olLayer.setVisible !== 'function') return;
-        var olChanged = olLayer.getVisible() !== should;
-        var storeChanged = false;
-        if (olChanged) {
-          olLayer.setVisible(should);
+        if (should) return; // sichtbare Layer in Ruhe lassen
+        if (_setBookmarkLayerEye(layerId, false)) {
           changedAny = true;
-        }
-
-        if (window.TnetLMStore) {
+          // Bookmark-Runtime-State mitziehen (fuer korrekte Diagnose/Persistenz)
           try {
-            var storeLayer = typeof window.TnetLMStore.findLayer === 'function'
-              ? window.TnetLMStore.findLayer(layerId)
-              : null;
-            var activeEntry = typeof window.TnetLMStore._findActiveLayer === 'function'
-              ? window.TnetLMStore._findActiveLayer(layerId)
-              : null;
-            if (storeLayer && storeLayer.visible !== should) {
-              storeLayer.visible = should;
-              storeChanged = true;
-            }
-            if (activeEntry && activeEntry.visible !== should) {
-              activeEntry.visible = should;
-              storeChanged = true;
-            }
-          } catch (eStoreSync) { /* ignore */ }
-        }
-
-        try {
-          var bookmark = window.__tnetActiveBookmark;
-          if (bookmark && Array.isArray(bookmark.layers)) {
-            for (var bi = 0; bi < bookmark.layers.length; bi++) {
-              if (bookmark.layers[bi] && bookmark.layers[bi].id === layerId) {
-                if (bookmark.layers[bi].visible !== should) {
-                  bookmark.layers[bi].visible = should;
-                  storeChanged = true;
+            var bookmark = window.__tnetActiveBookmark;
+            if (bookmark && Array.isArray(bookmark.layers)) {
+              for (var bi = 0; bi < bookmark.layers.length; bi++) {
+                if (bookmark.layers[bi] && bookmark.layers[bi].id === layerId) {
+                  bookmark.layers[bi].visible = false;
+                  break;
                 }
-                break;
               }
             }
-          }
-        } catch (eBmSync) { /* ignore */ }
-
-        if (storeChanged) {
-          changedAny = true;
-        }
-
-        if (olChanged || storeChanged) {
-          // TOC-Event: Augen-Icon synchronisieren (kein TnetLayerSwitch → kein removeLayer)
-          if (window.TnetLMStore && typeof window.TnetLMStore._emit === 'function') {
-            try {
-              window.TnetLMStore._emit('layer-visibility', {
-                id: layerId, visible: should, source: 'bookmark-init'
-              });
-            } catch (eEmit) { /* ignore */ }
-          }
+          } catch (eBmSync) { /* ignore */ }
         }
       });
 
@@ -558,6 +568,110 @@ function _resolveActiveBookmarkView(cfg, viewId) {
     if (views[j] && views[j].isDefault === true) return views[j];
   }
   return null;
+}
+
+// ===== VIEW-URL-PERSISTENZ =====
+// Das Mapplus-Framework schreibt bei Kartenaenderungen die Permalink-URL neu
+// und kennt den v2-Parameter 'view=' nicht -> er ginge verloren. Daher
+// history.replaceState/pushState einmalig kapseln und ein aktives 'view='
+// bei jedem URL-Schreibvorgang wieder anhaengen (bzw. beim Wechsel zur
+// Default-View entfernen).
+var _viewUrlGuardInstalled = false;
+
+/**
+ * Liefert die aktuell zu persistierende (nicht-default) View-Id oder null.
+ * @returns {string|null}
+ */
+function _getActiveViewIdForUrl() {
+  var v = window.__tnetActiveViewForUrl;
+  if (v == null && window.top && window.top !== window) {
+    try { v = window.top.__tnetActiveViewForUrl; } catch (e) { v = null; }
+  }
+  return v || null;
+}
+
+/**
+ * Setzt/entfernt den 'view='-Parameter in einer (ggf. relativen) URL.
+ * @param {string} str - URL oder Query-String
+ * @param {string|null} viewId - View-Id setzen, oder null zum Entfernen
+ * @returns {string}
+ */
+function _stripOrSetView(str, viewId) {
+  var hashIdx = str.indexOf('#');
+  var hash = hashIdx >= 0 ? str.slice(hashIdx) : '';
+  var base = hashIdx >= 0 ? str.slice(0, hashIdx) : str;
+  var qIdx = base.indexOf('?');
+  var path = qIdx >= 0 ? base.slice(0, qIdx) : base;
+  var query = qIdx >= 0 ? base.slice(qIdx + 1) : '';
+  var parts = query ? query.split('&') : [];
+  var kept = [];
+  for (var i = 0; i < parts.length; i++) {
+    if (!parts[i]) continue;
+    if (parts[i].indexOf('view=') === 0) continue; // alten view= verwerfen
+    kept.push(parts[i]);
+  }
+  if (viewId) kept.push('view=' + encodeURIComponent(viewId));
+  return path + (kept.length ? '?' + kept.join('&') : '') + hash;
+}
+
+/**
+ * URL-Argument fuer history.* so anpassen, dass ein aktives view= erhalten
+ * bleibt. Bei url == null (Framework aendert URL nicht) unveraendert lassen.
+ * @param {string|null|undefined} url
+ * @returns {string|null|undefined}
+ */
+function _ensureViewInUrlString(url) {
+  if (url == null) return url;
+  return _stripOrSetView(String(url), _getActiveViewIdForUrl());
+}
+
+/**
+ * history.replaceState/pushState einmalig kapseln (idempotent).
+ */
+function _installViewUrlGuard() {
+  if (_viewUrlGuardInstalled) return;
+  var hist = (window.top && window.top.history) ? window.top.history : window.history;
+  if (!hist || typeof hist.replaceState !== 'function') return;
+  var origReplace = hist.replaceState;
+  var origPush = hist.pushState;
+  hist.replaceState = function (state, title, url) {
+    var u = url;
+    try { u = _ensureViewInUrlString(url); } catch (e) { u = url; }
+    return origReplace.call(this, state, title, u);
+  };
+  if (typeof origPush === 'function') {
+    hist.pushState = function (state, title, url) {
+      var u = url;
+      try { u = _ensureViewInUrlString(url); } catch (e) { u = url; }
+      return origPush.call(this, state, title, u);
+    };
+  }
+  _viewUrlGuardInstalled = true;
+}
+
+/**
+ * Merkt die aktuell aktive (nicht-default) View-Id fuer die URL-Persistenz
+ * und korrigiert die aktuelle URL sofort.
+ * @param {Object|null} activeView - aufgeloeste View (oder null)
+ * @param {string|null} requestedViewId - explizit angeforderte View-Id
+ */
+function _setActiveViewForUrl(activeView, requestedViewId) {
+  var viewIdForUrl = (activeView && activeView.isDefault !== true && requestedViewId)
+    ? activeView.id
+    : null;
+  window.__tnetActiveViewForUrl = viewIdForUrl;
+  if (window.top && window.top !== window) {
+    try { window.top.__tnetActiveViewForUrl = viewIdForUrl; } catch (e) { /* ignore */ }
+  }
+  _installViewUrlGuard();
+  // Aktuelle URL sofort angleichen (set oder strip).
+  try {
+    var hist = (window.top && window.top.history) ? window.top.history : window.history;
+    var loc = (window.top && window.top.location) ? window.top.location : window.location;
+    if (hist && typeof hist.replaceState === 'function') {
+      hist.replaceState(null, '', _stripOrSetView(loc.pathname + loc.search + loc.hash, viewIdForUrl));
+    }
+  } catch (e2) { /* ignore */ }
 }
 
 /**
@@ -679,6 +793,8 @@ function _syncBookmarkLayerStateToOL(olLayer) {
   var layerId;
   var runtimeLayer;
   var spec;
+  var activeView;
+  var viewState;
 
   if (!bookmark || !Array.isArray(bookmark.layers) || !olLayer || typeof olLayer.get !== 'function') return false;
 
@@ -709,15 +825,53 @@ function _syncBookmarkLayerStateToOL(olLayer) {
     }
   } catch (eSpec) { /* ignore */ }
 
+  activeView = null;
+  viewState = null;
+  try {
+    if (bookmark.activeViewId && bookmark._cfg && Array.isArray(bookmark._cfg.views)) {
+      for (var vi = 0; vi < bookmark._cfg.views.length; vi++) {
+        if (bookmark._cfg.views[vi] && bookmark._cfg.views[vi].id === bookmark.activeViewId) {
+          activeView = bookmark._cfg.views[vi];
+          break;
+        }
+      }
+    }
+    if (activeView && activeView.layerStates &&
+        Object.prototype.hasOwnProperty.call(activeView.layerStates, layerId)) {
+      viewState = activeView.layerStates[layerId];
+    }
+  } catch (eViewState) { /* ignore */ }
+
   // Visibility nur setzen, wenn der Bookmark explizit visible:false
   // angibt (also den Layer aktiv ausblenden will). Ein implizites
   // visible:true (Default fuer v1-Strings oder nicht gesetzte v2-Felder)
   // ueberschreibt den Karten-/Theme-Zustand nicht.
-  if (typeof olLayer.setVisible === 'function' && typeof olLayer.getVisible === 'function') {
-    var hasExplicitVisible = (spec && typeof spec === 'object' && 'visible' in spec);
-    if (hasExplicitVisible && spec.visible === false) {
-      if (olLayer.getVisible() !== false) olLayer.setVisible(false);
+  //
+  // Coalesce-faehig: Statt rohem olLayer.setVisible() die Store-API ueber
+  // _setBookmarkLayerEye() nutzen, damit auch Coalesce-Sublayer (gemeinsamer
+  // WMS-Layer / LAYERS-Param) korrekt ausgeblendet werden.
+  var hasViewVisible = (viewState && typeof viewState === 'object' && 'visible' in viewState);
+  var hasSpecVisible = (spec && typeof spec === 'object' && 'visible' in spec);
+  var hasExplicitVisible = hasViewVisible || hasSpecVisible;
+  var targetVisible = runtimeLayer && runtimeLayer.visible !== undefined
+    ? !!runtimeLayer.visible
+    : (hasViewVisible ? !!viewState.visible : (hasSpecVisible ? !!spec.visible : null));
+
+  if (hasExplicitVisible && targetVisible === false) {
+    // Flicker-Schutz: Den konkreten OL-Layer SOFORT und synchron ausschalten.
+    // Wir haben die olLayer-Referenz direkt aus dem 'add'-Event, daher nicht auf
+    // die (bei async Store-Population evtl. noch leere) Store-API warten. Synchron
+    // im selben Tick wie das add-Event → OpenLayers rendert den Layer nie sichtbar.
+    if (typeof olLayer.setVisible === 'function' && olLayer.getVisible() !== false) {
+      olLayer.setVisible(false);
     }
+    // Store/TOC-State zusaetzlich nachziehen (Augen-Icon, _activeLayers).
+    _setBookmarkLayerEye(layerId, false);
+  } else if (hasExplicitVisible && targetVisible === true) {
+    if (typeof olLayer.setVisible === 'function' && olLayer.getVisible() !== true) {
+      olLayer.setVisible(true);
+    }
+    _setBookmarkLayerEye(layerId, true);
   }
 
   // Opacity: Bookmark-explizit übersteuert, sonst Layer-Config-Default aus Store
@@ -843,27 +997,58 @@ function _clearThematicLayersBeforeBookmark() {
   }
 }
 
-function _buildBookmarkParams(cfg) {
+function _buildBookmarkParams(cfg, visibilityMap) {
   var parts = [];
-  var normalizedLayers = _normalizeBookmarkLayerIds(cfg.layers || []);
   if (cfg.basemap)                          parts.push('basemap=' + cfg.basemap);
-  if (normalizedLayers.length)              parts.push('layers='  + normalizedLayers.join('|'));
 
-  // Opacity:
+  // Layer-Liste mit paralleler Opacity aufbauen:
   //  - v1: cfg.opacity ist Array paralleler Werte zur Layer-Liste
-  //  - v2: opacity ist pro Layer (cfg.layers[i].opacity). Wir bauen das Array hier.
-  var opacityList = null;
-  if (cfg.opacity && cfg.opacity.length) {
-    opacityList = cfg.opacity;
-  } else if (cfg.layers && cfg.layers.length && typeof cfg.layers[0] === 'object') {
-    var hasAny = false;
-    var derived = cfg.layers.map(function (l) {
-      if (l && l.opacity != null) { hasAny = true; return l.opacity; }
-      return '';
+  //  - v2: opacity ist pro Layer (cfg.layers[i].opacity)
+  var rawLayers = cfg.layers || [];
+  var v1Opacity = (cfg.opacity && cfg.opacity.length) ? cfg.opacity : null;
+
+  var entries = [];
+  rawLayers.forEach(function (l, idx) {
+    var id, op;
+    if (l && typeof l === 'object') { id = l.id; op = (l.opacity != null) ? l.opacity : ''; }
+    else { id = String(l || ''); op = ''; }
+    id = String(id || '').replace(/^[-\s]+/, '').trim();
+    if (!id) return;
+    if (v1Opacity && (op === '' || op == null)) {
+      op = (v1Opacity[idx] != null ? v1Opacity[idx] : '');
+    }
+    entries.push({ id: id, op: op });
+  });
+
+  // BRIDGE: Nur SICHTBARE Layer an das Framework geben. Das Framework kennt im
+  // 'layers='-Parameter nur den Zustand "einschalten" (switchLayer(id, true)) —
+  // es gibt keinen "geladen aber aus". Unsichtbare Layer wuerden also sichtbar
+  // gerendert und muessten danach wieder ausgeblendet werden (= Lade-Flicker).
+  // Daher: unsichtbare Layer NICHT laden. Sie werden rein logisch im Karten-
+  // inhalt registriert (loadActiveLayersFromBookmark) und erst bei Bedarf
+  // (Augen-Klick) als eigener Framework-Layer materialisiert (Lazy-Load).
+  if (visibilityMap) {
+    entries = entries.filter(function (e) {
+      return Object.prototype.hasOwnProperty.call(visibilityMap, e.id)
+        ? !!visibilityMap[e.id]
+        : true; // unbekannt → defensiv als sichtbar behandeln
     });
-    if (hasAny) opacityList = derived;
   }
-  if (opacityList && opacityList.length) parts.push('op=' + opacityList.join('|'));
+
+  // Deduplizieren (Reihenfolge erhalten)
+  var seen = {};
+  var deduped = [];
+  entries.forEach(function (e) { if (!seen[e.id]) { seen[e.id] = true; deduped.push(e); } });
+
+  if (deduped.length) {
+    parts.push('layers=' + deduped.map(function (e) { return e.id; }).join('|'));
+    var hasAnyOp = deduped.some(function (e) { return e.op !== '' && e.op != null; });
+    if (hasAnyOp) {
+      parts.push('op=' + deduped.map(function (e) {
+        return (e.op !== '' && e.op != null) ? e.op : '';
+      }).join('|'));
+    }
+  }
 
   if (cfg.theme)                            parts.push('theme='   + cfg.theme);
   if (cfg.subtheme)                         parts.push('subtheme='+ cfg.subtheme);
@@ -889,6 +1074,9 @@ function _buildBookmarkParams(cfg) {
 // nur die OL-Layer-Sichtbarkeit (und LMStore-State) wird umgeschaltet.
 function _applyViewSwitchOnly(cfg, viewId) {
   var activeView   = _resolveActiveBookmarkView(cfg, viewId || null);
+  // View-URL-Persistenz auch beim reinen View-Wechsel aktualisieren
+  // (Dropdown: setzt view= bzw. entfernt es beim Zurück zur Default-View).
+  _setActiveViewForUrl(activeView, viewId || null);
   var visibilityMap = _computeBookmarkVisibility(cfg, activeView);
 
   var am  = (window.top && window.top.njs && window.top.njs.AppManager)
@@ -916,20 +1104,24 @@ function _applyViewSwitchOnly(cfg, viewId) {
   Object.keys(visibilityMap).forEach(function (layerId) {
     var should = !!visibilityMap[layerId];
     var olLayer = olByName[layerId];
-    // Aktuellen IST-State ermitteln (LMStore _activeLayers oder OL-Layer-visible)
-    var isActive = false;
-    if (lmStore && typeof lmStore._isActive === 'function') {
-      isActive = lmStore._isActive(layerId);
+    // Aktuellen IST-State als SICHTBARKEIT ermitteln (nicht Membership!).
+    // Externe Layer sind dauerhaft im Store aktiv, aber evtl. visible:false —
+    // ein Membership-Vergleich (_isActive) würde hier fälschlich abbrechen.
+    var isVisible = false;
+    if (lmStore && typeof lmStore._getEffectiveLayerVisible === 'function') {
+      isVisible = lmStore._getEffectiveLayerVisible(layerId);
     } else if (olLayer && typeof olLayer.getVisible === 'function') {
-      isActive = olLayer.getVisible();
+      isVisible = olLayer.getVisible();
     }
-    if (isActive === should) return; // bereits korrekt
+    if (isVisible === should) return; // bereits korrekt
     // LMStore-API bevorzugt (synct _activeLayers + dispatcht Events)
     if (lmStore && typeof lmStore.setLayerVisible === 'function') {
-      try { lmStore.setLayerVisible(layerId, should); changed++; return; }
+      try { lmStore.setLayerVisible(layerId, should); changed++; }
       catch (eSL) { /* fallthrough zu OL-Direct */ }
     }
-    if (olLayer && typeof olLayer.setVisible === 'function') {
+    // OL-Layer immer passend schalten (deckt externe Layer ab, die
+    // setLayerVisible mangels Katalog-Eintrag nicht kennt).
+    if (olLayer && typeof olLayer.setVisible === 'function' && olLayer.getVisible() !== should) {
       olLayer.setVisible(should);
       changed++;
     }
@@ -938,7 +1130,15 @@ function _applyViewSwitchOnly(cfg, viewId) {
   TnetLog.log('[TnetSetBookmark] View-Switch nur Visibility:', viewId || '(none)', changed + ' Layer geändert');
   if (window.__tnetActiveBookmark) {
     window.__tnetActiveBookmark.activeViewId = activeView ? activeView.id : null;
-    window.__tnetActiveBookmark.layers = _buildBookmarkRuntimeLayers(cfg, activeView);
+    var newRuntime = _buildBookmarkRuntimeLayers(cfg, activeView);
+    window.__tnetActiveBookmark.layers = newRuntime;
+    // Store (Karteninhalt) mit der Soll-Sichtbarkeit der neuen View neu
+    // aufbauen — deckt auch externe Layer ab, die im Store korrekt aktiv +
+    // sichtbar gesetzt werden müssen (aktives Auge, Ein-Klick-Toggle).
+    if (window.TnetLMStore && typeof window.TnetLMStore.loadActiveLayersFromBookmark === 'function') {
+      try { window.TnetLMStore.loadActiveLayersFromBookmark(newRuntime); }
+      catch (eLB) { /* ignore */ }
+    }
     _applyBookmarkRuntimeStateToMap();
     _emitActiveBookmarkEvent('tnet-bookmark-state-changed', 'view-switch');
   }
@@ -965,14 +1165,18 @@ function _applyBookmark(cfg, bookmarkId, viewId) {
   }
 
   var activeView = _resolveActiveBookmarkView(cfg, viewId || null);
+  // View-URL-Persistenz aktivieren: aktives (nicht-default) view= in der URL
+  // halten, auch nachdem das Framework die Permalink-URL neu schreibt.
+  _setActiveViewForUrl(activeView, viewId || null);
   var visibilityMap = _computeBookmarkVisibility(cfg, activeView);
   var runtimeLayers = _buildBookmarkRuntimeLayers(cfg, activeView);
 
-  // ALLE Bookmark-Layer in den Framework-Aufruf — sodass das Framework den
-  // kompletten Service-Stack lädt und LMStore alle Layer per Map-Sync übernimmt.
-  // Visibility wird DANACH per OL-Layer.setVisible() für visible:false-Layer auf
-  // aus geschaltet (mit Map-Sync-Suppression, damit der Layer im TOC bleibt).
-  var params = _buildBookmarkParams(cfg);
+  // BRIDGE: Nur die SICHTBAREN Bookmark-Layer in den Framework-Aufruf — so
+  // laedt das Framework ausschliesslich das, was sichtbar sein soll (mit
+  // korrekter Opacity), ohne Show-then-Hide-Flicker. Die unsichtbaren Layer
+  // werden weiter unten rein logisch im Karteninhalt registriert
+  // (loadActiveLayersFromBookmark) und erst bei Bedarf materialisiert.
+  var params = _buildBookmarkParams(cfg, visibilityMap);
   var layerIds = _normalizeBookmarkLayerIds(cfg.layers || []);
 
   var ensureToken;
@@ -1000,6 +1204,12 @@ function _applyBookmark(cfg, bookmarkId, viewId) {
     views:        (cfg.views || []).filter(function(v) { return v && v.id; }),
     activeViewId: activeViewIdEarly,
     layers:       runtimeLayers,
+    // Lade-Fenster: Während dieser Zeit respektiert die CoalesceBridge die
+    // Bookmark-Sichtbarkeit und nimmt visible:false-Sublayer NICHT in den
+    // kombinierten show:-Parameter auf (verhindert Lade-Flicker: erst alle
+    // Sublayer anzeigen, dann wieder ausblenden). Deckt das Ensure-Fenster
+    // (bis 6000ms) plus Framework-Retry-Marge ab.
+    _loadUntil:   Date.now() + 8000,
     _cfg:         cfg
   };
   _emitActiveBookmarkEvent('tnet-bookmark-loaded', 'apply-start');
@@ -1010,8 +1220,22 @@ function _applyBookmark(cfg, bookmarkId, viewId) {
 
   am.setMapBookmark(['main'], params);
 
+  // BRIDGE: Vollständigen Karteninhalt registrieren — ALLE Bookmark-Layer
+  // (auch die unsichtbaren, die das Framework bewusst NICHT geladen hat)
+  // logisch in den Store aufnehmen. So erscheinen sie im Karteninhalt mit
+  // outlined-eye und werden bei Bedarf per Augen-Klick als eigener Framework-
+  // Layer nachgeladen (Lazy-Load in setLayerEye/toggleLayerEye).
+  try {
+    if (window.TnetLMStore && typeof window.TnetLMStore.loadActiveLayersFromBookmark === 'function') {
+      window.TnetLMStore.loadActiveLayersFromBookmark(runtimeLayers);
+    }
+  } catch (eLoadToc) {
+    TnetLog.warn('[TnetSetBookmark] loadActiveLayersFromBookmark fehlgeschlagen:', eLoadToc && eLoadToc.message ? eLoadToc.message : eLoadToc);
+  }
+
+  // Sichtbare Layer nach dem async Framework-Load bestätigen (visible:true).
+  // Kein Hide-Loop mehr nötig: unsichtbare Layer wurden gar nicht geladen.
   _scheduleViewVisibilityWhenLayersReady(visibilityMap, ensureToken);
-  _scheduleBookmarkVisibilityEnsure(visibilityMap, ensureToken);
   _applyBookmarkRuntimeStateToMap();
 
   var activeViewId = activeView ? activeView.id : null;

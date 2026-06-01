@@ -1,3 +1,41 @@
+## 2026-06-01 — Bookmark-View-Visibility muss Basis-Visibility uebersteuern
+- **Symptom:** Baulinien Nationalstrassen war auf der Karte sichtbar, im Karteninhalt aber ohne aktives Auge; der erste Klick synchronisierte nur den Store statt den Layer auszuschalten.
+- **Root-Cause:** `_syncBookmarkLayerStateToOL()` bewertete `cfg.layers[].visible:false` als explizite Wahrheit und ignorierte `views[].layerStates[id].visible:true` der aktiven NPL-View.
+- **Fix:** Der OL-/Store-Sync nutzt jetzt die effektive Runtime-Visibility inkl. aktivem View-Override; externe WMS werden mit derselben Visibility/Opacity in Bookmark-State, Store und Karte geführt.
+- **Guardrail:** Bei Schema-v2-Bookmarks darf nie direkt die Basis-Layer-Visibility als Wahrheit verwendet werden. Immer zuerst den aktiven View-State auflösen und daraus Runtime, Store und OL-Layer synchronisieren.
+
+## 2026-06-01 — Lade-Flicker Teil 3 + Gruppen-Auge Teilzustand
+- **Symptom A (Flicker):** Coalesce-Sublayer wurden trotz korrektem show:5,9 kurz alle gemalt und dann ausgeblendet.
+- **Root-Cause A:** Adoptierter Framework-OL-Layer war visible:true mit show:all; das show:all-Bild war bereits in Flight → OL malte es, bevor updateParams den Subset reduzierte.
+- **Fix A:** In `_setLayersOnSource` Sichtbarkeit an LAYERS koppeln: `olLayer.setVisible(layersParam !== 'show:-1')`. Bei show:-1 bleibt der Layer unsichtbar → in-flight show:all wird nie gemalt; erst wenn sichtbare Sublayer da sind wird er sichtbar und malt direkt den Subset.
+- **Symptom B (Auge):** Gruppen-Auge zeigte keinen Teilzustand; Klick schaltete erst ALLE ein, dann ALLE aus → Initial-Subset ging verloren.
+- **Fix B:** (1) Render in tnet-lm-active.js `_renderGroup`: partial = anyVisible && !allVisible → CSS-Klasse `lm-eye-partial` (opacity 0.5). (2) `toggleCoalesceGroupEye` in tnet-lm-store.js mit Snapshot: bei AUS aktuellen Subset in `info._eyeSnapshot` merken; bei EIN Snapshot wiederherstellen (statt alle). Per-Kind via bewährtem `toggleLayerEye`-Pfad (`_setCoalesceChildVisible`), damit Bridge-LAYERS/Store/Active-Liste konsistent bleiben.
+- **Guardrail:** Gruppen-Auge nie den geteilten OL-Layer pauschal toggeln — immer per Kind über toggleLayerEye, damit der LAYERS-Subset und der gemerkte Teilzustand erhalten bleiben.
+
+## 2026-06-01 — Lade-Flicker Teil 2: Framework-OL-Layer rendert show:all vor Debounce-Update
+- **Symptom:** Beim Bookmark-Hard-Reload werden alle Coalesce-Sublayer kurz dargestellt und dann auf den korrekten Stand (z.B. show:5,9 / show:-1) reduziert.
+- **Root-Cause:** Der adoptierte Framework-OL-Layer hat initial LAYERS=show:all; der korrigierende `_updateLAYERSDebounced` (80ms) feuert erst NACH der gesamten Registrierungs-Schleife → OL malt zwischenzeitlich alles.
+- **Fix:** In tnet-coalesce-bridge.js (a) beim Adoptieren des Framework-Layers im Lade-Fenster sofort `_applyLAYERSParam` (anfangs show:-1), (b) `_updateLAYERSDebounced` wendet während `_isBookmarkLoadActive()` SOFORT an statt debounced. Updates sind additiv → nur progressives Aufdecken, kein show:all mehr.
+- **Guardrail:** Bei Coalesce-Layern darf der kombinierte LAYERS-Param während des Bookmark-Loads nie kurz mehr Sublayer zeigen als der Endstand. Sofort-Apply im Lade-Fenster, Debounce nur für normale User-Klicks.
+
+## 2026-06-01 — Lade-Flicker: Bookmark zeigt erst alle Coalesce-Sublayer, dann blendet aus
+- **Symptom**: Beim Hard-Reload eines Bookmarks (z.B. `nw_oereb`) flackern Layer kurz auf und verschwinden wieder — sichtbares "laden und dann ausblenden".
+- **Root-Cause**: Das Framework aktiviert beim Bookmark-Load ALLE Bookmark-Layer (`Layer ON (135)`). `registerSublayer` in der CoalesceBridge nahm jeden Sublayer bedingungslos in `visibleSublayers` auf → kombinierter `show:`-Parameter enthielt erst alle Indizes (z.B. `show:0,1,5,6,7,8,9,11,12`), und erst die Ensure-Logik im Helper blendete die `visible:false`-Sublayer danach aus (`show:5,9`).
+- **Fix**: Lade-Fenster `__tnetActiveBookmark._loadUntil` (Date.now()+8000) im Helper gesetzt. `registerSublayer` prüft via `_isBookmarkSublayerHidden(sublayerKey)` die Bookmark-Sichtbarkeit und nimmt `visible:false`-Sublayer NICHT in `visibleSublayers` auf → `show:` ist von Anfang an korrekt. Accordion bleibt unberührt (kommt aus dem Store, nicht aus `visibleSublayers`). Zeitfenster verhindert, dass spätere Benutzer-Klicks unterdrückt werden.
+- **Guardrail**: Bookmark-Visibility muss VOR dem Bau des kombinierten `show:`-Parameters greifen, nicht erst per nachträglicher Ensure-Korrektur — sonst paint-then-hide-Flicker. Korrektur am Punkt der `visibleSublayers`-Befüllung (`registerSublayer`), zeitlich auf das Lade-Fenster begrenzen.
+
+## 2026-06-01 — Manuelles Ausschalten von ÖREB-Sublayern wirkte nicht auf der Karte
+- **Symptom**: Im `nw_oereb`-Bookmark liessen sich Sublayer (gefahrenzone, laermempfindlichkeitsaufstufung) und der Standalone-Layer baulinien-nationalstrassen per Auge zwar im Zustand umschalten (Konsole zeigte AUS), blieben aber auf der Karte sichtbar.
+- **Root-Cause**: ÖREB-/Bookmark-Layer werden vom Framework (`ClassicLayerMgr`) direkt in die OL-Karte geladen und tauchen **weder im Store-Katalog noch in `_activeLayers` auf** (`getCatalog().length === 0`, `getActiveLayers().length === 0`). Der Eye-Klick laeuft ueber `switchLayer` → unseren Patch → `forceMapLayerState`, das aber bei `if (!layer && !activeEntry) return;` sofort aussteigt und den Kartenzustand nie nachzieht. Store-basierte Helfer greifen mangels Store-Eintrag nicht.
+- **Fix**: Neuer Helper `_reconcileUntrackedMapLayer(layerId, targetVisible)` in `tnet-lm-store.js`; `forceMapLayerState` ruft ihn im Frueh-Ausstieg auf. Er sucht per `_findAllOLLayers` alle OL-Layer mit exaktem Namen (Standalone wie auch Dedicated-Mode-Sublayer mit eigenem `show:N`) und setzt `setVisible`/Opacity hart auf den Zielzustand. Live verifiziert: gefahrenzone AUS blendet nur gefahrenzone aus (laerm bleibt), baulinien AUS unabhaengig, Wieder-EIN funktioniert.
+- **Guardrail**: In diesem Stack sind Framework-/Bookmark-Layer (ÖREB) **nicht im Store**. Visibility fuer solche Layer immer direkt auf der OL-Karte per exaktem Layer-Namen abgleichen — `findLayer`/`_activeLayers` sind dort leer und duerfen nicht als Existenz-Gate fuer den Map-Sync dienen.
+
+## 2026-05-29 — Coalesce-Sublayer ignorieren rohe OL-setVisible bei Bookmark-Visibility
+- **Symptom**: ÖREB-Bookmark `nw_oereb` zeigte weiterhin zu viele Layer sichtbar (z.B. Lärmempfindlichkeitsaufstufung), obwohl sie als `visible:false` definiert waren — auch nach dem `setVisible(false)`-Fix.
+- **Root-Cause**: Die meisten ÖREB-Layer sind Coalesce-Sublayer und besitzen keinen eigenen OpenLayers-Layer. Der `map.getLayers()`-Lookup fand nur Standalone-Layer (`gefahrenzone`); für alle Coalesce-Sublayer lief `if (!olLayer) return` ins Leere, sie blieben über den geteilten WMS-`LAYERS`-Parameter sichtbar.
+- **Fix**: Neuer Helper `_setBookmarkLayerEye(layerId, false)` nutzt `TnetLMStore.toggleLayerEye()` (Coalesce-fähig) mit `_getEffectiveLayerVisible()` als Guard (toggelt nur bei abweichendem Zustand). Eingesetzt in `_scheduleBookmarkVisibilityEnsure`, `_syncBookmarkLayerStateToOL` und `_scheduleViewVisibilityWhenLayersReady` (Hide-Pfad); rohe `setVisible`-Lookups entfernt.
+- **Guardrail**: Bookmark-/Layer-Visibility in diesem Stack nie über rohe OL-Layer-Lookups schalten — Coalesce-Sublayer sind virtuell. Immer Store-APIs (`toggleLayerEye`/`_getEffectiveLayerVisible`) verwenden, die Coalesce verstehen.
+
 ## 2026-05-29 — Bookmark-Start: visible:false Layer bleiben nach setMapBookmark sichtbar
 - **Symptom**: Nach `TnetSetBookmark('nw_oereb')` blieben 4 Layer sichtbar, die im Bookmark als `visible:false` definiert waren.
 - **Root-Cause**: `_scheduleBookmarkVisibilityEnsure` (mit 400/1200/3000ms Retry-Timern) war zwar implementiert, wurde aber nie aus `_applyBookmark` aufgerufen. Der `add`-Listener allein reichte nicht, da das Framework nach dem `add`-Event noch eigene Visibility-Resets durchführt.
