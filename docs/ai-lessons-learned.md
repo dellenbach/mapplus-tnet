@@ -1,3 +1,9 @@
+## 2026-06-03 — Coalesce-Requests muessen pro Dienst konsolidiert werden, nicht pro Pfad-Container
+- **Symptom:** Bei Agglomeration wurden mehrere Export-Requests an denselben ArcGIS-Dienst (`gis_fach/nw_agglomeration/MapServer`) geschickt, obwohl alle Sublayer aus EINEM Dienst stammen.
+- **Root-Cause:** `_extractRootKey()` in der Coalesce-Bridge leitete den Root-Key aus dem Pfad-Parent (`lastIndexOf('/')`) ab. Dadurch wurde jeder Karten-Container (karte03_*, karte05_*, …) zu einem eigenen Root-Layer mit eigener Source → ein Export-Request pro Container.
+- **Fix:** `_extractRootKey()` loest den Root-Key jetzt zuerst aus der Coalesce-Gruppe des Stores auf (`getCoalesceInfo(sublayerKey).groupId`). Alle Sublayer eines Dienstes landen unter einem Root-Key → ein OL-Layer mit kombiniertem `LAYERS=show:2,3,4,...`. Pfad-Parent bleibt nur Fallback fuer Dienste ohne Coalesce-Index.
+- **Guardrail:** Coalesce-Konsolidierung immer an der tatsaechlichen Dienst-/Service-Identitaet (serviceUrl bzw. Coalesce-groupId) festmachen, nie an der ID-Pfadtiefe. Sublayer-Nummern sind innerhalb eines MapServers global eindeutig und duerfen in EINEM `show:` zusammengefasst werden.
+
 ## 2026-06-03 — Strukturelle Parent-Layer muessen im Karteninhalt bei aktiven Kindern ausgeblendet werden
 - **Symptom:** In Agglomeration erschien zusaetzlich ein Parent-Layer als eigene Zeile (z.B. `.../karte05_motorisierter_individualverkehr_miv`) mit eigener Deckkraft, wodurch Gruppen-Opacity nur teilweise wirkte und Rendering unklar wurde.
 - **Root-Cause:** Der Container-Filter verließ sich nur auf Katalog-Metadaten (`type/groups/layers/...`). Einige strukturierende Parent-IDs wurden dabei nicht als Container erkannt, obwohl gleichzeitig Kind-Layer mit demselben Prefix aktiv waren.

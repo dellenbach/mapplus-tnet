@@ -2929,7 +2929,7 @@ body:not(.tnet-sidepanel-v2) #lm-active-container.lm-container-desktop::-webkit-
 
 /* Layer-Items im Desktop-Kontext etwas kompakter */
 #sort_menu .lm-active-item {
-  padding: 6px 8px !important;
+  padding: 3px 6px !important;
   border-bottom: 1px solid #eee;
   background: #fff;
 }
@@ -2941,24 +2941,28 @@ body:not(.tnet-sidepanel-v2) #lm-active-container.lm-container-desktop::-webkit-
 #sort_menu .lm-active-row {
   display: flex;
   align-items: center;
-  gap: 4px;
-  min-height: 28px;
+  gap: 2px;
+  min-height: 24px;
 }
 
 #sort_menu .lm-drag-handle {
   cursor: grab;
-  width: 22px;
+  width: 14px;
   flex-shrink: 0;
-  opacity: 0.5;
+  opacity: 0;
+  transition: opacity 0.15s ease;
 }
 
-#sort_menu .lm-drag-handle:hover {
-  opacity: 1;
+#sort_menu .lm-active-item:hover .lm-drag-handle,
+#sort_menu .lm-active-item:focus-within .lm-drag-handle,
+#sort_menu .lm-active-group:hover .lm-drag-handle,
+#sort_menu .lm-active-group:focus-within .lm-drag-handle {
+  opacity: 0.85;
 }
 
 #sort_menu .lm-eye {
-  width: 28px;
-  height: 28px;
+  width: 24px;
+  height: 24px;
   border: none;
   background: none;
   cursor: pointer;
@@ -2989,18 +2993,7 @@ body:not(.tnet-sidepanel-v2) #lm-active-container.lm-container-desktop::-webkit-
 }
 
 #sort_menu .lm-btn-remove {
-  width: 24px;
-  height: 24px;
-  border: none;
-  background: none;
-  cursor: pointer;
-  color: #ccc;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 4px;
-  padding: 2px;
+  display: none;
 }
 
 #sort_menu .lm-btn-remove:hover {
@@ -3010,8 +3003,8 @@ body:not(.tnet-sidepanel-v2) #lm-active-container.lm-container-desktop::-webkit-
 
 /* Legend-Button in Dargestellte Themen (nur WMS-Layer) */
 #sort_menu .lm-btn-legend {
-  width: 24px;
-  height: 24px;
+  width: 22px;
+  height: 22px;
   border: none;
   background: none;
   cursor: pointer;
@@ -3037,7 +3030,7 @@ body:not(.tnet-sidepanel-v2) #lm-active-container.lm-container-desktop::-webkit-
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 2px 0 0 26px;
+  padding: 0 0 0 14px;
 }
 
 #sort_menu .lm-opacity-label {
@@ -3069,8 +3062,9 @@ body:not(.tnet-sidepanel-v2) #lm-active-container.lm-container-desktop::-webkit-
 #sort_menu .lm-active-toolbar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 6px 8px;
+  justify-content: flex-start;
+  gap: 8px;
+  padding: 4px 8px;
   background: #f5f9fa;
   border-bottom: 1px solid #e0e0e0;
 }
@@ -3079,33 +3073,97 @@ body:not(.tnet-sidepanel-v2) #lm-active-container.lm-container-desktop::-webkit-
   font-size: 11px;
   color: #888;
   font-weight: 500;
+  margin-right: auto;
+}
+
+#sort_menu .lm-active-modified {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 #sort_menu .lm-btn-remove-all {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 4px 10px;
-  border: 1px solid #dcc;
+  margin-left: auto;
+  padding: 3px 7px;
+  border: 1px solid #d2dde1;
   border-radius: 4px;
   background: #fff;
-  color: #c0392b;
+  color: #5f7278;
   font-size: 11px;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
-  transition: all 0.15s;
-  font-family: 'Roboto', sans-serif;
 }
 
 #sort_menu .lm-btn-remove-all:hover {
-  background: rgba(192,57,43,0.08);
-  border-color: #c0392b;
+  background: #f7fbfc;
+  border-color: #aebfc5;
+  color: #3f5359;
 }
 
 #sort_menu .lm-btn-remove-all .lm-icon {
   width: 14px;
   height: 14px;
   fill: currentColor;
+}
+
+#sort_menu .lm-btn-bm-reset {
+  font-size: 11px;
+  padding: 2px 6px;
+}
+
+#sort_menu .lm-active-meta {
+  display: flex;
+  gap: 8px;
+  padding: 6px 8px 4px;
+  background: #f5f9fa;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+#sort_menu .lm-active-meta-block {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+#sort_menu .lm-active-meta-map {
+  flex: 1;
+}
+
+#sort_menu .lm-active-meta-view {
+  width: 138px;
+  flex-shrink: 0;
+}
+
+#sort_menu .lm-active-meta-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: #7f8e93;
+  text-transform: uppercase;
+}
+
+#sort_menu .lm-active-map-switch {
+  width: 100%;
+  border: 1px solid #d2dde1;
+  border-radius: 4px;
+  background: #fff;
+  color: #1e3a4a;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: left;
+  padding: 4px 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+#sort_menu .lm-active-view-select,
+#sort_menu .lm-active-view-fallback {
+  width: 100%;
+  font-size: 12px;
 }
 
 #sort_menu .lm-active-list {

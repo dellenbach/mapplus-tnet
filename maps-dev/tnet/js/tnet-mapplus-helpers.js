@@ -884,36 +884,20 @@ function _mergeStoreLayersIntoActiveBookmark() {
 
   if (!bookmark || !Array.isArray(bookmark.layers) || !activeLayers || !activeLayers.length) return;
 
-  if (bookmark._replaceVisibleFromStoreUntil && Date.now() < bookmark._replaceVisibleFromStoreUntil) {
-    bookmark.layers.forEach(function(layer) {
-      if (layer && layer.id) layer.visible = false;
-    });
-  }
-
   bookmark.layers.forEach(function(layer) {
     if (layer && layer.id) byId[layer.id] = layer;
   });
 
   activeLayers.forEach(function(layer) {
-    var copy, key;
     if (!layer || !layer.id) return;
     if (byId[layer.id]) {
-      if (layer.visible !== undefined) byId[layer.id].visible = !!layer.visible;
+      // Nur positive Sichtbarkeit aus dem Store in den Bookmark-Runtime-State
+      // uebernehmen. Negative Zustandsflips kommen in diesem Legacy-Stack oft
+      // aus transienten map/remove-Events waehrend Rebuild/Reconcile und sind
+      // keine belastbare Benutzerintention.
+      if (layer.visible === true) byId[layer.id].visible = true;
       if (layer.opacity != null && isFinite(layer.opacity)) byId[layer.id].opacity = +layer.opacity;
-      return;
     }
-    copy = {};
-    for (key in layer) {
-      if (!Object.prototype.hasOwnProperty.call(layer, key)) continue;
-      if (key.charAt(0) === '_') continue;
-      copy[key] = layer[key];
-    }
-    copy.id = layer.id;
-    copy.name = copy.name || layer.id;
-    copy.visible = layer.visible !== false;
-    if (copy.opacity == null || !isFinite(copy.opacity)) copy.opacity = 1;
-    bookmark.layers.push(copy);
-    byId[layer.id] = copy;
   });
 }
 
@@ -928,7 +912,11 @@ function _installBookmarkUrlSync() {
   store.on('layer-visibility', function(evt) {
     var layerId = evt && (evt.id || evt.layerId);
     var runtimeLayer = _findRuntimeBookmarkLayer(layerId);
+    var source = evt && evt.source ? String(evt.source) : '';
     if (!runtimeLayer || !evt || !('visible' in evt)) return;
+    // Defensive: map-getriebene false-Events (OL remove/recreate) duerfen den
+    // Bookmark-Runtime-State nicht auf AUS ziehen.
+    if (source === 'map' && evt.visible === false) return;
     runtimeLayer.visible = !!evt.visible;
     _maybeDisableInitialBookmarkUrlGuards(evt);
     _scheduleBookmarkLayersUrlSyncIfChanged();
@@ -971,38 +959,91 @@ function _ensureBookmarkUrlSyncInstalled() {
 function _computeBookmarkVisibility(cfg, activeView, options) {
   var result = {};
   var layers = (cfg && cfg.layers) || [];
+  var allIds = layers.map(function(l) {
+    return (l && typeof l === 'object') ? l.id : String(l || '');
+  }).filter(function(id) { return !!id; });
+  var storeRef = window.TnetLMStore;
   var states = (activeView && activeView.layerStates) || null;
-  var explicitVisible = null;
+  var explicitVisibleMap = null;
+  var explicitIds = [];
+  var whitelistMode = false;
 
   if (options && options.visibleLayerIds && options.visibleLayerIds.length) {
-    explicitVisible = {};
-    options.visibleLayerIds.forEach(function(layerId) {
-      var normalized = String(layerId || '').replace(/^[-\s]+/, '').trim();
-      if (normalized) explicitVisible[normalized] = true;
+    explicitIds = options.visibleLayerIds.map(function(layerId) {
+      return String(layerId || '').replace(/^[-\s]+/, '').trim();
+    }).filter(function(normalizedId) { return !!normalizedId; });
+  }
+
+  if (explicitIds.length) {
+    explicitVisibleMap = {};
+    explicitIds.forEach(function(normalized) {
+      explicitVisibleMap[normalized] = true;
     });
+  }
+
+  // Nicht-Default-Views werden im Bestand teils als Whitelist gespeichert:
+  // layerStates enthaelt dann nur explizit sichtbare Layer (visible:true).
+  // In diesem Fall duerfen nicht genannte Layer NICHT vom Default erben.
+  if (!explicitVisibleMap && states && activeView && activeView.isDefault === false) {
+    var stateKeys = Object.keys(states);
+    if (stateKeys.length) {
+      whitelistMode = stateKeys.every(function(stateId) {
+        var entry = states[stateId];
+        return !!(entry && typeof entry === 'object' && entry.visible === true);
+      });
+    }
   }
 
   layers.forEach(function(l) {
     if (!l) return;
     var id, visible;
+    var explicitLayerVisible = false;
     if (typeof l === 'object') {
       id = l.id;
       visible = ('visible' in l) ? !!l.visible : true;
+      explicitLayerVisible = ('visible' in l) && !!l.visible;
     } else {
       id = String(l);
       visible = true;
     }
     if (!id) return;
     if (states && Object.prototype.hasOwnProperty.call(states, id)) {
+      var stateEntry = states[id];
+      if (stateEntry && typeof stateEntry === 'object' && stateEntry.visible === true) {
+        explicitLayerVisible = true;
+      }
+    }
+    // Strukturelle Parent-IDs (nur Container fuer Unterlayer) nicht als
+    // eigenstaendige Sichtbarkeits-Layer behandeln.
+    if (_isStructuralBookmarkLayerId(id, allIds, storeRef) && !explicitLayerVisible) return;
+    if (whitelistMode) {
+      visible = false;
+    }
+    if (states && Object.prototype.hasOwnProperty.call(states, id)) {
       var ov = states[id];
       if (ov && 'visible' in ov) visible = !!ov.visible;
     }
-    if (explicitVisible) {
-      visible = !!explicitVisible[id];
+    if (explicitVisibleMap) {
+      visible = !!explicitVisibleMap[id];
     }
     result[id] = visible;
   });
   return result;
+}
+
+function _isStructuralBookmarkLayerId(layerId, allIds, store) {
+  if (!layerId || !Array.isArray(allIds) || !allIds.length) return false;
+  // Renderbare IDs (Katalog/Store) niemals als Strukturknoten wegfiltern.
+  if (store && typeof store.isRenderableLayerId === 'function' && store.isRenderableLayerId(layerId)) {
+    return false;
+  }
+  var prefix = layerId + '/';
+  for (var i = 0; i < allIds.length; i++) {
+    var otherId = allIds[i];
+    if (!otherId || otherId === layerId) continue;
+    if (otherId.indexOf(prefix) === 0) return true;
+  }
+  return false;
 }
 
 function _copyOwnProps(target, source) {
@@ -1013,16 +1054,25 @@ function _copyOwnProps(target, source) {
   return target;
 }
 
+function _getBookmarkRuntimeSeed(cfg) {
+  var previous = window.__tnetActiveBookmark;
+  if (!previous || !cfg || !cfg.id) return [];
+  if (previous.id !== cfg.id) return [];
+  if (!Array.isArray(previous.layers)) return [];
+  return previous.layers;
+}
+
 function _buildBookmarkRuntimeLayers(cfg, activeView, options) {
   var visibilityMap = _computeBookmarkVisibility(cfg, activeView, options);
   var store = window.TnetLMStore;
+  var allIds = ((cfg && cfg.layers) || []).map(function(entry) {
+    return (entry && typeof entry === 'object') ? entry.id : String(entry || '');
+  }).filter(function(id) { return !!id; });
   var explicitIds = (options && options.visibleLayerIds && options.visibleLayerIds.length)
     ? options.visibleLayerIds.map(function(id) { return String(id || '').replace(/^[-\s]+/, '').trim(); }).filter(function(id) { return !!id; })
     : [];
   var explicitOpacity = {};
-  var previous = window.__tnetActiveBookmark && Array.isArray(window.__tnetActiveBookmark.layers)
-    ? window.__tnetActiveBookmark.layers
-    : [];
+  var previous = _getBookmarkRuntimeSeed(cfg);
   var prevById = {};
   var runtimeById = {};
 
@@ -1045,8 +1095,13 @@ function _buildBookmarkRuntimeLayers(cfg, activeView, options) {
       : null;
     var previousLayer = layerId ? prevById[layerId] : null;
     var runtimeLayer = {};
+    var shouldKeepStructural;
 
     if (!layerId) return null;
+    shouldKeepStructural = Object.prototype.hasOwnProperty.call(visibilityMap, layerId)
+      ? !!visibilityMap[layerId]
+      : false;
+    if (_isStructuralBookmarkLayerId(layerId, allIds, store) && !shouldKeepStructural) return null;
 
     _copyOwnProps(runtimeLayer, catalogLayer || {});
     _copyOwnProps(runtimeLayer, previousLayer || {});
@@ -1095,6 +1150,20 @@ function _buildBookmarkRuntimeLayers(cfg, activeView, options) {
     runtimeById[layerId] = runtimeLayer;
   });
 
+  // Safety-Net: Falls durch transienten Merge/Filter alle Runtime-Layer auf
+  // invisible kippen, explizite Bookmark-Defaults erneut anwenden.
+  if (!runtimeLayers.some(function(layer) { return layer && layer.visible !== false; })) {
+    ((cfg && cfg.layers) || []).forEach(function(entry) {
+      var layerId;
+      var entryVisible;
+      if (!entry || typeof entry !== 'object') return;
+      layerId = entry.id;
+      entryVisible = ('visible' in entry) ? !!entry.visible : false;
+      if (!layerId || !entryVisible || !runtimeById[layerId]) return;
+      runtimeById[layerId].visible = true;
+    });
+  }
+
   return runtimeLayers;
 }
 
@@ -1107,6 +1176,41 @@ function _emitActiveBookmarkEvent(eventName, reason) {
       }
     }));
   } catch (eEvent) { /* ignore */ }
+}
+
+function _emitPendingBookmarkLoadEvent(reason) {
+  try {
+    document.dispatchEvent(new CustomEvent('tnet-bookmark-loading', {
+      detail: {
+        reason: reason || null,
+        pending: window.__tnetPendingBookmarkLoad || null,
+        bookmark: window.__tnetActiveBookmark || null
+      }
+    }));
+  } catch (eEvent) { /* ignore */ }
+}
+
+function _setPendingBookmarkLoad(bookmarkId, viewId, source) {
+  window.__tnetSuppressUrlBookmarkHint = false;
+  var existingPending = window.__tnetPendingBookmarkLoad || null;
+  var cachedNames = window.__tnetBookmarkNameCache || null;
+  var resolvedName = existingPending && existingPending.id === bookmarkId && existingPending.name
+    ? existingPending.name
+    : (cachedNames && typeof cachedNames[bookmarkId] === 'string' ? cachedNames[bookmarkId] : null);
+  window.__tnetPendingBookmarkLoad = {
+    id: bookmarkId,
+    name: resolvedName,
+    viewId: viewId || null,
+    source: source || null,
+    startedAt: Date.now()
+  };
+  _emitPendingBookmarkLoadEvent(source || 'pending');
+}
+
+function _clearPendingBookmarkLoad(reason) {
+  if (!window.__tnetPendingBookmarkLoad) return;
+  window.__tnetPendingBookmarkLoad = null;
+  _emitPendingBookmarkLoadEvent(reason || 'cleared');
 }
 
 var _bookmarkLayerStateSync = null;
@@ -1287,14 +1391,14 @@ function _clearThematicLayersBeforeBookmark() {
     if (window.TnetLMStore && typeof window.TnetLMStore.removeAllLayers === 'function') {
       window.TnetLMStore.removeAllLayers();
       TnetLog.log('[TnetSetBookmark] Fachlayer via LMStore.removeAllLayers geleert');
-      return;
     }
   } catch (eStore) {
     TnetLog.warn('[TnetSetBookmark] removeAllLayers fehlgeschlagen:', eStore && eStore.message ? eStore.message : eStore);
   }
 
-  // Fallback ohne setMapBookmark('layers='), damit keine Bookmark-Hooks
-  // den eigentlichen Kartenwechsel überlagern.
+  // Zweiter Pass direkt auf der Karte: auch wenn der Store-Clear bereits lief,
+  // koennen verzoegerte Framework-Layer noch sichtbar sein. Diese vor dem
+  // eigentlichen Bookmark-Apply defensiv ausblenden.
   try {
     var am = (window.top && window.top.njs && window.top.njs.AppManager)
       ? window.top.njs.AppManager
@@ -1312,9 +1416,18 @@ function _clearThematicLayersBeforeBookmark() {
 
         try {
           if (typeof window.TnetLayerSwitch === 'function') {
-            window.TnetLayerSwitch(name, 'off');
-          } else {
+            try { window.TnetLayerSwitch(name, 'off'); } catch (eSwitchOff) { /* ignore */ }
+          }
+          if (typeof layer.setVisible === 'function') {
             layer.setVisible(false);
+          }
+          if (typeof layer.getSource === 'function') {
+            var src = layer.getSource();
+            var params = src && typeof src.getParams === 'function' ? src.getParams() : null;
+            var layersParam = params && (params.LAYERS || params.layers) || '';
+            if (src && typeof src.updateParams === 'function' && typeof layersParam === 'string' && layersParam.indexOf('show:') === 0) {
+              src.updateParams({ LAYERS: 'show:-1' });
+            }
           }
           cleared++;
         } catch (eOff) {
@@ -1327,6 +1440,39 @@ function _clearThematicLayersBeforeBookmark() {
     }
   } catch (eMap) {
     TnetLog.warn('[TnetSetBookmark] Map-Fallback-Clear fehlgeschlagen:', eMap && eMap.message ? eMap.message : eMap);
+  }
+}
+
+function _scheduleStrictBookmarkStoreReset(runtimeLayers, token) {
+  var delays = [250, 900, 1800, 3200];
+  delays.forEach(function(delay) {
+    setTimeout(function() {
+      if (token !== _bookmarkEnsureToken) return;
+      var bm = window.__tnetActiveBookmark;
+      if (!bm || !Array.isArray(bm.layers)) return;
+      if (window.TnetLMStore && typeof window.TnetLMStore.loadActiveLayersFromBookmark === 'function') {
+        try { window.TnetLMStore.loadActiveLayersFromBookmark(runtimeLayers); }
+        catch (eReset) { /* ignore */ }
+      }
+    }, delay);
+  });
+}
+
+function _applyFrameworkMapBookmarkFallback(bookmarkId) {
+  try {
+    var am = (window.top && window.top.njs && window.top.njs.AppManager)
+      ? window.top.njs.AppManager
+      : (window.njs && window.njs.AppManager) ? window.njs.AppManager : null;
+    if (!am || typeof am.setMapBookmark !== 'function') return false;
+    if (typeof am.infoFloatWinRemoveallItems !== 'function') {
+      am.infoFloatWinRemoveallItems = function() {};
+    }
+    am.setMapBookmark(['main'], 'map=' + encodeURIComponent(bookmarkId));
+    TnetLog.warn('[TnetSetBookmark] API-Fallback auf Framework map= angewendet:', bookmarkId);
+    return true;
+  } catch (eFallback) {
+    TnetLog.warn('[TnetSetBookmark] API-Fallback fehlgeschlagen:', eFallback && eFallback.message ? eFallback.message : eFallback);
+    return false;
   }
 }
 
@@ -1380,9 +1526,17 @@ function _buildBookmarkParams(cfg, visibilityMap, options) {
   }
 
   rawLayers.forEach(function (l, idx) {
-    var id, op;
-    if (l && typeof l === 'object') { id = l.id; op = (l.opacity != null) ? l.opacity : ''; }
-    else { id = String(l || ''); op = ''; }
+    var id, op, defaultVisible;
+    if (l && typeof l === 'object') {
+      id = l.id;
+      op = (l.opacity != null) ? l.opacity : '';
+      defaultVisible = ('visible' in l) ? !!l.visible : true;
+    }
+    else {
+      id = String(l || '');
+      op = '';
+      defaultVisible = true;
+    }
     id = String(id || '').replace(/^[-\s]+/, '').trim();
     if (!id) return;
     if (v1Opacity && (op === '' || op == null)) {
@@ -1391,7 +1545,7 @@ function _buildBookmarkParams(cfg, visibilityMap, options) {
     if (Object.prototype.hasOwnProperty.call(urlOverrideOp, id)) {
       op = urlOverrideOp[id];
     }
-    entries.push({ id: id, op: op });
+    entries.push({ id: id, op: op, defaultVisible: defaultVisible });
   });
 
   urlOverrideIds.forEach(function(layerId) {
@@ -1399,7 +1553,8 @@ function _buildBookmarkParams(cfg, visibilityMap, options) {
     if (!exists) {
       entries.push({
         id: layerId,
-        op: Object.prototype.hasOwnProperty.call(urlOverrideOp, layerId) ? urlOverrideOp[layerId] : ''
+        op: Object.prototype.hasOwnProperty.call(urlOverrideOp, layerId) ? urlOverrideOp[layerId] : '',
+        defaultVisible: true
       });
     }
   });
@@ -1411,12 +1566,24 @@ function _buildBookmarkParams(cfg, visibilityMap, options) {
   // Daher: unsichtbare Layer NICHT laden. Sie werden rein logisch im Karten-
   // inhalt registriert (loadActiveLayersFromBookmark) und erst bei Bedarf
   // (Augen-Klick) als eigener Framework-Layer materialisiert (Lazy-Load).
+  var entriesBeforeVisibility = entries.slice();
   if (visibilityMap) {
     entries = entries.filter(function (e) {
       return Object.prototype.hasOwnProperty.call(visibilityMap, e.id)
         ? !!visibilityMap[e.id]
-        : true; // unbekannt → defensiv als sichtbar behandeln
+        : !!e.defaultVisible;
     });
+
+    // Safety-Net: Ein leeres Ergebnis fuehrt zu `layers=` leer und damit zu
+    // unbrauchbaren Startzustaenden. In dem Fall auf Bookmark-Defaults
+    // zurueckfallen (und notfalls auf die urspruengliche Liste).
+    if (!entries.length && entriesBeforeVisibility.length) {
+      var fallbackDefaults = entriesBeforeVisibility.filter(function(entry) {
+        return entry.defaultVisible === true;
+      });
+      entries = fallbackDefaults.length ? fallbackDefaults : entriesBeforeVisibility.slice();
+      TnetLog.warn('[TnetSetBookmark] visibilityMap ergab 0 Layer, Fallback auf Bookmark-Defaults:', entries.length);
+    }
   }
 
   // Deduplizieren (Reihenfolge erhalten)
@@ -1570,6 +1737,57 @@ function _applyViewSwitchOnly(cfg, viewId, options) {
   return { success: true, bookmarkId: cfg.id, viewId: activeView ? activeView.id : null, viewSwitchOnly: true };
 }
 
+function _adoptUrlOverrideBookmark(cfg, bookmarkId, viewId, options) {
+  var activeView = _resolveActiveBookmarkView(cfg, viewId || null);
+  var runtimeLayers = _buildBookmarkRuntimeLayers(cfg, activeView, options || null);
+  var activeViewId = activeView ? activeView.id : null;
+
+  _setActiveViewForUrl(activeView, viewId || null);
+  _bookmarkEnsureToken += 1;
+
+  window.__tnetActiveBookmark = {
+    id: bookmarkId,
+    name: cfg.name || bookmarkId,
+    basemap: cfg.basemap || null,
+    basemapColorMode: cfg.basemapColorMode === 'grey' ? 'grey' : 'color',
+    views: (cfg.views || []).filter(function(v) { return v && v.id; }),
+    activeViewId: activeViewId,
+    layers: runtimeLayers,
+    _loadUntil: Date.now() + 8000,
+    _urlOverrideFreezeUntil: (options && options.urlOverride) ? Date.now() + 16000 : 0,
+    _replaceVisibleFromStoreUntil: 0,
+    _cfg: cfg,
+    _options: options || null
+  };
+  _clearPendingBookmarkLoad('url-adopt');
+  _bookmarkUrlSyncSignature = null;
+  _emitActiveBookmarkEvent('tnet-bookmark-loaded', 'url-adopt');
+
+  _installBookmarkLayerStateSync(_bookmarkEnsureToken);
+  try {
+    if (window.TnetLMStore && typeof window.TnetLMStore.loadActiveLayersFromBookmark === 'function') {
+      window.TnetLMStore.loadActiveLayersFromBookmark(runtimeLayers);
+      _scheduleStrictBookmarkStoreReset(runtimeLayers, _bookmarkEnsureToken);
+    }
+    _ensureBookmarkUrlSyncInstalled();
+    _applyUrlOverrideOpacity(options || null);
+    setTimeout(function() { _applyUrlOverrideOpacity(options || null); }, 700);
+  } catch (eLoadToc) {
+    TnetLog.warn('[TnetSetBookmark] URL-Adopt fehlgeschlagen:', eLoadToc && eLoadToc.message ? eLoadToc.message : eLoadToc);
+  }
+
+  _applyBookmarkRuntimeStateToMap();
+
+  if (cfg.themes && window.TnetLMTree && typeof window.TnetLMTree.expandThemes === 'function') {
+    setTimeout(function () {
+      window.TnetLMTree.expandThemes(cfg.themes);
+    }, 500);
+  }
+
+  TnetLog.log('[TnetSetBookmark] URL-Adopt', bookmarkId + (activeViewId ? '/' + activeViewId : ''));
+  return { success: true, bookmarkId: bookmarkId, viewId: activeViewId, urlAdoptOnly: true };
+}
+
 function _applyBookmark(cfg, bookmarkId, viewId, options) {
   // View-only Switch erkennen: gleiches Bookmark (id übereinstimmt), nur viewId anders
   var prev = window.__tnetActiveBookmark;
@@ -1577,15 +1795,10 @@ function _applyBookmark(cfg, bookmarkId, viewId, options) {
     var prevViewId = prev.activeViewId || null;
     var newViewIdCheck = viewId || null;
     if (prevViewId !== newViewIdCheck) {
-      var res = _applyViewSwitchOnly(cfg, newViewIdCheck, options || prev._options || null);
-      if (res.success) {
-        prev.activeViewId = newViewIdCheck;
-        if (window.TnetLMStore && typeof window.TnetLMStore._emit === 'function') {
-          try { window.TnetLMStore._emit('active-layers-changed', window.TnetLMStore.getActiveLayers()); }
-          catch (eR) { /* ignore */ }
-        }
-        return res;
-      }
+      // Beim Wechsel derselben Karte nur die Sichtbarkeit umschalten. Das ist
+      // fuer Agglomeration stabiler als ein kompletter Bookmark-Rebuild.
+      TnetLog.log('[TnetSetBookmark] View-Switch via Visibility-Only:', prevViewId, '→', newViewIdCheck);
+      return _applyViewSwitchOnly(cfg, viewId || null, options || null);
     }
   }
 
@@ -1640,6 +1853,7 @@ function _applyBookmark(cfg, bookmarkId, viewId, options) {
     _cfg:         cfg,
     _options:     options || null
   };
+  _clearPendingBookmarkLoad('apply-start');
   _bookmarkUrlSyncSignature = null;
   _emitActiveBookmarkEvent('tnet-bookmark-loaded', 'apply-start');
 
@@ -1647,7 +1861,12 @@ function _applyBookmark(cfg, bookmarkId, viewId, options) {
 
   _installBookmarkLayerStateSync(ensureToken);
 
-  am.setMapBookmark(['main'], params);
+  try {
+    am.setMapBookmark(['main'], params);
+  } catch (eSetMapBookmark) {
+    TnetLog.warn('[TnetSetBookmark] setMapBookmark(params) fehlgeschlagen, versuche map=-Fallback:', eSetMapBookmark && eSetMapBookmark.message ? eSetMapBookmark.message : eSetMapBookmark);
+    if (!_applyFrameworkMapBookmarkFallback(bookmarkId)) throw eSetMapBookmark;
+  }
 
   // BRIDGE: Vollständigen Karteninhalt registrieren — ALLE Bookmark-Layer
   // (auch die unsichtbaren, die das Framework bewusst NICHT geladen hat)
@@ -1658,6 +1877,7 @@ function _applyBookmark(cfg, bookmarkId, viewId, options) {
     if (window.TnetLMStore && typeof window.TnetLMStore.loadActiveLayersFromBookmark === 'function') {
       var isUrlOverrideStart = !!(options && options.urlOverride);
       window.TnetLMStore.loadActiveLayersFromBookmark(runtimeLayers);
+      _scheduleStrictBookmarkStoreReset(runtimeLayers, ensureToken);
       _ensureBookmarkUrlSyncInstalled();
       _applyUrlOverrideOpacity(options || null);
       setTimeout(function() { _applyUrlOverrideOpacity(options || null); }, 700);
@@ -1698,6 +1918,40 @@ function _applyBookmark(cfg, bookmarkId, viewId, options) {
   return { success: true, bookmarkId: bookmarkId, viewId: activeViewId, params: params };
 }
 
+function _isFrameworkBookmarkReady() {
+  var am = (window.top && window.top.njs && window.top.njs.AppManager)
+    ? window.top.njs.AppManager
+    : (window.njs && window.njs.AppManager) ? window.njs.AppManager : null;
+  return !!(
+    am &&
+    typeof am.setMapBookmark === 'function' &&
+    typeof am.changeBaseMap === 'function' &&
+    am.Maps && am.Maps['main'] && am.Maps['main'].mapObj
+  );
+}
+
+function _waitForFrameworkBookmarkReady(timeoutMs) {
+  timeoutMs = timeoutMs || 8000;
+  return new Promise(function(resolve) {
+    var startedAt = Date.now();
+    if (_isFrameworkBookmarkReady()) {
+      resolve(true);
+      return;
+    }
+    var timer = setInterval(function() {
+      if (_isFrameworkBookmarkReady()) {
+        clearInterval(timer);
+        resolve(true);
+        return;
+      }
+      if (Date.now() - startedAt >= timeoutMs) {
+        clearInterval(timer);
+        resolve(false);
+      }
+    }, 200);
+  });
+}
+
 /**
  * Lädt einen Bookmark über die TNET API und setzt den Kartenstatus.
  *
@@ -1736,26 +1990,35 @@ function TnetSetBookmark(bookmarkId, viewId, options) {
   } catch (eClose) { /* ignore */ }
 
   function fallbackDirectMapBookmark() {
-    try {
-      var am = (window.top && window.top.njs && window.top.njs.AppManager)
-        ? window.top.njs.AppManager
-        : (window.njs && window.njs.AppManager) ? window.njs.AppManager : null;
-      if (!am || typeof am.setMapBookmark !== 'function') return false;
-      if (typeof am.infoFloatWinRemoveallItems !== 'function') {
-        am.infoFloatWinRemoveallItems = function() {};
+    return _applyFrameworkMapBookmarkFallback(bookmarkId);
+  }
+
+  var activeBookmark = window.__tnetActiveBookmark;
+  var normalizedViewId = viewId || null;
+  if (activeBookmark && activeBookmark.id === bookmarkId && activeBookmark._cfg) {
+    var activeViewId = activeBookmark.activeViewId || null;
+    if (activeViewId !== normalizedViewId) {
+      try {
+        return Promise.resolve(_applyBookmark(activeBookmark._cfg, bookmarkId, normalizedViewId, options || null));
+      } catch (eCachedApply) {
+        TnetLog.warn('[TnetSetBookmark] Fast-Path fuer View-Switch fehlgeschlagen, falle auf API-Load zurueck:', eCachedApply && eCachedApply.message ? eCachedApply.message : eCachedApply);
       }
-      am.setMapBookmark(['main'], 'map=' + encodeURIComponent(bookmarkId));
-      TnetLog.warn('[TnetSetBookmark] API-Fallback auf Framework map= angewendet:', bookmarkId);
-      return true;
-    } catch (eFallback) {
-      TnetLog.warn('[TnetSetBookmark] API-Fallback fehlgeschlagen:', eFallback && eFallback.message ? eFallback.message : eFallback);
-      return false;
     }
   }
 
+  _setPendingBookmarkLoad(bookmarkId, normalizedViewId, 'request-start');
+
   return TnetApi.getBookmark(bookmarkId)
-    .then(function(cfg) { return _applyBookmark(cfg, bookmarkId, viewId || null, options || null); })
+    .then(function(cfg) {
+      if (options && options.urlOverride && options.visibleLayerIds && options.visibleLayerIds.length && !window.__tnetActiveBookmark) {
+        return _adoptUrlOverrideBookmark(cfg, bookmarkId, viewId || null, options || null);
+      }
+      return _waitForFrameworkBookmarkReady(8000).then(function() {
+        return _applyBookmark(cfg, bookmarkId, viewId || null, options || null);
+      });
+    })
     .catch(function(err) {
+      _clearPendingBookmarkLoad('error');
       TnetLog.error('[TnetSetBookmark] Fehler:', err);
       if (fallbackDirectMapBookmark()) {
         return { success: true, bookmarkId: bookmarkId, fallback: true };

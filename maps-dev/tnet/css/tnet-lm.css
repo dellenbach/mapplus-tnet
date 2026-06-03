@@ -521,8 +521,8 @@
 .lm-active-row {
   display: flex;
   align-items: center;
-  gap: 6px;
-  min-height: 40px;
+  gap: 4px;
+  min-height: 34px;
 }
 
 .lm-active-name {
@@ -577,18 +577,21 @@
 }
 
 @keyframes lm-spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from { transform: translate(-50%, -50%) rotate(0deg); }
+  to { transform: translate(-50%, -50%) rotate(360deg); }
 }
 
 .lm-eye.lm-eye-loading::after {
   content: '';
   position: absolute;
+  top: 50%;
+  left: 50%;
   width: 22px;
   height: 22px;
   border: 2px solid rgba(75, 123, 129, 0.22);
   border-top-color: var(--m-color-primary, #4B7B81);
   border-radius: 50%;
+  transform: translate(-50%, -50%);
   animation: lm-spin 0.8s linear infinite;
 }
 
@@ -599,12 +602,12 @@
 
 .lm-layer-status {
   flex-shrink: 0;
-  max-width: 92px;
-  padding: 2px 6px;
+  max-width: 72px;
+  padding: 1px 5px;
   border-radius: 4px;
   background: rgba(75, 123, 129, 0.10);
   color: var(--m-color-primary, #4B7B81);
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 600;
   line-height: 1.2;
   white-space: nowrap;
@@ -637,10 +640,22 @@
   flex-shrink: 0;
   -webkit-appearance: none;
   appearance: none;
+  color: #b53535;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1;
+  opacity: 0.96;
+  transition: opacity 0.14s ease, background-color 0.14s ease, color 0.14s ease;
 }
 
 .lm-btn-remove:active {
   background: rgba(0, 0, 0, 0.06);
+}
+
+.lm-btn-remove:hover,
+.lm-btn-remove:focus-visible {
+  background: rgba(184, 74, 74, 0.12);
+  color: #a53131;
 }
 
 /* ── Legende-Button (nur WMS-Layer) ── */
@@ -672,8 +687,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  min-height: 40px;
+  width: 22px;
+  min-height: 34px;
   cursor: grab;
   color: #aaa;
   flex-shrink: 0;
@@ -736,7 +751,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 2px 0 2px 28px; /* eingerückt wie Drag-Handle */
+  padding: 1px 0 1px 22px; /* eingerückt wie Drag-Handle */
 }
 
 .lm-opacity-label {
@@ -794,11 +809,11 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 6px 8px;
-  min-height: 36px;
+  padding: 4px 6px;
+  min-height: 32px;
   background: var(--lm-group-header-bg);
   border-bottom: 1px solid var(--lm-group-border);
-  cursor: default;
+  cursor: pointer;
 }
 
 .lm-active-group-icon {
@@ -815,7 +830,7 @@
 
 .lm-active-group-name {
   flex: 1;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--lm-group-name);
   white-space: nowrap;
@@ -833,8 +848,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  width: 24px;
+  height: 24px;
   border: none;
   background: transparent;
   cursor: pointer;
@@ -849,14 +864,20 @@
 }
 
 .lm-btn-expand .lm-icon {
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   fill: currentColor;
+  transform: rotate(0deg);
+  transition: transform 0.15s ease;
+}
+
+.lm-active-group:not(.lm-collapsed) .lm-btn-expand .lm-icon {
+  transform: rotate(90deg);
 }
 
 /* Gruppen-Opazitäts-Slider */
 .lm-active-group > .lm-opacity-row {
-  padding: 2px 8px 4px 40px;
+  padding: 1px 6px 3px 30px;
   background: var(--lm-group-header-bg);
 }
 
@@ -865,14 +886,15 @@
   list-style: none;
   margin: 0;
   padding: 0;
-  max-height: 500px;
-  overflow: hidden;
-  transition: max-height 0.2s ease;
+  max-height: none;
+  overflow: visible;
 }
 
 /* Collapsed → Kinder ausblenden */
 .lm-active-group.lm-collapsed .lm-active-group-children {
   max-height: 0;
+  overflow: hidden;
+  display: none;
 }
 
 .lm-active-group.lm-collapsed .lm-active-group-header {
@@ -888,8 +910,8 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 4px 8px 4px 24px;
-  min-height: 30px;
+  padding: 3px 6px 3px 18px;
+  min-height: 26px;
   border-bottom: 1px solid #edf2f3;
 }
 
@@ -901,6 +923,8 @@
   width: 28px;
   height: 28px;
   flex-shrink: 0;
+  position: relative;
+  margin: 0;
 }
 
 .lm-active-group-child .lm-active-name {
@@ -1057,12 +1081,12 @@
 
 /* Active-Panel: kompaktere Items */
 .lm-container-desktop .lm-active-row {
-  min-height: 30px;
-  gap: 4px;
+  min-height: 26px;
+  gap: 2px;
 }
 
 .lm-container-desktop .lm-active-item {
-  padding: 2px 6px;
+  padding: 1px 4px;
 }
 
 .lm-container-desktop .lm-active-name {
@@ -1070,28 +1094,57 @@
 }
 
 .lm-container-desktop .lm-drag-handle {
-  min-height: 30px;
-  width: 24px;
+  min-height: 26px;
+  width: 14px;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.lm-container-desktop .lm-active-item:hover .lm-drag-handle,
+.lm-container-desktop .lm-active-item:focus-within .lm-drag-handle,
+.lm-container-desktop .lm-active-group:hover .lm-drag-handle,
+.lm-container-desktop .lm-active-group:focus-within .lm-drag-handle {
+  opacity: 0.85;
 }
 
 .lm-container-desktop .lm-eye {
-  width: 30px;
-  height: 30px;
+  width: 26px;
+  height: 26px;
 }
 
-.lm-container-desktop .lm-btn-remove,
 .lm-container-desktop .lm-btn-legend {
-  width: 28px;
-  height: 28px;
+  width: 24px;
+  height: 24px;
+}
+
+.lm-container-desktop .lm-btn-remove {
+  display: flex !important;
+  width: 24px;
+  height: 24px;
+  opacity: 0.45;
+  pointer-events: auto;
+}
+
+.lm-container-desktop .lm-active-item:hover .lm-btn-remove,
+.lm-container-desktop .lm-active-item:focus-within .lm-btn-remove,
+.lm-container-desktop .lm-active-group:hover > .lm-active-group-header .lm-btn-remove,
+.lm-container-desktop .lm-active-group:focus-within > .lm-active-group-header .lm-btn-remove,
+.lm-container-desktop .lm-active-group-child:hover .lm-btn-remove,
+.lm-container-desktop .lm-active-group-child:focus-within .lm-btn-remove {
+  opacity: 1;
 }
 
 .lm-container-desktop .lm-opacity-row {
-  padding: 0 0 0 24px;
+  padding: 0 0 0 14px;
 }
 
 .lm-container-desktop .lm-opacity-label {
   font-size: 10px;
-  width: 60px;
+  width: 48px;
+}
+
+.lm-container-desktop .lm-layer-status {
+  max-width: 64px;
 }
 
 /* Active-Panel Toolbar */
@@ -1104,53 +1157,132 @@
   border-bottom: 1px solid #e0e0e0;
   background: #f5f9fa;
 }
-.lm-active-bookmark-row {
+.lm-active-meta {
   display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 5px 8px 3px;
-  border-bottom: 1px solid #eee;
+  gap: 8px;
+  padding: 6px 8px 4px;
 }
-.lm-active-bookmark-name {
+.lm-active-meta-block {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.lm-active-meta-map {
   flex: 1;
-  font-size: 12px;
+}
+.lm-active-meta-view {
+  width: 138px;
+  flex-shrink: 0;
+}
+.lm-active-meta-label {
+  font-size: 10px;
   font-weight: 600;
+  color: #7f8e93;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+.lm-active-map-switch {
+  display: block;
+  width: 100%;
+  border: 1px solid #d2dde1;
+  border-radius: 4px;
+  background: #fff;
   color: #1e3a4a;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: left;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+.lm-active-map-switch:hover {
+  border-color: #9fb2b8;
+  background: #f8fbfc;
+}
+.lm-active-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px 6px;
+  border-top: 1px solid #e8eef0;
+  border-bottom: 1px solid #eee;
+}
+.lm-active-count {
+  font-size: 11px;
+  color: #7f8e93;
+  white-space: nowrap;
+  margin-right: auto;
+}
+.lm-active-modified {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 .lm-bm-modified-badge {
   flex-shrink: 0;
-  font-size: 14px;
+  font-size: 13px;
   line-height: 1;
   color: #c47a00;
   cursor: default;
 }
 .lm-btn-bm-reset {
   flex-shrink: 0;
-  background: transparent;
-  border: none;
-  font-size: 16px;
-  line-height: 1;
+  border: 1px solid #e7cf9f;
+  background: #fffdf5;
+  font-size: 11px;
+  line-height: 1.2;
   color: #c47a00;
   cursor: pointer;
-  padding: 0 2px;
+  padding: 2px 6px;
   border-radius: 3px;
 }
 .lm-btn-bm-reset:hover {
-  background: rgba(196, 122, 0, 0.12);
+  background: #fff8df;
+}
+.lm-active-count-loading {
+  color: #4b7b81;
+  font-weight: 600;
 }
 .lm-active-view-select {
-  flex-shrink: 0;
-  max-width: 120px;
-  font-size: 11px;
-  padding: 2px 4px;
+  width: 100%;
+  font-size: 12px;
+  padding: 3px 4px;
   border: 1px solid #b0bec5;
   border-radius: 3px;
   background: #fff;
   color: #333;
   cursor: pointer;
+}
+.lm-active-view-fallback {
+  display: inline-block;
+  width: 100%;
+  border: 1px solid #d2dde1;
+  border-radius: 4px;
+  background: #fff;
+  color: #6e7a7e;
+  font-size: 12px;
+  padding: 3px 6px;
+}
+
+.lm-btn-remove-all {
+  margin-left: auto;
+  border: 1px solid #d2dde1;
+  border-radius: 4px;
+  background: #fff;
+  color: #5f7278;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 7px;
+  cursor: pointer;
+}
+
+.lm-btn-remove-all:hover {
+  border-color: #aebfc5;
+  background: #f7fbfc;
+  color: #3f5359;
 }
 .lm-active-view-select:hover {
   border-color: #1e3a4a;
@@ -1160,12 +1292,56 @@
 .lm-container-desktop .lm-empty {
   padding: 16px 10px;
   font-size: 12px;
+
+.lm-pending-load {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin: 10px 8px 12px;
+  padding: 12px;
+  border: 1px solid #d7e3e6;
+  border-radius: 6px;
+  background: linear-gradient(180deg, #fbfdfd 0%, #f1f7f8 100%);
+}
+
+.lm-pending-load-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid #c6d8dc;
+  border-top-color: #4b7b81;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-top: 2px;
+  animation: lmPendingSpin 0.8s linear infinite;
+}
+
+.lm-pending-load-copy {
+  min-width: 0;
+}
+
+.lm-pending-load-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1e3a4a;
+  margin-bottom: 3px;
+}
+
+.lm-pending-load-text {
+  font-size: 11px;
+  line-height: 1.45;
+  color: #62757c;
+}
+
+@keyframes lmPendingSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
 }
 
 /* Desktop: Gruppen kompakter */
 .lm-container-desktop .lm-active-group-header {
-  min-height: 26px;
-  padding: 2px 4px;
+  min-height: 24px;
+  padding: 1px 4px;
 }
 
 .lm-container-desktop .lm-active-group-name {
@@ -1173,12 +1349,12 @@
 }
 
 .lm-container-desktop .lm-active-group-child {
-  min-height: 22px;
-  padding: 1px 6px 1px 18px;
+  min-height: 20px;
+  padding: 1px 4px 1px 14px;
 }
 
 .lm-container-desktop .lm-active-group > .lm-opacity-row {
-  padding: 0 6px 1px 36px;
+  padding: 0 4px 1px 22px;
 }
 
 /* ============================================================

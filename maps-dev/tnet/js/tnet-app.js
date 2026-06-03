@@ -246,60 +246,130 @@ if (document.readyState === 'loading') {
 
 // ===== BOOKMARK AUTO-START =====
 
-function startBookmarkFromUrl() {
+var __tnetBookmarkNameCache = window.__tnetBookmarkNameCache || {};
+var __tnetBookmarkNameListPromise = null;
+window.__tnetBookmarkNameCache = __tnetBookmarkNameCache;
+
+function getCachedBookmarkDisplayName(bookmarkId) {
+    var cached = __tnetBookmarkNameCache && __tnetBookmarkNameCache[bookmarkId];
+    return (typeof cached === 'string' && cached) ? cached : null;
+}
+
+function rememberBookmarkDisplayNames(entries) {
+    if (!Array.isArray(entries)) return;
+    entries.forEach(function(entry) {
+        if (!entry || typeof entry !== 'object') return;
+        var id = entry.id || entry['map-bookmark'] || null;
+        var name = entry.name || entry.title || entry.label || null;
+        if (!id || !name) return;
+        __tnetBookmarkNameCache[id] = name;
+    });
+}
+
+function resolveBookmarkDisplayName(bookmarkId) {
+    var cached = getCachedBookmarkDisplayName(bookmarkId);
+    if (cached) return Promise.resolve(cached);
+    if (!(window.TnetApi && typeof window.TnetApi.listBookmarks === 'function')) {
+        return Promise.resolve(null);
+    }
+    if (!__tnetBookmarkNameListPromise) {
+        __tnetBookmarkNameListPromise = window.TnetApi.listBookmarks()
+            .then(function(entries) {
+                rememberBookmarkDisplayNames(entries);
+                return entries;
+            })
+            .catch(function() {
+                return [];
+            });
+    }
+    return __tnetBookmarkNameListPromise.then(function() {
+        return getCachedBookmarkDisplayName(bookmarkId);
+    });
+}
+
+function announcePendingBookmarkLoad(bookmarkId, viewId, bookmarkName) {
+    try {
+        window.__tnetPendingBookmarkLoad = {
+            id: bookmarkId,
+            name: bookmarkName || null,
+            viewId: viewId || null,
+            source: 'url-autostart',
+            startedAt: Date.now()
+        };
+        document.dispatchEvent(new CustomEvent('tnet-bookmark-loading', {
+            detail: {
+                reason: 'url-autostart',
+                pending: window.__tnetPendingBookmarkLoad,
+                bookmark: window.__tnetActiveBookmark || null
+            }
+        }));
+    } catch (ePending) { /* ignore */ }
+}
+
+function getBookmarkRequestFromUrl() {
     var currentPath = window.location.pathname;
 
     // Erlaubt sowohl PROD (/maps/{id}) als auch DEV (/maps-dev/{id}).
     // Pattern fuer ID entspricht der .htaccess-Rewrite-Regel: [a-zA-Z0-9_-]+
     var match = currentPath.match(/\/maps(?:-dev)?\/([a-zA-Z0-9_-]+)$/);
+    if (!match || !match[1]) return null;
 
-    if (match && match[1]) {
+    var viewId = null;
+    var initialQuery = __tnetInitialUrlQuery || window.__tnetOriginalUrlQuery || '';
+    var initialLayers = __tnetInitialUrlLayers || window.__tnetOriginalUrlLayers || null;
+    var initialOp = __tnetInitialUrlOp || window.__tnetOriginalUrlOp || null;
+    try {
+        var urlParams = new URLSearchParams(window.location.search);
+        var rawView = urlParams.get('view');
+        if (rawView && /^[a-zA-Z0-9_-]+$/.test(rawView)) viewId = rawView;
+        if (!initialLayers) initialLayers = urlParams.get('layers');
+        if (!initialOp) initialOp = urlParams.get('op');
+    } catch (eUrl) { /* URLSearchParams notfalls weggelassen */ }
+
+    return {
+        bookmarkId: match[1],
+        viewId: viewId,
+        initialQuery: initialQuery,
+        initialLayers: initialLayers,
+        initialOp: initialOp
+    };
+}
+
+function primePendingBookmarkFromUrl() {
+    var request = getBookmarkRequestFromUrl();
+    if (!request) return null;
+
+    announcePendingBookmarkLoad(
+        request.bookmarkId,
+        request.viewId,
+        getCachedBookmarkDisplayName(request.bookmarkId)
+    );
+    resolveBookmarkDisplayName(request.bookmarkId).then(function(bookmarkName) {
+        var pending = window.__tnetPendingBookmarkLoad;
+        if (!bookmarkName || !pending || pending.id !== request.bookmarkId || window.__tnetActiveBookmark) return;
+        announcePendingBookmarkLoad(request.bookmarkId, request.viewId, bookmarkName);
+    });
+    return request;
+}
+
+function startBookmarkFromUrl() {
+    var request = getBookmarkRequestFromUrl();
+
+    if (request && request.bookmarkId) {
         if (__tnetBookmarkAutoStartStarted) return;
         __tnetBookmarkAutoStartStarted = true;
-        var bookmarkId = match[1];
+        var bookmarkId = request.bookmarkId;
+        var viewId = request.viewId;
+        var initialQuery = request.initialQuery;
+        var initialLayers = request.initialLayers;
+        var initialOp = request.initialOp;
 
-        // Kartenansicht (Schema v2) wird via Query-String ?view={viewId} uebergeben.
-        // Path-Style wuerde relative Asset-URLs in der Seite kaputtmachen.
-        var viewId = null;
-        var initialQuery = __tnetInitialUrlQuery || window.__tnetOriginalUrlQuery || '';
-        var initialLayers = __tnetInitialUrlLayers || window.__tnetOriginalUrlLayers || null;
-        var initialOp = __tnetInitialUrlOp || window.__tnetOriginalUrlOp || null;
-        try {
-            var urlParams = new URLSearchParams(window.location.search);
-            var rawView = urlParams.get('view');
-            if (rawView && /^[a-zA-Z0-9_-]+$/.test(rawView)) viewId = rawView;
-            if (!initialLayers) initialLayers = urlParams.get('layers');
-            if (!initialOp) initialOp = urlParams.get('op');
-        } catch (eUrl) { /* URLSearchParams notfalls weggelassen */ }
-
-        // Warte auf TnetSetBookmark-Funktion (wird async geladen).
-        // Catch-up + Bookmark-Name-Logging laufen im setMapBookmark-Wrapper (tnet-header.js).
-        function isLayerManagerReady() {
-            try {
-                var am = window.njs && window.njs.AppManager;
-                var lyrMgrs = am && am.LyrMgr;
-                var mainWidget = window.dijit && typeof window.dijit.byId === 'function'
-                    ? window.dijit.byId('main_lyrmgr')
-                    : null;
-
-                if (!lyrMgrs) return false;
-                if (!lyrMgrs.main_lyrmgr || typeof lyrMgrs.main_lyrmgr.switchLayersProgr !== 'function') {
-                    return false;
-                }
-                if (mainWidget && mainWidget.domNode && mainWidget.domNode.childNodes && mainWidget.domNode.childNodes.length) {
-                    return true;
-                }
-                return Object.keys(lyrMgrs).length >= 1;
-            } catch (eLyrMgr) {
-                return false;
-            }
-        }
+        primePendingBookmarkFromUrl();
 
         function tryStart() {
             if (typeof window.TnetSetBookmark === 'function' &&
                 window.njs && window.njs.AppManager &&
-                typeof window.njs.AppManager.setMapBookmark === 'function' &&
-                isLayerManagerReady()) {
+                typeof window.njs.AppManager.setMapBookmark === 'function') {
                 var hasUrlOverride = !!(initialQuery && /[?&](lang|basemap|blop|x|y|zl|hl|theme|subtheme|layers|op|view)=/.test(initialQuery));
                 var options = hasUrlOverride ? {
                     visibleLayerIds: initialLayers ? initialLayers.split('|').filter(function(id) { return !!id; }) : null,
@@ -317,6 +387,8 @@ function startBookmarkFromUrl() {
         tryStart();
     }
 }
+
+primePendingBookmarkFromUrl();
 
 // Event-basiert statt festes setTimeout(4000)
 if (window._tnetAppReadyFired) {

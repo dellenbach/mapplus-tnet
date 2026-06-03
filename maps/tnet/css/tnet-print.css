@@ -172,39 +172,46 @@
    PDF Aufträge (vereinigte Job-Liste)
    ============================== */
 .print-jobs-list {
-  display: flex; flex-direction: column; gap: 4px; max-height: 400px;
-  overflow-y: auto;
+  display: flex; flex-direction: column; gap: 3px;
+  max-height: 300px; overflow-y: auto;
 }
+/* Jeder Job: einzeilige Flex-Row */
 .print-job {
-  border: 1px solid #ddd; border-radius: 4px; padding: 6px 8px;
+  display: flex; align-items: center; gap: 5px;
+  border: 1px solid #ddd; border-radius: 4px; padding: 4px 6px;
   background: #fafafa; font-size: 11px;
 }
-.pj-header {
-  display: flex; align-items: center; justify-content: space-between;
-}
 .pj-title {
-  font-weight: 500; color: #333;
   flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis;
-  white-space: nowrap; font-size: 11px;
+  white-space: nowrap; font-weight: 500; color: #333;
 }
-.pj-status {
-  font-size: 10px; color: #666; margin-left: 6px; white-space: nowrap;
+/* Titel als Download-Link */
+a.pj-title.pj-dl {
+  color: #2a6068; text-decoration: none; cursor: pointer;
 }
+a.pj-title.pj-dl:hover { text-decoration: underline; color: #4b7b81; }
 .pj-meta {
-  font-size: 10px; color: #888; margin-top: 2px;
+  font-size: 10px; color: #888; white-space: nowrap; flex-shrink: 0;
+}
+/* Zähler-Badge bei mehrfachen gleichen PDFs */
+.pj-count {
+  flex-shrink: 0; font-size: 10px; font-weight: 600; color: white;
+  background: #4b7b81; border-radius: 10px; padding: 1px 5px; line-height: 1.4;
 }
 /* Status-Farben */
 .pj-pending { background: #fafafa; border-color: #ddd; }
-.pj-processing { background: #e3f2fd; border-color: #90caf9; }
+.pj-processing { flex-direction: column; align-items: stretch; background: #e3f2fd; border-color: #90caf9; }
+.pj-processing .pj-proc-row { display: flex; align-items: center; }
+.pj-processing .pj-title { flex: 1; }
 .pj-completed { background: #e8f5e9; border-color: #a5d6a7; }
 .pj-failed { background: #ffebee; border-color: #ef9a9a; }
-/* Fortschritt */
+.pj-failed .pj-meta { color: #c62828; }
+/* Fortschritt (nur bei processing) */
 .pj-progress {
-  margin-top: 4px; display: flex; align-items: center; gap: 6px;
+  display: flex; align-items: center; gap: 5px; margin-top: 3px;
 }
 .pj-progress-bar {
-  flex: 1; height: 4px; background: #e0e0e0; border-radius: 2px;
-  overflow: hidden;
+  flex: 1; height: 3px; background: #e0e0e0; border-radius: 2px; overflow: hidden;
 }
 .pj-progress-fill {
   height: 100%; background: #4b7b81; border-radius: 2px;
@@ -213,36 +220,21 @@
 .pj-progress-text {
   font-size: 10px; color: #666; min-width: 24px; text-align: right;
 }
-/* Fehler */
-.pj-error {
-  margin-top: 4px; padding: 4px 6px; background: #ffcdd2;
-  border: 1px solid #ef5350; border-radius: 3px; color: #c62828;
-  font-size: 10px; line-height: 1.3;
+/* Icon-Buttons (Download / Vorschau / Entfernen) */
+.pj-icon {
+  flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; border-radius: 3px; border: none;
+  background: transparent; cursor: pointer; font-size: 13px; color: #666;
+  text-decoration: none; padding: 0; font-family: inherit;
+  transition: background 0.12s, color 0.12s;
 }
-/* Aktionen (Download/Vorschau/Entfernen) */
-.pj-actions {
-  margin-top: 4px; display: flex; gap: 3px; align-items: center;
+.pj-icon:hover { background: #e0eeee; color: #4b7b81; }
+/* Download-Icon: gefärbt und etwas breiter für bessere Erkennbarkeit */
+.pj-icon-dl {
+  background: #4b7b81; color: white; width: 24px; border-radius: 3px;
 }
-.pj-btn {
-  padding: 3px 8px; border: 1px solid #ccc; border-radius: 3px;
-  font-size: 11px; cursor: pointer; background: white; color: #555;
-  text-decoration: none; display: inline-flex; align-items: center;
-  justify-content: center; gap: 3px; line-height: 1.2;
-  font-family: inherit; transition: background 0.15s, border-color 0.15s;
-}
-.pj-btn:hover {
-  background: #e8f0f0; border-color: #4b7b81; color: #4b7b81;
-}
-.pj-btn-dl {
-  flex: 1; font-weight: 500; border-color: #4b7b81; color: #4b7b81;
-}
-.pj-btn-dl:hover {
-  background: #4b7b81; color: white;
-}
-.pj-btn-remove {
-  border: none; color: #999; font-size: 16px; padding: 2px 6px;
-}
-.pj-btn-remove:hover { color: #c0392b; background: transparent; border: none; }
+.pj-icon-dl:hover { background: #2a6068; color: white; }
+.pj-icon-remove:hover { background: #fde8e8; color: #c0392b; }
 
 /* ==============================
    Accordion (Vorschau + Downloads)

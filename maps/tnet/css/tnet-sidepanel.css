@@ -1,10 +1,14 @@
 /* ===== TNET SIDEPANEL V2 ===== */
 
+:root {
+  --tnet-sidepanel-width: 340px;
+}
+
 /* Freepane base — bündig links/oben, Schatten nur rechts */
 body.tnet-sidepanel-v2 div#freepane {
   left: 0 !important;
   top: 69px !important;
-  width: 340px;
+  width: var(--tnet-sidepanel-width, 340px) !important;
   z-index: 50;
   position: fixed !important;
   bottom: auto !important;
@@ -45,7 +49,7 @@ body.tnet-sidepanel-v2 .spatial-query-panel * {
 /* Spring scroll container — kein Scroll hier, nur innere Container scrollen */
 body.tnet-sidepanel-v2 #spring {
   pointer-events: auto;
-  width: 340px !important;
+  width: var(--tnet-sidepanel-width, 340px) !important;
   height: auto !important;
   max-height: calc(100vh - 129px) !important;
   overflow: hidden !important;
@@ -63,10 +67,40 @@ body.tnet-sidepanel-v2 #freepane #leftPaneHeader,
 body.tnet-sidepanel-v2 #freepane .dijitTitlePane,
 body.tnet-sidepanel-v2 #freepane .close_switch,
 body.tnet-sidepanel-v2 #freepane #scrollToTopBtn,
+body.tnet-sidepanel-v2 #freepane #freepane-resize-handle,
 body.tnet-sidepanel-v2 #freepane .dijitTitlePaneTitle,
 body.tnet-sidepanel-v2 #freepane .dijitTitlePaneContentOuter,
 body.tnet-sidepanel-v2 #freepane .tnet-accordion-resize-handle {
   pointer-events: auto;
+}
+
+/* Horizontaler Handle fuer Breiten-Resize */
+body.tnet-sidepanel-v2 #freepane-resize-handle {
+  position: absolute;
+  top: 0;
+  right: -4px;
+  bottom: 0;
+  width: 10px;
+  z-index: 130;
+  cursor: ew-resize;
+  opacity: 0;
+  background: linear-gradient(to right, rgba(75, 123, 129, 0.25), rgba(75, 123, 129, 0));
+  transition: opacity 0.15s ease, background 0.15s ease;
+}
+
+body.tnet-sidepanel-v2 #freepane:hover #freepane-resize-handle,
+body.tnet-sidepanel-v2 #freepane-resizing #freepane-resize-handle,
+body.tnet-sidepanel-v2.tnet-resizing #freepane-resize-handle {
+  opacity: 1;
+}
+
+body.tnet-sidepanel-v2 #freepane-resize-handle:hover,
+body.tnet-sidepanel-v2 #freepane-resize-handle.active {
+  background: linear-gradient(to right, rgba(75, 123, 129, 0.5), rgba(75, 123, 129, 0.1));
+}
+
+body.tnet-sidepanel-v2 #freepane.close #freepane-resize-handle {
+  display: none;
 }
 
 /* Accordion resize handle */
@@ -111,7 +145,7 @@ body.tnet-sidepanel-v2 #freepane #spring .tnet-accordion-resize-handle::before {
 body.tnet-sidepanel-v2 #scrollToTopBtn {
   position: fixed;
   bottom: 14px;
-  left: 318px;
+  left: calc(var(--tnet-sidepanel-width, 340px) - 22px);
   width: 44px;
   height: 44px;
   background: #e8423f;

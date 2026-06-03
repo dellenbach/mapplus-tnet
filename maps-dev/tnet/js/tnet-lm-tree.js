@@ -603,12 +603,16 @@
     _resyncLayerCheckboxes: function () {
       if (!_container) return;
       var store = window.TnetLMStore;
-      if (!store || typeof store.isLayerEffectivelyVisible !== 'function') return;
+      if (!store) return;
+      var visibilityReader = typeof store.isLayerRequestedVisible === 'function'
+        ? store.isLayerRequestedVisible.bind(store)
+        : (typeof store.isLayerEffectivelyVisible === 'function' ? store.isLayerEffectivelyVisible.bind(store) : null);
+      if (!visibilityReader) return;
       var els = _container.querySelectorAll('.lm-layer[data-layer-id]');
       for (var i = 0; i < els.length; i++) {
         var layerId = els[i].dataset.layerId;
         if (!layerId) continue;
-        var isVisible = store.isLayerEffectivelyVisible(layerId);
+        var isVisible = visibilityReader(layerId);
         var cb = els[i].querySelector('.lm-cb');
         if (cb) cb.checked = isVisible;
         els[i].classList.toggle('lm-active', isVisible);
@@ -703,15 +707,18 @@
       var groupEl = _container.querySelector('[data-group-id="' + groupId + '"]');
       if (!groupEl) return;
       var layerEls = groupEl.querySelectorAll('.lm-layer');
+      var store = window.TnetLMStore;
+      var visibilityReader = store && typeof store.isLayerRequestedVisible === 'function'
+        ? store.isLayerRequestedVisible.bind(store)
+        : (store && typeof store.isLayerEffectivelyVisible === 'function' ? store.isLayerEffectivelyVisible.bind(store) : null);
       var synced = 0;
       for (var i = 0; i < layerEls.length; i++) {
         var cb = layerEls[i].querySelector('.lm-cb');
         if (cb && cb.checked !== visible) {
           // Store-Zustand prüfen (Single Source of Truth)
           var layerId = layerEls[i].dataset.layerId;
-          var store = window.TnetLMStore;
-          if (store) {
-            if (store.isLayerEffectivelyVisible(layerId) === visible) {
+          if (visibilityReader) {
+            if (visibilityReader(layerId) === visible) {
               cb.checked = visible;
               layerEls[i].classList.toggle('lm-active', visible);
               synced++;

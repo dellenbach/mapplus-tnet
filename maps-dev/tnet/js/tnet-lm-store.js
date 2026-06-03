@@ -27,6 +27,7 @@
   var _catalogLayerIndex = {};  // { layerId: true } für performante Katalog-Lookups
   var _loadingTimers = {};      // { layerId: { slow, timeout, clearError, keys } }
   var _consistencyTimer = null;  // Debounce fuer Store↔Karte-Reconcile
+  var _consistencyCombinedRetry = {}; // { servicePrefix: { attempts, lastAt } }
 
   // Coalesce: Gruppen-Index (groupNodeId → Info) und Reverse-Lookup (layerId → groupNodeId)
   var _coalesceIndex = {};     // { groupId: { serviceUrl, coalesceGroup, name, childIds: [] } }
@@ -209,39 +210,136 @@
      */
     _normalizeCategories: function (categories) {
       for (var i = 0; i < categories.length; i++) {
-        var cat = categories[i];
-        // nodes → subcategories
-        if (cat.nodes && !cat.subcategories) {
-          cat.subcategories = cat.nodes;
-          delete cat.nodes;
-        }
-        var subs = cat.subcategories || [];
-        for (var s = 0; s < subs.length; s++) {
-          var sub = subs[s];
-          // Subcategory: layers (die eigentlich Gruppen sind) → groups
-          if (sub.layers && !sub.groups) {
-            sub.groups = sub.layers;
-            delete sub.layers;
-          }
-          // Subcategory-Name bereinigen (Pfade entfernen)
-          if (sub.name && sub.name.indexOf('/') !== -1) {
-            sub.name = this._cleanPathName(sub.name);
-          }
-          // Gruppen-Namen bereinigen
-          var groups = sub.groups || [];
-          for (var g = 0; g < groups.length; g++) {
-            var grp = groups[g];
-            if (grp.name && grp.name.indexOf('/') !== -1) {
-              grp.name = this._cleanPathName(grp.name);
-            }
-            // Layer-Namen bereinigen (displayName bevorzugen)
-            this._cleanLayerNames(grp.layers || []);
-          }
-        }
+        this._normalizeLegacyTreeNode(categories[i], 0);
       }
       if (this._config && this._config.debug) {
         TnetLog.log(LOG, 'Normalisiert:', categories.length, 'Kategorien');
       }
+    },
+
+    /**
+     * Normalisiert alte Baum-Schemata rekursiv ins aktuelle Format.
+     * Unterstützt nodes/subcategories/groups/layers sowie das ältere items-Schema.
+     * @param {Object} node
+     * @param {number} level  0=Kategorie, 1=Subcategory, 2+=Gruppen-/Layer-Ebene
+     */
+    _normalizeLegacyTreeNode: function (node, level) {
+      if (!node) return;
+
+      if (node.nodes && !node.subcategories) {
+        node.subcategories = node.nodes;
+        delete node.nodes;
+      }
+
+      if (node.items && !node.subcategories && !node.groups && !node.layers && !node.children) {
+        var legacyChildren = this._normalizeLegacyItems(node.items, level + 1);
+        if (level === 0) node.subcategories = legacyChildren;
+        else if (level === 1) node.groups = legacyChildren;
+        else node.layers = legacyChildren;
+        delete node.items;
+      }
+
+      if (node.subcategories) {
+        for (var s = 0; s < node.subcategories.length; s++) {
+          this._normalizeLegacyTreeNode(node.subcategories[s], level + 1);
+        }
+      }
+      if (node.groups) {
+        for (var g = 0; g < node.groups.length; g++) {
+          this._normalizeLegacyTreeNode(node.groups[g], level + 1);
+        }
+      }
+      if (node.layers) {
+        for (var l = 0; l < node.layers.length; l++) {
+          this._normalizeLegacyTreeNode(node.layers[l], level + 1);
+        }
+      }
+      if (node.children) {
+        for (var c = 0; c < node.children.length; c++) {
+          this._normalizeLegacyTreeNode(node.children[c], level + 1);
+        }
+      }
+
+      if (node.name && node.name.indexOf('/') !== -1) {
+        node.name = this._cleanPathName(node.name);
+      }
+      if (level >= 2 && node.layers) {
+        this._cleanLayerNames(node.layers);
+      }
+      if (level === 1 && node.groups) {
+        for (var gi = 0; gi < node.groups.length; gi++) {
+          var grp = node.groups[gi];
+          if (grp && grp.name && grp.name.indexOf('/') !== -1) {
+            grp.name = this._cleanPathName(grp.name);
+          }
+          if (grp && grp.layers) this._cleanLayerNames(grp.layers);
+        }
+      }
+    },
+
+    _normalizeLegacyItems: function (items, level) {
+      var list = [];
+      var keys = [];
+      if (Array.isArray(items)) {
+        list = items.slice();
+      } else if (items && typeof items === 'object') {
+        keys = Object.keys(items);
+        for (var i = 0; i < keys.length; i++) {
+          list.push(items[keys[i]]);
+        }
+      }
+
+      var normalized = [];
+      for (var j = 0; j < list.length; j++) {
+        var item = list[j];
+        var itemKey = keys[j] || null;
+
+        if (typeof item === 'string') {
+          normalized.push({
+            id: item,
+            name: item,
+            type: 'layer'
+          });
+          continue;
+        }
+
+        if (!item || typeof item !== 'object') continue;
+
+        if (!item.id && itemKey) item.id = itemKey;
+        if (!item.name && itemKey) item.name = itemKey;
+
+        if (item.items && !item.subcategories && !item.groups && !item.layers && !item.children) {
+          var childItems = this._normalizeLegacyItems(item.items, level + 1);
+          if (level <= 1) item.layers = childItems;
+          else item.layers = childItems;
+          delete item.items;
+        }
+
+        if (item.nodes && !item.subcategories) {
+          item.subcategories = this._normalizeLegacyItems(item.nodes, level + 1);
+          delete item.nodes;
+        }
+
+        if (item.subcategories) {
+          item.subcategories = this._normalizeLegacyItems(item.subcategories, level + 1);
+        }
+        if (item.groups) {
+          item.groups = this._normalizeLegacyItems(item.groups, level + 1);
+        }
+        if (item.layers) {
+          item.layers = this._normalizeLegacyItems(item.layers, level + 1);
+        }
+        if (item.children) {
+          item.children = this._normalizeLegacyItems(item.children, level + 1);
+        }
+
+        if (item.name && item.name.indexOf('/') !== -1) {
+          item.name = this._cleanPathName(item.name);
+        }
+        normalized.push(item);
+      }
+
+      return normalized;
     },
 
     /**
@@ -572,9 +670,24 @@
       });
     },
 
+    _shouldIgnoreOlAddDuringBookmarkLoad: function (layerId) {
+      var bookmark = window.__tnetActiveBookmark;
+      if (!bookmark || !bookmark._loadUntil || Date.now() >= bookmark._loadUntil) return false;
+      if (!Array.isArray(bookmark.layers) || !bookmark.layers.length) return false;
+      for (var i = 0; i < bookmark.layers.length; i++) {
+        if (bookmark.layers[i] && bookmark.layers[i].id === layerId) return false;
+      }
+      return true;
+    },
+
     _onOLLayerAdd: function (olLayer) {
       var lid = olLayer.get('name') || '';
       if (!lid) return;
+
+      if (this._shouldIgnoreOlAddDuringBookmarkLoad(lid)) {
+        if (_config.debug) TnetLog.log(LOG, '_onOLLayerAdd waehrend Bookmark-Load ignoriert:', lid);
+        return;
+      }
 
       // WMS Custom-Layer: IMMER den wms:-Pfad nutzen (nie Katalog-Match)
       if (olLayer.get('tnet_wms_custom')) {
@@ -640,6 +753,26 @@
         if (_config.debug) TnetLog.log(LOG, '_onOLLayerRemove ignoriert, Sublayer bleibt combined gerendert:', lid);
         return;
       }
+      // Bookmark-Schutz: Bei aktivem Bookmark kann der Framework-Refresh
+      // Layer kurzfristig entfernen/neu aufbauen. Wenn der Bookmark den
+      // Layer weiterhin sichtbar vorgibt, den Store hier nicht auf AUS
+      // setzen, sonst kippt der Karteninhalt fälschlich auf 0 sichtbare Layer.
+      try {
+        var bm = window.__tnetActiveBookmark;
+        if (bm && Array.isArray(bm.layers)) {
+          var runtimeLayer = null;
+          for (var bi = 0; bi < bm.layers.length; bi++) {
+            if (bm.layers[bi] && bm.layers[bi].id === lid) {
+              runtimeLayer = bm.layers[bi];
+              break;
+            }
+          }
+          if (runtimeLayer && runtimeLayer.visible === true) {
+            if (_config.debug) TnetLog.log(LOG, '_onOLLayerRemove ignoriert (Bookmark visible:true):', lid);
+            return;
+          }
+        }
+      } catch (eBmRemove) { /* ignore */ }
       if (storeLayer && storeLayer.visible) {
         storeLayer.visible = false;
         _activeLayers = _activeLayers.filter(function (l) { return l.id !== lid; });
@@ -658,19 +791,25 @@
       map = am && am.Maps && am.Maps['main'] && am.Maps['main'].mapObj;
       if (!map || typeof map.getLayers !== 'function') return false;
       rendered = false;
-      map.getLayers().forEach(function (olLayer) {
-        if (rendered || !olLayer || !olLayer.get) return;
-        if (olLayer.getLayers && typeof olLayer.getLayers === 'function') return;
-        var name = olLayer.get('name') || '';
-        if (name.indexOf(servicePrefix) !== 0) return;
-        if (typeof olLayer.getVisible === 'function' && !olLayer.getVisible()) return;
-        var src = typeof olLayer.getSource === 'function' ? olLayer.getSource() : null;
-        var params = src && typeof src.getParams === 'function' ? src.getParams() : null;
-        var layersParam = params && (params.LAYERS || params.layers) || '';
-        if (typeof layersParam !== 'string' || layersParam.indexOf('show:') !== 0) return;
-        var values = layersParam.replace(/^show:/, '').split(',').map(function (value) { return value.trim(); });
-        rendered = values.indexOf(String(subNum)) >= 0;
-      });
+      function scan(collection) {
+        collection.forEach(function (olLayer) {
+          if (rendered || !olLayer || !olLayer.get) return;
+          if (olLayer.getLayers && typeof olLayer.getLayers === 'function') {
+            scan(olLayer.getLayers());
+            return;
+          }
+          var name = olLayer.get('name') || '';
+          if (name.indexOf(servicePrefix) !== 0) return;
+          if (typeof olLayer.getVisible === 'function' && !olLayer.getVisible()) return;
+          var src = typeof olLayer.getSource === 'function' ? olLayer.getSource() : null;
+          var params = src && typeof src.getParams === 'function' ? src.getParams() : null;
+          var layersParam = params && (params.LAYERS || params.layers) || '';
+          if (typeof layersParam !== 'string' || layersParam.indexOf('show:') !== 0) return;
+          var values = layersParam.replace(/^show:/, '').split(',').map(function (value) { return value.trim(); });
+          rendered = values.indexOf(String(subNum)) >= 0;
+        });
+      }
+      scan(map.getLayers());
       return rendered;
     },
 
@@ -682,6 +821,9 @@
     getActiveLayers: function () { return _activeLayers.slice(); },
     isLayerEffectivelyVisible: function (layerId) {
       return this._getEffectiveLayerVisible(layerId);
+    },
+    isLayerRequestedVisible: function (layerId) {
+      return this._getRequestedLayerVisible(layerId);
     },
 
     /**
@@ -854,10 +996,13 @@
         childId = info.childIds[i];
         ae = this._findActiveLayer(childId);
         layer = this.findLayer(childId);
-        vis = ae ? (ae.visible !== false) : (layer ? layer.visible !== false : false);
+        vis = this._getRequestedLayerVisible(childId, layer, ae);
         currentState[childId] = vis;
         if (vis) anyVisible = true;
       }
+
+      var targetState = {};
+      var snap = info._eyeSnapshot;
 
       if (anyVisible) {
         // → Gruppe AUS: aktuellen Subset merken (Snapshot), dann nur die aktuell
@@ -866,21 +1011,41 @@
         info._eyeSnapshot = currentState;
         for (i = 0; i < info.childIds.length; i++) {
           childId = info.childIds[i];
-          if (currentState[childId]) this._setCoalesceChildVisible(childId, false);
+          targetState[childId] = false;
         }
-        this._forceCoalesceGroupRender(groupId);
         TnetLog.log(LOG, 'toggleCoalesceGroupEye AUS (Snapshot gemerkt):', groupId);
       } else {
         // → Gruppe EIN: gemerkten Subset wiederherstellen; ohne Snapshot alle ein.
-        var snap = info._eyeSnapshot;
         for (i = 0; i < info.childIds.length; i++) {
           childId = info.childIds[i];
-          var target = snap ? (snap[childId] === true) : true;
-          if (target) this._setCoalesceChildVisible(childId, true);
+          targetState[childId] = snap ? (snap[childId] === true) : true;
         }
-        this._forceCoalesceGroupRender(groupId);
         TnetLog.log(LOG, 'toggleCoalesceGroupEye EIN (' + (snap ? 'Snapshot' : 'alle') + '):', groupId);
       }
+
+      // Store-Zustand direkt setzen (kein setLayerEye-Loop):
+      // So vermeiden wir per-Child Framework-Switches/Requests und reconciliieren
+      // stattdessen einmal gesammelt über _forceCoalesceGroupRender.
+      for (i = 0; i < info.childIds.length; i++) {
+        childId = info.childIds[i];
+        var target = !!targetState[childId];
+        layer = this.findLayer(childId);
+        ae = this._findActiveLayer(childId);
+        var prev = this._getRequestedLayerVisible(childId, layer, ae);
+
+        if (layer) layer.visible = target;
+        if (ae) {
+          ae.visible = target;
+        } else if (target && layer) {
+          _activeLayers.push(layer);
+        }
+
+        if (prev !== target) {
+          this._emit('layer-visibility', { id: childId, visible: target, source: 'ui' });
+        }
+      }
+
+      this._forceCoalesceGroupRender(groupId);
       this._emit('active-layers-changed', _activeLayers);
     },
 
@@ -1001,7 +1166,11 @@
         if (typeof olLayer.setVisible === 'function' && olLayer.getVisible()) olLayer.setVisible(false);
       });
       setTimeout(function () { _suppressMapSync = false; }, 200);
-      if (renderChanged && nums.length && visiblePairs[0]) this._beginLayerLoading(visiblePairs[0].id, renderLayer);
+      if (renderChanged && nums.length) {
+        for (var beginIndex = 0; beginIndex < visiblePairs.length; beginIndex++) {
+          this._beginLayerLoading(visiblePairs[beginIndex].id, renderLayer);
+        }
+      }
       if (!renderChanged) {
         for (var loadingIndex = 0; loadingIndex < visiblePairs.length; loadingIndex++) {
           this._endLayerLoading(visiblePairs[loadingIndex].id, false);
@@ -1845,10 +2014,7 @@
             var wantVisible = ('visible' in spec) ? !!spec.visible : true;
             if (wantVisible) {
               pendingExternal.push(spec); // spaeter erneut nach OL-Layer suchen
-            } else {
-              TnetLog.warn(LOG, 'Bookmark-Layer ignoriert (nicht renderbar, unsichtbar):', spec.id);
             }
-            return; // jetzt nicht registrieren
           }
         }
         // Layer aus dem Katalog suchen (für name, etc.)
@@ -1871,8 +2037,10 @@
         // Externe (nicht-Katalog) Layer: Store mit der Soll-Sichtbarkeit der
         // aktiven View aktiv setzen UND den OL-Layer passend schalten, damit
         // Karte und Karteninhalt (aktives Auge) konsistent sind.
-        if (olOnMap && !fromCatalog) {
+        if (!fromCatalog) {
           layer._external = true;
+        }
+        if (olOnMap && !fromCatalog) {
           if (typeof olOnMap.getVisible === 'function' && olOnMap.getVisible() !== layer.visible) {
             _suppressMapSync = true;
             olOnMap.setVisible(layer.visible);
@@ -2186,7 +2354,7 @@
       var visibleCount = 0;
       this._walkLayers([node], function (layer) {
         total++;
-        if (self._getEffectiveLayerVisible(layer.id, layer)) visibleCount++;
+        if (self._getRequestedLayerVisible(layer.id, layer)) visibleCount++;
       });
       if (total === 0) return 'none';
       if (visibleCount === 0) return 'none';
@@ -2303,6 +2471,7 @@
         var mapLayers = map.getLayers();
         var rootName = prefix.replace(/\/$/, '');
         var storeChanged = false;
+        var retryState;
         service.pairs.forEach(function (pair) { nums[pair.num] = true; });
         mapLayers.forEach(function (olLayer) {
           if (renderLayer || !olLayer || !olLayer.get) return;
@@ -2327,6 +2496,12 @@
           });
         }
         if (!renderLayer && service.pairs.length) {
+          retryState = _consistencyCombinedRetry[prefix] || { attempts: 0, lastAt: 0 };
+          // Endlos-Resync vermeiden: pro Service nur wenige aggressive Retries,
+          // danach nur noch langsam nachfassen.
+          if (retryState.attempts >= 4 && (Date.now() - retryState.lastAt) < 12000) {
+            return;
+          }
           try {
             var appManager = self._getAppManager();
             if (appManager && typeof appManager.setMapBookmark === 'function') {
@@ -2338,11 +2513,15 @@
             } else if (typeof TnetLayerSwitch === 'function') {
               TnetLayerSwitch(service.pairs[0].id, 'on');
             }
+            retryState.attempts += 1;
+            retryState.lastAt = Date.now();
+            _consistencyCombinedRetry[prefix] = retryState;
             self._scheduleMapConsistencyCheck(900);
           } catch (eSwitch) { /* ignore */ }
           return;
         }
         if (!renderLayer) return;
+        if (_consistencyCombinedRetry[prefix]) delete _consistencyCombinedRetry[prefix];
         var ordered = Object.keys(nums).map(Number).sort(function (a, b) { return a - b; });
         var wantedLayers = ordered.length ? 'show:' + ordered.join(',') : 'show:-1';
         var source = typeof renderLayer.getSource === 'function' ? renderLayer.getSource() : null;
@@ -2391,6 +2570,8 @@
         }
       });
 
+      // Reihenfolge nach jedem Konsistenzlauf nachziehen (TOC -> Karte).
+      this._syncZIndices();
       if (_config.debug && changed) TnetLog.log(LOG, 'reconcileMapConsistency:', changed, 'OL-Korrekturen');
     },
 
@@ -2454,7 +2635,9 @@
         layer.loadingMessage = target.loadingMessage;
       }
       this._emit('layer-loading', { id: layerId, state: state });
-      this._emit('active-layers-changed', _activeLayers);
+      // Kein active-layers-changed bei reinem Loading-Status:
+      // sonst startet der Consistency-Check erneut und kann in einen
+      // self-triggernden Reconcile-Zyklus laufen.
     },
 
     _beginLayerLoading: function (layerId, olLayer, retryDone) {
@@ -2638,27 +2821,65 @@
       return false;
     },
 
-    _getEffectiveLayerVisible: function (layerId, layer, activeEntry) {
-      var currentLayer = typeof layer === 'undefined' ? this.findLayer(layerId) : layer;
+    _getRequestedLayerVisible: function (layerId, layer, activeEntry) {
       var currentActiveEntry = typeof activeEntry === 'undefined' ? this._findActiveLayer(layerId) : activeEntry;
-
       if (currentActiveEntry && currentActiveEntry.visible !== undefined) {
         return !!currentActiveEntry.visible;
       }
 
-      var olLayer = currentActiveEntry && currentActiveEntry._olLayerRef ? currentActiveEntry._olLayerRef : null;
-      if (!olLayer) {
-        var am = this._getAppManager();
-        if (am && am.Maps && am.Maps['main'] && am.Maps['main'].mapObj) {
-          olLayer = this._findOLLayer(am.Maps['main'].mapObj, layerId);
-          if (olLayer && currentActiveEntry) {
-            currentActiveEntry._olLayerRef = olLayer;
+      var currentLayer = typeof layer === 'undefined' ? this.findLayer(layerId) : layer;
+      if (currentLayer && currentLayer.visible !== undefined) {
+        return !!currentLayer.visible;
+      }
+
+      return false;
+    },
+
+    _getEffectiveLayerVisible: function (layerId, layer, activeEntry) {
+      var currentLayer = typeof layer === 'undefined' ? this.findLayer(layerId) : layer;
+      var currentActiveEntry = typeof activeEntry === 'undefined' ? this._findActiveLayer(layerId) : activeEntry;
+      var am = this._getAppManager();
+      var map = am && am.Maps && am.Maps['main'] && am.Maps['main'].mapObj;
+      var subNum = this._extractSublayerNum(currentLayer);
+
+      // ArcGIS-Sublayer nie nur aus Store-Flags ableiten: bei Framework-Combined
+      // kann visible=true im Store stehen, obwohl der Sublayer nicht im show:-Param
+      // enthalten ist. Deshalb zuerst den echten Renderzustand prüfen.
+      if (subNum !== null) {
+        var renderedCombined = this._isSublayerRenderedByCombinedLayer(layerId, currentLayer);
+        if (renderedCombined) return true;
+
+        // Falls ein dedizierter Einzel-OL-Layer existiert (show:N), dessen
+        // sichtbaren Zustand ebenfalls berücksichtigen.
+        if (map) {
+          var exactLayers = this._findAllOLLayers(map, layerId);
+          for (var ei = 0; ei < exactLayers.length; ei++) {
+            if (exactLayers[ei] && typeof exactLayers[ei].getVisible === 'function' && exactLayers[ei].getVisible()) {
+              return true;
+            }
           }
+          if (exactLayers.length) return false;
+        }
+
+        // Kein Combined-Render und kein exakter OL-Layer vorhanden:
+        // effektiv unsichtbar, auch wenn Store-Flags noch true sind.
+        return false;
+      }
+
+      var olLayer = currentActiveEntry && currentActiveEntry._olLayerRef ? currentActiveEntry._olLayerRef : null;
+      if (!olLayer && map) {
+        olLayer = this._findOLLayer(map, layerId);
+        if (olLayer && currentActiveEntry) {
+          currentActiveEntry._olLayerRef = olLayer;
         }
       }
 
       if (olLayer) {
         return !!olLayer.getVisible();
+      }
+
+      if (currentActiveEntry && currentActiveEntry.visible !== undefined) {
+        return !!currentActiveEntry.visible;
       }
 
       if (currentLayer && currentLayer.visible !== undefined) {
@@ -2749,12 +2970,96 @@
       var am = this._getAppManager();
       if (!am || !am.Maps || !am.Maps['main'] || !am.Maps['main'].mapObj) return;
       var map = am.Maps['main'].mapObj;
+      var assigned = [];
+      var zBase = 100;
+      var i, targetZ;
+      var orderedIds = [];
+      var seenIds = {};
+      var bm = window.__tnetActiveBookmark;
+      var listEl, entries, ei, entryEl, childEls, ci;
 
-      for (var i = 0; i < _activeLayers.length; i++) {
-        var olLayer = this._findOLLayer(map, _activeLayers[i].id);
-        if (olLayer) {
-          olLayer.setZIndex(100 + i);
+      function upsertAssigned(layerObj, z) {
+        var idx;
+        if (!layerObj || typeof layerObj.setZIndex !== 'function') return;
+        for (idx = 0; idx < assigned.length; idx++) {
+          if (assigned[idx].layer === layerObj) {
+            if (z > assigned[idx].z) assigned[idx].z = z;
+            return;
+          }
         }
+        assigned.push({ layer: layerObj, z: z });
+      }
+
+      // Primaer: sichtbare Reihenfolge aus dem Karteninhalt-DOM
+      // (was im TOC oben steht, muss in der Karte oben liegen).
+      try {
+        listEl = document && document.querySelector ? document.querySelector('.lm-active-list') : null;
+        if (listEl) {
+          entries = listEl.querySelectorAll(':scope > .lm-active-item, :scope > .lm-active-group');
+          for (ei = 0; ei < entries.length; ei++) {
+            entryEl = entries[ei];
+            if (!entryEl) continue;
+            if (entryEl.classList && entryEl.classList.contains('lm-active-group')) {
+              childEls = entryEl.querySelectorAll('.lm-active-group-child[data-layer-id]');
+              for (ci = 0; ci < childEls.length; ci++) {
+                var childId = childEls[ci].dataset ? childEls[ci].dataset.layerId : null;
+                if (!childId || seenIds[childId]) continue;
+                seenIds[childId] = true;
+                orderedIds.push(childId);
+              }
+            } else {
+              var rowId = entryEl.dataset ? entryEl.dataset.layerId : null;
+              if (!rowId || seenIds[rowId]) continue;
+              seenIds[rowId] = true;
+              orderedIds.push(rowId);
+            }
+          }
+        }
+      } catch (eDom) { /* ignore, fallback below */ }
+
+      // Primäre Reihenfolge aus Bookmark-Runtime (entspricht TOC/Karteninhalt).
+      if (bm && Array.isArray(bm.layers)) {
+        for (i = 0; i < bm.layers.length; i++) {
+          var bml = bm.layers[i];
+          if (!bml || !bml.id || bml.visible === false || seenIds[bml.id]) continue;
+          seenIds[bml.id] = true;
+          orderedIds.push(bml.id);
+        }
+      }
+
+      // Fallback/Ergaenzung: aktive Layer aus Store anhaengen.
+      for (i = 0; i < _activeLayers.length; i++) {
+        var al = _activeLayers[i];
+        if (!al || !al.id || al.visible === false || seenIds[al.id]) continue;
+        seenIds[al.id] = true;
+        orderedIds.push(al.id);
+      }
+
+      // TOC oben soll auf der Karte oben liegen: erster Eintrag bekommt hoechsten Z-Index.
+      for (i = 0; i < orderedIds.length; i++) {
+        var activeId = orderedIds[i];
+        var active = this.findLayer(activeId) || this._findActiveLayer(activeId) || { id: activeId };
+        if (!active || !active.id) continue;
+        targetZ = zBase + (orderedIds.length - i);
+
+        var allOL = this._findAllOLLayers(map, active.id);
+        for (var oi = 0; oi < allOL.length; oi++) {
+          upsertAssigned(allOL[oi], targetZ);
+        }
+
+        // Bridge-/Coalesce-Sublayer haben oft keinen exakten Layernamen; Root-Renderlayer mitziehen.
+        if (window.TnetCoalesceBridge && typeof window.TnetCoalesceBridge.getOLLayerForSublayer === 'function') {
+          upsertAssigned(window.TnetCoalesceBridge.getOLLayerForSublayer(active.id), targetZ);
+        }
+
+        // Fallback fuer Framework-Combined-Layer.
+        upsertAssigned(this._findRenderableOLLayerForLayer(active.id, active), targetZ);
+      }
+
+      for (i = 0; i < assigned.length; i++) {
+        try {
+          assigned[i].layer.setZIndex(assigned[i].z);
+        } catch (eZ) { /* ignore */ }
       }
     },
 

@@ -95,13 +95,35 @@
 
   /**
    * Ermittelt den Root-Dienst-Key aus einem Sublayer-Key.
-   * "gis_oereb/nw_nutzungsplanung_def/grundnutzung"
-   *   → "gis_oereb/nw_nutzungsplanung_def"
+   *
+   * WICHTIG: Mehrere "Karten"-Container eines Dienstes (z.B. karte03_*, karte05_*)
+   * gehoeren demselben ArcGIS-Dienst an. Um pro Dienst nur EINEN OL-Layer und
+   * damit EINEN konsolidierten Export-Request (LAYERS=show:...) zu erzeugen, wird
+   * der Root-Key bevorzugt aus der Coalesce-Gruppe des Stores aufgeloest
+   * (groupId = Dienst-Wurzel, z.B. "gis_fach/nw_agglomeration"). Erst wenn keine
+   * Coalesce-Info verfuegbar ist, faellt die Logik auf den Pfad-Parent zurueck.
+   *
+   * "gis_fach/nw_agglomeration/basisnetz/karte03_oev/karte03_oev_haltestellen"
+   *   → (Coalesce) "gis_fach/nw_agglomeration"
+   *   → (Fallback) "gis_fach/nw_agglomeration/basisnetz/karte03_oev"
+   *
    * @param {string} sublayerKey
    * @returns {string|null}
    */
   function _extractRootKey(sublayerKey) {
     if (!sublayerKey || typeof sublayerKey !== 'string') return null;
+
+    // 1. Coalesce-Gruppe aus dem Store: konsolidiert alle Karten-Container
+    //    desselben Dienstes auf einen gemeinsamen Root-Key.
+    try {
+      var store = window.TnetLMStore;
+      if (store && typeof store.getCoalesceInfo === 'function') {
+        var info = store.getCoalesceInfo(sublayerKey);
+        if (info && info.groupId) return info.groupId;
+      }
+    } catch (e) { /* Store nicht bereit → Fallback */ }
+
+    // 2. Fallback: Pfad-Parent (Verhalten fuer Dienste ohne Coalesce-Index).
     var idx = sublayerKey.lastIndexOf('/');
     if (idx <= 0) return null;
     return sublayerKey.substring(0, idx);
