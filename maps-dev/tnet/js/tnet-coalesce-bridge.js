@@ -1236,6 +1236,8 @@
       _sublayerToRoot[sublayerKey] = rootKey;
       var entry = _rootServices[rootKey];
       var isFirst = !entry;
+      var wasRegistered = false;
+      var wasVisible = false;
 
       if (!entry) {
         // ── Erster Sublayer: Root-Dienst aktivieren ──
@@ -1308,6 +1310,9 @@
           };
           setTimeout(retryFn, 500);
         }
+      } else {
+        wasRegistered = entry.registeredSublayers.hasOwnProperty(sublayerKey) && entry.registeredSublayers[sublayerKey] === sublayerNum;
+        wasVisible = entry.visibleSublayers.hasOwnProperty(sublayerKey) && entry.visibleSublayers[sublayerKey] === sublayerNum;
       }
 
       entry.registeredSublayers[sublayerKey] = sublayerNum;
@@ -1320,6 +1325,9 @@
       } else {
         entry.visibleSublayers[sublayerKey] = sublayerNum;
       }
+
+      var isVisible = entry.visibleSublayers.hasOwnProperty(sublayerKey) && entry.visibleSublayers[sublayerKey] === sublayerNum;
+      var stateChanged = !wasRegistered || (wasVisible !== isVisible);
 
       // ── Doppel-Layer-Schutz: individuellen Framework-Startup-OL-Layer entfernen ──
       // Das Framework erstellt beim Startup eigene OL-Layer pro Sublayer (name=sublayerKey).
@@ -1339,6 +1347,10 @@
       TnetLog.log(LOG, 'Sublayer registriert:', sublayerKey,
         '(#' + sublayerNum + ') → Root:', rootKey,
         '| Total:', Object.keys(entry.registeredSublayers).length);
+
+      if (!isFirst && !stateChanged) {
+        return true;
+      }
 
       // LAYERS-Parameter aktualisieren (debounced)
       this._updateLAYERSDebounced(rootKey);
@@ -1448,6 +1460,8 @@
       var entry = _rootServices[rootKey];
       if (!entry) return;
 
+      if (!entry.visibleSublayers.hasOwnProperty(sublayerKey)) return;
+
       delete entry.visibleSublayers[sublayerKey];
       this._updateLAYERSDebounced(rootKey);
       TnetLog.log(LOG, 'Sublayer versteckt:', sublayerKey);
@@ -1463,6 +1477,8 @@
       if (!rootKey) return;
       var entry = _rootServices[rootKey];
       if (!entry) return;
+
+      if (entry.visibleSublayers.hasOwnProperty(sublayerKey) && entry.visibleSublayers[sublayerKey] === sublayerNum) return;
 
       entry.visibleSublayers[sublayerKey] = sublayerNum;
       this._updateLAYERSDebounced(rootKey);
@@ -1569,7 +1585,20 @@
       if (!olLayer) return;
       var src = olLayer.getSource();
       if (src && typeof src.updateParams === 'function') {
-        src.updateParams({ LAYERS: layersParam });
+        var currentParams = (typeof src.getParams === 'function') ? src.getParams() : null;
+        var currentLayers = currentParams && (currentParams.LAYERS || currentParams.layers) || '';
+        var shouldBeVisible = (layersParam !== 'show:-1');
+        var currentVisible = (typeof olLayer.getVisible === 'function') ? olLayer.getVisible() : shouldBeVisible;
+        var needsLayersUpdate = (currentLayers !== layersParam);
+        var needsVisibilityUpdate = (currentVisible !== shouldBeVisible);
+
+        if (!needsLayersUpdate && !needsVisibilityUpdate) {
+          return;
+        }
+
+        if (needsLayersUpdate) {
+          src.updateParams({ LAYERS: layersParam });
+        }
         TnetLog.debug(LOG, 'OL-Source LAYERS gesetzt:', rootKey, '→', layersParam);
 
         // Flicker-Schutz: Sichtbarkeit des kombinierten Layers an den LAYERS-Param
@@ -1578,7 +1607,6 @@
         // (vom Framework-Startup) nie gemalt wird. Sobald sichtbare Sublayer da
         // sind, wird der Layer wieder sichtbar und malt direkt nur den Subset.
         try {
-          var shouldBeVisible = (layersParam !== 'show:-1');
           if (olLayer.getVisible() !== shouldBeVisible) {
             olLayer.setVisible(shouldBeVisible);
           }

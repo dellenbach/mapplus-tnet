@@ -1,3 +1,9 @@
+## 2026-06-03 — Coalesce-Consistency-Loop darf im Leerlauf keine identischen LAYERS-Updates feuern
+- **Symptom:** Beim blossen Start von `https://www.gis-daten.ch/maps-dev/nw_oereb` liefen ohne jede Interaktion fortlaufend ArcGIS-`MapServer/export`-Requests in der Konsole/Network-Ansicht.
+- **Root-Cause:** `reconcileMapConsistency()` rief fuer Coalesce-Gruppen im Leerlauf wiederholt `registerSublayer()`/`showSublayer()`/`hideSublayer()` auf. Die Bridge war dabei nicht idempotent: selbst bei unveraendertem Zustand wurden `visibleSublayers` erneut beschrieben, `_updateLAYERSDebounced()` erneut geplant und in `_setLayersOnSource()` identische `LAYERS` per `updateParams()` nochmals auf die Source geschrieben. Das reichte fuer erneute Export-Requests.
+- **Fix:** `tnet-coalesce-bridge.js` macht `registerSublayer()`, `showSublayer()` und `hideSublayer()` idempotent und bricht bei unveraendertem Zustand frueh ab. Zusaetzlich ueberspringt `_setLayersOnSource()` `updateParams()` komplett, wenn `LAYERS` und Sichtbarkeit bereits dem Soll entsprechen. Live verifiziert: zuvor in 5s `register=40`, `show=40`, `hide=660`, `apply=19`; nach dem Fix alles `0`, dazu `exportRequests=0`.
+- **Guardrail:** Bei Bridge-/Consistency-Pfaden nie auf "gleich nochmal setzen schadet nicht" vertrauen. Bei Layer-Parametern fuehrt schon ein identisches `updateParams()` auf ImageArcGISRest zu echten Netzrequests. Daher jeden Write-Pfad strikt idempotent halten.
+
 ## 2026-06-03 — Linkes Sidepanel war in der Breite fest auf 340px
 - **Symptom:** Das links angedockte Themenkatalog-Panel liess sich nicht mit der Maus verbreitern oder verschmaelern.
 - **Root-Cause:** Die Sidepanel-Breite war statisch in CSS/Offsets hinterlegt (`340px`) und es gab keinen horizontalen Resize-Handle mit Drag-Logik.
