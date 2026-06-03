@@ -973,12 +973,12 @@ div#disclaimer_pdf,
 body #disclaimer_news,
 div#disclaimer_news {
   top: 75px !important;
-  left: 390px !important;
+  left: calc(var(--tnet-sidepanel-width, 340px) + 50px) !important;
 }
 
 /* Search Dropdown Popup - NUR für Suche, nicht global! */
 #widget_solrsearchFirstParamSelect_dropdown {
-  left: 340px !important;
+  left: var(--tnet-sidepanel-width, 340px) !important;
   top: 57px !important;
 }
 

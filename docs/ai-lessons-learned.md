@@ -1,3 +1,9 @@
+## 2026-06-03 — Linkes Sidepanel war in der Breite fest auf 340px
+- **Symptom:** Das links angedockte Themenkatalog-Panel liess sich nicht mit der Maus verbreitern oder verschmaelern.
+- **Root-Cause:** Die Sidepanel-Breite war statisch in CSS/Offsets hinterlegt (`340px`) und es gab keinen horizontalen Resize-Handle mit Drag-Logik.
+- **Fix:** Breite auf CSS-Variable `--tnet-sidepanel-width` umgestellt, Desktop-Resize-Handle am rechten Panelrand eingefuehrt, Drag-Logik mit Min/Max-Clamp und localStorage-Persistenz implementiert; abhaengige Offsets (Disclaimer/Such-Dropdown/Scroll-Button) auf dieselbe Variable gekoppelt.
+- **Guardrail:** Bei fixierten Legacy-Sidepanels immer zuerst eine zentrale Breitenvariable einfuehren und danach alle flankierenden Offsets daran anbinden, sonst laufen Handle und UI-Elemente visuell auseinander.
+
 ## 2026-06-03 — Karteninhalt: Event-Sturm (layer-loading/active-layers-changed) baut Liste 16x/s neu
 - **Symptom:** Opacity-Regler klemmte beim ersten Griff (zweiter ging), Sichtbarkeits-Auge flimmerte schon beim blossen Hovern, und der erste Klick aufs Auge wurde teils verschluckt.
 - **Root-Cause:** Das Framework (u.a. CoalesceBridge-Retry) emittiert im Leerlauf `layer-loading` UND `active-layers-changed` je ~16x/s OHNE echte Zustandsaenderung. Beide haengen an `_scheduleRender` → `render()` baute jedes Mal `_container.innerHTML` komplett neu. Per Playwright verifiziert: Layer-Snapshot ueber 3s identisch, dennoch wurden Auge-/Slider-/Item-Knoten 16x/s ausgetauscht (`eyeReplacedWhileIdle: true`). Der staendige Knoten-Austausch unterbrach den nativen Slider-Drag und resettete den Hover-State.
