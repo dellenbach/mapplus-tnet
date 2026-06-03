@@ -1,3 +1,237 @@
+## 2026-06-03 — Strukturelle Parent-Layer muessen im Karteninhalt bei aktiven Kindern ausgeblendet werden
+- **Symptom:** In Agglomeration erschien zusaetzlich ein Parent-Layer als eigene Zeile (z.B. `.../karte05_motorisierter_individualverkehr_miv`) mit eigener Deckkraft, wodurch Gruppen-Opacity nur teilweise wirkte und Rendering unklar wurde.
+- **Root-Cause:** Der Container-Filter verließ sich nur auf Katalog-Metadaten (`type/groups/layers/...`). Einige strukturierende Parent-IDs wurden dabei nicht als Container erkannt, obwohl gleichzeitig Kind-Layer mit demselben Prefix aktiv waren.
+- **Fix:** `pruneContainerCatalogLayers()` filtert jetzt zusaetzlich alle IDs heraus, die strukturelle Prefix-Parent-IDs aktiver Kind-Layer sind.
+- **Guardrail:** Bei Legacy-Katalogen Container-Erkennung nie nur an Knotentypen festmachen; Prefix-basierte Parent/Child-Beziehungen als zweite Schutzschicht nutzen.
+
+## 2026-06-03 — Z-Index-Sync muss sich an Bookmark-/TOC-Reihenfolge orientieren, nicht an instabiler Active-Liste
+- **Symptom:** Trotz Z-Index-Sync lagen in Agglomeration einzelne Dienst-Root-Layer (z.B. Siedlungsentwicklung) visuell oben und deckten andere Themen ab.
+- **Root-Cause:** `_syncZIndices()` basierte auf `_activeLayers`, deren Reihenfolge nach asynchronen Framework-/SetLayer-Operationen von der sichtbaren TOC-Reihenfolge abweichen kann.
+- **Fix:** Z-Reihenfolge wird jetzt primaer aus der aktuellen DOM-Reihenfolge im Karteninhalt (`.lm-active-list`) aufgebaut; Bookmark- und Store-Reihenfolge sind nur noch Fallback. Reconcile zieht den Z-Sync danach explizit nach.
+- **Guardrail:** Rendering-Reihenfolge nie aus einer potenziell reordernden Runtime-Liste ableiten, wenn eine explizite Benutzer-/Bookmark-Reihenfolge existiert.
+
+## 2026-06-03 — Gruppen-Opacity muss auch bei synthetischen Bookmark-Gruppen auf alle Kinder wirken
+- **Symptom:** Beim Verschieben des Gruppen-Deckkraft-Sliders wurden nur Teile der sichtbaren Layer angepasst; einzelne betroffene Layer blieben mit alter Opazitaet.
+- **Root-Cause:** Der Group-Opacity-Pfad rief ausschliesslich `setCoalesceGroupOpacity(groupId)` auf. Fuer synthetische Gruppen (`bookmark-root:*`) existiert kein Coalesce-Index-Eintrag, daher lief der Call ins Leere.
+- **Fix:** Group-Opacity erkennt jetzt Coalesce vs. nicht-Coalesce. Bei synthetischen Gruppen wird die Opazitaet explizit auf alle Kind-Layer via `setLayerOpacity(childId, value)` angewendet.
+- **Guardrail:** Gruppenaktionen nie an einen einzigen Gruppen-Backendpfad koppeln. Bei UI-Gruppen immer den konkreten Gruppentyp (echte Coalesce-Gruppe vs. synthetische Bookmark-Gruppe) unterscheiden.
+
+## 2026-06-03 — Z-Index-Sync muss TOC-Top gleich Karten-Top abbilden
+- **Symptom:** Die Layerreihenfolge wirkte invertiert: Eintraege oben im Karteninhalt lagen visuell tiefer als darunterliegende Eintraege.
+- **Root-Cause:** `_syncZIndices()` vergab steigende Z-Indizes entlang der Listenreihenfolge (`100 + i`), wodurch untere TOC-Eintraege die hoeheren Z-Werte erhielten. Zudem fehlte ein stabiler Pfad fuer Coalesce-/Bridge-Renderlayer.
+- **Fix:** Zuweisung auf absteigende Reihenfolge umgestellt (oberster TOC-Eintrag bekommt hoechsten Z-Index) und um Bridge-/Coalesce-Renderlayer-Aufloesung erweitert.
+- **Guardrail:** Bei Layerlisten mit Benutzerreihenfolge immer explizit definieren: Top-of-list = top-on-map. Coalesce-/Combined-Renderlayer muessen in denselben Z-Index-Sync einbezogen werden.
+
+## 2026-06-03 — Coalesce-Snapshot-Restore darf keine pauschalen Pending-Augen auf EIN setzen
+- **Symptom:** Nach Gruppe AUS/EIN blieb die Karten-Darstellung korrekt (nur vorher aktive Sublayer sichtbar), aber im Karteninhalt wirkten viele Kind-Augen fälschlich als EIN.
+- **Root-Cause:** Der Group-Eye-Handler setzte beim Coalesce-Wiedereinschalten alle Kinder optimistisch auf `pending visible=true`. Für Kinder, die laut Snapshot AUS bleiben sollten, kam teils kein gegenläufiges Event — dadurch blieb ein stale Pending-UI-State bestehen.
+- **Fix:** Beim Coalesce-EIN werden keine pauschalen `pending visible=true` mehr gesetzt. Pending wird nur für den sicheren AUS-Fall gesetzt; beim EIN-Fall warten die Kind-Augen auf echte Store-Events (Snapshot-Restore).
+- **Guardrail:** Bei Snapshot-basierten Wiederherstellungen nie global optimistische UI-Flags für alle Kinder setzen, wenn der Zielzustand pro Kind unterschiedlich ist.
+
+## 2026-06-03 — Coalesce-Group-Eye darf Kinder nicht per `setLayerEye` einzeln schalten
+- **Symptom:** Nach Gruppe AUS/EIN gingen zuvor selektiv ausgeblendete Unterlayer verloren (beim Wiedereinschalten waren alle Kinder an), und beim Gruppenschalten entstanden mehrere Coalesce-Requests statt eines konsolidierten Updates.
+- **Root-Cause:** `toggleCoalesceGroupEye()` schaltete Kinder einzeln via `setLayerEye()`. Das triggert pro Kind Framework-/Bridge-Pfade und kann den gemerkten Snapshot-Zustand ueberschreiben bzw. Request-Faecherung erzeugen.
+- **Fix:** Group-Eye setzt Child-Visibility jetzt zuerst nur im Store-Zustand und reconciliert danach genau einmal ueber `_forceCoalesceGroupRender()`. Snapshot-Restore bleibt erhalten, per-Child Schaltkaskaden entfallen. Zusaetzlich nutzt der Active-Panel-Handler fuer nicht-Coalesce-Gruppen ebenfalls Snapshot-Restore statt pauschal "alle an" beim Wiedereinschalten.
+- **Guardrail:** Bei Coalesce-Gruppen nie N Einzel-Schaltungen ausloesen. Erst Zielzustand fuer alle Kinder berechnen, dann einen gemeinsamen Render-/LAYERS-Abgleich ausfuehren.
+
+## 2026-06-03 — Unerwuenschte ESRI-Home-Control bei Bedarf per CSS hart unterdruecken
+- **Symptom:** Die Home-Control ("Standardausdehnung") blieb trotz Entfernen der JS-Instanz sichtbar.
+- **Root-Cause:** In Legacy-/Cache-/Default-Szenarien kann die Home-Control dennoch im DOM auftauchen.
+- **Fix:** Zusaetzlicher CSS-Fallback eingefuehrt, der `.esri-home` im 3D-View konsequent ausblendet.
+- **Guardrail:** Bei kritischen UI-Elementen mit hoher Stoerwirkung zuerst logischen Remove im JS, danach defensiven CSS-Fallback setzen.
+
+## 2026-06-03 — Ungewolltes Home-Widget entfernen und Bottom-Widgets gegen Toolbar absichern
+- **Symptom:** Das Haeuschen (Standardansicht) blieb sichtbar, waehrend andere Controls fehlten; zusaetzlich wurde "Neue Messung" von der unteren Werkzeugleiste ueberdeckt.
+- **Root-Cause:** Das Home-Widget wurde explizit per `sceneView.ui.add()` hinzugefuegt; gleichzeitig lagen Analyse-Widgets im selben unteren Bildschirmbereich wie die Toolbar ohne vertikalen Sicherheitsabstand.
+- **Fix:** Home-Widget-Import/Instanzierung entfernt, SceneView-Default-UI wieder freigegeben und fuer `.esri-ui-bottom-right` ein fixer Bottom-Offset (`86px`) gesetzt.
+- **Guardrail:** Bei UI-Overlays in 3D immer Corner-Konflikte pruefen: explizit hinzugefuegte Widgets separat behandeln und Bottom-Container gegen fixe Toolbars mit Offset absichern.
+
+## 2026-06-03 — Breite Analyse-Widgets sollten nicht im selben Corner wie Kern-Controls sitzen
+- **Symptom:** Das Panel "Neue Messung" ueberdeckte rechte Standard-Controls (Home/Zoom/Kompass).
+- **Root-Cause:** Mess- und Sichtanalyse-Widgets wurden in `top-right` gerendert, also im gleichen UI-Corner wie die Kernnavigation.
+- **Fix:** Mess- und Sichtanalyse-Widgets nach `bottom-right` verschoben, damit der obere Control-Stack frei bleibt.
+- **Guardrail:** Breite/expandierende Widgets nie im selben Corner wie Kernnavigation platzieren; fuer Werkzeuge getrennte UI-Zone verwenden.
+
+## 2026-06-03 — Default-UI-Komponenten in SceneView koennen Custom-Controls verdecken
+- **Symptom:** Die Control "Standardkartenansicht" ueberlagerte in der 3D-Ansicht andere rechte Bedienelemente.
+- **Root-Cause:** ArcGIS SceneView renderte den `navigation-toggle` als Default-UI-Komponente zusaetzlich zu den bereits angepassten Controls.
+- **Fix:** In der SceneView-Konfiguration wurden `ui.components` explizit auf `['attribution', 'zoom', 'compass']` gesetzt und damit der `navigation-toggle` entfernt.
+- **Guardrail:** Bei angepassten Control-Layouts die SceneView-Defaults immer explizit definieren, statt implizit alle Standardkomponenten mitzunehmen.
+
+## 2026-06-03 — ESRI-UI-Anker fuer Controls und Widgets muessen konsistent sein
+- **Symptom:** Nach Positionsanpassungen erschienen Navigations-/Werkzeug-Controls wieder links statt rechts.
+- **Root-Cause:** CSS-Anker (`.esri-ui-top-left`) und JS-Widget-Insert-Position (`top-left`) liefen gegen die gewuenschte Rechtsausrichtung.
+- **Fix:** `.esri-ui-top-left` auf rechts verankert und Mess-/Sicht-Widgets wieder mit `sceneView.ui.add(..., 'top-right')` eingebunden.
+- **Guardrail:** Bei ArcGIS-UI-Anpassungen CSS-Anker und `ui.add`-Position immer gemeinsam aendern, sonst entstehen gemischte Links/Rechts-Layouts.
+
+## 2026-06-03 — Responsiver Tool-Breakpoint muss pixelgenau zur UX-Anforderung passen
+- **Symptom:** Die 3D-Werkzeugleiste erschien erst bei zu breitem Fenster statt bereits ab 510px.
+- **Root-Cause:** CSS- und JS-Guard lagen auf einem zu hohen Schwellenwert und entsprachen nicht der geforderten Grenze.
+- **Fix:** Sichtbarkeits-Guard auf `<510px` gesetzt (CSS `max-width: 509px` und JS `window.innerWidth < 510`), sodass die Leiste ab 510px sichtbar bleibt.
+- **Guardrail:** Bei "ab X px sichtbar" immer die Grenzlogik explizit mitdenken: ausblenden nur fuer `< X`, nicht `<= X`.
+
+## 2026-06-03 — 3D-Tool-Breakpoint und Dialog-Anker muessen gemeinsam abgestimmt werden
+- **Symptom:** Tools erschienen auf Desktop zu spaet oder gar nicht; Dialoge verdeckten in manchen Fenstergroessen wichtige Bereiche.
+- **Root-Cause:** Verfuegbarkeits-Breakpoint und Dialog-Position waren nicht auf den realen Layout-Anker (3D-Selektor oben links) abgestimmt.
+- **Fix:** Breakpoint auf `860px` gesenkt (CSS+JS konsistent) und Tool-Dialoge auf `top/left` direkt unter den Selektor verankert.
+- **Guardrail:** Bei responsiven Tool-UIs immer Anzeige-Guard und Dialog-Anker zusammen anpassen; CSS- und JS-Breakpoints muessen identisch bleiben.
+
+## 2026-06-03 — Pointer-Coarse allein ist kein valider Mobile-Guard fuer Desktop-WebGIS
+- **Symptom:** Nach Mobile-Guard waren 3D-Werkzeuge auch auf Desktop verschwunden.
+- **Root-Cause:** Die Verfuegbarkeitslogik nutzte `pointer: coarse` als hartes Kriterium; das trifft auch auf Desktop-Systeme mit Touchscreen/Hybrid-Input zu.
+- **Fix:** Guard auf Kombination aus Viewport-Breite, Mobile-User-Agent und explizitem Mobile-Entry umgestellt; reine Pointer-Coarse-Pruefung entfernt.
+- **Guardrail:** Feature-Gates fuer Mobile nie auf ein einzelnes Input-Merkmal stuetzen. Immer mindestens Device-Kontext + Layout-Kontext kombinieren.
+
+## 2026-06-03 — 3D-Toolleiste auf kleinen Screens hart deaktivieren
+- **Symptom:** In der 3D-Ansicht verdeckten Werkzeug-Dialoge auf kleinen Viewports Inhalte, und die Bedienung war unzuverlaessig.
+- **Root-Cause:** Die Toolleiste/Analyse-Panels wurden unabhaengig von Viewport und Eingabetyp immer angeboten.
+- **Fix:** Responsive Guard eingefuehrt (max-width/coarse pointer), Toolbar+Panels per CSS versteckt und Aktivierung im JS per `are3DToolsAvailable()` geblockt; bei Resize werden aktive Tools automatisch deaktiviert.
+- **Guardrail:** Interaktive Desktop-Tools nie ungeprueft auf Mobile ausrollen. Sichtbarkeit und Aktivierung immer doppelt absichern (UI + Runtime-Guard).
+
+## 2026-06-03 — 3D-Tool-Toggle darf aktives Tool nicht vor dem Vergleich nullen
+- **Symptom:** Im 3D-Viewer oeffneten sich beim Klick auf mehrere Bottom-Tools uebereinanderliegende Dialoge/Widgets; manche liessen sich nicht sauber schliessen.
+- **Root-Cause:** `activateTool()` rief zuerst `deactivateAllTools()` auf und setzte damit `activeTool` vor dem Gleichheitscheck auf `null`; zusaetzlich wurden Viewshed-Widget und Event-Handler mehrfach erzeugt.
+- **Fix:** Toggle-Logik auf `isSameTool` vor Deaktivierung umgestellt, Viewshed in `deactivateAllTools()` konsequent zerstört, Async-Widget-Erzeugung per Activation-Token entprellt und Listener nur einmal gebunden.
+- **Guardrail:** Bei Tool-Toggles immer erst den Zielzustand berechnen, dann de-/aktivieren. Async-`require()`-Callbacks muessen stale Aktivierungen verwerfen.
+
+## 2026-06-03 — Karteninhalt muss Status-Text bei `layer-loading`-Ende aktiv neu rendern
+- **Symptom:** Nach Aus-/Einschalten von Gruppenlayern wurden Layer in der Karte korrekt angezeigt, im Karteninhalt blieb aber bei einzelnen Themen dauerhaft `laedt...` stehen.
+- **Root-Cause:** Der `layer-loading`-Handler in `tnet-lm-active.js` aktualisierte nur die Eye-Klasse (`lm-eye-loading`) und fuehrte keinen Re-Render fuer den Status-Text aus.
+- **Fix:** Nach jedem `layer-loading`-Event wird jetzt ein throttled Re-Render (`_scheduleRender()`) angestossen, damit `loading/loadingSlow/loadingError` im Textstatus konsistent aus dem aktuellen Layer-State gebaut werden.
+- **Guardrail:** Bei inkrementellen DOM-Optimierungen darf ein Event-Handler nicht nur Icon-Klassen pflegen, wenn Text-Badges aus demselben State abgeleitet sind. Dann ist mindestens ein gezielter Nach-Render erforderlich.
+
+## 2026-06-03 — Variable-Shadowing in Visibility-Berechnung kann alle Layer auf false kippen
+- **Symptom:** Agglomeration lud mit leerer/inkonsistenter Layerdarstellung; `visibilityMap` konnte auf 0 sichtbare Layer fallen.
+- **Root-Cause:** In `_computeBookmarkVisibility()` wurde die Map `explicitVisible` durch eine lokale Boolean-Variable gleichen Namens überschattet.
+- **Fix:** Die Map wurde in `explicitVisibleMap` umbenannt und die Layer-lokale Flag-Variable getrennt (`explicitLayerVisible`).
+- **Guardrail:** In kritischen Merge-/Visibility-Funktionen keine gleichnamigen Variablen für globale Map und lokale Flags verwenden.
+
+## 2026-06-03 — Bookmark-Apply muss auf Framework-Readiness warten
+- **Symptom:** `setMapBookmark(params)` schlug sporadisch im frühen Lifecycle fehl (`changeBaseMap` undefined), wodurch Layer nicht korrekt geladen wurden.
+- **Root-Cause:** `TnetSetBookmark` konnte vor vollständiger Initialisierung von `AppManager`/Map laufen.
+- **Fix:** Vor `_applyBookmark` wurde ein Readiness-Wait (`_waitForFrameworkBookmarkReady`) ergänzt.
+- **Guardrail:** Framework-Aufrufe mit starker Lifecycle-Abhängigkeit nie ungeprüft ausführen; immer einen Ready-Guard vorschalten.
+
+## 2026-06-03 — Strukturelle Parent-Layer nur filtern, wenn sie nicht explizit sichtbar sind
+- **Symptom:** View-Wechsel bei Agglomeration wirkte wirkungslos; Runtime/Store blieben auf 0 sichtbaren Layern, obwohl `setMapBookmark` sichtbare `layers=`-Parameter erhielt.
+- **Root-Cause:** Strukturfilter entfernte Parent-IDs pauschal in `_computeBookmarkVisibility`/`_buildBookmarkRuntimeLayers`; bei diesem Bookmark tragen aber genau diese IDs den expliziten Sichtbarkeitszustand.
+- **Fix:** Strukturknoten werden nur noch gefiltert, wenn sie nicht explizit auf `visible:true` gesetzt sind (Layer-Spec oder View-State). Gleiches gilt für den View-Switch-Optionsbau im Active-Panel.
+- **Guardrail:** Strukturfilter nie absolut anwenden; explizit sichtbare Parent-IDs müssen erhalten bleiben, sonst kollabiert die View-Semantik.
+
+## 2026-06-03 — Remove-Aktion braucht ein sichtbares Text-Fallback statt nur SVG
+- **Symptom:** Im Karteninhalt war kein Löschkreuz wahrnehmbar, obwohl Remove-Aktionen technisch vorhanden waren.
+- **Root-Cause:** Remove-Buttons waren visuell zu subtil bzw. abhängig von Icon-/Hover-Kontext und wurden im UI leicht übersehen.
+- **Fix:** Remove-Buttons rendern jetzt ein klares rotes `✕` als Text-Fallback und bleiben auf Desktop grundsätzlich sichtbar (Hover verstärkt nur die Betonung).
+- **Guardrail:** Kritische Primäraktionen (Entfernen) nicht rein ikonisch/hover-only darstellen; immer ein robust sichtbares Fallback anbieten.
+
+## 2026-06-03 — Group-Eye muss echte Coalesce-Gruppen als Batch schalten
+- **Symptom:** Beim Ein-/Ausschalten einer Agglomeration-Gruppe liefen trotz Loop-Break noch mehrere nacheinander ausgelöste Child-Toggles, statt eines sauberen Coalesce-Gruppenupdates.
+- **Root-Cause:** Der UI-Handler schaltete Gruppenkinder einzeln (`setLayerVisible` pro Child) und verursachte dadurch unnötige Kaskaden.
+- **Fix:** In `tnet-lm-active.js` nutzt `group-eye` für echte Coalesce-Gruppen jetzt `toggleCoalesceGroupEye(groupId)` als Batch-Pfad; Child-Wege bleiben nur Fallback.
+- **Guardrail:** Für Coalesce-Gruppen immer den Gruppenpfad verwenden und Child-Schaltungen nicht in Schleifen triggern.
+
+## 2026-06-03 — Loading-Status darf keinen active-layers-changed-Reconcile ausloesen
+- **Symptom:** Sobald in Agglomeration mehr als zwei Sublayer aktiv waren, wurden im Sekundentakt neue Export-Requests abgesetzt (sichtbarer Dauer-Reload).
+- **Root-Cause:** `_setLayerLoadingState()` emittierte bei jedem Loading-Statuswechsel zusaetzlich `active-layers-changed`. Das triggert `_scheduleMapConsistencyCheck()` erneut und startet einen self-triggernden Reconcile-Zyklus.
+- **Fix:** In `tnet-lm-store.js` emittiert der Loading-Pfad nur noch `layer-loading`, nicht mehr `active-layers-changed`.
+- **Guardrail:** Status-Events (loading/slow/error) strikt von Struktur-Events trennen. Nur echte Layerlisten-Aenderungen duerfen `active-layers-changed` feuern.
+
+## 2026-06-03 — Strukturelle Bookmark-Container duerfen nicht als echte Active-Layer laufen
+- **Symptom:** Im Karteninhalt tauchten ploetzlich flache Zusatzzeilen (Ghost-Layer) auf; bei OEREB stieg die Themenzahl sporadisch stark an, und im Hintergrund liefen unnoetige Nachlade-/Export-Requests.
+- **Root-Cause:** Parent-/Container-IDs aus `cfg.layers` wurden wie renderbare Layer in Visibility/Runtime/Store behandelt. Diese IDs sind oft nur Strukturknoten mit Unterlayern und triggern in Reconcile-Pfaden unnoetige `on`-Schaltungen.
+- **Fix:** In `tnet-mapplus-helpers.js` werden strukturelle IDs jetzt aus `_computeBookmarkVisibility()` und `_buildBookmarkRuntimeLayers()` herausgefiltert. In `tnet-lm-active.js` ignoriert auch die Dirty-Pruefung diese Strukturknoten.
+- **Guardrail:** Bei Bookmark-Layern immer zwischen fachlichem Strukturknoten und renderbarem Blatt-Layer unterscheiden. Container-IDs duerfen nicht in Active-/Reconcile-Logik gelangen.
+
+## 2026-06-03 — Map-getriebene false-Events duerfen Bookmark-Runtime nicht auf AUS ziehen
+- **Symptom:** Nach asynchronen Framework-Rebuilds kippten Bookmark-Layer ohne User-Aktion auf `visible:false` (Auge aus), obwohl die Karte weiter lief.
+- **Root-Cause:** `layer-visibility` mit `source='map'` und `visible=false` wurde ungefiltert in `window.__tnetActiveBookmark.layers` uebernommen; zusaetzlich zog der Active-Layer-Merge negative Zustandsflips aus transienten Store-Events nach.
+- **Fix:** In `tnet-mapplus-helpers.js` ignoriert der Runtime-Sync jetzt map-seitige `visible:false`-Events, und der Merge uebernimmt Visibility aus `active-layers-changed` nur noch positiv (`visible:true`).
+- **Guardrail:** Map-/OL-Remove-Events in Legacy-Rebuild-Phasen nie als harte Benutzerintention behandeln. Negative Status nur aus UI-/Bookmark-Pfaden uebernehmen.
+
+## 2026-06-03 — Nicht-Default-Views mit reinen visible:true-States sind Whitelists
+- **Symptom:** Die Ansicht `test` lud Layer nicht gemaess View-Konfiguration; entweder wurden falsche Default-Layer mitgenommen oder die erwarteten 7 Layer nicht stabil gesetzt.
+- **Root-Cause:** Die Visibility-Berechnung behandelte fehlende `layerStates`-Eintraege weiterhin als Default-Vererbung. Bei Whitelist-Views (`isDefault:false` + nur `visible:true` Eintraege) ist das falsch.
+- **Fix:** `tnet-mapplus-helpers.js` und `tnet-lm-active.js` erkennen diesen Modus jetzt explizit und setzen nicht genannte Layer auf `visible:false`.
+- **Guardrail:** Bei View-Switch nie pauschal Default-Visibility erben. Nicht-Default-Views mit ausschliesslich `visible:true`-States als explizite Whitelist interpretieren.
+
+## 2026-06-03 — Store-Merge darf Bookmark-Sichtbarkeit im Ladefenster nicht blind auf false setzen
+- **Symptom:** Direkt nach View-Apply sprang der Bookmark-Zustand auf `layers=` leer bzw. alle Runtime-Layer auf `visible:false`; der Reset-Hinweis erschien ohne echte Benutzeraktion.
+- **Root-Cause:** `_mergeStoreLayersIntoActiveBookmark()` setzte waehrend `_replaceVisibleFromStoreUntil` zunaechst pauschal alle Bookmark-Layer auf `false`, auch wenn der Store in diesem Moment noch keinen stabilen sichtbaren Layer lieferte.
+- **Fix:** Das harte Reset greift nur noch, wenn der Store bereits mindestens einen `visible:true`-Layer hat.
+- **Guardrail:** Im Bookmark-Ladefenster niemals global auf `visible:false` vorinitialisieren, solange der Store noch im transienten Aufbau ist.
+
+## 2026-06-03 — Ansichtswechsel darf Bookmark nicht als manuell geaendert markieren
+- **Symptom:** Nach Wechsel der Ansicht erschien ohne Benutzerinteraktion der Hinweis "Änderungen verwerfen" und die Layerschaltung wurde inkonsistent.
+- **Root-Cause:** Asynchrone Visibility-/Sync-Events nach `switch-view` liefen außerhalb des kurzen Ladefensters ein und setzten den Modified-Status wie bei einem echten User-Toggle.
+- **Fix:** In `tnet-lm-active.js` wurde ein dediziertes View-Switch-Schutzfenster eingeführt (`_bmViewSwitchUntil`), das während des Ansichtswechsels Dirty-Setzen und Live-Extra-Merge unterdrückt.
+- **Guardrail:** View-/Bookmark-Loads immer mit eigenem Guard behandeln; Event-Stürme aus Framework-Sync nie direkt als Benutzeränderung interpretieren.
+
+## 2026-06-03 — Spinner-Zentrierung bricht, wenn Animation `transform` ueberschreibt
+- **Symptom:** Der Eye-Ladekringel erschien sichtbar, aber versetzt neben dem Auge statt sauber zentriert.
+- **Root-Cause:** Das Pseudo-Element nutzte `transform: translate(-50%, -50%)` zur Zentrierung, die Keyframe-Animation setzte jedoch `transform: rotate(...)` und überschreibt damit die Translate-Transformation.
+- **Fix:** Keyframes auf `translate(-50%, -50%) rotate(...)` umgestellt, damit Zentrierung und Rotation gleichzeitig aktiv bleiben.
+- **Guardrail:** Bei animierten, absolut positionierten Spinnern Translate-Offsets immer in den Keyframes mitführen oder die Rotation auf ein verschachteltes Element legen.
+
+## 2026-06-03 — Group-Eye darf nicht nur Coalesce-Toggle verwenden
+- **Symptom:** Bei Agglomeration war der Gruppen-Auge-Status nach Ein/Aus inkonsistent; ein zweiter Klick schaltete teils nicht mehr sauber zurück.
+- **Root-Cause:** Der Group-Flush arbeitete primär mit `toggleCoalesceGroupEye`, aber die betroffene Hierarchie ist nicht durchgehend Coalesce-indexiert. Dadurch blieb der Toggle ohne wirksamen Commit auf den Kindlayern.
+- **Fix:** Group-Eye schaltet jetzt die sichtbaren Kindlayer explizit per `setLayerEye(layerId, target)` und nutzt Coalesce-Toggle nur als Fallback.
+- **Guardrail:** Gruppen-Interaktionen in gemischten Bäumen (normale Gruppen + Coalesce) immer als explizites Setzen pro Kind implementieren, nicht als blindes Toggle.
+
+## 2026-06-03 — Combined-Render-Check muss rekursiv durch OL-Layer-Gruppen laufen
+- **Symptom:** Layer wurden im Store/DOM als sichtbar geführt, obwohl die effektive Render-Erkennung diese als unsichtbar bzw. inkonsistent meldete.
+- **Root-Cause:** `_isSublayerRenderedByCombinedLayer` prüfte nur Top-Level-Layer und übersah verschachtelte OpenLayers-Group-Layer.
+- **Fix:** Der Check traversiert jetzt rekursiv alle Layer-Gruppen und wertet `show:`-Parameter auch in verschachtelten Strukturen korrekt aus.
+- **Guardrail:** Für Render-Detektion in OpenLayers nie nur `map.getLayers().forEach(...)` nutzen, wenn Layer-Groups im Framework möglich sind.
+
+## 2026-06-03 — Eye-Loaderkreis muss trotz unterdruecktem Full-Render direkt aus layer-loading reagieren
+- **Symptom:** Beim Umschalten der Sichtbarkeit erschien um das Eye kein Loaderkreis mehr, obwohl der Layer noch geladen wurde.
+- **Root-Cause:** Der Active-Panel-Render wurde waehrend des Sichtbarkeits-Flushs unterdrueckt. Dadurch wurde das `layer-loading`-Event zwar vom Store gefeuert, aber der visuelle Loading-Status kam nie als DOM-Update an.
+- **Fix:** `tnet-lm-active.js` reagiert jetzt direkt auf `layer-loading` und setzt bzw. entfernt `lm-eye-loading` sofort am betroffenen Eye-Button, statt auf einen spaeteren Full-Render zu warten.
+- **Guardrail:** Ladeindikatoren nie nur an einen reinen Renderpfad haengen, wenn dieser zeitweise unterdrueckt werden kann. Bei interaktiven Toggles braucht der visuelle Loading-Zustand einen direkten DOM-Handler.
+
+## 2026-06-03 — Alte items-Hierarchien muessen vor dem Rendern ins neue Baumformat normalisiert werden
+- **Symptom:** Die Agglomeration zeigte im Themenkatalog nur noch eine flache Reststruktur; tiefere Unterknoten aus dem JSON-Snippet waren im Baum nicht mehr sauber sichtbar.
+- **Root-Cause:** Der Katalog-Import verstand nur `nodes`/`subcategories`/`groups`/`layers`. Das alte, rekursive `items`-Schema wurde nicht mehr in das neue Baumformat übersetzt und brach die Hierarchie unterwegs ab.
+- **Fix:** `tnet-lm-store.js` normalisiert `items` nun rekursiv in `subcategories`/`groups`/`layers` und fuellt fehlende IDs/Namen aus den Schluesseln auf.
+- **Guardrail:** Bei Legacy-Katalogen zuerst das Daten-Schema normalisieren, erst dann rendern. Ein neuer Baum-Renderer hilft nicht, wenn die Import-Schicht die Hierarchie schon vorher verliert.
+
+## 2026-06-03 — Frischer Bookmark-Wechsel darf Sichtbarkeit nur aus echtem Layer-Overlap uebernehmen
+- **Symptom:** Beim direkten Wechsel von `nw_oereb` auf `nw_agglomeration` wurde der neue Karteninhalt weiter mit OEREB-Zustand verunreinigt; gleichzeitig erschien Agglomeration im Karteninhalt als flache, schwer lesbare Liste.
+- **Root-Cause:** Der fruehe Store→Bookmark-Sync in `tnet-mapplus-helpers.js` setzte waehrend des Replace-Fensters pauschal alle neuen Bookmark-Layer auf `visible:false`, auch wenn gar kein echter Layer-Overlap zum vorherigen Bookmark existierte. Zusaetzlich hatte der Active-TOC fuer externe/nicht katalogregistrierte Bookmark-Layer keine synthetische Gruppierung und renderte sie deshalb roh/flach.
+- **Fix:** Sichtbarkeitsersatz aus dem Store greift nur noch, wenn der aktuelle Store mindestens einen echten ID-Overlap zum neuen Bookmark hat. Externe Bookmark-Layer werden im Karteninhalt zusaetzlich nach ihrem fachlichen Root-Prefix zu synthetischen Gruppen wie `Basisnetz` und `Siedlungsentwicklung` zusammengefasst.
+- **Guardrail:** Beim Bookmark-Wechsel niemals pauschal sichtbare Defaults aus Alt-Storezustand auf ein komplett neues Bookmark uebertragen. Store-Sync nur bei nachweisbarem Layer-Overlap anwenden und fuer externe Bookmark-Layer immer eine lesbare Gruppenstruktur bereitstellen.
+
+## 2026-06-03 — Bookmark-Layer ausserhalb des Katalogs duerfen nicht aus dem Karteninhalt herausgefiltert werden
+- **Symptom:** Nach `Karte leeren` und erneutem Laden von `nw_agglomeration` blieb der Karteninhalt leer (`0 Themen`), obwohl das Bookmark korrekt 25 Layer lieferte.
+- **Root-Cause:** `TnetLMStore.loadActiveLayersFromBookmark()` registrierte nicht renderbare/nicht katalogaufloesbare Bookmark-Layer nur dann, wenn bereits ein passender OL-Layer auf der Karte existierte. Fuer `nw_agglomeration` war das beim Initialimport nicht der Fall, daher wurde der komplette Bookmark-Inhalt verworfen.
+- **Fix:** Nicht katalogaufloesbare Bookmark-Layer werden jetzt sofort als Active-Eintraege registriert und nur zusaetzlich fuer spaetere OL-Bindung vorgemerkt.
+- **Guardrail:** Der Karteninhalt darf Bookmark-Layer nicht an die unmittelbare Katalog- oder OL-Aufloesbarkeit koppeln. Bookmark ist der Sollzustand und muss auch fuer externe/legacy Layer sofort sichtbar werden.
+
+## 2026-06-03 — Bookmark-Neuaufbau braucht einen mehrfachen Strict-Store-Reset in den ersten Sekunden
+- **Symptom:** Trotz Clear vor `setMapBookmark` tauchten beim Wechsel einzelne Alt-Layer wieder im Karteninhalt auf (wirkte wie Dazuladen).
+- **Root-Cause:** Asynchrone Framework-/OL-Events konnten direkt nach dem Apply den Active-Store kurzfristig wieder mit Altzustand befuellen.
+- **Fix:** Nach dem initialen `loadActiveLayersFromBookmark(runtimeLayers)` wird der Store in kurzen Abstaenden nochmals strikt auf dieselben Bookmark-Layer zurueckgesetzt (token-guarded).
+- **Guardrail:** Bei Legacy-Bookmarkwechseln mit asynchronem Framework-State nicht nur einmal initialisieren, sondern den Sollzustand kurz nachstabilisieren.
+
+## 2026-06-03 — Beim Bookmark-Wechsel immer Store-Clear UND Karten-Clear ausführen
+- **Symptom:** Beim Wechsel zwischen Karten/Bookmarks wurden neue Layer zum alten Inhalt addiert; direkt danach erschien teils unberechtigt `Änderungen verwerfen`.
+- **Root-Cause:** Der Clear-Pfad brach nach `LMStore.removeAllLayers()` frueh ab. Verzoegerte Framework-Layer auf der Karte blieben dadurch sichtbar und konnten den frischen Bookmark-Zustand wieder verunreinigen.
+- **Fix:** Der Bookmark-Apply fuehrt nach dem Store-Clear immer einen zweiten, defensiven Map-Clear-Pass aus (sichtbare thematische Layer vor `setMapBookmark` hart ausblenden).
+- **Guardrail:** Bei asynchronen Framework-Layern nie nur den Store leeren. Vor einem harten Rebuild immer Store- und Kartenzustand bereinigen, sonst mischen sich Alt-Layer in den neuen Bookmark.
+
+## 2026-06-03 — Bookmark-Wechsel darf keine Alt-Layer per Runtime-Seed oder OL-Add-Events wieder einschleusen
+- **Symptom:** Beim Wechsel von `nw_oereb` auf `nw_agglomeration` blieb der Karteninhalt auf OEREB-Layern stehen bzw. nach vorherigem Leeren kam gar kein sauberer Neuaufbau zustande.
+- **Root-Cause:** Zwei Pfade liessen Altzustand in den neuen Bookmark-Load hineinlaufen: `tnet-mapplus-helpers.js` uebernahm Runtime-Layer aus `window.__tnetActiveBookmark.layers` auch beim Wechsel auf ein anderes Bookmark, und `tnet-lm-store.js` liess waehrend des neuen Bookmark-Loads verzoegerte OL-Add-Events alter Layer den Active-Store wieder befuellen.
+- **Fix:** Runtime-Layer aus dem Vorzustand werden nur noch fuer dasselbe Bookmark als Seed verwendet. Zusaetzlich ignoriert der Store waehrend `bookmark._loadUntil` OL-Add-Events fuer Layer, die nicht zum aktuell ladenden Bookmark gehoeren.
+- **Guardrail:** Bei Bookmark-Wechseln den Active-Store als exklusiven Sollzustand behandeln. Weder Runtime-Seeds noch asynchrone Map-Events duerfen Layer aus dem vorherigen Bookmark in den neuen Karteninhalt zurueckmischen.
+
+## 2026-06-03 — Karteninhalt-Header muss auch im Leerzustand bestehen bleiben
+- **Symptom:** Nach Leeren des Karteninhalts verschwand der komplette Header im Active-Panel; damit war der Kartenname/Fallback (`keine gewählt`) nicht sichtbar und der Zustand wirkte inkonsistent.
+- **Root-Cause:** `tnet-lm-active.js` beendete `render()` bei `effectiveLayers.length === 0` sofort mit einem nackten Leerzustand-Block statt denselben Header-Pfad zu rendern.
+- **Fix:** Der Header (Karte/Ansicht/Toolbar) wird nun immer gerendert; im Leerzustand erscheint darunter nur der Empty-Block, der Kartenname nutzt weiterhin den Fallback `keine gewählt`, und der Clear-Button ist bei 0 Themen deaktiviert statt zu verschwinden.
+- **Guardrail:** In State-basierten Panels den Header nie an die Existenz von Listeneinträgen koppeln. Leerzustände gehören unter denselben Header, damit Kontext und Aktionen konsistent bleiben.
+
 ## 2026-06-03 — Basemap-Farbmodus muss den Widget-Schalter aktiv nachziehen
 - **Symptom:** Im Bookmark `nw_oereb` wurde die Grundkarte bzw. nach Basemap-Wechsel das Orthophoto grau gerendert, obwohl der Schalter sichtbar auf `FARBE` stand.
 - **Root-Cause:** Der Bookmark-Start setzte `BasemapTimeManager.syncGrayscale(true)` aus `basemapColorMode = grey`, aber der FARBE/GRAU-Button blieb auf seinem HTML-Default (`FARBE active`). Wenn der Sync vor bzw. unabhängig von der Widget-Initialisierung lief, drifteten Renderzustand und UI auseinander.
@@ -105,6 +339,72 @@
 - **Root-Cause:** DEV-Originale, PROD-Quellstand und PROD-Runtime nutzten zu lange dieselben Ordnerrollen (`js`, `js_ori`). Der PROD-Release baute/ladete inkrementell und war dadurch vom Upload-State sowie der Reihenfolge aus Promotion und Build abhängig.
 - **Fix:** DEV baut lokal `maps-dev/tnet/js-stage/`; PROD kopiert Originale nach `maps/tnet/js-src/` und Stage-Artefakte nach `maps/tnet/js/`. Full-Release verwendet `--force-js`, damit Runtime-JS nach Stage-Kopie sicher hochgeladen wird.
 - **Guardrail:** PROD-Runtime-JS darf nie direkt aus `maps-dev/tnet/js/` stammen. Standardpfad ist immer `maps-dev/tnet/js` → `maps-dev/tnet/js-stage` → `maps/tnet/js`; lesbare PROD-Quellen liegen in `maps/tnet/js-src`.
+
+## 2026-06-03 — Ansichtswechsel im selben Bookmark darf keinen Full-Apply ausloesen
+- **Symptom:** Bei `nw_agglomeration` schaltete `Standard` ↔ `test` die Themen nicht sauber um; nach dem Wechsel blieben teils keine sichtbaren Layer mehr uebrig.
+- **Root-Cause:** `_applyBookmark()` behandelte einen reinen View-Wechsel innerhalb desselben Bookmarks wie einen kompletten Bookmark-Neuaufbau. Das Legacy-Full-Apply raeumte dabei Layer- und Runtime-Zustand unnoetig ab und lief in instabile Rebuild-Pfade.
+- **Fix:** Derselbe Bookmark mit anderer `viewId` geht jetzt frueh ueber `_applyViewSwitchOnly()`, das nur die Layer-Sichtbarkeit umschaltet und Runtime/Store anschliessend auf die neue View synchronisiert.
+- **Guardrail:** Wenn sich bei einem Bookmark nur die View aendert, niemals reflexartig `setMapBookmark`/Full-Apply verwenden. Erst den reinen Visibility-Diff-Pfad bevorzugen; Rebuild nur fuer echten Bookmark-Wechsel.
+
+## 2026-06-03 — Reiner View-Switch darf nicht erneut Bookmark-API und Ready-Wait durchlaufen
+- **Symptom:** Das Umschalten zwischen `Standard` und `test` funktionierte, fuehlte sich aber sehr langsam an.
+- **Root-Cause:** `TnetSetBookmark()` lud auch beim Wechsel derselben bereits aktiven Karte das Bookmark erneut per API und wartete nochmals auf Framework-Readiness, obwohl `window.__tnetActiveBookmark._cfg` schon vorlag.
+- **Fix:** Fuer denselben aktiven Bookmark mit geaenderter `viewId` nutzt `TnetSetBookmark()` jetzt direkt die vorhandene `_cfg` und springt sofort in `_applyBookmark()` bzw. den View-only-Pfad.
+- **Guardrail:** Bei reinen Zustandswechseln innerhalb eines bereits geladenen Bookmarks niemals erneut Netzwerk-Load plus globalen Ready-Wait anhaengen, wenn derselbe Konfigurationsstand schon im Runtime-State vorhanden ist.
+
+## 2026-06-03 — URL-Bookmark-Start braucht fruehes sichtbares Ladefeedback
+- **Symptom:** Beim direkten Aufruf von `maps-dev/nw_agglomeration` sah der User erst die Grundkarte; der Fachinhalt und das geoeffnete Karteninhalt-Panel kamen erst Sekunden spaeter, wodurch der Start haengen geblieben wirkte.
+- **Root-Cause:** Der URL-Autostart wartet still auf Helper-, AppManager- und LayerManager-Readiness, bevor `tnet-bookmark-loaded` ueberhaupt feuert. Bis dahin gab es im Karteninhalt weder geoeffnetes Panel noch sichtbaren Pending-Zustand.
+- **Fix:** Der URL-Start setzt nun sofort einen globalen Pending-Bookmark-Status, das Karteninhalt-Panel oeffnet bereits in dieser Vorphase und rendert einen klaren Ladeblock, bis der echte Bookmark-Inhalt uebernimmt.
+- **Guardrail:** Bei Legacy-Bookmark-Starts nie erst auf den finalen Apply-Event warten, bevor der UI-Zustand reagiert. Sobald die Zielkarte bekannt ist, muss die Oberflaeche einen sichtbaren Pending-State zeigen.
+
+## 2026-06-03 — URL-Autostart darf nicht am LayerManager-Ready-Gate haengen
+- **Symptom:** Die Bookmark-Hydrierung fuer `maps-dev/nw_agglomeration?...` begann erst viele Sekunden nach dem initialen Seitenstart, obwohl URL-Layer, `TnetSetBookmark` und `AppManager` bereits frueh verfuegbar waren.
+- **Root-Cause:** `startBookmarkFromUrl()` wartete zusaetzlich auf `isLayerManagerReady()`. Dieser Zustand wurde im Legacy-Stack deutlich spaeter erreicht als die fuer `TnetSetBookmark()` wirklich noetigen Voraussetzungen.
+- **Fix:** Der URL-Autostart startet jetzt, sobald `TnetSetBookmark` und `AppManager.setMapBookmark` verfuegbar sind. Der tiefere Framework-Ready-Wait bleibt zentral in `TnetSetBookmark()`.
+- **Guardrail:** Readiness-Gates nur einmal an der owning abstraction halten. Wenn der Helper selbst auf Framework-Ready wartet, darf der Call-Site-Code kein zweites, strengeres Gate davorschalten.
+
+## 2026-06-03 — URL-Override mit expliziten Layern darf keinen spaeten Full-Apply ausloesen
+- **Symptom:** Eine URL wie `nw_agglomeration?...&layers=...` zeigte die Fachlayer zuerst korrekt und schnell, spaeter wurden sie jedoch durch einen Bookmark-Apply wieder geraeumt bzw. auf einen unvollstaendigen Zustand reduziert.
+- **Root-Cause:** Beim initialen URL-Override-Start fuehrte `TnetSetBookmark()` spaeter noch einen kompletten `_applyBookmark()` aus. Dieser ruft `_clearThematicLayersBeforeBookmark()` auf und zerstoert damit den bereits korrekt aus der URL aufgebauten Kartenzustand.
+- **Fix:** Fuer den initialen URL-Override-Start mit expliziten `visibleLayerIds` nutzt der Helper jetzt einen URL-Adopt-Pfad: Bookmark-Metadaten und Karteninhalt werden hydratisiert, ohne Karte/Layer per Full-Apply nochmals zu leeren und neu zu setzen.
+- **Guardrail:** Wenn der Runtime-Kartenzustand bereits explizit aus der URL kommt, Bookmark-Metadaten nur noch an diesen Zustand andocken. Einen spaeten Full-Apply nur fuer Faelle verwenden, in denen der Bookmark den Kartenzustand wirklich erst herstellen muss.
+
+## 2026-06-03 — Tree-Checkboxen muessen Bookmark-Sichtbarkeit, nicht nur OL-Renderzustand spiegeln
+- **Symptom:** Im Themenkatalog blieben Gruppen- und Layer-Checkboxen leer, obwohl dieselben Themen bereits im Karteninhalt aktiv waren.
+- **Root-Cause:** Der Tree nutzte fuer den Checked-State `isLayerEffectivelyVisible()`. Bei ArcGIS-/Bookmark-Layern kann dieser Render-Check kurzzeitig `false` liefern, obwohl Store und aktiver Bookmark die Layer bereits bewusst auf sichtbar gesetzt haben.
+- **Fix:** Fuer Tree-Checkboxen und Gruppen-States wird jetzt ein eigener Requested-Visibility-Pfad genutzt, der zuerst den aktiven Store-/Bookmark-Zustand und erst danach den Katalog-Fallback liest.
+- **Guardrail:** UI-Checkboxen im Themenkatalog duerfen nicht direkt vom tiefsten Render/OL-State abhaengen, wenn Bookmark- oder Bridge-Logik Layer vor der finalen OL-Hydrierung bereits als aktiv fuehrt.
+
+## 2026-06-03 — Pending-Header darf nie rohe Bookmark-IDs anzeigen
+- **Symptom:** Im Karteninhalt erschien beim schnellen URL-Start kurz `nw_agglomeration` statt des Anzeigenamens `Agglomerationsprogramm 2. Gen.`.
+- **Root-Cause:** Der Pending-State erhielt beim URL-Autostart nur die Bookmark-ID und renderte diese sofort im Header, bevor der eigentliche Bookmark-Name nachgeladen war.
+- **Fix:** Der Pending-State startet jetzt ohne rohe ID im Header, nutzt wenn verfuegbar einen gecachten Anzeigenamen und aktualisiert sich parallel ueber `TnetApi.listBookmarks()` auf den echten Kartennamen.
+- **Guardrail:** Vorlaeufige Lade-UI darf nie interne IDs als Nutzertext zeigen, wenn ein Anzeigename asynchron nachgereicht werden kann. Im Zweifel neutralen Platzhalter statt technischen Key rendern.
+
+## 2026-06-03 — Remove-Buttons im Karteninhalt muessen trotz Desktop-Overrides sichtbar bleiben
+- **Symptom:** Das Entfernen-Kreuz war im Karteninhalt zwar im DOM vorhanden, blieb aber unsichtbar und nicht nutzbar.
+- **Root-Cause:** Eine Desktop-CSS-Kombination reduzierte die Remove-Buttons effektiv auf `display:none` bzw. Breite 0, obwohl das Rendering korrekt war.
+- **Fix:** Die Desktop-Regel fuer `.lm-btn-remove` erzwingt jetzt wieder ein sichtbares Flex-Layout.
+- **Guardrail:** Bei interaktiven Action-Buttons im Legacy-Panel nach CSS-Refactors immer DOM und Computed-Style pruefe; vorhandenes Markup ohne sichtbare Box ist fast immer ein Styling-Regression, kein Render-Bug.
+
+## 2026-06-03 — Active-Panel darf keine Container-Knoten als Einzel-Layer rendern
+- **Symptom:** Beim Entfernen einzelner Layer aus einer Coalesce-/Bookmark-Gruppe sprang ploetzlich ein Parent-Knoten (z.B. `Motorisierter Individualverkehr (MIV)`) als eigener Layer-Eintrag unten in die Liste.
+- **Root-Cause:** In der gemergten Active-Liste standen neben Blatt-Layern auch nicht-blattrige Katalogknoten (`type: group`) mit eigener ID. Beim Neu-Render nach einem Remove wurden diese Container als Standalone-Eintrag gerendert.
+- **Fix:** Vor dem Rendern werden in `tnet-lm-active.js` nicht-blattrige Katalogknoten aus `effectiveLayers` herausgefiltert (`pruneContainerCatalogLayers`). Dadurch bleiben nur echte Layer-Zeilen sichtbar.
+- **Guardrail:** Der Karteninhalt darf nur Blatt-Layer darstellen. Katalog-Container gehoeren in die Baumstruktur, nicht in die Active-Liste.
+
+## 2026-06-03 — Ladehinweis nur bei echtem Pending-Zustand anzeigen
+- **Symptom:** Im Karteninhalt blieb `Karte wird geladen...` sichtbar, obwohl Bookmark und Themen bereits voll geladen waren.
+- **Root-Cause:** Der Header koppelte den Ladehinweis zusaetzlich an ein internes `_loadUntil`-Zeitfenster. Dieses kann nach erfolgreichem Load noch laufen und erzeugt dadurch einen falschen UI-Status.
+- **Fix:** Der Ladehinweis wird jetzt nur noch bei echtem Pending-Bookmark (`__tnetPendingBookmarkLoad`) angezeigt, nicht mehr aufgrund eines Zeitfensters.
+- **Guardrail:** Sichtbarer Ladezustand darf nur von echten Pending-/InFlight-Flags abhängen, nie von einer pauschalen Schonfrist.
+
+## 2026-06-03 — Karteninhalt-Header nach "Karteninhalt leeren" sofort hard-resetten
+- **Symptom:** Nach `Karteninhalt leeren` blieb kurz oder dauerhaft der alte Bookmark-Name im Header stehen.
+- **Root-Cause:** Der Header wartete auf nachlaufende Store-Events; bei verzögerten/ausbleibenden Events blieb der alte Renderzustand sichtbar.
+- **Fix:** Beim `remove-all` wird der Header sofort mit `render([])` neu gezeichnet, `__tnetActiveBookmark`/`__tnetPendingBookmarkLoad` werden geleert und URL-Hinweise per `__tnetSuppressUrlBookmarkHint` unterdrückt.
+- **Guardrail:** Bei globalen Reset-Aktionen im Legacy-UI immer eine unmittelbare UI-Neuzeichnung erzwingen, statt ausschließlich auf asynchrone Event-Ketten zu vertrauen.
 
 ## 2026-06-01 — Deploy-Workflow braucht klare JS-Ordnerrollen
 - **Symptom:** Nach PROD-Updates war unklar, ob `/maps/tnet/js` lesbare DEV-Dateien, DEV-Builds oder minifizierte PROD-Artefakte enthaelt; alte Temp-Dateien `tnet-prod-*.js` lagen im Runtime-Ordner.
