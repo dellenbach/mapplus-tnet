@@ -60,12 +60,25 @@
       _unlisteners.push(store.on('active-layers-changed', this._onActiveLayersChanged.bind(this)));
       _unlisteners.push(store.on('group-toggled', this._onGroupToggled.bind(this)));
 
+      var self = this;
+      var onBookmarkLoaded = function () {
+        self._syncToActiveBookmark();
+      };
+      document.addEventListener('tnet-bookmark-loaded', onBookmarkLoaded);
+      _unlisteners.push(function () {
+        document.removeEventListener('tnet-bookmark-loaded', onBookmarkLoaded);
+      });
+
       if (store.isLoaded()) {
         this.render(store.getCatalog());
       }
 
       // Resolution-Listener: Layer ausserhalb des Massstabsbereichs ausgrauen
       this._initResolutionWatch();
+
+      if (window.__tnetActiveBookmark) {
+        this._syncToActiveBookmark();
+      }
 
       TnetLog.log(LOG, 'Init ✓ → #' + containerId);
     },
@@ -601,6 +614,28 @@
         els[i].classList.toggle('lm-active', isVisible);
       }
       this._updateSelectAllCheckboxes();
+    },
+
+    _syncToActiveBookmark: function () {
+      var bookmark = window.__tnetActiveBookmark;
+      if (!bookmark || !_container) return;
+
+      if (bookmark.themes) return;
+
+      var layers = Array.isArray(bookmark.layers) ? bookmark.layers : [];
+      var targetLayerId = null;
+      for (var i = 0; i < layers.length; i++) {
+        if (layers[i] && layers[i].id && layers[i].visible !== false) {
+          targetLayerId = layers[i].id;
+          break;
+        }
+      }
+      if (!targetLayerId && layers.length && layers[0] && layers[0].id) {
+        targetLayerId = layers[0].id;
+      }
+      if (!targetLayerId) return;
+
+      this.navigateToLayer(targetLayerId);
     },
 
     // ============================================================

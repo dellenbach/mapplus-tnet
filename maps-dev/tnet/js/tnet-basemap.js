@@ -221,13 +221,40 @@
         return requestedAt > 0 && (now - requestedAt) < 15000;
     }
 
+    function hasActiveBookmarkOverrideWindow() {
+        var now = Date.now();
+        var topWin = (window.top && window.top !== window) ? window.top : null;
+        var bookmark = window.__tnetActiveBookmark || (topWin && topWin.__tnetActiveBookmark) || null;
+
+        if (!bookmark) return false;
+        if (bookmark._options && bookmark._options.urlOverride && bookmark._urlOverrideFreezeUntil && now < bookmark._urlOverrideFreezeUntil) {
+            return true;
+        }
+        if (bookmark._loadUntil && now < bookmark._loadUntil) {
+            return true;
+        }
+        return false;
+    }
+
+    function hasUrlOverrideQuery() {
+        var rawQuery = '';
+        try {
+            rawQuery = String(window.__tnetInitialUrlQuery || (window.location && window.location.search) || '');
+        } catch (eQuery) {
+            rawQuery = '';
+        }
+        return !!(rawQuery && /[?&](lang|basemap|blop|x|y|zl|hl|theme|subtheme|layers|op|view)=/.test(rawQuery));
+    }
+
     function shouldSkipGrundkartenDefaults() {
         try {
             if (hasRecentBookmarkStartRequest()) {
                 return true;
             }
-            var path = String((window.location && window.location.pathname) || '');
-            return /\/maps(?:-dev)?\/[a-zA-Z0-9_-]+\/?$/.test(path);
+            if (hasActiveBookmarkOverrideWindow()) {
+                return true;
+            }
+            return hasUrlOverrideQuery();
         } catch (ePath) {
             return false;
         }
@@ -443,6 +470,7 @@
 
             this._hookOpacityAndGrayscale();
             this.hookChangeBaseMap();
+            this._syncColorToggleButtons(this._isGrayscale);
             TnetLog.log(LOG_PREFIX, 'Zeitreise initialisiert ✓');
         },
 
@@ -778,8 +806,21 @@
             }
         },
 
+        _syncColorToggleButtons: function(isGrey) {
+            var colorBtn = document.querySelector('.toggle-btn[data-layer="farbmodus"][data-value="color"]');
+            var greyBtn = document.querySelector('.toggle-btn[data-layer="farbmodus"][data-value="grey"]');
+
+            if (!colorBtn || !greyBtn) return;
+
+            colorBtn.classList.toggle('active', !isGrey);
+            greyBtn.classList.toggle('active', !!isGrey);
+            colorBtn.setAttribute('aria-pressed', (!isGrey).toString());
+            greyBtn.setAttribute('aria-pressed', (!!isGrey).toString());
+        },
+
         syncGrayscale: function(isGrey) {
             this._isGrayscale = isGrey;
+            this._syncColorToggleButtons(isGrey);
             try {
                 var mapInfo = njs.AppManager.Maps && njs.AppManager.Maps.main;
                 var currentBasemapId = mapInfo ? (mapInfo.currBasisMap || mapInfo.basisMap || this.currentBasemap) : this.currentBasemap;

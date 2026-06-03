@@ -1,3 +1,9 @@
+## 2026-06-03 — Basemap-Farbmodus muss den Widget-Schalter aktiv nachziehen
+- **Symptom:** Im Bookmark `nw_oereb` wurde die Grundkarte bzw. nach Basemap-Wechsel das Orthophoto grau gerendert, obwohl der Schalter sichtbar auf `FARBE` stand.
+- **Root-Cause:** Der Bookmark-Start setzte `BasemapTimeManager.syncGrayscale(true)` aus `basemapColorMode = grey`, aber der FARBE/GRAU-Button blieb auf seinem HTML-Default (`FARBE active`). Wenn der Sync vor bzw. unabhängig von der Widget-Initialisierung lief, drifteten Renderzustand und UI auseinander.
+- **Fix:** `tnet-basemap.js` synchronisiert die FARBE/GRAU-Buttons nun zentral aus dem echten `_isGrayscale`-Status und zieht diesen Zustand auch nach der DOM-Initialisierung des Widgets nochmals nach.
+- **Guardrail:** Bei Bookmark-/Startup-Overrides nie nur den Runtime-State setzen. Toggle-Buttons mit Default-Markup muessen nach jedem programmgesteuerten Statuswechsel explizit aus dem echten State synchronisiert werden.
+
 ## 2026-06-03 — Coalesce-Consistency-Loop darf im Leerlauf keine identischen LAYERS-Updates feuern
 - **Symptom:** Beim blossen Start von `https://www.gis-daten.ch/maps-dev/nw_oereb` liefen ohne jede Interaktion fortlaufend ArcGIS-`MapServer/export`-Requests in der Konsole/Network-Ansicht.
 - **Root-Cause:** `reconcileMapConsistency()` rief fuer Coalesce-Gruppen im Leerlauf wiederholt `registerSublayer()`/`showSublayer()`/`hideSublayer()` auf. Die Bridge war dabei nicht idempotent: selbst bei unveraendertem Zustand wurden `visibleSublayers` erneut beschrieben, `_updateLAYERSDebounced()` erneut geplant und in `_setLayersOnSource()` identische `LAYERS` per `updateParams()` nochmals auf die Source geschrieben. Das reichte fuer erneute Export-Requests.
