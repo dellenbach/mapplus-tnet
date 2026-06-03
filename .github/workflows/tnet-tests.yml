@@ -10,7 +10,7 @@ on:
       - 'maps-dev/tnet/php/**'
       - 'maps-dev/tnet/api/**'
       - '_scripts/deployment/**'
-      - '_scripts/_build_js.py'
+      - '_scripts/build/build_js.py'
       - 'docs/DEV_DEPLOY_WORKFLOW.md'
       - '.github/workflows/tnet-tests.yml'
   pull_request:
@@ -21,7 +21,7 @@ on:
       - 'maps-dev/tnet/php/**'
       - 'maps-dev/tnet/api/**'
       - '_scripts/deployment/**'
-      - '_scripts/_build_js.py'
+      - '_scripts/build/build_js.py'
       - 'docs/DEV_DEPLOY_WORKFLOW.md'
       - '.github/workflows/tnet-tests.yml'
 

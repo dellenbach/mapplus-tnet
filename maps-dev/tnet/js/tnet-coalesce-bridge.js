@@ -78,9 +78,14 @@
 
   /** Ursprüngliche layers= aus URL — beim Script-Laden gespeichert, bevor Framework die URL überschreibt */
   var _originalUrlLayers = '';
+  var _originalUrlQuery = '';
   try {
     var _urlInit = new URL(window.location.href);
+    _originalUrlQuery = _urlInit.search || '';
     _originalUrlLayers = _urlInit.searchParams.get('layers') || '';
+    window.__tnetOriginalUrlQuery = _originalUrlQuery;
+    window.__tnetOriginalUrlLayers = _originalUrlLayers;
+    window.__tnetOriginalUrlOp = _urlInit.searchParams.get('op') || '';
     if (_originalUrlLayers) {
       TnetLog.log(LOG, 'Ursprüngliche URL-Layers gesichert:', _originalUrlLayers);
     }
@@ -826,16 +831,43 @@
       am._tnet_origUpdateMapStatusUrl = origFn;
 
       am.updateMapStatusUrl = function (map_name) {
+        var bookmark = _getActiveBookmark();
+        if (bookmark && bookmark._options && bookmark._options.urlOverride && bookmark._urlOverrideFreezeUntil && Date.now() < bookmark._urlOverrideFreezeUntil) {
+          return;
+        }
+
         // Original aufrufen — schreibt URL mit Root-Keys
         origFn.call(this, map_name);
 
         // URL nachkorrigieren: Root-Keys → Sublayer-Keys
         _fixUrlForBridgeLayers();
+        _preserveUrlOverrideOpacity();
       };
 
       TnetLog.log(LOG, 'updateMapStatusUrl-Patch installiert (Root-Key → Sublayer-Key URL-Fix)');
     } catch (e) {
       TnetLog.warn(LOG, '_patchUpdateMapStatusUrl Fehler:', e.message);
+    }
+  }
+
+  function _preserveUrlOverrideOpacity() {
+    try {
+      var bookmark = _getActiveBookmark();
+      var options = bookmark && bookmark._options ? bookmark._options : null;
+      var originalOp = options && options.originalOp ? String(options.originalOp) : '';
+      if (!(options && options.urlOverride) || !originalOp) return;
+
+      var current = new URL(window.location.href);
+      var layerValue = current.searchParams.get('layers') || '';
+      var layerCount = layerValue ? layerValue.split('|').filter(function(id) { return !!id; }).length : 0;
+      var opCount = originalOp.split('|').filter(function(value) { return value !== ''; }).length;
+      if (!layerCount || opCount !== layerCount) return;
+      if (current.searchParams.get('op') === originalOp) return;
+
+      current.searchParams.set('op', originalOp);
+      window.history.replaceState(null, '', current.pathname + '?' + current.searchParams.toString() + current.hash);
+    } catch (ePreserve) {
+      TnetLog.debug(LOG, '_preserveUrlOverrideOpacity Fehler:', ePreserve.message);
     }
   }
 

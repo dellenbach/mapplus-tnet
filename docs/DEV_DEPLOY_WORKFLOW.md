@@ -71,7 +71,7 @@ Aenderungen hier betreffen den Workflow selbst, nicht nur die Anwendung. Besonde
 - `_scripts/deployment/deployengine/upload_changed.py`
 - `_scripts/deployment/deployengine/upload_active_file.py`
 - `_scripts/deployment/deployengine/promote_dev_to_prod.py`
-- `_scripts/_build_js.py`
+- `_scripts/build/build_js.py`
 
 ## Kuenftiges Editieren
 
@@ -83,8 +83,8 @@ Erst nach erfolgreichem DEV-Test wird der Stand nach `maps/` uebernommen.
 
 ### Typische Editierziele
 
-- Frontend-JS: `maps-dev/tnet/js-dev/`
-- gebaute JS-Artefakte: `maps-dev/tnet/js/`
+- Frontend-JS: `maps-dev/tnet/js/`
+- lokale PROD-Stage-Artefakte: `maps-dev/tnet/js-stage/`
 - PHP-Endpunkte: `maps-dev/tnet/api/`, `maps-dev/tnet/php/`
 - HTML/Einstiegspunkte: `maps-dev/index.php`, `maps-dev/public/`
 - CSS/Ressourcen: `maps-dev/tnet/css/`, `maps-dev/tnet/resources/`
@@ -92,9 +92,9 @@ Erst nach erfolgreichem DEV-Test wird der Stand nach `maps/` uebernommen.
 ### Was nicht der erste Editierort sein sollte
 
 - `maps/` fuer normale Weiterentwicklung
-- direkt gebaute Artefakte unter `maps-dev/tnet/js/`, wenn die Quelle unter `maps-dev/tnet/js-dev/` existiert
+- Build-Artefakte unter `maps-dev/tnet/js-stage/` oder `maps/tnet/js/`
 
-Wenn es eine Quelldatei unter `js-dev/` gibt, wird diese bearbeitet. Der Build- und Upload-Prozess erzeugt daraus die Datei unter `js/`.
+Entwickelt wird auf den lesbaren Originaldateien unter `maps-dev/tnet/js/`. Der DEV-Upload lädt diese Originale; der Stage-Build erzeugt daraus `maps-dev/tnet/js-stage/` fuer PROD.
 
 ### Ausnahmefaelle
 
@@ -226,7 +226,7 @@ Wichtig:
 
 - bei `--env prod` duerfen Dateipfade sowohl unter `maps/` als auch unter `maps-dev/` liegen
 - Dateipfade unter `maps-dev/` werden vor dem Upload lokal nach `maps/` synchronisiert
-- fuer `tnet/js-dev/*.js` laeuft danach automatisch der PROD-Build
+- fuer JS-Dateien unter `maps-dev/tnet/js/` baut der PROD-Release zuerst `maps-dev/tnet/js-stage/`
 
 ### Spezialfall: geschuetzte Config-Dateien
 
@@ -251,32 +251,32 @@ Config-Deploys nie nebenbei ausfuehren. Immer bewusst mit Grund.
 
 ## JS-Build-Verhalten
 
-`js-dev/` ist die Quelle. `js/` ist das Build-/Deploy-Ziel.
+`maps-dev/tnet/js/` ist die lesbare DEV-Quelle und DEV-Runtime. `maps-dev/tnet/js-stage/` ist die lokale PROD-Stage. `maps/tnet/js-src/` ist der lesbare PROD-Quellstand, `maps/tnet/js/` ist die PROD-Runtime.
 
 Build-Modi:
 
-- DEV (`--env dev`): lesbarer Build ohne Minify
-- PROD (`--env prod`): minifizierter + obfuskierter Build
+- DEV-Deploy: lädt lesbare Originale aus `maps-dev/tnet/js/` und baut lokal `maps-dev/tnet/js-stage/`
+- PROD-Release: kopiert `maps-dev/tnet/js/` nach `maps/tnet/js-src/` und `maps-dev/tnet/js-stage/` nach `maps/tnet/js/`
 
-Die Deploy-Skripte leiten den Modus automatisch aus `--env` ab und rufen `_scripts/_build_js.py --mode dev|prod` auf.
+Der normale Stage-Build laeuft mit Hash-Cache ueber `_scripts/build/build_js.py --mode prod --src-root maps-dev/tnet/js --out-root maps-dev/tnet/js-stage`. Fuer einen kompletten Neubuild gibt es `release-full-rebuild.bat` bzw. den Build-Task mit `--rebuild-all`.
 
 Wichtig:
 
-- `tnet/js-dev/*.js` niemals direkt auf den Server laden
-- Upload-Skripte bauen `js-dev` zuerst und laden danach die passende Datei unter `js/` hoch
+- `tnet/js-stage/`, `tnet/js-src/`, `tnet/js-dev/` und `tnet/js_ori/` werden nie direkt hochgeladen
+- PROD-Runtime-JS kommt ausschliesslich aus `maps-dev/tnet/js-stage/`
 
 Das gilt fuer:
 
-- `_upload_changed.py`
-- `_upload_active_file.py`
+- `_scripts/deployment/deployengine/upload_changed.py`
+- `_scripts/deployment/deployengine/upload_active_file.py`
 
 Fuer GitHub-/Release-Commits kann `_scripts/deployment/deploy-prod/git-commit.bat` vor dem Staging den lokalen Abgleich `maps-dev -> maps` anstossen, damit beide Baeume vor dem Commit konsistent sind.
 
 Wenn ein JS-Fix nicht auf dem Server ankommt, zuerst pruefen:
 
-1. wurde die Quelldatei unter `js-dev/` geaendert?
-2. lief der Build erfolgreich?
-3. existiert danach die erwartete Datei unter `tnet/js/`?
+1. wurde die Quelldatei unter `maps-dev/tnet/js/` geaendert?
+2. lief der Stage-Build erfolgreich?
+3. existiert danach die erwartete Datei unter `maps-dev/tnet/js-stage/` und nach Promotion unter `maps/tnet/js/`?
 
 ## PostgreSQL
 
@@ -528,8 +528,8 @@ Moegliche Ursachen:
 
 Moegliche Ursachen:
 
-- falsche Datei unter `js/` statt `js-dev/` bearbeitet
-- Build-Fehler beim Upload
+- falsche Datei unter `maps/tnet/js/` statt `maps-dev/tnet/js/` bearbeitet
+- Build-Fehler beim Stage-Build
 - Upload falscher Umgebung
 
 ### Proxy- oder API-Pfade laufen noch auf `/maps`
@@ -562,5 +562,5 @@ Moegliche Ursachen:
 - `_scripts/deployment/deployengine/upload_changed.py`
 - `_scripts/deployment/deployengine/upload_active_file.py`
 - `_scripts/deployment/deployengine/promote_dev_to_prod.py`
-- `_scripts/_build_js.py`
+- `_scripts/build/build_js.py`
 - `docs/ai-lessons-learned.md`

@@ -396,26 +396,9 @@ define('API_PATH', "/var/www/html/mapplus-lib/mapplus-dojo/");
 | `maptipsResources_*` | `/www/core/nls/de/` |
 | `legendResources_*` | `/www/core/nls/de/` |
 
-### Deploy-Skript
+### Deploy-Weg
 
-```bash
-# Verfügbare Kürzel auflisten
-py _scripts/_deploy_staging_to_core.py --list
-
-# Einzelnes Kürzel deployen
-py _scripts/_deploy_staging_to_core.py gis_basis
-
-# Alle Kürzel deployen
-py _scripts/_deploy_staging_to_core.py --all
-
-# Dry-Run (nur anzeigen, nichts ändern)
-py _scripts/_deploy_staging_to_core.py gis_basis --dry-run
-
-# Ohne Backup
-py _scripts/_deploy_staging_to_core.py gis_basis --no-backup
-```
-
-Backups werden unter `/data/tmp/deploy-backups/<kürzel>/<timestamp>/` angelegt.
+Der ImportToCore-Transfer wird nicht mehr ueber ein Root-Spezialskript ausgefuehrt. Standard ist der SLM-/Config-Workflow; Core-Dateien werden bei Bedarf gezielt ueber `_scripts/deployment/deployengine/upload_core_config.py` deployt.
 
 ---
 
@@ -462,26 +445,15 @@ Remote: /www/maps/tnet/js/tnet-basemap.js
 | `_scripts/deployment/deployengine/upload_changed.py` | Geänderte Dateien fuer DEV oder PROD hochladen |
 | `_scripts/deployment/deployengine/upload_active_file.py` | Einzelne aktive Datei fuer DEV oder PROD hochladen |
 | `_scripts/deployment/deployengine/promote_dev_to_prod.py` | DEV nach PROD promoten und optional deployen |
-| `_scripts/legacy/_upload_all_js.py` | JS-Build-Artefakte gezielt hochladen |
 | `_scripts/deployment/deployengine/deploy_env.py` | DEV/PROD-Pfade und Deploy-Konfiguration |
 
 ### Build-Helfer
 
-`_scripts/_build_js.py` baut `tnet/js-dev/*.js` nach `tnet/js/*.js`. Die Deploy-Skripte rufen den Build-Helfer automatisch auf, wenn JS-Quellen betroffen sind.
+`_scripts/build/build_js.py` baut die PROD-Stage aus `maps-dev/tnet/js/` nach `maps-dev/tnet/js-stage/`. DEV laedt lesbare Original-JS direkt aus `maps-dev/tnet/js/`; PROD uebernimmt `js-stage/` nach `maps/tnet/js/` und die lesbaren Quellen nach `maps/tnet/js-src/`.
 
-### Spezialisierte Skripte im Root
+### Spezialfaelle
 
-| Skript | Was wird hochgeladen |
-|---|---|
-| `_upload_helpers.py` | `tnet-mapplus-helpers.js` an `/maps/tnet/` UND `/maps/tnet/js/` |
-| `_upload_basemap_js.py` | Basemap-Konfiguration (override.css, index, basemaps_mgr, tnet-basemap.js, Config, Previews) |
-| `_upload_search.py` | Such-Komponenten |
-| `_upload_proxy.py` | Proxy-PHP |
-| `_upload_bookmark.py` | Bookmark-Service |
-| `_upload_db_api.py` | Datenbank-API |
-| `_upload_lyrmgr_patch.py` | Layermanager-Patch + zugehörige Dateien |
-
-Alte oder ersetzte Spezialuploads liegen unter `_scripts/legacy/` und sind nicht mehr Standardworkflow.
+Direkte Spezial-Uploadskripte im `_scripts/`-Root sind entfernt. Fuer einzelne Dateien wird `deploy-active-file.bat` verwendet, fuer geaenderten Code `deploy-dev.bat` bzw. `release-full.bat`, fuer einen kompletten JS-Neubuild `release-full-rebuild.bat`; Configs laufen ueber `upload_config.py` oder `upload_core_config.py`.
 
 ### Multi-Pfad-Mapping
 
@@ -502,7 +474,6 @@ In `.vscode/tasks.json` sind folgende Aufgaben definiert:
 | `Deploy PROD: Upload Changed Files` | Führt `_scripts/deployment/deployengine/upload_changed.py --env prod` aus |
 | `Deploy DEV: Upload Active File` | Führt `_scripts/deployment/deployengine/upload_active_file.py --env dev` aus |
 | `Release: Promote DEV to PROD` | Führt `_scripts/deployment/deployengine/promote_dev_to_prod.py` aus |
-| `Deploy DEV/PROD: LyrMgr Patch` | Führt `_scripts/_upload_lyrmgr_patch.py` aus |
 
 ### Nach Upload
 

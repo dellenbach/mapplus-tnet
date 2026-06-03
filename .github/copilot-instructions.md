@@ -106,19 +106,22 @@
 1. **Offizielle Deploy-Skripte**: `_scripts/deployment/deploy-dev/` und `_scripts/deployment/deploy-prod/`
    - DEV geaenderte Dateien: `_scripts/deployment/deploy-dev/deploy-dev.bat`
    - DEV aktive Datei: `_scripts/deployment/deploy-dev/deploy-active-file.bat <datei>`
-   - PROD Release: `_scripts/deployment/deploy-prod/release-full.bat`
+   - PROD Release (Hash): `_scripts/deployment/deploy-prod/release-full.bat`
+   - PROD Release (Clean Rebuild): `_scripts/deployment/deploy-prod/release-full-rebuild.bat`
    - PROD Dry-Run: `_scripts/deployment/deploy-prod/release-dryrun.bat`
    - Technische Engine liegt unter `_scripts/deployment/deployengine/`
 
 2. **Build-Helfer**: `_scripts/build/build_js.py`
    - DEV laedt lesbare Original-JS direkt aus `maps-dev/tnet/js/`.
-   - PROD baut aus `maps/tnet/js_ori/` nach `maps/tnet/js/`:
-     `C:\Program Files\Python313\python.exe _scripts/build/build_js.py --mode prod --src-root maps/tnet/js_ori --out-root maps/tnet/js --rebuild-all`
-   - `maps/tnet/js/` ist Build-Artefakt; `maps/tnet/js_ori/` ist der lesbare PROD-Vorbereitungsstand.
+    - DEV-Deploy baut lokal die PROD-Stage aus `maps-dev/tnet/js/` nach `maps-dev/tnet/js-stage/`:
+      Standard mit Hash-Cache: `C:\Program Files\Python313\python.exe _scripts/build/build_js.py --mode prod --src-root maps-dev/tnet/js --out-root maps-dev/tnet/js-stage`
+      Clean Rebuild bei Bedarf: gleicher Befehl mit `--rebuild-all`
+    - PROD kopiert `maps-dev/tnet/js/` nach `maps/tnet/js-src/` und `maps-dev/tnet/js-stage/` nach `maps/tnet/js/`.
+    - `maps-dev/tnet/js-stage/` und `maps/tnet/js/` sind Build-Artefakte; `maps/tnet/js-src/` ist der lesbare PROD-Quellstand.
 
-3. **Spezialisierte Upload-Skripte**:
-   - Aktive Spezialfaelle bleiben im `_scripts/`-Root, z.B. `_upload_lyrmgr_patch.py`, `_upload_helpers.py`, `_upload_basemap_js.py`, `_upload_search.py`, `_upload_proxy.py`, `_upload_bookmark.py`, `_upload_db_api.py`.
-   - Alte/ersetzte Spezialuploads liegen unter `_scripts/legacy/` und sind nicht Standardworkflow.
+3. **Spezialfaelle**:
+   - Keine neuen Direkt-Uploadskripte im `_scripts/`-Root anlegen.
+   - Einzeldateien ueber `deploy-active-file.bat`, geaenderten Code ueber `deploy-dev.bat`/`release-full.bat`, Clean-Rebuild-Releases ueber `release-full-rebuild.bat`, Configs ueber die Config-/Core-Deployengine deployen.
 
 4. **Typischer Ablauf fuer KI**:
    ```

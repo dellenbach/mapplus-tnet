@@ -3,13 +3,13 @@
 upload_active_file.py
 Einzelne Datei per SFTP hochladen — nur wenn sie unter maps/ bzw. maps-dev/ liegt.
 DEV-JS aus tnet/js/ wird direkt hochgeladen. PROD-JS-Originale aus maps-dev/tnet/js/
-werden zuerst nach maps/tnet/js_ori/ synchronisiert und danach nach maps/tnet/js/
-minifiziert + obfuskiert gebaut.
+werden zuerst lokal nach maps-dev/tnet/js-stage/ gebaut, nach maps/tnet/js-src/
+gesichert und als fertige Runtime nach maps/tnet/js/ kopiert.
 
 Aufruf: python upload_active_file.py --env dev <dateipfad>
 
-@version    1.4
-@date       2026-06-01
+@version    1.5
+@date       2026-06-02
 @copyright  Trigonet AG
 @author     Marco Dellenbach
 """
@@ -59,6 +59,40 @@ def is_within_tree(path, base_dir):
         return False
 
 
+def build_dev_js_stage(dev_local_base, rel_from_dev_web):
+    """Baut eine DEV-JS-Originaldatei nach maps-dev/tnet/js-stage."""
+    dev_js_root = os.path.normpath(os.path.join(dev_local_base, "tnet", "js"))
+    dev_stage_root = os.path.normpath(os.path.join(dev_local_base, "tnet", "js-stage"))
+    source_path = os.path.normpath(os.path.join(dev_local_base, rel_from_dev_web.replace("/", os.sep)))
+
+    print(f"[BUILD] JS-Stage fuer PROD: {rel_from_dev_web}")
+    build_result = subprocess.run(
+        [
+            sys.executable,
+            "-u",
+            BUILD_SCRIPT,
+            "--mode",
+            "prod",
+            "--src-root",
+            dev_js_root,
+            "--out-root",
+            dev_stage_root,
+            source_path,
+        ],
+        capture_output=False,
+    )
+    if build_result.returncode != 0:
+        print("[ERR] JS-Stage-Build fehlgeschlagen")
+        sys.exit(1)
+
+    rel_js = rel_from_dev_web[len("tnet/js/"):]
+    stage_path = os.path.normpath(os.path.join(dev_stage_root, rel_js.replace("/", os.sep)))
+    if not os.path.isfile(stage_path):
+        print(f"[ERR] JS-Stage-Output nicht gefunden: {stage_path}")
+        sys.exit(1)
+    return source_path, stage_path, rel_js
+
+
 def main():
     global LOCAL_BASE, REMOTE_BASE
 
@@ -93,14 +127,25 @@ def main():
         rel_from_dev = os.path.relpath(filepath, dev_local_base)
         rel_from_dev_web = rel_from_dev.replace(os.sep, "/")
         if rel_from_dev_web.startswith("tnet/js/"):
-            promoted_rel = os.path.join("tnet", "js_ori", rel_from_dev_web[len("tnet/js/"):].replace("/", os.sep))
+            source_path, stage_path, rel_js = build_dev_js_stage(dev_local_base, rel_from_dev_web)
+            js_src_path = os.path.normpath(os.path.join(LOCAL_BASE, "tnet", "js-src", rel_js.replace("/", os.sep)))
+            runtime_path = os.path.normpath(os.path.join(LOCAL_BASE, "tnet", "js", rel_js.replace("/", os.sep)))
+            os.makedirs(os.path.dirname(js_src_path), exist_ok=True)
+            os.makedirs(os.path.dirname(runtime_path), exist_ok=True)
+            shutil.copy2(source_path, js_src_path)
+            shutil.copy2(stage_path, runtime_path)
+            print(f"[SYNC] maps-dev -> maps: {rel_from_dev_web} -> tnet/js-src/{rel_js}")
+            print(f"[SYNC] js-stage -> maps: tnet/js-stage/{rel_js} -> tnet/js/{rel_js}")
+            filepath = runtime_path
+            promoted_rel = None
         else:
             promoted_rel = rel_from_dev
-        promoted_path = os.path.normpath(os.path.join(LOCAL_BASE, promoted_rel))
-        os.makedirs(os.path.dirname(promoted_path), exist_ok=True)
-        shutil.copy2(filepath, promoted_path)
-        print(f"[SYNC] maps-dev -> maps: {rel_from_dev_web} -> {os.path.relpath(promoted_path, LOCAL_BASE).replace(os.sep, '/')}")
-        filepath = promoted_path
+        if promoted_rel:
+            promoted_path = os.path.normpath(os.path.join(LOCAL_BASE, promoted_rel))
+            os.makedirs(os.path.dirname(promoted_path), exist_ok=True)
+            shutil.copy2(filepath, promoted_path)
+            print(f"[SYNC] maps-dev -> maps: {rel_from_dev_web} -> {os.path.relpath(promoted_path, LOCAL_BASE).replace(os.sep, '/')}")
+            filepath = promoted_path
     else:
         print("[ERR] Abgelehnt: Datei liegt nicht unter dem erlaubten Source-Tree")
         print(f"  Pfad:        {filepath}")
@@ -111,9 +156,9 @@ def main():
 
     # ===== JS-QUELLEN: Build-Schritt =====
     js_dev_marker = os.path.normpath(os.path.join(LOCAL_BASE, "tnet", "js-dev"))
-    js_ori_marker = os.path.normpath(os.path.join(LOCAL_BASE, "tnet", "js_ori"))
+    js_stage_marker = os.path.normpath(os.path.join(LOCAL_BASE, "tnet", "js-stage"))
+    js_src_marker = os.path.normpath(os.path.join(LOCAL_BASE, "tnet", "js-src"))
     is_js_dev = filepath.lower().startswith(js_dev_marker.lower())
-    is_js_ori = filepath.lower().startswith(js_ori_marker.lower())
 
     if is_js_dev:
         print(f"[BUILD] Quelldatei erkannt -- baue zuerst: {os.path.basename(filepath)}")
@@ -131,36 +176,18 @@ def main():
             print(f"[ERR] Build-Output nicht gefunden: {filepath}")
             sys.exit(1)
 
-    if deploy_config["env"] == "prod" and is_js_ori:
-        print(f"[BUILD] PROD-Quelle erkannt -- baue zuerst: {os.path.basename(filepath)}")
-        js_out = os.path.normpath(os.path.join(LOCAL_BASE, "tnet", "js"))
-        build_result = subprocess.run(
-            [
-                sys.executable,
-                BUILD_SCRIPT,
-                "--mode",
-                "prod",
-                "--src-root",
-                js_ori_marker,
-                "--out-root",
-                js_out,
-                filepath,
-            ],
-            capture_output=False
-        )
-        if build_result.returncode != 0:
-            print("[ERR] Build fehlgeschlagen")
-            sys.exit(1)
-        filepath = filepath.replace(js_ori_marker, js_out)
-        if not os.path.isfile(filepath):
-            print(f"[ERR] Build-Output nicht gefunden: {filepath}")
-            sys.exit(1)
-
-    # Sicherheitssperre: js-dev/ darf nie direkt hochgeladen werden
+    # Sicherheitssperre: Quell-/Stage-Ordner duerfen nie direkt hochgeladen werden
     js_dev_remote_marker = os.path.normpath(os.path.join(LOCAL_BASE, "tnet", "js-dev"))
     js_ori_remote_marker = os.path.normpath(os.path.join(LOCAL_BASE, "tnet", "js_ori"))
-    if filepath.lower().startswith(js_dev_remote_marker.lower()) or filepath.lower().startswith(js_ori_remote_marker.lower()):
-        print("[ERR] GESPERRT: JS-Quell-/Backup-Dateien duerfen nicht direkt hochgeladen werden")
+    js_stage_remote_marker = os.path.normpath(os.path.join(LOCAL_BASE, "tnet", "js-stage"))
+    js_src_remote_marker = os.path.normpath(os.path.join(LOCAL_BASE, "tnet", "js-src"))
+    if (
+        filepath.lower().startswith(js_dev_remote_marker.lower())
+        or filepath.lower().startswith(js_ori_remote_marker.lower())
+        or filepath.lower().startswith(js_stage_remote_marker.lower())
+        or filepath.lower().startswith(js_src_remote_marker.lower())
+    ):
+        print("[ERR] GESPERRT: JS-Quell-/Stage-Dateien duerfen nicht direkt hochgeladen werden")
         sys.exit(1)
 
     # Relativen Pfad berechnen

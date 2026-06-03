@@ -5,20 +5,19 @@ sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='repla
 sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
 """
 build_js.py
-Build aller JS-Quelldateien aus js-dev/ nach js/.
+Build von TNET-JS aus einer Quellwurzel in eine Zielwurzel.
 Verwendet esbuild (Standalone-Binary, kein Node.js noetig).
 PROD-Builds werden zusaetzlich per Closure Compiler obfuskiert.
 Bei fehlenden Tools werden die Binaries automatisch heruntergeladen.
 
 Aufruf:
     py _scripts/build/build_js.py                              # Alle PROD-Dateien (maps/) bauen
-    py _scripts/build/build_js.py --mode dev                   # Alle DEV-Dateien (maps-dev/) bauen
-    py _scripts/build/build_js.py --mode dev  maps-dev/tnet/js-dev/foo.js
-    py _scripts/build/build_js.py --mode prod maps/tnet/js-dev/foo.js
-    py _scripts/build/build_js.py --mode prod --src-root maps/tnet/js_ori --out-root maps/tnet/js --rebuild-all
+    py _scripts/build/build_js.py --mode dev                   # Legacy DEV-Build
+    py _scripts/build/build_js.py --mode prod --src-root maps-dev/tnet/js --out-root maps-dev/tnet/js-stage --rebuild-all
+    py _scripts/build/build_js.py --mode prod --src-root maps/tnet/js-src --out-root maps/tnet/js --rebuild-all
 
-@version    1.3
-@date       2026-06-01
+@version    1.4
+@date       2026-06-02
 @copyright  Trigonet AG
 @author     Marco Dellenbach
 """
@@ -45,13 +44,13 @@ CLOSURE_URL      = f"https://repo1.maven.org/maven2/com/google/javascript/closur
 CLOSURE_JAR      = os.path.join(TOOLS_DIR, "closure-compiler.jar")
 BUILD_CACHE_TAG  = "2026-05-28-hash-skip-v1"
 
-# Standard-Pfade fuer PROD (maps/) — bei Full-Build mit --mode dev auf maps-dev/ umgeleitet
-JS_DEV_DIR       = os.path.normpath(os.path.join(_WORKSPACE_ROOT, "maps", "tnet", "js-dev"))
-JS_OUT_DIR       = os.path.normpath(os.path.join(_WORKSPACE_ROOT, "maps", "tnet", "js"))
+# Standard-Pfade fuer den aktuellen Stage-Workflow
+JS_DEV_DIR       = os.path.normpath(os.path.join(_WORKSPACE_ROOT, "maps-dev", "tnet", "js"))
+JS_OUT_DIR       = os.path.normpath(os.path.join(_WORKSPACE_ROOT, "maps-dev", "tnet", "js-stage"))
 
 
 def resolve_js_roots(src_path=None, src_root=None, out_root=None):
-    """Passende js-dev/js Wurzeln fuer maps oder maps-dev bestimmen."""
+    """Passende JS-Quell-/Zielwurzeln fuer maps oder maps-dev bestimmen."""
     if src_root or out_root:
         if not src_root or not out_root:
             raise ValueError("--src-root und --out-root muessen gemeinsam angegeben werden")
@@ -120,7 +119,7 @@ def hash_file(path):
 
 
 def get_output_path(src_path, src_root=None, out_root=None):
-    """Leitet den js-Outputpfad aus einer Quelldatei ab."""
+    """Leitet den JS-Outputpfad aus einer Quelldatei ab."""
     js_dev_dir, js_out_dir = resolve_js_roots(src_path, src_root, out_root)
     rel = os.path.relpath(src_path, js_dev_dir)
     return os.path.join(js_out_dir, rel)
@@ -272,6 +271,9 @@ def build_file(src_path, mode="prod", src_root=None, out_root=None):
     rel = os.path.relpath(src_path, js_dev_dir)
     out_path = os.path.join(js_out_dir, rel)
 
+    if os.path.normcase(os.path.abspath(src_path)) == os.path.normcase(os.path.abspath(out_path)):
+        return False, os.path.getsize(src_path), 0, "Build-Output entspricht Input-Datei; Abbruch zum Schutz der Quellen"
+
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
 
     size_before = os.path.getsize(src_path)
@@ -325,7 +327,7 @@ def collect_sources(root):
     """Alle .js Dateien aus root und root/mobile/ (nicht rekursiv tiefer)."""
     files = []
     if not os.path.isdir(root):
-        print(f"[WARN] js-dev-Verzeichnis nicht gefunden: {root}")
+        print(f"[WARN] JS-Quellverzeichnis nicht gefunden: {root}")
         return files
     for entry in sorted(os.listdir(root)):
         full = os.path.join(root, entry)
@@ -347,14 +349,14 @@ def log_line(message=""):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Baut TNET JS-Dateien aus tnet/js-dev nach tnet/js.\n"
-                    "Full-Build ohne --src: --mode dev baut maps-dev/, --mode prod baut maps/"
+        description="Baut TNET JS-Dateien fuer den Stage-Workflow.\n"
+                    "Standard: maps-dev/tnet/js -> maps-dev/tnet/js-stage."
     )
-    parser.add_argument("src", nargs="?", help="Optionale Einzeldatei aus tnet/js-dev oder tnet/js")
+    parser.add_argument("src", nargs="?", help="Optionale Einzeldatei; fuer den Standardworkflow besser --src-root/--out-root verwenden")
     parser.add_argument("--mode", choices=["dev", "prod"], help="Buildmodus: dev ohne Minify, prod mit Minify")
     parser.add_argument("--rebuild-all", action="store_true", help="Ignoriert den Hash-Cache und baut alle Dateien neu")
-    parser.add_argument("--src-root", help="Explizites Quellverzeichnis fuer Full-Builds, z.B. maps/tnet/js_ori")
-    parser.add_argument("--out-root", help="Explizites Zielverzeichnis fuer Full-Builds, z.B. maps/tnet/js")
+    parser.add_argument("--src-root", help="Explizites Quellverzeichnis fuer Full-Builds, z.B. maps-dev/tnet/js")
+    parser.add_argument("--out-root", help="Explizites Zielverzeichnis fuer Full-Builds, z.B. maps-dev/tnet/js-stage")
     args = parser.parse_args()
 
     if bool(args.src_root) != bool(args.out_root):
@@ -382,12 +384,8 @@ def main():
         if args.src_root:
             build_root = os.path.normpath(args.src_root)
             js_out_dir = os.path.normpath(args.out_root)
-        elif mode == "dev":
-            # DEV: maps-dev/tnet/js-dev/
-            build_root = os.path.normpath(os.path.join(_WORKSPACE_ROOT, "maps-dev", "tnet", "js-dev"))
-            js_out_dir = os.path.normpath(os.path.join(_WORKSPACE_ROOT, "maps-dev", "tnet", "js"))
         else:
-            # PROD: maps/tnet/js-dev/
+            # Standard: maps-dev/tnet/js -> maps-dev/tnet/js-stage
             build_root = JS_DEV_DIR
             js_out_dir = JS_OUT_DIR
         sources = collect_sources(build_root)
@@ -418,9 +416,12 @@ def main():
             log_line("Hash-Check aktiv: nur geaenderte JS-Dateien werden neu gebaut.")
         log_line("")
 
-    js_dev_dir_display, js_out_dir_display = resolve_js_roots(
-        sources[0], args.src_root, args.out_root
-    ) if sources else (JS_DEV_DIR, JS_OUT_DIR)
+    if args.src:
+        js_dev_dir_display, js_out_dir_display = resolve_js_roots(
+            sources[0], args.src_root, args.out_root
+        ) if sources else (JS_DEV_DIR, JS_OUT_DIR)
+    else:
+        js_dev_dir_display, js_out_dir_display = build_root, js_out_dir
 
     total_sources = len(sources)
 

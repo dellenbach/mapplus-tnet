@@ -8,11 +8,12 @@ upload_changed.py
 Geaenderte Dateien unter maps/ bzw. maps-dev/ per SFTP hochladen.
 Erkennung via mtime-State-Datei — unabhaengig von git.
 Nach erfolgreichem Upload wird ein Hash-State der Quelldatei gespeichert.
-DEV laedt lesbare JS direkt aus tnet/js/. PROD laedt finale Build-Artefakte aus tnet/js/;
+DEV laedt lesbare JS direkt aus tnet/js/ und kann lokal tnet/js-stage/ bauen.
+PROD laedt finale Build-Artefakte aus tnet/js/; tnet/js-stage/, tnet/js-src/,
 tnet/js-dev/ und tnet/js_ori/ werden nicht direkt hochgeladen.
 
-@version    2.5
-@date       2026-06-01
+@version    2.6
+@date       2026-06-02
 @copyright  Trigonet AG
 @author     Marco Dellenbach
 """
@@ -25,7 +26,7 @@ import paramiko
 from deploy_env import add_env_argument, ensure_local_base_exists, resolve_deploy_config
 
 # ===== KONFIGURATION =====
-BUILD_SCRIPT = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "build", "build_js.py"))
+BUILD_SCRIPT = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "..", "build", "build_js.py"))
 LOCAL_BASE   = ""
 STATE_FILE   = ""
 
@@ -36,7 +37,16 @@ PASSWORD     = "3Zs,k4%Un,<[W(Kx"
 REMOTE_BASE  = ""
 
 # Verzeichnisse die nie direkt hochgeladen werden duerfen
-BLOCKED_DIRS = ["tnet/js-dev/", "tnet\\js-dev\\", "tnet/js_ori/", "tnet\\js_ori\\"]
+BLOCKED_DIRS = [
+    "tnet/js-dev/",
+    "tnet\\js-dev\\",
+    "tnet/js-stage/",
+    "tnet\\js-stage\\",
+    "tnet/js-src/",
+    "tnet\\js-src\\",
+    "tnet/js_ori/",
+    "tnet\\js_ori\\",
+]
 
 # Konfigurationsdateien sind API/Git-only und duerfen NICHT versehentlich per FTP deployt werden.
 # Explizite Ausnahme nur via --allow-config --reason "...".
@@ -112,10 +122,28 @@ def has_file_changed(path, key, state):
     return hash_file(path) != entry.get("sha256")
 
 
-def is_protected_config(rel_path):
-    """Prueft, ob eine Datei unter geschuetzte Config-Pfade faellt."""
+# tnet/config/ ist im DEV-Deploy explizit erlaubt (App-Configs gehören zum Deployment).
+# Nur in PROD bleibt tnet/config/ geschützt (Deploy dort über upload_config.py).
+DEV_ALLOWED_PREFIXES = (
+    "tnet/config/",
+)
+TNET_CONFIG_PREFIX = "tnet/config/"
+
+
+def is_tnet_config(rel_path):
+    """Prueft ob eine Datei unter tnet/config/ liegt."""
+    rel = rel_path.replace("\\", "/").lower()
+    return rel.startswith(TNET_CONFIG_PREFIX)
+
+
+def is_protected_config(rel_path, env=None):
+    """Prueft, ob eine Datei unter geschuetzte Config-Pfade faellt.
+    Im DEV-Env sind tnet/config/-Dateien explizit erlaubt.
+    """
     rel = rel_path.replace("\\", "/").lower()
     if not rel.endswith(PROTECTED_EXTENSIONS):
+        return False
+    if env == "dev" and any(rel.startswith(p) for p in DEV_ALLOWED_PREFIXES):
         return False
     return any(rel.startswith(prefix) for prefix in PROTECTED_PREFIXES)
 
@@ -126,17 +154,66 @@ def is_code_only_candidate(rel_path):
     return ext in CODE_ONLY_EXTENSIONS
 
 
-def resolve_js_upload_target(local_file):
-    """Leitet Upload-Ziel und Build-Bedarf fuer eine js-dev-Quelldatei ab."""
-    rel = os.path.relpath(local_file, LOCAL_BASE).replace("\\", "/")
-    upload_rel = rel.replace("tnet/js-dev/", "tnet/js/")
-    upload_file = os.path.join(LOCAL_BASE, upload_rel.replace("/", os.sep))
+def run_js_stage_build(dry_run=False):
+    """Baut die lokale PROD-Stage aus maps-dev/tnet/js nach maps-dev/tnet/js-stage."""
+    source_root = os.path.normpath(os.path.join(LOCAL_BASE, "tnet", "js"))
+    stage_root = os.path.normpath(os.path.join(LOCAL_BASE, "tnet", "js-stage"))
 
-    needs_build = True
-    if os.path.isfile(upload_file):
-        needs_build = get_mtime(upload_file) < get_mtime(local_file)
+    if not os.path.isdir(source_root):
+        raise RuntimeError(f"JS-Originalverzeichnis nicht gefunden: {source_root}")
 
-    return upload_rel, upload_file, needs_build
+    command = [
+        sys.executable,
+        "-u",
+        BUILD_SCRIPT,
+        "--mode",
+        "prod",
+        "--src-root",
+        source_root,
+        "--out-root",
+        stage_root,
+    ]
+
+    print("\n=== JS-Stage bauen (maps-dev/tnet/js -> maps-dev/tnet/js-stage) ===")
+    print(" ".join(command))
+    if dry_run:
+        print("[INFO] Dry-Run: JS-Stage-Build wird nicht ausgefuehrt.")
+        return
+
+    result = subprocess.run(command)
+    if result.returncode != 0:
+        raise RuntimeError(f"JS-Stage-Build fehlgeschlagen mit Exit-Code {result.returncode}")
+
+
+def collect_forced_js_files():
+    """Sammelt finale Runtime-JS-Dateien aus tnet/js fuer erzwungenen Upload."""
+    js_dir = os.path.normpath(os.path.join(LOCAL_BASE, "tnet", "js"))
+    forced = []
+    if not os.path.isdir(js_dir):
+        return forced
+
+    for root, dirs, files in os.walk(js_dir):
+        dirs[:] = [d for d in dirs if d != "__pycache__"]
+        for filename in files:
+            if not filename.endswith(".js"):
+                continue
+            if filename.startswith("tnet-prod-"):
+                continue
+            forced.append(os.path.join(root, filename))
+    return sorted(forced)
+
+
+def merge_forced_files(changed, forced_files):
+    """Fuegt erzwungene Dateien dedupliziert zur Changed-Liste hinzu."""
+    existing = {os.path.normcase(os.path.abspath(path)) for path in changed}
+    merged = list(changed)
+    for path in forced_files:
+        key = os.path.normcase(os.path.abspath(path))
+        if key in existing:
+            continue
+        merged.append(path)
+        existing.add(key)
+    return sorted(merged)
 
 
 # ===== DATEIEN SAMMELN =====
@@ -158,6 +235,8 @@ def collect_candidates():
 
     SKIP_DIRS = {
         skip_js_dir,
+        os.path.normpath(os.path.join(LOCAL_BASE, "tnet", "js-stage")),
+        os.path.normpath(os.path.join(LOCAL_BASE, "tnet", "js-src")),
         os.path.normpath(os.path.join(LOCAL_BASE, "tnet", "js_ori")),
         os.path.normpath(os.path.join(LOCAL_BASE, "core")),
         os.path.normpath(os.path.join(LOCAL_BASE, "public", "config")),
@@ -202,7 +281,10 @@ def main():
     parser = argparse.ArgumentParser(description="Geaenderte Dateien per SFTP hochladen")
     add_env_argument(parser)
     parser.add_argument("--code-only", action="store_true", help="Deployt nur geaenderte PHP/JS/HTML-Dateien")
+    parser.add_argument("--build-js-stage", action="store_true", help="Baut bei DEV vor dem Upload lokal tnet/js-stage aus tnet/js")
+    parser.add_argument("--force-js", action="store_true", help="Erzwingt Upload aller finalen Runtime-JS aus tnet/js")
     parser.add_argument("--allow-config", action="store_true", help="Erlaubt Upload geschuetzter Config-Dateien")
+    parser.add_argument("--allow-tnet-config", action="store_true", help="Erlaubt nur tnet/config/-Dateien trotz Config-Schutz")
     parser.add_argument("--reason", default="", help="Pflicht bei --allow-config: Grund/Referenz")
     parser.add_argument("--dry-run", action="store_true", help="Nur anzeigen, nichts hochladen")
     args = parser.parse_args()
@@ -217,11 +299,27 @@ def main():
         print("[ERR] --allow-config erfordert --reason \"...\"")
         sys.exit(2)
 
+    if args.build_js_stage and deploy_config["env"] != "dev":
+        print("[ERR] --build-js-stage ist nur fuer DEV erlaubt")
+        sys.exit(2)
+
+    if args.build_js_stage:
+        try:
+            run_js_stage_build(dry_run=args.dry_run)
+        except Exception as exc:
+            print(f"[ERR] {exc}")
+            sys.exit(1)
+
     state = load_state()
     source_name = os.path.basename(LOCAL_BASE)
 
     print(f"Suche geaenderte Dateien unter {source_name}/ (env={deploy_config['env']}) ...")
     changed = get_changed_files(state)
+
+    if args.force_js:
+        forced_js = collect_forced_js_files()
+        print(f"[INFO] --force-js aktiv: {len(forced_js)} Runtime-JS-Datei(en) aus tnet/js werden beruecksichtigt.")
+        changed = merge_forced_files(changed, forced_js)
 
     if not changed:
         print("Keine geaenderten Dateien gefunden.")
@@ -238,9 +336,9 @@ def main():
         if args.code_only and not is_code_only_candidate(rel):
             code_filtered.append(rel)
             continue
-        if is_protected_config(rel):
+        if is_protected_config(rel, env=deploy_config["env"]):
             blocked.append(rel)
-            if args.allow_config:
+            if args.allow_config or (args.allow_tnet_config and is_tnet_config(rel)):
                 deploy_candidates.append(p)
                 deploy_candidate_rels.append(rel)
             continue
@@ -252,17 +350,30 @@ def main():
         if code_filtered:
             print(f"[INFO] {len(code_filtered)} Datei(en) wurden wegen Code-Only uebersprungen.")
 
-    if blocked and not args.allow_config:
+    if blocked and not args.allow_config and not args.allow_tnet_config:
         print("\n[INFO] Geschuetzte Config-Dateien werden fuer diesen Code-Deploy uebersprungen:")
         for rel in blocked:
             print(f"  * {rel}")
         print("\nFuer Notfaelle explizit freigeben mit: --allow-config --reason \"...\"")
+        print("Oder nur tnet/config erlauben mit: --allow-tnet-config")
 
     if blocked and args.allow_config:
         print("\n[WARN] Override aktiv: Geschuetzte Config-Dateien werden hochgeladen")
         print(f"  Grund: {args.reason.strip()}")
         for rel in blocked:
             print(f"  * {rel}")
+
+    if blocked and args.allow_tnet_config and not args.allow_config:
+        released = [rel for rel in blocked if is_tnet_config(rel)]
+        still_blocked = [rel for rel in blocked if not is_tnet_config(rel)]
+        if released:
+            print("\n[WARN] Override aktiv: tnet/config-Dateien werden hochgeladen")
+            for rel in released:
+                print(f"  * {rel}")
+        if still_blocked:
+            print("\n[INFO] Andere geschuetzte Config-Dateien bleiben gesperrt:")
+            for rel in still_blocked:
+                print(f"  * {rel}")
 
     if not deploy_candidates:
         print("\n[OK] Keine deploybaren Code-Dateien gefunden.")
@@ -296,32 +407,17 @@ def main():
             rel = os.path.relpath(local_file, LOCAL_BASE).replace("\\", "/")
             progress = f"[{index:03d}/{total_candidates:03d}]"
 
-            # ===== LEGACY JS-DEV: Build-Schritt =====
-            if rel.startswith("tnet/js-dev/"):
-                upload_rel, upload_file, needs_build = resolve_js_upload_target(local_file)
-                if needs_build:
-                    print(f"  {progress} [BUILD] {rel}")
-                    build_result = subprocess.run(
-                        [sys.executable, "-u", BUILD_SCRIPT, "--mode", deploy_config["env"], local_file]
-                    )
-                    if build_result.returncode != 0:
-                        print(f"  {progress} [ERR] Build fehlgeschlagen: {rel}")
-                        skipped += 1
-                        continue
-                else:
-                    print(f"  {progress} [BUILD-SKIP] {rel} (bereits gebaut)")
-            else:
-                upload_rel  = rel
-                upload_file = local_file
+            upload_rel  = rel
+            upload_file = local_file
 
             # Sicherheitssperre
-            if any(b in upload_rel for b in ["tnet/js-dev/"]):
+            if any(b in upload_rel for b in ["tnet/js-dev/", "tnet/js-stage/", "tnet/js-src/", "tnet/js_ori/"]):
                 print(f"  {progress} [ERR] GESPERRT: {upload_rel}")
                 skipped += 1
                 continue
 
             # Config-Guard (zweite Sicherung auch waehrend Upload-Schleife)
-            if is_protected_config(upload_rel) and not args.allow_config:
+            if is_protected_config(upload_rel, env=deploy_config["env"]) and not args.allow_config and not (args.allow_tnet_config and is_tnet_config(upload_rel)):
                 print(f"  {progress} [ERR] GESPERRT (Config API/Git-only): {upload_rel}")
                 skipped += 1
                 continue

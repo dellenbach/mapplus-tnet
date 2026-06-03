@@ -20,7 +20,7 @@
 
 - [ ] Keine geschuetzten Config-Dateien betroffen
 - [ ] Falls Config-Dateien betroffen sind: Deploy bewusst mit `--allow-config --reason ...` geplant oder ausgefuehrt
-- [ ] JS-Aenderungen wurden in `tnet/js-dev/` gemacht, nicht nur in gebauten `tnet/js/` Dateien
+- [ ] JS-Aenderungen wurden in `maps-dev/tnet/js/` gemacht, nicht in `maps-dev/tnet/js-stage/` oder `maps/tnet/js/`
 - [ ] Auswirkungen auf PROD-Promotion geklaert
 - [ ] Release-Tag oder Release-Commit erforderlich
 

@@ -1,3 +1,93 @@
+## 2026-06-03 — Karteninhalt: Event-Sturm (layer-loading/active-layers-changed) baut Liste 16x/s neu
+- **Symptom:** Opacity-Regler klemmte beim ersten Griff (zweiter ging), Sichtbarkeits-Auge flimmerte schon beim blossen Hovern, und der erste Klick aufs Auge wurde teils verschluckt.
+- **Root-Cause:** Das Framework (u.a. CoalesceBridge-Retry) emittiert im Leerlauf `layer-loading` UND `active-layers-changed` je ~16x/s OHNE echte Zustandsaenderung. Beide haengen an `_scheduleRender` → `render()` baute jedes Mal `_container.innerHTML` komplett neu. Per Playwright verifiziert: Layer-Snapshot ueber 3s identisch, dennoch wurden Auge-/Slider-/Item-Knoten 16x/s ausgetauscht (`eyeReplacedWhileIdle: true`). Der staendige Knoten-Austausch unterbrach den nativen Slider-Drag und resettete den Hover-State.
+- **Fix:** `tnet-lm-active.js` `render()` vergleicht das fertig zusammengebaute HTML mit dem letzten Stand (`_lastRenderHtml`). Ist es identisch und der Container bereits befuellt, wird die `innerHTML`-Zuweisung uebersprungen — kein DOM-Mutation, kein Knoten-Austausch. `_lastRenderHtml` wird bei Leerzustand, Bookmark-Reset und direkter Badge-Mutation (`_refreshModifiedBadge`) invalidiert. Verifiziert unter vollem Sturm: alle `*ReplacedWhileIdle: false`, Auge schaltet beim ersten Klick, Slider bleibt waehrend Drag erhalten.
+- **Guardrail:** Bei hochfrequenten Framework-Events (loading/changed) nie ungebremst `innerHTML` neu schreiben. render() idempotent machen: identisches Ausgabe-HTML → DOM unangetastet lassen. Der zuverlaessigste Vergleich ist das finale HTML selbst (keine Feld-Signatur, die Felder vergessen kann).
+
+## 2026-06-03 — Karteninhalt: Eye-Toggle und Opacity-Drag durch Full-Rebuild via bookmark-state-changed blockiert
+- **Symptom:** Trotz inline-DOM-Updates und Pending-State blieb der Deckkraft-Regler beim Ziehen haengen und das Sichtbarkeits-Auge flimmerte beim Hover; Schaltung wirkte verzoegert.
+- **Root-Cause:** `_onVisibility`/`_onOpacity` riefen `emitBookmarkStateChanged()`. Der `tnet-bookmark-state-changed`-Listener ruft `self.render()` **direkt** auf (umgeht den `_suppressVisibilityRender`/`_scheduleRender`-Guard) und baut bei einem 135-Layer-Bookmark die komplette `innerHTML`-Liste neu — der gerade angefasste Slider-/Auge-Knoten wird dabei zerstoert. Per Playwright verifiziert: `eyeNodeReplaced: true`, `sliderNodeReplaced: true`, Frames aber 60fps (kein JS-Jank).
+- **Fix:** `tnet-lm-active.js` `render()` bricht bei aktivem `_suppressVisibilityRender` oder `_activeOpacitySlider` vor dem Full-Rebuild ab und zieht nur das Modified-Badge per neuer `_refreshModifiedBadge()` leichtgewichtig nach. Nach Verifikation: `nodeReplaced: false` fuer Auge und Slider, Live-Label aktualisiert weiter.
+- **Guardrail:** Bei optimistischer UI nicht nur `_scheduleRender` guarden — JEDER Renderpfad (auch direkte `self.render()`-Aufrufe aus Event-Listenern wie `bookmark-state-changed`) muss waehrend aktiver Slider-/Toggle-Interaktion den Full-Rebuild ueberspringen, sonst zerstoert er den angefassten DOM-Knoten.
+
+## 2026-06-03 — Karteninhalt muss Sichtbarkeit und Deckkraft zuerst lokal reagieren lassen
+- **Symptom:** Augen-Toggles und Deckkraftregler im Karteninhalt wirkten trotz funktionierender Store-Logik träge, weil die UI auf den synchronen Karten-/Storepfad wartete.
+- **Root-Cause:** Das Active-Panel delegierte Visibility und Opacity direkt in den Store. Die sichtbare Reaktion im DOM hing dadurch an nachgelagerten Karten- und Framework-Updates statt am unmittelbaren User-Intent.
+- **Fix:** `tnet-lm-active.js` fuehrt einen optimistischen Pending-UI-State pro Layer ein. Auge und Deckkraft werden zuerst lokal im Panel aktualisiert; der Store wird erst leicht verzoegert idempotent per `setLayerEye()` bzw. Opacity-Setter nachgezogen und raeumt den Pending-State ueber Store-Events wieder auf.
+- **Guardrail:** Bei interaktiven Layer-Panels nie die sichtbare Rueckmeldung an teure Store-/Kartenpfade koppeln. Erst den User-Intent lokal rendern, danach den Runtime-State asynchron nachziehen und per Event wieder auf echten Zustand reconciliieren.
+
+## 2026-06-03 — Deckkraft-Regler darf die Karte nicht bei jedem Slider-Pixel neu rechnen
+- **Symptom:** Der Deckkraft-Regler im Karteninhalt ruckelte beim Ziehen spuerbar; besonders Gruppen-Opacity fuehlte sich hakelig an.
+- **Root-Cause:** Der `input`-Handler schrieb jeden einzelnen Slider-Zwischenschritt sofort in den Store und damit bis zur Karte durch. Bei vielen `input`-Events pro Drag blockierte der Karten-Update-Pfad den Regler.
+- **Fix:** `tnet-lm-active.js` puffert Opacity-Aenderungen kurz an, aktualisiert nur die sichtbare Prozentanzeige sofort und schreibt den letzten Wert gesammelt mit kurzem Delay in den Store; beim `change` wird der Endwert sofort geflusht.
+- **Guardrail:** Slider-UI und Karten-Writeback entkoppeln. Bei teuren Layer- oder Kartenupdates nie jeden `input` 1:1 bis zur Runtime durchreichen; waehrend des Drags kurz takten, beim Loslassen final synchronisieren.
+
+## 2026-06-03 — Eye-Aktivierung darf bei spaetem LyrMgr nicht erst den zweiten Klick brauchen
+- **Symptom:** Das Aktivieren eines ausgeschalteten Layers per Auge reagierte teils nicht sofort; erst nach kurzer Wartezeit und erneutem Klick liess sich der Layer einschalten.
+- **Root-Cause:** `toggleLayerEye()` fiel fuer Lazy-Load-Aktivierungen auf `TnetLayerSwitch(layerId, 'on')` zurueck. Wenn `AppManager`/Map oder `LyrMgr` in diesem Moment noch nicht bereit waren, endete der erste Aktivierungsversuch wirkungslos.
+- **Fix:** `TnetLayerSwitch()` merkt sich fehlgeschlagene `on`-Aktivierungen kurzzeitig und versucht denselben Aufruf automatisch erneut, bis Map/LyrMgr verfuegbar sind oder das Retry-Fenster auslaeuft.
+- **Guardrail:** UI-Klicks auf Lazy-Load-Layer duerfen nicht von einem einzelnen Initialisierungs-Moment abhaengen. Wenn der Aktivierungspfad waehrend des Framework-Starts auf noch nicht bereite Manager trifft, muss derselbe Klick nachgezogen statt verworfen werden.
+
+## 2026-06-02 — Bookmark-Dirty darf Opacity nicht als globalen Default vergleichen
+- **Symptom:** Nach URL-Bookmarks erschien der Stern-/Undo-Zustand wegen Deckkraftabweichungen, obwohl fachlich dieselben sichtbaren Layer wie im Bookmark aktiv waren.
+- **Root-Cause:** Die Dirty-Pruefung rekonstruierte Opacity aus Bookmark, View-State und Katalog-Fallbacks. In MAP+ gibt es aber keinen globalen Deckkraft-Default; Opacity ist je Layer definiert und kann in Bookmarks optional ueberschrieben werden.
+- **Fix:** Die Bookmark-Dirty-Pruefung vergleicht vorerst nur noch die Menge der sichtbaren Layer gegen den Bookmark-Default. Opacity und Reihenfolge werden ignoriert.
+- **Guardrail:** Fuer Stern/Undo bei URL-Bookmarks nur sichtbare Layer als Widerspruch werten. `layers=` in der URL beschreibt ausschliesslich sichtbare Layer; Opacity darf ohne belastbaren layerbezogenen Default nicht als Dirty-Kriterium dienen.
+
+## 2026-06-02 — Framework-URL-Refresh muss waehrend URL-Override-Bookmark-Start eingefroren werden
+- **Symptom:** Nach Start von `maps-dev/nw_oereb?...&layers=...&op=0.65` sprang der Permalink nach rund 12 bis 14 Sekunden kurz auf `op=0.7` und erst danach wieder zurueck auf `0.65`.
+- **Root-Cause:** Die spaeten `ClassicLayerMgr.Activate`-/`switchLayersProgr`-Durchlaeufe kamen noch innerhalb des URL-Override-Starts, aber ausserhalb des bisherigen Initial-URL-Guard-Fensters von 8 Sekunden. Dadurch durfte der fruehe History-/Op-Guard zu frueh auslaufen und spaete Framework-Defaults wieder in den Permalink schreiben.
+- **Fix:** Das Initial-URL-Guard-Fenster in Entry-HTML und `tnet-app.js` wurde auf 18 Sekunden verlaengert; der begleitende Op-Stabilisator laeuft passend laenger. Damit bleiben `layers=` und `op=` stabil, bis die spaeten Framework-URL-Rewrites abgeklungen sind.
+- **Guardrail:** Bei URL-Override-Bookmarks die Guard-Dauer am realen Framework-Startup ausrichten, nicht an einem optimistischen Fruehfenster. Wenn spaete Layer-/Tool-Aktivierungen den Permalink noch ueberschreiben koennen, muss der Initial-URL-Guard bis nach diese Phase aktiv bleiben.
+
+## 2026-06-02 — Eye-Toggle darf keinen Voll-Render des Karteninhalts triggern
+- **Symptom:** Beim Umschalten der Augen im Karteninhalt wirkte das Eye instabil bzw. flackernd; gleichzeitig wurde der Permalink auch bei reinen Sichtbarkeitswechseln unnötig stark nachgezogen.
+- **Root-Cause:** `toggleLayerEye()` emittierte neben `layer-visibility` zusätzlich `active-layers-changed`, obwohl sich die Liste der aktiven Themen gar nicht änderte. Der Karteninhalt reagierte dadurch mit einem kompletten `innerHTML`-Rebuild statt nur das betroffene Eye zu aktualisieren.
+- **Fix:** Im Eye-Toggle-Pfad bleibt nur noch `layer-visibility` aktiv. Add/Remove-Operationen emittieren weiter `active-layers-changed`, reine Sichtbarkeitswechsel dagegen nicht mehr.
+- **Guardrail:** Sichtbarkeit und Listenstruktur getrennt behandeln: `layer-visibility` fuer Icon-/Status-Updates, `active-layers-changed` nur wenn Eintraege wirklich hinzukommen, verschwinden oder umsortiert werden.
+
+## 2026-06-03 — Initiale URL-Guards duerfen echte Karteninhalt-Aenderungen nicht mehr ueberschreiben
+- **Symptom:** Nach einer Aenderung im Karteninhalt sprang die URL waehrend mehrerer Sekunden zwischen dem neuen Zustand und dem urspruenglichen Start-`layers=`/`op=` hin und her.
+- **Root-Cause:** Der verlaengerte Initial-URL-Guard schuetzte zwar den Startup, blieb aber auch nach echten Sichtbarkeitswechseln aus dem Karteninhalt aktiv. Dadurch arbeiteten Initial-Guard und spaeterer Bookmark-URL-Sync gegeneinander.
+- **Fix:** Der Bookmark-URL-Sync schaltet die initialen History-/HTML-Guards bei der ersten nicht-`bookmark-init`-Sichtbarkeitsaenderung ab, sobald sie vom urspruenglichen URL-Layerzustand wegfuehrt. Zusaetzlich reagiert der URL-Sync nur noch auf Aenderungen der sichtbaren Layer-Signatur.
+- **Guardrail:** Startup-Guards muessen enden, sobald der User den Karteninhalt real veraendert. Ab diesem Moment ist nicht mehr der initiale Permalink, sondern der aktuelle Runtime-State die Wahrheit.
+
+## 2026-06-02 — Coalesce-Reconcile darf Loading nicht ohne Renderaenderung neu starten
+- **Symptom:** Nach dem Bookmark-Load blieb im Karteninhalt dauerhaft `lädt...`, obwohl der kombinierte `show:`-Layer bereits korrekt sichtbar war.
+- **Root-Cause:** `_forceCoalesceGroupRender()` startete Loading bei jedem Reconcile erneut, auch wenn `LAYERS` und Sichtbarkeit unveraendert waren.
+- **Fix:** Der Coalesce-Gruppenrenderer prueft nun `LAYERS` und Sichtbarkeit idempotent und startet Loading nur noch bei tatsaechlichen Renderaenderungen.
+- **Guardrail:** Reconcile-Funktionen duerfen Ladefeedback nicht als Nebeneffekt jedes Abgleichs starten. Spinner nur bei echten Map-Param-/Visibility-Aenderungen aktivieren.
+
+## 2026-06-02 — URL-Sync darf `op=` nicht aus Reconcile-Events neu berechnen
+- **Symptom:** Nach URL-Bookmarks sprang `op=` im Permalink laufend zwischen Werten wie `0.65` und `0.7`, weil im Hintergrund Store-/Reconcile-Events konkurrierten.
+- **Root-Cause:** Der Live-URL-Sync schrieb `op=` bei `layer-opacity` und `active-layers-changed` immer wieder aus dem aktuellen Runtime-State neu. Automatische Korrekturen und Framework-Defaults konnten dadurch den Permalink gegenseitig überschreiben.
+- **Fix:** Der Bookmark-URL-Sync aktualisiert live nur noch `layers=`. Der urspruengliche URL-`op`-Wert wird beim Bookmark-Start gesichert und stabil gehalten; zusaetzlich faengt ein frueher History-Guard bereits die ersten Framework-`replaceState`-Aufrufe ab. `op=` wird nur entfernt, wenn die Anzahl der Opacity-Werte nicht mehr zur sichtbaren Layerliste passt.
+- **Guardrail:** `op=` nie aus automatischen Reconcile-/Store-Events als Wahrheit neu berechnen. Opacity-Parameter sind optionaler URL-Input, waehrend `layers=` die sichtbare Layerliste beschreibt; fruehe URL-Snapshots muessen spaetere Framework-Rewrites uebersteuern.
+
+## 2026-06-02 — URL-Bookmark muss layers-State live synchronisieren
+- **Symptom:** Reloads von URL-Bookmarks wie `nw_oereb?...&layers=...` schalteten wieder die Bookmark-Defaults ein; nach Augen-Klicks blieb der `layers=`-Permalink ausserdem stale.
+- **Root-Cause:** `startBookmarkFromUrl()` startete den Pfad-Bookmark ohne den vorhandenen `layers=`-Permalink-State an `TnetSetBookmark()` weiterzugeben; spaeteres Lesen war race-anfaellig, weil Framework/Hooks die URL bereits umschreiben koennen. Danach gab es keinen zentralen Runtime-State-zu-URL-Sync fuer Bookmark-Layer.
+- **Fix:** Der Auto-Start sichert den initialen Query-String sofort beim Laden von `tnet-app.js` und uebergibt ihn als Override an den Bookmark-Helper. Der Helper wendet URL-Werte wie `lang`, `basemap`, `blop`, `x`, `y`, `zl`, `hl`, `layers` und `op` vor Bookmark-Defaults an und schreibt nach `layer-visibility`/`layer-opacity`/`active-layers-changed` den effektiven Runtime-State live nach `layers=` und `op=`.
+- **Guardrail:** Bei Pfad-Bookmarks mit Query-State hat der Permalink immer Vorrang vor Bookmark-Defaults. URL-Parameter als User-Anpassung behandeln: Bookmark-Kontext laden, alle vorhandenen URL-Parameter anwenden, Abweichung markieren und danach `layers=` immer aus aktuellem Runtime-/Store-Zustand neu schreiben.
+
+## 2026-06-02 — Karteninhalt und Karte muessen nach Combined-Layer-Aktionen reconciled werden
+- **Symptom:** Der Karteninhalt zeigte Coalesce-/Combined-Sublayer als sichtbar, waehrend der gerenderte ArcGIS-Root-Layer nicht sichtbar war oder nur ein einzelnes `show:N` enthielt; nach Undo wurden Layer erst nach Auge aus/ein wieder dargestellt.
+- **Root-Cause:** OL-Add/Remove-Events fuer dedizierte Sublayer wurden als Wahrheit fuer den Store interpretiert, obwohl derselbe Sublayer weiterhin in einem kombinierten Root-Layer (`LAYERS=show:...`) gerendert werden kann. Zusaetzlich lief der Reconcile teils vor den spaeten Framework-Layer-Manipulationen.
+- **Fix:** Store↔Karte-Reconcile zentral nach `active-layers-changed`, `layer-visibility` und `layer-opacity` anstossen; sichtbare Sublayer serviceweit zu `show:a,b` zusammenfuehren; OL-Remove ignorieren, wenn der Sublayer weiterhin in einem sichtbaren combined Layer gerendert wird.
+- **Guardrail:** Bei ArcGIS-Combined-/Coalesce-Layern darf ein einzelnes OL-Layer-Remove nie automatisch bedeuten, dass der Sublayer fachlich ausgeschaltet ist. Immer gegen den aktuellen Root-`show:`-Parameter und den Store-Sollzustand reconciliieren.
+
+## 2026-06-02 — Stage-Build darf Quellen nie ueberschreiben
+- **Symptom:** Ein Build-Test ohne explizite Roots konnte `maps-dev/tnet/js/` mit minifizierten Artefakten ueberschreiben; zusaetzlich blieb eine `tnet-prod-*.js` Temp-Datei in `js-stage/` liegen.
+- **Root-Cause:** Die Default-Root-Erkennung im Build-Helfer war noch auf alte `js-dev -> js` Rollen ausgelegt und die Stage-Validierung pruefte nur fehlende, nicht aber ueberzaehlige Dateien.
+- **Fix:** Build-Defaults auf `maps-dev/tnet/js -> maps-dev/tnet/js-stage` gesetzt, Output=Input als harten Fehler blockiert und PROD-Promotion auf exakte Source/Stage-Dateimenge gehaertet.
+- **Guardrail:** Stage vor PROD-Promotion immer 1:1 gegen DEV-Originale validieren; Temp-Dateien oder fremde JS-Dateien in `js-stage/` muessen den Release stoppen.
+
+## 2026-06-02 — PROD-Runtime-JS muss aus js-stage kommen
+- **Symptom:** Nach `release-full.bat` wirkten PROD-JS-Dateien teilweise nicht minifiziert/obfuskiert oder konnten durch Promotion wieder als Originale in `maps/tnet/js/` landen.
+- **Root-Cause:** DEV-Originale, PROD-Quellstand und PROD-Runtime nutzten zu lange dieselben Ordnerrollen (`js`, `js_ori`). Der PROD-Release baute/ladete inkrementell und war dadurch vom Upload-State sowie der Reihenfolge aus Promotion und Build abhängig.
+- **Fix:** DEV baut lokal `maps-dev/tnet/js-stage/`; PROD kopiert Originale nach `maps/tnet/js-src/` und Stage-Artefakte nach `maps/tnet/js/`. Full-Release verwendet `--force-js`, damit Runtime-JS nach Stage-Kopie sicher hochgeladen wird.
+- **Guardrail:** PROD-Runtime-JS darf nie direkt aus `maps-dev/tnet/js/` stammen. Standardpfad ist immer `maps-dev/tnet/js` → `maps-dev/tnet/js-stage` → `maps/tnet/js`; lesbare PROD-Quellen liegen in `maps/tnet/js-src`.
+
 ## 2026-06-01 — Deploy-Workflow braucht klare JS-Ordnerrollen
 - **Symptom:** Nach PROD-Updates war unklar, ob `/maps/tnet/js` lesbare DEV-Dateien, DEV-Builds oder minifizierte PROD-Artefakte enthaelt; alte Temp-Dateien `tnet-prod-*.js` lagen im Runtime-Ordner.
 - **Root-Cause:** `js-dev` und `js` wurden gleichzeitig als Quelle, Build-Ziel und Deploy-Signal verwendet. PROD-Promotion kopierte DEV 1:1 nach `maps`, danach wurde derselbe `js`-Ordner ueberschrieben; ein lesbarer PROD-Zwischenstand fehlte.

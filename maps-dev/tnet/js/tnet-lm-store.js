@@ -26,6 +26,7 @@
   var _suppressMapSync = false; // Guard gegen Endlosschleifen Store↔Map
   var _catalogLayerIndex = {};  // { layerId: true } für performante Katalog-Lookups
   var _loadingTimers = {};      // { layerId: { slow, timeout, clearError, keys } }
+  var _consistencyTimer = null;  // Debounce fuer Store↔Karte-Reconcile
 
   // Coalesce: Gruppen-Index (groupNodeId → Info) und Reverse-Lookup (layerId → groupNodeId)
   var _coalesceIndex = {};     // { groupId: { serviceUrl, coalesceGroup, name, childIds: [] } }
@@ -635,12 +636,42 @@
       }
 
       var storeLayer = this.findLayer(lid);
+      if (storeLayer && this._isSublayerRenderedByCombinedLayer(lid, storeLayer)) {
+        if (_config.debug) TnetLog.log(LOG, '_onOLLayerRemove ignoriert, Sublayer bleibt combined gerendert:', lid);
+        return;
+      }
       if (storeLayer && storeLayer.visible) {
         storeLayer.visible = false;
         _activeLayers = _activeLayers.filter(function (l) { return l.id !== lid; });
         this._emit('layer-visibility', { id: lid, visible: false, source: 'map' });
         this._emit('active-layers-changed', _activeLayers);
       }
+    },
+
+    _isSublayerRenderedByCombinedLayer: function (layerId, layer) {
+      var subNum = this._extractSublayerNum(layer || this.findLayer(layerId));
+      var slash = layerId ? layerId.lastIndexOf('/') : -1;
+      var am, map, rendered;
+      if (subNum === null || slash < 0) return false;
+      var servicePrefix = layerId.substring(0, slash + 1);
+      am = this._getAppManager();
+      map = am && am.Maps && am.Maps['main'] && am.Maps['main'].mapObj;
+      if (!map || typeof map.getLayers !== 'function') return false;
+      rendered = false;
+      map.getLayers().forEach(function (olLayer) {
+        if (rendered || !olLayer || !olLayer.get) return;
+        if (olLayer.getLayers && typeof olLayer.getLayers === 'function') return;
+        var name = olLayer.get('name') || '';
+        if (name.indexOf(servicePrefix) !== 0) return;
+        if (typeof olLayer.getVisible === 'function' && !olLayer.getVisible()) return;
+        var src = typeof olLayer.getSource === 'function' ? olLayer.getSource() : null;
+        var params = src && typeof src.getParams === 'function' ? src.getParams() : null;
+        var layersParam = params && (params.LAYERS || params.layers) || '';
+        if (typeof layersParam !== 'string' || layersParam.indexOf('show:') !== 0) return;
+        var values = layersParam.replace(/^show:/, '').split(',').map(function (value) { return value.trim(); });
+        rendered = values.indexOf(String(subNum)) >= 0;
+      });
+      return rendered;
     },
 
     // ============================================================
@@ -926,10 +957,56 @@
       visiblePairs.sort(function (left, right) { return left.order - right.order; });
       var nums = visiblePairs.map(function (pair) { return pair.num; });
       var layersVal = nums.length ? ('show:' + nums.join(',')) : 'show:-1';
+      var wantedNums = {};
+      nums.forEach(function (num) { wantedNums[String(num)] = true; });
+      var bestLayer = renderLayer;
+      var bestScore = -1;
+      map.getLayers().forEach(function (olLayer) {
+        if (!olLayer || !olLayer.get) return;
+        if (olLayer.getLayers && typeof olLayer.getLayers === 'function') return;
+        var name = olLayer.get('name') || '';
+        if (name.indexOf(servicePrefix) !== 0) return;
+        var src = typeof olLayer.getSource === 'function' ? olLayer.getSource() : null;
+        var p = src && typeof src.getParams === 'function' ? src.getParams() : null;
+        var current = p && (p.LAYERS || p.layers) || '';
+        if (typeof current !== 'string' || current.indexOf('show:') !== 0) return;
+        var score = 0;
+        current.replace(/^show:/, '').split(',').forEach(function (value) {
+          if (wantedNums[value.trim()]) score++;
+        });
+        if (score > bestScore) {
+          bestScore = score;
+          bestLayer = olLayer;
+        }
+      });
+      if (bestLayer) renderLayer = bestLayer;
       var source = typeof renderLayer.getSource === 'function' ? renderLayer.getSource() : null;
-      if (source && typeof source.updateParams === 'function') source.updateParams({ LAYERS: layersVal });
-      if (typeof renderLayer.setVisible === 'function') renderLayer.setVisible(nums.length > 0);
-      if (nums.length && visiblePairs[0]) this._beginLayerLoading(visiblePairs[0].id, renderLayer);
+      var params = source && typeof source.getParams === 'function' ? source.getParams() : null;
+      var currentLayers = params && (params.LAYERS || params.layers) || '';
+      var targetVisible = nums.length > 0;
+      var renderChanged = false;
+      if (source && typeof source.updateParams === 'function' && currentLayers !== layersVal) {
+        source.updateParams({ LAYERS: layersVal });
+        renderChanged = true;
+      }
+      if (typeof renderLayer.setVisible === 'function' && renderLayer.getVisible() !== targetVisible) {
+        renderLayer.setVisible(targetVisible);
+        renderChanged = true;
+      }
+      _suppressMapSync = true;
+      map.getLayers().forEach(function (olLayer) {
+        if (!olLayer || !olLayer.get || olLayer === renderLayer) return;
+        var name = olLayer.get('name') || '';
+        if (name.indexOf(servicePrefix) !== 0) return;
+        if (typeof olLayer.setVisible === 'function' && olLayer.getVisible()) olLayer.setVisible(false);
+      });
+      setTimeout(function () { _suppressMapSync = false; }, 200);
+      if (renderChanged && nums.length && visiblePairs[0]) this._beginLayerLoading(visiblePairs[0].id, renderLayer);
+      if (!renderChanged) {
+        for (var loadingIndex = 0; loadingIndex < visiblePairs.length; loadingIndex++) {
+          this._endLayerLoading(visiblePairs[loadingIndex].id, false);
+        }
+      }
 
       TnetLog.log(LOG, 'Coalesce Gruppen-Render reconciled:', groupId, '→', layersVal);
     },
@@ -1145,7 +1222,6 @@
           activeEntry.visible = newVis;
           TnetLog.log(LOG, 'toggleLayerEye WMS:', layerId, '→ visible:', newVis);
           this._emit('layer-visibility', { id: layerId, visible: newVis, source: 'ui' });
-          this._emit('active-layers-changed', _activeLayers);
         }
         return;
       }
@@ -1170,7 +1246,6 @@
           if (activeEntry) activeEntry.visible = fwWant;
           if (!fwWant) this._endLayerLoading(layerId, false);
           this._emit('layer-visibility', { id: layerId, visible: fwWant, source: 'ui' });
-          this._emit('active-layers-changed', _activeLayers);
           TnetLog.log(LOG, 'toggleLayerEye Coalesce via Framework-Combined:', layerId, '→', fwWant);
           return;
         }
@@ -1200,7 +1275,6 @@
             if (activeEntry) activeEntry.visible = fbWant;
             if (!fbWant) this._endLayerLoading(layerId, false);
             this._emit('layer-visibility', { id: layerId, visible: fbWant, source: 'ui' });
-            this._emit('active-layers-changed', _activeLayers);
             TnetLog.log(LOG, 'toggleLayerEye Fallback (Framework-Combined):', layerId, '→', fbWant);
             return;
           }
@@ -1237,7 +1311,6 @@
           if (fbWant) this._beginLayerLoading(layerId, olFb || this._findRenderableOLLayerForLayer(layerId, layer));
           else this._endLayerLoading(layerId, false);
           this._emit('layer-visibility', { id: layerId, visible: fbWant, source: 'ui' });
-          this._emit('active-layers-changed', _activeLayers);
           TnetLog.log(LOG, 'toggleLayerEye Fallback (Framework-OL-Layer):', layerId, '→', fbWant, olFb ? '(geladen)' : '(LazyLoad)');
           return;
         }
@@ -1285,7 +1358,6 @@
         layer.visible = newVisible;
         if (activeEntry) activeEntry.visible = newVisible;
         this._emit('layer-visibility', { id: layerId, visible: newVisible, source: 'ui' });
-        this._emit('active-layers-changed', _activeLayers);
         TnetLog.log(LOG, 'toggleLayerEye Coalesce:', layerId, '→', newVisible);
         return;
       }
@@ -1307,7 +1379,6 @@
         if (activeEntry) activeEntry.visible = !_combinedCur;
         if (_combinedCur) this._endLayerLoading(layerId, false);
         this._emit('layer-visibility', { id: layerId, visible: !_combinedCur, source: 'ui' });
-        this._emit('active-layers-changed', _activeLayers);
         TnetLog.log(LOG, 'toggleLayerEye Combined-Sublayer:', layerId, '→', !_combinedCur);
         return;
       }
@@ -1357,7 +1428,6 @@
         if (newVisible) this._beginLayerLoading(layerId, olLayer);
         else this._endLayerLoading(layerId, false);
         this._emit('layer-visibility', { id: layerId, visible: newVisible, source: 'ui' });
-        this._emit('active-layers-changed', _activeLayers);
       } else {
         // Fallback: Framework-Switch verwenden (synchronisiert Legacy-Checkboxen)
         if (typeof TnetLayerSwitch === 'function') {
@@ -1374,7 +1444,6 @@
           if (newVisible) this._beginLayerLoading(layerId, this._findRenderableOLLayerForLayer(layerId, layer));
           else this._endLayerLoading(layerId, false);
           this._emit('layer-visibility', { id: layerId, visible: newVisible, source: 'ui' });
-          this._emit('active-layers-changed', _activeLayers);
         } else {
           TnetLog.warn(LOG, 'toggleLayerEye: OL-Layer nicht gefunden und TnetLayerSwitch fehlt für', layerId);
         }
@@ -2161,6 +2230,170 @@
     // Events
     // ============================================================
 
+    _scheduleMapConsistencyCheck: function (delay) {
+      var self = this;
+      if (_consistencyTimer) clearTimeout(_consistencyTimer);
+      _consistencyTimer = setTimeout(function () {
+        _consistencyTimer = null;
+        self.reconcileMapConsistency();
+      }, delay == null ? 250 : delay);
+    },
+
+    reconcileMapConsistency: function () {
+      var am = this._getAppManager();
+      var map = am && am.Maps && am.Maps['main'] && am.Maps['main'].mapObj;
+      var coalesceGroups = {};
+      var combinedServices = {};
+      var changed = 0;
+      var self = this;
+      if (!map || typeof map.getLayers !== 'function') return;
+
+      _activeLayers.forEach(function (layer) {
+        var targetVisible, targetOpacity, groupId, allOL, i;
+        if (!layer || !layer.id) return;
+        targetVisible = layer.visible !== false;
+        targetOpacity = (layer.opacity != null && isFinite(layer.opacity))
+          ? Math.max(0, Math.min(1, +layer.opacity))
+          : null;
+
+        if (targetVisible) {
+          var subNum = self._extractSublayerNum(layer);
+          var slash = layer.id.lastIndexOf('/');
+          if (subNum !== null && slash > 0) {
+            var prefix = layer.id.substring(0, slash + 1);
+            if (!combinedServices[prefix]) combinedServices[prefix] = { pairs: [], opacity: targetOpacity };
+            combinedServices[prefix].pairs.push({ id: layer.id, num: subNum, opacity: targetOpacity });
+            if (combinedServices[prefix].opacity === null && targetOpacity !== null) combinedServices[prefix].opacity = targetOpacity;
+            return;
+          }
+        }
+
+        groupId = _layerToCoalesce[layer.id];
+        if (groupId) {
+          coalesceGroups[groupId] = true;
+          return;
+        }
+
+        allOL = self._findAllOLLayers(map, layer.id);
+        if ((!allOL || !allOL.length) && targetVisible && typeof TnetLayerSwitch === 'function') {
+          try { TnetLayerSwitch(layer.id, 'on'); }
+          catch (eSwitch) { /* ignore */ }
+          return;
+        }
+        for (i = 0; allOL && i < allOL.length; i++) {
+          if (typeof allOL[i].setVisible === 'function' && allOL[i].getVisible() !== targetVisible) {
+            allOL[i].setVisible(targetVisible);
+            changed++;
+          }
+          if (targetVisible && targetOpacity !== null && typeof allOL[i].setOpacity === 'function' && Math.abs(allOL[i].getOpacity() - targetOpacity) > 0.0001) {
+            allOL[i].setOpacity(targetOpacity);
+            changed++;
+          }
+        }
+      });
+
+      Object.keys(coalesceGroups).forEach(function (groupId) {
+        self._forceCoalesceGroupRender(groupId, true);
+      });
+
+      Object.keys(combinedServices).forEach(function (prefix) {
+        var service = combinedServices[prefix];
+        var nums = {};
+        var renderLayer = null;
+        var mapLayers = map.getLayers();
+        var rootName = prefix.replace(/\/$/, '');
+        var storeChanged = false;
+        service.pairs.forEach(function (pair) { nums[pair.num] = true; });
+        mapLayers.forEach(function (olLayer) {
+          if (renderLayer || !olLayer || !olLayer.get) return;
+          if (olLayer.getLayers && typeof olLayer.getLayers === 'function') return;
+          var name = olLayer.get('name') || '';
+          if (name !== rootName) return;
+          var src = typeof olLayer.getSource === 'function' ? olLayer.getSource() : null;
+          var params = src && typeof src.getParams === 'function' ? src.getParams() : null;
+          var layersParam = params && (params.LAYERS || params.layers) || '';
+          if (typeof layersParam === 'string' && layersParam.indexOf('show:') === 0) renderLayer = olLayer;
+        });
+        if (!renderLayer) {
+          mapLayers.forEach(function (olLayer) {
+            if (renderLayer || !olLayer || !olLayer.get) return;
+            if (olLayer.getLayers && typeof olLayer.getLayers === 'function') return;
+            var name = olLayer.get('name') || '';
+            if (name.indexOf(prefix) !== 0) return;
+            var src = typeof olLayer.getSource === 'function' ? olLayer.getSource() : null;
+            var params = src && typeof src.getParams === 'function' ? src.getParams() : null;
+            var layersParam = params && (params.LAYERS || params.layers) || '';
+            if (typeof layersParam === 'string' && layersParam.indexOf('show:') === 0) renderLayer = olLayer;
+          });
+        }
+        if (!renderLayer && service.pairs.length) {
+          try {
+            var appManager = self._getAppManager();
+            if (appManager && typeof appManager.setMapBookmark === 'function') {
+              appManager.setMapBookmark(['main'], 'layers=' + service.pairs.map(function(pair) {
+                return pair.id;
+              }).join('|') + '&op=' + service.pairs.map(function(pair) {
+                return pair.opacity != null && isFinite(pair.opacity) ? pair.opacity : '';
+              }).join('|'));
+            } else if (typeof TnetLayerSwitch === 'function') {
+              TnetLayerSwitch(service.pairs[0].id, 'on');
+            }
+            self._scheduleMapConsistencyCheck(900);
+          } catch (eSwitch) { /* ignore */ }
+          return;
+        }
+        if (!renderLayer) return;
+        var ordered = Object.keys(nums).map(Number).sort(function (a, b) { return a - b; });
+        var wantedLayers = ordered.length ? 'show:' + ordered.join(',') : 'show:-1';
+        var source = typeof renderLayer.getSource === 'function' ? renderLayer.getSource() : null;
+        var currentParams = source && typeof source.getParams === 'function' ? source.getParams() : null;
+        var currentLayers = currentParams && (currentParams.LAYERS || currentParams.layers) || '';
+        if (source && typeof source.updateParams === 'function' && currentLayers !== wantedLayers) {
+          source.updateParams({ LAYERS: wantedLayers });
+          changed++;
+        }
+        if (typeof renderLayer.setVisible === 'function' && renderLayer.getVisible() !== (ordered.length > 0)) {
+          renderLayer.setVisible(ordered.length > 0);
+          changed++;
+        }
+        if (service.opacity !== null && typeof renderLayer.setOpacity === 'function' && Math.abs(renderLayer.getOpacity() - service.opacity) > 0.0001) {
+          renderLayer.setOpacity(service.opacity);
+          changed++;
+        }
+        service.pairs.forEach(function (pair) {
+          var activeEntry = self._findActiveLayer(pair.id);
+          var catalogLayer = self.findLayer(pair.id);
+          if (activeEntry) {
+            if (activeEntry.visible === false) { activeEntry.visible = true; storeChanged = true; }
+            if (service.opacity !== null && activeEntry.opacity !== service.opacity) activeEntry.opacity = service.opacity;
+          } else if (catalogLayer) {
+            catalogLayer.visible = true;
+            if (service.opacity !== null) catalogLayer.opacity = service.opacity;
+            _activeLayers.push(catalogLayer);
+            storeChanged = true;
+          }
+          if (catalogLayer && catalogLayer.visible === false) catalogLayer.visible = true;
+          self._endLayerLoading(pair.id, false);
+        });
+        _suppressMapSync = true;
+        mapLayers.forEach(function (olLayer) {
+          if (!olLayer || !olLayer.get || olLayer === renderLayer) return;
+          var name = olLayer.get('name') || '';
+          if (name.indexOf(prefix) !== 0) return;
+          if (typeof olLayer.setVisible === 'function' && olLayer.getVisible()) {
+            olLayer.setVisible(false);
+            changed++;
+          }
+        });
+        setTimeout(function () { _suppressMapSync = false; }, 200);
+        if (storeChanged) {
+          setTimeout(function () { self._emit('active-layers-changed', _activeLayers); }, 0);
+        }
+      });
+
+      if (_config.debug && changed) TnetLog.log(LOG, 'reconcileMapConsistency:', changed, 'OL-Korrekturen');
+    },
+
     /**
      * Event abonnieren. Gibt Unsubscribe-Funktion zurück.
      * Events: 'catalog-loaded', 'layer-visibility', 'layer-opacity',
@@ -2182,6 +2415,9 @@
       (_listeners[event] || []).forEach(function (cb) {
         try { cb(data); } catch (e) { TnetLog.error(LOG, event, e); }
       });
+      if (event === 'active-layers-changed' || event === 'layer-visibility' || event === 'layer-opacity') {
+        this._scheduleMapConsistencyCheck(250);
+      }
     },
 
     _clearLayerLoadingTimers: function (layerId) {

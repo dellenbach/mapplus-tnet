@@ -109,6 +109,60 @@
         })();
     </script>
 
+    <script>
+        (function installInitialBookmarkOpGuard() {
+            try {
+                var params = new URLSearchParams(window.location.search || '');
+                var initialOp = params.get('op') || '';
+                var initialLayers = params.get('layers') || '';
+                var initialLayerCount = initialLayers ? initialLayers.split('|').filter(function(id) { return !!id; }).length : 0;
+                if (!initialOp || window.__tnetInitialBookmarkOpGuardInstalled) return;
+
+                var historyApi = window.history;
+                var guardUntil = Date.now() + 18000;
+                var origReplace = historyApi && historyApi.replaceState;
+                var origPush = historyApi && historyApi.pushState;
+                if (typeof origReplace !== 'function') return;
+
+                window.__tnetInitialBookmarkOpGuardInstalled = true;
+                window.__tnetInitialBookmarkOpGuardEnabled = true;
+
+                function normalize(url) {
+                    if (url == null) return url;
+                    try {
+                        var absolute = new URL(String(url), window.location.href);
+                        var nextParams = absolute.searchParams;
+                        var nextLayers = nextParams.get('layers') || '';
+                        var nextLayerCount = nextLayers ? nextLayers.split('|').filter(function(id) { return !!id; }).length : 0;
+                        var opCount = initialOp.split('|').filter(function(value) { return value !== ''; }).length;
+
+                        if (window.__tnetInitialBookmarkOpGuardEnabled && Date.now() < guardUntil) {
+                            if (initialLayers && initialLayerCount) nextParams.set('layers', initialLayers);
+                            if (initialOp && opCount === initialLayerCount) nextParams.set('op', initialOp);
+                        }
+
+                        return absolute.pathname + (nextParams.toString() ? ('?' + nextParams.toString()) : '') + absolute.hash;
+                    } catch (eUrlGuard) {
+                        return url;
+                    }
+                }
+
+                historyApi.replaceState = function(state, title, url) {
+                    var normalized = normalize(url);
+                    if (normalized === window.location.pathname + window.location.search + window.location.hash) return;
+                    return origReplace.call(this, state, title, normalized);
+                };
+                if (typeof origPush === 'function') {
+                    historyApi.pushState = function(state, title, url) {
+                        var normalized = normalize(url);
+                        if (normalized === window.location.pathname + window.location.search + window.location.hash) return;
+                        return origPush.call(this, state, title, normalized);
+                    };
+                }
+            } catch (eInitOpGuard) { /* ignore */ }
+        })();
+    </script>
+
     <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.12.1/proj4.min.js" crossorigin="anonymous"
         referrerpolicy="no-referrer"></script>
     <script>window.proj4 || document.write('<script src="/mapplus-lib/proj4js/2.12.1/dist/proj4.js">\x3C/script>')</script>

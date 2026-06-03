@@ -31,7 +31,11 @@ maps-dev/core/
 maps-dev/public/config/
 maps-dev/public/guis/
 
-# Build-Artefakte (minifizierte JS) — DEV-Quelle liegt in maps-dev/tnet/js/, PROD-Backup in maps/tnet/js_ori/
+# Build-Artefakte (minifizierte JS) — DEV-Quelle liegt in maps-dev/tnet/js/, PROD-Quellstand in maps/tnet/js-src/
+maps-dev/tnet/js-stage/*.js
+maps-dev/tnet/js-stage/mobile/*.js
+maps-dev/tnet/js-stage/tnet-prod-*.js
+maps-dev/tnet/js-stage/mobile/tnet-prod-*.js
 maps/tnet/js/*.js
 maps/tnet/js/mobile/*.js
 maps/tnet/js/tnet-prod-*.js

@@ -9,6 +9,6 @@ echo  DRY-RUN DEV -- Vorschau (kein Upload)
 echo  Zeigt geaenderte Dateien fuer /www/maps-dev
 echo ============================================
 echo.
-"%MAPPLUS_PYTHON_EXE%" _scripts\deployment\deployengine\upload_changed.py --env dev --dry-run
+"%MAPPLUS_PYTHON_EXE%" _scripts\deployment\deployengine\upload_changed.py --env dev --build-js-stage --dry-run
 echo.
 pause

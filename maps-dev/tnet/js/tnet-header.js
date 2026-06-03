@@ -276,6 +276,8 @@ function installSetMapBookmarkHook() {
         var opacityList = null;
         var requestedName = null;
         var mapParamName = null;
+        window.__tnetLastSetMapBookmarkParams = params;
+        window.__tnetLastSetMapBookmarkAt = Date.now();
         try {
             // Bookmark-Name bevorzugt aus letzter TnetSetBookmark-Anfrage.
             requestedName = window.__tnetLastRequestedBookmark || (window.top && window.top.__tnetLastRequestedBookmark) || null;

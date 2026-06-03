@@ -31,5 +31,3 @@ Beschreibt den pragmatischen Deployment-Pfad für geänderte TNET-Dateien.
 - `_scripts/deployment/deployengine/upload_changed.py`
 - `_scripts/deployment/deployengine/upload_active_file.py`
 - `_scripts/deployment/deployengine/promote_dev_to_prod.py`
-- `_scripts/_upload_helpers.py`
-- `_scripts/_upload_lyrmgr_patch.py`

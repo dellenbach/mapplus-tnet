@@ -36,48 +36,38 @@
 			"problemMatcher": [],
 			"presentation": { "reveal": "always", "panel": "shared" }
 		},
-		{
-			"label": "Deploy DEV: LyrMgr Patch",
-			"type": "shell",
-			"command": "C:/Program Files/Python313/python.exe",
-			"args": [ "_scripts/_upload_lyrmgr_patch.py", "--env", "dev" ],
-			"problemMatcher": [],
-			"presentation": { "reveal": "always", "panel": "shared" }
-		},
-
 		// ── BUILD ──────────────────────────────────────────────────────────────
 
 		{
-			"label": "Build: JS DEV (kein Build, Original-JS)",
-			"type": "shell",
-			"command": "powershell",
-			"args": [ "-NoProfile", "-Command", "Write-Host 'DEV laedt Original-JS direkt aus maps-dev/tnet/js; kein Build erforderlich.'" ],
-			"problemMatcher": [],
-			"presentation": { "reveal": "always", "panel": "shared" }
-		},
-		{
-			"label": "Build: JS PROD (maps, minifiziert)",
+			"label": "Build: JS Stage DEV (Clean Rebuild)",
 			"type": "shell",
 			"command": "C:/Program Files/Python313/python.exe",
-			"args": [ "_scripts/build/build_js.py", "--mode", "prod", "--src-root", "maps/tnet/js_ori", "--out-root", "maps/tnet/js", "--rebuild-all" ],
+			"args": [ "_scripts/build/build_js.py", "--mode", "prod", "--src-root", "maps-dev/tnet/js", "--out-root", "maps-dev/tnet/js-stage", "--rebuild-all" ],
 			"problemMatcher": [],
 			"presentation": { "reveal": "always", "panel": "shared" }
 		},
-
 		// ── PROD ───────────────────────────────────────────────────────────────
 
 		{
-			"label": "PROD: Sync maps-dev to maps (local robocopy)",
+			"label": "PROD: Promote maps-dev to maps (Dry-Run)",
 			"type": "shell",
-			"command": "robocopy",
-			"args": [ "maps-dev", "maps", "/E", "/NFL", "/NDL", "/NJH", "/NJS", "/NP", "/R:1", "/W:1" ],
+			"command": "C:/Program Files/Python313/python.exe",
+			"args": [ "_scripts/deployment/deployengine/promote_dev_to_prod.py", "--dry-run" ],
 			"problemMatcher": [],
 			"presentation": { "reveal": "always", "panel": "shared" }
 		},
 		{
-			"label": "Deploy PROD: Upload Changed Files",
+			"label": "Deploy PROD: Release Full (Hash)",
 			"type": "shell",
 			"command": "_scripts/deployment/deploy-prod/release-full.bat",
+			"args": [],
+			"problemMatcher": [],
+			"presentation": { "reveal": "always", "panel": "shared" }
+		},
+		{
+			"label": "Deploy PROD: Release Full (Clean Rebuild)",
+			"type": "shell",
+			"command": "_scripts/deployment/deploy-prod/release-full-rebuild.bat",
 			"args": [],
 			"problemMatcher": [],
 			"presentation": { "reveal": "always", "panel": "shared" }
@@ -98,15 +88,6 @@
 			"problemMatcher": [],
 			"presentation": { "reveal": "always", "panel": "shared" }
 		},
-		{
-			"label": "Deploy PROD: LyrMgr Patch",
-			"type": "shell",
-			"command": "C:/Program Files/Python313/python.exe",
-			"args": [ "_scripts/_upload_lyrmgr_patch.py", "--env", "prod" ],
-			"problemMatcher": [],
-			"presentation": { "reveal": "always", "panel": "shared" }
-		},
-
 		// ── CONFIG ─────────────────────────────────────────────────────────────
 		// CORE (layers_*.conf, NLS):   primaer ueber SLM (slm.html)!
 		// Core-Fallback / Massen-Upload -> upload_core_config.py
@@ -205,9 +186,17 @@
 			"presentation": { "reveal": "always", "panel": "shared" }
 		},
 		{
-			"label": "Release: Promote DEV to PROD (local robocopy + SFTP)",
+			"label": "Release: Promote DEV to PROD (Hash + SFTP)",
 			"type": "shell",
 			"command": "_scripts/deployment/deploy-prod/release-full.bat",
+			"args": [],
+			"problemMatcher": [],
+			"presentation": { "reveal": "always", "panel": "shared" }
+		},
+		{
+			"label": "Release: Promote DEV to PROD (Clean Rebuild + SFTP)",
+			"type": "shell",
+			"command": "_scripts/deployment/deploy-prod/release-full-rebuild.bat",
 			"args": [],
 			"problemMatcher": [],
 			"presentation": { "reveal": "always", "panel": "shared" }

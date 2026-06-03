@@ -577,6 +577,10 @@ function _resolveActiveBookmarkView(cfg, viewId) {
 // bei jedem URL-Schreibvorgang wieder anhaengen (bzw. beim Wechsel zur
 // Default-View entfernen).
 var _viewUrlGuardInstalled = false;
+var _bookmarkUrlSyncInstalled = false;
+var _bookmarkUrlSyncInstallTimer = null;
+var _bookmarkUrlSyncTimer = null;
+var _bookmarkUrlSyncSignature = null;
 
 /**
  * Liefert die aktuell zu persistierende (nicht-default) View-Id oder null.
@@ -625,6 +629,42 @@ function _ensureViewInUrlString(url) {
   return _stripOrSetView(String(url), _getActiveViewIdForUrl());
 }
 
+function _getActiveBookmarkForUrlGuard() {
+  var bookmark = window.__tnetActiveBookmark || null;
+  if (!bookmark && window.top && window.top !== window) {
+    try { bookmark = window.top.__tnetActiveBookmark || null; } catch (eTopBm) { bookmark = null; }
+  }
+  return bookmark;
+}
+
+function _ensureBookmarkOpInUrlString(url) {
+  var bookmark = _getActiveBookmarkForUrlGuard();
+  var next = url == null ? '' : String(url);
+  var originalOp = bookmark && bookmark._options && bookmark._options.originalOp
+    ? String(bookmark._options.originalOp)
+    : '';
+  var visibleLayers = [];
+  var currentOp = '';
+
+  if (!next || !bookmark || !(bookmark._options && bookmark._options.urlOverride)) return next;
+
+  try {
+    var absolute = new URL(next, window.location.href);
+    visibleLayers = (absolute.searchParams.get('layers') || '').split('|').filter(function(id) { return !!id; });
+    currentOp = absolute.searchParams.get('op') || '';
+    if (!originalOp && window.__tnetOriginalUrlOp) originalOp = String(window.__tnetOriginalUrlOp || '');
+
+    next = absolute.pathname + absolute.search + absolute.hash;
+    if (originalOp) {
+      next = _setRawQueryParam(next, 'op', (visibleLayers.length && originalOp.split('|').length === visibleLayers.length) ? originalOp : '');
+    } else if (currentOp && currentOp.split('|').length !== visibleLayers.length) {
+      next = _setRawQueryParam(next, 'op', '');
+    }
+  } catch (eUrlGuard) { /* ignore */ }
+
+  return next;
+}
+
 /**
  * history.replaceState/pushState einmalig kapseln (idempotent).
  */
@@ -636,13 +676,19 @@ function _installViewUrlGuard() {
   var origPush = hist.pushState;
   hist.replaceState = function (state, title, url) {
     var u = url;
-    try { u = _ensureViewInUrlString(url); } catch (e) { u = url; }
+    try {
+      u = _ensureViewInUrlString(url);
+      u = _ensureBookmarkOpInUrlString(u);
+    } catch (e) { u = url; }
     return origReplace.call(this, state, title, u);
   };
   if (typeof origPush === 'function') {
     hist.pushState = function (state, title, url) {
       var u = url;
-      try { u = _ensureViewInUrlString(url); } catch (e) { u = url; }
+      try {
+        u = _ensureViewInUrlString(url);
+        u = _ensureBookmarkOpInUrlString(u);
+      } catch (e) { u = url; }
       return origPush.call(this, state, title, u);
     };
   }
@@ -674,18 +720,267 @@ function _setActiveViewForUrl(activeView, requestedViewId) {
   } catch (e2) { /* ignore */ }
 }
 
+function _setRawQueryParam(url, key, value) {
+  var hashIdx = url.indexOf('#');
+  var hash = hashIdx >= 0 ? url.slice(hashIdx) : '';
+  var base = hashIdx >= 0 ? url.slice(0, hashIdx) : url;
+  var qIdx = base.indexOf('?');
+  var path = qIdx >= 0 ? base.slice(0, qIdx) : base;
+  var query = qIdx >= 0 ? base.slice(qIdx + 1) : '';
+  var parts = query ? query.split('&') : [];
+  var kept = [];
+
+  for (var i = 0; i < parts.length; i++) {
+    if (!parts[i]) continue;
+    if (parts[i].indexOf(key + '=') === 0) continue;
+    kept.push(parts[i]);
+  }
+  if (value != null && value !== '') kept.push(key + '=' + value);
+  return path + (kept.length ? '?' + kept.join('&') : '') + hash;
+}
+
+function _syncBookmarkLayersToUrl() {
+  var bookmark = window.__tnetActiveBookmark;
+  if (!bookmark || !Array.isArray(bookmark.layers)) return;
+
+  _mergeStoreLayersIntoActiveBookmark();
+
+  var visibleIds = [];
+  var seen = {};
+
+  bookmark.layers.forEach(function(layer) {
+    if (!layer || !layer.id || layer.visible === false) return;
+    if (seen[layer.id]) return;
+    seen[layer.id] = true;
+    visibleIds.push(layer.id);
+  });
+
+  bookmark._options = bookmark._options || {};
+  bookmark._options.visibleLayerIds = visibleIds.slice();
+  _bookmarkUrlSyncSignature = visibleIds.join('|');
+
+  try {
+    var hist = (window.top && window.top.history) ? window.top.history : window.history;
+    var loc = (window.top && window.top.location) ? window.top.location : window.location;
+    if (!hist || typeof hist.replaceState !== 'function' || !loc) return;
+
+    var startupFreeze = !!(
+      bookmark._options && bookmark._options.urlOverride &&
+      bookmark._loadUntil && Date.now() < bookmark._loadUntil &&
+      (!visibleIds.length || (bookmark._options.originalVisibleLayerIds && visibleIds.length < bookmark._options.originalVisibleLayerIds.length))
+    );
+    if (startupFreeze) return;
+
+    var next = loc.pathname + loc.search + loc.hash;
+    var originalOp = bookmark._options && bookmark._options.originalOp ? String(bookmark._options.originalOp) : '';
+    var currentOp = '';
+    try {
+      currentOp = new URL(loc.href).searchParams.get('op') || '';
+    } catch (eUrl) { currentOp = ''; }
+    if (!originalOp && window.__tnetOriginalUrlOp) originalOp = String(window.__tnetOriginalUrlOp || '');
+    next = _setRawQueryParam(next, 'layers', visibleIds.join('|'));
+    if (originalOp) {
+      var originalOpCount = originalOp.split('|').length;
+      next = _setRawQueryParam(next, 'op', (visibleIds.length && originalOpCount === visibleIds.length) ? originalOp : '');
+    } else if (currentOp) {
+      var currentOpCount = currentOp.split('|').length;
+      if (!visibleIds.length || currentOpCount !== visibleIds.length) {
+        next = _setRawQueryParam(next, 'op', '');
+      }
+    }
+    if (next !== loc.pathname + loc.search + loc.hash) {
+      hist.replaceState(null, '', next);
+    }
+  } catch (eUrlSync) { /* URL-Sync ist defensiv */ }
+}
+
+function _getBookmarkUrlSyncSignature() {
+  var bookmark = window.__tnetActiveBookmark;
+  var visibleIds = [];
+  var seen = {};
+  if (!bookmark || !Array.isArray(bookmark.layers)) return '';
+
+  bookmark.layers.forEach(function(layer) {
+    if (!layer || !layer.id || layer.visible === false || seen[layer.id]) return;
+    seen[layer.id] = true;
+    visibleIds.push(layer.id);
+  });
+
+  return visibleIds.join('|');
+}
+
+function _getInitialBookmarkUrlLayersSignature() {
+  var initialSignature = '';
+  try {
+    initialSignature = String(window.__tnetInitialUrlLayers || '');
+  } catch (eWinInitial) { initialSignature = ''; }
+  if (!initialSignature) {
+    try {
+      if (window.top && window.top !== window) initialSignature = String(window.top.__tnetInitialUrlLayers || '');
+    } catch (eTopInitial) { initialSignature = ''; }
+  }
+  if (!initialSignature) {
+    try {
+      initialSignature = String(window.__tnetInitialUrlQuery ? new URLSearchParams(window.__tnetInitialUrlQuery).get('layers') || '' : '');
+    } catch (eQueryInitial) { initialSignature = ''; }
+  }
+  return initialSignature;
+}
+
+function _disableInitialBookmarkUrlGuards() {
+  function disableOnScope(scope) {
+    if (!scope) return;
+    try { scope.__tnetInitialOpHistoryGuardEnabled = false; } catch (eHistGuard) { /* ignore */ }
+    try { scope.__tnetInitialBookmarkOpGuardEnabled = false; } catch (eBookmarkGuard) { /* ignore */ }
+    try { if (scope.__tnetInitialUrlGuardUntil) scope.__tnetInitialUrlGuardUntil = Date.now(); } catch (eGuardUntil) { /* ignore */ }
+  }
+
+  disableOnScope(window);
+  try {
+    if (window.top && window.top !== window) disableOnScope(window.top);
+  } catch (eTopScope) { /* cross-origin */ }
+}
+
+function _maybeDisableInitialBookmarkUrlGuards(evt) {
+  var source = evt && evt.source ? String(evt.source) : '';
+  var nextSignature = _getBookmarkUrlSyncSignature();
+  var initialSignature = _getInitialBookmarkUrlLayersSignature();
+  if (!nextSignature || !initialSignature || nextSignature === initialSignature) return;
+  if (source === 'bookmark-init') return;
+  _disableInitialBookmarkUrlGuards();
+}
+
+function _scheduleBookmarkLayersUrlSyncIfChanged() {
+  var nextSignature = _getBookmarkUrlSyncSignature();
+  if (nextSignature === _bookmarkUrlSyncSignature) return;
+  _scheduleBookmarkLayersUrlSync();
+}
+
+function _scheduleBookmarkLayersUrlSync() {
+  if (!_bookmarkUrlSyncInstalled) _installBookmarkUrlSync();
+  if (_bookmarkUrlSyncTimer) clearTimeout(_bookmarkUrlSyncTimer);
+  _bookmarkUrlSyncTimer = setTimeout(function() {
+    _bookmarkUrlSyncTimer = null;
+    _syncBookmarkLayersToUrl();
+  }, 120);
+}
+
+function _findRuntimeBookmarkLayer(layerId) {
+  var bookmark = window.__tnetActiveBookmark;
+  if (!bookmark || !Array.isArray(bookmark.layers) || !layerId) return null;
+  for (var i = 0; i < bookmark.layers.length; i++) {
+    if (bookmark.layers[i] && bookmark.layers[i].id === layerId) return bookmark.layers[i];
+  }
+  return null;
+}
+
+function _mergeStoreLayersIntoActiveBookmark() {
+  var bookmark = window.__tnetActiveBookmark;
+  var store = window.TnetLMStore;
+  var activeLayers = store && typeof store.getActiveLayers === 'function'
+    ? store.getActiveLayers()
+    : [];
+  var byId = {};
+
+  if (!bookmark || !Array.isArray(bookmark.layers) || !activeLayers || !activeLayers.length) return;
+
+  if (bookmark._replaceVisibleFromStoreUntil && Date.now() < bookmark._replaceVisibleFromStoreUntil) {
+    bookmark.layers.forEach(function(layer) {
+      if (layer && layer.id) layer.visible = false;
+    });
+  }
+
+  bookmark.layers.forEach(function(layer) {
+    if (layer && layer.id) byId[layer.id] = layer;
+  });
+
+  activeLayers.forEach(function(layer) {
+    var copy, key;
+    if (!layer || !layer.id) return;
+    if (byId[layer.id]) {
+      if (layer.visible !== undefined) byId[layer.id].visible = !!layer.visible;
+      if (layer.opacity != null && isFinite(layer.opacity)) byId[layer.id].opacity = +layer.opacity;
+      return;
+    }
+    copy = {};
+    for (key in layer) {
+      if (!Object.prototype.hasOwnProperty.call(layer, key)) continue;
+      if (key.charAt(0) === '_') continue;
+      copy[key] = layer[key];
+    }
+    copy.id = layer.id;
+    copy.name = copy.name || layer.id;
+    copy.visible = layer.visible !== false;
+    if (copy.opacity == null || !isFinite(copy.opacity)) copy.opacity = 1;
+    bookmark.layers.push(copy);
+    byId[layer.id] = copy;
+  });
+}
+
+function _installBookmarkUrlSync() {
+  var store = window.TnetLMStore;
+  if (_bookmarkUrlSyncInstalled || !store || typeof store.on !== 'function') return;
+  if (_bookmarkUrlSyncInstallTimer) {
+    clearTimeout(_bookmarkUrlSyncInstallTimer);
+    _bookmarkUrlSyncInstallTimer = null;
+  }
+
+  store.on('layer-visibility', function(evt) {
+    var layerId = evt && (evt.id || evt.layerId);
+    var runtimeLayer = _findRuntimeBookmarkLayer(layerId);
+    if (!runtimeLayer || !evt || !('visible' in evt)) return;
+    runtimeLayer.visible = !!evt.visible;
+    _maybeDisableInitialBookmarkUrlGuards(evt);
+    _scheduleBookmarkLayersUrlSyncIfChanged();
+  });
+
+  store.on('layer-opacity', function(evt) {
+    var layerId = evt && (evt.id || evt.layerId);
+    var runtimeLayer = _findRuntimeBookmarkLayer(layerId);
+    if (!runtimeLayer || !evt || evt.opacity == null || !isFinite(evt.opacity)) return;
+    runtimeLayer.opacity = Math.max(0, Math.min(1, +evt.opacity));
+  });
+
+  store.on('active-layers-changed', function() {
+    _mergeStoreLayersIntoActiveBookmark();
+    _scheduleBookmarkLayersUrlSyncIfChanged();
+  });
+
+  _bookmarkUrlSyncInstalled = true;
+}
+
+function _ensureBookmarkUrlSyncInstalled() {
+  if (_bookmarkUrlSyncInstalled) return;
+  _installBookmarkUrlSync();
+  if (_bookmarkUrlSyncInstalled || _bookmarkUrlSyncInstallTimer) return;
+  _bookmarkUrlSyncInstallTimer = setTimeout(function() {
+    _bookmarkUrlSyncInstallTimer = null;
+    _ensureBookmarkUrlSyncInstalled();
+  }, 200);
+}
+
 /**
  * Berechnet die Soll-Sichtbarkeit aller Layer:
  *  Default = cfg.layers[i].visible (oder true bei v1-Strings)
  *  Übersteuert von activeView.layerStates[id].visible (falls vorhanden)
  * @param {Object} cfg
  * @param {Object|null} activeView
+ * @param {Object|null} options
  * @returns {Object<string, boolean>}
  */
-function _computeBookmarkVisibility(cfg, activeView) {
+function _computeBookmarkVisibility(cfg, activeView, options) {
   var result = {};
   var layers = (cfg && cfg.layers) || [];
   var states = (activeView && activeView.layerStates) || null;
+  var explicitVisible = null;
+
+  if (options && options.visibleLayerIds && options.visibleLayerIds.length) {
+    explicitVisible = {};
+    options.visibleLayerIds.forEach(function(layerId) {
+      var normalized = String(layerId || '').replace(/^[-\s]+/, '').trim();
+      if (normalized) explicitVisible[normalized] = true;
+    });
+  }
 
   layers.forEach(function(l) {
     if (!l) return;
@@ -702,6 +997,9 @@ function _computeBookmarkVisibility(cfg, activeView) {
       var ov = states[id];
       if (ov && 'visible' in ov) visible = !!ov.visible;
     }
+    if (explicitVisible) {
+      visible = !!explicitVisible[id];
+    }
     result[id] = visible;
   });
   return result;
@@ -715,19 +1013,31 @@ function _copyOwnProps(target, source) {
   return target;
 }
 
-function _buildBookmarkRuntimeLayers(cfg, activeView) {
-  var visibilityMap = _computeBookmarkVisibility(cfg, activeView);
+function _buildBookmarkRuntimeLayers(cfg, activeView, options) {
+  var visibilityMap = _computeBookmarkVisibility(cfg, activeView, options);
   var store = window.TnetLMStore;
+  var explicitIds = (options && options.visibleLayerIds && options.visibleLayerIds.length)
+    ? options.visibleLayerIds.map(function(id) { return String(id || '').replace(/^[-\s]+/, '').trim(); }).filter(function(id) { return !!id; })
+    : [];
+  var explicitOpacity = {};
   var previous = window.__tnetActiveBookmark && Array.isArray(window.__tnetActiveBookmark.layers)
     ? window.__tnetActiveBookmark.layers
     : [];
   var prevById = {};
+  var runtimeById = {};
 
   previous.forEach(function(layer) {
     if (layer && layer.id) prevById[layer.id] = layer;
   });
 
-  return ((cfg && cfg.layers) || []).map(function(entry, index) {
+  if (options && options.opacityValues && options.opacityValues.length) {
+    explicitIds.forEach(function(layerId, index) {
+      var op = Number(options.opacityValues[index]);
+      if (isFinite(op)) explicitOpacity[layerId] = Math.max(0, Math.min(1, op));
+    });
+  }
+
+  var runtimeLayers = ((cfg && cfg.layers) || []).map(function(entry, index) {
     var spec = (entry && typeof entry === 'object') ? entry : { id: String(entry || '') };
     var layerId = spec.id || '';
     var catalogLayer = (store && typeof store.findLayer === 'function' && layerId)
@@ -747,6 +1057,9 @@ function _buildBookmarkRuntimeLayers(cfg, activeView) {
     runtimeLayer.visible = Object.prototype.hasOwnProperty.call(visibilityMap, layerId)
       ? !!visibilityMap[layerId]
       : (runtimeLayer.visible !== false);
+    if (Object.prototype.hasOwnProperty.call(explicitOpacity, layerId)) {
+      runtimeLayer.opacity = explicitOpacity[layerId];
+    }
 
     if (runtimeLayer.opacity == null || !isFinite(runtimeLayer.opacity)) {
       // Kein expliziter Bookmark-Wert → Layer-Config-Default (options.opacity) bevorzugen,
@@ -760,9 +1073,29 @@ function _buildBookmarkRuntimeLayers(cfg, activeView) {
     runtimeLayer.order = (runtimeLayer.order != null && isFinite(runtimeLayer.order))
       ? +runtimeLayer.order
       : index;
-
+    runtimeById[layerId] = runtimeLayer;
     return runtimeLayer;
-  }).filter(function(layer) { return !!layer; });
+
+  }).filter(function(layer) { return !!(layer && layer.id); });
+
+  explicitIds.forEach(function(layerId) {
+    var catalogLayer, previousLayer, runtimeLayer;
+    if (runtimeById[layerId]) return;
+    catalogLayer = (store && typeof store.findLayer === 'function') ? store.findLayer(layerId) : null;
+    previousLayer = prevById[layerId] || null;
+    runtimeLayer = {};
+    _copyOwnProps(runtimeLayer, catalogLayer || {});
+    _copyOwnProps(runtimeLayer, previousLayer || {});
+    runtimeLayer.id = layerId;
+    runtimeLayer.name = runtimeLayer.name || layerId.split('/').pop() || layerId;
+    runtimeLayer.visible = true;
+    if (Object.prototype.hasOwnProperty.call(explicitOpacity, layerId)) runtimeLayer.opacity = explicitOpacity[layerId];
+    if (runtimeLayer.opacity == null || !isFinite(runtimeLayer.opacity)) runtimeLayer.opacity = 1;
+    runtimeLayers.push(runtimeLayer);
+    runtimeById[layerId] = runtimeLayer;
+  });
+
+  return runtimeLayers;
 }
 
 function _emitActiveBookmarkEvent(eventName, reason) {
@@ -997,9 +1330,35 @@ function _clearThematicLayersBeforeBookmark() {
   }
 }
 
-function _buildBookmarkParams(cfg, visibilityMap) {
+function _buildBookmarkParams(cfg, visibilityMap, options) {
   var parts = [];
-  if (cfg.basemap)                          parts.push('basemap=' + cfg.basemap);
+  var urlParams = null;
+  try {
+    urlParams = (options && options.urlQuery) ? new URLSearchParams(options.urlQuery) : null;
+  } catch (eUrlParams) { urlParams = null; }
+
+  function getUrlOverride(key) {
+    if (!urlParams || !urlParams.has(key)) return null;
+    return urlParams.get(key);
+  }
+
+  function addParam(key, value) {
+    if (value === null || value === undefined || value === '') return;
+    parts.push(key + '=' + encodeURIComponent(String(value)));
+  }
+
+  function valueOrNull(value) {
+    return (value === null || value === undefined || value === '') ? null : value;
+  }
+
+  function addBookmarkOrUrlParam(key, bookmarkValue) {
+    var urlValue = getUrlOverride(key);
+    addParam(key, urlValue !== null ? urlValue : bookmarkValue);
+  }
+
+  addBookmarkOrUrlParam('lang', null);
+  addBookmarkOrUrlParam('basemap', valueOrNull(cfg.basemap));
+  addBookmarkOrUrlParam('blop', valueOrNull(cfg.blop));
 
   // Layer-Liste mit paralleler Opacity aufbauen:
   //  - v1: cfg.opacity ist Array paralleler Werte zur Layer-Liste
@@ -1008,6 +1367,18 @@ function _buildBookmarkParams(cfg, visibilityMap) {
   var v1Opacity = (cfg.opacity && cfg.opacity.length) ? cfg.opacity : null;
 
   var entries = [];
+  var urlOverrideIds = (options && options.visibleLayerIds && options.visibleLayerIds.length)
+    ? options.visibleLayerIds.map(function(id) { return String(id || '').replace(/^[-\s]+/, '').trim(); }).filter(function(id) { return !!id; })
+    : [];
+  var urlOverrideOp = {};
+
+  if (options && options.opacityValues && options.opacityValues.length) {
+    urlOverrideIds.forEach(function(layerId, index) {
+      var opValue = Number(options.opacityValues[index]);
+      if (isFinite(opValue)) urlOverrideOp[layerId] = Math.max(0, Math.min(1, opValue));
+    });
+  }
+
   rawLayers.forEach(function (l, idx) {
     var id, op;
     if (l && typeof l === 'object') { id = l.id; op = (l.opacity != null) ? l.opacity : ''; }
@@ -1017,7 +1388,20 @@ function _buildBookmarkParams(cfg, visibilityMap) {
     if (v1Opacity && (op === '' || op == null)) {
       op = (v1Opacity[idx] != null ? v1Opacity[idx] : '');
     }
+    if (Object.prototype.hasOwnProperty.call(urlOverrideOp, id)) {
+      op = urlOverrideOp[id];
+    }
     entries.push({ id: id, op: op });
+  });
+
+  urlOverrideIds.forEach(function(layerId) {
+    var exists = entries.some(function(entry) { return entry.id === layerId; });
+    if (!exists) {
+      entries.push({
+        id: layerId,
+        op: Object.prototype.hasOwnProperty.call(urlOverrideOp, layerId) ? urlOverrideOp[layerId] : ''
+      });
+    }
   });
 
   // BRIDGE: Nur SICHTBARE Layer an das Framework geben. Das Framework kennt im
@@ -1050,16 +1434,55 @@ function _buildBookmarkParams(cfg, visibilityMap) {
     }
   }
 
-  if (cfg.theme)                            parts.push('theme='   + cfg.theme);
-  if (cfg.subtheme)                         parts.push('subtheme='+ cfg.subtheme);
+  addBookmarkOrUrlParam('theme', valueOrNull(cfg.theme));
+  addBookmarkOrUrlParam('subtheme', valueOrNull(cfg.subtheme));
 
   // Viewport: v1 flach (cfg.x/y/zoom), v2 verschachtelt (cfg.viewport.x/y/zoom).
   var vp = (cfg.viewport && typeof cfg.viewport === 'object') ? cfg.viewport : cfg;
-  if (vp.x && vp.y) {
-    parts.push('x=' + vp.x, 'y=' + vp.y);
-    if (vp.zoom) parts.push('zl=' + vp.zoom);
-  }
+  addBookmarkOrUrlParam('x', valueOrNull(vp.x));
+  addBookmarkOrUrlParam('y', valueOrNull(vp.y));
+  addBookmarkOrUrlParam('zl', valueOrNull(vp.zoom != null ? vp.zoom : cfg.zl));
+  addBookmarkOrUrlParam('hl', valueOrNull(cfg.hl));
   return parts.join('&');
+}
+
+function _applyUrlOverrideOpacity(options) {
+  var ids = options && options.visibleLayerIds;
+  var values = options && options.opacityValues;
+  var store = window.TnetLMStore;
+  if (!ids || !values || !ids.length || !values.length) return;
+
+  ids.forEach(function(layerId, index) {
+    var id = String(layerId || '').replace(/^[-\s]+/, '').trim();
+    var opacity = Number(values[index]);
+    if (!id || !isFinite(opacity)) return;
+    opacity = Math.max(0, Math.min(1, opacity));
+
+    if (window.__tnetActiveBookmark && Array.isArray(window.__tnetActiveBookmark.layers)) {
+      window.__tnetActiveBookmark.layers.forEach(function(layer) {
+        if (layer && layer.id === id) layer.opacity = opacity;
+      });
+    }
+
+    if (store && typeof store.setLayerOpacity === 'function') {
+      try {
+        var catalogLayer = (typeof store.findLayer === 'function') ? store.findLayer(id) : null;
+        var previousCatalogOpacity = catalogLayer && catalogLayer.opacity;
+        var hadCatalogOpacity = !!(catalogLayer && catalogLayer.opacity !== undefined);
+        store.setLayerOpacity(id, opacity);
+        if (catalogLayer) {
+          if (hadCatalogOpacity) catalogLayer.opacity = previousCatalogOpacity;
+          else delete catalogLayer.opacity;
+        }
+      }
+      catch (eStoreOp) { /* defensiv: Runtime-State bleibt trotzdem gesetzt */ }
+    }
+  });
+
+  if (store && typeof store.reconcileMapConsistency === 'function') {
+    try { setTimeout(function() { store.reconcileMapConsistency(); }, 300); }
+    catch (eReconcile) { /* ignore */ }
+  }
 }
 
 /**
@@ -1072,12 +1495,13 @@ function _buildBookmarkParams(cfg, visibilityMap) {
 // View-only Switch: gleiches Bookmark, nur Visibility-Diff pro Layer anwenden.
 // Kein removeAllLayers, kein setMapBookmark — Layer-Stack im TOC bleibt erhalten,
 // nur die OL-Layer-Sichtbarkeit (und LMStore-State) wird umgeschaltet.
-function _applyViewSwitchOnly(cfg, viewId) {
+function _applyViewSwitchOnly(cfg, viewId, options) {
   var activeView   = _resolveActiveBookmarkView(cfg, viewId || null);
   // View-URL-Persistenz auch beim reinen View-Wechsel aktualisieren
   // (Dropdown: setzt view= bzw. entfernt es beim Zurück zur Default-View).
   _setActiveViewForUrl(activeView, viewId || null);
-  var visibilityMap = _computeBookmarkVisibility(cfg, activeView);
+  _ensureBookmarkUrlSyncInstalled();
+  var visibilityMap = _computeBookmarkVisibility(cfg, activeView, options || null);
 
   var am  = (window.top && window.top.njs && window.top.njs.AppManager)
             ? window.top.njs.AppManager
@@ -1130,8 +1554,9 @@ function _applyViewSwitchOnly(cfg, viewId) {
   TnetLog.log('[TnetSetBookmark] View-Switch nur Visibility:', viewId || '(none)', changed + ' Layer geändert');
   if (window.__tnetActiveBookmark) {
     window.__tnetActiveBookmark.activeViewId = activeView ? activeView.id : null;
-    var newRuntime = _buildBookmarkRuntimeLayers(cfg, activeView);
+    var newRuntime = _buildBookmarkRuntimeLayers(cfg, activeView, options || null);
     window.__tnetActiveBookmark.layers = newRuntime;
+    window.__tnetActiveBookmark._options = options || null;
     // Store (Karteninhalt) mit der Soll-Sichtbarkeit der neuen View neu
     // aufbauen — deckt auch externe Layer ab, die im Store korrekt aktiv +
     // sichtbar gesetzt werden müssen (aktives Auge, Ein-Klick-Toggle).
@@ -1145,14 +1570,14 @@ function _applyViewSwitchOnly(cfg, viewId) {
   return { success: true, bookmarkId: cfg.id, viewId: activeView ? activeView.id : null, viewSwitchOnly: true };
 }
 
-function _applyBookmark(cfg, bookmarkId, viewId) {
+function _applyBookmark(cfg, bookmarkId, viewId, options) {
   // View-only Switch erkennen: gleiches Bookmark (id übereinstimmt), nur viewId anders
   var prev = window.__tnetActiveBookmark;
   if (prev && prev.id === bookmarkId && prev._cfg) {
     var prevViewId = prev.activeViewId || null;
     var newViewIdCheck = viewId || null;
     if (prevViewId !== newViewIdCheck) {
-      var res = _applyViewSwitchOnly(cfg, newViewIdCheck);
+      var res = _applyViewSwitchOnly(cfg, newViewIdCheck, options || prev._options || null);
       if (res.success) {
         prev.activeViewId = newViewIdCheck;
         if (window.TnetLMStore && typeof window.TnetLMStore._emit === 'function') {
@@ -1168,15 +1593,15 @@ function _applyBookmark(cfg, bookmarkId, viewId) {
   // View-URL-Persistenz aktivieren: aktives (nicht-default) view= in der URL
   // halten, auch nachdem das Framework die Permalink-URL neu schreibt.
   _setActiveViewForUrl(activeView, viewId || null);
-  var visibilityMap = _computeBookmarkVisibility(cfg, activeView);
-  var runtimeLayers = _buildBookmarkRuntimeLayers(cfg, activeView);
+  var visibilityMap = _computeBookmarkVisibility(cfg, activeView, options || null);
+  var runtimeLayers = _buildBookmarkRuntimeLayers(cfg, activeView, options || null);
 
   // BRIDGE: Nur die SICHTBAREN Bookmark-Layer in den Framework-Aufruf — so
   // laedt das Framework ausschliesslich das, was sichtbar sein soll (mit
   // korrekter Opacity), ohne Show-then-Hide-Flicker. Die unsichtbaren Layer
   // werden weiter unten rein logisch im Karteninhalt registriert
   // (loadActiveLayersFromBookmark) und erst bei Bedarf materialisiert.
-  var params = _buildBookmarkParams(cfg, visibilityMap);
+  var params = _buildBookmarkParams(cfg, visibilityMap, options || null);
   var layerIds = _normalizeBookmarkLayerIds(cfg.layers || []);
 
   var ensureToken;
@@ -1210,8 +1635,12 @@ function _applyBookmark(cfg, bookmarkId, viewId) {
     // Sublayer anzeigen, dann wieder ausblenden). Deckt das Ensure-Fenster
     // (bis 6000ms) plus Framework-Retry-Marge ab.
     _loadUntil:   Date.now() + 8000,
-    _cfg:         cfg
+    _urlOverrideFreezeUntil: (options && options.urlOverride) ? Date.now() + 16000 : 0,
+    _replaceVisibleFromStoreUntil: (options && options.urlOverride) ? 0 : Date.now() + 5000,
+    _cfg:         cfg,
+    _options:     options || null
   };
+  _bookmarkUrlSyncSignature = null;
   _emitActiveBookmarkEvent('tnet-bookmark-loaded', 'apply-start');
 
   _clearThematicLayersBeforeBookmark();
@@ -1227,7 +1656,25 @@ function _applyBookmark(cfg, bookmarkId, viewId) {
   // Layer nachgeladen (Lazy-Load in setLayerEye/toggleLayerEye).
   try {
     if (window.TnetLMStore && typeof window.TnetLMStore.loadActiveLayersFromBookmark === 'function') {
+      var isUrlOverrideStart = !!(options && options.urlOverride);
       window.TnetLMStore.loadActiveLayersFromBookmark(runtimeLayers);
+      _ensureBookmarkUrlSyncInstalled();
+      _applyUrlOverrideOpacity(options || null);
+      setTimeout(function() { _applyUrlOverrideOpacity(options || null); }, 700);
+      _scheduleBookmarkLayersUrlSync();
+      setTimeout(_scheduleBookmarkLayersUrlSync, 600);
+      setTimeout(_scheduleBookmarkLayersUrlSync, 1800);
+      if (!isUrlOverrideStart) {
+        setTimeout(_scheduleBookmarkLayersUrlSync, 5600);
+        setTimeout(_scheduleBookmarkLayersUrlSync, 12500);
+      }
+      if (typeof window.TnetLMStore.reconcileMapConsistency === 'function') {
+        setTimeout(function() { window.TnetLMStore.reconcileMapConsistency(); }, 2500);
+        if (!isUrlOverrideStart) {
+          setTimeout(function() { window.TnetLMStore.reconcileMapConsistency(); }, 7000);
+          setTimeout(function() { window.TnetLMStore.reconcileMapConsistency(); }, 12000);
+        }
+      }
     }
   } catch (eLoadToc) {
     TnetLog.warn('[TnetSetBookmark] loadActiveLayersFromBookmark fehlgeschlagen:', eLoadToc && eLoadToc.message ? eLoadToc.message : eLoadToc);
@@ -1256,9 +1703,10 @@ function _applyBookmark(cfg, bookmarkId, viewId) {
  *
  * @param {string} bookmarkId - ID oder Alias des Bookmarks
  * @param {string|null} [viewId] - optionale Kartenansicht (Schema v2: views[].id)
+ * @param {Object|null} [options] - optionale Startoptionen, z.B. { visibleLayerIds: [...] }
  * @returns {Promise<{success: boolean, bookmarkId?: string, viewId?: string|null, params?: string, error?: string}>}
  */
-function TnetSetBookmark(bookmarkId, viewId) {
+function TnetSetBookmark(bookmarkId, viewId, options) {
   // Wenn der Aufruf aus dem Karten-Dialog-iframe kommt, die eigentliche
   // Bookmark-Logik im Top-Window ausführen. Sonst wird das iframe beim
   // Dialog-Close entladen und der laufende Request abgebrochen.
@@ -1269,7 +1717,7 @@ function TnetSetBookmark(bookmarkId, viewId) {
       window.top.__tnetLastRequestedBookmark = bookmarkId;
       window.top.__tnetLastRequestedBookmarkAt = requestTs;
     } catch (eTopReq) { /* ignore */ }
-    return window.top.TnetSetBookmark(bookmarkId, viewId);
+    return window.top.TnetSetBookmark(bookmarkId, viewId, options || null);
   }
 
   window.__tnetLastRequestedBookmark = bookmarkId;
@@ -1306,7 +1754,7 @@ function TnetSetBookmark(bookmarkId, viewId) {
   }
 
   return TnetApi.getBookmark(bookmarkId)
-    .then(function(cfg) { return _applyBookmark(cfg, bookmarkId, viewId || null); })
+    .then(function(cfg) { return _applyBookmark(cfg, bookmarkId, viewId || null, options || null); })
     .catch(function(err) {
       TnetLog.error('[TnetSetBookmark] Fehler:', err);
       if (fallbackDirectMapBookmark()) {
@@ -1333,6 +1781,30 @@ function TnetSetBookmark(bookmarkId, viewId) {
  */
 function TnetLayerSwitch(layerId, mode) {
   mode = mode || 'toggle';
+  var retryStore = window.__tnetLayerSwitchRetryState || (window.__tnetLayerSwitchRetryState = {});
+
+  function scheduleOnRetry() {
+    var key = String(layerId || '');
+    var state = retryStore[key] || { attempts: 0, timer: null };
+    if (!key) return false;
+    if (state.timer || state.attempts >= 8) return true;
+
+    state.attempts += 1;
+    state.timer = setTimeout(function() {
+      state.timer = null;
+      TnetLayerSwitch(layerId, mode);
+    }, 250);
+    retryStore[key] = state;
+    return true;
+  }
+
+  function clearRetryState() {
+    var key = String(layerId || '');
+    var state = retryStore[key];
+    if (!state) return;
+    if (state.timer) clearTimeout(state.timer);
+    delete retryStore[key];
+  }
 
   var am = (window.njs && window.njs.AppManager)
            ? window.njs.AppManager
@@ -1342,6 +1814,7 @@ function TnetLayerSwitch(layerId, mode) {
 
   if (!am || !am.Maps || !am.Maps['main'] || !am.Maps['main'].mapObj) {
     TnetLog.warn('[TnetLayerSwitch] AppManager oder Map nicht verfügbar');
+    if (mode === 'on') scheduleOnRetry();
     return false;
   }
 
@@ -1370,6 +1843,7 @@ function TnetLayerSwitch(layerId, mode) {
 
   if (shouldTurnOn) {
     if (found) {
+      clearRetryState();
       // Layer existiert bereits im Stack → sichtbar machen
       found.setVisible(true);
       TnetLog.log('[TnetLayerSwitch] Layer eingeblendet:', layerId);
@@ -1434,6 +1908,7 @@ function TnetLayerSwitch(layerId, mode) {
         }
       }
       if (targetLyrMgr && typeof targetLyrMgr.switchLayersProgr === 'function') {
+        clearRetryState();
         targetLyrMgr.switchLayersProgr(layerId, null, true);
         TnetLog.log('[TnetLayerSwitch] Layer via LyrMgr.switchLayersProgr geladen:', layerId);
       } else {
@@ -1451,8 +1926,10 @@ function TnetLayerSwitch(layerId, mode) {
         }
         if (!anyMgr) {
           TnetLog.warn('[TnetLayerSwitch] LyrMgr nicht verfügbar für:', layerId);
+          scheduleOnRetry();
           return false;
         }
+        clearRetryState();
         TnetLog.log('[TnetLayerSwitch] Layer via Fallback (alle LyrMgr) versucht:', layerId);
       }
     }

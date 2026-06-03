@@ -19,31 +19,37 @@ $Desktop       = $WShell.SpecialFolders("Desktop")
 $Shortcuts = @(
     @{
         Name    = "Deploy DEV"
-        Target  = "$WorkspaceRoot\_scripts\deploy-dev\deploy-dev.bat"
+        Target  = "$WorkspaceRoot\_scripts\deployment\deploy-dev\deploy-dev.bat"
         Icon    = "%SystemRoot%\System32\shell32.dll,23"
         Desc    = "Geaenderte Dateien aus maps-dev nach /www/maps-dev hochladen"
     },
     @{
         Name    = "Dry-Run DEV"
-        Target  = "$WorkspaceRoot\_scripts\deploy-dev\deploy-dev-dryrun.bat"
+        Target  = "$WorkspaceRoot\_scripts\deployment\deploy-dev\deploy-dev-dryrun.bat"
         Icon    = "%SystemRoot%\System32\shell32.dll,23"
         Desc    = "Vorschau: Welche DEV-Dateien wuerden hochgeladen?"
     },
     @{
-        Name    = "PROD Release"
-        Target  = "$WorkspaceRoot\_scripts\deploy-prod\release-full.bat"
+        Name    = "PROD Release (Hash)"
+        Target  = "$WorkspaceRoot\_scripts\deployment\deploy-prod\release-full.bat"
         Icon    = "%SystemRoot%\System32\shell32.dll,131"
-        Desc    = "Promote + Build + Upload: maps-dev nach /www/maps"
+        Desc    = "Promote + Hash-Build + Upload: maps-dev nach /www/maps"
+    },
+    @{
+        Name    = "PROD Release (Clean Build)"
+        Target  = "$WorkspaceRoot\_scripts\deployment\deploy-prod\release-full-rebuild.bat"
+        Icon    = "%SystemRoot%\System32\shell32.dll,131"
+        Desc    = "Promote + kompletter JS-Rebuild + Upload: maps-dev nach /www/maps"
     },
     @{
         Name    = "Dry-Run PROD Release"
-        Target  = "$WorkspaceRoot\_scripts\deploy-prod\release-dryrun.bat"
+        Target  = "$WorkspaceRoot\_scripts\deployment\deploy-prod\release-dryrun.bat"
         Icon    = "%SystemRoot%\System32\shell32.dll,131"
         Desc    = "Vorschau: Was wuerden Promote + Upload veraendern?"
     },
     @{
         Name    = "Git Commit (nach PROD)"
-        Target  = "$WorkspaceRoot\_scripts\deploy-prod\git-commit.bat"
+        Target  = "$WorkspaceRoot\_scripts\deployment\deploy-prod\git-commit.bat"
         Icon    = "%SystemRoot%\System32\shell32.dll,146"
         Desc    = "Source-Dateien stagen und committen (ohne Build-Output)"
     }

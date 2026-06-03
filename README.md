@@ -31,18 +31,18 @@ Hinweis: Der Sync-Task nutzt bewusst `robocopy /E` und löscht keine Dateien im 
 CLI-Alternative:
 
 ```powershell
-& "C:/Program Files/Python313/python.exe" "_scripts/deployment/_promote_dev_to_prod.py" --dry-run --deploy-prod
-& "C:/Program Files/Python313/python.exe" "_scripts/deployment/_promote_dev_to_prod.py" --deploy-prod
+& "C:/Program Files/Python313/python.exe" "_scripts/deployment/deployengine/promote_dev_to_prod.py" --dry-run --deploy-prod
+& "C:/Program Files/Python313/python.exe" "_scripts/deployment/deployengine/promote_dev_to_prod.py" --deploy-prod
 ```
 
 Optional kann mit `--mirror` statt `/E` eine harte 1:1-Spiegelung inklusive Löschungen in `maps/` erzwungen werden.
 
 Für Batch-Workflows stehen ausserdem diese Wrapper bereit:
 
-- `_scripts/deploy-dev/deploy-active-file.bat <datei>`
-- `_scripts/deploy-prod/deploy-active-file.bat <datei>`
+- `_scripts/deployment/deploy-dev/deploy-active-file.bat <datei>`
+- `_scripts/deployment/deploy-prod/deploy-active-file.bat <datei>`
 
-PROD-Builds laufen dabei über den zentralen JS-Build mit Minify + Obfuscation. Für den GitHub-Pfad kann `_scripts/deploy-prod/git-commit.bat` vor dem Staging direkt den lokalen Abgleich `maps-dev -> maps` ausführen.
+PROD-Releases laufen standardmaessig mit Hash-Cache ueber `_scripts/deployment/deploy-prod/release-full.bat`. Fuer einen kompletten JS-Neubuild gibt es `_scripts/deployment/deploy-prod/release-full-rebuild.bat`. Für den GitHub-Pfad kann `_scripts/deployment/deploy-prod/git-commit.bat` vor dem Staging direkt den lokalen Abgleich `maps-dev -> maps` ausführen.
 
 ## Testen
 

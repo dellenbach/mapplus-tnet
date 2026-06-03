@@ -542,7 +542,7 @@ Wird von `applyBasemapFromUrl()` in `tnet-basemap.js` ausgewertet.
 
 ## Deployment
 
-Upload über das Spezialskript `_scripts/_upload_basemap_js.py`:
+Upload ueber die Standard-Deploywege: Einzeldateien mit `deploy-active-file.bat`, geaenderte Dateien mit `deploy-dev.bat` bzw. `release-full.bat`, kompletter JS-Neubuild bei Bedarf mit `release-full-rebuild.bat`, Config-Dateien bewusst ueber die Config-/Core-Deployengine.
 
 | Datei | Remote-Pfad |
 |---|---|
