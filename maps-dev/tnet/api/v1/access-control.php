@@ -57,7 +57,7 @@ function getDefaultConfig() {
         ],
         'blocked_ips' => [],
         'endpoints' => [
-            'restricted_html' => ['ags-import', 'slm', 'tree-builder', 'dev-test', 'tree-test'],
+            'restricted_html' => ['ags-import', 'slm', 'tree-builder', 'dev-test', 'tree-test', 'prod-sync'],
             'restricted_php' => ['admin', 'migrate', '_migrate_ags_import', 'treebuilder-api'],
             'restricted_with_ip_html' => [],
             'restricted_with_ip_php' => [],

@@ -268,6 +268,204 @@ try {
             echo json_encode(['success' => true, 'imported' => $imported], JSON_PRETTY_PRINT);
         }
 
+    } elseif ($action === 'prod-to-dev-sync' || $action === 'prod-to-dev-no-bookmarks') {
+        // Selektiver Schema-Sync PROD -> DEV (mapplusconf -> mapplusconf_dev).
+        // Legacy-Alias: prod-to-dev-no-bookmarks = Default-Gruppen ohne Bookmarks.
+        $scriptName = str_replace('\\', '/', $_SERVER['SCRIPT_NAME'] ?? '');
+        if (strpos($scriptName, '/maps-dev/') !== 0) {
+            echo json_encode([
+                'success' => false,
+                'error'   => 'Diese Action ist nur in maps-dev erlaubt.'
+            ], JSON_PRETTY_PRINT);
+            exit;
+        }
+
+        $cfgFile = __DIR__ . '/../includes/db_config.php';
+        if (!file_exists($cfgFile)) {
+            echo json_encode(['success' => false, 'error' => 'db_config.php nicht gefunden'], JSON_PRETTY_PRINT);
+            exit;
+        }
+        $cfg = require $cfgFile;
+
+        $body = [];
+        if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
+            $rawBody = file_get_contents('php://input');
+            $body = json_decode($rawBody ?: '', true);
+            if (!is_array($body)) $body = [];
+        }
+
+        $groupMap = [
+            'layer-base' => ['profile', 'category_mapping', 'layer_definition', 'layer_maptip', 'nls_resource'],
+            'catalog'    => ['catalog_node', 'catalog_document', 'catalog_document_history', 'catalog_lock'],
+            'imports'    => ['import_log', 'ags_import_history'],
+            'bookmarks'  => ['bookmark', 'bookmark_history', 'bookmark_lock', 'bookmark_meta'],
+        ];
+        $defaultGroups = ['layer-base', 'catalog', 'imports'];
+
+        $requestedGroups = [];
+        if ($action === 'prod-to-dev-no-bookmarks') {
+            $requestedGroups = $defaultGroups;
+        } else {
+            $rawGroups = $body['groups'] ?? [];
+            if (!is_array($rawGroups) || count($rawGroups) === 0) {
+                $requestedGroups = $defaultGroups;
+            } else {
+                foreach ($rawGroups as $g) {
+                    $k = strtolower(trim((string)$g));
+                    if (isset($groupMap[$k])) $requestedGroups[$k] = $k;
+                }
+                $requestedGroups = array_values($requestedGroups);
+                if (count($requestedGroups) === 0) $requestedGroups = $defaultGroups;
+            }
+        }
+
+        $requestedTables = [];
+        foreach ($requestedGroups as $g) {
+            foreach ($groupMap[$g] as $t) {
+                $requestedTables[$t] = $t;
+            }
+        }
+        $requestedTables = array_values($requestedTables);
+
+        $rawPdo = new \PDO(
+            sprintf('pgsql:host=%s;port=%s;dbname=%s', $cfg['host'], $cfg['port'], $cfg['dbname']),
+            $cfg['user'],
+            $cfg['password'],
+            [
+                \PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION,
+                \PDO::ATTR_DEFAULT_FETCH_MODE => \PDO::FETCH_ASSOC,
+                \PDO::ATTR_EMULATE_PREPARES => false,
+            ]
+        );
+
+        $srcSchema = 'mapplusconf';
+        $dstSchema = 'mapplusconf_dev';
+
+        $quoteIdent = function ($name) {
+            return '"' . str_replace('"', '""', (string)$name) . '"';
+        };
+
+        $rawPdo->beginTransaction();
+        try {
+            $tblStmt = $rawPdo->prepare(
+                "SELECT p.tablename
+                 FROM pg_tables p
+                 JOIN pg_tables d ON d.tablename = p.tablename
+                 WHERE p.schemaname = :src
+                   AND d.schemaname = :dst
+                 ORDER BY p.tablename"
+            );
+            $tblStmt->execute(['src' => $srcSchema, 'dst' => $dstSchema]);
+            $commonTables = array_map(function ($r) { return $r['tablename']; }, $tblStmt->fetchAll());
+            $commonMap = array_fill_keys($commonTables, true);
+
+            $tables = array_values(array_filter($requestedTables, function ($t) use ($commonMap) {
+                return isset($commonMap[$t]);
+            }));
+
+            if (count($tables) === 0) {
+                throw new \RuntimeException('Keine passenden Tabellen für den Sync gefunden.');
+            }
+
+            $quotedTables = array_map(function ($t) use ($quoteIdent, $dstSchema) {
+                return $quoteIdent($dstSchema) . '.' . $quoteIdent($t);
+            }, $tables);
+            $rawPdo->exec('TRUNCATE TABLE ' . implode(', ', $quotedTables) . ' RESTART IDENTITY CASCADE');
+
+            $copiedTables = [];
+            $skippedTables = [];
+
+            foreach ($tables as $t) {
+                $colStmt = $rawPdo->prepare(
+                    "SELECT table_schema, column_name, ordinal_position
+                     FROM information_schema.columns
+                     WHERE table_name = :table
+                       AND table_schema IN (:src, :dst)
+                     ORDER BY table_schema, ordinal_position"
+                );
+                $colStmt->execute(['table' => $t, 'src' => $srcSchema, 'dst' => $dstSchema]);
+                $rows = $colStmt->fetchAll();
+
+                $srcCols = [];
+                $dstCols = [];
+                foreach ($rows as $r) {
+                    if ($r['table_schema'] === $srcSchema) $srcCols[] = $r['column_name'];
+                    if ($r['table_schema'] === $dstSchema) $dstCols[$r['column_name']] = true;
+                }
+
+                $commonCols = array_values(array_filter($srcCols, function ($c) use ($dstCols) {
+                    return isset($dstCols[$c]);
+                }));
+
+                if (count($commonCols) === 0) {
+                    $skippedTables[] = ['table' => $t, 'reason' => 'Keine gemeinsamen Spalten'];
+                    continue;
+                }
+
+                $colList = implode(', ', array_map($quoteIdent, $commonCols));
+                $sqlCopy = 'INSERT INTO ' . $quoteIdent($dstSchema) . '.' . $quoteIdent($t)
+                         . ' (' . $colList . ') '
+                         . 'SELECT ' . $colList . ' FROM ' . $quoteIdent($srcSchema) . '.' . $quoteIdent($t);
+                $rawPdo->exec($sqlCopy);
+                $copiedTables[] = $t;
+            }
+
+            foreach ($copiedTables as $t) {
+                $colStmt = $rawPdo->prepare(
+                    "SELECT column_name
+                     FROM information_schema.columns
+                     WHERE table_schema = :schema
+                       AND table_name = :table
+                       AND column_default LIKE 'nextval(%'
+                     ORDER BY ordinal_position"
+                );
+                $colStmt->execute(['schema' => $dstSchema, 'table' => $t]);
+                $idCols = array_map(function ($r) { return $r['column_name']; }, $colStmt->fetchAll());
+
+                foreach ($idCols as $col) {
+                    $seqStmt = $rawPdo->prepare("SELECT pg_get_serial_sequence(:tbl, :col) AS seq");
+                    $seqStmt->execute(['tbl' => $dstSchema . '.' . $t, 'col' => $col]);
+                    $seq = $seqStmt->fetchColumn();
+                    if (!$seq) continue;
+
+                    $qCol = $quoteIdent($col);
+                    $qTbl = $quoteIdent($dstSchema) . '.' . $quoteIdent($t);
+                    $sqlSetval = "SELECT setval(:seq, COALESCE((SELECT MAX($qCol) FROM $qTbl), 0), COALESCE((SELECT MAX($qCol) FROM $qTbl), 0) > 0)";
+                    $svStmt = $rawPdo->prepare($sqlSetval);
+                    $svStmt->execute(['seq' => $seq]);
+                }
+            }
+
+            $mismatches = [];
+            foreach ($copiedTables as $t) {
+                $srcCnt = (int)$rawPdo->query('SELECT COUNT(*) FROM ' . $quoteIdent($srcSchema) . '.' . $quoteIdent($t))->fetchColumn();
+                $dstCnt = (int)$rawPdo->query('SELECT COUNT(*) FROM ' . $quoteIdent($dstSchema) . '.' . $quoteIdent($t))->fetchColumn();
+                if ($srcCnt !== $dstCnt) {
+                    $mismatches[] = ['table' => $t, 'src' => $srcCnt, 'dst' => $dstCnt];
+                }
+            }
+
+            if (!empty($mismatches)) {
+                throw new \RuntimeException('Count-Mismatch nach Import: ' . json_encode($mismatches));
+            }
+
+            $rawPdo->commit();
+
+            echo json_encode([
+                'success' => true,
+                'message' => 'PROD -> DEV Sync abgeschlossen.',
+                'groups' => $requestedGroups,
+                'requestedTables' => $requestedTables,
+                'copiedTables' => $copiedTables,
+                'skippedTables' => $skippedTables,
+            ], JSON_PRETTY_PRINT);
+        } catch (\Throwable $e) {
+            if ($rawPdo->inTransaction()) {
+                $rawPdo->rollBack();
+            }
+            throw $e;
+        }
+
     } else {
         echo json_encode(['success' => false, 'error' => 'Unbekannte Aktion: ' . $action]);
     }

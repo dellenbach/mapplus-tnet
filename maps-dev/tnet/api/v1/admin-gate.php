@@ -14,7 +14,7 @@ require_once __DIR__ . '/../includes/AdminAuth.php';
 
 // ===== ERLAUBTE SEITEN =====
 $allowedPages = [
-    'slm', 'ags-import', 'tree-builder', 'dev-test', 'tree-test'
+    'slm', 'ags-import', 'tree-builder', 'dev-test', 'tree-test', 'prod-sync'
 ];
 
 $page = isset($_GET['page']) ? $_GET['page'] : '';
