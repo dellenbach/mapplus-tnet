@@ -15,6 +15,7 @@
  */
 
 require_once __DIR__ . '/../api/includes/BookmarkNormalizer.php';
+require_once __DIR__ . '/../api/includes/ConfigSource.php';
 
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
@@ -24,26 +25,46 @@ class BookmarkService {
     private static $jsonFile = __DIR__ . '/../data/map-bookmarks-all.json';
 
     /**
-     * Laedt Bookmarks aus JSON (Roh - keine Normalisierung).
+     * Laedt Bookmarks aus DB (configSource=db) oder JSON-Datei (Roh - keine Normalisierung).
+     * Bei DB-Ausfall wird (sofern fallbackToFiles aktiv) auf die Datei zurueckgefallen.
      */
     private static function loadBookmarks() {
-        if (self::$bookmarks === null) {
-            if (!file_exists(self::$jsonFile)) {
-                self::$bookmarks = [];
-                return self::$bookmarks;
-            }
-
-            $json = file_get_contents(self::$jsonFile);
-            $parsed = json_decode($json, true);
-
-            if (json_last_error() !== JSON_ERROR_NONE) {
-                error_log('Bookmark JSON Parse Error: ' . json_last_error_msg());
-                self::$bookmarks = [];
-                return self::$bookmarks;
-            }
-
-            self::$bookmarks = is_array($parsed) ? $parsed : [];
+        if (self::$bookmarks !== null) {
+            return self::$bookmarks;
         }
+
+        // DB-first
+        if (ConfigSource::useDb('bookmarks')) {
+            require_once __DIR__ . '/../api/includes/BookmarkRepository.php';
+            try {
+                $bm = BookmarkRepository::loadAll();
+                self::$bookmarks = is_array($bm['data']) ? $bm['data'] : [];
+                return self::$bookmarks;
+            } catch (\Throwable $e) {
+                if (!ConfigSource::fallbackEnabled()) {
+                    self::$bookmarks = [];
+                    return self::$bookmarks;
+                }
+                error_log('bookmark-service: DB-Fallback auf Datei: ' . $e->getMessage());
+                // weiter mit Datei-Logik
+            }
+        }
+
+        if (!file_exists(self::$jsonFile)) {
+            self::$bookmarks = [];
+            return self::$bookmarks;
+        }
+
+        $json = file_get_contents(self::$jsonFile);
+        $parsed = json_decode($json, true);
+
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            error_log('Bookmark JSON Parse Error: ' . json_last_error_msg());
+            self::$bookmarks = [];
+            return self::$bookmarks;
+        }
+
+        self::$bookmarks = is_array($parsed) ? $parsed : [];
 
         return self::$bookmarks;
     }

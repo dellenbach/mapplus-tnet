@@ -7362,6 +7362,46 @@ var _bmLoaded = false;    // wurde bereits geladen?
 var _bmAllLayerKeys = [];  // alle verfügbaren Layer-Keys (für Autocomplete / Validierung)
 var _bmLayersLoaded = false;
 
+// ---- Concurrency / Optimistic Locking (Staging-DB) --------------------
+var _bmRevision = null;    // zuletzt geladene Sammlungs-Revision (Optimistic-Lock-Token)
+var _bmSource = 'files';   // 'db' oder 'files' (vom Server gemeldet)
+
+// Liefert/merkt den Bearbeiternamen (fuer updated_by + Soft-Lock).
+function bmGetUser() {
+  var u = '';
+  try { u = localStorage.getItem('slmBookmarkUser') || ''; } catch (e) {}
+  if (!u) {
+    u = window.prompt('Ihr Name/Kürzel (für gleichzeitiges Bearbeiten):', '') || '';
+    u = u.trim();
+    if (u) { try { localStorage.setItem('slmBookmarkUser', u); } catch (e) {} }
+  }
+  return u || 'unbekannt';
+}
+
+// Zeigt/aktualisiert den Soft-Lock-Hinweis im Bookmarks-Tab.
+function bmRenderLockBanner(lock) {
+  var host = document.getElementById('bm-status');
+  if (!host) return;
+  var banner = document.getElementById('bm-lock-banner');
+  var me = '';
+  try { me = localStorage.getItem('slmBookmarkUser') || ''; } catch (e) {}
+  if (lock && lock.by && lock.by !== me) {
+    if (!banner) {
+      banner = document.createElement('div');
+      banner.id = 'bm-lock-banner';
+      banner.style.cssText = 'margin:6px 0;padding:8px 12px;border-radius:8px;background:#5a3a12;'
+        + 'color:#ffd9a0;border:1px solid #7a5018;font:13px/1.4 sans-serif;';
+      host.parentNode.insertBefore(banner, host.nextSibling);
+    }
+    banner.textContent = '⚠ Wird aktuell von "' + lock.by + '" bearbeitet (Soft-Lock). '
+      + 'Gleichzeitiges Speichern kann zu Konflikten führen.';
+    banner.style.display = 'block';
+  } else if (banner) {
+    banner.style.display = 'none';
+  }
+}
+
+
 // ---- Schema-v2 Helper -------------------------------------------------
 // Layer kann v1-String ODER v2-Objekt sein. Liefert die Layer-ID.
 function bmLayerId(l) {
@@ -7941,9 +7981,17 @@ function loadBookmarks() {
       if (res.success && Array.isArray(res.data)) {
         _bmData = res.data;
         _bmLoaded = true;
+        _bmRevision = (typeof res.revision !== 'undefined') ? res.revision : null;
+        _bmSource = res.source || 'files';
         renderBookmarkTable(_bmData);
-        status.textContent = '✓ ' + _bmData.length + ' Bookmarks geladen';
+        status.textContent = '✓ ' + _bmData.length + ' Bookmarks geladen'
+          + (_bmSource === 'db' ? ' (DB, Rev. ' + _bmRevision + ')' : '');
         status.className = 'bm-status success';
+        // Soft-Lock-Hinweis anzeigen + eigenen Soft-Lock setzen (nur DB-Modus)
+        if (_bmSource === 'db') {
+          bmRenderLockBanner(res.lock || null);
+          bmAcquireLock();
+        }
       } else {
         status.textContent = 'Fehler: ' + (res.error || 'Unbekannt');
         status.className = 'bm-status error';
@@ -7954,6 +8002,40 @@ function loadBookmarks() {
       status.className = 'bm-status error';
     });
 }
+
+// Setzt den eigenen Soft-Lock (DB-Modus). Bei Fremd-Lock Banner anzeigen.
+function bmAcquireLock() {
+  fetch('treebuilder-api.php?action=bookmarks-lock', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ user: bmGetUser() })
+  })
+    .then(function(r) { return r.json(); })
+    .then(function(res) {
+      if (res && res.locked === false && res.by) {
+        bmRenderLockBanner({ by: res.by, lockedAt: res.lockedAt, expiresAt: res.expiresAt });
+      } else {
+        bmRenderLockBanner(null);
+      }
+    })
+    .catch(function() {});
+}
+
+// Gibt den eigenen Soft-Lock frei (z.B. beim Verlassen der Seite).
+function bmReleaseLock() {
+  if (_bmSource !== 'db') return;
+  try {
+    var body = JSON.stringify({ user: bmGetUser() });
+    if (navigator.sendBeacon) {
+      navigator.sendBeacon('treebuilder-api.php?action=bookmarks-unlock', body);
+    } else {
+      fetch('treebuilder-api.php?action=bookmarks-unlock', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body, keepalive: true
+      });
+    }
+  } catch (e) {}
+}
+window.addEventListener('beforeunload', bmReleaseLock);
 
 function renderBookmarkTable(bookmarks) {
   var tbody = document.getElementById('bm-tbody');
@@ -8557,18 +8639,47 @@ function saveBookmarks() {
     status.textContent = 'Speichere ' + data.length + ' Bookmarks…';
     status.className = 'bm-status';
 
-    // 1. PHP: Server-Datei speichern
+    // Body: im DB-Modus mit Revision (Optimistic Lock) + Bearbeiter; sonst Legacy-Array.
+    var saveBody = (_bmSource === 'db')
+      ? JSON.stringify({ bookmarks: data, revision: _bmRevision, user: bmGetUser() })
+      : JSON.stringify(data);
+
+    // 1. PHP: Server-Datei/DB speichern
     fetch('treebuilder-api.php?action=bookmarks-save', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data)
+      body: saveBody
     })
-    .then(function(r) { return r.json(); })
-    .then(function(res) {
+    .then(function(r) { return r.json().then(function(j) { return { status: r.status, body: j }; }); })
+    .then(function(env) {
+      var res = env.body || {};
+
+      // Versionskonflikt (HTTP 409): jemand anderes hat zwischenzeitlich gespeichert.
+      if (env.status === 409 && res.conflict) {
+        status.textContent = '⚠ Versionskonflikt — Server-Stand ist neuer';
+        status.className = 'bm-status error';
+        var ok = window.confirm(
+          'Konflikt: Die Bookmarks wurden zwischenzeitlich von jemand anderem gespeichert (Server-Rev. '
+          + res.revision + ').\n\n'
+          + 'OK = Server-Stand laden (Ihre Änderungen verwerfen)\n'
+          + 'Abbrechen = Ihre Eingaben behalten (nicht gespeichert)');
+        if (ok && Array.isArray(res.serverData)) {
+          _bmData = res.serverData;
+          _bmRevision = res.revision;
+          _bmLoaded = true;
+          renderBookmarkTable(_bmData);
+          status.textContent = '↻ Server-Stand geladen (Rev. ' + res.revision + ')';
+          status.className = 'bm-status';
+        }
+        return;
+      }
+
       if (!res.success) throw new Error(res.error || 'Unbekannt');
 
       _bmData = data;
-      status.textContent = '✓ Gespeichert — ' + data.length + ' Bookmarks';
+      if (typeof res.revision !== 'undefined') { _bmRevision = res.revision; }
+      status.textContent = '✓ Gespeichert — ' + data.length + ' Bookmarks'
+        + (_bmSource === 'db' ? ' (DB, Rev. ' + _bmRevision + ')' : '');
       status.className = 'bm-status success';
       document.querySelectorAll('#bm-tbody .bm-row-changed').forEach(function(tr) {
         tr.classList.remove('bm-row-changed');

@@ -311,6 +311,40 @@ function loadLyrmgrDraft($profile) {
 }
 
 function loadLyrmgrConf($profile) {
+    // ===== DB-FIRST (Themenkatalog DB-first) =====
+    // Bei configSource=catalog=db zuerst aus der Staging-DB lesen.
+    // Bei DB-Ausfall faellt der Code (sofern fallbackToFiles aktiv) auf die
+    // bestehende Datei-Logik unten zurueck.
+    require_once __DIR__ . '/../includes/ConfigSource.php';
+    if (ConfigSource::useDb('catalog')) {
+        require_once __DIR__ . '/../includes/CatalogRepository.php';
+        try {
+            $doc = CatalogRepository::loadProfile($profile);
+            if ($doc['exists']) {
+                return [
+                    'exists'     => true,
+                    'profile'    => $profile,
+                    'path'       => getConfigPath($profile),
+                    'lyrmgrKeys' => array_keys($doc['data']),
+                    'data'       => $doc['data'],
+                    'size'       => strlen(json_encode($doc['data'])),
+                    'revision'   => $doc['revision'],
+                    'source'     => 'db'
+                ];
+            }
+            // Profil (noch) nicht in DB: bei aktivem Fallback auf Datei, sonst leer.
+            if (!ConfigSource::fallbackEnabled()) {
+                return ['exists' => false, 'profile' => $profile, 'source' => 'db'];
+            }
+        } catch (\Throwable $e) {
+            if (!ConfigSource::fallbackEnabled()) {
+                return ['exists' => false, 'error' => 'Katalog-DB nicht verfuegbar: ' . $e->getMessage(), 'profile' => $profile];
+            }
+            error_log('loadLyrmgrConf: DB-Fallback auf Datei: ' . $e->getMessage());
+            // weiter mit Datei-Logik unten
+        }
+    }
+
     $path = getConfigPath($profile);
     if (!file_exists($path)) {
         return ['exists' => false, 'path' => $path, 'profile' => $profile];
@@ -327,7 +361,8 @@ function loadLyrmgrConf($profile) {
         'path'       => $path,
         'lyrmgrKeys' => $lyrmgrKeys,
         'data'       => $data,
-        'size'       => strlen($content)
+        'size'       => strlen($content),
+        'source'     => 'file'
     ];
 }
 
@@ -372,7 +407,7 @@ function publishLyrmgrBlock($profile, $lyrmgrKey, $blockData, $editor) {
         return ['published' => false, 'error' => 'Schreiben fehlgeschlagen: ' . $path . ' — ' . ($err ? $err['message'] : 'unbekannt')];
     }
 
-    return [
+    $result = [
         'published'  => true,
         'profile'    => $profile,
         'lyrmgrKey'  => $lyrmgrKey,
@@ -381,6 +416,30 @@ function publishLyrmgrBlock($profile, $lyrmgrKey, $blockData, $editor) {
         'editor'     => $editor,
         'timestamp'  => date('Y-m-d H:i:s')
     ];
+
+    // ===== DB-FIRST (Themenkatalog DB-first) =====
+    // Bei configSource=catalog=db ist die DB die Quelle der Wahrheit; die Datei
+    // oben bleibt als Legacy-Export/Fallback erhalten. Block wird ins
+    // Profil-Dokument gemerged (inkl. Revision + History).
+    require_once __DIR__ . '/../includes/ConfigSource.php';
+    if (ConfigSource::useDb('catalog')) {
+        require_once __DIR__ . '/../includes/CatalogRepository.php';
+        try {
+            $db = CatalogRepository::publishBlock($profile, $lyrmgrKey, $blockData, null, $editor);
+            $result['source']   = 'db';
+            $result['revision'] = $db['revision'];
+        } catch (\Throwable $e) {
+            if (!ConfigSource::fallbackEnabled()) {
+                return ['published' => false, 'error' => 'Katalog-DB-Schreiben fehlgeschlagen: ' . $e->getMessage()];
+            }
+            error_log('publishLyrmgrBlock: DB-Schreiben fehlgeschlagen, nur Datei: ' . $e->getMessage());
+            $result['source'] = 'file';
+        }
+    } else {
+        $result['source'] = 'file';
+    }
+
+    return $result;
 }
 
 function listLyrmgrProfiles() {
@@ -5240,6 +5299,33 @@ switch ($action) {
     // =================================================================
     case 'bookmarks-load':
         require_once __DIR__ . '/../includes/BookmarkNormalizer.php';
+        require_once __DIR__ . '/../includes/ConfigSource.php';
+
+        // DB-first: bei configSource=db aus der Staging-DB lesen.
+        // Bei DB-Ausfall faellt der Code (sofern fallbackToFiles aktiv) auf die
+        // bestehende Datei-Logik unten zurueck.
+        if (ConfigSource::useDb('bookmarks')) {
+            require_once __DIR__ . '/../includes/BookmarkRepository.php';
+            try {
+                $bm   = BookmarkRepository::loadAll();
+                $lock = BookmarkRepository::lockStatus();
+                jsonResponse([
+                    'success'       => true,
+                    'data'          => $bm['data'],
+                    'count'         => count($bm['data']),
+                    'source'        => 'db',
+                    'revision'      => $bm['revision'],
+                    'lock'          => $lock,
+                    'schemaVersion' => 2
+                ]);
+            } catch (\Throwable $e) {
+                if (!ConfigSource::fallbackEnabled()) {
+                    jsonError('Bookmarks-DB nicht verfuegbar: ' . $e->getMessage(), 500);
+                }
+                error_log('bookmarks-load: DB-Fallback auf Datei: ' . $e->getMessage());
+                // weiter mit Datei-Logik unten
+            }
+        }
 
         $bmDraftDir    = TNET_TMP_ROOT . '/bookmarks';
         $bmDraftFile   = $bmDraftDir . '/map-bookmarks-all.json';
@@ -5297,6 +5383,7 @@ switch ($action) {
 
     case 'bookmarks-save':
         require_once __DIR__ . '/../includes/BookmarkNormalizer.php';
+        require_once __DIR__ . '/../includes/ConfigSource.php';
 
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             jsonError('POST erwartet', 405);
@@ -5305,12 +5392,72 @@ switch ($action) {
         if ($body === false || trim($body) === '') {
             jsonError('Leerer Request-Body', 400);
         }
-        $data = json_decode($body, true);
-        if ($data === null && json_last_error() !== JSON_ERROR_NONE) {
+        $decoded = json_decode($body, true);
+        if ($decoded === null && json_last_error() !== JSON_ERROR_NONE) {
             jsonError('Ungültiges JSON: ' . json_last_error_msg(), 400);
         }
-        if (!is_array($data)) {
+
+        // Body kann ein reines Array (Legacy) oder ein Objekt mit Metadaten sein:
+        //   { bookmarks: [...], revision: <int>, user: '<name>' }
+        $bmRevision = null;
+        $bmUser     = null;
+        if (is_array($decoded) && isset($decoded['bookmarks']) && is_array($decoded['bookmarks'])) {
+            $data       = $decoded['bookmarks'];
+            $bmRevision = isset($decoded['revision']) ? (int)$decoded['revision'] : null;
+            $bmUser     = isset($decoded['user']) ? (string)$decoded['user'] : null;
+        } elseif (is_array($decoded)) {
+            $data = $decoded;
+        } else {
             jsonError('Array erwartet', 400);
+        }
+        if ($bmUser === null && isset($_GET['user'])) {
+            $bmUser = (string)$_GET['user'];
+        }
+
+        // DB-first: bei configSource=db in die Staging-DB speichern (Optimistic Locking).
+        if (ConfigSource::useDb('bookmarks')) {
+            require_once __DIR__ . '/../includes/BookmarkRepository.php';
+            try {
+                $res = BookmarkRepository::saveAll($data, $bmRevision, $bmUser);
+                if (!empty($res['conflict'])) {
+                    jsonResponse([
+                        'success'       => false,
+                        'conflict'      => true,
+                        'message'       => 'Versionskonflikt: Die Bookmarks wurden zwischenzeitlich geändert. Bitte Stand vergleichen.',
+                        'revision'      => $res['revision'],
+                        'serverData'    => $res['serverData'],
+                        'count'         => $res['count'],
+                        'schemaVersion' => 2
+                    ], 409);
+                }
+
+                // Draft-Datei als Export aktualisieren, damit die bestehende
+                // SFTP-Deploy-Pipeline (FastAPI /deploy-bookmarks) unveraendert
+                // den korrekten Stand publiziert.
+                $exportList = BookmarkNormalizer::normalizeAll($data);
+                $bmDraftDir = TNET_TMP_ROOT . '/bookmarks';
+                if (!is_dir($bmDraftDir)) { @mkdir($bmDraftDir, 0775, true); }
+                @file_put_contents(
+                    $bmDraftDir . '/map-bookmarks-all.json',
+                    json_encode($exportList, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+                    LOCK_EX
+                );
+
+                jsonResponse([
+                    'success'       => true,
+                    'message'       => 'Bookmarks gespeichert (DB)',
+                    'count'         => $res['count'],
+                    'revision'      => $res['revision'],
+                    'source'        => 'db',
+                    'schemaVersion' => 2
+                ]);
+            } catch (\Throwable $e) {
+                if (!ConfigSource::fallbackEnabled()) {
+                    jsonError('Bookmarks-DB Speichern fehlgeschlagen: ' . $e->getMessage(), 500);
+                }
+                error_log('bookmarks-save: DB-Fallback auf Datei: ' . $e->getMessage());
+                // weiter mit Datei-Logik unten
+            }
         }
 
         // Normalisiere alles auf v2 — Editor darf gemischtes oder unvollständiges Format senden.
@@ -5339,6 +5486,133 @@ switch ($action) {
             'bytes'         => $written,
             'schemaVersion' => 2
         ]);
+        break;
+
+    // =================================================================
+    // BOOKMARKS — Soft-Lock (UI-Hinweis fuer Mehrbenutzer-Editing)
+    // =================================================================
+    case 'bookmarks-lock-status':
+        require_once __DIR__ . '/../includes/ConfigSource.php';
+        if (!ConfigSource::useDb('bookmarks')) {
+            jsonResponse(['success' => true, 'lock' => null, 'source' => 'files']);
+        }
+        require_once __DIR__ . '/../includes/BookmarkRepository.php';
+        try {
+            jsonResponse([
+                'success' => true,
+                'lock'    => BookmarkRepository::lockStatus(),
+                'source'  => 'db'
+            ]);
+        } catch (\Throwable $e) {
+            jsonError('Lock-Status nicht verfuegbar: ' . $e->getMessage(), 500);
+        }
+        break;
+
+    case 'bookmarks-lock':
+        require_once __DIR__ . '/../includes/ConfigSource.php';
+        if (!ConfigSource::useDb('bookmarks')) {
+            jsonResponse(['success' => true, 'locked' => true, 'mine' => true, 'source' => 'files']);
+        }
+        require_once __DIR__ . '/../includes/BookmarkRepository.php';
+        $lockBody = json_decode(file_get_contents('php://input'), true);
+        $lockUser = is_array($lockBody) && isset($lockBody['user'])
+            ? (string)$lockBody['user']
+            : (string)($_GET['user'] ?? 'unbekannt');
+        try {
+            $lock = BookmarkRepository::acquireLock($lockUser);
+            jsonResponse(['success' => true] + $lock + ['source' => 'db']);
+        } catch (\Throwable $e) {
+            jsonError('Lock konnte nicht gesetzt werden: ' . $e->getMessage(), 500);
+        }
+        break;
+
+    case 'bookmarks-unlock':
+        require_once __DIR__ . '/../includes/ConfigSource.php';
+        if (!ConfigSource::useDb('bookmarks')) {
+            jsonResponse(['success' => true, 'released' => true, 'source' => 'files']);
+        }
+        require_once __DIR__ . '/../includes/BookmarkRepository.php';
+        $unlockBody = json_decode(file_get_contents('php://input'), true);
+        $unlockUser = is_array($unlockBody) && isset($unlockBody['user'])
+            ? (string)$unlockBody['user']
+            : (string)($_GET['user'] ?? 'unbekannt');
+        try {
+            $rel = BookmarkRepository::releaseLock($unlockUser);
+            jsonResponse(['success' => true] + $rel + ['source' => 'db']);
+        } catch (\Throwable $e) {
+            jsonError('Lock konnte nicht freigegeben werden: ' . $e->getMessage(), 500);
+        }
+        break;
+
+    // =================================================================
+    // BOOKMARKS — Publish (DB -> deployte Laufzeit-Datei) /
+    //             Checkout (deployte Datei -> DB-Stage)
+    // Interim-Stand fuer den Pilot: Files bleiben Laufzeit-/Legacy-Export,
+    // bis das schemabasierte Stage->Prod-Promote (Phase 3) steht.
+    // =================================================================
+    case 'bookmarks-publish':
+        require_once __DIR__ . '/../includes/ConfigSource.php';
+        require_once __DIR__ . '/../includes/BookmarkNormalizer.php';
+        if (!ConfigSource::useDb('bookmarks')) {
+            jsonError('Publish ist nur im DB-Modus verfuegbar (configSource.bookmarks=db).', 400);
+        }
+        require_once __DIR__ . '/../includes/BookmarkRepository.php';
+        try {
+            $bm   = BookmarkRepository::loadAll();
+            $list = BookmarkNormalizer::normalizeAll($bm['data']);
+            $bmDeployedFile = APP_WEB_ROOT . '/tnet/data/map-bookmarks-all.json';
+            if (file_exists($bmDeployedFile)) {
+                @copy($bmDeployedFile, $bmDeployedFile . '.' . date('Ymd_His') . '.bak');
+            }
+            $json = json_encode($list, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            $written = @file_put_contents($bmDeployedFile, $json, LOCK_EX);
+            if ($written === false) {
+                jsonError('Konnte Laufzeit-Datei nicht schreiben (ggf. via SFTP deployen): ' . $bmDeployedFile, 500);
+            }
+            jsonResponse([
+                'success'  => true,
+                'message'  => 'Bookmarks publiziert (DB -> Laufzeit-Datei)',
+                'count'    => count($list),
+                'bytes'    => $written,
+                'revision' => $bm['revision']
+            ]);
+        } catch (\Throwable $e) {
+            jsonError('Publish fehlgeschlagen: ' . $e->getMessage(), 500);
+        }
+        break;
+
+    case 'bookmarks-checkout':
+        require_once __DIR__ . '/../includes/ConfigSource.php';
+        require_once __DIR__ . '/../includes/BookmarkNormalizer.php';
+        if (!ConfigSource::useDb('bookmarks')) {
+            jsonError('Checkout ist nur im DB-Modus verfuegbar (configSource.bookmarks=db).', 400);
+        }
+        require_once __DIR__ . '/../includes/BookmarkRepository.php';
+        $coBody = json_decode(file_get_contents('php://input'), true);
+        $coUser = is_array($coBody) && isset($coBody['user'])
+            ? (string)$coBody['user']
+            : (string)($_GET['user'] ?? 'checkout');
+        $bmDeployedFile = APP_WEB_ROOT . '/tnet/data/map-bookmarks-all.json';
+        if (!file_exists($bmDeployedFile)) {
+            jsonError('Keine Laufzeit-Datei zum Checkout gefunden: ' . $bmDeployedFile, 404);
+        }
+        $coRaw = @file_get_contents($bmDeployedFile);
+        $coData = json_decode($coRaw !== false ? $coRaw : '', true);
+        if (!is_array($coData)) {
+            jsonError('Laufzeit-Datei ist kein gueltiges JSON-Array', 422);
+        }
+        try {
+            // Optimistic-Check bewusst uebersprungen (bewusster Reset aus Prod-Stand)
+            $res = BookmarkRepository::saveAll($coData, null, $coUser);
+            jsonResponse([
+                'success'  => true,
+                'message'  => 'Bookmarks aus Laufzeit-Datei in DB uebernommen (Checkout)',
+                'count'    => $res['count'],
+                'revision' => $res['revision']
+            ]);
+        } catch (\Throwable $e) {
+            jsonError('Checkout fehlgeschlagen: ' . $e->getMessage(), 500);
+        }
         break;
 
     // ── Dienst-Verfügbarkeit prüfen (Verify) ──

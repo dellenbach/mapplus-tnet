@@ -1,3 +1,9 @@
+## 2026-06-04 — Naiver Regex-JSON5-Parser zerstoert String-Werte mit "wort:" oder Quotes
+- **Symptom:** `configSource.bookmarks: 'db'` aus `tnet-global-config.json5` griff nicht; `bookmarks-load` lieferte trotz korrekt deployter Config und erreichbarer DB weiter `source: files`.
+- **Root-Cause:** Der Regex-basierte JSON5->JSON-Konverter (kopiert aus cache.php) transformiert Kommentare/Keys/Quotes ohne String-Bewusstsein. Der `_description`-Wert "Datenquelle pro Konfigurationsdomain: db oder files" wurde durch den Unquoted-Key-Schritt zu `..."Konfigurationsdomain": db...` zerschossen → `json_decode` = null → leeres Array → `default: 'files'`. Eingebettete Single-Quotes (`'db'`) brachen es zusaetzlich.
+- **Fix:** In `ConfigSource.php` einen string-bewussten Single-Pass-Tokenizer (`json5ToJson()`) implementiert: Strings werden als Tokens gesichert, Kommentar-/Key-/Trailing-Comma-Transformationen laufen nur ausserhalb von Strings, danach Tokens zuruecksetzen. Zusaetzlich `_description` entschaerft.
+- **Guardrail:** JSON5 nie mit reinen Regex-Passes nach JSON wandeln. Immer string-bewusst tokenisieren, sonst brechen Werte mit `wort:`, URLs (`http://`) oder eingebetteten Quotes das Parsing — und der Fehler ist still (Fallback auf Defaults).
+
 ## 2026-06-03 — Coalesce-Requests muessen pro Dienst konsolidiert werden, nicht pro Pfad-Container
 - **Symptom:** Bei Agglomeration wurden mehrere Export-Requests an denselben ArcGIS-Dienst (`gis_fach/nw_agglomeration/MapServer`) geschickt, obwohl alle Sublayer aus EINEM Dienst stammen.
 - **Root-Cause:** `_extractRootKey()` in der Coalesce-Bridge leitete den Root-Key aus dem Pfad-Parent (`lastIndexOf('/')`) ab. Dadurch wurde jeder Karten-Container (karte03_*, karte05_*, …) zu einem eigenen Root-Layer mit eigener Source → ein Export-Request pro Container.

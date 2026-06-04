@@ -200,6 +200,25 @@
   },
 
   // ============================================================
+  // KONFIGURATIONSQUELLE (Staging-DB vs. Legacy-Dateien)
+  // ============================================================
+  // Steuert, ob API/SLM/Runtime die Konfiguration aus der PostgreSQL-DB
+  // (mapplusconf / mapplusconf_dev) oder aus den Legacy-Dateien lesen/schreiben.
+  // 'db'    = Normalbetrieb, Datenbank ist fuehrend (Dateien nur Export/Fallback)
+  // 'files' = Legacy-Modus, Dateien sind fuehrend (Verhalten wie bisher)
+  // Pro Domain ueberschreibbar; fehlt ein Domain-Eintrag, greift 'default'.
+  configSource: {
+    _description: "Datenquelle pro Konfigurationsdomain: db oder files",
+    default: 'files',     // sicherer Ausgangswert: Legacy-Verhalten
+    bookmarks: 'db',      // Pilot-Domain laeuft ueber die Staging-DB
+    layers: 'files',
+    catalog: 'db',        // Themenkatalog (lyrmgr.conf) ueber die Staging-DB
+    // Wenn die DB nicht erreichbar ist, faellt der Server automatisch auf
+    // die Dateien zurueck (Fallback), sofern diese vorhanden sind.
+    fallbackToFiles: true,
+  },
+
+  // ============================================================
   // LAYER MANAGER (NEU – eigener Themenkatalog + Dargestellte Themen)
   // ============================================================
   layerManager: {
