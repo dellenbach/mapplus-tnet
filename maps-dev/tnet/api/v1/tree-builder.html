@@ -62,6 +62,30 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .tb-toolbar .tb-toggle { opacity: .5; }
 .tb-toolbar .tb-toggle.active { opacity: 1; background: rgba(255,255,255,.2); }
 
+/* ── Store-Badge im LyrMgr-Editor ── */
+#tb-store-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 1px 9px; border-radius: 3px; font-size: 11px;
+  font-weight: 700; letter-spacing: .5px; white-space: nowrap;
+  border: 1.5px solid currentColor; cursor: default;
+}
+#tb-store-badge.store-dev  { background: rgba(230,126,34,.18); color: #f0a060; border-color: #e67e22; }
+#tb-store-badge.store-prod { background: rgba(46,125,50,.18);  color: #6ecf74; border-color: #4caf50; }
+#tb-store-badge.store-mismatch { background: rgba(180,30,30,.25); color: #ff9090; border-color: #c0392b; }
+/* Store-Info-Zeile unter Toolbar */
+#tb-store-infobar {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 2px 12px; font-size: 10px; font-family: Consolas,monospace;
+  border-bottom: 1px solid #b0ccd4; background: #dbeef5;
+}
+#tb-store-infobar.mismatch { background: #fde8e8; border-bottom-color: #e8a0a0; }
+#tb-store-infobar .tsi-lbl { font-family: -apple-system,sans-serif; font-weight: 700; color: #2c4a50; }
+#tb-store-infobar.mismatch .tsi-lbl { color: #6b0000; }
+#tb-store-infobar .tsi-val { color: #1a5070; }
+#tb-store-infobar.mismatch .tsi-val { color: #a01010; }
+#tb-store-infobar .tsi-sep { color: #aaa; margin: 0 4px; }
+#tb-store-infobar .tsi-warn { color: #a01010; font-family: -apple-system,sans-serif; font-weight: 700; }
+
 /* ── Tree-Panel Split: Baum links, JSON rechts ── */
 .tb-tree-split { display: flex; flex: 1; min-width: 0; min-height: 0; }
 .tb-tree-left { flex: 1; display: flex; flex-direction: column; min-width: 200px; overflow: hidden; }
@@ -1105,6 +1129,9 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
   <span class="sep"></span>
   <span class="brand">🔧 Tree-Builder</span>
   <span class="sep"></span>
+  <!-- Store-Badge: zeigt welcher Konfig-Store aktiv ist -->
+  <span id="tb-store-badge" title="Aktiver Konfig-Store — DEV/PROD wechselbar im SLM"></span>
+  <span class="sep"></span>
   <button id="tb-btn-ags-import" title="Service- und Layermanager">🌐 Manager</button>
   <a href="slm.html" target="_blank" style="color:rgba(255,255,255,.45);font-size:10px;text-decoration:none;margin-left:-4px" title="Service- und Layermanager in separater Seite öffnen">↗</a>
   <button id="tb-btn-backup-toolbar" title="Server-Backups anzeigen, wiederherstellen und löschen" style="margin-left:6px;background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.25);color:rgba(255,255,255,.8)">📁 Backups</button>
@@ -1122,6 +1149,18 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 </div>
 
 <div class="runtime-paths tb-runtime-main" id="tb-main-runtime-paths">Pfade werden geladen…</div>
+<!-- Store-Info-Zeile -->
+<div id="tb-store-infobar">
+  <span><span class="tsi-lbl">SW:</span> <span class="tsi-val" id="tsi-sw"></span></span>
+  <span class="tsi-sep">|</span>
+  <span><span class="tsi-lbl">Store:</span> <span class="tsi-val" id="tsi-store"></span></span>
+  <span class="tsi-sep">|</span>
+  <span><span class="tsi-lbl">DB:</span> <span class="tsi-val" id="tsi-db"></span></span>
+  <span class="tsi-sep">|</span>
+  <span><span class="tsi-lbl">API:</span> <span class="tsi-val" id="tsi-api"></span></span>
+  <span class="tsi-sep" id="tsi-warn-sep" style="display:none">|</span>
+  <span class="tsi-warn" id="tsi-warn" style="display:none"></span>
+</div>
 
 <!-- 3-Panel Layout -->
 <div class="tb-layout">
@@ -1514,10 +1553,62 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 // State
 // =====================================================================
 var STORAGE_KEY = 'treebuilder_state';
-var API_URL = '/maps-dev/tnet/api/v1/treebuilder-api.php';
 var GAPI_URL = '/gapi/ags2mapplus';
-var _envLabel = location.pathname.indexOf('/maps-dev/') === 0 ? '[DEV]' : '[PROD]';
-if (_envLabel === '[DEV]') { var _devBadgeEl = document.getElementById('tb-dev-env-badge'); if (_devBadgeEl) _devBadgeEl.style.display = ''; }
+
+// ── Software-Umgebung (URL-basiert, fix) ──
+var _swEnv = location.pathname.indexOf('/maps-dev/') === 0 ? 'dev' : 'prod';
+
+// ── Konfig-Store (aus localStorage, synchron mit SLM-Einstellung) ──
+var _storeEnv = (function() {
+  try { var s = localStorage.getItem('slmStoreEnv'); return (s === 'dev' || s === 'prod') ? s : _swEnv; } catch(e) { return _swEnv; }
+})();
+
+// API-URL zeigt auf den gewählten Store
+var API_URL = (_storeEnv === 'dev' ? '/maps-dev' : '/maps') + '/tnet/api/v1/treebuilder-api.php';
+var _envLabel = _storeEnv === 'dev' ? '[DEV]' : '[PROD]';
+
+// DEV-Badge im LyrMgr-Editor (Software-Umgebung, nicht Store)
+if (_swEnv === 'dev') { var _devBadgeEl = document.getElementById('tb-dev-env-badge'); if (_devBadgeEl) _devBadgeEl.style.display = ''; }
+
+// ── Store-Badge + Info-Bar ──
+(function initTbStoreUi() {
+  var mismatch = (_swEnv !== _storeEnv);
+  var dbSchema = _storeEnv === 'dev' ? 'mapplusconf_dev' : 'mapplusconf';
+  var label    = _storeEnv.toUpperCase();
+
+  // Badge in der Toolbar
+  var badge = document.getElementById('tb-store-badge');
+  if (badge) {
+    badge.textContent = 'Store: ' + label;
+    badge.className = 'store-' + _storeEnv + (mismatch ? ' store-mismatch' : '');
+    badge.title = 'Aktiver Konfig-Store: ' + label
+      + '\nDB-Schema: ' + dbSchema
+      + '\nAPI: ' + API_URL
+      + (mismatch ? '\n\n⚠ Store ≠ Software-Umgebung (' + _swEnv.toUpperCase() + ')!' : '')
+      + '\n\nStore wechseln: Im SLM über Store-Dropdown oben links.';
+  }
+
+  // Info-Bar unter Toolbar
+  var bar = document.getElementById('tb-store-infobar');
+  if (bar) {
+    bar.classList.toggle('mismatch', mismatch);
+    var set = function(id, v) { var el = document.getElementById(id); if (el) el.textContent = v; };
+    set('tsi-sw',    _swEnv.toUpperCase() + ' (' + (location.hostname || 'localhost') + ')');
+    set('tsi-store', label);
+    set('tsi-db',    dbSchema);
+    set('tsi-api',   API_URL);
+    if (mismatch) {
+      var w = document.getElementById('tsi-warn');
+      var ws = document.getElementById('tsi-warn-sep');
+      if (w)  { w.textContent = '⚠ Store ≠ Software-Umgebung — Änderungen wirken auf ' + label + '!'; w.style.display = ''; }
+      if (ws) ws.style.display = '';
+    }
+  }
+
+  // Layout-Höhe anpassen: Info-Bar belegt eine Zeile
+  var layout = document.querySelector('.tb-layout');
+  if (layout) layout.style.height = 'calc(100vh - 88px)';
+})();
 function _showBuildTs(id) {
   var el = document.getElementById(id);
   if (!el) return;
