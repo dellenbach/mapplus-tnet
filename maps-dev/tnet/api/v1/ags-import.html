@@ -4,7 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Service- und Layermanager — TNET API</title>
-<script>document.documentElement.setAttribute('data-env',location.pathname.indexOf('/maps-dev/')===0?'dev':'prod');</script>
+<script>document.documentElement.setAttribute('data-env',location.pathname.indexOf('/maps-dev/')===0?'dev':'prod');</script>
+
 <style>
 /**
  * ags-import.html
@@ -1024,20 +1025,34 @@ body {
 .core-files-subtable .cfs-keys { color: #888; font-size: 9px; }
 .core-files-subtable .cfs-changed { color: #e67e22; font-weight: 600; }
 
-
-/* ===== ENV-BADGE (DEV / PROD) ===== */
-#env-badge { display: none; }
-html[data-env] #env-badge {
-  display: inline-block !important;
-  color: #fff; padding: 2px 10px; border-radius: 3px;
-  font-size: 12px; font-weight: 700; letter-spacing: .6px;
-  vertical-align: middle;
-}
-html[data-env="dev"] #env-badge { background: #e67e22; }
-html[data-env="dev"] #env-badge::before { content: 'DEV'; }
-html[data-env="prod"] #env-badge { background: #2e7d32; }
-html[data-env="prod"] #env-badge::before { content: 'PROD'; }
-html[data-env="dev"] .ags-toolbar { border-bottom: 3px solid #e67e22; }
+
+
+/* ===== ENV-BADGE (DEV / PROD) ===== */
+
+#env-badge { display: none; }
+
+html[data-env] #env-badge {
+
+  display: inline-block !important;
+
+  color: #fff; padding: 2px 10px; border-radius: 3px;
+
+  font-size: 12px; font-weight: 700; letter-spacing: .6px;
+
+  vertical-align: middle;
+
+}
+
+html[data-env="dev"] #env-badge { background: #e67e22; }
+
+html[data-env="dev"] #env-badge::before { content: 'DEV'; }
+
+html[data-env="prod"] #env-badge { background: #2e7d32; }
+
+html[data-env="prod"] #env-badge::before { content: 'PROD'; }
+
+html[data-env="dev"] .ags-toolbar { border-bottom: 3px solid #e67e22; }
+
 </style>
 </head>
 <body>
@@ -1049,7 +1064,7 @@ html[data-env="dev"] .ags-toolbar { border-bottom: 3px solid #e67e22; }
   <span class="sep"></span>
   <button id="ags-btn-refresh" title="Daten neu laden">↻ Aktualisieren</button>
   <button id="ags-btn-cache-clear" title="Layermanager-Cache auf dem Server leeren">🗑 Cache leeren</button>
-  <button id="ags-btn-config-to-db" title="Konfigurationsdateien in PostgreSQL-Datenbank einlesen (configToPG)">🗄 Config → DB</button>
+  <button id="ags-btn-config-to-db" title="Konfigurationsdatenbank verwalten (Import / Export / Löschen)" style="display:none">🗄 Konfig-DB</button>
   <span class="spacer"></span>
   <a href="tree-builder.html">← Tree-Builder</a>
   <span class="sep"></span>
@@ -4208,77 +4223,9 @@ document.getElementById('ags-btn-cache-clear').addEventListener('click', functio
     });
 });
 
-// Config→DB Button: Modal öffnen
-var _ctdbScope = 'full';
+// Konfig-DB Button: Admin-Steuerseite öffnen
 document.getElementById('ags-btn-config-to-db').addEventListener('click', function() {
-  var modal = document.getElementById('ctdb-modal');
-  document.getElementById('ctdb-status').style.display = 'none';
-  document.getElementById('ctdb-result').style.display = 'none';
-  document.getElementById('ctdb-run').disabled = false;
-  document.getElementById('ctdb-run').textContent = 'Starten';
-  // Scope auf 'full' zurücksetzen
-  _ctdbScope = 'full';
-  document.querySelectorAll('.ctdb-scope-btn').forEach(function(b) { b.classList.remove('active'); });
-  document.querySelector('.ctdb-scope-btn[data-scope="full"]').classList.add('active');
-  modal.style.display = 'flex';
-});
-document.getElementById('ctdb-close').addEventListener('click', function() {
-  document.getElementById('ctdb-modal').style.display = 'none';
-});
-document.getElementById('ctdb-modal').addEventListener('click', function(e) {
-  if (e.target === this) this.style.display = 'none';
-});
-// Scope-Auswahl
-document.querySelectorAll('.ctdb-scope-btn').forEach(function(btn) {
-  btn.addEventListener('click', function() {
-    document.querySelectorAll('.ctdb-scope-btn').forEach(function(b) { b.classList.remove('active'); });
-    btn.classList.add('active');
-    _ctdbScope = btn.dataset.scope;
-  });
-});
-// Starten
-document.getElementById('ctdb-run').addEventListener('click', function() {
-  var btn = this;
-  var statusEl = document.getElementById('ctdb-status');
-  var resultEl = document.getElementById('ctdb-result');
-  btn.disabled = true;
-  btn.textContent = '⏳ Läuft…';
-  statusEl.style.cssText = 'margin-top:10px;font-size:12px;color:#555;display:block';
-  statusEl.textContent = 'Scope: ' + _ctdbScope + ' — Bitte warten, kann einige Sekunden dauern…';
-  resultEl.style.display = 'none';
-  var appRoot = window.location.pathname.indexOf('/maps-dev/') === 0 ? '/maps-dev' : '/maps';
-  var schemaUrl = appRoot + '/tnet/api/v1/admin?action=schema';
-  var url = appRoot + '/tnet/api/v1/admin?action=configToPG&scope=' + encodeURIComponent(_ctdbScope);
-  var t0 = Date.now();
-  fetch(schemaUrl)
-    .then(function(r) { return r.json(); })
-    .then(function(schemaResult) {
-      if (schemaResult.success === false) {
-        throw new Error(schemaResult.error || schemaResult.message || 'Schema-Erstellung fehlgeschlagen');
-      }
-      return fetch(url);
-    })
-    .then(function(r) { return r.json(); })
-    .then(function(j) {
-      var elapsed = ((Date.now() - t0) / 1000).toFixed(1);
-      if (j.success !== false) {
-        statusEl.style.color = '#2a8';
-        statusEl.textContent = '✓ Abgeschlossen in ' + elapsed + 's — Scope: ' + _ctdbScope;
-      } else {
-        statusEl.style.color = '#c33';
-        statusEl.textContent = '✗ Fehler: ' + (j.error || j.message || 'Unbekannt');
-      }
-      resultEl.textContent = JSON.stringify(j.data || j, null, 2);
-      resultEl.style.display = '';
-      btn.textContent = 'Erneut starten';
-      btn.disabled = false;
-    })
-    .catch(function(e) {
-      statusEl.style.color = '#c33';
-      statusEl.textContent = '✗ Netzwerkfehler: ' + e.message;
-      btn.textContent = 'Erneut starten';
-      btn.disabled = false;
-    });
+  window.location.href = 'config-db-admin.html';
 });
 
 // Import-Tab: Filter
@@ -4539,38 +4486,32 @@ function renderEditorSourceList(filter) {
 
   if (!html) {
     html = '<div class="editor-src-empty">' + (q ? 'Keine Treffer für «' + q + '»' : 'Keine Kürzel vorhanden') + '</div>';
-  }
-  listEl.innerHTML = html;
-  document.getElementById('editor-src-count').textContent = count;
 
-  // Checkbox-Handler
-  listEl.querySelectorAll('.src-cb').forEach(function(cb) {
-    cb.addEventListener('click', function(e) { e.stopPropagation(); });
-    cb.addEventListener('change', function(e) {
-      var k = cb.dataset.kuerzel;
-      if (cb.checked) _editorSelectedKuerzel[k] = true;
-      else delete _editorSelectedKuerzel[k];
-      updateDeploySelBtn();
-    });
-  });
-
-  // Klick-Handler auf Quellen-Items
-  listEl.querySelectorAll('.editor-src-item').forEach(function(item) {
-    item.addEventListener('click', function(e) {
-      var kuerzel = item.dataset.kuerzel;
-
-      // Toggle collapse für aktives Item
-      if (kuerzel === _editorActiveKuerzel) {
-        item.classList.toggle('collapsed');
-        return;
+// Admin-Knopf nur für Administratoren zeigen
+(function loadCurrentUser() {
+  fetch('admin-users.php?action=current-user', { headers: { 'Accept': 'application/json' } })
+    .then(function(r) { return r.json(); })
+    .then(function(j) {
+      var configDbBtn = document.getElementById('ags-btn-config-to-db');
+      if (configDbBtn && j && j.success && j.is_admin) {
+        configDbBtn.style.display = '';
       }
+    })
+    .catch(function() {});
+})();
+  }
+// Konfig-DB Button: Admin-Steuerseite öffnen
 
-      // Alle zuklappen, aktives aufklappen
-      listEl.querySelectorAll('.editor-src-item').forEach(function(el) {
-        el.classList.remove('active');
-        el.classList.add('collapsed');
-      });
-      item.classList.add('active');
+  window.location.href = 'config-db-admin.html';
+});
+
+// Legacy-Modal deaktiviert: Steuerung liegt auf config-db-admin.html
+if (document.getElementById('ctdb-modal')) document.getElementById('ctdb-modal').style.display = 'none';
+if (document.getElementById('ctdb-close')) document.getElementById('ctdb-close').addEventListener('click', function() {
+  document.getElementById('ctdb-modal').style.display = 'none';
+});
+if (document.getElementById('ctdb-run')) document.getElementById('ctdb-run').addEventListener('click', function() {
+  return;
       item.classList.remove('collapsed');
 
       _editorActiveKuerzel = kuerzel;

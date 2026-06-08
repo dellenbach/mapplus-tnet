@@ -30,8 +30,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $oldOk = ($postMode === 'change-password') ? AdminAuth::verifyUserPassword($username, $_POST['old_password'] ?? '') : true;
         if ($postMode === 'change-password' && !$oldOk) {
             $error = 'Aktuelles Passwort falsch.'; $mode = 'change-password';
-        } elseif (strlen($password) < 8) {
-            $error = 'Passwort muss mindestens 8 Zeichen lang sein.'; $mode = $postMode;
         } elseif ($password !== $password2) {
             $error = 'Passwörter stimmen nicht überein.'; $mode = $postMode;
         } else {
@@ -94,7 +92,7 @@ input[readonly]{background:#f5f7fa;color:#666}
       <input type="text" name="username"
         value="<?php echo htmlspecialchars($username) ?>"
         <?php echo ($mode==='login')?'autofocus':'readonly' ?>
-        placeholder="z.B. admin, del, mar …" required>
+        placeholder="Benutzername" required>
     </div>
 
     <?php if ($mode==='change-password'): ?>
@@ -105,10 +103,10 @@ input[readonly]{background:#f5f7fa;color:#666}
 
     <?php if ($mode==='set-password'||$mode==='change-password'): ?>
     <div class="fg">
-      <label>Neues Passwort <span style="font-weight:400;color:#aaa">(min. 8 Zeichen)</span></label>
-      <input type="password" name="password" minlength="8" <?php echo ($mode==='set-password')?'autofocus':'' ?> required>
+      <label>Neues Passwort</label>
+      <input type="password" name="password" <?php echo ($mode==='set-password')?'autofocus':'' ?> required>
     </div>
-    <div class="fg"><label>Bestätigen</label><input type="password" name="password2" minlength="8" required></div>
+    <div class="fg"><label>Bestätigen</label><input type="password" name="password2" required></div>
     <?php endif ?>
 
     <button type="submit" class="btn"><?php

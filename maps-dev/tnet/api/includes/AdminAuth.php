@@ -149,7 +149,7 @@ class AdminAuth {
     /** Passwort eines Benutzers setzen (Ersteinrichtung oder Aenderung). */
     public static function setUserPassword($username, $password, $mustChange = false) {
         $username = preg_replace('/[^a-zA-Z0-9_]/', '', $username);
-        if ($username === '' || strlen($password) < 8) return false;
+        if ($username === '') return false;
         $config = self::getConfig() ?: [];
         if (!isset($config['cookie_secret'])) $config['cookie_secret'] = bin2hex(random_bytes(32));
         if (!isset($config['users']))         $config['users']         = [];
@@ -224,7 +224,6 @@ class AdminAuth {
 
     /** Legacy-Setup: globales Einzelpasswort. */
     public static function setup($password) {
-        if (strlen($password) < 8) return false;
         $existing = self::getConfig();
         $config = [
             'password_hash' => password_hash($password, PASSWORD_BCRYPT),

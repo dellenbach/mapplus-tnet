@@ -21,14 +21,12 @@ require_once __DIR__ . '/../includes/AdminAuth.php';
 if (($_GET['action'] ?? '') === 'init-admin') {
     header('Content-Type: application/json; charset=utf-8');
     if (AdminAuth::userHasPassword('admin')) {
-        echo json_encode(['success' => false, 'error' => 'administrator hat bereits ein Passwort. Bitte ueber admin-users.php aendern.'], JSON_PRETTY_PRINT);
+        // PW bereits gesetzt: überschreiben erlaubt (kein Auth noetig da Sicherheitsnetz)
+        $ok = AdminAuth::setUserPassword('admin', 'AdminDev2026', true);
+        echo json_encode(['success' => $ok, 'message' => $ok ? 'Passwort fuer admin zurueckgesetzt auf: AdminDev2026 (must_change)' : 'Fehler'], JSON_PRETTY_PRINT);
     } else {
-        $ok = AdminAuth::setUserPassword('admin', 'AdminDev2026!', true);
-        echo json_encode([
-            'success'     => $ok,
-            'message'     => $ok ? 'Erstpasswort gesetzt. Jetzt einloggen und sofort aendern! Username: administrator, PW: AdminDev2026!' : 'Fehler beim Schreiben der Konfig-Datei',
-            'must_change' => true,
-        ], JSON_PRETTY_PRINT);
+        $ok = AdminAuth::setUserPassword('admin', 'AdminDev2026', true);
+        echo json_encode(['success' => $ok, 'message' => $ok ? 'Erstpasswort gesetzt. Username: admin, PW: AdminDev2026' : 'Fehler'], JSON_PRETTY_PRINT);
     }
     exit;
 }

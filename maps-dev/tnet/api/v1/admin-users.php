@@ -48,6 +48,12 @@ if ($action === 'current-user') {
 
 // Fuer alle anderen Aktionen: Admin-Recht pruefen
 AdminAuth::enforceEndpointPolicy('admin-users', 'php');
+// Passwort-Wechsel-Pflicht: direkt zur Login-Seite fuer Passwort-Aenderung
+$_authUser = AdminAuth::getCurrentUser();
+if ($_authUser && AdminAuth::userMustChange($_authUser) && !$isApi) {
+    header('Location: admin-login.php?redirect=' . urlencode($_SERVER['REQUEST_URI'] ?? 'admin-users.php'));
+    exit;
+}
 if (!AdminAuth::isAdmin()) {
     if ($isApi) {
         header('Content-Type: application/json; charset=utf-8');
@@ -100,13 +106,13 @@ if ($isApi) {
         }
 
         if ($action === 'set-password') {
-            // Admin setzt Passwort fuer einen anderen User direkt (optional)
-            $pw  = $body['password'] ?? '';
-            $mc  = !empty($body['must_change']);
-            if (!$username || strlen($pw) < 8) {
-                echo json_encode(['success' => false, 'error' => 'username und password (min. 8) benoetigt']);
-                exit;
-            }
+          // Admin setzt Passwort fuer einen anderen User direkt (optional)
+          $pw  = $body['password'] ?? '';
+          $mc  = !empty($body['must_change']);
+          if (!$username || $pw === '') {
+            echo json_encode(['success' => false, 'error' => 'username und password benoetigt']);
+            exit;
+          }
             $ok = AdminAuth::setUserPassword($username, $pw, $mc);
             echo json_encode(['success' => $ok]);
             exit;
@@ -233,9 +239,8 @@ function status(msg, ok) {
 }
 
 function setPwDirect(username) {
-  var pw = prompt('Temporäres Passwort für «' + username + '» (min. 8 Zeichen):\nBenutzer muss es beim nächsten Login ändern.');
+  var pw = prompt('Temporäres Passwort für «' + username + '»:\nBenutzer muss es beim nächsten Login ändern.');
   if (!pw) return;
-  if (pw.length < 8) { alert('Passwort muss mindestens 8 Zeichen haben.'); return; }
   fetch(API + '?action=set-password', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },

@@ -740,12 +740,21 @@ CREATE TRIGGER trg_catalog_document_updated BEFORE UPDATE ON mapplusconf.catalog
 
 
 -- ============================================================================
--- 15. STAGING_IMPORT_BUNDLE
--- DB-basierte Ablage der Staging-/ImportToCore-Ausgaben aus dem SLM.
+-- 15. CONFIG_BUNDLE_STORE
+-- DB-basierte Ablage der Konfig-Bundles aus dem SLM.
 -- Ersetzt die dateibasierte Ordnerstruktur ImportToCore/<kuerzel>/ durch ein
 -- JSONB-Bundle pro Kürzel/Tag-Gruppe.
 -- ============================================================================
-CREATE TABLE IF NOT EXISTS mapplusconf.staging_import_bundle (
+DO $$
+BEGIN
+    IF to_regclass('mapplusconf.config_bundle_store') IS NULL
+       AND to_regclass('mapplusconf.staging_import_bundle') IS NOT NULL THEN
+        ALTER TABLE mapplusconf.staging_import_bundle RENAME TO config_bundle_store;
+    END IF;
+END
+$$;
+
+CREATE TABLE IF NOT EXISTS mapplusconf.config_bundle_store (
     kuerzel             TEXT PRIMARY KEY,
     tags                JSONB NOT NULL DEFAULT '[]'::jsonb,
     payload             JSONB NOT NULL DEFAULT '{"files": []}'::jsonb,
@@ -756,16 +765,16 @@ CREATE TABLE IF NOT EXISTS mapplusconf.staging_import_bundle (
     updated_at          TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-COMMENT ON TABLE mapplusconf.staging_import_bundle IS 'DB-basierte Staging-Bundles aus dem SLM (ersetzt ImportToCore/<kuerzel>/)';
-COMMENT ON COLUMN mapplusconf.staging_import_bundle.kuerzel IS 'Primäres Kürzel des Bundles; historisch der Ordnername unter ImportToCore/';
-COMMENT ON COLUMN mapplusconf.staging_import_bundle.tags IS 'Freie Tags zum Bundle; aktuell mindestens das Kürzel selbst';
-COMMENT ON COLUMN mapplusconf.staging_import_bundle.payload IS 'Datei-Bundle als JSONB: {files:[{name,type,prefix,data,size,modified}]}' ;
-COMMENT ON COLUMN mapplusconf.staging_import_bundle.manifest IS 'Staging-Manifest mit Quellbasis/Change-Detection';
-COMMENT ON COLUMN mapplusconf.staging_import_bundle.last_imported_at IS 'Zeitpunkt des letzten Imports/Stagings in die DB';
-COMMENT ON COLUMN mapplusconf.staging_import_bundle.last_imported_by IS 'Bearbeiter des letzten Imports/Stagings';
+COMMENT ON TABLE mapplusconf.config_bundle_store IS 'DB-basierter Konfig-Bundle-Store aus dem SLM (ersetzt ImportToCore/<kuerzel>/)';
+COMMENT ON COLUMN mapplusconf.config_bundle_store.kuerzel IS 'Primäres Kürzel des Bundles; historisch der Ordnername unter ImportToCore/';
+COMMENT ON COLUMN mapplusconf.config_bundle_store.tags IS 'Freie Tags zum Bundle; aktuell mindestens das Kürzel selbst';
+COMMENT ON COLUMN mapplusconf.config_bundle_store.payload IS 'Datei-Bundle als JSONB: {files:[{name,type,prefix,data,size,modified}]}' ;
+COMMENT ON COLUMN mapplusconf.config_bundle_store.manifest IS 'Manifest mit Quellbasis/Change-Detection';
+COMMENT ON COLUMN mapplusconf.config_bundle_store.last_imported_at IS 'Zeitpunkt des letzten Imports in die DB';
+COMMENT ON COLUMN mapplusconf.config_bundle_store.last_imported_by IS 'Bearbeiter des letzten Imports';
 
-CREATE INDEX IF NOT EXISTS idx_staging_bundle_tags ON mapplusconf.staging_import_bundle USING GIN (tags);
-CREATE INDEX IF NOT EXISTS idx_staging_bundle_imported_at ON mapplusconf.staging_import_bundle (last_imported_at DESC);
+CREATE INDEX IF NOT EXISTS idx_config_bundle_store_tags ON mapplusconf.config_bundle_store USING GIN (tags);
+CREATE INDEX IF NOT EXISTS idx_config_bundle_store_imported_at ON mapplusconf.config_bundle_store (last_imported_at DESC);
 
-DROP TRIGGER IF EXISTS trg_staging_import_bundle_updated ON mapplusconf.staging_import_bundle;
-CREATE TRIGGER trg_staging_import_bundle_updated BEFORE UPDATE ON mapplusconf.staging_import_bundle FOR EACH ROW EXECUTE FUNCTION mapplusconf.set_updated_at();
+DROP TRIGGER IF EXISTS trg_config_bundle_store_updated ON mapplusconf.config_bundle_store;
+CREATE TRIGGER trg_config_bundle_store_updated BEFORE UPDATE ON mapplusconf.config_bundle_store FOR EACH ROW EXECUTE FUNCTION mapplusconf.set_updated_at();

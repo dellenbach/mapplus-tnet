@@ -1129,9 +1129,6 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
   <span class="sep"></span>
   <span class="brand">🔧 Tree-Builder</span>
   <span class="sep"></span>
-  <!-- Store-Badge: zeigt welcher Konfig-Store aktiv ist -->
-  <span id="tb-store-badge" title="Aktiver Konfig-Store — DEV/PROD wechselbar im SLM"></span>
-  <span class="sep"></span>
   <button id="tb-btn-ags-import" title="Service- und Layermanager">🌐 Manager</button>
   <a href="slm.html" target="_blank" style="color:rgba(255,255,255,.45);font-size:10px;text-decoration:none;margin-left:-4px" title="Service- und Layermanager in separater Seite öffnen">↗</a>
   <button id="tb-btn-backup-toolbar" title="Server-Backups anzeigen, wiederherstellen und löschen" style="margin-left:6px;background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.25);color:rgba(255,255,255,.8)">📁 Backups</button>
@@ -1179,8 +1176,8 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
       <input type="text" id="tb-layer-search" placeholder="Layer suchen…">
     </div>
     <div class="tb-search" style="padding-top:0">
-      <select id="tb-conffile-filter" style="width:100%;padding:4px 6px;font-size:11px;border:1px solid #ddd;border-radius:3px">
-        <option value="">Alle Konfigdateien</option>
+      <select id="tb-conffile-filter" style="width:100%;padding:4px 6px;font-size:11px;border:1px solid #ddd;border-radius:3px" title="Nach Tag filtern">
+        <option value="">Alle Tags</option>
       </select>
     </div>
     <div class="tb-panel-body" id="tb-layer-list"></div>
@@ -1205,7 +1202,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
       <div class="tb-tree-left">
         <div class="tb-panel-head">
           <h2>LyrMgr-Editor</h2>
-          <span id="tb-dev-env-badge" style="display:none;background:#e67e22;color:#fff;padding:1px 8px;border-radius:3px;font-size:11px;font-weight:700;letter-spacing:.5px;margin-left:2px">DEV</span>
+          <span id="tb-store-badge" style="margin-left:4px"></span>
           <span id="tb-build-ts" title="Release-Zeitstempel (letzter Deploy)" style="font-size:10px;color:rgba(0,0,0,.35);font-family:monospace;white-space:nowrap;margin-left:6px"></span>
           <button id="tb-btn-undo" title="Rückgängig (Ctrl+Z)" disabled>↩</button>
           <button id="tb-btn-redo" title="Wiederherstellen (Ctrl+Y)" disabled>↪</button>
@@ -1567,8 +1564,7 @@ var _storeEnv = (function() {
 var API_URL = (_storeEnv === 'dev' ? '/maps-dev' : '/maps') + '/tnet/api/v1/treebuilder-api.php';
 var _envLabel = _storeEnv === 'dev' ? '[DEV]' : '[PROD]';
 
-// DEV-Badge im LyrMgr-Editor (Software-Umgebung, nicht Store)
-if (_swEnv === 'dev') { var _devBadgeEl = document.getElementById('tb-dev-env-badge'); if (_devBadgeEl) _devBadgeEl.style.display = ''; }
+// DEV-Badge entfernt (Store-Badge wird jetzt im LyrMgr-Editor-Header gesetzt)
 
 // ── Store-Badge + Info-Bar ──
 (function initTbStoreUi() {
@@ -1576,7 +1572,7 @@ if (_swEnv === 'dev') { var _devBadgeEl = document.getElementById('tb-dev-env-ba
   var dbSchema = _storeEnv === 'dev' ? 'mapplusconf_dev' : 'mapplusconf';
   var label    = _storeEnv.toUpperCase();
 
-  // Badge in der Toolbar
+  // Store-Badge im LyrMgr-Editor-Header (statt in der Toolbar)
   var badge = document.getElementById('tb-store-badge');
   if (badge) {
     badge.textContent = 'Store: ' + label;
@@ -1635,15 +1631,35 @@ _showBuildTs('tb-build-ts');
 // Staging-Modus: ?source=staging in der URL → Layer aus ImportToCore laden
 var _urlParams = new URLSearchParams(window.location.search);
 var _stagingMode = _urlParams.get('source') === 'staging';
-if (_stagingMode) {
-  document.querySelector('.tb-toolbar .brand').innerHTML = '🔧 Tree-Builder <span style="background:#e0a430;color:#1e3a4a;padding:1px 8px;border-radius:3px;font-size:10px;font-weight:700;margin-left:6px;vertical-align:middle">STAGING</span>';
-}
+// Staging-Modus: kein zusätzliches Badge im Brand (Store-Badge im LyrMgr-Header genügt)
 
 var _saveTimer = null;
 var _lockRefreshTimer = null;
 var _lockStatusTimer = null;
-var _editorName = localStorage.getItem('treebuilder_editor') || '';
+var _editorName = localStorage.getItem('treebuilder_editor')
+  || localStorage.getItem('tnetLoggedInUser')
+  || localStorage.getItem('slmBookmarkUser')
+  || '';
+if (_editorName) {
+  try { localStorage.setItem('treebuilder_editor', _editorName); } catch (e) {}
+}
 var _hasLock = false;
+
+(function loadCurrentUserForEditor() {
+  if (_editorName) return;
+  fetch('admin-users.php?action=current-user', { headers: { 'Accept': 'application/json' } })
+    .then(function(r) { return r.json(); })
+    .then(function(j) {
+      if (!j || !j.success || !j.user) return;
+      _editorName = String(j.user || '').trim();
+      if (!_editorName) return;
+      try {
+        localStorage.setItem('treebuilder_editor', _editorName);
+        localStorage.setItem('tnetLoggedInUser', _editorName);
+      } catch (e) {}
+    })
+    .catch(function() {});
+})();
 
 console.log('[TB-DIAG v5] Script start — TNET Tree-Builder init');
 window.TB_STARTED = 1;  // Diagnostik: Script hat begonnen
@@ -1993,6 +2009,16 @@ function updateLockIndicator(lockInfo, color) {
 
 function promptEditorName() {
   var name = _editorName || '';
+  if (!name) {
+    try {
+      name = localStorage.getItem('tnetLoggedInUser') || localStorage.getItem('slmBookmarkUser') || '';
+    } catch (e) {}
+  }
+  if (name && name.trim()) {
+    _editorName = name.trim();
+    localStorage.setItem('treebuilder_editor', _editorName);
+    return true;
+  }
   name = prompt('Dein Name für die Bearbeitung:', name);
   if (name && name.trim()) {
     _editorName = name.trim();
@@ -2205,8 +2231,11 @@ function renderLayers(filter) {
   var totalCount = 0;
 
   state.layers.forEach(function(l, idx) {
-    // Konfig-Datei-Filter
-    if (confFilter && l.sourceFile !== confFilter) return;
+    // Tag-Filter (statt Konfig-Datei)
+    if (confFilter) {
+      var tags = (l.tags && l.tags.length) ? l.tags : [];
+      if (tags.indexOf(confFilter) === -1) return;
+    }
     var name = l.name || l.id || '(unbenannt)';
     if (q && name.toLowerCase().indexOf(q) === -1 && (l.id || '').toLowerCase().indexOf(q) === -1) return;
     totalCount++;
@@ -2413,21 +2442,22 @@ function verifySourceGroup(srcKey) {
   });
 }
 
-// Konfig-Datei-Filter: Dropdown befüllen
+// Tag-Filter: Dropdown befüllen (statt Konfigdateien jetzt Tags)
 function updateConffileFilter() {
   var sel = document.getElementById('tb-conffile-filter');
-  var files = {};
+  var tagCounts = {};
   state.layers.forEach(function(l) {
-    if (l.sourceFile) {
-      if (!files[l.sourceFile]) files[l.sourceFile] = 0;
-      files[l.sourceFile]++;
-    }
+    var tags = (l.tags && l.tags.length) ? l.tags : [];
+    tags.forEach(function(t) {
+      if (!tagCounts[t]) tagCounts[t] = 0;
+      tagCounts[t]++;
+    });
   });
-  sel.innerHTML = '<option value="">Alle Konfigdateien (' + state.layers.length + ')</option>';
-  Object.keys(files).sort().forEach(function(f) {
+  sel.innerHTML = '<option value="">Alle Tags (' + state.layers.length + ')</option>';
+  Object.keys(tagCounts).sort().forEach(function(t) {
     var opt = document.createElement('option');
-    opt.value = f;
-    opt.textContent = f + ' (' + files[f] + ')';
+    opt.value = t;
+    opt.textContent = t + ' (' + tagCounts[t] + ')';
     sel.appendChild(opt);
   });
 }

@@ -83,6 +83,12 @@ function jsonError($message, $code = 400) {
     jsonResponse(['success' => false, 'error' => $message], $code);
 }
 
+function requireAdminAction() {
+    if (!AdminAuth::isAdmin()) {
+        jsonError('Nur für Administratoren', 403);
+    }
+}
+
 function toSftpPath($path) {
     $path = str_replace('/var/www/html/nwow', '/www', $path);
     $path = str_replace('/data/Client_Data/nwow/tmp', '/data/tmp', $path);
@@ -522,22 +528,95 @@ function listAllLayers($profile = null) {
         $sources[] = ['path' => $dir, 'type' => $sourceTag, 'files' => count($files)];
     };
 
-    // 1. Basis: /www/core/config/ — alle Layer-Typen (WMS, ArcGIS REST, WMTS, etc.)
-    $coreBase = realpath(CORE_CONFIG_DIR);
-    $readLayerConfs($coreBase, 'core');
+    // Quelle der Layer: DB-only sobald die Konfig-Store DB verfuegbar ist.
+    // Dateien (core/override/profile) dienen nur noch als Fallback, falls die DB
+    // leer/nicht erreichbar ist — so wird der Tree-Builder nie versehentlich leer.
+    $dbActive = useStagingImportDb();
+    $dbHasLayers = false;
 
-    // 2. Override: /www/maps/core/config/
-    $overridePath = realpath(APP_CORE_CONFIG_DIR);
-    if ($overridePath !== $coreBase) {
-        $readLayerConfs($overridePath, 'override');
+    if (!$dbActive) {
+        // 1. Basis: /www/core/config/ — alle Layer-Typen (WMS, ArcGIS REST, WMTS, etc.)
+        $coreBase = realpath(CORE_CONFIG_DIR);
+        $readLayerConfs($coreBase, 'core');
+
+        // 2. Override: /www/maps/core/config/
+        $overridePath = realpath(APP_CORE_CONFIG_DIR);
+        if ($overridePath !== $coreBase) {
+            $readLayerConfs($overridePath, 'override');
+        }
+
+        // 3. Profil-spezifisch: /www/maps/public/config/[profil]/
+        if ($profile) {
+            $safe = preg_replace('/[^a-zA-Z0-9_\-]/', '', $profile);
+            $profilePath = CONFIG_BASE . '/' . $safe;
+            if ($safe === 'public') $profilePath = CONFIG_BASE;
+            $readLayerConfs($profilePath, 'profile');
+        }
     }
 
-    // 3. Profil-spezifisch: /www/maps/public/config/[profil]/
-    if ($profile) {
-        $safe = preg_replace('/[^a-zA-Z0-9_\-]/', '', $profile);
-        $profilePath = CONFIG_BASE . '/' . $safe;
-        if ($safe === 'public') $profilePath = CONFIG_BASE;
-        $readLayerConfs($profilePath, 'profile');
+    // DB-Quelle (DB-first/DB-only): Konfig-Store-DB-Bundles liefern die Layer.
+    //    Ueberladungsreihenfolge: core -> override/sitecore -> profile (DB gewinnt).
+    if ($dbActive) {
+        $scopeRank = ['core' => 1, 'override' => 2, 'sitecore' => 2, 'profile' => 3];
+        $bundles = StagingImportRepository::loadAll();
+        // Nach Scope sortieren, damit hoehere Stufen spaeter ueberschreiben.
+        usort($bundles, function ($a, $b) use ($scopeRank) {
+            $ra = $scopeRank[$a['scope'] ?? 'core'] ?? 1;
+            $rb = $scopeRank[$b['scope'] ?? 'core'] ?? 1;
+            if ($ra === $rb) return strcmp($a['kuerzel'], $b['kuerzel']);
+            return $ra - $rb;
+        });
+        foreach ($bundles as $bundle) {
+            $bScope = $bundle['scope'] ?? 'core';
+            $bProfile = $bundle['profile'] ?? null;
+            // Profil-Filter: Profil-Bundles nur fuer das aktuell gewaehlte Profil.
+            //   core/sitecore/override -> immer sichtbar.
+            //   profile -> nur wenn Profil gewaehlt ist UND exakt passt.
+            if ($bScope === 'profile') {
+                if (!$profile || $bProfile !== $profile) continue;
+            }
+            $bTags = (isset($bundle['tags']) && is_array($bundle['tags'])) ? array_values($bundle['tags']) : [$bundle['kuerzel']];
+            foreach (($bundle['files'] ?? []) as $file) {
+                $prefix = $file['prefix'] ?? '';
+                $data = $file['data'] ?? null;
+                if (!is_array($data) || empty($data)) continue;
+                $isAssoc = array_keys($data) !== range(0, count($data) - 1);
+                if (!$isAssoc) continue;
+                if ($prefix === 'layers') {
+                    foreach ($data as $k => $v) {
+                        $definitions[$k] = $v;
+                        $dbHasLayers = true;
+                        $sourceMap[$k] = [
+                            'tag'     => 'db:' . $bScope,
+                            'file'    => $bundle['kuerzel'] . '/' . ($file['name'] ?? ''),
+                            'dir'     => 'db:config_bundle_store',
+                            'tags'    => $bTags,
+                            'kuerzel' => $bundle['kuerzel'],
+                            'scope'   => $bScope,
+                            'profile' => $bProfile,
+                        ];
+                    }
+                }
+            }
+        }
+        $sources[] = ['path' => 'db:config_bundle_store', 'type' => 'db', 'files' => count($bundles)];
+
+        // Fallback: DB aktiv, aber (noch) keine Layer importiert -> Dateien lesen,
+        // damit der Tree-Builder nicht leer bleibt, bis der Import erfolgt ist.
+        if (!$dbHasLayers) {
+            $coreBase = realpath(CORE_CONFIG_DIR);
+            $readLayerConfs($coreBase, 'core');
+            $overridePath = realpath(APP_CORE_CONFIG_DIR);
+            if ($overridePath !== $coreBase) {
+                $readLayerConfs($overridePath, 'override');
+            }
+            if ($profile) {
+                $safe = preg_replace('/[^a-zA-Z0-9_\-]/', '', $profile);
+                $profilePath = CONFIG_BASE . '/' . $safe;
+                if ($safe === 'public') $profilePath = CONFIG_BASE;
+                $readLayerConfs($profilePath, 'profile');
+            }
+        }
     }
 
     // NLS-Labels laden (Basis + Override)
@@ -571,6 +650,33 @@ function listAllLayers($profile = null) {
         }
     }
 
+    // DB-Overlay fuer Aliase (DB-first): lyrmgrResources aus der Konfig-Store DB
+    // ueberschreiben die Datei-Labels in derselben Scope-Reihenfolge.
+    if (useStagingImportDb()) {
+        $scopeRankN = ['core' => 1, 'override' => 2, 'sitecore' => 2, 'profile' => 3];
+        $nlsBundles = StagingImportRepository::loadAll();
+        usort($nlsBundles, function ($a, $b) use ($scopeRankN) {
+            $ra = $scopeRankN[$a['scope'] ?? 'core'] ?? 1;
+            $rb = $scopeRankN[$b['scope'] ?? 'core'] ?? 1;
+            if ($ra === $rb) return strcmp($a['kuerzel'], $b['kuerzel']);
+            return $ra - $rb;
+        });
+        foreach ($nlsBundles as $bundle) {
+            $bScope = $bundle['scope'] ?? 'core';
+            $bProfile = $bundle['profile'] ?? null;
+            if ($bScope === 'profile') {
+                if (!$profile || $bProfile !== $profile) continue;
+            }
+            foreach (($bundle['files'] ?? []) as $file) {
+                if (($file['prefix'] ?? '') !== 'lyrmgrResources') continue;
+                $data = $file['data'] ?? null;
+                if (is_array($data) && !empty($data)) {
+                    $aliases = array_merge($aliases, $data);
+                }
+            }
+        }
+    }
+
     // Flache Layer-Liste aufbauen — alle Properties übernehmen
     $layers = [];
     // Interne/unwichtige Keys die nicht in die Ausgabe sollen
@@ -578,6 +684,11 @@ function listAllLayers($profile = null) {
     foreach ($definitions as $id => $def) {
         $sm = $sourceMap[$id] ?? ['tag' => 'unknown', 'file' => '', 'dir' => ''];
         $layer = ['id' => $id, 'source' => $sm['tag'], 'sourceFile' => $sm['file'], 'sourceFilePath' => $sm['dir'] . '/' . $sm['file']];
+        // Tags/Stufe/Kuerzel aus dem DB-Bundle (fuer Tag-Filter im Tree-Builder)
+        $layer['tags'] = isset($sm['tags']) && is_array($sm['tags']) ? array_values($sm['tags']) : [];
+        $layer['kuerzel'] = $sm['kuerzel'] ?? '';
+        $layer['scope'] = $sm['scope'] ?? '';
+        if (isset($sm['profile'])) $layer['profile'] = $sm['profile'];
         // Alle Properties 1:1 übernehmen (Layer-Typ-agnostisch: WMS, ArcGIS, WMTS etc.)
         foreach ($def as $prop => $val) {
             if (!isset($skipKeys[$prop])) {
@@ -2381,6 +2492,8 @@ function listImportToCoreDb() {
         $entry = [
             'kuerzel' => $bundle['kuerzel'],
             'tags' => $bundle['tags'],
+            'scope' => $bundle['scope'] ?? 'core',
+            'profile' => $bundle['profile'] ?? null,
             'files' => $files,
             'size' => array_sum(array_map(function ($f) { return (int)$f['size']; }, $files)),
             'manifest' => $bundle['manifest'],
@@ -2462,7 +2575,29 @@ function deleteImportToCoreKuerzelDb(array $kuerzelList) {
     return StagingImportRepository::deleteBundles($kuerzelList);
 }
 
-function stageServicesToImportDb(array $serviceKeys, string $kuerzel, string $mode = 'replace') {
+/**
+ * Re-Stage: ein Kuerzel anhand seiner Manifest-Quellen server-seitig neu stagen.
+ */
+function restageKuerzelDb($kuerzel) {
+    $safe = preg_replace('/[^a-zA-Z0-9_\-]/', '_', trim((string)$kuerzel));
+    if ($safe === '') return ['success' => false, 'error' => 'Kuerzel darf nicht leer sein'];
+    if (!useStagingImportDb()) return ['success' => false, 'error' => 'Konfig-Store DB nicht verfuegbar'];
+    $bundle = StagingImportRepository::loadBundle($safe);
+    if (!$bundle) return ['success' => false, 'error' => 'Kuerzel nicht gefunden: ' . $safe];
+    $manifest = $bundle['manifest'] ?? [];
+    $sources = [];
+    if (!empty($manifest['sources']) && is_array($manifest['sources'])) {
+        foreach ($manifest['sources'] as $src) {
+            if (!empty($src['service'])) $sources[] = $src['service'];
+        }
+    }
+    if (empty($sources)) {
+        return ['success' => false, 'error' => 'Keine Quellen im Manifest hinterlegt — bitte links manuell neu stagen.', 'code' => 'no-sources'];
+    }
+    return stageServicesToImportToCore($sources, $safe, 'replace');
+}
+
+function stageServicesToImportDb(array $serviceKeys, string $kuerzel, string $mode = 'replace', string $scope = 'core', ?string $profile = null) {
     $kuerzel = preg_replace('/[^a-zA-Z0-9_\-]/', '_', trim($kuerzel));
     if ($kuerzel === '') return ['success' => false, 'error' => 'Kürzel darf nicht leer sein'];
     if (!in_array($mode, ['merge', 'replace', 'preview'], true)) {
@@ -2650,15 +2785,29 @@ function stageServicesToImportDb(array $serviceKeys, string $kuerzel, string $mo
         $manifest['buckets'][$wf['prefix']] = ['file' => $wf['name'], 'totalKeys' => $wf['keys']];
     }
 
+    // Bestehende Zusatz-Tags erhalten (auch bei mode=replace / Re-Stage)
+    $preserveTags = [$kuerzel];
+    $tagBundle = StagingImportRepository::loadBundle($kuerzel);
+    if ($tagBundle && !empty($tagBundle['tags']) && is_array($tagBundle['tags'])) {
+        $preserveTags = array_values(array_unique(array_merge($preserveTags, $tagBundle['tags'])));
+    }
+    // Scope/Profile: explizit gewaehlt, sonst bestehenden Wert beibehalten.
+    if ($scope === '' || $scope === null) {
+        $scope = $tagBundle['scope'] ?? 'core';
+    }
+    if ($profile === null && isset($tagBundle['profile'])) {
+        $profile = $tagBundle['profile'];
+    }
+
     if ($mode !== 'preview') {
-        StagingImportRepository::saveBundle($kuerzel, $written, $manifest, [$kuerzel], getEditorName());
+        StagingImportRepository::saveBundle($kuerzel, $written, $manifest, $preserveTags, getEditorName(), $scope, $profile);
     }
 
     return [
         'success' => true,
         'kuerzel' => $kuerzel,
         'mode' => $mode,
-        'targetDir' => 'db:staging_import_bundle/' . $kuerzel,
+        'targetDir' => 'db:config_bundle_store/' . $kuerzel,
         'files' => array_map(function ($wf) use ($kuerzel) {
             return [
                 'file' => $kuerzel . '/' . $wf['name'],
@@ -2803,17 +2952,17 @@ function configEditorLoadDb($kuerzel) {
         elseif ($prefix === 'lyrmgrResources') $type = 'lyrmgr';
         elseif ($prefix === 'maptipsResources') $type = 'maptipsRes';
         elseif ($prefix === 'legendResources') $type = 'legendRes';
-        $result['files'][] = ['name' => $file['name'] ?? '', 'type' => $type, 'prefix' => $prefix, 'keys' => count($decoded), 'size' => (int)($file['size'] ?? strlen(json_encode($decoded))), 'modified' => $file['modified'] ?? date('Y-m-d H:i:s'), 'data' => $decoded];
+        $result['files'][] = ['name' => $file['name'] ?? '', 'type' => $type, 'prefix' => $prefix, 'keys' => count($decoded), 'size' => (int)($file['size'] ?? strlen(json_encode($decoded))), 'modified' => $file['modified'] ?? date('Y-m-d H:i:s'), 'data' => $decoded, '_edits' => $file['_edits'] ?? null];
     }
     if (!empty($bundle['manifest'])) $result['manifest'] = $bundle['manifest'];
     return ['success' => true, 'data' => $result];
 }
 
-function configEditorSaveDb($kuerzel, $fileName, $data) {
+function configEditorSaveDb($kuerzel, $fileName, $data, array $changedKeys = []) {
     $safe = preg_replace('/[^a-zA-Z0-9_\-]/', '_', trim($kuerzel));
     if ($safe === '') return ['success' => false, 'error' => 'Kürzel darf nicht leer sein'];
     if (strpos($fileName, '..') !== false || strpos($fileName, '/') !== false) return ['success' => false, 'error' => 'Ungültiger Dateiname'];
-    $res = StagingImportRepository::saveFileData($safe, $fileName, $data, getEditorName());
+    $res = StagingImportRepository::saveFileData($safe, $fileName, $data, getEditorName(), $changedKeys);
     if (empty($res['success'])) return $res;
     return ['success' => true, 'file' => $fileName, 'keys' => count($data), 'timestamp' => date('Y-m-d H:i:s')];
 }
@@ -2825,17 +2974,41 @@ function configExportToCoreDb($kuerzel) {
     $bundle = StagingImportRepository::loadBundle($safe);
     if (!$bundle) return ['success' => false, 'error' => 'Quell-Bundle nicht gefunden'];
 
-    $coreConfigDir = CORE_CONFIG_DIR;
-    $coreNlsDir = CORE_NLS_DIR;
-    if (!is_dir($coreConfigDir)) return ['success' => false, 'error' => 'core/config/ nicht gefunden auf Server'];
-    if (!is_dir($coreNlsDir)) return ['success' => false, 'error' => 'core/nls/de/ nicht gefunden auf Server'];
+    // Scope-bewusste Zielpfade:
+    //   core              -> core-dev/config/ + core-dev/nls/de/
+    //   sitecore/override -> maps-dev/core/config/ + maps-dev/core/nls/de/
+    //   profile           -> maps-dev/public/config/<profil>/ (conf + nls zusammen)
+    $scope = $bundle['scope'] ?? 'core';
+    $profile = $bundle['profile'] ?? null;
+
+    if ($scope === 'profile') {
+        $safeP = preg_replace('/[^a-zA-Z0-9_\-]/', '', (string)$profile);
+        if ($safeP === '') return ['success' => false, 'error' => 'Profil-Bundle ohne Profilname — bitte beim Import ein Profil angeben'];
+        $targetBase = ($safeP === 'public') ? CONFIG_BASE : CONFIG_BASE . '/' . $safeP;
+        $configDir = $targetBase;
+        $nlsDir    = $targetBase;
+    } elseif ($scope === 'sitecore' || $scope === 'override') {
+        $configDir = APP_CORE_CONFIG_DIR;
+        $nlsDir    = APP_CORE_NLS_DIR;
+    } else { // core
+        $configDir = CORE_CONFIG_DIR;
+        $nlsDir    = CORE_NLS_DIR;
+    }
+
+    // Zielverzeichnisse anlegen (Profil-Ordner existiert evtl. noch nicht)
+    if (!is_dir($configDir) && !@mkdir($configDir, 0775, true)) {
+        return ['success' => false, 'error' => 'Zielverzeichnis (config) nicht anlegbar: ' . $configDir];
+    }
+    if (!is_dir($nlsDir) && !@mkdir($nlsDir, 0775, true)) {
+        return ['success' => false, 'error' => 'Zielverzeichnis (nls) nicht anlegbar: ' . $nlsDir];
+    }
 
     $exported = []; $errors = []; $backups = []; $ts = date('Ymd_His');
     foreach ($bundle['files'] as $file) {
         $name = $file['name'] ?? '';
         if ($name === '') continue;
         $prefix = $file['prefix'] ?? '';
-        $targetDir = in_array($prefix, ['layers', 'maptips'], true) ? $coreConfigDir : (in_array($prefix, ['lyrmgrResources', 'maptipsResources', 'legendResources'], true) ? $coreNlsDir : '');
+        $targetDir = in_array($prefix, ['layers', 'maptips'], true) ? $configDir : (in_array($prefix, ['lyrmgrResources', 'maptipsResources', 'legendResources'], true) ? $nlsDir : '');
         if ($targetDir === '') continue;
         $targetPath = $targetDir . '/' . $name;
         if (is_file($targetPath)) {
@@ -2847,7 +3020,18 @@ function configExportToCoreDb($kuerzel) {
         if ($bytes === false) $errors[] = 'Kopieren fehlgeschlagen: ' . $name . ' → ' . $targetPath;
         else $exported[] = ['file' => $name, 'target' => str_replace($docRoot, '', $targetPath), 'bytes' => $bytes];
     }
-    return ['success' => count($errors) === 0, 'kuerzel' => $safe, 'exported' => $exported, 'backups' => $backups, 'errors' => $errors, 'timestamp' => date('Y-m-d H:i:s')];
+    return [
+        'success' => count($errors) === 0,
+        'kuerzel' => $safe,
+        'scope' => $scope,
+        'profile' => ($scope === 'profile') ? $profile : null,
+        'configDir' => str_replace($docRoot, '', $configDir),
+        'nlsDir' => str_replace($docRoot, '', $nlsDir),
+        'exported' => $exported,
+        'backups' => $backups,
+        'errors' => $errors,
+        'timestamp' => date('Y-m-d H:i:s'),
+    ];
 }
 
 /**
@@ -3015,9 +3199,9 @@ function deleteImportToCoreKuerzel(array $kuerzelList) {
     return ['success' => true, 'deleted' => $deleted, 'errors' => $errors];
 }
 
-function stageServicesToImportToCore(array $serviceKeys, string $kuerzel, string $mode = 'replace') {
+function stageServicesToImportToCore(array $serviceKeys, string $kuerzel, string $mode = 'replace', string $scope = 'core', ?string $profile = null) {
     if (useStagingImportDb()) {
-        return stageServicesToImportDb($serviceKeys, $kuerzel, $mode);
+        return stageServicesToImportDb($serviceKeys, $kuerzel, $mode, $scope, $profile);
     }
     $kuerzel = preg_replace('/[^a-zA-Z0-9_\-]/', '_', trim($kuerzel));
     if ($kuerzel === '') return ['success' => false, 'error' => 'Kürzel darf nicht leer sein'];
@@ -3599,9 +3783,9 @@ function configEditorLoad($kuerzel) {
 /**
  * Geänderte Daten eines Dateityps zurück in ImportToCore schreiben.
  */
-function configEditorSave($kuerzel, $fileName, $data) {
+function configEditorSave($kuerzel, $fileName, $data, array $changedKeys = []) {
     if (useStagingImportDb()) {
-        return configEditorSaveDb($kuerzel, $fileName, $data);
+        return configEditorSaveDb($kuerzel, $fileName, $data, $changedKeys);
     }
     $safe = preg_replace('/[^a-zA-Z0-9_\-]/', '_', trim($kuerzel));
     if ($safe === '') return ['success' => false, 'error' => 'Kürzel darf nicht leer sein'];
@@ -5094,10 +5278,40 @@ switch ($action) {
         break;
 
     case 'staging-delete-output':
+        // DB-Aenderung: fuer eingeloggte Benutzer erlaubt (kein Admin noetig).
+        // Massen-Import (admin.php) und Export (config-export-to-core) bleiben Admin.
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('POST required', 405);
         $body = json_decode(file_get_contents('php://input'), true);
         if (!$body || !isset($body['kuerzel'])) jsonError('Feld "kuerzel" (Array) erforderlich', 400);
         jsonResponse(['success' => true, 'data' => deleteImportToCoreKuerzel($body['kuerzel'])]);
+        break;
+
+    case 'staging-restage':
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('POST required', 405);
+        $body = json_decode(file_get_contents('php://input'), true);
+        if (!$body || !isset($body['kuerzel'])) jsonError('Feld "kuerzel" erforderlich', 400);
+        $result = restageKuerzelDb($body['kuerzel']);
+        if (!$result['success']) jsonError($result['error'], 400);
+        jsonResponse(['success' => true, 'data' => $result]);
+        break;
+
+    case 'staging-add-tag':
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('POST required', 405);
+        $body = json_decode(file_get_contents('php://input'), true);
+        if (!$body || !isset($body['kuerzel']) || !isset($body['tag'])) jsonError('Felder "kuerzel" und "tag" erforderlich', 400);
+        $result = StagingImportRepository::addTag($body['kuerzel'], $body['tag']);
+        if (!$result['success']) jsonError($result['error'], 400);
+        jsonResponse(['success' => true, 'data' => $result]);
+        break;
+
+    case 'staging-delete-tag':
+        // Einzelnen Tag loeschen: fuer eingeloggte Benutzer erlaubt (kein Admin noetig).
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('POST required', 405);
+        $body = json_decode(file_get_contents('php://input'), true);
+        if (!$body || !isset($body['tag'])) jsonError('Feld "tag" erforderlich', 400);
+        $result = StagingImportRepository::removeTagEverywhere($body['tag']);
+        if (!$result['success']) jsonError($result['error'], 400);
+        jsonResponse(['success' => true, 'data' => $result]);
         break;
 
     case 'ags-stage-merge':
@@ -5110,7 +5324,9 @@ switch ($action) {
             jsonError('services muss ein nicht-leeres Array sein', 400);
         }
         $mode = isset($body['mode']) ? $body['mode'] : 'replace';
-        $result = stageServicesToImportToCore($body['services'], $body['kuerzel'], $mode);
+        $scope = isset($body['scope']) ? (string)$body['scope'] : 'core';
+        $profile = isset($body['profile']) && $body['profile'] !== '' ? (string)$body['profile'] : null;
+        $result = stageServicesToImportToCore($body['services'], $body['kuerzel'], $mode, $scope, $profile);
         if (!$result['success']) jsonError($result['error'], 400);
         jsonResponse(['success' => true, 'data' => $result]);
         break;
@@ -5137,12 +5353,14 @@ switch ($action) {
         if (!$body || !isset($body['kuerzel']) || !isset($body['file']) || !isset($body['data'])) {
             jsonError('Felder "kuerzel", "file" und "data" erforderlich', 400);
         }
-        $result = configEditorSave($body['kuerzel'], $body['file'], $body['data']);
+        $changedKeys = isset($body['changedKeys']) && is_array($body['changedKeys']) ? $body['changedKeys'] : [];
+        $result = configEditorSave($body['kuerzel'], $body['file'], $body['data'], $changedKeys);
         if (!$result['success']) jsonError($result['error'], 400);
         jsonResponse(['success' => true, 'data' => $result]);
         break;
 
     case 'config-export-to-core':
+        requireAdminAction();
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('POST required', 405);
         $body = json_decode(file_get_contents('php://input'), true);
         if (!$body || !isset($body['kuerzel'])) {

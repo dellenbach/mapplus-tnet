@@ -14,7 +14,7 @@ require_once __DIR__ . '/../includes/AdminAuth.php';
 
 // ===== ERLAUBTE SEITEN =====
 $allowedPages = [
-    'slm', 'ags-import', 'tree-builder', 'dev-test', 'tree-test', 'prod-sync'
+    'slm', 'ags-import', 'tree-builder', 'dev-test', 'tree-test', 'prod-sync', 'config-db-admin'
 ];
 
 $page = isset($_GET['page']) ? $_GET['page'] : '';
@@ -34,6 +34,11 @@ if (!$page || !in_array($page, $allowedPages, true)) {
 // Fehlt die Config komplett, erzwingt enforceEndpointPolicy() selbst
 // Cookie-Auth (fail-closed — siehe AdminAuth.php).
 AdminAuth::enforceEndpointPolicy($page, 'html');
+if ($page === 'config-db-admin' && !AdminAuth::isAdmin()) {
+    http_response_code(403);
+    echo '<!DOCTYPE html><html><body><h1>403 — Nur für Administratoren</h1></body></html>';
+    exit;
+}
 
 // ===== HTML AUSLIEFERN =====
 $htmlFile = __DIR__ . '/' . $page . '.html';

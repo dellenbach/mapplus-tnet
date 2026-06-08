@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="de">
 <head>
 <meta charset="UTF-8">
@@ -308,27 +308,9 @@ body {
               box-shadow: 0 0 4px #e74c3c; }
 
 .j-err-line { background: rgba(220,30,30,.28); border-left: 3px solid #e74c3c; display: block; margin-left: -3px; padding-left: 3px; } */
-#export-confirm-overlay {
-  display: none; position: fixed; inset: 0; z-index: 10100;
-  background: rgba(0,0,0,.5); align-items: center; justify-content: center;
-}
-#export-confirm-overlay.open { display: flex; }
-#export-confirm-dialog {
-  background: #fff; border-radius: 6px; box-shadow: 0 8px 32px rgba(0,0,0,.25);
-  width: 620px; max-width: 96vw; max-height: 82vh;
-  display: flex; flex-direction: column; overflow: hidden;
-}
-#export-confirm-header {
-  display: flex; align-items: center; gap: 10px; padding: 10px 14px;
-  border-bottom: 1px solid #e0e4e8; background: #f5f7fa; flex-shrink: 0;
-}
-#export-confirm-title { flex: 1; font-weight: 700; font-size: 13px; color: #1e3a4a; }
-#export-confirm-header .ec-close {
-  padding: 3px 9px; font-size: 11px; border: 1px solid #ccc;
-  border-radius: 3px; background: #fff; cursor: pointer;
-}
-#export-confirm-header .ec-close:hover { background: #fef0f0; color: #c33; border-color: #c33; }
-#export-confirm-body { flex: 1; overflow-y: auto; padding: 14px 16px; min-height: 0; }
+/* Export-Modal entfernt: direkter Deploy ohne Overlay */
+#export-confirm-overlay,
+#export-confirm-overlay.open { display: none !important; }
 .ecm-warning {
   background: #fff8e1; border: 1px solid #f0c040; border-radius: 4px;
   padding: 7px 10px; margin-bottom: 10px; font-size: 12px; color: #7d5a00;
@@ -395,34 +377,14 @@ body {
 /* Checkbox */
 .editor-src-item .src-cb { flex-shrink: 0; cursor: pointer; width: 13px; height: 13px; margin-right: 2px; }
 .ecm-empty { color: #888; font-size: 12px; text-align: center; padding: 20px; }
-#export-confirm-footer {
-  display: flex; align-items: center; gap: 8px; padding: 10px 14px;
-  border-top: 1px solid #e0e4e8; background: #f5f7fa; flex-shrink: 0;
-}
-#export-confirm-status { flex: 1; font-size: 12px; }
-#export-confirm-status.ecm-running { color: #888; }
-#export-confirm-status.ecm-status-success { color: #2a7a3b; font-weight: 600; }
-#export-confirm-status.ecm-status-error   { color: #c62828; font-weight: 600; }
+.ecm-status-legacy { display: none; }
 .ecm-result-banner {
   display: flex; align-items: center; gap: 8px; padding: 7px 10px;
   border-radius: 4px; margin-bottom: 10px; font-size: 12px; font-weight: 600;
 }
 .ecm-result-banner.success { background: #d1e7dd; color: #0a3622; border: 1px solid #a3cfbb; }
 .ecm-result-banner.verifying { background: #fff3cd; color: #664d03; border: 1px solid #ffda6a; }
-#export-confirm-run.btn-close {
-  background: #555 !important; border-color: #444 !important;
-}
-#export-confirm-footer button {
-  padding: 5px 14px; font-size: 12px; border-radius: 3px; cursor: pointer;
-  border: 1px solid #ccc; background: #fff;
-}
-#export-confirm-footer button:hover:not(:disabled) { background: #f0f2f5; }
-#export-confirm-footer button:disabled { opacity: .5; cursor: not-allowed; }
-#export-confirm-run {
-  background: #4B7B81 !important; color: #fff !important;
-  border-color: #3a6368 !important; font-weight: 600;
-}
-#export-confirm-run:hover:not(:disabled) { background: #3a6368 !important; }
+
 
 /* ===== STAGING-TAB ===== */
 .staging-kuerzel-row {
@@ -479,11 +441,33 @@ body {
 .stg-output-file .of-edit:hover { opacity: 1; background: #e8f4f4; }
 .stg-output-file.has-dups { background: #fef6f0; border-left: 3px solid #e67e22; }
 .stg-output-file .of-dup { font-size: 9px; color: #e67e22; font-weight: 700; flex-shrink: 0; cursor: help; }
-.stg-output-file.has-cross-dups { background: #fef0f0; border-left: 3px solid #c33; }
-.stg-output-file .of-cross-dup { font-size: 9px; color: #c33; font-weight: 700; flex-shrink: 0; cursor: help; }
+.stg-output-file.has-cross-dups { background: #eef6f7; border-left: 3px solid #4b7b81; }
+.stg-output-file .of-cross-dup { font-size: 9px; color: #3a6368; font-weight: 700; flex-shrink: 0; cursor: pointer; }
 .stg-dup-detail { font-size: 10px; color: #c33; padding: 3px 4px 3px 20px; background: #fef0f0; border-radius: 3px; margin: 1px 0; font-family: 'Consolas', monospace; word-break: break-all; }
-.stg-cross-dup-detail { font-size: 10px; color: #c33; padding: 3px 4px 3px 20px; background: #fce4e4; border-radius: 3px; margin: 1px 0; font-family: 'Consolas', monospace; word-break: break-all; }
-.stg-cross-dup-summary { font-size: 11px; color: #c33; font-weight: 700; padding: 6px 8px; margin-bottom: 6px; background: #fce4e4; border: 1px solid #e8a; border-radius: 4px; }
+.stg-cross-dup-detail { font-size: 10px; color: #3a6368; padding: 3px 4px 3px 20px; background: #e8f1f2; border-radius: 3px; margin: 1px 0; font-family: 'Consolas', monospace; word-break: break-all; }
+.stg-cross-dup-summary { font-size: 11px; color: #3a6368; font-weight: 600; padding: 6px 8px; margin-bottom: 6px; background: #e8f1f2; border: 1px solid #bcd; border-radius: 4px; }
+/* ===== TAG-ÜBERSICHT (rechte Seite) ===== */
+.stg-tag-overview { flex-shrink: 0; margin: 2px 0 8px; border: 1px solid #d6e3e5; border-radius: 6px; background: #f7fbfb; overflow: hidden; }
+/* Accordion in der Store-Ausgabe (kompakte Liste) */
+.stg-acc-head { cursor: pointer; }
+.stg-acc-head .stg-acc-arrow { font-size: 9px; color: #888; width: 12px; flex-shrink: 0; text-align: center; transition: transform .12s; }
+.stg-acc-head:hover { background: #f0f6f7; }
+.stg-acc-body { padding-left: 6px; }
+.stg-tag-overview-head { font-size: 11px; font-weight: 700; color: #3a6368; padding: 6px 10px; background: #e8f1f2; border-bottom: 1px solid #d6e3e5; display: flex; align-items: center; gap: 6px; }
+.stg-tag-row { display: flex; align-items: center; gap: 8px; padding: 5px 10px; border-bottom: 1px solid #eef3f3; font-size: 11px; }
+.stg-tag-row:last-child { border-bottom: none; }
+.stg-tag-row .tag-name { font-weight: 700; color: #2c4a50; background: #e8f1f2; border: 1px solid #c6dde0; border-radius: 10px; padding: 1px 9px; }
+.stg-tag-row .tag-meta { color: #888; flex: 1; }
+.stg-tag-row .tag-del { font-size: 10px; padding: 2px 8px; border-radius: 10px; border: 1.5px solid #ddd; background: #fff; color: #aaa; cursor: pointer; white-space: nowrap; }
+.stg-tag-row .tag-del:hover { background: #fff0f0; border-color: #e33; color: #c33; }
+/* ===== TAG-CHIPS pro Kürzel ===== */
+.stg-tag-chips { display: inline-flex; flex-wrap: wrap; gap: 4px; margin-left: 4px; vertical-align: middle; }
+.stg-tag-chip { font-size: 9px; color: #4b7b81; background: #e8f1f2; border: 1px solid #c6dde0; padding: 1px 4px 1px 7px; border-radius: 9px; font-weight: 700; display: inline-flex; align-items: center; gap: 3px; }
+.stg-tag-chip.is-primary { color: #2c4a50; background: #d7e8ea; }
+.stg-tag-chip .chip-x { cursor: pointer; color: #9bb; font-weight: 700; }
+.stg-tag-chip .chip-x:hover { color: #c33; }
+.stg-tag-chip-add { font-size: 9px; color: #4b7b81; background: #fff; border: 1px dashed #9cc; padding: 1px 6px; border-radius: 9px; cursor: pointer; font-weight: 700; }
+.stg-tag-chip-add:hover { background: #e8f1f2; }
 .stg-kuerzel-actions { display: flex; gap: 5px; margin-left: auto; flex-shrink: 0; align-items: center; }
 .stg-btn-restage {
   font-size: 11px; padding: 3px 10px; border-radius: 12px;
@@ -946,6 +930,19 @@ table.bm-mtx tbody tr.bm-mtx-row-sel:hover td { background: #ffe0b2; }
 .editor-src-empty {
   padding: 20px; text-align: center; color: var(--c-muted, #888); font-size: 12px;
 }
+/* ── Tag-Gruppierung in der Quellenliste ── */
+.editor-tag-group { border-bottom: 1px solid #eef2f4; }
+.editor-tag-head {
+  display: flex; align-items: center; gap: 8px; padding: 8px 12px;
+  cursor: pointer; user-select: none; background: #f3f8f9;
+  font-size: 12px; font-weight: 700; color: #2c4a50;
+}
+.editor-tag-head:hover { background: #e8f1f2; }
+.editor-tag-head .etg-name { flex: 1; font-family: 'Consolas', monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.editor-tag-head .src-arrow { font-size: 10px; color: #888; width: 12px; text-align: center; transition: transform .15s; flex-shrink: 0; }
+.editor-tag-head.collapsed .src-arrow { transform: rotate(-90deg); }
+.editor-tag-head.collapsed + .editor-tag-members { display: none; }
+.editor-tag-members .editor-src-item { padding-left: 24px; }
 
 /* ── Rechtes Panel: Editor ── */
 .editor-main {
@@ -1318,7 +1315,7 @@ html[data-env="dev"] .path-info-bar .pib-lbl { color: #7a3000; }
 Betrifft: JSON-Antworten von layers.php (tmp/maps-dev/)
 Noetig nach Layer-Konfig-Aenderungen, damit der neue Stand sofort sichtbar wird.
 Kein Einfluss auf Browser-Cache (dafuer: Ctrl+Shift+R)">🗑 Cache leeren</button>
-  <button id="ags-btn-config-to-db" title="Konfigurationsdateien in PostgreSQL-Datenbank einlesen (configToPG)">🗄 Config → DB</button>
+  <button id="ags-btn-config-to-db" title="Konfigurationsdatenbank verwalten (Import / Export / Löschen)" style="display:none">🗄 Konfig-DB</button>
   <button id="slm-btn-backups" title="Server-Backups anzeigen, wiederherstellen und löschen" style="margin-left:6px">📁 Backups</button>
   <span class="spacer"></span>
   <a href="tree-builder.html">← Tree-Builder</a>
@@ -1344,7 +1341,7 @@ Kein Einfluss auf Browser-Cache (dafuer: Ctrl+Shift+R)">🗑 Cache leeren</butto
   <span class="sib-sep">|</span>
   <span class="sib-seg"><span class="sib-lbl">raw-conf:</span> <span class="sib-val" id="sib-rawconf"></span></span>
   <span class="sib-sep">|</span>
-  <span class="sib-seg"><span class="sib-lbl">Staging-DB:</span> <span class="sib-val" id="sib-stagingdb"></span></span>
+  <span class="sib-seg"><span class="sib-lbl">Konfig-Store DB:</span> <span class="sib-val" id="sib-stagingdb"></span></span>
   <span class="sib-sep" id="sib-warn-sep" style="display:none">|</span>
   <span class="sib-seg" id="sib-warn" style="display:none;color:#a01010;font-family:-apple-system,sans-serif;font-weight:700"></span>
 </div>
@@ -1468,7 +1465,13 @@ Kein Einfluss auf Browser-Cache (dafuer: Ctrl+Shift+R)">🗑 Cache leeren</butto
         <div class="staging-kuerzel-row" id="staging-kuerzel-row" style="display:none">
           <label for="staging-kuerzel">Kürzel</label>
           <input type="text" id="staging-kuerzel" placeholder="z.B. ewn oder nodi_ch" maxlength="40">
-          <select id="staging-mode" title="Merge-Modus">
+          <select id="staging-scope" title="Überladungsebene (Stufe)">
+            <option value="core">core</option>
+            <option value="sitecore">sitecore</option>
+            <option value="profile">profile</option>
+          </select>
+          <input type="text" id="staging-profile" placeholder="Profil (z.B. public)" maxlength="40" style="display:none">
+          <select id="staging-mode" title="Import-Modus">
             <option value="merge">Zusammenführen</option>
             <option value="replace">Ersetzen</option>
             <option value="preview">Vorschau</option>
@@ -1480,7 +1483,7 @@ Kein Einfluss auf Browser-Cache (dafuer: Ctrl+Shift+R)">🗑 Cache leeren</butto
         <div class="ags-actions" id="staging-actions" style="display:none">
           <span class="ags-selcount" id="staging-selcount"></span>
           <span class="spacer"></span>
-          <button id="staging-btn-merge" class="primary" disabled>🔀 Zusammenführen</button>
+          <button id="staging-btn-merge" class="primary" disabled>� Importieren</button>
         </div>
       </div>
       <!-- RECHTS: Store-Ausgabe -->
@@ -1490,7 +1493,7 @@ Kein Einfluss auf Browser-Cache (dafuer: Ctrl+Shift+R)">🗑 Cache leeren</butto
           <button id="stg-output-refresh" title="Aktualisieren">↻</button>
           <button id="stg-output-delete-sel" class="danger" disabled title="Ausgewählte Kürzel löschen">🗑</button>
         </div>
-        <div id="stg-db-hint" style="font-size:10px;color:#888;font-family:Consolas,monospace;padding:2px 0 4px;flex-shrink:0">DB: <span id="stg-db-hint-schema"></span>.staging_import_bundle — Konflikte werden über DB-Keys erkannt</div>
+        <div id="stg-db-hint" style="font-size:10px;color:#888;font-family:Consolas,monospace;padding:2px 0 4px;flex-shrink:0">Konfig-Store DB: <span id="stg-db-hint-schema"></span>.config_bundle_store — geteilte Keys werden über Tags zusammengeführt</div>
         <div class="stg-output-status" id="stg-output-status">Lade…</div>
         <div class="stg-output-list" id="stg-output-list"></div>
       </div>
@@ -1501,18 +1504,18 @@ Kein Einfluss auf Browser-Cache (dafuer: Ctrl+Shift+R)">🗑 Cache leeren</butto
   <div class="ags-pane" id="pane-editor">
     <div class="editor-split">
 
-      <!-- LINKS: Quellen-Liste (Staging-DB Kürzel) -->
+      <!-- LINKS: Quellen-Liste (nach Tags gruppiert) -->
       <div class="editor-sources">
         <div class="editor-src-head">
-          <h2>📁 Quellen</h2>
+          <h2>🏷 Tags</h2>
           <span class="badge" id="editor-src-count">0</span>
           <button id="editor-src-refresh" title="Aktualisieren">↻</button>
         </div>
         <div class="editor-src-search">
-          <input type="text" id="editor-src-filter" placeholder="Kürzel suchen…">
+          <input type="text" id="editor-src-filter" placeholder="Tag oder Kürzel suchen…">
         </div>
         <div class="editor-src-list" id="editor-src-list">
-          <div class="editor-src-empty">Lade Quellen…</div>
+          <div class="editor-src-empty">Lade Tags…</div>
         </div>
       </div>
 
@@ -1525,8 +1528,8 @@ Kein Einfluss auf Browser-Cache (dafuer: Ctrl+Shift+R)">🗑 Cache leeren</butto
           <span class="et-spacer"></span>
           <span class="et-info" id="editor-info"></span>
           <button id="editor-btn-export" class="export" disabled
-            title="DB-Bundle nach core/config/ und core/nls/de/ als .conf/.json-Dateien generieren"
-            style="font-size:12px;padding:6px 14px;font-weight:700">📤 DB → Files (nach Core für Failover/Kompatibilität)</button>
+            title="Konfig-Store DB nach core-dev/config/ und core-dev/nls/de/ erzeugen"
+            style="font-size:12px;padding:6px 14px;font-weight:700">📤 Konfig-Store erzeugen</button>
         </div>
 
         <div class="ags-status" id="editor-status" style="display:none"></div>
@@ -1791,23 +1794,6 @@ Kein Einfluss auf Browser-Cache (dafuer: Ctrl+Shift+R)">🗑 Cache leeren</butto
   </div>
 </div>
 
-<!-- ===== EXPORT-CONFIRM-MODAL ===== -->
-<div id="export-confirm-overlay">
-  <div id="export-confirm-dialog">
-    <div id="export-confirm-header">
-      <span id="export-confirm-title">📤 DB → Files → Core deployen (via SFTP)</span>
-      <button class="ec-close" id="export-confirm-close" title="Schliessen">✕</button>
-    </div>
-    <div id="export-confirm-body"></div>
-    <div id="export-confirm-footer">
-      <span id="export-confirm-status"></span>
-      <button id="export-confirm-run">✓ Jetzt deployen</button>
-    </div>
-  </div>
-</div>
-
-
-
 <script>
 /**
  * slm.html — Applikationslogik
@@ -1881,7 +1867,7 @@ function switchStoreEnv(newEnv) {
 
   var swUrl = _swEnv === 'dev' ? 'www.gis-daten.ch/maps-dev/…' : 'www.gis-daten.ch/maps/…';
   var rawConfPath = 'data/tmp/' + _storeTmpLabel() + '/raw-conf';
-  var stagingDb = _storeDbSchema() + '.staging_import_bundle';
+  var stagingDb = _storeDbSchema() + '.config_bundle_store';
 
   var set = function(id, val) { var el = document.getElementById(id); if (el) el.textContent = val; };
   set('sib-sw-env',    _swEnv.toUpperCase() + '  (' + swUrl + ')');
@@ -1960,10 +1946,16 @@ function switchStoreEnv(newEnv) {
       var badge     = document.getElementById('slm-user-badge');
       var nameEl    = document.getElementById('slm-username');
       var usersLink = document.getElementById('slm-users-link');
+      var configDbBtn = document.getElementById('ags-btn-config-to-db');
+      try {
+        localStorage.setItem('tnetLoggedInUser', j.user);
+        localStorage.setItem('slmBookmarkUser', j.user);
+      } catch (e) {}
       if (!badge || !nameEl) return;
       nameEl.textContent = '👤 ' + j.user;
       badge.style.display = 'flex';
       if (usersLink && j.is_admin) usersLink.style.display = '';
+      if (configDbBtn && j.is_admin) configDbBtn.style.display = '';
     })
     .catch(function() {}); // Fehler still ignorieren (z.B. nicht eingeloggt)
 })();
@@ -2022,16 +2014,27 @@ function switchStoreEnv(newEnv) {
     var p = origFetch(input, init);
     if (!isApiResponse(input)) return p;
     return p.then(function(resp) {
-      // 401/403 oder Redirect auf Login → Banner + optional Redirect
+      // Nur ECHTE Login-Situationen behandeln:
+      //  - 401 (nicht authentifiziert / Session abgelaufen)
+      //  - Redirect auf admin-login
+      //  - HTML-Antwort, die die Login-Seite ist
+      // Ein 403 mit JSON-Body bedeutet "keine Berechtigung" (z.B. kein Admin)
+      // und darf NICHT als Session-Ablauf missinterpretiert werden.
       var ct = (resp.headers && resp.headers.get) ? (resp.headers.get('content-type') || '') : '';
-      var looksLikeLogin = resp.status === 401 || resp.status === 403
+      var isAuthRedirect = resp.status === 401
                         || (resp.url && resp.url.indexOf('admin-login') !== -1);
-      if (!looksLikeLogin && ct.indexOf('text/html') === -1) return resp;
+      var isHtml = ct.indexOf('text/html') !== -1;
+
+      // Reine JSON-Antworten (auch 403 "kein Admin") unverändert durchreichen
+      if (!isAuthRedirect && !isHtml) return resp;
 
       // Response klonen um Body lesen zu können ohne die Original-Chain zu brechen
       var clone = resp.clone();
       return clone.text().then(function(body) {
-        if (body.indexOf('Admin Login') === -1 && !looksLikeLogin) return resp;
+        var looksLikeLoginPage = body.indexOf('Admin Login') !== -1
+                              || body.indexOf('admin-login.php') !== -1;
+        // HTML, aber keine Login-Seite → unverändert durchreichen
+        if (!isAuthRedirect && !looksLikeLoginPage) return resp;
         showLoginBanner();
         // Nur einmal automatisch weiterleiten — wenn der erste Request schon
         // mit Login geantwortet hat, lassen wir den Banner stehen und der
@@ -2205,7 +2208,7 @@ function refreshImportProgress() {
 // =====================================================================
 // TAB-SWITCHING
 // =====================================================================
-function switchTab(tabName, skipHash) {
+function switchTab(tabName, skipHash, onImportLoaded) {
   document.querySelectorAll('.ags-tab').forEach(function(t) { t.classList.remove('active'); });
   document.querySelectorAll('.ags-pane').forEach(function(p) { p.classList.remove('active'); });
   var tab = document.querySelector('[data-tab="' + tabName + '"]');
@@ -2225,7 +2228,7 @@ function switchTab(tabName, skipHash) {
   } else if (tabName === 'manage') {
     loadRawConfList();
   } else if (tabName === 'import') {
-    loadStagingList();
+    loadStagingList(onImportLoaded || null);
     loadStagingOutput();
   } else if (tabName === 'editor') {
     loadEditorKuerzelList();
@@ -2375,21 +2378,15 @@ function formatDateTime(isoStr) {
   if (!isoStr) return '—';
   // ISO oder "YYYY-MM-DD HH:MM:SS" akzeptieren
   var s = String(isoStr).replace('T', ' ').replace('Z', '');
-  // Auf Minute kürzen
-  if (s.length > 16) s = s.substring(0, 16);
-  return s;
+  return s.substring(0, 16);
 }
 
-/**
- * Import-Liste als Tabelle rendern
- */
 function renderImportList(services) {
-  var listEl = document.getElementById('import-list');
-  var filterEl = document.getElementById('import-filter');
+  var listEl    = document.getElementById('import-list');
+  var filterEl  = document.getElementById('import-filter');
   var selectBar = document.getElementById('import-select-bar');
   var actionsEl = document.getElementById('import-actions');
 
-  // Tabelle aufbauen
   var tbl = document.createElement('table');
   tbl.className = 'ags-import-table';
   tbl.innerHTML = '<thead><tr>'
@@ -2403,7 +2400,6 @@ function renderImportList(services) {
   var tbody = document.createElement('tbody');
   tbl.appendChild(tbody);
 
-  // Sort-Event auf Headerzeile
   tbl.querySelector('thead tr').addEventListener('click', function(e) {
     var th = e.target.closest('th.sortable');
     if (!th) return;
@@ -2414,19 +2410,15 @@ function renderImportList(services) {
   services.forEach(function(svc, i) {
     var name = typeof svc === 'string' ? svc : (svc.name || svc.serviceName || String(svc));
     var detail = _agsServiceDetails[name];
-
     var tr = document.createElement('tr');
     tr.className = 'ags-item';
     tr.dataset.name = name.toLowerCase();
-
-    // Zellen: Checkbox | Name | Autor | Status | Publiziert | Importiert
     tr.innerHTML = '<td class="col-cb"><input type="checkbox" data-svc="' + name.replace(/"/g, '&quot;') + '" id="imp-cb-' + i + '"></td>'
       + '<td class="ags-name"><label for="imp-cb-' + i + '" style="cursor:pointer">' + name + '</label></td>'
       + '<td class="ags-col-author">' + (detail && detail.published_by ? detail.published_by : '—') + '</td>'
       + '<td class="ags-col-status"></td>'
       + '<td class="ags-col-date ags-col-pub">' + (detail && detail.published_at ? formatDateTime(detail.published_at) : '—') + '</td>'
       + '<td class="ags-col-date ags-col-imp"></td>';
-
     tr.addEventListener('click', function(e) {
       if (e.target.tagName === 'INPUT') { updateImportSelCount(); return; }
       var cb = tr.querySelector('input');
@@ -2455,7 +2447,6 @@ function renderImportList(services) {
   actionsEl.style.display = 'flex';
   refreshImportImportedMarkers();
   updateImportSelCount();
-  // Standard-Sortierindikator setzen
   var defaultTh = tbl.querySelector('th[data-col="' + _importSortCol + '"]');
   if (defaultTh) defaultTh.classList.add(_importSortAsc ? 'sort-asc' : 'sort-desc');
 }
@@ -4281,7 +4272,7 @@ function updateStagingSelCount() {
 }
 
 /**
- * Gewählte Dienste zusammenführen und in die Staging-DB schreiben
+ * Gewählte Dienste zusammenführen und in die Konfig-Store DB schreiben
  */
 function executeStagingMerge() {
   var checkboxes = document.querySelectorAll('#staging-svc-list input:checked');
@@ -4289,6 +4280,8 @@ function executeStagingMerge() {
   checkboxes.forEach(function(cb) { services.push(cb.dataset.svc); });
   var kuerzel = (document.getElementById('staging-kuerzel').value || '').trim();
   var mode = document.getElementById('staging-mode').value;
+  var scope = (document.getElementById('staging-scope') || {}).value || 'core';
+  var profile = (document.getElementById('staging-profile') || {}).value || '';
   if (services.length === 0 || !kuerzel) return;
 
   var btn = document.getElementById('staging-btn-merge');
@@ -4297,7 +4290,7 @@ function executeStagingMerge() {
   var previewEl = document.getElementById('staging-preview-result');
   btn.disabled = true;
   previewEl.style.display = 'none';
-  var modeLabel = mode === 'merge' ? 'Zusammenführen' : mode === 'preview' ? 'Vorschau' : 'Ersetzen';
+  var modeLabel = mode === 'merge' ? 'Importieren (zusammenführen)' : mode === 'preview' ? 'Vorschau' : 'Importieren (ersetzen)';
   statusEl.textContent = modeLabel + ' läuft…';
   statusEl.className = 'ags-status';
   resultEl.style.display = 'none';
@@ -4305,7 +4298,7 @@ function executeStagingMerge() {
   fetch(API_URL + '?action=ags-stage-merge', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-Editor-Name': slmGetUser() },
-    body: JSON.stringify({ services: services, kuerzel: kuerzel, mode: mode })
+    body: JSON.stringify({ services: services, kuerzel: kuerzel, mode: mode, scope: scope, profile: profile })
   })
     .then(function(r) { return r.json(); })
     .then(function(resp) {
@@ -4315,7 +4308,7 @@ function executeStagingMerge() {
 
       // Preview-Modus: nur Statistik anzeigen, nichts geschrieben
       if (mode === 'preview') {
-        statusEl.textContent = '👁 Vorschau für ' + d.files.length + ' Ressourcentypen → Staging-DB [' + d.kuerzel + ']';
+        statusEl.textContent = '👁 Vorschau für ' + d.files.length + ' Ressourcentypen → Konfig-Store DB [' + d.kuerzel + ']';
         statusEl.className = 'ags-status';
         statusEl.style.color = '#3478c6';
         var html = '';
@@ -4339,11 +4332,11 @@ function executeStagingMerge() {
       // Merge/Replace: Ergebnis anzeigen
       var modeInfo = d.mode === 'merge' ? ' (zusammengeführt)' : ' (ersetzt)';
       if (d.files.length === 0) {
-        statusEl.textContent = '⚠ 0 Dateien → Staging-DB [' + d.kuerzel + '] — keine verarbeitbaren Konfig-Dateien gefunden';
+        statusEl.textContent = '⚠ 0 Dateien → Konfig-Store DB [' + d.kuerzel + '] — keine verarbeitbaren Konfig-Dateien gefunden';
         statusEl.className = 'ags-status';
         statusEl.style.color = '#e67e22';
       } else {
-        statusEl.textContent = '✓ ' + d.files.length + ' Ressourcentypen → Staging-DB [' + d.kuerzel + ']' + modeInfo;
+        statusEl.textContent = '✓ ' + d.files.length + ' Ressourcentypen → Konfig-Store DB [' + d.kuerzel + ']' + modeInfo;
         statusEl.className = 'ags-status success';
       }
 
@@ -4445,13 +4438,13 @@ function loadStagingOutput() {
         summary.innerHTML = '<span class="stg-cs-count">' + changedCount + '</span> Kürzel sollten aktualisiert werden — Quellen in raw-conf haben sich geändert';
         listEl.insertBefore(summary, listEl.firstChild);
       }
-      // Cross-Kürzel Duplikat-Zusammenfassung
+      // Geteilte Keys über Tags (merged statt Konflikt)
       var crossTotal = 0;
       d.kuerzel.forEach(function(k) { k.files.forEach(function(f) { if (f.crossDuplicateKeys && f.crossDuplicateKeys.length) crossTotal += f.crossDuplicateKeys.length; }); });
       if (crossTotal > 0) {
         var warn = document.createElement('div');
         warn.className = 'stg-cross-dup-summary';
-        warn.textContent = '⚠ ' + crossTotal + ' kürzelübergreifende Key-Konflikte erkannt!';
+        warn.textContent = '🔗 ' + crossTotal + ' geteilte Keys — über Tags zusammengeführt (kein Fehler)';
         listEl.insertBefore(warn, listEl.firstChild);
       }
     })
@@ -4480,6 +4473,57 @@ function applyStagingRestageMarkers() {
   });
 }
 
+// Tag global löschen (Punkt 4): Ressourcen mit weiteren Tags bleiben, letzte Tag-Nutzung löscht die Ressource.
+function slmDeleteTag(tag) {
+  if (!tag) return;
+  if (!confirm('Tag «' + tag + '» löschen?\n\nRessourcen mit weiteren Tags bleiben erhalten (nur der Tag wird entfernt).\nRessourcen ohne weiteren Tag werden endgültig gelöscht.')) return;
+  fetch(API_URL + '?action=staging-delete-tag', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ tag: tag })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(j) {
+    if (!j.success) { alert('Fehler: ' + (j.error || 'unbekannt')); return; }
+    loadStagingOutput();
+  })
+  .catch(function(e) { alert('Netzwerkfehler: ' + e.message); });
+}
+
+// Tag zu einem Kürzel hinzufügen (Mehrfach-Nutzung ermöglichen).
+function slmAddTag(kuerzel) {
+  var tag = window.prompt('Tag hinzufügen zu «' + kuerzel + '»:', '');
+  if (tag === null) return;
+  tag = (tag || '').trim();
+  if (!tag) return;
+  fetch(API_URL + '?action=staging-add-tag', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ kuerzel: kuerzel, tag: tag })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(j) {
+    if (!j.success) { alert('Fehler: ' + (j.error || 'unbekannt')); return; }
+    loadStagingOutput();
+  })
+  .catch(function(e) { alert('Netzwerkfehler: ' + e.message); });
+}
+
+// Server-seitiges Re-Stage (1 Klick) anhand Manifest-Quellen; Fallback: links vorauswählen.
+function slmServerRestage(kuerzel, sources, bundle) {
+  fetch(API_URL + '?action=staging-restage', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ kuerzel: kuerzel })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(j) {
+    if (!j.success) { restageFromManifest(kuerzel, sources || null, bundle); return; }
+    loadStagingOutput();
+  })
+  .catch(function() { restageFromManifest(kuerzel, sources || null, bundle); });
+}
+
 function renderStagingOutput(kuerzelList) {
   var listEl = document.getElementById('stg-output-list');
   listEl.innerHTML = '';
@@ -4493,7 +4537,11 @@ function renderStagingOutput(kuerzelList) {
   sorted.forEach(function(k) {
     var totalKB = k.size > 1024 ? (k.size / 1024).toFixed(1) + ' KB' : k.size + ' B';
     var hdr = document.createElement('div');
-    hdr.className = 'stg-output-kuerzel';
+    hdr.className = 'stg-output-kuerzel stg-acc-head collapsed';
+    var arrow = document.createElement('span');
+    arrow.className = 'stg-acc-arrow';
+    arrow.textContent = '▶';
+    hdr.appendChild(arrow);
     var cb = document.createElement('input');
     cb.type = 'checkbox'; cb.dataset.kuerzel = k.kuerzel; cb.id = 'stg-out-cb-' + k.kuerzel;
     cb.addEventListener('change', function() {
@@ -4519,17 +4567,39 @@ function renderStagingOutput(kuerzelList) {
       }
     }
     var tagBadge = '';
-    if (k.tags && k.tags.length) {
-      tagBadge = ' <span style="font-size:9px;color:#4b7b81;background:#e8f1f2;border:1px solid #c6dde0;padding:1px 5px;border-radius:8px;font-weight:700" title="Gespeicherte Tags">' + k.tags.join(', ') + '</span>';
-    }
+    var scopeBadge = '';
+    var scopeVal = k.scope || 'core';
+    var scopeColors = { core: '#5a7d8c', sitecore: '#8a6d3b', override: '#8a6d3b', profile: '#6b4e8a' };
+    var scopeLabel = scopeVal + (k.profile ? ':' + k.profile : '');
+    scopeBadge = ' <span style="font-size:9px;color:#fff;background:' + (scopeColors[scopeVal] || '#777') + ';padding:1px 6px;border-radius:8px;font-weight:700" title="Überladungsebene">' + esc(scopeLabel) + '</span>';
     var importMeta = '';
     if (k.lastImportedAt || k.lastImportedBy) {
-      importMeta = '<div style="font-weight:400;color:#888;font-size:10px;margin-top:2px">Letzter Import: '
+      importMeta = '<div style="font-weight:400;color:#888;font-size:10px;margin-top:2px">Letzter Import/Re-Stage: '
         + (k.lastImportedAt ? formatDateTime(k.lastImportedAt) : '—')
         + (k.lastImportedBy ? ' · ' + k.lastImportedBy : '') + '</div>';
     }
-    lbl.innerHTML = '<b>' + k.kuerzel + '</b>' + tagBadge + manifestBadge + '&nbsp;<span style="font-weight:400;color:#888;font-size:10px">(' + k.files.length + ' Ressourcentypen, ' + totalKB + ')</span>' + importMeta;
+    lbl.innerHTML = '<b>' + k.kuerzel + '</b>' + scopeBadge + manifestBadge + '&nbsp;<span style="font-weight:400;color:#888;font-size:10px">(' + k.files.length + ' Ressourcentypen, ' + totalKB + ')</span>' + importMeta;
     hdr.appendChild(cb); hdr.appendChild(lbl);
+    // Tag-Chips (Mehrfach-Nutzung sichtbar machen)
+    var chipsWrap = document.createElement('span');
+    chipsWrap.className = 'stg-tag-chips';
+    var theTags = (k.tags && k.tags.length) ? k.tags : [k.kuerzel];
+    theTags.forEach(function(t) {
+      var chip = document.createElement('span');
+      chip.className = 'stg-tag-chip' + (t === k.kuerzel ? ' is-primary' : '');
+      chip.textContent = t;
+      chip.title = (t === k.kuerzel) ? 'Primärer Tag (= Kürzel)' : 'Tag';
+      chipsWrap.appendChild(chip);
+    });
+    (function(kuerzel) {
+      var addChip = document.createElement('span');
+      addChip.className = 'stg-tag-chip-add';
+      addChip.textContent = '＋ Tag';
+      addChip.title = 'Diesem Eintrag einen weiteren Tag geben (Mehrfach-Nutzung)';
+      addChip.addEventListener('click', function(e) { e.stopPropagation(); slmAddTag(kuerzel); });
+      chipsWrap.appendChild(addChip);
+    })(k.kuerzel);
+    hdr.appendChild(chipsWrap);
     // Änderungs-Badge direkt nach dem Label einfügen
     var changes = k.sourceChanges;
     if (changes && changes.hasChanges) {
@@ -4576,22 +4646,25 @@ function renderStagingOutput(kuerzelList) {
     } else {
       restageBtn.title = 'Kürzel auf der linken Seite vorausfüllen und manuell stagen';
     }
-    (function(kuerzel, manifest) {
+    (function(bundle) {
       restageBtn.addEventListener('click', function(e) {
         e.stopPropagation();
-        restageFromManifest(kuerzel, manifest && manifest.sources ? manifest.sources : null);
+        var srcs = bundle.manifest && bundle.manifest.sources ? bundle.manifest.sources : null;
+        // Immer zuerst Formular vorbelegen (Kürzel, Stufe, Profil, Quellen),
+        // damit die Einstellungen sichtbar und anpassbar sind.
+        restageFromManifest(bundle.kuerzel, srcs, bundle);
       });
-    })(k.kuerzel, k.manifest || null);
+    })(k);
     actionsDiv.appendChild(restageBtn);
 
     var delBtn = document.createElement('button');
     delBtn.className = 'stg-btn-del-kuerzel';
     delBtn.innerHTML = '🗑 Löschen';
-    delBtn.title = 'Kürzel aus der Staging-DB löschen';
+    delBtn.title = 'Kürzel aus der Konfig-Store DB löschen';
     (function(kuerzel) {
       delBtn.addEventListener('click', function(e) {
         e.stopPropagation();
-        if (!confirm('Kürzel «' + kuerzel + '» aus der Staging-DB löschen?')) return;
+        if (!confirm('Kürzel «' + kuerzel + '» aus der Konfig-Store DB löschen?')) return;
         fetch(API_URL + '?action=staging-delete-output', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -4602,6 +4675,18 @@ function renderStagingOutput(kuerzelList) {
     actionsDiv.appendChild(delBtn);
     hdr.appendChild(actionsDiv);
     listEl.appendChild(hdr);
+    // Accordion-Container für Details/Dateien (standardmässig zugeklappt → kompakte Liste)
+    var filesWrap = document.createElement('div');
+    filesWrap.className = 'stg-acc-body';
+    filesWrap.style.display = 'none';
+    listEl.appendChild(filesWrap);
+    // Header-Klick toggelt das Accordion (ausser Klicks auf Buttons/Checkbox/Chips)
+    hdr.addEventListener('click', function(e) {
+      if (e.target.closest('button') || e.target.closest('input') || e.target.closest('.stg-tag-chips')) return;
+      var open = hdr.classList.toggle('collapsed') === false;
+      filesWrap.style.display = open ? '' : 'none';
+      arrow.textContent = open ? '▼' : '▶';
+    });
     // Change-Detail-Zeilen anzeigen (standardmässig sichtbar bei Änderungen)
     if (k.sourceChanges && k.sourceChanges.hasChanges) {
       var changeWrap = document.createElement('div');
@@ -4631,7 +4716,7 @@ function renderStagingOutput(kuerzelList) {
           });
         });
       }
-      listEl.appendChild(changeWrap);
+      filesWrap.appendChild(changeWrap);
       // Toggle: Doppelklick auf restage-btn schliesst/öffnet Details
       var toggleBtn = hdr.querySelector('.stg-restage-btn');
       if (toggleBtn) {
@@ -4674,7 +4759,7 @@ function renderStagingOutput(kuerzelList) {
         openFileEditor(f.file, 'staging-read-output', 'staging-write-output', loadStagingOutput);
       });
       row.appendChild(editBtn);
-      listEl.appendChild(row);
+      filesWrap.appendChild(row);
       // Intra-Kürzel Duplikat-Detail-Zeilen (aufklappbar per Badge-Klick)
       if (f.duplicateKeys && f.duplicateKeys.length) {
         var dupWrap = document.createElement('div');
@@ -4687,7 +4772,7 @@ function renderStagingOutput(kuerzelList) {
           dd.innerHTML = '• <b>' + dk.key + '</b> <span style="color:#999">(' + src + ')</span>';
           dupWrap.appendChild(dd);
         });
-        listEl.appendChild(dupWrap);
+        filesWrap.appendChild(dupWrap);
         var dupBadgeEl = row.querySelector('.of-dup');
         if (dupBadgeEl) { dupBadgeEl.style.cursor = 'pointer'; dupBadgeEl.addEventListener('click', function() { dupWrap.style.display = dupWrap.style.display === 'none' ? '' : 'none'; }); }
       }
@@ -4698,9 +4783,9 @@ function renderStagingOutput(kuerzelList) {
         }
         var crossBadge = document.createElement('span');
         crossBadge.className = 'of-cross-dup';
-        crossBadge.textContent = '✗ ' + f.crossDuplicateKeys.length + ' Konflikte';
+        crossBadge.textContent = '🔗 ' + f.crossDuplicateKeys.length + ' geteilt';
         var crossTip = f.crossDuplicateKeys.map(function(cd) { return cd.key + ' ↔ ' + cd.conflictsWith.join(', '); });
-        crossBadge.title = 'Kürzelübergreifende Konflikte:\n' + crossTip.join('\n');
+        crossBadge.title = 'Geteilte Keys (werden über Tags zusammengeführt, kein Fehler):\n' + crossTip.join('\n');
         crossBadge.style.cursor = 'pointer';
         row.insertBefore(crossBadge, editBtn);
         var crossWrap = document.createElement('div');
@@ -4709,10 +4794,10 @@ function renderStagingOutput(kuerzelList) {
         f.crossDuplicateKeys.forEach(function(cd) {
           var dd = document.createElement('div');
           dd.className = 'stg-cross-dup-detail';
-          dd.innerHTML = '✗ <b>' + cd.key + '</b> <span style="color:#999">↔ ' + cd.conflictsWith.join(', ') + '</span>';
+          dd.innerHTML = '🔗 <b>' + cd.key + '</b> <span style="color:#999">geteilt mit ' + cd.conflictsWith.join(', ') + '</span>';
           crossWrap.appendChild(dd);
         });
-        listEl.appendChild(crossWrap);
+        filesWrap.appendChild(crossWrap);
         crossBadge.addEventListener('click', function() { crossWrap.style.display = crossWrap.style.display === 'none' ? '' : 'none'; });
       }
     });
@@ -4740,26 +4825,37 @@ function deleteStagingOutputFiles() {
  * Setzt Kürzel, Modus "replace" und kreuzt die passenden Services an.
  * Fehlende Services (nicht mehr in raw-conf) werden als Warnung angezeigt.
  */
-function restageFromManifest(kuerzel, sources) {
-  // Wenn Staging-Liste noch nicht geladen: erst laden, dann selektieren
-  var listEl = document.getElementById('staging-svc-list');
-  if (!listEl.querySelector('input[type=checkbox]')) {
-    loadStagingList(function() {
-      _applyRestageSelection(kuerzel, sources);
-    });
-    return;
-  }
-  _applyRestageSelection(kuerzel, sources);
+function restageFromManifest(kuerzel, sources, bundle) {
+  // Tab auf Import wechseln; Callback wird aufgerufen, sobald die Dienste-Liste geladen ist.
+  // So gibt es keinen Parallellade-Konflikt und das Formular wird exakt dann befüllt,
+  // wenn die Checkboxen im DOM bereit sind.
+  switchTab('import', false, function() {
+    _applyRestageSelection(kuerzel, sources, bundle);
+  });
 }
 
-function _applyRestageSelection(kuerzel, sources) {
-  // Kürzel und Modus setzen
+function _applyRestageSelection(kuerzel, sources, bundle) {
+  // Kürzel, Stufe, Profil und Modus aus dem Bundle wiederherstellen
   var kuerzelInput = document.getElementById('staging-kuerzel');
   var modeSelect = document.getElementById('staging-mode');
+  var scopeSel = document.getElementById('staging-scope');
+  var profInput = document.getElementById('staging-profile');
   kuerzelInput.value = kuerzel;
   modeSelect.value = 'replace';
+  // Stufe und Profil aus Bundle-Metadaten vorbelegen
+  if (bundle) {
+    var bScope = bundle.scope || 'core';
+    if (scopeSel) {
+      scopeSel.value = bScope;
+      // Profilfeld ein-/ausblenden
+      if (profInput) {
+        profInput.style.display = (bScope === 'profile') ? '' : 'none';
+        profInput.value = (bScope === 'profile' && bundle.profile) ? bundle.profile : '';
+      }
+    }
+  }
   // Button-Text aktualisieren
-  document.getElementById('staging-btn-merge').textContent = '🔀 Ersetzen';
+  document.getElementById('staging-btn-merge').textContent = '\uD83D\uDCE5 Importieren (ersetzen)';
   // Alle Checkboxen erst abwählen
   document.querySelectorAll('#staging-svc-list input[type=checkbox]').forEach(function(cb) {
     cb.checked = false;
@@ -5109,9 +5205,19 @@ document.getElementById('staging-mode').addEventListener('change', function() {
   var btn = document.getElementById('staging-btn-merge');
   var mode = this.value;
   if (mode === 'preview') btn.textContent = '👁 Vorschau';
-  else if (mode === 'merge') btn.textContent = '🔀 Zusammenführen';
-  else btn.textContent = '🔀 Ersetzen';
+  else if (mode === 'merge') btn.textContent = '� Importieren (zusammenführen)';
+  else btn.textContent = '📥 Importieren (ersetzen)';
 });
+// Staging-Tab: Stufe (Scope) → Profil-Feld ein-/ausblenden
+(function() {
+  var scopeSel = document.getElementById('staging-scope');
+  var profInput = document.getElementById('staging-profile');
+  if (scopeSel && profInput) {
+    scopeSel.addEventListener('change', function() {
+      profInput.style.display = (this.value === 'profile') ? '' : 'none';
+    });
+  }
+})();
 document.getElementById('stg-output-refresh').addEventListener('click', loadStagingOutput);
 document.getElementById('stg-output-delete-sel').addEventListener('click', deleteStagingOutputFiles);
 
@@ -5204,7 +5310,7 @@ var _deployQueueMode = 'single'; // 'single' | 'multi'
 var _deployDone  = false;        // Verhindert Doppelauslösung nach Deploy
 
 /**
- * Kürzel-Liste aus der Staging-DB laden und als klickbare Liste rendern
+ * Kürzel-Liste aus der Konfig-Store DB laden und als klickbare Liste rendern
  */
 function loadEditorKuerzelList(forceReload) {
   if (_editorKuerzelLoaded && !forceReload) {
@@ -5230,100 +5336,103 @@ function loadEditorKuerzelList(forceReload) {
 }
 
 /**
- * Quellen-Liste rendern (mit optionalem Filter) — aufklappbare Gruppen mit Dateien
+ * Quellen-Liste rendern — nach Tags gruppiert.
+ * Ein Kürzel mit mehreren Tags erscheint unter jedem Tag.
  */
 function renderEditorSourceList(filter) {
   var listEl = document.getElementById('editor-src-list');
   var q = (filter || document.getElementById('editor-src-filter').value || '').toLowerCase();
-  var html = '';
-  var count = 0;
 
+  // Tag → Kürzel-Map aufbauen
+  var tagMap = {};
   _editorKuerzelList.forEach(function(k) {
-    var name = k.kuerzel;
-    if (q && name.toLowerCase().indexOf(q) === -1) return;
-    count++;
-    var active = (name === _editorActiveKuerzel) ? ' active' : '';
-    var collapsed = (name !== _editorActiveKuerzel) ? ' collapsed' : '';
-    var confCount = 0, jsonCount = 0;
-    var files = k.files || [];
-    files.forEach(function(f) {
-      var fname = (typeof f === 'string') ? f : (f.name || f.file || '');
-      if (fname.match(/\.conf$/i)) confCount++;
-      else if (fname.match(/\.json$/i)) jsonCount++;
+    var tags = (k.tags && k.tags.length) ? k.tags : [k.kuerzel];
+    tags.forEach(function(t) {
+      if (!tagMap[t]) tagMap[t] = [];
+      tagMap[t].push(k);
     });
+  });
+  var tagNames = Object.keys(tagMap).sort();
 
-    var cbChecked = _editorSelectedKuerzel[name] ? ' checked' : '';
-    var metaHtml = '';
-    if ((k.tags && k.tags.length) || k.lastImportedAt || k.lastImportedBy) {
-      var metaParts = [];
-      if (k.tags && k.tags.length) metaParts.push('Tags: ' + k.tags.join(', '));
-      if (k.lastImportedAt) metaParts.push('Import: ' + formatDateTime(k.lastImportedAt));
-      if (k.lastImportedBy) metaParts.push('von ' + k.lastImportedBy);
-      metaHtml = '<div class="editor-src-file" style="padding-left:40px;color:#7a7a7a;font-size:10px">' + metaParts.join(' · ') + '</div>';
-    }
-    html += '<div class="editor-src-item' + active + collapsed + '" data-kuerzel="' + name + '">';
-    html += '<input type="checkbox" class="src-cb" data-kuerzel="' + name + '"' + cbChecked + '>';
+  var html = '';
+  var tagCount = 0;
+  tagNames.forEach(function(tag) {
+    var members = tagMap[tag];
+    var tagMatches = !q || tag.toLowerCase().indexOf(q) !== -1;
+    var matchedMembers = members.filter(function(k) { return !q || k.kuerzel.toLowerCase().indexOf(q) !== -1; });
+    if (!tagMatches && matchedMembers.length === 0) return;
+    var shownMembers = tagMatches ? members : matchedMembers;
+    tagCount++;
+
+    var groupHasActive = shownMembers.some(function(k) { return k.kuerzel === _editorActiveKuerzel; });
+    var collapsed = (q || groupHasActive) ? '' : ' collapsed';
+
+    html += '<div class="editor-tag-group" data-tag="' + esc(tag) + '">';
+    html += '<div class="editor-tag-head' + collapsed + '">';
     html += '<span class="src-arrow">▼</span>';
-    html += '<span class="src-name">' + name + '</span>';
-    html += '<span class="src-types">';
-    if (confCount) html += '<span class="src-type-dot t-conf">' + confCount + '</span>';
-    if (jsonCount) html += '<span class="src-type-dot t-json">' + jsonCount + '</span>';
-    html += '</span>';
-    html += '<span class="src-badge">' + files.length + '</span>';
+    html += '<span class="etg-name">🏷 ' + esc(tag) + '</span>';
+    html += '<span class="src-badge">' + shownMembers.length + '</span>';
     html += '</div>';
-
-    html += '<div class="editor-src-files">';
-    html += metaHtml;
-    files.forEach(function(f) {
-      var fname = (typeof f === 'string') ? f : (f.name || f.file || '');
-      var fsize = (typeof f === 'object' && f.size) ? formatFileSize(f.size) : '';
-      var ftype = getFileTypeClass(fname);
-      html += '<div class="editor-src-file">';
-      html += '<span class="sf-type ' + ftype.cls + '">' + ftype.label + '</span>';
-      html += '<span class="sf-name" title="' + fname + '">' + fname + '</span>';
-      if (fsize) html += '<span class="sf-size">' + fsize + '</span>';
+    html += '<div class="editor-tag-members">';
+    shownMembers.forEach(function(k) {
+      var name = k.kuerzel;
+      var active = (name === _editorActiveKuerzel) ? ' active' : '';
+      var files = k.files || [];
+      var confCount = 0, jsonCount = 0;
+      files.forEach(function(f) {
+        var fn = (typeof f === 'string') ? f : (f.name || f.file || '');
+        if (fn.match(/\.conf$/i)) confCount++;
+        else if (fn.match(/\.json$/i)) jsonCount++;
+      });
+      var cbChecked = _editorSelectedKuerzel[name] ? ' checked' : '';
+      html += '<div class="editor-src-item' + active + '" data-kuerzel="' + esc(name) + '">';
+      html += '<input type="checkbox" class="src-cb" data-kuerzel="' + esc(name) + '"' + cbChecked + '>';
+      html += '<span class="src-name">' + esc(name) + '</span>';
+      html += '<span class="src-types">';
+      if (confCount) html += '<span class="src-type-dot t-conf">' + confCount + '</span>';
+      if (jsonCount) html += '<span class="src-type-dot t-json">' + jsonCount + '</span>';
+      html += '</span>';
+      html += '<span class="src-badge">' + files.length + '</span>';
       html += '</div>';
     });
-    html += '</div>';
+    html += '</div>'; // members
+    html += '</div>'; // group
   });
 
   if (!html) {
-    html = '<div class="editor-src-empty">' + (q ? 'Keine Treffer für «' + q + '»' : 'Keine Kürzel vorhanden') + '</div>';
+    html = '<div class="editor-src-empty">' + (q ? 'Keine Treffer für «' + q + '»' : 'Keine Tags vorhanden') + '</div>';
   }
   listEl.innerHTML = html;
-  document.getElementById('editor-src-count').textContent = count;
+  document.getElementById('editor-src-count').textContent = tagCount;
 
-  // Checkbox-Handler
+  // Tag-Gruppen auf-/zuklappen
+  listEl.querySelectorAll('.editor-tag-head').forEach(function(head) {
+    head.addEventListener('click', function() { head.classList.toggle('collapsed'); });
+  });
+
+  // Checkbox-Handler (Mehrfach-Vorkommen synchronisieren)
   listEl.querySelectorAll('.src-cb').forEach(function(cb) {
     cb.addEventListener('click', function(e) { e.stopPropagation(); });
-    cb.addEventListener('change', function(e) {
+    cb.addEventListener('change', function() {
       var k = cb.dataset.kuerzel;
       if (cb.checked) _editorSelectedKuerzel[k] = true;
       else delete _editorSelectedKuerzel[k];
+      listEl.querySelectorAll('.src-cb').forEach(function(other) {
+        if (other.dataset.kuerzel === k) other.checked = cb.checked;
+      });
       updateDeploySelBtn();
     });
   });
 
-  // Klick-Handler auf Quellen-Items
+  // Klick auf Kürzel-Item lädt den Editor
   listEl.querySelectorAll('.editor-src-item').forEach(function(item) {
     item.addEventListener('click', function(e) {
+      if (e.target.classList.contains('src-cb')) return;
       var kuerzel = item.dataset.kuerzel;
-
-      // Toggle collapse für aktives Item
-      if (kuerzel === _editorActiveKuerzel) {
-        item.classList.toggle('collapsed');
-        return;
-      }
-
-      // Alle zuklappen, aktives aufklappen
-      listEl.querySelectorAll('.editor-src-item').forEach(function(el) {
-        el.classList.remove('active');
-        el.classList.add('collapsed');
-      });
-      item.classList.add('active');
-      item.classList.remove('collapsed');
-
       _editorActiveKuerzel = kuerzel;
+      listEl.querySelectorAll('.editor-src-item').forEach(function(el) {
+        el.classList.toggle('active', el.dataset.kuerzel === kuerzel);
+      });
       updateUrlHash({ kuerzel: kuerzel });
       loadEditorKuerzel(kuerzel);
     });
@@ -5870,7 +5979,7 @@ function updateEditorChangeCount() {
 // =====================================================================
 
 /**
- * Geänderte Dateien zurück in die Staging-DB speichern
+ * Geänderte Dateien zurück in die Konfig-Store DB speichern
  */
 function saveEditorChanges() {
   if (!_editorData) return;
@@ -5958,230 +6067,112 @@ function revertEditorChanges() {
 function updateDeploySelBtn() {
   var count  = Object.keys(_editorSelectedKuerzel).length;
   var btn    = document.getElementById('editor-btn-export');
+  var modal  = document.getElementById('export-confirm-overlay');
   if (!btn) return;
   if (count > 0) {
     btn.textContent = '📤 ' + count + ' Kürzel deployen';
     btn.disabled = false;
   } else {
-    btn.textContent = '📤 Nach Core exportieren';
+    btn.textContent = '📤 Konfig-Store erzeugen';
     // Nur deaktivieren wenn auch kein Einzel-Kürzel geöffnet ist
     if (!_editorData) btn.disabled = true;
+    // Kein Auswahl-Deploy mehr offen halten
+    if (modal) modal.classList.remove('open');
   }
 }
 
 /**
- * Mehrere ausgewählte Kürzel deployen: Dry-Run für alle, dann Modal
+ * Mehrere ausgewählte Kürzel direkt deployen (ohne Confirm-Modal)
  */
 function deploySelection() {
   var kuerzelList = Object.keys(_editorSelectedKuerzel);
   if (kuerzelList.length === 0) return;
 
+  if (!confirm(kuerzelList.length + ' Kürzel direkt nach core-dev deployen?')) return;
+  directDeployKuerzelList(kuerzelList);
+}
+
+/**
+ * Direktdeploy für ein oder mehrere Kürzel ohne Vorschau-Dialog.
+ */
+function directDeployKuerzelList(kuerzelList) {
   var exportBtn = document.getElementById('editor-btn-export');
-  exportBtn.disabled = true;
-  exportBtn.textContent = '📤 Lade…';
-
-  var results = [];  // [{kuerzel, dryData}]
-  var index   = 0;
-
-  function nextDryRun() {
-    if (index >= kuerzelList.length) {
-      exportBtn.disabled = false;
-      updateDeploySelBtn();
-      openExportConfirmMultiModal(kuerzelList, results);
-      return;
-    }
-    var k = kuerzelList[index++];
-    fetch(GAPI_URL + '/deploy-staging/' + encodeURIComponent(k) + '?dry_run=true', {
-      method: 'POST'
-    })
-    .then(function(r) { return r.json(); })
-    .then(function(j) {
-      results.push({ kuerzel: k, dryData: j });
-      nextDryRun();
-    })
-    .catch(function(e) {
-      results.push({ kuerzel: k, dryData: null, error: e.message });
-      nextDryRun();
-    });
-  }
-  nextDryRun();
-}
-
-/**
- * Multi-Deploy Confirm-Modal anzeigen
- */
-function openExportConfirmMultiModal(kuerzelList, results) {
-  _deployQueue     = kuerzelList.slice();
-  _deployQueueMode = 'multi';
-
-  var totalNew = 0, totalUpd = 0, totalSkip = 0, totalErr = 0;
-  results.forEach(function(r) {
-    if (!r.dryData || r.error) { totalErr++; return; }
-    var files = r.dryData.files || [];
-    files.forEach(function(f) {
-      if (f.status === 'neu') totalNew++;
-      else if (f.result !== 'error') totalUpd++;
-    });
-    totalSkip += (r.dryData.skipped || 0);
-    if (r.dryData.errors > 0) totalErr += r.dryData.errors;
-  });
-
-  var html = '<div class="ecm-summary">';
-  html += '<span class="ecm-pill new">' + totalNew + ' neu</span>';
-  html += '<span class="ecm-pill upd">' + totalUpd + ' überschreiben</span>';
-  html += '<span class="ecm-pill skip">' + totalSkip + ' übersprungen</span>';
-  if (totalErr > 0) html += '<span class="ecm-pill err">' + totalErr + ' Fehler</span>';
-  html += '</div>';
-
-  results.forEach(function(r) {
-    var k     = r.kuerzel;
-    var d     = r.dryData;
-    var files = d ? (d.files || []) : [];
-    var rNew  = files.filter(function(f) { return f.status === 'neu'; }).length;
-    var rUpd  = files.filter(function(f) { return f.status !== 'neu' && f.result !== 'error'; }).length;
-
-    html += '<div class="ecm-k-block" id="ecm-block-' + escapeHtml(k) + '">';
-
-    // Kürzel-Kopfzeile
-    html += '<div class="ecm-k-header" data-k="' + escapeHtml(k) + '">';
-    html += '<span class="eckh-arrow">▼</span>';
-    html += '<span class="eckh-name">' + escapeHtml(k) + '</span>';
-    html += '<span class="eckh-pills">';
-    if (rNew > 0)  html += '<span class="ecm-pill new">'  + rNew  + ' neu</span>';
-    if (rUpd > 0)  html += '<span class="ecm-pill upd">'  + rUpd  + ' überschr.</span>';
-    if (d && d.skipped > 0) html += '<span class="ecm-pill skip">' + d.skipped + ' skip</span>';
-    html += '</span>';
-    html += '<span class="eckh-status"><span class="ecm-k-status pending" id="ecm-kstat-' + escapeHtml(k) + '">Ausstehend</span></span>';
-    html += '</div>';
-
-    // Datei-Tabelle
-    html += '<div class="ecm-k-files" id="ecm-kfiles-' + escapeHtml(k) + '">';
-    if (r.error || !d) {
-      html += '<div style="padding:8px 12px;color:#c62828;font-size:12px;">✗ Dry-Run-Fehler: ' + escapeHtml(r.error || 'Unbekannt') + '</div>';
-    } else if (files.length === 0) {
-      html += '<div style="padding:8px 12px;color:#888;font-size:12px;">Keine Dateien gefunden</div>';
-    } else {
-      html += '<table class="ecm-table" style="margin:0">';
-      html += '<thead><tr><th>Datei</th><th>Grösse</th><th>Datum Staging</th><th>Datum Core</th><th>Aktion</th></tr></thead><tbody>';
-      files.forEach(function(f) {
-        var rowCls  = f.result === 'error' ? 'row-err' : (f.status === 'neu' ? 'row-new' : 'row-upd');
-        var srcMt   = f.source_mtime || 0;
-        var tgtMt   = f.target_mtime || 0;
-        var srcDate = f.source_mtime_display || null;
-        var tgtDate = f.target_mtime_display || null;
-        var srcCls, tgtCls;
-        if (!tgtDate) {
-          srcCls = 'ecm-date-newer'; tgtCls = 'ecm-date-none';
-        } else if (srcMt > tgtMt) {
-          srcCls = 'ecm-date-newer'; tgtCls = 'ecm-date-same';
-        } else if (srcMt < tgtMt) {
-          srcCls = 'ecm-date-older'; tgtCls = 'ecm-date-newer';
-        } else {
-          srcCls = 'ecm-date-same'; tgtCls = 'ecm-date-same';
-        }
-        html += '<tr class="' + rowCls + '">';
-        html += '<td class="ecm-td-name">' + escapeHtml(f.name) + '</td>';
-        html += '<td class="ecm-td-size">' + escapeHtml(f.size_display) + '</td>';
-        html += '<td class="ecm-td-date"><span class="' + srcCls + '">' + escapeHtml(srcDate || '–') + '</span></td>';
-        html += '<td class="ecm-td-date"><span class="' + tgtCls + '">' + escapeHtml(tgtDate || 'nicht vorhanden') + '</span></td>';
-        html += '<td class="ecm-td-status">' + escapeHtml(f.status) + '</td>';
-        html += '</tr>';
-      });
-      html += '</tbody></table>';
-    }
-    html += '</div>'; // .ecm-k-files
-    html += '</div>'; // .ecm-k-block
-  });
-
-  document.getElementById('export-confirm-title').textContent = '📤 Deploy ' + kuerzelList.length + ' Kürzel';
-  document.getElementById('export-confirm-body').innerHTML = html;
-
-  // Accordion-Toggle
-  document.getElementById('export-confirm-body').querySelectorAll('.ecm-k-header').forEach(function(hdr) {
-    hdr.addEventListener('click', function() {
-      var k      = hdr.dataset.k;
-      var files  = document.getElementById('ecm-kfiles-' + k);
-      var toggle = hdr.classList.toggle('collapsed');
-      if (toggle) files.classList.add('hidden');
-      else files.classList.remove('hidden');
-    });
-  });
-
-  document.getElementById('export-confirm-status').textContent = '';
-  document.getElementById('export-confirm-status').className   = '';
-  var runBtnM = document.getElementById('export-confirm-run');
-  runBtnM.textContent = '✓ Jetzt deployen';
-  runBtnM.classList.remove('btn-close');
-  runBtnM.disabled = false;
-  _deployDone = false;
-  document.getElementById('export-confirm-overlay').classList.add('open');
-}
-
-/**
- * Mehrere Kürzel sequenziell deployen (Multi-Modus)
- */
-function runMultiDeploy() {
-  var queue     = _deployQueue.slice();
-  var statusEl  = document.getElementById('export-confirm-status');
-  var runBtn    = document.getElementById('export-confirm-run');
-  var closeBtn  = document.getElementById('export-confirm-close');
-
-  statusEl.textContent = 'Deploye ' + queue.length + ' Kürzel…';
-  statusEl.className   = 'ecm-running';
-  runBtn.disabled = closeBtn.disabled = true;
-
-  var done = 0, errors = 0;
+  var done = 0;
+  var errors = 0;
   var allDeployedFiles = [];
 
-  function deployNext(i) {
-    if (i >= queue.length) {
-      runBtn.disabled = closeBtn.disabled = false;
-      var msg = done + ' Kürzel deployed';
-      if (errors > 0) msg += ', ' + errors + ' Fehler';
-      statusEl.textContent = (errors > 0 ? '' : '✓ ') + msg;
-      statusEl.className   = errors > 0 ? 'ecm-status-error' : 'ecm-status-success';
-      editorStatus(msg + (errors === 0 ? ' ✓' : ''), errors > 0 ? 'error' : 'success');
-      if (errors === 0) {
-        // Run-Button auf Schliessen umstellen
-        _deployDone = true;
-        runBtn.textContent = 'Schliessen';
-        runBtn.classList.add('btn-close');
-        runBtn.disabled = false;
-        // Cache leeren
-        clearCacheAfterDeploy(statusEl);
-        // Git-Batch-Commit fuer alle deployten Dateien
-        gitCommitDeployedFiles(allDeployedFiles, queue.join(', '), statusEl);
-      }
+  exportBtn.disabled = true;
+  editorStatus('Deploye ' + kuerzelList.length + ' Kürzel…');
+
+  function finish() {
+    exportBtn.disabled = false;
+    updateDeploySelBtn();
+    renderEditorSourceList();
+
+    var msg = done + ' Kürzel deployed';
+    if (errors > 0) msg += ', ' + errors + ' Fehler';
+
+    if (errors > 0) {
+      editorStatus(msg, 'error');
       return;
     }
-    var k     = queue[i];
-    var stEl  = document.getElementById('ecm-kstat-' + k);
-    if (stEl) { stEl.textContent = 'Deploye…'; stEl.className = 'ecm-k-status running'; }
 
-    fetch(GAPI_URL + '/deploy-staging/' + encodeURIComponent(k) + '?dry_run=false', {
+    fetch('cache?action=clear', { method: 'POST' })
+      .then(function() {
+        editorStatus(msg + ' ✓ — Cache geleert', 'success');
+      })
+      .catch(function() {
+        editorStatus(msg + ' ✓ — Cache-Fehler', 'success');
+      });
+
+    gitCommitDeployedFiles(allDeployedFiles, kuerzelList.join(', '), null);
+  }
+
+  function deployNext(index) {
+    if (index >= kuerzelList.length) {
+      finish();
+      return;
+    }
+
+    var kuerzel = kuerzelList[index];
+    editorStatus('Deploye ' + (index + 1) + '/' + kuerzelList.length + ': ' + kuerzel + '…');
+
+    fetch(GAPI_URL + '/deploy-staging/' + encodeURIComponent(kuerzel) + '?dry_run=false', {
       method: 'POST'
     })
     .then(function(r) { return r.json(); })
     .then(function(j) {
       if (j.detail || j.errors > 0) {
         errors++;
-        if (stEl) { stEl.textContent = '✗ Fehler'; stEl.className = 'ecm-k-status error'; }
       } else {
         done++;
-        if (stEl) { stEl.textContent = '✓ ' + j.deployed + ' deployed'; stEl.className = 'ecm-k-status success'; }
-        // Deployierte Dateien sammeln
-        // Alle Dateien (deployed + skipped) sammeln — koennten noch nicht im Git-Repo sein
-        (j.files || []).forEach(function(f) { if (f.result === 'deployed' || f.result === 'skipped') allDeployedFiles.push(f); });
+        (j.files || []).forEach(function(f) {
+          if (f.result === 'deployed' || f.result === 'skipped') allDeployedFiles.push(f);
+        });
       }
-      deployNext(i + 1);
+      deployNext(index + 1);
     })
-    .catch(function(e) {
+    .catch(function() {
       errors++;
-      if (stEl) { stEl.textContent = '✗ ' + e.message; stEl.className = 'ecm-k-status error'; }
-      deployNext(i + 1);
+      deployNext(index + 1);
     });
   }
+
   deployNext(0);
+}
+
+/**
+ * Multi-Deploy Confirm-Modal anzeigen
+ */
+function openExportConfirmMultiModal(kuerzelList, results) {
+  return;
+}
+
+/**
+ * Mehrere Kürzel sequenziell deployen (Multi-Modus)
+ */
+function runMultiDeploy() {
+  return;
 }
 
 /**
@@ -6239,7 +6230,7 @@ function buildFileRow(f) {
 }
 
 /**
- * Export nach Core: 1. Dry-Run → Confirm-Modal anzeigen, 2. Echtes Deploy
+ * Export nach Core ohne Custom-Dialog.
  */
 function exportEditorToCore() {
   // Multi-Auswahl: an deploySelection delegieren
@@ -6265,8 +6256,15 @@ function exportEditorToCore() {
       editorStatus('Fehler: ' + errMsg, 'error');
       return;
     }
-    editorStatus('');
-    openExportConfirmModal(j, unsaved);
+    if (!j.files || j.files.length === 0) {
+      editorStatus('Keine Dateien zum Deployen gefunden.');
+      return;
+    }
+    if (unsaved > 0 && !confirm(unsaved + ' ungespeicherte Änderung(en) sind noch nicht im Staging. Trotzdem deployen?')) {
+      editorStatus('Deploy abgebrochen.');
+      return;
+    }
+    directDeployKuerzelList([kuerzel]);
   })
   .catch(function(e) {
     document.getElementById('editor-btn-export').disabled = false;
@@ -6278,51 +6276,7 @@ function exportEditorToCore() {
  * Dry-Run-Ergebnis im Confirm-Modal anzeigen
  */
 function openExportConfirmModal(dryData, unsavedCount, prependHtml) {
-  _deployQueueMode = 'single';
-  _deployQueue     = [dryData.kuerzel];
-  var kuerzel  = dryData.kuerzel;
-  var files    = dryData.files || [];
-  var newFiles  = files.filter(function(f) { return f.status === 'neu'; });
-  var skipFiles = files.filter(function(f) { return f.hash_match === true || f.result === 'skipped'; });
-  var updFiles  = files.filter(function(f) { return f.status !== 'neu' && f.result !== 'error' && !f.hash_match && f.result !== 'skipped'; });
-  var errFiles  = files.filter(function(f) { return f.result === 'error'; });
-
-  var html = '';
-  if (prependHtml) html += prependHtml;
-  if (unsavedCount > 0) {
-    html += '<div class="ecm-warning">⚠ ' + unsavedCount + ' ungespeicherte Änderung(en) im Editor — diese sind im Staging noch nicht enthalten.</div>';
-  }
-
-  html += '<div class="ecm-summary">';
-  html += '<span class="ecm-pill new">'  + newFiles.length  + ' neu</span>';
-  html += '<span class="ecm-pill upd">'  + updFiles.length  + ' überschreiben</span>';
-  html += '<span class="ecm-pill skip">' + skipFiles.length + ' identisch</span>';
-  if (errFiles.length > 0) html += '<span class="ecm-pill err">' + errFiles.length + ' Fehler</span>';
-  html += '</div>';
-
-  if (files.length > 0) {
-    html += '<div class="ecm-table-wrap"><table class="ecm-table">';
-    html += '<thead><tr><th>Datei</th><th>Grösse</th><th>Datum Staging</th><th>Datum Core</th><th>Hash</th><th>Aktion</th></tr></thead><tbody>';
-    files.forEach(function(f) { html += buildFileRow(f); });
-    html += '</tbody></table></div>';
-  } else {
-    html += '<div class="ecm-empty">Keine Dateien zum Deployen gefunden.</div>';
-  }
-
-  document.getElementById('export-confirm-title').textContent = '📤 Deploy: ' + kuerzel;
-  document.getElementById('export-confirm-body').innerHTML = html;
-  // Status + Buttons nur beim ersten Öffnen zurücksetzen (nicht beim Verifikations-Update)
-  if (!prependHtml) {
-    _deployDone = false;
-    document.getElementById('export-confirm-status').textContent = '';
-    document.getElementById('export-confirm-status').className   = '';
-    var runBtn = document.getElementById('export-confirm-run');
-    runBtn.textContent = '✓ Jetzt deployen';
-    runBtn.classList.remove('btn-close');
-    runBtn.onclick = null;
-    runBtn.disabled = (files.length === 0);
-    document.getElementById('export-confirm-overlay').classList.add('open');
-  }
+  return;
 }
 
 /**
@@ -6377,90 +6331,7 @@ function gitCommitDeployedFiles(deployedFiles, kuerzel, statusEl) {
  * Echtes Deploy nach Bestätigung ausführen
  */
 function runExportDeploy() {
-  var kuerzel   = _deployQueue[0];
-  if (!kuerzel) return;
-  var statusEl  = document.getElementById('export-confirm-status');
-  var runBtn    = document.getElementById('export-confirm-run');
-  var closeBtn  = document.getElementById('export-confirm-close');
-
-  statusEl.textContent = 'Deploye…';
-  statusEl.className   = 'ecm-running';
-  runBtn.disabled   = true;
-  closeBtn.disabled = true;
-
-  fetch(GAPI_URL + '/deploy-staging/' + encodeURIComponent(kuerzel) + '?dry_run=false', {
-    method: 'POST'
-  })
-  .then(function(r) { return r.json(); })
-  .then(function(j) {
-    runBtn.disabled    = false;
-    cancelBtn.disabled = false;
-    closeBtn.disabled  = false;
-    if (j.detail) {
-      var errMsg = Array.isArray(j.detail) ? j.detail[0].msg : j.detail;
-      statusEl.textContent = 'Fehler: ' + errMsg;
-      statusEl.className   = 'ecm-status-error';
-      return;
-    }
-    if (j.errors > 0) {
-      var msg = j.deployed + ' deployed, ' + j.errors + ' Fehler';
-      statusEl.textContent = msg;
-      statusEl.className   = 'ecm-status-error';
-      editorStatus(msg, 'error');
-      return;
-    }
-    // Erfolgreich: Verifikations-Dry-Run
-    var deployedCount = j.deployed;
-    // Alle Dateien (deployed + skipped) an Git senden — Dateien koennten noch nicht im Repo sein
-    var deployedFiles = (j.files || []).filter(function(f) { return f.result === 'deployed' || f.result === 'skipped'; });
-    statusEl.textContent = '✓ ' + deployedCount + ' Datei(en) deployed — Verifiziere…';
-    statusEl.className   = 'ecm-running';
-    runBtn.disabled    = true;
-    cancelBtn.disabled = true;
-    fetch(GAPI_URL + '/deploy-staging/' + encodeURIComponent(kuerzel) + '?dry_run=true', {
-      method: 'POST'
-    })
-    .then(function(r2) { return r2.json(); })
-    .then(function(j2) {
-      runBtn.disabled    = false;
-      cancelBtn.disabled = false;
-      // Modal-Body neu rendern mit aktualisierten Daten + Erfolgsbanner
-      var banner = '<div class="ecm-result-banner success">✅ ' + deployedCount + ' Datei(en) erfolgreich deployed</div>';
-      openExportConfirmModal(j2, 0, banner);
-      // Run-Button auf Schliessen umstellen
-      _deployDone = true;
-      runBtn.textContent = 'Schliessen';
-      runBtn.classList.add('btn-close');
-      runBtn.disabled = false;
-      statusEl.textContent = '✓ Deployment verifiziert — Cache leeren…';
-      statusEl.className   = 'ecm-status-success';
-      editorStatus(deployedCount + ' Datei(en) deployed ✓', 'success');
-      // Cache leeren nach erfolgreichem Deploy
-      clearCacheAfterDeploy(statusEl);
-      // Git-Batch-Commit (non-blocking)
-      gitCommitDeployedFiles(deployedFiles, kuerzel, statusEl);
-    })
-    .catch(function() {
-      runBtn.disabled    = false;
-      cancelBtn.disabled = false;
-      _deployDone = true;
-      runBtn.textContent = 'Schliessen';
-      runBtn.classList.add('btn-close');
-      statusEl.textContent = '✓ Deployed — Verifikation fehlgeschlagen';
-      statusEl.className   = 'ecm-status-success';
-      editorStatus(deployedCount + ' Datei(en) deployed ✓', 'success');
-      clearCacheAfterDeploy(statusEl);
-      // Git-Batch-Commit auch bei fehlgeschlagener Verifikation
-      gitCommitDeployedFiles(deployedFiles, kuerzel, statusEl);
-    });
-  })
-  .catch(function(e) {
-    runBtn.disabled    = false;
-    cancelBtn.disabled = false;
-    closeBtn.disabled  = false;
-    statusEl.textContent = 'Netzwerkfehler: ' + e.message;
-    statusEl.className   = 'ecm-status-error';
-  });
+  return;
 }
 
 // ===== Editor Event-Listener =====
@@ -6485,31 +6356,6 @@ document.querySelectorAll('.editor-subtab').forEach(function(btn) {
 document.getElementById('editor-btn-save').addEventListener('click', saveEditorChanges);
 document.getElementById('editor-btn-revert').addEventListener('click', revertEditorChanges);
 document.getElementById('editor-btn-export').addEventListener('click', exportEditorToCore);
-
-
-// Export-Confirm-Modal: Schliessen-Button
-document.getElementById('export-confirm-close').addEventListener('click', function() {
-  document.getElementById('export-confirm-overlay').classList.remove('open');
-});
-document.getElementById('export-confirm-run').addEventListener('click', function() {
-  if (_deployDone) {
-    // Im Schliessen-Modus: Modal schliessen, State zurücksetzen
-    this.textContent = '✓ Jetzt deployen';
-    this.classList.remove('btn-close');
-    _deployDone = false;
-    _editorSelectedKuerzel = {};
-    updateDeploySelBtn();
-    renderEditorSourceList();
-    document.getElementById('export-confirm-overlay').classList.remove('open');
-    return;
-  }
-  if (_deployQueueMode === 'multi') runMultiDeploy();
-  else runExportDeploy();
-});
-// Klick auf Overlay-Hintergrund schliesst Modal
-document.getElementById('export-confirm-overlay').addEventListener('click', function(e) {
-  if (e.target === this) this.classList.remove('open');
-});
 
 // =====================================================================
 // URL-HASH NAVIGATION
@@ -7613,7 +7459,7 @@ var _bmLoaded = false;    // wurde bereits geladen?
 var _bmAllLayerKeys = [];  // alle verfügbaren Layer-Keys (für Autocomplete / Validierung)
 var _bmLayersLoaded = false;
 
-// ---- Concurrency / Optimistic Locking (Staging-DB) --------------------
+// ---- Concurrency / Optimistic Locking (Konfig-Store DB) ----------------
 var _bmRevision = null;    // zuletzt geladene Sammlungs-Revision (Optimistic-Lock-Token)
 var _bmSource = 'files';   // 'db' oder 'files' (vom Server gemeldet)
 
@@ -7622,9 +7468,23 @@ function bmGetUser() {
   var u = '';
   try { u = localStorage.getItem('slmBookmarkUser') || ''; } catch (e) {}
   if (!u) {
+    try { u = localStorage.getItem('tnetLoggedInUser') || ''; } catch (e) {}
+  }
+  if (!u) {
+    var badgeName = document.getElementById('slm-username');
+    if (badgeName && badgeName.textContent) {
+      u = badgeName.textContent.replace(/^👤\s*/, '').trim();
+    }
+  }
+  if (!u) {
     u = window.prompt('Ihr Name/Kürzel (für gleichzeitiges Bearbeiten):', '') || '';
     u = u.trim();
-    if (u) { try { localStorage.setItem('slmBookmarkUser', u); } catch (e) {} }
+    if (u) {
+      try {
+        localStorage.setItem('slmBookmarkUser', u);
+        localStorage.setItem('tnetLoggedInUser', u);
+      } catch (e) {}
+    }
   }
   return u || 'unbekannt';
 }
@@ -9741,7 +9601,7 @@ function _showBuildTs(id) {
   var isStoreDev = (_storeEnv === 'dev');
   var coreName  = isStoreDev ? 'core-dev' : 'core';
   var rawConf   = isStoreDev ? 'data/tmp/maps-dev/raw-conf'    : 'data/tmp/maps/raw-conf';
-  var impCore   = isStoreDev ? 'DB: mapplusconf_dev.staging_import_bundle' : 'DB: mapplusconf.staging_import_bundle';
+  var impCore   = isStoreDev ? 'DB: mapplusconf_dev.config_bundle_store' : 'DB: mapplusconf.config_bundle_store';
   var coreCfg   = '/www/' + coreName + '/config/';
   var coreNls   = '/www/' + coreName + '/nls/de/';
 
@@ -9766,20 +9626,20 @@ function _showBuildTs(id) {
     return bar;
   }
 
-  // Staging-Tab: raw-conf → Staging-DB
+  // Import-Tab: raw-conf → Konfig-Store DB
   var paneStaging = document.getElementById('pane-import');
   if (paneStaging && !paneStaging.querySelector('.path-info-bar')) {
     paneStaging.insertBefore(
-      makeBar([['raw-conf', rawConf], ['Staging-DB', impCore]]),
+      makeBar([['raw-conf', rawConf], ['Konfig-Store DB', impCore]]),
       paneStaging.firstChild
     );
   }
 
-  // Editor-Tab: Staging-DB → core-dev/config + nls
+  // Editor-Tab: Konfig-Store DB → core-dev/config + nls
   var paneEditor = document.getElementById('pane-editor');
   if (paneEditor && !paneEditor.querySelector('.path-info-bar')) {
     paneEditor.insertBefore(
-      makeBar([['Staging-DB', impCore], [coreName + '/config', coreCfg], [coreName + '/nls/de', coreNls]]),
+      makeBar([['Konfig-Store DB', impCore], [coreName + '/config', coreCfg], [coreName + '/nls/de', coreNls]]),
       paneEditor.firstChild
     );
   }
