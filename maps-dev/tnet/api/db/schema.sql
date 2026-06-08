@@ -737,3 +737,35 @@ COMMENT ON TABLE  mapplusconf.catalog_lock IS 'Soft-Lock (UI-Hinweis) für gleic
 -- updated_at-Trigger für catalog_document
 DROP TRIGGER IF EXISTS trg_catalog_document_updated ON mapplusconf.catalog_document;
 CREATE TRIGGER trg_catalog_document_updated BEFORE UPDATE ON mapplusconf.catalog_document FOR EACH ROW EXECUTE FUNCTION mapplusconf.set_updated_at();
+
+
+-- ============================================================================
+-- 15. STAGING_IMPORT_BUNDLE
+-- DB-basierte Ablage der Staging-/ImportToCore-Ausgaben aus dem SLM.
+-- Ersetzt die dateibasierte Ordnerstruktur ImportToCore/<kuerzel>/ durch ein
+-- JSONB-Bundle pro Kürzel/Tag-Gruppe.
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS mapplusconf.staging_import_bundle (
+    kuerzel             TEXT PRIMARY KEY,
+    tags                JSONB NOT NULL DEFAULT '[]'::jsonb,
+    payload             JSONB NOT NULL DEFAULT '{"files": []}'::jsonb,
+    manifest            JSONB NOT NULL DEFAULT '{}'::jsonb,
+    last_imported_at    TIMESTAMPTZ,
+    last_imported_by    TEXT,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+COMMENT ON TABLE mapplusconf.staging_import_bundle IS 'DB-basierte Staging-Bundles aus dem SLM (ersetzt ImportToCore/<kuerzel>/)';
+COMMENT ON COLUMN mapplusconf.staging_import_bundle.kuerzel IS 'Primäres Kürzel des Bundles; historisch der Ordnername unter ImportToCore/';
+COMMENT ON COLUMN mapplusconf.staging_import_bundle.tags IS 'Freie Tags zum Bundle; aktuell mindestens das Kürzel selbst';
+COMMENT ON COLUMN mapplusconf.staging_import_bundle.payload IS 'Datei-Bundle als JSONB: {files:[{name,type,prefix,data,size,modified}]}' ;
+COMMENT ON COLUMN mapplusconf.staging_import_bundle.manifest IS 'Staging-Manifest mit Quellbasis/Change-Detection';
+COMMENT ON COLUMN mapplusconf.staging_import_bundle.last_imported_at IS 'Zeitpunkt des letzten Imports/Stagings in die DB';
+COMMENT ON COLUMN mapplusconf.staging_import_bundle.last_imported_by IS 'Bearbeiter des letzten Imports/Stagings';
+
+CREATE INDEX IF NOT EXISTS idx_staging_bundle_tags ON mapplusconf.staging_import_bundle USING GIN (tags);
+CREATE INDEX IF NOT EXISTS idx_staging_bundle_imported_at ON mapplusconf.staging_import_bundle (last_imported_at DESC);
+
+DROP TRIGGER IF EXISTS trg_staging_import_bundle_updated ON mapplusconf.staging_import_bundle;
+CREATE TRIGGER trg_staging_import_bundle_updated BEFORE UPDATE ON mapplusconf.staging_import_bundle FOR EACH ROW EXECUTE FUNCTION mapplusconf.set_updated_at();

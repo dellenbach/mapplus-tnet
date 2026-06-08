@@ -38,6 +38,7 @@ CorsHelper::setHeaders('GET, POST, OPTIONS', 'Content-Type, X-Editor-Name');
 
 require_once __DIR__ . '/../includes/CorePaths.php';
 require_once __DIR__ . '/../includes/Database.php';
+require_once __DIR__ . '/../includes/StagingImportRepository.php';
 
 // =====================================================================
 // Config
@@ -102,6 +103,11 @@ function runtimePathInfo($label, $path) {
 function getEditorName() {
     // From header or query param
     return $_SERVER['HTTP_X_EDITOR_NAME'] ?? $_GET['editor'] ?? 'Unbekannt';
+}
+
+function useStagingImportDb() {
+    $db = Database::isAvailable();
+    return !empty($db['available']);
 }
 
 function ensureDirs() {
@@ -2268,11 +2274,590 @@ function importCoreToRawConf($kuerzelList) {
     ];
 }
 
+function migrateImportToCoreFilesToDb($onlyKuerzel = '') {
+    $dir = IMPORT_TO_CORE_DIR;
+    if (!is_dir($dir)) return 0;
+
+    $entries = @scandir($dir);
+    if (!$entries) return 0;
+
+    $migrated = 0;
+    foreach ($entries as $k) {
+        if ($k === '.' || $k === '..') continue;
+        if ($onlyKuerzel && $k !== $onlyKuerzel) continue;
+        $kPath = $dir . '/' . $k;
+        if (!is_dir($kPath)) continue;
+        if (StagingImportRepository::loadBundle($k)) continue;
+
+        $manifest = [];
+        $manifestPath = $kPath . '/.staging-manifest.json';
+        if (is_file($manifestPath)) {
+            $raw = @file_get_contents($manifestPath);
+            if ($raw !== false) $manifest = @json_decode($raw, true) ?: [];
+        }
+
+        $files = [];
+        foreach (@scandir($kPath) ?: [] as $f) {
+            if ($f === '.' || $f === '..' || $f[0] === '.') continue;
+            $fp = $kPath . '/' . $f;
+            if (!is_file($fp)) continue;
+            $ext = strtolower(pathinfo($f, PATHINFO_EXTENSION));
+            if (!in_array($ext, ['conf', 'json'], true)) continue;
+            $raw = @file_get_contents($fp);
+            if ($raw === false) continue;
+            $decoded = @json_decode($raw, true);
+            if (!is_array($decoded)) continue;
+
+            $knownPrefixes = ['layers', 'maptips', 'lyrmgrResources', 'maptipsResources', 'legendResources'];
+            $prefix = 'unknown';
+            $basename = pathinfo($f, PATHINFO_FILENAME);
+            foreach ($knownPrefixes as $pfx) {
+                if (strpos($basename, $pfx . '_') === 0 || strpos($basename, $pfx . '-') === 0 || $basename === $pfx) {
+                    $prefix = $pfx;
+                    break;
+                }
+            }
+
+            $type = 'unknown';
+            if ($prefix === 'layers') $type = 'layers';
+            elseif ($prefix === 'maptips') $type = 'maptips';
+            elseif ($prefix === 'lyrmgrResources') $type = 'lyrmgr';
+            elseif ($prefix === 'maptipsResources') $type = 'maptipsRes';
+            elseif ($prefix === 'legendResources') $type = 'legendRes';
+
+            $files[] = [
+                'name' => $f,
+                'type' => $type,
+                'prefix' => $prefix,
+                'keys' => count($decoded),
+                'size' => filesize($fp),
+                'modified' => date('Y-m-d H:i:s', filemtime($fp)),
+                'data' => $decoded,
+            ];
+        }
+
+        if (!empty($files)) {
+            StagingImportRepository::saveBundle($k, $files, $manifest, [$k], 'migration');
+            $migrated++;
+        }
+    }
+
+    return $migrated;
+}
+
+function listImportToCoreDb() {
+    $rawDir = getWritableRawConfDir();
+    if ($rawDir === false) $rawDir = RAW_CONF_DIR;
+    $bundles = StagingImportRepository::loadAll();
+    if (count($bundles) === 0) {
+        migrateImportToCoreFilesToDb();
+        $bundles = StagingImportRepository::loadAll();
+    }
+    if (count($bundles) === 0) return ['exists' => false, 'kuerzel' => []];
+
+    $keyIndex = [];
+    $result = [];
+    foreach ($bundles as $bundle) {
+        $files = [];
+        foreach ($bundle['files'] as $file) {
+            $name = $file['name'] ?? '';
+            if ($name === '') continue;
+            $prefix = $file['prefix'] ?? pathinfo($name, PATHINFO_FILENAME);
+            $data = $file['data'] ?? [];
+            if (is_array($data) && !empty($data) && array_keys($data) !== range(0, count($data) - 1)) {
+                foreach (array_keys($data) as $topKey) {
+                    $keyIndex[$prefix][$topKey][] = $bundle['kuerzel'] . '/' . $name;
+                }
+            }
+            $files[] = [
+                'file' => $bundle['kuerzel'] . '/' . $name,
+                'name' => $name,
+                'size' => (int)($file['size'] ?? strlen(json_encode($data))),
+                'modified' => $file['modified'] ?? ($bundle['updatedAt'] ?: date('Y-m-d H:i:s')),
+                '_prefix' => $prefix,
+            ];
+        }
+
+        $entry = [
+            'kuerzel' => $bundle['kuerzel'],
+            'tags' => $bundle['tags'],
+            'files' => $files,
+            'size' => array_sum(array_map(function ($f) { return (int)$f['size']; }, $files)),
+            'manifest' => $bundle['manifest'],
+            'lastImportedAt' => $bundle['lastImportedAt'],
+            'lastImportedBy' => $bundle['lastImportedBy'],
+        ];
+        if (!empty($bundle['manifest'])) {
+            $entry['sourceChanges'] = checkSourceChanges($bundle['manifest'], $rawDir);
+        }
+        $result[] = $entry;
+    }
+
+    foreach ($result as &$bundleEntry) {
+        foreach ($bundleEntry['files'] as &$fileInfo) {
+            $prefix = $fileInfo['_prefix'];
+            $crossDups = [];
+            if (isset($keyIndex[$prefix])) {
+                $thisFile = $fileInfo['file'];
+                foreach ($keyIndex[$prefix] as $topKey => $sources) {
+                    if (in_array($thisFile, $sources, true) && count($sources) > 1) {
+                        $otherFiles = array_values(array_filter($sources, function ($s) use ($thisFile) {
+                            return $s !== $thisFile;
+                        }));
+                        if (!empty($otherFiles)) {
+                            $crossDups[] = ['key' => $topKey, 'conflictsWith' => $otherFiles];
+                        }
+                    }
+                }
+            }
+            if (!empty($crossDups)) {
+                $fileInfo['crossDuplicateKeys'] = $crossDups;
+            }
+            unset($fileInfo['_prefix']);
+        }
+        unset($fileInfo);
+    }
+    unset($bundleEntry);
+
+    return ['exists' => true, 'kuerzel' => $result];
+}
+
+function readImportToCoreFileDb($relPath) {
+    if (strpos($relPath, '..') !== false || strpos($relPath, '\\') !== false) {
+        return ['success' => false, 'error' => 'Ungültiger Pfad'];
+    }
+    $parts = explode('/', trim($relPath, '/'), 2);
+    if (count($parts) !== 2) {
+        return ['success' => false, 'error' => 'Ungültiger Datei-Pfad'];
+    }
+    $bundle = StagingImportRepository::loadBundle($parts[0]);
+    if (!$bundle) return ['success' => false, 'error' => 'Kürzel nicht gefunden: ' . $parts[0]];
+    foreach ($bundle['files'] as $file) {
+        if (($file['name'] ?? '') === $parts[1]) {
+            $content = json_encode($file['data'] ?? [], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            return ['success' => true, 'content' => $content, 'size' => strlen($content), 'file' => $relPath];
+        }
+    }
+    return ['success' => false, 'error' => 'Datei nicht gefunden: ' . $relPath];
+}
+
+function writeImportToCoreFileDb($relPath, $content) {
+    if (strpos($relPath, '..') !== false || strpos($relPath, '\\') !== false) {
+        return ['success' => false, 'error' => 'Ungültiger Pfad'];
+    }
+    $parts = explode('/', trim($relPath, '/'), 2);
+    if (count($parts) !== 2) {
+        return ['success' => false, 'error' => 'Ungültiger Datei-Pfad'];
+    }
+    $decoded = @json_decode($content, true);
+    if (!is_array($decoded)) {
+        return ['success' => false, 'error' => 'Kein gültiges JSON'];
+    }
+    $res = StagingImportRepository::saveFileData($parts[0], $parts[1], $decoded, getEditorName());
+    if (empty($res['success'])) return $res;
+    return ['success' => true, 'bytes' => strlen($content)];
+}
+
+function deleteImportToCoreKuerzelDb(array $kuerzelList) {
+    return StagingImportRepository::deleteBundles($kuerzelList);
+}
+
+function stageServicesToImportDb(array $serviceKeys, string $kuerzel, string $mode = 'replace') {
+    $kuerzel = preg_replace('/[^a-zA-Z0-9_\-]/', '_', trim($kuerzel));
+    if ($kuerzel === '') return ['success' => false, 'error' => 'Kürzel darf nicht leer sein'];
+    if (!in_array($mode, ['merge', 'replace', 'preview'], true)) {
+        return ['success' => false, 'error' => 'Ungültiger Modus: ' . $mode];
+    }
+
+    $rawDir = getWritableRawConfDir();
+    if ($rawDir === false) $rawDir = RAW_CONF_DIR;
+    $existingBundle = (($mode === 'merge' || $mode === 'preview') ? StagingImportRepository::loadBundle($kuerzel) : null);
+    $existingManifest = $existingBundle['manifest'] ?? null;
+    $existingFilesMap = [];
+    if ($existingBundle && !empty($existingBundle['files'])) {
+        foreach ($existingBundle['files'] as $existingFile) {
+            if (!empty($existingFile['name'])) {
+                $existingFilesMap[$existingFile['name']] = $existingFile;
+            }
+        }
+    }
+
+    $buckets = [];
+    $errors = [];
+    $skipped = [];
+    foreach ($serviceKeys as $svcKey) {
+        $svcDir = $rawDir . '/' . $svcKey;
+        if (is_dir($svcDir)) {
+            $it = new RecursiveIteratorIterator(
+                new RecursiveDirectoryIterator($svcDir, RecursiveDirectoryIterator::SKIP_DOTS),
+                RecursiveIteratorIterator::LEAVES_ONLY
+            );
+            $svcFiles = iterator_to_array($it, false);
+        } else {
+            $svcFiles = [];
+            $allEntries = @scandir($rawDir);
+            if ($allEntries) {
+                foreach ($allEntries as $entry) {
+                    $fullPath = $rawDir . '/' . $entry;
+                    if ($entry === '.' || $entry === '..' || !is_file($fullPath)) continue;
+                    if (extractServiceFromFilename($entry) === $svcKey) $svcFiles[] = new SplFileInfo($fullPath);
+                }
+            }
+            if (empty($svcFiles)) { $errors[] = 'Dienst nicht gefunden: ' . $svcKey; continue; }
+        }
+
+        foreach (new ArrayIterator($svcFiles) as $file) {
+            $fname = $file->getFilename();
+            if (preg_match('/\.\d{8}_\d{6}\.bak$/', $fname)) { $skipped[] = $fname . ' (Backup)'; continue; }
+            if (preg_match('/\.xlsx$/i', $fname)) { $skipped[] = $fname . ' (Excel)'; continue; }
+            $ext = strtolower(pathinfo($fname, PATHINFO_EXTENSION));
+            if (!in_array($ext, ['conf', 'json'], true)) { $skipped[] = $fname . ' (Typ .' . $ext . ' nicht verarbeitbar)'; continue; }
+
+            $content = @file_get_contents($file->getPathname());
+            if ($content === false) { $errors[] = 'Lesefehler: ' . $file->getPathname(); continue; }
+            $decoded = @json_decode($content, true);
+            if (!is_array($decoded)) { $errors[] = 'Kein gültiges JSON: ' . $fname; continue; }
+
+            $knownPfx = ['layers', 'maptips', 'lyrmgrResources', 'maptipsResources', 'legendResources'];
+            $prefix = pathinfo($fname, PATHINFO_FILENAME);
+            foreach ($knownPfx as $pfx) {
+                if (strpos($fname, $pfx . '_') === 0 || strpos($fname, $pfx . '-') === 0) {
+                    $prefix = $pfx;
+                    break;
+                }
+            }
+            $usesDash = (strpos($fname, $prefix . '-') === 0);
+            if (!isset($buckets[$prefix])) {
+                $buckets[$prefix] = ['parts' => [], 'ext' => $ext, 'usesDash' => $usesDash];
+            }
+            $buckets[$prefix]['parts'][] = ['data' => $decoded, 'source' => $fname];
+        }
+    }
+
+    $written = [];
+    $mergeStats = [];
+    $manifestSources = [];
+    if (($mode === 'merge' || $mode === 'preview') && $existingManifest && isset($existingManifest['sources'])) {
+        foreach ($existingManifest['sources'] as $src) {
+            if (!in_array($src['service'], $serviceKeys, true)) {
+                $manifestSources[$src['service']] = $src;
+            }
+        }
+    }
+
+    foreach ($buckets as $prefix => $bucket) {
+        if (empty($bucket['parts'])) continue;
+        $outName = (!empty($bucket['usesDash']) && count($bucket['parts']) === 1)
+            ? $bucket['parts'][0]['source']
+            : $prefix . '_' . $kuerzel . '.' . $bucket['ext'];
+
+        $existingData = [];
+        if (($mode === 'merge' || $mode === 'preview') && isset($existingFilesMap[$outName]['data']) && is_array($existingFilesMap[$outName]['data'])) {
+            $existingData = $existingFilesMap[$outName]['data'];
+        }
+
+        $merged = (($mode === 'merge' || $mode === 'preview') ? $existingData : []);
+        $isAssoc = (!empty($existingData) && array_keys($existingData) !== range(0, count($existingData) - 1));
+        foreach ($bucket['parts'] as $part) {
+            $arr = $part['data'];
+            if (!empty($arr) && array_keys($arr) !== range(0, count($arr) - 1)) $isAssoc = true;
+            if ($isAssoc) {
+                foreach ($arr as $k => $v) { $merged[$k] = $v; }
+            } else {
+                foreach ($arr as $v) { $merged[] = $v; }
+            }
+        }
+
+        $stats = ['added' => 0, 'updated' => 0, 'unchanged' => 0];
+        if (($mode === 'merge' || $mode === 'preview') && $isAssoc && !empty($existingData)) {
+            foreach ($merged as $k => $v) {
+                if (!array_key_exists($k, $existingData)) $stats['added']++;
+                elseif ($v !== $existingData[$k]) $stats['updated']++;
+                else $stats['unchanged']++;
+            }
+        }
+        $mergeStats[$prefix] = $stats;
+
+        $payloadJson = json_encode($merged, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        $written[] = [
+            'file' => $kuerzel . '/' . $outName,
+            'name' => $outName,
+            'bytes' => ($mode === 'preview') ? 0 : strlen($payloadJson),
+            'keys' => is_array($merged) ? count($merged) : 0,
+            'mergeStats' => $stats,
+            'preview' => ($mode === 'preview'),
+            'duplicateKeys' => [],
+            'type' => ($prefix === 'layers' ? 'layers' : ($prefix === 'maptips' ? 'maptips' : ($prefix === 'lyrmgrResources' ? 'lyrmgr' : ($prefix === 'maptipsResources' ? 'maptipsRes' : ($prefix === 'legendResources' ? 'legendRes' : 'unknown'))))),
+            'prefix' => $prefix,
+            'data' => $merged,
+            'size' => strlen($payloadJson),
+            'modified' => date('Y-m-d H:i:s'),
+        ];
+    }
+
+    foreach ($serviceKeys as $svcKey) {
+        $svcDir = $rawDir . '/' . $svcKey;
+        $svcKeyCounts = [];
+        foreach ($buckets as $prefix => $bucket) {
+            $count = 0;
+            foreach ($bucket['parts'] as $part) {
+                if (is_array($part['data'])) $count += count($part['data']);
+            }
+            if ($count > 0) $svcKeyCounts[$prefix] = $count;
+        }
+
+        $srcFiles = [];
+        if (is_dir($svcDir)) {
+            $it = new RecursiveIteratorIterator(
+                new RecursiveDirectoryIterator($svcDir, RecursiveDirectoryIterator::SKIP_DOTS),
+                RecursiveIteratorIterator::LEAVES_ONLY
+            );
+            foreach ($it as $sf) {
+                $sfn = $sf->getFilename();
+                $sfExt = strtolower(pathinfo($sfn, PATHINFO_EXTENSION));
+                if (!in_array($sfExt, ['conf', 'json'], true)) continue;
+                if (preg_match('/\.\d{8}_\d{6}\.bak$/', $sfn)) continue;
+                $srcFiles[] = ['file' => $sfn, 'size' => $sf->getSize(), 'modified' => date('Y-m-d H:i:s', $sf->getMTime())];
+            }
+        } else {
+            foreach (@scandir($rawDir) ?: [] as $entry) {
+                $fullPath = $rawDir . '/' . $entry;
+                if ($entry === '.' || $entry === '..' || !is_file($fullPath)) continue;
+                if (extractServiceFromFilename($entry) !== $svcKey) continue;
+                if (preg_match('/\.\d{8}_\d{6}\.bak$/', $entry)) continue;
+                $ext = strtolower(pathinfo($entry, PATHINFO_EXTENSION));
+                if (!in_array($ext, ['conf', 'json'], true)) continue;
+                $srcFiles[] = ['file' => $entry, 'size' => filesize($fullPath), 'modified' => date('Y-m-d H:i:s', filemtime($fullPath))];
+            }
+        }
+        if (empty($srcFiles)) continue;
+        $manifestSources[$svcKey] = [
+            'service' => $svcKey,
+            'staged' => date('Y-m-d\TH:i:s'),
+            'keys' => $svcKeyCounts,
+            'sourceFiles' => $srcFiles,
+        ];
+    }
+
+    $manifest = [
+        'kuerzel' => $kuerzel,
+        'lastStaged' => date('Y-m-d\TH:i:s'),
+        'mode' => $mode,
+        'sources' => array_values($manifestSources),
+        'buckets' => [],
+    ];
+    foreach ($written as $wf) {
+        $manifest['buckets'][$wf['prefix']] = ['file' => $wf['name'], 'totalKeys' => $wf['keys']];
+    }
+
+    if ($mode !== 'preview') {
+        StagingImportRepository::saveBundle($kuerzel, $written, $manifest, [$kuerzel], getEditorName());
+    }
+
+    return [
+        'success' => true,
+        'kuerzel' => $kuerzel,
+        'mode' => $mode,
+        'targetDir' => 'db:staging_import_bundle/' . $kuerzel,
+        'files' => array_map(function ($wf) use ($kuerzel) {
+            return [
+                'file' => $kuerzel . '/' . $wf['name'],
+                'bytes' => $wf['bytes'],
+                'keys' => $wf['keys'],
+                'mergeStats' => $wf['mergeStats'],
+                'preview' => $wf['preview'],
+                'duplicateKeys' => $wf['duplicateKeys'],
+            ];
+        }, $written),
+        'mergeStats' => $mergeStats,
+        'duplicates' => [],
+        'errors' => $errors,
+        'skipped' => $skipped,
+        'timestamp' => date('Y-m-d H:i:s'),
+    ];
+}
+
+function stagingLayersFlatDb($kuerzel = '') {
+    $bundles = [];
+    if ($kuerzel) {
+        $safe = preg_replace('/[^a-zA-Z0-9_\-]/', '_', trim($kuerzel));
+        $bundle = StagingImportRepository::loadBundle($safe);
+        if ($bundle) $bundles[] = $bundle;
+    } else {
+        $bundles = StagingImportRepository::loadAll();
+    }
+    if (count($bundles) === 0) return ['success' => true, 'data' => [], 'meta' => ['count' => 0, 'source' => 'staging-db']];
+
+    $nameMap = []; $allAliases = []; $maptipsByLayer = []; $allMaptips = []; $allMaptipTexts = []; $allLegends = []; $layerFiles = [];
+    foreach ($bundles as $bundle) {
+        foreach ($bundle['files'] as $file) {
+            $decoded = $file['data'] ?? null;
+            if (!is_array($decoded)) continue;
+            $f = $file['name'] ?? '';
+            if (strpos($f, 'lyrmgrResources_') === 0) {
+                foreach ($decoded as $resKey => $resVal) {
+                    $allAliases[$resKey] = $resVal;
+                    if (strpos($resKey, 'desc_') === 0) $nameMap[strtolower(substr($resKey, 5))] = is_string($resVal) ? $resVal : (string)$resVal;
+                }
+            } elseif (strpos($f, 'maptips_') === 0) {
+                foreach ($decoded as $mtKey => $mtDef) {
+                    $allMaptips[$mtKey] = $mtDef;
+                    $linked = $mtDef['linked_layer'] ?? '';
+                    if ($linked) {
+                        $maptipsByLayer[strtolower($linked)] = ['key' => $mtKey, 'nls' => $mtDef['nls'] ?? '', 'query_layers' => $mtDef['query_layers'] ?? ''];
+                    }
+                }
+            } elseif (strpos($f, 'maptipsResources_') === 0) {
+                foreach ($decoded as $trKey => $trVal) $allMaptipTexts[$trKey] = $trVal;
+            } elseif (strpos($f, 'legendResources_') === 0) {
+                foreach ($decoded as $lgKey => $lgVal) $allLegends[$lgKey] = $lgVal;
+            } elseif (strpos($f, 'layers_') === 0 && preg_match('/\.conf$/i', $f)) {
+                $layerFiles[] = ['kuerzel' => $bundle['kuerzel'], 'file' => $f, 'decoded' => $decoded];
+            }
+        }
+    }
+
+    $sublayerCount = [];
+    foreach ($nameMap as $lk => $name) {
+        $prefix = $lk . '/';
+        foreach ($nameMap as $otherKey => $otherName) {
+            if (strpos($otherKey, $prefix) === 0) $sublayerCount[$lk] = ($sublayerCount[$lk] ?? 0) + 1;
+        }
+    }
+
+    $flatLayers = [];
+    foreach ($layerFiles as $lf) {
+        foreach ($lf['decoded'] as $layerKey => $layerDef) {
+            $lkLower = strtolower($layerKey);
+            $alias = $nameMap[$lkLower] ?? null;
+            $legend = $layerDef['legend'] ?? null;
+            $maptipCount = 0; $firstMaptipNls = null; $firstMaptipTitle = null; $lkPrefix = $lkLower . '/';
+            foreach ($maptipsByLayer as $mlKey => $mlVal) {
+                if ($mlKey === $lkLower || strpos($mlKey, $lkPrefix) === 0) {
+                    $maptipCount++;
+                    if (!$firstMaptipNls && $mlVal['nls']) {
+                        $firstMaptipNls = $mlVal['nls'];
+                        $firstMaptipTitle = $allMaptipTexts[$mlVal['nls'] . '_title'] ?? null;
+                    }
+                }
+            }
+            $legendCount = 0; $firstLegendTitle = null;
+            foreach ($allLegends as $lgKey => $lgVal) {
+                if (strpos(strtolower($lgKey), $lkLower) === 0 && substr($lgKey, -6) === '_title') {
+                    $legendCount++;
+                    if (!$firstLegendTitle) $firstLegendTitle = $lgVal;
+                }
+            }
+            $flatLayers[] = [
+                'id' => $layerKey,
+                'name' => $alias ?: $layerKey,
+                'alias' => $alias,
+                'url' => $layerDef['url'] ?? '',
+                'type' => $layerDef['type'] ?? 'unknown',
+                'layerType' => $layerDef['type'] ?? 'unknown',
+                'visible' => $layerDef['visible'] ?? 0,
+                'icon' => $layerDef['icon'] ?? '',
+                'params' => $layerDef['params'] ?? null,
+                'options' => $layerDef['options'] ?? null,
+                'hasMaptip' => $maptipCount > 0,
+                'maptipCount' => $maptipCount,
+                'maptipNls' => $firstMaptipNls,
+                'maptipTitle' => $firstMaptipTitle,
+                'hasLegend' => $legendCount > 0,
+                'legendCount' => $legendCount,
+                'legendKey' => $legend,
+                'legendTitle' => $firstLegendTitle,
+                'sublayers' => $sublayerCount[$lkLower] ?? 0,
+                '_source' => $lf['kuerzel'],
+                '_file' => $lf['file'],
+            ];
+        }
+    }
+
+    return [
+        'success' => true,
+        'data' => $flatLayers,
+        'meta' => ['kuerzel' => $kuerzel ?: '(alle)', 'count' => count($flatLayers), 'format' => 'flat', 'source' => 'staging-db', 'aliases' => count($allAliases), 'maptips' => count($allMaptips), 'legends' => count($allLegends)],
+        'supplements' => ['aliases' => $allAliases, 'maptips' => $allMaptips, 'maptipTexts' => $allMaptipTexts, 'legends' => $allLegends],
+    ];
+}
+
+function configEditorLoadDb($kuerzel) {
+    $safe = preg_replace('/[^a-zA-Z0-9_\-]/', '_', trim($kuerzel));
+    if ($safe === '') return ['success' => false, 'error' => 'Kürzel darf nicht leer sein'];
+    $bundle = StagingImportRepository::loadBundle($safe);
+    if (!$bundle) {
+        migrateImportToCoreFilesToDb($safe);
+        $bundle = StagingImportRepository::loadBundle($safe);
+    }
+    if (!$bundle) return ['success' => false, 'error' => 'Kürzel nicht gefunden: ' . $safe];
+
+    $result = ['kuerzel' => $safe, 'files' => [], 'tags' => $bundle['tags'], 'lastImportedAt' => $bundle['lastImportedAt'], 'lastImportedBy' => $bundle['lastImportedBy']];
+    foreach ($bundle['files'] as $file) {
+        $decoded = $file['data'] ?? null;
+        if (!is_array($decoded)) continue;
+        $prefix = $file['prefix'] ?? 'unknown';
+        $type = 'unknown';
+        if ($prefix === 'layers') $type = 'layers';
+        elseif ($prefix === 'maptips') $type = 'maptips';
+        elseif ($prefix === 'lyrmgrResources') $type = 'lyrmgr';
+        elseif ($prefix === 'maptipsResources') $type = 'maptipsRes';
+        elseif ($prefix === 'legendResources') $type = 'legendRes';
+        $result['files'][] = ['name' => $file['name'] ?? '', 'type' => $type, 'prefix' => $prefix, 'keys' => count($decoded), 'size' => (int)($file['size'] ?? strlen(json_encode($decoded))), 'modified' => $file['modified'] ?? date('Y-m-d H:i:s'), 'data' => $decoded];
+    }
+    if (!empty($bundle['manifest'])) $result['manifest'] = $bundle['manifest'];
+    return ['success' => true, 'data' => $result];
+}
+
+function configEditorSaveDb($kuerzel, $fileName, $data) {
+    $safe = preg_replace('/[^a-zA-Z0-9_\-]/', '_', trim($kuerzel));
+    if ($safe === '') return ['success' => false, 'error' => 'Kürzel darf nicht leer sein'];
+    if (strpos($fileName, '..') !== false || strpos($fileName, '/') !== false) return ['success' => false, 'error' => 'Ungültiger Dateiname'];
+    $res = StagingImportRepository::saveFileData($safe, $fileName, $data, getEditorName());
+    if (empty($res['success'])) return $res;
+    return ['success' => true, 'file' => $fileName, 'keys' => count($data), 'timestamp' => date('Y-m-d H:i:s')];
+}
+
+function configExportToCoreDb($kuerzel) {
+    global $docRoot;
+    $safe = preg_replace('/[^a-zA-Z0-9_\-]/', '_', trim($kuerzel));
+    if ($safe === '') return ['success' => false, 'error' => 'Kürzel darf nicht leer sein'];
+    $bundle = StagingImportRepository::loadBundle($safe);
+    if (!$bundle) return ['success' => false, 'error' => 'Quell-Bundle nicht gefunden'];
+
+    $coreConfigDir = CORE_CONFIG_DIR;
+    $coreNlsDir = CORE_NLS_DIR;
+    if (!is_dir($coreConfigDir)) return ['success' => false, 'error' => 'core/config/ nicht gefunden auf Server'];
+    if (!is_dir($coreNlsDir)) return ['success' => false, 'error' => 'core/nls/de/ nicht gefunden auf Server'];
+
+    $exported = []; $errors = []; $backups = []; $ts = date('Ymd_His');
+    foreach ($bundle['files'] as $file) {
+        $name = $file['name'] ?? '';
+        if ($name === '') continue;
+        $prefix = $file['prefix'] ?? '';
+        $targetDir = in_array($prefix, ['layers', 'maptips'], true) ? $coreConfigDir : (in_array($prefix, ['lyrmgrResources', 'maptipsResources', 'legendResources'], true) ? $coreNlsDir : '');
+        if ($targetDir === '') continue;
+        $targetPath = $targetDir . '/' . $name;
+        if (is_file($targetPath)) {
+            $backupPath = $targetPath . '.' . $ts . '.bak';
+            if (@copy($targetPath, $backupPath)) $backups[] = $name . ' → ' . basename($backupPath);
+        }
+        $json = json_encode($file['data'] ?? [], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        $bytes = @file_put_contents($targetPath, $json);
+        if ($bytes === false) $errors[] = 'Kopieren fehlgeschlagen: ' . $name . ' → ' . $targetPath;
+        else $exported[] = ['file' => $name, 'target' => str_replace($docRoot, '', $targetPath), 'bytes' => $bytes];
+    }
+    return ['success' => count($errors) === 0, 'kuerzel' => $safe, 'exported' => $exported, 'backups' => $backups, 'errors' => $errors, 'timestamp' => date('Y-m-d H:i:s')];
+}
+
 /**
  * ImportToCore-Verzeichnis auflisten (nach Kürzel gruppiert)
  * Erkennt auch kürzelübergreifende Duplikate (gleicher Key im selben Prefix-Typ)
  */
 function listImportToCore() {
+    if (useStagingImportDb()) {
+        return listImportToCoreDb();
+    }
     $dir = IMPORT_TO_CORE_DIR;
     if (!is_dir($dir)) return ['exists' => false, 'kuerzel' => []];
     $rawDir = getWritableRawConfDir();
@@ -2377,6 +2962,9 @@ function listImportToCore() {
  * Datei aus ImportToCore lesen
  */
 function readImportToCoreFile($relPath) {
+    if (useStagingImportDb()) {
+        return readImportToCoreFileDb($relPath);
+    }
     if (strpos($relPath, '..') !== false || strpos($relPath, '\\') !== false)
         return ['success' => false, 'error' => 'Ungültiger Pfad'];
     $fullPath = IMPORT_TO_CORE_DIR . '/' . $relPath;
@@ -2390,6 +2978,9 @@ function readImportToCoreFile($relPath) {
  * Datei in ImportToCore schreiben (ohne Backup)
  */
 function writeImportToCoreFile($relPath, $content) {
+    if (useStagingImportDb()) {
+        return writeImportToCoreFileDb($relPath, $content);
+    }
     if (strpos($relPath, '..') !== false || strpos($relPath, '\\') !== false)
         return ['success' => false, 'error' => 'Ungültiger Pfad'];
     $fullPath = IMPORT_TO_CORE_DIR . '/' . $relPath;
@@ -2403,6 +2994,9 @@ function writeImportToCoreFile($relPath, $content) {
  * Kürzel-Verzeichnisse aus ImportToCore löschen
  */
 function deleteImportToCoreKuerzel(array $kuerzelList) {
+    if (useStagingImportDb()) {
+        return deleteImportToCoreKuerzelDb($kuerzelList);
+    }
     $dir = IMPORT_TO_CORE_DIR;
     $deleted = []; $errors = [];
     foreach ($kuerzelList as $k) {
@@ -2422,6 +3016,9 @@ function deleteImportToCoreKuerzel(array $kuerzelList) {
 }
 
 function stageServicesToImportToCore(array $serviceKeys, string $kuerzel, string $mode = 'replace') {
+    if (useStagingImportDb()) {
+        return stageServicesToImportDb($serviceKeys, $kuerzel, $mode);
+    }
     $kuerzel = preg_replace('/[^a-zA-Z0-9_\-]/', '_', trim($kuerzel));
     if ($kuerzel === '') return ['success' => false, 'error' => 'Kürzel darf nicht leer sein'];
     if (!in_array($mode, ['merge', 'replace', 'preview'])) {
@@ -2746,6 +3343,9 @@ function stageServicesToImportToCore(array $serviceKeys, string $kuerzel, string
  * @return array  {success, data: [...], meta, supplements}
  */
 function stagingLayersFlat($kuerzel = '') {
+    if (useStagingImportDb()) {
+        return stagingLayersFlatDb($kuerzel);
+    }
     $dir = IMPORT_TO_CORE_DIR;
     if (!is_dir($dir)) return ['success' => false, 'error' => 'ImportToCore-Verzeichnis nicht gefunden'];
 
@@ -2929,6 +3529,9 @@ function stagingLayersFlat($kuerzel = '') {
  * Gibt pro Datei den Inhalt als JSON-Objekt zurück, sortiert nach Prefix-Typ.
  */
 function configEditorLoad($kuerzel) {
+    if (useStagingImportDb()) {
+        return configEditorLoadDb($kuerzel);
+    }
     $safe = preg_replace('/[^a-zA-Z0-9_\-]/', '_', trim($kuerzel));
     if ($safe === '') return ['success' => false, 'error' => 'Kürzel darf nicht leer sein'];
 
@@ -2997,6 +3600,9 @@ function configEditorLoad($kuerzel) {
  * Geänderte Daten eines Dateityps zurück in ImportToCore schreiben.
  */
 function configEditorSave($kuerzel, $fileName, $data) {
+    if (useStagingImportDb()) {
+        return configEditorSaveDb($kuerzel, $fileName, $data);
+    }
     $safe = preg_replace('/[^a-zA-Z0-9_\-]/', '_', trim($kuerzel));
     if ($safe === '') return ['success' => false, 'error' => 'Kürzel darf nicht leer sein'];
     if (strpos($fileName, '..') !== false || strpos($fileName, '/') !== false)
@@ -3027,6 +3633,9 @@ function configEditorSave($kuerzel, $fileName, $data) {
  *   lyrmgrResources_*.json / maptipsResources_*.json → $docRoot/core/nls/de/
  */
 function configExportToCore($kuerzel) {
+    if (useStagingImportDb()) {
+        return configExportToCoreDb($kuerzel);
+    }
     global $docRoot;
     $safe = preg_replace('/[^a-zA-Z0-9_\-]/', '_', trim($kuerzel));
     if ($safe === '') return ['success' => false, 'error' => 'Kürzel darf nicht leer sein'];

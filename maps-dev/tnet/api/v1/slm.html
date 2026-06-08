@@ -1197,7 +1197,7 @@ table.bm-mtx tbody tr.bm-mtx-row-sel:hover td { background: #ffe0b2; }
 .slm-bk-status { padding: 8px 14px; font-size: 11px; border-top: 1px solid #eee; flex-shrink: 0; }
 
 
-/* ===== ENV-BADGE (DEV / PROD) ===== */
+/* ===== ENV-BADGE (Software-Umgebung, unveränderlich = URL) ===== */
 #env-badge { display: none; }
 html[data-env] #env-badge {
   display: inline-block !important;
@@ -1210,6 +1210,38 @@ html[data-env="dev"] #env-badge::before { content: 'DEV'; }
 html[data-env="prod"] #env-badge { background: #2e7d32; }
 html[data-env="prod"] #env-badge::before { content: 'PROD'; }
 html[data-env="dev"] .ags-toolbar { border-bottom: 3px solid #e67e22; }
+
+/* ===== KONFIG-STORE-SWITCHER ===== */
+#store-switcher {
+  display: flex; align-items: center; gap: 6px;
+  background: rgba(0,0,0,.25); border-radius: 5px;
+  padding: 3px 8px; margin-left: 4px;
+}
+#store-switcher .sws-label { font-size: 10px; color: rgba(255,255,255,.7); white-space: nowrap; }
+#store-switcher select {
+  font-size: 11px; font-weight: 700; border-radius: 3px; border: none;
+  padding: 1px 4px; cursor: pointer; outline: none;
+  background: #fff; color: #333;
+}
+#store-switcher.store-mismatch { background: rgba(180,30,30,.45); }
+#store-switcher.store-mismatch .sws-label { color: #ffc8c8; }
+#store-switcher.store-mismatch::before {
+  content: '⚠'; font-size: 12px; color: #ffc8c8;
+}
+/* Store-Info-Bar unter dem Header */
+#store-info-bar {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 4px 14px; border-bottom: 1px solid #b0ccd4;
+  font-size: 11px; background: #dbeef5;
+  font-family: Consolas,monospace;
+}
+#store-info-bar.mismatch { background: #fde8e8; border-bottom-color: #e8a0a0; }
+#store-info-bar .sib-seg { display: flex; align-items: center; gap: 4px; white-space: nowrap; }
+#store-info-bar .sib-lbl { font-weight: 700; font-family: -apple-system,sans-serif; color: #2c4a50; }
+#store-info-bar.mismatch .sib-lbl { color: #6b0000; }
+#store-info-bar .sib-val { color: #1a5070; }
+#store-info-bar.mismatch .sib-val { color: #a01010; }
+#store-info-bar .sib-sep { color: #aaa; margin: 0 4px; }
 
 /* ===== PFAD-INFO-BAR (Staging / Editor) ===== */
 .path-info-bar {
@@ -1264,7 +1296,16 @@ html[data-env="dev"] .path-info-bar .pib-lbl { color: #7a3000; }
 <!-- ===== TOOLBAR ===== -->
 <div class="ags-toolbar">
   <span class="brand">🌐 Service- und Layermanager</span>
-  <span id="env-badge"></span>
+  <span id="env-badge" title="Software-Umgebung (basierend auf URL)"></span>
+  <span class="sep"></span>
+  <!-- Konfig-Store-Switcher -->
+  <div id="store-switcher" title="Konfig-Store: welche Daten (Files + DB) werden bearbeitet">
+    <span class="sws-label">Store:</span>
+    <select id="store-select">
+      <option value="dev">DEV</option>
+      <option value="prod">PROD</option>
+    </select>
+  </div>
   <span class="sep"></span>
   <button id="ags-btn-refresh" title="Daten neu laden">↻ Aktualisieren</button>
   <button id="ags-btn-cache-clear" title="Layermanager-Cache auf dem Server leeren">🗑 Cache leeren</button>
@@ -1276,6 +1317,20 @@ html[data-env="dev"] .path-info-bar .pib-lbl { color: #7a3000; }
   <a href="../docs/" target="_blank">API Docs</a>
   <span class="sep"></span>
   <span id="slm-build-ts" title="Release-Zeitstempel (letzter Deploy)" style="font-size:10px;color:rgba(255,255,255,.55);font-family:monospace;white-space:nowrap"></span>
+</div>
+<!-- Store-Info-Bar: zeigt aktiven Konfig-Store (Pfade + DB) -->
+<div id="store-info-bar">
+  <span class="sib-seg"><span class="sib-lbl">Software:</span> <span class="sib-val" id="sib-sw-env"></span></span>
+  <span class="sib-sep">|</span>
+  <span class="sib-seg"><span class="sib-lbl">Store:</span> <span class="sib-val" id="sib-store-env"></span></span>
+  <span class="sib-sep">|</span>
+  <span class="sib-seg"><span class="sib-lbl">DB:</span> <span class="sib-val" id="sib-db"></span></span>
+  <span class="sib-sep">|</span>
+  <span class="sib-seg"><span class="sib-lbl">raw-conf:</span> <span class="sib-val" id="sib-rawconf"></span></span>
+  <span class="sib-sep">|</span>
+  <span class="sib-seg"><span class="sib-lbl">Staging-DB:</span> <span class="sib-val" id="sib-stagingdb"></span></span>
+  <span class="sib-sep" id="sib-warn-sep" style="display:none">|</span>
+  <span class="sib-seg" id="sib-warn" style="display:none;color:#a01010;font-family:-apple-system,sans-serif;font-weight:700"></span>
 </div>
 
 <!-- ===== CONFIG-TO-DB MODAL ===== -->
@@ -1412,10 +1467,10 @@ html[data-env="dev"] .path-info-bar .pib-lbl { color: #7a3000; }
           <button id="staging-btn-merge" class="primary" disabled>🔀 Zusammenführen</button>
         </div>
       </div>
-      <!-- RECHTS: ImportToCore Ausgabe -->
+      <!-- RECHTS: Staging-DB Ausgabe -->
       <div class="staging-right">
         <div class="stg-right-head">
-          <span>📁 ImportToCore</span>
+          <span>🗄 Staging-DB</span>
           <button id="stg-output-refresh" title="Aktualisieren">↻</button>
           <button id="stg-output-delete-sel" class="danger" disabled title="Ausgewählte Kürzel löschen">🗑</button>
         </div>
@@ -1429,7 +1484,7 @@ html[data-env="dev"] .path-info-bar .pib-lbl { color: #7a3000; }
   <div class="ags-pane" id="pane-editor">
     <div class="editor-split">
 
-      <!-- LINKS: Quellen-Liste (ImportToCore Kürzel) -->
+      <!-- LINKS: Quellen-Liste (Staging-DB Kürzel) -->
       <div class="editor-sources">
         <div class="editor-src-head">
           <h2>📁 Quellen</h2>
@@ -1748,36 +1803,114 @@ html[data-env="dev"] .path-info-bar .pib-lbl { color: #7a3000; }
 // =====================================================================
 // KONFIGURATION
 // =====================================================================
-var API_URL  = '/maps-dev/tnet/api/v1/treebuilder-api.php';
 var GAPI_URL = '/gapi/ags2mapplus';
-var _envLabel  = location.pathname.indexOf('/maps-dev/') === 0 ? '[DEV]' : '[PROD]';
-var _isDevEnv  = location.pathname.indexOf('/maps-dev/') === 0;
-var _envShort  = _isDevEnv ? 'DEV' : 'PROD';
-var _dbSchema  = _isDevEnv ? 'mapplusconf_dev' : 'mapplusconf';
-var _tmpLabel  = _isDevEnv ? 'maps-dev' : 'maps';
 
-// ── Env-sensitive Beschriftungen (Tooltips, Dialog-Titel) ─────────────────────
+// ── Software-Umgebung (unveränderlich, aus URL) ───────────────────────────────
+var _isDevEnv  = location.pathname.indexOf('/maps-dev/') === 0;
+var _swEnv     = _isDevEnv ? 'dev' : 'prod';  // 'dev' | 'prod'
+
+// ── Konfig-Store-Umgebung (wählbar: Files + DB) ─────────────────────────────
+// Gespeichert in localStorage, standardmässig = Software-Umgebung.
+var _storeEnv  = (function() {
+  try { var s = localStorage.getItem('slmStoreEnv'); return (s === 'dev' || s === 'prod') ? s : _swEnv; } catch(e) { return _swEnv; }
+})();
+
+function _storeRoot() {
+  return _storeEnv === 'dev' ? '/maps-dev' : '/maps';
+}
+function _storeDbSchema() {
+  return _storeEnv === 'dev' ? 'mapplusconf_dev' : 'mapplusconf';
+}
+function _storeTmpLabel() {
+  return _storeEnv === 'dev' ? 'maps-dev' : 'maps';
+}
+
+// API_URL zeigt immer auf den gewählten Store
+var API_URL = _storeRoot() + '/tnet/api/v1/treebuilder-api.php';
+
+// Abwärtskompatible Aliases
+var _envLabel  = _storeEnv === 'dev' ? '[DEV]' : '[PROD]';
+var _envShort  = _storeEnv.toUpperCase();
+var _dbSchema  = _storeDbSchema();
+var _tmpLabel  = _storeTmpLabel();
+
+// ── Store wechseln und Seite neu laden ───────────────────────────────────────
+function switchStoreEnv(newEnv) {
+  if (newEnv !== 'dev' && newEnv !== 'prod') return;
+  try { localStorage.setItem('slmStoreEnv', newEnv); } catch(e) {}
+  location.reload();
+}
+
+// ── Store-Info-Bar rendern ───────────────────────────────────────────────────
+(function initStoreUi() {
+  // Select auf aktuellen Store setzen
+  var sel = document.getElementById('store-select');
+  if (sel) {
+    sel.value = _storeEnv;
+    sel.addEventListener('change', function() { switchStoreEnv(sel.value); });
+  }
+
+  // Mismatch-Warnung (Software DEV, Store PROD oder umgekehrt)
+  var mismatch = (_swEnv !== _storeEnv);
+  var switcher = document.getElementById('store-switcher');
+  if (switcher) switcher.classList.toggle('store-mismatch', mismatch);
+
+  // Info-Bar befüllen
+  var bar = document.getElementById('store-info-bar');
+  if (!bar) return;
+  bar.classList.toggle('mismatch', mismatch);
+
+  var swUrl = _swEnv === 'dev' ? 'www.gis-daten.ch/maps-dev/…' : 'www.gis-daten.ch/maps/…';
+  var rawConfPath = 'data/tmp/' + _storeTmpLabel() + '/raw-conf';
+  var stagingDb = _storeDbSchema() + '.staging_import_bundle';
+
+  var set = function(id, val) { var el = document.getElementById(id); if (el) el.textContent = val; };
+  set('sib-sw-env',    _swEnv.toUpperCase() + '  (' + swUrl + ')');
+  set('sib-store-env', _storeEnv.toUpperCase());
+  set('sib-db',        _storeDbSchema());
+  set('sib-rawconf',   rawConfPath);
+  set('sib-stagingdb', stagingDb);
+
+  if (mismatch) {
+    var warn = document.getElementById('sib-warn');
+    var warnSep = document.getElementById('sib-warn-sep');
+    if (warn)    { warn.textContent    = '⚠ Store ≠ Software-Umgebung — Änderungen wirken auf ' + _storeEnv.toUpperCase() + '!'; warn.style.display = ''; }
+    if (warnSep) warnSep.style.display = '';
+  }
+
+  // Pfad-Info-Bars in Staging/Editor: Env-Farbe spiegeln
+  if (mismatch) {
+    document.querySelectorAll('.path-info-bar').forEach(function(b) {
+      b.style.background = _storeEnv === 'prod' ? '#e8f5e9' : '#fff5ed';
+    });
+  }
+})();
+
+// ── Env-sensitive Beschriftungen (Tooltips, Dialog-Titel) — basieren auf Store ──
 (function initEnvLabels() {
-  // "Cache leeren"-Button: zeigt welcher Cache betroffen ist
+  var isStoreDev = (_storeEnv === 'dev');
+
+  // "Cache leeren"-Button
   var cacheBtn = document.getElementById('ags-btn-cache-clear');
   if (cacheBtn) {
     cacheBtn.title = _envShort + '-Cache leeren\n'
+      + 'Store: ' + _storeEnv.toUpperCase() + '\n'
       + 'API-Cache in tmp/' + _tmpLabel + '/\n'
-      + 'Betrifft nur die ' + _envShort + '-Umgebung';
+      + 'Betrifft nur die ' + _envShort + '-Store-Umgebung';
   }
 
-  // "Config → DB"-Button: zeigt Zieldatenbank
+  // "Config → DB"-Button
   var ctdbBtn = document.getElementById('ags-btn-config-to-db');
   if (ctdbBtn) {
-    ctdbBtn.title = 'Config-Dateien → ' + _envShort + '-Datenbank einlesen\n'
+    ctdbBtn.title = 'Config-Dateien → ' + _envShort + '-Datenbank\n'
       + 'Schema: ' + _dbSchema + '\n'
-      + 'Quelle: ' + (_isDevEnv ? 'core-dev/config/ + nls/' : 'core/config/ + nls/');
+      + 'Quelle: ' + (isStoreDev ? 'core-dev/config/ + nls/' : 'core/config/ + nls/');
   }
 
   // Dialog-Kopfzeile + DB-Info-Subtitle
   var ctdbHeader = document.getElementById('ctdb-header');
   if (ctdbHeader) {
-    ctdbHeader.style.background = _isDevEnv ? '#8B4500' : '#2c4a50'; // orange DEV / teal PROD
+    ctdbHeader.style.background = isStoreDev ? '#8B4500' : '#2c4a50';
   }
   var ctdbTitle = document.getElementById('ctdb-title');
   if (ctdbTitle) {
@@ -1786,7 +1919,7 @@ var _tmpLabel  = _isDevEnv ? 'maps-dev' : 'maps';
   var ctdbDbInfo = document.getElementById('ctdb-db-info');
   if (ctdbDbInfo) {
     ctdbDbInfo.textContent = 'Schema: ' + _dbSchema
-      + '  ·  Quelle: ' + (_isDevEnv ? '/www/core-dev/' : '/www/core/');
+      + '  ·  Quelle: ' + (isStoreDev ? '/www/core-dev/' : '/www/core/');
   }
 })();
 
@@ -4073,7 +4206,7 @@ function updateStagingSelCount() {
 }
 
 /**
- * Gewählte Dienste zusammenführen und in ImportToCore schreiben
+ * Gewählte Dienste zusammenführen und in die Staging-DB schreiben
  */
 function executeStagingMerge() {
   var checkboxes = document.querySelectorAll('#staging-svc-list input:checked');
@@ -4096,7 +4229,7 @@ function executeStagingMerge() {
 
   fetch(API_URL + '?action=ags-stage-merge', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'X-Editor-Name': slmGetUser() },
     body: JSON.stringify({ services: services, kuerzel: kuerzel, mode: mode })
   })
     .then(function(r) { return r.json(); })
@@ -4107,7 +4240,7 @@ function executeStagingMerge() {
 
       // Preview-Modus: nur Statistik anzeigen, nichts geschrieben
       if (mode === 'preview') {
-        statusEl.textContent = '👁 Vorschau für ' + d.files.length + ' Dateien → ImportToCore/' + d.kuerzel + '/';
+        statusEl.textContent = '👁 Vorschau für ' + d.files.length + ' Dateien → Staging-DB [' + d.kuerzel + ']';
         statusEl.className = 'ags-status';
         statusEl.style.color = '#3478c6';
         var html = '';
@@ -4131,11 +4264,11 @@ function executeStagingMerge() {
       // Merge/Replace: Ergebnis anzeigen
       var modeInfo = d.mode === 'merge' ? ' (zusammengeführt)' : ' (ersetzt)';
       if (d.files.length === 0) {
-        statusEl.textContent = '⚠ 0 Dateien → ImportToCore/' + d.kuerzel + '/ — keine verarbeitbaren Konfig-Dateien gefunden';
+        statusEl.textContent = '⚠ 0 Dateien → Staging-DB [' + d.kuerzel + '] — keine verarbeitbaren Konfig-Dateien gefunden';
         statusEl.className = 'ags-status';
         statusEl.style.color = '#e67e22';
       } else {
-        statusEl.textContent = '✓ ' + d.files.length + ' Dateien → ImportToCore/' + d.kuerzel + '/' + modeInfo;
+        statusEl.textContent = '✓ ' + d.files.length + ' Dateien → Staging-DB [' + d.kuerzel + ']' + modeInfo;
         statusEl.className = 'ags-status success';
       }
 
@@ -4310,7 +4443,17 @@ function renderStagingOutput(kuerzelList) {
         manifestBadge = ' <span style="font-size:9px;color:#fff;background:var(--c-primary);padding:1px 5px;border-radius:8px;font-weight:400" title="' + srcCount + ' Quellen, zuletzt: ' + lastDate + '">' + srcCount + ' Quellen</span>';
       }
     }
-    lbl.innerHTML = '<b>' + k.kuerzel + '</b>' + manifestBadge + '&nbsp;<span style="font-weight:400;color:#888;font-size:10px">(' + k.files.length + ' Dateien, ' + totalKB + ')</span>';
+    var tagBadge = '';
+    if (k.tags && k.tags.length) {
+      tagBadge = ' <span style="font-size:9px;color:#4b7b81;background:#e8f1f2;border:1px solid #c6dde0;padding:1px 5px;border-radius:8px;font-weight:700" title="Gespeicherte Tags">' + k.tags.join(', ') + '</span>';
+    }
+    var importMeta = '';
+    if (k.lastImportedAt || k.lastImportedBy) {
+      importMeta = '<div style="font-weight:400;color:#888;font-size:10px;margin-top:2px">Letzter Import: '
+        + (k.lastImportedAt ? formatDateTime(k.lastImportedAt) : '—')
+        + (k.lastImportedBy ? ' · ' + k.lastImportedBy : '') + '</div>';
+    }
+    lbl.innerHTML = '<b>' + k.kuerzel + '</b>' + tagBadge + manifestBadge + '&nbsp;<span style="font-weight:400;color:#888;font-size:10px">(' + k.files.length + ' Dateien, ' + totalKB + ')</span>' + importMeta;
     hdr.appendChild(cb); hdr.appendChild(lbl);
     // Änderungs-Badge direkt nach dem Label einfügen
     var changes = k.sourceChanges;
@@ -4369,11 +4512,11 @@ function renderStagingOutput(kuerzelList) {
     var delBtn = document.createElement('button');
     delBtn.className = 'stg-btn-del-kuerzel';
     delBtn.innerHTML = '🗑 Löschen';
-    delBtn.title = 'Kürzel aus ImportToCore löschen';
+    delBtn.title = 'Kürzel aus der Staging-DB löschen';
     (function(kuerzel) {
       delBtn.addEventListener('click', function(e) {
         e.stopPropagation();
-        if (!confirm('Kürzel «' + kuerzel + '» aus ImportToCore löschen?')) return;
+        if (!confirm('Kürzel «' + kuerzel + '» aus der Staging-DB löschen?')) return;
         fetch(API_URL + '?action=staging-delete-output', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -4974,7 +5117,7 @@ var _deployQueueMode = 'single'; // 'single' | 'multi'
 var _deployDone  = false;        // Verhindert Doppelauslösung nach Deploy
 
 /**
- * Kürzel-Liste aus ImportToCore laden und als klickbare Liste rendern
+ * Kürzel-Liste aus der Staging-DB laden und als klickbare Liste rendern
  */
 function loadEditorKuerzelList(forceReload) {
   if (_editorKuerzelLoaded && !forceReload) {
@@ -5023,6 +5166,14 @@ function renderEditorSourceList(filter) {
     });
 
     var cbChecked = _editorSelectedKuerzel[name] ? ' checked' : '';
+    var metaHtml = '';
+    if ((k.tags && k.tags.length) || k.lastImportedAt || k.lastImportedBy) {
+      var metaParts = [];
+      if (k.tags && k.tags.length) metaParts.push('Tags: ' + k.tags.join(', '));
+      if (k.lastImportedAt) metaParts.push('Import: ' + formatDateTime(k.lastImportedAt));
+      if (k.lastImportedBy) metaParts.push('von ' + k.lastImportedBy);
+      metaHtml = '<div class="editor-src-file" style="padding-left:40px;color:#7a7a7a;font-size:10px">' + metaParts.join(' · ') + '</div>';
+    }
     html += '<div class="editor-src-item' + active + collapsed + '" data-kuerzel="' + name + '">';
     html += '<input type="checkbox" class="src-cb" data-kuerzel="' + name + '"' + cbChecked + '>';
     html += '<span class="src-arrow">▼</span>';
@@ -5035,6 +5186,7 @@ function renderEditorSourceList(filter) {
     html += '</div>';
 
     html += '<div class="editor-src-files">';
+    html += metaHtml;
     files.forEach(function(f) {
       var fname = (typeof f === 'string') ? f : (f.name || f.file || '');
       var fsize = (typeof f === 'object' && f.size) ? formatFileSize(f.size) : '';
@@ -5162,7 +5314,11 @@ function loadEditorKuerzel(kuerzel) {
 
       // Info-Zeile
       var total = j.data.files.reduce(function(s, f) { return s + f.keys; }, 0);
-      document.getElementById('editor-info').textContent = total + ' Einträge in ' + j.data.files.length + ' Dateien';
+      var infoParts = [total + ' Einträge in ' + j.data.files.length + ' Dateien'];
+      if (j.data.tags && j.data.tags.length) infoParts.push('Tags: ' + j.data.tags.join(', '));
+      if (j.data.lastImportedAt) infoParts.push('Import: ' + formatDateTime(j.data.lastImportedAt));
+      if (j.data.lastImportedBy) infoParts.push('von ' + j.data.lastImportedBy);
+      document.getElementById('editor-info').textContent = infoParts.join(' · ');
 
       document.getElementById('editor-subtabs').style.display = 'flex';
       document.getElementById('editor-table-wrap').style.display = '';
@@ -5627,7 +5783,7 @@ function updateEditorChangeCount() {
 // =====================================================================
 
 /**
- * Geänderte Dateien zurück nach ImportToCore speichern
+ * Geänderte Dateien zurück in die Staging-DB speichern
  */
 function saveEditorChanges() {
   if (!_editorData) return;
@@ -5653,7 +5809,7 @@ function saveEditorChanges() {
   changedFiles.forEach(function(f) {
     fetch(API_URL + '?action=config-editor-save', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'X-Editor-Name': slmGetUser() },
       body: JSON.stringify({ kuerzel: _editorData.kuerzel, file: f.name, data: f.data })
     })
     .then(function(r) { return r.json(); })
@@ -7376,6 +7532,10 @@ function bmGetUser() {
     if (u) { try { localStorage.setItem('slmBookmarkUser', u); } catch (e) {} }
   }
   return u || 'unbekannt';
+}
+
+function slmGetUser() {
+  return bmGetUser();
 }
 
 // Zeigt/aktualisiert den Soft-Lock-Hinweis im Bookmarks-Tab.
@@ -9482,10 +9642,11 @@ function _showBuildTs(id) {
 <script>
 /* ===== PFAD-INFO-BARS + DEV-BUTTON ===== */
 (function() {
-  var isDev     = location.pathname.indexOf('/maps-dev/') === 0;
-  var coreName  = isDev ? 'core-dev' : 'core';
-  var rawConf   = isDev ? 'data/tmp/maps-dev/raw-conf'    : 'data/tmp/maps/raw-conf';
-  var impCore   = isDev ? 'data/tmp/maps-dev/ImportToCore' : 'data/tmp/maps/ImportToCore';
+  // Pfad-Bars basieren auf dem gewählten Konfig-Store (_storeEnv), NICHT auf der URL
+  var isStoreDev = (_storeEnv === 'dev');
+  var coreName  = isStoreDev ? 'core-dev' : 'core';
+  var rawConf   = isStoreDev ? 'data/tmp/maps-dev/raw-conf'    : 'data/tmp/maps/raw-conf';
+  var impCore   = isStoreDev ? 'DB: mapplusconf_dev.staging_import_bundle' : 'DB: mapplusconf.staging_import_bundle';
   var coreCfg   = '/www/' + coreName + '/config/';
   var coreNls   = '/www/' + coreName + '/nls/de/';
 
@@ -9510,20 +9671,20 @@ function _showBuildTs(id) {
     return bar;
   }
 
-  // Staging-Tab: raw-conf → ImportToCore
+  // Staging-Tab: raw-conf → Staging-DB
   var paneStaging = document.getElementById('pane-staging');
   if (paneStaging && !paneStaging.querySelector('.path-info-bar')) {
     paneStaging.insertBefore(
-      makeBar([['raw-conf', rawConf], ['ImportToCore', impCore]]),
+      makeBar([['raw-conf', rawConf], ['Staging-DB', impCore]]),
       paneStaging.firstChild
     );
   }
 
-  // Editor-Tab: ImportToCore → core-dev/config + nls
+  // Editor-Tab: Staging-DB → core-dev/config + nls
   var paneEditor = document.getElementById('pane-editor');
   if (paneEditor && !paneEditor.querySelector('.path-info-bar')) {
     paneEditor.insertBefore(
-      makeBar([['ImportToCore', impCore], [coreName + '/config', coreCfg], [coreName + '/nls/de', coreNls]]),
+      makeBar([['Staging-DB', impCore], [coreName + '/config', coreCfg], [coreName + '/nls/de', coreNls]]),
       paneEditor.firstChild
     );
   }
