@@ -1313,7 +1313,11 @@ html[data-env="dev"] .path-info-bar .pib-lbl { color: #7a3000; }
   </div>
   <span class="sep"></span>
   <button id="ags-btn-refresh" title="Daten neu laden">↻ Aktualisieren</button>
-  <button id="ags-btn-cache-clear" title="Layermanager-Cache auf dem Server leeren">🗑 Cache leeren</button>
+  <button id="ags-btn-cache-clear"
+    title="Server-seitigen Layer-API-Cache leeren
+Betrifft: JSON-Antworten von layers.php (tmp/maps-dev/)
+Noetig nach Layer-Konfig-Aenderungen, damit der neue Stand sofort sichtbar wird.
+Kein Einfluss auf Browser-Cache (dafuer: Ctrl+Shift+R)">🗑 Cache leeren</button>
   <button id="ags-btn-config-to-db" title="Konfigurationsdateien in PostgreSQL-Datenbank einlesen (configToPG)">🗄 Config → DB</button>
   <button id="slm-btn-backups" title="Server-Backups anzeigen, wiederherstellen und löschen" style="margin-left:6px">📁 Backups</button>
   <span class="spacer"></span>
@@ -1791,7 +1795,7 @@ html[data-env="dev"] .path-info-bar .pib-lbl { color: #7a3000; }
 <div id="export-confirm-overlay">
   <div id="export-confirm-dialog">
     <div id="export-confirm-header">
-      <span id="export-confirm-title">📤 Nach Core exportieren</span>
+      <span id="export-confirm-title">📤 DB → Files → Core deployen (via SFTP)</span>
       <button class="ec-close" id="export-confirm-close" title="Schliessen">✕</button>
     </div>
     <div id="export-confirm-body"></div>

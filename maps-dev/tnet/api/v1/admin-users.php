@@ -18,7 +18,6 @@
  */
 
 require_once __DIR__ . '/../includes/AdminAuth.php';
-require_once __DIR__ . '/../includes/AdminAuth.php'; // idempotent
 
 header('X-Content-Type-Options: nosniff');
 
@@ -29,10 +28,14 @@ $isApi = (
     || ($_SERVER['REQUEST_METHOD'] === 'POST' && strpos($_SERVER['CONTENT_TYPE'] ?? '', 'application/json') !== false)
 );
 
-// current-user ist ohne Admin-Recht zugaenglich (nur eingeloggt sein)
+// current-user: gibt immer JSON zurueck (kein Redirect), auch ohne Login
 $action = $_GET['action'] ?? '';
 if ($action === 'current-user') {
-    AdminAuth::enforceEndpointPolicy('admin-users', 'php');
+    header('Content-Type: application/json; charset=utf-8');
+    if (!AdminAuth::isAuthenticated()) {
+        echo json_encode(['success' => true, 'user' => '', 'is_admin' => false]);
+        exit;
+    }
     header('Content-Type: application/json; charset=utf-8');
     $user = AdminAuth::getCurrentUser();
     echo json_encode([
@@ -203,9 +206,12 @@ tr:hover td { background: #f5f8fa; }
           <?php endif; ?>
         </td>
         <td style="font-size:11px;color:#888"><?php echo $u['updated'] ? htmlspecialchars(substr($u['updated'], 0, 16)) : '—'; ?></td>
-        <td style="display:flex;gap:6px;flex-wrap:wrap">
+        <td style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+          <button class="btn btn-blue" onclick="setPwDirect('<?php echo htmlspecialchars($u['username']); ?>')"
+            title="Administrator setzt ein temporäres Passwort — Benutzer muss es beim nächsten Login ändern">🔑 PW setzen</button>
           <?php if ($u['username'] !== 'administrator'): ?>
-            <button class="btn btn-blue" onclick="resetPw('<?php echo htmlspecialchars($u['username']); ?>')">🔁 PW-Reset</button>
+            <button class="btn" onclick="resetPw('<?php echo htmlspecialchars($u['username']); ?>')"
+              title="Passwort-Reset-Flag setzen: Benutzer muss beim nächsten Login ein neues Passwort wählen">🔁 Reset-Flag</button>
             <?php if ($u['username'] !== $currentUser): ?>
             <button class="btn btn-red" onclick="deleteUser('<?php echo htmlspecialchars($u['username']); ?>')">🗑</button>
             <?php endif; ?>
@@ -224,6 +230,20 @@ function status(msg, ok) {
   var el = document.getElementById('status');
   el.textContent = msg;
   el.style.color = ok ? '#2a8' : '#c33';
+}
+
+function setPwDirect(username) {
+  var pw = prompt('Temporäres Passwort für «' + username + '» (min. 8 Zeichen):\nBenutzer muss es beim nächsten Login ändern.');
+  if (!pw) return;
+  if (pw.length < 8) { alert('Passwort muss mindestens 8 Zeichen haben.'); return; }
+  fetch(API + '?action=set-password', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+    body: JSON.stringify({ username: username, password: pw, must_change: true })
+  }).then(function(r) { return r.json(); }).then(function(j) {
+    status(j.success ? '✓ Temporäres Passwort für «' + username + '» gesetzt. Benutzer muss es beim nächsten Login ändern.' : '✗ ' + (j.error || 'Fehler'), j.success);
+    if (j.success) setTimeout(function() { location.reload(); }, 1800);
+  });
 }
 
 function resetPw(username) {

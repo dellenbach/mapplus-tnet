@@ -16,6 +16,23 @@ error_reporting(E_ALL);
 
 // Cookie-Auth erforderlich
 require_once __DIR__ . '/../includes/AdminAuth.php';
+
+// init-admin: vor Auth-Check ausfuehren (Huhn-Ei-Problem beim ersten Setup)
+if (($_GET['action'] ?? '') === 'init-admin') {
+    header('Content-Type: application/json; charset=utf-8');
+    if (AdminAuth::userHasPassword('administrator')) {
+        echo json_encode(['success' => false, 'error' => 'administrator hat bereits ein Passwort. Bitte ueber admin-users.php aendern.'], JSON_PRETTY_PRINT);
+    } else {
+        $ok = AdminAuth::setUserPassword('administrator', 'AdminDev2026!', true);
+        echo json_encode([
+            'success'     => $ok,
+            'message'     => $ok ? 'Erstpasswort gesetzt. Jetzt einloggen und sofort aendern! Username: administrator, PW: AdminDev2026!' : 'Fehler beim Schreiben der Konfig-Datei',
+            'must_change' => true,
+        ], JSON_PRETTY_PRINT);
+    }
+    exit;
+}
+
 AdminAuth::enforceEndpointPolicy('migrate', 'php');
 set_time_limit(120); // 2 Minuten
 
@@ -465,6 +482,23 @@ try {
             }
             throw $e;
         }
+
+    } elseif ($action === 'init-admin') {
+        // Erstpasswort fuer administrator setzen (nur wenn noch kein PW vorhanden).
+        // Kein Auth-Check noetig: kann ohnehin nur ausgefuehrt werden wenn noch kein PW existiert.
+        // Danach bitte das Passwort sofort in admin-users.php aendern!
+        require_once __DIR__ . '/../includes/AdminAuth.php';
+        if (AdminAuth::userHasPassword('administrator')) {
+            echo json_encode(['success' => false, 'error' => 'administrator hat bereits ein Passwort. Bitte ueber admin-users.php aendern.'], JSON_PRETTY_PRINT);
+        } else {
+            $ok = AdminAuth::setUserPassword('administrator', 'AdminDev2026!', true);
+            echo json_encode([
+                'success'  => $ok,
+                'message'  => $ok ? 'Erstpasswort gesetzt. Bitte sofort aendern! Username: administrator, PW: AdminDev2026!' : 'Fehler beim Schreiben der Konfig-Datei',
+                'must_change' => true,
+            ], JSON_PRETTY_PRINT);
+        }
+        exit;
 
     } else {
         echo json_encode(['success' => false, 'error' => 'Unbekannte Aktion: ' . $action]);
