@@ -197,7 +197,7 @@ tr:hover td { background: #f5f8fa; }
         </td>
         <td>
           <?php if ($u['is_admin']): ?><span class="badge b-admin">Admin</span><?php endif; ?>
-          <?php if (!$u['is_admin'] && $u['username'] !== 'administrator'): ?>
+          <?php if (!$u['is_admin'] && $u['username'] !== 'admin'): ?>
             <label title="Admin-Rechte">
               <input type="checkbox" class="cb-admin" data-user="<?php echo htmlspecialchars($u['username']); ?>"
                 <?php echo $u['is_admin'] ? 'checked' : ''; ?>>
@@ -209,7 +209,7 @@ tr:hover td { background: #f5f8fa; }
         <td style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
           <button class="btn btn-blue" onclick="setPwDirect('<?php echo htmlspecialchars($u['username']); ?>')"
             title="Administrator setzt ein temporäres Passwort — Benutzer muss es beim nächsten Login ändern">🔑 PW setzen</button>
-          <?php if ($u['username'] !== 'administrator'): ?>
+          <?php if ($u['username'] !== 'admin'): ?>
             <button class="btn" onclick="resetPw('<?php echo htmlspecialchars($u['username']); ?>')"
               title="Passwort-Reset-Flag setzen: Benutzer muss beim nächsten Login ein neues Passwort wählen">🔁 Reset-Flag</button>
             <?php if ($u['username'] !== $currentUser): ?>

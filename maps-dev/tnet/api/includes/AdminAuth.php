@@ -24,7 +24,7 @@ class AdminAuth {
 
     const COOKIE_NAME    = 'tnet_admin';
     const COOKIE_MAX_AGE = 8 * 3600; // 8 Stunden
-    const KNOWN_USERS    = ['administrator', 'del', 'mar', 'amr', 'wmi', 'brm', 'mam'];
+    const KNOWN_USERS    = ['admin', 'del', 'mar', 'amr', 'wmi', 'brm', 'mam'];
 
     // ===== PFAD-HELFER =====
 
@@ -101,7 +101,7 @@ class AdminAuth {
     /** Hat der Benutzer Admin-Rechte? */
     public static function isAdmin($username = '') {
         if ($username === '') $username = self::getCurrentUser();
-        if ($username === 'administrator') return true;
+        if ($username === 'admin') return true;
         $config = self::getConfig();
         if (!$config || !isset($config['users'][$username])) return false;
         return !empty($config['users'][$username]['is_admin']);
@@ -120,7 +120,7 @@ class AdminAuth {
                 $result[] = [
                     'username'    => $username,
                     'has_password'=> !empty($data['hash']),
-                    'is_admin'    => ($username === 'administrator' || !empty($data['is_admin'])),
+                    'is_admin'    => ($username === 'admin' || !empty($data['is_admin'])),
                     'must_change' => !empty($data['must_change']),
                     'updated'     => $data['updated'] ?? null,
                 ];
@@ -132,15 +132,15 @@ class AdminAuth {
                 $result[] = [
                     'username'    => $u,
                     'has_password'=> false,
-                    'is_admin'    => ($u === 'administrator'),
+                    'is_admin'    => ($u === 'admin'),
                     'must_change' => false,
                     'updated'     => null,
                 ];
             }
         }
         usort($result, function ($a, $b) {
-            if ($a['username'] === 'administrator') return -1;
-            if ($b['username'] === 'administrator') return 1;
+            if ($a['username'] === 'admin') return -1;
+            if ($b['username'] === 'admin') return 1;
             return strcmp($a['username'], $b['username']);
         });
         return $result;
@@ -153,7 +153,7 @@ class AdminAuth {
         $config = self::getConfig() ?: [];
         if (!isset($config['cookie_secret'])) $config['cookie_secret'] = bin2hex(random_bytes(32));
         if (!isset($config['users']))         $config['users']         = [];
-        $isAdmin = ($username === 'administrator' || !empty($config['users'][$username]['is_admin']));
+        $isAdmin = ($username === 'admin' || !empty($config['users'][$username]['is_admin']));
         $config['users'][$username] = [
             'hash'        => password_hash($password, PASSWORD_BCRYPT),
             'is_admin'    => $isAdmin,
@@ -165,7 +165,7 @@ class AdminAuth {
 
     /** Admin-Rechte eines Benutzers setzen (nur Administrator darf das). */
     public static function setUserAdmin($username, $isAdmin) {
-        if ($username === 'administrator') return false; // unveraenderbar
+        if ($username === 'admin') return false; // unveraenderbar
         $config = self::getConfig();
         if (!$config || !isset($config['users'][$username])) return false;
         $config['users'][$username]['is_admin'] = (bool)$isAdmin;
@@ -191,7 +191,7 @@ class AdminAuth {
 
     /** Benutzer loeschen (ausser administrator). */
     public static function deleteUser($username) {
-        if ($username === 'administrator') return false;
+        if ($username === 'admin') return false;
         $config = self::getConfig();
         if (!$config || !isset($config['users'][$username])) return false;
         unset($config['users'][$username]);
