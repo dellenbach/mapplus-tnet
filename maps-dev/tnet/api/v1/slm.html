@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="de">
 <head>
 <meta charset="UTF-8">
@@ -78,9 +78,9 @@ body {
   clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 50%, calc(100% - 14px) 100%, 0 100%);
   border-radius: 4px 0 0 4px;
 }
-.ags-tab[data-tab="import"]  { background: linear-gradient(135deg, #7cb342, #558b2f); }
+.ags-tab[data-tab="create"]  { background: linear-gradient(135deg, #7cb342, #558b2f); }
 .ags-tab[data-tab="manage"]  { background: linear-gradient(135deg, #5ba4b5, #3d8a9a); }
-.ags-tab[data-tab="staging"] { background: linear-gradient(135deg, #e0a430, #c68d20); }
+.ags-tab[data-tab="import"] { background: linear-gradient(135deg, #c0782a, #a05e1a); }
 .ags-tab.active { opacity: 1; filter: none; }
 .ags-tab:hover:not(.active) { opacity: 0.65; filter: grayscale(0.1); }
 
@@ -295,14 +295,19 @@ body {
   overflow: auto; z-index: 1; white-space: pre-wrap; word-wrap: break-word;
   spellcheck: false;
 }
+/* Plain-Modus für grosse Dateien */
+#file-editor-textarea.fe-plain-mode {
+  color: #d4d4d4 !important;
+  background: #1e1e1e !important;
+  z-index: 4;
+}
 #file-editor-textarea.valid   { box-shadow: inset 0 0 0 2px #27ae60; }
 #file-editor-textarea.invalid { box-shadow: inset 0 0 0 2px #c0392b; }
-.j-err-line { background: rgba(220,30,30,.28); border-left: 3px solid #e74c3c; display: block; margin-left: -3px; padding-left: 3px; }
 .j-err-col  { display: inline-block; width: 0; border-left: 2px solid #e74c3c;
               height: 1.2em; vertical-align: text-bottom; margin: 0 -1px;
               box-shadow: 0 0 4px #e74c3c; }
 
-/* ===== EXPORT-CONFIRM-MODAL ===== */
+.j-err-line { background: rgba(220,30,30,.28); border-left: 3px solid #e74c3c; display: block; margin-left: -3px; padding-left: 3px; } */
 #export-confirm-overlay {
   display: none; position: fixed; inset: 0; z-index: 10100;
   background: rgba(0,0,0,.5); align-items: center; justify-content: center;
@@ -1317,6 +1322,13 @@ html[data-env="dev"] .path-info-bar .pib-lbl { color: #7a3000; }
   <a href="../docs/" target="_blank">API Docs</a>
   <span class="sep"></span>
   <span id="slm-build-ts" title="Release-Zeitstempel (letzter Deploy)" style="font-size:10px;color:rgba(255,255,255,.55);font-family:monospace;white-space:nowrap"></span>
+  <span class="sep"></span>
+  <!-- Eingeloggter Benutzer + Aktionen -->
+  <span id="slm-user-badge" style="display:none;align-items:center;gap:6px">
+    <span id="slm-username" style="font-size:12px;font-weight:700;color:#fff;letter-spacing:.3px"></span>
+    <a href="admin-users.php" id="slm-users-link" style="display:none;font-size:11px;color:rgba(255,255,255,.6);text-decoration:none" title="Benutzerverwaltung">👥</a>
+    <a href="admin-logout.php" style="font-size:11px;color:rgba(255,255,255,.5);text-decoration:none;border:1px solid rgba(255,255,255,.25);border-radius:3px;padding:2px 7px" title="Abmelden">Abmelden</a>
+  </span>
 </div>
 <!-- Store-Info-Bar: zeigt aktiven Konfig-Store (Pfade + DB) -->
 <div id="store-info-bar">
@@ -1366,9 +1378,9 @@ html[data-env="dev"] .path-info-bar .pib-lbl { color: #7a3000; }
 
   <!-- Tabs -->
   <div class="ags-tabs">
-    <button class="ags-tab active" data-tab="import">① Import</button>
-    <button class="ags-tab" data-tab="manage">② Verwalten</button>
-    <button class="ags-tab" data-tab="staging">③ Staging</button>
+    <button class="ags-tab active" data-tab="create">① Create Mapserver-Conf</button>
+    <button class="ags-tab" data-tab="manage">② Verwaltung Mapserver-Conf</button>
+    <button class="ags-tab" data-tab="import">③ Import Mapserver-Conf</button>
     <button class="ags-tab" data-tab="editor">④ Config-Editor</button>
     <button class="ags-tab" data-tab="treebuilder">⑤ Tree-Builder</button>
     <button class="ags-tab" data-tab="deployed">⑥ Deployed</button>
@@ -1377,7 +1389,7 @@ html[data-env="dev"] .path-info-bar .pib-lbl { color: #7a3000; }
   </div>
 
   <!-- ===== TAB: IMPORT ===== -->
-  <div class="ags-pane active" id="pane-import">
+  <div class="ags-pane active" id="pane-create">
     <!-- Quellauswahl -->
     <div class="import-source-bar">
       <button class="import-source-btn active" data-source="ags">📦 AGS-Dienste</button>
@@ -1437,7 +1449,7 @@ html[data-env="dev"] .path-info-bar .pib-lbl { color: #7a3000; }
   </div>
 
   <!-- ===== TAB: STAGING ===== -->
-  <div class="ags-pane" id="pane-staging">
+  <div class="ags-pane" id="pane-import">
     <div class="staging-split">
       <!-- LINKS: Dienste auswählen & mergen -->
       <div class="staging-left">
@@ -1467,13 +1479,14 @@ html[data-env="dev"] .path-info-bar .pib-lbl { color: #7a3000; }
           <button id="staging-btn-merge" class="primary" disabled>🔀 Zusammenführen</button>
         </div>
       </div>
-      <!-- RECHTS: Staging-DB Ausgabe -->
+      <!-- RECHTS: Store-Ausgabe -->
       <div class="staging-right">
         <div class="stg-right-head">
-          <span>🗄 Staging-DB</span>
+          <span>🗄 Store: <span id="stg-store-label" style="font-weight:700;padding:2px 10px;border-radius:4px;font-size:12px;letter-spacing:.5px"></span></span>
           <button id="stg-output-refresh" title="Aktualisieren">↻</button>
           <button id="stg-output-delete-sel" class="danger" disabled title="Ausgewählte Kürzel löschen">🗑</button>
         </div>
+        <div id="stg-db-hint" style="font-size:10px;color:#888;font-family:Consolas,monospace;padding:2px 0 4px;flex-shrink:0">DB: <span id="stg-db-hint-schema"></span>.staging_import_bundle — Konflikte werden über DB-Keys erkannt</div>
         <div class="stg-output-status" id="stg-output-status">Lade…</div>
         <div class="stg-output-list" id="stg-output-list"></div>
       </div>
@@ -1507,7 +1520,9 @@ html[data-env="dev"] .path-info-bar .pib-lbl { color: #7a3000; }
           <span class="et-kuerzel-label" id="editor-kuerzel-label"></span>
           <span class="et-spacer"></span>
           <span class="et-info" id="editor-info"></span>
-          <button id="editor-btn-export" class="export" disabled title="Dateien nach core/config/ und core/nls/de/ exportieren">📤 Nach Core exportieren</button>
+          <button id="editor-btn-export" class="export" disabled
+            title="DB-Bundle nach core/config/ und core/nls/de/ als .conf/.json-Dateien generieren"
+            style="font-size:12px;padding:6px 14px;font-weight:700">📤 DB → Files (nach Core für Failover/Kompatibilität)</button>
         </div>
 
         <div class="ags-status" id="editor-status" style="display:none"></div>
@@ -1870,6 +1885,15 @@ function switchStoreEnv(newEnv) {
   set('sib-db',        _storeDbSchema());
   set('sib-rawconf',   rawConfPath);
   set('sib-stagingdb', stagingDb);
+  // Store-Label im rechten Panel des Import-Mapserver-Conf-Tabs
+  var lbl = document.getElementById('stg-store-label');
+  if (lbl) {
+    lbl.textContent = _storeEnv.toUpperCase();
+    lbl.style.background = _storeEnv === 'dev' ? '#e67e22' : '#2e7d32';
+    lbl.style.color = '#fff';
+  }
+  var dbHint = document.getElementById('stg-db-hint-schema');
+  if (dbHint) dbHint.textContent = _storeDbSchema();
 
   if (mismatch) {
     var warn = document.getElementById('sib-warn');
@@ -1921,6 +1945,23 @@ function switchStoreEnv(newEnv) {
     ctdbDbInfo.textContent = 'Schema: ' + _dbSchema
       + '  ·  Quelle: ' + (isStoreDev ? '/www/core-dev/' : '/www/core/');
   }
+})();
+
+// ── Eingeloggten Benutzer im Header anzeigen ────────────────────────────────
+(function loadCurrentUser() {
+  fetch('admin-users.php?action=current-user', { headers: { 'Accept': 'application/json' } })
+    .then(function(r) { return r.json(); })
+    .then(function(j) {
+      if (!j.success || !j.user) return;
+      var badge     = document.getElementById('slm-user-badge');
+      var nameEl    = document.getElementById('slm-username');
+      var usersLink = document.getElementById('slm-users-link');
+      if (!badge || !nameEl) return;
+      nameEl.textContent = '👤 ' + j.user;
+      badge.style.display = 'flex';
+      if (usersLink && j.is_admin) usersLink.style.display = '';
+    })
+    .catch(function() {}); // Fehler still ignorieren (z.B. nicht eingeloggt)
 })();
 
 (function installDevFastApiTarget() {
@@ -2171,7 +2212,7 @@ function switchTab(tabName, skipHash) {
   // URL-Hash aktualisieren (ohne hashchange-Event auszulösen)
   if (!skipHash) updateUrlHash({ tab: tabName });
 
-  if (tabName === 'import') {
+  if (tabName === 'create') {
     if (_agsServices.length === 0) {
       loadAgsServices();
     } else {
@@ -2179,7 +2220,7 @@ function switchTab(tabName, skipHash) {
     }
   } else if (tabName === 'manage') {
     loadRawConfList();
-  } else if (tabName === 'staging') {
+  } else if (tabName === 'import') {
     loadStagingList();
     loadStagingOutput();
   } else if (tabName === 'editor') {
@@ -2461,7 +2502,7 @@ function refreshImportImportedMarkers() {
       statusCell.innerHTML = '<span class="ags-changed-badge" title="Dienst wurde seit Import (' + formatDateTime(meta.imported_at) + ') geändert">⚠ geändert</span>';
       impCell.textContent = meta && meta.imported_at ? formatDateTime(meta.imported_at) : '—';
     } else if (isImp) {
-      statusCell.innerHTML = '<span class="ags-imported-badge">✓ importiert</span>';
+      statusCell.innerHTML = '<span class="ags-imported-badge">✓ erzeugt</span>';
       impCell.textContent = meta && meta.imported_at ? formatDateTime(meta.imported_at) : '—';
     } else {
       statusCell.innerHTML = '<span class="ags-new-badge">neu</span>';
@@ -3748,6 +3789,18 @@ function updateEditorHighlight() {
   var highlight = document.getElementById('file-editor-highlight');
   var lineNums  = document.getElementById('file-editor-line-numbers');
   var text = textarea.value;
+
+  // Bei sehr grossen Dateien: kein Highlighting (zu langsam)
+  if (text.length > FE_HIGHLIGHT_MAX_BYTES) {
+    var escaped = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    highlight.innerHTML = escaped + '\n';
+    var lines = text.split('\n');
+    lineNums.innerHTML = lines.map(function(_, i) { return i + 1; }).join('\n') + '\n';
+    highlight.scrollTop = textarea.scrollTop;
+    lineNums.scrollTop  = textarea.scrollTop;
+    return;
+  }
+
   var lines = text.split('\n');
   // Zeilennummern
   var nums = lines.map(function(_, i) {
@@ -3827,27 +3880,27 @@ function validateFileEditor() {
     statusEl.className = '';
     return;
   }
+  var isLarge = textarea.value.length > FE_HIGHLIGHT_MAX_BYTES;
   var result = validateJsonText(textarea.value);
   if (result.valid) {
     _feErrorLine = null; _feErrorCol = null;
     try {
       textarea.value = JSON.stringify(JSON.parse(textarea.value), null, 2);
-      updateEditorHighlight();
+      if (!isLarge) updateEditorHighlight();
     } catch(e) {}
-    statusEl.textContent = '✓ Gültiges JSON (formatiert)';
+    statusEl.textContent = '\u2713 G\u00fcltiges JSON (formatiert)';
     statusEl.className = 'ok';
-    textarea.className = 'valid';
+    textarea.className = (isLarge ? 'fe-plain-mode ' : '') + 'valid';
   } else {
     var ep = getJsonErrorPos(textarea.value, result.error);
     _feErrorLine = ep.line; _feErrorCol = ep.col;
-    updateEditorHighlight();
-    var loc = ep.line ? ' (Zeile ' + ep.line + (ep.col ? ', Spalte ' + ep.col : '') + ')' : '';
-    statusEl.textContent = '✗ ' + result.error + loc;
+    if (!isLarge) updateEditorHighlight();
+    var loc = ep.line ? ' (Zeile ' + ep.line + (ep.col ? ', Spalte ' + ep.col : '') + ')' : '';
+    statusEl.textContent = '\u2717 ' + result.error + loc;
     statusEl.className = 'err';
-    textarea.className = 'invalid';
+    textarea.className = (isLarge ? 'fe-plain-mode ' : '') + 'invalid';
   }
 }
-
 /**
  * JSON-String mit Syntax-Highlighting in HTML umwandeln
  */
@@ -3935,7 +3988,25 @@ function openFileEditor(relPath, readAction, writeAction, afterSave) {
     .then(function(resp) {
       if (!resp.success) throw new Error(resp.error || 'Fehler');
       textarea.value = resp.data.content;
-      updateEditorHighlight();
+      // Plain-Modus für grosse Dateien: Overlay verstecken, Textarea direkt sichtbar
+      var large = resp.data.content.length > FE_HIGHLIGHT_MAX_BYTES;
+      var highlightEl = document.getElementById('file-editor-highlight');
+      var lineNumsEl  = document.getElementById('file-editor-line-numbers');
+      if (large) {
+        textarea.classList.add('fe-plain-mode');
+        highlightEl.style.display = 'none';
+        lineNumsEl.style.display  = 'none';
+        var se = document.getElementById('file-editor-status');
+        se.textContent = (resp.data.size / 1024).toFixed(0) + ' KB — Validierung und Highlighting deaktiviert (grosse Datei). Bitte «Validieren»-Button nutzen.';
+        se.className = '';
+      } else {
+        textarea.classList.remove('fe-plain-mode');
+        highlightEl.style.display = '';
+        lineNumsEl.style.display  = '';
+      }
+      // Highlight asynchron: Dialog erst rendern lassen, dann Highlighting starten
+      if (!large) setTimeout(function() { updateEditorHighlight(); }, 0);
+      else { highlightEl.innerHTML = ''; lineNumsEl.innerHTML = ''; }
       saveBtn.disabled = false;
       if (_feIsJson) {
         var result = validateJsonText(resp.data.content);
@@ -4240,7 +4311,7 @@ function executeStagingMerge() {
 
       // Preview-Modus: nur Statistik anzeigen, nichts geschrieben
       if (mode === 'preview') {
-        statusEl.textContent = '👁 Vorschau für ' + d.files.length + ' Dateien → Staging-DB [' + d.kuerzel + ']';
+        statusEl.textContent = '👁 Vorschau für ' + d.files.length + ' Ressourcentypen → Staging-DB [' + d.kuerzel + ']';
         statusEl.className = 'ags-status';
         statusEl.style.color = '#3478c6';
         var html = '';
@@ -4268,7 +4339,7 @@ function executeStagingMerge() {
         statusEl.className = 'ags-status';
         statusEl.style.color = '#e67e22';
       } else {
-        statusEl.textContent = '✓ ' + d.files.length + ' Dateien → Staging-DB [' + d.kuerzel + ']' + modeInfo;
+        statusEl.textContent = '✓ ' + d.files.length + ' Ressourcentypen → Staging-DB [' + d.kuerzel + ']' + modeInfo;
         statusEl.className = 'ags-status success';
       }
 
@@ -4453,7 +4524,7 @@ function renderStagingOutput(kuerzelList) {
         + (k.lastImportedAt ? formatDateTime(k.lastImportedAt) : '—')
         + (k.lastImportedBy ? ' · ' + k.lastImportedBy : '') + '</div>';
     }
-    lbl.innerHTML = '<b>' + k.kuerzel + '</b>' + tagBadge + manifestBadge + '&nbsp;<span style="font-weight:400;color:#888;font-size:10px">(' + k.files.length + ' Dateien, ' + totalKB + ')</span>' + importMeta;
+    lbl.innerHTML = '<b>' + k.kuerzel + '</b>' + tagBadge + manifestBadge + '&nbsp;<span style="font-weight:400;color:#888;font-size:10px">(' + k.files.length + ' Ressourcentypen, ' + totalKB + ')</span>' + importMeta;
     hdr.appendChild(cb); hdr.appendChild(lbl);
     // Änderungs-Badge direkt nach dem Label einfügen
     var changes = k.sourceChanges;
@@ -4572,7 +4643,10 @@ function renderStagingOutput(kuerzelList) {
       var row = document.createElement('div');
       row.className = 'stg-output-file';
       var sz = f.size > 1024 ? (f.size / 1024).toFixed(1) + ' KB' : f.size + ' B';
-      var nameEl = document.createElement('span'); nameEl.className = 'of-name'; nameEl.textContent = f.name; nameEl.title = f.file;
+      var nameEl = document.createElement('span'); nameEl.className = 'of-name';
+      var extMatch = f.name.match(/^(.*)\.(conf|json)$/i);
+      nameEl.textContent = extMatch ? extMatch[1] + ' (' + extMatch[2].toLowerCase() + ')' : f.name;
+      nameEl.title = f.file;
       var sizeEl = document.createElement('span'); sizeEl.className = 'of-size'; sizeEl.textContent = sz;
       // Duplikat-Badge (neues Format: [{key, count, sources}])
       if (f.duplicateKeys && f.duplicateKeys.length) {
@@ -4828,9 +4902,9 @@ document.getElementById('ags-btn-refresh').addEventListener('click', function() 
   var activeTab = document.querySelector('.ags-tab.active');
   if (activeTab && activeTab.dataset.tab === 'manage') {
     loadRawConfList();
-  } else if (activeTab && activeTab.dataset.tab === 'staging') {
-    loadStagingList();
   } else if (activeTab && activeTab.dataset.tab === 'import') {
+    loadStagingList();
+  } else if (activeTab && activeTab.dataset.tab === 'create') {
     if (_importActiveSource === 'core') {
       _coreSourcesLoaded = false;
       loadCoreSources(true);
@@ -5041,6 +5115,8 @@ document.getElementById('stg-output-delete-sel').addEventListener('click', delet
 
 // Scroll-Sync (Textarea → Highlight + Zeilennummern) — nur wenn kein Fehler-Scroll aktiv
 document.getElementById('file-editor-textarea').addEventListener('scroll', function() {
+  // Scroll-Sync nur wenn Overlay sichtbar (nicht im Plain-Modus)
+  if (this.classList.contains('fe-plain-mode')) return;
   var h  = document.getElementById('file-editor-highlight');
   var ln = document.getElementById('file-editor-line-numbers');
   h.scrollTop = this.scrollTop; h.scrollLeft = this.scrollLeft;
@@ -5082,7 +5158,14 @@ document.addEventListener('keydown', function(e) {
 });
 
 // Live-Validierung + Highlighting beim Tippen
+// Schwellwert: ab dieser Grösse KEIN Live-Processing (Validierung nur via Button)
+var FE_HIGHLIGHT_MAX_BYTES = 80000; // 80 KB
+var _feHighlightTimer = null;
+
 document.getElementById('file-editor-textarea').addEventListener('input', function() {
+  // Grosse Dateien: gar nichts machen beim Tippen — nur Button-Validierung
+  if (this.value.length > FE_HIGHLIGHT_MAX_BYTES) return;
+
   if (_feIsJson) {
     var result = validateJsonText(this.value);
     this.className = result.valid ? 'valid' : 'invalid';
@@ -5314,7 +5397,7 @@ function loadEditorKuerzel(kuerzel) {
 
       // Info-Zeile
       var total = j.data.files.reduce(function(s, f) { return s + f.keys; }, 0);
-      var infoParts = [total + ' Einträge in ' + j.data.files.length + ' Dateien'];
+      var infoParts = [total + ' Einträge in ' + j.data.files.length + ' Ressourcentypen'];
       if (j.data.tags && j.data.tags.length) infoParts.push('Tags: ' + j.data.tags.join(', '));
       if (j.data.lastImportedAt) infoParts.push('Import: ' + formatDateTime(j.data.lastImportedAt));
       if (j.data.lastImportedBy) infoParts.push('von ' + j.data.lastImportedBy);
@@ -5807,10 +5890,18 @@ function saveEditorChanges() {
   var errors = [];
 
   changedFiles.forEach(function(f) {
+    // Geaenderte Keys fuer Field-Edit-Tracking sammeln
+    var changedKeys = [];
+    var orig = _editorOriginal[f.name];
+    if (orig && typeof f.data === 'object') {
+      Object.keys(f.data).forEach(function(k) {
+        if (JSON.stringify(f.data[k]) !== JSON.stringify(orig[k])) changedKeys.push(k);
+      });
+    }
     fetch(API_URL + '?action=config-editor-save', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Editor-Name': slmGetUser() },
-      body: JSON.stringify({ kuerzel: _editorData.kuerzel, file: f.name, data: f.data })
+      body: JSON.stringify({ kuerzel: _editorData.kuerzel, file: f.name, data: f.data, changedKeys: changedKeys })
     })
     .then(function(r) { return r.json(); })
     .then(function(j) {
@@ -5818,7 +5909,7 @@ function saveEditorChanges() {
       saved++;
       if (saved === changedFiles.length) {
         if (errors.length === 0) {
-          editorStatus(changedFiles.length + ' Datei(en) gespeichert ✓', 'success');
+          editorStatus('In DB gespeichert ✓', 'success');
           // Originale aktualisieren
           changedFiles.forEach(function(cf) {
             _editorOriginal[cf.name] = JSON.parse(JSON.stringify(cf.data));
@@ -6449,7 +6540,7 @@ function updateUrlHash(updates) {
   }
   // tab-fremde Keys bereinigen
   if (current.tab !== 'editor') delete current.kuerzel;
-  if (current.tab !== 'import') delete current.source;
+  if (current.tab !== 'create') delete current.source;
   var parts = [];
   for (var p in current) parts.push(encodeURIComponent(p) + '=' + encodeURIComponent(current[p]));
   var newHash = parts.length > 0 ? '#' + parts.join('&') : '';
@@ -6463,14 +6554,14 @@ function updateUrlHash(updates) {
  */
 window.addEventListener('hashchange', function() {
   var p = parseUrlHash();
-  var validTabs = ['import', 'manage', 'staging', 'editor', 'treebuilder'];
+  var validTabs = ['create', 'manage', 'import', 'editor', 'treebuilder'];
   if (p.tab && validTabs.indexOf(p.tab) !== -1) {
     switchTab(p.tab, true);
     if (p.tab === 'editor' && p.kuerzel) {
       loadEditorKuerzelList();
       setTimeout(function() { loadEditorKuerzel(p.kuerzel); }, 300);
     }
-    if (p.tab === 'import' && p.source) {
+    if (p.tab === 'create' && p.source) {
       switchImportSource(p.source);
     }
   }
@@ -7166,18 +7257,18 @@ function saveNlsEntry(item, value, btn, tr) {
 
 (function initFromHash() {
   var p = parseUrlHash();
-  var validTabs = ['import', 'manage', 'staging', 'editor', 'treebuilder', 'deployed', 'legendtuner', 'bookmarks'];
-  var startTab = (p.tab && validTabs.indexOf(p.tab) !== -1) ? p.tab : 'import';
+  var validTabs = ['create', 'manage', 'import', 'editor', 'treebuilder', 'deployed', 'legendtuner', 'bookmarks'];
+  var startTab = (p.tab && validTabs.indexOf(p.tab) !== -1) ? p.tab : 'create';
 
-  if (startTab !== 'import') {
+  if (startTab !== 'create') {
     switchTab(startTab, true);
   }
 
   // Import-Quelle aus Hash
-  if (startTab === 'import' && p.source === 'core') {
+  if (startTab === 'create' && p.source === 'core') {
     loadAgsServices(); // AGS im Hintergrund laden
     switchImportSource('core');
-  } else if (startTab === 'import') {
+  } else if (startTab === 'create') {
     loadAgsServices();
   }
 
@@ -9672,7 +9763,7 @@ function _showBuildTs(id) {
   }
 
   // Staging-Tab: raw-conf → Staging-DB
-  var paneStaging = document.getElementById('pane-staging');
+  var paneStaging = document.getElementById('pane-import');
   if (paneStaging && !paneStaging.querySelector('.path-info-bar')) {
     paneStaging.insertBefore(
       makeBar([['raw-conf', rawConf], ['Staging-DB', impCore]]),
