@@ -1681,6 +1681,17 @@ var state = {
 window.TNET_STATE = state;  // Diagnostik: state auf window exponieren
 
 // Lyrmgr Display-Namen
+// Zentrale Hilfsfunktion: LyrMgr-Keys in definierter Reihenfolge liefern (WYSIWYG).
+// Verhindert, dass JSON-Roundtrip die Reihenfolge zerstoert.
+function getSortedLyrmgrKeys(lyrmgrs) {
+  var allKeys = Object.keys(lyrmgrs || {});
+  var knownOrder = Object.keys(LYRMGR_LABELS);
+  var ordered = [];
+  knownOrder.forEach(function(k) { if (allKeys.indexOf(k) !== -1) ordered.push(k); });
+  allKeys.forEach(function(k) { if (ordered.indexOf(k) === -1) ordered.push(k); });
+  return ordered;
+}
+
 var LYRMGR_LABELS = {
   main_lyrmgr: 'Haupt (NW)',
   second_lyrmgr: 'Zweiter (OW)',
@@ -3280,7 +3291,7 @@ function renderTreeTabs() {
 
   // activeLyrmgr sicherstellen
   if (p.lyrmgrs) {
-    var keys = Object.keys(p.lyrmgrs);
+    var keys = getSortedLyrmgrKeys(p.lyrmgrs);
     if (!state.activeLyrmgr || !p.lyrmgrs[state.activeLyrmgr]) {
       state.activeLyrmgr = keys[0] || null;
     }
@@ -3438,12 +3449,17 @@ function renderTree() {
     return;
   }
 
-  // LyrMgr-Entries bestimmen (neues + Legacy-Format)
+  // LyrMgr-Entries in der definierten Anzeigereihenfolge (LYRMGR_LABELS) ausgeben,
+  // damit 'main_lyrmgr' immer oben steht, unabhängig von JSON-Key-Reihenfolge.
   var lyrmgrEntries = [];
   if (p.lyrmgrs) {
-    Object.keys(p.lyrmgrs).forEach(function(key) {
-      lyrmgrEntries.push({ key: key, tree: p.lyrmgrs[key] });
-    });
+    // Bekannte Keys in definierter Reihenfolge zuerst
+    var knownOrder = Object.keys(LYRMGR_LABELS);
+    var allKeys = Object.keys(p.lyrmgrs);
+    var ordered = [];
+    knownOrder.forEach(function(k) { if (allKeys.indexOf(k) !== -1) ordered.push(k); });
+    allKeys.forEach(function(k) { if (ordered.indexOf(k) === -1) ordered.push(k); });
+    ordered.forEach(function(key) { lyrmgrEntries.push({ key: key, tree: p.lyrmgrs[key] }); });
   } else if (p.categories) {
     lyrmgrEntries.push({ key: '_legacy', tree: p });
   }
@@ -4372,6 +4388,10 @@ function openPropsDialog(type, ref) {
       { key: '_alias', label: 'Alias (NLS)', value: nlsAlias, type: 'text', hint: 'Anzeigename im Layer-Manager' },
       { key: '_type', label: 'Typ', value: lType, type: 'readonly' }
     ];
+    if (layer && (layer.editBy || layer.editAt)) {
+      var editInfo = (layer.editBy || '?') + (layer.editAt ? '  ·  ' + layer.editAt.replace('T', ' ').substring(0, 16) : '');
+      fields.push({ key: '_last_edit', label: 'Letzte Änderung', value: editInfo, type: 'readonly' });
+    }
     if (layer) {
       if (layer.url) fields.push({ key: '_url', label: 'URL', value: layer.url, type: 'readonly' });
       fields.push({ key: 'visible', label: 'Sichtbar bei Start', value: layer.visible === true || layer.visible === 'true' || layer.visible === 1 || layer.visible === '1', type: 'bool' });
@@ -4721,7 +4741,7 @@ function triggerFileExport() {
     var p = state.profiles[pName];
     previewHtml += '<h3 style="margin:12px 0 6px;font-size:13px;color:#336">Profil: ' + esc(pName) + '</h3>';
     if (p.lyrmgrs) {
-      Object.keys(p.lyrmgrs).forEach(function(lmKey) {
+      getSortedLyrmgrKeys(p.lyrmgrs).forEach(function(lmKey) {
         var lm = p.lyrmgrs[lmKey];
         previewHtml += '<div style="margin-left:8px;margin-bottom:12px">';
         previewHtml += '<div style="font-weight:600;font-size:12px;color:#558;margin-bottom:4px">LyrMgr: ' + esc(lmKey) + '</div>';
@@ -4776,7 +4796,7 @@ function generateJSON() {
     if (p.lyrmgrs) {
       // Lyrmgr-Blöcke in Original-Format zurückbauen
       var lyrmgrs = {};
-      Object.keys(p.lyrmgrs).forEach(function(key) {
+      getSortedLyrmgrKeys(p.lyrmgrs).forEach(function(key) {
         lyrmgrs[key] = generateLyrmgrConfBlock(p.lyrmgrs[key]);
       });
       profiles[pName] = lyrmgrs;
@@ -7045,7 +7065,6 @@ function convertLyrmgrStructure(structure) {
     var result = [];
     items.forEach(function(item) {
       if (typeof item === 'string') { result.push(item); return; }
-      // Verschachtelte Arrays auflösen
       if (Array.isArray(item)) { result = result.concat(passItems(item)); return; }
       if (item && typeof item === 'object') {
         var obj = JSON.parse(JSON.stringify(item));
@@ -7056,20 +7075,32 @@ function convertLyrmgrStructure(structure) {
     return result;
   }
 
+  // Neues Format: structure ist ein geordnetes Array mit _key-Eintraegen
+  // Altes Format: structure ist ein Objekt (Keys = Kategorienamen, alphabetisch sortiert von JSONB)
+  var entries;
+  if (Array.isArray(structure)) {
+    entries = structure;
+  } else {
+    // Legacy-Objekt-Format: in Array umwandeln (Reihenfolge evtl. alphabetisch)
+    entries = Object.keys(structure).map(function(k) {
+      var obj = JSON.parse(JSON.stringify(structure[k]));
+      obj._key = k;
+      return obj;
+    });
+  }
+
   var categories = [];
-  Object.keys(structure).forEach(function(catKey) {
-    var catData = structure[catKey];
+  entries.forEach(function(catData) {
+    var catKey = catData._key || catData.name || catData.key || '';
     var cat = JSON.parse(JSON.stringify(catData));
+    delete cat._key;
     cat.id = uid('cat');
     cat.name = catKey;
     cat.key = catKey;
-    // 'items' kann ein Object-Map (Standard) oder ein Array (Legacy-Format) sein
     var rawItems = catData.items;
     if (Array.isArray(rawItems)) {
-      // Array-Format (Flat-Layerliste): direkt als Items übernehmen
       cat.items = passItems(rawItems);
     } else {
-      // Object-Map (Gruppenlayer-Keys → Objekte)
       var grpMap = rawItems || {};
       cat.items = [];
       Object.keys(grpMap).forEach(function(grpKey) {
@@ -7516,11 +7547,12 @@ function generateLyrmgrConfBlock(treeData) {
   // _rawBlock konsultieren um Original-Format (Array vs Object) pro Kategorie zu bestimmen
   var rawStructure = (treeData._rawBlock && treeData._rawBlock.structure) ? treeData._rawBlock.structure : {};
 
-  // Structure aufbauen: Kategorie → Object-Map oder Array von Gruppenlayern
-  var structure = {};
+  // Structure aufbauen: geordnetes Array statt Objekt, damit PostgreSQL JSONB
+  // die Reihenfolge nicht alphabetisch umordnet.
+  var structure = [];
   (treeData.categories || []).forEach(function(cat) {
     var catKey = cat.key || cat.name;
-    var catObj = {};
+    var catObj = { _key: catKey };
     var skipCatKeys = { id: 1, name: 1, key: 1, items: 1 };
     Object.keys(cat).forEach(function(k) {
       if (!skipCatKeys[k]) catObj[k] = cat[k];
@@ -7531,11 +7563,9 @@ function generateLyrmgrConfBlock(treeData) {
     var usesArrayFormat = rawCat && Array.isArray(rawCat.items);
 
     if (usesArrayFormat) {
-      // Original war Array-Format (Flat-Layerliste) → als Array serialisieren
       catObj.items = serializeItems(cat.items || []);
     } else {
       catObj.items = {};
-      // Jeder Top-Level Gruppenlayer → Object-Map Eintrag
       (cat.items || []).forEach(function(item) {
         if (typeof item === 'object' && item !== null && item.key) {
           var grpKey = item.key;
@@ -7547,13 +7577,12 @@ function generateLyrmgrConfBlock(treeData) {
           grpObj.items = serializeItems(item.items || []);
           catObj.items[grpKey] = grpObj;
         } else if (typeof item === 'string') {
-          // Bare Layer-ID direkt unter Kategorie → als Einzel-Gruppe speichern
           catObj.items[item] = { items: [item] };
         }
       });
     }
 
-    structure[catKey] = catObj;
+    structure.push(catObj);
   });
 
   block.structure = structure;
@@ -7844,9 +7873,8 @@ function saveLyrmgrDraft() {
     return;
   }
 
-  // Alle LyrMgr-Blöcke zusammenbauen
   var confData = {};
-  Object.keys(p.lyrmgrs).forEach(function(key) {
+  getSortedLyrmgrKeys(p.lyrmgrs).forEach(function(key) {
     var tree = p.lyrmgrs[key];
     var rtCheck = checkRoundTripIdentity(tree, key);
     confData[key] = rtCheck.identical ? rtCheck.original : rtCheck.generated;
@@ -8197,7 +8225,7 @@ function publishLyrmgr() {
 
   // Alle LyrMgr-Blöcke zusammenbauen (identisch zu saveLyrmgrDraft)
   var confData = {};
-  var blockKeys = Object.keys(p.lyrmgrs);
+  var blockKeys = getSortedLyrmgrKeys(p.lyrmgrs);
   var rtSummary = [];
   blockKeys.forEach(function(key) {
     var tree = p.lyrmgrs[key];
@@ -8543,22 +8571,10 @@ loadAvailableProfiles(function() {
   console.log('[TB-DIAG v5] loadLayers(' + _initProfile + ')');
   loadLayers(_initProfile);
 
-  // Schritt 4: Lyrmgr laden oder aus localStorage rendern
-  var _initProfData = state.profiles[_initProfile];
-  var _hasLyrmgrs = _initProfData && _initProfData.lyrmgrs && Object.keys(_initProfData.lyrmgrs).length > 0;
-  console.log('[TB-DIAG v5] hasLyrmgrs=' + _hasLyrmgrs + ' initProfData=' + !!_initProfData);
-  if (_hasLyrmgrs) {
-    // State aus localStorage: direkt rendern
-    renderClipboard();
-    renderTreeTabs();
-    renderTree();
-    // _rawBlock still vom Server nachladen
-    initRawBlocksFromServer(_initProfile);
-  } else {
-    // Lyrmgr.conf vom Server laden
-    console.log('[TB-DIAG v5] loadLyrmgrForProfile(' + _initProfile + ')');
-    loadLyrmgrForProfile(_initProfile, true);
-  }
+  // Schritt 4: Lyrmgr immer vom Server laden (lokaler Snapshot nur als Fallback in loadState)
+  // Damit wird kein veralteter Browser-Stand mehr vor dem Server-Stand gerendert.
+  console.log('[TB-DIAG v5] loadLyrmgrForProfile(' + _initProfile + ') [server-first]');
+  loadLyrmgrForProfile(_initProfile, true);
 });
 </script>
 <script src="https://cdn.jsdelivr.net/npm/ol@10.8.0/dist/ol.js"></script>

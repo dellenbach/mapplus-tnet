@@ -309,6 +309,52 @@ function loadLyrmgrDraft($profile) {
     if ($data === null) {
         return ['exists' => true, 'error' => 'JSON parse error: ' . json_last_error_msg(), 'path' => $path];
     }
+
+    // Auto-Migration: Draft-Bloecke von altem Object-Format in geordnetes Array-Format umwandeln.
+    // Verhindert, dass der Draft die Kategorienreihenfolge durcheinanderbringt.
+    $draftChanged = false;
+    $refFilePath = getConfigPath($profile);
+    $refData = file_exists($refFilePath) ? json_decode(file_get_contents($refFilePath), true) : [];
+    if (!is_array($refData)) $refData = [];
+
+    foreach ($data as $lmKey => &$block) {
+        if (!isset($block['structure']) || !is_array($block['structure'])) continue;
+        $structureObj = $block['structure'];
+        if (empty($structureObj)) continue;
+        $firstVal = array_values($structureObj)[0];
+        // Pruefe ob bereits Array-Format mit _key
+        if (array_key_exists(0, $structureObj) && isset($firstVal['_key'])) continue;
+        // Altes Object-Format: in geordnetes Array konvertieren
+        $fileKeys = [];
+        if (isset($refData[$lmKey]['structure']) && is_array($refData[$lmKey]['structure'])) {
+            $fileKeys = array_keys($refData[$lmKey]['structure']);
+        }
+        if (empty($fileKeys)) $fileKeys = array_keys($structureObj);
+        $orderedArr = [];
+        foreach ($fileKeys as $catKey) {
+            if (isset($structureObj[$catKey])) {
+                $entry = $structureObj[$catKey];
+                $entry['_key'] = $catKey;
+                $orderedArr[] = $entry;
+            }
+        }
+        foreach ($structureObj as $catKey => $catData) {
+            $already = false;
+            foreach ($orderedArr as $e) {
+                if (($e['_key'] ?? '') === $catKey) { $already = true; break; }
+            }
+            if (!$already) { $catData['_key'] = $catKey; $orderedArr[] = $catData; }
+        }
+        $block['structure'] = $orderedArr;
+        $draftChanged = true;
+    }
+    unset($block);
+
+    if ($draftChanged) {
+        // Migrierten Draft direkt zurueckschreiben
+        @file_put_contents($path, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+    }
+
     $lyrmgrKeys = array_keys($data);
     return [
         'exists'     => true,
@@ -333,13 +379,75 @@ function loadLyrmgrConf($profile) {
         try {
             $doc = CatalogRepository::loadProfile($profile);
             if ($doc['exists']) {
+                $dbData = $doc['data'];
+
+                // Auto-Migration: Falls structure-Bloecke noch als assoziatives Objekt
+                // (alphabetisch sortiert durch JSONB) vorliegen, verwende die Datei
+                // als Reihenfolge-Referenz und speichere im neuen Array-Format.
+                $needsRepair = false;
+                foreach ($dbData as $block) {
+                    if (!isset($block['structure']) || !is_array($block['structure'])) continue;
+                    $structArr = $block['structure'];
+                    if (empty($structArr)) continue;
+                    $firstVal = array_values($structArr)[0];
+                    // Altes Format: assoziative Keys, Werte sind Objekte OHNE '_key'-Feld
+                    if (!array_key_exists(0, $structArr) && !isset($firstVal['_key'])) {
+                        $needsRepair = true;
+                        break;
+                    }
+                }
+
+                if ($needsRepair) {
+                    $filePath = getConfigPath($profile);
+                    $fileData = file_exists($filePath) ? json_decode(file_get_contents($filePath), true) : [];
+                    if (!is_array($fileData)) $fileData = [];
+
+                    foreach ($dbData as $lmKey => &$block) {
+                        if (!isset($block['structure']) || !is_array($block['structure'])) continue;
+                        $structureObj = $block['structure'];
+                        if (empty($structureObj)) continue;
+                        $firstVal = array_values($structureObj)[0];
+                        if (array_key_exists(0, $structureObj) || isset($firstVal['_key'])) continue;
+
+                        // Reihenfolge aus Datei; fehlende Keys ans Ende anhaengen
+                        $fileKeys = [];
+                        if (isset($fileData[$lmKey]['structure']) && is_array($fileData[$lmKey]['structure'])) {
+                            $fileKeys = array_keys($fileData[$lmKey]['structure']);
+                        }
+                        if (empty($fileKeys)) $fileKeys = array_keys($structureObj);
+
+                        $orderedArr = [];
+                        foreach ($fileKeys as $catKey) {
+                            if (isset($structureObj[$catKey])) {
+                                $entry = $structureObj[$catKey];
+                                $entry['_key'] = $catKey;
+                                $orderedArr[] = $entry;
+                            }
+                        }
+                        foreach ($structureObj as $catKey => $catData) {
+                            $already = false;
+                            foreach ($orderedArr as $e) {
+                                if (($e['_key'] ?? '') === $catKey) { $already = true; break; }
+                            }
+                            if (!$already) { $catData['_key'] = $catKey; $orderedArr[] = $catData; }
+                        }
+                        $block['structure'] = $orderedArr;
+                    }
+                    unset($block);
+
+                    // Repariertes Dokument zurueckspeichern
+                    try {
+                        CatalogRepository::saveProfile($profile, $dbData, null, 'system', 'migrate-order');
+                    } catch (\Throwable $ignored) {}
+                }
+
                 return [
                     'exists'     => true,
                     'profile'    => $profile,
                     'path'       => getConfigPath($profile),
-                    'lyrmgrKeys' => array_keys($doc['data']),
-                    'data'       => $doc['data'],
-                    'size'       => strlen(json_encode($doc['data'])),
+                    'lyrmgrKeys' => array_keys($dbData),
+                    'data'       => $dbData,
+                    'size'       => strlen(json_encode($dbData)),
                     'revision'   => $doc['revision'],
                     'source'     => 'db'
                 ];
@@ -583,6 +691,7 @@ function listAllLayers($profile = null) {
                 $isAssoc = array_keys($data) !== range(0, count($data) - 1);
                 if (!$isAssoc) continue;
                 if ($prefix === 'layers') {
+                    $fileEdits = isset($file['_edits']) && is_array($file['_edits']) ? $file['_edits'] : [];
                     foreach ($data as $k => $v) {
                         $definitions[$k] = $v;
                         $dbHasLayers = true;
@@ -594,6 +703,9 @@ function listAllLayers($profile = null) {
                             'kuerzel' => $bundle['kuerzel'],
                             'scope'   => $bScope,
                             'profile' => $bProfile,
+                            // Letzte Änderung aus _edits (wer+wann hat diesen Layer-Key zuletzt bearbeitet)
+                            'editBy'  => isset($fileEdits[$k]['by']) ? $fileEdits[$k]['by'] : null,
+                            'editAt'  => isset($fileEdits[$k]['at']) ? $fileEdits[$k]['at'] : null,
                         ];
                     }
                 }
@@ -689,6 +801,9 @@ function listAllLayers($profile = null) {
         $layer['kuerzel'] = $sm['kuerzel'] ?? '';
         $layer['scope'] = $sm['scope'] ?? '';
         if (isset($sm['profile'])) $layer['profile'] = $sm['profile'];
+        // Letzte Bearbeitung aus _edits-Tracking (wer+wann hat diesen Layer zuletzt geändert)
+        if (!empty($sm['editBy'])) $layer['editBy'] = $sm['editBy'];
+        if (!empty($sm['editAt'])) $layer['editAt'] = $sm['editAt'];
         // Alle Properties 1:1 übernehmen (Layer-Typ-agnostisch: WMS, ArcGIS, WMTS etc.)
         foreach ($def as $prop => $val) {
             if (!isset($skipKeys[$prop])) {

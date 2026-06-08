@@ -1,3 +1,69 @@
+## 2026-06-08 — Tree-Builder: Reihenfolge darf nicht aus lokalem Browser-State vor Server-Laden gerendert werden
+- **Symptom:** Kategorien erschienen im Editor in alter/falscher Reihenfolge (z.B. BAU zuerst), obwohl API/DB bereits korrekt `_key`-Array-Reihenfolge lieferten.
+- **Root-Cause:** Beim Init wurde `loadState()` aus localStorage zuerst gerendert (`_hasLyrmgrs`), und der veraltete Browser-Stand überdeckte den aktuellen Server-Stand.
+- **Fix:** Init auf server-first umgestellt: beim Start immer `loadLyrmgrForProfile(..., true)` laden, lokalen Snapshot nicht mehr direkt als Primärquelle rendern.
+- **Guardrail:** Bei DB-first/Server-first UIs lokalen Zustand nur als Fallback nutzen, nie als initiale Autoritätsquelle vor dem ersten Server-Load.
+
+## 2026-06-08 — Tree-Builder: Profil-gefilterte Layer + Tag-Filter statt Konfigdatei-Filter
+- **Symptom:** Der Tree-Builder zeigte alle Layer unabhängig vom Profil, und der Dropdown-Filter listete Konfig-Dateinamen (z.B. `geodienste/layers_geodienste.conf (48)`) statt der fachlichen Tags.
+- **Root-Cause:** `listAllLayers` hängte keine Tags an die Layer, und das Frontend baute den Filter aus `sourceFile`. Profil-Bundles fremder Profile wurden nur unvollständig gefiltert.
+- **Fix:** Backend hängt jetzt `tags`/`scope`/`kuerzel` pro Layer an und zeigt Profil-Scope-Bundles nur beim exakt passenden Profil (core/sitecore immer). Frontend: Dropdown „Alle Tags", Filter matcht gegen `layer.tags`.
+- **Guardrail:** Im DB-Overlay Bundle-Metadaten (Tags/Scope/Profil) in den `sourceMap` je Layer übernehmen, sonst stehen sie in der flachen Layer-Liste nicht zur Verfügung. Profil-Filter exakt (`bProfile === profile`) prüfen, nicht nur „ungleich und gesetzt".
+
+## 2026-06-08 — Scope-bewusster Export: Stufe bestimmt das Zielverzeichnis
+- **Symptom:** Der Export schrieb alle Bundles pauschal nach core-dev/config + core-dev/nls, unabhängig von der gewählten Überladungsebene.
+- **Root-Cause:** `configExportToCoreDb` kannte nur die Core-Zielpfade und ignorierte das neue `scope`/`profile`-Feld.
+- **Fix:** Export wählt das Ziel jetzt nach Scope: `core` → core-dev/config + core-dev/nls/de, `sitecore/override` → maps-dev/core/config + maps-dev/core/nls/de, `profile` → maps-dev/public/config/<profil>/ (conf + nls zusammen). Profil-Ordner werden bei Bedarf angelegt. Bundle-Liste + Admin-Export-Tabelle zeigen die Stufe (scope[:profil]).
+- **Guardrail:** Export-Ziele immer aus dem gespeicherten Scope ableiten, nicht hartkodieren. Profil-Bundles ohne Profilnamen beim Export ablehnen, damit nichts versehentlich in den falschen (Core-)Pfad geschrieben wird.
+
+## 2026-06-08 — Konfig-Store: Stufe (Scope) beim Import + DB-only Tree-Builder + Accordion-Liste
+- **Symptom:** Import-UI sprach von „Zusammenführen" statt „Importieren", es fehlte die Überladungsebene, der Tree-Builder mischte noch Datei-Quellen, und die rechte Store-Liste war durch einen Tag-Block + immer offene Detailzeilen unübersichtlich.
+- **Root-Cause:** Scope war im Datenmodell zwar vorbereitet, aber nicht in Stage-Pfad/UI durchgereicht; `listAllLayers` las weiter Dateien; die rechte Liste hatte keine Accordion-Kapselung.
+- **Fix:** `saveBundle`/`stageServicesToImportDb`/`ags-stage-merge` reichen jetzt `scope` (core/sitecore/profile) und `profile` durch. Import-UI: Button „📥 Importieren", Stufen-Dropdown + bedingtes Profilfeld. `listAllLayers` ist DB-only (Datei-Lesen nur Fallback bei leerer/fehlender DB). Rechte Seite: Tag-Übersichtsblock entfernt, jedes Kürzel als zugeklapptes Accordion mit Stufe-Badge.
+- **Guardrail:** Scope/Profile bei jeder Stage-Operation explizit mitführen und beim Re-Stage aus dem bestehenden Bundle erben, sonst „rutscht" ein Dienst beim erneuten Import auf die Default-Stufe core zurück.
+
+## 2026-06-08 — Tree-Builder DB-first über Datei-Basis: Überladungskonzept (core/override/profile) in DB
+- **Symptom:** Import/Editor waren DB-first, der Tree-Builder las „Verfügbare Layer" weiter nur aus Core-Dateien — gestagte DB-Inhalte erschienen erst nach Export.
+- **Root-Cause:** `listAllLayers()` baute Definitionen ausschliesslich aus `core/config` + Override + Profil-Dateien. Im `config_bundle_store` lagen nur die gestagten Kürzel, nicht die 5850 Core-Layer — ein naives „nur DB" hätte den Tree-Builder geleert.
+- **Fix:** `config_bundle_store` additiv um `scope` (core/override/sitecore/profile) und `profile` erweitert. `listAllLayers()` liest weiter die Datei-Basis und legt danach die DB-Bundles scope-priorisiert (core < override < profile, DB gewinnt) darüber — sowohl Layer-Definitionen als auch `lyrmgrResources`-Aliase. So gehen die Datei-Layer nie verloren, DB-Inhalte sind aber sofort sichtbar.
+- **Guardrail:** „DB-first" bei teilbefüllter DB nie als „nur DB" implementieren. Datei-Basis behalten und DB als priorisiertes Overlay darüberlegen, bis der Core vollständig in der DB liegt. Scope-Hierarchie additiv im Schema abbilden, nicht destruktiv umbauen.
+
+## 2026-06-08 — 403 (keine Admin-Berechtigung) nicht als Session-Ablauf fehlinterpretieren
+- **Symptom:** Auch nach Hard-Reload, Abmelden und erneutem Login erschien im SLM hartnäckig „Fehler: Bitte einloggen (Session abgelaufen)".
+- **Root-Cause:** Der globale Auth-Fetch-Wrapper behandelte **jeden** HTTP 403 als Login-Problem. Da der eingeloggte Nicht-Admin-User (`del`) admin-geschützte Actions (z.B. `staging-delete-output`, `staging-delete-tag`, `config-export-to-core`) auslöste, kam ein legitimes 403-JSON zurück, das fälschlich als abgelaufene Sitzung dargestellt wurde.
+- **Fix:** Wrapper unterscheidet jetzt: Nur 401, Redirect auf `admin-login` oder eine echte HTML-Login-Seite lösen den Login-Banner aus. Ein 403 mit JSON-Body (Berechtigungsfehler) wird unverändert durchgereicht, sodass die echte Fehlermeldung („Nur für Administratoren") ankommt.
+- **Guardrail:** Auth-Wrapper niemals 401 und 403 gleich behandeln. 401 = nicht authentifiziert (Login nötig); 403 = authentifiziert, aber nicht berechtigt (kein Login-Redirect, echte Fehlermeldung zeigen).
+
+## 2026-06-08 — Konfig-Store Import-Tab: Tags statt Konflikte, Re-Stage server-seitig, tag-bewusstes Löschen
+- **Symptom:** Der Import-Tab zeigte kürzelübergreifende Keys als rote „Konflikte", Re-Stage füllte nur die linke Seite vor, und Löschen war nur ganz-Kürzel ohne Redundanz-Schutz.
+- **Root-Cause:** Das Modell war rein Kürzel-zentriert; geteilte Ressourcen wurden als Fehler statt als gewollte Mehrfach-Nutzung interpretiert.
+- **Fix:** Auf bestehendem `config_bundle_store` (nicht-destruktiv) eine Tag-Schicht ergänzt: `addTag`/`removeTagEverywhere` im Repository, API-Actions `staging-restage`/`staging-add-tag`/`staging-delete-tag`, Tags bleiben bei Re-Stage erhalten. Frontend: Tag-Übersicht mit letztem Import/Re-Stage (Datum/User), 1-Klick-Server-Re-Stage, geteilte Keys als „geteilt/merged" statt rotem Konflikt, Tag-Chips mit Add, tag-bewusstes Löschen (letzter Tag → Ressource endgültig weg).
+- **Guardrail:** Bei produktiven Konfig-Datenmodellen Tag-/Dedup-Funktionen additiv auf die bestehende Tabelle setzen, statt Export-/Editor-/Verlink-Pipelines destruktiv umzubauen — besonders ohne Bestätigung des Users.
+
+## 2026-06-08 — Editor-/Lock-Namen aus dem Login ableiten, nicht per Prompt erzwingen
+- **Symptom:** Trotz aktivem Login erschien beim Bearbeiten ein Browser-Prompt für „Name/Kürzel“, was redundant und störend war.
+- **Root-Cause:** SLM und Tree-Builder führten ihren Bearbeiternamen getrennt in localStorage und fragten per `prompt()`, statt zuerst den eingeloggten Benutzer zu übernehmen.
+- **Fix:** Login-Benutzer wird jetzt in SLM und Tree-Builder als gemeinsamer Editorname gespeichert und wiederverwendet; der Prompt bleibt nur noch als Fallback ohne Login-Kontext.
+- **Guardrail:** Wenn eine Sitzung bereits authentifiziert ist, keine zweite Benutzeridentität im Frontend abfragen. Locking- und `updated_by`-Namen immer zuerst aus dem Login ableiten.
+
+## 2026-06-08 — Export-Preview-Dialog im SLM kann fachlich mehr stören als helfen
+- **Symptom:** Beim Export aus dem SLM erschien ein separater Deploy-Dialog, der im Alltag keinen Zusatznutzen brachte und bei leeren/unklaren Zuständen nur Verwirrung erzeugte.
+- **Root-Cause:** Der Exportpfad war auf einen ausführlichen Confirm-Modal mit Dry-Run-Vorschau aufgebaut, obwohl der Benutzer den Export bewusst bereits über die Hauptaktion auslöst.
+- **Fix:** Den aktiven Exportpfad auf direkten Deploy mit Statusmeldungen umgestellt; nur einfache Browser-Bestätigungen bleiben bei Mehrfach-Deploys oder ungespeicherten Änderungen erhalten.
+- **Guardrail:** Für häufige Admin-Aktionen keine zweite komplexe Modal-Stufe einbauen, wenn dieselbe Information auch als Statusmeldung genügt. Zusätzliche Dialoge nur behalten, wenn sie echte Entscheidungsrelevanz liefern.
+
+## 2026-06-08 — Sensible Konfig-DB-Aktionen nur über dedizierte Admin-Steuerseite ausführen
+- **Symptom:** Ein global sichtbarer Toolbar-Button `Config → DB` suggerierte einen harmlosen Klick, obwohl dahinter potenziell destruktive Import-/Export-Aktionen mit Überschreiben und Löschen stehen.
+- **Root-Cause:** Die Aktion war zu nah an der Alltags-UI platziert und nicht granular von Admin-Rechten oder einer separaten Bestätigungsoberfläche entkoppelt.
+- **Fix:** Den Button nur für Admins sichtbar gemacht, auf eine separate Seite `config-db-admin.html` umgebogen und Import, Export sowie DB-Löschen dort getrennt mit Warnhinweisen umgesetzt. Serverseitig sind `admin.php`, `config-db-admin.html`, `config-export-to-core` und `staging-delete-output` zusätzlich auf Admin-Rechte gehärtet.
+- **Guardrail:** Destruktive oder überschreibende Konfig-Aktionen nie als normale Toolbar-Schnellaktion für alle Benutzer anbieten. Immer separaten Admin-Einstieg plus serverseitige Rollenprüfung verwenden.
+
+## 2026-06-08 — Export-Dialog darf keine Core-Export-Sprache mehr tragen
+- **Symptom:** Im SLM blieb ein Modal mit Texten wie „Nach core-dev exportieren“ sichtbar und vermittelte weiter einen Files-/Core-Export statt einer DB-zentrierten Konfig-Operation.
+- **Root-Cause:** Die sichtbaren Button- und Modal-Titel wurden noch aus der alten DB→Files→Core-Semantik gebaut.
+- **Fix:** Die Beschriftungen wurden auf „Konfig-Store erzeugen“ umgestellt und die Modal-Titel sprechen nun nur noch von der Konfig-Store-DB bzw. `core-dev` als Zielstruktur.
+- **Guardrail:** Bei DB-first-UIs keine historischen Export-Begriffe in primären Aktionen oder Modaltiteln stehen lassen; sonst wirkt die Oberfläche fachlich falsch, obwohl der Backend-Pfad schon umgestellt ist.
+
 ## 2026-06-04 — Naiver Regex-JSON5-Parser zerstoert String-Werte mit "wort:" oder Quotes
 - **Symptom:** `configSource.bookmarks: 'db'` aus `tnet-global-config.json5` griff nicht; `bookmarks-load` lieferte trotz korrekt deployter Config und erreichbarer DB weiter `source: files`.
 - **Root-Cause:** Der Regex-basierte JSON5->JSON-Konverter (kopiert aus cache.php) transformiert Kommentare/Keys/Quotes ohne String-Bewusstsein. Der `_description`-Wert "Datenquelle pro Konfigurationsdomain: db oder files" wurde durch den Unquoted-Key-Schritt zu `..."Konfigurationsdomain": db...` zerschossen → `json_decode` = null → leeres Array → `default: 'files'`. Eingebettete Single-Quotes (`'db'`) brachen es zusaetzlich.

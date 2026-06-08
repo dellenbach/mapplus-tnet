@@ -2595,6 +2595,8 @@ function updateImportSelCount() {
   document.getElementById('import-sel-info').textContent = checked.length + ' / ' + total.length + ' ausgewählt';
   document.getElementById('import-selcount').textContent = checked.length + ' Dienste ausgewählt';
   document.getElementById('import-btn-export').disabled = checked.length === 0;
+  var delBtn = document.getElementById('import-btn-delete');
+  if (delBtn && delBtn.style.display !== 'none') delBtn.disabled = checked.length === 0;
 }
 
 // =====================================================================
@@ -2747,26 +2749,66 @@ function switchImportSource(source) {
   document.querySelectorAll('.import-source-btn').forEach(function(btn) {
     btn.classList.toggle('active', btn.dataset.source === source);
   });
-  // UI zurücksetzen
-  var resultEl = document.getElementById('import-result');
-  resultEl.style.display = 'none';
-  resultEl.innerHTML = '';
+
+  // Gesamtes UI sofort leeren — kein Stale-Inhalt vom vorherigen Tab sichtbar
+  var listEl    = document.getElementById('import-list');
+  var filterEl  = document.getElementById('import-filter');
+  var selectBar = document.getElementById('import-select-bar');
+  var actionsEl = document.getElementById('import-actions');
+  var legendEl  = document.getElementById('import-legend');
+  var resultEl  = document.getElementById('import-result');
+  var statusEl  = document.getElementById('import-status');
+  var exportBtn = document.getElementById('import-btn-export');
+  var deleteBtn = document.getElementById('import-btn-delete');
+
+  if (listEl) {
+    listEl.innerHTML = '';
+    listEl.style.display = 'none';
+  }
+  if (filterEl) {
+    filterEl.value = '';
+    filterEl.style.display = 'none';
+  }
+  if (selectBar) selectBar.style.display = 'none';
+  if (actionsEl) actionsEl.style.display = 'none';
+  if (legendEl) legendEl.style.display = 'none';
+  if (resultEl) {
+    resultEl.style.display = 'none';
+    resultEl.innerHTML = '';
+  }
+  if (statusEl) {
+    statusEl.textContent = '';
+    statusEl.className = 'ags-status';
+  }
+  if (exportBtn) exportBtn.disabled = false;
+  if (deleteBtn) {
+    deleteBtn.style.display = 'none';
+    deleteBtn.disabled = true;
+  }
 
   if (source === 'ags') {
-    document.getElementById('import-btn-export').textContent = '📦 Importieren & Speichern';
+    if (exportBtn) exportBtn.textContent = '📦 Importieren & Speichern';
     if (_agsServices.length > 0) {
       renderImportList(_agsServices);
-      document.getElementById('import-status').textContent = _agsServices.length + ' Dienste verfügbar';
-      document.getElementById('import-status').className = 'ags-status success';
+      if (statusEl) {
+        statusEl.textContent = _agsServices.length + ' Dienste verfügbar';
+        statusEl.className = 'ags-status success';
+      }
     } else {
       loadAgsServices();
     }
   } else if (source === 'core') {
-    document.getElementById('import-btn-export').textContent = '📥 In raw-conf importieren';
+    if (exportBtn) exportBtn.textContent = '📥 In raw-conf importieren';
+    if (deleteBtn) {
+      deleteBtn.style.display = '';
+      deleteBtn.disabled = true;
+    }
     loadCoreSources();
   } else if (source === 'qgis') {
-    document.getElementById('import-btn-export').textContent = '📦 QGIS Importieren';
-    document.getElementById('import-btn-export').disabled = true;
+    if (exportBtn) {
+      exportBtn.textContent = '📦 QGIS Importieren';
+      exportBtn.disabled = true;
+    }
     loadQgisProjects();
   }
 }
@@ -2807,14 +2849,18 @@ function loadCoreSources(forceReload) {
  * Core-Quellen als Checkbox-Liste rendern (im selben import-list Container)
  */
 function renderCoreSourceList() {
-  var listEl = document.getElementById('import-list');
-  var filterEl = document.getElementById('import-filter');
+  var listEl    = document.getElementById('import-list');
+  var filterEl  = document.getElementById('import-filter');
   var selectBar = document.getElementById('import-select-bar');
   var actionsEl = document.getElementById('import-actions');
-  var legendEl = document.getElementById('import-legend');
+  var legendEl  = document.getElementById('import-legend');
 
   listEl.innerHTML = '';
-  if (legendEl) legendEl.style.display = '';
+  listEl.style.display = '';
+  if (filterEl)  { filterEl.style.display = 'none'; }
+  if (selectBar) { selectBar.style.display = 'flex'; }
+  if (actionsEl) { actionsEl.style.display = 'flex'; }
+  if (legendEl)  legendEl.style.display = '';
 
   // Änderungs-Zusammenfassung-Banner
   var changedCount = 0;
@@ -4998,7 +5044,14 @@ function updateStagingManifestInfo() {
 // =====================================================================
 // EVENT-HANDLER
 // =====================================================================
-document.getElementById('ags-btn-refresh').addEventListener('click', function() {
+
+// Sichere Event-Listener: Ignorieren null-Elemente
+function safeAddEventListener(elementId, eventType, handler) {
+  var el = document.getElementById(elementId);
+  if (el) el.addEventListener(eventType, handler);
+}
+
+safeAddEventListener('ags-btn-refresh', 'click', function() {
   var activeTab = document.querySelector('.ags-tab.active');
   if (activeTab && activeTab.dataset.tab === 'manage') {
     loadRawConfList();
@@ -5019,7 +5072,7 @@ document.getElementById('ags-btn-refresh').addEventListener('click', function() 
 });
 
 // Cache-Leeren-Button
-document.getElementById('ags-btn-cache-clear').addEventListener('click', function() {
+safeAddEventListener('ags-btn-cache-clear', 'click', function() {
   var btn = this;
   btn.disabled = true;
   btn.textContent = '⏳ Cache…';
@@ -5037,7 +5090,7 @@ document.getElementById('ags-btn-cache-clear').addEventListener('click', functio
 
 // Config→DB Button: Modal öffnen
 var _ctdbScope = 'full';
-document.getElementById('ags-btn-config-to-db').addEventListener('click', function() {
+safeAddEventListener('ags-btn-config-to-db', 'click', function() {
   var modal = document.getElementById('ctdb-modal');
   document.getElementById('ctdb-status').style.display = 'none';
   document.getElementById('ctdb-result').style.display = 'none';
@@ -5049,10 +5102,10 @@ document.getElementById('ags-btn-config-to-db').addEventListener('click', functi
   document.querySelector('.ctdb-scope-btn[data-scope="full"]').classList.add('active');
   modal.style.display = 'flex';
 });
-document.getElementById('ctdb-close').addEventListener('click', function() {
+safeAddEventListener('ctdb-close', 'click', function() {
   document.getElementById('ctdb-modal').style.display = 'none';
 });
-document.getElementById('ctdb-modal').addEventListener('click', function(e) {
+safeAddEventListener('ctdb-modal', 'click', function(e) {
   if (e.target === this) this.style.display = 'none';
 });
 // Scope-Auswahl
@@ -5064,7 +5117,7 @@ document.querySelectorAll('.ctdb-scope-btn').forEach(function(btn) {
   });
 });
 // Starten
-document.getElementById('ctdb-run').addEventListener('click', function() {
+safeAddEventListener('ctdb-run', 'click', function() {
   var btn = this;
   var statusEl = document.getElementById('ctdb-status');
   var resultEl = document.getElementById('ctdb-result');
@@ -5110,7 +5163,7 @@ document.getElementById('ctdb-run').addEventListener('click', function() {
 });
 
 // Import-Tab: Filter
-document.getElementById('import-filter').addEventListener('input', function() {
+safeAddEventListener('import-filter', 'input', function() {
   var term = this.value.trim();
   document.querySelectorAll('#import-list .ags-item').forEach(function(item) {
     item.classList.toggle('hidden', term !== '' && !matchWildcard(item.dataset.name, term));
@@ -5125,19 +5178,104 @@ document.querySelectorAll('.import-source-btn').forEach(function(btn) {
 });
 
 // Import-Tab: Alle / Keine
-document.getElementById('import-sel-all').addEventListener('click', function() {
+safeAddEventListener('import-sel-all', 'click', function() {
   document.querySelectorAll('#import-list .ags-item:not(.hidden) input').forEach(function(cb) { cb.checked = true; });
   _agsLastImportCheckbox = null;
   updateImportSelCount();
 });
-document.getElementById('import-sel-none').addEventListener('click', function() {
+safeAddEventListener('import-sel-none', 'click', function() {
   document.querySelectorAll('#import-list input').forEach(function(cb) { cb.checked = false; });
   _agsLastImportCheckbox = null;
   updateImportSelCount();
 });
 
 // Import-Tab: Export/Import-Button (quellabhängig)
-document.getElementById('import-btn-export').addEventListener('click', function() {
+safeAddEventListener('import-btn-delete', 'click', deleteCoreKuerzel);
+
+// Core-Tab: Löschen von Kürzel-Dateien aus core-dev
+function deleteCoreKuerzel() {
+  if (_importActiveSource !== 'core') return;
+  var checkboxes = document.querySelectorAll('#import-list input:checked');
+  var kuerzelList = [];
+  checkboxes.forEach(function(cb) { kuerzelList.push(cb.dataset.svc); });
+  if (kuerzelList.length === 0) return;
+
+  var statusEl = document.getElementById('import-status');
+  var resultEl = document.getElementById('import-result');
+
+  var msg = kuerzelList.length + ' Kürzel aus Core löschen?\n\n';
+  kuerzelList.forEach(function(k) { msg += '  • ' + k + '\n'; });
+  msg += '\nBackups werden automatisch erstellt.';
+  if (!confirm(msg)) return;
+
+  statusEl.textContent = 'Lösche ' + kuerzelList.length + ' Kürzel aus Core…';
+  statusEl.className = 'ags-status';
+
+  var errors = [];
+  var deleted = [];
+
+  function deleteNext(idx) {
+    if (idx >= kuerzelList.length) {
+      if (errors.length === 0) {
+        statusEl.textContent = '✓ ' + deleted.length + ' Kürzel aus Core gelöscht';
+        statusEl.className = 'ags-status success';
+      } else {
+        statusEl.textContent = '⚠ ' + deleted.length + ' gelöscht, ' + errors.length + ' Fehler';
+        statusEl.className = 'ags-status error';
+      }
+      loadCoreSources(true);
+      return;
+    }
+    var kuerzel = kuerzelList[idx];
+    // Alle Dateien dieses Kürzels aus dem Cache holen
+    var src = null;
+    _coreSources.forEach(function(s) { if (s.kuerzel === kuerzel) src = s; });
+    var files = (src && src.files) ? src.files : [];
+    if (files.length === 0) { deleteNext(idx + 1); return; }
+
+    var fileErrors = [];
+    var fileDeleted = [];
+    function deleteFile(fi) {
+      if (fi >= files.length) {
+        if (fileErrors.length === 0) deleted.push(kuerzel);
+        else errors.push(kuerzel + ': ' + fileErrors.join(', '));
+        deleteNext(idx + 1);
+        return;
+      }
+      var f = files[fi];
+      fetch(API_URL + '?action=prepare-delete-conf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileName: f.name, source: f.source || src.source || 'core' })
+      })
+      .then(function(r) { return r.json(); })
+      .then(function(json) {
+        if (!json.success) throw new Error(json.error || 'prepare-delete fehlgeschlagen');
+        var deletePath = json.data.deletePath;
+        statusEl.textContent = '⏳ Lösche ' + deletePath;
+        return fetch(GAPI_URL + '/delete-deployed-conf', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ deletePath: deletePath })
+        });
+      })
+      .then(function(r) { return r.json(); })
+      .then(function(json) {
+        if (!json.success && !json.deleted) throw new Error('SFTP-Löschung fehlgeschlagen');
+        fileDeleted.push(f.name);
+        deleteFile(fi + 1);
+      })
+      .catch(function(e) {
+        fileErrors.push(f.name + ': ' + e.message);
+        deleteFile(fi + 1);
+      });
+    }
+    deleteFile(0);
+  }
+  deleteNext(0);
+}
+
+safeAddEventListener('import-btn-export', 'click', function() {
   if (_importActiveSource === 'core') {
     importCoreSources();
   } else if (_importActiveSource === 'qgis') {
@@ -5148,7 +5286,7 @@ document.getElementById('import-btn-export').addEventListener('click', function(
 });
 
 // Verwalten-Tab: Filter
-document.getElementById('manage-filter').addEventListener('input', function() {
+safeAddEventListener('manage-filter', 'input', function() {
   var term = this.value.trim();
   document.querySelectorAll('#manage-svc-list .ags-svc-group').forEach(function(grp) {
     grp.style.display = (term !== '' && !matchWildcard(grp.dataset.svcname, term)) ? 'none' : '';
@@ -5156,28 +5294,28 @@ document.getElementById('manage-filter').addEventListener('input', function() {
   updateManageSelCount();
 });
 
-document.getElementById('manage-backup-filter').addEventListener('change', function() {
+safeAddEventListener('manage-backup-filter', 'change', function() {
   loadRawConfList();
 });
 
 // Verwalten-Tab: Alle / Keine
-document.getElementById('manage-sel-all').addEventListener('click', function() {
+safeAddEventListener('manage-sel-all', 'click', function() {
   document.querySelectorAll('#manage-svc-list .ags-svc-group:not([style*="display: none"]) input').forEach(function(cb) { cb.checked = true; });
   _agsLastManageCheckbox = null;
   updateManageSelCount();
 });
-document.getElementById('manage-sel-none').addEventListener('click', function() {
+safeAddEventListener('manage-sel-none', 'click', function() {
   document.querySelectorAll('#manage-svc-list input').forEach(function(cb) { cb.checked = false; });
   _agsLastManageCheckbox = null;
   updateManageSelCount();
 });
 
 // Verwalten-Tab: Multi-Delete-Button
-document.getElementById('manage-btn-delete').addEventListener('click', deleteSelectedServices);
-document.getElementById('manage-btn-delete-backups').addEventListener('click', deleteSelectedBackups);
+safeAddEventListener('manage-btn-delete', 'click', deleteSelectedServices);
+safeAddEventListener('manage-btn-delete-backups', 'click', deleteSelectedBackups);
 
 // Staging-Tab: Filter
-document.getElementById('staging-filter').addEventListener('input', function() {
+safeAddEventListener('staging-filter', 'input', function() {
   var term = this.value.trim();
   document.querySelectorAll('#staging-svc-list .ags-svc-group').forEach(function(grp) {
     grp.style.display = (term && !matchWildcard(grp.dataset.svcname, term)) ? 'none' : '';
@@ -5185,21 +5323,21 @@ document.getElementById('staging-filter').addEventListener('input', function() {
   updateStagingSelCount();
 });
 // Staging-Tab: Alle / Keine
-document.getElementById('staging-sel-all').addEventListener('click', function() {
+safeAddEventListener('staging-sel-all', 'click', function() {
   document.querySelectorAll('#staging-svc-list .ags-svc-group:not([style*="display: none"]) input').forEach(function(cb) { cb.checked = true; });
   _agsLastStagingCheckbox = null; updateStagingSelCount();
 });
-document.getElementById('staging-sel-none').addEventListener('click', function() {
+safeAddEventListener('staging-sel-none', 'click', function() {
   document.querySelectorAll('#staging-svc-list input').forEach(function(cb) { cb.checked = false; });
   _agsLastStagingCheckbox = null; updateStagingSelCount();
 });
 // Staging-Tab: Kürzel-Input (Button-State aktualisieren)
-document.getElementById('staging-kuerzel').addEventListener('input', function() {
+safeAddEventListener('staging-kuerzel', 'input', function() {
   updateStagingSelCount();
   updateStagingManifestInfo();
 });
 // Staging-Tab: Merge-Button
-document.getElementById('staging-btn-merge').addEventListener('click', executeStagingMerge);
+safeAddEventListener('staging-btn-merge', 'click', executeStagingMerge);
 // Staging-Tab: Mode-Wechsel → Button-Text anpassen
 document.getElementById('staging-mode').addEventListener('change', function() {
   var btn = document.getElementById('staging-btn-merge');
@@ -7116,7 +7254,13 @@ function saveNlsEntry(item, value, btn, tr) {
 
   // Import-Quelle aus Hash
   if (startTab === 'create' && p.source === 'core') {
-    loadAgsServices(); // AGS im Hintergrund laden
+    // AGS im Hintergrund still laden (ohne UI zu beeinflussen)
+    fetch(API_URL + '?action=ags-services').then(function(r){return r.json();}).then(function(j){
+      var services = [];
+      if (j.data && Array.isArray(j.data.dienstnamen)) j.data.dienstnamen.forEach(function(s){services.push(typeof s==='string'?s:s.name);});
+      else if (Array.isArray(j.data)) j.data.forEach(function(s){services.push(typeof s==='string'?s:s.name);});
+      _agsServices = services.filter(function(v,i,a){return a.indexOf(v)===i;}).sort();
+    }).catch(function(){});
     switchImportSource('core');
   } else if (startTab === 'create') {
     loadAgsServices();
