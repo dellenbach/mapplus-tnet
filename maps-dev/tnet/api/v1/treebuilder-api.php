@@ -1003,6 +1003,9 @@ function getSiteCoreNlsPath() {
  */
 function getGroupNlsPath($group) {
     $safe = preg_replace('/[^a-zA-Z0-9_\-]/', '', $group);
+    if ($safe === 'public') {
+        return CONFIG_BASE . '/lyrmgrResources.json';
+    }
     return CONFIG_BASE . '/' . $safe . '/lyrmgrResources.json';
 }
 
@@ -4673,6 +4676,26 @@ switch ($action) {
         if (!$profile) jsonError('Parameter profile= erforderlich', 400);
         $result = getLyrmgrDraftStatus($profile);
         jsonResponse(['success' => true, 'data' => $result]);
+        break;
+
+    case 'catalog-publish-status':
+        // Liefert Revision + Bearbeiter aus dem publizierten catalog_document.
+        // Wird vom Frontend für Live-Polling verwendet: wenn Revision steigt,
+        // hat ein anderer Benutzer publiziert → automatisch neu laden.
+        $profile = $_GET['profile'] ?? '';
+        if (!$profile) jsonError('Parameter profile= erforderlich', 400);
+        require_once __DIR__ . '/../includes/CatalogRepository.php';
+        try {
+            $doc = CatalogRepository::loadProfile($profile);
+            jsonResponse(['success' => true, 'data' => [
+                'exists'    => (bool)$doc['exists'],
+                'revision'  => (int)$doc['revision'],
+                'updatedBy' => $doc['updatedBy'] ?? null,
+                'updatedAt' => $doc['updatedAt'] ?? null,
+            ]]);
+        } catch (\Throwable $e) {
+            jsonResponse(['success' => false, 'error' => $e->getMessage()]);
+        }
         break;
 
     case 'publish-lyrmgr':

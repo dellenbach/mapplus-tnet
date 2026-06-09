@@ -211,14 +211,53 @@ class CatalogRepository {
         ?int $expectedRevision,
         ?string $user
     ): array {
-        $current = self::loadProfile($profile);
-        $doc = $current['data'];
-        $doc[$lyrmgrKey] = $blockData;
+        $pdo = Database::getConnection();
+        $blockJson = json_encode($blockData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
-        // Bei vorhandenem Dokument Revision prüfen, sonst frisch anlegen.
-        $expected = $current['exists'] ? $expectedRevision : null;
+        // Atomarer Block-Merge via PostgreSQL JSONB ||:
+        // Nur der eine Block ($lyrmgrKey) wird überschrieben.
+        // Andere Blöcke im Dokument bleiben unberührt.
+        // ON CONFLICT → Upsert, falls das Profil-Dokument noch nicht existiert.
+        // Parallele Saves verschiedener User auf verschiedene Blöcke sind konfliktfrei.
+        $stmt = $pdo->prepare("
+            INSERT INTO mapplusconf.catalog_document (profile, payload, revision, updated_by, updated_at)
+            VALUES (:profile, jsonb_build_object(:lyrmgr_key::text, :block::jsonb), 1, :user, now())
+            ON CONFLICT (profile) DO UPDATE
+            SET payload    = mapplusconf.catalog_document.payload
+                             || jsonb_build_object(:lyrmgr_key2::text, :block2::jsonb),
+                revision   = mapplusconf.catalog_document.revision + 1,
+                updated_by = :user2,
+                updated_at = now()
+            RETURNING revision
+        ");
+        $stmt->execute([
+            'profile'     => $profile,
+            'lyrmgr_key'  => $lyrmgrKey,
+            'block'       => $blockJson,
+            'user'        => $user ?? 'anonym',
+            'lyrmgr_key2' => $lyrmgrKey,
+            'block2'      => $blockJson,
+            'user2'       => $user ?? 'anonym',
+        ]);
+        $row = $stmt->fetch();
+        $newRevision = $row ? (int)$row['revision'] : 1;
 
-        return self::saveProfile($profile, $doc, $expected, $user, 'publish', $lyrmgrKey);
+        // History (Best-Effort nach dem Schreiben)
+        try {
+            $docNow = self::loadProfile($profile);
+            $histPayload = json_encode($docNow['data'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            self::writeHistory($pdo, $profile, $newRevision, 'publish', $lyrmgrKey, $histPayload, $user);
+        } catch (\Throwable $e) {
+            error_log('CatalogRepository::publishBlock: History-Schreiben fehlgeschlagen: ' . $e->getMessage());
+        }
+
+        return [
+            'success'   => true,
+            'conflict'  => false,
+            'revision'  => $newRevision,
+            'published' => true,
+            'lyrmgrKey' => $lyrmgrKey,
+        ];
     }
 
     // ===== DRAFT (GRANULAR, BLOCKWEISE) =====

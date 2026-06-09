@@ -1219,7 +1219,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
           <span style="width:1px;height:18px;background:rgba(0,0,0,.12);margin:0 2px"></span>
           <button id="tb-btn-add-cat">+ Kategorie</button>
           <button id="tb-btn-add-sub">+ Gruppenlayer</button>
-          <button id="tb-btn-save-profile" class="primary" title="Aktives Profil als JSON auf Server speichern">💾</button>
+          <button id="tb-btn-save-profile" class="primary" title="Aktiven LyrMgr speichern und live in DB publizieren">💾</button>
           <span id="tb-profile-save-status" style="font-size:10px;color:rgba(0,0,0,.35)"></span>
         </div>
         <div class="tb-tree-actions" id="tb-tree-actions"></div>
@@ -1283,7 +1283,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
         <label style="margin-left:8px">Quelle:</label>
         <select id="tb-lm-source-select">
           <option value="file">Dateien (live)</option>
-          <option value="auto" selected>DB (auto)</option>
+          <option value="db" selected>DB</option>
         </select>
         <button class="lm-prev-reload" id="tb-lm-prev-reload">&#8635; Neu laden</button>
       </div>
@@ -1559,7 +1559,8 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 // =====================================================================
 // State
 // =====================================================================
-var STORAGE_KEY = 'treebuilder_state';
+var STORAGE_KEY_BASE = 'treebuilder_state';
+var STORAGE_KEY = STORAGE_KEY_BASE;
 var GAPI_URL = '/gapi/ags2mapplus';
 
 // ── Software-Umgebung (URL-basiert, fix) ──
@@ -1569,6 +1570,26 @@ var _swEnv = location.pathname.indexOf('/maps-dev/') === 0 ? 'dev' : 'prod';
 var _storeEnv = (function() {
   try { var s = localStorage.getItem('slmStoreEnv'); return (s === 'dev' || s === 'prod') ? s : _swEnv; } catch(e) { return _swEnv; }
 })();
+
+// Store-spezifischer Cache-Key + Versionsmarker
+STORAGE_KEY = STORAGE_KEY_BASE + '_' + _storeEnv;
+var STORAGE_VERSION_KEY = 'treebuilder_state_version_' + _storeEnv;
+var STORAGE_VERSION = '2026-06-09.1';
+
+function ensureStateCacheVersion() {
+  try {
+    var current = localStorage.getItem(STORAGE_VERSION_KEY);
+    if (current === STORAGE_VERSION) return false;
+    // Legacy + aktueller Key löschen, dann Version setzen.
+    localStorage.removeItem(STORAGE_KEY_BASE);
+    localStorage.removeItem(STORAGE_KEY);
+    localStorage.setItem(STORAGE_VERSION_KEY, STORAGE_VERSION);
+    console.log('Tree-Builder: SLM-State-Cache invalidiert (' + _storeEnv + ' v' + STORAGE_VERSION + ')');
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
 
 // API-URL zeigt auf den gewählten Store
 var API_URL = (_storeEnv === 'dev' ? '/maps-dev' : '/maps') + '/tnet/api/v1/treebuilder-api.php';
@@ -1677,6 +1698,7 @@ window.TB_STARTED = 1;  // Diagnostik: Script hat begonnen
 var state = {
   layers: [],           // Flat layer list from API
   layerAliases: {},     // NLS-Alias-Map (desc_<key> -> Label)
+  layerAliasesBase: {}, // Letzter vom Server geladener Alias-Stand (Delta-Basis)
   nodeEditMeta: {},     // Letzte Objekt-Änderung: { '<profile>|<lyrmgr>|<type>|<id>': { updatedBy, updatedAt } }
   lastDraftSeenRevision: 0,
   stagingMeta: null,    // Staging-Modus: supplements (aliases, maptips, legends)
@@ -2119,6 +2141,23 @@ function loadLayers(profile) {
       var data = json.data || {};
       state.layers = data.layers || [];
       state.layerAliases = data.aliases || {};
+      state.layerAliasesBase = JSON.parse(JSON.stringify(state.layerAliases || {}));
+      // DB-Aliases (aus catalog_document.__nlsAliases) überschreiben Core-NLS.
+      // Sofort anwenden falls schon geladen, sonst per Timeout nochmals.
+      function applyDbAliases() {
+        var dbAl = window._lastLoadedConfData && window._lastLoadedConfData.__nlsAliases;
+        if (dbAl && typeof dbAl === 'object') {
+          Object.keys(dbAl).forEach(function(k) {
+            if (dbAl[k]) {
+              state.layerAliases[k] = dbAl[k];
+              state.layerAliasesBase[k] = dbAl[k];
+            }
+          });
+        }
+      }
+      applyDbAliases();
+      // Nochmals nach 800ms falls applyLoadedLyrmgr erst danach fertig ist
+      setTimeout(applyDbAliases, 800);
       state.layerSources = data.sources || [];
       // Flatten if needed
       if (state.layers.length && state.layers[0].subcategories) {
@@ -3404,7 +3443,7 @@ function renderTreeTabs() {
   html += '<button class="tb-lyrmgr-btn" data-action="lyrmgr-import-profile" title="lyrmgr.conf vom Server importieren (aktuelles oder anderes Profil)">📥 Von Profil laden</button>';
   html += '<button class="tb-lyrmgr-btn" data-action="file-import" title="JSON-Backup importieren">📂 Datei laden</button>';
   html += '<span class="tb-btn-sep"></span>';
-  html += '<button class="tb-lyrmgr-btn" data-action="lyrmgr-save" title="Draft speichern (tmp/layertree), kein Publish">💾 Draft</button>';
+  html += '<button class="tb-lyrmgr-btn" data-action="lyrmgr-save" title="Speichern und sofort live in DB publizieren">💾 Live DB</button>';
   html += '<button class="tb-lyrmgr-btn" data-action="lyrmgr-verify" title="Layer-IDs prüfen">✅ Verify</button>';
   html += '<span class="tb-btn-sep"></span>';
   html += '<button class="tb-lyrmgr-btn" data-action="lyrmgr-export" title="Aktiven LyrMgr-Block als JSON anzeigen (inkl. Round-Trip-Prüfung)">📤 Export</button>';
@@ -5178,7 +5217,7 @@ document.addEventListener('keydown', function(e) {
 });
 
 document.getElementById('tb-btn-save-profile').addEventListener('click', function() {
-  saveProfileToServer();
+  saveLyrmgrDraft({ silent: false, reason: 'manual-save' });
 });
 
 // =====================================================================
@@ -7557,7 +7596,7 @@ function syncEditorOrderWithRuntime(profileName, lyrmgrs, done) {
 
   var runtimeUrl = API_URL.replace('treebuilder-api.php', 'layers.php')
     + '?group=' + encodeURIComponent(profileName)
-    + '&source=auto';
+    + '&source=db';
 
   function getRuntimeNodes(cat) {
     return (cat && (cat.subcategories || cat.nodes)) || [];
@@ -7663,6 +7702,22 @@ function loadLyrmgrForProfile(profileName, silent) {
       var lyrmgrMetaMap = (json.data && json.data.lyrmgrMeta) ? json.data.lyrmgrMeta : {};
       var lyrmgrKeys = json.data.lyrmgrKeys || Object.keys(confData);
       var lyrmgrs = {};
+
+      // __nodeEditMeta und __nlsAliases aus Payload extrahieren vor Key-Iteration
+      if (confData.__nodeEditMeta && typeof confData.__nodeEditMeta === 'object') {
+        state.nodeEditMeta = confData.__nodeEditMeta;
+      }
+      var _dbNlsAliases = null;
+      if (confData.__nlsAliases && typeof confData.__nlsAliases === 'object') {
+        _dbNlsAliases = confData.__nlsAliases;
+        Object.keys(_dbNlsAliases).forEach(function(k) {
+          state.layerAliases[k] = _dbNlsAliases[k];
+        });
+      }
+      window._lastLoadedConfData = { __nlsAliases: _dbNlsAliases };
+
+      // Meta-Schlüssel aus Iteration ausschliessen
+      lyrmgrKeys = lyrmgrKeys.filter(function(k) { return k !== '__nodeEditMeta' && k !== '__nlsAliases'; });
 
       lyrmgrKeys.forEach(function(key) {
         var block = confData[key];
@@ -8185,12 +8240,173 @@ function scrollToVerifyItem(layerId) {
  * Speichert alle LyrMgr-Blöcke des aktiven Profils.
  */
 var _draftAutoSaveTimer = null;
+var _livePublishTimer = null;
 
 function scheduleDraftAutoSave(reason) {
   if (_draftAutoSaveTimer) clearTimeout(_draftAutoSaveTimer);
   _draftAutoSaveTimer = setTimeout(function() {
     saveLyrmgrDraft({ silent: true, reason: reason || 'move' });
   }, 900);
+}
+
+/**
+ * Speichert alle pending NLS-Aliases still als __nlsAliases-Block in catalog_document.
+ * Kein Filesystem-Zugriff — alles in der DB (analog zu catalog_document-Publish).
+ */
+function _savePendingNlsSilent(profileName) {
+  var nlsIds = Object.keys(state.nlsEdits || {});
+
+  var aliases = {};
+  var savedIds = [];
+  nlsIds.forEach(function(lid) {
+    var e = state.nlsEdits[lid];
+    // Nur Einträge für das aktive Profil übernehmen.
+    // target kann 'profile'/'group' (Profil-spezifisch) oder 'original'/'site-core' (global) sein.
+    // Profil-spezifische Einträge nur wenn Profil passt oder kein Profil gesetzt.
+    var isProfile = (e.target === 'group' || e.target === 'profile');
+    if (isProfile && e.profile && e.profile !== profileName) return;
+    aliases['desc_' + lid] = e.alias;
+    aliases['desc_' + lid.replace(/\//g, '_')] = e.alias;
+    savedIds.push(lid);
+  });
+
+  // Fallback: Alias-Deltas gegen den geladenen Serverstand erfassen,
+  // damit Änderungen auch ohne konsistentes nlsEdits-Memory persistiert werden.
+  var currAliases = state.layerAliases || {};
+  var baseAliases = state.layerAliasesBase || {};
+  Object.keys(currAliases).forEach(function(k) {
+    if (k.indexOf('desc_') !== 0) return;
+    var cur = currAliases[k] == null ? '' : String(currAliases[k]);
+    var base = baseAliases[k] == null ? '' : String(baseAliases[k]);
+    if (cur !== base) aliases[k] = cur;
+  });
+  Object.keys(baseAliases).forEach(function(k) {
+    if (k.indexOf('desc_') !== 0) return;
+    if (Object.prototype.hasOwnProperty.call(currAliases, k)) return;
+    aliases[k] = '';
+  });
+
+  if (!Object.keys(aliases).length) return Promise.resolve({ success: true, skipped: true, count: 0 });
+
+  var editor = _editorName || 'anonym';
+  return fetch(API_URL + '?action=publish-lyrmgr', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Editor-Name': editor },
+    body: JSON.stringify({ profile: profileName, lyrmgrKey: '__nlsAliases', data: aliases })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(json) {
+    if (json.success && json.data && json.data.published) {
+      savedIds.forEach(function(lid) { delete state.nlsEdits[lid]; });
+      Object.keys(aliases).forEach(function(k) { state.layerAliases[k] = aliases[k]; });
+      state.layerAliasesBase = JSON.parse(JSON.stringify(state.layerAliases || {}));
+      updatePendingEditsCounter();
+      console.log('[NLS-DB] Aliases in DB gespeichert:', savedIds.length);
+      return { success: true, skipped: false, count: Object.keys(aliases).length };
+    } else {
+      console.warn('[NLS-DB] Fehler:', json.error || JSON.stringify(json));
+      return { success: false, skipped: false, error: (json.error || 'Unbekannter Fehler') };
+    }
+  })
+  .catch(function(err) {
+    console.warn('[NLS-DB] Fehler:', err.message || err);
+    return { success: false, skipped: false, error: (err.message || String(err)) };
+  });
+}
+
+function scheduleLiveDbPublish(profileName, confData, opts) {  var options = opts || {};
+  if (_livePublishTimer) clearTimeout(_livePublishTimer);
+  _livePublishTimer = setTimeout(function() {
+    publishLyrmgrDbNow(profileName, confData, options);
+  }, 700);
+}
+
+function publishLyrmgrDbNow(profileName, confData, opts) {
+  var options = opts || {};
+  var silent = !!options.silent;
+  var editor = _editorName || 'anonym';
+  var p = state.profiles[profileName];
+  var keys = Object.keys(confData || {});
+  if (!profileName || !p || !p.lyrmgrs || !keys.length) return;
+
+  // nodeEditMeta als __nodeEditMeta-Block mitpublizieren
+  var allRequests = keys.map(function(key) {
+    return fetch(API_URL + '?action=publish-lyrmgr', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Editor-Name': editor },
+      body: JSON.stringify({ profile: profileName, lyrmgrKey: key, data: confData[key] })
+    }).then(function(r) { return r.json(); })
+      .then(function(json) {
+        return {
+          key: key,
+          success: !!json.success,
+          published: !!(json.data && json.data.published),
+          error: json.error || null,
+          raw: json
+        };
+      })
+      .catch(function(err) {
+        return { key: key, success: false, published: false, error: err.message || String(err), raw: null };
+      });
+  });
+
+  // nodeEditMeta separat (Best-Effort, kein Blocking)
+  if (state.nodeEditMeta && Object.keys(state.nodeEditMeta).length) {
+    allRequests.push(
+      fetch(API_URL + '?action=publish-lyrmgr', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Editor-Name': editor },
+        body: JSON.stringify({ profile: profileName, lyrmgrKey: '__nodeEditMeta', data: state.nodeEditMeta })
+      }).then(function(r) { return r.json(); })
+        .then(function(json) { return { key: '__nodeEditMeta', success: !!json.success, published: !!(json.data && json.data.published), error: null, raw: json }; })
+        .catch(function() { return { key: '__nodeEditMeta', success: false, published: false }; })
+    );
+  }
+
+  var requests = allRequests;
+
+  Promise.all(requests).then(function(results) {
+    // __nodeEditMeta-Ergebnis ignorieren bei Fehlerprüfung
+    var failed = results.filter(function(r) { return r.key !== '__nodeEditMeta' && (!r.success || !r.published); });
+    var statusEl = document.getElementById('tb-save-status');
+
+    if (!failed.length) {
+      keys.forEach(function(key) {
+        if (p.lyrmgrs[key]) p.lyrmgrs[key]._rawBlock = JSON.parse(JSON.stringify(confData[key]));
+      });
+      // Eigene Publish-Revision hochzählen, damit Polling-Check keinen Self-Reload auslöst
+      _lastPublishRevision = _lastPublishRevision + 1;
+      if (statusEl) {
+        var nowText = formatSwissDateTime(new Date());
+        statusEl.textContent = '🟢 Live in DB (' + nowText + ')';
+        statusEl.style.color = 'rgba(120,255,160,.9)';
+      }
+      updateLmPreviewIframe();
+
+      // NLS-Aliases automatisch mit-speichern (group-Ziel = aktives Profil)
+      _savePendingNlsSilent(profileName).then(function(nlsRes) {
+        if (nlsRes && nlsRes.success === false) {
+          if (statusEl) {
+            statusEl.textContent = '⚠ Live in DB, aber Alias-Save fehlgeschlagen';
+            statusEl.style.color = '#f5a623';
+          }
+        }
+      });
+      return;
+    }
+
+    if (statusEl) {
+      statusEl.textContent = '⚠ DB-Publish-Fehler';
+      statusEl.style.color = '#f5a623';
+    }
+    if (!silent) {
+      var failMsg = failed.map(function(f) {
+        var detail = (f.error || (f.raw && (f.raw.detail || f.raw.error)) || 'Unbekannt');
+        return f.key + ': ' + detail;
+      }).join('\n');
+      _tbAlert('DB-Publish fehlgeschlagen', '<pre>' + esc(failMsg) + '</pre>', 'error');
+    }
+  });
 }
 
 function saveLyrmgrDraft(opts) {
@@ -8227,11 +8443,15 @@ function saveLyrmgrDraft(opts) {
       if (statusEl) {
         var who = json.data.updatedBy || editor;
         var at = json.data.updatedAt ? formatSwissDateTime(json.data.updatedAt) : formatSwissDateTime(new Date());
-        statusEl.textContent = '💾 Draft gespeichert (' + who + ' · ' + at + ')';
+        statusEl.textContent = '💾 Gespeichert (' + who + ' · ' + at + ')';
         statusEl.style.color = 'rgba(120,255,160,.8)';
         setTimeout(function() { statusEl.style.color = 'rgba(255,255,255,.45)'; }, 3000);
       }
       console.log('Draft gespeichert:', json.data);
+      scheduleLiveDbPublish(profileName, confData, {
+        silent: silent,
+        reason: options.reason || 'draft-save'
+      });
     } else {
       if (!silent) {
         _tbAlert('Draft-Speichern fehlgeschlagen', '<pre>' + esc(json.error || JSON.stringify(json)) + '</pre>', 'error');
@@ -8246,29 +8466,11 @@ function saveLyrmgrDraft(opts) {
 }
 
 /**
- * Beim Profil-Laden: Draft bevorzugen falls vorhanden.
- * Fragt zuerst den Draft ab, dann fallback auf das productive Config.
+ * Kompatibilitäts-Wrapper: lädt immer den publizierten Stand.
+ * Draft-Ansicht wird nicht mehr automatisch bevorzugt.
  */
 function loadLyrmgrForProfileWithDraft(profileName, silent) {
-  // Zuerst Draft prüfen
-  fetch(API_URL + '?action=load-lyrmgr&profile=' + encodeURIComponent(profileName) + '&source=draft')
-    .then(function(r) { return r.json(); })
-    .then(function(json) {
-      if (json.success && json.data && json.data.exists && !json.data.error) {
-        // Draft gefunden — laden
-        if (!silent) {
-          console.log('Draft gefunden für "' + profileName + '": ' + json.data.path + ' (' + json.data.modified + ')');
-        }
-        applyLoadedLyrmgr(profileName, json.data, silent, true);
-      } else {
-        // Kein Draft → productive Config laden
-        loadLyrmgrForProfile(profileName, silent);
-      }
-    })
-    .catch(function() {
-      // Bei Fehler → productive Config laden
-      loadLyrmgrForProfile(profileName, silent);
-    });
+  loadLyrmgrForProfile(profileName, silent);
 }
 
 /**
@@ -8278,8 +8480,34 @@ function loadLyrmgrForProfileWithDraft(profileName, silent) {
 function applyLoadedLyrmgr(profileName, responseData, silent, isDraft) {
   var confData = responseData.data;
   var lyrmgrMetaMap = responseData.lyrmgrMeta || {};
-  var lyrmgrKeys = responseData.lyrmgrKeys || Object.keys(confData);
+  // __nodeEditMeta und __nlsAliases aus dem Payload extrahieren (keine UI-Blöcke)
+  if (confData && confData.__nodeEditMeta && typeof confData.__nodeEditMeta === 'object') {
+    state.nodeEditMeta = confData.__nodeEditMeta;
+  }
+  var _dbNlsAliases = null;
+  if (confData && confData.__nlsAliases && typeof confData.__nlsAliases === 'object') {
+    _dbNlsAliases = confData.__nlsAliases;
+    // Sofort in layerAliases mergen (vor loadLayers)
+    Object.keys(_dbNlsAliases).forEach(function(k) {
+      state.layerAliases[k] = _dbNlsAliases[k];
+    });
+  }
+  // Für loadLayers-Merge nach dem Load
+  window._lastLoadedConfData = { __nlsAliases: _dbNlsAliases };
+  var lyrmgrKeys = (responseData.lyrmgrKeys || Object.keys(confData)).filter(function(k) {
+    return k !== '__nodeEditMeta' && k !== '__nlsAliases';
+  });
   var lyrmgrs = {};
+
+  // Bei stillem Reload (Live-Update) Scroll + Expand-State vorher sichern
+  var _savedScrollTop = 0;
+  var _savedExpandState = null;
+  var _savedActiveLyrmgr = state.activeLyrmgr || null;
+  if (silent) {
+    var _treeBody = document.getElementById('tb-tree-body');
+    if (_treeBody) _savedScrollTop = _treeBody.scrollTop;
+    _savedExpandState = captureExpandState();
+  }
 
   lyrmgrKeys.forEach(function(key) {
     var block = confData[key];
@@ -8296,12 +8524,28 @@ function applyLoadedLyrmgr(profileName, responseData, silent, isDraft) {
     state.groups = deriveGroupsFromLyrmgrs(lyrmgrs);
     state.profiles[profileName] = { lyrmgrs: lyrmgrs };
     state.activeProfile = profileName;
-    state.activeLyrmgr = lyrmgrKeys[0] || null;
+    // Bei stillem Reload aktiven LyrMgr beibehalten, sonst ersten nehmen
+    if (silent && _savedActiveLyrmgr && lyrmgrs[_savedActiveLyrmgr]) {
+      state.activeLyrmgr = _savedActiveLyrmgr;
+    } else {
+      state.activeLyrmgr = lyrmgrKeys[0] || null;
+    }
+
+    // Bei stillem Reload den Expand-State vorab setzen, damit renderTree() ihn nutzt
+    if (silent && _savedExpandState) {
+      _expandState = _savedExpandState;
+    }
 
     renderClipboard();
     renderTreeTabs();
     renderTree();
     saveState();
+
+    // Nach dem Render: Scroll-Position wiederherstellen
+    if (silent && _savedScrollTop > 0) {
+      var _treeBodyAfter = document.getElementById('tb-tree-body');
+      if (_treeBodyAfter) _treeBodyAfter.scrollTop = _savedScrollTop;
+    }
 
     var source = isDraft ? 'Draft' : 'Config';
     console.log('LyrMgr geladen (' + source + '): Profil="' + profileName + '", Keys=' + lyrmgrKeys.join(', '));
@@ -8319,6 +8563,8 @@ function applyLoadedLyrmgr(profileName, responseData, silent, isDraft) {
 
 var _draftStatusPollTimer = null;
 var _lastForeignDraftRevision = 0;
+var _lastPublishRevision = 0;   // Revision aus catalog_document (publizierter Stand)
+var _lastPublishRevisionOwn = 0; // Letzte eigene Publish-Revision (nach saveLyrmgrDraft)
 
 function setDraftLiveDot(show, tooltip) {
   var btn = document.querySelector('#tb-tree-actions [data-action="lyrmgr-save"]');
@@ -8337,7 +8583,7 @@ function setDraftLiveDot(show, tooltip) {
     if (tooltip) btn.title = tooltip;
   } else {
     if (dot) dot.remove();
-    btn.title = 'Draft speichern (tmp/layertree), kein Publish';
+    btn.title = 'Speichern und sofort live in DB publizieren';
   }
 }
 
@@ -8367,10 +8613,9 @@ function checkForeignDraftUpdates() {
 
       if (!_hasLock && rev > _lastForeignDraftRevision) {
         _lastForeignDraftRevision = rev;
-        loadLyrmgrForProfileWithDraft(profileName, true);
         var statusEl = document.getElementById('tb-save-status');
         if (statusEl) {
-          statusEl.textContent = '🔴 Live-Update von ' + (by || '?') + (at ? ' @ ' + at : '');
+          statusEl.textContent = '🔴 Neuer Draft von ' + (by || '?') + (at ? ' @ ' + at : '');
           statusEl.style.color = '#e74c3c';
         }
       }
@@ -8381,7 +8626,49 @@ function checkForeignDraftUpdates() {
 function startDraftStatusPolling() {
   if (_draftStatusPollTimer) clearInterval(_draftStatusPollTimer);
   checkForeignDraftUpdates();
-  _draftStatusPollTimer = setInterval(checkForeignDraftUpdates, 10000);
+  checkPublishUpdates();
+  _draftStatusPollTimer = setInterval(function() {
+    checkForeignDraftUpdates();
+    checkPublishUpdates();
+  }, 10000);
+}
+
+// Prüft ob ein anderer Benutzer in catalog_document publiziert hat.
+// Bei neuer Revision: Baum sofort neu laden.
+function checkPublishUpdates() {
+  var profileName = state.activeProfile;
+  if (!profileName) return;
+  fetch(API_URL + '?action=catalog-publish-status&profile=' + encodeURIComponent(profileName))
+    .then(function(r) { return r.json(); })
+    .then(function(json) {
+      if (!json.success || !json.data || !json.data.exists) return;
+      var rev = Number(json.data.revision || 0);
+      var by  = json.data.updatedBy || null;
+      var at  = json.data.updatedAt ? formatSwissDateTime(json.data.updatedAt) : '';
+
+      // Eigene Revision initialisieren (kein Reload beim ersten Check)
+      if (_lastPublishRevision === 0) {
+        _lastPublishRevision = rev;
+        return;
+      }
+
+      // Nur reagieren wenn sich Revision erhöht hat UND es nicht meine eigene war
+      var mine = !!by && !!_editorName && String(by).toLowerCase() === String(_editorName).toLowerCase();
+      if (rev <= _lastPublishRevision || mine) return;
+
+      _lastPublishRevision = rev;
+
+      // Baum neu laden (silent)
+      loadLyrmgrForProfile(profileName, true);
+
+      var statusEl = document.getElementById('tb-save-status');
+      if (statusEl) {
+        statusEl.textContent = '🔄 Live-Update von ' + (by || '?') + (at ? ' · ' + at : '');
+        statusEl.style.color = 'rgba(100,200,255,.9)';
+        setTimeout(function() { statusEl.style.color = 'rgba(255,255,255,.45)'; }, 4000);
+      }
+    })
+    .catch(function() {});
 }
 
 /**
@@ -8854,8 +9141,8 @@ document.getElementById('tb-profile-select').addEventListener('change', function
   state.activeProfile = profile;
   state.activeLyrmgr = null;
   state.lastDraftSeenRevision = 0;
-  // Draft bevorzugen, fallback auf produktive Config
-  loadLyrmgrForProfileWithDraft(profile, true);
+  // Immer publizierten Stand laden (runtime-konsistent)
+  loadLyrmgrForProfile(profile, true);
   startDraftStatusPolling();
   saveState();
   // Layer für neues Profil laden (core + override + profil-spezifisch)
@@ -8868,7 +9155,8 @@ document.getElementById('tb-profile-select').addEventListener('change', function
 function buildLmPreviewUrl(panel) {
   var group = state.activeProfile || 'public';
   var p = panel || document.getElementById('tb-lm-panel-select').value || 'both';
-  var src = (document.getElementById('tb-lm-source-select') || {}).value || 'auto';
+  var src = (document.getElementById('tb-lm-source-select') || {}).value || 'db';
+  src = (src === 'file') ? 'file' : 'db';
   return 'dev-test.html?group=' + encodeURIComponent(group) + '&panel=' + p + '&source=' + src;
 }
 function updateLmPreviewIframe() {
@@ -9030,6 +9318,7 @@ document.getElementById('tb-json-apply').addEventListener('click', function() {
 // =====================================================================
 // Init — sequenziell: erst Profile laden, dann Lyrmgr
 // =====================================================================
+ensureStateCacheVersion();
 var restored = loadState();
 if (restored) console.log('Tree-Builder: State aus localStorage wiederhergestellt (Profil: ' + state.activeProfile + ', LyrMgr: ' + state.activeLyrmgr + ')');
 loadRuntimePaths('tb-main-runtime-paths');
@@ -9047,11 +9336,9 @@ loadAvailableProfiles(function() {
   console.log('[TB-DIAG v5] loadLayers(' + _initProfile + ')');
   loadLayers(_initProfile);
 
-  // Schritt 4: Lyrmgr immer vom Server laden (lokaler Snapshot nur als Fallback in loadState)
-  // Draft bevorzugen, fallback auf produktive Config.
-  // So bleiben Draft-Änderungen nach Reload sichtbar, bis publiziert wird.
-  console.log('[TB-DIAG v5] loadLyrmgrForProfileWithDraft(' + _initProfile + ') [server-first]');
-  loadLyrmgrForProfileWithDraft(_initProfile, true);
+  // Schritt 4: Lyrmgr immer vom Server laden (publizierter Stand = runtime-konsistent)
+  console.log('[TB-DIAG v5] loadLyrmgrForProfile(' + _initProfile + ') [server-first]');
+  loadLyrmgrForProfile(_initProfile, true);
   startDraftStatusPolling();
 });
 </script>

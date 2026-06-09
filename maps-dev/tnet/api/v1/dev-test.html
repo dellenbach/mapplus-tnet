@@ -184,7 +184,8 @@ var params = new URLSearchParams(window.location.search);
 var currentGroup  = params.get('group')  || 'marco';
 var currentPanel  = params.get('panel')  || 'tree';
 var currentView   = params.get('view')   || 'mobile';
-var currentSource = params.get('source') || 'file'; // file = Config-Dateien (Default), auto = DB wenn verfügbar
+var currentSource = params.get('source') || 'db'; // db|file
+currentSource = (currentSource === 'file') ? 'file' : 'db';
 
 // =====================================================================
 // Logger
@@ -312,7 +313,7 @@ document.getElementById('dt-api-url').textContent = buildApiUrl();
   }
   refresh();
   btn.addEventListener('click', function() {
-    currentSource = (currentSource === 'file') ? 'auto' : 'file';
+    currentSource = (currentSource === 'file') ? 'db' : 'file';
     refresh();
     updateUrl();
     reloadData();

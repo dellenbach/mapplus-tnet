@@ -158,12 +158,14 @@
     _loadLyrmgrFromApi: function (group) {
       var self = this;
       var url = normalizeApiUrl(_config.apiUrl);
+      var apiSource = (_config.apiSource || 'db');
+      apiSource = (apiSource === 'file') ? 'file' : 'db';
       url += (url.indexOf('?') > -1 ? '&' : '?') + 'group=' + encodeURIComponent(group);
-      // DB-first: API entscheidet mit source=auto (DB bevorzugt, File als Fallback)
-      url += '&source=auto';
+      // Quelle explizit setzen: kein Hybrid-/Auto-Modus.
+      url += '&source=' + encodeURIComponent(apiSource);
       if (_config.cache === false) url += '&nocache=1';
 
-      if (_config.debug) TnetLog.log(LOG, 'Lade Katalog aus API (group=' + group + ')');
+      if (_config.debug) TnetLog.log(LOG, 'Lade Katalog aus API (group=' + group + ', source=' + apiSource + ')');
 
       fetch(url)
         .then(function (r) {

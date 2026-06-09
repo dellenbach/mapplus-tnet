@@ -83,6 +83,29 @@ class StagingImportRepository {
         return $result;
     }
 
+    /**
+     * Alle Bundles laden ohne Schema-Check (fuer den Runtime-Einsatz in layers.php).
+     * Gibt leeres Array zurueck wenn die Tabelle nicht existiert.
+     */
+    public static function loadAllSafe(): array {
+        try {
+            $pdo = Database::getConnection();
+            $stmt = $pdo->query(
+                "SELECT kuerzel, tags, payload, manifest, scope, profile, last_imported_at, last_imported_by, created_at, updated_at
+                   FROM " . self::TABLE . "
+                 ORDER BY kuerzel"
+            );
+            $rows = $stmt->fetchAll();
+            $result = [];
+            foreach ($rows as $row) {
+                $result[] = self::rowToBundle($row);
+            }
+            return $result;
+        } catch (\Throwable $e) {
+            return [];
+        }
+    }
+
     public static function loadBundle(string $kuerzel): ?array {
         self::ensureSchema();
         $pdo = Database::getConnection();

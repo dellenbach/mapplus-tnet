@@ -9,7 +9,7 @@
  * - ?flat=true (Flache Liste statt Baum)
  * - ?details=false (Nur IDs+Namen, ohne url/params/options — viel schneller)
  * - ?debug=1 (Debug-Informationen)
- * - ?source=auto|db|file (Datenquelle: DB bevorzugt, Fallback auf Dateien)
+ * - ?source=db|file (Datenquelle muss explizit gesetzt sein)
  * 
  * Hybrid-Architektur:
  *   1. PostgreSQL (mapplusconf) — bevorzugt, schnellster Pfad
@@ -82,18 +82,17 @@ $flat     = isset($_GET['flat']) && $_GET['flat'] === 'true';
 $details  = !isset($_GET['details']) || $_GET['details'] !== 'false'; // default: true
 $debug    = isset($_GET['debug']) && $_GET['debug'] === '1';
 $layerId  = $_GET['id'] ?? null; // Einzelner Layer per ID
-$source   = strtolower(trim($_GET['source'] ?? 'auto')); // auto|db|file
+$source   = strtolower(trim($_GET['source'] ?? '')); // db|file (explizit)
 $noCache  = isset($_GET['nocache']) && $_GET['nocache'] === '1';
 $action   = $_GET['action'] ?? null;
 
-// Bei DB-first (catalog) soll der Runtime-Auto-Modus denselben
-// Profil-Dokumentpfad verwenden wie der Tree-Builder (CatalogRepository),
-// nicht das Legacy-Normalform-Schema (catalog_node).
-$preferCatalogProfileDoc = ConfigSource::useDb('catalog');
+if ($source === '' || $source === 'auto' || !in_array($source, ['db', 'file'], true)) {
+    ApiResponse::error("Ungueltiger source-Parameter. Verwende source=db oder source=file.", 400);
+}
 
-// DB-first-Katalogdaten werden direkt aus der DB gelesen; der JSON-Dateicache
-// kann sonst veraltete Antworten liefern (fehlende DB-Invalidierung).
-$bypassJsonCache = $preferCatalogProfileDoc;
+// Quelltrennung: pro Request genau EINE Quelle verwenden (DB ODER Files).
+// Kein Mischen von Katalog aus DB mit Layer-Details aus Dateien.
+$bypassJsonCache = false;
 
 // =====================================================================
 // Action: NLS-Label-Check
@@ -265,7 +264,12 @@ function _nlsExtractKeys($node, $type, &$out) {
 $useDatabase = false;
 $dbSource    = 'file'; // Tracking welche Quelle tatsächlich benutzt wird
 
-if ($source !== 'file' && !($source === 'auto' && $preferCatalogProfileDoc)) {
+// Bei source=db: immer catalog_document (Tree-Builder Quelle) verwenden.
+// catalog_node-Pfad (altes Schema) wird komplett übersprungen.
+// Keine Abhängigkeit von ConfigSource, da source=db explizit vom Client gesetzt wird.
+$useCatalogDocument = ($source === 'db');
+
+if ($source !== 'file' && !$useCatalogDocument) {
     try {
         $dbStatus = Database::isAvailable();
         if ($dbStatus['available']) {
@@ -524,27 +528,36 @@ $startTime = microtime(true);
 
 $lyrmgrSourceUsed = 'file';
 
-// 1. lyrmgr.conf (aus dem gewählten Profil)
-// Bei aktivem Katalog-DB-Modus zuerst das veröffentlichte Dokument verwenden,
-// damit Publish aus dem Tree-Builder in der Laufzeit-App direkt sichtbar ist.
-$conf = null;
-if (ConfigSource::useDb('catalog')) {
+// 1. lyrmgr.conf: Bei source=db aus catalog_document laden (Tree-Builder Quelle),
+//    sonst aus Konfigurationsdatei lesen.
+if ($useCatalogDocument) {
+    require_once __DIR__ . '/../includes/CatalogRepository.php';
     try {
         $doc = CatalogRepository::loadProfile($group);
-        if (!empty($doc['exists']) && is_array($doc['data']) && !empty($doc['data'])) {
-            $conf = $doc['data'];
-            $lyrmgrSourceUsed = 'catalog-db';
+        if (empty($doc['exists']) || empty($doc['data'])) {
+            ApiResponse::error(
+                'Kein Katalog-Dokument für Profil "' . $group . '" in der DB. Bitte im Tree-Builder publizieren. Hinweis: Profil muss mindestens einmal im Tree-Builder gespeichert werden.',
+                404
+            );
         }
+        $conf = $doc['data'];
+        $lyrmgrSourceUsed = 'catalog-db';
+        // __nlsAliases und __nodeEditMeta aus dem Payload in NLS-Runtime einspeisen
+        if (isset($conf['__nlsAliases']) && is_array($conf['__nlsAliases'])) {
+            foreach ($conf['__nlsAliases'] as $k => $v) {
+                if (is_string($v)) $_nlsAliasesRuntime[$k] = $v;
+            }
+        }
+        // Meta-Schlüssel aus $conf entfernen (kein Baum-Block)
+        unset($conf['__nlsAliases'], $conf['__nodeEditMeta']);
     } catch (\Throwable $e) {
-        error_log('layers.php: Katalog-DB-Dokument nicht verfügbar, fallback auf Datei: ' . $e->getMessage());
+        ApiResponse::error('Katalog-DB nicht erreichbar: ' . $e->getMessage() . ' | ' . $e->getFile() . ':' . $e->getLine(), 500);
     }
-}
-
-if (!$conf) {
+} else {
     $conf = ConfigReader::readLyrmgrConf($group);
-}
-if (!$conf) {
-    ApiResponse::notFound("lyrmgr.conf for group '{$group}'");
+    if (!$conf) {
+        ApiResponse::notFound("lyrmgr.conf for group '{$group}'");
+    }
 }
 
 // 2. lyrmgr-mapping.json
@@ -553,10 +566,81 @@ if (!$mapping) {
     ApiResponse::serverError('lyrmgr-mapping.json not found or invalid');
 }
 
-// 3. Layer-Definitionen aus core/config/layers_*.conf
-//    Immer laden: wird für details UND Legend-Info auf Leaf-Layern benötigt
-$layerData = ConfigReader::readAllLayerDefinitions();
-$layerDefinitions = $layerData['definitions'];
+// 3. Layer-Definitionen + NLS-Aliases: bei source=db aus config_bundle_store,
+//    sonst aus Core-Dateien (identische Scope-Reihenfolge wie SLM Tree-Builder).
+$layerDefinitions = [];
+$_nlsAliasesRuntime = []; // nlsKey => label
+$layerData = ['definitions' => [], 'path' => '', 'filesCount' => 0]; // Fallback fuer Debug-Meta
+
+// catalog_document-Aliases aus $conf nachladen (wurden vor dieser Zeile geparst
+// und in $conf gelesen, aber $conf ist jetzt bereinigt — direkt aus $doc lesen).
+if ($useCatalogDocument && isset($doc) && isset($doc['data']['__nlsAliases'])) {
+    foreach ($doc['data']['__nlsAliases'] as $k => $v) {
+        if (is_string($v) && $v !== '') $_nlsAliasesRuntime[$k] = $v;
+    }
+}
+
+if ($useCatalogDocument) {
+    // DB-Pfad: config_bundle_store analog zum SLM Tree-Builder
+    // loadAllSafe() statt loadAll() um Schema-DDL im Runtime-Kontext zu vermeiden.
+    try {
+        $scopeRank = ['core' => 1, 'override' => 2, 'sitecore' => 2, 'profile' => 3];
+        $bundles = StagingImportRepository::loadAllSafe();
+        usort($bundles, function ($a, $b) use ($scopeRank) {
+            $ra = $scopeRank[$a['scope'] ?? 'core'] ?? 1;
+            $rb = $scopeRank[$b['scope'] ?? 'core'] ?? 1;
+            if ($ra === $rb) return strcmp($a['kuerzel'], $b['kuerzel']);
+            return $ra - $rb;
+        });
+        foreach ($bundles as $bundle) {
+            $bScope = $bundle['scope'] ?? 'core';
+            $bProfile = $bundle['profile'] ?? null;
+            if ($bScope === 'profile') {
+                if (!$group || $bProfile !== $group) continue;
+            }
+            foreach (($bundle['files'] ?? []) as $file) {
+                $prefix = $file['prefix'] ?? '';
+                $data = $file['data'] ?? null;
+                if (!is_array($data) || empty($data)) continue;
+                if ($prefix === 'layers') {
+                    foreach ($data as $k => $v) {
+                        if (is_array($v)) $layerDefinitions[$k] = $v;
+                    }
+                } elseif ($prefix === 'lyrmgrResources') {
+                    foreach ($data as $k => $v) {
+                        if (is_string($v)) $_nlsAliasesRuntime[$k] = $v;
+                    }
+                }
+            }
+        }
+    } catch (\Throwable $e) {
+        error_log('layers.php: config_bundle_store Fehler: ' . $e->getMessage());
+    }
+    // Fallback: wenn config_bundle_store noch leer ist, Dateien lesen
+    if (empty($layerDefinitions)) {
+        $layerData = ConfigReader::readAllLayerDefinitions();
+        $layerDefinitions = $layerData['definitions'];
+    }
+} else {
+    $layerData = ConfigReader::readAllLayerDefinitions();
+    $layerDefinitions = $layerData['definitions'];
+}
+
+// Profil-spezifische NLS-Datei nur im Datei-Modus nachladen.
+// In source=db ist catalog_document.__nlsAliases die Quelle der Wahrheit.
+if (!$useCatalogDocument) {
+    $_profileNlsBase = realpath(__DIR__ . '/../../../public/config') . '/';
+    $_profileNlsSafe = preg_replace('/[^a-zA-Z0-9_\-]/', '', $group);
+    $_profileNlsPath = ($_profileNlsSafe === 'public')
+        ? $_profileNlsBase . 'lyrmgrResources.json'
+        : $_profileNlsBase . $_profileNlsSafe . '/lyrmgrResources.json';
+    if (file_exists($_profileNlsPath)) {
+        $_profileNlsData = json_decode(file_get_contents($_profileNlsPath), true);
+        if (is_array($_profileNlsData)) {
+            $_nlsAliasesRuntime = array_merge($_nlsAliasesRuntime, $_profileNlsData);
+        }
+    }
+}
 
 // === Layer-Katalog aufbauen ===
 $categories = [];
@@ -729,7 +813,9 @@ if ($debug) {
         'coreConfigPath'        => $layerData['path'],
         'layerFilesFound'       => $layerData['filesCount'],
         'layerDefinitionsCount' => count($layerDefinitions),
-        'availableGroups'       => ConfigReader::listGroups()
+        'availableGroups'       => ConfigReader::listGroups(),
+        'nlsAliasesRuntime'     => array_slice($_nlsAliasesRuntime, 0, 10, true),
+        'docHasNlsAliases'      => isset($doc) && isset($doc['data']['__nlsAliases']) ? array_keys($doc['data']['__nlsAliases']) : 'doc-not-set',
     ];
 }
 
@@ -1033,6 +1119,11 @@ function getNlsLabel($key) {
     }
     // Suche: desc_<key> (exakt)
     $lookupKey = 'desc_' . $key;
+    // DB-Aliases bevorzugen (aus config_bundle_store, geladen in $_nlsAliasesRuntime)
+    global $_nlsAliasesRuntime;
+    if (!empty($_nlsAliasesRuntime) && isset($_nlsAliasesRuntime[$lookupKey])) {
+        return $_nlsAliasesRuntime[$lookupKey];
+    }
     if (isset($nls[$lookupKey])) {
         return $nls[$lookupKey];
     }

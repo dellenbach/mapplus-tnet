@@ -209,13 +209,13 @@
   // Pro Domain ueberschreibbar; fehlt ein Domain-Eintrag, greift 'default'.
   configSource: {
     _description: "Datenquelle pro Konfigurationsdomain: db oder files",
-    default: 'files',     // sicherer Ausgangswert: Legacy-Verhalten
-    bookmarks: 'db',      // Pilot-Domain laeuft ueber die Staging-DB
-    layers: 'files',
-    catalog: 'db',        // Themenkatalog (lyrmgr.conf) ueber die Staging-DB
+    default: 'db',        // DB-only Betrieb
+    bookmarks: 'db',
+    layers: 'db',
+    catalog: 'db',
     // Wenn die DB nicht erreichbar ist, faellt der Server automatisch auf
     // die Dateien zurueck (Fallback), sofern diese vorhanden sind.
-    fallbackToFiles: true,
+    fallbackToFiles: false,
   },
 
   // ============================================================
@@ -248,6 +248,10 @@
     //          Layer-Details werden separat aus der DB nachgeladen.
     //          Kein DB-Import nötig nach Conf-Änderung → schnellerer Turnaround.
     lyrmgrSource: 'api',
+
+    // Quelle für API-Aufrufe im Runtime-LayerManager (bei lyrmgrSource: 'api').
+    // Wichtig: layers.php akzeptiert nur noch explizit 'db' oder 'file' (kein auto).
+    apiSource: 'db',
 
     // API-Endpoint für Layer-Katalog (Hierarchie + Details)
     apiUrl: '/maps-dev/tnet/api/v1/layers.php',
