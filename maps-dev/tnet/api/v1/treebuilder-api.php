@@ -269,11 +269,45 @@ function getDraftPath($profile) {
     return DATA_DIR . '/' . $safe . '-lyrmgr.conf';
 }
 
+function getDraftDbProfile($profile) {
+    $safe = preg_replace('/[^a-zA-Z0-9_\-]/', '', $profile);
+    return $safe . '__draft';
+}
+
 /**
  * Draft-LyrMgr aus tmp/layertree speichern.
  * Speichert die gesamte lyrmgr.conf Struktur (alle Blöcke).
  */
 function saveLyrmgrDraft($profile, $data, $editor) {
+    require_once __DIR__ . '/../includes/ConfigSource.php';
+    if (ConfigSource::useDb('catalog')) {
+        require_once __DIR__ . '/../includes/CatalogRepository.php';
+        try {
+            $draftProfile = getDraftDbProfile($profile);
+            $db = CatalogRepository::saveDraftProfile($draftProfile, $data, $editor);
+            if (empty($db['success'])) {
+                return ['saved' => false, 'error' => 'DB-Draft speichern fehlgeschlagen'];
+            }
+            return [
+                'saved'     => true,
+                'profile'   => $profile,
+                'dbProfile' => $draftProfile,
+                'source'    => 'draft-db',
+                'revision'  => (int)($db['revision'] ?? 0),
+                'updatedBy' => $db['updatedBy'] ?? $editor,
+                'updatedAt' => $db['updatedAt'] ?? date('Y-m-d H:i:s'),
+                'editor'    => $editor,
+                'timestamp' => date('Y-m-d H:i:s')
+            ];
+        } catch (\Throwable $e) {
+            if (!ConfigSource::fallbackEnabled()) {
+                return ['saved' => false, 'error' => 'DB-Draft speichern fehlgeschlagen: ' . $e->getMessage()];
+            }
+            error_log('saveLyrmgrDraft: DB-Fallback auf Datei: ' . $e->getMessage());
+            // Fallback auf Datei unten
+        }
+    }
+
     $path = getDraftPath($profile);
     ensureDirs();
 
@@ -300,6 +334,41 @@ function saveLyrmgrDraft($profile, $data, $editor) {
  * Draft-LyrMgr aus tmp/layertree laden.
  */
 function loadLyrmgrDraft($profile) {
+    require_once __DIR__ . '/../includes/ConfigSource.php';
+    if (ConfigSource::useDb('catalog')) {
+        require_once __DIR__ . '/../includes/CatalogRepository.php';
+        try {
+            $draftProfile = getDraftDbProfile($profile);
+            $doc = CatalogRepository::loadDraftProfile($draftProfile);
+            if ($doc['exists']) {
+                $data = is_array($doc['data']) ? $doc['data'] : [];
+                $lyrmgrKeys = array_keys($data);
+                $meta = is_array($doc['lyrmgrMeta'] ?? null) ? $doc['lyrmgrMeta'] : [];
+                return [
+                    'exists'     => true,
+                    'profile'    => $profile,
+                    'dbProfile'  => $draftProfile,
+                    'lyrmgrKeys' => $lyrmgrKeys,
+                    'lyrmgrMeta' => $meta,
+                    'data'       => $data,
+                    'size'       => strlen(json_encode($data)),
+                    'modified'   => $doc['updatedAt'] ?? null,
+                    'revision'   => (int)($doc['revision'] ?? 0),
+                    'source'     => 'draft-db'
+                ];
+            }
+            if (!ConfigSource::fallbackEnabled()) {
+                return ['exists' => false, 'profile' => $profile, 'source' => 'draft-db'];
+            }
+        } catch (\Throwable $e) {
+            if (!ConfigSource::fallbackEnabled()) {
+                return ['exists' => false, 'error' => 'Katalog-DB Draft nicht verfuegbar: ' . $e->getMessage(), 'profile' => $profile, 'source' => 'draft-db'];
+            }
+            error_log('loadLyrmgrDraft: DB-Fallback auf Datei: ' . $e->getMessage());
+            // Fallback auf Datei unten
+        }
+    }
+
     $path = getDraftPath($profile);
     if (!file_exists($path)) {
         return ['exists' => false, 'path' => $path, 'profile' => $profile];
@@ -361,10 +430,57 @@ function loadLyrmgrDraft($profile) {
         'profile'    => $profile,
         'path'       => $path,
         'lyrmgrKeys' => $lyrmgrKeys,
+        'lyrmgrMeta' => array_fill_keys($lyrmgrKeys, [
+            'source' => 'draft-file',
+            'revision' => null,
+            'updatedBy' => null,
+            'updatedAt' => date('Y-m-d H:i:s', filemtime($path)),
+        ]),
         'data'       => $data,
         'size'       => strlen($content),
         'modified'   => date('Y-m-d H:i:s', filemtime($path)),
         'source'     => 'draft'
+    ];
+}
+
+/**
+ * Draft-Status für ein Profil laden (für Live-Indikator bei Mehrbenutzer-Bearbeitung).
+ */
+function getLyrmgrDraftStatus($profile) {
+    require_once __DIR__ . '/../includes/ConfigSource.php';
+    if (ConfigSource::useDb('catalog')) {
+        require_once __DIR__ . '/../includes/CatalogRepository.php';
+        try {
+            $draftProfile = getDraftDbProfile($profile);
+            $status = CatalogRepository::getDraftStatus($draftProfile);
+            return [
+                'exists'    => (bool)($status['exists'] ?? false),
+                'profile'   => $profile,
+                'dbProfile' => $draftProfile,
+                'source'    => 'draft-db',
+                'revision'  => (int)($status['revision'] ?? 0),
+                'updatedBy' => $status['updatedBy'] ?? null,
+                'updatedAt' => $status['updatedAt'] ?? null,
+            ];
+        } catch (\Throwable $e) {
+            if (!ConfigSource::fallbackEnabled()) {
+                return ['exists' => false, 'profile' => $profile, 'source' => 'draft-db', 'error' => $e->getMessage()];
+            }
+            error_log('getLyrmgrDraftStatus: DB-Fallback auf Datei: ' . $e->getMessage());
+        }
+    }
+
+    $path = getDraftPath($profile);
+    if (!file_exists($path)) {
+        return ['exists' => false, 'profile' => $profile, 'source' => 'draft-file'];
+    }
+    return [
+        'exists'    => true,
+        'profile'   => $profile,
+        'source'    => 'draft-file',
+        'revision'  => null,
+        'updatedBy' => null,
+        'updatedAt' => date('Y-m-d H:i:s', filemtime($path)),
     ];
 }
 
@@ -446,6 +562,12 @@ function loadLyrmgrConf($profile) {
                     'profile'    => $profile,
                     'path'       => getConfigPath($profile),
                     'lyrmgrKeys' => array_keys($dbData),
+                    'lyrmgrMeta' => array_fill_keys(array_keys($dbData), [
+                        'source' => 'db',
+                        'revision' => (int)($doc['revision'] ?? 0),
+                        'updatedBy' => $doc['updatedBy'] ?? null,
+                        'updatedAt' => $doc['updatedAt'] ?? null,
+                    ]),
                     'data'       => $dbData,
                     'size'       => strlen(json_encode($dbData)),
                     'revision'   => $doc['revision'],
@@ -480,6 +602,12 @@ function loadLyrmgrConf($profile) {
         'profile'    => $profile,
         'path'       => $path,
         'lyrmgrKeys' => $lyrmgrKeys,
+        'lyrmgrMeta' => array_fill_keys($lyrmgrKeys, [
+            'source' => 'file',
+            'revision' => null,
+            'updatedBy' => null,
+            'updatedAt' => date('Y-m-d H:i:s', filemtime($path)),
+        ]),
         'data'       => $data,
         'size'       => strlen($content),
         'source'     => 'file'
@@ -487,13 +615,20 @@ function loadLyrmgrConf($profile) {
 }
 
 function publishLyrmgrBlock($profile, $lyrmgrKey, $blockData, $editor) {
+    require_once __DIR__ . '/../includes/ConfigSource.php';
+
     $path = getConfigPath($profile);
+    $dbMode = ConfigSource::useDb('catalog');
+    $fileWriteError = null;
 
     // Verzeichnis anlegen falls nötig
     $dir = dirname($path);
     if (!is_dir($dir)) {
         if (!@mkdir($dir, 0775, true)) {
-            return ['published' => false, 'error' => 'Verzeichnis konnte nicht erstellt werden: ' . $dir];
+            if (!$dbMode) {
+                return ['published' => false, 'error' => 'Verzeichnis konnte nicht erstellt werden: ' . $dir];
+            }
+            $fileWriteError = 'Verzeichnis konnte nicht erstellt werden: ' . $dir;
         }
     }
 
@@ -524,7 +659,10 @@ function publishLyrmgrBlock($profile, $lyrmgrKey, $blockData, $editor) {
 
     if ($bytes === false) {
         $err = error_get_last();
-        return ['published' => false, 'error' => 'Schreiben fehlgeschlagen: ' . $path . ' — ' . ($err ? $err['message'] : 'unbekannt')];
+        $fileWriteError = 'Schreiben fehlgeschlagen: ' . $path . ' — ' . ($err ? $err['message'] : 'unbekannt');
+        if (!$dbMode) {
+            return ['published' => false, 'error' => $fileWriteError];
+        }
     }
 
     $result = [
@@ -532,7 +670,7 @@ function publishLyrmgrBlock($profile, $lyrmgrKey, $blockData, $editor) {
         'profile'    => $profile,
         'lyrmgrKey'  => $lyrmgrKey,
         'path'       => $path,
-        'bytes'      => $bytes,
+        'bytes'      => $bytes !== false ? $bytes : 0,
         'editor'     => $editor,
         'timestamp'  => date('Y-m-d H:i:s')
     ];
@@ -541,16 +679,21 @@ function publishLyrmgrBlock($profile, $lyrmgrKey, $blockData, $editor) {
     // Bei configSource=catalog=db ist die DB die Quelle der Wahrheit; die Datei
     // oben bleibt als Legacy-Export/Fallback erhalten. Block wird ins
     // Profil-Dokument gemerged (inkl. Revision + History).
-    require_once __DIR__ . '/../includes/ConfigSource.php';
     if (ConfigSource::useDb('catalog')) {
         require_once __DIR__ . '/../includes/CatalogRepository.php';
         try {
             $db = CatalogRepository::publishBlock($profile, $lyrmgrKey, $blockData, null, $editor);
             $result['source']   = 'db';
             $result['revision'] = $db['revision'];
+            if ($fileWriteError) {
+                $result['warning'] = $fileWriteError;
+            }
         } catch (\Throwable $e) {
             if (!ConfigSource::fallbackEnabled()) {
                 return ['published' => false, 'error' => 'Katalog-DB-Schreiben fehlgeschlagen: ' . $e->getMessage()];
+            }
+            if ($fileWriteError) {
+                return ['published' => false, 'error' => 'DB-Schreiben fehlgeschlagen: ' . $e->getMessage() . ' | Datei ebenfalls fehlgeschlagen: ' . $fileWriteError];
             }
             error_log('publishLyrmgrBlock: DB-Schreiben fehlgeschlagen, nur Datei: ' . $e->getMessage());
             $result['source'] = 'file';
@@ -4522,6 +4665,13 @@ switch ($action) {
         if (!$result['saved']) {
             jsonError($result['error'], 500);
         }
+        jsonResponse(['success' => true, 'data' => $result]);
+        break;
+
+    case 'lyrmgr-draft-status':
+        $profile = $_GET['profile'] ?? '';
+        if (!$profile) jsonError('Parameter profile= erforderlich', 400);
+        $result = getLyrmgrDraftStatus($profile);
         jsonResponse(['success' => true, 'data' => $result]);
         break;
 

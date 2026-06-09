@@ -30,19 +30,19 @@ class CatalogRepository {
      * Liest die komplette lyrmgr.conf eines Profils.
      *
      * @param string $profile Profilname (z.B. 'public')
-     * @return array{exists: bool, data: array, revision: int}
+     * @return array{exists: bool, data: array, revision: int, updatedBy: ?string, updatedAt: ?string}
      */
     public static function loadProfile(string $profile): array {
         $pdo = Database::getConnection();
         $stmt = $pdo->prepare(
-            "SELECT payload, revision FROM mapplusconf.catalog_document
+            "SELECT payload, revision, updated_by, updated_at FROM mapplusconf.catalog_document
              WHERE profile = :profile"
         );
         $stmt->execute(['profile' => $profile]);
         $row = $stmt->fetch();
 
         if (!$row) {
-            return ['exists' => false, 'data' => [], 'revision' => 0];
+            return ['exists' => false, 'data' => [], 'revision' => 0, 'updatedBy' => null, 'updatedAt' => null];
         }
 
         $data = self::decodePayload($row['payload']);
@@ -50,6 +50,8 @@ class CatalogRepository {
             'exists'   => true,
             'data'     => $data ?? [],
             'revision' => (int)$row['revision'],
+            'updatedBy' => isset($row['updated_by']) ? (string)$row['updated_by'] : null,
+            'updatedAt' => isset($row['updated_at']) ? (string)$row['updated_at'] : null,
         ];
     }
 
@@ -219,6 +221,224 @@ class CatalogRepository {
         return self::saveProfile($profile, $doc, $expected, $user, 'publish', $lyrmgrKey);
     }
 
+    // ===== DRAFT (GRANULAR, BLOCKWEISE) =====
+
+    /**
+     * Speichert den Draft eines Profils blockweise in separaten Draft-Tabellen.
+     *
+     * @param string      $profile Profilname
+     * @param array       $data    Draft-Dokument (lyrmgrKey => block)
+     * @param string|null $user    Bearbeiter
+     * @return array{success: bool, revision: int, updatedBy: ?string, updatedAt: ?string}
+     */
+    public static function saveDraftProfile(string $profile, array $data, ?string $user): array {
+        $pdo = Database::getConnection();
+        self::ensureDraftTables($pdo);
+
+        $pdo->beginTransaction();
+        try {
+            $stmt = $pdo->prepare(
+                "SELECT revision FROM mapplusconf.catalog_draft_profile
+                 WHERE profile = :profile FOR UPDATE"
+            );
+            $stmt->execute(['profile' => $profile]);
+            $row = $stmt->fetch();
+            $currentRevision = $row ? (int)$row['revision'] : 0;
+            $newRevision = $currentRevision + 1;
+
+            $upProfile = $pdo->prepare(
+                "INSERT INTO mapplusconf.catalog_draft_profile (profile, revision, updated_by)
+                 VALUES (:profile, :revision, :user)
+                 ON CONFLICT (profile) DO UPDATE
+                    SET revision = EXCLUDED.revision,
+                        updated_by = EXCLUDED.updated_by,
+                        updated_at = now()"
+            );
+            $upProfile->execute([
+                'profile'  => $profile,
+                'revision' => $newRevision,
+                'user'     => $user,
+            ]);
+
+            $existingKeys = [];
+            $listStmt = $pdo->prepare(
+                "SELECT lyrmgr_key FROM mapplusconf.catalog_draft_block WHERE profile = :profile"
+            );
+            $listStmt->execute(['profile' => $profile]);
+            foreach ($listStmt->fetchAll() as $kRow) {
+                $existingKeys[(string)$kRow['lyrmgr_key']] = true;
+            }
+
+            $upBlock = $pdo->prepare(
+                "INSERT INTO mapplusconf.catalog_draft_block
+                    (profile, lyrmgr_key, payload, revision, updated_by)
+                 VALUES (:profile, :key, :payload::jsonb, :revision, :user)
+                 ON CONFLICT (profile, lyrmgr_key) DO UPDATE
+                    SET payload = EXCLUDED.payload,
+                        revision = EXCLUDED.revision,
+                        updated_by = EXCLUDED.updated_by,
+                        updated_at = now()"
+            );
+            $insEvent = $pdo->prepare(
+                "INSERT INTO mapplusconf.catalog_draft_event
+                    (profile, lyrmgr_key, action, revision, payload, changed_by)
+                 VALUES (:profile, :key, :action, :revision, :payload::jsonb, :user)"
+            );
+
+            foreach ($data as $lyrmgrKey => $block) {
+                $payloadJson = json_encode($block, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+                $upBlock->execute([
+                    'profile'  => $profile,
+                    'key'      => (string)$lyrmgrKey,
+                    'payload'  => $payloadJson,
+                    'revision' => $newRevision,
+                    'user'     => $user,
+                ]);
+                $insEvent->execute([
+                    'profile'  => $profile,
+                    'key'      => (string)$lyrmgrKey,
+                    'action'   => 'upsert',
+                    'revision' => $newRevision,
+                    'payload'  => $payloadJson,
+                    'user'     => $user,
+                ]);
+                unset($existingKeys[(string)$lyrmgrKey]);
+            }
+
+            if (!empty($existingKeys)) {
+                $delBlock = $pdo->prepare(
+                    "DELETE FROM mapplusconf.catalog_draft_block
+                     WHERE profile = :profile AND lyrmgr_key = :key"
+                );
+                $insDeleteEvent = $pdo->prepare(
+                    "INSERT INTO mapplusconf.catalog_draft_event
+                        (profile, lyrmgr_key, action, revision, payload, changed_by)
+                     VALUES (:profile, :key, :action, :revision, :payload::jsonb, :user)"
+                );
+                $emptyPayload = '{}';
+                foreach (array_keys($existingKeys) as $deletedKey) {
+                    $delBlock->execute([
+                        'profile' => $profile,
+                        'key'     => $deletedKey,
+                    ]);
+                    $insDeleteEvent->execute([
+                        'profile'  => $profile,
+                        'key'      => $deletedKey,
+                        'action'   => 'delete',
+                        'revision' => $newRevision,
+                        'payload'  => $emptyPayload,
+                        'user'     => $user,
+                    ]);
+                }
+            }
+
+            $pdo->commit();
+
+            $status = self::getDraftStatus($profile);
+            return [
+                'success'   => true,
+                'revision'  => (int)($status['revision'] ?? $newRevision),
+                'updatedBy' => $status['updatedBy'] ?? $user,
+                'updatedAt' => $status['updatedAt'] ?? null,
+            ];
+        } catch (\Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            throw $e;
+        }
+    }
+
+    /**
+     * Lädt den blockweise gespeicherten Draft eines Profils.
+     *
+     * @param string $profile Profilname
+     * @return array{exists: bool, data: array, revision: int, updatedBy: ?string, updatedAt: ?string, lyrmgrMeta: array}
+     */
+    public static function loadDraftProfile(string $profile): array {
+        $pdo = Database::getConnection();
+        self::ensureDraftTables($pdo);
+
+        $statusStmt = $pdo->prepare(
+            "SELECT revision, updated_by, updated_at
+             FROM mapplusconf.catalog_draft_profile
+             WHERE profile = :profile"
+        );
+        $statusStmt->execute(['profile' => $profile]);
+        $status = $statusStmt->fetch();
+
+        if (!$status) {
+            return [
+                'exists'     => false,
+                'data'       => [],
+                'revision'   => 0,
+                'updatedBy'  => null,
+                'updatedAt'  => null,
+                'lyrmgrMeta' => [],
+            ];
+        }
+
+        $blocksStmt = $pdo->prepare(
+            "SELECT lyrmgr_key, payload, revision, updated_by, updated_at
+             FROM mapplusconf.catalog_draft_block
+             WHERE profile = :profile
+             ORDER BY lyrmgr_key"
+        );
+        $blocksStmt->execute(['profile' => $profile]);
+
+        $data = [];
+        $meta = [];
+        foreach ($blocksStmt->fetchAll() as $row) {
+            $key = (string)$row['lyrmgr_key'];
+            $data[$key] = self::decodePayload($row['payload']) ?? [];
+            $meta[$key] = [
+                'source'    => 'draft-db',
+                'revision'  => (int)$row['revision'],
+                'updatedBy' => isset($row['updated_by']) ? (string)$row['updated_by'] : null,
+                'updatedAt' => isset($row['updated_at']) ? (string)$row['updated_at'] : null,
+            ];
+        }
+
+        return [
+            'exists'     => true,
+            'data'       => $data,
+            'revision'   => (int)$status['revision'],
+            'updatedBy'  => isset($status['updated_by']) ? (string)$status['updated_by'] : null,
+            'updatedAt'  => isset($status['updated_at']) ? (string)$status['updated_at'] : null,
+            'lyrmgrMeta' => $meta,
+        ];
+    }
+
+    /**
+     * Liefert den aktuellen Draft-Status für ein Profil.
+     *
+     * @param string $profile Profilname
+     * @return array{exists: bool, revision: int, updatedBy: ?string, updatedAt: ?string}
+     */
+    public static function getDraftStatus(string $profile): array {
+        $pdo = Database::getConnection();
+        self::ensureDraftTables($pdo);
+
+        $stmt = $pdo->prepare(
+            "SELECT revision, updated_by, updated_at
+             FROM mapplusconf.catalog_draft_profile
+             WHERE profile = :profile"
+        );
+        $stmt->execute(['profile' => $profile]);
+        $row = $stmt->fetch();
+
+        if (!$row) {
+            return ['exists' => false, 'revision' => 0, 'updatedBy' => null, 'updatedAt' => null];
+        }
+
+        return [
+            'exists'     => true,
+            'revision'   => (int)$row['revision'],
+            'updatedBy'  => isset($row['updated_by']) ? (string)$row['updated_by'] : null,
+            'updatedAt'  => isset($row['updated_at']) ? (string)$row['updated_at'] : null,
+        ];
+    }
+
     // ===== SOFT-LOCK =====
 
     /**
@@ -368,6 +588,60 @@ class CatalogRepository {
             'payload'  => $payloadJson,
             'user'     => $user,
         ]);
+    }
+
+    /**
+     * Erstellt bei Bedarf die Draft-Tabellen für blockweise Entwurfsstände.
+     *
+     * @param TnetSchemaConnection $pdo
+     * @return void
+     */
+    private static function ensureDraftTables($pdo): void {
+        static $ready = false;
+        if ($ready) {
+            return;
+        }
+
+        $pdo->exec(
+            "CREATE TABLE IF NOT EXISTS mapplusconf.catalog_draft_profile (
+                profile text PRIMARY KEY,
+                revision integer NOT NULL DEFAULT 0,
+                updated_by text,
+                updated_at timestamptz NOT NULL DEFAULT now()
+            )"
+        );
+
+        $pdo->exec(
+            "CREATE TABLE IF NOT EXISTS mapplusconf.catalog_draft_block (
+                profile text NOT NULL,
+                lyrmgr_key text NOT NULL,
+                payload jsonb NOT NULL,
+                revision integer NOT NULL DEFAULT 0,
+                updated_by text,
+                updated_at timestamptz NOT NULL DEFAULT now(),
+                PRIMARY KEY (profile, lyrmgr_key)
+            )"
+        );
+
+        $pdo->exec(
+            "CREATE TABLE IF NOT EXISTS mapplusconf.catalog_draft_event (
+                id bigserial PRIMARY KEY,
+                profile text NOT NULL,
+                lyrmgr_key text NOT NULL,
+                action text NOT NULL,
+                revision integer NOT NULL,
+                payload jsonb,
+                changed_by text,
+                changed_at timestamptz NOT NULL DEFAULT now()
+            )"
+        );
+
+        $pdo->exec(
+            "CREATE INDEX IF NOT EXISTS idx_catalog_draft_event_profile_changed_at
+             ON mapplusconf.catalog_draft_event (profile, changed_at DESC)"
+        );
+
+        $ready = true;
     }
 
     /**

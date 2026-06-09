@@ -247,7 +247,7 @@
     // 'file' = LyrMgr-Hierarchie direkt aus lyrmgr.conf lesen (via API ?source=file),
     //          Layer-Details werden separat aus der DB nachgeladen.
     //          Kein DB-Import nötig nach Conf-Änderung → schnellerer Turnaround.
-    lyrmgrSource: 'file',
+    lyrmgrSource: 'api',
 
     // API-Endpoint für Layer-Katalog (Hierarchie + Details)
     apiUrl: '/maps-dev/tnet/api/v1/layers.php',

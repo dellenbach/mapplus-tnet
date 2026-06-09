@@ -27,6 +27,8 @@ require_once __DIR__ . '/../includes/CacheHelper.php';
 require_once __DIR__ . '/../includes/ConfigReader.php';
 require_once __DIR__ . '/../includes/JsonCache.php';
 require_once __DIR__ . '/../includes/Database.php';
+require_once __DIR__ . '/../includes/ConfigSource.php';
+require_once __DIR__ . '/../includes/CatalogRepository.php';
 
 // Standard API Headers
 ApiResponse::setHeaders();
@@ -83,6 +85,15 @@ $layerId  = $_GET['id'] ?? null; // Einzelner Layer per ID
 $source   = strtolower(trim($_GET['source'] ?? 'auto')); // auto|db|file
 $noCache  = isset($_GET['nocache']) && $_GET['nocache'] === '1';
 $action   = $_GET['action'] ?? null;
+
+// Bei DB-first (catalog) soll der Runtime-Auto-Modus denselben
+// Profil-Dokumentpfad verwenden wie der Tree-Builder (CatalogRepository),
+// nicht das Legacy-Normalform-Schema (catalog_node).
+$preferCatalogProfileDoc = ConfigSource::useDb('catalog');
+
+// DB-first-Katalogdaten werden direkt aus der DB gelesen; der JSON-Dateicache
+// kann sonst veraltete Antworten liefern (fehlende DB-Invalidierung).
+$bypassJsonCache = $preferCatalogProfileDoc;
 
 // =====================================================================
 // Action: NLS-Label-Check
@@ -254,7 +265,7 @@ function _nlsExtractKeys($node, $type, &$out) {
 $useDatabase = false;
 $dbSource    = 'file'; // Tracking welche Quelle tatsächlich benutzt wird
 
-if ($source !== 'file') {
+if ($source !== 'file' && !($source === 'auto' && $preferCatalogProfileDoc)) {
     try {
         $dbStatus = Database::isAvailable();
         if ($dbStatus['available']) {
@@ -353,7 +364,7 @@ $sourceFiles = array_filter([$lyrmgrFile, $mappingFile], 'file_exists');
 
 // Cache Hit? (ausser im Debug- oder NoCache-Modus)
 $cached = $cache->get($cacheKey, $sourceFiles, 3600);
-if ($cached !== null && !$debug && !$noCache) {
+if (!$bypassJsonCache && $cached !== null && !$debug && !$noCache) {
     CacheHelper::setNoCache();
     $meta = $cached['meta'] ?? [];
     $meta['cache'] = 'hit';
@@ -488,7 +499,9 @@ if ($useDatabase) {
             $meta['responseTime'] = $elapsed . 'ms';
 
             // In Cache speichern (auch DB-Resultate cachen)
-            $cache->set($cacheKey, ['data' => $result, 'meta' => $meta]);
+            if (!$bypassJsonCache) {
+                $cache->set($cacheKey, ['data' => $result, 'meta' => $meta]);
+            }
 
             CacheHelper::setNoCache();
             ApiResponse::success($result, $meta);
@@ -509,8 +522,27 @@ if ($useDatabase) {
 // =====================================================================
 $startTime = microtime(true);
 
+$lyrmgrSourceUsed = 'file';
+
 // 1. lyrmgr.conf (aus dem gewählten Profil)
-$conf = ConfigReader::readLyrmgrConf($group);
+// Bei aktivem Katalog-DB-Modus zuerst das veröffentlichte Dokument verwenden,
+// damit Publish aus dem Tree-Builder in der Laufzeit-App direkt sichtbar ist.
+$conf = null;
+if (ConfigSource::useDb('catalog')) {
+    try {
+        $doc = CatalogRepository::loadProfile($group);
+        if (!empty($doc['exists']) && is_array($doc['data']) && !empty($doc['data'])) {
+            $conf = $doc['data'];
+            $lyrmgrSourceUsed = 'catalog-db';
+        }
+    } catch (\Throwable $e) {
+        error_log('layers.php: Katalog-DB-Dokument nicht verfügbar, fallback auf Datei: ' . $e->getMessage());
+    }
+}
+
+if (!$conf) {
+    $conf = ConfigReader::readLyrmgrConf($group);
+}
 if (!$conf) {
     ApiResponse::notFound("lyrmgr.conf for group '{$group}'");
 }
@@ -551,7 +583,21 @@ foreach ($mapping['categories'] as $topCategory) {
 
     // Struktur innerhalb des Layer-Managers
     if (isset($lyrmgr['structure'])) {
-        foreach ($lyrmgr['structure'] as $categoryId => $categoryDef) {
+        $structureList = [];
+        if (array_keys($lyrmgr['structure']) === range(0, count($lyrmgr['structure']) - 1)) {
+            // Array-Format (mit _key)
+            foreach ($lyrmgr['structure'] as $entry) {
+                if (!is_array($entry)) continue;
+                $cid = $entry['_key'] ?? ($entry['key'] ?? ($entry['name'] ?? null));
+                if (!$cid) continue;
+                $structureList[$cid] = $entry;
+            }
+        } else {
+            // Objekt-Format
+            $structureList = $lyrmgr['structure'];
+        }
+
+        foreach ($structureList as $categoryId => $categoryDef) {
             // NLS-Lookup für Subcategory-Name, Fallback auf ucfirst
             $subName = getNlsLabel($categoryId);
             if (!$subName) $subName = ucfirst($categoryId);
@@ -563,7 +609,21 @@ foreach ($mapping['categories'] as $topCategory) {
             ];
 
             if (isset($categoryDef['items'])) {
-                foreach ($categoryDef['items'] as $groupId => $groupDef) {
+                $groupList = [];
+                if (array_keys($categoryDef['items']) === range(0, count($categoryDef['items']) - 1)) {
+                    // Array-Format (z.B. [{key,name,items}])
+                    foreach ($categoryDef['items'] as $grpEntry) {
+                        if (!is_array($grpEntry)) continue;
+                        $gid = $grpEntry['key'] ?? ($grpEntry['name'] ?? null);
+                        if (!$gid) continue;
+                        $groupList[$gid] = $grpEntry;
+                    }
+                } else {
+                    // Objekt-Format
+                    $groupList = $categoryDef['items'];
+                }
+
+                foreach ($groupList as $groupId => $groupDef) {
                     // NLS-Lookup für Gruppen-Name, Fallback auf extractLayerName
                     $grpName = getNlsLabel($groupId);
                     if (!$grpName) $grpName = extractLayerName($groupId);
@@ -619,7 +679,7 @@ if ($flat) {
         'count'      => count($flatLayers),
         'format'     => 'flat',
         'filteredBy' => $category,
-        'source'     => 'file'
+        'source'     => $lyrmgrSourceUsed
     ];
 
     if ($debug) {
@@ -632,13 +692,15 @@ if ($flat) {
 
     $elapsed = round((microtime(true) - $startTime) * 1000);
     $meta['responseTime'] = $elapsed . 'ms';
-    $meta['cache'] = 'miss';
+    $meta['cache'] = $bypassJsonCache ? 'bypass' : 'miss';
 
     // In Cache speichern
-    $cached = $cache->set($cacheKey, ['data' => $flatLayers, 'meta' => $meta]);
-    if (!$cached && $debug) {
-        $meta['cacheError'] = $cache->getLastError();
-        $meta['cacheWritable'] = $cache->isWritable();
+    if (!$bypassJsonCache) {
+        $cached = $cache->set($cacheKey, ['data' => $flatLayers, 'meta' => $meta]);
+        if (!$cached && $debug) {
+            $meta['cacheError'] = $cache->getLastError();
+            $meta['cacheWritable'] = $cache->isWritable();
+        }
     }
 
     // HTTP Caching
@@ -659,7 +721,7 @@ $meta = [
     'format'          => 'tree',
     'details'         => $details,
     'filteredBy'      => $category,
-    'source'          => 'file'
+    'source'          => $lyrmgrSourceUsed
 ];
 
 if ($debug) {
@@ -673,13 +735,15 @@ if ($debug) {
 
 $elapsed = round((microtime(true) - $startTime) * 1000);
 $meta['responseTime'] = $elapsed . 'ms';
-$meta['cache'] = 'miss';
+$meta['cache'] = $bypassJsonCache ? 'bypass' : 'miss';
 
 // In Cache speichern
-$cached = $cache->set($cacheKey, ['data' => $result, 'meta' => $meta]);
-if (!$cached && $debug) {
-    $meta['cacheError'] = $cache->getLastError();
-    $meta['cacheWritable'] = $cache->isWritable();
+if (!$bypassJsonCache) {
+    $cached = $cache->set($cacheKey, ['data' => $result, 'meta' => $meta]);
+    if (!$cached && $debug) {
+        $meta['cacheError'] = $cache->getLastError();
+        $meta['cacheWritable'] = $cache->isWritable();
+    }
 }
 
 // HTTP Caching

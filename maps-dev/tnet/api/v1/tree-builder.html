@@ -288,6 +288,16 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 }
 .tb-confirm-box h3 { margin: 0 0 10px; font-size: 14px; color: var(--c-text); flex-shrink: 0; }
 .tb-confirm-box p { margin: 0 0 16px; font-size: 12px; color: #666; line-height: 1.5; overflow-y: auto; flex: 1; }
+.tb-confirm-msg {
+  margin: 0 0 16px;
+  font-size: 12px;
+  color: #666;
+  line-height: 1.5;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+.tb-confirm-msg ul { margin: 4px 0 8px 16px; padding: 0; }
 .tb-confirm-btns { display: flex; gap: 8px; justify-content: flex-end; flex-shrink: 0; padding-top: 4px; }
 .tb-confirm-btns button {
   padding: 6px 16px; border-radius: 4px; font-size: 12px; cursor: pointer; border: 1px solid #ccc;
@@ -1272,8 +1282,8 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
         </select>
         <label style="margin-left:8px">Quelle:</label>
         <select id="tb-lm-source-select">
-          <option value="file" selected>Dateien (live)</option>
-          <option value="auto">DB</option>
+          <option value="file">Dateien (live)</option>
+          <option value="auto" selected>DB (auto)</option>
         </select>
         <button class="lm-prev-reload" id="tb-lm-prev-reload">&#8635; Neu laden</button>
       </div>
@@ -1666,6 +1676,9 @@ window.TB_STARTED = 1;  // Diagnostik: Script hat begonnen
 
 var state = {
   layers: [],           // Flat layer list from API
+  layerAliases: {},     // NLS-Alias-Map (desc_<key> -> Label)
+  nodeEditMeta: {},     // Letzte Objekt-Änderung: { '<profile>|<lyrmgr>|<type>|<id>': { updatedBy, updatedAt } }
+  lastDraftSeenRevision: 0,
   stagingMeta: null,    // Staging-Modus: supplements (aliases, maptips, legends)
   groups: [],           // Wiederverwendbare Gruppen: [{ id, name, layerIds:[] }]
   clipboard: { categories: [] }, // Zwischenablage: gleiche Hierarchie wie Staging
@@ -1753,6 +1766,7 @@ function _restoreSnapshot(snap) {
     state.profiles = restored.profiles || {};
     state.activeProfile = restored.activeProfile || null;
     state.activeLyrmgr = restored.activeLyrmgr || null;
+    state.nodeEditMeta = restored.nodeEditMeta || state.nodeEditMeta || {};
     state.nextGroupId = restored.nextGroupId || 1;
     state.nextCatId = restored.nextCatId || 1;
     state.nextSubId = restored.nextSubId || 1;
@@ -1828,6 +1842,10 @@ function getStateToPersist() {
     profiles: profiles,
     activeProfile: state.activeProfile,
     activeLyrmgr: state.activeLyrmgr,
+    layerAliases: state.layerAliases || {},
+    nodeEditMeta: state.nodeEditMeta || {},
+    layerPropEdits: state.layerPropEdits || {},
+    nlsEdits: state.nlsEdits || {},
     nextGroupId: state.nextGroupId,
     nextCatId: state.nextCatId,
     nextSubId: state.nextSubId,
@@ -1906,6 +1924,10 @@ function applyLoadedState(saved) {
   state.profiles = saved.profiles || {};
   state.activeProfile = saved.activeProfile || null;
   state.activeLyrmgr = saved.activeLyrmgr || null;
+  state.layerAliases = saved.layerAliases || state.layerAliases || {};
+  state.nodeEditMeta = saved.nodeEditMeta || state.nodeEditMeta || {};
+  state.layerPropEdits = saved.layerPropEdits || state.layerPropEdits || {};
+  state.nlsEdits = saved.nlsEdits || state.nlsEdits || {};
   state.nextGroupId = saved.nextGroupId || 1;
   state.nextCatId = saved.nextCatId || 1;
   state.nextSubId = saved.nextSubId || 1;
@@ -3004,11 +3026,12 @@ function renderClipboard() {
  */
 window._tbAlert = function(title, message, type) {
   var t = type || 'info';
+  var msg = String(message == null ? '' : message);
   var overlay = document.createElement('div');
   overlay.className = 'tb-confirm-overlay';
   overlay.innerHTML = '<div class="tb-confirm-box type-' + t + '">' +
     '<h3>' + (t === 'success' ? '✅ ' : t === 'error' ? '❌ ' : t === 'warn' ? '⚠️ ' : '') + title + '</h3>' +
-    '<p>' + message.replace(/\n/g, '<br>') + '</p>' +
+    '<div class="tb-confirm-msg">' + msg.replace(/\n/g, '<br>') + '</div>' +
     '<div class="tb-confirm-btns">' +
     '<button class="primary">OK</button>' +
     '</div></div>';
@@ -3031,11 +3054,12 @@ window._tbConfirm = function(title, message, onOk, opts) {
   var okClass = o.okClass || 'danger';
   var cancelLabel = o.cancelLabel || 'Abbrechen';
   var t = o.type || '';
+  var msg = String(message == null ? '' : message);
   var overlay = document.createElement('div');
   overlay.className = 'tb-confirm-overlay';
   overlay.innerHTML = '<div class="tb-confirm-box' + (t ? ' type-' + t : '') + '">' +
     '<h3>' + title + '</h3>' +
-    '<p>' + message.replace(/\n/g, '<br>') + '</p>' +
+    '<div class="tb-confirm-msg">' + msg.replace(/\n/g, '<br>') + '</div>' +
     '<div class="tb-confirm-btns">' +
     '<button class="cancel">' + cancelLabel + '</button>' +
     '<button class="' + okClass + '">' + okLabel + '</button>' +
@@ -3138,13 +3162,89 @@ function findLayerById(id) {
  */
 function getNlsAlias(layerId) {
   if (!state.layerAliases || !layerId) return null;
+  var id = String(layerId);
   // Primär: desc_<id> mit Original-Slashes (so speichern lyrmgrResources_tnet_*.json)
-  var key1 = 'desc_' + layerId;
+  var key1 = 'desc_' + id;
   if (state.layerAliases[key1]) return state.layerAliases[key1];
   // Fallback: desc_<id> mit / → _ (für flache Keys wie nodi, geoadmin)
-  var key2 = 'desc_' + layerId.replace(/\//g, '_');
+  var key2 = 'desc_' + id.replace(/\//g, '_');
   if (state.layerAliases[key2]) return state.layerAliases[key2];
   return null;
+}
+
+function _nodeMetaTypeFromLabel(label) {
+  var s = String(label || '').toLowerCase();
+  if (s.indexOf('layer') !== -1) return 'layer';
+  if (s.indexOf('gruppe') !== -1) return 'group';
+  if (s.indexOf('kategorie') !== -1) return 'cat';
+  return null;
+}
+
+function getNodeMetaKey(type, id, lyrmgrKey) {
+  var profile = state.activeProfile || '';
+  var lm = lyrmgrKey || state.activeLyrmgr || '';
+  var nodeType = String(type || '').trim();
+  var nodeId = String(id || '').trim();
+  if (!profile || !lm || !nodeType || !nodeId) return null;
+  return [profile, lm, nodeType, nodeId].join('|');
+}
+
+function getNodeEditMeta(type, id, lyrmgrKey) {
+  var key = getNodeMetaKey(type, id, lyrmgrKey);
+  if (!key || !state.nodeEditMeta) return null;
+  return state.nodeEditMeta[key] || null;
+}
+
+function touchNodeEditMeta(type, id, lyrmgrKey) {
+  var key = getNodeMetaKey(type, id, lyrmgrKey);
+  if (!key) return;
+  if (!state.nodeEditMeta) state.nodeEditMeta = {};
+  state.nodeEditMeta[key] = {
+    updatedBy: _editorName || 'anonym',
+    updatedAt: new Date().toISOString()
+  };
+}
+
+function formatSwissDateTime(value) {
+  if (!value) return '';
+  var dateObj = value instanceof Date ? value : new Date(value);
+  if (isNaN(dateObj.getTime())) return String(value);
+  try {
+    return dateObj.toLocaleString('de-CH', {
+      timeZone: 'Europe/Zurich',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false
+    });
+  } catch (e) {
+    return dateObj.toLocaleString('de-CH');
+  }
+}
+
+function formatNodeEditMeta(meta) {
+  if (!meta || (!meta.updatedBy && !meta.updatedAt)) return '';
+  return (meta.updatedBy || '?') + (meta.updatedAt ? ' · ' + formatSwissDateTime(meta.updatedAt) : '');
+}
+
+function touchMovedItemsMeta(items, lyrmgrKey) {
+  if (!Array.isArray(items)) return;
+  items.forEach(function(item) {
+    if (typeof item === 'string') {
+      touchNodeEditMeta('layer', item, lyrmgrKey);
+      return;
+    }
+    if (item && typeof item === 'object') {
+      var grpKey = item.key || item.name || '';
+      if (grpKey) touchNodeEditMeta('group', grpKey, lyrmgrKey);
+      if (Array.isArray(item.items) && item.items.length) {
+        touchMovedItemsMeta(item.items, lyrmgrKey);
+      }
+    }
+  });
 }
 
 // ===== NLS-Edit Dialog =====
@@ -3217,6 +3317,8 @@ function openNlsEditDialog(elementId, elementType) {
       source: layerObj ? (layerObj.source || 'core') : 'core',
       profile: (target === 'group' && groupName) ? groupName : null
     };
+    var nodeType = _nodeMetaTypeFromLabel(elementType);
+    if (nodeType) touchNodeEditMeta(nodeType, elementId);
     console.log('NLS im Memory gespeichert:', elementId, state.nlsEdits[elementId]);
     updatePendingEditsCounter();
 
@@ -3302,7 +3404,7 @@ function renderTreeTabs() {
   html += '<button class="tb-lyrmgr-btn" data-action="lyrmgr-import-profile" title="lyrmgr.conf vom Server importieren (aktuelles oder anderes Profil)">📥 Von Profil laden</button>';
   html += '<button class="tb-lyrmgr-btn" data-action="file-import" title="JSON-Backup importieren">📂 Datei laden</button>';
   html += '<span class="tb-btn-sep"></span>';
-  html += '<button class="tb-lyrmgr-btn" data-action="lyrmgr-save" title="Baum als Draft speichern (tmp/layertree)">💾 Speichern</button>';
+  html += '<button class="tb-lyrmgr-btn" data-action="lyrmgr-save" title="Draft speichern (tmp/layertree), kein Publish">💾 Draft</button>';
   html += '<button class="tb-lyrmgr-btn" data-action="lyrmgr-verify" title="Layer-IDs prüfen">✅ Verify</button>';
   html += '<span class="tb-btn-sep"></span>';
   html += '<button class="tb-lyrmgr-btn" data-action="lyrmgr-export" title="Aktiven LyrMgr-Block als JSON anzeigen (inkl. Round-Trip-Prüfung)">📤 Export</button>';
@@ -3310,7 +3412,8 @@ function renderTreeTabs() {
   html += '<button class="tb-lyrmgr-btn" data-action="backup-manage" title="Server-Backups anzeigen, wiederherstellen und löschen">📁 Backups</button>';
   html += '<span style="flex:1"></span>';
   html += '<button class="tb-lyrmgr-btn" id="tb-deploy-conf-btn" data-action="deploy-conf" title="Pending Conf+NLS-Änderungen auf Server deployen" style="display:none">🚢 Deploy <span id="tb-pending-edits-count" class="badge" style="background:#e74c3c;color:#fff;font-size:9px;padding:1px 5px;border-radius:8px;margin-left:3px">0</span></button>';
-  html += '<button class="tb-lyrmgr-btn tb-lyrmgr-btn-publish" data-action="lyrmgr-publish" title="Alle LyrMgr-Blöcke des Profils auf Server publizieren">🚀 Publish</button>';
+  html += '<button class="tb-lyrmgr-btn tb-lyrmgr-btn-publish" data-action="lyrmgr-publish-db" title="LyrMgr nur in die DB publizieren">🗄 Publish DB</button>';
+  html += '<button class="tb-lyrmgr-btn tb-lyrmgr-btn-publish" data-action="lyrmgr-publish-file" title="lyrmgr.conf als Datei publizieren">🚀 Publish lyrmgr.conf</button>';
   html += '</div>';
   bar.innerHTML = html;
 
@@ -3322,7 +3425,8 @@ function renderTreeTabs() {
       if (action === 'lyrmgr-save') saveLyrmgrDraft();
       if (action === 'lyrmgr-export') exportLyrmgrBlock();
       if (action === 'lyrmgr-verify') verifyLyrmgr();
-      if (action === 'lyrmgr-publish') publishLyrmgr();
+      if (action === 'lyrmgr-publish-db') publishLyrmgr('db');
+      if (action === 'lyrmgr-publish-file') publishLyrmgr('file');
       if (action === 'deploy-conf') deployLayerConfEdits();
       if (action === 'file-import') triggerFileImport();
       if (action === 'file-export') triggerFileExport();
@@ -3488,6 +3592,21 @@ function renderLyrmgrBlock(container, lmKey, profile) {
   var displayName = isLegacy ? (state.activeProfile || 'Profil') : getLyrmgrDisplayName(lmKey);
   var catCount = (profile.categories || []).length;
   var isExpanded = (state.activeLyrmgr === lmKey);
+  var metaInfo = profile && profile._metaInfo ? profile._metaInfo : null;
+  var metaHover = '';
+  if (metaInfo) {
+    var bits = [];
+    if (metaInfo.source) bits.push('Quelle: ' + metaInfo.source);
+    if (metaInfo.revision != null) bits.push('Revision: ' + metaInfo.revision);
+    if (metaInfo.updatedBy) bits.push('Bearbeiter: ' + metaInfo.updatedBy);
+    if (metaInfo.updatedAt) bits.push('Zeit: ' + formatSwissDateTime(metaInfo.updatedAt));
+    metaHover = bits.join(' | ');
+  }
+  var publishInfo = '';
+  if (metaInfo && (metaInfo.updatedBy || metaInfo.updatedAt)) {
+    var pubAt = metaInfo.updatedAt ? formatSwissDateTime(metaInfo.updatedAt) : '';
+    publishInfo = '<span class="lm-badge" title="Letzter Publish">⏱ ' + esc(metaInfo.updatedBy || '?') + (pubAt ? ' · ' + esc(pubAt) : '') + '</span>';
+  }
 
   // LyrMgr Root-Element
   var lmEl = document.createElement('div');
@@ -3497,8 +3616,10 @@ function renderLyrmgrBlock(container, lmKey, profile) {
   // Head
   var headEl = document.createElement('div');
   headEl.className = 'tb-tree-lyrmgr-head';
+  if (metaHover) headEl.title = metaHover;
   headEl.innerHTML = '<span class="lm-arrow">' + (isExpanded ? '▼' : '▶') + '</span>'
     + '<span class="lm-name">' + esc(displayName) + '</span>'
+    + publishInfo
     + '<span class="lm-badge">' + catCount + ' Kat.</span>';
   lmEl.appendChild(headEl);
 
@@ -3523,6 +3644,14 @@ function renderLyrmgrBlock(container, lmKey, profile) {
       var nlsName = getNlsAlias(item);
       var itemName = nlsName || (layer ? (layer.name || item) : item);
       var noNls = !nlsName;
+      var metaHint = '';
+      var layerEditMeta = getNodeEditMeta('layer', item, lmKey);
+      if (!layerEditMeta && layer && (layer.editBy || layer.editAt)) {
+        layerEditMeta = { updatedBy: layer.editBy || '', updatedAt: layer.editAt || '' };
+      }
+      if (layerEditMeta && (layerEditMeta.updatedBy || layerEditMeta.updatedAt)) {
+        metaHint = ' | zuletzt: ' + (layerEditMeta.updatedBy || '?') + (layerEditMeta.updatedAt ? ' @ ' + formatSwissDateTime(layerEditMeta.updatedAt) : '');
+      }
       // Layer-Badges: Legende, Sichtbarkeit, Maptip
       var lBadges = '';
       if (layer) {
@@ -3538,7 +3667,7 @@ function renderLyrmgrBlock(container, lmKey, profile) {
       var isHidden = layer && !(layer.visible === true || layer.visible === 'true' || layer.visible === 1 || layer.visible === '1');
       return '<div class="tb-tree-item' + (isHidden ? ' ti-hidden' : '') + (path.length > 1 ? ' tb-tree-item-nested' : '') + '" data-cat-idx="' + ci + '" data-item-path="' + path.join('.') + '" draggable="true">'
         + '<span class="ti-grip">⋮</span>'
-        + '<span class="tiname' + (noNls ? ' no-nls' : '') + '" data-editable data-layer-id="' + esc(item) + '" title="' + esc(item) + (nlsName ? '' : ' (kein NLS)') + '">' + esc(itemName) + '</span>'
+        + '<span class="tiname' + (noNls ? ' no-nls' : '') + '" data-editable data-layer-id="' + esc(item) + '" title="' + esc(item) + (nlsName ? '' : ' (kein NLS)') + esc(metaHint) + '">' + esc(itemName) + '</span>'
         + (nlsName ? '<span class="ti-id" title="' + esc(item) + '">' + esc(item) + '</span>' : '')
         + badgesHtml
         + '<button class="tidel" data-action="del-item" data-cat-idx="' + ci + '" data-item-path="' + path.join('.') + '">×</button>'
@@ -3548,6 +3677,7 @@ function renderLyrmgrBlock(container, lmKey, profile) {
       var grpKey = item.key || item.name || '(Gruppenlayer)';
       var grpNls = getNlsAlias(grpKey);
       var grpDisplay = grpNls || item.name || grpKey;
+      var grpMeta = getNodeEditMeta('group', grpKey, lmKey);
       var grpItems = item.items || [];
       var isTopLevel = (path.length === 1); // Direkt unter Kategorie
       var nestedHtml = '';
@@ -3566,7 +3696,7 @@ function renderLyrmgrBlock(container, lmKey, profile) {
       return '<div class="tb-tree-group' + (isTopLevel ? ' tb-tree-group-top' : '') + (grpIsOpen ? ' open' : '') + '" data-cat-idx="' + ci + '" data-item-path="' + path.join('.') + '" draggable="true">'
         + '<div class="tb-tree-group-head">'
         + '<span class="grp-arrow">▸</span>'
-        + '<span class="grpname' + (!grpNls ? ' no-nls' : '') + '" title="' + esc(grpKey) + (grpNls ? '' : ' (kein NLS)') + '">' + esc(grpDisplay) + '</span>'
+        + '<span class="grpname' + (!grpNls ? ' no-nls' : '') + '" title="' + esc(grpKey) + (grpNls ? '' : ' (kein NLS)') + (grpMeta && (grpMeta.updatedBy || grpMeta.updatedAt) ? ' | zuletzt: ' + esc(grpMeta.updatedBy || '?') + (grpMeta.updatedAt ? ' @ ' + esc(formatSwissDateTime(grpMeta.updatedAt)) : '') : '') + '">' + esc(grpDisplay) + '</span>'
         + grpIdHtml
         + badges
         + '<span class="grpcount">' + grpItems.length + '</span>'
@@ -3586,13 +3716,14 @@ function renderLyrmgrBlock(container, lmKey, profile) {
     var catKey = cat.key || cat.name || '';
     var catNls = getNlsAlias(catKey);
     var catDisplay = catNls || catLabel;
+    var catMeta = getNodeEditMeta('cat', catKey, lmKey);
     var iconInfo = cat.iconClass ? ' <span style="font-size:9px;color:rgba(255,255,255,.5)">' + esc(cat.iconClass) + '</span>' : '';
     html += '<div class="tb-tree-cat" data-cat-idx="' + ci + '" draggable="true">';
     html += '<div class="tb-tree-cat-head">';
     var catStateKey = lmKey + '/' + (cat.key || cat.name || ('cat' + ci));
     var catIsOpen = !!_expandState[catStateKey];
     html += '<span class="arrow' + (catIsOpen ? ' open' : '') + '">▶</span>';
-    html += '<input class="cname' + (!catNls ? ' no-nls' : '') + '" value="' + esc(catDisplay) + '" title="' + esc(catKey) + (catNls ? '' : ' (kein NLS)') + '" data-cat-idx="' + ci + '">';
+    html += '<input class="cname' + (!catNls ? ' no-nls' : '') + '" value="' + esc(catDisplay) + '" title="' + esc(catKey) + (catNls ? '' : ' (kein NLS)') + (catMeta && (catMeta.updatedBy || catMeta.updatedAt) ? ' | zuletzt: ' + esc(catMeta.updatedBy || '?') + (catMeta.updatedAt ? ' @ ' + esc(formatSwissDateTime(catMeta.updatedAt)) : '') : '') + '" data-cat-idx="' + ci + '">';
     if (catNls) html += '<span class="cat-id" title="' + esc(catKey) + '">' + esc(catKey) + '</span>';
     html += iconInfo;
     html += '<button class="cedit" data-action="edit-cat" data-cat-idx="' + ci + '" title="Eigenschaften">✎</button>';
@@ -3648,6 +3779,7 @@ function renderLyrmgrBlock(container, lmKey, profile) {
         if (e.shiftKey && d.srcCat !== undefined) state.clipboard.categories.splice(d.srcCat, 1);
         renderTree();
         renderClipboard();
+        scheduleDraftAutoSave('move:clip-cat-to-lyrmgr');
       }
       if (d.type === 'clip-item') {
         var clipItem = deepCopy(d.item);
@@ -3662,6 +3794,7 @@ function renderLyrmgrBlock(container, lmKey, profile) {
         if (e.shiftKey && d.srcCat !== undefined) spliceItemByPath(state.clipboard.categories[d.srcCat].items, d.srcPath);
         renderTree();
         renderClipboard();
+        scheduleDraftAutoSave('move:clip-item-to-lyrmgr');
       }
     } catch(ex) {}
   });
@@ -3699,17 +3832,26 @@ function renderLyrmgrBlock(container, lmKey, profile) {
           } else {
             filterDuplicateItems(deepCopy(d.items), existIds).forEach(function(it) { grpItems.push(it); });
           }
+          touchMovedItemsMeta(d.items || [], lmKey);
           renderTree();
+          scheduleDraftAutoSave('move:into-group');
         } else if (d.type === 'layer') {
           var layer = state.layers[d.idx];
-          if (layer) { grpItems.push(layer.id); renderTree(); }
+          if (layer) {
+            grpItems.push(layer.id);
+            touchNodeEditMeta('layer', layer.id, lmKey);
+            renderTree();
+            scheduleDraftAutoSave('move:layer-into-group');
+          }
         } else if (d.type === 'clip-item') {
           var clipItem = deepCopy(d.item);
           grpItems.push(clipItem);
+          touchMovedItemsMeta([clipItem], lmKey);
           // Shift = Move (aus Clipboard entfernen), Default = Kopie
           if (e.shiftKey && d.srcCat !== undefined) spliceItemByPath(state.clipboard.categories[d.srcCat].items, d.srcPath);
           renderTree();
           renderClipboard();
+          scheduleDraftAutoSave('move:clip-item-into-group');
         }
       } catch(ex) {}
     });
@@ -3731,23 +3873,32 @@ function renderLyrmgrBlock(container, lmKey, profile) {
         if (!cat.items) cat.items = [];
         if (d.type === 'layer') {
           var layer = state.layers[d.idx];
-          if (layer) { cat.items.push(layer.id); renderTree(); }
+          if (layer) {
+            cat.items.push(layer.id);
+            touchNodeEditMeta('layer', layer.id, lmKey);
+            renderTree();
+            scheduleDraftAutoSave('move:layer-into-category');
+          }
         }
         if (d.type === 'clip-item') {
           var clipItem = deepCopy(d.item);
           cat.items.push(clipItem);
+          touchMovedItemsMeta([clipItem], lmKey);
           // Shift = Move (aus Clipboard entfernen), Default = Kopie
           if (e.shiftKey && d.srcCat !== undefined) spliceItemByPath(state.clipboard.categories[d.srcCat].items, d.srcPath);
           renderTree();
           renderClipboard();
+          scheduleDraftAutoSave('move:clip-item-into-category');
         }
         if (d.type === 'clip-cat') {
           var clipCat = deepCopy(d.cat);
           (clipCat.items || []).forEach(function(it) { cat.items.push(it); });
+          touchMovedItemsMeta(clipCat.items || [], lmKey);
           // Shift = Move (aus Clipboard entfernen), Default = Kopie
           if (e.shiftKey && d.srcCat !== undefined) state.clipboard.categories.splice(d.srcCat, 1);
           renderTree();
           renderClipboard();
+          scheduleDraftAutoSave('move:clip-cat-merge-into-category');
         }
         if (d.type === 'staging-items' && d.srcCat !== undefined) {
           if (!e.ctrlKey) {
@@ -3759,7 +3910,9 @@ function renderLyrmgrBlock(container, lmKey, profile) {
             var filtered2 = filterDuplicateItems(deepCopy(d.items), existingIds);
             filtered2.forEach(function(it) { cat.items.push(it); });
           }
+          touchMovedItemsMeta(d.items || [], lmKey);
           renderTree();
+          scheduleDraftAutoSave('move:staging-items-into-category');
         }
       } catch(ex) {}
     });
@@ -3787,6 +3940,7 @@ function renderLyrmgrBlock(container, lmKey, profile) {
         };
         console.log('NLS-Alias inline geändert:', catKey, '→', newAlias);
         updatePendingEditsCounter();
+        touchNodeEditMeta('cat', catKey, lmKey);
       } else if (!catKey) {
         // Neue Kategorie ohne Key: name wird zum Key
         cat.name = newAlias;
@@ -3960,6 +4114,7 @@ function renderLyrmgrBlock(container, lmKey, profile) {
           cats.splice(insertAt, 0, moved);
         }
         renderTree();
+        scheduleDraftAutoSave('move:reorder-category');
       } catch(ex) {}
     });
   });
@@ -4025,22 +4180,32 @@ function renderLyrmgrBlock(container, lmKey, profile) {
             var filtered = filterDuplicateItems(deepCopy(d.items), existIds);
             for (var j = filtered.length - 1; j >= 0; j--) targetItems.splice(insertAt, 0, filtered[j]);
           }
-          renderTree(); return;
+          touchMovedItemsMeta(d.items || [], lmKey);
+          renderTree();
+          scheduleDraftAutoSave('move:reorder-item');
+          return;
         }
         if (d.type === 'clip-item') {
           e.preventDefault(); e.stopPropagation();
           var clipItem = deepCopy(d.item);
           targetItems.splice(insertAt, 0, clipItem);
+          touchMovedItemsMeta([clipItem], lmKey);
           // Shift = Move (aus Clipboard entfernen), Default = Kopie
           if (e.shiftKey && d.srcCat !== undefined) spliceItemByPath(state.clipboard.categories[d.srcCat].items, d.srcPath);
           renderTree();
           renderClipboard();
+          scheduleDraftAutoSave('move:clip-item-reorder');
           return;
         }
         if (d.type === 'layer') {
           e.preventDefault(); e.stopPropagation();
           var layer = state.layers[d.idx];
-          if (layer) { targetItems.splice(insertAt, 0, layer.id); renderTree(); }
+          if (layer) {
+            targetItems.splice(insertAt, 0, layer.id);
+            touchNodeEditMeta('layer', layer.id, lmKey);
+            renderTree();
+            scheduleDraftAutoSave('move:insert-layer');
+          }
           return;
         }
       } catch(ex) {}
@@ -4341,32 +4506,45 @@ function openPropsDialog(type, ref) {
   _propsTarget = { type: type, ref: ref };
   var title = '';
   var body = '';
+  var _activeTreeMeta = (getActiveTree && getActiveTree() && getActiveTree()._metaInfo) ? getActiveTree()._metaInfo : null;
 
   if (type === 'lyrmgr') {
     var meta = ref.meta || {};
+    var _lmMetaFields = [];
+    if (ref._metaInfo) {
+      _lmMetaFields.push({ key: '_metaSource', label: 'Quelle', value: ref._metaInfo.source || '', type: 'readonly' });
+      _lmMetaFields.push({ key: '_metaRevision', label: 'Revision', value: ref._metaInfo.revision != null ? String(ref._metaInfo.revision) : '', type: 'readonly' });
+      _lmMetaFields.push({ key: '_metaBy', label: 'Bearbeiter', value: ref._metaInfo.updatedBy || '', type: 'readonly' });
+      _lmMetaFields.push({ key: '_metaAt', label: 'Zeitstempel', value: formatSwissDateTime(ref._metaInfo.updatedAt || ''), type: 'readonly' });
+    }
     title = 'LyrMgr Eigenschaften';
     body = buildPropsForm([
       { key: 'type', label: 'Typ', value: meta.type || 'ClassicLayerMgr', type: 'text', hint: 'z.B. ClassicLayerMgr' },
       { key: 'version', label: 'Version', value: meta.version || '3', type: 'text' },
       { key: 'useRemoveHighlight', label: 'useRemoveHighlight', value: meta.useRemoveHighlight, type: 'bool' },
       { key: 'switchLyrChkBoxAndName', label: 'switchLyrChkBoxAndName', value: meta.switchLyrChkBoxAndName, type: 'bool' }
-    ]);
+    ].concat(_lmMetaFields));
   } else if (type === 'cat') {
     title = 'Kategorie: ' + (ref.key || ref.name);
     var _catKey = ref.key || ref.name || '';
     var _catAlias = getNlsAlias(_catKey) || ref.name || '';
-    body = buildPropsForm([
+    var _catFields = [
       { key: 'key', label: 'Key (ID)', value: _catKey, type: 'text', hint: 'Eindeutiger Schlüssel in der lyrmgr.conf' },
       { key: '_alias', label: 'Alias (NLS)', value: _catAlias, type: 'text', hint: 'Anzeigename im Layer-Manager' },
       { key: 'iconClass', label: 'Icon-Klasse', value: ref.iconClass || '', type: 'text', hint: 'z.B. njsCategoryIcon7' },
       { key: 'iconClassActive', label: 'Icon-Klasse (aktiv)', value: ref.iconClassActive || '', type: 'text', hint: 'z.B. njsCategoryIcon7_active' },
       { key: 'open', label: 'Offen', value: ref.open, type: 'bool', hint: 'Kategorie standardmässig aufgeklappt' }
-    ]);
+    ];
+    var _catMeta = getNodeEditMeta('cat', _catKey);
+    if (_catMeta) {
+      _catFields.push({ key: '_metaEdit', label: 'Letzte Änderung', value: formatNodeEditMeta(_catMeta), type: 'readonly' });
+    }
+    body = buildPropsForm(_catFields);
   } else if (type === 'group') {
     title = 'Gruppenlayer: ' + (ref.key || ref.name || '(unbenannt)');
     var _grpKey = ref.key || ref.name || '';
     var _grpAlias = getNlsAlias(_grpKey) || ref.name || '';
-    body = buildPropsForm([
+    var _grpFields = [
       { key: 'key', label: 'Key (ID)', value: _grpKey, type: 'text', hint: 'Eindeutiger Schlüssel im items-Object (nur Top-Level)' },
       { key: '_alias', label: 'Alias (NLS)', value: _grpAlias, type: 'text', hint: 'Anzeigename im Layer-Manager' },
       { key: 'open', label: 'Offen', value: ref.open, type: 'bool', hint: 'Standardmässig aufgeklappt' },
@@ -4375,7 +4553,12 @@ function openPropsDialog(type, ref) {
       { key: 'drawtype', label: 'drawtype', value: ref.drawtype || '', type: 'text', hint: 'z.B. "radio" für Exklusiv-Auswahl' },
       { key: 'icon', label: 'Icon-URL', value: ref.icon || '', type: 'text', hint: 'z.B. ../core/symbolsets/mapplus/layers.png' },
       { key: 'icon_style', label: 'Icon-Style', value: ref.icon_style || '', type: 'text', hint: 'z.B. width:18px;height:18px' }
-    ]);
+    ];
+    var _grpMeta = getNodeEditMeta('group', _grpKey);
+    if (_grpMeta) {
+      _grpFields.push({ key: '_metaEdit', label: 'Letzte Änderung', value: formatNodeEditMeta(_grpMeta), type: 'readonly' });
+    }
+    body = buildPropsForm(_grpFields);
   } else if (type === 'layer') {
     // Layer-Properties: Alias + Konfig-Optionen
     var layerId = ref;
@@ -4388,8 +4571,12 @@ function openPropsDialog(type, ref) {
       { key: '_alias', label: 'Alias (NLS)', value: nlsAlias, type: 'text', hint: 'Anzeigename im Layer-Manager' },
       { key: '_type', label: 'Typ', value: lType, type: 'readonly' }
     ];
-    if (layer && (layer.editBy || layer.editAt)) {
-      var editInfo = (layer.editBy || '?') + (layer.editAt ? '  ·  ' + layer.editAt.replace('T', ' ').substring(0, 16) : '');
+    var layerMeta = getNodeEditMeta('layer', layerId);
+    if (!layerMeta && layer && (layer.editBy || layer.editAt)) {
+      layerMeta = { updatedBy: layer.editBy || '', updatedAt: layer.editAt || '' };
+    }
+    if (layerMeta && (layerMeta.updatedBy || layerMeta.updatedAt)) {
+      var editInfo = (layerMeta.updatedBy || '?') + (layerMeta.updatedAt ? '  ·  ' + formatSwissDateTime(layerMeta.updatedAt) : '');
       fields.push({ key: '_last_edit', label: 'Letzte Änderung', value: editInfo, type: 'readonly' });
     }
     if (layer) {
@@ -4483,6 +4670,7 @@ document.getElementById('tb-props-save').addEventListener('click', function() {
       };
       console.log('NLS im Memory gespeichert:', layerId, state.nlsEdits[layerId]);
       updatePendingEditsCounter();
+      touchNodeEditMeta('layer', layerId);
     }
 
     // 2) Layer-Config-Optionen sammeln und auf Server speichern
@@ -4531,6 +4719,7 @@ document.getElementById('tb-props-save').addEventListener('click', function() {
         state.layerPropEdits[layerId] = editEntry;
         console.log('Layer-Props im Memory gespeichert:', layerId, editEntry);
         updatePendingEditsCounter();
+        touchNodeEditMeta('layer', layerId);
       }
     }
 
@@ -4568,6 +4757,7 @@ document.getElementById('tb-props-save').addEventListener('click', function() {
         };
         console.log('NLS-Alias für ' + type + ' gespeichert:', catId, state.nlsEdits[catId]);
         updatePendingEditsCounter();
+        touchNodeEditMeta(type, catId);
       }
     }
   }
@@ -4605,6 +4795,12 @@ document.getElementById('tb-props-save').addEventListener('click', function() {
       }
     }
   });
+
+  if (type === 'cat') {
+    touchNodeEditMeta('cat', ref.key || ref.name || '');
+  } else if (type === 'group') {
+    touchNodeEditMeta('group', ref.key || ref.name || '');
+  }
 
   closePropsDialog();
   renderTree();
@@ -4805,6 +5001,12 @@ function generateJSON() {
     }
   });
   obj.profiles = profiles;
+
+  // Sichtbar machen, welche Alias-/NLS-Änderungen im Editor aktiv sind.
+  // Diese Daten liegen nicht in lyrmgr.conf, sind aber für Backup/Transfer wichtig.
+  obj.aliases = state.layerAliases || {};
+  obj.nlsEdits = state.nlsEdits || {};
+
   return JSON.stringify(obj, null, 4);
 }
 
@@ -5214,6 +5416,19 @@ document.getElementById('tb-file-input').addEventListener('change', function(e) 
             state.profiles[pName] = data.profiles[pName];
           }
         });
+      }
+      if (data.aliases && typeof data.aliases === 'object') {
+        if (mode === 'replace') state.layerAliases = {};
+        Object.keys(data.aliases).forEach(function(k) {
+          state.layerAliases[k] = data.aliases[k];
+        });
+      }
+      if (data.nlsEdits && typeof data.nlsEdits === 'object') {
+        if (mode === 'replace') state.nlsEdits = {};
+        Object.keys(data.nlsEdits).forEach(function(k) {
+          state.nlsEdits[k] = data.nlsEdits[k];
+        });
+        updatePendingEditsCounter();
       }
       if (!state.activeProfile && Object.keys(state.profiles).length) {
         state.activeProfile = Object.keys(state.profiles)[0];
@@ -7331,6 +7546,94 @@ function initRawBlocksFromServer(profileName) {
 }
 
 /**
+ * Richtet die Reihenfolge der Editor-Kategorien an der Runtime-Reihenfolge aus.
+ * Quelle: layers.php (DB/API), damit Tree-Builder und Live-Themenkatalog gleich laufen.
+ */
+function syncEditorOrderWithRuntime(profileName, lyrmgrs, done) {
+  if (!profileName || !lyrmgrs || !Object.keys(lyrmgrs).length) {
+    if (typeof done === 'function') done();
+    return;
+  }
+
+  var runtimeUrl = API_URL.replace('treebuilder-api.php', 'layers.php')
+    + '?group=' + encodeURIComponent(profileName)
+    + '&source=auto';
+
+  function getRuntimeNodes(cat) {
+    return (cat && (cat.subcategories || cat.nodes)) || [];
+  }
+
+  function reorderByRuntime(treeCategories, runtimeOrder) {
+    if (!Array.isArray(treeCategories) || !treeCategories.length || !Array.isArray(runtimeOrder) || !runtimeOrder.length) {
+      return treeCategories;
+    }
+    var byId = {};
+    var i;
+    for (i = 0; i < treeCategories.length; i++) {
+      var c = treeCategories[i];
+      var cid = c && (c.key || c.name || c.id);
+      if (cid) byId[cid] = c;
+    }
+
+    var ordered = [];
+    var used = {};
+    for (i = 0; i < runtimeOrder.length; i++) {
+      var rid = runtimeOrder[i];
+      if (byId[rid]) {
+        ordered.push(byId[rid]);
+        used[rid] = true;
+      }
+    }
+    for (i = 0; i < treeCategories.length; i++) {
+      var tail = treeCategories[i];
+      var tid = tail && (tail.key || tail.name || tail.id);
+      if (!tid || !used[tid]) ordered.push(tail);
+    }
+    return ordered;
+  }
+
+  fetch(runtimeUrl)
+    .then(function(r) { return r.json(); })
+    .then(function(json) {
+      var topCats = ((json || {}).data || {}).categories || [];
+      if (!Array.isArray(topCats) || !topCats.length) return;
+
+      Object.keys(lyrmgrs).forEach(function(lmKey) {
+        var lmTree = lyrmgrs[lmKey];
+        if (!lmTree || !Array.isArray(lmTree.categories) || !lmTree.categories.length) return;
+
+        var treeIds = {};
+        lmTree.categories.forEach(function(c) {
+          var id = c && (c.key || c.name || c.id);
+          if (id) treeIds[id] = true;
+        });
+
+        var bestOrder = null;
+        var bestScore = 0;
+        topCats.forEach(function(tc) {
+          var nodes = getRuntimeNodes(tc);
+          if (!nodes.length) return;
+          var order = nodes.map(function(n) { return n && n.id; }).filter(Boolean);
+          var score = 0;
+          order.forEach(function(id) { if (treeIds[id]) score++; });
+          if (score > bestScore) {
+            bestScore = score;
+            bestOrder = order;
+          }
+        });
+
+        if (bestOrder && bestScore > 0) {
+          lmTree.categories = reorderByRuntime(lmTree.categories, bestOrder);
+        }
+      });
+    })
+    .catch(function() { /* Reihenfolge-Fallback: unverändert */ })
+    .finally(function() {
+      if (typeof done === 'function') done();
+    });
+}
+
+/**
  * Lyrmgr.conf für ein Profil vom Server laden und in den State übernehmen.
  * Wird beim Profil-Wechsel automatisch aufgerufen (ohne Confirm).
  */
@@ -7357,6 +7660,7 @@ function loadLyrmgrForProfile(profileName, silent) {
       }
 
       var confData = json.data.data;
+      var lyrmgrMetaMap = (json.data && json.data.lyrmgrMeta) ? json.data.lyrmgrMeta : {};
       var lyrmgrKeys = json.data.lyrmgrKeys || Object.keys(confData);
       var lyrmgrs = {};
 
@@ -7368,20 +7672,22 @@ function loadLyrmgrForProfile(profileName, silent) {
           if (k !== 'structure') meta[k] = block[k];
         });
         var categories = block.structure ? convertLyrmgrStructure(block.structure) : [];
-        lyrmgrs[key] = { meta: meta, categories: categories, _rawBlock: rawBlock };
+        lyrmgrs[key] = { meta: meta, categories: categories, _rawBlock: rawBlock, _metaInfo: lyrmgrMetaMap[key] || null };
       });
 
-      state.groups = deriveGroupsFromLyrmgrs(lyrmgrs);
-      state.profiles[profileName] = { lyrmgrs: lyrmgrs };
-      state.activeProfile = profileName;  // sicherstellen dass getActiveTree() nicht null liefert
-      state.activeLyrmgr = lyrmgrKeys[0] || null;
+      syncEditorOrderWithRuntime(profileName, lyrmgrs, function() {
+        state.groups = deriveGroupsFromLyrmgrs(lyrmgrs);
+        state.profiles[profileName] = { lyrmgrs: lyrmgrs };
+        state.activeProfile = profileName;  // sicherstellen dass getActiveTree() nicht null liefert
+        state.activeLyrmgr = lyrmgrKeys[0] || null;
 
-      renderClipboard();
-      renderTreeTabs();
-      renderTree();
-      saveState();
+        renderClipboard();
+        renderTreeTabs();
+        renderTree();
+        saveState();
 
-      console.log('LyrMgr geladen: Profil="' + profileName + '", Keys=' + lyrmgrKeys.join(', '));
+        console.log('LyrMgr geladen: Profil="' + profileName + '", Keys=' + lyrmgrKeys.join(', '));
+      });
     })
     .catch(function(err) {
       console.error('Lyrmgr-Laden fehlgeschlagen:', err);
@@ -7526,6 +7832,19 @@ function generateLyrmgrConfBlock(treeData) {
   var meta = treeData.meta || {};
   Object.keys(meta).forEach(function(k) { block[k] = meta[k]; });
 
+  function getRawCategoryByKey(rawStructure, catKey) {
+    if (!rawStructure || !catKey) return null;
+    if (Array.isArray(rawStructure)) {
+      for (var i = 0; i < rawStructure.length; i++) {
+        var entry = rawStructure[i];
+        if (!entry || typeof entry !== 'object') continue;
+        if ((entry._key || entry.name || entry.key) === catKey) return entry;
+      }
+      return null;
+    }
+    return rawStructure[catKey] || null;
+  }
+
   // Nested Items serialisieren (interne Keys entfernen)
   function serializeItems(items) {
     return (items || []).map(function(item) {
@@ -7558,9 +7877,10 @@ function generateLyrmgrConfBlock(treeData) {
       if (!skipCatKeys[k]) catObj[k] = cat[k];
     });
 
-    // Format aus _rawBlock ableiten: Array-Format beibehalten
-    var rawCat = rawStructure[catKey] || null;
-    var usesArrayFormat = rawCat && Array.isArray(rawCat.items);
+    // Format aus _rawBlock ableiten: Array-Format beibehalten.
+    // Wenn kein Referenz-Block existiert, bewusst Array nutzen (stabile Reihenfolge).
+    var rawCat = getRawCategoryByKey(rawStructure, catKey);
+    var usesArrayFormat = !rawCat || Array.isArray(rawCat.items);
 
     if (usesArrayFormat) {
       catObj.items = serializeItems(cat.items || []);
@@ -7864,12 +8184,23 @@ function scrollToVerifyItem(layerId) {
  * Aktuellen Baum als Draft in tmp/layertree/[profil]-lyrmgr.conf speichern.
  * Speichert alle LyrMgr-Blöcke des aktiven Profils.
  */
-function saveLyrmgrDraft() {
+var _draftAutoSaveTimer = null;
+
+function scheduleDraftAutoSave(reason) {
+  if (_draftAutoSaveTimer) clearTimeout(_draftAutoSaveTimer);
+  _draftAutoSaveTimer = setTimeout(function() {
+    saveLyrmgrDraft({ silent: true, reason: reason || 'move' });
+  }, 900);
+}
+
+function saveLyrmgrDraft(opts) {
+  var options = opts || {};
+  var silent = !!options.silent;
   var profileName = state.activeProfile;
-  if (!profileName) { alert('Bitte zuerst ein Profil wählen.'); return; }
+  if (!profileName) { if (!silent) alert('Bitte zuerst ein Profil wählen.'); return; }
   var p = state.profiles[profileName];
   if (!p || !p.lyrmgrs || !Object.keys(p.lyrmgrs).length) {
-    alert('Kein Baum zum Speichern vorhanden.');
+    if (!silent) alert('Kein Baum zum Speichern vorhanden.');
     return;
   }
 
@@ -7889,19 +8220,28 @@ function saveLyrmgrDraft() {
   .then(function(r) { return r.json(); })
   .then(function(json) {
     if (json.success && json.data && json.data.saved) {
+      if (json.data.revision != null) {
+        state.lastDraftSeenRevision = Number(json.data.revision) || state.lastDraftSeenRevision || 0;
+      }
       var statusEl = document.getElementById('tb-save-status');
       if (statusEl) {
-        statusEl.textContent = '💾 Draft gespeichert (' + new Date().toLocaleTimeString() + ')';
+        var who = json.data.updatedBy || editor;
+        var at = json.data.updatedAt ? formatSwissDateTime(json.data.updatedAt) : formatSwissDateTime(new Date());
+        statusEl.textContent = '💾 Draft gespeichert (' + who + ' · ' + at + ')';
         statusEl.style.color = 'rgba(120,255,160,.8)';
         setTimeout(function() { statusEl.style.color = 'rgba(255,255,255,.45)'; }, 3000);
       }
-      console.log('Draft gespeichert: ' + json.data.path + ' (' + json.data.bytes + ' bytes)');
+      console.log('Draft gespeichert:', json.data);
     } else {
-      _tbAlert('Draft-Speichern fehlgeschlagen', '<pre>' + esc(json.error || JSON.stringify(json)) + '</pre>', 'error');
+      if (!silent) {
+        _tbAlert('Draft-Speichern fehlgeschlagen', '<pre>' + esc(json.error || JSON.stringify(json)) + '</pre>', 'error');
+      }
     }
   })
   .catch(function(err) {
-    _tbAlert('Draft-Speichern fehlgeschlagen', '<pre>' + esc(err.message) + '</pre>', 'error');
+    if (!silent) {
+      _tbAlert('Draft-Speichern fehlgeschlagen', '<pre>' + esc(err.message) + '</pre>', 'error');
+    }
   });
 }
 
@@ -7937,6 +8277,7 @@ function loadLyrmgrForProfileWithDraft(profileName, silent) {
  */
 function applyLoadedLyrmgr(profileName, responseData, silent, isDraft) {
   var confData = responseData.data;
+  var lyrmgrMetaMap = responseData.lyrmgrMeta || {};
   var lyrmgrKeys = responseData.lyrmgrKeys || Object.keys(confData);
   var lyrmgrs = {};
 
@@ -7948,26 +8289,99 @@ function applyLoadedLyrmgr(profileName, responseData, silent, isDraft) {
       if (k !== 'structure') meta[k] = block[k];
     });
     var categories = block.structure ? convertLyrmgrStructure(block.structure) : [];
-    lyrmgrs[key] = { meta: meta, categories: categories, _rawBlock: rawBlock };
+    lyrmgrs[key] = { meta: meta, categories: categories, _rawBlock: rawBlock, _metaInfo: lyrmgrMetaMap[key] || null };
   });
 
-  state.groups = deriveGroupsFromLyrmgrs(lyrmgrs);
-  state.profiles[profileName] = { lyrmgrs: lyrmgrs };
-  state.activeLyrmgr = lyrmgrKeys[0] || null;
+  syncEditorOrderWithRuntime(profileName, lyrmgrs, function() {
+    state.groups = deriveGroupsFromLyrmgrs(lyrmgrs);
+    state.profiles[profileName] = { lyrmgrs: lyrmgrs };
+    state.activeProfile = profileName;
+    state.activeLyrmgr = lyrmgrKeys[0] || null;
 
-  renderClipboard();
-  renderTreeTabs();
-  renderTree();
-  saveState();
+    renderClipboard();
+    renderTreeTabs();
+    renderTree();
+    saveState();
 
-  var source = isDraft ? 'Draft' : 'Config';
-  console.log('LyrMgr geladen (' + source + '): Profil="' + profileName + '", Keys=' + lyrmgrKeys.join(', '));
+    var source = isDraft ? 'Draft' : 'Config';
+    console.log('LyrMgr geladen (' + source + '): Profil="' + profileName + '", Keys=' + lyrmgrKeys.join(', '));
 
-  // Draft-Indikator in der Status-Leiste
-  var statusEl = document.getElementById('tb-save-status');
-  if (statusEl && isDraft) {
-    statusEl.textContent = '📝 Draft geladen (' + (responseData.modified || '') + ')';
+    // Draft-Indikator in der Status-Leiste
+    var statusEl = document.getElementById('tb-save-status');
+    if (statusEl && isDraft) {
+      statusEl.textContent = '📝 Draft geladen (' + (responseData.modified || '') + ')';
+    }
+    if (isDraft && responseData.revision != null) {
+      state.lastDraftSeenRevision = Number(responseData.revision) || state.lastDraftSeenRevision || 0;
+    }
+  });
+}
+
+var _draftStatusPollTimer = null;
+var _lastForeignDraftRevision = 0;
+
+function setDraftLiveDot(show, tooltip) {
+  var btn = document.querySelector('#tb-tree-actions [data-action="lyrmgr-save"]');
+  if (!btn) return;
+  var dot = btn.querySelector('.tb-live-dot');
+  if (show) {
+    if (!dot) {
+      dot = document.createElement('span');
+      dot.className = 'tb-live-dot';
+      dot.textContent = ' •';
+      dot.style.color = '#e74c3c';
+      dot.style.fontWeight = '700';
+      dot.style.marginLeft = '2px';
+      btn.appendChild(dot);
+    }
+    if (tooltip) btn.title = tooltip;
+  } else {
+    if (dot) dot.remove();
+    btn.title = 'Draft speichern (tmp/layertree), kein Publish';
   }
+}
+
+function checkForeignDraftUpdates() {
+  var profileName = state.activeProfile;
+  if (!profileName) return;
+  fetch(API_URL + '?action=lyrmgr-draft-status&profile=' + encodeURIComponent(profileName))
+    .then(function(r) { return r.json(); })
+    .then(function(json) {
+      if (!json.success || !json.data || !json.data.exists) {
+        setDraftLiveDot(false);
+        return;
+      }
+      var d = json.data;
+      var rev = Number(d.revision || 0);
+      var by = d.updatedBy || null;
+      var at = d.updatedAt ? formatSwissDateTime(d.updatedAt) : '';
+      var mine = !!by && !!_editorName && String(by).toLowerCase() === String(_editorName).toLowerCase();
+      var foreignNewer = !mine && rev > Number(state.lastDraftSeenRevision || 0);
+
+      if (!foreignNewer) {
+        setDraftLiveDot(false);
+        return;
+      }
+
+      setDraftLiveDot(true, 'Neuer Draft von ' + (by || '?') + (at ? ' @ ' + at : ''));
+
+      if (!_hasLock && rev > _lastForeignDraftRevision) {
+        _lastForeignDraftRevision = rev;
+        loadLyrmgrForProfileWithDraft(profileName, true);
+        var statusEl = document.getElementById('tb-save-status');
+        if (statusEl) {
+          statusEl.textContent = '🔴 Live-Update von ' + (by || '?') + (at ? ' @ ' + at : '');
+          statusEl.style.color = '#e74c3c';
+        }
+      }
+    })
+    .catch(function() {});
+}
+
+function startDraftStatusPolling() {
+  if (_draftStatusPollTimer) clearInterval(_draftStatusPollTimer);
+  checkForeignDraftUpdates();
+  _draftStatusPollTimer = setInterval(checkForeignDraftUpdates, 10000);
 }
 
 /**
@@ -8072,6 +8486,11 @@ function _deployAllGroups(groups) {
   var results = [];
   var idx = 0;
 
+  function isNoNlsChangesMessage(msg) {
+    var s = String(msg || '');
+    return /keine\s+nls-?änderungen\s+zu\s+deployen/i.test(s) || /keine\s+nls-aenderungen\s+zu\s+deployen/i.test(s);
+  }
+
   function processNext() {
     if (idx >= groups.length) {
       // Fertig — Ergebnis anzeigen
@@ -8082,6 +8501,7 @@ function _deployAllGroups(groups) {
         var icon = r.type === 'conf' ? '⚙️' : '🏷️';
         html += (r.success ? '✅' : '❌') + ' ' + icon + ' ' + esc(r.sourceFile) + ' → ' + esc(r.target);
         if (r.error) html += '<br><span style="color:#c00;font-size:11px">' + esc(r.error) + '</span>';
+        if (r.info) html += '<br><span style="color:#8a6d3b;font-size:11px">' + esc(r.info) + '</span>';
         if (r.bytes) html += ' (' + r.bytes + ' bytes)';
         if (r.deployPath) html += '<br><span style="font-size:11px;color:#555">Deploy [' + esc(r.envTarget || (location.pathname.indexOf('/maps-dev/') === 0 ? 'dev' : 'prod')) + ']: ' + esc(r.deployPath) + '</span>';
         html += '<br>';
@@ -8140,6 +8560,11 @@ function _deployAllGroups(groups) {
     .then(function(r) { return r.json(); })
     .then(function(j) {
       if (!j.success) {
+        if (g.type === 'nls' && isNoNlsChangesMessage(j.error || '')) {
+          results.push({ type: g.type, sourceFile: g.sourceFile, target: g.target, success: true, info: 'Keine NLS-Änderungen zu deployen' });
+          processNext();
+          return;
+        }
         results.push({ type: g.type, sourceFile: g.sourceFile, target: g.target, success: false, error: 'Staging: ' + (j.error || 'Unbekannt') });
         processNext();
         return;
@@ -8214,7 +8639,8 @@ function _deployAllGroups(groups) {
 /**
  * Aktiven LyrMgr-Block auf den Server publizieren.
  */
-function publishLyrmgr() {
+function publishLyrmgr(mode) {
+  var publishMode = mode || 'both';
   var profileName = state.activeProfile;
   if (!profileName) { _tbAlert('Fehler', 'Bitte zuerst ein Profil wählen.', 'warn'); return; }
   var p = state.profiles[profileName];
@@ -8242,7 +8668,9 @@ function publishLyrmgr() {
 
   var _isDev = location.pathname.indexOf('/maps-dev/') === 0;
   var _dlgDevBadge = _isDev ? ' <span style="background:#e67e22;color:#fff;padding:1px 7px;border-radius:3px;font-size:11px;font-weight:700;vertical-align:middle">DEV</span>' : '';
-  var msg = '<strong>Profil:</strong> ' + esc(profileName) + '<br>' +
+  var modeLabel = publishMode === 'db' ? 'DB' : (publishMode === 'file' ? 'Datei (lyrmgr.conf) + DB-Sync' : 'DB + Datei');
+  var msg = '<strong>Modus:</strong> ' + esc(modeLabel) + '<br>' +
+    '<strong>Profil:</strong> ' + esc(profileName) + '<br>' +
     '<strong>Blöcke:</strong> ' + blockKeys.length + '<br>' +
     rtSummary.join('<br>') + '<br><br>' +
     'Dies überschreibt die <strong>gesamte</strong> ' + (_isDev ? '<strong style="color:#c0392b">DEV</strong>' : 'produktive') + ' lyrmgr.conf!';
@@ -8250,27 +8678,44 @@ function publishLyrmgr() {
   _tbConfirm('Lyrmgr publizieren?' + _dlgDevBadge, msg, function() {
     var editor = _editorName || 'anonym';
 
-    fetch(GAPI_URL + '/publish-lyrmgr-full', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ profile: profileName, data: confData, editor: editor })
-    })
-    .then(function(r) { return r.json(); })
-    .then(function(json) {
-      var d = json.data || json;
-      if (d.published) {
+    var publishRequests = blockKeys.map(function(key) {
+      return fetch(API_URL + '?action=publish-lyrmgr', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Editor-Name': editor },
+        body: JSON.stringify({ profile: profileName, lyrmgrKey: key, data: confData[key] })
+      }).then(function(r) { return r.json(); })
+        .then(function(json) {
+          return {
+            key: key,
+            success: !!json.success,
+            data: json.data || null,
+            error: json.error || null,
+            raw: json
+          };
+        })
+        .catch(function(err) {
+          return { key: key, success: false, error: err.message || String(err), raw: null };
+        });
+    });
+
+    Promise.all(publishRequests)
+    .then(function(results) {
+      var failed = results.filter(function(r) { return !r.success || !(r.data && r.data.published); });
+      if (!failed.length) {
+        var first = results[0] && results[0].data ? results[0].data : {};
         // Publizierten Stand als neues Original speichern → zukünftige Round-Trip-Checks stimmen
         Object.keys(confData).forEach(function(key) {
           if (p.lyrmgrs[key]) p.lyrmgrs[key]._rawBlock = JSON.parse(JSON.stringify(confData[key]));
         });
         // Vorschau nach Publish sofort aktualisieren
         updateLmPreviewIframe();
-        var pubMsg = 'Profil: ' + esc(profileName) + '<br>' +
-          'Ziel: ' + esc(d.target || 'prod') + '<br>' +
+        var pubMsg = 'Modus: ' + esc(modeLabel) + '<br>' +
+          'Profil: ' + esc(profileName) + '<br>' +
+          'Ziel: ' + esc(first.target || (_isDev ? 'dev' : 'prod')) + '<br>' +
           'Blöcke: ' + blockKeys.length + '<br>' +
-          'Pfad: ' + esc(d.path || '') + '<br>' +
-          'Bytes: ' + (d.bytes || '') + '<br>' +
-          'Backup: ' + esc(d.backup || '–');
+          'Pfad: ' + esc(first.path || '') + '<br>' +
+          'Bytes: ' + (first.bytes || '') + '<br>' +
+          'Backup: ' + esc(first.backup || '–');
 
         // === NLS-Aliase automatisch mit-deployen ===
         var _nlsIds = Object.keys(state.nlsEdits);
@@ -8294,10 +8739,35 @@ function publishLyrmgr() {
           _deployAllGroups(_nlsGroupArr);
         }
 
-        _tbAlert('Publiziert (SFTP)', pubMsg, 'success');
+        var doFileDeploy = (publishMode === 'file' || publishMode === 'both');
+        if (doFileDeploy) {
+          // Zusätzliches Full-Export/Deploy für Dateipfade (Best-Effort)
+          fetch(GAPI_URL + '/publish-lyrmgr-full', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ profile: profileName, data: confData, editor: editor })
+          })
+            .then(function(rg) { return rg.json(); })
+            .then(function(gj) {
+              var gd = gj && gj.data ? gj.data : gj;
+              if (gd && gd.published) {
+                pubMsg += '<br>Datei-Deploy: ✓ ' + esc(gd.path || '');
+              } else {
+                pubMsg += '<br>Datei-Deploy: ⚠ ' + esc((gd && (gd.error || gd.detail)) || 'fehlgeschlagen');
+              }
+              _tbAlert('Publiziert', pubMsg, 'success');
+            })
+            .catch(function(errDeploy) {
+              pubMsg += '<br>Datei-Deploy: ⚠ ' + esc(errDeploy.message || String(errDeploy));
+              _tbAlert('Publiziert', pubMsg, 'success');
+            });
+        } else {
+          pubMsg += '<br>Datei-Deploy: übersprungen';
+          _tbAlert('Publiziert', pubMsg, 'success');
+        }
 
         // Git-Commit mit Dialog
-        if (d.path) {
+        if (first.path) {
           var defaultGitMsg = _envLabel + ' Publish lyrmgr: ' + profileName + ' (' + blockKeys.length + ' Blöcke)';
           _tbCommitDialog(defaultGitMsg).then(function(result) {
             if (!result || result.skip) return; // Abgebrochen oder "Ohne Git"
@@ -8305,7 +8775,7 @@ function publishLyrmgr() {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                deployPath: d.path,
+                deployPath: first.path,
                 source: 'tree-builder',
                 message: result.message
               })
@@ -8320,7 +8790,11 @@ function publishLyrmgr() {
           });
         }
       } else {
-        _tbAlert('Publish fehlgeschlagen', '<pre>' + esc(d.detail || d.error || json.detail || JSON.stringify(json)) + '</pre>', 'error');
+        var failMsg = failed.map(function(f) {
+          var detail = (f.error || (f.raw && (f.raw.detail || f.raw.error)) || 'Unbekannt');
+          return f.key + ': ' + detail;
+        }).join('\n');
+        _tbAlert('Publish fehlgeschlagen', '<pre>' + esc(failMsg) + '</pre>', 'error');
       }
     })
     .catch(function(err) {
@@ -8379,8 +8853,10 @@ document.getElementById('tb-profile-select').addEventListener('change', function
   if (!profile) return;
   state.activeProfile = profile;
   state.activeLyrmgr = null;
-  // Lyrmgr.conf vom Server laden und Baum-Editor befüllen
-  loadLyrmgrForProfile(profile, true);
+  state.lastDraftSeenRevision = 0;
+  // Draft bevorzugen, fallback auf produktive Config
+  loadLyrmgrForProfileWithDraft(profile, true);
+  startDraftStatusPolling();
   saveState();
   // Layer für neues Profil laden (core + override + profil-spezifisch)
   loadLayers(profile);
@@ -8392,7 +8868,7 @@ document.getElementById('tb-profile-select').addEventListener('change', function
 function buildLmPreviewUrl(panel) {
   var group = state.activeProfile || 'public';
   var p = panel || document.getElementById('tb-lm-panel-select').value || 'both';
-  var src = (document.getElementById('tb-lm-source-select') || {}).value || 'file';
+  var src = (document.getElementById('tb-lm-source-select') || {}).value || 'auto';
   return 'dev-test.html?group=' + encodeURIComponent(group) + '&panel=' + p + '&source=' + src;
 }
 function updateLmPreviewIframe() {
@@ -8572,9 +9048,11 @@ loadAvailableProfiles(function() {
   loadLayers(_initProfile);
 
   // Schritt 4: Lyrmgr immer vom Server laden (lokaler Snapshot nur als Fallback in loadState)
-  // Damit wird kein veralteter Browser-Stand mehr vor dem Server-Stand gerendert.
-  console.log('[TB-DIAG v5] loadLyrmgrForProfile(' + _initProfile + ') [server-first]');
-  loadLyrmgrForProfile(_initProfile, true);
+  // Draft bevorzugen, fallback auf produktive Config.
+  // So bleiben Draft-Änderungen nach Reload sichtbar, bis publiziert wird.
+  console.log('[TB-DIAG v5] loadLyrmgrForProfileWithDraft(' + _initProfile + ') [server-first]');
+  loadLyrmgrForProfileWithDraft(_initProfile, true);
+  startDraftStatusPolling();
 });
 </script>
 <script src="https://cdn.jsdelivr.net/npm/ol@10.8.0/dist/ol.js"></script>
