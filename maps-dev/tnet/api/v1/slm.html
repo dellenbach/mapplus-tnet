@@ -6623,39 +6623,47 @@ function exportEditorToCore() {
     editorStatus('Kein Kürzel ausgewählt.', 'error');
     return;
   }
-  var key = buildKuerzelKey(kuerzelList);
-  if (!_editorLastExportRunId || _editorLastExportKuerzelKey !== key) {
-    editorStatus('Bitte zuerst «Export nach Temp» für die aktuelle Auswahl ausführen.', 'error');
-    return;
-  }
-
   var btnStage = document.getElementById('editor-btn-export-temp');
   var btnMerge = document.getElementById('editor-btn-merge-temp');
   var btnDeploy = document.getElementById('editor-btn-export');
-  btnStage.disabled = true;
-  btnMerge.disabled = true;
-  btnDeploy.disabled = true;
-  editorStatus('Deploye RunId ' + _editorLastExportRunId + ' nach core…');
+  var key = buildKuerzelKey(kuerzelList);
 
-  fetch(API_URL + '?action=deploy-catalog-artifacts', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ runId: _editorLastExportRunId })
-  })
-    .then(function(r) { return r.json(); })
-    .then(function(j) {
-      btnStage.disabled = false;
-      btnMerge.disabled = false;
-      btnDeploy.disabled = false;
-      if (!j || !j.success || !j.data) {
-        var err = (j && j.data && (j.data.error || (j.data.failed && j.data.failed[0] && j.data.failed[0].error))) || 'Deploy fehlgeschlagen';
-        editorStatus('Deploy nach core fehlgeschlagen: ' + err, 'error');
-        return;
-      }
-      var ok = j.data.deployedCount || 0;
-      var fail = j.data.failedCount || 0;
-      editorStatus('Deploy abgeschlossen: ' + ok + ' Dateien' + (fail ? (', ' + fail + ' Fehler') : ''), fail ? 'error' : 'success');
-      if (!fail) {
+  function setButtonsDisabled(disabled) {
+    btnStage.disabled = !!disabled;
+    btnMerge.disabled = !!disabled;
+    btnDeploy.disabled = !!disabled;
+  }
+
+  function extractErr(obj) {
+    if (!obj) return 'Unbekannter Fehler';
+    if (obj.error) return String(obj.error);
+    if (obj.message) return String(obj.message);
+    if (obj.detail) {
+      if (typeof obj.detail === 'string') return obj.detail;
+      try { return JSON.stringify(obj.detail); } catch (e) { return 'Unbekannter Fehler'; }
+    }
+    return 'Unbekannter Fehler';
+  }
+
+  function runDeploy(runId) {
+    editorStatus('Deploye RunId ' + runId + ' nach core…');
+    return fetch(API_URL + '?action=deploy-catalog-artifacts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ runId: runId })
+    })
+      .then(function(r) { return r.json(); })
+      .then(function(j) {
+        if (!j || !j.success || !j.data) {
+          var err = (j && j.data && (j.data.error || (j.data.failed && j.data.failed[0] && j.data.failed[0].error))) || extractErr(j);
+          editorStatus('Deploy nach core fehlgeschlagen: ' + err, 'error');
+          return;
+        }
+        var ok = j.data.deployedCount || 0;
+        var fail = j.data.failedCount || 0;
+        editorStatus('Deploy abgeschlossen: ' + ok + ' Dateien' + (fail ? (', ' + fail + ' Fehler') : ''), fail ? 'error' : 'success');
+        if (fail) return;
+
         var deployedPaths = ((j.data.deployed || []).map(function(d) { return d.deployPath; }).filter(Boolean));
         var deployUser = (typeof slmGetUser === 'function') ? slmGetUser() : 'unbekannt';
         if (deployedPaths.length > 0) {
@@ -6682,8 +6690,8 @@ function exportEditorToCore() {
                   editorStatus('Deploy + Git abgeschlossen: ' + ok + ' Dateien (' + (g.changed || 0) + ' committed)', 'success');
                 } else if (g && g.success) {
                   editorStatus('Deploy abgeschlossen: ' + ok + ' Dateien (Git: keine Änderungen)', 'success');
-                } else if (g) {
-                  editorStatus('Deploy abgeschlossen, Git fehlgeschlagen: ' + (g.error || g.message || 'Unbekannter Fehler'), 'error');
+                } else {
+                  editorStatus('Deploy abgeschlossen, Git fehlgeschlagen: ' + extractErr(g), 'error');
                 }
               })
               .catch(function(e) {
@@ -6693,13 +6701,47 @@ function exportEditorToCore() {
         }
         _editorLastExportRunId = null;
         _editorLastExportKuerzelKey = '';
-      }
+      });
+  }
+
+  setButtonsDisabled(true);
+  if (!_editorLastExportRunId || _editorLastExportKuerzelKey !== key) {
+    editorStatus('Kein aktueller Temp-Export gefunden — starte automatisch «Kürzel nach Temp»…');
+    fetch(API_URL + '?action=export-catalog-artifacts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        kuerzel: kuerzelList,
+        targetEnv: _storeEnv || 'dev',
+        includeNls: true
+      })
     })
+      .then(function(r) { return r.json(); })
+      .then(function(j) {
+        if (!j || !j.success || !j.data || !j.data.runId) {
+          var err = (j && j.data && (j.data.error || (j.data.errors && j.data.errors[0]))) || extractErr(j);
+          editorStatus('Auto-Export nach Temp fehlgeschlagen: ' + err, 'error');
+          return;
+        }
+        _editorLastExportRunId = j.data.runId;
+        _editorLastExportKuerzelKey = key;
+        return runDeploy(j.data.runId);
+      })
+      .catch(function(e) {
+        editorStatus('Netzwerkfehler beim Auto-Export: ' + e.message, 'error');
+      })
+      .finally(function() {
+        setButtonsDisabled(false);
+      });
+    return;
+  }
+
+  runDeploy(_editorLastExportRunId)
     .catch(function(e) {
-      btnStage.disabled = false;
-      btnMerge.disabled = false;
-      btnDeploy.disabled = false;
       editorStatus('Netzwerkfehler beim Deploy: ' + e.message, 'error');
+    })
+    .finally(function() {
+      setButtonsDisabled(false);
     });
 }
 

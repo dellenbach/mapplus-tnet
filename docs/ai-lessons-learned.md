@@ -1,3 +1,10 @@
+## 2026-06-10 — Editor-Deploy braucht Auto-Export und robustes Git-Error-Mapping
+
+- **Symptom:** „Kürzel nach core“ schlug mit „Bitte zuerst Export nach Temp“ ab bzw. zeigte bei Git-Fehlern nur „Unbekannter Fehler“.
+- **Root-Cause:** Deploy-Flow setzte einen manuellen Vor-Export voraus und wertete Git-Fehlerantworten (`detail`) nicht aus.
+- **Fix:** `exportEditorToCore()` startet nun bei fehlendem RunId automatisch `export-catalog-artifacts` und führt danach Deploy aus; Git-Fehlertexte werden aus `error/message/detail` extrahiert.
+- **Guardrail:** In 2-Step-Flows den zweiten Schritt resilient machen (Auto-Vorbereitung) und Backend-Fehlerfelder vollständig auswerten.
+
 ## 2026-06-10 — Merge-Export darf Metadateien nicht als Fehler behandeln
 
 - **Symptom:** „Kürzel mergen“ brach mit `Merge übersprungen (unbekannter Dateityp): .core-import-manifest_...json` ab.
