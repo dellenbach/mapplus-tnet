@@ -6220,6 +6220,42 @@ switch ($action) {
         jsonResponse(['success' => true, 'data' => $result]);
         break;
 
+    case 'debug-layer-source':
+        // Diagnostiziert welche Quelle list-all-layers verwendet und warum
+        $profile = $_GET['profile'] ?? 'public';
+        $bundles = StagingImportRepository::loadAll();
+        $bundleSummary = [];
+        $dbHasLayersCheck = false;
+        foreach ($bundles as $bundle) {
+            $bScope = $bundle['scope'] ?? 'core';
+            $layerFiles = [];
+            foreach (($bundle['files'] ?? []) as $file) {
+                $prefix = $file['prefix'] ?? '';
+                $data = $file['data'] ?? null;
+                $isAssoc = is_array($data) && !empty($data) && array_keys($data) !== range(0, count($data) - 1);
+                if ($prefix === 'layers' && $isAssoc) {
+                    $dbHasLayersCheck = true;
+                    $layerFiles[] = ['name' => $file['name'] ?? '', 'keys' => count($data)];
+                }
+            }
+            $bundleSummary[] = [
+                'kuerzel' => $bundle['kuerzel'],
+                'scope' => $bScope,
+                'profile' => $bundle['profile'] ?? null,
+                'fileCount' => count($bundle['files'] ?? []),
+                'layerFiles' => $layerFiles,
+            ];
+        }
+        jsonResponse(['success' => true, 'data' => [
+            'bundleCount' => count($bundles),
+            'dbHasLayers' => $dbHasLayersCheck,
+            'useStagingImportDb' => useStagingImportDb(),
+            'dbActive' => useStagingImportDb(),
+            'fallbackTriggered' => !$dbHasLayersCheck,
+            'bundles' => $bundleSummary,
+        ]]);
+        break;
+
     case 'debug-manifest':
         $kuerzel = $_GET['kuerzel'] ?? '';
         if (!$kuerzel) jsonError('Parameter kuerzel= erforderlich', 400);

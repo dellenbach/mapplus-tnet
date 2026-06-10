@@ -491,6 +491,32 @@
   opacity: 0.4;
 }
 
+/* Fehlende Layer (kein layer_definition-Eintrag) — nur in Preview sichtbar */
+.lm-layer--missing {
+  border-left-color: #ff9800 !important;
+  background: #fff8f0 !important;
+}
+.lm-layer--missing .lm-layer-name {
+  color: #e65100;
+}
+.lm-layer--missing .lm-cb {
+  opacity: 0.4;
+  pointer-events: none;
+}
+.lm-layer-missing-badge {
+  display: inline-block;
+  margin-left: 6px;
+  font-size: 10px;
+  color: #ff6f00;
+  font-weight: 600;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+/* Checkbox "Fehlende ausblenden": wenn Container-Klasse gesetzt → missing ausblenden */
+.lm-hide-missing .lm-layer--missing {
+  display: none !important;
+}
+
 /* ============================================================
    Dargestellte Themen — Active Layers Panel
    ============================================================ */

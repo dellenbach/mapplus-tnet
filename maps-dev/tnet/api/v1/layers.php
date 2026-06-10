@@ -29,6 +29,7 @@ require_once __DIR__ . '/../includes/JsonCache.php';
 require_once __DIR__ . '/../includes/Database.php';
 require_once __DIR__ . '/../includes/ConfigSource.php';
 require_once __DIR__ . '/../includes/CatalogRepository.php';
+require_once __DIR__ . '/../includes/StagingImportRepository.php';
 
 // Standard API Headers
 ApiResponse::setHeaders();
@@ -83,8 +84,11 @@ $details  = !isset($_GET['details']) || $_GET['details'] !== 'false'; // default
 $debug    = isset($_GET['debug']) && $_GET['debug'] === '1';
 $layerId  = $_GET['id'] ?? null; // Einzelner Layer per ID
 $source   = strtolower(trim($_GET['source'] ?? '')); // db|file (explizit)
-$noCache  = isset($_GET['nocache']) && $_GET['nocache'] === '1';
-$action   = $_GET['action'] ?? null;
+$noCache       = isset($_GET['nocache']) && $_GET['nocache'] === '1';
+$action        = $_GET['action'] ?? null;
+// filterMissing: 1 = fehlende Layer (kein layer_definition-Eintrag) aus dem Baum entfernen (Standard Kartenanwendung)
+//                0 = fehlende Layer behalten, aber mit _missing:true markieren (für SLM-Preview)
+$filterMissing = !isset($_GET['filterMissing']) || $_GET['filterMissing'] !== '0';
 
 if ($source === '' || $source === 'auto' || !in_array($source, ['db', 'file'], true)) {
     ApiResponse::error("Ungueltiger source-Parameter. Verwende source=db oder source=file.", 400);
@@ -387,6 +391,29 @@ if ($useDatabase) {
     try {
         $pdo = Database::getConnection();
 
+        // Einmalig alle Layer-IDs aus config_bundle_store laden (für _missing-Prüfung).
+        // Ein Layer gilt als "importiert" wenn seine ID in mindestens einem Bundle-Payload vorkommt.
+        // Performance: Ein extra Query, JSONB-Extraktion, aber nur einmal pro Request.
+        $importedLayerIds = [];
+        try {
+            $cbs = $pdo->query(
+                "SELECT payload FROM mapplusconf.config_bundle_store"
+            );
+            while ($cbsRow = $cbs->fetch(PDO::FETCH_ASSOC)) {
+                $payload = json_decode($cbsRow['payload'], true);
+                foreach ($payload['files'] ?? [] as $file) {
+                    if (($file['prefix'] ?? '') === 'layers' && is_array($file['data'] ?? null)) {
+                        foreach (array_keys($file['data']) as $layerId) {
+                            $importedLayerIds[$layerId] = true;
+                        }
+                    }
+                }
+            }
+        } catch (\Throwable $e) {
+            // config_bundle_store nicht verfügbar → keine _missing-Markierung möglich
+            $importedLayerIds = null;
+        }
+
         // OPTIMIERT: Eine einzige Query statt rekursiver PL/pgSQL-Funktion
         // Holt alle Knoten + Layer-Details in einem Durchgang
         $sql = "
@@ -451,7 +478,7 @@ if ($useDatabase) {
         $rows = $stmt->fetchAll();
 
         // Tree in PHP aufbauen (statt rekursiver PL/pgSQL-Funktion)
-        $built = buildCatalogTree($rows, $details);
+        $built = buildCatalogTree($rows, $details, $filterMissing, $importedLayerIds);
         $catalogJson = $built['tree'];
         $treeStats   = $built['stats'];
 
@@ -736,15 +763,30 @@ foreach ($mapping['categories'] as $topCategory) {
                     }
 
                     if (isset($groupDef['items'])) {
-                        $groupData['layers'] = processLayerItems($groupDef['items'], $layerDefinitions, $details);
+                        $groupData['layers'] = processLayerItems($groupDef['items'], $layerDefinitions, $details, $filterMissing);
+                    }
+
+                    // Leere Gruppe (nach Missing-Filter) nicht übernehmen
+                    if ($filterMissing && empty($groupData['layers'])) {
+                        continue;
                     }
 
                     $subcategoryData['groups'][] = $groupData;
                 }
             }
 
+            // Leere Subcategory (nach Missing-Filter) nicht übernehmen
+            if ($filterMissing && empty($subcategoryData['groups'])) {
+                continue;
+            }
+
             $topCategoryData['subcategories'][] = $subcategoryData;
         }
+    }
+
+    // Leere Kategorie (nach Missing-Filter) nicht übernehmen
+    if ($filterMissing && empty($topCategoryData['subcategories'])) {
+        continue;
     }
 
     $categories[] = $topCategoryData;
@@ -850,7 +892,7 @@ ApiResponse::success($result, $meta);
  * @param array $layerDefinitions Layer-Definitionen aus layers_*.conf
  * @return array Verarbeitete Layer-Daten
  */
-function processLayerItems($items, &$layerDefinitions, $details = true) {
+function processLayerItems($items, &$layerDefinitions, $details = true, $filterMissing = true) {
     $layers = [];
 
     foreach ($items as $key => $item) {
@@ -864,6 +906,12 @@ function processLayerItems($items, &$layerDefinitions, $details = true) {
 
             // Layer-Definition laden (für Details ODER Legend-Info)
             $def = findLayerDefinition($item, $layerDefinitions);
+
+            // _missing: Layer-ID nicht in config_bundle_store vorhanden
+            if (!$def) {
+                if ($filterMissing) continue; // Layer komplett ausblenden
+                $layerData['_missing'] = true;
+            }
 
             if ($details && $def) {
                 $layerData['url']       = isset($def['url']) ? normalizeAppProxyUrl($def['url']) : null;
@@ -927,6 +975,11 @@ function processLayerItems($items, &$layerDefinitions, $details = true) {
             if (!isset($item['items'])) {
                 // Leaf-Layer: Definition laden für Details und/oder Legend-Info
                 $def = findLayerDefinition($item['name'], $layerDefinitions);
+                // _missing: Layer-ID nicht in config_bundle_store vorhanden
+                if (!$def) {
+                    if ($filterMissing) continue; // Layer komplett ausblenden
+                    $layerData['_missing'] = true;
+                }
                 if ($def) {
                     if ($details) {
                         $layerData['url']       = isset($def['url']) ? normalizeAppProxyUrl($def['url']) : null;
@@ -958,7 +1011,9 @@ function processLayerItems($items, &$layerDefinitions, $details = true) {
             }
 
             if (isset($item['items'])) {
-                $layerData['layers'] = processLayerItems($item['items'], $layerDefinitions, $details);
+                $layerData['layers'] = processLayerItems($item['items'], $layerDefinitions, $details, $filterMissing);
+                // Leere Gruppe (nach Missing-Filter) ausblenden
+                if ($filterMissing && empty($layerData['layers'])) continue;
             }
 
             $layers[] = $layerData;
@@ -989,7 +1044,9 @@ function processLayerItems($items, &$layerDefinitions, $details = true) {
             }
 
             if (isset($item['items'])) {
-                $layerData['layers'] = processLayerItems($item['items'], $layerDefinitions, $details);
+                $layerData['layers'] = processLayerItems($item['items'], $layerDefinitions, $details, $filterMissing);
+                // Leere Gruppe (nach Missing-Filter) ausblenden
+                if ($filterMissing && empty($layerData['layers'])) continue;
             }
 
             $layers[] = $layerData;
@@ -1448,7 +1505,7 @@ function fetchLayerFromDb($layerId) {
  * @param bool  $details  Layer-Details einbeziehen
  * @return array           ['tree' => [...], 'stats' => ['layers' => int, 'groups' => int, 'nodes' => int]]
  */
-function buildCatalogTree(array $rows, bool $details): array {
+function buildCatalogTree(array $rows, bool $details, bool $filterMissing = true, ?array $importedLayerIds = null): array {
     $categories = [];  // catId → {id, name, icon, sort}
     $nodes = [];       // node_pk → node array
     $children = [];    // node_pk → [child node_pk, ...]
@@ -1540,6 +1597,15 @@ function buildCatalogTree(array $rows, bool $details): array {
 
         $nodes[$nodePk] = $node;
 
+        // _missing: Layer-Node dessen ID nicht in config_bundle_store importiert wurde.
+        // Wenn importedLayerIds = null (Tabelle nicht verfügbar) → kein _missing gesetzt.
+        $isMissingLayer = ($row['node_kind'] === 'layer')
+            && ($importedLayerIds !== null)
+            && !isset($importedLayerIds[$row['layer_id'] ?? '']);
+        if ($isMissingLayer) {
+            $nodes[$nodePk]['_missing'] = true;
+        }
+
         // Statistiken zählen
         if ($row['node_kind'] === 'layer') {
             $layerCount++;
@@ -1593,9 +1659,15 @@ function buildCatalogTree(array $rows, bool $details): array {
 
         if (isset($roots[$catId])) {
             foreach ($roots[$catId] as $rootPk) {
-                $catObj['nodes'][] = buildNodeTree($rootPk, $nodes, $children);
+                $built = buildNodeTree($rootPk, $nodes, $children, $filterMissing);
+                // Wenn filterMissing aktiv: leere/missing Root-Nodes nicht übernehmen
+                if ($filterMissing && !empty($built['_missing'])) continue;
+                $catObj['nodes'][] = $built;
             }
         }
+
+        // Leere Kategorien (nach Filterung) nicht ausgeben
+        if ($filterMissing && empty($catObj['nodes'])) continue;
 
         $result[] = $catObj;
     }
@@ -1627,20 +1699,32 @@ function buildCatalogTree(array $rows, bool $details): array {
  * Baut einen einzelnen Knoten mit allen Kindern rekursiv auf.
  * Arbeitet auf den bereits geladenen Hash-Maps → kein DB-Zugriff.
  * 
- * @param int   $nodePk   Primärschlüssel des Knotens
- * @param array &$nodes   Alle Knoten (node_pk → array)
- * @param array &$children Parent → [child_pk, ...]
- * @return array           Fertig aufgebauter Knoten mit 'layers'-Array
+ * @param int   $nodePk        Primärschlüssel des Knotens
+ * @param array &$nodes        Alle Knoten (node_pk → array)
+ * @param array &$children     Parent → [child_pk, ...]
+ * @param bool  $filterMissing Fehlende Layer-Nodes und leere Gruppen entfernen
+ * @return array               Fertig aufgebauter Knoten mit 'layers'-Array
  */
-function buildNodeTree(int $nodePk, array &$nodes, array &$children): array {
+function buildNodeTree(int $nodePk, array &$nodes, array &$children, bool $filterMissing = true): array {
     $node = $nodes[$nodePk];
 
     if (isset($children[$nodePk])) {
         $childNodes = [];
+        $allChildrenMissing = true;
         foreach ($children[$nodePk] as $childPk) {
-            $childNodes[] = buildNodeTree($childPk, $nodes, $children);
+            $child = buildNodeTree($childPk, $nodes, $children, $filterMissing);
+            if ($filterMissing && !empty($child['_missing'])) {
+                // fehlenden Child-Node überspringen
+                continue;
+            }
+            $allChildrenMissing = false;
+            $childNodes[] = $child;
         }
         $node['layers'] = $childNodes;
+        // Gruppen-Node ohne sichtbare Kinder → als _missing markieren (wird oben gefiltert)
+        if ($filterMissing && empty($childNodes) && isset($children[$nodePk])) {
+            $node['_missing'] = true;
+        }
     }
 
     return $node;

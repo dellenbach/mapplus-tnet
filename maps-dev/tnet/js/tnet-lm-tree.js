@@ -148,6 +148,8 @@
       _container.innerHTML = html;
       this._bindEvents();
       this._resyncLayerCheckboxes();
+      // Informiert Subscribers (z.B. dev-test.html Checkbox) dass der Katalog gerendert ist
+      document.dispatchEvent(new CustomEvent('lm-catalog-rendered', { bubbles: false }));
     },
 
     /** Rendert den ganzen Inhalt einer Kategorie als Accordion */
@@ -262,11 +264,16 @@
       var checked = layer.visible ? ' checked' : '';
       var activeClass = layer.visible ? ' lm-active' : '';
       var hasLegend = layer.legend && layer.legend !== '';
+      var missingClass = layer._missing ? ' lm-layer--missing' : '';
+      var missingAttr = layer._missing ? ' data-missing="1"' : '';
       var html = '';
-      html += '<div class="lm-layer lm-depth-' + normalizedDepth + activeClass + '" data-layer-id="' + esc(layer.id) + '" data-lm-depth="' + normalizedDepth + '" data-name="' + esc((layer.name || '').toLowerCase()) + '">';
+      html += '<div class="lm-layer lm-depth-' + normalizedDepth + activeClass + missingClass + '" data-layer-id="' + esc(layer.id) + '" data-lm-depth="' + normalizedDepth + '"' + missingAttr + ' data-name="' + esc((layer.name || '').toLowerCase()) + '">';
       html += '<label class="lm-layer-label">';
       html += '<input type="checkbox" class="lm-cb"' + checked + ' data-action="toggle-layer">';
       html += '<span class="lm-layer-name">' + esc(layer.name) + '</span>';
+      if (layer._missing) {
+        html += '<span class="lm-layer-missing-badge" title="Keine Layer-Definition in der Datenbank">⚠ fehlt</span>';
+      }
       html += '</label>';
       if (hasLegend) {
         var legendLayers = layer.legendLayers || '';
