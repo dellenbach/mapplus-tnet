@@ -37,6 +37,7 @@ CorsHelper::handlePreflight('GET, POST, OPTIONS', 'Content-Type, X-Editor-Name')
 CorsHelper::setHeaders('GET, POST, OPTIONS', 'Content-Type, X-Editor-Name');
 
 require_once __DIR__ . '/../includes/CorePaths.php';
+require_once __DIR__ . '/../includes/TmpPaths.php';
 require_once __DIR__ . '/../includes/Database.php';
 require_once __DIR__ . '/../includes/StagingImportRepository.php';
 
@@ -57,11 +58,11 @@ define('CLIENT_DATA_ROOT', $clientDataRoot);
 define('TNET_TMP_ROOT', '/data/Client_Data/nwow/tmp/' . (APP_BASE_PATH === '/maps-dev' ? 'maps-dev' : 'maps'));
 define('CORE_CONFIG_DIR', TnetCorePaths::getConfigPath());
 define('CORE_NLS_DIR', TnetCorePaths::getNlsPath('de'));
-define('APP_CORE_CONFIG_DIR', APP_BASE_PATH === '/maps-dev' ? CORE_CONFIG_DIR : APP_WEB_ROOT . '/core/config');
+define('APP_CORE_CONFIG_DIR', APP_WEB_ROOT . '/core/config');
 // App-lokale NLS-Überladungen: /www/maps(-dev)/core/nls/de/ — enthält z.B. Kategorie-Labels (desc_grundlagen etc.)
 define('APP_CORE_NLS_DIR', APP_WEB_ROOT . '/core/nls/de');
 define('CONFIG_BASE', APP_WEB_ROOT . '/public/config');
-define('DATA_DIR', TNET_TMP_ROOT . '/layertree');
+define('DATA_DIR', TnetTmpPaths::editor('layertree'));
 define('STATE_FILE', DATA_DIR . '/treebuilder-state.json');
 define('GROUPS_FILE', DATA_DIR . '/groups.json5');
 define('PROFILES_DIR', DATA_DIR . '/profiles');
@@ -104,6 +105,13 @@ function runtimePathInfo($label, $path) {
         'isDir'    => is_dir($path),
         'writable' => is_dir($path) ? is_writable($path) : (file_exists($path) ? is_writable($path) : is_writable(dirname($path))),
     ];
+}
+
+function toDisplayTmpPath($path) {
+    $path = str_replace('\\', '/', (string)$path);
+    $path = str_replace('/data/Client_Data/nwow/', '', $path);
+    $path = str_replace('/data/', '', $path);
+    return ltrim($path, '/');
 }
 
 function getEditorName() {
@@ -1275,8 +1283,8 @@ function deployLyrmgr($stageProfile, $targetProfile, $editor) {
 // AGS → MapPlus Roh-Konfiguration (ags2mapplus API)
 // =====================================================================
 define('AGS_API_BASE', 'https://www.gis-daten.ch/gapi/ags2mapplus');
-define('RAW_CONF_DIR', TNET_TMP_ROOT . '/raw-conf');
-define('IMPORT_TO_CORE_DIR', TNET_TMP_ROOT . '/ImportToCore');
+define('RAW_CONF_DIR', TnetTmpPaths::getRoot() . '/raw-conf');
+define('IMPORT_TO_CORE_DIR', TnetTmpPaths::agsImport('ImportToCore'));
 define('QMAP_DIR', CLIENT_DATA_ROOT . '/qmap');
 define('QMAP_BASE_URL', '/qmap');
 
@@ -1529,7 +1537,7 @@ function exportQgisProjects($projekte) {
         $content = $zip->getFromIndex($i);
         if ($content === false) continue;
 
-        $targetPath = $rawConfDir . '/' . $entryName;
+        $targetPath = $rawConfDir . '/qgis/' . $entryName;
         $targetDir = dirname($targetPath);
         if (!is_dir($targetDir)) {
             if (!@mkdir($targetDir, 0777, true)) {
@@ -1565,7 +1573,7 @@ function exportQgisProjects($projekte) {
         'services'  => array_map(function($p) { return 'qgis_' . strtolower($p['folder']) . '_' . strtolower($p['file']); }, $projekte),
         'zipSize'   => strlen($zipData),
         'files'     => $extractedFiles,
-        'directory' => $rawConfDir,
+        'directory' => toDisplayTmpPath($rawConfDir . '/qgis'),
         'timestamp' => date('Y-m-d H:i:s'),
     ];
     if (count($failedFiles) > 0) {
@@ -1636,6 +1644,70 @@ function getAgsServices() {
 }
 
 /**
+ * Raw-Conf Quell-Buckets unterhalb von RAW_CONF_DIR.
+ */
+function rawConfSourceBuckets() {
+    return ['ags', 'qgis', 'mapplus'];
+}
+
+/**
+ * Entfernt den optionalen Quell-Bucket-Präfix aus einem relativen Raw-Conf-Pfad.
+ */
+function stripRawConfSourcePrefix($relPath) {
+    $relPath = str_replace('\\', '/', (string)$relPath);
+    $parts = explode('/', $relPath);
+    if (count($parts) >= 2 && in_array($parts[0], rawConfSourceBuckets(), true)) {
+        return implode('/', array_slice($parts, 1));
+    }
+    return $relPath;
+}
+
+/**
+ * Sucht das Service-Verzeichnis in flat- und bucket-Struktur.
+ */
+function resolveRawConfServiceDir($rawDir, $serviceKey) {
+    $candidates = [$rawDir . '/' . $serviceKey];
+    foreach (rawConfSourceBuckets() as $bucket) {
+        $candidates[] = $rawDir . '/' . $bucket . '/' . $serviceKey;
+    }
+    foreach ($candidates as $path) {
+        if (is_dir($path)) return $path;
+    }
+    return null;
+}
+
+/**
+ * Sammelt alle Raw-Conf-Dateien zu einem Service-Key rekursiv.
+ */
+function collectRawConfFilesByService($rawDir, $serviceKey) {
+    $files = [];
+    if (!is_dir($rawDir)) return $files;
+    $it = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($rawDir, RecursiveDirectoryIterator::SKIP_DOTS),
+        RecursiveIteratorIterator::LEAVES_ONLY
+    );
+    foreach ($it as $entry) {
+        if (!$entry->isFile()) continue;
+        $fullPath = $entry->getPathname();
+        $relPath = str_replace('\\', '/', str_replace($rawDir . '/', '', $fullPath));
+        $normRel = stripRawConfSourcePrefix($relPath);
+        $parts = explode('/', $normRel);
+        $svcFromPath = null;
+        if (count($parts) >= 3) {
+            $svcFromPath = $parts[0] . '/' . $parts[1];
+        } elseif (count($parts) === 2) {
+            $svcFromPath = $parts[0];
+        } elseif (count($parts) === 1) {
+            $svcFromPath = extractServiceFromFilename($parts[0]);
+        }
+        if ($svcFromPath === $serviceKey) {
+            $files[] = new SplFileInfo($fullPath);
+        }
+    }
+    return $files;
+}
+
+/**
  * Ermittelt den tatsächlich nutzbaren Pfad für raw-conf.
  * RAW_CONF_DIR liegt unter TNET_TMP_ROOT/raw-conf — dieses Verzeichnis
  * gehört www-data (gid 33) und ist dauerhaft beschreibbar.
@@ -1650,6 +1722,7 @@ function getWritableRawConfDir() {
         $resolved = RAW_CONF_DIR;
         return $resolved;
     }
+
     // Versuch zu erstellen (Parent /tmp/ muss beschreibbar sein)
     if (!is_dir(RAW_CONF_DIR)) {
         if (@mkdir(RAW_CONF_DIR, 0775, true)) {
@@ -1750,8 +1823,8 @@ function exportAgsServices($dienstnamen, $serviceDetails = []) {
         $content = $zip->getFromIndex($i);
         if ($content === false) continue;
 
-        // Zielverzeichnis: raw-conf/<Unterordner>
-        $targetPath = $rawConfDir . '/' . $entryName;
+        // Zielverzeichnis: raw-conf/ags/<Unterordner>
+        $targetPath = $rawConfDir . '/ags/' . $entryName;
         $targetDir = dirname($targetPath);
         if (!is_dir($targetDir)) {
             if (!@mkdir($targetDir, 0777, true)) {
@@ -1792,7 +1865,7 @@ function exportAgsServices($dienstnamen, $serviceDetails = []) {
         'services'  => $dienstnamen,
         'zipSize'   => strlen($zipData),
         'files'     => $extractedFiles,
-        'directory' => $rawConfDir,
+        'directory' => toDisplayTmpPath($rawConfDir . '/ags'),
         'timestamp' => date('Y-m-d H:i:s')
     ];
     // Teilfehler melden falls vorhanden
@@ -1872,9 +1945,10 @@ function listRawConf($includeBackups = false, $backupOnly = false) {
 
         $relPath = str_replace($rawConfDir . '/', '', $file->getPathname());
         $relPath = str_replace('\\', '/', $relPath); // Windows-Pfade normalisieren
+        $normRelPath = stripRawConfSourcePrefix($relPath);
 
         // Service-Key ermitteln
-        $parts = explode('/', $relPath);
+        $parts = explode('/', $normRelPath);
         if (count($parts) >= 3) {
             // 3-Ebenen-Struktur: group/service/datei → Key = group/service
             $svcKey = $parts[0] . '/' . $parts[1];
@@ -1889,6 +1963,7 @@ function listRawConf($includeBackups = false, $backupOnly = false) {
 
         $fileInfo = [
             'file'     => $relPath,
+            'normFile' => $normRelPath,
             'size'     => $file->getSize(),
             'modified' => date('Y-m-d H:i:s', $file->getMTime()),
             'isBackup' => $isBackup
@@ -1910,7 +1985,7 @@ function listRawConf($includeBackups = false, $backupOnly = false) {
 
     return [
         'exists'    => true,
-        'directory' => $rawConfDir,
+        'directory' => toDisplayTmpPath($rawConfDir),
         'includeBackups' => (bool)$includeBackups,
         'backupOnly' => (bool)$backupOnly,
         'files'     => $files,
@@ -1955,7 +2030,7 @@ function deleteRawConfService($serviceKey) {
 
     $rawConfDir = getWritableRawConfDir();
     if ($rawConfDir === false) $rawConfDir = RAW_CONF_DIR;
-    $servicePath = $rawConfDir . '/' . $serviceKey;
+    $servicePath = resolveRawConfServiceDir($rawConfDir, $serviceKey);
     $realBase = realpath($rawConfDir);
     if (!$realBase) {
         return ['success' => false, 'error' => 'raw-conf Verzeichnis existiert nicht'];
@@ -1964,7 +2039,7 @@ function deleteRawConfService($serviceKey) {
     $deleted = [];
 
     // Fall 1: Service-Key ist ein Verzeichnis (Unterordner-Struktur)
-    $realPath = realpath($servicePath);
+    $realPath = $servicePath ? realpath($servicePath) : false;
     if ($realPath && is_dir($realPath) && strpos($realPath, $realBase) === 0) {
         $iterator = new RecursiveIteratorIterator(
             new RecursiveDirectoryIterator($realPath, RecursiveDirectoryIterator::SKIP_DOTS),
@@ -1993,27 +2068,21 @@ function deleteRawConfService($serviceKey) {
     }
     // Fall 2: Flache Struktur — alle Dateien löschen die zu diesem Service gehören
     else {
-        $allFiles = @scandir($rawConfDir);
-        if ($allFiles) {
-            foreach ($allFiles as $f) {
-                if ($f === '.' || $f === '..') continue;
-                $filePath = $rawConfDir . '/' . $f;
-                if (!is_file($filePath)) continue;
-                // Prüfen ob Datei zu diesem Service gehört
-                $fileSvc = extractServiceFromFilename($f);
-                if ($fileSvc === $serviceKey) {
-                    $deleted[] = $f;
-                    @unlink($filePath);
+        $svcFiles = collectRawConfFilesByService($rawConfDir, $serviceKey);
+        foreach ($svcFiles as $sf) {
+            $p = $sf->getPathname();
+            $rel = str_replace($rawConfDir . '/', '', str_replace('\\', '/', $p));
+            $deleted[] = $rel;
+            @unlink($p);
+            $parent = dirname($p);
+            while ($parent && $parent !== $rawConfDir && is_dir($parent)) {
+                $remaining = @scandir($parent);
+                if ($remaining && count($remaining) <= 2) {
+                    @rmdir($parent);
+                    $parent = dirname($parent);
+                    continue;
                 }
-                // Auch Backups löschen
-                if (isRawConfBackupFile($f)) {
-                    $baseName = stripRawConfBackupSuffix($f);
-                    $baseSvc = extractServiceFromFilename($baseName);
-                    if ($baseSvc === $serviceKey) {
-                        $deleted[] = $f;
-                        @unlink($filePath);
-                    }
-                }
+                break;
             }
         }
     }
@@ -2219,7 +2288,7 @@ function checkSourceChanges($manifest, $rawDir) {
 
     foreach ($manifest['sources'] as $src) {
         $svcKey = $src['service'];
-        $svcDir = $rawDir . '/' . $svcKey;
+        $svcDir = resolveRawConfServiceDir($rawDir, $svcKey);
         $isDirBased = is_dir($svcDir);
 
         // Flat-Index für nicht-Verzeichnis-basierte Services
@@ -2372,9 +2441,10 @@ function listCoreSources() {
     $rawConfDir = getWritableRawConfDir();
     if ($rawConfDir === false) $rawConfDir = RAW_CONF_DIR;
     $rawConfKuerzel = [];
-    if (is_dir($rawConfDir)) {
-        foreach (@scandir($rawConfDir) ?: [] as $d) {
-            if ($d !== '.' && $d !== '..' && is_dir($rawConfDir . '/' . $d)) {
+    $mapplusRawDir = is_dir($rawConfDir . '/mapplus') ? ($rawConfDir . '/mapplus') : $rawConfDir;
+    if (is_dir($mapplusRawDir)) {
+        foreach (@scandir($mapplusRawDir) ?: [] as $d) {
+            if ($d !== '.' && $d !== '..' && is_dir($mapplusRawDir . '/' . $d)) {
                 $rawConfKuerzel[$d] = true;
             }
         }
@@ -2459,7 +2529,7 @@ function listCoreSources() {
         // Change-Detection: Vergleich aktuelle Core-Dateien mit letztem Import-Manifest
         $sourceChanges = null;
         if (isset($rawConfKuerzel[$key])) {
-            $manifestPath = $rawConfDir . '/' . $key . '/.core-import-manifest.json';
+            $manifestPath = $mapplusRawDir . '/' . $key . '/.core-import-manifest.json';
             if (is_file($manifestPath)) {
                 $raw = @file_get_contents($manifestPath);
                 if ($raw !== false) {
@@ -2545,7 +2615,7 @@ function importCoreToRawConf($kuerzelList) {
 
     foreach ($kuerzelList as $kuerzel) {
         $kuerzel = basename($kuerzel); // Sicherheit: keine Pfad-Traversal
-        $targetDir = $rawConfDir . '/' . $kuerzel;
+        $targetDir = $rawConfDir . '/mapplus/' . $kuerzel;
         $copiedFiles = [];
         $errors = [];
 
@@ -2882,23 +2952,15 @@ function stageServicesToImportDb(array $serviceKeys, string $kuerzel, string $mo
     $errors = [];
     $skipped = [];
     foreach ($serviceKeys as $svcKey) {
-        $svcDir = $rawDir . '/' . $svcKey;
-        if (is_dir($svcDir)) {
+        $svcDir = resolveRawConfServiceDir($rawDir, $svcKey);
+        if ($svcDir && is_dir($svcDir)) {
             $it = new RecursiveIteratorIterator(
                 new RecursiveDirectoryIterator($svcDir, RecursiveDirectoryIterator::SKIP_DOTS),
                 RecursiveIteratorIterator::LEAVES_ONLY
             );
             $svcFiles = iterator_to_array($it, false);
         } else {
-            $svcFiles = [];
-            $allEntries = @scandir($rawDir);
-            if ($allEntries) {
-                foreach ($allEntries as $entry) {
-                    $fullPath = $rawDir . '/' . $entry;
-                    if ($entry === '.' || $entry === '..' || !is_file($fullPath)) continue;
-                    if (extractServiceFromFilename($entry) === $svcKey) $svcFiles[] = new SplFileInfo($fullPath);
-                }
-            }
+            $svcFiles = collectRawConfFilesByService($rawDir, $svcKey);
             if (empty($svcFiles)) { $errors[] = 'Dienst nicht gefunden: ' . $svcKey; continue; }
         }
 
@@ -2992,7 +3054,7 @@ function stageServicesToImportDb(array $serviceKeys, string $kuerzel, string $mo
     }
 
     foreach ($serviceKeys as $svcKey) {
-        $svcDir = $rawDir . '/' . $svcKey;
+        $svcDir = resolveRawConfServiceDir($rawDir, $svcKey);
         $svcKeyCounts = [];
         foreach ($buckets as $prefix => $bucket) {
             $count = 0;
@@ -3003,7 +3065,7 @@ function stageServicesToImportDb(array $serviceKeys, string $kuerzel, string $mo
         }
 
         $srcFiles = [];
-        if (is_dir($svcDir)) {
+        if ($svcDir && is_dir($svcDir)) {
             $it = new RecursiveIteratorIterator(
                 new RecursiveDirectoryIterator($svcDir, RecursiveDirectoryIterator::SKIP_DOTS),
                 RecursiveIteratorIterator::LEAVES_ONLY
@@ -3016,14 +3078,12 @@ function stageServicesToImportDb(array $serviceKeys, string $kuerzel, string $mo
                 $srcFiles[] = ['file' => $sfn, 'size' => $sf->getSize(), 'modified' => date('Y-m-d H:i:s', $sf->getMTime())];
             }
         } else {
-            foreach (@scandir($rawDir) ?: [] as $entry) {
-                $fullPath = $rawDir . '/' . $entry;
-                if ($entry === '.' || $entry === '..' || !is_file($fullPath)) continue;
-                if (extractServiceFromFilename($entry) !== $svcKey) continue;
-                if (preg_match('/\.\d{8}_\d{6}\.bak$/', $entry)) continue;
-                $ext = strtolower(pathinfo($entry, PATHINFO_EXTENSION));
-                if (!in_array($ext, ['conf', 'json'], true)) continue;
-                $srcFiles[] = ['file' => $entry, 'size' => filesize($fullPath), 'modified' => date('Y-m-d H:i:s', filemtime($fullPath))];
+            foreach (collectRawConfFilesByService($rawDir, $svcKey) as $sf) {
+                $sfn = $sf->getFilename();
+                if (preg_match('/\.\d{8}_\d{6}\.bak$/', $sfn)) continue;
+                $sfExt = strtolower(pathinfo($sfn, PATHINFO_EXTENSION));
+                if (!in_array($sfExt, ['conf', 'json'], true)) continue;
+                $srcFiles[] = ['file' => $sfn, 'size' => $sf->getSize(), 'modified' => date('Y-m-d H:i:s', $sf->getMTime())];
             }
         }
         if (empty($srcFiles)) continue;
@@ -3236,7 +3296,7 @@ function configExportToCoreDb($kuerzel) {
     if (!$bundle) return ['success' => false, 'error' => 'Quell-Bundle nicht gefunden'];
 
     // Scope-bewusste Zielpfade:
-    //   core              -> core-dev/config/ + core-dev/nls/de/
+    //   core              -> core/config/ + core/nls/de/
     //   sitecore/override -> maps-dev/core/config/ + maps-dev/core/nls/de/
     //   profile           -> maps-dev/public/config/<profil>/ (conf + nls zusammen)
     $scope = $bundle['scope'] ?? 'core';
@@ -3499,29 +3559,18 @@ function stageServicesToImportToCore(array $serviceKeys, string $kuerzel, string
     $skipped    = []; // Übersprungene Dateien mit Grund (für Debug-Ausgabe)
 
     foreach ($serviceKeys as $svcKey) {
-        $svcDir = $rawDir . '/' . $svcKey;
+        $svcDir = resolveRawConfServiceDir($rawDir, $svcKey);
 
         // Verzeichnis-basierte Struktur (group/service/ ODER service_dir/)
-        if (is_dir($svcDir)) {
+        if ($svcDir && is_dir($svcDir)) {
             $it = new RecursiveIteratorIterator(
                 new RecursiveDirectoryIterator($svcDir, RecursiveDirectoryIterator::SKIP_DOTS),
                 RecursiveIteratorIterator::LEAVES_ONLY
             );
             $svcFiles = iterator_to_array($it, false);
         } else {
-            // Flache Struktur: Dateien im Root-Verzeichnis suchen die zum Service passen
-            $svcFiles = [];
-            $allEntries = @scandir($rawDir);
-            if ($allEntries) {
-                foreach ($allEntries as $entry) {
-                    if ($entry === '.' || $entry === '..') continue;
-                    $fullPath = $rawDir . '/' . $entry;
-                    if (!is_file($fullPath)) continue;
-                    if (extractServiceFromFilename($entry) === $svcKey) {
-                        $svcFiles[] = new SplFileInfo($fullPath);
-                    }
-                }
-            }
+            // Flache/verschachtelte Struktur: rekursiv anhand Service-Key sammeln
+            $svcFiles = collectRawConfFilesByService($rawDir, $svcKey);
             if (empty($svcFiles)) { $errors[] = 'Dienst nicht gefunden: ' . $svcKey; continue; }
         }
 
@@ -3666,7 +3715,7 @@ function stageServicesToImportToCore(array $serviceKeys, string $kuerzel, string
     foreach ($serviceKeys as $svcKey) {
         // Services die nicht in raw-conf gefunden wurden NICHT ins Manifest schreiben,
         // damit sie bei der nächsten Change-Detection nicht als "missing" erscheinen.
-        $svcDir = $rawDir . '/' . $svcKey;
+        $svcDir = resolveRawConfServiceDir($rawDir, $svcKey);
 
         $svcKeyCounts = [];
         foreach ($buckets as $prefix => $bucket) {
@@ -3683,7 +3732,7 @@ function stageServicesToImportToCore(array $serviceKeys, string $kuerzel, string
         // Unterstützt sowohl Verzeichnis-Struktur (group/service oder service_dir)
         // als auch flache raw-conf-Dateien.
         $srcFiles = [];
-        if (is_dir($svcDir)) {
+        if ($svcDir && is_dir($svcDir)) {
             $it = new RecursiveIteratorIterator(
                 new RecursiveDirectoryIterator($svcDir, RecursiveDirectoryIterator::SKIP_DOTS),
                 RecursiveIteratorIterator::LEAVES_ONLY
@@ -3696,22 +3745,16 @@ function stageServicesToImportToCore(array $serviceKeys, string $kuerzel, string
                 $srcFiles[] = ['file' => $sfn, 'size' => $sf->getSize(), 'modified' => date('Y-m-d H:i:s', $sf->getMTime())];
             }
         } else {
-            $allEntries = @scandir($rawDir);
-            if ($allEntries) {
-                foreach ($allEntries as $entry) {
-                    if ($entry === '.' || $entry === '..') continue;
-                    $fullPath = $rawDir . '/' . $entry;
-                    if (!is_file($fullPath)) continue;
-                    if (extractServiceFromFilename($entry) !== $svcKey) continue;
-                    if (preg_match('/\.\d{8}_\d{6}\.bak$/', $entry)) continue;
-                    $ext = strtolower(pathinfo($entry, PATHINFO_EXTENSION));
-                    if (!in_array($ext, ['conf', 'json'])) continue;
-                    $srcFiles[] = [
-                        'file' => $entry,
-                        'size' => filesize($fullPath),
-                        'modified' => date('Y-m-d H:i:s', filemtime($fullPath))
-                    ];
-                }
+            foreach (collectRawConfFilesByService($rawDir, $svcKey) as $sf) {
+                $sfn = $sf->getFilename();
+                if (preg_match('/\.\d{8}_\d{6}\.bak$/', $sfn)) continue;
+                $sfExt = strtolower(pathinfo($sfn, PATHINFO_EXTENSION));
+                if (!in_array($sfExt, ['conf', 'json'])) continue;
+                $srcFiles[] = [
+                    'file' => $sfn,
+                    'size' => $sf->getSize(),
+                    'modified' => date('Y-m-d H:i:s', $sf->getMTime())
+                ];
             }
         }
 
@@ -4161,8 +4204,474 @@ function configExportToCore($kuerzel) {
 }
 
 // =====================================================================
-// Lock-Mechanismus
+// DB-Export-Pipeline (export-catalog-artifacts / deploy-catalog-artifacts)
 // =====================================================================
+
+/**
+ * Bestimmt den Deploy-Zielpfad (SFTP) für eine Conf-Datei anhand von Scope und Dateiname.
+ * Gibt null zurück wenn der Dateiname keinem bekannten Bucket entspricht.
+ *
+ * @param string      $filename  Dateiname (z.B. 'layers_ewn.conf')
+ * @param string      $scope     'core', 'sitecore'/'override', 'profile'
+ * @param string|null $profile   Profilname (nur bei scope=profile)
+ * @param bool        $isDev     true = maps-dev, false = maps
+ */
+function catalogArtifactDeployPath(string $filename, string $scope, ?string $profile, bool $isDev): ?string {
+    $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+    if (!in_array($ext, ['conf', 'json'], true)) {
+        return null;
+    }
+
+    $base    = pathinfo($filename, PATHINFO_FILENAME);
+    $isNls   = (strpos($base, 'Resources') !== false);
+    $appSlug = $isDev ? 'maps-dev' : 'maps';
+
+    if ($scope === 'core') {
+        // core(-dev)/config/ oder core(-dev)/nls/de/
+        $coreSlug = 'core'; // DEV und PROD nutzen gleiches /www/core/
+        $dir      = $isNls ? "/www/{$coreSlug}/nls/de/" : "/www/{$coreSlug}/config/";
+    } elseif (in_array($scope, ['sitecore', 'override'], true)) {
+        // maps(-dev)/core/config/ oder maps(-dev)/core/nls/de/
+        $dir = $isNls ? "/www/{$appSlug}/core/nls/de/" : "/www/{$appSlug}/core/config/";
+    } elseif ($scope === 'profile') {
+        $safeProf = preg_replace('/[^a-zA-Z0-9_\-]/', '', $profile ?: 'public');
+        $dir      = ($safeProf === '' || $safeProf === 'public')
+            ? "/www/{$appSlug}/public/config/"
+            : "/www/{$appSlug}/public/config/{$safeProf}/";
+    } else {
+        return null;
+    }
+
+    return $dir . $filename;
+}
+
+/**
+ * Alle DB-Bundle-Dateien in den Staging-Bereich schreiben und ein Deploy-Manifest anlegen.
+ *
+ * Input (JSON-Body):
+ *   scopes    string[]   Zu exportierende Scopes ('core', 'sitecore', 'profile')
+ *                        Fehlt das Feld → alle Scopes
+ *   profile   string     Filter auf einen Profilnamen (optional; bei scope=profile)
+ *   targetEnv string     'dev' oder 'prod' (default: aus APP_BASE_PATH)
+ *   includeNls bool      NLS-Dateien mit exportieren (default: true)
+ *
+ * Output: {runId, createdAt, files[], manifestPath}
+ */
+function exportCatalogArtifacts(array $body): array {
+    $isDev     = (APP_BASE_PATH === '/maps-dev');
+    $targetEnv = isset($body['targetEnv']) ? strtolower(trim($body['targetEnv'])) : ($isDev ? 'dev' : 'prod');
+    $isDeplDev = ($targetEnv === 'dev' || $targetEnv === 'maps-dev');
+    $includeNls = !isset($body['includeNls']) || (bool)$body['includeNls'];
+    $mergeName = preg_replace('/[^a-zA-Z0-9_\-]/', '_', trim((string)($body['mergeName'] ?? '')));
+    $isMergeMode = ($mergeName !== '');
+    $filterScopes = isset($body['scopes']) && is_array($body['scopes'])
+        ? array_map('strtolower', $body['scopes'])
+        : ['core', 'sitecore', 'override', 'profile'];
+    $filterKuerzel = [];
+    if (isset($body['kuerzel'])) {
+        $raw = is_array($body['kuerzel']) ? $body['kuerzel'] : [$body['kuerzel']];
+        foreach ($raw as $k) {
+            $safe = preg_replace('/[^a-zA-Z0-9_\-]/', '', (string)$k);
+            if ($safe !== '') {
+                $filterKuerzel[] = strtolower($safe);
+            }
+        }
+        $filterKuerzel = array_values(array_unique($filterKuerzel));
+    }
+
+    // Alle Bundles laden
+    $bundles = StagingImportRepository::loadAllSafe();
+    if (empty($bundles)) {
+        return ['success' => false, 'error' => 'Keine Bundles in der Datenbank gefunden'];
+    }
+
+    $runId      = date('Ymd_His') . '_' . substr(md5(uniqid('', true)), 0, 6);
+    $createdAt  = date('c');
+    $manifestEntries = [];
+    $written    = 0;
+    $errors     = [];
+    $mergedKuerzel = [];
+    $mergeBuckets = [];
+
+    foreach ($bundles as $bundle) {
+        $scope      = $bundle['scope'] ?? 'core';
+        $profile    = $bundle['profile'] ?? null;
+        $bundleKuerzel = strtolower((string)($bundle['kuerzel'] ?? ''));
+
+        // Scope-Filter
+        if (!in_array($scope, $filterScopes, true)) {
+            continue;
+        }
+        // Optionaler Kürzel-Filter
+        if (!empty($filterKuerzel) && !in_array($bundleKuerzel, $filterKuerzel, true)) {
+            continue;
+        }
+        if ($bundleKuerzel !== '') {
+            $mergedKuerzel[$bundleKuerzel] = true;
+        }
+
+        $files = $bundle['files'] ?? [];
+        foreach ($files as $fileObj) {
+            $filename = $fileObj['name'] ?? '';
+            $content  = $fileObj['data'] ?? null;
+            if ($filename === '' || $content === null) {
+                continue;
+            }
+
+            $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+            if (!in_array($ext, ['conf', 'json'], true)) {
+                continue;
+            }
+
+            // NLS-Filter
+            if (!$includeNls && strpos(pathinfo($filename, PATHINFO_FILENAME), 'Resources') !== false) {
+                continue;
+            }
+
+            // Nur finale Katalog-Dateitypen exportieren; Metadateien still überspringen.
+            $known = ['layers', 'maptips', 'lyrmgrResources', 'maptipsResources', 'legendResources'];
+            $prefix = null;
+            foreach ($known as $pfx) {
+                if (strpos($filename, $pfx . '_') === 0 || strpos($filename, $pfx . '-') === 0) {
+                    $prefix = $pfx;
+                    break;
+                }
+            }
+            if ($prefix === null) {
+                continue;
+            }
+
+            // Merge-Modus: Dateien typbasiert zu einem Zielnamen bündeln
+            if ($isMergeMode) {
+                $targetFilename = $prefix . '_' . $mergeName . '.' . $ext;
+                $mergeKey = $scope . '|' . (string)$profile . '|' . $targetFilename;
+                if (!isset($mergeBuckets[$mergeKey])) {
+                    $mergeBuckets[$mergeKey] = [
+                        'scope' => $scope,
+                        'profile' => $profile,
+                        'filename' => $targetFilename,
+                        'parts' => [],
+                    ];
+                }
+                $mergeBuckets[$mergeKey]['parts'][] = [
+                    'kuerzel' => $bundle['kuerzel'] ?? '',
+                    'content' => $content,
+                ];
+                continue;
+            }
+
+            // Deploy-Zielpfad ermitteln
+            $deployPath = catalogArtifactDeployPath($filename, $scope, $profile, $isDeplDev);
+            if ($deployPath === null) {
+                $errors[] = "Kein Deploy-Pfad für {$filename} (scope={$scope})";
+                continue;
+            }
+
+            // Staged-Pfad: finale Zielstruktur unter config-export spiegeln
+            $deployRelPath = ltrim(preg_replace('#^/www/#', '', $deployPath), '/');
+            $stagedLocalPath = TnetTmpPaths::configExport($deployRelPath);
+            $stagedLocalDir = dirname($stagedLocalPath);
+            if (!is_dir($stagedLocalDir)) {
+                @mkdir($stagedLocalDir, 0775, true);
+            }
+
+            // Inhalt serialisieren
+            if (is_array($content)) {
+                $json = json_encode($content, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+                if ($json === false) {
+                    $errors[] = "JSON-Encode fehlgeschlagen: {$filename}";
+                    continue;
+                }
+                $rawContent = $json;
+            } else {
+                $rawContent = (string)$content;
+            }
+
+            $bytes = @file_put_contents($stagedLocalPath, $rawContent);
+            if ($bytes === false) {
+                $errors[] = "Schreiben fehlgeschlagen: {$stagedLocalPath}";
+                continue;
+            }
+
+            $sha256 = hash('sha256', $rawContent);
+            $manifestEntries[] = [
+                'runId'      => $runId,
+                'kuerzel'    => $bundle['kuerzel'] ?? '',
+                'scope'      => $scope,
+                'profile'    => $profile,
+                'filename'   => $filename,
+                'stagedPath' => toSftpPath($stagedLocalPath),
+                'deployPath' => $deployPath,
+                'sha256'     => $sha256,
+                'bytes'      => $bytes,
+                'revision'   => $bundle['lastImportedAt'] ?? null,
+            ];
+            $written++;
+        }
+    }
+
+    // Merge-Buckets schreiben (wenn mergeName gesetzt)
+    if ($isMergeMode) {
+        foreach ($mergeBuckets as $bucket) {
+            $scope = $bucket['scope'];
+            $profile = $bucket['profile'];
+            $filename = $bucket['filename'];
+            $deployPath = catalogArtifactDeployPath($filename, $scope, $profile, $isDeplDev);
+            if ($deployPath === null) {
+                $errors[] = "Kein Deploy-Pfad für Merge-Datei {$filename}";
+                continue;
+            }
+
+            $mergedAssoc = [];
+            $mergedList = [];
+            $mergedListSeen = [];
+            $hasAssoc = false;
+            $hasList = false;
+            $hasValid = false;
+            foreach ($bucket['parts'] as $part) {
+                $data = $part['content'];
+                if (!is_array($data)) {
+                    $decoded = @json_decode((string)$data, true);
+                    if (!is_array($decoded)) continue;
+                    $data = $decoded;
+                }
+                $hasValid = true;
+                $isAssoc = (!empty($data) && array_keys($data) !== range(0, count($data) - 1));
+                if ($isAssoc) {
+                    $hasAssoc = true;
+                    foreach ($data as $k => $v) {
+                        $mergedAssoc[$k] = $v; // Letzter Wert gewinnt, dadurch keine doppelten Keys.
+                    }
+                } else {
+                    $hasList = true;
+                    foreach ($data as $v) {
+                        if (is_scalar($v) || $v === null) {
+                            $sig = gettype($v) . ':' . (string)$v;
+                        } else {
+                            $sig = json_encode($v, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+                            if ($sig === false) {
+                                $sig = serialize($v);
+                            }
+                        }
+                        if (isset($mergedListSeen[$sig])) continue;
+                        $mergedListSeen[$sig] = true;
+                        $mergedList[] = $v;
+                    }
+                }
+            }
+            if (!$hasValid) {
+                $errors[] = "Merge-Datei ohne gültige Daten: {$filename}";
+                continue;
+            }
+
+            $merged = $hasAssoc ? $mergedAssoc : $mergedList;
+            if ($hasAssoc && $hasList) {
+                foreach ($mergedList as $v) {
+                    $merged[] = $v;
+                }
+            }
+
+            $rawContent = json_encode($merged, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            if ($rawContent === false) {
+                $errors[] = "JSON-Encode fehlgeschlagen (Merge): {$filename}";
+                continue;
+            }
+
+            $deployRelPath = ltrim(preg_replace('#^/www/#', '', $deployPath), '/');
+            $stagedLocalPath = TnetTmpPaths::configExport('merge/' . $mergeName . '/' . $deployRelPath);
+            $stagedLocalDir = dirname($stagedLocalPath);
+            if (!is_dir($stagedLocalDir)) {
+                @mkdir($stagedLocalDir, 0775, true);
+            }
+            $bytes = @file_put_contents($stagedLocalPath, $rawContent);
+            if ($bytes === false) {
+                $errors[] = "Schreiben fehlgeschlagen (Merge): {$stagedLocalPath}";
+                continue;
+            }
+
+            $manifestEntries[] = [
+                'runId'      => $runId,
+                'kuerzel'    => $mergeName,
+                'scope'      => $scope,
+                'profile'    => $profile,
+                'filename'   => $filename,
+                'stagedPath' => toSftpPath($stagedLocalPath),
+                'deployPath' => $deployPath,
+                'sha256'     => hash('sha256', $rawContent),
+                'bytes'      => $bytes,
+                'revision'   => null,
+            ];
+            $written++;
+        }
+    }
+
+    // Manifest schreiben
+    $manifestDir   = TnetTmpPaths::configExport();
+    if (!is_dir($manifestDir)) {
+        @mkdir($manifestDir, 0775, true);
+    }
+    $manifestPath  = $manifestDir . '/deploy-manifest_' . $runId . '.json';
+    $manifest = [
+        'runId'      => $runId,
+        'createdAt'  => $createdAt,
+        'targetEnv'  => $targetEnv,
+        'scopes'     => $filterScopes,
+        'kuerzel'    => $filterKuerzel,
+        'mergeName'  => $isMergeMode ? $mergeName : null,
+        'mergedKuerzel' => array_values(array_keys($mergedKuerzel)),
+        'includeNls' => $includeNls,
+        'files'      => $manifestEntries,
+        'errors'     => $errors,
+    ];
+    @file_put_contents(
+        $manifestPath,
+        json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+    );
+
+    $readmePath = null;
+    if ($isMergeMode) {
+        $readmeLines = [];
+        $readmeLines[] = 'MAP+ Temp-Merge Export';
+        $readmeLines[] = 'RunId: ' . $runId;
+        $readmeLines[] = 'Merge-Name: ' . $mergeName;
+        $readmeLines[] = 'Target: ' . $targetEnv;
+        $readmeLines[] = 'Zeit: ' . $createdAt;
+        $readmeLines[] = '';
+        $readmeLines[] = 'Gemergte Kuerzel:';
+        foreach (array_values(array_keys($mergedKuerzel)) as $mk) {
+            $readmeLines[] = '- ' . $mk;
+        }
+        $readmePath = TnetTmpPaths::configExport('merge/' . $mergeName . '/README.txt');
+        $readmeDir = dirname($readmePath);
+        if (!is_dir($readmeDir)) {
+            @mkdir($readmeDir, 0775, true);
+        }
+        @file_put_contents($readmePath, implode("\n", $readmeLines) . "\n");
+    }
+
+    return [
+        'success'        => count($errors) === 0,
+        'runId'          => $runId,
+        'createdAt'      => $createdAt,
+        'written'        => $written,
+        'errors'         => $errors,
+        'mergeName'      => $isMergeMode ? $mergeName : null,
+        'mergedKuerzel'  => array_values(array_keys($mergedKuerzel)),
+        'readmePath'     => $readmePath ? toSftpPath($readmePath) : null,
+        'manifestPath'   => toSftpPath($manifestPath),
+        'manifestLocal'  => $manifestPath,
+        'files'          => $manifestEntries,
+    ];
+}
+
+/**
+ * Staged Catalog-Artefakte via FastAPI /deploy-staged-conf ans definitive Ziel deployen.
+ *
+ * Input (JSON-Body):
+ *   runId    string  Run-ID aus exportCatalogArtifacts (Manifest-Datei)
+ *   dryRun   bool    Wenn true: nur Manifest auflisten, nicht deployen (default: false)
+ *
+ * Output: {success, runId, deployed[], failed[], dryRun}
+ */
+function deployCatalogArtifacts(array $body): array {
+    $runId  = preg_replace('/[^a-zA-Z0-9_\-]/', '', $body['runId'] ?? '');
+    $dryRun = !empty($body['dryRun']);
+
+    if ($runId === '') {
+        return ['success' => false, 'error' => 'Feld "runId" erforderlich'];
+    }
+
+    // Manifest suchen
+    $manifestDir  = TnetTmpPaths::configExport();
+    $manifestPath = $manifestDir . '/deploy-manifest_' . $runId . '.json';
+    if (!file_exists($manifestPath)) {
+        return ['success' => false, 'error' => 'Manifest nicht gefunden: deploy-manifest_' . $runId . '.json'];
+    }
+    $manifest = json_decode(file_get_contents($manifestPath), true);
+    if (!$manifest || !isset($manifest['files'])) {
+        return ['success' => false, 'error' => 'Manifest ungültig oder leer'];
+    }
+
+    if ($dryRun) {
+        return [
+            'success' => true,
+            'runId'   => $runId,
+            'dryRun'  => true,
+            'files'   => $manifest['files'],
+            'count'   => count($manifest['files']),
+        ];
+    }
+
+    // FastAPI-Endpoint URL ermitteln
+    $target    = $manifest['targetEnv'] ?? (APP_BASE_PATH === '/maps-dev' ? 'dev' : 'prod');
+    $fastapiUrl = AGS_API_BASE . '/deploy-staged-conf?target=' . urlencode($target);
+
+    $deployed = [];
+    $failed   = [];
+
+    foreach ($manifest['files'] as $fileEntry) {
+        $stagedPath = $fileEntry['stagedPath'] ?? '';
+        $deployPath = $fileEntry['deployPath'] ?? '';
+        $filename   = $fileEntry['filename'] ?? '';
+
+        if ($stagedPath === '' || $deployPath === '') {
+            $failed[] = ['filename' => $filename, 'error' => 'stagedPath oder deployPath fehlt'];
+            continue;
+        }
+
+        // FastAPI aufrufen
+        $payload = json_encode(['stagedPath' => $stagedPath, 'deployPath' => $deployPath]);
+        $ch = curl_init($fastapiUrl);
+        curl_setopt_array($ch, [
+            CURLOPT_POST           => true,
+            CURLOPT_POSTFIELDS     => $payload,
+            CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => 30,
+        ]);
+        $response    = curl_exec($ch);
+        $httpCode    = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlError   = curl_error($ch);
+        curl_close($ch);
+
+        if ($curlError) {
+            $failed[] = ['filename' => $filename, 'error' => 'cURL-Fehler: ' . $curlError];
+            continue;
+        }
+
+        $result = @json_decode($response, true);
+        if ($httpCode !== 200 || empty($result['success'])) {
+            $failed[] = [
+                'filename'   => $filename,
+                'httpCode'   => $httpCode,
+                'error'      => ($result['detail'] ?? $result['error'] ?? 'Unbekannter Fehler'),
+                'stagedPath' => $stagedPath,
+                'deployPath' => $deployPath,
+            ];
+            continue;
+        }
+
+        $deployed[] = [
+            'filename'   => $filename,
+            'deployPath' => $deployPath,
+            'bytes'      => $result['data']['bytes'] ?? null,
+            'backup'     => $result['data']['backup'] ?? null,
+        ];
+    }
+
+    return [
+        'success'       => count($failed) === 0,
+        'runId'         => $runId,
+        'dryRun'        => false,
+        'deployed'      => $deployed,
+        'failed'        => $failed,
+        'deployedCount' => count($deployed),
+        'failedCount'   => count($failed),
+        'timestamp'     => date('c'),
+    ];
+}
+
+
 function readLock() {
     if (!file_exists(LOCK_FILE)) return null;
     $data = json_decode(file_get_contents(LOCK_FILE), true);
@@ -5659,6 +6168,23 @@ switch ($action) {
         jsonResponse(['success' => true, 'data' => $result]);
         break;
 
+    case 'export-catalog-artifacts':
+        requireAdminAction();
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('POST required', 405);
+        $body = json_decode(file_get_contents('php://input'), true) ?: [];
+        $result = exportCatalogArtifacts($body);
+        jsonResponse(['success' => $result['success'] ?? false, 'data' => $result]);
+        break;
+
+    case 'deploy-catalog-artifacts':
+        requireAdminAction();
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('POST required', 405);
+        $body = json_decode(file_get_contents('php://input'), true);
+        if (!$body || !isset($body['runId'])) jsonError('Feld "runId" erforderlich', 400);
+        $result = deployCatalogArtifacts($body);
+        jsonResponse(['success' => $result['success'] ?? false, 'data' => $result]);
+        break;
+
     // ── Core-Config Import (Produktiv → raw-conf) ──
     case 'core-list-sources':
         $result = listCoreSources();
@@ -6881,7 +7407,7 @@ switch ($action) {
             'data' => [
                 'name'    => 'Tree-Builder Persistence API',
                 'version' => '3.2',
-                'actions' => ['load', 'save', 'lock', 'unlock', 'lock-status', 'history', 'restore', 'save-groups', 'load-groups', 'save-profile', 'load-profile', 'list-profiles', 'load-lyrmgr', 'save-lyrmgr-draft', 'publish-lyrmgr', 'list-lyrmgr-profiles', 'list-all-layers', 'deploy-lyrmgr', 'ags-services', 'ags-export', 'ags-list-raw', 'ags-delete-raw', 'ags-delete-backups', 'ags-read-raw', 'ags-write-raw', 'staging-layers-flat', 'config-editor-load', 'config-editor-save', 'config-export-to-core', 'core-list-sources', 'core-import', 'qgis-list-projects', 'qgis-capabilities', 'legend-tuner-load', 'legend-tuner-save', 'bookmarks-load', 'bookmarks-save'],
+                'actions' => ['load', 'save', 'lock', 'unlock', 'lock-status', 'history', 'restore', 'save-groups', 'load-groups', 'save-profile', 'load-profile', 'list-profiles', 'load-lyrmgr', 'save-lyrmgr-draft', 'publish-lyrmgr', 'list-lyrmgr-profiles', 'list-all-layers', 'deploy-lyrmgr', 'ags-services', 'ags-export', 'ags-list-raw', 'ags-delete-raw', 'ags-delete-backups', 'ags-read-raw', 'ags-write-raw', 'staging-layers-flat', 'config-editor-load', 'config-editor-save', 'config-export-to-core', 'export-catalog-artifacts', 'deploy-catalog-artifacts', 'core-list-sources', 'core-import', 'qgis-list-projects', 'qgis-capabilities', 'legend-tuner-load', 'legend-tuner-save', 'bookmarks-load', 'bookmarks-save'],
                 'storage' => DATA_DIR
             ]
         ]);

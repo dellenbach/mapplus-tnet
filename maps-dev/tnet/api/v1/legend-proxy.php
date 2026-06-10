@@ -97,10 +97,11 @@
 // ===== KONFIGURATION =====
 
 require_once __DIR__ . '/../includes/CorePaths.php';
+require_once __DIR__ . '/../includes/TmpPaths.php';
 
-$CACHE_DIR    = '/data/Client_Data/nwow/tmp/maps-dev/legends';
+$CACHE_DIR    = TnetTmpPaths::cache('legends');
 $CACHE_TTL    = 86400;   // 24 Stunden in Sekunden
-$LOG_FILE     = '/data/Client_Data/nwow/tmp/maps-dev/legend-proxy.log';
+$LOG_FILE     = TnetTmpPaths::logs() . '/legend-proxy.log';
 $DEFAULT_WIDTH  = 16;
 $DEFAULT_HEIGHT = 10;
 $DEFAULT_DPI    = 192;    // 2× DPI: kräftige Linien/Punkte, kleinere Payload als 288

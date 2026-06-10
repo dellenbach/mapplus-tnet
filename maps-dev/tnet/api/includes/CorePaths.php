@@ -2,10 +2,10 @@
 /**
  * CorePaths - ermittelt Core-Pfade pro Laufzeitumgebung.
  *
- * DEV nutzt ausschliesslich core-dev, PROD nutzt core.
+ * DEV und PROD nutzen beide /www/core/ (kein separates core-dev mehr).
  *
- * @version    1.0
- * @date       2026-05-19
+ * @version    1.1
+ * @date       2026-06-10
  */
 
 class TnetCorePaths {
@@ -47,7 +47,7 @@ class TnetCorePaths {
             return self::$coreRoot;
         }
 
-        $coreDir = self::isDevApp() ? 'core-dev' : 'core';
+        $coreDir = 'core'; // DEV und PROD nutzen gleiches /www/core/
         self::$coreRoot = self::findCoreRoot($coreDir);
 
         return self::$coreRoot;
@@ -125,7 +125,7 @@ class TnetCorePaths {
 
     public static function getNlsSearchPaths($lang = 'de') {
         $paths = [];
-        self::appendPath($paths, self::getNlsPath($lang));         // /www/core(-dev)/nls/<lang>
+        self::appendPath($paths, self::getNlsPath($lang));         // /www/core/nls/<lang>
         if (!self::isDevApp()) {
             self::appendPath($paths, self::getSharedNlsPath($lang)); // nur PROD: shared core
         }
@@ -136,7 +136,7 @@ class TnetCorePaths {
 
     private static function findCoreRoot($coreDir): ?string {
         $candidates = [];
-        $envRoot = getenv(self::isDevApp() ? 'TNET_CORE_DEV_ROOT' : 'TNET_CORE_ROOT');
+        $envRoot = getenv('TNET_CORE_ROOT');
         if ($envRoot) {
             $candidates[] = $envRoot;
         }

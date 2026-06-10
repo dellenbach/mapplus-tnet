@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 /**
  * TNET API v1 - Layer Catalog Endpoint
  * 
@@ -92,7 +92,9 @@ if ($source === '' || $source === 'auto' || !in_array($source, ['db', 'file'], t
 
 // Quelltrennung: pro Request genau EINE Quelle verwenden (DB ODER Files).
 // Kein Mischen von Katalog aus DB mit Layer-Details aus Dateien.
-$bypassJsonCache = false;
+// Wichtig: DB-Quelle darf nicht über TTL-JSON-Cache verzögert werden,
+// sonst sind Live-Publishes erst nach "Cache leeren" sichtbar.
+$bypassJsonCache = ($source === 'db');
 
 // =====================================================================
 // Action: NLS-Label-Check
@@ -103,7 +105,7 @@ if ($action === 'nls_check') {
     header('Content-Type: application/json; charset=utf-8');
 
     // 1. Alle lyrmgrResources_*.json laden
-    //    Basis: Umgebungs-Core (DEV: core-dev, PROD: core)
+  //    Basis: Umgebungs-Core (DEV und PROD: core)
     //    Überladungen: app-lokaler core/nls/de Pfad
     //    Überladungen überschreiben gleichnamige Keys aus der Basis.
     $nlsDirBase     = ConfigReader::getCoreNlsPath('de');
@@ -1087,7 +1089,7 @@ function extractLayerName($layerId) {
 /**
  * Lädt ALLE NLS-Labels (lyrmgrResources*.json) und gibt den Display-Namen zurück.
  * Cacht die Dateien nach dem ersten Laden.
- * Pfad: Umgebungs-Core nls/de (DEV: core-dev, PROD: core).
+ * Pfad: Umgebungs-Core nls/de (DEV und PROD: core).
  * 
  * @param string $key  Schlüssel (z.B. 'grundlagen', 'gis_oereb/nw_nutzungsplanung_def')
  * @return string|null  NLS-Label oder null wenn nicht gefunden
@@ -1096,7 +1098,7 @@ function getNlsLabel($key) {
     static $nls = null;
     if ($nls === null) {
         $nls = [];
-        // Basis: Umgebungs-Core (DEV: core-dev, PROD: core)
+  // Basis: Umgebungs-Core (DEV und PROD: core)
         $nlsDirBase = ConfigReader::getCoreNlsPath('de');
         if ($nlsDirBase && is_dir($nlsDirBase)) {
             foreach (glob($nlsDirBase . '/lyrmgrResources*.json') as $f) {

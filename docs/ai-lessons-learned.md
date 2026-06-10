@@ -1,3 +1,38 @@
+## 2026-06-10 — Merge-Export darf Metadateien nicht als Fehler behandeln
+
+- **Symptom:** „Kürzel mergen“ brach mit `Merge übersprungen (unbekannter Dateityp): .core-import-manifest_...json` ab.
+- **Root-Cause:** `export-catalog-artifacts` wertete nicht-katalogische Bundle-Dateien (Manifest/Meta) als Merge-Fehler.
+- **Fix:** Export filtert jetzt strikt auf die fünf Katalog-Präfixe (`layers`, `maptips`, `lyrmgrResources`, `maptipsResources`, `legendResources`) und überspringt Metadateien still.
+- **Guardrail:** Merge-/Deploy-Pipelines nur auf fachliche Katalogartefakte anwenden; Hilfs-/Manifest-Dateien nie als harte Fehler in User-Flows behandeln.
+
+## 2026-06-10 — Raw-Conf-Helper dürfen nicht innerhalb `getWritableRawConfDir()` definiert sein
+
+- **Symptom:** Im SLM-Editor wurden plötzlich keine Quellen/Tags geladen (UI blieb bei 0/leer).
+- **Root-Cause:** `rawConfSourceBuckets()/resolveRawConfServiceDir()/...` waren lokal in `getWritableRawConfDir()` definiert. Bei frühem Return (weil `RAW_CONF_DIR` bereits beschreibbar war) wurden diese Funktionen nie deklariert, spätere Aufrufe führten zu Fatal-Fehlern.
+- **Fix:** Raw-Conf-Helfer auf Top-Level in `treebuilder-api.php` verschoben und aus `getWritableRawConfDir()` entfernt.
+- **Guardrail:** In PHP keine global genutzten Helper-Funktionen innerhalb von Funktionen deklarieren, wenn es frühzeitige Return-Pfade gibt.
+
+## 2026-06-10 — Create-Export schrieb weiter nach ags-import/raw-conf statt raw-conf
+
+- **Symptom:** SLM Create meldete Exporte nach `tmp/maps-dev/ags-import/raw-conf/ags/` statt nach `tmp/maps-dev/raw-conf/ags/`.
+- **Root-Cause:** `RAW_CONF_DIR` war in `treebuilder-api.php` noch auf `TnetTmpPaths::agsImport('raw-conf')` verdrahtet.
+- **Fix:** `RAW_CONF_DIR` auf `TnetTmpPaths::getRoot() . '/raw-conf'` umgestellt, damit AGS/QGIS/Core-Create-Exporte direkt unter `tmp/maps(-dev)/raw-conf/...` landen.
+- **Guardrail:** `raw-conf` und `ImportToCore` strikt getrennt halten: `raw-conf` liegt direkt unter dem Tmp-Root, nur `ImportToCore` bleibt im `ags-import`-Pfad.
+
+## 2026-06-10 — Merge-Export im SLM braucht Dialog statt Browser-Prompt und deduplizierte Typ-Merges
+
+- **Symptom:** Beim Klick auf „Kürzel mergen“ kam nur ein Browser-`prompt`; ausserdem konnten bei typbasiertem Merge doppelte Einträge in Listen entstehen.
+- **Root-Cause:** Der Editor-Flow nutzte keinen eingebetteten Modal-Dialog, und der Merge-Writer führte für Listen nur ein stumpfes Anhängen durch.
+- **Fix:** In `slm.html` wurde ein eigener Merge-Dialog (Overlay) mit Eingabefeld/Validierung ergänzt; in `treebuilder-api.php` merge`t `export-catalog-artifacts` assoziative JSONs key-basiert (letzter Wert gewinnt) und dedupliziert Listenwerte über Signaturen.
+- **Guardrail:** Für SLM-Massnahmen keine Browser-Prompts verwenden; Merge-Exports müssen pro JSON-Typ deterministisch und ohne doppelte Keys/Einträge laufen.
+
+## 2026-06-09 — source=db darf nicht im JSON-API-Cache hängen bleiben
+
+- **Symptom:** Nach Live-DB-Publish im Tree-Builder waren Änderungen erst sichtbar nach Klick auf „Cache leeren“ im SLM.
+- **Root-Cause:** `layers.php` nutzte auch im `source=db`-Modus den serverseitigen JSON-Cache mit TTL; DB-Updates invalidierten diesen Cache nicht sofort.
+- **Fix:** In `layers.php` wird der JSON-Cache bei `source=db` automatisch gebypasst (`$bypassJsonCache = true`), sodass Runtime-Antworten unmittelbar aus der DB kommen.
+- **Guardrail:** Für DB-first-Live-Workflows API-Response-Caches nur im File-Modus verwenden oder per DB-Revision invalidieren.
+
 ## 2026-06-09 — SLM-Cache muss store-spezifisch versioniert sein
 
 - **Symptom:** Nach Deploy waren Änderungen erst sichtbar, nachdem der SLM-Cache manuell gelöscht wurde.

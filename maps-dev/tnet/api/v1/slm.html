@@ -566,6 +566,40 @@ body {
 #commit-msg-dialog .cmd-btn-commit { background: #4B7B81; color: #fff; border-color: #3a6166; font-weight: 600; }
 #commit-msg-dialog .cmd-btn-commit:hover { background: #3a6166; }
 
+/* ===== MERGE-NAME-DIALOG ===== */
+#merge-name-overlay {
+  display: none; position: fixed; inset: 0; z-index: 10210;
+  background: rgba(0,0,0,.5); align-items: center; justify-content: center;
+}
+#merge-name-overlay.open { display: flex; }
+#merge-name-dialog {
+  background: #fff; border-radius: 6px; box-shadow: 0 8px 32px rgba(0,0,0,.25);
+  width: 460px; max-width: 94vw; padding: 0; overflow: hidden;
+}
+#merge-name-dialog .mnd-header {
+  display: flex; align-items: center; gap: 8px; padding: 10px 14px;
+  border-bottom: 1px solid #e0e4e8; background: #f5f7fa;
+}
+#merge-name-dialog .mnd-header .mnd-icon { font-size: 16px; }
+#merge-name-dialog .mnd-header .mnd-title { flex: 1; font-weight: 700; font-size: 13px; color: #1e3a4a; }
+#merge-name-dialog .mnd-body { padding: 14px; }
+#merge-name-dialog .mnd-body label { display: block; font-size: 12px; color: #555; margin-bottom: 5px; }
+#merge-name-dialog .mnd-body input {
+  width: 100%; font-family: monospace; font-size: 12px;
+  padding: 8px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;
+}
+#merge-name-dialog .mnd-body input:focus { outline: none; border-color: #4B7B81; box-shadow: 0 0 3px rgba(75,123,129,.3); }
+#merge-name-dialog .mnd-help { margin-top: 8px; font-size: 11px; color: #777; }
+#merge-name-dialog .mnd-footer {
+  display: flex; justify-content: flex-end; gap: 8px; padding: 10px 14px;
+  border-top: 1px solid #e0e4e8; background: #fafbfc;
+}
+#merge-name-dialog .mnd-footer button { padding: 6px 16px; font-size: 12px; border-radius: 4px; cursor: pointer; border: 1px solid #ccc; }
+#merge-name-cancel { background: #fff; color: #555; }
+#merge-name-cancel:hover { background: #f5f5f5; }
+#merge-name-ok { background: #4B7B81; color: #fff; border-color: #3a6166; font-weight: 600; }
+#merge-name-ok:hover { background: #3a6166; }
+
 /* ===== BOOKMARKS TAB ===== */
 .bm-toolbar { display: flex; gap: 6px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
 .bm-toolbar button { padding: 5px 12px; font-size: 12px; border: 1px solid #ddd; border-radius: 3px; background: #fff; cursor: pointer; }
@@ -1419,7 +1453,7 @@ Kein Einfluss auf Browser-Cache (dafuer: Ctrl+Shift+R)">🗑 Cache leeren</butto
       <span class="ags-selcount" id="import-selcount"></span>
       <span class="spacer"></span>
       <button id="import-btn-delete" class="danger" style="display:none" disabled>🗑 Ausgewählte löschen</button>
-      <button id="import-btn-export" class="primary" disabled>📦 Importieren & Speichern</button>
+      <button id="import-btn-export" class="primary" disabled>📦 Roh-Konfiguration erzeugen</button>
     </div>
   </div>
 
@@ -1528,9 +1562,15 @@ Kein Einfluss auf Browser-Cache (dafuer: Ctrl+Shift+R)">🗑 Cache leeren</butto
           <span class="et-kuerzel-label" id="editor-kuerzel-label"></span>
           <span class="et-spacer"></span>
           <span class="et-info" id="editor-info"></span>
-          <button id="editor-btn-export" class="export" disabled
-            title="Konfig-Store DB nach core-dev/config/ und core-dev/nls/de/ erzeugen"
-            style="font-size:12px;padding:6px 14px;font-weight:700">📤 Konfig-Store erzeugen</button>
+          <button id="editor-btn-export-temp" class="export" disabled
+            title="Ausgewählte Kürzel nach Temp-Staging exportieren"
+            style="font-size:12px;padding:6px 14px;font-weight:700">📦 Export nach Temp</button>
+          <button id="editor-btn-merge-temp" class="warn" disabled
+            title="Ausgewählte Kürzel mit Merge-Name nach Temp mergen"
+            style="font-size:12px;padding:6px 14px;font-weight:700">🧩 Mergen nach Temp</button>
+          <button id="editor-btn-export" class="primary" disabled
+            title="Exportierte Temp-Dateien via FastAPI nach core deployen"
+            style="font-size:12px;padding:6px 14px;font-weight:700">🚚 Deploy nach core</button>
         </div>
 
         <div class="ags-status" id="editor-status" style="display:none"></div>
@@ -1795,6 +1835,25 @@ Kein Einfluss auf Browser-Cache (dafuer: Ctrl+Shift+R)">🗑 Cache leeren</butto
   </div>
 </div>
 
+<!-- ===== MERGE-NAME-DIALOG ===== -->
+<div id="merge-name-overlay">
+  <div id="merge-name-dialog">
+    <div class="mnd-header">
+      <span class="mnd-icon">🧩</span>
+      <span class="mnd-title">Kürzel mergen nach Temp</span>
+    </div>
+    <div class="mnd-body">
+      <label for="merge-name-input">Neuer Merge-Kürzelname:</label>
+      <input id="merge-name-input" type="text" placeholder="z.B. ewn_mix" autocomplete="off">
+      <div class="mnd-help">Erlaubt: a-z, A-Z, 0-9, _ und -</div>
+    </div>
+    <div class="mnd-footer">
+      <button id="merge-name-cancel">Abbrechen</button>
+      <button id="merge-name-ok">✓ Merge starten</button>
+    </div>
+  </div>
+</div>
+
 <script>
 /**
  * slm.html — Applikationslogik
@@ -1867,7 +1926,7 @@ function switchStoreEnv(newEnv) {
   bar.classList.toggle('mismatch', mismatch);
 
   var swUrl = _swEnv === 'dev' ? 'www.gis-daten.ch/maps-dev/…' : 'www.gis-daten.ch/maps/…';
-  var rawConfPath = 'data/tmp/' + _storeTmpLabel() + '/raw-conf';
+  var rawConfPath = 'data/tmp/' + _storeTmpLabel() + '/raw-conf/(ags|qgis|mapplus)';
   var stagingDb = _storeDbSchema() + '.config_bundle_store';
 
   var set = function(id, val) { var el = document.getElementById(id); if (el) el.textContent = val; };
@@ -1919,7 +1978,7 @@ function switchStoreEnv(newEnv) {
   if (ctdbBtn) {
     ctdbBtn.title = 'Config-Dateien → ' + _envShort + '-Datenbank\n'
       + 'Schema: ' + _dbSchema + '\n'
-      + 'Quelle: ' + (isStoreDev ? 'core-dev/config/ + nls/' : 'core/config/ + nls/');
+      + 'Quelle: core/config/ + nls/';
   }
 
   // Dialog-Kopfzeile + DB-Info-Subtitle
@@ -1934,7 +1993,7 @@ function switchStoreEnv(newEnv) {
   var ctdbDbInfo = document.getElementById('ctdb-db-info');
   if (ctdbDbInfo) {
     ctdbDbInfo.textContent = 'Schema: ' + _dbSchema
-      + '  ·  Quelle: ' + (isStoreDev ? '/www/core-dev/' : '/www/core/');
+      + '  ·  Quelle: /www/core/';
   }
 })();
 
@@ -2109,6 +2168,53 @@ function showCommitDialog(defaultMessage) {
     skipBtn.addEventListener('click', onSkip);
     cancelBtn.addEventListener('click', onCancel);
     textarea.addEventListener('keydown', onKey);
+  });
+}
+
+/**
+ * Dialog zur Abfrage des Merge-Kürzelnamens.
+ * resolve(string) bei Bestätigung, resolve(null) bei Abbruch.
+ */
+function showMergeNameDialog(defaultName) {
+  return new Promise(function(resolve) {
+    var overlay = document.getElementById('merge-name-overlay');
+    var dialog = document.getElementById('merge-name-dialog');
+    var input = document.getElementById('merge-name-input');
+    var okBtn = document.getElementById('merge-name-ok');
+    var cancelBtn = document.getElementById('merge-name-cancel');
+
+    input.value = defaultName || '';
+    overlay.classList.add('open');
+    input.focus();
+    input.select();
+
+    function cleanup() {
+      overlay.classList.remove('open');
+      okBtn.removeEventListener('click', onOk);
+      cancelBtn.removeEventListener('click', onCancel);
+      overlay.removeEventListener('click', onOverlayClick);
+      input.removeEventListener('keydown', onKey);
+    }
+    function onOk() {
+      cleanup();
+      resolve(input.value.trim());
+    }
+    function onCancel() {
+      cleanup();
+      resolve(null);
+    }
+    function onOverlayClick(e) {
+      if (e.target === overlay && !dialog.contains(e.target)) onCancel();
+    }
+    function onKey(e) {
+      if (e.key === 'Escape') onCancel();
+      if (e.key === 'Enter') onOk();
+    }
+
+    okBtn.addEventListener('click', onOk);
+    cancelBtn.addEventListener('click', onCancel);
+    overlay.addEventListener('click', onOverlayClick);
+    input.addEventListener('keydown', onKey);
   });
 }
 
@@ -2648,7 +2754,7 @@ function exportAgsServices() {
       var statusEl = document.getElementById('import-status');
       var savedCount = data.files ? data.files.length : 0;
       var failedCount = data.failedFiles ? data.failedFiles.length : 0;
-      var targetDirectory = data.directory || 'data/tmp/maps-dev/raw-conf';
+      var targetDirectory = data.directory || ('tmp/' + _storeTmpLabel() + '/raw-conf/ags');
 
       if (savedCount > 0 && failedCount === 0) {
         statusEl.textContent = '✓ Export abgeschlossen (' + runLabel + '): ' + savedCount + ' Dateien in ' + targetDirectory + '/ gespeichert';
@@ -2788,7 +2894,7 @@ function switchImportSource(source) {
   }
 
   if (source === 'ags') {
-    if (exportBtn) exportBtn.textContent = '📦 Importieren & Speichern';
+    if (exportBtn) exportBtn.textContent = '📦 Roh-Konfiguration erzeugen';
     if (_agsServices.length > 0) {
       renderImportList(_agsServices);
       if (statusEl) {
@@ -2799,7 +2905,7 @@ function switchImportSource(source) {
       loadAgsServices();
     }
   } else if (source === 'core') {
-    if (exportBtn) exportBtn.textContent = '📥 In raw-conf importieren';
+    if (exportBtn) exportBtn.textContent = '📦 Roh-Konfiguration erzeugen';
     if (deleteBtn) {
       deleteBtn.style.display = '';
       deleteBtn.disabled = true;
@@ -2917,7 +3023,7 @@ function renderCoreSourceList() {
     } else if (src.inRawConf) {
       var lastImpStr = (src.sourceChanges && src.sourceChanges.lastImported)
         ? ' <span style="font-size:9px;opacity:.7">(' + src.sourceChanges.lastImported.substring(0, 10) + ')</span>' : '';
-      badge = '<span class="core-imported-badge">✓ in raw-conf' + lastImpStr + '</span>';
+      badge = '<span class="core-imported-badge">✓ in raw-conf/mapplus' + lastImpStr + '</span>';
     } else {
       badge = '<span class="ags-new-badge">neu</span>';
     }
@@ -3408,7 +3514,8 @@ function exportQgisProjects() {
       var failedCount = data.failedFiles ? data.failedFiles.length : 0;
 
       if (savedCount > 0 && failedCount === 0) {
-        statusEl.textContent = '✓ QGIS-Export abgeschlossen (' + runLabel + '): ' + savedCount + ' Dateien in raw-conf gespeichert';
+        var targetDirectory = data.directory || ('tmp/' + _storeTmpLabel() + '/raw-conf/qgis');
+        statusEl.textContent = '✓ QGIS-Export abgeschlossen (' + runLabel + '): ' + savedCount + ' Dateien in ' + targetDirectory + '/ gespeichert';
         statusEl.className = 'ags-status success';
       } else if (savedCount > 0 && failedCount > 0) {
         statusEl.textContent = '⚠ QGIS-Export teilweise (' + runLabel + '): ' + savedCount + ' gespeichert, ' + failedCount + ' fehlgeschlagen';
@@ -5193,7 +5300,7 @@ safeAddEventListener('import-sel-none', 'click', function() {
 // Import-Tab: Export/Import-Button (quellabhängig)
 safeAddEventListener('import-btn-delete', 'click', deleteCoreKuerzel);
 
-// Core-Tab: Löschen von Kürzel-Dateien aus core-dev
+// Core-Tab: Löschen von Kürzel-Dateien aus core
 function deleteCoreKuerzel() {
   if (_importActiveSource !== 'core') return;
   var checkboxes = document.querySelectorAll('#import-list input:checked');
@@ -5447,6 +5554,8 @@ var _editorSelectedKuerzel = {}; // Ausgewählte Kürzel für Multi-Deploy { kue
 var _deployQueue = [];           // Multi-Deploy Queue: Array von Kürzel-Strings
 var _deployQueueMode = 'single'; // 'single' | 'multi'
 var _deployDone  = false;        // Verhindert Doppelauslösung nach Deploy
+var _editorLastExportRunId = null;
+var _editorLastExportKuerzelKey = '';
 
 /**
  * Kürzel-Liste aus der Konfig-Store DB laden und als klickbare Liste rendern
@@ -5658,6 +5767,8 @@ function loadEditorKuerzel(kuerzel) {
       document.getElementById('editor-subtabs').style.display = 'flex';
       document.getElementById('editor-table-wrap').style.display = '';
       document.getElementById('editor-placeholder').style.display = 'none';
+      document.getElementById('editor-btn-export-temp').disabled = false;
+      document.getElementById('editor-btn-merge-temp').disabled = false;
       document.getElementById('editor-btn-export').disabled = false;
       editorStatus('');
 
@@ -6205,16 +6316,28 @@ function revertEditorChanges() {
  */
 function updateDeploySelBtn() {
   var count  = Object.keys(_editorSelectedKuerzel).length;
-  var btn    = document.getElementById('editor-btn-export');
+  var deployBtn = document.getElementById('editor-btn-export');
+  var exportBtn = document.getElementById('editor-btn-export-temp');
+  var mergeBtn  = document.getElementById('editor-btn-merge-temp');
   var modal  = document.getElementById('export-confirm-overlay');
-  if (!btn) return;
+  if (!deployBtn || !exportBtn || !mergeBtn) return;
   if (count > 0) {
-    btn.textContent = '📤 ' + count + ' Kürzel deployen';
-    btn.disabled = false;
+    exportBtn.textContent = '📦 ' + count + ' Kürzel nach Temp';
+    mergeBtn.textContent  = '🧩 ' + count + ' Kürzel mergen';
+    deployBtn.textContent = '🚚 ' + count + ' Kürzel nach core';
+    exportBtn.disabled = false;
+    mergeBtn.disabled = false;
+    deployBtn.disabled = false;
   } else {
-    btn.textContent = '📤 Konfig-Store erzeugen';
+    exportBtn.textContent = '📦 Export nach Temp';
+    mergeBtn.textContent  = '🧩 Mergen nach Temp';
+    deployBtn.textContent = '🚚 Deploy nach core';
     // Nur deaktivieren wenn auch kein Einzel-Kürzel geöffnet ist
-    if (!_editorData) btn.disabled = true;
+    if (!_editorData) {
+      exportBtn.disabled = true;
+      mergeBtn.disabled = true;
+      deployBtn.disabled = true;
+    }
     // Kein Auswahl-Deploy mehr offen halten
     if (modal) modal.classList.remove('open');
   }
@@ -6227,7 +6350,7 @@ function deploySelection() {
   var kuerzelList = Object.keys(_editorSelectedKuerzel);
   if (kuerzelList.length === 0) return;
 
-  if (!confirm(kuerzelList.length + ' Kürzel direkt nach core-dev deployen?')) return;
+  if (!confirm(kuerzelList.length + ' Kürzel direkt nach core deployen?')) return;
   directDeployKuerzelList(kuerzelList);
 }
 
@@ -6368,47 +6491,216 @@ function buildFileRow(f) {
   return html;
 }
 
+function getEditorDeployKuerzelList() {
+  var list = Object.keys(_editorSelectedKuerzel);
+  if (list.length > 0) return list;
+  if (_editorData && _editorData.kuerzel) return [_editorData.kuerzel];
+  return [];
+}
+
+function buildKuerzelKey(list) {
+  return list.slice().sort().join(',');
+}
+
 /**
- * Export nach Core ohne Custom-Dialog.
+ * Schritt 1: Export nach Temp-Staging.
  */
-function exportEditorToCore() {
-  // Multi-Auswahl: an deploySelection delegieren
-  if (Object.keys(_editorSelectedKuerzel).length > 0) {
-    deploySelection();
+function exportEditorToTemp() {
+  var kuerzelList = getEditorDeployKuerzelList();
+  if (kuerzelList.length === 0) {
+    editorStatus('Kein Kürzel ausgewählt.', 'error');
     return;
   }
-  if (!_editorData) return;
-  var kuerzel = _editorData.kuerzel;
-  var unsaved = updateEditorChangeCount();
 
-  editorStatus('Dry-Run für «' + kuerzel + '»…');
-  document.getElementById('editor-btn-export').disabled = true;
+  var btnStage = document.getElementById('editor-btn-export-temp');
+  var btnMerge = document.getElementById('editor-btn-merge-temp');
+  var btnDeploy = document.getElementById('editor-btn-export');
+  btnStage.disabled = true;
+  btnMerge.disabled = true;
+  btnDeploy.disabled = true;
+  editorStatus('Exportiere ' + kuerzelList.length + ' Kürzel nach Temp…');
 
-  fetch(GAPI_URL + '/deploy-staging/' + encodeURIComponent(kuerzel) + '?dry_run=true', {
-    method: 'POST'
+  fetch(API_URL + '?action=export-catalog-artifacts', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      kuerzel: kuerzelList,
+      targetEnv: _storeEnv || 'dev',
+      includeNls: true
+    })
   })
-  .then(function(r) { return r.json(); })
-  .then(function(j) {
-    document.getElementById('editor-btn-export').disabled = false;
-    if (j.detail) {
-      var errMsg = Array.isArray(j.detail) ? j.detail[0].msg : j.detail;
-      editorStatus('Fehler: ' + errMsg, 'error');
-      return;
-    }
-    if (!j.files || j.files.length === 0) {
-      editorStatus('Keine Dateien zum Deployen gefunden.');
-      return;
-    }
-    if (unsaved > 0 && !confirm(unsaved + ' ungespeicherte Änderung(en) sind noch nicht im Staging. Trotzdem deployen?')) {
-      editorStatus('Deploy abgebrochen.');
-      return;
-    }
-    directDeployKuerzelList([kuerzel]);
+    .then(function(r) { return r.json(); })
+    .then(function(j) {
+      btnStage.disabled = false;
+      btnMerge.disabled = false;
+      btnDeploy.disabled = false;
+      if (!j || !j.success || !j.data || !j.data.runId) {
+        var err = (j && j.data && (j.data.error || (j.data.errors && j.data.errors[0]))) || 'Export fehlgeschlagen';
+        editorStatus('Export nach Temp fehlgeschlagen: ' + err, 'error');
+        return;
+      }
+      _editorLastExportRunId = j.data.runId;
+      _editorLastExportKuerzelKey = buildKuerzelKey(kuerzelList);
+      editorStatus('Temp-Export abgeschlossen (finale Struktur): ' + (j.data.written || 0) + ' Dateien (RunId: ' + j.data.runId + ')', 'success');
+    })
+    .catch(function(e) {
+      btnStage.disabled = false;
+      btnMerge.disabled = false;
+      btnDeploy.disabled = false;
+      editorStatus('Netzwerkfehler beim Temp-Export: ' + e.message, 'error');
+    });
+}
+
+function mergeEditorToTemp() {
+  var kuerzelList = getEditorDeployKuerzelList();
+  if (kuerzelList.length === 0) {
+    editorStatus('Kein Kürzel ausgewählt.', 'error');
+    return;
+  }
+  showMergeNameDialog('')
+    .then(function(rawMergeName) {
+      if (rawMergeName === null || rawMergeName === '') {
+        editorStatus('Merge abgebrochen (kein Name).');
+        return null;
+      }
+      var mergeName = rawMergeName.replace(/[^a-zA-Z0-9_-]/g, '_');
+      if (!mergeName) {
+        editorStatus('Ungültiger Merge-Name.', 'error');
+        return null;
+      }
+
+      var btnStage = document.getElementById('editor-btn-export-temp');
+      var btnMerge = document.getElementById('editor-btn-merge-temp');
+      var btnDeploy = document.getElementById('editor-btn-export');
+      btnStage.disabled = true;
+      btnMerge.disabled = true;
+      btnDeploy.disabled = true;
+      editorStatus('Merge nach Temp läuft (' + mergeName + ')…');
+
+      return fetch(API_URL + '?action=export-catalog-artifacts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          kuerzel: kuerzelList,
+          targetEnv: _storeEnv || 'dev',
+          includeNls: true,
+          mergeName: mergeName
+        })
+      }).then(function(r) {
+        return r.json();
+      }).then(function(j) {
+        btnStage.disabled = false;
+        btnMerge.disabled = false;
+        btnDeploy.disabled = false;
+        if (!j || !j.success || !j.data || !j.data.runId) {
+          var err = (j && j.data && (j.data.error || (j.data.errors && j.data.errors[0]))) || 'Merge fehlgeschlagen';
+          editorStatus('Merge nach Temp fehlgeschlagen: ' + err, 'error');
+          return;
+        }
+        // Merge-Runs nicht direkt für Deploy-Button verwenden
+        _editorLastExportRunId = null;
+        _editorLastExportKuerzelKey = '';
+        var readme = j.data.readmePath ? (' · Readme: ' + j.data.readmePath) : '';
+        editorStatus('Merge nach Temp abgeschlossen: ' + (j.data.written || 0) + ' Dateien (RunId: ' + j.data.runId + ')' + readme, 'success');
+      }).catch(function(e) {
+        btnStage.disabled = false;
+        btnMerge.disabled = false;
+        btnDeploy.disabled = false;
+        editorStatus('Netzwerkfehler beim Merge-Export: ' + e.message, 'error');
+      });
+    })
+    .catch(function(e) {
+      editorStatus('Fehler beim Öffnen des Merge-Dialogs: ' + e.message, 'error');
+    });
+}
+
+/**
+ * Schritt 2: Deploy nach core via FastAPI (/deploy-staged-conf).
+ */
+function exportEditorToCore() {
+  var kuerzelList = getEditorDeployKuerzelList();
+  if (kuerzelList.length === 0) {
+    editorStatus('Kein Kürzel ausgewählt.', 'error');
+    return;
+  }
+  var key = buildKuerzelKey(kuerzelList);
+  if (!_editorLastExportRunId || _editorLastExportKuerzelKey !== key) {
+    editorStatus('Bitte zuerst «Export nach Temp» für die aktuelle Auswahl ausführen.', 'error');
+    return;
+  }
+
+  var btnStage = document.getElementById('editor-btn-export-temp');
+  var btnMerge = document.getElementById('editor-btn-merge-temp');
+  var btnDeploy = document.getElementById('editor-btn-export');
+  btnStage.disabled = true;
+  btnMerge.disabled = true;
+  btnDeploy.disabled = true;
+  editorStatus('Deploye RunId ' + _editorLastExportRunId + ' nach core…');
+
+  fetch(API_URL + '?action=deploy-catalog-artifacts', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ runId: _editorLastExportRunId })
   })
-  .catch(function(e) {
-    document.getElementById('editor-btn-export').disabled = false;
-    editorStatus('Netzwerkfehler: ' + e.message, 'error');
-  });
+    .then(function(r) { return r.json(); })
+    .then(function(j) {
+      btnStage.disabled = false;
+      btnMerge.disabled = false;
+      btnDeploy.disabled = false;
+      if (!j || !j.success || !j.data) {
+        var err = (j && j.data && (j.data.error || (j.data.failed && j.data.failed[0] && j.data.failed[0].error))) || 'Deploy fehlgeschlagen';
+        editorStatus('Deploy nach core fehlgeschlagen: ' + err, 'error');
+        return;
+      }
+      var ok = j.data.deployedCount || 0;
+      var fail = j.data.failedCount || 0;
+      editorStatus('Deploy abgeschlossen: ' + ok + ' Dateien' + (fail ? (', ' + fail + ' Fehler') : ''), fail ? 'error' : 'success');
+      if (!fail) {
+        var deployedPaths = ((j.data.deployed || []).map(function(d) { return d.deployPath; }).filter(Boolean));
+        var deployUser = (typeof slmGetUser === 'function') ? slmGetUser() : 'unbekannt';
+        if (deployedPaths.length > 0) {
+          var defaultMsg = 'Core-Deploy (' + (_storeEnv || 'dev') + ') durch ' + deployUser + ': ' + ok + ' Dateien';
+          showCommitDialog(defaultMsg).then(function(result) {
+            if (!result || result.skip) return;
+            var msg = (result.message || '').trim();
+            if (msg.indexOf(deployUser) === -1) {
+              msg += ' | User: ' + deployUser;
+            }
+            fetch(GAPI_URL + '/git-commit-batch', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                deployPaths: deployedPaths,
+                source: 'editor-deploy-core',
+                target: _storeEnv || 'dev',
+                message: msg
+              })
+            })
+              .then(function(r) { return r.json(); })
+              .then(function(g) {
+                if (g && g.committed) {
+                  editorStatus('Deploy + Git abgeschlossen: ' + ok + ' Dateien (' + (g.changed || 0) + ' committed)', 'success');
+                } else if (g && g.success) {
+                  editorStatus('Deploy abgeschlossen: ' + ok + ' Dateien (Git: keine Änderungen)', 'success');
+                } else if (g) {
+                  editorStatus('Deploy abgeschlossen, Git fehlgeschlagen: ' + (g.error || g.message || 'Unbekannter Fehler'), 'error');
+                }
+              })
+              .catch(function(e) {
+                editorStatus('Deploy abgeschlossen, Git-Commit fehlgeschlagen: ' + e.message, 'error');
+              });
+          });
+        }
+        _editorLastExportRunId = null;
+        _editorLastExportKuerzelKey = '';
+      }
+    })
+    .catch(function(e) {
+      btnStage.disabled = false;
+      btnMerge.disabled = false;
+      btnDeploy.disabled = false;
+      editorStatus('Netzwerkfehler beim Deploy: ' + e.message, 'error');
+    });
 }
 
 /**
@@ -6494,6 +6786,8 @@ document.querySelectorAll('.editor-subtab').forEach(function(btn) {
 });
 document.getElementById('editor-btn-save').addEventListener('click', saveEditorChanges);
 document.getElementById('editor-btn-revert').addEventListener('click', revertEditorChanges);
+document.getElementById('editor-btn-export-temp').addEventListener('click', exportEditorToTemp);
+document.getElementById('editor-btn-merge-temp').addEventListener('click', mergeEditorToTemp);
 document.getElementById('editor-btn-export').addEventListener('click', exportEditorToCore);
 
 // =====================================================================
@@ -9744,16 +10038,24 @@ function _showBuildTs(id) {
 (function() {
   // Pfad-Bars basieren auf dem gewählten Konfig-Store (_storeEnv), NICHT auf der URL
   var isStoreDev = (_storeEnv === 'dev');
-  var coreName  = isStoreDev ? 'core-dev' : 'core';
-  var rawConf   = isStoreDev ? 'data/tmp/maps-dev/raw-conf'    : 'data/tmp/maps/raw-conf';
+  var coreName  = 'core'; // DEV und PROD nutzen gleiches core
+  var rawConf   = isStoreDev ? 'data/tmp/maps-dev/raw-conf/(ags|qgis|mapplus)' : 'data/tmp/maps/raw-conf/(ags|qgis|mapplus)';
   var impCore   = isStoreDev ? 'DB: mapplusconf_dev.config_bundle_store' : 'DB: mapplusconf.config_bundle_store';
   var coreCfg   = '/www/' + coreName + '/config/';
   var coreNls   = '/www/' + coreName + '/nls/de/';
 
-  // Button-Text + Tooltip
+  // Button-Tooltips
+  var expTmpBtn = document.getElementById('editor-btn-export-temp');
+  if (expTmpBtn) {
+    expTmpBtn.title = 'Kürzel-Dateien nach Temp exportieren (finale Ordnerstruktur + Naming)';
+  }
+  var mergeTmpBtn = document.getElementById('editor-btn-merge-temp');
+  if (mergeTmpBtn) {
+    mergeTmpBtn.title = 'Mehrere Kürzel in benannte Merge-Dateien nach Temp exportieren (inkl. Readme)';
+  }
   var expBtn = document.getElementById('editor-btn-export');
   if (expBtn) {
-    expBtn.title = 'Dateien nach ' + coreName + '/config/ und ' + coreName + '/nls/de/ exportieren';
+    expBtn.title = 'Exportierte Temp-Dateien via FastAPI nach ' + coreName + ' deployen';
   }
   var expTitle = document.getElementById('export-confirm-title');
   if (expTitle) expTitle.textContent = '\u{1F4E4} Nach ' + coreName + ' exportieren';
@@ -9780,7 +10082,7 @@ function _showBuildTs(id) {
     );
   }
 
-  // Editor-Tab: Konfig-Store DB → core-dev/config + nls
+  // Editor-Tab: Konfig-Store DB → core/config + nls
   var paneEditor = document.getElementById('pane-editor');
   if (paneEditor && !paneEditor.querySelector('.path-info-bar')) {
     paneEditor.insertBefore(

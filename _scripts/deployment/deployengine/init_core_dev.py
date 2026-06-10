@@ -5,23 +5,14 @@ sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='repla
 sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
 """
 init_core_dev.py
-Initialisiert /www/core-dev/ auf dem Server als Kopie von /www/core/.
+DEPRECATED: core-dev wurde aufgegeben. DEV nutzt ab 2026-06-10 wieder /www/core/.
+Dieses Skript bleibt als Referenz erhalten, sollte aber nicht mehr ausgefuehrt werden.
+
+Urspruenglich: Initialisiert /www/core-dev/ auf dem Server als Kopie von /www/core/.
 Die Kopie erfolgt vollstaendig remote-to-remote ueber eine SFTP-Verbindung
 (kein lokaler Download noetig).
 
-Verhalten:
-  - Standardmaessig werden nur FEHLENDE Dateien kopiert (kein Ueberschreiben)
-  - Mit --overwrite werden alle Dateien neu kopiert
-  - .bak-Dateien werden uebersprungen
-  - Leerverzeichnisse werden angelegt
-
-Aufruf:
-  python init_core_dev.py              # Fehlende Dateien kopieren
-  python init_core_dev.py --dry-run    # Vorschau
-  python init_core_dev.py --overwrite  # Alles neu kopieren
-  python init_core_dev.py --yes        # Ohne Rueckfrage
-
-@version    1.0
+@version    1.0 (deprecated)
 @date       2026-05-27
 @copyright  Trigonet AG
 @author     Marco Dellenbach

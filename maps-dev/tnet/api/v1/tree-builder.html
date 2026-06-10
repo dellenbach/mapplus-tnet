@@ -4632,7 +4632,7 @@ function openPropsDialog(type, ref) {
     var lSource = layer ? (layer.source || 'core') : 'core';
     var lSourceFile = layer ? (layer.sourceFile || '') : '';
     var targetOpts = '<option value="original">Original (' + esc(lSourceFile || 'layers_*.conf') + ')</option>';
-    targetOpts += '<option value="override">Core-DEV (core-dev/config/)</option>';
+    targetOpts += '<option value="override">Core (core/config/)</option>';
     if (profileName && profileName !== 'public') {
       targetOpts += '<option value="profile">Profil: ' + esc(profileName) + '</option>';
     }
