@@ -2267,21 +2267,24 @@ function checkSourceChanges($manifest, $rawDir) {
         if ($flatFilesByService !== null) return;
         $flatFilesByService = [];
         if (!is_dir($rawDir)) return;
-        $entries = @scandir($rawDir) ?: [];
-        foreach ($entries as $entry) {
-            if ($entry === '.' || $entry === '..') continue;
-            $full = $rawDir . '/' . $entry;
-            if (!is_file($full)) continue;
-            if (preg_match('/\.\d{8}_\d{6}\.bak$/', $entry)) continue;
-            $ext = strtolower(pathinfo($entry, PATHINFO_EXTENSION));
+        // Rekursiv alle Dateien in root und Bucket-Verzeichnissen scannen
+        $it = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($rawDir, RecursiveDirectoryIterator::SKIP_DOTS),
+            RecursiveIteratorIterator::LEAVES_ONLY
+        );
+        foreach ($it as $file) {
+            if (!$file->isFile()) continue;
+            $fname = $file->getFilename();
+            if (preg_match('/\.\d{8}_\d{6}\.bak$/', $fname)) continue;
+            $ext = strtolower(pathinfo($fname, PATHINFO_EXTENSION));
             if (!in_array($ext, ['conf', 'json'])) continue;
-            $svc = extractServiceFromFilename($entry);
+            $svc = extractServiceFromFilename($fname);
             if (!isset($flatFilesByService[$svc])) $flatFilesByService[$svc] = [];
             $flatFilesByService[$svc][] = [
-                'file'     => $entry,
-                'size'     => filesize($full),
-                'modified' => date('Y-m-d H:i:s', filemtime($full)),
-                'path'     => $full
+                'file'     => $fname,
+                'size'     => $file->getSize(),
+                'modified' => date('Y-m-d H:i:s', $file->getMTime()),
+                'path'     => $file->getPathname()
             ];
         }
     };
@@ -2438,14 +2441,26 @@ function listCoreSources() {
     ];
 
     // raw-conf-Kürzel sammeln (für «bereits importiert»-Markierung)
+    // Scanne alle Buckets (ags, qgis, mapplus) für vollständige Abdeckung
     $rawConfDir = getWritableRawConfDir();
     if ($rawConfDir === false) $rawConfDir = RAW_CONF_DIR;
-    $rawConfKuerzel = [];
-    $mapplusRawDir = is_dir($rawConfDir . '/mapplus') ? ($rawConfDir . '/mapplus') : $rawConfDir;
-    if (is_dir($mapplusRawDir)) {
-        foreach (@scandir($mapplusRawDir) ?: [] as $d) {
-            if ($d !== '.' && $d !== '..' && is_dir($mapplusRawDir . '/' . $d)) {
-                $rawConfKuerzel[$d] = true;
+    $rawConfKuerzel = []; // kuerzel => bucket (z.B. 'awu' => 'ags')
+    $buckets = rawConfSourceBuckets();
+    foreach ($buckets as $bucket) {
+        $bucketDir = $rawConfDir . '/' . $bucket;
+        if (is_dir($bucketDir)) {
+            foreach (@scandir($bucketDir) ?: [] as $d) {
+                if ($d !== '.' && $d !== '..' && is_dir($bucketDir . '/' . $d)) {
+                    $rawConfKuerzel[$d] = $bucket;
+                }
+            }
+        }
+    }
+    // Fallback für alte Struktur (flach ohne Buckets)
+    foreach (@scandir($rawConfDir) ?: [] as $d) {
+        if ($d !== '.' && $d !== '..' && is_dir($rawConfDir . '/' . $d) && !in_array($d, $buckets)) {
+            if (!isset($rawConfKuerzel[$d])) {
+                $rawConfKuerzel[$d] = ''; // kein Bucket (Root-Level)
             }
         }
     }
@@ -2529,7 +2544,9 @@ function listCoreSources() {
         // Change-Detection: Vergleich aktuelle Core-Dateien mit letztem Import-Manifest
         $sourceChanges = null;
         if (isset($rawConfKuerzel[$key])) {
-            $manifestPath = $mapplusRawDir . '/' . $key . '/.core-import-manifest.json';
+            $bucket = $rawConfKuerzel[$key];
+            $kuerzelDir = $bucket ? ($rawConfDir . '/' . $bucket . '/' . $key) : ($rawConfDir . '/' . $key);
+            $manifestPath = $kuerzelDir . '/.core-import-manifest.json';
             if (is_file($manifestPath)) {
                 $raw = @file_get_contents($manifestPath);
                 if ($raw !== false) {
@@ -6201,6 +6218,52 @@ switch ($action) {
         $result = importCoreToRawConf($body['kuerzel']);
         if (!$result['success']) jsonError($result['error'], 500);
         jsonResponse(['success' => true, 'data' => $result]);
+        break;
+
+    case 'debug-manifest':
+        $kuerzel = $_GET['kuerzel'] ?? '';
+        if (!$kuerzel) jsonError('Parameter kuerzel= erforderlich', 400);
+        $safe = preg_replace('/[^a-zA-Z0-9_\-]/', '_', trim($kuerzel));
+        $bundle = StagingImportRepository::loadBundle($safe);
+        $rawDir = getWritableRawConfDir();
+        if ($rawDir === false) $rawDir = RAW_CONF_DIR;
+        $sourceChecks = [];
+        if ($bundle && !empty($bundle['manifest']['sources'])) {
+            foreach ($bundle['manifest']['sources'] as $src) {
+                $svcKey = $src['service'];
+                $candidates = [$rawDir . '/' . $svcKey];
+                foreach (rawConfSourceBuckets() as $bucket) {
+                    $candidates[] = $rawDir . '/' . $bucket . '/' . $svcKey;
+                    $bucketDir = $rawDir . '/' . $bucket;
+                    if (is_dir($bucketDir)) {
+                        foreach (@scandir($bucketDir) ?: [] as $sub) {
+                            if ($sub === '.' || $sub === '..') continue;
+                            if (is_dir($bucketDir . '/' . $sub)) {
+                                $candidates[] = $bucketDir . '/' . $sub . '/' . $svcKey;
+                            }
+                        }
+                    }
+                }
+                $resolved = null;
+                $checkedPaths = [];
+                foreach ($candidates as $c) {
+                    $checkedPaths[] = ['path' => $c, 'exists' => is_dir($c)];
+                    if ($resolved === null && is_dir($c)) $resolved = $c;
+                }
+                $sourceChecks[] = [
+                    'service' => $svcKey,
+                    'resolved' => $resolved,
+                    'sourceFiles' => $src['sourceFiles'] ?? [],
+                    'checkedPaths' => $checkedPaths,
+                ];
+            }
+        }
+        jsonResponse(['success' => true, 'data' => [
+            'kuerzel' => $safe,
+            'rawDir' => $rawDir,
+            'manifest' => $bundle['manifest'] ?? null,
+            'sourceChecks' => $sourceChecks,
+        ]]);
         break;
 
     case 'debug-rawconf':

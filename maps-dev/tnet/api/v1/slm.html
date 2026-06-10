@@ -964,20 +964,6 @@ table.bm-mtx tbody tr.bm-mtx-row-sel:hover td { background: #ffe0b2; }
 .editor-src-empty {
   padding: 20px; text-align: center; color: var(--c-muted, #888); font-size: 12px;
 }
-/* ── Tag-Gruppierung in der Quellenliste ── */
-.editor-tag-group { border-bottom: 1px solid #eef2f4; }
-.editor-tag-head {
-  display: flex; align-items: center; gap: 8px; padding: 8px 12px;
-  cursor: pointer; user-select: none; background: #f3f8f9;
-  font-size: 12px; font-weight: 700; color: #2c4a50;
-}
-.editor-tag-head:hover { background: #e8f1f2; }
-.editor-tag-head .etg-name { flex: 1; font-family: 'Consolas', monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.editor-tag-head .src-arrow { font-size: 10px; color: #888; width: 12px; text-align: center; transition: transform .15s; flex-shrink: 0; }
-.editor-tag-head.collapsed .src-arrow { transform: rotate(-90deg); }
-.editor-tag-head.collapsed + .editor-tag-members { display: none; }
-.editor-tag-members .editor-src-item { padding-left: 24px; }
-
 /* ── Rechtes Panel: Editor ── */
 .editor-main {
   flex: 1; display: flex; flex-direction: column; min-height: 0; min-width: 0;
@@ -5591,83 +5577,54 @@ function renderEditorSourceList(filter) {
   var listEl = document.getElementById('editor-src-list');
   var q = (filter || document.getElementById('editor-src-filter').value || '').toLowerCase();
 
-  // Tag → Kürzel-Map aufbauen
-  var tagMap = {};
-  _editorKuerzelList.forEach(function(k) {
-    var tags = (k.tags && k.tags.length) ? k.tags : [k.kuerzel];
-    tags.forEach(function(t) {
-      if (!tagMap[t]) tagMap[t] = [];
-      tagMap[t].push(k);
-    });
+  // Flache Liste aller Kürzel (ohne Tag-Gruppierung)
+  var kuerzelList = _editorKuerzelList.slice().sort(function(a, b) {
+    return a.kuerzel.localeCompare(b.kuerzel);
   });
-  var tagNames = Object.keys(tagMap).sort();
+
+  // Filter anwenden
+  if (q) {
+    kuerzelList = kuerzelList.filter(function(k) {
+      return k.kuerzel.toLowerCase().indexOf(q) !== -1;
+    });
+  }
 
   var html = '';
-  var tagCount = 0;
-  tagNames.forEach(function(tag) {
-    var members = tagMap[tag];
-    var tagMatches = !q || tag.toLowerCase().indexOf(q) !== -1;
-    var matchedMembers = members.filter(function(k) { return !q || k.kuerzel.toLowerCase().indexOf(q) !== -1; });
-    if (!tagMatches && matchedMembers.length === 0) return;
-    var shownMembers = tagMatches ? members : matchedMembers;
-    tagCount++;
-
-    var groupHasActive = shownMembers.some(function(k) { return k.kuerzel === _editorActiveKuerzel; });
-    var collapsed = (q || groupHasActive) ? '' : ' collapsed';
-
-    html += '<div class="editor-tag-group" data-tag="' + esc(tag) + '">';
-    html += '<div class="editor-tag-head' + collapsed + '">';
-    html += '<span class="src-arrow">▼</span>';
-    html += '<span class="etg-name">🏷 ' + esc(tag) + '</span>';
-    html += '<span class="src-badge">' + shownMembers.length + '</span>';
-    html += '</div>';
-    html += '<div class="editor-tag-members">';
-    shownMembers.forEach(function(k) {
-      var name = k.kuerzel;
-      var active = (name === _editorActiveKuerzel) ? ' active' : '';
-      var files = k.files || [];
-      var confCount = 0, jsonCount = 0;
-      files.forEach(function(f) {
-        var fn = (typeof f === 'string') ? f : (f.name || f.file || '');
-        if (fn.match(/\.conf$/i)) confCount++;
-        else if (fn.match(/\.json$/i)) jsonCount++;
-      });
-      var cbChecked = _editorSelectedKuerzel[name] ? ' checked' : '';
-      html += '<div class="editor-src-item' + active + '" data-kuerzel="' + esc(name) + '">';
-      html += '<input type="checkbox" class="src-cb" data-kuerzel="' + esc(name) + '"' + cbChecked + '>';
-      html += '<span class="src-name">' + esc(name) + '</span>';
-      html += '<span class="src-types">';
-      if (confCount) html += '<span class="src-type-dot t-conf">' + confCount + '</span>';
-      if (jsonCount) html += '<span class="src-type-dot t-json">' + jsonCount + '</span>';
-      html += '</span>';
-      html += '<span class="src-badge">' + files.length + '</span>';
-      html += '</div>';
+  kuerzelList.forEach(function(k) {
+    var name = k.kuerzel;
+    var active = (name === _editorActiveKuerzel) ? ' active' : '';
+    var files = k.files || [];
+    var confCount = 0, jsonCount = 0;
+    files.forEach(function(f) {
+      var fn = (typeof f === 'string') ? f : (f.name || f.file || '');
+      if (fn.match(/\.conf$/i)) confCount++;
+      else if (fn.match(/\.json$/i)) jsonCount++;
     });
-    html += '</div>'; // members
-    html += '</div>'; // group
+    var cbChecked = _editorSelectedKuerzel[name] ? ' checked' : '';
+    html += '<div class="editor-src-item' + active + '" data-kuerzel="' + esc(name) + '">';
+    html += '<input type="checkbox" class="src-cb" data-kuerzel="' + esc(name) + '"' + cbChecked + '>';
+    html += '<span class="src-name">' + esc(name) + '</span>';
+    html += '<span class="src-types">';
+    if (confCount) html += '<span class="src-type-dot t-conf">' + confCount + '</span>';
+    if (jsonCount) html += '<span class="src-type-dot t-json">' + jsonCount + '</span>';
+    html += '</span>';
+    html += '<span class="src-badge">' + files.length + '</span>';
+    html += '</div>';
   });
 
   if (!html) {
-    html = '<div class="editor-src-empty">' + (q ? 'Keine Treffer für «' + q + '»' : 'Keine Tags vorhanden') + '</div>';
+    html = '<div class="editor-src-empty">' + (q ? 'Keine Treffer für «' + q + '»' : 'Keine Kürzel vorhanden') + '</div>';
   }
   listEl.innerHTML = html;
-  document.getElementById('editor-src-count').textContent = tagCount;
+  document.getElementById('editor-src-count').textContent = kuerzelList.length;
 
-  // Tag-Gruppen auf-/zuklappen
-  listEl.querySelectorAll('.editor-tag-head').forEach(function(head) {
-    head.addEventListener('click', function() { head.classList.toggle('collapsed'); });
-  });
-
-  // Checkbox-Handler (Mehrfach-Vorkommen synchronisieren)
+  // Checkbox-Handler
   listEl.querySelectorAll('.src-cb').forEach(function(cb) {
     cb.addEventListener('click', function(e) { e.stopPropagation(); });
     cb.addEventListener('change', function() {
       var k = cb.dataset.kuerzel;
       if (cb.checked) _editorSelectedKuerzel[k] = true;
       else delete _editorSelectedKuerzel[k];
-      listEl.querySelectorAll('.src-cb').forEach(function(other) {
-        if (other.dataset.kuerzel === k) other.checked = cb.checked;
-      });
       updateDeploySelBtn();
     });
   });
