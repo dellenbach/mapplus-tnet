@@ -7373,6 +7373,29 @@ function restoreBackupFile(filename) {
         loaded.groups = groupArr;
       }
 
+      // Legacy-Format: Profile haben LyrMgr-Keys direkt (ohne {lyrmgrs:{}} Wrapper)
+      // Erkennung: Profil-Wert hat keinen 'lyrmgrs'/'categories' Key aber bekannte LyrMgr-Keys
+      var knownLyrmgrKeys = ['main_lyrmgr', 'second_lyrmgr', 'third_lyrmgr', 'forth_lyrmgr'];
+      if (loaded.profiles) {
+        Object.keys(loaded.profiles).forEach(function(pName) {
+          var p = loaded.profiles[pName];
+          if (!p) return;
+          if (p.lyrmgrs || p.categories) return; // bereits neues Format
+          // Prüfen ob direkte LyrMgr-Keys vorhanden
+          var hasLyrmgrKeys = knownLyrmgrKeys.some(function(k) { return !!p[k]; });
+          if (hasLyrmgrKeys) {
+            // Konvertieren: {main_lyrmgr: {...}} → {lyrmgrs: {main_lyrmgr: {...}}}
+            var lyrmgrs = {};
+            knownLyrmgrKeys.forEach(function(k) { if (p[k]) lyrmgrs[k] = p[k]; });
+            // Unbekannte Keys (nicht _-prefixed, nicht bekannte LyrMgr) ebenfalls mitnehmen
+            Object.keys(p).forEach(function(k) {
+              if (k.charAt(0) !== '_' && knownLyrmgrKeys.indexOf(k) === -1) lyrmgrs[k] = p[k];
+            });
+            loaded.profiles[pName] = { lyrmgrs: lyrmgrs };
+          }
+        });
+      }
+
       // State übernehmen
       if (loaded.groups)                        state.groups        = loaded.groups;
       if (loaded.profiles)                      state.profiles      = loaded.profiles;
