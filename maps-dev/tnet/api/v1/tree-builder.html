@@ -5066,13 +5066,30 @@ function downloadLyrmgrConf() {
 }
 
 /**
- * Vollständiges Backup aller Profile als JSON-Datei mit Zeitstempel (lokal)
+ * Manuelles Backup des aktuellen Arbeitsstands serverseitig speichern (mit Zeitstempel + User)
  */
 function backupLyrmgrToFile() {
   var output = generateJSON();
-  var ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-  var filename = 'lyrmgr-backup_' + ts + '.json';
-  downloadJSON(filename, output);
+  var data;
+  try { data = JSON.parse(output); } catch (e) { alert('Fehler beim Generieren des Backups.'); return; }
+  var btn = document.querySelector('[data-action="backup-create"]');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Backup…'; }
+  fetch(API_URL + '?action=create-backup', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ data: data })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(resp) {
+    if (!resp.success) throw new Error(resp.error || 'Fehler');
+    if (btn) { btn.disabled = false; btn.textContent = '💾 Backup erstellen'; }
+    var msg = '✓ Backup gespeichert:\n' + resp.data.file + '\n(' + Math.round(resp.data.bytes / 1024) + ' KB)';
+    alert(msg);
+  })
+  .catch(function(err) {
+    if (btn) { btn.disabled = false; btn.textContent = '💾 Backup erstellen'; }
+    alert('Backup fehlgeschlagen: ' + err.message);
+  });
 }
 
 function generateJSON() {
@@ -7252,14 +7269,21 @@ function renderBackupTable() {
   filtered.forEach(function(b, i) {
     var sizeStr = b.size > 1048576 ? (b.size / 1048576).toFixed(1) + ' MB' : (b.size / 1024).toFixed(0) + ' KB';
     var isState = b.type === 'state';
+    var isManualBackup = isState && /^state_manual_/.test(b.file);
+    // User aus Dateiname extrahieren: state_manual_YYYYMMDD_HHMMSS_username.json
+    var userLabel = '';
+    if (isManualBackup) {
+      var m = b.file.match(/^state_manual_\d{8}_\d{6}_(.+)\.json$/);
+      if (m) userLabel = ' <span style="font-size:9px;background:#e8f0f8;color:#2563a8;padding:1px 5px;border-radius:3px;font-weight:600">' + esc(m[1]) + '</span>';
+    }
     html += '<tr data-file="' + esc(b.file) + '">';
     html += '<td><input type="checkbox" class="bk-cb" data-file="' + esc(b.file) + '"></td>';
-    html += '<td style="font-family:Consolas,monospace;font-size:10px;word-break:break-all">' + esc(b.file) + '</td>';
+    html += '<td style="font-family:Consolas,monospace;font-size:10px;word-break:break-all">' + esc(b.file) + userLabel + '</td>';
     html += '<td><span class="bk-type ' + b.type + '">' + esc(b.type) + '</span></td>';
     html += '<td style="white-space:nowrap">' + sizeStr + '</td>';
     html += '<td style="white-space:nowrap">' + esc(b.timestamp || b.modified) + '</td>';
     html += '<td class="bk-actions">';
-    if (isState) html += '<button class="bk-restore" data-file="' + esc(b.file) + '" title="Dieses Backup wiederherstellen">↩ Restore</button>';
+    if (isState) html += '<button class="bk-restore" data-file="' + esc(b.file) + '" title="Dieses Backup in Arbeitsspeicher laden">↩ In Memory laden</button>';
     html += '<button class="bk-del" data-file="' + esc(b.file) + '" title="Löschen">🗑</button>';
     html += '</td></tr>';
   });
@@ -7330,20 +7354,29 @@ function deleteSelectedBackups() {
 }
 
 function restoreBackupFile(filename) {
-  if (!confirm('Backup wiederherstellen?\n\n' + filename + '\n\nDer aktuelle Zustand wird vorher gesichert.')) return;
+  if (!confirm('Backup in Arbeitsspeicher laden?\n\n' + filename + '\n\nDer aktuelle Arbeitsstand im Editor wird überschrieben.\n(Server-Dateien werden nicht verändert.)')) return;
   var statusEl = document.getElementById('tb-backup-status');
-  statusEl.textContent = '⏳ Wiederherstellen…';
-  fetch(API_URL + '?action=restore&file=' + encodeURIComponent(filename))
+  statusEl.textContent = '⏳ Lade Backup…';
+  fetch(API_URL + '?action=load-backup&file=' + encodeURIComponent(filename))
     .then(function(r) { return r.json(); })
     .then(function(resp) {
       if (!resp.success) throw new Error(resp.error || 'Fehler');
-      statusEl.textContent = '✓ Wiederhergestellt aus: ' + filename;
-      // State neu laden
-      if (resp.data && resp.data.data) {
-        Object.assign(state, resp.data.data);
-        renderTree();
+      var loaded = resp.data.state;
+      if (!loaded) throw new Error('Backup-Daten leer');
+      // State im Memory übernehmen
+      if (loaded.groups)    state.groups    = loaded.groups;
+      if (loaded.profiles)  state.profiles  = loaded.profiles;
+      if (loaded.aliases)   state.layerAliases = loaded.aliases;
+      if (loaded.nlsEdits)  state.nlsEdits  = loaded.nlsEdits;
+      // Erstes Profil aktivieren falls aktuelles nicht mehr vorhanden
+      if (!state.profiles[state.activeProfile]) {
+        state.activeProfile = Object.keys(state.profiles)[0] || null;
       }
-      loadBackupList();
+      renderClipboard();
+      renderTreeTabs();
+      renderTree();
+      closeBackupManager();
+      statusEl.textContent = '✓ In Arbeitsspeicher geladen: ' + filename;
     })
     .catch(function(err) { statusEl.textContent = '✗ Fehler: ' + err.message; });
 }

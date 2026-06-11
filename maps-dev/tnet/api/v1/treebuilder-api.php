@@ -5088,6 +5088,44 @@ switch ($action) {
         jsonResponse(['success' => true, 'data' => $result]);
         break;
 
+    // ── Manuelles Backup serverseitig erstellen (aus Frontend-State) ──
+    case 'create-backup':
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('POST erforderlich', 405);
+        $body = json_decode(file_get_contents('php://input'), true);
+        if (!$body || !isset($body['data'])) jsonError('Feld data erforderlich', 400);
+        $editor = getEditorName();
+        if (!is_dir(BACKUP_DIR)) @mkdir(BACKUP_DIR, 0775, true);
+        $ts = date('Ymd_His');
+        $safeEditor = preg_replace('/[^a-zA-Z0-9_\-]/', '_', $editor);
+        $filename = 'state_manual_' . $ts . '_' . $safeEditor . '.json';
+        $path = BACKUP_DIR . '/' . $filename;
+        $payload = $body['data'];
+        $payload['_meta'] = [
+            'savedBy'   => $editor,
+            'savedAt'   => date('Y-m-d H:i:s'),
+            'timestamp' => time(),
+            'type'      => 'manual-backup',
+        ];
+        $bytes = file_put_contents($path, json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+        if ($bytes === false) jsonError('Backup konnte nicht gespeichert werden', 500);
+        cleanupBackups();
+        jsonResponse(['success' => true, 'data' => ['file' => $filename, 'bytes' => $bytes]]);
+        break;
+
+    // ── Backup nur lesen (in Memory laden, ohne STATE_FILE zu überschreiben) ──
+    case 'load-backup':
+        $file = $_GET['file'] ?? '';
+        if (!$file) jsonError('Parameter file= erforderlich', 400);
+        $safeName = basename($file);
+        if (strpos($safeName, '..') !== false) jsonError('Ungültiger Dateiname', 400);
+        $path = BACKUP_DIR . '/' . $safeName;
+        if (!file_exists($path)) jsonError('Backup nicht gefunden: ' . $safeName, 404);
+        $content = file_get_contents($path);
+        $data = json_decode($content, true);
+        if (!$data) jsonError('Backup-Datei ungültig (kein gültiges JSON)', 400);
+        jsonResponse(['success' => true, 'data' => ['file' => $safeName, 'state' => $data]]);
+        break;
+
     // ── Backup(s) löschen ──
     case 'delete-backup':
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('POST erforderlich', 405);
