@@ -34,10 +34,17 @@
   }
 
   var CATEGORY_ICONS = {
-    'nidwalden': { label: 'NW', wappen: getAppRoot() + '/tnet/resources/wappen_nidwalden.svg' },
-    'obwalden':  { label: 'OW', wappen: getAppRoot() + '/tnet/resources/wappen_obwalden.svg' },
-    'bund':      { label: 'CH', wappen: getAppRoot() + '/tnet/resources/wappen_bund.svg' },
-    'weitere':   { label: '…',  wappen: getAppRoot() + '/tnet/resources/icon_weitere.svg' }
+    'nidwalden': { label: 'Nidwalden', wappen: getAppRoot() + '/tnet/resources/wappen_nidwalden.svg' },
+    'obwalden':  { label: 'Obwalden', wappen: getAppRoot() + '/tnet/resources/wappen_obwalden.svg' },
+    'bund':      { label: 'Bundesdaten', wappen: getAppRoot() + '/tnet/resources/wappen_bund.svg' },
+    'weitere':   { label: 'Weitere Geodaten',  wappen: getAppRoot() + '/tnet/resources/icon_weitere.svg' }
+  };
+
+  var CATEGORY_ALIASES = {
+    'nidwalden': 'Nidwalden',
+    'obwalden': 'Obwalden',
+    'bund': 'Bundesdaten',
+    'weitere': 'Weitere Geodaten'
   };
 
   var LMTree = {
@@ -112,12 +119,13 @@
       for (var c = 0; c < catalog.length; c++) {
         var cat = catalog[c];
         var info = CATEGORY_ICONS[cat.id] || { label: cat.name.substring(0, 2).toUpperCase() };
+        var tabAlias = CATEGORY_ALIASES[cat.id] || cat.alias || cat.name;
         var activeClass = cat.id === _activeTabId ? ' lm-tab-active' : '';
-        html += '<div class="lm-tab' + activeClass + '" data-cat-id="' + esc(cat.id) + '">';
+        html += '<div class="lm-tab' + activeClass + '" data-cat-id="' + esc(cat.id) + '" title="' + esc(tabAlias) + '">';
         if (info.wappen) {
-          html += '<img class="lm-tab-icon" src="' + esc(info.wappen) + '" alt="' + esc(cat.name) + '">';
+          html += '<img class="lm-tab-icon" src="' + esc(info.wappen) + '" alt="' + esc(tabAlias) + '" title="' + esc(tabAlias) + '">';
         } else {
-          html += '<span class="lm-tab-label">' + esc(info.label) + '</span>';
+          html += '<span class="lm-tab-label" title="' + esc(tabAlias) + '">' + esc(info.label) + '</span>';
         }
         html += '</div>';
       }
@@ -148,6 +156,8 @@
       _container.innerHTML = html;
       this._bindEvents();
       this._resyncLayerCheckboxes();
+      // Informiert Subscribers (z.B. dev-test.html Checkbox) dass der Katalog gerendert ist
+      document.dispatchEvent(new CustomEvent('lm-catalog-rendered', { bubbles: false }));
     },
 
     /** Rendert den ganzen Inhalt einer Kategorie als Accordion */
@@ -262,11 +272,16 @@
       var checked = layer.visible ? ' checked' : '';
       var activeClass = layer.visible ? ' lm-active' : '';
       var hasLegend = layer.legend && layer.legend !== '';
+      var missingClass = layer._missing ? ' lm-layer--missing' : '';
+      var missingAttr = layer._missing ? ' data-missing="1"' : '';
       var html = '';
-      html += '<div class="lm-layer lm-depth-' + normalizedDepth + activeClass + '" data-layer-id="' + esc(layer.id) + '" data-lm-depth="' + normalizedDepth + '" data-name="' + esc((layer.name || '').toLowerCase()) + '">';
+      html += '<div class="lm-layer lm-depth-' + normalizedDepth + activeClass + missingClass + '" data-layer-id="' + esc(layer.id) + '" data-lm-depth="' + normalizedDepth + '"' + missingAttr + ' data-name="' + esc((layer.name || '').toLowerCase()) + '">';
       html += '<label class="lm-layer-label">';
       html += '<input type="checkbox" class="lm-cb"' + checked + ' data-action="toggle-layer">';
       html += '<span class="lm-layer-name">' + esc(layer.name) + '</span>';
+      if (layer._missing) {
+        html += '<span class="lm-layer-missing-badge" title="Keine Layer-Definition in der Datenbank">⚠ fehlt</span>';
+      }
       html += '</label>';
       if (hasLegend) {
         var legendLayers = layer.legendLayers || '';
@@ -466,7 +481,9 @@
       _currentFilter = query;
       var q = (query || '').trim().toLowerCase();
       var clearBtn = _container.querySelector('.lm-search-clear');
+      var searchWrap = _container.querySelector('.lm-search-wrap');
       if (clearBtn) clearBtn.style.display = q ? '' : 'none';
+      if (searchWrap) searchWrap.classList.toggle('lm-search-active', !!q);
 
       var activeContent = _container.querySelector('.lm-cat-content[data-cat-content="' + _activeTabId + '"]');
       if (!activeContent) return;
@@ -509,19 +526,30 @@
         if (isMatch) matchCount++;
       }
 
-      // 2) Gruppen: sichtbar wenn mindestens ein Kind-Layer sichtbar
+      // 2) Gruppen/Subkategorien: sichtbar wenn mindestens ein direktes Kind sichtbar
       //    Von innen nach aussen (nested-group → group → subcat)
       for (var gi = allGroups.length - 1; gi >= 0; gi--) {
         var groupEl = allGroups[gi];
         var body = groupEl.querySelector('.lm-subcat-body, .lm-group-body, .lm-nested-body');
         if (!body) { groupEl.style.display = 'none'; continue; }
 
-        // Hat dieser Knoten sichtbare Kinder?
-        var hasVisible = body.querySelector('.lm-layer:not([style*="display: none"]), .lm-layer:not([style*="display:none"])') !== null;
-        // Prüfe auch sichtbare Untergruppen
+        // Sichtbarkeit robust über direkte Kinder bestimmen
+        var hasVisible = false;
+        var childLayers = body.querySelectorAll(':scope > .lm-layer');
+        for (var cl = 0; cl < childLayers.length; cl++) {
+          if (childLayers[cl].style.display !== 'none') {
+            hasVisible = true;
+            break;
+          }
+        }
         if (!hasVisible) {
-          var subGroups = body.querySelectorAll(':scope > .lm-group:not([style*="display: none"]):not([style*="display:none"]), :scope > .lm-nested-group:not([style*="display: none"]):not([style*="display:none"])');
-          hasVisible = subGroups.length > 0;
+          var childGroups = body.querySelectorAll(':scope > .lm-group, :scope > .lm-nested-group');
+          for (var cg = 0; cg < childGroups.length; cg++) {
+            if (childGroups[cg].style.display !== 'none') {
+              hasVisible = true;
+              break;
+            }
+          }
         }
 
         groupEl.style.display = hasVisible ? '' : 'none';

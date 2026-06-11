@@ -20,9 +20,38 @@ $confPath = __DIR__ . '/../../public/config/lyrmgr.conf';
 $mappingPath = __DIR__ . '/lyrmgr-mapping.json';
 $coreConfigPath = TnetCorePaths::getConfigPath();
 
-if (!file_exists($confPath)) {
-    echo json_encode(['error' => 'lyrmgr.conf not found']);
-    exit;
+// ===== DB-FIRST (Themenkatalog DB-first) =====
+// Bei configSource=catalog=db die lyrmgr.conf-Hierarchie aus der Staging-DB
+// lesen; bei DB-Ausfall (sofern fallbackToFiles aktiv) auf die Datei zurueck.
+$conf = null;
+$confSource = 'file';
+require_once __DIR__ . '/../api/includes/ConfigSource.php';
+if (ConfigSource::useDb('catalog')) {
+    require_once __DIR__ . '/../api/includes/CatalogRepository.php';
+    try {
+        $doc = CatalogRepository::loadProfile('public');
+        if ($doc['exists']) {
+            $conf = $doc['data'];
+            $confSource = 'db';
+        } elseif (!ConfigSource::fallbackEnabled()) {
+            echo json_encode(['error' => 'Katalog (public) nicht in DB vorhanden']);
+            exit;
+        }
+    } catch (\Throwable $e) {
+        if (!ConfigSource::fallbackEnabled()) {
+            echo json_encode(['error' => 'Katalog-DB nicht verfuegbar: ' . $e->getMessage()]);
+            exit;
+        }
+        error_log('lyrmgr-to-json: DB-Fallback auf Datei: ' . $e->getMessage());
+    }
+}
+
+if ($conf === null) {
+    if (!file_exists($confPath)) {
+        echo json_encode(['error' => 'lyrmgr.conf not found']);
+        exit;
+    }
+    $confSource = 'file';
 }
 
 if (!file_exists($mappingPath)) {
@@ -30,9 +59,11 @@ if (!file_exists($mappingPath)) {
     exit;
 }
 
-// Read and decode configurations
-$confContent = file_get_contents($confPath);
-$conf = json_decode($confContent, true);
+// Read and decode configurations (Datei nur wenn nicht bereits aus DB geladen)
+if ($conf === null) {
+    $confContent = file_get_contents($confPath);
+    $conf = json_decode($confContent, true);
+}
 
 $mappingContent = file_get_contents($mappingPath);
 $mapping = json_decode($mappingContent, true);
@@ -64,7 +95,8 @@ $result = [
     'debug' => [
         'coreConfigPath' => $coreConfigPath,
         'layerFilesFound' => $layerFilesFound,
-        'layerDefinitionsCount' => count($layerDefinitions)
+        'layerDefinitionsCount' => count($layerDefinitions),
+        'confSource' => $confSource
     ],
     'categories' => []
 ];

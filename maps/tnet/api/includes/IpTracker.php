@@ -15,7 +15,8 @@ if (defined('TNET_IP_TRACKED')) return;
 define('TNET_IP_TRACKED', true);
 
 // ===== KONFIGURATION =====
-define('IP_LOG_FILE', '/data/Client_Data/nwow/tmp/maps-dev/ip-access.log');
+require_once __DIR__ . '/TmpPaths.php';
+define('IP_LOG_FILE', TnetTmpPaths::logs() . '/ip-access.log');
 define('IP_LOG_MAX_AGE', 7 * 86400); // 7 Tage behalten
 
 // ===== TRACKING =====

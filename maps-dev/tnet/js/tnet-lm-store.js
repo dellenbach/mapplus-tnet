@@ -158,10 +158,14 @@
     _loadLyrmgrFromApi: function (group) {
       var self = this;
       var url = normalizeApiUrl(_config.apiUrl);
+      var apiSource = (_config.apiSource || 'db');
+      apiSource = (apiSource === 'file') ? 'file' : 'db';
       url += (url.indexOf('?') > -1 ? '&' : '?') + 'group=' + encodeURIComponent(group);
+      // Quelle explizit setzen: kein Hybrid-/Auto-Modus.
+      url += '&source=' + encodeURIComponent(apiSource);
       if (_config.cache === false) url += '&nocache=1';
 
-      if (_config.debug) TnetLog.log(LOG, 'Lade Katalog aus API (group=' + group + ')');
+      if (_config.debug) TnetLog.log(LOG, 'Lade Katalog aus API (group=' + group + ', source=' + apiSource + ')');
 
       fetch(url)
         .then(function (r) {
@@ -239,6 +243,33 @@
         delete node.items;
       }
 
+      // API-Schema: Subcategory kann Gruppen unter "layers" liefern.
+      // Tree-Renderer erwartet auf Ebene 1 jedoch "groups".
+      if (level === 1 && node.layers && !node.groups && Array.isArray(node.layers)) {
+        var layersAsGroups = true;
+        for (var lg = 0; lg < node.layers.length; lg++) {
+          var li = node.layers[lg];
+          if (!li || (li.type !== 'group' && !li.layers && !li.children)) {
+            layersAsGroups = false;
+            break;
+          }
+        }
+
+        if (layersAsGroups) {
+          node.groups = node.layers;
+        } else {
+          // Fallback: direkte Layer unter der Subcategory in eine synthetische Gruppe kapseln.
+          node.groups = [{
+            id: (node.id ? String(node.id) : 'subcategory') + '_auto_group',
+            name: node.name || 'Gruppe',
+            type: 'group',
+            open: false,
+            layers: node.layers
+          }];
+        }
+        delete node.layers;
+      }
+
       if (node.subcategories) {
         for (var s = 0; s < node.subcategories.length; s++) {
           this._normalizeLegacyTreeNode(node.subcategories[s], level + 1);
@@ -310,9 +341,15 @@
 
         if (item.items && !item.subcategories && !item.groups && !item.layers && !item.children) {
           var childItems = this._normalizeLegacyItems(item.items, level + 1);
-          if (level <= 1) item.layers = childItems;
+          if (level === 0) item.subcategories = childItems;
+          else if (level === 1) item.groups = childItems;
           else item.layers = childItems;
           delete item.items;
+        }
+
+        if (level === 1 && item.layers && !item.groups && Array.isArray(item.layers)) {
+          item.groups = item.layers;
+          delete item.layers;
         }
 
         if (item.nodes && !item.subcategories) {
@@ -1246,7 +1283,22 @@
      */
     setLayerVisible: function (layerId, visible) {
       var layer = this.findLayer(layerId);
-      if (!layer || layer.type === 'group') return;
+      if (!layer) return;
+
+      var hasChildren = !!(
+        (layer.subcategories && layer.subcategories.length) ||
+        (layer.groups && layer.groups.length) ||
+        (layer.layers && layer.layers.length) ||
+        (layer.children && layer.children.length)
+      );
+
+      // Container-Knoten (z.B. .../hoehenlinien mit Unterlayern wie /2m,/5m,/10m)
+      // sind nicht direkt renderbar. In diesem Fall die Blatt-Layer unterhalb
+      // des Prefixes synchron auf den Zielzustand schalten.
+      if (layer.type === 'group' || hasChildren) {
+        this._setDescendantLeafLayersVisible(layerId, !!visible);
+        return;
+      }
       var activeEntry = this._findActiveLayer(layerId);
       var targetVisible = !!visible;
       var currentVisible = this._getEffectiveLayerVisible(layerId, layer, activeEntry);
@@ -1299,6 +1351,25 @@
         this._emit('layer-visibility', { id: layerId, visible: targetVisible, source: 'ui' });
         this._emit('active-layers-changed', _activeLayers);
         if (_config.debug) TnetLog.log(LOG, 'Coalesce setLayerVisible', layerId, targetVisible ? 'EIN' : 'AUS', '(Gruppe:', coalGroupId, ')');
+        return;
+      }
+
+      // ── Framework-Combined-Pfad (ohne Coalesce-Flag) ──
+      // Einige Legacy-/Bookmark-Layer werden vom Framework als kombinierter
+      // ArcGIS-Dienst-Layer (show:...) gerendert, obwohl sie nicht in
+      // _layerToCoalesce indexiert sind. In diesem Fall kann TnetLayerSwitch
+      // on/off no-op sein. Deshalb zuerst den kombinierten OL-Layer direkt
+      // nachfuehren und erst bei Miss keinen Fallback auf TnetLayerSwitch.
+      if (this._setFrameworkCombinedSublayer(layerId, layer, targetVisible)) {
+        if (targetVisible && !activeEntry) {
+          _activeLayers.push(layer);
+        } else if (!targetVisible) {
+          _activeLayers = _activeLayers.filter(function (l) { return l.id !== layerId; });
+        }
+
+        this._emit('layer-visibility', { id: layerId, visible: targetVisible, source: 'ui' });
+        this._emit('active-layers-changed', _activeLayers);
+        if (_config.debug) TnetLog.log(LOG, 'Combined setLayerVisible', layerId, targetVisible ? 'EIN' : 'AUS');
         return;
       }
 
@@ -3074,10 +3145,18 @@
      * ihn wegen type==='group' überspringen und NICHTS auf der Karte ändern.
      */
     _findLayerRecursive: function (id, nodes) {
+      var fallbackNode = null;
       for (var i = 0; i < nodes.length; i++) {
         var n = nodes[i];
-        // Bei exaktem ID-Match UND Blatt-Knoten (kein group/subcategory): sofort zurückgeben
-        if (n.id === id && n.type !== 'group' && n.type !== 'subcategory') return n;
+        // Bei exaktem ID-Match nur echte Blatt-Knoten sofort zurückgeben.
+        // Legacy-Kataloge enthalten oft Container und Blatt mit identischer ID.
+        var hasChildren = !!(
+          (n.subcategories && n.subcategories.length) ||
+          (n.groups && n.groups.length) ||
+          (n.layers && n.layers.length) ||
+          (n.children && n.children.length)
+        );
+        if (n.id === id && !hasChildren) return n;
         // Kinder durchsuchen (findet tieferliegende Blatt-Matches vor dem Gruppen-Knoten)
         var childArrays = ['subcategories', 'groups', 'layers', 'children'];
         for (var c = 0; c < childArrays.length; c++) {
@@ -3089,9 +3168,9 @@
         }
         // Fallback: Gruppen-/Subcategory-Knoten mit passendem ID zurückgeben
         // (z.B. für toggleGroup-Aufrufe wo der Gruppen-Knoten gewünscht ist)
-        if (n.id === id) return n;
+        if (n.id === id && !fallbackNode) fallbackNode = n;
       }
-      return null;
+      return fallbackNode;
     },
 
     /**
@@ -3340,6 +3419,37 @@
         if (!hasChildren && n.type !== 'group') {
           callback(n);
         }
+      }
+    },
+
+    /**
+     * Schaltet alle Blatt-Layer unterhalb eines Prefixes auf denselben Zustand.
+     * Wird für strukturelle Container-IDs genutzt, die selbst nicht renderbar sind.
+     * @param {string} prefixId
+     * @param {boolean} visible
+     */
+    _setDescendantLeafLayersVisible: function (prefixId, visible) {
+      var self = this;
+      var prefix = String(prefixId || '');
+      var needle = prefix + '/';
+      var leafIds = [];
+
+      if (!prefix) return;
+
+      this._walkLayers(_catalog, function (leaf) {
+        if (!leaf || !leaf.id || leaf.id === prefix) return;
+        if (leaf.id.indexOf(needle) !== 0) return;
+        leafIds.push(leaf.id);
+      });
+
+      if (!leafIds.length) return;
+
+      for (var i = 0; i < leafIds.length; i++) {
+        self.setLayerVisible(leafIds[i], !!visible);
+      }
+
+      if (_config.debug) {
+        TnetLog.log(LOG, 'Container-Fallback setLayerVisible:', prefixId, '->', visible ? 'EIN' : 'AUS', '(' + leafIds.length + ' Kinder)');
       }
     },
 

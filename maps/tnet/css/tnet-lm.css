@@ -68,7 +68,7 @@
   /* ── UI-Elemente ── */
   --lm-primary:          #4b7b81;
   --lm-primary-light:    #648C96;
-  --lm-filter-bg:        #fef9e7;     /* Such-Treffer Highlight */
+  --lm-filter-bg:        #fdeceb;     /* Such-Treffer Highlight */
   --lm-group-bg:         #f4f8f9;     /* Active-Panel Gruppen */
   --lm-group-header-bg:  #e8f0f2;
   --lm-group-border:     #d0dde0;
@@ -170,6 +170,10 @@
   z-index: 4;
 }
 
+.lm-search-wrap.lm-search-active {
+  background: rgba(232, 66, 63, 0.18);
+}
+
 .lm-search {
   width: 100%;
   box-sizing: border-box;
@@ -200,6 +204,7 @@
   font-size: 20px;
   color: #999;
   cursor: pointer;
+  pointer-events: auto;
   -webkit-user-select: none;
   user-select: none;
 }
@@ -489,6 +494,32 @@
 }
 .lm-layer.lm-out-of-range .lm-cb {
   opacity: 0.4;
+}
+
+/* Fehlende Layer (kein layer_definition-Eintrag) — nur in Preview sichtbar */
+.lm-layer--missing {
+  border-left-color: #ff9800 !important;
+  background: #fff8f0 !important;
+}
+.lm-layer--missing .lm-layer-name {
+  color: #e65100;
+}
+.lm-layer--missing .lm-cb {
+  opacity: 0.4;
+  pointer-events: none;
+}
+.lm-layer-missing-badge {
+  display: inline-block;
+  margin-left: 6px;
+  font-size: 10px;
+  color: #ff6f00;
+  font-weight: 600;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+/* Checkbox "Fehlende ausblenden": wenn Container-Klasse gesetzt → missing ausblenden */
+.lm-hide-missing .lm-layer--missing {
+  display: none !important;
 }
 
 /* ============================================================
@@ -1118,6 +1149,7 @@
 }
 
 .lm-container-desktop .lm-btn-remove {
+  display: flex !important;
   width: 24px;
   height: 24px;
   opacity: 0.45;

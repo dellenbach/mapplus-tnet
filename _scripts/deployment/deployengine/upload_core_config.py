@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 import sys, io
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
@@ -9,7 +9,7 @@ Core-Konfigurationsdateien per SFTP hochladen.
 
 Quelle ist immer das lokale core/-Verzeichnis (Workspace-Root).
 Ziel haengt von --env ab:
-  --env dev   ->  lokal core/  ->  remote /www/core-dev/   (DEV-Test)
+  --env dev   ->  lokal core/  ->  remote /www/core/   (DEV, gleich wie PROD)
   --env prod  ->  lokal core/  ->  remote /www/core/        (PROD)
 
 WICHTIG: Der SLM (slm.html / ags2mapplus-API) ist der primaere Weg
@@ -63,7 +63,7 @@ TYPE_SUBDIRS = {
 
 # Umgebungs-Mapping: lokal core/ -> remote je nach env
 ENV_REMOTE = {
-    "dev":  "/www/core-dev",
+    "dev":  "/www/core",
     "prod": "/www/core",
 }
 
@@ -113,7 +113,7 @@ def main():
         "--env",
         choices=["dev", "prod"],
         required=True,
-        help="Zielumgebung: dev -> /www/core-dev/,  prod -> /www/core/",
+        help="Zielumgebung: dev -> /www/core/ (gleich PROD),  prod -> /www/core/",
     )
     parser.add_argument(
         "--type",
@@ -139,7 +139,7 @@ def main():
         print("  HINWEIS: Layer-Configs primaer ueber den SLM deployen!")
         print("           (SLM versioniert aenderungen automatisch in Git)")
     else:
-        print("  DEV-Ziel: /www/core-dev/ (nur Ueberschreiben, kein Git)")
+        print("  DEV-Ziel: /www/core/ (gleich wie PROD, nur Ueberschreiben, kein Git)")
     print("=" * 60)
     print()
 

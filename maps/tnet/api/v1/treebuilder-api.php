@@ -37,7 +37,9 @@ CorsHelper::handlePreflight('GET, POST, OPTIONS', 'Content-Type, X-Editor-Name')
 CorsHelper::setHeaders('GET, POST, OPTIONS', 'Content-Type, X-Editor-Name');
 
 require_once __DIR__ . '/../includes/CorePaths.php';
+require_once __DIR__ . '/../includes/TmpPaths.php';
 require_once __DIR__ . '/../includes/Database.php';
+require_once __DIR__ . '/../includes/StagingImportRepository.php';
 
 // =====================================================================
 // Config
@@ -56,11 +58,11 @@ define('CLIENT_DATA_ROOT', $clientDataRoot);
 define('TNET_TMP_ROOT', '/data/Client_Data/nwow/tmp/' . (APP_BASE_PATH === '/maps-dev' ? 'maps-dev' : 'maps'));
 define('CORE_CONFIG_DIR', TnetCorePaths::getConfigPath());
 define('CORE_NLS_DIR', TnetCorePaths::getNlsPath('de'));
-define('APP_CORE_CONFIG_DIR', APP_BASE_PATH === '/maps-dev' ? CORE_CONFIG_DIR : APP_WEB_ROOT . '/core/config');
+define('APP_CORE_CONFIG_DIR', APP_WEB_ROOT . '/core/config');
 // App-lokale NLS-Überladungen: /www/maps(-dev)/core/nls/de/ — enthält z.B. Kategorie-Labels (desc_grundlagen etc.)
 define('APP_CORE_NLS_DIR', APP_WEB_ROOT . '/core/nls/de');
 define('CONFIG_BASE', APP_WEB_ROOT . '/public/config');
-define('DATA_DIR', TNET_TMP_ROOT . '/layertree');
+define('DATA_DIR', TnetTmpPaths::editor('layertree'));
 define('STATE_FILE', DATA_DIR . '/treebuilder-state.json');
 define('GROUPS_FILE', DATA_DIR . '/groups.json5');
 define('PROFILES_DIR', DATA_DIR . '/profiles');
@@ -82,6 +84,12 @@ function jsonError($message, $code = 400) {
     jsonResponse(['success' => false, 'error' => $message], $code);
 }
 
+function requireAdminAction() {
+    if (!AdminAuth::isAdmin()) {
+        jsonError('Nur für Administratoren', 403);
+    }
+}
+
 function toSftpPath($path) {
     $path = str_replace('/var/www/html/nwow', '/www', $path);
     $path = str_replace('/data/Client_Data/nwow/tmp', '/data/tmp', $path);
@@ -99,9 +107,21 @@ function runtimePathInfo($label, $path) {
     ];
 }
 
+function toDisplayTmpPath($path) {
+    $path = str_replace('\\', '/', (string)$path);
+    $path = str_replace('/data/Client_Data/nwow/', '', $path);
+    $path = str_replace('/data/', '', $path);
+    return ltrim($path, '/');
+}
+
 function getEditorName() {
     // From header or query param
     return $_SERVER['HTTP_X_EDITOR_NAME'] ?? $_GET['editor'] ?? 'Unbekannt';
+}
+
+function useStagingImportDb() {
+    $db = Database::isAvailable();
+    return !empty($db['available']);
 }
 
 function ensureDirs() {
@@ -257,11 +277,45 @@ function getDraftPath($profile) {
     return DATA_DIR . '/' . $safe . '-lyrmgr.conf';
 }
 
+function getDraftDbProfile($profile) {
+    $safe = preg_replace('/[^a-zA-Z0-9_\-]/', '', $profile);
+    return $safe . '__draft';
+}
+
 /**
  * Draft-LyrMgr aus tmp/layertree speichern.
  * Speichert die gesamte lyrmgr.conf Struktur (alle Blöcke).
  */
 function saveLyrmgrDraft($profile, $data, $editor) {
+    require_once __DIR__ . '/../includes/ConfigSource.php';
+    if (ConfigSource::useDb('catalog')) {
+        require_once __DIR__ . '/../includes/CatalogRepository.php';
+        try {
+            $draftProfile = getDraftDbProfile($profile);
+            $db = CatalogRepository::saveDraftProfile($draftProfile, $data, $editor);
+            if (empty($db['success'])) {
+                return ['saved' => false, 'error' => 'DB-Draft speichern fehlgeschlagen'];
+            }
+            return [
+                'saved'     => true,
+                'profile'   => $profile,
+                'dbProfile' => $draftProfile,
+                'source'    => 'draft-db',
+                'revision'  => (int)($db['revision'] ?? 0),
+                'updatedBy' => $db['updatedBy'] ?? $editor,
+                'updatedAt' => $db['updatedAt'] ?? date('Y-m-d H:i:s'),
+                'editor'    => $editor,
+                'timestamp' => date('Y-m-d H:i:s')
+            ];
+        } catch (\Throwable $e) {
+            if (!ConfigSource::fallbackEnabled()) {
+                return ['saved' => false, 'error' => 'DB-Draft speichern fehlgeschlagen: ' . $e->getMessage()];
+            }
+            error_log('saveLyrmgrDraft: DB-Fallback auf Datei: ' . $e->getMessage());
+            // Fallback auf Datei unten
+        }
+    }
+
     $path = getDraftPath($profile);
     ensureDirs();
 
@@ -288,6 +342,41 @@ function saveLyrmgrDraft($profile, $data, $editor) {
  * Draft-LyrMgr aus tmp/layertree laden.
  */
 function loadLyrmgrDraft($profile) {
+    require_once __DIR__ . '/../includes/ConfigSource.php';
+    if (ConfigSource::useDb('catalog')) {
+        require_once __DIR__ . '/../includes/CatalogRepository.php';
+        try {
+            $draftProfile = getDraftDbProfile($profile);
+            $doc = CatalogRepository::loadDraftProfile($draftProfile);
+            if ($doc['exists']) {
+                $data = is_array($doc['data']) ? $doc['data'] : [];
+                $lyrmgrKeys = array_keys($data);
+                $meta = is_array($doc['lyrmgrMeta'] ?? null) ? $doc['lyrmgrMeta'] : [];
+                return [
+                    'exists'     => true,
+                    'profile'    => $profile,
+                    'dbProfile'  => $draftProfile,
+                    'lyrmgrKeys' => $lyrmgrKeys,
+                    'lyrmgrMeta' => $meta,
+                    'data'       => $data,
+                    'size'       => strlen(json_encode($data)),
+                    'modified'   => $doc['updatedAt'] ?? null,
+                    'revision'   => (int)($doc['revision'] ?? 0),
+                    'source'     => 'draft-db'
+                ];
+            }
+            if (!ConfigSource::fallbackEnabled()) {
+                return ['exists' => false, 'profile' => $profile, 'source' => 'draft-db'];
+            }
+        } catch (\Throwable $e) {
+            if (!ConfigSource::fallbackEnabled()) {
+                return ['exists' => false, 'error' => 'Katalog-DB Draft nicht verfuegbar: ' . $e->getMessage(), 'profile' => $profile, 'source' => 'draft-db'];
+            }
+            error_log('loadLyrmgrDraft: DB-Fallback auf Datei: ' . $e->getMessage());
+            // Fallback auf Datei unten
+        }
+    }
+
     $path = getDraftPath($profile);
     if (!file_exists($path)) {
         return ['exists' => false, 'path' => $path, 'profile' => $profile];
@@ -297,12 +386,64 @@ function loadLyrmgrDraft($profile) {
     if ($data === null) {
         return ['exists' => true, 'error' => 'JSON parse error: ' . json_last_error_msg(), 'path' => $path];
     }
+
+    // Auto-Migration: Draft-Bloecke von altem Object-Format in geordnetes Array-Format umwandeln.
+    // Verhindert, dass der Draft die Kategorienreihenfolge durcheinanderbringt.
+    $draftChanged = false;
+    $refFilePath = getConfigPath($profile);
+    $refData = file_exists($refFilePath) ? json_decode(file_get_contents($refFilePath), true) : [];
+    if (!is_array($refData)) $refData = [];
+
+    foreach ($data as $lmKey => &$block) {
+        if (!isset($block['structure']) || !is_array($block['structure'])) continue;
+        $structureObj = $block['structure'];
+        if (empty($structureObj)) continue;
+        $firstVal = array_values($structureObj)[0];
+        // Pruefe ob bereits Array-Format mit _key
+        if (array_key_exists(0, $structureObj) && isset($firstVal['_key'])) continue;
+        // Altes Object-Format: in geordnetes Array konvertieren
+        $fileKeys = [];
+        if (isset($refData[$lmKey]['structure']) && is_array($refData[$lmKey]['structure'])) {
+            $fileKeys = array_keys($refData[$lmKey]['structure']);
+        }
+        if (empty($fileKeys)) $fileKeys = array_keys($structureObj);
+        $orderedArr = [];
+        foreach ($fileKeys as $catKey) {
+            if (isset($structureObj[$catKey])) {
+                $entry = $structureObj[$catKey];
+                $entry['_key'] = $catKey;
+                $orderedArr[] = $entry;
+            }
+        }
+        foreach ($structureObj as $catKey => $catData) {
+            $already = false;
+            foreach ($orderedArr as $e) {
+                if (($e['_key'] ?? '') === $catKey) { $already = true; break; }
+            }
+            if (!$already) { $catData['_key'] = $catKey; $orderedArr[] = $catData; }
+        }
+        $block['structure'] = $orderedArr;
+        $draftChanged = true;
+    }
+    unset($block);
+
+    if ($draftChanged) {
+        // Migrierten Draft direkt zurueckschreiben
+        @file_put_contents($path, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+    }
+
     $lyrmgrKeys = array_keys($data);
     return [
         'exists'     => true,
         'profile'    => $profile,
         'path'       => $path,
         'lyrmgrKeys' => $lyrmgrKeys,
+        'lyrmgrMeta' => array_fill_keys($lyrmgrKeys, [
+            'source' => 'draft-file',
+            'revision' => null,
+            'updatedBy' => null,
+            'updatedAt' => date('Y-m-d H:i:s', filemtime($path)),
+        ]),
         'data'       => $data,
         'size'       => strlen($content),
         'modified'   => date('Y-m-d H:i:s', filemtime($path)),
@@ -310,7 +451,150 @@ function loadLyrmgrDraft($profile) {
     ];
 }
 
+/**
+ * Draft-Status für ein Profil laden (für Live-Indikator bei Mehrbenutzer-Bearbeitung).
+ */
+function getLyrmgrDraftStatus($profile) {
+    require_once __DIR__ . '/../includes/ConfigSource.php';
+    if (ConfigSource::useDb('catalog')) {
+        require_once __DIR__ . '/../includes/CatalogRepository.php';
+        try {
+            $draftProfile = getDraftDbProfile($profile);
+            $status = CatalogRepository::getDraftStatus($draftProfile);
+            return [
+                'exists'    => (bool)($status['exists'] ?? false),
+                'profile'   => $profile,
+                'dbProfile' => $draftProfile,
+                'source'    => 'draft-db',
+                'revision'  => (int)($status['revision'] ?? 0),
+                'updatedBy' => $status['updatedBy'] ?? null,
+                'updatedAt' => $status['updatedAt'] ?? null,
+            ];
+        } catch (\Throwable $e) {
+            if (!ConfigSource::fallbackEnabled()) {
+                return ['exists' => false, 'profile' => $profile, 'source' => 'draft-db', 'error' => $e->getMessage()];
+            }
+            error_log('getLyrmgrDraftStatus: DB-Fallback auf Datei: ' . $e->getMessage());
+        }
+    }
+
+    $path = getDraftPath($profile);
+    if (!file_exists($path)) {
+        return ['exists' => false, 'profile' => $profile, 'source' => 'draft-file'];
+    }
+    return [
+        'exists'    => true,
+        'profile'   => $profile,
+        'source'    => 'draft-file',
+        'revision'  => null,
+        'updatedBy' => null,
+        'updatedAt' => date('Y-m-d H:i:s', filemtime($path)),
+    ];
+}
+
 function loadLyrmgrConf($profile) {
+    // ===== DB-FIRST (Themenkatalog DB-first) =====
+    // Bei configSource=catalog=db zuerst aus der Staging-DB lesen.
+    // Bei DB-Ausfall faellt der Code (sofern fallbackToFiles aktiv) auf die
+    // bestehende Datei-Logik unten zurueck.
+    require_once __DIR__ . '/../includes/ConfigSource.php';
+    if (ConfigSource::useDb('catalog')) {
+        require_once __DIR__ . '/../includes/CatalogRepository.php';
+        try {
+            $doc = CatalogRepository::loadProfile($profile);
+            if ($doc['exists']) {
+                $dbData = $doc['data'];
+
+                // Auto-Migration: Falls structure-Bloecke noch als assoziatives Objekt
+                // (alphabetisch sortiert durch JSONB) vorliegen, verwende die Datei
+                // als Reihenfolge-Referenz und speichere im neuen Array-Format.
+                $needsRepair = false;
+                foreach ($dbData as $block) {
+                    if (!isset($block['structure']) || !is_array($block['structure'])) continue;
+                    $structArr = $block['structure'];
+                    if (empty($structArr)) continue;
+                    $firstVal = array_values($structArr)[0];
+                    // Altes Format: assoziative Keys, Werte sind Objekte OHNE '_key'-Feld
+                    if (!array_key_exists(0, $structArr) && !isset($firstVal['_key'])) {
+                        $needsRepair = true;
+                        break;
+                    }
+                }
+
+                if ($needsRepair) {
+                    $filePath = getConfigPath($profile);
+                    $fileData = file_exists($filePath) ? json_decode(file_get_contents($filePath), true) : [];
+                    if (!is_array($fileData)) $fileData = [];
+
+                    foreach ($dbData as $lmKey => &$block) {
+                        if (!isset($block['structure']) || !is_array($block['structure'])) continue;
+                        $structureObj = $block['structure'];
+                        if (empty($structureObj)) continue;
+                        $firstVal = array_values($structureObj)[0];
+                        if (array_key_exists(0, $structureObj) || isset($firstVal['_key'])) continue;
+
+                        // Reihenfolge aus Datei; fehlende Keys ans Ende anhaengen
+                        $fileKeys = [];
+                        if (isset($fileData[$lmKey]['structure']) && is_array($fileData[$lmKey]['structure'])) {
+                            $fileKeys = array_keys($fileData[$lmKey]['structure']);
+                        }
+                        if (empty($fileKeys)) $fileKeys = array_keys($structureObj);
+
+                        $orderedArr = [];
+                        foreach ($fileKeys as $catKey) {
+                            if (isset($structureObj[$catKey])) {
+                                $entry = $structureObj[$catKey];
+                                $entry['_key'] = $catKey;
+                                $orderedArr[] = $entry;
+                            }
+                        }
+                        foreach ($structureObj as $catKey => $catData) {
+                            $already = false;
+                            foreach ($orderedArr as $e) {
+                                if (($e['_key'] ?? '') === $catKey) { $already = true; break; }
+                            }
+                            if (!$already) { $catData['_key'] = $catKey; $orderedArr[] = $catData; }
+                        }
+                        $block['structure'] = $orderedArr;
+                    }
+                    unset($block);
+
+                    // Repariertes Dokument zurueckspeichern
+                    try {
+                        CatalogRepository::saveProfile($profile, $dbData, null, 'system', 'migrate-order');
+                    } catch (\Throwable $ignored) {}
+                }
+
+                return [
+                    'exists'     => true,
+                    'profile'    => $profile,
+                    'path'       => getConfigPath($profile),
+                    'lyrmgrKeys' => array_keys($dbData),
+                    'lyrmgrMeta' => array_fill_keys(array_keys($dbData), [
+                        'source' => 'db',
+                        'revision' => (int)($doc['revision'] ?? 0),
+                        'updatedBy' => $doc['updatedBy'] ?? null,
+                        'updatedAt' => $doc['updatedAt'] ?? null,
+                    ]),
+                    'data'       => $dbData,
+                    'size'       => strlen(json_encode($dbData)),
+                    'revision'   => $doc['revision'],
+                    'source'     => 'db'
+                ];
+            }
+            // Profil (noch) nicht in DB: bei aktivem Fallback auf Datei, sonst leer.
+            if (!ConfigSource::fallbackEnabled()) {
+                return ['exists' => false, 'profile' => $profile, 'source' => 'db'];
+            }
+        } catch (\Throwable $e) {
+            if (!ConfigSource::fallbackEnabled()) {
+                return ['exists' => false, 'error' => 'Katalog-DB nicht verfuegbar: ' . $e->getMessage(), 'profile' => $profile];
+            }
+            error_log('loadLyrmgrConf: DB-Fallback auf Datei: ' . $e->getMessage());
+            // weiter mit Datei-Logik unten
+        }
+    }
+
     $path = getConfigPath($profile);
     if (!file_exists($path)) {
         return ['exists' => false, 'path' => $path, 'profile' => $profile];
@@ -320,25 +604,43 @@ function loadLyrmgrConf($profile) {
     if ($data === null) {
         return ['exists' => true, 'error' => 'JSON parse error: ' . json_last_error_msg(), 'path' => $path];
     }
-    $lyrmgrKeys = array_keys($data);
+    // Meta-Schlüssel aus der Conf herausfiltern (keine echten LyrMgr-Blöcke)
+    $skipKeys = ['_nlsAliases', '_nodeEditMeta', '_comment', '_backup', '_meta'];
+    $lyrmgrKeys = array_values(array_filter(array_keys($data), function($k) use ($skipKeys) {
+        return !in_array($k, $skipKeys, true) && substr($k, 0, 1) !== '_';
+    }));
     return [
         'exists'     => true,
         'profile'    => $profile,
         'path'       => $path,
         'lyrmgrKeys' => $lyrmgrKeys,
+        'lyrmgrMeta' => array_fill_keys($lyrmgrKeys, [
+            'source' => 'file',
+            'revision' => null,
+            'updatedBy' => null,
+            'updatedAt' => date('Y-m-d H:i:s', filemtime($path)),
+        ]),
         'data'       => $data,
-        'size'       => strlen($content)
+        'size'       => strlen($content),
+        'source'     => 'file'
     ];
 }
 
 function publishLyrmgrBlock($profile, $lyrmgrKey, $blockData, $editor) {
+    require_once __DIR__ . '/../includes/ConfigSource.php';
+
     $path = getConfigPath($profile);
+    $dbMode = ConfigSource::useDb('catalog');
+    $fileWriteError = null;
 
     // Verzeichnis anlegen falls nötig
     $dir = dirname($path);
     if (!is_dir($dir)) {
         if (!@mkdir($dir, 0775, true)) {
-            return ['published' => false, 'error' => 'Verzeichnis konnte nicht erstellt werden: ' . $dir];
+            if (!$dbMode) {
+                return ['published' => false, 'error' => 'Verzeichnis konnte nicht erstellt werden: ' . $dir];
+            }
+            $fileWriteError = 'Verzeichnis konnte nicht erstellt werden: ' . $dir;
         }
     }
 
@@ -369,18 +671,50 @@ function publishLyrmgrBlock($profile, $lyrmgrKey, $blockData, $editor) {
 
     if ($bytes === false) {
         $err = error_get_last();
-        return ['published' => false, 'error' => 'Schreiben fehlgeschlagen: ' . $path . ' — ' . ($err ? $err['message'] : 'unbekannt')];
+        $fileWriteError = 'Schreiben fehlgeschlagen: ' . $path . ' — ' . ($err ? $err['message'] : 'unbekannt');
+        if (!$dbMode) {
+            return ['published' => false, 'error' => $fileWriteError];
+        }
     }
 
-    return [
+    $result = [
         'published'  => true,
         'profile'    => $profile,
         'lyrmgrKey'  => $lyrmgrKey,
         'path'       => $path,
-        'bytes'      => $bytes,
+        'bytes'      => $bytes !== false ? $bytes : 0,
         'editor'     => $editor,
         'timestamp'  => date('Y-m-d H:i:s')
     ];
+
+    // ===== DB-FIRST (Themenkatalog DB-first) =====
+    // Bei configSource=catalog=db ist die DB die Quelle der Wahrheit; die Datei
+    // oben bleibt als Legacy-Export/Fallback erhalten. Block wird ins
+    // Profil-Dokument gemerged (inkl. Revision + History).
+    if (ConfigSource::useDb('catalog')) {
+        require_once __DIR__ . '/../includes/CatalogRepository.php';
+        try {
+            $db = CatalogRepository::publishBlock($profile, $lyrmgrKey, $blockData, null, $editor);
+            $result['source']   = 'db';
+            $result['revision'] = $db['revision'];
+            if ($fileWriteError) {
+                $result['warning'] = $fileWriteError;
+            }
+        } catch (\Throwable $e) {
+            if (!ConfigSource::fallbackEnabled()) {
+                return ['published' => false, 'error' => 'Katalog-DB-Schreiben fehlgeschlagen: ' . $e->getMessage()];
+            }
+            if ($fileWriteError) {
+                return ['published' => false, 'error' => 'DB-Schreiben fehlgeschlagen: ' . $e->getMessage() . ' | Datei ebenfalls fehlgeschlagen: ' . $fileWriteError];
+            }
+            error_log('publishLyrmgrBlock: DB-Schreiben fehlgeschlagen, nur Datei: ' . $e->getMessage());
+            $result['source'] = 'file';
+        }
+    } else {
+        $result['source'] = 'file';
+    }
+
+    return $result;
 }
 
 function listLyrmgrProfiles() {
@@ -457,22 +791,99 @@ function listAllLayers($profile = null) {
         $sources[] = ['path' => $dir, 'type' => $sourceTag, 'files' => count($files)];
     };
 
-    // 1. Basis: /www/core/config/ — alle Layer-Typen (WMS, ArcGIS REST, WMTS, etc.)
-    $coreBase = realpath(CORE_CONFIG_DIR);
-    $readLayerConfs($coreBase, 'core');
+    // Quelle der Layer: DB-only sobald die Konfig-Store DB verfuegbar ist.
+    // Dateien (core/override/profile) dienen nur noch als Fallback, falls die DB
+    // leer/nicht erreichbar ist — so wird der Tree-Builder nie versehentlich leer.
+    $dbActive = useStagingImportDb();
+    $dbHasLayers = false;
 
-    // 2. Override: /www/maps/core/config/
-    $overridePath = realpath(APP_CORE_CONFIG_DIR);
-    if ($overridePath !== $coreBase) {
-        $readLayerConfs($overridePath, 'override');
+    if (!$dbActive) {
+        // 1. Basis: /www/core/config/ — alle Layer-Typen (WMS, ArcGIS REST, WMTS, etc.)
+        $coreBase = realpath(CORE_CONFIG_DIR);
+        $readLayerConfs($coreBase, 'core');
+
+        // 2. Override: /www/maps/core/config/
+        $overridePath = realpath(APP_CORE_CONFIG_DIR);
+        if ($overridePath !== $coreBase) {
+            $readLayerConfs($overridePath, 'override');
+        }
+
+        // 3. Profil-spezifisch: /www/maps/public/config/[profil]/
+        if ($profile) {
+            $safe = preg_replace('/[^a-zA-Z0-9_\-]/', '', $profile);
+            $profilePath = CONFIG_BASE . '/' . $safe;
+            if ($safe === 'public') $profilePath = CONFIG_BASE;
+            $readLayerConfs($profilePath, 'profile');
+        }
     }
 
-    // 3. Profil-spezifisch: /www/maps/public/config/[profil]/
-    if ($profile) {
-        $safe = preg_replace('/[^a-zA-Z0-9_\-]/', '', $profile);
-        $profilePath = CONFIG_BASE . '/' . $safe;
-        if ($safe === 'public') $profilePath = CONFIG_BASE;
-        $readLayerConfs($profilePath, 'profile');
+    // DB-Quelle (DB-first/DB-only): Konfig-Store-DB-Bundles liefern die Layer.
+    //    Ueberladungsreihenfolge: core -> override/sitecore -> profile (DB gewinnt).
+    if ($dbActive) {
+        $scopeRank = ['core' => 1, 'override' => 2, 'sitecore' => 2, 'profile' => 3];
+        $bundles = StagingImportRepository::loadAll();
+        // Nach Scope sortieren, damit hoehere Stufen spaeter ueberschreiben.
+        usort($bundles, function ($a, $b) use ($scopeRank) {
+            $ra = $scopeRank[$a['scope'] ?? 'core'] ?? 1;
+            $rb = $scopeRank[$b['scope'] ?? 'core'] ?? 1;
+            if ($ra === $rb) return strcmp($a['kuerzel'], $b['kuerzel']);
+            return $ra - $rb;
+        });
+        foreach ($bundles as $bundle) {
+            $bScope = $bundle['scope'] ?? 'core';
+            $bProfile = $bundle['profile'] ?? null;
+            // Profil-Filter: Profil-Bundles nur fuer das aktuell gewaehlte Profil.
+            //   core/sitecore/override -> immer sichtbar.
+            //   profile -> nur wenn Profil gewaehlt ist UND exakt passt.
+            if ($bScope === 'profile') {
+                if (!$profile || $bProfile !== $profile) continue;
+            }
+            $bTags = (isset($bundle['tags']) && is_array($bundle['tags'])) ? array_values($bundle['tags']) : [$bundle['kuerzel']];
+            foreach (($bundle['files'] ?? []) as $file) {
+                $prefix = $file['prefix'] ?? '';
+                $data = $file['data'] ?? null;
+                if (!is_array($data) || empty($data)) continue;
+                $isAssoc = array_keys($data) !== range(0, count($data) - 1);
+                if (!$isAssoc) continue;
+                if ($prefix === 'layers') {
+                    $fileEdits = isset($file['_edits']) && is_array($file['_edits']) ? $file['_edits'] : [];
+                    foreach ($data as $k => $v) {
+                        $definitions[$k] = $v;
+                        $dbHasLayers = true;
+                        $sourceMap[$k] = [
+                            'tag'     => 'db:' . $bScope,
+                            'file'    => $bundle['kuerzel'] . '/' . ($file['name'] ?? ''),
+                            'dir'     => 'db:config_bundle_store',
+                            'tags'    => $bTags,
+                            'kuerzel' => $bundle['kuerzel'],
+                            'scope'   => $bScope,
+                            'profile' => $bProfile,
+                            // Letzte Änderung aus _edits (wer+wann hat diesen Layer-Key zuletzt bearbeitet)
+                            'editBy'  => isset($fileEdits[$k]['by']) ? $fileEdits[$k]['by'] : null,
+                            'editAt'  => isset($fileEdits[$k]['at']) ? $fileEdits[$k]['at'] : null,
+                        ];
+                    }
+                }
+            }
+        }
+        $sources[] = ['path' => 'db:config_bundle_store', 'type' => 'db', 'files' => count($bundles)];
+
+        // Fallback: DB aktiv, aber (noch) keine Layer importiert -> Dateien lesen,
+        // damit der Tree-Builder nicht leer bleibt, bis der Import erfolgt ist.
+        if (!$dbHasLayers) {
+            $coreBase = realpath(CORE_CONFIG_DIR);
+            $readLayerConfs($coreBase, 'core');
+            $overridePath = realpath(APP_CORE_CONFIG_DIR);
+            if ($overridePath !== $coreBase) {
+                $readLayerConfs($overridePath, 'override');
+            }
+            if ($profile) {
+                $safe = preg_replace('/[^a-zA-Z0-9_\-]/', '', $profile);
+                $profilePath = CONFIG_BASE . '/' . $safe;
+                if ($safe === 'public') $profilePath = CONFIG_BASE;
+                $readLayerConfs($profilePath, 'profile');
+            }
+        }
     }
 
     // NLS-Labels laden (Basis + Override)
@@ -506,6 +917,33 @@ function listAllLayers($profile = null) {
         }
     }
 
+    // DB-Overlay fuer Aliase (DB-first): lyrmgrResources aus der Konfig-Store DB
+    // ueberschreiben die Datei-Labels in derselben Scope-Reihenfolge.
+    if (useStagingImportDb()) {
+        $scopeRankN = ['core' => 1, 'override' => 2, 'sitecore' => 2, 'profile' => 3];
+        $nlsBundles = StagingImportRepository::loadAll();
+        usort($nlsBundles, function ($a, $b) use ($scopeRankN) {
+            $ra = $scopeRankN[$a['scope'] ?? 'core'] ?? 1;
+            $rb = $scopeRankN[$b['scope'] ?? 'core'] ?? 1;
+            if ($ra === $rb) return strcmp($a['kuerzel'], $b['kuerzel']);
+            return $ra - $rb;
+        });
+        foreach ($nlsBundles as $bundle) {
+            $bScope = $bundle['scope'] ?? 'core';
+            $bProfile = $bundle['profile'] ?? null;
+            if ($bScope === 'profile') {
+                if (!$profile || $bProfile !== $profile) continue;
+            }
+            foreach (($bundle['files'] ?? []) as $file) {
+                if (($file['prefix'] ?? '') !== 'lyrmgrResources') continue;
+                $data = $file['data'] ?? null;
+                if (is_array($data) && !empty($data)) {
+                    $aliases = array_merge($aliases, $data);
+                }
+            }
+        }
+    }
+
     // Flache Layer-Liste aufbauen — alle Properties übernehmen
     $layers = [];
     // Interne/unwichtige Keys die nicht in die Ausgabe sollen
@@ -513,6 +951,14 @@ function listAllLayers($profile = null) {
     foreach ($definitions as $id => $def) {
         $sm = $sourceMap[$id] ?? ['tag' => 'unknown', 'file' => '', 'dir' => ''];
         $layer = ['id' => $id, 'source' => $sm['tag'], 'sourceFile' => $sm['file'], 'sourceFilePath' => $sm['dir'] . '/' . $sm['file']];
+        // Tags/Stufe/Kuerzel aus dem DB-Bundle (fuer Tag-Filter im Tree-Builder)
+        $layer['tags'] = isset($sm['tags']) && is_array($sm['tags']) ? array_values($sm['tags']) : [];
+        $layer['kuerzel'] = $sm['kuerzel'] ?? '';
+        $layer['scope'] = $sm['scope'] ?? '';
+        if (isset($sm['profile'])) $layer['profile'] = $sm['profile'];
+        // Letzte Bearbeitung aus _edits-Tracking (wer+wann hat diesen Layer zuletzt geändert)
+        if (!empty($sm['editBy'])) $layer['editBy'] = $sm['editBy'];
+        if (!empty($sm['editAt'])) $layer['editAt'] = $sm['editAt'];
         // Alle Properties 1:1 übernehmen (Layer-Typ-agnostisch: WMS, ArcGIS, WMTS etc.)
         foreach ($def as $prop => $val) {
             if (!isset($skipKeys[$prop])) {
@@ -569,6 +1015,9 @@ function getSiteCoreNlsPath() {
  */
 function getGroupNlsPath($group) {
     $safe = preg_replace('/[^a-zA-Z0-9_\-]/', '', $group);
+    if ($safe === 'public') {
+        return CONFIG_BASE . '/lyrmgrResources.json';
+    }
     return CONFIG_BASE . '/' . $safe . '/lyrmgrResources.json';
 }
 
@@ -838,8 +1287,8 @@ function deployLyrmgr($stageProfile, $targetProfile, $editor) {
 // AGS → MapPlus Roh-Konfiguration (ags2mapplus API)
 // =====================================================================
 define('AGS_API_BASE', 'https://www.gis-daten.ch/gapi/ags2mapplus');
-define('RAW_CONF_DIR', TNET_TMP_ROOT . '/raw-conf');
-define('IMPORT_TO_CORE_DIR', TNET_TMP_ROOT . '/ImportToCore');
+define('RAW_CONF_DIR', TnetTmpPaths::getRoot() . '/raw-conf');
+define('IMPORT_TO_CORE_DIR', TnetTmpPaths::agsImport('ImportToCore'));
 define('QMAP_DIR', CLIENT_DATA_ROOT . '/qmap');
 define('QMAP_BASE_URL', '/qmap');
 
@@ -1092,7 +1541,7 @@ function exportQgisProjects($projekte) {
         $content = $zip->getFromIndex($i);
         if ($content === false) continue;
 
-        $targetPath = $rawConfDir . '/' . $entryName;
+        $targetPath = $rawConfDir . '/qgis/' . $entryName;
         $targetDir = dirname($targetPath);
         if (!is_dir($targetDir)) {
             if (!@mkdir($targetDir, 0777, true)) {
@@ -1128,7 +1577,7 @@ function exportQgisProjects($projekte) {
         'services'  => array_map(function($p) { return 'qgis_' . strtolower($p['folder']) . '_' . strtolower($p['file']); }, $projekte),
         'zipSize'   => strlen($zipData),
         'files'     => $extractedFiles,
-        'directory' => $rawConfDir,
+        'directory' => toDisplayTmpPath($rawConfDir . '/qgis'),
         'timestamp' => date('Y-m-d H:i:s'),
     ];
     if (count($failedFiles) > 0) {
@@ -1199,6 +1648,70 @@ function getAgsServices() {
 }
 
 /**
+ * Raw-Conf Quell-Buckets unterhalb von RAW_CONF_DIR.
+ */
+function rawConfSourceBuckets() {
+    return ['ags', 'qgis', 'mapplus'];
+}
+
+/**
+ * Entfernt den optionalen Quell-Bucket-Präfix aus einem relativen Raw-Conf-Pfad.
+ */
+function stripRawConfSourcePrefix($relPath) {
+    $relPath = str_replace('\\', '/', (string)$relPath);
+    $parts = explode('/', $relPath);
+    if (count($parts) >= 2 && in_array($parts[0], rawConfSourceBuckets(), true)) {
+        return implode('/', array_slice($parts, 1));
+    }
+    return $relPath;
+}
+
+/**
+ * Sucht das Service-Verzeichnis in flat- und bucket-Struktur.
+ */
+function resolveRawConfServiceDir($rawDir, $serviceKey) {
+    $candidates = [$rawDir . '/' . $serviceKey];
+    foreach (rawConfSourceBuckets() as $bucket) {
+        $candidates[] = $rawDir . '/' . $bucket . '/' . $serviceKey;
+    }
+    foreach ($candidates as $path) {
+        if (is_dir($path)) return $path;
+    }
+    return null;
+}
+
+/**
+ * Sammelt alle Raw-Conf-Dateien zu einem Service-Key rekursiv.
+ */
+function collectRawConfFilesByService($rawDir, $serviceKey) {
+    $files = [];
+    if (!is_dir($rawDir)) return $files;
+    $it = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($rawDir, RecursiveDirectoryIterator::SKIP_DOTS),
+        RecursiveIteratorIterator::LEAVES_ONLY
+    );
+    foreach ($it as $entry) {
+        if (!$entry->isFile()) continue;
+        $fullPath = $entry->getPathname();
+        $relPath = str_replace('\\', '/', str_replace($rawDir . '/', '', $fullPath));
+        $normRel = stripRawConfSourcePrefix($relPath);
+        $parts = explode('/', $normRel);
+        $svcFromPath = null;
+        if (count($parts) >= 3) {
+            $svcFromPath = $parts[0] . '/' . $parts[1];
+        } elseif (count($parts) === 2) {
+            $svcFromPath = $parts[0];
+        } elseif (count($parts) === 1) {
+            $svcFromPath = extractServiceFromFilename($parts[0]);
+        }
+        if ($svcFromPath === $serviceKey) {
+            $files[] = new SplFileInfo($fullPath);
+        }
+    }
+    return $files;
+}
+
+/**
  * Ermittelt den tatsächlich nutzbaren Pfad für raw-conf.
  * RAW_CONF_DIR liegt unter TNET_TMP_ROOT/raw-conf — dieses Verzeichnis
  * gehört www-data (gid 33) und ist dauerhaft beschreibbar.
@@ -1213,6 +1726,7 @@ function getWritableRawConfDir() {
         $resolved = RAW_CONF_DIR;
         return $resolved;
     }
+
     // Versuch zu erstellen (Parent /tmp/ muss beschreibbar sein)
     if (!is_dir(RAW_CONF_DIR)) {
         if (@mkdir(RAW_CONF_DIR, 0775, true)) {
@@ -1313,8 +1827,8 @@ function exportAgsServices($dienstnamen, $serviceDetails = []) {
         $content = $zip->getFromIndex($i);
         if ($content === false) continue;
 
-        // Zielverzeichnis: raw-conf/<Unterordner>
-        $targetPath = $rawConfDir . '/' . $entryName;
+        // Zielverzeichnis: raw-conf/ags/<Unterordner>
+        $targetPath = $rawConfDir . '/ags/' . $entryName;
         $targetDir = dirname($targetPath);
         if (!is_dir($targetDir)) {
             if (!@mkdir($targetDir, 0777, true)) {
@@ -1355,7 +1869,7 @@ function exportAgsServices($dienstnamen, $serviceDetails = []) {
         'services'  => $dienstnamen,
         'zipSize'   => strlen($zipData),
         'files'     => $extractedFiles,
-        'directory' => $rawConfDir,
+        'directory' => toDisplayTmpPath($rawConfDir . '/ags'),
         'timestamp' => date('Y-m-d H:i:s')
     ];
     // Teilfehler melden falls vorhanden
@@ -1429,15 +1943,22 @@ function listRawConf($includeBackups = false, $backupOnly = false) {
         RecursiveIteratorIterator::LEAVES_ONLY
     );
     foreach ($iterator as $file) {
-        $isBackup = isRawConfBackupFile($file->getFilename());
+        $fileName = $file->getFilename();
+        $isBackup = isRawConfBackupFile($fileName);
         if ($backupOnly && !$isBackup) continue;
         if (!$includeBackups && $isBackup) continue;
+        // Nur fachliche Konfigurationsdateien anzeigen (conf/json).
+        // Bei Backups die Original-Endung vor .bak prüfen.
+        $effectiveName = $isBackup ? stripRawConfBackupSuffix($fileName) : $fileName;
+        $ext = strtolower(pathinfo($effectiveName, PATHINFO_EXTENSION));
+        if (!in_array($ext, ['conf', 'json'], true)) continue;
 
         $relPath = str_replace($rawConfDir . '/', '', $file->getPathname());
         $relPath = str_replace('\\', '/', $relPath); // Windows-Pfade normalisieren
+        $normRelPath = stripRawConfSourcePrefix($relPath);
 
         // Service-Key ermitteln
-        $parts = explode('/', $relPath);
+        $parts = explode('/', $normRelPath);
         if (count($parts) >= 3) {
             // 3-Ebenen-Struktur: group/service/datei → Key = group/service
             $svcKey = $parts[0] . '/' . $parts[1];
@@ -1452,6 +1973,7 @@ function listRawConf($includeBackups = false, $backupOnly = false) {
 
         $fileInfo = [
             'file'     => $relPath,
+            'normFile' => $normRelPath,
             'size'     => $file->getSize(),
             'modified' => date('Y-m-d H:i:s', $file->getMTime()),
             'isBackup' => $isBackup
@@ -1473,7 +1995,7 @@ function listRawConf($includeBackups = false, $backupOnly = false) {
 
     return [
         'exists'    => true,
-        'directory' => $rawConfDir,
+        'directory' => toDisplayTmpPath($rawConfDir),
         'includeBackups' => (bool)$includeBackups,
         'backupOnly' => (bool)$backupOnly,
         'files'     => $files,
@@ -1518,7 +2040,7 @@ function deleteRawConfService($serviceKey) {
 
     $rawConfDir = getWritableRawConfDir();
     if ($rawConfDir === false) $rawConfDir = RAW_CONF_DIR;
-    $servicePath = $rawConfDir . '/' . $serviceKey;
+    $servicePath = resolveRawConfServiceDir($rawConfDir, $serviceKey);
     $realBase = realpath($rawConfDir);
     if (!$realBase) {
         return ['success' => false, 'error' => 'raw-conf Verzeichnis existiert nicht'];
@@ -1527,7 +2049,7 @@ function deleteRawConfService($serviceKey) {
     $deleted = [];
 
     // Fall 1: Service-Key ist ein Verzeichnis (Unterordner-Struktur)
-    $realPath = realpath($servicePath);
+    $realPath = $servicePath ? realpath($servicePath) : false;
     if ($realPath && is_dir($realPath) && strpos($realPath, $realBase) === 0) {
         $iterator = new RecursiveIteratorIterator(
             new RecursiveDirectoryIterator($realPath, RecursiveDirectoryIterator::SKIP_DOTS),
@@ -1556,27 +2078,21 @@ function deleteRawConfService($serviceKey) {
     }
     // Fall 2: Flache Struktur — alle Dateien löschen die zu diesem Service gehören
     else {
-        $allFiles = @scandir($rawConfDir);
-        if ($allFiles) {
-            foreach ($allFiles as $f) {
-                if ($f === '.' || $f === '..') continue;
-                $filePath = $rawConfDir . '/' . $f;
-                if (!is_file($filePath)) continue;
-                // Prüfen ob Datei zu diesem Service gehört
-                $fileSvc = extractServiceFromFilename($f);
-                if ($fileSvc === $serviceKey) {
-                    $deleted[] = $f;
-                    @unlink($filePath);
+        $svcFiles = collectRawConfFilesByService($rawConfDir, $serviceKey);
+        foreach ($svcFiles as $sf) {
+            $p = $sf->getPathname();
+            $rel = str_replace($rawConfDir . '/', '', str_replace('\\', '/', $p));
+            $deleted[] = $rel;
+            @unlink($p);
+            $parent = dirname($p);
+            while ($parent && $parent !== $rawConfDir && is_dir($parent)) {
+                $remaining = @scandir($parent);
+                if ($remaining && count($remaining) <= 2) {
+                    @rmdir($parent);
+                    $parent = dirname($parent);
+                    continue;
                 }
-                // Auch Backups löschen
-                if (isRawConfBackupFile($f)) {
-                    $baseName = stripRawConfBackupSuffix($f);
-                    $baseSvc = extractServiceFromFilename($baseName);
-                    if ($baseSvc === $serviceKey) {
-                        $deleted[] = $f;
-                        @unlink($filePath);
-                    }
-                }
+                break;
             }
         }
     }
@@ -1761,28 +2277,31 @@ function checkSourceChanges($manifest, $rawDir) {
         if ($flatFilesByService !== null) return;
         $flatFilesByService = [];
         if (!is_dir($rawDir)) return;
-        $entries = @scandir($rawDir) ?: [];
-        foreach ($entries as $entry) {
-            if ($entry === '.' || $entry === '..') continue;
-            $full = $rawDir . '/' . $entry;
-            if (!is_file($full)) continue;
-            if (preg_match('/\.\d{8}_\d{6}\.bak$/', $entry)) continue;
-            $ext = strtolower(pathinfo($entry, PATHINFO_EXTENSION));
+        // Rekursiv alle Dateien in root und Bucket-Verzeichnissen scannen
+        $it = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($rawDir, RecursiveDirectoryIterator::SKIP_DOTS),
+            RecursiveIteratorIterator::LEAVES_ONLY
+        );
+        foreach ($it as $file) {
+            if (!$file->isFile()) continue;
+            $fname = $file->getFilename();
+            if (preg_match('/\.\d{8}_\d{6}\.bak$/', $fname)) continue;
+            $ext = strtolower(pathinfo($fname, PATHINFO_EXTENSION));
             if (!in_array($ext, ['conf', 'json'])) continue;
-            $svc = extractServiceFromFilename($entry);
+            $svc = extractServiceFromFilename($fname);
             if (!isset($flatFilesByService[$svc])) $flatFilesByService[$svc] = [];
             $flatFilesByService[$svc][] = [
-                'file'     => $entry,
-                'size'     => filesize($full),
-                'modified' => date('Y-m-d H:i:s', filemtime($full)),
-                'path'     => $full
+                'file'     => $fname,
+                'size'     => $file->getSize(),
+                'modified' => date('Y-m-d H:i:s', $file->getMTime()),
+                'path'     => $file->getPathname()
             ];
         }
     };
 
     foreach ($manifest['sources'] as $src) {
         $svcKey = $src['service'];
-        $svcDir = $rawDir . '/' . $svcKey;
+        $svcDir = resolveRawConfServiceDir($rawDir, $svcKey);
         $isDirBased = is_dir($svcDir);
 
         // Flat-Index für nicht-Verzeichnis-basierte Services
@@ -1932,13 +2451,26 @@ function listCoreSources() {
     ];
 
     // raw-conf-Kürzel sammeln (für «bereits importiert»-Markierung)
+    // Scanne alle Buckets (ags, qgis, mapplus) für vollständige Abdeckung
     $rawConfDir = getWritableRawConfDir();
     if ($rawConfDir === false) $rawConfDir = RAW_CONF_DIR;
-    $rawConfKuerzel = [];
-    if (is_dir($rawConfDir)) {
-        foreach (@scandir($rawConfDir) ?: [] as $d) {
-            if ($d !== '.' && $d !== '..' && is_dir($rawConfDir . '/' . $d)) {
-                $rawConfKuerzel[$d] = true;
+    $rawConfKuerzel = []; // kuerzel => bucket (z.B. 'awu' => 'ags')
+    $buckets = rawConfSourceBuckets();
+    foreach ($buckets as $bucket) {
+        $bucketDir = $rawConfDir . '/' . $bucket;
+        if (is_dir($bucketDir)) {
+            foreach (@scandir($bucketDir) ?: [] as $d) {
+                if ($d !== '.' && $d !== '..' && is_dir($bucketDir . '/' . $d)) {
+                    $rawConfKuerzel[$d] = $bucket;
+                }
+            }
+        }
+    }
+    // Fallback für alte Struktur (flach ohne Buckets)
+    foreach (@scandir($rawConfDir) ?: [] as $d) {
+        if ($d !== '.' && $d !== '..' && is_dir($rawConfDir . '/' . $d) && !in_array($d, $buckets)) {
+            if (!isset($rawConfKuerzel[$d])) {
+                $rawConfKuerzel[$d] = ''; // kein Bucket (Root-Level)
             }
         }
     }
@@ -2022,7 +2554,9 @@ function listCoreSources() {
         // Change-Detection: Vergleich aktuelle Core-Dateien mit letztem Import-Manifest
         $sourceChanges = null;
         if (isset($rawConfKuerzel[$key])) {
-            $manifestPath = $rawConfDir . '/' . $key . '/.core-import-manifest.json';
+            $bucket = $rawConfKuerzel[$key];
+            $kuerzelDir = $bucket ? ($rawConfDir . '/' . $bucket . '/' . $key) : ($rawConfDir . '/' . $key);
+            $manifestPath = $kuerzelDir . '/.core-import-manifest.json';
             if (is_file($manifestPath)) {
                 $raw = @file_get_contents($manifestPath);
                 if ($raw !== false) {
@@ -2108,7 +2642,7 @@ function importCoreToRawConf($kuerzelList) {
 
     foreach ($kuerzelList as $kuerzel) {
         $kuerzel = basename($kuerzel); // Sicherheit: keine Pfad-Traversal
-        $targetDir = $rawConfDir . '/' . $kuerzel;
+        $targetDir = $rawConfDir . '/mapplus/' . $kuerzel;
         $copiedFiles = [];
         $errors = [];
 
@@ -2209,11 +2743,653 @@ function importCoreToRawConf($kuerzelList) {
     ];
 }
 
+function migrateImportToCoreFilesToDb($onlyKuerzel = '') {
+    $dir = IMPORT_TO_CORE_DIR;
+    if (!is_dir($dir)) return 0;
+
+    $entries = @scandir($dir);
+    if (!$entries) return 0;
+
+    $migrated = 0;
+    foreach ($entries as $k) {
+        if ($k === '.' || $k === '..') continue;
+        if ($onlyKuerzel && $k !== $onlyKuerzel) continue;
+        $kPath = $dir . '/' . $k;
+        if (!is_dir($kPath)) continue;
+        if (StagingImportRepository::loadBundle($k)) continue;
+
+        $manifest = [];
+        $manifestPath = $kPath . '/.staging-manifest.json';
+        if (is_file($manifestPath)) {
+            $raw = @file_get_contents($manifestPath);
+            if ($raw !== false) $manifest = @json_decode($raw, true) ?: [];
+        }
+
+        $files = [];
+        foreach (@scandir($kPath) ?: [] as $f) {
+            if ($f === '.' || $f === '..' || $f[0] === '.') continue;
+            $fp = $kPath . '/' . $f;
+            if (!is_file($fp)) continue;
+            $ext = strtolower(pathinfo($f, PATHINFO_EXTENSION));
+            if (!in_array($ext, ['conf', 'json'], true)) continue;
+            $raw = @file_get_contents($fp);
+            if ($raw === false) continue;
+            $decoded = @json_decode($raw, true);
+            if (!is_array($decoded)) continue;
+
+            $knownPrefixes = ['layers', 'maptips', 'lyrmgrResources', 'maptipsResources', 'legendResources'];
+            $prefix = 'unknown';
+            $basename = pathinfo($f, PATHINFO_FILENAME);
+            foreach ($knownPrefixes as $pfx) {
+                if (strpos($basename, $pfx . '_') === 0 || strpos($basename, $pfx . '-') === 0 || $basename === $pfx) {
+                    $prefix = $pfx;
+                    break;
+                }
+            }
+
+            $type = 'unknown';
+            if ($prefix === 'layers') $type = 'layers';
+            elseif ($prefix === 'maptips') $type = 'maptips';
+            elseif ($prefix === 'lyrmgrResources') $type = 'lyrmgr';
+            elseif ($prefix === 'maptipsResources') $type = 'maptipsRes';
+            elseif ($prefix === 'legendResources') $type = 'legendRes';
+
+            $files[] = [
+                'name' => $f,
+                'type' => $type,
+                'prefix' => $prefix,
+                'keys' => count($decoded),
+                'size' => filesize($fp),
+                'modified' => date('Y-m-d H:i:s', filemtime($fp)),
+                'data' => $decoded,
+            ];
+        }
+
+        if (!empty($files)) {
+            StagingImportRepository::saveBundle($k, $files, $manifest, [$k], 'migration');
+            $migrated++;
+        }
+    }
+
+    return $migrated;
+}
+
+function listImportToCoreDb() {
+    $rawDir = getWritableRawConfDir();
+    if ($rawDir === false) $rawDir = RAW_CONF_DIR;
+    $bundles = StagingImportRepository::loadAll();
+    if (count($bundles) === 0) {
+        migrateImportToCoreFilesToDb();
+        $bundles = StagingImportRepository::loadAll();
+    }
+    if (count($bundles) === 0) return ['exists' => false, 'kuerzel' => []];
+
+    $keyIndex = [];
+    $result = [];
+    foreach ($bundles as $bundle) {
+        $files = [];
+        foreach ($bundle['files'] as $file) {
+            $name = $file['name'] ?? '';
+            if ($name === '') continue;
+            $prefix = $file['prefix'] ?? pathinfo($name, PATHINFO_FILENAME);
+            $data = $file['data'] ?? [];
+            if (is_array($data) && !empty($data) && array_keys($data) !== range(0, count($data) - 1)) {
+                foreach (array_keys($data) as $topKey) {
+                    $keyIndex[$prefix][$topKey][] = $bundle['kuerzel'] . '/' . $name;
+                }
+            }
+            $files[] = [
+                'file' => $bundle['kuerzel'] . '/' . $name,
+                'name' => $name,
+                'size' => (int)($file['size'] ?? strlen(json_encode($data))),
+                'modified' => $file['modified'] ?? ($bundle['updatedAt'] ?: date('Y-m-d H:i:s')),
+                '_prefix' => $prefix,
+            ];
+        }
+
+        $entry = [
+            'kuerzel' => $bundle['kuerzel'],
+            'tags' => $bundle['tags'],
+            'scope' => $bundle['scope'] ?? 'core',
+            'profile' => $bundle['profile'] ?? null,
+            'files' => $files,
+            'size' => array_sum(array_map(function ($f) { return (int)$f['size']; }, $files)),
+            'manifest' => $bundle['manifest'],
+            'lastImportedAt' => $bundle['lastImportedAt'],
+            'lastImportedBy' => $bundle['lastImportedBy'],
+        ];
+        if (!empty($bundle['manifest'])) {
+            $entry['sourceChanges'] = checkSourceChanges($bundle['manifest'], $rawDir);
+        }
+        $result[] = $entry;
+    }
+
+    foreach ($result as &$bundleEntry) {
+        foreach ($bundleEntry['files'] as &$fileInfo) {
+            $prefix = $fileInfo['_prefix'];
+            $crossDups = [];
+            if (isset($keyIndex[$prefix])) {
+                $thisFile = $fileInfo['file'];
+                foreach ($keyIndex[$prefix] as $topKey => $sources) {
+                    if (in_array($thisFile, $sources, true) && count($sources) > 1) {
+                        $otherFiles = array_values(array_filter($sources, function ($s) use ($thisFile) {
+                            return $s !== $thisFile;
+                        }));
+                        if (!empty($otherFiles)) {
+                            $crossDups[] = ['key' => $topKey, 'conflictsWith' => $otherFiles];
+                        }
+                    }
+                }
+            }
+            if (!empty($crossDups)) {
+                $fileInfo['crossDuplicateKeys'] = $crossDups;
+            }
+            unset($fileInfo['_prefix']);
+        }
+        unset($fileInfo);
+    }
+    unset($bundleEntry);
+
+    return ['exists' => true, 'kuerzel' => $result];
+}
+
+function readImportToCoreFileDb($relPath) {
+    if (strpos($relPath, '..') !== false || strpos($relPath, '\\') !== false) {
+        return ['success' => false, 'error' => 'Ungültiger Pfad'];
+    }
+    $parts = explode('/', trim($relPath, '/'), 2);
+    if (count($parts) !== 2) {
+        return ['success' => false, 'error' => 'Ungültiger Datei-Pfad'];
+    }
+    $bundle = StagingImportRepository::loadBundle($parts[0]);
+    if (!$bundle) return ['success' => false, 'error' => 'Kürzel nicht gefunden: ' . $parts[0]];
+    foreach ($bundle['files'] as $file) {
+        if (($file['name'] ?? '') === $parts[1]) {
+            $content = json_encode($file['data'] ?? [], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            return ['success' => true, 'content' => $content, 'size' => strlen($content), 'file' => $relPath];
+        }
+    }
+    return ['success' => false, 'error' => 'Datei nicht gefunden: ' . $relPath];
+}
+
+function writeImportToCoreFileDb($relPath, $content) {
+    if (strpos($relPath, '..') !== false || strpos($relPath, '\\') !== false) {
+        return ['success' => false, 'error' => 'Ungültiger Pfad'];
+    }
+    $parts = explode('/', trim($relPath, '/'), 2);
+    if (count($parts) !== 2) {
+        return ['success' => false, 'error' => 'Ungültiger Datei-Pfad'];
+    }
+    $decoded = @json_decode($content, true);
+    if (!is_array($decoded)) {
+        return ['success' => false, 'error' => 'Kein gültiges JSON'];
+    }
+    $res = StagingImportRepository::saveFileData($parts[0], $parts[1], $decoded, getEditorName());
+    if (empty($res['success'])) return $res;
+    return ['success' => true, 'bytes' => strlen($content)];
+}
+
+function deleteImportToCoreKuerzelDb(array $kuerzelList) {
+    return StagingImportRepository::deleteBundles($kuerzelList);
+}
+
+/**
+ * Re-Stage: ein Kuerzel anhand seiner Manifest-Quellen server-seitig neu stagen.
+ */
+function restageKuerzelDb($kuerzel) {
+    $safe = preg_replace('/[^a-zA-Z0-9_\-]/', '_', trim((string)$kuerzel));
+    if ($safe === '') return ['success' => false, 'error' => 'Kuerzel darf nicht leer sein'];
+    if (!useStagingImportDb()) return ['success' => false, 'error' => 'Konfig-Store DB nicht verfuegbar'];
+    $bundle = StagingImportRepository::loadBundle($safe);
+    if (!$bundle) return ['success' => false, 'error' => 'Kuerzel nicht gefunden: ' . $safe];
+    $manifest = $bundle['manifest'] ?? [];
+    $sources = [];
+    if (!empty($manifest['sources']) && is_array($manifest['sources'])) {
+        foreach ($manifest['sources'] as $src) {
+            if (!empty($src['service'])) $sources[] = $src['service'];
+        }
+    }
+    if (empty($sources)) {
+        return ['success' => false, 'error' => 'Keine Quellen im Manifest hinterlegt — bitte links manuell neu stagen.', 'code' => 'no-sources'];
+    }
+    return stageServicesToImportToCore($sources, $safe, 'replace');
+}
+
+function stageServicesToImportDb(array $serviceKeys, string $kuerzel, string $mode = 'replace', string $scope = 'core', ?string $profile = null) {
+    $kuerzel = preg_replace('/[^a-zA-Z0-9_\-]/', '_', trim($kuerzel));
+    if ($kuerzel === '') return ['success' => false, 'error' => 'Kürzel darf nicht leer sein'];
+    if (!in_array($mode, ['merge', 'replace', 'preview'], true)) {
+        return ['success' => false, 'error' => 'Ungültiger Modus: ' . $mode];
+    }
+
+    $rawDir = getWritableRawConfDir();
+    if ($rawDir === false) $rawDir = RAW_CONF_DIR;
+    $existingBundle = (($mode === 'merge' || $mode === 'preview') ? StagingImportRepository::loadBundle($kuerzel) : null);
+    $existingManifest = $existingBundle['manifest'] ?? null;
+    $existingFilesMap = [];
+    if ($existingBundle && !empty($existingBundle['files'])) {
+        foreach ($existingBundle['files'] as $existingFile) {
+            if (!empty($existingFile['name'])) {
+                $existingFilesMap[$existingFile['name']] = $existingFile;
+            }
+        }
+    }
+
+    $buckets = [];
+    $errors = [];
+    $skipped = [];
+    foreach ($serviceKeys as $svcKey) {
+        $svcDir = resolveRawConfServiceDir($rawDir, $svcKey);
+        if ($svcDir && is_dir($svcDir)) {
+            $it = new RecursiveIteratorIterator(
+                new RecursiveDirectoryIterator($svcDir, RecursiveDirectoryIterator::SKIP_DOTS),
+                RecursiveIteratorIterator::LEAVES_ONLY
+            );
+            $svcFiles = iterator_to_array($it, false);
+        } else {
+            $svcFiles = collectRawConfFilesByService($rawDir, $svcKey);
+            if (empty($svcFiles)) { $errors[] = 'Dienst nicht gefunden: ' . $svcKey; continue; }
+        }
+
+        foreach (new ArrayIterator($svcFiles) as $file) {
+            $fname = $file->getFilename();
+            if (preg_match('/\.\d{8}_\d{6}\.bak$/', $fname)) { $skipped[] = $fname . ' (Backup)'; continue; }
+            if (preg_match('/\.xlsx$/i', $fname)) { $skipped[] = $fname . ' (Excel)'; continue; }
+            $ext = strtolower(pathinfo($fname, PATHINFO_EXTENSION));
+            if (!in_array($ext, ['conf', 'json'], true)) { $skipped[] = $fname . ' (Typ .' . $ext . ' nicht verarbeitbar)'; continue; }
+
+            $content = @file_get_contents($file->getPathname());
+            if ($content === false) { $errors[] = 'Lesefehler: ' . $file->getPathname(); continue; }
+            $decoded = @json_decode($content, true);
+            if (!is_array($decoded)) { $errors[] = 'Kein gültiges JSON: ' . $fname; continue; }
+
+            $knownPfx = ['layers', 'maptips', 'lyrmgrResources', 'maptipsResources', 'legendResources'];
+            $prefix = pathinfo($fname, PATHINFO_FILENAME);
+            foreach ($knownPfx as $pfx) {
+                if (strpos($fname, $pfx . '_') === 0 || strpos($fname, $pfx . '-') === 0) {
+                    $prefix = $pfx;
+                    break;
+                }
+            }
+            $usesDash = (strpos($fname, $prefix . '-') === 0);
+            if (!isset($buckets[$prefix])) {
+                $buckets[$prefix] = ['parts' => [], 'ext' => $ext, 'usesDash' => $usesDash];
+            }
+            $buckets[$prefix]['parts'][] = ['data' => $decoded, 'source' => $fname];
+        }
+    }
+
+    $written = [];
+    $mergeStats = [];
+    $manifestSources = [];
+    if (($mode === 'merge' || $mode === 'preview') && $existingManifest && isset($existingManifest['sources'])) {
+        foreach ($existingManifest['sources'] as $src) {
+            if (!in_array($src['service'], $serviceKeys, true)) {
+                $manifestSources[$src['service']] = $src;
+            }
+        }
+    }
+
+    foreach ($buckets as $prefix => $bucket) {
+        if (empty($bucket['parts'])) continue;
+        $outName = (!empty($bucket['usesDash']) && count($bucket['parts']) === 1)
+            ? $bucket['parts'][0]['source']
+            : $prefix . '_' . $kuerzel . '.' . $bucket['ext'];
+
+        $existingData = [];
+        if (($mode === 'merge' || $mode === 'preview') && isset($existingFilesMap[$outName]['data']) && is_array($existingFilesMap[$outName]['data'])) {
+            $existingData = $existingFilesMap[$outName]['data'];
+        }
+
+        $merged = (($mode === 'merge' || $mode === 'preview') ? $existingData : []);
+        $isAssoc = (!empty($existingData) && array_keys($existingData) !== range(0, count($existingData) - 1));
+        foreach ($bucket['parts'] as $part) {
+            $arr = $part['data'];
+            if (!empty($arr) && array_keys($arr) !== range(0, count($arr) - 1)) $isAssoc = true;
+            if ($isAssoc) {
+                foreach ($arr as $k => $v) { $merged[$k] = $v; }
+            } else {
+                foreach ($arr as $v) { $merged[] = $v; }
+            }
+        }
+
+        $stats = ['added' => 0, 'updated' => 0, 'unchanged' => 0];
+        if (($mode === 'merge' || $mode === 'preview') && $isAssoc && !empty($existingData)) {
+            foreach ($merged as $k => $v) {
+                if (!array_key_exists($k, $existingData)) $stats['added']++;
+                elseif ($v !== $existingData[$k]) $stats['updated']++;
+                else $stats['unchanged']++;
+            }
+        }
+        $mergeStats[$prefix] = $stats;
+
+        $payloadJson = json_encode($merged, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        $written[] = [
+            'file' => $kuerzel . '/' . $outName,
+            'name' => $outName,
+            'bytes' => ($mode === 'preview') ? 0 : strlen($payloadJson),
+            'keys' => is_array($merged) ? count($merged) : 0,
+            'mergeStats' => $stats,
+            'preview' => ($mode === 'preview'),
+            'duplicateKeys' => [],
+            'type' => ($prefix === 'layers' ? 'layers' : ($prefix === 'maptips' ? 'maptips' : ($prefix === 'lyrmgrResources' ? 'lyrmgr' : ($prefix === 'maptipsResources' ? 'maptipsRes' : ($prefix === 'legendResources' ? 'legendRes' : 'unknown'))))),
+            'prefix' => $prefix,
+            'data' => $merged,
+            'size' => strlen($payloadJson),
+            'modified' => date('Y-m-d H:i:s'),
+        ];
+    }
+
+    foreach ($serviceKeys as $svcKey) {
+        $svcDir = resolveRawConfServiceDir($rawDir, $svcKey);
+        $svcKeyCounts = [];
+        foreach ($buckets as $prefix => $bucket) {
+            $count = 0;
+            foreach ($bucket['parts'] as $part) {
+                if (is_array($part['data'])) $count += count($part['data']);
+            }
+            if ($count > 0) $svcKeyCounts[$prefix] = $count;
+        }
+
+        $srcFiles = [];
+        if ($svcDir && is_dir($svcDir)) {
+            $it = new RecursiveIteratorIterator(
+                new RecursiveDirectoryIterator($svcDir, RecursiveDirectoryIterator::SKIP_DOTS),
+                RecursiveIteratorIterator::LEAVES_ONLY
+            );
+            foreach ($it as $sf) {
+                $sfn = $sf->getFilename();
+                $sfExt = strtolower(pathinfo($sfn, PATHINFO_EXTENSION));
+                if (!in_array($sfExt, ['conf', 'json'], true)) continue;
+                if (preg_match('/\.\d{8}_\d{6}\.bak$/', $sfn)) continue;
+                $srcFiles[] = ['file' => $sfn, 'size' => $sf->getSize(), 'modified' => date('Y-m-d H:i:s', $sf->getMTime())];
+            }
+        } else {
+            foreach (collectRawConfFilesByService($rawDir, $svcKey) as $sf) {
+                $sfn = $sf->getFilename();
+                if (preg_match('/\.\d{8}_\d{6}\.bak$/', $sfn)) continue;
+                $sfExt = strtolower(pathinfo($sfn, PATHINFO_EXTENSION));
+                if (!in_array($sfExt, ['conf', 'json'], true)) continue;
+                $srcFiles[] = ['file' => $sfn, 'size' => $sf->getSize(), 'modified' => date('Y-m-d H:i:s', $sf->getMTime())];
+            }
+        }
+        if (empty($srcFiles)) continue;
+        $manifestSources[$svcKey] = [
+            'service' => $svcKey,
+            'staged' => date('Y-m-d\TH:i:s'),
+            'keys' => $svcKeyCounts,
+            'sourceFiles' => $srcFiles,
+        ];
+    }
+
+    $manifest = [
+        'kuerzel' => $kuerzel,
+        'lastStaged' => date('Y-m-d\TH:i:s'),
+        'mode' => $mode,
+        'sources' => array_values($manifestSources),
+        'buckets' => [],
+    ];
+    foreach ($written as $wf) {
+        $manifest['buckets'][$wf['prefix']] = ['file' => $wf['name'], 'totalKeys' => $wf['keys']];
+    }
+
+    // Bestehende Zusatz-Tags erhalten (auch bei mode=replace / Re-Stage)
+    $preserveTags = [$kuerzel];
+    $tagBundle = StagingImportRepository::loadBundle($kuerzel);
+    if ($tagBundle && !empty($tagBundle['tags']) && is_array($tagBundle['tags'])) {
+        $preserveTags = array_values(array_unique(array_merge($preserveTags, $tagBundle['tags'])));
+    }
+    // Scope/Profile: explizit gewaehlt, sonst bestehenden Wert beibehalten.
+    if ($scope === '' || $scope === null) {
+        $scope = $tagBundle['scope'] ?? 'core';
+    }
+    if ($profile === null && isset($tagBundle['profile'])) {
+        $profile = $tagBundle['profile'];
+    }
+
+    if ($mode !== 'preview') {
+        StagingImportRepository::saveBundle($kuerzel, $written, $manifest, $preserveTags, getEditorName(), $scope, $profile);
+    }
+
+    return [
+        'success' => true,
+        'kuerzel' => $kuerzel,
+        'mode' => $mode,
+        'targetDir' => 'db:config_bundle_store/' . $kuerzel,
+        'files' => array_map(function ($wf) use ($kuerzel) {
+            return [
+                'file' => $kuerzel . '/' . $wf['name'],
+                'bytes' => $wf['bytes'],
+                'keys' => $wf['keys'],
+                'mergeStats' => $wf['mergeStats'],
+                'preview' => $wf['preview'],
+                'duplicateKeys' => $wf['duplicateKeys'],
+            ];
+        }, $written),
+        'mergeStats' => $mergeStats,
+        'duplicates' => [],
+        'errors' => $errors,
+        'skipped' => $skipped,
+        'timestamp' => date('Y-m-d H:i:s'),
+    ];
+}
+
+function stagingLayersFlatDb($kuerzel = '') {
+    $bundles = [];
+    if ($kuerzel) {
+        $safe = preg_replace('/[^a-zA-Z0-9_\-]/', '_', trim($kuerzel));
+        $bundle = StagingImportRepository::loadBundle($safe);
+        if ($bundle) $bundles[] = $bundle;
+    } else {
+        $bundles = StagingImportRepository::loadAll();
+    }
+    if (count($bundles) === 0) return ['success' => true, 'data' => [], 'meta' => ['count' => 0, 'source' => 'staging-db']];
+
+    $nameMap = []; $allAliases = []; $maptipsByLayer = []; $allMaptips = []; $allMaptipTexts = []; $allLegends = []; $layerFiles = [];
+    foreach ($bundles as $bundle) {
+        foreach ($bundle['files'] as $file) {
+            $decoded = $file['data'] ?? null;
+            if (!is_array($decoded)) continue;
+            $f = $file['name'] ?? '';
+            if (strpos($f, 'lyrmgrResources_') === 0) {
+                foreach ($decoded as $resKey => $resVal) {
+                    $allAliases[$resKey] = $resVal;
+                    if (strpos($resKey, 'desc_') === 0) $nameMap[strtolower(substr($resKey, 5))] = is_string($resVal) ? $resVal : (string)$resVal;
+                }
+            } elseif (strpos($f, 'maptips_') === 0) {
+                foreach ($decoded as $mtKey => $mtDef) {
+                    $allMaptips[$mtKey] = $mtDef;
+                    $linked = $mtDef['linked_layer'] ?? '';
+                    if ($linked) {
+                        $maptipsByLayer[strtolower($linked)] = ['key' => $mtKey, 'nls' => $mtDef['nls'] ?? '', 'query_layers' => $mtDef['query_layers'] ?? ''];
+                    }
+                }
+            } elseif (strpos($f, 'maptipsResources_') === 0) {
+                foreach ($decoded as $trKey => $trVal) $allMaptipTexts[$trKey] = $trVal;
+            } elseif (strpos($f, 'legendResources_') === 0) {
+                foreach ($decoded as $lgKey => $lgVal) $allLegends[$lgKey] = $lgVal;
+            } elseif (strpos($f, 'layers_') === 0 && preg_match('/\.conf$/i', $f)) {
+                $layerFiles[] = ['kuerzel' => $bundle['kuerzel'], 'file' => $f, 'decoded' => $decoded];
+            }
+        }
+    }
+
+    $sublayerCount = [];
+    foreach ($nameMap as $lk => $name) {
+        $prefix = $lk . '/';
+        foreach ($nameMap as $otherKey => $otherName) {
+            if (strpos($otherKey, $prefix) === 0) $sublayerCount[$lk] = ($sublayerCount[$lk] ?? 0) + 1;
+        }
+    }
+
+    $flatLayers = [];
+    foreach ($layerFiles as $lf) {
+        foreach ($lf['decoded'] as $layerKey => $layerDef) {
+            $lkLower = strtolower($layerKey);
+            $alias = $nameMap[$lkLower] ?? null;
+            $legend = $layerDef['legend'] ?? null;
+            $maptipCount = 0; $firstMaptipNls = null; $firstMaptipTitle = null; $lkPrefix = $lkLower . '/';
+            foreach ($maptipsByLayer as $mlKey => $mlVal) {
+                if ($mlKey === $lkLower || strpos($mlKey, $lkPrefix) === 0) {
+                    $maptipCount++;
+                    if (!$firstMaptipNls && $mlVal['nls']) {
+                        $firstMaptipNls = $mlVal['nls'];
+                        $firstMaptipTitle = $allMaptipTexts[$mlVal['nls'] . '_title'] ?? null;
+                    }
+                }
+            }
+            $legendCount = 0; $firstLegendTitle = null;
+            foreach ($allLegends as $lgKey => $lgVal) {
+                if (strpos(strtolower($lgKey), $lkLower) === 0 && substr($lgKey, -6) === '_title') {
+                    $legendCount++;
+                    if (!$firstLegendTitle) $firstLegendTitle = $lgVal;
+                }
+            }
+            $flatLayers[] = [
+                'id' => $layerKey,
+                'name' => $alias ?: $layerKey,
+                'alias' => $alias,
+                'url' => $layerDef['url'] ?? '',
+                'type' => $layerDef['type'] ?? 'unknown',
+                'layerType' => $layerDef['type'] ?? 'unknown',
+                'visible' => $layerDef['visible'] ?? 0,
+                'icon' => $layerDef['icon'] ?? '',
+                'params' => $layerDef['params'] ?? null,
+                'options' => $layerDef['options'] ?? null,
+                'hasMaptip' => $maptipCount > 0,
+                'maptipCount' => $maptipCount,
+                'maptipNls' => $firstMaptipNls,
+                'maptipTitle' => $firstMaptipTitle,
+                'hasLegend' => $legendCount > 0,
+                'legendCount' => $legendCount,
+                'legendKey' => $legend,
+                'legendTitle' => $firstLegendTitle,
+                'sublayers' => $sublayerCount[$lkLower] ?? 0,
+                '_source' => $lf['kuerzel'],
+                '_file' => $lf['file'],
+            ];
+        }
+    }
+
+    return [
+        'success' => true,
+        'data' => $flatLayers,
+        'meta' => ['kuerzel' => $kuerzel ?: '(alle)', 'count' => count($flatLayers), 'format' => 'flat', 'source' => 'staging-db', 'aliases' => count($allAliases), 'maptips' => count($allMaptips), 'legends' => count($allLegends)],
+        'supplements' => ['aliases' => $allAliases, 'maptips' => $allMaptips, 'maptipTexts' => $allMaptipTexts, 'legends' => $allLegends],
+    ];
+}
+
+function configEditorLoadDb($kuerzel) {
+    $safe = preg_replace('/[^a-zA-Z0-9_\-]/', '_', trim($kuerzel));
+    if ($safe === '') return ['success' => false, 'error' => 'Kürzel darf nicht leer sein'];
+    $bundle = StagingImportRepository::loadBundle($safe);
+    if (!$bundle) {
+        migrateImportToCoreFilesToDb($safe);
+        $bundle = StagingImportRepository::loadBundle($safe);
+    }
+    if (!$bundle) return ['success' => false, 'error' => 'Kürzel nicht gefunden: ' . $safe];
+
+    $result = ['kuerzel' => $safe, 'files' => [], 'tags' => $bundle['tags'], 'lastImportedAt' => $bundle['lastImportedAt'], 'lastImportedBy' => $bundle['lastImportedBy']];
+    foreach ($bundle['files'] as $file) {
+        $decoded = $file['data'] ?? null;
+        if (!is_array($decoded)) continue;
+        $prefix = $file['prefix'] ?? 'unknown';
+        $type = 'unknown';
+        if ($prefix === 'layers') $type = 'layers';
+        elseif ($prefix === 'maptips') $type = 'maptips';
+        elseif ($prefix === 'lyrmgrResources') $type = 'lyrmgr';
+        elseif ($prefix === 'maptipsResources') $type = 'maptipsRes';
+        elseif ($prefix === 'legendResources') $type = 'legendRes';
+        $result['files'][] = ['name' => $file['name'] ?? '', 'type' => $type, 'prefix' => $prefix, 'keys' => count($decoded), 'size' => (int)($file['size'] ?? strlen(json_encode($decoded))), 'modified' => $file['modified'] ?? date('Y-m-d H:i:s'), 'data' => $decoded, '_edits' => $file['_edits'] ?? null];
+    }
+    if (!empty($bundle['manifest'])) $result['manifest'] = $bundle['manifest'];
+    return ['success' => true, 'data' => $result];
+}
+
+function configEditorSaveDb($kuerzel, $fileName, $data, array $changedKeys = []) {
+    $safe = preg_replace('/[^a-zA-Z0-9_\-]/', '_', trim($kuerzel));
+    if ($safe === '') return ['success' => false, 'error' => 'Kürzel darf nicht leer sein'];
+    if (strpos($fileName, '..') !== false || strpos($fileName, '/') !== false) return ['success' => false, 'error' => 'Ungültiger Dateiname'];
+    $res = StagingImportRepository::saveFileData($safe, $fileName, $data, getEditorName(), $changedKeys);
+    if (empty($res['success'])) return $res;
+    return ['success' => true, 'file' => $fileName, 'keys' => count($data), 'timestamp' => date('Y-m-d H:i:s')];
+}
+
+function configExportToCoreDb($kuerzel) {
+    global $docRoot;
+    $safe = preg_replace('/[^a-zA-Z0-9_\-]/', '_', trim($kuerzel));
+    if ($safe === '') return ['success' => false, 'error' => 'Kürzel darf nicht leer sein'];
+    $bundle = StagingImportRepository::loadBundle($safe);
+    if (!$bundle) return ['success' => false, 'error' => 'Quell-Bundle nicht gefunden'];
+
+    // Scope-bewusste Zielpfade:
+    //   core              -> core/config/ + core/nls/de/
+    //   sitecore/override -> maps-dev/core/config/ + maps-dev/core/nls/de/
+    //   profile           -> maps-dev/public/config/<profil>/ (conf + nls zusammen)
+    $scope = $bundle['scope'] ?? 'core';
+    $profile = $bundle['profile'] ?? null;
+
+    if ($scope === 'profile') {
+        $safeP = preg_replace('/[^a-zA-Z0-9_\-]/', '', (string)$profile);
+        if ($safeP === '') return ['success' => false, 'error' => 'Profil-Bundle ohne Profilname — bitte beim Import ein Profil angeben'];
+        $targetBase = ($safeP === 'public') ? CONFIG_BASE : CONFIG_BASE . '/' . $safeP;
+        $configDir = $targetBase;
+        $nlsDir    = $targetBase;
+    } elseif ($scope === 'sitecore' || $scope === 'override') {
+        $configDir = APP_CORE_CONFIG_DIR;
+        $nlsDir    = APP_CORE_NLS_DIR;
+    } else { // core
+        $configDir = CORE_CONFIG_DIR;
+        $nlsDir    = CORE_NLS_DIR;
+    }
+
+    // Zielverzeichnisse anlegen (Profil-Ordner existiert evtl. noch nicht)
+    if (!is_dir($configDir) && !@mkdir($configDir, 0775, true)) {
+        return ['success' => false, 'error' => 'Zielverzeichnis (config) nicht anlegbar: ' . $configDir];
+    }
+    if (!is_dir($nlsDir) && !@mkdir($nlsDir, 0775, true)) {
+        return ['success' => false, 'error' => 'Zielverzeichnis (nls) nicht anlegbar: ' . $nlsDir];
+    }
+
+    $exported = []; $errors = []; $backups = []; $ts = date('Ymd_His');
+    foreach ($bundle['files'] as $file) {
+        $name = $file['name'] ?? '';
+        if ($name === '') continue;
+        $prefix = $file['prefix'] ?? '';
+        $targetDir = in_array($prefix, ['layers', 'maptips'], true) ? $configDir : (in_array($prefix, ['lyrmgrResources', 'maptipsResources', 'legendResources'], true) ? $nlsDir : '');
+        if ($targetDir === '') continue;
+        $targetPath = $targetDir . '/' . $name;
+        if (is_file($targetPath)) {
+            $backupPath = $targetPath . '.' . $ts . '.bak';
+            if (@copy($targetPath, $backupPath)) $backups[] = $name . ' → ' . basename($backupPath);
+        }
+        $json = json_encode($file['data'] ?? [], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        $bytes = @file_put_contents($targetPath, $json);
+        if ($bytes === false) $errors[] = 'Kopieren fehlgeschlagen: ' . $name . ' → ' . $targetPath;
+        else $exported[] = ['file' => $name, 'target' => str_replace($docRoot, '', $targetPath), 'bytes' => $bytes];
+    }
+    return [
+        'success' => count($errors) === 0,
+        'kuerzel' => $safe,
+        'scope' => $scope,
+        'profile' => ($scope === 'profile') ? $profile : null,
+        'configDir' => str_replace($docRoot, '', $configDir),
+        'nlsDir' => str_replace($docRoot, '', $nlsDir),
+        'exported' => $exported,
+        'backups' => $backups,
+        'errors' => $errors,
+        'timestamp' => date('Y-m-d H:i:s'),
+    ];
+}
+
 /**
  * ImportToCore-Verzeichnis auflisten (nach Kürzel gruppiert)
  * Erkennt auch kürzelübergreifende Duplikate (gleicher Key im selben Prefix-Typ)
  */
 function listImportToCore() {
+    if (useStagingImportDb()) {
+        return listImportToCoreDb();
+    }
     $dir = IMPORT_TO_CORE_DIR;
     if (!is_dir($dir)) return ['exists' => false, 'kuerzel' => []];
     $rawDir = getWritableRawConfDir();
@@ -2318,6 +3494,9 @@ function listImportToCore() {
  * Datei aus ImportToCore lesen
  */
 function readImportToCoreFile($relPath) {
+    if (useStagingImportDb()) {
+        return readImportToCoreFileDb($relPath);
+    }
     if (strpos($relPath, '..') !== false || strpos($relPath, '\\') !== false)
         return ['success' => false, 'error' => 'Ungültiger Pfad'];
     $fullPath = IMPORT_TO_CORE_DIR . '/' . $relPath;
@@ -2331,6 +3510,9 @@ function readImportToCoreFile($relPath) {
  * Datei in ImportToCore schreiben (ohne Backup)
  */
 function writeImportToCoreFile($relPath, $content) {
+    if (useStagingImportDb()) {
+        return writeImportToCoreFileDb($relPath, $content);
+    }
     if (strpos($relPath, '..') !== false || strpos($relPath, '\\') !== false)
         return ['success' => false, 'error' => 'Ungültiger Pfad'];
     $fullPath = IMPORT_TO_CORE_DIR . '/' . $relPath;
@@ -2344,6 +3526,9 @@ function writeImportToCoreFile($relPath, $content) {
  * Kürzel-Verzeichnisse aus ImportToCore löschen
  */
 function deleteImportToCoreKuerzel(array $kuerzelList) {
+    if (useStagingImportDb()) {
+        return deleteImportToCoreKuerzelDb($kuerzelList);
+    }
     $dir = IMPORT_TO_CORE_DIR;
     $deleted = []; $errors = [];
     foreach ($kuerzelList as $k) {
@@ -2362,7 +3547,10 @@ function deleteImportToCoreKuerzel(array $kuerzelList) {
     return ['success' => true, 'deleted' => $deleted, 'errors' => $errors];
 }
 
-function stageServicesToImportToCore(array $serviceKeys, string $kuerzel, string $mode = 'replace') {
+function stageServicesToImportToCore(array $serviceKeys, string $kuerzel, string $mode = 'replace', string $scope = 'core', ?string $profile = null) {
+    if (useStagingImportDb()) {
+        return stageServicesToImportDb($serviceKeys, $kuerzel, $mode, $scope, $profile);
+    }
     $kuerzel = preg_replace('/[^a-zA-Z0-9_\-]/', '_', trim($kuerzel));
     if ($kuerzel === '') return ['success' => false, 'error' => 'Kürzel darf nicht leer sein'];
     if (!in_array($mode, ['merge', 'replace', 'preview'])) {
@@ -2398,29 +3586,18 @@ function stageServicesToImportToCore(array $serviceKeys, string $kuerzel, string
     $skipped    = []; // Übersprungene Dateien mit Grund (für Debug-Ausgabe)
 
     foreach ($serviceKeys as $svcKey) {
-        $svcDir = $rawDir . '/' . $svcKey;
+        $svcDir = resolveRawConfServiceDir($rawDir, $svcKey);
 
         // Verzeichnis-basierte Struktur (group/service/ ODER service_dir/)
-        if (is_dir($svcDir)) {
+        if ($svcDir && is_dir($svcDir)) {
             $it = new RecursiveIteratorIterator(
                 new RecursiveDirectoryIterator($svcDir, RecursiveDirectoryIterator::SKIP_DOTS),
                 RecursiveIteratorIterator::LEAVES_ONLY
             );
             $svcFiles = iterator_to_array($it, false);
         } else {
-            // Flache Struktur: Dateien im Root-Verzeichnis suchen die zum Service passen
-            $svcFiles = [];
-            $allEntries = @scandir($rawDir);
-            if ($allEntries) {
-                foreach ($allEntries as $entry) {
-                    if ($entry === '.' || $entry === '..') continue;
-                    $fullPath = $rawDir . '/' . $entry;
-                    if (!is_file($fullPath)) continue;
-                    if (extractServiceFromFilename($entry) === $svcKey) {
-                        $svcFiles[] = new SplFileInfo($fullPath);
-                    }
-                }
-            }
+            // Flache/verschachtelte Struktur: rekursiv anhand Service-Key sammeln
+            $svcFiles = collectRawConfFilesByService($rawDir, $svcKey);
             if (empty($svcFiles)) { $errors[] = 'Dienst nicht gefunden: ' . $svcKey; continue; }
         }
 
@@ -2565,7 +3742,7 @@ function stageServicesToImportToCore(array $serviceKeys, string $kuerzel, string
     foreach ($serviceKeys as $svcKey) {
         // Services die nicht in raw-conf gefunden wurden NICHT ins Manifest schreiben,
         // damit sie bei der nächsten Change-Detection nicht als "missing" erscheinen.
-        $svcDir = $rawDir . '/' . $svcKey;
+        $svcDir = resolveRawConfServiceDir($rawDir, $svcKey);
 
         $svcKeyCounts = [];
         foreach ($buckets as $prefix => $bucket) {
@@ -2582,7 +3759,7 @@ function stageServicesToImportToCore(array $serviceKeys, string $kuerzel, string
         // Unterstützt sowohl Verzeichnis-Struktur (group/service oder service_dir)
         // als auch flache raw-conf-Dateien.
         $srcFiles = [];
-        if (is_dir($svcDir)) {
+        if ($svcDir && is_dir($svcDir)) {
             $it = new RecursiveIteratorIterator(
                 new RecursiveDirectoryIterator($svcDir, RecursiveDirectoryIterator::SKIP_DOTS),
                 RecursiveIteratorIterator::LEAVES_ONLY
@@ -2595,22 +3772,16 @@ function stageServicesToImportToCore(array $serviceKeys, string $kuerzel, string
                 $srcFiles[] = ['file' => $sfn, 'size' => $sf->getSize(), 'modified' => date('Y-m-d H:i:s', $sf->getMTime())];
             }
         } else {
-            $allEntries = @scandir($rawDir);
-            if ($allEntries) {
-                foreach ($allEntries as $entry) {
-                    if ($entry === '.' || $entry === '..') continue;
-                    $fullPath = $rawDir . '/' . $entry;
-                    if (!is_file($fullPath)) continue;
-                    if (extractServiceFromFilename($entry) !== $svcKey) continue;
-                    if (preg_match('/\.\d{8}_\d{6}\.bak$/', $entry)) continue;
-                    $ext = strtolower(pathinfo($entry, PATHINFO_EXTENSION));
-                    if (!in_array($ext, ['conf', 'json'])) continue;
-                    $srcFiles[] = [
-                        'file' => $entry,
-                        'size' => filesize($fullPath),
-                        'modified' => date('Y-m-d H:i:s', filemtime($fullPath))
-                    ];
-                }
+            foreach (collectRawConfFilesByService($rawDir, $svcKey) as $sf) {
+                $sfn = $sf->getFilename();
+                if (preg_match('/\.\d{8}_\d{6}\.bak$/', $sfn)) continue;
+                $sfExt = strtolower(pathinfo($sfn, PATHINFO_EXTENSION));
+                if (!in_array($sfExt, ['conf', 'json'])) continue;
+                $srcFiles[] = [
+                    'file' => $sfn,
+                    'size' => $sf->getSize(),
+                    'modified' => date('Y-m-d H:i:s', $sf->getMTime())
+                ];
             }
         }
 
@@ -2687,6 +3858,9 @@ function stageServicesToImportToCore(array $serviceKeys, string $kuerzel, string
  * @return array  {success, data: [...], meta, supplements}
  */
 function stagingLayersFlat($kuerzel = '') {
+    if (useStagingImportDb()) {
+        return stagingLayersFlatDb($kuerzel);
+    }
     $dir = IMPORT_TO_CORE_DIR;
     if (!is_dir($dir)) return ['success' => false, 'error' => 'ImportToCore-Verzeichnis nicht gefunden'];
 
@@ -2870,6 +4044,9 @@ function stagingLayersFlat($kuerzel = '') {
  * Gibt pro Datei den Inhalt als JSON-Objekt zurück, sortiert nach Prefix-Typ.
  */
 function configEditorLoad($kuerzel) {
+    if (useStagingImportDb()) {
+        return configEditorLoadDb($kuerzel);
+    }
     $safe = preg_replace('/[^a-zA-Z0-9_\-]/', '_', trim($kuerzel));
     if ($safe === '') return ['success' => false, 'error' => 'Kürzel darf nicht leer sein'];
 
@@ -2937,7 +4114,10 @@ function configEditorLoad($kuerzel) {
 /**
  * Geänderte Daten eines Dateityps zurück in ImportToCore schreiben.
  */
-function configEditorSave($kuerzel, $fileName, $data) {
+function configEditorSave($kuerzel, $fileName, $data, array $changedKeys = []) {
+    if (useStagingImportDb()) {
+        return configEditorSaveDb($kuerzel, $fileName, $data, $changedKeys);
+    }
     $safe = preg_replace('/[^a-zA-Z0-9_\-]/', '_', trim($kuerzel));
     if ($safe === '') return ['success' => false, 'error' => 'Kürzel darf nicht leer sein'];
     if (strpos($fileName, '..') !== false || strpos($fileName, '/') !== false)
@@ -2968,6 +4148,9 @@ function configEditorSave($kuerzel, $fileName, $data) {
  *   lyrmgrResources_*.json / maptipsResources_*.json → $docRoot/core/nls/de/
  */
 function configExportToCore($kuerzel) {
+    if (useStagingImportDb()) {
+        return configExportToCoreDb($kuerzel);
+    }
     global $docRoot;
     $safe = preg_replace('/[^a-zA-Z0-9_\-]/', '_', trim($kuerzel));
     if ($safe === '') return ['success' => false, 'error' => 'Kürzel darf nicht leer sein'];
@@ -3048,8 +4231,474 @@ function configExportToCore($kuerzel) {
 }
 
 // =====================================================================
-// Lock-Mechanismus
+// DB-Export-Pipeline (export-catalog-artifacts / deploy-catalog-artifacts)
 // =====================================================================
+
+/**
+ * Bestimmt den Deploy-Zielpfad (SFTP) für eine Conf-Datei anhand von Scope und Dateiname.
+ * Gibt null zurück wenn der Dateiname keinem bekannten Bucket entspricht.
+ *
+ * @param string      $filename  Dateiname (z.B. 'layers_ewn.conf')
+ * @param string      $scope     'core', 'sitecore'/'override', 'profile'
+ * @param string|null $profile   Profilname (nur bei scope=profile)
+ * @param bool        $isDev     true = maps-dev, false = maps
+ */
+function catalogArtifactDeployPath(string $filename, string $scope, ?string $profile, bool $isDev): ?string {
+    $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+    if (!in_array($ext, ['conf', 'json'], true)) {
+        return null;
+    }
+
+    $base    = pathinfo($filename, PATHINFO_FILENAME);
+    $isNls   = (strpos($base, 'Resources') !== false);
+    $appSlug = $isDev ? 'maps-dev' : 'maps';
+
+    if ($scope === 'core') {
+        // core(-dev)/config/ oder core(-dev)/nls/de/
+        $coreSlug = 'core'; // DEV und PROD nutzen gleiches /www/core/
+        $dir      = $isNls ? "/www/{$coreSlug}/nls/de/" : "/www/{$coreSlug}/config/";
+    } elseif (in_array($scope, ['sitecore', 'override'], true)) {
+        // maps(-dev)/core/config/ oder maps(-dev)/core/nls/de/
+        $dir = $isNls ? "/www/{$appSlug}/core/nls/de/" : "/www/{$appSlug}/core/config/";
+    } elseif ($scope === 'profile') {
+        $safeProf = preg_replace('/[^a-zA-Z0-9_\-]/', '', $profile ?: 'public');
+        $dir      = ($safeProf === '' || $safeProf === 'public')
+            ? "/www/{$appSlug}/public/config/"
+            : "/www/{$appSlug}/public/config/{$safeProf}/";
+    } else {
+        return null;
+    }
+
+    return $dir . $filename;
+}
+
+/**
+ * Alle DB-Bundle-Dateien in den Staging-Bereich schreiben und ein Deploy-Manifest anlegen.
+ *
+ * Input (JSON-Body):
+ *   scopes    string[]   Zu exportierende Scopes ('core', 'sitecore', 'profile')
+ *                        Fehlt das Feld → alle Scopes
+ *   profile   string     Filter auf einen Profilnamen (optional; bei scope=profile)
+ *   targetEnv string     'dev' oder 'prod' (default: aus APP_BASE_PATH)
+ *   includeNls bool      NLS-Dateien mit exportieren (default: true)
+ *
+ * Output: {runId, createdAt, files[], manifestPath}
+ */
+function exportCatalogArtifacts(array $body): array {
+    $isDev     = (APP_BASE_PATH === '/maps-dev');
+    $targetEnv = isset($body['targetEnv']) ? strtolower(trim($body['targetEnv'])) : ($isDev ? 'dev' : 'prod');
+    $isDeplDev = ($targetEnv === 'dev' || $targetEnv === 'maps-dev');
+    $includeNls = !isset($body['includeNls']) || (bool)$body['includeNls'];
+    $mergeName = preg_replace('/[^a-zA-Z0-9_\-]/', '_', trim((string)($body['mergeName'] ?? '')));
+    $isMergeMode = ($mergeName !== '');
+    $filterScopes = isset($body['scopes']) && is_array($body['scopes'])
+        ? array_map('strtolower', $body['scopes'])
+        : ['core', 'sitecore', 'override', 'profile'];
+    $filterKuerzel = [];
+    if (isset($body['kuerzel'])) {
+        $raw = is_array($body['kuerzel']) ? $body['kuerzel'] : [$body['kuerzel']];
+        foreach ($raw as $k) {
+            $safe = preg_replace('/[^a-zA-Z0-9_\-]/', '', (string)$k);
+            if ($safe !== '') {
+                $filterKuerzel[] = strtolower($safe);
+            }
+        }
+        $filterKuerzel = array_values(array_unique($filterKuerzel));
+    }
+
+    // Alle Bundles laden
+    $bundles = StagingImportRepository::loadAllSafe();
+    if (empty($bundles)) {
+        return ['success' => false, 'error' => 'Keine Bundles in der Datenbank gefunden'];
+    }
+
+    $runId      = date('Ymd_His') . '_' . substr(md5(uniqid('', true)), 0, 6);
+    $createdAt  = date('c');
+    $manifestEntries = [];
+    $written    = 0;
+    $errors     = [];
+    $mergedKuerzel = [];
+    $mergeBuckets = [];
+
+    foreach ($bundles as $bundle) {
+        $scope      = $bundle['scope'] ?? 'core';
+        $profile    = $bundle['profile'] ?? null;
+        $bundleKuerzel = strtolower((string)($bundle['kuerzel'] ?? ''));
+
+        // Scope-Filter
+        if (!in_array($scope, $filterScopes, true)) {
+            continue;
+        }
+        // Optionaler Kürzel-Filter
+        if (!empty($filterKuerzel) && !in_array($bundleKuerzel, $filterKuerzel, true)) {
+            continue;
+        }
+        if ($bundleKuerzel !== '') {
+            $mergedKuerzel[$bundleKuerzel] = true;
+        }
+
+        $files = $bundle['files'] ?? [];
+        foreach ($files as $fileObj) {
+            $filename = $fileObj['name'] ?? '';
+            $content  = $fileObj['data'] ?? null;
+            if ($filename === '' || $content === null) {
+                continue;
+            }
+
+            $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+            if (!in_array($ext, ['conf', 'json'], true)) {
+                continue;
+            }
+
+            // NLS-Filter
+            if (!$includeNls && strpos(pathinfo($filename, PATHINFO_FILENAME), 'Resources') !== false) {
+                continue;
+            }
+
+            // Nur finale Katalog-Dateitypen exportieren; Metadateien still überspringen.
+            $known = ['layers', 'maptips', 'lyrmgrResources', 'maptipsResources', 'legendResources'];
+            $prefix = null;
+            foreach ($known as $pfx) {
+                if (strpos($filename, $pfx . '_') === 0 || strpos($filename, $pfx . '-') === 0) {
+                    $prefix = $pfx;
+                    break;
+                }
+            }
+            if ($prefix === null) {
+                continue;
+            }
+
+            // Merge-Modus: Dateien typbasiert zu einem Zielnamen bündeln
+            if ($isMergeMode) {
+                $targetFilename = $prefix . '_' . $mergeName . '.' . $ext;
+                $mergeKey = $scope . '|' . (string)$profile . '|' . $targetFilename;
+                if (!isset($mergeBuckets[$mergeKey])) {
+                    $mergeBuckets[$mergeKey] = [
+                        'scope' => $scope,
+                        'profile' => $profile,
+                        'filename' => $targetFilename,
+                        'parts' => [],
+                    ];
+                }
+                $mergeBuckets[$mergeKey]['parts'][] = [
+                    'kuerzel' => $bundle['kuerzel'] ?? '',
+                    'content' => $content,
+                ];
+                continue;
+            }
+
+            // Deploy-Zielpfad ermitteln
+            $deployPath = catalogArtifactDeployPath($filename, $scope, $profile, $isDeplDev);
+            if ($deployPath === null) {
+                $errors[] = "Kein Deploy-Pfad für {$filename} (scope={$scope})";
+                continue;
+            }
+
+            // Staged-Pfad: finale Zielstruktur unter config-export spiegeln
+            $deployRelPath = ltrim(preg_replace('#^/www/#', '', $deployPath), '/');
+            $stagedLocalPath = TnetTmpPaths::configExport($deployRelPath);
+            $stagedLocalDir = dirname($stagedLocalPath);
+            if (!is_dir($stagedLocalDir)) {
+                @mkdir($stagedLocalDir, 0775, true);
+            }
+
+            // Inhalt serialisieren
+            if (is_array($content)) {
+                $json = json_encode($content, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+                if ($json === false) {
+                    $errors[] = "JSON-Encode fehlgeschlagen: {$filename}";
+                    continue;
+                }
+                $rawContent = $json;
+            } else {
+                $rawContent = (string)$content;
+            }
+
+            $bytes = @file_put_contents($stagedLocalPath, $rawContent);
+            if ($bytes === false) {
+                $errors[] = "Schreiben fehlgeschlagen: {$stagedLocalPath}";
+                continue;
+            }
+
+            $sha256 = hash('sha256', $rawContent);
+            $manifestEntries[] = [
+                'runId'      => $runId,
+                'kuerzel'    => $bundle['kuerzel'] ?? '',
+                'scope'      => $scope,
+                'profile'    => $profile,
+                'filename'   => $filename,
+                'stagedPath' => toSftpPath($stagedLocalPath),
+                'deployPath' => $deployPath,
+                'sha256'     => $sha256,
+                'bytes'      => $bytes,
+                'revision'   => $bundle['lastImportedAt'] ?? null,
+            ];
+            $written++;
+        }
+    }
+
+    // Merge-Buckets schreiben (wenn mergeName gesetzt)
+    if ($isMergeMode) {
+        foreach ($mergeBuckets as $bucket) {
+            $scope = $bucket['scope'];
+            $profile = $bucket['profile'];
+            $filename = $bucket['filename'];
+            $deployPath = catalogArtifactDeployPath($filename, $scope, $profile, $isDeplDev);
+            if ($deployPath === null) {
+                $errors[] = "Kein Deploy-Pfad für Merge-Datei {$filename}";
+                continue;
+            }
+
+            $mergedAssoc = [];
+            $mergedList = [];
+            $mergedListSeen = [];
+            $hasAssoc = false;
+            $hasList = false;
+            $hasValid = false;
+            foreach ($bucket['parts'] as $part) {
+                $data = $part['content'];
+                if (!is_array($data)) {
+                    $decoded = @json_decode((string)$data, true);
+                    if (!is_array($decoded)) continue;
+                    $data = $decoded;
+                }
+                $hasValid = true;
+                $isAssoc = (!empty($data) && array_keys($data) !== range(0, count($data) - 1));
+                if ($isAssoc) {
+                    $hasAssoc = true;
+                    foreach ($data as $k => $v) {
+                        $mergedAssoc[$k] = $v; // Letzter Wert gewinnt, dadurch keine doppelten Keys.
+                    }
+                } else {
+                    $hasList = true;
+                    foreach ($data as $v) {
+                        if (is_scalar($v) || $v === null) {
+                            $sig = gettype($v) . ':' . (string)$v;
+                        } else {
+                            $sig = json_encode($v, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+                            if ($sig === false) {
+                                $sig = serialize($v);
+                            }
+                        }
+                        if (isset($mergedListSeen[$sig])) continue;
+                        $mergedListSeen[$sig] = true;
+                        $mergedList[] = $v;
+                    }
+                }
+            }
+            if (!$hasValid) {
+                $errors[] = "Merge-Datei ohne gültige Daten: {$filename}";
+                continue;
+            }
+
+            $merged = $hasAssoc ? $mergedAssoc : $mergedList;
+            if ($hasAssoc && $hasList) {
+                foreach ($mergedList as $v) {
+                    $merged[] = $v;
+                }
+            }
+
+            $rawContent = json_encode($merged, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            if ($rawContent === false) {
+                $errors[] = "JSON-Encode fehlgeschlagen (Merge): {$filename}";
+                continue;
+            }
+
+            $deployRelPath = ltrim(preg_replace('#^/www/#', '', $deployPath), '/');
+            $stagedLocalPath = TnetTmpPaths::configExport('merge/' . $mergeName . '/' . $deployRelPath);
+            $stagedLocalDir = dirname($stagedLocalPath);
+            if (!is_dir($stagedLocalDir)) {
+                @mkdir($stagedLocalDir, 0775, true);
+            }
+            $bytes = @file_put_contents($stagedLocalPath, $rawContent);
+            if ($bytes === false) {
+                $errors[] = "Schreiben fehlgeschlagen (Merge): {$stagedLocalPath}";
+                continue;
+            }
+
+            $manifestEntries[] = [
+                'runId'      => $runId,
+                'kuerzel'    => $mergeName,
+                'scope'      => $scope,
+                'profile'    => $profile,
+                'filename'   => $filename,
+                'stagedPath' => toSftpPath($stagedLocalPath),
+                'deployPath' => $deployPath,
+                'sha256'     => hash('sha256', $rawContent),
+                'bytes'      => $bytes,
+                'revision'   => null,
+            ];
+            $written++;
+        }
+    }
+
+    // Manifest schreiben
+    $manifestDir   = TnetTmpPaths::configExport();
+    if (!is_dir($manifestDir)) {
+        @mkdir($manifestDir, 0775, true);
+    }
+    $manifestPath  = $manifestDir . '/deploy-manifest_' . $runId . '.json';
+    $manifest = [
+        'runId'      => $runId,
+        'createdAt'  => $createdAt,
+        'targetEnv'  => $targetEnv,
+        'scopes'     => $filterScopes,
+        'kuerzel'    => $filterKuerzel,
+        'mergeName'  => $isMergeMode ? $mergeName : null,
+        'mergedKuerzel' => array_values(array_keys($mergedKuerzel)),
+        'includeNls' => $includeNls,
+        'files'      => $manifestEntries,
+        'errors'     => $errors,
+    ];
+    @file_put_contents(
+        $manifestPath,
+        json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+    );
+
+    $readmePath = null;
+    if ($isMergeMode) {
+        $readmeLines = [];
+        $readmeLines[] = 'MAP+ Temp-Merge Export';
+        $readmeLines[] = 'RunId: ' . $runId;
+        $readmeLines[] = 'Merge-Name: ' . $mergeName;
+        $readmeLines[] = 'Target: ' . $targetEnv;
+        $readmeLines[] = 'Zeit: ' . $createdAt;
+        $readmeLines[] = '';
+        $readmeLines[] = 'Gemergte Kuerzel:';
+        foreach (array_values(array_keys($mergedKuerzel)) as $mk) {
+            $readmeLines[] = '- ' . $mk;
+        }
+        $readmePath = TnetTmpPaths::configExport('merge/' . $mergeName . '/README.txt');
+        $readmeDir = dirname($readmePath);
+        if (!is_dir($readmeDir)) {
+            @mkdir($readmeDir, 0775, true);
+        }
+        @file_put_contents($readmePath, implode("\n", $readmeLines) . "\n");
+    }
+
+    return [
+        'success'        => count($errors) === 0,
+        'runId'          => $runId,
+        'createdAt'      => $createdAt,
+        'written'        => $written,
+        'errors'         => $errors,
+        'mergeName'      => $isMergeMode ? $mergeName : null,
+        'mergedKuerzel'  => array_values(array_keys($mergedKuerzel)),
+        'readmePath'     => $readmePath ? toSftpPath($readmePath) : null,
+        'manifestPath'   => toSftpPath($manifestPath),
+        'manifestLocal'  => $manifestPath,
+        'files'          => $manifestEntries,
+    ];
+}
+
+/**
+ * Staged Catalog-Artefakte via FastAPI /deploy-staged-conf ans definitive Ziel deployen.
+ *
+ * Input (JSON-Body):
+ *   runId    string  Run-ID aus exportCatalogArtifacts (Manifest-Datei)
+ *   dryRun   bool    Wenn true: nur Manifest auflisten, nicht deployen (default: false)
+ *
+ * Output: {success, runId, deployed[], failed[], dryRun}
+ */
+function deployCatalogArtifacts(array $body): array {
+    $runId  = preg_replace('/[^a-zA-Z0-9_\-]/', '', $body['runId'] ?? '');
+    $dryRun = !empty($body['dryRun']);
+
+    if ($runId === '') {
+        return ['success' => false, 'error' => 'Feld "runId" erforderlich'];
+    }
+
+    // Manifest suchen
+    $manifestDir  = TnetTmpPaths::configExport();
+    $manifestPath = $manifestDir . '/deploy-manifest_' . $runId . '.json';
+    if (!file_exists($manifestPath)) {
+        return ['success' => false, 'error' => 'Manifest nicht gefunden: deploy-manifest_' . $runId . '.json'];
+    }
+    $manifest = json_decode(file_get_contents($manifestPath), true);
+    if (!$manifest || !isset($manifest['files'])) {
+        return ['success' => false, 'error' => 'Manifest ungültig oder leer'];
+    }
+
+    if ($dryRun) {
+        return [
+            'success' => true,
+            'runId'   => $runId,
+            'dryRun'  => true,
+            'files'   => $manifest['files'],
+            'count'   => count($manifest['files']),
+        ];
+    }
+
+    // FastAPI-Endpoint URL ermitteln
+    $target    = $manifest['targetEnv'] ?? (APP_BASE_PATH === '/maps-dev' ? 'dev' : 'prod');
+    $fastapiUrl = AGS_API_BASE . '/deploy-staged-conf?target=' . urlencode($target);
+
+    $deployed = [];
+    $failed   = [];
+
+    foreach ($manifest['files'] as $fileEntry) {
+        $stagedPath = $fileEntry['stagedPath'] ?? '';
+        $deployPath = $fileEntry['deployPath'] ?? '';
+        $filename   = $fileEntry['filename'] ?? '';
+
+        if ($stagedPath === '' || $deployPath === '') {
+            $failed[] = ['filename' => $filename, 'error' => 'stagedPath oder deployPath fehlt'];
+            continue;
+        }
+
+        // FastAPI aufrufen
+        $payload = json_encode(['stagedPath' => $stagedPath, 'deployPath' => $deployPath]);
+        $ch = curl_init($fastapiUrl);
+        curl_setopt_array($ch, [
+            CURLOPT_POST           => true,
+            CURLOPT_POSTFIELDS     => $payload,
+            CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => 30,
+        ]);
+        $response    = curl_exec($ch);
+        $httpCode    = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlError   = curl_error($ch);
+        curl_close($ch);
+
+        if ($curlError) {
+            $failed[] = ['filename' => $filename, 'error' => 'cURL-Fehler: ' . $curlError];
+            continue;
+        }
+
+        $result = @json_decode($response, true);
+        if ($httpCode !== 200 || empty($result['success'])) {
+            $failed[] = [
+                'filename'   => $filename,
+                'httpCode'   => $httpCode,
+                'error'      => ($result['detail'] ?? $result['error'] ?? 'Unbekannter Fehler'),
+                'stagedPath' => $stagedPath,
+                'deployPath' => $deployPath,
+            ];
+            continue;
+        }
+
+        $deployed[] = [
+            'filename'   => $filename,
+            'deployPath' => $deployPath,
+            'bytes'      => $result['data']['bytes'] ?? null,
+            'backup'     => $result['data']['backup'] ?? null,
+        ];
+    }
+
+    return [
+        'success'       => count($failed) === 0,
+        'runId'         => $runId,
+        'dryRun'        => false,
+        'deployed'      => $deployed,
+        'failed'        => $failed,
+        'deployedCount' => count($deployed),
+        'failedCount'   => count($failed),
+        'timestamp'     => date('c'),
+    ];
+}
+
+
 function readLock() {
     if (!file_exists(LOCK_FILE)) return null;
     $data = json_decode(file_get_contents(LOCK_FILE), true);
@@ -3123,12 +4772,25 @@ function saveState($data, $editor) {
         jsonError('Gesperrt von ' . $lock['editor'] . ' — Speichern nicht möglich', 423);
     }
 
-    // Backup erstellen (wenn Datei existiert)
+    // Backup erstellen (wenn Datei existiert) — max. 1× pro 10 Minuten
     if (file_exists(STATE_FILE)) {
-        $ts = date('Ymd_His');
-        $backupFile = BACKUP_DIR . '/state_' . $ts . '.json';
-        @copy(STATE_FILE, $backupFile);
-        cleanupBackups();
+        $doBackup = true;
+        if (is_dir(BACKUP_DIR)) {
+            $existing = glob(BACKUP_DIR . '/state_*.json');
+            if ($existing) {
+                rsort($existing);
+                $lastMtime = filemtime($existing[0]);
+                if ((time() - $lastMtime) < 600) {
+                    $doBackup = false; // Letztes Backup ist jünger als 10 Minuten
+                }
+            }
+        }
+        if ($doBackup) {
+            $ts = date('Ymd_His');
+            $backupFile = BACKUP_DIR . '/state_' . $ts . '.json';
+            @copy(STATE_FILE, $backupFile);
+            cleanupBackups();
+        }
     }
 
     // Metadaten hinzufügen
@@ -3222,6 +4884,7 @@ function listAllBackups() {
             elseif  (preg_match('/^profile_/', $f))             $type = 'profile';
             elseif  (preg_match('/^lyrmgrResources_/', $f))     $type = 'nls';
             elseif  (preg_match('/^legendResources_/', $f))     $type = 'legend';
+            elseif  (preg_match('/^bookmarks_/', $f))           $type = 'bookmarks';
 
             $ts = '';
             if (preg_match('/(\d{8}_\d{6})/', $f, $m)) {
@@ -3443,6 +5106,44 @@ switch ($action) {
         jsonResponse(['success' => true, 'data' => $result]);
         break;
 
+    // ── Manuelles Backup serverseitig erstellen (aus Frontend-State) ──
+    case 'create-backup':
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('POST erforderlich', 405);
+        $body = json_decode(file_get_contents('php://input'), true);
+        if (!$body || !isset($body['data'])) jsonError('Feld data erforderlich', 400);
+        $editor = getEditorName();
+        if (!is_dir(BACKUP_DIR)) @mkdir(BACKUP_DIR, 0775, true);
+        $ts = date('Ymd_His');
+        $safeEditor = preg_replace('/[^a-zA-Z0-9_\-]/', '_', $editor);
+        $filename = 'state_manual_' . $ts . '_' . $safeEditor . '.json';
+        $path = BACKUP_DIR . '/' . $filename;
+        $payload = $body['data'];
+        $payload['_meta'] = [
+            'savedBy'   => $editor,
+            'savedAt'   => date('Y-m-d H:i:s'),
+            'timestamp' => time(),
+            'type'      => 'manual-backup',
+        ];
+        $bytes = file_put_contents($path, json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+        if ($bytes === false) jsonError('Backup konnte nicht gespeichert werden', 500);
+        cleanupBackups();
+        jsonResponse(['success' => true, 'data' => ['file' => $filename, 'bytes' => $bytes]]);
+        break;
+
+    // ── Backup nur lesen (in Memory laden, ohne STATE_FILE zu überschreiben) ──
+    case 'load-backup':
+        $file = $_GET['file'] ?? '';
+        if (!$file) jsonError('Parameter file= erforderlich', 400);
+        $safeName = basename($file);
+        if (strpos($safeName, '..') !== false) jsonError('Ungültiger Dateiname', 400);
+        $path = BACKUP_DIR . '/' . $safeName;
+        if (!file_exists($path)) jsonError('Backup nicht gefunden: ' . $safeName, 404);
+        $content = file_get_contents($path);
+        $data = json_decode($content, true);
+        if (!$data) jsonError('Backup-Datei ungültig (kein gültiges JSON)', 400);
+        jsonResponse(['success' => true, 'data' => ['file' => $safeName, 'state' => $data]]);
+        break;
+
     // ── Backup(s) löschen ──
     case 'delete-backup':
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('POST erforderlich', 405);
@@ -3556,6 +5257,33 @@ switch ($action) {
             jsonError($result['error'], 500);
         }
         jsonResponse(['success' => true, 'data' => $result]);
+        break;
+
+    case 'lyrmgr-draft-status':
+        $profile = $_GET['profile'] ?? '';
+        if (!$profile) jsonError('Parameter profile= erforderlich', 400);
+        $result = getLyrmgrDraftStatus($profile);
+        jsonResponse(['success' => true, 'data' => $result]);
+        break;
+
+    case 'catalog-publish-status':
+        // Liefert Revision + Bearbeiter aus dem publizierten catalog_document.
+        // Wird vom Frontend für Live-Polling verwendet: wenn Revision steigt,
+        // hat ein anderer Benutzer publiziert → automatisch neu laden.
+        $profile = $_GET['profile'] ?? '';
+        if (!$profile) jsonError('Parameter profile= erforderlich', 400);
+        require_once __DIR__ . '/../includes/CatalogRepository.php';
+        try {
+            $doc = CatalogRepository::loadProfile($profile);
+            jsonResponse(['success' => true, 'data' => [
+                'exists'    => (bool)$doc['exists'],
+                'revision'  => (int)$doc['revision'],
+                'updatedBy' => $doc['updatedBy'] ?? null,
+                'updatedAt' => $doc['updatedAt'] ?? null,
+            ]]);
+        } catch (\Throwable $e) {
+            jsonResponse(['success' => false, 'error' => $e->getMessage()]);
+        }
         break;
 
     case 'publish-lyrmgr':
@@ -4426,10 +6154,40 @@ switch ($action) {
         break;
 
     case 'staging-delete-output':
+        // DB-Aenderung: fuer eingeloggte Benutzer erlaubt (kein Admin noetig).
+        // Massen-Import (admin.php) und Export (config-export-to-core) bleiben Admin.
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('POST required', 405);
         $body = json_decode(file_get_contents('php://input'), true);
         if (!$body || !isset($body['kuerzel'])) jsonError('Feld "kuerzel" (Array) erforderlich', 400);
         jsonResponse(['success' => true, 'data' => deleteImportToCoreKuerzel($body['kuerzel'])]);
+        break;
+
+    case 'staging-restage':
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('POST required', 405);
+        $body = json_decode(file_get_contents('php://input'), true);
+        if (!$body || !isset($body['kuerzel'])) jsonError('Feld "kuerzel" erforderlich', 400);
+        $result = restageKuerzelDb($body['kuerzel']);
+        if (!$result['success']) jsonError($result['error'], 400);
+        jsonResponse(['success' => true, 'data' => $result]);
+        break;
+
+    case 'staging-add-tag':
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('POST required', 405);
+        $body = json_decode(file_get_contents('php://input'), true);
+        if (!$body || !isset($body['kuerzel']) || !isset($body['tag'])) jsonError('Felder "kuerzel" und "tag" erforderlich', 400);
+        $result = StagingImportRepository::addTag($body['kuerzel'], $body['tag']);
+        if (!$result['success']) jsonError($result['error'], 400);
+        jsonResponse(['success' => true, 'data' => $result]);
+        break;
+
+    case 'staging-delete-tag':
+        // Einzelnen Tag loeschen: fuer eingeloggte Benutzer erlaubt (kein Admin noetig).
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('POST required', 405);
+        $body = json_decode(file_get_contents('php://input'), true);
+        if (!$body || !isset($body['tag'])) jsonError('Feld "tag" erforderlich', 400);
+        $result = StagingImportRepository::removeTagEverywhere($body['tag']);
+        if (!$result['success']) jsonError($result['error'], 400);
+        jsonResponse(['success' => true, 'data' => $result]);
         break;
 
     case 'ags-stage-merge':
@@ -4442,7 +6200,9 @@ switch ($action) {
             jsonError('services muss ein nicht-leeres Array sein', 400);
         }
         $mode = isset($body['mode']) ? $body['mode'] : 'replace';
-        $result = stageServicesToImportToCore($body['services'], $body['kuerzel'], $mode);
+        $scope = isset($body['scope']) ? (string)$body['scope'] : 'core';
+        $profile = isset($body['profile']) && $body['profile'] !== '' ? (string)$body['profile'] : null;
+        $result = stageServicesToImportToCore($body['services'], $body['kuerzel'], $mode, $scope, $profile);
         if (!$result['success']) jsonError($result['error'], 400);
         jsonResponse(['success' => true, 'data' => $result]);
         break;
@@ -4469,12 +6229,14 @@ switch ($action) {
         if (!$body || !isset($body['kuerzel']) || !isset($body['file']) || !isset($body['data'])) {
             jsonError('Felder "kuerzel", "file" und "data" erforderlich', 400);
         }
-        $result = configEditorSave($body['kuerzel'], $body['file'], $body['data']);
+        $changedKeys = isset($body['changedKeys']) && is_array($body['changedKeys']) ? $body['changedKeys'] : [];
+        $result = configEditorSave($body['kuerzel'], $body['file'], $body['data'], $changedKeys);
         if (!$result['success']) jsonError($result['error'], 400);
         jsonResponse(['success' => true, 'data' => $result]);
         break;
 
     case 'config-export-to-core':
+        requireAdminAction();
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('POST required', 405);
         $body = json_decode(file_get_contents('php://input'), true);
         if (!$body || !isset($body['kuerzel'])) {
@@ -4483,6 +6245,23 @@ switch ($action) {
         $result = configExportToCore($body['kuerzel']);
         if (!$result['success']) jsonError($result['error'], 500);
         jsonResponse(['success' => true, 'data' => $result]);
+        break;
+
+    case 'export-catalog-artifacts':
+        requireAdminAction();
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('POST required', 405);
+        $body = json_decode(file_get_contents('php://input'), true) ?: [];
+        $result = exportCatalogArtifacts($body);
+        jsonResponse(['success' => $result['success'] ?? false, 'data' => $result]);
+        break;
+
+    case 'deploy-catalog-artifacts':
+        requireAdminAction();
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('POST required', 405);
+        $body = json_decode(file_get_contents('php://input'), true);
+        if (!$body || !isset($body['runId'])) jsonError('Feld "runId" erforderlich', 400);
+        $result = deployCatalogArtifacts($body);
+        jsonResponse(['success' => $result['success'] ?? false, 'data' => $result]);
         break;
 
     // ── Core-Config Import (Produktiv → raw-conf) ──
@@ -4501,6 +6280,88 @@ switch ($action) {
         $result = importCoreToRawConf($body['kuerzel']);
         if (!$result['success']) jsonError($result['error'], 500);
         jsonResponse(['success' => true, 'data' => $result]);
+        break;
+
+    case 'debug-layer-source':
+        // Diagnostiziert welche Quelle list-all-layers verwendet und warum
+        $profile = $_GET['profile'] ?? 'public';
+        $bundles = StagingImportRepository::loadAll();
+        $bundleSummary = [];
+        $dbHasLayersCheck = false;
+        foreach ($bundles as $bundle) {
+            $bScope = $bundle['scope'] ?? 'core';
+            $layerFiles = [];
+            foreach (($bundle['files'] ?? []) as $file) {
+                $prefix = $file['prefix'] ?? '';
+                $data = $file['data'] ?? null;
+                $isAssoc = is_array($data) && !empty($data) && array_keys($data) !== range(0, count($data) - 1);
+                if ($prefix === 'layers' && $isAssoc) {
+                    $dbHasLayersCheck = true;
+                    $layerFiles[] = ['name' => $file['name'] ?? '', 'keys' => count($data)];
+                }
+            }
+            $bundleSummary[] = [
+                'kuerzel' => $bundle['kuerzel'],
+                'scope' => $bScope,
+                'profile' => $bundle['profile'] ?? null,
+                'fileCount' => count($bundle['files'] ?? []),
+                'layerFiles' => $layerFiles,
+            ];
+        }
+        jsonResponse(['success' => true, 'data' => [
+            'bundleCount' => count($bundles),
+            'dbHasLayers' => $dbHasLayersCheck,
+            'useStagingImportDb' => useStagingImportDb(),
+            'dbActive' => useStagingImportDb(),
+            'fallbackTriggered' => !$dbHasLayersCheck,
+            'bundles' => $bundleSummary,
+        ]]);
+        break;
+
+    case 'debug-manifest':
+        $kuerzel = $_GET['kuerzel'] ?? '';
+        if (!$kuerzel) jsonError('Parameter kuerzel= erforderlich', 400);
+        $safe = preg_replace('/[^a-zA-Z0-9_\-]/', '_', trim($kuerzel));
+        $bundle = StagingImportRepository::loadBundle($safe);
+        $rawDir = getWritableRawConfDir();
+        if ($rawDir === false) $rawDir = RAW_CONF_DIR;
+        $sourceChecks = [];
+        if ($bundle && !empty($bundle['manifest']['sources'])) {
+            foreach ($bundle['manifest']['sources'] as $src) {
+                $svcKey = $src['service'];
+                $candidates = [$rawDir . '/' . $svcKey];
+                foreach (rawConfSourceBuckets() as $bucket) {
+                    $candidates[] = $rawDir . '/' . $bucket . '/' . $svcKey;
+                    $bucketDir = $rawDir . '/' . $bucket;
+                    if (is_dir($bucketDir)) {
+                        foreach (@scandir($bucketDir) ?: [] as $sub) {
+                            if ($sub === '.' || $sub === '..') continue;
+                            if (is_dir($bucketDir . '/' . $sub)) {
+                                $candidates[] = $bucketDir . '/' . $sub . '/' . $svcKey;
+                            }
+                        }
+                    }
+                }
+                $resolved = null;
+                $checkedPaths = [];
+                foreach ($candidates as $c) {
+                    $checkedPaths[] = ['path' => $c, 'exists' => is_dir($c)];
+                    if ($resolved === null && is_dir($c)) $resolved = $c;
+                }
+                $sourceChecks[] = [
+                    'service' => $svcKey,
+                    'resolved' => $resolved,
+                    'sourceFiles' => $src['sourceFiles'] ?? [],
+                    'checkedPaths' => $checkedPaths,
+                ];
+            }
+        }
+        jsonResponse(['success' => true, 'data' => [
+            'kuerzel' => $safe,
+            'rawDir' => $rawDir,
+            'manifest' => $bundle['manifest'] ?? null,
+            'sourceChecks' => $sourceChecks,
+        ]]);
         break;
 
     case 'debug-rawconf':
@@ -4588,6 +6449,7 @@ switch ($action) {
         jsonResponse(['success' => true, 'data' => [
             'environment' => APP_BASE_PATH === '/maps-dev' ? 'dev' : 'prod',
             'appBasePath' => APP_BASE_PATH,
+            'dbActive' => useStagingImportDb(),
             'paths' => [
                 runtimePathInfo('App Webroot', APP_WEB_ROOT),
                 runtimePathInfo('Core Config', CORE_CONFIG_DIR),
@@ -4603,6 +6465,36 @@ switch ($action) {
             ],
             'dbSchema' => class_exists('Database') ? Database::getSchema() : null,
         ]]);
+        break;
+
+    // ── Sync: Status-Überblick DEV ↔ PROD ──
+    case 'sync-status':
+        require_once __DIR__ . '/../includes/SyncRepository.php';
+        try {
+            $status = SyncRepository::getStatus();
+            jsonResponse(['success' => true, 'data' => $status]);
+        } catch (\Throwable $e) {
+            jsonError('Sync-Status Fehler: ' . $e->getMessage(), 500);
+        }
+        break;
+
+    // ── Sync: Operation ausführen ──
+    case 'sync-execute':
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('POST erwartet', 405);
+        $syncBody = json_decode(file_get_contents('php://input'), true);
+        if (!$syncBody) jsonError('Ungültiger JSON-Body', 400);
+        $syncDomain    = $syncBody['domain']    ?? '';
+        $syncDirection = $syncBody['direction'] ?? '';
+        $syncKeys      = isset($syncBody['keys']) && is_array($syncBody['keys']) ? $syncBody['keys'] : null;
+        $syncUser      = $syncBody['user'] ?? (getEditorName() ?: 'anonym');
+        if (!$syncDomain || !$syncDirection) jsonError('domain und direction erforderlich', 400);
+        require_once __DIR__ . '/../includes/SyncRepository.php';
+        try {
+            $syncResult = SyncRepository::execute($syncDomain, $syncDirection, $syncKeys, $syncUser);
+            jsonResponse(['success' => true, 'data' => $syncResult, 'domain' => $syncDomain, 'direction' => $syncDirection]);
+        } catch (\Throwable $e) {
+            jsonError('Sync-Fehler: ' . $e->getMessage(), 500);
+        }
         break;
 
     // ── Deployed-Conf: Einzelne Datei lesen (für Editor-Ansicht) ──
@@ -5240,6 +7132,33 @@ switch ($action) {
     // =================================================================
     case 'bookmarks-load':
         require_once __DIR__ . '/../includes/BookmarkNormalizer.php';
+        require_once __DIR__ . '/../includes/ConfigSource.php';
+
+        // DB-first: bei configSource=db aus der Staging-DB lesen.
+        // Bei DB-Ausfall faellt der Code (sofern fallbackToFiles aktiv) auf die
+        // bestehende Datei-Logik unten zurueck.
+        if (ConfigSource::useDb('bookmarks')) {
+            require_once __DIR__ . '/../includes/BookmarkRepository.php';
+            try {
+                $bm   = BookmarkRepository::loadAll();
+                $lock = BookmarkRepository::lockStatus();
+                jsonResponse([
+                    'success'       => true,
+                    'data'          => $bm['data'],
+                    'count'         => count($bm['data']),
+                    'source'        => 'db',
+                    'revision'      => $bm['revision'],
+                    'lock'          => $lock,
+                    'schemaVersion' => 2
+                ]);
+            } catch (\Throwable $e) {
+                if (!ConfigSource::fallbackEnabled()) {
+                    jsonError('Bookmarks-DB nicht verfuegbar: ' . $e->getMessage(), 500);
+                }
+                error_log('bookmarks-load: DB-Fallback auf Datei: ' . $e->getMessage());
+                // weiter mit Datei-Logik unten
+            }
+        }
 
         $bmDraftDir    = TNET_TMP_ROOT . '/bookmarks';
         $bmDraftFile   = $bmDraftDir . '/map-bookmarks-all.json';
@@ -5297,6 +7216,7 @@ switch ($action) {
 
     case 'bookmarks-save':
         require_once __DIR__ . '/../includes/BookmarkNormalizer.php';
+        require_once __DIR__ . '/../includes/ConfigSource.php';
 
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             jsonError('POST erwartet', 405);
@@ -5305,12 +7225,72 @@ switch ($action) {
         if ($body === false || trim($body) === '') {
             jsonError('Leerer Request-Body', 400);
         }
-        $data = json_decode($body, true);
-        if ($data === null && json_last_error() !== JSON_ERROR_NONE) {
+        $decoded = json_decode($body, true);
+        if ($decoded === null && json_last_error() !== JSON_ERROR_NONE) {
             jsonError('Ungültiges JSON: ' . json_last_error_msg(), 400);
         }
-        if (!is_array($data)) {
+
+        // Body kann ein reines Array (Legacy) oder ein Objekt mit Metadaten sein:
+        //   { bookmarks: [...], revision: <int>, user: '<name>' }
+        $bmRevision = null;
+        $bmUser     = null;
+        if (is_array($decoded) && isset($decoded['bookmarks']) && is_array($decoded['bookmarks'])) {
+            $data       = $decoded['bookmarks'];
+            $bmRevision = isset($decoded['revision']) ? (int)$decoded['revision'] : null;
+            $bmUser     = isset($decoded['user']) ? (string)$decoded['user'] : null;
+        } elseif (is_array($decoded)) {
+            $data = $decoded;
+        } else {
             jsonError('Array erwartet', 400);
+        }
+        if ($bmUser === null && isset($_GET['user'])) {
+            $bmUser = (string)$_GET['user'];
+        }
+
+        // DB-first: bei configSource=db in die Staging-DB speichern (Optimistic Locking).
+        if (ConfigSource::useDb('bookmarks')) {
+            require_once __DIR__ . '/../includes/BookmarkRepository.php';
+            try {
+                $res = BookmarkRepository::saveAll($data, $bmRevision, $bmUser);
+                if (!empty($res['conflict'])) {
+                    jsonResponse([
+                        'success'       => false,
+                        'conflict'      => true,
+                        'message'       => 'Versionskonflikt: Die Bookmarks wurden zwischenzeitlich geändert. Bitte Stand vergleichen.',
+                        'revision'      => $res['revision'],
+                        'serverData'    => $res['serverData'],
+                        'count'         => $res['count'],
+                        'schemaVersion' => 2
+                    ], 409);
+                }
+
+                // Draft-Datei als Export aktualisieren, damit die bestehende
+                // SFTP-Deploy-Pipeline (FastAPI /deploy-bookmarks) unveraendert
+                // den korrekten Stand publiziert.
+                $exportList = BookmarkNormalizer::normalizeAll($data);
+                $bmDraftDir = TNET_TMP_ROOT . '/bookmarks';
+                if (!is_dir($bmDraftDir)) { @mkdir($bmDraftDir, 0775, true); }
+                @file_put_contents(
+                    $bmDraftDir . '/map-bookmarks-all.json',
+                    json_encode($exportList, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+                    LOCK_EX
+                );
+
+                jsonResponse([
+                    'success'       => true,
+                    'message'       => 'Bookmarks gespeichert (DB)',
+                    'count'         => $res['count'],
+                    'revision'      => $res['revision'],
+                    'source'        => 'db',
+                    'schemaVersion' => 2
+                ]);
+            } catch (\Throwable $e) {
+                if (!ConfigSource::fallbackEnabled()) {
+                    jsonError('Bookmarks-DB Speichern fehlgeschlagen: ' . $e->getMessage(), 500);
+                }
+                error_log('bookmarks-save: DB-Fallback auf Datei: ' . $e->getMessage());
+                // weiter mit Datei-Logik unten
+            }
         }
 
         // Normalisiere alles auf v2 — Editor darf gemischtes oder unvollständiges Format senden.
@@ -5339,6 +7319,189 @@ switch ($action) {
             'bytes'         => $written,
             'schemaVersion' => 2
         ]);
+        break;
+
+    // =================================================================
+    // BOOKMARKS — Soft-Lock (UI-Hinweis fuer Mehrbenutzer-Editing)
+    // =================================================================
+
+    case 'bookmarks-backup-create':
+        // Explizit ausgelöstes Backup (via UI-Button) — sichert aktuellen DB/Datei-Stand
+        require_once __DIR__ . '/../includes/BookmarkNormalizer.php';
+        require_once __DIR__ . '/../includes/ConfigSource.php';
+        $backupUser  = (string)($_GET['user'] ?? json_decode(file_get_contents('php://input') ?: '{}', true)['user'] ?? 'anonym');
+        $backupLabel = preg_replace('/[^a-zA-Z0-9_\-]/', '', $backupUser ?: 'anonym');
+        $bmData = [];
+        if (ConfigSource::useDb('bookmarks')) {
+            require_once __DIR__ . '/../includes/BookmarkRepository.php';
+            try {
+                $bm = BookmarkRepository::loadAll();
+                $bmData = $bm['data'] ?? [];
+            } catch (\Throwable $e) { /* Fallback auf Datei */ }
+        }
+        if (empty($bmData)) {
+            $bmDraftFile = TNET_TMP_ROOT . '/bookmarks/map-bookmarks-all.json';
+            if (file_exists($bmDraftFile)) {
+                $raw = @file_get_contents($bmDraftFile);
+                if ($raw !== false) $bmData = json_decode($raw, true) ?: [];
+            }
+        }
+        $bmData = BookmarkNormalizer::normalizeAll(is_array($bmData) ? $bmData : []);
+        ensureDirs();
+        $ts = date('Ymd_His');
+        $backupPath = BACKUP_DIR . '/bookmarks_' . $backupLabel . '_' . $ts . '.json';
+        $json = json_encode($bmData, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        $written = @file_put_contents($backupPath, $json);
+        if ($written === false) jsonError('Backup konnte nicht geschrieben werden: ' . $backupPath, 500);
+        jsonResponse([
+            'success'    => true,
+            'file'       => basename($backupPath),
+            'count'      => count($bmData),
+            'bytes'      => $written,
+            'timestamp'  => $ts,
+            'user'       => $backupUser
+        ]);
+        break;
+
+    case 'restore-bookmark-backup':
+        // Lädt ein Bookmark-Backup als JSON-Array zurück an den Client (kein Server-Restore)
+        require_once __DIR__ . '/../includes/BookmarkNormalizer.php';
+        $bmBackupFile = $_GET['file'] ?? '';
+        if (!$bmBackupFile || strpos($bmBackupFile, '..') !== false || strpos($bmBackupFile, '/') !== false) {
+            jsonError('Ungültiger Dateiname', 400);
+        }
+        $bmBackupPath = BACKUP_DIR . '/' . $bmBackupFile;
+        if (!file_exists($bmBackupPath)) jsonError('Backup nicht gefunden: ' . $bmBackupFile, 404);
+        $raw = @file_get_contents($bmBackupPath);
+        if ($raw === false) jsonError('Lesefehler: ' . $bmBackupFile, 500);
+        $parsed = json_decode($raw, true);
+        if (!is_array($parsed)) jsonError('Ungültiges JSON im Backup', 400);
+        $normalized = BookmarkNormalizer::normalizeAll($parsed);
+        jsonResponse(['success' => true, 'data' => $normalized, 'count' => count($normalized), 'file' => $bmBackupFile]);
+        break;
+
+    case 'bookmarks-lock-status':
+        require_once __DIR__ . '/../includes/ConfigSource.php';
+        if (!ConfigSource::useDb('bookmarks')) {
+            jsonResponse(['success' => true, 'lock' => null, 'source' => 'files']);
+        }
+        require_once __DIR__ . '/../includes/BookmarkRepository.php';
+        try {
+            jsonResponse([
+                'success' => true,
+                'lock'    => BookmarkRepository::lockStatus(),
+                'source'  => 'db'
+            ]);
+        } catch (\Throwable $e) {
+            jsonError('Lock-Status nicht verfuegbar: ' . $e->getMessage(), 500);
+        }
+        break;
+
+    case 'bookmarks-lock':
+        require_once __DIR__ . '/../includes/ConfigSource.php';
+        if (!ConfigSource::useDb('bookmarks')) {
+            jsonResponse(['success' => true, 'locked' => true, 'mine' => true, 'source' => 'files']);
+        }
+        require_once __DIR__ . '/../includes/BookmarkRepository.php';
+        $lockBody = json_decode(file_get_contents('php://input'), true);
+        $lockUser = is_array($lockBody) && isset($lockBody['user'])
+            ? (string)$lockBody['user']
+            : (string)($_GET['user'] ?? 'unbekannt');
+        try {
+            $lock = BookmarkRepository::acquireLock($lockUser);
+            jsonResponse(['success' => true] + $lock + ['source' => 'db']);
+        } catch (\Throwable $e) {
+            jsonError('Lock konnte nicht gesetzt werden: ' . $e->getMessage(), 500);
+        }
+        break;
+
+    case 'bookmarks-unlock':
+        require_once __DIR__ . '/../includes/ConfigSource.php';
+        if (!ConfigSource::useDb('bookmarks')) {
+            jsonResponse(['success' => true, 'released' => true, 'source' => 'files']);
+        }
+        require_once __DIR__ . '/../includes/BookmarkRepository.php';
+        $unlockBody = json_decode(file_get_contents('php://input'), true);
+        $unlockUser = is_array($unlockBody) && isset($unlockBody['user'])
+            ? (string)$unlockBody['user']
+            : (string)($_GET['user'] ?? 'unbekannt');
+        try {
+            $rel = BookmarkRepository::releaseLock($unlockUser);
+            jsonResponse(['success' => true] + $rel + ['source' => 'db']);
+        } catch (\Throwable $e) {
+            jsonError('Lock konnte nicht freigegeben werden: ' . $e->getMessage(), 500);
+        }
+        break;
+
+    // =================================================================
+    // BOOKMARKS — Publish (DB -> deployte Laufzeit-Datei) /
+    //             Checkout (deployte Datei -> DB-Stage)
+    // Interim-Stand fuer den Pilot: Files bleiben Laufzeit-/Legacy-Export,
+    // bis das schemabasierte Stage->Prod-Promote (Phase 3) steht.
+    // =================================================================
+    case 'bookmarks-publish':
+        require_once __DIR__ . '/../includes/ConfigSource.php';
+        require_once __DIR__ . '/../includes/BookmarkNormalizer.php';
+        if (!ConfigSource::useDb('bookmarks')) {
+            jsonError('Publish ist nur im DB-Modus verfuegbar (configSource.bookmarks=db).', 400);
+        }
+        require_once __DIR__ . '/../includes/BookmarkRepository.php';
+        try {
+            $bm   = BookmarkRepository::loadAll();
+            $list = BookmarkNormalizer::normalizeAll($bm['data']);
+            $bmDeployedFile = APP_WEB_ROOT . '/tnet/data/map-bookmarks-all.json';
+            if (file_exists($bmDeployedFile)) {
+                @copy($bmDeployedFile, $bmDeployedFile . '.' . date('Ymd_His') . '.bak');
+            }
+            $json = json_encode($list, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            $written = @file_put_contents($bmDeployedFile, $json, LOCK_EX);
+            if ($written === false) {
+                jsonError('Konnte Laufzeit-Datei nicht schreiben (ggf. via SFTP deployen): ' . $bmDeployedFile, 500);
+            }
+            jsonResponse([
+                'success'  => true,
+                'message'  => 'Bookmarks publiziert (DB -> Laufzeit-Datei)',
+                'count'    => count($list),
+                'bytes'    => $written,
+                'revision' => $bm['revision']
+            ]);
+        } catch (\Throwable $e) {
+            jsonError('Publish fehlgeschlagen: ' . $e->getMessage(), 500);
+        }
+        break;
+
+    case 'bookmarks-checkout':
+        require_once __DIR__ . '/../includes/ConfigSource.php';
+        require_once __DIR__ . '/../includes/BookmarkNormalizer.php';
+        if (!ConfigSource::useDb('bookmarks')) {
+            jsonError('Checkout ist nur im DB-Modus verfuegbar (configSource.bookmarks=db).', 400);
+        }
+        require_once __DIR__ . '/../includes/BookmarkRepository.php';
+        $coBody = json_decode(file_get_contents('php://input'), true);
+        $coUser = is_array($coBody) && isset($coBody['user'])
+            ? (string)$coBody['user']
+            : (string)($_GET['user'] ?? 'checkout');
+        $bmDeployedFile = APP_WEB_ROOT . '/tnet/data/map-bookmarks-all.json';
+        if (!file_exists($bmDeployedFile)) {
+            jsonError('Keine Laufzeit-Datei zum Checkout gefunden: ' . $bmDeployedFile, 404);
+        }
+        $coRaw = @file_get_contents($bmDeployedFile);
+        $coData = json_decode($coRaw !== false ? $coRaw : '', true);
+        if (!is_array($coData)) {
+            jsonError('Laufzeit-Datei ist kein gueltiges JSON-Array', 422);
+        }
+        try {
+            // Optimistic-Check bewusst uebersprungen (bewusster Reset aus Prod-Stand)
+            $res = BookmarkRepository::saveAll($coData, null, $coUser);
+            jsonResponse([
+                'success'  => true,
+                'message'  => 'Bookmarks aus Laufzeit-Datei in DB uebernommen (Checkout)',
+                'count'    => $res['count'],
+                'revision' => $res['revision']
+            ]);
+        } catch (\Throwable $e) {
+            jsonError('Checkout fehlgeschlagen: ' . $e->getMessage(), 500);
+        }
         break;
 
     // ── Dienst-Verfügbarkeit prüfen (Verify) ──
@@ -5492,7 +7655,7 @@ switch ($action) {
             'data' => [
                 'name'    => 'Tree-Builder Persistence API',
                 'version' => '3.2',
-                'actions' => ['load', 'save', 'lock', 'unlock', 'lock-status', 'history', 'restore', 'save-groups', 'load-groups', 'save-profile', 'load-profile', 'list-profiles', 'load-lyrmgr', 'save-lyrmgr-draft', 'publish-lyrmgr', 'list-lyrmgr-profiles', 'list-all-layers', 'deploy-lyrmgr', 'ags-services', 'ags-export', 'ags-list-raw', 'ags-delete-raw', 'ags-delete-backups', 'ags-read-raw', 'ags-write-raw', 'staging-layers-flat', 'config-editor-load', 'config-editor-save', 'config-export-to-core', 'core-list-sources', 'core-import', 'qgis-list-projects', 'qgis-capabilities', 'legend-tuner-load', 'legend-tuner-save', 'bookmarks-load', 'bookmarks-save'],
+                'actions' => ['load', 'save', 'lock', 'unlock', 'lock-status', 'history', 'restore', 'save-groups', 'load-groups', 'save-profile', 'load-profile', 'list-profiles', 'load-lyrmgr', 'save-lyrmgr-draft', 'publish-lyrmgr', 'list-lyrmgr-profiles', 'list-all-layers', 'deploy-lyrmgr', 'ags-services', 'ags-export', 'ags-list-raw', 'ags-delete-raw', 'ags-delete-backups', 'ags-read-raw', 'ags-write-raw', 'staging-layers-flat', 'config-editor-load', 'config-editor-save', 'config-export-to-core', 'export-catalog-artifacts', 'deploy-catalog-artifacts', 'core-list-sources', 'core-import', 'qgis-list-projects', 'qgis-capabilities', 'legend-tuner-load', 'legend-tuner-save', 'bookmarks-load', 'bookmarks-save'],
                 'storage' => DATA_DIR
             ]
         ]);

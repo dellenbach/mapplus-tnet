@@ -20,7 +20,7 @@ Options +FollowSymLinks -MultiViews
 RewriteEngine On
 
 # Admin-HTML-Seiten → PHP-Gate (Cookie-Auth)
-RewriteRule ^(slm|ags-import|tree-builder|dev-test|tree-test)\.html$ admin-gate.php?page=$1 [L,QSA]
+RewriteRule ^(slm|ags-import|tree-builder|dev-test|tree-test|prod-sync|config-db-admin)\.html$ admin-gate.php?page=$1 [L,QSA]
 
 # Wenn die angeforderte Datei/Ordner existiert → nichts tun
 RewriteCond %{REQUEST_FILENAME} -f [OR]

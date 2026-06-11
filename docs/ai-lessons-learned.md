@@ -1,3 +1,300 @@
+## 2026-06-11 — SLM zeigte im ausgeloggten Zustand keinen sichtbaren Login-CTA
+
+- **Symptom:** Im SLM-Header erschien bei fehlender Anmeldung weder Benutzerinfo noch ein Login-Button; die Toolbar wirkte leer.
+- **Root-Cause:** `slm.html` blendete nur den eingeloggten Benutzerbereich dynamisch ein, hatte aber keinen expliziten Fallback-CTA fuer den ausgeloggten Zustand.
+- **Fix:** Statischen `Login`-Link im Header ergänzt und per JS sauber zwischen `Login` sowie Benutzer/`Abmelden` umgeschaltet; Redirect-URL wird dynamisch aus aktueller URL inkl. Hash aufgebaut.
+- **Guardrail:** Bei Auth-abhängigen Headern immer beide Zustände explizit rendern: eingeloggter Zustand und ausgeloggter CTA.
+
+## 2026-06-11 — Themenkatalog-Filter zeigte leere Oberknoten und kein klares Aktiv-Feedback
+
+- **Symptom:** Bei aktivem Suchfilter blieben leere Gruppen/Subkategorien sichtbar; das Filterfeld war nicht klar als aktiv markiert.
+- **Root-Cause:** Die Parent-Sichtbarkeit wurde über fragile CSS-String-Selektoren (`style*="display:none"`) bestimmt; dadurch wurden leere Oberknoten nicht zuverlässig ausgeblendet.
+- **Fix:** Filterlogik auf robuste Sichtbarkeitsprüfung via direkte Kindknoten (`style.display !== 'none'`) umgestellt, aktive Filter-Markierung (`lm-search-active`) ergänzt und X-Button-Interaktion abgesichert.
+- **Guardrail:** Bei Baumfiltern Parent-Sichtbarkeit immer daten-/zustandsbasiert berechnen (nicht über CSS-String-Matching), und aktiven Filterzustand visuell eindeutig kennzeichnen.
+
+## 2026-06-11 — Kategorie-Icons zeigten keinen Hover-Text mit den gewünschten Aliasen
+
+- **Symptom:** Beim Hover über die Kategorie-Icons im neuen Themenkatalog wurde kein bzw. kein gewünschter Alias-Text angezeigt.
+- **Root-Cause:** In `tnet-lm-tree.js` wurden die Tabs/Icons ohne `title`-Attribut gerendert; dadurch war kein Browser-Tooltip vorhanden.
+- **Fix:** Alias-Mapping pro Kategorie ergänzt und `title`/`alt` beim Rendern der Tab-Icons auf Alias (Fallback `cat.alias`/`cat.name`) gesetzt.
+- **Guardrail:** Bei reinen Icon-Tabs immer explizit einen semantischen Tooltip (`title`) und einen aussagekräftigen `alt`-Text setzen.
+
+## 2026-06-11 — DOM-Element entfernt aber addEventListener-Aufruf vergessen
+
+- **Symptom:** Seite/iframe lädt nicht mehr, JS komplett stumm.
+- **Root-Cause:** `document.getElementById('removed-btn').addEventListener(...)` wirft `TypeError: null` und crasht den gesamten Init-Block.
+- **Fix:** Immer null-safe: `var btn = getElementById('x'); if (btn) btn.addEventListener(...)`.
+- **Guardrail:** Beim Entfernen von HTML-Elementen immer grep nach dem `id=` im JS machen und alle Listener null-safe stellen.
+
+## 2026-06-11 — Modaldialoge schliessen bei Text-Selektion in Input-Feldern
+
+- **Symptom:** Beim Versuch, Text in Input/Textarea-Feldern eines Dialogs mit der Maus zu markieren, schloss sich der Dialog spontan.
+- **Root-Cause:** Event-Bubbling: Clicks auf Input-Felder bubbelten bis zu Overlay-Click-Handlern, die den Dialog schlossen (obwohl die Handler korrekt `e.target === this` prüften, feuerte ein nachgelagerter Handler oder die Bubbling-Phase selbst das Close aus).
+- **Fix:** Globaler Click-Handler (Capture-Phase) in `slm.html`, der auf alle `INPUT` und `TEXTAREA` Elemente `e.stopPropagation()` setzt, sodass Clicks in Formularfeldern nicht bis zu Modal-Handlern bubbelln.
+- **Guardrail:** Bei Modal/Overlay-Patterns immer `event.stopPropagation()` auf Interaktionselementen setzen (Input, Buttons, Links); besonders wichtig bei dynamisch erzeugten Dialogen.
+
+## 2026-06-10 — layers.php braucht StagingImportRepository-Require für echten DB-only Pfad
+
+- **Symptom:** Fehlende Layer wurden in Karte/Preview weiterhin angezeigt, obwohl `source=db` aktiv war.
+- **Root-Cause:** In `layers.php` fehlte `require_once StagingImportRepository.php`; der DB-Layer-Load warf `Class not found` und fiel still auf File-Definitionen zurück.
+- **Fix:** `StagingImportRepository` explizit eingebunden und Missing-Filter im `processLayerItems`-Pfad auf DB-Definitionsbasis umgesetzt.
+- **Guardrail:** Bei DB-first-Endpunkten Klasseneinbindung für alle Repository-Aufrufe validieren; Catch-Fallbacks dürfen Source-Drift nicht unbemerkt kaschieren.
+
+## 2026-06-10 — Editor-Deploy braucht Auto-Export und robustes Git-Error-Mapping
+
+- **Symptom:** „Kürzel nach core“ schlug mit „Bitte zuerst Export nach Temp“ ab bzw. zeigte bei Git-Fehlern nur „Unbekannter Fehler“.
+- **Root-Cause:** Deploy-Flow setzte einen manuellen Vor-Export voraus und wertete Git-Fehlerantworten (`detail`) nicht aus.
+- **Fix:** `exportEditorToCore()` startet nun bei fehlendem RunId automatisch `export-catalog-artifacts` und führt danach Deploy aus; Git-Fehlertexte werden aus `error/message/detail` extrahiert.
+- **Guardrail:** In 2-Step-Flows den zweiten Schritt resilient machen (Auto-Vorbereitung) und Backend-Fehlerfelder vollständig auswerten.
+
+## 2026-06-10 — Merge-Export darf Metadateien nicht als Fehler behandeln
+
+- **Symptom:** „Kürzel mergen“ brach mit `Merge übersprungen (unbekannter Dateityp): .core-import-manifest_...json` ab.
+- **Root-Cause:** `export-catalog-artifacts` wertete nicht-katalogische Bundle-Dateien (Manifest/Meta) als Merge-Fehler.
+- **Fix:** Export filtert jetzt strikt auf die fünf Katalog-Präfixe (`layers`, `maptips`, `lyrmgrResources`, `maptipsResources`, `legendResources`) und überspringt Metadateien still.
+- **Guardrail:** Merge-/Deploy-Pipelines nur auf fachliche Katalogartefakte anwenden; Hilfs-/Manifest-Dateien nie als harte Fehler in User-Flows behandeln.
+
+## 2026-06-10 — Raw-Conf-Helper dürfen nicht innerhalb `getWritableRawConfDir()` definiert sein
+
+- **Symptom:** Im SLM-Editor wurden plötzlich keine Quellen/Tags geladen (UI blieb bei 0/leer).
+- **Root-Cause:** `rawConfSourceBuckets()/resolveRawConfServiceDir()/...` waren lokal in `getWritableRawConfDir()` definiert. Bei frühem Return (weil `RAW_CONF_DIR` bereits beschreibbar war) wurden diese Funktionen nie deklariert, spätere Aufrufe führten zu Fatal-Fehlern.
+- **Fix:** Raw-Conf-Helfer auf Top-Level in `treebuilder-api.php` verschoben und aus `getWritableRawConfDir()` entfernt.
+- **Guardrail:** In PHP keine global genutzten Helper-Funktionen innerhalb von Funktionen deklarieren, wenn es frühzeitige Return-Pfade gibt.
+
+## 2026-06-10 — Create-Export schrieb weiter nach ags-import/raw-conf statt raw-conf
+
+- **Symptom:** SLM Create meldete Exporte nach `tmp/maps-dev/ags-import/raw-conf/ags/` statt nach `tmp/maps-dev/raw-conf/ags/`.
+- **Root-Cause:** `RAW_CONF_DIR` war in `treebuilder-api.php` noch auf `TnetTmpPaths::agsImport('raw-conf')` verdrahtet.
+- **Fix:** `RAW_CONF_DIR` auf `TnetTmpPaths::getRoot() . '/raw-conf'` umgestellt, damit AGS/QGIS/Core-Create-Exporte direkt unter `tmp/maps(-dev)/raw-conf/...` landen.
+- **Guardrail:** `raw-conf` und `ImportToCore` strikt getrennt halten: `raw-conf` liegt direkt unter dem Tmp-Root, nur `ImportToCore` bleibt im `ags-import`-Pfad.
+
+## 2026-06-10 — Merge-Export im SLM braucht Dialog statt Browser-Prompt und deduplizierte Typ-Merges
+
+- **Symptom:** Beim Klick auf „Kürzel mergen“ kam nur ein Browser-`prompt`; ausserdem konnten bei typbasiertem Merge doppelte Einträge in Listen entstehen.
+- **Root-Cause:** Der Editor-Flow nutzte keinen eingebetteten Modal-Dialog, und der Merge-Writer führte für Listen nur ein stumpfes Anhängen durch.
+- **Fix:** In `slm.html` wurde ein eigener Merge-Dialog (Overlay) mit Eingabefeld/Validierung ergänzt; in `treebuilder-api.php` merge`t `export-catalog-artifacts` assoziative JSONs key-basiert (letzter Wert gewinnt) und dedupliziert Listenwerte über Signaturen.
+- **Guardrail:** Für SLM-Massnahmen keine Browser-Prompts verwenden; Merge-Exports müssen pro JSON-Typ deterministisch und ohne doppelte Keys/Einträge laufen.
+
+## 2026-06-09 — source=db darf nicht im JSON-API-Cache hängen bleiben
+
+- **Symptom:** Nach Live-DB-Publish im Tree-Builder waren Änderungen erst sichtbar nach Klick auf „Cache leeren“ im SLM.
+- **Root-Cause:** `layers.php` nutzte auch im `source=db`-Modus den serverseitigen JSON-Cache mit TTL; DB-Updates invalidierten diesen Cache nicht sofort.
+- **Fix:** In `layers.php` wird der JSON-Cache bei `source=db` automatisch gebypasst (`$bypassJsonCache = true`), sodass Runtime-Antworten unmittelbar aus der DB kommen.
+- **Guardrail:** Für DB-first-Live-Workflows API-Response-Caches nur im File-Modus verwenden oder per DB-Revision invalidieren.
+
+## 2026-06-09 — SLM-Cache muss store-spezifisch versioniert sein
+
+- **Symptom:** Nach Deploy waren Änderungen erst sichtbar, nachdem der SLM-Cache manuell gelöscht wurde.
+- **Root-Cause:** Tree-Builder nutzte einen globalen localStorage-Key ohne Store-Trennung und ohne Schema-Version; veralteter Zustand blieb aktiv.
+- **Fix:** `tree-builder.html` verwendet jetzt store-spezifischen Key (`treebuilder_state_<env>`) plus Versionsmarker (`treebuilder_state_version_<env>`), der alten SLM-State automatisch invalidiert.
+- **Guardrail:** Bei strukturellen Änderungen am Editor-State immer Version bumpen und nie denselben localStorage-Key für DEV/PROD teilen.
+
+## 2026-06-09 — Alias-Save darf nicht nur auf nlsEdits vertrauen, und DB-Quelle darf nicht von Profil-Datei übersteuert werden
+
+- **Symptom:** Trotz Klick auf „Live DB“ blieben Alias-Änderungen nach Reload/Runtime teilweise alt.
+- **Root-Cause:** (1) Alias-Publish baute Payload primär aus `state.nlsEdits`; bei inkonsistentem UI-State blieb `__nlsAliases` leer. (2) `layers.php?source=db` merge-te zusätzlich Profil-`lyrmgrResources.json` und konnte DB-Aliase wieder überschreiben.
+- **Fix:** Tree-Builder speichert Alias-Deltas zusätzlich aus `state.layerAliases` gegen `state.layerAliasesBase` und schreibt sie in `__nlsAliases`; `layers.php` lädt Profil-NLS-Dateien nur noch im Datei-Modus (`source=file`), nicht im DB-Modus.
+- **Guardrail:** In DB-first muss `source=db` strikt dateifreie Alias-Autorität haben; Alias-Persistenz darf nie allein vom Pending-Edit-Cache abhängen.
+
+## 2026-06-09 — Alles aus der DB: Editor, Karte und NLS-Aliases
+
+- **Symptom:** Editor zeigte anderen Stand als Karte; Aliases gingen nach Reload verloren; Karte nutzte andere Persistenz als Editor.
+- **Root-Cause:** Drei Datenpfade waren entkoppelt: (1) `catalog_document` (Tree-Builder) vs. `catalog_node` (Runtime), (2) NLS-Aliases nur als Datei, (3) `tnet-lm-store.js` nicht per Apache-Alias erreichbar (`/maps-dev/public/tnet/` fehlte).
+- **Fix:** `layers.php?source=db` liest jetzt `catalog_document` (statt `catalog_node`); NLS-Aliases werden als `__nlsAliases`-Block im `catalog_document` gespeichert und von `layers.php` vor Core-NLS appliziert; Apache-Rewrite `.htaccess` in `public/` leitet `tnet/…` auf `/maps-dev/tnet/…` um; `publishLyrmgrDbNow()` schreibt Aliases automatisch nach DB-Publish.
+- **Guardrail:** Bei DB-first immer prüfen ob Runtime-Endpoint, Editor-Publish und NLS-Pfade alle dieselbe Tabelle lesen. Publizierte Payload-Blöcke wie `__nlsAliases` müssen in `layers.php` nach der `$_nlsAliasesRuntime = []` Initialisierung neu eingespeist werden.
+
+
+- **Symptom:** `slm.html#tab=treebuilder` zeigte weiterhin einen anderen Stand als Runtime, obwohl source bereits strikt auf `db|file` stand.
+- **Root-Cause:** UI-Flow lud beim Profilwechsel/Init weiterhin Draft-first und speicherte Edits primär als Draft, während Publish zur DB separat manuell ausgelöst werden musste.
+- **Fix:** Tree-Builder lädt jetzt standardmässig den publizierten Stand und triggert nach Save automatisch `publish-lyrmgr` in die DB (inkl. Live-Status in der UI).
+- **Guardrail:** In DB-first-Workflows dürfen Editor-Speichern und Runtime-Quelle nicht durch Draft-first oder manuelle Zusatz-Publish-Schritte entkoppelt sein.
+
+## 2026-06-09 — Bei Duplicate-ID darf der Container nicht vor spaeterem Leaf-Treffer zurückkehren
+- **Symptom:** `Höhenlinien` blieb trotz Toggle ohne Kartenwirkung, obwohl ein renderbarer Layer mit derselben ID vorhanden war.
+- **Root-Cause:** `_findLayerRecursive` merkte sich zwar die Leaf-Praferenz, gab aber pro Knoten sofort den Container-Fallback zurück, bevor später im Baum der gleichnamige Blatt-Layer gefunden wurde.
+- **Fix:** Resolver auf globalen Fallback umgestellt: Leaf-Treffer sofort, Container nur merken und erst nach kompletter Schleife zurückgeben.
+- **Guardrail:** Bei Mehrdeutigkeiten (Container+Leaf gleiche ID) nie innerhalb derselben Iteration früh auf Container zurückkehren; Fallback erst nach vollständiger Suche anwenden.
+
+## 2026-06-09 — Container-Layer wie `.../hoehenlinien` muessen auf Blatt-Layer delegieren
+- **Symptom:** `Höhenlinien` liess sich im Themenbaum ankreuzen, wurde aber nicht auf Karte/Karteninhalt wirksam.
+- **Root-Cause:** Der geklickte Knoten war strukturell (mit Kind-Layern wie `/2m`, `/5m`, `/10m`) und selbst nicht direkt renderbar.
+- **Fix:** `setLayerVisible()` behandelt Knoten mit Kindern als Container und schaltet stattdessen alle Blatt-Layer unter dem Prefix (`_setDescendantLeafLayersVisible`).
+- **Guardrail:** Bei Legacy-Katalogen nie davon ausgehen, dass ein klickbarer UI-Eintrag ein renderbarer Blatt-Layer ist; Container-IDs muessen auf konkrete Child-IDs aufgeloest werden.
+
+## 2026-06-09 — setLayerVisible muss Framework-Combined-Layer (show:) vor TnetLayerSwitch behandeln
+- **Symptom:** Einzelne Layer liessen sich im Themenbaum ein-/ausschalten, blieben aber auf der Karte unveraendert oder tauchten nicht im Karteninhalt auf.
+- **Root-Cause:** Fuer bestimmte Legacy-/Bookmark-Pfade rendert das Framework keinen dedizierten OL-Layer pro Thema, sondern einen kombinierten Dienst-Layer mit `LAYERS=show:...`. Der Standardpfad `TnetLayerSwitch` griff dort teilweise nicht belastbar.
+- **Fix:** In `tnet-lm-store.js` wurde `setLayerVisible()` erweitert: vor dem Standard-`TnetLayerSwitch` wird `_setFrameworkCombinedSublayer(...)` ausgefuehrt. Bei Treffer werden Karte + Active-Liste direkt synchronisiert.
+- **Guardrail:** Bei ArcGIS-Sublayern zuerst pruefen, ob bereits ein kombinierter `show:`-Layer aktiv ist; erst wenn das nicht zutrifft, auf Legacy-Switch-Funktionen zurueckfallen.
+
+## 2026-06-09 — Themenkatalog darf bei gleicher ID nicht den Container statt Blatt-Layer aufloesen
+- **Symptom:** Bestimmte Themen liessen sich im Baum ankreuzen, erschienen aber weder auf der Karte noch im Karteninhalt.
+- **Root-Cause:** `findLayer` lieferte bei identischer ID teils den Container-Knoten (mit Kindern) statt des renderbaren Blatt-Layers; dadurch liefen Toggle-/Render-Pfade inkonsistent.
+- **Fix:** In `tnet-lm-store.js` `_findLayerRecursive` auf echte Blatt-Erkennung umgestellt (Kinder-Arrays als Kriterium), Container nur noch als Fallback.
+- **Guardrail:** Bei Legacy-Katalogen mit doppelten IDs (Wrapper + Leaf) immer zuerst echte Blatt-Layer aufloesen; Knotentypen allein sind kein verlässliches Leaf-Kriterium.
+
+## 2026-06-09 — Public-Profil: Runtime darf nicht am Legacy-DB-Baum vorbeiziehen
+- **Symptom:** Im public-Profil zeigte die Kartenapp einen anderen Themenbaum als der Tree-Builder, obwohl publiziert war.
+- **Root-Cause:** `layers.php?source=auto` bevorzugte den Legacy-DB-Pfad (`catalog_node`), waehrend Tree-Builder/Publish den Profil-Dokumentpfad (`CatalogRepository`) aktualisiert.
+- **Fix:** In `layers.php` wird bei aktivem `configSource.catalog=db` im Auto-Modus der Legacy-DB-Pfad uebersprungen, sodass der Runtime-Read konsistent ueber `CatalogRepository::loadProfile()` laeuft.
+- **Guardrail:** Bei DB-first immer sicherstellen, dass Runtime-Read und Editor-Publish dasselbe Persistenzmodell verwenden; Mischbetrieb nur explizit und kontrolliert zulassen.
+
+## 2026-06-09 — UI-Zeitstempel in lokaler Fachzeitzone anzeigen
+- **Symptom:** Änderungszeitpunkte wurden als UTC/ISO angezeigt und wirkten fachlich zeitversetzt.
+- **Root-Cause:** Frontend zeigte `updatedAt`-Werte direkt aus ISO-Strings ohne Zeitzonen-Formatierung.
+- **Fix:** Im Tree-Builder wurde `formatSwissDateTime(..., Europe/Zurich)` zentral eingeführt und für Objekt-/LyrMgr-Metadaten sowie Draft-Statusmeldungen verwendet.
+- **Guardrail:** Persistenz darf UTC bleiben, aber Benutzeranzeigen mit Datumsbezug immer explizit in der Zielzeitzone formatieren.
+
+## 2026-06-09 — Datei-Publish muss bei DB-first den DB-Stand mitziehen
+- **Symptom:** Nach Klick auf „Publish lyrmgr.conf“ blieb der Themenkatalog in der Kartenapp unverändert/alt.
+- **Root-Cause:** Der Datei-Publish-Pfad hat DB-Publish übersprungen, während Runtime standardmässig DB-first (`catalog: db`, `lyrmgrSource: api`) liest.
+- **Fix:** `publishLyrmgr('file')` führt jetzt ebenfalls `publish-lyrmgr` (DB-Sync) aus und danach wie bisher den Datei-Deploy.
+- **Guardrail:** In DB-first-Setups darf ein sichtbarer Publish-Button nicht nur Nebenpfade (Datei) aktualisieren, wenn die Runtime aus der DB liest.
+
+## 2026-06-09 — Move-Aktionen müssen Objekt-Metadaten explizit anfassen
+- **Symptom:** Nach Layer-Verschiebungen blieben „Letzte Änderung“-Felder leer oder unverändert.
+- **Root-Cause:** Metadaten wurden nur bei Eigenschafts-/Alias-Änderungen gesetzt, nicht bei DnD-Moves.
+- **Fix:** Bei DnD-Einfüge-/Reorder-Pfaden werden jetzt betroffene Layer/Gruppen über `touchNodeEditMeta` bzw. `touchMovedItemsMeta` aktualisiert.
+- **Guardrail:** Jede fachliche Mutation (inkl. Reihenfolge/Verschiebung) muss denselben Änderungs-Tracking-Pfad auslösen wie Property-Edits.
+
+## 2026-06-09 — Objekt-Metadaten dürfen nicht aus globalem Publish-Meta gelesen werden
+- **Symptom:** In den Objekt-Eigenschaften (Layer/Kategorie/Gruppenlayer) wurde überall derselbe „Letzter Publish“-Wert angezeigt.
+- **Root-Cause:** Die UI nutzte für Objekt-Tooltips und Properties das globale LyrMgr-Meta (`_metaInfo.updatedBy/updatedAt`) statt objektbezogene Änderungsmetadaten.
+- **Fix:** Im Tree-Builder wurde ein objektbezogener Metadaten-Store (`nodeEditMeta`) eingeführt; Änderungen an Layer/Kategorie/Gruppenlayer aktualisieren nun gezielt `updatedBy/updatedAt`, und die Dialoge/Tooltips zeigen diese Werte an. Globaler Publish bleibt auf LyrMgr-Ebene.
+- **Guardrail:** Änderungszeitpunkte immer auf Ebene des tatsächlichen Entitäts-Keys speichern und darstellen; Publish-Metadaten nie als Ersatz für Objekt-Historie verwenden.
+
+## 2026-06-09 — Kartenapp muss API-Aufruf explizit auf DB-first setzen
+- **Symptom:** Trotz DB-first-Konfiguration zeigten Kartenapp und SLM teilweise unterschiedliche Katalogstände.
+- **Root-Cause:** Der Kartenapp-Store rief `layers.php` ohne expliziten `source`-Parameter auf; damit hing das Verhalten implizit am Backend-Default statt am klaren DB-first-Pfad.
+- **Fix:** `tnet-lm-store.js` ergänzt den API-Call um `source=auto`, damit DB bevorzugt und Datei nur als Fallback genutzt wird.
+- **Guardrail:** Für produktive Quellwahl nie auf implizite Defaults verlassen; die gewünschte Autorität (`db`/`auto`/`file`) im Request immer explizit setzen.
+
+## 2026-06-09 — Publish muss dieselbe Laufzeitquelle bedienen wie layers.php
+- **Symptom:** Nach Draft/Publish waren Änderungen im Tree-Builder sichtbar, aber nicht im Live-Themenkatalog der App.
+- **Root-Cause:** `layers.php?source=auto` lieferte bevorzugt Daten aus dem DB-Knotenmodell (`catalog_node`), während Tree-Builder-Publish in `catalog_document`/Datei schrieb; dadurch blieb die Laufzeitansicht auf altem Stand.
+- **Fix:** `layers.php` liest bei aktivem `configSource.catalog=db` zuerst das veröffentlichte Katalog-Dokument aus `CatalogRepository::loadProfile()` und nutzt Datei nur als Fallback.
+- **Guardrail:** Bei DB-first niemals verschiedene Persistenzmodelle (Node-DB vs. Document-DB) unkoordiniert parallel bedienen; Runtime-Endpoint und Editor-Publish müssen auf dieselbe Autoritätsquelle zeigen.
+
+## 2026-06-09 — Multi-Editing Drafts müssen in DB liegen und Publish braucht Dual-Pfad
+- **Symptom:** Draft wirkte nach Reload/zwischen Bearbeitern instabil; nach Publish war der Themenkatalog teils nicht im erwarteten Datei-Pfad sichtbar.
+- **Root-Cause:** `save/load-lyrmgr-draft` war nur dateibasiert (`tmp/layertree`), während Runtime DB-first ist; Publish lief blockweise in DB, aber ohne expliziten Full-File-Deploy-Schritt.
+- **Fix:** Draft auf DB-Storage umgestellt (`<profile>__draft` via `CatalogRepository`), inklusive Metadaten (`updatedBy/updatedAt/revision`) bis ins UI; Publish führt jetzt DB-Publish plus zusätzlichen `publish-lyrmgr-full` Datei-Deploy (Best-Effort) aus.
+- **Guardrail:** In DB-first Workflows Entwurf und Publish-Endpfad nicht auf verschiedene Persistenzkanäle verteilen, ohne explizite Synchronisationsschritte und sichtbare Statusmeldungen.
+
+## 2026-06-09 — Inline-Themennamen (Alias) sind NLS-Edits und müssen separat persistiert werden
+- **Symptom:** Nach Bearbeiten eines Kategorienamens im Tree-Builder wirkte es wie „nicht gespeichert“: in DB-Block/Export war die Änderung nicht sichtbar.
+- **Root-Cause:** Inline-`cname` schreibt bewusst NLS-Aliase (`state.nlsEdits`/`state.layerAliases`), nicht den strukturellen `lyrmgr.conf`-Key. Diese NLS-Daten wurden in `getStateToPersist()` und `generateJSON()` bisher nicht mitgeführt.
+- **Fix:** Persistenz erweitert (`layerAliases`, `layerPropEdits`, `nlsEdits`) und JSON-Export um `aliases` + `nlsEdits` ergänzt; File-Import liest diese Felder nun ebenfalls ein.
+- **Guardrail:** In UI-Flows strikt trennen zwischen Struktur-Änderung (lyrmgr) und Label-Änderung (NLS). Wenn beides editierbar ist, müssen Backup/Restore beide Datenkanäle enthalten.
+
+## 2026-06-08 — Publish darf im DB-Mode nicht an Dateirechten scheitern
+- **Symptom:** Im Tree-Builder wurde "Speichern" erfolgreich angezeigt, aber "Publish" brach ohne wirksame Übernahme ab.
+- **Root-Cause:** `publish-lyrmgr` scheiterte beim Schreiben von `maps-dev/public/config/lyrmgr.conf` (Permission denied) und beendete den Ablauf vor dem DB-Write.
+- **Fix:** `publishLyrmgrBlock()` in `treebuilder-api.php` auf robustes DB-first angepasst: bei aktivem DB-Mode ist Dateischreiben Best-Effort; DB-Publish läuft weiter und liefert Erfolg (mit Warning bei File-Fehler).
+- **Guardrail:** In DB-first-Konfigurationen Dateiexport nie als harte Voraussetzung für Publish behandeln; Dateifehler als Warnung führen, DB-Write als Primärerfolg werten.
+
+## 2026-06-08 — Tree-Builder muss Kategorienreihenfolge gegen Runtime-API synchronisieren
+- **Symptom:** Im Editor war die Reihenfolge (z.B. `bau, ...`) anders als im Live-Themenkatalog (`grundlagen, oereb, ...`), obwohl beide aus demselben Profil kamen.
+- **Root-Cause:** Tree-Builder übernahm beim Laden die Reihenfolge aus dem rohen `lyrmgr.conf`-Block, Runtime aber aus `layers.php` (DB/API). Bei driftenden Quellen entstand ein sichtbarer Reihenfolge-Mismatch.
+- **Fix:** Beim Profil-Laden wird die Editor-Reihenfolge jetzt gegen `layers.php?group=<profil>&source=auto` abgeglichen und anhand der bestpassenden Runtime-Topkategorie (höchster ID-Overlap) neu sortiert.
+- **Guardrail:** Für die Editor-Darstellung immer dieselbe Autoritätsquelle wie die Runtime verwenden; reine `rawBlock`-Reihenfolge nicht als alleinige UI-Wahrheit behandeln.
+
+## 2026-06-08 — Tree-Builder Export: raw structure als Array muss per _key aufgeloest werden
+- **Symptom:** Nach Speichern/Publizieren war die Reihenfolge im Editor wieder falsch bzw. instabil.
+- **Root-Cause:** `generateLyrmgrConfBlock()` hat bei `rawBlock.structure` im Array-Format (`[{ _key, ... }]`) weiterhin nur `rawStructure[catKey]` geprueft. Dadurch wurde das Originalformat nicht erkannt und teils wieder Objekt-Format geschrieben, was Reihenfolge-Drift beguenstigt.
+- **Fix:** Raw-Kategorie wird jetzt formatunabhaengig gefunden (Array via `_key`/`name`/`key`, sonst Objektzugriff). Ohne Referenz wird bewusst Array-Format verwendet, damit die Reihenfolge stabil bleibt.
+- **Guardrail:** Bei Object->Array-Migrationen nie Key-Indexzugriff gegen Arrays verwenden; Strukturtyp immer explizit behandeln und fuer Reihenfolge-kritische Daten Array als Default bevorzugen.
+
+## 2026-06-08 — Themenkatalog: `lyrmgrSource: 'file'` kann nach Array-Migration numerische Kategorien erzeugen
+- **Symptom:** Nach Publish zeigt der Themenkatalog Einträge wie `0`, `9` statt Fachkategorien; Darstellung wirkt kaputt.
+- **Root-Cause:** Runtime lief mit `layerManager.lyrmgrSource = 'file'`. Der File-Pfad interpretierte die neue Array-Structure der `lyrmgr.conf` nicht korrekt und erzeugte numerische Kategorie-IDs/-Namen.
+- **Fix:** Runtime auf DB/API umgestellt (`lyrmgrSource: 'api'` in `tnet-global-config.json5`). Damit kommt die Hierarchie aus dem DB/API-Pfad und die Kategorienamen sind korrekt.
+- **Guardrail:** Nach Strukturänderungen im LyrMgr-Format (Object→Array) `source=file` nur verwenden, wenn der File-Parser nachweislich angepasst ist; sonst API/DB als führende Quelle erzwingen.
+
+## 2026-06-08 — Publish-Dialog: HTML-Listen dürfen nicht in ein <p>-Wrapper gerendert werden
+- **Symptom:** Beim Publish war der Bestätigungsdialog sichtbar, aber Buttons wirkten „weg“/nicht bedienbar bei langen Diff-Listen.
+- **Root-Cause:** `_tbConfirm`/`_tbAlert` renderte den Inhalt pauschal in `<p>...</p>`. Der Publish-Text enthält `<ul><li>...`, was invalides HTML im `<p>` erzeugt und das Dialog-Layout bricht.
+- **Fix:** Dialog-Message auf eigenen Block-Container (`.tb-confirm-msg`) umgestellt, scrollbar gemacht und Buttons im Footer fix sichtbar gehalten.
+- **Guardrail:** Dialoge mit HTML-Content nie in `<p>` wrappen; stattdessen dedizierten Content-Container mit kontrolliertem Overflow nutzen.
+
+## 2026-06-08 — Tree-Builder: Reihenfolge darf nicht aus lokalem Browser-State vor Server-Laden gerendert werden
+- **Symptom:** Kategorien erschienen im Editor in alter/falscher Reihenfolge (z.B. BAU zuerst), obwohl API/DB bereits korrekt `_key`-Array-Reihenfolge lieferten.
+- **Root-Cause:** Beim Init wurde `loadState()` aus localStorage zuerst gerendert (`_hasLyrmgrs`), und der veraltete Browser-Stand überdeckte den aktuellen Server-Stand.
+- **Fix:** Init auf server-first umgestellt: beim Start immer `loadLyrmgrForProfile(..., true)` laden, lokalen Snapshot nicht mehr direkt als Primärquelle rendern.
+- **Guardrail:** Bei DB-first/Server-first UIs lokalen Zustand nur als Fallback nutzen, nie als initiale Autoritätsquelle vor dem ersten Server-Load.
+
+## 2026-06-08 — Tree-Builder: Profil-gefilterte Layer + Tag-Filter statt Konfigdatei-Filter
+- **Symptom:** Der Tree-Builder zeigte alle Layer unabhängig vom Profil, und der Dropdown-Filter listete Konfig-Dateinamen (z.B. `geodienste/layers_geodienste.conf (48)`) statt der fachlichen Tags.
+- **Root-Cause:** `listAllLayers` hängte keine Tags an die Layer, und das Frontend baute den Filter aus `sourceFile`. Profil-Bundles fremder Profile wurden nur unvollständig gefiltert.
+- **Fix:** Backend hängt jetzt `tags`/`scope`/`kuerzel` pro Layer an und zeigt Profil-Scope-Bundles nur beim exakt passenden Profil (core/sitecore immer). Frontend: Dropdown „Alle Tags", Filter matcht gegen `layer.tags`.
+- **Guardrail:** Im DB-Overlay Bundle-Metadaten (Tags/Scope/Profil) in den `sourceMap` je Layer übernehmen, sonst stehen sie in der flachen Layer-Liste nicht zur Verfügung. Profil-Filter exakt (`bProfile === profile`) prüfen, nicht nur „ungleich und gesetzt".
+
+## 2026-06-08 — Scope-bewusster Export: Stufe bestimmt das Zielverzeichnis
+- **Symptom:** Der Export schrieb alle Bundles pauschal nach core-dev/config + core-dev/nls, unabhängig von der gewählten Überladungsebene.
+- **Root-Cause:** `configExportToCoreDb` kannte nur die Core-Zielpfade und ignorierte das neue `scope`/`profile`-Feld.
+- **Fix:** Export wählt das Ziel jetzt nach Scope: `core` → core-dev/config + core-dev/nls/de, `sitecore/override` → maps-dev/core/config + maps-dev/core/nls/de, `profile` → maps-dev/public/config/<profil>/ (conf + nls zusammen). Profil-Ordner werden bei Bedarf angelegt. Bundle-Liste + Admin-Export-Tabelle zeigen die Stufe (scope[:profil]).
+- **Guardrail:** Export-Ziele immer aus dem gespeicherten Scope ableiten, nicht hartkodieren. Profil-Bundles ohne Profilnamen beim Export ablehnen, damit nichts versehentlich in den falschen (Core-)Pfad geschrieben wird.
+
+## 2026-06-08 — Konfig-Store: Stufe (Scope) beim Import + DB-only Tree-Builder + Accordion-Liste
+- **Symptom:** Import-UI sprach von „Zusammenführen" statt „Importieren", es fehlte die Überladungsebene, der Tree-Builder mischte noch Datei-Quellen, und die rechte Store-Liste war durch einen Tag-Block + immer offene Detailzeilen unübersichtlich.
+- **Root-Cause:** Scope war im Datenmodell zwar vorbereitet, aber nicht in Stage-Pfad/UI durchgereicht; `listAllLayers` las weiter Dateien; die rechte Liste hatte keine Accordion-Kapselung.
+- **Fix:** `saveBundle`/`stageServicesToImportDb`/`ags-stage-merge` reichen jetzt `scope` (core/sitecore/profile) und `profile` durch. Import-UI: Button „📥 Importieren", Stufen-Dropdown + bedingtes Profilfeld. `listAllLayers` ist DB-only (Datei-Lesen nur Fallback bei leerer/fehlender DB). Rechte Seite: Tag-Übersichtsblock entfernt, jedes Kürzel als zugeklapptes Accordion mit Stufe-Badge.
+- **Guardrail:** Scope/Profile bei jeder Stage-Operation explizit mitführen und beim Re-Stage aus dem bestehenden Bundle erben, sonst „rutscht" ein Dienst beim erneuten Import auf die Default-Stufe core zurück.
+
+## 2026-06-08 — Tree-Builder DB-first über Datei-Basis: Überladungskonzept (core/override/profile) in DB
+- **Symptom:** Import/Editor waren DB-first, der Tree-Builder las „Verfügbare Layer" weiter nur aus Core-Dateien — gestagte DB-Inhalte erschienen erst nach Export.
+- **Root-Cause:** `listAllLayers()` baute Definitionen ausschliesslich aus `core/config` + Override + Profil-Dateien. Im `config_bundle_store` lagen nur die gestagten Kürzel, nicht die 5850 Core-Layer — ein naives „nur DB" hätte den Tree-Builder geleert.
+- **Fix:** `config_bundle_store` additiv um `scope` (core/override/sitecore/profile) und `profile` erweitert. `listAllLayers()` liest weiter die Datei-Basis und legt danach die DB-Bundles scope-priorisiert (core < override < profile, DB gewinnt) darüber — sowohl Layer-Definitionen als auch `lyrmgrResources`-Aliase. So gehen die Datei-Layer nie verloren, DB-Inhalte sind aber sofort sichtbar.
+- **Guardrail:** „DB-first" bei teilbefüllter DB nie als „nur DB" implementieren. Datei-Basis behalten und DB als priorisiertes Overlay darüberlegen, bis der Core vollständig in der DB liegt. Scope-Hierarchie additiv im Schema abbilden, nicht destruktiv umbauen.
+
+## 2026-06-08 — 403 (keine Admin-Berechtigung) nicht als Session-Ablauf fehlinterpretieren
+- **Symptom:** Auch nach Hard-Reload, Abmelden und erneutem Login erschien im SLM hartnäckig „Fehler: Bitte einloggen (Session abgelaufen)".
+- **Root-Cause:** Der globale Auth-Fetch-Wrapper behandelte **jeden** HTTP 403 als Login-Problem. Da der eingeloggte Nicht-Admin-User (`del`) admin-geschützte Actions (z.B. `staging-delete-output`, `staging-delete-tag`, `config-export-to-core`) auslöste, kam ein legitimes 403-JSON zurück, das fälschlich als abgelaufene Sitzung dargestellt wurde.
+- **Fix:** Wrapper unterscheidet jetzt: Nur 401, Redirect auf `admin-login` oder eine echte HTML-Login-Seite lösen den Login-Banner aus. Ein 403 mit JSON-Body (Berechtigungsfehler) wird unverändert durchgereicht, sodass die echte Fehlermeldung („Nur für Administratoren") ankommt.
+- **Guardrail:** Auth-Wrapper niemals 401 und 403 gleich behandeln. 401 = nicht authentifiziert (Login nötig); 403 = authentifiziert, aber nicht berechtigt (kein Login-Redirect, echte Fehlermeldung zeigen).
+
+## 2026-06-08 — Konfig-Store Import-Tab: Tags statt Konflikte, Re-Stage server-seitig, tag-bewusstes Löschen
+- **Symptom:** Der Import-Tab zeigte kürzelübergreifende Keys als rote „Konflikte", Re-Stage füllte nur die linke Seite vor, und Löschen war nur ganz-Kürzel ohne Redundanz-Schutz.
+- **Root-Cause:** Das Modell war rein Kürzel-zentriert; geteilte Ressourcen wurden als Fehler statt als gewollte Mehrfach-Nutzung interpretiert.
+- **Fix:** Auf bestehendem `config_bundle_store` (nicht-destruktiv) eine Tag-Schicht ergänzt: `addTag`/`removeTagEverywhere` im Repository, API-Actions `staging-restage`/`staging-add-tag`/`staging-delete-tag`, Tags bleiben bei Re-Stage erhalten. Frontend: Tag-Übersicht mit letztem Import/Re-Stage (Datum/User), 1-Klick-Server-Re-Stage, geteilte Keys als „geteilt/merged" statt rotem Konflikt, Tag-Chips mit Add, tag-bewusstes Löschen (letzter Tag → Ressource endgültig weg).
+- **Guardrail:** Bei produktiven Konfig-Datenmodellen Tag-/Dedup-Funktionen additiv auf die bestehende Tabelle setzen, statt Export-/Editor-/Verlink-Pipelines destruktiv umzubauen — besonders ohne Bestätigung des Users.
+
+## 2026-06-08 — Editor-/Lock-Namen aus dem Login ableiten, nicht per Prompt erzwingen
+- **Symptom:** Trotz aktivem Login erschien beim Bearbeiten ein Browser-Prompt für „Name/Kürzel“, was redundant und störend war.
+- **Root-Cause:** SLM und Tree-Builder führten ihren Bearbeiternamen getrennt in localStorage und fragten per `prompt()`, statt zuerst den eingeloggten Benutzer zu übernehmen.
+- **Fix:** Login-Benutzer wird jetzt in SLM und Tree-Builder als gemeinsamer Editorname gespeichert und wiederverwendet; der Prompt bleibt nur noch als Fallback ohne Login-Kontext.
+- **Guardrail:** Wenn eine Sitzung bereits authentifiziert ist, keine zweite Benutzeridentität im Frontend abfragen. Locking- und `updated_by`-Namen immer zuerst aus dem Login ableiten.
+
+## 2026-06-08 — Export-Preview-Dialog im SLM kann fachlich mehr stören als helfen
+- **Symptom:** Beim Export aus dem SLM erschien ein separater Deploy-Dialog, der im Alltag keinen Zusatznutzen brachte und bei leeren/unklaren Zuständen nur Verwirrung erzeugte.
+- **Root-Cause:** Der Exportpfad war auf einen ausführlichen Confirm-Modal mit Dry-Run-Vorschau aufgebaut, obwohl der Benutzer den Export bewusst bereits über die Hauptaktion auslöst.
+- **Fix:** Den aktiven Exportpfad auf direkten Deploy mit Statusmeldungen umgestellt; nur einfache Browser-Bestätigungen bleiben bei Mehrfach-Deploys oder ungespeicherten Änderungen erhalten.
+- **Guardrail:** Für häufige Admin-Aktionen keine zweite komplexe Modal-Stufe einbauen, wenn dieselbe Information auch als Statusmeldung genügt. Zusätzliche Dialoge nur behalten, wenn sie echte Entscheidungsrelevanz liefern.
+
+## 2026-06-08 — Sensible Konfig-DB-Aktionen nur über dedizierte Admin-Steuerseite ausführen
+- **Symptom:** Ein global sichtbarer Toolbar-Button `Config → DB` suggerierte einen harmlosen Klick, obwohl dahinter potenziell destruktive Import-/Export-Aktionen mit Überschreiben und Löschen stehen.
+- **Root-Cause:** Die Aktion war zu nah an der Alltags-UI platziert und nicht granular von Admin-Rechten oder einer separaten Bestätigungsoberfläche entkoppelt.
+- **Fix:** Den Button nur für Admins sichtbar gemacht, auf eine separate Seite `config-db-admin.html` umgebogen und Import, Export sowie DB-Löschen dort getrennt mit Warnhinweisen umgesetzt. Serverseitig sind `admin.php`, `config-db-admin.html`, `config-export-to-core` und `staging-delete-output` zusätzlich auf Admin-Rechte gehärtet.
+- **Guardrail:** Destruktive oder überschreibende Konfig-Aktionen nie als normale Toolbar-Schnellaktion für alle Benutzer anbieten. Immer separaten Admin-Einstieg plus serverseitige Rollenprüfung verwenden.
+
+## 2026-06-08 — Export-Dialog darf keine Core-Export-Sprache mehr tragen
+- **Symptom:** Im SLM blieb ein Modal mit Texten wie „Nach core-dev exportieren“ sichtbar und vermittelte weiter einen Files-/Core-Export statt einer DB-zentrierten Konfig-Operation.
+- **Root-Cause:** Die sichtbaren Button- und Modal-Titel wurden noch aus der alten DB→Files→Core-Semantik gebaut.
+- **Fix:** Die Beschriftungen wurden auf „Konfig-Store erzeugen“ umgestellt und die Modal-Titel sprechen nun nur noch von der Konfig-Store-DB bzw. `core-dev` als Zielstruktur.
+- **Guardrail:** Bei DB-first-UIs keine historischen Export-Begriffe in primären Aktionen oder Modaltiteln stehen lassen; sonst wirkt die Oberfläche fachlich falsch, obwohl der Backend-Pfad schon umgestellt ist.
+
+## 2026-06-04 — Naiver Regex-JSON5-Parser zerstoert String-Werte mit "wort:" oder Quotes
+- **Symptom:** `configSource.bookmarks: 'db'` aus `tnet-global-config.json5` griff nicht; `bookmarks-load` lieferte trotz korrekt deployter Config und erreichbarer DB weiter `source: files`.
+- **Root-Cause:** Der Regex-basierte JSON5->JSON-Konverter (kopiert aus cache.php) transformiert Kommentare/Keys/Quotes ohne String-Bewusstsein. Der `_description`-Wert "Datenquelle pro Konfigurationsdomain: db oder files" wurde durch den Unquoted-Key-Schritt zu `..."Konfigurationsdomain": db...` zerschossen → `json_decode` = null → leeres Array → `default: 'files'`. Eingebettete Single-Quotes (`'db'`) brachen es zusaetzlich.
+- **Fix:** In `ConfigSource.php` einen string-bewussten Single-Pass-Tokenizer (`json5ToJson()`) implementiert: Strings werden als Tokens gesichert, Kommentar-/Key-/Trailing-Comma-Transformationen laufen nur ausserhalb von Strings, danach Tokens zuruecksetzen. Zusaetzlich `_description` entschaerft.
+- **Guardrail:** JSON5 nie mit reinen Regex-Passes nach JSON wandeln. Immer string-bewusst tokenisieren, sonst brechen Werte mit `wort:`, URLs (`http://`) oder eingebetteten Quotes das Parsing — und der Fehler ist still (Fallback auf Defaults).
+
+## 2026-06-09 — Tree-Builder/Vorschau duerfen bei strict source nicht mehr mit `source=auto` arbeiten
+- **Symptom:** In `slm.html#tab=treebuilder` wirkte der gezeigte Themenstand anders als in der Runtime-App.
+- **Root-Cause:** Tree-Builder und `dev-test.html` verwendeten weiterhin `source=auto`, waehrend `layers.php` nur noch explizit `source=db|file` akzeptiert und die Runtime bereits strikt auf DB konfiguriert ist.
+- **Fix:** `tree-builder.html` und `dev-test.html` auf explizites `db|file` umgestellt; Default auf `db`, inkl. Runtime-Reorder-Call (`syncEditorOrderWithRuntime`) mit `source=db`.
+- **Guardrail:** Sobald ein Endpoint `auto` entfernt, alle abhängigen Frontends (auch interne Preview-Tools) gleichzeitig auf explizite Quellen umstellen.
+
 ## 2026-06-03 — Coalesce-Requests muessen pro Dienst konsolidiert werden, nicht pro Pfad-Container
 - **Symptom:** Bei Agglomeration wurden mehrere Export-Requests an denselben ArcGIS-Dienst (`gis_fach/nw_agglomeration/MapServer`) geschickt, obwohl alle Sublayer aus EINEM Dienst stammen.
 - **Root-Cause:** `_extractRootKey()` in der Coalesce-Bridge leitete den Root-Key aus dem Pfad-Parent (`lastIndexOf('/')`) ab. Dadurch wurde jeder Karten-Container (karte03_*, karte05_*, …) zu einem eigenen Root-Layer mit eigener Source → ein Export-Request pro Container.
@@ -1757,3 +2054,9 @@ Guardrail: Wenn Change-Detection für Kürzel vorhanden ist, immer auch prüfen,
 - **Root-Cause**: `TnetSetBookmark()` wurde aus dem `mapsInfoFrame`-Iframe aufgerufen. Das frühe Schliessen des Dialogs entfernt `src` am Iframe und entlädt damit genau den Kontext, in dem der Fetch/Promise noch lief.
 - **Fix**: `TnetSetBookmark()` delegiert bei Iframe-Aufruf sofort an `window.top.TnetSetBookmark(bookmarkId)`. Die eigentliche Bookmark-Logik läuft dadurch im Top-Window und überlebt das anschliessende Dialog-Close.
 - **Guardrail**: Aktionen aus modalen Iframes, die asynchron weiterlaufen, immer ins Top-Window delegieren bevor das Iframe geschlossen oder neu geladen wird.
+
+## 2026-06-11 — Bookmark-Calls folgten noch der Seiten-URL statt dem Store
+- **Symptom**: Bookmarks und Lock/Unlock liefen je nach Seitenpfad noch gegen die falsche Umgebung oder lieferten Store-Mismatches.
+- **Root-Cause**: Mehrere Bookmark-Fetches nutzten noch relative `treebuilder-api.php`-URLs statt der bereits vorhandenen store-aware `API_URL`.
+- **Fix**: Alle Bookmark-Calls in `slm.html` auf `API_URL` umgestellt, damit Bookmarks denselben Store verwenden wie der Rest der SLM.
+- **Guardrail**: Store-sensitive API-Aufrufe in der SLM nie relativ formulieren, sondern immer ueber die zentrale Store-Basis schicken.

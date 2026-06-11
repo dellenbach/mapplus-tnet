@@ -33,6 +33,10 @@ require_once __DIR__ . '/../includes/LayerImporter.php';
 
 // Zugriff gemäss Endpoint-Policy
 AdminAuth::enforceEndpointPolicy('admin', 'php');
+if (!AdminAuth::isAdmin()) {
+    ApiResponse::setHeaders();
+    ApiResponse::error('Nur für Administratoren', 403);
+}
 
 // Standard API Headers
 ApiResponse::setHeaders();
