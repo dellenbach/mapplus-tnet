@@ -603,7 +603,20 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 
 /* ── Lyrmgr Action Bar (in Tabs) ── */
 .tb-lyrmgr-actions {
-  display: flex; gap: 4px; padding: 4px 8px; flex-shrink: 0; margin-left: auto;
+  display: flex; gap: 0; padding: 4px 8px; flex-shrink: 0; align-items: center; flex-wrap: wrap;
+}
+/* Sektions-Container */
+.tb-action-section {
+  display: flex; align-items: center; gap: 3px; padding: 0 6px;
+  border-right: 1px solid #d0d5d8;
+}
+.tb-action-section:last-of-type { border-right: none; }
+/* Sektions-Label */
+.tb-action-section-label {
+  font-size: 9px; color: #999; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .4px; white-space: nowrap; padding-right: 5px;
+  margin-right: 1px; border-right: 1px solid #e0e3e5; align-self: stretch;
+  display: flex; align-items: center;
 }
 .tb-lyrmgr-btn {
   padding: 3px 8px; font-size: 10px; border: 1px solid #ddd;
@@ -611,10 +624,16 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
   white-space: nowrap; transition: all .12s; font-weight: 500;
 }
 .tb-lyrmgr-btn:hover { background: #eee; border-color: #bbb; }
-.tb-lyrmgr-btn-publish {
-  background: var(--c-accent); color: #fff; border-color: var(--c-accent);
+/* Publish DB — Primärfarbe */
+.tb-lyrmgr-btn-publish-db {
+  background: #2563a8; color: #fff; border-color: #1e5299;
 }
-.tb-lyrmgr-btn-publish:hover { background: #c9362f; }
+.tb-lyrmgr-btn-publish-db:hover { background: #1d4f8a; }
+/* Publish lyrmgr.conf — Akzentfarbe */
+.tb-lyrmgr-btn-publish-file {
+  background: #c0782a; color: #fff; border-color: #a05e1a;
+}
+.tb-lyrmgr-btn-publish-file:hover { background: #9e6122; }
 .tb-lyrmgr-btn:disabled { opacity: .4; cursor: default; }
 .tb-btn-sep { width: 1px; background: #d0d5d8; margin: 2px 4px; align-self: stretch; flex-shrink: 0; }
 
@@ -3440,19 +3459,31 @@ function renderTreeTabs() {
 
   // Gruppe A: Laden | Gruppe B: Prüfen | Gruppe C: Sichern | Gruppe D: Veröffentlichen
   var html = '<div class="tb-lyrmgr-actions">';
-  html += '<button class="tb-lyrmgr-btn" data-action="lyrmgr-import-profile" title="lyrmgr.conf vom Server importieren (aktuelles oder anderes Profil)">📥 Von Profil laden</button>';
-  html += '<button class="tb-lyrmgr-btn" data-action="file-import" title="JSON-Backup importieren">📂 Datei laden</button>';
-  html += '<span class="tb-btn-sep"></span>';
-  html += '<button class="tb-lyrmgr-btn" data-action="lyrmgr-save" title="Speichern und sofort live in DB publizieren">💾 Live DB</button>';
-  html += '<button class="tb-lyrmgr-btn" data-action="lyrmgr-verify" title="Layer-IDs prüfen">✅ Verify</button>';
-  html += '<span class="tb-btn-sep"></span>';
-  html += '<button class="tb-lyrmgr-btn" data-action="lyrmgr-export" title="Aktiven LyrMgr-Block als JSON anzeigen (inkl. Round-Trip-Prüfung)">📤 Export</button>';
-  html += '<button class="tb-lyrmgr-btn" data-action="file-export" title="Gesamten Baum aller Profile als JSON-Backup exportieren">📦 Backup</button>';
-  html += '<button class="tb-lyrmgr-btn" data-action="backup-manage" title="Server-Backups anzeigen, wiederherstellen und löschen">📁 Backups</button>';
+
+  // ── Sektion 1: Datenbank ──
+  html += '<div class="tb-action-section">';
+  html += '<span class="tb-action-section-label">DB</span>';
+  html += '<button class="tb-lyrmgr-btn tb-lyrmgr-btn-publish-db" data-action="lyrmgr-publish-db" title="Arbeitsstand in Datenbank speichern und produktiv stellen">🗄 Publish</button>';
+  html += '</div>';
+
+  // ── Sektion 2: File-Config ──
+  html += '<div class="tb-action-section">';
+  html += '<span class="tb-action-section-label">File-Config</span>';
+  html += '<button class="tb-lyrmgr-btn" data-action="lyrmgr-import-profile" title="Vorhandenes lyrmgr.conf vom Server laden">📥 Von Profil laden</button>';
+  html += '<button class="tb-lyrmgr-btn tb-lyrmgr-btn-publish-file" data-action="lyrmgr-publish-file" title="lyrmgr.conf temporär ablegen und via FastAPI publizieren">🚀 Publish lyrmgr.conf</button>';
+  html += '<button class="tb-lyrmgr-btn" data-action="lyrmgr-download" title="Aktiven LyrMgr-Block als JSON herunterladen">⬇ Download</button>';
+  html += '<button class="tb-lyrmgr-btn" data-action="file-import" title="lyrmgr.conf als JSON von lokal importieren">📂 Import</button>';
+  html += '</div>';
+
+  // ── Sektion 3: Backup / Restore ──
+  html += '<div class="tb-action-section">';
+  html += '<span class="tb-action-section-label">Backup</span>';
+  html += '<button class="tb-lyrmgr-btn" data-action="backup-create" title="Aktuellen Arbeitsstand als JSON-Backup mit Zeitstempel herunterladen">💾 Backup erstellen</button>';
+  html += '<button class="tb-lyrmgr-btn" data-action="backup-manage" title="Server-Backups verwalten und wiederherstellen">📁 Verwalten & Restore</button>';
+  html += '</div>';
+
   html += '<span style="flex:1"></span>';
   html += '<button class="tb-lyrmgr-btn" id="tb-deploy-conf-btn" data-action="deploy-conf" title="Pending Conf+NLS-Änderungen auf Server deployen" style="display:none">🚢 Deploy <span id="tb-pending-edits-count" class="badge" style="background:#e74c3c;color:#fff;font-size:9px;padding:1px 5px;border-radius:8px;margin-left:3px">0</span></button>';
-  html += '<button class="tb-lyrmgr-btn tb-lyrmgr-btn-publish" data-action="lyrmgr-publish-db" title="LyrMgr nur in die DB publizieren">🗄 Publish DB</button>';
-  html += '<button class="tb-lyrmgr-btn tb-lyrmgr-btn-publish" data-action="lyrmgr-publish-file" title="lyrmgr.conf als Datei publizieren">🚀 Publish lyrmgr.conf</button>';
   html += '</div>';
   bar.innerHTML = html;
 
@@ -3466,9 +3497,11 @@ function renderTreeTabs() {
       if (action === 'lyrmgr-verify') verifyLyrmgr();
       if (action === 'lyrmgr-publish-db') publishLyrmgr('db');
       if (action === 'lyrmgr-publish-file') publishLyrmgr('file');
+      if (action === 'lyrmgr-download') downloadLyrmgrConf();
       if (action === 'deploy-conf') deployLayerConfEdits();
       if (action === 'file-import') triggerFileImport();
       if (action === 'file-export') triggerFileExport();
+      if (action === 'backup-create') backupLyrmgrToFile();
       if (action === 'backup-manage') openBackupManager();
     });
   });
@@ -5013,6 +5046,32 @@ document.getElementById('tb-btn-download-modal').addEventListener('click', funct
 function triggerFileDownload() {
   var output = generateJSON();
   var filename = 'tree-config_' + new Date().toISOString().slice(0,10) + '.json';
+  downloadJSON(filename, output);
+}
+
+/**
+ * Direkt-Download des aktiven LyrMgr-Blocks als lyrmgr.conf (JSON)
+ */
+function downloadLyrmgrConf() {
+  var tree = getActiveTree();
+  if (!tree) { alert('Kein Layer-Manager ausgewählt.'); return; }
+  var key = state.activeLyrmgr || 'main_lyrmgr';
+  var rtCheck = checkRoundTripIdentity(tree, key);
+  var block = rtCheck.identical ? rtCheck.original : rtCheck.generated;
+  var wrapper = {};
+  wrapper[key] = block;
+  var profileName = state.activeProfile || 'profile';
+  var filename = 'lyrmgr_' + profileName + '_' + key + '_' + new Date().toISOString().slice(0,10) + '.json';
+  downloadJSON(filename, JSON.stringify(wrapper, null, 4));
+}
+
+/**
+ * Vollständiges Backup aller Profile als JSON-Datei mit Zeitstempel (lokal)
+ */
+function backupLyrmgrToFile() {
+  var output = generateJSON();
+  var ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+  var filename = 'lyrmgr-backup_' + ts + '.json';
   downloadJSON(filename, output);
 }
 

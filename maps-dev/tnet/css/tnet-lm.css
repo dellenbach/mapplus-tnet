@@ -170,6 +170,10 @@
   z-index: 4;
 }
 
+.lm-search-wrap.lm-search-active {
+  background: rgba(255, 214, 91, 0.2);
+}
+
 .lm-search {
   width: 100%;
   box-sizing: border-box;
@@ -200,6 +204,7 @@
   font-size: 20px;
   color: #999;
   cursor: pointer;
+  pointer-events: auto;
   -webkit-user-select: none;
   user-select: none;
 }

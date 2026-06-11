@@ -1,3 +1,17 @@
+## 2026-06-11 — Themenkatalog-Filter zeigte leere Oberknoten und kein klares Aktiv-Feedback
+
+- **Symptom:** Bei aktivem Suchfilter blieben leere Gruppen/Subkategorien sichtbar; das Filterfeld war nicht klar als aktiv markiert.
+- **Root-Cause:** Die Parent-Sichtbarkeit wurde über fragile CSS-String-Selektoren (`style*="display:none"`) bestimmt; dadurch wurden leere Oberknoten nicht zuverlässig ausgeblendet.
+- **Fix:** Filterlogik auf robuste Sichtbarkeitsprüfung via direkte Kindknoten (`style.display !== 'none'`) umgestellt, aktive Filter-Markierung (`lm-search-active`) ergänzt und X-Button-Interaktion abgesichert.
+- **Guardrail:** Bei Baumfiltern Parent-Sichtbarkeit immer daten-/zustandsbasiert berechnen (nicht über CSS-String-Matching), und aktiven Filterzustand visuell eindeutig kennzeichnen.
+
+## 2026-06-11 — Kategorie-Icons zeigten keinen Hover-Text mit den gewünschten Aliasen
+
+- **Symptom:** Beim Hover über die Kategorie-Icons im neuen Themenkatalog wurde kein bzw. kein gewünschter Alias-Text angezeigt.
+- **Root-Cause:** In `tnet-lm-tree.js` wurden die Tabs/Icons ohne `title`-Attribut gerendert; dadurch war kein Browser-Tooltip vorhanden.
+- **Fix:** Alias-Mapping pro Kategorie ergänzt und `title`/`alt` beim Rendern der Tab-Icons auf Alias (Fallback `cat.alias`/`cat.name`) gesetzt.
+- **Guardrail:** Bei reinen Icon-Tabs immer explizit einen semantischen Tooltip (`title`) und einen aussagekräftigen `alt`-Text setzen.
+
 ## 2026-06-11 — Modaldialoge schliessen bei Text-Selektion in Input-Feldern
 
 - **Symptom:** Beim Versuch, Text in Input/Textarea-Feldern eines Dialogs mit der Maus zu markieren, schloss sich der Dialog spontan.
