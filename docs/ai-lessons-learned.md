@@ -1,3 +1,10 @@
+## 2026-06-11 — Modaldialoge schliessen bei Text-Selektion in Input-Feldern
+
+- **Symptom:** Beim Versuch, Text in Input/Textarea-Feldern eines Dialogs mit der Maus zu markieren, schloss sich der Dialog spontan.
+- **Root-Cause:** Event-Bubbling: Clicks auf Input-Felder bubbelten bis zu Overlay-Click-Handlern, die den Dialog schlossen (obwohl die Handler korrekt `e.target === this` prüften, feuerte ein nachgelagerter Handler oder die Bubbling-Phase selbst das Close aus).
+- **Fix:** Globaler Click-Handler (Capture-Phase) in `slm.html`, der auf alle `INPUT` und `TEXTAREA` Elemente `e.stopPropagation()` setzt, sodass Clicks in Formularfeldern nicht bis zu Modal-Handlern bubbelln.
+- **Guardrail:** Bei Modal/Overlay-Patterns immer `event.stopPropagation()` auf Interaktionselementen setzen (Input, Buttons, Links); besonders wichtig bei dynamisch erzeugten Dialogen.
+
 ## 2026-06-10 — layers.php braucht StagingImportRepository-Require für echten DB-only Pfad
 
 - **Symptom:** Fehlende Layer wurden in Karte/Preview weiterhin angezeigt, obwohl `source=db` aktiv war.

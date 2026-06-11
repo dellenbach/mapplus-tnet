@@ -5299,6 +5299,14 @@ function safeAddEventListener(elementId, eventType, handler) {
   if (el) el.addEventListener(eventType, handler);
 }
 
+// ===== MODAL INPUT-HANDLING: Verhindere Event-Bubbling bei Text-Selektion =====
+// Clicke auf Input/Textarea in Modalen sollen nicht den Dialog schließen
+document.addEventListener('click', function(e) {
+  if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) {
+    e.stopPropagation();
+  }
+}, true); // Use capture phase to catch before other handlers
+
 safeAddEventListener('ags-btn-refresh', 'click', function() {
   var activeTab = document.querySelector('.ags-tab.active');
   if (activeTab && activeTab.dataset.tab === 'manage') {
