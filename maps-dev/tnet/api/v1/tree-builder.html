@@ -7254,6 +7254,21 @@ function loadBackupList() {
     });
 }
 
+/**
+ * UTC-Zeitstring (YYYY-MM-DD HH:MM:SS) in lokale Browserzeit umwandeln.
+ */
+function utcToLocal(utcStr) {
+  if (!utcStr) return '';
+  try {
+    // PHP date() gibt "YYYY-MM-DD HH:MM:SS" zurück (kein Z-Suffix) → als UTC parsen
+    var d = new Date(utcStr.replace(' ', 'T') + 'Z');
+    if (isNaN(d.getTime())) return utcStr;
+    var pad = function(n) { return n < 10 ? '0' + n : '' + n; };
+    return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate())
+      + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
+  } catch(e) { return utcStr; }
+}
+
 function renderBackupTable() {
   var tbody = document.getElementById('tb-backup-tbody');
   var filter = document.getElementById('tb-backup-type-filter').value;
@@ -7280,7 +7295,7 @@ function renderBackupTable() {
     html += '<td style="font-family:Consolas,monospace;font-size:10px;word-break:break-all">' + esc(b.file) + userLabel + '</td>';
     html += '<td><span class="bk-type ' + b.type + '">' + esc(b.type) + '</span></td>';
     html += '<td style="white-space:nowrap">' + sizeStr + '</td>';
-    html += '<td style="white-space:nowrap">' + esc(b.timestamp || b.modified) + '</td>';
+    html += '<td style="white-space:nowrap">' + esc(utcToLocal(b.timestamp || b.modified)) + '</td>';
     html += '<td class="bk-actions">';
     if (isState) html += '<button class="bk-restore" data-file="' + esc(b.file) + '" title="Dieses Backup in Arbeitsspeicher laden">↩ In Memory laden</button>';
     html += '<button class="bk-del" data-file="' + esc(b.file) + '" title="Löschen">🗑</button>';
@@ -7390,6 +7405,17 @@ function restoreBackupFile(filename) {
             // Unbekannte Keys (nicht _-prefixed, nicht bekannte LyrMgr) ebenfalls mitnehmen
             Object.keys(p).forEach(function(k) {
               if (k.charAt(0) !== '_' && knownLyrmgrKeys.indexOf(k) === -1) lyrmgrs[k] = p[k];
+            });
+            // Jeden LyrMgr-Block konvertieren: {structure:[...]} → {meta:{}, categories:[...], _rawBlock}
+            Object.keys(lyrmgrs).forEach(function(lmKey) {
+              var block = lyrmgrs[lmKey];
+              if (!block) return;
+              if (block.categories) return; // bereits konvertiert
+              var rawBlock = JSON.parse(JSON.stringify(block));
+              var meta = {};
+              Object.keys(block).forEach(function(k) { if (k !== 'structure') meta[k] = block[k]; });
+              var categories = block.structure ? convertLyrmgrStructure(block.structure) : [];
+              lyrmgrs[lmKey] = { meta: meta, categories: categories, _rawBlock: rawBlock };
             });
             loaded.profiles[pName] = { lyrmgrs: lyrmgrs };
           }
