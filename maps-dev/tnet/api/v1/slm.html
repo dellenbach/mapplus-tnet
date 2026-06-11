@@ -1745,12 +1745,12 @@ Kein Einfluss auf Browser-Cache (dafuer: Ctrl+Shift+R)">🗑 Cache leeren</butto
       <button id="bm-view-json" onclick="bmSwitchView('json')" title="JSON-Editor">{ } JSON</button>
     </div>
     <div class="bm-filter-bar">
-      <label>IDs:</label><input type="text" data-col-filter="idaliases" placeholder="IDs…" oninput="bmColumnFilter()">
-      <label>Alias:</label><input type="text" data-col-filter="name" placeholder="Alias…" oninput="bmColumnFilter()">
-      <label>Basemap:</label><input type="text" data-col-filter="basemap" placeholder="Basemap…" oninput="bmColumnFilter()">
-      <label>Modus:</label><input type="text" data-col-filter="basemapmode" placeholder="color / grey…" oninput="bmColumnFilter()">
-      <label>Themen:</label><input type="text" data-col-filter="themes" placeholder="Themen…" oninput="bmColumnFilter()">
-      <label>Layer:</label><input type="text" data-col-filter="layers" placeholder="Layer…" oninput="bmColumnFilter()">
+      <label>IDs:</label><input type="text" data-col-filter="idaliases" placeholder="IDs… (min. 3)" oninput="bmColumnFilter()">
+      <label>Alias:</label><input type="text" data-col-filter="name" placeholder="Alias… (min. 3)" oninput="bmColumnFilter()">
+      <label>Basemap:</label><input type="text" data-col-filter="basemap" placeholder="Basemap… (min. 3)" oninput="bmColumnFilter()">
+      <label>Modus:</label><input type="text" data-col-filter="basemapmode" placeholder="color / grey… (min. 3)" oninput="bmColumnFilter()">
+      <label>Themen:</label><input type="text" data-col-filter="themes" placeholder="Themen… (min. 3)" oninput="bmColumnFilter()">
+      <label>Layer:</label><input type="text" data-col-filter="layers" placeholder="Layer… (min. 3)" oninput="bmColumnFilter()">
     </div>
     <div class="bm-status" id="bm-status">Wechsle zum Tab oder klicke ↻ um Bookmarks zu laden…</div>
     <div class="bm-table-wrap">
@@ -8056,7 +8056,8 @@ function updateDeployStatus(source, deployedSync) {
 // =====================================================================
 var _bmData = null;       // geladene Bookmark-Daten (Array, v2)
 var _bmLoaded = false;    // wurde bereits geladen?
-var _bmAllLayerKeys = [];  // alle verfügbaren Layer-Keys (für Autocomplete / Validierung)
+var _bmAllLayerKeys = [];  // alle verfügbaren Layer-Keys als Array (für Autocomplete)
+var _bmAllLayerKeySet = null; // Set für O(1)-Validierung
 var _bmLayersLoaded = false;
 
 // ---- Concurrency / Optimistic Locking (Konfig-Store DB) ----------------
@@ -8349,7 +8350,7 @@ function bmRenderMatrix(detailRow) {
 
   layers.forEach(function(l) {
     var lid = l.id;
-    var isValid = _bmAllLayerKeys.indexOf(lid) !== -1;
+    var isValid = _bmAllLayerKeySet ? _bmAllLayerKeySet.has(lid) : (_bmAllLayerKeys.indexOf(lid) !== -1);
     var isSel = sel.has(lid);
     html += '<tr data-lid="' + bmEscAttr(lid) + '"' + (isSel ? ' class="bm-mtx-row-sel"' : '') + '>';
     html += '<td class="bm-mtx-cell-sel"><input type="checkbox" class="bm-mtx-rowsel" data-lid="' + bmEscAttr(lid) + '"' + (isSel ? ' checked' : '') + '></td>';
@@ -8668,6 +8669,7 @@ function loadAllLayerKeys() {
     .then(function(res) {
       if (res.success && res.data && Array.isArray(res.data.layers)) {
         _bmAllLayerKeys = res.data.layers.map(function(l) { return l.id; }).sort();
+        _bmAllLayerKeySet = new Set(_bmAllLayerKeys);
       }
       _bmLayersLoaded = true;
       return _bmAllLayerKeys;
@@ -8755,15 +8757,16 @@ window.addEventListener('beforeunload', bmReleaseLock);
 function renderBookmarkTable(bookmarks) {
   var tbody = document.getElementById('bm-tbody');
   tbody.innerHTML = '';
+  var frag = document.createDocumentFragment();
   for (var i = 0; i < bookmarks.length; i++) {
     var rows = createBookmarkRows(bookmarks[i], i);
-    // Zebra-Streifen: gerade Zeilen markieren
     if (i % 2 === 1) rows.summary.classList.add('bm-row-even');
-    tbody.appendChild(rows.summary);
-    tbody.appendChild(rows.detail);
+    frag.appendChild(rows.summary);
+    frag.appendChild(rows.detail);
   }
+  tbody.appendChild(frag);
   updateBookmarkCount();
-  bmColumnFilter(); // Filter anwenden falls aktiv
+  bmColumnFilter(true); // Filter anwenden falls aktiv
 }
 
 function createBookmarkRows(bm, idx) {
@@ -8870,14 +8873,20 @@ function createBookmarkRows(bm, idx) {
     '</div></div>';
   detail.appendChild(detailTd);
 
-  // Matrix initial rendern
-  bmRenderMatrix(detail);
+  // Matrix LAZY: erst beim ersten Aufklappen rendern (Performance bei vielen Bookmarks)
+  var _matrixRendered = false;
+  function ensureMatrixRendered() {
+    if (_matrixRendered) return;
+    _matrixRendered = true;
+    bmRenderMatrix(detail);
+  }
 
-  // Event-Delegation: Click + Change auf die Matrix
+  // Event-Delegation: Click + Change auf die Matrix (lazy init Matrix beim ersten Interagieren)
   var mtxWrap = detail.querySelector('.bm-mtx-wrap');
-  mtxWrap.addEventListener('click', function(e) { bmMatrixHandleClick(e, detail); });
-  mtxWrap.addEventListener('change', function(e) { bmMatrixHandleChange(e, detail); });
+  mtxWrap.addEventListener('click', function(e) { ensureMatrixRendered(); bmMatrixHandleClick(e, detail); });
+  mtxWrap.addEventListener('change', function(e) { ensureMatrixRendered(); bmMatrixHandleChange(e, detail); });
   mtxWrap.addEventListener('input',  function(e) {
+    ensureMatrixRendered();
     // Live-Filter und Live-Edit für Inputs
     if (e.target.matches('.bm-mtx-filter')) bmApplyMatrixFilter(detail);
     if (e.target.matches('.bm-mtx-vid') || e.target.matches('.bm-mtx-vname') || e.target.matches('input[data-prop]')) bmMatrixHandleChange(e, detail);
@@ -8895,6 +8904,7 @@ function createBookmarkRows(bm, idx) {
     }
   };
   initLayerAutocomplete(acInput, acList, fakeTags, detail, function(layerId) {
+    ensureMatrixRendered();
     bmMatrixAddLayer(detail, layerId);
   });
 
@@ -8905,6 +8915,7 @@ function createBookmarkRows(bm, idx) {
     summary.classList.toggle('bm-expanded-row', expanded);
     // Inline-Style muss auch gesetzt werden (bmColumnFilter setzt display inline)
     detail.style.display = expanded ? 'table-row' : 'none';
+    if (expanded) ensureMatrixRendered();
   });
 
   return { summary: summary, detail: detail };
@@ -9028,7 +9039,7 @@ function createLayerTag(layer, tr) {
   span.className = 'bm-layer-tag';
   span.dataset.layer = layerKey;
   span.dataset.layerObj = JSON.stringify(obj);
-  var isValid = _bmAllLayerKeys.indexOf(layerKey) !== -1;
+  var isValid = _bmAllLayerKeySet ? _bmAllLayerKeySet.has(layerKey) : (_bmAllLayerKeys.indexOf(layerKey) !== -1);
   span.classList.add(isValid ? 'valid' : 'invalid');
   span.title = isValid ? 'Layer vorhanden' : 'Layer nicht gefunden!';
   // Optisches Off-Indiz wenn visible:false (per-Layer-Edit folgt in 5c)
@@ -9181,13 +9192,13 @@ function revalidateAllLayerTags() {
   var tags = document.querySelectorAll('#bm-tbody .bm-layer-tag');
   for (var i = 0; i < tags.length; i++) {
     var key = tags[i].dataset.layer;
-    var isValid = _bmAllLayerKeys.indexOf(key) !== -1;
+    var isValid = _bmAllLayerKeySet ? _bmAllLayerKeySet.has(key) : (_bmAllLayerKeys.indexOf(key) !== -1);
     tags[i].classList.remove('valid', 'invalid');
     tags[i].classList.add(isValid ? 'valid' : 'invalid');
     tags[i].title = isValid ? 'Layer vorhanden' : 'Layer nicht gefunden!';
   }
-  // Matrix-Zeilen re-rendern (Layer-Name-Spalte färbt sich nach Validierung um)
-  var details = document.querySelectorAll('#bm-tbody tr.bm-row-detail');
+  // Matrix-Zeilen re-rendern nur für bereits aufgeklappte Zeilen (Lazy-Pattern beachten)
+  var details = document.querySelectorAll('#bm-tbody tr.bm-row-detail.bm-expanded');
   for (var j = 0; j < details.length; j++) {
     if (details[j].querySelector('.bm-mtx-scroll')) bmRenderMatrix(details[j]);
   }
@@ -9204,6 +9215,8 @@ function addBookmarkEntry() {
   rows.summary.classList.add('bm-expanded-row');
   tbody.insertBefore(rows.detail, tbody.firstChild);
   tbody.insertBefore(rows.summary, rows.detail);
+  // Matrix für neuen Eintrag sofort rendern (muss sofort bearbeitbar sein)
+  bmRenderMatrix(rows.detail);
   // Fokus auf ID-Feld
   var idsInput = rows.detail.querySelector('[data-field="idaliases"]');
   if (idsInput) idsInput.focus();
@@ -9440,18 +9453,36 @@ function saveBookmarks() {
 }
 
 function filterBookmarkTable() {
-  bmColumnFilter();
+  bmColumnFilter(true);
 }
 
 // ===== SPALTENFILTER =====
-function bmColumnFilter() {
+var _bmFilterTimer = null;
+
+function bmColumnFilter(immediate) {
+  if (immediate === true) {
+    bmApplyColumnFilter();
+    return;
+  }
+  if (_bmFilterTimer) clearTimeout(_bmFilterTimer);
+  _bmFilterTimer = setTimeout(bmApplyColumnFilter, 140);
+}
+
+function bmApplyColumnFilter() {
   var filters = {};
+  var shortFilterCount = 0;
   document.querySelectorAll('.bm-filter-bar input[data-col-filter]').forEach(function(input) {
     var col = input.dataset.colFilter;
     var val = input.value.trim().toLowerCase();
-    if (val) filters[col] = val;
+    if (!val) return;
+    if (val.length < 3) { shortFilterCount++; return; }
+    filters[col] = val;
   });
   var summaries = document.querySelectorAll('#bm-tbody tr.bm-row-summary');
+  var detailsByIdx = {};
+  document.querySelectorAll('#bm-tbody tr.bm-row-detail').forEach(function(detail) {
+    detailsByIdx[detail.dataset.idx] = detail;
+  });
   var visible = 0;
   summaries.forEach(function(sum) {
     var show = true;
@@ -9467,7 +9498,7 @@ function bmColumnFilter() {
     }
     sum.style.display = show ? '' : 'none';
     var idx = sum.dataset.idx;
-    var detail = document.querySelector('tr.bm-row-detail[data-idx="' + idx + '"]');
+    var detail = detailsByIdx[idx] || null;
     if (detail) {
       if (!show) {
         detail.style.display = 'none';
@@ -9477,7 +9508,11 @@ function bmColumnFilter() {
     }
     if (show) visible++;
   });
-  document.getElementById('bm-count').textContent = visible + ' / ' + summaries.length + ' Bookmarks';
+  var cnt = visible + ' / ' + summaries.length + ' Bookmarks';
+  if (shortFilterCount > 0 && Object.keys(filters).length === 0) {
+    cnt += ' (Filter ab 3 Zeichen)';
+  }
+  document.getElementById('bm-count').textContent = cnt;
 }
 
 function updateBookmarkCount() {
@@ -9512,13 +9547,12 @@ function initBookmarkSort() {
 
 function sortBookmarkTable(field, dir) {
   var tbody = document.getElementById('bm-tbody');
-  // Paare sammeln: [summary, detail]
+  // Paare sammeln: [summary, detail] — detail per Map für O(1)-Lookup
   var pairs = [];
-  var summaries = tbody.querySelectorAll('tr.bm-row-summary');
-  summaries.forEach(function(sum) {
-    var idx = sum.dataset.idx;
-    var detail = tbody.querySelector('tr.bm-row-detail[data-idx="' + idx + '"]');
-    pairs.push({ summary: sum, detail: detail });
+  var detailMap = {};
+  tbody.querySelectorAll('tr.bm-row-detail').forEach(function(d) { detailMap[d.dataset.idx] = d; });
+  tbody.querySelectorAll('tr.bm-row-summary').forEach(function(sum) {
+    pairs.push({ summary: sum, detail: detailMap[sum.dataset.idx] || null });
   });
   pairs.sort(function(a, b) {
     var va = getBmSortValue(a.summary, a.detail, field);
@@ -9526,12 +9560,13 @@ function sortBookmarkTable(field, dir) {
     var cmp = va.localeCompare(vb, 'de', { sensitivity: 'base' });
     return dir === 'desc' ? -cmp : cmp;
   });
+  var frag = document.createDocumentFragment();
   pairs.forEach(function(p, i) {
-    // Zebra-Streifen neu berechnen nach Sortierung
     p.summary.classList.toggle('bm-row-even', i % 2 === 1);
-    tbody.appendChild(p.summary);
-    if (p.detail) tbody.appendChild(p.detail);
+    frag.appendChild(p.summary);
+    if (p.detail) frag.appendChild(p.detail);
   });
+  tbody.appendChild(frag);
 }
 
 function getBmSortValue(summary, detail, field) {
@@ -9651,6 +9686,10 @@ document.addEventListener('keydown', function(e) {
     var tag2 = e.target.tagName;
     if (tag2 === 'INPUT' || tag2 === 'TEXTAREA') return;
     e.preventDefault(); bmRedo();
+  }
+  if (e.ctrlKey && !e.shiftKey && e.key === 's') {
+    e.preventDefault();
+    saveBookmarks();
   }
 });
 
@@ -9973,7 +10012,7 @@ function bmInlineJsonApply(btn) {
       var preview = '';
       for (var lp = 0; lp < Math.min(layerIds.length, 4); lp++) {
         var lid = layerIds[lp];
-        var isV = _bmAllLayerKeys.indexOf(lid) !== -1;
+        var isV = _bmAllLayerKeySet ? _bmAllLayerKeySet.has(lid) : (_bmAllLayerKeys.indexOf(lid) !== -1);
         preview += '<span class="bm-layer-tag ' + (isV ? 'valid' : 'invalid') + '" data-layer="' + esc(lid) + '">' + esc(lid) + '</span>';
       }
       if (layerIds.length > 4) preview += '<span style="font-size:10px;color:#888"> +' + (layerIds.length - 4) + '</span>';

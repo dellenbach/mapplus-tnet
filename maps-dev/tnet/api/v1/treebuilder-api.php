@@ -6448,6 +6448,7 @@ switch ($action) {
         jsonResponse(['success' => true, 'data' => [
             'environment' => APP_BASE_PATH === '/maps-dev' ? 'dev' : 'prod',
             'appBasePath' => APP_BASE_PATH,
+            'dbActive' => useStagingImportDb(),
             'paths' => [
                 runtimePathInfo('App Webroot', APP_WEB_ROOT),
                 runtimePathInfo('Core Config', CORE_CONFIG_DIR),

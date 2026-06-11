@@ -6240,6 +6240,9 @@ function renderRuntimePaths(el, data) {
   var pick = {};
   paths.forEach(function(p) { pick[p.label] = p; });
   var labels = ['Core Config', 'Core NLS de', 'Profil-Config', 'raw-conf', 'ImportToCore', 'Tmp Root'];
+  if (data.dbActive === true) {
+    labels = labels.filter(function(label) { return label !== 'ImportToCore'; });
+  }
   var html = '<span class="rp-title">Pfade ' + esc((data.environment || '').toUpperCase()) + '</span>';
   if (data.dbSchema) html += '<span class="rp-item"><span class="rp-label">DB</span><code>' + esc(data.dbSchema) + '</code></span>';
   labels.forEach(function(label) {
