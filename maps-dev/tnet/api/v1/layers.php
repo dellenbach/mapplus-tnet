@@ -645,11 +645,15 @@ if ($useCatalogDocument) {
     } catch (\Throwable $e) {
         error_log('layers.php: config_bundle_store Fehler: ' . $e->getMessage());
     }
-    // Fallback: wenn config_bundle_store noch leer ist, Dateien lesen
-    if (empty($layerDefinitions)) {
-        $layerData = ConfigReader::readAllLayerDefinitions();
-        $layerDefinitions = $layerData['definitions'];
+    // Supplement: Core-Konfigurationsdateien zusätzlich laden (Bundle-Keys haben Vorrang).
+    // _missing = kein Eintrag in KEINER Quelle (weder Bundle noch Core-Datei).
+    $layerDataSupp = ConfigReader::readAllLayerDefinitions();
+    foreach ($layerDataSupp['definitions'] as $_suppKey => $_suppVal) {
+        if (!isset($layerDefinitions[$_suppKey])) {
+            $layerDefinitions[$_suppKey] = $_suppVal;
+        }
     }
+    $layerData = $layerDataSupp;
 } else {
     $layerData = ConfigReader::readAllLayerDefinitions();
     $layerDefinitions = $layerData['definitions'];

@@ -1,3 +1,10 @@
+## 2026-06-10 — layers.php braucht StagingImportRepository-Require für echten DB-only Pfad
+
+- **Symptom:** Fehlende Layer wurden in Karte/Preview weiterhin angezeigt, obwohl `source=db` aktiv war.
+- **Root-Cause:** In `layers.php` fehlte `require_once StagingImportRepository.php`; der DB-Layer-Load warf `Class not found` und fiel still auf File-Definitionen zurück.
+- **Fix:** `StagingImportRepository` explizit eingebunden und Missing-Filter im `processLayerItems`-Pfad auf DB-Definitionsbasis umgesetzt.
+- **Guardrail:** Bei DB-first-Endpunkten Klasseneinbindung für alle Repository-Aufrufe validieren; Catch-Fallbacks dürfen Source-Drift nicht unbemerkt kaschieren.
+
 ## 2026-06-10 — Editor-Deploy braucht Auto-Export und robustes Git-Error-Mapping
 
 - **Symptom:** „Kürzel nach core“ schlug mit „Bitte zuerst Export nach Temp“ ab bzw. zeigte bei Git-Fehlern nur „Unbekannter Fehler“.

@@ -1939,9 +1939,15 @@ function listRawConf($includeBackups = false, $backupOnly = false) {
         RecursiveIteratorIterator::LEAVES_ONLY
     );
     foreach ($iterator as $file) {
-        $isBackup = isRawConfBackupFile($file->getFilename());
+        $fileName = $file->getFilename();
+        $isBackup = isRawConfBackupFile($fileName);
         if ($backupOnly && !$isBackup) continue;
         if (!$includeBackups && $isBackup) continue;
+        // Nur fachliche Konfigurationsdateien anzeigen (conf/json).
+        // Bei Backups die Original-Endung vor .bak prüfen.
+        $effectiveName = $isBackup ? stripRawConfBackupSuffix($fileName) : $fileName;
+        $ext = strtolower(pathinfo($effectiveName, PATHINFO_EXTENSION));
+        if (!in_array($ext, ['conf', 'json'], true)) continue;
 
         $relPath = str_replace($rawConfDir . '/', '', $file->getPathname());
         $relPath = str_replace('\\', '/', $relPath); // Windows-Pfade normalisieren

@@ -142,6 +142,9 @@ body {
 .ags-import-table .ags-item.imported .ags-name { color: #27ae60; }
 .ags-import-table .ags-item.changed { background: #fef9f0; }
 .ags-import-table .ags-item.changed .ags-name { color: #e67e22; }
+.ags-import-table .ags-item.pending { background: #fef0f0; }
+.ags-import-table .ags-item.pending .ags-name { color: #c0392b; }
+.ags-new-badge-pending { font-size: 10px; background: #c0392b; color: #fff; border-radius: 3px; padding: 1px 5px; flex-shrink: 0; font-family: sans-serif; }
 .ags-name { font-family: 'Consolas', monospace; word-break: break-all; }
 .ags-col-date { font-size: 11px; color: #666; white-space: nowrap; font-family: 'Consolas', monospace; }
 .ags-col-author { font-size: 11px; color: #888; white-space: nowrap; }
@@ -155,6 +158,7 @@ body {
 .leg-dot-new { width: 10px; height: 10px; border-radius: 2px; background: #fff; border: 1px solid #bbb; flex-shrink: 0; }
 .leg-dot-imp { width: 10px; height: 10px; border-radius: 2px; background: #27ae60; flex-shrink: 0; }
 .leg-dot-chg { width: 10px; height: 10px; border-radius: 2px; background: #e67e22; flex-shrink: 0; }
+.leg-dot-pnd { width: 10px; height: 10px; border-radius: 2px; background: #c0392b; flex-shrink: 0; }
 
 /* ===== ACTIONS BAR ===== */
 .ags-actions {
@@ -225,6 +229,13 @@ body {
 .ags-svc-head .svc-size { font-size: 10px; color: #999; }
 .ags-svc-group.needs-restage { border-color: #f0bf8d; }
 .ags-svc-group.needs-restage .ags-svc-head { background: #fff6ed; }
+.ags-svc-group.svc-pending { border-color: #e8a0a0; }
+.ags-svc-group.svc-pending .ags-svc-head { background: #fff5f5; }
+.ags-svc-group.svc-pending .svc-name { color: #c0392b; }
+.ags-svc-group.svc-staged .ags-svc-head { background: #f0faf3; }
+.ags-svc-group.svc-staged .svc-name { color: #27ae60; }
+.svc-pending-badge { font-size: 9px; color: #fff; background: #c0392b; padding: 1px 6px; border-radius: 7px; font-weight: 700; }
+.svc-staged-badge  { font-size: 9px; color: #fff; background: #27ae60; padding: 1px 6px; border-radius: 7px; font-weight: 700; }
 .ags-svc-head .svc-restage-hint {
   font-size: 9px; color: #9a4d00; background: #ffe7cf; border: 1px solid #f0bf8d;
   padding: 1px 6px; border-radius: 8px; font-weight: 700; white-space: nowrap;
@@ -1429,7 +1440,7 @@ Kein Einfluss auf Browser-Cache (dafuer: Ctrl+Shift+R)">🗑 Cache leeren</butto
       <span class="sel-info" id="import-sel-info">0 ausgewählt</span>
     </div>
     <div class="ags-import-legend" id="import-legend" style="display:none">
-      <span class="leg-item"><span class="leg-dot-new"></span> Noch nicht importiert</span>
+      <span class="leg-item"><span class="leg-dot-pnd"></span> Ausstehend</span>
       <span class="leg-item"><span class="leg-dot-imp"></span> Bereits importiert</span>
       <span class="leg-item"><span class="leg-dot-chg"></span> Seit Import geändert</span>
     </div>
@@ -1481,6 +1492,8 @@ Kein Einfluss auf Browser-Cache (dafuer: Ctrl+Shift+R)">🗑 Cache leeren</butto
           <button id="staging-sel-all">Alle</button>
           <button id="staging-sel-none">Keine</button>
           <span class="sel-info" id="staging-sel-info">0 / 0 ausgewählt</span>
+          <button id="staging-btn-analyse" title="Ausstehende hervorheben und sortieren" style="background:#fef0f0;border:1px solid #c0392b;color:#c0392b;padding:3px 10px;border-radius:3px;cursor:pointer;font-size:11px;font-weight:600">&#128269; Analyse</button>
+          <label id="staging-filter-pending-label" style="font-size:11px;display:none;align-items:center;gap:4px;cursor:pointer;user-select:none;color:#c0392b;font-weight:600"><input type="checkbox" id="staging-filter-pending"> Nur ausstehende</label>
         </div>
         <div class="ags-svc-list" id="staging-svc-list"></div>
         <div class="staging-kuerzel-row" id="staging-kuerzel-row" style="display:none">
@@ -2593,7 +2606,7 @@ function refreshImportImportedMarkers() {
       statusCell.innerHTML = '<span class="ags-imported-badge">✓ erzeugt</span>';
       impCell.textContent = meta && meta.imported_at ? formatDateTime(meta.imported_at) : '—';
     } else {
-      statusCell.innerHTML = '<span class="ags-new-badge">neu</span>';
+      statusCell.innerHTML = '<span class="ags-new-badge-pending">⏳ ausstehend</span>';
       impCell.textContent = '—';
     }
   });
@@ -4412,6 +4425,129 @@ function updateStagingSelCount() {
 }
 
 /**
+// =====================================================================
+// STAGING: Analyse-Button + Filter + Doppel-Import-Schutz
+// =====================================================================
+
+/**
+ * Ermittelt alle Services die bereits in einem Kürzel-Manifest stehen.
+ * Returns: { serviceLower: kuerzelName }
+ */
+function getStagedServicesMap() {
+  var map = {};
+  if (!_stagingOutputData) return map;
+  _stagingOutputData.forEach(function(k) {
+    var sources = (k.manifest && k.manifest.sources) ? k.manifest.sources : [];
+    sources.forEach(function(src) {
+      if (src.service) map[src.service.toLowerCase()] = k.kuerzel;
+    });
+  });
+  return map;
+}
+
+/**
+ * Staging-Liste mit Analyse-Farben (grün/rot/orange) auffrischen.
+ */
+function applyStagingAnalyse() {
+  var stagedMap = getStagedServicesMap();
+  var restageMap = getStagingRestageServiceMap();
+  var cntPend = 0, cntStaged = 0, cntRestage = 0;
+
+  document.querySelectorAll('#staging-svc-list .ags-svc-group').forEach(function(group) {
+    var svc = group.dataset.svckey || group.dataset.svcname || '';
+    var svcLower = svc.toLowerCase();
+    var isRestage = !!(restageMap[svc] || restageMap[svcLower]);
+    var isStaged  = !!(stagedMap[svcLower]);
+    group.classList.remove('svc-pending', 'svc-staged');
+    var head = group.querySelector('.ags-svc-head');
+    // Badge entfernen falls vorhanden
+    var existingBadge = head ? head.querySelector('.svc-pending-badge, .svc-staged-badge') : null;
+    if (existingBadge) existingBadge.remove();
+    if (isRestage) {
+      cntRestage++;
+    } else if (isStaged) {
+      group.classList.add('svc-staged');
+      cntStaged++;
+      if (head) {
+        var b = document.createElement('span');
+        b.className = 'svc-staged-badge';
+        b.textContent = '✓ ' + stagedMap[svcLower];
+        head.appendChild(b);
+      }
+    } else {
+      group.classList.add('svc-pending');
+      cntPend++;
+      if (head) {
+        var bp = document.createElement('span');
+        bp.className = 'svc-pending-badge';
+        bp.textContent = '⏳ ausstehend';
+        head.appendChild(bp);
+      }
+    }
+  });
+  // Analyse-Button Text
+  var btn = document.getElementById('staging-btn-analyse');
+  if (btn) btn.textContent = '\uD83D\uDD0D Analyse: ' + cntPend + ' ausstehend / ' + cntRestage + ' geändert / ' + cntStaged + ' importiert';
+  // Filter-Checkbox einblenden
+  var filterLabel = document.getElementById('staging-filter-pending-label');
+  if (filterLabel) filterLabel.style.display = 'flex';
+  // Nach Status sortieren: ausstehend oben
+  var listEl = document.getElementById('staging-svc-list');
+  if (!listEl) return;
+  var groups = Array.prototype.slice.call(listEl.querySelectorAll('.ags-svc-group'));
+  groups.sort(function(a, b) {
+    function weight(g) {
+      if (g.classList.contains('svc-pending'))  return 0;
+      if (g.classList.contains('needs-restage')) return 1;
+      if (g.classList.contains('svc-staged'))    return 2;
+      return 3;
+    }
+    var w = weight(a) - weight(b);
+    if (w !== 0) return w;
+    return (a.dataset.svcname || '').localeCompare(b.dataset.svcname || '');
+  });
+  groups.forEach(function(g) { listEl.appendChild(g); });
+}
+
+/**
+ * "Nur ausstehende" Filter toggling.
+ */
+function applyStagingPendingFilter() {
+  var cb = document.getElementById('staging-filter-pending');
+  var onlyPending = cb && cb.checked;
+  document.querySelectorAll('#staging-svc-list .ags-svc-group').forEach(function(g) {
+    if (onlyPending) {
+      g.style.display = g.classList.contains('svc-pending') ? '' : 'none';
+    } else {
+      g.style.display = '';
+    }
+  });
+  updateStagingSelCount();
+}
+
+// Event-Binding für Analyse + Filter
+(function() {
+  function bindStagingAnalyseControls() {
+    var btn = document.getElementById('staging-btn-analyse');
+    var filterCb = document.getElementById('staging-filter-pending');
+    if (!btn || btn._analyseBound) return;
+    btn._analyseBound = true;
+    btn.addEventListener('click', function() {
+      applyStagingAnalyse();
+    });
+    if (filterCb) {
+      filterCb.addEventListener('change', applyStagingPendingFilter);
+    }
+  }
+  var _retry = setInterval(function() {
+    if (document.getElementById('staging-btn-analyse')) {
+      bindStagingAnalyseControls();
+      clearInterval(_retry);
+    }
+  }, 300);
+})();
+/**
+
  * Gewählte Dienste zusammenführen und in die Konfig-Store DB schreiben
  */
 function executeStagingMerge() {
@@ -4423,6 +4559,24 @@ function executeStagingMerge() {
   var scope = (document.getElementById('staging-scope') || {}).value || 'core';
   var profile = (document.getElementById('staging-profile') || {}).value || '';
   if (services.length === 0 || !kuerzel) return;
+
+  // Doppel-Import Warnung: Services die bereits in einem anderen Kürzel staged sind
+  if (mode !== 'preview') {
+    var stagedMap = getStagedServicesMap();
+    var conflicts = [];
+    services.forEach(function(svc) {
+      var existingK = stagedMap[svc.toLowerCase()];
+      if (existingK && existingK !== kuerzel) {
+        conflicts.push(svc + ' (bereits in \u00abKürzel: ' + existingK + '\u00bb)');
+      }
+    });
+    if (conflicts.length > 0) {
+      var msg = '\u26A0 Folgende Dienste sind bereits in einem anderen Kürzel importiert:\n\n'
+        + conflicts.join('\n')
+        + '\n\nTrotzdem fortfahren?';
+      if (!confirm(msg)) return;
+    }
+  }
 
   var btn = document.getElementById('staging-btn-merge');
   var resultEl = document.getElementById('staging-result');
@@ -10036,7 +10190,7 @@ function _showBuildTs(id) {
 /* ===== PFAD-INFO-BARS + DEV-BUTTON ===== */
 (function() {
   // Pfad-Bars basieren auf dem gewählten Konfig-Store (_storeEnv), NICHT auf der URL
-  var isStoreDev = (_storeEnv === 'dev');
+  var isStoreDev = (typeof _storeEnv !== 'undefined' && _storeEnv === 'dev');
   var coreName  = 'core'; // DEV und PROD nutzen gleiches core
   var rawConf   = isStoreDev ? 'data/tmp/maps-dev/raw-conf/(ags|qgis|mapplus)' : 'data/tmp/maps/raw-conf/(ags|qgis|mapplus)';
   var impCore   = isStoreDev ? 'DB: mapplusconf_dev.config_bundle_store' : 'DB: mapplusconf.config_bundle_store';
