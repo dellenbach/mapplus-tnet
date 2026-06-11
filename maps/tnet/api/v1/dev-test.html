@@ -139,6 +139,11 @@ body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sa
   </div>
   <span class="dt-sep"></span>
   <button id="dt-source-toggle" style="padding:3px 10px;border:1px solid #ccc;border-radius:3px;cursor:pointer;font-size:11px;font-weight:600">📄 Dateien</button>
+  <span class="dt-sep"></span>
+  <label style="font-size:11px;display:flex;align-items:center;gap:4px;cursor:pointer;user-select:none">
+    <input type="checkbox" id="dt-show-missing" checked style="cursor:pointer">
+    <span style="color:#e65100;font-weight:600">⚠ Fehlende</span>
+  </label>
 </div>
 
 <!-- Links -->
@@ -184,7 +189,8 @@ var params = new URLSearchParams(window.location.search);
 var currentGroup  = params.get('group')  || 'marco';
 var currentPanel  = params.get('panel')  || 'tree';
 var currentView   = params.get('view')   || 'mobile';
-var currentSource = params.get('source') || 'file'; // file = Config-Dateien (Default), auto = DB wenn verfügbar
+var currentSource = params.get('source') || 'db'; // db|file
+currentSource = (currentSource === 'file') ? 'file' : 'db';
 
 // =====================================================================
 // Logger
@@ -297,7 +303,9 @@ function updateUrl() {
 }
 
 function buildApiUrl() {
-  return 'layers.php?group=' + encodeURIComponent(currentGroup) + '&source=' + currentSource;
+  // filterMissing=0: fehlende Layer (keine layer_definition) werden mit _missing:true geliefert
+  // statt herausgefiltert → für Preview-Markierung nötig
+  return 'layers.php?group=' + encodeURIComponent(currentGroup) + '&source=' + currentSource + '&filterMissing=0';
 }
 document.getElementById('dt-api-url').textContent = buildApiUrl();
 
@@ -312,11 +320,28 @@ document.getElementById('dt-api-url').textContent = buildApiUrl();
   }
   refresh();
   btn.addEventListener('click', function() {
-    currentSource = (currentSource === 'file') ? 'auto' : 'file';
+    currentSource = (currentSource === 'file') ? 'db' : 'file';
     refresh();
     updateUrl();
     reloadData();
   });
+})();
+
+// Checkbox "Fehlende Darstellen" — toggle CSS-Klasse auf Container
+(function() {
+  var cb = document.getElementById('dt-show-missing');
+  function apply() {
+    var treeEl = document.getElementById('lm-tree-container');
+    if (!treeEl) return;
+    if (cb.checked) {
+      treeEl.classList.remove('lm-hide-missing');
+    } else {
+      treeEl.classList.add('lm-hide-missing');
+    }
+  }
+  cb.addEventListener('change', apply);
+  // Initial nach Catalog-Load anwenden
+  document.addEventListener('lm-catalog-rendered', apply);
 })();
 
 // =====================================================================

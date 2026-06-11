@@ -78,9 +78,9 @@ body {
   clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 50%, calc(100% - 14px) 100%, 0 100%);
   border-radius: 4px 0 0 4px;
 }
-.ags-tab[data-tab="import"]  { background: linear-gradient(135deg, #7cb342, #558b2f); }
+.ags-tab[data-tab="create"]  { background: linear-gradient(135deg, #7cb342, #558b2f); }
 .ags-tab[data-tab="manage"]  { background: linear-gradient(135deg, #5ba4b5, #3d8a9a); }
-.ags-tab[data-tab="staging"] { background: linear-gradient(135deg, #e0a430, #c68d20); }
+.ags-tab[data-tab="import"] { background: linear-gradient(135deg, #c0782a, #a05e1a); }
 .ags-tab.active { opacity: 1; filter: none; }
 .ags-tab:hover:not(.active) { opacity: 0.65; filter: grayscale(0.1); }
 
@@ -142,6 +142,9 @@ body {
 .ags-import-table .ags-item.imported .ags-name { color: #27ae60; }
 .ags-import-table .ags-item.changed { background: #fef9f0; }
 .ags-import-table .ags-item.changed .ags-name { color: #e67e22; }
+.ags-import-table .ags-item.pending { background: #fef0f0; }
+.ags-import-table .ags-item.pending .ags-name { color: #c0392b; }
+.ags-new-badge-pending { font-size: 10px; background: #c0392b; color: #fff; border-radius: 3px; padding: 1px 5px; flex-shrink: 0; font-family: sans-serif; }
 .ags-name { font-family: 'Consolas', monospace; word-break: break-all; }
 .ags-col-date { font-size: 11px; color: #666; white-space: nowrap; font-family: 'Consolas', monospace; }
 .ags-col-author { font-size: 11px; color: #888; white-space: nowrap; }
@@ -155,6 +158,7 @@ body {
 .leg-dot-new { width: 10px; height: 10px; border-radius: 2px; background: #fff; border: 1px solid #bbb; flex-shrink: 0; }
 .leg-dot-imp { width: 10px; height: 10px; border-radius: 2px; background: #27ae60; flex-shrink: 0; }
 .leg-dot-chg { width: 10px; height: 10px; border-radius: 2px; background: #e67e22; flex-shrink: 0; }
+.leg-dot-pnd { width: 10px; height: 10px; border-radius: 2px; background: #c0392b; flex-shrink: 0; }
 
 /* ===== ACTIONS BAR ===== */
 .ags-actions {
@@ -225,6 +229,13 @@ body {
 .ags-svc-head .svc-size { font-size: 10px; color: #999; }
 .ags-svc-group.needs-restage { border-color: #f0bf8d; }
 .ags-svc-group.needs-restage .ags-svc-head { background: #fff6ed; }
+.ags-svc-group.svc-pending { border-color: #e8a0a0; }
+.ags-svc-group.svc-pending .ags-svc-head { background: #fff5f5; }
+.ags-svc-group.svc-pending .svc-name { color: #c0392b; }
+.ags-svc-group.svc-staged .ags-svc-head { background: #f0faf3; }
+.ags-svc-group.svc-staged .svc-name { color: #27ae60; }
+.svc-pending-badge { font-size: 9px; color: #fff; background: #c0392b; padding: 1px 6px; border-radius: 7px; font-weight: 700; }
+.svc-staged-badge  { font-size: 9px; color: #fff; background: #27ae60; padding: 1px 6px; border-radius: 7px; font-weight: 700; }
 .ags-svc-head .svc-restage-hint {
   font-size: 9px; color: #9a4d00; background: #ffe7cf; border: 1px solid #f0bf8d;
   padding: 1px 6px; border-radius: 8px; font-weight: 700; white-space: nowrap;
@@ -295,35 +306,22 @@ body {
   overflow: auto; z-index: 1; white-space: pre-wrap; word-wrap: break-word;
   spellcheck: false;
 }
+/* Plain-Modus für grosse Dateien */
+#file-editor-textarea.fe-plain-mode {
+  color: #d4d4d4 !important;
+  background: #1e1e1e !important;
+  z-index: 4;
+}
 #file-editor-textarea.valid   { box-shadow: inset 0 0 0 2px #27ae60; }
 #file-editor-textarea.invalid { box-shadow: inset 0 0 0 2px #c0392b; }
-.j-err-line { background: rgba(220,30,30,.28); border-left: 3px solid #e74c3c; display: block; margin-left: -3px; padding-left: 3px; }
 .j-err-col  { display: inline-block; width: 0; border-left: 2px solid #e74c3c;
               height: 1.2em; vertical-align: text-bottom; margin: 0 -1px;
               box-shadow: 0 0 4px #e74c3c; }
 
-/* ===== EXPORT-CONFIRM-MODAL ===== */
-#export-confirm-overlay {
-  display: none; position: fixed; inset: 0; z-index: 10100;
-  background: rgba(0,0,0,.5); align-items: center; justify-content: center;
-}
-#export-confirm-overlay.open { display: flex; }
-#export-confirm-dialog {
-  background: #fff; border-radius: 6px; box-shadow: 0 8px 32px rgba(0,0,0,.25);
-  width: 620px; max-width: 96vw; max-height: 82vh;
-  display: flex; flex-direction: column; overflow: hidden;
-}
-#export-confirm-header {
-  display: flex; align-items: center; gap: 10px; padding: 10px 14px;
-  border-bottom: 1px solid #e0e4e8; background: #f5f7fa; flex-shrink: 0;
-}
-#export-confirm-title { flex: 1; font-weight: 700; font-size: 13px; color: #1e3a4a; }
-#export-confirm-header .ec-close {
-  padding: 3px 9px; font-size: 11px; border: 1px solid #ccc;
-  border-radius: 3px; background: #fff; cursor: pointer;
-}
-#export-confirm-header .ec-close:hover { background: #fef0f0; color: #c33; border-color: #c33; }
-#export-confirm-body { flex: 1; overflow-y: auto; padding: 14px 16px; min-height: 0; }
+.j-err-line { background: rgba(220,30,30,.28); border-left: 3px solid #e74c3c; display: block; margin-left: -3px; padding-left: 3px; } */
+/* Export-Modal entfernt: direkter Deploy ohne Overlay */
+#export-confirm-overlay,
+#export-confirm-overlay.open { display: none !important; }
 .ecm-warning {
   background: #fff8e1; border: 1px solid #f0c040; border-radius: 4px;
   padding: 7px 10px; margin-bottom: 10px; font-size: 12px; color: #7d5a00;
@@ -390,34 +388,14 @@ body {
 /* Checkbox */
 .editor-src-item .src-cb { flex-shrink: 0; cursor: pointer; width: 13px; height: 13px; margin-right: 2px; }
 .ecm-empty { color: #888; font-size: 12px; text-align: center; padding: 20px; }
-#export-confirm-footer {
-  display: flex; align-items: center; gap: 8px; padding: 10px 14px;
-  border-top: 1px solid #e0e4e8; background: #f5f7fa; flex-shrink: 0;
-}
-#export-confirm-status { flex: 1; font-size: 12px; }
-#export-confirm-status.ecm-running { color: #888; }
-#export-confirm-status.ecm-status-success { color: #2a7a3b; font-weight: 600; }
-#export-confirm-status.ecm-status-error   { color: #c62828; font-weight: 600; }
+.ecm-status-legacy { display: none; }
 .ecm-result-banner {
   display: flex; align-items: center; gap: 8px; padding: 7px 10px;
   border-radius: 4px; margin-bottom: 10px; font-size: 12px; font-weight: 600;
 }
 .ecm-result-banner.success { background: #d1e7dd; color: #0a3622; border: 1px solid #a3cfbb; }
 .ecm-result-banner.verifying { background: #fff3cd; color: #664d03; border: 1px solid #ffda6a; }
-#export-confirm-run.btn-close {
-  background: #555 !important; border-color: #444 !important;
-}
-#export-confirm-footer button {
-  padding: 5px 14px; font-size: 12px; border-radius: 3px; cursor: pointer;
-  border: 1px solid #ccc; background: #fff;
-}
-#export-confirm-footer button:hover:not(:disabled) { background: #f0f2f5; }
-#export-confirm-footer button:disabled { opacity: .5; cursor: not-allowed; }
-#export-confirm-run {
-  background: #4B7B81 !important; color: #fff !important;
-  border-color: #3a6368 !important; font-weight: 600;
-}
-#export-confirm-run:hover:not(:disabled) { background: #3a6368 !important; }
+
 
 /* ===== STAGING-TAB ===== */
 .staging-kuerzel-row {
@@ -474,11 +452,33 @@ body {
 .stg-output-file .of-edit:hover { opacity: 1; background: #e8f4f4; }
 .stg-output-file.has-dups { background: #fef6f0; border-left: 3px solid #e67e22; }
 .stg-output-file .of-dup { font-size: 9px; color: #e67e22; font-weight: 700; flex-shrink: 0; cursor: help; }
-.stg-output-file.has-cross-dups { background: #fef0f0; border-left: 3px solid #c33; }
-.stg-output-file .of-cross-dup { font-size: 9px; color: #c33; font-weight: 700; flex-shrink: 0; cursor: help; }
+.stg-output-file.has-cross-dups { background: #eef6f7; border-left: 3px solid #4b7b81; }
+.stg-output-file .of-cross-dup { font-size: 9px; color: #3a6368; font-weight: 700; flex-shrink: 0; cursor: pointer; }
 .stg-dup-detail { font-size: 10px; color: #c33; padding: 3px 4px 3px 20px; background: #fef0f0; border-radius: 3px; margin: 1px 0; font-family: 'Consolas', monospace; word-break: break-all; }
-.stg-cross-dup-detail { font-size: 10px; color: #c33; padding: 3px 4px 3px 20px; background: #fce4e4; border-radius: 3px; margin: 1px 0; font-family: 'Consolas', monospace; word-break: break-all; }
-.stg-cross-dup-summary { font-size: 11px; color: #c33; font-weight: 700; padding: 6px 8px; margin-bottom: 6px; background: #fce4e4; border: 1px solid #e8a; border-radius: 4px; }
+.stg-cross-dup-detail { font-size: 10px; color: #3a6368; padding: 3px 4px 3px 20px; background: #e8f1f2; border-radius: 3px; margin: 1px 0; font-family: 'Consolas', monospace; word-break: break-all; }
+.stg-cross-dup-summary { font-size: 11px; color: #3a6368; font-weight: 600; padding: 6px 8px; margin-bottom: 6px; background: #e8f1f2; border: 1px solid #bcd; border-radius: 4px; }
+/* ===== TAG-ÜBERSICHT (rechte Seite) ===== */
+.stg-tag-overview { flex-shrink: 0; margin: 2px 0 8px; border: 1px solid #d6e3e5; border-radius: 6px; background: #f7fbfb; overflow: hidden; }
+/* Accordion in der Store-Ausgabe (kompakte Liste) */
+.stg-acc-head { cursor: pointer; }
+.stg-acc-head .stg-acc-arrow { font-size: 9px; color: #888; width: 12px; flex-shrink: 0; text-align: center; transition: transform .12s; }
+.stg-acc-head:hover { background: #f0f6f7; }
+.stg-acc-body { padding-left: 6px; }
+.stg-tag-overview-head { font-size: 11px; font-weight: 700; color: #3a6368; padding: 6px 10px; background: #e8f1f2; border-bottom: 1px solid #d6e3e5; display: flex; align-items: center; gap: 6px; }
+.stg-tag-row { display: flex; align-items: center; gap: 8px; padding: 5px 10px; border-bottom: 1px solid #eef3f3; font-size: 11px; }
+.stg-tag-row:last-child { border-bottom: none; }
+.stg-tag-row .tag-name { font-weight: 700; color: #2c4a50; background: #e8f1f2; border: 1px solid #c6dde0; border-radius: 10px; padding: 1px 9px; }
+.stg-tag-row .tag-meta { color: #888; flex: 1; }
+.stg-tag-row .tag-del { font-size: 10px; padding: 2px 8px; border-radius: 10px; border: 1.5px solid #ddd; background: #fff; color: #aaa; cursor: pointer; white-space: nowrap; }
+.stg-tag-row .tag-del:hover { background: #fff0f0; border-color: #e33; color: #c33; }
+/* ===== TAG-CHIPS pro Kürzel ===== */
+.stg-tag-chips { display: inline-flex; flex-wrap: wrap; gap: 4px; margin-left: 4px; vertical-align: middle; }
+.stg-tag-chip { font-size: 9px; color: #4b7b81; background: #e8f1f2; border: 1px solid #c6dde0; padding: 1px 4px 1px 7px; border-radius: 9px; font-weight: 700; display: inline-flex; align-items: center; gap: 3px; }
+.stg-tag-chip.is-primary { color: #2c4a50; background: #d7e8ea; }
+.stg-tag-chip .chip-x { cursor: pointer; color: #9bb; font-weight: 700; }
+.stg-tag-chip .chip-x:hover { color: #c33; }
+.stg-tag-chip-add { font-size: 9px; color: #4b7b81; background: #fff; border: 1px dashed #9cc; padding: 1px 6px; border-radius: 9px; cursor: pointer; font-weight: 700; }
+.stg-tag-chip-add:hover { background: #e8f1f2; }
 .stg-kuerzel-actions { display: flex; gap: 5px; margin-left: auto; flex-shrink: 0; align-items: center; }
 .stg-btn-restage {
   font-size: 11px; padding: 3px 10px; border-radius: 12px;
@@ -542,6 +542,50 @@ body {
 .ags-tab[data-tab="deployed"] { background: linear-gradient(135deg, #7e57c2, #5e35b1); }
 .ags-tab[data-tab="legendtuner"] { background: linear-gradient(135deg, #4B7B81, #3a6166); }
 .ags-tab[data-tab="bookmarks"] { background: linear-gradient(135deg, #d4a03c, #b8872e); }
+.ags-tab[data-tab="sync"]      { background: linear-gradient(135deg, #2e7d8c, #1a5c69); }
+
+/* ===== SYNC TAB ===== */
+.sync-toolbar { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; padding: 6px 8px; background: #f8f8f8; border: 1px solid #e0e0e0; border-radius: 5px; }
+.sync-btn-reload { padding: 4px 12px; font-size: 12px; border: 1px solid #ddd; border-radius: 3px; background: #fff; cursor: pointer; }
+.sync-btn-reload:hover { background: #f0f0f0; }
+.sync-hint { font-size: 10px; color: #a04000; background: #fff3e0; border: 1px solid #ffe0b2; padding: 2px 8px; border-radius: 3px; }
+.sync-env-badges { display: flex; gap: 6px; align-items: center; font-size: 11px; font-weight: 600; }
+.sync-env-badge { padding: 2px 8px; border-radius: 3px; color: #fff; font-size: 10px; }
+.sync-env-badge.dev  { background: #e67e22; }
+.sync-env-badge.prod { background: #27ae60; }
+.sync-status-bar { padding: 5px 12px; font-size: 11px; color: #666; background: #f5f7fa; border-radius: 4px; margin-bottom: 8px; }
+.sync-content { flex: 1; overflow-y: auto; }
+.sync-domain { border: 1px solid #e0e4e8; border-radius: 5px; margin-bottom: 10px; overflow: hidden; }
+.sync-domain-head { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #f5f7fa; cursor: pointer; user-select: none; border-bottom: 1px solid #e0e4e8; }
+.sync-domain-head:hover { background: #eef2f4; }
+.sync-domain-head .sd-label { font-weight: 700; font-size: 13px; flex: 1; }
+.sync-domain-head .sd-arrow { font-size: 10px; color: #888; width: 12px; transition: transform .15s; }
+.sync-domain.open .sd-arrow { transform: rotate(90deg); }
+.sync-domain-body { display: none; padding: 0; }
+.sync-domain.open .sync-domain-body { display: block; }
+.sync-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.sync-table th { background: #fafafa; border-bottom: 2px solid #e0e4e8; padding: 5px 10px; text-align: left; font-size: 11px; font-weight: 600; color: #555; white-space: nowrap; }
+.sync-table td { padding: 5px 10px; border-bottom: 1px solid #f0f0f0; vertical-align: middle; }
+.sync-table tr:last-child td { border-bottom: none; }
+.sync-table tr:hover td { background: #f8fafc; }
+.sync-status-icon { font-size: 14px; }
+.sync-btn { padding: 3px 10px; font-size: 11px; border: 1px solid #ddd; border-radius: 3px; cursor: pointer; white-space: nowrap; background: #fff; }
+.sync-btn:hover { background: #f0f0f0; }
+.sync-btn.push { background: #e8f5e9; border-color: #a5d6a7; color: #2e7d32; }
+.sync-btn.push:hover { background: #c8e6c9; }
+.sync-btn.pull { background: #e3f2fd; border-color: #90caf9; color: #1565c0; }
+.sync-btn.pull:hover { background: #bbdefb; }
+.sync-btn:disabled { opacity: .4; cursor: default; }
+.sync-count { font-size: 11px; font-weight: 600; padding: 1px 6px; border-radius: 3px; background: #e8eaed; color: #333; }
+.sync-rev { font-size: 10px; color: #888; font-family: monospace; }
+.sync-diff { color: #e67e22; font-weight: 700; }
+.sync-ok   { color: #2e7d32; }
+.sync-only-dev  { color: #e67e22; }
+.sync-only-prod { color: #1565c0; }
+.sync-domain-actions { display: flex; gap: 6px; align-items: center; padding: 8px 12px; background: #fafafa; border-top: 1px solid #eee; }
+.sync-domain-actions .spacer { flex: 1; }
+
+
 /* ===== COMMIT-MESSAGE-DIALOG ===== */
 #commit-msg-overlay {
   display: none; position: fixed; inset: 0; z-index: 10200;
@@ -577,13 +621,52 @@ body {
 #commit-msg-dialog .cmd-btn-commit { background: #4B7B81; color: #fff; border-color: #3a6166; font-weight: 600; }
 #commit-msg-dialog .cmd-btn-commit:hover { background: #3a6166; }
 
+/* ===== MERGE-NAME-DIALOG ===== */
+#merge-name-overlay {
+  display: none; position: fixed; inset: 0; z-index: 10210;
+  background: rgba(0,0,0,.5); align-items: center; justify-content: center;
+}
+#merge-name-overlay.open { display: flex; }
+#merge-name-dialog {
+  background: #fff; border-radius: 6px; box-shadow: 0 8px 32px rgba(0,0,0,.25);
+  width: 460px; max-width: 94vw; padding: 0; overflow: hidden;
+}
+#merge-name-dialog .mnd-header {
+  display: flex; align-items: center; gap: 8px; padding: 10px 14px;
+  border-bottom: 1px solid #e0e4e8; background: #f5f7fa;
+}
+#merge-name-dialog .mnd-header .mnd-icon { font-size: 16px; }
+#merge-name-dialog .mnd-header .mnd-title { flex: 1; font-weight: 700; font-size: 13px; color: #1e3a4a; }
+#merge-name-dialog .mnd-body { padding: 14px; }
+#merge-name-dialog .mnd-body label { display: block; font-size: 12px; color: #555; margin-bottom: 5px; }
+#merge-name-dialog .mnd-body input {
+  width: 100%; font-family: monospace; font-size: 12px;
+  padding: 8px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;
+}
+#merge-name-dialog .mnd-body input:focus { outline: none; border-color: #4B7B81; box-shadow: 0 0 3px rgba(75,123,129,.3); }
+#merge-name-dialog .mnd-help { margin-top: 8px; font-size: 11px; color: #777; }
+#merge-name-dialog .mnd-footer {
+  display: flex; justify-content: flex-end; gap: 8px; padding: 10px 14px;
+  border-top: 1px solid #e0e4e8; background: #fafbfc;
+}
+#merge-name-dialog .mnd-footer button { padding: 6px 16px; font-size: 12px; border-radius: 4px; cursor: pointer; border: 1px solid #ccc; }
+#merge-name-cancel { background: #fff; color: #555; }
+#merge-name-cancel:hover { background: #f5f5f5; }
+#merge-name-ok { background: #4B7B81; color: #fff; border-color: #3a6166; font-weight: 600; }
+#merge-name-ok:hover { background: #3a6166; }
+
 /* ===== BOOKMARKS TAB ===== */
-.bm-toolbar { display: flex; gap: 6px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
-.bm-toolbar button { padding: 5px 12px; font-size: 12px; border: 1px solid #ddd; border-radius: 3px; background: #fff; cursor: pointer; }
+.bm-toolbar { display: flex; gap: 0; align-items: stretch; margin-bottom: 8px; flex-wrap: wrap; background: #f8f8f8; border: 1px solid #e0e0e0; border-radius: 5px; padding: 4px 6px; }
+.bm-toolbar button { padding: 4px 10px; font-size: 11px; border: 1px solid #ddd; border-radius: 3px; background: #fff; cursor: pointer; white-space: nowrap; }
 .bm-toolbar button:hover { background: #f0f0f0; }
 .bm-toolbar button:disabled { opacity: .4; cursor: default; }
-.bm-toolbar .bm-btn-save { background: #d4a03c; color: #fff; border-color: #b8872e; font-weight: 600; }
-.bm-toolbar .bm-btn-save:hover { background: #b8872e; }
+.bm-toolbar .bm-btn-publish { background: #d4a03c; color: #fff; border-color: #b8872e; font-weight: 600; }
+.bm-toolbar .bm-btn-publish:hover { background: #b8872e; }
+.bm-action-section { display: flex; align-items: center; gap: 4px; padding: 2px 8px 2px 6px; border-left: 1px solid #ddd; }
+.bm-action-section:first-child { border-left: none; padding-left: 2px; }
+.bm-action-section-label { font-size: 9px; font-weight: 700; color: #888; text-transform: uppercase; letter-spacing: .5px; margin-right: 2px; white-space: nowrap; }
+.bm-toolbar-end { display: flex; align-items: center; gap: 4px; margin-left: auto; padding-left: 8px; border-left: 1px solid #ddd; }
+.bm-toolbar .bm-view-active { background: #4B7B81; color: #fff; border-color: #3a6166; }
 .bm-status { padding: 6px 12px; font-size: 12px; color: #666; background: #f5f7fa; border-radius: 4px; margin-bottom: 8px; }
 .bm-count { font-size: 11px; color: #888; margin-left: 4px; }
 .bm-table-wrap { flex: 1; overflow: auto; min-height: 0; }
@@ -941,7 +1024,6 @@ table.bm-mtx tbody tr.bm-mtx-row-sel:hover td { background: #ffe0b2; }
 .editor-src-empty {
   padding: 20px; text-align: center; color: var(--c-muted, #888); font-size: 12px;
 }
-
 /* ── Rechtes Panel: Editor ── */
 .editor-main {
   flex: 1; display: flex; flex-direction: column; min-height: 0; min-width: 0;
@@ -1188,6 +1270,7 @@ table.bm-mtx tbody tr.bm-mtx-row-sel:hover td { background: #ffe0b2; }
 .bk-type.nls { background: #d42e6b; }
 .bk-type.legend { background: #c0392b; }
 .bk-type.rawconf { background: #1a73e8; }
+.bk-type.bookmarks { background: #d4a03c; }
 .bk-type.unknown { background: #999; }
 .slm-bk-table .bk-actions button {
   padding: 2px 6px; font-size: 10px; border: 1px solid #ccc; border-radius: 3px; background: #fff; cursor: pointer; margin-right: 3px;
@@ -1197,7 +1280,7 @@ table.bm-mtx tbody tr.bm-mtx-row-sel:hover td { background: #ffe0b2; }
 .slm-bk-status { padding: 8px 14px; font-size: 11px; border-top: 1px solid #eee; flex-shrink: 0; }
 
 
-/* ===== ENV-BADGE (DEV / PROD) ===== */
+/* ===== ENV-BADGE (Software-Umgebung, unveränderlich = URL) ===== */
 #env-badge { display: none; }
 html[data-env] #env-badge {
   display: inline-block !important;
@@ -1210,6 +1293,38 @@ html[data-env="dev"] #env-badge::before { content: 'DEV'; }
 html[data-env="prod"] #env-badge { background: #2e7d32; }
 html[data-env="prod"] #env-badge::before { content: 'PROD'; }
 html[data-env="dev"] .ags-toolbar { border-bottom: 3px solid #e67e22; }
+
+/* ===== KONFIG-STORE-SWITCHER ===== */
+#store-switcher {
+  display: flex; align-items: center; gap: 6px;
+  background: rgba(0,0,0,.25); border-radius: 5px;
+  padding: 3px 8px; margin-left: 4px;
+}
+#store-switcher .sws-label { font-size: 10px; color: rgba(255,255,255,.7); white-space: nowrap; }
+#store-switcher select {
+  font-size: 11px; font-weight: 700; border-radius: 3px; border: none;
+  padding: 1px 4px; cursor: pointer; outline: none;
+  background: #fff; color: #333;
+}
+#store-switcher.store-mismatch { background: rgba(180,30,30,.45); }
+#store-switcher.store-mismatch .sws-label { color: #ffc8c8; }
+#store-switcher.store-mismatch::before {
+  content: '⚠'; font-size: 12px; color: #ffc8c8;
+}
+/* Store-Info-Bar unter dem Header */
+#store-info-bar {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 4px 14px; border-bottom: 1px solid #b0ccd4;
+  font-size: 11px; background: #dbeef5;
+  font-family: Consolas,monospace;
+}
+#store-info-bar.mismatch { background: #fde8e8; border-bottom-color: #e8a0a0; }
+#store-info-bar .sib-seg { display: flex; align-items: center; gap: 4px; white-space: nowrap; }
+#store-info-bar .sib-lbl { font-weight: 700; font-family: -apple-system,sans-serif; color: #2c4a50; }
+#store-info-bar.mismatch .sib-lbl { color: #6b0000; }
+#store-info-bar .sib-val { color: #1a5070; }
+#store-info-bar.mismatch .sib-val { color: #a01010; }
+#store-info-bar .sib-sep { color: #aaa; margin: 0 4px; }
 
 /* ===== PFAD-INFO-BAR (Staging / Editor) ===== */
 .path-info-bar {
@@ -1241,6 +1356,7 @@ html[data-env="dev"] .path-info-bar .pib-lbl { color: #7a3000; }
         <option value="">Alle Typen</option>
         <option value="state">State</option>
         <option value="lyrmgr">LyrMgr</option>
+        <option value="bookmarks">Bookmarks</option>
         <option value="groups">Groups</option>
         <option value="profile">Profile</option>
         <option value="nls">NLS</option>
@@ -1264,11 +1380,24 @@ html[data-env="dev"] .path-info-bar .pib-lbl { color: #7a3000; }
 <!-- ===== TOOLBAR ===== -->
 <div class="ags-toolbar">
   <span class="brand">🌐 Service- und Layermanager</span>
-  <span id="env-badge"></span>
+  <span id="env-badge" title="Software-Umgebung (basierend auf URL)"></span>
+  <span class="sep"></span>
+  <!-- Konfig-Store-Switcher -->
+  <div id="store-switcher" title="Konfig-Store: welche Daten (Files + DB) werden bearbeitet">
+    <span class="sws-label">Store:</span>
+    <select id="store-select">
+      <option value="dev">DEV</option>
+      <option value="prod">PROD</option>
+    </select>
+  </div>
   <span class="sep"></span>
   <button id="ags-btn-refresh" title="Daten neu laden">↻ Aktualisieren</button>
-  <button id="ags-btn-cache-clear" title="Layermanager-Cache auf dem Server leeren">🗑 Cache leeren</button>
-  <button id="ags-btn-config-to-db" title="Konfigurationsdateien in PostgreSQL-Datenbank einlesen (configToPG)">🗄 Config → DB</button>
+  <button id="ags-btn-cache-clear"
+    title="Server-seitigen Layer-API-Cache leeren
+Betrifft: JSON-Antworten von layers.php (tmp/maps-dev/)
+Noetig nach Layer-Konfig-Aenderungen, damit der neue Stand sofort sichtbar wird.
+Kein Einfluss auf Browser-Cache (dafuer: Ctrl+Shift+R)">🗑 Cache leeren</button>
+  <button id="ags-btn-config-to-db" title="Konfigurationsdatenbank verwalten (Import / Export / Löschen)" style="display:none">🗄 Konfig-DB</button>
   <button id="slm-btn-backups" title="Server-Backups anzeigen, wiederherstellen und löschen" style="margin-left:6px">📁 Backups</button>
   <span class="spacer"></span>
   <a href="tree-builder.html">← Tree-Builder</a>
@@ -1276,6 +1405,28 @@ html[data-env="dev"] .path-info-bar .pib-lbl { color: #7a3000; }
   <a href="../docs/" target="_blank">API Docs</a>
   <span class="sep"></span>
   <span id="slm-build-ts" title="Release-Zeitstempel (letzter Deploy)" style="font-size:10px;color:rgba(255,255,255,.55);font-family:monospace;white-space:nowrap"></span>
+  <span class="sep"></span>
+  <a href="admin-login.php?redirect=slm.html" id="slm-login-link" style="display:inline-block;font-size:11px;color:#fff;text-decoration:none;border:1px solid rgba(255,255,255,.35);border-radius:3px;padding:2px 7px;background:rgba(255,255,255,.08)" title="Anmelden">Login</a>
+  <!-- Eingeloggter Benutzer + Aktionen -->
+  <span id="slm-user-badge" style="display:none;align-items:center;gap:6px">
+    <span id="slm-username" style="font-size:12px;font-weight:700;color:#fff;letter-spacing:.3px"></span>
+    <a href="admin-users.php" id="slm-users-link" style="display:none;font-size:11px;color:rgba(255,255,255,.6);text-decoration:none" title="Benutzerverwaltung">👥</a>
+    <a href="admin-logout.php" style="font-size:11px;color:rgba(255,255,255,.5);text-decoration:none;border:1px solid rgba(255,255,255,.25);border-radius:3px;padding:2px 7px" title="Abmelden">Abmelden</a>
+  </span>
+</div>
+<!-- Store-Info-Bar: zeigt aktiven Konfig-Store (Pfade + DB) -->
+<div id="store-info-bar">
+  <span class="sib-seg"><span class="sib-lbl">Software:</span> <span class="sib-val" id="sib-sw-env"></span></span>
+  <span class="sib-sep">|</span>
+  <span class="sib-seg"><span class="sib-lbl">Store:</span> <span class="sib-val" id="sib-store-env"></span></span>
+  <span class="sib-sep">|</span>
+  <span class="sib-seg"><span class="sib-lbl">DB:</span> <span class="sib-val" id="sib-db"></span></span>
+  <span class="sib-sep">|</span>
+  <span class="sib-seg"><span class="sib-lbl">raw-conf:</span> <span class="sib-val" id="sib-rawconf"></span></span>
+  <span class="sib-sep">|</span>
+  <span class="sib-seg"><span class="sib-lbl">Konfig-Store DB:</span> <span class="sib-val" id="sib-stagingdb"></span></span>
+  <span class="sib-sep" id="sib-warn-sep" style="display:none">|</span>
+  <span class="sib-seg" id="sib-warn" style="display:none;color:#a01010;font-family:-apple-system,sans-serif;font-weight:700"></span>
 </div>
 
 <!-- ===== CONFIG-TO-DB MODAL ===== -->
@@ -1311,18 +1462,19 @@ html[data-env="dev"] .path-info-bar .pib-lbl { color: #7a3000; }
 
   <!-- Tabs -->
   <div class="ags-tabs">
-    <button class="ags-tab active" data-tab="import">① Import</button>
-    <button class="ags-tab" data-tab="manage">② Verwalten</button>
-    <button class="ags-tab" data-tab="staging">③ Staging</button>
+    <button class="ags-tab active" data-tab="create">① Create Mapserver-Conf</button>
+    <button class="ags-tab" data-tab="manage">② Verwaltung Mapserver-Conf</button>
+    <button class="ags-tab" data-tab="import">③ Import Mapserver-Conf</button>
     <button class="ags-tab" data-tab="editor">④ Config-Editor</button>
     <button class="ags-tab" data-tab="treebuilder">⑤ Tree-Builder</button>
     <button class="ags-tab" data-tab="deployed">⑥ Deployed</button>
     <button class="ags-tab" data-tab="legendtuner">⑦ Legendtuner</button>
     <button class="ags-tab" data-tab="bookmarks">⑧ Bookmarks</button>
+    <button class="ags-tab" data-tab="sync">⑨ Sync</button>
   </div>
 
   <!-- ===== TAB: IMPORT ===== -->
-  <div class="ags-pane active" id="pane-import">
+  <div class="ags-pane active" id="pane-create">
     <!-- Quellauswahl -->
     <div class="import-source-bar">
       <button class="import-source-btn active" data-source="ags">📦 AGS-Dienste</button>
@@ -1341,7 +1493,7 @@ html[data-env="dev"] .path-info-bar .pib-lbl { color: #7a3000; }
       <span class="sel-info" id="import-sel-info">0 ausgewählt</span>
     </div>
     <div class="ags-import-legend" id="import-legend" style="display:none">
-      <span class="leg-item"><span class="leg-dot-new"></span> Noch nicht importiert</span>
+      <span class="leg-item"><span class="leg-dot-pnd"></span> Ausstehend</span>
       <span class="leg-item"><span class="leg-dot-imp"></span> Bereits importiert</span>
       <span class="leg-item"><span class="leg-dot-chg"></span> Seit Import geändert</span>
     </div>
@@ -1350,7 +1502,8 @@ html[data-env="dev"] .path-info-bar .pib-lbl { color: #7a3000; }
     <div class="ags-actions" id="import-actions" style="display:none">
       <span class="ags-selcount" id="import-selcount"></span>
       <span class="spacer"></span>
-      <button id="import-btn-export" class="primary" disabled>📦 Importieren & Speichern</button>
+      <button id="import-btn-delete" class="danger" style="display:none" disabled>🗑 Ausgewählte löschen</button>
+      <button id="import-btn-export" class="primary" disabled>📦 Roh-Konfiguration erzeugen</button>
     </div>
   </div>
 
@@ -1382,7 +1535,7 @@ html[data-env="dev"] .path-info-bar .pib-lbl { color: #7a3000; }
   </div>
 
   <!-- ===== TAB: STAGING ===== -->
-  <div class="ags-pane" id="pane-staging">
+  <div class="ags-pane" id="pane-import">
     <div class="staging-split">
       <!-- LINKS: Dienste auswählen & mergen -->
       <div class="staging-left">
@@ -1392,12 +1545,20 @@ html[data-env="dev"] .path-info-bar .pib-lbl { color: #7a3000; }
           <button id="staging-sel-all">Alle</button>
           <button id="staging-sel-none">Keine</button>
           <span class="sel-info" id="staging-sel-info">0 / 0 ausgewählt</span>
+          <button id="staging-btn-analyse" title="Ausstehende hervorheben und sortieren" style="background:#fef0f0;border:1px solid #c0392b;color:#c0392b;padding:3px 10px;border-radius:3px;cursor:pointer;font-size:11px;font-weight:600">&#128269; Analyse</button>
+          <label id="staging-filter-pending-label" style="font-size:11px;display:none;align-items:center;gap:4px;cursor:pointer;user-select:none;color:#c0392b;font-weight:600"><input type="checkbox" id="staging-filter-pending"> Nur ausstehende</label>
         </div>
         <div class="ags-svc-list" id="staging-svc-list"></div>
         <div class="staging-kuerzel-row" id="staging-kuerzel-row" style="display:none">
           <label for="staging-kuerzel">Kürzel</label>
           <input type="text" id="staging-kuerzel" placeholder="z.B. ewn oder nodi_ch" maxlength="40">
-          <select id="staging-mode" title="Merge-Modus">
+          <select id="staging-scope" title="Überladungsebene (Stufe)">
+            <option value="core">core</option>
+            <option value="sitecore">sitecore</option>
+            <option value="profile">profile</option>
+          </select>
+          <input type="text" id="staging-profile" placeholder="Profil (z.B. public)" maxlength="40" style="display:none">
+          <select id="staging-mode" title="Import-Modus">
             <option value="merge">Zusammenführen</option>
             <option value="replace">Ersetzen</option>
             <option value="preview">Vorschau</option>
@@ -1409,16 +1570,17 @@ html[data-env="dev"] .path-info-bar .pib-lbl { color: #7a3000; }
         <div class="ags-actions" id="staging-actions" style="display:none">
           <span class="ags-selcount" id="staging-selcount"></span>
           <span class="spacer"></span>
-          <button id="staging-btn-merge" class="primary" disabled>🔀 Zusammenführen</button>
+          <button id="staging-btn-merge" class="primary" disabled>� Importieren</button>
         </div>
       </div>
-      <!-- RECHTS: ImportToCore Ausgabe -->
+      <!-- RECHTS: Store-Ausgabe -->
       <div class="staging-right">
         <div class="stg-right-head">
-          <span>📁 ImportToCore</span>
+          <span>🗄 Store: <span id="stg-store-label" style="font-weight:700;padding:2px 10px;border-radius:4px;font-size:12px;letter-spacing:.5px"></span></span>
           <button id="stg-output-refresh" title="Aktualisieren">↻</button>
           <button id="stg-output-delete-sel" class="danger" disabled title="Ausgewählte Kürzel löschen">🗑</button>
         </div>
+        <div id="stg-db-hint" style="font-size:10px;color:#888;font-family:Consolas,monospace;padding:2px 0 4px;flex-shrink:0">Konfig-Store DB: <span id="stg-db-hint-schema"></span>.config_bundle_store — geteilte Keys werden über Tags zusammengeführt</div>
         <div class="stg-output-status" id="stg-output-status">Lade…</div>
         <div class="stg-output-list" id="stg-output-list"></div>
       </div>
@@ -1429,18 +1591,18 @@ html[data-env="dev"] .path-info-bar .pib-lbl { color: #7a3000; }
   <div class="ags-pane" id="pane-editor">
     <div class="editor-split">
 
-      <!-- LINKS: Quellen-Liste (ImportToCore Kürzel) -->
+      <!-- LINKS: Quellen-Liste (nach Tags gruppiert) -->
       <div class="editor-sources">
         <div class="editor-src-head">
-          <h2>📁 Quellen</h2>
+          <h2>🏷 Tags</h2>
           <span class="badge" id="editor-src-count">0</span>
           <button id="editor-src-refresh" title="Aktualisieren">↻</button>
         </div>
         <div class="editor-src-search">
-          <input type="text" id="editor-src-filter" placeholder="Kürzel suchen…">
+          <input type="text" id="editor-src-filter" placeholder="Tag oder Kürzel suchen…">
         </div>
         <div class="editor-src-list" id="editor-src-list">
-          <div class="editor-src-empty">Lade Quellen…</div>
+          <div class="editor-src-empty">Lade Tags…</div>
         </div>
       </div>
 
@@ -1452,7 +1614,15 @@ html[data-env="dev"] .path-info-bar .pib-lbl { color: #7a3000; }
           <span class="et-kuerzel-label" id="editor-kuerzel-label"></span>
           <span class="et-spacer"></span>
           <span class="et-info" id="editor-info"></span>
-          <button id="editor-btn-export" class="export" disabled title="Dateien nach core/config/ und core/nls/de/ exportieren">📤 Nach Core exportieren</button>
+          <button id="editor-btn-export-temp" class="export" disabled
+            title="Ausgewählte Kürzel nach Temp-Staging exportieren"
+            style="font-size:12px;padding:6px 14px;font-weight:700">📦 Export nach Temp</button>
+          <button id="editor-btn-merge-temp" class="warn" disabled
+            title="Ausgewählte Kürzel mit Merge-Name nach Temp mergen"
+            style="font-size:12px;padding:6px 14px;font-weight:700">🧩 Mergen nach Temp</button>
+          <button id="editor-btn-export" class="primary" disabled
+            title="Exportierte Temp-Dateien via FastAPI nach core deployen"
+            style="font-size:12px;padding:6px 14px;font-weight:700">🚚 Deploy nach core</button>
         </div>
 
         <div class="ags-status" id="editor-status" style="display:none"></div>
@@ -1616,24 +1786,47 @@ html[data-env="dev"] .path-info-bar .pib-lbl { color: #7a3000; }
   <!-- ===== TAB: BOOKMARKS ===== -->
   <div class="ags-pane" id="pane-bookmarks">
     <div class="bm-toolbar">
-      <button onclick="addBookmarkEntry()">+ Neuer Bookmark</button>
-      <button class="bm-btn-save" onclick="saveBookmarks()">💾 Speichern</button>
-      <button onclick="loadBookmarks()">↻ Laden</button>
-      <button id="bm-btn-undo" onclick="bmUndo()" disabled title="Rückgängig (Ctrl+Z)">↩</button>
-      <button id="bm-btn-redo" onclick="bmRedo()" disabled title="Wiederherstellen (Ctrl+Y)">↪</button>
-      <button id="bm-btn-expand-all" onclick="bmToggleAll()" title="Alle auf-/zuklappen">▶ Alle</button>
-      <span class="bm-count" id="bm-count"></span>
-      <span style="flex:1"></span>
-      <button id="bm-view-table" class="bm-view-active" onclick="bmSwitchView('table')" title="Tabellenansicht">📋 Tabelle</button>
-      <button id="bm-view-json" onclick="bmSwitchView('json')" title="JSON-Editor">{ } JSON</button>
+      <!-- Bearbeitung -->
+      <div class="bm-action-section">
+        <button onclick="addBookmarkEntry()" title="Neuen Bookmark-Eintrag anlegen">＋ Eintrag</button>
+        <button id="bm-btn-undo" onclick="bmUndo()" disabled title="Rückgängig (Ctrl+Z)">↩</button>
+        <button id="bm-btn-redo" onclick="bmRedo()" disabled title="Wiederherstellen (Ctrl+Y)">↪</button>
+        <button id="bm-btn-expand-all" onclick="bmToggleAll()" title="Alle Zeilen auf-/zuklappen">▶ Alle</button>
+      </div>
+      <!-- DB Sektion -->
+      <div class="bm-action-section">
+        <span class="bm-action-section-label">DB</span>
+        <button class="bm-btn-publish" onclick="saveBookmarks()" title="In DB speichern und via FastAPI publizieren (Ctrl+S)">💾 Speichern &amp; Publish DB</button>
+        <button onclick="loadBookmarks(true)" title="Aktuellen Stand aus DB/Server neu laden">↻ Laden</button>
+      </div>
+      <!-- File-Config Sektion -->
+      <div class="bm-action-section">
+        <span class="bm-action-section-label">File-Config</span>
+        <button onclick="bmDownloadJson()" title="Aktuelle Bookmarks als JSON herunterladen">⬇ Download</button>
+        <button onclick="bmImportJson()" title="bookmarks.json von lokaler Datei importieren">📂 Import</button>
+      </div>
+      <!-- Backup Sektion -->
+      <div class="bm-action-section">
+        <span class="bm-action-section-label">Backup</span>
+        <button onclick="bmCreateBackup()" title="Aktuellen Stand als Backup mit Zeitstempel auf Server sichern">💾 Backup erstellen</button>
+        <button onclick="bmOpenBackupManager()" title="Server-Backups anzeigen, verwalten und wiederherstellen">📁 Verwalten &amp; Restore</button>
+      </div>
+      <!-- Rechts: Anzeige-Umschaltung -->
+      <div class="bm-toolbar-end">
+        <span class="bm-count" id="bm-count"></span>
+        <button id="bm-view-table" class="bm-view-active" onclick="bmSwitchView('table')" title="Tabellenansicht">📋 Tabelle</button>
+        <button id="bm-view-json" onclick="bmSwitchView('json')" title="JSON-Editor">{ } JSON</button>
+      </div>
     </div>
+    <!-- Import-Input (hidden) -->
+    <input type="file" id="bm-file-import-input" accept=".json" style="display:none">
     <div class="bm-filter-bar">
-      <label>IDs:</label><input type="text" data-col-filter="idaliases" placeholder="IDs…" oninput="bmColumnFilter()">
-      <label>Alias:</label><input type="text" data-col-filter="name" placeholder="Alias…" oninput="bmColumnFilter()">
-      <label>Basemap:</label><input type="text" data-col-filter="basemap" placeholder="Basemap…" oninput="bmColumnFilter()">
-      <label>Modus:</label><input type="text" data-col-filter="basemapmode" placeholder="color / grey…" oninput="bmColumnFilter()">
-      <label>Themen:</label><input type="text" data-col-filter="themes" placeholder="Themen…" oninput="bmColumnFilter()">
-      <label>Layer:</label><input type="text" data-col-filter="layers" placeholder="Layer…" oninput="bmColumnFilter()">
+      <label>IDs:</label><input type="text" data-col-filter="idaliases" placeholder="IDs… (min. 3)" oninput="bmColumnFilter()">
+      <label>Alias:</label><input type="text" data-col-filter="name" placeholder="Alias… (min. 3)" oninput="bmColumnFilter()">
+      <label>Basemap:</label><input type="text" data-col-filter="basemap" placeholder="Basemap… (min. 3)" oninput="bmColumnFilter()">
+      <label>Modus:</label><input type="text" data-col-filter="basemapmode" placeholder="color / grey… (min. 3)" oninput="bmColumnFilter()">
+      <label>Themen:</label><input type="text" data-col-filter="themes" placeholder="Themen… (min. 3)" oninput="bmColumnFilter()">
+      <label>Layer:</label><input type="text" data-col-filter="layers" placeholder="Layer… (min. 3)" oninput="bmColumnFilter()">
     </div>
     <div class="bm-status" id="bm-status">Wechsle zum Tab oder klicke ↻ um Bookmarks zu laden…</div>
     <div class="bm-table-wrap">
@@ -1659,7 +1852,7 @@ html[data-env="dev"] .path-info-bar .pib-lbl { color: #7a3000; }
       </table>
     </div>
     <!-- JSON-Editor Panel -->
-    <div class="bm-json-panel" id="bm-json-panel">
+    <div class="bm-json-panel" id="bm-json-panel" style="display:none">
       <div class="bm-json-toolbar">
         <button class="bm-json-btn-apply" onclick="bmJsonApply()" title="JSON übernehmen → Tabelle aktualisieren">✓ Übernehmen</button>
         <button onclick="bmJsonFormat()" title="JSON formatieren">Formatieren</button>
@@ -1676,6 +1869,24 @@ html[data-env="dev"] .path-info-bar .pib-lbl { color: #7a3000; }
       <textarea class="bm-json-editor" id="bm-json-editor" spellcheck="false"></textarea>
     </div>
   </div>
+
+  </div>
+
+  <!-- ===== TAB: SYNC ===== -->
+  <div class="ags-pane" id="pane-sync">
+    <div class="sync-toolbar">
+      <button class="sync-btn-reload" onclick="loadSyncStatus()">↻ Status neu laden</button>
+      <span class="sync-env-badges" id="sync-env-badges"></span>
+      <span style="flex:1"></span>
+      <span class="sync-hint">⚠ Sync überschreibt Ziel-Daten. Vor Sync Backup empfohlen.</span>
+    </div>
+    <div class="sync-status-bar" id="sync-status-bar">Status wird geladen…</div>
+    <div class="sync-content" id="sync-content">
+      <div style="padding:40px;text-align:center;color:#aaa">Wechsle zum Tab oder klicke ↻</div>
+    </div>
+  </div>
+
+</div><!-- Ende .ags-main -->
 
 <div id="file-editor-overlay">
   <div id="file-editor-dialog">
@@ -1717,22 +1928,24 @@ html[data-env="dev"] .path-info-bar .pib-lbl { color: #7a3000; }
   </div>
 </div>
 
-<!-- ===== EXPORT-CONFIRM-MODAL ===== -->
-<div id="export-confirm-overlay">
-  <div id="export-confirm-dialog">
-    <div id="export-confirm-header">
-      <span id="export-confirm-title">📤 Nach Core exportieren</span>
-      <button class="ec-close" id="export-confirm-close" title="Schliessen">✕</button>
+<!-- ===== MERGE-NAME-DIALOG ===== -->
+<div id="merge-name-overlay">
+  <div id="merge-name-dialog">
+    <div class="mnd-header">
+      <span class="mnd-icon">🧩</span>
+      <span class="mnd-title">Kürzel mergen nach Temp</span>
     </div>
-    <div id="export-confirm-body"></div>
-    <div id="export-confirm-footer">
-      <span id="export-confirm-status"></span>
-      <button id="export-confirm-run">✓ Jetzt deployen</button>
+    <div class="mnd-body">
+      <label for="merge-name-input">Neuer Merge-Kürzelname:</label>
+      <input id="merge-name-input" type="text" placeholder="z.B. ewn_mix" autocomplete="off">
+      <div class="mnd-help">Erlaubt: a-z, A-Z, 0-9, _ und -</div>
+    </div>
+    <div class="mnd-footer">
+      <button id="merge-name-cancel">Abbrechen</button>
+      <button id="merge-name-ok">✓ Merge starten</button>
     </div>
   </div>
 </div>
-
-
 
 <script>
 /**
@@ -1748,36 +1961,123 @@ html[data-env="dev"] .path-info-bar .pib-lbl { color: #7a3000; }
 // =====================================================================
 // KONFIGURATION
 // =====================================================================
-var API_URL  = '/maps-dev/tnet/api/v1/treebuilder-api.php';
 var GAPI_URL = '/gapi/ags2mapplus';
-var _envLabel  = location.pathname.indexOf('/maps-dev/') === 0 ? '[DEV]' : '[PROD]';
-var _isDevEnv  = location.pathname.indexOf('/maps-dev/') === 0;
-var _envShort  = _isDevEnv ? 'DEV' : 'PROD';
-var _dbSchema  = _isDevEnv ? 'mapplusconf_dev' : 'mapplusconf';
-var _tmpLabel  = _isDevEnv ? 'maps-dev' : 'maps';
 
-// ── Env-sensitive Beschriftungen (Tooltips, Dialog-Titel) ─────────────────────
+// ── Software-Umgebung (unveränderlich, aus URL) ───────────────────────────────
+var _isDevEnv  = location.pathname.indexOf('/maps-dev/') === 0;
+var _swEnv     = _isDevEnv ? 'dev' : 'prod';  // 'dev' | 'prod'
+
+// ── Konfig-Store-Umgebung (wählbar: Files + DB) ─────────────────────────────
+// Gespeichert in localStorage, standardmässig = Software-Umgebung.
+var _storeEnv  = (function() {
+  try { var s = localStorage.getItem('slmStoreEnv'); return (s === 'dev' || s === 'prod') ? s : _swEnv; } catch(e) { return _swEnv; }
+})();
+
+function _storeRoot() {
+  return _storeEnv === 'dev' ? '/maps-dev' : '/maps';
+}
+function _storeDbSchema() {
+  return _storeEnv === 'dev' ? 'mapplusconf_dev' : 'mapplusconf';
+}
+function _storeTmpLabel() {
+  return _storeEnv === 'dev' ? 'maps-dev' : 'maps';
+}
+
+// API_URL zeigt immer auf den gewählten Store
+var API_URL = _storeRoot() + '/tnet/api/v1/treebuilder-api.php';
+
+// Abwärtskompatible Aliases
+var _envLabel  = _storeEnv === 'dev' ? '[DEV]' : '[PROD]';
+var _envShort  = _storeEnv.toUpperCase();
+var _dbSchema  = _storeDbSchema();
+var _tmpLabel  = _storeTmpLabel();
+
+// ── Store wechseln und Seite neu laden ───────────────────────────────────────
+function switchStoreEnv(newEnv) {
+  if (newEnv !== 'dev' && newEnv !== 'prod') return;
+  try { localStorage.setItem('slmStoreEnv', newEnv); } catch(e) {}
+  location.reload();
+}
+
+// ── Store-Info-Bar rendern ───────────────────────────────────────────────────
+(function initStoreUi() {
+  // Select auf aktuellen Store setzen
+  var sel = document.getElementById('store-select');
+  if (sel) {
+    sel.value = _storeEnv;
+    sel.addEventListener('change', function() { switchStoreEnv(sel.value); });
+  }
+
+  // Mismatch-Warnung (Software DEV, Store PROD oder umgekehrt)
+  var mismatch = (_swEnv !== _storeEnv);
+  var switcher = document.getElementById('store-switcher');
+  if (switcher) switcher.classList.toggle('store-mismatch', mismatch);
+
+  // Info-Bar befüllen
+  var bar = document.getElementById('store-info-bar');
+  if (!bar) return;
+  bar.classList.toggle('mismatch', mismatch);
+
+  var swUrl = _swEnv === 'dev' ? 'www.gis-daten.ch/maps-dev/…' : 'www.gis-daten.ch/maps/…';
+  var rawConfPath = 'data/tmp/' + _storeTmpLabel() + '/raw-conf/(ags|qgis|mapplus)';
+  var stagingDb = _storeDbSchema() + '.config_bundle_store';
+
+  var set = function(id, val) { var el = document.getElementById(id); if (el) el.textContent = val; };
+  set('sib-sw-env',    _swEnv.toUpperCase() + '  (' + swUrl + ')');
+  set('sib-store-env', _storeEnv.toUpperCase());
+  set('sib-db',        _storeDbSchema());
+  set('sib-rawconf',   rawConfPath);
+  set('sib-stagingdb', stagingDb);
+  // Store-Label im rechten Panel des Import-Mapserver-Conf-Tabs
+  var lbl = document.getElementById('stg-store-label');
+  if (lbl) {
+    lbl.textContent = _storeEnv.toUpperCase();
+    lbl.style.background = _storeEnv === 'dev' ? '#e67e22' : '#2e7d32';
+    lbl.style.color = '#fff';
+  }
+  var dbHint = document.getElementById('stg-db-hint-schema');
+  if (dbHint) dbHint.textContent = _storeDbSchema();
+
+  if (mismatch) {
+    var warn = document.getElementById('sib-warn');
+    var warnSep = document.getElementById('sib-warn-sep');
+    if (warn)    { warn.textContent    = '⚠ Store ≠ Software-Umgebung — Änderungen wirken auf ' + _storeEnv.toUpperCase() + '!'; warn.style.display = ''; }
+    if (warnSep) warnSep.style.display = '';
+  }
+
+  // Pfad-Info-Bars in Staging/Editor: Env-Farbe spiegeln
+  if (mismatch) {
+    document.querySelectorAll('.path-info-bar').forEach(function(b) {
+      b.style.background = _storeEnv === 'prod' ? '#e8f5e9' : '#fff5ed';
+    });
+  }
+})();
+
+// ── Env-sensitive Beschriftungen (Tooltips, Dialog-Titel) — basieren auf Store ──
 (function initEnvLabels() {
-  // "Cache leeren"-Button: zeigt welcher Cache betroffen ist
+  var isStoreDev = (_storeEnv === 'dev');
+
+  // "Cache leeren"-Button
   var cacheBtn = document.getElementById('ags-btn-cache-clear');
   if (cacheBtn) {
     cacheBtn.title = _envShort + '-Cache leeren\n'
+      + 'Store: ' + _storeEnv.toUpperCase() + '\n'
       + 'API-Cache in tmp/' + _tmpLabel + '/\n'
-      + 'Betrifft nur die ' + _envShort + '-Umgebung';
+      + 'Betrifft nur die ' + _envShort + '-Store-Umgebung';
   }
 
-  // "Config → DB"-Button: zeigt Zieldatenbank
+  // "Config → DB"-Button
   var ctdbBtn = document.getElementById('ags-btn-config-to-db');
   if (ctdbBtn) {
-    ctdbBtn.title = 'Config-Dateien → ' + _envShort + '-Datenbank einlesen\n'
+    ctdbBtn.title = 'Config-Dateien → ' + _envShort + '-Datenbank\n'
       + 'Schema: ' + _dbSchema + '\n'
-      + 'Quelle: ' + (_isDevEnv ? 'core-dev/config/ + nls/' : 'core/config/ + nls/');
+      + 'Quelle: core/config/ + nls/';
   }
 
   // Dialog-Kopfzeile + DB-Info-Subtitle
   var ctdbHeader = document.getElementById('ctdb-header');
   if (ctdbHeader) {
-    ctdbHeader.style.background = _isDevEnv ? '#8B4500' : '#2c4a50'; // orange DEV / teal PROD
+    ctdbHeader.style.background = isStoreDev ? '#8B4500' : '#2c4a50';
   }
   var ctdbTitle = document.getElementById('ctdb-title');
   if (ctdbTitle) {
@@ -1786,8 +2086,61 @@ var _tmpLabel  = _isDevEnv ? 'maps-dev' : 'maps';
   var ctdbDbInfo = document.getElementById('ctdb-db-info');
   if (ctdbDbInfo) {
     ctdbDbInfo.textContent = 'Schema: ' + _dbSchema
-      + '  ·  Quelle: ' + (_isDevEnv ? '/www/core-dev/' : '/www/core/');
+      + '  ·  Quelle: /www/core/';
   }
+})();
+
+// ── Login-/Benutzerstatus im Header anzeigen ────────────────────────────────
+(function installHeaderAuthState() {
+  window.getSlmLoginUrl = function() {
+    return 'admin-login.php?redirect=' + encodeURIComponent(location.pathname + location.search + location.hash);
+  };
+
+  window.updateSlmHeaderAuthState = function(user, isAdmin) {
+    var loginLink   = document.getElementById('slm-login-link');
+    var badge       = document.getElementById('slm-user-badge');
+    var nameEl      = document.getElementById('slm-username');
+    var usersLink   = document.getElementById('slm-users-link');
+    var configDbBtn = document.getElementById('ags-btn-config-to-db');
+
+    if (loginLink) loginLink.href = window.getSlmLoginUrl();
+
+    if (!user) {
+      if (loginLink) loginLink.style.display = 'inline-block';
+      if (badge) badge.style.display = 'none';
+      if (usersLink) usersLink.style.display = 'none';
+      if (configDbBtn) configDbBtn.style.display = 'none';
+      return;
+    }
+
+    try {
+      localStorage.setItem('tnetLoggedInUser', user);
+      localStorage.setItem('slmBookmarkUser', user);
+    } catch (e) {}
+
+    if (nameEl) nameEl.textContent = '👤 ' + user;
+    if (loginLink) loginLink.style.display = 'none';
+    if (badge) badge.style.display = 'flex';
+    if (usersLink) usersLink.style.display = isAdmin ? '' : 'none';
+    if (configDbBtn) configDbBtn.style.display = isAdmin ? '' : 'none';
+  };
+
+  window.updateSlmHeaderAuthState('', false);
+})();
+
+(function loadCurrentUser() {
+  fetch('admin-users.php?action=current-user', { headers: { 'Accept': 'application/json' } })
+    .then(function(r) { return r.json(); })
+    .then(function(j) {
+      if (!j.success || !j.user) {
+        window.updateSlmHeaderAuthState('', false);
+        return;
+      }
+      window.updateSlmHeaderAuthState(j.user, !!j.is_admin);
+    })
+    .catch(function() {
+      window.updateSlmHeaderAuthState('', false);
+    });
 })();
 
 (function installDevFastApiTarget() {
@@ -1844,24 +2197,28 @@ var _tmpLabel  = _isDevEnv ? 'maps-dev' : 'maps';
     var p = origFetch(input, init);
     if (!isApiResponse(input)) return p;
     return p.then(function(resp) {
-      // 401/403 oder Redirect auf Login → Banner + optional Redirect
+      // Nur ECHTE Login-Situationen behandeln:
+      //  - 401 (nicht authentifiziert / Session abgelaufen)
+      //  - Redirect auf admin-login
+      //  - HTML-Antwort, die die Login-Seite ist
+      // Ein 403 mit JSON-Body bedeutet "keine Berechtigung" (z.B. kein Admin)
+      // und darf NICHT als Session-Ablauf missinterpretiert werden.
       var ct = (resp.headers && resp.headers.get) ? (resp.headers.get('content-type') || '') : '';
-      var looksLikeLogin = resp.status === 401 || resp.status === 403
+      var isAuthRedirect = resp.status === 401
                         || (resp.url && resp.url.indexOf('admin-login') !== -1);
-      if (!looksLikeLogin && ct.indexOf('text/html') === -1) return resp;
+      var isHtml = ct.indexOf('text/html') !== -1;
+
+      // Reine JSON-Antworten (auch 403 "kein Admin") unverändert durchreichen
+      if (!isAuthRedirect && !isHtml) return resp;
 
       // Response klonen um Body lesen zu können ohne die Original-Chain zu brechen
       var clone = resp.clone();
       return clone.text().then(function(body) {
-        if (body.indexOf('Admin Login') === -1 && !looksLikeLogin) return resp;
+        var looksLikeLoginPage = body.indexOf('Admin Login') !== -1
+                              || body.indexOf('admin-login.php') !== -1;
+        // HTML, aber keine Login-Seite → unverändert durchreichen
+        if (!isAuthRedirect && !looksLikeLoginPage) return resp;
         showLoginBanner();
-        // Nur einmal automatisch weiterleiten — wenn der erste Request schon
-        // mit Login geantwortet hat, lassen wir den Banner stehen und der
-        // User klickt manuell. Damit verliert er keine Eingaben.
-        if (!alreadyRedirected && document.readyState === 'loading') {
-          alreadyRedirected = true;
-          location.href = LOGIN_URL;
-        }
         // Fehler-Objekt zurückgeben, das kompatibel zu .json()-Konsumenten ist
         var fake = new Response(
           JSON.stringify({ success: false, error: 'Bitte einloggen (Session abgelaufen)' }),
@@ -1927,6 +2284,53 @@ function showCommitDialog(defaultMessage) {
     skipBtn.addEventListener('click', onSkip);
     cancelBtn.addEventListener('click', onCancel);
     textarea.addEventListener('keydown', onKey);
+  });
+}
+
+/**
+ * Dialog zur Abfrage des Merge-Kürzelnamens.
+ * resolve(string) bei Bestätigung, resolve(null) bei Abbruch.
+ */
+function showMergeNameDialog(defaultName) {
+  return new Promise(function(resolve) {
+    var overlay = document.getElementById('merge-name-overlay');
+    var dialog = document.getElementById('merge-name-dialog');
+    var input = document.getElementById('merge-name-input');
+    var okBtn = document.getElementById('merge-name-ok');
+    var cancelBtn = document.getElementById('merge-name-cancel');
+
+    input.value = defaultName || '';
+    overlay.classList.add('open');
+    input.focus();
+    input.select();
+
+    function cleanup() {
+      overlay.classList.remove('open');
+      okBtn.removeEventListener('click', onOk);
+      cancelBtn.removeEventListener('click', onCancel);
+      overlay.removeEventListener('click', onOverlayClick);
+      input.removeEventListener('keydown', onKey);
+    }
+    function onOk() {
+      cleanup();
+      resolve(input.value.trim());
+    }
+    function onCancel() {
+      cleanup();
+      resolve(null);
+    }
+    function onOverlayClick(e) {
+      if (e.target === overlay && !dialog.contains(e.target)) onCancel();
+    }
+    function onKey(e) {
+      if (e.key === 'Escape') onCancel();
+      if (e.key === 'Enter') onOk();
+    }
+
+    okBtn.addEventListener('click', onOk);
+    cancelBtn.addEventListener('click', onCancel);
+    overlay.addEventListener('click', onOverlayClick);
+    input.addEventListener('keydown', onKey);
   });
 }
 
@@ -2027,7 +2431,7 @@ function refreshImportProgress() {
 // =====================================================================
 // TAB-SWITCHING
 // =====================================================================
-function switchTab(tabName, skipHash) {
+function switchTab(tabName, skipHash, onImportLoaded) {
   document.querySelectorAll('.ags-tab').forEach(function(t) { t.classList.remove('active'); });
   document.querySelectorAll('.ags-pane').forEach(function(p) { p.classList.remove('active'); });
   var tab = document.querySelector('[data-tab="' + tabName + '"]');
@@ -2038,7 +2442,7 @@ function switchTab(tabName, skipHash) {
   // URL-Hash aktualisieren (ohne hashchange-Event auszulösen)
   if (!skipHash) updateUrlHash({ tab: tabName });
 
-  if (tabName === 'import') {
+  if (tabName === 'create') {
     if (_agsServices.length === 0) {
       loadAgsServices();
     } else {
@@ -2046,8 +2450,8 @@ function switchTab(tabName, skipHash) {
     }
   } else if (tabName === 'manage') {
     loadRawConfList();
-  } else if (tabName === 'staging') {
-    loadStagingList();
+  } else if (tabName === 'import') {
+    loadStagingList(onImportLoaded || null);
     loadStagingOutput();
   } else if (tabName === 'editor') {
     loadEditorKuerzelList();
@@ -2077,6 +2481,8 @@ function switchTab(tabName, skipHash) {
     loadLegendTuner();
   } else if (tabName === 'bookmarks') {
     loadBookmarks();
+  } else if (tabName === 'sync') {
+    loadSyncStatus();
   }
 }
 
@@ -2197,21 +2603,15 @@ function formatDateTime(isoStr) {
   if (!isoStr) return '—';
   // ISO oder "YYYY-MM-DD HH:MM:SS" akzeptieren
   var s = String(isoStr).replace('T', ' ').replace('Z', '');
-  // Auf Minute kürzen
-  if (s.length > 16) s = s.substring(0, 16);
-  return s;
+  return s.substring(0, 16);
 }
 
-/**
- * Import-Liste als Tabelle rendern
- */
 function renderImportList(services) {
-  var listEl = document.getElementById('import-list');
-  var filterEl = document.getElementById('import-filter');
+  var listEl    = document.getElementById('import-list');
+  var filterEl  = document.getElementById('import-filter');
   var selectBar = document.getElementById('import-select-bar');
   var actionsEl = document.getElementById('import-actions');
 
-  // Tabelle aufbauen
   var tbl = document.createElement('table');
   tbl.className = 'ags-import-table';
   tbl.innerHTML = '<thead><tr>'
@@ -2225,7 +2625,6 @@ function renderImportList(services) {
   var tbody = document.createElement('tbody');
   tbl.appendChild(tbody);
 
-  // Sort-Event auf Headerzeile
   tbl.querySelector('thead tr').addEventListener('click', function(e) {
     var th = e.target.closest('th.sortable');
     if (!th) return;
@@ -2236,19 +2635,15 @@ function renderImportList(services) {
   services.forEach(function(svc, i) {
     var name = typeof svc === 'string' ? svc : (svc.name || svc.serviceName || String(svc));
     var detail = _agsServiceDetails[name];
-
     var tr = document.createElement('tr');
     tr.className = 'ags-item';
     tr.dataset.name = name.toLowerCase();
-
-    // Zellen: Checkbox | Name | Autor | Status | Publiziert | Importiert
     tr.innerHTML = '<td class="col-cb"><input type="checkbox" data-svc="' + name.replace(/"/g, '&quot;') + '" id="imp-cb-' + i + '"></td>'
       + '<td class="ags-name"><label for="imp-cb-' + i + '" style="cursor:pointer">' + name + '</label></td>'
       + '<td class="ags-col-author">' + (detail && detail.published_by ? detail.published_by : '—') + '</td>'
       + '<td class="ags-col-status"></td>'
       + '<td class="ags-col-date ags-col-pub">' + (detail && detail.published_at ? formatDateTime(detail.published_at) : '—') + '</td>'
       + '<td class="ags-col-date ags-col-imp"></td>';
-
     tr.addEventListener('click', function(e) {
       if (e.target.tagName === 'INPUT') { updateImportSelCount(); return; }
       var cb = tr.querySelector('input');
@@ -2277,7 +2672,6 @@ function renderImportList(services) {
   actionsEl.style.display = 'flex';
   refreshImportImportedMarkers();
   updateImportSelCount();
-  // Standard-Sortierindikator setzen
   var defaultTh = tbl.querySelector('th[data-col="' + _importSortCol + '"]');
   if (defaultTh) defaultTh.classList.add(_importSortAsc ? 'sort-asc' : 'sort-desc');
 }
@@ -2328,10 +2722,10 @@ function refreshImportImportedMarkers() {
       statusCell.innerHTML = '<span class="ags-changed-badge" title="Dienst wurde seit Import (' + formatDateTime(meta.imported_at) + ') geändert">⚠ geändert</span>';
       impCell.textContent = meta && meta.imported_at ? formatDateTime(meta.imported_at) : '—';
     } else if (isImp) {
-      statusCell.innerHTML = '<span class="ags-imported-badge">✓ importiert</span>';
+      statusCell.innerHTML = '<span class="ags-imported-badge">✓ erzeugt</span>';
       impCell.textContent = meta && meta.imported_at ? formatDateTime(meta.imported_at) : '—';
     } else {
-      statusCell.innerHTML = '<span class="ags-new-badge">neu</span>';
+      statusCell.innerHTML = '<span class="ags-new-badge-pending">⏳ ausstehend</span>';
       impCell.textContent = '—';
     }
   });
@@ -2426,6 +2820,8 @@ function updateImportSelCount() {
   document.getElementById('import-sel-info').textContent = checked.length + ' / ' + total.length + ' ausgewählt';
   document.getElementById('import-selcount').textContent = checked.length + ' Dienste ausgewählt';
   document.getElementById('import-btn-export').disabled = checked.length === 0;
+  var delBtn = document.getElementById('import-btn-delete');
+  if (delBtn && delBtn.style.display !== 'none') delBtn.disabled = checked.length === 0;
 }
 
 // =====================================================================
@@ -2476,7 +2872,7 @@ function exportAgsServices() {
       var statusEl = document.getElementById('import-status');
       var savedCount = data.files ? data.files.length : 0;
       var failedCount = data.failedFiles ? data.failedFiles.length : 0;
-      var targetDirectory = data.directory || 'data/tmp/maps-dev/raw-conf';
+      var targetDirectory = data.directory || ('tmp/' + _storeTmpLabel() + '/raw-conf/ags');
 
       if (savedCount > 0 && failedCount === 0) {
         statusEl.textContent = '✓ Export abgeschlossen (' + runLabel + '): ' + savedCount + ' Dateien in ' + targetDirectory + '/ gespeichert';
@@ -2578,26 +2974,66 @@ function switchImportSource(source) {
   document.querySelectorAll('.import-source-btn').forEach(function(btn) {
     btn.classList.toggle('active', btn.dataset.source === source);
   });
-  // UI zurücksetzen
-  var resultEl = document.getElementById('import-result');
-  resultEl.style.display = 'none';
-  resultEl.innerHTML = '';
+
+  // Gesamtes UI sofort leeren — kein Stale-Inhalt vom vorherigen Tab sichtbar
+  var listEl    = document.getElementById('import-list');
+  var filterEl  = document.getElementById('import-filter');
+  var selectBar = document.getElementById('import-select-bar');
+  var actionsEl = document.getElementById('import-actions');
+  var legendEl  = document.getElementById('import-legend');
+  var resultEl  = document.getElementById('import-result');
+  var statusEl  = document.getElementById('import-status');
+  var exportBtn = document.getElementById('import-btn-export');
+  var deleteBtn = document.getElementById('import-btn-delete');
+
+  if (listEl) {
+    listEl.innerHTML = '';
+    listEl.style.display = 'none';
+  }
+  if (filterEl) {
+    filterEl.value = '';
+    filterEl.style.display = 'none';
+  }
+  if (selectBar) selectBar.style.display = 'none';
+  if (actionsEl) actionsEl.style.display = 'none';
+  if (legendEl) legendEl.style.display = 'none';
+  if (resultEl) {
+    resultEl.style.display = 'none';
+    resultEl.innerHTML = '';
+  }
+  if (statusEl) {
+    statusEl.textContent = '';
+    statusEl.className = 'ags-status';
+  }
+  if (exportBtn) exportBtn.disabled = false;
+  if (deleteBtn) {
+    deleteBtn.style.display = 'none';
+    deleteBtn.disabled = true;
+  }
 
   if (source === 'ags') {
-    document.getElementById('import-btn-export').textContent = '📦 Importieren & Speichern';
+    if (exportBtn) exportBtn.textContent = '📦 Roh-Konfiguration erzeugen';
     if (_agsServices.length > 0) {
       renderImportList(_agsServices);
-      document.getElementById('import-status').textContent = _agsServices.length + ' Dienste verfügbar';
-      document.getElementById('import-status').className = 'ags-status success';
+      if (statusEl) {
+        statusEl.textContent = _agsServices.length + ' Dienste verfügbar';
+        statusEl.className = 'ags-status success';
+      }
     } else {
       loadAgsServices();
     }
   } else if (source === 'core') {
-    document.getElementById('import-btn-export').textContent = '📥 In raw-conf importieren';
+    if (exportBtn) exportBtn.textContent = '📦 Roh-Konfiguration erzeugen';
+    if (deleteBtn) {
+      deleteBtn.style.display = '';
+      deleteBtn.disabled = true;
+    }
     loadCoreSources();
   } else if (source === 'qgis') {
-    document.getElementById('import-btn-export').textContent = '📦 QGIS Importieren';
-    document.getElementById('import-btn-export').disabled = true;
+    if (exportBtn) {
+      exportBtn.textContent = '📦 QGIS Importieren';
+      exportBtn.disabled = true;
+    }
     loadQgisProjects();
   }
 }
@@ -2638,14 +3074,18 @@ function loadCoreSources(forceReload) {
  * Core-Quellen als Checkbox-Liste rendern (im selben import-list Container)
  */
 function renderCoreSourceList() {
-  var listEl = document.getElementById('import-list');
-  var filterEl = document.getElementById('import-filter');
+  var listEl    = document.getElementById('import-list');
+  var filterEl  = document.getElementById('import-filter');
   var selectBar = document.getElementById('import-select-bar');
   var actionsEl = document.getElementById('import-actions');
-  var legendEl = document.getElementById('import-legend');
+  var legendEl  = document.getElementById('import-legend');
 
   listEl.innerHTML = '';
-  if (legendEl) legendEl.style.display = '';
+  listEl.style.display = '';
+  if (filterEl)  { filterEl.style.display = 'none'; }
+  if (selectBar) { selectBar.style.display = 'flex'; }
+  if (actionsEl) { actionsEl.style.display = 'flex'; }
+  if (legendEl)  legendEl.style.display = '';
 
   // Änderungs-Zusammenfassung-Banner
   var changedCount = 0;
@@ -2701,7 +3141,7 @@ function renderCoreSourceList() {
     } else if (src.inRawConf) {
       var lastImpStr = (src.sourceChanges && src.sourceChanges.lastImported)
         ? ' <span style="font-size:9px;opacity:.7">(' + src.sourceChanges.lastImported.substring(0, 10) + ')</span>' : '';
-      badge = '<span class="core-imported-badge">✓ in raw-conf' + lastImpStr + '</span>';
+      badge = '<span class="core-imported-badge">✓ in raw-conf/mapplus' + lastImpStr + '</span>';
     } else {
       badge = '<span class="ags-new-badge">neu</span>';
     }
@@ -3192,7 +3632,8 @@ function exportQgisProjects() {
       var failedCount = data.failedFiles ? data.failedFiles.length : 0;
 
       if (savedCount > 0 && failedCount === 0) {
-        statusEl.textContent = '✓ QGIS-Export abgeschlossen (' + runLabel + '): ' + savedCount + ' Dateien in raw-conf gespeichert';
+        var targetDirectory = data.directory || ('tmp/' + _storeTmpLabel() + '/raw-conf/qgis');
+        statusEl.textContent = '✓ QGIS-Export abgeschlossen (' + runLabel + '): ' + savedCount + ' Dateien in ' + targetDirectory + '/ gespeichert';
         statusEl.className = 'ags-status success';
       } else if (savedCount > 0 && failedCount > 0) {
         statusEl.textContent = '⚠ QGIS-Export teilweise (' + runLabel + '): ' + savedCount + ' gespeichert, ' + failedCount + ' fehlgeschlagen';
@@ -3615,6 +4056,18 @@ function updateEditorHighlight() {
   var highlight = document.getElementById('file-editor-highlight');
   var lineNums  = document.getElementById('file-editor-line-numbers');
   var text = textarea.value;
+
+  // Bei sehr grossen Dateien: kein Highlighting (zu langsam)
+  if (text.length > FE_HIGHLIGHT_MAX_BYTES) {
+    var escaped = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    highlight.innerHTML = escaped + '\n';
+    var lines = text.split('\n');
+    lineNums.innerHTML = lines.map(function(_, i) { return i + 1; }).join('\n') + '\n';
+    highlight.scrollTop = textarea.scrollTop;
+    lineNums.scrollTop  = textarea.scrollTop;
+    return;
+  }
+
   var lines = text.split('\n');
   // Zeilennummern
   var nums = lines.map(function(_, i) {
@@ -3694,27 +4147,27 @@ function validateFileEditor() {
     statusEl.className = '';
     return;
   }
+  var isLarge = textarea.value.length > FE_HIGHLIGHT_MAX_BYTES;
   var result = validateJsonText(textarea.value);
   if (result.valid) {
     _feErrorLine = null; _feErrorCol = null;
     try {
       textarea.value = JSON.stringify(JSON.parse(textarea.value), null, 2);
-      updateEditorHighlight();
+      if (!isLarge) updateEditorHighlight();
     } catch(e) {}
-    statusEl.textContent = '✓ Gültiges JSON (formatiert)';
+    statusEl.textContent = '\u2713 G\u00fcltiges JSON (formatiert)';
     statusEl.className = 'ok';
-    textarea.className = 'valid';
+    textarea.className = (isLarge ? 'fe-plain-mode ' : '') + 'valid';
   } else {
     var ep = getJsonErrorPos(textarea.value, result.error);
     _feErrorLine = ep.line; _feErrorCol = ep.col;
-    updateEditorHighlight();
-    var loc = ep.line ? ' (Zeile ' + ep.line + (ep.col ? ', Spalte ' + ep.col : '') + ')' : '';
-    statusEl.textContent = '✗ ' + result.error + loc;
+    if (!isLarge) updateEditorHighlight();
+    var loc = ep.line ? ' (Zeile ' + ep.line + (ep.col ? ', Spalte ' + ep.col : '') + ')' : '';
+    statusEl.textContent = '\u2717 ' + result.error + loc;
     statusEl.className = 'err';
-    textarea.className = 'invalid';
+    textarea.className = (isLarge ? 'fe-plain-mode ' : '') + 'invalid';
   }
 }
-
 /**
  * JSON-String mit Syntax-Highlighting in HTML umwandeln
  */
@@ -3802,7 +4255,25 @@ function openFileEditor(relPath, readAction, writeAction, afterSave) {
     .then(function(resp) {
       if (!resp.success) throw new Error(resp.error || 'Fehler');
       textarea.value = resp.data.content;
-      updateEditorHighlight();
+      // Plain-Modus für grosse Dateien: Overlay verstecken, Textarea direkt sichtbar
+      var large = resp.data.content.length > FE_HIGHLIGHT_MAX_BYTES;
+      var highlightEl = document.getElementById('file-editor-highlight');
+      var lineNumsEl  = document.getElementById('file-editor-line-numbers');
+      if (large) {
+        textarea.classList.add('fe-plain-mode');
+        highlightEl.style.display = 'none';
+        lineNumsEl.style.display  = 'none';
+        var se = document.getElementById('file-editor-status');
+        se.textContent = (resp.data.size / 1024).toFixed(0) + ' KB — Validierung und Highlighting deaktiviert (grosse Datei). Bitte «Validieren»-Button nutzen.';
+        se.className = '';
+      } else {
+        textarea.classList.remove('fe-plain-mode');
+        highlightEl.style.display = '';
+        lineNumsEl.style.display  = '';
+      }
+      // Highlight asynchron: Dialog erst rendern lassen, dann Highlighting starten
+      if (!large) setTimeout(function() { updateEditorHighlight(); }, 0);
+      else { highlightEl.innerHTML = ''; lineNumsEl.innerHTML = ''; }
       saveBtn.disabled = false;
       if (_feIsJson) {
         var result = validateJsonText(resp.data.content);
@@ -4073,7 +4544,130 @@ function updateStagingSelCount() {
 }
 
 /**
- * Gewählte Dienste zusammenführen und in ImportToCore schreiben
+// =====================================================================
+// STAGING: Analyse-Button + Filter + Doppel-Import-Schutz
+// =====================================================================
+
+/**
+ * Ermittelt alle Services die bereits in einem Kürzel-Manifest stehen.
+ * Returns: { serviceLower: kuerzelName }
+ */
+function getStagedServicesMap() {
+  var map = {};
+  if (!_stagingOutputData) return map;
+  _stagingOutputData.forEach(function(k) {
+    var sources = (k.manifest && k.manifest.sources) ? k.manifest.sources : [];
+    sources.forEach(function(src) {
+      if (src.service) map[src.service.toLowerCase()] = k.kuerzel;
+    });
+  });
+  return map;
+}
+
+/**
+ * Staging-Liste mit Analyse-Farben (grün/rot/orange) auffrischen.
+ */
+function applyStagingAnalyse() {
+  var stagedMap = getStagedServicesMap();
+  var restageMap = getStagingRestageServiceMap();
+  var cntPend = 0, cntStaged = 0, cntRestage = 0;
+
+  document.querySelectorAll('#staging-svc-list .ags-svc-group').forEach(function(group) {
+    var svc = group.dataset.svckey || group.dataset.svcname || '';
+    var svcLower = svc.toLowerCase();
+    var isRestage = !!(restageMap[svc] || restageMap[svcLower]);
+    var isStaged  = !!(stagedMap[svcLower]);
+    group.classList.remove('svc-pending', 'svc-staged');
+    var head = group.querySelector('.ags-svc-head');
+    // Badge entfernen falls vorhanden
+    var existingBadge = head ? head.querySelector('.svc-pending-badge, .svc-staged-badge') : null;
+    if (existingBadge) existingBadge.remove();
+    if (isRestage) {
+      cntRestage++;
+    } else if (isStaged) {
+      group.classList.add('svc-staged');
+      cntStaged++;
+      if (head) {
+        var b = document.createElement('span');
+        b.className = 'svc-staged-badge';
+        b.textContent = '✓ ' + stagedMap[svcLower];
+        head.appendChild(b);
+      }
+    } else {
+      group.classList.add('svc-pending');
+      cntPend++;
+      if (head) {
+        var bp = document.createElement('span');
+        bp.className = 'svc-pending-badge';
+        bp.textContent = '⏳ ausstehend';
+        head.appendChild(bp);
+      }
+    }
+  });
+  // Analyse-Button Text
+  var btn = document.getElementById('staging-btn-analyse');
+  if (btn) btn.textContent = '\uD83D\uDD0D Analyse: ' + cntPend + ' ausstehend / ' + cntRestage + ' geändert / ' + cntStaged + ' importiert';
+  // Filter-Checkbox einblenden
+  var filterLabel = document.getElementById('staging-filter-pending-label');
+  if (filterLabel) filterLabel.style.display = 'flex';
+  // Nach Status sortieren: ausstehend oben
+  var listEl = document.getElementById('staging-svc-list');
+  if (!listEl) return;
+  var groups = Array.prototype.slice.call(listEl.querySelectorAll('.ags-svc-group'));
+  groups.sort(function(a, b) {
+    function weight(g) {
+      if (g.classList.contains('svc-pending'))  return 0;
+      if (g.classList.contains('needs-restage')) return 1;
+      if (g.classList.contains('svc-staged'))    return 2;
+      return 3;
+    }
+    var w = weight(a) - weight(b);
+    if (w !== 0) return w;
+    return (a.dataset.svcname || '').localeCompare(b.dataset.svcname || '');
+  });
+  groups.forEach(function(g) { listEl.appendChild(g); });
+}
+
+/**
+ * "Nur ausstehende" Filter toggling.
+ */
+function applyStagingPendingFilter() {
+  var cb = document.getElementById('staging-filter-pending');
+  var onlyPending = cb && cb.checked;
+  document.querySelectorAll('#staging-svc-list .ags-svc-group').forEach(function(g) {
+    if (onlyPending) {
+      g.style.display = g.classList.contains('svc-pending') ? '' : 'none';
+    } else {
+      g.style.display = '';
+    }
+  });
+  updateStagingSelCount();
+}
+
+// Event-Binding für Analyse + Filter
+(function() {
+  function bindStagingAnalyseControls() {
+    var btn = document.getElementById('staging-btn-analyse');
+    var filterCb = document.getElementById('staging-filter-pending');
+    if (!btn || btn._analyseBound) return;
+    btn._analyseBound = true;
+    btn.addEventListener('click', function() {
+      applyStagingAnalyse();
+    });
+    if (filterCb) {
+      filterCb.addEventListener('change', applyStagingPendingFilter);
+    }
+  }
+  var _retry = setInterval(function() {
+    if (document.getElementById('staging-btn-analyse')) {
+      bindStagingAnalyseControls();
+      clearInterval(_retry);
+    }
+  }, 300);
+})();
+/**
+
+ * Gewählte Dienste zusammenführen und in die Konfig-Store DB schreiben
  */
 function executeStagingMerge() {
   var checkboxes = document.querySelectorAll('#staging-svc-list input:checked');
@@ -4081,7 +4675,27 @@ function executeStagingMerge() {
   checkboxes.forEach(function(cb) { services.push(cb.dataset.svc); });
   var kuerzel = (document.getElementById('staging-kuerzel').value || '').trim();
   var mode = document.getElementById('staging-mode').value;
+  var scope = (document.getElementById('staging-scope') || {}).value || 'core';
+  var profile = (document.getElementById('staging-profile') || {}).value || '';
   if (services.length === 0 || !kuerzel) return;
+
+  // Doppel-Import Warnung: Services die bereits in einem anderen Kürzel staged sind
+  if (mode !== 'preview') {
+    var stagedMap = getStagedServicesMap();
+    var conflicts = [];
+    services.forEach(function(svc) {
+      var existingK = stagedMap[svc.toLowerCase()];
+      if (existingK && existingK !== kuerzel) {
+        conflicts.push(svc + ' (bereits in \u00abKürzel: ' + existingK + '\u00bb)');
+      }
+    });
+    if (conflicts.length > 0) {
+      var msg = '\u26A0 Folgende Dienste sind bereits in einem anderen Kürzel importiert:\n\n'
+        + conflicts.join('\n')
+        + '\n\nTrotzdem fortfahren?';
+      if (!confirm(msg)) return;
+    }
+  }
 
   var btn = document.getElementById('staging-btn-merge');
   var resultEl = document.getElementById('staging-result');
@@ -4089,15 +4703,15 @@ function executeStagingMerge() {
   var previewEl = document.getElementById('staging-preview-result');
   btn.disabled = true;
   previewEl.style.display = 'none';
-  var modeLabel = mode === 'merge' ? 'Zusammenführen' : mode === 'preview' ? 'Vorschau' : 'Ersetzen';
+  var modeLabel = mode === 'merge' ? 'Importieren (zusammenführen)' : mode === 'preview' ? 'Vorschau' : 'Importieren (ersetzen)';
   statusEl.textContent = modeLabel + ' läuft…';
   statusEl.className = 'ags-status';
   resultEl.style.display = 'none';
 
   fetch(API_URL + '?action=ags-stage-merge', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ services: services, kuerzel: kuerzel, mode: mode })
+    headers: { 'Content-Type': 'application/json', 'X-Editor-Name': slmGetUser() },
+    body: JSON.stringify({ services: services, kuerzel: kuerzel, mode: mode, scope: scope, profile: profile })
   })
     .then(function(r) { return r.json(); })
     .then(function(resp) {
@@ -4107,7 +4721,7 @@ function executeStagingMerge() {
 
       // Preview-Modus: nur Statistik anzeigen, nichts geschrieben
       if (mode === 'preview') {
-        statusEl.textContent = '👁 Vorschau für ' + d.files.length + ' Dateien → ImportToCore/' + d.kuerzel + '/';
+        statusEl.textContent = '👁 Vorschau für ' + d.files.length + ' Ressourcentypen → Konfig-Store DB [' + d.kuerzel + ']';
         statusEl.className = 'ags-status';
         statusEl.style.color = '#3478c6';
         var html = '';
@@ -4131,11 +4745,11 @@ function executeStagingMerge() {
       // Merge/Replace: Ergebnis anzeigen
       var modeInfo = d.mode === 'merge' ? ' (zusammengeführt)' : ' (ersetzt)';
       if (d.files.length === 0) {
-        statusEl.textContent = '⚠ 0 Dateien → ImportToCore/' + d.kuerzel + '/ — keine verarbeitbaren Konfig-Dateien gefunden';
+        statusEl.textContent = '⚠ 0 Dateien → Konfig-Store DB [' + d.kuerzel + '] — keine verarbeitbaren Konfig-Dateien gefunden';
         statusEl.className = 'ags-status';
         statusEl.style.color = '#e67e22';
       } else {
-        statusEl.textContent = '✓ ' + d.files.length + ' Dateien → ImportToCore/' + d.kuerzel + '/' + modeInfo;
+        statusEl.textContent = '✓ ' + d.files.length + ' Ressourcentypen → Konfig-Store DB [' + d.kuerzel + ']' + modeInfo;
         statusEl.className = 'ags-status success';
       }
 
@@ -4237,13 +4851,13 @@ function loadStagingOutput() {
         summary.innerHTML = '<span class="stg-cs-count">' + changedCount + '</span> Kürzel sollten aktualisiert werden — Quellen in raw-conf haben sich geändert';
         listEl.insertBefore(summary, listEl.firstChild);
       }
-      // Cross-Kürzel Duplikat-Zusammenfassung
+      // Geteilte Keys über Tags (merged statt Konflikt)
       var crossTotal = 0;
       d.kuerzel.forEach(function(k) { k.files.forEach(function(f) { if (f.crossDuplicateKeys && f.crossDuplicateKeys.length) crossTotal += f.crossDuplicateKeys.length; }); });
       if (crossTotal > 0) {
         var warn = document.createElement('div');
         warn.className = 'stg-cross-dup-summary';
-        warn.textContent = '⚠ ' + crossTotal + ' kürzelübergreifende Key-Konflikte erkannt!';
+        warn.textContent = '🔗 ' + crossTotal + ' geteilte Keys — über Tags zusammengeführt (kein Fehler)';
         listEl.insertBefore(warn, listEl.firstChild);
       }
     })
@@ -4272,6 +4886,57 @@ function applyStagingRestageMarkers() {
   });
 }
 
+// Tag global löschen (Punkt 4): Ressourcen mit weiteren Tags bleiben, letzte Tag-Nutzung löscht die Ressource.
+function slmDeleteTag(tag) {
+  if (!tag) return;
+  if (!confirm('Tag «' + tag + '» löschen?\n\nRessourcen mit weiteren Tags bleiben erhalten (nur der Tag wird entfernt).\nRessourcen ohne weiteren Tag werden endgültig gelöscht.')) return;
+  fetch(API_URL + '?action=staging-delete-tag', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ tag: tag })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(j) {
+    if (!j.success) { alert('Fehler: ' + (j.error || 'unbekannt')); return; }
+    loadStagingOutput();
+  })
+  .catch(function(e) { alert('Netzwerkfehler: ' + e.message); });
+}
+
+// Tag zu einem Kürzel hinzufügen (Mehrfach-Nutzung ermöglichen).
+function slmAddTag(kuerzel) {
+  var tag = window.prompt('Tag hinzufügen zu «' + kuerzel + '»:', '');
+  if (tag === null) return;
+  tag = (tag || '').trim();
+  if (!tag) return;
+  fetch(API_URL + '?action=staging-add-tag', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ kuerzel: kuerzel, tag: tag })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(j) {
+    if (!j.success) { alert('Fehler: ' + (j.error || 'unbekannt')); return; }
+    loadStagingOutput();
+  })
+  .catch(function(e) { alert('Netzwerkfehler: ' + e.message); });
+}
+
+// Server-seitiges Re-Stage (1 Klick) anhand Manifest-Quellen; Fallback: links vorauswählen.
+function slmServerRestage(kuerzel, sources, bundle) {
+  fetch(API_URL + '?action=staging-restage', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ kuerzel: kuerzel })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(j) {
+    if (!j.success) { restageFromManifest(kuerzel, sources || null, bundle); return; }
+    loadStagingOutput();
+  })
+  .catch(function() { restageFromManifest(kuerzel, sources || null, bundle); });
+}
+
 function renderStagingOutput(kuerzelList) {
   var listEl = document.getElementById('stg-output-list');
   listEl.innerHTML = '';
@@ -4285,7 +4950,11 @@ function renderStagingOutput(kuerzelList) {
   sorted.forEach(function(k) {
     var totalKB = k.size > 1024 ? (k.size / 1024).toFixed(1) + ' KB' : k.size + ' B';
     var hdr = document.createElement('div');
-    hdr.className = 'stg-output-kuerzel';
+    hdr.className = 'stg-output-kuerzel stg-acc-head collapsed';
+    var arrow = document.createElement('span');
+    arrow.className = 'stg-acc-arrow';
+    arrow.textContent = '▶';
+    hdr.appendChild(arrow);
     var cb = document.createElement('input');
     cb.type = 'checkbox'; cb.dataset.kuerzel = k.kuerzel; cb.id = 'stg-out-cb-' + k.kuerzel;
     cb.addEventListener('change', function() {
@@ -4310,8 +4979,40 @@ function renderStagingOutput(kuerzelList) {
         manifestBadge = ' <span style="font-size:9px;color:#fff;background:var(--c-primary);padding:1px 5px;border-radius:8px;font-weight:400" title="' + srcCount + ' Quellen, zuletzt: ' + lastDate + '">' + srcCount + ' Quellen</span>';
       }
     }
-    lbl.innerHTML = '<b>' + k.kuerzel + '</b>' + manifestBadge + '&nbsp;<span style="font-weight:400;color:#888;font-size:10px">(' + k.files.length + ' Dateien, ' + totalKB + ')</span>';
+    var tagBadge = '';
+    var scopeBadge = '';
+    var scopeVal = k.scope || 'core';
+    var scopeColors = { core: '#5a7d8c', sitecore: '#8a6d3b', override: '#8a6d3b', profile: '#6b4e8a' };
+    var scopeLabel = scopeVal + (k.profile ? ':' + k.profile : '');
+    scopeBadge = ' <span style="font-size:9px;color:#fff;background:' + (scopeColors[scopeVal] || '#777') + ';padding:1px 6px;border-radius:8px;font-weight:700" title="Überladungsebene">' + esc(scopeLabel) + '</span>';
+    var importMeta = '';
+    if (k.lastImportedAt || k.lastImportedBy) {
+      importMeta = '<div style="font-weight:400;color:#888;font-size:10px;margin-top:2px">Letzter Import/Re-Stage: '
+        + (k.lastImportedAt ? formatDateTime(k.lastImportedAt) : '—')
+        + (k.lastImportedBy ? ' · ' + k.lastImportedBy : '') + '</div>';
+    }
+    lbl.innerHTML = '<b>' + k.kuerzel + '</b>' + scopeBadge + manifestBadge + '&nbsp;<span style="font-weight:400;color:#888;font-size:10px">(' + k.files.length + ' Ressourcentypen, ' + totalKB + ')</span>' + importMeta;
     hdr.appendChild(cb); hdr.appendChild(lbl);
+    // Tag-Chips (Mehrfach-Nutzung sichtbar machen)
+    var chipsWrap = document.createElement('span');
+    chipsWrap.className = 'stg-tag-chips';
+    var theTags = (k.tags && k.tags.length) ? k.tags : [k.kuerzel];
+    theTags.forEach(function(t) {
+      var chip = document.createElement('span');
+      chip.className = 'stg-tag-chip' + (t === k.kuerzel ? ' is-primary' : '');
+      chip.textContent = t;
+      chip.title = (t === k.kuerzel) ? 'Primärer Tag (= Kürzel)' : 'Tag';
+      chipsWrap.appendChild(chip);
+    });
+    (function(kuerzel) {
+      var addChip = document.createElement('span');
+      addChip.className = 'stg-tag-chip-add';
+      addChip.textContent = '＋ Tag';
+      addChip.title = 'Diesem Eintrag einen weiteren Tag geben (Mehrfach-Nutzung)';
+      addChip.addEventListener('click', function(e) { e.stopPropagation(); slmAddTag(kuerzel); });
+      chipsWrap.appendChild(addChip);
+    })(k.kuerzel);
+    hdr.appendChild(chipsWrap);
     // Änderungs-Badge direkt nach dem Label einfügen
     var changes = k.sourceChanges;
     if (changes && changes.hasChanges) {
@@ -4358,22 +5059,25 @@ function renderStagingOutput(kuerzelList) {
     } else {
       restageBtn.title = 'Kürzel auf der linken Seite vorausfüllen und manuell stagen';
     }
-    (function(kuerzel, manifest) {
+    (function(bundle) {
       restageBtn.addEventListener('click', function(e) {
         e.stopPropagation();
-        restageFromManifest(kuerzel, manifest && manifest.sources ? manifest.sources : null);
+        var srcs = bundle.manifest && bundle.manifest.sources ? bundle.manifest.sources : null;
+        // Immer zuerst Formular vorbelegen (Kürzel, Stufe, Profil, Quellen),
+        // damit die Einstellungen sichtbar und anpassbar sind.
+        restageFromManifest(bundle.kuerzel, srcs, bundle);
       });
-    })(k.kuerzel, k.manifest || null);
+    })(k);
     actionsDiv.appendChild(restageBtn);
 
     var delBtn = document.createElement('button');
     delBtn.className = 'stg-btn-del-kuerzel';
     delBtn.innerHTML = '🗑 Löschen';
-    delBtn.title = 'Kürzel aus ImportToCore löschen';
+    delBtn.title = 'Kürzel aus der Konfig-Store DB löschen';
     (function(kuerzel) {
       delBtn.addEventListener('click', function(e) {
         e.stopPropagation();
-        if (!confirm('Kürzel «' + kuerzel + '» aus ImportToCore löschen?')) return;
+        if (!confirm('Kürzel «' + kuerzel + '» aus der Konfig-Store DB löschen?')) return;
         fetch(API_URL + '?action=staging-delete-output', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -4384,6 +5088,18 @@ function renderStagingOutput(kuerzelList) {
     actionsDiv.appendChild(delBtn);
     hdr.appendChild(actionsDiv);
     listEl.appendChild(hdr);
+    // Accordion-Container für Details/Dateien (standardmässig zugeklappt → kompakte Liste)
+    var filesWrap = document.createElement('div');
+    filesWrap.className = 'stg-acc-body';
+    filesWrap.style.display = 'none';
+    listEl.appendChild(filesWrap);
+    // Header-Klick toggelt das Accordion (ausser Klicks auf Buttons/Checkbox/Chips)
+    hdr.addEventListener('click', function(e) {
+      if (e.target.closest('button') || e.target.closest('input') || e.target.closest('.stg-tag-chips')) return;
+      var open = hdr.classList.toggle('collapsed') === false;
+      filesWrap.style.display = open ? '' : 'none';
+      arrow.textContent = open ? '▼' : '▶';
+    });
     // Change-Detail-Zeilen anzeigen (standardmässig sichtbar bei Änderungen)
     if (k.sourceChanges && k.sourceChanges.hasChanges) {
       var changeWrap = document.createElement('div');
@@ -4413,7 +5129,7 @@ function renderStagingOutput(kuerzelList) {
           });
         });
       }
-      listEl.appendChild(changeWrap);
+      filesWrap.appendChild(changeWrap);
       // Toggle: Doppelklick auf restage-btn schliesst/öffnet Details
       var toggleBtn = hdr.querySelector('.stg-restage-btn');
       if (toggleBtn) {
@@ -4429,7 +5145,10 @@ function renderStagingOutput(kuerzelList) {
       var row = document.createElement('div');
       row.className = 'stg-output-file';
       var sz = f.size > 1024 ? (f.size / 1024).toFixed(1) + ' KB' : f.size + ' B';
-      var nameEl = document.createElement('span'); nameEl.className = 'of-name'; nameEl.textContent = f.name; nameEl.title = f.file;
+      var nameEl = document.createElement('span'); nameEl.className = 'of-name';
+      var extMatch = f.name.match(/^(.*)\.(conf|json)$/i);
+      nameEl.textContent = extMatch ? extMatch[1] + ' (' + extMatch[2].toLowerCase() + ')' : f.name;
+      nameEl.title = f.file;
       var sizeEl = document.createElement('span'); sizeEl.className = 'of-size'; sizeEl.textContent = sz;
       // Duplikat-Badge (neues Format: [{key, count, sources}])
       if (f.duplicateKeys && f.duplicateKeys.length) {
@@ -4453,7 +5172,7 @@ function renderStagingOutput(kuerzelList) {
         openFileEditor(f.file, 'staging-read-output', 'staging-write-output', loadStagingOutput);
       });
       row.appendChild(editBtn);
-      listEl.appendChild(row);
+      filesWrap.appendChild(row);
       // Intra-Kürzel Duplikat-Detail-Zeilen (aufklappbar per Badge-Klick)
       if (f.duplicateKeys && f.duplicateKeys.length) {
         var dupWrap = document.createElement('div');
@@ -4466,7 +5185,7 @@ function renderStagingOutput(kuerzelList) {
           dd.innerHTML = '• <b>' + dk.key + '</b> <span style="color:#999">(' + src + ')</span>';
           dupWrap.appendChild(dd);
         });
-        listEl.appendChild(dupWrap);
+        filesWrap.appendChild(dupWrap);
         var dupBadgeEl = row.querySelector('.of-dup');
         if (dupBadgeEl) { dupBadgeEl.style.cursor = 'pointer'; dupBadgeEl.addEventListener('click', function() { dupWrap.style.display = dupWrap.style.display === 'none' ? '' : 'none'; }); }
       }
@@ -4477,9 +5196,9 @@ function renderStagingOutput(kuerzelList) {
         }
         var crossBadge = document.createElement('span');
         crossBadge.className = 'of-cross-dup';
-        crossBadge.textContent = '✗ ' + f.crossDuplicateKeys.length + ' Konflikte';
+        crossBadge.textContent = '🔗 ' + f.crossDuplicateKeys.length + ' geteilt';
         var crossTip = f.crossDuplicateKeys.map(function(cd) { return cd.key + ' ↔ ' + cd.conflictsWith.join(', '); });
-        crossBadge.title = 'Kürzelübergreifende Konflikte:\n' + crossTip.join('\n');
+        crossBadge.title = 'Geteilte Keys (werden über Tags zusammengeführt, kein Fehler):\n' + crossTip.join('\n');
         crossBadge.style.cursor = 'pointer';
         row.insertBefore(crossBadge, editBtn);
         var crossWrap = document.createElement('div');
@@ -4488,10 +5207,10 @@ function renderStagingOutput(kuerzelList) {
         f.crossDuplicateKeys.forEach(function(cd) {
           var dd = document.createElement('div');
           dd.className = 'stg-cross-dup-detail';
-          dd.innerHTML = '✗ <b>' + cd.key + '</b> <span style="color:#999">↔ ' + cd.conflictsWith.join(', ') + '</span>';
+          dd.innerHTML = '🔗 <b>' + cd.key + '</b> <span style="color:#999">geteilt mit ' + cd.conflictsWith.join(', ') + '</span>';
           crossWrap.appendChild(dd);
         });
-        listEl.appendChild(crossWrap);
+        filesWrap.appendChild(crossWrap);
         crossBadge.addEventListener('click', function() { crossWrap.style.display = crossWrap.style.display === 'none' ? '' : 'none'; });
       }
     });
@@ -4519,26 +5238,37 @@ function deleteStagingOutputFiles() {
  * Setzt Kürzel, Modus "replace" und kreuzt die passenden Services an.
  * Fehlende Services (nicht mehr in raw-conf) werden als Warnung angezeigt.
  */
-function restageFromManifest(kuerzel, sources) {
-  // Wenn Staging-Liste noch nicht geladen: erst laden, dann selektieren
-  var listEl = document.getElementById('staging-svc-list');
-  if (!listEl.querySelector('input[type=checkbox]')) {
-    loadStagingList(function() {
-      _applyRestageSelection(kuerzel, sources);
-    });
-    return;
-  }
-  _applyRestageSelection(kuerzel, sources);
+function restageFromManifest(kuerzel, sources, bundle) {
+  // Tab auf Import wechseln; Callback wird aufgerufen, sobald die Dienste-Liste geladen ist.
+  // So gibt es keinen Parallellade-Konflikt und das Formular wird exakt dann befüllt,
+  // wenn die Checkboxen im DOM bereit sind.
+  switchTab('import', false, function() {
+    _applyRestageSelection(kuerzel, sources, bundle);
+  });
 }
 
-function _applyRestageSelection(kuerzel, sources) {
-  // Kürzel und Modus setzen
+function _applyRestageSelection(kuerzel, sources, bundle) {
+  // Kürzel, Stufe, Profil und Modus aus dem Bundle wiederherstellen
   var kuerzelInput = document.getElementById('staging-kuerzel');
   var modeSelect = document.getElementById('staging-mode');
+  var scopeSel = document.getElementById('staging-scope');
+  var profInput = document.getElementById('staging-profile');
   kuerzelInput.value = kuerzel;
   modeSelect.value = 'replace';
+  // Stufe und Profil aus Bundle-Metadaten vorbelegen
+  if (bundle) {
+    var bScope = bundle.scope || 'core';
+    if (scopeSel) {
+      scopeSel.value = bScope;
+      // Profilfeld ein-/ausblenden
+      if (profInput) {
+        profInput.style.display = (bScope === 'profile') ? '' : 'none';
+        profInput.value = (bScope === 'profile' && bundle.profile) ? bundle.profile : '';
+      }
+    }
+  }
   // Button-Text aktualisieren
-  document.getElementById('staging-btn-merge').textContent = '🔀 Ersetzen';
+  document.getElementById('staging-btn-merge').textContent = '\uD83D\uDCE5 Importieren (ersetzen)';
   // Alle Checkboxen erst abwählen
   document.querySelectorAll('#staging-svc-list input[type=checkbox]').forEach(function(cb) {
     cb.checked = false;
@@ -4681,13 +5411,28 @@ function updateStagingManifestInfo() {
 // =====================================================================
 // EVENT-HANDLER
 // =====================================================================
-document.getElementById('ags-btn-refresh').addEventListener('click', function() {
+
+// Sichere Event-Listener: Ignorieren null-Elemente
+function safeAddEventListener(elementId, eventType, handler) {
+  var el = document.getElementById(elementId);
+  if (el) el.addEventListener(eventType, handler);
+}
+
+// ===== MODAL INPUT-HANDLING: Verhindere Event-Bubbling bei Text-Selektion =====
+// Clicke auf Input/Textarea in Modalen sollen nicht den Dialog schließen
+document.addEventListener('click', function(e) {
+  if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) {
+    e.stopPropagation();
+  }
+}, true); // Use capture phase to catch before other handlers
+
+safeAddEventListener('ags-btn-refresh', 'click', function() {
   var activeTab = document.querySelector('.ags-tab.active');
   if (activeTab && activeTab.dataset.tab === 'manage') {
     loadRawConfList();
-  } else if (activeTab && activeTab.dataset.tab === 'staging') {
-    loadStagingList();
   } else if (activeTab && activeTab.dataset.tab === 'import') {
+    loadStagingList();
+  } else if (activeTab && activeTab.dataset.tab === 'create') {
     if (_importActiveSource === 'core') {
       _coreSourcesLoaded = false;
       loadCoreSources(true);
@@ -4702,7 +5447,7 @@ document.getElementById('ags-btn-refresh').addEventListener('click', function() 
 });
 
 // Cache-Leeren-Button
-document.getElementById('ags-btn-cache-clear').addEventListener('click', function() {
+safeAddEventListener('ags-btn-cache-clear', 'click', function() {
   var btn = this;
   btn.disabled = true;
   btn.textContent = '⏳ Cache…';
@@ -4720,7 +5465,7 @@ document.getElementById('ags-btn-cache-clear').addEventListener('click', functio
 
 // Config→DB Button: Modal öffnen
 var _ctdbScope = 'full';
-document.getElementById('ags-btn-config-to-db').addEventListener('click', function() {
+safeAddEventListener('ags-btn-config-to-db', 'click', function() {
   var modal = document.getElementById('ctdb-modal');
   document.getElementById('ctdb-status').style.display = 'none';
   document.getElementById('ctdb-result').style.display = 'none';
@@ -4732,10 +5477,10 @@ document.getElementById('ags-btn-config-to-db').addEventListener('click', functi
   document.querySelector('.ctdb-scope-btn[data-scope="full"]').classList.add('active');
   modal.style.display = 'flex';
 });
-document.getElementById('ctdb-close').addEventListener('click', function() {
+safeAddEventListener('ctdb-close', 'click', function() {
   document.getElementById('ctdb-modal').style.display = 'none';
 });
-document.getElementById('ctdb-modal').addEventListener('click', function(e) {
+safeAddEventListener('ctdb-modal', 'click', function(e) {
   if (e.target === this) this.style.display = 'none';
 });
 // Scope-Auswahl
@@ -4747,7 +5492,7 @@ document.querySelectorAll('.ctdb-scope-btn').forEach(function(btn) {
   });
 });
 // Starten
-document.getElementById('ctdb-run').addEventListener('click', function() {
+safeAddEventListener('ctdb-run', 'click', function() {
   var btn = this;
   var statusEl = document.getElementById('ctdb-status');
   var resultEl = document.getElementById('ctdb-result');
@@ -4793,7 +5538,7 @@ document.getElementById('ctdb-run').addEventListener('click', function() {
 });
 
 // Import-Tab: Filter
-document.getElementById('import-filter').addEventListener('input', function() {
+safeAddEventListener('import-filter', 'input', function() {
   var term = this.value.trim();
   document.querySelectorAll('#import-list .ags-item').forEach(function(item) {
     item.classList.toggle('hidden', term !== '' && !matchWildcard(item.dataset.name, term));
@@ -4808,19 +5553,104 @@ document.querySelectorAll('.import-source-btn').forEach(function(btn) {
 });
 
 // Import-Tab: Alle / Keine
-document.getElementById('import-sel-all').addEventListener('click', function() {
+safeAddEventListener('import-sel-all', 'click', function() {
   document.querySelectorAll('#import-list .ags-item:not(.hidden) input').forEach(function(cb) { cb.checked = true; });
   _agsLastImportCheckbox = null;
   updateImportSelCount();
 });
-document.getElementById('import-sel-none').addEventListener('click', function() {
+safeAddEventListener('import-sel-none', 'click', function() {
   document.querySelectorAll('#import-list input').forEach(function(cb) { cb.checked = false; });
   _agsLastImportCheckbox = null;
   updateImportSelCount();
 });
 
 // Import-Tab: Export/Import-Button (quellabhängig)
-document.getElementById('import-btn-export').addEventListener('click', function() {
+safeAddEventListener('import-btn-delete', 'click', deleteCoreKuerzel);
+
+// Core-Tab: Löschen von Kürzel-Dateien aus core
+function deleteCoreKuerzel() {
+  if (_importActiveSource !== 'core') return;
+  var checkboxes = document.querySelectorAll('#import-list input:checked');
+  var kuerzelList = [];
+  checkboxes.forEach(function(cb) { kuerzelList.push(cb.dataset.svc); });
+  if (kuerzelList.length === 0) return;
+
+  var statusEl = document.getElementById('import-status');
+  var resultEl = document.getElementById('import-result');
+
+  var msg = kuerzelList.length + ' Kürzel aus Core löschen?\n\n';
+  kuerzelList.forEach(function(k) { msg += '  • ' + k + '\n'; });
+  msg += '\nBackups werden automatisch erstellt.';
+  if (!confirm(msg)) return;
+
+  statusEl.textContent = 'Lösche ' + kuerzelList.length + ' Kürzel aus Core…';
+  statusEl.className = 'ags-status';
+
+  var errors = [];
+  var deleted = [];
+
+  function deleteNext(idx) {
+    if (idx >= kuerzelList.length) {
+      if (errors.length === 0) {
+        statusEl.textContent = '✓ ' + deleted.length + ' Kürzel aus Core gelöscht';
+        statusEl.className = 'ags-status success';
+      } else {
+        statusEl.textContent = '⚠ ' + deleted.length + ' gelöscht, ' + errors.length + ' Fehler';
+        statusEl.className = 'ags-status error';
+      }
+      loadCoreSources(true);
+      return;
+    }
+    var kuerzel = kuerzelList[idx];
+    // Alle Dateien dieses Kürzels aus dem Cache holen
+    var src = null;
+    _coreSources.forEach(function(s) { if (s.kuerzel === kuerzel) src = s; });
+    var files = (src && src.files) ? src.files : [];
+    if (files.length === 0) { deleteNext(idx + 1); return; }
+
+    var fileErrors = [];
+    var fileDeleted = [];
+    function deleteFile(fi) {
+      if (fi >= files.length) {
+        if (fileErrors.length === 0) deleted.push(kuerzel);
+        else errors.push(kuerzel + ': ' + fileErrors.join(', '));
+        deleteNext(idx + 1);
+        return;
+      }
+      var f = files[fi];
+      fetch(API_URL + '?action=prepare-delete-conf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileName: f.name, source: f.source || src.source || 'core' })
+      })
+      .then(function(r) { return r.json(); })
+      .then(function(json) {
+        if (!json.success) throw new Error(json.error || 'prepare-delete fehlgeschlagen');
+        var deletePath = json.data.deletePath;
+        statusEl.textContent = '⏳ Lösche ' + deletePath;
+        return fetch(GAPI_URL + '/delete-deployed-conf', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ deletePath: deletePath })
+        });
+      })
+      .then(function(r) { return r.json(); })
+      .then(function(json) {
+        if (!json.success && !json.deleted) throw new Error('SFTP-Löschung fehlgeschlagen');
+        fileDeleted.push(f.name);
+        deleteFile(fi + 1);
+      })
+      .catch(function(e) {
+        fileErrors.push(f.name + ': ' + e.message);
+        deleteFile(fi + 1);
+      });
+    }
+    deleteFile(0);
+  }
+  deleteNext(0);
+}
+
+safeAddEventListener('import-btn-export', 'click', function() {
   if (_importActiveSource === 'core') {
     importCoreSources();
   } else if (_importActiveSource === 'qgis') {
@@ -4831,7 +5661,7 @@ document.getElementById('import-btn-export').addEventListener('click', function(
 });
 
 // Verwalten-Tab: Filter
-document.getElementById('manage-filter').addEventListener('input', function() {
+safeAddEventListener('manage-filter', 'input', function() {
   var term = this.value.trim();
   document.querySelectorAll('#manage-svc-list .ags-svc-group').forEach(function(grp) {
     grp.style.display = (term !== '' && !matchWildcard(grp.dataset.svcname, term)) ? 'none' : '';
@@ -4839,28 +5669,28 @@ document.getElementById('manage-filter').addEventListener('input', function() {
   updateManageSelCount();
 });
 
-document.getElementById('manage-backup-filter').addEventListener('change', function() {
+safeAddEventListener('manage-backup-filter', 'change', function() {
   loadRawConfList();
 });
 
 // Verwalten-Tab: Alle / Keine
-document.getElementById('manage-sel-all').addEventListener('click', function() {
+safeAddEventListener('manage-sel-all', 'click', function() {
   document.querySelectorAll('#manage-svc-list .ags-svc-group:not([style*="display: none"]) input').forEach(function(cb) { cb.checked = true; });
   _agsLastManageCheckbox = null;
   updateManageSelCount();
 });
-document.getElementById('manage-sel-none').addEventListener('click', function() {
+safeAddEventListener('manage-sel-none', 'click', function() {
   document.querySelectorAll('#manage-svc-list input').forEach(function(cb) { cb.checked = false; });
   _agsLastManageCheckbox = null;
   updateManageSelCount();
 });
 
 // Verwalten-Tab: Multi-Delete-Button
-document.getElementById('manage-btn-delete').addEventListener('click', deleteSelectedServices);
-document.getElementById('manage-btn-delete-backups').addEventListener('click', deleteSelectedBackups);
+safeAddEventListener('manage-btn-delete', 'click', deleteSelectedServices);
+safeAddEventListener('manage-btn-delete-backups', 'click', deleteSelectedBackups);
 
 // Staging-Tab: Filter
-document.getElementById('staging-filter').addEventListener('input', function() {
+safeAddEventListener('staging-filter', 'input', function() {
   var term = this.value.trim();
   document.querySelectorAll('#staging-svc-list .ags-svc-group').forEach(function(grp) {
     grp.style.display = (term && !matchWildcard(grp.dataset.svcname, term)) ? 'none' : '';
@@ -4868,29 +5698,39 @@ document.getElementById('staging-filter').addEventListener('input', function() {
   updateStagingSelCount();
 });
 // Staging-Tab: Alle / Keine
-document.getElementById('staging-sel-all').addEventListener('click', function() {
+safeAddEventListener('staging-sel-all', 'click', function() {
   document.querySelectorAll('#staging-svc-list .ags-svc-group:not([style*="display: none"]) input').forEach(function(cb) { cb.checked = true; });
   _agsLastStagingCheckbox = null; updateStagingSelCount();
 });
-document.getElementById('staging-sel-none').addEventListener('click', function() {
+safeAddEventListener('staging-sel-none', 'click', function() {
   document.querySelectorAll('#staging-svc-list input').forEach(function(cb) { cb.checked = false; });
   _agsLastStagingCheckbox = null; updateStagingSelCount();
 });
 // Staging-Tab: Kürzel-Input (Button-State aktualisieren)
-document.getElementById('staging-kuerzel').addEventListener('input', function() {
+safeAddEventListener('staging-kuerzel', 'input', function() {
   updateStagingSelCount();
   updateStagingManifestInfo();
 });
 // Staging-Tab: Merge-Button
-document.getElementById('staging-btn-merge').addEventListener('click', executeStagingMerge);
+safeAddEventListener('staging-btn-merge', 'click', executeStagingMerge);
 // Staging-Tab: Mode-Wechsel → Button-Text anpassen
 document.getElementById('staging-mode').addEventListener('change', function() {
   var btn = document.getElementById('staging-btn-merge');
   var mode = this.value;
   if (mode === 'preview') btn.textContent = '👁 Vorschau';
-  else if (mode === 'merge') btn.textContent = '🔀 Zusammenführen';
-  else btn.textContent = '🔀 Ersetzen';
+  else if (mode === 'merge') btn.textContent = '� Importieren (zusammenführen)';
+  else btn.textContent = '📥 Importieren (ersetzen)';
 });
+// Staging-Tab: Stufe (Scope) → Profil-Feld ein-/ausblenden
+(function() {
+  var scopeSel = document.getElementById('staging-scope');
+  var profInput = document.getElementById('staging-profile');
+  if (scopeSel && profInput) {
+    scopeSel.addEventListener('change', function() {
+      profInput.style.display = (this.value === 'profile') ? '' : 'none';
+    });
+  }
+})();
 document.getElementById('stg-output-refresh').addEventListener('click', loadStagingOutput);
 document.getElementById('stg-output-delete-sel').addEventListener('click', deleteStagingOutputFiles);
 
@@ -4898,6 +5738,8 @@ document.getElementById('stg-output-delete-sel').addEventListener('click', delet
 
 // Scroll-Sync (Textarea → Highlight + Zeilennummern) — nur wenn kein Fehler-Scroll aktiv
 document.getElementById('file-editor-textarea').addEventListener('scroll', function() {
+  // Scroll-Sync nur wenn Overlay sichtbar (nicht im Plain-Modus)
+  if (this.classList.contains('fe-plain-mode')) return;
   var h  = document.getElementById('file-editor-highlight');
   var ln = document.getElementById('file-editor-line-numbers');
   h.scrollTop = this.scrollTop; h.scrollLeft = this.scrollLeft;
@@ -4939,7 +5781,14 @@ document.addEventListener('keydown', function(e) {
 });
 
 // Live-Validierung + Highlighting beim Tippen
+// Schwellwert: ab dieser Grösse KEIN Live-Processing (Validierung nur via Button)
+var FE_HIGHLIGHT_MAX_BYTES = 80000; // 80 KB
+var _feHighlightTimer = null;
+
 document.getElementById('file-editor-textarea').addEventListener('input', function() {
+  // Grosse Dateien: gar nichts machen beim Tippen — nur Button-Validierung
+  if (this.value.length > FE_HIGHLIGHT_MAX_BYTES) return;
+
   if (_feIsJson) {
     var result = validateJsonText(this.value);
     this.className = result.valid ? 'valid' : 'invalid';
@@ -4972,9 +5821,11 @@ var _editorSelectedKuerzel = {}; // Ausgewählte Kürzel für Multi-Deploy { kue
 var _deployQueue = [];           // Multi-Deploy Queue: Array von Kürzel-Strings
 var _deployQueueMode = 'single'; // 'single' | 'multi'
 var _deployDone  = false;        // Verhindert Doppelauslösung nach Deploy
+var _editorLastExportRunId = null;
+var _editorLastExportKuerzelKey = '';
 
 /**
- * Kürzel-Liste aus ImportToCore laden und als klickbare Liste rendern
+ * Kürzel-Liste aus der Konfig-Store DB laden und als klickbare Liste rendern
  */
 function loadEditorKuerzelList(forceReload) {
   if (_editorKuerzelLoaded && !forceReload) {
@@ -5000,51 +5851,45 @@ function loadEditorKuerzelList(forceReload) {
 }
 
 /**
- * Quellen-Liste rendern (mit optionalem Filter) — aufklappbare Gruppen mit Dateien
+ * Quellen-Liste rendern — nach Tags gruppiert.
+ * Ein Kürzel mit mehreren Tags erscheint unter jedem Tag.
  */
 function renderEditorSourceList(filter) {
   var listEl = document.getElementById('editor-src-list');
   var q = (filter || document.getElementById('editor-src-filter').value || '').toLowerCase();
-  var html = '';
-  var count = 0;
 
-  _editorKuerzelList.forEach(function(k) {
-    var name = k.kuerzel;
-    if (q && name.toLowerCase().indexOf(q) === -1) return;
-    count++;
-    var active = (name === _editorActiveKuerzel) ? ' active' : '';
-    var collapsed = (name !== _editorActiveKuerzel) ? ' collapsed' : '';
-    var confCount = 0, jsonCount = 0;
-    var files = k.files || [];
-    files.forEach(function(f) {
-      var fname = (typeof f === 'string') ? f : (f.name || f.file || '');
-      if (fname.match(/\.conf$/i)) confCount++;
-      else if (fname.match(/\.json$/i)) jsonCount++;
+  // Flache Liste aller Kürzel (ohne Tag-Gruppierung)
+  var kuerzelList = _editorKuerzelList.slice().sort(function(a, b) {
+    return a.kuerzel.localeCompare(b.kuerzel);
+  });
+
+  // Filter anwenden
+  if (q) {
+    kuerzelList = kuerzelList.filter(function(k) {
+      return k.kuerzel.toLowerCase().indexOf(q) !== -1;
     });
+  }
 
+  var html = '';
+  kuerzelList.forEach(function(k) {
+    var name = k.kuerzel;
+    var active = (name === _editorActiveKuerzel) ? ' active' : '';
+    var files = k.files || [];
+    var confCount = 0, jsonCount = 0;
+    files.forEach(function(f) {
+      var fn = (typeof f === 'string') ? f : (f.name || f.file || '');
+      if (fn.match(/\.conf$/i)) confCount++;
+      else if (fn.match(/\.json$/i)) jsonCount++;
+    });
     var cbChecked = _editorSelectedKuerzel[name] ? ' checked' : '';
-    html += '<div class="editor-src-item' + active + collapsed + '" data-kuerzel="' + name + '">';
-    html += '<input type="checkbox" class="src-cb" data-kuerzel="' + name + '"' + cbChecked + '>';
-    html += '<span class="src-arrow">▼</span>';
-    html += '<span class="src-name">' + name + '</span>';
+    html += '<div class="editor-src-item' + active + '" data-kuerzel="' + esc(name) + '">';
+    html += '<input type="checkbox" class="src-cb" data-kuerzel="' + esc(name) + '"' + cbChecked + '>';
+    html += '<span class="src-name">' + esc(name) + '</span>';
     html += '<span class="src-types">';
     if (confCount) html += '<span class="src-type-dot t-conf">' + confCount + '</span>';
     if (jsonCount) html += '<span class="src-type-dot t-json">' + jsonCount + '</span>';
     html += '</span>';
     html += '<span class="src-badge">' + files.length + '</span>';
-    html += '</div>';
-
-    html += '<div class="editor-src-files">';
-    files.forEach(function(f) {
-      var fname = (typeof f === 'string') ? f : (f.name || f.file || '');
-      var fsize = (typeof f === 'object' && f.size) ? formatFileSize(f.size) : '';
-      var ftype = getFileTypeClass(fname);
-      html += '<div class="editor-src-file">';
-      html += '<span class="sf-type ' + ftype.cls + '">' + ftype.label + '</span>';
-      html += '<span class="sf-name" title="' + fname + '">' + fname + '</span>';
-      if (fsize) html += '<span class="sf-size">' + fsize + '</span>';
-      html += '</div>';
-    });
     html += '</div>';
   });
 
@@ -5052,12 +5897,12 @@ function renderEditorSourceList(filter) {
     html = '<div class="editor-src-empty">' + (q ? 'Keine Treffer für «' + q + '»' : 'Keine Kürzel vorhanden') + '</div>';
   }
   listEl.innerHTML = html;
-  document.getElementById('editor-src-count').textContent = count;
+  document.getElementById('editor-src-count').textContent = kuerzelList.length;
 
   // Checkbox-Handler
   listEl.querySelectorAll('.src-cb').forEach(function(cb) {
     cb.addEventListener('click', function(e) { e.stopPropagation(); });
-    cb.addEventListener('change', function(e) {
+    cb.addEventListener('change', function() {
       var k = cb.dataset.kuerzel;
       if (cb.checked) _editorSelectedKuerzel[k] = true;
       else delete _editorSelectedKuerzel[k];
@@ -5065,26 +5910,15 @@ function renderEditorSourceList(filter) {
     });
   });
 
-  // Klick-Handler auf Quellen-Items
+  // Klick auf Kürzel-Item lädt den Editor
   listEl.querySelectorAll('.editor-src-item').forEach(function(item) {
     item.addEventListener('click', function(e) {
+      if (e.target.classList.contains('src-cb')) return;
       var kuerzel = item.dataset.kuerzel;
-
-      // Toggle collapse für aktives Item
-      if (kuerzel === _editorActiveKuerzel) {
-        item.classList.toggle('collapsed');
-        return;
-      }
-
-      // Alle zuklappen, aktives aufklappen
-      listEl.querySelectorAll('.editor-src-item').forEach(function(el) {
-        el.classList.remove('active');
-        el.classList.add('collapsed');
-      });
-      item.classList.add('active');
-      item.classList.remove('collapsed');
-
       _editorActiveKuerzel = kuerzel;
+      listEl.querySelectorAll('.editor-src-item').forEach(function(el) {
+        el.classList.toggle('active', el.dataset.kuerzel === kuerzel);
+      });
       updateUrlHash({ kuerzel: kuerzel });
       loadEditorKuerzel(kuerzel);
     });
@@ -5162,11 +5996,17 @@ function loadEditorKuerzel(kuerzel) {
 
       // Info-Zeile
       var total = j.data.files.reduce(function(s, f) { return s + f.keys; }, 0);
-      document.getElementById('editor-info').textContent = total + ' Einträge in ' + j.data.files.length + ' Dateien';
+      var infoParts = [total + ' Einträge in ' + j.data.files.length + ' Ressourcentypen'];
+      if (j.data.tags && j.data.tags.length) infoParts.push('Tags: ' + j.data.tags.join(', '));
+      if (j.data.lastImportedAt) infoParts.push('Import: ' + formatDateTime(j.data.lastImportedAt));
+      if (j.data.lastImportedBy) infoParts.push('von ' + j.data.lastImportedBy);
+      document.getElementById('editor-info').textContent = infoParts.join(' · ');
 
       document.getElementById('editor-subtabs').style.display = 'flex';
       document.getElementById('editor-table-wrap').style.display = '';
       document.getElementById('editor-placeholder').style.display = 'none';
+      document.getElementById('editor-btn-export-temp').disabled = false;
+      document.getElementById('editor-btn-merge-temp').disabled = false;
       document.getElementById('editor-btn-export').disabled = false;
       editorStatus('');
 
@@ -5627,7 +6467,7 @@ function updateEditorChangeCount() {
 // =====================================================================
 
 /**
- * Geänderte Dateien zurück nach ImportToCore speichern
+ * Geänderte Dateien zurück in die Konfig-Store DB speichern
  */
 function saveEditorChanges() {
   if (!_editorData) return;
@@ -5651,10 +6491,18 @@ function saveEditorChanges() {
   var errors = [];
 
   changedFiles.forEach(function(f) {
+    // Geaenderte Keys fuer Field-Edit-Tracking sammeln
+    var changedKeys = [];
+    var orig = _editorOriginal[f.name];
+    if (orig && typeof f.data === 'object') {
+      Object.keys(f.data).forEach(function(k) {
+        if (JSON.stringify(f.data[k]) !== JSON.stringify(orig[k])) changedKeys.push(k);
+      });
+    }
     fetch(API_URL + '?action=config-editor-save', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ kuerzel: _editorData.kuerzel, file: f.name, data: f.data })
+      headers: { 'Content-Type': 'application/json', 'X-Editor-Name': slmGetUser() },
+      body: JSON.stringify({ kuerzel: _editorData.kuerzel, file: f.name, data: f.data, changedKeys: changedKeys })
     })
     .then(function(r) { return r.json(); })
     .then(function(j) {
@@ -5662,7 +6510,7 @@ function saveEditorChanges() {
       saved++;
       if (saved === changedFiles.length) {
         if (errors.length === 0) {
-          editorStatus(changedFiles.length + ' Datei(en) gespeichert ✓', 'success');
+          editorStatus('In DB gespeichert ✓', 'success');
           // Originale aktualisieren
           changedFiles.forEach(function(cf) {
             _editorOriginal[cf.name] = JSON.parse(JSON.stringify(cf.data));
@@ -5706,231 +6554,125 @@ function revertEditorChanges() {
  */
 function updateDeploySelBtn() {
   var count  = Object.keys(_editorSelectedKuerzel).length;
-  var btn    = document.getElementById('editor-btn-export');
-  if (!btn) return;
+  var deployBtn = document.getElementById('editor-btn-export');
+  var exportBtn = document.getElementById('editor-btn-export-temp');
+  var mergeBtn  = document.getElementById('editor-btn-merge-temp');
+  var modal  = document.getElementById('export-confirm-overlay');
+  if (!deployBtn || !exportBtn || !mergeBtn) return;
   if (count > 0) {
-    btn.textContent = '📤 ' + count + ' Kürzel deployen';
-    btn.disabled = false;
+    exportBtn.textContent = '📦 ' + count + ' Kürzel nach Temp';
+    mergeBtn.textContent  = '🧩 ' + count + ' Kürzel mergen';
+    deployBtn.textContent = '🚚 ' + count + ' Kürzel nach core';
+    exportBtn.disabled = false;
+    mergeBtn.disabled = false;
+    deployBtn.disabled = false;
   } else {
-    btn.textContent = '📤 Nach Core exportieren';
+    exportBtn.textContent = '📦 Export nach Temp';
+    mergeBtn.textContent  = '🧩 Mergen nach Temp';
+    deployBtn.textContent = '🚚 Deploy nach core';
     // Nur deaktivieren wenn auch kein Einzel-Kürzel geöffnet ist
-    if (!_editorData) btn.disabled = true;
+    if (!_editorData) {
+      exportBtn.disabled = true;
+      mergeBtn.disabled = true;
+      deployBtn.disabled = true;
+    }
+    // Kein Auswahl-Deploy mehr offen halten
+    if (modal) modal.classList.remove('open');
   }
 }
 
 /**
- * Mehrere ausgewählte Kürzel deployen: Dry-Run für alle, dann Modal
+ * Mehrere ausgewählte Kürzel direkt deployen (ohne Confirm-Modal)
  */
 function deploySelection() {
   var kuerzelList = Object.keys(_editorSelectedKuerzel);
   if (kuerzelList.length === 0) return;
 
+  if (!confirm(kuerzelList.length + ' Kürzel direkt nach core deployen?')) return;
+  directDeployKuerzelList(kuerzelList);
+}
+
+/**
+ * Direktdeploy für ein oder mehrere Kürzel ohne Vorschau-Dialog.
+ */
+function directDeployKuerzelList(kuerzelList) {
   var exportBtn = document.getElementById('editor-btn-export');
-  exportBtn.disabled = true;
-  exportBtn.textContent = '📤 Lade…';
-
-  var results = [];  // [{kuerzel, dryData}]
-  var index   = 0;
-
-  function nextDryRun() {
-    if (index >= kuerzelList.length) {
-      exportBtn.disabled = false;
-      updateDeploySelBtn();
-      openExportConfirmMultiModal(kuerzelList, results);
-      return;
-    }
-    var k = kuerzelList[index++];
-    fetch(GAPI_URL + '/deploy-staging/' + encodeURIComponent(k) + '?dry_run=true', {
-      method: 'POST'
-    })
-    .then(function(r) { return r.json(); })
-    .then(function(j) {
-      results.push({ kuerzel: k, dryData: j });
-      nextDryRun();
-    })
-    .catch(function(e) {
-      results.push({ kuerzel: k, dryData: null, error: e.message });
-      nextDryRun();
-    });
-  }
-  nextDryRun();
-}
-
-/**
- * Multi-Deploy Confirm-Modal anzeigen
- */
-function openExportConfirmMultiModal(kuerzelList, results) {
-  _deployQueue     = kuerzelList.slice();
-  _deployQueueMode = 'multi';
-
-  var totalNew = 0, totalUpd = 0, totalSkip = 0, totalErr = 0;
-  results.forEach(function(r) {
-    if (!r.dryData || r.error) { totalErr++; return; }
-    var files = r.dryData.files || [];
-    files.forEach(function(f) {
-      if (f.status === 'neu') totalNew++;
-      else if (f.result !== 'error') totalUpd++;
-    });
-    totalSkip += (r.dryData.skipped || 0);
-    if (r.dryData.errors > 0) totalErr += r.dryData.errors;
-  });
-
-  var html = '<div class="ecm-summary">';
-  html += '<span class="ecm-pill new">' + totalNew + ' neu</span>';
-  html += '<span class="ecm-pill upd">' + totalUpd + ' überschreiben</span>';
-  html += '<span class="ecm-pill skip">' + totalSkip + ' übersprungen</span>';
-  if (totalErr > 0) html += '<span class="ecm-pill err">' + totalErr + ' Fehler</span>';
-  html += '</div>';
-
-  results.forEach(function(r) {
-    var k     = r.kuerzel;
-    var d     = r.dryData;
-    var files = d ? (d.files || []) : [];
-    var rNew  = files.filter(function(f) { return f.status === 'neu'; }).length;
-    var rUpd  = files.filter(function(f) { return f.status !== 'neu' && f.result !== 'error'; }).length;
-
-    html += '<div class="ecm-k-block" id="ecm-block-' + escapeHtml(k) + '">';
-
-    // Kürzel-Kopfzeile
-    html += '<div class="ecm-k-header" data-k="' + escapeHtml(k) + '">';
-    html += '<span class="eckh-arrow">▼</span>';
-    html += '<span class="eckh-name">' + escapeHtml(k) + '</span>';
-    html += '<span class="eckh-pills">';
-    if (rNew > 0)  html += '<span class="ecm-pill new">'  + rNew  + ' neu</span>';
-    if (rUpd > 0)  html += '<span class="ecm-pill upd">'  + rUpd  + ' überschr.</span>';
-    if (d && d.skipped > 0) html += '<span class="ecm-pill skip">' + d.skipped + ' skip</span>';
-    html += '</span>';
-    html += '<span class="eckh-status"><span class="ecm-k-status pending" id="ecm-kstat-' + escapeHtml(k) + '">Ausstehend</span></span>';
-    html += '</div>';
-
-    // Datei-Tabelle
-    html += '<div class="ecm-k-files" id="ecm-kfiles-' + escapeHtml(k) + '">';
-    if (r.error || !d) {
-      html += '<div style="padding:8px 12px;color:#c62828;font-size:12px;">✗ Dry-Run-Fehler: ' + escapeHtml(r.error || 'Unbekannt') + '</div>';
-    } else if (files.length === 0) {
-      html += '<div style="padding:8px 12px;color:#888;font-size:12px;">Keine Dateien gefunden</div>';
-    } else {
-      html += '<table class="ecm-table" style="margin:0">';
-      html += '<thead><tr><th>Datei</th><th>Grösse</th><th>Datum Staging</th><th>Datum Core</th><th>Aktion</th></tr></thead><tbody>';
-      files.forEach(function(f) {
-        var rowCls  = f.result === 'error' ? 'row-err' : (f.status === 'neu' ? 'row-new' : 'row-upd');
-        var srcMt   = f.source_mtime || 0;
-        var tgtMt   = f.target_mtime || 0;
-        var srcDate = f.source_mtime_display || null;
-        var tgtDate = f.target_mtime_display || null;
-        var srcCls, tgtCls;
-        if (!tgtDate) {
-          srcCls = 'ecm-date-newer'; tgtCls = 'ecm-date-none';
-        } else if (srcMt > tgtMt) {
-          srcCls = 'ecm-date-newer'; tgtCls = 'ecm-date-same';
-        } else if (srcMt < tgtMt) {
-          srcCls = 'ecm-date-older'; tgtCls = 'ecm-date-newer';
-        } else {
-          srcCls = 'ecm-date-same'; tgtCls = 'ecm-date-same';
-        }
-        html += '<tr class="' + rowCls + '">';
-        html += '<td class="ecm-td-name">' + escapeHtml(f.name) + '</td>';
-        html += '<td class="ecm-td-size">' + escapeHtml(f.size_display) + '</td>';
-        html += '<td class="ecm-td-date"><span class="' + srcCls + '">' + escapeHtml(srcDate || '–') + '</span></td>';
-        html += '<td class="ecm-td-date"><span class="' + tgtCls + '">' + escapeHtml(tgtDate || 'nicht vorhanden') + '</span></td>';
-        html += '<td class="ecm-td-status">' + escapeHtml(f.status) + '</td>';
-        html += '</tr>';
-      });
-      html += '</tbody></table>';
-    }
-    html += '</div>'; // .ecm-k-files
-    html += '</div>'; // .ecm-k-block
-  });
-
-  document.getElementById('export-confirm-title').textContent = '📤 Deploy ' + kuerzelList.length + ' Kürzel';
-  document.getElementById('export-confirm-body').innerHTML = html;
-
-  // Accordion-Toggle
-  document.getElementById('export-confirm-body').querySelectorAll('.ecm-k-header').forEach(function(hdr) {
-    hdr.addEventListener('click', function() {
-      var k      = hdr.dataset.k;
-      var files  = document.getElementById('ecm-kfiles-' + k);
-      var toggle = hdr.classList.toggle('collapsed');
-      if (toggle) files.classList.add('hidden');
-      else files.classList.remove('hidden');
-    });
-  });
-
-  document.getElementById('export-confirm-status').textContent = '';
-  document.getElementById('export-confirm-status').className   = '';
-  var runBtnM = document.getElementById('export-confirm-run');
-  runBtnM.textContent = '✓ Jetzt deployen';
-  runBtnM.classList.remove('btn-close');
-  runBtnM.disabled = false;
-  _deployDone = false;
-  document.getElementById('export-confirm-overlay').classList.add('open');
-}
-
-/**
- * Mehrere Kürzel sequenziell deployen (Multi-Modus)
- */
-function runMultiDeploy() {
-  var queue     = _deployQueue.slice();
-  var statusEl  = document.getElementById('export-confirm-status');
-  var runBtn    = document.getElementById('export-confirm-run');
-  var closeBtn  = document.getElementById('export-confirm-close');
-
-  statusEl.textContent = 'Deploye ' + queue.length + ' Kürzel…';
-  statusEl.className   = 'ecm-running';
-  runBtn.disabled = closeBtn.disabled = true;
-
-  var done = 0, errors = 0;
+  var done = 0;
+  var errors = 0;
   var allDeployedFiles = [];
 
-  function deployNext(i) {
-    if (i >= queue.length) {
-      runBtn.disabled = closeBtn.disabled = false;
-      var msg = done + ' Kürzel deployed';
-      if (errors > 0) msg += ', ' + errors + ' Fehler';
-      statusEl.textContent = (errors > 0 ? '' : '✓ ') + msg;
-      statusEl.className   = errors > 0 ? 'ecm-status-error' : 'ecm-status-success';
-      editorStatus(msg + (errors === 0 ? ' ✓' : ''), errors > 0 ? 'error' : 'success');
-      if (errors === 0) {
-        // Run-Button auf Schliessen umstellen
-        _deployDone = true;
-        runBtn.textContent = 'Schliessen';
-        runBtn.classList.add('btn-close');
-        runBtn.disabled = false;
-        // Cache leeren
-        clearCacheAfterDeploy(statusEl);
-        // Git-Batch-Commit fuer alle deployten Dateien
-        gitCommitDeployedFiles(allDeployedFiles, queue.join(', '), statusEl);
-      }
+  exportBtn.disabled = true;
+  editorStatus('Deploye ' + kuerzelList.length + ' Kürzel…');
+
+  function finish() {
+    exportBtn.disabled = false;
+    updateDeploySelBtn();
+    renderEditorSourceList();
+
+    var msg = done + ' Kürzel deployed';
+    if (errors > 0) msg += ', ' + errors + ' Fehler';
+
+    if (errors > 0) {
+      editorStatus(msg, 'error');
       return;
     }
-    var k     = queue[i];
-    var stEl  = document.getElementById('ecm-kstat-' + k);
-    if (stEl) { stEl.textContent = 'Deploye…'; stEl.className = 'ecm-k-status running'; }
 
-    fetch(GAPI_URL + '/deploy-staging/' + encodeURIComponent(k) + '?dry_run=false', {
+    fetch('cache?action=clear', { method: 'POST' })
+      .then(function() {
+        editorStatus(msg + ' ✓ — Cache geleert', 'success');
+      })
+      .catch(function() {
+        editorStatus(msg + ' ✓ — Cache-Fehler', 'success');
+      });
+
+    gitCommitDeployedFiles(allDeployedFiles, kuerzelList.join(', '), null);
+  }
+
+  function deployNext(index) {
+    if (index >= kuerzelList.length) {
+      finish();
+      return;
+    }
+
+    var kuerzel = kuerzelList[index];
+    editorStatus('Deploye ' + (index + 1) + '/' + kuerzelList.length + ': ' + kuerzel + '…');
+
+    fetch(GAPI_URL + '/deploy-staging/' + encodeURIComponent(kuerzel) + '?dry_run=false', {
       method: 'POST'
     })
     .then(function(r) { return r.json(); })
     .then(function(j) {
       if (j.detail || j.errors > 0) {
         errors++;
-        if (stEl) { stEl.textContent = '✗ Fehler'; stEl.className = 'ecm-k-status error'; }
       } else {
         done++;
-        if (stEl) { stEl.textContent = '✓ ' + j.deployed + ' deployed'; stEl.className = 'ecm-k-status success'; }
-        // Deployierte Dateien sammeln
-        // Alle Dateien (deployed + skipped) sammeln — koennten noch nicht im Git-Repo sein
-        (j.files || []).forEach(function(f) { if (f.result === 'deployed' || f.result === 'skipped') allDeployedFiles.push(f); });
+        (j.files || []).forEach(function(f) {
+          if (f.result === 'deployed' || f.result === 'skipped') allDeployedFiles.push(f);
+        });
       }
-      deployNext(i + 1);
+      deployNext(index + 1);
     })
-    .catch(function(e) {
+    .catch(function() {
       errors++;
-      if (stEl) { stEl.textContent = '✗ ' + e.message; stEl.className = 'ecm-k-status error'; }
-      deployNext(i + 1);
+      deployNext(index + 1);
     });
   }
+
   deployNext(0);
+}
+
+/**
+ * Multi-Deploy Confirm-Modal anzeigen
+ */
+function openExportConfirmMultiModal(kuerzelList, results) {
+  return;
+}
+
+/**
+ * Mehrere Kürzel sequenziell deployen (Multi-Modus)
+ */
+function runMultiDeploy() {
+  return;
 }
 
 /**
@@ -5987,91 +6729,265 @@ function buildFileRow(f) {
   return html;
 }
 
+function getEditorDeployKuerzelList() {
+  var list = Object.keys(_editorSelectedKuerzel);
+  if (list.length > 0) return list;
+  if (_editorData && _editorData.kuerzel) return [_editorData.kuerzel];
+  return [];
+}
+
+function buildKuerzelKey(list) {
+  return list.slice().sort().join(',');
+}
+
 /**
- * Export nach Core: 1. Dry-Run → Confirm-Modal anzeigen, 2. Echtes Deploy
+ * Schritt 1: Export nach Temp-Staging.
  */
-function exportEditorToCore() {
-  // Multi-Auswahl: an deploySelection delegieren
-  if (Object.keys(_editorSelectedKuerzel).length > 0) {
-    deploySelection();
+function exportEditorToTemp() {
+  var kuerzelList = getEditorDeployKuerzelList();
+  if (kuerzelList.length === 0) {
+    editorStatus('Kein Kürzel ausgewählt.', 'error');
     return;
   }
-  if (!_editorData) return;
-  var kuerzel = _editorData.kuerzel;
-  var unsaved = updateEditorChangeCount();
 
-  editorStatus('Dry-Run für «' + kuerzel + '»…');
-  document.getElementById('editor-btn-export').disabled = true;
+  var btnStage = document.getElementById('editor-btn-export-temp');
+  var btnMerge = document.getElementById('editor-btn-merge-temp');
+  var btnDeploy = document.getElementById('editor-btn-export');
+  btnStage.disabled = true;
+  btnMerge.disabled = true;
+  btnDeploy.disabled = true;
+  editorStatus('Exportiere ' + kuerzelList.length + ' Kürzel nach Temp…');
 
-  fetch(GAPI_URL + '/deploy-staging/' + encodeURIComponent(kuerzel) + '?dry_run=true', {
-    method: 'POST'
+  fetch(API_URL + '?action=export-catalog-artifacts', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      kuerzel: kuerzelList,
+      targetEnv: _storeEnv || 'dev',
+      includeNls: true
+    })
   })
-  .then(function(r) { return r.json(); })
-  .then(function(j) {
-    document.getElementById('editor-btn-export').disabled = false;
-    if (j.detail) {
-      var errMsg = Array.isArray(j.detail) ? j.detail[0].msg : j.detail;
-      editorStatus('Fehler: ' + errMsg, 'error');
-      return;
+    .then(function(r) { return r.json(); })
+    .then(function(j) {
+      btnStage.disabled = false;
+      btnMerge.disabled = false;
+      btnDeploy.disabled = false;
+      if (!j || !j.success || !j.data || !j.data.runId) {
+        var err = (j && j.data && (j.data.error || (j.data.errors && j.data.errors[0]))) || 'Export fehlgeschlagen';
+        editorStatus('Export nach Temp fehlgeschlagen: ' + err, 'error');
+        return;
+      }
+      _editorLastExportRunId = j.data.runId;
+      _editorLastExportKuerzelKey = buildKuerzelKey(kuerzelList);
+      editorStatus('Temp-Export abgeschlossen (finale Struktur): ' + (j.data.written || 0) + ' Dateien (RunId: ' + j.data.runId + ')', 'success');
+    })
+    .catch(function(e) {
+      btnStage.disabled = false;
+      btnMerge.disabled = false;
+      btnDeploy.disabled = false;
+      editorStatus('Netzwerkfehler beim Temp-Export: ' + e.message, 'error');
+    });
+}
+
+function mergeEditorToTemp() {
+  var kuerzelList = getEditorDeployKuerzelList();
+  if (kuerzelList.length === 0) {
+    editorStatus('Kein Kürzel ausgewählt.', 'error');
+    return;
+  }
+  showMergeNameDialog('')
+    .then(function(rawMergeName) {
+      if (rawMergeName === null || rawMergeName === '') {
+        editorStatus('Merge abgebrochen (kein Name).');
+        return null;
+      }
+      var mergeName = rawMergeName.replace(/[^a-zA-Z0-9_-]/g, '_');
+      if (!mergeName) {
+        editorStatus('Ungültiger Merge-Name.', 'error');
+        return null;
+      }
+
+      var btnStage = document.getElementById('editor-btn-export-temp');
+      var btnMerge = document.getElementById('editor-btn-merge-temp');
+      var btnDeploy = document.getElementById('editor-btn-export');
+      btnStage.disabled = true;
+      btnMerge.disabled = true;
+      btnDeploy.disabled = true;
+      editorStatus('Merge nach Temp läuft (' + mergeName + ')…');
+
+      return fetch(API_URL + '?action=export-catalog-artifacts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          kuerzel: kuerzelList,
+          targetEnv: _storeEnv || 'dev',
+          includeNls: true,
+          mergeName: mergeName
+        })
+      }).then(function(r) {
+        return r.json();
+      }).then(function(j) {
+        btnStage.disabled = false;
+        btnMerge.disabled = false;
+        btnDeploy.disabled = false;
+        if (!j || !j.success || !j.data || !j.data.runId) {
+          var err = (j && j.data && (j.data.error || (j.data.errors && j.data.errors[0]))) || 'Merge fehlgeschlagen';
+          editorStatus('Merge nach Temp fehlgeschlagen: ' + err, 'error');
+          return;
+        }
+        // Merge-Runs nicht direkt für Deploy-Button verwenden
+        _editorLastExportRunId = null;
+        _editorLastExportKuerzelKey = '';
+        var readme = j.data.readmePath ? (' · Readme: ' + j.data.readmePath) : '';
+        editorStatus('Merge nach Temp abgeschlossen: ' + (j.data.written || 0) + ' Dateien (RunId: ' + j.data.runId + ')' + readme, 'success');
+      }).catch(function(e) {
+        btnStage.disabled = false;
+        btnMerge.disabled = false;
+        btnDeploy.disabled = false;
+        editorStatus('Netzwerkfehler beim Merge-Export: ' + e.message, 'error');
+      });
+    })
+    .catch(function(e) {
+      editorStatus('Fehler beim Öffnen des Merge-Dialogs: ' + e.message, 'error');
+    });
+}
+
+/**
+ * Schritt 2: Deploy nach core via FastAPI (/deploy-staged-conf).
+ */
+function exportEditorToCore() {
+  var kuerzelList = getEditorDeployKuerzelList();
+  if (kuerzelList.length === 0) {
+    editorStatus('Kein Kürzel ausgewählt.', 'error');
+    return;
+  }
+  var btnStage = document.getElementById('editor-btn-export-temp');
+  var btnMerge = document.getElementById('editor-btn-merge-temp');
+  var btnDeploy = document.getElementById('editor-btn-export');
+  var key = buildKuerzelKey(kuerzelList);
+
+  function setButtonsDisabled(disabled) {
+    btnStage.disabled = !!disabled;
+    btnMerge.disabled = !!disabled;
+    btnDeploy.disabled = !!disabled;
+  }
+
+  function extractErr(obj) {
+    if (!obj) return 'Unbekannter Fehler';
+    if (obj.error) return String(obj.error);
+    if (obj.message) return String(obj.message);
+    if (obj.detail) {
+      if (typeof obj.detail === 'string') return obj.detail;
+      try { return JSON.stringify(obj.detail); } catch (e) { return 'Unbekannter Fehler'; }
     }
-    editorStatus('');
-    openExportConfirmModal(j, unsaved);
-  })
-  .catch(function(e) {
-    document.getElementById('editor-btn-export').disabled = false;
-    editorStatus('Netzwerkfehler: ' + e.message, 'error');
-  });
+    return 'Unbekannter Fehler';
+  }
+
+  function runDeploy(runId) {
+    editorStatus('Deploye RunId ' + runId + ' nach core…');
+    return fetch(API_URL + '?action=deploy-catalog-artifacts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ runId: runId })
+    })
+      .then(function(r) { return r.json(); })
+      .then(function(j) {
+        if (!j || !j.success || !j.data) {
+          var err = (j && j.data && (j.data.error || (j.data.failed && j.data.failed[0] && j.data.failed[0].error))) || extractErr(j);
+          editorStatus('Deploy nach core fehlgeschlagen: ' + err, 'error');
+          return;
+        }
+        var ok = j.data.deployedCount || 0;
+        var fail = j.data.failedCount || 0;
+        editorStatus('Deploy abgeschlossen: ' + ok + ' Dateien' + (fail ? (', ' + fail + ' Fehler') : ''), fail ? 'error' : 'success');
+        if (fail) return;
+
+        var deployedPaths = ((j.data.deployed || []).map(function(d) { return d.deployPath; }).filter(Boolean));
+        var deployUser = (typeof slmGetUser === 'function') ? slmGetUser() : 'unbekannt';
+        if (deployedPaths.length > 0) {
+          var defaultMsg = 'Core-Deploy (' + (_storeEnv || 'dev') + ') durch ' + deployUser + ': ' + ok + ' Dateien';
+          showCommitDialog(defaultMsg).then(function(result) {
+            if (!result || result.skip) return;
+            var msg = (result.message || '').trim();
+            if (msg.indexOf(deployUser) === -1) {
+              msg += ' | User: ' + deployUser;
+            }
+            fetch(GAPI_URL + '/git-commit-batch', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                deployPaths: deployedPaths,
+                source: 'editor-deploy-core',
+                target: _storeEnv || 'dev',
+                message: msg
+              })
+            })
+              .then(function(r) { return r.json(); })
+              .then(function(g) {
+                if (g && g.committed) {
+                  editorStatus('Deploy + Git abgeschlossen: ' + ok + ' Dateien (' + (g.changed || 0) + ' committed)', 'success');
+                } else if (g && g.success) {
+                  editorStatus('Deploy abgeschlossen: ' + ok + ' Dateien (Git: keine Änderungen)', 'success');
+                } else {
+                  editorStatus('Deploy abgeschlossen, Git fehlgeschlagen: ' + extractErr(g), 'error');
+                }
+              })
+              .catch(function(e) {
+                editorStatus('Deploy abgeschlossen, Git-Commit fehlgeschlagen: ' + e.message, 'error');
+              });
+          });
+        }
+        _editorLastExportRunId = null;
+        _editorLastExportKuerzelKey = '';
+      });
+  }
+
+  setButtonsDisabled(true);
+  if (!_editorLastExportRunId || _editorLastExportKuerzelKey !== key) {
+    editorStatus('Kein aktueller Temp-Export gefunden — starte automatisch «Kürzel nach Temp»…');
+    fetch(API_URL + '?action=export-catalog-artifacts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        kuerzel: kuerzelList,
+        targetEnv: _storeEnv || 'dev',
+        includeNls: true
+      })
+    })
+      .then(function(r) { return r.json(); })
+      .then(function(j) {
+        if (!j || !j.success || !j.data || !j.data.runId) {
+          var err = (j && j.data && (j.data.error || (j.data.errors && j.data.errors[0]))) || extractErr(j);
+          editorStatus('Auto-Export nach Temp fehlgeschlagen: ' + err, 'error');
+          return;
+        }
+        _editorLastExportRunId = j.data.runId;
+        _editorLastExportKuerzelKey = key;
+        return runDeploy(j.data.runId);
+      })
+      .catch(function(e) {
+        editorStatus('Netzwerkfehler beim Auto-Export: ' + e.message, 'error');
+      })
+      .finally(function() {
+        setButtonsDisabled(false);
+      });
+    return;
+  }
+
+  runDeploy(_editorLastExportRunId)
+    .catch(function(e) {
+      editorStatus('Netzwerkfehler beim Deploy: ' + e.message, 'error');
+    })
+    .finally(function() {
+      setButtonsDisabled(false);
+    });
 }
 
 /**
  * Dry-Run-Ergebnis im Confirm-Modal anzeigen
  */
 function openExportConfirmModal(dryData, unsavedCount, prependHtml) {
-  _deployQueueMode = 'single';
-  _deployQueue     = [dryData.kuerzel];
-  var kuerzel  = dryData.kuerzel;
-  var files    = dryData.files || [];
-  var newFiles  = files.filter(function(f) { return f.status === 'neu'; });
-  var skipFiles = files.filter(function(f) { return f.hash_match === true || f.result === 'skipped'; });
-  var updFiles  = files.filter(function(f) { return f.status !== 'neu' && f.result !== 'error' && !f.hash_match && f.result !== 'skipped'; });
-  var errFiles  = files.filter(function(f) { return f.result === 'error'; });
-
-  var html = '';
-  if (prependHtml) html += prependHtml;
-  if (unsavedCount > 0) {
-    html += '<div class="ecm-warning">⚠ ' + unsavedCount + ' ungespeicherte Änderung(en) im Editor — diese sind im Staging noch nicht enthalten.</div>';
-  }
-
-  html += '<div class="ecm-summary">';
-  html += '<span class="ecm-pill new">'  + newFiles.length  + ' neu</span>';
-  html += '<span class="ecm-pill upd">'  + updFiles.length  + ' überschreiben</span>';
-  html += '<span class="ecm-pill skip">' + skipFiles.length + ' identisch</span>';
-  if (errFiles.length > 0) html += '<span class="ecm-pill err">' + errFiles.length + ' Fehler</span>';
-  html += '</div>';
-
-  if (files.length > 0) {
-    html += '<div class="ecm-table-wrap"><table class="ecm-table">';
-    html += '<thead><tr><th>Datei</th><th>Grösse</th><th>Datum Staging</th><th>Datum Core</th><th>Hash</th><th>Aktion</th></tr></thead><tbody>';
-    files.forEach(function(f) { html += buildFileRow(f); });
-    html += '</tbody></table></div>';
-  } else {
-    html += '<div class="ecm-empty">Keine Dateien zum Deployen gefunden.</div>';
-  }
-
-  document.getElementById('export-confirm-title').textContent = '📤 Deploy: ' + kuerzel;
-  document.getElementById('export-confirm-body').innerHTML = html;
-  // Status + Buttons nur beim ersten Öffnen zurücksetzen (nicht beim Verifikations-Update)
-  if (!prependHtml) {
-    _deployDone = false;
-    document.getElementById('export-confirm-status').textContent = '';
-    document.getElementById('export-confirm-status').className   = '';
-    var runBtn = document.getElementById('export-confirm-run');
-    runBtn.textContent = '✓ Jetzt deployen';
-    runBtn.classList.remove('btn-close');
-    runBtn.onclick = null;
-    runBtn.disabled = (files.length === 0);
-    document.getElementById('export-confirm-overlay').classList.add('open');
-  }
+  return;
 }
 
 /**
@@ -6126,90 +7042,7 @@ function gitCommitDeployedFiles(deployedFiles, kuerzel, statusEl) {
  * Echtes Deploy nach Bestätigung ausführen
  */
 function runExportDeploy() {
-  var kuerzel   = _deployQueue[0];
-  if (!kuerzel) return;
-  var statusEl  = document.getElementById('export-confirm-status');
-  var runBtn    = document.getElementById('export-confirm-run');
-  var closeBtn  = document.getElementById('export-confirm-close');
-
-  statusEl.textContent = 'Deploye…';
-  statusEl.className   = 'ecm-running';
-  runBtn.disabled   = true;
-  closeBtn.disabled = true;
-
-  fetch(GAPI_URL + '/deploy-staging/' + encodeURIComponent(kuerzel) + '?dry_run=false', {
-    method: 'POST'
-  })
-  .then(function(r) { return r.json(); })
-  .then(function(j) {
-    runBtn.disabled    = false;
-    cancelBtn.disabled = false;
-    closeBtn.disabled  = false;
-    if (j.detail) {
-      var errMsg = Array.isArray(j.detail) ? j.detail[0].msg : j.detail;
-      statusEl.textContent = 'Fehler: ' + errMsg;
-      statusEl.className   = 'ecm-status-error';
-      return;
-    }
-    if (j.errors > 0) {
-      var msg = j.deployed + ' deployed, ' + j.errors + ' Fehler';
-      statusEl.textContent = msg;
-      statusEl.className   = 'ecm-status-error';
-      editorStatus(msg, 'error');
-      return;
-    }
-    // Erfolgreich: Verifikations-Dry-Run
-    var deployedCount = j.deployed;
-    // Alle Dateien (deployed + skipped) an Git senden — Dateien koennten noch nicht im Repo sein
-    var deployedFiles = (j.files || []).filter(function(f) { return f.result === 'deployed' || f.result === 'skipped'; });
-    statusEl.textContent = '✓ ' + deployedCount + ' Datei(en) deployed — Verifiziere…';
-    statusEl.className   = 'ecm-running';
-    runBtn.disabled    = true;
-    cancelBtn.disabled = true;
-    fetch(GAPI_URL + '/deploy-staging/' + encodeURIComponent(kuerzel) + '?dry_run=true', {
-      method: 'POST'
-    })
-    .then(function(r2) { return r2.json(); })
-    .then(function(j2) {
-      runBtn.disabled    = false;
-      cancelBtn.disabled = false;
-      // Modal-Body neu rendern mit aktualisierten Daten + Erfolgsbanner
-      var banner = '<div class="ecm-result-banner success">✅ ' + deployedCount + ' Datei(en) erfolgreich deployed</div>';
-      openExportConfirmModal(j2, 0, banner);
-      // Run-Button auf Schliessen umstellen
-      _deployDone = true;
-      runBtn.textContent = 'Schliessen';
-      runBtn.classList.add('btn-close');
-      runBtn.disabled = false;
-      statusEl.textContent = '✓ Deployment verifiziert — Cache leeren…';
-      statusEl.className   = 'ecm-status-success';
-      editorStatus(deployedCount + ' Datei(en) deployed ✓', 'success');
-      // Cache leeren nach erfolgreichem Deploy
-      clearCacheAfterDeploy(statusEl);
-      // Git-Batch-Commit (non-blocking)
-      gitCommitDeployedFiles(deployedFiles, kuerzel, statusEl);
-    })
-    .catch(function() {
-      runBtn.disabled    = false;
-      cancelBtn.disabled = false;
-      _deployDone = true;
-      runBtn.textContent = 'Schliessen';
-      runBtn.classList.add('btn-close');
-      statusEl.textContent = '✓ Deployed — Verifikation fehlgeschlagen';
-      statusEl.className   = 'ecm-status-success';
-      editorStatus(deployedCount + ' Datei(en) deployed ✓', 'success');
-      clearCacheAfterDeploy(statusEl);
-      // Git-Batch-Commit auch bei fehlgeschlagener Verifikation
-      gitCommitDeployedFiles(deployedFiles, kuerzel, statusEl);
-    });
-  })
-  .catch(function(e) {
-    runBtn.disabled    = false;
-    cancelBtn.disabled = false;
-    closeBtn.disabled  = false;
-    statusEl.textContent = 'Netzwerkfehler: ' + e.message;
-    statusEl.className   = 'ecm-status-error';
-  });
+  return;
 }
 
 // ===== Editor Event-Listener =====
@@ -6233,32 +7066,9 @@ document.querySelectorAll('.editor-subtab').forEach(function(btn) {
 });
 document.getElementById('editor-btn-save').addEventListener('click', saveEditorChanges);
 document.getElementById('editor-btn-revert').addEventListener('click', revertEditorChanges);
+document.getElementById('editor-btn-export-temp').addEventListener('click', exportEditorToTemp);
+document.getElementById('editor-btn-merge-temp').addEventListener('click', mergeEditorToTemp);
 document.getElementById('editor-btn-export').addEventListener('click', exportEditorToCore);
-
-
-// Export-Confirm-Modal: Schliessen-Button
-document.getElementById('export-confirm-close').addEventListener('click', function() {
-  document.getElementById('export-confirm-overlay').classList.remove('open');
-});
-document.getElementById('export-confirm-run').addEventListener('click', function() {
-  if (_deployDone) {
-    // Im Schliessen-Modus: Modal schliessen, State zurücksetzen
-    this.textContent = '✓ Jetzt deployen';
-    this.classList.remove('btn-close');
-    _deployDone = false;
-    _editorSelectedKuerzel = {};
-    updateDeploySelBtn();
-    renderEditorSourceList();
-    document.getElementById('export-confirm-overlay').classList.remove('open');
-    return;
-  }
-  if (_deployQueueMode === 'multi') runMultiDeploy();
-  else runExportDeploy();
-});
-// Klick auf Overlay-Hintergrund schliesst Modal
-document.getElementById('export-confirm-overlay').addEventListener('click', function(e) {
-  if (e.target === this) this.classList.remove('open');
-});
 
 // =====================================================================
 // URL-HASH NAVIGATION
@@ -6293,7 +7103,7 @@ function updateUrlHash(updates) {
   }
   // tab-fremde Keys bereinigen
   if (current.tab !== 'editor') delete current.kuerzel;
-  if (current.tab !== 'import') delete current.source;
+  if (current.tab !== 'create') delete current.source;
   var parts = [];
   for (var p in current) parts.push(encodeURIComponent(p) + '=' + encodeURIComponent(current[p]));
   var newHash = parts.length > 0 ? '#' + parts.join('&') : '';
@@ -6307,14 +7117,14 @@ function updateUrlHash(updates) {
  */
 window.addEventListener('hashchange', function() {
   var p = parseUrlHash();
-  var validTabs = ['import', 'manage', 'staging', 'editor', 'treebuilder'];
+  var validTabs = ['create', 'manage', 'import', 'editor', 'treebuilder'];
   if (p.tab && validTabs.indexOf(p.tab) !== -1) {
     switchTab(p.tab, true);
     if (p.tab === 'editor' && p.kuerzel) {
       loadEditorKuerzelList();
       setTimeout(function() { loadEditorKuerzel(p.kuerzel); }, 300);
     }
-    if (p.tab === 'import' && p.source) {
+    if (p.tab === 'create' && p.source) {
       switchImportSource(p.source);
     }
   }
@@ -6386,10 +7196,14 @@ function loadRuntimePaths(targetId) {
 }
 
 function renderRuntimePaths(el, data) {
+  if (!el || !data) return; // null-guard
   var paths = data.paths || [];
   var pick = {};
   paths.forEach(function(p) { pick[p.label] = p; });
   var labels = ['Core Config', 'Core NLS de', 'Profil-Config', 'raw-conf', 'ImportToCore', 'Tmp Root'];
+  if (data.dbActive === true) {
+    labels = labels.filter(function(l) { return l !== 'ImportToCore'; });
+  }
   var html = '<span class="rp-title">Pfade ' + esc((data.environment || '').toUpperCase()) + '</span>';
   if (data.dbSchema) html += '<span class="rp-item"><span class="rp-label">DB</span><code>' + esc(data.dbSchema) + '</code></span>';
   labels.forEach(function(label) {
@@ -7010,18 +7824,24 @@ function saveNlsEntry(item, value, btn, tr) {
 
 (function initFromHash() {
   var p = parseUrlHash();
-  var validTabs = ['import', 'manage', 'staging', 'editor', 'treebuilder', 'deployed', 'legendtuner', 'bookmarks'];
-  var startTab = (p.tab && validTabs.indexOf(p.tab) !== -1) ? p.tab : 'import';
+  var validTabs = ['create', 'manage', 'import', 'editor', 'treebuilder', 'deployed', 'legendtuner', 'bookmarks', 'sync'];
+  var startTab = (p.tab && validTabs.indexOf(p.tab) !== -1) ? p.tab : 'create';
 
-  if (startTab !== 'import') {
+  if (startTab !== 'create') {
     switchTab(startTab, true);
   }
 
   // Import-Quelle aus Hash
-  if (startTab === 'import' && p.source === 'core') {
-    loadAgsServices(); // AGS im Hintergrund laden
+  if (startTab === 'create' && p.source === 'core') {
+    // AGS im Hintergrund still laden (ohne UI zu beeinflussen)
+    fetch(API_URL + '?action=ags-services').then(function(r){return r.json();}).then(function(j){
+      var services = [];
+      if (j.data && Array.isArray(j.data.dienstnamen)) j.data.dienstnamen.forEach(function(s){services.push(typeof s==='string'?s:s.name);});
+      else if (Array.isArray(j.data)) j.data.forEach(function(s){services.push(typeof s==='string'?s:s.name);});
+      _agsServices = services.filter(function(v,i,a){return a.indexOf(v)===i;}).sort();
+    }).catch(function(){});
     switchImportSource('core');
-  } else if (startTab === 'import') {
+  } else if (startTab === 'create') {
     loadAgsServices();
   }
 
@@ -7359,8 +8179,67 @@ function updateDeployStatus(source, deployedSync) {
 // =====================================================================
 var _bmData = null;       // geladene Bookmark-Daten (Array, v2)
 var _bmLoaded = false;    // wurde bereits geladen?
-var _bmAllLayerKeys = [];  // alle verfügbaren Layer-Keys (für Autocomplete / Validierung)
+var _bmAllLayerKeys = [];  // alle verfügbaren Layer-Keys als Array (für Autocomplete)
+var _bmAllLayerKeySet = null; // Set für O(1)-Validierung
 var _bmLayersLoaded = false;
+
+// ---- Concurrency / Optimistic Locking (Konfig-Store DB) ----------------
+var _bmRevision = null;    // zuletzt geladene Sammlungs-Revision (Optimistic-Lock-Token)
+var _bmSource = 'files';   // 'db' oder 'files' (vom Server gemeldet)
+
+// Liefert/merkt den Bearbeiternamen (fuer updated_by + Soft-Lock).
+function bmGetUser() {
+  var u = '';
+  try { u = localStorage.getItem('slmBookmarkUser') || ''; } catch (e) {}
+  if (!u) {
+    try { u = localStorage.getItem('tnetLoggedInUser') || ''; } catch (e) {}
+  }
+  if (!u) {
+    var badgeName = document.getElementById('slm-username');
+    if (badgeName && badgeName.textContent) {
+      u = badgeName.textContent.replace(/^👤\s*/, '').trim();
+    }
+  }
+  if (!u) {
+    u = window.prompt('Ihr Name/Kürzel (für gleichzeitiges Bearbeiten):', '') || '';
+    u = u.trim();
+    if (u) {
+      try {
+        localStorage.setItem('slmBookmarkUser', u);
+        localStorage.setItem('tnetLoggedInUser', u);
+      } catch (e) {}
+    }
+  }
+  return u || 'unbekannt';
+}
+
+function slmGetUser() {
+  return bmGetUser();
+}
+
+// Zeigt/aktualisiert den Soft-Lock-Hinweis im Bookmarks-Tab.
+function bmRenderLockBanner(lock) {
+  var host = document.getElementById('bm-status');
+  if (!host) return;
+  var banner = document.getElementById('bm-lock-banner');
+  var me = '';
+  try { me = localStorage.getItem('slmBookmarkUser') || ''; } catch (e) {}
+  if (lock && lock.by && lock.by !== me) {
+    if (!banner) {
+      banner = document.createElement('div');
+      banner.id = 'bm-lock-banner';
+      banner.style.cssText = 'margin:6px 0;padding:8px 12px;border-radius:8px;background:#5a3a12;'
+        + 'color:#ffd9a0;border:1px solid #7a5018;font:13px/1.4 sans-serif;';
+      host.parentNode.insertBefore(banner, host.nextSibling);
+    }
+    banner.textContent = '⚠ Wird aktuell von "' + lock.by + '" bearbeitet (Soft-Lock). '
+      + 'Gleichzeitiges Speichern kann zu Konflikten führen.';
+    banner.style.display = 'block';
+  } else if (banner) {
+    banner.style.display = 'none';
+  }
+}
+
 
 // ---- Schema-v2 Helper -------------------------------------------------
 // Layer kann v1-String ODER v2-Objekt sein. Liefert die Layer-ID.
@@ -7594,7 +8473,7 @@ function bmRenderMatrix(detailRow) {
 
   layers.forEach(function(l) {
     var lid = l.id;
-    var isValid = _bmAllLayerKeys.indexOf(lid) !== -1;
+    var isValid = _bmAllLayerKeySet ? _bmAllLayerKeySet.has(lid) : (_bmAllLayerKeys.indexOf(lid) !== -1);
     var isSel = sel.has(lid);
     html += '<tr data-lid="' + bmEscAttr(lid) + '"' + (isSel ? ' class="bm-mtx-row-sel"' : '') + '>';
     html += '<td class="bm-mtx-cell-sel"><input type="checkbox" class="bm-mtx-rowsel" data-lid="' + bmEscAttr(lid) + '"' + (isSel ? ' checked' : '') + '></td>';
@@ -7908,11 +8787,12 @@ function bmMatrixAddLayer(detailRow, layerId) {
 // Alle verfügbaren Layer-Keys vom Server laden (einmal gecacht)
 function loadAllLayerKeys() {
   if (_bmLayersLoaded) return Promise.resolve(_bmAllLayerKeys);
-  return fetch('treebuilder-api.php?action=list-all-layers')
+  return fetch(API_URL + '?action=list-all-layers')
     .then(function(r) { return r.json(); })
     .then(function(res) {
       if (res.success && res.data && Array.isArray(res.data.layers)) {
         _bmAllLayerKeys = res.data.layers.map(function(l) { return l.id; }).sort();
+        _bmAllLayerKeySet = new Set(_bmAllLayerKeys);
       }
       _bmLayersLoaded = true;
       return _bmAllLayerKeys;
@@ -7920,11 +8800,13 @@ function loadAllLayerKeys() {
     .catch(function() { _bmLayersLoaded = true; return _bmAllLayerKeys; });
 }
 
-function loadBookmarks() {
-  if (_bmLoaded && _bmData) {
-    // Schon geladen → nur rendern
+function loadBookmarks(force) {
+  if (!force && _bmLoaded && _bmData) {
+    // Schon geladen und kein Force → nur rendern
     return;
   }
+  // Force: Cache leeren
+  if (force) { _bmLoaded = false; }
   var status = document.getElementById('bm-status');
   status.textContent = 'Lade Bookmarks…';
   status.className = 'bm-status';
@@ -7935,15 +8817,23 @@ function loadBookmarks() {
     revalidateAllLayerTags();
   });
 
-  fetch('treebuilder-api.php?action=bookmarks-load')
+  fetch(API_URL + '?action=bookmarks-load')
     .then(function(r) { return r.json(); })
     .then(function(res) {
       if (res.success && Array.isArray(res.data)) {
         _bmData = res.data;
         _bmLoaded = true;
+        _bmRevision = (typeof res.revision !== 'undefined') ? res.revision : null;
+        _bmSource = res.source || 'files';
         renderBookmarkTable(_bmData);
-        status.textContent = '✓ ' + _bmData.length + ' Bookmarks geladen';
+        status.textContent = '✓ ' + _bmData.length + ' Bookmarks geladen'
+          + (_bmSource === 'db' ? ' (DB, Rev. ' + _bmRevision + ')' : '');
         status.className = 'bm-status success';
+        // Soft-Lock-Hinweis anzeigen + eigenen Soft-Lock setzen (nur DB-Modus)
+        if (_bmSource === 'db') {
+          bmRenderLockBanner(res.lock || null);
+          bmAcquireLock();
+        }
       } else {
         status.textContent = 'Fehler: ' + (res.error || 'Unbekannt');
         status.className = 'bm-status error';
@@ -7955,18 +8845,53 @@ function loadBookmarks() {
     });
 }
 
+// Setzt den eigenen Soft-Lock (DB-Modus). Bei Fremd-Lock Banner anzeigen.
+function bmAcquireLock() {
+  fetch(API_URL + '?action=bookmarks-lock', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ user: bmGetUser() })
+  })
+    .then(function(r) { return r.json(); })
+    .then(function(res) {
+      if (res && res.locked === false && res.by) {
+        bmRenderLockBanner({ by: res.by, lockedAt: res.lockedAt, expiresAt: res.expiresAt });
+      } else {
+        bmRenderLockBanner(null);
+      }
+    })
+    .catch(function() {});
+}
+
+// Gibt den eigenen Soft-Lock frei (z.B. beim Verlassen der Seite).
+function bmReleaseLock() {
+  if (_bmSource !== 'db') return;
+  try {
+    var body = JSON.stringify({ user: bmGetUser() });
+    if (navigator.sendBeacon) {
+      navigator.sendBeacon(API_URL + '?action=bookmarks-unlock', body);
+    } else {
+      fetch(API_URL + '?action=bookmarks-unlock', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body, keepalive: true
+      });
+    }
+  } catch (e) {}
+}
+window.addEventListener('beforeunload', bmReleaseLock);
+
 function renderBookmarkTable(bookmarks) {
   var tbody = document.getElementById('bm-tbody');
   tbody.innerHTML = '';
+  var frag = document.createDocumentFragment();
   for (var i = 0; i < bookmarks.length; i++) {
     var rows = createBookmarkRows(bookmarks[i], i);
-    // Zebra-Streifen: gerade Zeilen markieren
     if (i % 2 === 1) rows.summary.classList.add('bm-row-even');
-    tbody.appendChild(rows.summary);
-    tbody.appendChild(rows.detail);
+    frag.appendChild(rows.summary);
+    frag.appendChild(rows.detail);
   }
+  tbody.appendChild(frag);
   updateBookmarkCount();
-  bmColumnFilter(); // Filter anwenden falls aktiv
+  bmColumnFilter(true); // Filter anwenden falls aktiv
 }
 
 function createBookmarkRows(bm, idx) {
@@ -8073,14 +8998,20 @@ function createBookmarkRows(bm, idx) {
     '</div></div>';
   detail.appendChild(detailTd);
 
-  // Matrix initial rendern
-  bmRenderMatrix(detail);
+  // Matrix LAZY: erst beim ersten Aufklappen rendern (Performance bei vielen Bookmarks)
+  var _matrixRendered = false;
+  function ensureMatrixRendered() {
+    if (_matrixRendered) return;
+    _matrixRendered = true;
+    bmRenderMatrix(detail);
+  }
 
-  // Event-Delegation: Click + Change auf die Matrix
+  // Event-Delegation: Click + Change auf die Matrix (lazy init Matrix beim ersten Interagieren)
   var mtxWrap = detail.querySelector('.bm-mtx-wrap');
-  mtxWrap.addEventListener('click', function(e) { bmMatrixHandleClick(e, detail); });
-  mtxWrap.addEventListener('change', function(e) { bmMatrixHandleChange(e, detail); });
+  mtxWrap.addEventListener('click', function(e) { ensureMatrixRendered(); bmMatrixHandleClick(e, detail); });
+  mtxWrap.addEventListener('change', function(e) { ensureMatrixRendered(); bmMatrixHandleChange(e, detail); });
   mtxWrap.addEventListener('input',  function(e) {
+    ensureMatrixRendered();
     // Live-Filter und Live-Edit für Inputs
     if (e.target.matches('.bm-mtx-filter')) bmApplyMatrixFilter(detail);
     if (e.target.matches('.bm-mtx-vid') || e.target.matches('.bm-mtx-vname') || e.target.matches('input[data-prop]')) bmMatrixHandleChange(e, detail);
@@ -8098,6 +9029,7 @@ function createBookmarkRows(bm, idx) {
     }
   };
   initLayerAutocomplete(acInput, acList, fakeTags, detail, function(layerId) {
+    ensureMatrixRendered();
     bmMatrixAddLayer(detail, layerId);
   });
 
@@ -8108,6 +9040,7 @@ function createBookmarkRows(bm, idx) {
     summary.classList.toggle('bm-expanded-row', expanded);
     // Inline-Style muss auch gesetzt werden (bmColumnFilter setzt display inline)
     detail.style.display = expanded ? 'table-row' : 'none';
+    if (expanded) ensureMatrixRendered();
   });
 
   return { summary: summary, detail: detail };
@@ -8231,7 +9164,7 @@ function createLayerTag(layer, tr) {
   span.className = 'bm-layer-tag';
   span.dataset.layer = layerKey;
   span.dataset.layerObj = JSON.stringify(obj);
-  var isValid = _bmAllLayerKeys.indexOf(layerKey) !== -1;
+  var isValid = _bmAllLayerKeySet ? _bmAllLayerKeySet.has(layerKey) : (_bmAllLayerKeys.indexOf(layerKey) !== -1);
   span.classList.add(isValid ? 'valid' : 'invalid');
   span.title = isValid ? 'Layer vorhanden' : 'Layer nicht gefunden!';
   // Optisches Off-Indiz wenn visible:false (per-Layer-Edit folgt in 5c)
@@ -8384,13 +9317,13 @@ function revalidateAllLayerTags() {
   var tags = document.querySelectorAll('#bm-tbody .bm-layer-tag');
   for (var i = 0; i < tags.length; i++) {
     var key = tags[i].dataset.layer;
-    var isValid = _bmAllLayerKeys.indexOf(key) !== -1;
+    var isValid = _bmAllLayerKeySet ? _bmAllLayerKeySet.has(key) : (_bmAllLayerKeys.indexOf(key) !== -1);
     tags[i].classList.remove('valid', 'invalid');
     tags[i].classList.add(isValid ? 'valid' : 'invalid');
     tags[i].title = isValid ? 'Layer vorhanden' : 'Layer nicht gefunden!';
   }
-  // Matrix-Zeilen re-rendern (Layer-Name-Spalte färbt sich nach Validierung um)
-  var details = document.querySelectorAll('#bm-tbody tr.bm-row-detail');
+  // Matrix-Zeilen re-rendern nur für bereits aufgeklappte Zeilen (Lazy-Pattern beachten)
+  var details = document.querySelectorAll('#bm-tbody tr.bm-row-detail.bm-expanded');
   for (var j = 0; j < details.length; j++) {
     if (details[j].querySelector('.bm-mtx-scroll')) bmRenderMatrix(details[j]);
   }
@@ -8407,6 +9340,8 @@ function addBookmarkEntry() {
   rows.summary.classList.add('bm-expanded-row');
   tbody.insertBefore(rows.detail, tbody.firstChild);
   tbody.insertBefore(rows.summary, rows.detail);
+  // Matrix für neuen Eintrag sofort rendern (muss sofort bearbeitbar sein)
+  bmRenderMatrix(rows.detail);
   // Fokus auf ID-Feld
   var idsInput = rows.detail.querySelector('[data-field="idaliases"]');
   if (idsInput) idsInput.focus();
@@ -8511,6 +9446,89 @@ function collectBookmarkData() {
   return result;
 }
 
+// ===== BOOKMARKS: DOWNLOAD / IMPORT / BACKUP =====
+
+function bmDownloadJson() {
+  var data = collectBookmarkData();
+  var json = JSON.stringify(data, null, 2);
+  var blob = new Blob([json], { type: 'application/json' });
+  var url = URL.createObjectURL(blob);
+  var ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 16);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = 'map-bookmarks-all_' + ts + '.json';
+  a.click();
+  setTimeout(function() { URL.revokeObjectURL(url); }, 2000);
+}
+
+function bmImportJson() {
+  var input = document.getElementById('bm-file-import-input');
+  if (!input) return;
+  var onchange = function() {
+    input.removeEventListener('change', onchange);
+    var file = input.files && input.files[0];
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      try {
+        var raw = JSON.parse(e.target.result);
+        var arr = Array.isArray(raw) ? raw : (raw && Array.isArray(raw.bookmarks) ? raw.bookmarks : null);
+        if (!arr) throw new Error('Erwartet wird ein JSON-Array oder { bookmarks: [...] }');
+        bmPushUndo();
+        _bmData = arr;
+        renderBookmarkTable(_bmData);
+        var status = document.getElementById('bm-status');
+        status.textContent = '✓ ' + arr.length + ' Bookmarks aus Datei importiert — noch nicht gespeichert';
+        status.className = 'bm-status';
+      } catch (err) {
+        alert('Import fehlgeschlagen: ' + err.message);
+      }
+    };
+    reader.readAsText(file);
+    input.value = '';
+  };
+  input.addEventListener('change', onchange);
+  input.click();
+}
+
+function bmCreateBackup() {
+  var status = document.getElementById('bm-status');
+  var user = bmGetUser();
+  status.textContent = 'Erstelle Backup…';
+  status.className = 'bm-status';
+  fetch(API_URL + '?action=bookmarks-backup-create&user=' + encodeURIComponent(user), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ user: user })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(res) {
+    if (res.success) {
+      status.textContent = '✓ Backup erstellt: ' + res.file + ' (' + res.count + ' Bookmarks)';
+      status.className = 'bm-status success';
+    } else {
+      status.textContent = '✗ Backup fehlgeschlagen: ' + (res.error || 'Unbekannt');
+      status.className = 'bm-status error';
+    }
+  })
+  .catch(function(err) {
+    status.textContent = '✗ Backup fehlgeschlagen: ' + err.message;
+    status.className = 'bm-status error';
+  });
+}
+
+function bmOpenBackupManager() {
+  // SLM-Backup-Dialog öffnen, auf bookmarks-Typ filtern
+  var overlay = document.getElementById('slm-backup-overlay');
+  var typeFilter = document.getElementById('slm-bk-type-filter');
+  if (!overlay) return;
+  overlay.classList.add('open');
+  if (typeFilter) {
+    typeFilter.value = 'bookmarks';
+  }
+  slmLoadBackupList();
+}
+
 function showBookmarkDeployToast(message, type) {
   var toast = document.getElementById('bm-deploy-toast');
   var colors = {
@@ -8557,18 +9575,47 @@ function saveBookmarks() {
     status.textContent = 'Speichere ' + data.length + ' Bookmarks…';
     status.className = 'bm-status';
 
-    // 1. PHP: Server-Datei speichern
-    fetch('treebuilder-api.php?action=bookmarks-save', {
+    // Body: im DB-Modus mit Revision (Optimistic Lock) + Bearbeiter; sonst Legacy-Array.
+    var saveBody = (_bmSource === 'db')
+      ? JSON.stringify({ bookmarks: data, revision: _bmRevision, user: bmGetUser() })
+      : JSON.stringify(data);
+
+    // 1. PHP: Server-Datei/DB speichern
+    fetch(API_URL + '?action=bookmarks-save', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data)
+      body: saveBody
     })
-    .then(function(r) { return r.json(); })
-    .then(function(res) {
+    .then(function(r) { return r.json().then(function(j) { return { status: r.status, body: j }; }); })
+    .then(function(env) {
+      var res = env.body || {};
+
+      // Versionskonflikt (HTTP 409): jemand anderes hat zwischenzeitlich gespeichert.
+      if (env.status === 409 && res.conflict) {
+        status.textContent = '⚠ Versionskonflikt — Server-Stand ist neuer';
+        status.className = 'bm-status error';
+        var ok = window.confirm(
+          'Konflikt: Die Bookmarks wurden zwischenzeitlich von jemand anderem gespeichert (Server-Rev. '
+          + res.revision + ').\n\n'
+          + 'OK = Server-Stand laden (Ihre Änderungen verwerfen)\n'
+          + 'Abbrechen = Ihre Eingaben behalten (nicht gespeichert)');
+        if (ok && Array.isArray(res.serverData)) {
+          _bmData = res.serverData;
+          _bmRevision = res.revision;
+          _bmLoaded = true;
+          renderBookmarkTable(_bmData);
+          status.textContent = '↻ Server-Stand geladen (Rev. ' + res.revision + ')';
+          status.className = 'bm-status';
+        }
+        return;
+      }
+
       if (!res.success) throw new Error(res.error || 'Unbekannt');
 
       _bmData = data;
-      status.textContent = '✓ Gespeichert — ' + data.length + ' Bookmarks';
+      if (typeof res.revision !== 'undefined') { _bmRevision = res.revision; }
+      status.textContent = '✓ Gespeichert — ' + data.length + ' Bookmarks'
+        + (_bmSource === 'db' ? ' (DB, Rev. ' + _bmRevision + ')' : '');
       status.className = 'bm-status success';
       document.querySelectorAll('#bm-tbody .bm-row-changed').forEach(function(tr) {
         tr.classList.remove('bm-row-changed');
@@ -8614,18 +9661,36 @@ function saveBookmarks() {
 }
 
 function filterBookmarkTable() {
-  bmColumnFilter();
+  bmColumnFilter(true);
 }
 
 // ===== SPALTENFILTER =====
-function bmColumnFilter() {
+var _bmFilterTimer = null;
+
+function bmColumnFilter(immediate) {
+  if (immediate === true) {
+    bmApplyColumnFilter();
+    return;
+  }
+  if (_bmFilterTimer) clearTimeout(_bmFilterTimer);
+  _bmFilterTimer = setTimeout(bmApplyColumnFilter, 140);
+}
+
+function bmApplyColumnFilter() {
   var filters = {};
+  var shortFilterCount = 0;
   document.querySelectorAll('.bm-filter-bar input[data-col-filter]').forEach(function(input) {
     var col = input.dataset.colFilter;
     var val = input.value.trim().toLowerCase();
-    if (val) filters[col] = val;
+    if (!val) return;
+    if (val.length < 3) { shortFilterCount++; return; }
+    filters[col] = val;
   });
   var summaries = document.querySelectorAll('#bm-tbody tr.bm-row-summary');
+  var detailsByIdx = {};
+  document.querySelectorAll('#bm-tbody tr.bm-row-detail').forEach(function(detail) {
+    detailsByIdx[detail.dataset.idx] = detail;
+  });
   var visible = 0;
   summaries.forEach(function(sum) {
     var show = true;
@@ -8641,7 +9706,7 @@ function bmColumnFilter() {
     }
     sum.style.display = show ? '' : 'none';
     var idx = sum.dataset.idx;
-    var detail = document.querySelector('tr.bm-row-detail[data-idx="' + idx + '"]');
+    var detail = detailsByIdx[idx] || null;
     if (detail) {
       if (!show) {
         detail.style.display = 'none';
@@ -8651,7 +9716,11 @@ function bmColumnFilter() {
     }
     if (show) visible++;
   });
-  document.getElementById('bm-count').textContent = visible + ' / ' + summaries.length + ' Bookmarks';
+  var cnt = visible + ' / ' + summaries.length + ' Bookmarks';
+  if (shortFilterCount > 0 && Object.keys(filters).length === 0) {
+    cnt += ' (Filter ab 3 Zeichen)';
+  }
+  document.getElementById('bm-count').textContent = cnt;
 }
 
 function updateBookmarkCount() {
@@ -8686,13 +9755,12 @@ function initBookmarkSort() {
 
 function sortBookmarkTable(field, dir) {
   var tbody = document.getElementById('bm-tbody');
-  // Paare sammeln: [summary, detail]
+  // Paare sammeln: [summary, detail] — detail per Map für O(1)-Lookup
   var pairs = [];
-  var summaries = tbody.querySelectorAll('tr.bm-row-summary');
-  summaries.forEach(function(sum) {
-    var idx = sum.dataset.idx;
-    var detail = tbody.querySelector('tr.bm-row-detail[data-idx="' + idx + '"]');
-    pairs.push({ summary: sum, detail: detail });
+  var detailMap = {};
+  tbody.querySelectorAll('tr.bm-row-detail').forEach(function(d) { detailMap[d.dataset.idx] = d; });
+  tbody.querySelectorAll('tr.bm-row-summary').forEach(function(sum) {
+    pairs.push({ summary: sum, detail: detailMap[sum.dataset.idx] || null });
   });
   pairs.sort(function(a, b) {
     var va = getBmSortValue(a.summary, a.detail, field);
@@ -8700,12 +9768,13 @@ function sortBookmarkTable(field, dir) {
     var cmp = va.localeCompare(vb, 'de', { sensitivity: 'base' });
     return dir === 'desc' ? -cmp : cmp;
   });
+  var frag = document.createDocumentFragment();
   pairs.forEach(function(p, i) {
-    // Zebra-Streifen neu berechnen nach Sortierung
     p.summary.classList.toggle('bm-row-even', i % 2 === 1);
-    tbody.appendChild(p.summary);
-    if (p.detail) tbody.appendChild(p.detail);
+    frag.appendChild(p.summary);
+    if (p.detail) frag.appendChild(p.detail);
   });
+  tbody.appendChild(frag);
 }
 
 function getBmSortValue(summary, detail, field) {
@@ -8826,6 +9895,10 @@ document.addEventListener('keydown', function(e) {
     if (tag2 === 'INPUT' || tag2 === 'TEXTAREA') return;
     e.preventDefault(); bmRedo();
   }
+  if (e.ctrlKey && !e.shiftKey && e.key === 's') {
+    e.preventDefault();
+    saveBookmarks();
+  }
 });
 
 // Initialisierung
@@ -8846,6 +9919,8 @@ function bmSwitchView(view) {
   var jsonPanel = document.getElementById('bm-json-panel');
   var btnTable = document.getElementById('bm-view-table');
   var btnJson = document.getElementById('bm-view-json');
+
+  if (!tableWrap || !filterBar || !jsonPanel) return; // Pane noch nicht im DOM
 
   if (view === 'json') {
     tableWrap.style.display = 'none';
@@ -9147,7 +10222,7 @@ function bmInlineJsonApply(btn) {
       var preview = '';
       for (var lp = 0; lp < Math.min(layerIds.length, 4); lp++) {
         var lid = layerIds[lp];
-        var isV = _bmAllLayerKeys.indexOf(lid) !== -1;
+        var isV = _bmAllLayerKeySet ? _bmAllLayerKeySet.has(lid) : (_bmAllLayerKeys.indexOf(lid) !== -1);
         preview += '<span class="bm-layer-tag ' + (isV ? 'valid' : 'invalid') + '" data-layer="' + esc(lid) + '">' + esc(lid) + '</span>';
       }
       if (layerIds.length > 4) preview += '<span style="font-size:10px;color:#888"> +' + (layerIds.length - 4) + '</span>';
@@ -9180,8 +10255,187 @@ if (document.readyState === 'loading') {
 
 <script>
 // =====================================================================
-// Backup-Management (SLM)
+// SYNC TAB
 // =====================================================================
+
+var _syncLoaded = false;
+var _syncData = null;
+
+function loadSyncStatus() {
+  var statusBar = document.getElementById('sync-status-bar');
+  var content   = document.getElementById('sync-content');
+  statusBar.textContent = 'Lade Status…';
+  content.innerHTML = '<div style="padding:30px;text-align:center;color:#aaa">↻ Lade Sync-Status…</div>';
+
+  fetch(API_URL + '?action=sync-status')
+    .then(function(r) { return r.json(); })
+    .then(function(res) {
+      if (!res.success) throw new Error(res.error || 'Fehler');
+      _syncData = res.data;
+      _syncLoaded = true;
+      renderSyncStatus(_syncData);
+      statusBar.textContent = 'Zuletzt geladen: ' + new Date().toLocaleTimeString('de-CH');
+    })
+    .catch(function(err) {
+      statusBar.textContent = 'Fehler: ' + err.message;
+      content.innerHTML = '<div style="padding:20px;color:#c33">' + esc(err.message) + '</div>';
+    });
+}
+
+function renderSyncStatus(data) {
+  var content = document.getElementById('sync-content');
+  var envs    = data.environments || {};
+  var envKeys = Object.keys(envs);
+
+  // Env-Badges
+  var badges = document.getElementById('sync-env-badges');
+  if (badges) {
+    badges.innerHTML = envKeys.map(function(e) {
+      return '<span class="sync-env-badge ' + esc(e) + '">' + esc(e.toUpperCase()) + ': ' + esc(envs[e]) + '</span>';
+    }).join('<span style="color:#888;font-size:13px">↔</span>');
+  }
+
+  var html = '';
+
+  // ── Bookmarks ──
+  var bm = data.domains && data.domains.bookmarks;
+  if (bm) {
+    html += buildSyncDomain('bookmarks', bm.label || 'Bookmarks', function() {
+      var rows = '';
+      envKeys.forEach(function(e) {
+        var cnt = bm.counts && bm.counts[e] != null ? bm.counts[e] : '—';
+        var rev = bm.revs  && bm.revs[e]  != null ? bm.revs[e]  : '—';
+        rows += '<tr><td>' + esc(e.toUpperCase()) + '</td>'
+          + '<td><span class="sync-count">' + cnt + '</span></td>'
+          + '<td class="sync-rev">Rev. ' + rev + '</td>'
+          + '<td></td></tr>';
+      });
+      var devRev = bm.revs && bm.revs.dev;
+      var prodRev = bm.revs && bm.revs.prod;
+      var statusIcon = (devRev === prodRev && devRev != null) ? '<span class="sync-ok">✅ identisch</span>' : '<span class="sync-diff">⚠ unterschiedlich</span>';
+      return '<table class="sync-table"><thead><tr><th>Umgebung</th><th>Anzahl</th><th>Revision</th><th>Status</th></tr></thead><tbody>' + rows.replace('</td></tr>', '</td><td>' + statusIcon + '</td></tr>').replace(/<\/td><\/tr>(?!.*<\/td><\/tr>)/s, '</td></tr>') + '</tbody></table>';
+    }, 'bookmarks');
+  }
+
+  // ── Catalog ──
+  var cat = data.domains && data.domains.catalog;
+  if (cat && cat.items) {
+    html += buildSyncDomain('catalog', cat.label || 'Katalog (LyrMgr)', function() {
+      var rows = cat.items.map(function(item) {
+        var cells = envKeys.map(function(e) {
+          var env = item.envs && item.envs[e];
+          if (!env) return '<td class="sync-only-prod">— fehlt</td>';
+          return '<td><span class="sync-rev">Rev. ' + env.revision + '</span>'
+            + (env.updatedBy ? '<br><span style="font-size:10px;color:#888">' + esc(env.updatedBy) + '</span>' : '')
+            + '</td>';
+        }).join('');
+        var statusCell = item.status === 'sync'
+          ? '<td class="sync-ok" style="text-align:center">✅</td>'
+          : '<td class="sync-diff" style="text-align:center">⚠</td>';
+        return '<tr><td style="font-family:monospace;font-size:11px">' + esc(item.profile) + '</td>' + cells + statusCell + '</tr>';
+      }).join('');
+      var headers = '<th>Profil</th>' + envKeys.map(function(e) { return '<th>' + esc(e.toUpperCase()) + '</th>'; }).join('') + '<th style="text-align:center">Status</th>';
+      return '<table class="sync-table"><thead><tr>' + headers + '</tr></thead><tbody>' + rows + '</tbody></table>';
+    }, 'catalog');
+  }
+
+  // ── Bundles ──
+  var bn = data.domains && data.domains.bundles;
+  if (bn && bn.items) {
+    html += buildSyncDomain('bundles', bn.label || 'Config-Bundles', function() {
+      var rows = bn.items.slice(0, 30).map(function(item) {
+        var cells = envKeys.map(function(e) {
+          var env = item.envs && item.envs[e];
+          if (!env) return '<td class="sync-only-prod" style="font-size:10px;color:#aaa">—</td>';
+          return '<td><span style="font-size:10px;font-family:monospace">' + esc(env.scope || '') + '</span></td>';
+        }).join('');
+        var statusCell = item.status === 'both'
+          ? '<td class="sync-ok" style="text-align:center;font-size:12px">✓</td>'
+          : '<td class="sync-diff" style="text-align:center;font-size:12px">½</td>';
+        return '<tr><td style="font-family:monospace;font-size:11px">' + esc(item.kuerzel) + '</td>' + cells + statusCell + '</tr>';
+      }).join('');
+      if (bn.items.length > 30) rows += '<tr><td colspan="4" style="text-align:center;color:#999;font-size:11px">… und ' + (bn.items.length - 30) + ' weitere</td></tr>';
+      var headers = '<th>Kürzel</th>' + envKeys.map(function(e) { return '<th>' + esc(e.toUpperCase()) + '</th>'; }).join('') + '<th style="text-align:center">Status</th>';
+      return '<table class="sync-table"><thead><tr>' + headers + '</tr></thead><tbody>' + rows + '</tbody></table>';
+    }, 'bundles');
+  }
+
+  content.innerHTML = html || '<div style="padding:20px;color:#999">Keine Sync-Daten verfügbar.</div>';
+
+  // Domain-Accordion aufklappen
+  content.querySelectorAll('.sync-domain-head').forEach(function(head) {
+    head.addEventListener('click', function() {
+      var domain = head.closest('.sync-domain');
+      domain.classList.toggle('open');
+    });
+  });
+  // Alle aufklappen
+  content.querySelectorAll('.sync-domain').forEach(function(d) { d.classList.add('open'); });
+
+  // Sync-Buttons
+  content.querySelectorAll('[data-sync-domain]').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var domain    = btn.dataset.syncDomain;
+      var direction = btn.dataset.syncDirection;
+      var keysStr   = btn.dataset.syncKeys;
+      var keys      = keysStr ? keysStr.split(',') : null;
+      executeSyncOperation(domain, direction, keys);
+    });
+  });
+}
+
+function buildSyncDomain(id, label, contentFn, domain) {
+  var content = '';
+  try { content = contentFn(); } catch(e) { content = '<div style="color:#c33;padding:8px">' + esc(e.message) + '</div>'; }
+  return '<div class="sync-domain" id="sync-domain-' + esc(id) + '">'
+    + '<div class="sync-domain-head">'
+    + '<span class="sd-arrow">▶</span>'
+    + '<span class="sd-label">' + esc(label) + '</span>'
+    + '</div>'
+    + '<div class="sync-domain-body">'
+    + content
+    + '<div class="sync-domain-actions">'
+    + '<button class="sync-btn push" data-sync-domain="' + esc(domain) + '" data-sync-direction="dev-to-prod" title="DEV → PROD übertragen">⬆ DEV → PROD</button>'
+    + '<button class="sync-btn pull" data-sync-domain="' + esc(domain) + '" data-sync-direction="prod-to-dev" title="PROD → DEV übertragen">⬇ PROD → DEV</button>'
+    + '<span class="spacer"></span>'
+    + '<span style="font-size:10px;color:#999">Überschreibt Ziel vollständig</span>'
+    + '</div>'
+    + '</div>'
+    + '</div>';
+}
+
+function executeSyncOperation(domain, direction, keys) {
+  var dirLabel = direction === 'dev-to-prod' ? 'DEV → PROD' : 'PROD → DEV';
+  var msg = 'Sync ausführen?\n\nDomain: ' + domain + '\nRichtung: ' + dirLabel + (keys ? '\nKomponenten: ' + keys.join(', ') : '') + '\n\n⚠ Ziel-Daten werden überschrieben!';
+  if (!confirm(msg)) return;
+
+  var statusBar = document.getElementById('sync-status-bar');
+  statusBar.textContent = '⏳ Sync läuft (' + dirLabel + ')…';
+
+  var user = (typeof bmGetUser === 'function') ? bmGetUser() : 'anonym';
+  fetch(API_URL + '?action=sync-execute', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ domain: domain, direction: direction, keys: keys, user: user })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(res) {
+    if (!res.success) throw new Error(res.error || 'Fehler');
+    var d = res.data || {};
+    statusBar.textContent = '✅ Sync abgeschlossen — ' + dirLabel + ' | ' + domain + ': ' + (d.copied || 0) + ' kopiert'
+      + (d.errors && d.errors.length ? ', ' + d.errors.length + ' Fehler' : '');
+    if (d.errors && d.errors.length) {
+      alert('Sync mit Fehlern:\n\n' + d.errors.join('\n'));
+    }
+    // Status neu laden
+    setTimeout(loadSyncStatus, 800);
+  })
+  .catch(function(err) {
+    statusBar.textContent = '❌ Sync fehlgeschlagen: ' + err.message;
+  });
+}
+
+
 var _slmBackupData = [];
 
 document.getElementById('slm-btn-backups').addEventListener('click', function() {
@@ -9244,7 +10498,7 @@ function slmRenderBackupTable() {
   var html = '';
   filtered.forEach(function(b) {
     var sizeStr = b.size > 1048576 ? (b.size / 1048576).toFixed(1) + ' MB' : (b.size / 1024).toFixed(0) + ' KB';
-    var canRestore = b.type === 'state' || b.type === 'rawconf';
+    var canRestore = b.type === 'state' || b.type === 'rawconf' || b.type === 'bookmarks';
     // rawconf: nur den Dateinamen anzeigen, voller Pfad als title
     var displayName = b.type === 'rawconf' ? b.file.split('/').pop() : b.file;
     var titleAttr = b.type === 'rawconf' ? ' title="' + esc(b.file) + '"' : '';
@@ -9340,10 +10594,39 @@ function slmDeleteAllRawConfBackups() {
 function slmRestoreBackup(filename, type) {
   var msg = type === 'rawconf'
     ? 'Raw-Conf-Datei wiederherstellen?\n\n' + filename + '\n\n⚠ Die aktuelle Datei wird überschrieben (vorher automatisch gesichert).'
-    : 'Backup wiederherstellen?\n\n' + filename + '\n\nDer aktuelle Zustand wird vorher gesichert.';
+    : (type === 'bookmarks'
+      ? 'Bookmark-Backup in den Editor laden?\n\n' + filename + '\n\nAktueller Stand wird in den Arbeitsspeicher geladen (noch nicht gespeichert).'
+      : 'Backup wiederherstellen?\n\n' + filename + '\n\nDer aktuelle Zustand wird vorher gesichert.');
   if (!confirm(msg)) return;
   var statusEl = document.getElementById('slm-bk-status');
   statusEl.textContent = '⏳ Wiederherstellen…';
+
+  // Bookmarks: aus JSON-Datei laden und in Editor rendern (kein Server-Restore nötig)
+  if (type === 'bookmarks') {
+    fetch(API_URL + '?action=restore-bookmark-backup&file=' + encodeURIComponent(filename))
+      .then(function(r) { return r.json(); })
+      .then(function(resp) {
+        if (!resp.success) throw new Error(resp.error || 'Fehler');
+        var arr = resp.data;
+        if (!Array.isArray(arr)) throw new Error('Ungültige Daten im Backup');
+        bmPushUndo();
+        _bmData = arr;
+        renderBookmarkTable(_bmData);
+        statusEl.textContent = '✓ Bookmark-Backup geladen: ' + arr.length + ' Bookmarks — noch nicht gespeichert';
+        var bmStatus = document.getElementById('bm-status');
+        if (bmStatus) {
+          bmStatus.textContent = '↺ Aus Backup geladen: ' + filename + ' (' + arr.length + ' Bookmarks) — noch nicht gespeichert';
+          bmStatus.className = 'bm-status';
+        }
+        document.getElementById('slm-backup-overlay').classList.remove('open');
+        // Zum Bookmarks-Tab wechseln (falls nicht aktiv)
+        var bmTab = document.querySelector('[data-tab="bookmarks"]');
+        if (bmTab && !bmTab.classList.contains('active')) switchTab('bookmarks');
+      })
+      .catch(function(err) { statusEl.textContent = '✗ Fehler: ' + err.message; });
+    return;
+  }
+
   var action = type === 'rawconf' ? 'restore-rawconf' : 'restore';
   fetch(API_URL + '?action=' + action + '&file=' + encodeURIComponent(filename))
     .then(function(r) { return r.json(); })
@@ -9371,17 +10654,26 @@ function _showBuildTs(id) {
 <script>
 /* ===== PFAD-INFO-BARS + DEV-BUTTON ===== */
 (function() {
-  var isDev     = location.pathname.indexOf('/maps-dev/') === 0;
-  var coreName  = isDev ? 'core-dev' : 'core';
-  var rawConf   = isDev ? 'data/tmp/maps-dev/raw-conf'    : 'data/tmp/maps/raw-conf';
-  var impCore   = isDev ? 'data/tmp/maps-dev/ImportToCore' : 'data/tmp/maps/ImportToCore';
+  // Pfad-Bars basieren auf dem gewählten Konfig-Store (_storeEnv), NICHT auf der URL
+  var isStoreDev = (typeof _storeEnv !== 'undefined' && _storeEnv === 'dev');
+  var coreName  = 'core'; // DEV und PROD nutzen gleiches core
+  var rawConf   = isStoreDev ? 'data/tmp/maps-dev/raw-conf/(ags|qgis|mapplus)' : 'data/tmp/maps/raw-conf/(ags|qgis|mapplus)';
+  var impCore   = isStoreDev ? 'DB: mapplusconf_dev.config_bundle_store' : 'DB: mapplusconf.config_bundle_store';
   var coreCfg   = '/www/' + coreName + '/config/';
   var coreNls   = '/www/' + coreName + '/nls/de/';
 
-  // Button-Text + Tooltip
+  // Button-Tooltips
+  var expTmpBtn = document.getElementById('editor-btn-export-temp');
+  if (expTmpBtn) {
+    expTmpBtn.title = 'Kürzel-Dateien nach Temp exportieren (finale Ordnerstruktur + Naming)';
+  }
+  var mergeTmpBtn = document.getElementById('editor-btn-merge-temp');
+  if (mergeTmpBtn) {
+    mergeTmpBtn.title = 'Mehrere Kürzel in benannte Merge-Dateien nach Temp exportieren (inkl. Readme)';
+  }
   var expBtn = document.getElementById('editor-btn-export');
   if (expBtn) {
-    expBtn.title = 'Dateien nach ' + coreName + '/config/ und ' + coreName + '/nls/de/ exportieren';
+    expBtn.title = 'Exportierte Temp-Dateien via FastAPI nach ' + coreName + ' deployen';
   }
   var expTitle = document.getElementById('export-confirm-title');
   if (expTitle) expTitle.textContent = '\u{1F4E4} Nach ' + coreName + ' exportieren';
@@ -9399,20 +10691,20 @@ function _showBuildTs(id) {
     return bar;
   }
 
-  // Staging-Tab: raw-conf → ImportToCore
-  var paneStaging = document.getElementById('pane-staging');
+  // Import-Tab: raw-conf → Konfig-Store DB
+  var paneStaging = document.getElementById('pane-import');
   if (paneStaging && !paneStaging.querySelector('.path-info-bar')) {
     paneStaging.insertBefore(
-      makeBar([['raw-conf', rawConf], ['ImportToCore', impCore]]),
+      makeBar([['raw-conf', rawConf], ['Konfig-Store DB', impCore]]),
       paneStaging.firstChild
     );
   }
 
-  // Editor-Tab: ImportToCore → core-dev/config + nls
+  // Editor-Tab: Konfig-Store DB → core/config + nls
   var paneEditor = document.getElementById('pane-editor');
   if (paneEditor && !paneEditor.querySelector('.path-info-bar')) {
     paneEditor.insertBefore(
-      makeBar([['ImportToCore', impCore], [coreName + '/config', coreCfg], [coreName + '/nls/de', coreNls]]),
+      makeBar([['Konfig-Store DB', impCore], [coreName + '/config', coreCfg], [coreName + '/nls/de', coreNls]]),
       paneEditor.firstChild
     );
   }

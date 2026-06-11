@@ -25,6 +25,7 @@ require_once __DIR__ . '/../includes/ApiResponse.php';
 require_once __DIR__ . '/../includes/CacheHelper.php';
 require_once __DIR__ . '/../includes/JsonCache.php';
 require_once __DIR__ . '/../includes/AdminAuth.php';
+require_once __DIR__ . '/../includes/TmpPaths.php';
 
 $method = $_SERVER['REQUEST_METHOD'];
 
@@ -43,7 +44,7 @@ header('X-API-Version: 2.0');
 CacheHelper::noCache();
 
 // --- Proxy-Cache-Verzeichnis und TTL aus Config lesen ---
-$proxyCacheDir = '/data/Client_Data/nwow/tmp/maps-dev/proxy-cache';
+$proxyCacheDir = TnetTmpPaths::cache('proxy-cache');
 $proxyCacheTtl = 3600;
 $proxyCacheEnabled = false;
 $configPath = __DIR__ . '/../../config/tnet-global-config.json5';

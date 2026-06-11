@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 /**
  * TNET API v1 - Layer Catalog Endpoint
  * 
@@ -9,7 +9,7 @@
  * - ?flat=true (Flache Liste statt Baum)
  * - ?details=false (Nur IDs+Namen, ohne url/params/options — viel schneller)
  * - ?debug=1 (Debug-Informationen)
- * - ?source=auto|db|file (Datenquelle: DB bevorzugt, Fallback auf Dateien)
+ * - ?source=db|file (Datenquelle muss explizit gesetzt sein)
  * 
  * Hybrid-Architektur:
  *   1. PostgreSQL (mapplusconf) — bevorzugt, schnellster Pfad
@@ -27,6 +27,9 @@ require_once __DIR__ . '/../includes/CacheHelper.php';
 require_once __DIR__ . '/../includes/ConfigReader.php';
 require_once __DIR__ . '/../includes/JsonCache.php';
 require_once __DIR__ . '/../includes/Database.php';
+require_once __DIR__ . '/../includes/ConfigSource.php';
+require_once __DIR__ . '/../includes/CatalogRepository.php';
+require_once __DIR__ . '/../includes/StagingImportRepository.php';
 
 // Standard API Headers
 ApiResponse::setHeaders();
@@ -80,9 +83,22 @@ $flat     = isset($_GET['flat']) && $_GET['flat'] === 'true';
 $details  = !isset($_GET['details']) || $_GET['details'] !== 'false'; // default: true
 $debug    = isset($_GET['debug']) && $_GET['debug'] === '1';
 $layerId  = $_GET['id'] ?? null; // Einzelner Layer per ID
-$source   = strtolower(trim($_GET['source'] ?? 'auto')); // auto|db|file
-$noCache  = isset($_GET['nocache']) && $_GET['nocache'] === '1';
-$action   = $_GET['action'] ?? null;
+$source   = strtolower(trim($_GET['source'] ?? '')); // db|file (explizit)
+$noCache       = isset($_GET['nocache']) && $_GET['nocache'] === '1';
+$action        = $_GET['action'] ?? null;
+// filterMissing: 1 = fehlende Layer (kein layer_definition-Eintrag) aus dem Baum entfernen (Standard Kartenanwendung)
+//                0 = fehlende Layer behalten, aber mit _missing:true markieren (für SLM-Preview)
+$filterMissing = !isset($_GET['filterMissing']) || $_GET['filterMissing'] !== '0';
+
+if ($source === '' || $source === 'auto' || !in_array($source, ['db', 'file'], true)) {
+    ApiResponse::error("Ungueltiger source-Parameter. Verwende source=db oder source=file.", 400);
+}
+
+// Quelltrennung: pro Request genau EINE Quelle verwenden (DB ODER Files).
+// Kein Mischen von Katalog aus DB mit Layer-Details aus Dateien.
+// Wichtig: DB-Quelle darf nicht über TTL-JSON-Cache verzögert werden,
+// sonst sind Live-Publishes erst nach "Cache leeren" sichtbar.
+$bypassJsonCache = ($source === 'db');
 
 // =====================================================================
 // Action: NLS-Label-Check
@@ -93,7 +109,7 @@ if ($action === 'nls_check') {
     header('Content-Type: application/json; charset=utf-8');
 
     // 1. Alle lyrmgrResources_*.json laden
-    //    Basis: Umgebungs-Core (DEV: core-dev, PROD: core)
+  //    Basis: Umgebungs-Core (DEV und PROD: core)
     //    Überladungen: app-lokaler core/nls/de Pfad
     //    Überladungen überschreiben gleichnamige Keys aus der Basis.
     $nlsDirBase     = ConfigReader::getCoreNlsPath('de');
@@ -254,7 +270,12 @@ function _nlsExtractKeys($node, $type, &$out) {
 $useDatabase = false;
 $dbSource    = 'file'; // Tracking welche Quelle tatsächlich benutzt wird
 
-if ($source !== 'file') {
+// Bei source=db: immer catalog_document (Tree-Builder Quelle) verwenden.
+// catalog_node-Pfad (altes Schema) wird komplett übersprungen.
+// Keine Abhängigkeit von ConfigSource, da source=db explizit vom Client gesetzt wird.
+$useCatalogDocument = ($source === 'db');
+
+if ($source !== 'file' && !$useCatalogDocument) {
     try {
         $dbStatus = Database::isAvailable();
         if ($dbStatus['available']) {
@@ -353,7 +374,7 @@ $sourceFiles = array_filter([$lyrmgrFile, $mappingFile], 'file_exists');
 
 // Cache Hit? (ausser im Debug- oder NoCache-Modus)
 $cached = $cache->get($cacheKey, $sourceFiles, 3600);
-if ($cached !== null && !$debug && !$noCache) {
+if (!$bypassJsonCache && $cached !== null && !$debug && !$noCache) {
     CacheHelper::setNoCache();
     $meta = $cached['meta'] ?? [];
     $meta['cache'] = 'hit';
@@ -369,6 +390,29 @@ if ($useDatabase) {
 
     try {
         $pdo = Database::getConnection();
+
+        // Einmalig alle Layer-IDs aus config_bundle_store laden (für _missing-Prüfung).
+        // Ein Layer gilt als "importiert" wenn seine ID in mindestens einem Bundle-Payload vorkommt.
+        // Performance: Ein extra Query, JSONB-Extraktion, aber nur einmal pro Request.
+        $importedLayerIds = [];
+        try {
+            $cbs = $pdo->query(
+                "SELECT payload FROM mapplusconf.config_bundle_store"
+            );
+            while ($cbsRow = $cbs->fetch(PDO::FETCH_ASSOC)) {
+                $payload = json_decode($cbsRow['payload'], true);
+                foreach ($payload['files'] ?? [] as $file) {
+                    if (($file['prefix'] ?? '') === 'layers' && is_array($file['data'] ?? null)) {
+                        foreach (array_keys($file['data']) as $layerId) {
+                            $importedLayerIds[$layerId] = true;
+                        }
+                    }
+                }
+            }
+        } catch (\Throwable $e) {
+            // config_bundle_store nicht verfügbar → keine _missing-Markierung möglich
+            $importedLayerIds = null;
+        }
 
         // OPTIMIERT: Eine einzige Query statt rekursiver PL/pgSQL-Funktion
         // Holt alle Knoten + Layer-Details in einem Durchgang
@@ -434,7 +478,7 @@ if ($useDatabase) {
         $rows = $stmt->fetchAll();
 
         // Tree in PHP aufbauen (statt rekursiver PL/pgSQL-Funktion)
-        $built = buildCatalogTree($rows, $details);
+        $built = buildCatalogTree($rows, $details, $filterMissing, $importedLayerIds);
         $catalogJson = $built['tree'];
         $treeStats   = $built['stats'];
 
@@ -488,7 +532,9 @@ if ($useDatabase) {
             $meta['responseTime'] = $elapsed . 'ms';
 
             // In Cache speichern (auch DB-Resultate cachen)
-            $cache->set($cacheKey, ['data' => $result, 'meta' => $meta]);
+            if (!$bypassJsonCache) {
+                $cache->set($cacheKey, ['data' => $result, 'meta' => $meta]);
+            }
 
             CacheHelper::setNoCache();
             ApiResponse::success($result, $meta);
@@ -509,10 +555,38 @@ if ($useDatabase) {
 // =====================================================================
 $startTime = microtime(true);
 
-// 1. lyrmgr.conf (aus dem gewählten Profil)
-$conf = ConfigReader::readLyrmgrConf($group);
-if (!$conf) {
-    ApiResponse::notFound("lyrmgr.conf for group '{$group}'");
+$lyrmgrSourceUsed = 'file';
+
+// 1. lyrmgr.conf: Bei source=db aus catalog_document laden (Tree-Builder Quelle),
+//    sonst aus Konfigurationsdatei lesen.
+if ($useCatalogDocument) {
+    require_once __DIR__ . '/../includes/CatalogRepository.php';
+    try {
+        $doc = CatalogRepository::loadProfile($group);
+        if (empty($doc['exists']) || empty($doc['data'])) {
+            ApiResponse::error(
+                'Kein Katalog-Dokument für Profil "' . $group . '" in der DB. Bitte im Tree-Builder publizieren. Hinweis: Profil muss mindestens einmal im Tree-Builder gespeichert werden.',
+                404
+            );
+        }
+        $conf = $doc['data'];
+        $lyrmgrSourceUsed = 'catalog-db';
+        // __nlsAliases und __nodeEditMeta aus dem Payload in NLS-Runtime einspeisen
+        if (isset($conf['__nlsAliases']) && is_array($conf['__nlsAliases'])) {
+            foreach ($conf['__nlsAliases'] as $k => $v) {
+                if (is_string($v)) $_nlsAliasesRuntime[$k] = $v;
+            }
+        }
+        // Meta-Schlüssel aus $conf entfernen (kein Baum-Block)
+        unset($conf['__nlsAliases'], $conf['__nodeEditMeta']);
+    } catch (\Throwable $e) {
+        ApiResponse::error('Katalog-DB nicht erreichbar: ' . $e->getMessage() . ' | ' . $e->getFile() . ':' . $e->getLine(), 500);
+    }
+} else {
+    $conf = ConfigReader::readLyrmgrConf($group);
+    if (!$conf) {
+        ApiResponse::notFound("lyrmgr.conf for group '{$group}'");
+    }
 }
 
 // 2. lyrmgr-mapping.json
@@ -521,10 +595,85 @@ if (!$mapping) {
     ApiResponse::serverError('lyrmgr-mapping.json not found or invalid');
 }
 
-// 3. Layer-Definitionen aus core/config/layers_*.conf
-//    Immer laden: wird für details UND Legend-Info auf Leaf-Layern benötigt
-$layerData = ConfigReader::readAllLayerDefinitions();
-$layerDefinitions = $layerData['definitions'];
+// 3. Layer-Definitionen + NLS-Aliases: bei source=db aus config_bundle_store,
+//    sonst aus Core-Dateien (identische Scope-Reihenfolge wie SLM Tree-Builder).
+$layerDefinitions = [];
+$_nlsAliasesRuntime = []; // nlsKey => label
+$layerData = ['definitions' => [], 'path' => '', 'filesCount' => 0]; // Fallback fuer Debug-Meta
+
+// catalog_document-Aliases aus $conf nachladen (wurden vor dieser Zeile geparst
+// und in $conf gelesen, aber $conf ist jetzt bereinigt — direkt aus $doc lesen).
+if ($useCatalogDocument && isset($doc) && isset($doc['data']['__nlsAliases'])) {
+    foreach ($doc['data']['__nlsAliases'] as $k => $v) {
+        if (is_string($v) && $v !== '') $_nlsAliasesRuntime[$k] = $v;
+    }
+}
+
+if ($useCatalogDocument) {
+    // DB-Pfad: config_bundle_store analog zum SLM Tree-Builder
+    // loadAllSafe() statt loadAll() um Schema-DDL im Runtime-Kontext zu vermeiden.
+    try {
+        $scopeRank = ['core' => 1, 'override' => 2, 'sitecore' => 2, 'profile' => 3];
+        $bundles = StagingImportRepository::loadAllSafe();
+        usort($bundles, function ($a, $b) use ($scopeRank) {
+            $ra = $scopeRank[$a['scope'] ?? 'core'] ?? 1;
+            $rb = $scopeRank[$b['scope'] ?? 'core'] ?? 1;
+            if ($ra === $rb) return strcmp($a['kuerzel'], $b['kuerzel']);
+            return $ra - $rb;
+        });
+        foreach ($bundles as $bundle) {
+            $bScope = $bundle['scope'] ?? 'core';
+            $bProfile = $bundle['profile'] ?? null;
+            if ($bScope === 'profile') {
+                if (!$group || $bProfile !== $group) continue;
+            }
+            foreach (($bundle['files'] ?? []) as $file) {
+                $prefix = $file['prefix'] ?? '';
+                $data = $file['data'] ?? null;
+                if (!is_array($data) || empty($data)) continue;
+                if ($prefix === 'layers') {
+                    foreach ($data as $k => $v) {
+                        if (is_array($v)) $layerDefinitions[$k] = $v;
+                    }
+                } elseif ($prefix === 'lyrmgrResources') {
+                    foreach ($data as $k => $v) {
+                        if (is_string($v)) $_nlsAliasesRuntime[$k] = $v;
+                    }
+                }
+            }
+        }
+    } catch (\Throwable $e) {
+        error_log('layers.php: config_bundle_store Fehler: ' . $e->getMessage());
+    }
+    // Supplement: Core-Konfigurationsdateien zusätzlich laden (Bundle-Keys haben Vorrang).
+    // _missing = kein Eintrag in KEINER Quelle (weder Bundle noch Core-Datei).
+    $layerDataSupp = ConfigReader::readAllLayerDefinitions();
+    foreach ($layerDataSupp['definitions'] as $_suppKey => $_suppVal) {
+        if (!isset($layerDefinitions[$_suppKey])) {
+            $layerDefinitions[$_suppKey] = $_suppVal;
+        }
+    }
+    $layerData = $layerDataSupp;
+} else {
+    $layerData = ConfigReader::readAllLayerDefinitions();
+    $layerDefinitions = $layerData['definitions'];
+}
+
+// Profil-spezifische NLS-Datei nur im Datei-Modus nachladen.
+// In source=db ist catalog_document.__nlsAliases die Quelle der Wahrheit.
+if (!$useCatalogDocument) {
+    $_profileNlsBase = realpath(__DIR__ . '/../../../public/config') . '/';
+    $_profileNlsSafe = preg_replace('/[^a-zA-Z0-9_\-]/', '', $group);
+    $_profileNlsPath = ($_profileNlsSafe === 'public')
+        ? $_profileNlsBase . 'lyrmgrResources.json'
+        : $_profileNlsBase . $_profileNlsSafe . '/lyrmgrResources.json';
+    if (file_exists($_profileNlsPath)) {
+        $_profileNlsData = json_decode(file_get_contents($_profileNlsPath), true);
+        if (is_array($_profileNlsData)) {
+            $_nlsAliasesRuntime = array_merge($_nlsAliasesRuntime, $_profileNlsData);
+        }
+    }
+}
 
 // === Layer-Katalog aufbauen ===
 $categories = [];
@@ -551,7 +700,21 @@ foreach ($mapping['categories'] as $topCategory) {
 
     // Struktur innerhalb des Layer-Managers
     if (isset($lyrmgr['structure'])) {
-        foreach ($lyrmgr['structure'] as $categoryId => $categoryDef) {
+        $structureList = [];
+        if (array_keys($lyrmgr['structure']) === range(0, count($lyrmgr['structure']) - 1)) {
+            // Array-Format (mit _key)
+            foreach ($lyrmgr['structure'] as $entry) {
+                if (!is_array($entry)) continue;
+                $cid = $entry['_key'] ?? ($entry['key'] ?? ($entry['name'] ?? null));
+                if (!$cid) continue;
+                $structureList[$cid] = $entry;
+            }
+        } else {
+            // Objekt-Format
+            $structureList = $lyrmgr['structure'];
+        }
+
+        foreach ($structureList as $categoryId => $categoryDef) {
             // NLS-Lookup für Subcategory-Name, Fallback auf ucfirst
             $subName = getNlsLabel($categoryId);
             if (!$subName) $subName = ucfirst($categoryId);
@@ -563,7 +726,21 @@ foreach ($mapping['categories'] as $topCategory) {
             ];
 
             if (isset($categoryDef['items'])) {
-                foreach ($categoryDef['items'] as $groupId => $groupDef) {
+                $groupList = [];
+                if (array_keys($categoryDef['items']) === range(0, count($categoryDef['items']) - 1)) {
+                    // Array-Format (z.B. [{key,name,items}])
+                    foreach ($categoryDef['items'] as $grpEntry) {
+                        if (!is_array($grpEntry)) continue;
+                        $gid = $grpEntry['key'] ?? ($grpEntry['name'] ?? null);
+                        if (!$gid) continue;
+                        $groupList[$gid] = $grpEntry;
+                    }
+                } else {
+                    // Objekt-Format
+                    $groupList = $categoryDef['items'];
+                }
+
+                foreach ($groupList as $groupId => $groupDef) {
                     // NLS-Lookup für Gruppen-Name, Fallback auf extractLayerName
                     $grpName = getNlsLabel($groupId);
                     if (!$grpName) $grpName = extractLayerName($groupId);
@@ -590,15 +767,30 @@ foreach ($mapping['categories'] as $topCategory) {
                     }
 
                     if (isset($groupDef['items'])) {
-                        $groupData['layers'] = processLayerItems($groupDef['items'], $layerDefinitions, $details);
+                        $groupData['layers'] = processLayerItems($groupDef['items'], $layerDefinitions, $details, $filterMissing);
+                    }
+
+                    // Leere Gruppe (nach Missing-Filter) nicht übernehmen
+                    if ($filterMissing && empty($groupData['layers'])) {
+                        continue;
                     }
 
                     $subcategoryData['groups'][] = $groupData;
                 }
             }
 
+            // Leere Subcategory (nach Missing-Filter) nicht übernehmen
+            if ($filterMissing && empty($subcategoryData['groups'])) {
+                continue;
+            }
+
             $topCategoryData['subcategories'][] = $subcategoryData;
         }
+    }
+
+    // Leere Kategorie (nach Missing-Filter) nicht übernehmen
+    if ($filterMissing && empty($topCategoryData['subcategories'])) {
+        continue;
     }
 
     $categories[] = $topCategoryData;
@@ -619,7 +811,7 @@ if ($flat) {
         'count'      => count($flatLayers),
         'format'     => 'flat',
         'filteredBy' => $category,
-        'source'     => 'file'
+        'source'     => $lyrmgrSourceUsed
     ];
 
     if ($debug) {
@@ -632,13 +824,15 @@ if ($flat) {
 
     $elapsed = round((microtime(true) - $startTime) * 1000);
     $meta['responseTime'] = $elapsed . 'ms';
-    $meta['cache'] = 'miss';
+    $meta['cache'] = $bypassJsonCache ? 'bypass' : 'miss';
 
     // In Cache speichern
-    $cached = $cache->set($cacheKey, ['data' => $flatLayers, 'meta' => $meta]);
-    if (!$cached && $debug) {
-        $meta['cacheError'] = $cache->getLastError();
-        $meta['cacheWritable'] = $cache->isWritable();
+    if (!$bypassJsonCache) {
+        $cached = $cache->set($cacheKey, ['data' => $flatLayers, 'meta' => $meta]);
+        if (!$cached && $debug) {
+            $meta['cacheError'] = $cache->getLastError();
+            $meta['cacheWritable'] = $cache->isWritable();
+        }
     }
 
     // HTTP Caching
@@ -659,7 +853,7 @@ $meta = [
     'format'          => 'tree',
     'details'         => $details,
     'filteredBy'      => $category,
-    'source'          => 'file'
+    'source'          => $lyrmgrSourceUsed
 ];
 
 if ($debug) {
@@ -667,19 +861,23 @@ if ($debug) {
         'coreConfigPath'        => $layerData['path'],
         'layerFilesFound'       => $layerData['filesCount'],
         'layerDefinitionsCount' => count($layerDefinitions),
-        'availableGroups'       => ConfigReader::listGroups()
+        'availableGroups'       => ConfigReader::listGroups(),
+        'nlsAliasesRuntime'     => array_slice($_nlsAliasesRuntime, 0, 10, true),
+        'docHasNlsAliases'      => isset($doc) && isset($doc['data']['__nlsAliases']) ? array_keys($doc['data']['__nlsAliases']) : 'doc-not-set',
     ];
 }
 
 $elapsed = round((microtime(true) - $startTime) * 1000);
 $meta['responseTime'] = $elapsed . 'ms';
-$meta['cache'] = 'miss';
+$meta['cache'] = $bypassJsonCache ? 'bypass' : 'miss';
 
 // In Cache speichern
-$cached = $cache->set($cacheKey, ['data' => $result, 'meta' => $meta]);
-if (!$cached && $debug) {
-    $meta['cacheError'] = $cache->getLastError();
-    $meta['cacheWritable'] = $cache->isWritable();
+if (!$bypassJsonCache) {
+    $cached = $cache->set($cacheKey, ['data' => $result, 'meta' => $meta]);
+    if (!$cached && $debug) {
+        $meta['cacheError'] = $cache->getLastError();
+        $meta['cacheWritable'] = $cache->isWritable();
+    }
 }
 
 // HTTP Caching
@@ -698,7 +896,7 @@ ApiResponse::success($result, $meta);
  * @param array $layerDefinitions Layer-Definitionen aus layers_*.conf
  * @return array Verarbeitete Layer-Daten
  */
-function processLayerItems($items, &$layerDefinitions, $details = true) {
+function processLayerItems($items, &$layerDefinitions, $details = true, $filterMissing = true) {
     $layers = [];
 
     foreach ($items as $key => $item) {
@@ -712,6 +910,12 @@ function processLayerItems($items, &$layerDefinitions, $details = true) {
 
             // Layer-Definition laden (für Details ODER Legend-Info)
             $def = findLayerDefinition($item, $layerDefinitions);
+
+            // _missing: Layer-ID nicht in config_bundle_store vorhanden
+            if (!$def) {
+                if ($filterMissing) continue; // Layer komplett ausblenden
+                $layerData['_missing'] = true;
+            }
 
             if ($details && $def) {
                 $layerData['url']       = isset($def['url']) ? normalizeAppProxyUrl($def['url']) : null;
@@ -775,6 +979,11 @@ function processLayerItems($items, &$layerDefinitions, $details = true) {
             if (!isset($item['items'])) {
                 // Leaf-Layer: Definition laden für Details und/oder Legend-Info
                 $def = findLayerDefinition($item['name'], $layerDefinitions);
+                // _missing: Layer-ID nicht in config_bundle_store vorhanden
+                if (!$def) {
+                    if ($filterMissing) continue; // Layer komplett ausblenden
+                    $layerData['_missing'] = true;
+                }
                 if ($def) {
                     if ($details) {
                         $layerData['url']       = isset($def['url']) ? normalizeAppProxyUrl($def['url']) : null;
@@ -806,7 +1015,9 @@ function processLayerItems($items, &$layerDefinitions, $details = true) {
             }
 
             if (isset($item['items'])) {
-                $layerData['layers'] = processLayerItems($item['items'], $layerDefinitions, $details);
+                $layerData['layers'] = processLayerItems($item['items'], $layerDefinitions, $details, $filterMissing);
+                // Leere Gruppe (nach Missing-Filter) ausblenden
+                if ($filterMissing && empty($layerData['layers'])) continue;
             }
 
             $layers[] = $layerData;
@@ -837,7 +1048,9 @@ function processLayerItems($items, &$layerDefinitions, $details = true) {
             }
 
             if (isset($item['items'])) {
-                $layerData['layers'] = processLayerItems($item['items'], $layerDefinitions, $details);
+                $layerData['layers'] = processLayerItems($item['items'], $layerDefinitions, $details, $filterMissing);
+                // Leere Gruppe (nach Missing-Filter) ausblenden
+                if ($filterMissing && empty($layerData['layers'])) continue;
             }
 
             $layers[] = $layerData;
@@ -937,7 +1150,7 @@ function extractLayerName($layerId) {
 /**
  * Lädt ALLE NLS-Labels (lyrmgrResources*.json) und gibt den Display-Namen zurück.
  * Cacht die Dateien nach dem ersten Laden.
- * Pfad: Umgebungs-Core nls/de (DEV: core-dev, PROD: core).
+ * Pfad: Umgebungs-Core nls/de (DEV und PROD: core).
  * 
  * @param string $key  Schlüssel (z.B. 'grundlagen', 'gis_oereb/nw_nutzungsplanung_def')
  * @return string|null  NLS-Label oder null wenn nicht gefunden
@@ -946,7 +1159,7 @@ function getNlsLabel($key) {
     static $nls = null;
     if ($nls === null) {
         $nls = [];
-        // Basis: Umgebungs-Core (DEV: core-dev, PROD: core)
+  // Basis: Umgebungs-Core (DEV und PROD: core)
         $nlsDirBase = ConfigReader::getCoreNlsPath('de');
         if ($nlsDirBase && is_dir($nlsDirBase)) {
             foreach (glob($nlsDirBase . '/lyrmgrResources*.json') as $f) {
@@ -969,6 +1182,11 @@ function getNlsLabel($key) {
     }
     // Suche: desc_<key> (exakt)
     $lookupKey = 'desc_' . $key;
+    // DB-Aliases bevorzugen (aus config_bundle_store, geladen in $_nlsAliasesRuntime)
+    global $_nlsAliasesRuntime;
+    if (!empty($_nlsAliasesRuntime) && isset($_nlsAliasesRuntime[$lookupKey])) {
+        return $_nlsAliasesRuntime[$lookupKey];
+    }
     if (isset($nls[$lookupKey])) {
         return $nls[$lookupKey];
     }
@@ -1291,7 +1509,7 @@ function fetchLayerFromDb($layerId) {
  * @param bool  $details  Layer-Details einbeziehen
  * @return array           ['tree' => [...], 'stats' => ['layers' => int, 'groups' => int, 'nodes' => int]]
  */
-function buildCatalogTree(array $rows, bool $details): array {
+function buildCatalogTree(array $rows, bool $details, bool $filterMissing = true, ?array $importedLayerIds = null): array {
     $categories = [];  // catId → {id, name, icon, sort}
     $nodes = [];       // node_pk → node array
     $children = [];    // node_pk → [child node_pk, ...]
@@ -1383,6 +1601,15 @@ function buildCatalogTree(array $rows, bool $details): array {
 
         $nodes[$nodePk] = $node;
 
+        // _missing: Layer-Node dessen ID nicht in config_bundle_store importiert wurde.
+        // Wenn importedLayerIds = null (Tabelle nicht verfügbar) → kein _missing gesetzt.
+        $isMissingLayer = ($row['node_kind'] === 'layer')
+            && ($importedLayerIds !== null)
+            && !isset($importedLayerIds[$row['layer_id'] ?? '']);
+        if ($isMissingLayer) {
+            $nodes[$nodePk]['_missing'] = true;
+        }
+
         // Statistiken zählen
         if ($row['node_kind'] === 'layer') {
             $layerCount++;
@@ -1436,9 +1663,15 @@ function buildCatalogTree(array $rows, bool $details): array {
 
         if (isset($roots[$catId])) {
             foreach ($roots[$catId] as $rootPk) {
-                $catObj['nodes'][] = buildNodeTree($rootPk, $nodes, $children);
+                $built = buildNodeTree($rootPk, $nodes, $children, $filterMissing);
+                // Wenn filterMissing aktiv: leere/missing Root-Nodes nicht übernehmen
+                if ($filterMissing && !empty($built['_missing'])) continue;
+                $catObj['nodes'][] = $built;
             }
         }
+
+        // Leere Kategorien (nach Filterung) nicht ausgeben
+        if ($filterMissing && empty($catObj['nodes'])) continue;
 
         $result[] = $catObj;
     }
@@ -1470,20 +1703,32 @@ function buildCatalogTree(array $rows, bool $details): array {
  * Baut einen einzelnen Knoten mit allen Kindern rekursiv auf.
  * Arbeitet auf den bereits geladenen Hash-Maps → kein DB-Zugriff.
  * 
- * @param int   $nodePk   Primärschlüssel des Knotens
- * @param array &$nodes   Alle Knoten (node_pk → array)
- * @param array &$children Parent → [child_pk, ...]
- * @return array           Fertig aufgebauter Knoten mit 'layers'-Array
+ * @param int   $nodePk        Primärschlüssel des Knotens
+ * @param array &$nodes        Alle Knoten (node_pk → array)
+ * @param array &$children     Parent → [child_pk, ...]
+ * @param bool  $filterMissing Fehlende Layer-Nodes und leere Gruppen entfernen
+ * @return array               Fertig aufgebauter Knoten mit 'layers'-Array
  */
-function buildNodeTree(int $nodePk, array &$nodes, array &$children): array {
+function buildNodeTree(int $nodePk, array &$nodes, array &$children, bool $filterMissing = true): array {
     $node = $nodes[$nodePk];
 
     if (isset($children[$nodePk])) {
         $childNodes = [];
+        $allChildrenMissing = true;
         foreach ($children[$nodePk] as $childPk) {
-            $childNodes[] = buildNodeTree($childPk, $nodes, $children);
+            $child = buildNodeTree($childPk, $nodes, $children, $filterMissing);
+            if ($filterMissing && !empty($child['_missing'])) {
+                // fehlenden Child-Node überspringen
+                continue;
+            }
+            $allChildrenMissing = false;
+            $childNodes[] = $child;
         }
         $node['layers'] = $childNodes;
+        // Gruppen-Node ohne sichtbare Kinder → als _missing markieren (wird oben gefiltert)
+        if ($filterMissing && empty($childNodes) && isset($children[$nodePk])) {
+            $node['_missing'] = true;
+        }
     }
 
     return $node;

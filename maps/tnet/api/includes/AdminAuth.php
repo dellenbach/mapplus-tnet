@@ -1,346 +1,299 @@
 <?php
 /**
  * AdminAuth.php
- * Cookie-basierte Authentifizierung für Admin-Bereiche.
- * Analog FastAPI ags2mapplus_security.py — HMAC-signierte Cookies.
+ * Cookie-basierte Authentifizierung fuer Admin-Bereiche.
+ * Multi-User: Benutzer in admin-env.json, bcrypt-gesalzen.
  *
- * @version    1.0
- * @date       2026-04-13
+ * admin-env.json Format:
+ * {
+ *   "cookie_secret": "...",
+ *   "users": {
+ *     "administrator": {"hash":"...", "is_admin":true,  "must_change":false, "updated":"..."},
+ *     "del":           {"hash":"...", "is_admin":false, "must_change":false, "updated":"..."},
+ *     ...
+ *   }
+ * }
+ *
+ * @version    2.0
+ * @date       2026-06-08
  * @copyright  Trigonet AG
  * @author     Marco Dellenbach
  */
 
 class AdminAuth {
 
-    const COOKIE_NAME = 'tnet_admin';
+    const COOKIE_NAME    = 'tnet_admin';
     const COOKIE_MAX_AGE = 8 * 3600; // 8 Stunden
+    const KNOWN_USERS    = ['admin', 'del', 'mar', 'amr', 'wmi', 'brm', 'mam'];
+
+    // ===== PFAD-HELFER =====
 
     private static function getAppBasePath() {
-        $scriptName = $_SERVER['SCRIPT_NAME'] ?? '';
+        $scriptName  = $_SERVER['SCRIPT_NAME'] ?? '';
         $appBasePath = rtrim(str_replace('\\', '/', dirname(dirname(dirname(dirname($scriptName))))), '/');
-        if ($appBasePath === '' || $appBasePath === '.') {
-            $appBasePath = '';
-        }
-        return $appBasePath;
+        return ($appBasePath === '' || $appBasePath === '.') ? '' : $appBasePath;
     }
 
-    public static function getClientDataRoot() {
-        return '/data/Client_Data/nwow';
-    }
+    public static function getClientDataRoot() { return '/data/Client_Data/nwow'; }
 
     private static function getTmpRoot() {
         return self::getClientDataRoot() . '/tmp/' . (self::getAppBasePath() === '/maps-dev' ? 'maps-dev' : 'maps');
     }
 
-    public static function getConfigFilePath() {
-        return self::getTmpRoot() . '/admin-env.json';
-    }
+    public static function getConfigFilePath()       { return self::getTmpRoot() . '/admin-env.json';     }
+    public static function getAccessConfigFilePath() { return self::getTmpRoot() . '/access-config.json'; }
 
-    public static function getAccessConfigFilePath() {
-        return self::getTmpRoot() . '/access-config.json';
-    }
-    
     private static function getCookiePath() {
-        $appBasePath = self::getAppBasePath();
-        return ($appBasePath !== '' ? $appBasePath : '') . '/tnet/api/';
+        return (self::getAppBasePath() ?: '') . '/tnet/api/';
     }
 
-    /**
-     * Konfiguration lesen (Passwort-Hash + Cookie-Secret)
-     */
+    // ===== KONFIG LESEN/SCHREIBEN =====
+
     private static function getConfig() {
-        $configFile = self::getConfigFilePath();
-        if (file_exists($configFile)) {
-            $data = json_decode(file_get_contents($configFile), true);
-            if ($data && isset($data['password_hash'])) {
-                return $data;
+        $file = self::getConfigFilePath();
+        if (!file_exists($file)) return null;
+        $data = json_decode(file_get_contents($file), true);
+        return is_array($data) ? $data : null;
+    }
+
+    private static function saveConfig(array $config) {
+        $file = self::getConfigFilePath();
+        $dir  = dirname($file);
+        if (!is_dir($dir) && !@mkdir($dir, 0755, true)) return false;
+        if (!is_writable($dir)) return false;
+        return @file_put_contents($file, json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE), LOCK_EX) !== false;
+    }
+
+    private static function getCookieSecret() {
+        $config = self::getConfig();
+        return $config['cookie_secret'] ?? '';
+    }
+
+    // ===== SETUP-PRUEFUNG =====
+
+    /** Ist mindestens ein Benutzer mit Passwort angelegt? */
+    public static function isSetup() {
+        $config = self::getConfig();
+        if (!$config) return false;
+        if (isset($config['users'])) {
+            foreach ($config['users'] as $u) {
+                if (!empty($u['hash'])) return true;
             }
-        }
-        return null;
-    }
-
-    /**
-     * Zugriffsschutz-Konfiguration lesen (IP-Whitelist)
-     */
-    private static function getAccessConfig() {
-        $configFile = self::getAccessConfigFilePath();
-        if (!file_exists($configFile)) {
-            return null;
-        }
-        $data = json_decode(file_get_contents($configFile), true);
-        if (!$data) {
-            return null;
-        }
-
-        if (!isset($data['ips']) || !is_array($data['ips'])) {
-            $data['ips'] = [];
-        }
-        if (!isset($data['endpoints']) || !is_array($data['endpoints'])) {
-            $data['endpoints'] = [];
-        }
-
-        return $data;
-    }
-
-    /**
-     * Prüft ob eine IP zu einem Pattern passt (exakt oder mit *-Wildcard)
-     */
-    private static function ipMatchesPattern($ip, $pattern) {
-        if ($ip === '' || $pattern === '') {
             return false;
         }
-        if (strpos($pattern, '*') === false) {
-            return $ip === $pattern;
-        }
-        $regex = '/^' . str_replace('\\*', '.*', preg_quote($pattern, '/')) . '$/';
-        return preg_match($regex, $ip) === 1;
+        return isset($config['password_hash']); // Legacy
     }
 
-    /**
-     * Prüft ob die aktuelle Client-IP in der Whitelist steht.
-     */
-    public static function isWhitelistedIp() {
-        $cfg = self::getAccessConfig();
-        if (!$cfg) return false;
+    /** Hat ein bestimmter Benutzer bereits ein Passwort gesetzt? */
+    public static function userHasPassword($username) {
+        $config = self::getConfig();
+        if (!$config || !isset($config['users'][$username])) return false;
+        return !empty($config['users'][$username]['hash']);
+    }
 
-        $clientIp = self::getClientIp();
-        if (!$clientIp || $clientIp === 'unknown') return false;
+    /** Muss der Benutzer sein Passwort beim naechsten Login aendern? */
+    public static function userMustChange($username) {
+        $config = self::getConfig();
+        if (!$config || !isset($config['users'][$username])) return false;
+        return !empty($config['users'][$username]['must_change']);
+    }
 
-        // Blockliste hat Vorrang vor Whitelist/Wildcards
-        $blocked = $cfg['blocked_ips'] ?? [];
-        if (is_array($blocked)) {
-            foreach ($blocked as $pattern) {
-                $pattern = trim((string)$pattern);
-                if ($pattern === '') continue;
-                if (self::ipMatchesPattern($clientIp, $pattern)) {
-                    return false;
-                }
+    /** Hat der Benutzer Admin-Rechte? */
+    public static function isAdmin($username = '') {
+        if ($username === '') $username = self::getCurrentUser();
+        if ($username === 'admin') return true;
+        $config = self::getConfig();
+        if (!$config || !isset($config['users'][$username])) return false;
+        return !empty($config['users'][$username]['is_admin']);
+    }
+
+    // ===== USER-VERWALTUNG =====
+
+    /** Alle Benutzer auflisten (bekannte + angelegte). */
+    public static function listUsers() {
+        $config   = self::getConfig();
+        $result   = [];
+        $existing = [];
+        if ($config && isset($config['users'])) {
+            foreach ($config['users'] as $username => $data) {
+                $existing[] = $username;
+                $result[] = [
+                    'username'    => $username,
+                    'has_password'=> !empty($data['hash']),
+                    'is_admin'    => ($username === 'admin' || !empty($data['is_admin'])),
+                    'must_change' => !empty($data['must_change']),
+                    'updated'     => $data['updated'] ?? null,
+                ];
             }
         }
-
-        foreach ($cfg['ips'] as $entry) {
-            if (!isset($entry['ip'])) continue;
-            $pattern = trim((string)$entry['ip']);
-            if ($pattern === '') continue;
-            if (self::ipMatchesPattern($clientIp, $pattern)) {
-                return true;
+        // Bekannte User ohne Eintrag ergaenzen
+        foreach (self::KNOWN_USERS as $u) {
+            if (!in_array($u, $existing, true)) {
+                $result[] = [
+                    'username'    => $u,
+                    'has_password'=> false,
+                    'is_admin'    => ($u === 'admin'),
+                    'must_change' => false,
+                    'updated'     => null,
+                ];
             }
+        }
+        usort($result, function ($a, $b) {
+            if ($a['username'] === 'admin') return -1;
+            if ($b['username'] === 'admin') return 1;
+            return strcmp($a['username'], $b['username']);
+        });
+        return $result;
+    }
+
+    /** Passwort eines Benutzers setzen (Ersteinrichtung oder Aenderung). */
+    public static function setUserPassword($username, $password, $mustChange = false) {
+        $username = preg_replace('/[^a-zA-Z0-9_]/', '', $username);
+        if ($username === '') return false;
+        $config = self::getConfig() ?: [];
+        if (!isset($config['cookie_secret'])) $config['cookie_secret'] = bin2hex(random_bytes(32));
+        if (!isset($config['users']))         $config['users']         = [];
+        $isAdmin = ($username === 'admin' || !empty($config['users'][$username]['is_admin']));
+        $config['users'][$username] = [
+            'hash'        => password_hash($password, PASSWORD_BCRYPT),
+            'is_admin'    => $isAdmin,
+            'must_change' => (bool)$mustChange,
+            'updated'     => date('c'),
+        ];
+        return self::saveConfig($config);
+    }
+
+    /** Admin-Rechte eines Benutzers setzen (nur Administrator darf das). */
+    public static function setUserAdmin($username, $isAdmin) {
+        if ($username === 'admin') return false; // unveraenderbar
+        $config = self::getConfig();
+        if (!$config || !isset($config['users'][$username])) return false;
+        $config['users'][$username]['is_admin'] = (bool)$isAdmin;
+        return self::saveConfig($config);
+    }
+
+    /** must_change-Flag setzen (Admin fordert Passwort-Reset). */
+    public static function setMustChange($username, $mustChange) {
+        $config = self::getConfig();
+        if (!$config) return false;
+        if (!isset($config['users'][$username])) {
+            $config['users'][$username] = [
+                'hash'        => null,
+                'is_admin'    => false,
+                'must_change' => (bool)$mustChange,
+                'updated'     => date('c'),
+            ];
+        } else {
+            $config['users'][$username]['must_change'] = (bool)$mustChange;
+        }
+        return self::saveConfig($config);
+    }
+
+    /** Benutzer loeschen (ausser administrator). */
+    public static function deleteUser($username) {
+        if ($username === 'admin') return false;
+        $config = self::getConfig();
+        if (!$config || !isset($config['users'][$username])) return false;
+        unset($config['users'][$username]);
+        return self::saveConfig($config);
+    }
+
+    // ===== PASSWORT-PRUEFUNG =====
+
+    /** Passwort eines konkreten Benutzers pruefen. */
+    public static function verifyUserPassword($username, $password) {
+        $config = self::getConfig();
+        if (!$config) return false;
+        if (!empty($config['users'][$username]['hash'])) {
+            return password_verify($password, $config['users'][$username]['hash']);
+        }
+        // Legacy: kein Benutzername, globales Passwort
+        if ($username === '' && isset($config['password_hash'])) {
+            return password_verify($password, $config['password_hash']);
         }
         return false;
     }
 
-    /**
-     * Prüft ob ein Endpoint im Modus "Geschützt mit IP-Freigabe" ist.
-     */
-    public static function endpointAllowsWhitelistedIp($endpointName, $type = 'php') {
-        $cfg = self::getAccessConfig();
-        if (!$cfg || !isset($cfg['endpoints']) || !is_array($cfg['endpoints'])) {
-            return false;
-        }
-
-        $type = strtolower((string)$type);
-        $endpointName = trim((string)$endpointName);
-        if ($endpointName === '') {
-            return false;
-        }
-
-        $key = ($type === 'html') ? 'restricted_with_ip_html' : 'restricted_with_ip_php';
-        $list = $cfg['endpoints'][$key] ?? [];
-        if (!is_array($list)) {
-            return false;
-        }
-
-        return in_array($endpointName, $list, true);
-    }
-
-    /**
-     * Erzwingt Endpoint-Policy gemäss access-config.json.
-     * - restricted                → Cookie-Auth
-     * - restricted_with_ip        → Cookie-Auth ODER Whitelist-IP
-     * - cache_post_only           → nur POST benötigt Cookie-Auth
-     * - public                    → frei
-     */
-    public static function enforceEndpointPolicy($endpointName, $type = 'php') {
-        $cfg = self::getAccessConfig();
-        if (!$cfg || !isset($cfg['endpoints']) || !is_array($cfg['endpoints'])) {
-            // Fallback ohne access-config: konservativ schützen
-            self::requireAuth(false);
-            return;
-        }
-
-        $ep = $cfg['endpoints'];
-        $name = trim((string)$endpointName);
-        $type = strtolower((string)$type);
-        $method = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
-
-        $restrictedHtml = $ep['restricted_html'] ?? [];
-        $restrictedPhp = $ep['restricted_php'] ?? [];
-        $restrictedWithIpHtml = $ep['restricted_with_ip_html'] ?? [];
-        $restrictedWithIpPhp = $ep['restricted_with_ip_php'] ?? [];
-        $cachePostOnly = $ep['cache_post_only'] ?? [];
-
-        if (!is_array($restrictedHtml)) $restrictedHtml = [];
-        if (!is_array($restrictedPhp)) $restrictedPhp = [];
-        if (!is_array($restrictedWithIpHtml)) $restrictedWithIpHtml = [];
-        if (!is_array($restrictedWithIpPhp)) $restrictedWithIpPhp = [];
-        if (!is_array($cachePostOnly)) $cachePostOnly = [];
-
-        if ($type === 'html') {
-            if (in_array($name, $restrictedWithIpHtml, true)) {
-                self::requireAuth(true);
-                return;
-            }
-            if (in_array($name, $restrictedHtml, true)) {
-                self::requireAuth(false);
-                return;
-            }
-            return;
-        }
-
-        // PHP-Endpunkte
-        if (in_array($name, $restrictedWithIpPhp, true)) {
-            self::requireAuth(true);
-            return;
-        }
-        if (in_array($name, $restrictedPhp, true)) {
-            self::requireAuth(false);
-            return;
-        }
-        if (in_array($name, $cachePostOnly, true) && $method === 'POST') {
-            self::requireAuth(false);
-            return;
-        }
-        // public / nicht klassifiziert: keine Auth erzwingen
-    }
-
-    /**
-     * Prüft ob die Ersteinrichtung bereits erfolgt ist
-     */
-    public static function isSetup() {
-        return self::getConfig() !== null;
-    }
-
-    /**
-     * Ersteinrichtung: Passwort hashen und Config erstellen
-     */
-    public static function setup($password) {
-        if (strlen($password) < 8) {
-            return false;
-        }
-        $config = [
-            'password_hash' => password_hash($password, PASSWORD_BCRYPT),
-            'cookie_secret' => bin2hex(random_bytes(32)),
-            'created' => date('c'),
-        ];
-        $configFile = self::getConfigFilePath();
-        $dir = dirname($configFile);
-        
-        // Verzeichnis prüfen und erstellen
-        if (!is_dir($dir)) {
-            if (!@mkdir($dir, 0755, true)) {
-                error_log('AdminAuth::setup() - Verzeichnis konnte nicht erstellt werden: ' . $dir);
-                return false;
-            }
-        }
-        
-        // Schreibberechtigung prüfen
-        if (!is_writable($dir)) {
-            error_log('AdminAuth::setup() - Verzeichnis nicht beschreibbar: ' . $dir . ' (Berechtigungen: ' . substr(sprintf('%o', fileperms($dir)), -4) . ')');
-            return false;
-        }
-        
-        // Datei schreiben
-        $result = @file_put_contents(
-            $configFile,
-            json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE),
-            LOCK_EX
-        );
-        
-        if ($result === false) {
-            error_log('AdminAuth::setup() - Datei konnte nicht geschrieben werden: ' . $configFile);
-            return false;
-        }
-        
-        return true;
-    }
-
-    /**
-     * Passwort gegen gespeicherten Hash prüfen
-     */
+    /** Abwaertskompatibel: globales Passwort pruefen. */
     public static function verifyPassword($password) {
         $config = self::getConfig();
         if (!$config) return false;
-        return password_verify($password, $config['password_hash']);
+        if (isset($config['password_hash'])) return password_verify($password, $config['password_hash']);
+        return false;
     }
 
-    /**
-     * Signierter Cookie-Wert erzeugen (Timestamp:HMAC)
-     */
-    public static function createCookieValue() {
-        $config = self::getConfig();
-        if (!$config) return '';
-        $timestamp = (string)time();
-        $signature = hash_hmac('sha256', $timestamp, $config['cookie_secret']);
-        return $timestamp . ':' . $signature;
+    /** Legacy-Setup: globales Einzelpasswort. */
+    public static function setup($password) {
+        $existing = self::getConfig();
+        $config = [
+            'password_hash' => password_hash($password, PASSWORD_BCRYPT),
+            'cookie_secret' => $existing['cookie_secret'] ?? bin2hex(random_bytes(32)),
+            'users'         => $existing['users'] ?? [],
+            'created'       => $existing['created'] ?? date('c'),
+        ];
+        return self::saveConfig($config);
     }
 
-    /**
-     * Auth-Cookie setzen
-     */
-    public static function setAuthCookie() {
-        $value = self::createCookieValue();
-        setcookie(self::COOKIE_NAME, $value, [
-            'expires' => time() + self::COOKIE_MAX_AGE,
-            'path' => self::getCookiePath(),
-            'secure' => true,
+    // ===== COOKIE (Format: "username:timestamp:HMAC") =====
+
+    public static function createCookieValue($username = '') {
+        $secret = self::getCookieSecret();
+        if (!$secret) return '';
+        $ts      = (string)time();
+        $payload = $username . ':' . $ts;
+        return $payload . ':' . hash_hmac('sha256', $payload, $secret);
+    }
+
+    public static function setAuthCookie($username = '') {
+        setcookie(self::COOKIE_NAME, self::createCookieValue($username), [
+            'expires'  => time() + self::COOKIE_MAX_AGE,
+            'path'     => self::getCookiePath(),
+            'secure'   => true,
             'httponly' => true,
             'samesite' => 'Strict',
         ]);
     }
 
-    /**
-     * Auth-Cookie löschen (Logout)
-     */
     public static function clearAuthCookie() {
         setcookie(self::COOKIE_NAME, '', [
-            'expires' => time() - 3600,
-            'path' => self::getCookiePath(),
-            'secure' => true,
+            'expires'  => time() - 3600,
+            'path'     => self::getCookiePath(),
+            'secure'   => true,
             'httponly' => true,
         ]);
     }
 
-    /**
-     * Prüft ob der aktuelle Request authentifiziert ist (gültiger Cookie)
-     */
     public static function isAuthenticated($allowWhitelistedIp = false) {
-        if ($allowWhitelistedIp && self::isWhitelistedIp()) {
-            return true;
-        }
-
+        if ($allowWhitelistedIp && self::isWhitelistedIp()) return true;
         $cookie = $_COOKIE[self::COOKIE_NAME] ?? '';
         if (!$cookie) return false;
-
-        $parts = explode(':', $cookie, 2);
-        if (count($parts) !== 2) return false;
-
-        $timestamp = (int)$parts[0];
-        $signature = $parts[1];
-
-        // Ablauf prüfen
-        if (time() - $timestamp > self::COOKIE_MAX_AGE) return false;
-
-        // Signatur prüfen
-        $config = self::getConfig();
-        if (!$config) return false;
-
-        $expected = hash_hmac('sha256', (string)$timestamp, $config['cookie_secret']);
-        return hash_equals($expected, $signature);
+        $secret = self::getCookieSecret();
+        if (!$secret) return false;
+        $parts = explode(':', $cookie);
+        // Neues Format: user:ts:hmac
+        if (count($parts) === 3) {
+            [$user, $ts, $sig] = $parts;
+            if (time() - (int)$ts > self::COOKIE_MAX_AGE) return false;
+            return hash_equals(hash_hmac('sha256', $user . ':' . $ts, $secret), $sig);
+        }
+        // Legacy: ts:hmac
+        if (count($parts) === 2) {
+            [$ts, $sig] = $parts;
+            if (time() - (int)$ts > self::COOKIE_MAX_AGE) return false;
+            return hash_equals(hash_hmac('sha256', $ts, $secret), $sig);
+        }
+        return false;
     }
 
-    /**
-     * Erzwingt Authentifizierung — Redirect zu Login bei fehlendem Cookie
-     */
+    /** Eingeloggten Benutzernamen aus Cookie lesen (leer bei Legacy/anonym). */
+    public static function getCurrentUser() {
+        $cookie = $_COOKIE[self::COOKIE_NAME] ?? '';
+        if (!$cookie) return '';
+        $parts = explode(':', $cookie);
+        if (count($parts) === 3 && self::isAuthenticated()) return $parts[0];
+        return '';
+    }
+
     public static function requireAuth($allowWhitelistedIp = false) {
         if (!self::isAuthenticated($allowWhitelistedIp)) {
             $redirect = $_SERVER['REQUEST_URI'] ?? '';
@@ -349,26 +302,77 @@ class AdminAuth {
         }
     }
 
-    /**
-     * Client-IP ermitteln (X-Forwarded-For-aware)
-     */
+    // ===== IP-WHITELIST =====
+
+    private static function getAccessConfig() {
+        $file = self::getAccessConfigFilePath();
+        if (!file_exists($file)) return null;
+        $data = json_decode(file_get_contents($file), true);
+        if (!$data) return null;
+        if (!isset($data['ips']))       $data['ips']       = [];
+        if (!isset($data['endpoints'])) $data['endpoints'] = [];
+        return $data;
+    }
+
+    private static function ipMatchesPattern($ip, $pattern) {
+        if ($ip === '' || $pattern === '') return false;
+        if (strpos($pattern, '*') === false) return $ip === $pattern;
+        return (bool)preg_match('/^' . str_replace('\\*', '.*', preg_quote($pattern, '/')) . '$/', $ip);
+    }
+
+    public static function isWhitelistedIp() {
+        $cfg = self::getAccessConfig();
+        if (!$cfg) return false;
+        $ip = self::getClientIp();
+        if (!$ip || $ip === 'unknown') return false;
+        foreach (($cfg['blocked_ips'] ?? []) as $p) {
+            if (self::ipMatchesPattern($ip, trim((string)$p))) return false;
+        }
+        foreach ($cfg['ips'] as $entry) {
+            if (!isset($entry['ip'])) continue;
+            if (self::ipMatchesPattern($ip, trim((string)$entry['ip']))) return true;
+        }
+        return false;
+    }
+
+    public static function endpointAllowsWhitelistedIp($endpointName, $type = 'php') {
+        $cfg = self::getAccessConfig();
+        if (!$cfg || !isset($cfg['endpoints'])) return false;
+        $key  = (strtolower($type) === 'html') ? 'restricted_with_ip_html' : 'restricted_with_ip_php';
+        $list = $cfg['endpoints'][$key] ?? [];
+        return is_array($list) && in_array(trim((string)$endpointName), $list, true);
+    }
+
+    public static function enforceEndpointPolicy($endpointName, $type = 'php') {
+        $cfg = self::getAccessConfig();
+        if (!$cfg || !isset($cfg['endpoints'])) { self::requireAuth(false); return; }
+        $ep     = $cfg['endpoints'];
+        $name   = trim((string)$endpointName);
+        $type   = strtolower((string)$type);
+        $method = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
+        $rHtml   = is_array($ep['restricted_html']         ?? null) ? $ep['restricted_html']         : [];
+        $rPhp    = is_array($ep['restricted_php']          ?? null) ? $ep['restricted_php']          : [];
+        $rIpHtml = is_array($ep['restricted_with_ip_html'] ?? null) ? $ep['restricted_with_ip_html'] : [];
+        $rIpPhp  = is_array($ep['restricted_with_ip_php']  ?? null) ? $ep['restricted_with_ip_php']  : [];
+        $cPost   = is_array($ep['cache_post_only']         ?? null) ? $ep['cache_post_only']         : [];
+        if ($type === 'html') {
+            if (in_array($name, $rIpHtml, true)) { self::requireAuth(true);  return; }
+            if (in_array($name, $rHtml,   true)) { self::requireAuth(false); return; }
+            return;
+        }
+        if (in_array($name, $rIpPhp, true)) { self::requireAuth(true);  return; }
+        if (in_array($name, $rPhp,   true)) { self::requireAuth(false); return; }
+        if (in_array($name, $cPost,  true) && $method === 'POST') { self::requireAuth(false); return; }
+    }
+
     public static function getClientIp() {
         if (!empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
             $ip = trim(explode(',', $_SERVER['HTTP_X_FORWARDED_FOR'])[0]);
         } else {
             $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
         }
-
-        // IPv4-Port entfernen falls vorhanden (z.B. 10.0.0.5:52341)
-        if (preg_match('/^\d{1,3}(?:\.\d{1,3}){3}:\d+$/', $ip)) {
-            $ip = explode(':', $ip)[0];
-        }
-
-        // IPv6 in [addr]:port-Form normalisieren
-        if (preg_match('/^\[(.+)\]:\d+$/', $ip, $m)) {
-            $ip = $m[1];
-        }
-
+        if (preg_match('/^\d{1,3}(?:\.\d{1,3}){3}:\d+$/', $ip)) $ip = explode(':', $ip)[0];
+        if (preg_match('/^\[(.+)\]:\d+$/', $ip, $m)) $ip = $m[1];
         return $ip;
     }
 }

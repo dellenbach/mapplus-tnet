@@ -15,13 +15,13 @@
     },
     {
       "id": "bund",
-      "name": "Bund",
+      "name": "Bundesdaten",
       "lyrmgr": "third_lyrmgr",
       "icon": "njsCategoryIcon5"
     },
     {
       "id": "weitere",
-      "name": "Weitere",
+      "name": "Weitere Geodaten",
       "lyrmgr": "forth_lyrmgr",
       "icon": "njsCategoryIcon7"
     }

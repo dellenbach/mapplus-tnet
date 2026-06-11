@@ -18,11 +18,9 @@ class JsonCache {
     
     /** @var string|null Letzte Fehlermeldung */
     private ?string $lastError = null;
-    
-    /** @var string Beschreibbares Datenverzeichnis für Cache */
-    private const DATA_CACHE_DIR = '/data/Client_Data/nwow/tmp/maps-dev/api-cache';
-    
+
     public function __construct(?string $cacheDir = null) {
+        require_once __DIR__ . '/TmpPaths.php';
         $preferredDir = $cacheDir ?? __DIR__ . '/../cache';
         
         // 1. Bevorzugt: lokales cache/ Verzeichnis (wenn beschreibbar)
@@ -40,8 +38,8 @@ class JsonCache {
             return;
         }
         
-        // 2. Fallback: /data/Client_Data/nwow/tmp/maps-dev/api-cache/ (beschreibbar für www-data)
-        $dataDir = self::DATA_CACHE_DIR;
+        // 2. Fallback: Tmp-Pfad api-cache (beschreibbar für www-data)
+        $dataDir = TnetTmpPaths::cache('api-cache');
         if (!is_dir($dataDir)) {
             @mkdir($dataDir, 0775, true);
         }

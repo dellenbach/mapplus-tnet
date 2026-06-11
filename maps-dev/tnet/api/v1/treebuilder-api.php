@@ -4884,6 +4884,7 @@ function listAllBackups() {
             elseif  (preg_match('/^profile_/', $f))             $type = 'profile';
             elseif  (preg_match('/^lyrmgrResources_/', $f))     $type = 'nls';
             elseif  (preg_match('/^legendResources_/', $f))     $type = 'legend';
+            elseif  (preg_match('/^bookmarks_/', $f))           $type = 'bookmarks';
 
             $ts = '';
             if (preg_match('/(\d{8}_\d{6})/', $f, $m)) {
@@ -6466,6 +6467,36 @@ switch ($action) {
         ]]);
         break;
 
+    // ── Sync: Status-Überblick DEV ↔ PROD ──
+    case 'sync-status':
+        require_once __DIR__ . '/../includes/SyncRepository.php';
+        try {
+            $status = SyncRepository::getStatus();
+            jsonResponse(['success' => true, 'data' => $status]);
+        } catch (\Throwable $e) {
+            jsonError('Sync-Status Fehler: ' . $e->getMessage(), 500);
+        }
+        break;
+
+    // ── Sync: Operation ausführen ──
+    case 'sync-execute':
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('POST erwartet', 405);
+        $syncBody = json_decode(file_get_contents('php://input'), true);
+        if (!$syncBody) jsonError('Ungültiger JSON-Body', 400);
+        $syncDomain    = $syncBody['domain']    ?? '';
+        $syncDirection = $syncBody['direction'] ?? '';
+        $syncKeys      = isset($syncBody['keys']) && is_array($syncBody['keys']) ? $syncBody['keys'] : null;
+        $syncUser      = $syncBody['user'] ?? (getEditorName() ?: 'anonym');
+        if (!$syncDomain || !$syncDirection) jsonError('domain und direction erforderlich', 400);
+        require_once __DIR__ . '/../includes/SyncRepository.php';
+        try {
+            $syncResult = SyncRepository::execute($syncDomain, $syncDirection, $syncKeys, $syncUser);
+            jsonResponse(['success' => true, 'data' => $syncResult, 'domain' => $syncDomain, 'direction' => $syncDirection]);
+        } catch (\Throwable $e) {
+            jsonError('Sync-Fehler: ' . $e->getMessage(), 500);
+        }
+        break;
+
     // ── Deployed-Conf: Einzelne Datei lesen (für Editor-Ansicht) ──
     case 'read-deployed-conf':
         $file    = $_GET['file'] ?? '';
@@ -7293,6 +7324,62 @@ switch ($action) {
     // =================================================================
     // BOOKMARKS — Soft-Lock (UI-Hinweis fuer Mehrbenutzer-Editing)
     // =================================================================
+
+    case 'bookmarks-backup-create':
+        // Explizit ausgelöstes Backup (via UI-Button) — sichert aktuellen DB/Datei-Stand
+        require_once __DIR__ . '/../includes/BookmarkNormalizer.php';
+        require_once __DIR__ . '/../includes/ConfigSource.php';
+        $backupUser  = (string)($_GET['user'] ?? json_decode(file_get_contents('php://input') ?: '{}', true)['user'] ?? 'anonym');
+        $backupLabel = preg_replace('/[^a-zA-Z0-9_\-]/', '', $backupUser ?: 'anonym');
+        $bmData = [];
+        if (ConfigSource::useDb('bookmarks')) {
+            require_once __DIR__ . '/../includes/BookmarkRepository.php';
+            try {
+                $bm = BookmarkRepository::loadAll();
+                $bmData = $bm['data'] ?? [];
+            } catch (\Throwable $e) { /* Fallback auf Datei */ }
+        }
+        if (empty($bmData)) {
+            $bmDraftFile = TNET_TMP_ROOT . '/bookmarks/map-bookmarks-all.json';
+            if (file_exists($bmDraftFile)) {
+                $raw = @file_get_contents($bmDraftFile);
+                if ($raw !== false) $bmData = json_decode($raw, true) ?: [];
+            }
+        }
+        $bmData = BookmarkNormalizer::normalizeAll(is_array($bmData) ? $bmData : []);
+        ensureDirs();
+        $ts = date('Ymd_His');
+        $backupPath = BACKUP_DIR . '/bookmarks_' . $backupLabel . '_' . $ts . '.json';
+        $json = json_encode($bmData, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        $written = @file_put_contents($backupPath, $json);
+        if ($written === false) jsonError('Backup konnte nicht geschrieben werden: ' . $backupPath, 500);
+        jsonResponse([
+            'success'    => true,
+            'file'       => basename($backupPath),
+            'count'      => count($bmData),
+            'bytes'      => $written,
+            'timestamp'  => $ts,
+            'user'       => $backupUser
+        ]);
+        break;
+
+    case 'restore-bookmark-backup':
+        // Lädt ein Bookmark-Backup als JSON-Array zurück an den Client (kein Server-Restore)
+        require_once __DIR__ . '/../includes/BookmarkNormalizer.php';
+        $bmBackupFile = $_GET['file'] ?? '';
+        if (!$bmBackupFile || strpos($bmBackupFile, '..') !== false || strpos($bmBackupFile, '/') !== false) {
+            jsonError('Ungültiger Dateiname', 400);
+        }
+        $bmBackupPath = BACKUP_DIR . '/' . $bmBackupFile;
+        if (!file_exists($bmBackupPath)) jsonError('Backup nicht gefunden: ' . $bmBackupFile, 404);
+        $raw = @file_get_contents($bmBackupPath);
+        if ($raw === false) jsonError('Lesefehler: ' . $bmBackupFile, 500);
+        $parsed = json_decode($raw, true);
+        if (!is_array($parsed)) jsonError('Ungültiges JSON im Backup', 400);
+        $normalized = BookmarkNormalizer::normalizeAll($parsed);
+        jsonResponse(['success' => true, 'data' => $normalized, 'count' => count($normalized), 'file' => $bmBackupFile]);
+        break;
+
     case 'bookmarks-lock-status':
         require_once __DIR__ . '/../includes/ConfigSource.php';
         if (!ConfigSource::useDb('bookmarks')) {
