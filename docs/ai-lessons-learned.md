@@ -12,6 +12,13 @@
 - **Fix:** Alias-Mapping pro Kategorie ergänzt und `title`/`alt` beim Rendern der Tab-Icons auf Alias (Fallback `cat.alias`/`cat.name`) gesetzt.
 - **Guardrail:** Bei reinen Icon-Tabs immer explizit einen semantischen Tooltip (`title`) und einen aussagekräftigen `alt`-Text setzen.
 
+## 2026-06-11 — DOM-Element entfernt aber addEventListener-Aufruf vergessen
+
+- **Symptom:** Seite/iframe lädt nicht mehr, JS komplett stumm.
+- **Root-Cause:** `document.getElementById('removed-btn').addEventListener(...)` wirft `TypeError: null` und crasht den gesamten Init-Block.
+- **Fix:** Immer null-safe: `var btn = getElementById('x'); if (btn) btn.addEventListener(...)`.
+- **Guardrail:** Beim Entfernen von HTML-Elementen immer grep nach dem `id=` im JS machen und alle Listener null-safe stellen.
+
 ## 2026-06-11 — Modaldialoge schliessen bei Text-Selektion in Input-Feldern
 
 - **Symptom:** Beim Versuch, Text in Input/Textarea-Feldern eines Dialogs mit der Maus zu markieren, schloss sich der Dialog spontan.
