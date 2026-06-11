@@ -604,7 +604,11 @@ function loadLyrmgrConf($profile) {
     if ($data === null) {
         return ['exists' => true, 'error' => 'JSON parse error: ' . json_last_error_msg(), 'path' => $path];
     }
-    $lyrmgrKeys = array_keys($data);
+    // Meta-Schlüssel aus der Conf herausfiltern (keine echten LyrMgr-Blöcke)
+    $skipKeys = ['_nlsAliases', '_nodeEditMeta', '_comment', '_backup', '_meta'];
+    $lyrmgrKeys = array_values(array_filter(array_keys($data), function($k) use ($skipKeys) {
+        return !in_array($k, $skipKeys, true) && substr($k, 0, 1) !== '_';
+    }));
     return [
         'exists'     => true,
         'profile'    => $profile,

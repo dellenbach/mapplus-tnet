@@ -1158,14 +1158,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
   <span class="sep"></span>
   <span class="brand">🔧 Tree-Builder</span>
   <span class="sep"></span>
-  <button id="tb-btn-ags-import" title="Service- und Layermanager">🌐 Manager</button>
-  <a href="slm.html" target="_blank" style="color:rgba(255,255,255,.45);font-size:10px;text-decoration:none;margin-left:-4px" title="Service- und Layermanager in separater Seite öffnen">↗</a>
-  <button id="tb-btn-backup-toolbar" title="Server-Backups anzeigen, wiederherstellen und löschen" style="margin-left:6px;background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.25);color:rgba(255,255,255,.8)">📁 Backups</button>
   <span class="sep"></span>
-  <button class="tb-toggle active" id="tb-toggle-layers" title="Layer-Katalog ein/aus">🗂</button>
-  <button class="tb-toggle" id="tb-toggle-clipboard" title="Zwischenablage ein/aus">📋</button>
-  <button class="tb-toggle" id="tb-toggle-json" title="JSON-Editor ein/aus">📝</button>
-  <button class="tb-toggle active" id="tb-toggle-preview" title="Kartenvorschau ein/aus">🗺</button>
   <span class="spacer"></span>
   <span id="tb-save-status" style="color:rgba(255,255,255,.45);font-size:11px"></span>
   <span id="tb-lock-indicator" style="font-size:13px;cursor:pointer" title="Lock-Status">⚪</span>
@@ -7363,15 +7356,21 @@ function restoreBackupFile(filename) {
       if (!resp.success) throw new Error(resp.error || 'Fehler');
       var loaded = resp.data.state;
       if (!loaded) throw new Error('Backup-Daten leer');
-      // State im Memory übernehmen
-      if (loaded.groups)    state.groups    = loaded.groups;
-      if (loaded.profiles)  state.profiles  = loaded.profiles;
-      if (loaded.aliases)   state.layerAliases = loaded.aliases;
-      if (loaded.nlsEdits)  state.nlsEdits  = loaded.nlsEdits;
-      // Erstes Profil aktivieren falls aktuelles nicht mehr vorhanden
-      if (!state.profiles[state.activeProfile]) {
-        state.activeProfile = Object.keys(state.profiles)[0] || null;
+      // State im Memory übernehmen (neues Format: groups/profiles/aliases/nlsEdits)
+      if (loaded.groups)         state.groups        = loaded.groups;
+      if (loaded.profiles)       state.profiles      = loaded.profiles;
+      if (loaded.aliases)        state.layerAliases  = loaded.aliases;
+      // Älteres Format: layerAliases statt aliases
+      if (!loaded.aliases && loaded.layerAliases) state.layerAliases = loaded.layerAliases;
+      if (loaded.nlsEdits)       state.nlsEdits      = loaded.nlsEdits;
+      // activeProfile aus Backup übernehmen, sonst erstes vorhandenes nehmen
+      if (loaded.activeProfile && state.profiles && state.profiles[loaded.activeProfile]) {
+        state.activeProfile = loaded.activeProfile;
+      } else if (!state.profiles || !state.profiles[state.activeProfile]) {
+        state.activeProfile = state.profiles ? (Object.keys(state.profiles)[0] || null) : null;
       }
+      // activeLyrmgr übernehmen
+      if (loaded.activeLyrmgr) state.activeLyrmgr = loaded.activeLyrmgr;
       renderClipboard();
       renderTreeTabs();
       renderTree();
