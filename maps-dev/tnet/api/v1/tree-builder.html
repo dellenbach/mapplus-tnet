@@ -7056,7 +7056,8 @@ document.addEventListener('keydown', function(e) {
   }
 });
 
-document.getElementById('tb-btn-ags-import').addEventListener('click', openAgsModal);
+var _agsImportBtn = document.getElementById('tb-btn-ags-import');
+if (_agsImportBtn) _agsImportBtn.addEventListener('click', openAgsModal);
 document.getElementById('tb-ags-btn-close').addEventListener('click', closeAgsModal);
 document.getElementById('tb-ags-btn-refresh').addEventListener('click', function() {
   var activeTab = document.querySelector('.tb-ags-tab.active');
@@ -7164,7 +7165,8 @@ document.getElementById('tb-btn-load').addEventListener('click', function() {
 });
 
 // Backup-Management Button (Toolbar)
-document.getElementById('tb-btn-backup-toolbar').addEventListener('click', function() {
+var _backupToolbarBtn = document.getElementById('tb-btn-backup-toolbar');
+if (_backupToolbarBtn) _backupToolbarBtn.addEventListener('click', function() {
   openBackupManager();
 });
 
