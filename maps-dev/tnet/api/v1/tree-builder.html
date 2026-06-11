@@ -5075,7 +5075,7 @@ function backupLyrmgrToFile() {
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Backup…'; }
   fetch(API_URL + '?action=create-backup', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'X-Editor-Name': _editorName || 'unbekannt' },
     body: JSON.stringify({ data: data })
   })
   .then(function(r) { return r.json(); })
@@ -5291,7 +5291,8 @@ document.addEventListener('keydown', function(e) {
   if (e.ctrlKey && e.shiftKey && e.key === 'Z') { e.preventDefault(); tbRedo(); }
 });
 
-document.getElementById('tb-btn-save-profile').addEventListener('click', function() {
+var _saveProfileBtn = document.getElementById('tb-btn-save-profile');
+if (_saveProfileBtn) _saveProfileBtn.addEventListener('click', function() {
   saveLyrmgrDraft({ silent: false, reason: 'manual-save' });
 });
 
