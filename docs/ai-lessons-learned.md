@@ -1,3 +1,10 @@
+## 2026-06-11 — SLM zeigte im ausgeloggten Zustand keinen sichtbaren Login-CTA
+
+- **Symptom:** Im SLM-Header erschien bei fehlender Anmeldung weder Benutzerinfo noch ein Login-Button; die Toolbar wirkte leer.
+- **Root-Cause:** `slm.html` blendete nur den eingeloggten Benutzerbereich dynamisch ein, hatte aber keinen expliziten Fallback-CTA fuer den ausgeloggten Zustand.
+- **Fix:** Statischen `Login`-Link im Header ergänzt und per JS sauber zwischen `Login` sowie Benutzer/`Abmelden` umgeschaltet; Redirect-URL wird dynamisch aus aktueller URL inkl. Hash aufgebaut.
+- **Guardrail:** Bei Auth-abhängigen Headern immer beide Zustände explizit rendern: eingeloggter Zustand und ausgeloggter CTA.
+
 ## 2026-06-11 — Themenkatalog-Filter zeigte leere Oberknoten und kein klares Aktiv-Feedback
 
 - **Symptom:** Bei aktivem Suchfilter blieben leere Gruppen/Subkategorien sichtbar; das Filterfeld war nicht klar als aktiv markiert.
@@ -2047,3 +2054,9 @@ Guardrail: Wenn Change-Detection für Kürzel vorhanden ist, immer auch prüfen,
 - **Root-Cause**: `TnetSetBookmark()` wurde aus dem `mapsInfoFrame`-Iframe aufgerufen. Das frühe Schliessen des Dialogs entfernt `src` am Iframe und entlädt damit genau den Kontext, in dem der Fetch/Promise noch lief.
 - **Fix**: `TnetSetBookmark()` delegiert bei Iframe-Aufruf sofort an `window.top.TnetSetBookmark(bookmarkId)`. Die eigentliche Bookmark-Logik läuft dadurch im Top-Window und überlebt das anschliessende Dialog-Close.
 - **Guardrail**: Aktionen aus modalen Iframes, die asynchron weiterlaufen, immer ins Top-Window delegieren bevor das Iframe geschlossen oder neu geladen wird.
+
+## 2026-06-11 — Bookmark-Calls folgten noch der Seiten-URL statt dem Store
+- **Symptom**: Bookmarks und Lock/Unlock liefen je nach Seitenpfad noch gegen die falsche Umgebung oder lieferten Store-Mismatches.
+- **Root-Cause**: Mehrere Bookmark-Fetches nutzten noch relative `treebuilder-api.php`-URLs statt der bereits vorhandenen store-aware `API_URL`.
+- **Fix**: Alle Bookmark-Calls in `slm.html` auf `API_URL` umgestellt, damit Bookmarks denselben Store verwenden wie der Rest der SLM.
+- **Guardrail**: Store-sensitive API-Aufrufe in der SLM nie relativ formulieren, sondern immer ueber die zentrale Store-Basis schicken.

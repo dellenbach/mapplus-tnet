@@ -542,6 +542,50 @@ body {
 .ags-tab[data-tab="deployed"] { background: linear-gradient(135deg, #7e57c2, #5e35b1); }
 .ags-tab[data-tab="legendtuner"] { background: linear-gradient(135deg, #4B7B81, #3a6166); }
 .ags-tab[data-tab="bookmarks"] { background: linear-gradient(135deg, #d4a03c, #b8872e); }
+.ags-tab[data-tab="sync"]      { background: linear-gradient(135deg, #2e7d8c, #1a5c69); }
+
+/* ===== SYNC TAB ===== */
+.sync-toolbar { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; padding: 6px 8px; background: #f8f8f8; border: 1px solid #e0e0e0; border-radius: 5px; }
+.sync-btn-reload { padding: 4px 12px; font-size: 12px; border: 1px solid #ddd; border-radius: 3px; background: #fff; cursor: pointer; }
+.sync-btn-reload:hover { background: #f0f0f0; }
+.sync-hint { font-size: 10px; color: #a04000; background: #fff3e0; border: 1px solid #ffe0b2; padding: 2px 8px; border-radius: 3px; }
+.sync-env-badges { display: flex; gap: 6px; align-items: center; font-size: 11px; font-weight: 600; }
+.sync-env-badge { padding: 2px 8px; border-radius: 3px; color: #fff; font-size: 10px; }
+.sync-env-badge.dev  { background: #e67e22; }
+.sync-env-badge.prod { background: #27ae60; }
+.sync-status-bar { padding: 5px 12px; font-size: 11px; color: #666; background: #f5f7fa; border-radius: 4px; margin-bottom: 8px; }
+.sync-content { flex: 1; overflow-y: auto; }
+.sync-domain { border: 1px solid #e0e4e8; border-radius: 5px; margin-bottom: 10px; overflow: hidden; }
+.sync-domain-head { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #f5f7fa; cursor: pointer; user-select: none; border-bottom: 1px solid #e0e4e8; }
+.sync-domain-head:hover { background: #eef2f4; }
+.sync-domain-head .sd-label { font-weight: 700; font-size: 13px; flex: 1; }
+.sync-domain-head .sd-arrow { font-size: 10px; color: #888; width: 12px; transition: transform .15s; }
+.sync-domain.open .sd-arrow { transform: rotate(90deg); }
+.sync-domain-body { display: none; padding: 0; }
+.sync-domain.open .sync-domain-body { display: block; }
+.sync-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.sync-table th { background: #fafafa; border-bottom: 2px solid #e0e4e8; padding: 5px 10px; text-align: left; font-size: 11px; font-weight: 600; color: #555; white-space: nowrap; }
+.sync-table td { padding: 5px 10px; border-bottom: 1px solid #f0f0f0; vertical-align: middle; }
+.sync-table tr:last-child td { border-bottom: none; }
+.sync-table tr:hover td { background: #f8fafc; }
+.sync-status-icon { font-size: 14px; }
+.sync-btn { padding: 3px 10px; font-size: 11px; border: 1px solid #ddd; border-radius: 3px; cursor: pointer; white-space: nowrap; background: #fff; }
+.sync-btn:hover { background: #f0f0f0; }
+.sync-btn.push { background: #e8f5e9; border-color: #a5d6a7; color: #2e7d32; }
+.sync-btn.push:hover { background: #c8e6c9; }
+.sync-btn.pull { background: #e3f2fd; border-color: #90caf9; color: #1565c0; }
+.sync-btn.pull:hover { background: #bbdefb; }
+.sync-btn:disabled { opacity: .4; cursor: default; }
+.sync-count { font-size: 11px; font-weight: 600; padding: 1px 6px; border-radius: 3px; background: #e8eaed; color: #333; }
+.sync-rev { font-size: 10px; color: #888; font-family: monospace; }
+.sync-diff { color: #e67e22; font-weight: 700; }
+.sync-ok   { color: #2e7d32; }
+.sync-only-dev  { color: #e67e22; }
+.sync-only-prod { color: #1565c0; }
+.sync-domain-actions { display: flex; gap: 6px; align-items: center; padding: 8px 12px; background: #fafafa; border-top: 1px solid #eee; }
+.sync-domain-actions .spacer { flex: 1; }
+
+
 /* ===== COMMIT-MESSAGE-DIALOG ===== */
 #commit-msg-overlay {
   display: none; position: fixed; inset: 0; z-index: 10200;
@@ -612,12 +656,17 @@ body {
 #merge-name-ok:hover { background: #3a6166; }
 
 /* ===== BOOKMARKS TAB ===== */
-.bm-toolbar { display: flex; gap: 6px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
-.bm-toolbar button { padding: 5px 12px; font-size: 12px; border: 1px solid #ddd; border-radius: 3px; background: #fff; cursor: pointer; }
+.bm-toolbar { display: flex; gap: 0; align-items: stretch; margin-bottom: 8px; flex-wrap: wrap; background: #f8f8f8; border: 1px solid #e0e0e0; border-radius: 5px; padding: 4px 6px; }
+.bm-toolbar button { padding: 4px 10px; font-size: 11px; border: 1px solid #ddd; border-radius: 3px; background: #fff; cursor: pointer; white-space: nowrap; }
 .bm-toolbar button:hover { background: #f0f0f0; }
 .bm-toolbar button:disabled { opacity: .4; cursor: default; }
-.bm-toolbar .bm-btn-save { background: #d4a03c; color: #fff; border-color: #b8872e; font-weight: 600; }
-.bm-toolbar .bm-btn-save:hover { background: #b8872e; }
+.bm-toolbar .bm-btn-publish { background: #d4a03c; color: #fff; border-color: #b8872e; font-weight: 600; }
+.bm-toolbar .bm-btn-publish:hover { background: #b8872e; }
+.bm-action-section { display: flex; align-items: center; gap: 4px; padding: 2px 8px 2px 6px; border-left: 1px solid #ddd; }
+.bm-action-section:first-child { border-left: none; padding-left: 2px; }
+.bm-action-section-label { font-size: 9px; font-weight: 700; color: #888; text-transform: uppercase; letter-spacing: .5px; margin-right: 2px; white-space: nowrap; }
+.bm-toolbar-end { display: flex; align-items: center; gap: 4px; margin-left: auto; padding-left: 8px; border-left: 1px solid #ddd; }
+.bm-toolbar .bm-view-active { background: #4B7B81; color: #fff; border-color: #3a6166; }
 .bm-status { padding: 6px 12px; font-size: 12px; color: #666; background: #f5f7fa; border-radius: 4px; margin-bottom: 8px; }
 .bm-count { font-size: 11px; color: #888; margin-left: 4px; }
 .bm-table-wrap { flex: 1; overflow: auto; min-height: 0; }
@@ -1221,6 +1270,7 @@ table.bm-mtx tbody tr.bm-mtx-row-sel:hover td { background: #ffe0b2; }
 .bk-type.nls { background: #d42e6b; }
 .bk-type.legend { background: #c0392b; }
 .bk-type.rawconf { background: #1a73e8; }
+.bk-type.bookmarks { background: #d4a03c; }
 .bk-type.unknown { background: #999; }
 .slm-bk-table .bk-actions button {
   padding: 2px 6px; font-size: 10px; border: 1px solid #ccc; border-radius: 3px; background: #fff; cursor: pointer; margin-right: 3px;
@@ -1306,6 +1356,7 @@ html[data-env="dev"] .path-info-bar .pib-lbl { color: #7a3000; }
         <option value="">Alle Typen</option>
         <option value="state">State</option>
         <option value="lyrmgr">LyrMgr</option>
+        <option value="bookmarks">Bookmarks</option>
         <option value="groups">Groups</option>
         <option value="profile">Profile</option>
         <option value="nls">NLS</option>
@@ -1355,6 +1406,7 @@ Kein Einfluss auf Browser-Cache (dafuer: Ctrl+Shift+R)">🗑 Cache leeren</butto
   <span class="sep"></span>
   <span id="slm-build-ts" title="Release-Zeitstempel (letzter Deploy)" style="font-size:10px;color:rgba(255,255,255,.55);font-family:monospace;white-space:nowrap"></span>
   <span class="sep"></span>
+  <a href="admin-login.php?redirect=slm.html" id="slm-login-link" style="display:inline-block;font-size:11px;color:#fff;text-decoration:none;border:1px solid rgba(255,255,255,.35);border-radius:3px;padding:2px 7px;background:rgba(255,255,255,.08)" title="Anmelden">Login</a>
   <!-- Eingeloggter Benutzer + Aktionen -->
   <span id="slm-user-badge" style="display:none;align-items:center;gap:6px">
     <span id="slm-username" style="font-size:12px;font-weight:700;color:#fff;letter-spacing:.3px"></span>
@@ -1418,6 +1470,7 @@ Kein Einfluss auf Browser-Cache (dafuer: Ctrl+Shift+R)">🗑 Cache leeren</butto
     <button class="ags-tab" data-tab="deployed">⑥ Deployed</button>
     <button class="ags-tab" data-tab="legendtuner">⑦ Legendtuner</button>
     <button class="ags-tab" data-tab="bookmarks">⑧ Bookmarks</button>
+    <button class="ags-tab" data-tab="sync">⑨ Sync</button>
   </div>
 
   <!-- ===== TAB: IMPORT ===== -->
@@ -1733,17 +1786,40 @@ Kein Einfluss auf Browser-Cache (dafuer: Ctrl+Shift+R)">🗑 Cache leeren</butto
   <!-- ===== TAB: BOOKMARKS ===== -->
   <div class="ags-pane" id="pane-bookmarks">
     <div class="bm-toolbar">
-      <button onclick="addBookmarkEntry()">+ Neuer Bookmark</button>
-      <button class="bm-btn-save" onclick="saveBookmarks()">💾 Speichern</button>
-      <button onclick="loadBookmarks()">↻ Laden</button>
-      <button id="bm-btn-undo" onclick="bmUndo()" disabled title="Rückgängig (Ctrl+Z)">↩</button>
-      <button id="bm-btn-redo" onclick="bmRedo()" disabled title="Wiederherstellen (Ctrl+Y)">↪</button>
-      <button id="bm-btn-expand-all" onclick="bmToggleAll()" title="Alle auf-/zuklappen">▶ Alle</button>
-      <span class="bm-count" id="bm-count"></span>
-      <span style="flex:1"></span>
-      <button id="bm-view-table" class="bm-view-active" onclick="bmSwitchView('table')" title="Tabellenansicht">📋 Tabelle</button>
-      <button id="bm-view-json" onclick="bmSwitchView('json')" title="JSON-Editor">{ } JSON</button>
+      <!-- Bearbeitung -->
+      <div class="bm-action-section">
+        <button onclick="addBookmarkEntry()" title="Neuen Bookmark-Eintrag anlegen">＋ Eintrag</button>
+        <button id="bm-btn-undo" onclick="bmUndo()" disabled title="Rückgängig (Ctrl+Z)">↩</button>
+        <button id="bm-btn-redo" onclick="bmRedo()" disabled title="Wiederherstellen (Ctrl+Y)">↪</button>
+        <button id="bm-btn-expand-all" onclick="bmToggleAll()" title="Alle Zeilen auf-/zuklappen">▶ Alle</button>
+      </div>
+      <!-- DB Sektion -->
+      <div class="bm-action-section">
+        <span class="bm-action-section-label">DB</span>
+        <button class="bm-btn-publish" onclick="saveBookmarks()" title="In DB speichern und via FastAPI publizieren (Ctrl+S)">💾 Speichern &amp; Publish DB</button>
+        <button onclick="loadBookmarks(true)" title="Aktuellen Stand aus DB/Server neu laden">↻ Laden</button>
+      </div>
+      <!-- File-Config Sektion -->
+      <div class="bm-action-section">
+        <span class="bm-action-section-label">File-Config</span>
+        <button onclick="bmDownloadJson()" title="Aktuelle Bookmarks als JSON herunterladen">⬇ Download</button>
+        <button onclick="bmImportJson()" title="bookmarks.json von lokaler Datei importieren">📂 Import</button>
+      </div>
+      <!-- Backup Sektion -->
+      <div class="bm-action-section">
+        <span class="bm-action-section-label">Backup</span>
+        <button onclick="bmCreateBackup()" title="Aktuellen Stand als Backup mit Zeitstempel auf Server sichern">💾 Backup erstellen</button>
+        <button onclick="bmOpenBackupManager()" title="Server-Backups anzeigen, verwalten und wiederherstellen">📁 Verwalten &amp; Restore</button>
+      </div>
+      <!-- Rechts: Anzeige-Umschaltung -->
+      <div class="bm-toolbar-end">
+        <span class="bm-count" id="bm-count"></span>
+        <button id="bm-view-table" class="bm-view-active" onclick="bmSwitchView('table')" title="Tabellenansicht">📋 Tabelle</button>
+        <button id="bm-view-json" onclick="bmSwitchView('json')" title="JSON-Editor">{ } JSON</button>
+      </div>
     </div>
+    <!-- Import-Input (hidden) -->
+    <input type="file" id="bm-file-import-input" accept=".json" style="display:none">
     <div class="bm-filter-bar">
       <label>IDs:</label><input type="text" data-col-filter="idaliases" placeholder="IDs… (min. 3)" oninput="bmColumnFilter()">
       <label>Alias:</label><input type="text" data-col-filter="name" placeholder="Alias… (min. 3)" oninput="bmColumnFilter()">
@@ -1776,7 +1852,7 @@ Kein Einfluss auf Browser-Cache (dafuer: Ctrl+Shift+R)">🗑 Cache leeren</butto
       </table>
     </div>
     <!-- JSON-Editor Panel -->
-    <div class="bm-json-panel" id="bm-json-panel">
+    <div class="bm-json-panel" id="bm-json-panel" style="display:none">
       <div class="bm-json-toolbar">
         <button class="bm-json-btn-apply" onclick="bmJsonApply()" title="JSON übernehmen → Tabelle aktualisieren">✓ Übernehmen</button>
         <button onclick="bmJsonFormat()" title="JSON formatieren">Formatieren</button>
@@ -1793,6 +1869,24 @@ Kein Einfluss auf Browser-Cache (dafuer: Ctrl+Shift+R)">🗑 Cache leeren</butto
       <textarea class="bm-json-editor" id="bm-json-editor" spellcheck="false"></textarea>
     </div>
   </div>
+
+  </div>
+
+  <!-- ===== TAB: SYNC ===== -->
+  <div class="ags-pane" id="pane-sync">
+    <div class="sync-toolbar">
+      <button class="sync-btn-reload" onclick="loadSyncStatus()">↻ Status neu laden</button>
+      <span class="sync-env-badges" id="sync-env-badges"></span>
+      <span style="flex:1"></span>
+      <span class="sync-hint">⚠ Sync überschreibt Ziel-Daten. Vor Sync Backup empfohlen.</span>
+    </div>
+    <div class="sync-status-bar" id="sync-status-bar">Status wird geladen…</div>
+    <div class="sync-content" id="sync-content">
+      <div style="padding:40px;text-align:center;color:#aaa">Wechsle zum Tab oder klicke ↻</div>
+    </div>
+  </div>
+
+</div><!-- Ende .ags-main -->
 
 <div id="file-editor-overlay">
   <div id="file-editor-dialog">
@@ -1996,27 +2090,57 @@ function switchStoreEnv(newEnv) {
   }
 })();
 
-// ── Eingeloggten Benutzer im Header anzeigen ────────────────────────────────
+// ── Login-/Benutzerstatus im Header anzeigen ────────────────────────────────
+(function installHeaderAuthState() {
+  window.getSlmLoginUrl = function() {
+    return 'admin-login.php?redirect=' + encodeURIComponent(location.pathname + location.search + location.hash);
+  };
+
+  window.updateSlmHeaderAuthState = function(user, isAdmin) {
+    var loginLink   = document.getElementById('slm-login-link');
+    var badge       = document.getElementById('slm-user-badge');
+    var nameEl      = document.getElementById('slm-username');
+    var usersLink   = document.getElementById('slm-users-link');
+    var configDbBtn = document.getElementById('ags-btn-config-to-db');
+
+    if (loginLink) loginLink.href = window.getSlmLoginUrl();
+
+    if (!user) {
+      if (loginLink) loginLink.style.display = 'inline-block';
+      if (badge) badge.style.display = 'none';
+      if (usersLink) usersLink.style.display = 'none';
+      if (configDbBtn) configDbBtn.style.display = 'none';
+      return;
+    }
+
+    try {
+      localStorage.setItem('tnetLoggedInUser', user);
+      localStorage.setItem('slmBookmarkUser', user);
+    } catch (e) {}
+
+    if (nameEl) nameEl.textContent = '👤 ' + user;
+    if (loginLink) loginLink.style.display = 'none';
+    if (badge) badge.style.display = 'flex';
+    if (usersLink) usersLink.style.display = isAdmin ? '' : 'none';
+    if (configDbBtn) configDbBtn.style.display = isAdmin ? '' : 'none';
+  };
+
+  window.updateSlmHeaderAuthState('', false);
+})();
+
 (function loadCurrentUser() {
   fetch('admin-users.php?action=current-user', { headers: { 'Accept': 'application/json' } })
     .then(function(r) { return r.json(); })
     .then(function(j) {
-      if (!j.success || !j.user) return;
-      var badge     = document.getElementById('slm-user-badge');
-      var nameEl    = document.getElementById('slm-username');
-      var usersLink = document.getElementById('slm-users-link');
-      var configDbBtn = document.getElementById('ags-btn-config-to-db');
-      try {
-        localStorage.setItem('tnetLoggedInUser', j.user);
-        localStorage.setItem('slmBookmarkUser', j.user);
-      } catch (e) {}
-      if (!badge || !nameEl) return;
-      nameEl.textContent = '👤 ' + j.user;
-      badge.style.display = 'flex';
-      if (usersLink && j.is_admin) usersLink.style.display = '';
-      if (configDbBtn && j.is_admin) configDbBtn.style.display = '';
+      if (!j.success || !j.user) {
+        window.updateSlmHeaderAuthState('', false);
+        return;
+      }
+      window.updateSlmHeaderAuthState(j.user, !!j.is_admin);
     })
-    .catch(function() {}); // Fehler still ignorieren (z.B. nicht eingeloggt)
+    .catch(function() {
+      window.updateSlmHeaderAuthState('', false);
+    });
 })();
 
 (function installDevFastApiTarget() {
@@ -2095,13 +2219,6 @@ function switchStoreEnv(newEnv) {
         // HTML, aber keine Login-Seite → unverändert durchreichen
         if (!isAuthRedirect && !looksLikeLoginPage) return resp;
         showLoginBanner();
-        // Nur einmal automatisch weiterleiten — wenn der erste Request schon
-        // mit Login geantwortet hat, lassen wir den Banner stehen und der
-        // User klickt manuell. Damit verliert er keine Eingaben.
-        if (!alreadyRedirected && document.readyState === 'loading') {
-          alreadyRedirected = true;
-          location.href = LOGIN_URL;
-        }
         // Fehler-Objekt zurückgeben, das kompatibel zu .json()-Konsumenten ist
         var fake = new Response(
           JSON.stringify({ success: false, error: 'Bitte einloggen (Session abgelaufen)' }),
@@ -2364,6 +2481,8 @@ function switchTab(tabName, skipHash, onImportLoaded) {
     loadLegendTuner();
   } else if (tabName === 'bookmarks') {
     loadBookmarks();
+  } else if (tabName === 'sync') {
+    loadSyncStatus();
   }
 }
 
@@ -7077,10 +7196,14 @@ function loadRuntimePaths(targetId) {
 }
 
 function renderRuntimePaths(el, data) {
+  if (!el || !data) return; // null-guard
   var paths = data.paths || [];
   var pick = {};
   paths.forEach(function(p) { pick[p.label] = p; });
   var labels = ['Core Config', 'Core NLS de', 'Profil-Config', 'raw-conf', 'ImportToCore', 'Tmp Root'];
+  if (data.dbActive === true) {
+    labels = labels.filter(function(l) { return l !== 'ImportToCore'; });
+  }
   var html = '<span class="rp-title">Pfade ' + esc((data.environment || '').toUpperCase()) + '</span>';
   if (data.dbSchema) html += '<span class="rp-item"><span class="rp-label">DB</span><code>' + esc(data.dbSchema) + '</code></span>';
   labels.forEach(function(label) {
@@ -7701,7 +7824,7 @@ function saveNlsEntry(item, value, btn, tr) {
 
 (function initFromHash() {
   var p = parseUrlHash();
-  var validTabs = ['create', 'manage', 'import', 'editor', 'treebuilder', 'deployed', 'legendtuner', 'bookmarks'];
+  var validTabs = ['create', 'manage', 'import', 'editor', 'treebuilder', 'deployed', 'legendtuner', 'bookmarks', 'sync'];
   var startTab = (p.tab && validTabs.indexOf(p.tab) !== -1) ? p.tab : 'create';
 
   if (startTab !== 'create') {
@@ -8664,7 +8787,7 @@ function bmMatrixAddLayer(detailRow, layerId) {
 // Alle verfügbaren Layer-Keys vom Server laden (einmal gecacht)
 function loadAllLayerKeys() {
   if (_bmLayersLoaded) return Promise.resolve(_bmAllLayerKeys);
-  return fetch('treebuilder-api.php?action=list-all-layers')
+  return fetch(API_URL + '?action=list-all-layers')
     .then(function(r) { return r.json(); })
     .then(function(res) {
       if (res.success && res.data && Array.isArray(res.data.layers)) {
@@ -8677,11 +8800,13 @@ function loadAllLayerKeys() {
     .catch(function() { _bmLayersLoaded = true; return _bmAllLayerKeys; });
 }
 
-function loadBookmarks() {
-  if (_bmLoaded && _bmData) {
-    // Schon geladen → nur rendern
+function loadBookmarks(force) {
+  if (!force && _bmLoaded && _bmData) {
+    // Schon geladen und kein Force → nur rendern
     return;
   }
+  // Force: Cache leeren
+  if (force) { _bmLoaded = false; }
   var status = document.getElementById('bm-status');
   status.textContent = 'Lade Bookmarks…';
   status.className = 'bm-status';
@@ -8692,7 +8817,7 @@ function loadBookmarks() {
     revalidateAllLayerTags();
   });
 
-  fetch('treebuilder-api.php?action=bookmarks-load')
+  fetch(API_URL + '?action=bookmarks-load')
     .then(function(r) { return r.json(); })
     .then(function(res) {
       if (res.success && Array.isArray(res.data)) {
@@ -8722,7 +8847,7 @@ function loadBookmarks() {
 
 // Setzt den eigenen Soft-Lock (DB-Modus). Bei Fremd-Lock Banner anzeigen.
 function bmAcquireLock() {
-  fetch('treebuilder-api.php?action=bookmarks-lock', {
+  fetch(API_URL + '?action=bookmarks-lock', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ user: bmGetUser() })
@@ -8744,9 +8869,9 @@ function bmReleaseLock() {
   try {
     var body = JSON.stringify({ user: bmGetUser() });
     if (navigator.sendBeacon) {
-      navigator.sendBeacon('treebuilder-api.php?action=bookmarks-unlock', body);
+      navigator.sendBeacon(API_URL + '?action=bookmarks-unlock', body);
     } else {
-      fetch('treebuilder-api.php?action=bookmarks-unlock', {
+      fetch(API_URL + '?action=bookmarks-unlock', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body, keepalive: true
       });
     }
@@ -9321,6 +9446,89 @@ function collectBookmarkData() {
   return result;
 }
 
+// ===== BOOKMARKS: DOWNLOAD / IMPORT / BACKUP =====
+
+function bmDownloadJson() {
+  var data = collectBookmarkData();
+  var json = JSON.stringify(data, null, 2);
+  var blob = new Blob([json], { type: 'application/json' });
+  var url = URL.createObjectURL(blob);
+  var ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 16);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = 'map-bookmarks-all_' + ts + '.json';
+  a.click();
+  setTimeout(function() { URL.revokeObjectURL(url); }, 2000);
+}
+
+function bmImportJson() {
+  var input = document.getElementById('bm-file-import-input');
+  if (!input) return;
+  var onchange = function() {
+    input.removeEventListener('change', onchange);
+    var file = input.files && input.files[0];
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      try {
+        var raw = JSON.parse(e.target.result);
+        var arr = Array.isArray(raw) ? raw : (raw && Array.isArray(raw.bookmarks) ? raw.bookmarks : null);
+        if (!arr) throw new Error('Erwartet wird ein JSON-Array oder { bookmarks: [...] }');
+        bmPushUndo();
+        _bmData = arr;
+        renderBookmarkTable(_bmData);
+        var status = document.getElementById('bm-status');
+        status.textContent = '✓ ' + arr.length + ' Bookmarks aus Datei importiert — noch nicht gespeichert';
+        status.className = 'bm-status';
+      } catch (err) {
+        alert('Import fehlgeschlagen: ' + err.message);
+      }
+    };
+    reader.readAsText(file);
+    input.value = '';
+  };
+  input.addEventListener('change', onchange);
+  input.click();
+}
+
+function bmCreateBackup() {
+  var status = document.getElementById('bm-status');
+  var user = bmGetUser();
+  status.textContent = 'Erstelle Backup…';
+  status.className = 'bm-status';
+  fetch(API_URL + '?action=bookmarks-backup-create&user=' + encodeURIComponent(user), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ user: user })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(res) {
+    if (res.success) {
+      status.textContent = '✓ Backup erstellt: ' + res.file + ' (' + res.count + ' Bookmarks)';
+      status.className = 'bm-status success';
+    } else {
+      status.textContent = '✗ Backup fehlgeschlagen: ' + (res.error || 'Unbekannt');
+      status.className = 'bm-status error';
+    }
+  })
+  .catch(function(err) {
+    status.textContent = '✗ Backup fehlgeschlagen: ' + err.message;
+    status.className = 'bm-status error';
+  });
+}
+
+function bmOpenBackupManager() {
+  // SLM-Backup-Dialog öffnen, auf bookmarks-Typ filtern
+  var overlay = document.getElementById('slm-backup-overlay');
+  var typeFilter = document.getElementById('slm-bk-type-filter');
+  if (!overlay) return;
+  overlay.classList.add('open');
+  if (typeFilter) {
+    typeFilter.value = 'bookmarks';
+  }
+  slmLoadBackupList();
+}
+
 function showBookmarkDeployToast(message, type) {
   var toast = document.getElementById('bm-deploy-toast');
   var colors = {
@@ -9373,7 +9581,7 @@ function saveBookmarks() {
       : JSON.stringify(data);
 
     // 1. PHP: Server-Datei/DB speichern
-    fetch('treebuilder-api.php?action=bookmarks-save', {
+    fetch(API_URL + '?action=bookmarks-save', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: saveBody
@@ -9712,6 +9920,8 @@ function bmSwitchView(view) {
   var btnTable = document.getElementById('bm-view-table');
   var btnJson = document.getElementById('bm-view-json');
 
+  if (!tableWrap || !filterBar || !jsonPanel) return; // Pane noch nicht im DOM
+
   if (view === 'json') {
     tableWrap.style.display = 'none';
     filterBar.style.display = 'none';
@@ -10045,8 +10255,187 @@ if (document.readyState === 'loading') {
 
 <script>
 // =====================================================================
-// Backup-Management (SLM)
+// SYNC TAB
 // =====================================================================
+
+var _syncLoaded = false;
+var _syncData = null;
+
+function loadSyncStatus() {
+  var statusBar = document.getElementById('sync-status-bar');
+  var content   = document.getElementById('sync-content');
+  statusBar.textContent = 'Lade Status…';
+  content.innerHTML = '<div style="padding:30px;text-align:center;color:#aaa">↻ Lade Sync-Status…</div>';
+
+  fetch(API_URL + '?action=sync-status')
+    .then(function(r) { return r.json(); })
+    .then(function(res) {
+      if (!res.success) throw new Error(res.error || 'Fehler');
+      _syncData = res.data;
+      _syncLoaded = true;
+      renderSyncStatus(_syncData);
+      statusBar.textContent = 'Zuletzt geladen: ' + new Date().toLocaleTimeString('de-CH');
+    })
+    .catch(function(err) {
+      statusBar.textContent = 'Fehler: ' + err.message;
+      content.innerHTML = '<div style="padding:20px;color:#c33">' + esc(err.message) + '</div>';
+    });
+}
+
+function renderSyncStatus(data) {
+  var content = document.getElementById('sync-content');
+  var envs    = data.environments || {};
+  var envKeys = Object.keys(envs);
+
+  // Env-Badges
+  var badges = document.getElementById('sync-env-badges');
+  if (badges) {
+    badges.innerHTML = envKeys.map(function(e) {
+      return '<span class="sync-env-badge ' + esc(e) + '">' + esc(e.toUpperCase()) + ': ' + esc(envs[e]) + '</span>';
+    }).join('<span style="color:#888;font-size:13px">↔</span>');
+  }
+
+  var html = '';
+
+  // ── Bookmarks ──
+  var bm = data.domains && data.domains.bookmarks;
+  if (bm) {
+    html += buildSyncDomain('bookmarks', bm.label || 'Bookmarks', function() {
+      var rows = '';
+      envKeys.forEach(function(e) {
+        var cnt = bm.counts && bm.counts[e] != null ? bm.counts[e] : '—';
+        var rev = bm.revs  && bm.revs[e]  != null ? bm.revs[e]  : '—';
+        rows += '<tr><td>' + esc(e.toUpperCase()) + '</td>'
+          + '<td><span class="sync-count">' + cnt + '</span></td>'
+          + '<td class="sync-rev">Rev. ' + rev + '</td>'
+          + '<td></td></tr>';
+      });
+      var devRev = bm.revs && bm.revs.dev;
+      var prodRev = bm.revs && bm.revs.prod;
+      var statusIcon = (devRev === prodRev && devRev != null) ? '<span class="sync-ok">✅ identisch</span>' : '<span class="sync-diff">⚠ unterschiedlich</span>';
+      return '<table class="sync-table"><thead><tr><th>Umgebung</th><th>Anzahl</th><th>Revision</th><th>Status</th></tr></thead><tbody>' + rows.replace('</td></tr>', '</td><td>' + statusIcon + '</td></tr>').replace(/<\/td><\/tr>(?!.*<\/td><\/tr>)/s, '</td></tr>') + '</tbody></table>';
+    }, 'bookmarks');
+  }
+
+  // ── Catalog ──
+  var cat = data.domains && data.domains.catalog;
+  if (cat && cat.items) {
+    html += buildSyncDomain('catalog', cat.label || 'Katalog (LyrMgr)', function() {
+      var rows = cat.items.map(function(item) {
+        var cells = envKeys.map(function(e) {
+          var env = item.envs && item.envs[e];
+          if (!env) return '<td class="sync-only-prod">— fehlt</td>';
+          return '<td><span class="sync-rev">Rev. ' + env.revision + '</span>'
+            + (env.updatedBy ? '<br><span style="font-size:10px;color:#888">' + esc(env.updatedBy) + '</span>' : '')
+            + '</td>';
+        }).join('');
+        var statusCell = item.status === 'sync'
+          ? '<td class="sync-ok" style="text-align:center">✅</td>'
+          : '<td class="sync-diff" style="text-align:center">⚠</td>';
+        return '<tr><td style="font-family:monospace;font-size:11px">' + esc(item.profile) + '</td>' + cells + statusCell + '</tr>';
+      }).join('');
+      var headers = '<th>Profil</th>' + envKeys.map(function(e) { return '<th>' + esc(e.toUpperCase()) + '</th>'; }).join('') + '<th style="text-align:center">Status</th>';
+      return '<table class="sync-table"><thead><tr>' + headers + '</tr></thead><tbody>' + rows + '</tbody></table>';
+    }, 'catalog');
+  }
+
+  // ── Bundles ──
+  var bn = data.domains && data.domains.bundles;
+  if (bn && bn.items) {
+    html += buildSyncDomain('bundles', bn.label || 'Config-Bundles', function() {
+      var rows = bn.items.slice(0, 30).map(function(item) {
+        var cells = envKeys.map(function(e) {
+          var env = item.envs && item.envs[e];
+          if (!env) return '<td class="sync-only-prod" style="font-size:10px;color:#aaa">—</td>';
+          return '<td><span style="font-size:10px;font-family:monospace">' + esc(env.scope || '') + '</span></td>';
+        }).join('');
+        var statusCell = item.status === 'both'
+          ? '<td class="sync-ok" style="text-align:center;font-size:12px">✓</td>'
+          : '<td class="sync-diff" style="text-align:center;font-size:12px">½</td>';
+        return '<tr><td style="font-family:monospace;font-size:11px">' + esc(item.kuerzel) + '</td>' + cells + statusCell + '</tr>';
+      }).join('');
+      if (bn.items.length > 30) rows += '<tr><td colspan="4" style="text-align:center;color:#999;font-size:11px">… und ' + (bn.items.length - 30) + ' weitere</td></tr>';
+      var headers = '<th>Kürzel</th>' + envKeys.map(function(e) { return '<th>' + esc(e.toUpperCase()) + '</th>'; }).join('') + '<th style="text-align:center">Status</th>';
+      return '<table class="sync-table"><thead><tr>' + headers + '</tr></thead><tbody>' + rows + '</tbody></table>';
+    }, 'bundles');
+  }
+
+  content.innerHTML = html || '<div style="padding:20px;color:#999">Keine Sync-Daten verfügbar.</div>';
+
+  // Domain-Accordion aufklappen
+  content.querySelectorAll('.sync-domain-head').forEach(function(head) {
+    head.addEventListener('click', function() {
+      var domain = head.closest('.sync-domain');
+      domain.classList.toggle('open');
+    });
+  });
+  // Alle aufklappen
+  content.querySelectorAll('.sync-domain').forEach(function(d) { d.classList.add('open'); });
+
+  // Sync-Buttons
+  content.querySelectorAll('[data-sync-domain]').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var domain    = btn.dataset.syncDomain;
+      var direction = btn.dataset.syncDirection;
+      var keysStr   = btn.dataset.syncKeys;
+      var keys      = keysStr ? keysStr.split(',') : null;
+      executeSyncOperation(domain, direction, keys);
+    });
+  });
+}
+
+function buildSyncDomain(id, label, contentFn, domain) {
+  var content = '';
+  try { content = contentFn(); } catch(e) { content = '<div style="color:#c33;padding:8px">' + esc(e.message) + '</div>'; }
+  return '<div class="sync-domain" id="sync-domain-' + esc(id) + '">'
+    + '<div class="sync-domain-head">'
+    + '<span class="sd-arrow">▶</span>'
+    + '<span class="sd-label">' + esc(label) + '</span>'
+    + '</div>'
+    + '<div class="sync-domain-body">'
+    + content
+    + '<div class="sync-domain-actions">'
+    + '<button class="sync-btn push" data-sync-domain="' + esc(domain) + '" data-sync-direction="dev-to-prod" title="DEV → PROD übertragen">⬆ DEV → PROD</button>'
+    + '<button class="sync-btn pull" data-sync-domain="' + esc(domain) + '" data-sync-direction="prod-to-dev" title="PROD → DEV übertragen">⬇ PROD → DEV</button>'
+    + '<span class="spacer"></span>'
+    + '<span style="font-size:10px;color:#999">Überschreibt Ziel vollständig</span>'
+    + '</div>'
+    + '</div>'
+    + '</div>';
+}
+
+function executeSyncOperation(domain, direction, keys) {
+  var dirLabel = direction === 'dev-to-prod' ? 'DEV → PROD' : 'PROD → DEV';
+  var msg = 'Sync ausführen?\n\nDomain: ' + domain + '\nRichtung: ' + dirLabel + (keys ? '\nKomponenten: ' + keys.join(', ') : '') + '\n\n⚠ Ziel-Daten werden überschrieben!';
+  if (!confirm(msg)) return;
+
+  var statusBar = document.getElementById('sync-status-bar');
+  statusBar.textContent = '⏳ Sync läuft (' + dirLabel + ')…';
+
+  var user = (typeof bmGetUser === 'function') ? bmGetUser() : 'anonym';
+  fetch(API_URL + '?action=sync-execute', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ domain: domain, direction: direction, keys: keys, user: user })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(res) {
+    if (!res.success) throw new Error(res.error || 'Fehler');
+    var d = res.data || {};
+    statusBar.textContent = '✅ Sync abgeschlossen — ' + dirLabel + ' | ' + domain + ': ' + (d.copied || 0) + ' kopiert'
+      + (d.errors && d.errors.length ? ', ' + d.errors.length + ' Fehler' : '');
+    if (d.errors && d.errors.length) {
+      alert('Sync mit Fehlern:\n\n' + d.errors.join('\n'));
+    }
+    // Status neu laden
+    setTimeout(loadSyncStatus, 800);
+  })
+  .catch(function(err) {
+    statusBar.textContent = '❌ Sync fehlgeschlagen: ' + err.message;
+  });
+}
+
+
 var _slmBackupData = [];
 
 document.getElementById('slm-btn-backups').addEventListener('click', function() {
@@ -10109,7 +10498,7 @@ function slmRenderBackupTable() {
   var html = '';
   filtered.forEach(function(b) {
     var sizeStr = b.size > 1048576 ? (b.size / 1048576).toFixed(1) + ' MB' : (b.size / 1024).toFixed(0) + ' KB';
-    var canRestore = b.type === 'state' || b.type === 'rawconf';
+    var canRestore = b.type === 'state' || b.type === 'rawconf' || b.type === 'bookmarks';
     // rawconf: nur den Dateinamen anzeigen, voller Pfad als title
     var displayName = b.type === 'rawconf' ? b.file.split('/').pop() : b.file;
     var titleAttr = b.type === 'rawconf' ? ' title="' + esc(b.file) + '"' : '';
@@ -10205,10 +10594,39 @@ function slmDeleteAllRawConfBackups() {
 function slmRestoreBackup(filename, type) {
   var msg = type === 'rawconf'
     ? 'Raw-Conf-Datei wiederherstellen?\n\n' + filename + '\n\n⚠ Die aktuelle Datei wird überschrieben (vorher automatisch gesichert).'
-    : 'Backup wiederherstellen?\n\n' + filename + '\n\nDer aktuelle Zustand wird vorher gesichert.';
+    : (type === 'bookmarks'
+      ? 'Bookmark-Backup in den Editor laden?\n\n' + filename + '\n\nAktueller Stand wird in den Arbeitsspeicher geladen (noch nicht gespeichert).'
+      : 'Backup wiederherstellen?\n\n' + filename + '\n\nDer aktuelle Zustand wird vorher gesichert.');
   if (!confirm(msg)) return;
   var statusEl = document.getElementById('slm-bk-status');
   statusEl.textContent = '⏳ Wiederherstellen…';
+
+  // Bookmarks: aus JSON-Datei laden und in Editor rendern (kein Server-Restore nötig)
+  if (type === 'bookmarks') {
+    fetch(API_URL + '?action=restore-bookmark-backup&file=' + encodeURIComponent(filename))
+      .then(function(r) { return r.json(); })
+      .then(function(resp) {
+        if (!resp.success) throw new Error(resp.error || 'Fehler');
+        var arr = resp.data;
+        if (!Array.isArray(arr)) throw new Error('Ungültige Daten im Backup');
+        bmPushUndo();
+        _bmData = arr;
+        renderBookmarkTable(_bmData);
+        statusEl.textContent = '✓ Bookmark-Backup geladen: ' + arr.length + ' Bookmarks — noch nicht gespeichert';
+        var bmStatus = document.getElementById('bm-status');
+        if (bmStatus) {
+          bmStatus.textContent = '↺ Aus Backup geladen: ' + filename + ' (' + arr.length + ' Bookmarks) — noch nicht gespeichert';
+          bmStatus.className = 'bm-status';
+        }
+        document.getElementById('slm-backup-overlay').classList.remove('open');
+        // Zum Bookmarks-Tab wechseln (falls nicht aktiv)
+        var bmTab = document.querySelector('[data-tab="bookmarks"]');
+        if (bmTab && !bmTab.classList.contains('active')) switchTab('bookmarks');
+      })
+      .catch(function(err) { statusEl.textContent = '✗ Fehler: ' + err.message; });
+    return;
+  }
+
   var action = type === 'rawconf' ? 'restore-rawconf' : 'restore';
   fetch(API_URL + '?action=' + action + '&file=' + encodeURIComponent(filename))
     .then(function(r) { return r.json(); })
