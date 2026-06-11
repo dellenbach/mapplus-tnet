@@ -4772,12 +4772,25 @@ function saveState($data, $editor) {
         jsonError('Gesperrt von ' . $lock['editor'] . ' — Speichern nicht möglich', 423);
     }
 
-    // Backup erstellen (wenn Datei existiert)
+    // Backup erstellen (wenn Datei existiert) — max. 1× pro 10 Minuten
     if (file_exists(STATE_FILE)) {
-        $ts = date('Ymd_His');
-        $backupFile = BACKUP_DIR . '/state_' . $ts . '.json';
-        @copy(STATE_FILE, $backupFile);
-        cleanupBackups();
+        $doBackup = true;
+        if (is_dir(BACKUP_DIR)) {
+            $existing = glob(BACKUP_DIR . '/state_*.json');
+            if ($existing) {
+                rsort($existing);
+                $lastMtime = filemtime($existing[0]);
+                if ((time() - $lastMtime) < 600) {
+                    $doBackup = false; // Letztes Backup ist jünger als 10 Minuten
+                }
+            }
+        }
+        if ($doBackup) {
+            $ts = date('Ymd_His');
+            $backupFile = BACKUP_DIR . '/state_' . $ts . '.json';
+            @copy(STATE_FILE, $backupFile);
+            cleanupBackups();
+        }
     }
 
     // Metadaten hinzufügen

@@ -7362,21 +7362,40 @@ function restoreBackupFile(filename) {
       if (!resp.success) throw new Error(resp.error || 'Fehler');
       var loaded = resp.data.state;
       if (!loaded) throw new Error('Backup-Daten leer');
-      // State im Memory übernehmen (neues Format: groups/profiles/aliases/nlsEdits)
-      if (loaded.groups)         state.groups        = loaded.groups;
-      if (loaded.profiles)       state.profiles      = loaded.profiles;
-      if (loaded.aliases)        state.layerAliases  = loaded.aliases;
-      // Älteres Format: layerAliases statt aliases
-      if (!loaded.aliases && loaded.layerAliases) state.layerAliases = loaded.layerAliases;
-      if (loaded.nlsEdits)       state.nlsEdits      = loaded.nlsEdits;
-      // activeProfile aus Backup übernehmen, sonst erstes vorhandenes nehmen
-      if (loaded.activeProfile && state.profiles && state.profiles[loaded.activeProfile]) {
-        state.activeProfile = loaded.activeProfile;
-      } else if (!state.profiles || !state.profiles[state.activeProfile]) {
-        state.activeProfile = state.profiles ? (Object.keys(state.profiles)[0] || null) : null;
+
+      // Legacy-Format: groups ist ein Objekt {id: {name, layers}} → Array konvertieren
+      if (loaded.groups && !Array.isArray(loaded.groups)) {
+        var groupArr = [];
+        Object.keys(loaded.groups).forEach(function(gid) {
+          var g = loaded.groups[gid];
+          groupArr.push({ id: gid, name: g.name || gid, layerIds: g.layers || g.layerIds || [] });
+        });
+        loaded.groups = groupArr;
       }
-      // activeLyrmgr übernehmen
+
+      // State übernehmen
+      if (loaded.groups)                        state.groups        = loaded.groups;
+      if (loaded.profiles)                      state.profiles      = loaded.profiles;
+      if (loaded.aliases)                       state.layerAliases  = loaded.aliases;
+      if (!loaded.aliases && loaded.layerAliases) state.layerAliases = loaded.layerAliases;
+      if (loaded.nlsEdits)                      state.nlsEdits      = loaded.nlsEdits;
+      if (loaded.nodeEditMeta)                  state.nodeEditMeta  = loaded.nodeEditMeta;
+
+      // activeProfile: aus Backup, sonst erstes vorhandenes
+      var restoredProfile = loaded.activeProfile || (loaded.profiles ? Object.keys(loaded.profiles)[0] : null);
+      if (restoredProfile && state.profiles && state.profiles[restoredProfile]) {
+        state.activeProfile = restoredProfile;
+      } else if (state.profiles) {
+        state.activeProfile = Object.keys(state.profiles)[0] || null;
+      }
       if (loaded.activeLyrmgr) state.activeLyrmgr = loaded.activeLyrmgr;
+
+      // Profil-Select aktualisieren
+      var sel = document.getElementById('tb-profile-select');
+      if (sel && state.activeProfile) {
+        sel.value = state.activeProfile;
+      }
+
       renderClipboard();
       renderTreeTabs();
       renderTree();
