@@ -465,8 +465,8 @@ body.tnet-sidepanel-v2 .lm-container-desktop .lm-search-wrap {
 }
 
 body.tnet-sidepanel-v2 .lm-container-desktop .lm-search-wrap.lm-search-active {
-  background: #3f6b74 !important;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18) !important;
+  background: #8b3f46 !important;
+  box-shadow: inset 0 0 0 1px rgba(255, 230, 230, 0.3) !important;
 }
 
 body.tnet-sidepanel-v2 .lm-container-desktop .lm-search {

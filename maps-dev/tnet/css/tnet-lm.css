@@ -68,7 +68,7 @@
   /* ── UI-Elemente ── */
   --lm-primary:          #4b7b81;
   --lm-primary-light:    #648C96;
-  --lm-filter-bg:        #fef9e7;     /* Such-Treffer Highlight */
+  --lm-filter-bg:        #fdeceb;     /* Such-Treffer Highlight */
   --lm-group-bg:         #f4f8f9;     /* Active-Panel Gruppen */
   --lm-group-header-bg:  #e8f0f2;
   --lm-group-border:     #d0dde0;
@@ -171,7 +171,7 @@
 }
 
 .lm-search-wrap.lm-search-active {
-  background: rgba(255, 214, 91, 0.2);
+  background: rgba(232, 66, 63, 0.18);
 }
 
 .lm-search {
