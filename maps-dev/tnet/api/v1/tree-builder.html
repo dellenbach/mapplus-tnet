@@ -360,6 +360,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
   border-radius: 50%;
 }
 .tb-tree-lyrmgr-head .lm-del:hover { color: #fff; background: rgba(255,255,255,.15); }
+.tb-tree-lyrmgr-head .lm-add { font-size: 13px; }
 .tb-tree-lyrmgr-body { border-top: 1px solid rgba(255,255,255,.1); }
 
 /* Tree Nodes */
@@ -1346,7 +1347,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
     <div class="tb-nls-body">
       <label for="nls-alias-input">Alias (Anzeigename)</label>
       <input type="text" id="nls-alias-input" placeholder="Alias eingeben (leer = entfernen)">
-      <label for="nls-target-select">Speicherort</label>
+      <label for="nls-target-select">NLS-Scope</label>
       <select id="nls-target-select"></select>
     </div>
     <div class="tb-nls-foot">
@@ -1751,6 +1752,74 @@ var LYRMGR_LABELS = {
 
 function getLyrmgrDisplayName(key) {
   return LYRMGR_LABELS[key] || key;
+}
+
+function suggestLyrmgrKey() {
+  var p = state.profiles[state.activeProfile];
+  var count = p && p.lyrmgrs ? Object.keys(p.lyrmgrs).length : 0;
+  return 'lyrmgr_' + (count + 1);
+}
+
+function sanitizeLyrmgrKey(value) {
+  return String(value || '')
+    .trim()
+    .replace(/[^a-zA-Z0-9_]/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_+|_+$/g, '');
+}
+
+function createEmptyLyrmgrBlock() {
+  var baseMeta = { type: 'ClassicLayerMgr', version: '3' };
+  return {
+    meta: JSON.parse(JSON.stringify(baseMeta)),
+    categories: [],
+    _rawBlock: { meta: JSON.parse(JSON.stringify(baseMeta)), structure: {} }
+  };
+}
+
+function addLyrmgrBlock(afterKey) {
+  var p = state.profiles[state.activeProfile];
+  if (!p) return;
+  if (!p.lyrmgrs || typeof p.lyrmgrs !== 'object') p.lyrmgrs = {};
+  var entered = prompt('Neuen LyrMgr-Key eingeben (z.B. fifth_lyrmgr):', suggestLyrmgrKey());
+  if (entered === null) return;
+  var newKey = sanitizeLyrmgrKey(entered);
+  if (!newKey) { alert('Ungültiger LyrMgr-Key.'); return; }
+  if (p.lyrmgrs[newKey]) { alert('LyrMgr-Key existiert bereits: ' + newKey); return; }
+
+  var newBlock = createEmptyLyrmgrBlock();
+  var rebuilt = {};
+  var inserted = false;
+  Object.keys(p.lyrmgrs).forEach(function(k) {
+    rebuilt[k] = p.lyrmgrs[k];
+    if (!inserted && afterKey && k === afterKey) {
+      rebuilt[newKey] = newBlock;
+      inserted = true;
+    }
+  });
+  if (!inserted) rebuilt[newKey] = newBlock;
+  p.lyrmgrs = rebuilt;
+  state.activeLyrmgr = newKey;
+  renderTreeTabs();
+  renderTree();
+  saveState();
+}
+
+function deleteLyrmgrBlock(lmKey) {
+  var p = state.profiles[state.activeProfile];
+  if (!p || !p.lyrmgrs || !p.lyrmgrs[lmKey]) return;
+  var keys = Object.keys(p.lyrmgrs);
+  if (keys.length <= 1) {
+    alert('Der letzte LyrMgr-Block kann nicht gelöscht werden.');
+    return;
+  }
+  if (!confirm('LyrMgr-Block "' + lmKey + '" löschen?')) return;
+  delete p.lyrmgrs[lmKey];
+  var rest = getSortedLyrmgrKeys(p.lyrmgrs);
+  state.activeLyrmgr = rest[0] || null;
+  renderTreeTabs();
+  renderTree();
+  saveState();
 }
 
 // Aktiven Baum holen (kompatibel mit altem + neuem Format)
@@ -3301,6 +3370,36 @@ function touchMovedItemsMeta(items, lyrmgrKey) {
   });
 }
 
+function normalizeNlsTarget(target) {
+  if (target === 'group') return 'profile';
+  if (target === 'site-core') return 'override';
+  if (target === 'core') return 'original';
+  if (target === 'original' || target === 'override' || target === 'profile') return target;
+  return 'override';
+}
+
+function getNlsScopeOptions(selectedTarget) {
+  var selected = normalizeNlsTarget(selectedTarget);
+  var options = [
+    { value: 'original', label: 'Core (core/nls/de)' },
+    { value: 'override', label: 'Site-Core (maps/core/nls/de)' }
+  ];
+  var profileName = state.activeProfile || '';
+  if (profileName) {
+    options.push({ value: 'profile', label: 'Profil: ' + profileName });
+  }
+  return { selected: selected, options: options };
+}
+
+function buildNlsScopeSelectHtml(selectedTarget) {
+  var cfg = getNlsScopeOptions(selectedTarget);
+  var opts = '';
+  cfg.options.forEach(function(o) {
+    opts += '<option value="' + esc(o.value) + '"' + (o.value === cfg.selected ? ' selected' : '') + '>' + esc(o.label) + '</option>';
+  });
+  return opts;
+}
+
 // ===== NLS-Edit Dialog =====
 function openNlsEditDialog(elementId, elementType) {
   var overlay = document.getElementById('tb-nls-dialog');
@@ -3319,20 +3418,10 @@ function openNlsEditDialog(elementId, elementType) {
   keyInfo.textContent = (elementType || 'Element') + ': ' + elementId + '  \u2192  NLS-Key: ' + nlsKey;
   aliasInput.value = currentAlias;
 
-  // Target-Optionen aufbauen
-  targetSelect.innerHTML = '';
-  var optSiteCore = document.createElement('option');
-  optSiteCore.value = 'site-core';
-  optSiteCore.textContent = 'Site-Core (alle Gruppen)';
-  targetSelect.appendChild(optSiteCore);
-
-  var groupName = state.activeProfile || '';
-  if (groupName && groupName !== 'public') {
-    var optGroup = document.createElement('option');
-    optGroup.value = 'group';
-    optGroup.textContent = 'Gruppe: ' + groupName;
-    targetSelect.appendChild(optGroup);
-  }
+  // Scope-Optionen aufbauen
+  var existingEdit = state.nlsEdits[elementId] || null;
+  var selectedTarget = existingEdit && existingEdit.target ? existingEdit.target : 'override';
+  targetSelect.innerHTML = buildNlsScopeSelectHtml(selectedTarget);
 
   // Delete-Button nur anzeigen wenn Alias vorhanden
   btnDelete.style.display = currentAlias ? '' : 'none';
@@ -3345,8 +3434,7 @@ function openNlsEditDialog(elementId, elementType) {
   // Speichern-Logik
   function doSave() {
     var newAlias = aliasInput.value.trim();
-    var target = targetSelect.value;
-    var group = (target === 'group') ? groupName : null;
+    var target = normalizeNlsTarget(targetSelect.value);
 
     // Lokal aktualisieren — beide Key-Varianten (Slash + Underscore)
     var nlsKeySlash = 'desc_' + elementId;
@@ -3363,13 +3451,13 @@ function openNlsEditDialog(elementId, elementType) {
     var nlsFile = layerObj && layerObj.sourceFile
       ? layerObj.sourceFile.replace(/^layers/, 'lyrmgrResources').replace(/\.conf$/, '.json')
       : 'lyrmgrResources.json';
-    var nlsTarget = (target === 'group') ? 'profile' : 'original';
+    var nlsTarget = target;
     state.nlsEdits[elementId] = {
       alias: newAlias || '',
       nlsFile: nlsFile,
       target: nlsTarget,
       source: layerObj ? (layerObj.source || 'core') : 'core',
-      profile: (target === 'group' && groupName) ? groupName : null
+      profile: (nlsTarget === 'profile' && state.activeProfile) ? state.activeProfile : null
     };
     var nodeType = _nodeMetaTypeFromLabel(elementType);
     if (nodeType) touchNodeEditMeta(nodeType, elementId);
@@ -3453,7 +3541,7 @@ function renderTreeTabs() {
     }
   }
 
-  // Gruppe A: Laden | Gruppe B: Prüfen | Gruppe C: Sichern | Gruppe D: Veröffentlichen
+  // Sektionen: Datenbank | File-Config | Backup
   var html = '<div class="tb-lyrmgr-actions">';
 
   // ── Sektion 1: Datenbank ──
@@ -3474,12 +3562,11 @@ function renderTreeTabs() {
   // ── Sektion 3: Backup / Restore ──
   html += '<div class="tb-action-section">';
   html += '<span class="tb-action-section-label">Backup</span>';
-  html += '<button class="tb-lyrmgr-btn" data-action="backup-create" title="Aktuellen Arbeitsstand als JSON-Backup mit Zeitstempel herunterladen">💾 Backup erstellen</button>';
+  html += '<button class="tb-lyrmgr-btn" data-action="backup-create" title="Aktuellen Arbeitsstand als Server-Backup mit Zeitstempel speichern">💾 Backup erstellen</button>';
   html += '<button class="tb-lyrmgr-btn" data-action="backup-manage" title="Server-Backups verwalten und wiederherstellen">📁 Verwalten & Restore</button>';
   html += '</div>';
 
   html += '<span style="flex:1"></span>';
-  html += '<button class="tb-lyrmgr-btn" id="tb-deploy-conf-btn" data-action="deploy-conf" title="Pending Conf+NLS-Änderungen auf Server deployen" style="display:none">🚢 Deploy <span id="tb-pending-edits-count" class="badge" style="background:#e74c3c;color:#fff;font-size:9px;padding:1px 5px;border-radius:8px;margin-left:3px">0</span></button>';
   html += '</div>';
   bar.innerHTML = html;
 
@@ -3494,7 +3581,6 @@ function renderTreeTabs() {
       if (action === 'lyrmgr-publish-db') publishLyrmgr('db');
       if (action === 'lyrmgr-publish-file') publishLyrmgr('file');
       if (action === 'lyrmgr-download') downloadLyrmgrConf();
-      if (action === 'deploy-conf') deployLayerConfEdits();
       if (action === 'file-import') triggerFileImport();
       if (action === 'file-export') triggerFileExport();
       if (action === 'backup-create') backupLyrmgrToFile();
@@ -3688,7 +3774,9 @@ function renderLyrmgrBlock(container, lmKey, profile) {
   headEl.innerHTML = '<span class="lm-arrow">' + (isExpanded ? '▼' : '▶') + '</span>'
     + '<span class="lm-name">' + esc(displayName) + '</span>'
     + publishInfo
-    + '<span class="lm-badge">' + catCount + ' Kat.</span>';
+    + '<span class="lm-badge">' + catCount + ' Kat.</span>'
+    + (isLegacy ? '' : '<button class="lm-del lm-add" data-lm-action="add" title="LyrMgr-Block hinzufügen">＋</button>')
+    + (isLegacy ? '' : '<button class="lm-del" data-lm-action="delete" title="LyrMgr-Block löschen">×</button>');
   lmEl.appendChild(headEl);
 
   // Body (default collapsed, expanded wenn activeLyrmgr)
@@ -3821,6 +3909,7 @@ function renderLyrmgrBlock(container, lmKey, profile) {
 
   // ===== LyrMgr Head: Click → expand/collapse + activeLyrmgr setzen =====
   headEl.addEventListener('click', function(e) {
+    if (e.target && e.target.closest && e.target.closest('[data-lm-action]')) return;
     var isHidden = lmBody.style.display === 'none';
     lmBody.style.display = isHidden ? '' : 'none';
     headEl.querySelector('.lm-arrow').textContent = isHidden ? '▼' : '▶';
@@ -3830,6 +3919,23 @@ function renderLyrmgrBlock(container, lmKey, profile) {
       toggleAllChildren(lmBody, isHidden);
     }
   });
+
+  var addLmBtn = headEl.querySelector('[data-lm-action="add"]');
+  if (addLmBtn) {
+    addLmBtn.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      addLyrmgrBlock(lmKey);
+    });
+  }
+  var delLmBtn = headEl.querySelector('[data-lm-action="delete"]');
+  if (delLmBtn) {
+    delLmBtn.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      deleteLyrmgrBlock(lmKey);
+    });
+  }
 
   // ===== Drop-Top-Level auf LyrMgr-Body =====
   lmBody.addEventListener('dragover', function(e) { e.preventDefault(); });
@@ -3998,7 +4104,7 @@ function renderLyrmgrBlock(container, lmKey, profile) {
         var nlsKeySlash = 'desc_' + catKey;
         state.layerAliases[nlsKey] = newAlias;
         state.layerAliases[nlsKeySlash] = newAlias;
-        var nlsTarget = (state.activeProfile && state.activeProfile !== 'public') ? 'profile' : 'override';
+        var nlsTarget = state.activeProfile ? 'profile' : 'override';
         state.nlsEdits[catKey] = {
           alias: newAlias,
           nlsFile: 'lyrmgrResources.json',
@@ -4402,7 +4508,7 @@ document.getElementById('tb-tree-body').addEventListener('contextmenu', function
   } else if (lyrmgrEl) {
     // Rechtsklick auf LyrMgr-Root
     _ctxTarget = { type: 'lyrmgr' };
-    showLyrmgrCtxMenu(e.clientX, e.clientY, tree);
+    showLyrmgrCtxMenu(e.clientX, e.clientY, tree, lyrmgrEl.dataset.lyrmgr || state.activeLyrmgr || null);
   }
 });
 
@@ -4421,9 +4527,12 @@ function getItemRefByPath(items, path) {
 }
 
 // ===== Menü: LyrMgr-Root =====
-function showLyrmgrCtxMenu(x, y, tree) {
+function showLyrmgrCtxMenu(x, y, tree, lmKey) {
   openCtxMenu(x, y, [
     { head: 'Layer-Manager' },
+    { icon: '➕', label: 'LyrMgr-Block hinzufügen', action: function() { addLyrmgrBlock(lmKey); }},
+    { icon: '🗑', label: 'LyrMgr-Block löschen', danger: true, action: function() { if (lmKey) deleteLyrmgrBlock(lmKey); }},
+    '---',
     { icon: '📁', label: 'Kategorie hinzufügen', action: function() {
       tree.categories.push({ id: uid('cat'), name: 'Neue Kategorie', key: 'neue_kategorie', items: [] });
       renderTree();
@@ -4607,7 +4716,14 @@ function openPropsDialog(type, ref) {
     if (_catMeta) {
       _catFields.push({ key: '_metaEdit', label: 'Letzte Änderung', value: formatNodeEditMeta(_catMeta), type: 'readonly' });
     }
-    body = buildPropsForm(_catFields);
+    body = buildPropsForm(_catFields)
+      + '<div class="tb-props-row" style="margin-top:8px;border-top:1px solid #ddd;padding-top:8px">'
+      + '<label>NLS-Scope (Alias)</label>'
+      + '<select id="tb-node-alias-target" style="width:100%;padding:4px 6px;border:1px solid #ccc;border-radius:3px">'
+      + buildNlsScopeSelectHtml((state.nlsEdits[_catKey] && state.nlsEdits[_catKey].target) || (state.activeProfile ? 'profile' : 'override'))
+      + '</select>'
+      + '<div class="hint">Gilt nur für Alias/NLS, nicht für weitere Eigenschaften.</div>'
+      + '</div>';
   } else if (type === 'group') {
     title = 'Gruppenlayer: ' + (ref.key || ref.name || '(unbenannt)');
     var _grpKey = ref.key || ref.name || '';
@@ -4626,7 +4742,14 @@ function openPropsDialog(type, ref) {
     if (_grpMeta) {
       _grpFields.push({ key: '_metaEdit', label: 'Letzte Änderung', value: formatNodeEditMeta(_grpMeta), type: 'readonly' });
     }
-    body = buildPropsForm(_grpFields);
+    body = buildPropsForm(_grpFields)
+      + '<div class="tb-props-row" style="margin-top:8px;border-top:1px solid #ddd;padding-top:8px">'
+      + '<label>NLS-Scope (Alias)</label>'
+      + '<select id="tb-node-alias-target" style="width:100%;padding:4px 6px;border:1px solid #ccc;border-radius:3px">'
+      + buildNlsScopeSelectHtml((state.nlsEdits[_grpKey] && state.nlsEdits[_grpKey].target) || (state.activeProfile ? 'profile' : 'override'))
+      + '</select>'
+      + '<div class="hint">Gilt nur für Alias/NLS, nicht für weitere Eigenschaften.</div>'
+      + '</div>';
   } else if (type === 'layer') {
     // Layer-Properties: Alias + Konfig-Optionen
     var layerId = ref;
@@ -4670,6 +4793,13 @@ function openPropsDialog(type, ref) {
       + '<label>Speicherziel</label>'
       + '<select id="tb-layer-props-target" style="width:100%;padding:4px 6px;border:1px solid #ccc;border-radius:3px">' + targetOpts + '</select>'
       + '<div class="hint">Original: direkt in die Quelldatei. Override: ergänzt/überschreibt für diesen Standort. Profil: nur für Profil-Konfiguration.</div>'
+      + '</div>'
+      + '<div class="tb-props-row" style="margin-top:8px">'
+      + '<label>NLS-Scope (Alias)</label>'
+      + '<select id="tb-layer-alias-target" style="width:100%;padding:4px 6px;border:1px solid #ccc;border-radius:3px">'
+      + buildNlsScopeSelectHtml((state.nlsEdits[layerId] && state.nlsEdits[layerId].target) || target)
+      + '</select>'
+      + '<div class="hint">Gilt nur für Alias/NLS, nicht für Layer-Properties.</div>'
       + '</div>';
   }
 
@@ -4708,6 +4838,7 @@ document.getElementById('tb-props-save').addEventListener('click', function() {
     var layerId = ref;
     var layer = findLayerById(layerId);
     var targetSelect = document.getElementById('tb-layer-props-target');
+    var aliasTargetSelect = document.getElementById('tb-layer-alias-target');
     var target = targetSelect ? targetSelect.value : 'original';
 
     // 1) Alias (NLS) speichern
@@ -4728,7 +4859,7 @@ document.getElementById('tb-props-save').addEventListener('click', function() {
       var nlsFile = layer && layer.sourceFile
         ? layer.sourceFile.replace(/^layers/, 'lyrmgrResources').replace(/\.conf$/, '.json')
         : 'lyrmgrResources.json';
-      var nlsTarget = target; // 'original', 'override', 'profile'
+      var nlsTarget = normalizeNlsTarget(aliasTargetSelect ? aliasTargetSelect.value : target);
       state.nlsEdits[layerId] = {
         alias: newAlias || '',
         nlsFile: nlsFile,
@@ -4800,6 +4931,7 @@ document.getElementById('tb-props-save').addEventListener('click', function() {
 
   // === Alias (NLS) für cat/group separat behandeln (analog zu Layer-_alias) ===
   if (type === 'cat' || type === 'group') {
+    var nodeAliasTargetSelect = document.getElementById('tb-node-alias-target');
     var aliasInput = body.querySelector('input[data-prop="_alias"]');
     if (aliasInput) {
       var catId = ref.key || ref.name || '';
@@ -4815,7 +4947,8 @@ document.getElementById('tb-props-save').addEventListener('click', function() {
           delete state.layerAliases[nlsKey];
           delete state.layerAliases[nlsKeySlash];
         }
-        var nlsTarget = (state.activeProfile && state.activeProfile !== 'public') ? 'profile' : 'override';
+        var defaultNlsTarget = state.activeProfile ? 'profile' : 'override';
+        var nlsTarget = normalizeNlsTarget(nodeAliasTargetSelect ? nodeAliasTargetSelect.value : defaultNlsTarget);
         state.nlsEdits[catId] = {
           alias: newAlias || '',
           nlsFile: 'lyrmgrResources.json',
@@ -4827,6 +4960,7 @@ document.getElementById('tb-props-save').addEventListener('click', function() {
         updatePendingEditsCounter();
         touchNodeEditMeta(type, catId);
       }
+
     }
   }
 
@@ -7676,6 +7810,7 @@ function importLyrmgrFromProfile() {
 
               var confData = ljson.data.data;
               var lyrmgrKeys = ljson.data.lyrmgrKeys || Object.keys(confData);
+              lyrmgrKeys = lyrmgrKeys.filter(function(k) { return k !== '__nodeEditMeta' && k !== '__nlsAliases'; });
               var lyrmgrs = {};
 
               lyrmgrKeys.forEach(function(key) {
