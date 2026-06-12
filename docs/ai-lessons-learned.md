@@ -1,3 +1,10 @@
+## 2026-06-12 — Themenbaum klappt ohne visuelles Feedback abrupt auf/zu
+
+- **Symptom:** Beim Auf- und Zuklappen von Themen-Gruppen im neuen Layer-Manager wirkt der Übergang hart/ruckartig.
+- **Root-Cause:** Die Tree-Bodies (`.lm-subcat-body`, `.lm-group-body`, `.lm-nested-body`) wurden im collapsed-Zustand direkt per `display:none` ausgeblendet, ohne Übergang.
+- **Fix:** Collapse-Logik in CSS auf einen sehr leichten Übergang via `max-height` und `opacity` umgestellt; collapsed setzt `max-height: 0` und `opacity: 0`.
+- **Guardrail:** Für häufige UI-Interaktionen (Accordion/Tree) keine harten `display:none`-Sprünge als einziges Mittel nutzen, sondern kurze, zurückhaltende Transitions vorsehen.
+
 ## 2026-06-11 — Sync-Bundles brachen an einer nicht vorhandenen notes-Spalte
 
 - **Symptom:** Sync und Fullbackup schlugen mit `SQLSTATE[42703]` ab, weil `config_bundle_store.notes` in einem Schema nicht existierte.

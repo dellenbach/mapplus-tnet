@@ -350,10 +350,21 @@
   transform: rotate(90deg);
 }
 
+/* Leichter Übergang beim Auf-/Zuklappen im Themenbaum */
+.lm-subcat-body,
+.lm-group-body,
+.lm-nested-body {
+  max-height: 9999px;
+  opacity: 1;
+  overflow: hidden;
+  transition: max-height 0.18s ease, opacity 0.14s ease;
+}
+
 .lm-collapsed > .lm-subcat-body,
 .lm-collapsed > .lm-group-body,
 .lm-collapsed > .lm-nested-body {
-  display: none;
+  max-height: 0;
+  opacity: 0;
 }
 
 .lm-count {
