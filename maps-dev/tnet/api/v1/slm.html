@@ -10633,7 +10633,7 @@ function renderSyncStatus(data) {
   var bm = data.domains && data.domains.bookmarks;
   if (bm) {
     html += buildSyncDomain('bookmarks', bm.label || 'Bookmarks', function() {
-      return renderBookmarkTable(bm, envKeys);
+      return renderSyncBookmarkTable(bm, envKeys);
     }, 'bookmarks');
   }
 
@@ -10689,7 +10689,7 @@ function renderSyncStatus(data) {
   }
 }
 
-function renderBookmarkTable(bm, envKeys) {
+function renderSyncBookmarkTable(bm, envKeys) {
   var rows = '';
   var devRev = bm.revs && bm.revs.dev;
   var prodRev = bm.revs && bm.revs.prod;

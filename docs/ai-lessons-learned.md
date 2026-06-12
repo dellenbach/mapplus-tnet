@@ -2085,3 +2085,15 @@ Guardrail: Wenn Change-Detection für Kürzel vorhanden ist, immer auch prüfen,
 - **Root-Cause**: Der vorhandene State-Backup-Flow war nur über die Backup-Verwaltung erreichbar und nicht direkt im Sync-Workflow verdrahtet.
 - **Fix**: In `slm.html` wurde eine Fullbackup-Leiste mit `Fullbackup erstellen` und `Verwalten & Restore` ergänzt. Auf Serverseite erstellt `create-full-backup` jetzt eine `state_full_*.json`, die im bestehenden Backup-Manager als `state`-Backup wiederhergestellt werden kann.
 - **Guardrail**: Wenn Sync-Daten überschrieben werden können, gehört der Fullbackup-/Restore-Pfad sichtbar und direkt neben die Sync-Aktion.
+
+## 2026-06-12 — Bookmarks-Tab crashte mit `forEach`-Fehler
+- **Symptom**: Im Bookmarks-Tab erschien `Cannot read properties of undefined (reading 'forEach')`, und die Liste blieb leer.
+- **Root-Cause**: Durch eine Namenskollision existierten zwei globale Funktionen `renderBookmarkTable(...)`; die spätere Sync-Variante überschrieb die eigentliche Bookmark-Renderfunktion.
+- **Fix**: Die Sync-Renderer-Funktion wurde auf `renderSyncBookmarkTable(...)` umbenannt und alle Sync-Aufrufe wurden entsprechend angepasst.
+- **Guardrail**: In grossen Single-File-UIs keine generischen globalen Funktionsnamen wiederverwenden; domain-spezifische Präfixe (`renderSync*`, `renderBookmark*`) konsequent beibehalten.
+
+## 2026-06-12 — „Von Profil laden“ konnte im PROD-Store kein `public` laden
+- **Symptom**: Im Tree-Builder zeigte der Import-Dialog Profile aus `lyrmgr.conf`, aber der Import von `public` schlug im PROD-Store fehl.
+- **Root-Cause**: `load-lyrmgr` lief im DB-Modus standardmässig gegen den Katalog-Store; fehlte dort ein Profil-Dokument, kam `exists=false`, obwohl die Datei auf dem Server vorhanden war.
+- **Fix**: `load-lyrmgr` unterstützt jetzt `source=file` (erzwingt File-Lesen), und der UI-Flow „Von Profil laden“ nutzt explizit `source=file`.
+- **Guardrail**: File-Config-Workflows dürfen im DB-First-Betrieb nicht implizit auf DB-Reads umbiegen; Quelle immer explizit im API-Call markieren.

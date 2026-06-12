@@ -492,13 +492,13 @@ function getLyrmgrDraftStatus($profile) {
     ];
 }
 
-function loadLyrmgrConf($profile) {
+function loadLyrmgrConf($profile, $forceFile = false) {
     // ===== DB-FIRST (Themenkatalog DB-first) =====
     // Bei configSource=catalog=db zuerst aus der Staging-DB lesen.
     // Bei DB-Ausfall faellt der Code (sofern fallbackToFiles aktiv) auf die
     // bestehende Datei-Logik unten zurueck.
     require_once __DIR__ . '/../includes/ConfigSource.php';
-    if (ConfigSource::useDb('catalog')) {
+    if (!$forceFile && ConfigSource::useDb('catalog')) {
         require_once __DIR__ . '/../includes/CatalogRepository.php';
         try {
             $doc = CatalogRepository::loadProfile($profile);
@@ -5238,6 +5238,8 @@ switch ($action) {
         $source = $_GET['source'] ?? 'config';
         if ($source === 'draft') {
             $result = loadLyrmgrDraft($profile);
+        } elseif ($source === 'file') {
+            $result = loadLyrmgrConf($profile, true);
         } else {
             $result = loadLyrmgrConf($profile);
         }

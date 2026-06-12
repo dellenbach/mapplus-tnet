@@ -7799,7 +7799,7 @@ function importLyrmgrFromProfile() {
         if (selectedProfile) {
           console.log('Import von Profil:', selectedProfile, '→ Ziel:', activeProfile);
           // lyrmgr.conf des gewählten Profils laden und ins aktive Profil übernehmen
-          fetch(API_URL + '?action=load-lyrmgr&profile=' + encodeURIComponent(selectedProfile))
+          fetch(API_URL + '?action=load-lyrmgr&source=file&profile=' + encodeURIComponent(selectedProfile))
             .then(function(r) { return r.json(); })
             .then(function(ljson) {
               if (!ljson.success || !ljson.data || !ljson.data.exists) {
