@@ -26,6 +26,7 @@
   var _suppressMapSync = false; // Guard gegen Endlosschleifen Store↔Map
   var _catalogLayerIndex = {};  // { layerId: true } für performante Katalog-Lookups
   var _loadingTimers = {};      // { layerId: { slow, timeout, clearError, keys } }
+  var _layerVisibilityIntents = {}; // { layerId: { visible, at, source } }
   var _consistencyTimer = null;  // Debounce fuer Store↔Karte-Reconcile
   var _consistencyCombinedRetry = {}; // { servicePrefix: { attempts, lastAt } }
 
@@ -752,6 +753,19 @@
         storeLayer._olLayerRef = olLayer;
         storeLayer.opacity = olLayer.getOpacity();
 
+        // Race-Guard: verspätet eintreffende "on"-Layer nach schnellem
+        // Ein/Aus-Klick ignorieren, wenn der letzte explizite Zielzustand AUS war.
+        var intent = this._getLayerVisibilityIntent(lid);
+        if (intent && intent.visible === false) {
+          if (typeof olLayer.setVisible === 'function') {
+            olLayer.setVisible(false);
+          }
+          if (_config.debug) {
+            TnetLog.log(LOG, '_onOLLayerAdd ignoriert (Intent AUS):', lid, 'alter(ms)=', Date.now() - intent.at);
+          }
+          return;
+        }
+
         if (!storeLayer.visible) {
           storeLayer.visible = true;
           if (!this._isActive(lid)) {
@@ -1271,8 +1285,18 @@
         TnetLog.warn(LOG, 'toggleLayer: Layer nicht gefunden oder ist Gruppe:', layerId);
         return;
       }
-      var newVisible = !layer.visible;
-      if (_config.debug) TnetLog.log(LOG, 'toggleLayer', layerId, '→', newVisible ? 'EIN' : 'AUS');
+      // Primär entscheidet der Store-Wunsch (wie bisher zuverlässig).
+      // effective wird nur als GHOST-Erkennung herangezogen: Store sagt AUS,
+      // aber der Layer ist real auf der Karte sichtbar → dann ebenfalls AUS
+      // erzwingen (sonst bliebe ein nach schnellem Ein/Aus entstandener
+      // Ghost-Layer hängen).
+      var requestedVisible = this._getRequestedLayerVisible(layerId, layer);
+      var newVisible = !requestedVisible;
+      if (!requestedVisible && this._getEffectiveLayerVisible(layerId, layer)) {
+        newVisible = false; // Ghost: real sichtbar, daher ausschalten statt ein
+      }
+      if (_config.debug) TnetLog.log(LOG, 'toggleLayer', layerId, '→', newVisible ? 'EIN' : 'AUS',
+        '(requested:', requestedVisible, ', Store:', layer.visible, ')');
       this.setLayerVisible(layerId, newVisible);
     },
 
@@ -1284,6 +1308,7 @@
     setLayerVisible: function (layerId, visible) {
       var layer = this.findLayer(layerId);
       if (!layer) return;
+      this._rememberLayerVisibilityIntent(layerId, !!visible, 'setLayerVisible');
 
       var hasChildren = !!(
         (layer.subcategories && layer.subcategories.length) ||
@@ -1313,16 +1338,20 @@
       // Layer zwar als aktiv markiert, aber unsichtbar auf der Karte.
       if (currentVisible === targetVisible && !needsActivation) {
         if (!hasStateDrift) return;
-        layer.visible = targetVisible;
-        this._syncDuplicateVisible(layerId, targetVisible, layer);
-        if (activeEntry) activeEntry.visible = targetVisible;
-        if (!targetVisible) {
-          _activeLayers = _activeLayers.filter(function (l) { return l.id !== layerId; });
+        // Beim AUSschalten mit State-Drift NICHT abkuerzen: ein soeben
+        // gestarteter (noch ladender) EIN-Vorgang kann den Layer asynchron
+        // auf die Karte bringen. Nur der echte Off-Pfad unten (TnetLayerSwitch
+        // off + OL-Layer hart unsichtbar) raeumt diesen Ghost zuverlaessig weg.
+        // Daher nur den EIN-Fall hier kurzschliessen.
+        if (targetVisible) {
+          layer.visible = targetVisible;
+          this._syncDuplicateVisible(layerId, targetVisible, layer);
+          if (activeEntry) activeEntry.visible = targetVisible;
+          this._emit('layer-visibility', { id: layerId, visible: targetVisible, source: 'sync' });
+          this._emit('active-layers-changed', _activeLayers);
+          if (_config.debug) TnetLog.log(LOG, 'setLayerVisible Sync-only:', layerId, 'EIN');
+          return;
         }
-        this._emit('layer-visibility', { id: layerId, visible: targetVisible, source: 'sync' });
-        this._emit('active-layers-changed', _activeLayers);
-        if (_config.debug) TnetLog.log(LOG, 'setLayerVisible Sync-only:', layerId, targetVisible ? 'EIN' : 'AUS');
-        return;
       }
 
       layer.visible = targetVisible;
@@ -2049,6 +2078,54 @@
       ids.forEach(function (id) {
         self.removeLayer(id);
       });
+      // Visibility-Intents zuruecksetzen (Tabula rasa)
+      _layerVisibilityIntents = {};
+      // Safety-Net: auch nicht (mehr) getrackte Fachlayer hart von der Karte
+      // raeumen. Noetig fuer Ghost-Layer nach schnellem Ein/Aus, die nicht in
+      // _activeLayers stehen und daher von der Schleife oben nicht erfasst
+      // werden. Baselayer bleiben unangetastet.
+      this._sweepThematicLayersOffMap();
+    },
+
+    /**
+     * Entfernt/versteckt alle sichtbaren Fachlayer direkt auf der Karte —
+     * unabhaengig davon, ob sie im Store/Active getrackt sind. Erkennt
+     * Fachlayer an der ID (enthaelt '/' oder beginnt mit 'ch.') bzw. an
+     * tnet_wms_custom; Baselayer werden nie angefasst.
+     */
+    _sweepThematicLayersOffMap: function () {
+      var am = this._getAppManager();
+      var map = am && am.Maps && am.Maps['main'] && am.Maps['main'].mapObj;
+      if (!map || typeof map.getLayers !== 'function') return;
+      var cleared = 0;
+      _suppressMapSync = true;
+      try {
+        map.getLayers().forEach(function (layer) {
+          if (!layer || typeof layer.get !== 'function' || typeof layer.getVisible !== 'function') return;
+          var name = layer.get('name') || '';
+          if (!name || !layer.getVisible()) return;
+          var isThematic = name.indexOf('/') !== -1 || name.indexOf('ch.') === 0 || layer.get('tnet_wms_custom');
+          if (!isThematic) return;
+          try {
+            if (typeof TnetLayerSwitch === 'function') {
+              try { TnetLayerSwitch(name, 'off'); } catch (eSwitchOff) { /* ignore */ }
+            }
+            layer.setVisible(false);
+            if (typeof layer.getSource === 'function') {
+              var src = layer.getSource();
+              var params = src && typeof src.getParams === 'function' ? src.getParams() : null;
+              var layersParam = params && (params.LAYERS || params.layers) || '';
+              if (src && typeof src.updateParams === 'function' && typeof layersParam === 'string' && layersParam.indexOf('show:') === 0) {
+                src.updateParams({ LAYERS: 'show:-1' });
+              }
+            }
+            cleared++;
+          } catch (eOff) { /* ignore */ }
+        });
+      } finally {
+        setTimeout(function () { _suppressMapSync = false; }, 200);
+      }
+      if (cleared) TnetLog.log(LOG, 'removeAllLayers Map-Sweep:', cleared, 'Fachlayer entfernt');
     },
 
     /**
@@ -2689,6 +2766,26 @@
       delete _loadingTimers[layerId];
     },
 
+    _rememberLayerVisibilityIntent: function (layerId, visible, source) {
+      if (!layerId) return;
+      _layerVisibilityIntents[layerId] = {
+        visible: !!visible,
+        at: Date.now(),
+        source: source || 'unknown'
+      };
+    },
+
+    _getLayerVisibilityIntent: function (layerId) {
+      var intent = _layerVisibilityIntents[layerId];
+      if (!intent) return null;
+      // Alte Intents nicht ewig behalten.
+      if ((Date.now() - intent.at) > 10000) {
+        delete _layerVisibilityIntents[layerId];
+        return null;
+      }
+      return intent;
+    },
+
     _setLayerLoadingState: function (layerId, state) {
       var activeEntry = this._findActiveLayer(layerId);
       var layer = this.findLayer(layerId);
@@ -2921,11 +3018,27 @@
         if (renderedCombined) return true;
 
         // Falls ein dedizierter Einzel-OL-Layer existiert (show:N), dessen
-        // sichtbaren Zustand ebenfalls berücksichtigen.
+        // sichtbaren Zustand berücksichtigen — ABER nur, wenn dessen show:-Liste
+        // diesen Sublayer auch wirklich enthält. Wichtig: ein kombinierter
+        // OL-Layer ist nach EINEM seiner Sublayer benannt. Wird genau dieser
+        // Sublayer aus der show:-Liste entfernt, bleibt der OL-Layer (mit diesem
+        // Namen) sichtbar und zeigt die übrigen Sublayer. Ohne show:-Prüfung
+        // würde der entfernte Sublayer hier fälschlich als sichtbar gemeldet.
         if (map) {
           var exactLayers = this._findAllOLLayers(map, layerId);
+          var subStr = String(subNum);
           for (var ei = 0; ei < exactLayers.length; ei++) {
-            if (exactLayers[ei] && typeof exactLayers[ei].getVisible === 'function' && exactLayers[ei].getVisible()) {
+            var exL = exactLayers[ei];
+            if (!exL || typeof exL.getVisible !== 'function' || !exL.getVisible()) continue;
+            var exSrc = typeof exL.getSource === 'function' ? exL.getSource() : null;
+            var exParams = exSrc && typeof exSrc.getParams === 'function' ? exSrc.getParams() : null;
+            var exShow = exParams && (exParams.LAYERS || exParams.layers);
+            if (typeof exShow === 'string' && exShow.indexOf('show:') === 0) {
+              // show:-Layer → nur sichtbar, wenn dieser Sublayer in der Liste steht
+              var exVals = exShow.replace(/^show:/, '').split(',').map(function (v) { return v.trim(); });
+              if (exVals.indexOf(subStr) >= 0) return true;
+            } else {
+              // Kein show:-Param (eigenständiger Layer) → sichtbar zählt
               return true;
             }
           }

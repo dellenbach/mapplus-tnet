@@ -1,4 +1,18 @@
-## 2026-06-12 — Themenbaum klappt ohne visuelles Feedback abrupt auf/zu
+## 2026-06-12 — Schnelles Ein/Aus im Themenkatalog erzeugte nicht entfernbaren Ghost-Layer
+
+- **Symptom:** Nach schnellem Ein-/Ausschalten blieb ein Thema auf der Karte sichtbar, liess sich nicht mehr ausschalten, erschien nicht unter „Karteninhalt" und „Karteninhalt leeren" entfernte es nicht.
+- **Root-Cause:** Beim AUS-Klick während eines noch laufenden EIN-Loads nahm `setLayerVisible` die „Sync-only"-Abkürzung: Store-Flag auf AUS + Entfernen aus `_activeLayers`, aber ohne echten Off-Switch der (asynchron eintreffenden) Karten-Ebene. Der spät geladene OL-Layer wurde so zum Ghost (Karte EIN, nirgends getrackt). Folge: Toggle nutzte `layer.visible` (AUS) → versuchte nur EIN; `removeAllLayers` iterierte nur `_activeLayers` → Ghost blieb.
+- **Fix:** In `tnet-lm-store.js` drei Massnahmen: (1) `setLayerVisible` kürzt nur noch beim EINschalten ab — AUS mit State-Drift durchläuft immer den echten Off-Pfad (TnetLayerSwitch off + `_applyOLState` setVisible(false) bei 0/300ms). (2) `toggleLayer` basiert auf `_getEffectiveLayerVisible` (echter Kartenzustand) statt nur `layer.visible`, damit Ghosts zuverlässig ausgeschaltet werden. (3) `removeAllLayers` ruft zusätzlich `_sweepThematicLayersOffMap()` (Map-Sweep über Fachlayer, Baselayer bleiben). Ergänzt durch den Visibility-Intent-Guard in `_onOLLayerAdd` für verspätete Adds.
+- **Guardrail:** Ein AUS-Klick muss den realen Karten-Layer immer aktiv abschalten, auch wenn er „effektiv noch unsichtbar" scheint (laufender Async-Load). Toggle-Entscheidungen und Clear-Aktionen müssen den tatsächlichen Kartenzustand berücksichtigen, nicht allein Store-Flags/`_activeLayers`.
+
+## 2026-06-12 — Combined-Sublayer (zwei Themen desselben Dienstes) liessen sich nicht ausschalten
+
+- **Symptom:** Bei zwei gleichzeitig aktiven Sublayern desselben ArcGIS-Dienstes (gemeinsamer `show:a,b`-Layer) liess sich genau einer nicht mehr ausschalten; einzelne/eigenständige Layer waren nicht betroffen.
+- **Root-Cause:** Zwei zusammenwirkende Fehler. (1) Mein Übergangs-Fix hatte `toggleLayer` auf `requested || effective` umgestellt. (2) `_getEffectiveLayerVisible` meldete für den Sublayer, nach dem der kombinierte OL-Layer benannt ist, fälschlich „sichtbar": Die Exact-Name-Prüfung akzeptierte den weiterhin sichtbaren OL-Layer, ohne zu prüfen, ob dessen `show:`-Liste den Sublayer noch enthält. Dadurch war `effective` dauerhaft true → der Layer wurde als „immer an" interpretiert und nicht abgeschaltet.
+- **Fix:** (1) `toggleLayer` entscheidet wieder primär über den Store-Wunsch (`_getRequestedLayerVisible`); `effective` dient nur noch als Ghost-Erkennung, falls der Store AUS sagt, der Layer aber real sichtbar ist. (2) In `_getEffectiveLayerVisible` zählt ein exakt benannter `show:`-OL-Layer nur dann als sichtbar, wenn seine `show:`-Liste die Sublayer-Nummer wirklich enthält.
+- **Guardrail:** Bei kombinierten ArcGIS-`show:`-Layern nie allein vom OL-Layer-Namen auf die Sublayer-Sichtbarkeit schliessen — immer die `show:`-Indexliste prüfen. Toggle-Logik primär an der Nutzer-/Store-Intention ausrichten, Kartenzustand nur als Korrektur für echte Ghosts.
+
+
 
 - **Symptom:** Beim Auf- und Zuklappen von Themen-Gruppen im neuen Layer-Manager wirkt der Übergang hart/ruckartig.
 - **Root-Cause:** Die Tree-Bodies (`.lm-subcat-body`, `.lm-group-body`, `.lm-nested-body`) wurden im collapsed-Zustand direkt per `display:none` ausgeblendet, ohne Übergang.
