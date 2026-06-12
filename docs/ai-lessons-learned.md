@@ -1775,6 +1775,15 @@ Guardrail: Wenn Change-Detection für Kürzel vorhanden ist, immer auch prüfen,
 
 ---
 
+## 2026-06-12 — Tree-Builder zeigt nach Reload falsche Round-Trip-Änderungen
+
+- **Symptom:** Nach Reload und ohne inhaltliche Änderungen meldete „Lyrmgr publizieren?“ viele Unterschiede wie „Key-Reihenfolge geändert“.
+- **Root-Cause:** `findBlockDifferences()` bewertete reine Objekt-Key-Reihenfolgen als Änderung; diese Reihenfolge kann sich durch JSONB/Serialisierung ändern, ohne fachliche Differenz.
+- **Fix:** Key-Order-Vergleich im Objekt-Zweig entfernt; Vergleich prüft nur noch fehlende/zusätzliche Keys und Werte.
+- **Guardrail:** Round-Trip-Vergleiche für Konfigobjekte müssen semantisch sein; reine Key-Reihenfolge bei Objekten nie als fachliche Änderung zählen.
+
+---
+
 ## 2026-03-04 — PHP OPcache blockiert Datei-Updates auf Server (Deploy fehlschlägt)
 
 - **Symptom**: Nach SFTP-Upload von LayerImporter.php zeigt der Server identischen Fehler mit identischen Zeilennummern, trotz korrekter Datei auf Disk und `opcache_reset()`.

@@ -8100,7 +8100,8 @@ function findBlockDifferences(a, b, path) {
       diffs = diffs.concat(findBlockDifferences(a[i], b[i], path + '[' + i + ']'));
     }
   } else {
-    // Key-Reihenfolge prüfen
+    // Key-Reihenfolge bewusst ignorieren:
+    // JSONB/Serialize-Schritte können Objekt-Key-Order ändern, ohne fachliche Änderung.
     var keysA = Object.keys(a);
     var keysB = Object.keys(b);
     // Fehlende / überzählige Keys
@@ -8112,12 +8113,6 @@ function findBlockDifferences(a, b, path) {
     keysA.forEach(function(k) {
       if (!setB[k]) diffs.push(path + '.' + k + ': FEHLT im Export');
     });
-    // Key-Reihenfolge
-    var commonA = keysA.filter(function(k) { return setB[k]; });
-    var commonB = keysB.filter(function(k) { return setA[k]; });
-    if (commonA.join(',') !== commonB.join(',')) {
-      diffs.push(path + ': Key-Reihenfolge geändert');
-    }
     // Werte rekursiv vergleichen
     keysA.forEach(function(k) {
       if (setB[k]) {

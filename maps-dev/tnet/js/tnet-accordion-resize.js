@@ -809,13 +809,16 @@
 
   // Event-basierter Start
   document.addEventListener('tnet-app-ready', function () {
-    setTimeout(tryInit, 500);
+    setTimeout(tryInit, 0);
   }, { once: true });
 
+  // Früher Initialisierungsversuch (falls Panels bereits da sind)
+  setTimeout(tryInit, 0);
+
   // Polling-Fallback: mehrere Zeitpunkte
+  setTimeout(tryInit, 800);
   setTimeout(tryInit, 2000);
   setTimeout(tryInit, 4000);
-  setTimeout(tryInit, 6000);
 
   // Export
   window.TnetAccordionResize = {

@@ -21,6 +21,12 @@ body.tnet-sidepanel-v2 div#freepane {
   border-radius: 0 0 10px 0;
   box-shadow: 4px 0 10px rgba(0, 0, 0, 0.12),
               2px 4px 8px rgba(0, 0, 0, 0.08);
+  animation: tnet-sidepanel-fade-in 0.5s ease both;
+}
+
+@keyframes tnet-sidepanel-fade-in {
+  from { opacity: 0; transform: translateX(-8px); }
+  to   { opacity: 1; transform: translateX(0); }
 }
 
 /* Freepane verkürzt wenn Spatial-Query-Panel unten angedockt */
