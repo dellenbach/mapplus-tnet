@@ -4820,6 +4820,31 @@ function saveState($data, $editor) {
     ];
 }
 
+function createFullBackup($editor) {
+    ensureDirs();
+
+    if (!file_exists(STATE_FILE)) {
+        jsonError('State-Datei nicht gefunden', 404);
+    }
+
+    $ts = date('Ymd_His');
+    $safeEditor = preg_replace('/[^a-zA-Z0-9_\-]/', '_', $editor ?: 'unknown');
+    $filename = 'state_full_' . $ts . '_' . $safeEditor . '.json';
+    $path = BACKUP_DIR . '/' . $filename;
+
+    if (!@copy(STATE_FILE, $path)) {
+        jsonError('Fullbackup konnte nicht erstellt werden', 500);
+    }
+
+    cleanupBackups();
+
+    return [
+        'created' => true,
+        'file' => $filename,
+        'bytes' => filesize($path),
+    ];
+}
+
 function loadState() {
     if (!file_exists(STATE_FILE)) {
         return ['exists' => false, 'data' => null];
@@ -5128,6 +5153,64 @@ switch ($action) {
         if ($bytes === false) jsonError('Backup konnte nicht gespeichert werden', 500);
         cleanupBackups();
         jsonResponse(['success' => true, 'data' => ['file' => $filename, 'bytes' => $bytes]]);
+        break;
+
+    // ── Voll-Backup der aktuellen State-Datei erstellen ──
+    case 'create-full-backup':
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('POST erforderlich', 405);
+        $editor = getEditorName();
+        $result = createFullBackup($editor);
+        jsonResponse(['success' => true, 'data' => $result]);
+        break;
+
+    // ── Sync: Env-spezifisches Bookmark-Backup erstellen ──
+    case 'sync-backup-create':
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('POST erforderlich', 405);
+        $body = json_decode(file_get_contents('php://input'), true);
+        $env  = $body['env'] ?? 'dev';
+        require_once __DIR__ . '/../includes/SyncRepository.php';
+        $allowedEnvs = array_keys(SyncRepository::schemaMap());
+        if (!in_array($env, $allowedEnvs, true)) jsonError('Ungültige Umgebung: ' . $env, 400);
+        $user = $body['user'] ?? getEditorName();
+        try {
+            $result = SyncRepository::createEnvBackup($env, $user, BACKUP_DIR);
+            jsonResponse(['success' => true, 'data' => $result]);
+        } catch (\Throwable $e) {
+            jsonError('Sync-Backup fehlgeschlagen: ' . $e->getMessage(), 500);
+        }
+        break;
+
+    // ── Sync: Vollständiges Backup (Bookmarks + Katalog + Bundles) ──
+    case 'sync-fullbackup-create':
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('POST erforderlich', 405);
+        $body = json_decode(file_get_contents('php://input'), true);
+        $env  = $body['env'] ?? 'dev';
+        require_once __DIR__ . '/../includes/SyncRepository.php';
+        $allowedEnvs = array_keys(SyncRepository::schemaMap());
+        if (!in_array($env, $allowedEnvs, true)) jsonError('Ungültige Umgebung: ' . $env, 400);
+        $user = $body['user'] ?? getEditorName();
+        try {
+            $result = SyncRepository::createFullBackup($env, $user, BACKUP_DIR);
+            jsonResponse(['success' => true, 'data' => $result]);
+        } catch (\Throwable $e) {
+            jsonError('Fullbackup fehlgeschlagen: ' . $e->getMessage(), 500);
+        }
+        break;
+
+    // ── Sync: Schema-Initialisierung für eine Umgebung ──
+    case 'sync-schema-init':
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('POST erforderlich', 405);
+        $body = json_decode(file_get_contents('php://input'), true);
+        $env  = $body['env'] ?? 'prod';
+        require_once __DIR__ . '/../includes/SyncRepository.php';
+        $allowedEnvs = array_keys(SyncRepository::schemaMap());
+        if (!in_array($env, $allowedEnvs, true)) jsonError('Ungültige Umgebung: ' . $env, 400);
+        try {
+            $result = SyncRepository::initSchema($env);
+            jsonResponse(['success' => true, 'data' => $result]);
+        } catch (\Throwable $e) {
+            jsonError('Schema-Init fehlgeschlagen: ' . $e->getMessage(), 500);
+        }
         break;
 
     // ── Backup nur lesen (in Memory laden, ohne STATE_FILE zu überschreiben) ──
@@ -7655,7 +7738,7 @@ switch ($action) {
             'data' => [
                 'name'    => 'Tree-Builder Persistence API',
                 'version' => '3.2',
-                'actions' => ['load', 'save', 'lock', 'unlock', 'lock-status', 'history', 'restore', 'save-groups', 'load-groups', 'save-profile', 'load-profile', 'list-profiles', 'load-lyrmgr', 'save-lyrmgr-draft', 'publish-lyrmgr', 'list-lyrmgr-profiles', 'list-all-layers', 'deploy-lyrmgr', 'ags-services', 'ags-export', 'ags-list-raw', 'ags-delete-raw', 'ags-delete-backups', 'ags-read-raw', 'ags-write-raw', 'staging-layers-flat', 'config-editor-load', 'config-editor-save', 'config-export-to-core', 'export-catalog-artifacts', 'deploy-catalog-artifacts', 'core-list-sources', 'core-import', 'qgis-list-projects', 'qgis-capabilities', 'legend-tuner-load', 'legend-tuner-save', 'bookmarks-load', 'bookmarks-save'],
+                'actions' => ['load', 'save', 'lock', 'unlock', 'lock-status', 'history', 'restore', 'create-backup', 'create-full-backup', 'sync-backup-create', 'save-groups', 'load-groups', 'save-profile', 'load-profile', 'list-profiles', 'load-lyrmgr', 'save-lyrmgr-draft', 'publish-lyrmgr', 'list-lyrmgr-profiles', 'list-all-layers', 'deploy-lyrmgr', 'ags-services', 'ags-export', 'ags-list-raw', 'ags-delete-raw', 'ags-delete-backups', 'ags-read-raw', 'ags-write-raw', 'staging-layers-flat', 'config-editor-load', 'config-editor-save', 'config-export-to-core', 'export-catalog-artifacts', 'deploy-catalog-artifacts', 'core-list-sources', 'core-import', 'qgis-list-projects', 'qgis-capabilities', 'legend-tuner-load', 'legend-tuner-save', 'bookmarks-load', 'bookmarks-save'],
                 'storage' => DATA_DIR
             ]
         ]);

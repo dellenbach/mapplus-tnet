@@ -545,15 +545,34 @@ body {
 .ags-tab[data-tab="sync"]      { background: linear-gradient(135deg, #2e7d8c, #1a5c69); }
 
 /* ===== SYNC TAB ===== */
-.sync-toolbar { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; padding: 6px 8px; background: #f8f8f8; border: 1px solid #e0e0e0; border-radius: 5px; }
+.sync-toolbar { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; padding: 5px 10px; background: #f8f8f8; border: 1px solid #e0e0e0; border-radius: 5px; }
+.sync-toolbar-note { font-size: 10px; color: #a04000; background: #fff3e0; border: 1px solid #ffe0b2; padding: 2px 8px; border-radius: 3px; white-space: nowrap; }
+.sync-backup-label { font-size: 10px; font-weight: 700; letter-spacing: .04em; color: #8a5a00; background: #fff3e0; border: 1px solid #ffe0b2; padding: 2px 8px; border-radius: 3px; white-space: nowrap; }
+.sync-backup-env-sel { padding: 3px 6px; font-size: 12px; border: 1px solid #ddd; border-radius: 3px; background: #fff; cursor: pointer; }
 .sync-btn-reload { padding: 4px 12px; font-size: 12px; border: 1px solid #ddd; border-radius: 3px; background: #fff; cursor: pointer; }
 .sync-btn-reload:hover { background: #f0f0f0; }
-.sync-hint { font-size: 10px; color: #a04000; background: #fff3e0; border: 1px solid #ffe0b2; padding: 2px 8px; border-radius: 3px; }
 .sync-env-badges { display: flex; gap: 6px; align-items: center; font-size: 11px; font-weight: 600; }
 .sync-env-badge { padding: 2px 8px; border-radius: 3px; color: #fff; font-size: 10px; }
 .sync-env-badge.dev  { background: #e67e22; }
 .sync-env-badge.prod { background: #27ae60; }
-.sync-status-bar { padding: 5px 12px; font-size: 11px; color: #666; background: #f5f7fa; border-radius: 4px; margin-bottom: 8px; }
+.sync-status-bar { padding: 3px 10px; font-size: 11px; color: #666; background: #f5f7fa; border-radius: 4px; margin-bottom: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Kompakter KPI-Streifen */
+.sync-summary { display: flex; gap: 1px; margin-bottom: 6px; background: #d8dfe5; border: 1px solid #d8dfe5; border-radius: 5px; overflow: hidden; }
+.sync-summary-card { flex: 1; padding: 4px 8px; background: #f8fafc; min-width: 0; }
+.sync-summary-label { font-size: 10px; font-weight: 700; letter-spacing: .03em; color: #4a5c6a; text-transform: uppercase; }
+.sync-summary-value { font-size: 11px; font-weight: 700; color: #20323d; }
+.sync-summary-sub { font-size: 10px; color: #687680; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sync-summary-status { display: inline-flex; align-items: center; gap: 3px; font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 999px; vertical-align: middle; }
+.sync-summary-status.ok { background: #eaf6ec; color: #2e7d32; }
+.sync-summary-status.diff { background: #fff3e0; color: #d97706; }
+.sync-summary-status.warn { background: #e8f2fb; color: #1565c0; }
+.sync-direction-legend { display: flex; align-items: center; gap: 8px; padding: 5px 10px; margin-bottom: 6px; background: #f0f7fb; border: 1px solid #d6e7f2; border-radius: 4px; font-size: 11px; color: #335; }
+.sync-direction-legend strong { color: #1f4e79; }
+.sync-direction-legend .sync-new-badge { margin-left: 0; }
+.sync-meta-env { font-weight: 700; text-transform: uppercase; color: #4a5c6a; }
+.sync-meta-text { color: #687680; }
+.sync-schema-banner { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 6px 10px; margin-bottom: 6px; background: #fff8e1; border: 1px solid #ffe082; border-radius: 4px; font-size: 11px; }
+.sync-schema-warn { color: #7a4800; flex: 1; min-width: 200px; }
 .sync-content { flex: 1; overflow-y: auto; }
 .sync-domain { border: 1px solid #e0e4e8; border-radius: 5px; margin-bottom: 10px; overflow: hidden; }
 .sync-domain-head { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: #f5f7fa; cursor: pointer; user-select: none; border-bottom: 1px solid #e0e4e8; }
@@ -563,11 +582,20 @@ body {
 .sync-domain.open .sd-arrow { transform: rotate(90deg); }
 .sync-domain-body { display: none; padding: 0; }
 .sync-domain.open .sync-domain-body { display: block; }
+.sync-domain-toggle { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: #24343d; }
+.sync-domain-toggle input { margin: 0; }
+.sync-domain-meta { font-size: 10px; color: #6b7780; margin-left: auto; white-space: nowrap; }
 .sync-table { width: 100%; border-collapse: collapse; font-size: 12px; }
 .sync-table th { background: #fafafa; border-bottom: 2px solid #e0e4e8; padding: 5px 10px; text-align: left; font-size: 11px; font-weight: 600; color: #555; white-space: nowrap; }
 .sync-table td { padding: 5px 10px; border-bottom: 1px solid #f0f0f0; vertical-align: middle; }
 .sync-table tr:last-child td { border-bottom: none; }
 .sync-table tr:hover td { background: #f8fafc; }
+.sync-table td.sync-cell-newer { background: #eef8ee; }
+.sync-table td.sync-cell-newer .sync-cell-main { color: #2e7d32; }
+.sync-table td.sync-cell-newer .sync-cell-sub { color: #2e7d32; }
+.sync-new-badge { display: inline-flex; align-items: center; gap: 2px; margin-left: 6px; padding: 1px 5px; border-radius: 999px; font-size: 9px; font-weight: 700; letter-spacing: .02em; vertical-align: middle; }
+.sync-new-badge.dev { background: #e8f5e9; color: #2e7d32; }
+.sync-new-badge.prod { background: #e3f2fd; color: #1565c0; }
 .sync-status-icon { font-size: 14px; }
 .sync-btn { padding: 3px 10px; font-size: 11px; border: 1px solid #ddd; border-radius: 3px; cursor: pointer; white-space: nowrap; background: #fff; }
 .sync-btn:hover { background: #f0f0f0; }
@@ -575,15 +603,27 @@ body {
 .sync-btn.push:hover { background: #c8e6c9; }
 .sync-btn.pull { background: #e3f2fd; border-color: #90caf9; color: #1565c0; }
 .sync-btn.pull:hover { background: #bbdefb; }
+.sync-btn.push.sync-newer-source { box-shadow: inset 0 0 0 1px #2e7d32; }
+.sync-btn.pull.sync-newer-source { box-shadow: inset 0 0 0 1px #1565c0; }
+.sync-btn .sync-btn-note { display: block; font-size: 9px; font-weight: 700; line-height: 1.1; opacity: .85; }
 .sync-btn:disabled { opacity: .4; cursor: default; }
+.sync-btn:disabled:hover { background: inherit; }
 .sync-count { font-size: 11px; font-weight: 600; padding: 1px 6px; border-radius: 3px; background: #e8eaed; color: #333; }
 .sync-rev { font-size: 10px; color: #888; font-family: monospace; }
 .sync-diff { color: #e67e22; font-weight: 700; }
 .sync-ok   { color: #2e7d32; }
-.sync-only-dev  { color: #e67e22; }
-.sync-only-prod { color: #1565c0; }
-.sync-domain-actions { display: flex; gap: 6px; align-items: center; padding: 8px 12px; background: #fafafa; border-top: 1px solid #eee; }
+.sync-only-dev  { color: #e67e22; font-size: 10px; }
+.sync-only-prod { color: #1565c0; font-size: 10px; }
+.sync-domain-actions { display: flex; gap: 6px; align-items: center; padding: 8px 12px; background: #fafafa; border-top: 1px solid #eee; flex-wrap: wrap; }
 .sync-domain-actions .spacer { flex: 1; }
+.sync-selection { display: inline-flex; align-items: center; gap: 6px; font-size: 10px; color: #66727b; }
+.sync-selection strong { font-size: 11px; color: #31414b; }
+.sync-select-col { width: 34px; text-align: center; }
+.sync-select-cell { text-align: center; width: 34px; }
+.sync-select-item { width: 14px; height: 14px; }
+.sync-cell-main { font-weight: 600; color: #2a3943; line-height: 1.1; }
+.sync-cell-sub { font-size: 10px; color: #7d8890; margin-top: 2px; line-height: 1.2; }
+.sync-row-muted { color: #8b949b; font-size: 10px; }
 
 
 /* ===== COMMIT-MESSAGE-DIALOG ===== */
@@ -1870,15 +1910,20 @@ Kein Einfluss auf Browser-Cache (dafuer: Ctrl+Shift+R)">🗑 Cache leeren</butto
     </div>
   </div>
 
-  </div>
-
   <!-- ===== TAB: SYNC ===== -->
   <div class="ags-pane" id="pane-sync">
     <div class="sync-toolbar">
       <button class="sync-btn-reload" onclick="loadSyncStatus()">↻ Status neu laden</button>
       <span class="sync-env-badges" id="sync-env-badges"></span>
       <span style="flex:1"></span>
-      <span class="sync-hint">⚠ Sync überschreibt Ziel-Daten. Vor Sync Backup empfohlen.</span>
+      <span class="sync-backup-label">BACKUP</span>
+      <select class="sync-backup-env-sel" id="sync-backup-env">
+        <option value="dev">DEV</option>
+        <option value="prod">PROD</option>
+      </select>
+      <button class="sync-btn-reload" onclick="createSyncEnvBackup()">💾 Backup erstellen</button>
+      <button class="sync-btn-reload" onclick="openSyncBackupManager()">📁 Verwalten &amp; Restore</button>
+      <span class="sync-toolbar-note">⚠ Sync überschreibt Ziel-Daten</span>
     </div>
     <div class="sync-status-bar" id="sync-status-bar">Status wird geladen…</div>
     <div class="sync-content" id="sync-content">
@@ -2482,7 +2527,11 @@ function switchTab(tabName, skipHash, onImportLoaded) {
   } else if (tabName === 'bookmarks') {
     loadBookmarks();
   } else if (tabName === 'sync') {
-    loadSyncStatus();
+    if (typeof loadSyncStatus === 'function') {
+      loadSyncStatus();
+    } else {
+      window.__syncPendingLoad = true;
+    }
   }
 }
 
@@ -9529,6 +9578,51 @@ function bmOpenBackupManager() {
   slmLoadBackupList();
 }
 
+function openSyncBackupManager() {
+  var overlay = document.getElementById('slm-backup-overlay');
+  var typeFilter = document.getElementById('slm-bk-type-filter');
+  if (!overlay) return;
+  overlay.classList.add('open');
+  // Sync-Backups sind Bookmark-Exporte (keine State-Dateien des Tree-Builders)
+  if (typeFilter) {
+    typeFilter.value = 'bookmarks';
+  }
+  slmLoadBackupList();
+}
+
+function createSyncEnvBackup() {
+  var envSel = document.getElementById('sync-backup-env');
+  var env = envSel ? envSel.value : 'dev';
+  var status = document.getElementById('sync-status-bar');
+  if (status) status.textContent = 'Erstelle Fullbackup für ' + env.toUpperCase() + '…';
+  var user = (typeof bmGetUser === 'function') ? bmGetUser() : 'anonym';
+  fetch(API_URL + '?action=sync-fullbackup-create', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ env: env, user: user })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(res) {
+    if (!res.success) throw new Error(res.error || 'Unbekannt');
+    var d = res.data || {};
+    var s = d.summary || {};
+    var parts = [];
+    if (s.bookmarks != null) parts.push(s.bookmarks + ' Bookmarks');
+    if (s.catalog    != null) parts.push(s.catalog    + ' Katalog-Profile');
+    if (s.bundles    != null) parts.push(s.bundles    + ' Bundles');
+    var txt = '✓ Fullbackup [' + env.toUpperCase() + ']: ' + parts.join(', ');
+    if (d.bytes) txt += ' (' + Math.round(d.bytes / 1024) + ' KB)';
+    if (d.warnings && d.warnings.length) txt += ' ⚠ ' + d.warnings.join('; ');
+    if (status) status.textContent = txt;
+    if (document.getElementById('slm-backup-overlay') && document.getElementById('slm-backup-overlay').classList.contains('open')) {
+      slmLoadBackupList();
+    }
+  })
+  .catch(function(err) {
+    if (status) status.textContent = '✗ Backup fehlgeschlagen: ' + err.message;
+  });
+}
+
 function showBookmarkDeployToast(message, type) {
   var toast = document.getElementById('bm-deploy-toast');
   var colors = {
@@ -10286,6 +10380,7 @@ function renderSyncStatus(data) {
   var content = document.getElementById('sync-content');
   var envs    = data.environments || {};
   var envKeys = Object.keys(envs);
+  var summary = buildSyncSummary(data, envKeys);
 
   // Env-Badges
   var badges = document.getElementById('sync-env-badges');
@@ -10296,6 +10391,7 @@ function renderSyncStatus(data) {
   }
 
   var html = '';
+  if (summary) html += summary;
 
   // ── Bookmarks ──
   var bm = data.domains && data.domains.bookmarks;
@@ -10346,12 +10442,14 @@ function renderSyncStatus(data) {
       var rows = bn.items.slice(0, 30).map(function(item) {
         var cells = envKeys.map(function(e) {
           var env = item.envs && item.envs[e];
-          if (!env) return '<td class="sync-only-prod" style="font-size:10px;color:#aaa">—</td>';
+          if (!env) return '<td class="sync-only-' + esc(e) + '" style="font-size:10px">— fehlt</td>';
           return '<td><span style="font-size:10px;font-family:monospace">' + esc(env.scope || '') + '</span></td>';
         }).join('');
+        var presentEnvs = envKeys.filter(function(e) { return item.envs && item.envs[e]; });
+        var missingEnvs = envKeys.filter(function(e) { return !item.envs || !item.envs[e]; });
         var statusCell = item.status === 'both'
-          ? '<td class="sync-ok" style="text-align:center;font-size:12px">✓</td>'
-          : '<td class="sync-diff" style="text-align:center;font-size:12px">½</td>';
+          ? '<td class="sync-ok" style="text-align:center">✅</td>'
+          : '<td class="sync-diff" style="font-size:10px;white-space:nowrap">⚠ nur ' + esc(presentEnvs.map(function(e){return e.toUpperCase();}).join('+')) + '</td>';
         return '<tr><td style="font-family:monospace;font-size:11px">' + esc(item.kuerzel) + '</td>' + cells + statusCell + '</tr>';
       }).join('');
       if (bn.items.length > 30) rows += '<tr><td colspan="4" style="text-align:center;color:#999;font-size:11px">… und ' + (bn.items.length - 30) + ' weitere</td></tr>';
@@ -10364,17 +10462,18 @@ function renderSyncStatus(data) {
 
   // Domain-Accordion aufklappen
   content.querySelectorAll('.sync-domain-head').forEach(function(head) {
-    head.addEventListener('click', function() {
-      var domain = head.closest('.sync-domain');
-      domain.classList.toggle('open');
+    head.addEventListener('click', function(e) {
+      if (e.target.closest('button') || e.target.tagName === 'INPUT') return;
+      head.closest('.sync-domain').classList.toggle('open');
     });
   });
   // Alle aufklappen
   content.querySelectorAll('.sync-domain').forEach(function(d) { d.classList.add('open'); });
 
   // Sync-Buttons
-  content.querySelectorAll('[data-sync-domain]').forEach(function(btn) {
-    btn.addEventListener('click', function() {
+  content.querySelectorAll('button[data-sync-direction]').forEach(function(btn) {
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation();
       var domain    = btn.dataset.syncDomain;
       var direction = btn.dataset.syncDirection;
       var keysStr   = btn.dataset.syncKeys;
@@ -10382,6 +10481,74 @@ function renderSyncStatus(data) {
       executeSyncOperation(domain, direction, keys);
     });
   });
+}
+
+function buildSyncSummary(data, envKeys) {
+  var domains = data.domains || {};
+  var summaryCards = [];
+
+  var bookmarks = domains.bookmarks;
+  if (bookmarks) {
+    var devCount = bookmarks.counts && bookmarks.counts.dev != null ? bookmarks.counts.dev : null;
+    var prodCount = bookmarks.counts && bookmarks.counts.prod != null ? bookmarks.counts.prod : null;
+    var sameCount = devCount != null && prodCount != null && devCount === prodCount;
+    var sameRev = bookmarks.revs && bookmarks.revs.dev != null && bookmarks.revs.prod != null && bookmarks.revs.dev === bookmarks.revs.prod;
+    summaryCards.push(
+      '<div class="sync-summary-card">'
+      + '<div class="sync-summary-label">Bookmarks</div>'
+      + '<div class="sync-summary-value">' + esc(formatSummaryDelta(devCount, prodCount)) + '</div>'
+      + '<div class="sync-summary-sub">DEV ' + esc(formatSummaryCount(devCount)) + ' · PROD ' + esc(formatSummaryCount(prodCount)) + '</div>'
+      + '<div class="sync-summary-status ' + (sameCount && sameRev ? 'ok' : 'diff') + '">'
+      + (sameCount && sameRev ? '✓ identisch' : '⚠ Abweichung')
+      + '</div>'
+      + '</div>'
+    );
+  }
+
+  var catalog = domains.catalog && Array.isArray(domains.catalog.items) ? domains.catalog.items : [];
+  var catalogDiff = 0;
+  for (var i = 0; i < catalog.length; i++) {
+    if (catalog[i] && catalog[i].status !== 'sync') catalogDiff++;
+  }
+  summaryCards.push(
+    '<div class="sync-summary-card">'
+    + '<div class="sync-summary-label">Katalog</div>'
+    + '<div class="sync-summary-value">' + esc(String(catalog.length)) + ' Profile</div>'
+    + '<div class="sync-summary-sub">' + esc(String(catalogDiff)) + ' Profile mit Differenzen</div>'
+    + '<div class="sync-summary-status ' + (catalogDiff ? 'diff' : 'ok') + '">'
+    + (catalogDiff ? '⚠ prüfen' : '✓ synchron')
+    + '</div>'
+    + '</div>'
+  );
+
+  var bundles = domains.bundles && Array.isArray(domains.bundles.items) ? domains.bundles.items : [];
+  var bundleOnlyOneSide = 0;
+  for (var j = 0; j < bundles.length; j++) {
+    if (bundles[j] && bundles[j].status !== 'both') bundleOnlyOneSide++;
+  }
+  summaryCards.push(
+    '<div class="sync-summary-card">'
+    + '<div class="sync-summary-label">Bundles</div>'
+    + '<div class="sync-summary-value">' + esc(String(bundles.length)) + ' Kürzel</div>'
+    + '<div class="sync-summary-sub">' + esc(String(bundleOnlyOneSide)) + ' nur auf einer Seite</div>'
+    + '<div class="sync-summary-status ' + (bundleOnlyOneSide ? 'warn' : 'ok') + '">'
+    + (bundleOnlyOneSide ? '↔ unvollständig' : '✓ beidseitig vorhanden')
+    + '</div>'
+    + '</div>'
+  );
+
+  if (!summaryCards.length) return '';
+  return '<div class="sync-summary">' + summaryCards.join('') + '</div>';
+}
+
+function formatSummaryCount(value) {
+  return value == null ? '—' : String(value);
+}
+
+function formatSummaryDelta(devCount, prodCount) {
+  if (devCount == null || prodCount == null) return '—';
+  if (devCount === prodCount) return String(devCount);
+  return String(devCount) + ' → ' + String(prodCount);
 }
 
 function buildSyncDomain(id, label, contentFn, domain) {
@@ -10405,8 +10572,19 @@ function buildSyncDomain(id, label, contentFn, domain) {
 }
 
 function executeSyncOperation(domain, direction, keys) {
-  var dirLabel = direction === 'dev-to-prod' ? 'DEV → PROD' : 'PROD → DEV';
-  var msg = 'Sync ausführen?\n\nDomain: ' + domain + '\nRichtung: ' + dirLabel + (keys ? '\nKomponenten: ' + keys.join(', ') : '') + '\n\n⚠ Ziel-Daten werden überschrieben!';
+  if (!domain || !direction) return;
+  var isDevToProd  = direction === 'dev-to-prod';
+  var srcLabel     = isDevToProd ? 'DEV' : 'PROD';
+  var dstLabel     = isDevToProd ? 'PROD' : 'DEV';
+  var dirLabel     = srcLabel + ' → ' + dstLabel;
+  var domainLabel  = { bookmarks: 'Bookmarks', catalog: 'Katalog (LyrMgr)', bundles: 'Config-Bundles' }[domain] || domain;
+  var msg  = '⚠  SYNC BESTÄTIGEN\n';
+  msg += '═══════════════════════\n';
+  msg += '  Bereich:    ' + domainLabel + '\n';
+  msg += '  Richtung:   ' + srcLabel + '  ➡  ' + dstLabel + '\n';
+  if (keys && keys.length) msg += '  Elemente:   ' + keys.slice(0, 6).join(', ') + (keys.length > 6 ? ' … (+' + (keys.length - 6) + ')' : '') + '\n';
+  msg += '\n  [' + dstLabel + '] wird überschrieben!\n';
+  msg += '  Nicht rückgängig machbar — Backup empfohlen.';
   if (!confirm(msg)) return;
 
   var statusBar = document.getElementById('sync-status-bar');
@@ -10433,6 +10611,505 @@ function executeSyncOperation(domain, direction, keys) {
   .catch(function(err) {
     statusBar.textContent = '❌ Sync fehlgeschlagen: ' + err.message;
   });
+}
+
+function renderSyncStatus(data) {
+  var content = document.getElementById('sync-content');
+  var envs    = data.environments || {};
+  var envKeys = Object.keys(envs);
+  var summary = buildSyncSummary(data, envKeys);
+
+  var badges = document.getElementById('sync-env-badges');
+  if (badges) {
+    badges.innerHTML = envKeys.map(function(e) {
+      return '<span class="sync-env-badge ' + esc(e) + '">' + esc(e.toUpperCase()) + ': ' + esc(envs[e]) + '</span>';
+    }).join('<span style="color:#888;font-size:13px">↔</span>');
+  }
+
+  var html = '';
+  html += '<div class="sync-direction-legend"><strong>Hinweis:</strong> Grün markiert die neuere Seite je Zeile. Die Buttons übertragen immer von der linken zur rechten Richtung der Beschriftung.</div>';
+  if (summary) html += summary;
+
+  var bm = data.domains && data.domains.bookmarks;
+  if (bm) {
+    html += buildSyncDomain('bookmarks', bm.label || 'Bookmarks', function() {
+      return renderBookmarkTable(bm, envKeys);
+    }, 'bookmarks');
+  }
+
+  var cat = data.domains && data.domains.catalog;
+  if (cat && cat.items) {
+    html += buildSyncDomain('catalog', cat.label || 'Katalog (LyrMgr)', function() {
+      return renderCatalogTable(cat.items, envKeys);
+    }, 'catalog');
+  }
+
+  var bn = data.domains && data.domains.bundles;
+  if (bn && bn.items) {
+    html += buildSyncDomain('bundles', bn.label || 'Config-Bundles', function() {
+      return renderBundleTable(bn.items, envKeys);
+    }, 'bundles');
+  }
+
+  content.innerHTML = html || '<div style="padding:20px;color:#999">Keine Sync-Daten verfügbar.</div>';
+
+  content.querySelectorAll('.sync-domain-head').forEach(function(head) {
+    head.addEventListener('click', function(e) {
+      if (e.target.closest('button') || e.target.tagName === 'INPUT') return;
+      head.closest('.sync-domain').classList.toggle('open');
+    });
+  });
+  content.querySelectorAll('.sync-domain').forEach(function(d) { d.classList.add('open'); });
+
+  wireSyncControls(content);
+  refreshSyncSelectionState(content);
+
+  // Schema-Banner falls Tabellen fehlen
+  var schemaStatus = data.schemaStatus || {};
+  var initWarnings = [];
+  Object.keys(schemaStatus).forEach(function(env) {
+    var s = schemaStatus[env];
+    if (s && !s.ready && s.missing && s.missing.length) {
+      initWarnings.push({ env: env, schema: s.schema, missing: s.missing });
+    }
+  });
+  if (initWarnings.length) {
+    var bannerHtml = '<div class="sync-schema-banner">';
+    initWarnings.forEach(function(w) {
+      bannerHtml += '<span class="sync-schema-warn">'
+        + '\u26a0 <strong>' + esc(w.env.toUpperCase()) + '</strong> fehlt: '
+        + esc(w.missing.join(', '))
+        + '</span>'
+        + '<button class="sync-btn" onclick="syncSchemaInit(\'' + esc(w.env) + '\')" '
+        + 'title="Fehlende Tabellen in ' + esc(w.schema) + ' anlegen">'
+        + '\u25b6 Schema initialisieren</button>';
+    });
+    bannerHtml += '</div>';
+    content.insertAdjacentHTML('afterbegin', bannerHtml);
+  }
+}
+
+function renderBookmarkTable(bm, envKeys) {
+  var rows = '';
+  var devRev = bm.revs && bm.revs.dev;
+  var prodRev = bm.revs && bm.revs.prod;
+  var newerSide = getSyncNewerSide(
+    { updatedAt: bm.meta && bm.meta.dev && bm.meta.dev.updatedAt, revision: devRev },
+    { updatedAt: bm.meta && bm.meta.prod && bm.meta.prod.updatedAt, revision: prodRev },
+    'updatedAt',
+    'revision'
+  );
+  var statusIcon = (devRev === prodRev && devRev != null) ? '<span class="sync-ok">✅ identisch</span>' : '<span class="sync-diff">⚠ unterschiedlich</span>';
+  envKeys.forEach(function(e, index) {
+    var cnt = bm.counts && bm.counts[e] != null ? bm.counts[e] : '—';
+    var rev = bm.revs && bm.revs[e] != null ? bm.revs[e] : '—';
+    var meta = bm.meta && bm.meta[e] ? bm.meta[e] : null;
+    var metaText = meta ? formatSyncTimestamp(meta.updatedAt) + ' · ' + formatSyncUser(meta.updatedBy) : 'keine Metadaten';
+    var isNewer = newerSide === e;
+    rows += '<tr>'
+      + '<td>' + esc(e.toUpperCase()) + '</td>'
+      + '<td class="' + (isNewer ? 'sync-cell-newer' : '') + '"><span class="sync-count">' + esc(cnt) + '</span>' + renderSyncNewBadge(isNewer ? e : null) + '</td>'
+      + '<td class="sync-rev' + (isNewer ? ' sync-cell-newer' : '') + '">Rev. ' + esc(rev) + '</td>'
+      + '<td><div class="sync-cell-main">' + esc(metaText) + '</div></td>'
+      + '<td>' + (index === envKeys.length - 1 ? statusIcon : '<span class="sync-row-muted">&nbsp;</span>') + '</td>'
+      + '</tr>';
+  });
+  return '<div class="sync-table-wrap"><table class="sync-table"><thead><tr><th>Umgebung</th><th>Anzahl</th><th>Revision</th><th>Letzte Änderung</th><th>Status</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+}
+
+function renderCatalogTable(items, envKeys) {
+  var rows = items.map(function(item) {
+    var newerSide = getSyncNewerSide(item.envs && item.envs.dev, item.envs && item.envs.prod, 'updatedAt', 'revision');
+    var cells = envKeys.map(function(e) {
+      var env = item.envs && item.envs[e];
+      if (!env) return '<td class="sync-only-prod"><div class="sync-cell-main">— fehlt</div><div class="sync-cell-sub">kein Stand</div></td>';
+      var metaText = [formatSyncTimestamp(env.updatedAt), formatSyncUser(env.updatedBy)].filter(Boolean).join(' · ');
+      var isNewer = newerSide === e;
+      return '<td class="' + (isNewer ? 'sync-cell-newer' : '') + '"><div class="sync-cell-main">Rev. ' + esc(env.revision) + renderSyncNewBadge(isNewer ? e : null) + '</div><div class="sync-cell-sub">' + esc(metaText) + '</div></td>';
+    }).join('');
+    var statusCell = item.status === 'sync'
+      ? '<td class="sync-ok" style="text-align:center">✅</td>'
+      : '<td class="sync-diff" style="text-align:center">⚠</td>';
+    return '<tr>'
+      + '<td class="sync-select-cell"><input type="checkbox" class="sync-select-item" data-sync-select-item="1" data-sync-domain="catalog" data-sync-key="' + esc(item.profile) + '"></td>'
+      + '<td style="font-family:monospace;font-size:11px">' + esc(item.profile) + '</td>'
+      + cells
+      + statusCell
+      + '</tr>';
+  }).join('');
+  var headers = '<th class="sync-select-col"><input type="checkbox" class="sync-select-all" data-sync-select-all="catalog" title="Alle Profile auswählen"></th>'
+    + '<th>Profil</th>'
+    + envKeys.map(function(e) { return '<th>' + esc(e.toUpperCase()) + '</th>'; }).join('')
+    + '<th style="text-align:center">Status</th>';
+  return '<div class="sync-table-wrap"><table class="sync-table"><thead><tr>' + headers + '</tr></thead><tbody>' + rows + '</tbody></table></div>';
+}
+
+function renderBundleTable(items, envKeys) {
+  var visibleItems = items.slice(0, 30);
+  var rows = visibleItems.map(function(item) {
+    var newerSide = getSyncNewerSide(item.envs && item.envs.dev, item.envs && item.envs.prod, 'importedAt', 'revision');
+    var cells = envKeys.map(function(e) {
+      var env = item.envs && item.envs[e];
+      if (!env) return '<td class="sync-only-' + esc(e) + '"><div class="sync-cell-main">— fehlt</div><div class="sync-cell-sub">kein Paket</div></td>';
+      var metaText = [formatSyncTimestamp(env.importedAt), formatSyncUser(env.importedBy)].filter(Boolean).join(' · ');
+      var isNewer = newerSide === e;
+      return '<td class="' + (isNewer ? 'sync-cell-newer' : '') + '"><div class="sync-cell-main">' + esc(env.scope || 'core') + renderSyncNewBadge(isNewer ? e : null) + '</div><div class="sync-cell-sub">' + esc(metaText) + '</div></td>';
+    }).join('');
+    var presentEnvs = envKeys.filter(function(e) { return item.envs && item.envs[e]; });
+    var statusCell = item.status === 'both'
+      ? '<td class="sync-ok" style="text-align:center">✅</td>'
+      : '<td class="sync-diff" style="font-size:10px;white-space:nowrap">⚠ nur ' + esc(presentEnvs.map(function(e){return e.toUpperCase();}).join('+')) + '</td>';
+    return '<tr>'
+      + '<td class="sync-select-cell"><input type="checkbox" class="sync-select-item" data-sync-select-item="1" data-sync-domain="bundles" data-sync-key="' + esc(item.kuerzel) + '"></td>'
+      + '<td style="font-family:monospace;font-size:11px">' + esc(item.kuerzel) + '</td>'
+      + cells
+      + statusCell
+      + '</tr>';
+  }).join('');
+  if (items.length > 30) rows += '<tr><td colspan="' + (envKeys.length + 3) + '" style="text-align:center;color:#999;font-size:11px">… und ' + (items.length - 30) + ' weitere</td></tr>';
+  var headers = '<th class="sync-select-col"><input type="checkbox" class="sync-select-all" data-sync-select-all="bundles" title="Alle Kürzel auswählen"></th>'
+    + '<th>Kürzel</th>'
+    + envKeys.map(function(e) { return '<th>' + esc(e.toUpperCase()) + '</th>'; }).join('')
+    + '<th style="text-align:center">Status</th>';
+  return '<div class="sync-table-wrap"><table class="sync-table"><thead><tr>' + headers + '</tr></thead><tbody>' + rows + '</tbody></table></div>';
+}
+
+function buildSyncSummary(data, envKeys) {
+  var domains = data.domains || {};
+  var summaryCards = [];
+
+  var bookmarks = domains.bookmarks;
+  if (bookmarks) {
+    summaryCards.push(buildSummaryCard('Bookmarks', {
+      value: formatSummaryDelta(bookmarks.counts && bookmarks.counts.dev, bookmarks.counts && bookmarks.counts.prod),
+      sub1: 'DEV ' + formatSummaryCount(bookmarks.counts && bookmarks.counts.dev) + ' · PROD ' + formatSummaryCount(bookmarks.counts && bookmarks.counts.prod),
+      sub2: 'Rev. ' + formatSummaryCount(bookmarks.revs && bookmarks.revs.dev) + ' / ' + formatSummaryCount(bookmarks.revs && bookmarks.revs.prod),
+      pillClass: (bookmarks.revs && bookmarks.revs.dev != null && bookmarks.revs.prod != null && bookmarks.revs.dev === bookmarks.revs.prod && bookmarks.counts && bookmarks.counts.dev === bookmarks.counts.prod) ? 'ok' : 'diff',
+      pillText: (bookmarks.revs && bookmarks.revs.dev != null && bookmarks.revs.prod != null && bookmarks.revs.dev === bookmarks.revs.prod && bookmarks.counts && bookmarks.counts.dev === bookmarks.counts.prod) ? '✓ identisch' : '⚠ Abweichung'
+    }, bookmarks.meta, envKeys));
+  }
+
+  var catalog = domains.catalog && Array.isArray(domains.catalog.items) ? domains.catalog.items : [];
+  var catalogDiff = 0;
+  for (var i = 0; i < catalog.length; i++) {
+    if (catalog[i] && catalog[i].status !== 'sync') catalogDiff++;
+  }
+  summaryCards.push(buildSummaryCard('Katalog', {
+    value: catalog.length + ' Profile',
+    sub1: catalogDiff + ' Profile mit Differenzen',
+    sub2: 'Synchronisiert pro Profil',
+    pillClass: catalogDiff ? 'diff' : 'ok',
+    pillText: catalogDiff ? '⚠ prüfen' : '✓ synchron'
+  }, collectLatestMeta(catalog, envKeys, 'updatedAt', 'updatedBy'), envKeys));
+
+  var bundles = domains.bundles && Array.isArray(domains.bundles.items) ? domains.bundles.items : [];
+  var bundleDiff = 0;
+  for (var j = 0; j < bundles.length; j++) {
+    if (bundles[j] && bundles[j].status !== 'both') bundleDiff++;
+  }
+  summaryCards.push(buildSummaryCard('Bundles', {
+    value: bundles.length + ' Kürzel',
+    sub1: bundleDiff + ' nur auf einer Seite',
+    sub2: 'Synchronisiert pro Kürzel',
+    pillClass: bundleDiff ? 'warn' : 'ok',
+    pillText: bundleDiff ? '↔ unvollständig' : '✓ beidseitig vorhanden'
+  }, collectLatestMeta(bundles, envKeys, 'importedAt', 'importedBy'), envKeys));
+
+  return summaryCards.length ? '<div class="sync-summary">' + summaryCards.join('') + '</div>' : '';
+}
+
+function buildSummaryCard(label, state, meta, envKeys) {
+  var metaInline = '';
+  if (meta) {
+    var parts = [];
+    envKeys.forEach(function(env) {
+      var v = meta[env];
+      if (!v) return;
+      var d = v.updatedAt || v.importedAt;
+      var u = v.updatedBy || v.importedBy;
+      var dateStr = d ? (function() {
+        var dt = new Date(d);
+        return isNaN(dt.getTime()) ? '' : dt.toLocaleDateString('de-CH', {day:'2-digit',month:'2-digit'}) + ' ' + dt.toLocaleTimeString('de-CH', {hour:'2-digit',minute:'2-digit'});
+      })() : '';
+      parts.push('<span class="sync-meta-env">' + esc(env.toUpperCase()) + '</span> <span class="sync-meta-text">' + esc([dateStr, u].filter(Boolean).join('\u00b7')) + '</span>');
+    });
+    if (parts.length) metaInline = ' &nbsp;' + parts.join(' &nbsp;');
+  }
+  return '<div class="sync-summary-card">'
+    + '<div><span class="sync-summary-label">' + esc(label) + '</span>&nbsp;'
+    + '<span class="sync-summary-status ' + esc(state.pillClass || 'ok') + '">' + esc(state.pillText || '') + '</span></div>'
+    + '<div class="sync-summary-sub" title="' + esc((state.sub1 || '') + ' | ' + (state.sub2 || '')) + '">'
+    + esc(state.value)
+    + (state.sub1 ? ' · ' + esc(state.sub1) : '')
+    + metaInline
+    + '</div>'
+    + '</div>';
+}
+
+function renderMetaList(meta, envKeys) {
+  return ''; // Meta jetzt inline in buildSummaryCard
+}
+
+function syncSchemaInit(env) {
+  var status = document.getElementById('sync-status-bar');
+  if (!confirm('Schema initialisieren f\u00fcr ' + env.toUpperCase() + '?\n\nFehlende Tabellen werden mit CREATE TABLE IF NOT EXISTS angelegt.\nBestehende Daten bleiben erhalten.')) return;
+  if (status) status.textContent = '\u23f3 Schema-Init f\u00fcr ' + env.toUpperCase() + '\u2026';
+  var user = (typeof bmGetUser === 'function') ? bmGetUser() : 'anonym';
+  fetch(API_URL + '?action=sync-schema-init', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ env: env, user: user })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(res) {
+    if (!res.success) throw new Error(res.error || 'Unbekannt');
+    var d = res.data || {};
+    var errCount = d.errors || 0;
+    if (status) {
+      status.textContent = (errCount ? '\u26a0 Schema-Init [' + env.toUpperCase() + '] mit ' + errCount + ' Fehler(n) abgeschlossen' : '\u2713 Schema [' + env.toUpperCase() + '] initialisiert');
+    }
+    setTimeout(loadSyncStatus, 600);
+  })
+  .catch(function(err) {
+    if (status) status.textContent = '\u2717 Schema-Init fehlgeschlagen: ' + err.message;
+  });
+}
+
+function collectLatestMeta(items, envKeys, atKey, byKey) {
+  var result = {};
+  envKeys.forEach(function(env) { result[env] = null; });
+  items.forEach(function(item) {
+    envKeys.forEach(function(env) {
+      var source = item.envs && item.envs[env];
+      if (!source || !source[atKey]) return;
+      var sourceDate = new Date(source[atKey]);
+      if (isNaN(sourceDate.getTime())) return;
+      var current = result[env];
+      if (!current || sourceDate > current.date) {
+        result[env] = {
+          date: sourceDate,
+          updatedAt: source[atKey],
+          updatedBy: source[byKey]
+        };
+      }
+    });
+  });
+  return result;
+}
+
+function formatSummaryCount(value) {
+  return value == null ? '—' : String(value);
+}
+
+function formatSummaryDelta(devCount, prodCount) {
+  if (devCount == null || prodCount == null) return '—';
+  if (devCount === prodCount) return String(devCount);
+  return String(devCount) + ' → ' + String(prodCount);
+}
+
+function renderMetaDate(value) {
+  if (!value) return '—';
+  var d = new Date(value);
+  if (isNaN(d.getTime())) return String(value);
+  return d.toLocaleString('de-CH', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+function formatSyncTimestamp(value) {
+  return value ? renderMetaDate(value) : 'unbekannt';
+}
+
+function formatSyncUser(value) {
+  return value ? String(value) : 'unbekannt';
+}
+
+function getSyncNewerSide(left, right, dateKey, revKey) {
+  if (!left || !right) return null;
+
+  var leftDate = left[dateKey] ? new Date(left[dateKey]) : null;
+  var rightDate = right[dateKey] ? new Date(right[dateKey]) : null;
+  var leftValid = leftDate && !isNaN(leftDate.getTime());
+  var rightValid = rightDate && !isNaN(rightDate.getTime());
+
+  if (leftValid && rightValid && leftDate.getTime() !== rightDate.getTime()) {
+    return leftDate.getTime() > rightDate.getTime() ? 'dev' : 'prod';
+  }
+
+  var leftRev = left[revKey] != null ? Number(left[revKey]) : null;
+  var rightRev = right[revKey] != null ? Number(right[revKey]) : null;
+  if (leftRev != null && rightRev != null && !isNaN(leftRev) && !isNaN(rightRev) && leftRev !== rightRev) {
+    return leftRev > rightRev ? 'dev' : 'prod';
+  }
+
+  return null;
+}
+
+function renderSyncNewBadge(side) {
+  return side ? '<span class="sync-new-badge ' + esc(side) + '">NEU</span>' : '';
+}
+
+function wireSyncControls(content) {
+  content.querySelectorAll('[data-sync-domain-toggle]').forEach(function(toggle) {
+    toggle.addEventListener('change', function() {
+      refreshSyncSelectionState(content);
+    });
+  });
+
+  content.querySelectorAll('[data-sync-select-all]').forEach(function(selectAll) {
+    selectAll.addEventListener('change', function() {
+      var domain = selectAll.dataset.syncSelectAll;
+      var checked = selectAll.checked;
+      content.querySelectorAll('[data-sync-select-item][data-sync-domain="' + domain + '"]').forEach(function(item) {
+        if (!item.disabled) item.checked = checked;
+      });
+      refreshSyncSelectionState(content);
+    });
+  });
+
+  content.querySelectorAll('[data-sync-select-item]').forEach(function(item) {
+    item.addEventListener('change', function() {
+      refreshSyncSelectionState(content);
+    });
+  });
+
+  content.querySelectorAll('button[data-sync-direction]').forEach(function(btn) {
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      var domain    = btn.dataset.syncDomain;
+      var direction = btn.dataset.syncDirection;
+      var keys = collectSyncKeys(content, domain);
+      executeSyncOperation(domain, direction, keys);
+    });
+  });
+}
+
+function refreshSyncSelectionState(content) {
+  content.querySelectorAll('.sync-domain').forEach(function(domainEl) {
+    var domain = domainEl.dataset.syncDomain;
+    var toggle = domainEl.querySelector('[data-sync-domain-toggle]');
+    var enabled = !toggle || toggle.checked;
+    var items = Array.prototype.slice.call(domainEl.querySelectorAll('[data-sync-select-item]'));
+    var selectAll = domainEl.querySelector('[data-sync-select-all]');
+    var meta = domainEl.querySelector('[data-sync-domain-meta]');
+    var selected = 0;
+
+    items.forEach(function(item) {
+      item.disabled = !enabled;
+      if (item.checked) selected++;
+    });
+
+    if (selectAll) {
+      selectAll.disabled = !enabled || !items.length;
+      selectAll.checked = enabled && items.length > 0 && selected === items.length;
+      selectAll.indeterminate = enabled && selected > 0 && selected < items.length;
+    }
+
+    if (meta) {
+      if (items.length) {
+        meta.textContent = selected + ' / ' + items.length + ' ausgewählt';
+      } else {
+        meta.textContent = enabled ? 'bereit' : 'deaktiviert';
+      }
+    }
+
+    domainEl.classList.toggle('sync-domain-disabled', !enabled);
+
+    var buttons = domainEl.querySelectorAll('button[data-sync-domain="' + domain + '"]');
+    buttons.forEach(function(btn) {
+      var requireSelection = items.length > 0;
+      btn.disabled = !enabled || (requireSelection && selected === 0);
+    });
+  });
+}
+
+function collectSyncKeys(content, domain) {
+  var items = content.querySelectorAll('[data-sync-select-item][data-sync-domain="' + domain + '"]');
+  var keys = [];
+  items.forEach(function(item) {
+    if (item.checked && !item.disabled && item.dataset.syncKey) keys.push(item.dataset.syncKey);
+  });
+  return keys;
+}
+
+function buildSyncDomain(id, label, contentFn, domain) {
+  var content = '';
+  try { content = contentFn(); } catch(e) { content = '<div style="color:#c33;padding:8px">' + esc(e.message) + '</div>'; }
+  return '<div class="sync-domain" id="sync-domain-' + esc(id) + '" data-sync-domain="' + esc(domain) + '">'
+    + '<div class="sync-domain-head">'
+    + '<span class="sd-arrow">▶</span>'
+    + '<label class="sync-domain-toggle">'
+    + '<input type="checkbox" data-sync-domain-toggle="' + esc(domain) + '" checked>'
+    + '<span>' + esc(label) + '</span>'
+    + '</label>'
+    + '<span class="sync-domain-meta" data-sync-domain-meta="' + esc(domain) + '"></span>'
+    + '</div>'
+    + '<div class="sync-domain-body">'
+    + content
+    + '<div class="sync-domain-actions">'
+    + '<button class="sync-btn push" data-sync-domain="' + esc(domain) + '" data-sync-direction="dev-to-prod" title="Ausgewählte nach PROD übertragen">DEV ➡ PROD Übertragen</button>'
+    + '<button class="sync-btn pull" data-sync-domain="' + esc(domain) + '" data-sync-direction="prod-to-dev" title="Ausgewählte nach DEV übertragen">PROD ➡ DEV Übertragen</button>'
+    + '<span class="spacer"></span>'
+    + '</div>'
+    + '</div>'
+    + '</div>';
+}
+
+function executeSyncOperation(domain, direction, keys) {
+  if (!domain || !direction) return;
+  var isDevToProd  = direction === 'dev-to-prod';
+  var srcLabel     = isDevToProd ? 'DEV' : 'PROD';
+  var dstLabel     = isDevToProd ? 'PROD' : 'DEV';
+  var dirLabel     = srcLabel + ' → ' + dstLabel;
+  var hasSelection = keys && keys.length;
+  if ((domain === 'catalog' || domain === 'bundles') && !hasSelection) {
+    alert('Bitte zuerst mindestens einen Eintrag auswählen.');
+    return;
+  }
+
+  var domainLabel  = { bookmarks: 'Bookmarks', catalog: 'Katalog (LyrMgr)', bundles: 'Config-Bundles' }[domain] || domain;
+  var keysPreview  = hasSelection && keys.length <= 8
+    ? keys.join(', ')
+    : (hasSelection ? keys.slice(0, 6).join(', ') + ' … (+' + (keys.length - 6) + ' weitere)' : 'alle');
+
+  var msg  = '⚠  SYNC BESTÄTIGEN\n';
+  msg += '═══════════════════════\n';
+  msg += '  Bereich:    ' + domainLabel + '\n';
+  msg += '  Richtung:   ' + srcLabel + '  ➡  ' + dstLabel + '\n';
+  if (hasSelection) {
+    msg += '  Auswahl:    ' + keys.length + ' Einträge\n';
+    msg += '  Elemente:   ' + keysPreview + '\n';
+  }
+  msg += '\n  [' + dstLabel + '] wird überschrieben!\n';
+  msg += '  Nicht rückgängig machbar — Backup empfohlen.';
+  if (!confirm(msg)) return;
+
+  var statusBar = document.getElementById('sync-status-bar');
+  statusBar.textContent = '⏳ Sync läuft (' + dirLabel + ')…';
+
+  var user = (typeof bmGetUser === 'function') ? bmGetUser() : 'anonym';
+  fetch(API_URL + '?action=sync-execute', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ domain: domain, direction: direction, keys: keys, user: user })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(res) {
+    if (!res.success) throw new Error(res.error || 'Fehler');
+    var d = res.data || {};
+    statusBar.textContent = '✅ Sync abgeschlossen — ' + dirLabel + ' | ' + domain + ': ' + (d.copied || 0) + ' kopiert'
+      + (d.errors && d.errors.length ? ', ' + d.errors.length + ' Fehler' : '');
+    if (d.errors && d.errors.length) {
+      alert('Sync mit Fehlern:\n\n' + d.errors.join('\n'));
+    }
+    setTimeout(loadSyncStatus, 800);
+  })
+  .catch(function(err) {
+    statusBar.textContent = '❌ Sync fehlgeschlagen: ' + err.message;
+  });
+}
+
+if (window.__syncPendingLoad && typeof loadSyncStatus === 'function') {
+  window.__syncPendingLoad = false;
+  loadSyncStatus();
 }
 
 

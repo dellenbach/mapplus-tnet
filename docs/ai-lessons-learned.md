@@ -1,3 +1,10 @@
+## 2026-06-11 — Sync-Bundles brachen an einer nicht vorhandenen notes-Spalte
+
+- **Symptom:** Sync und Fullbackup schlugen mit `SQLSTATE[42703]` ab, weil `config_bundle_store.notes` in einem Schema nicht existierte.
+- **Root-Cause:** Die Sync- und Backup-Abfragen selektierten `notes`, obwohl die aktuelle Tabelle `config_bundle_store` diese Spalte nicht hat.
+- **Fix:** `notes` aus den Bundle-SELECTs entfernt und die Fullbackup-Ausgabe auf die tatsächlich vorhandenen Felder reduziert.
+- **Guardrail:** Vor schemaübergreifenden SQL-Abfragen immer gegen das echte Tabellenschema prüfen; nur Felder lesen, die in allen Zielschemata vorhanden sind.
+
 ## 2026-06-11 — SLM zeigte im ausgeloggten Zustand keinen sichtbaren Login-CTA
 
 - **Symptom:** Im SLM-Header erschien bei fehlender Anmeldung weder Benutzerinfo noch ein Login-Button; die Toolbar wirkte leer.
@@ -2060,3 +2067,21 @@ Guardrail: Wenn Change-Detection für Kürzel vorhanden ist, immer auch prüfen,
 - **Root-Cause**: Mehrere Bookmark-Fetches nutzten noch relative `treebuilder-api.php`-URLs statt der bereits vorhandenen store-aware `API_URL`.
 - **Fix**: Alle Bookmark-Calls in `slm.html` auf `API_URL` umgestellt, damit Bookmarks denselben Store verwenden wie der Rest der SLM.
 - **Guardrail**: Store-sensitive API-Aufrufe in der SLM nie relativ formulieren, sondern immer ueber die zentrale Store-Basis schicken.
+
+## 2026-06-11 â€” Sync-Tab zeigte nur Detailtabellen, aber keine schnelle Einordnung
+- **Symptom**: Der Sync-Tab wirkte erst nach dem Aufklappen der Domains nützlich; der Unterschied zwischen DEV und PROD war auf einen Blick nicht erkennbar.
+- **Root-Cause**: `slm.html` rendert zwar Statusdaten fuer Bookmarks, Katalog und Bundles, hatte aber keine verdichtete Zusammenfassung oberhalb der Detailtabellen.
+- **Fix**: In `slm.html` wurde eine kompakte Summary mit Karten fuer Bookmarks, Katalog und Bundles ergänzt. Sie zeigt Count-/Diff-Signale direkt im ersten Viewport und laesst die bestehenden Sync-Aktionen unveraendert.
+- **Guardrail**: Bei Status-Views zuerst eine knappe Entscheidungsansicht liefern, dann erst die Detailtabellen rendern.
+
+## 2026-06-11 â€” Sync-Auswahl war nicht granular genug
+- **Symptom**: Im Sync-Tab war nicht direkt ersichtlich, welche Profile oder Bundles wirklich mitlaufen; die Aktion wirkte zu grob.
+- **Root-Cause**: Die Tabellen zeigten nur Revisionen oder Scope, aber keine auswählbaren Einträge mit aktiviertem Sync-Status pro Zeile.
+- **Fix**: In `slm.html` wurden Checkboxen pro Profil/Kürzel ergänzt, dazu ein Domain-Toggle und ein Select-All pro Tabelle. Die Tabellen zeigen jetzt zusätzlich Zeitstempel und Benutzer pro Umgebung, damit die Auswahl fachlich nachvollziehbar ist.
+- **Guardrail**: Bei Sync-Operationen immer zuerst die auswählbaren Einheiten anzeigen und die Aktion nur auf die markierten Einträge anwenden.
+
+## 2026-06-11 â€” Fullbackup und Restore fehlten im Sync-Tab
+- **Symptom**: Der Sync-Tab hatte zwar Sync-Aktionen, aber keinen klaren Weg für einen vollständigen State-Backup mit anschliessendem Restore.
+- **Root-Cause**: Der vorhandene State-Backup-Flow war nur über die Backup-Verwaltung erreichbar und nicht direkt im Sync-Workflow verdrahtet.
+- **Fix**: In `slm.html` wurde eine Fullbackup-Leiste mit `Fullbackup erstellen` und `Verwalten & Restore` ergänzt. Auf Serverseite erstellt `create-full-backup` jetzt eine `state_full_*.json`, die im bestehenden Backup-Manager als `state`-Backup wiederhergestellt werden kann.
+- **Guardrail**: Wenn Sync-Daten überschrieben werden können, gehört der Fullbackup-/Restore-Pfad sichtbar und direkt neben die Sync-Aktion.
