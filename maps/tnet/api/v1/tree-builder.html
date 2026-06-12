@@ -1552,11 +1552,8 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
     <div class="tb-backup-toolbar">
       <select id="tb-backup-type-filter">
         <option value="">Alle Typen</option>
-        <option value="state">State</option>
-        <option value="lyrmgr">LyrMgr</option>
-        <option value="groups">Groups</option>
-        <option value="profile">Profile</option>
-        <option value="nls">NLS</option>
+        <option value="lyrmgr_manual">Manuell (LyrMgr)</option>
+        <option value="bookmarks">Bookmarks</option>
       </select>
       <button class="bk-btn-delete" id="tb-backup-delete-sel" disabled>🗑 Auswahl löschen</button>
       <span class="bk-summary" id="tb-backup-summary"></span>
@@ -1612,6 +1609,11 @@ var API_URL = (_storeEnv === 'dev' ? '/maps-dev' : '/maps') + '/tnet/api/v1/tree
 var _envLabel = _storeEnv === 'dev' ? '[DEV]' : '[PROD]';
 
 // DEV-Badge entfernt (Store-Badge wird jetzt im LyrMgr-Editor-Header gesetzt)
+
+// State-Backup-Bereinigung direkt beim Öffnen starten (best-effort)
+(function triggerInitialBackupCleanup() {
+  fetch(API_URL + '?action=cleanup-backups').catch(function() {});
+})();
 
 // ── Store-Badge + Info-Bar ──
 (function initTbStoreUi() {
@@ -3204,10 +3206,16 @@ window._tbConfirm = function(title, message, onOk, opts) {
  */
 window._tbCommitDialog = function(defaultMessage) {
   return new Promise(function(resolve) {
+    var editorLabel = String((_editorName || 'anonym')).trim() || 'anonym';
+    var editorEscaped = editorLabel
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
     var overlay = document.createElement('div');
     overlay.className = 'tb-confirm-overlay';
     overlay.innerHTML = '<div class="tb-confirm-box" style="max-width:480px">' +
       '<h3>📝 Git Commit-Nachricht' + (location.pathname.indexOf('/maps-dev/') === 0 ? ' <span style="background:#e67e22;color:#fff;padding:0 6px;border-radius:3px;font-size:10px;font-weight:700;vertical-align:middle">DEV</span>' : '') + '</h3>' +
+      '<p style="margin:0 0 6px 0;font-size:12px;color:#555">User: <strong style="color:#333">' + editorEscaped + '</strong></p>' +
       '<p><label style="font-size:12px;color:#555">Commit-Nachricht (Ctrl+Enter = Commit):</label></p>' +
       '<textarea id="_tb_commit_msg" rows="3" style="width:100%;font-family:monospace;font-size:12px;padding:8px;border:1px solid #ccc;border-radius:4px;resize:vertical;box-sizing:border-box">' +
       (defaultMessage || '').replace(/</g, '&lt;') + '</textarea>' +
@@ -5207,7 +5215,7 @@ function backupLyrmgrToFile() {
   fetch(API_URL + '?action=create-backup', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-Editor-Name': _editorName || 'unbekannt' },
-    body: JSON.stringify({ data: data })
+    body: JSON.stringify({ data: data, profile: state.activeProfile || 'public' })
   })
   .then(function(r) { return r.json(); })
   .then(function(resp) {
@@ -7380,10 +7388,13 @@ function loadBackupList() {
     .then(function(r) { return r.json(); })
     .then(function(resp) {
       if (!resp.success) throw new Error(resp.error || 'Fehler');
-      _backupData = resp.data.files || [];
+      _backupData = (resp.data.files || []).filter(function(b) {
+        return b.type === 'lyrmgr_manual' || b.type === 'state_manual' || b.type === 'bookmarks';
+      });
       renderBackupTable();
-      var totalMB = (resp.data.totalSize / 1024 / 1024).toFixed(1);
-      summaryEl.textContent = resp.data.count + ' Dateien, ' + totalMB + ' MB';
+      var visibleBytes = _backupData.reduce(function(sum, b) { return sum + (b.size || 0); }, 0);
+      var totalMB = (visibleBytes / 1024 / 1024).toFixed(1);
+      summaryEl.textContent = _backupData.length + ' Dateien, ' + totalMB + ' MB';
       statusEl.textContent = '';
     })
     .catch(function(err) {
@@ -7419,17 +7430,22 @@ function renderBackupTable() {
   var html = '';
   filtered.forEach(function(b, i) {
     var sizeStr = b.size > 1048576 ? (b.size / 1048576).toFixed(1) + ' MB' : (b.size / 1024).toFixed(0) + ' KB';
-    var isState = b.type === 'state';
-    var isManualBackup = isState && /^state_manual_/.test(b.file);
-    // User aus Dateiname extrahieren: state_manual_YYYYMMDD_HHMMSS_username.json
+    var isState = b.type === 'state' || b.type === 'state_manual' || b.type === 'lyrmgr_manual';
+    var isManualBackup = isState && /^(state_manual_|lyrmgr_manual_)/.test(b.file);
+    // User/Profil aus Dateiname extrahieren:
+    //  - legacy: state_manual_YYYYMMDD_HHMMSS_username.json
+    //  - neu:    lyrmgr_manual_<profile>_YYYYMMDD_HHMMSS_username.json
     var userLabel = '';
+    var profileLabel = '';
     if (isManualBackup) {
-      var m = b.file.match(/^state_manual_\d{8}_\d{6}_(.+)\.json$/);
+      var m = b.file.match(/^(?:state_manual|lyrmgr_manual)(?:_[a-zA-Z0-9_-]+)?_\d{8}_\d{6}_(.+)\.json$/);
       if (m) userLabel = ' <span style="font-size:9px;background:#e8f0f8;color:#2563a8;padding:1px 5px;border-radius:3px;font-weight:600">' + esc(m[1]) + '</span>';
+      var p = b.file.match(/^lyrmgr_manual_([a-zA-Z0-9_-]+)_\d{8}_\d{6}_.+\.json$/);
+      if (p) profileLabel = ' <span style="font-size:9px;background:#eef8e8;color:#2f7a32;padding:1px 5px;border-radius:3px;font-weight:600">' + esc(p[1]) + '</span>';
     }
     html += '<tr data-file="' + esc(b.file) + '">';
     html += '<td><input type="checkbox" class="bk-cb" data-file="' + esc(b.file) + '"></td>';
-    html += '<td style="font-family:Consolas,monospace;font-size:10px;word-break:break-all">' + esc(b.file) + userLabel + '</td>';
+    html += '<td style="font-family:Consolas,monospace;font-size:10px;word-break:break-all">' + esc(b.file) + profileLabel + userLabel + '</td>';
     html += '<td><span class="bk-type ' + b.type + '">' + esc(b.type) + '</span></td>';
     html += '<td style="white-space:nowrap">' + sizeStr + '</td>';
     html += '<td style="white-space:nowrap">' + esc(utcToLocal(b.timestamp || b.modified)) + '</td>';
@@ -9243,6 +9259,8 @@ function publishLyrmgr(mode) {
   var confData = {};
   var blockKeys = getSortedLyrmgrKeys(p.lyrmgrs);
   var rtSummary = [];
+  var changedBlockKeys = [];
+  var totalDiffCount = 0;
   blockKeys.forEach(function(key) {
     var tree = p.lyrmgrs[key];
     var rtCheck = checkRoundTripIdentity(tree, key);
@@ -9250,6 +9268,8 @@ function publishLyrmgr(mode) {
     if (rtCheck.identical) {
       rtSummary.push(esc(key) + ': ✅ identisch');
     } else {
+      changedBlockKeys.push(key);
+      totalDiffCount += rtCheck.diffs.length;
       var detail = rtCheck.diffs.slice(0, 5).map(function(d) { return '<li style="font-size:11px;color:#665">' + esc(d) + '</li>'; }).join('');
       if (rtCheck.diffs.length > 5) detail += '<li style="font-size:11px;color:#998">… und ' + (rtCheck.diffs.length - 5) + ' weitere</li>';
       rtSummary.push(esc(key) + ': ⚠️ ' + rtCheck.diffs.length + ' Änd.<ul style="margin:2px 0 6px 16px;padding:0">' + detail + '</ul>');
@@ -9358,7 +9378,15 @@ function publishLyrmgr(mode) {
 
         // Git-Commit mit Dialog
         if (first.path) {
-          var defaultGitMsg = _envLabel + ' Publish lyrmgr: ' + profileName + ' (' + blockKeys.length + ' Blöcke)';
+          var _editorLabel = String((_editorName || 'anonym')).trim() || 'anonym';
+          var changedPreview = changedBlockKeys.slice(0, 4).join(', ');
+          if (changedBlockKeys.length > 4) changedPreview += ', …';
+          var summaryLine = 'Änderungen: ' + changedBlockKeys.length + '/' + blockKeys.length + ' Blöcke';
+          if (changedPreview) summaryLine += ' [' + changedPreview + ']';
+          if (totalDiffCount > 0) summaryLine += ', ' + totalDiffCount + ' Delta';
+          var nlsCount = Object.keys(state.nlsEdits || {}).length;
+          if (nlsCount > 0) summaryLine += ', NLS: ' + nlsCount;
+          var defaultGitMsg = _envLabel + ' Publish lyrmgr: ' + profileName + ' (' + blockKeys.length + ' Blöcke) · User: ' + _editorLabel + '\n\n' + summaryLine;
           _tbCommitDialog(defaultGitMsg).then(function(result) {
             if (!result || result.skip) return; // Abgebrochen oder "Ohne Git"
             fetch(GAPI_URL + '/git-commit-conf', {

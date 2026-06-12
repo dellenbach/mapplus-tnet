@@ -70,6 +70,8 @@ define('LOCK_FILE', DATA_DIR . '/treebuilder.lock');
 define('BACKUP_DIR', DATA_DIR . '/backups');
 define('LOCK_TIMEOUT', 30 * 60); // 30 Minuten Lock-Timeout
 define('MAX_BACKUPS', 50);       // Max. Anzahl Backups
+define('MAX_STATE_AUTO_BACKUPS', 24);            // Periodische state_YYYYMMDD_HHMMSS.json
+define('STATE_AUTO_MAX_AGE_SECONDS', 2 * 86400); // 2 Tage
 
 // =====================================================================
 // Helpers
@@ -4835,13 +4837,48 @@ function loadState() {
 function cleanupBackups() {
     if (!is_dir(BACKUP_DIR)) return;
     $files = glob(BACKUP_DIR . '/state_*.json');
-    if (count($files) <= MAX_BACKUPS) return;
+    if (!$files) return;
 
-    // Älteste löschen
-    usort($files, function($a, $b) { return filemtime($a) - filemtime($b); });
-    $toDelete = count($files) - MAX_BACKUPS;
-    for ($i = 0; $i < $toDelete; $i++) {
-        @unlink($files[$i]);
+    $autoState = [];
+    $otherState = [];
+    foreach ($files as $f) {
+        $name = basename($f);
+        if (preg_match('/^state_\d{8}_\d{6}\.json$/', $name)) {
+            $autoState[] = $f; // periodische Auto-Backups
+        } else {
+            $otherState[] = $f; // manual / pre_restore / sonstige
+        }
+    }
+
+    // Periodische Auto-Backups: zusätzlich per Alter begrenzen
+    $now = time();
+    foreach ($autoState as $idx => $f) {
+        $mtime = @filemtime($f);
+        if ($mtime && ($now - $mtime) > STATE_AUTO_MAX_AGE_SECONDS) {
+            @unlink($f);
+            unset($autoState[$idx]);
+        }
+    }
+    $autoState = array_values($autoState);
+
+    // Periodische Auto-Backups: maximal N jüngste behalten
+    if (count($autoState) > MAX_STATE_AUTO_BACKUPS) {
+        usort($autoState, function($a, $b) { return filemtime($a) - filemtime($b); });
+        $toDelete = count($autoState) - MAX_STATE_AUTO_BACKUPS;
+        for ($i = 0; $i < $toDelete; $i++) {
+            @unlink($autoState[$i]);
+        }
+    }
+
+    // Fallback-Schranke für alle state_*.json zusammen
+    $allState = array_merge($otherState, glob(BACKUP_DIR . '/state_*.json') ?: []);
+    $allState = array_values(array_unique($allState));
+    if (count($allState) > MAX_BACKUPS) {
+        usort($allState, function($a, $b) { return filemtime($a) - filemtime($b); });
+        $toDelete = count($allState) - MAX_BACKUPS;
+        for ($i = 0; $i < $toDelete; $i++) {
+            @unlink($allState[$i]);
+        }
     }
 }
 
@@ -4864,7 +4901,8 @@ function listHistory() {
 /**
  * Alle Backups auflisten: BACKUP_DIR (state/lyrmgr/…) + RAW_CONF_DIR (.bak-Dateien)
  */
-function listAllBackups() {
+function listAllBackups($includeAutoPeriodic = false, $includeState = false, $includeNonManual = false) {
+    cleanupBackups();
     $result    = [];
     $totalSize = 0;
 
@@ -4878,13 +4916,26 @@ function listAllBackups() {
             $totalSize += $size;
 
             $type = 'unknown';
-            if      (preg_match('/^state_/', $f))               $type = 'state';
+            $isAutoPeriodicState = preg_match('/^state_\d{8}_\d{6}\.json$/', $f) === 1;
+            $isLegacyManualState = preg_match('/^state_manual_\d{8}_\d{6}_.+\.json$/', $f) === 1;
+            $isManualLyrmgr = preg_match('/^lyrmgr_manual_(?:[a-zA-Z0-9_\-]+_)?\d{8}_\d{6}_.+\.json$/', $f) === 1;
+            $isManualState = $isLegacyManualState || $isManualLyrmgr;
+            if (preg_match('/^state_/', $f)) {
+                // Manuelle State-Backups standardmässig sichtbar lassen.
+                // Versteckt werden primär periodische/technische State-Dateien.
+                if (!$includeState && !$isManualState) continue;
+                if ($isAutoPeriodicState && !$includeAutoPeriodic) continue;
+                $type = $isManualState ? 'lyrmgr_manual' : 'state';
+            } elseif ($isManualLyrmgr) {
+                $type = 'lyrmgr_manual';
+            }
             elseif  (preg_match('/^lyrmgr_/', $f))              $type = 'lyrmgr';
             elseif  (preg_match('/^groups_/', $f))              $type = 'groups';
             elseif  (preg_match('/^profile_/', $f))             $type = 'profile';
             elseif  (preg_match('/^lyrmgrResources_/', $f))     $type = 'nls';
             elseif  (preg_match('/^legendResources_/', $f))     $type = 'legend';
             elseif  (preg_match('/^bookmarks_/', $f))           $type = 'bookmarks';
+            if (!$includeNonManual && $type !== 'lyrmgr_manual' && $type !== 'bookmarks') continue;
 
             $ts = '';
             if (preg_match('/(\d{8}_\d{6})/', $f, $m)) {
@@ -5102,8 +5153,23 @@ switch ($action) {
 
     // ── Alle Backups auflisten ──
     case 'list-backups':
-        $result = listAllBackups();
+        $includeAuto = isset($_GET['includeAuto']) && $_GET['includeAuto'] === '1';
+        $includeState = isset($_GET['includeState']) && $_GET['includeState'] === '1';
+        $includeNonManual = isset($_GET['includeNonManual']) && $_GET['includeNonManual'] === '1';
+        $result = listAllBackups($includeAuto, $includeState, $includeNonManual);
         jsonResponse(['success' => true, 'data' => $result]);
+        break;
+
+    // ── State-Backups bereinigen (beim Öffnen von SLM triggern) ──
+    case 'cleanup-backups':
+        $before = is_dir(BACKUP_DIR) ? count(glob(BACKUP_DIR . '/state_*.json') ?: []) : 0;
+        cleanupBackups();
+        $after = is_dir(BACKUP_DIR) ? count(glob(BACKUP_DIR . '/state_*.json') ?: []) : 0;
+        jsonResponse(['success' => true, 'data' => [
+            'before'  => $before,
+            'after'   => $after,
+            'deleted' => max(0, $before - $after)
+        ]]);
         break;
 
     // ── Manuelles Backup serverseitig erstellen (aus Frontend-State) ──
@@ -5112,17 +5178,21 @@ switch ($action) {
         $body = json_decode(file_get_contents('php://input'), true);
         if (!$body || !isset($body['data'])) jsonError('Feld data erforderlich', 400);
         $editor = getEditorName();
+        $profile = (string)($body['profile'] ?? (($body['data']['activeProfile'] ?? 'public')));
         if (!is_dir(BACKUP_DIR)) @mkdir(BACKUP_DIR, 0775, true);
         $ts = date('Ymd_His');
+        $safeProfile = preg_replace('/[^a-zA-Z0-9_\-]/', '_', $profile);
+        if ($safeProfile === '') $safeProfile = 'public';
         $safeEditor = preg_replace('/[^a-zA-Z0-9_\-]/', '_', $editor);
-        $filename = 'state_manual_' . $ts . '_' . $safeEditor . '.json';
+        $filename = 'lyrmgr_manual_' . $safeProfile . '_' . $ts . '_' . $safeEditor . '.json';
         $path = BACKUP_DIR . '/' . $filename;
         $payload = $body['data'];
         $payload['_meta'] = [
+            'profile'   => $safeProfile,
             'savedBy'   => $editor,
             'savedAt'   => date('Y-m-d H:i:s'),
             'timestamp' => time(),
-            'type'      => 'manual-backup',
+            'type'      => 'manual-lyrmgr-backup',
         ];
         $bytes = file_put_contents($path, json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
         if ($bytes === false) jsonError('Backup konnte nicht gespeichert werden', 500);

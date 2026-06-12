@@ -1394,14 +1394,8 @@ html[data-env="dev"] .path-info-bar .pib-lbl { color: #7a3000; }
     <div class="slm-bk-toolbar">
       <select id="slm-bk-type-filter">
         <option value="">Alle Typen</option>
-        <option value="state">State</option>
-        <option value="lyrmgr">LyrMgr</option>
+        <option value="lyrmgr_manual">Manuell (LyrMgr)</option>
         <option value="bookmarks">Bookmarks</option>
-        <option value="groups">Groups</option>
-        <option value="profile">Profile</option>
-        <option value="nls">NLS</option>
-        <option value="legend">Legend</option>
-        <option value="rawconf">Raw-Conf (.bak)</option>
       </select>
       <button class="bk-btn-delete" id="slm-bk-delete-rawconf" title="Alle Raw-Conf Backups löschen" style="display:none">🧹 Raw-Conf Backups löschen</button>
       <button class="bk-btn-delete" id="slm-bk-delete-sel" disabled>🗑 Auswahl löschen</button>
@@ -2030,6 +2024,12 @@ function _storeTmpLabel() {
 
 // API_URL zeigt immer auf den gewählten Store
 var API_URL = _storeRoot() + '/tnet/api/v1/treebuilder-api.php';
+
+// State-Backup-Bereinigung direkt beim Öffnen von SLM starten (non-blocking)
+(function triggerInitialBackupCleanup() {
+  fetch(API_URL + '?action=cleanup-backups')
+    .catch(function() { /* Cleanup ist best-effort */ });
+})();
 
 // Abwärtskompatible Aliases
 var _envLabel  = _storeEnv === 'dev' ? '[DEV]' : '[PROD]';
@@ -11145,10 +11145,13 @@ function slmLoadBackupList() {
     .then(function(r) { return r.json(); })
     .then(function(resp) {
       if (!resp.success) throw new Error(resp.error || 'Fehler');
-      _slmBackupData = resp.data.files || [];
+      _slmBackupData = (resp.data.files || []).filter(function(b) {
+        return b.type === 'lyrmgr_manual' || b.type === 'state_manual' || b.type === 'bookmarks';
+      });
       slmRenderBackupTable();
-      var totalMB = (resp.data.totalSize / 1024 / 1024).toFixed(1);
-      summaryEl.textContent = resp.data.count + ' Dateien, ' + totalMB + ' MB';
+      var visibleBytes = _slmBackupData.reduce(function(sum, b) { return sum + (b.size || 0); }, 0);
+      var totalMB = (visibleBytes / 1024 / 1024).toFixed(1);
+      summaryEl.textContent = _slmBackupData.length + ' Dateien, ' + totalMB + ' MB';
       statusEl.textContent = '';
     })
     .catch(function(err) {
@@ -11175,7 +11178,7 @@ function slmRenderBackupTable() {
   var html = '';
   filtered.forEach(function(b) {
     var sizeStr = b.size > 1048576 ? (b.size / 1048576).toFixed(1) + ' MB' : (b.size / 1024).toFixed(0) + ' KB';
-    var canRestore = b.type === 'state' || b.type === 'rawconf' || b.type === 'bookmarks';
+    var canRestore = b.type === 'state' || b.type === 'state_manual' || b.type === 'lyrmgr_manual' || b.type === 'rawconf' || b.type === 'bookmarks';
     // rawconf: nur den Dateinamen anzeigen, voller Pfad als title
     var displayName = b.type === 'rawconf' ? b.file.split('/').pop() : b.file;
     var titleAttr = b.type === 'rawconf' ? ' title="' + esc(b.file) + '"' : '';

@@ -1766,6 +1766,15 @@ Guardrail: Wenn Change-Detection für Kürzel vorhanden ist, immer auch prüfen,
 
 ---
 
+## 2026-06-12 — SLM Backup-Liste mit ungewollten State-Einträgen und zu später Bereinigung
+
+- **Symptom:** In der Backup-Verwaltung erschienen `state_*`-Backups, obwohl sie operativ nicht benötigt werden; die Bereinigung startete erst beim Öffnen des Backup-Dialogs.
+- **Root-Cause:** `list-backups` lieferte State-Dateien standardmässig mit, und `cleanupBackups()` lief nur indirekt bei bestimmten Aktionen statt beim Öffnen von SLM.
+- **Fix:** `list-backups` liefert standardmässig nur noch manuelle Backups (`lyrmgr_manual_*` + `bookmarks_*`), periodische/technische State-Dateien und andere technische Backups nur optional per Query-Flag; neue API-Aktion `cleanup-backups` triggert die Bereinigung explizit, und `slm.html`/`tree-builder.html` rufen diese Aktion direkt beim Laden auf; zusätzlich whitelistet das Frontend defensiv auf `lyrmgr_manual`/`state_manual` + `bookmarks` (Legacy-kompatibel). Manuelle LyrMgr-Backups enthalten jetzt das Profil im Dateinamen (`lyrmgr_manual_<profile>_YYYYMMDD_HHMMSS_<user>.json`).
+- **Guardrail:** Nicht-fachliche Editor-Snapshots (State) in Admin-Listen standardmässig ausblenden und Cleanup-Tasks am Einstiegspunkt starten, nicht erst in nachgelagerten Dialogen.
+
+---
+
 ## 2026-03-04 — PHP OPcache blockiert Datei-Updates auf Server (Deploy fehlschlägt)
 
 - **Symptom**: Nach SFTP-Upload von LayerImporter.php zeigt der Server identischen Fehler mit identischen Zeilennummern, trotz korrekter Datei auf Disk und `opcache_reset()`.
