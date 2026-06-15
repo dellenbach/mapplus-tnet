@@ -362,8 +362,11 @@
         if (!map || !window.TnetLayerSwitch) return false;
         wmsIds.forEach(function(layerId) {
           var layer = self.findLayer(layerId);
+          // setLayerVisible statt direktem TnetLayerSwitch: setzt storeLayer.visible = true
+          // BEVOR map.addLayer ausgeführt wird — verhindert dass der Ghost-Layer-Schutz
+          // den gerade geladenen Layer sofort wieder versteckt.
           if (layer && !layer.visible) {
-            try { window.TnetLayerSwitch(layerId, 'on'); } catch(e) { /* ignore */ }
+            try { self.setLayerVisible(layerId, true); } catch(e) { /* ignore */ }
           }
         });
         return true;
@@ -870,6 +873,26 @@
             if (wmsEntry) wmsEntry._olLayerRef = olLayer;
           }
         }
+
+        // Ghost-Layer-Schutz: VOR _suppressMapSync-Check — greift auch wenn
+        // Sync gerade unterdrückt ist (z.B. während TnetLayerSwitch 'off' läuft).
+        // Ein OL-Layer trifft asynchron ein, obwohl der Store/Nutzer ihn bereits
+        // auf visible=false gesetzt hat (schnelles Ein/Aus-Schalten).
+        // → sofort verstecken, kein State-Event nötig.
+        // Ausnahme: aktives Bookmark-Load-Fenster (legitime async adds).
+        if (lid && !olLayer.get('tnet_wms_custom')) {
+          var _gsLayer = self.findLayer(lid);
+          if (_gsLayer && _gsLayer.type !== 'group' && _gsLayer.visible === false) {
+            var _gsBm = window.__tnetActiveBookmark;
+            var _gsBookmarkActive = _gsBm && _gsBm._loadUntil && Date.now() < _gsBm._loadUntil;
+            if (!_gsBookmarkActive) {
+              olLayer.setVisible(false);
+              TnetLog.log(LOG, 'Ghost-Schutz: verspaeteter Layer versteckt:', lid);
+              return;
+            }
+          }
+        }
+
         if (_suppressMapSync) return;
         self._onOLLayerAdd(olLayer);
       });
@@ -949,19 +972,38 @@
         storeLayer.opacity = olLayer.getOpacity();
 
         if (!storeLayer.visible) {
+          // Ghost-Layer-Schutz: Ein Layer trifft asynchron ein, aber der Store sagt
+          // explizit AUS (z.B. weil der Nutzer nach dem EIN-Klick sofort auf AUS
+          // geklickt hat und der OL-Layer erst jetzt fertig geladen ist).
+          // In diesem Fall den Layer sofort verstecken statt ihn fälschlich auf
+          // visible=true zu setzen.
+          // AUSNAHME: Wenn gerade ein Bookmark geladen wird (legitimate add via
+          // setMapBookmark) — erkennbar am _loadUntil-Fenster des aktiven Bookmarks.
+          var _bm = window.__tnetActiveBookmark;
+          var _bookmarkLoading = _bm && _bm._loadUntil && Date.now() < _bm._loadUntil;
+          if (!_bookmarkLoading) {
+            olLayer.setVisible(false);
+            TnetLog.log(LOG, '_onOLLayerAdd Ghost-Schutz: verspäteter Layer versteckt:', lid);
+            return;
+          }
           storeLayer.visible = true;
           if (!this._isActive(lid)) {
             _activeLayers.push(storeLayer);
           }
           this._emit('layer-visibility', { id: lid, visible: true, source: 'map' });
           this._emit('active-layers-changed', _activeLayers);
-          // URL für direkte WMS-Layer aktualisieren (nicht im LyrMgr registriert)
           _syncWmsLayerInUrl(lid, true, storeLayer.layerType);
         } else {
-          // Layer war schon visible (via toggleLayer), aber _olLayerRef fehlte
+          // Layer war schon visible (via setLayerVisible/toggleLayer), aber _olLayerRef fehlte
           var activeEntry = this._findActiveLayer(lid);
           if (activeEntry && activeEntry !== storeLayer) {
             activeEntry._olLayerRef = olLayer;
+          }
+          if (!this._isActive(lid)) {
+            _activeLayers.push(storeLayer);
+            this._emit('layer-visibility', { id: lid, visible: true, source: 'map' });
+            this._emit('active-layers-changed', _activeLayers);
+            _syncWmsLayerInUrl(lid, true, storeLayer.layerType);
           }
         }
       }
@@ -1515,17 +1557,26 @@
       // Framework-Switch-Pfade unten zwingend durchlaufen, sonst bleibt der
       // Layer zwar als aktiv markiert, aber unsichtbar auf der Karte.
       if (currentVisible === targetVisible && !needsActivation) {
-        if (!hasStateDrift) return;
-        layer.visible = targetVisible;
-        this._syncDuplicateVisible(layerId, targetVisible, layer);
-        if (activeEntry) activeEntry.visible = targetVisible;
-        if (!targetVisible) {
-          _activeLayers = _activeLayers.filter(function (l) { return l.id !== layerId; });
+        // Ausnahme: Coalesce-Sublayer beim AUS-Schalten.
+        // _getEffectiveLayerVisible liefert false wenn der OL-Layer noch nicht
+        // fertig geladen ist. Die Coalesce-Load läuft aber asynchron weiter →
+        // _coalesceOLLayers kann activeSublayers enthalten, die bereinigt werden müssen.
+        // Daher Sync-only NICHT früh abkürzen, sondern den Coalesce-Pfad unten
+        // immer durchlaufen wenn der Layer gerade off-gesetzt wird und im Coalesce-Index ist.
+        var _coalEarlyCheck = !targetVisible && _layerToCoalesce[layerId];
+        if (!_coalEarlyCheck) {
+          if (!hasStateDrift) return;
+          layer.visible = targetVisible;
+          this._syncDuplicateVisible(layerId, targetVisible, layer);
+          if (activeEntry) activeEntry.visible = targetVisible;
+          if (!targetVisible) {
+            _activeLayers = _activeLayers.filter(function (l) { return l.id !== layerId; });
+          }
+          this._emit('layer-visibility', { id: layerId, visible: targetVisible, source: 'sync' });
+          this._emit('active-layers-changed', _activeLayers);
+          if (_config.debug) TnetLog.log(LOG, 'setLayerVisible Sync-only:', layerId, targetVisible ? 'EIN' : 'AUS');
+          return;
         }
-        this._emit('layer-visibility', { id: layerId, visible: targetVisible, source: 'sync' });
-        this._emit('active-layers-changed', _activeLayers);
-        if (_config.debug) TnetLog.log(LOG, 'setLayerVisible Sync-only:', layerId, targetVisible ? 'EIN' : 'AUS');
-        return;
       }
 
       layer.visible = targetVisible;
