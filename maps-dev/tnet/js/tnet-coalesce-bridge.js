@@ -840,6 +840,46 @@
    *   2. Danach: ersetzt Root-Keys in layers= durch die aktiven Sublayer-Keys
    * @private
    */
+  /**
+   * Ergänzt direkt (ohne LyrMgr) geladene WMS-Layer in layers=-URL.
+   * Das Framework-AppManager kennt nur lyrmgr.conf-Layer; DB-only WMS-Layer
+   * werden via TnetLayerSwitch-Fallback direkt als OL-Layer erstellt und
+   * landen sonst nicht in der URL.
+   */
+  function _injectDirectWmsLayersIntoUrl() {
+    try {
+      var store = window.TnetLMStore;
+      if (!store || typeof store.getActiveLayers !== 'function') return;
+      var active = store.getActiveLayers();
+      if (!active || !active.length) return;
+
+      var href = window.location.href;
+      var m = href.match(/([?&])layers=([^&]*)/);
+      if (!m) return;
+
+      var currentRaw = m[2] ? decodeURIComponent(m[2]) : '';
+      var currentIds = currentRaw ? currentRaw.split('|').filter(function(id) { return !!id; }) : [];
+
+      var added = false;
+      active.forEach(function(layer) {
+        if (!layer || !layer.id) return;
+        var catLayer = typeof store.findLayer === 'function' ? store.findLayer(layer.id) : null;
+        // Nur nicht-ArcGIS-Layer die nicht schon in der URL stehen
+        if (catLayer && catLayer.layerType && catLayer.layerType !== 'arcgisRest') {
+          if (currentIds.indexOf(layer.id) === -1) {
+            currentIds.push(layer.id);
+            added = true;
+          }
+        }
+      });
+
+      if (added) {
+        var newHref = href.replace(/([?&])layers=[^&]*/, m[1] + 'layers=' + currentIds.map(encodeURIComponent).join('|'));
+        window.history.replaceState(null, '', newHref);
+      }
+    } catch (e) { /* URL-Patch fehlgeschlagen */ }
+  }
+
   function _patchUpdateMapStatusUrl() {
     try {
       var am = njs.AppManager;
@@ -864,6 +904,9 @@
         // URL nachkorrigieren: Root-Keys → Sublayer-Keys
         _fixUrlForBridgeLayers();
         _preserveUrlOverrideOpacity();
+
+        // Direkt-geladene WMS-Layer (nicht via LyrMgr) in URL ergänzen
+        _injectDirectWmsLayersIntoUrl();
       };
 
       TnetLog.log(LOG, 'updateMapStatusUrl-Patch installiert (Root-Key → Sublayer-Key URL-Fix)');

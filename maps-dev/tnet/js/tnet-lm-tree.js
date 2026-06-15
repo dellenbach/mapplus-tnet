@@ -26,6 +26,7 @@
   var _currentFilter = '';
   // Koalesziert active-layers-changed (Bookmark-Load) → ein Checkbox-Resync/Frame.
   var _resyncRaf = null;
+  var _loadingHintTimers = {}; // layerId -> timeout
 
   /** Wappen-/Icon-Mapping */
   // SVG Legend-Icon (Farbquadrate mit Linien) — geladen via TnetIcons
@@ -64,6 +65,7 @@
 
       _unlisteners.push(store.on('catalog-loaded', this.render.bind(this)));
       _unlisteners.push(store.on('layer-visibility', this._onLayerVisibility.bind(this)));
+      _unlisteners.push(store.on('layer-loading', this._onLayerLoading.bind(this)));
       _unlisteners.push(store.on('active-layers-changed', this._onActiveLayersChanged.bind(this)));
       _unlisteners.push(store.on('group-toggled', this._onGroupToggled.bind(this)));
 
@@ -96,6 +98,10 @@
         else clearTimeout(_resyncRaf);
         _resyncRaf = null;
       }
+      Object.keys(_loadingHintTimers).forEach(function (layerId) {
+        clearTimeout(_loadingHintTimers[layerId]);
+      });
+      _loadingHintTimers = {};
       _unlisteners.forEach(function (fn) { fn(); });
       _unlisteners = [];
       if (_container) _container.innerHTML = '';
@@ -274,10 +280,16 @@
       var hasLegend = layer.legend && layer.legend !== '';
       var missingClass = layer._missing ? ' lm-layer--missing' : '';
       var missingAttr = layer._missing ? ' data-missing="1"' : '';
+      var loadingClass = '';
+      if (layer.loading) loadingClass += ' lm-layer-loading';
+      if (layer.loadingSlow) loadingClass += ' lm-layer-slow';
+      if (layer.loadingError) loadingClass += ' lm-layer-error';
       var html = '';
-      html += '<div class="lm-layer lm-depth-' + normalizedDepth + activeClass + missingClass + '" data-layer-id="' + esc(layer.id) + '" data-lm-depth="' + normalizedDepth + '"' + missingAttr + ' data-name="' + esc((layer.name || '').toLowerCase()) + '">';
+      html += '<div class="lm-layer lm-depth-' + normalizedDepth + activeClass + missingClass + loadingClass + '" data-layer-id="' + esc(layer.id) + '" data-lm-depth="' + normalizedDepth + '"' + missingAttr + ' data-name="' + esc((layer.name || '').toLowerCase()) + '">';
       html += '<label class="lm-layer-label">';
+      html += '<span class="lm-cb-wrap">';
       html += '<input type="checkbox" class="lm-cb"' + checked + ' data-action="toggle-layer">';
+      html += '</span>';
       html += '<span class="lm-layer-name">' + esc(layer.name) + '</span>';
       if (layer._missing) {
         html += '<span class="lm-layer-missing-badge" title="Keine Layer-Definition in der Datenbank">⚠ fehlt</span>';
@@ -574,14 +586,71 @@
 
     _onLayerVisibility: function (evt) {
       if (!_container) return;
+      var self = this;
       var els = _container.querySelectorAll('[data-layer-id="' + evt.id + '"]');
       for (var i = 0; i < els.length; i++) {
         var cb = els[i].querySelector('.lm-cb');
         if (cb) cb.checked = evt.visible;
         els[i].classList.toggle('lm-active', evt.visible);
+
+        if (evt.visible) {
+          els[i].classList.add('lm-layer-loading', 'lm-layer-loading-hint');
+          els[i].classList.remove('lm-layer-error');
+        } else {
+          els[i].classList.remove('lm-layer-loading', 'lm-layer-loading-hint', 'lm-layer-loading-real', 'lm-layer-slow', 'lm-layer-error');
+        }
       }
+
+      if (_loadingHintTimers[evt.id]) {
+        clearTimeout(_loadingHintTimers[evt.id]);
+        delete _loadingHintTimers[evt.id];
+      }
+      if (evt.visible) {
+        _loadingHintTimers[evt.id] = setTimeout(function () {
+          delete _loadingHintTimers[evt.id];
+          var hintEls = _container ? _container.querySelectorAll('[data-layer-id="' + evt.id + '"]') : [];
+          for (var hi = 0; hi < hintEls.length; hi++) {
+            hintEls[hi].classList.remove('lm-layer-loading-hint');
+            if (!hintEls[hi].classList.contains('lm-layer-loading-real')) {
+              hintEls[hi].classList.remove('lm-layer-loading');
+            }
+          }
+          self._updateSelectAllCheckboxes();
+        }, 1400);
+      }
+
       // SelectAll-Checkboxen in Eltern-Gruppen aktualisieren
       this._updateSelectAllCheckboxes();
+    },
+
+    _onLayerLoading: function (evt) {
+      if (!_container || !evt || !evt.id) return;
+      var state = evt.state || {};
+      var isLoading = !!(state.loading || state.loadingSlow);
+      var hasError = !!state.loadingError;
+      var els = _container.querySelectorAll('[data-layer-id="' + evt.id + '"]');
+
+      if (_loadingHintTimers[evt.id]) {
+        clearTimeout(_loadingHintTimers[evt.id]);
+        delete _loadingHintTimers[evt.id];
+      }
+
+      for (var i = 0; i < els.length; i++) {
+        var el = els[i];
+        var statusEl = el.querySelector('.lm-layer-status');
+        if (statusEl) statusEl.remove();
+
+        el.classList.toggle('lm-layer-slow', !!state.loadingSlow);
+        el.classList.toggle('lm-layer-error', !isLoading && hasError);
+
+        if (isLoading) {
+          el.classList.add('lm-layer-loading', 'lm-layer-loading-real');
+          el.classList.remove('lm-layer-loading-hint');
+        } else {
+          el.classList.remove('lm-layer-loading-real', 'lm-layer-loading-hint');
+          el.classList.remove('lm-layer-loading');
+        }
+      }
     },
 
     _onActiveLayersChanged: function () {

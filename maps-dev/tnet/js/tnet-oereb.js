@@ -585,6 +585,7 @@ function registerMobileGraphicsLayer() {
             if (!catalog || !Array.isArray(catalog.layers)) return null;
 
             var lowerToken = String(token).toLowerCase();
+            var fuzzyMatches = [];
             for (var i = 0; i < catalog.layers.length; i++) {
                 var layer = catalog.layers[i];
                 if (!layer || layer.type === 'group') continue;
@@ -595,12 +596,25 @@ function registerMobileGraphicsLayer() {
                     id.toLowerCase() === lowerToken
                     || name.toLowerCase() === lowerToken
                     || title.toLowerCase() === lowerToken
-                    || id.toLowerCase().indexOf(lowerToken) !== -1
-                    || name.toLowerCase().indexOf(lowerToken) !== -1
-                    || title.toLowerCase().indexOf(lowerToken) !== -1
                 ) {
                     return layer.id;
                 }
+
+                if (
+                    id.toLowerCase().indexOf(lowerToken) !== -1
+                    || name.toLowerCase().indexOf(lowerToken) !== -1
+                    || title.toLowerCase().indexOf(lowerToken) !== -1
+                ) {
+                    fuzzyMatches.push(layer.id);
+                }
+            }
+
+            if (fuzzyMatches.length === 1) {
+                return fuzzyMatches[0];
+            }
+
+            if (fuzzyMatches.length > 1) {
+                TnetLog.warn('[OEREB-Mobile] Mehrdeutige Layer-Zuordnung für Token:', token, '→', fuzzyMatches.join(', '));
             }
 
             return null;

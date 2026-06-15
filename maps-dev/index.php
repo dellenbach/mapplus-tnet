@@ -196,7 +196,7 @@ $_SESSION['site_path'][$folder]=dirname(__DIR__);
 unset($_SESSION["savedRedlining"]);
 unset($_SESSION["layer_filter"]);
 
-if ($_GET["group"]=="" && is_dir("./public")){
+if ($_GET["group"]=="" && is_dir("./public") && !isset($_SESSION['OIDC_CLAIM_group'])){
     $app_group='public';
     $app_profile='public';
     $_SESSION["app_group"]='public';
