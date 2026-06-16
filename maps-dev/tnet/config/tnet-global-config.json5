@@ -207,16 +207,32 @@
   //   'api'    -> via layers.php REST-API (Normal- und Produktivbetrieb)
   //   'direct' -> direkt aus Dateisystem ohne API-Umweg
   //
-  mainSource: 'api',
-
+  mainSource: 'api', // 'api' | 'direct'
+  
   // Datenquelle fuer API-Aufrufe (layers.php ?source=...)
   // Wird verwendet wenn mainSource='api'
+  // Hinweis:
+  // - source='db' umgeht den serverseitigen JSON-Cache absichtlich (Live-Publishes sofort sichtbar)
+  // - source='file' kann serverseitigen JSON-Cache nutzen
   configSourceApi: {
     default:         'db',    // 'db' | 'files'
     bookmarks:       'db',
     layers:          'db',
     catalog:         'db',
     fallbackToFiles: false,
+
+    // API-Cache-Verhalten fuer layers.php
+    cache: {
+      enabled: false,      // true = normal, false = immer nocache=1 anhaengen
+      forceNoCache: false, // true = nocache=1 erzwingen (auch wenn enabled=true)
+      ttlSeconds: 86400,    // Gueltigkeit JSON-Cache in Sekunden (nur relevant fuer source='file')
+      enableDbCache: false, // Optional: auch source='db' cachen (standardmaessig AUS)
+      dbTtlSeconds: 86400      // TTL fuer optionalen DB-Cache (Sekunden)
+    },
+
+    // Cache manuell loeschen:
+    // DEV:  /maps-dev/tnet/api/v1/cache.php?action=clear
+    // PROD: /maps/tnet/api/v1/cache.php?action=clear
   },
 
   // Datenquelle fuer direkte PHP-Aufrufe (SLM, Bookmarks, Cache etc.)

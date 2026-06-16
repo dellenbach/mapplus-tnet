@@ -178,6 +178,61 @@
     return value.indexOf('/') === 0 ? value : appRoot + '/' + value;
   }
 
+  function resolveMainSource(globalCfg) {
+    var raw = (globalCfg && globalCfg.mainSource) || _config.transport || _config.lyrmgrSource || 'api';
+    var value = String(raw || '').toLowerCase();
+    if (value === 'direct' || value === 'file' || value === 'files') return 'direct';
+    if (value === 'api' || value === 'db') return 'api';
+    return 'api';
+  }
+
+  function nowMs() {
+    return (window.performance && typeof window.performance.now === 'function') ? window.performance.now() : Date.now();
+  }
+
+  function resolveApiCacheOptions(globalCfg, apiSource) {
+    var cfgApi = (globalCfg && globalCfg.configSourceApi) || {};
+    var cfgApiCache = cfgApi.cache || {};
+    var enabled = (typeof cfgApiCache.enabled === 'boolean')
+      ? cfgApiCache.enabled
+      : (_config.cache !== false);
+    var forceNoCache = cfgApiCache.forceNoCache === true;
+    var noCacheParam = (enabled === false) || forceNoCache;
+    var ttlSecondsRaw = cfgApiCache.ttlSeconds;
+    var ttlSeconds = null;
+    if (ttlSecondsRaw !== undefined && ttlSecondsRaw !== null && ttlSecondsRaw !== '') {
+      var parsedTtl = parseInt(ttlSecondsRaw, 10);
+      if (!isNaN(parsedTtl) && parsedTtl > 0) {
+        ttlSeconds = parsedTtl;
+      }
+    }
+
+    var enableDbCache = cfgApiCache.enableDbCache === true;
+    var dbTtlSecondsRaw = cfgApiCache.dbTtlSeconds;
+    var dbTtlSeconds = null;
+    if (dbTtlSecondsRaw !== undefined && dbTtlSecondsRaw !== null && dbTtlSecondsRaw !== '') {
+      var parsedDbTtl = parseInt(dbTtlSecondsRaw, 10);
+      if (!isNaN(parsedDbTtl) && parsedDbTtl > 0) {
+        dbTtlSeconds = parsedDbTtl;
+      }
+    }
+
+    return {
+      enabled: enabled,
+      forceNoCache: forceNoCache,
+      noCacheParam: noCacheParam,
+      ttlSeconds: ttlSeconds,
+      enableDbCache: enableDbCache,
+      dbTtlSeconds: dbTtlSeconds,
+      note: apiSource === 'db'
+        ? (enableDbCache
+            ? 'source=db nutzt optionalen JSON-Cache (Kurzzeit-TTL).'
+            : 'source=db umgeht serverseitigen JSON-Cache absichtlich (Live-Publishes sofort sichtbar).')
+        : 'source=file kann serverseitigen JSON-Cache nutzen; nocache=1 erzwingt Neuaufbau.',
+      clearUrl: getAppRoot() + '/tnet/api/v1/cache.php?action=clear',
+    };
+  }
+
   var LMStore = {
 
     // ============================================================
@@ -187,6 +242,26 @@
     init: function (config) {
       _config = config || {};
       if (_config.debug) TnetLog.log(LOG, 'Init mit Config:', _config);
+      if (_config.debug) {
+        var globalCfg = window.TnetGlobalConfig || {};
+        var cfgApi = globalCfg.configSourceApi || {};
+        var cfgDirect = globalCfg.configSourceDirect || {};
+        var debugMainSourceRaw = globalCfg.mainSource || _config.transport || _config.lyrmgrSource || 'api';
+        var debugMainSource = resolveMainSource(globalCfg);
+        var debugGroup = _config.group || 'public';
+        _config._catalogInitStartedAt = nowMs();
+        TnetLog.log(LOG, '[LM-INIT] Start Themenkatalog', {
+          group: debugGroup,
+          mainSource: debugMainSource,
+          mainSourceRaw: debugMainSourceRaw,
+          apiLayersSource: (cfgApi.layers || cfgApi.default || _config.apiSource || 'db'),
+          directLayersSource: (cfgDirect.layers || cfgDirect.default || 'files'),
+          cacheEnabled: _config.cache !== false,
+        });
+        if (String(debugMainSourceRaw).toLowerCase() !== debugMainSource) {
+          TnetLog.warn(LOG, '[LM-INIT] mainSource normalisiert:', debugMainSourceRaw, '->', debugMainSource);
+        }
+      }
       _installWmsUrlGuard();
       this._loadCatalog();
     },
@@ -198,13 +273,55 @@
     _loadCatalog: function () {
       // mainSource: 'api' (via layers.php) oder 'direct' (lyrmgr.conf direkt)
       var globalCfg = window.TnetGlobalConfig || {};
-      var mainSource = globalCfg.mainSource || _config.transport || _config.lyrmgrSource || 'api';
+      var mainSource = resolveMainSource(globalCfg);
       var group = _config.group || 'public';
+
+      if (_config.debug) {
+        TnetLog.log(LOG, '[LM-INIT] Ladepfad entschieden:', mainSource === 'direct' ? 'DIRECT (lyrmgr.conf via API source=file)' : 'API (layers.php source=db|file)');
+      }
 
       if (mainSource === 'direct') {
         return this._loadLyrmgrFromFile(group);
       }
       return this._loadLyrmgrFromApi(group);
+    },
+
+    _logCatalogInitDone: function (meta) {
+      if (!_config.debug) return;
+      var startedAt = _config._catalogInitStartedAt;
+      var nowTs = nowMs();
+      var durationMs = (typeof startedAt === 'number') ? Math.round(nowTs - startedAt) : null;
+      var fetchMs = (meta && typeof meta.fetchMs === 'number') ? Math.round(meta.fetchMs) : null;
+      var responseMs = (meta && typeof meta.responseMs === 'number') ? Math.round(meta.responseMs) : null;
+      var processMs = (typeof durationMs === 'number' && typeof fetchMs === 'number') ? Math.max(0, durationMs - fetchMs) : null;
+      var globalCfg = window.TnetGlobalConfig || {};
+      var cfgDirect = globalCfg.configSourceDirect || {};
+      var effectiveDirectSource = (meta && meta.directSource) || cfgDirect.layers || cfgDirect.default || 'files';
+      var payload = {
+        mode: meta && meta.mode ? meta.mode : 'unknown',
+        group: meta && meta.group ? meta.group : (_config.group || 'public'),
+        directSource: effectiveDirectSource,
+        categories: meta && typeof meta.categories === 'number' ? meta.categories : 0,
+        coalesceGroups: Object.keys(_coalesceIndex || {}).length,
+        responseMs: responseMs,
+        fetchMs: fetchMs,
+        processMs: processMs,
+        durationMs: durationMs,
+      };
+      if (payload.mode === 'api') {
+        payload.apiSource = meta && meta.apiSource ? meta.apiSource : 'db';
+      }
+      TnetLog.log(LOG, '[LM-INIT] Themenkatalog bereit', payload);
+      var perfSource = payload.mode === 'api' ? (payload.apiSource || 'db') : (payload.directSource || 'file');
+      TnetLog.log(
+        LOG,
+        '[LM-PERF] Themenkatalog init: mode=' + payload.mode +
+        ', source=' + perfSource +
+        ', responseMs=' + payload.responseMs +
+        ', fetchMs=' + payload.fetchMs +
+        ', processMs=' + payload.processMs +
+        ', durationMs=' + payload.durationMs
+      );
     },
 
     /**
@@ -217,11 +334,27 @@
      */
     _loadLyrmgrFromFile: function (group) {
       var self = this;
+      var globalCfg = window.TnetGlobalConfig || {};
+      var apiCache = resolveApiCacheOptions(globalCfg, 'file');
       var apiUrl = normalizeApiUrl(_config.apiUrl);
       var url = apiUrl + '?source=file&group=' + encodeURIComponent(group);
-      if (_config.cache === false) url += '&nocache=1';
+      var requestStartedAt = nowMs();
+      if (apiCache.noCacheParam) url += '&nocache=1';
+      if (apiCache.ttlSeconds !== null) url += '&cacheTtl=' + encodeURIComponent(String(apiCache.ttlSeconds));
 
       if (_config.debug) TnetLog.log(LOG, 'Lade LyrMgr aus lyrmgr.conf (source=file, group=' + group + ')');
+      if (_config.debug) {
+        TnetLog.log(LOG, '[LM-CACHE] FILE-Quelle via layers.php', {
+          cacheEnabled: apiCache.enabled,
+          forceNoCache: apiCache.forceNoCache,
+          nocacheParam: apiCache.noCacheParam,
+          ttlSeconds: apiCache.ttlSeconds,
+          enableDbCache: apiCache.enableDbCache,
+          dbTtlSeconds: apiCache.dbTtlSeconds,
+          clearUrl: apiCache.clearUrl,
+          note: apiCache.note,
+        });
+      }
 
       fetch(url)
         .then(function (r) {
@@ -229,10 +362,18 @@
             TnetLog.warn(LOG, 'lyrmgr.conf nicht gefunden (HTTP ' + r.status + '), Fallback auf API');
             return self._loadLyrmgrFromApi(group);
           }
-          return r.json();
+          var responseMs = nowMs() - requestStartedAt;
+          return r.json().then(function (json) {
+            return {
+              json: json,
+              responseMs: responseMs,
+              fetchMs: nowMs() - requestStartedAt,
+            };
+          });
         })
-        .then(function (json) {
-          if (!json) return; // Fallback bereits ausgelöst
+        .then(function (result) {
+          if (!result) return; // Fallback bereits ausgelöst
+          var json = result.json;
 
           // Antwort-Format identisch mit DB-Pfad:
           // { success: true, data: { version: '2.0', categories: [...] } }
@@ -258,6 +399,15 @@
             Object.keys(_coalesceIndex).length, 'Coalesce-Gruppen',
             '(source=file, group=' + group + ')');
 
+          self._logCatalogInitDone({
+            mode: 'direct',
+            group: group,
+            directSource: 'file',
+            categories: categories.length,
+            responseMs: result.responseMs,
+            fetchMs: result.fetchMs,
+          });
+
           self._emit('catalog-loaded', _catalog);
           self._syncFromMap();
         })
@@ -275,24 +425,54 @@
     _loadLyrmgrFromApi: function (group) {
       var self = this;
       var url = normalizeApiUrl(_config.apiUrl);
+      var requestStartedAt = nowMs();
       // configSourceApi.layers bestimmt welches ?source= an layers.php geschickt wird.
       var globalCfg = window.TnetGlobalConfig || {};
       var cfgApi = globalCfg.configSourceApi || {};
       var apiSource = cfgApi.layers || cfgApi.default || _config.apiSource || 'db';
       apiSource = (apiSource === 'file' || apiSource === 'files') ? 'file' : 'db';
+      var apiCache = resolveApiCacheOptions(globalCfg, apiSource);
       url += (url.indexOf('?') > -1 ? '&' : '?') + 'group=' + encodeURIComponent(group);
       url += '&source=' + encodeURIComponent(apiSource);
-      if (_config.cache === false) url += '&nocache=1';
+      if (apiCache.noCacheParam) url += '&nocache=1';
+      if (apiCache.ttlSeconds !== null) url += '&cacheTtl=' + encodeURIComponent(String(apiCache.ttlSeconds));
+      if (apiSource === 'db' && apiCache.enableDbCache) {
+        url += '&cacheDb=1';
+        if (apiCache.dbTtlSeconds !== null) {
+          url += '&dbCacheTtl=' + encodeURIComponent(String(apiCache.dbTtlSeconds));
+        }
+      }
 
       // Immer sichtbar: Quelle des Themenkatalogs
       TnetLog.log(LOG, '\u25ba Katalogquelle: "' + apiSource + '"  (group=' + group + ')  \u2192 ' + url.substring(url.lastIndexOf('/') + 1));
+      if (_config.debug) {
+        TnetLog.log(LOG, '[LM-CACHE] API-Cache', {
+          apiSource: apiSource,
+          cacheEnabled: apiCache.enabled,
+          forceNoCache: apiCache.forceNoCache,
+          nocacheParam: apiCache.noCacheParam,
+          ttlSeconds: apiCache.ttlSeconds,
+          enableDbCache: apiCache.enableDbCache,
+          dbTtlSeconds: apiCache.dbTtlSeconds,
+          clearUrl: apiCache.clearUrl,
+          note: apiCache.note,
+        });
+      }
 
       fetch(url)
         .then(function (r) {
           if (!r.ok) throw new Error('HTTP ' + r.status);
-          return r.json();
+          var responseMs = nowMs() - requestStartedAt;
+          return r.json().then(function (json) {
+            return {
+              json: json,
+              responseMs: responseMs,
+              fetchMs: nowMs() - requestStartedAt,
+            };
+          });
         })
-        .then(function (json) {
+        .then(function (result) {
+          var json = result.json;
           // API liefert: { version, categories: [...] }
           // oder { success: true, data: { version, categories: [...] } }
           var data = json.data || json;
@@ -316,6 +496,14 @@
           }
 
           if (_config.debug) TnetLog.log(LOG, 'Katalog geladen:', categories.length, 'Kategorien,', Object.keys(_coalesceIndex).length, 'Coalesce-Gruppen');
+          self._logCatalogInitDone({
+            mode: 'api',
+            group: group,
+            apiSource: apiSource,
+            categories: categories.length,
+            responseMs: result.responseMs,
+            fetchMs: result.fetchMs,
+          });
           self._emit('catalog-loaded', _catalog);
 
           // Aktuellen Karten-Zustand in Store übernehmen
