@@ -85,6 +85,11 @@ $debug    = isset($_GET['debug']) && $_GET['debug'] === '1';
 $layerId  = $_GET['id'] ?? null; // Einzelner Layer per ID
 $source   = strtolower(trim($_GET['source'] ?? '')); // db|file (explizit)
 $noCache       = isset($_GET['nocache']) && $_GET['nocache'] === '1';
+$cacheDb       = isset($_GET['cacheDb']) && $_GET['cacheDb'] === '1';
+$cacheTtlParam = isset($_GET['cacheTtl']) ? (int)$_GET['cacheTtl'] : 3600;
+$dbCacheTtlParam = isset($_GET['dbCacheTtl']) ? (int)$_GET['dbCacheTtl'] : 60;
+$cacheTtl      = max(60, min(86400, $cacheTtlParam));
+$dbCacheTtl    = max(30, min(600, $dbCacheTtlParam));
 $action        = $_GET['action'] ?? null;
 // filterMissing: 1 = fehlende Layer (kein layer_definition-Eintrag) aus dem Baum entfernen (Standard Kartenanwendung)
 //                0 = fehlende Layer behalten, aber mit _missing:true markieren (für SLM-Preview)
@@ -96,9 +101,10 @@ if ($source === '' || $source === 'auto' || !in_array($source, ['db', 'file'], t
 
 // Quelltrennung: pro Request genau EINE Quelle verwenden (DB ODER Files).
 // Kein Mischen von Katalog aus DB mit Layer-Details aus Dateien.
-// Wichtig: DB-Quelle darf nicht über TTL-JSON-Cache verzögert werden,
+// Wichtig: DB-Quelle darf standardmässig nicht über TTL-JSON-Cache verzögert werden,
 // sonst sind Live-Publishes erst nach "Cache leeren" sichtbar.
-$bypassJsonCache = ($source === 'db');
+// Optional kann DB-Cache mit cacheDb=1 explizit aktiviert werden.
+$bypassJsonCache = ($source === 'db' && !$cacheDb);
 
 // =====================================================================
 // Action: NLS-Label-Check
@@ -373,7 +379,8 @@ $mappingFile = realpath(__DIR__ . '/../../php/lyrmgr-mapping.json') ?: '';
 $sourceFiles = array_filter([$lyrmgrFile, $mappingFile], 'file_exists');
 
 // Cache Hit? (ausser im Debug- oder NoCache-Modus)
-$cached = $cache->get($cacheKey, $sourceFiles, 3600);
+$effectiveCacheTtl = ($source === 'db') ? $dbCacheTtl : $cacheTtl;
+$cached = $cache->get($cacheKey, $sourceFiles, $effectiveCacheTtl);
 if (!$bypassJsonCache && $cached !== null && !$debug && !$noCache) {
     CacheHelper::setNoCache();
     $meta = $cached['meta'] ?? [];
@@ -531,8 +538,8 @@ if ($useDatabase) {
             $elapsed = round((microtime(true) - $startTime) * 1000);
             $meta['responseTime'] = $elapsed . 'ms';
 
-            // In Cache speichern (auch DB-Resultate cachen)
-            if (!$bypassJsonCache) {
+            // In Cache speichern (auch DB-Resultate cachen), aber nie bei nocache=1
+            if (!$bypassJsonCache && !$noCache) {
                 $cache->set($cacheKey, ['data' => $result, 'meta' => $meta]);
             }
 

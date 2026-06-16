@@ -3562,6 +3562,7 @@ function renderTreeTabs() {
   html += '<div class="tb-action-section">';
   html += '<span class="tb-action-section-label">File-Config</span>';
   html += '<button class="tb-lyrmgr-btn" data-action="lyrmgr-import-profile" title="Vorhandenes lyrmgr.conf vom Server laden">📥 Von Profil laden</button>';
+  html += '<button class="tb-lyrmgr-btn" data-action="lyrmgr-verify" title="Aktiven LyrMgr auf fehlende Layer/Warnings prüfen">✓ Validieren</button>';
   html += '<button class="tb-lyrmgr-btn tb-lyrmgr-btn-publish-file" data-action="lyrmgr-publish-file" title="lyrmgr.conf temporär ablegen und via FastAPI publizieren">🚀 Publish lyrmgr.conf</button>';
   html += '<button class="tb-lyrmgr-btn" data-action="lyrmgr-download" title="Aktiven LyrMgr-Block als JSON herunterladen">⬇ Download</button>';
   html += '<button class="tb-lyrmgr-btn" data-action="file-import" title="lyrmgr.conf als JSON von lokal importieren">📂 Import</button>';
@@ -3806,8 +3807,10 @@ function renderLyrmgrBlock(container, lmKey, profile) {
     if (typeof item === 'string') {
       var layer = findLayerById(item);
       var nlsName = getNlsAlias(item);
-      var itemName = nlsName || (layer ? (layer.name || item) : item);
-      var noNls = !nlsName;
+      var layerName = layer ? (layer.name || '') : '';
+      var itemName = nlsName || layerName || item;
+      // noNls = kein Alias via NLS UND kein server-seitiger Name (der bereits NLS-aufgelöst ist)
+      var noNls = !nlsName && !(layerName && layerName !== item);
       var metaHint = '';
       var layerEditMeta = getNodeEditMeta('layer', item, lmKey);
       if (!layerEditMeta && layer && (layer.editBy || layer.editAt)) {
@@ -4675,8 +4678,14 @@ function showItemCtxMenu(x, y, tree, ci, path) {
 // =====================================================================
 
 var _propsTarget = null; // { type, ref }
+var _propsDialogCleanup = null;
 
 function closePropsDialog() {
+  if (typeof _propsDialogCleanup === 'function') {
+    var cleanup = _propsDialogCleanup;
+    _propsDialogCleanup = null;
+    cleanup();
+  }
   document.getElementById('tb-props-overlay').classList.remove('open');
   _propsTarget = null;
 }
@@ -4805,7 +4814,7 @@ function openPropsDialog(type, ref) {
       + '<div class="tb-props-row" style="margin-top:8px">'
       + '<label>NLS-Scope (Alias)</label>'
       + '<select id="tb-layer-alias-target" style="width:100%;padding:4px 6px;border:1px solid #ccc;border-radius:3px">'
-      + buildNlsScopeSelectHtml((state.nlsEdits[layerId] && state.nlsEdits[layerId].target) || target)
+      + buildNlsScopeSelectHtml((state.nlsEdits[layerId] && state.nlsEdits[layerId].target) || (state.activeProfile ? 'profile' : 'override'))
       + '</select>'
       + '<div class="hint">Gilt nur für Alias/NLS, nicht für Layer-Properties.</div>'
       + '</div>';
@@ -7862,15 +7871,23 @@ function importLyrmgrFromProfile() {
         }
       };
 
+      var cancelBtn = document.getElementById('tb-props-cancel');
+      var cleanedUp = false;
+      var cleanupImportDialog = function() {
+        if (cleanedUp) return;
+        cleanedUp = true;
+        saveBtn.textContent = oldText;
+        saveBtn.removeEventListener('click', onImport);
+        cancelBtn.removeEventListener('click', onCancel);
+      };
+      _propsDialogCleanup = cleanupImportDialog;
+
       // Einmaliger Event-Listener
       saveBtn.addEventListener('click', onImport);
 
       // Cancel: Button-Text zurücksetzen
-      var cancelBtn = document.getElementById('tb-props-cancel');
       var onCancel = function() {
-        saveBtn.textContent = oldText;
-        saveBtn.removeEventListener('click', onImport);
-        cancelBtn.removeEventListener('click', onCancel);
+        cleanupImportDialog();
       };
       cancelBtn.addEventListener('click', onCancel);
 
