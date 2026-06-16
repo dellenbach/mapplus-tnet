@@ -1,4 +1,11 @@
-﻿## 2026-06-16 - Karteninhalt-Header sollte sticky sein beim Layer-Scrollen
+﻿## 2026-06-16 - URL-Start ohne op muss Config-Opacity nachziehen
+
+- **Symptom:** Start mit `layers=` aber ohne `op=` zeigte die URL-Layer mit 100% Deckkraft, obwohl die Layer-Konfiguration z.B. 0.65/0.75 vorgab.
+- **Root-Cause:** Der URL-Override nutzt den URL-Adopt-Pfad. Dort wurden fehlende `op`-Werte nicht spät aus `TnetLMStore.findLayer(id).options.opacity` übernommen; zusätzlich kann der Katalog erst nach dem initialen Bookmark-Runtime-Aufbau bereit sein.
+- **Fix:** `tnet-mapplus-helpers.js` normalisiert Opacity-Werte null-sicher, nutzt Priorität URL `op=` > Bookmark-Opacity > Config-Opacity > 1 und startet im URL-Adopt-Pfad einen Retry-Fallback, der Config-Opacities auf Bookmark, Store und OL-Layer anwendet.
+- **Guardrail:** Bei URL-Bookmarks immer beide Startpfade prüfen (`_applyBookmark` und `_adoptUrlOverrideBookmark`). Fehlende Werte nie mit `Number(null)` normalisieren, da daraus 0 wird.
+
+## 2026-06-16 - Karteninhalt-Header sollte sticky sein beim Layer-Scrollen
 
 - **Symptom:** Beim Scrollen durch lange Themalisten verdeckte der scrollende Content die "Karteninhalt leeren" Aktion, was zu schlechter Usability führte.
 - **Root-Cause:** Der Container `#lm-active-container` hatte `overflow-y: auto`, aber der Titel-Header `.lm-active-header` hatte keine sticky Positionierung.

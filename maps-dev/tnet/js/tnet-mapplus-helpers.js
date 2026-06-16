@@ -1054,6 +1054,26 @@ function _copyOwnProps(target, source) {
   return target;
 }
 
+function _normalizeOpacityValue(value) {
+  if (value === null || value === undefined || value === '') return null;
+  var opacity = Number(value);
+  if (!isFinite(opacity)) return null;
+  return Math.max(0, Math.min(1, opacity));
+}
+
+function _getLayerConfigOpacity(store, layerId) {
+  var catalogLayer;
+  var opacity;
+  if (!store || typeof store.findLayer !== 'function' || !layerId) return null;
+  try {
+    catalogLayer = store.findLayer(layerId);
+  } catch (eFindLayer) {
+    catalogLayer = null;
+  }
+  opacity = catalogLayer && catalogLayer.options ? catalogLayer.options.opacity : null;
+  return _normalizeOpacityValue(opacity);
+}
+
 function _getBookmarkRuntimeSeed(cfg) {
   var previous = window.__tnetActiveBookmark;
   if (!previous || !cfg || !cfg.id) return [];
@@ -1065,6 +1085,7 @@ function _getBookmarkRuntimeSeed(cfg) {
 function _buildBookmarkRuntimeLayers(cfg, activeView, options) {
   var visibilityMap = _computeBookmarkVisibility(cfg, activeView, options);
   var store = window.TnetLMStore;
+  var v1Opacity = (cfg && cfg.opacity && cfg.opacity.length) ? cfg.opacity : null;
   var allIds = ((cfg && cfg.layers) || []).map(function(entry) {
     return (entry && typeof entry === 'object') ? entry.id : String(entry || '');
   }).filter(function(id) { return !!id; });
@@ -1093,6 +1114,10 @@ function _buildBookmarkRuntimeLayers(cfg, activeView, options) {
     var catalogLayer = (store && typeof store.findLayer === 'function' && layerId)
       ? store.findLayer(layerId)
       : null;
+    var bookmarkOpacity = (spec && spec.opacity != null)
+      ? _normalizeOpacityValue(spec.opacity)
+      : (v1Opacity ? _normalizeOpacityValue(v1Opacity[index]) : null);
+    var configOpacity = _getLayerConfigOpacity(store, layerId);
     var previousLayer = layerId ? prevById[layerId] : null;
     var runtimeLayer = {};
     var shouldKeepStructural;
@@ -1114,15 +1139,16 @@ function _buildBookmarkRuntimeLayers(cfg, activeView, options) {
       : (runtimeLayer.visible !== false);
     if (Object.prototype.hasOwnProperty.call(explicitOpacity, layerId)) {
       runtimeLayer.opacity = explicitOpacity[layerId];
+    } else if (bookmarkOpacity !== null) {
+      runtimeLayer.opacity = bookmarkOpacity;
+    } else if (configOpacity !== null) {
+      runtimeLayer.opacity = configOpacity;
     }
 
     if (runtimeLayer.opacity == null || !isFinite(runtimeLayer.opacity)) {
-      // Kein expliziter Bookmark-Wert → Layer-Config-Default (options.opacity) bevorzugen,
-      // Fallback auf 1 nur wenn auch die Config keinen Wert hat.
-      var cfgOp = catalogLayer && catalogLayer.options && catalogLayer.options.opacity;
-      runtimeLayer.opacity = (cfgOp != null && isFinite(cfgOp)) ? +cfgOp : 1;
+      runtimeLayer.opacity = 1;
     } else {
-      runtimeLayer.opacity = +runtimeLayer.opacity;
+      runtimeLayer.opacity = _normalizeOpacityValue(runtimeLayer.opacity);
     }
 
     runtimeLayer.order = (runtimeLayer.order != null && isFinite(runtimeLayer.order))
@@ -1134,9 +1160,10 @@ function _buildBookmarkRuntimeLayers(cfg, activeView, options) {
   }).filter(function(layer) { return !!(layer && layer.id); });
 
   explicitIds.forEach(function(layerId) {
-    var catalogLayer, previousLayer, runtimeLayer;
+    var catalogLayer, previousLayer, runtimeLayer, configOpacity;
     if (runtimeById[layerId]) return;
     catalogLayer = (store && typeof store.findLayer === 'function') ? store.findLayer(layerId) : null;
+    configOpacity = _getLayerConfigOpacity(store, layerId);
     previousLayer = prevById[layerId] || null;
     runtimeLayer = {};
     _copyOwnProps(runtimeLayer, catalogLayer || {});
@@ -1145,7 +1172,9 @@ function _buildBookmarkRuntimeLayers(cfg, activeView, options) {
     runtimeLayer.name = runtimeLayer.name || layerId.split('/').pop() || layerId;
     runtimeLayer.visible = true;
     if (Object.prototype.hasOwnProperty.call(explicitOpacity, layerId)) runtimeLayer.opacity = explicitOpacity[layerId];
+    else if (configOpacity !== null) runtimeLayer.opacity = configOpacity;
     if (runtimeLayer.opacity == null || !isFinite(runtimeLayer.opacity)) runtimeLayer.opacity = 1;
+    else runtimeLayer.opacity = _normalizeOpacityValue(runtimeLayer.opacity);
     runtimeLayers.push(runtimeLayer);
     runtimeById[layerId] = runtimeLayer;
   });
@@ -1478,6 +1507,7 @@ function _applyFrameworkMapBookmarkFallback(bookmarkId) {
 
 function _buildBookmarkParams(cfg, visibilityMap, options) {
   var parts = [];
+  var store = window.TnetLMStore;
   var urlParams = null;
   try {
     urlParams = (options && options.urlQuery) ? new URLSearchParams(options.urlQuery) : null;
@@ -1542,6 +1572,10 @@ function _buildBookmarkParams(cfg, visibilityMap, options) {
     if (v1Opacity && (op === '' || op == null)) {
       op = (v1Opacity[idx] != null ? v1Opacity[idx] : '');
     }
+    if (op === '' || op == null) {
+      var cfgOp = _getLayerConfigOpacity(store, id);
+      if (cfgOp !== null) op = cfgOp;
+    }
     if (Object.prototype.hasOwnProperty.call(urlOverrideOp, id)) {
       op = urlOverrideOp[id];
     }
@@ -1551,9 +1585,10 @@ function _buildBookmarkParams(cfg, visibilityMap, options) {
   urlOverrideIds.forEach(function(layerId) {
     var exists = entries.some(function(entry) { return entry.id === layerId; });
     if (!exists) {
+      var cfgOp = _getLayerConfigOpacity(store, layerId);
       entries.push({
         id: layerId,
-        op: Object.prototype.hasOwnProperty.call(urlOverrideOp, layerId) ? urlOverrideOp[layerId] : '',
+        op: Object.prototype.hasOwnProperty.call(urlOverrideOp, layerId) ? urlOverrideOp[layerId] : (cfgOp !== null ? cfgOp : ''),
         defaultVisible: true
       });
     }
@@ -1650,6 +1685,81 @@ function _applyUrlOverrideOpacity(options) {
     try { setTimeout(function() { store.reconcileMapConsistency(); }, 300); }
     catch (eReconcile) { /* ignore */ }
   }
+}
+
+function _getBookmarkLayerSpec(cfg, layerId) {
+  var layers = cfg && Array.isArray(cfg.layers) ? cfg.layers : null;
+  var i, spec, id;
+  if (!layers || !layerId) return null;
+  for (i = 0; i < layers.length; i++) {
+    spec = layers[i];
+    id = (spec && typeof spec === 'object') ? spec.id : String(spec || '');
+    if (id === layerId) return { spec: spec, index: i };
+  }
+  return null;
+}
+
+function _getBookmarkExplicitOpacity(cfg, layerId) {
+  var match = _getBookmarkLayerSpec(cfg, layerId);
+  var spec = match && match.spec;
+  var v1Opacity = cfg && cfg.opacity && cfg.opacity.length ? cfg.opacity : null;
+  if (spec && typeof spec === 'object' && spec.opacity != null) {
+    return _normalizeOpacityValue(spec.opacity);
+  }
+  if (v1Opacity && match && v1Opacity[match.index] != null) {
+    return _normalizeOpacityValue(v1Opacity[match.index]);
+  }
+  return null;
+}
+
+function _applyUrlConfigFallbackOpacity(options) {
+  var ids = options && options.visibleLayerIds;
+  var store = window.TnetLMStore;
+  var bookmark = window.__tnetActiveBookmark;
+  var allReady = true;
+  if (!ids || !ids.length || !store || (options && options.opacityValues && options.opacityValues.length)) return;
+  if (!bookmark || !bookmark._cfg || !Array.isArray(bookmark.layers)) return false;
+
+  ids.forEach(function(layerId) {
+    var id = String(layerId || '').replace(/^[-\s]+/, '').trim();
+    var bookmarkOpacity;
+    var configOpacity;
+    if (!id) return;
+    bookmarkOpacity = _getBookmarkExplicitOpacity(bookmark._cfg, id);
+    if (bookmarkOpacity !== null) return;
+    configOpacity = _getLayerConfigOpacity(store, id);
+    if (configOpacity === null) {
+      allReady = false;
+      return;
+    }
+
+    bookmark.layers.forEach(function(layer) {
+      if (layer && layer.id === id) layer.opacity = configOpacity;
+    });
+
+    if (typeof store.setLayerOpacity === 'function') {
+      try { store.setLayerOpacity(id, configOpacity); }
+      catch (eSetConfigOp) { /* defensiv */ }
+    }
+  });
+
+  if (store && typeof store.reconcileMapConsistency === 'function') {
+    try { setTimeout(function() { store.reconcileMapConsistency(); }, 150); }
+    catch (eReconcileConfigOp) { /* ignore */ }
+  }
+  return allReady;
+}
+
+function _scheduleUrlConfigFallbackOpacity(options) {
+  var startedAt = Date.now();
+  var timer;
+  if (options && options.opacityValues && options.opacityValues.length) return;
+  if (_applyUrlConfigFallbackOpacity(options)) return;
+  timer = setInterval(function() {
+    if (_applyUrlConfigFallbackOpacity(options) || Date.now() - startedAt > 30000) {
+      clearInterval(timer);
+    }
+  }, 1000);
 }
 
 /**
@@ -1772,6 +1882,7 @@ function _adoptUrlOverrideBookmark(cfg, bookmarkId, viewId, options) {
     _ensureBookmarkUrlSyncInstalled();
     _applyUrlOverrideOpacity(options || null);
     setTimeout(function() { _applyUrlOverrideOpacity(options || null); }, 700);
+    _scheduleUrlConfigFallbackOpacity(options || null);
   } catch (eLoadToc) {
     TnetLog.warn('[TnetSetBookmark] URL-Adopt fehlgeschlagen:', eLoadToc && eLoadToc.message ? eLoadToc.message : eLoadToc);
   }
@@ -1881,6 +1992,7 @@ function _applyBookmark(cfg, bookmarkId, viewId, options) {
       _ensureBookmarkUrlSyncInstalled();
       _applyUrlOverrideOpacity(options || null);
       setTimeout(function() { _applyUrlOverrideOpacity(options || null); }, 700);
+      _scheduleUrlConfigFallbackOpacity(options || null);
       _scheduleBookmarkLayersUrlSync();
       setTimeout(_scheduleBookmarkLayersUrlSync, 600);
       setTimeout(_scheduleBookmarkLayersUrlSync, 1800);
