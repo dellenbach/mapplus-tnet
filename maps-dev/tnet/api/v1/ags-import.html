@@ -6183,7 +6183,7 @@ function saveDeployedFile() {
 
       // 3. Git-Commit (mit Commit-Dialog)
       if (_deployPath) {
-        showCommitDialog('Edit: ' + fi.name).then(function(result) {
+        showCommitDialog('Edit: ' + fi.name + ' (Profil: ' + (_deployedProfile || 'public') + ')').then(function(result) {
           if (!result || result.skip) return;
           fetch(GAPI_URL + '/git-commit-conf', {
             method: 'POST',

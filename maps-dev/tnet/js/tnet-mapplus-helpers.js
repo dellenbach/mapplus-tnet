@@ -2046,6 +2046,22 @@ function TnetLayerSwitch(layerId, mode) {
   mode = mode || 'toggle';
   var retryStore = window.__tnetLayerSwitchRetryState || (window.__tnetLayerSwitchRetryState = {});
 
+  function buildLayerIdCandidates(id) {
+    var raw = String(id || '');
+    if (!raw) return [raw];
+    return [raw];
+  }
+
+  var layerIdCandidates = buildLayerIdCandidates(layerId);
+
+  function findCandidateByName(name) {
+    if (!name) return null;
+    for (var i = 0; i < layerIdCandidates.length; i++) {
+      if (name === layerIdCandidates[i]) return layerIdCandidates[i];
+    }
+    return null;
+  }
+
   function scheduleOnRetry() {
     var key = String(layerId || '');
     var state = retryStore[key] || { attempts: 0, timer: null };
@@ -2085,10 +2101,15 @@ function TnetLayerSwitch(layerId, mode) {
 
   // Layer im OL-Stack suchen (nach 'name'-Property = lyrmgr-ID)
   var found = null;
+  var foundId = null;
   map.getLayers().forEach(function(layer) {
     if (!found) {
       var n = layer.get('name') || '';
-      if (n === layerId) found = layer;
+      var matched = findCandidateByName(n);
+      if (matched) {
+        found = layer;
+        foundId = matched;
+      }
     }
   });
 
@@ -2109,7 +2130,7 @@ function TnetLayerSwitch(layerId, mode) {
       clearRetryState();
       // Layer existiert bereits im Stack → sichtbar machen
       found.setVisible(true);
-      TnetLog.log('[TnetLayerSwitch] Layer eingeblendet:', layerId);
+      TnetLog.log('[TnetLayerSwitch] Layer eingeblendet:', foundId || layerId);
 
       // Map-Render forcieren damit OL-Source initialisiert wird.
       // Ohne dies kann getFeatureInfoUrl() null zurückgeben bis die Source
@@ -2135,7 +2156,7 @@ function TnetLayerSwitch(layerId, mode) {
             var mt = am.MapTips[mtId];
             if (!mt) continue;
             var mtLinked = mt.linked_layer_id || mt.linked_layer;
-            if (mtLinked !== layerId) continue;
+            if (layerIdCandidates.indexOf(mtLinked) === -1) continue;
             if (typeof mt.addLayerCallback === 'function') {
               mt.addLayerCallback(fakeEvt);
               TnetLog.log('[TnetLayerSwitch] addLayerCallback simuliert für MapTip:', mtId);
@@ -2156,26 +2177,95 @@ function TnetLayerSwitch(layerId, mode) {
       // 'main' als targetMap haben. Der Layer kann in JEDEM davon registriert sein.
       // → Alle durchsuchen und denjenigen nehmen, der den Layer kennt.
       var targetLyrMgr = null;
+      var targetLayerId = null;
       if (am.LyrMgr) {
         for (var lm in am.LyrMgr) {
           var mgr = am.LyrMgr[lm];
           if (mgr.targetMap && dojo.indexOf(mgr.targetMap, 'main') > -1 &&
               typeof mgr.getLayerById === 'function') {
-            var lyrObj = mgr.getLayerById(layerId);
-            if (lyrObj) {
-              targetLyrMgr = mgr;
-              TnetLog.log('[TnetLayerSwitch] Layer gefunden in LyrMgr:', lm);
-              break;
+            for (var ci = 0; ci < layerIdCandidates.length; ci++) {
+              var cand = layerIdCandidates[ci];
+              var lyrObj = mgr.getLayerById(cand);
+              if (lyrObj) {
+                targetLyrMgr = mgr;
+                targetLayerId = cand;
+                TnetLog.log('[TnetLayerSwitch] Layer gefunden in LyrMgr:', lm, 'via', cand);
+                break;
+              }
             }
+            if (targetLyrMgr) break;
           }
         }
       }
       if (targetLyrMgr && typeof targetLyrMgr.switchLayersProgr === 'function') {
         clearRetryState();
-        targetLyrMgr.switchLayersProgr(layerId, null, true);
-        TnetLog.log('[TnetLayerSwitch] Layer via LyrMgr.switchLayersProgr geladen:', layerId);
+        targetLyrMgr.switchLayersProgr(targetLayerId || layerId, null, true);
+        TnetLog.log('[TnetLayerSwitch] Layer via LyrMgr.switchLayersProgr geladen:', targetLayerId || layerId);
       } else {
-        // Fallback: Layer in keinem LyrMgr gefunden → auf allen versuchen
+        // Fallback: Layer in keinem LyrMgr via getLayerById gefunden.
+        // Wenn der Store eine WMS/nicht-ArcGIS-Definition enthält,
+        // OL-Layer direkt erstellen (LyrMgr kennt nur lyrmgr.conf-Layer).
+        var _catLayerFb = window.TnetLMStore && typeof window.TnetLMStore.findLayer === 'function'
+          ? window.TnetLMStore.findLayer(layerId) : null;
+        if (_catLayerFb && _catLayerFb.url && _catLayerFb.layerType && _catLayerFb.layerType !== 'arcgisRest') {
+          try {
+            var _wmsParams = { LAYERS: layerId, TRANSPARENT: true, FORMAT: 'image/png' };
+            if (_catLayerFb.params) {
+              var _p = _catLayerFb.params;
+              if (_p.LAYERS || _p.layers) _wmsParams.LAYERS = _p.LAYERS || _p.layers;
+              if (_p.FORMAT || _p.format) _wmsParams.FORMAT = _p.FORMAT || _p.format;
+            }
+            var _src = new ol.source.TileWMS({ url: _catLayerFb.url, params: _wmsParams });
+            var _olLyr = new ol.layer.Tile({
+              source: _src, opacity: _catLayerFb.opacity || 1.0, visible: true, zIndex: 200
+            });
+            _olLyr.set('name', layerId);
+            // Framework-Event-Handler können bei unbekannten Layern crashen → supprimieren
+            try { map.addLayer(_olLyr); } catch(e) { /* Framework-Event-Fehler ignoriert */ }
+            // URL zuerst setzen (bevor Store-Sync updateMapStatusUrl triggert)
+            try {
+              var _href = window.location.href;
+              var _lm = _href.match(/([?&])(layers=)([^&]*)/);
+              if (_lm) {
+                var _cur = _lm[3] ? decodeURIComponent(_lm[3]) : '';
+                var _ids = _cur ? _cur.split('|') : [];
+                if (_ids.indexOf(layerId) === -1) {
+                  _ids.push(layerId);
+                  var _newLayers = _lm[1] + 'layers=' + _ids.map(encodeURIComponent).join('|');
+                  window.history.replaceState(null, '', _href.replace(/([?&])layers=[^&]*/, _newLayers));
+                }
+              }
+            } catch(e) { /* URL-Update fehlgeschlagen */ }
+            // Store manuell über den neuen Layer informieren (falls _onOLLayerAdd wegen
+            // Framework-Event-Fehler nicht aufgerufen wurde)
+            try {
+              if (window.TnetLMStore && typeof window.TnetLMStore._onOLLayerAdd === 'function') {
+                window.TnetLMStore._onOLLayerAdd(_olLyr);
+              }
+            } catch(e) { /* Store-Sync fehlgeschlagen */ }
+            // Falls updateMapStatusUrl die URL überschrieben hat, nochmals setzen
+            try {
+              var _href2 = window.location.href;
+              var _lm2 = _href2.match(/([?&])(layers=)([^&]*)/);
+              if (_lm2) {
+                var _cur2 = _lm2[3] ? decodeURIComponent(_lm2[3]) : '';
+                var _ids2 = _cur2 ? _cur2.split('|') : [];
+                if (_ids2.indexOf(layerId) === -1) {
+                  _ids2.push(layerId);
+                  var _newLayers2 = _lm2[1] + 'layers=' + _ids2.map(encodeURIComponent).join('|');
+                  window.history.replaceState(null, '', _href2.replace(/([?&])layers=[^&]*/, _newLayers2));
+                }
+              }
+            } catch(e) { /* URL-Update fehlgeschlagen */ }
+            clearRetryState();
+            TnetLog.log('[TnetLayerSwitch] WMS-Layer direkt geladen:', layerId);
+            return true;
+          } catch (wmsErr) {
+            TnetLog.warn('[TnetLayerSwitch] WMS direkt laden fehlgeschlagen:', wmsErr);
+          }
+        }
+
+        // Letzter Versuch: switchLayersProgr auf allen LyrMgrs
         var anyMgr = false;
         if (am.LyrMgr) {
           for (var lmFb in am.LyrMgr) {
@@ -2188,12 +2278,38 @@ function TnetLayerSwitch(layerId, mode) {
           }
         }
         if (!anyMgr) {
-          TnetLog.warn('[TnetLayerSwitch] LyrMgr nicht verfügbar für:', layerId);
+          // Kein LyrMgr kennt den Layer. Wenn der Store eine WMS/nicht-ArcGIS
+          // Definition enthält, OL-Layer direkt erstellen.
+          var _catLayer = window.TnetLMStore && typeof window.TnetLMStore.findLayer === 'function'
+            ? window.TnetLMStore.findLayer(layerId) : null;
+          if (_catLayer && _catLayer.url && _catLayer.layerType && _catLayer.layerType !== 'arcgisRest') {
+            try {
+              var _wmsParams = { LAYERS: layerId, TRANSPARENT: true, FORMAT: 'image/png' };
+              if (_catLayer.params) {
+                var _p = _catLayer.params;
+                if (_p.LAYERS || _p.layers) _wmsParams.LAYERS = _p.LAYERS || _p.layers;
+                if (_p.FORMAT || _p.format) _wmsParams.FORMAT = _p.FORMAT || _p.format;
+              }
+              var _src = new ol.source.TileWMS({ url: _catLayer.url, params: _wmsParams });
+              var _olLyr = new ol.layer.Tile({
+                source: _src, opacity: _catLayer.opacity || 1.0, visible: true, zIndex: 200
+              });
+              _olLyr.set('name', layerId);
+              // Framework-Event-Handler können bei unbekannten Layern crashen → supprimieren
+              try { map.addLayer(_olLyr); } catch(e) { /* Framework-Event-Fehler ignoriert */ }
+              clearRetryState();
+              TnetLog.log('[TnetLayerSwitch] WMS-Layer direkt geladen:', layerId);
+              return true;
+            } catch (wmsErr) {
+              TnetLog.warn('[TnetLayerSwitch] WMS direkt laden fehlgeschlagen:', wmsErr);
+            }
+          }
+          TnetLog.warn('[TnetLayerSwitch] LyrMgr nicht verfügbar für:', layerId, 'Kandidaten:', layerIdCandidates.join(', '));
           scheduleOnRetry();
           return false;
         }
         clearRetryState();
-        TnetLog.log('[TnetLayerSwitch] Layer via Fallback (alle LyrMgr) versucht:', layerId);
+        TnetLog.log('[TnetLayerSwitch] Layer via Fallback (alle LyrMgr) versucht:', layerId, 'Kandidaten:', layerIdCandidates.join(', '));
       }
     }
     return true;
@@ -2206,9 +2322,11 @@ function TnetLayerSwitch(layerId, mode) {
         var mgr = am.LyrMgr[lmOff];
         if (mgr.targetMap && dojo.indexOf(mgr.targetMap, 'main') > -1 &&
             typeof mgr.switchLayer === 'function') {
-          mgr.switchLayer(layerId, false);
-          TnetLog.log('[TnetLayerSwitch] switchLayer(false) auf LyrMgr:', lmOff, layerId);
-          lyrMgrHandled = true;
+          for (var co = 0; co < layerIdCandidates.length; co++) {
+            mgr.switchLayer(layerIdCandidates[co], false);
+            TnetLog.log('[TnetLayerSwitch] switchLayer(false) auf LyrMgr:', lmOff, layerIdCandidates[co]);
+            lyrMgrHandled = true;
+          }
         }
       }
     }

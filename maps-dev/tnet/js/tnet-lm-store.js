@@ -37,6 +37,120 @@
   // Debounce-Timer für Coalesce LAYERS-Param-Updates
   var _coalesceDebounceTimers = {};  // { groupId: timerHandle }
 
+  // URL-Guard für direkte WMS-Layer (nicht im LyrMgr)
+  var _wmsUrlGuardInstalled = false;
+  var _wmsUrlSyncTimer = null;
+
+  /**
+   * Installiert einen window.history.replaceState-Interceptor.
+   * Bei JEDER URL-Änderung (egal von wo) werden aktive nicht-ArcGIS-Layer
+   * automatisch in layers= erhalten — verhindert dass das Framework sie löscht.
+   */
+  function _installWmsUrlGuard() {
+    if (_wmsUrlGuardInstalled) return;
+    _wmsUrlGuardInstalled = true;
+    var origRS = window.history.replaceState.bind(window.history);
+    window.history.replaceState = function(state, title, url) {
+      if (typeof url === 'string') {
+        var m = url.match(/([?&])layers=([^&]*)/);
+        if (m) {
+          var activeWmsIds = [];
+          for (var i = 0; i < _activeLayers.length; i++) {
+            var al = _activeLayers[i];
+            if (al && al.id && al.layerType && al.layerType !== 'arcgisRest') {
+              activeWmsIds.push(al.id);
+            }
+          }
+          if (activeWmsIds.length > 0) {
+            var cur = m[2] ? decodeURIComponent(m[2]) : '';
+            var ids = cur ? cur.split('|').filter(function(s) { return !!s; }) : [];
+            var changed = false;
+            for (var j = 0; j < activeWmsIds.length; j++) {
+              if (ids.indexOf(activeWmsIds[j]) === -1) {
+                ids.push(activeWmsIds[j]);
+                changed = true;
+              }
+            }
+            if (changed) {
+              url = url.replace(/([?&])layers=[^&]*/, m[1] + 'layers=' + ids.map(encodeURIComponent).join('|'));
+            }
+          }
+        }
+      }
+      return origRS(state, title, url);
+    };
+    TnetLog.log(LOG, 'WMS-URL-Guard installiert');
+  }
+
+  /**
+   * Synchronisiert alle aktiven WMS-Layer vollständig mit der layers=-URL.
+   * Store ist die Wahrheit: aktive WMS-Layer → in URL, inaktive → aus URL.
+   * Wird debounced nach jedem active-layers-changed aufgerufen.
+   */
+  function _syncAllWmsLayersInUrl() {
+    try {
+      var href = window.location.href;
+      var m = href.match(/([?&])layers=([^&]*)/);
+      if (!m) return;
+
+      // Aktive WMS-IDs aus Store
+      var activeWmsIds = [];
+      for (var i = 0; i < _activeLayers.length; i++) {
+        var al = _activeLayers[i];
+        if (al && al.id && al.layerType && al.layerType !== 'arcgisRest') {
+          activeWmsIds.push(al.id);
+        }
+      }
+
+      var cur = m[2] ? decodeURIComponent(m[2]) : '';
+      var urlIds = cur ? cur.split('|').filter(function(s) { return !!s; }) : [];
+
+      // Nicht-WMS-IDs aus URL behalten (die werden vom Framework verwaltet)
+      var nonWmsUrlIds = urlIds.filter(function(id) {
+        var cat = typeof TnetLMStore !== 'undefined' && typeof TnetLMStore.findLayer === 'function'
+          ? TnetLMStore.findLayer(id) : null;
+        return !cat || !cat.layerType || cat.layerType === 'arcgisRest';
+      });
+
+      // Neue Liste: non-WMS-IDs + aktive WMS-IDs
+      var newIds = nonWmsUrlIds.slice();
+      for (var j = 0; j < activeWmsIds.length; j++) {
+        if (newIds.indexOf(activeWmsIds[j]) === -1) {
+          newIds.push(activeWmsIds[j]);
+        }
+      }
+
+      var newLayersVal = newIds.map(encodeURIComponent).join('|');
+      var oldLayersVal = urlIds.map(encodeURIComponent).join('|');
+
+      if (newLayersVal !== oldLayersVal) {
+        window.history.replaceState(null, '', href.replace(/([?&])layers=[^&]*/, m[1] + 'layers=' + newLayersVal));
+        TnetLog.log(LOG, 'WMS-URL-Sync: layers=', newLayersVal || '(leer)');
+      }
+    } catch(e) { /* URL-Sync fehlgeschlagen */ }
+  }
+
+  /**
+   * Debounceter URL-Sync: 150ms nach dem letzten active-layers-changed.
+   */
+  function _scheduleWmsUrlSync() {
+    if (_wmsUrlSyncTimer) clearTimeout(_wmsUrlSyncTimer);
+    _wmsUrlSyncTimer = setTimeout(function() {
+      _wmsUrlSyncTimer = null;
+      _syncAllWmsLayersInUrl();
+    }, 150);
+  }
+
+  /**
+   * Synchronisiert einen einzelnen WMS-Layer in die layers=-URL.
+   * Wird bei ON (hinzufügen) und OFF (entfernen) aufgerufen.
+   * @deprecated Wird durch _scheduleWmsUrlSync ersetzt, bleibt als Fallback.
+   */
+  function _syncWmsLayerInUrl(layerId, visible, layerType) {
+    if (!layerType || layerType === 'arcgisRest') return;
+    _scheduleWmsUrlSync();
+  }
+
   function getAppRoot() {
     return window.__TNET_APP_ROOT || '/maps';
   }
@@ -64,6 +178,61 @@
     return value.indexOf('/') === 0 ? value : appRoot + '/' + value;
   }
 
+  function resolveMainSource(globalCfg) {
+    var raw = (globalCfg && globalCfg.mainSource) || _config.transport || _config.lyrmgrSource || 'api';
+    var value = String(raw || '').toLowerCase();
+    if (value === 'direct' || value === 'file' || value === 'files') return 'direct';
+    if (value === 'api' || value === 'db') return 'api';
+    return 'api';
+  }
+
+  function nowMs() {
+    return (window.performance && typeof window.performance.now === 'function') ? window.performance.now() : Date.now();
+  }
+
+  function resolveApiCacheOptions(globalCfg, apiSource) {
+    var cfgApi = (globalCfg && globalCfg.configSourceApi) || {};
+    var cfgApiCache = cfgApi.cache || {};
+    var enabled = (typeof cfgApiCache.enabled === 'boolean')
+      ? cfgApiCache.enabled
+      : (_config.cache !== false);
+    var forceNoCache = cfgApiCache.forceNoCache === true;
+    var noCacheParam = (enabled === false) || forceNoCache;
+    var ttlSecondsRaw = cfgApiCache.ttlSeconds;
+    var ttlSeconds = null;
+    if (ttlSecondsRaw !== undefined && ttlSecondsRaw !== null && ttlSecondsRaw !== '') {
+      var parsedTtl = parseInt(ttlSecondsRaw, 10);
+      if (!isNaN(parsedTtl) && parsedTtl > 0) {
+        ttlSeconds = parsedTtl;
+      }
+    }
+
+    var enableDbCache = cfgApiCache.enableDbCache === true;
+    var dbTtlSecondsRaw = cfgApiCache.dbTtlSeconds;
+    var dbTtlSeconds = null;
+    if (dbTtlSecondsRaw !== undefined && dbTtlSecondsRaw !== null && dbTtlSecondsRaw !== '') {
+      var parsedDbTtl = parseInt(dbTtlSecondsRaw, 10);
+      if (!isNaN(parsedDbTtl) && parsedDbTtl > 0) {
+        dbTtlSeconds = parsedDbTtl;
+      }
+    }
+
+    return {
+      enabled: enabled,
+      forceNoCache: forceNoCache,
+      noCacheParam: noCacheParam,
+      ttlSeconds: ttlSeconds,
+      enableDbCache: enableDbCache,
+      dbTtlSeconds: dbTtlSeconds,
+      note: apiSource === 'db'
+        ? (enableDbCache
+            ? 'source=db nutzt optionalen JSON-Cache (Kurzzeit-TTL).'
+            : 'source=db umgeht serverseitigen JSON-Cache absichtlich (Live-Publishes sofort sichtbar).')
+        : 'source=file kann serverseitigen JSON-Cache nutzen; nocache=1 erzwingt Neuaufbau.',
+      clearUrl: getAppRoot() + '/tnet/api/v1/cache.php?action=clear',
+    };
+  }
+
   var LMStore = {
 
     // ============================================================
@@ -73,6 +242,27 @@
     init: function (config) {
       _config = config || {};
       if (_config.debug) TnetLog.log(LOG, 'Init mit Config:', _config);
+      if (_config.debug) {
+        var globalCfg = window.TnetGlobalConfig || {};
+        var cfgApi = globalCfg.configSourceApi || {};
+        var cfgDirect = globalCfg.configSourceDirect || {};
+        var debugMainSourceRaw = globalCfg.mainSource || _config.transport || _config.lyrmgrSource || 'api';
+        var debugMainSource = resolveMainSource(globalCfg);
+        var debugGroup = _config.group || 'public';
+        _config._catalogInitStartedAt = nowMs();
+        TnetLog.log(LOG, '[LM-INIT] Start Themenkatalog', {
+          group: debugGroup,
+          mainSource: debugMainSource,
+          mainSourceRaw: debugMainSourceRaw,
+          apiLayersSource: (cfgApi.layers || cfgApi.default || _config.apiSource || 'db'),
+          directLayersSource: (cfgDirect.layers || cfgDirect.default || 'files'),
+          cacheEnabled: _config.cache !== false,
+        });
+        if (String(debugMainSourceRaw).toLowerCase() !== debugMainSource) {
+          TnetLog.warn(LOG, '[LM-INIT] mainSource normalisiert:', debugMainSourceRaw, '->', debugMainSource);
+        }
+      }
+      _installWmsUrlGuard();
       this._loadCatalog();
     },
 
@@ -81,13 +271,57 @@
     // ============================================================
 
     _loadCatalog: function () {
-      var source = _config.lyrmgrSource || 'api';
-      var group  = _config.group || 'public';
+      // mainSource: 'api' (via layers.php) oder 'direct' (lyrmgr.conf direkt)
+      var globalCfg = window.TnetGlobalConfig || {};
+      var mainSource = resolveMainSource(globalCfg);
+      var group = _config.group || 'public';
 
-      if (source === 'file') {
+      if (_config.debug) {
+        TnetLog.log(LOG, '[LM-INIT] Ladepfad entschieden:', mainSource === 'direct' ? 'DIRECT (lyrmgr.conf via API source=file)' : 'API (layers.php source=db|file)');
+      }
+
+      if (mainSource === 'direct') {
         return this._loadLyrmgrFromFile(group);
       }
       return this._loadLyrmgrFromApi(group);
+    },
+
+    _logCatalogInitDone: function (meta) {
+      if (!_config.debug) return;
+      var startedAt = _config._catalogInitStartedAt;
+      var nowTs = nowMs();
+      var durationMs = (typeof startedAt === 'number') ? Math.round(nowTs - startedAt) : null;
+      var fetchMs = (meta && typeof meta.fetchMs === 'number') ? Math.round(meta.fetchMs) : null;
+      var responseMs = (meta && typeof meta.responseMs === 'number') ? Math.round(meta.responseMs) : null;
+      var processMs = (typeof durationMs === 'number' && typeof fetchMs === 'number') ? Math.max(0, durationMs - fetchMs) : null;
+      var globalCfg = window.TnetGlobalConfig || {};
+      var cfgDirect = globalCfg.configSourceDirect || {};
+      var effectiveDirectSource = (meta && meta.directSource) || cfgDirect.layers || cfgDirect.default || 'files';
+      var payload = {
+        mode: meta && meta.mode ? meta.mode : 'unknown',
+        group: meta && meta.group ? meta.group : (_config.group || 'public'),
+        directSource: effectiveDirectSource,
+        categories: meta && typeof meta.categories === 'number' ? meta.categories : 0,
+        coalesceGroups: Object.keys(_coalesceIndex || {}).length,
+        responseMs: responseMs,
+        fetchMs: fetchMs,
+        processMs: processMs,
+        durationMs: durationMs,
+      };
+      if (payload.mode === 'api') {
+        payload.apiSource = meta && meta.apiSource ? meta.apiSource : 'db';
+      }
+      TnetLog.log(LOG, '[LM-INIT] Themenkatalog bereit', payload);
+      var perfSource = payload.mode === 'api' ? (payload.apiSource || 'db') : (payload.directSource || 'file');
+      TnetLog.log(
+        LOG,
+        '[LM-PERF] Themenkatalog init: mode=' + payload.mode +
+        ', source=' + perfSource +
+        ', responseMs=' + payload.responseMs +
+        ', fetchMs=' + payload.fetchMs +
+        ', processMs=' + payload.processMs +
+        ', durationMs=' + payload.durationMs
+      );
     },
 
     /**
@@ -100,11 +334,27 @@
      */
     _loadLyrmgrFromFile: function (group) {
       var self = this;
+      var globalCfg = window.TnetGlobalConfig || {};
+      var apiCache = resolveApiCacheOptions(globalCfg, 'file');
       var apiUrl = normalizeApiUrl(_config.apiUrl);
       var url = apiUrl + '?source=file&group=' + encodeURIComponent(group);
-      if (_config.cache === false) url += '&nocache=1';
+      var requestStartedAt = nowMs();
+      if (apiCache.noCacheParam) url += '&nocache=1';
+      if (apiCache.ttlSeconds !== null) url += '&cacheTtl=' + encodeURIComponent(String(apiCache.ttlSeconds));
 
       if (_config.debug) TnetLog.log(LOG, 'Lade LyrMgr aus lyrmgr.conf (source=file, group=' + group + ')');
+      if (_config.debug) {
+        TnetLog.log(LOG, '[LM-CACHE] FILE-Quelle via layers.php', {
+          cacheEnabled: apiCache.enabled,
+          forceNoCache: apiCache.forceNoCache,
+          nocacheParam: apiCache.noCacheParam,
+          ttlSeconds: apiCache.ttlSeconds,
+          enableDbCache: apiCache.enableDbCache,
+          dbTtlSeconds: apiCache.dbTtlSeconds,
+          clearUrl: apiCache.clearUrl,
+          note: apiCache.note,
+        });
+      }
 
       fetch(url)
         .then(function (r) {
@@ -112,10 +362,18 @@
             TnetLog.warn(LOG, 'lyrmgr.conf nicht gefunden (HTTP ' + r.status + '), Fallback auf API');
             return self._loadLyrmgrFromApi(group);
           }
-          return r.json();
+          var responseMs = nowMs() - requestStartedAt;
+          return r.json().then(function (json) {
+            return {
+              json: json,
+              responseMs: responseMs,
+              fetchMs: nowMs() - requestStartedAt,
+            };
+          });
         })
-        .then(function (json) {
-          if (!json) return; // Fallback bereits ausgelöst
+        .then(function (result) {
+          if (!result) return; // Fallback bereits ausgelöst
+          var json = result.json;
 
           // Antwort-Format identisch mit DB-Pfad:
           // { success: true, data: { version: '2.0', categories: [...] } }
@@ -141,6 +399,15 @@
             Object.keys(_coalesceIndex).length, 'Coalesce-Gruppen',
             '(source=file, group=' + group + ')');
 
+          self._logCatalogInitDone({
+            mode: 'direct',
+            group: group,
+            directSource: 'file',
+            categories: categories.length,
+            responseMs: result.responseMs,
+            fetchMs: result.fetchMs,
+          });
+
           self._emit('catalog-loaded', _catalog);
           self._syncFromMap();
         })
@@ -158,21 +425,54 @@
     _loadLyrmgrFromApi: function (group) {
       var self = this;
       var url = normalizeApiUrl(_config.apiUrl);
-      var apiSource = (_config.apiSource || 'db');
-      apiSource = (apiSource === 'file') ? 'file' : 'db';
+      var requestStartedAt = nowMs();
+      // configSourceApi.layers bestimmt welches ?source= an layers.php geschickt wird.
+      var globalCfg = window.TnetGlobalConfig || {};
+      var cfgApi = globalCfg.configSourceApi || {};
+      var apiSource = cfgApi.layers || cfgApi.default || _config.apiSource || 'db';
+      apiSource = (apiSource === 'file' || apiSource === 'files') ? 'file' : 'db';
+      var apiCache = resolveApiCacheOptions(globalCfg, apiSource);
       url += (url.indexOf('?') > -1 ? '&' : '?') + 'group=' + encodeURIComponent(group);
-      // Quelle explizit setzen: kein Hybrid-/Auto-Modus.
       url += '&source=' + encodeURIComponent(apiSource);
-      if (_config.cache === false) url += '&nocache=1';
+      if (apiCache.noCacheParam) url += '&nocache=1';
+      if (apiCache.ttlSeconds !== null) url += '&cacheTtl=' + encodeURIComponent(String(apiCache.ttlSeconds));
+      if (apiSource === 'db' && apiCache.enableDbCache) {
+        url += '&cacheDb=1';
+        if (apiCache.dbTtlSeconds !== null) {
+          url += '&dbCacheTtl=' + encodeURIComponent(String(apiCache.dbTtlSeconds));
+        }
+      }
 
-      if (_config.debug) TnetLog.log(LOG, 'Lade Katalog aus API (group=' + group + ', source=' + apiSource + ')');
+      // Immer sichtbar: Quelle des Themenkatalogs
+      TnetLog.log(LOG, '\u25ba Katalogquelle: "' + apiSource + '"  (group=' + group + ')  \u2192 ' + url.substring(url.lastIndexOf('/') + 1));
+      if (_config.debug) {
+        TnetLog.log(LOG, '[LM-CACHE] API-Cache', {
+          apiSource: apiSource,
+          cacheEnabled: apiCache.enabled,
+          forceNoCache: apiCache.forceNoCache,
+          nocacheParam: apiCache.noCacheParam,
+          ttlSeconds: apiCache.ttlSeconds,
+          enableDbCache: apiCache.enableDbCache,
+          dbTtlSeconds: apiCache.dbTtlSeconds,
+          clearUrl: apiCache.clearUrl,
+          note: apiCache.note,
+        });
+      }
 
       fetch(url)
         .then(function (r) {
           if (!r.ok) throw new Error('HTTP ' + r.status);
-          return r.json();
+          var responseMs = nowMs() - requestStartedAt;
+          return r.json().then(function (json) {
+            return {
+              json: json,
+              responseMs: responseMs,
+              fetchMs: nowMs() - requestStartedAt,
+            };
+          });
         })
-        .then(function (json) {
+        .then(function (result) {
+          var json = result.json;
           // API liefert: { version, categories: [...] }
           // oder { success: true, data: { version, categories: [...] } }
           var data = json.data || json;
@@ -196,10 +496,23 @@
           }
 
           if (_config.debug) TnetLog.log(LOG, 'Katalog geladen:', categories.length, 'Kategorien,', Object.keys(_coalesceIndex).length, 'Coalesce-Gruppen');
+          self._logCatalogInitDone({
+            mode: 'api',
+            group: group,
+            apiSource: apiSource,
+            categories: categories.length,
+            responseMs: result.responseMs,
+            fetchMs: result.fetchMs,
+          });
           self._emit('catalog-loaded', _catalog);
 
           // Aktuellen Karten-Zustand in Store übernehmen
           self._syncFromMap();
+
+          // DB-only WMS-Layer aus URL-Parameter wiederherstellen.
+          // Das Framework (LyrMgr) kennt diese Layer nicht und lädt sie daher
+          // nicht automatisch — wir müssen sie direkt einschalten.
+          self._restoreWmsLayersFromUrl();
         })
         .catch(function (err) {
           TnetLog.error(LOG, 'API fehlgeschlagen:', err);
@@ -207,8 +520,63 @@
     },
 
     /**
+     * Stellt DB-only WMS/nicht-ArcGIS-Layer aus dem URL-Parameter beim Startup wieder her.
+     * Das Framework lädt nur LyrMgr-konfigurierten Layer; DB-only Layer müssen separat
+     * via TnetLayerSwitch geladen werden. Nutzt die gesicherte Original-URL des Bridges.
+     */
+    _restoreWmsLayersFromUrl: function () {
+      var self = this;
+      var layersRaw = (window.__tnetOriginalUrlLayers || '');
+      if (!layersRaw) {
+        // Fallback: aktuelle URL
+        var m = window.location.href.match(/[?&]layers=([^&]*)/);
+        layersRaw = m ? decodeURIComponent(m[1]) : '';
+      }
+      if (!layersRaw) return;
+
+      var ids = layersRaw.split(/[|,]/).map(function(s) { return s.trim(); }).filter(function(s) { return !!s; });
+      if (!ids.length) return;
+
+      var wmsIds = [];
+      for (var i = 0; i < ids.length; i++) {
+        var lid = decodeURIComponent(ids[i]);
+        var cat = this.findLayer(lid);
+        if (cat && cat.layerType && cat.layerType !== 'arcgisRest') {
+          wmsIds.push(lid);
+        }
+      }
+      if (!wmsIds.length) return;
+
+      TnetLog.log(LOG, 'URL-Restore: DB-WMS-Layer ausstehend:', wmsIds.join(', '));
+
+      function tryLoad() {
+        var am = self._getAppManager();
+        var map = am && am.Maps && am.Maps['main'] && am.Maps['main'].mapObj;
+        if (!map || !window.TnetLayerSwitch) return false;
+        wmsIds.forEach(function(layerId) {
+          var layer = self.findLayer(layerId);
+          // setLayerVisible statt direktem TnetLayerSwitch: setzt storeLayer.visible = true
+          // BEVOR map.addLayer ausgeführt wird — verhindert dass der Ghost-Layer-Schutz
+          // den gerade geladenen Layer sofort wieder versteckt.
+          if (layer && !layer.visible) {
+            try { self.setLayerVisible(layerId, true); } catch(e) { /* ignore */ }
+          }
+        });
+        return true;
+      }
+
+      // Sofort versuchen; bei nicht-bereiter Map per Intervall warten und
+      // stoppen sobald Map + TnetLayerSwitch verfügbar sind.
+      if (!tryLoad()) {
+        var interval = setInterval(function() {
+          if (tryLoad()) clearInterval(interval);
+        }, 200);
+        setTimeout(function() { clearInterval(interval); }, 10000);
+      }
+    },
+
+    /**
      * Normalisiert die API-Struktur:
-     *   - category.nodes → category.subcategories
      *   - subcategory.layers (mit type=group) → subcategory.groups
      *   - Namen bereinigen (Pfad-basierte Namen, displayName bevorzugen)
      */
@@ -698,6 +1066,26 @@
             if (wmsEntry) wmsEntry._olLayerRef = olLayer;
           }
         }
+
+        // Ghost-Layer-Schutz: VOR _suppressMapSync-Check — greift auch wenn
+        // Sync gerade unterdrückt ist (z.B. während TnetLayerSwitch 'off' läuft).
+        // Ein OL-Layer trifft asynchron ein, obwohl der Store/Nutzer ihn bereits
+        // auf visible=false gesetzt hat (schnelles Ein/Aus-Schalten).
+        // → sofort verstecken, kein State-Event nötig.
+        // Ausnahme: aktives Bookmark-Load-Fenster (legitime async adds).
+        if (lid && !olLayer.get('tnet_wms_custom')) {
+          var _gsLayer = self.findLayer(lid);
+          if (_gsLayer && _gsLayer.type !== 'group' && _gsLayer.visible === false) {
+            var _gsBm = window.__tnetActiveBookmark;
+            var _gsBookmarkActive = _gsBm && _gsBm._loadUntil && Date.now() < _gsBm._loadUntil;
+            if (!_gsBookmarkActive) {
+              olLayer.setVisible(false);
+              TnetLog.log(LOG, 'Ghost-Schutz: verspaeteter Layer versteckt:', lid);
+              return;
+            }
+          }
+        }
+
         if (_suppressMapSync) return;
         self._onOLLayerAdd(olLayer);
       });
@@ -720,6 +1108,30 @@
     _onOLLayerAdd: function (olLayer) {
       var lid = olLayer.get('name') || '';
       if (!lid) return;
+
+      // WMS-Params normalisieren: lowercase-Duplikate entfernen die das Framework
+      // aus der Layer-Definition übernimmt (format, layers, transparent, SRS).
+      // OL setzt diese bereits korrekt als uppercase (FORMAT, LAYERS, TRANSPARENT, CRS),
+      // die lowercase-Varianten landen sonst als Extra-Params in der URL und führen
+      // zu invaliden Werten wie "image/png,image/png".
+      try {
+        var src = olLayer.getSource && olLayer.getSource();
+        if (src && typeof src.getParams === 'function') {
+          var wmsParams = src.getParams();
+          var olManagedKeys = ['format', 'layers', 'transparent', 'srs', 'crs',
+                               'width', 'height', 'bbox', 'request', 'service',
+                               'version', 'styles', 'exceptions'];
+          var paramsToClear = {};
+          var dirty = false;
+          Object.keys(wmsParams).forEach(function (k) {
+            if (olManagedKeys.indexOf(k.toLowerCase()) !== -1 && k !== k.toUpperCase()) {
+              paramsToClear[k] = null;
+              dirty = true;
+            }
+          });
+          if (dirty && typeof src.updateParams === 'function') src.updateParams(paramsToClear);
+        }
+      } catch (e) { /* getSource nicht verfügbar */ }
 
       if (this._shouldIgnoreOlAddDuringBookmarkLoad(lid)) {
         if (_config.debug) TnetLog.log(LOG, '_onOLLayerAdd waehrend Bookmark-Load ignoriert:', lid);
@@ -753,17 +1165,38 @@
         storeLayer.opacity = olLayer.getOpacity();
 
         if (!storeLayer.visible) {
+          // Ghost-Layer-Schutz: Ein Layer trifft asynchron ein, aber der Store sagt
+          // explizit AUS (z.B. weil der Nutzer nach dem EIN-Klick sofort auf AUS
+          // geklickt hat und der OL-Layer erst jetzt fertig geladen ist).
+          // In diesem Fall den Layer sofort verstecken statt ihn fälschlich auf
+          // visible=true zu setzen.
+          // AUSNAHME: Wenn gerade ein Bookmark geladen wird (legitimate add via
+          // setMapBookmark) — erkennbar am _loadUntil-Fenster des aktiven Bookmarks.
+          var _bm = window.__tnetActiveBookmark;
+          var _bookmarkLoading = _bm && _bm._loadUntil && Date.now() < _bm._loadUntil;
+          if (!_bookmarkLoading) {
+            olLayer.setVisible(false);
+            TnetLog.log(LOG, '_onOLLayerAdd Ghost-Schutz: verspäteter Layer versteckt:', lid);
+            return;
+          }
           storeLayer.visible = true;
           if (!this._isActive(lid)) {
             _activeLayers.push(storeLayer);
           }
           this._emit('layer-visibility', { id: lid, visible: true, source: 'map' });
           this._emit('active-layers-changed', _activeLayers);
+          _syncWmsLayerInUrl(lid, true, storeLayer.layerType);
         } else {
-          // Layer war schon visible (via toggleLayer), aber _olLayerRef fehlte
+          // Layer war schon visible (via setLayerVisible/toggleLayer), aber _olLayerRef fehlte
           var activeEntry = this._findActiveLayer(lid);
           if (activeEntry && activeEntry !== storeLayer) {
             activeEntry._olLayerRef = olLayer;
+          }
+          if (!this._isActive(lid)) {
+            _activeLayers.push(storeLayer);
+            this._emit('layer-visibility', { id: lid, visible: true, source: 'map' });
+            this._emit('active-layers-changed', _activeLayers);
+            _syncWmsLayerInUrl(lid, true, storeLayer.layerType);
           }
         }
       }
@@ -1285,6 +1718,11 @@
       var layer = this.findLayer(layerId);
       if (!layer) return;
 
+      // Ab hier immer mit kanonischer ID aus dem Katalog arbeiten.
+      // So funktionieren URL-Parameter mit OEREB-Versionssuffix auch dann,
+      // wenn der Runtime-Katalog nur die Basis-ID enthält.
+      layerId = layer.id || layerId;
+
       var hasChildren = !!(
         (layer.subcategories && layer.subcategories.length) ||
         (layer.groups && layer.groups.length) ||
@@ -1312,17 +1750,26 @@
       // Framework-Switch-Pfade unten zwingend durchlaufen, sonst bleibt der
       // Layer zwar als aktiv markiert, aber unsichtbar auf der Karte.
       if (currentVisible === targetVisible && !needsActivation) {
-        if (!hasStateDrift) return;
-        layer.visible = targetVisible;
-        this._syncDuplicateVisible(layerId, targetVisible, layer);
-        if (activeEntry) activeEntry.visible = targetVisible;
-        if (!targetVisible) {
-          _activeLayers = _activeLayers.filter(function (l) { return l.id !== layerId; });
+        // Ausnahme: Coalesce-Sublayer beim AUS-Schalten.
+        // _getEffectiveLayerVisible liefert false wenn der OL-Layer noch nicht
+        // fertig geladen ist. Die Coalesce-Load läuft aber asynchron weiter →
+        // _coalesceOLLayers kann activeSublayers enthalten, die bereinigt werden müssen.
+        // Daher Sync-only NICHT früh abkürzen, sondern den Coalesce-Pfad unten
+        // immer durchlaufen wenn der Layer gerade off-gesetzt wird und im Coalesce-Index ist.
+        var _coalEarlyCheck = !targetVisible && _layerToCoalesce[layerId];
+        if (!_coalEarlyCheck) {
+          if (!hasStateDrift) return;
+          layer.visible = targetVisible;
+          this._syncDuplicateVisible(layerId, targetVisible, layer);
+          if (activeEntry) activeEntry.visible = targetVisible;
+          if (!targetVisible) {
+            _activeLayers = _activeLayers.filter(function (l) { return l.id !== layerId; });
+          }
+          this._emit('layer-visibility', { id: layerId, visible: targetVisible, source: 'sync' });
+          this._emit('active-layers-changed', _activeLayers);
+          if (_config.debug) TnetLog.log(LOG, 'setLayerVisible Sync-only:', layerId, targetVisible ? 'EIN' : 'AUS');
+          return;
         }
-        this._emit('layer-visibility', { id: layerId, visible: targetVisible, source: 'sync' });
-        this._emit('active-layers-changed', _activeLayers);
-        if (_config.debug) TnetLog.log(LOG, 'setLayerVisible Sync-only:', layerId, targetVisible ? 'EIN' : 'AUS');
-        return;
       }
 
       layer.visible = targetVisible;
@@ -1436,6 +1883,8 @@
 
       this._emit('layer-visibility', { id: layerId, visible: targetVisible, source: 'ui' });
       this._emit('active-layers-changed', _activeLayers);
+      // URL für direkte WMS-Layer synchronisieren
+      _syncWmsLayerInUrl(layerId, targetVisible, layer.layerType);
       if (_config.debug) TnetLog.log(LOG, 'Active-Layer-Liste:', _activeLayers.length, 'Layer, IDs:', _activeLayers.map(function(l) { return l.id; }));
     },
 
@@ -2456,6 +2905,18 @@
     },
 
     /**
+     * Entfernt bekannte OEREB-Versionssuffixe am Ende einer Layer-ID.
+     * Unterstützt auch Änderungsvarianten (..._aenderung_v2_0.oereb).
+     * @param {string} id
+     * @returns {string}
+     */
+    _stripOerebVersionSuffix: function (id) {
+      if (!id || typeof id !== 'string') return id;
+      // Nur Versionssuffix entfernen (_vN_M.oereb), semantische Teile wie _aenderung behalten.
+      return id.replace(/_v\d+_\d+\.oereb$/i, '');
+    },
+
+    /**
      * Prüft ob ein Layer ein Coalesce-Sublayer ist (Teil einer Coalesce-Gruppe).
      * Wird z.B. vom TnetLayerSwitch-Patch in der Bridge verwendet.
      * @param {string} layerId
@@ -2669,6 +3130,10 @@
       });
       if (event === 'active-layers-changed' || event === 'layer-visibility' || event === 'layer-opacity') {
         this._scheduleMapConsistencyCheck(250);
+      }
+      // URL-Konsistenz: bei jeder Änderung am Karteninhalt asynchron prüfen
+      if (event === 'active-layers-changed') {
+        _scheduleWmsUrlSync();
       }
     },
 
