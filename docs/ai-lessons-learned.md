@@ -1,4 +1,59 @@
-﻿## 2026-06-15 — TnetLayerSwitch brauchte zentrale ID-Kandidaten statt exakter Einzel-ID
+﻿## 2026-06-16 - Keepalive muss denselben App-Cookie-Pfad verwenden
+
+- **Symptom:** Etwa alle 2-3 Minuten erschien im Kartenbetrieb ein Browser-Dialog "Session expired. The page will be reloaded.", obwohl der Benutzer aktiv arbeitete.
+- **Root-Cause:** Keepalive-XHR lief gegen `/mapplus-lib/.../keepalive.php`, waehrend die App-Session auf Cookie-Path `/maps-dev/` lief. Dadurch wurde der Session-Cookie beim Keepalive nicht konsistent mitgesendet und der Sessionstatus als abgelaufen interpretiert.
+- **Fix:** In `maps-dev/public/index_de.htm` und `maps-dev/public/index_de_m.htm` Keepalive auf app-lokalen Endpunkt `/maps-dev/tnet/php/keepalive-local.php` umgestellt; neuer Endpoint startet Session mit identischem Cookie-Pfad und liefert stabile 200-Responses.
+- **Guardrail:** Keepalive-Endpoints immer unter demselben URL-Root wie die App betreiben (`/maps-dev` bzw. `/maps`), damit Cookie-Path und Session-Kontext uebereinstimmen.
+
+## 2026-06-16 - Sentinel-Guard darf nicht nach 2 Minuten enden
+
+- **Symptom:** Infoabfrage und Docking waren direkt nach Start teils ok, kippten aber nach gewisser Laufzeit wieder auf "Keine Objekte gefunden" bzw. nicht angedocktes Verhalten.
+- **Root-Cause:** Die Sentinel-Ueberwachung in `tnet-info-bridge.js` stoppte nach 12 Checks (2 Minuten). Danach konnte das Framework den eigenen `singleclick`-Handler erneut registrieren und das Verhalten driftete zeitabhaengig.
+- **Fix:** Sentinel-Intervall auf dauerhaftes Monitoring umgestellt (alle 5s bis `destroy()`), inklusive sauberem Cleanup im Destroy-Pfad.
+- **Guardrail:** Handler-Exklusivitaet bei Dojo/OpenLayers nicht mit Startup-Only-Checks absichern; Guard-Mechanismen muessen ueber die ganze Session aktiv bleiben.
+
+## 2026-06-16 - Mehrfach-Abfragen brauchen request-sequenzierte Watchdogs
+
+- **Symptom:** Erste Infoabfrage lieferte Resultat, Folgeabfragen kippten unzuverlaessig auf "Keine Objekte gefunden".
+- **Root-Cause:** Der No-Results-Watchdog lief klickuebergreifend ohne Request-Sequenz; spaete Timer aus frueheren Klicks konnten in neue Abfragezyklen hineinwirken und "Keine Objekte" nachtraeglich setzen.
+- **Fix:** In `tnet-info-bridge.js` Request-Sequenz (`_activeRequestSeq`) plus Timer-Cancel (`_cancelNoResultsWatchdog`) eingefuehrt, Watchdog an den aktuellen Klick gebunden und vor jedem neuen Request stale `noInfoResults`-Marker bereinigt.
+- **Guardrail:** Asynchrone UI-Watchdogs in Click-Workflows immer request-lokal sequenzieren und alte Timer beim Start eines neuen Requests explizit abbrechen.
+
+## 2026-06-16 - Repeat-Klick auf gleicher Position darf nicht an Feature-at-Pixel-Blockade scheitern
+
+- **Symptom:** Erste Infoabfrage lieferte Resultat, ein zweiter Klick an derselben Kartenstelle lieferte kein Resultat mehr.
+- **Root-Cause:** Nach dem ersten Klick lagen interaktive Overlay-Features am selben Pixel; der Feature-at-Pixel-Block in `tnet-info-bridge.js` brach die zweite Infoabfrage dadurch vor dem Dispatch ab.
+- **Fix:** In `tnet-info-bridge.js` Repeat-Klick-Erkennung per Pixel-Toleranz (`<=3px`) ergänzt und bei wiederholtem Klick am selben Punkt die Blockade bewusst übersteuert, damit der Layerstich erneut ausgeführt wird.
+- **Guardrail:** Feature-at-Pixel-Gates nie absolut anwenden; Wiederholungsklicks auf derselben Position müssen für Infoabfragen explizit erlaubt sein.
+
+## 2026-06-16 - Infoabfrage muss Coalesce-Sublayer auf die gerenderte show:-Liste filtern
+
+- **Symptom:** Klick-Abfrage lieferte unsaubere Resultate: ALLE Sublayer eines OEREB-Dienstes (z.B. waldabstandslinien, sondernutzungsplan) wurden abgefragt, obwohl nur einzelne im Karteninhalt aktiv waren.
+- **Root-Cause:** Maptips sind auf SERVICE-Ebene verschluesselt (`<dienst>_0` .. `_13`, alle linked_layer = Dienst, query_layers = Sublayer-Nr). `isLayerQueryable(Dienst)` ist true sobald irgendein Sublayer aktiv ist → alle 14 Sublayer-Maptips wurden dispatcht. Der kombinierte OL-Layer hatte aber korrekt `LAYERS=show:1,8,9,12`.
+- **Fix:** In `tnet-info-bridge.js` `_isMapTipVisible` + Dispatch-Loop (`_adapterMapPlus`): wenn query_layers gesetzt und ein sichtbarer kombinierter OL-Layer (Name == linked_layer) existiert, nur abfragbar wenn query_layers in dessen `show:`-Liste steht. Zusaetzlich Dedup nach `serviceId::subNum` gegen Doppel-Abfragen ueber Service- und Child-Maptip.
+- **Guardrail:** Bei ArcGIS-Coalesce-Diensten die gerenderte `show:`-Liste des kombinierten OL-Layers als Wahrheit fuer den Karteninhalt nehmen, nicht die Service-Aktivitaet.
+
+## 2026-06-16 - Auto-Dock darf nicht auf docked-right-Entfernung re-docken (Close-Race)
+
+- **Symptom:** Nach erstem Schliessen oeffnete das Infofenster wieder schwebend statt rechts angedockt.
+- **Root-Cause:** Der Close-Handler entfernt `docked-right` waehrend der Pane noch sichtbar ist; der default-dock Observer interpretierte das als Undock und re-dockte sofort → der Pane wurde mit inkonsistentem Dock-Zustand versteckt und oeffnete danach falsch. Zusaetzlich blockierte ein spekulativer `offsetParent===null`-Check die Sichtbarkeitserkennung des schwebenden (position:absolute) Panes.
+- **Fix:** In `tnet-info-panel-default-dock.js` den Re-Dock-bei-docked-right-Entfernung entfernt (Andocken nur ueber Hidden->Visible-Transition) und `isInfoPaneVisible` auf reine `visibility`/`display`-Pruefung vereinfacht.
+- **Guardrail:** Auto-Dock-Logik ausschliesslich an der Oeffnen-Transition aufhaengen; Klassen-Entfernung (manuelles Abdocken ODER Schliessen) nie als Re-Dock-Trigger verwenden. Keine `offsetParent`-Checks fuer position:absolute/fixed Panels.
+
+## 2026-06-16 - Infofenster-Schliessen darf den Dojo-Pane nicht zerstoeren
+- **Symptom:** Nach Reload funktionierte die erste Infoabfrage, nach Schliessen des Fensters lieferte der naechste Kartenklick keine stabilen Ergebnisse mehr.
+- **Root-Cause:** Der Close-Button rief `widget.close()` auf; je nach Dojo-Pfad wurde `#njs_info_pane` aus dem DOM entfernt und Folgeabfragen liefen inkonsistent.
+- **Fix:** In `tnet-info-panel.js` Close auf nicht-destruktives Ausblenden (`visibility='hidden'`) umgestellt, `widget.close()` im Custom-Close-Pfad entfernt und `dijit.byId('njs_info_pane').close` global auf Hide gepatcht.
+- **Guardrail:** Custom-Close fuer persistente Dojo-Panels nie destruktiv implementieren, wenn nachfolgende Workflows denselben DOM-Knoten wiederverwenden.
+
+## 2026-06-16 - Infofenster-Redock und Coalesce-Queryability waren zu eng an fragilen DOM/WMS-Formaten
+
+- **Symptom:** Nach Schliessen und erneutem Kartenklick oeffnete die Objektinformation wieder schwebend; Grundnutzung lieferte in sichtbarem Zustand teils keine Treffer.
+- **Root-Cause:** Der Dock-Reset erkannte nur `visibility:hidden` und verpasste Dojo-Close-Pfade mit Klassenwechsel; die Coalesce-Renderpruefung akzeptierte nur `LAYERS=show:...` und fiel bei gueltigen Varianten ohne Prefix aus.
+- **Fix:** In `tnet-info-panel-default-dock.js` Sichtbarkeit robust ueber `computedStyle` + Dock-Klassenwechsel bewertet und Auto-Dock bei Verlust von `docked-right` erneut erzwungen; in `tnet-lm-store.js` Coalesce-LAYERS tolerant fuer `show:` und Plain-Listen geparst.
+- **Guardrail:** Bei Dojo/FloatingPane nie nur auf `style.visibility` vertrauen; bei ArcGIS-`LAYERS` nie ein einziges String-Format als einzige Wahrheit annehmen.
+
+## 2026-06-15 — TnetLayerSwitch brauchte zentrale ID-Kandidaten statt exakter Einzel-ID
 
 - **Symptom:** Layer konnte im UI als aktiv erscheinen, wurde aber in `public` nicht gerendert; Konsole zeigte wiederholt `Layer via Fallback (alle LyrMgr) versucht`.
 - **Root-Cause:** `TnetLayerSwitch` suchte/schaltete nur mit exakt einer ID. Wenn Legacy-LyrMgr den Layer unter Basis-ID (ohne OEREB-Versionssuffix) kennt, lief der Switch für die versionierte ID ins Leere.

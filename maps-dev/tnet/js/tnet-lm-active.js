@@ -2238,5 +2238,13 @@
     return _escDiv.innerHTML;
   }
 
+  // Oeffentliche API: Pending-Visibility-Queue sofort flushen (Debounce ueberspringen).
+  // Wird von tnet-info-bridge.js vor jedem Klick-Dispatch aufgerufen, damit
+  // ein UI-Toggle der unmittelbar vor dem Kartenklick ausgefuehrt wurde bereits
+  // im Store widergespiegelt ist (isLayerQueryable korrekt).
+  LMActive.flushPendingVisibility = function() {
+    _flushPendingVisibilityUpdates();
+  };
+
   window.TnetLMActive = LMActive;
 })();

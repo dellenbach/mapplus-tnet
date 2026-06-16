@@ -219,7 +219,8 @@
         njs.AppManager.Provider = "OLPlus";
         njs.AppManager.template = "nwow_floating";
         njs.AppManager.keepalivetimeout = 180000;
-        njs.AppManager.keepalivepage = "/mapplus-lib/mapplus-dojo/v4.0.0/php/sso/keepalive.php"
+        // Keepalive unter demselben App-Pfad halten, damit der Session-Cookie sicher mitgesendet wird.
+        njs.AppManager.keepalivepage = "/maps-dev/tnet/php/keepalive-local.php"
     </script>
     <?php print $set_vars?>
 
@@ -1051,10 +1052,10 @@
     <script type="module" src="tnet/js/tnet-header.js"></script>
 
     <!-- TNET Info Panel (Bottom-Sheet Variante) -->
-    <script type="module" src="tnet/js/tnet-info-panel.js"></script>
+    <script type="module" src="tnet/js/tnet-info-panel.js?v=20260616b"></script>
 
     <!-- TNET Info-Bridge: Zentraler singleclick-Dispatcher für MapTips/GFI -->
-    <script src="tnet/js/tnet-info-bridge.js?v=20260306"></script>
+    <script src="tnet/js/tnet-info-bridge.js?v=20260616f"></script>
 
     <!-- TNET Basemap: Widget UI, Grundkarten-Layer-Sync, Zeitreise -->
     <script src="tnet/js/tnet-basemap.js" defer></script>

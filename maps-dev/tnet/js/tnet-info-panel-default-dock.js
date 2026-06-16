@@ -35,18 +35,23 @@
 
     // ===== STATE =====
     var defaultDockApplied = false;
-    var manualDockChoice = false;
     var autoDockRunning = false;
     var originalToggleInfoPaneDock = null;
     var observer = null;
 
     function isInfoPaneVisible(infoPane) {
-        return !!infoPane && infoPane.style.visibility !== 'hidden';
+        if (!infoPane) {
+            return false;
+        }
+        var style = window.getComputedStyle ? window.getComputedStyle(infoPane) : null;
+        if (style) {
+            return style.visibility !== 'hidden' && style.display !== 'none';
+        }
+        return infoPane.style.visibility !== 'hidden' && infoPane.style.display !== 'none';
     }
 
     function resetDefaultDockState() {
         defaultDockApplied = false;
-        manualDockChoice = false;
     }
 
     function installToggleHook() {
@@ -56,9 +61,6 @@
 
         originalToggleInfoPaneDock = window.toggleInfoPaneDock;
         window.toggleInfoPaneDock = function() {
-            if (!autoDockRunning) {
-                manualDockChoice = true;
-            }
             return originalToggleInfoPaneDock.apply(this, arguments);
         };
         return true;
@@ -72,7 +74,14 @@
             resetDefaultDockState();
             return;
         }
-        if (defaultDockApplied || manualDockChoice || window.isInfoPaneDocked === true || infoPane.classList.contains('docked-right')) {
+        // window.isInfoPaneDocked wird nicht durch alle Schliess-Pfade (Dojo widget.close)
+        // korrekt zurueckgesetzt und ist daher kein zuverlaessiger Indikator.
+        // docked-right CSS-Klasse ist der einzige robuste DOM-Zustand.
+        if (infoPane.classList.contains('docked-right')) {
+            defaultDockApplied = true;
+            return;
+        }
+        if (defaultDockApplied) {
             return;
         }
 
@@ -91,13 +100,34 @@
             return;
         }
 
+        var _prevVisible = isInfoPaneVisible(infoPane);
+
         observer = new MutationObserver(function() {
+            var nowVisible = isInfoPaneVisible(infoPane);
+
+            if (!nowVisible) {
+                // Panel wird ausgeblendet (Schliessen): Dock-State zuruecksetzen,
+                // damit beim naechsten Oeffnen erneut angedockt wird.
+                resetDefaultDockState();
+            } else if (!_prevVisible) {
+                // Transition hidden -> visible (Oeffnen): defaultDockApplied
+                // zuruecksetzen, damit der Auto-Dock bei JEDEM Oeffnen greift.
+                defaultDockApplied = false;
+            }
+            // WICHTIG: KEIN Re-Dock wenn nur die docked-right-Klasse entfernt wird
+            // (manuelles Abdocken durch den Nutzer ODER Klassen-Entfernung waehrend
+            // des Schliessens). Sonst dockt das Panel beim Schliessen erneut an und
+            // oeffnet danach inkonsistent. Andocken erfolgt ausschliesslich ueber die
+            // Hidden->Visible-Transition oben.
+
+            _prevVisible = nowVisible;
             applyDefaultDock(infoPane);
         });
         observer.observe(infoPane, {
             attributes: true,
             attributeFilter: ['style', 'class'],
         });
+        _prevVisible = isInfoPaneVisible(infoPane);
         applyDefaultDock(infoPane);
     }
 
@@ -107,15 +137,25 @@
         }
 
         var attempts = 0;
+        var hookInstalled = false;
         var timer = setInterval(function() {
             attempts += 1;
-            installToggleHook();
+
+            // Hook so frueh wie moeglich installieren — toggleInfoPaneDock kann
+            // erst nach tnet-info-panel.js verfuegbar sein (Race-Condition).
+            if (!hookInstalled) {
+                hookInstalled = installToggleHook();
+            }
 
             var infoPane = document.getElementById('njs_info_pane');
             if (infoPane) {
+                // Observer sofort attachen sobald pane im DOM vorhanden;
+                // Timer aber erst stoppen wenn auch der Hook installiert ist.
                 attachObserver(infoPane);
-                clearInterval(timer);
-                return;
+                if (hookInstalled) {
+                    clearInterval(timer);
+                    return;
+                }
             }
 
             if (attempts >= 80) {

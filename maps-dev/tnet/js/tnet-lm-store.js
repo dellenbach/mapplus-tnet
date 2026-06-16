@@ -1274,8 +1274,8 @@
           var src = typeof olLayer.getSource === 'function' ? olLayer.getSource() : null;
           var params = src && typeof src.getParams === 'function' ? src.getParams() : null;
           var layersParam = params && (params.LAYERS || params.layers) || '';
-          if (typeof layersParam !== 'string' || layersParam.indexOf('show:') !== 0) return;
-          var values = layersParam.replace(/^show:/, '').split(',').map(function (value) { return value.trim(); });
+          if (typeof layersParam !== 'string' || !layersParam) return;
+          var values = layersParam.replace(/^show:/i, '').split(',').map(function (value) { return value.trim(); });
           rendered = values.indexOf(String(subNum)) >= 0;
         });
       }
@@ -1307,6 +1307,32 @@
       if (String(layerId).indexOf('wms:') === 0) return true;
       return !!(_catalogLayerIndex[layerId] || _layerToCoalesce[layerId]);
     },
+
+    /**
+     * Prueft ob ein Layer fuer die Infoabfrage in Frage kommt:
+     * Er muss im Karteninhalt (Dargestellte Themen) aktiv UND sichtbar sein.
+     * Coalesce/ArcGIS-Sublayer werden ueber _isSublayerRenderedByCombinedLayer geprueft.
+     * Gibt false zurueck wenn der Store noch nicht geladen ist.
+     * @param {string} layerId
+     * @returns {boolean}
+     */
+    isLayerQueryable: function (layerId) {
+      if (!layerId || !_loaded) return false;
+      // Ein Layer gilt als abfragbar wenn er im Karteninhalt-Panel sichtbar ist:
+      // er muss in _activeLayers mit visible:true stehen.
+      // _activeLayers wird NUR von setLayerVisible und _syncFromMap gefuellt;
+      // nicht-Katalog-Layer (Framework-Hintergrund-Layer ohne Catalog-Eintrag)
+      // kommen nie in _activeLayers, werden also geblockt.
+      var activeEntry = this._findActiveLayer(layerId);
+      if (activeEntry && activeEntry.visible) return true;
+      // Coalesce-Sublayer: leafLayer koennte per Gruppenkey erfasst sein
+      var coalGroupId = _layerToCoalesce[layerId];
+      if (coalGroupId) {
+        return this._isSublayerRenderedByCombinedLayer(layerId, this.findLayer(layerId));
+      }
+      return false;
+    },
+
     isLoaded: function () { return _loaded; },
 
     /**
@@ -2281,6 +2307,16 @@
       visible = !!visible;
       var activeEntry = this._findActiveLayer(layerId);
       var layer = this.findLayer(layerId);
+
+      // Beim Einschalten sicherstellen dass der Layer in _activeLayers vorhanden ist.
+      // setLayerEye wird vom UI-Toggle aufgerufen; wenn zuvor setLayerVisible(id,false)
+      // den Layer aus _activeLayers entfernt hatte, fehlt er jetzt.
+      // isLayerQueryable() prüft _findActiveLayer → daher muss der Eintrag vorhanden sein.
+      if (visible && layer && !activeEntry) {
+        layer.visible = true;
+        _activeLayers.push(layer);
+        activeEntry = layer;
+      }
 
       // 0) Framework-Combined ArcGIS-Sublayer (Bookmark/URL-Load)
       // Vor Lazy-Load prüfen: wenn der Sublayer bereits in einem kombinierten

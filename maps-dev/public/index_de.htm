@@ -262,7 +262,8 @@
         njs.AppManager.Provider = "OLPlus";
         njs.AppManager.template = "nwow_floating";
         njs.AppManager.keepalivetimeout = 180000; // millisecs
-        njs.AppManager.keepalivepage = "/mapplus-lib/mapplus-dojo/v4.0.0/php/sso/keepalive.php"
+        // Keepalive unter demselben App-Pfad halten, damit der Session-Cookie sicher mitgesendet wird.
+        njs.AppManager.keepalivepage = "/maps-dev/tnet/php/keepalive-local.php"
     </script>
     <?php print $set_vars?>
 
@@ -964,8 +965,8 @@
     <script type="module" src="tnet/js/tnet-map-footer.js"></script>
 
     <!-- TNET Info Panel: Buttons, Resize, Dock/Undock -->
-    <script type="module" src="tnet/js/tnet-info-panel.js"></script>
-    <script type="module" src="tnet/js/tnet-info-panel-default-dock.js"></script>
+    <script type="module" src="tnet/js/tnet-info-panel.js?v=20260616b"></script>
+    <script type="module" src="tnet/js/tnet-info-panel-default-dock.js?v=20260616c"></script>
 
 
     <!-- TNET Spatial Query: Polygon-Zeichnen, WFS/ArcGIS/geo.admin.ch Abfragen, Ergebnis-Anzeige -->
@@ -1113,7 +1114,7 @@
     <script src="tnet/js/tnet-wms-panel.js?v=20260306"></script>
 
     <!-- TNET Info-Bridge: Zentraler singleclick-Dispatcher für MapTips/GFI -->
-    <script src="tnet/js/tnet-info-bridge.js?v=20260306"></script>
+    <script src="tnet/js/tnet-info-bridge.js?v=20260616f"></script>
 
     <!-- Drucken / PDF-Export (Libraries werden dynamisch in tnet-print.js geladen) -->
     <link rel="stylesheet" href="tnet/css/tnet-print.css">

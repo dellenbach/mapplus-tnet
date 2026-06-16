@@ -1071,9 +1071,12 @@ function initInfoPaneEnhancements() {
                 infoPane.classList.remove('docked-right');
             }
             var widget = (typeof dijit !== 'undefined') ? dijit.byId('njs_info_pane') : null;
-            if (widget && widget.close) {
-                widget.close();
-            } else {
+            // Dojo widget.close() kann den Pane-Knoten komplett aus dem DOM entfernen.
+            // Danach laufen Folge-Abfragen instabil (erst nach Reload wieder ok).
+            // Deshalb hier bewusst nicht-destruktiv nur ausblenden.
+            if (widget && widget.domNode) {
+                widget.domNode.style.visibility = 'hidden';
+            } else if (infoPane) {
                 infoPane.style.visibility = 'hidden';
             }
         };
@@ -1098,6 +1101,54 @@ function initInfoPaneEnhancements() {
 
         return true;
     }
+
+    // Erzwingt fuer njs_info_pane ein nicht-destruktives Close-Verhalten.
+    // Mehrere Framework-/Tool-Pfade rufen widget.close() auf; Dojo kann dabei
+    // den DOM-Knoten entfernen, was Folge-Abfragen instabil macht.
+    function patchInfoPaneCloseBehavior() {
+        if (typeof dijit === 'undefined' || !dijit.byId) return;
+        var widget = dijit.byId('njs_info_pane');
+        if (!widget || widget._tnetClosePatched) return;
+
+        var originalClose = (typeof widget.close === 'function') ? widget.close : null;
+        widget.close = function() {
+            var node = widget.domNode || document.getElementById('njs_info_pane');
+            if (node) {
+                node.style.visibility = 'hidden';
+                return;
+            }
+            if (originalClose) {
+                return originalClose.apply(widget, arguments);
+            }
+        };
+        widget._tnetClosePatched = true;
+    }
+
+    function installDijitByIdClosePatch() {
+        if (typeof dijit === 'undefined' || !dijit.byId || dijit._tnetByIdClosePatchInstalled) return;
+        var originalById = dijit.byId;
+        dijit.byId = function(id) {
+            var widget = originalById.apply(this, arguments);
+            if (id === 'njs_info_pane' && widget && !widget._tnetClosePatched) {
+                var originalClose = (typeof widget.close === 'function') ? widget.close : null;
+                widget.close = function() {
+                    var node = widget.domNode || document.getElementById('njs_info_pane');
+                    if (node) {
+                        node.style.visibility = 'hidden';
+                        return;
+                    }
+                    if (originalClose) {
+                        return originalClose.apply(widget, arguments);
+                    }
+                };
+                widget._tnetClosePatched = true;
+            }
+            return widget;
+        };
+        dijit._tnetByIdClosePatchInstalled = true;
+    }
+
+    installDijitByIdClosePatch();
 
     // Initial versuchen
     enhanceInfoPane();
@@ -1188,6 +1239,7 @@ function initInfoPaneEnhancements() {
         var infoPane = document.getElementById('njs_info_pane');
         if (infoPane) {
             clearInterval(waitInterval);
+            patchInfoPaneCloseBehavior();
             attachPaneObserver(infoPane);
             onInfoPaneChange(infoPane);
         }
@@ -1198,6 +1250,7 @@ function initInfoPaneEnhancements() {
     setInterval(function() {
         var infoPane = document.getElementById('njs_info_pane');
         if (infoPane) {
+            patchInfoPaneCloseBehavior();
             attachPaneObserver(infoPane); // Observer setzen falls noch nicht aktiv
             if (isPaneVisible(infoPane)) {
                 enhanceInfoPane();

@@ -34,6 +34,11 @@
   var _bridgeListenerKey = null;
   var _frameworkHandlerRemoved = false;
   var _clickCount = 0;
+  var _lastDispatchPixel = null;
+  var _activeRequestSeq = 0;
+  var _watchdogTimer = null;
+  var _watchdogRetryTimer = null;
+  var _sentinelIntervalId = null;
 
   // ===== HILFSFUNKTIONEN =====
 
@@ -56,6 +61,44 @@
       TnetLog.warn.apply(TnetLog, args);
     } else {
       console.warn.apply(console, args);
+    }
+  }
+
+  function _ensureInfoPaneDom() {
+    var pane = document.getElementById('njs_info_pane');
+    var widget = null;
+    if (typeof dijit !== 'undefined' && dijit.byId) {
+      widget = dijit.byId('njs_info_pane');
+    }
+
+    if (widget && !widget._tnetNonDestructiveClosePatched && typeof widget.close === 'function') {
+      var originalClose = widget.close;
+      widget.close = function() {
+        var node = widget.domNode || document.getElementById('njs_info_pane');
+        if (node) {
+          node.style.visibility = 'hidden';
+          return;
+        }
+        return originalClose.apply(widget, arguments);
+      };
+      widget._tnetNonDestructiveClosePatched = true;
+    }
+
+    // Falls Dojo den Pane-Knoten vom DOM getrennt hat: wieder einhaengen.
+    if (!pane && widget && widget.domNode) {
+      pane = widget.domNode;
+      if (!pane.parentNode) {
+        document.body.appendChild(pane);
+      }
+    }
+
+    if (!pane) return;
+
+    var content = document.getElementById('njs_info_pane_content');
+    if (!content) {
+      content = document.createElement('div');
+      content.id = 'njs_info_pane_content';
+      pane.appendChild(content);
     }
   }
 
@@ -107,16 +150,64 @@
     return exact || host;
   }
 
+  // Liefert die gerenderte show:-Sublayer-Liste eines sichtbaren kombinierten
+  // OL-Layers (Name == serviceId) als String-Array, oder null wenn nicht gefunden.
+  // Das ist die Wahrheit fuer den Karteninhalt: nur diese Sublayer-Nummern
+  // sind aktuell auf der Karte sichtbar.
+  function _getServiceShowList(map, serviceId) {
+    if (!map || !serviceId) return null;
+    var result = null;
+    _forEachMapLayer(map.getLayers(), function (layer) {
+      if (result) return;
+      var name = _getLayerName(layer);
+      if (name !== serviceId) return;
+      if (typeof layer.getVisible === 'function' && !layer.getVisible()) return;
+      var params = _getLayerParams(layer);
+      var layersParam = params && (params.LAYERS || params.layers) || '';
+      if (typeof layersParam === 'string' && layersParam) {
+        result = layersParam.replace(/^show:/i, '').split(',').map(function (v) { return v.trim(); });
+      }
+    });
+    return result;
+  }
+
   function _isMapTipVisible(mt, map) {
     var linkedLayerId = mt.linked_layer_id || mt.linked_layer || '';
     if (!linkedLayerId) return false;
 
     var store = window.TnetLMStore;
-    if (store && typeof store.isRenderableLayerId === 'function' && store.isRenderableLayerId(linkedLayerId) &&
-        typeof store.isLayerEffectivelyVisible === 'function') {
-      return !!store.isLayerEffectivelyVisible(linkedLayerId);
+
+    // Wenn Store geladen: AUSSCHLIESSLICH ueber isLayerQueryable filtern.
+    // Kein Fallback auf OL-Sichtbarkeit — das Dojo-Framework haelt viele
+    // Layer im Hintergrund sichtbar die der User nicht aktiviert hat.
+    if (store && store.isLoaded && store.isLoaded()) {
+      // Sublayer-genaue Pruefung fuer Service-/Coalesce-MapTips:
+      // Viele MapTips sind auf SERVICE-Ebene verschluesselt (linked_layer = Dienst,
+      // query_layers = Sublayer-Nummer 0..N). isLayerQueryable(Dienst) ist true,
+      // sobald IRGENDEIN Sublayer aktiv ist → sonst wuerden ALLE Sublayer abgefragt.
+      // Die gerenderte show:-Liste des kombinierten OL-Layers ist die Wahrheit fuer
+      // den Karteninhalt: nur Sublayer deren Nummer dort steht sind abfragbar.
+      var ql = mt.query_layers != null ? String(mt.query_layers).split(',')[0].trim() : '';
+      if (ql !== '') {
+        var showList = _getServiceShowList(map, linkedLayerId);
+        if (showList) {
+          return showList.indexOf(ql) >= 0;
+        }
+      }
+      if (typeof store.isLayerQueryable === 'function') {
+        return !!store.isLayerQueryable(linkedLayerId);
+      }
+      // Fallback nur wenn isLayerQueryable noch nicht verfuegbar (Compat)
+      if (typeof store.isRenderableLayerId === 'function' &&
+          store.isRenderableLayerId(linkedLayerId) &&
+          typeof store.isLayerEffectivelyVisible === 'function') {
+        return !!store.isLayerEffectivelyVisible(linkedLayerId);
+      }
+      // Store geladen, Layer nicht im Katalog oder nicht aktiviert
+      return false;
     }
 
+    // Store noch nicht bereit (Startup-Phase): OL-Layer direkt pruefen
     var olLayer = mt.wms_layer || _findMapTipLayer(map, linkedLayerId, mt.query_layers);
     if (olLayer && typeof olLayer.getVisible === 'function') return !!olLayer.getVisible();
 
@@ -224,8 +315,42 @@
    * Falls nicht, zeigt "Keine Objekte gefunden".
    * Integriert mit dem Framework: prüft auch infoRequestsPending.
    */
-  function _startNoResultsWatchdog() {
-    setTimeout(function () {
+  function _clearNoResultsArtifacts(container) {
+    if (!container) return;
+
+    var markers = container.querySelectorAll('.noInfoResults, .njs-info-no-results, #njs_info_pane_content_disc');
+    for (var i = 0; i < markers.length; i++) {
+      markers[i].remove();
+    }
+
+    // Legacy-Faelle: lose Textknoten mit "Keine ..." entfernen.
+    var children = container.childNodes;
+    for (var n = children.length - 1; n >= 0; n--) {
+      var node = children[n];
+      if (node && node.nodeType === 3 && node.textContent && node.textContent.indexOf('Keine') > -1) {
+        container.removeChild(node);
+      }
+    }
+  }
+
+  function _cancelNoResultsWatchdog() {
+    if (_watchdogTimer) {
+      clearTimeout(_watchdogTimer);
+      _watchdogTimer = null;
+    }
+    if (_watchdogRetryTimer) {
+      clearTimeout(_watchdogRetryTimer);
+      _watchdogRetryTimer = null;
+    }
+  }
+
+  function _startNoResultsWatchdog(requestSeq, totalDispatched) {
+    _cancelNoResultsWatchdog();
+
+    var initialDelay = totalDispatched > 0 ? 5000 : 1400;
+    _watchdogTimer = setTimeout(function () {
+      if (requestSeq !== _activeRequestSeq) return;
+
       var container = document.getElementById('njs_info_pane_content');
       if (!container) return;
 
@@ -237,7 +362,8 @@
       var am = _getAm();
       if (am && am.infoRequestsPending && am.infoRequestsPending > 0) {
         // Nochmal 3s warten
-        setTimeout(function () {
+        _watchdogRetryTimer = setTimeout(function () {
+          if (requestSeq !== _activeRequestSeq) return;
           var spinner2 = document.getElementById('infowin_wait');
           if (spinner2) spinner2.style.display = 'none';
         }, 3000);
@@ -250,7 +376,7 @@
       if (hasResults) return;
 
       // Prüfe ob "Keine Ergebnisse" bereits vorhanden
-      if (container.querySelector('.noInfoResults') ||
+        if (container.querySelector('.noInfoResults') ||
           container.querySelector('.njs-info-no-results') ||
           container.querySelector('#njs_info_pane_content_disc')) return;
 
@@ -265,7 +391,7 @@
       node.textContent = noResultsText;
       container.appendChild(node);
       _log('Keine Ergebnisse → Meldung angezeigt');
-    }, 5000);
+    }, initialDelay);
   }
 
   // ===== ADAPTER 1: MAPPLUS (Standard + Coalesce) =====
@@ -287,21 +413,90 @@
   function _adapterMapPlus(evt) {
     var am = _getAm();
     if (!am || !am.wmsActiveLyrs) return 0;
+    var store = window.TnetLMStore;
+    var dispatchMap = am.Maps && am.Maps[MAP_ID] ? am.Maps[MAP_ID].mapObj : null;
 
     var count = 0;
     var items = am.wmsActiveLyrs.getArray();
     var dispatched = []; // Für Log
+    var _seenTargets = {}; // Dedup: serviceId::subNum bereits dispatcht
 
     for (var i = 0; i < items.length; i++) {
       var mt = items[i];
       if (!mt || !mt.active) continue;
+      var mtLinkedId = mt.linked_layer_id || mt.linked_layer || mt.id || '';
+
+      // Sublayer-genaue Filterung direkt im Dispatch (letzte Instanz):
+      // Das Framework re-aktiviert nach _syncMapTipsBeforeDispatch teils alle
+      // Service-Sublayer-MapTips. _isMapTipVisible prueft fuer Service-/Coalesce-
+      // MapTips die gerenderte show:-Liste → nur Sublayer im Karteninhalt werden
+      // abgefragt. Liefert saubere, gefilterte Resultate.
+      if (store && store.isLoaded && store.isLoaded() && dispatchMap) {
+        if (!_isMapTipVisible(mt, dispatchMap)) {
+          if (window.TNET_DEBUG_INFO) {
+            console.log('[InfoBridge DEBUG] skip maptip nicht im Karteninhalt:', mtLinkedId, 'ql:', mt.query_layers);
+          }
+          continue;
+        }
+
+        // Dedup: dasselbe Sublayer-Ziel kann sowohl ueber einen Service-MapTip
+        // (linked = Dienst) als auch ueber einen Child-MapTip (linked = Sublayer)
+        // aktiv sein. Beide treffen denselben Dienst + dieselbe Sublayer-Nummer
+        // → nur EINMAL abfragen, sonst doppelte Ergebnis-Eintraege.
+        var _ql = mt.query_layers != null ? String(mt.query_layers).split(',')[0].trim() : '';
+        if (_ql !== '' && mtLinkedId) {
+          var _svc = mtLinkedId;
+          if (!_getServiceShowList(dispatchMap, mtLinkedId)) {
+            var _slash = mtLinkedId.lastIndexOf('/');
+            if (_slash > 0) _svc = mtLinkedId.substring(0, _slash);
+          }
+          var _key = _svc + '::' + _ql;
+          if (_seenTargets[_key]) {
+            if (window.TNET_DEBUG_INFO) {
+              console.log('[InfoBridge DEBUG] skip Duplikat-Ziel:', _key, 'via', mtLinkedId);
+            }
+            continue;
+          }
+          _seenTargets[_key] = true;
+        }
+      }
+
       if (typeof mt.queryconnector !== 'function') {
-        _warn('MapTip ohne queryconnector:', mt.linked_layer_id || mt.id);
+        _warn('MapTip ohne queryconnector:', mtLinkedId || mt.id);
+        continue;
+      }
+
+      // Guard: queryconnector ohne host/url fuehrt bei einzelnen Legacy-MapTips
+      // zu Runtime-Fehlern (null-Zugriffe). Diese Eintraege bewusst ueberspringen,
+      // damit valide Layer-Abfragen (z.B. Coalesce-Sublayer) nicht beeinflusst werden.
+      if (!mt.wms_layer && !mt.url) {
+        try {
+          var fwLayerForGuard = njs.AppManager.getLayerByMap(mt.idmap || MAP_ID, mtLinkedId);
+          if (!fwLayerForGuard || !fwLayerForGuard._lyr) {
+            if (window.TNET_DEBUG_INFO) {
+              console.log('[InfoBridge DEBUG] skip maptip without host/url:', mtLinkedId);
+            }
+            continue;
+          }
+        } catch (eGuard) {
+          continue;
+        }
+      }
+
+      if (!mt.query_layers && mtLinkedId.indexOf('/') > -1 && mtLinkedId.indexOf('wms:') !== 0) {
+        // Ohne query_layers sind ArcGIS-Coalesce-Sublayer nicht eindeutig.
+        // Solche Eintraege werden weiterhin zugelassen wenn sie eine direkte URL haben.
+        if (!mt.url && window.TNET_DEBUG_INFO) {
+          console.log('[InfoBridge DEBUG] maptip ohne query_layers (weiter mit Vorsicht):', mtLinkedId);
+        }
+      }
+
+      if (typeof mt.queryconnector !== 'function') {
+        _warn('MapTip ohne queryconnector:', mtLinkedId || mt.id);
         continue;
       }
 
       // ── Pre-Flight Diagnose: URL-Pfad loggen den queryconnector nehmen wird ──
-      var mtLinkedId = mt.linked_layer_id || mt.id || '?';
       var urlPath = '(unbekannt)';
       var layerSource = '?';
       var parentMatch = mt._tnetParentMatch || null;
@@ -425,6 +620,8 @@
     if (!map) return;
 
     _clickCount++;
+    _activeRequestSeq++;
+    var currentRequestSeq = _activeRequestSeq;
 
     // ── Sicherheitsprüfung: Framework-Handler nicht erneut registriert? ──
     _ensureSentinel();
@@ -458,6 +655,13 @@
     // Blockiert Klicks auf interaktive Vektor-Features (Redlining etc.)
     // AUSNAHME: Zeichenlayer der räumlichen Abfrage, Messungen und PDF-Extent sollen NICHT blockieren
     // AUSNAHME: GeoJSON-Layer mit registriertem gjsonServiceMapTip → direkt behandeln
+    var isRepeatPixelClick = false;
+    if (evt && evt.pixel && _lastDispatchPixel) {
+      var dx = Math.abs(evt.pixel[0] - _lastDispatchPixel[0]);
+      var dy = Math.abs(evt.pixel[1] - _lastDispatchPixel[1]);
+      isRepeatPixelClick = (dx <= 3 && dy <= 3);
+    }
+
     var hasBlockingFeature = false;
     try {
       if (map.hasFeatureAtPixel(evt.pixel) === true) {
@@ -516,18 +720,34 @@
       }
     } catch (e) { /* Ignorieren */ }
 
-    if (hasBlockingFeature) {
+    if (hasBlockingFeature && !isRepeatPixelClick) {
       _log('Click #' + _clickCount + ': Feature-at-Pixel blockiert Info-Abfrage');
       return;
     }
+    if (hasBlockingFeature && isRepeatPixelClick) {
+      _log('Click #' + _clickCount + ': Feature-at-Pixel erkannt, aber Repeat-Click am selben Pixel → Info-Abfrage erlaubt');
+    }
 
     // ── Panel vorbereiten (Framework-Funktion, EINMAL) ──
+    _ensureInfoPaneDom();
+    var infoContainer = document.getElementById('njs_info_pane_content');
+    _clearNoResultsArtifacts(infoContainer);
+
     try {
       if (typeof am.prepareInfoRequest === 'function') {
         am.prepareInfoRequest(evt, MAP_ID);
       }
     } catch (e) {
       _warn('prepareInfoRequest Fehler:', e);
+    }
+
+    // Pending-Visibility-Updates sofort flushen (Debounce ueberspringen).
+    // Der UI-Toggle (child-eye / group-eye) schreibt in einen Debounce-Queue
+    // (VISIBILITY_FLUSH_DELAY). Wenn der Nutzer direkt nach dem Toggle auf die
+    // Karte klickt, ist der Flush evtl. noch nicht gelaufen → Store hat noch
+    // den alten Sichtbarkeitszustand → isLayerQueryable gibt false zurueck.
+    if (window.TnetLMActive && typeof window.TnetLMActive.flushPendingVisibility === 'function') {
+      try { window.TnetLMActive.flushPendingVisibility(); } catch (eFlush) { /* ignore */ }
     }
 
     // Direkt vor dem Dispatch mit dem effektiven Karteninhalt synchronisieren.
@@ -541,11 +761,15 @@
     var wmsCustomCount = _adapterWmsCustom(evt, map);
     var totalCount = mapPlusCount + wmsCustomCount;
 
+    if (evt && evt.pixel) {
+      _lastDispatchPixel = [evt.pixel[0], evt.pixel[1]];
+    }
+
     _log('Click #' + _clickCount + ': Dispatch', totalCount, 'Queries',
       '(MapPlus:', mapPlusCount, '| WMS-Custom:', wmsCustomCount + ')');
 
     // ── No-Results Watchdog ──
-    _startNoResultsWatchdog();
+    _startNoResultsWatchdog(currentRequestSeq, totalCount);
   }
 
   // ===== INITIALISIERUNG =====
@@ -595,18 +819,29 @@
     _log('  MapTips definiert:', totalMaptips);
     _log('  wmsActiveLyrs:', activeCount, '→', activeIds.join(', '));
 
-    // 4. Periodische Sentinel-Prüfung (alle 10s für 2 Minuten)
-    var sentinelChecks = 0;
-    var sentinelInterval = setInterval(function () {
-      sentinelChecks++;
+    // 4. Periodische Sentinel-Prüfung dauerhaft aktiv halten.
+    // Das Framework kann den Handler auch lange nach dem Startup erneut
+    // registrieren (z.B. bei späteren Activate-Pfaden). Deshalb nicht nach
+    // 2 Minuten stoppen, sondern bis destroy() überwachen.
+    if (_sentinelIntervalId) {
+      clearInterval(_sentinelIntervalId);
+      _sentinelIntervalId = null;
+    }
+    _sentinelIntervalId = setInterval(function () {
       _ensureSentinel();
-      if (sentinelChecks >= 12) clearInterval(sentinelInterval);
-    }, 10000);
+    }, 5000);
 
     return true;
   }
 
   function destroy() {
+    _cancelNoResultsWatchdog();
+
+    if (_sentinelIntervalId) {
+      clearInterval(_sentinelIntervalId);
+      _sentinelIntervalId = null;
+    }
+
     if (_bridgeListenerKey) {
       ol.Observable.unByKey(_bridgeListenerKey);
       _bridgeListenerKey = null;
