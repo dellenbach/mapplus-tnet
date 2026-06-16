@@ -1,4 +1,11 @@
-﻿## 2026-06-16 - Infoabfrage darf nicht von stale wmsActiveLyrs ausgehen
+﻿## 2026-06-16 - Karteninhalt-Header sollte sticky sein beim Layer-Scrollen
+
+- **Symptom:** Beim Scrollen durch lange Themalisten verdeckte der scrollende Content die "Karteninhalt leeren" Aktion, was zu schlechter Usability führte.
+- **Root-Cause:** Der Container `#lm-active-container` hatte `overflow-y: auto`, aber der Titel-Header `.lm-active-header` hatte keine sticky Positionierung.
+- **Fix:** In `maps-dev/tnet/css/tnet-lm.css` `.lm-active-header` um `position: sticky; top: 0; z-index: 10;` ergänzt. Der sticky-Container funktioniert weil `#lm-active-container` bereits `overflow-y: auto !important;` hat.
+- **Guardrail:** Scroll-Container mit fixen/sticky Headers: parent `overflow-y: auto` ist Voraussetzung. Z-index muss höher als Inhalts-Items sein, aber unter Modal-Overlays bleiben (z-index über 100 würde mit FloatingPane kollidieren).
+
+## 2026-06-16 - Infoabfrage darf nicht von stale wmsActiveLyrs ausgehen
 
 - **Symptom:** Mehrere Folgeabfragen lieferten unzuverlaessig keine oder falsche Resultate, obwohl die betreffenden Layer im Karteninhalt sichtbar waren.
 - **Root-Cause:** Der Klick-Dispatcher startete weiterhin primaer aus `njs.AppManager.wmsActiveLyrs`. Diese Framework-Liste kann nach Layer-Reloads, Coalesce-Updates und URL-Restore von der echten Karteninhalt-Liste abweichen.
