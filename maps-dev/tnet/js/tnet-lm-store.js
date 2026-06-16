@@ -196,10 +196,12 @@
     // ============================================================
 
     _loadCatalog: function () {
-      var source = _config.lyrmgrSource || 'api';
-      var group  = _config.group || 'public';
+      // mainSource: 'api' (via layers.php) oder 'direct' (lyrmgr.conf direkt)
+      var globalCfg = window.TnetGlobalConfig || {};
+      var mainSource = globalCfg.mainSource || _config.transport || _config.lyrmgrSource || 'api';
+      var group = _config.group || 'public';
 
-      if (source === 'file') {
+      if (mainSource === 'direct') {
         return this._loadLyrmgrFromFile(group);
       }
       return this._loadLyrmgrFromApi(group);
@@ -273,14 +275,17 @@
     _loadLyrmgrFromApi: function (group) {
       var self = this;
       var url = normalizeApiUrl(_config.apiUrl);
-      var apiSource = (_config.apiSource || 'db');
-      apiSource = (apiSource === 'file') ? 'file' : 'db';
+      // configSourceApi.layers bestimmt welches ?source= an layers.php geschickt wird.
+      var globalCfg = window.TnetGlobalConfig || {};
+      var cfgApi = globalCfg.configSourceApi || {};
+      var apiSource = cfgApi.layers || cfgApi.default || _config.apiSource || 'db';
+      apiSource = (apiSource === 'file' || apiSource === 'files') ? 'file' : 'db';
       url += (url.indexOf('?') > -1 ? '&' : '?') + 'group=' + encodeURIComponent(group);
-      // Quelle explizit setzen: kein Hybrid-/Auto-Modus.
       url += '&source=' + encodeURIComponent(apiSource);
       if (_config.cache === false) url += '&nocache=1';
 
-      if (_config.debug) TnetLog.log(LOG, 'Lade Katalog aus API (group=' + group + ', source=' + apiSource + ')');
+      // Immer sichtbar: Quelle des Themenkatalogs
+      TnetLog.log(LOG, '\u25ba Katalogquelle: "' + apiSource + '"  (group=' + group + ')  \u2192 ' + url.substring(url.lastIndexOf('/') + 1));
 
       fetch(url)
         .then(function (r) {

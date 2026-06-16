@@ -80,7 +80,11 @@ class ConfigSource {
     }
 
     /**
-     * Laedt und cached den configSource-Block aus der json5-Konfiguration.
+     * Laedt und cached den configSource-Block fuer direkte PHP-Aufrufe.
+     *
+     * Prioritaet:
+     *   1. configSourceDirect (neues Feld, granular steuerbar)
+     *   2. configSource (altes Feld, Rueckwaertskompatibilitaet)
      *
      * @return array
      */
@@ -89,9 +93,20 @@ class ConfigSource {
             return self::$source;
         }
         $cfg = self::loadConfig();
+
+        // Neu: configSourceDirect hat Prioritaet fuer direkte PHP-Aufrufe
+        if (isset($cfg['configSourceDirect']) && is_array($cfg['configSourceDirect'])) {
+            $block = $cfg['configSourceDirect'];
+            $block['fallbackToFiles'] = $block['fallbackToFiles'] ?? false;
+            self::$source = $block;
+            return self::$source;
+        }
+
+        // Rueckwaertskompatibilitaet: altes configSource-Feld
         $block = (isset($cfg['configSource']) && is_array($cfg['configSource']))
             ? $cfg['configSource']
             : [];
+        $block['fallbackToFiles'] = $block['fallbackToFiles'] ?? false;
         self::$source = $block;
         return self::$source;
     }

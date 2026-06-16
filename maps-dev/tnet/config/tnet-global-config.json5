@@ -102,8 +102,8 @@
     
     // Kamera & Terrain
     camera: {
-      terrainHeightOffset: 100,     // Kamerahöhe über Terrain (m)
-      fallbackTerrainHeight: 500,   // Fallback wenn API fehlschlägt (m ü.M.)
+      terrainHeightOffset: 250,     // Kamerahöhe über Terrain (m)
+      fallbackTerrainHeight: 550,   // Fallback wenn API fehlschlägt (m ü.M.)
       defaultHeading: 0,            // Ausrichtung (0 = Nord)
       defaultTilt: 60,              // Neigung (0 = senkrecht nach unten, 90 = horizontal)
       defaultFov: 55,               // Field of View (Grad)
@@ -200,21 +200,32 @@
   },
 
   // ============================================================
-  // KONFIGURATIONSQUELLE (Staging-DB vs. Legacy-Dateien)
+  // KONFIGURATIONSQUELLE
   // ============================================================
-  // Steuert, ob API/SLM/Runtime die Konfiguration aus der PostgreSQL-DB
-  // (mapplusconf / mapplusconf_dev) oder aus den Legacy-Dateien lesen/schreiben.
-  // 'db'    = Normalbetrieb, Datenbank ist fuehrend (Dateien nur Export/Fallback)
-  // 'files' = Legacy-Modus, Dateien sind fuehrend (Verhalten wie bisher)
-  // Pro Domain ueberschreibbar; fehlt ein Domain-Eintrag, greift 'default'.
-  configSource: {
-    _description: "Datenquelle pro Konfigurationsdomain: db oder files",
-    default: 'db',        // DB-only Betrieb
-    bookmarks: 'db',
-    layers: 'db',
-    catalog: 'db',
-    // Wenn die DB nicht erreichbar ist, faellt der Server automatisch auf
-    // die Dateien zurueck (Fallback), sofern diese vorhanden sind.
+  //
+  // mainSource: WIE wird die Konfiguration gelesen?
+  //   'api'    -> via layers.php REST-API (Normal- und Produktivbetrieb)
+  //   'direct' -> direkt aus Dateisystem ohne API-Umweg
+  //
+  mainSource: 'api',
+
+  // Datenquelle fuer API-Aufrufe (layers.php ?source=...)
+  // Wird verwendet wenn mainSource='api'
+  configSourceApi: {
+    default:         'db',    // 'db' | 'files'
+    bookmarks:       'db',
+    layers:          'db',
+    catalog:         'db',
+    fallbackToFiles: false,
+  },
+
+  // Datenquelle fuer direkte PHP-Aufrufe (SLM, Bookmarks, Cache etc.)
+  // Wird verwendet wenn mainSource='direct' oder fuer PHP-Code der keine API nutzt
+  configSourceDirect: {
+    default:         'files', // 'db' | 'files'
+    bookmarks:       'files',
+    layers:          'files',
+    catalog:         'files',
     fallbackToFiles: false,
   },
 
@@ -239,19 +250,9 @@
     // false = Legacy WMS-TitlePane in Sidebar sichtbar
     useNewWmsPanel: true,
 
-    // ===== DATENQUELLE FÜR DEN LYRMGR (Themenkatalog-Hierarchie) =====
-    // Betrifft NUR die lyrmgr.conf (Baumstruktur / Kategorien / Layer-Zuordnung).
-    // Layer-Details (URL, Typ, WMS-Params, Legenden) kommen IMMER aus der DB/API.
-    //
-    // 'api' = LyrMgr-Hierarchie + Layer-Details komplett aus API (DB-basiert, bisheriges Verhalten)
-    // 'file' = LyrMgr-Hierarchie direkt aus lyrmgr.conf lesen (via API ?source=file),
-    //          Layer-Details werden separat aus der DB nachgeladen.
-    //          Kein DB-Import nötig nach Conf-Änderung → schnellerer Turnaround.
-    lyrmgrSource: 'api',
-
-    // Quelle für API-Aufrufe im Runtime-LayerManager (bei lyrmgrSource: 'api').
-    // Wichtig: layers.php akzeptiert nur noch explizit 'db' oder 'file' (kein auto).
-    apiSource: 'db',
+    // ===== TRANSPORT =====
+    // Wird aus mainSource (oben) abgeleitet. Nicht mehr manuell setzen.
+    // lyrmgrSource/apiSource werden als Fallback weiterhin unterstuetzt.
 
     // API-Endpoint für Layer-Katalog (Hierarchie + Details)
     apiUrl: '/maps-dev/tnet/api/v1/layers.php',
@@ -321,7 +322,7 @@
     // Maximale Anzahl Adress-Resultate in der Ergebnisliste
     maxAddresses: 10,
     // Maximale Anzahl Orts-/Strassen-Resultate
-    maxLocations: 10,
+    maxLocations: 5,
     // Maximale Anzahl Themen-Resultate
     maxLayers: 10,
 
