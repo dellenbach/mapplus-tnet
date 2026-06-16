@@ -1,4 +1,11 @@
-﻿## 2026-06-16 - Keepalive muss Session-Datei aktiv schreiben
+﻿## 2026-06-16 - Live-Extras duerfen Bookmark-Filter nicht umgehen
+
+- **Symptom:** Nach dem Einschalten einer ausgeblendeten Coalesce-Gruppe wie KULTURERBE sprang der Karteninhalt-Zaehler von 36 auf 105/108 Themen.
+- **Root-Cause:** `mergeBookmarkLayers()` haengte bei modifizierten Bookmarks alle Store-Layer an, die nicht in der bereits gefilterten Bookmark-Liste waren. Dadurch kamen weggefilterte Original-Bookmark-Layer als vermeintliche Live-Extras zurueck.
+- **Fix:** Live-Extras werden nun gegen die originale Bookmark-Layerliste geprueft. Nur wirklich neue, nicht im Bookmark enthaltene Layer werden angehaengt.
+- **Guardrail:** Bei Bookmark-TOCs nie gegen eine bereits geprunte Liste entscheiden, ob ein Layer extern/extra ist. Immer die ungefilterte Original-Bookmark-Liste als Ausschlussmenge verwenden.
+
+## 2026-06-16 - Keepalive muss Session-Datei aktiv schreiben
 
 - **Symptom:** Trotz lokalem Keepalive konnte nach einigen Minuten weiterhin ein Session-Expired-Dialog erscheinen.
 - **Root-Cause:** Der Keepalive-Endpunkt startete zwar die richtige `/maps-dev/`-Session, schrieb aber keinen Wert in `$_SESSION`. Mit PHP `session.lazy_write` kann die Session-Datei dadurch unveraendert bleiben. Zusätzlich lag der erste Framework-Keepalive bei 180s und damit zu nah an typischen kurzen Session-/Idle-Grenzen.

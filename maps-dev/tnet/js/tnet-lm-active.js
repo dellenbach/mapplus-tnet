@@ -753,12 +753,17 @@
     return true;
   }
 
-  function mergeBookmarkLayers(bookmarkLayers, liveLayers, includeLiveExtras) {
+  function mergeBookmarkLayers(bookmarkLayers, liveLayers, includeLiveExtras, originalBookmarkLayers) {
     var liveById = {};
     var usedLiveIds = {};
+    var originalBookmarkIds = {};
 
     (liveLayers || []).forEach(function(layer) {
       if (layer && layer.id) liveById[layer.id] = layer;
+    });
+
+    (originalBookmarkLayers || bookmarkLayers || []).forEach(function(layer) {
+      if (layer && layer.id) originalBookmarkIds[layer.id] = true;
     });
 
     var merged = (bookmarkLayers || []).map(function(layer, index) {
@@ -788,6 +793,7 @@
       (liveLayers || []).forEach(function(layer) {
         if (!layer || !layer.id) return;
         if (usedLiveIds[layer.id]) return;
+        if (originalBookmarkIds[layer.id]) return;
         var copy = {};
         for (var k in layer) {
           if (Object.prototype.hasOwnProperty.call(layer, k)) copy[k] = layer[k];
@@ -1014,7 +1020,7 @@
       var bookmarkLayers = bookmarkInfo ? filterRenderableBookmarkLayers(bookmarkInfo.layers) : null;
       var includeLiveExtras = shouldIncludeLiveExtrasForBookmark(bookmarkInfo);
       var effectiveLayers = bookmarkInfo
-        ? mergeBookmarkLayers(bookmarkLayers, Array.isArray(layers) ? layers : [], includeLiveExtras)
+        ? mergeBookmarkLayers(bookmarkLayers, Array.isArray(layers) ? layers : [], includeLiveExtras, bookmarkInfo.layers)
         : Array.isArray(layers) ? layers.slice() : [];
 
       effectiveLayers = pruneContainerCatalogLayers(effectiveLayers);
@@ -1142,7 +1148,7 @@
       var activeLayers = (store && store.getActiveLayers) ? store.getActiveLayers() : [];
       var bookmarkLayers = filterRenderableBookmarkLayers(bookmarkInfo.layers);
       var includeLiveExtras = shouldIncludeLiveExtrasForBookmark(bookmarkInfo);
-      var effectiveLayers = mergeBookmarkLayers(bookmarkLayers, activeLayers, includeLiveExtras);
+      var effectiveLayers = mergeBookmarkLayers(bookmarkLayers, activeLayers, includeLiveExtras, bookmarkInfo.layers);
       effectiveLayers = _applyPendingLayerUiState(effectiveLayers);
       var bmModified = _isActiveBookmarkModified();
 
