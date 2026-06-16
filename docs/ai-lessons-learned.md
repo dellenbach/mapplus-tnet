@@ -1,4 +1,11 @@
-﻿## 2026-06-16 - URL-Start ohne op muss Config-Opacity nachziehen
+﻿## 2026-06-16 - Keepalive muss Session-Datei aktiv schreiben
+
+- **Symptom:** Trotz lokalem Keepalive konnte nach einigen Minuten weiterhin ein Session-Expired-Dialog erscheinen.
+- **Root-Cause:** Der Keepalive-Endpunkt startete zwar die richtige `/maps-dev/`-Session, schrieb aber keinen Wert in `$_SESSION`. Mit PHP `session.lazy_write` kann die Session-Datei dadurch unveraendert bleiben. Zusätzlich lag der erste Framework-Keepalive bei 180s und damit zu nah an typischen kurzen Session-/Idle-Grenzen.
+- **Fix:** `keepalive-local.php` schreibt bei jedem Ping `$_SESSION['tnet_keepalive_last'] = time()`. Desktop/Mobile setzen `njs.AppManager.keepalivetimeout` neu auf 60s.
+- **Guardrail:** Keepalive muss nicht nur HTTP 200 liefern, sondern den Session-State wirklich berühren. Timer deutlich unterhalb der kuerzesten Session-Grenze setzen und einen echten Auto-Timer-Zyklus im Browser prüfen.
+
+## 2026-06-16 - URL-Start ohne op muss Config-Opacity nachziehen
 
 - **Symptom:** Start mit `layers=` aber ohne `op=` zeigte die URL-Layer mit 100% Deckkraft, obwohl die Layer-Konfiguration z.B. 0.65/0.75 vorgab.
 - **Root-Cause:** Der URL-Override nutzt den URL-Adopt-Pfad. Dort wurden fehlende `op`-Werte nicht spät aus `TnetLMStore.findLayer(id).options.opacity` übernommen; zusätzlich kann der Katalog erst nach dem initialen Bookmark-Runtime-Aufbau bereit sein.

@@ -45,6 +45,8 @@ session_set_cookie_params([
 
 session_start();
 
+$_SESSION['tnet_keepalive_last'] = time();
+
 header('Content-Type: text/plain; charset=utf-8');
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 header('Pragma: no-cache');
