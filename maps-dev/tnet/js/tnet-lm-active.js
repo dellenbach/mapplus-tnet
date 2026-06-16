@@ -110,6 +110,55 @@
     } catch (eEvent) { /* ignore */ }
   }
 
+  function cloneLayerList(layers) {
+    return (layers || []).map(function(layer) {
+      var copy = {};
+      var key;
+      if (!layer) return copy;
+      for (key in layer) {
+        if (!Object.prototype.hasOwnProperty.call(layer, key)) continue;
+        if (key === '_olLayerRef') continue;
+        copy[key] = layer[key];
+      }
+      return copy;
+    });
+  }
+
+  function captureBookmarkResetSnapshot() {
+    var bookmark = getBookmarkInfo();
+    if (!bookmark || !Array.isArray(bookmark.layers) || bookmark._resetLayers) return;
+    bookmark._resetLayers = cloneLayerList(bookmark.layers);
+    if (bookmark._options) {
+      bookmark._resetOptions = {};
+      Object.keys(bookmark._options).forEach(function(key) {
+        var value = bookmark._options[key];
+        bookmark._resetOptions[key] = Array.isArray(value) ? value.slice() : value;
+      });
+    }
+  }
+
+  function restoreBookmarkResetSnapshot(bookmark) {
+    var store = window.TnetLMStore;
+    var restoredLayers;
+    if (!bookmark || !Array.isArray(bookmark._resetLayers)) return false;
+    restoredLayers = cloneLayerList(bookmark._resetLayers);
+    bookmark.layers = restoredLayers;
+    if (bookmark._resetOptions) {
+      bookmark._options = {};
+      Object.keys(bookmark._resetOptions).forEach(function(key) {
+        var value = bookmark._resetOptions[key];
+        bookmark._options[key] = Array.isArray(value) ? value.slice() : value;
+      });
+    }
+    if (store && typeof store.loadActiveLayersFromBookmark === 'function') {
+      store.loadActiveLayersFromBookmark(restoredLayers);
+    }
+    if (store && typeof store.reconcileMapConsistency === 'function') {
+      try { store.reconcileMapConsistency(); } catch (eReconcile) { /* ignore */ }
+    }
+    return true;
+  }
+
   function _isBookmarkLoadActive() {
     var bm = window.__tnetActiveBookmark;
     var until = bm && bm._loadUntil ? Number(bm._loadUntil) : 0;
@@ -1517,10 +1566,28 @@
         // Bookmark auf Original zurücksetzen
         if (action === 'bm-reset') {
           var bm = window.__tnetActiveBookmark;
-          if (bm && bm.id && typeof window.TnetSetBookmark === 'function') {
+          if (bm && bm.id) {
+            var resetResult = null;
             _bmModified = false;
+            _bmLoadedRecently = true;
             _resetPendingUiState();
-            window.TnetSetBookmark(bm.id);
+            _lastRenderHtml = null;
+            self._refreshModifiedBadge();
+
+            if (restoreBookmarkResetSnapshot(bm)) {
+              resetResult = { success: true, snapshot: true };
+            } else if (typeof window.TnetResetActiveBookmarkState === 'function') {
+              resetResult = window.TnetResetActiveBookmarkState();
+            }
+
+            if (!resetResult || resetResult.success !== true) {
+              if (typeof window.TnetSetBookmark === 'function') window.TnetSetBookmark(bm.id, bm.activeViewId || null, bm._options || null);
+            } else {
+              self.render(window.TnetLMStore && window.TnetLMStore.getActiveLayers ? window.TnetLMStore.getActiveLayers() : []);
+            }
+
+            if (_bmLoadTimer) clearTimeout(_bmLoadTimer);
+            _bmLoadTimer = setTimeout(function () { _bmLoadedRecently = false; }, 1200);
           }
           return;
         }
@@ -2138,6 +2205,9 @@
     _onVisibility: function (evt) {
       _clearPendingLayerUiState(evt.id, ['visible']);
       delete _pendingVisibilityUpdates[_getPendingVisibilityKey('layer', evt.id)];
+      if (!_bmLoadedRecently && !_isBookmarkLoadActive() && !_isViewSwitchActive() && evt.source !== 'bookmark-init') {
+        captureBookmarkResetSnapshot();
+      }
       var changed = updateBookmarkLayerState(evt.id, { visible: !!evt.visible });
       if (changed && !_bmLoadedRecently && !_isBookmarkLoadActive() && !_isViewSwitchActive() && evt.source !== 'bookmark-init') {
         _bmModified = true;
@@ -2158,6 +2228,7 @@
     _onOpacity: function (evt) {
       _clearPendingLayerUiState(evt.id, ['opacity']);
       delete _pendingOpacityUpdates[_getPendingOpacityKey('layer', evt.id)];
+      if (!_bmLoadedRecently) captureBookmarkResetSnapshot();
       var changed = updateBookmarkLayerState(evt.id, { opacity: evt.opacity });
       if (changed && !_bmLoadedRecently) {
         _bmModified = true;
@@ -2183,6 +2254,7 @@
       var i;
 
       delete _pendingOpacityUpdates[_getPendingOpacityKey('group', evt.groupId)];
+      if (!_bmLoadedRecently) captureBookmarkResetSnapshot();
       if (info && info.childIds) {
         for (i = 0; i < info.childIds.length; i++) {
           _clearPendingLayerUiState(info.childIds[i], ['opacity']);

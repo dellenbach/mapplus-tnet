@@ -2139,6 +2139,32 @@ function TnetSetBookmark(bookmarkId, viewId, options) {
     });
 }
 
+function TnetResetActiveBookmarkState() {
+  var bookmark = window.__tnetActiveBookmark;
+  var options = bookmark && bookmark._options ? bookmark._options : null;
+  var resetOptions = null;
+  if (!bookmark || !bookmark.id || !bookmark._cfg) return { success: false, error: 'no-active-bookmark' };
+  try {
+    if (options && options.urlOverride) {
+      resetOptions = {};
+      Object.keys(options).forEach(function(key) {
+        resetOptions[key] = options[key];
+      });
+      resetOptions.visibleLayerIds = (options.originalVisibleLayerIds && options.originalVisibleLayerIds.length)
+        ? options.originalVisibleLayerIds.slice()
+        : null;
+      resetOptions.opacityValues = options.originalOp ? String(options.originalOp).split('|') : null;
+      resetOptions.urlOverride = true;
+    }
+    return _applyViewSwitchOnly(bookmark._cfg, bookmark.activeViewId || null, resetOptions || null);
+  } catch (eResetBookmark) {
+    TnetLog.warn('[TnetSetBookmark] Schneller Bookmark-Reset fehlgeschlagen:', eResetBookmark && eResetBookmark.message ? eResetBookmark.message : eResetBookmark);
+    return { success: false, error: eResetBookmark && eResetBookmark.message ? eResetBookmark.message : String(eResetBookmark) };
+  }
+}
+
+window.TnetResetActiveBookmarkState = TnetResetActiveBookmarkState;
+
 /**
  * Layer in der Hauptkarte ein-/ausschalten oder umschalten (kein Bookmark-Lookup).
  *

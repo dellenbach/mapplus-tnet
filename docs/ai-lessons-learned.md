@@ -1,4 +1,11 @@
-﻿## 2026-06-16 - Live-Extras duerfen Bookmark-Filter nicht umgehen
+﻿## 2026-06-16 - Bookmark-Reset muss Runtime-Snapshot statt Full-Reload nutzen
+
+- **Symptom:** Nach Klick auf `Änderungen verwerfen` dauerte das Zurücksetzen lange, und der Modified-Button blieb sichtbar bzw. der Zähler blieb abweichend.
+- **Root-Cause:** Der Reset lud das Bookmark vollständig neu bzw. nutzte den laufend synchronisierten URL-Override-Zustand. Dadurch wurde der aktuelle geänderte Zustand erneut angewendet oder der Ausgangszustand neu berechnet statt exakt wiederhergestellt.
+- **Fix:** Vor der ersten Benutzeränderung wird ein Snapshot von `bookmark.layers` und `_options` gespeichert. `Änderungen verwerfen` stellt diesen Snapshot direkt in `TnetLMStore` wieder her, reconciliiert die Karte und entfernt das Modified-Badge sofort.
+- **Guardrail:** Undo/Reset in bereits geladenen Bookmark-TOCs aus einem Runtime-Snapshot herstellen. Full-Bookmark-Reload nur als Fallback verwenden; URL-Sync-Zustand ist nach Benutzeraktionen nicht mehr die Ursprungsvorlage.
+
+## 2026-06-16 - Live-Extras duerfen Bookmark-Filter nicht umgehen
 
 - **Symptom:** Nach dem Einschalten einer ausgeblendeten Coalesce-Gruppe wie KULTURERBE sprang der Karteninhalt-Zaehler von 36 auf 105/108 Themen.
 - **Root-Cause:** `mergeBookmarkLayers()` haengte bei modifizierten Bookmarks alle Store-Layer an, die nicht in der bereits gefilterten Bookmark-Liste waren. Dadurch kamen weggefilterte Original-Bookmark-Layer als vermeintliche Live-Extras zurueck.
