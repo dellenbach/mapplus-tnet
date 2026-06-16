@@ -123,6 +123,120 @@
     return src && typeof src.getParams === 'function' ? src.getParams() : null;
   }
 
+  function _parseFirstQueryLayer(value) {
+    if (value === null || value === undefined) return '';
+    return String(value).split(',')[0].replace(/^show:/i, '').trim();
+  }
+
+  function _getServiceIdFromLayerId(layerId) {
+    if (!layerId || typeof layerId !== 'string') return '';
+    var slash = layerId.lastIndexOf('/');
+    return slash > 0 ? layerId.substring(0, slash) : layerId;
+  }
+
+  function _getActiveLayerIdsFromStore() {
+    var store = window.TnetLMStore;
+    var ids = {};
+    if (!store || typeof store.getActiveLayers !== 'function') return ids;
+
+    try {
+      var activeLayers = store.getActiveLayers() || [];
+      for (var i = 0; i < activeLayers.length; i++) {
+        var layer = activeLayers[i];
+        if (!layer || !layer.id || layer.visible === false) continue;
+        ids[layer.id] = true;
+      }
+    } catch (e) { /* ignore */ }
+    return ids;
+  }
+
+  function _getVisibleLayerIdsFromMap(map) {
+    var ids = {};
+    if (!map || !map.getLayers) return ids;
+
+    _forEachMapLayer(map.getLayers(), function (layer) {
+      if (!layer || typeof layer.getVisible !== 'function' || !layer.getVisible()) return;
+      var name = _getLayerName(layer);
+      if (!name) return;
+      if (name.indexOf('cosmetic_') === 0 || name.indexOf('njs_') === 0 || name.indexOf('pdfExtent') === 0) return;
+      ids[name] = true;
+    });
+    return ids;
+  }
+
+  function _isMapTipInActiveContent(mt, map, activeIds, visibleIds) {
+    var linkedLayerId = mt.linked_layer_id || mt.linked_layer || '';
+    if (!linkedLayerId) return false;
+
+    var ql = _parseFirstQueryLayer(mt.query_layers);
+    if (ql) {
+      var showList = _getServiceShowList(map, linkedLayerId);
+      if (showList && showList.indexOf(ql) >= 0) return true;
+      // MapTips mit query_layers sind sublayer-spezifisch. Ohne gerenderte
+      // show:-Liste duerfen sie nur bei exakt aktivem Layer durch, sonst wuerden
+      // Service-MapTips alle Sublayer eines Dienstes vorauswaehlen.
+      return !!activeIds[linkedLayerId];
+    }
+
+    if (activeIds[linkedLayerId]) return true;
+
+    var serviceId = _getServiceIdFromLayerId(linkedLayerId);
+    if (serviceId && activeIds[serviceId]) return true;
+
+    for (var activeId in activeIds) {
+      if (!activeIds.hasOwnProperty(activeId)) continue;
+      if (_getServiceIdFromLayerId(activeId) === linkedLayerId) {
+        var activeShowList = _getServiceShowList(map, linkedLayerId);
+        if (!ql || (activeShowList && activeShowList.indexOf(ql) >= 0)) return true;
+      }
+      if (_getServiceIdFromLayerId(activeId) === serviceId && serviceId) return true;
+    }
+
+    return !!visibleIds[linkedLayerId];
+  }
+
+  function _getDirectMapTipsForActiveContent(map) {
+    var am = _getAm();
+    if (!am || !am.MapTips || !map) return [];
+
+    var activeIds = _getActiveLayerIdsFromStore();
+    var visibleIds = _getVisibleLayerIdsFromMap(map);
+    var result = [];
+    var seen = {};
+
+    for (var mtId in am.MapTips) {
+      if (!am.MapTips.hasOwnProperty(mtId)) continue;
+      if (mtId === '_wms_connector' || mtId === GATE_KEY) continue;
+      var mt = am.MapTips[mtId];
+      if (!mt) continue;
+      if (!mt.linked_layer_id && mt.linked_layer) mt.linked_layer_id = mt.linked_layer;
+      if (!mt.linked_layer_id) continue;
+      if (!_isMapTipInActiveContent(mt, map, activeIds, visibleIds)) continue;
+
+      var hostLayer = mt.wms_layer || _findMapTipLayer(map, mt.linked_layer_id, mt.query_layers);
+      if (hostLayer && !mt.url) mt.wms_layer = hostLayer;
+
+      var ql = _parseFirstQueryLayer(mt.query_layers) || '-';
+      var linkedLayerId = mt.linked_layer_id || mt.linked_layer || '';
+      var serviceKey = linkedLayerId;
+      if (ql !== '-' && !_getServiceShowList(map, linkedLayerId)) {
+        serviceKey = _getServiceIdFromLayerId(linkedLayerId) || linkedLayerId;
+      }
+      var targetKey = serviceKey + '::' + ql;
+      if (seen[targetKey]) continue;
+      seen[targetKey] = true;
+      result.push(mt);
+    }
+
+    if (window.TNET_DEBUG_INFO) {
+      console.log('[InfoBridge DEBUG] Direkt-Durchstich MapTips:', result.map(function (mt) {
+        return (mt.linked_layer_id || mt.id) + ' ql:' + (mt.query_layers || '-');
+      }));
+    }
+
+    return result;
+  }
+
   function _findMapTipLayer(map, linkedLayerId, queryLayers) {
     var exact = null;
     var host = null;
@@ -417,7 +531,8 @@
     var dispatchMap = am.Maps && am.Maps[MAP_ID] ? am.Maps[MAP_ID].mapObj : null;
 
     var count = 0;
-    var items = am.wmsActiveLyrs.getArray();
+    var directItems = _getDirectMapTipsForActiveContent(dispatchMap);
+    var items = directItems.length ? directItems : am.wmsActiveLyrs.getArray();
     var dispatched = []; // Für Log
     var _seenTargets = {}; // Dedup: serviceId::subNum bereits dispatcht
 

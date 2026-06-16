@@ -1,4 +1,11 @@
-﻿## 2026-06-16 - Keepalive muss denselben App-Cookie-Pfad verwenden
+﻿## 2026-06-16 - Infoabfrage darf nicht von stale wmsActiveLyrs ausgehen
+
+- **Symptom:** Mehrere Folgeabfragen lieferten unzuverlaessig keine oder falsche Resultate, obwohl die betreffenden Layer im Karteninhalt sichtbar waren.
+- **Root-Cause:** Der Klick-Dispatcher startete weiterhin primaer aus `njs.AppManager.wmsActiveLyrs`. Diese Framework-Liste kann nach Layer-Reloads, Coalesce-Updates und URL-Restore von der echten Karteninhalt-Liste abweichen.
+- **Fix:** `tnet-info-bridge.js` leitet MapTips pro Klick direkt aus `TnetLMStore.getActiveLayers()` plus sichtbar gerenderten OL-Layern ab und nutzt `wmsActiveLyrs` nur noch als Fallback/Kompatibilitaetszustand.
+- **Guardrail:** Info-/GFI-Durchstiche immer vom aktuellen Karteninhalt ableiten; Framework-Collections wie `wmsActiveLyrs` sind Cache/Side-Effect, nicht die fachliche Wahrheit.
+
+## 2026-06-16 - Keepalive muss denselben App-Cookie-Pfad verwenden
 
 - **Symptom:** Etwa alle 2-3 Minuten erschien im Kartenbetrieb ein Browser-Dialog "Session expired. The page will be reloaded.", obwohl der Benutzer aktiv arbeitete.
 - **Root-Cause:** Keepalive-XHR lief gegen `/mapplus-lib/.../keepalive.php`, waehrend die App-Session auf Cookie-Path `/maps-dev/` lief. Dadurch wurde der Session-Cookie beim Keepalive nicht konsistent mitgesendet und der Sessionstatus als abgelaufen interpretiert.
