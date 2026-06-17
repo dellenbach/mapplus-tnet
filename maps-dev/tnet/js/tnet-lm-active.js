@@ -142,6 +142,7 @@
     var restoredLayers;
     if (!bookmark || !Array.isArray(bookmark._resetLayers)) return false;
     restoredLayers = cloneLayerList(bookmark._resetLayers);
+    normalizeResetLayerOpacities(bookmark, restoredLayers);
     bookmark.layers = restoredLayers;
     if (bookmark._resetOptions) {
       bookmark._options = {};
@@ -157,6 +158,47 @@
       try { store.reconcileMapConsistency(); } catch (eReconcile) { /* ignore */ }
     }
     return true;
+  }
+
+  function normalizeResetLayerOpacities(bookmark, layers) {
+    var store = window.TnetLMStore;
+    var cfgLayers = bookmark && bookmark._cfg && Array.isArray(bookmark._cfg.layers) ? bookmark._cfg.layers : [];
+    var cfgById = {};
+    var originalOpById = {};
+    var i;
+    if (!Array.isArray(layers) || !layers.length || !store || typeof store.findLayer !== 'function') return;
+
+    cfgLayers.forEach(function(entry) {
+      var id = entry && typeof entry === 'object' ? entry.id : String(entry || '');
+      if (id) cfgById[id] = entry;
+    });
+
+    if (bookmark && bookmark._resetOptions && bookmark._resetOptions.originalVisibleLayerIds && bookmark._resetOptions.originalOp) {
+      var ids = bookmark._resetOptions.originalVisibleLayerIds;
+      var ops = String(bookmark._resetOptions.originalOp || '').split('|');
+      for (i = 0; i < ids.length; i++) {
+        if (ops[i] !== undefined && ops[i] !== '') originalOpById[ids[i]] = ops[i];
+      }
+    }
+
+    layers.forEach(function(layer) {
+      var cfgEntry;
+      var cat;
+      var configOpacity;
+      if (!layer || !layer.id) return;
+      if (Object.prototype.hasOwnProperty.call(originalOpById, layer.id)) return;
+      cfgEntry = cfgById[layer.id];
+      if (cfgEntry && typeof cfgEntry === 'object' && cfgEntry.opacity != null) return;
+
+      cat = store.findLayer(layer.id);
+      if (!cat) return;
+      if (cat._configOpacity !== undefined) configOpacity = cat._configOpacity;
+      else if (cat.options && cat.options.opacity !== undefined) configOpacity = cat.options.opacity;
+      else return;
+      configOpacity = Number(configOpacity);
+      if (!isFinite(configOpacity)) return;
+      layer.opacity = Math.max(0, Math.min(1, configOpacity));
+    });
   }
 
   function _isBookmarkLoadActive() {
@@ -189,6 +231,30 @@
       return (l && typeof l === 'object') ? l.id : String(l || '');
     }).filter(function(id) { return !!id; });
     var storeRef = window.TnetLMStore;
+
+    if (Array.isArray(bm._resetLayers) && bm._resetLayers.length) {
+      bm._resetLayers.forEach(function(layer) {
+        if (!layer || !layer.id || layer.visible === false) return;
+        if (!defaultVisibleById[layer.id]) {
+          defaultVisibleById[layer.id] = true;
+          defaultVisible.push(layer.id);
+        }
+      });
+
+      bm.layers.forEach(function(layer) {
+        if (!layer || !layer.id || layer.visible === false) return;
+        if (!currentVisibleById[layer.id]) {
+          currentVisibleById[layer.id] = true;
+          currentVisible.push(layer.id);
+        }
+      });
+
+      if (defaultVisible.length !== currentVisible.length) return true;
+      for (var si = 0; si < defaultVisible.length; si++) {
+        if (!currentVisibleById[defaultVisible[si]]) return true;
+      }
+      return false;
+    }
 
     if (bm.activeViewId && Array.isArray(bm._cfg.views)) {
       bm._cfg.views.forEach(function(view) {

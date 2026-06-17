@@ -1070,7 +1070,11 @@ function _getLayerConfigOpacity(store, layerId) {
   } catch (eFindLayer) {
     catalogLayer = null;
   }
-  opacity = catalogLayer && catalogLayer.options ? catalogLayer.options.opacity : null;
+  if (!catalogLayer) return null;
+  if (catalogLayer._configOpacity !== undefined) opacity = catalogLayer._configOpacity;
+  else if (catalogLayer.options && catalogLayer.options.opacity !== undefined) opacity = catalogLayer.options.opacity;
+  else if (catalogLayer.opacity !== undefined) opacity = catalogLayer.opacity;
+  else opacity = null;
   return _normalizeOpacityValue(opacity);
 }
 
@@ -1713,12 +1717,21 @@ function _getBookmarkExplicitOpacity(cfg, layerId) {
 }
 
 function _applyUrlConfigFallbackOpacity(options) {
-  var ids = options && options.visibleLayerIds;
+  var optionIds = options && options.visibleLayerIds;
   var store = window.TnetLMStore;
   var bookmark = window.__tnetActiveBookmark;
-  var allReady = true;
-  if (!ids || !ids.length || !store || (options && options.opacityValues && options.opacityValues.length)) return;
   if (!bookmark || !bookmark._cfg || !Array.isArray(bookmark.layers)) return false;
+  var ids = [];
+  function addId(layerId) {
+    var id = String(layerId || '').replace(/^[-\s]+/, '').trim();
+    if (id && ids.indexOf(id) === -1) ids.push(id);
+  }
+  if (options && options.opacityValues && options.opacityValues.length) return;
+  if (!store) return false;
+  if (typeof store.isLoaded === 'function' && !store.isLoaded()) return false;
+  (bookmark.layers || []).forEach(function(layer) { if (layer && layer.id) addId(layer.id); });
+  (optionIds || []).forEach(addId);
+  if (!ids.length) return false;
 
   ids.forEach(function(layerId) {
     var id = String(layerId || '').replace(/^[-\s]+/, '').trim();
@@ -1728,10 +1741,7 @@ function _applyUrlConfigFallbackOpacity(options) {
     bookmarkOpacity = _getBookmarkExplicitOpacity(bookmark._cfg, id);
     if (bookmarkOpacity !== null) return;
     configOpacity = _getLayerConfigOpacity(store, id);
-    if (configOpacity === null) {
-      allReady = false;
-      return;
-    }
+    if (configOpacity === null) return;
 
     bookmark.layers.forEach(function(layer) {
       if (layer && layer.id === id) layer.opacity = configOpacity;
@@ -1747,7 +1757,7 @@ function _applyUrlConfigFallbackOpacity(options) {
     try { setTimeout(function() { store.reconcileMapConsistency(); }, 150); }
     catch (eReconcileConfigOp) { /* ignore */ }
   }
-  return allReady;
+  return true;
 }
 
 function _scheduleUrlConfigFallbackOpacity(options) {
@@ -1756,10 +1766,10 @@ function _scheduleUrlConfigFallbackOpacity(options) {
   if (options && options.opacityValues && options.opacityValues.length) return;
   if (_applyUrlConfigFallbackOpacity(options)) return;
   timer = setInterval(function() {
-    if (_applyUrlConfigFallbackOpacity(options) || Date.now() - startedAt > 30000) {
+    if (_applyUrlConfigFallbackOpacity(options) || Date.now() - startedAt > 8000) {
       clearInterval(timer);
     }
-  }, 1000);
+  }, 500);
 }
 
 /**
@@ -2186,8 +2196,20 @@ function TnetLayerSwitch(layerId, mode) {
 
   function buildLayerIdCandidates(id) {
     var raw = String(id || '');
-    if (!raw) return [raw];
-    return [raw];
+    var list = [];
+    function add(value) {
+      if (value && list.indexOf(value) === -1) list.push(value);
+    }
+    function stripOerebVersion(value) {
+      return String(value || '').replace(/_v\d+_\d+\.oereb$/i, '');
+    }
+    add(raw);
+    add(stripOerebVersion(raw));
+    if (raw && raw.indexOf('.oereb') === -1 && raw.indexOf('/') === -1) {
+      add(raw + '_v2_0.oereb');
+      add(raw + '_aenderung_v2_0.oereb');
+    }
+    return list.length ? list : [raw];
   }
 
   var layerIdCandidates = buildLayerIdCandidates(layerId);
@@ -2353,9 +2375,13 @@ function TnetLayerSwitch(layerId, mode) {
               if (_p.LAYERS || _p.layers) _wmsParams.LAYERS = _p.LAYERS || _p.layers;
               if (_p.FORMAT || _p.format) _wmsParams.FORMAT = _p.FORMAT || _p.format;
             }
+            var _directOpacity = _normalizeOpacityValue(_catLayerFb._configOpacity !== undefined ? _catLayerFb._configOpacity : _catLayerFb.opacity);
             var _src = new ol.source.TileWMS({ url: _catLayerFb.url, params: _wmsParams });
             var _olLyr = new ol.layer.Tile({
-              source: _src, opacity: _catLayerFb.opacity || 1.0, visible: true, zIndex: 200
+              source: _src,
+              opacity: _directOpacity !== null ? _directOpacity : 1.0,
+              visible: true,
+              zIndex: 200
             });
             _olLyr.set('name', layerId);
             // Framework-Event-Handler können bei unbekannten Layern crashen → supprimieren
@@ -2410,8 +2436,10 @@ function TnetLayerSwitch(layerId, mode) {
             var mgrFb = am.LyrMgr[lmFb];
             if (mgrFb.targetMap && dojo.indexOf(mgrFb.targetMap, 'main') > -1 &&
                 typeof mgrFb.switchLayersProgr === 'function') {
-              mgrFb.switchLayersProgr(layerId, null, true);
-              anyMgr = true;
+              for (var cf = 0; cf < layerIdCandidates.length; cf++) {
+                mgrFb.switchLayersProgr(layerIdCandidates[cf], null, true);
+                anyMgr = true;
+              }
             }
           }
         }
@@ -2428,9 +2456,13 @@ function TnetLayerSwitch(layerId, mode) {
                 if (_p.LAYERS || _p.layers) _wmsParams.LAYERS = _p.LAYERS || _p.layers;
                 if (_p.FORMAT || _p.format) _wmsParams.FORMAT = _p.FORMAT || _p.format;
               }
+              var _directOpacity2 = _normalizeOpacityValue(_catLayer._configOpacity !== undefined ? _catLayer._configOpacity : _catLayer.opacity);
               var _src = new ol.source.TileWMS({ url: _catLayer.url, params: _wmsParams });
               var _olLyr = new ol.layer.Tile({
-                source: _src, opacity: _catLayer.opacity || 1.0, visible: true, zIndex: 200
+                source: _src,
+                opacity: _directOpacity2 !== null ? _directOpacity2 : 1.0,
+                visible: true,
+                zIndex: 200
               });
               _olLyr.set('name', layerId);
               // Framework-Event-Handler können bei unbekannten Layern crashen → supprimieren

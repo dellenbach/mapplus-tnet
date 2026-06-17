@@ -1,4 +1,53 @@
-﻿## 2026-06-17 - Literaler error-Response braucht Koordinaten-Fallback
+﻿## 2026-06-17 - ArcGIS-Bridge darf show:-1 nicht als Bildrequest senden
+
+- **Symptom:** Mehrere Layer liessen sich nicht einschalten; im Browser erschien `EncodingError: The source image cannot be decoded` und der Karteninhalt zeigte `Fehler`.
+- **Root-Cause:** Die Coalesce-Bridge erstellte beim ersten Root-Layer kurz eine ArcGIS-Image-Source mit `LAYERS=show:-1`; einige ArcGIS-Export-Endpunkte liefern dafuer keine dekodierbare Bildantwort.
+- **Fix:** Erster sichtbarer Sublayer wird vor Root-OL-Layer-Erstellung registriert; bei leerem Sublayer-Set wird der Layer nur unsichtbar geschaltet und kein `show:-1` per `updateParams()` gesendet.
+- **Guardrail:** `show:-1` ist ein interner Leerzustand, kein belastbarer ArcGIS-Export-Request. Leere Kombi-Layer ueber Sichtbarkeit steuern, nicht ueber Bildrequest.
+
+## 2026-06-17 - URL-Bookmark-Fixes duerfen keinen 30s-Retry erzeugen
+
+- **Symptom:** Nach Start eines Bookmarks liefen in der Konsole noch laenger als 30 Sekunden Nachzieh-/Retry-Aktivitaeten.
+- **Root-Cause:** Der Opacity-Fallback wartete auf Config-Opacity fuer alle Bookmark-Zeilen; Layer ohne Config-Opacity hielten das Retry-Intervall bis Timeout offen.
+- **Fix:** Retry wartet nur bis der Store geladen ist; fehlende Config-Opacity wird als normaler Skip behandelt und beendet kein weiteres Nachfassen.
+- **Guardrail:** Startup-Fallbacks muessen terminieren, sobald die benoetigte Datenquelle geladen ist. Fehlende optionale Defaults duerfen keine langen Retry-Schleifen ausloesen.
+
+## 2026-06-17 - Karteninhalt-Auge braucht generischen Lazy-Load
+
+- **Symptom:** `ch.astra.baulinien-nationalstrassen` blieb beim Einschalten im Karteninhalt auf Spinner, ohne sichtbar zu werden.
+- **Root-Cause:** `setLayerEye()` hatte einen Lazy-Load nur fuer Coalesce-Sublayer; aktive Bookmark-/URL-Layer ohne aktuellen OL-Layer und ohne Coalesce-Flag fielen durch.
+- **Fix:** `setLayerEye()` startet fuer sichtbare, nicht materialisierte Layer generisch `TnetLayerSwitch(layerId, 'on')`, zieht Opacity nach und beendet den Loading-State sobald der OL-Layer auftaucht.
+- **Guardrail:** Augen-Toggles muessen alle aktiven Bookmark-Layer materialisieren koennen, nicht nur Coalesce-Sublayer.
+
+## 2026-06-17 - Reset-Baseline ist bei URL-Bookmarks der Snapshot
+
+- **Symptom:** Nach `Änderungen verwerfen` blieben Button/Badge sichtbar und Opacity fiel wieder auf 100%.
+- **Root-Cause:** Dirty-Erkennung verglich gegen die rohe Bookmark-Konfiguration statt gegen den URL-Override-Ausgangszustand; Reset-Snapshot konnte bereits mutierte Runtime-Opacity enthalten.
+- **Fix:** Reset-Snapshots normalisieren `opacity:null` zur Config-Opacity; Modified-Vergleich nutzt den Reset-Snapshot als Baseline.
+- **Guardrail:** Bei URL-Overrides ist der initiale URL-Zustand die Undo-Baseline, nicht zwingend die gespeicherte Bookmark-Defaultansicht.
+
+## 2026-06-17 - URL-Bookmarks muessen Config-Opacity fuer alle TOC-Zeilen behalten
+
+- **Symptom:** Start via `layers=` ohne `op=` zeigte Deckkraft-Slider im Karteninhalt auf 100%, obwohl Layer-Defaults z.B. 65% vorgeben.
+- **Root-Cause:** Der URL-Config-Fallback griff nur fuer sichtbare URL-Layer und nutzte teils mutierbare Runtime-Opacity statt unveraenderter Layer-Config.
+- **Fix:** Katalog-Layer konservieren `_configOpacity`; URL-Starts ohne `op=` wenden Config-Opacity auf alle Bookmark-Zeilen an.
+- **Guardrail:** `opacity:null` im Bookmark bedeutet "Layer-Default verwenden". Runtime-/Slider-Werte nie als Config-Default behandeln.
+
+## 2026-06-17 - OEREB-Layer brauchen ID-Kandidaten beim Ein-/Ausschalten
+
+- **Symptom:** Layer wie `ch.astra.baulinien-nationalstrassen` liessen sich aus dem Karteninhalt nicht einschalten.
+- **Root-Cause:** `TnetLayerSwitch()` suchte nur die rohe ID; Legacy-LyrMgr/OL-Layer koennen aber OEREB-Suffixe wie `_v2_0.oereb` verwenden.
+- **Fix:** Layer-Switch und Store-OL-Suche nutzen ID-Kandidaten aus Basis-ID, OEREB-Version und Aenderungsvariante.
+- **Guardrail:** URL-/Bookmark-IDs und Legacy-LyrMgr-IDs nie als garantiert identisch annehmen; Toggle- und OL-Suche muessen dieselben Kandidaten verwenden.
+
+## 2026-06-17 - Bookmark-Start wird vom Layerkatalog dominiert
+
+- **Symptom:** Start von `nw_oereb` wirkte langsam, obwohl die Bookmark-API selbst schnell antwortete.
+- **Root-Cause:** Der grosse Layerkatalog wird aus DB ohne Cache geladen; `cache.enabled:false` erzwingt `nocache=1`.
+- **Fix:** Kurzlebigen DB-Katalogcache in `tnet-global-config.json5` aktiviert (`enableDbCache:true`, 300s TTL).
+- **Guardrail:** Startzeitmessung getrennt nach Bookmark-API, Layerkatalog und Framework-Render messen; erst dann Cache oder Payload optimieren.
+
+## 2026-06-17 - Literaler error-Response braucht Koordinaten-Fallback
 
 - **Symptom:** Die differenzierte Hoehenabfrage blieb leer und loggte wiederholt `Ungueltige Hoehenantwort: error`.
 - **Root-Cause:** Der Primaer-Service lieferte fuer einzelne Punkte nur den Text `error`; der Guard gab dann `null` an den Legacy-Callback weiter und verlor die Anzeige.

@@ -829,7 +829,12 @@
           // Blatt-Layer: visible immer false setzen
           // (tatsächlicher Kartenzustand wird via _syncFromMap übernommen)
           l.visible = false;
-          if (l.opacity === undefined) l.opacity = (l.options && l.options.opacity !== undefined) ? l.options.opacity : 1.0;
+          if (l._configOpacity === undefined) {
+            l._configOpacity = (l.options && l.options.opacity !== undefined)
+              ? l.options.opacity
+              : (l.opacity !== undefined ? l.opacity : 1.0);
+          }
+          if (l.opacity === undefined) l.opacity = l._configOpacity;
         }
       }
     },
@@ -2392,6 +2397,40 @@
         return true;
       }
 
+      // 3) Generischer Lazy-Load für aktive Bookmark-/URL-Layer ohne aktuellen OL-Layer.
+      // Beispiel: geoadmin/OEREB-Layer wie ch.astra.baulinien-nationalstrassen
+      // koennen im Karteninhalt vorhanden sein, obwohl der Framework-Layer noch
+      // nicht materialisiert wurde. In diesem Fall darf das Auge nicht in einem
+      // reinen Spinner-Zustand enden, sondern muss den Framework-Switch anstossen.
+      if (visible && typeof TnetLayerSwitch === 'function') {
+        var selfGeneric = this;
+        _suppressMapSync = true;
+        try { TnetLayerSwitch(layerId, 'on'); } catch (eGenericLazy) { /* ignore */ }
+        setTimeout(function () { _suppressMapSync = false; }, 200);
+        if (layer) layer.visible = true;
+        if (activeEntry) activeEntry.visible = true;
+        this._beginLayerLoading(layerId, null);
+        setTimeout(function () {
+          var amGeneric = selfGeneric._getAppManager();
+          var mapGeneric = amGeneric && amGeneric.Maps && amGeneric.Maps['main'] && amGeneric.Maps['main'].mapObj;
+          var loadedLayers = mapGeneric ? selfGeneric._findAllOLLayers(mapGeneric, layerId) : [];
+          var opacity = layer && layer.opacity != null && isFinite(layer.opacity)
+            ? Math.max(0, Math.min(1, +layer.opacity))
+            : null;
+          for (var gi = 0; gi < loadedLayers.length; gi++) {
+            loadedLayers[gi].setVisible(true);
+            if (opacity !== null && typeof loadedLayers[gi].setOpacity === 'function') {
+              loadedLayers[gi].setOpacity(opacity);
+            }
+          }
+          if (loadedLayers.length) selfGeneric._endLayerLoading(layerId, false);
+        }, 700);
+        this._emit('layer-visibility', { id: layerId, visible: true, source: 'set' });
+        this._emit('active-layers-changed', _activeLayers);
+        TnetLog.log(LOG, 'setLayerEye Generic-LazyLoad:', layerId, '→ EIN (Framework-Switch)');
+        return true;
+      }
+
       return false;
     },
 
@@ -2952,6 +2991,21 @@
       return id.replace(/_v\d+_\d+\.oereb$/i, '');
     },
 
+    _getLayerIdCandidates: function (id) {
+      var raw = String(id || '');
+      var list = [];
+      function add(value) {
+        if (value && list.indexOf(value) === -1) list.push(value);
+      }
+      add(raw);
+      add(this._stripOerebVersionSuffix(raw));
+      if (raw && raw.indexOf('.oereb') === -1 && raw.indexOf('/') === -1) {
+        add(raw + '_v2_0.oereb');
+        add(raw + '_aenderung_v2_0.oereb');
+      }
+      return list;
+    },
+
     /**
      * Prüft ob ein Layer ein Coalesce-Sublayer ist (Teil einer Coalesce-Gruppe).
      * Wird z.B. vom TnetLayerSwitch-Patch in der Bridge verwendet.
@@ -3335,12 +3389,13 @@
     },
 
     _findOLLayer: function (map, layerId) {
+      var candidates = this._getLayerIdCandidates(layerId);
       // Rekursive Suche: auch in OL Layer-Groups (z.B. MAP+ Service-Container)
       function _searchLayers(collection) {
         var found = null;
         collection.forEach(function (layer) {
           if (found) return;
-          if ((layer.get('name') || '') === layerId) {
+          if (candidates.indexOf(layer.get('name') || '') !== -1) {
             found = layer;
           } else if (layer.getLayers) {
             // Layer-Group: rekursiv durchsuchen
@@ -3365,9 +3420,10 @@
      */
     _findAllOLLayers: function (map, layerId) {
       var results = [];
+      var candidates = this._getLayerIdCandidates(layerId);
       function _searchAll(collection) {
         collection.forEach(function (layer) {
-          if ((layer.get('name') || '') === layerId) {
+          if (candidates.indexOf(layer.get('name') || '') !== -1) {
             results.push(layer);
           }
           if (layer.getLayers) {

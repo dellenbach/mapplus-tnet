@@ -223,11 +223,11 @@
 
     // API-Cache-Verhalten fuer layers.php
     cache: {
-      enabled: false,      // true = normal, false = immer nocache=1 anhaengen
+      enabled: true,       // true = normal, false = immer nocache=1 anhaengen
       forceNoCache: false, // true = nocache=1 erzwingen (auch wenn enabled=true)
-      ttlSeconds: 86400,    // Gueltigkeit JSON-Cache in Sekunden (nur relevant fuer source='file')
-      enableDbCache: false, // Optional: auch source='db' cachen (standardmaessig AUS)
-      dbTtlSeconds: 86400      // TTL fuer optionalen DB-Cache (Sekunden)
+      ttlSeconds: 300,     // Gueltigkeit JSON-Cache in Sekunden (nur relevant fuer source='file')
+      enableDbCache: true, // Optional: auch source='db' cachen
+      dbTtlSeconds: 300    // TTL fuer optionalen DB-Cache (Sekunden)
     },
 
     // Cache manuell loeschen:

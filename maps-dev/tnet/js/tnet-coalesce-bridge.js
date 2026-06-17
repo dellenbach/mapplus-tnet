@@ -418,7 +418,7 @@
     var olLayer = new ol.layer.Image({
       source: source,
       opacity: opacity,
-      visible: true,
+      visible: layersParam !== 'show:-1',
       zIndex: 200
     });
     olLayer.set('name', rootKey);
@@ -1315,6 +1315,11 @@
         };
         entry = _rootServices[rootKey];
 
+        entry.registeredSublayers[sublayerKey] = sublayerNum;
+        if (!_isBookmarkSublayerHidden(sublayerKey)) {
+          entry.visibleSublayers[sublayerKey] = sublayerNum;
+        }
+
         TnetLog.log(LOG, '★ Root-Dienst aktivieren:', rootKey);
 
         // 1. Prüfe ob Framework bereits einen OL-Layer hat (von vorherigem Session/Startup)
@@ -1656,6 +1661,14 @@
         var currentVisible = (typeof olLayer.getVisible === 'function') ? olLayer.getVisible() : shouldBeVisible;
         var needsLayersUpdate = (currentLayers !== layersParam);
         var needsVisibilityUpdate = (currentVisible !== shouldBeVisible);
+
+        if (!shouldBeVisible) {
+          try {
+            if (olLayer.getVisible()) olLayer.setVisible(false);
+          } catch (eHideEmpty) { /* setVisible nicht verfügbar */ }
+          TnetLog.debug(LOG, 'OL-Source LAYERS leer, Request unterdrueckt:', rootKey);
+          return;
+        }
 
         if (!needsLayersUpdate && !needsVisibilityUpdate) {
           return;
