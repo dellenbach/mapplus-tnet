@@ -21,6 +21,8 @@
   var _containerId = null;
   var _v1Patched = false;
 
+  var _userReordered = false; // true sobald Drag&Drop-Reorder erkannt
+
   function _resolveProfile() {
     if (typeof TnetApi !== 'undefined' && typeof TnetApi.getActiveProfile === 'function') return TnetApi.getActiveProfile();
     try { var p = new URLSearchParams((window.top||window).location.search); var g = p.get('group'); return (g&&g.trim()) ? g.trim() : 'public'; } catch(e) { return 'public'; }
@@ -52,7 +54,11 @@
   }
 
   function _sortByBookmark(layers) {
+    if (_userReordered) return layers; // Nutzer hat umsortiert -> nicht ueberschreiben
     if (Object.keys(_serviceGroupsOrder).length===0) return layers;
+    // Prüfen ob layers bereits explizite order-Werte haben (V1 setzt sie nach Drag&Drop)
+    var hasExplicitOrder = layers.some(function(l) { return l && typeof l.order === 'number'; });
+    if (hasExplicitOrder) { _userReordered = true; return layers; }
     var order = _serviceGroupsOrder; var MAX = 999999;
     return layers.slice().sort(function(a,b){ return (order[a.id]!==undefined?order[a.id]:MAX)-(order[b.id]!==undefined?order[b.id]:MAX); });
   }
@@ -148,7 +154,7 @@
         window.TnetLMActive.init(containerId);
       } else { TnetLog.error(LOG, 'TnetLMActive fehlt'); return; }
       document.addEventListener('tnet-bookmark-loaded', function() {
-        _serviceGroupsOrder={}; _apiGroupNames={}; _bookmarkData=null;
+        _serviceGroupsOrder={}; _apiGroupNames={}; _bookmarkData=null; _userReordered=false;
         var container = document.getElementById(_containerId);
         var existing = container&&container.querySelector('.lm-v2-views-row'); if(existing) existing.remove();
         var bm=window.__tnetActiveBookmark; var bmId=bm&&(bm.id||bm['map-bookmark']); if(bmId) _loadBookmarkApi(bmId);
