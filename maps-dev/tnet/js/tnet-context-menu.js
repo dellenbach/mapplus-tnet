@@ -53,7 +53,7 @@ var clickedCoords = null; // {lv95: [E, N], wgs84: [lon, lat], pixel: [x, y]}
             // Marker-Style mit externem SVG-Pin
             var markerStyle = new ol.style.Style({
                 image: new ol.style.Icon({
-                    anchor: [0.5, 70],
+                    anchor: [0.5, 80],
                     anchorXUnits: 'fraction',
                     anchorYUnits: 'pixels',
                     src: getAppRoot() + '/tnet/resources/icons/marker-pin.svg',

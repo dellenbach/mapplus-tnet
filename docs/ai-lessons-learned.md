@@ -1,4 +1,46 @@
-﻿## 2026-06-16 - Bookmark-Reset muss Runtime-Snapshot statt Full-Reload nutzen
+﻿## 2026-06-17 - Literaler error-Response braucht Koordinaten-Fallback
+
+- **Symptom:** Die differenzierte Hoehenabfrage blieb leer und loggte wiederholt `Ungueltige Hoehenantwort: error`.
+- **Root-Cause:** Der Primaer-Service lieferte fuer einzelne Punkte nur den Text `error`; der Guard gab dann `null` an den Legacy-Callback weiter und verlor die Anzeige.
+- **Fix:** Der Guard extrahiert bei ungueltiger Primaerantwort `x/y/srs` aus dem urspruenglichen Request und holt per GeoAdmin-Height-Fallback eine stabile Hoehe; bei Erfolg wird Anzeige + Legacy-Load mit diesem Wert bedient.
+- **Guardrail:** Bei Hoehenservices mit sporadischen Textfehlern nie direkt abbrechen, sondern einen koordinierten Fallback mit denselben Request-Parametern nutzen.
+
+## 2026-06-16 - Hoehenabfrage crasht bei Textantwort
+
+- **Symptom:** Klick auf leere Karte erzeugt `ReferenceError: error is not defined` aus `njs.Tools.ElevationDisplay._formatElevation`.
+- **Root-Cause:** Dojo `xhrGet` parst die Hoehenantwort mit `handleAs: "json"`; bei Textantworten wie `error` scheitert `dojo.fromJson` per eval.
+- **Fix:** TNET-Elevation-Guard setzt Hoehen-XHRs auf Text-Parsing und extrahiert Zahlen/JSON-Felder robust; der 3D-Hoehenaufruf nutzt ebenfalls tolerantes Parsing.
+- **Guardrail:** Externe Services, die einfache Zahlen liefern koennen, nie hart als JSON laden; Text laden und explizit validieren.
+
+## 2026-06-16 - Hoehen-Guard muss vor Framework-Modulen aktiv sein
+
+- **Symptom:** Hoehenfix griff nicht zuverlaessig in allen Startpfaden; ungueltige Antworten konnten weiterhin den Framework-Fehlerpfad erreichen.
+- **Root-Cause:** Guard wurde erst spaet eingebunden und erkannte nur URL-Parameter, nicht Dojo-`content`-Parameter; bei ungueltiger Antwort wurde `error` statt ein neutraler Load-Wert aufgerufen.
+- **Fix:** Guard wird vor `modules.js`/`tnet_modules_m.js` geladen, erkennt Parameter in URL und `content`, und gibt bei ungueltiger Hoehe `null` an den originalen Load-Handler weiter.
+- **Guardrail:** Patches fuer Framework-XHRs immer vor den Modulen einbinden und beide Dojo-Parameterformen pruefen: Querystring und `args.content`.
+
+## 2026-06-16 - Hoehenantwort nutzt DEM/DSM-Felder
+
+- **Symptom:** Hoehenantwort `{"dem":551.88,"dsm":551.88}` wurde trotz gueltigem JSON als ungueltig geloggt.
+- **Root-Cause:** Der Guard extrahierte nur generische Felder wie `height`, `elevation`, `z`, aber nicht die GeoAdmin-Felder `dem`/`dsm`.
+- **Fix:** `parseElevationValue()` akzeptiert `dem` und `dsm`, mit `dem` vor `dsm` als Terrainhoehe.
+- **Guardrail:** Bei GeoAdmin-Hoehenservices immer die realen Antwortfelder `dem` und `dsm` beruecksichtigen, nicht nur generische Hoehenfeldnamen.
+
+## 2026-06-16 - Hoehenanzeige braucht Terrain, Oberflaeche und Objekt
+
+- **Symptom:** Trotz `dem`/`dsm`-Antwort zeigte die Fussleiste nur eine einzelne Hoehe.
+- **Root-Cause:** Der Guard reduzierte die Antwort fuer das Framework auf eine Zahl und verlor die zweite Hoehe samt Differenz.
+- **Fix:** Der Guard gibt dem Framework weiter die Terrainhoehe (`dem`), schreibt aber parallel Gelände, Oberfläche und Objekt in `z_alti1` und die Footer-Anzeige.
+- **Guardrail:** Parser duerfen strukturierte Messwerte nicht zu frueh auf eine einzelne Zahl reduzieren, wenn die UI mehrere abgeleitete Werte anzeigen soll.
+
+## 2026-06-16 - Kartenmarker-Spitze muss SVG-Anker verwenden
+
+- **Symptom:** Roter Kartenmarker lag sichtbar zu tief; die Spitze traf nicht den Klickpunkt auf der Linie.
+- **Root-Cause:** Der OpenLayers-Icon-Anker nutzte `y=70`, obwohl die SVG-Spitze bei `y=80` im `viewBox` liegt.
+- **Fix:** Marker-Anker in `tnet-context-menu.js` auf `[0.5, 80]` gesetzt, passend zur Pin-Spitze im SVG.
+- **Guardrail:** Bei SVG-Icons den Anchor aus dem `viewBox`/Pfad ablesen, nicht aus der gesamten Bildhoehe oder dem Schattensaum schaetzen.
+
+## 2026-06-16 - Bookmark-Reset muss Runtime-Snapshot statt Full-Reload nutzen
 
 - **Symptom:** Nach Klick auf `Änderungen verwerfen` dauerte das Zurücksetzen lange, und der Modified-Button blieb sichtbar bzw. der Zähler blieb abweichend.
 - **Root-Cause:** Der Reset lud das Bookmark vollständig neu bzw. nutzte den laufend synchronisierten URL-Override-Zustand. Dadurch wurde der aktuelle geänderte Zustand erneut angewendet oder der Ausgangszustand neu berechnet statt exakt wiederhergestellt.
