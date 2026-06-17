@@ -30,6 +30,7 @@ require_once __DIR__ . '/../includes/CacheHelper.php';
 require_once __DIR__ . '/../includes/BookmarkNormalizer.php';
 require_once __DIR__ . '/../includes/BookmarkRepository.php';
 require_once __DIR__ . '/../includes/ConfigReader.php';
+require_once __DIR__ . '/../includes/StagingImportRepository.php';
 
 ApiResponse::setHeaders();
 
@@ -85,61 +86,49 @@ if ($source === 'db') {
 
 CacheHelper::setNoCache();
 
-// === NLS-Namen aus lyrmgrResources_*.json laden (gleiche Quelle wie SLM/listAllLayers) ===
-// Gibt Map zurück: layer_id => display_name
-// Verwendet desc_<layerId> und desc_<layerId_mit_underscores> als Lookup-Keys.
-// Bei leerem Profil oder Fehler: leeres Array (Fallback auf formatLayerIdPart()).
+// === NLS-Namen ausschliesslich aus DB (StagingImportRepository Bundles) laden ===
+// Kein JSON-Fallback. Wenn die DB leer/nicht verfügbar ist, wird ein leeres Array
+// zurückgegeben → formatLayerIdPart() liefert dann den rohen Layer-ID-Teil.
+// Scope-Reihenfolge: core -> override/sitecore -> profile (wie listAllLayers()).
 function loadProfileLayerNames(string $profile): array {
-    // Basis-NLS aus core/nls/de
     $nlsData = [];
-    $nlsDirBase = ConfigReader::getCoreNlsPath('de');
-    if ($nlsDirBase && is_dir($nlsDirBase)) {
-        foreach (glob($nlsDirBase . '/lyrmgrResources*.json') ?: [] as $f) {
-            $d = @json_decode(@file_get_contents($f), true);
-            if (is_array($d)) $nlsData = array_merge($nlsData, $d);
-        }
-    }
-    // App-Override: maps/core/nls/de (überschreibt Basis)
-    $nlsDirOverride = TnetCorePaths::getAppCoreNlsPath('de');
-    if ($nlsDirOverride && is_dir($nlsDirOverride) && $nlsDirOverride !== $nlsDirBase) {
-        foreach (glob($nlsDirOverride . '/lyrmgrResources*.json') ?: [] as $f) {
-            $d = @json_decode(@file_get_contents($f), true);
-            if (is_array($d)) $nlsData = array_merge($nlsData, $d);
-        }
-    }
-    // Profil-spezifische NLS (z.B. lyrmgrResources_nwpro.json in public/config/nwpro/)
-    if ($profile) {
-        $safe = preg_replace('/[^a-zA-Z0-9_\-]/', '', $profile);
-        $profConfigPath = ConfigReader::getPublicConfigPath($safe);
-        if ($profConfigPath && is_dir($profConfigPath)) {
-            foreach (glob($profConfigPath . '/lyrmgrResources*.json') ?: [] as $f) {
-                $d = @json_decode(@file_get_contents($f), true);
-                if (is_array($d)) $nlsData = array_merge($nlsData, $d);
+
+    try {
+        $scopeRank = ['core' => 1, 'override' => 2, 'sitecore' => 2, 'profile' => 3];
+        $bundles = StagingImportRepository::loadAllSafe();
+        if (empty($bundles)) return []; // DB leer → kein Fallback
+        usort($bundles, function ($a, $b) use ($scopeRank) {
+            $ra = $scopeRank[$a['scope'] ?? 'core'] ?? 1;
+            $rb = $scopeRank[$b['scope'] ?? 'core'] ?? 1;
+            if ($ra === $rb) return strcmp($a['kuerzel'] ?? '', $b['kuerzel'] ?? '');
+            return $ra - $rb;
+        });
+        foreach ($bundles as $bundle) {
+            $bScope   = $bundle['scope'] ?? 'core';
+            $bProfile = $bundle['profile'] ?? null;
+            // Profil-Bundles nur für das aktuelle Profil
+            if ($bScope === 'profile') {
+                if (!$profile || $bProfile !== $profile) continue;
+            }
+            foreach (($bundle['files'] ?? []) as $file) {
+                if (($file['prefix'] ?? '') !== 'lyrmgrResources') continue;
+                $data = $file['data'] ?? null;
+                if (is_array($data) && !empty($data)) {
+                    $nlsData = array_merge($nlsData, $data);
+                }
             }
         }
-        // Profil-NLS auch im app-lokalen nls-Ordner suchen
-        foreach ([$nlsDirBase, $nlsDirOverride] as $nlsDir) {
-            if (!$nlsDir) continue;
-            $profNlsFile = $nlsDir . '/lyrmgrResources_' . $safe . '.json';
-            if (file_exists($profNlsFile)) {
-                $d = @json_decode(@file_get_contents($profNlsFile), true);
-                if (is_array($d)) $nlsData = array_merge($nlsData, $d);
-            }
-        }
+    } catch (\Throwable $e) {
+        return []; // DB nicht verfügbar
     }
 
     // Map aufbauen: layer_id => display_name
-    // NLS-Key-Format: "desc_<layer_id>" oder "desc_<layer_id_mit_underscores>"
     $map = [];
     foreach ($nlsData as $key => $value) {
         if (strpos($key, 'desc_') !== 0) continue;
-        $raw = substr($key, 5); // ohne "desc_"
-        // Normalisiere: Unterstriche können Slashes repräsentieren
-        // Beides registrieren: mit / und mit _
-        $withSlash = str_replace('_', '/', $raw);
-        $withUnderscore = $raw;
-        $map[$withSlash] = $value;
-        $map[$withUnderscore] = $value;
+        $raw = substr($key, 5);
+        $map[str_replace('_', '/', $raw)] = $value;
+        $map[$raw] = $value;
     }
     return $map;
 }
