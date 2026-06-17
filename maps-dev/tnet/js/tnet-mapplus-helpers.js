@@ -61,6 +61,37 @@ var TnetApi = (function() {
     },
 
     /**
+     * Bookmark V2 laden — mit Hierarchie-Tree, NLS-Namen und Profil-Filter.
+     * Liefert serviceGroups[].tree[] statt layers[].
+     * @param {string} name - Bookmark-ID oder Alias
+     * @param {string} [profile] - Profil-Code (z.B. 'public', 'nwpro') — Default aus URL ?group=
+     * @returns {Promise<Object>} - Bookmark-Daten V2 mit serviceGroups[].tree[]
+     */
+    getBookmarkV2: function(name, profile) {
+      var p = profile || TnetApi.getActiveProfile();
+      return get('bookmarks', { name: name, source: 'db', hierarchy: '2', profile: p, names: '1' }).then(function(res) {
+        if (!res.success) throw new Error(res.error && res.error.message || 'Bookmark nicht gefunden');
+        return res.data;
+      });
+    },
+
+    /**
+     * Aktives Profil aus URL lesen (?group=xxx), Default: 'public'.
+     * @returns {string}
+     */
+    getActiveProfile: function() {
+      try {
+        var params = new URLSearchParams(
+          (window.top && window.top.location ? window.top.location : window.location).search
+        );
+        var g = params.get('group');
+        return (g && g.trim()) ? g.trim() : 'public';
+      } catch (e) {
+        return 'public';
+      }
+    },
+
+    /**
      * Alle Bookmark-Namen auflisten
      * @returns {Promise<Array>} - [{id, name?, aliases?}, ...]
      */

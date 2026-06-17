@@ -46,10 +46,10 @@ info:
     url: https://www.trigonet.ch
 
 servers:
-- url: https://www.gis-daten.ch/maps/tnet/api
+- url: /maps-dev/tnet/api
+  description: DEV
+- url: /maps/tnet/api
   description: Produktion
-- url: http://localhost/maps/tnet/api
-  description: Lokale Entwicklung
 
 tags:
 - name: Layers
@@ -209,15 +209,84 @@ paths:
       tags: [ Bookmarks ]
       summary: Bookmarks abrufen
       description: |
-        Ohne `name`-Parameter: Liste aller Bookmark-Namen.  
-        Mit `name`-Parameter: Ein einzelner Bookmark mit Konfiguration.
+        ## Modi
+
+        | Parameter | Modus | Antwort |
+        |---|---|---|
+        | _(kein name)_ | **Listenmodus** | Kompakte Liste aller Bookmarks (`id`, `name`, `aliases`, `basemapColorMode`) |
+        | `name=<id>` | **Detailmodus** | Vollständige Bookmark-Konfiguration (layers, basemap, themes, views, …) |
+
+        **Pflichtparameter:** `source=db` oder `source=file`
+
+        ## Parameter-Kombinationen
+
+        - `name=<id>` → Einzelner Bookmark (immer vollständig, `full` wird ignoriert)
+        - _(kein name)_ → Kompakte Liste
+        - _(kein name)_ + `full=1` → Liste mit vollständigen Objekten (bulk, für SLM/Editor)
+        - `name=<id>` + `hierarchy=1` → Einzelner Bookmark **+ `serviceGroups[]`** (Layer nach Dienst aggregiert)
+        - _(kein name)_ + `full=1` + `hierarchy=1` → Vollständige Liste inkl. `serviceGroups[]` pro Bookmark
+
+        ## serviceGroups (hierarchy=1)
+
+        Fasst alle Layer-IDs nach den ersten 2 Pfad-Segmenten zusammen:
+        `gis_oereb/nw_kbs_def/belastete_standorte_flaechen` → Gruppe `gis_oereb/nw_kbs_def`.
+        Eine Gruppe kann 1 (flat ID) oder mehrere IDs (Root + Sublayer) enthalten.
       parameters:
       - name: name
         in: query
-        description: Name des gesuchten Bookmarks
+        description: "ID des gesuchten Bookmarks (z. B. `nw_oereb`). Schaltet in den **Detailmodus** — liefert vollständige Konfiguration. Ohne diesen Parameter: Listenmodus."
         schema:
           type: string
-        example: nw_nutzungsplanung
+        example: nw_oereb
+      - name: source
+        in: query
+        required: true
+        description: Datenquelle — `db` (Datenbank, Standard) oder `file` (JSON-Datei).
+        schema:
+          type: string
+          enum: [ db, file ]
+        example: db
+      - name: hierarchy
+        in: query
+        description: |
+          Erweitert die Antwort um `serviceGroups[]`:
+          - `1` — **Flach**: jede Gruppe hat `svc` + `layerIds[]` + `opacity`
+          - `2` — **Nested Tree**: jede Gruppe hat `svc` + `tree[]` + `opacity`. `tree[]` ist ein rekursiver Baum mit `id`, `visible`, `opacity`, `filter`, `children[]`
+        schema:
+          type: string
+          enum: [ "1", "2" ]
+        example: "1"
+      - name: full
+        in: query
+        description: "Nur im **Listenmodus** (kein `name`): `full=1` liefert vollständige v2-Objekte statt kompakter id/name/aliases-Einträge. **Wird ignoriert wenn `name` angegeben ist** — der Detailmodus ist immer vollständig."
+        schema:
+          type: string
+          enum: [ "1" ]
+      - name: profile
+        in: query
+        description: |
+          Profil-Filter (Kartengruppe). Wenn angegeben, werden die Layer des Bookmarks
+          **serverseitig** auf die im Profil konfigurierten Layer gefiltert.
+          Dienste/Gruppen ohne gültige Layer werden komplett weggelassen.
+          Der Client braucht **keine eigene Validierungslogik** mehr.
+
+          Verfügbare Profile: `public`, `nwpro`, `owpro`, `uwpro`, `marco`
+
+          Empfohlene Kombination: `hierarchy=2&profile=<profil>`
+        schema:
+          type: string
+          enum: [ public, nwpro, owpro, uwpro, marco ]
+        example: nwpro
+      - name: names
+        in: query
+        description: |
+          Wenn `1`: ergänzt bei `hierarchy=2` serverseitig aufgelöste Namen (`name`) für
+          Dienst-Gruppen und Tree-Knoten (aus Katalog/NLS), damit der Client keine
+          eigene Label-Logik benötigt.
+        schema:
+          type: string
+          enum: [ "1" ]
+        example: "1"
       responses:
         "200":
           description: Erfolgreiche Antwort
@@ -229,26 +298,171 @@ paths:
                 - $ref: "#/components/schemas/BookmarkDetailResponse"
               examples:
                 list:
-                  summary: Alle Bookmarks
+                  summary: Liste aller Bookmarks (source=db)
                   value:
                     success: true
                     data:
-                    - name: nw_nutzungsplanung
-                      aliases: [ nw_np ]
-                    - name: ow_nutzungsplanung
+                    - id: nw_nutzungsplanung
+                      name: Nutzungsplanung NW
+                      aliases: [ nw_np, nw_raumplanung ]
+                      basemapColorMode: color
+                    - id: nw_oereb
+                      name: "ÖREB Nidwalden"
+                      aliases: [ nw_oereb_test ]
+                      basemapColorMode: grey
+                    - id: ow_nutzungsplanung
+                      name: Nutzungsplanung OW
+                      aliases: []
+                      basemapColorMode: color
                     meta:
                       count: 42
+                      source: db
+                      hierarchy: false
+                      schemaVersion: 2
                 detail:
-                  summary: Einzelner Bookmark
+                  summary: Einzelner Bookmark (source=db)
                   value:
                     success: true
                     data:
-                      map-bookmark: nw_nutzungsplanung
-                      basemap: landeskarte_farbe
+                      id: nw_oereb
+                      meta:
+                        schemaVersion: 2
+                      name: "ÖREB Nidwalden"
+                      aliases: [ nw_oereb_test ]
+                      basemap: av_sw
+                      basemapColorMode: grey
+                      themes: "nw:oereb"
+                      views:
+                      - id: NPL
+                        name: Nutzungsplanung
+                        isDefault: false
+                        layerStates:
+                          gis_oereb/nw_nutzungsplanung_def/grundnutzung:
+                            visible: true
                       layers:
-                      - nw_nutzungsplanung_grundnutzung
-                      theme: grundlagen
-                      subtheme: raumplanung
+                      - id: gis_oereb/nw_nutzungsplanung_def
+                        visible: false
+                        opacity: null
+                        order: null
+                        filter: null
+                      - id: gis_oereb/nw_nutzungsplanung_def/grundnutzung
+                        visible: false
+                        opacity: null
+                        order: null
+                        filter: null
+                      - id: gis_oereb/nw_nutzungsplanung_def/gefahrenzone
+                        visible: true
+                        opacity: null
+                        order: null
+                        filter: null
+                detail_hierarchy:
+                  summary: "hierarchy=1 — flat serviceGroups + layers[] (source=db)"
+                  description: |
+                    Jede Gruppe enthält `svc`, `layerIds[]` und `opacity`.
+                    `layers[]` bleibt enthalten (flache Liste zur Referenz).
+                  value:
+                    success: true
+                    data:
+                      id: nw_oereb
+                      meta:
+                        schemaVersion: 2
+                      name: "ÖREB Nidwalden"
+                      aliases: [ nw_oereb_test ]
+                      basemap: av_sw
+                      basemapColorMode: grey
+                      themes: "nw:oereb"
+                      layers:
+                      - id: gis_oereb/nw_nutzungsplanung_def
+                        visible: false
+                        opacity: null
+                        order: null
+                        filter: null
+                      - id: gis_oereb/nw_nutzungsplanung_def/grundnutzung
+                        visible: false
+                        opacity: null
+                        order: null
+                        filter: null
+                      - id: gis_oereb/nw_nutzungsplanung_def/gefahrenzone
+                        visible: true
+                        opacity: null
+                        order: null
+                        filter: null
+                      - id: gis_oereb/nw_kbs_def
+                        visible: false
+                        opacity: null
+                        order: null
+                        filter: null
+                      - id: ch.astra.baulinien-nationalstrassen
+                        visible: false
+                        opacity: null
+                        order: null
+                        filter: null
+                      serviceGroups:
+                      - svc: gis_oereb/nw_nutzungsplanung_def
+                        layerIds:
+                        - gis_oereb/nw_nutzungsplanung_def
+                        - gis_oereb/nw_nutzungsplanung_def/grundnutzung
+                        - gis_oereb/nw_nutzungsplanung_def/gefahrenzone
+                        opacity: null
+                      - svc: gis_oereb/nw_kbs_def
+                        layerIds:
+                        - gis_oereb/nw_kbs_def
+                        opacity: null
+                      - svc: ch.astra.baulinien-nationalstrassen
+                        layerIds:
+                        - ch.astra.baulinien-nationalstrassen
+                        opacity: null
+                detail_tree:
+                  summary: "hierarchy=2 — nested tree, KEIN layers[] (source=db)"
+                  description: |
+                    `layers[]` wird weggelassen — alle Infos stecken im `tree[]`.
+                    Client traversiert nur `serviceGroups[].tree[]` rekursiv, keine eigene Logik nötig.
+                  value:
+                    success: true
+                    data:
+                      id: nw_oereb
+                      meta:
+                        schemaVersion: 2
+                      name: "ÖREB Nidwalden"
+                      aliases: [ nw_oereb_test ]
+                      basemap: av_sw
+                      basemapColorMode: grey
+                      themes: "nw:oereb"
+                      serviceGroups:
+                      - svc: gis_oereb/nw_nutzungsplanung_def
+                        opacity: null
+                        tree:
+                        - id: gis_oereb/nw_nutzungsplanung_def
+                          visible: false
+                          opacity: null
+                          filter: null
+                          children:
+                          - id: gis_oereb/nw_nutzungsplanung_def/grundnutzung
+                            visible: false
+                            opacity: null
+                            filter: null
+                            children: []
+                          - id: gis_oereb/nw_nutzungsplanung_def/gefahrenzone
+                            visible: true
+                            opacity: null
+                            filter: null
+                            children: []
+                      - svc: gis_oereb/nw_kbs_def
+                        opacity: null
+                        tree:
+                        - id: gis_oereb/nw_kbs_def
+                          visible: false
+                          opacity: null
+                          filter: null
+                          children: []
+                      - svc: ch.astra.baulinien-nationalstrassen
+                        opacity: null
+                        tree:
+                        - id: ch.astra.baulinien-nationalstrassen
+                          visible: false
+                          opacity: null
+                          filter: null
+                          children: []
         "404":
           description: Bookmark nicht gefunden
           content:
@@ -1682,15 +1896,40 @@ components:
         properties:
           data:
             type: array
+            description: Kompakte Liste aller Bookmarks (id, name, aliases, basemapColorMode)
             items:
               type: object
               properties:
+                id:
+                  type: string
+                  example: nw_oereb
                 name:
                   type: string
+                  example: "ÖREB Nidwalden"
                 aliases:
                   type: array
                   items:
                     type: string
+                basemapColorMode:
+                  type: string
+                  enum: [ color, grey ]
+                  example: grey
+          meta:
+            type: object
+            properties:
+              count:
+                type: integer
+                example: 42
+              source:
+                type: string
+                enum: [ db, file ]
+                example: db
+              hierarchy:
+                type: boolean
+                example: false
+              schemaVersion:
+                type: integer
+                example: 2
 
     BookmarkDetailResponse:
       allOf:
@@ -1700,22 +1939,89 @@ components:
           data:
             type: object
             properties:
-              map-bookmark:
+              id:
                 type: string
+                example: nw_oereb
+              name:
+                type: string
+                example: "ÖREB Nidwalden"
               aliases:
                 type: array
                 items:
                   type: string
               basemap:
                 type: string
+                example: av_sw
+              basemapColorMode:
+                type: string
+                enum: [ color, grey ]
+                example: grey
+              themes:
+                type: string
+                description: Themen-Kenner im Format `kanton:thema`
+                example: "nw:oereb"
               layers:
                 type: array
+                description: Layer-Zustände des Bookmarks
                 items:
-                  type: string
-              theme:
-                type: string
-              subtheme:
-                type: string
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                    visible:
+                      type: boolean
+                    opacity:
+                      type: number
+                      nullable: true
+                    order:
+                      type: integer
+                      nullable: true
+                    filter:
+                      type: string
+                      nullable: true
+              serviceGroups:
+                type: array
+                description: "Nur vorhanden wenn `hierarchy=1`. Fasst Layer nach den ersten 2 Pfad-Segmenten ihrer ID zusammen."
+                items:
+                  type: object
+                  properties:
+                    svc:
+                      type: string
+                      description: Dienst-Kenner (erste 2 Pfad-Segmente der Layer-ID)
+                      example: gis_oereb/nw_nutzungsplanung_def
+                    layerIds:
+                      type: array
+                      items:
+                        type: string
+                    opacity:
+                      type: number
+                      nullable: true
+                      description: Erste non-null opacity der Gruppe
+              meta:
+                type: object
+                properties:
+                  schemaVersion:
+                    type: integer
+                    example: 2
+              views:
+                type: array
+                description: Vordefinierte Kartenansichten innerhalb des Bookmarks
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                    name:
+                      type: string
+                    isDefault:
+                      type: boolean
+                    layerStates:
+                      type: object
+                      additionalProperties:
+                        type: object
+                        properties:
+                          visible:
+                            type: boolean
 
     # === Info ===
     InfoResponse:

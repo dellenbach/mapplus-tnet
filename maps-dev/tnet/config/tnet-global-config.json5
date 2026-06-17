@@ -239,7 +239,7 @@
   // Wird verwendet wenn mainSource='direct' oder fuer PHP-Code der keine API nutzt
   configSourceDirect: {
     default:         'files', // 'db' | 'files'
-    bookmarks:       'files',
+    bookmarks:       'db',
     layers:          'files',
     catalog:         'files',
     fallbackToFiles: false,
@@ -254,6 +254,20 @@
     // Feature-Flag: neues Active-Panel (Dargestellte Themen) verwenden?
     // true = neues Drag&Drop-Panel | false = Legacy njs_main_lyrsorter_wrapper
     useNewActivePanel: true,
+
+    // Feature-Flag: Karteninhalt V2 (Bookmark-API als Datenquelle)
+    // true  = V2 aktiv: Reihenfolge aus DB, NLS-Namen, Views-Dropdown
+    // false = V1 aktiv (Standard, Katalog-Coalesce-Gruppen)
+    useActiveV2: true,
+
+    // Karteninhalt V2 Optionen (nur relevant wenn useActiveV2: true)
+    activeV2: {
+      // true  = Hierarchische Gruppen-Ansicht (Dienst-Header + aufklappbare Sublayer)
+      // false = Flache Liste (nur Leaf-Layer ohne Gruppen)
+      showHierarchy: true,
+      // Profil-Fallback falls kein ?group= in URL (wird automatisch aus URL gelesen)
+      defaultProfile: 'public',
+    },
 
     // Feature-Flag: neuen Themenkatalog-Baum verwenden?
     // true = TNET-Tree mit Wappen-Tabs + Suche | false = Legacy Dojo-Baum (kantons_container)

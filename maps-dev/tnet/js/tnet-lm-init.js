@@ -313,13 +313,18 @@
       }
     }
 
-    // Active-Panel initialisieren (Desktop + Mobile wenn useNewActivePanel aktiv)
+    // Active-Panel: V2 ersetzt V1 vollstaendig wenn useActiveV2=true
     if (_useNewActivePanel) {
-      if (window.TnetLMActive) {
+      if (lmConfig.useActiveV2 && window.TnetLMActiveV2) {
+        window.__tnetConfig = window.__tnetConfig || {};
+        window.__tnetConfig.layerManager = lmConfig;
+        window.TnetLMActiveV2.init('lm-active-container');
+        TnetLog.log(LOG, 'TnetLMActiveV2 aktiv (V1 deaktiviert)');
+      } else if (window.TnetLMActive) {
         window.TnetLMActive.init('lm-active-container');
         TnetLog.log(LOG, 'TnetLMActive initialisiert' + (_isDesktop ? ' (Desktop)' : ' (Mobile)'));
       } else {
-        TnetLog.error(LOG, 'TnetLMActive fehlt');
+        TnetLog.error(LOG, 'Weder TnetLMActiveV2 noch TnetLMActive verfuegbar');
       }
     }
 
