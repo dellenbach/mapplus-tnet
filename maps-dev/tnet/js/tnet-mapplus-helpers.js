@@ -755,8 +755,7 @@ function _syncBookmarkLayersToUrl() {
     visibleIds.push(layer.id);
   });
 
-  bookmark._options = bookmark._options || {};
-  bookmark._options.visibleLayerIds = visibleIds.slice();
+  if (bookmark._options) bookmark._options.visibleLayerIds = visibleIds.slice();
   _bookmarkUrlSyncSignature = visibleIds.join('|');
 
   try {
@@ -772,6 +771,14 @@ function _syncBookmarkLayersToUrl() {
     if (startupFreeze) return;
 
     var next = loc.pathname + loc.search + loc.hash;
+    if (bookmark._resetFromBookmarkDefault && !(bookmark._options && bookmark._options.urlOverride)) {
+      next = _setRawQueryParam(next, 'layers', '');
+      next = _setRawQueryParam(next, 'op', '');
+      if (next !== loc.pathname + loc.search + loc.hash) {
+        hist.replaceState(null, '', next);
+      }
+      return;
+    }
     var originalOp = bookmark._options && bookmark._options.originalOp ? String(bookmark._options.originalOp) : '';
     var currentOp = '';
     try {

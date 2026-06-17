@@ -161,7 +161,38 @@
     if (store && typeof store.reconcileMapConsistency === 'function') {
       try { store.reconcileMapConsistency(); } catch (eReconcile) { /* ignore */ }
     }
+    syncUrlToResetLayers(bookmark, restoredLayers);
     return true;
+  }
+
+  function syncUrlToResetLayers(bookmark, layers) {
+    var hist;
+    var loc;
+    var ids = [];
+    var seen = {};
+    if (!Array.isArray(layers)) return;
+    layers.forEach(function(layer) {
+      if (!layer || !layer.id || seen[layer.id]) return;
+      // Für den Bookmark-Default-TOC braucht die URL neben sichtbar gerenderten
+      // Layern auch renderbare Default-Container, sonst startet ein Reload wieder
+      // mit reduzierter Themenliste.
+      if (layer.visible === false && layer.type !== 'layer') return;
+      seen[layer.id] = true;
+      ids.push(layer.id);
+    });
+    try {
+      hist = (window.top && window.top.history) ? window.top.history : window.history;
+      loc = (window.top && window.top.location) ? window.top.location : window.location;
+      if (!hist || typeof hist.replaceState !== 'function' || !loc) return;
+      var current = new URL(loc.href);
+      if (bookmark && bookmark._resetFromBookmarkDefault) {
+        current.searchParams.delete('layers');
+      } else {
+        current.searchParams.set('layers', ids.join('|'));
+      }
+      current.searchParams.delete('op');
+      hist.replaceState(null, '', current.pathname + '?' + current.searchParams.toString() + current.hash);
+    } catch (eUrlReset) { /* URL-Sync defensiv */ }
   }
 
   function buildBookmarkDefaultVisibilityMap(bookmark) {
