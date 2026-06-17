@@ -1860,6 +1860,9 @@ function _applyViewSwitchOnly(cfg, viewId, options) {
 function _adoptUrlOverrideBookmark(cfg, bookmarkId, viewId, options) {
   var activeView = _resolveActiveBookmarkView(cfg, viewId || null);
   var runtimeLayers = _buildBookmarkRuntimeLayers(cfg, activeView, options || null);
+  var resetRuntimeLayers = (options && options.urlOverride)
+    ? _buildBookmarkRuntimeLayers(cfg, activeView, null)
+    : null;
   var activeViewId = activeView ? activeView.id : null;
 
   _setActiveViewForUrl(activeView, viewId || null);
@@ -1877,7 +1880,9 @@ function _adoptUrlOverrideBookmark(cfg, bookmarkId, viewId, options) {
     _urlOverrideFreezeUntil: (options && options.urlOverride) ? Date.now() + 16000 : 0,
     _replaceVisibleFromStoreUntil: 0,
     _cfg: cfg,
-    _options: options || null
+    _options: options || null,
+    _resetLayers: resetRuntimeLayers,
+    _resetOptions: null
   };
   _clearPendingBookmarkLoad('url-adopt');
   _bookmarkUrlSyncSignature = null;

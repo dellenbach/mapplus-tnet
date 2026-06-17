@@ -89,6 +89,13 @@
 - **Fix:** Marker-Anker in `tnet-context-menu.js` auf `[0.5, 80]` gesetzt, passend zur Pin-Spitze im SVG.
 - **Guardrail:** Bei SVG-Icons den Anchor aus dem `viewBox`/Pfad ablesen, nicht aus der gesamten Bildhoehe oder dem Schattensaum schaetzen.
 
+## 2026-06-17 - URL-Override-Reset muss Bookmark-Default-TOC wiederherstellen
+
+- **Symptom:** Ein Start mit explizitem `layers=` zeigte korrekt eine Bookmark-Übersteuerung, aber nach `Änderungen verwerfen` blieb der Karteninhalt bei 36/37 statt beim originalen 39-Themen-TOC.
+- **Root-Cause:** Der Reset-Snapshot wurde aus dem URL-Override-Runtime-State abgeleitet und teilweise zu früh eingefroren, bevor alle Katalog-/Container-Layer im Store bekannt waren.
+- **Fix:** Bei URL-Overrides wird der Reset-Snapshot im Active-Panel aus der vollständigen Runtime-Liste plus Bookmark-Default-Sichtbarkeit aufgebaut und während des Renderns mit später verfügbaren Katalog-Layern vervollständigt.
+- **Guardrail:** URL-Override ist bereits ein Dirty-State. Der Reset-Zustand muss der originale Bookmark-Default-TOC sein, nicht die URL-Layerliste und nicht ein zu früher Runtime-Snapshot.
+
 ## 2026-06-16 - Bookmark-Reset muss Runtime-Snapshot statt Full-Reload nutzen
 
 - **Symptom:** Nach Klick auf `Änderungen verwerfen` dauerte das Zurücksetzen lange, und der Modified-Button blieb sichtbar bzw. der Zähler blieb abweichend.

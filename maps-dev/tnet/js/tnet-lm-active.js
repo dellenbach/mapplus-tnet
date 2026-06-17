@@ -144,12 +144,16 @@
     restoredLayers = cloneLayerList(bookmark._resetLayers);
     normalizeResetLayerOpacities(bookmark, restoredLayers);
     bookmark.layers = restoredLayers;
-    if (bookmark._resetOptions) {
+    if (Object.prototype.hasOwnProperty.call(bookmark, '_resetOptions')) {
       bookmark._options = {};
-      Object.keys(bookmark._resetOptions).forEach(function(key) {
-        var value = bookmark._resetOptions[key];
-        bookmark._options[key] = Array.isArray(value) ? value.slice() : value;
-      });
+      if (bookmark._resetOptions) {
+        Object.keys(bookmark._resetOptions).forEach(function(key) {
+          var value = bookmark._resetOptions[key];
+          bookmark._options[key] = Array.isArray(value) ? value.slice() : value;
+        });
+      } else {
+        bookmark._options = null;
+      }
     }
     if (store && typeof store.loadActiveLayersFromBookmark === 'function') {
       store.loadActiveLayersFromBookmark(restoredLayers);
@@ -158,6 +162,122 @@
       try { store.reconcileMapConsistency(); } catch (eReconcile) { /* ignore */ }
     }
     return true;
+  }
+
+  function buildBookmarkDefaultVisibilityMap(bookmark) {
+    var result = {};
+    var cfg = bookmark && bookmark._cfg ? bookmark._cfg : null;
+    var cfgLayers = cfg && Array.isArray(cfg.layers) ? cfg.layers : [];
+    var cfgIds = cfgLayers.map(function(entry) {
+      return entry && typeof entry === 'object' ? entry.id : String(entry || '');
+    }).filter(function(id) { return !!id; });
+    var activeView = null;
+    var states = null;
+    var whitelistMode = false;
+    var storeRef = window.TnetLMStore;
+
+    if (bookmark && bookmark.activeViewId && cfg && Array.isArray(cfg.views)) {
+      cfg.views.forEach(function(view) {
+        if (view && view.id === bookmark.activeViewId) activeView = view;
+      });
+    }
+    if (!activeView && cfg && Array.isArray(cfg.views)) {
+      cfg.views.forEach(function(view) {
+        if (!activeView && view && view.isDefault === true) activeView = view;
+      });
+    }
+    states = activeView && activeView.layerStates ? activeView.layerStates : null;
+
+    if (activeView && activeView.isDefault === false && states) {
+      var stateKeys = Object.keys(states);
+      if (stateKeys.length) {
+        whitelistMode = stateKeys.every(function(stateId) {
+          var entry = states[stateId];
+          return !!(entry && typeof entry === 'object' && entry.visible === true);
+        });
+      }
+    }
+
+    cfgLayers.forEach(function(entry) {
+      var id;
+      var visible;
+      var explicitVisible = false;
+      var state;
+      if (!entry) return;
+      if (typeof entry === 'object') {
+        id = entry.id;
+        visible = ('visible' in entry) ? !!entry.visible : true;
+        explicitVisible = ('visible' in entry) && !!entry.visible;
+      } else {
+        id = String(entry || '');
+        visible = true;
+      }
+      if (!id) return;
+      if (states && Object.prototype.hasOwnProperty.call(states, id)) {
+        state = states[id];
+        if (state && typeof state === 'object' && state.visible === true) explicitVisible = true;
+      }
+      if (_isStructuralBookmarkLayerIdForDirty(id, cfgIds, storeRef) && !explicitVisible) return;
+      if (whitelistMode) visible = false;
+      if (states && Object.prototype.hasOwnProperty.call(states, id)) {
+        state = states[id];
+        if (state && 'visible' in state) visible = !!state.visible;
+      }
+      result[id] = visible;
+    });
+
+    return result;
+  }
+
+  function ensureUrlOverrideResetSnapshot(bookmark) {
+    var visibilityMap;
+    var resetLayers;
+    var resetIds = {};
+    var cfgLayers;
+    var store = window.TnetLMStore;
+    if (!bookmark || !(bookmark._options && bookmark._options.urlOverride) || !Array.isArray(bookmark.layers)) return;
+
+    visibilityMap = buildBookmarkDefaultVisibilityMap(bookmark);
+    resetLayers = cloneLayerList(bookmark.layers);
+    resetLayers.forEach(function(layer) {
+      if (layer && layer.id) resetIds[layer.id] = true;
+    });
+
+    cfgLayers = bookmark._cfg && Array.isArray(bookmark._cfg.layers) ? bookmark._cfg.layers : [];
+    cfgLayers.forEach(function(entry) {
+      var id = entry && typeof entry === 'object' ? entry.id : String(entry || '');
+      var catalogLayer;
+      var copy = {};
+      var key;
+      if (!id || resetIds[id] || !store || typeof store.findLayer !== 'function') return;
+      catalogLayer = store.findLayer(id);
+      if (!catalogLayer || catalogLayer.type !== 'layer') return;
+      for (key in catalogLayer) {
+        if (!Object.prototype.hasOwnProperty.call(catalogLayer, key)) continue;
+        if (key === '_olLayerRef') continue;
+        copy[key] = catalogLayer[key];
+      }
+      if (entry && typeof entry === 'object') {
+        for (key in entry) {
+          if (Object.prototype.hasOwnProperty.call(entry, key)) copy[key] = entry[key];
+        }
+      }
+      copy.id = id;
+      copy.name = copy.name || id.split('/').pop() || id;
+      resetLayers.push(copy);
+      resetIds[id] = true;
+    });
+
+    resetLayers.forEach(function(layer) {
+      if (!layer || !layer.id) return;
+      layer.visible = Object.prototype.hasOwnProperty.call(visibilityMap, layer.id)
+        ? !!visibilityMap[layer.id]
+        : false;
+    });
+
+    bookmark._resetLayers = resetLayers;
+    bookmark._resetOptions = null;
+    bookmark._resetFromBookmarkDefault = true;
   }
 
   function normalizeResetLayerOpacities(bookmark, layers) {
@@ -218,7 +338,6 @@
   // und via render() (Katalog-Layer-Erkennung aus effectiveLayers).
   function _isActiveBookmarkModified() {
     var bm = window.__tnetActiveBookmark;
-    if (_isBookmarkLoadActive() || _isViewSwitchActive()) return false;
     if (!bm || !bm._cfg || !Array.isArray(bm._cfg.layers) || !Array.isArray(bm.layers)) return false;
     var activeView = null;
     var viewStates = null;
@@ -255,6 +374,8 @@
       }
       return false;
     }
+
+    if (_isBookmarkLoadActive() || _isViewSwitchActive()) return false;
 
     if (bm.activeViewId && Array.isArray(bm._cfg.views)) {
       bm._cfg.views.forEach(function(view) {
@@ -1130,6 +1251,7 @@
       }
 
       var bookmarkInfo = getBookmarkInfo();
+      ensureUrlOverrideResetSnapshot(bookmarkInfo);
       var pendingBookmark = getPendingBookmarkInfo() || (!bookmarkInfo ? getUrlBookmarkHint() : null);
       var showPendingLoad = !bookmarkInfo && !!pendingBookmark;
       var bookmarkLayers = bookmarkInfo ? filterRenderableBookmarkLayers(bookmarkInfo.layers) : null;
