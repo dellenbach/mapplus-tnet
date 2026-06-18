@@ -251,7 +251,7 @@ paths:
         description: |
           Erweitert die Antwort um `serviceGroups[]`:
           - `1` — **Flach**: jede Gruppe hat `svc` + `layerIds[]` + `opacity`
-          - `2` — **Nested Tree**: jede Gruppe hat `svc` + `tree[]` + `opacity`. `tree[]` ist ein rekursiver Baum mit `id`, `visible`, `opacity`, `filter`, `children[]`
+          - `2` — **Nested Tree**: jede Gruppe hat `svc` + `tree[]` + `opacity`. `tree[]` ist ein rekursiver Baum mit `id`, `visible`, `opacity`, `filter`, `children[]`. Mit `names=1` zusaetzlich `name` (NLS-Label) sowie die Render-Metadaten `layerType`, `url`, `legendKey`, `legendTitle`, `legendLink` pro Knoten (aus `layer_definition`), damit der Karteninhalt vollstaendig aus der API aufgebaut werden kann.
         schema:
           type: string
           enum: [ "1", "2" ]
@@ -431,21 +431,30 @@ paths:
                       serviceGroups:
                       - svc: gis_oereb/nw_nutzungsplanung_def
                         opacity: null
+                        name: "Nutzungsplanung (rechtskräftig)"
                         tree:
                         - id: gis_oereb/nw_nutzungsplanung_def
                           visible: false
                           opacity: null
                           filter: null
+                          name: "Nutzungsplanung (rechtskräftig)"
                           children:
                           - id: gis_oereb/nw_nutzungsplanung_def/grundnutzung
                             visible: false
-                            opacity: null
+                            opacity: 0.65
                             filter: null
+                            name: "Grundnutzung"
+                            layerType: arcgisRest
+                            url: "/maps/tnet/agsproxy.php?..."
+                            legendKey: "nw_nutzungsplanung_grundnutzung"
+                            legendTitle: "Grundnutzung"
+                            legendLink: "https://.../legend.png"
                             children: []
                           - id: gis_oereb/nw_nutzungsplanung_def/gefahrenzone
                             visible: true
-                            opacity: null
+                            opacity: 0.65
                             filter: null
+                            name: "Gefahrenzone"
                             children: []
                       - svc: gis_oereb/nw_kbs_def
                         opacity: null

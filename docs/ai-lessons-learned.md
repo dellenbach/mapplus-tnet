@@ -1,4 +1,89 @@
-﻿## 2026-06-17 - ArcGIS-Bridge darf show:-1 nicht als Bildrequest senden
+﻿## 2026-06-18 - API-Tree-Knoten sind ALLE Service-Layer, nicht die dargestellten -> Reset/Modified Flag-basiert lassen
+
+- **Symptom:** Nach Einbau einer API-"Baseline" (_apiOriginalState aus allen tree-Knoten): Reorder zeigte ploetzlich 108 statt 29 Layer + Opacity 100%; Opacity-Aenderungen liessen den Verwerfen-Button verschwinden; View-Switch zeigte faelschlich "veraendert".
+- **Root-Cause:** Die getBookmarkV2 tree-Knoten enthalten ALLE Service-Layer eines Bookmarks (~53), nicht nur die dargestellten (~29). Reset aktivierte via setLayerEye alle -> Store-Aufblaehung -> mergeBookmarkLayers Live-Extras -> 108. Die API-Baseline war zudem nicht view-aware -> View-Switch falsch-positiv.
+- **Fix:** API-Baseline-Vergleich (_isModifiedVsApiBaseline/_apiOriginalState) entfernt. Modified-Erkennung wieder primaer ueber das _bmModified-Flag (wird von Reorder/Visibility/Opacity/Coalesce zuverlaessig gesetzt, bei Load/View-Switch/Reset auf false). Reset wieder ueber TnetResetActiveBookmarkState (View-Switch-Mechanik: nur dargestellte Layer). View-Switch verwirft zusaetzlich den Alt-Snapshot (neue Ansicht = neue Referenz).
+- **Guardrail:** getBookmarkV2 tree != dargestellte Layer. Fuer Modified/Reset NIE ueber alle API-Knoten iterieren. Das Flag + die view-aware Default-Logik sind die robuste Quelle; API-Daten nur fuer Anzeige (Namen/Legende/Reihenfolge/Opacity-Default), nicht als State-Baseline.
+
+## 2026-06-18 - OEREB-Bookmark-Metadaten kommen aus StagingImportRepository, NICHT layer_definition
+
+- **Symptom:** Bookmark-API lieferte fuer OEREB opacity:null + keine legendLink, obwohl der Karteninhalt 65% + Legende zeigte.
+- **Root-Cause:** loadProfileLayerMeta jointe layer_definition ueber die Bookmark-Layer-ID. OEREB-IDs (gis_oereb/...) sind dort nicht; sie werden in layers.php ueber die lyrmgr-Coalesce-Struktur konstruiert. Die echte Quelle ist config_bundle_store (StagingImportRepository): 'layers'-Bundle (.conf) -> options.opacity/type/url, 'legendResources'-Bundle (.json) -> <id>_title/<id>_link. Genau das nutzt auch layers.php und loadProfileLayerNames.
+- **Fix:** loadProfileLayerMeta auf StagingImportRepository::loadAllSafe() umgestellt (gleiches Scope-Ranking + Profil-Filter wie loadProfileLayerNames). Danach liefert die API fuer ALLE 53 OEREB-Knoten opacity+legendLink+layerType. Single-Source, kein Spezialfall.
+- **Guardrail:** Fuer dienst-/coalesce-basierte Bookmark-IDs ist config_bundle_store (raw-conf Bundles) die autoritative Metadaten-Quelle, nicht layer_definition. Bei API-Datenluecken zuerst pruefen, ob die ID ueberhaupt in der abgefragten Tabelle existiert.
+- **Tool-Hinweis:** fetch_webpage cacht API-Antworten aggressiv; zur API-Verifikation ein Python-urllib-Script nutzen (zeigte korrekte Daten, waehrend fetch_webpage die alte Version zeigte).
+
+## 2026-06-18 - Bookmark-Reset: TnetSetBookmark (gleiche View) ist der falsche Pfad - View-Switch-Mechanik nutzen
+
+- **Symptom:** "Aenderungen verwerfen" dauerte lange, Button blieb teils stehen, Zustand nicht sauber zurueckgesetzt. Nur View-Wechsel + zurueck raeumte auf.
+- **Root-Cause:** Reset rief TnetSetBookmark(bm.id, SAME_view). Dessen Fast-Path greift nur bei View-WECHSEL; bei gleicher View laeuft der volle API-Pfad (getBookmark + bis 8s _waitForFrameworkBookmarkReady) und _applyBookmark setzt Reihenfolge/z-index nicht zuverlaessig zurueck.
+- **Fix:** bm-reset nutzt jetzt TnetResetActiveBookmarkState() -> _applyViewSwitchOnly: baut Layer synchron aus der Config (loadActiveLayersFromBookmark + reconcileMapConsistency), schnell + sauber. Danach _applyApiOrderToBookmark fuer DB-Reihenfolge. TnetSetBookmark nur noch Fallback.
+- **Guardrail:** Fuer 'auf Original zuruecksetzen' bei GLEICHER View den synchronen Config-View-Switch nutzen, nicht den vollen API-Reload (der ist fuer View-WECHSEL/Bookmark-WECHSEL gedacht).
+
+## 2026-06-18 - Karteninhalt Single-Source: layer_definition kennt OEREB-Bookmark-IDs nicht
+
+- **Symptom:** Erweiterte Bookmark-API (loadProfileLayerMeta) liefert fuer OEREB-Bookmark weiterhin opacity:null und keine legendLink/layerType/url.
+- **Root-Cause:** Die Query joint catalog_node + layer_definition ueber die Bookmark-Layer-ID (z.B. gis_oereb/nw_kulturobjekte_def/...). Diese OEREB-spezifischen IDs existieren NICHT in layer_definition (dort stehen die Katalog-/Fach-IDs). Die NLS-Namen funktionieren nur, weil loadProfileLayerNames sie ueber StagingImportRepository (lyrmgrResources, desc_<id>) zieht - eine andere Quelle.
+- **Fix:** Backend + Frontend-Overlay sind korrekt implementiert und greifen fuer Bookmarks mit Standard-Katalog-IDs. Fuer OEREB-IDs bleibt der Store-Katalog-Fallback (Legende erscheint weiter). Vollstaendige Single-Source fuer OEREB braeuchte legendResources/Meta ueber StagingImport (wie die Namen) ODER ID-Mapping (coalesce) in der API.
+- **Guardrail:** Vor DB-Joins pruefen, ob die Bookmark-Layer-IDs in layer_definition existieren. OEREB-Bookmarks nutzen eigene IDs; deren Metadaten liegen im StagingImport (raw-conf), nicht in layer_definition.
+
+## 2026-06-18 - Karteninhalt-Gruppenname: API muss Vorrang vor Dojo-Katalog haben (nicht fill-only)
+
+- **Symptom:** Gruppen-Header im Karteninhalt zeigte "KULTURERBE" statt des korrekten API-/NLS-Namens "Kulturobjekte (rechtskraeftig)". Kinder-Layer hatten korrekte Namen.
+- **Root-Cause:** `_buildActiveEntries` uebernahm den API-Gruppennamen nur fill-only (`if (entry.groupName) return;`). Der Header kam aber bereits aus `coalInfo.groupName` = Dojo-LyrMgr-Kategorie-Description (`_enrichCoalesceNamesFromDojo`), also blieb der technische Dojo-Name stehen.
+- **Fix:** fill-only entfernt — API-Name (`_apiGroupNames`, aus `serviceGroups[].name`) gewinnt jetzt ueber den Dojo-Katalog-Namen; Katalog nur Fallback ohne API-Treffer.
+- **Guardrail:** Wenn die API die autoritative NLS-Quelle ist, muss sie Vorrang haben. Die API liefert fuer den Karteninhalt alle noetigen Infos (id/name/visible/opacity/order/children) — fehlende Anzeige ist Frontend-Prioritaet, kein API-Datenmangel.
+
+## 2026-06-18 - Bookmark-Dirty: Reihenfolge + Opazitaet wurden nicht als Aenderung erkannt
+
+- **Symptom:** Nach Drag&Drop-Reorder (oder reiner Opacity-Aenderung) erschien kein "Aenderungen verwerfen".
+- **Root-Cause:** `_isActiveBookmarkModified()` verglich nur die Menge der sichtbaren Layer-IDs. Reihenfolge und Opazitaet wurden ignoriert. Das `_bmModified`-Flag aus `_dragEnd` steuert das Badge NICHT.
+- **Fix:** Helper `_bookmarkOrderOrOpacityDiffers(baseline, current)` ergaenzt; im Snapshot-Zweig zusaetzlich Reihenfolge (gemeinsame IDs positionsweise) und Opazitaet (Epsilon 0.001) gegen `_resetLayers` pruefen.
+- **Guardrail:** Dirty-Erkennung muss alle vom Nutzer aenderbaren Dimensionen abdecken (Sichtbarkeit, Reihenfolge, Opazitaet), nicht nur die Sichtbarkeits-Menge.
+
+## 2026-06-18 - Bookmark-Reset zuverlaessig via Voll-Reload statt Snapshot-Restore
+
+- **Symptom:** Reset musste teils zweimal geklickt werden; Reorder-/z-index-Ueberbleibsel blieben auf der Karte.
+- **Root-Cause:** Snapshot-Restore rief `reconcileMapConsistency` (setzt Sichtbarkeit+Opazitaet), aber NICHT die Reihenfolge/z-index. Async materialisierte Layer kamen erst nach dem ersten Klick.
+- **Fix:** bm-reset macht jetzt IMMER einen vollen Reload via `TnetSetBookmark(bm.id, viewId, options)` (Option B). Snapshot-Felder werden vor dem Reload verworfen. 1-Klick, 100% Original.
+- **Guardrail:** Fuer 'auf Original zuruecksetzen' ist ein frischer Quell-Reload zuverlaessiger als ein teil-rekonstruierter Snapshot, sofern die Ladezeit (Kacheln) akzeptabel ist.
+
+## 2026-06-18 - Opacity-Slider-Sprung: Default muss synchron beim Render vorliegen (nicht erst aus async API)
+
+- **Symptom:** Beim Bookmark-Load stand der Deckkraft-Slider zuerst auf 100% und sprang dann auf den echten Wert (z.B. 70%).
+- **Root-Cause:** `_renderStandalone`/`_renderGroupChild` nutzten Fallback `: 1` (100%), wenn der Layer (noch) keine eigene Opazitaet trug. Die echte Default-Opazitaet kam erst spaeter.
+- **Fix:** Helper `_resolveDisplayOpacity(l)` nutzt `l.opacity`, sonst synchron `store.findLayer(id)._configOpacity` (aus der Layer-Katalog-Config, sofort verfuegbar). Slider zeigt damit beim ersten Render den richtigen Wert.
+- **Guardrail:** Initiale UI-Werte muessen aus einer synchron verfuegbaren Quelle kommen. Eine asynchrone API-Antwort verhindert den Sprung NICHT, weil sie nach dem ersten Render eintrifft.
+
+## 2026-06-18 - Default-Opacity der Bookmark-API liegt nicht in layer_definition.opacity
+
+- **Symptom:** API `bookmarks?hierarchy=2&names=1` liefert weiterhin `opacity: null`, obwohl `loadProfileLayerOpacities` aus `layer_definition.opacity` liest.
+- **Root-Cause:** `mapplusconf.layer_definition.opacity` ist fuer die betroffenen Layer NULL (DEFAULT 1.0 greift nur bei INSERT ohne expliziten Wert). Die echten Default-Deckkraefte (z.B. 70%) liegen in der Framework-Layer-Config (layers_*.conf), nicht in dieser DB-Spalte.
+- **Fix:** Frontend nutzt die Store-Config-Opazitaet (`_configOpacity`) — die richtige Quelle. Die API-Erweiterung bleibt als korrekter Fallback fuer den Fall, dass DB-Werte gepflegt werden.
+- **Guardrail:** Vor DB-gestuetzten Feldern pruefen, ob die Spalte tatsaechlich befuellt ist. Die maszgebliche Default-Opazitaet im TNET-Stack ist die Framework-Layer-Config, nicht layer_definition.opacity.
+
+## 2026-06-17 - Karteninhalt: Wrapper-Pattern (V2 ueber V1) erzeugt wiederkehrende Artefakte → in V1 mergen
+
+- **Symptom:** Doppeltes "Ansicht"-Dropdown, verschwindendes Debug-Badge bei Eye-Toggle, neue Katalog-Layer erscheinen nicht/unten, Reihenfolge springt zurück. Jeder Fix oeffnete den naechsten Bug.
+- **Root-Cause:** `tnet-lm-active-v2.js` patchte V1 per Monkey-Patch (`_buildActiveEntries`, `render`) und hing per `setTimeout(0)` DOM-Elemente nach. V1 hatte bereits ein eigenes Views-Dropdown → Dopplung. `_knownLayerIds` wurde gesetzt aber nicht genutzt. Patch-Layer + Original kollidierten bei jedem Re-Render.
+- **Fix:** Die vier echten V2-Mehrwerte (API-Reihenfolge, NLS-Gruppen-Namen, neue-Layer-oben, Debug-Badge) direkt in V1 (`tnet-lm-active.js`) integriert: `_loadBookmarkApiData`, `_sortActiveLayersForDisplay`, `_apiGroupNames`-Override in `_buildActiveEntries`, Badge direkt im render-HTML (kein setTimeout). V2-Datei + Feature-Flag (`useActiveV2`/`activeV2`) + Script-Tag entfernt.
+- **Guardrail:** Erweiterungen eines bestehenden UI-Moduls gehoeren in dieses Modul, nicht in einen Monkey-Patch-Wrapper. Wrapper, die `render()`/Builder patchen und per setTimeout DOM nachziehen, kollidieren systematisch mit dem HTML-Diffing des Originals.
+
+## 2026-06-17 - Neuer Katalog-Layer erscheint nicht im Karteninhalt (Live-Extra-Gate)
+
+- **Symptom:** Aktivieren eines Layers aus dem Themenkatalog fuegte ihn nicht zum Karteninhalt hinzu (bei aktivem Bookmark).
+- **Root-Cause:** `shouldIncludeLiveExtrasForBookmark()` laesst Live-Layer nur durch wenn `_bmModified===true`. Ein neuer Layer ist nicht in `bookmark.layers` → `updateBookmarkLayerState` liefert `changed=false` → `_bmModified` blieb `false` → Layer herausgefiltert.
+- **Fix:** In `_onVisibility` zusaetzlich `isNewLiveLayer = !changed && evt.visible && getBookmarkInfo()` als Aenderung werten und `_bmModified=true` setzen (mit denselben User-Edit-Guards).
+- **Guardrail:** Das Live-Extra-Gate muss echte Neuzugaenge (sichtbarer Layer ausserhalb des Bookmarks) als Modifikation erkennen, nicht nur Aenderungen an bereits im Bookmark vorhandenen Layern.
+
+## 2026-06-17 - V2 Wrapper darf Drag&Drop-Reihenfolge nicht beim naechsten Re-Render ueberschreiben
+
+- **Symptom:** Nach Drag&Drop im Karteninhalt und anschliessendem Auge-Toggle sprang die Reihenfolge wieder auf den API-Urzustand zurück.
+- **Root-Cause:** `_sortByBookmark()` sortierte bei jedem `_buildActiveEntries`-Aufruf (auch Eye-Toggle → `active-layers-changed`) nach dem statisch geladenen `_serviceGroupsOrder` aus dem API-Load; die vom Store bereits übernommene Drag&Drop-Reihenfolge wurde ignoriert.
+- **Fix:** `_userReordered`-Flag eingeführt; wird `true` wenn Layers explizite `order`-Werte haben (V1 setzt sie nach Drag&Drop). Solange Flag gesetzt, gibt `_sortByBookmark` die Layer unverändert zurück. Flag wird bei `tnet-bookmark-loaded` zurückgesetzt.
+- **Guardrail:** Wrapper-Patches auf `_buildActiveEntries` duerfen nur solange sortieren, wie kein manuelles Reordering stattgefunden hat.
+
+## 2026-06-17 - ArcGIS-Bridge darf show:-1 nicht als Bildrequest senden
 
 - **Symptom:** Mehrere Layer liessen sich nicht einschalten; im Browser erschien `EncodingError: The source image cannot be decoded` und der Karteninhalt zeigte `Fehler`.
 - **Root-Cause:** Die Coalesce-Bridge erstellte beim ersten Root-Layer kurz eine ArcGIS-Image-Source mit `LAYERS=show:-1`; einige ArcGIS-Export-Endpunkte liefern dafuer keine dekodierbare Bildantwort.
@@ -2398,3 +2483,40 @@ Guardrail: Wenn Change-Detection fÃ¼r KÃ¼rzel vorhanden ist, immer auch prÃ
 - **Fix**: `load-lyrmgr` unterstÃ¼tzt jetzt `source=file` (erzwingt File-Lesen), und der UI-Flow â€žVon Profil ladenâ€œ nutzt explizit `source=file`.
 - **Guardrail**: File-Config-Workflows dÃ¼rfen im DB-First-Betrieb nicht implizit auf DB-Reads umbiegen; Quelle immer explizit im API-Call markieren.
 
+
+---
+
+## 2026-06-17 - Config-Editor: Maptips-Tab bei grossen Kuerzeln sehr langsam
+
+- **Symptom**: Der Config-Editor wurde bei grossen Kuertzeln (z.B. `gis_basis`) im Maptips-Tab beim Laden und Filtern deutlich traege.
+- **Root-Cause**: Pro Maptip-Eintrag wurden zusaetzliche versteckte Expand-Zeilen vorgerendert (hohe DOM-Menge). Der Filter lief bei jedem Keypress sofort ueber alle Zeilen. Zudem war der Change-Count O(n) ueber alle Inputs.
+- **Fix**: Expand-Panels auf Lazy-Erzeugung umgestellt (erst bei Klick). Tabellenfilter auf debounce (140ms) und Search-Cache pro Datenzeile. Change-Count auf geaenderte Zellen (`td.et-changed`) umgestellt.
+- **Guardrail**: In grossen Editor-Tabellen niemals versteckte Detailzeilen vorab fuer alle Eintraege rendern; Details immer lazy laden und Filtereingaben debouncen.
+
+## 2026-06-17 - Config-Editor: Listener-Overhead bremst Sub-Tab-Wechsel
+
+- **Symptom**: Wechsel zwischen Sub-Tabs (Layers, Maptips, etc.) blieb bei grossen Datenbestaenden deutlich traege.
+- **Root-Cause**: Pro editierbarer Zelle wurden eigene `input`/`change`-Listener gebunden (sehr hohe Listener-Anzahl). Zusaetzlich machte der Filter pro Datenzeile teure Zusatz-Queries auf Expand-Zeilen.
+- **Fix**: Editor auf delegierte Events am `#editor-tbody` umgestellt (ein zentraler Handler fuer `input`/`change`). Filter auf globale Expand-Zeilen-Behandlung umgebaut. Change-Count asynchron geplant statt synchron bei jedem Event.
+- **Guardrail**: In grossen Grid-UIs nie Listener pro Zelle binden; immer Event-Delegation am Container verwenden und teure DOM-Queries aus inneren Schleifen entfernen.
+
+## 2026-06-17 - Color-Picker im highlight_style blockiert Browser teilweise
+
+- **Symptom**: Beim Bearbeiten von `highlight_style` (vor allem Farbfelder) wirkte der Browser teilweise haengend.
+- **Root-Cause**: Der Color-Picker schrieb bei jedem `input`-Event sofort in den Datenstore (`onEditorCellChange`) und triggert dadurch viele teure Folgeupdates.
+- **Fix**: Color-Picker auf zweistufiges Verhalten umgestellt: `input` nur Live-Vorschau im Textfeld, Persistenz erst bei `change`.
+- **Guardrail**: Bei hochfrequenten UI-Quellen (Color-Picker, Slider) niemals jeden `input` sofort persistieren; immer Preview und commit-on-change trennen.
+
+## 2026-06-18 - Runtime nutzte DB-Layer, aber nicht DB-Maptips/Highlight-Style
+
+- **Symptom**: Trotz DB-Modus war geaenderter `highlight_style` erst nach Core-Deploy sichtbar.
+- **Root-Cause**: `layers.php?source=db` lieferte im Katalogbaum keine `maptips`-Daten; die Runtime arbeitete weiter mit Legacy-`am.MapTips` aus Datei-Kontext.
+- **Fix**: `layers.php` erweitert: DB-Query liefert `ld.maptips` und baut `node.maptips` in den Detail-Response. `TnetSyncMapTips()` merged pro Layer die DB-Maptip-Felder (inkl. `highlight_style`) in die Runtime-MapTips.
+- **Guardrail**: Bei DB-First muss jede Runtime-Property (z.B. `highlight_style`) im API-Response enthalten UND in den laufenden Framework-State gespiegelt werden; sonst bleibt verdeckter Datei-Fallback aktiv.
+
+## 2026-06-18 - Dispatch nutzte stale Runtime-Maptips trotz DB-Response
+
+- **Symptom**: `highlight_style` blieb im Klick-Resultat alt, obwohl `layers.php?source=db` bereits DB-Maptips lieferte.
+- **Root-Cause**: Vor dem Dispatch wurden `am.MapTips` nicht konsequent mit den DB-Maptip-Objekten überlagert; Legacy-Runtimewerte konnten aktiv bleiben.
+- **Fix**: In `tnet-info-bridge.js` wird vor jedem Dispatch je MapTip ein DB-Match (`linked_layer` + `query_layers`/`nls`) gesucht und die relevanten Felder (`highlight_style`, `qryFields*`, `querytype`, etc.) in `am.MapTips` gespiegelt.
+- **Guardrail**: Bei Framework-State mit langlebigen Objekten niemals auf initiale Belegung vertrauen; vor kritischen Aktionen (Dispatch/Klick) DB-Source erneut mergen.

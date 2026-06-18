@@ -64,6 +64,21 @@
   // [LM-Active] render. Wir koaleszieren alle Renders eines Frames zu einem.
   var _renderRaf = null;
 
+  // ===== KARTENINHALT-REIHENFOLGE & NAMEN AUS BOOKMARK-API =====
+  // Loest die fruehere V2-Wrapper-Datei (tnet-lm-active-v2.js) ab. Die Bookmark-API
+  // (getBookmarkV2) liefert die in der DB/im Profil gepflegte Layer-Reihenfolge und
+  // NLS-Namen. Die Reihenfolge wird beim Laden EINMAL in bookmark.layers einsortiert;
+  // ab da steuert bookmark.layers die Anzeige (V1-nativ) — so greifen Drag&Drop,
+  // Reset-Snapshot und neue Layer konsistent. Bei API-Fehler bleibt die vorhandene
+  // Reihenfolge erhalten (Fail-safe).
+  var _apiOrderIndex = {};     // layerId → sortIndex aus API
+  var _apiGroupNames = {};     // id → Service-/Gruppen-Label aus API (Gruppen-Header)
+  var _apiLeafNames = {};      // id → Knoten-Name aus API (Standalone-Layer + Gruppen-Kinder)
+  var _apiLeafMeta = {};       // id → { legendLink, legendTitle, layerType, url } aus API (Render-Metadaten)
+  var _apiCache = {};          // 'bookmarkId|profile' → API-Daten (vermeidet Re-Fetch)
+  var _apiBookmarkData = null; // zuletzt geladene API-Daten
+  var _userReordered = false;  // true sobald der Nutzer per Drag&Drop umsortiert hat
+
   // SVG-Icons — geladen via TnetIcons (externe .svg Dateien)
   // Werden in _initIcons() befüllt nachdem TnetIcons.loadAll() abgeschlossen ist
   var ICON = {};
@@ -367,9 +382,51 @@
   // Layer-Deckkraft kann je Layer/Kontext optional definiert oder ueberschrieben sein.
   // _bmModified wird gesetzt via emitBookmarkStateChanged (Remove, Reorder)
   // und via render() (Katalog-Layer-Erkennung aus effectiveLayers).
+  /**
+   * Vergleicht Baseline-Snapshot und aktuelle Bookmark-Layer auf Reihenfolge- oder
+   * Opazitaets-Unterschiede. Nur gemeinsame Layer-IDs werden positionsweise verglichen
+   * (Sichtbarkeits-Menge wird separat geprueft). Opazitaet wird mit Epsilon verglichen;
+   * fehlende Werte gelten als 1.0 (Default).
+   * @returns {boolean} true wenn Reihenfolge oder Opazitaet abweicht
+   */
+  function _bookmarkOrderOrOpacityDiffers(baseline, current) {
+    if (!Array.isArray(baseline) || !Array.isArray(current)) return false;
+    var normOpacity = function(v) {
+      return (v == null || isNaN(v)) ? 1 : +v;
+    };
+    var baseIds = baseline.filter(function(l) { return l && l.id; }).map(function(l) { return l.id; });
+    var curIds = current.filter(function(l) { return l && l.id; }).map(function(l) { return l.id; });
+    // Reihenfolge der gemeinsamen IDs (Schnittmenge) positionsweise vergleichen.
+    var baseSet = {}; baseIds.forEach(function(id) { baseSet[id] = true; });
+    var curSet = {}; curIds.forEach(function(id) { curSet[id] = true; });
+    var baseCommon = baseIds.filter(function(id) { return curSet[id]; });
+    var curCommon = curIds.filter(function(id) { return baseSet[id]; });
+    for (var i = 0; i < baseCommon.length; i++) {
+      if (baseCommon[i] !== curCommon[i]) return true; // Reihenfolge abweichend
+    }
+    // Opazitaet je Layer-ID vergleichen.
+    var baseOpById = {};
+    baseline.forEach(function(l) { if (l && l.id) baseOpById[l.id] = normOpacity(l.opacity); });
+    for (var j = 0; j < current.length; j++) {
+      var cl = current[j];
+      if (!cl || !cl.id || !(cl.id in baseOpById)) continue;
+      if (Math.abs(normOpacity(cl.opacity) - baseOpById[cl.id]) > 0.001) return true;
+    }
+    return false;
+  }
+
   function _isActiveBookmarkModified() {
     var bm = window.__tnetActiveBookmark;
     if (!bm || !bm._cfg || !Array.isArray(bm._cfg.layers) || !Array.isArray(bm.layers)) return false;
+
+    // Primaere Quelle: das _bmModified-Flag. Es wird von allen Benutzer-Edits zuverlaessig
+    // gesetzt (Reorder, Sichtbarkeit, Standalone- und Coalesce-Opazitaet, Remove) und bei
+    // Bookmark-Load, View-Switch und Reset auf false zurueckgesetzt. Damit erscheint
+    // "Aenderungen verwerfen" robust und view-aware (neue Ansicht = neue Referenz).
+    if (_bmModified) return true;
+    // Waehrend Bookmark-Load/View-Switch nie als modifiziert melden.
+    if (_isBookmarkLoadActive() || _isViewSwitchActive()) return false;
+
     var activeView = null;
     var viewStates = null;
     var defaultVisible = [];
@@ -403,6 +460,9 @@
       for (var si = 0; si < defaultVisible.length; si++) {
         if (!currentVisibleById[defaultVisible[si]]) return true;
       }
+      // Reihenfolge- oder Opazitaets-Aenderung gegenueber dem Snapshot erkennen
+      // (Sichtbarkeits-Menge identisch, aber Layer umsortiert oder Deckkraft veraendert).
+      if (_bookmarkOrderOrOpacityDiffers(bm._resetLayers, bm.layers)) return true;
       return false;
     }
 
@@ -1054,9 +1114,12 @@
       return out;
     });
 
-    // Live-Layer ohne Bookmark-Eintrag anhaengen, damit nach dem Laden eines
-    // Bookmarks zusaetzlich aktivierte Themen weiterhin im Karteninhalt erscheinen.
+    // Live-Layer ohne Bookmark-Eintrag OBEN einfuegen, damit neu aus dem Themenkatalog
+    // aktivierte Themen zuoberst erscheinen (zuletzt hinzugefuegter ganz oben) — konsistent
+    // mit dem Direkt-Pfad in _onVisibility (unshift). Frueher wurden sie unten angehaengt,
+    // was je nach Aktivierungspfad zu inkonsistenter Position fuehrte.
     if (includeLiveExtras !== false) {
+      var liveExtras = [];
       (liveLayers || []).forEach(function(layer) {
         if (!layer || !layer.id) return;
         if (usedLiveIds[layer.id]) return;
@@ -1068,8 +1131,13 @@
         if (!copy.name) copy.name = copy.id;
         if (copy.visible === undefined) copy.visible = true;
         if (copy.opacity == null) copy.opacity = 1;
-        merged.push(copy);
+        liveExtras.push(copy);
       });
+      if (liveExtras.length) {
+        // Zuletzt hinzugefuegter ganz oben: Reihenfolge umkehren, dann vor merged setzen.
+        liveExtras.reverse();
+        merged = liveExtras.concat(merged);
+      }
     }
 
     return merged;
@@ -1170,6 +1238,151 @@
     }
   }
 
+  // ===== BOOKMARK-API: REIHENFOLGE & NLS-GRUPPEN-NAMEN =====
+
+  /** Aktives Profil aus URL (?group=) ermitteln. Default: 'public'. */
+  function _resolveProfile() {
+    if (typeof TnetApi !== 'undefined' && typeof TnetApi.getActiveProfile === 'function') {
+      return TnetApi.getActiveProfile();
+    }
+    try {
+      var p = new URLSearchParams((window.top || window).location.search);
+      var g = p.get('group');
+      return (g && g.trim()) ? g.trim() : 'public';
+    } catch (e) { return 'public'; }
+  }
+
+  /** Sammelt rekursiv alle Knoten-IDs eines API-Tree. */
+  function _collectApiIds(nodes) {
+    var ids = [];
+    (nodes || []).forEach(function (n) {
+      if (!n) return;
+      ids.push(n.id);
+      _collectApiIds(n.children || []).forEach(function (id) { ids.push(id); });
+    });
+    return ids;
+  }
+
+  /** Uebernimmt Knoten-Namen + Render-Metadaten + Original-Zustand rekursiv aus dem API-Tree. */
+  function _storeApiNodeNames(node) {
+    if (!node || !node.id) return;
+    if (node.name) _apiLeafNames[node.id] = node.name;
+    // Render-Metadaten (Legende, Typ, URL) aus der API uebernehmen, damit der
+    // Karteninhalt diese direkt aus der Bookmark-API beziehen kann (Single-Source).
+    var meta = null;
+    if (node.legendLink != null) { meta = meta || {}; meta.legendLink = node.legendLink; }
+    if (node.legendTitle != null) { meta = meta || {}; meta.legendTitle = node.legendTitle; }
+    if (node.layerType != null) { meta = meta || {}; meta.layerType = node.layerType; }
+    if (node.url != null) { meta = meta || {}; meta.url = node.url; }
+    if (meta) _apiLeafMeta[node.id] = meta;
+    (node.children || []).forEach(function (c) { _storeApiNodeNames(c); });
+  }
+
+  /**
+   * Baut aus den API-Daten den Reihenfolge-Index (_apiOrderIndex), die Service-/
+   * Gruppen-Namen (_apiGroupNames) und die Knoten-Namen (_apiLeafNames).
+   * serviceGroups[].tree[] definiert die DB-/Profil-Reihenfolge; group.name liefert
+   * den Gruppen-Header, node.name den jeweiligen Layer-Namen.
+   */
+  function _buildApiOrderIndex(data) {
+    _apiOrderIndex = {};
+    _apiGroupNames = {};
+    _apiLeafNames = {};
+    _apiLeafMeta = {};
+    var sortIdx = 0;
+    ((data && data.serviceGroups) || []).forEach(function (group) {
+      var label = group.name || null;
+      _collectApiIds(group.tree || []).forEach(function (id) {
+        if (_apiOrderIndex[id] === undefined) _apiOrderIndex[id] = sortIdx++;
+        if (label && _apiGroupNames[id] === undefined) _apiGroupNames[id] = label;
+      });
+      (group.tree || []).forEach(function (n) { _storeApiNodeNames(n); });
+    });
+  }
+
+  /**
+   * Sortiert bookmark.layers EINMAL nach der API-Reihenfolge. Ab dann steuert
+   * bookmark.layers die Anzeige (V1-nativ). Wird uebersprungen wenn der Nutzer
+   * bereits per Drag&Drop umsortiert hat (_userReordered) oder keine API-Order da ist.
+   * Layer ohne API-Eintrag behalten ihre relative Reihenfolge am Ende (stabil).
+   */
+  function _applyApiOrderToBookmark() {
+    if (_userReordered) return;
+    var bm = getBookmarkInfo();
+    if (!bm || !Array.isArray(bm.layers) || !bm.layers.length) return;
+    if (Object.keys(_apiOrderIndex).length === 0) return;
+    var order = _apiOrderIndex; var MAX = 999999;
+    var indexed = bm.layers.map(function (l, i) { return { l: l, i: i }; });
+    indexed.sort(function (a, b) {
+      var oa = (a.l && order[a.l.id] !== undefined) ? order[a.l.id] : MAX;
+      var ob = (b.l && order[b.l.id] !== undefined) ? order[b.l.id] : MAX;
+      if (oa !== ob) return oa - ob;
+      return a.i - b.i;
+    });
+    bm.layers = indexed.map(function (x) { return x.l; });
+  }
+
+  /** Wendet geladene API-Daten an: Reihenfolge in bookmark.layers einsortieren + Neuaufbau. */
+  function _applyApiBookmarkData(data) {
+    _apiBookmarkData = data;
+    _buildApiOrderIndex(data);
+    _applyApiOrderToBookmark();
+    var store = window.TnetLMStore;
+    if (store && typeof store.getActiveLayers === 'function') {
+      _lastRenderHtml = null; // Neuaufbau mit API-Reihenfolge/Namen erzwingen
+      LMActive.render(store.getActiveLayers());
+    }
+  }
+
+  /**
+   * Laedt die Bookmark-API-Daten (Reihenfolge + NLS-Namen) fuer eine Bookmark-ID.
+   * Cached pro 'bookmarkId|profile'. Fail-safe: bei Fehler bleibt die
+   * Katalog-Reihenfolge aktiv (kein Bruch des Panels).
+   */
+  function _loadBookmarkApiData(bookmarkId) {
+    if (!bookmarkId) return;
+    if (typeof TnetApi === 'undefined' || typeof TnetApi.getBookmarkV2 !== 'function') return;
+    var profile = _resolveProfile();
+    var cacheKey = bookmarkId + '|' + profile;
+    if (_apiCache[cacheKey]) {
+      _applyApiBookmarkData(_apiCache[cacheKey]);
+      return;
+    }
+    TnetApi.getBookmarkV2(bookmarkId, profile)
+      .then(function (data) {
+        _apiCache[cacheKey] = data;
+        _applyApiBookmarkData(data);
+      })
+      .catch(function (err) {
+        TnetLog.warn(LOG, 'Bookmark-API Reihenfolge nicht verfuegbar:', (err && err.message) || err);
+      });
+  }
+
+  /** Debug-Badge aktiv? Liest layerManager.debug aus der globalen Config. */
+  function _isActivePanelDebug() {
+    try {
+      return !!(window.__tnetConfig && window.__tnetConfig.layerManager && window.__tnetConfig.layerManager.debug);
+    } catch (e) { return false; }
+  }
+
+  /**
+   * Ermittelt die fuer die Anzeige zu verwendende Opazitaet eines Layers.
+   * Vorrang: explizite Layer-Opazitaet (Bookmark-Override / Live-Wert). Fehlt diese,
+   * wird die im Katalog hinterlegte Default-Opazitaet (_configOpacity) genutzt. So
+   * zeigt der Slider sofort den richtigen Wert statt 100% (kein Sprung beim Laden).
+   */
+  function _resolveDisplayOpacity(l) {
+    if (l && l.opacity !== undefined && l.opacity !== null) return l.opacity;
+    var store = window.TnetLMStore;
+    if (l && l.id && store && typeof store.findLayer === 'function') {
+      var cat = store.findLayer(l.id);
+      if (cat && cat._configOpacity !== undefined && cat._configOpacity !== null) {
+        return cat._configOpacity;
+      }
+    }
+    return 1;
+  }
+
   var LMActive = {
 
     init: function (containerId) {
@@ -1200,6 +1413,19 @@
         _resetPendingUiState();
         if (_bmLoadTimer) clearTimeout(_bmLoadTimer);
         _bmLoadTimer = setTimeout(function () { _bmLoadedRecently = false; }, 800);
+
+        // Bookmark-API: Reihenfolge/Namen-Zustand fuer das neue Bookmark zuruecksetzen
+        // und neu laden. Die API sortiert bookmark.layers in die DB-Reihenfolge.
+        _apiOrderIndex = {};
+        _apiGroupNames = {};
+        _apiLeafNames = {};
+        _apiLeafMeta = {};
+        _apiBookmarkData = null;
+        _userReordered = false;
+        var bm = window.__tnetActiveBookmark;
+        var bmId = bm && (bm.id || bm['map-bookmark']);
+        if (bmId) _loadBookmarkApiData(bmId);
+
         focusActivePanelForBookmark();
         self.render(store.getActiveLayers());
       };
@@ -1226,6 +1452,16 @@
       var active = store.getActiveLayers();
       this.render(active);
       focusActivePanelForBookmark();
+
+      // Falls beim Init bereits ein Bookmark aktiv ist (tnet-bookmark-loaded kann VOR
+      // der Panel-Initialisierung gefeuert haben), API-Reihenfolge/Namen nachladen.
+      var initBm = window.__tnetActiveBookmark;
+      var initBmId = initBm && (initBm.id || initBm['map-bookmark']);
+      if (initBmId) {
+        _userReordered = false;
+        _loadBookmarkApiData(initBmId);
+      }
+
       TnetLog.log(LOG, 'Init ✓ → #' + containerId);
     },
 
@@ -1334,6 +1570,11 @@
       }
       html += '</div>';
       html += '<div class="lm-active-toolbar">';
+      if (_isActivePanelDebug()) {
+        html += '<span class="lm-active-debug-badge" title="Karteninhalt-Debug aktiv (Bookmark-API: Reihenfolge + NLS-Namen)" ' +
+          'style="display:inline-flex;align-items:center;padding:1px 6px;font-size:10px;font-weight:700;' +
+          'background:#1e6a4a;color:#fff;border-radius:3px;letter-spacing:.5px;cursor:default;margin-right:4px;">V2</span>';
+      }
       if (showPendingLoad) {
         html += '<span class="lm-active-count lm-active-count-loading">Karte wird geladen...</span>';
       } else {
@@ -1459,9 +1700,26 @@
       var seenGroups = {};  // groupId → entry-Object
       var syntheticGroups = {};
       var store = window.TnetLMStore;
+      var haveApiLeafNames = Object.keys(_apiLeafNames).length > 0;
+      var haveApiLeafMeta = Object.keys(_apiLeafMeta).length > 0;
 
       for (var i = 0; i < layers.length; i++) {
         var l = layers[i];
+        // NLS-Layer-Namen aus der Bookmark-API uebernehmen (Standalone + Gruppen-Kinder).
+        // l ist eine Kopie aus mergeBookmarkLayers → Mutation ist fuer den Store unkritisch.
+        if (haveApiLeafNames && l && l.id && _apiLeafNames[l.id]) {
+          l.name = _apiLeafNames[l.id];
+        }
+        // Render-Metadaten aus der Bookmark-API ueberlagern (Single-Source): Legende,
+        // Diensttyp und URL. Die API hat Vorrang vor dem Store-Katalog; fehlt ein Feld,
+        // bleibt der Store-/Katalog-Wert erhalten. Steuert _hasLegend + Legende-Button.
+        if (haveApiLeafMeta && l && l.id && _apiLeafMeta[l.id]) {
+          var apiMeta = _apiLeafMeta[l.id];
+          if (apiMeta.legendLink != null) l.legendLink = apiMeta.legendLink;
+          if (apiMeta.legendTitle != null) l.legendTitle = apiMeta.legendTitle;
+          if (apiMeta.layerType != null) l.layerType = apiMeta.layerType;
+          if (apiMeta.url != null) l.url = apiMeta.url;
+        }
         var coalInfo = store ? store.getCoalesceInfo(l.id) : null;
         var syntheticInfo = (!coalInfo && store && typeof store.findLayer === 'function' && !store.findLayer(l.id))
           ? this._getSyntheticBookmarkGroup(l)
@@ -1500,6 +1758,21 @@
         } else {
           entries.push({ type: 'standalone', layer: l });
         }
+      }
+
+      // Gruppen-Header-Name aus der Bookmark-API (serviceGroups[].name) hat Vorrang vor
+      // dem Dojo-Katalog-Namen. Die API liefert die kuratierten NLS-/Alias-Namen
+      // (z.B. "Kulturobjekte (rechtskraeftig)"); der Dojo-Katalog liefert teils nur die
+      // technische Kategorie-Description ("KULTURERBE"). Ohne API-Treffer bleibt der
+      // bestehende Katalog-/Synthetik-Name als Fallback erhalten.
+      if (Object.keys(_apiGroupNames).length > 0) {
+        entries.forEach(function (entry) {
+          if (entry.type !== 'group') return;
+          var firstChild = entry.children && entry.children[0];
+          if (!firstChild || !firstChild.id) return;
+          var apiName = _apiGroupNames[firstChild.id];
+          if (apiName) entry.groupName = apiName;
+        });
       }
 
       return entries;
@@ -1542,7 +1815,7 @@
         statusHtml = '<span class="lm-layer-status">' + esc(l.loadingMessage || 'Fehler') + '</span>';
       }
       if (l.loadingSlow) itemCls += ' lm-layer-slow';
-      var opacity = (l.opacity !== undefined && l.opacity !== null) ? l.opacity : 1;
+      var opacity = _resolveDisplayOpacity(l);
       var opacityPct = Math.round(opacity * 100);
 
       var html = '<li class="' + itemCls + '" data-layer-id="' + esc(l.id) + '">';
@@ -1592,7 +1865,7 @@
       var anyLoadingError = false;
       for (var i = 0; i < entry.children.length; i++) {
         var c = entry.children[i];
-        totalOpacity += (c.opacity !== undefined && c.opacity !== null) ? c.opacity : 1;
+        totalOpacity += _resolveDisplayOpacity(c);
         if (c.visible !== false) anyVisible = true;
         else allVisible = false;
         if (c.loading) anyLoading = true;
@@ -1720,6 +1993,10 @@
         // Während des asynchronen Reloads keine Dirty-Markierung und keine
         // Pending-UI-Reste aus der vorherigen Ansicht übernehmen.
         _bmModified = false;
+        _userReordered = false;
+        // Die neue Ansicht ist die neue Referenz: alten Reset-Snapshot der vorherigen
+        // Ansicht verwerfen, sonst meldet _isActiveBookmarkModified faelschlich "veraendert".
+        try { delete bm._resetLayers; delete bm._resetOptions; delete bm._resetFromBookmarkDefault; } catch (eDelViewSnap) { /* ignore */ }
         _bmViewSwitchUntil = Date.now() + 5000;
         _bmLoadedRecently = true;
         _resetPendingUiState();
@@ -1782,27 +2059,39 @@
           return;
         }
 
-        // Bookmark auf Original zurücksetzen
+        // Bookmark auf Original zurücksetzen — ueber den Config-basierten View-Switch
+        // (TnetResetActiveBookmarkState → _applyViewSwitchOnly). Das baut die DARGESTELLTEN
+        // Layer synchron aus der Bookmark-Config neu auf (loadActiveLayersFromBookmark +
+        // reconcileMapConsistency): schnell und ohne den Store mit allen Service-Layern
+        // aufzublaehen. Danach wird die API-Reihenfolge wiederhergestellt. Fallback:
+        // voller API-Reload via TnetSetBookmark.
         if (action === 'bm-reset') {
           var bm = window.__tnetActiveBookmark;
           if (bm && bm.id) {
-            var resetResult = null;
             _bmModified = false;
             _bmLoadedRecently = true;
+            _userReordered = false;
             _resetPendingUiState();
+            // Snapshot-Baseline verwerfen: der Config-View-Switch liefert den Originalzustand.
+            try { delete bm._resetLayers; delete bm._resetOptions; delete bm._resetFromBookmarkDefault; } catch (eDelSnap) { /* ignore */ }
             _lastRenderHtml = null;
             self._refreshModifiedBadge();
 
-            if (restoreBookmarkResetSnapshot(bm)) {
-              resetResult = { success: true, snapshot: true };
-            } else if (typeof window.TnetResetActiveBookmarkState === 'function') {
-              resetResult = window.TnetResetActiveBookmarkState();
+            var store = window.TnetLMStore;
+            var resetResult = null;
+            if (typeof window.TnetResetActiveBookmarkState === 'function') {
+              try { resetResult = window.TnetResetActiveBookmarkState(); }
+              catch (eReset) { resetResult = null; }
             }
 
-            if (!resetResult || resetResult.success !== true) {
-              if (typeof window.TnetSetBookmark === 'function') window.TnetSetBookmark(bm.id, bm.activeViewId || null, bm._options || null);
-            } else {
-              self.render(window.TnetLMStore && window.TnetLMStore.getActiveLayers ? window.TnetLMStore.getActiveLayers() : []);
+            if (resetResult && resetResult.success === true) {
+              // Reihenfolge wieder nach API-Index herstellen (wie beim initialen Load).
+              _applyApiOrderToBookmark();
+              _lastRenderHtml = null;
+              self.render(store && store.getActiveLayers ? store.getActiveLayers() : []);
+            } else if (typeof window.TnetSetBookmark === 'function') {
+              // Fallback: voller API-Reload, falls der Config-Reset nicht greift.
+              window.TnetSetBookmark(bm.id, bm.activeViewId || null, bm._options || null);
             }
 
             if (_bmLoadTimer) clearTimeout(_bmLoadTimer);
@@ -1899,6 +2188,7 @@
         if (action === 'group-remove' && groupEl) {
           var gid2 = groupEl.dataset.groupId;
           if (removeBookmarkGroupState(gid2)) {
+            _bmModified = true;
             emitBookmarkStateChanged('remove-group');
           }
           if (window.TnetLMStore) window.TnetLMStore.removeCoalesceGroup(gid2);
@@ -1944,6 +2234,7 @@
             delete _pendingVisibilityUpdates[_getPendingVisibilityKey('layer', childIdRemove)];
             delete _pendingOpacityUpdates[_getPendingOpacityKey('layer', childIdRemove)];
             if (removeBookmarkLayerState(childIdRemove)) {
+              _bmModified = true;
               emitBookmarkStateChanged('remove-layer');
             }
             if (window.TnetLMStore && typeof window.TnetLMStore.removeLayer === 'function') {
@@ -1975,6 +2266,7 @@
             delete _pendingVisibilityUpdates[_getPendingVisibilityKey('layer', layerId)];
             delete _pendingOpacityUpdates[_getPendingOpacityKey('layer', layerId)];
             if (removeBookmarkLayerState(layerId)) {
+              _bmModified = true;
               emitBookmarkStateChanged('remove-layer');
             }
             window.TnetLMStore.removeLayer(layerId);
@@ -2282,8 +2574,17 @@
 
       // Neue Reihenfolge aus DOM lesen und an Store übergeben
       if (ds.startIdx !== ds.currentIdx) {
+        // Reset-Snapshot VOR der Reorder-Mutation sichern, damit "Änderungen verwerfen"
+        // die urspruengliche Reihenfolge wiederherstellt.
+        if (!_bmLoadedRecently && !_isBookmarkLoadActive() && !_isViewSwitchActive()) {
+          captureBookmarkResetSnapshot();
+        }
         var orderedIds = this._readOrderFromDOM(ds.listEl);
         if (reorderBookmarkLayerState(orderedIds)) {
+          // Reorder ist eine Benutzer-Aenderung am Bookmark-Zustand → Dirty markieren
+          // (zeigt "Änderungen verwerfen") und API-Reihenfolge nicht mehr ueberschreiben.
+          _userReordered = true;
+          _bmModified = true;
           emitBookmarkStateChanged('reorder');
         }
         if (orderedIds.length > 0 && window.TnetLMStore && window.TnetLMStore.setActiveLayerOrder) {
@@ -2428,7 +2729,21 @@
         captureBookmarkResetSnapshot();
       }
       var changed = updateBookmarkLayerState(evt.id, { visible: !!evt.visible });
-      if (changed && !_bmLoadedRecently && !_isBookmarkLoadActive() && !_isViewSwitchActive() && evt.source !== 'bookmark-init') {
+      var isUserEdit = !_bmLoadedRecently && !_isBookmarkLoadActive() && !_isViewSwitchActive() && evt.source !== 'bookmark-init';
+      // Neuer Layer aus dem Themenkatalog: nicht im Bookmark (changed=false), aber jetzt
+      // sichtbar geschaltet. Als Aenderung markieren, damit shouldIncludeLiveExtrasForBookmark()
+      // ihn in den Karteninhalt mischt (sonst erscheint er nicht). Nur bei aktivem Bookmark
+      // relevant — ohne Bookmark werden Live-Extras ohnehin immer angezeigt.
+      var isNewLiveLayer = isUserEdit && !changed && !!evt.visible && !!getBookmarkInfo();
+      if (isNewLiveLayer) {
+        // Oben in bookmark.layers einfuegen → erscheint zuoberst und wird Teil des
+        // Bookmark-Zustands (Drag&Drop, Reset-Snapshot greifen konsistent).
+        var nbm = getBookmarkInfo();
+        if (nbm && Array.isArray(nbm.layers) && !nbm.layers.some(function (x) { return x && x.id === evt.id; })) {
+          nbm.layers.unshift({ id: evt.id, visible: true, opacity: 1 });
+        }
+      }
+      if ((changed || isNewLiveLayer) && isUserEdit) {
         _bmModified = true;
         emitBookmarkStateChanged('visibility');
       }
