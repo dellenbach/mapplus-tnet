@@ -2528,7 +2528,42 @@
         }
       }
 
+      // Laufzeit-Opacity mit dem njs-Framework-Wrapper + URL (op=) synchronisieren,
+      // damit ein Reload die per Slider geaenderte Transparenz wiederherstellt.
+      this._syncFrameworkOpacity(layerId, clampedOpacity);
+
       this._emit('layer-opacity', { id: layerId, opacity: clampedOpacity });
+    },
+
+    /**
+     * Schreibt die Laufzeit-Opacity in den njs-Framework-Layer-Wrapper (dessen
+     * `.opacity` von updateMapStatusUrl in den URL-Parameter op= geschrieben wird)
+     * und stoesst eine entprellte, modus-bewusste URL-Aktualisierung an. Ohne diesen
+     * Sync schreibt das Framework weiterhin die Config-Default-Opacity in op=, sodass
+     * ein Reload die geaenderte Transparenz verliert. Spiegelt das Vorgehen aus
+     * tnet-lyrmgr-patch.js (URL-Update nur bei aktivem Bookmark-Tracking).
+     */
+    _syncFrameworkOpacity: function (layerId, opacity) {
+      var am = this._getAppManager();
+      if (!am) return;
+      try {
+        if (am.LyrMgr) {
+          for (var lm in am.LyrMgr) {
+            if (!am.LyrMgr.hasOwnProperty(lm)) continue;
+            var mgr = am.LyrMgr[lm];
+            if (mgr && typeof mgr.getLayerById === 'function') {
+              var wrapper = mgr.getLayerById(layerId);
+              if (wrapper && typeof wrapper === 'object') wrapper.opacity = opacity;
+            }
+          }
+        }
+      } catch (e) { /* defensiv */ }
+
+      if (!(am.Tools && am.Tools.TrackBookmark && typeof am.updateMapStatusUrl === 'function')) return;
+      if (this._opacityUrlTimer) clearTimeout(this._opacityUrlTimer);
+      this._opacityUrlTimer = setTimeout(function () {
+        try { am.updateMapStatusUrl('main'); } catch (eUrl) { /* defensiv */ }
+      }, 400);
     },
 
     /**
