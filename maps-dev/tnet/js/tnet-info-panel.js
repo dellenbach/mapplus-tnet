@@ -1070,8 +1070,9 @@ function initInfoPaneEnhancements() {
             if (isInfoPaneDocked) {
                 var mapContainer = document.getElementById('mapContainer');
                 if (mapContainer) {
+                    var closeAnchor = captureMapLeftAnchor();
                     mapContainer.style.setProperty('width', '100%', 'important');
-                    setTimeout(function() { triggerMapUpdate(); }, 100);
+                    applyMapResizeStatic(closeAnchor ? closeAnchor.coord : null, null, true);
                 }
                 stopMapContainerObserver();
                 isInfoPaneDocked = false;
@@ -1355,6 +1356,8 @@ function initInfoPaneResize(pane) {
     var isResizing = false;
     var resizeDirection = '';
     var startX, startY, startWidth, startHeight, startLeft, startTop;
+    var dockDragAnchorCoord = null;   // linke Kartenkante als Anker waehrend des Docked-Drags
+    var dockDragRafPending = false;   // rAF-Drossel fuer Live-Re-Render
     
     function startResize(e, direction) {
         // Im angedockten Modus nur linken Rand erlauben
@@ -1370,6 +1373,14 @@ function initInfoPaneResize(pane) {
         startHeight = rect.height;
         startLeft = rect.left;
         startTop = rect.top;
+        
+        // Angedockt: linke Kartenkante einmalig als Anker erfassen (bleibt waehrend
+        // des horizontalen Resizes ortsfest) → Live-Re-Render ohne Stauchen/Springen.
+        dockDragAnchorCoord = null;
+        if (pane.classList.contains('docked-right')) {
+            var a = captureMapLeftAnchor();
+            dockDragAnchorCoord = a ? a.coord : null;
+        }
         
         document.body.style.userSelect = 'none';
         e.preventDefault();
@@ -1409,6 +1420,15 @@ function initInfoPaneResize(pane) {
                     var actualPanelWidth = pane.offsetWidth;
                     var mapWidth = dockMetrics.centerPaneWidth - dockMetrics.streetviewWidth - actualPanelWidth;
                     mapContainer.style.setProperty('width', mapWidth + 'px', 'important');
+                    // Live verankertes Re-Render (rAF-gedrosselt) → Karte rendert pro
+                    // Frame scharf nach, kein Stauchen/Flackern; linke Kante bleibt fix.
+                    if (!dockDragRafPending) {
+                        dockDragRafPending = true;
+                        requestAnimationFrame(function() {
+                            dockDragRafPending = false;
+                            applyMapResizeStatic(dockDragAnchorCoord, null, false);
+                        });
+                    }
                 }
             }
             e.preventDefault();
@@ -1469,12 +1489,13 @@ function initInfoPaneResize(pane) {
     
     var mouseUpHandler = function() {
         if (isResizing) {
-            // Nach Resize Map aktualisieren falls angedockt
+            // Nach Resize Map final verankert aktualisieren falls angedockt
             if (pane.classList.contains('docked-right')) {
-                triggerMapUpdate();
+                applyMapResizeStatic(dockDragAnchorCoord, null, true);
             }
             isResizing = false;
             resizeDirection = '';
+            dockDragAnchorCoord = null;
             document.body.style.cursor = '';
             document.body.style.userSelect = '';
         }
@@ -1581,21 +1602,132 @@ var isInfoPaneDocked = false;
 var savedInfoPanePosition = null;
 window._savedDockedPanelWidth = window._savedDockedPanelWidth || 400;
 
-// Hilfsfunktion um Map-Update zu triggern
-function triggerMapUpdate() {
+// Hilfsfunktion um Map-Update zu triggern.
+// anchor (optional): { coord } — linke Kartenkante, die nach dem Resize stationaer
+//   gehalten wird, damit der Karteninhalt (samt Pin) beim An-/Abdocken nicht ruckt.
+// pinCoord (optional): geklickte Pin-Koordinate. Nur falls der Pin nach dem
+//   Andocken verdeckt/aus der schmaleren Karte gefallen ist, wird sanft nachzentriert.
+function triggerMapUpdate(anchor, pinCoord) {
     setTimeout(function() {
-        // Neapolis/OpenLayers Map
-        if (window.njs && njs.AppManager && njs.AppManager.Maps && njs.AppManager.Maps['main']) {
-            var mapObj = njs.AppManager.Maps['main'].mapObj;
-            if (mapObj && mapObj.updateSize) {
-                mapObj.updateSize();
-            }
+        var mapObj = (window.njs && njs.AppManager && njs.AppManager.Maps && njs.AppManager.Maps['main'])
+            ? njs.AppManager.Maps['main'].mapObj
+            : null;
+        if (mapObj && mapObj.updateSize) {
+            mapObj.updateSize();
         }
         // Dijit Layout Container neu berechnen
         if (typeof dijit !== 'undefined' && dijit.byId('NeapolisContainer')) {
             dijit.byId('NeapolisContainer').resize();
         }
+        if (!mapObj || !mapObj.getView) return;
+
+        // 1) Anker zuletzt anwenden: linke Kartenkante bleibt stationaer
+        //    (OpenLayers haelt sonst den geografischen Mittelpunkt fix → Versatz).
+        if (anchor && anchor.coord) {
+            try {
+                var s = mapObj.getSize();
+                if (s) {
+                    mapObj.getView().centerOn(anchor.coord, s, [0, s[1] / 2]);
+                }
+            } catch (e) { /* defensiv */ }
+        }
+
+        // 2) Nur wenn der Pin nach dem Andocken nicht sichtbar ist (vom Panel
+        //    verdeckt / rechts aus der schmaleren Karte gefallen): sanft nachzentrieren.
+        if (pinCoord && mapObj.getPixelFromCoordinate) {
+            try {
+                var size = mapObj.getSize();
+                var px = mapObj.getPixelFromCoordinate(pinCoord);
+                var hidden = !px || px[0] < 0 || px[1] < 0 ||
+                    (size && (px[0] > size[0] || px[1] > size[1]));
+                if (hidden) {
+                    mapObj.getView().animate({ center: pinCoord, duration: 300 });
+                }
+            } catch (e) { /* defensiv */ }
+        }
     }, 350);
+}
+
+// Erfasst die geografische Koordinate an der linken Kartenkante (Mitte) im aktuellen
+// (noch nicht geaenderten) Kartenzustand. Wird vor einer Breitenaenderung des
+// mapContainer aufgerufen und spaeter in triggerMapUpdate als Anker verwendet.
+function captureMapLeftAnchor() {
+    try {
+        if (!(window.njs && njs.AppManager && njs.AppManager.Maps && njs.AppManager.Maps['main'])) {
+            return null;
+        }
+        var mapObj = njs.AppManager.Maps['main'].mapObj;
+        if (!mapObj || !mapObj.getSize || !mapObj.getCoordinateFromPixel) return null;
+        var size = mapObj.getSize();
+        if (!size) return null;
+        return { coord: mapObj.getCoordinateFromPixel([0, size[1] / 2]) };
+    } catch (e) {
+        return null;
+    }
+}
+
+// Liefert die zuletzt geklickte Info-Pin-Koordinate, sofern der Klick frisch ist
+// (vom Info-Bridge-Klickhandler gesetzt). Aelter als 5s → ignorieren.
+function getRecentInfoPinCoord() {
+    try {
+        if (!window.__tnetLastInfoClickCoord) return null;
+        if (window.__tnetLastInfoClickAt && (Date.now() - window.__tnetLastInfoClickAt) > 5000) return null;
+        return window.__tnetLastInfoClickCoord;
+    } catch (e) {
+        return null;
+    }
+}
+
+// Synchroner, statischer Karten-Resize (kein setTimeout, kein Stauchen, kein Springen).
+// Muss im SELBEN Task wie die mapContainer-Breitenaenderung laufen: dann rendert OL
+// genau einmal scharf (rAF vor dem Paint), statt erst das gestauchte width:100%-Canvas
+// zu zeigen und danach zu korrigieren.
+// Ablauf: 1) Zielzentrum VOR updateSize setzen (linke Kante stationaer), 2) updateSize,
+//         3) optional dijit-Resize, 4) optional Pin-Recenter falls verdeckt.
+function applyMapResizeStatic(anchorCoord, pinCoord, withDijit) {
+    var mapObj = (window.njs && njs.AppManager && njs.AppManager.Maps && njs.AppManager.Maps['main'])
+        ? njs.AppManager.Maps['main'].mapObj
+        : null;
+    if (!mapObj || !mapObj.getView) return;
+    var view = mapObj.getView();
+
+    // Neue Zielgroesse aus dem bereits angepassten Container lesen (ein Reflow, kein Paint).
+    var mc = document.getElementById('mapContainer');
+    var newSize = mc ? [mc.offsetWidth, mc.offsetHeight] : (mapObj.getSize ? mapObj.getSize() : null);
+
+    // 1) Center so setzen, dass die linke Kartenkante stationaer bleibt — VOR updateSize,
+    //    damit OL nicht erst den geografischen Mittelpunkt haelt (Sprung) und dann korrigiert.
+    //    ABER: laeuft bereits eine View-Animation (z.B. Pin-Recenter beim Andocken), NICHT
+    //    re-verankern — sonst wuerde der Observer-Trigger die laufende Pan-Animation abbrechen.
+    var isAnimating = !!(view.getAnimating && view.getAnimating());
+    if (anchorCoord && newSize && view.centerOn && !isAnimating) {
+        try { view.centerOn(anchorCoord, newSize, [0, newSize[1] / 2]); } catch (e) { /* defensiv */ }
+    }
+
+    // 2) Groesse uebernehmen → ein einziges scharfes Re-Render.
+    if (mapObj.updateSize) mapObj.updateSize();
+
+    // 3) Dijit-Layout nur bei abgeschlossenen Aktionen (nicht im Live-Drag, zu schwer).
+    if (withDijit && typeof dijit !== 'undefined' && dijit.byId('NeapolisContainer')) {
+        try { dijit.byId('NeapolisContainer').resize(); } catch (e) { /* defensiv */ }
+    }
+
+    // 4) Pin verdeckt vom Panel, sehr nah am Panel-Rand ODER aus der Karte gefallen?
+    //    → sanft nachfuehren (smooth pan). Der Komfortabstand (marginRight) sorgt
+    //    dafuer, dass der Pin nicht direkt am Panel klebt.
+    if (pinCoord && mapObj.getPixelFromCoordinate) {
+        try {
+            var size = mapObj.getSize();
+            var px = mapObj.getPixelFromCoordinate(pinCoord);
+            var marginRight = 120; // Komfortabstand zum angedockten Panel (rechts)
+            var nearPanel = !!(px && size && px[0] > (size[0] - marginRight));
+            var offscreen = !px || px[0] < 0 || px[1] < 0 ||
+                (size && (px[0] > size[0] || px[1] > size[1]));
+            if (nearPanel || offscreen) {
+                view.animate({ center: pinCoord, duration: 300 });
+            }
+        } catch (e) { /* defensiv */ }
+    }
 }
 
 function getDockLayoutMetrics(mapContainer) {
@@ -1640,12 +1772,11 @@ window.toggleInfoPaneDock = function() {
         // Observer stoppen
         stopMapContainerObserver();
         
-        // mapContainer wieder auf volle Breite
+        // mapContainer wieder auf volle Breite — synchron + verankert (statisch)
         if (mapContainer) {
+            var leftAnchorUndock = captureMapLeftAnchor();
             mapContainer.style.setProperty('width', '100%', 'important');
-            setTimeout(function() {
-                triggerMapUpdate();
-            }, 100);
+            applyMapResizeStatic(leftAnchorUndock ? leftAnchorUndock.coord : null, null, true);
         }
         
         if (savedInfoPanePosition) {
@@ -1696,11 +1827,15 @@ window.toggleInfoPaneDock = function() {
             infoPane.style.setProperty('--tnet-info-panel-docked-width', panelWidth + 'px');
             infoPane.style.setProperty('height', 'auto', 'important');
 
-            // mapContainer verkleinern: Absolute Berechnung
+            // mapContainer verkleinern: Absolute Berechnung.
+            // Anker VOR der Breitenaenderung erfassen, danach synchron (kein setTimeout)
+            // Center setzen + updateSize → ein scharfes Re-Render, kein Stauchen/Springen.
+            var leftAnchor = captureMapLeftAnchor();
+            var pinCoord = getRecentInfoPinCoord();
             var mapWidth = dockMetrics.centerPaneWidth - dockMetrics.streetviewWidth - panelWidth;
             mapContainer.style.setProperty('width', mapWidth + 'px', 'important');
             window._savedDockedPanelWidth = panelWidth;
-            triggerMapUpdate();
+            applyMapResizeStatic(leftAnchor ? leftAnchor.coord : null, pinCoord, true);
         }
         
         // Observer für Layout-Änderungen starten (passt Panel an wenn StreetView etc. geöffnet wird)
@@ -1772,6 +1907,10 @@ function updateDockedInfoPanePosition() {
     var dockMetrics = getDockLayoutMetrics(mapContainer);
     var panelWidth = window._savedDockedPanelWidth || infoPane.offsetWidth || 350;
 
+    // Anker VOR der Breitenaenderung erfassen → linke Kante bleibt auch bei
+    // StreetView-/Fenster-Resize stationaer (kein verzoegerter Geo-Recenter).
+    var leftAnchorPos = captureMapLeftAnchor();
+
     // Panel-Position aktualisieren - rechts neben StreetView
     infoPane.style.setProperty('top', dockMetrics.centerRect.top + 'px', 'important');
     infoPane.style.setProperty('right', dockMetrics.streetviewWidth + 'px', 'important');
@@ -1785,7 +1924,7 @@ function updateDockedInfoPanePosition() {
     var mapWidth = dockMetrics.centerPaneWidth - dockMetrics.streetviewWidth - panelWidth;
     mapContainer.style.setProperty('width', mapWidth + 'px', 'important');
 
-    triggerMapUpdate();
+    applyMapResizeStatic(leftAnchorPos ? leftAnchorPos.coord : null, null, true);
 }
 
 // Funktion um Panel-Position bei Resize zu aktualisieren (ohne Container zu ändern)

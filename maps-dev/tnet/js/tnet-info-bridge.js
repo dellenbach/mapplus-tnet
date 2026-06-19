@@ -931,6 +931,14 @@
     var map = am.Maps[MAP_ID].mapObj;
     if (!map) return;
 
+    // Geklickte Koordinate global merken (Pin-Position). Wird vom Info-Panel
+    // beim Andocken genutzt, um zu pruefen ob der Pin vom Panel verdeckt wird
+    // und dann sanft nachzuzentrieren.
+    try {
+        window.__tnetLastInfoClickCoord = evt.coordinate;
+        window.__tnetLastInfoClickAt = Date.now();
+    } catch (e) { /* defensiv */ }
+
     // Pro-Klick-Cache neu aufsetzen: Karten-/Katalogzustand ist ab hier bis
     // zum Ende dieses synchronen Handlers konstant → Lookups duerfen cachen.
     _resetClickCache();
