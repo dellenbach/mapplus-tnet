@@ -1044,8 +1044,15 @@ function initInfoPaneEnhancements() {
         var dockBtn = document.createElement('button');
         dockBtn.className = 'info-pane-btn';
         dockBtn.id = 'info-pane-dock-btn';
-        dockBtn.title = 'Rechts andocken';
-        dockBtn.innerHTML = TnetIcons.get('dock');
+        // Button-Zustand am aktuellen Dock-Status ausrichten — das Auto-Dock kann
+        // bereits angedockt haben, bevor dieser Button existiert (sonst falsches Label).
+        if (infoPane.classList.contains('docked-right')) {
+            dockBtn.title = 'Floating';
+            dockBtn.innerHTML = TnetIcons.get('undock');
+        } else {
+            dockBtn.title = 'Rechts andocken';
+            dockBtn.innerHTML = TnetIcons.get('dock');
+        }
         dockBtn.onmousedown = function(e) { e.stopPropagation(); };
         dockBtn.onclick = function(e) {
             e.stopPropagation();

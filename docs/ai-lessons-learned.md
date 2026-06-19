@@ -1,4 +1,11 @@
-﻿## 2026-06-19 - Angedockte Panels ueberlappten den grueneren Karten-Footer, Info-Breite liess sich nicht stabil ziehen
+﻿## 2026-06-19 - Objektinfo oeffnete gelegentlich floating statt angedockt
+
+- Symptom: Nach Kartenwechsel oder laengerem Arbeiten oeffnete die Objektinfo bei einer Infoabfrage manchmal floating, obwohl `defaultDockedRight: true` gesetzt ist.
+- Root-Cause: Das Auto-Docking in tnet-info-panel-default-dock.js haengte an EINEM `MutationObserver` plus der Hidden->Visible-Transition. Wird die Transition verpasst (Panel ohne beobachtete Transition sichtbar) ODER der Panel-Knoten `njs_info_pane` beim Kartenwechsel neu erzeugt, beobachtet der Observer einen toten Knoten → `toggleInfoPaneDock` wird nie aufgerufen → floating. Config-Timing war NICHT die Ursache (synchron via sync-XHR in tnet-log.js).
+- Fix: Observer wird bei geaendertem Panel-Knoten neu angebunden (`observedPane`-Vergleich); Safety-Enforcer (Intervall 300ms) erzwingt Andocken bei sichtbar+`!docked-right`, solange der Nutzer nicht in dieser Sitzung bewusst abgedockt hat (`userManuallyUndocked`, beim Ausblenden zurueckgesetzt). Dock-Button-Label in enhanceInfoPane am aktuellen Dock-Status ausgerichtet (Auto-Dock kann vor Button-Erzeugung andocken).
+- Guardrail: Einmalige MutationObserver auf potenziell neu erzeugte Framework-Knoten sind unzuverlaessig — Knoten-Identitaet pruefen und neu anbinden, plus idempotenten Safety-Enforcer als Netz. Erzwungene UI-Defaults muessen bewusste Nutzer-Aktionen (manuelles Abdocken) innerhalb der Sitzung respektieren.
+
+## 2026-06-19 - Angedockte Panels ueberlappten den grueneren Karten-Footer, Info-Breite liess sich nicht stabil ziehen
 
 - Symptom: Rechts angedockte Panels (Info, OEREB/Print/WMS) konnten in den Footer laufen; bei der Info war Dock-Breite per linkem Handle inkonsistent.
 - Root-Cause: Dock-Bottom wurde aus `centerPaneLayout` abgeleitet und ignorierte den realen `#map-footer-bar`; im Info-Resize wurde `mapContainer` mit `calc(100% - width)` statt absoluter Breitenberechnung synchronisiert und `_savedDockedPanelWidth` nicht verlaesslich fortgeschrieben.
