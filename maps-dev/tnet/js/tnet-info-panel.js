@@ -1392,12 +1392,16 @@ function initInfoPaneResize(pane) {
             if (resizeDirection === 'left' || resizeDirection === 'tl' || resizeDirection === 'bl') {
                 newWidth = Math.max(300, Math.min(startWidth - dx, window.innerWidth - 100));
                 pane.style.setProperty('width', newWidth + 'px', 'important');
-                
+                pane.style.setProperty('--tnet-info-panel-docked-width', newWidth + 'px');
+                window._savedDockedPanelWidth = newWidth;
+
                 // mapContainer anpassen
                 var mapContainer = document.getElementById('mapContainer');
-                if (mapContainer && isInfoPaneDocked) {
+                if (mapContainer) {
+                    var dockMetrics = getDockLayoutMetrics(mapContainer);
                     var actualPanelWidth = pane.offsetWidth;
-                    mapContainer.style.setProperty('width', 'calc(100% - ' + actualPanelWidth + 'px)', 'important');
+                    var mapWidth = dockMetrics.centerPaneWidth - dockMetrics.streetviewWidth - actualPanelWidth;
+                    mapContainer.style.setProperty('width', mapWidth + 'px', 'important');
                 }
             }
             e.preventDefault();
@@ -1568,6 +1572,7 @@ function showCopyNotification(message) {
 // Info-Panel andocken/abdocken
 var isInfoPaneDocked = false;
 var savedInfoPanePosition = null;
+window._savedDockedPanelWidth = window._savedDockedPanelWidth || 400;
 
 // Hilfsfunktion um Map-Update zu triggern
 function triggerMapUpdate() {
@@ -1584,6 +1589,35 @@ function triggerMapUpdate() {
             dijit.byId('NeapolisContainer').resize();
         }
     }, 350);
+}
+
+function getDockLayoutMetrics(mapContainer) {
+    var centerPane = document.getElementById('centerPaneLayout');
+    var streetviewContainer = document.getElementById('streetviewContainer');
+    var footerBar = document.getElementById('map-footer-bar');
+
+    var streetviewWidth = 0;
+    if (streetviewContainer && streetviewContainer.offsetWidth > 0 && streetviewContainer.style.display !== 'none') {
+        streetviewWidth = streetviewContainer.offsetWidth;
+    }
+
+    var fallbackRect = mapContainer
+        ? mapContainer.getBoundingClientRect()
+        : { top: 69, bottom: window.innerHeight };
+    var centerRect = centerPane ? centerPane.getBoundingClientRect() : fallbackRect;
+    var baseBottomOffset = Math.max(0, window.innerHeight - centerRect.bottom);
+
+    var footerHeight = 32;
+    if (footerBar && footerBar.offsetHeight > 0 && window.getComputedStyle(footerBar).display !== 'none') {
+        footerHeight = footerBar.offsetHeight;
+    }
+
+    return {
+        centerPaneWidth: centerPane ? centerPane.offsetWidth : window.innerWidth,
+        centerRect: centerRect,
+        streetviewWidth: streetviewWidth,
+        bottomOffset: Math.max(baseBottomOffset, footerHeight)
+    };
 }
 
 window.toggleInfoPaneDock = function() {
@@ -1643,29 +1677,22 @@ window.toggleInfoPaneDock = function() {
         if (mapContainer) {
             // Gespeicherte Breite verwenden falls vorhanden, sonst 350px
             var panelWidth = window._savedDockedPanelWidth || 350;
-            var centerPane = document.getElementById('centerPaneLayout');
-            var streetviewContainer = document.getElementById('streetviewContainer');
-            
-            // Berechne den rechten Offset (falls StreetView offen)
-            var streetviewWidth = 0;
-            if (streetviewContainer && streetviewContainer.offsetWidth > 0 && streetviewContainer.style.display !== 'none') {
-                streetviewWidth = streetviewContainer.offsetWidth;
-            }
-            
+            var dockMetrics = getDockLayoutMetrics(mapContainer);
+
             // Panel am rechten Rand positionieren (neben StreetView falls offen)
-            var centerRect = centerPane ? centerPane.getBoundingClientRect() : mapContainer.getBoundingClientRect();
             infoPane.style.setProperty('position', 'fixed', 'important');
-            infoPane.style.setProperty('top', centerRect.top + 'px', 'important');
-            infoPane.style.setProperty('right', streetviewWidth + 'px', 'important');
-            infoPane.style.setProperty('bottom', (window.innerHeight - centerRect.bottom) + 'px', 'important');
+            infoPane.style.setProperty('top', dockMetrics.centerRect.top + 'px', 'important');
+            infoPane.style.setProperty('right', dockMetrics.streetviewWidth + 'px', 'important');
+            infoPane.style.setProperty('bottom', dockMetrics.bottomOffset + 'px', 'important');
             infoPane.style.setProperty('left', 'auto', 'important');
             infoPane.style.setProperty('width', panelWidth + 'px', 'important');
+            infoPane.style.setProperty('--tnet-info-panel-docked-width', panelWidth + 'px');
             infoPane.style.setProperty('height', 'auto', 'important');
-            
+
             // mapContainer verkleinern: Absolute Berechnung
-            var centerPaneWidth = centerPane ? centerPane.offsetWidth : window.innerWidth;
-            var mapWidth = centerPaneWidth - streetviewWidth - panelWidth;
+            var mapWidth = dockMetrics.centerPaneWidth - dockMetrics.streetviewWidth - panelWidth;
             mapContainer.style.setProperty('width', mapWidth + 'px', 'important');
+            window._savedDockedPanelWidth = panelWidth;
             triggerMapUpdate();
         }
         
@@ -1733,31 +1760,24 @@ function updateDockedInfoPanePosition() {
     if (!isInfoPaneDocked) return;
     var mapContainer = document.getElementById('mapContainer');
     var infoPane = document.getElementById('njs_info_pane');
-    var centerPane = document.getElementById('centerPaneLayout');
-    var streetviewContainer = document.getElementById('streetviewContainer');
     if (!mapContainer || !infoPane) return;
-    
+
+    var dockMetrics = getDockLayoutMetrics(mapContainer);
     var panelWidth = window._savedDockedPanelWidth || infoPane.offsetWidth || 350;
-    
-    // Berechne den rechten Offset (falls StreetView offen)
-    var streetviewWidth = 0;
-    if (streetviewContainer && streetviewContainer.offsetWidth > 0 && streetviewContainer.style.display !== 'none') {
-        streetviewWidth = streetviewContainer.offsetWidth;
-    }
-    
+
     // Panel-Position aktualisieren - rechts neben StreetView
-    var centerRect = centerPane ? centerPane.getBoundingClientRect() : { top: 69, bottom: window.innerHeight - 32 };
-    infoPane.style.setProperty('top', centerRect.top + 'px', 'important');
-    infoPane.style.setProperty('right', streetviewWidth + 'px', 'important');
-    infoPane.style.setProperty('bottom', (window.innerHeight - centerRect.bottom) + 'px', 'important');
+    infoPane.style.setProperty('top', dockMetrics.centerRect.top + 'px', 'important');
+    infoPane.style.setProperty('right', dockMetrics.streetviewWidth + 'px', 'important');
+    infoPane.style.setProperty('bottom', dockMetrics.bottomOffset + 'px', 'important');
     infoPane.style.setProperty('width', panelWidth + 'px', 'important');
-    
+    infoPane.style.setProperty('--tnet-info-panel-docked-width', panelWidth + 'px');
+    window._savedDockedPanelWidth = panelWidth;
+
     // mapContainer-Breite: Absolute Berechnung
     // Verfügbare Breite = centerPaneLayout.width - streetviewWidth - panelWidth
-    var centerPaneWidth = centerPane ? centerPane.offsetWidth : window.innerWidth;
-    var mapWidth = centerPaneWidth - streetviewWidth - panelWidth;
+    var mapWidth = dockMetrics.centerPaneWidth - dockMetrics.streetviewWidth - panelWidth;
     mapContainer.style.setProperty('width', mapWidth + 'px', 'important');
-    
+
     triggerMapUpdate();
 }
 

@@ -351,7 +351,7 @@ input[type="range"]::-webkit-slider-thumb:hover {
   right: 0 !important;
   left: auto !important;
   bottom: 32px !important;
-  width: 400px;
+  width: var(--tnet-info-panel-docked-width, 400px) !important;
   height: auto !important;
   max-height: none !important;
   border-radius: 0 !important;

@@ -51,6 +51,9 @@
 
     panel.classList.toggle('hidden');
     if (!panel.classList.contains('hidden')) {
+      if (_isWmsDocked || panel.classList.contains('docked-right')) {
+        _undockWms();
+      }
       TnetLog.log('[WMS-Panel] Geöffnet');
     }
   };
@@ -59,7 +62,7 @@
     var panel = $('wms-panel');
     if (!panel) return;
     // Falls gedockt: undocken beim Schliessen
-    if (_isWmsDocked) {
+    if (_isWmsDocked || panel.classList.contains('docked-right')) {
       _undockWms();
     }
     panel.classList.add('hidden');
@@ -68,12 +71,41 @@
   // ===== DOCK/UNDOCK =====
 
   window.toggleWmsDock = function() {
-    if (_isWmsDocked) {
+    var panel = $('wms-panel');
+    if (!panel) return;
+    if (_isWmsDocked || panel.classList.contains('docked-right')) {
       _undockWms();
-    } else {
-      _dockWms();
     }
   };
+
+  function _getWmsDockLayoutMetrics(mapContainer) {
+    var centerPane = document.getElementById('centerPaneLayout');
+    var streetviewContainer = document.getElementById('streetviewContainer');
+    var footerBar = document.getElementById('map-footer-bar');
+
+    var streetviewWidth = 0;
+    if (streetviewContainer && streetviewContainer.offsetWidth > 0 && streetviewContainer.style.display !== 'none') {
+      streetviewWidth = streetviewContainer.offsetWidth;
+    }
+
+    var fallbackRect = mapContainer
+      ? mapContainer.getBoundingClientRect()
+      : { top: 69, bottom: window.innerHeight };
+    var centerRect = centerPane ? centerPane.getBoundingClientRect() : fallbackRect;
+    var baseBottomOffset = Math.max(0, window.innerHeight - centerRect.bottom);
+
+    var footerHeight = 32;
+    if (footerBar && footerBar.offsetHeight > 0 && window.getComputedStyle(footerBar).display !== 'none') {
+      footerHeight = footerBar.offsetHeight;
+    }
+
+    return {
+      centerPaneWidth: centerPane ? centerPane.offsetWidth : window.innerWidth,
+      centerRect: centerRect,
+      streetviewWidth: streetviewWidth,
+      bottomOffset: Math.max(baseBottomOffset, footerHeight)
+    };
+  }
 
   function _dockWms() {
     var panel = $('wms-panel');
@@ -93,19 +125,15 @@
     panel.classList.add('docked-right');
 
     var panelWidth = window._savedWmsDockedWidth || 400;
-    var centerPane = document.getElementById('centerPaneLayout');
-    var streetviewContainer = document.getElementById('streetviewContainer');
-    var streetviewWidth = 0;
-    if (streetviewContainer && streetviewContainer.offsetWidth > 0 && streetviewContainer.style.display !== 'none') {
-      streetviewWidth = streetviewContainer.offsetWidth;
-    }
+    var dockMetrics = _getWmsDockLayoutMetrics(mapContainer);
 
+    panel.style.setProperty('top', dockMetrics.centerRect.top + 'px', 'important');
+    panel.style.setProperty('bottom', dockMetrics.bottomOffset + 'px', 'important');
     panel.style.setProperty('width', panelWidth + 'px', 'important');
-    panel.style.setProperty('right', streetviewWidth + 'px', 'important');
+    panel.style.setProperty('right', dockMetrics.streetviewWidth + 'px', 'important');
 
     if (mapContainer) {
-      var centerPaneWidth = centerPane ? centerPane.offsetWidth : window.innerWidth;
-      var mapWidth = centerPaneWidth - streetviewWidth - panelWidth;
+      var mapWidth = dockMetrics.centerPaneWidth - dockMetrics.streetviewWidth - panelWidth;
       mapContainer.style.setProperty('width', mapWidth + 'px', 'important');
       _triggerMapUpdate();
     }

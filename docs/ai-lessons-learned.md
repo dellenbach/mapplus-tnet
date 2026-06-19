@@ -1,4 +1,46 @@
-﻿## 2026-06-18 - Import-User darf nicht an DB-Schema-Rechten scheitern
+﻿## 2026-06-19 - Angedockte Panels ueberlappten den grueneren Karten-Footer, Info-Breite liess sich nicht stabil ziehen
+
+- Symptom: Rechts angedockte Panels (Info, OEREB/Print/WMS) konnten in den Footer laufen; bei der Info war Dock-Breite per linkem Handle inkonsistent.
+- Root-Cause: Dock-Bottom wurde aus `centerPaneLayout` abgeleitet und ignorierte den realen `#map-footer-bar`; im Info-Resize wurde `mapContainer` mit `calc(100% - width)` statt absoluter Breitenberechnung synchronisiert und `_savedDockedPanelWidth` nicht verlaesslich fortgeschrieben.
+- Fix: Gemeinsame Dock-Metriken (Top/StreetView/Footer-Offset) in den Panel-Skripten eingefuehrt; Bottom-Offset auf `max(centerPaneRest, footerHeight)` gesetzt; Info-Resize speichert Dock-Breite jetzt sauber und synchronisiert `mapContainer` via Pixelbreite.
+- Guardrail: Bei rechts angedockten Panels Bottom nie hart setzen oder nur aus Container-Rect ableiten; immer den tatsaechlichen Footer-Offset beruecksichtigen und Panel-/Map-Breiten mit denselben absoluten Metriken rechnen.
+
+## 2026-06-19 - Falsches "Bookmark wurde verändert" / "Ansicht zurücksetzen" direkt nach Laden
+
+- Symptom: Direkt nach dem Bookmark-Load erschien "✱ Bookmark wurde verändert" + "Ansicht zurücksetzen", obwohl der Nutzer nichts geändert hatte.
+- Root-Cause: Beim (verzoegerten) Coalesce-/Framework-Layer-Aufbau feuert der Store spaet `layer-opacity`-Events, die nur den API-konfigurierten Wert (z.B. opacity 0.65) anwenden. `_onOpacity`/`_onCoalesceGroupOpacity` (tnet-lm-active.js) pruefen \u2014 anders als `_onVisibility` \u2014 nur `_bmLoadedRecently` (Schonfrist ~3.5s laengst abgelaufen) und werteten jedes `changed` als Nutzer-Edit \u2192 `_bmModified = true`.
+- Fix: Helfer `_opacityMatchesBaseline(layerId, opacity)` vergleicht gegen den Reset-Snapshot bzw. die Katalog-/API-Opacity (`node.options.opacity`). `_onOpacity`/`_onCoalesceGroupOpacity` setzen `_bmModified` nur noch, wenn die Opacity vom Baseline ABWEICHT und `!_isBookmarkLoadActive() && !_isViewSwitchActive()`. Verifiziert: 0 spuriose Events nach Load, Reset-Button weg; echte Opacity-Aenderung (0.65\u21920.30) weiterhin korrekt als modified erkannt.
+- Guardrail: Programmatische Anwendung API-konfigurierter Werte (Opacity/Sichtbarkeit) NIE als Nutzer-Edit werten \u2014 immer gegen den konfigurierten Baseline (API/Snapshot) pruefen, nicht gegen den transienten Vorwert. Die API liefert die Soll-Opacity je Sublayer bereits mit.
+
+## 2026-06-19 - Startup-Freeze ~13s: findLayer machte rekursiven Katalog-Walk pro Lookup
+
+- Symptom: Nach Laden eines Bookmarks fror die App mehrere Sekunden ein (kein Pan/Zoom); Karte spaet bereit.
+- Root-Cause: `TnetLMStore.findLayer()` rief `_findLayerRecursive` (voller rekursiver Katalog-Walk) pro Aufruf. `TnetSyncMapTips` (tnet-mapplus-helpers.js) ruft das pro MapTip x Pfadsegment x 4 Kandidaten x mehreren Sync-Runs → CPU-Profiler: `_findLayerRecursive` 8-9s + case-insensitive `walk` (findLayerRobust) 4.7-5s = ~13s Main-Thread-Block.
+- Fix: In tnet-lm-store.js vollstaendiger Knotenindex `_catalogLayerNodeIndex` (alle Knoten, Leaf-Vorrang via `_catalogLayerNodeLeaf`) + `_catalogLayerNodeIndexLower`; `findLayer` O(1), bei `_loaded` Index-Miss => null OHNE Walk (Index ist vollstaendig, da `_catalog` nur an 2 Stellen gesetzt + `_initCoalesceInfo` direkt danach indexiert); neue `findLayerCI()`. In tnet-mapplus-helpers.js `findLayerRobust` den case-insensitive Walk durch `store.findLayerCI()` ersetzt. Verifiziert per CPU-Profiler: Hotspots weg, laengster Long-Task <600ms.
+- Guardrail: Heisse, wiederholte Katalog-Lookups immer ueber einen beim Load gebauten Index (O(1)) loesen, nie pro Aufruf rekursiv traversieren. Vollstaendigen Index fuer schnelle Negativ-Antworten nutzen.
+
+## 2026-06-19 - Coalesce-Layer (Gewässerraum) rendert nach Bookmark-Load nicht (Startup-Race)
+
+- Symptom: Nach Bookmark-Load fuehrt der Store den Coalesce-Layer als sichtbar, aber kein OL-Layer auf der Karte → Layer rendert nicht (intermittierend; durch schnelleren Startup nach dem findLayer-Fix verstaerkt). Manuelles TnetLayerSwitch off->on erstellte ihn.
+- Root-Cause: `restoreFromUrl` erstellt den OL-Layer nur wenn `!layer.visible`; bei sauberer Bookmark-URL ist `_originalUrlLayers` leer (kein layers=-Param) → restoreFromUrl no-op. Der Bookmark-Apply-Pfad erstellt den OL-Layer nicht zuverlaessig (Framework noch nicht bereit → `_createRootOLLayer` minResolution).
+- Fix: tnet-coalesce-bridge.js `_reconcileActiveCoalesceGroups()` — iteriert `store.getActiveLayers()`, ruft fuer aktive Coalesce-Sublayer ohne OL-Layer `store._forceCoalesceGroupRender(groupId)` (bewaehrter Render-Pfad mit registerSublayer-Retries). Trigger: `tnet-bookmark-loaded` + `tnet-app-ready` mit Retries (0/800/2500ms). Idempotent (agiert nur bei fehlendem OL-Layer → kein Event-Loop). Verifiziert: Gewässerraum rendert.
+- Guardrail: Store ist Single Source of Truth — nach Bookmark/URL-Restore die Bridge gegen `getActiveLayers()` reconcilen, nicht auf einen einzelnen Trigger-Pfad verlassen.
+
+## 2026-06-19 - Gewässerraum/Coalesce-Layer fielen aus layers=-URL (Framework updateMapStatusUrl)
+
+- Symptom: Nach Bookmark-Laden/Reload (z.B. /maps-dev/gew) verschwand der Gewässerraum aus der `layers=`-URL und wurde nicht dargestellt; intermittierend.
+- Root-Cause: Framework `njs.AppManager.updateMapStatusUrl` (appmanager.js) schreibt bei jedem moveend/loadend `layers=` mit seiner eigenen (leeren) Layer-Sicht. Der Post-Fix `_fixUrlForBridgeLayers` stellte aktive Sublayer nur aus dem transienten Bridge-State `_rootServices.visibleSublayers` wieder her; `_injectDirectWmsLayersIntoUrl` ergänzte nur Nicht-ArcGIS-Layer. ArcGIS-Coalesce-Layer (Gewässerraum) wurden daher waehrend der ADD->REMOVE->ADD-Race nicht wiederhergestellt.
+- Fix: In `_fixUrlForBridgeLayers` zusaetzlich gegen `TnetLMStore.getActiveLayers()` (autoritative Quelle) abgleichen — alle sichtbaren Store-Active-Layer werden in die URL-Wiederherstellung aufgenommen. Verifiziert per Browser: finaler URL-Zustand ist nun immer vollstaendig.
+- Guardrail: Die `layers=`-URL muss aus dem Store (Single Source of Truth) rekonstruiert werden, nie nur aus transientem Bridge-/Framework-State. Bei DEV-Tests Browser-Cache beachten (statischer `?v=`-Param → Hard-Reload noetig, sonst laeuft alter JS-Stand).
+
+## 2026-06-19 - Info-Abfrage (ÖREB) blockierte UI mehrere Sekunden — redundante Traversierungen pro Klick
+
+- Symptom: Nach Kartenklick mit mehreren aktiven ÖREB-Layern fror Pan/Zoom mehrere Sekunden ein, bis sich die Info-Abfrage aufbaute.
+- Root-Cause: `_getServiceShowList` (Walk über alle Karten-Layer) und `_findLayerRobust` (Katalog-Walk) wurden in `tnet-info-bridge.js` pro Klick dutzendfach für dieselben IDs neu berechnet (`_syncMapTipsBeforeDispatch`, `_getDirectMapTipsForActiveContent`, `_adapterMapPlus`).
+- Fix: Pro-Klick-Cache `_clickCache` (in `_resetClickCache` zu Beginn von `_handleClick` gesetzt) memoisiert beide Lookups; Karten-/Katalogzustand ist während des synchronen Handlers konstant.
+- Guardrail: Read-only-Traversierungen, die pro Klick mehrfach mit identischen Argumenten laufen, immer pro Klick memoisieren statt Verhalten/Netzwerklogik zu ändern.
+
+## 2026-06-18 - Import-User darf nicht an DB-Schema-Rechten scheitern
 
 - Symptom: Nach neuem Import wurde `imported_at` aktualisiert, aber `imported_by` blieb leer (`-`).
 - Root-Cause: In einigen Umgebungen fehlt/spinnt die DB-Spalte `imported_by` (oder Schreibrechte), dadurch landet der Import-User nicht in `ags_import_history`.

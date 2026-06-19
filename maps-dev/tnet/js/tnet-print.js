@@ -1820,6 +1820,35 @@
     }, 350);
   }
 
+  function getPrintDockLayoutMetrics(mapContainer) {
+    var centerPane = document.getElementById('centerPaneLayout');
+    var streetviewContainer = document.getElementById('streetviewContainer');
+    var footerBar = document.getElementById('map-footer-bar');
+
+    var streetviewWidth = 0;
+    if (streetviewContainer && streetviewContainer.offsetWidth > 0 && streetviewContainer.style.display !== 'none') {
+      streetviewWidth = streetviewContainer.offsetWidth;
+    }
+
+    var fallbackRect = mapContainer
+      ? mapContainer.getBoundingClientRect()
+      : { top: 69, bottom: window.innerHeight };
+    var centerRect = centerPane ? centerPane.getBoundingClientRect() : fallbackRect;
+    var baseBottomOffset = Math.max(0, window.innerHeight - centerRect.bottom);
+
+    var footerHeight = 32;
+    if (footerBar && footerBar.offsetHeight > 0 && window.getComputedStyle(footerBar).display !== 'none') {
+      footerHeight = footerBar.offsetHeight;
+    }
+
+    return {
+      centerPaneWidth: centerPane ? centerPane.offsetWidth : window.innerWidth,
+      centerRect: centerRect,
+      streetviewWidth: streetviewWidth,
+      bottomOffset: Math.max(baseBottomOffset, footerHeight)
+    };
+  }
+
   function dockPrintPanel() {
     if (_inlineMode) return; // Kein Docking im Inline-Modus
     var panel = document.getElementById('print-panel');
@@ -1834,22 +1863,15 @@
     // Mobile: Panel ist Bottom-Sheet (CSS steuert Layout) — keine Breitenanpassung!
     if (!_isMobile && mapContainer) {
       var panelWidth = _savedPrintDockedWidth || 380;
-      var centerPane = document.getElementById('centerPaneLayout');
-      var streetviewContainer = document.getElementById('streetviewContainer');
-      var streetviewWidth = 0;
-      if (streetviewContainer && streetviewContainer.offsetWidth > 0 && streetviewContainer.style.display !== 'none') {
-        streetviewWidth = streetviewContainer.offsetWidth;
-      }
-      var centerRect = centerPane ? centerPane.getBoundingClientRect() : mapContainer.getBoundingClientRect();
-      panel.style.setProperty('top', centerRect.top + 'px', 'important');
-      panel.style.setProperty('right', streetviewWidth + 'px', 'important');
-      panel.style.setProperty('bottom', (window.innerHeight - centerRect.bottom) + 'px', 'important');
+      var dockMetrics = getPrintDockLayoutMetrics(mapContainer);
+      panel.style.setProperty('top', dockMetrics.centerRect.top + 'px', 'important');
+      panel.style.setProperty('right', dockMetrics.streetviewWidth + 'px', 'important');
+      panel.style.setProperty('bottom', dockMetrics.bottomOffset + 'px', 'important');
       panel.style.setProperty('left', 'auto', 'important');
       panel.style.setProperty('width', panelWidth + 'px', 'important');
       panel.style.setProperty('height', 'auto', 'important');
 
-      var centerPaneWidth = centerPane ? centerPane.offsetWidth : window.innerWidth;
-      var mapWidth = centerPaneWidth - streetviewWidth - panelWidth;
+      var mapWidth = dockMetrics.centerPaneWidth - dockMetrics.streetviewWidth - panelWidth;
       mapContainer.style.setProperty('width', mapWidth + 'px', 'important');
     }
     triggerPrintMapUpdate();
@@ -1929,25 +1951,16 @@
   function updateDockedPrintPosition() {
     var panel = document.getElementById('print-panel');
     var mapContainer = document.getElementById('mapContainer');
-    if (!panel || !_isPrintPanelDocked) return;
+    if (!panel || !_isPrintPanelDocked || !mapContainer) return;
 
     var panelWidth = panel.offsetWidth || _savedPrintDockedWidth;
-    var centerPane = document.getElementById('centerPaneLayout');
-    var streetviewContainer = document.getElementById('streetviewContainer');
-    var streetviewWidth = 0;
-    if (streetviewContainer && streetviewContainer.offsetWidth > 0 && streetviewContainer.style.display !== 'none') {
-      streetviewWidth = streetviewContainer.offsetWidth;
-    }
-    var centerRect = centerPane ? centerPane.getBoundingClientRect() : (mapContainer ? mapContainer.getBoundingClientRect() : { top: 60, bottom: window.innerHeight });
-    panel.style.setProperty('top', centerRect.top + 'px', 'important');
-    panel.style.setProperty('right', streetviewWidth + 'px', 'important');
-    panel.style.setProperty('bottom', (window.innerHeight - centerRect.bottom) + 'px', 'important');
+    var dockMetrics = getPrintDockLayoutMetrics(mapContainer);
+    panel.style.setProperty('top', dockMetrics.centerRect.top + 'px', 'important');
+    panel.style.setProperty('right', dockMetrics.streetviewWidth + 'px', 'important');
+    panel.style.setProperty('bottom', dockMetrics.bottomOffset + 'px', 'important');
 
-    if (mapContainer) {
-      var centerPaneWidth = centerPane ? centerPane.offsetWidth : window.innerWidth;
-      var mapWidth = centerPaneWidth - streetviewWidth - panelWidth;
-      mapContainer.style.setProperty('width', mapWidth + 'px', 'important');
-    }
+    var mapWidth = dockMetrics.centerPaneWidth - dockMetrics.streetviewWidth - panelWidth;
+    mapContainer.style.setProperty('width', mapWidth + 'px', 'important');
   }
 
   // ── Resize-Handle (links) im angedockten Modus ──
@@ -1980,7 +1993,9 @@
 
       var mapContainer = document.getElementById('mapContainer');
       if (mapContainer) {
-        mapContainer.style.setProperty('width', 'calc(100% - ' + newWidth + 'px)', 'important');
+        var dockMetrics = getPrintDockLayoutMetrics(mapContainer);
+        var mapWidth = dockMetrics.centerPaneWidth - dockMetrics.streetviewWidth - newWidth;
+        mapContainer.style.setProperty('width', mapWidth + 'px', 'important');
       }
       e.preventDefault();
     });
