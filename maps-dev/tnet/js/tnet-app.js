@@ -20,6 +20,25 @@ var __tnetInitialUrlQuery = '';
 var __tnetBookmarkAutoStartStarted = false;
 var __tnetInitialUrlLayerCount = 0;
 var __tnetInitialUrlGuardUntil = Date.now() + 18000;
+
+// Mixed-URL-Regel: Steht eine Bookmark-ID im Pfad (z.B. /maps-dev/gew) UND sind
+// layers=/op= vorhanden (z.B. alter Kundenlink), gewinnt das Bookmark. layers=/op=
+// SOFORT entfernen — bevor Framework/Guards die URL erfassen und die Layer verarbeiten.
+(function _tnetBookmarkWinsOverUrlLayers() {
+    try {
+        var path = window.location.pathname || '';
+        if (!/\/maps(?:-dev)?\/[A-Za-z0-9_-]+$/.test(path)) return;
+        var url = new URL(window.location.href);
+        if (url.searchParams.has('layers') || url.searchParams.has('op')) {
+            url.searchParams.delete('layers');
+            url.searchParams.delete('op');
+            window.__tnetBookmarkUrlMode = 'pristine';
+            var ps = url.searchParams.toString();
+            window.history.replaceState(null, '', url.pathname + (ps ? '?' + ps : '') + url.hash);
+        }
+    } catch (eBmWins) { /* defensiv */ }
+})();
+
 try {
     __tnetInitialUrlQuery = window.location.search || '';
     var __tnetInitialUrlParams = new URLSearchParams(window.location.search);

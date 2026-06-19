@@ -5,6 +5,16 @@
 - Fix: Gemeinsame Dock-Metriken (Top/StreetView/Footer-Offset) in den Panel-Skripten eingefuehrt; Bottom-Offset auf `max(centerPaneRest, footerHeight)` gesetzt; Info-Resize speichert Dock-Breite jetzt sauber und synchronisiert `mapContainer` via Pixelbreite.
 - Guardrail: Bei rechts angedockten Panels Bottom nie hart setzen oder nur aus Container-Rect ableiten; immer den tatsaechlichen Footer-Offset beruecksichtigen und Panel-/Map-Breiten mit denselben absoluten Metriken rechnen.
 
+## 2026-06-19 - Bookmark-URL-Modus: Bookmark-ID im Pfad XOR layers= in Query
+
+- Anforderung: Bei Layer-Anpassung den Stand in der URL festhalten und den Bookmark aus der URL entfernen; bei Reset/View-Reset die Layer raus und nur den Bookmark in der URL. Ziel: Reload entscheidet eindeutig (Bookmark neu laden ODER modifizierten Stand wiederherstellen).
+- Umsetzung: Zentraler Controller `_updateBookmarkUrlMode()` in tnet-lm-active.js setzt `window.__tnetBookmarkUrlMode` ('pristine'|'layers'|'none') und schreibt Pfad+Query um. Trigger: tnet-bookmark-loaded (pristine), tnet-bookmark-state-changed (→layers bei Edit), bm-reset (pristine). Bookmark-ID = letztes Pfadsegment `/maps(-dev)?/<id>`; bei 'layers' wird das Segment entfernt (`/maps-dev/`) und `layers=` aus `store.getActiveLayers()` gesetzt; bei 'pristine' Segment gesetzt und `layers=`/`op=` entfernt.
+- Chokepoint: Der Store-replaceState-Interceptor (`_installWmsUrlGuard`, tnet-lm-store.js) strippt im 'pristine'-Modus `layers=`/`op=` aus JEDEM Write \u2014 so koennen die vielen layers=-Writer (Framework updateMapStatusUrl, _syncAllWmsLayersInUrl, Coalesce-Bridge) den pristine-Zustand nicht ueberschreiben. Coalesce-Bridge `_fixUrlForBridgeLayers`/`_injectDirectWmsLayersIntoUrl` zusaetzlich pristine-gated.
+- Verifiziert (Browser): pristine-Load `/maps-dev/gew` ohne layers/op; Edit \u2192 `/maps-dev/?...&layers=...`; Reset \u2192 zurueck zu `/maps-dev/gew` ohne layers; Reload-modified haelt Layer ohne Bookmark-Reapply.
+- Guardrail: Bei mehreren konkurrierenden URL-Writern die Modus-Durchsetzung an EINEM Chokepoint (replaceState-Interceptor) zentralisieren statt jeden Writer einzeln zu gaten. Offen: Opacity-Wert (op=) im modifizierten Zustand wird nicht exakt persistiert (separater op=-Mechanismus).
+- Mixed-URL (Bookmark-ID im Pfad UND layers=, z.B. alter Kundenlink): Bookmark gewinnt. layers=/op= muessen GANZ FRUEH (tnet-app.js Parse-Zeit, vor Framework-ensureUrlLayers/Bridge-_originalUrlLayers-Capture) gestrippt werden \u2014 ein spaeter Strip entfernt zwar den URL-Param, der Fremd-Layer wurde aber bereits verarbeitet/in den Store aufgenommen. Verifiziert: Fremd-Layer erscheint nicht mehr.
+- View: `view=`-Query-Param wird vom bestehenden View-URL-Guard (_stripOrSetView/_setActiveViewForUrl in tnet-mapplus-helpers.js, window.__tnetActiveViewForUrl) autoritativ gesetzt/gestrippt. pristine-Strip betrifft nur layers=/op= \u2192 view= bleibt erhalten wenn ein Nicht-Default-View aktiv ist.
+
 ## 2026-06-19 - Falsches "Bookmark wurde verändert" / "Ansicht zurücksetzen" direkt nach Laden
 
 - Symptom: Direkt nach dem Bookmark-Load erschien "✱ Bookmark wurde verändert" + "Ansicht zurücksetzen", obwohl der Nutzer nichts geändert hatte.

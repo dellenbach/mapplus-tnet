@@ -848,6 +848,8 @@
    */
   function _injectDirectWmsLayersIntoUrl() {
     try {
+      // Pristine Bookmark: KEINE layers= in der URL (Bookmark im Pfad ist autoritativ).
+      if (window.__tnetBookmarkUrlMode === 'pristine') return;
       var store = window.TnetLMStore;
       if (!store || typeof store.getActiveLayers !== 'function') return;
       var active = store.getActiveLayers();
@@ -945,6 +947,20 @@
    */
   function _fixUrlForBridgeLayers() {
     try {
+      // Pristine Bookmark: layers=/op= gehoeren NICHT in die URL (Bookmark im Pfad ist
+      // autoritativ). Vorhandene Reste entfernen statt Coalesce-Sublayer zu ergaenzen.
+      if (window.__tnetBookmarkUrlMode === 'pristine') {
+        try {
+          var pu = new URL(window.location.href);
+          if (pu.searchParams.has('layers') || pu.searchParams.has('op')) {
+            pu.searchParams.delete('layers');
+            pu.searchParams.delete('op');
+            var ps = pu.searchParams.toString();
+            window.history.replaceState(null, '', pu.pathname + (ps ? '?' + ps : '') + pu.hash);
+          }
+        } catch (ePristine) { /* ignore */ }
+        return;
+      }
       // Aktive Sublayer-Keys aus Bridge-State sammeln
       var activeSublayerKeys = {};
       for (var rootKey in _rootServices) {
@@ -981,6 +997,25 @@
       for (var rk in _rootServices) {
         if (_rootServices.hasOwnProperty(rk)) keysToFilter[rk] = true;
       }
+
+      // Robustheit: Der Store ist die autoritative Quelle des Karteninhalts.
+      // Der transiente Bridge-State (_rootServices.visibleSublayers) kann waehrend
+      // der Framework-Race (ADD->REMOVE->ADD) kurzzeitig leer sein. Damit das
+      // Framework (updateMapStatusUrl) keine im Store aktiven Layer aus der URL
+      // wischt, alle sichtbaren Store-Active-Layer in die Wiederherstellung
+      // aufnehmen (generisch, unabhaengig vom Bridge-State).
+      try {
+        var storeRef = window.TnetLMStore;
+        if (storeRef && typeof storeRef.getActiveLayers === 'function') {
+          var storeActive = storeRef.getActiveLayers() || [];
+          for (var sa = 0; sa < storeActive.length; sa++) {
+            var saLayer = storeActive[sa];
+            if (saLayer && saLayer.id && saLayer.visible !== false) {
+              activeSublayerKeys[saLayer.id] = true;
+            }
+          }
+        }
+      } catch (eStoreActive) { /* defensiv: Store-Abgleich optional */ }
 
       var url = new URL(window.location.href);
       var existingLayers = url.searchParams.get('layers') || '';
@@ -1230,6 +1265,36 @@
 
   // ===== ÖFFENTLICHE API =====
 
+  /**
+   * Stellt sicher, dass fuer alle im Store aktiven (sichtbaren) Coalesce-Sublayer
+   * auch ein Root-OL-Layer existiert. Schliesst die Startup-/Bookmark-Race, bei der
+   * der Store einen Layer bereits als sichtbar fuehrt, die Bridge den OL-Layer aber
+   * noch nicht erstellt hat → Layer wuerde sonst nicht rendern. Idempotent: agiert
+   * nur bei fehlendem OL-Layer (kein Event-Loop, respektiert Sublayer-Sichtbarkeit).
+   */
+  function _reconcileActiveCoalesceGroups() {
+    if (!_enabled) return;
+    var store = window.TnetLMStore;
+    if (!store || typeof store.getActiveLayers !== 'function' ||
+        typeof store._forceCoalesceGroupRender !== 'function') return;
+    var active = store.getActiveLayers() || [];
+    var groups = {};
+    for (var i = 0; i < active.length; i++) {
+      var a = active[i];
+      if (!a || !a.id || a.visible === false) continue;
+      var info = (typeof store.getCoalesceInfo === 'function') ? store.getCoalesceInfo(a.id) : null;
+      if (!info || !info.groupId) continue;
+      var ol = (typeof Bridge.getOLLayerForSublayer === 'function') ? Bridge.getOLLayerForSublayer(a.id) : null;
+      if (!ol) groups[info.groupId] = true;
+    }
+    var keys = Object.keys(groups);
+    if (!keys.length) return;
+    TnetLog.log(LOG, 'Reconcile: erstelle fehlende Root-OL-Layer fuer', keys.length, 'Coalesce-Gruppe(n)');
+    keys.forEach(function (gid) {
+      try { store._forceCoalesceGroupRender(gid); } catch (e) { /* defensiv */ }
+    });
+  }
+
   var Bridge = {
 
     /**
@@ -1258,6 +1323,20 @@
         setTimeout(patchFn, 1500);
       });
       setTimeout(patchFn, 5000);
+
+      // Coalesce-Render-Reconcile: Nach Bookmark-Load und App-Ready sicherstellen,
+      // dass aktive Coalesce-Layer tatsaechlich einen Root-OL-Layer haben. Schliesst
+      // die Startup-Race (Store fuehrt Layer als sichtbar, Bridge hat OL-Layer noch
+      // nicht erstellt). Mehrere Zeitpunkte, da das Framework verzoegert bereit wird.
+      var reconcileWithRetries = function () {
+        _reconcileActiveCoalesceGroups();
+        setTimeout(_reconcileActiveCoalesceGroups, 800);
+        setTimeout(_reconcileActiveCoalesceGroups, 2500);
+      };
+      document.addEventListener('tnet-bookmark-loaded', reconcileWithRetries);
+      document.addEventListener('tnet-app-ready', function () {
+        setTimeout(reconcileWithRetries, 1000);
+      });
     },
 
     /** Prüft ob Bridge aktiv ist. @returns {boolean} */
@@ -1857,6 +1936,7 @@
 
         var layerIds = layersParam.split(/[|,]/);
         var restored = 0;
+        var groupsToRender = {};
         for (var i = 0; i < layerIds.length; i++) {
           var lid = decodeURIComponent(layerIds[i]).trim();
           if (!lid) continue;
@@ -1867,7 +1947,25 @@
               store.setLayerVisible(lid, true);
               restored++;
             }
+            // Coalesce-Gruppe zum Re-Render vormerken (autoritative groupId
+            // aus dem Store). Notwendig, weil der Store den Layer beim
+            // Bookmark-Apply bereits als sichtbar fuehren kann, die Bridge den
+            // Root-OL-Layer aber noch nicht erstellt hat (Startup-Race) → Layer
+            // wuerde sonst nicht rendern.
+            var cInfo = (typeof store.getCoalesceInfo === 'function') ? store.getCoalesceInfo(lid) : null;
+            if (cInfo && cInfo.groupId) {
+              groupsToRender[cInfo.groupId] = true;
+            }
           }
+        }
+        // Idempotenter Render-Anstoss je Coalesce-Gruppe: erstellt fehlende
+        // Root-OL-Layer (registerSublayer hat eigene Retry-Logik, falls das
+        // Framework/die Karte noch nicht bereit ist) und respektiert die
+        // aktuelle Sichtbarkeit pro Sublayer.
+        if (typeof store._forceCoalesceGroupRender === 'function') {
+          Object.keys(groupsToRender).forEach(function (gid) {
+            try { store._forceCoalesceGroupRender(gid); } catch (eRender) { /* defensiv */ }
+          });
         }
         if (restored > 0) {
           TnetLog.log(LOG, 'URL-Restore:', restored, 'Coalesce-Layer aus gesicherten URL-Params wiederhergestellt');

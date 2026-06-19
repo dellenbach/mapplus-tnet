@@ -210,6 +210,77 @@
     } catch (eUrlReset) { /* URL-Sync defensiv */ }
   }
 
+  // ===== BOOKMARK-URL-MODUS =====
+  // Regel:
+  //   - Nicht modifiziertes Bookmark → Bookmark-ID im Pfad, KEIN layers=/op=.
+  //   - Modifiziertes Bookmark       → Bookmark-ID raus aus Pfad, expliziter layers=-Stand.
+  // Beim Reload entscheidet die URL dadurch eindeutig: Bookmark neu laden ODER
+  // den modifizierten Layer-Stand wiederherstellen. Das Flag window.__tnetBookmarkUrlMode
+  // ('pristine' | 'layers' | 'none') steuert zusaetzlich den layers=-Strip in der Coalesce-Bridge.
+  var _lastBookmarkUrlMode = null;
+
+  function _collectActiveLayerIdsForUrl() {
+    var store = window.TnetLMStore;
+    var ids = [];
+    var seen = {};
+    if (store && typeof store.getActiveLayers === 'function') {
+      (store.getActiveLayers() || []).forEach(function (l) {
+        if (l && l.id && l.visible !== false && !seen[l.id]) { seen[l.id] = true; ids.push(l.id); }
+      });
+    }
+    return ids;
+  }
+
+  function _updateBookmarkUrlMode() {
+    var hist, loc;
+    try {
+      hist = (window.top && window.top.history) ? window.top.history : window.history;
+      loc = (window.top && window.top.location) ? window.top.location : window.location;
+    } catch (eTop) { hist = window.history; loc = window.location; }
+    if (!hist || typeof hist.replaceState !== 'function' || !loc) return;
+
+    var bm = getBookmarkInfo();
+    var bmId = bm ? String(bm.id || bm['map-bookmark'] || '') : '';
+    var mode = !bmId ? 'none' : (_isActiveBookmarkModified() ? 'layers' : 'pristine');
+    window.__tnetBookmarkUrlMode = mode;
+    if (mode === 'none') { _lastBookmarkUrlMode = mode; return; }
+
+    var url;
+    try { url = new URL(loc.href); } catch (eUrl) { return; }
+    var pm = url.pathname.match(/^(.*\/maps(?:-dev)?)(?:\/[A-Za-z0-9_-]+)?\/?$/);
+    if (!pm) return;
+    var basePrefix = pm[1];
+
+    var existingLayers = url.searchParams.get('layers');
+    var existingOp = url.searchParams.get('op');
+    url.searchParams.delete('layers');
+    url.searchParams.delete('op');
+    var baseParams = url.searchParams.toString();
+
+    var parts = [];
+    if (baseParams) parts.push(baseParams);
+    var newPathname;
+
+    if (mode === 'pristine') {
+      // Bookmark im Pfad ist autoritativ → layers=/op= entfallen.
+      newPathname = basePrefix + '/' + bmId;
+    } else {
+      // Modifiziert → Bookmark-ID aus Pfad, expliziten Layer-Stand sichern.
+      newPathname = basePrefix + '/';
+      var layersRaw = existingLayers || _collectActiveLayerIdsForUrl().join('|');
+      if (layersRaw) parts.push('layers=' + layersRaw);
+      if (existingOp) parts.push('op=' + existingOp);
+    }
+
+    var newSearch = parts.length ? '?' + parts.join('&') : '';
+    var newRel = newPathname + newSearch + url.hash;
+    var curRel = loc.pathname + loc.search + loc.hash;
+    if (newRel !== curRel) {
+      try { hist.replaceState(null, '', newRel); } catch (eRS) { /* ignore */ }
+    }
+    _lastBookmarkUrlMode = mode;
+  }
+
   function buildBookmarkDefaultVisibilityMap(bookmark) {
     var result = {};
     var cfg = bookmark && bookmark._cfg ? bookmark._cfg : null;
@@ -411,6 +482,33 @@
       var cl = current[j];
       if (!cl || !cl.id || !(cl.id in baseOpById)) continue;
       if (Math.abs(normOpacity(cl.opacity) - baseOpById[cl.id]) > 0.001) return true;
+    }
+    return false;
+  }
+
+  /**
+   * Prueft, ob die uebergebene Opacity dem konfigurierten Baseline-Wert entspricht
+   * (Reset-Snapshot = Bookmark-Intention; sonst Katalog-/API-Opacity). Die API liefert
+   * die Soll-Opacity je Sublayer bereits mit (z.B. options.opacity = 0.65). So lassen sich
+   * programmatische Opacity-Anwendungen beim (verzoegerten) Layer-Aufbau von echten
+   * Nutzer-Aenderungen unterscheiden.
+   * @returns {boolean} true wenn der Wert dem Baseline entspricht (→ KEINE Nutzer-Aenderung)
+   */
+  function _opacityMatchesBaseline(layerId, opacity) {
+    var norm = function (v) { return (v == null || isNaN(v)) ? 1 : +v; };
+    var target = norm(opacity);
+    var bm = getBookmarkInfo();
+    if (bm && Array.isArray(bm._resetLayers)) {
+      for (var i = 0; i < bm._resetLayers.length; i++) {
+        var l = bm._resetLayers[i];
+        if (l && l.id === layerId) return Math.abs(norm(l.opacity) - target) <= 0.001;
+      }
+    }
+    var store = window.TnetLMStore;
+    var node = (store && typeof store.findLayer === 'function') ? store.findLayer(layerId) : null;
+    if (node) {
+      var cfgOp = (node.options && node.options.opacity != null) ? node.options.opacity : node.opacity;
+      if (cfgOp != null) return Math.abs(norm(cfgOp) - target) <= 0.001;
     }
     return false;
   }
@@ -1428,9 +1526,11 @@
 
         focusActivePanelForBookmark();
         self.render(store.getActiveLayers());
+        _updateBookmarkUrlMode();
       };
       var rerender = function () {
         self.render(store.getActiveLayers());
+        _updateBookmarkUrlMode();
       };
       var rerenderPending = function () {
         focusActivePanelForBookmark();
@@ -2093,6 +2193,9 @@
               // Fallback: voller API-Reload, falls der Config-Reset nicht greift.
               window.TnetSetBookmark(bm.id, bm.activeViewId || null, bm._options || null);
             }
+
+            // URL zuruecksetzen: Bookmark-ID in den Pfad, layers=/op= entfernen.
+            _updateBookmarkUrlMode();
 
             if (_bmLoadTimer) clearTimeout(_bmLoadTimer);
             _bmLoadTimer = setTimeout(function () { _bmLoadedRecently = false; }, 1200);
@@ -2764,7 +2867,8 @@
       delete _pendingOpacityUpdates[_getPendingOpacityKey('layer', evt.id)];
       if (!_bmLoadedRecently) captureBookmarkResetSnapshot();
       var changed = updateBookmarkLayerState(evt.id, { opacity: evt.opacity });
-      if (changed && !_bmLoadedRecently) {
+      if (changed && !_bmLoadedRecently && !_isBookmarkLoadActive() && !_isViewSwitchActive() &&
+          !_opacityMatchesBaseline(evt.id, evt.opacity)) {
         _bmModified = true;
         emitBookmarkStateChanged('opacity');
       }
@@ -2796,7 +2900,9 @@
         }
       }
 
-      if (changed && !_bmLoadedRecently) {
+      var grpBaseline = !!(info && info.childIds && info.childIds.length &&
+        _opacityMatchesBaseline(info.childIds[0], evt.opacity));
+      if (changed && !_bmLoadedRecently && !_isBookmarkLoadActive() && !_isViewSwitchActive() && !grpBaseline) {
         _bmModified = true;
         emitBookmarkStateChanged('opacity');
       }

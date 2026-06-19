@@ -40,6 +40,18 @@
   var _watchdogRetryTimer = null;
   var _sentinelIntervalId = null;
 
+  // Pro-Klick-Cache fuer teure, wiederholte Read-only-Lookups.
+  // Waehrend eines synchronen Klick-Handlers aendert sich weder der
+  // Karten- noch der Katalogzustand. Deshalb koennen die mehrfach pro Klick
+  // aufgerufenen Traversierungen (_getServiceShowList ueber alle Layer,
+  // _findLayerRobust ueber den Katalog) gefahrlos memoisiert werden.
+  // Wird zu Beginn jedes _handleClick zurueckgesetzt → nie stale.
+  var _clickCache = null;
+
+  function _resetClickCache() {
+    _clickCache = { showList: {}, layer: {} };
+  }
+
   // ===== HILFSFUNKTIONEN =====
 
   function _getAm() {
@@ -270,6 +282,9 @@
   // sind aktuell auf der Karte sichtbar.
   function _getServiceShowList(map, serviceId) {
     if (!map || !serviceId) return null;
+    if (_clickCache && Object.prototype.hasOwnProperty.call(_clickCache.showList, serviceId)) {
+      return _clickCache.showList[serviceId];
+    }
     var result = null;
     _forEachMapLayer(map.getLayers(), function (layer) {
       if (result) return;
@@ -282,6 +297,7 @@
         result = layersParam.replace(/^show:/i, '').split(',').map(function (v) { return v.trim(); });
       }
     });
+    if (_clickCache) _clickCache.showList[serviceId] = result;
     return result;
   }
 
@@ -378,6 +394,17 @@
       var store = window.TnetLMStore;
       if (!store || typeof store.findLayer !== 'function' || !layerId) return null;
 
+      // Pro-Klick-Memo: identische linked_layer_id-Pfade nur einmal aufloesen.
+      var cacheKey = String(layerId);
+      if (_clickCache && Object.prototype.hasOwnProperty.call(_clickCache.layer, cacheKey)) {
+        return _clickCache.layer[cacheKey];
+      }
+      var result = _findLayerRobustUncached(layerId, store);
+      if (_clickCache) _clickCache.layer[cacheKey] = result;
+      return result;
+    }
+
+    function _findLayerRobustUncached(layerId, store) {
       var candidates = [];
       function push(v) {
         if (!v) return;
@@ -903,6 +930,10 @@
 
     var map = am.Maps[MAP_ID].mapObj;
     if (!map) return;
+
+    // Pro-Klick-Cache neu aufsetzen: Karten-/Katalogzustand ist ab hier bis
+    // zum Ende dieses synchronen Handlers konstant → Lookups duerfen cachen.
+    _resetClickCache();
 
     _clickCount++;
     _activeRequestSeq++;

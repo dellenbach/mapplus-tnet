@@ -2652,7 +2652,12 @@ function TnetSyncMapTips() {
       if (exact) return exact;
     }
 
-    // Letzter Fallback: case-insensitive Suche im gesamten Katalog.
+    // Letzter Fallback: case-insensitive Suche ueber den O(1)-Lowercase-Index.
+    // (Frueher ein vollstaendiger rekursiver Katalog-Walk pro Aufruf → teuer.)
+    if (typeof store.findLayerCI === 'function') {
+      return store.findLayerCI(layerId);
+    }
+    // Kompatibilitaets-Fallback (alter Store ohne findLayerCI): rekursiver Walk.
     var cat = (typeof store.getCatalog === 'function') ? (store.getCatalog() || []) : [];
     var needle = String(layerId).toLowerCase();
     var found = null;

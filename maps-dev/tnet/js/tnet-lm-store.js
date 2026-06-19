@@ -25,6 +25,9 @@
   var _loaded = false;
   var _suppressMapSync = false; // Guard gegen Endlosschleifen Store↔Map
   var _catalogLayerIndex = {};  // { layerId: true } für performante Katalog-Lookups
+  var _catalogLayerNodeIndex = {}; // { layerId: node } für O(1)-findLayer (Leaf bevorzugt)
+  var _catalogLayerNodeLeaf = {};  // { layerId: true } markiert Leaf-Eintraege (Vorrang vor Gruppen)
+  var _catalogLayerNodeIndexLower = {}; // { layerIdLower: node } für O(1) case-insensitive Lookup
   var _loadingTimers = {};      // { layerId: { slow, timeout, clearError, keys } }
   var _consistencyTimer = null;  // Debounce fuer Store↔Karte-Reconcile
   var _consistencyCombinedRetry = {}; // { servicePrefix: { attempts, lastAt } }
@@ -51,6 +54,20 @@
     _wmsUrlGuardInstalled = true;
     var origRS = window.history.replaceState.bind(window.history);
     window.history.replaceState = function(state, title, url) {
+      // Pristine Bookmark (Bookmark-ID im Pfad ist autoritativ): layers=/op= NIE
+      // in die URL schreiben. Zentraler Chokepoint — alle Writer laufen hier durch.
+      if (typeof url === 'string' && window.__tnetBookmarkUrlMode === 'pristine') {
+        try {
+          var pu = new URL(url, window.location.href);
+          if (pu.searchParams.has('layers') || pu.searchParams.has('op')) {
+            pu.searchParams.delete('layers');
+            pu.searchParams.delete('op');
+            var ps = pu.searchParams.toString();
+            url = pu.pathname + (ps ? '?' + ps : '') + pu.hash;
+          }
+        } catch (ePristineStrip) { /* fall through */ }
+        return origRS(state, title, url);
+      }
       if (typeof url === 'string') {
         var m = url.match(/([?&])layers=([^&]*)/);
         if (m) {
@@ -2984,7 +3001,27 @@
      * Layer per ID im Katalog-Baum finden (rekursiv).
      */
     findLayer: function (id) {
+      // O(1)-Schnellpfad: Leaf-Knoten-Index (gleiche Leaf-Praeferenz wie
+      // _findLayerRecursive). Nur bei Index-Miss (z.B. reine Gruppen-IDs)
+      // auf den rekursiven Walk zurueckfallen.
+      if (id != null && Object.prototype.hasOwnProperty.call(_catalogLayerNodeIndex, id)) {
+        return _catalogLayerNodeIndex[id];
+      }
+      // Der Knotenindex enthaelt ALLE Katalog-Knoten (Leaf + Container) und wird
+      // bei jedem Katalog-Load neu gebaut. Ist der Katalog geladen, bedeutet ein
+      // Index-Miss: die ID existiert nicht → ohne teuren rekursiven Walk null.
+      if (_loaded) return null;
       return this._findLayerRecursive(id, _catalog);
+    },
+
+    /**
+     * Case-insensitive Layer-Lookup in O(1) ueber den Lowercase-Index.
+     * Ersetzt teure rekursive Katalog-Walks in Aufrufern.
+     */
+    findLayerCI: function (id) {
+      if (id == null) return null;
+      var node = _catalogLayerNodeIndexLower[String(id).toLowerCase()];
+      return node || null;
     },
 
     /**
@@ -3769,6 +3806,9 @@
       _coalesceIndex = {};
       _layerToCoalesce = {};
       _catalogLayerIndex = {};
+      _catalogLayerNodeIndex = {};
+      _catalogLayerNodeLeaf = {};
+      _catalogLayerNodeIndexLower = {};
       this._indexCatalogLayers(categories);
       this._scanCoalesceNodes(categories);
       if (_config.debug && Object.keys(_coalesceIndex).length > 0) {
@@ -3788,6 +3828,26 @@
         ));
         if (n && n.id && !hasChildren && n.type !== 'group') {
           _catalogLayerIndex[n.id] = true;
+          // Leaf-Knoten haben Vorrang und gewinnen unabhaengig von der
+          // DFS-Reihenfolge gegen gleichnamige Gruppen-Container.
+          if (!_catalogLayerNodeLeaf[n.id]) {
+            _catalogLayerNodeIndex[n.id] = n;
+            _catalogLayerNodeLeaf[n.id] = true;
+          }
+        } else if (n && n.id) {
+          // Gruppen-/Container-Knoten nur als Fallback indexieren (entspricht
+          // dem fallbackNode in _findLayerRecursive), Leaf darf spaeter ueberschreiben.
+          if (!_catalogLayerNodeLeaf[n.id] &&
+              !Object.prototype.hasOwnProperty.call(_catalogLayerNodeIndex, n.id)) {
+            _catalogLayerNodeIndex[n.id] = n;
+          }
+        }
+        // Lowercase-Index (erster Treffer je Lower-ID gewinnt = DFS-Reihenfolge).
+        if (n && n.id) {
+          var _lid = String(n.id).toLowerCase();
+          if (!Object.prototype.hasOwnProperty.call(_catalogLayerNodeIndexLower, _lid)) {
+            _catalogLayerNodeIndexLower[_lid] = n;
+          }
         }
         var childArrays = ['subcategories', 'groups', 'layers', 'children'];
         for (var a = 0; a < childArrays.length; a++) {
