@@ -194,8 +194,100 @@
         'gemeindegrenzen': 'gis_basis/nw_basisplan_gis_dynamisch/gemeindegrenzen'
     };
 
+    // Overlay-Definitionen (key, alias, icon, layerId) — aus Config befuellt.
+    // Fallback entspricht den bisherigen Hardcode-Overlays.
+    var BASEMAP_OVERLAY_DEFS = [];
+    var BASEMAP_OVERLAY_DEFS_FALLBACK = [
+        { key: 'hoehenkurven',    alias: 'Höhenkurven',    icon: null, layerId: 'gis_basis/nw_basisplan_gis_dynamisch/hoehenlinien' },
+        { key: 'projektebene',    alias: 'Projektebene',   icon: null, layerId: 'gis_basis/nw_basisplan_gis_dynamisch/grundbuchplan_projektierte_objekte' },
+        { key: 'gemeindegrenzen', alias: 'Gemeindegrenzen', icon: null, layerId: 'gis_basis/nw_basisplan_gis_dynamisch/gemeindegrenzen' }
+    ];
+    // Dienste, deren Sublayer einzeln (mit eigener Opacity) gerendert werden (Phase 2).
+    var INDEPENDENT_OPACITY_SERVICES = [];
+
     // Global exportieren (für andere Module die darauf zugreifen)
     window.GRUNDKARTEN_LAYER_MAPPING = GRUNDKARTEN_LAYER_MAPPING;
+
+    /**
+     * Lädt basemapOverlays aus tnet-global-config.json5 (async, gecached).
+     */
+    function loadBasemapOverlaysConfig() {
+        if (window._basemapOverlaysConfig !== undefined) return Promise.resolve(window._basemapOverlaysConfig);
+        if (typeof JSON5 === 'undefined') return Promise.resolve(null);
+        var paths = [
+            getAppRoot() + '/tnet/config/tnet-global-config.json5',
+            getAppRoot() + '/tnet/tnet-global-config.json5',
+            '../tnet/config/tnet-global-config.json5'
+        ];
+        function tryPath(index) {
+            if (index >= paths.length) { window._basemapOverlaysConfig = null; return Promise.resolve(null); }
+            return fetch(paths[index])
+                .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
+                .then(function(text) {
+                    var parsed = JSON5.parse(text);
+                    window._basemapOverlaysConfig = (parsed && parsed.basemapOverlays) ? parsed.basemapOverlays : null;
+                    return window._basemapOverlaysConfig;
+                })
+                .catch(function() { return tryPath(index + 1); });
+        }
+        return tryPath(0);
+    }
+
+    /**
+     * Übernimmt die Overlay-Config: Mapping aufbauen + Panel-Zeilen rendern.
+     */
+    function applyBasemapOverlayConfig(cfg) {
+        var defs = (cfg && Array.isArray(cfg.overlays) && cfg.overlays.length)
+            ? cfg.overlays : BASEMAP_OVERLAY_DEFS_FALLBACK;
+        BASEMAP_OVERLAY_DEFS = defs.slice();
+        INDEPENDENT_OPACITY_SERVICES = (cfg && Array.isArray(cfg.independentOpacityServices))
+            ? cfg.independentOpacityServices.slice() : [];
+        // Fuer Phase 2 (Split-Rendering) global verfuegbar machen.
+        window.__tnetIndependentOpacityServices = INDEPENDENT_OPACITY_SERVICES;
+
+        // Mapping mutieren (Referenz erhalten), damit window.GRUNDKARTEN_LAYER_MAPPING gueltig bleibt.
+        Object.keys(GRUNDKARTEN_LAYER_MAPPING).forEach(function(k) { delete GRUNDKARTEN_LAYER_MAPPING[k]; });
+        BASEMAP_OVERLAY_DEFS.forEach(function(o) {
+            if (o && o.key && o.layerId) GRUNDKARTEN_LAYER_MAPPING[o.key] = o.layerId;
+        });
+
+        renderBasemapOverlayRows(BASEMAP_OVERLAY_DEFS);
+
+        // Farbig/Grau-Icon aus Config (separater, konfigurierbarer Schalter).
+        if (cfg && cfg.colorModeIcon) {
+            var cmIcon = document.getElementById('basemap-colormode-icon');
+            if (cmIcon) {
+                cmIcon.innerHTML = '<img class="layer-icon-img" src="'
+                    + getAppRoot() + '/tnet/' + cfg.colorModeIcon + '" alt="" />';
+            }
+        }
+    }
+
+    /**
+     * Rendert die Overlay-Zeilen (Icon, Alias, EIN/AUS) in den Platzhalter-Container.
+     */
+    function renderBasemapOverlayRows(defs) {
+        var container = document.getElementById('basemap-overlay-rows');
+        if (!container) return;
+        var appRoot = getAppRoot();
+        var html = '';
+        (defs || []).forEach(function(o) {
+            if (!o || !o.key) return;
+            var label = (o.alias || o.key);
+            var iconHtml = o.icon
+                ? '<span class="layer-icon"><img class="layer-icon-img" src="' + appRoot + '/tnet/' + o.icon + '" alt="" /></span>'
+                : '<span class="layer-icon"></span>';
+            html += '<div class="basemap-layer-row">'
+                +  iconHtml
+                +  '<span class="layer-label">' + label + '</span>'
+                +  '<div class="layer-toggle">'
+                +    '<button class="toggle-btn" data-layer="' + o.key + '" data-value="on">EIN</button>'
+                +    '<button class="toggle-btn active" data-layer="' + o.key + '" data-value="off">AUS</button>'
+                +  '</div>'
+                +  '</div>';
+        });
+        container.innerHTML = html;
+    }
 
     /**
      * Alle Grundkarten-Buttons optisch auf AUS setzen.
@@ -343,13 +435,21 @@
                     var visible = (value === 'on');
                     layerState[layerName] = visible;
 
-                    var allLayers = getNonGrundkartenLayers();
-                    Object.keys(layerState).forEach(function(name) {
-                        if (layerState[name]) allLayers.push(name);
-                    });
-
-                    var params = 'layers=' + allLayers.join('|');
-                    window.top.njs.AppManager.setMapBookmark(['main'], params);
+                    // Bug-Fix: Toggle ueber den TNET-Store schalten → sauberer Sync
+                    // mit dem Karteninhalt (EIN UND AUS). Frueher lief das ueber das
+                    // Framework (setMapBookmark), wodurch AUS nicht aus dem
+                    // Karteninhalt entfernt wurde.
+                    if (window.TnetLMStore && typeof window.TnetLMStore.setLayerVisible === 'function') {
+                        window.TnetLMStore.setLayerVisible(layerName, visible);
+                    } else {
+                        // Fallback: Framework-Pfad (Alt-Verhalten)
+                        var allLayers = getNonGrundkartenLayers();
+                        Object.keys(layerState).forEach(function(name) {
+                            if (layerState[name]) allLayers.push(name);
+                        });
+                        var params = 'layers=' + allLayers.join('|');
+                        window.top.njs.AppManager.setMapBookmark(['main'], params);
+                    }
 
                     // Active-Klasse wechseln
                     var siblings = this.parentElement.querySelectorAll('.toggle-btn');
@@ -1417,8 +1517,12 @@
         // Widget UI (Cards, Expand)
         initBasemapCards();
 
-        // Grundkarten-Layer Defaults
-        initGrundkartenDefaults();
+        // Basiskarten-Überlagerungen aus Config rendern, dann Defaults/Sync.
+        loadBasemapOverlaysConfig().then(function(cfg) {
+            applyBasemapOverlayConfig(cfg);
+            // Grundkarten-Layer Defaults (Buttons existieren jetzt)
+            initGrundkartenDefaults();
+        });
 
         // Zeitreise
         BasemapTimeManager.init();

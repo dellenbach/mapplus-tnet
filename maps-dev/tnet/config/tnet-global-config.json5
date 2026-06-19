@@ -17,6 +17,30 @@
   scales: [100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 75000, 100000, 250000, 500000, 1000000],
 
   // ============================================================
+  // BASISKARTEN-ÜBERLAGERUNGEN (GRUNDKARTE-Panel)
+  // ============================================================
+  // Generisch & erweiterbar: Overlay-Layer, die im GRUNDKARTE-Panel als
+  // EIN/AUS-Schalter erscheinen. Toggle läuft über den TNET-Store (sauberes
+  // Entfernen aus Karteninhalt). Sublayer der unter independentOpacityServices
+  // gelisteten Dienste werden als EINZELNE OL-Layer gerendert → unabhängige
+  // Deckkraft (statt kombiniertem show:0,21,51 mit gemeinsamer Opacity).
+  basemapOverlays: {
+    // Dienste, deren Sublayer einzeln (mit eigener Opacity) gerendert werden:
+    independentOpacityServices: [
+      'gis_basis/nw_basisplan_gis_dynamisch',
+    ],
+    // Icon für den Farbig/Grau-Schalter (Pfad relativ zu /tnet/).
+    colorModeIcon: 'resources/icons/overlay-farbig-grau.svg',
+    // Panel-Einträge (Reihenfolge = Anzeige). icon = Pfad relativ zu /tnet/.
+    overlays: [
+      { key: 'hoehenkurven',    alias: 'Höhenkurven',    icon: 'resources/icons/overlay-hoehenkurven.svg',    layerId: 'gis_basis/nw_basisplan_gis_dynamisch/hoehenlinien' },
+      { key: 'projektebene',    alias: 'Projektebene',   icon: 'resources/icons/overlay-projektebene.svg',    layerId: 'gis_basis/nw_basisplan_gis_dynamisch/grundbuchplan_projektierte_objekte' },
+      { key: 'gemeindegrenzen', alias: 'Gemeindegrenzen', icon: 'resources/icons/overlay-gemeindegrenzen.svg', layerId: 'gis_basis/nw_basisplan_gis_dynamisch/gemeindegrenzen' },
+    ],
+  },
+
+
+  // ============================================================
   // 3D LANDSCAPE / SPLITSCREEN
   // ============================================================
   "3d-landscape": {
