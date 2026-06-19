@@ -2213,7 +2213,27 @@
      * @param {boolean} shouldBeVisible Zielzustand fuer DIESEN Sublayer
      * @returns {boolean} true, wenn ein kombinierter OL-Layer behandelt wurde
      */
+    /**
+     * Prueft, ob eine Layer-ID zu einem in `independentOpacityServices`
+     * konfigurierten Dienst gehoert. Solche Dienste werden NICHT zu einem
+     * gemeinsamen show:-Layer kombiniert, damit jedes Overlay als eigener
+     * OL-Layer mit eigener (nativer) Opacity rendert.
+     */
+    _isIndependentOpacityLayer: function (layerId) {
+      var svcs = window.__tnetIndependentOpacityServices;
+      if (!Array.isArray(svcs) || !svcs.length || !layerId) return false;
+      var idLc = String(layerId).toLowerCase();
+      for (var i = 0; i < svcs.length; i++) {
+        if (idLc.indexOf(String(svcs[i]).toLowerCase() + '/') === 0) return true;
+      }
+      return false;
+    },
+
     _setFrameworkCombinedSublayer: function (layerId, layer, shouldBeVisible) {
+      // Independent-Opacity-Dienste NICHT kombinieren: jedes Overlay laedt als
+      // eigener OL-Layer (Standardpfad via TnetLayerSwitch), damit die native
+      // Per-Layer-Opacity des Frameworks wirkt (kein gemeinsamer show:-Layer).
+      if (this._isIndependentOpacityLayer(layerId)) return false;
       var subNum = this._extractSublayerNum(layer);
       if (subNum === null) return false; // kein ArcGIS-show:-Sublayer
 
@@ -3094,7 +3114,10 @@
         if (targetVisible) {
           var subNum = self._extractSublayerNum(layer);
           var slash = layer.id.lastIndexOf('/');
-          if (subNum !== null && slash > 0) {
+          // Independent-Opacity-Dienste NICHT zu einem gemeinsamen show:-Layer
+          // kombinieren — jedes Overlay bleibt ein eigener OL-Layer (Per-Layer-Pfad
+          // unten setzt Sichtbarkeit/Opacity auf dem eigenen OL-Layer).
+          if (subNum !== null && slash > 0 && !self._isIndependentOpacityLayer(layer.id)) {
             var prefix = layer.id.substring(0, slash + 1);
             if (!combinedServices[prefix]) combinedServices[prefix] = { pairs: [], opacity: targetOpacity };
             combinedServices[prefix].pairs.push({ id: layer.id, num: subNum, opacity: targetOpacity });
