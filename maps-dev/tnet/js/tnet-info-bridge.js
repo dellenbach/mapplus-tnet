@@ -336,6 +336,168 @@
   function _syncMapTipsBeforeDispatch(map) {
     var am = _getAm();
     if (!am || !am.MapTips || !am.wmsActiveLyrs || !map) return;
+    var _dbByIdCache = null;
+
+    function _buildDbMaptipIdIndex() {
+      if (_dbByIdCache) return _dbByIdCache;
+      _dbByIdCache = {};
+
+      var store = window.TnetLMStore;
+      var cat = (store && typeof store.getCatalog === 'function') ? (store.getCatalog() || []) : [];
+      (function walk(nodes) {
+        if (!nodes || !nodes.length) return;
+        for (var i = 0; i < nodes.length; i++) {
+          var n = nodes[i];
+          if (!n) continue;
+          if (n.maptips) {
+            var list = Array.isArray(n.maptips) ? n.maptips : [n.maptips];
+            for (var j = 0; j < list.length; j++) {
+              var mt = list[j] || {};
+              var mtId = (mt._id != null) ? String(mt._id) : ((mt.id != null) ? String(mt.id) : '');
+              if (mtId && !_dbByIdCache[mtId]) _dbByIdCache[mtId] = mt;
+            }
+          }
+          var keys = ['subcategories', 'groups', 'layers', 'children'];
+          for (var k = 0; k < keys.length; k++) {
+            var ch = n[keys[k]];
+            if (ch && ch.length) walk(ch);
+          }
+        }
+      })(cat);
+
+      return _dbByIdCache;
+    }
+
+    function _getDbMaptipByRuntimeId(runtimeId) {
+      if (runtimeId == null) return null;
+      var idx = _buildDbMaptipIdIndex();
+      return idx[String(runtimeId)] || null;
+    }
+
+    function _findLayerRobust(layerId) {
+      var store = window.TnetLMStore;
+      if (!store || typeof store.findLayer !== 'function' || !layerId) return null;
+
+      var candidates = [];
+      function push(v) {
+        if (!v) return;
+        if (candidates.indexOf(v) === -1) candidates.push(v);
+      }
+
+      push(String(layerId));
+      if (typeof store._getLayerIdCandidates === 'function') {
+        var alt = store._getLayerIdCandidates(String(layerId)) || [];
+        for (var i = 0; i < alt.length; i++) push(alt[i]);
+      }
+      push(String(layerId).toLowerCase());
+      push(String(layerId).toUpperCase());
+
+      for (var j = 0; j < candidates.length; j++) {
+        var exact = store.findLayer(candidates[j]);
+        if (exact) return exact;
+      }
+
+      // Letzter Fallback: case-insensitive Suche im gesamten Katalog.
+      var cat = (typeof store.getCatalog === 'function') ? (store.getCatalog() || []) : [];
+      var needle = String(layerId).toLowerCase();
+      var found = null;
+      (function walk(nodes) {
+        if (!nodes || !nodes.length || found) return;
+        for (var k = 0; k < nodes.length; k++) {
+          var n = nodes[k];
+          if (!n) continue;
+          if (n.id && String(n.id).toLowerCase() === needle) {
+            found = n;
+            return;
+          }
+          var keys = ['subcategories', 'groups', 'layers', 'children'];
+          for (var t = 0; t < keys.length; t++) {
+            var ch = n[keys[t]];
+            if (ch && ch.length) walk(ch);
+            if (found) return;
+          }
+        }
+      })(cat);
+      return found;
+    }
+
+    function _getDbMaptips(linkedLayerId) {
+      var store = window.TnetLMStore;
+      if (!store || typeof store.findLayer !== 'function' || !linkedLayerId) return null;
+      var cur = linkedLayerId;
+      while (cur) {
+        var layer = _findLayerRobust(cur);
+        if (layer && layer.maptips) {
+          if (Array.isArray(layer.maptips)) return layer.maptips;
+          if (typeof layer.maptips === 'object') return [layer.maptips];
+        }
+        var p = cur.lastIndexOf('/');
+        if (p <= 0) break;
+        cur = cur.substring(0, p);
+      }
+      return null;
+    }
+
+    function _pickDbMaptip(mt, list, mtRuntimeId) {
+      if (!list || !list.length) return null;
+      var mtId = mtRuntimeId != null ? String(mtRuntimeId) : ((mt && mt.id != null) ? String(mt.id) : '');
+      var mtQl = (mt && mt.query_layers != null) ? String(mt.query_layers) : '';
+      var mtNls = (mt && mt.nls) ? String(mt.nls) : '';
+      var fallback = list[0];
+      for (var i = 0; i < list.length; i++) {
+        var c = list[i] || {};
+        var cId = (c._id != null) ? String(c._id) : ((c.id != null) ? String(c.id) : '');
+        var cQl = (c.query_layers != null) ? String(c.query_layers) : '';
+        var cNls = c.nls ? String(c.nls) : '';
+        if (mtId !== '' && cId !== '' && cId === mtId) return c;
+        if (mtQl !== '' && cQl === mtQl) return c;
+        if (mtNls !== '' && cNls === mtNls) return c;
+      }
+      return fallback;
+    }
+
+    function _mergeDbMaptip(mt, dbMt) {
+      if (!mt || !dbMt || typeof dbMt !== 'object') return;
+      var keys = [
+        'querytype', 'qryFields', 'qryFieldsFormat', 'qryFieldsNullVal',
+        'show_empty_fields', 'enabled', 'permanent_highlight',
+        'highlight_geom_proj', 'highlight_style',
+        'nls', 'linked_layer', 'linked_layer_id', 'query_layers'
+      ];
+      for (var i = 0; i < keys.length; i++) {
+        var k = keys[i];
+        if (Object.prototype.hasOwnProperty.call(dbMt, k)) mt[k] = dbMt[k];
+      }
+
+      // Legacy MapTip verwendet je nach Pfad highlight_style ODER highLightstyle.
+      // Daher beide Varianten immer auf denselben DB-Wert setzen.
+      var mergedHighlightStyle = null;
+      if (Object.prototype.hasOwnProperty.call(dbMt, 'highlight_style')) {
+        mergedHighlightStyle = dbMt.highlight_style;
+      } else if (Object.prototype.hasOwnProperty.call(dbMt, 'highLightstyle')) {
+        mergedHighlightStyle = dbMt.highLightstyle;
+      }
+      if (mergedHighlightStyle && typeof mergedHighlightStyle === 'object') {
+        mt.highlight_style = mergedHighlightStyle;
+        mt.highLightstyle = mergedHighlightStyle;
+      }
+      if (Object.prototype.hasOwnProperty.call(dbMt, 'highlight_geom_proj')) {
+        mt.highlightProj = dbMt.highlight_geom_proj;
+      }
+    }
+
+    function _normalizeHighlightAliases(mt) {
+      if (!mt || typeof mt !== 'object') return;
+      var hs = mt.highlight_style;
+      var hls = mt.highLightstyle;
+      if ((!hs || typeof hs !== 'object') && hls && typeof hls === 'object') {
+        mt.highlight_style = hls;
+        hs = hls;
+      }
+      if ((!hls || typeof hls !== 'object') && hs && typeof hs === 'object') {
+        mt.highLightstyle = hs;
+      }
+    }
 
     if (typeof window.TnetSyncMapTips === 'function') {
       try { window.TnetSyncMapTips(); } catch (eSync) { _warn('TnetSyncMapTips vor Info-Abfrage fehlgeschlagen:', eSync.message); }
@@ -351,6 +513,14 @@
       if (!mt) continue;
       if (!mt.linked_layer_id && mt.linked_layer) mt.linked_layer_id = mt.linked_layer;
       if (!mt.linked_layer_id) continue;
+
+      // DB ist Quelle der Wahrheit: Runtime-Maptip vor Sichtbarkeits-/Dispatch-Logik überlagern.
+      // 1) Primär über eindeutige Runtime-ID (_id aus API)
+      // 2) Fallback über linked_layer/query_layers/nls
+      var dbMaptips = _getDbMaptips(mt.linked_layer_id);
+      var dbMt = _getDbMaptipByRuntimeId(mtId) || _pickDbMaptip(mt, dbMaptips, mtId);
+      if (dbMt) _mergeDbMaptip(mt, dbMt);
+      _normalizeHighlightAliases(mt);
 
       var shouldBeActive = _isMapTipVisible(mt, map);
       if (shouldBeActive) {

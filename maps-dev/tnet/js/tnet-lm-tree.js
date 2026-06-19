@@ -408,11 +408,37 @@
       });
 
       _container.addEventListener('change', function (e) {
-        // Einzelner Layer ein-/ausschalten
+        // Einzelner Layer ein-/ausschalten (3-Stufen-Zyklus pro Klick):
+        //   nicht aktiv        → hinzufuegen + sichtbar (Haken gruen)
+        //   aktiv + sichtbar   → unsichtbar schalten (bleibt im Karteninhalt, Haken grau)
+        //   aktiv + unsichtbar → komplett aus dem Karteninhalt entfernen (Haken weg)
         if (e.target.matches('[data-action="toggle-layer"]')) {
           var layerEl = e.target.closest('.lm-layer');
           if (layerEl) {
-            window.TnetLMStore.toggleLayer(layerEl.dataset.layerId);
+            var lid = layerEl.dataset.layerId;
+            var store = window.TnetLMStore;
+            var isActive = typeof store.isLayerActive === 'function' && store.isLayerActive(lid);
+            if (!isActive) {
+              // Stufe 1: hinzufuegen + sichtbar
+              store.toggleLayer(lid);
+            } else {
+              var isVisible = typeof store.isLayerRequestedVisible === 'function'
+                ? store.isLayerRequestedVisible(lid)
+                : true;
+              if (isVisible) {
+                // Stufe 2: sichtbar → unsichtbar (bleibt aktiv, grau)
+                if (typeof store.setLayerEye === 'function') {
+                  store.setLayerEye(lid, false);
+                } else {
+                  store.toggleLayer(lid);
+                }
+              } else if (typeof store.removeLayer === 'function') {
+                // Stufe 3: unsichtbar → komplett entfernen
+                store.removeLayer(lid);
+              } else {
+                store.toggleLayer(lid);
+              }
+            }
           }
           return;
         }
@@ -587,11 +613,18 @@
     _onLayerVisibility: function (evt) {
       if (!_container) return;
       var self = this;
+      var store = window.TnetLMStore;
+      // Layer bleibt angekreuzt solange er im Karteninhalt aktiv ist (auch unsichtbar).
+      var stillActive = (store && typeof store.isLayerActive === 'function')
+        ? store.isLayerActive(evt.id)
+        : evt.visible;
       var els = _container.querySelectorAll('[data-layer-id="' + evt.id + '"]');
       for (var i = 0; i < els.length; i++) {
         var cb = els[i].querySelector('.lm-cb');
-        if (cb) cb.checked = evt.visible;
-        els[i].classList.toggle('lm-active', evt.visible);
+        if (cb) cb.checked = stillActive;
+        els[i].classList.toggle('lm-active', stillActive);
+        // Aktiv aber unsichtbar → ausgegraut. Sichtbar → normal. Nicht aktiv → kein Grau.
+        els[i].classList.toggle('lm-layer-hidden', stillActive && !evt.visible);
 
         if (evt.visible) {
           els[i].classList.add('lm-layer-loading', 'lm-layer-loading-hint');
@@ -663,6 +696,12 @@
       _resyncRaf = (typeof requestAnimationFrame === 'function')
         ? requestAnimationFrame(flush)
         : setTimeout(flush, 16);
+      // Wenn Bookmark geleert (remove-all): nach Verzoegerung nochmals resync,
+      // damit asynchrone Dojo-Verarbeitung (TnetLayerSwitch) Checkboxen nicht
+      // verspaetet wieder setzt.
+      if (!window.__tnetActiveBookmark) {
+        setTimeout(function () { self._resyncLayerCheckboxes(); }, 800);
+      }
     },
 
     _onGroupToggled: function (evt) {
@@ -701,18 +740,26 @@
       if (!_container) return;
       var store = window.TnetLMStore;
       if (!store) return;
+      // Angekreuzt = Layer ist im Karteninhalt AKTIV (auch wenn unsichtbar).
+      var activeReader = typeof store.isLayerActive === 'function'
+        ? store.isLayerActive.bind(store)
+        : null;
+      // Sichtbarkeit separat lesen, um aktive-aber-unsichtbare Layer auszugrauen.
       var visibilityReader = typeof store.isLayerRequestedVisible === 'function'
         ? store.isLayerRequestedVisible.bind(store)
         : (typeof store.isLayerEffectivelyVisible === 'function' ? store.isLayerEffectivelyVisible.bind(store) : null);
-      if (!visibilityReader) return;
+      if (!activeReader && !visibilityReader) return;
       var els = _container.querySelectorAll('.lm-layer[data-layer-id]');
       for (var i = 0; i < els.length; i++) {
         var layerId = els[i].dataset.layerId;
         if (!layerId) continue;
-        var isVisible = visibilityReader(layerId);
+        var isVisible = visibilityReader ? visibilityReader(layerId) : false;
+        var isActive = activeReader ? activeReader(layerId) : isVisible;
         var cb = els[i].querySelector('.lm-cb');
-        if (cb) cb.checked = isVisible;
-        els[i].classList.toggle('lm-active', isVisible);
+        if (cb) cb.checked = isActive;
+        els[i].classList.toggle('lm-active', isActive);
+        // Aktiv, aber nicht sichtbar → ausgegraut markieren.
+        els[i].classList.toggle('lm-layer-hidden', isActive && !isVisible);
       }
       this._updateSelectAllCheckboxes();
     },

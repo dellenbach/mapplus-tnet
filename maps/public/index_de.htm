@@ -261,10 +261,13 @@
         njs.AppManager.apipath = "/mapplus-lib/mapplus-dojo/";
         njs.AppManager.Provider = "OLPlus";
         njs.AppManager.template = "nwow_floating";
-        njs.AppManager.keepalivetimeout = 180000; // millisecs
-        njs.AppManager.keepalivepage = "/mapplus-lib/mapplus-dojo/v4.0.0/php/sso/keepalive.php"
+        njs.AppManager.keepalivetimeout = 60000; // millisecs
+        // Keepalive unter demselben App-Pfad halten, damit der Session-Cookie sicher mitgesendet wird.
+        njs.AppManager.keepalivepage = "/maps-dev/tnet/php/keepalive-local.php"
     </script>
     <?php print $set_vars?>
+
+    <script type="text/javascript" src="tnet/js/tnet-elevation-guard.js?v=20260617b"></script>
 
 
     <!-- dojo modules and startup config-->
@@ -935,7 +938,7 @@
     <script type="module" src="tnet/js/tnet-utils.js"></script>
 
     <!-- TNET helpers for bookmarks&Co. -->
-    <script type="text/javascript" src="tnet/js/tnet-mapplus-helpers.js" defer></script>
+    <script type="text/javascript" src="tnet/js/tnet-mapplus-helpers.js?v=20260617f" defer></script>
     
     <!-- TNET Accordion/Tab-Konverter -->
     <link rel="stylesheet" href="tnet/css/tnet_toc.css" />
@@ -958,14 +961,14 @@
     <script type="module" src="tnet/js/tnet-header.js"></script>
 
     <!-- TNET Kontextmenü: Rechtsklick, Marker, Koordinaten, Routing -->
-    <script type="module" src="tnet/js/tnet-context-menu.js"></script>
+    <script type="module" src="tnet/js/tnet-context-menu.js?v=20260616b"></script>
 
     <!-- TNET Map Footer: Koordinaten, Maßstab, Copyright -->
     <script type="module" src="tnet/js/tnet-map-footer.js"></script>
 
     <!-- TNET Info Panel: Buttons, Resize, Dock/Undock -->
-    <script type="module" src="tnet/js/tnet-info-panel.js"></script>
-    <script type="module" src="tnet/js/tnet-info-panel-default-dock.js"></script>
+    <script type="module" src="tnet/js/tnet-info-panel.js?v=20260616b"></script>
+    <script type="module" src="tnet/js/tnet-info-panel-default-dock.js?v=20260616c"></script>
 
 
     <!-- TNET Spatial Query: Polygon-Zeichnen, WFS/ArcGIS/geo.admin.ch Abfragen, Ergebnis-Anzeige -->
@@ -992,10 +995,11 @@
     <!-- TNET Layer-Manager: Themenkatalog + Dargestellte Themen (Store, Tree, Active-Panel, Init) -->
     <link rel="stylesheet" href="tnet/css/tnet-lm.css" />
     <link rel="stylesheet" href="tnet/css/tnet-sidepanel.css" />
-    <script src="tnet/js/tnet-coalesce-bridge.js" defer></script>
-    <script src="tnet/js/tnet-lm-store.js" defer></script>
+    <script src="tnet/js/tnet-coalesce-bridge.js?v=20260617e" defer></script>
+    <script src="tnet/js/tnet-lm-store.js?v=20260617d" defer></script>
     <script src="tnet/js/tnet-lm-tree.js" defer></script>
-    <script src="tnet/js/tnet-lm-active.js" defer></script>
+    <script src="tnet/js/tnet-lm-active.js?v=20260617j" defer></script>
+    <script src="tnet/js/tnet-lm-active-v2.js?v=20260617a" defer></script>
     <script src="tnet/js/tnet-lm-init.js" defer></script>
 
     <!-- TNET Accordion-Resize: Höhenverstellbare Themenkatalog/Dargestellte Themen -->
@@ -1113,7 +1117,7 @@
     <script src="tnet/js/tnet-wms-panel.js?v=20260306"></script>
 
     <!-- TNET Info-Bridge: Zentraler singleclick-Dispatcher für MapTips/GFI -->
-    <script src="tnet/js/tnet-info-bridge.js?v=20260306"></script>
+    <script src="tnet/js/tnet-info-bridge.js?v=20260616j"></script>
 
     <!-- Drucken / PDF-Export (Libraries werden dynamisch in tnet-print.js geladen) -->
     <link rel="stylesheet" href="tnet/css/tnet-print.css">

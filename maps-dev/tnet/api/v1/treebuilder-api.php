@@ -68,6 +68,7 @@ define('GROUPS_FILE', DATA_DIR . '/groups.json5');
 define('PROFILES_DIR', DATA_DIR . '/profiles');
 define('LOCK_FILE', DATA_DIR . '/treebuilder.lock');
 define('BACKUP_DIR', DATA_DIR . '/backups');
+define('AGS_IMPORT_ACTORS_FILE', DATA_DIR . '/ags-import-actors.json');
 define('LOCK_TIMEOUT', 30 * 60); // 30 Minuten Lock-Timeout
 define('MAX_BACKUPS', 50);       // Max. Anzahl Backups
 define('MAX_STATE_AUTO_BACKUPS', 24);            // Periodische state_YYYYMMDD_HHMMSS.json
@@ -89,6 +90,13 @@ function jsonError($message, $code = 400) {
 function requireAdminAction() {
     if (!AdminAuth::isAdmin()) {
         jsonError('Nur für Administratoren', 403);
+    }
+}
+
+/** Export/Deploy: eingeloggter Benutzer reicht (kein Admin nötig). */
+function requireLoggedIn() {
+    if (!AdminAuth::isLoggedIn()) {
+        jsonError('Anmeldung erforderlich', 401);
     }
 }
 
@@ -121,6 +129,49 @@ function getEditorName() {
     return $_SERVER['HTTP_X_EDITOR_NAME'] ?? $_GET['editor'] ?? 'Unbekannt';
 }
 
+function getImportActorName() {
+    $user = AdminAuth::getCurrentUser();
+    if ($user && $user !== '') return $user;
+    return getEditorName();
+}
+
+function ensureAgsImportHistoryImportedByColumn($pdo) {
+    try {
+        $pdo->exec("ALTER TABLE mapplusconf.ags_import_history ADD COLUMN IF NOT EXISTS imported_by text");
+        return true;
+    } catch (Exception $e) {
+        return false;
+    }
+}
+
+function agsImportHistoryHasImportedByColumn($pdo) {
+    static $cached = null;
+    if ($cached !== null) return $cached;
+
+    try {
+        $stmt = $pdo->prepare(
+            "SELECT 1
+             FROM information_schema.columns
+             WHERE table_schema = ?
+               AND table_name = ?
+               AND column_name = ?
+             LIMIT 1"
+        );
+        $stmt->execute(['mapplusconf', 'ags_import_history', 'imported_by']);
+        $cached = (bool)$stmt->fetchColumn();
+
+        // Falls die Spalte noch fehlt, einmalig Auto-Migration versuchen.
+        if (!$cached && ensureAgsImportHistoryImportedByColumn($pdo)) {
+            $stmt->execute(['mapplusconf', 'ags_import_history', 'imported_by']);
+            $cached = (bool)$stmt->fetchColumn();
+        }
+    } catch (Exception $e) {
+        $cached = false;
+    }
+
+    return $cached;
+}
+
 function useStagingImportDb() {
     $db = Database::isAvailable();
     return !empty($db['available']);
@@ -142,6 +193,37 @@ function ensureDirs() {
     if (!is_dir(PROFILES_DIR)) {
         @mkdir(PROFILES_DIR, 0775, true);
     }
+}
+
+function loadAgsImportActors() {
+    if (!file_exists(AGS_IMPORT_ACTORS_FILE)) return [];
+    $raw = @file_get_contents(AGS_IMPORT_ACTORS_FILE);
+    if ($raw === false || $raw === '') return [];
+    $json = json_decode($raw, true);
+    return is_array($json) ? $json : [];
+}
+
+function saveAgsImportActors($actors) {
+    ensureDirs();
+    $json = json_encode($actors, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    if ($json === false) return false;
+    return @file_put_contents(AGS_IMPORT_ACTORS_FILE, $json) !== false;
+}
+
+function upsertAgsImportActors($serviceNames, $importedBy, $importedAt) {
+    if (!is_array($serviceNames) || count($serviceNames) === 0) return;
+    $actor = ($importedBy && $importedBy !== '') ? (string)$importedBy : 'Unbekannt';
+    $time = ($importedAt && $importedAt !== '') ? (string)$importedAt : date('Y-m-d H:i:s');
+
+    $actors = loadAgsImportActors();
+    foreach ($serviceNames as $svc) {
+        $name = (string)$svc;
+        $actors[$name] = [
+            'imported_by' => $actor,
+            'imported_at' => $time
+        ];
+    }
+    saveAgsImportActors($actors);
 }
 
 // =====================================================================
@@ -1590,26 +1672,39 @@ function exportQgisProjects($projekte) {
     // Alte Einträge löschen + neu einfügen, damit imported_at aktualisiert wird
     try {
         $pdo = Database::getConnection();
+        $importActor = getImportActorName();
+        $hasImportedBy = agsImportHistoryHasImportedByColumn($pdo);
         $delStmt = $pdo->prepare(
             "DELETE FROM mapplusconf.ags_import_history WHERE service_name = ?"
         );
-        $insStmt = $pdo->prepare(
-            "INSERT INTO mapplusconf.ags_import_history (service_name, hash, published_at, published_by)
-             VALUES (?, ?, ?, ?)"
-        );
+        $insSql = $hasImportedBy
+            ? "INSERT INTO mapplusconf.ags_import_history (service_name, hash, published_at, published_by, imported_by)
+               VALUES (?, ?, ?, ?, ?)"
+            : "INSERT INTO mapplusconf.ags_import_history (service_name, hash, published_at, published_by)
+               VALUES (?, ?, ?, ?)";
+        $insStmt = $pdo->prepare($insSql);
         foreach ($projekte as $p) {
             $svcName = 'qgis_' . strtolower($p['folder']) . '_' . strtolower($p['file']);
             $delStmt->execute([$svcName]);
-            $insStmt->execute([
+            $params = [
                 $svcName,
                 null,
                 null,
                 null
-            ]);
+            ];
+            if ($hasImportedBy) $params[] = $importActor;
+            $insStmt->execute($params);
         }
     } catch (Exception $e) {
         $result['metaWarning'] = 'Import-Metadaten konnten nicht in DB gespeichert werden: ' . $e->getMessage();
     }
+
+    // Import-User zusätzlich dateibasiert mitschreiben (Fallback bei fehlender DB-Spalte/Rechten)
+    upsertAgsImportActors(
+        array_map(function($p) { return 'qgis_' . strtolower($p['folder']) . '_' . strtolower($p['file']); }, $projekte),
+        getImportActorName(),
+        date('Y-m-d H:i:s')
+    );
 
     return $result;
 }
@@ -1884,27 +1979,36 @@ function exportAgsServices($dienstnamen, $serviceDetails = []) {
     // Alte Einträge löschen + neu einfügen, damit imported_at aktualisiert wird
     try {
         $pdo = Database::getConnection();
+        $importActor = getImportActorName();
+        $hasImportedBy = agsImportHistoryHasImportedByColumn($pdo);
         $delStmt = $pdo->prepare(
             "DELETE FROM mapplusconf.ags_import_history WHERE service_name = ?"
         );
-        $insStmt = $pdo->prepare(
-            "INSERT INTO mapplusconf.ags_import_history (service_name, hash, published_at, published_by)
-             VALUES (?, ?, ?, ?)"
-        );
+        $insSql = $hasImportedBy
+            ? "INSERT INTO mapplusconf.ags_import_history (service_name, hash, published_at, published_by, imported_by)
+               VALUES (?, ?, ?, ?, ?)"
+            : "INSERT INTO mapplusconf.ags_import_history (service_name, hash, published_at, published_by)
+               VALUES (?, ?, ?, ?)";
+        $insStmt = $pdo->prepare($insSql);
         foreach ($dienstnamen as $svcName) {
             $sd = isset($serviceDetails[$svcName]) ? $serviceDetails[$svcName] : [];
             $delStmt->execute([$svcName]);
-            $insStmt->execute([
+            $params = [
                 $svcName,
                 isset($sd['hash'])         ? $sd['hash']         : null,
                 isset($sd['published_at']) ? $sd['published_at'] : null,
                 isset($sd['published_by']) ? $sd['published_by'] : null
-            ]);
+            ];
+            if ($hasImportedBy) $params[] = $importActor;
+            $insStmt->execute($params);
         }
     } catch (Exception $e) {
         // DB-Fehler nicht fatal — Import-Dateien sind bereits gespeichert
         $result['metaWarning'] = 'Import-Metadaten konnten nicht in DB gespeichert werden: ' . $e->getMessage();
     }
+
+    // Import-User zusätzlich dateibasiert mitschreiben (Fallback bei fehlender DB-Spalte/Rechten)
+    upsertAgsImportActors($dienstnamen, getImportActorName(), date('Y-m-d H:i:s'));
 
     return $result;
 }
@@ -6126,9 +6230,13 @@ switch ($action) {
         // Letzter Import pro Dienst aus DB lesen
         try {
             $pdo = Database::getConnection();
+            $hasImportedBy = agsImportHistoryHasImportedByColumn($pdo);
+            $actorFallback = loadAgsImportActors();
+            $importedBySelect = $hasImportedBy ? 'imported_by' : 'NULL::text AS imported_by';
             $stmt = $pdo->query(
                 "SELECT DISTINCT ON (service_name)
                         service_name, hash, published_at, published_by,
+                        {$importedBySelect},
                         imported_at::text AS imported_at
                  FROM mapplusconf.ags_import_history
                  ORDER BY service_name, imported_at DESC"
@@ -6136,10 +6244,18 @@ switch ($action) {
             $rows = $stmt->fetchAll();
             $meta = [];
             foreach ($rows as $row) {
+                $svc = $row['service_name'];
+                $importedBy = $row['imported_by'];
+                if ((!$importedBy || $importedBy === '')
+                    && isset($actorFallback[$svc])
+                    && !empty($actorFallback[$svc]['imported_by'])) {
+                    $importedBy = $actorFallback[$svc]['imported_by'];
+                }
                 $meta[$row['service_name']] = [
                     'hash'         => $row['hash'],
                     'published_at' => $row['published_at'],
                     'published_by' => $row['published_by'],
+                    'imported_by'  => $importedBy,
                     'imported_at'  => $row['imported_at']
                 ];
             }
@@ -6308,7 +6424,7 @@ switch ($action) {
         break;
 
     case 'config-export-to-core':
-        requireAdminAction();
+        requireLoggedIn(); // Export in Core-Dateien: reicht für eingeloggte Benutzer
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('POST required', 405);
         $body = json_decode(file_get_contents('php://input'), true);
         if (!$body || !isset($body['kuerzel'])) {
@@ -6320,7 +6436,7 @@ switch ($action) {
         break;
 
     case 'export-catalog-artifacts':
-        requireAdminAction();
+        requireLoggedIn(); // Catalog-Export: reicht für eingeloggte Benutzer
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('POST required', 405);
         $body = json_decode(file_get_contents('php://input'), true) ?: [];
         $result = exportCatalogArtifacts($body);
@@ -6328,7 +6444,7 @@ switch ($action) {
         break;
 
     case 'deploy-catalog-artifacts':
-        requireAdminAction();
+        requireLoggedIn(); // Catalog-Deploy: reicht für eingeloggte Benutzer
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('POST required', 405);
         $body = json_decode(file_get_contents('php://input'), true);
         if (!$body || !isset($body['runId'])) jsonError('Feld "runId" erforderlich', 400);
@@ -7290,6 +7406,8 @@ switch ($action) {
         require_once __DIR__ . '/../includes/BookmarkNormalizer.php';
         require_once __DIR__ . '/../includes/ConfigSource.php';
 
+        $dbSaveError = null; // wird gesetzt wenn DB-Save fehlschlägt (Fallback auf Datei)
+
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             jsonError('POST erwartet', 405);
         }
@@ -7354,14 +7472,30 @@ switch ($action) {
                     'count'         => $res['count'],
                     'revision'      => $res['revision'],
                     'source'        => 'db',
-                    'schemaVersion' => 2
+                    'schemaVersion' => 2,
+                    // Diagnose: erste 3 Layer-IDs des nw_oereb aus der DB nach dem Save
+                    '_dbCheck'      => (function() use ($data) {
+                        try {
+                            $pdo = \Database::getConnection();
+                            $stmt = $pdo->prepare(
+                                "SELECT payload->>'id' AS id,
+                                        (SELECT jsonb_agg(l->>'id') FROM jsonb_array_elements(payload->'layers') AS l LIMIT 3) AS first3layers
+                                 FROM mapplusconf.bookmark WHERE bookmark_id = 'nw_oereb'"
+                            );
+                            $stmt->execute();
+                            return $stmt->fetch() ?: 'not_found';
+                        } catch (\Throwable $e) {
+                            return ['error' => $e->getMessage()];
+                        }
+                    })()
                 ]);
             } catch (\Throwable $e) {
+                $dbSaveError = $e->getMessage();
+                error_log('[bookmarks-save] DB-Fehler: ' . $dbSaveError . ' | ' . $e->getTraceAsString());
                 if (!ConfigSource::fallbackEnabled()) {
-                    jsonError('Bookmarks-DB Speichern fehlgeschlagen: ' . $e->getMessage(), 500);
+                    jsonError('DB-Fehler beim Speichern der Bookmarks: ' . $dbSaveError, 500);
                 }
-                error_log('bookmarks-save: DB-Fallback auf Datei: ' . $e->getMessage());
-                // weiter mit Datei-Logik unten
+                // Fallback auf Datei — Fehler wird im Response mitgegeben
             }
         }
 
@@ -7387,6 +7521,7 @@ switch ($action) {
         jsonResponse([
             'success'       => true,
             'message'       => 'Bookmarks-Entwurf gespeichert',
+            'dbError'       => $dbSaveError ?? null,
             'count'         => count($data),
             'bytes'         => $written,
             'schemaVersion' => 2

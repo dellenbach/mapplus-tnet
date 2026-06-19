@@ -1,4 +1,31 @@
-﻿## 2026-06-18 - API-Tree-Knoten sind ALLE Service-Layer, nicht die dargestellten -> Reset/Modified Flag-basiert lassen
+﻿## 2026-06-18 - Import-User darf nicht an DB-Schema-Rechten scheitern
+
+- Symptom: Nach neuem Import wurde `imported_at` aktualisiert, aber `imported_by` blieb leer (`-`).
+- Root-Cause: In einigen Umgebungen fehlt/spinnt die DB-Spalte `imported_by` (oder Schreibrechte), dadurch landet der Import-User nicht in `ags_import_history`.
+- Fix: API speichert den Import-User zusätzlich dateibasiert in `tmp/layertree/ags-import-actors.json` und merged ihn in `ags-import-meta`, wenn DB `imported_by` leer ist.
+- Guardrail: Audit-kritische Felder (wer importiert hat) nicht nur an optionale DB-Schemafelder koppeln; robusten Fallback mitführen.
+
+## 2026-06-18 - Create-Tab Importiert-Spalte: lokale Zeit und Import-Benutzer sichtbar machen
+
+- Symptom: In der Spalte `Importiert` war nur ein Zeitwert sichtbar; wer importiert hat, blieb für Nutzer unklar.
+- Root-Cause: Anzeige nutzte nur einen flachen Textwert ohne klare Benutzerzeile; Zeitformatierung war kein expliziter Localtime-Render.
+- Fix: Zeitstempel werden via `Date` lokal formatiert (`YYYY-MM-DD HH:mm`), und die Importiert-Spalte rendert Benutzer als zweite Zeile (`imported_by`), mit Fallback `unbekannt`.
+- Guardrail: Audit-relevante Spalten immer mit klar getrennten Feldern für Zeitpunkt und Benutzer darstellen; Zeitwerte explizit lokal formatieren.
+
+## 2026-06-18 - Create-Tab: Roh-Konfig-Button braucht event-delegierte Checkbox-Synchronisation
+
+- Symptom: Im Create-Tab blieb `Roh-Konfiguration erzeugen` ausgegraut, obwohl Dienste angehakt waren.
+- Root-Cause: Der Aktivierungszustand hing an Klick-Handlern pro Tabellenzeile/Checkbox; je nach Ziel-Element (Input/Label) wurde `updateImportSelCount()` nicht zuverlässig ausgelöst.
+- Fix: Checkbox-Click aktualisiert den Selektionszähler immer direkt, und zusätzlich synchronisiert ein `change`-Delegationshandler auf `#import-list` den Buttonzustand robust.
+- Guardrail: Bei dynamisch gerenderten Tabellen mit Checkboxen den Buttonzustand immer zusätzlich über Event-Delegation (`change` auf Container) absichern.
+
+## 2026-06-18 Sync-Tab Bundle-Dateien
+
+- Symptom: Im Sync-Tab erschienen bei Config-Bundles nur Kürzel und Metadaten, aber keine enthaltenen synchronisierbaren Dateien.
+- Root-Cause: Der Sync-Status aus SyncRepository lieferte für config_bundle_store nur Bundle-Metadaten und blendete payload.files vollständig aus.
+- Fix: Bundle-Status erweitert um normalisierte Dateilisten aus payload.files und den aktiven Sync-Renderer so ergänzt, dass diese Dateien pro Kürzel direkt angezeigt werden.
+- Guardrail: Wenn die UI synchronisierbare Bundle-Inhalte anzeigen soll, muss der Status-Endpoint immer sowohl die Bundle-Ebene als auch die enthaltenen Dateien liefern.
+## 2026-06-18 - API-Tree-Knoten sind ALLE Service-Layer, nicht die dargestellten -> Reset/Modified Flag-basiert lassen
 
 - **Symptom:** Nach Einbau einer API-"Baseline" (_apiOriginalState aus allen tree-Knoten): Reorder zeigte ploetzlich 108 statt 29 Layer + Opacity 100%; Opacity-Aenderungen liessen den Verwerfen-Button verschwinden; View-Switch zeigte faelschlich "veraendert".
 - **Root-Cause:** Die getBookmarkV2 tree-Knoten enthalten ALLE Service-Layer eines Bookmarks (~53), nicht nur die dargestellten (~29). Reset aktivierte via setLayerEye alle -> Store-Aufblaehung -> mergeBookmarkLayers Live-Extras -> 108. Die API-Baseline war zudem nicht view-aware -> View-Switch falsch-positiv.
@@ -2520,3 +2547,38 @@ Guardrail: Wenn Change-Detection fÃ¼r KÃ¼rzel vorhanden ist, immer auch prÃ
 - **Root-Cause**: Vor dem Dispatch wurden `am.MapTips` nicht konsequent mit den DB-Maptip-Objekten überlagert; Legacy-Runtimewerte konnten aktiv bleiben.
 - **Fix**: In `tnet-info-bridge.js` wird vor jedem Dispatch je MapTip ein DB-Match (`linked_layer` + `query_layers`/`nls`) gesucht und die relevanten Felder (`highlight_style`, `qryFields*`, `querytype`, etc.) in `am.MapTips` gespiegelt.
 - **Guardrail**: Bei Framework-State mit langlebigen Objekten niemals auf initiale Belegung vertrauen; vor kritischen Aktionen (Dispatch/Klick) DB-Source erneut mergen.
+
+## 2026-06-18 - Highlight blieb alt wegen internen Legacy-Cachefeldern
+
+- **Symptom**: Trotz korrektem `highlight_style` in DB/API wurde auf der Karte weiterhin der alte Stil gezeichnet.
+- **Root-Cause**: Das Framework rendert über interne Felder `highLightstyle` und `highlightProj`, nicht direkt über `highlight_style`/`highlight_geom_proj`.
+- **Fix**: Beim DB-Merge in `tnet-mapplus-helpers.js` und `tnet-info-bridge.js` werden zusätzlich `mt.highLightstyle` und `mt.highlightProj` aus den DB-Werten gesetzt.
+- **Guardrail**: Bei Legacy-Objekten immer prüfen, ob Render-Code interne Cache-/Alias-Felder nutzt; reine JSON-Feldupdates reichen sonst nicht.
+
+## 2026-06-18 - DB-Maptips wurden wegen ID-Variante/Gross-Kleinschreibung nicht gefunden
+
+- **Symptom**: Runtime zeigte weiterhin alten Style; Diagnose ergab bei betroffenen Maptips `db_count=0`.
+- **Root-Cause**: `TnetLMStore.findLayer()` wurde nur exakt verwendet; Layer-IDs mit Varianten (Suffixe, Case-Unterschiede) lieferten keinen Treffer.
+- **Fix**: Robuster Layer-Lookup in `tnet-mapplus-helpers.js` und `tnet-info-bridge.js`: Kandidatenliste (`_getLayerIdCandidates`) + lower/upper + case-insensitive Katalog-Scan als letzter Fallback.
+- **Guardrail**: Bei Store-Lookups nie nur exakte ID-Matches annehmen; besonders bei OEREB/Coalesce IDs immer robuste Kandidaten-/Case-Strategie einsetzen.
+
+## 2026-06-18 - Highlight blieb inkonsistent wegen gemischter Feldnamen
+
+- **Symptom**: In Runtime war `highLightstyle` gesetzt, `highlight_style` aber leer; Highlight-Verhalten blieb inkonsistent.
+- **Root-Cause**: Legacy-/Neu-Pfade verwenden unterschiedliche Property-Namen (`highLightstyle` vs. `highlight_style`).
+- **Fix**: Beim DB-Merge werden in `tnet-mapplus-helpers.js` und `tnet-info-bridge.js` beide Feldnamen bidirektional auf denselben Stil synchronisiert.
+- **Guardrail**: Bei Legacy-Objekten Alias-Feldnamen immer explizit gemeinsam pflegen, nicht nur einen Feldnamen setzen.
+
+## 2026-06-18 - Runtime-Fix wirkte nicht wegen veralteter Script-Cachebuster
+
+- **Symptom**: Konsole zeigte weiterhin altes Verhalten (`highlight_style` leer), obwohl JS-Dateien bereits gepatcht und deployt waren.
+- **Root-Cause**: Entry-HTML referenzierte unveränderte `?v=`-Werte; Browser/CDN lieferte dadurch weiterhin alte Script-Stände.
+- **Fix**: `index_de.htm` und `index_de_m.htm` auf neue Cachebuster für `tnet-mapplus-helpers.js` und `tnet-info-bridge.js` aktualisiert und neu deployt.
+- **Guardrail**: Nach JS-Hotfixes immer auch die referenzierenden `?v=`-Parameter erhöhen, wenn aggressive Caches im Spiel sind.
+
+## 2026-06-18 - OEREB-Mobile überschrieb Maptip-Highlight mit hartcodiertem Grün
+
+- **Symptom**: Runtime zeigte korrekte `highlight_style`-Werte, visuell blieb das Highlight aber grün/falsch.
+- **Root-Cause**: In `tnet-oereb.js` nutzte der Mobile-`OerebGraphics`-Layer einen fixen grünen OL-Style, unabhängig vom aktiven Maptip.
+- **Fix**: OEREB-Highlight-Styles (Mobile + allgemeiner OEREB-Highlight-Layer) dynamisch aus aktivem OEREB-Maptip-Style aufgebaut, mit Framework-`getNewOLStyle()` und robustem Fallback.
+- **Guardrail**: Bei OEREB-Overlays keine hartcodierten Farben verwenden; Style immer über Runtime-Maptip/Config ableiten.

@@ -707,8 +707,48 @@ body {
 .bm-action-section-label { font-size: 9px; font-weight: 700; color: #888; text-transform: uppercase; letter-spacing: .5px; margin-right: 2px; white-space: nowrap; }
 .bm-toolbar-end { display: flex; align-items: center; gap: 4px; margin-left: auto; padding-left: 8px; border-left: 1px solid #ddd; }
 .bm-toolbar .bm-view-active { background: #4B7B81; color: #fff; border-color: #3a6166; }
-.bm-status { padding: 6px 12px; font-size: 12px; color: #666; background: #f5f7fa; border-radius: 4px; margin-bottom: 8px; }
+.bm-status { padding: 6px 12px; font-size: 12px; color: #666; background: #f5f7fa; border-radius: 4px; margin-bottom: 4px; transition: background .2s, color .2s; }
+.bm-status.saving  { background: #fff3cd; color: #856404; font-weight: 600; }
+.bm-status.success { background: #d1e7dd; color: #0a5c36; font-weight: 600; }
+.bm-status.error   { background: #f8d7da; color: #842029; font-weight: 600; }
 .bm-count { font-size: 11px; color: #888; margin-left: 4px; }
+/* Master-Detail-Layout */
+.bm-master-detail { display: flex; flex: 1; min-height: 0; gap: 0; border: 1px solid #d9d9d9; border-radius: 4px; overflow: hidden; }
+.bm-list-pane { width: 480px; flex-shrink: 0; display: flex; flex-direction: column; border-right: 1px solid #d9d9d9; background: #fff; }
+.bm-list-search-bar { display: flex; align-items: center; gap: 4px; padding: 5px 6px; border-bottom: 1px solid #eee; background: #f7f7f7; }
+.bm-list-search-bar input { flex: 1; font-size: 11px; padding: 3px 7px; border: 1px solid #ccc; border-radius: 3px; font-family: monospace; }
+.bm-list-search-bar input:focus { outline: none; border-color: #4B7B81; }
+.bm-list-count-badge { font-size: 10px; color: #888; white-space: nowrap; }
+/* Zwei-Spalten-Layout für die Bookmark-Liste */
+.bm-list-header { display: flex; align-items: center; padding: 3px 8px; border-bottom: 2px solid #d4e4ee; background: #eef4f7; font-size: 10px; font-weight: 700; color: #4a6a7a; gap: 0; flex-shrink: 0; }
+.bm-list-col-def { width: 26px; flex-shrink: 0; text-align: center; }
+.bm-list-col-prof { width: 26px; flex-shrink: 0; text-align: center; }
+.bm-list-col-id { flex: 1; min-width: 0; padding-left: 4px; }
+.bm-list { flex: 1; overflow-y: auto; list-style: none; margin: 0; padding: 0; }
+.bm-list-item { display: flex; align-items: center; padding: 4px 8px; border-bottom: 1px solid #f0f0f0; cursor: pointer; min-width: 0; gap: 0; }
+.bm-list-item:hover { background: #f5f7fa; }
+.bm-list-item.bm-list-item-active { background: #e3f0f3; border-left: 3px solid #4B7B81; padding-left: 5px; }
+.bm-list-item.bm-row-changed { background: #fff8e1 !important; }
+.bm-list-item-active.bm-row-changed { background: #ffeeba !important; }
+/* Ampel-Zellen */
+.bm-list-ampel-def { width: 26px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+.bm-list-ampel-prof { width: 26px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+.bm-list-ampel { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+.bm-list-ampel.green { background: #4caf50; }
+.bm-list-ampel.yellow { background: #ff9800; }
+.bm-list-ampel.red { background: #f44336; }
+.bm-list-ampel.grey { background: #ccc; }
+.bm-list-ampel.none { background: transparent; border: 1px dashed #ddd; }
+.bm-list-item-texts { min-width: 0; flex: 1; overflow: hidden; padding-left: 4px; }
+.bm-list-item-id { display: block; font-family: monospace; font-size: 11px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #1a3a5c; }
+.bm-list-item-alias { display: block; font-size: 10px; color: #888; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Detailpanel rechts */
+.bm-detail-pane { flex: 1; min-width: 0; display: flex; flex-direction: column; background: #fafafa; }
+.bm-detail-empty { display: flex; align-items: center; justify-content: center; flex: 1; color: #bbb; font-size: 13px; font-style: italic; }
+.bm-detail-content { flex: 1; overflow: auto; min-height: 0; }
+/* Hidden data-table (tbody bleibt als Datenspeicher, wird nicht angezeigt) */
+#bm-data-store { position: absolute; width: 1px; height: 1px; overflow: hidden; opacity: 0; pointer-events: none; }
+/* Altes Tabellen-Layout (beibehalten für bm-table-wrap JSON-Mode-Referenz) */
 .bm-table-wrap { flex: 1; overflow: auto; min-height: 0; }
 .bm-table { width: 100%; border-collapse: collapse; font-size: 11px; table-layout: fixed; }
 .bm-table th { padding: 6px 8px; text-align: left; background: #fdf3e0; border-bottom: 2px solid #d4a03c; color: #333; font-weight: 600; position: sticky; top: 0; z-index: 2; white-space: nowrap; cursor: pointer; user-select: none; overflow: hidden; }
@@ -763,6 +803,7 @@ body {
 .bm-layer-tag.bm-layer-off { opacity: 0.55; text-decoration: line-through; }
 .bm-layer-path { display: flex; flex-direction: column; min-width: 0; line-height: 1.15; }
 .bm-layer-path-leaf { font-weight: 700; color: inherit; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bm-layer-path-nls  { display: block; font-size: 9px; color: #4B7B81; opacity: 0.85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-style: italic; }
 .bm-layer-path-prefix { font-size: 9px; color: inherit; opacity: 0.68; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .bm-layer-path-row { position: relative; padding-left: calc(var(--bm-layer-depth, 0) * 14px); max-width: 100%; }
 .bm-layer-path-row.has-depth::before { content: ''; position: absolute; left: calc(var(--bm-layer-depth, 0) * 14px - 8px); top: 2px; bottom: 2px; width: 3px; border-radius: 3px; background: linear-gradient(180deg, rgba(75,123,129,0.12), rgba(75,123,129,0.42)); }
@@ -775,12 +816,12 @@ body {
 .bm-mtx-toolbar { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-bottom: 4px; font-size: 11px; }
 .bm-mtx-toolbar input.bm-mtx-filter { flex: 1 1 200px; padding: 3px 6px; font-size: 11px; border: 1px solid #ccc; border-radius: 3px; }
 .bm-mtx-toolbar button { padding: 3px 8px; font-size: 11px; cursor: pointer; }
-.bm-mtx-scroll { max-height: 460px; overflow: auto; border: 1px solid #ddd; border-radius: 3px; background: #fff; }
+.bm-mtx-scroll { max-height: 600px; overflow: auto; border: 1px solid #ddd; border-radius: 3px; background: #fff; }
 table.bm-mtx { width: max-content; border-collapse: collapse; font-size: 11px; font-family: monospace; table-layout: fixed; }
 table.bm-mtx thead th { position: sticky; top: 0; background: #f4f4f4; border-bottom: 2px solid #999; padding: 4px 6px; text-align: left; font-weight: 600; z-index: 1; position: sticky; }
 table.bm-mtx tbody td { border-bottom: 1px solid #eee; padding: 2px 6px; vertical-align: middle; }
 table.bm-mtx tbody tr:hover td { background: #fafafa; }
-.bm-mtx-lname { font-size: 10px; color: #333; white-space: normal; max-width: 220px; overflow: hidden; text-overflow: ellipsis; line-height: 1.2; }
+.bm-mtx-lname { font-size: 10px; color: #333; white-space: normal; overflow: visible; line-height: 1.2; }
 .bm-mtx-lname.invalid { color: #c62828; }
 .bm-mtx-cell-default, .bm-mtx-cell-view { text-align: center; width: 60px; }
 .bm-mtx-cell-default input { transform: scale(1.1); cursor: pointer; }
@@ -831,6 +872,63 @@ table.bm-mtx tbody tr.bm-mtx-row-sel:hover td { background: #ffe0b2; }
 .bm-mtx-addview-cell { text-align: center; width: 40px; }
 .bm-mtx-addview { background: #fff8e1; border: 1px dashed #b8872e; color: #b8872e; cursor: pointer; padding: 2px 6px; border-radius: 3px; font-size: 14px; }
 .bm-mtx-addview:hover { background: #ffecb3; }
+
+/* Dienst-Kopfzeile — selbes Row-Styling wie Detail-Layer, nur Hintergrund leicht abgesetzt */
+table.bm-mtx tbody tr.bm-mtx-svc-header td { background: #f0f4f8; padding: 2px 4px; border-top: 1px solid #c8d8e8; }
+table.bm-mtx tbody tr.bm-mtx-svc-header:hover td { background: #e8eff6; }
+table.bm-mtx tbody tr.bm-mtx-svc-header:first-child td { border-top: none; }
+/* Drag-Handle — erste Spalte, gleich kompakt wie Detail-Layer */
+td.bm-mtx-svc-drag-td { font-size: 14px; color: #c8d4de; cursor: grab; user-select: none; transition: color .15s; text-align: center; vertical-align: middle; }
+table.bm-mtx tbody tr.bm-mtx-svc-header:hover td.bm-mtx-svc-drag-td { color: #4B7B81; }
+td.bm-mtx-svc-drag-td:active { cursor: grabbing; }
+/* Label-Zelle: flex, inline, kein overflow */
+.bm-mtx-svc-label-cell { display: flex; align-items: center; gap: 3px; padding: 0; white-space: nowrap; overflow: hidden; }
+/* Toggle-Pfeil: gleich gross wie normale Checkboxen-Zelle */
+.bm-mtx-svc-toggle { cursor: pointer; font-size: 13px; color: #4B7B81; display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; flex-shrink: 0; border-radius: 2px; transition: transform 0.15s; }
+.bm-mtx-svc-toggle:hover { background: #d0e4ee; }
+table.bm-mtx tbody tr.bm-mtx-svc-header.bm-svc-collapsed .bm-mtx-svc-toggle { transform: rotate(-90deg); }
+/* Label */
+.bm-mtx-svc-eye { display: none; } /* eye-button nicht mehr verwendet */
+.bm-mtx-svc-label { font-family: monospace; font-size: 11px; font-weight: 700; color: #1a3a5c; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.bm-mtx-svc-label .svc-seg { color: #7a9ab8; font-weight: 400; font-size: 10px; }
+.bm-mtx-svc-label .svc-seg-sep { color: #aabbd0; padding: 0 1px; }
+.bm-mtx-svc-label .svc-seg-last { color: #1a3a5c; font-weight: 700; }
+/* Pfeil-Buttons + Löschen nur beim Hover */
+.bm-mtx-svc-arrows { display: inline-flex; gap: 1px; flex-shrink: 0; }
+.bm-mtx-svc-up, .bm-mtx-svc-down { background: transparent; border: 1px solid transparent; border-radius: 2px; cursor: pointer; font-size: 10px; padding: 0 3px; line-height: 15px; color: #4B7B81; }
+table.bm-mtx tbody tr.bm-mtx-svc-header .bm-mtx-svc-arrows { opacity: 0; transition: opacity .15s; }
+table.bm-mtx tbody tr.bm-mtx-svc-header:hover .bm-mtx-svc-arrows { opacity: 1; }
+.bm-mtx-svc-up:hover:not(:disabled), .bm-mtx-svc-down:hover:not(:disabled) { background: #d8eaf0; border-color: #4B7B81; }
+.bm-mtx-svc-up:disabled, .bm-mtx-svc-down:disabled { color: #ccc; cursor: not-allowed; }
+.bm-mtx-svc-del { background: transparent; border: 1px solid transparent; border-radius: 2px; cursor: pointer; font-size: 10px; padding: 0 4px; line-height: 15px; color: #c62828; flex-shrink: 0; }
+table.bm-mtx tbody tr.bm-mtx-svc-header .bm-mtx-svc-del { opacity: 0; transition: opacity .15s; }
+table.bm-mtx tbody tr.bm-mtx-svc-header:hover .bm-mtx-svc-del { opacity: 1; }
+.bm-mtx-svc-del:hover { border-color: #ef9a9a; background: #ffcdd2; }
+/* Service-Vis-Checkbox — gleich gross wie Detail-Checkboxen */
+.bm-mtx-svc-vis-cb { cursor: pointer; accent-color: #4B7B81; vertical-align: middle; margin: 0; }
+/* Service-Tri-Button — exakt gleich wie .bm-mtx-tri */
+.bm-mtx-svc-tri { width: 28px; height: 22px; border: 1px solid #aaa; border-radius: 3px; background: #fff; cursor: pointer; font-weight: bold; font-family: sans-serif; font-size: 12px; padding: 0; }
+.bm-mtx-svc-tri[data-state="on"]      { background: #c8e6c9; color: #2e7d32; border-color: #81c784; }
+.bm-mtx-svc-tri[data-state="off"]     { background: #ffcdd2; color: #c62828; border-color: #ef9a9a; }
+.bm-mtx-svc-tri[data-state="inherit"] { background: #f5f5f5; color: #999;    border-color: #ddd; }
+.bm-mtx-svc-tri[data-state="mixed"]   { background: #fff9c4; color: #f57f17; border-color: #f9a825; }
+.bm-mtx-svc-tri:hover { filter: brightness(0.95); }
+/* Drag-Over / Dragging */
+table.bm-mtx tbody tr.bm-mtx-svc-header.bm-mtx-drag-over td { background: #c8e4f5 !important; outline: 2px dashed #4B7B81; }
+table.bm-mtx tbody tr.bm-mtx-svc-header.bm-dragging { opacity: 0.35; }
+/* Profil-Warnung */
+.bm-mtx-lname.group-missing { background: #fff8e1 !important; }
+.bm-mtx-lname.group-missing .bm-layer-path-leaf::after { content: ' ⚠'; color: #e65100; font-size: 9px; }
+/* Per-Layer-Löschen-Button – immer sichtbar (klein), beim Hover deutlicher */
+.bm-mtx-lname { font-size: 11px; position: relative; display: flex; align-items: flex-start; gap: 4px; }
+.bm-mtx-lname > .bm-layer-path { flex: 1; min-width: 0; }
+.bm-mtx-row-del { flex-shrink: 0; background: transparent; border: none; cursor: pointer; color: #ddd; font-size: 13px; padding: 0 1px; line-height: 1; border-radius: 2px; }
+.bm-mtx-row-del:hover { color: #f44336; background: #ffebee; }
+table.bm-mtx tbody tr[data-lid]:hover .bm-mtx-row-del { color: #bbb; }
+/* Service-Sichtbarkeits-Checkbox (ersetzt Eye-Button) */
+.bm-mtx-svc-vis-cb { cursor: pointer; width: 14px; height: 14px; margin: 0 2px 0 0; flex-shrink: 0; accent-color: #4B7B81; vertical-align: middle; }
+/* Intermediate-Indikator (kein Checkbox, nur visueller Hinweis) */
+.bm-mtx-cell-default.is-intermediate { text-align: center; color: #ccc; font-size: 10px; }  
 
 /* Add-Layer-Input (Header zur Matrix) */
 .bm-mtx-add-layer { position: relative; flex: 1 1 240px; }
@@ -1188,6 +1286,38 @@ table.bm-mtx tbody tr.bm-mtx-row-sel:hover td { background: #ffe0b2; }
   background: #fff;
   box-shadow: inset 0 0 0 2px rgba(100,140,150,.35);
 }
+
+/* ── Maptip-Expand-Buttons & Panels ── */
+.et-expand-btn {
+  background: none; border: 1px solid #bbb; border-radius: 3px;
+  font-size: 10px; padding: 1px 6px; cursor: pointer; white-space: nowrap;
+  color: #555; font-family: Consolas, monospace; line-height: 1.5;
+}
+.et-expand-btn:hover { background: #e8f0f3; }
+.et-expand-btn.open { background: #d0e8f0; border-color: #5b9ab5; color: #2a6080; }
+.et-expand-row { background: #f3f8fb !important; }
+.et-expand-row > td { padding: 0 !important; height: auto !important; border-top: 1px solid #c7dde8; }
+.et-expand-panel { padding: 8px 14px 10px 36px; }
+/* qryFields-Tabelle */
+.et-qf-table { border-collapse: collapse; font-size: 11px; width: 100%; max-width: 840px; }
+.et-qf-table th { font-size: 9px; text-transform: uppercase; color: #888;
+  padding: 3px 6px; border-bottom: 1px solid #ddd; background: #eef2f5;
+  font-weight: 600; text-align: left; }
+.et-qf-table td { padding: 2px 4px; border-bottom: 1px solid #f0f0f0; }
+.et-qf-table input.et-input { background: #fff !important; border: 1px solid #ddd; border-radius: 2px; }
+.et-qf-actions { display: flex; gap: 6px; margin-top: 6px; }
+.et-qf-actions button { font-size: 10px; padding: 2px 8px; border: 1px solid #ccc; border-radius: 3px; background: #fff; cursor: pointer; }
+.et-qf-actions button:hover { background: #f0f0f0; }
+/* Highlight-Style-Panel */
+.et-hl-grid { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; padding: 4px 0; }
+.et-hl-field { display: flex; align-items: center; gap: 4px; font-size: 11px; }
+.et-hl-field label { color: #666; min-width: 84px; font-family: sans-serif; }
+.et-hl-field input[type=number],
+.et-hl-field input[type=text] { border: 1px solid #ccc; border-radius: 3px; padding: 2px 5px;
+  font-size: 11px; font-family: Consolas, monospace; width: 70px;
+  background: #fff; box-sizing: border-box; }
+.et-hl-field input[type=color] { width: 36px; padding: 1px 2px; height: 24px; cursor: pointer;
+  border: 1px solid #ccc; border-radius: 3px; }
 
 /* ── Editor-Platzhalter (kein Kürzel geladen) ── */
 .editor-placeholder {
@@ -1848,42 +1978,39 @@ Kein Einfluss auf Browser-Cache (dafuer: Ctrl+Shift+R)">🗑 Cache leeren</butto
       <!-- Rechts: Anzeige-Umschaltung -->
       <div class="bm-toolbar-end">
         <span class="bm-count" id="bm-count"></span>
-        <button id="bm-view-table" class="bm-view-active" onclick="bmSwitchView('table')" title="Tabellenansicht">📋 Tabelle</button>
+        <button id="bm-view-table" class="bm-view-active" onclick="bmSwitchView('table')" title="Master-Detail-Ansicht">📋 Tabelle</button>
         <button id="bm-view-json" onclick="bmSwitchView('json')" title="JSON-Editor">{ } JSON</button>
       </div>
     </div>
     <!-- Import-Input (hidden) -->
     <input type="file" id="bm-file-import-input" accept=".json" style="display:none">
-    <div class="bm-filter-bar">
-      <label>IDs:</label><input type="text" data-col-filter="idaliases" placeholder="IDs… (min. 3)" oninput="bmColumnFilter()">
-      <label>Alias:</label><input type="text" data-col-filter="name" placeholder="Alias… (min. 3)" oninput="bmColumnFilter()">
-      <label>Basemap:</label><input type="text" data-col-filter="basemap" placeholder="Basemap… (min. 3)" oninput="bmColumnFilter()">
-      <label>Modus:</label><input type="text" data-col-filter="basemapmode" placeholder="color / grey… (min. 3)" oninput="bmColumnFilter()">
-      <label>Themen:</label><input type="text" data-col-filter="themes" placeholder="Themen… (min. 3)" oninput="bmColumnFilter()">
-      <label>Layer:</label><input type="text" data-col-filter="layers" placeholder="Layer… (min. 3)" oninput="bmColumnFilter()">
-    </div>
     <div class="bm-status" id="bm-status">Wechsle zum Tab oder klicke ↻ um Bookmarks zu laden…</div>
-    <div class="bm-table-wrap">
-      <table class="bm-table" id="bm-table">
-        <thead>
-          <tr>
-            <th data-sort="idaliases" style="width:170px;position:relative">IDs <span class="bm-sort-icon">⇅</span><span class="bm-resize"></span></th>
-            <th data-sort="name" style="width:150px;position:relative">Alias <span class="bm-sort-icon">⇅</span><span class="bm-resize"></span></th>
-            <th data-sort="basemap" style="width:100px;position:relative">Basemap <span class="bm-sort-icon">⇅</span><span class="bm-resize"></span></th>
-            <th data-sort="basemapmode" style="width:80px;position:relative">Modus <span class="bm-sort-icon">⇅</span><span class="bm-resize"></span></th>
-            <th data-sort="themes" style="width:120px;position:relative">Themen <span class="bm-sort-icon">⇅</span><span class="bm-resize"></span></th>
-            <th data-sort="layers" style="width:260px;position:relative">Layers <span class="bm-sort-icon">⇅</span><span class="bm-resize"></span></th>
-            <th class="bm-col-hidden">Opacity</th>
-            <th class="bm-col-hidden">Theme</th>
-            <th class="bm-col-hidden">Subtheme</th>
-            <th class="bm-col-hidden">X</th>
-            <th class="bm-col-hidden">Y</th>
-            <th class="bm-col-hidden">Zoom</th>
-            <th style="width:70px"></th>
-          </tr>
-        </thead>
-        <tbody id="bm-tbody"></tbody>
-      </table>
+    <!-- Master-Detail-Layout -->
+    <div class="bm-master-detail" id="bm-master-detail">
+      <!-- Links: kompakte Bookmark-Liste -->
+      <div class="bm-list-pane">
+        <div class="bm-list-search-bar">
+          <input id="bm-list-search" type="text" placeholder="ID / Alias / Layer…" oninput="bmListSearch()" title="Suche in ID, Alias und Layer-IDs">
+          <select id="bm-group-sel" title="Profil für Layer-Validierung" onchange="bmChangeGroup(this.value)" style="font-size:10px;padding:2px 4px;border:1px solid #ccc;border-radius:3px;max-width:100px;flex-shrink:0">
+            <option value="">– Profil –</option>
+          </select>
+        </div>
+        <div class="bm-list-header" id="bm-list-header">
+          <span class="bm-list-col-def" title="Layer-Definitionen (globaler Katalog)">Def</span>
+          <span class="bm-list-col-prof bm-list-header-prof" id="bm-list-header-prof" title="Profil-Themenkatalog">Prof</span>
+          <span class="bm-list-col-id">ID / Alias</span>
+        </div>
+        <ul class="bm-list" id="bm-list"></ul>
+      </div>
+      <!-- Rechts: Detailpanel -->
+      <div class="bm-detail-pane" id="bm-detail-pane">
+        <div class="bm-detail-empty" id="bm-detail-empty">← Bookmark aus der Liste wählen</div>
+        <div class="bm-detail-content" id="bm-detail-content" style="display:none"></div>
+      </div>
+    </div>
+    <!-- Unsichtbarer Datenspeicher (tbody mit allen Detail-Rows) -->
+    <div id="bm-data-store" aria-hidden="true">
+      <table><tbody id="bm-tbody"></tbody></table>
     </div>
     <!-- JSON-Editor Panel -->
     <div class="bm-json-panel" id="bm-json-panel" style="display:none">
@@ -6318,7 +6445,23 @@ function renderLyrmgrTable(thead, tbody, files) {
 
 // ===== MAPTIPS-TABELLE =====
 function renderMaptipsTable(thead, tbody, files) {
-  thead.innerHTML = '<tr><th>Key</th><th>NLS</th><th>Linked Layer</th><th>Query Layers</th><th>Aktiv</th><th>Leere Felder</th></tr>';
+  var COL_COUNT = 10;
+  var QUERY_TYPES = ['', 'wmsServiceMapTip', 'wfsServiceMapTip', 'esrigeojson', 'json'];
+  thead.innerHTML = [
+    '<tr>',
+    '<th style="width:22%">Key</th>',
+    '<th style="width:9%">NLS</th>',
+    '<th style="width:13%">Linked Layer</th>',
+    '<th style="width:7%">Query Layers</th>',
+    '<th style="width:9%">Querytype</th>',
+    '<th style="width:6%">Aktiv</th>',
+    '<th style="width:7%">Leere Felder</th>',
+    '<th style="width:7%">Perm. HL</th>',
+    '<th style="width:10%">qryFields</th>',
+    '<th style="width:10%">Highlight-Style</th>',
+    '</tr>'
+  ].join('');
+
   files.forEach(function(fileObj) {
     var data = fileObj.data;
     Object.keys(data).forEach(function(key) {
@@ -6327,23 +6470,381 @@ function renderMaptipsTable(thead, tbody, files) {
       tr.dataset.file = fileObj.name;
       tr.dataset.key = key;
 
+      // Key (readonly)
       addTd(tr, key, 'et-key', true);
+
+      // NLS (editierbar)
       addInputTd(tr, fileObj.name, key, 'nls', md.nls || '');
-      addTd(tr, md.linked_layer || '', 'et-readonly', true);
 
-      // Query layers (kann Array sein)
-      var ql = '';
-      if (md.query_layers) {
-        ql = Array.isArray(md.query_layers) ? md.query_layers.join(', ') : String(md.query_layers);
+      // Linked Layer (editierbar)
+      addInputTd(tr, fileObj.name, key, 'linked_layer', md.linked_layer || '');
+
+      // Query Layers (editierbar — kann String oder Array sein, wird als Text bearbeitet)
+      var qlVal = '';
+      if (md.query_layers !== undefined && md.query_layers !== null) {
+        qlVal = Array.isArray(md.query_layers) ? md.query_layers.join(', ') : String(md.query_layers);
       }
-      addTd(tr, ql, 'et-readonly', true);
+      var tdQl = document.createElement('td');
+      tdQl.className = 'et-editable';
+      var inpQl = document.createElement('input');
+      inpQl.type = 'text'; inpQl.className = 'et-input'; inpQl.value = qlVal;
+      inpQl.dataset.file = fileObj.name; inpQl.dataset.topKey = key;
+      inpQl.dataset.field = '__query_layers_text'; inpQl.dataset.origValue = qlVal;
+      inpQl.addEventListener('change', function() {
+        var fObj = _editorData.files.find(function(f) { return f.name === fileObj.name; });
+        if (!fObj) return;
+        var v = inpQl.value.trim();
+        fObj.data[key].query_layers = v === '' ? undefined : v;
+        tdQl.classList.toggle('et-changed', inpQl.value !== inpQl.dataset.origValue);
+        updateEditorChangeCount();
+      });
+      inpQl.addEventListener('input', function() {
+        tdQl.classList.toggle('et-changed', inpQl.value !== inpQl.dataset.origValue);
+        updateEditorChangeCount();
+      });
+      tdQl.appendChild(inpQl);
+      tr.appendChild(tdQl);
 
-      addSelectTd(tr, fileObj.name, key, 'enabled', md.enabled !== undefined ? String(md.enabled) : 'true', ['true', 'false']);
-      addSelectTd(tr, fileObj.name, key, 'show_empty_fields', md.show_empty_fields !== undefined ? String(md.show_empty_fields) : 'false', ['true', 'false']);
+      // Querytype (Select)
+      addSelectTd(tr, fileObj.name, key, 'querytype', md.querytype || '', QUERY_TYPES);
+
+      // Aktiv
+      addSelectTd(tr, fileObj.name, key, 'enabled',
+        md.enabled !== undefined ? String(md.enabled) : 'true', ['true', 'false']);
+
+      // Leere Felder
+      addSelectTd(tr, fileObj.name, key, 'show_empty_fields',
+        md.show_empty_fields !== undefined ? String(md.show_empty_fields) : 'false', ['true', 'false']);
+
+      // Permanent Highlight
+      addSelectTd(tr, fileObj.name, key, 'permanent_highlight',
+        md.permanent_highlight !== undefined ? String(md.permanent_highlight) : '', ['', 'true', 'false']);
+
+      // qryFields Expand-Button
+      var tdQf = document.createElement('td');
+      tdQf.style.textAlign = 'center';
+      var qfLabel = Array.isArray(md.qryFields)
+        ? md.qryFields.length + ' Felder'
+        : (md.qryFields === '*' || (Array.isArray(md.qryFields) && md.qryFields[0] === '*') ? '* alle' : '—');
+      var btnQf = document.createElement('button');
+      btnQf.className = 'et-expand-btn';
+      btnQf.textContent = '▶ ' + qfLabel;
+      btnQf.title = 'qryFields / qryFieldsFormat ausklappen';
+      tdQf.appendChild(btnQf);
+      tr.appendChild(tdQf);
+
+      // Highlight-Style Expand-Button
+      var tdHl = document.createElement('td');
+      tdHl.style.textAlign = 'center';
+      var hasHl = md.highlight_style && typeof md.highlight_style === 'object';
+      var btnHl = document.createElement('button');
+      btnHl.className = 'et-expand-btn';
+      btnHl.textContent = hasHl ? '◈ Style' : '◈ —';
+      btnHl.title = 'Highlight-Style bearbeiten';
+      tdHl.appendChild(btnHl);
+      tr.appendChild(tdHl);
 
       tbody.appendChild(tr);
+
+      // Sub-Zeile: qryFields-Panel (zunächst versteckt)
+      var trQfExp = document.createElement('tr');
+      trQfExp.className = 'et-expand-row';
+      trQfExp.style.display = 'none';
+      var tdQfExp = document.createElement('td');
+      tdQfExp.colSpan = COL_COUNT;
+      trQfExp.appendChild(tdQfExp);
+      tbody.appendChild(trQfExp);
+
+      // Sub-Zeile: Highlight-Style-Panel (zunächst versteckt)
+      var trHlExp = document.createElement('tr');
+      trHlExp.className = 'et-expand-row';
+      trHlExp.style.display = 'none';
+      var tdHlExp = document.createElement('td');
+      tdHlExp.colSpan = COL_COUNT;
+      trHlExp.appendChild(tdHlExp);
+      tbody.appendChild(trHlExp);
+
+      // qryFields Toggle
+      (function(fileObjRef, keyRef, tdCell, btnEl) {
+        btnEl.addEventListener('click', function() {
+          var isOpen = trQfExp.style.display !== 'none';
+          if (isOpen) {
+            trQfExp.style.display = 'none';
+            btnEl.classList.remove('open');
+            var curMd = fileObjRef.data[keyRef];
+            var lbl = Array.isArray(curMd.qryFields) ? curMd.qryFields.length + ' Felder' : '—';
+            btnEl.textContent = '▶ ' + lbl;
+          } else {
+            trQfExp.style.display = '';
+            btnEl.classList.add('open');
+            var curMd = fileObjRef.data[keyRef];
+            var lbl = Array.isArray(curMd.qryFields) ? curMd.qryFields.length + ' Felder' : '—';
+            btnEl.textContent = '▼ ' + lbl;
+            renderQryFieldsPanel(tdCell, fileObjRef, keyRef, function(lbl2) {
+              btnEl.textContent = (trQfExp.style.display !== 'none' ? '▼ ' : '▶ ') + lbl2;
+            });
+          }
+        });
+      })(fileObj, key, tdQfExp, btnQf);
+
+      // Highlight-Style Toggle
+      (function(fileObjRef, keyRef, tdCell, btnEl) {
+        btnEl.addEventListener('click', function() {
+          var isOpen = trHlExp.style.display !== 'none';
+          if (isOpen) {
+            trHlExp.style.display = 'none';
+            btnEl.classList.remove('open');
+            var curHl = fileObjRef.data[keyRef].highlight_style;
+            btnEl.textContent = (curHl && typeof curHl === 'object') ? '◈ Style' : '◈ —';
+          } else {
+            trHlExp.style.display = '';
+            btnEl.classList.add('open');
+            btnEl.textContent = '▼ Style';
+            renderHighlightStylePanel(tdCell, fileObjRef, keyRef, function(hasStyle) {
+              if (trHlExp.style.display !== 'none') {
+                btnEl.textContent = '▼ Style';
+              } else {
+                btnEl.textContent = hasStyle ? '◈ Style' : '◈ —';
+              }
+            });
+          }
+        });
+      })(fileObj, key, tdHlExp, btnHl);
     });
   });
+}
+
+/**
+ * Ausklapp-Panel für qryFields + qryFieldsFormat + qryFieldsNullVal
+ */
+function renderQryFieldsPanel(container, fileObj, topKey, onLabelChange) {
+  function rebuild() {
+    container.innerHTML = '';
+    var md2 = fileObj.data[topKey];
+    var qf  = Array.isArray(md2.qryFields)        ? md2.qryFields        : [];
+    var qff = Array.isArray(md2.qryFieldsFormat)   ? md2.qryFieldsFormat  : [];
+    var qfn = Array.isArray(md2.qryFieldsNullVal)  ? md2.qryFieldsNullVal : [];
+
+    var panel = document.createElement('div');
+    panel.className = 'et-expand-panel';
+
+    var tbl = document.createElement('table');
+    tbl.className = 'et-qf-table';
+    tbl.innerHTML = '<thead><tr>'
+      + '<th style="width:28px">#</th>'
+      + '<th>Feld (qryFields)</th>'
+      + '<th>Format (qryFieldsFormat)</th>'
+      + '<th style="width:100px">NullVal</th>'
+      + '</tr></thead>';
+    var tb = tbl.createTBody();
+
+    qf.forEach(function(fieldName, i) {
+      var rowTr = tb.insertRow();
+
+      // Index
+      var tdIdx = rowTr.insertCell();
+      tdIdx.textContent = i; tdIdx.style.cssText = 'color:#aaa;text-align:center;font-size:10px';
+
+      // Feldname
+      var tdFn = rowTr.insertCell(); tdFn.className = 'et-editable';
+      var inpFn = document.createElement('input');
+      inpFn.type = 'text'; inpFn.className = 'et-input'; inpFn.value = fieldName || '';
+      inpFn.dataset.file = fileObj.name; inpFn.dataset.topKey = topKey;
+      inpFn.dataset.field = 'qryFields[' + i + ']'; inpFn.dataset.origValue = fieldName || '';
+      inpFn.addEventListener('change', onEditorCellChange);
+      inpFn.addEventListener('input', function() {
+        tdFn.classList.toggle('et-changed', inpFn.value !== inpFn.dataset.origValue);
+        updateEditorChangeCount();
+      });
+      tdFn.appendChild(inpFn);
+
+      // Format
+      var tdFmt = rowTr.insertCell(); tdFmt.className = 'et-editable';
+      var fmtVal = (qff[i] !== undefined && qff[i] !== null) ? String(qff[i]) : '';
+      var inpFmt = document.createElement('input');
+      inpFmt.type = 'text'; inpFmt.className = 'et-input'; inpFmt.value = fmtVal;
+      inpFmt.placeholder = "z.B. date(d.m.Y), num(0|,|')";
+      inpFmt.dataset.file = fileObj.name; inpFmt.dataset.topKey = topKey;
+      inpFmt.dataset.field = 'qryFieldsFormat[' + i + ']'; inpFmt.dataset.origValue = fmtVal;
+      inpFmt.addEventListener('change', onEditorCellChange);
+      inpFmt.addEventListener('input', function() {
+        tdFmt.classList.toggle('et-changed', inpFmt.value !== inpFmt.dataset.origValue);
+        updateEditorChangeCount();
+      });
+      tdFmt.appendChild(inpFmt);
+
+      // NullVal
+      var tdNv = rowTr.insertCell(); tdNv.className = 'et-editable';
+      var nvVal = (qfn[i] !== undefined && qfn[i] !== null) ? String(qfn[i]) : '';
+      var inpNv = document.createElement('input');
+      inpNv.type = 'text'; inpNv.className = 'et-input'; inpNv.value = nvVal;
+      inpNv.dataset.file = fileObj.name; inpNv.dataset.topKey = topKey;
+      inpNv.dataset.field = 'qryFieldsNullVal[' + i + ']'; inpNv.dataset.origValue = nvVal;
+      inpNv.addEventListener('change', onEditorCellChange);
+      inpNv.addEventListener('input', function() {
+        tdNv.classList.toggle('et-changed', inpNv.value !== inpNv.dataset.origValue);
+        updateEditorChangeCount();
+      });
+      tdNv.appendChild(inpNv);
+    });
+
+    panel.appendChild(tbl);
+
+    // Aktions-Buttons
+    var actions = document.createElement('div');
+    actions.className = 'et-qf-actions';
+    var btnAdd = document.createElement('button');
+    btnAdd.textContent = '+ Feld hinzufügen';
+    btnAdd.addEventListener('click', function() {
+      if (!Array.isArray(md2.qryFields)) md2.qryFields = [];
+      md2.qryFields.push('');
+      if (!Array.isArray(md2.qryFieldsFormat)) md2.qryFieldsFormat = [];
+      md2.qryFieldsFormat.push(null);
+      rebuild();
+      if (onLabelChange) onLabelChange(md2.qryFields.length + ' Felder');
+    });
+    var btnRem = document.createElement('button');
+    btnRem.textContent = '− Letzte löschen';
+    btnRem.style.color = '#c33';
+    btnRem.addEventListener('click', function() {
+      if (Array.isArray(md2.qryFields) && md2.qryFields.length > 0) {
+        md2.qryFields.pop();
+        if (Array.isArray(md2.qryFieldsFormat)) md2.qryFieldsFormat.pop();
+        if (Array.isArray(md2.qryFieldsNullVal)) md2.qryFieldsNullVal.pop();
+        rebuild();
+        updateEditorChangeCount();
+        if (onLabelChange) onLabelChange(md2.qryFields.length + ' Felder');
+      }
+    });
+    actions.appendChild(btnAdd);
+    actions.appendChild(btnRem);
+    panel.appendChild(actions);
+    container.appendChild(panel);
+  }
+  rebuild();
+}
+
+/**
+ * Ausklapp-Panel für highlight_style
+ */
+function renderHighlightStylePanel(container, fileObj, topKey, onToggle) {
+  container.innerHTML = '';
+  var md2 = fileObj.data[topKey];
+  var hl = (md2.highlight_style && typeof md2.highlight_style === 'object') ? md2.highlight_style : {};
+
+  var HL_FIELDS = [
+    { key: 'fillColor',    label: 'Fill Color',     type: 'color',  def: '#ffff00' },
+    { key: 'fillOpacity',  label: 'Fill Opacity',   type: 'number', def: '0.5', step: '0.1', min: '0', max: '1' },
+    { key: 'strokeColor',  label: 'Stroke Color',   type: 'color',  def: '#ffff00' },
+    { key: 'strokeWidth',  label: 'Stroke Width',   type: 'number', def: '5',   step: '1',   min: '0' },
+    { key: 'strokeOpacity',label: 'Stroke Opacity', type: 'number', def: '0.5', step: '0.1', min: '0', max: '1' },
+    { key: 'pointRadius',  label: 'Point Radius',   type: 'number', def: '15',  step: '1',   min: '0' }
+  ];
+
+  var panel = document.createElement('div');
+  panel.className = 'et-expand-panel';
+
+  // Aktivierungs-Checkbox + Projektion
+  var topRow = document.createElement('div');
+  topRow.style.cssText = 'display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap';
+  var chk = document.createElement('input');
+  chk.type = 'checkbox';
+  chk.id = 'hl-en-' + topKey.replace(/[^a-z0-9]/gi, '_');
+  chk.checked = !!(md2.highlight_style && typeof md2.highlight_style === 'object');
+  var lblChk = document.createElement('label');
+  lblChk.htmlFor = chk.id; lblChk.textContent = 'highlight_style aktiv';
+  lblChk.style.cssText = 'font-size:11px;cursor:pointer';
+  topRow.appendChild(chk); topRow.appendChild(lblChk);
+
+  var sep = document.createElement('span');
+  sep.style.cssText = 'margin:0 6px;color:#ccc';
+  sep.textContent = '|';
+  topRow.appendChild(sep);
+
+  var lblProj = document.createElement('label');
+  lblProj.textContent = 'highlight_geom_proj:';
+  lblProj.style.cssText = 'font-size:11px;color:#666';
+  var inpProj = document.createElement('input');
+  inpProj.type = 'text'; inpProj.className = 'et-input';
+  inpProj.style.cssText = 'border:1px solid #ccc;border-radius:3px;width:100px;background:#fff;display:inline-block;padding:2px 5px;font-family:Consolas,monospace;font-size:11px';
+  inpProj.value = md2.highlight_geom_proj || '';
+  inpProj.placeholder = 'EPSG:2056';
+  inpProj.dataset.file = fileObj.name; inpProj.dataset.topKey = topKey;
+  inpProj.dataset.field = 'highlight_geom_proj'; inpProj.dataset.origValue = md2.highlight_geom_proj || '';
+  inpProj.addEventListener('change', onEditorCellChange);
+  topRow.appendChild(lblProj); topRow.appendChild(inpProj);
+  panel.appendChild(topRow);
+
+  // Grid der Farb-/Stil-Felder
+  var grid = document.createElement('div');
+  grid.className = 'et-hl-grid';
+  var fieldEls = {};
+
+  HL_FIELDS.forEach(function(hf) {
+    var wrap = document.createElement('div'); wrap.className = 'et-hl-field';
+    var lbl2 = document.createElement('label'); lbl2.textContent = hf.label + ':';
+    wrap.appendChild(lbl2);
+
+    var curVal = hl[hf.key] !== undefined ? String(hl[hf.key]) : hf.def;
+
+    if (hf.type === 'color') {
+      var cp = document.createElement('input');
+      cp.type = 'color';
+      cp.value = /^#[0-9a-f]{6}$/i.test(curVal) ? curVal : hf.def;
+      cp.style.cssText = 'width:36px;height:24px;padding:1px 2px;border:1px solid #ccc;border-radius:3px;cursor:pointer';
+      var ti = document.createElement('input');
+      ti.type = 'text'; ti.style.cssText = 'border:1px solid #ccc;border-radius:3px;width:72px;background:#fff;padding:2px 5px;font-family:Consolas,monospace;font-size:11px;box-sizing:border-box';
+      ti.value = curVal;
+      ti.dataset.file = fileObj.name; ti.dataset.topKey = topKey;
+      ti.dataset.field = 'highlight_style.' + hf.key;
+      ti.dataset.origValue = hl[hf.key] !== undefined ? curVal : '';
+      ti.addEventListener('change', function() {
+        if (/^#[0-9a-f]{6}$/i.test(ti.value)) cp.value = ti.value;
+        onEditorCellChange.call(ti);
+      });
+      cp.addEventListener('input', function() { ti.value = cp.value; onEditorCellChange.call(ti); });
+      wrap.appendChild(cp); wrap.appendChild(ti);
+      fieldEls[hf.key] = ti;
+    } else {
+      var ni = document.createElement('input');
+      ni.type = 'number'; ni.value = curVal;
+      if (hf.step) ni.step = hf.step;
+      if (hf.min !== undefined) ni.min = hf.min;
+      if (hf.max !== undefined) ni.max = hf.max;
+      ni.style.cssText = 'border:1px solid #ccc;border-radius:3px;width:70px;background:#fff;padding:2px 5px;font-family:Consolas,monospace;font-size:11px;box-sizing:border-box';
+      ni.dataset.file = fileObj.name; ni.dataset.topKey = topKey;
+      ni.dataset.field = 'highlight_style.' + hf.key;
+      ni.dataset.origValue = hl[hf.key] !== undefined ? String(hl[hf.key]) : '';
+      ni.addEventListener('change', onEditorCellChange);
+      wrap.appendChild(ni);
+      fieldEls[hf.key] = ni;
+    }
+    grid.appendChild(wrap);
+  });
+  panel.appendChild(grid);
+  container.appendChild(panel);
+
+  // Aktivierungs-Checkbox Handler
+  function applyEnable() {
+    var active = chk.checked;
+    Object.keys(fieldEls).forEach(function(k) {
+      fieldEls[k].disabled = !active;
+      fieldEls[k].style.opacity = active ? '1' : '0.4';
+    });
+    if (active && !md2.highlight_style) {
+      md2.highlight_style = {};
+      HL_FIELDS.forEach(function(hf) {
+        md2.highlight_style[hf.key] = convertEditorValue(fieldEls[hf.key] ? fieldEls[hf.key].value : hf.def);
+      });
+      updateEditorChangeCount();
+    } else if (!active && md2.highlight_style) {
+      delete md2.highlight_style;
+      updateEditorChangeCount();
+    }
+    if (onToggle) onToggle(!!md2.highlight_style);
+  }
+  chk.addEventListener('change', applyEnable);
+  applyEnable();
 }
 
 // ===== MAPTIP-TEXTE-TABELLE (maptipsResources) =====
@@ -6463,6 +6964,14 @@ function onEditorCellChange() {
   if (field === '_value') {
     // Direkte Wert-Zellen (lyrmgrResources, maptipsResources)
     fileObj.data[topKey] = newValue;
+  } else if (/^\w+\[\d+\]$/.test(field)) {
+    // Array-Zugriff: z.B. 'qryFields[0]', 'qryFieldsFormat[2]'
+    var arrMatch = /^(\w+)\[(\d+)\]$/.exec(field);
+    var arrName = arrMatch[1];
+    var arrIdx  = parseInt(arrMatch[2], 10);
+    if (!Array.isArray(fileObj.data[topKey][arrName])) fileObj.data[topKey][arrName] = [];
+    // Leerer String = null (Format/NullVal können null sein)
+    fileObj.data[topKey][arrName][arrIdx] = (newValue === '' ? null : convertEditorValue(newValue));
   } else if (field.indexOf('.') !== -1) {
     // Verschachtelter Pfad (z.B. options.opacity)
     var parts = field.split('.');
@@ -8230,6 +8739,7 @@ var _bmData = null;       // geladene Bookmark-Daten (Array, v2)
 var _bmLoaded = false;    // wurde bereits geladen?
 var _bmAllLayerKeys = [];  // alle verfügbaren Layer-Keys als Array (für Autocomplete)
 var _bmAllLayerKeySet = null; // Set für O(1)-Validierung
+var _bmLayerNameMap = {};  // { layerId: nlsName } für Anzeige in Matrix
 var _bmLayersLoaded = false;
 
 // ---- Concurrency / Optimistic Locking (Konfig-Store DB) ----------------
@@ -8329,7 +8839,7 @@ function bmEscAttr(s) { return String(s).replace(/&/g,'&amp;').replace(/"/g,'&qu
 function bmGetMatrixColumnWidths(detailRow, views) {
   var defaults = {
     sel: 28,
-    layer: 220,
+    layer: 400,
     default: 72,
     addview: 40,
     op: 70,
@@ -8467,42 +8977,206 @@ function bmRangeApplyView(detailRow, ids, vid, state) {
   markBmChanged(detailRow);
 }
 
+// ---- Dienst-Gruppierung --------------------------------------------------
+
+// Liefert den Dienst-Key (erste 2 Pfad-Segmente) einer Layer-ID.
+// z.B. 'gis_oereb/nw_nutzungsplanung_def/grundnutzung' → 'gis_oereb/nw_nutzungsplanung_def'
+function bmServiceKey(layerId) {
+  var parts = (layerId || '').split('/');
+  return parts.length >= 2 ? parts[0] + '/' + parts[1] : parts[0] || layerId;
+}
+
+// Gruppiert ein flaches Layer-Array nach Dienst-Key (Reihenfolge bleibt erhalten).
+// Gibt [{svc: string, layers: [layerObj,...]},...] zurück.
+function bmGroupLayersBySvc(layers) {
+  var groups = [], svcMap = {};
+  (layers || []).forEach(function(l) {
+    var svc = bmServiceKey(l.id);
+    if (!svcMap[svc]) { var g = { svc: svc, layers: [] }; groups.push(g); svcMap[svc] = g; }
+    svcMap[svc].layers.push(l);
+  });
+  return groups;
+}
+
+// Verschiebt eine Dienst-Gruppe relativ um direction (-1 = hoch, +1 = runter).
+function bmMoveSvcGroupArrow(detailRow, svc, direction) {
+  var layers = bmGetLayers(detailRow);
+  var groups = bmGroupLayersBySvc(layers);
+  var idx = -1;
+  for (var i = 0; i < groups.length; i++) { if (groups[i].svc === svc) { idx = i; break; } }
+  if (idx === -1) return;
+  var newIdx = idx + direction;
+  if (newIdx < 0 || newIdx >= groups.length) return;
+  var tmp = groups[idx]; groups[idx] = groups[newIdx]; groups[newIdx] = tmp;
+  var newLayers = [];
+  groups.forEach(function(g) { g.layers.forEach(function(l) { newLayers.push(l); }); });
+  bmSetLayers(detailRow, newLayers);
+  bmRenderMatrix(detailRow);
+  markBmChanged(detailRow);
+}
+
+// Verschiebt die fromSvc-Gruppe vor die toSvc-Gruppe (Drag & Drop).
+function bmMoveSvcGroup(detailRow, fromSvc, toSvc) {
+  if (!fromSvc || !toSvc || fromSvc === toSvc) return;
+  var layers = bmGetLayers(detailRow);
+  var groups = bmGroupLayersBySvc(layers);
+  var fromIdx = -1, toIdx = -1;
+  for (var i = 0; i < groups.length; i++) {
+    if (groups[i].svc === fromSvc) fromIdx = i;
+    if (groups[i].svc === toSvc)   toIdx   = i;
+  }
+  if (fromIdx === -1 || toIdx === -1) return;
+  var moved = groups.splice(fromIdx, 1)[0];
+  if (fromIdx < toIdx) toIdx--;
+  groups.splice(toIdx, 0, moved);
+  var newLayers = [];
+  groups.forEach(function(g) { g.layers.forEach(function(l) { newLayers.push(l); }); });
+  bmSetLayers(detailRow, newLayers);
+  bmRenderMatrix(detailRow);
+  markBmChanged(detailRow);
+}
+
+// Richtet Drag & Drop auf Dienst-Kopfzeilen ein (einmalig pro Container).
+function bmInitDragAndDrop(detailRow) {
+  var container = detailRow.querySelector('.bm-mtx-scroll') ||
+    (detailRow._contentHost ? detailRow._contentHost.querySelector('.bm-mtx-scroll') : null);
+  if (!container || container._bmDndInit) return;
+  container._bmDndInit = true;
+  var dragSrc = null;   // data-svc des gezogenen Dienstes
+  var scrollTimer = null;
+
+  function stopScroll() {
+    if (scrollTimer) { clearInterval(scrollTimer); scrollTimer = null; }
+  }
+
+  // Ziel-Header aus beliebigem Element im Container ermitteln
+  function findDropTarget(el) {
+    var tr = el.closest ? el.closest('tr.bm-mtx-svc-header') : null;
+    if (!tr) {
+      var layerRow = el.closest ? el.closest('tr[data-svc][data-lid]') : null;
+      if (layerRow) {
+        var s = layerRow.dataset.svc;
+        tr = container.querySelector('tr.bm-mtx-svc-header[data-svc="' + s.replace(/"/g, '\\"') + '"]');
+      }
+    }
+    return tr;
+  }
+
+  // dragstart: vom Drag-Handle aus (erste Zelle)
+  container.addEventListener('dragstart', function(e) {
+    var handle = e.target.closest ? e.target.closest('.bm-mtx-drag-handle') : null;
+    if (!handle) return;
+    var tr = handle.closest('tr.bm-mtx-svc-header');
+    if (!tr) return;
+    dragSrc = tr.dataset.svc;
+    tr.classList.add('bm-dragging');
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', dragSrc || '');
+  });
+
+  container.addEventListener('dragend', function() {
+    stopScroll();
+    container.querySelectorAll('.bm-dragging').forEach(function(el) { el.classList.remove('bm-dragging'); });
+    container.querySelectorAll('.bm-mtx-drag-over').forEach(function(el) { el.classList.remove('bm-mtx-drag-over'); });
+    dragSrc = null;
+  });
+
+  container.addEventListener('dragover', function(e) {
+    if (!dragSrc) return;
+    // Auto-Scroll wenn nahe am Rand des scroll-Containers
+    var rect = container.getBoundingClientRect();
+    var zone = 44;
+    stopScroll();
+    if (e.clientY < rect.top + zone) {
+      scrollTimer = setInterval(function() { container.scrollTop -= 10; }, 20);
+    } else if (e.clientY > rect.bottom - zone) {
+      scrollTimer = setInterval(function() { container.scrollTop += 10; }, 20);
+    }
+    // Drop-Ziel ermitteln
+    var tr = findDropTarget(e.target);
+    container.querySelectorAll('.bm-mtx-drag-over').forEach(function(el) { el.classList.remove('bm-mtx-drag-over'); });
+    if (!tr || tr.dataset.svc === dragSrc) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    tr.classList.add('bm-mtx-drag-over');
+  });
+
+  container.addEventListener('dragleave', function(e) {
+    // Highlight nur entfernen wenn wirklich den Container verlassen
+    if (!container.contains(e.relatedTarget)) {
+      container.querySelectorAll('.bm-mtx-drag-over').forEach(function(el) { el.classList.remove('bm-mtx-drag-over'); });
+      stopScroll();
+    }
+  });
+
+  container.addEventListener('drop', function(e) {
+    e.preventDefault();
+    stopScroll();
+    if (!dragSrc) return;
+    var tr = findDropTarget(e.target);
+    if (!tr || tr.dataset.svc === dragSrc) return;
+    bmMoveSvcGroup(detailRow, dragSrc, tr.dataset.svc);
+  });
+}
+
+function bmSvcLabelHtml(svc) {
+  var parts = svc.split('/');
+  if (parts.length <= 1) return '<span class="svc-seg-last">' + bmEscAttr(svc) + '</span>';
+  var html = '';
+  for (var i = 0; i < parts.length; i++) {
+    if (i < parts.length - 1) {
+      html += '<span class="svc-seg">' + bmEscAttr(parts[i]) + '</span><span class="svc-seg-sep">/</span>';
+    } else {
+      html += '<span class="svc-seg-last">' + bmEscAttr(parts[i]) + '</span>';
+    }
+  }
+  return html;
+}
+
+// Dienst-Sichtbarkeit: alle Layer default-visible auf true/false setzen
+function bmSvcToggleVisible(detailRow, svc) {
+  var layers = bmGetLayers(detailRow);
+  var svcLayers = layers.filter(function(l) { return bmServiceKey(l.id) === svc; });
+  if (!svcLayers.length) return;
+  var allOn = svcLayers.every(function(l) { return l.visible; });
+  var newState = !allOn;
+  layers.forEach(function(l) { if (bmServiceKey(l.id) === svc) l.visible = newState; });
+  bmSetLayers(detailRow, layers);
+  bmRenderMatrix(detailRow);
+  markBmChanged(detailRow);
+}
+
 // ---- Matrix-Rendering ----------------------------------------------------
 function bmRenderMatrix(detailRow) {
-  var container = detailRow.querySelector('.bm-mtx-scroll');
+  // Container kann nach bmSelectBookmark in #bm-detail-content liegen
+  var container = detailRow.querySelector('.bm-mtx-scroll') ||
+    (detailRow._contentHost ? detailRow._contentHost.querySelector('.bm-mtx-scroll') : null);
   if (!container) return;
   var layers = bmGetLayers(detailRow);
   var views  = bmGetViews(detailRow);
   var widths = bmGetMatrixColumnWidths(detailRow, views);
-  var idx    = detailRow.dataset.idx;
-  var sel    = bmGetSelSet(detailRow);
-  // Selektion auf existierende Layer beschränken
-  var validIds = {};
-  layers.forEach(function(l) { validIds[l.id] = true; });
-  Array.from(sel).forEach(function(id) { if (!validIds[id]) sel.delete(id); });
 
-  var allChecked = layers.length > 0 && layers.every(function(l) { return sel.has(l.id); });
-  var someChecked = sel.size > 0 && !allChecked;
-
+  // Spalten: drag | layer | default | op | [views] | addview | filter
+  // (sel-Spalte entfernt – fix 6)
   var html = '<table class="bm-mtx"><colgroup>';
-  html += '<col data-col-key="sel" style="width:' + widths.sel + 'px">';
+  html += '<col data-col-key="sel" style="width:26px">';         // drag-handle
   html += '<col data-col-key="layer" style="width:' + widths.layer + 'px">';
   html += '<col data-col-key="default" style="width:' + widths['default'] + 'px">';
+  html += '<col data-col-key="op" style="width:' + widths.op + 'px">'; // op direkt nach default
   views.forEach(function(v) {
     html += '<col data-col-key="view:' + bmEscAttr(v.id || '') + '" style="width:' + widths['view:' + (v.id || '')] + 'px">';
   });
   html += '<col data-col-key="addview" style="width:' + widths.addview + 'px">';
-  html += '<col data-col-key="op" style="width:' + widths.op + 'px">';
   html += '<col data-col-key="filter" style="width:' + widths.filter + 'px">';
   html += '</colgroup><thead><tr>';
-  html += '<th class="bm-mtx-cell-sel"><input type="checkbox" class="bm-mtx-selall"' + (allChecked ? ' checked' : '') + (someChecked ? ' data-indeterminate="1"' : '') + ' title="Alle markieren"></th>';
+  html += '<th class="bm-mtx-svc-drag-td" style="width:26px"></th>'; // drag-handle header (war sel)
   html += '<th data-col-key="layer">Layer' + bmMatrixResizeHandle('layer') + '</th>';
   html += '<th data-col-key="default" title="Sichtbar beim Bookmark-Aufruf ohne View">Default' + bmMatrixResizeHandle('default') + '</th>';
+  html += '<th data-col-key="op" title="Opacity (0–1)">Op' + bmMatrixResizeHandle('op') + '</th>';
 
   views.forEach(function(v) {
     var vid = v.id || '';
     var vname = v.name != null ? v.name : vid;
-    var isDef = v.isDefault === true;
     var vidValid = bmIsValidViewId(vid, views, v);
     html += '<th class="bm-mtx-vhead" data-vid="' + bmEscAttr(vid) + '" data-col-key="view:' + bmEscAttr(vid) + '">' +
               '<div class="bm-mtx-vhead-row">' +
@@ -8514,55 +9188,137 @@ function bmRenderMatrix(detailRow) {
               '</div>' + bmMatrixResizeHandle('view:' + vid) +
             '</th>';
   });
-
   html += '<th class="bm-mtx-addview-cell"><button class="bm-mtx-addview" title="Neue Ansicht hinzufügen">+</button></th>';
-  html += '<th data-col-key="op" title="Opacity (0–1)">Op' + bmMatrixResizeHandle('op') + '</th>';
   html += '<th data-col-key="filter" title="Filter / Definition-Query">Filter' + bmMatrixResizeHandle('filter') + '</th>';
   html += '</tr></thead><tbody>';
 
-  layers.forEach(function(l) {
-    var lid = l.id;
-    var isValid = _bmAllLayerKeySet ? _bmAllLayerKeySet.has(lid) : (_bmAllLayerKeys.indexOf(lid) !== -1);
-    var isSel = sel.has(lid);
-    html += '<tr data-lid="' + bmEscAttr(lid) + '"' + (isSel ? ' class="bm-mtx-row-sel"' : '') + '>';
-    html += '<td class="bm-mtx-cell-sel"><input type="checkbox" class="bm-mtx-rowsel" data-lid="' + bmEscAttr(lid) + '"' + (isSel ? ' checked' : '') + '></td>';
-    html += '<td class="bm-mtx-lname' + (isValid ? '' : ' invalid') + '" title="' + bmEscAttr(lid) + (isValid ? '' : ' (Layer nicht im Katalog)') + '">' + bmLayerHierarchyHtml(lid, 'row') + '</td>';
-    html += '<td class="bm-mtx-cell-default"><input type="checkbox" data-lid="' + bmEscAttr(lid) + '"' + (l.visible ? ' checked' : '') + '></td>';
-
-    views.forEach(function(v) {
-      var state = bmViewLayerState(v, lid);
-      var sym = state === 'on' ? '✓' : (state === 'off' ? '✗' : '○');
-      html += '<td class="bm-mtx-cell-view"><button class="bm-mtx-tri" data-lid="' + bmEscAttr(lid) + '" data-vid="' + bmEscAttr(v.id) + '" data-state="' + state + '" title="' + (state === 'inherit' ? 'erbt vom Default' : (state === 'on' ? 'sichtbar' : 'ausgeblendet')) + '">' + sym + '</button></td>';
+  var groups = bmGroupLayersBySvc(layers);
+  // Collapsed-State: default ALLE eingeklappt; gespeicherter State übersteuert
+  var collapsed = detailRow._bmSvcCollapsed || {};
+  if (!detailRow._bmSvcCollapsedInit) {
+    detailRow._bmSvcCollapsedInit = true;
+    var initCollapsed = {};
+    groups.forEach(function(g) { initCollapsed[g.svc] = (collapsed[g.svc] !== false); });
+    collapsed = initCollapsed;
+    detailRow._bmSvcCollapsed = collapsed;
+  }
+  groups.forEach(function(group, gIdx) {
+    var svc = group.svc;
+    var isCollapsed = !!collapsed[svc];
+    // Op-Wert: erster Layer der Gruppe mit expliziter Opacity
+    var svcOp = null;
+    for (var si = 0; si < group.layers.length; si++) {
+      if (group.layers[si].opacity != null) { svcOp = group.layers[si].opacity; break; }
+    }
+    var isFirst = gIdx === 0;
+    var isLast  = gIdx === groups.length - 1;
+    // Dienst-Sichtbarkeit
+    var allOn  = group.layers.every(function(l) { return l.visible; });
+    var someOn = group.layers.some(function(l) { return l.visible; });
+    // Intermediate: Layer die Sub-Layer in dieser Gruppe haben
+    var intermediateIds = {};
+    group.layers.forEach(function(l) {
+      group.layers.forEach(function(other) {
+        if (other.id !== l.id && other.id.indexOf(l.id + '/') === 0) {
+          intermediateIds[l.id] = true;
+        }
+      });
     });
-
-    html += '<td></td>'; // unter dem "+ Ansicht"-Header bleibt frei
-    html += '<td class="bm-mtx-cell-op"><input type="text" data-lid="' + bmEscAttr(lid) + '" data-prop="opacity" value="' + bmEscAttr(l.opacity != null ? l.opacity : '') + '" placeholder="–"></td>';
-    html += '<td class="bm-mtx-cell-filter"><input type="text" data-lid="' + bmEscAttr(lid) + '" data-prop="filter" value="' + bmEscAttr(l.filter != null ? l.filter : '') + '" placeholder="–"></td>';
+    // Dienst-Kopfzeile: individuelle Zellen pro Spalte (kein colspan)
+    html += '<tr class="bm-mtx-svc-header' + (isCollapsed ? ' bm-svc-collapsed' : '') + '" data-svc="' + bmEscAttr(svc) + '">';
+    // Drag-Handle (Spalte 1)
+    html += '<td class="bm-mtx-svc-drag-td"><span class="bm-mtx-drag-handle" draggable="true" data-svc="' + bmEscAttr(svc) + '" title="Ziehen">&#x2807;</span></td>';
+    // Label (Spalte 2 = layer)
+    html += '<td class="bm-mtx-svc-label-cell">' +
+              '<span class="bm-mtx-svc-toggle" data-svc="' + bmEscAttr(svc) + '" title="' + (isCollapsed ? 'Aufklappen (Ctrl: alle)' : 'Einklappen (Ctrl: alle)') + '">&#x25BE;</span>' +
+              '<span class="bm-mtx-svc-label" title="' + bmEscAttr(svc) + '">' + bmSvcLabelHtml(svc) + '</span>' +
+              '<span class="bm-mtx-svc-arrows">' +
+                '<button class="bm-mtx-svc-up" data-svc="' + bmEscAttr(svc) + '" title="Dienst nach oben"' + (isFirst ? ' disabled' : '') + '>↑</button>' +
+                '<button class="bm-mtx-svc-down" data-svc="' + bmEscAttr(svc) + '" title="Dienst nach unten"' + (isLast ? ' disabled' : '') + '>↓</button>' +
+              '</span>' +
+              '<button class="bm-mtx-svc-del" data-svc="' + bmEscAttr(svc) + '" title="Dienst entfernen">×</button>' +
+            '</td>';
+    // Default-Vis-Checkbox (Spalte 3 = default) – aligned über Detail-Checkboxen
+    html += '<td class="bm-mtx-cell-default"><input type="checkbox" class="bm-mtx-svc-vis-cb" data-svc="' + bmEscAttr(svc) + '" title="Sichtbarkeit (alle Layer)"' + (allOn ? ' checked' : '') + (someOn && !allOn ? ' data-indeterminate="1"' : '') + '></td>';
+    // Op-Input (Spalte 4 = op)
+    html += '<td class="bm-mtx-cell-op"><input type="text" data-svc="' + bmEscAttr(svc) + '" data-prop="opacity" value="' + bmEscAttr(svcOp != null ? String(svcOp) : '') + '" placeholder="–" title="Deckkraft (0–1)"></td>';
+    // View-Spalten: Dienst-Sichtbarkeit per View (tri-state für alle Leaf-Layer)
+    views.forEach(function(v) {
+      var leafLayers = group.layers.filter(function(l) { return !intermediateIds[l.id]; });
+      var allVOn  = leafLayers.length > 0 && leafLayers.every(function(l) { var s = bmViewLayerState(v, l.id); return s === 'on'; });
+      var anyVOn  = leafLayers.some(function(l) { var s = bmViewLayerState(v, l.id); return s === 'on'; });
+      var noneExp = leafLayers.every(function(l) { return bmViewLayerState(v, l.id) === 'inherit'; });
+      var svcSt   = noneExp ? 'inherit' : (allVOn ? 'on' : (anyVOn ? 'mixed' : 'off'));
+      var sym = svcSt === 'on' ? '✓' : (svcSt === 'off' ? '✗' : '○');
+      html += '<td class="bm-mtx-cell-view"><button class="bm-mtx-svc-tri" data-svc="' + bmEscAttr(svc) + '" data-vid="' + bmEscAttr(v.id) + '" data-state="' + svcSt + '" title="Dienst-Sichtbarkeit in dieser Ansicht">' + sym + '</button></td>';
+    });
+    html += '<td></td>'; // addview-Zelle
+    html += '<td class="bm-mtx-cell-filter"></td>';
     html += '</tr>';
+
+    // Layer-Zeilen (ausblenden wenn Dienst eingeklappt)
+    group.layers.forEach(function(l) {
+      var lid = l.id;
+      var isValid = _bmAllLayerKeySet ? _bmAllLayerKeySet.has(lid) : (_bmAllLayerKeys.indexOf(lid) !== -1);
+      var isGroupMissing = isValid && _bmGroupLayerSet ? !_bmGroupLayerSet.has(lid) : false;
+      var isIntermediate = !!intermediateIds[lid];
+      html += '<tr data-lid="' + bmEscAttr(lid) + '" data-svc="' + bmEscAttr(svc) + '"' + (isCollapsed ? ' style="display:none"' : '') + '>';
+      // Drag-Spalte (leer für Layer)
+      html += '<td></td>';
+      // Layer-Name + immer sichtbarer Löschen-Button
+      html += '<td class="bm-mtx-lname' + (!isValid ? ' invalid' : (isGroupMissing ? ' group-missing' : '')) + '" title="' + bmEscAttr(lid) + (!isValid ? ' (nicht im Katalog)' : (isGroupMissing ? ' (nicht in Profil)' : '')) + '">' +
+        bmLayerHierarchyHtml(lid, 'row') +
+        '<button class="bm-mtx-row-del" data-lid="' + bmEscAttr(lid) + '" title="Layer entfernen">×</button>' +
+        '</td>';
+      // Default-Vis (nur Leaf-Layer)
+      if (isIntermediate) {
+        html += '<td class="bm-mtx-cell-default" style="text-align:center;color:#ccc;font-size:10px" title="Wird durch Sub-Layer gesteuert">&ndash;</td>';
+      } else {
+        html += '<td class="bm-mtx-cell-default"><input type="checkbox" data-lid="' + bmEscAttr(lid) + '"' + (l.visible ? ' checked' : '') + '></td>';
+      }
+      // Op (leer – gesteuert auf Dienst-Ebene)
+      html += '<td class="bm-mtx-cell-op"></td>';
+      // View-Spalten
+      views.forEach(function(v) {
+        if (isIntermediate) {
+          html += '<td class="bm-mtx-cell-view"></td>';
+        } else {
+          var state = bmViewLayerState(v, lid);
+          var sym = state === 'on' ? '✓' : (state === 'off' ? '✗' : '○');
+          html += '<td class="bm-mtx-cell-view"><button class="bm-mtx-tri" data-lid="' + bmEscAttr(lid) + '" data-vid="' + bmEscAttr(v.id) + '" data-state="' + state + '" title="' + (state === 'inherit' ? 'erbt vom Default' : (state === 'on' ? 'sichtbar' : 'ausgeblendet')) + '">' + sym + '</button></td>';
+        }
+      });
+      html += '<td></td>'; // addview
+      html += '<td class="bm-mtx-cell-filter">' + (isIntermediate ? '' : '<input type="text" data-lid="' + bmEscAttr(lid) + '" data-prop="filter" value="' + bmEscAttr(l.filter != null ? l.filter : '') + '" placeholder="–">') + '</td>';
+      html += '</tr>';
+    });
   });
 
   if (!layers.length) {
-    var cols = 6 + views.length;
-    html += '<tr><td colspan="' + cols + '" style="text-align:center;color:#999;padding:12px">Keine Layer. Über das Eingabefeld oben hinzufügen.</td></tr>';
+    html += '<tr><td colspan="' + (5 + views.length) + '" style="text-align:center;color:#999;padding:12px">Keine Layer. Über das Eingabefeld oben hinzufügen.</td></tr>';
   }
 
   html += '</tbody></table>';
   container.innerHTML = html;
 
-  // Tri-State-Checkbox des Header-Selektors (CSS hat keine pseudo-class, JS-property setzen)
-  var selAll = container.querySelector('.bm-mtx-selall');
-  if (selAll) selAll.indeterminate = !!someChecked;
+  // Service-Checkboxen indeterminate setzen (JS-property)
+  container.querySelectorAll('.bm-mtx-svc-vis-cb[data-indeterminate="1"]').forEach(function(cb) {
+    cb.indeterminate = true;
+  });
 
-  // Filter erneut anwenden, falls aktiv
-  var filterInput = detailRow.querySelector('.bm-mtx-filter');
+  // Matrix-Filter erneut anwenden
+  var filterInput = detailRow.querySelector('.bm-mtx-filter') ||
+    (detailRow._contentHost ? detailRow._contentHost.querySelector('.bm-mtx-filter') : null);
   if (filterInput && filterInput.value) bmApplyMatrixFilter(detailRow);
 
   bmUpdateBulkDelButton(detailRow);
   bmInitMatrixColumnResize(detailRow);
+  bmInitDragAndDrop(detailRow);
+  // Ampel-Update NICHT hier – nur bei expliziten Layer-Änderungen
 }
 
 function bmInitMatrixColumnResize(detailRow) {
-  var table = detailRow.querySelector('table.bm-mtx');
+  var table = (detailRow._contentHost || detailRow).querySelector('table.bm-mtx');
   if (!table) return;
   table.querySelectorAll('.bm-mtx-col-resize').forEach(function(handle) {
     handle.onmousedown = function(e) {
@@ -8597,9 +9353,9 @@ function bmInitMatrixColumnResize(detailRow) {
 }
 
 function bmApplyMatrixFilter(detailRow) {
-  var input = detailRow.querySelector('.bm-mtx-filter');
+  var input = (detailRow._contentHost || detailRow).querySelector('.bm-mtx-filter');
   var q = (input && input.value || '').trim().toLowerCase();
-  var rows = detailRow.querySelectorAll('table.bm-mtx tbody tr[data-lid]');
+  var rows = (detailRow._contentHost || detailRow).querySelectorAll('table.bm-mtx tbody tr[data-lid]');
   rows.forEach(function(tr) {
     var lid = (tr.dataset.lid || '').toLowerCase();
     tr.style.display = (!q || lid.indexOf(q) !== -1) ? '' : 'none';
@@ -8609,6 +9365,83 @@ function bmApplyMatrixFilter(detailRow) {
 // ---- Mutationen via Event-Delegation -------------------------------------
 function bmMatrixHandleClick(e, detailRow) {
   var t = e.target;
+  // Dienst-Sichtbarkeit-Toggle (legacy eye button, jetzt Checkbox)
+  if (t.classList.contains('bm-mtx-svc-eye')) {
+    bmSvcToggleVisible(detailRow, t.dataset.svc);
+    return;
+  }
+  // Per-Layer löschen
+  if (t.classList.contains('bm-mtx-row-del')) {
+    var lidDel = t.dataset.lid;
+    var layersDel = bmGetLayers(detailRow);
+    var viewsDel = bmGetViews(detailRow);
+    layersDel = layersDel.filter(function(l) { return l.id !== lidDel; });
+    viewsDel.forEach(function(v) { if (v && v.layerStates) delete v.layerStates[lidDel]; });
+    bmSetLayers(detailRow, layersDel);
+    bmSetViews(detailRow, viewsDel);
+    bmRenderMatrix(detailRow);
+    markBmChanged(detailRow);
+    bmUpdateListItemLayers(detailRow); // Ampel aktualisieren
+    return;
+  }
+  // Dienst-Sichtbarkeit-Toggle
+  // Dienst-Gruppe nach oben/unten verschieben
+  if (t.classList.contains('bm-mtx-svc-up') || t.classList.contains('bm-mtx-svc-down')) {
+    if (!t.disabled) bmMoveSvcGroupArrow(detailRow, t.dataset.svc, t.classList.contains('bm-mtx-svc-up') ? -1 : 1);
+    return;
+  }
+  // Dienst-Gruppe komplett entfernen
+  if (t.classList.contains('bm-mtx-svc-del')) {
+    var svcDel = t.dataset.svc;
+    var layers = bmGetLayers(detailRow);
+    var remaining = layers.filter(function(l) { return bmServiceKey(l.id) !== svcDel; });
+    if (remaining.length === layers.length) return;
+    if (!confirm('Alle ' + (layers.length - remaining.length) + ' Layer des Dienstes\n«' + svcDel + '»\nentfernen?')) return;
+    // Views bereinigen
+    var views = bmGetViews(detailRow);
+    views.forEach(function(v) {
+      if (v && v.layerStates) {
+        layers.forEach(function(l) {
+          if (bmServiceKey(l.id) === svcDel) delete v.layerStates[l.id];
+        });
+      }
+    });
+    bmSetLayers(detailRow, remaining);
+    bmSetViews(detailRow, views);
+    bmRenderMatrix(detailRow);
+    markBmChanged(detailRow);
+    return;
+  }
+  // Dienst-Kopfzeile: Klick auf Toggle → Ein-/Ausklappen (Ctrl: alle)
+  var svcHeader = t.closest('tr.bm-mtx-svc-header');
+  if (svcHeader && (t.classList.contains('bm-mtx-svc-toggle') || t.classList.contains('bm-mtx-svc-drag-td') || t.closest('td.bm-mtx-svc-drag-td'))) {
+    if (t.closest('td.bm-mtx-svc-drag-td')) return; // Drag-TD nur fürs Dragging, kein Toggle
+  }
+  if (svcHeader && t.classList.contains('bm-mtx-svc-toggle')) {
+    var svcKey = svcHeader.dataset.svc;
+    if (!detailRow._bmSvcCollapsed) detailRow._bmSvcCollapsed = {};
+    var nowCollapsed = !svcHeader.classList.contains('bm-svc-collapsed');
+    if (e.ctrlKey || e.metaKey) {
+      // Alle auf einmal
+      var cont = detailRow._contentHost || detailRow;
+      cont.querySelectorAll('tr.bm-mtx-svc-header').forEach(function(hdr) {
+        var sk = hdr.dataset.svc;
+        detailRow._bmSvcCollapsed[sk] = nowCollapsed;
+        hdr.classList.toggle('bm-svc-collapsed', nowCollapsed);
+      });
+      cont.querySelectorAll('tr[data-lid]').forEach(function(tr) {
+        tr.style.display = nowCollapsed ? 'none' : '';
+      });
+    } else {
+      detailRow._bmSvcCollapsed[svcKey] = nowCollapsed;
+      svcHeader.classList.toggle('bm-svc-collapsed', nowCollapsed);
+      var cont2 = detailRow._contentHost || detailRow;
+      cont2.querySelectorAll('tr[data-svc="' + svcKey.replace(/"/g, '\\"') + '"][data-lid]').forEach(function(tr) {
+        tr.style.display = nowCollapsed ? 'none' : '';
+      });
+    }
+    return;
+  }
   // Default-Visible-Checkbox: Shift+Click setzt Range zwischen letztem und aktuellem Klick.
   // Der normale change-Handler kuemmert sich danach um Single-Update (idempotent).
   if (t.matches('.bm-mtx-cell-default input[type=checkbox]')) {
@@ -8796,6 +9629,53 @@ function bmMatrixHandleChange(e, detailRow) {
     markBmChanged(detailRow);
     return;
   }
+  // Dienst-Sichtbarkeit via Checkbox
+  if (t.classList.contains('bm-mtx-svc-vis-cb')) {
+    var svcV = t.dataset.svc;
+    var checked = t.checked;
+    var layersV = bmGetLayers(detailRow);
+    layersV.forEach(function(l) { if (bmServiceKey(l.id) === svcV) l.visible = checked; });
+    bmSetLayers(detailRow, layersV);
+    markBmChanged(detailRow);
+    bmRenderMatrix(detailRow);
+    return;
+  }
+  // Dienst-Sichtbarkeit per Ansicht (tri-state für alle Leaf-Layer des Dienstes)
+  if (t.classList.contains('bm-mtx-svc-tri')) {
+    var svcT = t.dataset.svc;
+    var vidT = t.dataset.vid;
+    var curT = t.dataset.state;
+    var nextT = curT === 'on' ? 'off' : (curT === 'off' ? 'inherit' : 'on');
+    var viewsT = bmGetViews(detailRow);
+    var vT = viewsT.find(function(x) { return x && x.id === vidT; });
+    if (!vT) return;
+    if (!vT.layerStates) vT.layerStates = {};
+    var layersT = bmGetLayers(detailRow);
+    var interT = {};
+    layersT.forEach(function(a) { layersT.forEach(function(b) { if (a.id !== b.id && b.id.indexOf(a.id + '/') === 0) interT[a.id] = true; }); });
+    layersT.forEach(function(l) {
+      if (bmServiceKey(l.id) !== svcT || interT[l.id]) return;
+      if (nextT === 'inherit') delete vT.layerStates[l.id];
+      else vT.layerStates[l.id] = { visible: nextT === 'on' };
+    });
+    bmSetViews(detailRow, viewsT);
+    bmRenderMatrix(detailRow);
+    markBmChanged(detailRow);
+    return;
+  }
+  // Opacity auf Dienst-Stufe (data-svc hat Vorrang, muss vor dem allgemeinen data-prop-Check stehen)
+  if (t.matches('input[data-svc][data-prop="opacity"]')) {
+    var svcO = t.dataset.svc;
+    var valS = t.value.trim();
+    var opS = (valS === '' || !isFinite(+valS)) ? null : Math.max(0, Math.min(1, +valS));
+    var layersS = bmGetLayers(detailRow);
+    layersS.forEach(function(l) {
+      if (bmServiceKey(l.id) === svcO) l.opacity = opS;
+    });
+    bmSetLayers(detailRow, layersS);
+    markBmChanged(detailRow);
+    return;
+  }
   // Opacity / Filter per Layer
   if (t.matches('input[data-prop]')) {
     var lidO = t.dataset.lid;
@@ -8825,11 +9705,12 @@ function bmMatrixAddLayer(detailRow, layerId) {
   layerId = (layerId || '').trim();
   if (!layerId) return false;
   var layers = bmGetLayers(detailRow);
-  if (layers.some(function(l) { return l.id === layerId; })) return false; // schon drin
+  if (layers.some(function(l) { return l.id === layerId; })) return false;
   layers.push(bmLayerObj({ id: layerId }));
   bmSetLayers(detailRow, layers);
   bmRenderMatrix(detailRow);
   markBmChanged(detailRow);
+  bmUpdateListItemLayers(detailRow); // Ampel aktualisieren
   return true;
 }
 
@@ -8842,6 +9723,11 @@ function loadAllLayerKeys() {
       if (res.success && res.data && Array.isArray(res.data.layers)) {
         _bmAllLayerKeys = res.data.layers.map(function(l) { return l.id; }).sort();
         _bmAllLayerKeySet = new Set(_bmAllLayerKeys);
+        // NLS-Namen indexieren
+        _bmLayerNameMap = {};
+        res.data.layers.forEach(function(l) {
+          if (l.name && l.name !== l.id.split('/').pop()) _bmLayerNameMap[l.id] = l.name;
+        });
       }
       _bmLayersLoaded = true;
       return _bmAllLayerKeys;
@@ -8930,98 +9816,116 @@ window.addEventListener('beforeunload', bmReleaseLock);
 
 function renderBookmarkTable(bookmarks) {
   var tbody = document.getElementById('bm-tbody');
+  var list  = document.getElementById('bm-list');
   tbody.innerHTML = '';
-  var frag = document.createDocumentFragment();
+  list.innerHTML  = '';
+  var tbodyFrag = document.createDocumentFragment();
+  var listFrag  = document.createDocumentFragment();
   for (var i = 0; i < bookmarks.length; i++) {
     var rows = createBookmarkRows(bookmarks[i], i);
-    if (i % 2 === 1) rows.summary.classList.add('bm-row-even');
-    frag.appendChild(rows.summary);
-    frag.appendChild(rows.detail);
+    tbodyFrag.appendChild(rows.detail);
+    listFrag.appendChild(rows.listItem);
   }
-  tbody.appendChild(frag);
+  tbody.appendChild(tbodyFrag);
+  list.appendChild(listFrag);
   updateBookmarkCount();
-  bmColumnFilter(true); // Filter anwenden falls aktiv
+  bmListSearch(); // Filter anwenden falls aktiv
+  bmLoadProfilesIntoDropdown(); // Profil-Dropdown befüllen
+}
+
+// ===== BOOKMARK-LISTENEINTRAG (kompakt, links) =====
+function bmAmpelClassForSet(layerIds, checkSet) {
+  if (!layerIds.length) return 'grey';
+  var valid = layerIds.filter(function(id) {
+    return checkSet ? checkSet.has(id) : _bmAllLayerKeys.indexOf(id) !== -1;
+  }).length;
+  if (valid === layerIds.length) return 'green';
+  if (valid === 0) return 'red';
+  return 'yellow';
+}
+
+function bmAmpelClass(layerIds) {
+  var checkSet = _bmGroupLayerSet || _bmAllLayerKeySet;
+  return bmAmpelClassForSet(layerIds, checkSet);
+}
+
+function bmBuildListItem(idsValue, aliasName, layerIds, idx) {
+  var li = document.createElement('li');
+  li.className = 'bm-list-item';
+  li.dataset.idx = String(idx);
+  li.dataset.idaliases = idsValue.toLowerCase();
+  li.dataset.name = aliasName.toLowerCase();
+  li.dataset.layerText = layerIds.join(' ').toLowerCase();
+  li.innerHTML = bmBuildListItemInner(layerIds, idsValue, aliasName);
+  li.addEventListener('click', function() { bmSelectBookmark(idx); });
+  return li;
+}
+
+function bmBuildListItemInner(layerIds, idsValue, aliasName) {
+  var catalogSet = _bmAllLayerKeySet;
+  var catalogValid = layerIds.filter(function(id) { return catalogSet ? catalogSet.has(id) : _bmAllLayerKeys.indexOf(id) !== -1; }).length;
+  var defCls = bmAmpelClassForSet(layerIds, catalogSet);
+  var defTitle = 'Layer-Definitionen: ' + catalogValid + '/' + layerIds.length;
+  var profHtml;
+  if (_bmGroupLayerSet) {
+    var profValid = layerIds.filter(function(id) { return _bmGroupLayerSet.has(id); }).length;
+    var profCls = bmAmpelClassForSet(layerIds, _bmGroupLayerSet);
+    var profTitle = 'Profil «' + (_bmCurrentGroup || '') + '»: ' + profValid + '/' + layerIds.length;
+    profHtml = '<span class="bm-list-ampel-prof"><span class="bm-list-ampel ' + profCls + '" title="' + profTitle + '"></span></span>';
+  } else {
+    profHtml = '<span class="bm-list-ampel-prof"><span class="bm-list-ampel none" title="Kein Profil gewählt"></span></span>';
+  }
+  return '<span class="bm-list-ampel-def"><span class="bm-list-ampel ' + defCls + '" title="' + defTitle + '"></span></span>' +
+    profHtml +
+    '<span class="bm-list-item-texts">' +
+      '<span class="bm-list-item-id">' + esc(idsValue || '(neu)') + '</span>' +
+      (aliasName ? '<span class="bm-list-item-alias">' + esc(aliasName) + '</span>' : '') +
+    '</span>';
 }
 
 function createBookmarkRows(bm, idx) {
   // Akzeptiert v2-Schema (id, viewport, layers:[obj]) und faellt auf v1-Felder zurueck
-  // damit zwischenzeitlich gespeicherte v1-Daten im Editor noch korrekt geoeffnet werden.
   var idsValue = bmBookmarkIdsValue(bm);
   var aliasName = bm.name || bm.id || bm['map-bookmark'] || '';
   var basemap = bm.basemap || '';
   var basemapMode = bm.basemapColorMode || 'color';
-  var layerArr = bm.layers || [];                    // Layer-Objekte (v2) oder Strings (v1)
-  var theme = bm.theme || '';
-  var subtheme = bm.subtheme || '';
-  var themes = bm.themes || '';
+  var layerArr = bm.layers || [];
   var vp = (bm.viewport && typeof bm.viewport === 'object') ? bm.viewport : bm;
   var x = (vp.x != null) ? vp.x : '';
   var y = (vp.y != null) ? vp.y : '';
   var zoom = (vp.zoom != null) ? vp.zoom : '';
 
-  // Passthrough: views[] und meta werden im Editor (noch) nicht visuell editiert,
-  // muessen aber beim Save erhalten bleiben. Spaeter ersetzt Phase 5c die Views-Pass-through.
   var bmViewsJson = JSON.stringify(bm.views || []);
   var bmMetaJson  = JSON.stringify(bm.meta  || { schemaVersion: 2 });
-
-  // Layer-IDs fuer Anzeige und Suche aus Objekt-Array extrahieren
   var layerIds = layerArr.map(bmLayerId);
 
-  // Zusammenfassungs-Zeile (immer sichtbar, einklappbar)
-  var summary = document.createElement('tr');
-  summary.className = 'bm-row-summary';
-  summary.dataset.idx = idx;
-  summary.dataset.idaliases = idsValue.toLowerCase();
-  summary.dataset.name = aliasName.toLowerCase();
-  summary.dataset.basemap = basemap.toLowerCase();
-  summary.dataset.basemapmode = basemapMode.toLowerCase();
-  summary.dataset.layerText = layerIds.join(' ').toLowerCase();
-  summary.dataset.themes = (themes || '').toLowerCase();
+  // Listeneintrag (links)
+  var listItem = bmBuildListItem(idsValue, aliasName, layerIds, idx);
 
-  var layerPreview = '';
-  for (var lp = 0; lp < Math.min(layerIds.length, 4); lp++) {
-    var lid = layerIds[lp];
-    var isV = _bmAllLayerKeys.indexOf(lid) !== -1;
-    layerPreview += '<span class="bm-layer-tag ' + (isV ? 'valid' : 'invalid') + '" data-layer="' + esc(lid) + '">' + bmLayerHierarchyHtml(lid, 'tag') + '</span>';
-  }
-  if (layerIds.length > 4) layerPreview += '<span style="font-size:10px;color:#888"> +' + (layerIds.length - 4) + '</span>';
-  if (layerIds.length === 0) layerPreview = '<span style="color:#ccc;font-size:10px">–</span>';
-
-  summary.innerHTML =
-    '<td><span class="bm-expand-icon">▶</span><strong style="font-family:monospace;font-size:11px">' + esc(idsValue) + '</strong></td>' +
-    '<td style="font-family:monospace;font-size:10px;color:#666">' + esc(aliasName) + '</td>' +
-    '<td style="font-size:10px;color:#666">' + esc(basemap) + '</td>' +
-    '<td style="font-size:10px;color:#666">' + esc(basemapMode) + '</td>' +
-    '<td class="bm-summary-themes"><input type="text" value="' + esc(themes) + '" placeholder="nw:oereb, ow:oereb" data-field="themes" oninput="markBmChanged(this);bmSyncSummaryFromSummary(this)" style="width:100%;border:none;background:transparent;font-family:monospace;font-size:10px;padding:2px 4px;box-sizing:border-box"></td>' +
-    '<td class="bm-summary-layers">' + layerPreview + '</td>' +
-    '<td class="bm-col-hidden"></td><td class="bm-col-hidden"></td><td class="bm-col-hidden"></td>' +
-    '<td class="bm-col-hidden"></td><td class="bm-col-hidden"></td><td class="bm-col-hidden"></td>' +
-    '<td>' +
-    '  <button class="bm-open" onclick="event.stopPropagation();openBookmarkUrl(this.closest(\'tr\'))" title="Im Browser öffnen">↗</button>' +
-    '  <button class="bm-del" onclick="event.stopPropagation();bmInlineJsonToggle(this)" title="JSON bearbeiten" style="color:#d4a03c">{ }</button>' +
-    '  <button class="bm-del" onclick="event.stopPropagation();deleteBookmarkRow(this.closest(\'tr\'))" title="Löschen">🗑</button>' +
-    '</td>';
-
-  // Detail-Zeile (Formularfelder, default eingeklappt)
+  // Detail-Zeile (im verborgenen tbody als Datenspeicher)
   var detail = document.createElement('tr');
   detail.className = 'bm-row-detail';
   detail.dataset.idx = idx;
-  // Schema-v2 State: Layer + Views + Meta als JSON im dataset (Single Source of Truth)
   detail.dataset.bmLayers = JSON.stringify(layerArr.map(bmLayerObj));
   detail.dataset.bmViews  = bmViewsJson;
   detail.dataset.bmMeta   = bmMetaJson;
 
   var detailTd = document.createElement('td');
-  detailTd.colSpan = 13;
+  detailTd.colSpan = 1;
   detailTd.innerHTML =
+    '<div class="bm-detail-form" data-detail-idx="' + idx + '" style="padding:8px 10px">' +
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">' +
+      '<div style="display:flex;gap:4px">' +
+        '<button class="bm-open" onclick="openBookmarkUrl(bmDetailRowFromEl(this))" title="Im Browser öffnen">↗ Öffnen</button>' +
+        '<button class="bm-del" onclick="bmInlineJsonToggle(this)" title="JSON bearbeiten" style="color:#d4a03c;border:1px solid #d4a03c;border-radius:3px;padding:2px 8px;font-size:11px;background:#fff8e1">{ } JSON</button>' +
+        '<button class="bm-del" onclick="deleteBookmarkRow(bmDetailRowFromEl(this))" title="Löschen" style="color:#c62828;border:1px solid #ef9a9a;border-radius:3px;padding:2px 8px;font-size:11px;background:#ffebee">🗑 Löschen</button>' +
+      '</div>' +
+    '</div>' +
     '<div style="display:grid;grid-template-columns:100px 1fr;gap:4px 8px;font-size:11px">' +
     '<label>IDs:</label><input class="bm-name" data-field="idaliases" value="' + esc(idsValue) + '" title="Primaere ID zuerst, weitere IDs kommasepariert" oninput="markBmChanged(this);bmSyncSummary(this)">' +
     '<label>Alias:</label><input class="bm-alias" data-field="name" value="' + esc(aliasName) + '" title="Sichtbarer Anzeigename" oninput="markBmChanged(this);bmSyncSummary(this)">' +
     '<label>Basemap:</label><input data-field="basemap" value="' + esc(basemap) + '" oninput="markBmChanged(this);bmSyncSummary(this)">' +
     '<label>Basemap-Modus:</label><select data-field="basemapcolormode" onchange="markBmChanged(this);bmSyncSummary(this)"><option value="color"' + (basemapMode === 'color' ? ' selected' : '') + '>color</option><option value="grey"' + (basemapMode === 'grey' ? ' selected' : '') + '>grey</option></select>' +
-    '<label>Theme:</label><input data-field="theme" value="' + esc(theme) + '" oninput="markBmChanged(this)">' +
-    '<label>Subtheme:</label><input data-field="subtheme" value="' + esc(subtheme) + '" oninput="markBmChanged(this)">' +
-    '<label>Themen:</label><input data-field="themes" value="' + esc(themes) + '" title="z.B. nw:oereb" placeholder="nw:oereb" oninput="markBmChanged(this);bmSyncSummaryThemes(this)">' +
     '<label>X:</label><input class="bm-num" data-field="x" value="' + esc(String(x)) + '" oninput="markBmChanged(this)">' +
     '<label>Y:</label><input class="bm-num" data-field="y" value="' + esc(String(y)) + '" oninput="markBmChanged(this)">' +
     '<label>Zoom:</label><input class="bm-num" data-field="zoom" value="' + esc(String(zoom)) + '" oninput="markBmChanged(this)">' +
@@ -9038,7 +9942,8 @@ function createBookmarkRows(bm, idx) {
         '<div class="bm-mtx-scroll"></div>' +
       '</div>' +
     '</div>' +
-    '<div class="bm-inline-json" data-ij="1">' +
+    '</div>' +
+    '<div class="bm-inline-json" data-ij="1" data-detail-idx="' + idx + '">' +
     '<textarea spellcheck="false"></textarea>' +
     '<div class="bm-inline-json-bar">' +
     '<button class="bm-ij-apply" onclick="bmInlineJsonApply(this)">✓ Übernehmen</button>' +
@@ -9047,34 +9952,31 @@ function createBookmarkRows(bm, idx) {
     '</div></div>';
   detail.appendChild(detailTd);
 
-  // Matrix LAZY: erst beim ersten Aufklappen rendern (Performance bei vielen Bookmarks)
+  // Matrix LAZY
   var _matrixRendered = false;
-  function ensureMatrixRendered() {
+  detail._ensureMatrix = function() {
     if (_matrixRendered) return;
     _matrixRendered = true;
     bmRenderMatrix(detail);
-  }
+  };
+  function ensureMatrixRendered() { detail._ensureMatrix(); }
 
-  // Event-Delegation: Click + Change auf die Matrix (lazy init Matrix beim ersten Interagieren)
+  // Event-Delegation auf Matrix-Wrap
   var mtxWrap = detail.querySelector('.bm-mtx-wrap');
   mtxWrap.addEventListener('click', function(e) { ensureMatrixRendered(); bmMatrixHandleClick(e, detail); });
   mtxWrap.addEventListener('change', function(e) { ensureMatrixRendered(); bmMatrixHandleChange(e, detail); });
   mtxWrap.addEventListener('input',  function(e) {
     ensureMatrixRendered();
-    // Live-Filter und Live-Edit für Inputs
     if (e.target.matches('.bm-mtx-filter')) bmApplyMatrixFilter(detail);
     if (e.target.matches('.bm-mtx-vid') || e.target.matches('.bm-mtx-vname') || e.target.matches('input[data-prop]')) bmMatrixHandleChange(e, detail);
   });
 
-  // Add-Layer-Input: Autocomplete mit onAdd-Callback, der die Matrix erweitert.
-  // getLayerTagValues(fakeTags) liefert die aktuell vorhandenen Layer-IDs (Existing-Check).
+  // Add-Layer-Autocomplete
   var acInput = detail.querySelector('.bm-layers-input');
   var acList  = detail.querySelector('.bm-ac-list');
   var fakeTags = {
     querySelectorAll: function() {
-      return bmGetLayers(detail).map(function(l) {
-        return { dataset: { layer: l.id } };
-      });
+      return bmGetLayers(detail).map(function(l) { return { dataset: { layer: l.id } }; });
     }
   };
   initLayerAutocomplete(acInput, acList, fakeTags, detail, function(layerId) {
@@ -9082,94 +9984,215 @@ function createBookmarkRows(bm, idx) {
     bmMatrixAddLayer(detail, layerId);
   });
 
-  // Klick auf Summary → Detail ein-/ausklappen
-  summary.addEventListener('click', function(e) {
-    if (e.target.closest('button')) return;
-    var expanded = detail.classList.toggle('bm-expanded');
-    summary.classList.toggle('bm-expanded-row', expanded);
-    // Inline-Style muss auch gesetzt werden (bmColumnFilter setzt display inline)
-    detail.style.display = expanded ? 'table-row' : 'none';
-    if (expanded) ensureMatrixRendered();
+  // Listeneintrag und Detail-Row verknüpfen
+  detail._listItem = listItem;
+  listItem._detailRow = detail;
+
+  return { detail: detail, listItem: listItem };
+}
+
+// ===== MASTER-DETAIL: HILFSFUNKTIONEN =====
+
+// Findet bm-row-detail ausgehend von einem beliebigen Element
+// (auch wenn das Formular aus der td in bm-detail-content verschoben wurde)
+function bmDetailRowFromEl(el) {
+  if (!el) return null;
+  if (el.classList && el.classList.contains('bm-row-detail')) return el;
+  var tr = el.closest ? el.closest('tr.bm-row-detail') : null;
+  if (tr) return tr;
+  var formDiv = el.closest ? el.closest('[data-detail-idx]') : null;
+  if (formDiv) {
+    return document.querySelector('#bm-tbody tr.bm-row-detail[data-idx="' + formDiv.dataset.detailIdx + '"]');
+  }
+  return null;
+}
+
+var _bmSelectedIdx  = null;
+var _bmDetailOwner  = null;
+
+function bmSelectBookmark(idx) {
+  idx = String(idx);
+  var contentEl = document.getElementById('bm-detail-content');
+  var emptyEl   = document.getElementById('bm-detail-empty');
+  if (!contentEl) return;
+
+  document.querySelectorAll('#bm-list .bm-list-item').forEach(function(li) {
+    li.classList.toggle('bm-list-item-active', li.dataset.idx === idx);
   });
 
-  return { summary: summary, detail: detail };
+  if (_bmSelectedIdx === idx) return;
+
+  // Inhalt zurück in Owner-TD verschieben
+  if (_bmDetailOwner) {
+    var prevTd = _bmDetailOwner.querySelector('td');
+    while (contentEl.firstChild) {
+      if (prevTd) prevTd.appendChild(contentEl.firstChild);
+      else contentEl.removeChild(contentEl.firstChild);
+    }
+    _bmDetailOwner._contentHost = null;
+  }
+
+  var detail = document.querySelector('#bm-tbody tr.bm-row-detail[data-idx="' + idx + '"]');
+  if (!detail) {
+    emptyEl.style.display = '';
+    contentEl.style.display = 'none';
+    _bmSelectedIdx = null;
+    _bmDetailOwner = null;
+    return;
+  }
+
+  _bmSelectedIdx = idx;
+  _bmDetailOwner = detail;
+  detail._contentHost = contentEl;  // merken, wo der Inhalt jetzt lebt
+
+  var td = detail.querySelector('td');
+  if (td) { while (td.firstChild) contentEl.appendChild(td.firstChild); }
+  emptyEl.style.display   = 'none';
+  contentEl.style.display = '';
+
+  if (detail._ensureMatrix) detail._ensureMatrix();
 }
 
-// Summary-Zeile synchronisieren wenn Detail-Felder geändert werden
+var _bmListSearchTimer = null;
+function bmListSearch() {
+  if (_bmListSearchTimer) clearTimeout(_bmListSearchTimer);
+  _bmListSearchTimer = setTimeout(bmApplyListSearch, 100);
+}
+
+function bmApplyListSearch() {
+  var input = document.getElementById('bm-list-search');
+  var q = (input ? input.value.trim().toLowerCase() : '');
+  var items = document.querySelectorAll('#bm-list .bm-list-item');
+  var visible = 0;
+  items.forEach(function(li) {
+    var show = !q ||
+      (li.dataset.idaliases  || '').indexOf(q) !== -1 ||
+      (li.dataset.name       || '').indexOf(q) !== -1 ||
+      (li.dataset.layerText  || '').indexOf(q) !== -1;
+    li.style.display = show ? '' : 'none';
+    if (show) visible++;
+  });
+  var badge = document.getElementById('bm-list-count');
+  if (badge) badge.textContent = visible + (visible < items.length ? '/' + items.length : '');
+  var count = document.getElementById('bm-count');
+  if (count) count.textContent = visible + (visible < items.length ? ' / ' + items.length + '' : '') + ' Bookmarks';
+}
+
+function bmUpdateListItemLayers(detailRow) {
+  if (!detailRow || !detailRow._listItem) return;
+  var ids = bmGetLayers(detailRow).map(function(l) { return l.id; });
+  var li = detailRow._listItem;
+  li.dataset.layerText = ids.join(' ').toLowerCase();
+  var ampel = li.querySelector('.bm-list-ampel');
+  if (!ampel) return;
+  var cls = bmAmpelClass(ids);
+  var checkSet = _bmGroupLayerSet || _bmAllLayerKeySet;
+  var valid = ids.filter(function(id) { return checkSet ? checkSet.has(id) : _bmAllLayerKeys.indexOf(id) !== -1; }).length;
+  var groupLabel = _bmCurrentGroup ? 'Profil «' + _bmCurrentGroup + '»' : 'Katalog';
+  ampel.className = 'bm-list-ampel ' + cls;
+  ampel.title = valid + ' / ' + ids.length + ' Layer in ' + groupLabel;
+}
+
+// ===== PROFIL-VALIDIERUNG =====
+var _bmCurrentGroup    = null;
+var _bmGroupLayerSet   = null;
+var _bmGroupLayerCache = {};
+
+function bmLoadProfilesIntoDropdown() {
+  // list-lyrmgr-profiles liefert alle lyrmgr.conf-Profile = gültige group=-Werte für layers.php
+  fetch(API_URL + '?action=list-lyrmgr-profiles')
+    .then(function(r) { return r.json(); })
+    .then(function(res) {
+      if (!res || !res.success) return;
+      var list = Array.isArray(res.data) ? res.data : [];
+      var sel = document.getElementById('bm-group-sel');
+      if (!sel) return;
+      var current = sel.value;
+      while (sel.options.length > 1) sel.remove(1);
+      list
+        .filter(function(p) { return !p.isStage; }) // Stage-Profile ausblenden
+        .forEach(function(p) {
+          var name = p.profile || p.name || String(p);
+          if (!name) return;
+          var opt = document.createElement('option');
+          opt.value = name;
+          opt.textContent = name;
+          if (name === current) opt.selected = true;
+          sel.appendChild(opt);
+        });
+    })
+    .catch(function() {});
+}
+
+function bmChangeGroup(group) {
+  _bmCurrentGroup = group || null;
+  if (!group) { _bmGroupLayerSet = null; bmRefreshAllAmpels(); return; }
+  if (_bmGroupLayerCache[group]) {
+    _bmGroupLayerSet = _bmGroupLayerCache[group]; bmRefreshAllAmpels(); return;
+  }
+  bmLoadGroupLayers(group);
+}
+
+function bmLoadGroupLayers(group) {
+  var url = _storeRoot() + '/tnet/api/v1/layers?group=' + encodeURIComponent(group) + '&flat=true&details=false&source=db';
+  fetch(url)
+    .then(function(r) { return r.json(); })
+    .then(function(res) {
+      var arr = Array.isArray(res) ? res
+               : (res.data && Array.isArray(res.data.layers) ? res.data.layers
+               : (res.data && Array.isArray(res.data) ? res.data : []));
+      var ids = arr.map(function(l) { return typeof l === 'string' ? l : (l.id || l.key || ''); }).filter(Boolean);
+      _bmGroupLayerCache[group] = new Set(ids);
+      if (_bmCurrentGroup === group) { _bmGroupLayerSet = _bmGroupLayerCache[group]; bmRefreshAllAmpels(); }
+    })
+    .catch(function(e) { console.warn('Profil-Layer laden fehlgeschlagen:', e); });
+}
+
+function bmRefreshAllAmpels() {
+  document.querySelectorAll('#bm-list .bm-list-item').forEach(function(li) {
+    var detail = document.querySelector('#bm-tbody tr.bm-row-detail[data-idx="' + li.dataset.idx + '"]');
+    if (!detail) return;
+    var ids = bmGetLayers(detail).map(function(l) { return l.id; });
+    var idsValue = li.querySelector('.bm-list-item-id') ? li.querySelector('.bm-list-item-id').textContent : '';
+    var aliasSpan = li.querySelector('.bm-list-item-alias');
+    li.innerHTML = bmBuildListItemInner(ids, idsValue, aliasSpan ? aliasSpan.textContent : '');
+  });
+  // Spalten-Header anpassen
+  var profHeader = document.getElementById('bm-list-header-prof');
+  if (profHeader) {
+    profHeader.title = _bmCurrentGroup ? 'Profil «' + _bmCurrentGroup + '»' : 'Profil-Themenkatalog (kein Profil gewählt)';
+    profHeader.style.color = _bmCurrentGroup ? '#4B7B81' : '#aaa';
+  }
+  if (_bmDetailOwner) bmRenderMatrix(_bmDetailOwner);
+}
+
 function bmSyncSummary(input) {
-  var detailRow = input.closest('tr.bm-row-detail');
-  if (!detailRow) return;
-  var idx = detailRow.dataset.idx;
-  var summaryRow = document.querySelector('tr.bm-row-summary[data-idx="' + idx + '"]');
-  if (!summaryRow) return;
-  var idsInput = detailRow.querySelector('[data-field="idaliases"]');
+  var detailRow = bmDetailRowFromEl(input);
+  if (!detailRow || !detailRow._listItem) return;
+  var li = detailRow._listItem;
+  var idsInput   = detailRow.querySelector('[data-field="idaliases"]');
   var aliasInput = detailRow.querySelector('[data-field="name"]');
-  var basemapInput = detailRow.querySelector('[data-field="basemap"]');
-  var basemapModeInput = detailRow.querySelector('[data-field="basemapcolormode"]');
-  var idsCell = summaryRow.children[0];
-  var aliasCell = summaryRow.children[1];
-  var basemapCell = summaryRow.children[2];
-  var basemapModeCell = summaryRow.children[3];
-  idsCell.innerHTML = '<span class="bm-expand-icon" style="transform:rotate(90deg)">▶</span><strong style="font-family:monospace;font-size:11px">' + esc(idsInput.value) + '</strong>';
-  aliasCell.textContent = aliasInput.value;
-  basemapCell.textContent = basemapInput.value;
-  basemapModeCell.textContent = basemapModeInput.value;
-  // data-Attribute für Filter aktualisieren
-  summaryRow.dataset.idaliases = (idsInput.value || '').toLowerCase();
-  summaryRow.dataset.name = (aliasInput.value || '').toLowerCase();
-  summaryRow.dataset.basemap = (basemapInput.value || '').toLowerCase();
-  summaryRow.dataset.basemapmode = (basemapModeInput.value || '').toLowerCase();
-  // Themen aus Detail → Summary-Input synchronisieren
-  var themesInput = detailRow.querySelector('[data-field="themes"]');
-  var themesCell = summaryRow.querySelector('.bm-summary-themes input');
-  if (themesInput && themesCell) {
-    themesCell.value = themesInput.value;
-    summaryRow.dataset.themes = (themesInput.value || '').toLowerCase();
-  }
+  if (!idsInput) return;
+  var idSpan = li.querySelector('.bm-list-item-id');
+  if (idSpan) idSpan.textContent = idsInput.value || '(neu)';
+  var aliasSpan = li.querySelector('.bm-list-item-alias');
+  if (aliasInput && aliasInput.value) {
+    if (aliasSpan) { aliasSpan.textContent = aliasInput.value; }
+    else {
+      var texts = li.querySelector('.bm-list-item-texts');
+      if (texts) { var s = document.createElement('span'); s.className = 'bm-list-item-alias'; s.textContent = aliasInput.value; texts.appendChild(s); }
+    }
+  } else if (aliasSpan) { aliasSpan.remove(); }
+  li.dataset.idaliases = (idsInput.value || '').toLowerCase();
+  li.dataset.name = (aliasInput ? aliasInput.value : '').toLowerCase();
 }
 
-// Themen: Detail → Summary synchronisieren (aus Detail-Form)
-function bmSyncSummaryThemes(input) {
-  var detailRow = input.closest('tr.bm-row-detail');
-  if (!detailRow) return;
-  var idx = detailRow.dataset.idx;
-  var summaryRow = document.querySelector('tr.bm-row-summary[data-idx="' + idx + '"]');
-  if (!summaryRow) return;
-  var themesCell = summaryRow.querySelector('.bm-summary-themes input');
-  if (themesCell) {
-    themesCell.value = input.value;
-    summaryRow.dataset.themes = (input.value || '').toLowerCase();
-  }
-}
-
-// Themen: Summary-Input → Detail synchronisieren (aus Summary-Zeile)
-function bmSyncSummaryFromSummary(input) {
-  var summaryRow = input.closest('tr.bm-row-summary');
-  if (!summaryRow) return;
-  var idx = summaryRow.dataset.idx;
-  var detailRow = document.querySelector('tr.bm-row-detail[data-idx="' + idx + '"]');
-  if (detailRow) {
-    var detailThemes = detailRow.querySelector('[data-field="themes"]');
-    if (detailThemes) detailThemes.value = input.value;
-  }
-  summaryRow.dataset.themes = (input.value || '').toLowerCase();
-}
 
 function markBmChanged(input) {
-  var tr = input.closest('tr');
-  if (tr) tr.classList.add('bm-row-changed');
-  // Auch die zugehörige Summary-Zeile als geändert markieren
-  if (tr && tr.classList.contains('bm-row-detail')) {
-    var idx = tr.dataset.idx;
-    var sum = document.querySelector('tr.bm-row-summary[data-idx="' + idx + '"]');
-    if (sum) sum.classList.add('bm-row-changed');
-  }
-  // Umgekehrt: Summary → Detail markieren
-  if (tr && tr.classList.contains('bm-row-summary')) {
-    var idx2 = tr.dataset.idx;
-    var det = document.querySelector('tr.bm-row-detail[data-idx="' + idx2 + '"]');
-    if (det) det.classList.add('bm-row-changed');
-  }
+  var detail = bmDetailRowFromEl(input);
+  if (!detail) return;
+  detail.classList.add('bm-row-changed');
+  if (detail._listItem) detail._listItem.classList.add('bm-row-changed');
 }
 
 // ===== LAYER-TAG + AUTOCOMPLETE =====
@@ -9193,8 +10216,12 @@ function bmLayerHierarchyHtml(layerKey, variant) {
   var depth = Math.min(info.depth, 8);
   var cls = 'bm-layer-path bm-layer-path-' + (variant || 'row') + (depth ? ' has-depth' : '');
   var style = depth ? ' style="--bm-layer-depth:' + depth + '"' : '';
+  var nlsName = _bmLayerNameMap[layerKey] || '';
   var html = '<span class="' + cls + '"' + style + '>' +
     '<span class="bm-layer-path-leaf">' + esc(info.leaf || info.full) + '</span>';
+  if (nlsName) {
+    html += '<span class="bm-layer-path-nls" title="NLS: ' + esc(nlsName) + '">' + esc(nlsName) + '</span>';
+  }
   if (info.prefix) {
     html += '<span class="bm-layer-path-prefix">' + esc(info.prefix) + '</span>';
   }
@@ -9381,54 +10408,50 @@ function revalidateAllLayerTags() {
 function addBookmarkEntry() {
   bmPushUndo();
   var tbody = document.getElementById('bm-tbody');
-  var idx = tbody.querySelectorAll('tr.bm-row-summary').length;
+  var list  = document.getElementById('bm-list');
+  var idx = tbody.querySelectorAll('tr.bm-row-detail').length;
   var emptyBm = { id: '', name: '', aliases: [], basemap: '', basemapColorMode: 'color', layers: [], meta: { schemaVersion: 2 } };
   var rows = createBookmarkRows(emptyBm, idx);
-  rows.summary.classList.add('bm-row-changed');
-  rows.detail.classList.add('bm-expanded'); // Neue Einträge aufgeklappt
-  rows.summary.classList.add('bm-expanded-row');
+  rows.detail.classList.add('bm-row-changed');
+  rows.listItem.classList.add('bm-row-changed');
   tbody.insertBefore(rows.detail, tbody.firstChild);
-  tbody.insertBefore(rows.summary, rows.detail);
-  // Matrix für neuen Eintrag sofort rendern (muss sofort bearbeitbar sein)
-  bmRenderMatrix(rows.detail);
-  // Fokus auf ID-Feld
-  var idsInput = rows.detail.querySelector('[data-field="idaliases"]');
-  if (idsInput) idsInput.focus();
+  list.insertBefore(rows.listItem, list.firstChild);
+  bmSelectBookmark(idx);
   updateBookmarkCount();
+  // Fokus auf ID-Feld
+  var idsInput = document.getElementById('bm-detail-content') && document.getElementById('bm-detail-content').querySelector('[data-field="idaliases"]');
+  if (idsInput) idsInput.focus();
 }
 
-function deleteBookmarkRow(tr) {
+function deleteBookmarkRow(el) {
   if (!confirm('Bookmark löschen?')) return;
+  var detail = bmDetailRowFromEl(el);
+  if (!detail) return;
   bmPushUndo();
-  // Summary und Detail entfernen
-  var idx = tr.dataset.idx;
-  if (tr.classList.contains('bm-row-summary')) {
-    var detail = document.querySelector('tr.bm-row-detail[data-idx="' + idx + '"]');
-    if (detail) detail.remove();
-    tr.remove();
-  } else if (tr.classList.contains('bm-row-detail')) {
-    var summary = document.querySelector('tr.bm-row-summary[data-idx="' + idx + '"]');
-    if (summary) summary.remove();
-    tr.remove();
-  } else {
-    tr.remove();
+  var idx = detail.dataset.idx;
+  // Falls aktiv: Inhalt zurück in td verschieben, Panel leeren
+  if (_bmSelectedIdx === idx) {
+    var td = detail.querySelector('td');
+    var contentEl = document.getElementById('bm-detail-content');
+    if (td && contentEl) { while (contentEl.firstChild) td.appendChild(contentEl.firstChild); }
+    if (contentEl) { contentEl.innerHTML = ''; contentEl.style.display = 'none'; }
+    var emptyEl = document.getElementById('bm-detail-empty');
+    if (emptyEl) emptyEl.style.display = '';
+    _bmSelectedIdx = null;
+    _bmDetailOwner = null;
+    document.querySelectorAll('#bm-list .bm-list-item').forEach(function(li) { li.classList.remove('bm-list-item-active'); });
   }
+  detail.remove();
+  var li = document.querySelector('#bm-list li[data-idx="' + idx + '"]');
+  if (li) li.remove();
   updateBookmarkCount();
 }
 
 function openBookmarkUrl(tr) {
-  // Primaere ID aus Summary-data-Attribut oder Detail-Input lesen
-  var idValue = '';
-  if (tr.classList.contains('bm-row-summary')) {
-    var idx = tr.dataset.idx;
-    var detail = document.querySelector('tr.bm-row-detail[data-idx="' + idx + '"]');
-    if (detail) idValue = (detail.querySelector('[data-field="idaliases"]').value || '').trim();
-    if (!idValue) idValue = (tr.dataset.idaliases || '').trim();
-  } else {
-    var inp = tr.querySelector('[data-field="idaliases"]');
-    idValue = inp ? inp.value.trim() : '';
-  }
-  var primaryId = bmPrimaryBookmarkId(idValue);
+  var detail = tr ? (tr.classList && tr.classList.contains('bm-row-detail') ? tr : bmDetailRowFromEl(tr)) : null;
+  if (!detail) return;
+  var inp = detail.querySelector('[data-field="idaliases"]');
+  var primaryId = bmPrimaryBookmarkId(inp ? inp.value.trim() : '');
   if (!primaryId) { alert('Keine Bookmark-ID eingetragen'); return; }
   var url = 'https://www.gis-daten.ch/maps/' + encodeURIComponent(primaryId);
   window.open(url, '_blank');
@@ -9439,37 +10462,41 @@ function collectBookmarkData() {
   var result = [];
   for (var i = 0; i < rows.length; i++) {
     var tr = rows[i];
-    var idsValue = tr.querySelector('[data-field="idaliases"]').value.trim();
+    // Formular-Felder können via DOM-Portal in #bm-detail-content liegen
+    var fieldRoot = (tr._contentHost && tr._contentHost.querySelector('[data-field="idaliases"]'))
+      ? tr._contentHost : tr;
+
+    var idsInput = fieldRoot.querySelector('[data-field="idaliases"]');
+    if (!idsInput) continue;
+    var idsValue = idsInput.value.trim();
     var ids = bmParseCsvList(idsValue);
-    if (!ids.length) continue; // Leere Zeilen ignorieren
+    if (!ids.length) continue;
 
     var entry = { id: ids[0] };
-
     if (ids.length > 1) entry.aliases = ids.slice(1);
 
-    var aliasName = tr.querySelector('[data-field="name"]').value.trim();
+    var aliasEl = fieldRoot.querySelector('[data-field="name"]');
+    var aliasName = aliasEl ? aliasEl.value.trim() : '';
     if (aliasName) entry.name = aliasName;
 
-    var basemap = tr.querySelector('[data-field="basemap"]').value.trim();
+    var basemapEl = fieldRoot.querySelector('[data-field="basemap"]');
+    var basemap = basemapEl ? basemapEl.value.trim() : '';
     if (basemap) entry.basemap = basemap;
 
-    var basemapMode = tr.querySelector('[data-field="basemapcolormode"]').value.trim();
+    var basemapModeEl = fieldRoot.querySelector('[data-field="basemapcolormode"]');
+    var basemapMode = basemapModeEl ? basemapModeEl.value.trim() : '';
     if (basemapMode) entry.basemapColorMode = basemapMode;
-
-    var theme = tr.querySelector('[data-field="theme"]').value.trim();
-    if (theme) entry.theme = theme;
-    var subtheme = tr.querySelector('[data-field="subtheme"]').value.trim();
-    if (subtheme) entry.subtheme = subtheme;
-    var themes = tr.querySelector('[data-field="themes"]').value.trim();
-    if (themes) entry.themes = themes;
 
     // Viewport zusammenbauen (v2-Struktur)
     var vp = {};
-    var xVal = tr.querySelector('[data-field="x"]').value.trim();
-    if (xVal) vp.x = parseFloat(xVal);
-    var yVal = tr.querySelector('[data-field="y"]').value.trim();
-    if (yVal) vp.y = parseFloat(yVal);
-    var zoomVal = tr.querySelector('[data-field="zoom"]').value.trim();
+    var xEl   = fieldRoot.querySelector('[data-field="x"]');
+    var yEl   = fieldRoot.querySelector('[data-field="y"]');
+    var zoomEl = fieldRoot.querySelector('[data-field="zoom"]');
+    var xVal   = xEl   ? xEl.value.trim()   : '';
+    var yVal   = yEl   ? yEl.value.trim()   : '';
+    var zoomVal = zoomEl ? zoomEl.value.trim() : '';
+    if (xVal)    vp.x    = parseFloat(xVal);
+    if (yVal)    vp.y    = parseFloat(yVal);
     if (zoomVal) vp.zoom = parseInt(zoomVal, 10);
     if (Object.keys(vp).length) entry.viewport = vp;
 
@@ -9658,6 +10685,7 @@ function showBookmarkDeployToast(message, type) {
 function saveBookmarks() {
   var data = collectBookmarkData();
   var status = document.getElementById('bm-status');
+  var saveBtn = document.querySelector('.bm-btn-publish');
 
   // Commit-Dialog vor dem Speichern anzeigen
   var changedCount = document.querySelectorAll('#bm-tbody tr.bm-row-summary.bm-row-changed').length;
@@ -9666,8 +10694,10 @@ function saveBookmarks() {
   showCommitDialog(defaultMsg).then(function(result) {
     if (!result) return; // Abgebrochen
 
-    status.textContent = 'Speichere ' + data.length + ' Bookmarks…';
-    status.className = 'bm-status';
+    status.textContent = '⏳ Speichere ' + data.length + ' Bookmarks in DB…';
+    status.className = 'bm-status saving';
+    // Button während Save deaktivieren
+    if (saveBtn) saveBtn.disabled = true;
 
     // Body: im DB-Modus mit Revision (Optimistic Lock) + Bearbeiter; sonst Legacy-Array.
     var saveBody = (_bmSource === 'db')
@@ -9706,11 +10736,21 @@ function saveBookmarks() {
 
       if (!res.success) throw new Error(res.error || 'Unbekannt');
 
+      // DB-Fehler im Fallback-Modus: Datei wurde gespeichert, aber DB nicht
+      if (res.dbError) {
+        status.textContent = '⚠ DB-Fehler (nur Datei gespeichert): ' + res.dbError;
+        status.className = 'bm-status error';
+        showBookmarkDeployToast('DB-Save fehlgeschlagen: ' + res.dbError, 'error');
+        if (saveBtn) saveBtn.disabled = false;
+        return;
+      }
+
       _bmData = data;
       if (typeof res.revision !== 'undefined') { _bmRevision = res.revision; }
-      status.textContent = '✓ Gespeichert — ' + data.length + ' Bookmarks'
-        + (_bmSource === 'db' ? ' (DB, Rev. ' + _bmRevision + ')' : '');
+      var savedSource = res.source || (_bmSource === 'db' ? 'db' : 'datei');
+      status.textContent = '✓ Gespeichert (' + savedSource.toUpperCase() + ', Rev. ' + _bmRevision + ') — ' + data.length + ' Bookmarks';
       status.className = 'bm-status success';
+      if (saveBtn) saveBtn.disabled = false;
       document.querySelectorAll('#bm-tbody .bm-row-changed').forEach(function(tr) {
         tr.classList.remove('bm-row-changed');
       });
@@ -9742,14 +10782,17 @@ function saveBookmarks() {
         .catch(function(e) {
           status.textContent += ' — Deploy-Fehler: ' + e.message;
           showBookmarkDeployToast('Bookmark-Deploy fehlgeschlagen: ' + e.message, 'error');
+          if (saveBtn) saveBtn.disabled = false;
         });
       } else {
-        status.textContent = '✓ Draft gespeichert — ' + data.length + ' Bookmarks (nicht deployed)';
+        status.textContent = '✓ In Postgres-DB gespeichert — ' + data.length + ' Bookmarks (nicht deployed)';
+        if (saveBtn) saveBtn.disabled = false;
       }
     })
     .catch(function(e) {
-      status.textContent = 'Fehler: ' + e.message;
+      status.textContent = '✗ Fehler: ' + e.message;
       status.className = 'bm-status error';
+      if (saveBtn) saveBtn.disabled = false;
     });
   });
 }
@@ -9761,151 +10804,43 @@ function filterBookmarkTable() {
 // ===== SPALTENFILTER =====
 var _bmFilterTimer = null;
 
-function bmColumnFilter(immediate) {
-  if (immediate === true) {
-    bmApplyColumnFilter();
-    return;
-  }
-  if (_bmFilterTimer) clearTimeout(_bmFilterTimer);
-  _bmFilterTimer = setTimeout(bmApplyColumnFilter, 140);
-}
+function bmColumnFilter(immediate) { bmListSearch(); }
 
-function bmApplyColumnFilter() {
-  var filters = {};
-  var shortFilterCount = 0;
-  document.querySelectorAll('.bm-filter-bar input[data-col-filter]').forEach(function(input) {
-    var col = input.dataset.colFilter;
-    var val = input.value.trim().toLowerCase();
-    if (!val) return;
-    if (val.length < 3) { shortFilterCount++; return; }
-    filters[col] = val;
-  });
-  var summaries = document.querySelectorAll('#bm-tbody tr.bm-row-summary');
-  var detailsByIdx = {};
-  document.querySelectorAll('#bm-tbody tr.bm-row-detail').forEach(function(detail) {
-    detailsByIdx[detail.dataset.idx] = detail;
-  });
-  var visible = 0;
-  summaries.forEach(function(sum) {
-    var show = true;
-    for (var col in filters) {
-      var f = filters[col];
-      var cellVal = '';
-      if (col === 'layers') {
-        cellVal = sum.dataset.layerText || '';
-      } else {
-        cellVal = sum.dataset[col] || '';
-      }
-      if (cellVal.indexOf(f) === -1) { show = false; break; }
-    }
-    sum.style.display = show ? '' : 'none';
-    var idx = sum.dataset.idx;
-    var detail = detailsByIdx[idx] || null;
-    if (detail) {
-      if (!show) {
-        detail.style.display = 'none';
-      } else {
-        detail.style.display = detail.classList.contains('bm-expanded') ? 'table-row' : 'none';
-      }
-    }
-    if (show) visible++;
-  });
-  var cnt = visible + ' / ' + summaries.length + ' Bookmarks';
-  if (shortFilterCount > 0 && Object.keys(filters).length === 0) {
-    cnt += ' (Filter ab 3 Zeichen)';
-  }
-  document.getElementById('bm-count').textContent = cnt;
-}
+function bmApplyColumnFilter() { bmApplyListSearch(); }
 
 function updateBookmarkCount() {
-  var n = document.querySelectorAll('#bm-tbody tr.bm-row-summary').length;
-  document.getElementById('bm-count').textContent = n + ' Bookmarks';
+  var items = document.querySelectorAll('#bm-list .bm-list-item');
+  var badge = document.getElementById('bm-list-count');
+  if (badge) badge.textContent = String(items.length);
+  var count = document.getElementById('bm-count');
+  if (count) count.textContent = items.length + ' Bookmarks';
 }
 
 // ===== BOOKMARK-TABELLE: SORTIERUNG =====
 var _bmSortField = null;
 var _bmSortDir = 'asc';
 
-function initBookmarkSort() {
-  var headers = document.querySelectorAll('#bm-table thead th[data-sort]');
-  headers.forEach(function(th) {
-    th.addEventListener('click', function(e) {
-      if (e.target.closest('.bm-resize')) return; // Resize-Handle ignorieren
-      var field = th.dataset.sort;
-      if (_bmSortField === field) {
-        _bmSortDir = _bmSortDir === 'asc' ? 'desc' : 'asc';
-      } else {
-        _bmSortField = field;
-        _bmSortDir = 'asc';
-      }
-      headers.forEach(function(h) { h.classList.remove('bm-sort-asc', 'bm-sort-desc'); var ic = h.querySelector('.bm-sort-icon'); if (ic) ic.textContent = '⇅'; });
-      th.classList.add(_bmSortDir === 'asc' ? 'bm-sort-asc' : 'bm-sort-desc');
-      var icon = th.querySelector('.bm-sort-icon');
-      if (icon) icon.textContent = _bmSortDir === 'asc' ? '▲' : '▼';
-      sortBookmarkTable(field, _bmSortDir);
-    });
-  });
-}
+function initBookmarkSort() { /* Sortierung erfolgt über Listenstile */ }
 
 function sortBookmarkTable(field, dir) {
-  var tbody = document.getElementById('bm-tbody');
-  // Paare sammeln: [summary, detail] — detail per Map für O(1)-Lookup
-  var pairs = [];
-  var detailMap = {};
-  tbody.querySelectorAll('tr.bm-row-detail').forEach(function(d) { detailMap[d.dataset.idx] = d; });
-  tbody.querySelectorAll('tr.bm-row-summary').forEach(function(sum) {
-    pairs.push({ summary: sum, detail: detailMap[sum.dataset.idx] || null });
-  });
-  pairs.sort(function(a, b) {
-    var va = getBmSortValue(a.summary, a.detail, field);
-    var vb = getBmSortValue(b.summary, b.detail, field);
+  var list = document.getElementById('bm-list');
+  if (!list) return;
+  var items = Array.from(list.querySelectorAll('.bm-list-item'));
+  items.sort(function(a, b) {
+    var va = a.dataset[field] || '';
+    var vb = b.dataset[field] || '';
     var cmp = va.localeCompare(vb, 'de', { sensitivity: 'base' });
     return dir === 'desc' ? -cmp : cmp;
   });
   var frag = document.createDocumentFragment();
-  pairs.forEach(function(p, i) {
-    p.summary.classList.toggle('bm-row-even', i % 2 === 1);
-    frag.appendChild(p.summary);
-    if (p.detail) frag.appendChild(p.detail);
-  });
-  tbody.appendChild(frag);
-}
-
-function getBmSortValue(summary, detail, field) {
-  if (field === 'layers') {
-    if (detail) {
-      // Matrix-State (Schema v2)
-      return bmGetLayers(detail).map(function(l) { return l.id; }).join(' ');
-    }
-    return summary.dataset.layerText || '';
-  }
-  // Aus data-Attributen der Summary lesen
-  return summary.dataset[field] || '';
+  items.forEach(function(li) { frag.appendChild(li); });
+  list.appendChild(frag);
 }
 
 // ===== ALLE AUF-/ZUKLAPPEN =====
 var _bmAllExpanded = false;
-function bmToggleAll() {
-  _bmAllExpanded = !_bmAllExpanded;
-  var btn = document.getElementById('bm-btn-expand-all');
-  var summaries = document.querySelectorAll('#bm-tbody tr.bm-row-summary');
-  summaries.forEach(function(sum) {
-    var idx = sum.dataset.idx;
-    var detail = document.querySelector('tr.bm-row-detail[data-idx="' + idx + '"]');
-    if (detail) {
-      if (_bmAllExpanded) {
-        detail.classList.add('bm-expanded');
-        detail.style.display = 'table-row';
-        sum.classList.add('bm-expanded-row');
-      } else {
-        detail.classList.remove('bm-expanded');
-        detail.style.display = 'none';
-        sum.classList.remove('bm-expanded-row');
-      }
-    }
-  });
-  if (btn) btn.textContent = _bmAllExpanded ? '▼ Alle' : '▶ Alle';
-}
+function bmToggleAll() { /* kein Expand/Collapse im Master-Detail-Layout */ }
+
 
 // ===== SPALTENBREITE RESIZE =====
 function initBmColumnResize() {
@@ -10008,31 +10943,25 @@ var _bmCurrentView = 'table'; // 'table' oder 'json'
 
 function bmSwitchView(view) {
   _bmCurrentView = view;
-  var tableWrap = document.querySelector('#pane-bookmarks .bm-table-wrap');
-  var filterBar = document.querySelector('#pane-bookmarks .bm-filter-bar');
-  var jsonPanel = document.getElementById('bm-json-panel');
+  var masterDetail = document.getElementById('bm-master-detail');
+  var jsonPanel    = document.getElementById('bm-json-panel');
   var btnTable = document.getElementById('bm-view-table');
-  var btnJson = document.getElementById('bm-view-json');
-
-  if (!tableWrap || !filterBar || !jsonPanel) return; // Pane noch nicht im DOM
-
+  var btnJson  = document.getElementById('bm-view-json');
+  if (!masterDetail || !jsonPanel) return;
   if (view === 'json') {
-    tableWrap.style.display = 'none';
-    filterBar.style.display = 'none';
+    masterDetail.style.display = 'none';
     jsonPanel.classList.add('bm-active');
-    btnTable.classList.remove('bm-view-active');
-    btnJson.classList.add('bm-view-active');
-    // Tabellendaten → JSON
+    if (btnTable) btnTable.classList.remove('bm-view-active');
+    if (btnJson)  btnJson.classList.add('bm-view-active');
     var data = collectBookmarkData();
     document.getElementById('bm-json-editor').value = JSON.stringify(data, null, 2);
     document.getElementById('bm-json-error').style.display = 'none';
     document.getElementById('bm-sr-count').textContent = '';
   } else {
-    tableWrap.style.display = '';
-    filterBar.style.display = '';
+    masterDetail.style.display = '';
     jsonPanel.classList.remove('bm-active');
-    btnTable.classList.add('bm-view-active');
-    btnJson.classList.remove('bm-view-active');
+    if (btnTable) btnTable.classList.add('bm-view-active');
+    if (btnJson)  btnJson.classList.remove('bm-view-active');
   }
 }
 
@@ -10186,29 +11115,37 @@ function bmReplaceAll() {
 // Einzelnes Bookmark aus einer Detail-Zeile als Objekt auslesen
 function bmCollectSingleBookmark(detailRow) {
   var entry = {};
-  var idsValue = detailRow.querySelector('[data-field="idaliases"]').value.trim();
+  // Felder können via DOM-Portal in _contentHost liegen
+  var fieldRoot = (detailRow._contentHost && detailRow._contentHost.querySelector('[data-field="idaliases"]'))
+    ? detailRow._contentHost : detailRow;
+
+  var idsEl = fieldRoot.querySelector('[data-field="idaliases"]');
+  var idsValue = idsEl ? idsEl.value.trim() : '';
   var ids = bmParseCsvList(idsValue);
   if (ids.length) entry.id = ids[0];
   if (ids.length > 1) entry.aliases = ids.slice(1);
-  var aliasName = detailRow.querySelector('[data-field="name"]').value.trim();
+
+  var aliasEl = fieldRoot.querySelector('[data-field="name"]');
+  var aliasName = aliasEl ? aliasEl.value.trim() : '';
   if (aliasName) entry.name = aliasName;
-  var basemap = detailRow.querySelector('[data-field="basemap"]').value.trim();
+
+  var basemapEl = fieldRoot.querySelector('[data-field="basemap"]');
+  var basemap = basemapEl ? basemapEl.value.trim() : '';
   if (basemap) entry.basemap = basemap;
-  var basemapMode = detailRow.querySelector('[data-field="basemapcolormode"]').value.trim();
+
+  var modeEl = fieldRoot.querySelector('[data-field="basemapcolormode"]');
+  var basemapMode = modeEl ? modeEl.value.trim() : '';
   if (basemapMode) entry.basemapColorMode = basemapMode;
-  var theme = detailRow.querySelector('[data-field="theme"]').value.trim();
-  if (theme) entry.theme = theme;
-  var subtheme = detailRow.querySelector('[data-field="subtheme"]').value.trim();
-  if (subtheme) entry.subtheme = subtheme;
-  var themes = detailRow.querySelector('[data-field="themes"]').value.trim();
-  if (themes) entry.themes = themes;
 
   var vp = {};
-  var xVal = detailRow.querySelector('[data-field="x"]').value.trim();
-  if (xVal) vp.x = parseFloat(xVal);
-  var yVal = detailRow.querySelector('[data-field="y"]').value.trim();
-  if (yVal) vp.y = parseFloat(yVal);
-  var zoomVal = detailRow.querySelector('[data-field="zoom"]').value.trim();
+  var xEl = fieldRoot.querySelector('[data-field="x"]');
+  var yEl = fieldRoot.querySelector('[data-field="y"]');
+  var zEl = fieldRoot.querySelector('[data-field="zoom"]');
+  var xVal = xEl ? xEl.value.trim() : '';
+  var yVal = yEl ? yEl.value.trim() : '';
+  var zoomVal = zEl ? zEl.value.trim() : '';
+  if (xVal)    vp.x    = parseFloat(xVal);
+  if (yVal)    vp.y    = parseFloat(yVal);
   if (zoomVal) vp.zoom = parseInt(zoomVal, 10);
   if (Object.keys(vp).length) entry.viewport = vp;
 
@@ -10232,29 +11169,16 @@ function bmCollectSingleBookmark(detailRow) {
 
 // Inline-JSON Toggle (vom { }-Button in der Summary-Zeile)
 function bmInlineJsonToggle(btn) {
-  var summaryRow = btn.closest('tr.bm-row-summary');
-  if (!summaryRow) return;
-  var idx = summaryRow.dataset.idx;
-  var detailRow = document.querySelector('tr.bm-row-detail[data-idx="' + idx + '"]');
+  var detailRow = bmDetailRowFromEl(btn);
   if (!detailRow) return;
-
-  // Detail aufklappen falls nötig
-  if (!detailRow.classList.contains('bm-expanded')) {
-    detailRow.classList.add('bm-expanded');
-    detailRow.style.display = 'table-row';
-    summaryRow.classList.add('bm-expanded-row');
-  }
-
-  var ijDiv = detailRow.querySelector('.bm-inline-json');
+  // .bm-inline-json ist Geschwister von .bm-detail-form (beide im selben Elternelement)
+  var formDiv = btn.closest ? btn.closest('[data-detail-idx]') : null;
+  var parent  = formDiv ? formDiv.parentElement : null;
+  var ijDiv   = parent ? parent.querySelector('.bm-inline-json') : null;
+  if (!ijDiv) return;
+  if (ijDiv.classList.contains('bm-active')) { ijDiv.classList.remove('bm-active'); return; }
   var ta = ijDiv.querySelector('textarea');
   var errSpan = ijDiv.querySelector('.bm-ij-error');
-
-  if (ijDiv.classList.contains('bm-active')) {
-    ijDiv.classList.remove('bm-active');
-    return;
-  }
-
-  // Aktuellen Bookmark als JSON in Textarea laden
   var bm = bmCollectSingleBookmark(detailRow);
   ta.value = JSON.stringify(bm, null, 2);
   errSpan.textContent = '';
@@ -10265,68 +11189,40 @@ function bmInlineJsonToggle(btn) {
 // Inline-JSON übernehmen → Formular-Felder aktualisieren
 function bmInlineJsonApply(btn) {
   var ijDiv = btn.closest('.bm-inline-json');
-  var detailRow = btn.closest('tr.bm-row-detail');
-  var ta = ijDiv.querySelector('textarea');
-  var errSpan = ijDiv.querySelector('.bm-ij-error');
-
+  var detailRow = bmDetailRowFromEl(btn);
+  var ta = ijDiv ? ijDiv.querySelector('textarea') : null;
+  var errSpan = ijDiv ? ijDiv.querySelector('.bm-ij-error') : null;
+  if (!ta || !detailRow) return;
+  var bm;
   try {
-    var bm = JSON.parse(ta.value);
+    bm = JSON.parse(ta.value);
     if (typeof bm !== 'object' || Array.isArray(bm)) throw new Error('Erwartet wird ein JSON-Objekt');
-    errSpan.textContent = '';
+    if (errSpan) errSpan.textContent = '';
   } catch (e) {
-    errSpan.textContent = 'JSON-Fehler: ' + e.message;
+    if (errSpan) errSpan.textContent = 'JSON-Fehler: ' + e.message;
     return;
   }
-
   bmPushUndo();
-
-  // Felder ins Formular zurückschreiben (v2-Schema mit v1-Fallback)
-  detailRow.querySelector('[data-field="idaliases"]').value = bmBookmarkIdsValue(bm);
-  detailRow.querySelector('[data-field="name"]').value = bm.name || bm.id || bm['map-bookmark'] || '';
-  detailRow.querySelector('[data-field="basemap"]').value = bm.basemap || '';
-  detailRow.querySelector('[data-field="basemapcolormode"]').value = bm.basemapColorMode || 'color';
-  detailRow.querySelector('[data-field="theme"]').value = bm.theme || '';
-  detailRow.querySelector('[data-field="subtheme"]').value = bm.subtheme || '';
-  detailRow.querySelector('[data-field="themes"]').value = bm.themes || '';
+  // Felder können via DOM-Portal in _contentHost liegen
+  var fr = (detailRow._contentHost && detailRow._contentHost.querySelector('[data-field="idaliases"]'))
+    ? detailRow._contentHost : detailRow;
+  var f = function(sel) { return fr.querySelector(sel); };
+  if (f('[data-field="idaliases"]')) f('[data-field="idaliases"]').value = bmBookmarkIdsValue(bm);
+  if (f('[data-field="name"]'))      f('[data-field="name"]').value      = bm.name || bm.id || bm['map-bookmark'] || '';
+  if (f('[data-field="basemap"]'))   f('[data-field="basemap"]').value   = bm.basemap || '';
+  if (f('[data-field="basemapcolormode"]')) f('[data-field="basemapcolormode"]').value = bm.basemapColorMode || 'color';
   var vp = (bm.viewport && typeof bm.viewport === 'object') ? bm.viewport : bm;
-  detailRow.querySelector('[data-field="x"]').value = vp.x != null ? vp.x : '';
-  detailRow.querySelector('[data-field="y"]').value = vp.y != null ? vp.y : '';
-  detailRow.querySelector('[data-field="zoom"]').value = vp.zoom != null ? vp.zoom : '';
-
-  // State aktualisieren (dataset.bmLayers / bmViews / bmMeta) und Matrix neu rendern
-  var layers = (bm.layers || []).map(bmLayerObj);
-  bmSetLayers(detailRow, layers);
+  if (f('[data-field="x"]'))    f('[data-field="x"]').value    = vp.x    != null ? vp.x    : '';
+  if (f('[data-field="y"]'))    f('[data-field="y"]').value    = vp.y    != null ? vp.y    : '';
+  if (f('[data-field="zoom"]')) f('[data-field="zoom"]').value = vp.zoom != null ? vp.zoom : '';
+  bmSetLayers(detailRow, (bm.layers || []).map(bmLayerObj));
   bmSetViews(detailRow, bm.views || []);
   detailRow.dataset.bmMeta = JSON.stringify(bm.meta || { schemaVersion: 2 });
   bmRenderMatrix(detailRow);
-  // Layer-IDs fuer Summary/Suche
-  var layerIds = layers.map(bmLayerId);
-
-  // Summary synchronisieren
   var idsInput = detailRow.querySelector('[data-field="idaliases"]');
   bmSyncSummary(idsInput);
   markBmChanged(idsInput);
-
-  // Summary-Layer-Tags aktualisieren
-  var idx = detailRow.dataset.idx;
-  var summaryRow = document.querySelector('tr.bm-row-summary[data-idx="' + idx + '"]');
-  if (summaryRow) {
-    var layerCell = summaryRow.querySelector('.bm-summary-layers');
-    if (layerCell) {
-      var preview = '';
-      for (var lp = 0; lp < Math.min(layerIds.length, 4); lp++) {
-        var lid = layerIds[lp];
-        var isV = _bmAllLayerKeySet ? _bmAllLayerKeySet.has(lid) : (_bmAllLayerKeys.indexOf(lid) !== -1);
-        preview += '<span class="bm-layer-tag ' + (isV ? 'valid' : 'invalid') + '" data-layer="' + esc(lid) + '">' + esc(lid) + '</span>';
-      }
-      if (layerIds.length > 4) preview += '<span style="font-size:10px;color:#888"> +' + (layerIds.length - 4) + '</span>';
-      if (layerIds.length === 0) preview = '<span style="color:#ccc;font-size:10px">–</span>';
-      layerCell.innerHTML = preview;
-    }
-    summaryRow.dataset.layerText = layerIds.join(' ').toLowerCase();
-  }
-
-  ijDiv.classList.remove('bm-active');
+  if (ijDiv) ijDiv.classList.remove('bm-active');
 }
 
 function bmInlineJsonCancel(btn) {

@@ -1583,7 +1583,7 @@
       if (bmName && bmModified) {
         html += '<span class="lm-active-modified">';
         html += '<span class="lm-bm-modified-badge" title="Bookmark wurde verändert">&#10033;</span>';
-        html += '<button class="lm-btn-bm-reset" data-action="bm-reset" title="Bookmark zurücksetzen">Änderungen verwerfen</button>';
+        html += '<button class="lm-btn-bm-reset" data-action="bm-reset" title="Karteninhalt zurücksetzen">Ansicht zurücksetzen</button>';
         html += '</span>';
       }
       html += '<button class="lm-btn-remove-all" data-action="remove-all" title="Karteninhalt leeren"' + (totalLayers ? '' : ' disabled') + '>Karteninhalt leeren</button>';
@@ -1677,7 +1677,7 @@
         resetBtn.className = 'lm-btn-bm-reset';
         resetBtn.setAttribute('data-action', 'bm-reset');
         resetBtn.title = 'Bookmark zurücksetzen';
-        resetBtn.textContent = 'Änderungen verwerfen';
+        resetBtn.textContent = 'Ansicht zurücksetzen';
 
         wrap.appendChild(badge);
         wrap.appendChild(resetBtn);

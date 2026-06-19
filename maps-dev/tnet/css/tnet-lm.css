@@ -508,6 +508,27 @@
   color: var(--lm-accent-dark);
 }
 
+/* Layer ist im Karteninhalt aktiv, aber aktuell unsichtbar geschaltet.
+   Checkbox bleibt angekreuzt, wird aber deutlich ausgegraut dargestellt
+   (graue Fuellung statt gruen, hellgrauer Zeilen-Hintergrund). */
+.lm-layer.lm-layer-hidden .lm-cb {
+  accent-color: #9aa6a8 !important;
+  filter: grayscale(1) opacity(0.7);
+}
+.lm-layer.lm-layer-hidden .lm-cb-wrap {
+  background: #d6dbdc;
+  border-radius: 4px;
+}
+.lm-layer.lm-active.lm-layer-hidden {
+  background: #eceff0 !important;
+  border-left-color: #aab3b5 !important;
+}
+.lm-layer.lm-active.lm-layer-hidden .lm-layer-name {
+  color: #7a8587;
+  font-weight: 500;
+  font-style: italic;
+}
+
 /* Layer ausserhalb des sichtbaren Massstabsbereichs */
 .lm-layer.lm-out-of-range .lm-layer-name {
   opacity: 0.4;

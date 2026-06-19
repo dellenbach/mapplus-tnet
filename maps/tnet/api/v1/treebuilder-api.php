@@ -7290,6 +7290,8 @@ switch ($action) {
         require_once __DIR__ . '/../includes/BookmarkNormalizer.php';
         require_once __DIR__ . '/../includes/ConfigSource.php';
 
+        $dbSaveError = null; // wird gesetzt wenn DB-Save fehlschlägt (Fallback auf Datei)
+
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             jsonError('POST erwartet', 405);
         }
@@ -7354,14 +7356,30 @@ switch ($action) {
                     'count'         => $res['count'],
                     'revision'      => $res['revision'],
                     'source'        => 'db',
-                    'schemaVersion' => 2
+                    'schemaVersion' => 2,
+                    // Diagnose: erste 3 Layer-IDs des nw_oereb aus der DB nach dem Save
+                    '_dbCheck'      => (function() use ($data) {
+                        try {
+                            $pdo = \Database::getConnection();
+                            $stmt = $pdo->prepare(
+                                "SELECT payload->>'id' AS id,
+                                        (SELECT jsonb_agg(l->>'id') FROM jsonb_array_elements(payload->'layers') AS l LIMIT 3) AS first3layers
+                                 FROM mapplusconf.bookmark WHERE bookmark_id = 'nw_oereb'"
+                            );
+                            $stmt->execute();
+                            return $stmt->fetch() ?: 'not_found';
+                        } catch (\Throwable $e) {
+                            return ['error' => $e->getMessage()];
+                        }
+                    })()
                 ]);
             } catch (\Throwable $e) {
+                $dbSaveError = $e->getMessage();
+                error_log('[bookmarks-save] DB-Fehler: ' . $dbSaveError . ' | ' . $e->getTraceAsString());
                 if (!ConfigSource::fallbackEnabled()) {
-                    jsonError('Bookmarks-DB Speichern fehlgeschlagen: ' . $e->getMessage(), 500);
+                    jsonError('DB-Fehler beim Speichern der Bookmarks: ' . $dbSaveError, 500);
                 }
-                error_log('bookmarks-save: DB-Fallback auf Datei: ' . $e->getMessage());
-                // weiter mit Datei-Logik unten
+                // Fallback auf Datei — Fehler wird im Response mitgegeben
             }
         }
 
@@ -7387,6 +7405,7 @@ switch ($action) {
         jsonResponse([
             'success'       => true,
             'message'       => 'Bookmarks-Entwurf gespeichert',
+            'dbError'       => $dbSaveError ?? null,
             'count'         => count($data),
             'bytes'         => $written,
             'schemaVersion' => 2

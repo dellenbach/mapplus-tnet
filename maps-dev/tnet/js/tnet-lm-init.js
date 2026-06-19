@@ -313,18 +313,17 @@
       }
     }
 
-    // Active-Panel: V2 ersetzt V1 vollstaendig wenn useActiveV2=true
+    // Active-Panel: V1 (TnetLMActive) mit integrierter Bookmark-API (Reihenfolge,
+    // NLS-Gruppen-Namen, Debug-Badge). Die fruehere V2-Wrapper-Datei wurde entfernt.
     if (_useNewActivePanel) {
-      if (lmConfig.useActiveV2 && window.TnetLMActiveV2) {
+      if (window.TnetLMActive) {
+        // Config fuer das Panel verfuegbar machen (z.B. layerManager.debug → Badge)
         window.__tnetConfig = window.__tnetConfig || {};
         window.__tnetConfig.layerManager = lmConfig;
-        window.TnetLMActiveV2.init('lm-active-container');
-        TnetLog.log(LOG, 'TnetLMActiveV2 aktiv (V1 deaktiviert)');
-      } else if (window.TnetLMActive) {
         window.TnetLMActive.init('lm-active-container');
         TnetLog.log(LOG, 'TnetLMActive initialisiert' + (_isDesktop ? ' (Desktop)' : ' (Mobile)'));
       } else {
-        TnetLog.error(LOG, 'Weder TnetLMActiveV2 noch TnetLMActive verfuegbar');
+        TnetLog.error(LOG, 'TnetLMActive nicht verfuegbar');
       }
     }
 

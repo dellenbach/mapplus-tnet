@@ -218,8 +218,9 @@
         njs.AppManager.apipath = "/mapplus-lib/mapplus-dojo/";
         njs.AppManager.Provider = "OLPlus";
         njs.AppManager.template = "nwow_floating";
-        njs.AppManager.keepalivetimeout = 180000;
-        njs.AppManager.keepalivepage = "/mapplus-lib/mapplus-dojo/v4.0.0/php/sso/keepalive.php"
+        njs.AppManager.keepalivetimeout = 60000;
+        // Keepalive unter demselben App-Pfad halten, damit der Session-Cookie sicher mitgesendet wird.
+        njs.AppManager.keepalivepage = "/maps-dev/tnet/php/keepalive-local.php"
     </script>
     <?php print $set_vars?>
 
@@ -329,6 +330,8 @@
         });
     })();
     </script>
+
+    <script type="text/javascript" src="tnet/js/tnet-elevation-guard.js?v=20260617b"></script>
 
     <!-- TNET Mobile Dojo modules -->
     <script type="text/javascript" src="tnet/js/mobile/tnet_modules_m.js?v=v4.0.0"></script>
@@ -1039,7 +1042,7 @@
     <script type="module" src="tnet/js/tnet-utils.js"></script>
 
     <!-- TNET Helpers (Bookmarks) -->
-    <script type="text/javascript" src="tnet/js/tnet-mapplus-helpers.js" defer></script>
+    <script type="text/javascript" src="tnet/js/tnet-mapplus-helpers.js?v=20260617f" defer></script>
 
     <!-- TNET TOC Konverter (mobile Version ohne aggressive Observer) -->
     <script type="text/javascript" src="tnet/js/mobile/tnet-toc-m.js" defer></script>
@@ -1051,10 +1054,10 @@
     <script type="module" src="tnet/js/tnet-header.js"></script>
 
     <!-- TNET Info Panel (Bottom-Sheet Variante) -->
-    <script type="module" src="tnet/js/tnet-info-panel.js"></script>
+    <script type="module" src="tnet/js/tnet-info-panel.js?v=20260616b"></script>
 
     <!-- TNET Info-Bridge: Zentraler singleclick-Dispatcher für MapTips/GFI -->
-    <script src="tnet/js/tnet-info-bridge.js?v=20260306"></script>
+    <script src="tnet/js/tnet-info-bridge.js?v=20260616j"></script>
 
     <!-- TNET Basemap: Widget UI, Grundkarten-Layer-Sync, Zeitreise -->
     <script src="tnet/js/tnet-basemap.js" defer></script>
@@ -1076,9 +1079,9 @@
     <script src="tnet/js/tnet-print.js" defer></script>
 
     <!-- Neuer Layer-Manager (Feature-Flag in tnet-global-config.json5 → layerManager.useNew) -->
-    <script src="tnet/js/tnet-lm-store.js?v=20260222c" defer></script>
+    <script src="tnet/js/tnet-lm-store.js?v=20260617d" defer></script>
     <script src="tnet/js/tnet-lm-tree.js?v=20260222c" defer></script>
-    <script src="tnet/js/tnet-lm-active.js?v=20260222c" defer></script>
+    <script src="tnet/js/tnet-lm-active.js?v=20260617j" defer></script>
     <script src="tnet/js/tnet-lm-init.js?v=20260222c" defer></script>
 
 

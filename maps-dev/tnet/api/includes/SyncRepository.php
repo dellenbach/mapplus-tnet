@@ -131,18 +131,20 @@ class SyncRepository {
         foreach ($schemas as $env => $schema) {
             try {
                 $stmt = $pdo->query(
-                    "SELECT kuerzel, scope, last_imported_at, last_imported_by
+                    "SELECT kuerzel, payload, scope, last_imported_at, last_imported_by
                      FROM " . self::q($schema) . ".config_bundle_store
                      ORDER BY kuerzel"
                 );
                 $bundleCounts[$env] = 0;
                 foreach ($stmt->fetchAll() as $row) {
                     $k = $row['kuerzel'];
+                    $payload = is_string($row['payload']) ? json_decode($row['payload'], true) : $row['payload'];
                     $allKuerzel[$k] = true;
                     $bundleItems[$k][$env] = [
                         'scope'   => $row['scope'],
                         'importedAt' => $row['last_imported_at'],
                         'importedBy' => $row['last_imported_by'],
+                        'files'   => self::extractBundleFiles($payload),
                     ];
                     $bundleCounts[$env]++;
                 }
@@ -721,6 +723,39 @@ class SyncRepository {
         if ($direction === 'dev-to-prod') return ['dev', 'prod'];
         if ($direction === 'prod-to-dev') return ['prod', 'dev'];
         throw new InvalidArgumentException('Unbekannte Richtung: ' . $direction);
+    }
+
+    private static function extractBundleFiles($payload): array {
+        if (!is_array($payload) || !isset($payload['files']) || !is_array($payload['files'])) {
+            return [];
+        }
+
+        $files = [];
+        foreach ($payload['files'] as $file) {
+            if (is_string($file)) {
+                $name = trim($file);
+                if ($name === '') continue;
+                $files[] = ['name' => $name, 'type' => null, 'keys' => null];
+                continue;
+            }
+            if (!is_array($file)) continue;
+
+            $name = trim((string)($file['name'] ?? $file['file'] ?? ''));
+            if ($name === '') continue;
+
+            $keys = $file['keys'] ?? null;
+            $files[] = [
+                'name' => $name,
+                'type' => isset($file['type']) ? (string)$file['type'] : null,
+                'keys' => is_numeric($keys) ? (int)$keys : null,
+            ];
+        }
+
+        usort($files, function (array $left, array $right): int {
+            return strcmp($left['name'], $right['name']);
+        });
+
+        return $files;
     }
 
     private static function q(string $schema): string {

@@ -460,7 +460,8 @@ if ($useDatabase) {
                 ld.rank,
                 ld.min_resolution,
                 ld.max_resolution,
-                ld.options
+                ld.options,
+                ld.maptips
             ";
         }
         $sql .= "
@@ -607,6 +608,7 @@ if (!$mapping) {
 $layerDefinitions = [];
 $_nlsAliasesRuntime = []; // nlsKey => label
 $layerData = ['definitions' => [], 'path' => '', 'filesCount' => 0]; // Fallback fuer Debug-Meta
+$maptipsByLayer = []; // linked_layer => [maptip, ...]
 
 // catalog_document-Aliases aus $conf nachladen (wurden vor dieser Zeile geparst
 // und in $conf gelesen, aber $conf ist jetzt bereinigt — direkt aus $doc lesen).
@@ -642,10 +644,42 @@ if ($useCatalogDocument) {
                     foreach ($data as $k => $v) {
                         if (is_array($v)) $layerDefinitions[$k] = $v;
                     }
+                } elseif ($prefix === 'maptips') {
+                    foreach ($data as $mtKey => $mtVal) {
+                        if (!is_array($mtVal)) continue;
+                        $linked = $mtVal['linked_layer'] ?? '';
+                        if (!is_string($linked) || $linked === '') continue;
+                        $entry = $mtVal;
+                        // Hilfsfeld für Debug/Matching in Runtime
+                        $entry['_id'] = $mtKey;
+                        if (!isset($maptipsByLayer[$linked])) $maptipsByLayer[$linked] = [];
+                        $maptipsByLayer[$linked][] = $entry;
+                    }
                 } elseif ($prefix === 'lyrmgrResources') {
                     foreach ($data as $k => $v) {
                         if (is_string($v)) $_nlsAliasesRuntime[$k] = $v;
                     }
+                }
+            }
+        }
+
+        // maptips_* den Layer-Definitionen zuordnen (gleiche linked_layer-Logik wie Runtime).
+        foreach ($maptipsByLayer as $linkedLayerId => $mtList) {
+            if (isset($layerDefinitions[$linkedLayerId]) && is_array($layerDefinitions[$linkedLayerId])) {
+                $layerDefinitions[$linkedLayerId]['maptips'] = $mtList;
+                continue;
+            }
+            // Prefix-Fallback: linked_layer kann spezifischer sein als Layer-Definition.
+            $parts = explode('/', $linkedLayerId);
+            while (count($parts) > 1) {
+                array_pop($parts);
+                $parent = implode('/', $parts);
+                if (isset($layerDefinitions[$parent]) && is_array($layerDefinitions[$parent])) {
+                    if (!isset($layerDefinitions[$parent]['maptips']) || !is_array($layerDefinitions[$parent]['maptips'])) {
+                        $layerDefinitions[$parent]['maptips'] = [];
+                    }
+                    $layerDefinitions[$parent]['maptips'] = array_merge($layerDefinitions[$parent]['maptips'], $mtList);
+                    break;
                 }
             }
         }
@@ -931,6 +965,7 @@ function processLayerItems($items, &$layerDefinitions, $details = true, $filterM
                 $layerData['visible']   = (bool)($def['visible'] ?? false);
                 $layerData['params']    = $def['params'] ?? [];
                 $layerData['options']   = $def['options'] ?? [];
+                $layerData['maptips']   = $def['maptips'] ?? [];
             }
 
             // Legend-Info immer generieren (auch bei details=false)
@@ -999,6 +1034,7 @@ function processLayerItems($items, &$layerDefinitions, $details = true, $filterM
                         $layerData['visible']   = (bool)($def['visible'] ?? false);
                         $layerData['params']    = $def['params'] ?? [];
                         $layerData['options']   = $def['options'] ?? [];
+                        $layerData['maptips']   = $def['maptips'] ?? [];
                     }
                     // Legend-Info immer generieren, falls nicht bereits aus lyrmgr.conf gesetzt
                     if (!isset($layerData['legend'])) {
@@ -1604,6 +1640,7 @@ function buildCatalogTree(array $rows, bool $details, bool $filterMissing = true
             $node['maxResolution'] = isset($row['max_resolution']) && $row['max_resolution'] !== null ? (float) $row['max_resolution'] : null;
             $node['params']        = json_decode($row['params'] ?? '{}', true) ?: new \stdClass();
             $node['options']       = json_decode($row['options'] ?? '{}', true) ?: new \stdClass();
+            $node['maptips']       = json_decode($row['maptips'] ?? '[]', true) ?: [];
         }
 
         $nodes[$nodePk] = $node;

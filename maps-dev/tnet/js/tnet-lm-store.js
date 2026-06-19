@@ -1300,6 +1300,14 @@
     isLayerRequestedVisible: function (layerId) {
       return this._getRequestedLayerVisible(layerId);
     },
+    /**
+     * Prueft ob ein Layer im Karteninhalt (Dargestellte Themen) AKTIV ist —
+     * unabhaengig von seiner Sichtbarkeit. Aktiv = in _activeLayers enthalten.
+     * Wird vom Themenkatalog genutzt, um aktive (auch unsichtbare) Layer anzukreuzen.
+     */
+    isLayerActive: function (layerId) {
+      return this._isActive(layerId);
+    },
 
     /**
      * Prüft, ob eine Layer-ID im Themenkatalog belastbar auflösbar ist.
