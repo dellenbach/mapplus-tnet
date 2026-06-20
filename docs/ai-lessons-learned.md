@@ -1,4 +1,11 @@
-﻿## 2026-06-19 - Flache Layer wurden faelschlich kombiniert + Opacity-Cross-Talk durch reconcile
+﻿## 2026-06-20 - Mobile: Bookmark-Layer werden nicht aktiviert (deselectAll-Crash)
+
+- Symptom: Auf dem Mobile-Client laedt ein Bookmark (z.B. /maps-dev/gew) die Layer NICHT auf die Karte (active=[], leere Karte), obwohl das Karteninhalt-Panel die Themen korrekt anzeigt (eigene Bookmark-API).
+- Root-Cause: Framework-Core `njs.LayerMgr.ClassicLayerCategory.deselectAll()` (mapplus-lib, shared) greift auf `_chk.domNode` eines dijit-Checkbox-Widgets zu. Auf Mobile existieren diese Checkboxen NICHT (kein klassischer Layer-Manager) -> `_chk` undefined -> TypeError "Cannot read properties of undefined (reading 'domNode')". Der Crash bricht TnetSetBookmark -> setMapBookmark -> deselectAll ab, sodass die Bookmark-Layer nie aktiviert werden. Auf Desktop existieren die Checkboxen -> kein Crash.
+- Fix: NICHT den shared Core anfassen. Neues `maps-dev/tnet/js/tnet-framework-guards.js` patcht `deselectAll` zur Laufzeit defensiv (Guard `if (_chk && _chk.domNode)`), eingebunden in index_de_m.htm vor dem Bookmark-Auto-Start. Verifiziert: gew-Bookmark aktiviert mobil alle 3 Layer; on/off + add/remove sauber.
+- Guardrail: Mobile nutzt denselben Store/Helpers wie Desktop, aber das Framework rendert KEINE dijit-Checkbox-Widgets. Core-Methoden, die UI-Widget-domNodes voraussetzen (deselectAll, selectAll, disableAll), koennen mobil crashen -> bei Bedarf per Laufzeit-Guard in tnet-framework-guards.js defensiv machen, statt mapplus-lib zu aendern.
+
+## 2026-06-19 - Flache Layer wurden faelschlich kombiniert + Opacity-Cross-Talk durch reconcile
 
 - Symptom: Mehrere flache Dienste unter gleichem Kategorie-Praefix (z.B. gis_fach/nw_verkehrsrichtplan, gis_fach/nw_strassenverzeichnis): beim Aktivieren wurden manche unsichtbar (Ein/Aus unrobust), und das Verstellen EINES Opacity-Sliders setzte die anderen auf den Default zurueck.
 - Root-Cause 1 (Ein/Aus): `_setFrameworkCombinedSublayer` und `reconcileMapConsistency` gruppierten Sublayer nach ID-Praefix `id.substring(0, lastIndexOf('/'))`. Bei flachen IDs `kategorie/dienst` ist das die KATEGORIE (`gis_fach/`), nicht der Dienst. Verschiedene Dienste wurden so als Sublayer EINES Dienstes behandelt → ein renderLayer gewaehlt, die anderen versteckt.
