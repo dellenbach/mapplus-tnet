@@ -1927,13 +1927,15 @@ body:not(.tnet-sidepanel-v2) .lm-container-desktop .lm-cat-content::-webkit-scro
 }
 
 /* ===== LAYER SEARCH HIGHLIGHT ===== */
-/* Pulsierende Hervorhebung wenn ein Layer via Suche navigiert wird */
+/* Rotes, smoothes Aufblinken (3x) wenn ein Layer via Breadcrumb-Klick oder Suche navigiert wird */
 .lm-highlight {
-  animation: lm-highlight-pulse 2.5s ease-out !important;
+  animation: lm-highlight-pulse 0.7s ease-in-out 3 !important;
+  border-radius: 3px !important;
 }
 @keyframes lm-highlight-pulse {
-  0%, 30% { background-color: rgba(75, 123, 129, 0.35) !important; }
-  100% { background-color: transparent !important; }
+  0%   { background-color: transparent; }
+  50%  { background-color: rgba(220, 53, 69, 0.55); }
+  100% { background-color: transparent; }
 }
 
 /* Dezenter Scrollbar auch für "Dargestellte Themen" Panel */
