@@ -908,6 +908,12 @@
         </div>
     </div>
 
+    <!-- Basemap-Overlay-Icons (analog Desktop; Mobile laedt kein override.css) -->
+    <style>
+      #m-basemap-sheet .layer-icon-img { width: 28px; height: 28px; display: block; }
+      #m-basemap-sheet .layer-icon { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    </style>
+
     <!-- Basemap Bottom-Sheet -->
     <div id="m-basemap-overlay" class="m-basemap-overlay"></div>
     <div id="m-basemap-sheet">
@@ -919,32 +925,11 @@
         <div class="m-basemap-sheet-body">
             <div class="basemap-widget-content">
                 <div class="basemap-layer-section">
+                    <!-- Basiskarten-Ueberlagerungen: dynamisch aus tnet-global-config.json5
+                         (basemapOverlays) generiert durch tnet-basemap.js (analog Desktop) -->
+                    <div id="basemap-overlay-rows"></div>
                     <div class="basemap-layer-row">
-                        <span class="layer-icon">〜</span>
-                        <span class="layer-label">Höhenkurven</span>
-                        <div class="layer-toggle">
-                            <button class="toggle-btn" data-layer="hoehenkurven" data-value="on">EIN</button>
-                            <button class="toggle-btn active" data-layer="hoehenkurven" data-value="off">AUS</button>
-                        </div>
-                    </div>
-                    <div class="basemap-layer-row">
-                        <span class="layer-icon">⊞</span>
-                        <span class="layer-label">Projektebene</span>
-                        <div class="layer-toggle">
-                            <button class="toggle-btn" data-layer="projektebene" data-value="on">EIN</button>
-                            <button class="toggle-btn active" data-layer="projektebene" data-value="off">AUS</button>
-                        </div>
-                    </div>
-                    <div class="basemap-layer-row">
-                        <span class="layer-icon">◯</span>
-                        <span class="layer-label">Gemeindegrenzen</span>
-                        <div class="layer-toggle">
-                            <button class="toggle-btn" data-layer="gemeindegrenzen" data-value="on">EIN</button>
-                            <button class="toggle-btn active" data-layer="gemeindegrenzen" data-value="off">AUS</button>
-                        </div>
-                    </div>
-                    <div class="basemap-layer-row">
-                        <span class="layer-icon">◧</span>
+                        <span class="layer-icon" id="basemap-colormode-icon">◧</span>
                         <span class="layer-label">Farbig / Grau</span>
                         <div class="layer-toggle">
                             <button class="toggle-btn active" data-layer="farbmodus" data-value="color"
