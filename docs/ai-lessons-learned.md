@@ -1,4 +1,19 @@
-﻿## 2026-06-19 - Andocken der Objektinfo verschob Karteninhalt/Pin ruckartig (inkl. Flicker beim Resize)
+﻿## 2026-06-19 - Geaenderte Layer-Opacity ueberlebte keinen Reload (URL op=)
+
+- Symptom: Per Slider geaenderte Transparenz ging nach Reload verloren; URL op= zeigte die Config-Default-Opacity (0.65 -> gerundet 0.7) statt des Laufzeitwerts.
+- Root-Cause: Der Framework-Writer `updateMapStatusUrl` baut op= aus `curr_lays[lay].opacity` (njs-Layer-Wrapper-Property, via getVisibleLayersByMap). TNET `setLayerOpacity` setzte aber nur die OL-Layer-Opacity + Store-Eintraege, NICHT den njs-Wrapper -> Framework schrieb weiter den Default.
+- Fix: In `setLayerOpacity` Helper `_syncFrameworkOpacity(layerId, opacity)`: njs-Wrapper in allen LyrMgr via getLayerById finden und `.opacity` nachziehen; danach entprellt (400ms) `updateMapStatusUrl('main')` aufrufen, gegated auf `Tools.TrackBookmark` (Muster aus tnet-lyrmgr-patch.js notifyAfterLayerChange). Read-Pfad (Reload) funktionierte bereits: ClassicLayerMgr.switchLayersProgr liest op= und setzt `_lyr.opacity` + `_lyr.setOpacity`.
+- Guardrail: Es gibt ZWEI Layer-Opacity-Modelle (njs-Wrapper `.opacity` UND OL `getOpacity`) plus zwei URL-Writer (Framework updateMapStatusUrl bei mode 'none'; TNET _updateBookmarkUrlMode bei Bookmark). Opacity-Aenderungen muessen den njs-Wrapper mitziehen, sonst landet der Config-Default in op=. Framework rundet op= auf 1 Dezimalstelle.
+
+## 2026-06-19 - Unabhaengige Opacity pro Sublayer (kombinierter ArcGIS-Dienst)
+
+- Symptom: Beim Basisplan-Dienst (gis_basis/nw_basisplan_gis_dynamisch) aenderte der Opacity-Slider eines Overlays (z.B. Gemeindegrenzen) auch die Transparenz der Geschwister (Hoehenkurven/Projektebene).
+- Root-Cause: NICHT das Framework, sondern TNET-Store-Code fasst mehrere aktive Sublayer desselben Dienst-Praefixes in EINEN OL-Layer (LAYERS=show:0,21,51) mit EINER Opacity zusammen. Es gibt ZWEI Combiner: (1) `_setFrameworkCombinedSublayer`/`_rebuildCombinedShow` (beim Toggle), (2) `reconcileMapConsistency` (Nachlauf-Konsolidierung, baut ebenfalls show:-Liste und versteckt die uebrigen OL-Layer). Das Framework selbst erzeugt pro Layer-Def einen EIGENEN `_lyr` und unterstuetzt native Per-Layer-Opacity (URL op=a|b|c).
+- Fehlversuch: ArcGIS `dynamicLayers` (per-Sublayer transparency in EINEM Request) wirkt NICHT, weil die Framework-ArcGIS-Source beim Request-Bau nur `LAYERS` liest und `dynamicLayers` ignoriert (Params werden gesetzt, landen aber nie in der Export-URL).
+- Fix: Beide Combiner fuer konfigurierte Dienste ueberspringen. Helper `_isIndependentOpacityLayer(layerId)` (liest `window.__tnetIndependentOpacityServices` aus config `basemapOverlays.independentOpacityServices`). In `_setFrameworkCombinedSublayer` frueh `return false`; in `reconcileMapConsistency` die Kombinations-Branch-Bedingung um `&& !self._isIndependentOpacityLayer(layer.id)` ergaenzen. Dadurch laedt jedes Overlay via TnetLayerSwitch als EIGENER OL-Layer (eigenes show:N) und `setLayerOpacity` setzt die Opacity auf dem eigenen OL-Layer → native, unabhaengige Opacity. Kein dynamicLayers, keine Source-Wrapping noetig.
+- Guardrail: Bei "geteilte Opacity trotz getrennter Slider" zuerst pruefen, WER kombiniert (oft TNET-Store, nicht das Framework). Mehrere Combiner-Pfade beachten (Toggle UND reconcile). Generisch ueber config-Liste steuern, nicht hartkodieren.
+
+## 2026-06-19 - Andocken der Objektinfo verschob Karteninhalt/Pin ruckartig (inkl. Flicker beim Resize)
 
 - Symptom: Beim Oeffnen/Schliessen/Resizen des angedockten Info-Panels staucht/springt der Karteninhalt: erst verschoben, dann zurueck; beim Live-Resize flackert es.
 - Root-Cause: (1) OL-Canvas ist `width:100%` → bei mapContainer-Verschmaelerung staucht das Canvas SOFORT, das verzoegerte `updateSize()` (setTimeout 350ms) rendert erst danach scharf nach (= sichtbares Stauchen + Korrektur). (2) `updateSize()` haelt den geografischen Mittelpunkt fix → Recenter-Sprung; ein nachgelagertes `centerOn` korrigiert (= zweiter Sprung). (3) Schliessen/Observer-Pfade hatten keinen Anker.
@@ -2353,6 +2368,22 @@ Guardrail: Wenn Change-Detection fÃ¼r KÃ¼rzel vorhanden ist, immer auch prÃ
 - **Root-Cause**: Toggle-Handler nutzte `closest('[data-group-id]')` fÃ¼r die Gruppen-Suche â€” das matchte auf jeden Elternknoten mit `data-group-id`, potenziell auch auf den falschen. Zustandserkennung via `!contains('lm-collapsed')` konnte bei fehlender Klasse (weder expanded noch collapsed) inkorrekt sein. `classList.toggle(name, force)` hatte Browser-Quirks.
 - **Fix**: Selektor geÃ¤ndert auf `closest('.lm-subcat, .lm-group, .lm-nested-group')` (explizite Klassen). Explizites `classList.add/remove` statt `toggle(name, force)`. `e.preventDefault()` ergÃ¤nzt. Debug-Logging via TnetLog.
 - **Guardrail**: CSS-Klassen-Toggle immer explicit add+remove verwenden, nie `classList.toggle(name, boolForce)`. Group-Suche immer via CSS-Klasse (`.lm-subcat` etc.), nicht via Daten-Attribut.
+
+## 2026-06-19 â€” Breadcrumb-Jump fand Zielknoten nicht mehr
+
+- **Symptom**: Klick auf den Breadcrumb im Info-Panel Ã¶ffnete den Katalog zwar, sprang aber nicht zum Ziel-Layer oder hob ihn nicht hervor.
+- **Root-Cause**: Die Zielsuche lief vor dem Ã–ffnen des `tp_overview_menu`; bei lazy gerenderten bzw. noch versteckten Knoten war der Layer-DOM dadurch noch nicht vorhanden.
+- **Fix**: `scrollToLayerInCatalog()` Ã¶ffnet den Katalog jetzt zuerst und wiederholt die Zielsuche nach einem kurzen Retry. Die eigentliche Navigation wurde in `_scrollToCatalogTarget()` ausgelagert, damit der gefundene Knoten nach dem Retry ohne Duplikatpfad verarbeitet wird.
+- **Guardrail**: Bei Breadcrumb-Navigation zu lazy gerenderten Katalogen immer zuerst das Zielpanel Ã¶ffnen und mindestens einen kurzen Retry fÃ¼r die DOM-Suche einplanen.
+
+## 2026-06-19 â€” Breadcrumb-Jump: Delegation, Gruppen-IDs, Keyframe-!important, CSS-Cache
+
+- **Symptom**: Breadcrumb-Klick im Info-Panel sprang teils gar nicht (z.B. LÃ¤rm-Layer), und das gefundene Ziel blinkte nicht auf.
+- **Root-Cause 1 (Sprung)**: `scrollToLayerInCatalog()` baute die Navigation selbst nach und scheiterte an lazy gerenderten Tabs (inaktive Tabs haben 0 Layer im DOM). Zudem suchte `TnetLMTree.navigateToLayer()` nur nach `[data-layer-id]`; zeigt `linked_layer` auf einen Dienst/Gruppe, existiert dafÃ¼r aber nur `[data-group-id]`.
+- **Root-Cause 2 (Blinken)**: `@keyframes lm-highlight-pulse` enthielt `!important` in den Keyframe-Deklarationen. `!important` ist in `@keyframes` laut CSS-Spec ungÃ¼ltig â†’ Browser verwirft die Deklarationen â†’ leere Keyframes, keine Animation.
+- **Root-Cause 3 (Cache)**: `override.css` war ohne `?v=` eingebunden und wurde aggressiv gecacht; selbst Hard-Reload behielt die alte (kaputte) Version.
+- **Fix**: `scrollToLayerInCatalog()` delegiert an `window.TnetLMTree.navigateToLayer()` (Lazy-Render, Tab-Wechsel, Eltern-Expand, Scroll/Highlight inklusive). `tryFind` sucht jetzt zusÃ¤tzlich `[data-group-id]` (exakt + Eltern-Pfad-Fallback). `!important` aus den Keyframes entfernt (in `override.css` und `tnet-lm.css`). Cache-Buster `?v=20260619b` an den `override.css`-Link in `index_de.htm`.
+- **Guardrail**: Niemals `!important` innerhalb von `@keyframes` â€” wird still ignoriert. CSS-Dateien immer mit `?v=`-Cache-Buster einbinden, sonst greifen Fixes trotz Deploy nicht. Bei Katalog-Navigation sowohl `data-layer-id` als auch `data-group-id` berÃ¼cksichtigen.
 
 ## 2026-03-08 â€” Gruppen-Legend: Case-Mismatch ArcGIS-Servicename vs. Config
 - **Symptom**: Klick auf Legenden-Button einer Gruppe zeigt "ArcGIS Legend-Fehler: Could not find service". Leaf-Layer-Legenden funktionieren.

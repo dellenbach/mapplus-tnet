@@ -659,6 +659,17 @@
   to { transform: rotate(360deg); }
 }
 
+/* Rotes, smoothes Aufblinken (3x) wenn ein Layer via Breadcrumb-Klick oder Suche navigiert wird */
+.lm-highlight {
+  animation: lm-highlight-pulse 0.7s ease-in-out 3 !important;
+  border-radius: 3px !important;
+}
+@keyframes lm-highlight-pulse {
+  0%   { background-color: transparent; }
+  50%  { background-color: rgba(220, 53, 69, 0.55); }
+  100% { background-color: transparent; }
+}
+
 .lm-eye.lm-eye-loading::after {
   content: '';
   position: absolute;

@@ -351,7 +351,7 @@ input[type="range"]::-webkit-slider-thumb:hover {
   right: 0 !important;
   left: auto !important;
   bottom: 32px !important;
-  width: 400px;
+  width: var(--tnet-info-panel-docked-width, 400px) !important;
   height: auto !important;
   max-height: none !important;
   border-radius: 0 !important;
@@ -2152,11 +2152,20 @@ body:not(.tnet-sidepanel-v2) #lm-active-container.lm-container-desktop::-webkit-
 }
 
 .layer-icon {
-  width: 28px;
+  width: 36px;
+  margin-right: 12px;
   color: #e8423f;
   font-size: 16px;
-  text-align: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
+}
+
+.layer-icon-img {
+  width: 31px;
+  height: 31px;
+  display: block;
 }
 
 .layer-label {

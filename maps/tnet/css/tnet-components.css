@@ -113,7 +113,7 @@
 
 /* ===== MAP FOOTER BAR - Durchgehende Leiste ===== */
 #map-footer-bar {
-  position: absolute;
+  position: fixed;
   left: 0;
   right: 0;
   bottom: 0;
@@ -127,6 +127,7 @@
   font-size: 11px;
   color: #fff;
   padding: 0 10px;
+  box-sizing: border-box;
   backdrop-filter: blur(2px);
 }
 

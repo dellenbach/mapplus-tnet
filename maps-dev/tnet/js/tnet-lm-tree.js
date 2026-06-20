@@ -977,7 +977,9 @@
       var self = this;
       var attempts = 0;
       function tryFind() {
-        var layerEl = _container.querySelector('[data-layer-id="' + layerId + '"]');
+        // Zuerst exakter Treffer auf Layer-Ebene, dann auf Gruppe (für linked_layer → Dienst/Gruppe)
+        var layerEl = _container.querySelector('[data-layer-id="' + layerId + '"]') ||
+                      _container.querySelector('[data-group-id="' + layerId + '"]');
         if (!layerEl && attempts < 5) {
           attempts++;
           setTimeout(tryFind, 150);
@@ -986,11 +988,13 @@
         if (!layerEl) {
           // Eltern-Pfad-Fallback: Pfadsegmente kürzen bis ein DOM-Element gefunden wird
           // z.B. "a/b/c/d/e" → "a/b/c/d" → "a/b/c" → "a/b" → "a"
+          // Prüft sowohl data-layer-id als auch data-group-id (für Dienst-IDs)
           var fallbackParts = layerId.split('/');
           while (!layerEl && fallbackParts.length > 1) {
             fallbackParts.pop();
             var fallbackId = fallbackParts.join('/');
-            layerEl = _container.querySelector('[data-layer-id="' + fallbackId + '"]');
+            layerEl = _container.querySelector('[data-layer-id="' + fallbackId + '"]') ||
+                      _container.querySelector('[data-group-id="' + fallbackId + '"]');
           }
           if (!layerEl) {
             TnetLog.warn(LOG, 'navigateToLayer: Layer nicht im DOM gefunden:', layerId);
@@ -999,25 +1003,50 @@
           TnetLog.log(LOG, 'navigateToLayer: Eltern-Element gefunden:', fallbackParts.join('/'), '(statt:', layerId, ')');
         }
 
-        // 3) Alle Elternknoten aufklappen (immer explizit setzen,
-        //    nicht nur bei lm-collapsed — verhindert Zustand ohne Klasse)
+        // 3) Zielknoten + alle Elternknoten aufklappen (immer explizit setzen,
+        //    nicht nur bei lm-collapsed — verhindert Zustand ohne Klasse).
+        //    Ist das Ziel selbst eine Gruppe, wird sie ebenfalls aufgeklappt,
+        //    damit ihr Inhalt sichtbar ist (verschachtelte Layer).
+        var expandNode = function (node) {
+          if (node && node.classList &&
+              (node.classList.contains('lm-subcat') ||
+               node.classList.contains('lm-group') ||
+               node.classList.contains('lm-nested-group'))) {
+            node.classList.add('lm-expanded');
+            node.classList.remove('lm-collapsed');
+          }
+        };
+        // Zielknoten selbst (falls Gruppe)
+        expandNode(layerEl);
+        // Alle Vorfahren bis zum Container
         var parent = layerEl.parentElement;
         while (parent && parent !== _container) {
-          if (parent.dataset && parent.dataset.groupId !== undefined) {
-            parent.classList.add('lm-expanded');
-            parent.classList.remove('lm-collapsed');
-          }
+          expandNode(parent);
           parent = parent.parentElement;
         }
 
-        // 4) In den sichtbaren Bereich scrollen
-        layerEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        // 4) Scroll + Highlight erst nach dem Reflow (Eltern wurden gerade
+        //    aufgeklappt → Layout muss neu berechnet sein, sonst springt der
+        //    erste Klick ins Leere und ein zweiter Klick waere noetig).
+        var doScrollAndHighlight = function () {
+          layerEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
 
-        // 5) Kurz hervorheben (CSS-Animation)
-        layerEl.classList.add('lm-highlight');
-        setTimeout(function () {
+          // Animation sauber neu starten (falls Klasse noch von vorher haengt)
           layerEl.classList.remove('lm-highlight');
-        }, 2500);
+          void layerEl.offsetWidth; // Reflow erzwingen → Animation startet neu
+          layerEl.classList.add('lm-highlight');
+          setTimeout(function () {
+            layerEl.classList.remove('lm-highlight');
+          }, 2500);
+        };
+
+        if (typeof requestAnimationFrame === 'function') {
+          requestAnimationFrame(function () {
+            requestAnimationFrame(doScrollAndHighlight);
+          });
+        } else {
+          setTimeout(doScrollAndHighlight, 60);
+        }
       }
       setTimeout(tryFind, 80);
       return true;

@@ -30,6 +30,7 @@ require_once __DIR__ . '/../includes/CacheHelper.php';
 require_once __DIR__ . '/../includes/BookmarkNormalizer.php';
 require_once __DIR__ . '/../includes/BookmarkRepository.php';
 require_once __DIR__ . '/../includes/ConfigReader.php';
+require_once __DIR__ . '/../includes/StagingImportRepository.php';
 
 ApiResponse::setHeaders();
 
@@ -85,61 +86,49 @@ if ($source === 'db') {
 
 CacheHelper::setNoCache();
 
-// === NLS-Namen aus lyrmgrResources_*.json laden (gleiche Quelle wie SLM/listAllLayers) ===
-// Gibt Map zurück: layer_id => display_name
-// Verwendet desc_<layerId> und desc_<layerId_mit_underscores> als Lookup-Keys.
-// Bei leerem Profil oder Fehler: leeres Array (Fallback auf formatLayerIdPart()).
+// === NLS-Namen ausschliesslich aus DB (StagingImportRepository Bundles) laden ===
+// Kein JSON-Fallback. Wenn die DB leer/nicht verfügbar ist, wird ein leeres Array
+// zurückgegeben → formatLayerIdPart() liefert dann den rohen Layer-ID-Teil.
+// Scope-Reihenfolge: core -> override/sitecore -> profile (wie listAllLayers()).
 function loadProfileLayerNames(string $profile): array {
-    // Basis-NLS aus core/nls/de
     $nlsData = [];
-    $nlsDirBase = ConfigReader::getCoreNlsPath('de');
-    if ($nlsDirBase && is_dir($nlsDirBase)) {
-        foreach (glob($nlsDirBase . '/lyrmgrResources*.json') ?: [] as $f) {
-            $d = @json_decode(@file_get_contents($f), true);
-            if (is_array($d)) $nlsData = array_merge($nlsData, $d);
-        }
-    }
-    // App-Override: maps/core/nls/de (überschreibt Basis)
-    $nlsDirOverride = TnetCorePaths::getAppCoreNlsPath('de');
-    if ($nlsDirOverride && is_dir($nlsDirOverride) && $nlsDirOverride !== $nlsDirBase) {
-        foreach (glob($nlsDirOverride . '/lyrmgrResources*.json') ?: [] as $f) {
-            $d = @json_decode(@file_get_contents($f), true);
-            if (is_array($d)) $nlsData = array_merge($nlsData, $d);
-        }
-    }
-    // Profil-spezifische NLS (z.B. lyrmgrResources_nwpro.json in public/config/nwpro/)
-    if ($profile) {
-        $safe = preg_replace('/[^a-zA-Z0-9_\-]/', '', $profile);
-        $profConfigPath = ConfigReader::getPublicConfigPath($safe);
-        if ($profConfigPath && is_dir($profConfigPath)) {
-            foreach (glob($profConfigPath . '/lyrmgrResources*.json') ?: [] as $f) {
-                $d = @json_decode(@file_get_contents($f), true);
-                if (is_array($d)) $nlsData = array_merge($nlsData, $d);
+
+    try {
+        $scopeRank = ['core' => 1, 'override' => 2, 'sitecore' => 2, 'profile' => 3];
+        $bundles = StagingImportRepository::loadAllSafe();
+        if (empty($bundles)) return []; // DB leer → kein Fallback
+        usort($bundles, function ($a, $b) use ($scopeRank) {
+            $ra = $scopeRank[$a['scope'] ?? 'core'] ?? 1;
+            $rb = $scopeRank[$b['scope'] ?? 'core'] ?? 1;
+            if ($ra === $rb) return strcmp($a['kuerzel'] ?? '', $b['kuerzel'] ?? '');
+            return $ra - $rb;
+        });
+        foreach ($bundles as $bundle) {
+            $bScope   = $bundle['scope'] ?? 'core';
+            $bProfile = $bundle['profile'] ?? null;
+            // Profil-Bundles nur für das aktuelle Profil
+            if ($bScope === 'profile') {
+                if (!$profile || $bProfile !== $profile) continue;
+            }
+            foreach (($bundle['files'] ?? []) as $file) {
+                if (($file['prefix'] ?? '') !== 'lyrmgrResources') continue;
+                $data = $file['data'] ?? null;
+                if (is_array($data) && !empty($data)) {
+                    $nlsData = array_merge($nlsData, $data);
+                }
             }
         }
-        // Profil-NLS auch im app-lokalen nls-Ordner suchen
-        foreach ([$nlsDirBase, $nlsDirOverride] as $nlsDir) {
-            if (!$nlsDir) continue;
-            $profNlsFile = $nlsDir . '/lyrmgrResources_' . $safe . '.json';
-            if (file_exists($profNlsFile)) {
-                $d = @json_decode(@file_get_contents($profNlsFile), true);
-                if (is_array($d)) $nlsData = array_merge($nlsData, $d);
-            }
-        }
+    } catch (\Throwable $e) {
+        return []; // DB nicht verfügbar
     }
 
     // Map aufbauen: layer_id => display_name
-    // NLS-Key-Format: "desc_<layer_id>" oder "desc_<layer_id_mit_underscores>"
     $map = [];
     foreach ($nlsData as $key => $value) {
         if (strpos($key, 'desc_') !== 0) continue;
-        $raw = substr($key, 5); // ohne "desc_"
-        // Normalisiere: Unterstriche können Slashes repräsentieren
-        // Beides registrieren: mit / und mit _
-        $withSlash = str_replace('_', '/', $raw);
-        $withUnderscore = $raw;
-        $map[$withSlash] = $value;
-        $map[$withUnderscore] = $value;
+        $raw = substr($key, 5);
+        $map[str_replace('_', '/', $raw)] = $value;
+        $map[$raw] = $value;
     }
     return $map;
 }
@@ -173,6 +162,85 @@ function loadProfileLayerIds(string $profile): ?array {
     } catch (\Throwable $e) {
         return null; // Bei Fehler kein Filter
     }
+}
+
+// === Render-Metadaten eines Profils laden (Single-Source fuer Karteninhalt) ===
+// Liefert pro Layer-ID die render-relevanten Felder, damit der Karteninhalt direkt aus
+// der Bookmark-API aufgebaut werden kann: opacity (Default), layerType, url,
+// legendTitle/legendLink. Quelle ist das StagingImportRepository (config_bundle_store) —
+// dieselbe Quelle wie loadProfileLayerNames und layers.php (source=file). Die DB-Tabelle
+// layer_definition wird BEWUSST NICHT genutzt: dienst-spezifische Bookmark-IDs (z.B.
+// gis_oereb/...) existieren dort nicht; ihre Konfiguration liegt in den Staging-Bundles
+// ('layers'-.conf + 'legendResources'-.json). Bei DB-Fehler oder leerem Profil: [].
+function loadProfileLayerMeta(string $profile): array {
+    $layerData  = [];   // aus 'layers'-Bundles: id => { type, url, opacity, ... }
+    $legendData = [];    // aus 'legendResources'-Bundles: '<id>_title' / '<id>_link'
+
+    try {
+        $scopeRank = ['core' => 1, 'override' => 2, 'sitecore' => 2, 'profile' => 3];
+        $bundles = StagingImportRepository::loadAllSafe();
+        if (empty($bundles)) return [];
+        usort($bundles, function ($a, $b) use ($scopeRank) {
+            $ra = $scopeRank[$a['scope'] ?? 'core'] ?? 1;
+            $rb = $scopeRank[$b['scope'] ?? 'core'] ?? 1;
+            if ($ra === $rb) return strcmp($a['kuerzel'] ?? '', $b['kuerzel'] ?? '');
+            return $ra - $rb;
+        });
+        foreach ($bundles as $bundle) {
+            $bScope   = $bundle['scope'] ?? 'core';
+            $bProfile = $bundle['profile'] ?? null;
+            if ($bScope === 'profile') {
+                if (!$profile || $bProfile !== $profile) continue;
+            }
+            foreach (($bundle['files'] ?? []) as $file) {
+                $prefix = $file['prefix'] ?? '';
+                $data   = $file['data'] ?? null;
+                if (!is_array($data)) continue;
+                if ($prefix === 'layers') {
+                    foreach ($data as $k => $v) {
+                        if (is_array($v)) $layerData[$k] = $v;
+                    }
+                } elseif ($prefix === 'legendResources') {
+                    foreach ($data as $k => $v) {
+                        if (is_string($v)) $legendData[$k] = $v;
+                    }
+                }
+            }
+        }
+    } catch (\Throwable $e) {
+        return [];
+    }
+
+    // Legenden-Lookup: akzeptiert '<id>_title'/'<id>_link' sowohl mit Slashes als auch
+    // mit Unterstrichen (wie bei den NLS-Namen).
+    $legendLookup = function (string $id, string $suffix) use ($legendData) {
+        $candidates = [$id . $suffix, str_replace('/', '_', $id) . $suffix];
+        foreach ($candidates as $key) {
+            if (isset($legendData[$key]) && $legendData[$key] !== '') return $legendData[$key];
+        }
+        return null;
+    };
+
+    $map = [];
+    foreach ($layerData as $id => $def) {
+        if (!is_array($def)) continue;
+        // Opazitaet: bevorzugt options.opacity, sonst top-level opacity.
+        $opacity = null;
+        if (isset($def['options']) && is_array($def['options']) && isset($def['options']['opacity']) && is_numeric($def['options']['opacity'])) {
+            $opacity = (float)$def['options']['opacity'];
+        } elseif (isset($def['opacity']) && is_numeric($def['opacity'])) {
+            $opacity = (float)$def['opacity'];
+        }
+        $map[$id] = [
+            'opacity'     => $opacity,
+            'layerType'   => $def['type'] ?? ($def['layerType'] ?? null),
+            'url'         => $def['url'] ?? null,
+            'legendKey'   => $def['legend'] ?? null,
+            'legendTitle' => $legendLookup($id, '_title'),
+            'legendLink'  => $legendLookup($id, '_link'),
+        ];
+    }
+    return $map;
 }
 
 // === Profil-Filter auf Bookmark anwenden ===
@@ -266,7 +334,10 @@ function buildServiceGroups(array $layers): array {
 // Kinder = alle Layer deren id mit "<parent-id>/" beginnt.
 // Nur direkte Kinder des jeweiligen Parents werden eingehängt (nicht rekursiv tief).
 // $nameMap (optional): layer_id => { name, coalesce_group } — aus loadProfileLayerNames()
-function buildServiceGroupsTree(array $layers, array $nameMap = []): array {
+// $metaMap (optional): layer_id => { opacity, layerType, url, legendKey, legendTitle, legendLink }
+//   aus loadProfileLayerMeta(). Liefert render-relevante Metadaten (Legende, Typ, URL) und
+//   die Default-Opazitaet (nur Fallback, wenn das Bookmark keine eigene Opazitaet vorgibt).
+function buildServiceGroupsTree(array $layers, array $nameMap = [], array $metaMap = []): array {
     // Zuerst flache Gruppen aufbauen
     $groups = buildServiceGroups($layers);
 
@@ -296,14 +367,30 @@ function buildServiceGroupsTree(array $layers, array $nameMap = []): array {
         $nodes = [];
         foreach ($ids as $id) {
             $l = $layerMap[$id] ?? ['id' => $id, 'visible' => true, 'opacity' => null, 'order' => null, 'filter' => null];
+            $meta = $metaMap[$id] ?? null;
+            // Opazitaet: Bookmark-Override hat Vorrang; sonst Default aus Layer-Definition.
+            $nodeOpacity = $l['opacity'] ?? null;
+            if ($nodeOpacity === null && $meta !== null && isset($meta['opacity'])) {
+                $nodeOpacity = $meta['opacity'];
+            }
             $node = [
                 'id'       => $id,
                 'visible'  => (bool)($l['visible'] ?? true),
-                'opacity'  => $l['opacity'] ?? null,
+                'opacity'  => $nodeOpacity,
                 'order'    => $l['order'] ?? null,
                 'filter'   => $l['filter'] ?? null,
                 'children' => [],
             ];
+            // Render-Metadaten aus der DB (Single-Source fuer den Karteninhalt):
+            // Legende, Diensttyp und URL direkt mitliefern, damit das Frontend den
+            // Karteninhalt vollstaendig aus der API aufbauen kann.
+            if ($meta !== null) {
+                if ($meta['layerType']   !== null) $node['layerType']   = $meta['layerType'];
+                if ($meta['url']         !== null) $node['url']         = $meta['url'];
+                if ($meta['legendKey']   !== null) $node['legendKey']   = $meta['legendKey'];
+                if ($meta['legendTitle'] !== null) $node['legendTitle'] = $meta['legendTitle'];
+                if ($meta['legendLink']  !== null) $node['legendLink']  = $meta['legendLink'];
+            }
             // Name aus nameMap (direkt String) oder formatiert
             if (!empty($nameMap)) {
                 $node['name'] = $nameMap[$id] ?? formatLayerIdPart($id);
@@ -350,10 +437,13 @@ if ($name !== null) {
 
     // NLS-Namen vorab laden wenn angefordert
     $nameMap = ($withNames && $profile !== null) ? loadProfileLayerNames($profile) : [];
+    // Render-Metadaten des Profils laden (Legende, Typ, URL, Default-Opazitaet).
+    // Single-Source: damit der Karteninhalt vollstaendig aus der API aufgebaut werden kann.
+    $metaMap = ($profile !== null) ? loadProfileLayerMeta($profile) : [];
 
     if ($hierarchy >= 1) {
         $found['serviceGroups'] = ($hierarchy >= 2)
-            ? buildServiceGroupsTree($found['layers'] ?? [], $nameMap)
+            ? buildServiceGroupsTree($found['layers'] ?? [], $nameMap, $metaMap)
             : buildServiceGroups($found['layers'] ?? []);
         // Bei hierarchy=2: layers[] ist redundant — alle Infos stecken im tree.
         if ($hierarchy >= 2) {

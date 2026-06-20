@@ -782,32 +782,11 @@
                         <div class="basemap-widget-content">
                             <!-- Layer Toggles -->
                             <div class="basemap-layer-section">
+                                <!-- Basiskarten-Überlagerungen: dynamisch aus tnet-global-config.json5
+                                     (basemapOverlays) generiert durch tnet-basemap.js -->
+                                <div id="basemap-overlay-rows"></div>
                                 <div class="basemap-layer-row">
-                                    <span class="layer-icon">〰</span>
-                                    <span class="layer-label">Höhenkurven</span>
-                                    <div class="layer-toggle">
-                                        <button class="toggle-btn" data-layer="hoehenkurven" data-value="on">EIN</button>
-                                        <button class="toggle-btn active" data-layer="hoehenkurven" data-value="off">AUS</button>
-                                    </div>
-                                </div>
-                                <div class="basemap-layer-row">
-                                    <span class="layer-icon">⊞</span>
-                                    <span class="layer-label">Projektebene</span>
-                                    <div class="layer-toggle">
-                                        <button class="toggle-btn" data-layer="projektebene" data-value="on">EIN</button>
-                                        <button class="toggle-btn active" data-layer="projektebene" data-value="off">AUS</button>
-                                    </div>
-                                </div>
-                                <div class="basemap-layer-row">
-                                    <span class="layer-icon">◯</span>
-                                    <span class="layer-label">Gemeindegrenzen</span>
-                                    <div class="layer-toggle">
-                                        <button class="toggle-btn" data-layer="gemeindegrenzen" data-value="on">EIN</button>
-                                        <button class="toggle-btn active" data-layer="gemeindegrenzen" data-value="off">AUS</button>
-                                    </div>
-                                </div>
-                                <div class="basemap-layer-row">
-                                    <span class="layer-icon">◧</span>
+                                    <span class="layer-icon" id="basemap-colormode-icon">◧</span>
                                     <span class="layer-label">Farbig / Grau</span>
                                     <div class="layer-toggle">
                                         <button class="toggle-btn active" data-layer="farbmodus" data-value="color" 
@@ -938,7 +917,7 @@
     <script type="module" src="tnet/js/tnet-utils.js"></script>
 
     <!-- TNET helpers for bookmarks&Co. -->
-    <script type="text/javascript" src="tnet/js/tnet-mapplus-helpers.js?v=20260617f" defer></script>
+    <script type="text/javascript" src="tnet/js/tnet-mapplus-helpers.js?v=20260618j" defer></script>
     
     <!-- TNET Accordion/Tab-Konverter -->
     <link rel="stylesheet" href="tnet/css/tnet_toc.css" />
@@ -993,14 +972,16 @@
     <script src="tnet/js/tnet-basemap.js"></script>
 
     <!-- TNET Layer-Manager: Themenkatalog + Dargestellte Themen (Store, Tree, Active-Panel, Init) -->
-    <link rel="stylesheet" href="tnet/css/tnet-lm.css" />
+    <link rel="stylesheet" href="tnet/css/tnet-lm.css?v=20260618c" />
     <link rel="stylesheet" href="tnet/css/tnet-sidepanel.css" />
     <script src="tnet/js/tnet-coalesce-bridge.js?v=20260617e" defer></script>
-    <script src="tnet/js/tnet-lm-store.js?v=20260617d" defer></script>
-    <script src="tnet/js/tnet-lm-tree.js" defer></script>
-    <script src="tnet/js/tnet-lm-active.js?v=20260617j" defer></script>
-    <script src="tnet/js/tnet-lm-active-v2.js?v=20260617a" defer></script>
+    <script src="tnet/js/tnet-lm-store.js?v=20260618b" defer></script>
+    <script src="tnet/js/tnet-lm-tree.js?v=20260618c" defer></script>
+    <script src="tnet/js/tnet-lm-active.js?v=20260618i" defer></script>
     <script src="tnet/js/tnet-lm-init.js" defer></script>
+
+    <!-- TNET Independent-Opacity: pro Sublayer eigene Transparenz fuer konfigurierte Dienste -->
+    <script src="tnet/js/tnet-independent-opacity.js?v=20260619a" defer></script>
 
     <!-- TNET Accordion-Resize: Höhenverstellbare Themenkatalog/Dargestellte Themen -->
     <script src="tnet/js/tnet-accordion-resize.js" defer></script>
@@ -1015,7 +996,7 @@
     <script src="tnet/js/tnet-3d-landscape.js?v=20260211c"></script>
 
     <!-- TNET ÖREB: Grundstückabfrage, EGRID, Katasterauszug -->
-    <script type="module" src="tnet/js/tnet-oereb.js"></script>
+    <script type="module" src="tnet/js/tnet-oereb.js?v=20260618b"></script>
 
     <!-- Ergebnis-Panel für räumliche Abfrage (ausserhalb mapContainer für korrekte Pointer-Events) -->
     <div id="spatial-query-panel" class="spatial-query-panel hidden">
@@ -1084,9 +1065,6 @@
         <div class="wms-header" id="wms-header">
             <span class="wms-title">Externe Kartendienste (WMS)</span>
             <div class="wms-actions">
-                <button class="wms-btn" id="wms-dock-btn" onclick="toggleWmsDock()" title="Rechts andocken">
-                    <svg viewBox="0 0 24 24"><path fill="currentColor" d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16h-4V5h4v14z"/></svg>
-                </button>
                 <button class="wms-close" onclick="closeWmsPanel()">&times;</button>
             </div>
         </div>
@@ -1117,7 +1095,7 @@
     <script src="tnet/js/tnet-wms-panel.js?v=20260306"></script>
 
     <!-- TNET Info-Bridge: Zentraler singleclick-Dispatcher für MapTips/GFI -->
-    <script src="tnet/js/tnet-info-bridge.js?v=20260616j"></script>
+    <script src="tnet/js/tnet-info-bridge.js?v=20260618l"></script>
 
     <!-- Drucken / PDF-Export (Libraries werden dynamisch in tnet-print.js geladen) -->
     <link rel="stylesheet" href="tnet/css/tnet-print.css">

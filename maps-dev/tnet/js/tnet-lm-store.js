@@ -2229,6 +2229,25 @@
       return false;
     },
 
+    /**
+     * True, wenn ein ANDERER aktiver Layer dieselbe Service-URL (MapServer) hat —
+     * also ein echter Mehr-Sublayer-Dienst vorliegt, dessen Sublayer ueber einen
+     * gemeinsamen show:-Layer kombiniert werden. Flache Layer mit eindeutiger URL
+     * liefern false und werden so von der Kombination ausgenommen (eigener OL-Layer,
+     * eigene Sichtbarkeit/Opacity). Die Service-URL ist die korrekte Dienst-Identitaet
+     * (das ID-Praefix kann eine blosse Kategorie sein, z.B. 'gis_fach/').
+     */
+    _hasActiveSiblingSameService: function (layer, excludeId) {
+      if (!layer || !layer.url) return false;
+      for (var i = 0; i < _activeLayers.length; i++) {
+        var ae = _activeLayers[i];
+        if (!ae || !ae.id || ae.id === excludeId) continue;
+        var sibling = this.findLayer(ae.id);
+        if (sibling && sibling.url === layer.url) return true;
+      }
+      return false;
+    },
+
     _setFrameworkCombinedSublayer: function (layerId, layer, shouldBeVisible) {
       // Independent-Opacity-Dienste NICHT kombinieren: jedes Overlay laedt als
       // eigener OL-Layer (Standardpfad via TnetLayerSwitch), damit die native
@@ -2236,6 +2255,12 @@
       if (this._isIndependentOpacityLayer(layerId)) return false;
       var subNum = this._extractSublayerNum(layer);
       if (subNum === null) return false; // kein ArcGIS-show:-Sublayer
+
+      // Nur ECHTE Mehr-Sublayer-Dienste kombinieren: ein anderer aktiver Layer muss
+      // dieselbe Service-URL haben. Sonst werden verschiedene Dienste, die nur ein
+      // ID-Praefix teilen (z.B. flache 'gis_fach/<dienst>'-Layer), faelschlich
+      // zusammengefasst und gegenseitig versteckt (Ein/Aus + Opacity unsauber).
+      if (!this._hasActiveSiblingSameService(layer, layerId)) return false;
 
       var lastSlash = layerId.lastIndexOf('/');
       if (lastSlash < 0) return false;
@@ -3152,7 +3177,10 @@
           // Independent-Opacity-Dienste NICHT zu einem gemeinsamen show:-Layer
           // kombinieren — jedes Overlay bleibt ein eigener OL-Layer (Per-Layer-Pfad
           // unten setzt Sichtbarkeit/Opacity auf dem eigenen OL-Layer).
-          if (subNum !== null && slash > 0 && !self._isIndependentOpacityLayer(layer.id)) {
+          // Ebenso flache Layer ohne Geschwister gleicher Service-URL: nur echte
+          // Mehr-Sublayer-Dienste duerfen kombiniert werden (sonst Praefix-Kollision).
+          if (subNum !== null && slash > 0 && !self._isIndependentOpacityLayer(layer.id)
+              && self._hasActiveSiblingSameService(layer, layer.id)) {
             var prefix = layer.id.substring(0, slash + 1);
             if (!combinedServices[prefix]) combinedServices[prefix] = { pairs: [], opacity: targetOpacity };
             combinedServices[prefix].pairs.push({ id: layer.id, num: subNum, opacity: targetOpacity });

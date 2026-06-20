@@ -285,6 +285,11 @@ class AdminAuth {
         return false;
     }
 
+    /** Ist ein Benutzer eingeloggt (beliebige Rolle)? */
+    public static function isLoggedIn() {
+        return self::isAuthenticated();
+    }
+
     /** Eingeloggten Benutzernamen aus Cookie lesen (leer bei Legacy/anonym). */
     public static function getCurrentUser() {
         $cookie = $_COOKIE[self::COOKIE_NAME] ?? '';

@@ -600,31 +600,43 @@ function initInfoPaneEnhancements() {
         console.log('[ScrollToCatalog] Aufgerufen mit:', linkedLayerId);
         if (!linkedLayerId) return;
 
-        // 1. Layer-DOM-Element finden
-        var layerEl = findLayerElementInCatalog(linkedLayerId);
-        if (!layerEl) return;
-
-        // 2. Prüfen ob Element im neuen LM-Tree oder im Legacy-Baum liegt
-        var treeContainer = document.getElementById('lm-tree-container');
-        var isNewTree = treeContainer && treeContainer.contains(layerEl);
-        console.log('[ScrollToCatalog] Modus:', isNewTree ? 'Neuer Tree' : 'Legacy');
-
-        // 3. Themenkatalog-Pane öffnen (tp_overview_menu) — gilt für beide Modi
+        // Themenkatalog-Panel öffnen
         var overviewEl = document.getElementById('tp_overview_menu');
         if (overviewEl && !overviewEl.open) {
             overviewEl.open = true;
             console.log('[ScrollToCatalog] tp_overview_menu geöffnet');
         }
 
-        if (isNewTree) {
-            // ===== NEUER TREE: Tab aktivieren + Gruppen aufklappen =====
-            _scrollInNewTree(layerEl, treeContainer);
-        } else {
-            // ===== LEGACY BAUM: Tab aktivieren + TitlePanes öffnen =====
-            _scrollInLegacyTree(layerEl);
+        // Neuer Tree: TnetLMTree.navigateToLayer() delegieren — diese Funktion
+        // behandelt Lazy-Rendering, Tab-Wechsel, Eltern-Expand und Scroll/Highlight.
+        var treeContainer = document.getElementById('lm-tree-container');
+        if (treeContainer && window.TnetLMTree && typeof window.TnetLMTree.navigateToLayer === 'function') {
+            var started = window.TnetLMTree.navigateToLayer(linkedLayerId);
+            if (started) {
+                console.log('[ScrollToCatalog] Delegiert an TnetLMTree.navigateToLayer:', linkedLayerId);
+                return;
+            }
         }
 
-        // 4. Scroll & Highlight (verzögert)
+        // Fallback: Legacy-Baum
+        var layerEl = findLayerElementInCatalog(linkedLayerId);
+        if (!layerEl) {
+            console.warn('[ScrollToCatalog] Layer nicht gefunden (Legacy-Fallback):', linkedLayerId);
+            return;
+        }
+        _scrollToCatalogTarget(layerEl);
+    }
+
+    function _scrollToCatalogTarget(layerEl) {
+        var treeContainer = document.getElementById('lm-tree-container');
+        var isNewTree = treeContainer && treeContainer.contains(layerEl);
+        console.log('[ScrollToCatalog] Legacy-Modus:', isNewTree ? 'Neuer Tree' : 'Legacy');
+
+        if (isNewTree) {
+            _scrollInNewTree(layerEl, treeContainer);
+        } else {
+            _scrollInLegacyTree(layerEl);
+        }
         _scrollAndHighlight(layerEl, 0);
     }
 

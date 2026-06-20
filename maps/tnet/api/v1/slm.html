@@ -147,6 +147,9 @@ body {
 .ags-new-badge-pending { font-size: 10px; background: #c0392b; color: #fff; border-radius: 3px; padding: 1px 5px; flex-shrink: 0; font-family: sans-serif; }
 .ags-name { font-family: 'Consolas', monospace; word-break: break-all; }
 .ags-col-date { font-size: 11px; color: #666; white-space: nowrap; font-family: 'Consolas', monospace; }
+.ags-col-imp { white-space: normal; line-height: 1.2; }
+.ags-col-imp .imp-by { display: block; font-size: 10px; color: #888; margin-top: 1px; }
+.ags-col-imp .imp-by-missing { color: #aaa; font-style: italic; }
 .ags-col-author { font-size: 11px; color: #888; white-space: nowrap; }
 .ags-col-status { white-space: nowrap; }
 .ags-imported-badge { font-size: 10px; background: #27ae60; color: #fff; border-radius: 3px; padding: 1px 5px; flex-shrink: 0; font-family: sans-serif; }
@@ -561,7 +564,7 @@ body {
 .sync-summary-card { flex: 1; padding: 4px 8px; background: #f8fafc; min-width: 0; }
 .sync-summary-label { font-size: 10px; font-weight: 700; letter-spacing: .03em; color: #4a5c6a; text-transform: uppercase; }
 .sync-summary-value { font-size: 11px; font-weight: 700; color: #20323d; }
-.sync-summary-sub { font-size: 10px; color: #687680; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sync-summary-sub { font-size: 10px; color: #687680; white-space: normal; overflow: visible; text-overflow: clip; line-height: 1.25; }
 .sync-summary-status { display: inline-flex; align-items: center; gap: 3px; font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 999px; vertical-align: middle; }
 .sync-summary-status.ok { background: #eaf6ec; color: #2e7d32; }
 .sync-summary-status.diff { background: #fff3e0; color: #d97706; }
@@ -624,6 +627,15 @@ body {
 .sync-cell-main { font-weight: 600; color: #2a3943; line-height: 1.1; }
 .sync-cell-sub { font-size: 10px; color: #7d8890; margin-top: 2px; line-height: 1.2; }
 .sync-row-muted { color: #8b949b; font-size: 10px; }
+.sync-file-row td { background: #f7fafc; padding-top: 0; }
+.sync-file-box { padding: 8px 0 4px; }
+.sync-file-label { font-size: 10px; font-weight: 700; color: #51606b; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 4px; }
+.sync-file-list { display: flex; flex-wrap: wrap; gap: 4px; }
+.sync-file-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 6px; border-radius: 999px; background: #eef2f5; color: #31414b; font-size: 10px; font-family: Consolas, monospace; }
+.sync-file-chip.only-dev { background: #fff3e0; color: #9a5400; }
+.sync-file-chip.only-prod { background: #e3f2fd; color: #1565c0; }
+.sync-file-type { font-size: 9px; text-transform: uppercase; opacity: .75; }
+.sync-file-keys { font-size: 9px; opacity: .75; }
 
 
 /* ===== COMMIT-MESSAGE-DIALOG ===== */
@@ -2777,9 +2789,47 @@ function loadImportedNamesSilent() {
  */
 function formatDateTime(isoStr) {
   if (!isoStr) return '—';
-  // ISO oder "YYYY-MM-DD HH:MM:SS" akzeptieren
-  var s = String(isoStr).replace('T', ' ').replace('Z', '');
+  var raw = String(isoStr).trim();
+
+  // "YYYY-MM-DD HH:MM:SS" in Date-kompatibles ISO-ähnliches Format überführen
+  var normalized = raw;
+  if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}/.test(raw)) {
+    normalized = raw.replace(' ', 'T');
+  }
+
+  var d = new Date(normalized);
+  if (!isNaN(d.getTime())) {
+    var y = d.getFullYear();
+    var m = String(d.getMonth() + 1).padStart(2, '0');
+    var day = String(d.getDate()).padStart(2, '0');
+    var h = String(d.getHours()).padStart(2, '0');
+    var min = String(d.getMinutes()).padStart(2, '0');
+    return y + '-' + m + '-' + day + ' ' + h + ':' + min;
+  }
+
+  // Fallback: String nicht verwerfen
+  var s = raw.replace('T', ' ').replace('Z', '');
   return s.substring(0, 16);
+}
+
+/**
+ * Import-Metadaten für Zelle aufbereiten (Zeit + Benutzer)
+ */
+function formatImportedMeta(meta) {
+  if (!meta) return '—';
+  var when = meta.imported_at ? formatDateTime(meta.imported_at) : '—';
+  var by = meta.imported_by ? String(meta.imported_by).trim() : '';
+  return by ? (when + ' | ' + by) : when;
+}
+
+function renderImportedMetaHtml(meta) {
+  if (!meta) return '—';
+  var when = meta.imported_at ? formatDateTime(meta.imported_at) : '—';
+  var by = meta.imported_by ? String(meta.imported_by).trim() : '';
+  if (!by) {
+    return esc(when) + '<span class="imp-by imp-by-missing">—</span>';
+  }
+  return esc(when) + '<span class="imp-by">' + esc(by) + '</span>';
 }
 
 function renderImportList(services) {
@@ -2821,7 +2871,7 @@ function renderImportList(services) {
       + '<td class="ags-col-date ags-col-pub">' + (detail && detail.published_at ? formatDateTime(detail.published_at) : '—') + '</td>'
       + '<td class="ags-col-date ags-col-imp"></td>';
     tr.addEventListener('click', function(e) {
-      if (e.target.tagName === 'INPUT') { updateImportSelCount(); return; }
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'LABEL' || e.target.tagName === 'A') { updateImportSelCount(); return; }
       var cb = tr.querySelector('input');
       cb.checked = !cb.checked;
       _agsLastImportCheckbox = cb;
@@ -2829,11 +2879,11 @@ function renderImportList(services) {
     });
     var cb = tr.querySelector('input');
     cb.addEventListener('click', function(e) {
-      e.stopPropagation();
       if (e.shiftKey && _agsLastImportCheckbox) {
         applyShiftRangeSelection(getVisibleImportCheckboxes(), _agsLastImportCheckbox, cb, cb.checked);
       }
       _agsLastImportCheckbox = cb;
+      // Robust gegen Browser-/Label-Unterschiede: Selection-Counter immer direkt aktualisieren
       updateImportSelCount();
     });
     tbody.appendChild(tr);
@@ -2895,11 +2945,12 @@ function refreshImportImportedMarkers() {
     if (!statusCell) return;
 
     if (isChanged) {
-      statusCell.innerHTML = '<span class="ags-changed-badge" title="Dienst wurde seit Import (' + formatDateTime(meta.imported_at) + ') geändert">⚠ geändert</span>';
-      impCell.textContent = meta && meta.imported_at ? formatDateTime(meta.imported_at) : '—';
+      var changedTitle = 'Dienst wurde seit Import (' + formatImportedMeta(meta) + ') geändert';
+      statusCell.innerHTML = '<span class="ags-changed-badge" title="' + esc(changedTitle) + '">⚠ geändert</span>';
+      impCell.innerHTML = renderImportedMetaHtml(meta);
     } else if (isImp) {
       statusCell.innerHTML = '<span class="ags-imported-badge">✓ erzeugt</span>';
-      impCell.textContent = meta && meta.imported_at ? formatDateTime(meta.imported_at) : '—';
+      impCell.innerHTML = renderImportedMetaHtml(meta);
     } else {
       statusCell.innerHTML = '<span class="ags-new-badge-pending">⏳ ausstehend</span>';
       impCell.textContent = '—';
@@ -5721,6 +5772,16 @@ safeAddEventListener('import-filter', 'input', function() {
   });
 });
 
+// Import-Tab: Fallback-Handler für Checkbox-Änderungen
+// Sichert ab, dass der Export-Button auch dann korrekt umschaltet,
+// wenn einzelne Row-Click-Handler je nach Browser/Label-Verhalten nicht greifen.
+safeAddEventListener('import-list', 'change', function(e) {
+  var t = e.target;
+  if (t && t.matches && t.matches('input[type=checkbox]')) {
+    updateImportSelCount();
+  }
+});
+
 // Import-Tab: Quellauswahl-Buttons
 document.querySelectorAll('.import-source-btn').forEach(function(btn) {
   btn.addEventListener('click', function() {
@@ -6237,7 +6298,7 @@ function renderEditorSubTab(subTab) {
 
   // Filter-Bar anzeigen + Count
   document.getElementById('editor-filter-bar').style.display = 'flex';
-  var total = tbody.querySelectorAll('tr').length;
+  var total = tbody.querySelectorAll('tr[data-key]').length;
   document.getElementById('editor-filter-count').textContent = total + ' Einträge';
 
   // Spaltenresizer initialisieren
@@ -6253,8 +6314,20 @@ function filterEditorTable(query) {
   var tbody = document.getElementById('editor-tbody');
   if (!tbody) return;
   var q = (query || '').toLowerCase().trim();
-  var rows = tbody.querySelectorAll('tr');
+  var rows = tbody.querySelectorAll('tr[data-key]');
+  var expandRows = tbody.querySelectorAll('tr.et-expand-row');
   var visible = 0;
+
+  // Expand-Zeilen global behandeln statt pro Datenzeile erneut zu suchen.
+  if (!q) {
+    expandRows.forEach(function(er) {
+      er.style.display = (er.dataset.keepOpen === '1') ? '' : 'none';
+    });
+  } else {
+    expandRows.forEach(function(er) {
+      er.style.display = 'none';
+    });
+  }
 
   rows.forEach(function(tr) {
     if (!q) {
@@ -6262,13 +6335,19 @@ function filterEditorTable(query) {
       visible++;
       return;
     }
-    // Sammle durchsuchbaren Text: data-key, Zelleninhalte, Input-Werte
-    var text = (tr.dataset.key || '').toLowerCase();
-    tr.querySelectorAll('td').forEach(function(td) {
-      text += ' ' + (td.textContent || '').toLowerCase();
-      var inp = td.querySelector('input, select');
-      if (inp) text += ' ' + (inp.value || '').toLowerCase();
-    });
+
+    // Suchtext cachen, bei Edit-Events wird Cache invalidiert.
+    var text = tr.dataset.searchCache;
+    if (!text) {
+      text = (tr.dataset.key || '').toLowerCase();
+      tr.querySelectorAll('td').forEach(function(td) {
+        text += ' ' + (td.textContent || '').toLowerCase();
+        var inp = td.querySelector('input, select');
+        if (inp) text += ' ' + (inp.value || '').toLowerCase();
+      });
+      tr.dataset.searchCache = text;
+    }
+
     if (text.indexOf(q) !== -1) {
       tr.style.display = '';
       visible++;
@@ -6445,20 +6524,80 @@ function renderLyrmgrTable(thead, tbody, files) {
 
 // ===== MAPTIPS-TABELLE =====
 function renderMaptipsTable(thead, tbody, files) {
-  var COL_COUNT = 10;
+  var COL_COUNT = 11;
   var QUERY_TYPES = ['', 'wmsServiceMapTip', 'wfsServiceMapTip', 'esrigeojson', 'json'];
+  var nlsTitleLookup = {};
+
+  if (_editorData && Array.isArray(_editorData.files)) {
+    _editorData.files.forEach(function(fileObj) {
+      if (fileObj.type !== 'maptipsRes' || !fileObj.data) return;
+      Object.keys(fileObj.data).forEach(function(resKey) {
+        nlsTitleLookup[resKey] = String(fileObj.data[resKey] || '');
+      });
+    });
+  }
+
+  function getQryFieldsLabel(md) {
+    if (md && md.qryFields === '*') return '* alle';
+    if (md && Array.isArray(md.qryFields)) {
+      if (md.qryFields.length === 1 && md.qryFields[0] === '*') return '* alle';
+      return md.qryFields.length + ' Felder';
+    }
+    return '—';
+  }
+
+  function removeExpandRow(mainTr, type) {
+    var next = mainTr.nextElementSibling;
+    while (next && next.classList.contains('et-expand-row')) {
+      if (next.dataset.expandType === type) {
+        next.remove();
+        return;
+      }
+      next = next.nextElementSibling;
+    }
+  }
+
+  function getExpandRow(mainTr, type) {
+    var next = mainTr.nextElementSibling;
+    while (next && next.classList.contains('et-expand-row')) {
+      if (next.dataset.expandType === type) return next;
+      next = next.nextElementSibling;
+    }
+    return null;
+  }
+
+  function createExpandRow(mainTr, key, type) {
+    var row = document.createElement('tr');
+    row.className = 'et-expand-row';
+    row.dataset.parentKey = key;
+    row.dataset.expandType = type;
+    row.dataset.keepOpen = '1';
+
+    var td = document.createElement('td');
+    td.colSpan = COL_COUNT;
+    row.appendChild(td);
+
+    var anchor = mainTr.nextSibling;
+    while (anchor && anchor.classList && anchor.classList.contains('et-expand-row')) {
+      anchor = anchor.nextSibling;
+    }
+    mainTr.parentNode.insertBefore(row, anchor || null);
+    return row;
+  }
+
   thead.innerHTML = [
     '<tr>',
-    '<th style="width:22%">Key</th>',
+    '<th style="width:21%">Key</th>',
     '<th style="width:9%">NLS</th>',
-    '<th style="width:13%">Linked Layer</th>',
+    '<th style="width:16%">Layername Alias</th>',
+    '<th style="width:12%">Linked Layer</th>',
     '<th style="width:7%">Query Layers</th>',
-    '<th style="width:9%">Querytype</th>',
+    '<th style="width:8%">Querytype</th>',
     '<th style="width:6%">Aktiv</th>',
     '<th style="width:7%">Leere Felder</th>',
     '<th style="width:7%">Perm. HL</th>',
-    '<th style="width:10%">qryFields</th>',
-    '<th style="width:10%">Highlight-Style</th>',
+    '<th style="width:8%">qryFields</th>',
+    '<th style="width:9%">Highlight-Style</th>',
     '</tr>'
   ].join('');
 
@@ -6476,6 +6615,11 @@ function renderMaptipsTable(thead, tbody, files) {
       // NLS (editierbar)
       addInputTd(tr, fileObj.name, key, 'nls', md.nls || '');
 
+      // NLS-Auflösung via <nls>_title aus maptipsRes.*.json
+      var resolvedTitle = '';
+      if (md.nls) resolvedTitle = nlsTitleLookup[md.nls + '_title'] || '';
+      addTd(tr, resolvedTitle || '—', 'et-readonly', true);
+
       // Linked Layer (editierbar)
       addInputTd(tr, fileObj.name, key, 'linked_layer', md.linked_layer || '');
 
@@ -6484,26 +6628,7 @@ function renderMaptipsTable(thead, tbody, files) {
       if (md.query_layers !== undefined && md.query_layers !== null) {
         qlVal = Array.isArray(md.query_layers) ? md.query_layers.join(', ') : String(md.query_layers);
       }
-      var tdQl = document.createElement('td');
-      tdQl.className = 'et-editable';
-      var inpQl = document.createElement('input');
-      inpQl.type = 'text'; inpQl.className = 'et-input'; inpQl.value = qlVal;
-      inpQl.dataset.file = fileObj.name; inpQl.dataset.topKey = key;
-      inpQl.dataset.field = '__query_layers_text'; inpQl.dataset.origValue = qlVal;
-      inpQl.addEventListener('change', function() {
-        var fObj = _editorData.files.find(function(f) { return f.name === fileObj.name; });
-        if (!fObj) return;
-        var v = inpQl.value.trim();
-        fObj.data[key].query_layers = v === '' ? undefined : v;
-        tdQl.classList.toggle('et-changed', inpQl.value !== inpQl.dataset.origValue);
-        updateEditorChangeCount();
-      });
-      inpQl.addEventListener('input', function() {
-        tdQl.classList.toggle('et-changed', inpQl.value !== inpQl.dataset.origValue);
-        updateEditorChangeCount();
-      });
-      tdQl.appendChild(inpQl);
-      tr.appendChild(tdQl);
+      addInputTd(tr, fileObj.name, key, '__query_layers_text', qlVal);
 
       // Querytype (Select)
       addSelectTd(tr, fileObj.name, key, 'querytype', md.querytype || '', QUERY_TYPES);
@@ -6523,9 +6648,7 @@ function renderMaptipsTable(thead, tbody, files) {
       // qryFields Expand-Button
       var tdQf = document.createElement('td');
       tdQf.style.textAlign = 'center';
-      var qfLabel = Array.isArray(md.qryFields)
-        ? md.qryFields.length + ' Felder'
-        : (md.qryFields === '*' || (Array.isArray(md.qryFields) && md.qryFields[0] === '*') ? '* alle' : '—');
+      var qfLabel = getQryFieldsLabel(md);
       var btnQf = document.createElement('button');
       btnQf.className = 'et-expand-btn';
       btnQf.textContent = '▶ ' + qfLabel;
@@ -6546,62 +6669,50 @@ function renderMaptipsTable(thead, tbody, files) {
 
       tbody.appendChild(tr);
 
-      // Sub-Zeile: qryFields-Panel (zunächst versteckt)
-      var trQfExp = document.createElement('tr');
-      trQfExp.className = 'et-expand-row';
-      trQfExp.style.display = 'none';
-      var tdQfExp = document.createElement('td');
-      tdQfExp.colSpan = COL_COUNT;
-      trQfExp.appendChild(tdQfExp);
-      tbody.appendChild(trQfExp);
-
-      // Sub-Zeile: Highlight-Style-Panel (zunächst versteckt)
-      var trHlExp = document.createElement('tr');
-      trHlExp.className = 'et-expand-row';
-      trHlExp.style.display = 'none';
-      var tdHlExp = document.createElement('td');
-      tdHlExp.colSpan = COL_COUNT;
-      trHlExp.appendChild(tdHlExp);
-      tbody.appendChild(trHlExp);
-
       // qryFields Toggle
-      (function(fileObjRef, keyRef, tdCell, btnEl) {
+      (function(fileObjRef, keyRef, mainTr, btnEl) {
         btnEl.addEventListener('click', function() {
-          var isOpen = trQfExp.style.display !== 'none';
+          var trQfExp = getExpandRow(mainTr, 'qryfields');
+          var isOpen = !!trQfExp;
           if (isOpen) {
-            trQfExp.style.display = 'none';
+            removeExpandRow(mainTr, 'qryfields');
             btnEl.classList.remove('open');
             var curMd = fileObjRef.data[keyRef];
-            var lbl = Array.isArray(curMd.qryFields) ? curMd.qryFields.length + ' Felder' : '—';
+            var lbl = getQryFieldsLabel(curMd);
             btnEl.textContent = '▶ ' + lbl;
           } else {
-            trQfExp.style.display = '';
+            trQfExp = createExpandRow(mainTr, keyRef, 'qryfields');
+            var tdQfExp = trQfExp.firstElementChild;
             btnEl.classList.add('open');
             var curMd = fileObjRef.data[keyRef];
-            var lbl = Array.isArray(curMd.qryFields) ? curMd.qryFields.length + ' Felder' : '—';
+            var lbl = getQryFieldsLabel(curMd);
             btnEl.textContent = '▼ ' + lbl;
-            renderQryFieldsPanel(tdCell, fileObjRef, keyRef, function(lbl2) {
-              btnEl.textContent = (trQfExp.style.display !== 'none' ? '▼ ' : '▶ ') + lbl2;
+            renderQryFieldsPanel(tdQfExp, fileObjRef, keyRef, function(lbl2) {
+              var stillOpen = !!getExpandRow(mainTr, 'qryfields');
+              btnEl.textContent = (stillOpen ? '▼ ' : '▶ ') + lbl2;
             });
           }
         });
-      })(fileObj, key, tdQfExp, btnQf);
+      })(fileObj, key, tr, btnQf);
 
       // Highlight-Style Toggle
-      (function(fileObjRef, keyRef, tdCell, btnEl) {
+      (function(fileObjRef, keyRef, mainTr, btnEl) {
         btnEl.addEventListener('click', function() {
-          var isOpen = trHlExp.style.display !== 'none';
+          var trHlExp = getExpandRow(mainTr, 'highlight');
+          var isOpen = !!trHlExp;
           if (isOpen) {
-            trHlExp.style.display = 'none';
+            removeExpandRow(mainTr, 'highlight');
             btnEl.classList.remove('open');
             var curHl = fileObjRef.data[keyRef].highlight_style;
             btnEl.textContent = (curHl && typeof curHl === 'object') ? '◈ Style' : '◈ —';
           } else {
-            trHlExp.style.display = '';
+            trHlExp = createExpandRow(mainTr, keyRef, 'highlight');
+            var tdHlExp = trHlExp.firstElementChild;
             btnEl.classList.add('open');
             btnEl.textContent = '▼ Style';
-            renderHighlightStylePanel(tdCell, fileObjRef, keyRef, function(hasStyle) {
-              if (trHlExp.style.display !== 'none') {
+            renderHighlightStylePanel(tdHlExp, fileObjRef, keyRef, function(hasStyle) {
+              var stillOpen = !!getExpandRow(mainTr, 'highlight');
+              if (stillOpen) {
                 btnEl.textContent = '▼ Style';
               } else {
                 btnEl.textContent = hasStyle ? '◈ Style' : '◈ —';
@@ -6609,7 +6720,7 @@ function renderMaptipsTable(thead, tbody, files) {
             });
           }
         });
-      })(fileObj, key, tdHlExp, btnHl);
+      })(fileObj, key, tr, btnHl);
     });
   });
 }
@@ -6651,6 +6762,7 @@ function renderQryFieldsPanel(container, fileObj, topKey, onLabelChange) {
       inpFn.type = 'text'; inpFn.className = 'et-input'; inpFn.value = fieldName || '';
       inpFn.dataset.file = fileObj.name; inpFn.dataset.topKey = topKey;
       inpFn.dataset.field = 'qryFields[' + i + ']'; inpFn.dataset.origValue = fieldName || '';
+      inpFn.dataset.skipDelegatedChange = '1';
       inpFn.addEventListener('change', onEditorCellChange);
       inpFn.addEventListener('input', function() {
         tdFn.classList.toggle('et-changed', inpFn.value !== inpFn.dataset.origValue);
@@ -6666,6 +6778,7 @@ function renderQryFieldsPanel(container, fileObj, topKey, onLabelChange) {
       inpFmt.placeholder = "z.B. date(d.m.Y), num(0|,|')";
       inpFmt.dataset.file = fileObj.name; inpFmt.dataset.topKey = topKey;
       inpFmt.dataset.field = 'qryFieldsFormat[' + i + ']'; inpFmt.dataset.origValue = fmtVal;
+      inpFmt.dataset.skipDelegatedChange = '1';
       inpFmt.addEventListener('change', onEditorCellChange);
       inpFmt.addEventListener('input', function() {
         tdFmt.classList.toggle('et-changed', inpFmt.value !== inpFmt.dataset.origValue);
@@ -6680,6 +6793,7 @@ function renderQryFieldsPanel(container, fileObj, topKey, onLabelChange) {
       inpNv.type = 'text'; inpNv.className = 'et-input'; inpNv.value = nvVal;
       inpNv.dataset.file = fileObj.name; inpNv.dataset.topKey = topKey;
       inpNv.dataset.field = 'qryFieldsNullVal[' + i + ']'; inpNv.dataset.origValue = nvVal;
+      inpNv.dataset.skipDelegatedChange = '1';
       inpNv.addEventListener('change', onEditorCellChange);
       inpNv.addEventListener('input', function() {
         tdNv.classList.toggle('et-changed', inpNv.value !== inpNv.dataset.origValue);
@@ -6771,6 +6885,7 @@ function renderHighlightStylePanel(container, fileObj, topKey, onToggle) {
   inpProj.placeholder = 'EPSG:2056';
   inpProj.dataset.file = fileObj.name; inpProj.dataset.topKey = topKey;
   inpProj.dataset.field = 'highlight_geom_proj'; inpProj.dataset.origValue = md2.highlight_geom_proj || '';
+  inpProj.dataset.skipDelegatedChange = '1';
   inpProj.addEventListener('change', onEditorCellChange);
   topRow.appendChild(lblProj); topRow.appendChild(inpProj);
   panel.appendChild(topRow);
@@ -6798,11 +6913,21 @@ function renderHighlightStylePanel(container, fileObj, topKey, onToggle) {
       ti.dataset.file = fileObj.name; ti.dataset.topKey = topKey;
       ti.dataset.field = 'highlight_style.' + hf.key;
       ti.dataset.origValue = hl[hf.key] !== undefined ? curVal : '';
+      ti.dataset.skipDelegatedChange = '1';
       ti.addEventListener('change', function() {
         if (/^#[0-9a-f]{6}$/i.test(ti.value)) cp.value = ti.value;
         onEditorCellChange.call(ti);
       });
-      cp.addEventListener('input', function() { ti.value = cp.value; onEditorCellChange.call(ti); });
+      // Live-Vorschau: nur UI-Wert aktualisieren, noch nicht persistieren.
+      cp.addEventListener('input', function() {
+        ti.value = cp.value;
+        if (ti.closest('td')) ti.closest('td').classList.toggle('et-changed', String(ti.value) !== String(ti.dataset.origValue || ''));
+      });
+      // Commit erst bei abgeschlossenem Picker-Change.
+      cp.addEventListener('change', function() {
+        ti.value = cp.value;
+        onEditorCellChange.call(ti);
+      });
       wrap.appendChild(cp); wrap.appendChild(ti);
       fieldEls[hf.key] = ti;
     } else {
@@ -6815,6 +6940,7 @@ function renderHighlightStylePanel(container, fileObj, topKey, onToggle) {
       ni.dataset.file = fileObj.name; ni.dataset.topKey = topKey;
       ni.dataset.field = 'highlight_style.' + hf.key;
       ni.dataset.origValue = hl[hf.key] !== undefined ? String(hl[hf.key]) : '';
+      ni.dataset.skipDelegatedChange = '1';
       ni.addEventListener('change', onEditorCellChange);
       wrap.appendChild(ni);
       fieldEls[hf.key] = ni;
@@ -6836,10 +6962,10 @@ function renderHighlightStylePanel(container, fileObj, topKey, onToggle) {
       HL_FIELDS.forEach(function(hf) {
         md2.highlight_style[hf.key] = convertEditorValue(fieldEls[hf.key] ? fieldEls[hf.key].value : hf.def);
       });
-      updateEditorChangeCount();
+      requestEditorChangeCountUpdate();
     } else if (!active && md2.highlight_style) {
       delete md2.highlight_style;
-      updateEditorChangeCount();
+      requestEditorChangeCountUpdate();
     }
     if (onToggle) onToggle(!!md2.highlight_style);
   }
@@ -6910,11 +7036,6 @@ function addInputTd(tr, fileName, topKey, field, value) {
   input.dataset.topKey = topKey;
   input.dataset.field = field;
   input.dataset.origValue = value;
-  input.addEventListener('change', onEditorCellChange);
-  input.addEventListener('input', function() {
-    td.classList.toggle('et-changed', input.value !== input.dataset.origValue);
-    updateEditorChangeCount();
-  });
   td.appendChild(input);
   tr.appendChild(td);
 }
@@ -6935,10 +7056,6 @@ function addSelectTd(tr, fileName, topKey, field, value, options) {
     o.textContent = opt || '(leer)';
     if (opt === value) o.selected = true;
     sel.appendChild(o);
-  });
-  sel.addEventListener('change', function() {
-    td.classList.toggle('et-changed', sel.value !== sel.dataset.origValue);
-    onEditorCellChange.call(sel);
   });
   td.appendChild(sel);
   tr.appendChild(td);
@@ -6964,6 +7081,10 @@ function onEditorCellChange() {
   if (field === '_value') {
     // Direkte Wert-Zellen (lyrmgrResources, maptipsResources)
     fileObj.data[topKey] = newValue;
+  } else if (field === '__query_layers_text') {
+    // Query-Layers werden im Editor als String bearbeitet
+    var qlText = (newValue || '').trim();
+    fileObj.data[topKey].query_layers = qlText === '' ? undefined : qlText;
   } else if (/^\w+\[\d+\]$/.test(field)) {
     // Array-Zugriff: z.B. 'qryFields[0]', 'qryFieldsFormat[2]'
     var arrMatch = /^(\w+)\[(\d+)\]$/.exec(field);
@@ -6987,8 +7108,8 @@ function onEditorCellChange() {
     fileObj.data[topKey][field] = convertEditorValue(newValue);
   }
 
-  // Änderungszähler aktualisieren
-  updateEditorChangeCount();
+  // Änderungszähler asynchron aktualisieren (teure DOM-Query entkoppeln)
+  requestEditorChangeCountUpdate();
 }
 
 /** Wert-Typ konvertieren (String → Number/Boolean) */
@@ -7003,11 +7124,7 @@ function convertEditorValue(val) {
 
 /** Anzahl Änderungen zählen und Leiste aktualisieren */
 function updateEditorChangeCount() {
-  var count = 0;
-  var inputs = document.querySelectorAll('#editor-tbody .et-input, #editor-tbody .et-select');
-  inputs.forEach(function(el) {
-    if (el.value !== el.dataset.origValue) count++;
-  });
+  var count = document.querySelectorAll('#editor-tbody td.et-changed').length;
 
   var bar = document.getElementById('editor-changes-bar');
   var countEl = document.getElementById('editor-change-count');
@@ -7018,6 +7135,15 @@ function updateEditorChangeCount() {
     bar.classList.add('hidden');
   }
   return count;
+}
+
+var _editorChangeCountTimer = null;
+function requestEditorChangeCountUpdate() {
+  if (_editorChangeCountTimer) return;
+  _editorChangeCountTimer = setTimeout(function() {
+    _editorChangeCountTimer = null;
+    updateEditorChangeCount();
+  }, 0);
 }
 
 // =====================================================================
@@ -7608,9 +7734,41 @@ function runExportDeploy() {
 document.getElementById('editor-src-filter').addEventListener('input', function() {
   renderEditorSourceList(this.value);
 });
+
+// Delegierte Edit-Events: verhindert tausende Einzel-Listener pro Tabellenzelle.
+var _editorTbodyEl = document.getElementById('editor-tbody');
+if (_editorTbodyEl) {
+  _editorTbodyEl.addEventListener('input', function(e) {
+    var el = e.target;
+    if (!el || (!el.classList.contains('et-input') && !el.classList.contains('et-select'))) return;
+    var td = el.closest('td');
+    if (td) td.classList.toggle('et-changed', String(el.value) !== String(el.dataset.origValue || ''));
+    var tr = el.closest('tr[data-key]');
+    if (tr && tr.dataset) delete tr.dataset.searchCache;
+    requestEditorChangeCountUpdate();
+  });
+
+  _editorTbodyEl.addEventListener('change', function(e) {
+    var el = e.target;
+    if (!el || (!el.classList.contains('et-input') && !el.classList.contains('et-select'))) return;
+    // Panels mit eigener Speziallogik melden sich via Flag ab.
+    if (el.dataset && el.dataset.skipDelegatedChange === '1') return;
+    var td = el.closest('td');
+    if (td) td.classList.toggle('et-changed', String(el.value) !== String(el.dataset.origValue || ''));
+    var tr = el.closest('tr[data-key]');
+    if (tr && tr.dataset) delete tr.dataset.searchCache;
+    onEditorCellChange.call(el);
+  });
+}
+
 // Tabellen-Filter: Live-Filter über Zeilen
+var _editorTableFilterTimer = null;
 document.getElementById('editor-table-filter').addEventListener('input', function() {
-  filterEditorTable(this.value);
+  var val = this.value;
+  if (_editorTableFilterTimer) clearTimeout(_editorTableFilterTimer);
+  _editorTableFilterTimer = setTimeout(function() {
+    filterEditorTable(val);
+  }, 140);
 });
 // Refresh-Button
 document.getElementById('editor-src-refresh').addEventListener('click', function() {
@@ -11649,18 +11807,21 @@ function renderBundleTable(items, envKeys) {
       if (!env) return '<td class="sync-only-' + esc(e) + '"><div class="sync-cell-main">— fehlt</div><div class="sync-cell-sub">kein Paket</div></td>';
       var metaText = [formatSyncTimestamp(env.importedAt), formatSyncUser(env.importedBy)].filter(Boolean).join(' · ');
       var isNewer = newerSide === e;
-      return '<td class="' + (isNewer ? 'sync-cell-newer' : '') + '"><div class="sync-cell-main">' + esc(env.scope || 'core') + renderSyncNewBadge(isNewer ? e : null) + '</div><div class="sync-cell-sub">' + esc(metaText) + '</div></td>';
+      var fileCount = env.files && env.files.length ? env.files.length + ' Dateien' : 'keine Dateien';
+      return '<td class="' + (isNewer ? 'sync-cell-newer' : '') + '"><div class="sync-cell-main">' + esc(env.scope || 'core') + renderSyncNewBadge(isNewer ? e : null) + '</div><div class="sync-cell-sub">' + esc(metaText) + ' · ' + esc(fileCount) + '</div></td>';
     }).join('');
     var presentEnvs = envKeys.filter(function(e) { return item.envs && item.envs[e]; });
     var statusCell = item.status === 'both'
       ? '<td class="sync-ok" style="text-align:center">✅</td>'
       : '<td class="sync-diff" style="font-size:10px;white-space:nowrap">⚠ nur ' + esc(presentEnvs.map(function(e){return e.toUpperCase();}).join('+')) + '</td>';
+    var fileRow = renderBundleFileRow(item, envKeys);
     return '<tr>'
       + '<td class="sync-select-cell"><input type="checkbox" class="sync-select-item" data-sync-select-item="1" data-sync-domain="bundles" data-sync-key="' + esc(item.kuerzel) + '"></td>'
       + '<td style="font-family:monospace;font-size:11px">' + esc(item.kuerzel) + '</td>'
       + cells
       + statusCell
       + '</tr>';
+      + fileRow
   }).join('');
   if (items.length > 30) rows += '<tr><td colspan="' + (envKeys.length + 3) + '" style="text-align:center;color:#999;font-size:11px">… und ' + (items.length - 30) + ' weitere</td></tr>';
   var headers = '<th class="sync-select-col"><input type="checkbox" class="sync-select-all" data-sync-select-all="bundles" title="Alle Kürzel auswählen"></th>'
@@ -11668,6 +11829,44 @@ function renderBundleTable(items, envKeys) {
     + envKeys.map(function(e) { return '<th>' + esc(e.toUpperCase()) + '</th>'; }).join('')
     + '<th style="text-align:center">Status</th>';
   return '<div class="sync-table-wrap"><table class="sync-table"><thead><tr>' + headers + '</tr></thead><tbody>' + rows + '</tbody></table></div>';
+}
+
+function renderBundleFileRow(item, envKeys) {
+  var fileMap = {};
+
+  envKeys.forEach(function(env) {
+    var files = item.envs && item.envs[env] && Array.isArray(item.envs[env].files) ? item.envs[env].files : [];
+    files.forEach(function(file) {
+      var name = file && file.name ? String(file.name) : '';
+      if (!name) return;
+      if (!fileMap[name]) {
+        fileMap[name] = { name: name, envs: {} };
+      }
+      fileMap[name].envs[env] = file;
+    });
+  });
+
+  var names = Object.keys(fileMap).sort();
+  if (!names.length) {
+    return '<tr class="sync-file-row"><td></td><td colspan="' + (envKeys.length + 2) + '"><div class="sync-file-box"><div class="sync-file-label">Dateien</div><div class="sync-cell-sub">Keine Dateien im Bundle gespeichert.</div></div></td></tr>';
+  }
+
+  var chips = names.map(function(name) {
+    var entry = fileMap[name];
+    var presentEnvs = envKeys.filter(function(env) { return !!entry.envs[env]; });
+    var chipClass = 'sync-file-chip';
+    if (presentEnvs.length === 1) {
+      chipClass += ' ' + (presentEnvs[0] === 'dev' ? 'only-dev' : 'only-prod');
+    }
+    var refFile = entry.envs.dev || entry.envs.prod || entry.envs[presentEnvs[0]] || {};
+    var meta = [];
+    if (refFile.type) meta.push('<span class="sync-file-type">' + esc(refFile.type) + '</span>');
+    if (refFile.keys != null) meta.push('<span class="sync-file-keys">' + esc(String(refFile.keys)) + ' Keys</span>');
+    if (presentEnvs.length === 1) meta.push('<span class="sync-file-keys">nur ' + esc(presentEnvs[0].toUpperCase()) + '</span>');
+    return '<span class="' + chipClass + '" title="' + esc(name) + '">' + esc(name) + (meta.length ? ' ' + meta.join(' ') : '') + '</span>';
+  }).join('');
+
+  return '<tr class="sync-file-row"><td></td><td colspan="' + (envKeys.length + 2) + '"><div class="sync-file-box"><div class="sync-file-label">Dateien (' + names.length + ')</div><div class="sync-file-list">' + chips + '</div></div></td></tr>';
 }
 
 function buildSyncSummary(data, envKeys) {
@@ -11706,7 +11905,7 @@ function buildSyncSummary(data, envKeys) {
   summaryCards.push(buildSummaryCard('Bundles', {
     value: bundles.length + ' Kürzel',
     sub1: bundleDiff + ' nur auf einer Seite',
-    sub2: 'Synchronisiert pro Kürzel',
+    sub2: countBundleFiles(bundles, envKeys) + ' Dateien sichtbar',
     pillClass: bundleDiff ? 'warn' : 'ok',
     pillText: bundleDiff ? '↔ unvollständig' : '✓ beidseitig vorhanden'
   }, collectLatestMeta(bundles, envKeys, 'importedAt', 'importedBy'), envKeys));
@@ -11791,6 +11990,20 @@ function collectLatestMeta(items, envKeys, atKey, byKey) {
     });
   });
   return result;
+}
+
+function countBundleFiles(items, envKeys) {
+  var seen = {};
+  items.forEach(function(item) {
+    envKeys.forEach(function(env) {
+      var files = item.envs && item.envs[env] && Array.isArray(item.envs[env].files) ? item.envs[env].files : [];
+      files.forEach(function(file) {
+        var name = file && file.name ? String(file.name) : '';
+        if (name) seen[name] = true;
+      });
+    });
+  });
+  return Object.keys(seen).length;
 }
 
 function formatSummaryCount(value) {
