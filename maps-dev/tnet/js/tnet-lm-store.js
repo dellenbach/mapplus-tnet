@@ -3206,10 +3206,10 @@
             allOL[i].setVisible(targetVisible);
             changed++;
           }
-          if (targetVisible && targetOpacity !== null && typeof allOL[i].setOpacity === 'function' && Math.abs(allOL[i].getOpacity() - targetOpacity) > 0.0001) {
-            allOL[i].setOpacity(targetOpacity);
-            changed++;
-          }
+          // Opacity wird NICHT durch reconcile erzwungen: sie ist autoritativ ueber
+          // setLayerOpacity (Slider) bzw. den URL-/Bookmark-Load gesetzt. Ein Erzwingen
+          // aus der evtl. veralteten Katalog-Opacity setzte sonst die Laufzeit-/URL-
+          // Opacity ANDERER Layer faelschlich zurueck (sichtbarer Slider-Cross-Talk).
         }
       });
 
@@ -3288,10 +3288,7 @@
           renderLayer.setVisible(ordered.length > 0);
           changed++;
         }
-        if (service.opacity !== null && typeof renderLayer.setOpacity === 'function' && Math.abs(renderLayer.getOpacity() - service.opacity) > 0.0001) {
-          renderLayer.setOpacity(service.opacity);
-          changed++;
-        }
+        // Opacity NICHT erzwingen (siehe oben) — verhindert Reset der Laufzeit-Opacity.
         service.pairs.forEach(function (pair) {
           var activeEntry = self._findActiveLayer(pair.id);
           var catalogLayer = self.findLayer(pair.id);

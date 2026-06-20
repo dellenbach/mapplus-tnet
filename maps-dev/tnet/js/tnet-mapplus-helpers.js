@@ -1710,14 +1710,11 @@ function _applyUrlOverrideOpacity(options) {
 
     if (store && typeof store.setLayerOpacity === 'function') {
       try {
-        var catalogLayer = (typeof store.findLayer === 'function') ? store.findLayer(id) : null;
-        var previousCatalogOpacity = catalogLayer && catalogLayer.opacity;
-        var hadCatalogOpacity = !!(catalogLayer && catalogLayer.opacity !== undefined);
+        // Opacity in den Store persistieren (Katalog + Active-Eintrag), damit
+        // reconcileMapConsistency den URL-Wert NICHT auf die Config-Default-Opacity
+        // zuruecksetzt. Frueher wurde die Katalog-Opacity hier wiederhergestellt — das
+        // fuehrte zu Divergenz (Store 0.65 vs OL 0.7) und Cross-Talk beim Reconcile.
         store.setLayerOpacity(id, opacity);
-        if (catalogLayer) {
-          if (hadCatalogOpacity) catalogLayer.opacity = previousCatalogOpacity;
-          else delete catalogLayer.opacity;
-        }
       }
       catch (eStoreOp) { /* defensiv: Runtime-State bleibt trotzdem gesetzt */ }
     }
