@@ -1,4 +1,12 @@
-﻿## 2026-06-19 - Geaenderte Layer-Opacity ueberlebte keinen Reload (URL op=)
+﻿## 2026-06-19 - Flache Layer wurden faelschlich kombiniert + Opacity-Cross-Talk durch reconcile
+
+- Symptom: Mehrere flache Dienste unter gleichem Kategorie-Praefix (z.B. gis_fach/nw_verkehrsrichtplan, gis_fach/nw_strassenverzeichnis): beim Aktivieren wurden manche unsichtbar (Ein/Aus unrobust), und das Verstellen EINES Opacity-Sliders setzte die anderen auf den Default zurueck.
+- Root-Cause 1 (Ein/Aus): `_setFrameworkCombinedSublayer` und `reconcileMapConsistency` gruppierten Sublayer nach ID-Praefix `id.substring(0, lastIndexOf('/'))`. Bei flachen IDs `kategorie/dienst` ist das die KATEGORIE (`gis_fach/`), nicht der Dienst. Verschiedene Dienste wurden so als Sublayer EINES Dienstes behandelt → ein renderLayer gewaehlt, die anderen versteckt.
+- Root-Cause 2 (Opacity-Cross-Talk): `reconcileMapConsistency` erzwang die OL-Opacity aus der Katalog-Opacity (`layer.opacity`). Diese war fuer URL-geladene Layer veraltet (Config-Default 0.65, weil `_applyUrlOverrideOpacity` die Katalog-Opacity nach dem Anwenden zuruecksetzte). Jede reconcile-Runde (durch jede Opacity-Aenderung getriggert) setzte daher die Opacity ANDERER Layer auf 0.65 zurueck.
+- Fix: (a) Kombination nur bei ECHTEM Mehr-Sublayer-Dienst: Guard `_hasActiveSiblingSameService(layer)` prueft, ob ein anderer aktiver Layer dieselbe Service-URL (`layer.url`) hat. Flache Layer (eindeutige URL) werden ausgenommen → eigener OL-Layer, eigene Sichtbarkeit/Opacity. (b) `reconcileMapConsistency` erzwingt die Opacity NICHT mehr (nur Sichtbarkeit/Existenz/Z-Order) — Opacity ist autoritativ ueber setLayerOpacity + URL-Load. (c) `_applyUrlOverrideOpacity` persistiert die URL-Opacity jetzt in den Store (kein Restore mehr).
+- Guardrail: Dienst-Identitaet IMMER ueber die Service-URL bestimmen, NICHT ueber das ID-Praefix (das kann eine blosse Kategorie sein). reconcile darf Laufzeit-Werte (Opacity) nicht aus potenziell veralteten Store-Defaults ueberschreiben.
+
+## 2026-06-19 - Geaenderte Layer-Opacity ueberlebte keinen Reload (URL op=)
 
 - Symptom: Per Slider geaenderte Transparenz ging nach Reload verloren; URL op= zeigte die Config-Default-Opacity (0.65 -> gerundet 0.7) statt des Laufzeitwerts.
 - Root-Cause: Der Framework-Writer `updateMapStatusUrl` baut op= aus `curr_lays[lay].opacity` (njs-Layer-Wrapper-Property, via getVisibleLayersByMap). TNET `setLayerOpacity` setzte aber nur die OL-Layer-Opacity + Store-Eintraege, NICHT den njs-Wrapper -> Framework schrieb weiter den Default.
