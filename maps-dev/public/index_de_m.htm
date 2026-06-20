@@ -1046,6 +1046,10 @@
     <!-- TNET Info Panel (Bottom-Sheet Variante) -->
     <script type="module" src="tnet/js/tnet-info-panel.js?v=20260616b"></script>
 
+    <!-- TNET WMS-Panel: ArcGIS/WMS GetFeatureInfo fuer Custom-Layer (Info-Abfrage).
+         Muss VOR tnet-info-bridge.js geladen werden (liefert _queryCustomLayersForBridge). -->
+    <script src="tnet/js/tnet-wms-panel.js?v=20260306"></script>
+
     <!-- TNET Info-Bridge: Zentraler singleclick-Dispatcher für MapTips/GFI -->
     <script src="tnet/js/tnet-info-bridge.js?v=20260618l"></script>
 
@@ -1069,6 +1073,9 @@
     <script src="tnet/js/tnet-print.js" defer></script>
 
     <!-- Neuer Layer-Manager (Feature-Flag in tnet-global-config.json5 → layerManager.useNew) -->
+    <!-- Coalesce-Bridge MUSS vor tnet-lm-store.js geladen werden: rendert Coalesce-Sublayer
+         (OEREB/Gewaesserraum) als OL-Layer und liefert getOLLayerForSublayer fuer die Info-Abfrage. -->
+    <script src="tnet/js/tnet-coalesce-bridge.js?v=20260617e" defer></script>
     <script src="tnet/js/tnet-lm-store.js?v=20260617d" defer></script>
     <script src="tnet/js/tnet-lm-tree.js?v=20260222c" defer></script>
     <script src="tnet/js/tnet-lm-active.js?v=20260617j" defer></script>
