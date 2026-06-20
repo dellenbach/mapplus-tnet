@@ -335,6 +335,11 @@
 
     <!-- TNET Mobile Dojo modules -->
     <script type="text/javascript" src="tnet/js/mobile/tnet_modules_m.js?v=v4.0.0"></script>
+
+    <!-- TNET Framework-Guards: defensive Patches fuer Core-Methoden, die auf Mobile crashen
+         (z.B. ClassicLayerCategory.deselectAll -> domNode undefined -> Bookmark-Load bricht ab) -->
+    <script type="text/javascript" src="tnet/js/tnet-framework-guards.js?v=20260620a"></script>
+
     <script type="text/javascript" src="tnet/js/mobile/tnet-search-m.js?v=20260222b"></script>
 
     <!-- Early Splash-Hide -->
