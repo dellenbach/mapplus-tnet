@@ -1412,6 +1412,32 @@
                 mapInstance.changeBaseMap = function(basemapId) {
                     self.removeTimeOverlay();
 
+                    // Massstab + Ausschnitt ueber den View-Ersatz hinweg stabil halten:
+                    // Das Framework (_preTimeChangeBaseMap) ersetzt die View und kann dabei
+                    // den Zoom verlieren (z.B. Fit auf die ganze Schweiz beim Wechsel auf
+                    // Orthofoto). Wir merken uns Center + Resolution VOR dem Wechsel und
+                    // stellen sie danach wieder her (auf die neue View geklemmt). Loest die
+                    // neue Basemap weniger tief auf (Ortho), klemmt OL sauber auf die
+                    // kleinste verfuegbare Resolution bei gleichem Center.
+                    var _prevView = mapInstance.mapObj && mapInstance.mapObj.getView();
+                    var _prevCenter = _prevView ? _prevView.getCenter() : null;
+                    var _prevResolution = _prevView ? _prevView.getResolution() : null;
+                    function _restoreViewState() {
+                        try {
+                            var map = mapInstance.mapObj;
+                            if (!map || !_prevCenter || _prevResolution == null) return;
+                            var v = map.getView();
+                            if (!v) return;
+                            var minR = v.getMinResolution();
+                            var maxR = v.getMaxResolution();
+                            var r = _prevResolution;
+                            if (typeof minR === 'number' && r < minR) r = minR;
+                            if (typeof maxR === 'number' && r > maxR) r = maxR;
+                            v.setCenter(_prevCenter);
+                            v.setResolution(r);
+                        } catch (e) { /* ignore */ }
+                    }
+
                     var actualBasemapId = basemapId;
                     var cfg = self.config ? self.config[basemapId] : null;
                     if (cfg && cfg.fallbackBasemap) {
@@ -1450,6 +1476,8 @@
                     var result;
                     if (!skipFramework) {
                         result = mapInstance._preTimeChangeBaseMap.call(mapInstance, actualBasemapId);
+                        // Direkt nach dem (synchronen) View-Ersatz Massstab/Ausschnitt zurueckholen.
+                        _restoreViewState();
                     }
                     setTimeout(function() {
                         // Fix: Nach View-Ersatz Viewport stabilisieren
@@ -1460,10 +1488,16 @@
                                 // ondragstart (Property, nicht addEventListener → ersetzt sich selbst)
                                 viewport.ondragstart = function(e) { e.preventDefault(); };
                             }
+                            // Erneut wiederherstellen, falls das Framework waehrend der 200ms
+                            // (z.B. nach Tile-Load) die View nochmals angepasst/gefittet hat.
+                            _restoreViewState();
                             map.updateSize();
                         }
                         self.onBasemapChange(basemapId);
                     }, 200);
+                    // Absicherung gegen einen verspaeteten Framework-Fit (z.B. nach asynchronem
+                    // Tile-/Capabilities-Load): Massstab/Ausschnitt nochmals nachziehen.
+                    setTimeout(_restoreViewState, 700);
                     return result;
                 };
 
