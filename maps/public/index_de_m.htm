@@ -335,6 +335,11 @@
 
     <!-- TNET Mobile Dojo modules -->
     <script type="text/javascript" src="tnet/js/mobile/tnet_modules_m.js?v=v4.0.0"></script>
+
+    <!-- TNET Framework-Guards: defensive Patches fuer Core-Methoden, die auf Mobile crashen
+         (z.B. ClassicLayerCategory.deselectAll -> domNode undefined -> Bookmark-Load bricht ab) -->
+    <script type="text/javascript" src="tnet/js/tnet-framework-guards.js?v=20260620a"></script>
+
     <script type="text/javascript" src="tnet/js/mobile/tnet-search-m.js?v=20260222b"></script>
 
     <!-- Early Splash-Hide -->
@@ -903,6 +908,12 @@
         </div>
     </div>
 
+    <!-- Basemap-Overlay-Icons (analog Desktop; Mobile laedt kein override.css) -->
+    <style>
+      #m-basemap-sheet .layer-icon-img { width: 28px; height: 28px; display: block; }
+      #m-basemap-sheet .layer-icon { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    </style>
+
     <!-- Basemap Bottom-Sheet -->
     <div id="m-basemap-overlay" class="m-basemap-overlay"></div>
     <div id="m-basemap-sheet">
@@ -914,32 +925,11 @@
         <div class="m-basemap-sheet-body">
             <div class="basemap-widget-content">
                 <div class="basemap-layer-section">
+                    <!-- Basiskarten-Ueberlagerungen: dynamisch aus tnet-global-config.json5
+                         (basemapOverlays) generiert durch tnet-basemap.js (analog Desktop) -->
+                    <div id="basemap-overlay-rows"></div>
                     <div class="basemap-layer-row">
-                        <span class="layer-icon">〜</span>
-                        <span class="layer-label">Höhenkurven</span>
-                        <div class="layer-toggle">
-                            <button class="toggle-btn" data-layer="hoehenkurven" data-value="on">EIN</button>
-                            <button class="toggle-btn active" data-layer="hoehenkurven" data-value="off">AUS</button>
-                        </div>
-                    </div>
-                    <div class="basemap-layer-row">
-                        <span class="layer-icon">⊞</span>
-                        <span class="layer-label">Projektebene</span>
-                        <div class="layer-toggle">
-                            <button class="toggle-btn" data-layer="projektebene" data-value="on">EIN</button>
-                            <button class="toggle-btn active" data-layer="projektebene" data-value="off">AUS</button>
-                        </div>
-                    </div>
-                    <div class="basemap-layer-row">
-                        <span class="layer-icon">◯</span>
-                        <span class="layer-label">Gemeindegrenzen</span>
-                        <div class="layer-toggle">
-                            <button class="toggle-btn" data-layer="gemeindegrenzen" data-value="on">EIN</button>
-                            <button class="toggle-btn active" data-layer="gemeindegrenzen" data-value="off">AUS</button>
-                        </div>
-                    </div>
-                    <div class="basemap-layer-row">
-                        <span class="layer-icon">◧</span>
+                        <span class="layer-icon" id="basemap-colormode-icon">◧</span>
                         <span class="layer-label">Farbig / Grau</span>
                         <div class="layer-toggle">
                             <button class="toggle-btn active" data-layer="farbmodus" data-value="color"
@@ -1056,6 +1046,10 @@
     <!-- TNET Info Panel (Bottom-Sheet Variante) -->
     <script type="module" src="tnet/js/tnet-info-panel.js?v=20260616b"></script>
 
+    <!-- TNET WMS-Panel: ArcGIS/WMS GetFeatureInfo fuer Custom-Layer (Info-Abfrage).
+         Muss VOR tnet-info-bridge.js geladen werden (liefert _queryCustomLayersForBridge). -->
+    <script src="tnet/js/tnet-wms-panel.js?v=20260306"></script>
+
     <!-- TNET Info-Bridge: Zentraler singleclick-Dispatcher für MapTips/GFI -->
     <script src="tnet/js/tnet-info-bridge.js?v=20260618l"></script>
 
@@ -1079,6 +1073,9 @@
     <script src="tnet/js/tnet-print.js" defer></script>
 
     <!-- Neuer Layer-Manager (Feature-Flag in tnet-global-config.json5 → layerManager.useNew) -->
+    <!-- Coalesce-Bridge MUSS vor tnet-lm-store.js geladen werden: rendert Coalesce-Sublayer
+         (OEREB/Gewaesserraum) als OL-Layer und liefert getOLLayerForSublayer fuer die Info-Abfrage. -->
+    <script src="tnet/js/tnet-coalesce-bridge.js?v=20260617e" defer></script>
     <script src="tnet/js/tnet-lm-store.js?v=20260617d" defer></script>
     <script src="tnet/js/tnet-lm-tree.js?v=20260222c" defer></script>
     <script src="tnet/js/tnet-lm-active.js?v=20260617j" defer></script>
