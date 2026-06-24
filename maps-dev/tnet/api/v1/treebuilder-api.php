@@ -6685,6 +6685,36 @@ switch ($action) {
         }
         break;
 
+    // ── Sync: Fehlende Tabellen im Zielschema anlegen ──
+    case 'sync-schema-init':
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('POST erwartet', 405);
+        $schemaBody = json_decode(file_get_contents('php://input'), true);
+        if (!$schemaBody) jsonError('Ungültiger JSON-Body', 400);
+        $schemaEnv = strtolower(trim((string)($schemaBody['env'] ?? '')));
+        if ($schemaEnv === '') jsonError('env erforderlich', 400);
+        require_once __DIR__ . '/../includes/SyncRepository.php';
+        try {
+            $schemaResult = SyncRepository::initSchema($schemaEnv);
+            jsonResponse(['success' => true, 'data' => $schemaResult, 'env' => $schemaEnv]);
+        } catch (\Throwable $e) {
+            jsonError('Schema-Init Fehler: ' . $e->getMessage(), 500);
+        }
+        break;
+
+    // ── Sync: Inhaltlicher Diff zwischen DEV und PROD (On-Demand) ──
+    case 'sync-content-diff':
+        $cdDomain = strtolower(trim((string)($_GET['domain'] ?? '')));
+        $cdKey    = (string)($_GET['key'] ?? '');
+        if ($cdDomain === '') jsonError('domain erforderlich', 400);
+        require_once __DIR__ . '/../includes/SyncRepository.php';
+        try {
+            $cdResult = SyncRepository::contentDiff($cdDomain, $cdKey);
+            jsonResponse(['success' => true, 'data' => $cdResult, 'domain' => $cdDomain, 'key' => $cdKey]);
+        } catch (\Throwable $e) {
+            jsonError('Diff-Fehler: ' . $e->getMessage(), 500);
+        }
+        break;
+
     // ── Deployed-Conf: Einzelne Datei lesen (für Editor-Ansicht) ──
     case 'read-deployed-conf':
         $file    = $_GET['file'] ?? '';
@@ -7585,6 +7615,63 @@ switch ($action) {
         if (!is_array($parsed)) jsonError('Ungültiges JSON im Backup', 400);
         $normalized = BookmarkNormalizer::normalizeAll($parsed);
         jsonResponse(['success' => true, 'data' => $normalized, 'count' => count($normalized), 'file' => $bmBackupFile]);
+        break;
+
+    // ── Sync: Fullbackup einer Umgebung erstellen (Bookmarks + Katalog + Bundles) ──
+    case 'sync-fullbackup-create':
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('POST erwartet', 405);
+        $fbBody = json_decode(file_get_contents('php://input'), true) ?: [];
+        $fbEnv  = strtolower(trim((string)($fbBody['env'] ?? 'dev')));
+        if (!in_array($fbEnv, ['dev', 'prod'], true)) jsonError('env muss dev oder prod sein', 400);
+        $fbUser = (string)($fbBody['user'] ?? 'anonym');
+        require_once __DIR__ . '/../includes/SyncRepository.php';
+        ensureDirs();
+        try {
+            $fbResult = SyncRepository::createFullBackup($fbEnv, $fbUser, BACKUP_DIR);
+            jsonResponse(['success' => true, 'data' => $fbResult]);
+        } catch (\Throwable $e) {
+            jsonError('Backup fehlgeschlagen: ' . $e->getMessage(), 500);
+        }
+        break;
+
+    // ── Sync: Fullbackup-Inventar lesen (für granularen Restore-Dialog) ──
+    case 'sync-fullbackup-read':
+        $fbReadFile = $_GET['file'] ?? '';
+        if (!$fbReadFile || strpos($fbReadFile, '..') !== false || strpos($fbReadFile, '/') !== false) jsonError('Ungültiger Dateiname', 400);
+        $fbReadPath = BACKUP_DIR . '/' . basename($fbReadFile);
+        if (!file_exists($fbReadPath)) jsonError('Backup nicht gefunden', 404);
+        $fbReadRaw = @file_get_contents($fbReadPath);
+        if ($fbReadRaw !== false && substr($fbReadPath, -3) === '.gz') { $fbDec = @gzdecode($fbReadRaw); if ($fbDec !== false) $fbReadRaw = $fbDec; }
+        $fbReadData = json_decode($fbReadRaw ?: 'null', true);
+        if (!is_array($fbReadData)) jsonError('Ungültiges Backup-JSON', 400);
+        require_once __DIR__ . '/../includes/SyncRepository.php';
+        jsonResponse(['success' => true, 'data' => SyncRepository::fullBackupInventory($fbReadData), 'file' => basename($fbReadFile)]);
+        break;
+
+    // ── Sync: Granularer Restore aus Fullbackup (Merge/UPSERT) ──
+    case 'sync-fullbackup-restore':
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('POST erwartet', 405);
+        $rbBody = json_decode(file_get_contents('php://input'), true) ?: [];
+        $rbFile = (string)($rbBody['file'] ?? '');
+        if (!$rbFile || strpos($rbFile, '..') !== false || strpos($rbFile, '/') !== false) jsonError('Ungültiger Dateiname', 400);
+        $rbEnv = strtolower(trim((string)($rbBody['targetEnv'] ?? '')));
+        if (!in_array($rbEnv, ['dev', 'prod'], true)) jsonError('targetEnv muss dev oder prod sein', 400);
+        $rbPath = BACKUP_DIR . '/' . basename($rbFile);
+        if (!file_exists($rbPath)) jsonError('Backup nicht gefunden', 404);
+        $rbRaw = @file_get_contents($rbPath);
+        if ($rbRaw !== false && substr($rbPath, -3) === '.gz') { $rbDec = @gzdecode($rbRaw); if ($rbDec !== false) $rbRaw = $rbDec; }
+        $rbData = json_decode($rbRaw ?: 'null', true);
+        if (!is_array($rbData)) jsonError('Ungültiges Backup-JSON', 400);
+        $rbBookmarks = !empty($rbBody['bookmarks']);
+        $rbCatalog = (isset($rbBody['catalogProfiles']) && is_array($rbBody['catalogProfiles'])) ? array_map('strval', $rbBody['catalogProfiles']) : [];
+        $rbBundles = (isset($rbBody['bundleKuerzel']) && is_array($rbBody['bundleKuerzel'])) ? array_map('strval', $rbBody['bundleKuerzel']) : [];
+        require_once __DIR__ . '/../includes/SyncRepository.php';
+        try {
+            $rbResult = SyncRepository::restoreFullBackup($rbData, $rbEnv, $rbBookmarks, $rbCatalog, $rbBundles);
+            jsonResponse(['success' => true, 'data' => $rbResult]);
+        } catch (\Throwable $e) {
+            jsonError('Restore fehlgeschlagen: ' . $e->getMessage(), 500);
+        }
         break;
 
     case 'bookmarks-lock-status':

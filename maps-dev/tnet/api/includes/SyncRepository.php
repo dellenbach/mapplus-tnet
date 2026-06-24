@@ -248,11 +248,15 @@ class SyncRepository {
                 $copied++;
             }
 
-            // Revision im Ziel erhöhen
+            // Revision aus der Quelle übernehmen, damit Quelle und Ziel nach dem
+            // Sync identisch sind (kein dauerhaftes "NEU"-Badge durch Δ=1).
             $pdo->exec(
-                "UPDATE " . self::q($dst) . ".bookmark_meta
-                 SET revision = revision + 1, updated_by = " . $pdo->quote($user) . ", updated_at = now()
-                 WHERE scope = 'bookmarks'"
+                "UPDATE " . self::q($dst) . ".bookmark_meta dst
+                 SET revision   = COALESCE(src.revision, dst.revision),
+                     updated_by = " . $pdo->quote($user) . ",
+                     updated_at = COALESCE(src.updated_at, now())
+                 FROM " . self::q($src) . ".bookmark_meta src
+                 WHERE dst.scope = 'bookmarks' AND src.scope = 'bookmarks'"
             );
 
             $pdo->commit();
@@ -293,9 +297,9 @@ class SyncRepository {
                      VALUES (:profile, :payload::jsonb, :revision, :user, now())
                      ON CONFLICT (profile) DO UPDATE
                        SET payload    = EXCLUDED.payload,
-                           revision   = " . self::q($dst) . ".catalog_document.revision + 1,
+                           revision   = EXCLUDED.revision,
                            updated_by = EXCLUDED.updated_by,
-                           updated_at = now()"
+                           updated_at = EXCLUDED.updated_at"
                 );
                 $upsert->execute([
                     'profile'  => $row['profile'],
@@ -321,14 +325,14 @@ class SyncRepository {
         if ($kuerzel) {
             $placeholders = implode(',', array_fill(0, count($kuerzel), '?'));
             $stmt = $pdo->prepare(
-                "SELECT kuerzel, payload, scope, tags
+                "SELECT kuerzel, payload, scope, tags, last_imported_at
                  FROM " . self::q($src) . ".config_bundle_store cbs
                  WHERE kuerzel IN (" . $placeholders . ")"
             );
             $stmt->execute($kuerzel);
         } else {
             $stmt = $pdo->query(
-                "SELECT kuerzel, payload, scope, tags
+                "SELECT kuerzel, payload, scope, tags, last_imported_at
                  FROM " . self::q($src) . ".config_bundle_store cbs"
             );
         }
@@ -341,20 +345,21 @@ class SyncRepository {
                 $upsert  = $pdo->prepare(
                     "INSERT INTO " . self::q($dst) . ".config_bundle_store
                         (kuerzel, payload, scope, tags, last_imported_at, last_imported_by)
-                     VALUES (:kuerzel, :payload::jsonb, :scope, :tags::jsonb, now(), :user)
+                     VALUES (:kuerzel, :payload::jsonb, :scope, :tags::jsonb, COALESCE(:imported_at, now()), :user)
                      ON CONFLICT (kuerzel) DO UPDATE
                        SET payload          = EXCLUDED.payload,
                            scope            = EXCLUDED.scope,
                            tags             = EXCLUDED.tags,
-                           last_imported_at = now(),
+                           last_imported_at = EXCLUDED.last_imported_at,
                            last_imported_by = EXCLUDED.last_imported_by"
                 );
                 $upsert->execute([
-                    'kuerzel' => $row['kuerzel'],
-                    'payload' => $payload,
-                    'scope'   => $row['scope'] ?? 'core',
-                    'tags'    => $tags,
-                    'user'    => $user,
+                    'kuerzel'     => $row['kuerzel'],
+                    'payload'     => $payload,
+                    'scope'       => $row['scope'] ?? 'core',
+                    'tags'        => $tags,
+                    'imported_at' => $row['last_imported_at'] ?? null,
+                    'user'        => $user,
                 ]);
                 $copied++;
             } catch (\Throwable $e) {
@@ -588,8 +593,9 @@ class SyncRepository {
         // ── Datei schreiben ────────────────────────────────────────────
         $ts       = date('Ymd_His');
         $safeUser = preg_replace('/[^a-zA-Z0-9_\-]/', '_', $user ?: 'unknown');
+        $useGz    = function_exists('gzencode');
         // Präfix "bookmarks_" → wird als type=bookmarks in Backup-Liste erkannt und ist restorebar
-        $filename = 'bookmarks_fullbackup_' . $env . '_' . $ts . '_' . $safeUser . '.json';
+        $filename = 'bookmarks_fullbackup_' . $env . '_' . $ts . '_' . $safeUser . ($useGz ? '.json.gz' : '.json');
         $path     = rtrim($backupDir, '/') . '/' . $filename;
 
         if (!is_dir($backupDir)) @mkdir($backupDir, 0775, true);
@@ -611,10 +617,8 @@ class SyncRepository {
             'bundles'   => $bundles,
         ];
 
-        $bytes = file_put_contents(
-            $path,
-            json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
-        );
+        $jsonOut = json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        $bytes = file_put_contents($path, $useGz ? gzencode($jsonOut, 9) : $jsonOut);
         if ($bytes === false) {
             throw new \RuntimeException('Fullbackup konnte nicht geschrieben werden: ' . $path);
         }
@@ -626,6 +630,148 @@ class SyncRepository {
             'bytes'    => $bytes,
             'warnings' => $warnings,
         ];
+    }
+
+    /**
+     * Liefert ein leichtgewichtiges Inventar eines Fullbackups für den Restore-Dialog
+     * (ohne die schweren Payloads).
+     */
+    public static function fullBackupInventory(array $backup): array {
+        $meta = isset($backup['_meta']) && is_array($backup['_meta']) ? $backup['_meta'] : [];
+        $catalog = array_map(function ($c) {
+            return ['profile' => (string)($c['profile'] ?? ''), 'revision' => $c['revision'] ?? null];
+        }, isset($backup['catalog']) && is_array($backup['catalog']) ? $backup['catalog'] : []);
+        $bundles = array_map(function ($b) {
+            return ['kuerzel' => (string)($b['kuerzel'] ?? ''), 'scope' => (string)($b['scope'] ?? 'core')];
+        }, isset($backup['bundles']) && is_array($backup['bundles']) ? $backup['bundles'] : []);
+        return [
+            'env'       => $meta['env'] ?? null,
+            'savedAt'   => $meta['savedAt'] ?? null,
+            'savedBy'   => $meta['savedBy'] ?? null,
+            'summary'   => $meta['summary'] ?? null,
+            'bookmarks' => count(isset($backup['bookmarks']) && is_array($backup['bookmarks']) ? $backup['bookmarks'] : []),
+            'catalog'   => $catalog,
+            'bundles'   => $bundles,
+        ];
+    }
+
+    /**
+     * Stellt ausgewählte Teile eines Fullbackups in eine Zielumgebung wieder her (Merge/UPSERT).
+     * Löscht keine bestehenden Einträge, die nicht im Backup sind.
+     *
+     * @param array      $backup          Dekodierter Backup-Inhalt (_meta, bookmarks, catalog, bundles)
+     * @param string     $targetEnv       'dev' | 'prod'
+     * @param bool       $doBookmarks     Bookmarks wiederherstellen
+     * @param array|null $catalogProfiles Profile-Auswahl ([] = keine, null = alle)
+     * @param array|null $bundleKuerzel   Kürzel-Auswahl ([] = keine, null = alle)
+     */
+    public static function restoreFullBackup(array $backup, string $targetEnv, bool $doBookmarks, ?array $catalogProfiles, ?array $bundleKuerzel): array {
+        $pdo    = Database::getConnection();
+        $schema = self::schema($targetEnv);
+        $out = ['bookmarks' => 0, 'catalog' => 0, 'bundles' => 0, 'errors' => []];
+
+        // ── Bookmarks (Merge, keine Löschungen) ──
+        if ($doBookmarks && !empty($backup['bookmarks']) && is_array($backup['bookmarks'])) {
+            foreach ($backup['bookmarks'] as $bm) {
+                try {
+                    $payload = $bm['payload'] ?? [];
+                    $stmt = $pdo->prepare(
+                        "INSERT INTO " . self::q($schema) . ".bookmark
+                            (bookmark_id, name, payload, sort_idx, deleted, updated_by)
+                         VALUES (:id, :name, :payload::jsonb, :sort, false, 'restore')
+                         ON CONFLICT (bookmark_id) DO UPDATE
+                           SET name       = EXCLUDED.name,
+                               payload    = EXCLUDED.payload,
+                               sort_idx   = EXCLUDED.sort_idx,
+                               version    = " . self::q($schema) . ".bookmark.version + 1,
+                               deleted    = false,
+                               updated_by = EXCLUDED.updated_by"
+                    );
+                    $stmt->execute([
+                        'id'      => $bm['id'] ?? $bm['bookmark_id'] ?? null,
+                        'name'    => $bm['name'] ?? null,
+                        'payload' => is_array($payload) ? json_encode($payload) : (string)$payload,
+                        'sort'    => isset($bm['sort_idx']) ? (int)$bm['sort_idx'] : 0,
+                    ]);
+                    $out['bookmarks']++;
+                } catch (\Throwable $e) {
+                    $out['errors'][] = 'Bookmark ' . ($bm['id'] ?? '?') . ': ' . $e->getMessage();
+                }
+            }
+            try {
+                $pdo->exec("UPDATE " . self::q($schema) . ".bookmark_meta
+                            SET revision = revision + 1, updated_by = 'restore', updated_at = now()
+                            WHERE scope = 'bookmarks'");
+            } catch (\Throwable $e) { /* meta optional */ }
+        }
+
+        // ── Katalog (gewählte Profile) ──
+        if ($catalogProfiles === null || !empty($catalogProfiles)) {
+            foreach ((isset($backup['catalog']) && is_array($backup['catalog']) ? $backup['catalog'] : []) as $cat) {
+                $profile = $cat['profile'] ?? null;
+                if ($profile === null || $profile === '') continue;
+                if (is_array($catalogProfiles) && !in_array((string)$profile, $catalogProfiles, true)) continue;
+                try {
+                    $payload = $cat['payload'] ?? [];
+                    $stmt = $pdo->prepare(
+                        "INSERT INTO " . self::q($schema) . ".catalog_document
+                            (profile, payload, revision, updated_by, updated_at)
+                         VALUES (:profile, :payload::jsonb, :revision, 'restore', now())
+                         ON CONFLICT (profile) DO UPDATE
+                           SET payload    = EXCLUDED.payload,
+                               revision   = EXCLUDED.revision,
+                               updated_by = EXCLUDED.updated_by,
+                               updated_at = now()"
+                    );
+                    $stmt->execute([
+                        'profile'  => (string)$profile,
+                        'payload'  => is_array($payload) ? json_encode($payload) : (string)$payload,
+                        'revision' => isset($cat['revision']) ? (int)$cat['revision'] : 1,
+                    ]);
+                    $out['catalog']++;
+                } catch (\Throwable $e) {
+                    $out['errors'][] = 'Profil ' . $profile . ': ' . $e->getMessage();
+                }
+            }
+        }
+
+        // ── Bundles (gewählte Kürzel) ──
+        if ($bundleKuerzel === null || !empty($bundleKuerzel)) {
+            foreach ((isset($backup['bundles']) && is_array($backup['bundles']) ? $backup['bundles'] : []) as $bn) {
+                $kuerzel = $bn['kuerzel'] ?? null;
+                if ($kuerzel === null || $kuerzel === '') continue;
+                if (is_array($bundleKuerzel) && !in_array((string)$kuerzel, $bundleKuerzel, true)) continue;
+                try {
+                    $payload = $bn['payload'] ?? ['files' => []];
+                    $tags    = $bn['tags'] ?? [];
+                    $stmt = $pdo->prepare(
+                        "INSERT INTO " . self::q($schema) . ".config_bundle_store
+                            (kuerzel, payload, scope, tags, last_imported_at, last_imported_by)
+                         VALUES (:kuerzel, :payload::jsonb, :scope, :tags::jsonb, COALESCE(:imported_at, now()), 'restore')
+                         ON CONFLICT (kuerzel) DO UPDATE
+                           SET payload          = EXCLUDED.payload,
+                               scope            = EXCLUDED.scope,
+                               tags             = EXCLUDED.tags,
+                               last_imported_at = EXCLUDED.last_imported_at,
+                               last_imported_by = EXCLUDED.last_imported_by"
+                    );
+                    $stmt->execute([
+                        'kuerzel'     => (string)$kuerzel,
+                        'payload'     => is_array($payload) ? json_encode($payload) : (string)$payload,
+                        'scope'       => $bn['scope'] ?? 'core',
+                        'tags'        => is_array($tags) ? json_encode($tags) : (string)($tags ?: '[]'),
+                        'imported_at' => $bn['importedAt'] ?? null,
+                    ]);
+                    $out['bundles']++;
+                } catch (\Throwable $e) {
+                    $out['errors'][] = 'Bundle ' . $kuerzel . ': ' . $e->getMessage();
+                }
+            }
+        }
+
+        $out['ok'] = empty($out['errors']);
+        $out['targetEnv'] = $targetEnv;
+        return $out;
     }
 
     /**
@@ -760,5 +906,190 @@ class SyncRepository {
 
     private static function q(string $schema): string {
         return '"' . str_replace('"', '', $schema) . '"';
+    }
+
+    // ===== INHALTLICHER DIFF (On-Demand) =====
+
+    /**
+     * Vergleicht den tatsächlichen Inhalt zwischen DEV und PROD für einen Eintrag.
+     *
+     * @param string $domain 'catalog' | 'bundles' | 'bookmarks'
+     * @param string $key    Profil (catalog) bzw. Kürzel (bundles); bei bookmarks ignoriert
+     */
+    public static function contentDiff(string $domain, string $key): array {
+        $pdo  = Database::getConnection();
+        $dev  = self::schema('dev');
+        $prod = self::schema('prod');
+        switch ($domain) {
+            case 'catalog':   return self::diffCatalog($pdo, $dev, $prod, $key);
+            case 'bundles':   return self::diffBundle($pdo, $dev, $prod, $key);
+            case 'bookmarks': return self::diffBookmarksContent($pdo, $dev, $prod);
+            default: throw new InvalidArgumentException('Unbekannte Domain: ' . $domain);
+        }
+    }
+
+    private static function diffCatalog($pdo, string $dev, string $prod, string $profile): array {
+        $d = self::loadJsonPayload($pdo, $dev,  'catalog_document', 'profile', $profile);
+        $p = self::loadJsonPayload($pdo, $prod, 'catalog_document', 'profile', $profile);
+        $res = self::diffAssoc(is_array($d) ? $d : [], is_array($p) ? $p : [], 'Layer-Schlüssel', true);
+        $res['type'] = 'keys';
+        return $res;
+    }
+
+    private static function diffBundle($pdo, string $dev, string $prod, string $kuerzel): array {
+        $dp = self::loadJsonPayload($pdo, $dev,  'config_bundle_store', 'kuerzel', $kuerzel);
+        $pp = self::loadJsonPayload($pdo, $prod, 'config_bundle_store', 'kuerzel', $kuerzel);
+        $dm = self::indexBundleFilesByName(is_array($dp) ? $dp : []);
+        $pm = self::indexBundleFilesByName(is_array($pp) ? $pp : []);
+        $devNames  = array_keys($dm);
+        $prodNames = array_keys($pm);
+        $onlyDev  = array_values(array_diff($devNames, $prodNames));
+        $onlyProd = array_values(array_diff($prodNames, $devNames));
+        $common   = array_intersect($devNames, $prodNames);
+        sort($onlyDev); sort($onlyProd);
+
+        $changedFiles = [];
+        foreach ($common as $name) {
+            $df = $dm[$name]; $pf = $pm[$name];
+            $dd = (isset($df['data']) && is_array($df['data'])) ? $df['data'] : null;
+            $pd = (isset($pf['data']) && is_array($pf['data'])) ? $pf['data'] : null;
+            if ($dd !== null && $pd !== null) {
+                $sub = self::diffAssoc($dd, $pd, 'Einträge', true);
+                if (!$sub['identical']) $changedFiles[] = ['name' => $name, 'diff' => $sub];
+            } else {
+                $dk = isset($df['keys']) ? (int)$df['keys'] : null;
+                $pk = isset($pf['keys']) ? (int)$pf['keys'] : null;
+                if ($dk !== null && $pk !== null && $dk !== $pk) {
+                    $changedFiles[] = ['name' => $name, 'diff' => [
+                        'label' => 'Einträge', 'onlyDev' => [], 'onlyProd' => [], 'changed' => [],
+                        'counts' => ['dev' => $dk, 'prod' => $pk, 'onlyDev' => 0, 'onlyProd' => 0, 'changed' => 0],
+                        'identical' => false,
+                    ]];
+                } elseif (self::canon($dd) !== self::canon($pd)) {
+                    $changedFiles[] = ['name' => $name, 'diff' => null];
+                }
+            }
+        }
+
+        return [
+            'type'          => 'bundle',
+            'onlyDevFiles'  => $onlyDev,
+            'onlyProdFiles' => $onlyProd,
+            'changedFiles'  => $changedFiles,
+            'counts'        => [
+                'devFiles'  => count($devNames),
+                'prodFiles' => count($prodNames),
+                'onlyDev'   => count($onlyDev),
+                'onlyProd'  => count($onlyProd),
+                'changed'   => count($changedFiles),
+            ],
+            'identical' => empty($onlyDev) && empty($onlyProd) && empty($changedFiles),
+        ];
+    }
+
+    private static function diffBookmarksContent($pdo, string $dev, string $prod): array {
+        $d = self::loadBookmarkMap($pdo, $dev);
+        $p = self::loadBookmarkMap($pdo, $prod);
+        $res = self::diffAssoc($d, $p, 'Bookmarks', true);
+        $res['type'] = 'keys';
+        return $res;
+    }
+
+    private static function loadBookmarkMap($pdo, string $schema): array {
+        $map = [];
+        try {
+            $stmt = $pdo->query("SELECT bookmark_id, name, payload FROM " . self::q($schema) . ".bookmark WHERE deleted = false");
+            foreach ($stmt->fetchAll() as $r) {
+                $pl = is_string($r['payload']) ? json_decode($r['payload'], true) : $r['payload'];
+                $label = ($r['name'] !== null && $r['name'] !== '') ? $r['name'] : $r['bookmark_id'];
+                $map[(string)$label] = ['payload' => $pl];
+            }
+        } catch (\Throwable $e) { /* leeres Schema */ }
+        return $map;
+    }
+
+    private static function loadJsonPayload($pdo, string $schema, string $table, string $keyCol, string $keyVal) {
+        try {
+            $stmt = $pdo->prepare("SELECT payload FROM " . self::q($schema) . "." . $table . " WHERE " . $keyCol . " = :k");
+            $stmt->execute(['k' => $keyVal]);
+            $row = $stmt->fetch();
+            if (!$row) return null;
+            return is_string($row['payload']) ? json_decode($row['payload'], true) : $row['payload'];
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
+    private static function indexBundleFilesByName(array $payload): array {
+        $files = (isset($payload['files']) && is_array($payload['files'])) ? $payload['files'] : [];
+        $map = [];
+        foreach ($files as $f) {
+            if (!is_array($f)) continue;
+            $n = trim((string)($f['name'] ?? $f['file'] ?? ''));
+            if ($n === '') continue;
+            $map[$n] = $f;
+        }
+        return $map;
+    }
+
+    /** Generischer Schlüssel-Diff zweier assoziativer Arrays. */
+    private static function diffAssoc(array $devMap, array $prodMap, string $label, bool $withDetails = false): array {
+        $devKeys  = array_keys($devMap);
+        $prodKeys = array_keys($prodMap);
+        $onlyDev  = array_values(array_diff($devKeys, $prodKeys));
+        $onlyProd = array_values(array_diff($prodKeys, $devKeys));
+        $common   = array_intersect($devKeys, $prodKeys);
+        $changed  = [];
+        $details  = [];
+        foreach ($common as $k) {
+            if (self::canon($devMap[$k]) !== self::canon($prodMap[$k])) {
+                $changed[] = (string)$k;
+                if ($withDetails) {
+                    $dPretty = self::prettyCanon($devMap[$k]);
+                    $pPretty = self::prettyCanon($prodMap[$k]);
+                    if (strlen($dPretty) <= 200000 && strlen($pPretty) <= 200000) {
+                        $details[(string)$k] = ['dev' => $dPretty, 'prod' => $pPretty];
+                    }
+                }
+            }
+        }
+        sort($onlyDev); sort($onlyProd); sort($changed);
+        $res = [
+            'label'    => $label,
+            'onlyDev'  => array_map('strval', $onlyDev),
+            'onlyProd' => array_map('strval', $onlyProd),
+            'changed'  => $changed,
+            'counts'   => [
+                'dev'      => count($devKeys),
+                'prod'     => count($prodKeys),
+                'onlyDev'  => count($onlyDev),
+                'onlyProd' => count($onlyProd),
+                'changed'  => count($changed),
+            ],
+            'identical' => empty($onlyDev) && empty($onlyProd) && empty($changed),
+        ];
+        if ($withDetails) $res['details'] = $details;
+        return $res;
+    }
+
+    /** Kanonische JSON-Repräsentation (rekursiv ksort) für stabilen Vergleich. */
+    private static function canon($v): string {
+        return json_encode(self::sortRec($v), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    }
+
+    /** Wie canon(), aber lesbar formatiert für den Zeilen-Diff. */
+    private static function prettyCanon($v): string {
+        return json_encode(self::sortRec($v), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    }
+
+    private static function sortRec($v) {
+        if (is_array($v)) {
+            $isList = array_keys($v) === range(0, count($v) - 1);
+            $out = [];
+            foreach ($v as $k => $vv) $out[$k] = self::sortRec($vv);
+            if (!$isList) ksort($out);
+            return $out;
+        }
+        return $v;
     }
 }
