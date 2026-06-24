@@ -1,4 +1,25 @@
-﻿## 2026-06-21 - Basemap-Wechsel (Orthofoto) verlor Massstab/Ausschnitt
+﻿## 2026-06-24 - SLM Sync: Fullbackup-Button lief ins Leere + granularer Restore
+
+- Symptom: Im Sync-Tab erzeugte „💾 Backup erstellen" scheinbar nichts Brauchbares, und ein Restore stellte nur Bookmarks (in den Editor) wieder her — Katalog/Bundles aus dem Fullbackup waren nicht restaurierbar.
+- Root-Cause: `SyncRepository::createFullBackup()` existierte, war aber an KEINE Route in `treebuilder-api.php` angebunden; das Frontend rief `action=sync-fullbackup-create` ins Leere (Default-Case). Zudem behandelte `slmRestoreBackup` Fullbackups wie reine Bookmark-Backups (`restore-bookmark-backup` → nur Bookmarks in den Arbeitsspeicher), obwohl die Datei `{_meta, bookmarks[], catalog[], bundles[]}` enthält.
+- Fix: Routen `sync-fullbackup-create`, `sync-fullbackup-read` (Inventar) und `sync-fullbackup-restore` ergänzt; `SyncRepository::fullBackupInventory()` + `restoreFullBackup()` (Merge/UPSERT, keine Löschungen) implementiert. Frontend: granularer Restore-Dialog (Ziel-Env DEV/PROD wählbar, Bereiche Bookmarks/Katalog/Bundles + Element-Auswahl je Profil/Kürzel). Warnhinweis aus der Toolbar entfernt (steht in der Legende).
+- Guardrail: Wenn eine Repository-Methode existiert, heisst das nicht, dass sie verdrahtet ist — Frontend-Action immer gegen den Router querprüfen. Backup-Format und Restore-Pfad müssen denselben Umfang abdecken (voll vs. nur-Bookmarks war inkonsistent). Payload-Strukturen: `catalog_document.payload` = Objekt nach lyrmgrKey; Bundle-`payload.files[]` trägt `name`/`type`/`keys`/`data` (Inhalt) → erlaubt Key-Level-Diff/Restore.
+
+## 2026-06-23 - SLM Sync: Revision lief hoch (Rev 622) und "NEU"-Badge blieb nach Sync
+
+- Symptom: Im Sync-Tab zeigte ein Katalog-Profil (`public`) Rev. 622, obwohl real nur wenige Änderungen existierten; nach einem Sync stand weiterhin "NEU" auf einer Seite, statt dass beide Seiten als identisch galten.
+- Root-Cause: `SyncRepository::syncCatalog()` setzte im `ON CONFLICT DO UPDATE` `revision = catalog_document.revision + 1` (Ziel-Revision++ statt Quell-Revision übernehmen) → jeder Sync-Lauf erhöhte die Ziel-Revision; nach ~616 Läufen 6 → 622. Gleiches Muster bei `syncBookmarks` (`bookmark_meta.revision + 1`). Dadurch wich die Revision immer um Δ=1 ab → `getSyncNewerSide` (Frontend) fand stets einen Gewinner → Badge blieb. Verschärfend: der DB-Trigger `trg_catalog_document_updated` überschreibt `updated_at` beim UPDATE mit `now()`, weshalb ein reiner Zeitstempel-Vergleich das Ziel fälschlich als "neuer" markiert.
+- Fix: (1) Backend übernimmt die Quell-Werte: `revision = EXCLUDED.revision` (Catalog), Quell-`revision`/`updated_at` per `FROM src.bookmark_meta` (Bookmarks), `last_imported_at = EXCLUDED.last_imported_at` (Bundles). (2) Frontend `getSyncNewerSide` vergleicht **Revision zuerst** und gibt bei gleicher Revision `null` zurück (Zeitstempel nur noch Fallback für Bundles ohne Revision). Bestehende Rev 622 in der DB korrigiert sich beim nächsten Sync-Lauf des Profils automatisch.
+- Guardrail: Bei einer "Kopie"-Sync-Operation immer die Quell-Versionsfelder (Revision/Timestamp) ins Ziel ÜBERNEHMEN, nie das Ziel inkrementieren. Für "neuer/älter"-Vergleiche die monotone Inhalts-Revision als primäres Kriterium nutzen, nicht den lokalen Schreib-Zeitstempel (DB-Trigger können ihn auf `now()` setzen).
+
+## 2026-06-23 - SLM Sync: Bundle-Dateien fehlten und Schema-Init-Button lief ins Leere
+
+- Symptom: Im Sync-Tab zeigte der Bundle-Bereich nur Kürzel/Metadaten, aber keine enthaltenen Dateien; ausserdem konnte der Banner-Button zur Schema-Initialisierung nie erfolgreich auslösen.
+- Root-Cause: Im finalen `renderBundleTable()` wurde `fileRow` nach einem vorzeitigen `return` nie mehr an den HTML-String angehängt. Parallel dazu referenzierte das Frontend `action=sync-schema-init`, während der Router in `treebuilder-api.php` diese Action gar nicht behandelte, obwohl `SyncRepository::initSchema()` bereits existierte.
+- Fix: Return-Kette in `slm.html` so korrigiert, dass die zusätzliche Dateizeile pro Bundle tatsächlich gerendert wird. In `treebuilder-api.php` den fehlenden `sync-schema-init`-POST-Route ergänzt und direkt an `SyncRepository::initSchema()` verdrahtet.
+- Guardrail: Bei grossen Inline-Skripten nach Merge-/Copy-Paste-Arbeiten auf tote String-Verkettungen nach `return` achten; Frontend-Actions immer gegen den Backend-Router querprüfen, auch wenn die Repository-Methode bereits vorhanden ist.
+
+## 2026-06-21 - Basemap-Wechsel (Orthofoto) verlor Massstab/Ausschnitt
 
 - Symptom: Beim Wechsel auf Orthofoto (swissimage) zoomte die Karte unerwartet weit heraus (teils Fit auf die ganze Schweiz, "sehr kleiner Massstab"). Massstab und Ausschnitt sollten stabil bleiben.
 - Root-Cause: Das Framework `_preTimeChangeBaseMap` (Original-`changeBaseMap`) ERSETZT die OpenLayers-View (neues View-Objekt). Dabei geht die aktuelle Resolution/Zoom verloren bzw. wird auf einen Default/Fit gesetzt. Reproduzierte sich timing-/geraeteabhaengig (im Playwright-Emulator nicht, auf dem realen Geraet schon). tnet-basemap.js selbst aenderte die View nicht.

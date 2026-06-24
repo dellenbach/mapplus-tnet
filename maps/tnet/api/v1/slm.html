@@ -569,9 +569,14 @@ body {
 .sync-summary-status.ok { background: #eaf6ec; color: #2e7d32; }
 .sync-summary-status.diff { background: #fff3e0; color: #d97706; }
 .sync-summary-status.warn { background: #e8f2fb; color: #1565c0; }
-.sync-direction-legend { display: flex; align-items: center; gap: 8px; padding: 5px 10px; margin-bottom: 6px; background: #f0f7fb; border: 1px solid #d6e7f2; border-radius: 4px; font-size: 11px; color: #335; }
+.sync-direction-legend { display: block; line-height: 1.6; padding: 5px 10px; margin-bottom: 6px; background: #f0f7fb; border: 1px solid #d6e7f2; border-radius: 4px; font-size: 11px; color: #335; }
 .sync-direction-legend strong { color: #1f4e79; }
 .sync-direction-legend .sync-new-badge { margin-left: 0; }
+.sync-leg { display: inline-block; padding: 1px 7px; border-radius: 999px; font-weight: 700; white-space: nowrap; }
+.sync-leg.push { background: #e8f5e9; color: #2e7d32; border: 1px solid #a5d6a7; }
+.sync-leg.pull { background: #e3f2fd; color: #1565c0; border: 1px solid #90caf9; }
+.sync-leg.dev  { background: #fdf1e5; color: #a85400; border: 1px solid #f4c89f; }
+.sync-leg.prod { background: #e9f7ee; color: #1b7a3d; border: 1px solid #a8e0bd; }
 .sync-meta-env { font-weight: 700; text-transform: uppercase; color: #4a5c6a; }
 .sync-meta-text { color: #687680; }
 .sync-schema-banner { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 6px 10px; margin-bottom: 6px; background: #fff8e1; border: 1px solid #ffe082; border-radius: 4px; font-size: 11px; }
@@ -588,24 +593,121 @@ body {
 .sync-domain-toggle { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: #24343d; }
 .sync-domain-toggle input { margin: 0; }
 .sync-domain-meta { font-size: 10px; color: #6b7780; margin-left: auto; white-space: nowrap; }
-.sync-table { width: 100%; border-collapse: collapse; font-size: 12px; }
-.sync-table th { background: #fafafa; border-bottom: 2px solid #e0e4e8; padding: 5px 10px; text-align: left; font-size: 11px; font-weight: 600; color: #555; white-space: nowrap; }
-.sync-table td { padding: 5px 10px; border-bottom: 1px solid #f0f0f0; vertical-align: middle; }
+.sync-table { width: 100%; border-collapse: collapse; font-size: 12px; table-layout: fixed; }
+.sync-table col.sc-sel { width: 34px; }
+.sync-table col.sc-item { width: 22%; }
+.sync-table col.sc-dir { width: 52px; }
+.sync-table col.sc-status { width: 96px; }
+.sync-table th { background: #fafafa; border-bottom: 2px solid #e0e4e8; padding: 5px 10px; text-align: left; font-size: 11px; font-weight: 600; color: #555; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sync-table td { padding: 5px 10px; border-bottom: 1px solid #f0f0f0; vertical-align: middle; overflow-wrap: anywhere; }
 .sync-table tr:last-child td { border-bottom: none; }
 .sync-table tr:hover td { background: #f8fafc; }
-.sync-table td.sync-cell-newer { background: #eef8ee; }
-.sync-table td.sync-cell-newer .sync-cell-main { color: #2e7d32; }
-.sync-table td.sync-cell-newer .sync-cell-sub { color: #2e7d32; }
+.sync-table td.sync-item-cell { font-family: monospace; font-size: 11px; }
+/* DEV = orange, PROD = grün — konsistent in Kopf und Zellen */
+.sync-table th.sync-col-dev  { color: #a85400; background: #fdf1e5; border-bottom-color: #e67e22; font-weight: 800; }
+.sync-table th.sync-col-prod { color: #1b7a3d; background: #e9f7ee; border-bottom-color: #27ae60; font-weight: 800; }
+.sync-table td.sync-col-dev  { border-left: 3px solid #f4c89f; }
+.sync-table td.sync-col-prod { border-left: 3px solid #a8e0bd; }
+.sync-table th.sync-dir-col, .sync-table td.sync-dir-col { text-align: center; padding: 4px 0; }
+.sync-table td.sync-cell-newer { background: #fffaf0; }
+.sync-table td.sync-cell-newer .sync-cell-main { font-weight: 800; }
+/* Grosser Richtungspfeil zwischen DEV und PROD */
+.sync-dir-arrow { font-size: 20px; font-weight: 900; line-height: 1; display: inline-block; }
+.sync-dir-arrow.to-prod { color: #e67e22; }
+.sync-dir-arrow.to-dev  { color: #27ae60; }
+.sync-dir-arrow.equal   { color: #c2c8cc; font-size: 15px; font-weight: 700; }
+.sync-arrow { font-size: 15px; font-weight: 900; vertical-align: -1px; margin: 0 3px; }
 .sync-new-badge { display: inline-flex; align-items: center; gap: 2px; margin-left: 6px; padding: 1px 5px; border-radius: 999px; font-size: 9px; font-weight: 700; letter-spacing: .02em; vertical-align: middle; }
-.sync-new-badge.dev { background: #e8f5e9; color: #2e7d32; }
-.sync-new-badge.prod { background: #e3f2fd; color: #1565c0; }
+.sync-new-badge.dev  { background: #fdf1e5; color: #a85400; }
+.sync-new-badge.prod { background: #e9f7ee; color: #1b7a3d; }
+/* Hover-Differenzanalyse */
+.sync-table tbody tr[data-sync-row-domain] { cursor: help; }
+#sync-diff-tip { position: fixed; z-index: 99999; max-width: 380px; background: #20323d; color: #e9eef2; font-size: 11px; line-height: 1.55; padding: 9px 11px; border-radius: 7px; box-shadow: 0 6px 22px rgba(0,0,0,.32); pointer-events: none; display: none; }
+#sync-diff-tip .sdt-title { font-weight: 800; margin-bottom: 5px; color: #fff; border-bottom: 1px solid rgba(255,255,255,.18); padding-bottom: 4px; }
+#sync-diff-tip .sdt-dev  { font-weight: 800; color: #ffb267; }
+#sync-diff-tip .sdt-prod { font-weight: 800; color: #6fd99a; }
+#sync-diff-tip .sdt-diff { color: #ffd9a8; margin-top: 2px; }
+#sync-diff-tip .sdt-ok   { color: #9fe3b6; margin-top: 3px; font-weight: 700; }
+#sync-diff-tip .sdt-dir  { margin-top: 4px; color: #cfe6f5; font-weight: 700; }
+#sync-diff-tip .sdt-note { margin-top: 3px; color: #9fb0bb; font-style: italic; }
+/* Klickbarer Richtungspfeil → Inhaltsvergleich */
+.sync-table td.sync-dir-col { cursor: pointer; }
+.sync-table td.sync-dir-col:hover { background: #eef3f6; }
+/* Inhalts-Diff Modal */
+#sync-cdiff-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 100000; display: none; align-items: center; justify-content: center; }
+#sync-cdiff-overlay.open { display: flex; }
+#sync-cdiff-dialog { background: #fff; width: min(700px, 92vw); max-height: 84vh; border-radius: 8px; box-shadow: 0 12px 40px rgba(0,0,0,.35); display: flex; flex-direction: column; overflow: hidden; }
+.scd-head { display: flex; align-items: center; gap: 8px; padding: 10px 14px; background: #20323d; color: #fff; }
+.scd-head .scd-title { font-weight: 800; font-size: 13px; flex: 1; }
+.scd-close { cursor: pointer; background: transparent; border: 0; color: #cfe6f5; font-size: 20px; line-height: 1; }
+.scd-body { padding: 12px 14px; overflow-y: auto; font-size: 12px; }
+.scd-summary { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+.scd-chip { padding: 2px 9px; border-radius: 999px; font-weight: 700; font-size: 11px; }
+.scd-chip.dev  { background: #fdf1e5; color: #a85400; }
+.scd-chip.prod { background: #e9f7ee; color: #1b7a3d; }
+.scd-chip.chg  { background: #fff3e0; color: #d97706; }
+.scd-chip.ok   { background: #eaf6ec; color: #2e7d32; }
+.scd-section { margin-bottom: 11px; }
+.scd-section h4 { margin: 0 0 5px; font-size: 12px; display: flex; align-items: center; gap: 6px; }
+.scd-list { display: flex; flex-wrap: wrap; gap: 4px; }
+.scd-key { font-family: monospace; font-size: 11px; border-radius: 4px; padding: 1px 6px; border: 1px solid #e3e7ea; background: #f4f6f7; }
+.scd-key.dev { background: #fdf1e5; border-color: #f4c89f; color: #a85400; }
+.scd-key.prod { background: #e9f7ee; border-color: #a8e0bd; color: #1b7a3d; }
+.scd-key.chg { background: #fff3e0; border-color: #ffd9a8; color: #b35a00; }
+.scd-file { border: 1px solid #e6e9ec; border-radius: 6px; padding: 8px 10px; margin-bottom: 8px; }
+.scd-file-name { font-family: monospace; font-weight: 700; font-size: 12px; margin-bottom: 5px; }
+.scd-note { color: #687680; font-style: italic; }
+.scd-loading { padding: 24px; text-align: center; color: #888; }
+/* Git-Style Zeilen-Diff */
+.scd-det { margin: 4px 0; }
+.scd-det > summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: 7px; padding: 2px 0; }
+.scd-det > summary::-webkit-details-marker { display: none; }
+.scd-det > summary::before { content: '▸'; color: #888; font-size: 10px; }
+.scd-det[open] > summary::before { content: '▾'; }
+.scd-gitdiff { background: #0f172a; color: #cbd5e1; font: 11px/1.5 Consolas, monospace; padding: 8px 10px; border-radius: 6px; overflow: auto; max-height: 340px; white-space: pre; margin: 4px 0 0; }
+.scd-gitdiff .gl { display: block; }
+.scd-gitdiff .add { background: rgba(34,197,94,.18); color: #86efac; }
+.scd-gitdiff .del { background: rgba(239,68,68,.18); color: #fca5a5; }
+.scd-gitdiff .ctx { color: #8b9bb0; }
+.scd-difftools { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
+.scd-difftools button { font-size: 10px; padding: 2px 8px; border: 1px solid #cdd5db; background: #fff; border-radius: 4px; cursor: pointer; }
+/* Granularer Restore-Dialog */
+#fb-restore-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 100001; display: none; align-items: center; justify-content: center; }
+#fb-restore-overlay.open { display: flex; }
+#fb-restore-dialog { background: #fff; width: min(640px, 94vw); max-height: 86vh; border-radius: 8px; box-shadow: 0 12px 40px rgba(0,0,0,.35); display: flex; flex-direction: column; overflow: hidden; }
+.fbr-head { display: flex; align-items: center; gap: 8px; padding: 10px 14px; background: #20323d; color: #fff; }
+.fbr-head .fbr-title { font-weight: 800; font-size: 13px; flex: 1; word-break: break-all; }
+.fbr-close { cursor: pointer; background: transparent; border: 0; color: #cfe6f5; font-size: 20px; line-height: 1; }
+.fbr-body { padding: 12px 14px; overflow-y: auto; font-size: 12px; }
+.fbr-meta { color: #556; margin-bottom: 8px; }
+.fbr-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 10px; background: #f5f7fa; border: 1px solid #e3e9ee; border-radius: 6px; margin-bottom: 10px; }
+.fbr-target select { padding: 3px 6px; font-size: 12px; border: 1px solid #cdd5db; border-radius: 4px; }
+.fbr-warn { font-size: 10px; color: #a04000; background: #fff3e0; border: 1px solid #ffe0b2; padding: 2px 8px; border-radius: 3px; }
+.fbr-sec { border: 1px solid #e6e9ec; border-radius: 6px; padding: 8px 10px; margin-bottom: 8px; }
+.fbr-sec-head { display: flex; align-items: center; gap: 7px; font-size: 13px; cursor: pointer; }
+.fbr-cnt { font-size: 10px; color: #687680; background: #eef1f3; border-radius: 999px; padding: 1px 8px; }
+.fbr-items { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 7px; max-height: 180px; overflow-y: auto; padding-left: 22px; }
+.fbr-item { display: inline-flex; align-items: center; gap: 5px; font-family: monospace; font-size: 11px; }
+.fbr-rev { color: #98a4ac; font-family: inherit; }
+.fbr-foot { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-top: 1px solid #eee; background: #fafafa; }
+.fbr-foot #fbr-status { font-size: 11px; color: #556; }
+.fbr-btn-cancel { padding: 6px 14px; border: 1px solid #cdd5db; background: #fff; border-radius: 5px; cursor: pointer; }
+.fbr-btn-ok { padding: 6px 16px; border: 1px solid #1b7a3d; background: #e9f7ee; color: #1b7a3d; font-weight: 800; border-radius: 5px; cursor: pointer; }
+.fbr-btn-ok:disabled { opacity: .5; cursor: default; }
 .sync-status-icon { font-size: 14px; }
 .sync-btn { padding: 3px 10px; font-size: 11px; border: 1px solid #ddd; border-radius: 3px; cursor: pointer; white-space: nowrap; background: #fff; }
 .sync-btn:hover { background: #f0f0f0; }
-.sync-btn.push { background: #e8f5e9; border-color: #a5d6a7; color: #2e7d32; }
-.sync-btn.push:hover { background: #c8e6c9; }
-.sync-btn.pull { background: #e3f2fd; border-color: #90caf9; color: #1565c0; }
-.sync-btn.pull:hover { background: #bbdefb; }
+.sync-btn.push { background: #fff; border-color: #cdd5db; color: #31414b; }
+.sync-btn.push:hover { background: #f2f5f7; }
+.sync-btn.pull { background: #fff; border-color: #cdd5db; color: #31414b; }
+.sync-btn.pull:hover { background: #f2f5f7; }
+.sync-btn .b-dev  { color: #a85400; font-weight: 800; }
+.sync-btn .b-prod { color: #1b7a3d; font-weight: 800; }
+.sync-btn.push, .sync-btn.pull { display: inline-flex; align-items: center; padding: 6px 18px; }
+.sync-btn .b-arrow { font-size: 24px; font-weight: 900; margin: 0 14px; line-height: 1; }
+.sync-btn.push .b-arrow { color: #1b7a3d; }
+.sync-btn.pull .b-arrow { color: #a85400; }
+.sync-actions-label { font-size: 11px; color: #66727b; font-weight: 600; margin-right: 2px; }
 .sync-btn.push.sync-newer-source { box-shadow: inset 0 0 0 1px #2e7d32; }
 .sync-btn.pull.sync-newer-source { box-shadow: inset 0 0 0 1px #1565c0; }
 .sync-btn .sync-btn-note { display: block; font-size: 9px; font-weight: 700; line-height: 1.1; opacity: .85; }
@@ -617,7 +719,10 @@ body {
 .sync-ok   { color: #2e7d32; }
 .sync-only-dev  { color: #e67e22; font-size: 10px; }
 .sync-only-prod { color: #1565c0; font-size: 10px; }
-.sync-domain-actions { display: flex; gap: 6px; align-items: center; padding: 8px 12px; background: #fafafa; border-top: 1px solid #eee; flex-wrap: wrap; }
+.sync-domain-actions { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.sync-actions-btns { display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; }
+.sync-table tfoot .sync-actions-row td { background: #fafafa; border-top: 1px solid #eee; border-bottom: none; }
+.sync-table tfoot .sync-actions-cell { padding: 10px 12px; }
 .sync-domain-actions .spacer { flex: 1; }
 .sync-selection { display: inline-flex; align-items: center; gap: 6px; font-size: 10px; color: #66727b; }
 .sync-selection strong { font-size: 11px; color: #31414b; }
@@ -2056,7 +2161,6 @@ Kein Einfluss auf Browser-Cache (dafuer: Ctrl+Shift+R)">🗑 Cache leeren</butto
       </select>
       <button class="sync-btn-reload" onclick="createSyncEnvBackup()">💾 Backup erstellen</button>
       <button class="sync-btn-reload" onclick="openSyncBackupManager()">📁 Verwalten &amp; Restore</button>
-      <span class="sync-toolbar-note">⚠ Sync überschreibt Ziel-Daten</span>
     </div>
     <div class="sync-status-bar" id="sync-status-bar">Status wird geladen…</div>
     <div class="sync-content" id="sync-content">
@@ -11681,7 +11785,6 @@ function renderSyncStatus(data) {
   }
 
   var html = '';
-  html += '<div class="sync-direction-legend"><strong>Hinweis:</strong> Grün markiert die neuere Seite je Zeile. Die Buttons übertragen immer von der linken zur rechten Richtung der Beschriftung.</div>';
   if (summary) html += summary;
 
   var bm = data.domains && data.domains.bookmarks;
@@ -11717,6 +11820,8 @@ function renderSyncStatus(data) {
 
   wireSyncControls(content);
   refreshSyncSelectionState(content);
+  _hideSyncDiffTip();
+  initSyncDiffTooltip();
 
   // Schema-Banner falls Tabellen fehlen
   var schemaStatus = data.schemaStatus || {};
@@ -11743,8 +11848,399 @@ function renderSyncStatus(data) {
   }
 }
 
+// ===== Sync-Tabellen: einheitliche Spalten (DEV immer links, PROD immer rechts) =====
+function syncEnvCellClass(e) { return e === 'dev' ? 'sync-col-dev' : 'sync-col-prod'; }
+
+function syncColgroup(envKeys) {
+  var cols = '<col class="sc-sel"><col class="sc-item">';
+  if (envKeys.length === 2) {
+    cols += '<col class="sc-env"><col class="sc-dir"><col class="sc-env">';
+  } else {
+    envKeys.forEach(function() { cols += '<col class="sc-env">'; });
+    cols += '<col class="sc-dir">';
+  }
+  cols += '<col class="sc-status">';
+  return '<colgroup>' + cols + '</colgroup>';
+}
+
+function syncHeaderRow(selectAllHtml, itemLabel, envKeys) {
+  var envH;
+  if (envKeys.length === 2) {
+    envH = '<th class="' + syncEnvCellClass(envKeys[0]) + '">' + esc(envKeys[0].toUpperCase()) + '</th>'
+      + '<th class="sync-dir-col" title="Synchronisierungsrichtung">⇄</th>'
+      + '<th class="' + syncEnvCellClass(envKeys[1]) + '">' + esc(envKeys[1].toUpperCase()) + '</th>';
+  } else {
+    envH = envKeys.map(function(e){ return '<th class="' + syncEnvCellClass(e) + '">' + esc(e.toUpperCase()) + '</th>'; }).join('')
+      + '<th class="sync-dir-col">⇄</th>';
+  }
+  return '<thead><tr>'
+    + '<th class="sync-select-col">' + (selectAllHtml || '') + '</th>'
+    + '<th>' + esc(itemLabel || '') + '</th>'
+    + envH
+    + '<th class="sync-status-col" style="text-align:center">Status</th>'
+    + '</tr></thead>';
+}
+
+function syncRowDirection(hasDev, hasProd, newerSide) {
+  if (hasDev && !hasProd) return 'to-prod';
+  if (!hasDev && hasProd) return 'to-dev';
+  if (newerSide === 'dev') return 'to-prod';
+  if (newerSide === 'prod') return 'to-dev';
+  return 'equal';
+}
+
+function syncDirArrowCell(dir) {
+  var tip = ' — Klick: Inhaltsvergleich';
+  if (dir === 'to-prod') return '<td class="sync-dir-col" title="DEV ist aktueller (Sync DEV → PROD)' + tip + '"><span class="sync-dir-arrow to-prod">▶</span></td>';
+  if (dir === 'to-dev')  return '<td class="sync-dir-col" title="PROD ist aktueller (Sync DEV ← PROD)' + tip + '"><span class="sync-dir-arrow to-dev">◀</span></td>';
+  return '<td class="sync-dir-col" title="DEV und PROD identisch' + tip + '"><span class="sync-dir-arrow equal">=</span></td>';
+}
+
+function syncEnvCellsWithDir(renderCell, envKeys, dir) {
+  if (envKeys.length === 2) {
+    return renderCell(envKeys[0]) + syncDirArrowCell(dir) + renderCell(envKeys[1]);
+  }
+  return envKeys.map(renderCell).join('') + syncDirArrowCell(dir);
+}
+
+// ===== Hover-Differenzanalyse (liest _syncData, kein zusätzlicher Request) =====
+function _syncN(v) { return v == null ? '—' : String(v); }
+
+function buildSyncDiffHtml(domain, key) {
+  if (!_syncData || !_syncData.domains) return '';
+  var d = _syncData.domains[domain];
+  if (!d) return '';
+  if (domain === 'bookmarks') return _diffBookmarks(d);
+  if (domain === 'catalog')   return _diffCatalog(d, key);
+  if (domain === 'bundles')   return _diffBundles(d, key);
+  return '';
+}
+
+function _diffBookmarks(bm) {
+  var dc = bm.counts && bm.counts.dev, pc = bm.counts && bm.counts.prod;
+  var dr = bm.revs && bm.revs.dev, pr = bm.revs && bm.revs.prod;
+  var newer = getSyncNewerSide(
+    { updatedAt: bm.meta && bm.meta.dev && bm.meta.dev.updatedAt, revision: dr },
+    { updatedAt: bm.meta && bm.meta.prod && bm.meta.prod.updatedAt, revision: pr },
+    'updatedAt', 'revision');
+  var out = ['<div class="sdt-title">Differenzanalyse — Bookmarks</div>'];
+  out.push('<div><span class="sdt-dev">DEV</span> ' + _syncN(dc) + ' Einträge · Rev. ' + _syncN(dr) + '</div>');
+  out.push('<div><span class="sdt-prod">PROD</span> ' + _syncN(pc) + ' Einträge · Rev. ' + _syncN(pr) + '</div>');
+  var diffs = [];
+  if (dc != null && pc != null && dc !== pc) {
+    var cd = dc - pc;
+    diffs.push((cd > 0 ? 'DEV' : 'PROD') + ' hat ' + Math.abs(cd) + ' Eintrag' + (Math.abs(cd) > 1 ? 'e' : '') + ' mehr');
+  }
+  if (dr != null && pr != null && dr !== pr) {
+    var rd = dr - pr;
+    diffs.push((rd > 0 ? 'DEV' : 'PROD') + ' ist ' + Math.abs(rd) + ' Revision' + (Math.abs(rd) > 1 ? 'en' : '') + ' voraus');
+  }
+  if (!diffs.length) {
+    out.push('<div class="sdt-ok">✓ DEV und PROD sind identisch</div>');
+  } else {
+    diffs.forEach(function(x) { out.push('<div class="sdt-diff">• ' + x + '</div>'); });
+    if (newer) out.push('<div class="sdt-dir">→ Sync-Richtung: ' + (newer === 'dev' ? 'DEV → PROD' : 'DEV ← PROD') + '</div>');
+  }
+  return out.join('');
+}
+
+function _diffCatalog(cat, profile) {
+  var item = (cat.items || []).filter(function(i) { return i.profile === profile; })[0];
+  if (!item) return '';
+  var dev = item.envs && item.envs.dev, prod = item.envs && item.envs.prod;
+  var newer = getSyncNewerSide(dev, prod, 'updatedAt', 'revision');
+  var out = ['<div class="sdt-title">Differenzanalyse — Profil „' + esc(profile) + '“</div>'];
+  out.push('<div><span class="sdt-dev">DEV</span> ' + (dev ? 'Rev. ' + _syncN(dev.revision) + ' · ' + esc(formatSyncTimestamp(dev.updatedAt)) : 'fehlt') + '</div>');
+  out.push('<div><span class="sdt-prod">PROD</span> ' + (prod ? 'Rev. ' + _syncN(prod.revision) + ' · ' + esc(formatSyncTimestamp(prod.updatedAt)) : 'fehlt') + '</div>');
+  if (!dev || !prod) {
+    out.push('<div class="sdt-diff">• Nur in ' + (dev ? 'DEV' : 'PROD') + ' vorhanden</div>');
+    out.push('<div class="sdt-dir">→ Sync-Richtung: ' + (dev ? 'DEV → PROD' : 'DEV ← PROD') + '</div>');
+    return out.join('');
+  }
+  if (Number(dev.revision) === Number(prod.revision)) {
+    out.push('<div class="sdt-ok">✓ Gleiche Revision — synchron</div>');
+  } else {
+    var rd = Number(dev.revision) - Number(prod.revision);
+    out.push('<div class="sdt-diff">• ' + (rd > 0 ? 'DEV' : 'PROD') + ' ist ' + Math.abs(rd) + ' Revision' + (Math.abs(rd) > 1 ? 'en' : '') + ' voraus</div>');
+    out.push('<div class="sdt-note">Inhaltlicher Detail-Diff nicht geladen (nur Metadaten)</div>');
+    out.push('<div class="sdt-dir">→ Sync-Richtung: ' + (newer === 'prod' ? 'DEV ← PROD' : 'DEV → PROD') + '</div>');
+  }
+  return out.join('');
+}
+
+function _diffBundles(bn, kuerzel) {
+  var item = (bn.items || []).filter(function(i) { return i.kuerzel === kuerzel; })[0];
+  if (!item) return '';
+  var dev = item.envs && item.envs.dev, prod = item.envs && item.envs.prod;
+  var out = ['<div class="sdt-title">Differenzanalyse — Kürzel „' + esc(kuerzel) + '“</div>'];
+  out.push('<div><span class="sdt-dev">DEV</span> ' + (dev ? esc(dev.scope || 'core') + ' · ' + ((dev.files && dev.files.length) || 0) + ' Dateien · ' + esc(formatSyncTimestamp(dev.importedAt)) : 'fehlt') + '</div>');
+  out.push('<div><span class="sdt-prod">PROD</span> ' + (prod ? esc(prod.scope || 'core') + ' · ' + ((prod.files && prod.files.length) || 0) + ' Dateien · ' + esc(formatSyncTimestamp(prod.importedAt)) : 'fehlt') + '</div>');
+  if (!dev || !prod) {
+    out.push('<div class="sdt-diff">• Bundle nur in ' + (dev ? 'DEV' : 'PROD') + ' vorhanden</div>');
+    out.push('<div class="sdt-dir">→ Sync-Richtung: ' + (dev ? 'DEV → PROD' : 'DEV ← PROD') + '</div>');
+    return out.join('');
+  }
+  var dMap = {}, pMap = {};
+  (dev.files || []).forEach(function(f) { if (f && f.name) dMap[f.name] = f; });
+  (prod.files || []).forEach(function(f) { if (f && f.name) pMap[f.name] = f; });
+  var onlyDev = [], onlyProd = [], keyDiff = [];
+  Object.keys(dMap).forEach(function(n) {
+    if (!pMap[n]) onlyDev.push(n);
+    else if (dMap[n].keys != null && pMap[n].keys != null && dMap[n].keys !== pMap[n].keys) {
+      keyDiff.push(n + ' (DEV ' + dMap[n].keys + ' / PROD ' + pMap[n].keys + ')');
+    }
+  });
+  Object.keys(pMap).forEach(function(n) { if (!dMap[n]) onlyProd.push(n); });
+  if (!onlyDev.length && !onlyProd.length && !keyDiff.length) {
+    out.push('<div class="sdt-ok">✓ Gleiche Dateien &amp; Key-Zahlen</div>');
+  } else {
+    if (onlyDev.length)  out.push('<div class="sdt-diff">• Nur in DEV: ' + esc(onlyDev.slice(0, 6).join(', ')) + (onlyDev.length > 6 ? ' …' : '') + '</div>');
+    if (onlyProd.length) out.push('<div class="sdt-diff">• Nur in PROD: ' + esc(onlyProd.slice(0, 6).join(', ')) + (onlyProd.length > 6 ? ' …' : '') + '</div>');
+    if (keyDiff.length)  out.push('<div class="sdt-diff">• Key-Differenz: ' + esc(keyDiff.slice(0, 5).join('; ')) + (keyDiff.length > 5 ? ' …' : '') + '</div>');
+  }
+  return out.join('');
+}
+
+var _syncDiffTipEl = null;
+function _ensureSyncDiffTip() {
+  if (_syncDiffTipEl) return _syncDiffTipEl;
+  var el = document.createElement('div');
+  el.id = 'sync-diff-tip';
+  document.body.appendChild(el);
+  _syncDiffTipEl = el;
+  return el;
+}
+function _hideSyncDiffTip() { if (_syncDiffTipEl) _syncDiffTipEl.style.display = 'none'; }
+function _positionSyncDiffTip(e) {
+  var tip = _syncDiffTipEl; if (!tip) return;
+  var x = e.clientX + 14, y = e.clientY + 14;
+  var w = tip.offsetWidth, h = tip.offsetHeight;
+  if (x + w > window.innerWidth - 8)  x = e.clientX - w - 14;
+  if (y + h > window.innerHeight - 8) y = window.innerHeight - h - 8;
+  if (x < 8) x = 8;
+  tip.style.left = x + 'px';
+  tip.style.top = y + 'px';
+}
+function initSyncDiffTooltip() {
+  if (window._syncDiffTipInit) return;
+  var content = document.getElementById('sync-content');
+  if (!content) return;
+  window._syncDiffTipInit = true;
+  content.addEventListener('mouseover', function(e) {
+    var tr = e.target.closest && e.target.closest('tr[data-sync-row-domain]');
+    if (!tr) return;
+    var html = buildSyncDiffHtml(tr.getAttribute('data-sync-row-domain'), tr.getAttribute('data-sync-row-key') || '');
+    if (!html) { _hideSyncDiffTip(); return; }
+    var tip = _ensureSyncDiffTip();
+    tip.innerHTML = html;
+    tip.style.display = 'block';
+    _positionSyncDiffTip(e);
+  });
+  content.addEventListener('mousemove', function(e) {
+    if (_syncDiffTipEl && _syncDiffTipEl.style.display === 'block') _positionSyncDiffTip(e);
+  });
+  content.addEventListener('mouseout', function(e) {
+    var tr = e.target.closest && e.target.closest('tr[data-sync-row-domain]');
+    var to = e.relatedTarget;
+    if (tr && (!to || !tr.contains(to))) _hideSyncDiffTip();
+  });
+  content.addEventListener('click', function(e) {
+    var cell = e.target.closest && e.target.closest('td.sync-dir-col');
+    if (!cell) return;
+    var tr = cell.closest('tr[data-sync-row-domain]');
+    if (!tr) return;
+    _hideSyncDiffTip();
+    openSyncContentDiff(tr.getAttribute('data-sync-row-domain'), tr.getAttribute('data-sync-row-key') || '');
+  });
+}
+
+// ===== Inhalts-Diff Modal (On-Demand Request) =====
+var _cdiffEls = null;
+function _ensureCdiffOverlay() {
+  if (_cdiffEls) return _cdiffEls;
+  var ov = document.createElement('div');
+  ov.id = 'sync-cdiff-overlay';
+  ov.innerHTML = '<div id="sync-cdiff-dialog">'
+    + '<div class="scd-head"><span class="scd-title" id="scd-title">Inhaltsvergleich</span>'
+    + '<button class="scd-close" id="scd-close" title="Schliessen">×</button></div>'
+    + '<div class="scd-body" id="scd-body"></div>'
+    + '</div>';
+  document.body.appendChild(ov);
+  ov.addEventListener('click', function(e) { if (e.target === ov) _closeSyncContentDiff(); });
+  ov.querySelector('#scd-close').addEventListener('click', _closeSyncContentDiff);
+  document.addEventListener('keydown', function(e) { if (e.key === 'Escape') _closeSyncContentDiff(); });
+  _cdiffEls = { overlay: ov, title: ov.querySelector('#scd-title'), body: ov.querySelector('#scd-body') };
+  return _cdiffEls;
+}
+function _closeSyncContentDiff() { if (_cdiffEls) _cdiffEls.overlay.classList.remove('open'); }
+
+function openSyncContentDiff(domain, key) {
+  var els = _ensureCdiffOverlay();
+  var label = { catalog: 'Profil', bundles: 'Kürzel' }[domain] || '';
+  els.title.textContent = 'Inhaltsvergleich — ' + (domain === 'bookmarks' ? 'Bookmarks' : (label + ' „' + key + '“'));
+  els.body.innerHTML = '<div class="scd-loading">⏳ Vergleiche DEV ↔ PROD …</div>';
+  els.overlay.classList.add('open');
+  var url = API_URL + '?action=sync-content-diff&domain=' + encodeURIComponent(domain) + '&key=' + encodeURIComponent(key);
+  fetch(url)
+    .then(function(r) { return r.json(); })
+    .then(function(res) {
+      if (!res.success) throw new Error(res.error || 'Fehler');
+      els.body.innerHTML = renderSyncContentDiff(domain, key, res.data || {});
+    })
+    .catch(function(err) {
+      els.body.innerHTML = '<div style="color:#c33;padding:12px">Fehler: ' + esc(err.message) + '</div>';
+    });
+}
+
+function _diffLines(a, b) {
+  var n = a.length, m = b.length, ops = [];
+  var cap = 1500;
+  if (n > cap || m > cap) {
+    // Zu gross für LCS → einfache Gegenüberstellung
+    a.forEach(function(l) { ops.push({ t: '-', l: l }); });
+    b.forEach(function(l) { ops.push({ t: '+', l: l }); });
+    return ops;
+  }
+  var dp = [];
+  for (var i = 0; i <= n; i++) { dp[i] = new Array(m + 1).fill(0); }
+  for (var i2 = n - 1; i2 >= 0; i2--) {
+    for (var j2 = m - 1; j2 >= 0; j2--) {
+      dp[i2][j2] = a[i2] === b[j2] ? dp[i2 + 1][j2 + 1] + 1 : Math.max(dp[i2 + 1][j2], dp[i2][j2 + 1]);
+    }
+  }
+  var i = 0, j = 0;
+  while (i < n && j < m) {
+    if (a[i] === b[j]) { ops.push({ t: '=', l: a[i] }); i++; j++; }
+    else if (dp[i + 1][j] >= dp[i][j + 1]) { ops.push({ t: '-', l: a[i] }); i++; }
+    else { ops.push({ t: '+', l: b[j] }); j++; }
+  }
+  while (i < n) { ops.push({ t: '-', l: a[i++] }); }
+  while (j < m) { ops.push({ t: '+', l: b[j++] }); }
+  return ops;
+}
+
+function _gitDiffHtml(devText, prodText) {
+  var a = String(devText == null ? '' : devText).split('\n');
+  var b = String(prodText == null ? '' : prodText).split('\n');
+  var ops = _diffLines(a, b);
+  var cap = 600, shown = 0, html = '<pre class="scd-gitdiff">';
+  for (var k = 0; k < ops.length && shown < cap; k++) {
+    var o = ops[k];
+    var cls = o.t === '+' ? 'add' : (o.t === '-' ? 'del' : 'ctx');
+    var sign = o.t === '+' ? '+' : (o.t === '-' ? '-' : ' ');
+    html += '<span class="gl ' + cls + '">' + esc(sign + ' ' + o.l) + '</span>';
+    shown++;
+  }
+  if (ops.length > cap) html += '<span class="gl ctx">… ' + (ops.length - cap) + ' weitere Zeilen</span>';
+  html += '</pre>';
+  return html;
+}
+
+function _scdKeyList(keys, cls, max) {
+  max = max || 150;
+  var shown = keys.slice(0, max).map(function(k) { return '<span class="scd-key ' + cls + '">' + esc(k) + '</span>'; }).join('');
+  var more = keys.length > max ? '<span class="scd-note"> … +' + (keys.length - max) + ' weitere</span>' : '';
+  return '<div class="scd-list">' + shown + more + '</div>';
+}
+
+function _scdAssocSections(diff) {
+  if (!diff) return '<div class="scd-note">unterschiedlich (keine Detailauflösung verfügbar)</div>';
+  if (diff.identical) return '<div class="scd-summary"><span class="scd-chip ok">✓ identisch</span></div>';
+  var c = diff.counts || {};
+  var html = '<div class="scd-summary">';
+  if (c.dev != null)  html += '<span class="scd-chip dev">DEV ' + c.dev + '</span>';
+  if (c.prod != null) html += '<span class="scd-chip prod">PROD ' + c.prod + '</span>';
+  if (c.onlyDev)  html += '<span class="scd-chip dev">nur DEV ' + c.onlyDev + '</span>';
+  if (c.onlyProd) html += '<span class="scd-chip prod">nur PROD ' + c.onlyProd + '</span>';
+  if (c.changed)  html += '<span class="scd-chip chg">geändert ' + c.changed + '</span>';
+  html += '</div>';
+  if (diff.onlyDev && diff.onlyDev.length)   html += '<div class="scd-section"><h4><span class="scd-chip dev">nur in DEV</span> ' + diff.onlyDev.length + '</h4>' + _scdKeyList(diff.onlyDev, 'dev') + '</div>';
+  if (diff.onlyProd && diff.onlyProd.length) html += '<div class="scd-section"><h4><span class="scd-chip prod">nur in PROD</span> ' + diff.onlyProd.length + '</h4>' + _scdKeyList(diff.onlyProd, 'prod') + '</div>';
+  if (diff.changed && diff.changed.length) {
+    html += '<div class="scd-section"><h4><span class="scd-chip chg">geändert</span> ' + diff.changed.length + '</h4>';
+    var det = diff.details || {};
+    var anyDet = false;
+    diff.changed.forEach(function(k) {
+      if (det[k]) {
+        anyDet = true;
+        html += '<details class="scd-det"><summary><span class="scd-key chg">' + esc(k) + '</span> <span class="scd-note">git-diff (DEV → PROD)</span></summary>' + _gitDiffHtml(det[k].dev, det[k].prod) + '</details>';
+      } else {
+        html += '<div><span class="scd-key chg">' + esc(k) + '</span></div>';
+      }
+    });
+    if (anyDet) html += '<div class="scd-note" style="margin-top:4px">Rot = DEV, Grün = PROD (Ziel beim Sync DEV → PROD).</div>';
+    html += '</div>';
+  }
+  return html;
+}
+
+function _syncRowRevs(domain, key) {
+  try {
+    if (domain === 'catalog' && _syncData && _syncData.domains && _syncData.domains.catalog) {
+      var it = (_syncData.domains.catalog.items || []).filter(function(i) { return i.profile === key; })[0];
+      if (it && it.envs) return { dev: it.envs.dev && it.envs.dev.revision, prod: it.envs.prod && it.envs.prod.revision };
+    }
+    if (domain === 'bookmarks' && _syncData && _syncData.domains && _syncData.domains.bookmarks) {
+      var bm = _syncData.domains.bookmarks;
+      return { dev: bm.revs && bm.revs.dev, prod: bm.revs && bm.revs.prod };
+    }
+  } catch (e) {}
+  return null;
+}
+
+function renderSyncContentDiff(domain, key, data) {
+  if (domain === 'bundles' && data.type === 'bundle') {
+    if (data.identical) return '<div class="scd-summary"><span class="scd-chip ok">✓ DEV und PROD inhaltlich identisch</span></div>';
+    var c = data.counts || {};
+    var html = '<div class="scd-summary">'
+      + '<span class="scd-chip dev">DEV ' + (c.devFiles || 0) + ' Dateien</span>'
+      + '<span class="scd-chip prod">PROD ' + (c.prodFiles || 0) + ' Dateien</span>'
+      + (c.onlyDev ? '<span class="scd-chip dev">nur DEV ' + c.onlyDev + '</span>' : '')
+      + (c.onlyProd ? '<span class="scd-chip prod">nur PROD ' + c.onlyProd + '</span>' : '')
+      + (c.changed ? '<span class="scd-chip chg">geänderte Dateien ' + c.changed + '</span>' : '')
+      + '</div>';
+    if (data.onlyDevFiles && data.onlyDevFiles.length)   html += '<div class="scd-section"><h4><span class="scd-chip dev">nur in DEV</span> Dateien</h4>' + _scdKeyList(data.onlyDevFiles, 'dev') + '</div>';
+    if (data.onlyProdFiles && data.onlyProdFiles.length) html += '<div class="scd-section"><h4><span class="scd-chip prod">nur in PROD</span> Dateien</h4>' + _scdKeyList(data.onlyProdFiles, 'prod') + '</div>';
+    (data.changedFiles || []).forEach(function(f) {
+      html += '<div class="scd-file"><div class="scd-file-name">' + esc(f.name) + '</div>' + _scdAssocSections(f.diff) + '</div>';
+    });
+    return html;
+  }
+
+  var out = _scdAssocSections(data);
+  var note = '';
+  if (data.identical) {
+    var revs = _syncRowRevs(domain, key);
+    if (revs && revs.dev != null && revs.prod != null && String(revs.dev) !== String(revs.prod)) {
+      note += '<div class="scd-note" style="margin-top:8px">Struktur ist <b>identisch</b> — nur Revision/Stand unterscheidet sich (DEV Rev. ' + esc(revs.dev) + ' ↔ PROD Rev. ' + esc(revs.prod) + '), z.\u00a0B. durch Re-Publish.</div>';
+    }
+  }
+  if (domain === 'catalog') {
+    note += '<div class="scd-note" style="margin-top:8px">Hinweis: Anzeigenamen/Labels (NLS) sind <b>nicht</b> Teil dieses Vergleichs — sie liegen in <code>core/nls</code> und gelten für DEV und PROD gemeinsam.</div>';
+  }
+  return out + note;
+}
+
+function syncActionsFooter(domain, envKeys) {
+  // Mittlere Zelle überspannt DEV + Richtung + PROD → ihre Mitte liegt exakt
+  // auf der DEV/PROD-Grenze, sodass die Buttons dort zentriert stehen.
+  var midSpan = envKeys.length + 1;
+  return '<tfoot><tr class="sync-actions-row">'
+    + '<td colspan="2"></td>'
+    + '<td colspan="' + midSpan + '" class="sync-actions-cell">'
+    + '<div class="sync-domain-actions">'
+    + '<span class="sync-actions-label">Ausgewählte übertragen</span>'
+    + '<div class="sync-actions-btns">'
+    + '<button class="sync-btn push" data-sync-domain="' + esc(domain) + '" data-sync-direction="dev-to-prod" title="Ausgewählte Einträge von DEV nach PROD übertragen — PROD wird überschrieben"><span class="b-dev">DEV</span><span class="b-arrow">→</span><span class="b-prod">PROD</span></button>'
+    + '<button class="sync-btn pull" data-sync-domain="' + esc(domain) + '" data-sync-direction="prod-to-dev" title="Ausgewählte Einträge von PROD nach DEV übertragen — DEV wird überschrieben"><span class="b-dev">DEV</span><span class="b-arrow">←</span><span class="b-prod">PROD</span></button>'
+    + '</div>'
+    + '</div>'
+    + '</td>'
+    + '<td></td>'
+    + '</tr></tfoot>';
+}
+
 function renderSyncBookmarkTable(bm, envKeys) {
-  var rows = '';
   var devRev = bm.revs && bm.revs.dev;
   var prodRev = bm.revs && bm.revs.prod;
   var newerSide = getSyncNewerSide(
@@ -11753,82 +12249,88 @@ function renderSyncBookmarkTable(bm, envKeys) {
     'updatedAt',
     'revision'
   );
-  var statusIcon = (devRev === prodRev && devRev != null) ? '<span class="sync-ok">✅ identisch</span>' : '<span class="sync-diff">⚠ unterschiedlich</span>';
-  envKeys.forEach(function(e, index) {
+  var sameCount = bm.counts && bm.counts.dev != null && bm.counts.prod != null && bm.counts.dev === bm.counts.prod;
+  var sameRev = devRev != null && prodRev != null && devRev === prodRev;
+  var statusCell = (sameCount && sameRev)
+    ? '<td class="sync-ok" style="text-align:center">✅ identisch</td>'
+    : '<td class="sync-diff" style="text-align:center">⚠ unterschiedlich</td>';
+
+  function envCell(e) {
     var cnt = bm.counts && bm.counts[e] != null ? bm.counts[e] : '—';
     var rev = bm.revs && bm.revs[e] != null ? bm.revs[e] : '—';
     var meta = bm.meta && bm.meta[e] ? bm.meta[e] : null;
-    var metaText = meta ? formatSyncTimestamp(meta.updatedAt) + ' · ' + formatSyncUser(meta.updatedBy) : 'keine Metadaten';
+    var metaText = meta ? [formatSyncTimestamp(meta.updatedAt), formatSyncUser(meta.updatedBy)].filter(Boolean).join(' · ') : 'keine Metadaten';
     var isNewer = newerSide === e;
-    rows += '<tr>'
-      + '<td>' + esc(e.toUpperCase()) + '</td>'
-      + '<td class="' + (isNewer ? 'sync-cell-newer' : '') + '"><span class="sync-count">' + esc(cnt) + '</span>' + renderSyncNewBadge(isNewer ? e : null) + '</td>'
-      + '<td class="sync-rev' + (isNewer ? ' sync-cell-newer' : '') + '">Rev. ' + esc(rev) + '</td>'
-      + '<td><div class="sync-cell-main">' + esc(metaText) + '</div></td>'
-      + '<td>' + (index === envKeys.length - 1 ? statusIcon : '<span class="sync-row-muted">&nbsp;</span>') + '</td>'
-      + '</tr>';
-  });
-  return '<div class="sync-table-wrap"><table class="sync-table"><thead><tr><th>Umgebung</th><th>Anzahl</th><th>Revision</th><th>Letzte Änderung</th><th>Status</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+    return '<td class="' + syncEnvCellClass(e) + (isNewer ? ' sync-cell-newer' : '') + '">'
+      + '<div class="sync-cell-main">' + esc(cnt) + ' Bookmarks · Rev. ' + esc(rev) + renderSyncNewBadge(isNewer ? e : null) + '</div>'
+      + '<div class="sync-cell-sub">' + esc(metaText) + '</div>'
+      + '</td>';
+  }
+  var dir = syncRowDirection(true, true, newerSide);
+  var bodyRow = '<tr data-sync-row-domain="bookmarks">'
+    + '<td class="sync-select-cell"></td>'
+    + '<td class="sync-item-cell">Alle Bookmarks</td>'
+    + syncEnvCellsWithDir(envCell, envKeys, dir)
+    + statusCell
+    + '</tr>';
+  return '<div class="sync-table-wrap"><table class="sync-table">' + syncColgroup(envKeys) + syncHeaderRow('', '', envKeys) + '<tbody>' + bodyRow + '</tbody>' + syncActionsFooter('bookmarks', envKeys) + '</table></div>';
 }
 
 function renderCatalogTable(items, envKeys) {
   var rows = items.map(function(item) {
     var newerSide = getSyncNewerSide(item.envs && item.envs.dev, item.envs && item.envs.prod, 'updatedAt', 'revision');
-    var cells = envKeys.map(function(e) {
+    function envCell(e) {
       var env = item.envs && item.envs[e];
-      if (!env) return '<td class="sync-only-prod"><div class="sync-cell-main">— fehlt</div><div class="sync-cell-sub">kein Stand</div></td>';
+      if (!env) return '<td class="' + syncEnvCellClass(e) + '"><div class="sync-cell-main">— fehlt</div><div class="sync-cell-sub">kein Stand</div></td>';
       var metaText = [formatSyncTimestamp(env.updatedAt), formatSyncUser(env.updatedBy)].filter(Boolean).join(' · ');
       var isNewer = newerSide === e;
-      return '<td class="' + (isNewer ? 'sync-cell-newer' : '') + '"><div class="sync-cell-main">Rev. ' + esc(env.revision) + renderSyncNewBadge(isNewer ? e : null) + '</div><div class="sync-cell-sub">' + esc(metaText) + '</div></td>';
-    }).join('');
+      return '<td class="' + syncEnvCellClass(e) + (isNewer ? ' sync-cell-newer' : '') + '"><div class="sync-cell-main">Rev. ' + esc(env.revision) + renderSyncNewBadge(isNewer ? e : null) + '</div><div class="sync-cell-sub">' + esc(metaText) + '</div></td>';
+    }
+    var dir = syncRowDirection(!!(item.envs && item.envs.dev), !!(item.envs && item.envs.prod), newerSide);
     var statusCell = item.status === 'sync'
       ? '<td class="sync-ok" style="text-align:center">✅</td>'
       : '<td class="sync-diff" style="text-align:center">⚠</td>';
-    return '<tr>'
+    return '<tr data-sync-row-domain="catalog" data-sync-row-key="' + esc(item.profile) + '">'
       + '<td class="sync-select-cell"><input type="checkbox" class="sync-select-item" data-sync-select-item="1" data-sync-domain="catalog" data-sync-key="' + esc(item.profile) + '"></td>'
-      + '<td style="font-family:monospace;font-size:11px">' + esc(item.profile) + '</td>'
-      + cells
+      + '<td class="sync-item-cell">' + esc(item.profile) + '</td>'
+      + syncEnvCellsWithDir(envCell, envKeys, dir)
       + statusCell
       + '</tr>';
   }).join('');
-  var headers = '<th class="sync-select-col"><input type="checkbox" class="sync-select-all" data-sync-select-all="catalog" title="Alle Profile auswählen"></th>'
-    + '<th>Profil</th>'
-    + envKeys.map(function(e) { return '<th>' + esc(e.toUpperCase()) + '</th>'; }).join('')
-    + '<th style="text-align:center">Status</th>';
-  return '<div class="sync-table-wrap"><table class="sync-table"><thead><tr>' + headers + '</tr></thead><tbody>' + rows + '</tbody></table></div>';
+  var selectAll = '<input type="checkbox" class="sync-select-all" data-sync-select-all="catalog" title="Alle Profile auswählen">';
+  return '<div class="sync-table-wrap"><table class="sync-table">' + syncColgroup(envKeys) + syncHeaderRow(selectAll, 'Profil', envKeys) + '<tbody>' + rows + '</tbody>' + syncActionsFooter('catalog', envKeys) + '</table></div>';
 }
 
 function renderBundleTable(items, envKeys) {
   var visibleItems = items.slice(0, 30);
+  var totalCols = envKeys.length + 4; // Auswahl + Element + envs + Richtung + Status
   var rows = visibleItems.map(function(item) {
     var newerSide = getSyncNewerSide(item.envs && item.envs.dev, item.envs && item.envs.prod, 'importedAt', 'revision');
-    var cells = envKeys.map(function(e) {
+    function envCell(e) {
       var env = item.envs && item.envs[e];
-      if (!env) return '<td class="sync-only-' + esc(e) + '"><div class="sync-cell-main">— fehlt</div><div class="sync-cell-sub">kein Paket</div></td>';
+      if (!env) return '<td class="' + syncEnvCellClass(e) + '"><div class="sync-cell-main">— fehlt</div><div class="sync-cell-sub">kein Paket</div></td>';
       var metaText = [formatSyncTimestamp(env.importedAt), formatSyncUser(env.importedBy)].filter(Boolean).join(' · ');
       var isNewer = newerSide === e;
       var fileCount = env.files && env.files.length ? env.files.length + ' Dateien' : 'keine Dateien';
-      return '<td class="' + (isNewer ? 'sync-cell-newer' : '') + '"><div class="sync-cell-main">' + esc(env.scope || 'core') + renderSyncNewBadge(isNewer ? e : null) + '</div><div class="sync-cell-sub">' + esc(metaText) + ' · ' + esc(fileCount) + '</div></td>';
-    }).join('');
+      return '<td class="' + syncEnvCellClass(e) + (isNewer ? ' sync-cell-newer' : '') + '"><div class="sync-cell-main">' + esc(env.scope || 'core') + renderSyncNewBadge(isNewer ? e : null) + '</div><div class="sync-cell-sub">' + esc(metaText) + ' · ' + esc(fileCount) + '</div></td>';
+    }
+    var dir = syncRowDirection(!!(item.envs && item.envs.dev), !!(item.envs && item.envs.prod), newerSide);
     var presentEnvs = envKeys.filter(function(e) { return item.envs && item.envs[e]; });
     var statusCell = item.status === 'both'
       ? '<td class="sync-ok" style="text-align:center">✅</td>'
-      : '<td class="sync-diff" style="font-size:10px;white-space:nowrap">⚠ nur ' + esc(presentEnvs.map(function(e){return e.toUpperCase();}).join('+')) + '</td>';
+      : '<td class="sync-diff" style="font-size:10px;text-align:center">⚠ nur ' + esc(presentEnvs.map(function(e){return e.toUpperCase();}).join('+')) + '</td>';
     var fileRow = renderBundleFileRow(item, envKeys);
-    return '<tr>'
+    return '<tr data-sync-row-domain="bundles" data-sync-row-key="' + esc(item.kuerzel) + '">'
       + '<td class="sync-select-cell"><input type="checkbox" class="sync-select-item" data-sync-select-item="1" data-sync-domain="bundles" data-sync-key="' + esc(item.kuerzel) + '"></td>'
-      + '<td style="font-family:monospace;font-size:11px">' + esc(item.kuerzel) + '</td>'
-      + cells
+      + '<td class="sync-item-cell">' + esc(item.kuerzel) + '</td>'
+      + syncEnvCellsWithDir(envCell, envKeys, dir)
       + statusCell
-      + '</tr>';
-      + fileRow
+      + '</tr>'
+      + fileRow;
   }).join('');
-  if (items.length > 30) rows += '<tr><td colspan="' + (envKeys.length + 3) + '" style="text-align:center;color:#999;font-size:11px">… und ' + (items.length - 30) + ' weitere</td></tr>';
-  var headers = '<th class="sync-select-col"><input type="checkbox" class="sync-select-all" data-sync-select-all="bundles" title="Alle Kürzel auswählen"></th>'
-    + '<th>Kürzel</th>'
-    + envKeys.map(function(e) { return '<th>' + esc(e.toUpperCase()) + '</th>'; }).join('')
-    + '<th style="text-align:center">Status</th>';
-  return '<div class="sync-table-wrap"><table class="sync-table"><thead><tr>' + headers + '</tr></thead><tbody>' + rows + '</tbody></table></div>';
+  if (items.length > 30) rows += '<tr><td colspan="' + totalCols + '" style="text-align:center;color:#999;font-size:11px">… und ' + (items.length - 30) + ' weitere</td></tr>';
+  var selectAll = '<input type="checkbox" class="sync-select-all" data-sync-select-all="bundles" title="Alle Kürzel auswählen">';
+  return '<div class="sync-table-wrap"><table class="sync-table">' + syncColgroup(envKeys) + syncHeaderRow(selectAll, 'Kürzel', envKeys) + '<tbody>' + rows + '</tbody>' + syncActionsFooter('bundles', envKeys) + '</table></div>';
 }
 
 function renderBundleFileRow(item, envKeys) {
@@ -11848,7 +12350,7 @@ function renderBundleFileRow(item, envKeys) {
 
   var names = Object.keys(fileMap).sort();
   if (!names.length) {
-    return '<tr class="sync-file-row"><td></td><td colspan="' + (envKeys.length + 2) + '"><div class="sync-file-box"><div class="sync-file-label">Dateien</div><div class="sync-cell-sub">Keine Dateien im Bundle gespeichert.</div></div></td></tr>';
+    return '<tr class="sync-file-row"><td></td><td colspan="' + (envKeys.length + 3) + '"><div class="sync-file-box"><div class="sync-file-label">Dateien</div><div class="sync-cell-sub">Keine Dateien im Bundle gespeichert.</div></div></td></tr>';
   }
 
   var chips = names.map(function(name) {
@@ -11866,7 +12368,7 @@ function renderBundleFileRow(item, envKeys) {
     return '<span class="' + chipClass + '" title="' + esc(name) + '">' + esc(name) + (meta.length ? ' ' + meta.join(' ') : '') + '</span>';
   }).join('');
 
-  return '<tr class="sync-file-row"><td></td><td colspan="' + (envKeys.length + 2) + '"><div class="sync-file-box"><div class="sync-file-label">Dateien (' + names.length + ')</div><div class="sync-file-list">' + chips + '</div></div></td></tr>';
+  return '<tr class="sync-file-row"><td></td><td colspan="' + (envKeys.length + 3) + '"><div class="sync-file-box"><div class="sync-file-label">Dateien (' + names.length + ')</div><div class="sync-file-list">' + chips + '</div></div></td></tr>';
 }
 
 function buildSyncSummary(data, envKeys) {
@@ -12034,26 +12536,31 @@ function formatSyncUser(value) {
 function getSyncNewerSide(left, right, dateKey, revKey) {
   if (!left || !right) return null;
 
+  // Revision ist die autoritative Inhaltsversion → zuerst vergleichen.
+  // Bei gleicher Revision gelten beide Seiten als identisch (kein Marker),
+  // auch wenn der Schreib-Zeitstempel durch DB-Trigger abweicht.
+  var leftRev = left[revKey] != null ? Number(left[revKey]) : null;
+  var rightRev = right[revKey] != null ? Number(right[revKey]) : null;
+  var haveRevs = leftRev != null && rightRev != null && !isNaN(leftRev) && !isNaN(rightRev);
+  if (haveRevs) {
+    if (leftRev === rightRev) return null;
+    return leftRev > rightRev ? 'dev' : 'prod';
+  }
+
+  // Fallback nur ohne Revisionen (z.B. Bundles): Zeitstempel vergleichen.
   var leftDate = left[dateKey] ? new Date(left[dateKey]) : null;
   var rightDate = right[dateKey] ? new Date(right[dateKey]) : null;
   var leftValid = leftDate && !isNaN(leftDate.getTime());
   var rightValid = rightDate && !isNaN(rightDate.getTime());
-
   if (leftValid && rightValid && leftDate.getTime() !== rightDate.getTime()) {
     return leftDate.getTime() > rightDate.getTime() ? 'dev' : 'prod';
-  }
-
-  var leftRev = left[revKey] != null ? Number(left[revKey]) : null;
-  var rightRev = right[revKey] != null ? Number(right[revKey]) : null;
-  if (leftRev != null && rightRev != null && !isNaN(leftRev) && !isNaN(rightRev) && leftRev !== rightRev) {
-    return leftRev > rightRev ? 'dev' : 'prod';
   }
 
   return null;
 }
 
 function renderSyncNewBadge(side) {
-  return side ? '<span class="sync-new-badge ' + esc(side) + '">NEU</span>' : '';
+  return side ? '<span class="sync-new-badge ' + esc(side) + '" title="Diese Seite ist aktueller (höhere Revision)">▲ aktueller</span>' : '';
 }
 
 function wireSyncControls(content) {
@@ -12153,11 +12660,6 @@ function buildSyncDomain(id, label, contentFn, domain) {
     + '</div>'
     + '<div class="sync-domain-body">'
     + content
-    + '<div class="sync-domain-actions">'
-    + '<button class="sync-btn push" data-sync-domain="' + esc(domain) + '" data-sync-direction="dev-to-prod" title="Ausgewählte nach PROD übertragen">DEV ➡ PROD Übertragen</button>'
-    + '<button class="sync-btn pull" data-sync-domain="' + esc(domain) + '" data-sync-direction="prod-to-dev" title="Ausgewählte nach DEV übertragen">PROD ➡ DEV Übertragen</button>'
-    + '<span class="spacer"></span>'
-    + '</div>'
     + '</div>'
     + '</div>';
 }
@@ -12381,6 +12883,11 @@ function slmDeleteAllRawConfBackups() {
 }
 
 function slmRestoreBackup(filename, type) {
+  // Fullbackups (Bookmarks + Katalog + Bundles) → granularer Restore-Dialog
+  if (type === 'bookmarks' && /fullbackup/i.test(filename)) {
+    openFullbackupRestoreDialog(filename);
+    return;
+  }
   var msg = type === 'rawconf'
     ? 'Raw-Conf-Datei wiederherstellen?\n\n' + filename + '\n\n⚠ Die aktuelle Datei wird überschrieben (vorher automatisch gesichert).'
     : (type === 'bookmarks'
@@ -12426,6 +12933,122 @@ function slmRestoreBackup(filename, type) {
       slmLoadBackupList();
     })
     .catch(function(err) { statusEl.textContent = '✗ Fehler: ' + err.message; });
+}
+
+// ===== Granularer Fullbackup-Restore =====
+var _fbRestoreEls = null;
+function _ensureFbRestoreOverlay() {
+  if (_fbRestoreEls) return _fbRestoreEls;
+  var ov = document.createElement('div');
+  ov.id = 'fb-restore-overlay';
+  ov.innerHTML = '<div id="fb-restore-dialog">'
+    + '<div class="fbr-head"><span class="fbr-title" id="fbr-title">Granularer Restore</span><button class="fbr-close" id="fbr-close" title="Schliessen">×</button></div>'
+    + '<div class="fbr-body" id="fbr-body"></div>'
+    + '<div class="fbr-foot"><span id="fbr-status"></span><span style="flex:1"></span>'
+    + '<button class="fbr-btn-cancel" id="fbr-cancel">Abbrechen</button>'
+    + '<button class="fbr-btn-ok" id="fbr-ok">↩ Wiederherstellen</button></div>'
+    + '</div>';
+  document.body.appendChild(ov);
+  ov.addEventListener('click', function(e) { if (e.target === ov) _closeFbRestore(); });
+  ov.querySelector('#fbr-close').addEventListener('click', _closeFbRestore);
+  ov.querySelector('#fbr-cancel').addEventListener('click', _closeFbRestore);
+  _fbRestoreEls = {
+    overlay: ov,
+    title: ov.querySelector('#fbr-title'),
+    body: ov.querySelector('#fbr-body'),
+    status: ov.querySelector('#fbr-status'),
+    ok: ov.querySelector('#fbr-ok')
+  };
+  return _fbRestoreEls;
+}
+function _closeFbRestore() { if (_fbRestoreEls) _fbRestoreEls.overlay.classList.remove('open'); }
+
+function openFullbackupRestoreDialog(filename) {
+  var els = _ensureFbRestoreOverlay();
+  els.title.textContent = 'Granularer Restore — ' + filename;
+  els.body.innerHTML = '<div class="scd-loading">⏳ Lade Backup-Inhalt …</div>';
+  els.status.textContent = '';
+  els.ok.disabled = true;
+  els.overlay.classList.add('open');
+  fetch(API_URL + '?action=sync-fullbackup-read&file=' + encodeURIComponent(filename))
+    .then(function(r) { return r.json(); })
+    .then(function(res) {
+      if (!res.success) throw new Error(res.error || 'Fehler');
+      _fbRenderRestoreForm(filename, res.data || {});
+      els.ok.disabled = false;
+    })
+    .catch(function(err) {
+      els.body.innerHTML = '<div style="color:#c33;padding:12px">Fehler: ' + esc(err.message) + '</div>';
+    });
+}
+
+function _fbRenderRestoreForm(filename, inv) {
+  var els = _fbRestoreEls;
+  var srcEnv = (inv.env || 'dev').toLowerCase();
+  var profiles = inv.catalog || [];
+  var bundles = inv.bundles || [];
+  var bmCount = inv.bookmarks || 0;
+  var html = '';
+  html += '<div class="fbr-meta">Quelle: <span class="sync-leg ' + esc(srcEnv) + '">' + esc(srcEnv.toUpperCase()) + '</span>'
+    + ' · gesichert ' + esc(inv.savedAt || '—') + (inv.savedBy ? ' von ' + esc(inv.savedBy) : '') + '</div>';
+  html += '<div class="fbr-row"><label class="fbr-target">Ziel-Umgebung: <select id="fbr-target-env">'
+    + '<option value="dev"' + (srcEnv === 'dev' ? ' selected' : '') + '>DEV (mapplusconf_dev)</option>'
+    + '<option value="prod"' + (srcEnv === 'prod' ? ' selected' : '') + '>PROD (mapplusconf)</option>'
+    + '</select></label> <span class="fbr-warn">Merge: vorhandene Einträge werden überschrieben, zusätzliche bleiben.</span></div>';
+
+  html += '<div class="fbr-sec"><label class="fbr-sec-head"><input type="checkbox" id="fbr-bm" checked> <strong>Bookmarks</strong> <span class="fbr-cnt">' + bmCount + '</span></label></div>';
+
+  html += '<div class="fbr-sec"><label class="fbr-sec-head"><input type="checkbox" class="fbr-master" data-target="cat" checked> <strong>Katalog</strong> <span class="fbr-cnt">' + profiles.length + ' Profile</span></label>'
+    + '<div class="fbr-items" id="fbr-cat-items">' + profiles.map(function(p) {
+      return '<label class="fbr-item"><input type="checkbox" class="fbr-cat-item" value="' + esc(p.profile) + '" checked> ' + esc(p.profile) + ' <span class="fbr-rev">Rev. ' + esc(p.revision != null ? p.revision : '—') + '</span></label>';
+    }).join('') + '</div></div>';
+
+  html += '<div class="fbr-sec"><label class="fbr-sec-head"><input type="checkbox" class="fbr-master" data-target="bnd" checked> <strong>Bundles</strong> <span class="fbr-cnt">' + bundles.length + ' Kürzel</span></label>'
+    + '<div class="fbr-items" id="fbr-bnd-items">' + bundles.map(function(b) {
+      return '<label class="fbr-item"><input type="checkbox" class="fbr-bnd-item" value="' + esc(b.kuerzel) + '" checked> ' + esc(b.kuerzel) + ' <span class="fbr-rev">' + esc(b.scope || 'core') + '</span></label>';
+    }).join('') + '</div></div>';
+
+  els.body.innerHTML = html;
+
+  els.body.querySelectorAll('.fbr-master').forEach(function(m) {
+    m.addEventListener('change', function() {
+      var sel = m.dataset.target === 'cat' ? '.fbr-cat-item' : '.fbr-bnd-item';
+      els.body.querySelectorAll(sel).forEach(function(cb) { cb.checked = m.checked; });
+    });
+  });
+
+  els.ok.onclick = function() { _fbDoRestore(filename); };
+}
+
+function _fbDoRestore(filename) {
+  var els = _fbRestoreEls;
+  var targetEnv = (document.getElementById('fbr-target-env') || {}).value || 'dev';
+  var doBm = !!(document.getElementById('fbr-bm') && document.getElementById('fbr-bm').checked);
+  var catProfiles = Array.prototype.slice.call(els.body.querySelectorAll('.fbr-cat-item:checked')).map(function(cb) { return cb.value; });
+  var bndKuerzel = Array.prototype.slice.call(els.body.querySelectorAll('.fbr-bnd-item:checked')).map(function(cb) { return cb.value; });
+  if (!doBm && !catProfiles.length && !bndKuerzel.length) { els.status.textContent = 'Nichts ausgewählt.'; return; }
+  var summary = [];
+  if (doBm) summary.push('Bookmarks');
+  if (catProfiles.length) summary.push(catProfiles.length + ' Katalog-Profile');
+  if (bndKuerzel.length) summary.push(bndKuerzel.length + ' Bundles');
+  if (!confirm('Restore nach ' + targetEnv.toUpperCase() + ':\n\n  • ' + summary.join('\n  • ') + '\n\nVorhandene Einträge werden überschrieben (Merge). Fortfahren?')) return;
+  els.ok.disabled = true;
+  els.status.textContent = '⏳ Stelle wieder her …';
+  fetch(API_URL + '?action=sync-fullbackup-restore', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ file: filename, targetEnv: targetEnv, bookmarks: doBm, catalogProfiles: catProfiles, bundleKuerzel: bndKuerzel })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(res) {
+    if (!res.success) throw new Error(res.error || 'Fehler');
+    var d = res.data || {};
+    els.status.textContent = '✓ Wiederhergestellt nach ' + targetEnv.toUpperCase() + ': ' + (d.bookmarks || 0) + ' Bookmarks, ' + (d.catalog || 0) + ' Profile, ' + (d.bundles || 0) + ' Bundles'
+      + (d.errors && d.errors.length ? ' — ' + d.errors.length + ' Fehler' : '');
+    els.ok.disabled = false;
+    if (d.errors && d.errors.length) alert('Restore mit Fehlern:\n\n' + d.errors.join('\n'));
+    if (typeof loadSyncStatus === 'function') loadSyncStatus();
+  })
+  .catch(function(err) { els.status.textContent = '✗ Fehler: ' + err.message; els.ok.disabled = false; });
 }
 </script>
 
