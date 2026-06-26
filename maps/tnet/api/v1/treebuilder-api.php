@@ -1385,6 +1385,41 @@ function agsApiUrl($path, $query = []) {
     return AGS_API_BASE . $path . '?' . http_build_query($query);
 }
 
+/**
+ * Deployt eine gestaged Datei via FastAPI /deploy-staged-conf ans Ziel (SFTP).
+ * Direkte PHP-Schreibzugriffe auf /www sind nicht möglich — daher dieser Weg.
+ *
+ * @param string $stagedSftp SFTP-Pfad der Staging-Datei (innerhalb stage_conf_base des Ziels)
+ * @param string $deploySftp SFTP-Zielpfad (innerhalb der erlaubten Deploy-Präfixe)
+ * @param string $targetEnv  'dev' | 'prod' (bestimmt FastAPI-Whitelist/Backup-Ziel)
+ * @return array{success: bool, error?: string, data?: mixed}
+ */
+function deployStagedFileViaFastApi(string $stagedSftp, string $deploySftp, string $targetEnv): array {
+    $url     = AGS_API_BASE . '/deploy-staged-conf?target=' . urlencode($targetEnv);
+    $payload = json_encode(['stagedPath' => $stagedSftp, 'deployPath' => $deploySftp]);
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_POST           => true,
+        CURLOPT_POSTFIELDS     => $payload,
+        CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT        => 30,
+    ]);
+    $response  = curl_exec($ch);
+    $httpCode  = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlError = curl_error($ch);
+    curl_close($ch);
+
+    if ($curlError) {
+        return ['success' => false, 'error' => 'cURL-Fehler: ' . $curlError];
+    }
+    $result = @json_decode($response, true);
+    if ($httpCode !== 200 || empty($result['success'])) {
+        return ['success' => false, 'error' => ($result['detail'] ?? $result['error'] ?? ('HTTP ' . $httpCode))];
+    }
+    return ['success' => true, 'data' => $result['data'] ?? null];
+}
+
 // =====================================================================
 // QGIS Server — Projektliste und WMS GetCapabilities
 // =====================================================================
@@ -6685,6 +6720,27 @@ switch ($action) {
         }
         break;
 
+    // ── Sync: Ausgewählte Einträge in EINER Umgebung löschen (catalog/bundles) ──
+    case 'sync-delete':
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('POST erwartet', 405);
+        $delBody = json_decode(file_get_contents('php://input'), true);
+        if (!$delBody) jsonError('Ungültiger JSON-Body', 400);
+        $delDomain = (string)($delBody['domain'] ?? '');
+        $delEnv    = strtolower(trim((string)($delBody['env'] ?? '')));
+        $delKeys   = isset($delBody['keys']) && is_array($delBody['keys']) ? array_map('strval', $delBody['keys']) : [];
+        $delUser   = $delBody['user'] ?? (getEditorName() ?: 'anonym');
+        if (!in_array($delDomain, ['catalog', 'bundles'], true)) jsonError('domain muss catalog oder bundles sein', 400);
+        if (!in_array($delEnv, ['dev', 'prod'], true)) jsonError('env muss dev oder prod sein', 400);
+        if (empty($delKeys)) jsonError('keys erforderlich', 400);
+        require_once __DIR__ . '/../includes/SyncRepository.php';
+        try {
+            $delResult = SyncRepository::deleteEntries($delDomain, $delEnv, $delKeys, $delUser);
+            jsonResponse(['success' => empty($delResult['errors']), 'data' => $delResult, 'domain' => $delDomain, 'env' => $delEnv]);
+        } catch (\Throwable $e) {
+            jsonError('Löschen-Fehler: ' . $e->getMessage(), 500);
+        }
+        break;
+
     // ── Sync: Fehlende Tabellen im Zielschema anlegen ──
     case 'sync-schema-init':
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('POST erwartet', 405);
@@ -7649,6 +7705,166 @@ switch ($action) {
         break;
 
     // ── Sync: Granularer Restore aus Fullbackup (Merge/UPSERT) ──
+    // ── File-Sync: Status ──────────────────────────────────────────────────────
+    case 'file-sync-status':
+        require_once __DIR__ . '/../includes/FileSyncRepository.php';
+        try {
+            jsonResponse(['success' => true, 'data' => FileSyncRepository::getStatus()]);
+        } catch (\Throwable $e) {
+            jsonError('File-Sync Status Fehler: ' . $e->getMessage(), 500);
+        }
+        break;
+
+    // ── File-Sync: Ausführen (via FastAPI /deploy-staged-conf — SFTP, kein Direkt-Write) ──
+    case 'file-sync-execute':
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('POST erwartet', 405);
+        $fsBody = json_decode(file_get_contents('php://input'), true) ?: [];
+        $fsDomain    = (string)($fsBody['domain']    ?? '');
+        $fsDirection = (string)($fsBody['direction'] ?? '');
+        $fsFiles     = isset($fsBody['files']) && is_array($fsBody['files'])
+            ? array_map('strval', $fsBody['files']) : [];
+        if (!$fsDomain || !$fsDirection) jsonError('domain und direction erforderlich', 400);
+        if (!in_array($fsDirection, ['dev-to-prod', 'prod-to-dev'], true)) jsonError('Ungültige Richtung', 400);
+        require_once __DIR__ . '/../includes/FileSyncRepository.php';
+
+        $fsSrcEnv = ($fsDirection === 'dev-to-prod') ? 'dev'  : 'prod';
+        $fsDstEnv = ($fsDirection === 'dev-to-prod') ? 'prod' : 'dev';
+
+        // Staging-Verzeichnis im TMP-Baum der ZIEL-Umgebung (FastAPI-Whitelist: stage_conf_base).
+        $fsTmpBase   = preg_replace('#/(maps|maps-dev)$#', '/' . ($fsDstEnv === 'prod' ? 'maps' : 'maps-dev'), TNET_TMP_ROOT);
+        $fsStagedDir = $fsTmpBase . '/stageConf/filesync';
+        if (!is_dir($fsStagedDir)) @mkdir($fsStagedDir, 0775, true);
+
+        $fsCopied = 0; $fsErrors = []; $fsDeployed = [];
+        if (!is_dir($fsStagedDir) || !is_writable($fsStagedDir)) {
+            jsonError('Staging-Verzeichnis nicht beschreibbar: ' . toSftpPath($fsStagedDir)
+                . ' — Datei-Sync nach ' . strtoupper($fsDstEnv) . ' aus dieser Umgebung nicht möglich.', 500);
+        }
+
+        foreach ($fsFiles as $fsRel) {
+            try {
+                $fsSrcPhp = FileSyncRepository::resolvePath($fsSrcEnv, $fsDomain, $fsRel);
+                $fsDstPhp = FileSyncRepository::resolvePath($fsDstEnv, $fsDomain, $fsRel);
+            } catch (\Throwable $e) {
+                $fsErrors[] = $fsRel . ': ' . $e->getMessage();
+                continue;
+            }
+            if (!is_file($fsSrcPhp)) { $fsErrors[] = $fsRel . ': Quelldatei fehlt'; continue; }
+            $fsContent = @file_get_contents($fsSrcPhp);
+            if ($fsContent === false) { $fsErrors[] = $fsRel . ': Quelldatei nicht lesbar'; continue; }
+
+            $fsStagedFile = $fsStagedDir . '/' . md5($fsDomain . '|' . $fsRel) . '_' . basename($fsRel);
+            if (file_put_contents($fsStagedFile, $fsContent) === false) {
+                $fsErrors[] = $fsRel . ': Staging fehlgeschlagen';
+                continue;
+            }
+
+            $fsRes = deployStagedFileViaFastApi(toSftpPath($fsStagedFile), toSftpPath($fsDstPhp), $fsDstEnv);
+            if (!empty($fsRes['success'])) {
+                $fsCopied++;
+                $fsDeployed[] = $fsRel;
+            } else {
+                $fsErrors[] = $fsRel . ': ' . ($fsRes['error'] ?? 'FastAPI-Fehler');
+            }
+        }
+
+        jsonResponse(['success' => empty($fsErrors), 'data' => [
+            'copied'   => $fsCopied,
+            'errors'   => $fsErrors,
+            'deployed' => $fsDeployed,
+            'via'      => 'fastapi',
+        ]]);
+        break;
+
+    // ── File-Sync: Inhaltlicher Diff einer Datei (DEV ↔ PROD, On-Demand) ────────
+    case 'file-sync-content-diff':
+        require_once __DIR__ . '/../includes/FileSyncRepository.php';
+        $fdDomain  = (string)($_GET['domain']  ?? '');
+        $fdRelpath = (string)($_GET['relpath'] ?? '');
+        if ($fdDomain === '' || $fdRelpath === '') jsonError('domain und relpath erforderlich', 400);
+        try {
+            jsonResponse(['success' => true, 'data' => FileSyncRepository::contentDiff($fdDomain, $fdRelpath)]);
+        } catch (\Throwable $e) {
+            jsonError('File-Diff Fehler: ' . $e->getMessage(), 500);
+        }
+        break;
+
+    // ── DB ↔ publizierte Dateien: Status (Re-Publish nötig?) ────────────────────
+    case 'db-publish-status':
+        require_once __DIR__ . '/../includes/FileSyncRepository.php';
+        try {
+            jsonResponse(['success' => true, 'data' => FileSyncRepository::dbPublishStatus()]);
+        } catch (\Throwable $e) {
+            jsonError('DB-Publish Status Fehler: ' . $e->getMessage(), 500);
+        }
+        break;
+
+    // ── DB ↔ publizierte Dateien: Inhaltlicher Diff (On-Demand) ─────────────────
+    case 'db-publish-diff':
+        require_once __DIR__ . '/../includes/FileSyncRepository.php';
+        $dpKuerzel = (string)($_GET['kuerzel'] ?? '');
+        $dpName    = (string)($_GET['name']    ?? '');
+        if ($dpKuerzel === '' || $dpName === '') jsonError('kuerzel und name erforderlich', 400);
+        try {
+            jsonResponse(['success' => true, 'data' => FileSyncRepository::dbPublishDiff($dpKuerzel, $dpName)]);
+        } catch (\Throwable $e) {
+            jsonError('DB-Publish Diff Fehler: ' . $e->getMessage(), 500);
+        }
+        break;
+
+    // ── DB → publizierte Datei: Republish (DB-Inhalt nach core/ schreiben via FastAPI) ──
+    case 'db-publish-republish':
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('POST erwartet', 405);
+        $rpBody = json_decode(file_get_contents('php://input'), true) ?: [];
+        // Einzeln {kuerzel,name} oder Bulk {items:[{kuerzel,name},...]}
+        $rpItems = [];
+        if (isset($rpBody['items']) && is_array($rpBody['items'])) {
+            foreach ($rpBody['items'] as $it) {
+                $k = (string)($it['kuerzel'] ?? ''); $n = (string)($it['name'] ?? '');
+                if ($k !== '' && $n !== '') $rpItems[] = ['kuerzel' => $k, 'name' => $n];
+            }
+        } else {
+            $k = (string)($rpBody['kuerzel'] ?? ''); $n = (string)($rpBody['name'] ?? '');
+            if ($k !== '' && $n !== '') $rpItems[] = ['kuerzel' => $k, 'name' => $n];
+        }
+        if (empty($rpItems)) jsonError('kuerzel und name (oder items[]) erforderlich', 400);
+
+        require_once __DIR__ . '/../includes/FileSyncRepository.php';
+        $rpTarget    = getFastApiTarget();
+        $rpStagedDir = TNET_TMP_ROOT . '/stageConf/republish';
+        if (!is_dir($rpStagedDir)) @mkdir($rpStagedDir, 0775, true);
+        if (!is_dir($rpStagedDir) || !is_writable($rpStagedDir)) {
+            jsonError('Staging-Verzeichnis nicht beschreibbar: ' . toSftpPath($rpStagedDir), 500);
+        }
+
+        $rpDone = []; $rpErrors = [];
+        foreach ($rpItems as $it) {
+            try {
+                $plan = FileSyncRepository::republishPlan($it['kuerzel'], $it['name']);
+            } catch (\Throwable $e) {
+                $rpErrors[] = $it['name'] . ': ' . $e->getMessage();
+                continue;
+            }
+            $stagedFile = $rpStagedDir . '/' . md5($it['kuerzel'] . '|' . $plan['name']) . '_' . $plan['name'];
+            if (file_put_contents($stagedFile, $plan['content']) === false) {
+                $rpErrors[] = $plan['name'] . ': Staging fehlgeschlagen';
+                continue;
+            }
+            $rpRes = deployStagedFileViaFastApi(toSftpPath($stagedFile), toSftpPath($plan['deployPhpPath']), $rpTarget);
+            if (!empty($rpRes['success'])) {
+                $rpDone[] = ['name' => $plan['name'], 'bucket' => $plan['bucket'], 'bytes' => $rpRes['data']['bytes'] ?? null];
+            } else {
+                $rpErrors[] = $plan['name'] . ': ' . ($rpRes['error'] ?? 'FastAPI-Fehler');
+            }
+        }
+
+        jsonResponse(['success' => empty($rpErrors), 'data' => [
+            'republished' => $rpDone,
+            'errors'      => $rpErrors,
+            'target'      => $rpTarget,
+        ]]);
+        break;
+
     case 'sync-fullbackup-restore':
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('POST erwartet', 405);
         $rbBody = json_decode(file_get_contents('php://input'), true) ?: [];

@@ -1,4 +1,40 @@
-﻿## 2026-06-24 - SLM Sync: Fullbackup-Button lief ins Leere + granularer Restore
+﻿## 2026-06-26 - File-Sync: Direkter PHP-copy() scheitert — Schreiben muss ueber FastAPI /deploy-staged-conf (SFTP)
+
+- Symptom: Datei-Sync (DEV↔PROD) per `copy()` in PHP schrieb nichts; das Ziel unter /www blieb unveraendert.
+- Root-Cause: Der PHP-/Web-User darf NICHT direkt nach /www schreiben. Saemtliche Datei-Writes laufen ueber den FastAPI-Endpoint `/deploy-staged-conf` (ags2mapplus), der die Datei via SFTP ans Ziel schreibt. PHP kann nur lesen (auch cross-tree) und in den TMP-Staging-Bereich schreiben.
+- Fix: `file-sync-execute` staged den Quellinhalt nach `TNET_TMP_ROOT(zielenv)/stageConf/filesync/`, wandelt PHP-Pfade via `toSftpPath()` in SFTP-Pfade und ruft `deployStagedFileViaFastApi(stagedSftp, deploySftp, targetEnv)` (curl POST an `AGS_API_BASE/deploy-staged-conf?target=`). `FileSyncRepository::resolvePath()` liefert den realen PHP-Pfad (wwwRoot via `dirname(__DIR__,4)`).
+- Wichtige FastAPI-Whitelist (TARGET_PATHS in ags2mapplus_lyrmgr.py): stagedPath muss unter `/data/tmp/<maps|maps-dev>/stageConf/` liegen; deployPath nur unter `core/config/`, `core/nls/de/`, `maps*/core/config/`, `maps*/core/nls/de/`, `maps*/public/config/`. → `tnet/config` ist NICHT deploybar (nur Vergleich), `core/legends|help` ebenfalls nicht. `target` = ZIEL-Umgebung (nicht aktuelle App).
+- Guardrail: In dieser Umgebung NIE per PHP direkt nach /www schreiben — immer ueber FastAPI `/deploy-staged-conf` mit korrektem `target` (= Ziel-Env) und Staging unter dem stageConf-Whitelist-Pfad des Ziels. Pfade immer mit `toSftpPath()` umrechnen.
+
+
+
+- Symptom: Im Sync-Tab zeigten DEV/PROD bei identischer Katalog-Revision unterschiedliche "Konfig"-Zeitstempel; auch nach mehrfachem Sync.
+- Root-Cause: Der DB-Trigger `trg_catalog_document_updated` (set_updated_at) setzt `updated_at = now()` bei JEDEM UPDATE. Der Sync schrieb zwar `updated_at` aus der Quelle, der BEFORE-UPDATE-Trigger ueberschrieb es aber sofort mit der lokalen Zeit. Da die Anzeige `updated_at` als Konfig-Zeit nutzte, divergierten beide Seiten dauerhaft.
+- Fix: Eigene, trigger-unabhaengige Spalten `config_revision_at` + `config_revision_by` in `catalog_document`. Sie werden in `CatalogRepository::saveProfile/publishBlock` zusammen mit der Revision gesetzt und in `SyncRepository::syncCatalog` 1:1 aus der Quelle ins Ziel kopiert (Trigger fasst sie nicht an). `getStatus` liest `COALESCE(config_revision_at, non-import-History, updated_at)`. Selbstheilendes `ensureSyncColumns()` (in getStatus, Best-Effort) legt Spalten an + backfillt. Verifiziert im Browser: nach einem Sync sind die Konfig-Zeiten identisch, Sync-Zeit bleibt getrennt.
+- Guardrail: Bei "Kopie"-Sync NIE einen trigger-gesetzten Zeitstempel (updated_at via BEFORE-UPDATE) als Inhalts-/Konfig-Zeit verwenden. Inhaltszeit in eine eigene, trigger-freie Spalte schreiben, die mit der Revision gesetzt und beim Sync 1:1 mitkopiert wird.
+
+## 2026-06-24 - File-Sync: PHP-Pfade duerfen nicht hart auf /www zeigen (SFTP-Alias != realer FS-Pfad)
+
+- Symptom: Neue Datei-Sync-Sektion zeigte "Keine Dateien gefunden", obwohl die Dateien (tnet/config, core/nls/de) per SFTP nachweislich existieren und world-readable (0775) sind, ohne open_basedir-Restriktion.
+- Root-Cause: `FileSyncRepository` nutzte hartkodierte Pfade `/www/maps-dev` bzw. `/www/maps`. Der SFTP-Pfad `/www` ist nur ein Alias (chroot/Home); der reale Dateisystempfad, den PHP zur Laufzeit sieht, ist anders (Daten-Basis liegt z.B. unter /data/Client_Data/nwow/). `is_dir('/www/...')` war daher false.
+- Fix: Wurzel zur Laufzeit relativ zum Skript ableiten: `dirname(__DIR__, 4)` (includes→api→tnet→<maps-dev|maps>→www). envRoot = wwwRoot . '/maps-dev' bzw. '/maps'. Funktioniert unabhaengig vom realen Mount. Hinweis: Core-Config ist serverseitig GETEILT unter /www/core (nicht per-Env), nur tnet/config und core/nls/de sind je Umgebungsbaum getrennt.
+- Guardrail: Serverseitige Datei-Pfade in PHP immer relativ zu `__DIR__` aufloesen, nie den SFTP-/Deploy-Pfad (/www) hartkodieren — der kann vom realen Dateisystempfad abweichen.
+
+## 2026-06-24 - Sync-Tab: Konfig-Zeit griff auf Import-History statt echte Konfig-Änderung
+
+- Symptom: Trotz neuem Sync und gleicher Revision blieben DEV/PROD-Konfig-Zeitstempel unterschiedlich.
+- Root-Cause: Die Status-Abfrage nahm den letzten `catalog_document_history`-Eintrag zur Revision; nach Sync ist das oft `action='import'` mit lokaler Sync-Zeit, nicht die echte Konfig-Änderungszeit.
+- Fix: `config_updated_at` filtert History-Einträge jetzt mit `action <> 'import'`; die Sync-Zeit bleibt separat über den letzten `import`-Eintrag sichtbar.
+- Guardrail: Wenn Konfig- und Prozesshistorie im selben History-Table liegen, muss die Konfig-Anzeige Prozess-Events explizit ausfiltern.
+
+## 2026-06-24 - Sync-Tab: Konfig-Zeitstempel driftete nach Sync trotz gleicher Revision
+
+- Symptom: Nach DEV↔PROD-Sync zeigte der Sync-Tab bei gleichem Revisionsstand unterschiedliche "Konfig"-Zeitstempel zwischen den Umgebungen.
+- Root-Cause: `syncCatalog()` schrieb im Ziel `catalog_document.updated_at = now()` statt den Quellwert zu uebernehmen; dadurch wurde die lokale Sync-Zeit als Konfig-Zeit angezeigt.
+- Fix: Beim Katalog-Sync wird `updated_at` jetzt aus der Quelle uebernommen. Die Sync-Zeit wird separat als `import`-Eintrag in `catalog_document_history` erfasst und im Status als eigener Zeitstempel (`sync_updated_at`) geliefert.
+- Guardrail: Inhaltszeit (Konfigurationsstand) und Prozesszeit (Synchronisation) nie im selben Feld mischen; Konfig-Zeit beim Copy-Sync immer aus der Quelle uebernehmen.
+
+## 2026-06-24 - SLM Sync: Fullbackup-Button lief ins Leere + granularer Restore
 
 - Symptom: Im Sync-Tab erzeugte „💾 Backup erstellen" scheinbar nichts Brauchbares, und ein Restore stellte nur Bookmarks (in den Editor) wieder her — Katalog/Bundles aus dem Fullbackup waren nicht restaurierbar.
 - Root-Cause: `SyncRepository::createFullBackup()` existierte, war aber an KEINE Route in `treebuilder-api.php` angebunden; das Frontend rief `action=sync-fullbackup-create` ins Leere (Default-Case). Zudem behandelte `slmRestoreBackup` Fullbackups wie reine Bookmark-Backups (`restore-bookmark-backup` → nur Bookmarks in den Arbeitsspeicher), obwohl die Datei `{_meta, bookmarks[], catalog[], bundles[]}` enthält.

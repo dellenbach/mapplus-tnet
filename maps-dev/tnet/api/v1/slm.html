@@ -622,6 +622,19 @@ body {
 .sync-new-badge.prod { background: #e9f7ee; color: #1b7a3d; }
 /* Hover-Differenzanalyse */
 .sync-table tbody tr[data-sync-row-domain] { cursor: help; }
+/* File-Sync */
+.sync-file-domain { margin-bottom: 16px; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden; }
+.sync-file-domain-label { background: #f1f5f9; padding: 8px 12px; font-weight: 700; font-size: 13px; color: #1f2937; border-bottom: 1px solid #e5e7eb; }
+.sync-diff-badge { display: inline-block; background: #fff3e0; color: #b45309; font-weight: 700; font-size: 11px; padding: 1px 7px; border-radius: 999px; margin-left: 6px; }
+.sync-ok-badge   { display: inline-block; background: #eaf6ec; color: #2e7d32; font-weight: 700; font-size: 11px; padding: 1px 7px; border-radius: 999px; margin-left: 6px; }
+.sync-file-table td, .sync-file-table th { font-size: 12px; }
+.fs-row-diff td { background: #fffbf2; }
+.fs-diff-link { cursor: pointer; }
+.fs-diff-link:hover { background: #eef3f6 !important; }
+.dbf-diff-link { cursor: pointer; }
+.dbf-diff-link:hover { background: #eef3f6 !important; }
+.fs-diff-hint { color: #4B7B81; font-size: 10px; font-weight: 700; margin-left: 4px; opacity: .75; }
+#sync-file-domain .sync-domain-head { background: #f1f5f9; border: 1px solid #dde2e8; border-radius: 6px; padding: 8px 12px; display: flex; align-items: center; gap: 10px; font-weight: 700; cursor: default; }
 #sync-diff-tip { position: fixed; z-index: 99999; max-width: 380px; background: #20323d; color: #e9eef2; font-size: 11px; line-height: 1.55; padding: 9px 11px; border-radius: 7px; box-shadow: 0 6px 22px rgba(0,0,0,.32); pointer-events: none; display: none; }
 #sync-diff-tip .sdt-title { font-weight: 800; margin-bottom: 5px; color: #fff; border-bottom: 1px solid rgba(255,255,255,.18); padding-bottom: 4px; }
 #sync-diff-tip .sdt-dev  { font-weight: 800; color: #ffb267; }
@@ -669,6 +682,11 @@ body {
 .scd-gitdiff .add { background: rgba(34,197,94,.18); color: #86efac; }
 .scd-gitdiff .del { background: rgba(239,68,68,.18); color: #fca5a5; }
 .scd-gitdiff .ctx { color: #8b9bb0; }
+.scd-gitdiff .hdr { color: #cbd5e1; background: #1e293b; font-weight: 700; border-bottom: 1px solid #334155; margin-bottom: 2px; }
+.scd-difflegend { font-size: 11px; color: #475569; margin: 6px 0 2px; }
+.scd-difflegend .dl { display: inline-block; font-weight: 800; font-family: Consolas, monospace; padding: 0 6px; border-radius: 4px; }
+.scd-difflegend .dl.del { background: rgba(239,68,68,.18); color: #b91c1c; }
+.scd-difflegend .dl.add { background: rgba(34,197,94,.18); color: #15803d; }
 .scd-difftools { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
 .scd-difftools button { font-size: 10px; padding: 2px 8px; border: 1px solid #cdd5db; background: #fff; border-radius: 4px; cursor: pointer; }
 /* Granularer Restore-Dialog */
@@ -710,6 +728,10 @@ body {
 .sync-actions-label { font-size: 11px; color: #66727b; font-weight: 600; margin-right: 2px; }
 .sync-btn.push.sync-newer-source { box-shadow: inset 0 0 0 1px #2e7d32; }
 .sync-btn.pull.sync-newer-source { box-shadow: inset 0 0 0 1px #1565c0; }
+.sync-btn.del { background: #fff; border-color: #e3b3b3; color: #b3261e; padding: 6px 14px; font-weight: 700; }
+.sync-btn.del:hover { background: #fdeceb; }
+.sync-btn.del:disabled:hover { background: #fff; }
+.sync-delete-actions { margin-top: 6px; }
 .sync-btn .sync-btn-note { display: block; font-size: 9px; font-weight: 700; line-height: 1.1; opacity: .85; }
 .sync-btn:disabled { opacity: .4; cursor: default; }
 .sync-btn:disabled:hover { background: inherit; }
@@ -11771,6 +11793,372 @@ function executeSyncOperation(domain, direction, keys) {
   });
 }
 
+function executeSyncDelete(domain, env, keys) {
+  if (!domain || !env) return;
+  if (!keys || !keys.length) { alert('Keine Einträge ausgewählt.'); return; }
+  var domainLabel = { catalog: 'Katalog-Profile', bundles: 'Config-Bundles' }[domain] || domain;
+  var envLabel = env.toUpperCase();
+  var msg  = '🗑  LÖSCHEN BESTÄTIGEN\n';
+  msg += '═══════════════════════\n';
+  msg += '  Bereich:   ' + domainLabel + '\n';
+  msg += '  Umgebung:  ' + envLabel + '\n';
+  msg += '  Elemente:  ' + keys.slice(0, 8).join(', ') + (keys.length > 8 ? ' … (+' + (keys.length - 8) + ')' : '') + '\n';
+  msg += '\n  Diese Einträge werden in ' + envLabel + ' UNWIDERRUFLICH gelöscht!';
+  if (!confirm(msg)) return;
+
+  var statusBar = document.getElementById('sync-status-bar');
+  if (statusBar) statusBar.textContent = '⏳ Lösche ' + keys.length + ' Eintrag/Einträge aus ' + envLabel + ' …';
+
+  var user = (typeof bmGetUser === 'function') ? bmGetUser() : 'anonym';
+  fetch(API_URL + '?action=sync-delete', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ domain: domain, env: env, keys: keys, user: user })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(res) {
+    if (!res.success && !(res.data && res.data.deleted != null)) throw new Error(res.error || 'Fehler');
+    var d = res.data || {};
+    if (statusBar) statusBar.textContent = '✅ Löschen abgeschlossen — ' + envLabel + ' | ' + domain + ': ' + (d.deleted || 0) + ' gelöscht'
+      + (d.errors && d.errors.length ? ', ' + d.errors.length + ' Fehler' : '');
+    if (d.errors && d.errors.length) alert('Löschen mit Fehlern:\n\n' + d.errors.join('\n'));
+    setTimeout(loadSyncStatus, 800);
+  })
+  .catch(function(err) {
+    if (statusBar) statusBar.textContent = '❌ Löschen fehlgeschlagen: ' + err.message;
+  });
+}
+
+// ===== FILE-SYNC =====
+
+var _fileSyncData = null;
+
+function loadFileSyncSection() {
+  var body = document.getElementById('sync-file-body');
+  var meta = document.getElementById('sync-file-meta');
+  if (!body) return;
+  fetch(API_URL + '?action=file-sync-status')
+    .then(function(r) { return r.json(); })
+    .then(function(res) {
+      if (!res.success) throw new Error(res.error || 'Fehler');
+      _fileSyncData = res.data || {};
+      body.innerHTML = renderFileSyncTable(_fileSyncData);
+      var total = 0, diff = 0;
+      Object.keys(_fileSyncData).forEach(function(dk) {
+        var files = _fileSyncData[dk].files || {};
+        Object.keys(files).forEach(function(fn) { total++; if (files[fn].status !== 'sync') diff++; });
+      });
+      if (meta) meta.textContent = total + ' Dateien, ' + diff + ' unterschiedlich';
+      wireFileSyncControls(body);
+    })
+    .catch(function(err) {
+      if (body) body.innerHTML = '<div style="padding:12px;color:#c33">Fehler beim Laden: ' + esc(err.message) + '</div>';
+      if (meta) meta.textContent = 'Fehler';
+    });
+}
+
+function renderFileSyncTable(data) {
+  if (!data || !Object.keys(data).length) return '<div style="padding:12px;color:#999">Keine Datei-Domains verfügbar.</div>';
+  var html = '';
+  Object.keys(data).forEach(function(domainKey) {
+    var domain = data[domainKey];
+    var files  = domain.files || {};
+    var names  = Object.keys(files);
+    if (!names.length) {
+      html += '<div class="sync-file-domain"><div class="sync-file-domain-label">' + esc(domain.label) + '</div>'
+        + '<div style="padding:8px 12px;color:#999;font-size:12px">Keine Dateien gefunden (<code>' + esc(domain.subdir) + '</code>)</div></div>';
+      return;
+    }
+    var diffCount = names.filter(function(n) { return files[n].status !== 'sync'; }).length;
+    html += '<div class="sync-file-domain">';
+    html += '<div class="sync-file-domain-label">' + esc(domain.label)
+      + (diffCount ? ' <span class="sync-diff-badge">' + diffCount + ' unterschiedlich</span>' : ' <span class="sync-ok-badge">✓ alles identisch</span>')
+      + '</div>';
+    html += '<table class="sync-table sync-file-table" data-fs-domain="' + esc(domainKey) + '">';
+    html += '<thead><tr>'
+      + '<th class="sync-select-col"><input type="checkbox" class="fs-select-all" data-fs-domain="' + esc(domainKey) + '" title="Alle auswählen"></th>'
+      + '<th>Dateiname</th>'
+      + '<th class="sync-col-dev">DEV<br><span style="font-weight:400;font-size:11px">Änderungsdatum · Grösse</span></th>'
+      + '<th class="sync-dir-col">⇄</th>'
+      + '<th class="sync-col-prod">PROD<br><span style="font-weight:400;font-size:11px">Änderungsdatum · Grösse</span></th>'
+      + '<th class="sync-status-col" style="text-align:center">Status</th>'
+      + '</tr></thead><tbody>';
+    names.forEach(function(filename) {
+      var f      = files[filename];
+      var dev    = f.dev,  prod = f.prod;
+      var status = f.status;
+      var rowCls = status === 'sync' ? '' : ' class="fs-row-diff"';
+      var statusCell = status === 'sync'
+        ? '<td class="sync-ok" style="text-align:center" title="Identisch">✅</td>'
+        : (status === 'dev-only'  ? '<td class="sync-diff" style="text-align:center;font-size:11px">nur DEV</td>'
+        : (status === 'prod-only' ? '<td class="sync-diff" style="text-align:center;font-size:11px">nur PROD</td>'
+        :                           '<td class="sync-diff" style="text-align:center">⚠</td>'));
+      var devCell  = dev
+        ? '<td class="sync-col-dev"><div class="sync-cell-main" style="font-size:11px">' + esc(renderMetaDate(dev.mtime)) + '</div><div class="sync-cell-sub">' + esc(Math.round(dev.size / 1024 * 10) / 10 + ' KB') + '</div></td>'
+        : '<td class="sync-col-dev" style="color:#bbb;font-size:11px">—</td>';
+      var prodCell = prod
+        ? '<td class="sync-col-prod"><div class="sync-cell-main" style="font-size:11px">' + esc(renderMetaDate(prod.mtime)) + '</div><div class="sync-cell-sub">' + esc(Math.round(prod.size / 1024 * 10) / 10 + ' KB') + '</div></td>'
+        : '<td class="sync-col-prod" style="color:#bbb;font-size:11px">—</td>';
+      var dirCell = status === 'sync'
+        ? '<td class="sync-dir-col"><span class="sync-dir-arrow equal">=</span></td>'
+        : (status === 'dev-only' || (dev && prod && (new Date(dev.mtime) >= new Date(prod.mtime))))
+          ? '<td class="sync-dir-col fs-diff-link" title="Klick: Inhaltsvergleich DEV ↔ PROD"><span class="sync-dir-arrow to-prod">▶</span></td>'
+          : '<td class="sync-dir-col fs-diff-link" title="Klick: Inhaltsvergleich DEV ↔ PROD"><span class="sync-dir-arrow to-dev">◀</span></td>';
+      var nameClickable = (status === 'diff');
+      html += '<tr' + rowCls + ' data-fs-filename="' + esc(filename) + '" data-fs-domain="' + esc(domainKey) + '">'
+        + '<td class="sync-select-cell"><input type="checkbox" class="fs-select-item" data-fs-domain="' + esc(domainKey) + '" data-fs-filename="' + esc(filename) + '"'
+        + (status === 'sync' ? '' : '') + '></td>'
+        + '<td class="sync-item-cell' + (nameClickable ? ' fs-diff-link' : '') + '" style="font-size:12px;font-family:monospace"'
+        + (nameClickable ? ' title="Klick: Inhaltsvergleich DEV ↔ PROD"' : '') + '>' + esc(filename) + (nameClickable ? ' <span class="fs-diff-hint">⇆ Diff</span>' : '') + '</td>'
+        + devCell + dirCell + prodCell + statusCell
+        + '</tr>';
+    });
+    html += '</tbody>';
+    html += '<tfoot><tr class="sync-actions-row">'
+      + '<td colspan="2"></td>'
+      + '<td colspan="3" class="sync-actions-cell"><div class="sync-domain-actions"><span class="sync-actions-label">Ausgewählte übertragen</span>'
+      + '<div class="sync-actions-btns">'
+      + '<button class="sync-btn push fs-sync-btn" data-fs-domain="' + esc(domainKey) + '" data-fs-direction="dev-to-prod" title="DEV → PROD: ausgewählte Dateien aus DEV nach PROD kopieren"><span class="b-dev">DEV</span><span class="b-arrow">→</span><span class="b-prod">PROD</span></button>'
+      + '<button class="sync-btn pull fs-sync-btn" data-fs-domain="' + esc(domainKey) + '" data-fs-direction="prod-to-dev" title="PROD → DEV: ausgewählte Dateien aus PROD nach DEV kopieren"><span class="b-dev">DEV</span><span class="b-arrow">←</span><span class="b-prod">PROD</span></button>'
+      + '</div></div></td>'
+      + '<td></td></tr></tfoot>';
+    html += '</table></div>';
+  });
+  return html;
+}
+
+function wireFileSyncControls(body) {
+  body.querySelectorAll('.fs-select-all').forEach(function(cb) {
+    cb.addEventListener('change', function() {
+      var domain = cb.dataset.fsDomain;
+      body.querySelectorAll('.fs-select-item[data-fs-domain="' + domain + '"]').forEach(function(item) {
+        item.checked = cb.checked;
+      });
+    });
+  });
+  body.querySelectorAll('.fs-sync-btn').forEach(function(btn) {
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      var domain    = btn.dataset.fsDomain;
+      var direction = btn.dataset.fsDirection;
+      var files = [];
+      body.querySelectorAll('.fs-select-item[data-fs-domain="' + domain + '"]:checked').forEach(function(item) {
+        files.push(item.dataset.fsFilename);
+      });
+      if (!files.length) { alert('Keine Dateien ausgewählt.'); return; }
+      var dirLabel = direction === 'dev-to-prod' ? 'DEV → PROD' : 'PROD → DEV';
+      if (!confirm('Ausgewählte ' + files.length + ' Datei(en) ' + dirLabel + ' kopieren?\n\nZieldateien werden überschrieben.')) return;
+      executeFileSyncOp(domain, direction, files);
+    });
+  });
+
+  // Klick auf Dateiname oder Richtungspfeil → Inhaltsvergleich DEV ↔ PROD
+  body.addEventListener('click', function(e) {
+    var cell = e.target.closest && e.target.closest('.fs-diff-link');
+    if (!cell) return;
+    var tr = cell.closest('tr[data-fs-filename]');
+    if (!tr) return;
+    openFileContentDiff(tr.getAttribute('data-fs-domain'), tr.getAttribute('data-fs-filename'));
+  });
+}
+
+function openFileContentDiff(domain, relpath) {
+  var els = _ensureCdiffOverlay();
+  els.title.textContent = 'Datei-Vergleich — ' + relpath + ' (DEV ↔ PROD)';
+  els.body.innerHTML = '<div class="scd-loading">⏳ Lade Datei-Inhalte …</div>';
+  els.overlay.classList.add('open');
+  var url = API_URL + '?action=file-sync-content-diff&domain=' + encodeURIComponent(domain) + '&relpath=' + encodeURIComponent(relpath);
+  fetch(url)
+    .then(function(r) { return r.json(); })
+    .then(function(res) {
+      if (!res.success) throw new Error(res.error || 'Fehler');
+      var d = res.data || {};
+      if (d.dev == null && d.prod == null) {
+        els.body.innerHTML = '<div class="scd-note" style="padding:12px">Keine Inhalte lesbar.</div>';
+        return;
+      }
+      var head = '<div class="scd-summary">'
+        + '<span class="scd-chip dev">DEV ' + (d.devInfo ? Math.round(d.devInfo.size/1024*10)/10 + ' KB' : 'fehlt') + (d.devInfo ? ' · ' + esc(renderMetaDate(d.devInfo.mtime)) : '') + '</span>'
+        + '<span class="scd-chip prod">PROD ' + (d.prodInfo ? Math.round(d.prodInfo.size/1024*10)/10 + ' KB' : 'fehlt') + (d.prodInfo ? ' · ' + esc(renderMetaDate(d.prodInfo.mtime)) : '') + '</span>'
+        + '</div>';
+      els.body.innerHTML = head + _gitDiffHtml(d.dev, d.prod, 'DEV', 'PROD');
+    })
+    .catch(function(err) {
+      els.body.innerHTML = '<div style="color:#c33;padding:12px">Fehler: ' + esc(err.message) + '</div>';
+    });
+}
+
+// ===== DB ↔ PUBLIZIERTE DATEIEN =====
+
+function loadDbPublishSection() {
+  var body = document.getElementById('sync-dbfile-body');
+  var meta = document.getElementById('sync-dbfile-meta');
+  if (!body) return;
+  fetch(API_URL + '?action=db-publish-status')
+    .then(function(r) { return r.json(); })
+    .then(function(res) {
+      if (!res.success) throw new Error(res.error || 'Fehler');
+      var d = res.data || {};
+      body.innerHTML = renderDbPublishTable(d);
+      var c = d.counts || {};
+      if (meta) meta.textContent = (c.total || 0) + ' Dateien · ' + (c.diff || 0) + ' abweichend · ' + (c.missing || 0) + ' fehlt';
+      wireDbPublishControls(body);
+    })
+    .catch(function(err) {
+      if (body) body.innerHTML = '<div style="padding:12px;color:#c33">Fehler beim Laden: ' + esc(err.message) + '</div>';
+      if (meta) meta.textContent = 'Fehler';
+    });
+}
+
+function renderDbPublishTable(d) {
+  var items = (d && d.items) || [];
+  if (!items.length) return '<div style="padding:12px;color:#999">Keine DB-Bundles gefunden.</div>';
+  var diff = items.filter(function(i){ return i.status !== 'match'; }).length;
+  var needCount = items.filter(function(i){ return i.status === 'diff' || i.status === 'missing'; }).length;
+  var html = '<div class="sync-file-domain">';
+  html += '<div class="sync-file-domain-label">DB-Store (mapplusconf*) ↔ publizierter Core (<code>core/config</code>, <code>core/nls/de</code>)'
+    + (diff ? ' <span class="sync-diff-badge">' + diff + ' Re-Publish nötig</span>' : ' <span class="sync-ok-badge">✓ alles publiziert</span>')
+    + (needCount ? ' <button class="sync-btn dbf-republish-all" title="Alle abweichenden/fehlenden Dateien aus der DB nach core/ publizieren">⟳ Alle nötigen republishen (' + needCount + ')</button>' : '')
+    + '</div>';
+  html += '<div style="padding:6px 12px;color:#666;font-size:11px">DB neuer als Datei = ein neuer Export/Publish nach <code>core/</code> ist nötig. ⚠ Core ist DEV+PROD geteilt.</div>';
+  html += '<table class="sync-table sync-file-table"><thead><tr>'
+    + '<th>Datei</th><th>Kürzel</th><th>Ziel</th>'
+    + '<th class="sync-col-prod">Publiziert (mtime)</th>'
+    + '<th class="sync-status-col" style="text-align:center">Status</th>'
+    + '<th style="text-align:center">Aktion</th>'
+    + '</tr></thead><tbody>';
+  items.forEach(function(it) {
+    var st = it.status;
+    var clickable = (st === 'diff');
+    var statusCell;
+    if (st === 'match')        statusCell = '<td class="sync-ok" style="text-align:center" title="DB == publizierte Datei">✅ publiziert</td>';
+    else if (st === 'diff')    statusCell = '<td class="sync-diff" style="text-align:center" title="DB weicht ab → Re-Publish nötig">⚠ DB neuer</td>';
+    else if (st === 'missing') statusCell = '<td class="sync-diff" style="text-align:center;font-size:11px" title="Datei noch nicht publiziert">✦ nicht publiziert</td>';
+    else                        statusCell = '<td style="text-align:center;color:#999;font-size:11px">—</td>';
+    var actionCell = (st === 'diff' || st === 'missing')
+      ? '<td style="text-align:center"><button class="sync-btn dbf-republish-one" title="Diese Datei aus der DB nach core/' + esc(it.bucket) + ' publizieren">⟳ Republish</button></td>'
+      : '<td style="text-align:center;color:#bbb;font-size:11px">—</td>';
+    var rowCls = st === 'match' ? '' : ' class="fs-row-diff"';
+    html += '<tr' + rowCls + ' data-dbf-kuerzel="' + esc(it.kuerzel) + '" data-dbf-name="' + esc(it.name) + '">'
+      + '<td class="sync-item-cell' + (clickable ? ' dbf-diff-link' : '') + '" style="font-size:12px;font-family:monospace"'
+      + (clickable ? ' title="Klick: DB ↔ Datei vergleichen"' : '') + '>' + esc(it.name) + (clickable ? ' <span class="fs-diff-hint">⇆ Diff</span>' : '') + '</td>'
+      + '<td style="font-size:12px">' + esc(it.kuerzel) + '</td>'
+      + '<td style="font-size:11px;color:#666">core/' + esc(it.bucket) + '</td>'
+      + '<td class="sync-col-prod" style="font-size:11px">' + (it.diskMtime ? esc(renderMetaDate(it.diskMtime)) : '—') + '</td>'
+      + statusCell
+      + actionCell
+      + '</tr>';
+  });
+  html += '</tbody></table></div>';
+  return html;
+}
+
+function wireDbPublishControls(body) {
+  body.addEventListener('click', function(e) {
+    // Diff öffnen
+    var diffCell = e.target.closest && e.target.closest('.dbf-diff-link');
+    if (diffCell) {
+      var trd = diffCell.closest('tr[data-dbf-name]');
+      if (trd) openDbPublishDiff(trd.getAttribute('data-dbf-kuerzel'), trd.getAttribute('data-dbf-name'));
+      return;
+    }
+    // Einzel-Republish
+    var oneBtn = e.target.closest && e.target.closest('.dbf-republish-one');
+    if (oneBtn) {
+      e.stopPropagation();
+      var tr = oneBtn.closest('tr[data-dbf-name]');
+      if (!tr) return;
+      var k = tr.getAttribute('data-dbf-kuerzel'), n = tr.getAttribute('data-dbf-name');
+      if (!confirm('„' + n + '“ aus der DB nach core/ publizieren?\n\n⚠ Der Core ist DEV+PROD GETEILT — die Änderung wirkt sofort für beide Umgebungen.')) return;
+      republishDbFiles([{ kuerzel: k, name: n }]);
+      return;
+    }
+    // Bulk-Republish
+    var allBtn = e.target.closest && e.target.closest('.dbf-republish-all');
+    if (allBtn) {
+      e.stopPropagation();
+      var items = [];
+      body.querySelectorAll('tr[data-dbf-name]').forEach(function(tr) {
+        var btn = tr.querySelector('.dbf-republish-one');
+        if (btn) items.push({ kuerzel: tr.getAttribute('data-dbf-kuerzel'), name: tr.getAttribute('data-dbf-name') });
+      });
+      if (!items.length) return;
+      if (!confirm(items.length + ' Datei(en) aus der DB nach core/ publizieren?\n\n⚠ Der Core ist DEV+PROD GETEILT — die Änderung wirkt sofort für beide Umgebungen.')) return;
+      republishDbFiles(items);
+      return;
+    }
+  });
+}
+
+function republishDbFiles(items) {
+  var statusBar = document.getElementById('sync-status-bar');
+  if (statusBar) statusBar.textContent = '⏳ Republish läuft (' + items.length + ' Datei(en)) …';
+  fetch(API_URL + '?action=db-publish-republish', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ items: items })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(res) {
+    var d = res.data || {};
+    var done = (d.republished || []).length;
+    var errs = d.errors || [];
+    if (statusBar) statusBar.textContent = '✅ Republish abgeschlossen: ' + done + ' publiziert'
+      + (errs.length ? ', ' + errs.length + ' Fehler' : '') + (d.target ? ' (target=' + d.target + ')' : '');
+    if (errs.length) alert('Republish mit Fehlern:\n\n' + errs.join('\n'));
+    setTimeout(loadDbPublishSection, 600);
+  })
+  .catch(function(err) {
+    if (statusBar) statusBar.textContent = '❌ Republish fehlgeschlagen: ' + err.message;
+  });
+}
+
+function openDbPublishDiff(kuerzel, name) {
+  var els = _ensureCdiffOverlay();
+  els.title.textContent = 'DB ↔ Datei — ' + name + ' (Kürzel „' + kuerzel + '“)';
+  els.body.innerHTML = '<div class="scd-loading">⏳ Lade DB- und Datei-Inhalt …</div>';
+  els.overlay.classList.add('open');
+  var url = API_URL + '?action=db-publish-diff&kuerzel=' + encodeURIComponent(kuerzel) + '&name=' + encodeURIComponent(name);
+  fetch(url)
+    .then(function(r) { return r.json(); })
+    .then(function(res) {
+      if (!res.success) throw new Error(res.error || 'Fehler');
+      var d = res.data || {};
+      var head = '<div class="scd-summary">'
+        + '<span class="scd-chip dev">DB (' + esc(kuerzel) + ')</span>'
+        + '<span class="scd-chip prod">Publizierte Datei</span>'
+        + '<span class="scd-note">links = DB · rechts = Datei auf Disk</span>'
+        + '</div>';
+      els.body.innerHTML = head + _gitDiffHtml(d.db, d.disk, 'DB', 'Datei (Disk)');
+    })
+    .catch(function(err) {
+      els.body.innerHTML = '<div style="color:#c33;padding:12px">Fehler: ' + esc(err.message) + '</div>';
+    });
+}
+
+function executeFileSyncOp(domain, direction, files) {
+  var statusBar = document.getElementById('sync-status-bar');
+  if (statusBar) statusBar.textContent = '⏳ Datei-Sync läuft…';
+  fetch(API_URL + '?action=file-sync-execute', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ domain: domain, direction: direction, files: files })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(res) {
+    if (!res.success) throw new Error(res.error || 'Fehler');
+    var d = res.data || {};
+    if (statusBar) statusBar.textContent = '✅ Datei-Sync abgeschlossen: ' + (d.copied || 0) + ' kopiert'
+      + (d.errors && d.errors.length ? ', ' + d.errors.length + ' Fehler' : '');
+    if (d.errors && d.errors.length) alert('Datei-Sync mit Fehlern:\n\n' + d.errors.join('\n'));
+    // Datei-Status neu laden
+    setTimeout(loadFileSyncSection, 600);
+  })
+  .catch(function(err) {
+    if (statusBar) statusBar.textContent = '❌ Datei-Sync fehlgeschlagen: ' + err.message;
+  });
+}
+
 function renderSyncStatus(data) {
   var content = document.getElementById('sync-content');
   var envs    = data.environments || {};
@@ -11808,6 +12196,20 @@ function renderSyncStatus(data) {
     }, 'bundles');
   }
 
+  // File-Sync-Sektion wird asynchron nachgeladen (separater Endpoint)
+  html += '<div class="sync-domain open" id="sync-file-domain">'
+    + '<div class="sync-domain-head"><span class="sync-domain-label">📄 Datei-Sync (core, public/config, tnet/config — DEV ↔ PROD)</span>'
+    + '<span class="sync-domain-meta" id="sync-file-meta">Lade\u2026</span></div>'
+    + '<div class="sync-domain-body" id="sync-file-body"><div style="padding:12px;color:#888">Lade Datei-Vergleich\u2026</div></div>'
+    + '</div>';
+
+  // DB ↔ publizierte Dateien (Re-Publish-Bedarf)
+  html += '<div class="sync-domain open" id="sync-dbfile-domain">'
+    + '<div class="sync-domain-head"><span class="sync-domain-label">🗄️ DB ↔ publizierte Dateien (Export/Publish nötig?)</span>'
+    + '<span class="sync-domain-meta" id="sync-dbfile-meta">Lade\u2026</span></div>'
+    + '<div class="sync-domain-body" id="sync-dbfile-body"><div style="padding:12px;color:#888">Lade DB-/Datei-Abgleich\u2026</div></div>'
+    + '</div>';
+
   content.innerHTML = html || '<div style="padding:20px;color:#999">Keine Sync-Daten verfügbar.</div>';
 
   content.querySelectorAll('.sync-domain-head').forEach(function(head) {
@@ -11822,6 +12224,10 @@ function renderSyncStatus(data) {
   refreshSyncSelectionState(content);
   _hideSyncDiffTip();
   initSyncDiffTooltip();
+
+  // File-Sync nachgeladen (DOM ist jetzt bereit)
+  loadFileSyncSection();
+  loadDbPublishSection();
 
   // Schema-Banner falls Tabellen fehlen
   var schemaStatus = data.schemaStatus || {};
@@ -11923,9 +12329,21 @@ function _diffBookmarks(bm) {
     { updatedAt: bm.meta && bm.meta.dev && bm.meta.dev.updatedAt, revision: dr },
     { updatedAt: bm.meta && bm.meta.prod && bm.meta.prod.updatedAt, revision: pr },
     'updatedAt', 'revision');
+  function rowText(envKey) {
+    var meta = bm.meta && bm.meta[envKey];
+    var rev  = bm.revs && bm.revs[envKey];
+    if (!meta && rev == null) return '—';
+    var cfgTs  = meta && meta.updatedAt ? formatSyncTimestamp(meta.updatedAt) : 'unbekannt';
+    var syncTs = meta && meta.syncedAt  ? formatSyncTimestamp(meta.syncedAt)  : null;
+    var parts  = [];
+    if (rev != null) parts.push('Rev. ' + rev);
+    parts.push('Konfig: ' + cfgTs);
+    if (syncTs) parts.push('Sync: ' + syncTs);
+    return parts.join(' · ');
+  }
   var out = ['<div class="sdt-title">Differenzanalyse — Bookmarks</div>'];
-  out.push('<div><span class="sdt-dev">DEV</span> ' + _syncN(dc) + ' Einträge · Rev. ' + _syncN(dr) + '</div>');
-  out.push('<div><span class="sdt-prod">PROD</span> ' + _syncN(pc) + ' Einträge · Rev. ' + _syncN(pr) + '</div>');
+  out.push('<div><span class="sdt-dev">DEV</span> ' + esc(rowText('dev')) + '</div>');
+  out.push('<div><span class="sdt-prod">PROD</span> ' + esc(rowText('prod')) + '</div>');
   var diffs = [];
   if (dc != null && pc != null && dc !== pc) {
     var cd = dc - pc;
@@ -11949,9 +12367,19 @@ function _diffCatalog(cat, profile) {
   if (!item) return '';
   var dev = item.envs && item.envs.dev, prod = item.envs && item.envs.prod;
   var newer = getSyncNewerSide(dev, prod, 'updatedAt', 'revision');
+  function rowText(env) {
+    if (!env) return 'fehlt';
+    var cfgTs = formatSyncTimestamp(env.configUpdatedAt || env.updatedAt);
+    var syncTs = env.syncUpdatedAt ? formatSyncTimestamp(env.syncUpdatedAt) : null;
+    var cfgBy = env.configUpdatedBy || env.updatedBy;
+    var parts = ['Rev. ' + _syncN(env.revision), 'Konfig: ' + cfgTs];
+    if (cfgBy) parts.push('von ' + cfgBy);
+    if (syncTs) parts.push('Sync: ' + syncTs);
+    return parts.join(' · ');
+  }
   var out = ['<div class="sdt-title">Differenzanalyse — Profil „' + esc(profile) + '“</div>'];
-  out.push('<div><span class="sdt-dev">DEV</span> ' + (dev ? 'Rev. ' + _syncN(dev.revision) + ' · ' + esc(formatSyncTimestamp(dev.updatedAt)) : 'fehlt') + '</div>');
-  out.push('<div><span class="sdt-prod">PROD</span> ' + (prod ? 'Rev. ' + _syncN(prod.revision) + ' · ' + esc(formatSyncTimestamp(prod.updatedAt)) : 'fehlt') + '</div>');
+  out.push('<div><span class="sdt-dev">DEV</span> ' + esc(rowText(dev)) + '</div>');
+  out.push('<div><span class="sdt-prod">PROD</span> ' + esc(rowText(prod)) + '</div>');
   if (!dev || !prod) {
     out.push('<div class="sdt-diff">• Nur in ' + (dev ? 'DEV' : 'PROD') + ' vorhanden</div>');
     out.push('<div class="sdt-dir">→ Sync-Richtung: ' + (dev ? 'DEV → PROD' : 'DEV ← PROD') + '</div>');
@@ -11972,9 +12400,17 @@ function _diffBundles(bn, kuerzel) {
   var item = (bn.items || []).filter(function(i) { return i.kuerzel === kuerzel; })[0];
   if (!item) return '';
   var dev = item.envs && item.envs.dev, prod = item.envs && item.envs.prod;
+  function rowText(env) {
+    if (!env) return 'fehlt';
+    var cfgTs  = formatSyncTimestamp(env.importedAt);
+    var syncTs = env.syncedAt ? formatSyncTimestamp(env.syncedAt) : null;
+    var parts  = [esc(env.scope || 'core'), ((env.files && env.files.length) || 0) + ' Dateien', 'Konfig: ' + cfgTs];
+    if (syncTs) parts.push('Sync: ' + syncTs);
+    return parts.join(' · ');
+  }
   var out = ['<div class="sdt-title">Differenzanalyse — Kürzel „' + esc(kuerzel) + '“</div>'];
-  out.push('<div><span class="sdt-dev">DEV</span> ' + (dev ? esc(dev.scope || 'core') + ' · ' + ((dev.files && dev.files.length) || 0) + ' Dateien · ' + esc(formatSyncTimestamp(dev.importedAt)) : 'fehlt') + '</div>');
-  out.push('<div><span class="sdt-prod">PROD</span> ' + (prod ? esc(prod.scope || 'core') + ' · ' + ((prod.files && prod.files.length) || 0) + ' Dateien · ' + esc(formatSyncTimestamp(prod.importedAt)) : 'fehlt') + '</div>');
+  out.push('<div><span class="sdt-dev">DEV</span> ' + esc(rowText(dev)) + '</div>');
+  out.push('<div><span class="sdt-prod">PROD</span> ' + esc(rowText(prod)) + '</div>');
   if (!dev || !prod) {
     out.push('<div class="sdt-diff">• Bundle nur in ' + (dev ? 'DEV' : 'PROD') + ' vorhanden</div>');
     out.push('<div class="sdt-dir">→ Sync-Richtung: ' + (dev ? 'DEV → PROD' : 'DEV ← PROD') + '</div>');
@@ -12093,45 +12529,93 @@ function openSyncContentDiff(domain, key) {
 }
 
 function _diffLines(a, b) {
-  var n = a.length, m = b.length, ops = [];
-  var cap = 1500;
-  if (n > cap || m > cap) {
-    // Zu gross für LCS → einfache Gegenüberstellung
-    a.forEach(function(l) { ops.push({ t: '-', l: l }); });
-    b.forEach(function(l) { ops.push({ t: '+', l: l }); });
-    return ops;
-  }
-  var dp = [];
-  for (var i = 0; i <= n; i++) { dp[i] = new Array(m + 1).fill(0); }
-  for (var i2 = n - 1; i2 >= 0; i2--) {
-    for (var j2 = m - 1; j2 >= 0; j2--) {
-      dp[i2][j2] = a[i2] === b[j2] ? dp[i2 + 1][j2 + 1] + 1 : Math.max(dp[i2 + 1][j2], dp[i2][j2 + 1]);
+  var n = a.length, m = b.length;
+  // 1. Gemeinsamen Prefix/Suffix abschneiden → LCS nur auf dem geänderten Mittelteil.
+  //    Das macht den Diff bei grossen, weitgehend identischen Dateien präzise UND schnell.
+  var pre = 0;
+  while (pre < n && pre < m && a[pre] === b[pre]) pre++;
+  var suf = 0;
+  while (suf < (n - pre) && suf < (m - pre) && a[n - 1 - suf] === b[m - 1 - suf]) suf++;
+
+  var ops = [];
+  for (var p = 0; p < pre; p++) ops.push({ t: '=', l: a[p] });
+
+  var midA = a.slice(pre, n - suf);
+  var midB = b.slice(pre, m - suf);
+  var mn = midA.length, mm = midB.length;
+  var cap = 4000;
+
+  if (mn > cap || mm > cap) {
+    // Mittelteil immer noch zu gross für O(n·m)-LCS → einfache Gegenüberstellung des Mittelteils.
+    for (var x = 0; x < mn; x++) ops.push({ t: '-', l: midA[x] });
+    for (var y = 0; y < mm; y++) ops.push({ t: '+', l: midB[y] });
+  } else if (mn || mm) {
+    var dp = [];
+    for (var i = 0; i <= mn; i++) { dp[i] = new Array(mm + 1).fill(0); }
+    for (var i2 = mn - 1; i2 >= 0; i2--) {
+      for (var j2 = mm - 1; j2 >= 0; j2--) {
+        dp[i2][j2] = midA[i2] === midB[j2] ? dp[i2 + 1][j2 + 1] + 1 : Math.max(dp[i2 + 1][j2], dp[i2][j2 + 1]);
+      }
     }
+    var i3 = 0, j3 = 0;
+    while (i3 < mn && j3 < mm) {
+      if (midA[i3] === midB[j3]) { ops.push({ t: '=', l: midA[i3] }); i3++; j3++; }
+      else if (dp[i3 + 1][j3] >= dp[i3][j3 + 1]) { ops.push({ t: '-', l: midA[i3] }); i3++; }
+      else { ops.push({ t: '+', l: midB[j3] }); j3++; }
+    }
+    while (i3 < mn) { ops.push({ t: '-', l: midA[i3++] }); }
+    while (j3 < mm) { ops.push({ t: '+', l: midB[j3++] }); }
   }
-  var i = 0, j = 0;
-  while (i < n && j < m) {
-    if (a[i] === b[j]) { ops.push({ t: '=', l: a[i] }); i++; j++; }
-    else if (dp[i + 1][j] >= dp[i][j + 1]) { ops.push({ t: '-', l: a[i] }); i++; }
-    else { ops.push({ t: '+', l: b[j] }); j++; }
-  }
-  while (i < n) { ops.push({ t: '-', l: a[i++] }); }
-  while (j < m) { ops.push({ t: '+', l: b[j++] }); }
+
+  for (var s = 0; s < suf; s++) ops.push({ t: '=', l: a[n - suf + s] });
   return ops;
 }
 
-function _gitDiffHtml(devText, prodText) {
+function _gitDiffHtml(devText, prodText, leftLabel, rightLabel) {
+  leftLabel  = leftLabel  || 'links';
+  rightLabel = rightLabel || 'rechts';
   var a = String(devText == null ? '' : devText).split('\n');
   var b = String(prodText == null ? '' : prodText).split('\n');
   var ops = _diffLines(a, b);
-  var cap = 600, shown = 0, html = '<pre class="scd-gitdiff">';
-  for (var k = 0; k < ops.length && shown < cap; k++) {
-    var o = ops[k];
+
+  var minus = 0, plus = 0;
+  for (var c = 0; c < ops.length; c++) { if (ops[c].t === '-') minus++; else if (ops[c].t === '+') plus++; }
+  if (!minus && !plus) return '<pre class="scd-gitdiff"><span class="gl ctx">✓ Inhalt identisch</span></pre>';
+
+  // Legende: welche Farbe = welche Seite, mit Zeilen-Zählern.
+  var legend = '<div class="scd-difflegend">'
+    + '<span class="dl del">−</span> nur in <b>' + esc(leftLabel) + '</b> (' + minus + ' Zeile' + (minus !== 1 ? 'n' : '') + ')'
+    + ' &nbsp;·&nbsp; '
+    + '<span class="dl add">+</span> nur in <b>' + esc(rightLabel) + '</b> (' + plus + ' Zeile' + (plus !== 1 ? 'n' : '') + ')'
+    + '<span class="scd-note"> — „neuer“ = die Seite, die zusätzliche/geänderte Zeilen hat</span>'
+    + '</div>';
+
+  // Git-artige Darstellung: nur 3 Zeilen Kontext um jede Änderung, lange unveränderte Blöcke einklappen.
+  var ctx = 3;
+  var keep = new Array(ops.length);
+  for (var k = 0; k < ops.length; k++) {
+    if (ops[k].t !== '=') {
+      for (var d = -ctx; d <= ctx; d++) { var idx = k + d; if (idx >= 0 && idx < ops.length) keep[idx] = true; }
+    }
+  }
+
+  var html = legend + '<pre class="scd-gitdiff"><span class="gl hdr">− ' + esc(leftLabel) + '   |   + ' + esc(rightLabel) + '</span>';
+  var shown = 0, cap = 1500, collapsed = 0;
+  for (var k2 = 0; k2 < ops.length; k2++) {
+    if (!keep[k2]) { collapsed++; continue; }
+    if (collapsed > 0) {
+      html += '<span class="gl ctx">⋯ ' + collapsed + ' unveränderte Zeile' + (collapsed > 1 ? 'n' : '') + '</span>';
+      collapsed = 0;
+    }
+    if (shown >= cap) break;
+    var o = ops[k2];
     var cls = o.t === '+' ? 'add' : (o.t === '-' ? 'del' : 'ctx');
     var sign = o.t === '+' ? '+' : (o.t === '-' ? '-' : ' ');
     html += '<span class="gl ' + cls + '">' + esc(sign + ' ' + o.l) + '</span>';
     shown++;
   }
-  if (ops.length > cap) html += '<span class="gl ctx">… ' + (ops.length - cap) + ' weitere Zeilen</span>';
+  if (collapsed > 0) html += '<span class="gl ctx">⋯ ' + collapsed + ' unveränderte Zeile' + (collapsed > 1 ? 'n' : '') + '</span>';
+  if (shown >= cap) html += '<span class="gl ctx">… Ausgabe gekürzt (sehr viele Änderungen)</span>';
   html += '</pre>';
   return html;
 }
@@ -12163,7 +12647,7 @@ function _scdAssocSections(diff) {
     diff.changed.forEach(function(k) {
       if (det[k]) {
         anyDet = true;
-        html += '<details class="scd-det"><summary><span class="scd-key chg">' + esc(k) + '</span> <span class="scd-note">git-diff (DEV → PROD)</span></summary>' + _gitDiffHtml(det[k].dev, det[k].prod) + '</details>';
+        html += '<details class="scd-det"><summary><span class="scd-key chg">' + esc(k) + '</span> <span class="scd-note">git-diff (DEV → PROD)</span></summary>' + _gitDiffHtml(det[k].dev, det[k].prod, 'DEV', 'PROD') + '</details>';
       } else {
         html += '<div><span class="scd-key chg">' + esc(k) + '</span></div>';
       }
@@ -12225,6 +12709,15 @@ function syncActionsFooter(domain, envKeys) {
   // Mittlere Zelle überspannt DEV + Richtung + PROD → ihre Mitte liegt exakt
   // auf der DEV/PROD-Grenze, sodass die Buttons dort zentriert stehen.
   var midSpan = envKeys.length + 1;
+  // Löschen nur für Domains mit Einzel-Auswahl (Katalog, Bundles) — nicht für Bookmarks.
+  var deleteGroup = (domain === 'bookmarks') ? '' :
+      '<div class="sync-domain-actions sync-delete-actions">'
+    + '<span class="sync-actions-label">Ausgewählte löschen</span>'
+    + '<div class="sync-actions-btns">'
+    + '<button class="sync-btn del" data-sync-domain="' + esc(domain) + '" data-sync-delete-env="dev" title="Ausgewählte Einträge aus DEV löschen (unwiderruflich)">🗑 aus DEV</button>'
+    + '<button class="sync-btn del" data-sync-domain="' + esc(domain) + '" data-sync-delete-env="prod" title="Ausgewählte Einträge aus PROD löschen (unwiderruflich)">🗑 aus PROD</button>'
+    + '</div>'
+    + '</div>';
   return '<tfoot><tr class="sync-actions-row">'
     + '<td colspan="2"></td>'
     + '<td colspan="' + midSpan + '" class="sync-actions-cell">'
@@ -12235,6 +12728,7 @@ function syncActionsFooter(domain, envKeys) {
     + '<button class="sync-btn pull" data-sync-domain="' + esc(domain) + '" data-sync-direction="prod-to-dev" title="Ausgewählte Einträge von PROD nach DEV übertragen — DEV wird überschrieben"><span class="b-dev">DEV</span><span class="b-arrow">←</span><span class="b-prod">PROD</span></button>'
     + '</div>'
     + '</div>'
+    + deleteGroup
     + '</td>'
     + '<td></td>'
     + '</tr></tfoot>';
@@ -12259,7 +12753,12 @@ function renderSyncBookmarkTable(bm, envKeys) {
     var cnt = bm.counts && bm.counts[e] != null ? bm.counts[e] : '—';
     var rev = bm.revs && bm.revs[e] != null ? bm.revs[e] : '—';
     var meta = bm.meta && bm.meta[e] ? bm.meta[e] : null;
-    var metaText = meta ? [formatSyncTimestamp(meta.updatedAt), formatSyncUser(meta.updatedBy)].filter(Boolean).join(' · ') : 'keine Metadaten';
+    var cfgTs  = meta ? formatSyncTimestamp(meta.updatedAt) : 'unbekannt';
+    var syncTs = meta && meta.syncedAt ? formatSyncTimestamp(meta.syncedAt) : null;
+    var metaParts = ['Konfig: ' + cfgTs];
+    if (syncTs) metaParts.push('Sync: ' + syncTs);
+    if (meta && meta.updatedBy) metaParts.push(formatSyncUser(meta.updatedBy));
+    var metaText = metaParts.join(' · ');
     var isNewer = newerSide === e;
     return '<td class="' + syncEnvCellClass(e) + (isNewer ? ' sync-cell-newer' : '') + '">'
       + '<div class="sync-cell-main">' + esc(cnt) + ' Bookmarks · Rev. ' + esc(rev) + renderSyncNewBadge(isNewer ? e : null) + '</div>'
@@ -12282,7 +12781,12 @@ function renderCatalogTable(items, envKeys) {
     function envCell(e) {
       var env = item.envs && item.envs[e];
       if (!env) return '<td class="' + syncEnvCellClass(e) + '"><div class="sync-cell-main">— fehlt</div><div class="sync-cell-sub">kein Stand</div></td>';
-      var metaText = [formatSyncTimestamp(env.updatedAt), formatSyncUser(env.updatedBy)].filter(Boolean).join(' · ');
+      var configTs = formatSyncTimestamp(env.configUpdatedAt || env.updatedAt);
+      var syncTs = env.syncUpdatedAt ? formatSyncTimestamp(env.syncUpdatedAt) : null;
+      var metaParts = ['Konfig: ' + configTs];
+      if (syncTs) metaParts.push('Sync: ' + syncTs);
+      metaParts.push(formatSyncUser(env.configUpdatedBy || env.updatedBy));
+      var metaText = metaParts.join(' · ');
       var isNewer = newerSide === e;
       return '<td class="' + syncEnvCellClass(e) + (isNewer ? ' sync-cell-newer' : '') + '"><div class="sync-cell-main">Rev. ' + esc(env.revision) + renderSyncNewBadge(isNewer ? e : null) + '</div><div class="sync-cell-sub">' + esc(metaText) + '</div></td>';
     }
@@ -12309,7 +12813,12 @@ function renderBundleTable(items, envKeys) {
     function envCell(e) {
       var env = item.envs && item.envs[e];
       if (!env) return '<td class="' + syncEnvCellClass(e) + '"><div class="sync-cell-main">— fehlt</div><div class="sync-cell-sub">kein Paket</div></td>';
-      var metaText = [formatSyncTimestamp(env.importedAt), formatSyncUser(env.importedBy)].filter(Boolean).join(' · ');
+      var cfgTs  = formatSyncTimestamp(env.importedAt);
+      var syncTs = env.syncedAt ? formatSyncTimestamp(env.syncedAt) : null;
+      var metaParts = ['Konfig: ' + cfgTs];
+      if (syncTs) metaParts.push('Sync: ' + syncTs);
+      if (env.importedBy) metaParts.push(formatSyncUser(env.importedBy));
+      var metaText = metaParts.join(' · ');
       var isNewer = newerSide === e;
       var fileCount = env.files && env.files.length ? env.files.length + ' Dateien' : 'keine Dateien';
       return '<td class="' + syncEnvCellClass(e) + (isNewer ? ' sync-cell-newer' : '') + '"><div class="sync-cell-main">' + esc(env.scope || 'core') + renderSyncNewBadge(isNewer ? e : null) + '</div><div class="sync-cell-sub">' + esc(metaText) + ' · ' + esc(fileCount) + '</div></td>';
@@ -12522,7 +13031,15 @@ function renderMetaDate(value) {
   if (!value) return '—';
   var d = new Date(value);
   if (isNaN(d.getTime())) return String(value);
-  return d.toLocaleString('de-CH', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  return d.toLocaleString('de-CH', {
+    timeZone: 'Europe/Zurich',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZoneName: 'short'
+  });
 }
 
 function formatSyncTimestamp(value) {
@@ -12594,6 +13111,16 @@ function wireSyncControls(content) {
       var direction = btn.dataset.syncDirection;
       var keys = collectSyncKeys(content, domain);
       executeSyncOperation(domain, direction, keys);
+    });
+  });
+
+  content.querySelectorAll('button[data-sync-delete-env]').forEach(function(btn) {
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      var domain = btn.dataset.syncDomain;
+      var env    = btn.dataset.syncDeleteEnv;
+      var keys   = collectSyncKeys(content, domain);
+      executeSyncDelete(domain, env, keys);
     });
   });
 }

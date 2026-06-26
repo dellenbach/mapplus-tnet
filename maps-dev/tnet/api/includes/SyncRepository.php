@@ -50,6 +50,10 @@ class SyncRepository {
     public static function getStatus(): array {
         $pdo    = Database::getConnection();
         $schemas = self::schemaMap();
+
+        // Selbstheilend: Sync-Spalten sicherstellen (idempotent, Best-Effort).
+        self::ensureSyncColumns($pdo);
+
         $result = [
             'environments' => $schemas,
             'domains'      => [],
@@ -63,12 +67,14 @@ class SyncRepository {
             try {
                 $stmt = $pdo->query("SELECT COUNT(*) AS cnt FROM " . self::q($schema) . ".bookmark WHERE deleted = false");
                 $bmCounts[$env] = (int)$stmt->fetch()['cnt'];
-                $stmt2 = $pdo->query("SELECT revision, updated_by, updated_at FROM " . self::q($schema) . ".bookmark_meta WHERE scope = 'bookmarks'");
+                $stmt2 = $pdo->query("SELECT revision, updated_by, updated_at, synced_at, synced_by FROM " . self::q($schema) . ".bookmark_meta WHERE scope = 'bookmarks'");
                 $row = $stmt2->fetch();
                 $bmRevs[$env] = $row ? (int)$row['revision'] : 0;
                 $bmMeta[$env] = $row ? [
                     'updatedBy' => $row['updated_by'] ?? null,
                     'updatedAt' => $row['updated_at'] ?? null,
+                    'syncedAt'  => $row['synced_at'] ?? null,
+                    'syncedBy'  => $row['synced_by'] ?? null,
                 ] : null;
             } catch (\Throwable $e) {
                 $bmCounts[$env] = null;
@@ -90,9 +96,32 @@ class SyncRepository {
         foreach ($schemas as $env => $schema) {
             try {
                 $stmt = $pdo->query(
-                    "SELECT profile, revision, updated_by, updated_at
-                     FROM " . self::q($schema) . ".catalog_document
-                     ORDER BY profile"
+                    "SELECT cd.profile,
+                            cd.revision,
+                            cd.updated_by,
+                            cd.updated_at,
+                            COALESCE(cd.config_revision_at, ch_cfg.changed_at, cd.updated_at) AS config_updated_at,
+                            COALESCE(cd.config_revision_by, cd.updated_by) AS config_updated_by,
+                            ch_sync.changed_at AS sync_updated_at
+                     FROM " . self::q($schema) . ".catalog_document cd
+                     LEFT JOIN LATERAL (
+                         SELECT h.changed_at
+                         FROM " . self::q($schema) . ".catalog_document_history h
+                         WHERE h.profile = cd.profile
+                           AND h.revision = cd.revision
+                                                     AND h.action <> 'import'
+                                                 ORDER BY h.id DESC
+                         LIMIT 1
+                                         ) ch_cfg ON true
+                                         LEFT JOIN LATERAL (
+                                                 SELECT h.changed_at
+                                                 FROM " . self::q($schema) . ".catalog_document_history h
+                                                 WHERE h.profile = cd.profile
+                                                     AND h.action = 'import'
+                                                 ORDER BY h.id DESC
+                                                 LIMIT 1
+                                         ) ch_sync ON true
+                     ORDER BY cd.profile"
                 );
                 foreach ($stmt->fetchAll() as $row) {
                     $p = $row['profile'];
@@ -101,6 +130,9 @@ class SyncRepository {
                         'revision'  => (int)$row['revision'],
                         'updatedBy' => $row['updated_by'],
                         'updatedAt' => $row['updated_at'],
+                        'configUpdatedAt' => $row['config_updated_at'] ?? null,
+                        'configUpdatedBy' => $row['config_updated_by'] ?? null,
+                        'syncUpdatedAt' => $row['sync_updated_at'] ?? null,
                     ];
                 }
             } catch (\Throwable $e) {
@@ -131,7 +163,8 @@ class SyncRepository {
         foreach ($schemas as $env => $schema) {
             try {
                 $stmt = $pdo->query(
-                    "SELECT kuerzel, payload, scope, last_imported_at, last_imported_by
+                    "SELECT kuerzel, payload, scope, last_imported_at, last_imported_by,
+                            synced_at, synced_by
                      FROM " . self::q($schema) . ".config_bundle_store
                      ORDER BY kuerzel"
                 );
@@ -141,10 +174,12 @@ class SyncRepository {
                     $payload = is_string($row['payload']) ? json_decode($row['payload'], true) : $row['payload'];
                     $allKuerzel[$k] = true;
                     $bundleItems[$k][$env] = [
-                        'scope'   => $row['scope'],
+                        'scope'      => $row['scope'],
                         'importedAt' => $row['last_imported_at'],
                         'importedBy' => $row['last_imported_by'],
-                        'files'   => self::extractBundleFiles($payload),
+                        'syncedAt'   => $row['synced_at'] ?? null,
+                        'syncedBy'   => $row['synced_by'] ?? null,
+                        'files'      => self::extractBundleFiles($payload),
                     ];
                     $bundleCounts[$env]++;
                 }
@@ -204,6 +239,44 @@ class SyncRepository {
         }
     }
 
+    /**
+     * Löscht ausgewählte Einträge in EINER Umgebung (unwiderruflich).
+     * Unterstützt 'catalog' (catalog_document pro Profil) und 'bundles'
+     * (config_bundle_store pro Kürzel). Bookmarks werden nicht unterstützt.
+     *
+     * @param string   $domain 'catalog' | 'bundles'
+     * @param string   $env    'dev' | 'prod'
+     * @param string[] $keys   Profil-Namen bzw. Kürzel
+     * @param string   $user   Bearbeiter (für Logging)
+     * @return array{deleted:int, errors:array}
+     */
+    public static function deleteEntries(string $domain, string $env, array $keys, string $user): array {
+        $schema = self::schema($env);
+        $pdo    = Database::getConnection();
+        $deleted = 0; $errors = [];
+
+        $table = null; $col = null;
+        if ($domain === 'bundles')      { $table = 'config_bundle_store'; $col = 'kuerzel'; }
+        elseif ($domain === 'catalog')  { $table = 'catalog_document';    $col = 'profile'; }
+        else { throw new InvalidArgumentException('Löschen für Domain nicht unterstützt: ' . $domain); }
+
+        foreach ($keys as $key) {
+            $key = (string)$key;
+            if ($key === '') continue;
+            try {
+                $stmt = $pdo->prepare(
+                    "DELETE FROM " . self::q($schema) . "." . $table . " WHERE " . $col . " = :key"
+                );
+                $stmt->execute(['key' => $key]);
+                $deleted += $stmt->rowCount();
+            } catch (\Throwable $e) {
+                $errors[] = $key . ': ' . $e->getMessage();
+            }
+        }
+
+        return ['deleted' => $deleted, 'errors' => $errors];
+    }
+
     // ===== DOMAIN-SYNC =====
 
     private static function syncBookmarks(string $src, string $dst, string $user): array {
@@ -248,13 +321,14 @@ class SyncRepository {
                 $copied++;
             }
 
-            // Revision aus der Quelle übernehmen, damit Quelle und Ziel nach dem
-            // Sync identisch sind (kein dauerhaftes "NEU"-Badge durch Δ=1).
+            // Revision + Konfig-Zeit aus Quelle übernehmen; Sync-Zeit lokal setzen.
             $pdo->exec(
                 "UPDATE " . self::q($dst) . ".bookmark_meta dst
                  SET revision   = COALESCE(src.revision, dst.revision),
                      updated_by = " . $pdo->quote($user) . ",
-                     updated_at = COALESCE(src.updated_at, now())
+                     updated_at = COALESCE(src.updated_at, now()),
+                     synced_at  = now(),
+                     synced_by  = " . $pdo->quote($user) . "
                  FROM " . self::q($src) . ".bookmark_meta src
                  WHERE dst.scope = 'bookmarks' AND src.scope = 'bookmarks'"
             );
@@ -275,14 +349,14 @@ class SyncRepository {
         if ($profiles) {
             $placeholders = implode(',', array_fill(0, count($profiles), '?'));
             $stmt = $pdo->prepare(
-                "SELECT profile, payload, revision
+                "SELECT profile, payload, revision, updated_at, config_revision_at, config_revision_by
                  FROM " . self::q($src) . ".catalog_document
                  WHERE profile IN (" . $placeholders . ")"
             );
             $stmt->execute($profiles);
         } else {
             $stmt = $pdo->query(
-                "SELECT profile, payload, revision FROM " . self::q($src) . ".catalog_document"
+                "SELECT profile, payload, revision, updated_at, config_revision_at, config_revision_by FROM " . self::q($src) . ".catalog_document"
             );
         }
         $rows = $stmt->fetchAll();
@@ -293,20 +367,44 @@ class SyncRepository {
                 $payload = is_array($row['payload']) ? json_encode($row['payload']) : $row['payload'];
                 $upsert = $pdo->prepare(
                     "INSERT INTO " . self::q($dst) . ".catalog_document
-                        (profile, payload, revision, updated_by, updated_at)
-                     VALUES (:profile, :payload::jsonb, :revision, :user, now())
+                        (profile, payload, revision, updated_by, updated_at, config_revision_at, config_revision_by)
+                     VALUES (:profile, :payload::jsonb, :revision, :user, :updated_at, :cfg_at, :cfg_by)
                      ON CONFLICT (profile) DO UPDATE
-                       SET payload    = EXCLUDED.payload,
-                           revision   = EXCLUDED.revision,
-                           updated_by = EXCLUDED.updated_by,
-                           updated_at = EXCLUDED.updated_at"
+                       SET payload            = EXCLUDED.payload,
+                           revision           = EXCLUDED.revision,
+                           updated_by         = EXCLUDED.updated_by,
+                           updated_at         = EXCLUDED.updated_at,
+                           config_revision_at = EXCLUDED.config_revision_at,
+                           config_revision_by = EXCLUDED.config_revision_by"
                 );
                 $upsert->execute([
                     'profile'  => $row['profile'],
                     'payload'  => $payload,
                     'revision' => (int)$row['revision'],
                     'user'     => $user . ' (sync from ' . $src . ')',
+                    'updated_at' => $row['updated_at'] ?? null,
+                    // Konfig-Zeitstempel + Login 1:1 aus der Quelle (Trigger fasst sie nicht an).
+                    'cfg_at'   => $row['config_revision_at'] ?? ($row['updated_at'] ?? null),
+                    'cfg_by'   => $row['config_revision_by'] ?? null,
                 ]);
+
+                // Sync-Zeit separat über History erfassen (falls Tabelle vorhanden).
+                try {
+                    $hist = $pdo->prepare(
+                        "INSERT INTO " . self::q($dst) . ".catalog_document_history
+                            (profile, revision, action, lyrmgr_key, payload, changed_by, changed_at)
+                         VALUES (:profile, :revision, 'import', NULL, :payload::jsonb, :user, now())"
+                    );
+                    $hist->execute([
+                        'profile'  => $row['profile'],
+                        'revision' => (int)$row['revision'],
+                        'payload'  => $payload,
+                        'user'     => $user . ' (sync from ' . $src . ')',
+                    ]);
+                } catch (\Throwable $ignore) {
+                    // Legacy-Schema ohne History: Sync soll trotzdem erfolgreich bleiben.
+                }
+
                 $pdo->commit();
                 $copied++;
             } catch (\Throwable $e) {
@@ -325,14 +423,14 @@ class SyncRepository {
         if ($kuerzel) {
             $placeholders = implode(',', array_fill(0, count($kuerzel), '?'));
             $stmt = $pdo->prepare(
-                "SELECT kuerzel, payload, scope, tags, last_imported_at
+                "SELECT kuerzel, payload, scope, tags, last_imported_at, last_imported_by
                  FROM " . self::q($src) . ".config_bundle_store cbs
                  WHERE kuerzel IN (" . $placeholders . ")"
             );
             $stmt->execute($kuerzel);
         } else {
             $stmt = $pdo->query(
-                "SELECT kuerzel, payload, scope, tags, last_imported_at
+                "SELECT kuerzel, payload, scope, tags, last_imported_at, last_imported_by
                  FROM " . self::q($src) . ".config_bundle_store cbs"
             );
         }
@@ -344,14 +442,16 @@ class SyncRepository {
                 $tags    = is_array($row['tags'])    ? json_encode($row['tags'])    : ($row['tags'] ?? '[]');
                 $upsert  = $pdo->prepare(
                     "INSERT INTO " . self::q($dst) . ".config_bundle_store
-                        (kuerzel, payload, scope, tags, last_imported_at, last_imported_by)
-                     VALUES (:kuerzel, :payload::jsonb, :scope, :tags::jsonb, COALESCE(:imported_at, now()), :user)
+                        (kuerzel, payload, scope, tags, last_imported_at, last_imported_by, synced_at, synced_by)
+                     VALUES (:kuerzel, :payload::jsonb, :scope, :tags::jsonb, COALESCE(:imported_at, now()), :imported_by, now(), :user)
                      ON CONFLICT (kuerzel) DO UPDATE
                        SET payload          = EXCLUDED.payload,
                            scope            = EXCLUDED.scope,
                            tags             = EXCLUDED.tags,
                            last_imported_at = EXCLUDED.last_imported_at,
-                           last_imported_by = EXCLUDED.last_imported_by"
+                           last_imported_by = EXCLUDED.last_imported_by,
+                           synced_at        = now(),
+                           synced_by        = EXCLUDED.synced_by"
                 );
                 $upsert->execute([
                     'kuerzel'     => $row['kuerzel'],
@@ -359,6 +459,7 @@ class SyncRepository {
                     'scope'       => $row['scope'] ?? 'core',
                     'tags'        => $tags,
                     'imported_at' => $row['last_imported_at'] ?? null,
+                    'imported_by' => $row['last_imported_by'] ?? null,
                     'user'        => $user,
                 ]);
                 $copied++;
@@ -460,6 +561,8 @@ class SyncRepository {
                 payload JSONB, changed_by TEXT,
                 changed_at TIMESTAMPTZ NOT NULL DEFAULT now())");
         $run("CREATE INDEX IF NOT EXISTS idx_catalog_doc_hist ON {$sq}.catalog_document_history (profile, revision DESC)");
+        $run("ALTER TABLE {$sq}.catalog_document ADD COLUMN IF NOT EXISTS config_revision_at TIMESTAMPTZ");
+        $run("ALTER TABLE {$sq}.catalog_document ADD COLUMN IF NOT EXISTS config_revision_by TEXT");
         $run("CREATE TABLE IF NOT EXISTS {$sq}.catalog_lock (
                 profile TEXT PRIMARY KEY, locked_by TEXT NOT NULL,
                 locked_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -479,6 +582,11 @@ class SyncRepository {
                 updated_at TIMESTAMPTZ NOT NULL DEFAULT now())");
         $run("ALTER TABLE {$sq}.config_bundle_store ADD COLUMN IF NOT EXISTS scope TEXT NOT NULL DEFAULT 'core'");
         $run("ALTER TABLE {$sq}.config_bundle_store ADD COLUMN IF NOT EXISTS profile TEXT");
+        // Sync-Zeitstempel (von Import-Zeit getrennt)
+        $run("ALTER TABLE {$sq}.bookmark_meta ADD COLUMN IF NOT EXISTS synced_at TIMESTAMPTZ");
+        $run("ALTER TABLE {$sq}.bookmark_meta ADD COLUMN IF NOT EXISTS synced_by TEXT");
+        $run("ALTER TABLE {$sq}.config_bundle_store ADD COLUMN IF NOT EXISTS synced_at TIMESTAMPTZ");
+        $run("ALTER TABLE {$sq}.config_bundle_store ADD COLUMN IF NOT EXISTS synced_by TEXT");
         $run("CREATE INDEX IF NOT EXISTS idx_config_bundle_tags ON {$sq}.config_bundle_store USING GIN (tags)");
         $run("CREATE INDEX IF NOT EXISTS idx_config_bundle_imported_at ON {$sq}.config_bundle_store (last_imported_at DESC)");
         $run("DROP TRIGGER IF EXISTS trg_config_bundle_updated ON {$sq}.config_bundle_store");
@@ -906,6 +1014,45 @@ class SyncRepository {
 
     private static function q(string $schema): string {
         return '"' . str_replace('"', '', $schema) . '"';
+    }
+
+    /**
+     * Stellt die Sync-/Konfig-Zeitstempel-Spalten in beiden Schemas sicher
+     * (idempotent, Best-Effort) und backfillt fehlende Konfig-Zeitstempel.
+     *
+     * Hintergrund: Der DB-Trigger set_updated_at() überschreibt updated_at bei
+     * jedem UPDATE mit now(). Deshalb braucht der Katalog einen eigenen, vom
+     * Trigger unberührten Konfig-Zeitstempel (config_revision_at), der mit der
+     * Revision gesetzt und beim Sync 1:1 mitkopiert wird.
+     */
+    private static function ensureSyncColumns($pdo): void {
+        foreach (self::schemaMap() as $schema) {
+            $sq = self::q($schema);
+            $alters = [
+                "ALTER TABLE {$sq}.bookmark_meta ADD COLUMN IF NOT EXISTS synced_at TIMESTAMPTZ",
+                "ALTER TABLE {$sq}.bookmark_meta ADD COLUMN IF NOT EXISTS synced_by TEXT",
+                "ALTER TABLE {$sq}.config_bundle_store ADD COLUMN IF NOT EXISTS synced_at TIMESTAMPTZ",
+                "ALTER TABLE {$sq}.config_bundle_store ADD COLUMN IF NOT EXISTS synced_by TEXT",
+                "ALTER TABLE {$sq}.catalog_document ADD COLUMN IF NOT EXISTS config_revision_at TIMESTAMPTZ",
+                "ALTER TABLE {$sq}.catalog_document ADD COLUMN IF NOT EXISTS config_revision_by TEXT",
+            ];
+            foreach ($alters as $sql) {
+                try { $pdo->exec($sql); } catch (\Throwable $e) { /* Best-Effort */ }
+            }
+            // Backfill: bestehende Zeilen ohne Konfig-Zeitstempel aus History/updated_at ableiten.
+            try {
+                $pdo->exec(
+                    "UPDATE {$sq}.catalog_document cd
+                     SET config_revision_at = COALESCE(
+                             (SELECT h.changed_at FROM {$sq}.catalog_document_history h
+                              WHERE h.profile = cd.profile AND h.revision = cd.revision AND h.action <> 'import'
+                              ORDER BY h.id DESC LIMIT 1),
+                             cd.updated_at),
+                         config_revision_by = COALESCE(cd.config_revision_by, cd.updated_by)
+                     WHERE cd.config_revision_at IS NULL"
+                );
+            } catch (\Throwable $e) { /* Best-Effort */ }
+        }
     }
 
     // ===== INHALTLICHER DIFF (On-Demand) =====

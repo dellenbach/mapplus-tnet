@@ -151,26 +151,29 @@ class CatalogRepository {
             if ($exists) {
                 $upd = $pdo->prepare(
                     "UPDATE mapplusconf.catalog_document
-                     SET payload = :payload::jsonb, revision = :revision, updated_by = :user
+                     SET payload = :payload::jsonb, revision = :revision, updated_by = :user,
+                         config_revision_at = now(), config_revision_by = :cfguser
                      WHERE profile = :profile"
                 );
                 $upd->execute([
                     'payload'  => $payloadJson,
                     'revision' => $newRevision,
                     'user'     => $user,
+                    'cfguser'  => $user,
                     'profile'  => $profile,
                 ]);
             } else {
                 $ins = $pdo->prepare(
                     "INSERT INTO mapplusconf.catalog_document
-                        (profile, payload, revision, updated_by)
-                     VALUES (:profile, :payload::jsonb, :revision, :user)"
+                        (profile, payload, revision, updated_by, config_revision_at, config_revision_by)
+                     VALUES (:profile, :payload::jsonb, :revision, :user, now(), :cfguser)"
                 );
                 $ins->execute([
                     'profile'  => $profile,
                     'payload'  => $payloadJson,
                     'revision' => $newRevision,
                     'user'     => $user,
+                    'cfguser'  => $user,
                 ]);
             }
 
@@ -220,14 +223,16 @@ class CatalogRepository {
         // ON CONFLICT → Upsert, falls das Profil-Dokument noch nicht existiert.
         // Parallele Saves verschiedener User auf verschiedene Blöcke sind konfliktfrei.
         $stmt = $pdo->prepare("
-            INSERT INTO mapplusconf.catalog_document (profile, payload, revision, updated_by, updated_at)
-            VALUES (:profile, jsonb_build_object(:lyrmgr_key::text, :block::jsonb), 1, :user, now())
+            INSERT INTO mapplusconf.catalog_document (profile, payload, revision, updated_by, updated_at, config_revision_at, config_revision_by)
+            VALUES (:profile, jsonb_build_object(:lyrmgr_key::text, :block::jsonb), 1, :user, now(), now(), :cfguser)
             ON CONFLICT (profile) DO UPDATE
             SET payload    = mapplusconf.catalog_document.payload
                              || jsonb_build_object(:lyrmgr_key2::text, :block2::jsonb),
                 revision   = mapplusconf.catalog_document.revision + 1,
                 updated_by = :user2,
-                updated_at = now()
+                updated_at = now(),
+                config_revision_at = now(),
+                config_revision_by = :cfguser2
             RETURNING revision
         ");
         $stmt->execute([
@@ -235,9 +240,11 @@ class CatalogRepository {
             'lyrmgr_key'  => $lyrmgrKey,
             'block'       => $blockJson,
             'user'        => $user ?? 'anonym',
+            'cfguser'     => $user ?? 'anonym',
             'lyrmgr_key2' => $lyrmgrKey,
             'block2'      => $blockJson,
             'user2'       => $user ?? 'anonym',
+            'cfguser2'    => $user ?? 'anonym',
         ]);
         $row = $stmt->fetch();
         $newRevision = $row ? (int)$row['revision'] : 1;
