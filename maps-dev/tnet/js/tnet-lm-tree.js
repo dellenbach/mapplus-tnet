@@ -177,10 +177,21 @@
     },
 
     _renderSubcategory: function (sub) {
+      var groups = sub.groups || [];
+      // hideHeader: Subcategory-Kopf unterdruecken und die Gruppen direkt als
+      // oberste Accordions rendern (z.B. Bund-Tab ohne den Wrapper
+      // "WMS - Bundes Geodaten-Infrastruktur"). Flag kommt aus lyrmgr.conf
+      // (Kategorie) und wird via layers.php durchgereicht.
+      if (sub.hideHeader) {
+        var promoted = '';
+        for (var k = 0; k < groups.length; k++) {
+          promoted += this._renderGroup(groups[k], 1);
+        }
+        return promoted;
+      }
       // Subcategory = Level-1 Accordion — expanded-Wert aus Store/API
       var depth = 1;
       var normalizedDepth = this._clampDepth(depth);
-      var groups = sub.groups || [];
       var count = this._countLeaves(groups);
       var isExpanded = sub.expanded !== false; // default: offen
       var stateClass = isExpanded ? ' lm-expanded' : ' lm-collapsed';
@@ -203,8 +214,10 @@
     _renderGroup: function (group, depth) {
       var normalizedDepth = this._clampDepth(depth);
       var layers = group.layers || [];
-      // Einzel-Layer ohne verschachtelte Gruppe? Direkt als Layer rendern
-      if (layers.length === 1 && layers[0].type !== 'group') {
+      // Einzel-Layer-Gruppe nur dann flach als Layer rendern, wenn explizit
+      // als Kopf-ausgeblendet markiert (hideHeader). Standard: Gruppen-Kopf
+      // bleibt sichtbar (z.B. "SEM" mit nur "SP Asyl").
+      if (group.hideHeader && layers.length === 1 && layers[0].type !== 'group') {
         return this._renderLeafLayer(layers[0], normalizedDepth);
       }
       var count = this._countLeaves(layers);

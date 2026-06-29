@@ -95,6 +95,77 @@ $action        = $_GET['action'] ?? null;
 //                0 = fehlende Layer behalten, aber mit _missing:true markieren (für SLM-Preview)
 $filterMissing = !isset($_GET['filterMissing']) || $_GET['filterMissing'] !== '0';
 
+// =====================================================================
+// Mandanten-Berechtigung (Tree-Builder V2)
+// Liest core/config/layer_permissions.json und strippt serverseitig URLs
+// nicht berechtigter Layer, damit sie weder eingeschaltet noch via F12
+// (Network/JS) eingesehen werden koennen. Der Knoten bleibt als gesperrter
+// Platzhalter (locked=true) im Baum sichtbar.
+// =====================================================================
+
+/**
+ * Liefert die Deny-Map (gesperrte Layer-IDs) fuer einen Mandanten.
+ * @return array<string,bool> { layerId: true }
+ */
+function loadTenantDenyMap($group) {
+    static $cache = [];
+    if (array_key_exists($group, $cache)) return $cache[$group];
+
+    $deny = [];
+    $paths = [];
+    if (class_exists('TnetCorePaths')) {
+        $cfg = TnetCorePaths::getConfigPath();
+        if ($cfg) $paths[] = rtrim($cfg, '/') . '/layer_permissions.json';
+    }
+    // App-lokale Ueberladung: /www/maps(-dev)/core/config/layer_permissions.json
+    $appCfg = realpath(__DIR__ . '/../../../core/config');
+    if ($appCfg) $paths[] = $appCfg . '/layer_permissions.json';
+    foreach ($paths as $p) {
+        if (!is_file($p)) continue;
+        $doc = json_decode((string)@file_get_contents($p), true);
+        if (!is_array($doc) || !isset($doc['deny'][$group]) || !is_array($doc['deny'][$group])) continue;
+        // Konvention: jeder Eintrag in deny[group] = gesperrt (Wert false = allowed:false)
+        foreach ($doc['deny'][$group] as $layerId => $_v) {
+            $deny[(string)$layerId] = true;
+        }
+    }
+    $cache[$group] = $deny;
+    return $deny;
+}
+
+/** Strippt einen einzelnen gesperrten Layer-Knoten (URL/Quellen entfernen). */
+function _stripDeniedNode(array &$node) {
+    $node['locked'] = true;
+    $node['accessDenied'] = true;
+    unset($node['url'], $node['params'], $node['options'], $node['maptips'],
+          $node['legendLink'], $node['legend'], $node['legendLayers'], $node['layerType']);
+}
+
+/** Rekursiv: alle Knoten mit gesperrter id strippen. */
+function _applyTenantDeny(&$data, array $denyMap) {
+    if (!is_array($data)) return;
+    foreach ($data as &$v) {
+        if (is_array($v)) {
+            if (isset($v['id']) && is_string($v['id']) && isset($denyMap[$v['id']])) {
+                _stripDeniedNode($v);
+            }
+            _applyTenantDeny($v, $denyMap);
+        }
+    }
+    unset($v);
+}
+
+/** Wendet die Mandanten-Deny-Map auf ein Ergebnis (Knoten, Baum oder Liste) an. */
+function filterResultForTenant(&$result, $group) {
+    $deny = loadTenantDenyMap($group);
+    if (empty($deny) || !is_array($result)) return;
+    // Top-Level-Knoten selbst (Einzel-Layer-Lookup) pruefen
+    if (isset($result['id']) && is_string($result['id']) && isset($deny[$result['id']])) {
+        _stripDeniedNode($result);
+    }
+    _applyTenantDeny($result, $deny);
+}
+
 if ($source === '' || $source === 'auto' || !in_array($source, ['db', 'file'], true)) {
     ApiResponse::error("Ungueltiger source-Parameter. Verwende source=db oder source=file.", 400);
 }
@@ -313,6 +384,7 @@ if ($layerId !== null) {
         $layer = fetchLayerFromDb($layerId);
         if ($layer) {
             $layer['_source'] = 'database';
+            filterResultForTenant($layer, $group);
             CacheHelper::setNoCache();
             ApiResponse::success($layer);
         }
@@ -355,6 +427,7 @@ if ($layerId !== null) {
         '_source'   => 'file'
     ];
 
+    filterResultForTenant($layer, $group);
     CacheHelper::setNoCache();
     ApiResponse::success($layer);
 }
@@ -385,6 +458,7 @@ if (!$bypassJsonCache && $cached !== null && !$debug && !$noCache) {
     CacheHelper::setNoCache();
     $meta = $cached['meta'] ?? [];
     $meta['cache'] = 'hit';
+    filterResultForTenant($cached['data'], $group);
     ApiResponse::success($cached['data'], $meta);
 }
 
@@ -509,6 +583,7 @@ if ($useDatabase) {
                 $elapsed = round((microtime(true) - $startTime) * 1000);
                 $meta['responseTime'] = $elapsed . 'ms';
 
+                filterResultForTenant($flatLayers, $group);
                 CacheHelper::setNoCache();
                 ApiResponse::success($flatLayers, $meta);
             }
@@ -544,6 +619,7 @@ if ($useDatabase) {
                 $cache->set($cacheKey, ['data' => $result, 'meta' => $meta]);
             }
 
+            filterResultForTenant($result, $group);
             CacheHelper::setNoCache();
             ApiResponse::success($result, $meta);
         }
@@ -766,6 +842,12 @@ foreach ($mapping['categories'] as $topCategory) {
                 'groups' => []
             ];
 
+            // hideHeader-Flag durchreichen: unterdrueckt den Subcategory-Kopf
+            // im TNET-Tree (Gruppen werden direkt als oberste Accordions gezeigt).
+            if (!empty($categoryDef['hideHeader'])) {
+                $subcategoryData['hideHeader'] = true;
+            }
+
             if (isset($categoryDef['items'])) {
                 $groupList = [];
                 if (array_keys($categoryDef['items']) === range(0, count($categoryDef['items']) - 1)) {
@@ -805,6 +887,12 @@ foreach ($mapping['categories'] as $topCategory) {
                     // selectAll-Flag durchreichen
                     if (!empty($groupDef['selectAll'])) {
                         $groupData['selectAll'] = true;
+                    }
+
+                    // hideHeader-Flag durchreichen: Einzel-Element-Gruppe wird
+                    // im Tree flach als Layer (ohne Gruppen-Kopf) gerendert.
+                    if (!empty($groupDef['hideHeader'])) {
+                        $groupData['hideHeader'] = true;
                     }
 
                     if (isset($groupDef['items'])) {
@@ -879,6 +967,7 @@ if ($flat) {
     // HTTP Caching
     CacheHelper::setNoCache();
 
+    filterResultForTenant($flatLayers, $group);
     ApiResponse::success($flatLayers, $meta);
 }
 
@@ -924,6 +1013,7 @@ if (!$bypassJsonCache) {
 // HTTP Caching
 CacheHelper::setNoCache();
 
+filterResultForTenant($result, $group);
 ApiResponse::success($result, $meta);
 
 // =====================================================================

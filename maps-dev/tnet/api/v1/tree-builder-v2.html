@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Layer-Tree Builder v5 — TNET API</title>
+<title>Layer-Tree Builder V2 (Shared) — TNET API</title>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 :root {
@@ -1157,7 +1157,9 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
     <option value="">– wählen –</option>
   </select>
   <span class="sep"></span>
-  <span class="brand">🔧 Tree-Builder</span>
+  <span class="brand">🔧 Tree-Builder <span style="background:#a0539a;color:#fff;padding:1px 6px;border-radius:3px;font-size:10px;font-weight:700">V2</span></span>
+  <select id="tb-shared-source" class="tb-profile-select" title="Quell-Profil für Initialisierung" style="display:none"></select>
+  <button class="tb-toggle" id="tb-shared-init" title="Gemeinsamen Baum aus gewähltem Profil initialisieren" style="display:none">⤓ Initialisieren</button>
   <span class="sep"></span>
   <button class="tb-toggle active" id="tb-toggle-layers" title="Layer-Katalog ein/aus">🗂 Layer</button>
   <button class="tb-toggle" id="tb-toggle-clipboard" title="Zwischenablage ein/aus">📋 Ablage</button>
@@ -1184,6 +1186,79 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
   <span><span class="tsi-lbl">API:</span> <span class="tsi-val" id="tsi-api"></span></span>
   <span class="tsi-sep" id="tsi-warn-sep" style="display:none">|</span>
   <span class="tsi-warn" id="tsi-warn" style="display:none"></span>
+</div>
+
+<!-- ===== V2 Shared-Modus: Profil-Bündelung + Matrix-Steuerung ===== -->
+<style>
+  #tbv2-bundle-bar { display:none; align-items:center; gap:10px; flex-wrap:wrap;
+    padding:6px 12px; background:#ede1ec; border-bottom:1px solid #d6c2d4; font-size:12px; }
+  #tbv2-bundle-bar .lbl { font-weight:700; color:#6a4c7d; }
+  #tbv2-bundle-bar label { display:inline-flex; align-items:center; gap:4px; cursor:pointer;
+    background:#fff; border:1px solid #cbb6c9; border-radius:12px; padding:2px 9px; }
+  #tbv2-bundle-bar label.off { opacity:.5; }
+  #tbv2-bundle-bar .sp { flex:1; }
+  #tbv2-bundle-bar .tbv2-pub { background:#2e7d32; color:#fff; border:none; border-radius:4px;
+    padding:5px 12px; font-weight:700; cursor:pointer; }
+  #tbv2-bundle-bar .tbv2-pub:hover { background:#1b5e20; }
+  #tbv2-bundle-lockinfo { color:#8a5a00; font-size:11px; }
+  /* ===== Matrix als rechts sauber getrenntes Spalten-Band ===== */
+  :root { --tbv2-cell: 40px; --tbv2-mtxW: 0px; }
+  /* Reservierter Platz rechts in jeder Baumzeile, damit Inhalt nicht unters Band läuft */
+  body.tbv2-shared .tb-tree-item,
+  body.tbv2-shared .tb-tree-group-head,
+  body.tbv2-shared .tb-tree-cat-head { position: relative; padding-right: calc(var(--tbv2-mtxW) + 6px) !important; box-sizing: border-box; }
+  body.tbv2-shared #tb-tree-body { scrollbar-gutter: stable; }
+  .tbv2-mtx {
+    position: absolute; right: 0; top: 0; bottom: 0;
+    width: var(--tbv2-mtxW);
+    display: flex; align-items: stretch; gap: 0; z-index: 2;
+    background: rgba(160,83,154,.07);
+    border-left: 2px solid rgba(106,76,125,.45);
+  }
+  .tbv2-mtx-cell {
+    width: var(--tbv2-cell); min-width: var(--tbv2-cell);
+    display: flex; align-items: center; justify-content: center;
+    border-left: 1px solid rgba(106,76,125,.12);
+  }
+  .tbv2-mtx-cell:first-child { border-left: none; }
+  /* Tri-State Buttons: sichtbar / unsichtbar / gesperrt */
+  .tbv2-tri {
+    width: 24px; height: 20px; border-radius: 4px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 700; user-select: none; border: 1px solid transparent;
+  }
+  .tbv2-tri.on  { background: #2e7d32; color: #fff; }                 /* sichtbar */
+  .tbv2-tri.off { background: #fff; color: #c0392b; border-color: #e0a; opacity:.85; } /* unsichtbar */
+  .tbv2-tri.lock { background: repeating-linear-gradient(45deg,#eee,#eee 4px,#e0d0dd 4px,#e0d0dd 8px); color:#8a5; cursor: not-allowed; }
+  .tbv2-mtx-lock { color: #b0408a; opacity: .85; font-size: 13px; }
+  /* Sticky Spaltenheader (innerhalb der scrollenden Baum-Liste) */
+  .tbv2-colhead {
+    position: sticky; top: 0; z-index: 6;
+    display: flex; justify-content: flex-end; align-items: stretch;
+    background: #6a4c7d; color: #fff; height: 28px;
+    box-shadow: 0 2px 4px rgba(0,0,0,.3);
+  }
+  .tbv2-colhead .tbv2-colhead-label {
+    flex: 1; display: flex; align-items: center; padding-left: 10px;
+    font-size: 11px; font-weight: 600; letter-spacing: .02em; white-space: nowrap;
+  }
+  .tbv2-colhead .tbv2-mtx-cell {
+    width: var(--tbv2-cell); min-width: var(--tbv2-cell);
+    flex-direction: column; justify-content: center; line-height: 1.1;
+    font-weight: 700; color: #fff;
+    border-left: 1px solid rgba(255,255,255,.22);
+  }
+  .tbv2-colhead .tbv2-mtx-code { font-size: 11px; }
+</style>
+<div id="tbv2-bundle-bar">
+  <span class="lbl">Gebündelte Profile:</span>
+  <span id="tbv2-bundle-profiles"></span>
+  <span class="sp"></span>
+  <span id="tbv2-bundle-lockinfo"></span>
+  <label style="font-size:11px;color:#6a4c7d">Vorschau:
+    <select id="tbv2-preview-tenant" class="tb-profile-select" title="Vorschau-Mandant (Stage)"></select>
+  </label>
+  <button class="tbv2-pub" id="tbv2-publish-shared" title="Aus gemeinsamem Baum pro gebündeltem Profil ableiten">⇪ Publishen (gebündelt)</button>
 </div>
 
 <!-- 3-Panel Layout -->
@@ -1680,6 +1755,10 @@ _showBuildTs('tb-build-ts');
 // Staging-Modus: ?source=staging in der URL → Layer aus ImportToCore laden
 var _urlParams = new URLSearchParams(window.location.search);
 var _stagingMode = _urlParams.get('source') === 'staging';
+// Shared-Modus (V2): gemeinsamer Mandanten-Baum (__shared__) mit 4-Spalten-Matrix
+var _sharedMode = _urlParams.get('mode') === 'shared';
+var SHARED_PROFILE = '__shared__';
+var TENANTS = ['public', 'uwpro', 'nwpro', 'owpro'];
 // Staging-Modus: kein zusätzliches Badge im Brand (Store-Badge im LyrMgr-Header genügt)
 
 var _saveTimer = null;
@@ -3746,6 +3825,7 @@ function renderTree() {
     renderLyrmgrBlock(body, entry.key, entry.tree);
   });
 
+  if (_sharedMode) injectColHeader();
   syncJsonEditor();
 }
 
@@ -3797,11 +3877,11 @@ function renderLyrmgrBlock(container, lmKey, profile) {
   var html = '';
 
   // Rekursives Item-Rendering: Strings → Layer, Objekte → Gruppenlayer
-  function renderTreeItem(item, ci, path) {
+  function renderTreeItem(item, ci, path, ancAllowed) {
     // Arrays auflösen (z.B. ["layer_id"] statt "layer_id")
     if (Array.isArray(item)) {
       var arrHtml = '';
-      item.forEach(function(sub, si) { arrHtml += renderTreeItem(sub, ci, path.concat([si])); });
+      item.forEach(function(sub, si) { arrHtml += renderTreeItem(sub, ci, path.concat([si]), ancAllowed); });
       return arrHtml;
     }
     if (typeof item === 'string') {
@@ -3837,6 +3917,7 @@ function renderLyrmgrBlock(container, lmKey, profile) {
         + '<span class="tiname' + (noNls ? ' no-nls' : '') + '" data-editable data-layer-id="' + esc(item) + '" title="' + esc(item) + (nlsName ? '' : ' (kein NLS)') + esc(metaHint) + '">' + esc(itemName) + '</span>'
         + (nlsName ? '<span class="ti-id" title="' + esc(item) + '">' + esc(item) + '</span>' : '')
         + badgesHtml
+        + (_sharedMode ? buildMatrixCells(item, ancAllowed) : '')
         + '<button class="tidel" data-action="del-item" data-cat-idx="' + ci + '" data-item-path="' + path.join('.') + '">×</button>'
         + '</div>';
     }
@@ -3847,9 +3928,11 @@ function renderLyrmgrBlock(container, lmKey, profile) {
       var grpMeta = getNodeEditMeta('group', grpKey, lmKey);
       var grpItems = item.items || [];
       var isTopLevel = (path.length === 1); // Direkt unter Kategorie
+      var grpNodeKey = 'grp:' + grpKey;
+      var grpChildAnc = _sharedMode ? childAncAllowed(ancAllowed, grpNodeKey) : null;
       var nestedHtml = '';
       grpItems.forEach(function(child, idx) {
-        nestedHtml += renderTreeItem(child, ci, path.concat([idx]));
+        nestedHtml += renderTreeItem(child, ci, path.concat([idx]), grpChildAnc);
       });
       var badges = '';
       if (item.legend) badges += '<span class="grp-badge" title="legend: ' + esc(item.legend) + '">📊</span>';
@@ -3868,6 +3951,7 @@ function renderLyrmgrBlock(container, lmKey, profile) {
         + grpIdHtml
         + badges
         + '<span class="grpcount">' + grpItems.length + '</span>'
+        + (_sharedMode ? buildMatrixCells(grpNodeKey, ancAllowed) : '')
         + '<button class="grpedit" data-action="edit-group" data-cat-idx="' + ci + '" data-item-path="' + path.join('.') + '" title="Eigenschaften">✎</button>'
         + '<button class="grpdel" data-action="del-item" data-cat-idx="' + ci + '" data-item-path="' + path.join('.') + '">×</button>'
         + '</div>'
@@ -3884,6 +3968,8 @@ function renderLyrmgrBlock(container, lmKey, profile) {
     var catKey = cat.key || cat.name || '';
     var catNls = getNlsAlias(catKey);
     var catDisplay = catNls || catLabel;
+    var catNodeKey = 'cat:' + catKey;
+    var catChildAnc = _sharedMode ? childAncAllowed(null, catNodeKey) : null;
     var catMeta = getNodeEditMeta('cat', catKey, lmKey);
     var iconInfo = cat.iconClass ? ' <span style="font-size:9px;color:rgba(255,255,255,.5)">' + esc(cat.iconClass) + '</span>' : '';
     var hideInfo = cat.hideHeader ? ' <span title="Kopf ausgeblendet – nur Untergruppen sichtbar" style="font-size:9px;color:#fff;background:#e8423f;border-radius:3px;padding:0 4px">⊘ Kopf aus</span>' : '';
@@ -3896,6 +3982,7 @@ function renderLyrmgrBlock(container, lmKey, profile) {
     if (catNls) html += '<span class="cat-id" title="' + esc(catKey) + '">' + esc(catKey) + '</span>';
     html += iconInfo;
     html += hideInfo;
+    if (_sharedMode) html += buildMatrixCells(catNodeKey, null);
     html += '<button class="cedit" data-action="edit-cat" data-cat-idx="' + ci + '" title="Eigenschaften">✎</button>';
     html += '<button class="cdel" data-action="del-cat" data-cat-idx="' + ci + '">×</button>';
     html += '</div>';
@@ -3903,7 +3990,7 @@ function renderLyrmgrBlock(container, lmKey, profile) {
 
     if (cat.items && cat.items.length > 0) {
       cat.items.forEach(function(item, ii) {
-        html += renderTreeItem(item, ci, [ii]);
+        html += renderTreeItem(item, ci, [ii], catChildAnc);
       });
     } else {
       html += '<div class="tb-drop-hint">Gruppenlayer hinzufügen oder Layer hierher ziehen</div>';
@@ -9502,6 +9589,11 @@ document.getElementById('tb-profile-select').addEventListener('change', function
 // ===== LyrMgr-Vorschau Sub-Tabs =====
 function buildLmPreviewUrl(panel) {
   var group = state.activeProfile || 'public';
+  if (_sharedMode) {
+    var ts = document.getElementById('tbv2-preview-tenant');
+    var tenant = (ts && ts.value) || (state.bundleProfiles && state.bundleProfiles[0]) || 'public';
+    group = tenant + '-stage';
+  }
   var p = panel || document.getElementById('tb-lm-panel-select').value || 'both';
   var src = (document.getElementById('tb-lm-source-select') || {}).value || 'db';
   src = (src === 'file') ? 'file' : 'db';
@@ -9674,6 +9766,13 @@ loadRuntimePaths('tb-main-runtime-paths');
 // Schritt 1: Profile-Dropdown befüllen
 loadAvailableProfiles(function() {
   console.log('[TB-DIAG v5] Callback gefeuert — activeProfile=' + state.activeProfile);
+
+  // ===== Shared-Modus (V2): gemeinsamer Baum __shared__ =====
+  if (_sharedMode) {
+    initSharedMode();
+    return; // Standard-Init im Shared-Modus überspringen
+  }
+
   // Schritt 2: Profil bestimmen (aus localStorage oder Default 'public')
   var _initProfile = state.activeProfile || 'public';
   if (!state.activeProfile) state.activeProfile = _initProfile;
@@ -9689,6 +9788,352 @@ loadAvailableProfiles(function() {
   loadLyrmgrForProfile(_initProfile, true);
   startDraftStatusPolling();
 });
+
+// ===== Shared-Modus (V2): Helfer =====
+
+// Matrix-/Bündel-State
+state.bundleProfiles = [];                 // gebündelte Profile (= Matrix-Spalten)
+state.matrix = { visibleFor: {} };         // visibleFor[nodeKey][profile] = bool (Default true)
+var _matrixSaveTimer = null;
+
+// Verfügbare Profile (ohne __shared__ und *-stage) ermitteln
+function sharedAvailableProfiles(cb) {
+  fetch(API_URL + '?action=list-lyrmgr-profiles')
+    .then(function(r) { return r.json(); })
+    .then(function(j) {
+      var list = [];
+      if (j && j.success && j.data) {
+        j.data.forEach(function(p) {
+          var name = p.profile;
+          if (name === SHARED_PROFILE) return;
+          if (/-stage$/.test(name)) return;
+          list.push(name);
+        });
+      }
+      // Bekannte Mandanten sicherstellen (auch wenn noch keine Datei existiert)
+      TENANTS.forEach(function(t) { if (list.indexOf(t) === -1) list.push(t); });
+      cb(list);
+    })
+    .catch(function() { cb(TENANTS.slice()); });
+}
+
+// __shared__ als Option im Hauptdropdown sicherstellen
+function ensureSharedOption() {
+  var sel = document.getElementById('tb-profile-select');
+  for (var i = 0; i < sel.options.length; i++) {
+    if (sel.options[i].value === SHARED_PROFILE) return;
+  }
+  var opt = document.createElement('option');
+  opt.value = SHARED_PROFILE;
+  opt.textContent = SHARED_PROFILE + ' (gemeinsam)';
+  sel.appendChild(opt);
+}
+
+function initSharedMode() {
+  var initBtn = document.getElementById('tb-shared-init');
+  var srcSel = document.getElementById('tb-shared-source');
+  var bundleBar = document.getElementById('tbv2-bundle-bar');
+  if (initBtn) { initBtn.style.display = ''; initBtn.addEventListener('click', function() { sharedInit(false); }); }
+  if (srcSel) srcSel.style.display = '';
+  if (bundleBar) bundleBar.style.display = 'flex';
+
+  var pubBtn = document.getElementById('tbv2-publish-shared');
+  if (pubBtn) pubBtn.addEventListener('click', publishShared);
+
+  sharedAvailableProfiles(function(list) {
+    // Quell-Dropdown füllen
+    if (srcSel) {
+      srcSel.innerHTML = '';
+      list.forEach(function(name) {
+        var o = document.createElement('option');
+        o.value = name; o.textContent = name;
+        if (name === 'public') o.selected = true;
+        srcSel.appendChild(o);
+      });
+    }
+    // Standard-Bündelung = alle bekannten Mandanten, die existieren
+    var saved = [];
+    try { saved = JSON.parse(localStorage.getItem('tbv2_bundle') || '[]'); } catch (e) {}
+    state.bundleProfiles = (saved && saved.length)
+      ? saved.filter(function(p) { return list.indexOf(p) !== -1; })
+      : list.filter(function(p) { return TENANTS.indexOf(p) !== -1; });
+    if (!state.bundleProfiles.length) state.bundleProfiles = list.slice();
+    renderBundleBar(list);
+    applyMatrixLayout();
+
+    // Matrix laden, dann Baum laden
+    loadMatrix(function() {
+      ensureSharedOption();
+      var sel = document.getElementById('tb-profile-select');
+      sel.value = SHARED_PROFILE;
+      state.activeProfile = SHARED_PROFILE;
+      loadLayers(SHARED_PROFILE);
+      loadLyrmgrForProfile(SHARED_PROFILE, true);
+      startDraftStatusPolling();
+      acquireSharedLocks();
+    });
+  });
+}
+
+// Bündelungsleiste rendern (Checkboxen = Matrix-Spalten)
+function renderBundleBar(available) {
+  var wrap = document.getElementById('tbv2-bundle-profiles');
+  if (!wrap) return;
+  wrap.innerHTML = '';
+  available.forEach(function(name) {
+    var on = state.bundleProfiles.indexOf(name) !== -1;
+    var lab = document.createElement('label');
+    lab.className = on ? '' : 'off';
+    lab.innerHTML = '<input type="checkbox" ' + (on ? 'checked' : '') + ' value="' + name + '"> ' + name;
+    lab.querySelector('input').addEventListener('change', function() {
+      var v = this.value;
+      var idx = state.bundleProfiles.indexOf(v);
+      if (this.checked && idx === -1) state.bundleProfiles.push(v);
+      else if (!this.checked && idx !== -1) state.bundleProfiles.splice(idx, 1);
+      // Reihenfolge gemäß available beibehalten
+      state.bundleProfiles = available.filter(function(p) { return state.bundleProfiles.indexOf(p) !== -1; });
+      try { localStorage.setItem('tbv2_bundle', JSON.stringify(state.bundleProfiles)); } catch (e) {}
+      lab.className = this.checked ? '' : 'off';
+      saveMatrix();
+      acquireSharedLocks();
+      applyMatrixLayout();
+      renderTree(); // Spalten neu aufbauen
+    });
+    wrap.appendChild(lab);
+  });
+  // Vorschau-Mandant-Selektor befüllen (= gebündelte Profile)
+  var ts = document.getElementById('tbv2-preview-tenant');
+  if (ts) {
+    var cur = ts.value;
+    ts.innerHTML = '';
+    state.bundleProfiles.forEach(function(p) {
+      var o = document.createElement('option'); o.value = p; o.textContent = p; ts.appendChild(o);
+    });
+    if (cur && state.bundleProfiles.indexOf(cur) !== -1) ts.value = cur;
+    ts.onchange = function() { if (typeof updateLmPreviewIframe === 'function') updateLmPreviewIframe(); };
+  }
+}
+
+// Robuster Init mit 409-Retry (force)
+function sharedInit(force) {
+  var srcSel = document.getElementById('tb-shared-source');
+  var source = (srcSel && srcSel.value) || 'public';
+  if (!force && !confirm('Gemeinsamen Baum __shared__ aus Profil „' + source + '“ aufbauen?')) return;
+  fetch(API_URL + '?action=shared-init-from-public' + (_editorName ? '&editor=' + encodeURIComponent(_editorName) : ''), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Editor-Name': _editorName || '' },
+    body: JSON.stringify({ sourceProfile: source, force: !!force })
+  }).then(function(r) {
+    return r.json().then(function(j) { return { status: r.status, j: j }; });
+  }).then(function(res) {
+    var j = res.j;
+    if (res.status === 409 || (j && j.error && /existiert bereits/.test(j.error))) {
+      if (confirm('Gemeinsamer Baum __shared__ existiert bereits.\nMit Profil „' + source + '“ ÜBERSCHREIBEN?')) {
+        sharedInit(true);
+      }
+      return;
+    }
+    if (!j || !j.success) { alert('Initialisierung fehlgeschlagen: ' + ((j && j.error) || 'unbekannt')); return; }
+    // Erfolgreich: __shared__ laden
+    state.activeLyrmgr = null;
+    ensureSharedOption();
+    var sel = document.getElementById('tb-profile-select');
+    sel.value = SHARED_PROFILE;
+    state.activeProfile = SHARED_PROFILE;
+    loadLayers(SHARED_PROFILE);
+    loadLyrmgrForProfile(SHARED_PROFILE, true);
+    startDraftStatusPolling();
+    acquireSharedLocks();
+  }).catch(function(e) { alert('Netzwerkfehler: ' + e); });
+}
+
+// Matrix laden/speichern
+function loadMatrix(cb) {
+  fetch(API_URL + '?action=shared-matrix-load')
+    .then(function(r) { return r.json(); })
+    .then(function(j) {
+      if (j && j.success && j.data) {
+        state.matrix.visibleFor = j.data.visibleFor || {};
+      }
+      if (cb) cb();
+    })
+    .catch(function() { if (cb) cb(); });
+}
+function saveMatrix() {
+  if (_matrixSaveTimer) clearTimeout(_matrixSaveTimer);
+  _matrixSaveTimer = setTimeout(function() {
+    fetch(API_URL + '?action=shared-matrix-save' + (_editorName ? '&editor=' + encodeURIComponent(_editorName) : ''), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Editor-Name': _editorName || '' },
+      body: JSON.stringify({ visibleFor: state.matrix.visibleFor, bundle: state.bundleProfiles })
+    }).catch(function() {});
+  }, 400);
+}
+
+// Matrix-Knotenwert lesen/schreiben (Default = sichtbar/true)
+function mtxGet(nodeKey, profile) {
+  var v = state.matrix.visibleFor[nodeKey];
+  if (!v || !(profile in v)) return true;
+  return v[profile] !== false;
+}
+function mtxSet(nodeKey, profile, val) {
+  if (!state.matrix.visibleFor[nodeKey]) state.matrix.visibleFor[nodeKey] = {};
+  state.matrix.visibleFor[nodeKey][profile] = !!val;
+  saveMatrix();
+}
+
+// Matrix-Zellen-HTML für einen Knoten erzeugen.
+// ancAllowed: { profile: bool } — sind alle Vorfahren erlaubt?
+function buildMatrixCells(nodeKey, ancAllowed) {
+  var html = '<span class="tbv2-mtx" data-node-key="' + esc(nodeKey) + '">';
+  state.bundleProfiles.forEach(function(p) {
+    var anc = ancAllowed ? ancAllowed[p] !== false : true;
+    html += '<span class="tbv2-mtx-cell">';
+    if (!anc) {
+      html += '<span class="tbv2-tri lock" title="durch übergeordnete Sperre gesperrt (' + esc(p) + ')">🔒</span>';
+    } else {
+      var on = mtxGet(nodeKey, p);
+      html += '<span class="tbv2-tri ' + (on ? 'on' : 'off') + '" data-mtx-node="' + esc(nodeKey) + '" data-mtx-profile="' + esc(p)
+        + '" title="' + esc(p) + ': ' + (on ? 'sichtbar' : 'unsichtbar') + ' (klicken zum Umschalten)">' + (on ? '✓' : '✗') + '</span>';
+    }
+    html += '</span>';
+  });
+  html += '</span>';
+  return html;
+}
+
+// Effektive Vorfahren-Erlaubnis für Kinder berechnen
+function childAncAllowed(parentAnc, nodeKey) {
+  var out = {};
+  state.bundleProfiles.forEach(function(p) {
+    var anc = parentAnc ? parentAnc[p] !== false : true;
+    out[p] = anc && mtxGet(nodeKey, p);
+  });
+  return out;
+}
+
+// Breite des Matrix-Bands setzen + Shared-Klasse aktivieren
+function applyMatrixLayout() {
+  var n = (state.bundleProfiles || []).length;
+  var cell = 40;
+  var w = n > 0 ? (n * cell) : 0;
+  document.documentElement.style.setProperty('--tbv2-mtxW', w + 'px');
+  document.body.classList.toggle('tbv2-shared', _sharedMode && n > 0);
+}
+
+// Kurzcode für ein Profil (lesbarer Spaltenheader)
+function tenantCode(p) {
+  var map = { public: 'PUB', uwpro: 'UW', nwpro: 'NW', owpro: 'OW' };
+  if (map[p]) return map[p];
+  return String(p || '').slice(0, 3).toUpperCase();
+}
+
+// Sticky Spaltenheader oben in die Baumliste einsetzen
+function injectColHeader() {
+  if (!_sharedMode) return;
+  var body = document.getElementById('tb-tree-body');
+  if (!body) return;
+  var old = document.getElementById('tbv2-colhead');
+  if (old) old.parentNode.removeChild(old);
+  if (!state.bundleProfiles.length) return;
+  var head = document.createElement('div');
+  head.className = 'tbv2-colhead';
+  head.id = 'tbv2-colhead';
+  var cells = state.bundleProfiles.map(function(p) {
+    return '<span class="tbv2-mtx-cell" title="' + esc(p) + '"><span class="tbv2-mtx-code">' + esc(tenantCode(p)) + '</span></span>';
+  }).join('');
+  head.innerHTML = '<span class="tbv2-colhead-label">👁 Sichtbarkeit / Berechtigung je Profil</span>'
+    + '<span class="tbv2-mtx" style="position:static;display:flex;background:transparent;border-left:2px solid rgba(255,255,255,.35)">' + cells + '</span>';
+  body.insertBefore(head, body.firstChild);
+}
+
+function acquireSharedLocks() {
+  var profiles = (state.bundleProfiles && state.bundleProfiles.length) ? state.bundleProfiles : TENANTS;
+  fetch(API_URL + '?action=shared-lock' + (_editorName ? '&editor=' + encodeURIComponent(_editorName) : ''), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Editor-Name': _editorName || '' },
+    body: JSON.stringify({ profiles: profiles })
+  }).then(function(r){ return r.json(); })
+    .then(function(j) {
+      var el = document.getElementById('tbv2-bundle-lockinfo');
+      if (el && j && j.success) {
+        var parts = [];
+        if (j.locked && j.locked.length) parts.push('🔒 V1 gesperrt: ' + j.locked.join(', '));
+        if (j.conflicts && j.conflicts.length) parts.push('⚠ belegt: ' + j.conflicts.map(function(c){return c.profile;}).join(', '));
+        el.textContent = parts.join('  ·  ');
+      }
+    })
+    .catch(function() {});
+}
+
+// Items pro Mandant filtern (nur sichtbare Knoten behalten)
+function deriveItems(items, tenant, ancOk) {
+  var out = [];
+  (items || []).forEach(function(it) {
+    if (typeof it === 'string') {
+      if (ancOk && mtxGet(it, tenant)) out.push(it);
+    } else if (it && typeof it === 'object') {
+      var k = 'grp:' + (it.key || it.name || '');
+      if (ancOk && mtxGet(k, tenant)) {
+        var copy = deepCopy(it);
+        copy.items = deriveItems(it.items, tenant, true);
+        out.push(copy);
+      }
+    }
+  });
+  return out;
+}
+function deriveTreeForTenant(tree, tenant) {
+  var t = deepCopy(tree);
+  t.categories = (tree.categories || []).map(function(cat) {
+    var k = 'cat:' + (cat.key || cat.name || '');
+    if (!mtxGet(k, tenant)) return null;
+    var nc = deepCopy(cat);
+    nc.items = deriveItems(cat.items, tenant, true);
+    return nc;
+  }).filter(Boolean);
+  return t;
+}
+
+// Pro gebündeltem Mandant ableiten und nach <tenant>-stage publishen
+function publishShared() {
+  var profiles = (state.bundleProfiles || []).slice();
+  if (!profiles.length) { alert('Keine Profile gebündelt.'); return; }
+  var p = state.profiles[SHARED_PROFILE] || state.profiles[state.activeProfile];
+  if (!p || !p.lyrmgrs) { alert('Kein gemeinsamer Baum geladen.'); return; }
+  if (!confirm('Pro Mandant ableiten und nach <mandant>-stage publishen?\n' + profiles.join(', '))) return;
+  var keys = getSortedLyrmgrKeys(p.lyrmgrs);
+  var jobs = [];
+  profiles.forEach(function(tenant) {
+    keys.forEach(function(key) {
+      var derived = deriveTreeForTenant(p.lyrmgrs[key], tenant);
+      var block = generateLyrmgrConfBlock(derived);
+      jobs.push(fetch(API_URL + '?action=publish-lyrmgr', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Editor-Name': _editorName || '' },
+        body: JSON.stringify({ profile: tenant + '-stage', lyrmgrKey: key, data: block })
+      }).then(function(r){ return r.json(); }).catch(function(){ return { success:false }; }));
+    });
+  });
+  Promise.all(jobs).then(function(res) {
+    var ok = res.filter(function(j){ return j && j.success; }).length;
+    saveMatrix();
+    alert('Publish fertig: ' + ok + '/' + jobs.length + ' Blöcke nach *-stage.\nVorschau: Mandant rechts wählen.');
+    updateLmPreviewIframe();
+  });
+}
+
+// Delegierter Listener für Matrix-Tri-State-Buttons im Baum
+document.addEventListener('click', function(e) {
+  var t = e.target;
+  if (t && t.classList && t.classList.contains('tbv2-tri') && t.hasAttribute('data-mtx-node')) {
+    e.preventDefault(); e.stopPropagation();
+    var node = t.getAttribute('data-mtx-node');
+    var prof = t.getAttribute('data-mtx-profile');
+    mtxSet(node, prof, !mtxGet(node, prof)); // sichtbar <-> unsichtbar
+    renderTree(); // Vererbung (Kinder sperren) neu berechnen
+  }
+});
+
 </script>
 <script src="https://cdn.jsdelivr.net/npm/ol@10.8.0/dist/ol.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.9.0/proj4.js"></script>
