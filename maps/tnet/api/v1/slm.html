@@ -542,6 +542,7 @@ body {
 /* ===== CONFIG-EDITOR TAB ===== */
 .ags-tab[data-tab="editor"]  { background: linear-gradient(135deg, #607d8b, #455a64); }
 .ags-tab[data-tab="treebuilder"] { background: linear-gradient(135deg, #8e6aa0, #6a4c7d); }
+.ags-tab[data-tab="treebuilderV2"] { background: linear-gradient(135deg, #a0539a, #7d3d77); }
 .ags-tab[data-tab="deployed"] { background: linear-gradient(135deg, #7e57c2, #5e35b1); }
 .ags-tab[data-tab="legendtuner"] { background: linear-gradient(135deg, #4B7B81, #3a6166); }
 .ags-tab[data-tab="bookmarks"] { background: linear-gradient(135deg, #d4a03c, #b8872e); }
@@ -1770,6 +1771,7 @@ Kein Einfluss auf Browser-Cache (dafuer: Ctrl+Shift+R)">🗑 Cache leeren</butto
     <button class="ags-tab" data-tab="import">③ Import Mapserver-Conf</button>
     <button class="ags-tab" data-tab="editor">④ Config-Editor</button>
     <button class="ags-tab" data-tab="treebuilder">⑤ Tree-Builder</button>
+    <button class="ags-tab" data-tab="treebuilderV2">⑤⁺ Tree-Builder V2</button>
     <button class="ags-tab" data-tab="deployed">⑥ Deployed</button>
     <button class="ags-tab" data-tab="legendtuner">⑦ Legendtuner</button>
     <button class="ags-tab" data-tab="bookmarks">⑧ Bookmarks</button>
@@ -1972,6 +1974,12 @@ Kein Einfluss auf Browser-Cache (dafuer: Ctrl+Shift+R)">🗑 Cache leeren</butto
   <div class="ags-pane" id="pane-treebuilder" style="position:relative">
     <iframe id="treebuilder-iframe" style="width:100%;height:100%;border:none;display:none"></iframe>
     <div class="editor-placeholder" id="treebuilder-placeholder">Tree-Builder wird geladen…</div>
+  </div>
+
+  <!-- ===== TAB: TREE-BUILDER V2 (gemeinsamer Mandanten-Baum) ===== -->
+  <div class="ags-pane" id="pane-treebuilderV2" style="position:relative">
+    <iframe id="treebuilderV2-iframe" style="width:100%;height:100%;border:none;display:none"></iframe>
+    <div class="editor-placeholder" id="treebuilderV2-placeholder">Tree-Builder V2 wird geladen…</div>
   </div>
 
   <!-- ===== TAB: DEPLOYED ===== -->
@@ -2776,6 +2784,24 @@ function switchTab(tabName, skipHash, onImportLoaded) {
         setTimeout(function() {
           try {
             var iw = iframe.contentWindow;
+            if (iw && iw.previewMap) {
+              iw.previewMap.updateSize();
+              iw.previewMap.getView().fit(iw.nwOwExtent, { padding: [10, 10, 10, 10] });
+            }
+          } catch(e) {}
+        }, 50);
+      };
+    }
+  } else if (tabName === 'treebuilderV2') {
+    var iframeV2 = document.getElementById('treebuilderV2-iframe');
+    if (!iframeV2.src || iframeV2.src === 'about:blank') {
+      iframeV2.src = 'tree-builder-v2.html?source=staging&mode=shared';
+      iframeV2.onload = function() {
+        document.getElementById('treebuilderV2-placeholder').style.display = 'none';
+        iframeV2.style.display = 'block';
+        setTimeout(function() {
+          try {
+            var iw = iframeV2.contentWindow;
             if (iw && iw.previewMap) {
               iw.previewMap.updateSize();
               iw.previewMap.getView().fit(iw.nwOwExtent, { padding: [10, 10, 10, 10] });
@@ -7959,7 +7985,7 @@ function updateUrlHash(updates) {
  */
 window.addEventListener('hashchange', function() {
   var p = parseUrlHash();
-  var validTabs = ['create', 'manage', 'import', 'editor', 'treebuilder'];
+  var validTabs = ['create', 'manage', 'import', 'editor', 'treebuilder', 'treebuilderV2'];
   if (p.tab && validTabs.indexOf(p.tab) !== -1) {
     switchTab(p.tab, true);
     if (p.tab === 'editor' && p.kuerzel) {
@@ -8666,7 +8692,7 @@ function saveNlsEntry(item, value, btn, tr) {
 
 (function initFromHash() {
   var p = parseUrlHash();
-  var validTabs = ['create', 'manage', 'import', 'editor', 'treebuilder', 'deployed', 'legendtuner', 'bookmarks', 'sync'];
+  var validTabs = ['create', 'manage', 'import', 'editor', 'treebuilder', 'treebuilderV2', 'deployed', 'legendtuner', 'bookmarks', 'sync'];
   var startTab = (p.tab && validTabs.indexOf(p.tab) !== -1) ? p.tab : 'create';
 
   if (startTab !== 'create') {
@@ -12777,7 +12803,7 @@ function renderSyncBookmarkTable(bm, envKeys) {
 
 function renderCatalogTable(items, envKeys) {
   var rows = items.map(function(item) {
-    var newerSide = getSyncNewerSide(item.envs && item.envs.dev, item.envs && item.envs.prod, 'updatedAt', 'revision');
+    var newerSide = getSyncNewerSide(item.envs && item.envs.dev, item.envs && item.envs.prod, 'configUpdatedAt', 'revision');
     function envCell(e) {
       var env = item.envs && item.envs[e];
       if (!env) return '<td class="' + syncEnvCellClass(e) + '"><div class="sync-cell-main">— fehlt</div><div class="sync-cell-sub">kein Stand</div></td>';
@@ -13053,31 +13079,34 @@ function formatSyncUser(value) {
 function getSyncNewerSide(left, right, dateKey, revKey) {
   if (!left || !right) return null;
 
-  // Revision ist die autoritative Inhaltsversion → zuerst vergleichen.
-  // Bei gleicher Revision gelten beide Seiten als identisch (kein Marker),
-  // auch wenn der Schreib-Zeitstempel durch DB-Trigger abweicht.
-  var leftRev = left[revKey] != null ? Number(left[revKey]) : null;
-  var rightRev = right[revKey] != null ? Number(right[revKey]) : null;
-  var haveRevs = leftRev != null && rightRev != null && !isNaN(leftRev) && !isNaN(rightRev);
-  if (haveRevs) {
-    if (leftRev === rightRev) return null;
-    return leftRev > rightRev ? 'dev' : 'prod';
-  }
-
-  // Fallback nur ohne Revisionen (z.B. Bundles): Zeitstempel vergleichen.
-  var leftDate = left[dateKey] ? new Date(left[dateKey]) : null;
-  var rightDate = right[dateKey] ? new Date(right[dateKey]) : null;
+  // WICHTIG: DEV (mapplusconf_dev) und PROD (mapplusconf) haben UNABHAENGIGE
+  // Revisionszaehler → Revisionsnummern sind NICHT umgebungsuebergreifend
+  // vergleichbar. Massgeblich ist der INHALTS-Zeitstempel (configUpdatedAt/
+  // importedAt), der mit dem Inhalt mitwandert (Sync-Kopien setzen nur
+  // syncUpdatedAt). Deshalb: Zeitstempel ZUERST.
+  var leftDate = left[dateKey] ? new Date(left[dateKey]) : (left.updatedAt ? new Date(left.updatedAt) : null);
+  var rightDate = right[dateKey] ? new Date(right[dateKey]) : (right.updatedAt ? new Date(right.updatedAt) : null);
   var leftValid = leftDate && !isNaN(leftDate.getTime());
   var rightValid = rightDate && !isNaN(rightDate.getTime());
   if (leftValid && rightValid && leftDate.getTime() !== rightDate.getTime()) {
     return leftDate.getTime() > rightDate.getTime() ? 'dev' : 'prod';
   }
 
+  // Tiebreaker nur bei gleichem/fehlendem Zeitstempel: Revision innerhalb
+  // gleicher Lineage. Bei abweichender Revision ohne Zeitstempel-Differenz
+  // keine sichere Aussage → kein Marker (Status-Spalte zeigt Unterschied).
+  var leftRev = left[revKey] != null ? Number(left[revKey]) : null;
+  var rightRev = right[revKey] != null ? Number(right[revKey]) : null;
+  if (leftRev != null && rightRev != null && !isNaN(leftRev) && !isNaN(rightRev)) {
+    if (leftRev === rightRev) return null;
+    return null;
+  }
+
   return null;
 }
 
 function renderSyncNewBadge(side) {
-  return side ? '<span class="sync-new-badge ' + esc(side) + '" title="Diese Seite ist aktueller (höhere Revision)">▲ aktueller</span>' : '';
+  return side ? '<span class="sync-new-badge ' + esc(side) + '" title="Diese Seite ist aktueller (neuerer Inhalts-Zeitstempel)">▲ aktueller</span>' : '';
 }
 
 function wireSyncControls(content) {

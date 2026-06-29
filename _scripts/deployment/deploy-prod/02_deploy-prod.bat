@@ -18,7 +18,7 @@ echo.
 
 "%MAPPLUS_PYTHON_EXE%" _scripts\deployment\deployengine\upload_changed.py --env prod --force-js --allow-tnet-config %*
 if errorlevel 1 (
-    echo.
+    echo. public, uwpro, nwpr, owpro
     echo [FEHLER] Deploy fehlgeschlagen.
     pause
     exit /b 1

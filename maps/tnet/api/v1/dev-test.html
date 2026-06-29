@@ -122,7 +122,7 @@ body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sa
 <!-- Toolbar -->
 <div class="dt-toolbar">
   <span class="dt-brand">⚙ Dev Test</span>
-  <label>Gruppe:</label>
+  <label id="dt-group-label">Gruppe:</label>
   <select id="dt-group"><option value="" disabled>Laden…</option></select>
   <span class="dt-sep"></span>
   <label>Panel:</label>
@@ -191,6 +191,14 @@ var currentPanel  = params.get('panel')  || 'tree';
 var currentView   = params.get('view')   || 'mobile';
 var currentSource = params.get('source') || 'db'; // db|file
 currentSource = (currentSource === 'file') ? 'file' : 'db';
+var embedMode = params.get('embed') === '1';
+if (embedMode) {
+  // Eingebettet (V2-Vorschau): eigene Gruppe-Auswahl ausblenden, Steuerung erfolgt aussen
+  document.addEventListener('DOMContentLoaded', function() {
+    var g = document.getElementById('dt-group'); if (g) g.style.display = 'none';
+    var gl = document.getElementById('dt-group-label'); if (gl) gl.style.display = 'none';
+  });
+}
 
 // =====================================================================
 // Logger

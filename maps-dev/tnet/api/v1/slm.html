@@ -12803,7 +12803,7 @@ function renderSyncBookmarkTable(bm, envKeys) {
 
 function renderCatalogTable(items, envKeys) {
   var rows = items.map(function(item) {
-    var newerSide = getSyncNewerSide(item.envs && item.envs.dev, item.envs && item.envs.prod, 'updatedAt', 'revision');
+    var newerSide = getSyncNewerSide(item.envs && item.envs.dev, item.envs && item.envs.prod, 'configUpdatedAt', 'revision');
     function envCell(e) {
       var env = item.envs && item.envs[e];
       if (!env) return '<td class="' + syncEnvCellClass(e) + '"><div class="sync-cell-main">— fehlt</div><div class="sync-cell-sub">kein Stand</div></td>';
@@ -13079,31 +13079,34 @@ function formatSyncUser(value) {
 function getSyncNewerSide(left, right, dateKey, revKey) {
   if (!left || !right) return null;
 
-  // Revision ist die autoritative Inhaltsversion → zuerst vergleichen.
-  // Bei gleicher Revision gelten beide Seiten als identisch (kein Marker),
-  // auch wenn der Schreib-Zeitstempel durch DB-Trigger abweicht.
-  var leftRev = left[revKey] != null ? Number(left[revKey]) : null;
-  var rightRev = right[revKey] != null ? Number(right[revKey]) : null;
-  var haveRevs = leftRev != null && rightRev != null && !isNaN(leftRev) && !isNaN(rightRev);
-  if (haveRevs) {
-    if (leftRev === rightRev) return null;
-    return leftRev > rightRev ? 'dev' : 'prod';
-  }
-
-  // Fallback nur ohne Revisionen (z.B. Bundles): Zeitstempel vergleichen.
-  var leftDate = left[dateKey] ? new Date(left[dateKey]) : null;
-  var rightDate = right[dateKey] ? new Date(right[dateKey]) : null;
+  // WICHTIG: DEV (mapplusconf_dev) und PROD (mapplusconf) haben UNABHAENGIGE
+  // Revisionszaehler → Revisionsnummern sind NICHT umgebungsuebergreifend
+  // vergleichbar. Massgeblich ist der INHALTS-Zeitstempel (configUpdatedAt/
+  // importedAt), der mit dem Inhalt mitwandert (Sync-Kopien setzen nur
+  // syncUpdatedAt). Deshalb: Zeitstempel ZUERST.
+  var leftDate = left[dateKey] ? new Date(left[dateKey]) : (left.updatedAt ? new Date(left.updatedAt) : null);
+  var rightDate = right[dateKey] ? new Date(right[dateKey]) : (right.updatedAt ? new Date(right.updatedAt) : null);
   var leftValid = leftDate && !isNaN(leftDate.getTime());
   var rightValid = rightDate && !isNaN(rightDate.getTime());
   if (leftValid && rightValid && leftDate.getTime() !== rightDate.getTime()) {
     return leftDate.getTime() > rightDate.getTime() ? 'dev' : 'prod';
   }
 
+  // Tiebreaker nur bei gleichem/fehlendem Zeitstempel: Revision innerhalb
+  // gleicher Lineage. Bei abweichender Revision ohne Zeitstempel-Differenz
+  // keine sichere Aussage → kein Marker (Status-Spalte zeigt Unterschied).
+  var leftRev = left[revKey] != null ? Number(left[revKey]) : null;
+  var rightRev = right[revKey] != null ? Number(right[revKey]) : null;
+  if (leftRev != null && rightRev != null && !isNaN(leftRev) && !isNaN(rightRev)) {
+    if (leftRev === rightRev) return null;
+    return null;
+  }
+
   return null;
 }
 
 function renderSyncNewBadge(side) {
-  return side ? '<span class="sync-new-badge ' + esc(side) + '" title="Diese Seite ist aktueller (höhere Revision)">▲ aktueller</span>' : '';
+  return side ? '<span class="sync-new-badge ' + esc(side) + '" title="Diese Seite ist aktueller (neuerer Inhalts-Zeitstempel)">▲ aktueller</span>' : '';
 }
 
 function wireSyncControls(content) {
