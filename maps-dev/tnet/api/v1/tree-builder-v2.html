@@ -1201,54 +1201,35 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
     padding:5px 12px; font-weight:700; cursor:pointer; }
   #tbv2-bundle-bar .tbv2-pub:hover { background:#1b5e20; }
   #tbv2-bundle-lockinfo { color:#8a5a00; font-size:11px; }
-  /* ===== Matrix als rechts sauber getrenntes Spalten-Band ===== */
-  :root { --tbv2-cell: 40px; --tbv2-mtxW: 0px; }
-  /* Reservierter Platz rechts in jeder Baumzeile, damit Inhalt nicht unters Band läuft */
+  /* ===== Inline-Matrixband mit GLOBAL fixer Spaltengrenze ===== */
+  :root { --tbv2-cell: 42px; --tbv2-mtxW: 0px; }
+  /* Rechte Innenabstaende der Baum-Container im Shared-Modus entfernen -> alle Zeilen gleicher rechter Rand */
+  body.tbv2-shared .tb-tree-group,
+  body.tbv2-shared .tb-tree-group-top { margin-right: 0 !important; }
+  body.tbv2-shared .tb-tree-group-body,
+  body.tbv2-shared .tb-tree-cat-body { padding-right: 0 !important; }
+  body.tbv2-shared .tb-tree-item { margin-right: 0 !important; }
   body.tbv2-shared .tb-tree-item,
   body.tbv2-shared .tb-tree-group-head,
-  body.tbv2-shared .tb-tree-cat-head { position: relative; padding-right: calc(var(--tbv2-mtxW) + 6px) !important; box-sizing: border-box; }
-  body.tbv2-shared #tb-tree-body { scrollbar-gutter: stable; }
+  body.tbv2-shared .tb-tree-cat-head { position: relative; padding-right: calc(var(--tbv2-mtxW) + 8px) !important; box-sizing: border-box; }
+  body.tbv2-shared #tb-tree-body { scrollbar-gutter: stable; padding-top: 0 !important; }
   .tbv2-mtx {
-    position: absolute; right: 0; top: 0; bottom: 0;
-    width: var(--tbv2-mtxW);
-    display: flex; align-items: stretch; gap: 0; z-index: 2;
-    background: rgba(160,83,154,.07);
-    border-left: 2px solid rgba(106,76,125,.45);
+    position: absolute; right: 0; top: 0; bottom: 0; width: var(--tbv2-mtxW);
+    display: flex; align-items: center; justify-content: flex-end; background: #f3ecf2;
+    box-shadow: inset 2px 0 0 #6a4c7d;
   }
-  .tbv2-mtx-cell {
-    width: var(--tbv2-cell); min-width: var(--tbv2-cell);
-    display: flex; align-items: center; justify-content: center;
-    border-left: 1px solid rgba(106,76,125,.12);
-  }
-  .tbv2-mtx-cell:first-child { border-left: none; }
-  /* Tri-State Buttons: sichtbar / unsichtbar / gesperrt */
-  .tbv2-tri {
-    width: 24px; height: 20px; border-radius: 4px; cursor: pointer;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 13px; font-weight: 700; user-select: none; border: 1px solid transparent;
-  }
-  .tbv2-tri.on  { background: #2e7d32; color: #fff; }                 /* sichtbar */
-  .tbv2-tri.off { background: #fff; color: #c0392b; border-color: #e0a; opacity:.85; } /* unsichtbar */
-  .tbv2-tri.lock { background: repeating-linear-gradient(45deg,#eee,#eee 4px,#e0d0dd 4px,#e0d0dd 8px); color:#8a5; cursor: not-allowed; }
-  .tbv2-mtx-lock { color: #b0408a; opacity: .85; font-size: 13px; }
-  /* Sticky Spaltenheader (innerhalb der scrollenden Baum-Liste) */
-  .tbv2-colhead {
-    position: sticky; top: 0; z-index: 6;
-    display: flex; justify-content: flex-end; align-items: stretch;
-    background: #6a4c7d; color: #fff; height: 28px;
-    box-shadow: 0 2px 4px rgba(0,0,0,.3);
-  }
-  .tbv2-colhead .tbv2-colhead-label {
-    flex: 1; display: flex; align-items: center; padding-left: 10px;
-    font-size: 11px; font-weight: 600; letter-spacing: .02em; white-space: nowrap;
-  }
-  .tbv2-colhead .tbv2-mtx-cell {
-    width: var(--tbv2-cell); min-width: var(--tbv2-cell);
-    flex-direction: column; justify-content: center; line-height: 1.1;
-    font-weight: 700; color: #fff;
-    border-left: 1px solid rgba(255,255,255,.22);
-  }
-  .tbv2-colhead .tbv2-mtx-code { font-size: 11px; }
+  .tbv2-mtx-cell { width: var(--tbv2-cell); min-width: var(--tbv2-cell); box-sizing:border-box; display:flex; align-items:center; justify-content:center; border-left:1px solid rgba(106,76,125,.15); align-self:stretch; }
+  .tbv2-mtx-cell:first-child { border-left:none; }
+  .tbv2-tri { width:22px; height:18px; border-radius:3px; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; user-select:none; }
+  .tbv2-tri.on  { background:#2e7d32; color:#fff; }
+  .tbv2-tri.off { background:#fff; color:#c0392b; border:1px solid #e0a; }
+  .tbv2-tri.lock { background: repeating-linear-gradient(45deg,#eee,#eee 4px,#e0d0dd 4px,#e0d0dd 8px); color:#8a5; cursor:not-allowed; }
+  .tbv2-tri[data-mtx-node] { cursor:pointer; }
+  #tbv2-colhead { position:relative; height:24px; display:flex; align-items:stretch; background:#6a4c7d; color:#fff; z-index:6; box-shadow:0 2px 4px rgba(0,0,0,.3); position:sticky; top:0; }
+  #tbv2-colhead .tbv2-colhead-label { flex:1; display:flex; align-items:center; padding-left:8px; font-size:11px; font-weight:600; white-space:nowrap; }
+  #tbv2-colhead .tbv2-mtxbox { position:absolute; right:0; top:0; bottom:0; width:var(--tbv2-mtxW); display:flex; justify-content:flex-end; align-items:stretch; box-sizing:border-box; }
+  #tbv2-colhead .tbv2-mtx-cell { width:var(--tbv2-cell); box-sizing:border-box; font-size:11px; font-weight:700; color:#fff; border-left:1px solid rgba(255,255,255,.2); align-self:stretch; display:flex; align-items:center; justify-content:center; }
+  #tbv2-colhead .tbv2-mtx-cell:first-child { border-left:none; }
 </style>
 <div id="tbv2-bundle-bar">
   <span class="lbl">Gebündelte Profile:</span>
@@ -3912,11 +3893,12 @@ function renderLyrmgrBlock(container, lmKey, profile) {
       }
       var badgesHtml = lBadges ? '<span class="ti-badges">' + lBadges + '</span>' : '';
       var isHidden = layer && !(layer.visible === true || layer.visible === 'true' || layer.visible === 1 || layer.visible === '1');
-      return '<div class="tb-tree-item' + (isHidden ? ' ti-hidden' : '') + (path.length > 1 ? ' tb-tree-item-nested' : '') + '" data-cat-idx="' + ci + '" data-item-path="' + path.join('.') + '" draggable="true">'
+      return '<div class="tb-tree-item' + (isHidden ? ' ti-hidden' : '') + (path.length > 1 ? ' tb-tree-item-nested' : '') + '" data-cat-idx="' + ci + '" data-item-path="' + path.join('.') + '"' + (_sharedMode ? ' data-mtx-key="' + esc(item) + '"' : '') + ' draggable="true">'
         + '<span class="ti-grip">⋮</span>'
         + '<span class="tiname' + (noNls ? ' no-nls' : '') + '" data-editable data-layer-id="' + esc(item) + '" title="' + esc(item) + (nlsName ? '' : ' (kein NLS)') + esc(metaHint) + '">' + esc(itemName) + '</span>'
         + (nlsName ? '<span class="ti-id" title="' + esc(item) + '">' + esc(item) + '</span>' : '')
         + badgesHtml
+        + (_sharedMode ? buildMatrixCells(item, ancAllowed) : '')
         + (_sharedMode ? buildMatrixCells(item, ancAllowed) : '')
         + '<button class="tidel" data-action="del-item" data-cat-idx="' + ci + '" data-item-path="' + path.join('.') + '">×</button>'
         + '</div>';
@@ -3945,11 +3927,12 @@ function renderLyrmgrBlock(container, lmKey, profile) {
       // Gruppen-Key immer rechts anzeigen
       var grpIdHtml = '<span class="grp-id" title="' + esc(grpKey) + '">' + esc(grpKey) + '</span>';
       return '<div class="tb-tree-group' + (isTopLevel ? ' tb-tree-group-top' : '') + (grpIsOpen ? ' open' : '') + '" data-cat-idx="' + ci + '" data-item-path="' + path.join('.') + '" draggable="true">'
-        + '<div class="tb-tree-group-head">'
+        + '<div class="tb-tree-group-head"' + (_sharedMode ? ' data-mtx-key="' + esc(grpNodeKey) + '"' : '') + '>'
         + '<span class="grp-arrow">▸</span>'
         + '<span class="grpname' + (!grpNls ? ' no-nls' : '') + '" title="' + esc(grpKey) + (grpNls ? '' : ' (kein NLS)') + (grpMeta && (grpMeta.updatedBy || grpMeta.updatedAt) ? ' | zuletzt: ' + esc(grpMeta.updatedBy || '?') + (grpMeta.updatedAt ? ' @ ' + esc(formatSwissDateTime(grpMeta.updatedAt)) : '') : '') + '">' + esc(grpDisplay) + '</span>'
         + grpIdHtml
         + badges
+        + (_sharedMode ? buildMatrixCells(grpNodeKey, ancAllowed) : '')
         + '<span class="grpcount">' + grpItems.length + '</span>'
         + (_sharedMode ? buildMatrixCells(grpNodeKey, ancAllowed) : '')
         + '<button class="grpedit" data-action="edit-group" data-cat-idx="' + ci + '" data-item-path="' + path.join('.') + '" title="Eigenschaften">✎</button>'
@@ -3974,7 +3957,7 @@ function renderLyrmgrBlock(container, lmKey, profile) {
     var iconInfo = cat.iconClass ? ' <span style="font-size:9px;color:rgba(255,255,255,.5)">' + esc(cat.iconClass) + '</span>' : '';
     var hideInfo = cat.hideHeader ? ' <span title="Kopf ausgeblendet – nur Untergruppen sichtbar" style="font-size:9px;color:#fff;background:#e8423f;border-radius:3px;padding:0 4px">⊘ Kopf aus</span>' : '';
     html += '<div class="tb-tree-cat" data-cat-idx="' + ci + '" draggable="true">';
-    html += '<div class="tb-tree-cat-head">';
+    html += '<div class="tb-tree-cat-head"' + (_sharedMode ? ' data-mtx-key="' + esc(catNodeKey) + '"' : '') + '>';
     var catStateKey = lmKey + '/' + (cat.key || cat.name || ('cat' + ci));
     var catIsOpen = !!_expandState[catStateKey];
     html += '<span class="arrow' + (catIsOpen ? ' open' : '') + '">▶</span>';
@@ -9970,20 +9953,27 @@ function saveMatrix() {
   }, 400);
 }
 
-// Matrix-Knotenwert lesen/schreiben (Default = sichtbar/true)
-function mtxGet(nodeKey, profile) {
+// Matrix-Status: 'on' (sichtbar) | 'off' (unsichtbar) | 'lock' (gesperrt)
+function mtxState(nodeKey, profile) {
   var v = state.matrix.visibleFor[nodeKey];
-  if (!v || !(profile in v)) return true;
-  return v[profile] !== false;
+  if (!v || !(profile in v)) return 'on';
+  var x = v[profile];
+  if (x === 'lock') return 'lock';
+  return x === false ? 'off' : 'on';
 }
-function mtxSet(nodeKey, profile, val) {
+function mtxGet(nodeKey, profile) { return mtxState(nodeKey, profile) === 'on'; }
+function mtxSetState(nodeKey, profile, st) {
   if (!state.matrix.visibleFor[nodeKey]) state.matrix.visibleFor[nodeKey] = {};
-  state.matrix.visibleFor[nodeKey][profile] = !!val;
+  state.matrix.visibleFor[nodeKey][profile] = (st === 'on' ? true : (st === 'off' ? false : 'lock'));
   saveMatrix();
+}
+function mtxCycle(nodeKey, profile) {
+  var s = mtxState(nodeKey, profile);
+  mtxSetState(nodeKey, profile, s === 'on' ? 'off' : (s === 'off' ? 'lock' : 'on'));
 }
 
 // Matrix-Zellen-HTML für einen Knoten erzeugen.
-// ancAllowed: { profile: bool } — sind alle Vorfahren erlaubt?
+// ancAllowed: { profile: bool } — sind alle Vorfahren sichtbar (on)?
 function buildMatrixCells(nodeKey, ancAllowed) {
   var html = '<span class="tbv2-mtx" data-node-key="' + esc(nodeKey) + '">';
   state.bundleProfiles.forEach(function(p) {
@@ -9992,9 +9982,11 @@ function buildMatrixCells(nodeKey, ancAllowed) {
     if (!anc) {
       html += '<span class="tbv2-tri lock" title="durch übergeordnete Sperre gesperrt (' + esc(p) + ')">🔒</span>';
     } else {
-      var on = mtxGet(nodeKey, p);
-      html += '<span class="tbv2-tri ' + (on ? 'on' : 'off') + '" data-mtx-node="' + esc(nodeKey) + '" data-mtx-profile="' + esc(p)
-        + '" title="' + esc(p) + ': ' + (on ? 'sichtbar' : 'unsichtbar') + ' (klicken zum Umschalten)">' + (on ? '✓' : '✗') + '</span>';
+      var st = mtxState(nodeKey, p);
+      var sym = st === 'on' ? '✓' : (st === 'off' ? '✗' : '🔒');
+      var lbl = st === 'on' ? 'sichtbar' : (st === 'off' ? 'unsichtbar' : 'gesperrt');
+      html += '<span class="tbv2-tri ' + st + '" data-mtx-node="' + esc(nodeKey) + '" data-mtx-profile="' + esc(p)
+        + '" title="' + esc(p) + ': ' + lbl + ' (klicken: sichtbar→unsichtbar→gesperrt)">' + sym + '</span>';
     }
     html += '</span>';
   });
@@ -10002,20 +9994,53 @@ function buildMatrixCells(nodeKey, ancAllowed) {
   return html;
 }
 
-// Effektive Vorfahren-Erlaubnis für Kinder berechnen
+// Effektive Vorfahren-Erlaubnis für Kinder: nur wenn Knoten 'on' ist, sind Kinder frei
 function childAncAllowed(parentAnc, nodeKey) {
   var out = {};
   state.bundleProfiles.forEach(function(p) {
     var anc = parentAnc ? parentAnc[p] !== false : true;
-    out[p] = anc && mtxGet(nodeKey, p);
+    out[p] = anc && (mtxState(nodeKey, p) === 'on');
   });
   return out;
+}
+
+// Vorfahren-Erlaubnis je Knoten ermitteln (für gezieltes Zell-Refresh ohne renderTree)
+function buildAncMap() {
+  var map = {};
+  var p = state.profiles[SHARED_PROFILE] || state.profiles[state.activeProfile];
+  if (!p || !p.lyrmgrs) return map;
+  function walk(items, anc) {
+    (items || []).forEach(function(it) {
+      if (it && typeof it === 'object') {
+        var gk = 'grp:' + (it.key || it.name || '');
+        map[gk] = anc; walk(it.items, childAncAllowed(anc, gk));
+      } else if (typeof it === 'string') { map[it] = anc; }
+    });
+  }
+  Object.keys(p.lyrmgrs).forEach(function(k) {
+    (p.lyrmgrs[k].categories || []).forEach(function(cat) {
+      var ck = 'cat:' + (cat.key || cat.name || '');
+      map[ck] = null; walk(cat.items, childAncAllowed(null, ck));
+    });
+  });
+  return map;
+}
+// Nur die Matrix-Zellen neu aufbauen (Baum-Expand-Zustand bleibt erhalten)
+function refreshMatrixCells() {
+  var map = buildAncMap();
+  document.querySelectorAll('.tbv2-mtx[data-node-key]').forEach(function(span) {
+    var key = span.getAttribute('data-node-key');
+    var tmp = document.createElement('div');
+    tmp.innerHTML = buildMatrixCells(key, map[key]);
+    var nu = tmp.firstChild;
+    if (nu) span.parentNode.replaceChild(nu, span);
+  });
 }
 
 // Breite des Matrix-Bands setzen + Shared-Klasse aktivieren
 function applyMatrixLayout() {
   var n = (state.bundleProfiles || []).length;
-  var cell = 40;
+  var cell = 42;
   var w = n > 0 ? (n * cell) : 0;
   document.documentElement.style.setProperty('--tbv2-mtxW', w + 'px');
   document.body.classList.toggle('tbv2-shared', _sharedMode && n > 0);
@@ -10028,24 +10053,45 @@ function tenantCode(p) {
   return String(p || '').slice(0, 3).toUpperCase();
 }
 
-// Sticky Spaltenheader oben in die Baumliste einsetzen
+// Gemeinsamer sticky Header über dem Fixband (als erste Zeile im Baum-Body)
+// Gemeinsamer sticky Header über dem Inline-Band (erste Zeile im Baum-Body)
 function injectColHeader() {
-  if (!_sharedMode) return;
   var body = document.getElementById('tb-tree-body');
   if (!body) return;
   var old = document.getElementById('tbv2-colhead');
   if (old) old.parentNode.removeChild(old);
-  if (!state.bundleProfiles.length) return;
-  var head = document.createElement('div');
-  head.className = 'tbv2-colhead';
-  head.id = 'tbv2-colhead';
+  if (!_sharedMode || !state.bundleProfiles.length) return;
   var cells = state.bundleProfiles.map(function(p) {
-    return '<span class="tbv2-mtx-cell" title="' + esc(p) + '"><span class="tbv2-mtx-code">' + esc(tenantCode(p)) + '</span></span>';
+    return '<span class="tbv2-mtx-cell" title="' + esc(p) + '">' + esc(tenantCode(p)) + '</span>';
   }).join('');
-  head.innerHTML = '<span class="tbv2-colhead-label">👁 Sichtbarkeit / Berechtigung je Profil</span>'
-    + '<span class="tbv2-mtx" style="position:static;display:flex;background:transparent;border-left:2px solid rgba(255,255,255,.35)">' + cells + '</span>';
+  var head = document.createElement('div');
+  head.id = 'tbv2-colhead';
+  head.innerHTML = '<span class="tbv2-colhead-label">👁 je Profil</span><span class="tbv2-mtxbox">' + cells + '</span>';
   body.insertBefore(head, body.firstChild);
+  // Header exakt über das tatsächliche Zell-Band legen (misst eine echte Zeile)
+  var sample = body.querySelector('.tbv2-mtx');
+  var box = head.querySelector('.tbv2-mtxbox');
+  if (sample && box) {
+    var sr = sample.getBoundingClientRect();
+    var hr = head.getBoundingClientRect();
+    box.style.right = 'auto';
+    box.style.left = (sr.left - hr.left) + 'px';
+    box.style.width = sr.width + 'px';
+  }
 }
+// Nur die Inline-Bänder ersetzen — Baum-Expand bleibt erhalten
+function refreshMatrixCells() {
+  var map = buildAncMap();
+  document.querySelectorAll('.tbv2-mtx[data-node-key]').forEach(function(span) {
+    var key = span.getAttribute('data-node-key');
+    var tmp = document.createElement('div');
+    tmp.innerHTML = buildMatrixCells(key, map[key]);
+    var nu = tmp.firstChild;
+    if (nu) span.parentNode.replaceChild(nu, span);
+  });
+}
+// Header bei Größenänderung neu über das Band messen
+window.addEventListener('resize', function() { if (_sharedMode) injectColHeader(); });
 
 function acquireSharedLocks() {
   var profiles = (state.bundleProfiles && state.bundleProfiles.length) ? state.bundleProfiles : TENANTS;
@@ -10127,10 +10173,8 @@ document.addEventListener('click', function(e) {
   var t = e.target;
   if (t && t.classList && t.classList.contains('tbv2-tri') && t.hasAttribute('data-mtx-node')) {
     e.preventDefault(); e.stopPropagation();
-    var node = t.getAttribute('data-mtx-node');
-    var prof = t.getAttribute('data-mtx-profile');
-    mtxSet(node, prof, !mtxGet(node, prof)); // sichtbar <-> unsichtbar
-    renderTree(); // Vererbung (Kinder sperren) neu berechnen
+    mtxCycle(t.getAttribute('data-mtx-node'), t.getAttribute('data-mtx-profile'));
+    refreshMatrixCells(); // nur Zellen aktualisieren, Baum bleibt stabil
   }
 });
 

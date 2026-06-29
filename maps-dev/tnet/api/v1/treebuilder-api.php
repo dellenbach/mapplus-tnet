@@ -69,6 +69,12 @@ define('PROFILES_DIR', DATA_DIR . '/profiles');
 define('LOCK_FILE', DATA_DIR . '/treebuilder.lock');
 define('BACKUP_DIR', DATA_DIR . '/backups');
 define('AGS_IMPORT_ACTORS_FILE', DATA_DIR . '/ags-import-actors.json');
+// ── Tree-Builder V2 (gemeinsamer Mandanten-Baum) ──
+define('SHARED_STORE_FILE', DATA_DIR . '/shared-tree-v2.json'); // Datei-Spiegel des gemeinsamen Baums
+define('MATRIX_STORE_FILE', DATA_DIR . '/shared-matrix-v2.json'); // Sichtbarkeits-/Berechtigungsmatrix je Layer
+define('PROFILE_LOCKS_FILE', DATA_DIR . '/profile-locks-v2.json'); // Per-Profil-Locks (V2 sperrt V1)
+define('SHARED_DB_PROFILE', '__shared__'); // catalog_document-Profil fuer den gemeinsamen Baum
+define('V2_TENANTS', 'public,uwpro,nwpro,owpro'); // Bekannte Mandanten
 define('LOCK_TIMEOUT', 30 * 60); // 30 Minuten Lock-Timeout
 define('MAX_BACKUPS', 50);       // Max. Anzahl Backups
 define('MAX_STATE_AUTO_BACKUPS', 24);            // Periodische state_YYYYMMDD_HHMMSS.json
@@ -5235,6 +5241,458 @@ function restoreRawConfBackup($relPath) {
 }
 
 // =====================================================================
+// Tree-Builder V2 — Gemeinsamer Mandanten-Baum
+// =====================================================================
+
+/** Liste der bekannten Mandanten. */
+function v2Tenants() {
+    return array_values(array_filter(array_map('trim', explode(',', V2_TENANTS))));
+}
+
+/** Mandantennamen validieren (gegen Whitelist). */
+function v2FilterTenants($profiles) {
+    $known = v2Tenants();
+    $out = [];
+    foreach ((array)$profiles as $p) {
+        $p = is_string($p) ? trim($p) : '';
+        if ($p !== '' && in_array($p, $known, true) && !in_array($p, $out, true)) {
+            $out[] = $p;
+        }
+    }
+    return $out;
+}
+
+/**
+ * Laedt den gemeinsamen V2-Baum.
+ * Primaer DB (catalog_document['__shared__']) falls verfuegbar, sonst Datei-Spiegel.
+ * Payload-Format: { tree: [...], permissions: { tenant: { layerId: false } } }
+ */
+function sharedStoreLoad() {
+    require_once __DIR__ . '/../includes/ConfigSource.php';
+
+    // 1) DB bevorzugt
+    if (ConfigSource::useDb('catalog')) {
+        require_once __DIR__ . '/../includes/CatalogRepository.php';
+        try {
+            $doc = CatalogRepository::loadProfile(SHARED_DB_PROFILE);
+            if (!empty($doc['exists'])) {
+                $payload = is_array($doc['data']) ? $doc['data'] : [];
+                return [
+                    'tree'        => isset($payload['tree']) && is_array($payload['tree']) ? $payload['tree'] : [],
+                    'permissions' => isset($payload['permissions']) && is_array($payload['permissions']) ? $payload['permissions'] : [],
+                    'revision'    => (int)($doc['revision'] ?? 0),
+                    'source'      => 'db',
+                    'updatedBy'   => $doc['updatedBy'] ?? null,
+                    'updatedAt'   => $doc['updatedAt'] ?? null,
+                ];
+            }
+        } catch (\Throwable $e) {
+            if (!ConfigSource::fallbackEnabled()) {
+                throw $e;
+            }
+            error_log('sharedStoreLoad: DB-Lesen fehlgeschlagen, Datei-Fallback: ' . $e->getMessage());
+        }
+    }
+
+    // 2) Datei-Spiegel
+    if (file_exists(SHARED_STORE_FILE)) {
+        $payload = json_decode((string)file_get_contents(SHARED_STORE_FILE), true);
+        if (is_array($payload)) {
+            return [
+                'tree'        => isset($payload['tree']) && is_array($payload['tree']) ? $payload['tree'] : [],
+                'permissions' => isset($payload['permissions']) && is_array($payload['permissions']) ? $payload['permissions'] : [],
+                'revision'    => (int)($payload['_meta']['revision'] ?? 0),
+                'source'      => 'file',
+                'updatedBy'   => $payload['_meta']['savedBy'] ?? null,
+                'updatedAt'   => $payload['_meta']['savedAt'] ?? null,
+            ];
+        }
+    }
+
+    return ['tree' => [], 'permissions' => [], 'revision' => 0, 'source' => 'empty', 'updatedBy' => null, 'updatedAt' => null];
+}
+
+/**
+ * Speichert den gemeinsamen V2-Baum (DB + Datei-Spiegel).
+ *
+ * @return array{revision:int, source:string}
+ */
+function sharedStoreSave($tree, $permissions, $expectedRevision, $editor) {
+    require_once __DIR__ . '/../includes/ConfigSource.php';
+    ensureDirs();
+
+    $tree = is_array($tree) ? $tree : [];
+    $permissions = is_array($permissions) ? $permissions : [];
+    $revision = (int)$expectedRevision;
+    $source = 'file';
+
+    // 1) DB bevorzugt (Optimistic Locking ueber Revision)
+    if (ConfigSource::useDb('catalog')) {
+        require_once __DIR__ . '/../includes/CatalogRepository.php';
+        try {
+            $payload = ['tree' => $tree, 'permissions' => $permissions];
+            $res = CatalogRepository::saveProfile(
+                SHARED_DB_PROFILE, $payload, $expectedRevision === null ? null : (int)$expectedRevision,
+                $editor, 'update', null
+            );
+            if (!empty($res['conflict'])) {
+                jsonError('Konflikt: gemeinsamer Baum wurde zwischenzeitlich geaendert (Revision ' . ($res['revision'] ?? '?') . '). Bitte neu laden.', 409);
+            }
+            $revision = (int)($res['revision'] ?? ($revision + 1));
+            $source = 'db';
+        } catch (\Throwable $e) {
+            if (!ConfigSource::fallbackEnabled()) {
+                jsonError('Speichern in Katalog-DB fehlgeschlagen: ' . $e->getMessage(), 500);
+            }
+            error_log('sharedStoreSave: DB-Schreiben fehlgeschlagen, nur Datei: ' . $e->getMessage());
+        }
+    } else {
+        $revision = $revision + 1;
+    }
+
+    // 2) Datei-Spiegel (immer)
+    $fileDoc = [
+        'tree'        => $tree,
+        'permissions' => $permissions,
+        '_meta'       => [
+            'revision'  => $revision,
+            'savedBy'   => $editor,
+            'savedAt'   => date('Y-m-d H:i:s'),
+            'timestamp' => time(),
+        ],
+    ];
+    $json = json_encode($fileDoc, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    if ($json !== false) {
+        @file_put_contents(SHARED_STORE_FILE, $json);
+    }
+
+    return ['revision' => $revision, 'source' => $source];
+}
+
+// ── Per-Profil-Locks (V2 sperrt Profile in V1) ──
+
+function v2ReadProfileLocks() {
+    if (!file_exists(PROFILE_LOCKS_FILE)) return [];
+    $data = json_decode((string)file_get_contents(PROFILE_LOCKS_FILE), true);
+    if (!is_array($data)) return [];
+    // Abgelaufene Locks entfernen
+    $changed = false;
+    foreach ($data as $profile => $info) {
+        if (!isset($info['timestamp']) || (time() - (int)$info['timestamp']) > LOCK_TIMEOUT) {
+            unset($data[$profile]);
+            $changed = true;
+        }
+    }
+    if ($changed) {
+        @file_put_contents(PROFILE_LOCKS_FILE, json_encode($data, JSON_PRETTY_PRINT));
+    }
+    return $data;
+}
+
+function v2WriteProfileLocks($locks) {
+    ensureDirs();
+    @file_put_contents(PROFILE_LOCKS_FILE, json_encode($locks, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+}
+
+/**
+ * Sperrt mehrere Profile fuer den V2-Editor.
+ * @return array{locked: string[], conflicts: array}
+ */
+function v2LockProfiles($profiles, $editor) {
+    $profiles = v2FilterTenants($profiles);
+    $locks = v2ReadProfileLocks();
+    $locked = [];
+    $conflicts = [];
+
+    foreach ($profiles as $p) {
+        $existing = $locks[$p] ?? null;
+        if ($existing && ($existing['editor'] ?? '') !== $editor) {
+            $conflicts[] = ['profile' => $p, 'editor' => $existing['editor'] ?? '?'];
+            continue;
+        }
+        $locks[$p] = [
+            'editor'    => $editor,
+            'source'    => 'v2',
+            'timestamp' => time(),
+            'datetime'  => date('Y-m-d H:i:s'),
+        ];
+        $locked[] = $p;
+    }
+    v2WriteProfileLocks($locks);
+
+    // Best-effort: zusaetzlich DB-catalog_lock setzen (falls verfuegbar)
+    require_once __DIR__ . '/../includes/ConfigSource.php';
+    if (ConfigSource::useDb('catalog')) {
+        require_once __DIR__ . '/../includes/CatalogRepository.php';
+        foreach ($locked as $p) {
+            try { CatalogRepository::acquireLock($p, $editor); } catch (\Throwable $e) {}
+        }
+    }
+
+    return ['locked' => $locked, 'conflicts' => $conflicts];
+}
+
+function v2UnlockProfiles($profiles, $editor) {
+    $profiles = v2FilterTenants($profiles);
+    $locks = v2ReadProfileLocks();
+    $released = [];
+    foreach ($profiles as $p) {
+        $existing = $locks[$p] ?? null;
+        if ($existing && ($existing['editor'] ?? '') === $editor) {
+            unset($locks[$p]);
+            $released[] = $p;
+        }
+    }
+    v2WriteProfileLocks($locks);
+
+    require_once __DIR__ . '/../includes/ConfigSource.php';
+    if (ConfigSource::useDb('catalog')) {
+        require_once __DIR__ . '/../includes/CatalogRepository.php';
+        foreach ($released as $p) {
+            try { CatalogRepository::releaseLock($p, $editor); } catch (\Throwable $e) {}
+        }
+    }
+
+    return ['released' => $released];
+}
+
+/**
+ * Liefert den Lock-Status fuer ein Profil (fuer V1, um V2-Sperren zu respektieren).
+ * @return array|null
+ */
+function v2ProfileLockStatus($profile) {
+    $locks = v2ReadProfileLocks();
+    return $locks[$profile] ?? null;
+}
+
+/**
+ * Prueft, ob ein Layer fuer einen Mandanten berechtigt ist.
+ * Konvention: Absenz oder true = erlaubt; explizit false = gesperrt.
+ */
+function v2IsAllowed($permissions, $tenant, $layerId) {
+    if (!isset($permissions[$tenant]) || !is_array($permissions[$tenant])) return true;
+    return !(array_key_exists($layerId, $permissions[$tenant]) && $permissions[$tenant][$layerId] === false);
+}
+
+/**
+ * Leitet aus dem gemeinsamen Baum den Knoten-Baum fuer EINEN Mandanten ab.
+ * Regeln je Layer-Knoten:
+ *  - nicht berechtigt  -> immer enthalten, locked=true (Runtime strippt URL)
+ *  - berechtigt + sichtbar -> normal enthalten
+ *  - berechtigt + unsichtbar -> weggelassen
+ * Kategorien/Gruppen werden nur uebernommen, wenn sie (gefiltert) Kinder haben.
+ */
+function v2DeriveTenantTree($nodes, $permissions, $tenant) {
+    $out = [];
+    foreach ((array)$nodes as $node) {
+        $type = $node['type'] ?? 'layer';
+        if ($type === 'layer') {
+            $layerId = $node['layerId'] ?? ($node['id'] ?? null);
+            if (!$layerId) continue;
+            $allowed = v2IsAllowed($permissions, $tenant, $layerId);
+            $visible = !empty($node['visibleFor'][$tenant]);
+            if (!$allowed) {
+                $copy = $node;
+                $copy['locked'] = true;
+                unset($copy['visibleFor']);
+                $out[] = $copy;
+            } elseif ($visible) {
+                $copy = $node;
+                unset($copy['visibleFor']);
+                $out[] = $copy;
+            }
+            // berechtigt + unsichtbar -> weglassen
+        } else {
+            $children = v2DeriveTenantTree($node['children'] ?? [], $permissions, $tenant);
+            if (!empty($children)) {
+                $copy = $node;
+                $copy['children'] = $children;
+                unset($copy['visibleFor']);
+                $out[] = $copy;
+            }
+        }
+    }
+    return $out;
+}
+
+/**
+ * Sammelt die Deny-Map (nicht berechtigte Layer) je Mandant fuer das
+ * Runtime-Artefakt layer_permissions.json.
+ * @return array{ tenant: { layerId: false } }
+ */
+function v2CollectDenyMap($permissions) {
+    $deny = [];
+    foreach (v2Tenants() as $tenant) {
+        if (isset($permissions[$tenant]) && is_array($permissions[$tenant])) {
+            foreach ($permissions[$tenant] as $layerId => $allowed) {
+                if ($allowed === false) {
+                    $deny[$tenant][$layerId] = false;
+                }
+            }
+        }
+    }
+    return $deny;
+}
+
+/**
+ * Schreibt das Runtime-Berechtigungsartefakt nach core/config/layer_permissions.json.
+ * layers.php liest diese Datei, um URLs unberechtigter Layer serverseitig zu strippen.
+ */
+function v2WriteRuntimePermissions($permissions) {
+    $deny = v2CollectDenyMap($permissions);
+    $doc = [
+        '_meta'   => ['generatedAt' => date('Y-m-d H:i:s'), 'by' => 'tree-builder-v2'],
+        'deny'    => $deny,
+    ];
+    $json = json_encode($doc, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    $targets = [];
+    foreach ([CORE_CONFIG_DIR, APP_CORE_CONFIG_DIR] as $dir) {
+        if ($dir && is_dir($dir) && is_writable($dir)) {
+            $path = $dir . '/layer_permissions.json';
+            if (@file_put_contents($path, $json) !== false) {
+                $targets[] = $path;
+            }
+        }
+    }
+    return $targets;
+}
+
+// ── Matrix-Store (Sichtbarkeit/Berechtigung je Layer, getrennt vom Baum) ──
+
+/**
+ * Laedt die Matrix: visibleFor[layerId][profile]=bool, permissions[profile][layerId]=false,
+ * bundle=[profile,...] (gebuendelte Profile).
+ */
+function matrixStoreLoad() {
+    if (file_exists(MATRIX_STORE_FILE)) {
+        $d = json_decode((string)file_get_contents(MATRIX_STORE_FILE), true);
+        if (is_array($d)) {
+            return [
+                'visibleFor'  => isset($d['visibleFor']) && is_array($d['visibleFor']) ? $d['visibleFor'] : [],
+                'permissions' => isset($d['permissions']) && is_array($d['permissions']) ? $d['permissions'] : [],
+                'bundle'      => isset($d['bundle']) && is_array($d['bundle']) ? array_values($d['bundle']) : [],
+                'updatedBy'   => $d['_meta']['savedBy'] ?? null,
+                'updatedAt'   => $d['_meta']['savedAt'] ?? null,
+            ];
+        }
+    }
+    return ['visibleFor' => [], 'permissions' => [], 'bundle' => [], 'updatedBy' => null, 'updatedAt' => null];
+}
+
+function matrixStoreSave($visibleFor, $permissions, $bundle, $editor) {
+    ensureDirs();
+    $doc = [
+        'visibleFor'  => is_array($visibleFor) ? $visibleFor : [],
+        'permissions' => is_array($permissions) ? $permissions : [],
+        'bundle'      => is_array($bundle) ? array_values($bundle) : [],
+        '_meta'       => ['savedBy' => $editor, 'savedAt' => date('Y-m-d H:i:s'), 'timestamp' => time()],
+    ];
+    $json = json_encode($doc, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    return ['saved' => (@file_put_contents(MATRIX_STORE_FILE, $json) !== false)];
+}
+
+// ── Bootstrap: public-lyrmgr -> V2-Knotenbaum (Best-Effort-Konverter) ──
+
+/** Meta-Schluessel, die in der lyrmgr-Struktur keine Knoten sind. */
+function v2LyrmgrMetaKeys() {
+    return ['open','iconClass','type','useRemoveHighlight','switchLyrChkBoxAndName',
+        'targetMap','mod_sortlayers','statemanager_cgi','version','name','items','structure'];
+}
+
+/**
+ * Wandelt ein einzelnes Item (String/Gruppe/Teilstruktur) in V2-Knoten.
+ * @return array Liste von Knoten
+ */
+function v2ConvertLyrmgrItem($item) {
+    if (is_string($item)) {
+        return [['type' => 'layer', 'layerId' => $item, 'name' => $item, 'visibleFor' => ['public' => true]]];
+    }
+    if (is_array($item)) {
+        // Gruppen-Objekt: { name: '...', items: [...] }
+        if (isset($item['name']) && isset($item['items'])) {
+            return [[
+                'type'     => 'group',
+                '_key'     => (string)$item['name'],
+                'name'     => (string)$item['name'],
+                'children' => v2ConvertLyrmgrStructure($item['items']),
+            ]];
+        }
+        return v2ConvertLyrmgrStructure($item);
+    }
+    return [];
+}
+
+/**
+ * Wandelt eine lyrmgr-Struktur (assoziativ oder Liste) rekursiv in V2-Knoten.
+ * Layer werden mit visibleFor.public=true markiert (Bootstrap aus public).
+ */
+function v2ConvertLyrmgrStructure($structure) {
+    $nodes = [];
+    if (!is_array($structure)) return $nodes;
+
+    // Numerische Liste -> Items
+    if (array_values($structure) === $structure) {
+        foreach ($structure as $item) {
+            foreach (v2ConvertLyrmgrItem($item) as $n) $nodes[] = $n;
+        }
+        return $nodes;
+    }
+
+    // Assoziativ -> Kategorien/Gruppen
+    $meta = v2LyrmgrMetaKeys();
+    foreach ($structure as $key => $def) {
+        if (in_array($key, $meta, true)) continue;
+        $children = [];
+        if (is_array($def)) {
+            if (isset($def['items']))     foreach (v2ConvertLyrmgrStructure($def['items']) as $c)     $children[] = $c;
+            if (isset($def['structure'])) foreach (v2ConvertLyrmgrStructure($def['structure']) as $c) $children[] = $c;
+            foreach ($def as $sk => $sv) {
+                if (in_array($sk, $meta, true)) continue;
+                if (is_array($sv) && !is_numeric($sk)) {
+                    foreach (v2ConvertLyrmgrStructure([$sk => $sv]) as $c) $children[] = $c;
+                }
+            }
+        }
+        $nodes[] = [
+            'type'     => 'category',
+            '_key'     => (string)$key,
+            'name'     => (string)$key,
+            'children' => $children,
+        ];
+    }
+    return $nodes;
+}
+
+/**
+ * Laedt den public-lyrmgr und liefert den ersten Block mit 'structure'.
+ * @return array|null structure
+ */
+function v2LoadPublicStructure() {
+    require_once __DIR__ . '/../includes/ConfigSource.php';
+    $data = null;
+    if (ConfigSource::useDb('catalog')) {
+        require_once __DIR__ . '/../includes/CatalogRepository.php';
+        try {
+            $doc = CatalogRepository::loadProfile('public');
+            if (!empty($doc['exists'])) $data = $doc['data'];
+        } catch (\Throwable $e) {}
+    }
+    if (!is_array($data)) {
+        $path = CONFIG_BASE . '/lyrmgr.conf';
+        if (file_exists($path)) {
+            $data = json_decode((string)file_get_contents($path), true);
+        }
+    }
+    if (!is_array($data)) return null;
+    foreach ($data as $block) {
+        if (is_array($block) && isset($block['structure'])) {
+            return $block['structure'];
+        }
+    }
+    return null;
+}
+
+// =====================================================================
 // Router
 // =====================================================================
 $action = $_GET['action'] ?? '';
@@ -5514,6 +5972,191 @@ switch ($action) {
             jsonError($result['error'], 500);
         }
         jsonResponse(['success' => true, 'data' => $result]);
+        break;
+
+    // =================================================================
+    // Tree-Builder V2 — gemeinsamer Mandanten-Baum
+    // =================================================================
+    case 'shared-load':
+        $store = sharedStoreLoad();
+        jsonResponse(['success' => true, 'data' => [
+            'tree'        => $store['tree'],
+            'permissions' => $store['permissions'],
+            'revision'    => $store['revision'],
+            'source'      => $store['source'],
+            'updatedBy'   => $store['updatedBy'],
+            'updatedAt'   => $store['updatedAt'],
+        ]]);
+        break;
+
+    case 'shared-save':
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('POST required', 405);
+        $body = json_decode(file_get_contents('php://input'), true);
+        if (!is_array($body)) jsonError('Ungültiger JSON-Body', 400);
+        $editor = getEditorName();
+        $res = sharedStoreSave(
+            $body['tree'] ?? [],
+            $body['permissions'] ?? [],
+            array_key_exists('revision', $body) ? $body['revision'] : null,
+            $editor
+        );
+        jsonResponse(['success' => true, 'revision' => $res['revision'], 'source' => $res['source']]);
+        break;
+
+    case 'shared-init-from-public':
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('POST required', 405);
+        $body = json_decode(file_get_contents('php://input'), true) ?: [];
+        $editor = getEditorName();
+        require_once __DIR__ . '/../includes/ConfigSource.php';
+
+        // Quell-Profil (default public), validieren gegen Schreibmuster
+        $sourceProfile = isset($body['sourceProfile']) ? preg_replace('/[^a-zA-Z0-9_\-]/', '', (string)$body['sourceProfile']) : 'public';
+        if ($sourceProfile === '' || $sourceProfile === SHARED_DB_PROFILE) $sourceProfile = 'public';
+
+        // Bestehenden __shared__-Stand pruefen
+        $sharedExisting = null;
+        if (ConfigSource::useDb('catalog')) {
+            require_once __DIR__ . '/../includes/CatalogRepository.php';
+            try { $sharedExisting = CatalogRepository::loadProfile(SHARED_DB_PROFILE); } catch (\Throwable $e) {}
+        }
+        $sharedFile = getConfigPath(SHARED_DB_PROFILE);
+        $sharedExistsDb   = $sharedExisting && !empty($sharedExisting['exists']) && !empty($sharedExisting['data']);
+        $sharedExistsFile = file_exists($sharedFile);
+        if (($sharedExistsDb || $sharedExistsFile) && empty($body['force'])) {
+            jsonError('Gemeinsamer Baum (__shared__) existiert bereits. force=true zum Überschreiben.', 409);
+        }
+
+        // Quell-Payload VERBATIM laden (gleiches Schema)
+        $srcPayload = null;
+        if (ConfigSource::useDb('catalog')) {
+            require_once __DIR__ . '/../includes/CatalogRepository.php';
+            try {
+                $src = CatalogRepository::loadProfile($sourceProfile);
+                if (!empty($src['exists'])) $srcPayload = $src['data'];
+            } catch (\Throwable $e) {}
+        }
+        if (!is_array($srcPayload)) {
+            $srcFile = getConfigPath($sourceProfile);
+            if (file_exists($srcFile)) {
+                $srcPayload = json_decode((string)file_get_contents($srcFile), true);
+            }
+        }
+        if (!is_array($srcPayload) || empty($srcPayload)) {
+            jsonError('Quell-Profil "' . $sourceProfile . '" konnte nicht geladen werden.', 404);
+        }
+
+        // Verbatim nach __shared__ schreiben (DB + Datei-Spiegel)
+        $written = ['db' => false, 'file' => false];
+        if (ConfigSource::useDb('catalog')) {
+            require_once __DIR__ . '/../includes/CatalogRepository.php';
+            try {
+                $expRev = $sharedExistsDb ? (int)$sharedExisting['revision'] : null;
+                $r = CatalogRepository::saveProfile(SHARED_DB_PROFILE, $srcPayload, $expRev, $editor, 'import', null);
+                $written['db'] = empty($r['conflict']);
+            } catch (\Throwable $e) {
+                if (!ConfigSource::fallbackEnabled()) jsonError('Schreiben nach __shared__ (DB) fehlgeschlagen: ' . $e->getMessage(), 500);
+            }
+        }
+        @mkdir(dirname($sharedFile), 0775, true);
+        if (@file_put_contents($sharedFile, json_encode($srcPayload, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) !== false) {
+            $written['file'] = true;
+        }
+
+        $blockCount = count(array_filter(array_keys($srcPayload), function($k) { return strpos($k, '__') !== 0; }));
+        jsonResponse(['success' => true, 'source' => $sourceProfile, 'written' => $written, 'lyrmgrBlocks' => $blockCount]);
+        break;
+
+    case 'shared-lock':
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('POST required', 405);
+        $body = json_decode(file_get_contents('php://input'), true);
+        $editor = getEditorName();
+        if (!$editor || $editor === 'Unbekannt') jsonError('Editor-Name erforderlich', 400);
+        $r = v2LockProfiles($body['profiles'] ?? [], $editor);
+        jsonResponse(['success' => true, 'locked' => $r['locked'], 'conflicts' => $r['conflicts']]);
+        break;
+
+    case 'shared-unlock':
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('POST required', 405);
+        $body = json_decode(file_get_contents('php://input'), true);
+        $editor = getEditorName();
+        $r = v2UnlockProfiles($body['profiles'] ?? [], $editor);
+        jsonResponse(['success' => true, 'released' => $r['released']]);
+        break;
+
+    case 'shared-matrix-load':
+        $m = matrixStoreLoad();
+        jsonResponse(['success' => true, 'data' => $m]);
+        break;
+
+    case 'shared-matrix-save':
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('POST required', 405);
+        $body = json_decode(file_get_contents('php://input'), true);
+        if (!is_array($body)) jsonError('Ungültiger JSON-Body', 400);
+        $editor = getEditorName();
+        $r = matrixStoreSave(
+            $body['visibleFor'] ?? [],
+            $body['permissions'] ?? [],
+            $body['bundle'] ?? [],
+            $editor
+        );
+        jsonResponse(['success' => (bool)$r['saved']]);
+        break;
+
+    case 'shared-lock-status':
+        // Optional: ?profile=uwpro für einzelnes Profil, sonst alle
+        $p = $_GET['profile'] ?? null;
+        if ($p) {
+            jsonResponse(['success' => true, 'profile' => $p, 'lock' => v2ProfileLockStatus($p)]);
+        } else {
+            jsonResponse(['success' => true, 'locks' => v2ReadProfileLocks()]);
+        }
+        break;
+
+    case 'publish-shared':
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('POST required', 405);
+        $body = json_decode(file_get_contents('php://input'), true);
+        if (!is_array($body)) jsonError('Ungültiger JSON-Body', 400);
+        $editor = getEditorName();
+        $profiles = v2FilterTenants($body['profiles'] ?? []);
+        if (empty($profiles)) jsonError('Keine gültigen Profile angegeben', 400);
+
+        $store = sharedStoreLoad();
+        $permissions = $store['permissions'];
+        $published = [];
+        $errors = [];
+        // commit=true schreibt in Stage-Profile (<tenant>-stage); ansonsten Vorschau (kein lyrmgr-Schreiben).
+        $commit = !empty($body['commit']);
+        $preview = [];
+
+        foreach ($profiles as $tenant) {
+            $derived = v2DeriveTenantTree($store['tree'], $permissions, $tenant);
+            $preview[$tenant] = $derived;
+            if (!$commit) {
+                $published[] = $tenant; // nur Vorschau berechnet
+                continue;
+            }
+            // SICHER: in Stage-Profil schreiben, niemals direkt das Live-Profil ueberschreiben.
+            // Block im lyrmgr-Format: ein lyrmgrKey 'main_lyrmgr' mit structure-Array.
+            $block = ['structure' => $derived];
+            $r = publishLyrmgrBlock($tenant . '-stage', 'main_lyrmgr', $block, $editor);
+            if (!empty($r['published'])) {
+                $published[] = $tenant . '-stage';
+            } else {
+                $errors[$tenant] = $r['error'] ?? 'unbekannt';
+            }
+        }
+
+        // Runtime-Berechtigungsartefakt schreiben (URL-Strip durch layers.php)
+        $permTargets = v2WriteRuntimePermissions($permissions);
+
+        jsonResponse([
+            'success'         => empty($errors),
+            'committed'       => $commit,
+            'published'       => $published,
+            'errors'          => $errors,
+            'permissionFiles' => $permTargets,
+            'preview'         => $commit ? null : $preview,
+        ]);
         break;
 
     case 'list-lyrmgr-profiles':
