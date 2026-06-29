@@ -112,23 +112,49 @@ function loadTenantDenyMap($group) {
     if (array_key_exists($group, $cache)) return $cache[$group];
 
     $deny = [];
-    $paths = [];
-    if (class_exists('TnetCorePaths')) {
-        $cfg = TnetCorePaths::getConfigPath();
-        if ($cfg) $paths[] = rtrim($cfg, '/') . '/layer_permissions.json';
+
+    // 1) DB-first: catalog_document['__permissions__'].deny[group] (Quelle der Wahrheit)
+    try {
+        if (class_exists('Database')) {
+            $st = Database::isAvailable();
+            if (!empty($st['available'])) {
+                if (!class_exists('CatalogRepository')) {
+                    @require_once __DIR__ . '/../includes/CatalogRepository.php';
+                }
+                if (class_exists('CatalogRepository')) {
+                    $doc = CatalogRepository::loadProfile('__permissions__');
+                    if (!empty($doc['exists']) && isset($doc['data']['deny'][$group]) && is_array($doc['data']['deny'][$group])) {
+                        foreach ($doc['data']['deny'][$group] as $layerId => $_v) {
+                            $deny[(string)$layerId] = true;
+                        }
+                    }
+                }
+            }
+        }
+    } catch (\Throwable $e) {
+        // DB nicht verfuegbar -> Datei-Fallback unten
     }
-    // App-lokale Ueberladung: /www/maps(-dev)/core/config/layer_permissions.json
-    $appCfg = realpath(__DIR__ . '/../../../core/config');
-    if ($appCfg) $paths[] = $appCfg . '/layer_permissions.json';
-    foreach ($paths as $p) {
-        if (!is_file($p)) continue;
-        $doc = json_decode((string)@file_get_contents($p), true);
-        if (!is_array($doc) || !isset($doc['deny'][$group]) || !is_array($doc['deny'][$group])) continue;
-        // Konvention: jeder Eintrag in deny[group] = gesperrt (Wert false = allowed:false)
-        foreach ($doc['deny'][$group] as $layerId => $_v) {
-            $deny[(string)$layerId] = true;
+
+    // 2) Datei-Fallback/-Cache, falls DB nichts lieferte
+    if (empty($deny)) {
+        $paths = [];
+        if (class_exists('TnetCorePaths')) {
+            $cfg = TnetCorePaths::getConfigPath();
+            if ($cfg) $paths[] = rtrim($cfg, '/') . '/layer_permissions.json';
+        }
+        // App-lokale Ueberladung: /www/maps(-dev)/core/config/layer_permissions.json
+        $appCfg = realpath(__DIR__ . '/../../../core/config');
+        if ($appCfg) $paths[] = $appCfg . '/layer_permissions.json';
+        foreach ($paths as $p) {
+            if (!is_file($p)) continue;
+            $docF = json_decode((string)@file_get_contents($p), true);
+            if (!is_array($docF) || !isset($docF['deny'][$group]) || !is_array($docF['deny'][$group])) continue;
+            foreach ($docF['deny'][$group] as $layerId => $_v) {
+                $deny[(string)$layerId] = true;
+            }
         }
     }
+
     $cache[$group] = $deny;
     return $deny;
 }
@@ -137,16 +163,29 @@ function loadTenantDenyMap($group) {
 function _stripDeniedNode(array &$node) {
     $node['locked'] = true;
     $node['accessDenied'] = true;
-    unset($node['url'], $node['params'], $node['options'], $node['maptips'],
-          $node['legendLink'], $node['legend'], $node['legendLayers'], $node['layerType']);
+    $node['secured'] = true;
+    // Echte Daten-/Abfrage-Endpunkte entfernen, damit per F12 nichts durchsickert.
+    // Legenden/Metainformationen (legend*) bleiben bewusst erhalten -> fuer gesperrte Layer abrufbar.
+    unset($node['params'], $node['options'], $node['maptips'], $node['layerType']);
+    // URL durch Platzhalter ersetzen (kein echter MapServer-Endpunkt nach aussen)
+    $node['url'] = 'secured';
 }
 
-/** Rekursiv: alle Knoten mit gesperrter id strippen. */
+/** true, wenn der Knoten ein Container (Gruppe/Kategorie) ist und kein einzelner Layer. */
+function _isContainerNode(array $node) {
+    if (isset($node['type']) && $node['type'] === 'group') return true;
+    foreach (['layers', 'groups', 'items', 'subcategories'] as $childKey) {
+        if (isset($node[$childKey]) && is_array($node[$childKey]) && count($node[$childKey])) return true;
+    }
+    return false;
+}
+
+/** Rekursiv: alle BLATT-Layer mit gesperrter id strippen (Container nie strippen). */
 function _applyTenantDeny(&$data, array $denyMap) {
     if (!is_array($data)) return;
     foreach ($data as &$v) {
         if (is_array($v)) {
-            if (isset($v['id']) && is_string($v['id']) && isset($denyMap[$v['id']])) {
+            if (!_isContainerNode($v) && isset($v['id']) && is_string($v['id']) && isset($denyMap[$v['id']])) {
                 _stripDeniedNode($v);
             }
             _applyTenantDeny($v, $denyMap);
@@ -159,8 +198,8 @@ function _applyTenantDeny(&$data, array $denyMap) {
 function filterResultForTenant(&$result, $group) {
     $deny = loadTenantDenyMap($group);
     if (empty($deny) || !is_array($result)) return;
-    // Top-Level-Knoten selbst (Einzel-Layer-Lookup) pruefen
-    if (isset($result['id']) && is_string($result['id']) && isset($deny[$result['id']])) {
+    // Top-Level-Knoten selbst (Einzel-Layer-Lookup) pruefen — nur echte Blatt-Layer strippen
+    if (!_isContainerNode($result) && isset($result['id']) && is_string($result['id']) && isset($deny[$result['id']])) {
         _stripDeniedNode($result);
     }
     _applyTenantDeny($result, $deny);
@@ -1000,6 +1039,8 @@ if ($debug) {
 $elapsed = round((microtime(true) - $startTime) * 1000);
 $meta['responseTime'] = $elapsed . 'ms';
 $meta['cache'] = $bypassJsonCache ? 'bypass' : 'miss';
+// Mandanten-Berechtigung: Anzahl gesperrter Layer (Deny-Map) fuer dieses Profil
+$meta['permDeny'] = count(loadTenantDenyMap($group));
 
 // In Cache speichern
 if (!$bypassJsonCache) {

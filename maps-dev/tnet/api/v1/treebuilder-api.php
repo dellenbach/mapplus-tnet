@@ -74,6 +74,7 @@ define('SHARED_STORE_FILE', DATA_DIR . '/shared-tree-v2.json'); // Datei-Spiegel
 define('MATRIX_STORE_FILE', DATA_DIR . '/shared-matrix-v2.json'); // Sichtbarkeits-/Berechtigungsmatrix je Layer
 define('PROFILE_LOCKS_FILE', DATA_DIR . '/profile-locks-v2.json'); // Per-Profil-Locks (V2 sperrt V1)
 define('SHARED_DB_PROFILE', '__shared__'); // catalog_document-Profil fuer den gemeinsamen Baum
+define('MATRIX_DB_PROFILE', '__matrix__'); // catalog_document-Profil fuer die Sichtbarkeits-/Berechtigungsmatrix
 define('V2_TENANTS', 'public,uwpro,nwpro,owpro'); // Bekannte Mandanten
 define('LOCK_TIMEOUT', 30 * 60); // 30 Minuten Lock-Timeout
 define('MAX_BACKUPS', 50);       // Max. Anzahl Backups
@@ -5564,6 +5565,29 @@ function v2WriteRuntimePermissions($permissions) {
  * bundle=[profile,...] (gebuendelte Profile).
  */
 function matrixStoreLoad() {
+    require_once __DIR__ . '/../includes/ConfigSource.php';
+    // 1) DB bevorzugt (catalog_document['__matrix__'])
+    if (ConfigSource::useDb('catalog')) {
+        require_once __DIR__ . '/../includes/CatalogRepository.php';
+        try {
+            $doc = CatalogRepository::loadProfile(MATRIX_DB_PROFILE);
+            if (!empty($doc['exists']) && is_array($doc['data'])) {
+                $d = $doc['data'];
+                return [
+                    'visibleFor'  => isset($d['visibleFor']) && is_array($d['visibleFor']) ? $d['visibleFor'] : [],
+                    'permissions' => isset($d['permissions']) && is_array($d['permissions']) ? $d['permissions'] : [],
+                    'bundle'      => isset($d['bundle']) && is_array($d['bundle']) ? array_values($d['bundle']) : [],
+                    'source'      => 'db',
+                    'updatedBy'   => $doc['updatedBy'] ?? null,
+                    'updatedAt'   => $doc['updatedAt'] ?? null,
+                ];
+            }
+        } catch (\Throwable $e) {
+            if (!ConfigSource::fallbackEnabled()) throw $e;
+            error_log('matrixStoreLoad: DB-Lesen fehlgeschlagen, Datei-Fallback: ' . $e->getMessage());
+        }
+    }
+    // 2) Datei-Spiegel
     if (file_exists(MATRIX_STORE_FILE)) {
         $d = json_decode((string)file_get_contents(MATRIX_STORE_FILE), true);
         if (is_array($d)) {
@@ -5571,24 +5595,42 @@ function matrixStoreLoad() {
                 'visibleFor'  => isset($d['visibleFor']) && is_array($d['visibleFor']) ? $d['visibleFor'] : [],
                 'permissions' => isset($d['permissions']) && is_array($d['permissions']) ? $d['permissions'] : [],
                 'bundle'      => isset($d['bundle']) && is_array($d['bundle']) ? array_values($d['bundle']) : [],
+                'source'      => 'file',
                 'updatedBy'   => $d['_meta']['savedBy'] ?? null,
                 'updatedAt'   => $d['_meta']['savedAt'] ?? null,
             ];
         }
     }
-    return ['visibleFor' => [], 'permissions' => [], 'bundle' => [], 'updatedBy' => null, 'updatedAt' => null];
+    return ['visibleFor' => [], 'permissions' => [], 'bundle' => [], 'source' => 'empty', 'updatedBy' => null, 'updatedAt' => null];
 }
 
 function matrixStoreSave($visibleFor, $permissions, $bundle, $editor) {
+    require_once __DIR__ . '/../includes/ConfigSource.php';
     ensureDirs();
-    $doc = [
+    $payload = [
         'visibleFor'  => is_array($visibleFor) ? $visibleFor : [],
         'permissions' => is_array($permissions) ? $permissions : [],
         'bundle'      => is_array($bundle) ? array_values($bundle) : [],
-        '_meta'       => ['savedBy' => $editor, 'savedAt' => date('Y-m-d H:i:s'), 'timestamp' => time()],
     ];
+    $savedDb = false;
+    // 1) DB bevorzugt
+    if (ConfigSource::useDb('catalog')) {
+        require_once __DIR__ . '/../includes/CatalogRepository.php';
+        try {
+            $rev = CatalogRepository::getRevision(MATRIX_DB_PROFILE);
+            $res = CatalogRepository::saveProfile(MATRIX_DB_PROFILE, $payload, $rev, $editor, 'update', null);
+            $savedDb = empty($res['conflict']);
+        } catch (\Throwable $e) {
+            if (!ConfigSource::fallbackEnabled()) jsonError('Matrix-DB-Schreiben fehlgeschlagen: ' . $e->getMessage(), 500);
+            error_log('matrixStoreSave: DB-Schreiben fehlgeschlagen, nur Datei: ' . $e->getMessage());
+        }
+    }
+    // 2) Datei-Spiegel (immer)
+    $doc = $payload;
+    $doc['_meta'] = ['savedBy' => $editor, 'savedAt' => date('Y-m-d H:i:s'), 'timestamp' => time()];
     $json = json_encode($doc, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-    return ['saved' => (@file_put_contents(MATRIX_STORE_FILE, $json) !== false)];
+    $savedFile = (@file_put_contents(MATRIX_STORE_FILE, $json) !== false);
+    return ['saved' => ($savedDb || $savedFile), 'db' => $savedDb, 'file' => $savedFile];
 }
 
 // ── Bootstrap: public-lyrmgr -> V2-Knotenbaum (Best-Effort-Konverter) ──
@@ -6075,6 +6117,41 @@ switch ($action) {
         jsonResponse(['success' => true, 'locked' => $r['locked'], 'conflicts' => $r['conflicts']]);
         break;
 
+    case 'shared-publish-tenant':
+        // Ersetzt das KOMPLETTE lyrmgr-Dokument eines Profils (kein Merge) durch die Ableitung.
+        // Body: { profile: '<tenant>', payload: { lyrmgrKey: block, ... } }
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('POST required', 405);
+        $body = json_decode(file_get_contents('php://input'), true);
+        if (!is_array($body) || empty($body['profile']) || !isset($body['payload']) || !is_array($body['payload'])) {
+            jsonError('Felder profile, payload erforderlich', 400);
+        }
+        $editor = getEditorName();
+        $tenant = preg_replace('/[^a-zA-Z0-9_\-]/', '', (string)$body['profile']);
+        if ($tenant === '') jsonError('Ungültiges Profil', 400);
+        $payload = $body['payload'];
+
+        require_once __DIR__ . '/../includes/ConfigSource.php';
+        $written = ['db' => false, 'file' => false];
+        // 1) DB: ganzes Profil-Dokument ersetzen
+        if (ConfigSource::useDb('catalog')) {
+            require_once __DIR__ . '/../includes/CatalogRepository.php';
+            try {
+                $rev = CatalogRepository::getRevision($tenant);
+                $res = CatalogRepository::saveProfile($tenant, $payload, $rev, $editor, 'publish', null);
+                $written['db'] = empty($res['conflict']);
+            } catch (\Throwable $e) {
+                if (!ConfigSource::fallbackEnabled()) jsonError('DB-Schreiben fehlgeschlagen: ' . $e->getMessage(), 500);
+            }
+        }
+        // 2) Datei-Spiegel komplett ersetzen
+        $path = getConfigPath($tenant);
+        @mkdir(dirname($path), 0775, true);
+        if (@file_put_contents($path, json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) !== false) {
+            $written['file'] = true;
+        }
+        jsonResponse(['success' => ($written['db'] || $written['file']), 'profile' => $tenant, 'written' => $written, 'path' => toSftpPath($path), 'blocks' => count($payload)]);
+        break;
+
     case 'shared-unlock':
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('POST required', 405);
         $body = json_decode(file_get_contents('php://input'), true);
@@ -6100,6 +6177,48 @@ switch ($action) {
             $editor
         );
         jsonResponse(['success' => (bool)$r['saved']]);
+        break;
+
+    case 'shared-write-permissions':
+        // Speichert die Deny-Map (gesperrte Layer je Profil) DB-first + Datei-Spiegel.
+        // Body: { deny: { tenant: { layerId: true } } }
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('POST required', 405);
+        $body = json_decode(file_get_contents('php://input'), true);
+        if (!is_array($body) || !isset($body['deny']) || !is_array($body['deny'])) {
+            jsonError('Feld deny erforderlich', 400);
+        }
+        $editor = getEditorName();
+        $deny = $body['deny'];
+
+        // 1) DB: catalog_document['__permissions__']
+        $savedDb = false;
+        require_once __DIR__ . '/../includes/ConfigSource.php';
+        if (ConfigSource::useDb('catalog')) {
+            require_once __DIR__ . '/../includes/CatalogRepository.php';
+            try {
+                $rev = CatalogRepository::getRevision('__permissions__');
+                $res = CatalogRepository::saveProfile('__permissions__', ['deny' => $deny], $rev, $editor, 'publish', null);
+                $savedDb = empty($res['conflict']);
+            } catch (\Throwable $e) {
+                if (!ConfigSource::fallbackEnabled()) jsonError('Deny-DB-Schreiben fehlgeschlagen: ' . $e->getMessage(), 500);
+                error_log('shared-write-permissions: DB-Schreiben fehlgeschlagen: ' . $e->getMessage());
+            }
+        }
+
+        // 2) Datei-Spiegel (Runtime-Cache fuer layers.php)
+        $doc = [
+            '_meta' => ['generatedAt' => date('Y-m-d H:i:s'), 'by' => 'tree-builder-v2'],
+            'deny'  => $deny,
+        ];
+        $json = json_encode($doc, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        $targets = [];
+        foreach ([CORE_CONFIG_DIR, APP_CORE_CONFIG_DIR] as $dir) {
+            if ($dir && is_dir($dir) && is_writable($dir)) {
+                $path = rtrim($dir, '/') . '/layer_permissions.json';
+                if (@file_put_contents($path, $json) !== false) $targets[] = $path;
+            }
+        }
+        jsonResponse(['success' => ($savedDb || !empty($targets)), 'db' => $savedDb, 'written' => array_map('toSftpPath', $targets)]);
         break;
 
     case 'shared-lock-status':
