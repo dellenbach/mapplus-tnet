@@ -654,7 +654,7 @@ body {
 .scd-head { display: flex; align-items: center; gap: 8px; padding: 10px 14px; background: #20323d; color: #fff; }
 .scd-head .scd-title { font-weight: 800; font-size: 13px; flex: 1; }
 .scd-close { cursor: pointer; background: transparent; border: 0; color: #cfe6f5; font-size: 20px; line-height: 1; }
-.scd-body { padding: 12px 14px; overflow-y: auto; font-size: 12px; }
+.scd-body { padding: 12px 14px; overflow-y: auto; font-size: 12px; flex: 1; min-height: 0; }
 .scd-summary { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
 .scd-chip { padding: 2px 9px; border-radius: 999px; font-weight: 700; font-size: 11px; }
 .scd-chip.dev  { background: #fdf1e5; color: #a85400; }
@@ -1704,7 +1704,7 @@ Kein Einfluss auf Browser-Cache (dafuer: Ctrl+Shift+R)">🗑 Cache leeren</butto
   <button id="ags-btn-config-to-db" title="Konfigurationsdatenbank verwalten (Import / Export / Löschen)" style="display:none">🗄 Konfig-DB</button>
   <button id="slm-btn-backups" title="Server-Backups anzeigen, wiederherstellen und löschen" style="margin-left:6px">📁 Backups</button>
   <span class="spacer"></span>
-  <a href="tree-builder.html">← Tree-Builder</a>
+  <a href="tree-builder-v2.html">← Tree-Builder V2</a>
   <span class="sep"></span>
   <a href="../docs/" target="_blank">API Docs</a>
   <span class="sep"></span>
@@ -1770,8 +1770,7 @@ Kein Einfluss auf Browser-Cache (dafuer: Ctrl+Shift+R)">🗑 Cache leeren</butto
     <button class="ags-tab" data-tab="manage">② Verwaltung Mapserver-Conf</button>
     <button class="ags-tab" data-tab="import">③ Import Mapserver-Conf</button>
     <button class="ags-tab" data-tab="editor">④ Config-Editor</button>
-    <button class="ags-tab" data-tab="treebuilder">⑤ Tree-Builder</button>
-    <button class="ags-tab" data-tab="treebuilderV2">⑤⁺ Tree-Builder V2</button>
+    <button class="ags-tab" data-tab="treebuilder">⑤ Tree-Builder V2</button>
     <button class="ags-tab" data-tab="deployed">⑥ Deployed</button>
     <button class="ags-tab" data-tab="legendtuner">⑦ Legendtuner</button>
     <button class="ags-tab" data-tab="bookmarks">⑧ Bookmarks</button>
@@ -1970,16 +1969,10 @@ Kein Einfluss auf Browser-Cache (dafuer: Ctrl+Shift+R)">🗑 Cache leeren</butto
     </div><!-- /.editor-split -->
   </div>
 
-  <!-- ===== TAB: TREE-BUILDER (Staging) ===== -->
+  <!-- ===== TAB: TREE-BUILDER V2 (gemeinsamer Modus) ===== -->
   <div class="ags-pane" id="pane-treebuilder" style="position:relative">
     <iframe id="treebuilder-iframe" style="width:100%;height:100%;border:none;display:none"></iframe>
-    <div class="editor-placeholder" id="treebuilder-placeholder">Tree-Builder wird geladen…</div>
-  </div>
-
-  <!-- ===== TAB: TREE-BUILDER V2 (gemeinsamer Mandanten-Baum) ===== -->
-  <div class="ags-pane" id="pane-treebuilderV2" style="position:relative">
-    <iframe id="treebuilderV2-iframe" style="width:100%;height:100%;border:none;display:none"></iframe>
-    <div class="editor-placeholder" id="treebuilderV2-placeholder">Tree-Builder V2 wird geladen…</div>
+    <div class="editor-placeholder" id="treebuilder-placeholder">Tree-Builder V2 wird geladen…</div>
   </div>
 
   <!-- ===== TAB: DEPLOYED ===== -->
@@ -2750,6 +2743,7 @@ function refreshImportProgress() {
 // TAB-SWITCHING
 // =====================================================================
 function switchTab(tabName, skipHash, onImportLoaded) {
+  if (tabName === 'treebuilderV2') tabName = 'treebuilder';
   document.querySelectorAll('.ags-tab').forEach(function(t) { t.classList.remove('active'); });
   document.querySelectorAll('.ags-pane').forEach(function(p) { p.classList.remove('active'); });
   var tab = document.querySelector('[data-tab="' + tabName + '"]');
@@ -2776,7 +2770,7 @@ function switchTab(tabName, skipHash, onImportLoaded) {
   } else if (tabName === 'treebuilder') {
     var iframe = document.getElementById('treebuilder-iframe');
     if (!iframe.src || iframe.src === 'about:blank') {
-      iframe.src = 'tree-builder.html?source=staging';
+      iframe.src = 'tree-builder-v2.html?source=staging&mode=shared';
       iframe.onload = function() {
         document.getElementById('treebuilder-placeholder').style.display = 'none';
         iframe.style.display = 'block';
@@ -2784,24 +2778,6 @@ function switchTab(tabName, skipHash, onImportLoaded) {
         setTimeout(function() {
           try {
             var iw = iframe.contentWindow;
-            if (iw && iw.previewMap) {
-              iw.previewMap.updateSize();
-              iw.previewMap.getView().fit(iw.nwOwExtent, { padding: [10, 10, 10, 10] });
-            }
-          } catch(e) {}
-        }, 50);
-      };
-    }
-  } else if (tabName === 'treebuilderV2') {
-    var iframeV2 = document.getElementById('treebuilderV2-iframe');
-    if (!iframeV2.src || iframeV2.src === 'about:blank') {
-      iframeV2.src = 'tree-builder-v2.html?source=staging&mode=shared';
-      iframeV2.onload = function() {
-        document.getElementById('treebuilderV2-placeholder').style.display = 'none';
-        iframeV2.style.display = 'block';
-        setTimeout(function() {
-          try {
-            var iw = iframeV2.contentWindow;
             if (iw && iw.previewMap) {
               iw.previewMap.updateSize();
               iw.previewMap.getView().fit(iw.nwOwExtent, { padding: [10, 10, 10, 10] });
@@ -12020,6 +11996,18 @@ function openFileContentDiff(domain, relpath) {
   var els = _ensureCdiffOverlay();
   els.title.textContent = 'Datei-Vergleich — ' + relpath + ' (DEV ↔ PROD)';
   els.body.innerHTML = '<div class="scd-loading">⏳ Lade Datei-Inhalte …</div>';
+  // Footer: direkte Sync-Buttons (analog zu openSyncContentDiff)
+  els.foot.innerHTML = '<span style="font-size:11px;color:#667;margin-right:auto">Direkt übertragen:</span>'
+    + '<button class="sync-btn push" type="button" id="scd-sync-push" title="Diese Datei von DEV nach PROD kopieren — PROD wird überschrieben"><span class="b-dev">DEV</span><span class="b-arrow">→</span><span class="b-prod">PROD</span></button>'
+    + '<button class="sync-btn pull" type="button" id="scd-sync-pull" title="Diese Datei von PROD nach DEV kopieren — DEV wird überschrieben"><span class="b-dev">DEV</span><span class="b-arrow">←</span><span class="b-prod">PROD</span></button>';
+  els.foot.querySelector('#scd-sync-push').onclick = function() {
+    _closeSyncContentDiff();
+    executeFileSyncOp(domain, 'dev-to-prod', [relpath]);
+  };
+  els.foot.querySelector('#scd-sync-pull').onclick = function() {
+    _closeSyncContentDiff();
+    executeFileSyncOp(domain, 'prod-to-dev', [relpath]);
+  };
   els.overlay.classList.add('open');
   var url = API_URL + '?action=file-sync-content-diff&domain=' + encodeURIComponent(domain) + '&relpath=' + encodeURIComponent(relpath);
   fetch(url)
