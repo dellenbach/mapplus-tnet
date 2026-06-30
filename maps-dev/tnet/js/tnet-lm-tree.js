@@ -34,6 +34,14 @@
     return TnetIcons.get('legend-colors', null, {width: '14', height: '14', style: 'vertical-align:-2px'});
   }
 
+  // Schlichtes Schloss-Symbol (SVG in Textfarbe) fuer gesperrte Layer/Gruppen.
+  function getLockIconSvg() {
+    return '<svg width="11" height="13" viewBox="0 0 11 13" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">'
+      + '<rect x="1" y="5.5" width="9" height="6.5" rx="1" stroke="currentColor" stroke-width="1.2"/>'
+      + '<path d="M3 5.5V3.5a2.5 2.5 0 0 1 5 0v2" stroke="currentColor" stroke-width="1.2"/>'
+      + '</svg>';
+  }
+
   var CATEGORY_ICONS = {
     'nidwalden': { label: 'Nidwalden', wappen: getAppRoot() + '/tnet/resources/wappen_nidwalden.svg' },
     'obwalden':  { label: 'Obwalden', wappen: getAppRoot() + '/tnet/resources/wappen_obwalden.svg' },
@@ -177,18 +185,33 @@
     },
 
     _renderSubcategory: function (sub) {
+      var groups = sub.groups || [];
+      // hideHeader: Subcategory-Kopf unterdruecken und die Gruppen direkt als
+      // oberste Accordions rendern (z.B. Bund-Tab ohne den Wrapper
+      // "WMS - Bundes Geodaten-Infrastruktur"). Flag kommt aus lyrmgr.conf
+      // (Kategorie) und wird via layers.php durchgereicht.
+      if (sub.hideHeader) {
+        var promoted = '';
+        for (var k = 0; k < groups.length; k++) {
+          promoted += this._renderGroup(groups[k], 1);
+        }
+        return promoted;
+      }
       // Subcategory = Level-1 Accordion — expanded-Wert aus Store/API
       var depth = 1;
       var normalizedDepth = this._clampDepth(depth);
-      var groups = sub.groups || [];
       var count = this._countLeaves(groups);
       var isExpanded = sub.expanded !== false; // default: offen
       var stateClass = isExpanded ? ' lm-expanded' : ' lm-collapsed';
+      var subLocked = (sub.locked === true || sub.accessDenied === true) || this._allLocked(groups);
       var html = '';
-      html += '<div class="lm-subcat' + stateClass + '" data-group-id="' + esc(sub.id) + '">';
+      html += '<div class="lm-subcat' + stateClass + (subLocked ? ' lm-group-locked' : '') + '" data-group-id="' + esc(sub.id) + '"' + (subLocked ? ' data-locked="1"' : '') + '>';
       html += '<div class="lm-subcat-header lm-depth-' + normalizedDepth + '" data-action="toggle-group" data-lm-depth="' + normalizedDepth + '">';
       html += '<span class="lm-arrow">▶</span>';
-      html += '<span class="lm-subcat-name">' + esc(sub.name) + '</span>';
+      if (subLocked) {
+        html += '<span class="lm-cb lm-cb-locked" title="Kein Zugriff – berechtigtes Login nötig" style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;opacity:.6">' + getLockIconSvg() + '</span>';
+      }
+      html += '<span class="lm-subcat-name"' + (subLocked ? ' style="opacity:.6"' : '') + '>' + esc(sub.name) + '</span>';
       html += '<span class="lm-count">' + count + '</span>';
       html += '</div>';
       html += '<div class="lm-subcat-body">';
@@ -203,23 +226,28 @@
     _renderGroup: function (group, depth) {
       var normalizedDepth = this._clampDepth(depth);
       var layers = group.layers || [];
-      // Einzel-Layer ohne verschachtelte Gruppe? Direkt als Layer rendern
-      if (layers.length === 1 && layers[0].type !== 'group') {
+      // Einzel-Layer-Gruppe nur dann flach als Layer rendern, wenn explizit
+      // als Kopf-ausgeblendet markiert (hideHeader). Standard: Gruppen-Kopf
+      // bleibt sichtbar (z.B. "SEM" mit nur "SP Asyl").
+      if (group.hideHeader && layers.length === 1 && layers[0].type !== 'group') {
         return this._renderLeafLayer(layers[0], normalizedDepth);
       }
       var count = this._countLeaves(layers);
       var isExpanded = group.open === true || group.expanded === true;
       var stateClass = isExpanded ? ' lm-expanded' : ' lm-collapsed';
-      var hasSelectAll = group.selectAll === true;
+      var groupLocked = (group.locked === true || group.accessDenied === true) || this._allLocked(layers);
+      var hasSelectAll = group.selectAll === true && !groupLocked;
       var hasLegend = group.legend && group.legend !== '';
       var html = '';
-      html += '<div class="lm-group' + stateClass + ' lm-depth-' + normalizedDepth + '" data-group-id="' + esc(group.id) + '" data-lm-depth="' + normalizedDepth + '">';
+      html += '<div class="lm-group' + stateClass + ' lm-depth-' + normalizedDepth + (groupLocked ? ' lm-group-locked' : '') + '" data-group-id="' + esc(group.id) + '" data-lm-depth="' + normalizedDepth + '"' + (groupLocked ? ' data-locked="1"' : '') + '>';
       html += '<div class="lm-group-header lm-depth-' + normalizedDepth + '" data-action="toggle-group" data-lm-depth="' + normalizedDepth + '">';
       html += '<span class="lm-arrow">▶</span>';
-      if (hasSelectAll) {
+      if (groupLocked) {
+        html += '<span class="lm-cb lm-cb-locked" title="Kein Zugriff – berechtigtes Login nötig" style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;opacity:.6">' + getLockIconSvg() + '</span>';
+      } else if (hasSelectAll) {
         html += '<input type="checkbox" class="lm-group-cb" data-action="select-all" data-group-id="' + esc(group.id) + '" title="Alle Layer ein-/ausschalten">';
       }
-      html += '<span class="lm-group-name">' + esc(group.name) + '</span>';
+      html += '<span class="lm-group-name"' + (groupLocked ? ' style="opacity:.6"' : '') + '>' + esc(group.name) + '</span>';
       if (hasLegend) {
         html += '<button class="lm-legend-btn" data-action="open-legend" data-legend-key="' + esc(group.legend) + '"';
         if (group.legendLink) html += ' data-legend-link="' + esc(group.legendLink) + '"';
@@ -244,16 +272,19 @@
         var count = this._countLeaves(item.layers);
         var isExpanded = item.open === true || item.expanded === true;
         var stateClass = isExpanded ? ' lm-expanded' : ' lm-collapsed';
-        var hasSelectAll = item.selectAll === true;
+        var nestedLocked = (item.locked === true || item.accessDenied === true) || this._allLocked(item.layers);
+        var hasSelectAll = item.selectAll === true && !nestedLocked;
         var hasLegend = item.legend && item.legend !== '';
         var html = '';
-        html += '<div class="lm-nested-group' + stateClass + ' lm-depth-' + normalizedDepth + '" data-group-id="' + esc(item.id) + '" data-lm-depth="' + normalizedDepth + '">';
+        html += '<div class="lm-nested-group' + stateClass + ' lm-depth-' + normalizedDepth + (nestedLocked ? ' lm-group-locked' : '') + '" data-group-id="' + esc(item.id) + '" data-lm-depth="' + normalizedDepth + '"' + (nestedLocked ? ' data-locked="1"' : '') + '>';
         html += '<div class="lm-nested-header lm-depth-' + normalizedDepth + '" data-action="toggle-group" data-lm-depth="' + normalizedDepth + '">';
         html += '<span class="lm-arrow">▶</span>';
-        if (hasSelectAll) {
+        if (nestedLocked) {
+          html += '<span class="lm-cb lm-cb-locked" title="Kein Zugriff – berechtigtes Login nötig" style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;opacity:.6">' + getLockIconSvg() + '</span>';
+        } else if (hasSelectAll) {
           html += '<input type="checkbox" class="lm-group-cb" data-action="select-all" data-group-id="' + esc(item.id) + '" title="Alle Layer ein-/ausschalten">';
         }
-        html += '<span class="lm-nested-name">' + esc(item.name) + '</span>';
+        html += '<span class="lm-nested-name"' + (nestedLocked ? ' style="opacity:.6"' : '') + '>' + esc(item.name) + '</span>';
         if (hasLegend) {
           html += '<button class="lm-legend-btn" data-action="open-legend" data-legend-key="' + esc(item.legend) + '"';
           if (item.legendLink) html += ' data-legend-link="' + esc(item.legendLink) + '"';
@@ -275,6 +306,7 @@
 
     _renderLeafLayer: function (layer, depth) {
       var normalizedDepth = this._clampDepth(depth);
+      var isLocked = (layer.locked === true || layer.accessDenied === true);
       var checked = layer.visible ? ' checked' : '';
       var activeClass = layer.visible ? ' lm-active' : '';
       var hasLegend = layer.legend && layer.legend !== '';
@@ -284,13 +316,20 @@
       if (layer.loading) loadingClass += ' lm-layer-loading';
       if (layer.loadingSlow) loadingClass += ' lm-layer-slow';
       if (layer.loadingError) loadingClass += ' lm-layer-error';
+      var lockedClass = isLocked ? ' lm-layer-locked' : '';
       var html = '';
-      html += '<div class="lm-layer lm-depth-' + normalizedDepth + activeClass + missingClass + loadingClass + '" data-layer-id="' + esc(layer.id) + '" data-lm-depth="' + normalizedDepth + '"' + missingAttr + ' data-name="' + esc((layer.name || '').toLowerCase()) + '">';
-      html += '<label class="lm-layer-label">';
+      html += '<div class="lm-layer lm-depth-' + normalizedDepth + activeClass + missingClass + loadingClass + lockedClass + '" data-layer-id="' + esc(layer.id) + '" data-lm-depth="' + normalizedDepth + '"' + missingAttr + (isLocked ? ' data-locked="1"' : '') + ' data-name="' + esc((layer.name || '').toLowerCase()) + '">';
+      html += '<label class="lm-layer-label"' + (isLocked ? ' style="cursor:not-allowed"' : '') + '>';
       html += '<span class="lm-cb-wrap">';
-      html += '<input type="checkbox" class="lm-cb"' + checked + ' data-action="toggle-layer">';
+      if (isLocked) {
+        // Gesperrter Layer: kein Schalter, nur schlichtes Schloss-Symbol (SVG in Textfarbe, kein Zugriff)
+        html += '<span class="lm-cb lm-cb-locked" title="Kein Zugriff – berechtigtes Login nötig" style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;opacity:.6">'
+              + getLockIconSvg() + '</span>';
+      } else {
+        html += '<input type="checkbox" class="lm-cb"' + checked + ' data-action="toggle-layer">';
+      }
       html += '</span>';
-      html += '<span class="lm-layer-name">' + esc(layer.name) + '</span>';
+      html += '<span class="lm-layer-name"' + (isLocked ? ' style="opacity:.6"' : '') + '>' + esc(layer.name) + '</span>';
       if (layer._missing) {
         html += '<span class="lm-layer-missing-badge" title="Keine Layer-Definition in der Datenbank">⚠ fehlt</span>';
       }
@@ -930,6 +969,23 @@
         }
       }
       return count;
+    },
+
+    // true, wenn unterhalb der Knoten mindestens ein Blatt-Layer existiert und ALLE gesperrt sind.
+    _allLocked: function (nodes) {
+      var found = false;
+      for (var i = 0; i < (nodes || []).length; i++) {
+        var n = nodes[i];
+        var children = n.layers || n.groups;
+        if (children && children.length) {
+          if (!this._allLocked(children)) return false;
+          found = true;
+        } else if (n.type !== 'group') {
+          found = true;
+          if (!(n.locked === true || n.accessDenied === true)) return false;
+        }
+      }
+      return found;
     },
 
     _clampDepth: function (depth) {

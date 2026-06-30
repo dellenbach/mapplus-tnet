@@ -25,7 +25,12 @@
   var _loaded = false;
   var _suppressMapSync = false; // Guard gegen Endlosschleifen Store↔Map
   var _catalogLayerIndex = {};  // { layerId: true } für performante Katalog-Lookups
+  var _catalogLayerNodeIndex = {}; // { layerId: node } für O(1)-findLayer (Leaf bevorzugt)
+  var _catalogLayerNodeLeaf = {};  // { layerId: true } markiert Leaf-Eintraege (Vorrang vor Gruppen)
+  var _catalogLayerNodeIndexLower = {}; // { layerIdLower: node } für O(1) case-insensitive Lookup
   var _loadingTimers = {};      // { layerId: { slow, timeout, clearError, keys } }
+  var _consistencyTimer = null;  // Debounce fuer Store↔Karte-Reconcile
+  var _consistencyCombinedRetry = {}; // { servicePrefix: { attempts, lastAt } }
 
   // Coalesce: Gruppen-Index (groupNodeId → Info) und Reverse-Lookup (layerId → groupNodeId)
   var _coalesceIndex = {};     // { groupId: { serviceUrl, coalesceGroup, name, childIds: [] } }
@@ -34,6 +39,134 @@
 
   // Debounce-Timer für Coalesce LAYERS-Param-Updates
   var _coalesceDebounceTimers = {};  // { groupId: timerHandle }
+
+  // URL-Guard für direkte WMS-Layer (nicht im LyrMgr)
+  var _wmsUrlGuardInstalled = false;
+  var _wmsUrlSyncTimer = null;
+
+  /**
+   * Installiert einen window.history.replaceState-Interceptor.
+   * Bei JEDER URL-Änderung (egal von wo) werden aktive nicht-ArcGIS-Layer
+   * automatisch in layers= erhalten — verhindert dass das Framework sie löscht.
+   */
+  function _installWmsUrlGuard() {
+    if (_wmsUrlGuardInstalled) return;
+    _wmsUrlGuardInstalled = true;
+    var origRS = window.history.replaceState.bind(window.history);
+    window.history.replaceState = function(state, title, url) {
+      // Pristine Bookmark (Bookmark-ID im Pfad ist autoritativ): layers=/op= NIE
+      // in die URL schreiben. Zentraler Chokepoint — alle Writer laufen hier durch.
+      if (typeof url === 'string' && window.__tnetBookmarkUrlMode === 'pristine') {
+        try {
+          var pu = new URL(url, window.location.href);
+          if (pu.searchParams.has('layers') || pu.searchParams.has('op')) {
+            pu.searchParams.delete('layers');
+            pu.searchParams.delete('op');
+            var ps = pu.searchParams.toString();
+            url = pu.pathname + (ps ? '?' + ps : '') + pu.hash;
+          }
+        } catch (ePristineStrip) { /* fall through */ }
+        return origRS(state, title, url);
+      }
+      if (typeof url === 'string') {
+        var m = url.match(/([?&])layers=([^&]*)/);
+        if (m) {
+          var activeWmsIds = [];
+          for (var i = 0; i < _activeLayers.length; i++) {
+            var al = _activeLayers[i];
+            if (al && al.id && al.layerType && al.layerType !== 'arcgisRest') {
+              activeWmsIds.push(al.id);
+            }
+          }
+          if (activeWmsIds.length > 0) {
+            var cur = m[2] ? decodeURIComponent(m[2]) : '';
+            var ids = cur ? cur.split('|').filter(function(s) { return !!s; }) : [];
+            var changed = false;
+            for (var j = 0; j < activeWmsIds.length; j++) {
+              if (ids.indexOf(activeWmsIds[j]) === -1) {
+                ids.push(activeWmsIds[j]);
+                changed = true;
+              }
+            }
+            if (changed) {
+              url = url.replace(/([?&])layers=[^&]*/, m[1] + 'layers=' + ids.map(encodeURIComponent).join('|'));
+            }
+          }
+        }
+      }
+      return origRS(state, title, url);
+    };
+    TnetLog.log(LOG, 'WMS-URL-Guard installiert');
+  }
+
+  /**
+   * Synchronisiert alle aktiven WMS-Layer vollständig mit der layers=-URL.
+   * Store ist die Wahrheit: aktive WMS-Layer → in URL, inaktive → aus URL.
+   * Wird debounced nach jedem active-layers-changed aufgerufen.
+   */
+  function _syncAllWmsLayersInUrl() {
+    try {
+      var href = window.location.href;
+      var m = href.match(/([?&])layers=([^&]*)/);
+      if (!m) return;
+
+      // Aktive WMS-IDs aus Store
+      var activeWmsIds = [];
+      for (var i = 0; i < _activeLayers.length; i++) {
+        var al = _activeLayers[i];
+        if (al && al.id && al.layerType && al.layerType !== 'arcgisRest') {
+          activeWmsIds.push(al.id);
+        }
+      }
+
+      var cur = m[2] ? decodeURIComponent(m[2]) : '';
+      var urlIds = cur ? cur.split('|').filter(function(s) { return !!s; }) : [];
+
+      // Nicht-WMS-IDs aus URL behalten (die werden vom Framework verwaltet)
+      var nonWmsUrlIds = urlIds.filter(function(id) {
+        var cat = typeof TnetLMStore !== 'undefined' && typeof TnetLMStore.findLayer === 'function'
+          ? TnetLMStore.findLayer(id) : null;
+        return !cat || !cat.layerType || cat.layerType === 'arcgisRest';
+      });
+
+      // Neue Liste: non-WMS-IDs + aktive WMS-IDs
+      var newIds = nonWmsUrlIds.slice();
+      for (var j = 0; j < activeWmsIds.length; j++) {
+        if (newIds.indexOf(activeWmsIds[j]) === -1) {
+          newIds.push(activeWmsIds[j]);
+        }
+      }
+
+      var newLayersVal = newIds.map(encodeURIComponent).join('|');
+      var oldLayersVal = urlIds.map(encodeURIComponent).join('|');
+
+      if (newLayersVal !== oldLayersVal) {
+        window.history.replaceState(null, '', href.replace(/([?&])layers=[^&]*/, m[1] + 'layers=' + newLayersVal));
+        TnetLog.log(LOG, 'WMS-URL-Sync: layers=', newLayersVal || '(leer)');
+      }
+    } catch(e) { /* URL-Sync fehlgeschlagen */ }
+  }
+
+  /**
+   * Debounceter URL-Sync: 150ms nach dem letzten active-layers-changed.
+   */
+  function _scheduleWmsUrlSync() {
+    if (_wmsUrlSyncTimer) clearTimeout(_wmsUrlSyncTimer);
+    _wmsUrlSyncTimer = setTimeout(function() {
+      _wmsUrlSyncTimer = null;
+      _syncAllWmsLayersInUrl();
+    }, 150);
+  }
+
+  /**
+   * Synchronisiert einen einzelnen WMS-Layer in die layers=-URL.
+   * Wird bei ON (hinzufügen) und OFF (entfernen) aufgerufen.
+   * @deprecated Wird durch _scheduleWmsUrlSync ersetzt, bleibt als Fallback.
+   */
+  function _syncWmsLayerInUrl(layerId, visible, layerType) {
+    if (!layerType || layerType === 'arcgisRest') return;
+    _scheduleWmsUrlSync();
+  }
 
   function getAppRoot() {
     return window.__TNET_APP_ROOT || '/maps';
@@ -62,6 +195,61 @@
     return value.indexOf('/') === 0 ? value : appRoot + '/' + value;
   }
 
+  function resolveMainSource(globalCfg) {
+    var raw = (globalCfg && globalCfg.mainSource) || _config.transport || _config.lyrmgrSource || 'api';
+    var value = String(raw || '').toLowerCase();
+    if (value === 'direct' || value === 'file' || value === 'files') return 'direct';
+    if (value === 'api' || value === 'db') return 'api';
+    return 'api';
+  }
+
+  function nowMs() {
+    return (window.performance && typeof window.performance.now === 'function') ? window.performance.now() : Date.now();
+  }
+
+  function resolveApiCacheOptions(globalCfg, apiSource) {
+    var cfgApi = (globalCfg && globalCfg.configSourceApi) || {};
+    var cfgApiCache = cfgApi.cache || {};
+    var enabled = (typeof cfgApiCache.enabled === 'boolean')
+      ? cfgApiCache.enabled
+      : (_config.cache !== false);
+    var forceNoCache = cfgApiCache.forceNoCache === true;
+    var noCacheParam = (enabled === false) || forceNoCache;
+    var ttlSecondsRaw = cfgApiCache.ttlSeconds;
+    var ttlSeconds = null;
+    if (ttlSecondsRaw !== undefined && ttlSecondsRaw !== null && ttlSecondsRaw !== '') {
+      var parsedTtl = parseInt(ttlSecondsRaw, 10);
+      if (!isNaN(parsedTtl) && parsedTtl > 0) {
+        ttlSeconds = parsedTtl;
+      }
+    }
+
+    var enableDbCache = cfgApiCache.enableDbCache === true;
+    var dbTtlSecondsRaw = cfgApiCache.dbTtlSeconds;
+    var dbTtlSeconds = null;
+    if (dbTtlSecondsRaw !== undefined && dbTtlSecondsRaw !== null && dbTtlSecondsRaw !== '') {
+      var parsedDbTtl = parseInt(dbTtlSecondsRaw, 10);
+      if (!isNaN(parsedDbTtl) && parsedDbTtl > 0) {
+        dbTtlSeconds = parsedDbTtl;
+      }
+    }
+
+    return {
+      enabled: enabled,
+      forceNoCache: forceNoCache,
+      noCacheParam: noCacheParam,
+      ttlSeconds: ttlSeconds,
+      enableDbCache: enableDbCache,
+      dbTtlSeconds: dbTtlSeconds,
+      note: apiSource === 'db'
+        ? (enableDbCache
+            ? 'source=db nutzt optionalen JSON-Cache (Kurzzeit-TTL).'
+            : 'source=db umgeht serverseitigen JSON-Cache absichtlich (Live-Publishes sofort sichtbar).')
+        : 'source=file kann serverseitigen JSON-Cache nutzen; nocache=1 erzwingt Neuaufbau.',
+      clearUrl: getAppRoot() + '/tnet/api/v1/cache.php?action=clear',
+    };
+  }
+
   var LMStore = {
 
     // ============================================================
@@ -71,6 +259,27 @@
     init: function (config) {
       _config = config || {};
       if (_config.debug) TnetLog.log(LOG, 'Init mit Config:', _config);
+      if (_config.debug) {
+        var globalCfg = window.TnetGlobalConfig || {};
+        var cfgApi = globalCfg.configSourceApi || {};
+        var cfgDirect = globalCfg.configSourceDirect || {};
+        var debugMainSourceRaw = globalCfg.mainSource || _config.transport || _config.lyrmgrSource || 'api';
+        var debugMainSource = resolveMainSource(globalCfg);
+        var debugGroup = _config.group || 'public';
+        _config._catalogInitStartedAt = nowMs();
+        TnetLog.log(LOG, '[LM-INIT] Start Themenkatalog', {
+          group: debugGroup,
+          mainSource: debugMainSource,
+          mainSourceRaw: debugMainSourceRaw,
+          apiLayersSource: (cfgApi.layers || cfgApi.default || _config.apiSource || 'db'),
+          directLayersSource: (cfgDirect.layers || cfgDirect.default || 'files'),
+          cacheEnabled: _config.cache !== false,
+        });
+        if (String(debugMainSourceRaw).toLowerCase() !== debugMainSource) {
+          TnetLog.warn(LOG, '[LM-INIT] mainSource normalisiert:', debugMainSourceRaw, '->', debugMainSource);
+        }
+      }
+      _installWmsUrlGuard();
       this._loadCatalog();
     },
 
@@ -79,13 +288,57 @@
     // ============================================================
 
     _loadCatalog: function () {
-      var source = _config.lyrmgrSource || 'api';
-      var group  = _config.group || 'public';
+      // mainSource: 'api' (via layers.php) oder 'direct' (lyrmgr.conf direkt)
+      var globalCfg = window.TnetGlobalConfig || {};
+      var mainSource = resolveMainSource(globalCfg);
+      var group = _config.group || 'public';
 
-      if (source === 'file') {
+      if (_config.debug) {
+        TnetLog.log(LOG, '[LM-INIT] Ladepfad entschieden:', mainSource === 'direct' ? 'DIRECT (lyrmgr.conf via API source=file)' : 'API (layers.php source=db|file)');
+      }
+
+      if (mainSource === 'direct') {
         return this._loadLyrmgrFromFile(group);
       }
       return this._loadLyrmgrFromApi(group);
+    },
+
+    _logCatalogInitDone: function (meta) {
+      if (!_config.debug) return;
+      var startedAt = _config._catalogInitStartedAt;
+      var nowTs = nowMs();
+      var durationMs = (typeof startedAt === 'number') ? Math.round(nowTs - startedAt) : null;
+      var fetchMs = (meta && typeof meta.fetchMs === 'number') ? Math.round(meta.fetchMs) : null;
+      var responseMs = (meta && typeof meta.responseMs === 'number') ? Math.round(meta.responseMs) : null;
+      var processMs = (typeof durationMs === 'number' && typeof fetchMs === 'number') ? Math.max(0, durationMs - fetchMs) : null;
+      var globalCfg = window.TnetGlobalConfig || {};
+      var cfgDirect = globalCfg.configSourceDirect || {};
+      var effectiveDirectSource = (meta && meta.directSource) || cfgDirect.layers || cfgDirect.default || 'files';
+      var payload = {
+        mode: meta && meta.mode ? meta.mode : 'unknown',
+        group: meta && meta.group ? meta.group : (_config.group || 'public'),
+        directSource: effectiveDirectSource,
+        categories: meta && typeof meta.categories === 'number' ? meta.categories : 0,
+        coalesceGroups: Object.keys(_coalesceIndex || {}).length,
+        responseMs: responseMs,
+        fetchMs: fetchMs,
+        processMs: processMs,
+        durationMs: durationMs,
+      };
+      if (payload.mode === 'api') {
+        payload.apiSource = meta && meta.apiSource ? meta.apiSource : 'db';
+      }
+      TnetLog.log(LOG, '[LM-INIT] Themenkatalog bereit', payload);
+      var perfSource = payload.mode === 'api' ? (payload.apiSource || 'db') : (payload.directSource || 'file');
+      TnetLog.log(
+        LOG,
+        '[LM-PERF] Themenkatalog init: mode=' + payload.mode +
+        ', source=' + perfSource +
+        ', responseMs=' + payload.responseMs +
+        ', fetchMs=' + payload.fetchMs +
+        ', processMs=' + payload.processMs +
+        ', durationMs=' + payload.durationMs
+      );
     },
 
     /**
@@ -98,11 +351,27 @@
      */
     _loadLyrmgrFromFile: function (group) {
       var self = this;
+      var globalCfg = window.TnetGlobalConfig || {};
+      var apiCache = resolveApiCacheOptions(globalCfg, 'file');
       var apiUrl = normalizeApiUrl(_config.apiUrl);
       var url = apiUrl + '?source=file&group=' + encodeURIComponent(group);
-      if (_config.cache === false) url += '&nocache=1';
+      var requestStartedAt = nowMs();
+      if (apiCache.noCacheParam) url += '&nocache=1';
+      if (apiCache.ttlSeconds !== null) url += '&cacheTtl=' + encodeURIComponent(String(apiCache.ttlSeconds));
 
       if (_config.debug) TnetLog.log(LOG, 'Lade LyrMgr aus lyrmgr.conf (source=file, group=' + group + ')');
+      if (_config.debug) {
+        TnetLog.log(LOG, '[LM-CACHE] FILE-Quelle via layers.php', {
+          cacheEnabled: apiCache.enabled,
+          forceNoCache: apiCache.forceNoCache,
+          nocacheParam: apiCache.noCacheParam,
+          ttlSeconds: apiCache.ttlSeconds,
+          enableDbCache: apiCache.enableDbCache,
+          dbTtlSeconds: apiCache.dbTtlSeconds,
+          clearUrl: apiCache.clearUrl,
+          note: apiCache.note,
+        });
+      }
 
       fetch(url)
         .then(function (r) {
@@ -110,10 +379,18 @@
             TnetLog.warn(LOG, 'lyrmgr.conf nicht gefunden (HTTP ' + r.status + '), Fallback auf API');
             return self._loadLyrmgrFromApi(group);
           }
-          return r.json();
+          var responseMs = nowMs() - requestStartedAt;
+          return r.json().then(function (json) {
+            return {
+              json: json,
+              responseMs: responseMs,
+              fetchMs: nowMs() - requestStartedAt,
+            };
+          });
         })
-        .then(function (json) {
-          if (!json) return; // Fallback bereits ausgelöst
+        .then(function (result) {
+          if (!result) return; // Fallback bereits ausgelöst
+          var json = result.json;
 
           // Antwort-Format identisch mit DB-Pfad:
           // { success: true, data: { version: '2.0', categories: [...] } }
@@ -139,6 +416,15 @@
             Object.keys(_coalesceIndex).length, 'Coalesce-Gruppen',
             '(source=file, group=' + group + ')');
 
+          self._logCatalogInitDone({
+            mode: 'direct',
+            group: group,
+            directSource: 'file',
+            categories: categories.length,
+            responseMs: result.responseMs,
+            fetchMs: result.fetchMs,
+          });
+
           self._emit('catalog-loaded', _catalog);
           self._syncFromMap();
         })
@@ -156,17 +442,54 @@
     _loadLyrmgrFromApi: function (group) {
       var self = this;
       var url = normalizeApiUrl(_config.apiUrl);
+      var requestStartedAt = nowMs();
+      // configSourceApi.layers bestimmt welches ?source= an layers.php geschickt wird.
+      var globalCfg = window.TnetGlobalConfig || {};
+      var cfgApi = globalCfg.configSourceApi || {};
+      var apiSource = cfgApi.layers || cfgApi.default || _config.apiSource || 'db';
+      apiSource = (apiSource === 'file' || apiSource === 'files') ? 'file' : 'db';
+      var apiCache = resolveApiCacheOptions(globalCfg, apiSource);
       url += (url.indexOf('?') > -1 ? '&' : '?') + 'group=' + encodeURIComponent(group);
-      if (_config.cache === false) url += '&nocache=1';
+      url += '&source=' + encodeURIComponent(apiSource);
+      if (apiCache.noCacheParam) url += '&nocache=1';
+      if (apiCache.ttlSeconds !== null) url += '&cacheTtl=' + encodeURIComponent(String(apiCache.ttlSeconds));
+      if (apiSource === 'db' && apiCache.enableDbCache) {
+        url += '&cacheDb=1';
+        if (apiCache.dbTtlSeconds !== null) {
+          url += '&dbCacheTtl=' + encodeURIComponent(String(apiCache.dbTtlSeconds));
+        }
+      }
 
-      if (_config.debug) TnetLog.log(LOG, 'Lade Katalog aus API (group=' + group + ')');
+      // Immer sichtbar: Quelle des Themenkatalogs
+      TnetLog.log(LOG, '\u25ba Katalogquelle: "' + apiSource + '"  (group=' + group + ')  \u2192 ' + url.substring(url.lastIndexOf('/') + 1));
+      if (_config.debug) {
+        TnetLog.log(LOG, '[LM-CACHE] API-Cache', {
+          apiSource: apiSource,
+          cacheEnabled: apiCache.enabled,
+          forceNoCache: apiCache.forceNoCache,
+          nocacheParam: apiCache.noCacheParam,
+          ttlSeconds: apiCache.ttlSeconds,
+          enableDbCache: apiCache.enableDbCache,
+          dbTtlSeconds: apiCache.dbTtlSeconds,
+          clearUrl: apiCache.clearUrl,
+          note: apiCache.note,
+        });
+      }
 
       fetch(url)
         .then(function (r) {
           if (!r.ok) throw new Error('HTTP ' + r.status);
-          return r.json();
+          var responseMs = nowMs() - requestStartedAt;
+          return r.json().then(function (json) {
+            return {
+              json: json,
+              responseMs: responseMs,
+              fetchMs: nowMs() - requestStartedAt,
+            };
+          });
         })
-        .then(function (json) {
+        .then(function (result) {
+          var json = result.json;
           // API liefert: { version, categories: [...] }
           // oder { success: true, data: { version, categories: [...] } }
           var data = json.data || json;
@@ -190,10 +513,23 @@
           }
 
           if (_config.debug) TnetLog.log(LOG, 'Katalog geladen:', categories.length, 'Kategorien,', Object.keys(_coalesceIndex).length, 'Coalesce-Gruppen');
+          self._logCatalogInitDone({
+            mode: 'api',
+            group: group,
+            apiSource: apiSource,
+            categories: categories.length,
+            responseMs: result.responseMs,
+            fetchMs: result.fetchMs,
+          });
           self._emit('catalog-loaded', _catalog);
 
           // Aktuellen Karten-Zustand in Store übernehmen
           self._syncFromMap();
+
+          // DB-only WMS-Layer aus URL-Parameter wiederherstellen.
+          // Das Framework (LyrMgr) kennt diese Layer nicht und lädt sie daher
+          // nicht automatisch — wir müssen sie direkt einschalten.
+          self._restoreWmsLayersFromUrl();
         })
         .catch(function (err) {
           TnetLog.error(LOG, 'API fehlgeschlagen:', err);
@@ -201,46 +537,231 @@
     },
 
     /**
+     * Stellt DB-only WMS/nicht-ArcGIS-Layer aus dem URL-Parameter beim Startup wieder her.
+     * Das Framework lädt nur LyrMgr-konfigurierten Layer; DB-only Layer müssen separat
+     * via TnetLayerSwitch geladen werden. Nutzt die gesicherte Original-URL des Bridges.
+     */
+    _restoreWmsLayersFromUrl: function () {
+      var self = this;
+      var layersRaw = (window.__tnetOriginalUrlLayers || '');
+      if (!layersRaw) {
+        // Fallback: aktuelle URL
+        var m = window.location.href.match(/[?&]layers=([^&]*)/);
+        layersRaw = m ? decodeURIComponent(m[1]) : '';
+      }
+      if (!layersRaw) return;
+
+      var ids = layersRaw.split(/[|,]/).map(function(s) { return s.trim(); }).filter(function(s) { return !!s; });
+      if (!ids.length) return;
+
+      var wmsIds = [];
+      for (var i = 0; i < ids.length; i++) {
+        var lid = decodeURIComponent(ids[i]);
+        var cat = this.findLayer(lid);
+        if (cat && cat.layerType && cat.layerType !== 'arcgisRest') {
+          wmsIds.push(lid);
+        }
+      }
+      if (!wmsIds.length) return;
+
+      TnetLog.log(LOG, 'URL-Restore: DB-WMS-Layer ausstehend:', wmsIds.join(', '));
+
+      function tryLoad() {
+        var am = self._getAppManager();
+        var map = am && am.Maps && am.Maps['main'] && am.Maps['main'].mapObj;
+        if (!map || !window.TnetLayerSwitch) return false;
+        wmsIds.forEach(function(layerId) {
+          var layer = self.findLayer(layerId);
+          // setLayerVisible statt direktem TnetLayerSwitch: setzt storeLayer.visible = true
+          // BEVOR map.addLayer ausgeführt wird — verhindert dass der Ghost-Layer-Schutz
+          // den gerade geladenen Layer sofort wieder versteckt.
+          if (layer && !layer.visible) {
+            try { self.setLayerVisible(layerId, true); } catch(e) { /* ignore */ }
+          }
+        });
+        return true;
+      }
+
+      // Sofort versuchen; bei nicht-bereiter Map per Intervall warten und
+      // stoppen sobald Map + TnetLayerSwitch verfügbar sind.
+      if (!tryLoad()) {
+        var interval = setInterval(function() {
+          if (tryLoad()) clearInterval(interval);
+        }, 200);
+        setTimeout(function() { clearInterval(interval); }, 10000);
+      }
+    },
+
+    /**
      * Normalisiert die API-Struktur:
-     *   - category.nodes → category.subcategories
      *   - subcategory.layers (mit type=group) → subcategory.groups
      *   - Namen bereinigen (Pfad-basierte Namen, displayName bevorzugen)
      */
     _normalizeCategories: function (categories) {
       for (var i = 0; i < categories.length; i++) {
-        var cat = categories[i];
-        // nodes → subcategories
-        if (cat.nodes && !cat.subcategories) {
-          cat.subcategories = cat.nodes;
-          delete cat.nodes;
-        }
-        var subs = cat.subcategories || [];
-        for (var s = 0; s < subs.length; s++) {
-          var sub = subs[s];
-          // Subcategory: layers (die eigentlich Gruppen sind) → groups
-          if (sub.layers && !sub.groups) {
-            sub.groups = sub.layers;
-            delete sub.layers;
-          }
-          // Subcategory-Name bereinigen (Pfade entfernen)
-          if (sub.name && sub.name.indexOf('/') !== -1) {
-            sub.name = this._cleanPathName(sub.name);
-          }
-          // Gruppen-Namen bereinigen
-          var groups = sub.groups || [];
-          for (var g = 0; g < groups.length; g++) {
-            var grp = groups[g];
-            if (grp.name && grp.name.indexOf('/') !== -1) {
-              grp.name = this._cleanPathName(grp.name);
-            }
-            // Layer-Namen bereinigen (displayName bevorzugen)
-            this._cleanLayerNames(grp.layers || []);
-          }
-        }
+        this._normalizeLegacyTreeNode(categories[i], 0);
       }
       if (this._config && this._config.debug) {
         TnetLog.log(LOG, 'Normalisiert:', categories.length, 'Kategorien');
       }
+    },
+
+    /**
+     * Normalisiert alte Baum-Schemata rekursiv ins aktuelle Format.
+     * Unterstützt nodes/subcategories/groups/layers sowie das ältere items-Schema.
+     * @param {Object} node
+     * @param {number} level  0=Kategorie, 1=Subcategory, 2+=Gruppen-/Layer-Ebene
+     */
+    _normalizeLegacyTreeNode: function (node, level) {
+      if (!node) return;
+
+      if (node.nodes && !node.subcategories) {
+        node.subcategories = node.nodes;
+        delete node.nodes;
+      }
+
+      if (node.items && !node.subcategories && !node.groups && !node.layers && !node.children) {
+        var legacyChildren = this._normalizeLegacyItems(node.items, level + 1);
+        if (level === 0) node.subcategories = legacyChildren;
+        else if (level === 1) node.groups = legacyChildren;
+        else node.layers = legacyChildren;
+        delete node.items;
+      }
+
+      // API-Schema: Subcategory kann Gruppen unter "layers" liefern.
+      // Tree-Renderer erwartet auf Ebene 1 jedoch "groups".
+      if (level === 1 && node.layers && !node.groups && Array.isArray(node.layers)) {
+        var layersAsGroups = true;
+        for (var lg = 0; lg < node.layers.length; lg++) {
+          var li = node.layers[lg];
+          if (!li || (li.type !== 'group' && !li.layers && !li.children)) {
+            layersAsGroups = false;
+            break;
+          }
+        }
+
+        if (layersAsGroups) {
+          node.groups = node.layers;
+        } else {
+          // Fallback: direkte Layer unter der Subcategory in eine synthetische Gruppe kapseln.
+          node.groups = [{
+            id: (node.id ? String(node.id) : 'subcategory') + '_auto_group',
+            name: node.name || 'Gruppe',
+            type: 'group',
+            open: false,
+            layers: node.layers
+          }];
+        }
+        delete node.layers;
+      }
+
+      if (node.subcategories) {
+        for (var s = 0; s < node.subcategories.length; s++) {
+          this._normalizeLegacyTreeNode(node.subcategories[s], level + 1);
+        }
+      }
+      if (node.groups) {
+        for (var g = 0; g < node.groups.length; g++) {
+          this._normalizeLegacyTreeNode(node.groups[g], level + 1);
+        }
+      }
+      if (node.layers) {
+        for (var l = 0; l < node.layers.length; l++) {
+          this._normalizeLegacyTreeNode(node.layers[l], level + 1);
+        }
+      }
+      if (node.children) {
+        for (var c = 0; c < node.children.length; c++) {
+          this._normalizeLegacyTreeNode(node.children[c], level + 1);
+        }
+      }
+
+      if (node.name && node.name.indexOf('/') !== -1) {
+        node.name = this._cleanPathName(node.name);
+      }
+      if (level >= 2 && node.layers) {
+        this._cleanLayerNames(node.layers);
+      }
+      if (level === 1 && node.groups) {
+        for (var gi = 0; gi < node.groups.length; gi++) {
+          var grp = node.groups[gi];
+          if (grp && grp.name && grp.name.indexOf('/') !== -1) {
+            grp.name = this._cleanPathName(grp.name);
+          }
+          if (grp && grp.layers) this._cleanLayerNames(grp.layers);
+        }
+      }
+    },
+
+    _normalizeLegacyItems: function (items, level) {
+      var list = [];
+      var keys = [];
+      if (Array.isArray(items)) {
+        list = items.slice();
+      } else if (items && typeof items === 'object') {
+        keys = Object.keys(items);
+        for (var i = 0; i < keys.length; i++) {
+          list.push(items[keys[i]]);
+        }
+      }
+
+      var normalized = [];
+      for (var j = 0; j < list.length; j++) {
+        var item = list[j];
+        var itemKey = keys[j] || null;
+
+        if (typeof item === 'string') {
+          normalized.push({
+            id: item,
+            name: item,
+            type: 'layer'
+          });
+          continue;
+        }
+
+        if (!item || typeof item !== 'object') continue;
+
+        if (!item.id && itemKey) item.id = itemKey;
+        if (!item.name && itemKey) item.name = itemKey;
+
+        if (item.items && !item.subcategories && !item.groups && !item.layers && !item.children) {
+          var childItems = this._normalizeLegacyItems(item.items, level + 1);
+          if (level === 0) item.subcategories = childItems;
+          else if (level === 1) item.groups = childItems;
+          else item.layers = childItems;
+          delete item.items;
+        }
+
+        if (level === 1 && item.layers && !item.groups && Array.isArray(item.layers)) {
+          item.groups = item.layers;
+          delete item.layers;
+        }
+
+        if (item.nodes && !item.subcategories) {
+          item.subcategories = this._normalizeLegacyItems(item.nodes, level + 1);
+          delete item.nodes;
+        }
+
+        if (item.subcategories) {
+          item.subcategories = this._normalizeLegacyItems(item.subcategories, level + 1);
+        }
+        if (item.groups) {
+          item.groups = this._normalizeLegacyItems(item.groups, level + 1);
+        }
+        if (item.layers) {
+          item.layers = this._normalizeLegacyItems(item.layers, level + 1);
+        }
+        if (item.children) {
+          item.children = this._normalizeLegacyItems(item.children, level + 1);
+        }
+
+        if (item.name && item.name.indexOf('/') !== -1) {
+          item.name = this._cleanPathName(item.name);
+        }
+        normalized.push(item);
+      }
+
+      return normalized;
     },
 
     /**
@@ -325,7 +846,12 @@
           // Blatt-Layer: visible immer false setzen
           // (tatsächlicher Kartenzustand wird via _syncFromMap übernommen)
           l.visible = false;
-          if (l.opacity === undefined) l.opacity = (l.options && l.options.opacity !== undefined) ? l.options.opacity : 1.0;
+          if (l._configOpacity === undefined) {
+            l._configOpacity = (l.options && l.options.opacity !== undefined)
+              ? l.options.opacity
+              : (l.opacity !== undefined ? l.opacity : 1.0);
+          }
+          if (l.opacity === undefined) l.opacity = l._configOpacity;
         }
       }
     },
@@ -562,6 +1088,26 @@
             if (wmsEntry) wmsEntry._olLayerRef = olLayer;
           }
         }
+
+        // Ghost-Layer-Schutz: VOR _suppressMapSync-Check — greift auch wenn
+        // Sync gerade unterdrückt ist (z.B. während TnetLayerSwitch 'off' läuft).
+        // Ein OL-Layer trifft asynchron ein, obwohl der Store/Nutzer ihn bereits
+        // auf visible=false gesetzt hat (schnelles Ein/Aus-Schalten).
+        // → sofort verstecken, kein State-Event nötig.
+        // Ausnahme: aktives Bookmark-Load-Fenster (legitime async adds).
+        if (lid && !olLayer.get('tnet_wms_custom')) {
+          var _gsLayer = self.findLayer(lid);
+          if (_gsLayer && _gsLayer.type !== 'group' && _gsLayer.visible === false) {
+            var _gsBm = window.__tnetActiveBookmark;
+            var _gsBookmarkActive = _gsBm && _gsBm._loadUntil && Date.now() < _gsBm._loadUntil;
+            if (!_gsBookmarkActive) {
+              olLayer.setVisible(false);
+              TnetLog.log(LOG, 'Ghost-Schutz: verspaeteter Layer versteckt:', lid);
+              return;
+            }
+          }
+        }
+
         if (_suppressMapSync) return;
         self._onOLLayerAdd(olLayer);
       });
@@ -571,9 +1117,48 @@
       });
     },
 
+    _shouldIgnoreOlAddDuringBookmarkLoad: function (layerId) {
+      var bookmark = window.__tnetActiveBookmark;
+      if (!bookmark || !bookmark._loadUntil || Date.now() >= bookmark._loadUntil) return false;
+      if (!Array.isArray(bookmark.layers) || !bookmark.layers.length) return false;
+      for (var i = 0; i < bookmark.layers.length; i++) {
+        if (bookmark.layers[i] && bookmark.layers[i].id === layerId) return false;
+      }
+      return true;
+    },
+
     _onOLLayerAdd: function (olLayer) {
       var lid = olLayer.get('name') || '';
       if (!lid) return;
+
+      // WMS-Params normalisieren: lowercase-Duplikate entfernen die das Framework
+      // aus der Layer-Definition übernimmt (format, layers, transparent, SRS).
+      // OL setzt diese bereits korrekt als uppercase (FORMAT, LAYERS, TRANSPARENT, CRS),
+      // die lowercase-Varianten landen sonst als Extra-Params in der URL und führen
+      // zu invaliden Werten wie "image/png,image/png".
+      try {
+        var src = olLayer.getSource && olLayer.getSource();
+        if (src && typeof src.getParams === 'function') {
+          var wmsParams = src.getParams();
+          var olManagedKeys = ['format', 'layers', 'transparent', 'srs', 'crs',
+                               'width', 'height', 'bbox', 'request', 'service',
+                               'version', 'styles', 'exceptions'];
+          var paramsToClear = {};
+          var dirty = false;
+          Object.keys(wmsParams).forEach(function (k) {
+            if (olManagedKeys.indexOf(k.toLowerCase()) !== -1 && k !== k.toUpperCase()) {
+              paramsToClear[k] = null;
+              dirty = true;
+            }
+          });
+          if (dirty && typeof src.updateParams === 'function') src.updateParams(paramsToClear);
+        }
+      } catch (e) { /* getSource nicht verfügbar */ }
+
+      if (this._shouldIgnoreOlAddDuringBookmarkLoad(lid)) {
+        if (_config.debug) TnetLog.log(LOG, '_onOLLayerAdd waehrend Bookmark-Load ignoriert:', lid);
+        return;
+      }
 
       // WMS Custom-Layer: IMMER den wms:-Pfad nutzen (nie Katalog-Match)
       if (olLayer.get('tnet_wms_custom')) {
@@ -602,17 +1187,38 @@
         storeLayer.opacity = olLayer.getOpacity();
 
         if (!storeLayer.visible) {
+          // Ghost-Layer-Schutz: Ein Layer trifft asynchron ein, aber der Store sagt
+          // explizit AUS (z.B. weil der Nutzer nach dem EIN-Klick sofort auf AUS
+          // geklickt hat und der OL-Layer erst jetzt fertig geladen ist).
+          // In diesem Fall den Layer sofort verstecken statt ihn fälschlich auf
+          // visible=true zu setzen.
+          // AUSNAHME: Wenn gerade ein Bookmark geladen wird (legitimate add via
+          // setMapBookmark) — erkennbar am _loadUntil-Fenster des aktiven Bookmarks.
+          var _bm = window.__tnetActiveBookmark;
+          var _bookmarkLoading = _bm && _bm._loadUntil && Date.now() < _bm._loadUntil;
+          if (!_bookmarkLoading) {
+            olLayer.setVisible(false);
+            TnetLog.log(LOG, '_onOLLayerAdd Ghost-Schutz: verspäteter Layer versteckt:', lid);
+            return;
+          }
           storeLayer.visible = true;
           if (!this._isActive(lid)) {
             _activeLayers.push(storeLayer);
           }
           this._emit('layer-visibility', { id: lid, visible: true, source: 'map' });
           this._emit('active-layers-changed', _activeLayers);
+          _syncWmsLayerInUrl(lid, true, storeLayer.layerType);
         } else {
-          // Layer war schon visible (via toggleLayer), aber _olLayerRef fehlte
+          // Layer war schon visible (via setLayerVisible/toggleLayer), aber _olLayerRef fehlte
           var activeEntry = this._findActiveLayer(lid);
           if (activeEntry && activeEntry !== storeLayer) {
             activeEntry._olLayerRef = olLayer;
+          }
+          if (!this._isActive(lid)) {
+            _activeLayers.push(storeLayer);
+            this._emit('layer-visibility', { id: lid, visible: true, source: 'map' });
+            this._emit('active-layers-changed', _activeLayers);
+            _syncWmsLayerInUrl(lid, true, storeLayer.layerType);
           }
         }
       }
@@ -635,12 +1241,68 @@
       }
 
       var storeLayer = this.findLayer(lid);
+      if (storeLayer && this._isSublayerRenderedByCombinedLayer(lid, storeLayer)) {
+        if (_config.debug) TnetLog.log(LOG, '_onOLLayerRemove ignoriert, Sublayer bleibt combined gerendert:', lid);
+        return;
+      }
+      // Bookmark-Schutz: Bei aktivem Bookmark kann der Framework-Refresh
+      // Layer kurzfristig entfernen/neu aufbauen. Wenn der Bookmark den
+      // Layer weiterhin sichtbar vorgibt, den Store hier nicht auf AUS
+      // setzen, sonst kippt der Karteninhalt fälschlich auf 0 sichtbare Layer.
+      try {
+        var bm = window.__tnetActiveBookmark;
+        if (bm && Array.isArray(bm.layers)) {
+          var runtimeLayer = null;
+          for (var bi = 0; bi < bm.layers.length; bi++) {
+            if (bm.layers[bi] && bm.layers[bi].id === lid) {
+              runtimeLayer = bm.layers[bi];
+              break;
+            }
+          }
+          if (runtimeLayer && runtimeLayer.visible === true) {
+            if (_config.debug) TnetLog.log(LOG, '_onOLLayerRemove ignoriert (Bookmark visible:true):', lid);
+            return;
+          }
+        }
+      } catch (eBmRemove) { /* ignore */ }
       if (storeLayer && storeLayer.visible) {
         storeLayer.visible = false;
         _activeLayers = _activeLayers.filter(function (l) { return l.id !== lid; });
         this._emit('layer-visibility', { id: lid, visible: false, source: 'map' });
         this._emit('active-layers-changed', _activeLayers);
       }
+    },
+
+    _isSublayerRenderedByCombinedLayer: function (layerId, layer) {
+      var subNum = this._extractSublayerNum(layer || this.findLayer(layerId));
+      var slash = layerId ? layerId.lastIndexOf('/') : -1;
+      var am, map, rendered;
+      if (subNum === null || slash < 0) return false;
+      var servicePrefix = layerId.substring(0, slash + 1);
+      am = this._getAppManager();
+      map = am && am.Maps && am.Maps['main'] && am.Maps['main'].mapObj;
+      if (!map || typeof map.getLayers !== 'function') return false;
+      rendered = false;
+      function scan(collection) {
+        collection.forEach(function (olLayer) {
+          if (rendered || !olLayer || !olLayer.get) return;
+          if (olLayer.getLayers && typeof olLayer.getLayers === 'function') {
+            scan(olLayer.getLayers());
+            return;
+          }
+          var name = olLayer.get('name') || '';
+          if (name.indexOf(servicePrefix) !== 0) return;
+          if (typeof olLayer.getVisible === 'function' && !olLayer.getVisible()) return;
+          var src = typeof olLayer.getSource === 'function' ? olLayer.getSource() : null;
+          var params = src && typeof src.getParams === 'function' ? src.getParams() : null;
+          var layersParam = params && (params.LAYERS || params.layers) || '';
+          if (typeof layersParam !== 'string' || !layersParam) return;
+          var values = layersParam.replace(/^show:/i, '').split(',').map(function (value) { return value.trim(); });
+          rendered = values.indexOf(String(subNum)) >= 0;
+        });
+      }
+      scan(map.getLayers());
+      return rendered;
     },
 
     // ============================================================
@@ -651,6 +1313,17 @@
     getActiveLayers: function () { return _activeLayers.slice(); },
     isLayerEffectivelyVisible: function (layerId) {
       return this._getEffectiveLayerVisible(layerId);
+    },
+    isLayerRequestedVisible: function (layerId) {
+      return this._getRequestedLayerVisible(layerId);
+    },
+    /**
+     * Prueft ob ein Layer im Karteninhalt (Dargestellte Themen) AKTIV ist —
+     * unabhaengig von seiner Sichtbarkeit. Aktiv = in _activeLayers enthalten.
+     * Wird vom Themenkatalog genutzt, um aktive (auch unsichtbare) Layer anzukreuzen.
+     */
+    isLayerActive: function (layerId) {
+      return this._isActive(layerId);
     },
 
     /**
@@ -664,6 +1337,32 @@
       if (String(layerId).indexOf('wms:') === 0) return true;
       return !!(_catalogLayerIndex[layerId] || _layerToCoalesce[layerId]);
     },
+
+    /**
+     * Prueft ob ein Layer fuer die Infoabfrage in Frage kommt:
+     * Er muss im Karteninhalt (Dargestellte Themen) aktiv UND sichtbar sein.
+     * Coalesce/ArcGIS-Sublayer werden ueber _isSublayerRenderedByCombinedLayer geprueft.
+     * Gibt false zurueck wenn der Store noch nicht geladen ist.
+     * @param {string} layerId
+     * @returns {boolean}
+     */
+    isLayerQueryable: function (layerId) {
+      if (!layerId || !_loaded) return false;
+      // Ein Layer gilt als abfragbar wenn er im Karteninhalt-Panel sichtbar ist:
+      // er muss in _activeLayers mit visible:true stehen.
+      // _activeLayers wird NUR von setLayerVisible und _syncFromMap gefuellt;
+      // nicht-Katalog-Layer (Framework-Hintergrund-Layer ohne Catalog-Eintrag)
+      // kommen nie in _activeLayers, werden also geblockt.
+      var activeEntry = this._findActiveLayer(layerId);
+      if (activeEntry && activeEntry.visible) return true;
+      // Coalesce-Sublayer: leafLayer koennte per Gruppenkey erfasst sein
+      var coalGroupId = _layerToCoalesce[layerId];
+      if (coalGroupId) {
+        return this._isSublayerRenderedByCombinedLayer(layerId, this.findLayer(layerId));
+      }
+      return false;
+    },
+
     isLoaded: function () { return _loaded; },
 
     /**
@@ -823,10 +1522,13 @@
         childId = info.childIds[i];
         ae = this._findActiveLayer(childId);
         layer = this.findLayer(childId);
-        vis = ae ? (ae.visible !== false) : (layer ? layer.visible !== false : false);
+        vis = this._getRequestedLayerVisible(childId, layer, ae);
         currentState[childId] = vis;
         if (vis) anyVisible = true;
       }
+
+      var targetState = {};
+      var snap = info._eyeSnapshot;
 
       if (anyVisible) {
         // → Gruppe AUS: aktuellen Subset merken (Snapshot), dann nur die aktuell
@@ -835,21 +1537,41 @@
         info._eyeSnapshot = currentState;
         for (i = 0; i < info.childIds.length; i++) {
           childId = info.childIds[i];
-          if (currentState[childId]) this._setCoalesceChildVisible(childId, false);
+          targetState[childId] = false;
         }
-        this._forceCoalesceGroupRender(groupId);
         TnetLog.log(LOG, 'toggleCoalesceGroupEye AUS (Snapshot gemerkt):', groupId);
       } else {
         // → Gruppe EIN: gemerkten Subset wiederherstellen; ohne Snapshot alle ein.
-        var snap = info._eyeSnapshot;
         for (i = 0; i < info.childIds.length; i++) {
           childId = info.childIds[i];
-          var target = snap ? (snap[childId] === true) : true;
-          if (target) this._setCoalesceChildVisible(childId, true);
+          targetState[childId] = snap ? (snap[childId] === true) : true;
         }
-        this._forceCoalesceGroupRender(groupId);
         TnetLog.log(LOG, 'toggleCoalesceGroupEye EIN (' + (snap ? 'Snapshot' : 'alle') + '):', groupId);
       }
+
+      // Store-Zustand direkt setzen (kein setLayerEye-Loop):
+      // So vermeiden wir per-Child Framework-Switches/Requests und reconciliieren
+      // stattdessen einmal gesammelt über _forceCoalesceGroupRender.
+      for (i = 0; i < info.childIds.length; i++) {
+        childId = info.childIds[i];
+        var target = !!targetState[childId];
+        layer = this.findLayer(childId);
+        ae = this._findActiveLayer(childId);
+        var prev = this._getRequestedLayerVisible(childId, layer, ae);
+
+        if (layer) layer.visible = target;
+        if (ae) {
+          ae.visible = target;
+        } else if (target && layer) {
+          _activeLayers.push(layer);
+        }
+
+        if (prev !== target) {
+          this._emit('layer-visibility', { id: childId, visible: target, source: 'ui' });
+        }
+      }
+
+      this._forceCoalesceGroupRender(groupId);
       this._emit('active-layers-changed', _activeLayers);
     },
 
@@ -926,10 +1648,60 @@
       visiblePairs.sort(function (left, right) { return left.order - right.order; });
       var nums = visiblePairs.map(function (pair) { return pair.num; });
       var layersVal = nums.length ? ('show:' + nums.join(',')) : 'show:-1';
+      var wantedNums = {};
+      nums.forEach(function (num) { wantedNums[String(num)] = true; });
+      var bestLayer = renderLayer;
+      var bestScore = -1;
+      map.getLayers().forEach(function (olLayer) {
+        if (!olLayer || !olLayer.get) return;
+        if (olLayer.getLayers && typeof olLayer.getLayers === 'function') return;
+        var name = olLayer.get('name') || '';
+        if (name.indexOf(servicePrefix) !== 0) return;
+        var src = typeof olLayer.getSource === 'function' ? olLayer.getSource() : null;
+        var p = src && typeof src.getParams === 'function' ? src.getParams() : null;
+        var current = p && (p.LAYERS || p.layers) || '';
+        if (typeof current !== 'string' || current.indexOf('show:') !== 0) return;
+        var score = 0;
+        current.replace(/^show:/, '').split(',').forEach(function (value) {
+          if (wantedNums[value.trim()]) score++;
+        });
+        if (score > bestScore) {
+          bestScore = score;
+          bestLayer = olLayer;
+        }
+      });
+      if (bestLayer) renderLayer = bestLayer;
       var source = typeof renderLayer.getSource === 'function' ? renderLayer.getSource() : null;
-      if (source && typeof source.updateParams === 'function') source.updateParams({ LAYERS: layersVal });
-      if (typeof renderLayer.setVisible === 'function') renderLayer.setVisible(nums.length > 0);
-      if (nums.length && visiblePairs[0]) this._beginLayerLoading(visiblePairs[0].id, renderLayer);
+      var params = source && typeof source.getParams === 'function' ? source.getParams() : null;
+      var currentLayers = params && (params.LAYERS || params.layers) || '';
+      var targetVisible = nums.length > 0;
+      var renderChanged = false;
+      if (source && typeof source.updateParams === 'function' && currentLayers !== layersVal) {
+        source.updateParams({ LAYERS: layersVal });
+        renderChanged = true;
+      }
+      if (typeof renderLayer.setVisible === 'function' && renderLayer.getVisible() !== targetVisible) {
+        renderLayer.setVisible(targetVisible);
+        renderChanged = true;
+      }
+      _suppressMapSync = true;
+      map.getLayers().forEach(function (olLayer) {
+        if (!olLayer || !olLayer.get || olLayer === renderLayer) return;
+        var name = olLayer.get('name') || '';
+        if (name.indexOf(servicePrefix) !== 0) return;
+        if (typeof olLayer.setVisible === 'function' && olLayer.getVisible()) olLayer.setVisible(false);
+      });
+      setTimeout(function () { _suppressMapSync = false; }, 200);
+      if (renderChanged && nums.length) {
+        for (var beginIndex = 0; beginIndex < visiblePairs.length; beginIndex++) {
+          this._beginLayerLoading(visiblePairs[beginIndex].id, renderLayer);
+        }
+      }
+      if (!renderChanged) {
+        for (var loadingIndex = 0; loadingIndex < visiblePairs.length; loadingIndex++) {
+          this._endLayerLoading(visiblePairs[loadingIndex].id, false);
+        }
+      }
 
       TnetLog.log(LOG, 'Coalesce Gruppen-Render reconciled:', groupId, '→', layersVal);
     },
@@ -1000,7 +1772,27 @@
      */
     setLayerVisible: function (layerId, visible) {
       var layer = this.findLayer(layerId);
-      if (!layer || layer.type === 'group') return;
+      if (!layer) return;
+
+      // Ab hier immer mit kanonischer ID aus dem Katalog arbeiten.
+      // So funktionieren URL-Parameter mit OEREB-Versionssuffix auch dann,
+      // wenn der Runtime-Katalog nur die Basis-ID enthält.
+      layerId = layer.id || layerId;
+
+      var hasChildren = !!(
+        (layer.subcategories && layer.subcategories.length) ||
+        (layer.groups && layer.groups.length) ||
+        (layer.layers && layer.layers.length) ||
+        (layer.children && layer.children.length)
+      );
+
+      // Container-Knoten (z.B. .../hoehenlinien mit Unterlayern wie /2m,/5m,/10m)
+      // sind nicht direkt renderbar. In diesem Fall die Blatt-Layer unterhalb
+      // des Prefixes synchron auf den Zielzustand schalten.
+      if (layer.type === 'group' || hasChildren) {
+        this._setDescendantLeafLayersVisible(layerId, !!visible);
+        return;
+      }
       var activeEntry = this._findActiveLayer(layerId);
       var targetVisible = !!visible;
       var currentVisible = this._getEffectiveLayerVisible(layerId, layer, activeEntry);
@@ -1014,17 +1806,26 @@
       // Framework-Switch-Pfade unten zwingend durchlaufen, sonst bleibt der
       // Layer zwar als aktiv markiert, aber unsichtbar auf der Karte.
       if (currentVisible === targetVisible && !needsActivation) {
-        if (!hasStateDrift) return;
-        layer.visible = targetVisible;
-        this._syncDuplicateVisible(layerId, targetVisible, layer);
-        if (activeEntry) activeEntry.visible = targetVisible;
-        if (!targetVisible) {
-          _activeLayers = _activeLayers.filter(function (l) { return l.id !== layerId; });
+        // Ausnahme: Coalesce-Sublayer beim AUS-Schalten.
+        // _getEffectiveLayerVisible liefert false wenn der OL-Layer noch nicht
+        // fertig geladen ist. Die Coalesce-Load läuft aber asynchron weiter →
+        // _coalesceOLLayers kann activeSublayers enthalten, die bereinigt werden müssen.
+        // Daher Sync-only NICHT früh abkürzen, sondern den Coalesce-Pfad unten
+        // immer durchlaufen wenn der Layer gerade off-gesetzt wird und im Coalesce-Index ist.
+        var _coalEarlyCheck = !targetVisible && _layerToCoalesce[layerId];
+        if (!_coalEarlyCheck) {
+          if (!hasStateDrift) return;
+          layer.visible = targetVisible;
+          this._syncDuplicateVisible(layerId, targetVisible, layer);
+          if (activeEntry) activeEntry.visible = targetVisible;
+          if (!targetVisible) {
+            _activeLayers = _activeLayers.filter(function (l) { return l.id !== layerId; });
+          }
+          this._emit('layer-visibility', { id: layerId, visible: targetVisible, source: 'sync' });
+          this._emit('active-layers-changed', _activeLayers);
+          if (_config.debug) TnetLog.log(LOG, 'setLayerVisible Sync-only:', layerId, targetVisible ? 'EIN' : 'AUS');
+          return;
         }
-        this._emit('layer-visibility', { id: layerId, visible: targetVisible, source: 'sync' });
-        this._emit('active-layers-changed', _activeLayers);
-        if (_config.debug) TnetLog.log(LOG, 'setLayerVisible Sync-only:', layerId, targetVisible ? 'EIN' : 'AUS');
-        return;
       }
 
       layer.visible = targetVisible;
@@ -1053,6 +1854,25 @@
         this._emit('layer-visibility', { id: layerId, visible: targetVisible, source: 'ui' });
         this._emit('active-layers-changed', _activeLayers);
         if (_config.debug) TnetLog.log(LOG, 'Coalesce setLayerVisible', layerId, targetVisible ? 'EIN' : 'AUS', '(Gruppe:', coalGroupId, ')');
+        return;
+      }
+
+      // ── Framework-Combined-Pfad (ohne Coalesce-Flag) ──
+      // Einige Legacy-/Bookmark-Layer werden vom Framework als kombinierter
+      // ArcGIS-Dienst-Layer (show:...) gerendert, obwohl sie nicht in
+      // _layerToCoalesce indexiert sind. In diesem Fall kann TnetLayerSwitch
+      // on/off no-op sein. Deshalb zuerst den kombinierten OL-Layer direkt
+      // nachfuehren und erst bei Miss keinen Fallback auf TnetLayerSwitch.
+      if (this._setFrameworkCombinedSublayer(layerId, layer, targetVisible)) {
+        if (targetVisible && !activeEntry) {
+          _activeLayers.push(layer);
+        } else if (!targetVisible) {
+          _activeLayers = _activeLayers.filter(function (l) { return l.id !== layerId; });
+        }
+
+        this._emit('layer-visibility', { id: layerId, visible: targetVisible, source: 'ui' });
+        this._emit('active-layers-changed', _activeLayers);
+        if (_config.debug) TnetLog.log(LOG, 'Combined setLayerVisible', layerId, targetVisible ? 'EIN' : 'AUS');
         return;
       }
 
@@ -1119,6 +1939,8 @@
 
       this._emit('layer-visibility', { id: layerId, visible: targetVisible, source: 'ui' });
       this._emit('active-layers-changed', _activeLayers);
+      // URL für direkte WMS-Layer synchronisieren
+      _syncWmsLayerInUrl(layerId, targetVisible, layer.layerType);
       if (_config.debug) TnetLog.log(LOG, 'Active-Layer-Liste:', _activeLayers.length, 'Layer, IDs:', _activeLayers.map(function(l) { return l.id; }));
     },
 
@@ -1145,7 +1967,6 @@
           activeEntry.visible = newVis;
           TnetLog.log(LOG, 'toggleLayerEye WMS:', layerId, '→ visible:', newVis);
           this._emit('layer-visibility', { id: layerId, visible: newVis, source: 'ui' });
-          this._emit('active-layers-changed', _activeLayers);
         }
         return;
       }
@@ -1170,7 +1991,6 @@
           if (activeEntry) activeEntry.visible = fwWant;
           if (!fwWant) this._endLayerLoading(layerId, false);
           this._emit('layer-visibility', { id: layerId, visible: fwWant, source: 'ui' });
-          this._emit('active-layers-changed', _activeLayers);
           TnetLog.log(LOG, 'toggleLayerEye Coalesce via Framework-Combined:', layerId, '→', fwWant);
           return;
         }
@@ -1200,7 +2020,6 @@
             if (activeEntry) activeEntry.visible = fbWant;
             if (!fbWant) this._endLayerLoading(layerId, false);
             this._emit('layer-visibility', { id: layerId, visible: fbWant, source: 'ui' });
-            this._emit('active-layers-changed', _activeLayers);
             TnetLog.log(LOG, 'toggleLayerEye Fallback (Framework-Combined):', layerId, '→', fbWant);
             return;
           }
@@ -1237,7 +2056,6 @@
           if (fbWant) this._beginLayerLoading(layerId, olFb || this._findRenderableOLLayerForLayer(layerId, layer));
           else this._endLayerLoading(layerId, false);
           this._emit('layer-visibility', { id: layerId, visible: fbWant, source: 'ui' });
-          this._emit('active-layers-changed', _activeLayers);
           TnetLog.log(LOG, 'toggleLayerEye Fallback (Framework-OL-Layer):', layerId, '→', fbWant, olFb ? '(geladen)' : '(LazyLoad)');
           return;
         }
@@ -1285,7 +2103,6 @@
         layer.visible = newVisible;
         if (activeEntry) activeEntry.visible = newVisible;
         this._emit('layer-visibility', { id: layerId, visible: newVisible, source: 'ui' });
-        this._emit('active-layers-changed', _activeLayers);
         TnetLog.log(LOG, 'toggleLayerEye Coalesce:', layerId, '→', newVisible);
         return;
       }
@@ -1307,7 +2124,6 @@
         if (activeEntry) activeEntry.visible = !_combinedCur;
         if (_combinedCur) this._endLayerLoading(layerId, false);
         this._emit('layer-visibility', { id: layerId, visible: !_combinedCur, source: 'ui' });
-        this._emit('active-layers-changed', _activeLayers);
         TnetLog.log(LOG, 'toggleLayerEye Combined-Sublayer:', layerId, '→', !_combinedCur);
         return;
       }
@@ -1357,7 +2173,6 @@
         if (newVisible) this._beginLayerLoading(layerId, olLayer);
         else this._endLayerLoading(layerId, false);
         this._emit('layer-visibility', { id: layerId, visible: newVisible, source: 'ui' });
-        this._emit('active-layers-changed', _activeLayers);
       } else {
         // Fallback: Framework-Switch verwenden (synchronisiert Legacy-Checkboxen)
         if (typeof TnetLayerSwitch === 'function') {
@@ -1374,7 +2189,6 @@
           if (newVisible) this._beginLayerLoading(layerId, this._findRenderableOLLayerForLayer(layerId, layer));
           else this._endLayerLoading(layerId, false);
           this._emit('layer-visibility', { id: layerId, visible: newVisible, source: 'ui' });
-          this._emit('active-layers-changed', _activeLayers);
         } else {
           TnetLog.warn(LOG, 'toggleLayerEye: OL-Layer nicht gefunden und TnetLayerSwitch fehlt für', layerId);
         }
@@ -1399,9 +2213,54 @@
      * @param {boolean} shouldBeVisible Zielzustand fuer DIESEN Sublayer
      * @returns {boolean} true, wenn ein kombinierter OL-Layer behandelt wurde
      */
+    /**
+     * Prueft, ob eine Layer-ID zu einem in `independentOpacityServices`
+     * konfigurierten Dienst gehoert. Solche Dienste werden NICHT zu einem
+     * gemeinsamen show:-Layer kombiniert, damit jedes Overlay als eigener
+     * OL-Layer mit eigener (nativer) Opacity rendert.
+     */
+    _isIndependentOpacityLayer: function (layerId) {
+      var svcs = window.__tnetIndependentOpacityServices;
+      if (!Array.isArray(svcs) || !svcs.length || !layerId) return false;
+      var idLc = String(layerId).toLowerCase();
+      for (var i = 0; i < svcs.length; i++) {
+        if (idLc.indexOf(String(svcs[i]).toLowerCase() + '/') === 0) return true;
+      }
+      return false;
+    },
+
+    /**
+     * True, wenn ein ANDERER aktiver Layer dieselbe Service-URL (MapServer) hat —
+     * also ein echter Mehr-Sublayer-Dienst vorliegt, dessen Sublayer ueber einen
+     * gemeinsamen show:-Layer kombiniert werden. Flache Layer mit eindeutiger URL
+     * liefern false und werden so von der Kombination ausgenommen (eigener OL-Layer,
+     * eigene Sichtbarkeit/Opacity). Die Service-URL ist die korrekte Dienst-Identitaet
+     * (das ID-Praefix kann eine blosse Kategorie sein, z.B. 'gis_fach/').
+     */
+    _hasActiveSiblingSameService: function (layer, excludeId) {
+      if (!layer || !layer.url) return false;
+      for (var i = 0; i < _activeLayers.length; i++) {
+        var ae = _activeLayers[i];
+        if (!ae || !ae.id || ae.id === excludeId) continue;
+        var sibling = this.findLayer(ae.id);
+        if (sibling && sibling.url === layer.url) return true;
+      }
+      return false;
+    },
+
     _setFrameworkCombinedSublayer: function (layerId, layer, shouldBeVisible) {
+      // Independent-Opacity-Dienste NICHT kombinieren: jedes Overlay laedt als
+      // eigener OL-Layer (Standardpfad via TnetLayerSwitch), damit die native
+      // Per-Layer-Opacity des Frameworks wirkt (kein gemeinsamer show:-Layer).
+      if (this._isIndependentOpacityLayer(layerId)) return false;
       var subNum = this._extractSublayerNum(layer);
       if (subNum === null) return false; // kein ArcGIS-show:-Sublayer
+
+      // Nur ECHTE Mehr-Sublayer-Dienste kombinieren: ein anderer aktiver Layer muss
+      // dieselbe Service-URL haben. Sonst werden verschiedene Dienste, die nur ein
+      // ID-Praefix teilen (z.B. flache 'gis_fach/<dienst>'-Layer), faelschlich
+      // zusammengefasst und gegenseitig versteckt (Ein/Aus + Opacity unsauber).
+      if (!this._hasActiveSiblingSameService(layer, layerId)) return false;
 
       var lastSlash = layerId.lastIndexOf('/');
       if (lastSlash < 0) return false;
@@ -1524,6 +2383,16 @@
       var activeEntry = this._findActiveLayer(layerId);
       var layer = this.findLayer(layerId);
 
+      // Beim Einschalten sicherstellen dass der Layer in _activeLayers vorhanden ist.
+      // setLayerEye wird vom UI-Toggle aufgerufen; wenn zuvor setLayerVisible(id,false)
+      // den Layer aus _activeLayers entfernt hatte, fehlt er jetzt.
+      // isLayerQueryable() prüft _findActiveLayer → daher muss der Eintrag vorhanden sein.
+      if (visible && layer && !activeEntry) {
+        layer.visible = true;
+        _activeLayers.push(layer);
+        activeEntry = layer;
+      }
+
       // 0) Framework-Combined ArcGIS-Sublayer (Bookmark/URL-Load)
       // Vor Lazy-Load prüfen: wenn der Sublayer bereits in einem kombinierten
       // Dienst-Layer gerendert wird, nur dessen show:-Param aktualisieren.
@@ -1598,6 +2467,40 @@
         return true;
       }
 
+      // 3) Generischer Lazy-Load für aktive Bookmark-/URL-Layer ohne aktuellen OL-Layer.
+      // Beispiel: geoadmin/OEREB-Layer wie ch.astra.baulinien-nationalstrassen
+      // koennen im Karteninhalt vorhanden sein, obwohl der Framework-Layer noch
+      // nicht materialisiert wurde. In diesem Fall darf das Auge nicht in einem
+      // reinen Spinner-Zustand enden, sondern muss den Framework-Switch anstossen.
+      if (visible && typeof TnetLayerSwitch === 'function') {
+        var selfGeneric = this;
+        _suppressMapSync = true;
+        try { TnetLayerSwitch(layerId, 'on'); } catch (eGenericLazy) { /* ignore */ }
+        setTimeout(function () { _suppressMapSync = false; }, 200);
+        if (layer) layer.visible = true;
+        if (activeEntry) activeEntry.visible = true;
+        this._beginLayerLoading(layerId, null);
+        setTimeout(function () {
+          var amGeneric = selfGeneric._getAppManager();
+          var mapGeneric = amGeneric && amGeneric.Maps && amGeneric.Maps['main'] && amGeneric.Maps['main'].mapObj;
+          var loadedLayers = mapGeneric ? selfGeneric._findAllOLLayers(mapGeneric, layerId) : [];
+          var opacity = layer && layer.opacity != null && isFinite(layer.opacity)
+            ? Math.max(0, Math.min(1, +layer.opacity))
+            : null;
+          for (var gi = 0; gi < loadedLayers.length; gi++) {
+            loadedLayers[gi].setVisible(true);
+            if (opacity !== null && typeof loadedLayers[gi].setOpacity === 'function') {
+              loadedLayers[gi].setOpacity(opacity);
+            }
+          }
+          if (loadedLayers.length) selfGeneric._endLayerLoading(layerId, false);
+        }, 700);
+        this._emit('layer-visibility', { id: layerId, visible: true, source: 'set' });
+        this._emit('active-layers-changed', _activeLayers);
+        TnetLog.log(LOG, 'setLayerEye Generic-LazyLoad:', layerId, '→ EIN (Framework-Switch)');
+        return true;
+      }
+
       return false;
     },
 
@@ -1650,7 +2553,42 @@
         }
       }
 
+      // Laufzeit-Opacity mit dem njs-Framework-Wrapper + URL (op=) synchronisieren,
+      // damit ein Reload die per Slider geaenderte Transparenz wiederherstellt.
+      this._syncFrameworkOpacity(layerId, clampedOpacity);
+
       this._emit('layer-opacity', { id: layerId, opacity: clampedOpacity });
+    },
+
+    /**
+     * Schreibt die Laufzeit-Opacity in den njs-Framework-Layer-Wrapper (dessen
+     * `.opacity` von updateMapStatusUrl in den URL-Parameter op= geschrieben wird)
+     * und stoesst eine entprellte, modus-bewusste URL-Aktualisierung an. Ohne diesen
+     * Sync schreibt das Framework weiterhin die Config-Default-Opacity in op=, sodass
+     * ein Reload die geaenderte Transparenz verliert. Spiegelt das Vorgehen aus
+     * tnet-lyrmgr-patch.js (URL-Update nur bei aktivem Bookmark-Tracking).
+     */
+    _syncFrameworkOpacity: function (layerId, opacity) {
+      var am = this._getAppManager();
+      if (!am) return;
+      try {
+        if (am.LyrMgr) {
+          for (var lm in am.LyrMgr) {
+            if (!am.LyrMgr.hasOwnProperty(lm)) continue;
+            var mgr = am.LyrMgr[lm];
+            if (mgr && typeof mgr.getLayerById === 'function') {
+              var wrapper = mgr.getLayerById(layerId);
+              if (wrapper && typeof wrapper === 'object') wrapper.opacity = opacity;
+            }
+          }
+        }
+      } catch (e) { /* defensiv */ }
+
+      if (!(am.Tools && am.Tools.TrackBookmark && typeof am.updateMapStatusUrl === 'function')) return;
+      if (this._opacityUrlTimer) clearTimeout(this._opacityUrlTimer);
+      this._opacityUrlTimer = setTimeout(function () {
+        try { am.updateMapStatusUrl('main'); } catch (eUrl) { /* defensiv */ }
+      }, 400);
     },
 
     /**
@@ -1776,10 +2714,7 @@
             var wantVisible = ('visible' in spec) ? !!spec.visible : true;
             if (wantVisible) {
               pendingExternal.push(spec); // spaeter erneut nach OL-Layer suchen
-            } else {
-              TnetLog.warn(LOG, 'Bookmark-Layer ignoriert (nicht renderbar, unsichtbar):', spec.id);
             }
-            return; // jetzt nicht registrieren
           }
         }
         // Layer aus dem Katalog suchen (für name, etc.)
@@ -1802,8 +2737,10 @@
         // Externe (nicht-Katalog) Layer: Store mit der Soll-Sichtbarkeit der
         // aktiven View aktiv setzen UND den OL-Layer passend schalten, damit
         // Karte und Karteninhalt (aktives Auge) konsistent sind.
-        if (olOnMap && !fromCatalog) {
+        if (!fromCatalog) {
           layer._external = true;
+        }
+        if (olOnMap && !fromCatalog) {
           if (typeof olOnMap.getVisible === 'function' && olOnMap.getVisible() !== layer.visible) {
             _suppressMapSync = true;
             olOnMap.setVisible(layer.visible);
@@ -2117,7 +3054,7 @@
       var visibleCount = 0;
       this._walkLayers([node], function (layer) {
         total++;
-        if (self._getEffectiveLayerVisible(layer.id, layer)) visibleCount++;
+        if (self._getRequestedLayerVisible(layer.id, layer)) visibleCount++;
       });
       if (total === 0) return 'none';
       if (visibleCount === 0) return 'none';
@@ -2144,7 +3081,54 @@
      * Layer per ID im Katalog-Baum finden (rekursiv).
      */
     findLayer: function (id) {
+      // O(1)-Schnellpfad: Leaf-Knoten-Index (gleiche Leaf-Praeferenz wie
+      // _findLayerRecursive). Nur bei Index-Miss (z.B. reine Gruppen-IDs)
+      // auf den rekursiven Walk zurueckfallen.
+      if (id != null && Object.prototype.hasOwnProperty.call(_catalogLayerNodeIndex, id)) {
+        return _catalogLayerNodeIndex[id];
+      }
+      // Der Knotenindex enthaelt ALLE Katalog-Knoten (Leaf + Container) und wird
+      // bei jedem Katalog-Load neu gebaut. Ist der Katalog geladen, bedeutet ein
+      // Index-Miss: die ID existiert nicht → ohne teuren rekursiven Walk null.
+      if (_loaded) return null;
       return this._findLayerRecursive(id, _catalog);
+    },
+
+    /**
+     * Case-insensitive Layer-Lookup in O(1) ueber den Lowercase-Index.
+     * Ersetzt teure rekursive Katalog-Walks in Aufrufern.
+     */
+    findLayerCI: function (id) {
+      if (id == null) return null;
+      var node = _catalogLayerNodeIndexLower[String(id).toLowerCase()];
+      return node || null;
+    },
+
+    /**
+     * Entfernt bekannte OEREB-Versionssuffixe am Ende einer Layer-ID.
+     * Unterstützt auch Änderungsvarianten (..._aenderung_v2_0.oereb).
+     * @param {string} id
+     * @returns {string}
+     */
+    _stripOerebVersionSuffix: function (id) {
+      if (!id || typeof id !== 'string') return id;
+      // Nur Versionssuffix entfernen (_vN_M.oereb), semantische Teile wie _aenderung behalten.
+      return id.replace(/_v\d+_\d+\.oereb$/i, '');
+    },
+
+    _getLayerIdCandidates: function (id) {
+      var raw = String(id || '');
+      var list = [];
+      function add(value) {
+        if (value && list.indexOf(value) === -1) list.push(value);
+      }
+      add(raw);
+      add(this._stripOerebVersionSuffix(raw));
+      if (raw && raw.indexOf('.oereb') === -1 && raw.indexOf('/') === -1) {
+        add(raw + '_v2_0.oereb');
+        add(raw + '_aenderung_v2_0.oereb');
+      }
+      return list;
     },
 
     /**
@@ -2160,6 +3144,186 @@
     // ============================================================
     // Events
     // ============================================================
+
+    _scheduleMapConsistencyCheck: function (delay) {
+      var self = this;
+      if (_consistencyTimer) clearTimeout(_consistencyTimer);
+      _consistencyTimer = setTimeout(function () {
+        _consistencyTimer = null;
+        self.reconcileMapConsistency();
+      }, delay == null ? 250 : delay);
+    },
+
+    reconcileMapConsistency: function () {
+      var am = this._getAppManager();
+      var map = am && am.Maps && am.Maps['main'] && am.Maps['main'].mapObj;
+      var coalesceGroups = {};
+      var combinedServices = {};
+      var changed = 0;
+      var self = this;
+      if (!map || typeof map.getLayers !== 'function') return;
+
+      _activeLayers.forEach(function (layer) {
+        var targetVisible, targetOpacity, groupId, allOL, i;
+        if (!layer || !layer.id) return;
+        targetVisible = layer.visible !== false;
+        targetOpacity = (layer.opacity != null && isFinite(layer.opacity))
+          ? Math.max(0, Math.min(1, +layer.opacity))
+          : null;
+
+        if (targetVisible) {
+          var subNum = self._extractSublayerNum(layer);
+          var slash = layer.id.lastIndexOf('/');
+          // Independent-Opacity-Dienste NICHT zu einem gemeinsamen show:-Layer
+          // kombinieren — jedes Overlay bleibt ein eigener OL-Layer (Per-Layer-Pfad
+          // unten setzt Sichtbarkeit/Opacity auf dem eigenen OL-Layer).
+          // Ebenso flache Layer ohne Geschwister gleicher Service-URL: nur echte
+          // Mehr-Sublayer-Dienste duerfen kombiniert werden (sonst Praefix-Kollision).
+          if (subNum !== null && slash > 0 && !self._isIndependentOpacityLayer(layer.id)
+              && self._hasActiveSiblingSameService(layer, layer.id)) {
+            var prefix = layer.id.substring(0, slash + 1);
+            if (!combinedServices[prefix]) combinedServices[prefix] = { pairs: [], opacity: targetOpacity };
+            combinedServices[prefix].pairs.push({ id: layer.id, num: subNum, opacity: targetOpacity });
+            if (combinedServices[prefix].opacity === null && targetOpacity !== null) combinedServices[prefix].opacity = targetOpacity;
+            return;
+          }
+        }
+
+        groupId = _layerToCoalesce[layer.id];
+        if (groupId) {
+          coalesceGroups[groupId] = true;
+          return;
+        }
+
+        allOL = self._findAllOLLayers(map, layer.id);
+        if ((!allOL || !allOL.length) && targetVisible && typeof TnetLayerSwitch === 'function') {
+          try { TnetLayerSwitch(layer.id, 'on'); }
+          catch (eSwitch) { /* ignore */ }
+          return;
+        }
+        for (i = 0; allOL && i < allOL.length; i++) {
+          if (typeof allOL[i].setVisible === 'function' && allOL[i].getVisible() !== targetVisible) {
+            allOL[i].setVisible(targetVisible);
+            changed++;
+          }
+          // Opacity wird NICHT durch reconcile erzwungen: sie ist autoritativ ueber
+          // setLayerOpacity (Slider) bzw. den URL-/Bookmark-Load gesetzt. Ein Erzwingen
+          // aus der evtl. veralteten Katalog-Opacity setzte sonst die Laufzeit-/URL-
+          // Opacity ANDERER Layer faelschlich zurueck (sichtbarer Slider-Cross-Talk).
+        }
+      });
+
+      Object.keys(coalesceGroups).forEach(function (groupId) {
+        self._forceCoalesceGroupRender(groupId, true);
+      });
+
+      Object.keys(combinedServices).forEach(function (prefix) {
+        var service = combinedServices[prefix];
+        var nums = {};
+        var renderLayer = null;
+        var mapLayers = map.getLayers();
+        var rootName = prefix.replace(/\/$/, '');
+        var storeChanged = false;
+        var retryState;
+        service.pairs.forEach(function (pair) { nums[pair.num] = true; });
+        mapLayers.forEach(function (olLayer) {
+          if (renderLayer || !olLayer || !olLayer.get) return;
+          if (olLayer.getLayers && typeof olLayer.getLayers === 'function') return;
+          var name = olLayer.get('name') || '';
+          if (name !== rootName) return;
+          var src = typeof olLayer.getSource === 'function' ? olLayer.getSource() : null;
+          var params = src && typeof src.getParams === 'function' ? src.getParams() : null;
+          var layersParam = params && (params.LAYERS || params.layers) || '';
+          if (typeof layersParam === 'string' && layersParam.indexOf('show:') === 0) renderLayer = olLayer;
+        });
+        if (!renderLayer) {
+          mapLayers.forEach(function (olLayer) {
+            if (renderLayer || !olLayer || !olLayer.get) return;
+            if (olLayer.getLayers && typeof olLayer.getLayers === 'function') return;
+            var name = olLayer.get('name') || '';
+            if (name.indexOf(prefix) !== 0) return;
+            var src = typeof olLayer.getSource === 'function' ? olLayer.getSource() : null;
+            var params = src && typeof src.getParams === 'function' ? src.getParams() : null;
+            var layersParam = params && (params.LAYERS || params.layers) || '';
+            if (typeof layersParam === 'string' && layersParam.indexOf('show:') === 0) renderLayer = olLayer;
+          });
+        }
+        if (!renderLayer && service.pairs.length) {
+          retryState = _consistencyCombinedRetry[prefix] || { attempts: 0, lastAt: 0 };
+          // Endlos-Resync vermeiden: pro Service nur wenige aggressive Retries,
+          // danach nur noch langsam nachfassen.
+          if (retryState.attempts >= 4 && (Date.now() - retryState.lastAt) < 12000) {
+            return;
+          }
+          try {
+            var appManager = self._getAppManager();
+            if (appManager && typeof appManager.setMapBookmark === 'function') {
+              appManager.setMapBookmark(['main'], 'layers=' + service.pairs.map(function(pair) {
+                return pair.id;
+              }).join('|') + '&op=' + service.pairs.map(function(pair) {
+                return pair.opacity != null && isFinite(pair.opacity) ? pair.opacity : '';
+              }).join('|'));
+            } else if (typeof TnetLayerSwitch === 'function') {
+              TnetLayerSwitch(service.pairs[0].id, 'on');
+            }
+            retryState.attempts += 1;
+            retryState.lastAt = Date.now();
+            _consistencyCombinedRetry[prefix] = retryState;
+            self._scheduleMapConsistencyCheck(900);
+          } catch (eSwitch) { /* ignore */ }
+          return;
+        }
+        if (!renderLayer) return;
+        if (_consistencyCombinedRetry[prefix]) delete _consistencyCombinedRetry[prefix];
+        var ordered = Object.keys(nums).map(Number).sort(function (a, b) { return a - b; });
+        var wantedLayers = ordered.length ? 'show:' + ordered.join(',') : 'show:-1';
+        var source = typeof renderLayer.getSource === 'function' ? renderLayer.getSource() : null;
+        var currentParams = source && typeof source.getParams === 'function' ? source.getParams() : null;
+        var currentLayers = currentParams && (currentParams.LAYERS || currentParams.layers) || '';
+        if (source && typeof source.updateParams === 'function' && currentLayers !== wantedLayers) {
+          source.updateParams({ LAYERS: wantedLayers });
+          changed++;
+        }
+        if (typeof renderLayer.setVisible === 'function' && renderLayer.getVisible() !== (ordered.length > 0)) {
+          renderLayer.setVisible(ordered.length > 0);
+          changed++;
+        }
+        // Opacity NICHT erzwingen (siehe oben) — verhindert Reset der Laufzeit-Opacity.
+        service.pairs.forEach(function (pair) {
+          var activeEntry = self._findActiveLayer(pair.id);
+          var catalogLayer = self.findLayer(pair.id);
+          if (activeEntry) {
+            if (activeEntry.visible === false) { activeEntry.visible = true; storeChanged = true; }
+            if (service.opacity !== null && activeEntry.opacity !== service.opacity) activeEntry.opacity = service.opacity;
+          } else if (catalogLayer) {
+            catalogLayer.visible = true;
+            if (service.opacity !== null) catalogLayer.opacity = service.opacity;
+            _activeLayers.push(catalogLayer);
+            storeChanged = true;
+          }
+          if (catalogLayer && catalogLayer.visible === false) catalogLayer.visible = true;
+          self._endLayerLoading(pair.id, false);
+        });
+        _suppressMapSync = true;
+        mapLayers.forEach(function (olLayer) {
+          if (!olLayer || !olLayer.get || olLayer === renderLayer) return;
+          var name = olLayer.get('name') || '';
+          if (name.indexOf(prefix) !== 0) return;
+          if (typeof olLayer.setVisible === 'function' && olLayer.getVisible()) {
+            olLayer.setVisible(false);
+            changed++;
+          }
+        });
+        setTimeout(function () { _suppressMapSync = false; }, 200);
+        if (storeChanged) {
+          setTimeout(function () { self._emit('active-layers-changed', _activeLayers); }, 0);
+        }
+      });
+
+      // Reihenfolge nach jedem Konsistenzlauf nachziehen (TOC -> Karte).
+      this._syncZIndices();
+      if (_config.debug && changed) TnetLog.log(LOG, 'reconcileMapConsistency:', changed, 'OL-Korrekturen');
+    },
 
     /**
      * Event abonnieren. Gibt Unsubscribe-Funktion zurück.
@@ -2182,6 +3346,13 @@
       (_listeners[event] || []).forEach(function (cb) {
         try { cb(data); } catch (e) { TnetLog.error(LOG, event, e); }
       });
+      if (event === 'active-layers-changed' || event === 'layer-visibility' || event === 'layer-opacity') {
+        this._scheduleMapConsistencyCheck(250);
+      }
+      // URL-Konsistenz: bei jeder Änderung am Karteninhalt asynchron prüfen
+      if (event === 'active-layers-changed') {
+        _scheduleWmsUrlSync();
+      }
     },
 
     _clearLayerLoadingTimers: function (layerId) {
@@ -2218,7 +3389,9 @@
         layer.loadingMessage = target.loadingMessage;
       }
       this._emit('layer-loading', { id: layerId, state: state });
-      this._emit('active-layers-changed', _activeLayers);
+      // Kein active-layers-changed bei reinem Loading-Status:
+      // sonst startet der Consistency-Check erneut und kann in einen
+      // self-triggernden Reconcile-Zyklus laufen.
     },
 
     _beginLayerLoading: function (layerId, olLayer, retryDone) {
@@ -2344,12 +3517,13 @@
     },
 
     _findOLLayer: function (map, layerId) {
+      var candidates = this._getLayerIdCandidates(layerId);
       // Rekursive Suche: auch in OL Layer-Groups (z.B. MAP+ Service-Container)
       function _searchLayers(collection) {
         var found = null;
         collection.forEach(function (layer) {
           if (found) return;
-          if ((layer.get('name') || '') === layerId) {
+          if (candidates.indexOf(layer.get('name') || '') !== -1) {
             found = layer;
           } else if (layer.getLayers) {
             // Layer-Group: rekursiv durchsuchen
@@ -2374,9 +3548,10 @@
      */
     _findAllOLLayers: function (map, layerId) {
       var results = [];
+      var candidates = this._getLayerIdCandidates(layerId);
       function _searchAll(collection) {
         collection.forEach(function (layer) {
-          if ((layer.get('name') || '') === layerId) {
+          if (candidates.indexOf(layer.get('name') || '') !== -1) {
             results.push(layer);
           }
           if (layer.getLayers) {
@@ -2402,27 +3577,65 @@
       return false;
     },
 
-    _getEffectiveLayerVisible: function (layerId, layer, activeEntry) {
-      var currentLayer = typeof layer === 'undefined' ? this.findLayer(layerId) : layer;
+    _getRequestedLayerVisible: function (layerId, layer, activeEntry) {
       var currentActiveEntry = typeof activeEntry === 'undefined' ? this._findActiveLayer(layerId) : activeEntry;
-
       if (currentActiveEntry && currentActiveEntry.visible !== undefined) {
         return !!currentActiveEntry.visible;
       }
 
-      var olLayer = currentActiveEntry && currentActiveEntry._olLayerRef ? currentActiveEntry._olLayerRef : null;
-      if (!olLayer) {
-        var am = this._getAppManager();
-        if (am && am.Maps && am.Maps['main'] && am.Maps['main'].mapObj) {
-          olLayer = this._findOLLayer(am.Maps['main'].mapObj, layerId);
-          if (olLayer && currentActiveEntry) {
-            currentActiveEntry._olLayerRef = olLayer;
+      var currentLayer = typeof layer === 'undefined' ? this.findLayer(layerId) : layer;
+      if (currentLayer && currentLayer.visible !== undefined) {
+        return !!currentLayer.visible;
+      }
+
+      return false;
+    },
+
+    _getEffectiveLayerVisible: function (layerId, layer, activeEntry) {
+      var currentLayer = typeof layer === 'undefined' ? this.findLayer(layerId) : layer;
+      var currentActiveEntry = typeof activeEntry === 'undefined' ? this._findActiveLayer(layerId) : activeEntry;
+      var am = this._getAppManager();
+      var map = am && am.Maps && am.Maps['main'] && am.Maps['main'].mapObj;
+      var subNum = this._extractSublayerNum(currentLayer);
+
+      // ArcGIS-Sublayer nie nur aus Store-Flags ableiten: bei Framework-Combined
+      // kann visible=true im Store stehen, obwohl der Sublayer nicht im show:-Param
+      // enthalten ist. Deshalb zuerst den echten Renderzustand prüfen.
+      if (subNum !== null) {
+        var renderedCombined = this._isSublayerRenderedByCombinedLayer(layerId, currentLayer);
+        if (renderedCombined) return true;
+
+        // Falls ein dedizierter Einzel-OL-Layer existiert (show:N), dessen
+        // sichtbaren Zustand ebenfalls berücksichtigen.
+        if (map) {
+          var exactLayers = this._findAllOLLayers(map, layerId);
+          for (var ei = 0; ei < exactLayers.length; ei++) {
+            if (exactLayers[ei] && typeof exactLayers[ei].getVisible === 'function' && exactLayers[ei].getVisible()) {
+              return true;
+            }
           }
+          if (exactLayers.length) return false;
+        }
+
+        // Kein Combined-Render und kein exakter OL-Layer vorhanden:
+        // effektiv unsichtbar, auch wenn Store-Flags noch true sind.
+        return false;
+      }
+
+      var olLayer = currentActiveEntry && currentActiveEntry._olLayerRef ? currentActiveEntry._olLayerRef : null;
+      if (!olLayer && map) {
+        olLayer = this._findOLLayer(map, layerId);
+        if (olLayer && currentActiveEntry) {
+          currentActiveEntry._olLayerRef = olLayer;
         }
       }
 
       if (olLayer) {
         return !!olLayer.getVisible();
+      }
+
+      if (currentActiveEntry && currentActiveEntry.visible !== undefined) {
+        return !!currentActiveEntry.visible;
       }
 
       if (currentLayer && currentLayer.visible !== undefined) {
@@ -2513,12 +3726,96 @@
       var am = this._getAppManager();
       if (!am || !am.Maps || !am.Maps['main'] || !am.Maps['main'].mapObj) return;
       var map = am.Maps['main'].mapObj;
+      var assigned = [];
+      var zBase = 100;
+      var i, targetZ;
+      var orderedIds = [];
+      var seenIds = {};
+      var bm = window.__tnetActiveBookmark;
+      var listEl, entries, ei, entryEl, childEls, ci;
 
-      for (var i = 0; i < _activeLayers.length; i++) {
-        var olLayer = this._findOLLayer(map, _activeLayers[i].id);
-        if (olLayer) {
-          olLayer.setZIndex(100 + i);
+      function upsertAssigned(layerObj, z) {
+        var idx;
+        if (!layerObj || typeof layerObj.setZIndex !== 'function') return;
+        for (idx = 0; idx < assigned.length; idx++) {
+          if (assigned[idx].layer === layerObj) {
+            if (z > assigned[idx].z) assigned[idx].z = z;
+            return;
+          }
         }
+        assigned.push({ layer: layerObj, z: z });
+      }
+
+      // Primaer: sichtbare Reihenfolge aus dem Karteninhalt-DOM
+      // (was im TOC oben steht, muss in der Karte oben liegen).
+      try {
+        listEl = document && document.querySelector ? document.querySelector('.lm-active-list') : null;
+        if (listEl) {
+          entries = listEl.querySelectorAll(':scope > .lm-active-item, :scope > .lm-active-group');
+          for (ei = 0; ei < entries.length; ei++) {
+            entryEl = entries[ei];
+            if (!entryEl) continue;
+            if (entryEl.classList && entryEl.classList.contains('lm-active-group')) {
+              childEls = entryEl.querySelectorAll('.lm-active-group-child[data-layer-id]');
+              for (ci = 0; ci < childEls.length; ci++) {
+                var childId = childEls[ci].dataset ? childEls[ci].dataset.layerId : null;
+                if (!childId || seenIds[childId]) continue;
+                seenIds[childId] = true;
+                orderedIds.push(childId);
+              }
+            } else {
+              var rowId = entryEl.dataset ? entryEl.dataset.layerId : null;
+              if (!rowId || seenIds[rowId]) continue;
+              seenIds[rowId] = true;
+              orderedIds.push(rowId);
+            }
+          }
+        }
+      } catch (eDom) { /* ignore, fallback below */ }
+
+      // Primäre Reihenfolge aus Bookmark-Runtime (entspricht TOC/Karteninhalt).
+      if (bm && Array.isArray(bm.layers)) {
+        for (i = 0; i < bm.layers.length; i++) {
+          var bml = bm.layers[i];
+          if (!bml || !bml.id || bml.visible === false || seenIds[bml.id]) continue;
+          seenIds[bml.id] = true;
+          orderedIds.push(bml.id);
+        }
+      }
+
+      // Fallback/Ergaenzung: aktive Layer aus Store anhaengen.
+      for (i = 0; i < _activeLayers.length; i++) {
+        var al = _activeLayers[i];
+        if (!al || !al.id || al.visible === false || seenIds[al.id]) continue;
+        seenIds[al.id] = true;
+        orderedIds.push(al.id);
+      }
+
+      // TOC oben soll auf der Karte oben liegen: erster Eintrag bekommt hoechsten Z-Index.
+      for (i = 0; i < orderedIds.length; i++) {
+        var activeId = orderedIds[i];
+        var active = this.findLayer(activeId) || this._findActiveLayer(activeId) || { id: activeId };
+        if (!active || !active.id) continue;
+        targetZ = zBase + (orderedIds.length - i);
+
+        var allOL = this._findAllOLLayers(map, active.id);
+        for (var oi = 0; oi < allOL.length; oi++) {
+          upsertAssigned(allOL[oi], targetZ);
+        }
+
+        // Bridge-/Coalesce-Sublayer haben oft keinen exakten Layernamen; Root-Renderlayer mitziehen.
+        if (window.TnetCoalesceBridge && typeof window.TnetCoalesceBridge.getOLLayerForSublayer === 'function') {
+          upsertAssigned(window.TnetCoalesceBridge.getOLLayerForSublayer(active.id), targetZ);
+        }
+
+        // Fallback fuer Framework-Combined-Layer.
+        upsertAssigned(this._findRenderableOLLayerForLayer(active.id, active), targetZ);
+      }
+
+      for (i = 0; i < assigned.length; i++) {
+        try {
+          assigned[i].layer.setZIndex(assigned[i].z);
+        } catch (eZ) { /* ignore */ }
       }
     },
 
@@ -2533,10 +3830,18 @@
      * ihn wegen type==='group' überspringen und NICHTS auf der Karte ändern.
      */
     _findLayerRecursive: function (id, nodes) {
+      var fallbackNode = null;
       for (var i = 0; i < nodes.length; i++) {
         var n = nodes[i];
-        // Bei exaktem ID-Match UND Blatt-Knoten (kein group/subcategory): sofort zurückgeben
-        if (n.id === id && n.type !== 'group' && n.type !== 'subcategory') return n;
+        // Bei exaktem ID-Match nur echte Blatt-Knoten sofort zurückgeben.
+        // Legacy-Kataloge enthalten oft Container und Blatt mit identischer ID.
+        var hasChildren = !!(
+          (n.subcategories && n.subcategories.length) ||
+          (n.groups && n.groups.length) ||
+          (n.layers && n.layers.length) ||
+          (n.children && n.children.length)
+        );
+        if (n.id === id && !hasChildren) return n;
         // Kinder durchsuchen (findet tieferliegende Blatt-Matches vor dem Gruppen-Knoten)
         var childArrays = ['subcategories', 'groups', 'layers', 'children'];
         for (var c = 0; c < childArrays.length; c++) {
@@ -2548,9 +3853,9 @@
         }
         // Fallback: Gruppen-/Subcategory-Knoten mit passendem ID zurückgeben
         // (z.B. für toggleGroup-Aufrufe wo der Gruppen-Knoten gewünscht ist)
-        if (n.id === id) return n;
+        if (n.id === id && !fallbackNode) fallbackNode = n;
       }
-      return null;
+      return fallbackNode;
     },
 
     /**
@@ -2584,6 +3889,9 @@
       _coalesceIndex = {};
       _layerToCoalesce = {};
       _catalogLayerIndex = {};
+      _catalogLayerNodeIndex = {};
+      _catalogLayerNodeLeaf = {};
+      _catalogLayerNodeIndexLower = {};
       this._indexCatalogLayers(categories);
       this._scanCoalesceNodes(categories);
       if (_config.debug && Object.keys(_coalesceIndex).length > 0) {
@@ -2603,6 +3911,26 @@
         ));
         if (n && n.id && !hasChildren && n.type !== 'group') {
           _catalogLayerIndex[n.id] = true;
+          // Leaf-Knoten haben Vorrang und gewinnen unabhaengig von der
+          // DFS-Reihenfolge gegen gleichnamige Gruppen-Container.
+          if (!_catalogLayerNodeLeaf[n.id]) {
+            _catalogLayerNodeIndex[n.id] = n;
+            _catalogLayerNodeLeaf[n.id] = true;
+          }
+        } else if (n && n.id) {
+          // Gruppen-/Container-Knoten nur als Fallback indexieren (entspricht
+          // dem fallbackNode in _findLayerRecursive), Leaf darf spaeter ueberschreiben.
+          if (!_catalogLayerNodeLeaf[n.id] &&
+              !Object.prototype.hasOwnProperty.call(_catalogLayerNodeIndex, n.id)) {
+            _catalogLayerNodeIndex[n.id] = n;
+          }
+        }
+        // Lowercase-Index (erster Treffer je Lower-ID gewinnt = DFS-Reihenfolge).
+        if (n && n.id) {
+          var _lid = String(n.id).toLowerCase();
+          if (!Object.prototype.hasOwnProperty.call(_catalogLayerNodeIndexLower, _lid)) {
+            _catalogLayerNodeIndexLower[_lid] = n;
+          }
         }
         var childArrays = ['subcategories', 'groups', 'layers', 'children'];
         for (var a = 0; a < childArrays.length; a++) {
@@ -2799,6 +4127,37 @@
         if (!hasChildren && n.type !== 'group') {
           callback(n);
         }
+      }
+    },
+
+    /**
+     * Schaltet alle Blatt-Layer unterhalb eines Prefixes auf denselben Zustand.
+     * Wird für strukturelle Container-IDs genutzt, die selbst nicht renderbar sind.
+     * @param {string} prefixId
+     * @param {boolean} visible
+     */
+    _setDescendantLeafLayersVisible: function (prefixId, visible) {
+      var self = this;
+      var prefix = String(prefixId || '');
+      var needle = prefix + '/';
+      var leafIds = [];
+
+      if (!prefix) return;
+
+      this._walkLayers(_catalog, function (leaf) {
+        if (!leaf || !leaf.id || leaf.id === prefix) return;
+        if (leaf.id.indexOf(needle) !== 0) return;
+        leafIds.push(leaf.id);
+      });
+
+      if (!leafIds.length) return;
+
+      for (var i = 0; i < leafIds.length; i++) {
+        self.setLayerVisible(leafIds[i], !!visible);
+      }
+
+      if (_config.debug) {
+        TnetLog.log(LOG, 'Container-Fallback setLayerVisible:', prefixId, '->', visible ? 'EIN' : 'AUS', '(' + leafIds.length + ' Kinder)');
       }
     },
 

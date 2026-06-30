@@ -34,6 +34,23 @@
   var _bridgeListenerKey = null;
   var _frameworkHandlerRemoved = false;
   var _clickCount = 0;
+  var _lastDispatchPixel = null;
+  var _activeRequestSeq = 0;
+  var _watchdogTimer = null;
+  var _watchdogRetryTimer = null;
+  var _sentinelIntervalId = null;
+
+  // Pro-Klick-Cache fuer teure, wiederholte Read-only-Lookups.
+  // Waehrend eines synchronen Klick-Handlers aendert sich weder der
+  // Karten- noch der Katalogzustand. Deshalb koennen die mehrfach pro Klick
+  // aufgerufenen Traversierungen (_getServiceShowList ueber alle Layer,
+  // _findLayerRobust ueber den Katalog) gefahrlos memoisiert werden.
+  // Wird zu Beginn jedes _handleClick zurueckgesetzt → nie stale.
+  var _clickCache = null;
+
+  function _resetClickCache() {
+    _clickCache = { showList: {}, layer: {} };
+  }
 
   // ===== HILFSFUNKTIONEN =====
 
@@ -59,6 +76,44 @@
     }
   }
 
+  function _ensureInfoPaneDom() {
+    var pane = document.getElementById('njs_info_pane');
+    var widget = null;
+    if (typeof dijit !== 'undefined' && dijit.byId) {
+      widget = dijit.byId('njs_info_pane');
+    }
+
+    if (widget && !widget._tnetNonDestructiveClosePatched && typeof widget.close === 'function') {
+      var originalClose = widget.close;
+      widget.close = function() {
+        var node = widget.domNode || document.getElementById('njs_info_pane');
+        if (node) {
+          node.style.visibility = 'hidden';
+          return;
+        }
+        return originalClose.apply(widget, arguments);
+      };
+      widget._tnetNonDestructiveClosePatched = true;
+    }
+
+    // Falls Dojo den Pane-Knoten vom DOM getrennt hat: wieder einhaengen.
+    if (!pane && widget && widget.domNode) {
+      pane = widget.domNode;
+      if (!pane.parentNode) {
+        document.body.appendChild(pane);
+      }
+    }
+
+    if (!pane) return;
+
+    var content = document.getElementById('njs_info_pane_content');
+    if (!content) {
+      content = document.createElement('div');
+      content.id = 'njs_info_pane_content';
+      pane.appendChild(content);
+    }
+  }
+
   function _forEachMapLayer(collection, callback) {
     if (!collection || typeof collection.forEach !== 'function') return;
     collection.forEach(function (layer) {
@@ -78,6 +133,120 @@
   function _getLayerParams(layer) {
     var src = layer && typeof layer.getSource === 'function' ? layer.getSource() : null;
     return src && typeof src.getParams === 'function' ? src.getParams() : null;
+  }
+
+  function _parseFirstQueryLayer(value) {
+    if (value === null || value === undefined) return '';
+    return String(value).split(',')[0].replace(/^show:/i, '').trim();
+  }
+
+  function _getServiceIdFromLayerId(layerId) {
+    if (!layerId || typeof layerId !== 'string') return '';
+    var slash = layerId.lastIndexOf('/');
+    return slash > 0 ? layerId.substring(0, slash) : layerId;
+  }
+
+  function _getActiveLayerIdsFromStore() {
+    var store = window.TnetLMStore;
+    var ids = {};
+    if (!store || typeof store.getActiveLayers !== 'function') return ids;
+
+    try {
+      var activeLayers = store.getActiveLayers() || [];
+      for (var i = 0; i < activeLayers.length; i++) {
+        var layer = activeLayers[i];
+        if (!layer || !layer.id || layer.visible === false) continue;
+        ids[layer.id] = true;
+      }
+    } catch (e) { /* ignore */ }
+    return ids;
+  }
+
+  function _getVisibleLayerIdsFromMap(map) {
+    var ids = {};
+    if (!map || !map.getLayers) return ids;
+
+    _forEachMapLayer(map.getLayers(), function (layer) {
+      if (!layer || typeof layer.getVisible !== 'function' || !layer.getVisible()) return;
+      var name = _getLayerName(layer);
+      if (!name) return;
+      if (name.indexOf('cosmetic_') === 0 || name.indexOf('njs_') === 0 || name.indexOf('pdfExtent') === 0) return;
+      ids[name] = true;
+    });
+    return ids;
+  }
+
+  function _isMapTipInActiveContent(mt, map, activeIds, visibleIds) {
+    var linkedLayerId = mt.linked_layer_id || mt.linked_layer || '';
+    if (!linkedLayerId) return false;
+
+    var ql = _parseFirstQueryLayer(mt.query_layers);
+    if (ql) {
+      var showList = _getServiceShowList(map, linkedLayerId);
+      if (showList && showList.indexOf(ql) >= 0) return true;
+      // MapTips mit query_layers sind sublayer-spezifisch. Ohne gerenderte
+      // show:-Liste duerfen sie nur bei exakt aktivem Layer durch, sonst wuerden
+      // Service-MapTips alle Sublayer eines Dienstes vorauswaehlen.
+      return !!activeIds[linkedLayerId];
+    }
+
+    if (activeIds[linkedLayerId]) return true;
+
+    var serviceId = _getServiceIdFromLayerId(linkedLayerId);
+    if (serviceId && activeIds[serviceId]) return true;
+
+    for (var activeId in activeIds) {
+      if (!activeIds.hasOwnProperty(activeId)) continue;
+      if (_getServiceIdFromLayerId(activeId) === linkedLayerId) {
+        var activeShowList = _getServiceShowList(map, linkedLayerId);
+        if (!ql || (activeShowList && activeShowList.indexOf(ql) >= 0)) return true;
+      }
+      if (_getServiceIdFromLayerId(activeId) === serviceId && serviceId) return true;
+    }
+
+    return !!visibleIds[linkedLayerId];
+  }
+
+  function _getDirectMapTipsForActiveContent(map) {
+    var am = _getAm();
+    if (!am || !am.MapTips || !map) return [];
+
+    var activeIds = _getActiveLayerIdsFromStore();
+    var visibleIds = _getVisibleLayerIdsFromMap(map);
+    var result = [];
+    var seen = {};
+
+    for (var mtId in am.MapTips) {
+      if (!am.MapTips.hasOwnProperty(mtId)) continue;
+      if (mtId === '_wms_connector' || mtId === GATE_KEY) continue;
+      var mt = am.MapTips[mtId];
+      if (!mt) continue;
+      if (!mt.linked_layer_id && mt.linked_layer) mt.linked_layer_id = mt.linked_layer;
+      if (!mt.linked_layer_id) continue;
+      if (!_isMapTipInActiveContent(mt, map, activeIds, visibleIds)) continue;
+
+      var hostLayer = mt.wms_layer || _findMapTipLayer(map, mt.linked_layer_id, mt.query_layers);
+      if (hostLayer && !mt.url) mt.wms_layer = hostLayer;
+
+      var ql = _parseFirstQueryLayer(mt.query_layers) || '-';
+      var linkedLayerId = mt.linked_layer_id || mt.linked_layer || '';
+      var serviceKey = linkedLayerId;
+      if (ql !== '-' && !_getServiceShowList(map, linkedLayerId)) {
+        serviceKey = _getServiceIdFromLayerId(linkedLayerId) || linkedLayerId;
+      }
+      var targetKey = serviceKey + '::' + ql;
+      if (seen[targetKey]) continue;
+      seen[targetKey] = true;
+      result.push(mt);
+    }
+
+    if (window.TNET_DEBUG_INFO) {
+      console.log('[InfoBridge DEBUG] Direkt-Durchstich MapTips:', result.map(function (mt) {
+        return (mt.linked_layer_id || mt.id) + ' ql:' + (mt.query_layers || '-');
+      }));
+    }
+
+    return result;
   }
 
   function _findMapTipLayer(map, linkedLayerId, queryLayers) {
@@ -107,16 +276,68 @@
     return exact || host;
   }
 
+  // Liefert die gerenderte show:-Sublayer-Liste eines sichtbaren kombinierten
+  // OL-Layers (Name == serviceId) als String-Array, oder null wenn nicht gefunden.
+  // Das ist die Wahrheit fuer den Karteninhalt: nur diese Sublayer-Nummern
+  // sind aktuell auf der Karte sichtbar.
+  function _getServiceShowList(map, serviceId) {
+    if (!map || !serviceId) return null;
+    if (_clickCache && Object.prototype.hasOwnProperty.call(_clickCache.showList, serviceId)) {
+      return _clickCache.showList[serviceId];
+    }
+    var result = null;
+    _forEachMapLayer(map.getLayers(), function (layer) {
+      if (result) return;
+      var name = _getLayerName(layer);
+      if (name !== serviceId) return;
+      if (typeof layer.getVisible === 'function' && !layer.getVisible()) return;
+      var params = _getLayerParams(layer);
+      var layersParam = params && (params.LAYERS || params.layers) || '';
+      if (typeof layersParam === 'string' && layersParam) {
+        result = layersParam.replace(/^show:/i, '').split(',').map(function (v) { return v.trim(); });
+      }
+    });
+    if (_clickCache) _clickCache.showList[serviceId] = result;
+    return result;
+  }
+
   function _isMapTipVisible(mt, map) {
     var linkedLayerId = mt.linked_layer_id || mt.linked_layer || '';
     if (!linkedLayerId) return false;
 
     var store = window.TnetLMStore;
-    if (store && typeof store.isRenderableLayerId === 'function' && store.isRenderableLayerId(linkedLayerId) &&
-        typeof store.isLayerEffectivelyVisible === 'function') {
-      return !!store.isLayerEffectivelyVisible(linkedLayerId);
+
+    // Wenn Store geladen: AUSSCHLIESSLICH ueber isLayerQueryable filtern.
+    // Kein Fallback auf OL-Sichtbarkeit — das Dojo-Framework haelt viele
+    // Layer im Hintergrund sichtbar die der User nicht aktiviert hat.
+    if (store && store.isLoaded && store.isLoaded()) {
+      // Sublayer-genaue Pruefung fuer Service-/Coalesce-MapTips:
+      // Viele MapTips sind auf SERVICE-Ebene verschluesselt (linked_layer = Dienst,
+      // query_layers = Sublayer-Nummer 0..N). isLayerQueryable(Dienst) ist true,
+      // sobald IRGENDEIN Sublayer aktiv ist → sonst wuerden ALLE Sublayer abgefragt.
+      // Die gerenderte show:-Liste des kombinierten OL-Layers ist die Wahrheit fuer
+      // den Karteninhalt: nur Sublayer deren Nummer dort steht sind abfragbar.
+      var ql = mt.query_layers != null ? String(mt.query_layers).split(',')[0].trim() : '';
+      if (ql !== '') {
+        var showList = _getServiceShowList(map, linkedLayerId);
+        if (showList) {
+          return showList.indexOf(ql) >= 0;
+        }
+      }
+      if (typeof store.isLayerQueryable === 'function') {
+        return !!store.isLayerQueryable(linkedLayerId);
+      }
+      // Fallback nur wenn isLayerQueryable noch nicht verfuegbar (Compat)
+      if (typeof store.isRenderableLayerId === 'function' &&
+          store.isRenderableLayerId(linkedLayerId) &&
+          typeof store.isLayerEffectivelyVisible === 'function') {
+        return !!store.isLayerEffectivelyVisible(linkedLayerId);
+      }
+      // Store geladen, Layer nicht im Katalog oder nicht aktiviert
+      return false;
     }
 
+    // Store noch nicht bereit (Startup-Phase): OL-Layer direkt pruefen
     var olLayer = mt.wms_layer || _findMapTipLayer(map, linkedLayerId, mt.query_layers);
     if (olLayer && typeof olLayer.getVisible === 'function') return !!olLayer.getVisible();
 
@@ -131,6 +352,179 @@
   function _syncMapTipsBeforeDispatch(map) {
     var am = _getAm();
     if (!am || !am.MapTips || !am.wmsActiveLyrs || !map) return;
+    var _dbByIdCache = null;
+
+    function _buildDbMaptipIdIndex() {
+      if (_dbByIdCache) return _dbByIdCache;
+      _dbByIdCache = {};
+
+      var store = window.TnetLMStore;
+      var cat = (store && typeof store.getCatalog === 'function') ? (store.getCatalog() || []) : [];
+      (function walk(nodes) {
+        if (!nodes || !nodes.length) return;
+        for (var i = 0; i < nodes.length; i++) {
+          var n = nodes[i];
+          if (!n) continue;
+          if (n.maptips) {
+            var list = Array.isArray(n.maptips) ? n.maptips : [n.maptips];
+            for (var j = 0; j < list.length; j++) {
+              var mt = list[j] || {};
+              var mtId = (mt._id != null) ? String(mt._id) : ((mt.id != null) ? String(mt.id) : '');
+              if (mtId && !_dbByIdCache[mtId]) _dbByIdCache[mtId] = mt;
+            }
+          }
+          var keys = ['subcategories', 'groups', 'layers', 'children'];
+          for (var k = 0; k < keys.length; k++) {
+            var ch = n[keys[k]];
+            if (ch && ch.length) walk(ch);
+          }
+        }
+      })(cat);
+
+      return _dbByIdCache;
+    }
+
+    function _getDbMaptipByRuntimeId(runtimeId) {
+      if (runtimeId == null) return null;
+      var idx = _buildDbMaptipIdIndex();
+      return idx[String(runtimeId)] || null;
+    }
+
+    function _findLayerRobust(layerId) {
+      var store = window.TnetLMStore;
+      if (!store || typeof store.findLayer !== 'function' || !layerId) return null;
+
+      // Pro-Klick-Memo: identische linked_layer_id-Pfade nur einmal aufloesen.
+      var cacheKey = String(layerId);
+      if (_clickCache && Object.prototype.hasOwnProperty.call(_clickCache.layer, cacheKey)) {
+        return _clickCache.layer[cacheKey];
+      }
+      var result = _findLayerRobustUncached(layerId, store);
+      if (_clickCache) _clickCache.layer[cacheKey] = result;
+      return result;
+    }
+
+    function _findLayerRobustUncached(layerId, store) {
+      var candidates = [];
+      function push(v) {
+        if (!v) return;
+        if (candidates.indexOf(v) === -1) candidates.push(v);
+      }
+
+      push(String(layerId));
+      if (typeof store._getLayerIdCandidates === 'function') {
+        var alt = store._getLayerIdCandidates(String(layerId)) || [];
+        for (var i = 0; i < alt.length; i++) push(alt[i]);
+      }
+      push(String(layerId).toLowerCase());
+      push(String(layerId).toUpperCase());
+
+      for (var j = 0; j < candidates.length; j++) {
+        var exact = store.findLayer(candidates[j]);
+        if (exact) return exact;
+      }
+
+      // Letzter Fallback: case-insensitive Suche im gesamten Katalog.
+      var cat = (typeof store.getCatalog === 'function') ? (store.getCatalog() || []) : [];
+      var needle = String(layerId).toLowerCase();
+      var found = null;
+      (function walk(nodes) {
+        if (!nodes || !nodes.length || found) return;
+        for (var k = 0; k < nodes.length; k++) {
+          var n = nodes[k];
+          if (!n) continue;
+          if (n.id && String(n.id).toLowerCase() === needle) {
+            found = n;
+            return;
+          }
+          var keys = ['subcategories', 'groups', 'layers', 'children'];
+          for (var t = 0; t < keys.length; t++) {
+            var ch = n[keys[t]];
+            if (ch && ch.length) walk(ch);
+            if (found) return;
+          }
+        }
+      })(cat);
+      return found;
+    }
+
+    function _getDbMaptips(linkedLayerId) {
+      var store = window.TnetLMStore;
+      if (!store || typeof store.findLayer !== 'function' || !linkedLayerId) return null;
+      var cur = linkedLayerId;
+      while (cur) {
+        var layer = _findLayerRobust(cur);
+        if (layer && layer.maptips) {
+          if (Array.isArray(layer.maptips)) return layer.maptips;
+          if (typeof layer.maptips === 'object') return [layer.maptips];
+        }
+        var p = cur.lastIndexOf('/');
+        if (p <= 0) break;
+        cur = cur.substring(0, p);
+      }
+      return null;
+    }
+
+    function _pickDbMaptip(mt, list, mtRuntimeId) {
+      if (!list || !list.length) return null;
+      var mtId = mtRuntimeId != null ? String(mtRuntimeId) : ((mt && mt.id != null) ? String(mt.id) : '');
+      var mtQl = (mt && mt.query_layers != null) ? String(mt.query_layers) : '';
+      var mtNls = (mt && mt.nls) ? String(mt.nls) : '';
+      var fallback = list[0];
+      for (var i = 0; i < list.length; i++) {
+        var c = list[i] || {};
+        var cId = (c._id != null) ? String(c._id) : ((c.id != null) ? String(c.id) : '');
+        var cQl = (c.query_layers != null) ? String(c.query_layers) : '';
+        var cNls = c.nls ? String(c.nls) : '';
+        if (mtId !== '' && cId !== '' && cId === mtId) return c;
+        if (mtQl !== '' && cQl === mtQl) return c;
+        if (mtNls !== '' && cNls === mtNls) return c;
+      }
+      return fallback;
+    }
+
+    function _mergeDbMaptip(mt, dbMt) {
+      if (!mt || !dbMt || typeof dbMt !== 'object') return;
+      var keys = [
+        'querytype', 'qryFields', 'qryFieldsFormat', 'qryFieldsNullVal',
+        'show_empty_fields', 'enabled', 'permanent_highlight',
+        'highlight_geom_proj', 'highlight_style',
+        'nls', 'linked_layer', 'linked_layer_id', 'query_layers'
+      ];
+      for (var i = 0; i < keys.length; i++) {
+        var k = keys[i];
+        if (Object.prototype.hasOwnProperty.call(dbMt, k)) mt[k] = dbMt[k];
+      }
+
+      // Legacy MapTip verwendet je nach Pfad highlight_style ODER highLightstyle.
+      // Daher beide Varianten immer auf denselben DB-Wert setzen.
+      var mergedHighlightStyle = null;
+      if (Object.prototype.hasOwnProperty.call(dbMt, 'highlight_style')) {
+        mergedHighlightStyle = dbMt.highlight_style;
+      } else if (Object.prototype.hasOwnProperty.call(dbMt, 'highLightstyle')) {
+        mergedHighlightStyle = dbMt.highLightstyle;
+      }
+      if (mergedHighlightStyle && typeof mergedHighlightStyle === 'object') {
+        mt.highlight_style = mergedHighlightStyle;
+        mt.highLightstyle = mergedHighlightStyle;
+      }
+      if (Object.prototype.hasOwnProperty.call(dbMt, 'highlight_geom_proj')) {
+        mt.highlightProj = dbMt.highlight_geom_proj;
+      }
+    }
+
+    function _normalizeHighlightAliases(mt) {
+      if (!mt || typeof mt !== 'object') return;
+      var hs = mt.highlight_style;
+      var hls = mt.highLightstyle;
+      if ((!hs || typeof hs !== 'object') && hls && typeof hls === 'object') {
+        mt.highlight_style = hls;
+        hs = hls;
+      }
+      if ((!hls || typeof hls !== 'object') && hs && typeof hs === 'object') {
+        mt.highLightstyle = hs;
+      }
+    }
 
     if (typeof window.TnetSyncMapTips === 'function') {
       try { window.TnetSyncMapTips(); } catch (eSync) { _warn('TnetSyncMapTips vor Info-Abfrage fehlgeschlagen:', eSync.message); }
@@ -146,6 +540,14 @@
       if (!mt) continue;
       if (!mt.linked_layer_id && mt.linked_layer) mt.linked_layer_id = mt.linked_layer;
       if (!mt.linked_layer_id) continue;
+
+      // DB ist Quelle der Wahrheit: Runtime-Maptip vor Sichtbarkeits-/Dispatch-Logik überlagern.
+      // 1) Primär über eindeutige Runtime-ID (_id aus API)
+      // 2) Fallback über linked_layer/query_layers/nls
+      var dbMaptips = _getDbMaptips(mt.linked_layer_id);
+      var dbMt = _getDbMaptipByRuntimeId(mtId) || _pickDbMaptip(mt, dbMaptips, mtId);
+      if (dbMt) _mergeDbMaptip(mt, dbMt);
+      _normalizeHighlightAliases(mt);
 
       var shouldBeActive = _isMapTipVisible(mt, map);
       if (shouldBeActive) {
@@ -224,8 +626,42 @@
    * Falls nicht, zeigt "Keine Objekte gefunden".
    * Integriert mit dem Framework: prüft auch infoRequestsPending.
    */
-  function _startNoResultsWatchdog() {
-    setTimeout(function () {
+  function _clearNoResultsArtifacts(container) {
+    if (!container) return;
+
+    var markers = container.querySelectorAll('.noInfoResults, .njs-info-no-results, #njs_info_pane_content_disc');
+    for (var i = 0; i < markers.length; i++) {
+      markers[i].remove();
+    }
+
+    // Legacy-Faelle: lose Textknoten mit "Keine ..." entfernen.
+    var children = container.childNodes;
+    for (var n = children.length - 1; n >= 0; n--) {
+      var node = children[n];
+      if (node && node.nodeType === 3 && node.textContent && node.textContent.indexOf('Keine') > -1) {
+        container.removeChild(node);
+      }
+    }
+  }
+
+  function _cancelNoResultsWatchdog() {
+    if (_watchdogTimer) {
+      clearTimeout(_watchdogTimer);
+      _watchdogTimer = null;
+    }
+    if (_watchdogRetryTimer) {
+      clearTimeout(_watchdogRetryTimer);
+      _watchdogRetryTimer = null;
+    }
+  }
+
+  function _startNoResultsWatchdog(requestSeq, totalDispatched) {
+    _cancelNoResultsWatchdog();
+
+    var initialDelay = totalDispatched > 0 ? 5000 : 1400;
+    _watchdogTimer = setTimeout(function () {
+      if (requestSeq !== _activeRequestSeq) return;
+
       var container = document.getElementById('njs_info_pane_content');
       if (!container) return;
 
@@ -237,7 +673,8 @@
       var am = _getAm();
       if (am && am.infoRequestsPending && am.infoRequestsPending > 0) {
         // Nochmal 3s warten
-        setTimeout(function () {
+        _watchdogRetryTimer = setTimeout(function () {
+          if (requestSeq !== _activeRequestSeq) return;
           var spinner2 = document.getElementById('infowin_wait');
           if (spinner2) spinner2.style.display = 'none';
         }, 3000);
@@ -250,7 +687,7 @@
       if (hasResults) return;
 
       // Prüfe ob "Keine Ergebnisse" bereits vorhanden
-      if (container.querySelector('.noInfoResults') ||
+        if (container.querySelector('.noInfoResults') ||
           container.querySelector('.njs-info-no-results') ||
           container.querySelector('#njs_info_pane_content_disc')) return;
 
@@ -265,7 +702,7 @@
       node.textContent = noResultsText;
       container.appendChild(node);
       _log('Keine Ergebnisse → Meldung angezeigt');
-    }, 5000);
+    }, initialDelay);
   }
 
   // ===== ADAPTER 1: MAPPLUS (Standard + Coalesce) =====
@@ -287,21 +724,91 @@
   function _adapterMapPlus(evt) {
     var am = _getAm();
     if (!am || !am.wmsActiveLyrs) return 0;
+    var store = window.TnetLMStore;
+    var dispatchMap = am.Maps && am.Maps[MAP_ID] ? am.Maps[MAP_ID].mapObj : null;
 
     var count = 0;
-    var items = am.wmsActiveLyrs.getArray();
+    var directItems = _getDirectMapTipsForActiveContent(dispatchMap);
+    var items = directItems.length ? directItems : am.wmsActiveLyrs.getArray();
     var dispatched = []; // Für Log
+    var _seenTargets = {}; // Dedup: serviceId::subNum bereits dispatcht
 
     for (var i = 0; i < items.length; i++) {
       var mt = items[i];
       if (!mt || !mt.active) continue;
+      var mtLinkedId = mt.linked_layer_id || mt.linked_layer || mt.id || '';
+
+      // Sublayer-genaue Filterung direkt im Dispatch (letzte Instanz):
+      // Das Framework re-aktiviert nach _syncMapTipsBeforeDispatch teils alle
+      // Service-Sublayer-MapTips. _isMapTipVisible prueft fuer Service-/Coalesce-
+      // MapTips die gerenderte show:-Liste → nur Sublayer im Karteninhalt werden
+      // abgefragt. Liefert saubere, gefilterte Resultate.
+      if (store && store.isLoaded && store.isLoaded() && dispatchMap) {
+        if (!_isMapTipVisible(mt, dispatchMap)) {
+          if (window.TNET_DEBUG_INFO) {
+            console.log('[InfoBridge DEBUG] skip maptip nicht im Karteninhalt:', mtLinkedId, 'ql:', mt.query_layers);
+          }
+          continue;
+        }
+
+        // Dedup: dasselbe Sublayer-Ziel kann sowohl ueber einen Service-MapTip
+        // (linked = Dienst) als auch ueber einen Child-MapTip (linked = Sublayer)
+        // aktiv sein. Beide treffen denselben Dienst + dieselbe Sublayer-Nummer
+        // → nur EINMAL abfragen, sonst doppelte Ergebnis-Eintraege.
+        var _ql = mt.query_layers != null ? String(mt.query_layers).split(',')[0].trim() : '';
+        if (_ql !== '' && mtLinkedId) {
+          var _svc = mtLinkedId;
+          if (!_getServiceShowList(dispatchMap, mtLinkedId)) {
+            var _slash = mtLinkedId.lastIndexOf('/');
+            if (_slash > 0) _svc = mtLinkedId.substring(0, _slash);
+          }
+          var _key = _svc + '::' + _ql;
+          if (_seenTargets[_key]) {
+            if (window.TNET_DEBUG_INFO) {
+              console.log('[InfoBridge DEBUG] skip Duplikat-Ziel:', _key, 'via', mtLinkedId);
+            }
+            continue;
+          }
+          _seenTargets[_key] = true;
+        }
+      }
+
       if (typeof mt.queryconnector !== 'function') {
-        _warn('MapTip ohne queryconnector:', mt.linked_layer_id || mt.id);
+        _warn('MapTip ohne queryconnector:', mtLinkedId || mt.id);
+        continue;
+      }
+
+      // Guard: queryconnector ohne host/url fuehrt bei einzelnen Legacy-MapTips
+      // zu Runtime-Fehlern (null-Zugriffe). Diese Eintraege bewusst ueberspringen,
+      // damit valide Layer-Abfragen (z.B. Coalesce-Sublayer) nicht beeinflusst werden.
+      if (!mt.wms_layer && !mt.url) {
+        try {
+          var fwLayerForGuard = njs.AppManager.getLayerByMap(mt.idmap || MAP_ID, mtLinkedId);
+          if (!fwLayerForGuard || !fwLayerForGuard._lyr) {
+            if (window.TNET_DEBUG_INFO) {
+              console.log('[InfoBridge DEBUG] skip maptip without host/url:', mtLinkedId);
+            }
+            continue;
+          }
+        } catch (eGuard) {
+          continue;
+        }
+      }
+
+      if (!mt.query_layers && mtLinkedId.indexOf('/') > -1 && mtLinkedId.indexOf('wms:') !== 0) {
+        // Ohne query_layers sind ArcGIS-Coalesce-Sublayer nicht eindeutig.
+        // Solche Eintraege werden weiterhin zugelassen wenn sie eine direkte URL haben.
+        if (!mt.url && window.TNET_DEBUG_INFO) {
+          console.log('[InfoBridge DEBUG] maptip ohne query_layers (weiter mit Vorsicht):', mtLinkedId);
+        }
+      }
+
+      if (typeof mt.queryconnector !== 'function') {
+        _warn('MapTip ohne queryconnector:', mtLinkedId || mt.id);
         continue;
       }
 
       // ── Pre-Flight Diagnose: URL-Pfad loggen den queryconnector nehmen wird ──
-      var mtLinkedId = mt.linked_layer_id || mt.id || '?';
       var urlPath = '(unbekannt)';
       var layerSource = '?';
       var parentMatch = mt._tnetParentMatch || null;
@@ -424,7 +931,21 @@
     var map = am.Maps[MAP_ID].mapObj;
     if (!map) return;
 
+    // Geklickte Koordinate global merken (Pin-Position). Wird vom Info-Panel
+    // beim Andocken genutzt, um zu pruefen ob der Pin vom Panel verdeckt wird
+    // und dann sanft nachzuzentrieren.
+    try {
+        window.__tnetLastInfoClickCoord = evt.coordinate;
+        window.__tnetLastInfoClickAt = Date.now();
+    } catch (e) { /* defensiv */ }
+
+    // Pro-Klick-Cache neu aufsetzen: Karten-/Katalogzustand ist ab hier bis
+    // zum Ende dieses synchronen Handlers konstant → Lookups duerfen cachen.
+    _resetClickCache();
+
     _clickCount++;
+    _activeRequestSeq++;
+    var currentRequestSeq = _activeRequestSeq;
 
     // ── Sicherheitsprüfung: Framework-Handler nicht erneut registriert? ──
     _ensureSentinel();
@@ -458,6 +979,13 @@
     // Blockiert Klicks auf interaktive Vektor-Features (Redlining etc.)
     // AUSNAHME: Zeichenlayer der räumlichen Abfrage, Messungen und PDF-Extent sollen NICHT blockieren
     // AUSNAHME: GeoJSON-Layer mit registriertem gjsonServiceMapTip → direkt behandeln
+    var isRepeatPixelClick = false;
+    if (evt && evt.pixel && _lastDispatchPixel) {
+      var dx = Math.abs(evt.pixel[0] - _lastDispatchPixel[0]);
+      var dy = Math.abs(evt.pixel[1] - _lastDispatchPixel[1]);
+      isRepeatPixelClick = (dx <= 3 && dy <= 3);
+    }
+
     var hasBlockingFeature = false;
     try {
       if (map.hasFeatureAtPixel(evt.pixel) === true) {
@@ -516,18 +1044,34 @@
       }
     } catch (e) { /* Ignorieren */ }
 
-    if (hasBlockingFeature) {
+    if (hasBlockingFeature && !isRepeatPixelClick) {
       _log('Click #' + _clickCount + ': Feature-at-Pixel blockiert Info-Abfrage');
       return;
     }
+    if (hasBlockingFeature && isRepeatPixelClick) {
+      _log('Click #' + _clickCount + ': Feature-at-Pixel erkannt, aber Repeat-Click am selben Pixel → Info-Abfrage erlaubt');
+    }
 
     // ── Panel vorbereiten (Framework-Funktion, EINMAL) ──
+    _ensureInfoPaneDom();
+    var infoContainer = document.getElementById('njs_info_pane_content');
+    _clearNoResultsArtifacts(infoContainer);
+
     try {
       if (typeof am.prepareInfoRequest === 'function') {
         am.prepareInfoRequest(evt, MAP_ID);
       }
     } catch (e) {
       _warn('prepareInfoRequest Fehler:', e);
+    }
+
+    // Pending-Visibility-Updates sofort flushen (Debounce ueberspringen).
+    // Der UI-Toggle (child-eye / group-eye) schreibt in einen Debounce-Queue
+    // (VISIBILITY_FLUSH_DELAY). Wenn der Nutzer direkt nach dem Toggle auf die
+    // Karte klickt, ist der Flush evtl. noch nicht gelaufen → Store hat noch
+    // den alten Sichtbarkeitszustand → isLayerQueryable gibt false zurueck.
+    if (window.TnetLMActive && typeof window.TnetLMActive.flushPendingVisibility === 'function') {
+      try { window.TnetLMActive.flushPendingVisibility(); } catch (eFlush) { /* ignore */ }
     }
 
     // Direkt vor dem Dispatch mit dem effektiven Karteninhalt synchronisieren.
@@ -541,11 +1085,15 @@
     var wmsCustomCount = _adapterWmsCustom(evt, map);
     var totalCount = mapPlusCount + wmsCustomCount;
 
+    if (evt && evt.pixel) {
+      _lastDispatchPixel = [evt.pixel[0], evt.pixel[1]];
+    }
+
     _log('Click #' + _clickCount + ': Dispatch', totalCount, 'Queries',
       '(MapPlus:', mapPlusCount, '| WMS-Custom:', wmsCustomCount + ')');
 
     // ── No-Results Watchdog ──
-    _startNoResultsWatchdog();
+    _startNoResultsWatchdog(currentRequestSeq, totalCount);
   }
 
   // ===== INITIALISIERUNG =====
@@ -595,18 +1143,29 @@
     _log('  MapTips definiert:', totalMaptips);
     _log('  wmsActiveLyrs:', activeCount, '→', activeIds.join(', '));
 
-    // 4. Periodische Sentinel-Prüfung (alle 10s für 2 Minuten)
-    var sentinelChecks = 0;
-    var sentinelInterval = setInterval(function () {
-      sentinelChecks++;
+    // 4. Periodische Sentinel-Prüfung dauerhaft aktiv halten.
+    // Das Framework kann den Handler auch lange nach dem Startup erneut
+    // registrieren (z.B. bei späteren Activate-Pfaden). Deshalb nicht nach
+    // 2 Minuten stoppen, sondern bis destroy() überwachen.
+    if (_sentinelIntervalId) {
+      clearInterval(_sentinelIntervalId);
+      _sentinelIntervalId = null;
+    }
+    _sentinelIntervalId = setInterval(function () {
       _ensureSentinel();
-      if (sentinelChecks >= 12) clearInterval(sentinelInterval);
-    }, 10000);
+    }, 5000);
 
     return true;
   }
 
   function destroy() {
+    _cancelNoResultsWatchdog();
+
+    if (_sentinelIntervalId) {
+      clearInterval(_sentinelIntervalId);
+      _sentinelIntervalId = null;
+    }
+
     if (_bridgeListenerKey) {
       ol.Observable.unByKey(_bridgeListenerKey);
       _bridgeListenerKey = null;

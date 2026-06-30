@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Layer-Tree Builder v5 — TNET API</title>
+<title>Layer-Tree Builder V2 (Shared) — TNET API</title>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 :root {
@@ -1157,7 +1157,8 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
     <option value="">– wählen –</option>
   </select>
   <span class="sep"></span>
-  <span class="brand">🔧 Tree-Builder</span>
+  <span class="brand">🔧 Tree-Builder <span style="background:#a0539a;color:#fff;padding:1px 6px;border-radius:3px;font-size:10px;font-weight:700">V2</span></span>
+  <button class="tb-toggle" id="tb-shared-init" title="Gemeinsamen Baum erstmalig aus einem Quell-Profil aufbauen (nur sichtbar, solange noch keiner existiert)" style="display:none">⚓ Gemeinsamen Baum anlegen</button>
   <span class="sep"></span>
   <button class="tb-toggle active" id="tb-toggle-layers" title="Layer-Katalog ein/aus">🗂 Layer</button>
   <button class="tb-toggle" id="tb-toggle-clipboard" title="Zwischenablage ein/aus">📋 Ablage</button>
@@ -1184,6 +1185,56 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
   <span><span class="tsi-lbl">API:</span> <span class="tsi-val" id="tsi-api"></span></span>
   <span class="tsi-sep" id="tsi-warn-sep" style="display:none">|</span>
   <span class="tsi-warn" id="tsi-warn" style="display:none"></span>
+</div>
+
+<!-- ===== V2 Shared-Modus: Profil-Bündelung + Matrix-Steuerung ===== -->
+<style>
+  #tbv2-bundle-bar { display:none; align-items:center; gap:10px; flex-wrap:wrap;
+    padding:6px 12px; background:#ede1ec; border-bottom:1px solid #d6c2d4; font-size:12px; }
+  #tbv2-bundle-bar .lbl { font-weight:700; color:#6a4c7d; }
+  #tbv2-bundle-bar label { display:inline-flex; align-items:center; gap:4px; cursor:pointer;
+    background:#fff; border:1px solid #cbb6c9; border-radius:12px; padding:2px 9px; }
+  #tbv2-bundle-bar label.off { opacity:.5; }
+  #tbv2-bundle-bar .sp { flex:1; }
+  #tbv2-bundle-bar .tbv2-pub { background:#2e7d32; color:#fff; border:none; border-radius:4px;
+    padding:5px 12px; font-weight:700; cursor:pointer; }
+  #tbv2-bundle-bar .tbv2-pub:hover { background:#1b5e20; }
+  #tbv2-bundle-lockinfo { color:#8a5a00; font-size:11px; }
+  /* ===== Inline-Matrixband mit GLOBAL fixer Spaltengrenze ===== */
+  :root { --tbv2-cell: 42px; --tbv2-mtxW: 0px; }
+  /* Rechte Innenabstaende der Baum-Container im Shared-Modus entfernen -> alle Zeilen gleicher rechter Rand */
+  body.tbv2-shared .tb-tree-group,
+  body.tbv2-shared .tb-tree-group-top { margin-right: 0 !important; }
+  body.tbv2-shared .tb-tree-group-body,
+  body.tbv2-shared .tb-tree-cat-body { padding-right: 0 !important; }
+  body.tbv2-shared .tb-tree-item { margin-right: 0 !important; }
+  body.tbv2-shared .tb-tree-item,
+  body.tbv2-shared .tb-tree-group-head,
+  body.tbv2-shared .tb-tree-cat-head { position: relative; padding-right: calc(var(--tbv2-mtxW) + 8px) !important; box-sizing: border-box; }
+  body.tbv2-shared #tb-tree-body { scrollbar-gutter: stable; padding-top: 0 !important; }
+  .tbv2-mtx {
+    position: absolute; right: 0; top: 0; bottom: 0; width: var(--tbv2-mtxW);
+    display: flex; align-items: center; justify-content: flex-end; background: #f3ecf2;
+    box-shadow: inset 2px 0 0 #6a4c7d;
+  }
+  .tbv2-mtx-cell { width: var(--tbv2-cell); min-width: var(--tbv2-cell); box-sizing:border-box; display:flex; align-items:center; justify-content:center; border-left:1px solid rgba(106,76,125,.15); align-self:stretch; }
+  .tbv2-mtx-cell:first-child { border-left:none; }
+  .tbv2-tri { width:22px; height:18px; border-radius:3px; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; user-select:none; }
+  .tbv2-tri.on  { background:#2e7d32; color:#fff; }
+  .tbv2-tri.off { background:#fff; color:#c0392b; border:1px solid #e0a; }
+  .tbv2-tri.lock { background: repeating-linear-gradient(45deg,#eee,#eee 4px,#e0d0dd 4px,#e0d0dd 8px); color:#8a5; cursor:not-allowed; }
+  .tbv2-tri[data-mtx-node] { cursor:pointer; }
+  #tbv2-colhead { position:relative; height:24px; display:flex; align-items:stretch; background:#6a4c7d; color:#fff; z-index:6; box-shadow:0 2px 4px rgba(0,0,0,.3); position:sticky; top:0; }
+  #tbv2-colhead .tbv2-colhead-label { flex:1; display:flex; align-items:center; padding-left:8px; font-size:11px; font-weight:600; white-space:nowrap; }
+  #tbv2-colhead .tbv2-mtxbox { position:absolute; right:0; top:0; bottom:0; width:var(--tbv2-mtxW); display:flex; justify-content:flex-end; align-items:stretch; box-sizing:border-box; }
+  #tbv2-colhead .tbv2-mtx-cell { width:var(--tbv2-cell); box-sizing:border-box; font-size:11px; font-weight:700; color:#fff; border-left:1px solid rgba(255,255,255,.2); align-self:stretch; display:flex; align-items:center; justify-content:center; }
+  #tbv2-colhead .tbv2-mtx-cell:first-child { border-left:none; }
+</style>
+<div id="tbv2-bundle-bar">
+  <span class="lbl">Gebündelte Profile:</span>
+  <span id="tbv2-bundle-profiles"></span>
+  <span class="sp"></span>
+  <span id="tbv2-bundle-lockinfo"></span>
 </div>
 
 <!-- 3-Panel Layout -->
@@ -1290,6 +1341,9 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
     <!-- Tab: LyrMgr-Vorschau -->
     <div id="tb-lm-preview-wrapper">
       <div id="tb-lm-preview-toolbar">
+        <!-- Vorschau-Mandant wird durch die Profil-Auswahl oben gesteuert (kein redundanter Selektor).
+             Element bleibt versteckt als State-Halter für die Vorschau-URL. -->
+        <select id="tbv2-preview-tenant" title="Vorschau-Profil (gesteuert über die Profil-Auswahl oben)" style="display:none"></select>
         <label>Panel:</label>
         <select id="tb-lm-panel-select">
           <option value="tree">Themenkatalog</option>
@@ -1680,6 +1734,10 @@ _showBuildTs('tb-build-ts');
 // Staging-Modus: ?source=staging in der URL → Layer aus ImportToCore laden
 var _urlParams = new URLSearchParams(window.location.search);
 var _stagingMode = _urlParams.get('source') === 'staging';
+// Shared-Modus (V2): gemeinsamer Mandanten-Baum (__shared__) mit 4-Spalten-Matrix
+var _sharedMode = _urlParams.get('mode') === 'shared';
+var SHARED_PROFILE = '__shared__';
+var TENANTS = ['public', 'uwpro', 'nwpro', 'owpro'];
 // Staging-Modus: kein zusätzliches Badge im Brand (Store-Badge im LyrMgr-Header genügt)
 
 var _saveTimer = null;
@@ -3583,6 +3641,12 @@ function renderTreeTabs() {
     btn.addEventListener('click', function(e) {
       e.stopPropagation();
       var action = this.dataset.action;
+      // V2 Shared-Modus: V1-Publish auf den korrekten Shared-Publish (save __shared__ + live ableiten) umleiten
+      if (_sharedMode && typeof isSharedTree === 'function' && isSharedTree()
+          && (action === 'lyrmgr-publish-db' || action === 'lyrmgr-publish-file')) {
+        publishShared(action === 'lyrmgr-publish-file' ? 'file' : 'db');
+        return;
+      }
       if (action === 'lyrmgr-import-profile') importLyrmgrFromProfile();
       if (action === 'lyrmgr-save') saveLyrmgrDraft();
       if (action === 'lyrmgr-export') exportLyrmgrBlock();
@@ -3645,7 +3709,10 @@ function toggleAllChildren(container, show) {
 }
 
 // ===== HELPER: JSON-Editor synchronisieren =====
-// Zeigt immer das saubere lyrmgr.conf-Format (ohne interne IDs/groupRefs etc.)
+// Zeigt:
+//  - bei „✏️ Gemeinsamen Baum bearbeiten" (__shared__) den MASTER-Baum (bearbeitbar),
+//  - bei „↳ Mandant (Vorschau)" das ABGELEITETE JSON dieses Mandanten (mit secured, schreibgeschützt).
+// Damit ist direkt sichtbar, was pro Mandant effektiv publiziert wird.
 function syncJsonEditor() {
   var textarea = document.getElementById('tb-json-textarea');
   if (!textarea) return;
@@ -3654,15 +3721,30 @@ function syncJsonEditor() {
   var p = state.profiles[state.activeProfile];
   if (!p) { textarea.value = '{}'; return; }
   try {
+    var sel = document.getElementById('tb-profile-select');
+    var selVal = sel ? sel.value : '';
+    var derived = (typeof isSharedTree === 'function' && isSharedTree()) && selVal && selVal !== SHARED_PROFILE;
+    var tenant = derived ? selVal : null;
     var confOutput = {};
     if (p.lyrmgrs) {
       Object.keys(p.lyrmgrs).forEach(function(key) {
-        confOutput[key] = generateLyrmgrConfBlock(p.lyrmgrs[key]);
+        confOutput[key] = derived
+          ? generateLyrmgrConfBlock(deriveTreeForTenant(p.lyrmgrs[key], tenant))
+          : generateLyrmgrConfBlock(p.lyrmgrs[key]);
       });
     }
     textarea.value = JSON.stringify(confOutput, null, 4);
+    textarea.readOnly = !!derived;
     var statusEl = document.getElementById('tb-json-status');
-    if (statusEl) { statusEl.textContent = ''; statusEl.className = 'tb-json-status'; }
+    if (statusEl) {
+      if (derived) {
+        var n = (textarea.value.match(/"secured":\s*true/g) || []).length;
+        statusEl.textContent = '🔒 Abgeleitet für „' + tenant + '“ — exakt das, was publiziert wird (schreibgeschützt' + (n ? ', ' + n + '× secured' : '') + ')';
+      } else {
+        statusEl.textContent = '📝 Master-Baum (bearbeitbar) — wird beim Publish pro Mandant abgeleitet';
+      }
+      statusEl.className = 'tb-json-status';
+    }
   } catch(e) { textarea.value = '// Fehler: ' + e.message; }
 }
 
@@ -3746,6 +3828,7 @@ function renderTree() {
     renderLyrmgrBlock(body, entry.key, entry.tree);
   });
 
+  if (_sharedMode) injectColHeader();
   syncJsonEditor();
 }
 
@@ -3797,11 +3880,11 @@ function renderLyrmgrBlock(container, lmKey, profile) {
   var html = '';
 
   // Rekursives Item-Rendering: Strings → Layer, Objekte → Gruppenlayer
-  function renderTreeItem(item, ci, path) {
+  function renderTreeItem(item, ci, path, ancAllowed) {
     // Arrays auflösen (z.B. ["layer_id"] statt "layer_id")
     if (Array.isArray(item)) {
       var arrHtml = '';
-      item.forEach(function(sub, si) { arrHtml += renderTreeItem(sub, ci, path.concat([si])); });
+      item.forEach(function(sub, si) { arrHtml += renderTreeItem(sub, ci, path.concat([si]), ancAllowed); });
       return arrHtml;
     }
     if (typeof item === 'string') {
@@ -3832,11 +3915,13 @@ function renderLyrmgrBlock(container, lmKey, profile) {
       }
       var badgesHtml = lBadges ? '<span class="ti-badges">' + lBadges + '</span>' : '';
       var isHidden = layer && !(layer.visible === true || layer.visible === 'true' || layer.visible === 1 || layer.visible === '1');
-      return '<div class="tb-tree-item' + (isHidden ? ' ti-hidden' : '') + (path.length > 1 ? ' tb-tree-item-nested' : '') + '" data-cat-idx="' + ci + '" data-item-path="' + path.join('.') + '" draggable="true">'
+      return '<div class="tb-tree-item' + (isHidden ? ' ti-hidden' : '') + (path.length > 1 ? ' tb-tree-item-nested' : '') + '" data-cat-idx="' + ci + '" data-item-path="' + path.join('.') + '"' + (_sharedMode ? ' data-mtx-key="' + esc(item) + '"' : '') + ' draggable="true">'
         + '<span class="ti-grip">⋮</span>'
         + '<span class="tiname' + (noNls ? ' no-nls' : '') + '" data-editable data-layer-id="' + esc(item) + '" title="' + esc(item) + (nlsName ? '' : ' (kein NLS)') + esc(metaHint) + '">' + esc(itemName) + '</span>'
         + (nlsName ? '<span class="ti-id" title="' + esc(item) + '">' + esc(item) + '</span>' : '')
         + badgesHtml
+        + (_sharedMode ? buildMatrixCells(item, ancAllowed) : '')
+        + (_sharedMode ? buildMatrixCells(item, ancAllowed) : '')
         + '<button class="tidel" data-action="del-item" data-cat-idx="' + ci + '" data-item-path="' + path.join('.') + '">×</button>'
         + '</div>';
     }
@@ -3847,9 +3932,11 @@ function renderLyrmgrBlock(container, lmKey, profile) {
       var grpMeta = getNodeEditMeta('group', grpKey, lmKey);
       var grpItems = item.items || [];
       var isTopLevel = (path.length === 1); // Direkt unter Kategorie
+      var grpNodeKey = 'grp:' + grpKey;
+      var grpChildAnc = _sharedMode ? childAncAllowed(ancAllowed, grpNodeKey) : null;
       var nestedHtml = '';
       grpItems.forEach(function(child, idx) {
-        nestedHtml += renderTreeItem(child, ci, path.concat([idx]));
+        nestedHtml += renderTreeItem(child, ci, path.concat([idx]), grpChildAnc);
       });
       var badges = '';
       if (item.legend) badges += '<span class="grp-badge" title="legend: ' + esc(item.legend) + '">📊</span>';
@@ -3862,12 +3949,14 @@ function renderLyrmgrBlock(container, lmKey, profile) {
       // Gruppen-Key immer rechts anzeigen
       var grpIdHtml = '<span class="grp-id" title="' + esc(grpKey) + '">' + esc(grpKey) + '</span>';
       return '<div class="tb-tree-group' + (isTopLevel ? ' tb-tree-group-top' : '') + (grpIsOpen ? ' open' : '') + '" data-cat-idx="' + ci + '" data-item-path="' + path.join('.') + '" draggable="true">'
-        + '<div class="tb-tree-group-head">'
+        + '<div class="tb-tree-group-head"' + (_sharedMode ? ' data-mtx-key="' + esc(grpNodeKey) + '"' : '') + '>'
         + '<span class="grp-arrow">▸</span>'
         + '<span class="grpname' + (!grpNls ? ' no-nls' : '') + '" title="' + esc(grpKey) + (grpNls ? '' : ' (kein NLS)') + (grpMeta && (grpMeta.updatedBy || grpMeta.updatedAt) ? ' | zuletzt: ' + esc(grpMeta.updatedBy || '?') + (grpMeta.updatedAt ? ' @ ' + esc(formatSwissDateTime(grpMeta.updatedAt)) : '') : '') + '">' + esc(grpDisplay) + '</span>'
         + grpIdHtml
         + badges
+        + (_sharedMode ? buildMatrixCells(grpNodeKey, ancAllowed) : '')
         + '<span class="grpcount">' + grpItems.length + '</span>'
+        + (_sharedMode ? buildMatrixCells(grpNodeKey, ancAllowed) : '')
         + '<button class="grpedit" data-action="edit-group" data-cat-idx="' + ci + '" data-item-path="' + path.join('.') + '" title="Eigenschaften">✎</button>'
         + '<button class="grpdel" data-action="del-item" data-cat-idx="' + ci + '" data-item-path="' + path.join('.') + '">×</button>'
         + '</div>'
@@ -3884,11 +3973,13 @@ function renderLyrmgrBlock(container, lmKey, profile) {
     var catKey = cat.key || cat.name || '';
     var catNls = getNlsAlias(catKey);
     var catDisplay = catNls || catLabel;
+    var catNodeKey = 'cat:' + catKey;
+    var catChildAnc = _sharedMode ? childAncAllowed(null, catNodeKey) : null;
     var catMeta = getNodeEditMeta('cat', catKey, lmKey);
     var iconInfo = cat.iconClass ? ' <span style="font-size:9px;color:rgba(255,255,255,.5)">' + esc(cat.iconClass) + '</span>' : '';
     var hideInfo = cat.hideHeader ? ' <span title="Kopf ausgeblendet – nur Untergruppen sichtbar" style="font-size:9px;color:#fff;background:#e8423f;border-radius:3px;padding:0 4px">⊘ Kopf aus</span>' : '';
     html += '<div class="tb-tree-cat" data-cat-idx="' + ci + '" draggable="true">';
-    html += '<div class="tb-tree-cat-head">';
+    html += '<div class="tb-tree-cat-head"' + (_sharedMode ? ' data-mtx-key="' + esc(catNodeKey) + '"' : '') + '>';
     var catStateKey = lmKey + '/' + (cat.key || cat.name || ('cat' + ci));
     var catIsOpen = !!_expandState[catStateKey];
     html += '<span class="arrow' + (catIsOpen ? ' open' : '') + '">▶</span>';
@@ -3896,6 +3987,7 @@ function renderLyrmgrBlock(container, lmKey, profile) {
     if (catNls) html += '<span class="cat-id" title="' + esc(catKey) + '">' + esc(catKey) + '</span>';
     html += iconInfo;
     html += hideInfo;
+    if (_sharedMode) html += buildMatrixCells(catNodeKey, null);
     html += '<button class="cedit" data-action="edit-cat" data-cat-idx="' + ci + '" title="Eigenschaften">✎</button>';
     html += '<button class="cdel" data-action="del-cat" data-cat-idx="' + ci + '">×</button>';
     html += '</div>';
@@ -3903,7 +3995,7 @@ function renderLyrmgrBlock(container, lmKey, profile) {
 
     if (cat.items && cat.items.length > 0) {
       cat.items.forEach(function(item, ii) {
-        html += renderTreeItem(item, ci, [ii]);
+        html += renderTreeItem(item, ci, [ii], catChildAnc);
       });
     } else {
       html += '<div class="tb-drop-hint">Gruppenlayer hinzufügen oder Layer hierher ziehen</div>';
@@ -9486,6 +9578,23 @@ function loadAvailableProfiles(onReady) {
 document.getElementById('tb-profile-select').addEventListener('change', function() {
   var profile = this.value;
   if (!profile) return;
+  // V2: Auswahl unter „Shared" (gebündeltes Profil oder „Alle gemeinsam") -> Shared-Modus
+  if (_sharedMode && (profile === SHARED_PROFILE || (state.bundleProfiles && state.bundleProfiles.indexOf(profile) !== -1))) {
+    var pickedTenant = (profile === SHARED_PROFILE) ? null : profile;
+    state.activeProfile = SHARED_PROFILE;
+    state.activeLyrmgr = null;
+    loadLyrmgrForProfile(SHARED_PROFILE, true);
+    loadLayers(SHARED_PROFILE);
+    startDraftStatusPolling();
+    saveState();
+    updateModeUi();
+    if (pickedTenant) {
+      var ts = document.getElementById('tbv2-preview-tenant');
+      if (ts) ts.value = pickedTenant;
+    }
+    updateLmPreviewIframe();
+    return;
+  }
   state.activeProfile = profile;
   state.activeLyrmgr = null;
   state.lastDraftSeenRevision = 0;
@@ -9495,6 +9604,8 @@ document.getElementById('tb-profile-select').addEventListener('change', function
   saveState();
   // Layer für neues Profil laden (core + override + profil-spezifisch)
   loadLayers(profile);
+  // V2: Modus-GUI anpassen (Shared vs. Einzelprofil) + Matrix/Vorschau aktualisieren
+  if (typeof updateModeUi === 'function') updateModeUi();
   // LyrMgr-Vorschau iframe aktualisieren
   updateLmPreviewIframe();
 });
@@ -9502,16 +9613,21 @@ document.getElementById('tb-profile-select').addEventListener('change', function
 // ===== LyrMgr-Vorschau Sub-Tabs =====
 function buildLmPreviewUrl(panel) {
   var group = state.activeProfile || 'public';
+  if (_sharedMode) {
+    var ts = document.getElementById('tbv2-preview-tenant');
+    var tenant = (ts && ts.value) || matrixProfiles()[0] || 'public';
+    group = tenant; // direkt live (Publish schreibt live)
+  }
   var p = panel || document.getElementById('tb-lm-panel-select').value || 'both';
   var src = (document.getElementById('tb-lm-source-select') || {}).value || 'db';
   src = (src === 'file') ? 'file' : 'db';
-  return 'dev-test.html?group=' + encodeURIComponent(group) + '&panel=' + p + '&source=' + src;
+  return 'dev-test.html?group=' + encodeURIComponent(group) + '&panel=' + p + '&source=' + src + (_sharedMode ? '&embed=1' : '');
 }
 function updateLmPreviewIframe() {
   var iframe = document.getElementById('tb-lm-preview-iframe');
   var wrapper = document.getElementById('tb-lm-preview-wrapper');
   if (iframe && wrapper.classList.contains('active')) {
-    iframe.src = buildLmPreviewUrl();
+    iframe.src = buildLmPreviewUrl() + '&_=' + Date.now(); // cache-bust -> immer neu laden
   }
 }
 
@@ -9632,6 +9748,7 @@ document.getElementById('tb-json-format').addEventListener('click', function() {
 
 // JSON-Editor: Apply-Button (lyrmgr.conf-Format → internes Format → State)
 document.getElementById('tb-json-apply').addEventListener('click', function() {
+  if (document.getElementById('tb-json-textarea').readOnly) { alert('🔒 Abgeleitete Ansicht ist schreibgeschützt.\nWähle „✏️ Gemeinsamen Baum bearbeiten", um den Master-Baum zu bearbeiten.'); return; }
   var textarea = document.getElementById('tb-json-textarea');
   var statusEl = document.getElementById('tb-json-status');
   try {
@@ -9674,6 +9791,13 @@ loadRuntimePaths('tb-main-runtime-paths');
 // Schritt 1: Profile-Dropdown befüllen
 loadAvailableProfiles(function() {
   console.log('[TB-DIAG v5] Callback gefeuert — activeProfile=' + state.activeProfile);
+
+  // ===== Shared-Modus (V2): gemeinsamer Baum __shared__ =====
+  if (_sharedMode) {
+    initSharedMode();
+    return; // Standard-Init im Shared-Modus überspringen
+  }
+
   // Schritt 2: Profil bestimmen (aus localStorage oder Default 'public')
   var _initProfile = state.activeProfile || 'public';
   if (!state.activeProfile) state.activeProfile = _initProfile;
@@ -9689,6 +9813,650 @@ loadAvailableProfiles(function() {
   loadLyrmgrForProfile(_initProfile, true);
   startDraftStatusPolling();
 });
+
+// ===== Shared-Modus (V2): Helfer =====
+
+// Matrix-/Bündel-State
+state.bundleProfiles = [];                 // gebündelte Profile (= Matrix-Spalten im Shared-Modus)
+state.matrix = { visibleFor: {} };         // visibleFor[nodeKey][profile] = bool/'lock'
+var _matrixSaveTimer = null;
+
+// Bearbeite ich den gemeinsamen Baum (Shared) oder ein Einzelprofil?
+function isSharedTree() { return state.activeProfile === SHARED_PROFILE; }
+// Spalten der Matrix: im Shared-Modus die gebündelten Profile, sonst nur das aktive Einzelprofil
+function matrixProfiles() {
+  if (isSharedTree()) return state.bundleProfiles || [];
+  return state.activeProfile ? [state.activeProfile] : [];
+}
+
+// Verfügbare Profile (ohne __shared__ und *-stage) ermitteln
+function sharedAvailableProfiles(cb) {
+  fetch(API_URL + '?action=list-lyrmgr-profiles')
+    .then(function(r) { return r.json(); })
+    .then(function(j) {
+      var list = []; var sharedExists = false;
+      if (j && j.success && j.data) {
+        j.data.forEach(function(p) {
+          var name = p.profile;
+          if (name === SHARED_PROFILE) { sharedExists = true; return; }
+          if (/-stage$/.test(name)) return;
+          list.push(name);
+        });
+      }
+      // Bekannte Mandanten sicherstellen (auch wenn noch keine Datei existiert)
+      TENANTS.forEach(function(t) { if (list.indexOf(t) === -1) list.push(t); });
+      cb(list, sharedExists);
+    })
+    .catch(function() { cb(TENANTS.slice(), false); });
+}
+
+// __shared__ als Option im Hauptdropdown sicherstellen
+function ensureSharedOption() {
+  var sel = document.getElementById('tb-profile-select');
+  for (var i = 0; i < sel.options.length; i++) {
+    if (sel.options[i].value === SHARED_PROFILE) return;
+  }
+  var opt = document.createElement('option');
+  opt.value = SHARED_PROFILE;
+  opt.textContent = SHARED_PROFILE + ' (gemeinsam)';
+  sel.appendChild(opt);
+}
+
+function initSharedMode() {
+  var initBtn = document.getElementById('tb-shared-init');
+  var bundleBar = document.getElementById('tbv2-bundle-bar');
+  if (initBtn) initBtn.addEventListener('click', function() { promptSharedInit(); });
+
+  sharedAvailableProfiles(function(list, sharedExists) {
+    // „Gemeinsamen Baum anlegen“-Button NUR zeigen, wenn noch KEIN __shared__ existiert.
+    if (initBtn) initBtn.style.display = sharedExists ? 'none' : '';
+    // Verfügbare Quell-Profile fuer den Anlegen-Dialog merken
+    _sharedSourceProfiles = list.slice();
+    // Standard-Bündelung = alle bekannten Mandanten, die existieren
+    var saved = [];
+    try { saved = JSON.parse(localStorage.getItem('tbv2_bundle') || '[]'); } catch (e) {}
+    state.bundleProfiles = (saved && saved.length)
+      ? saved.filter(function(p) { return list.indexOf(p) !== -1; })
+      : list.filter(function(p) { return TENANTS.indexOf(p) !== -1; });
+    if (!state.bundleProfiles.length) state.bundleProfiles = list.slice();
+    renderBundleBar(list);
+    applyMatrixLayout();
+
+    // Matrix laden, dann Baum laden
+    loadMatrix(function() {
+      ensureSharedOption();
+      var sel = document.getElementById('tb-profile-select');
+      sel.value = SHARED_PROFILE;
+      state.activeProfile = SHARED_PROFILE;
+      loadLayers(SHARED_PROFILE);
+      loadLyrmgrForProfile(SHARED_PROFILE, true);
+      startDraftStatusPolling();
+      updateModeUi();
+    });
+  });
+}
+
+// Bündelungsleiste rendern (Checkboxen = Matrix-Spalten)
+function renderBundleBar(available) {
+  var wrap = document.getElementById('tbv2-bundle-profiles');
+  if (!wrap) return;
+  wrap.innerHTML = '';
+  available.forEach(function(name) {
+    var on = state.bundleProfiles.indexOf(name) !== -1;
+    var lab = document.createElement('label');
+    lab.className = on ? '' : 'off';
+    lab.innerHTML = '<input type="checkbox" ' + (on ? 'checked' : '') + ' value="' + name + '"> ' + name;
+    lab.querySelector('input').addEventListener('change', function() {
+      var v = this.value;
+      if (this.checked) {
+        if (!confirm('Profil „' + v + '" zum gemeinsamen Baum hinzufügen?\n\n'
+          + 'Achtung: Der bisherige eigenständige Baum von „' + v + '" wird beim Publish durch den gemeinsamen Baum ÜBERSCHRIEBEN.')) {
+          this.checked = false; return;
+        }
+      } else {
+        if (!confirm('Profil „' + v + '" aus dem gemeinsamen Baum entfernen?\n\n'
+          + 'Die Verbindung zur Shared-Gruppe geht verloren; „' + v + '" wird künftig nicht mehr mit-publiziert.')) {
+          this.checked = true; return;
+        }
+      }
+      var idx = state.bundleProfiles.indexOf(v);
+      if (this.checked && idx === -1) state.bundleProfiles.push(v);
+      else if (!this.checked && idx !== -1) state.bundleProfiles.splice(idx, 1);
+      // Reihenfolge gemäß available beibehalten
+      state.bundleProfiles = available.filter(function(p) { return state.bundleProfiles.indexOf(p) !== -1; });
+      try { localStorage.setItem('tbv2_bundle', JSON.stringify(state.bundleProfiles)); } catch (e) {}
+      lab.className = this.checked ? '' : 'off';
+      saveMatrix();
+      acquireSharedLocks();
+      applyMatrixLayout();
+      fillPreviewTenants();
+      renderTree(); // Spalten neu aufbauen
+    });
+    wrap.appendChild(lab);
+  });
+  fillPreviewTenants();
+}
+
+// Vorschau-Mandant-Selektor mit den relevanten Profilen füllen (live)
+function fillPreviewTenants() {
+  var ts = document.getElementById('tbv2-preview-tenant');
+  if (!ts) return;
+  var cur = ts.value;
+  var profs = matrixProfiles();
+  ts.innerHTML = '';
+  profs.forEach(function(p) {
+    var o = document.createElement('option'); o.value = p; o.textContent = p; ts.appendChild(o);
+  });
+  if (cur && profs.indexOf(cur) !== -1) ts.value = cur;
+  ts.onchange = function() { if (typeof updateLmPreviewIframe === 'function') updateLmPreviewIframe(); };
+}
+
+// Modus-abhängige GUI: Bündelleiste nur im Shared-Modus zeigen
+function updateModeUi() {
+  var bar = document.getElementById('tbv2-bundle-bar');
+  var shared = isSharedTree();
+  if (bar) bar.style.display = shared ? 'flex' : 'none';
+  document.body.classList.toggle('tbv2-sharedtree', shared);
+  rebuildProfileDropdown();
+  applyMatrixLayout();
+  fillPreviewTenants();
+  if (shared) acquireSharedLocks();
+  if (typeof renderTree === 'function') renderTree();
+  if (typeof syncJsonEditor === 'function') syncJsonEditor();
+}
+
+// Hauptdropdown gruppieren: Einzelprofile oben, gebündelte Profile unter „Shared"
+function rebuildProfileDropdown() {
+  var sel = document.getElementById('tb-profile-select');
+  if (!sel) return;
+  // Aktuelle Profile (value -> Label ohne Marker) einsammeln
+  var items = [];
+  function collect(opts) {
+    for (var i = 0; i < opts.length; i++) {
+      var o = opts[i];
+      if (!o.value || o.value === SHARED_PROFILE) continue;
+      var label = o.textContent.replace(/^🔗\s*/, '').replace(/^↳\s*/, '').replace(/\s*\(Vorschau\)\s*$/, '');
+      if (!items.some(function(x){ return x.value === o.value; })) items.push({ value: o.value, label: label });
+    }
+  }
+  collect(sel.querySelectorAll('option'));
+  var bundle = state.bundleProfiles || [];
+  var standalone = items.filter(function(p){ return bundle.indexOf(p.value) === -1; });
+  var sharedItems = items.filter(function(p){ return bundle.indexOf(p.value) !== -1; });
+
+  sel.innerHTML = '<option value="">– wählen –</option>';
+  standalone.forEach(function(p){
+    var o = document.createElement('option'); o.value = p.value; o.textContent = p.label; sel.appendChild(o);
+  });
+  var og = document.createElement('optgroup');
+  og.label = '🔗 Shared Profile';
+  // Eintrag zum Bearbeiten des gemeinsamen Baums — farblich hervorgehoben, einzeilig
+  var oAll = document.createElement('option');
+  oAll.value = SHARED_PROFILE;
+  oAll.textContent = '✏️ Gemeinsamen Baum bearbeiten';
+  oAll.style.fontWeight = '700';
+  oAll.style.color = '#ffffff';
+  oAll.style.background = '#4B7B81';
+  og.appendChild(oAll);
+  sharedItems.forEach(function(p){
+    var o = document.createElement('option'); o.value = p.value; o.textContent = '↳ ' + p.label + ' (Vorschau)'; og.appendChild(o);
+  });
+  sel.appendChild(og);
+
+  // Auswahl wiederherstellen
+  if (isSharedTree()) {
+    var ts = document.getElementById('tbv2-preview-tenant');
+    sel.value = (ts && ts.value && bundle.indexOf(ts.value) !== -1) ? ts.value : SHARED_PROFILE;
+  } else if (state.activeProfile) {
+    sel.value = state.activeProfile;
+  }
+}
+
+// Robuster Init mit 409-Retry (force)
+var _sharedSourceProfiles = [];
+
+// Dialog: Quell-Profil wählen, dann gemeinsamen Baum aufbauen (ersetzt die Toolbar-Liste).
+function promptSharedInit() {
+  var profs = (_sharedSourceProfiles && _sharedSourceProfiles.length) ? _sharedSourceProfiles : ['public'];
+  var overlay = document.createElement('div');
+  overlay.className = 'tb-confirm-overlay';
+  var optsHtml = profs.map(function(p){
+    var v = String(p).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+    return '<option value="' + v + '"' + (p === 'public' ? ' selected' : '') + '>' + v + '</option>';
+  }).join('');
+  overlay.innerHTML = '<div class="tb-confirm-box" style="max-width:420px">'
+    + '<h3>⚓ Gemeinsamen Baum initialisieren</h3>'
+    + '<p style="font-size:12px;color:#555;margin:0 0 8px 0">Quell-Profil, aus dem der gemeinsame Baum __shared__ aufgebaut wird:</p>'
+    + '<select id="_tb_init_src" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:4px;box-sizing:border-box">' + optsHtml + '</select>'
+    + '<div class="tb-confirm-btns" style="gap:6px">'
+    + '<button class="cancel" style="background:#fff;color:#555;border:1px solid #ccc">Abbrechen</button>'
+    + '<button class="primary" style="background:#4B7B81;color:#fff;border:1px solid #3a6166;font-weight:600">⚓ Aufbauen</button>'
+    + '</div></div>';
+  document.body.appendChild(overlay);
+  function cleanup(){ overlay.remove(); }
+  overlay.querySelector('.cancel').onclick = cleanup;
+  overlay.querySelector('.primary').onclick = function(){ var src = overlay.querySelector('#_tb_init_src').value; cleanup(); sharedInit(false, src); };
+  overlay.addEventListener('click', function(e){ if (e.target === overlay) cleanup(); });
+}
+
+function sharedInit(force, source) {
+  source = source || 'public';
+  fetch(API_URL + '?action=shared-init-from-public' + (_editorName ? '&editor=' + encodeURIComponent(_editorName) : ''), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Editor-Name': _editorName || '' },
+    body: JSON.stringify({ sourceProfile: source, force: !!force })
+  }).then(function(r) {
+    return r.json().then(function(j) { return { status: r.status, j: j }; });
+  }).then(function(res) {
+    var j = res.j;
+    if (res.status === 409 || (j && j.error && /existiert bereits/.test(j.error))) {
+      if (confirm('Gemeinsamer Baum __shared__ existiert bereits.\nMit Profil „' + source + '“ ÜBERSCHREIBEN?')) {
+        sharedInit(true, source);
+      }
+      return;
+    }
+    if (!j || !j.success) { alert('Initialisierung fehlgeschlagen: ' + ((j && j.error) || 'unbekannt')); return; }
+    // Erfolgreich: __shared__ existiert jetzt → Anlegen-Button ausblenden
+    var ib = document.getElementById('tb-shared-init');
+    if (ib) ib.style.display = 'none';
+    state.activeLyrmgr = null;
+    ensureSharedOption();
+    var sel = document.getElementById('tb-profile-select');
+    sel.value = SHARED_PROFILE;
+    state.activeProfile = SHARED_PROFILE;
+    loadLayers(SHARED_PROFILE);
+    loadLyrmgrForProfile(SHARED_PROFILE, true);
+    startDraftStatusPolling();
+    acquireSharedLocks();
+  }).catch(function(e) { alert('Netzwerkfehler: ' + e); });
+}
+
+// Matrix laden/speichern
+function loadMatrix(cb) {
+  // localStorage-Backup als Basis (garantierte Persistenz, auch wenn Server-Save scheitert)
+  try {
+    var ls = JSON.parse(localStorage.getItem('tbv2_matrix') || 'null');
+    if (ls && ls.visibleFor) state.matrix.visibleFor = ls.visibleFor;
+  } catch (e) {}
+  fetch(API_URL + '?action=shared-matrix-load')
+    .then(function(r) { return r.json(); })
+    .then(function(j) {
+      if (j && j.success && j.data && j.data.visibleFor && Object.keys(j.data.visibleFor).length) {
+        // Server gewinnt, wenn er Daten hat
+        state.matrix.visibleFor = j.data.visibleFor;
+        try { localStorage.setItem('tbv2_matrix', JSON.stringify({ visibleFor: j.data.visibleFor })); } catch (e) {}
+      }
+      var cnt = Object.keys(state.matrix.visibleFor || {}).length;
+      console.log('[V2-Matrix] geladen: ' + cnt + ' Knoten (source=' + ((j && j.data && j.data.source) || '?') + ')');
+      if (cb) cb();
+    })
+    .catch(function(e) { console.warn('[V2-Matrix] Server-Laden fehlgeschlagen, nutze localStorage', e); if (cb) cb(); });
+}
+function _matrixStatus(txt, ok) {
+  var el = document.getElementById('tb-save-status');
+  if (el) { el.textContent = txt; el.style.color = ok ? '#9f9' : '#f99'; }
+}
+function doSaveMatrix() {
+  // Sofort lokal sichern (garantiert)
+  try { localStorage.setItem('tbv2_matrix', JSON.stringify({ visibleFor: state.matrix.visibleFor })); } catch (e) {}
+  return fetch(API_URL + '?action=shared-matrix-save' + (_editorName ? '&editor=' + encodeURIComponent(_editorName) : ''), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Editor-Name': _editorName || '' },
+    body: JSON.stringify({ visibleFor: state.matrix.visibleFor, bundle: state.bundleProfiles })
+  }).then(function(r){ return r.json(); }).then(function(j){
+    var cnt = Object.keys(state.matrix.visibleFor || {}).length;
+    if (j && j.success) { _matrixStatus('✓ Matrix gespeichert (' + cnt + (j.db ? ', DB' : ', Datei') + ')', true); console.log('[V2-Matrix] gespeichert', j); }
+    else { _matrixStatus('⚠ nur lokal gesichert (Server-Fehler)', false); console.warn('[V2-Matrix] Save-Antwort', j); }
+    return j;
+  }).catch(function(e){ _matrixStatus('⚠ nur lokal gesichert', false); console.warn('[V2-Matrix] Save-Fehler', e); });
+}
+function saveMatrix() {
+  if (_matrixSaveTimer) clearTimeout(_matrixSaveTimer);
+  _matrixSaveTimer = setTimeout(doSaveMatrix, 200);
+}
+// Beim Verlassen ausstehende Speicherung erzwingen
+window.addEventListener('beforeunload', function() {
+  if (_matrixSaveTimer) { clearTimeout(_matrixSaveTimer); _matrixSaveTimer = null;
+    try {
+      var url = API_URL + '?action=shared-matrix-save' + (_editorName ? '&editor=' + encodeURIComponent(_editorName) : '');
+      var blob = new Blob([JSON.stringify({ visibleFor: state.matrix.visibleFor, bundle: state.bundleProfiles })], { type: 'application/json' });
+      if (navigator.sendBeacon) navigator.sendBeacon(url, blob);
+    } catch (e) {}
+  }
+});
+
+// Matrix-Status: 'on' (sichtbar) | 'off' (unsichtbar) | 'lock' (gesperrt)
+function mtxState(nodeKey, profile) {
+  var v = state.matrix.visibleFor[nodeKey];
+  if (!v || !(profile in v)) return 'on';
+  var x = v[profile];
+  if (x === 'lock') return 'lock';
+  return x === false ? 'off' : 'on';
+}
+function mtxGet(nodeKey, profile) { return mtxState(nodeKey, profile) === 'on'; }
+function mtxSetState(nodeKey, profile, st) {
+  if (!state.matrix.visibleFor[nodeKey]) state.matrix.visibleFor[nodeKey] = {};
+  state.matrix.visibleFor[nodeKey][profile] = (st === 'on' ? true : (st === 'off' ? false : 'lock'));
+  saveMatrix();
+}
+function mtxCycle(nodeKey, profile) {
+  var s = mtxState(nodeKey, profile);
+  mtxSetState(nodeKey, profile, s === 'on' ? 'off' : (s === 'off' ? 'lock' : 'on'));
+}
+
+// Matrix-Zellen-HTML für einen Knoten erzeugen.
+// ancAllowed: { profile: bool } — sind alle Vorfahren sichtbar (on)?
+function buildMatrixCells(nodeKey, ancAllowed) {
+  var html = '<span class="tbv2-mtx" data-node-key="' + esc(nodeKey) + '">';
+  matrixProfiles().forEach(function(p) {
+    var anc = ancAllowed ? ancAllowed[p] !== false : true;
+    html += '<span class="tbv2-mtx-cell">';
+    if (!anc) {
+      html += '<span class="tbv2-tri lock" title="durch übergeordnete Sperre gesperrt (' + esc(p) + ')">🔒</span>';
+    } else {
+      var st = mtxState(nodeKey, p);
+      var sym = st === 'on' ? '✓' : (st === 'off' ? '✗' : '🔒');
+      var lbl = st === 'on' ? 'sichtbar' : (st === 'off' ? 'unsichtbar' : 'gesperrt');
+      html += '<span class="tbv2-tri ' + st + '" data-mtx-node="' + esc(nodeKey) + '" data-mtx-profile="' + esc(p)
+        + '" title="' + esc(p) + ': ' + lbl + ' (klicken: sichtbar→unsichtbar→gesperrt)">' + sym + '</span>';
+    }
+    html += '</span>';
+  });
+  html += '</span>';
+  return html;
+}
+
+// Effektive Vorfahren-Erlaubnis für Kinder: nur wenn Knoten 'on' ist, sind Kinder frei
+function childAncAllowed(parentAnc, nodeKey) {
+  var out = {};
+  matrixProfiles().forEach(function(p) {
+    var anc = parentAnc ? parentAnc[p] !== false : true;
+    out[p] = anc && (mtxState(nodeKey, p) === 'on');
+  });
+  return out;
+}
+
+// Vorfahren-Erlaubnis je Knoten ermitteln (für gezieltes Zell-Refresh ohne renderTree)
+function buildAncMap() {
+  var map = {};
+  var p = state.profiles[SHARED_PROFILE] || state.profiles[state.activeProfile];
+  if (!p || !p.lyrmgrs) return map;
+  function walk(items, anc) {
+    (items || []).forEach(function(it) {
+      if (it && typeof it === 'object') {
+        var gk = 'grp:' + (it.key || it.name || '');
+        map[gk] = anc; walk(it.items, childAncAllowed(anc, gk));
+      } else if (typeof it === 'string') { map[it] = anc; }
+    });
+  }
+  Object.keys(p.lyrmgrs).forEach(function(k) {
+    (p.lyrmgrs[k].categories || []).forEach(function(cat) {
+      var ck = 'cat:' + (cat.key || cat.name || '');
+      map[ck] = null; walk(cat.items, childAncAllowed(null, ck));
+    });
+  });
+  return map;
+}
+// Nur die Matrix-Zellen neu aufbauen (Baum-Expand-Zustand bleibt erhalten)
+function refreshMatrixCells() {
+  var map = buildAncMap();
+  document.querySelectorAll('.tbv2-mtx[data-node-key]').forEach(function(span) {
+    var key = span.getAttribute('data-node-key');
+    var tmp = document.createElement('div');
+    tmp.innerHTML = buildMatrixCells(key, map[key]);
+    var nu = tmp.firstChild;
+    if (nu) span.parentNode.replaceChild(nu, span);
+  });
+}
+
+// Breite des Matrix-Bands setzen + Shared-Klasse aktivieren
+function applyMatrixLayout() {
+  var n = matrixProfiles().length;
+  var cell = 42;
+  var w = n > 0 ? (n * cell) : 0;
+  document.documentElement.style.setProperty('--tbv2-mtxW', w + 'px');
+  document.body.classList.toggle('tbv2-shared', _sharedMode && n > 0);
+}
+
+// Kurzcode für ein Profil (lesbarer Spaltenheader)
+function tenantCode(p) {
+  var map = { public: 'PUB', uwpro: 'UW', nwpro: 'NW', owpro: 'OW' };
+  if (map[p]) return map[p];
+  return String(p || '').slice(0, 3).toUpperCase();
+}
+
+// Gemeinsamer sticky Header über dem Fixband (als erste Zeile im Baum-Body)
+// Gemeinsamer sticky Header über dem Inline-Band (erste Zeile im Baum-Body)
+function injectColHeader() {
+  var body = document.getElementById('tb-tree-body');
+  if (!body) return;
+  var old = document.getElementById('tbv2-colhead');
+  if (old) old.parentNode.removeChild(old);
+  var profs = matrixProfiles();
+  if (!_sharedMode || !profs.length) return;
+  var cells = profs.map(function(p) {
+    return '<span class="tbv2-mtx-cell" title="' + esc(p) + '">' + esc(tenantCode(p)) + '</span>';
+  }).join('');
+  var head = document.createElement('div');
+  head.id = 'tbv2-colhead';
+  head.innerHTML = '<span class="tbv2-colhead-label">👁 je Profil</span><span class="tbv2-mtxbox">' + cells + '</span>';
+  body.insertBefore(head, body.firstChild);
+  // Header exakt über das tatsächliche Zell-Band legen (misst eine echte Zeile)
+  var sample = body.querySelector('.tbv2-mtx');
+  var box = head.querySelector('.tbv2-mtxbox');
+  if (sample && box) {
+    var sr = sample.getBoundingClientRect();
+    var hr = head.getBoundingClientRect();
+    box.style.right = 'auto';
+    box.style.left = (sr.left - hr.left) + 'px';
+    box.style.width = sr.width + 'px';
+  }
+}
+// Nur die Inline-Bänder ersetzen — Baum-Expand bleibt erhalten
+function refreshMatrixCells() {
+  var map = buildAncMap();
+  document.querySelectorAll('.tbv2-mtx[data-node-key]').forEach(function(span) {
+    var key = span.getAttribute('data-node-key');
+    var tmp = document.createElement('div');
+    tmp.innerHTML = buildMatrixCells(key, map[key]);
+    var nu = tmp.firstChild;
+    if (nu) span.parentNode.replaceChild(nu, span);
+  });
+}
+// Header bei Größenänderung neu über das Band messen
+// Header bei Größenänderung neu über das Band messen (Fenster + Panel-Resize)
+var _mtxHdrTimer = null;
+function scheduleHeaderRealign() {
+  if (!_sharedMode) return;
+  if (_mtxHdrTimer) clearTimeout(_mtxHdrTimer);
+  _mtxHdrTimer = setTimeout(injectColHeader, 60);
+}
+window.addEventListener('resize', scheduleHeaderRealign);
+(function observeTreeBody() {
+  var body = document.getElementById('tb-tree-body');
+  if (body && typeof ResizeObserver !== 'undefined') {
+    new ResizeObserver(scheduleHeaderRealign).observe(body);
+  }
+})();
+
+function acquireSharedLocks() {
+  var profiles = (state.bundleProfiles && state.bundleProfiles.length) ? state.bundleProfiles : TENANTS;
+  fetch(API_URL + '?action=shared-lock' + (_editorName ? '&editor=' + encodeURIComponent(_editorName) : ''), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Editor-Name': _editorName || '' },
+    body: JSON.stringify({ profiles: profiles })
+  }).then(function(r){ return r.json(); })
+    .then(function(j) {
+      var el = document.getElementById('tbv2-bundle-lockinfo');
+      if (el && j && j.success) {
+        var parts = [];
+        if (j.locked && j.locked.length) parts.push('🔒 V1 gesperrt: ' + j.locked.join(', '));
+        if (j.conflicts && j.conflicts.length) parts.push('⚠ belegt: ' + j.conflicts.map(function(c){return c.profile;}).join(', '));
+        el.textContent = parts.join('  ·  ');
+      }
+    })
+    .catch(function() {});
+}
+
+// Items pro Mandant filtern.
+// 'on'  → Layer/Gruppe normal übernehmen.
+// 'lock'→ als gesperrt markieren: Layer wird zu { name, secured:true }, Gruppe erhält secured:true
+//         und ALLE Nachfahren werden ebenfalls secured (forceSecured).
+// 'off' → entfernen.
+// Der secured-Flag steckt direkt im publizierten lyrmgr-Knoten (kein separates __permissions__).
+function deriveItems(items, tenant, ancOk, forceSecured) {
+  var out = [];
+  (items || []).forEach(function(it) {
+    if (typeof it === 'string') {
+      var st = mtxState(it, tenant);
+      if (!ancOk || st === 'off') return;
+      if (forceSecured || st === 'lock') out.push({ name: it, secured: true });
+      else out.push(it);
+    } else if (it && typeof it === 'object') {
+      var k = 'grp:' + (it.key || it.name || '');
+      var st = mtxState(k, tenant);
+      if (!ancOk || st === 'off') return;
+      var copy = deepCopy(it);
+      var childForce = forceSecured || (st === 'lock');
+      copy.items = deriveItems(it.items, tenant, st !== 'off', childForce);
+      if (childForce) copy.secured = true;
+      out.push(copy);
+    }
+  });
+  return out;
+}
+function deriveTreeForTenant(tree, tenant) {
+  var t = deepCopy(tree);
+  t.categories = (tree.categories || []).map(function(cat) {
+    var k = 'cat:' + (cat.key || cat.name || '');
+    var st = mtxState(k, tenant);
+    if (st === 'off') return null;
+    var nc = deepCopy(cat);
+    var force = (st === 'lock');
+    nc.items = deriveItems(cat.items, tenant, st !== 'off', force);
+    if (force) nc.secured = true;
+    return nc;
+  }).filter(Boolean);
+  return t;
+}
+
+// Pro Profil ableiten und DIREKT LIVE nach <profil> publishen.
+// mode = 'db'  → nur Datenbank (Live-Quelle, source=db)
+// mode = 'file'→ zusätzlich .conf-Dateien via FastAPI (SFTP) + Git-Commit
+function publishShared(mode) {
+  mode = mode || 'db';
+  var withFiles = (mode === 'file');
+  var profiles = matrixProfiles().slice();
+  if (!profiles.length) { _tbAlert('Publish', 'Kein Profil ausgewählt.', 'error'); return; }
+  var p = state.profiles[state.activeProfile];
+  if (!p || !p.lyrmgrs) { _tbAlert('Publish', 'Kein Baum geladen.', 'error'); return; }
+
+  var _envLabel = (location.pathname.indexOf('/maps-dev/') === 0) ? 'DEV' : 'PROD';
+  var _target = (_envLabel === 'DEV') ? 'dev' : 'prod';
+  var _editorLabel = String((_editorName || 'anonym')).trim() || 'anonym';
+  var defaultMsg = _envLabel + ' Shared-Publish (' + (withFiles ? 'DB+Datei' : 'DB') + '): ' + profiles.join(', ')
+    + ' · User: ' + _editorLabel
+    + '\n\nZiel-Profile (vollständig ersetzt): ' + profiles.join(', ')
+    + (isSharedTree() ? '\n+ gemeinsamer Baum __shared__' : '');
+
+  // Styled Dialog (Abbrechen / Ohne Git / Commit & Push) statt nativem confirm()
+  _tbCommitDialog(defaultMsg).then(function(dlg) {
+    if (!dlg) return; // Abgebrochen
+    var doGit = !dlg.skip;
+    var gitMsg = dlg.message || '';
+
+    var keys = getSortedLyrmgrKeys(p.lyrmgrs);
+    // Payloads EINMAL bauen (für DB + Datei wiederverwenden)
+    var tenantPayloads = {};
+    profiles.forEach(function(tenant) {
+      var payload = {};
+      keys.forEach(function(key) { payload[key] = generateLyrmgrConfBlock(deriveTreeForTenant(p.lyrmgrs[key], tenant)); });
+      tenantPayloads[tenant] = payload;
+    });
+    var sharedPayload = null;
+    if (isSharedTree()) {
+      sharedPayload = {};
+      keys.forEach(function(key) { sharedPayload[key] = generateLyrmgrConfBlock(p.lyrmgrs[key]); });
+    }
+
+    function postPublish(prof, payload) {
+      return fetch(API_URL + '?action=shared-publish-tenant' + (_editorName ? '&editor=' + encodeURIComponent(_editorName) : ''), {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Editor-Name': _editorName || '' },
+        body: JSON.stringify({ profile: prof, payload: payload })
+      }).then(function(r){ return r.json(); }).catch(function(){ return { success:false }; });
+    }
+
+    // 1) DB-Publish (immer): __shared__ + Mandanten
+    var dbJobs = [];
+    if (sharedPayload) dbJobs.push(postPublish(SHARED_PROFILE, sharedPayload));
+    profiles.forEach(function(tenant) { dbJobs.push(postPublish(tenant, tenantPayloads[tenant])); });
+
+    Promise.all(dbJobs).then(function(res) {
+      var ok = res.filter(function(j){ return j && j.success; }).length;
+      var changed = res.filter(function(j){ return j && j.success && !j.unchanged; }).length;
+      saveMatrix();
+      // Hinweis: Sperren stecken jetzt als `secured`-Property direkt im Payload —
+      // kein separates __permissions__/Deny-Map-Schreiben mehr nötig.
+      return Promise.resolve().then(function() {
+          var msg = 'Publish (LIVE, DB): ' + ok + '/' + dbJobs.length + ' Profile, davon ' + changed + ' inhaltlich geändert → ' + esc(profiles.join(', ')) + '.';
+          updateLmPreviewIframe();
+
+          if (!withFiles) {
+            _tbAlert('Publiziert', msg + '<br><span style="color:#888">Dateien/Git: nur über „🚀 Publish lyrmgr.conf“.</span>', 'success');
+            return;
+          }
+
+          // 2) Datei-Publish pro MANDANT via FastAPI (SFTP-as-trigonet, darf nach /www schreiben)
+          var filePaths = [];
+          var fileErrs = [];
+          var fileJobs = profiles.map(function(tenant) {
+            var url = GAPI_URL + '/publish-lyrmgr-full?target=' + _target;
+            return fetch(url, {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ profile: tenant, data: tenantPayloads[tenant], editor: _editorName })
+            }).then(function(r){ return r.json(); }).then(function(gj){
+              var gd = gj && gj.data ? gj.data : gj;
+              if (gd && gd.published && gd.path) { filePaths.push(gd.path); return gd; }
+              fileErrs.push(tenant + ': ' + ((gd && (gd.error || gd.detail)) || (gj && gj.error) || 'unbekannt'));
+              return gd || { published:false };
+            }).catch(function(e){ fileErrs.push(tenant + ': ' + (e.message || String(e))); return { published:false }; });
+          });
+
+          return Promise.all(fileJobs).then(function(fres) {
+            var fok = fres.filter(function(g){ return g && g.published; }).length;
+            msg += '<br>Datei-Publish (' + _target.toUpperCase() + '): ' + fok + '/' + fileJobs.length + ' Dateien.';
+            if (fileErrs.length) msg += '<br><span style="color:#c0392b">⚠ ' + esc(fileErrs.slice(0, 4).join(' · ')) + '</span>';
+
+            // 3) Git-Commit/Push der echten Dateipfade
+            if (doGit && filePaths.length) {
+              var uniq = filePaths.filter(function(v, i, a){ return v && a.indexOf(v) === i; });
+              return fetch(GAPI_URL + '/git-commit-batch', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ deployPaths: uniq, source: 'tree-builder-v2', message: gitMsg })
+              }).then(function(r){ return r.json(); }).then(function(g){
+                _tbAlert('Publiziert', msg + '<br>Git: ' + ((g && g.committed)
+                  ? '✓ committed & pushed (' + (g.changed || uniq.length) + ' Dateien)'
+                  : '⚠ ' + esc((g && (g.error || g.detail)) || 'nichts zu committen')), 'success');
+              }).catch(function(e){ _tbAlert('Publiziert', msg + '<br>Git: ⚠ ' + esc(e.message || String(e)), 'success'); });
+            } else {
+              _tbAlert('Publiziert', msg + (doGit ? '<br>Git: keine Dateipfade' : '<br>Git: übersprungen'), 'success');
+            }
+          });
+        });
+    });
+  });
+}
+
+// Delegierter Listener für Matrix-Tri-State-Buttons im Baum
+document.addEventListener('click', function(e) {
+  var t = e.target;
+  if (t && t.classList && t.classList.contains('tbv2-tri') && t.hasAttribute('data-mtx-node')) {
+    e.preventDefault(); e.stopPropagation();
+    mtxCycle(t.getAttribute('data-mtx-node'), t.getAttribute('data-mtx-profile'));
+    refreshMatrixCells(); // nur Zellen aktualisieren, Baum bleibt stabil
+  }
+});
+
 </script>
 <script src="https://cdn.jsdelivr.net/npm/ol@10.8.0/dist/ol.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.9.0/proj4.js"></script>

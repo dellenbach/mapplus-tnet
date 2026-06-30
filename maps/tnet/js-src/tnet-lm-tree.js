@@ -26,6 +26,7 @@
   var _currentFilter = '';
   // Koalesziert active-layers-changed (Bookmark-Load) → ein Checkbox-Resync/Frame.
   var _resyncRaf = null;
+  var _loadingHintTimers = {}; // layerId -> timeout
 
   /** Wappen-/Icon-Mapping */
   // SVG Legend-Icon (Farbquadrate mit Linien) — geladen via TnetIcons
@@ -33,11 +34,26 @@
     return TnetIcons.get('legend-colors', null, {width: '14', height: '14', style: 'vertical-align:-2px'});
   }
 
+  // Schlichtes Schloss-Symbol (SVG in Textfarbe) fuer gesperrte Layer/Gruppen.
+  function getLockIconSvg() {
+    return '<svg width="11" height="13" viewBox="0 0 11 13" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">'
+      + '<rect x="1" y="5.5" width="9" height="6.5" rx="1" stroke="currentColor" stroke-width="1.2"/>'
+      + '<path d="M3 5.5V3.5a2.5 2.5 0 0 1 5 0v2" stroke="currentColor" stroke-width="1.2"/>'
+      + '</svg>';
+  }
+
   var CATEGORY_ICONS = {
-    'nidwalden': { label: 'NW', wappen: getAppRoot() + '/tnet/resources/wappen_nidwalden.svg' },
-    'obwalden':  { label: 'OW', wappen: getAppRoot() + '/tnet/resources/wappen_obwalden.svg' },
-    'bund':      { label: 'CH', wappen: getAppRoot() + '/tnet/resources/wappen_bund.svg' },
-    'weitere':   { label: '…',  wappen: getAppRoot() + '/tnet/resources/icon_weitere.svg' }
+    'nidwalden': { label: 'Nidwalden', wappen: getAppRoot() + '/tnet/resources/wappen_nidwalden.svg' },
+    'obwalden':  { label: 'Obwalden', wappen: getAppRoot() + '/tnet/resources/wappen_obwalden.svg' },
+    'bund':      { label: 'Bundesdaten', wappen: getAppRoot() + '/tnet/resources/wappen_bund.svg' },
+    'weitere':   { label: 'Weitere Geodaten',  wappen: getAppRoot() + '/tnet/resources/icon_weitere.svg' }
+  };
+
+  var CATEGORY_ALIASES = {
+    'nidwalden': 'Nidwalden',
+    'obwalden': 'Obwalden',
+    'bund': 'Bundesdaten',
+    'weitere': 'Weitere Geodaten'
   };
 
   var LMTree = {
@@ -57,8 +73,18 @@
 
       _unlisteners.push(store.on('catalog-loaded', this.render.bind(this)));
       _unlisteners.push(store.on('layer-visibility', this._onLayerVisibility.bind(this)));
+      _unlisteners.push(store.on('layer-loading', this._onLayerLoading.bind(this)));
       _unlisteners.push(store.on('active-layers-changed', this._onActiveLayersChanged.bind(this)));
       _unlisteners.push(store.on('group-toggled', this._onGroupToggled.bind(this)));
+
+      var self = this;
+      var onBookmarkLoaded = function () {
+        self._syncToActiveBookmark();
+      };
+      document.addEventListener('tnet-bookmark-loaded', onBookmarkLoaded);
+      _unlisteners.push(function () {
+        document.removeEventListener('tnet-bookmark-loaded', onBookmarkLoaded);
+      });
 
       if (store.isLoaded()) {
         this.render(store.getCatalog());
@@ -66,6 +92,10 @@
 
       // Resolution-Listener: Layer ausserhalb des Massstabsbereichs ausgrauen
       this._initResolutionWatch();
+
+      if (window.__tnetActiveBookmark) {
+        this._syncToActiveBookmark();
+      }
 
       TnetLog.log(LOG, 'Init ✓ → #' + containerId);
     },
@@ -76,6 +106,10 @@
         else clearTimeout(_resyncRaf);
         _resyncRaf = null;
       }
+      Object.keys(_loadingHintTimers).forEach(function (layerId) {
+        clearTimeout(_loadingHintTimers[layerId]);
+      });
+      _loadingHintTimers = {};
       _unlisteners.forEach(function (fn) { fn(); });
       _unlisteners = [];
       if (_container) _container.innerHTML = '';
@@ -99,12 +133,13 @@
       for (var c = 0; c < catalog.length; c++) {
         var cat = catalog[c];
         var info = CATEGORY_ICONS[cat.id] || { label: cat.name.substring(0, 2).toUpperCase() };
+        var tabAlias = CATEGORY_ALIASES[cat.id] || cat.alias || cat.name;
         var activeClass = cat.id === _activeTabId ? ' lm-tab-active' : '';
-        html += '<div class="lm-tab' + activeClass + '" data-cat-id="' + esc(cat.id) + '">';
+        html += '<div class="lm-tab' + activeClass + '" data-cat-id="' + esc(cat.id) + '" title="' + esc(tabAlias) + '">';
         if (info.wappen) {
-          html += '<img class="lm-tab-icon" src="' + esc(info.wappen) + '" alt="' + esc(cat.name) + '">';
+          html += '<img class="lm-tab-icon" src="' + esc(info.wappen) + '" alt="' + esc(tabAlias) + '" title="' + esc(tabAlias) + '">';
         } else {
-          html += '<span class="lm-tab-label">' + esc(info.label) + '</span>';
+          html += '<span class="lm-tab-label" title="' + esc(tabAlias) + '">' + esc(info.label) + '</span>';
         }
         html += '</div>';
       }
@@ -135,6 +170,8 @@
       _container.innerHTML = html;
       this._bindEvents();
       this._resyncLayerCheckboxes();
+      // Informiert Subscribers (z.B. dev-test.html Checkbox) dass der Katalog gerendert ist
+      document.dispatchEvent(new CustomEvent('lm-catalog-rendered', { bubbles: false }));
     },
 
     /** Rendert den ganzen Inhalt einer Kategorie als Accordion */
@@ -148,18 +185,33 @@
     },
 
     _renderSubcategory: function (sub) {
+      var groups = sub.groups || [];
+      // hideHeader: Subcategory-Kopf unterdruecken und die Gruppen direkt als
+      // oberste Accordions rendern (z.B. Bund-Tab ohne den Wrapper
+      // "WMS - Bundes Geodaten-Infrastruktur"). Flag kommt aus lyrmgr.conf
+      // (Kategorie) und wird via layers.php durchgereicht.
+      if (sub.hideHeader) {
+        var promoted = '';
+        for (var k = 0; k < groups.length; k++) {
+          promoted += this._renderGroup(groups[k], 1);
+        }
+        return promoted;
+      }
       // Subcategory = Level-1 Accordion — expanded-Wert aus Store/API
       var depth = 1;
       var normalizedDepth = this._clampDepth(depth);
-      var groups = sub.groups || [];
       var count = this._countLeaves(groups);
       var isExpanded = sub.expanded !== false; // default: offen
       var stateClass = isExpanded ? ' lm-expanded' : ' lm-collapsed';
+      var subLocked = (sub.locked === true || sub.accessDenied === true) || this._allLocked(groups);
       var html = '';
-      html += '<div class="lm-subcat' + stateClass + '" data-group-id="' + esc(sub.id) + '">';
+      html += '<div class="lm-subcat' + stateClass + (subLocked ? ' lm-group-locked' : '') + '" data-group-id="' + esc(sub.id) + '"' + (subLocked ? ' data-locked="1"' : '') + '>';
       html += '<div class="lm-subcat-header lm-depth-' + normalizedDepth + '" data-action="toggle-group" data-lm-depth="' + normalizedDepth + '">';
       html += '<span class="lm-arrow">▶</span>';
-      html += '<span class="lm-subcat-name">' + esc(sub.name) + '</span>';
+      if (subLocked) {
+        html += '<span class="lm-cb lm-cb-locked" title="Kein Zugriff – berechtigtes Login nötig" style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;opacity:.6">' + getLockIconSvg() + '</span>';
+      }
+      html += '<span class="lm-subcat-name"' + (subLocked ? ' style="opacity:.6"' : '') + '>' + esc(sub.name) + '</span>';
       html += '<span class="lm-count">' + count + '</span>';
       html += '</div>';
       html += '<div class="lm-subcat-body">';
@@ -174,23 +226,28 @@
     _renderGroup: function (group, depth) {
       var normalizedDepth = this._clampDepth(depth);
       var layers = group.layers || [];
-      // Einzel-Layer ohne verschachtelte Gruppe? Direkt als Layer rendern
-      if (layers.length === 1 && layers[0].type !== 'group') {
+      // Einzel-Layer-Gruppe nur dann flach als Layer rendern, wenn explizit
+      // als Kopf-ausgeblendet markiert (hideHeader). Standard: Gruppen-Kopf
+      // bleibt sichtbar (z.B. "SEM" mit nur "SP Asyl").
+      if (group.hideHeader && layers.length === 1 && layers[0].type !== 'group') {
         return this._renderLeafLayer(layers[0], normalizedDepth);
       }
       var count = this._countLeaves(layers);
       var isExpanded = group.open === true || group.expanded === true;
       var stateClass = isExpanded ? ' lm-expanded' : ' lm-collapsed';
-      var hasSelectAll = group.selectAll === true;
+      var groupLocked = (group.locked === true || group.accessDenied === true) || this._allLocked(layers);
+      var hasSelectAll = group.selectAll === true && !groupLocked;
       var hasLegend = group.legend && group.legend !== '';
       var html = '';
-      html += '<div class="lm-group' + stateClass + ' lm-depth-' + normalizedDepth + '" data-group-id="' + esc(group.id) + '" data-lm-depth="' + normalizedDepth + '">';
+      html += '<div class="lm-group' + stateClass + ' lm-depth-' + normalizedDepth + (groupLocked ? ' lm-group-locked' : '') + '" data-group-id="' + esc(group.id) + '" data-lm-depth="' + normalizedDepth + '"' + (groupLocked ? ' data-locked="1"' : '') + '>';
       html += '<div class="lm-group-header lm-depth-' + normalizedDepth + '" data-action="toggle-group" data-lm-depth="' + normalizedDepth + '">';
       html += '<span class="lm-arrow">▶</span>';
-      if (hasSelectAll) {
+      if (groupLocked) {
+        html += '<span class="lm-cb lm-cb-locked" title="Kein Zugriff – berechtigtes Login nötig" style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;opacity:.6">' + getLockIconSvg() + '</span>';
+      } else if (hasSelectAll) {
         html += '<input type="checkbox" class="lm-group-cb" data-action="select-all" data-group-id="' + esc(group.id) + '" title="Alle Layer ein-/ausschalten">';
       }
-      html += '<span class="lm-group-name">' + esc(group.name) + '</span>';
+      html += '<span class="lm-group-name"' + (groupLocked ? ' style="opacity:.6"' : '') + '>' + esc(group.name) + '</span>';
       if (hasLegend) {
         html += '<button class="lm-legend-btn" data-action="open-legend" data-legend-key="' + esc(group.legend) + '"';
         if (group.legendLink) html += ' data-legend-link="' + esc(group.legendLink) + '"';
@@ -215,16 +272,19 @@
         var count = this._countLeaves(item.layers);
         var isExpanded = item.open === true || item.expanded === true;
         var stateClass = isExpanded ? ' lm-expanded' : ' lm-collapsed';
-        var hasSelectAll = item.selectAll === true;
+        var nestedLocked = (item.locked === true || item.accessDenied === true) || this._allLocked(item.layers);
+        var hasSelectAll = item.selectAll === true && !nestedLocked;
         var hasLegend = item.legend && item.legend !== '';
         var html = '';
-        html += '<div class="lm-nested-group' + stateClass + ' lm-depth-' + normalizedDepth + '" data-group-id="' + esc(item.id) + '" data-lm-depth="' + normalizedDepth + '">';
+        html += '<div class="lm-nested-group' + stateClass + ' lm-depth-' + normalizedDepth + (nestedLocked ? ' lm-group-locked' : '') + '" data-group-id="' + esc(item.id) + '" data-lm-depth="' + normalizedDepth + '"' + (nestedLocked ? ' data-locked="1"' : '') + '>';
         html += '<div class="lm-nested-header lm-depth-' + normalizedDepth + '" data-action="toggle-group" data-lm-depth="' + normalizedDepth + '">';
         html += '<span class="lm-arrow">▶</span>';
-        if (hasSelectAll) {
+        if (nestedLocked) {
+          html += '<span class="lm-cb lm-cb-locked" title="Kein Zugriff – berechtigtes Login nötig" style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;opacity:.6">' + getLockIconSvg() + '</span>';
+        } else if (hasSelectAll) {
           html += '<input type="checkbox" class="lm-group-cb" data-action="select-all" data-group-id="' + esc(item.id) + '" title="Alle Layer ein-/ausschalten">';
         }
-        html += '<span class="lm-nested-name">' + esc(item.name) + '</span>';
+        html += '<span class="lm-nested-name"' + (nestedLocked ? ' style="opacity:.6"' : '') + '>' + esc(item.name) + '</span>';
         if (hasLegend) {
           html += '<button class="lm-legend-btn" data-action="open-legend" data-legend-key="' + esc(item.legend) + '"';
           if (item.legendLink) html += ' data-legend-link="' + esc(item.legendLink) + '"';
@@ -246,14 +306,33 @@
 
     _renderLeafLayer: function (layer, depth) {
       var normalizedDepth = this._clampDepth(depth);
+      var isLocked = (layer.locked === true || layer.accessDenied === true);
       var checked = layer.visible ? ' checked' : '';
       var activeClass = layer.visible ? ' lm-active' : '';
       var hasLegend = layer.legend && layer.legend !== '';
+      var missingClass = layer._missing ? ' lm-layer--missing' : '';
+      var missingAttr = layer._missing ? ' data-missing="1"' : '';
+      var loadingClass = '';
+      if (layer.loading) loadingClass += ' lm-layer-loading';
+      if (layer.loadingSlow) loadingClass += ' lm-layer-slow';
+      if (layer.loadingError) loadingClass += ' lm-layer-error';
+      var lockedClass = isLocked ? ' lm-layer-locked' : '';
       var html = '';
-      html += '<div class="lm-layer lm-depth-' + normalizedDepth + activeClass + '" data-layer-id="' + esc(layer.id) + '" data-lm-depth="' + normalizedDepth + '" data-name="' + esc((layer.name || '').toLowerCase()) + '">';
-      html += '<label class="lm-layer-label">';
-      html += '<input type="checkbox" class="lm-cb"' + checked + ' data-action="toggle-layer">';
-      html += '<span class="lm-layer-name">' + esc(layer.name) + '</span>';
+      html += '<div class="lm-layer lm-depth-' + normalizedDepth + activeClass + missingClass + loadingClass + lockedClass + '" data-layer-id="' + esc(layer.id) + '" data-lm-depth="' + normalizedDepth + '"' + missingAttr + (isLocked ? ' data-locked="1"' : '') + ' data-name="' + esc((layer.name || '').toLowerCase()) + '">';
+      html += '<label class="lm-layer-label"' + (isLocked ? ' style="cursor:not-allowed"' : '') + '>';
+      html += '<span class="lm-cb-wrap">';
+      if (isLocked) {
+        // Gesperrter Layer: kein Schalter, nur schlichtes Schloss-Symbol (SVG in Textfarbe, kein Zugriff)
+        html += '<span class="lm-cb lm-cb-locked" title="Kein Zugriff – berechtigtes Login nötig" style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;opacity:.6">'
+              + getLockIconSvg() + '</span>';
+      } else {
+        html += '<input type="checkbox" class="lm-cb"' + checked + ' data-action="toggle-layer">';
+      }
+      html += '</span>';
+      html += '<span class="lm-layer-name"' + (isLocked ? ' style="opacity:.6"' : '') + '>' + esc(layer.name) + '</span>';
+      if (layer._missing) {
+        html += '<span class="lm-layer-missing-badge" title="Keine Layer-Definition in der Datenbank">⚠ fehlt</span>';
+      }
       html += '</label>';
       if (hasLegend) {
         var legendLayers = layer.legendLayers || '';
@@ -368,11 +447,37 @@
       });
 
       _container.addEventListener('change', function (e) {
-        // Einzelner Layer ein-/ausschalten
+        // Einzelner Layer ein-/ausschalten (3-Stufen-Zyklus pro Klick):
+        //   nicht aktiv        → hinzufuegen + sichtbar (Haken gruen)
+        //   aktiv + sichtbar   → unsichtbar schalten (bleibt im Karteninhalt, Haken grau)
+        //   aktiv + unsichtbar → komplett aus dem Karteninhalt entfernen (Haken weg)
         if (e.target.matches('[data-action="toggle-layer"]')) {
           var layerEl = e.target.closest('.lm-layer');
           if (layerEl) {
-            window.TnetLMStore.toggleLayer(layerEl.dataset.layerId);
+            var lid = layerEl.dataset.layerId;
+            var store = window.TnetLMStore;
+            var isActive = typeof store.isLayerActive === 'function' && store.isLayerActive(lid);
+            if (!isActive) {
+              // Stufe 1: hinzufuegen + sichtbar
+              store.toggleLayer(lid);
+            } else {
+              var isVisible = typeof store.isLayerRequestedVisible === 'function'
+                ? store.isLayerRequestedVisible(lid)
+                : true;
+              if (isVisible) {
+                // Stufe 2: sichtbar → unsichtbar (bleibt aktiv, grau)
+                if (typeof store.setLayerEye === 'function') {
+                  store.setLayerEye(lid, false);
+                } else {
+                  store.toggleLayer(lid);
+                }
+              } else if (typeof store.removeLayer === 'function') {
+                // Stufe 3: unsichtbar → komplett entfernen
+                store.removeLayer(lid);
+              } else {
+                store.toggleLayer(lid);
+              }
+            }
           }
           return;
         }
@@ -453,7 +558,9 @@
       _currentFilter = query;
       var q = (query || '').trim().toLowerCase();
       var clearBtn = _container.querySelector('.lm-search-clear');
+      var searchWrap = _container.querySelector('.lm-search-wrap');
       if (clearBtn) clearBtn.style.display = q ? '' : 'none';
+      if (searchWrap) searchWrap.classList.toggle('lm-search-active', !!q);
 
       var activeContent = _container.querySelector('.lm-cat-content[data-cat-content="' + _activeTabId + '"]');
       if (!activeContent) return;
@@ -496,19 +603,30 @@
         if (isMatch) matchCount++;
       }
 
-      // 2) Gruppen: sichtbar wenn mindestens ein Kind-Layer sichtbar
+      // 2) Gruppen/Subkategorien: sichtbar wenn mindestens ein direktes Kind sichtbar
       //    Von innen nach aussen (nested-group → group → subcat)
       for (var gi = allGroups.length - 1; gi >= 0; gi--) {
         var groupEl = allGroups[gi];
         var body = groupEl.querySelector('.lm-subcat-body, .lm-group-body, .lm-nested-body');
         if (!body) { groupEl.style.display = 'none'; continue; }
 
-        // Hat dieser Knoten sichtbare Kinder?
-        var hasVisible = body.querySelector('.lm-layer:not([style*="display: none"]), .lm-layer:not([style*="display:none"])') !== null;
-        // Prüfe auch sichtbare Untergruppen
+        // Sichtbarkeit robust über direkte Kinder bestimmen
+        var hasVisible = false;
+        var childLayers = body.querySelectorAll(':scope > .lm-layer');
+        for (var cl = 0; cl < childLayers.length; cl++) {
+          if (childLayers[cl].style.display !== 'none') {
+            hasVisible = true;
+            break;
+          }
+        }
         if (!hasVisible) {
-          var subGroups = body.querySelectorAll(':scope > .lm-group:not([style*="display: none"]):not([style*="display:none"]), :scope > .lm-nested-group:not([style*="display: none"]):not([style*="display:none"])');
-          hasVisible = subGroups.length > 0;
+          var childGroups = body.querySelectorAll(':scope > .lm-group, :scope > .lm-nested-group');
+          for (var cg = 0; cg < childGroups.length; cg++) {
+            if (childGroups[cg].style.display !== 'none') {
+              hasVisible = true;
+              break;
+            }
+          }
         }
 
         groupEl.style.display = hasVisible ? '' : 'none';
@@ -533,14 +651,78 @@
 
     _onLayerVisibility: function (evt) {
       if (!_container) return;
+      var self = this;
+      var store = window.TnetLMStore;
+      // Layer bleibt angekreuzt solange er im Karteninhalt aktiv ist (auch unsichtbar).
+      var stillActive = (store && typeof store.isLayerActive === 'function')
+        ? store.isLayerActive(evt.id)
+        : evt.visible;
       var els = _container.querySelectorAll('[data-layer-id="' + evt.id + '"]');
       for (var i = 0; i < els.length; i++) {
         var cb = els[i].querySelector('.lm-cb');
-        if (cb) cb.checked = evt.visible;
-        els[i].classList.toggle('lm-active', evt.visible);
+        if (cb) cb.checked = stillActive;
+        els[i].classList.toggle('lm-active', stillActive);
+        // Aktiv aber unsichtbar → ausgegraut. Sichtbar → normal. Nicht aktiv → kein Grau.
+        els[i].classList.toggle('lm-layer-hidden', stillActive && !evt.visible);
+
+        if (evt.visible) {
+          els[i].classList.add('lm-layer-loading', 'lm-layer-loading-hint');
+          els[i].classList.remove('lm-layer-error');
+        } else {
+          els[i].classList.remove('lm-layer-loading', 'lm-layer-loading-hint', 'lm-layer-loading-real', 'lm-layer-slow', 'lm-layer-error');
+        }
       }
+
+      if (_loadingHintTimers[evt.id]) {
+        clearTimeout(_loadingHintTimers[evt.id]);
+        delete _loadingHintTimers[evt.id];
+      }
+      if (evt.visible) {
+        _loadingHintTimers[evt.id] = setTimeout(function () {
+          delete _loadingHintTimers[evt.id];
+          var hintEls = _container ? _container.querySelectorAll('[data-layer-id="' + evt.id + '"]') : [];
+          for (var hi = 0; hi < hintEls.length; hi++) {
+            hintEls[hi].classList.remove('lm-layer-loading-hint');
+            if (!hintEls[hi].classList.contains('lm-layer-loading-real')) {
+              hintEls[hi].classList.remove('lm-layer-loading');
+            }
+          }
+          self._updateSelectAllCheckboxes();
+        }, 1400);
+      }
+
       // SelectAll-Checkboxen in Eltern-Gruppen aktualisieren
       this._updateSelectAllCheckboxes();
+    },
+
+    _onLayerLoading: function (evt) {
+      if (!_container || !evt || !evt.id) return;
+      var state = evt.state || {};
+      var isLoading = !!(state.loading || state.loadingSlow);
+      var hasError = !!state.loadingError;
+      var els = _container.querySelectorAll('[data-layer-id="' + evt.id + '"]');
+
+      if (_loadingHintTimers[evt.id]) {
+        clearTimeout(_loadingHintTimers[evt.id]);
+        delete _loadingHintTimers[evt.id];
+      }
+
+      for (var i = 0; i < els.length; i++) {
+        var el = els[i];
+        var statusEl = el.querySelector('.lm-layer-status');
+        if (statusEl) statusEl.remove();
+
+        el.classList.toggle('lm-layer-slow', !!state.loadingSlow);
+        el.classList.toggle('lm-layer-error', !isLoading && hasError);
+
+        if (isLoading) {
+          el.classList.add('lm-layer-loading', 'lm-layer-loading-real');
+          el.classList.remove('lm-layer-loading-hint');
+        } else {
+          el.classList.remove('lm-layer-loading-real', 'lm-layer-loading-hint');
+          el.classList.remove('lm-layer-loading');
+        }
+      }
     },
 
     _onActiveLayersChanged: function () {
@@ -553,6 +735,12 @@
       _resyncRaf = (typeof requestAnimationFrame === 'function')
         ? requestAnimationFrame(flush)
         : setTimeout(flush, 16);
+      // Wenn Bookmark geleert (remove-all): nach Verzoegerung nochmals resync,
+      // damit asynchrone Dojo-Verarbeitung (TnetLayerSwitch) Checkboxen nicht
+      // verspaetet wieder setzt.
+      if (!window.__tnetActiveBookmark) {
+        setTimeout(function () { self._resyncLayerCheckboxes(); }, 800);
+      }
     },
 
     _onGroupToggled: function (evt) {
@@ -590,17 +778,51 @@
     _resyncLayerCheckboxes: function () {
       if (!_container) return;
       var store = window.TnetLMStore;
-      if (!store || typeof store.isLayerEffectivelyVisible !== 'function') return;
+      if (!store) return;
+      // Angekreuzt = Layer ist im Karteninhalt AKTIV (auch wenn unsichtbar).
+      var activeReader = typeof store.isLayerActive === 'function'
+        ? store.isLayerActive.bind(store)
+        : null;
+      // Sichtbarkeit separat lesen, um aktive-aber-unsichtbare Layer auszugrauen.
+      var visibilityReader = typeof store.isLayerRequestedVisible === 'function'
+        ? store.isLayerRequestedVisible.bind(store)
+        : (typeof store.isLayerEffectivelyVisible === 'function' ? store.isLayerEffectivelyVisible.bind(store) : null);
+      if (!activeReader && !visibilityReader) return;
       var els = _container.querySelectorAll('.lm-layer[data-layer-id]');
       for (var i = 0; i < els.length; i++) {
         var layerId = els[i].dataset.layerId;
         if (!layerId) continue;
-        var isVisible = store.isLayerEffectivelyVisible(layerId);
+        var isVisible = visibilityReader ? visibilityReader(layerId) : false;
+        var isActive = activeReader ? activeReader(layerId) : isVisible;
         var cb = els[i].querySelector('.lm-cb');
-        if (cb) cb.checked = isVisible;
-        els[i].classList.toggle('lm-active', isVisible);
+        if (cb) cb.checked = isActive;
+        els[i].classList.toggle('lm-active', isActive);
+        // Aktiv, aber nicht sichtbar → ausgegraut markieren.
+        els[i].classList.toggle('lm-layer-hidden', isActive && !isVisible);
       }
       this._updateSelectAllCheckboxes();
+    },
+
+    _syncToActiveBookmark: function () {
+      var bookmark = window.__tnetActiveBookmark;
+      if (!bookmark || !_container) return;
+
+      if (bookmark.themes) return;
+
+      var layers = Array.isArray(bookmark.layers) ? bookmark.layers : [];
+      var targetLayerId = null;
+      for (var i = 0; i < layers.length; i++) {
+        if (layers[i] && layers[i].id && layers[i].visible !== false) {
+          targetLayerId = layers[i].id;
+          break;
+        }
+      }
+      if (!targetLayerId && layers.length && layers[0] && layers[0].id) {
+        targetLayerId = layers[0].id;
+      }
+      if (!targetLayerId) return;
+
+      this.navigateToLayer(targetLayerId);
     },
 
     // ============================================================
@@ -668,15 +890,18 @@
       var groupEl = _container.querySelector('[data-group-id="' + groupId + '"]');
       if (!groupEl) return;
       var layerEls = groupEl.querySelectorAll('.lm-layer');
+      var store = window.TnetLMStore;
+      var visibilityReader = store && typeof store.isLayerRequestedVisible === 'function'
+        ? store.isLayerRequestedVisible.bind(store)
+        : (store && typeof store.isLayerEffectivelyVisible === 'function' ? store.isLayerEffectivelyVisible.bind(store) : null);
       var synced = 0;
       for (var i = 0; i < layerEls.length; i++) {
         var cb = layerEls[i].querySelector('.lm-cb');
         if (cb && cb.checked !== visible) {
           // Store-Zustand prüfen (Single Source of Truth)
           var layerId = layerEls[i].dataset.layerId;
-          var store = window.TnetLMStore;
-          if (store) {
-            if (store.isLayerEffectivelyVisible(layerId) === visible) {
+          if (visibilityReader) {
+            if (visibilityReader(layerId) === visible) {
               cb.checked = visible;
               layerEls[i].classList.toggle('lm-active', visible);
               synced++;
@@ -746,6 +971,23 @@
       return count;
     },
 
+    // true, wenn unterhalb der Knoten mindestens ein Blatt-Layer existiert und ALLE gesperrt sind.
+    _allLocked: function (nodes) {
+      var found = false;
+      for (var i = 0; i < (nodes || []).length; i++) {
+        var n = nodes[i];
+        var children = n.layers || n.groups;
+        if (children && children.length) {
+          if (!this._allLocked(children)) return false;
+          found = true;
+        } else if (n.type !== 'group') {
+          found = true;
+          if (!(n.locked === true || n.accessDenied === true)) return false;
+        }
+      }
+      return found;
+    },
+
     _clampDepth: function (depth) {
       var n = parseInt(depth, 10);
       if (!isFinite(n) || n < 1) return 1;
@@ -791,7 +1033,9 @@
       var self = this;
       var attempts = 0;
       function tryFind() {
-        var layerEl = _container.querySelector('[data-layer-id="' + layerId + '"]');
+        // Zuerst exakter Treffer auf Layer-Ebene, dann auf Gruppe (für linked_layer → Dienst/Gruppe)
+        var layerEl = _container.querySelector('[data-layer-id="' + layerId + '"]') ||
+                      _container.querySelector('[data-group-id="' + layerId + '"]');
         if (!layerEl && attempts < 5) {
           attempts++;
           setTimeout(tryFind, 150);
@@ -800,11 +1044,13 @@
         if (!layerEl) {
           // Eltern-Pfad-Fallback: Pfadsegmente kürzen bis ein DOM-Element gefunden wird
           // z.B. "a/b/c/d/e" → "a/b/c/d" → "a/b/c" → "a/b" → "a"
+          // Prüft sowohl data-layer-id als auch data-group-id (für Dienst-IDs)
           var fallbackParts = layerId.split('/');
           while (!layerEl && fallbackParts.length > 1) {
             fallbackParts.pop();
             var fallbackId = fallbackParts.join('/');
-            layerEl = _container.querySelector('[data-layer-id="' + fallbackId + '"]');
+            layerEl = _container.querySelector('[data-layer-id="' + fallbackId + '"]') ||
+                      _container.querySelector('[data-group-id="' + fallbackId + '"]');
           }
           if (!layerEl) {
             TnetLog.warn(LOG, 'navigateToLayer: Layer nicht im DOM gefunden:', layerId);
@@ -813,25 +1059,50 @@
           TnetLog.log(LOG, 'navigateToLayer: Eltern-Element gefunden:', fallbackParts.join('/'), '(statt:', layerId, ')');
         }
 
-        // 3) Alle Elternknoten aufklappen (immer explizit setzen,
-        //    nicht nur bei lm-collapsed — verhindert Zustand ohne Klasse)
+        // 3) Zielknoten + alle Elternknoten aufklappen (immer explizit setzen,
+        //    nicht nur bei lm-collapsed — verhindert Zustand ohne Klasse).
+        //    Ist das Ziel selbst eine Gruppe, wird sie ebenfalls aufgeklappt,
+        //    damit ihr Inhalt sichtbar ist (verschachtelte Layer).
+        var expandNode = function (node) {
+          if (node && node.classList &&
+              (node.classList.contains('lm-subcat') ||
+               node.classList.contains('lm-group') ||
+               node.classList.contains('lm-nested-group'))) {
+            node.classList.add('lm-expanded');
+            node.classList.remove('lm-collapsed');
+          }
+        };
+        // Zielknoten selbst (falls Gruppe)
+        expandNode(layerEl);
+        // Alle Vorfahren bis zum Container
         var parent = layerEl.parentElement;
         while (parent && parent !== _container) {
-          if (parent.dataset && parent.dataset.groupId !== undefined) {
-            parent.classList.add('lm-expanded');
-            parent.classList.remove('lm-collapsed');
-          }
+          expandNode(parent);
           parent = parent.parentElement;
         }
 
-        // 4) In den sichtbaren Bereich scrollen
-        layerEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        // 4) Scroll + Highlight erst nach dem Reflow (Eltern wurden gerade
+        //    aufgeklappt → Layout muss neu berechnet sein, sonst springt der
+        //    erste Klick ins Leere und ein zweiter Klick waere noetig).
+        var doScrollAndHighlight = function () {
+          layerEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
 
-        // 5) Kurz hervorheben (CSS-Animation)
-        layerEl.classList.add('lm-highlight');
-        setTimeout(function () {
+          // Animation sauber neu starten (falls Klasse noch von vorher haengt)
           layerEl.classList.remove('lm-highlight');
-        }, 2500);
+          void layerEl.offsetWidth; // Reflow erzwingen → Animation startet neu
+          layerEl.classList.add('lm-highlight');
+          setTimeout(function () {
+            layerEl.classList.remove('lm-highlight');
+          }, 2500);
+        };
+
+        if (typeof requestAnimationFrame === 'function') {
+          requestAnimationFrame(function () {
+            requestAnimationFrame(doScrollAndHighlight);
+          });
+        } else {
+          setTimeout(doScrollAndHighlight, 60);
+        }
       }
       setTimeout(tryFind, 80);
       return true;

@@ -566,6 +566,94 @@ COMMENT ON TABLE mapplusconf.ags_import_history
 
 
 -- ============================================================================
+-- 8. BOOKMARK (Pilot-Domain für DB-first-Konfiguration)
+-- Ersetzt die dateibasierte map-bookmarks-all.json. Jede Zeile ist ein
+-- Bookmark (Lesezeichen) mit JSONB-Payload nach bookmark.schema.json (v2).
+-- Optimistic Locking über `version`; Soft-Delete über `deleted`.
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS mapplusconf.bookmark (
+    bookmark_id     TEXT PRIMARY KEY,              -- id aus bookmark.schema.json
+    name            TEXT,                          -- Anzeigename (denormalisiert für Listen)
+    payload         JSONB NOT NULL DEFAULT '{}'::jsonb, -- vollständiges Bookmark-Objekt (v2)
+    sort_idx        INTEGER NOT NULL DEFAULT 0,    -- Reihenfolge in der Liste
+    version         INTEGER NOT NULL DEFAULT 1,    -- Optimistic-Lock-Zähler
+    deleted         BOOLEAN NOT NULL DEFAULT false,-- Soft-Delete
+    updated_by      TEXT,                          -- letzter Bearbeiter
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+COMMENT ON TABLE  mapplusconf.bookmark IS 'Bookmarks/Lesezeichen (ersetzt map-bookmarks-all.json) mit Optimistic Locking';
+COMMENT ON COLUMN mapplusconf.bookmark.payload IS 'Vollständiges Bookmark-Objekt als JSONB nach bookmark.schema.json (v2)';
+COMMENT ON COLUMN mapplusconf.bookmark.version IS 'Optimistic-Lock-Version; bei jeder Speicherung +1';
+COMMENT ON COLUMN mapplusconf.bookmark.deleted IS 'Soft-Delete-Flag (Eintrag bleibt für Historie/Restore erhalten)';
+
+CREATE INDEX IF NOT EXISTS idx_bookmark_active   ON mapplusconf.bookmark (sort_idx) WHERE deleted = false;
+CREATE INDEX IF NOT EXISTS idx_bookmark_payload  ON mapplusconf.bookmark USING GIN (payload);
+
+
+-- ============================================================================
+-- 9. BOOKMARK_HISTORY
+-- Vollständige Änderungshistorie für Diff und Restore. Eine Zeile pro
+-- Speicher-/Lösch-Aktion mit dem jeweiligen Payload-Stand.
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS mapplusconf.bookmark_history (
+    id              SERIAL PRIMARY KEY,
+    bookmark_id     TEXT NOT NULL,                 -- kein FK: Historie überlebt Hard-Delete
+    version         INTEGER NOT NULL,              -- Versionsstand dieser Zeile
+    action          TEXT NOT NULL CHECK (action IN ('create', 'update', 'delete', 'restore', 'publish', 'checkout')),
+    payload         JSONB,                         -- Payload-Stand nach der Aktion
+    changed_by      TEXT,                          -- Bearbeiter
+    changed_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+COMMENT ON TABLE  mapplusconf.bookmark_history IS 'Änderungshistorie der Bookmarks für Diff und Restore';
+COMMENT ON COLUMN mapplusconf.bookmark_history.action IS 'Art der Änderung: create, update, delete, restore, publish, checkout';
+
+CREATE INDEX IF NOT EXISTS idx_bookmark_hist_id ON mapplusconf.bookmark_history (bookmark_id, version DESC);
+
+
+-- ============================================================================
+-- 10. BOOKMARK_LOCK
+-- Soft-Lock (UI-Hinweis) für kontrolliertes gleichzeitiges Arbeiten.
+-- Nicht verbindlich erzwungen – verhindert Kollisionen via UI + Optimistic Lock.
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS mapplusconf.bookmark_lock (
+    scope           TEXT PRIMARY KEY,              -- Lock-Bereich (z.B. 'bookmarks' für globalen Editier-Lock)
+    locked_by       TEXT NOT NULL,                 -- Person, die den Lock hält
+    locked_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+    expires_at      TIMESTAMPTZ NOT NULL           -- automatische Freigabe nach Ablauf
+);
+
+COMMENT ON TABLE  mapplusconf.bookmark_lock IS 'Soft-Lock (UI-Hinweis) für gleichzeitiges Bearbeiten der Bookmarks';
+COMMENT ON COLUMN mapplusconf.bookmark_lock.scope IS 'Lock-Bereich; aktuell globaler Scope "bookmarks"';
+COMMENT ON COLUMN mapplusconf.bookmark_lock.expires_at IS 'Ablaufzeitpunkt; abgelaufene Locks gelten als frei';
+
+-- updated_at-Trigger für bookmark
+DROP TRIGGER IF EXISTS trg_bookmark_updated ON mapplusconf.bookmark;
+CREATE TRIGGER trg_bookmark_updated BEFORE UPDATE ON mapplusconf.bookmark FOR EACH ROW EXECUTE FUNCTION mapplusconf.set_updated_at();
+
+
+-- ============================================================================
+-- 11. BOOKMARK_META
+-- Sammlungsweiter Revisions-Zähler für Optimistic Locking. Der SLM-Editor
+-- speichert immer die ganze Liste; `revision` wird bei jedem Save erhöht und
+-- als Konflikt-Token an den Client zurückgegeben.
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS mapplusconf.bookmark_meta (
+    scope           TEXT PRIMARY KEY,              -- aktuell globaler Scope 'bookmarks'
+    revision        INTEGER NOT NULL DEFAULT 1,    -- steigt bei jeder Speicherung
+    updated_by      TEXT,
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+COMMENT ON TABLE  mapplusconf.bookmark_meta IS 'Sammlungsweiter Revisions-Zähler für Optimistic Locking der Bookmarks';
+
+INSERT INTO mapplusconf.bookmark_meta (scope, revision) VALUES ('bookmarks', 1)
+ON CONFLICT (scope) DO NOTHING;
+
+
+-- ============================================================================
 -- GRANTS: API-Benutzer (read-only) und Import-Benutzer (read-write)
 -- Diese Rollen müssen ggf. angepasst oder erstellt werden.
 -- ============================================================================
@@ -585,3 +673,108 @@ COMMENT ON TABLE mapplusconf.ags_import_history
 --         GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA mapplusconf TO mapplus_import;
 --     END IF;
 -- END $$;
+
+
+-- ============================================================================
+-- 12. CATALOG_DOCUMENT (DB-first-Konfiguration für den Themenkatalog)
+-- Ersetzt die dateibasierte lyrmgr.conf (Baumstruktur / Kategorien / Layer-
+-- Zuordnung). Eine Zeile pro Profil; die komplette lyrmgr.conf steht als
+-- JSONB-Payload. Optimistic Locking pro Profil über `revision`.
+-- Die normalisierte Tabelle `catalog_node` bleibt davon unberührt (separater
+-- Render-/Query-Pfad); `catalog_document` ist die editierbare Quelle.
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS mapplusconf.catalog_document (
+    profile         TEXT PRIMARY KEY,                  -- Profilname (z.B. 'public' oder Unterprofil)
+    payload         JSONB NOT NULL DEFAULT '{}'::jsonb, -- vollständige lyrmgr.conf als JSON-Objekt
+    revision        INTEGER NOT NULL DEFAULT 1,         -- Optimistic-Lock-Zähler (pro Profil)
+    updated_by      TEXT,                               -- letzter Bearbeiter
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+COMMENT ON TABLE  mapplusconf.catalog_document IS 'Themenkatalog (ersetzt lyrmgr.conf) pro Profil als JSONB-Dokument mit Optimistic Locking';
+COMMENT ON COLUMN mapplusconf.catalog_document.payload IS 'Vollständige lyrmgr.conf als JSON-Objekt (Blöcke nach lyrmgrKey)';
+COMMENT ON COLUMN mapplusconf.catalog_document.revision IS 'Optimistic-Lock-Revision pro Profil; bei jeder Speicherung +1';
+
+CREATE INDEX IF NOT EXISTS idx_catalog_doc_payload ON mapplusconf.catalog_document USING GIN (payload);
+
+
+-- ============================================================================
+-- 13. CATALOG_DOCUMENT_HISTORY
+-- Änderungshistorie pro Profil für Diff und Restore. Eine Zeile pro Speicher-/
+-- Publish-Aktion mit dem jeweiligen Payload-Stand (optional blockbezogen).
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS mapplusconf.catalog_document_history (
+    id              SERIAL PRIMARY KEY,
+    profile         TEXT NOT NULL,                 -- kein FK: Historie überlebt Hard-Delete
+    revision        INTEGER NOT NULL,              -- Revisionsstand dieser Zeile
+    action          TEXT NOT NULL CHECK (action IN ('create', 'update', 'publish', 'delete', 'restore', 'import')),
+    lyrmgr_key      TEXT,                          -- betroffener Block (bei blockweisem Publish)
+    payload         JSONB,                         -- Payload-Stand nach der Aktion
+    changed_by      TEXT,
+    changed_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+COMMENT ON TABLE  mapplusconf.catalog_document_history IS 'Änderungshistorie des Themenkatalogs pro Profil für Diff und Restore';
+COMMENT ON COLUMN mapplusconf.catalog_document_history.lyrmgr_key IS 'Betroffener lyrmgr-Block bei blockweisem Publish (sonst NULL = ganzes Dokument)';
+
+CREATE INDEX IF NOT EXISTS idx_catalog_doc_hist ON mapplusconf.catalog_document_history (profile, revision DESC);
+
+
+-- ============================================================================
+-- 14. CATALOG_LOCK
+-- Soft-Lock (UI-Hinweis) pro Profil für kontrolliertes gleichzeitiges Arbeiten.
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS mapplusconf.catalog_lock (
+    profile         TEXT PRIMARY KEY,              -- Lock-Bereich = Profilname
+    locked_by       TEXT NOT NULL,
+    locked_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+    expires_at      TIMESTAMPTZ NOT NULL
+);
+
+COMMENT ON TABLE  mapplusconf.catalog_lock IS 'Soft-Lock (UI-Hinweis) für gleichzeitiges Bearbeiten des Themenkatalogs pro Profil';
+
+-- updated_at-Trigger für catalog_document
+DROP TRIGGER IF EXISTS trg_catalog_document_updated ON mapplusconf.catalog_document;
+CREATE TRIGGER trg_catalog_document_updated BEFORE UPDATE ON mapplusconf.catalog_document FOR EACH ROW EXECUTE FUNCTION mapplusconf.set_updated_at();
+
+
+-- ============================================================================
+-- 15. CONFIG_BUNDLE_STORE
+-- DB-basierte Ablage der Konfig-Bundles aus dem SLM.
+-- Ersetzt die dateibasierte Ordnerstruktur ImportToCore/<kuerzel>/ durch ein
+-- JSONB-Bundle pro Kürzel/Tag-Gruppe.
+-- ============================================================================
+DO $$
+BEGIN
+    IF to_regclass('mapplusconf.config_bundle_store') IS NULL
+       AND to_regclass('mapplusconf.staging_import_bundle') IS NOT NULL THEN
+        ALTER TABLE mapplusconf.staging_import_bundle RENAME TO config_bundle_store;
+    END IF;
+END
+$$;
+
+CREATE TABLE IF NOT EXISTS mapplusconf.config_bundle_store (
+    kuerzel             TEXT PRIMARY KEY,
+    tags                JSONB NOT NULL DEFAULT '[]'::jsonb,
+    payload             JSONB NOT NULL DEFAULT '{"files": []}'::jsonb,
+    manifest            JSONB NOT NULL DEFAULT '{}'::jsonb,
+    last_imported_at    TIMESTAMPTZ,
+    last_imported_by    TEXT,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+COMMENT ON TABLE mapplusconf.config_bundle_store IS 'DB-basierter Konfig-Bundle-Store aus dem SLM (ersetzt ImportToCore/<kuerzel>/)';
+COMMENT ON COLUMN mapplusconf.config_bundle_store.kuerzel IS 'Primäres Kürzel des Bundles; historisch der Ordnername unter ImportToCore/';
+COMMENT ON COLUMN mapplusconf.config_bundle_store.tags IS 'Freie Tags zum Bundle; aktuell mindestens das Kürzel selbst';
+COMMENT ON COLUMN mapplusconf.config_bundle_store.payload IS 'Datei-Bundle als JSONB: {files:[{name,type,prefix,data,size,modified}]}' ;
+COMMENT ON COLUMN mapplusconf.config_bundle_store.manifest IS 'Manifest mit Quellbasis/Change-Detection';
+COMMENT ON COLUMN mapplusconf.config_bundle_store.last_imported_at IS 'Zeitpunkt des letzten Imports in die DB';
+COMMENT ON COLUMN mapplusconf.config_bundle_store.last_imported_by IS 'Bearbeiter des letzten Imports';
+
+CREATE INDEX IF NOT EXISTS idx_config_bundle_store_tags ON mapplusconf.config_bundle_store USING GIN (tags);
+CREATE INDEX IF NOT EXISTS idx_config_bundle_store_imported_at ON mapplusconf.config_bundle_store (last_imported_at DESC);
+
+DROP TRIGGER IF EXISTS trg_config_bundle_store_updated ON mapplusconf.config_bundle_store;
+CREATE TRIGGER trg_config_bundle_store_updated BEFORE UPDATE ON mapplusconf.config_bundle_store FOR EACH ROW EXECUTE FUNCTION mapplusconf.set_updated_at();

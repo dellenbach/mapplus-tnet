@@ -194,8 +194,100 @@
         'gemeindegrenzen': 'gis_basis/nw_basisplan_gis_dynamisch/gemeindegrenzen'
     };
 
+    // Overlay-Definitionen (key, alias, icon, layerId) — aus Config befuellt.
+    // Fallback entspricht den bisherigen Hardcode-Overlays.
+    var BASEMAP_OVERLAY_DEFS = [];
+    var BASEMAP_OVERLAY_DEFS_FALLBACK = [
+        { key: 'hoehenkurven',    alias: 'Höhenkurven',    icon: null, layerId: 'gis_basis/nw_basisplan_gis_dynamisch/hoehenlinien' },
+        { key: 'projektebene',    alias: 'Projektebene',   icon: null, layerId: 'gis_basis/nw_basisplan_gis_dynamisch/grundbuchplan_projektierte_objekte' },
+        { key: 'gemeindegrenzen', alias: 'Gemeindegrenzen', icon: null, layerId: 'gis_basis/nw_basisplan_gis_dynamisch/gemeindegrenzen' }
+    ];
+    // Dienste, deren Sublayer einzeln (mit eigener Opacity) gerendert werden (Phase 2).
+    var INDEPENDENT_OPACITY_SERVICES = [];
+
     // Global exportieren (für andere Module die darauf zugreifen)
     window.GRUNDKARTEN_LAYER_MAPPING = GRUNDKARTEN_LAYER_MAPPING;
+
+    /**
+     * Lädt basemapOverlays aus tnet-global-config.json5 (async, gecached).
+     */
+    function loadBasemapOverlaysConfig() {
+        if (window._basemapOverlaysConfig !== undefined) return Promise.resolve(window._basemapOverlaysConfig);
+        if (typeof JSON5 === 'undefined') return Promise.resolve(null);
+        var paths = [
+            getAppRoot() + '/tnet/config/tnet-global-config.json5',
+            getAppRoot() + '/tnet/tnet-global-config.json5',
+            '../tnet/config/tnet-global-config.json5'
+        ];
+        function tryPath(index) {
+            if (index >= paths.length) { window._basemapOverlaysConfig = null; return Promise.resolve(null); }
+            return fetch(paths[index])
+                .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
+                .then(function(text) {
+                    var parsed = JSON5.parse(text);
+                    window._basemapOverlaysConfig = (parsed && parsed.basemapOverlays) ? parsed.basemapOverlays : null;
+                    return window._basemapOverlaysConfig;
+                })
+                .catch(function() { return tryPath(index + 1); });
+        }
+        return tryPath(0);
+    }
+
+    /**
+     * Übernimmt die Overlay-Config: Mapping aufbauen + Panel-Zeilen rendern.
+     */
+    function applyBasemapOverlayConfig(cfg) {
+        var defs = (cfg && Array.isArray(cfg.overlays) && cfg.overlays.length)
+            ? cfg.overlays : BASEMAP_OVERLAY_DEFS_FALLBACK;
+        BASEMAP_OVERLAY_DEFS = defs.slice();
+        INDEPENDENT_OPACITY_SERVICES = (cfg && Array.isArray(cfg.independentOpacityServices))
+            ? cfg.independentOpacityServices.slice() : [];
+        // Fuer Phase 2 (Split-Rendering) global verfuegbar machen.
+        window.__tnetIndependentOpacityServices = INDEPENDENT_OPACITY_SERVICES;
+
+        // Mapping mutieren (Referenz erhalten), damit window.GRUNDKARTEN_LAYER_MAPPING gueltig bleibt.
+        Object.keys(GRUNDKARTEN_LAYER_MAPPING).forEach(function(k) { delete GRUNDKARTEN_LAYER_MAPPING[k]; });
+        BASEMAP_OVERLAY_DEFS.forEach(function(o) {
+            if (o && o.key && o.layerId) GRUNDKARTEN_LAYER_MAPPING[o.key] = o.layerId;
+        });
+
+        renderBasemapOverlayRows(BASEMAP_OVERLAY_DEFS);
+
+        // Farbig/Grau-Icon aus Config (separater, konfigurierbarer Schalter).
+        if (cfg && cfg.colorModeIcon) {
+            var cmIcon = document.getElementById('basemap-colormode-icon');
+            if (cmIcon) {
+                cmIcon.innerHTML = '<img class="layer-icon-img" src="'
+                    + getAppRoot() + '/tnet/' + cfg.colorModeIcon + '" alt="" />';
+            }
+        }
+    }
+
+    /**
+     * Rendert die Overlay-Zeilen (Icon, Alias, EIN/AUS) in den Platzhalter-Container.
+     */
+    function renderBasemapOverlayRows(defs) {
+        var container = document.getElementById('basemap-overlay-rows');
+        if (!container) return;
+        var appRoot = getAppRoot();
+        var html = '';
+        (defs || []).forEach(function(o) {
+            if (!o || !o.key) return;
+            var label = (o.alias || o.key);
+            var iconHtml = o.icon
+                ? '<span class="layer-icon"><img class="layer-icon-img" src="' + appRoot + '/tnet/' + o.icon + '" alt="" /></span>'
+                : '<span class="layer-icon"></span>';
+            html += '<div class="basemap-layer-row">'
+                +  iconHtml
+                +  '<span class="layer-label">' + label + '</span>'
+                +  '<div class="layer-toggle">'
+                +    '<button class="toggle-btn" data-layer="' + o.key + '" data-value="on">EIN</button>'
+                +    '<button class="toggle-btn active" data-layer="' + o.key + '" data-value="off">AUS</button>'
+                +  '</div>'
+                +  '</div>';
+        });
+        container.innerHTML = html;
+    }
 
     /**
      * Alle Grundkarten-Buttons optisch auf AUS setzen.
@@ -221,13 +313,40 @@
         return requestedAt > 0 && (now - requestedAt) < 15000;
     }
 
+    function hasActiveBookmarkOverrideWindow() {
+        var now = Date.now();
+        var topWin = (window.top && window.top !== window) ? window.top : null;
+        var bookmark = window.__tnetActiveBookmark || (topWin && topWin.__tnetActiveBookmark) || null;
+
+        if (!bookmark) return false;
+        if (bookmark._options && bookmark._options.urlOverride && bookmark._urlOverrideFreezeUntil && now < bookmark._urlOverrideFreezeUntil) {
+            return true;
+        }
+        if (bookmark._loadUntil && now < bookmark._loadUntil) {
+            return true;
+        }
+        return false;
+    }
+
+    function hasUrlOverrideQuery() {
+        var rawQuery = '';
+        try {
+            rawQuery = String(window.__tnetInitialUrlQuery || (window.location && window.location.search) || '');
+        } catch (eQuery) {
+            rawQuery = '';
+        }
+        return !!(rawQuery && /[?&](lang|basemap|blop|x|y|zl|hl|theme|subtheme|layers|op|view)=/.test(rawQuery));
+    }
+
     function shouldSkipGrundkartenDefaults() {
         try {
             if (hasRecentBookmarkStartRequest()) {
                 return true;
             }
-            var path = String((window.location && window.location.pathname) || '');
-            return /\/maps(?:-dev)?\/[a-zA-Z0-9_-]+\/?$/.test(path);
+            if (hasActiveBookmarkOverrideWindow()) {
+                return true;
+            }
+            return hasUrlOverrideQuery();
         } catch (ePath) {
             return false;
         }
@@ -316,13 +435,21 @@
                     var visible = (value === 'on');
                     layerState[layerName] = visible;
 
-                    var allLayers = getNonGrundkartenLayers();
-                    Object.keys(layerState).forEach(function(name) {
-                        if (layerState[name]) allLayers.push(name);
-                    });
-
-                    var params = 'layers=' + allLayers.join('|');
-                    window.top.njs.AppManager.setMapBookmark(['main'], params);
+                    // Bug-Fix: Toggle ueber den TNET-Store schalten → sauberer Sync
+                    // mit dem Karteninhalt (EIN UND AUS). Frueher lief das ueber das
+                    // Framework (setMapBookmark), wodurch AUS nicht aus dem
+                    // Karteninhalt entfernt wurde.
+                    if (window.TnetLMStore && typeof window.TnetLMStore.setLayerVisible === 'function') {
+                        window.TnetLMStore.setLayerVisible(layerName, visible);
+                    } else {
+                        // Fallback: Framework-Pfad (Alt-Verhalten)
+                        var allLayers = getNonGrundkartenLayers();
+                        Object.keys(layerState).forEach(function(name) {
+                            if (layerState[name]) allLayers.push(name);
+                        });
+                        var params = 'layers=' + allLayers.join('|');
+                        window.top.njs.AppManager.setMapBookmark(['main'], params);
+                    }
 
                     // Active-Klasse wechseln
                     var siblings = this.parentElement.querySelectorAll('.toggle-btn');
@@ -443,6 +570,7 @@
 
             this._hookOpacityAndGrayscale();
             this.hookChangeBaseMap();
+            this._syncColorToggleButtons(this._isGrayscale);
             TnetLog.log(LOG_PREFIX, 'Zeitreise initialisiert ✓');
         },
 
@@ -778,8 +906,21 @@
             }
         },
 
+        _syncColorToggleButtons: function(isGrey) {
+            var colorBtn = document.querySelector('.toggle-btn[data-layer="farbmodus"][data-value="color"]');
+            var greyBtn = document.querySelector('.toggle-btn[data-layer="farbmodus"][data-value="grey"]');
+
+            if (!colorBtn || !greyBtn) return;
+
+            colorBtn.classList.toggle('active', !isGrey);
+            greyBtn.classList.toggle('active', !!isGrey);
+            colorBtn.setAttribute('aria-pressed', (!isGrey).toString());
+            greyBtn.setAttribute('aria-pressed', (!!isGrey).toString());
+        },
+
         syncGrayscale: function(isGrey) {
             this._isGrayscale = isGrey;
+            this._syncColorToggleButtons(isGrey);
             try {
                 var mapInfo = njs.AppManager.Maps && njs.AppManager.Maps.main;
                 var currentBasemapId = mapInfo ? (mapInfo.currBasisMap || mapInfo.basisMap || this.currentBasemap) : this.currentBasemap;
@@ -1271,6 +1412,32 @@
                 mapInstance.changeBaseMap = function(basemapId) {
                     self.removeTimeOverlay();
 
+                    // Massstab + Ausschnitt ueber den View-Ersatz hinweg stabil halten:
+                    // Das Framework (_preTimeChangeBaseMap) ersetzt die View und kann dabei
+                    // den Zoom verlieren (z.B. Fit auf die ganze Schweiz beim Wechsel auf
+                    // Orthofoto). Wir merken uns Center + Resolution VOR dem Wechsel und
+                    // stellen sie danach wieder her (auf die neue View geklemmt). Loest die
+                    // neue Basemap weniger tief auf (Ortho), klemmt OL sauber auf die
+                    // kleinste verfuegbare Resolution bei gleichem Center.
+                    var _prevView = mapInstance.mapObj && mapInstance.mapObj.getView();
+                    var _prevCenter = _prevView ? _prevView.getCenter() : null;
+                    var _prevResolution = _prevView ? _prevView.getResolution() : null;
+                    function _restoreViewState() {
+                        try {
+                            var map = mapInstance.mapObj;
+                            if (!map || !_prevCenter || _prevResolution == null) return;
+                            var v = map.getView();
+                            if (!v) return;
+                            var minR = v.getMinResolution();
+                            var maxR = v.getMaxResolution();
+                            var r = _prevResolution;
+                            if (typeof minR === 'number' && r < minR) r = minR;
+                            if (typeof maxR === 'number' && r > maxR) r = maxR;
+                            v.setCenter(_prevCenter);
+                            v.setResolution(r);
+                        } catch (e) { /* ignore */ }
+                    }
+
                     var actualBasemapId = basemapId;
                     var cfg = self.config ? self.config[basemapId] : null;
                     if (cfg && cfg.fallbackBasemap) {
@@ -1309,6 +1476,8 @@
                     var result;
                     if (!skipFramework) {
                         result = mapInstance._preTimeChangeBaseMap.call(mapInstance, actualBasemapId);
+                        // Direkt nach dem (synchronen) View-Ersatz Massstab/Ausschnitt zurueckholen.
+                        _restoreViewState();
                     }
                     setTimeout(function() {
                         // Fix: Nach View-Ersatz Viewport stabilisieren
@@ -1319,10 +1488,16 @@
                                 // ondragstart (Property, nicht addEventListener → ersetzt sich selbst)
                                 viewport.ondragstart = function(e) { e.preventDefault(); };
                             }
+                            // Erneut wiederherstellen, falls das Framework waehrend der 200ms
+                            // (z.B. nach Tile-Load) die View nochmals angepasst/gefittet hat.
+                            _restoreViewState();
                             map.updateSize();
                         }
                         self.onBasemapChange(basemapId);
                     }, 200);
+                    // Absicherung gegen einen verspaeteten Framework-Fit (z.B. nach asynchronem
+                    // Tile-/Capabilities-Load): Massstab/Ausschnitt nochmals nachziehen.
+                    setTimeout(_restoreViewState, 700);
                     return result;
                 };
 
@@ -1376,8 +1551,12 @@
         // Widget UI (Cards, Expand)
         initBasemapCards();
 
-        // Grundkarten-Layer Defaults
-        initGrundkartenDefaults();
+        // Basiskarten-Überlagerungen aus Config rendern, dann Defaults/Sync.
+        loadBasemapOverlaysConfig().then(function(cfg) {
+            applyBasemapOverlayConfig(cfg);
+            // Grundkarten-Layer Defaults (Buttons existieren jetzt)
+            initGrundkartenDefaults();
+        });
 
         // Zeitreise
         BasemapTimeManager.init();

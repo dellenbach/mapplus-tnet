@@ -78,9 +78,14 @@
 
   /** Ursprüngliche layers= aus URL — beim Script-Laden gespeichert, bevor Framework die URL überschreibt */
   var _originalUrlLayers = '';
+  var _originalUrlQuery = '';
   try {
     var _urlInit = new URL(window.location.href);
+    _originalUrlQuery = _urlInit.search || '';
     _originalUrlLayers = _urlInit.searchParams.get('layers') || '';
+    window.__tnetOriginalUrlQuery = _originalUrlQuery;
+    window.__tnetOriginalUrlLayers = _originalUrlLayers;
+    window.__tnetOriginalUrlOp = _urlInit.searchParams.get('op') || '';
     if (_originalUrlLayers) {
       TnetLog.log(LOG, 'Ursprüngliche URL-Layers gesichert:', _originalUrlLayers);
     }
@@ -90,13 +95,35 @@
 
   /**
    * Ermittelt den Root-Dienst-Key aus einem Sublayer-Key.
-   * "gis_oereb/nw_nutzungsplanung_def/grundnutzung"
-   *   → "gis_oereb/nw_nutzungsplanung_def"
+   *
+   * WICHTIG: Mehrere "Karten"-Container eines Dienstes (z.B. karte03_*, karte05_*)
+   * gehoeren demselben ArcGIS-Dienst an. Um pro Dienst nur EINEN OL-Layer und
+   * damit EINEN konsolidierten Export-Request (LAYERS=show:...) zu erzeugen, wird
+   * der Root-Key bevorzugt aus der Coalesce-Gruppe des Stores aufgeloest
+   * (groupId = Dienst-Wurzel, z.B. "gis_fach/nw_agglomeration"). Erst wenn keine
+   * Coalesce-Info verfuegbar ist, faellt die Logik auf den Pfad-Parent zurueck.
+   *
+   * "gis_fach/nw_agglomeration/basisnetz/karte03_oev/karte03_oev_haltestellen"
+   *   → (Coalesce) "gis_fach/nw_agglomeration"
+   *   → (Fallback) "gis_fach/nw_agglomeration/basisnetz/karte03_oev"
+   *
    * @param {string} sublayerKey
    * @returns {string|null}
    */
   function _extractRootKey(sublayerKey) {
     if (!sublayerKey || typeof sublayerKey !== 'string') return null;
+
+    // 1. Coalesce-Gruppe aus dem Store: konsolidiert alle Karten-Container
+    //    desselben Dienstes auf einen gemeinsamen Root-Key.
+    try {
+      var store = window.TnetLMStore;
+      if (store && typeof store.getCoalesceInfo === 'function') {
+        var info = store.getCoalesceInfo(sublayerKey);
+        if (info && info.groupId) return info.groupId;
+      }
+    } catch (e) { /* Store nicht bereit → Fallback */ }
+
+    // 2. Fallback: Pfad-Parent (Verhalten fuer Dienste ohne Coalesce-Index).
     var idx = sublayerKey.lastIndexOf('/');
     if (idx <= 0) return null;
     return sublayerKey.substring(0, idx);
@@ -391,7 +418,7 @@
     var olLayer = new ol.layer.Image({
       source: source,
       opacity: opacity,
-      visible: true,
+      visible: layersParam !== 'show:-1',
       zIndex: 200
     });
     olLayer.set('name', rootKey);
@@ -813,6 +840,48 @@
    *   2. Danach: ersetzt Root-Keys in layers= durch die aktiven Sublayer-Keys
    * @private
    */
+  /**
+   * Ergänzt direkt (ohne LyrMgr) geladene WMS-Layer in layers=-URL.
+   * Das Framework-AppManager kennt nur lyrmgr.conf-Layer; DB-only WMS-Layer
+   * werden via TnetLayerSwitch-Fallback direkt als OL-Layer erstellt und
+   * landen sonst nicht in der URL.
+   */
+  function _injectDirectWmsLayersIntoUrl() {
+    try {
+      // Pristine Bookmark: KEINE layers= in der URL (Bookmark im Pfad ist autoritativ).
+      if (window.__tnetBookmarkUrlMode === 'pristine') return;
+      var store = window.TnetLMStore;
+      if (!store || typeof store.getActiveLayers !== 'function') return;
+      var active = store.getActiveLayers();
+      if (!active || !active.length) return;
+
+      var href = window.location.href;
+      var m = href.match(/([?&])layers=([^&]*)/);
+      if (!m) return;
+
+      var currentRaw = m[2] ? decodeURIComponent(m[2]) : '';
+      var currentIds = currentRaw ? currentRaw.split('|').filter(function(id) { return !!id; }) : [];
+
+      var added = false;
+      active.forEach(function(layer) {
+        if (!layer || !layer.id) return;
+        var catLayer = typeof store.findLayer === 'function' ? store.findLayer(layer.id) : null;
+        // Nur nicht-ArcGIS-Layer die nicht schon in der URL stehen
+        if (catLayer && catLayer.layerType && catLayer.layerType !== 'arcgisRest') {
+          if (currentIds.indexOf(layer.id) === -1) {
+            currentIds.push(layer.id);
+            added = true;
+          }
+        }
+      });
+
+      if (added) {
+        var newHref = href.replace(/([?&])layers=[^&]*/, m[1] + 'layers=' + currentIds.map(encodeURIComponent).join('|'));
+        window.history.replaceState(null, '', newHref);
+      }
+    } catch (e) { /* URL-Patch fehlgeschlagen */ }
+  }
+
   function _patchUpdateMapStatusUrl() {
     try {
       var am = njs.AppManager;
@@ -826,16 +895,46 @@
       am._tnet_origUpdateMapStatusUrl = origFn;
 
       am.updateMapStatusUrl = function (map_name) {
+        var bookmark = _getActiveBookmark();
+        if (bookmark && bookmark._options && bookmark._options.urlOverride && bookmark._urlOverrideFreezeUntil && Date.now() < bookmark._urlOverrideFreezeUntil) {
+          return;
+        }
+
         // Original aufrufen — schreibt URL mit Root-Keys
         origFn.call(this, map_name);
 
         // URL nachkorrigieren: Root-Keys → Sublayer-Keys
         _fixUrlForBridgeLayers();
+        _preserveUrlOverrideOpacity();
+
+        // Direkt-geladene WMS-Layer (nicht via LyrMgr) in URL ergänzen
+        _injectDirectWmsLayersIntoUrl();
       };
 
       TnetLog.log(LOG, 'updateMapStatusUrl-Patch installiert (Root-Key → Sublayer-Key URL-Fix)');
     } catch (e) {
       TnetLog.warn(LOG, '_patchUpdateMapStatusUrl Fehler:', e.message);
+    }
+  }
+
+  function _preserveUrlOverrideOpacity() {
+    try {
+      var bookmark = _getActiveBookmark();
+      var options = bookmark && bookmark._options ? bookmark._options : null;
+      var originalOp = options && options.originalOp ? String(options.originalOp) : '';
+      if (!(options && options.urlOverride) || !originalOp) return;
+
+      var current = new URL(window.location.href);
+      var layerValue = current.searchParams.get('layers') || '';
+      var layerCount = layerValue ? layerValue.split('|').filter(function(id) { return !!id; }).length : 0;
+      var opCount = originalOp.split('|').filter(function(value) { return value !== ''; }).length;
+      if (!layerCount || opCount !== layerCount) return;
+      if (current.searchParams.get('op') === originalOp) return;
+
+      current.searchParams.set('op', originalOp);
+      window.history.replaceState(null, '', current.pathname + '?' + current.searchParams.toString() + current.hash);
+    } catch (ePreserve) {
+      TnetLog.debug(LOG, '_preserveUrlOverrideOpacity Fehler:', ePreserve.message);
     }
   }
 
@@ -848,6 +947,20 @@
    */
   function _fixUrlForBridgeLayers() {
     try {
+      // Pristine Bookmark: layers=/op= gehoeren NICHT in die URL (Bookmark im Pfad ist
+      // autoritativ). Vorhandene Reste entfernen statt Coalesce-Sublayer zu ergaenzen.
+      if (window.__tnetBookmarkUrlMode === 'pristine') {
+        try {
+          var pu = new URL(window.location.href);
+          if (pu.searchParams.has('layers') || pu.searchParams.has('op')) {
+            pu.searchParams.delete('layers');
+            pu.searchParams.delete('op');
+            var ps = pu.searchParams.toString();
+            window.history.replaceState(null, '', pu.pathname + (ps ? '?' + ps : '') + pu.hash);
+          }
+        } catch (ePristine) { /* ignore */ }
+        return;
+      }
       // Aktive Sublayer-Keys aus Bridge-State sammeln
       var activeSublayerKeys = {};
       for (var rootKey in _rootServices) {
@@ -884,6 +997,25 @@
       for (var rk in _rootServices) {
         if (_rootServices.hasOwnProperty(rk)) keysToFilter[rk] = true;
       }
+
+      // Robustheit: Der Store ist die autoritative Quelle des Karteninhalts.
+      // Der transiente Bridge-State (_rootServices.visibleSublayers) kann waehrend
+      // der Framework-Race (ADD->REMOVE->ADD) kurzzeitig leer sein. Damit das
+      // Framework (updateMapStatusUrl) keine im Store aktiven Layer aus der URL
+      // wischt, alle sichtbaren Store-Active-Layer in die Wiederherstellung
+      // aufnehmen (generisch, unabhaengig vom Bridge-State).
+      try {
+        var storeRef = window.TnetLMStore;
+        if (storeRef && typeof storeRef.getActiveLayers === 'function') {
+          var storeActive = storeRef.getActiveLayers() || [];
+          for (var sa = 0; sa < storeActive.length; sa++) {
+            var saLayer = storeActive[sa];
+            if (saLayer && saLayer.id && saLayer.visible !== false) {
+              activeSublayerKeys[saLayer.id] = true;
+            }
+          }
+        }
+      } catch (eStoreActive) { /* defensiv: Store-Abgleich optional */ }
 
       var url = new URL(window.location.href);
       var existingLayers = url.searchParams.get('layers') || '';
@@ -1133,6 +1265,36 @@
 
   // ===== ÖFFENTLICHE API =====
 
+  /**
+   * Stellt sicher, dass fuer alle im Store aktiven (sichtbaren) Coalesce-Sublayer
+   * auch ein Root-OL-Layer existiert. Schliesst die Startup-/Bookmark-Race, bei der
+   * der Store einen Layer bereits als sichtbar fuehrt, die Bridge den OL-Layer aber
+   * noch nicht erstellt hat → Layer wuerde sonst nicht rendern. Idempotent: agiert
+   * nur bei fehlendem OL-Layer (kein Event-Loop, respektiert Sublayer-Sichtbarkeit).
+   */
+  function _reconcileActiveCoalesceGroups() {
+    if (!_enabled) return;
+    var store = window.TnetLMStore;
+    if (!store || typeof store.getActiveLayers !== 'function' ||
+        typeof store._forceCoalesceGroupRender !== 'function') return;
+    var active = store.getActiveLayers() || [];
+    var groups = {};
+    for (var i = 0; i < active.length; i++) {
+      var a = active[i];
+      if (!a || !a.id || a.visible === false) continue;
+      var info = (typeof store.getCoalesceInfo === 'function') ? store.getCoalesceInfo(a.id) : null;
+      if (!info || !info.groupId) continue;
+      var ol = (typeof Bridge.getOLLayerForSublayer === 'function') ? Bridge.getOLLayerForSublayer(a.id) : null;
+      if (!ol) groups[info.groupId] = true;
+    }
+    var keys = Object.keys(groups);
+    if (!keys.length) return;
+    TnetLog.log(LOG, 'Reconcile: erstelle fehlende Root-OL-Layer fuer', keys.length, 'Coalesce-Gruppe(n)');
+    keys.forEach(function (gid) {
+      try { store._forceCoalesceGroupRender(gid); } catch (e) { /* defensiv */ }
+    });
+  }
+
   var Bridge = {
 
     /**
@@ -1161,6 +1323,20 @@
         setTimeout(patchFn, 1500);
       });
       setTimeout(patchFn, 5000);
+
+      // Coalesce-Render-Reconcile: Nach Bookmark-Load und App-Ready sicherstellen,
+      // dass aktive Coalesce-Layer tatsaechlich einen Root-OL-Layer haben. Schliesst
+      // die Startup-Race (Store fuehrt Layer als sichtbar, Bridge hat OL-Layer noch
+      // nicht erstellt). Mehrere Zeitpunkte, da das Framework verzoegert bereit wird.
+      var reconcileWithRetries = function () {
+        _reconcileActiveCoalesceGroups();
+        setTimeout(_reconcileActiveCoalesceGroups, 800);
+        setTimeout(_reconcileActiveCoalesceGroups, 2500);
+      };
+      document.addEventListener('tnet-bookmark-loaded', reconcileWithRetries);
+      document.addEventListener('tnet-app-ready', function () {
+        setTimeout(reconcileWithRetries, 1000);
+      });
     },
 
     /** Prüft ob Bridge aktiv ist. @returns {boolean} */
@@ -1204,6 +1380,8 @@
       _sublayerToRoot[sublayerKey] = rootKey;
       var entry = _rootServices[rootKey];
       var isFirst = !entry;
+      var wasRegistered = false;
+      var wasVisible = false;
 
       if (!entry) {
         // ── Erster Sublayer: Root-Dienst aktivieren ──
@@ -1215,6 +1393,11 @@
           originalLAYERS: null
         };
         entry = _rootServices[rootKey];
+
+        entry.registeredSublayers[sublayerKey] = sublayerNum;
+        if (!_isBookmarkSublayerHidden(sublayerKey)) {
+          entry.visibleSublayers[sublayerKey] = sublayerNum;
+        }
 
         TnetLog.log(LOG, '★ Root-Dienst aktivieren:', rootKey);
 
@@ -1276,6 +1459,9 @@
           };
           setTimeout(retryFn, 500);
         }
+      } else {
+        wasRegistered = entry.registeredSublayers.hasOwnProperty(sublayerKey) && entry.registeredSublayers[sublayerKey] === sublayerNum;
+        wasVisible = entry.visibleSublayers.hasOwnProperty(sublayerKey) && entry.visibleSublayers[sublayerKey] === sublayerNum;
       }
 
       entry.registeredSublayers[sublayerKey] = sublayerNum;
@@ -1288,6 +1474,9 @@
       } else {
         entry.visibleSublayers[sublayerKey] = sublayerNum;
       }
+
+      var isVisible = entry.visibleSublayers.hasOwnProperty(sublayerKey) && entry.visibleSublayers[sublayerKey] === sublayerNum;
+      var stateChanged = !wasRegistered || (wasVisible !== isVisible);
 
       // ── Doppel-Layer-Schutz: individuellen Framework-Startup-OL-Layer entfernen ──
       // Das Framework erstellt beim Startup eigene OL-Layer pro Sublayer (name=sublayerKey).
@@ -1307,6 +1496,10 @@
       TnetLog.log(LOG, 'Sublayer registriert:', sublayerKey,
         '(#' + sublayerNum + ') → Root:', rootKey,
         '| Total:', Object.keys(entry.registeredSublayers).length);
+
+      if (!isFirst && !stateChanged) {
+        return true;
+      }
 
       // LAYERS-Parameter aktualisieren (debounced)
       this._updateLAYERSDebounced(rootKey);
@@ -1416,6 +1609,8 @@
       var entry = _rootServices[rootKey];
       if (!entry) return;
 
+      if (!entry.visibleSublayers.hasOwnProperty(sublayerKey)) return;
+
       delete entry.visibleSublayers[sublayerKey];
       this._updateLAYERSDebounced(rootKey);
       TnetLog.log(LOG, 'Sublayer versteckt:', sublayerKey);
@@ -1431,6 +1626,8 @@
       if (!rootKey) return;
       var entry = _rootServices[rootKey];
       if (!entry) return;
+
+      if (entry.visibleSublayers.hasOwnProperty(sublayerKey) && entry.visibleSublayers[sublayerKey] === sublayerNum) return;
 
       entry.visibleSublayers[sublayerKey] = sublayerNum;
       this._updateLAYERSDebounced(rootKey);
@@ -1537,7 +1734,28 @@
       if (!olLayer) return;
       var src = olLayer.getSource();
       if (src && typeof src.updateParams === 'function') {
-        src.updateParams({ LAYERS: layersParam });
+        var currentParams = (typeof src.getParams === 'function') ? src.getParams() : null;
+        var currentLayers = currentParams && (currentParams.LAYERS || currentParams.layers) || '';
+        var shouldBeVisible = (layersParam !== 'show:-1');
+        var currentVisible = (typeof olLayer.getVisible === 'function') ? olLayer.getVisible() : shouldBeVisible;
+        var needsLayersUpdate = (currentLayers !== layersParam);
+        var needsVisibilityUpdate = (currentVisible !== shouldBeVisible);
+
+        if (!shouldBeVisible) {
+          try {
+            if (olLayer.getVisible()) olLayer.setVisible(false);
+          } catch (eHideEmpty) { /* setVisible nicht verfügbar */ }
+          TnetLog.debug(LOG, 'OL-Source LAYERS leer, Request unterdrueckt:', rootKey);
+          return;
+        }
+
+        if (!needsLayersUpdate && !needsVisibilityUpdate) {
+          return;
+        }
+
+        if (needsLayersUpdate) {
+          src.updateParams({ LAYERS: layersParam });
+        }
         TnetLog.debug(LOG, 'OL-Source LAYERS gesetzt:', rootKey, '→', layersParam);
 
         // Flicker-Schutz: Sichtbarkeit des kombinierten Layers an den LAYERS-Param
@@ -1546,7 +1764,6 @@
         // (vom Framework-Startup) nie gemalt wird. Sobald sichtbare Sublayer da
         // sind, wird der Layer wieder sichtbar und malt direkt nur den Subset.
         try {
-          var shouldBeVisible = (layersParam !== 'show:-1');
           if (olLayer.getVisible() !== shouldBeVisible) {
             olLayer.setVisible(shouldBeVisible);
           }
@@ -1719,6 +1936,7 @@
 
         var layerIds = layersParam.split(/[|,]/);
         var restored = 0;
+        var groupsToRender = {};
         for (var i = 0; i < layerIds.length; i++) {
           var lid = decodeURIComponent(layerIds[i]).trim();
           if (!lid) continue;
@@ -1729,7 +1947,25 @@
               store.setLayerVisible(lid, true);
               restored++;
             }
+            // Coalesce-Gruppe zum Re-Render vormerken (autoritative groupId
+            // aus dem Store). Notwendig, weil der Store den Layer beim
+            // Bookmark-Apply bereits als sichtbar fuehren kann, die Bridge den
+            // Root-OL-Layer aber noch nicht erstellt hat (Startup-Race) → Layer
+            // wuerde sonst nicht rendern.
+            var cInfo = (typeof store.getCoalesceInfo === 'function') ? store.getCoalesceInfo(lid) : null;
+            if (cInfo && cInfo.groupId) {
+              groupsToRender[cInfo.groupId] = true;
+            }
           }
+        }
+        // Idempotenter Render-Anstoss je Coalesce-Gruppe: erstellt fehlende
+        // Root-OL-Layer (registerSublayer hat eigene Retry-Logik, falls das
+        // Framework/die Karte noch nicht bereit ist) und respektiert die
+        // aktuelle Sichtbarkeit pro Sublayer.
+        if (typeof store._forceCoalesceGroupRender === 'function') {
+          Object.keys(groupsToRender).forEach(function (gid) {
+            try { store._forceCoalesceGroupRender(gid); } catch (eRender) { /* defensiv */ }
+          });
         }
         if (restored > 0) {
           TnetLog.log(LOG, 'URL-Restore:', restored, 'Coalesce-Layer aus gesicherten URL-Params wiederhergestellt');

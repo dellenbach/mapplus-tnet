@@ -95,6 +95,72 @@ $action        = $_GET['action'] ?? null;
 //                0 = fehlende Layer behalten, aber mit _missing:true markieren (für SLM-Preview)
 $filterMissing = !isset($_GET['filterMissing']) || $_GET['filterMissing'] !== '0';
 
+// =====================================================================
+// Mandanten-Berechtigung (Tree-Builder V2)
+// Liest core/config/layer_permissions.json und strippt serverseitig URLs
+// nicht berechtigter Layer, damit sie weder eingeschaltet noch via F12
+// (Network/JS) eingesehen werden koennen. Der Knoten bleibt als gesperrter
+// Platzhalter (locked=true) im Baum sichtbar.
+// =====================================================================
+
+/**
+ * Liefert die Deny-Map (gesperrte Layer-IDs) fuer einen Mandanten.
+ * @return array<string,bool> { layerId: true }
+ */
+function loadTenantDenyMap($group) {
+    // DEAKTIVIERT: Sperren werden jetzt direkt als `secured`-Property im
+    // publizierten lyrmgr-Knoten gefuehrt (kein separates __permissions__ mehr).
+    // Funktion bleibt als No-Op, damit bestehende filterResultForTenant-Aufrufe
+    // unveraendert funktionieren (liefern leere Deny-Map → kein Eingriff).
+    return [];
+}
+
+/** Strippt einen einzelnen gesperrten Layer-Knoten (URL/Quellen entfernen). */
+function _stripDeniedNode(array &$node) {
+    $node['locked'] = true;
+    $node['accessDenied'] = true;
+    $node['secured'] = true;
+    // Echte Daten-/Abfrage-Endpunkte entfernen, damit per F12 nichts durchsickert.
+    // Legenden/Metainformationen (legend*) bleiben bewusst erhalten -> fuer gesperrte Layer abrufbar.
+    unset($node['params'], $node['options'], $node['maptips'], $node['layerType']);
+    // URL durch Platzhalter ersetzen (kein echter MapServer-Endpunkt nach aussen)
+    $node['url'] = 'secured';
+}
+
+/** true, wenn der Knoten ein Container (Gruppe/Kategorie) ist und kein einzelner Layer. */
+function _isContainerNode(array $node) {
+    if (isset($node['type']) && $node['type'] === 'group') return true;
+    foreach (['layers', 'groups', 'items', 'subcategories'] as $childKey) {
+        if (isset($node[$childKey]) && is_array($node[$childKey]) && count($node[$childKey])) return true;
+    }
+    return false;
+}
+
+/** Rekursiv: alle BLATT-Layer mit gesperrter id strippen (Container nie strippen). */
+function _applyTenantDeny(&$data, array $denyMap) {
+    if (!is_array($data)) return;
+    foreach ($data as &$v) {
+        if (is_array($v)) {
+            if (!_isContainerNode($v) && isset($v['id']) && is_string($v['id']) && isset($denyMap[$v['id']])) {
+                _stripDeniedNode($v);
+            }
+            _applyTenantDeny($v, $denyMap);
+        }
+    }
+    unset($v);
+}
+
+/** Wendet die Mandanten-Deny-Map auf ein Ergebnis (Knoten, Baum oder Liste) an. */
+function filterResultForTenant(&$result, $group) {
+    $deny = loadTenantDenyMap($group);
+    if (empty($deny) || !is_array($result)) return;
+    // Top-Level-Knoten selbst (Einzel-Layer-Lookup) pruefen — nur echte Blatt-Layer strippen
+    if (!_isContainerNode($result) && isset($result['id']) && is_string($result['id']) && isset($deny[$result['id']])) {
+        _stripDeniedNode($result);
+    }
+    _applyTenantDeny($result, $deny);
+}
+
 if ($source === '' || $source === 'auto' || !in_array($source, ['db', 'file'], true)) {
     ApiResponse::error("Ungueltiger source-Parameter. Verwende source=db oder source=file.", 400);
 }
@@ -313,6 +379,7 @@ if ($layerId !== null) {
         $layer = fetchLayerFromDb($layerId);
         if ($layer) {
             $layer['_source'] = 'database';
+            filterResultForTenant($layer, $group);
             CacheHelper::setNoCache();
             ApiResponse::success($layer);
         }
@@ -355,6 +422,7 @@ if ($layerId !== null) {
         '_source'   => 'file'
     ];
 
+    filterResultForTenant($layer, $group);
     CacheHelper::setNoCache();
     ApiResponse::success($layer);
 }
@@ -385,6 +453,7 @@ if (!$bypassJsonCache && $cached !== null && !$debug && !$noCache) {
     CacheHelper::setNoCache();
     $meta = $cached['meta'] ?? [];
     $meta['cache'] = 'hit';
+    filterResultForTenant($cached['data'], $group);
     ApiResponse::success($cached['data'], $meta);
 }
 
@@ -509,6 +578,7 @@ if ($useDatabase) {
                 $elapsed = round((microtime(true) - $startTime) * 1000);
                 $meta['responseTime'] = $elapsed . 'ms';
 
+                filterResultForTenant($flatLayers, $group);
                 CacheHelper::setNoCache();
                 ApiResponse::success($flatLayers, $meta);
             }
@@ -544,6 +614,7 @@ if ($useDatabase) {
                 $cache->set($cacheKey, ['data' => $result, 'meta' => $meta]);
             }
 
+            filterResultForTenant($result, $group);
             CacheHelper::setNoCache();
             ApiResponse::success($result, $meta);
         }
@@ -766,6 +837,12 @@ foreach ($mapping['categories'] as $topCategory) {
                 'groups' => []
             ];
 
+            // hideHeader-Flag durchreichen: unterdrueckt den Subcategory-Kopf
+            // im TNET-Tree (Gruppen werden direkt als oberste Accordions gezeigt).
+            if (!empty($categoryDef['hideHeader'])) {
+                $subcategoryData['hideHeader'] = true;
+            }
+
             if (isset($categoryDef['items'])) {
                 $groupList = [];
                 if (array_keys($categoryDef['items']) === range(0, count($categoryDef['items']) - 1)) {
@@ -805,6 +882,12 @@ foreach ($mapping['categories'] as $topCategory) {
                     // selectAll-Flag durchreichen
                     if (!empty($groupDef['selectAll'])) {
                         $groupData['selectAll'] = true;
+                    }
+
+                    // hideHeader-Flag durchreichen: Einzel-Element-Gruppe wird
+                    // im Tree flach als Layer (ohne Gruppen-Kopf) gerendert.
+                    if (!empty($groupDef['hideHeader'])) {
+                        $groupData['hideHeader'] = true;
                     }
 
                     if (isset($groupDef['items'])) {
@@ -879,6 +962,7 @@ if ($flat) {
     // HTTP Caching
     CacheHelper::setNoCache();
 
+    filterResultForTenant($flatLayers, $group);
     ApiResponse::success($flatLayers, $meta);
 }
 
@@ -911,6 +995,8 @@ if ($debug) {
 $elapsed = round((microtime(true) - $startTime) * 1000);
 $meta['responseTime'] = $elapsed . 'ms';
 $meta['cache'] = $bypassJsonCache ? 'bypass' : 'miss';
+// Hinweis: permDeny entfernt — Sperren sind jetzt als `secured`-Property
+// direkt im publizierten lyrmgr-Knoten kodiert (kein separates __permissions__).
 
 // In Cache speichern
 if (!$bypassJsonCache) {
@@ -924,6 +1010,7 @@ if (!$bypassJsonCache) {
 // HTTP Caching
 CacheHelper::setNoCache();
 
+filterResultForTenant($result, $group);
 ApiResponse::success($result, $meta);
 
 // =====================================================================
@@ -1063,6 +1150,18 @@ function processLayerItems($items, &$layerDefinitions, $details = true, $filterM
                 if ($filterMissing && empty($layerData['layers'])) continue;
             }
 
+            // Gesperrter Knoten (secured-Property direkt im lyrmgr): URL strippen (Blatt)
+            // bzw. nur Sperr-Flags setzen (Gruppe → Renderer zeigt Schloss).
+            if (!empty($item['secured'])) {
+                if (isset($item['items'])) {
+                    $layerData['locked'] = true;
+                    $layerData['accessDenied'] = true;
+                    $layerData['secured'] = true;
+                } else {
+                    _stripDeniedNode($layerData);
+                }
+            }
+
             $layers[] = $layerData;
 
         } elseif (is_array($item) && is_string($key) && !is_numeric($key)) {
@@ -1094,6 +1193,12 @@ function processLayerItems($items, &$layerDefinitions, $details = true, $filterM
                 $layerData['layers'] = processLayerItems($item['items'], $layerDefinitions, $details, $filterMissing);
                 // Leere Gruppe (nach Missing-Filter) ausblenden
                 if ($filterMissing && empty($layerData['layers'])) continue;
+            }
+
+            if (!empty($item['secured'])) {
+                $layerData['locked'] = true;
+                $layerData['accessDenied'] = true;
+                $layerData['secured'] = true;
             }
 
             $layers[] = $layerData;

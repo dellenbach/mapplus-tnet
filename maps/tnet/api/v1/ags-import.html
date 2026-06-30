@@ -1066,7 +1066,7 @@ html[data-env="dev"] .ags-toolbar { border-bottom: 3px solid #e67e22; }
   <button id="ags-btn-cache-clear" title="Layermanager-Cache auf dem Server leeren">🗑 Cache leeren</button>
   <button id="ags-btn-config-to-db" title="Konfigurationsdatenbank verwalten (Import / Export / Löschen)" style="display:none">🗄 Konfig-DB</button>
   <span class="spacer"></span>
-  <a href="tree-builder.html">← Tree-Builder</a>
+  <a href="tree-builder-v2.html">← Tree-Builder V2</a>
   <span class="sep"></span>
   <a href="../docs/" target="_blank">API Docs</a>
   <span class="sep"></span>
@@ -1107,7 +1107,7 @@ html[data-env="dev"] .ags-toolbar { border-bottom: 3px solid #e67e22; }
     <button class="ags-tab" data-tab="manage">② Verwalten</button>
     <button class="ags-tab" data-tab="staging">③ Staging</button>
     <button class="ags-tab" data-tab="editor">④ Config-Editor</button>
-    <button class="ags-tab" data-tab="treebuilder">⑤ Tree-Builder</button>
+    <button class="ags-tab" data-tab="treebuilder">⑤ Tree-Builder V2</button>
     <button class="ags-tab" data-tab="deployed">⑥ Deployed</button>
     <button class="ags-tab" data-tab="legendtuner">⑦ Legendtuner</button>
     <button class="ags-tab" data-tab="bookmarks">⑧ Bookmarks</button>
@@ -1290,7 +1290,7 @@ html[data-env="dev"] .ags-toolbar { border-bottom: 3px solid #e67e22; }
   <!-- ===== TAB: TREE-BUILDER (Staging) ===== -->
   <div class="ags-pane" id="pane-treebuilder" style="position:relative">
     <iframe id="treebuilder-iframe" style="width:100%;height:100%;border:none;display:none"></iframe>
-    <div class="editor-placeholder" id="treebuilder-placeholder">Tree-Builder wird geladen…</div>
+    <div class="editor-placeholder" id="treebuilder-placeholder">Tree-Builder V2 wird geladen…</div>
   </div>
 
   <!-- ===== TAB: DEPLOYED ===== -->
@@ -1717,7 +1717,7 @@ function switchTab(tabName, skipHash) {
   } else if (tabName === 'treebuilder') {
     var iframe = document.getElementById('treebuilder-iframe');
     if (!iframe.src || iframe.src === 'about:blank') {
-      iframe.src = 'tree-builder.html?source=staging';
+      iframe.src = 'tree-builder-v2.html?source=staging';
       iframe.onload = function() {
         document.getElementById('treebuilder-placeholder').style.display = 'none';
         iframe.style.display = 'block';

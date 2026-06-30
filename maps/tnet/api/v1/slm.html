@@ -542,6 +542,7 @@ body {
 /* ===== CONFIG-EDITOR TAB ===== */
 .ags-tab[data-tab="editor"]  { background: linear-gradient(135deg, #607d8b, #455a64); }
 .ags-tab[data-tab="treebuilder"] { background: linear-gradient(135deg, #8e6aa0, #6a4c7d); }
+.ags-tab[data-tab="treebuilderV2"] { background: linear-gradient(135deg, #a0539a, #7d3d77); }
 .ags-tab[data-tab="deployed"] { background: linear-gradient(135deg, #7e57c2, #5e35b1); }
 .ags-tab[data-tab="legendtuner"] { background: linear-gradient(135deg, #4B7B81, #3a6166); }
 .ags-tab[data-tab="bookmarks"] { background: linear-gradient(135deg, #d4a03c, #b8872e); }
@@ -1703,7 +1704,7 @@ Kein Einfluss auf Browser-Cache (dafuer: Ctrl+Shift+R)">🗑 Cache leeren</butto
   <button id="ags-btn-config-to-db" title="Konfigurationsdatenbank verwalten (Import / Export / Löschen)" style="display:none">🗄 Konfig-DB</button>
   <button id="slm-btn-backups" title="Server-Backups anzeigen, wiederherstellen und löschen" style="margin-left:6px">📁 Backups</button>
   <span class="spacer"></span>
-  <a href="tree-builder.html">← Tree-Builder</a>
+  <a href="tree-builder-v2.html">← Tree-Builder V2</a>
   <span class="sep"></span>
   <a href="../docs/" target="_blank">API Docs</a>
   <span class="sep"></span>
@@ -1769,7 +1770,7 @@ Kein Einfluss auf Browser-Cache (dafuer: Ctrl+Shift+R)">🗑 Cache leeren</butto
     <button class="ags-tab" data-tab="manage">② Verwaltung Mapserver-Conf</button>
     <button class="ags-tab" data-tab="import">③ Import Mapserver-Conf</button>
     <button class="ags-tab" data-tab="editor">④ Config-Editor</button>
-    <button class="ags-tab" data-tab="treebuilder">⑤ Tree-Builder</button>
+    <button class="ags-tab" data-tab="treebuilder">⑤ Tree-Builder V2</button>
     <button class="ags-tab" data-tab="deployed">⑥ Deployed</button>
     <button class="ags-tab" data-tab="legendtuner">⑦ Legendtuner</button>
     <button class="ags-tab" data-tab="bookmarks">⑧ Bookmarks</button>
@@ -1968,10 +1969,10 @@ Kein Einfluss auf Browser-Cache (dafuer: Ctrl+Shift+R)">🗑 Cache leeren</butto
     </div><!-- /.editor-split -->
   </div>
 
-  <!-- ===== TAB: TREE-BUILDER (Staging) ===== -->
+  <!-- ===== TAB: TREE-BUILDER V2 (gemeinsamer Modus) ===== -->
   <div class="ags-pane" id="pane-treebuilder" style="position:relative">
     <iframe id="treebuilder-iframe" style="width:100%;height:100%;border:none;display:none"></iframe>
-    <div class="editor-placeholder" id="treebuilder-placeholder">Tree-Builder wird geladen…</div>
+    <div class="editor-placeholder" id="treebuilder-placeholder">Tree-Builder V2 wird geladen…</div>
   </div>
 
   <!-- ===== TAB: DEPLOYED ===== -->
@@ -2742,6 +2743,7 @@ function refreshImportProgress() {
 // TAB-SWITCHING
 // =====================================================================
 function switchTab(tabName, skipHash, onImportLoaded) {
+  if (tabName === 'treebuilderV2') tabName = 'treebuilder';
   document.querySelectorAll('.ags-tab').forEach(function(t) { t.classList.remove('active'); });
   document.querySelectorAll('.ags-pane').forEach(function(p) { p.classList.remove('active'); });
   var tab = document.querySelector('[data-tab="' + tabName + '"]');
@@ -2768,7 +2770,7 @@ function switchTab(tabName, skipHash, onImportLoaded) {
   } else if (tabName === 'treebuilder') {
     var iframe = document.getElementById('treebuilder-iframe');
     if (!iframe.src || iframe.src === 'about:blank') {
-      iframe.src = 'tree-builder.html?source=staging';
+      iframe.src = 'tree-builder-v2.html?source=staging&mode=shared';
       iframe.onload = function() {
         document.getElementById('treebuilder-placeholder').style.display = 'none';
         iframe.style.display = 'block';
@@ -7959,7 +7961,7 @@ function updateUrlHash(updates) {
  */
 window.addEventListener('hashchange', function() {
   var p = parseUrlHash();
-  var validTabs = ['create', 'manage', 'import', 'editor', 'treebuilder'];
+  var validTabs = ['create', 'manage', 'import', 'editor', 'treebuilder', 'treebuilderV2'];
   if (p.tab && validTabs.indexOf(p.tab) !== -1) {
     switchTab(p.tab, true);
     if (p.tab === 'editor' && p.kuerzel) {
@@ -8666,7 +8668,7 @@ function saveNlsEntry(item, value, btn, tr) {
 
 (function initFromHash() {
   var p = parseUrlHash();
-  var validTabs = ['create', 'manage', 'import', 'editor', 'treebuilder', 'deployed', 'legendtuner', 'bookmarks', 'sync'];
+  var validTabs = ['create', 'manage', 'import', 'editor', 'treebuilder', 'treebuilderV2', 'deployed', 'legendtuner', 'bookmarks', 'sync'];
   var startTab = (p.tab && validTabs.indexOf(p.tab) !== -1) ? p.tab : 'create';
 
   if (startTab !== 'create') {
@@ -11535,6 +11537,32 @@ if (document.readyState === 'loading') {
 var _syncLoaded = false;
 var _syncData = null;
 
+// Tree-Builder-V2-Profilset (für Gruppierung im Katalog-Sync). Wird einmal geladen.
+var _v2ProfileSet = null;
+var _v2SetLoading = false;
+function loadV2ProfileSet(cb) {
+  if (_v2ProfileSet) { if (cb) cb(); return; }
+  if (_v2SetLoading) { if (cb) cb(); return; }
+  _v2SetLoading = true;
+  var base = { '__shared__': true, '__matrix__': true, '__permissions__': true };
+  fetch(API_URL + '?action=shared-matrix-load')
+    .then(function(r){ return r.json(); })
+    .then(function(j){
+      var d = (j && j.data) ? j.data : {};
+      // NUR die tatsaechlich gebuendelten Profile zaehlen zum V2-Set.
+      // (visibleFor kann veraltete Profile wie `av` enthalten -> nicht verwenden.)
+      (Array.isArray(d.bundle) ? d.bundle : []).forEach(function(p){ if (p) base[p] = true; });
+      _v2ProfileSet = base;
+    })
+    .catch(function(){ _v2ProfileSet = base; })
+    .then(function(){ _v2SetLoading = false; if (cb) cb(); });
+}
+
+function _isV2Profile(profile) {
+  if (_v2ProfileSet && _v2ProfileSet[profile]) return true;
+  return /^__.+__$/.test(profile); // __shared__, __matrix__, __permissions__
+}
+
 function loadSyncStatus() {
   var statusBar = document.getElementById('sync-status-bar');
   var content   = document.getElementById('sync-content');
@@ -11547,8 +11575,10 @@ function loadSyncStatus() {
       if (!res.success) throw new Error(res.error || 'Fehler');
       _syncData = res.data;
       _syncLoaded = true;
-      renderSyncStatus(_syncData);
-      statusBar.textContent = 'Zuletzt geladen: ' + new Date().toLocaleTimeString('de-CH');
+      loadV2ProfileSet(function() {
+        renderSyncStatus(_syncData);
+        statusBar.textContent = 'Zuletzt geladen: ' + new Date().toLocaleTimeString('de-CH');
+      });
     })
     .catch(function(err) {
       statusBar.textContent = 'Fehler: ' + err.message;
@@ -12500,12 +12530,13 @@ function _ensureCdiffOverlay() {
     + '<div class="scd-head"><span class="scd-title" id="scd-title">Inhaltsvergleich</span>'
     + '<button class="scd-close" id="scd-close" title="Schliessen">×</button></div>'
     + '<div class="scd-body" id="scd-body"></div>'
+    + '<div class="scd-foot" id="scd-foot" style="display:flex;align-items:center;gap:8px;padding:10px 14px;border-top:1px solid rgba(0,0,0,.12);background:#f6f8f9"></div>'
     + '</div>';
   document.body.appendChild(ov);
   ov.addEventListener('click', function(e) { if (e.target === ov) _closeSyncContentDiff(); });
   ov.querySelector('#scd-close').addEventListener('click', _closeSyncContentDiff);
   document.addEventListener('keydown', function(e) { if (e.key === 'Escape') _closeSyncContentDiff(); });
-  _cdiffEls = { overlay: ov, title: ov.querySelector('#scd-title'), body: ov.querySelector('#scd-body') };
+  _cdiffEls = { overlay: ov, title: ov.querySelector('#scd-title'), body: ov.querySelector('#scd-body'), foot: ov.querySelector('#scd-foot') };
   return _cdiffEls;
 }
 function _closeSyncContentDiff() { if (_cdiffEls) _cdiffEls.overlay.classList.remove('open'); }
@@ -12515,6 +12546,13 @@ function openSyncContentDiff(domain, key) {
   var label = { catalog: 'Profil', bundles: 'Kürzel' }[domain] || '';
   els.title.textContent = 'Inhaltsvergleich — ' + (domain === 'bookmarks' ? 'Bookmarks' : (label + ' „' + key + '“'));
   els.body.innerHTML = '<div class="scd-loading">⏳ Vergleiche DEV ↔ PROD …</div>';
+  // Footer: Sync direkt aus dem Dialog starten (für genau dieses Element)
+  var syncKeys = (domain === 'bookmarks') ? [] : [key];
+  els.foot.innerHTML = '<span style="font-size:11px;color:#667;margin-right:auto">Direkt übertragen:</span>'
+    + '<button class="sync-btn push" type="button" id="scd-sync-push" title="Dieses Element von DEV nach PROD übertragen — PROD wird überschrieben"><span class="b-dev">DEV</span><span class="b-arrow">→</span><span class="b-prod">PROD</span></button>'
+    + '<button class="sync-btn pull" type="button" id="scd-sync-pull" title="Dieses Element von PROD nach DEV übertragen — DEV wird überschrieben"><span class="b-dev">DEV</span><span class="b-arrow">←</span><span class="b-prod">PROD</span></button>';
+  els.foot.querySelector('#scd-sync-push').onclick = function() { _closeSyncContentDiff(); executeSyncOperation(domain, 'dev-to-prod', syncKeys); };
+  els.foot.querySelector('#scd-sync-pull').onclick = function() { _closeSyncContentDiff(); executeSyncOperation(domain, 'prod-to-dev', syncKeys); };
   els.overlay.classList.add('open');
   var url = API_URL + '?action=sync-content-diff&domain=' + encodeURIComponent(domain) + '&key=' + encodeURIComponent(key);
   fetch(url)
@@ -12734,6 +12772,62 @@ function syncActionsFooter(domain, envKeys) {
     + '</tr></tfoot>';
 }
 
+// Wählt das zusammengehörige Tree-Builder-V2-Dokumentset im Katalog-Sync aus:
+// __shared__ + __matrix__ + __permissions__ + alle gebündelten Mandanten-Profile.
+// So wandern sie beim DEV↔PROD-Transfer konsistent zusammen.
+function selectV2SyncSet() {
+  var content = document.getElementById('sync-content');
+  if (!content) return;
+  var specials = ['__shared__', '__matrix__', '__permissions__'];
+  fetch(API_URL + '?action=shared-matrix-load')
+    .then(function(r){ return r.json(); })
+    .then(function(j){
+      var d = (j && j.data) ? j.data : {};
+      var tenants = {};
+      // NUR die gebündelten Profile (visibleFor kann veraltete wie `av` enthalten).
+      (Array.isArray(d.bundle) ? d.bundle : []).forEach(function(p){ if (p) tenants[p] = true; });
+      applyV2SyncSelection(content, specials.concat(Object.keys(tenants)));
+    })
+    .catch(function(){ applyV2SyncSelection(content, specials.slice()); });
+}
+
+function applyV2SyncSelection(content, keys) {
+  var inSet = {};
+  keys.forEach(function(k){ if (k) inSet[k] = true; });
+  // Status (changed?) der Katalog-Profile aus den geladenen Sync-Daten.
+  var statusByKey = {};
+  try {
+    var items = (_syncData && _syncData.domains && _syncData.domains.catalog && _syncData.domains.catalog.items) || [];
+    items.forEach(function(it){ statusByKey[it.profile] = it.status; });
+  } catch (e) {}
+  var boxes = content.querySelectorAll('[data-sync-select-item][data-sync-domain="catalog"]');
+  var present = {}, changedSel = 0, inSetPresent = 0, identical = 0;
+  boxes.forEach(function(b){
+    var key = b.dataset.syncKey;
+    present[key] = true;
+    if (inSet[key]) {
+      inSetPresent++;
+      var isChanged = statusByKey[key] && statusByKey[key] !== 'sync';
+      if (!b.disabled) b.checked = !!isChanged;
+      if (isChanged) changedSel++; else identical++;
+    } else if (!b.disabled) {
+      b.checked = false; // Nicht-V2-Profile abwaehlen
+    }
+  });
+  var missing = Object.keys(inSet).filter(function(k){ return !present[k]; });
+  if (typeof refreshSyncSelectionState === 'function') refreshSyncSelectionState(content);
+  var meta = document.querySelector('#sync-content .sync-domain[data-sync-domain="catalog"] .sync-domain-meta');
+  var info;
+  if (changedSel === 0) {
+    info = '🔗 V2: alle ' + inSetPresent + ' zusammengehörigen Dokumente sind identisch — nichts zu übertragen';
+  } else {
+    info = '🔗 V2: ' + changedSel + ' geänderte Dokumente markiert'
+      + (identical ? ' (' + identical + ' identische übersprungen)' : '');
+  }
+  if (missing.length) info += ' · nicht in Liste: ' + missing.join(', ');
+  if (meta) meta.textContent = info;
+}
+
 function renderSyncBookmarkTable(bm, envKeys) {
   var devRev = bm.revs && bm.revs.dev;
   var prodRev = bm.revs && bm.revs.prod;
@@ -12776,8 +12870,10 @@ function renderSyncBookmarkTable(bm, envKeys) {
 }
 
 function renderCatalogTable(items, envKeys) {
-  var rows = items.map(function(item) {
-    var newerSide = getSyncNewerSide(item.envs && item.envs.dev, item.envs && item.envs.prod, 'updatedAt', 'revision');
+  var totalCols = 2 + envKeys.length + 1 + 1; // Auswahl + Profil + envs + Richtung + Status
+
+  function rowFor(item) {
+    var newerSide = getSyncNewerSide(item.envs && item.envs.dev, item.envs && item.envs.prod, 'configUpdatedAt', 'revision');
     function envCell(e) {
       var env = item.envs && item.envs[e];
       if (!env) return '<td class="' + syncEnvCellClass(e) + '"><div class="sync-cell-main">— fehlt</div><div class="sync-cell-sub">kein Stand</div></td>';
@@ -12800,7 +12896,38 @@ function renderCatalogTable(items, envKeys) {
       + syncEnvCellsWithDir(envCell, envKeys, dir)
       + statusCell
       + '</tr>';
-  }).join('');
+  }
+
+  function groupHeader(label, hint, btnHtml) {
+    return '<tr class="sync-cat-group"><td colspan="' + totalCols + '" style="background:#eaf1f3;color:#27424a;font-weight:700;font-size:11.5px;padding:5px 10px;border-top:2px solid #c5d6db">'
+      + label + (hint ? ' <span style="font-weight:400;color:#6b8088">— ' + esc(hint) + '</span>' : '')
+      + (btnHtml ? ' ' + btnHtml : '')
+      + '</td></tr>';
+  }
+
+  // V2-Dokumente nach oben gruppieren, Legacy-Profile darunter
+  var v2Items = [], legacyItems = [];
+  items.forEach(function(it){ (_isV2Profile(it.profile) ? v2Items : legacyItems).push(it); });
+  var order = { '__shared__': 0, '__matrix__': 1, '__permissions__': 2 };
+  v2Items.sort(function(a, b){
+    var oa = order[a.profile] != null ? order[a.profile] : 50;
+    var ob = order[b.profile] != null ? order[b.profile] : 50;
+    return oa !== ob ? oa - ob : String(a.profile).localeCompare(String(b.profile));
+  });
+
+  var v2Btn = '<button type="button" class="sync-btn" data-sync-v2set="1" style="margin-left:auto;padding:2px 9px;font-size:11px" title="Nur die GEÄNDERTEN zusammengehörigen V2-Dokumente markieren — unveränderte überspringen, interdependente nicht vergessen">🔗 Geänderte wählen</button>';
+
+  var rows = '';
+  if (v2Items.length) {
+    rows += groupHeader('🔗 Tree-Builder V2', 'zusammengehörig — geänderte gemeinsam übertragen', v2Btn);
+    rows += v2Items.map(rowFor).join('');
+  }
+  if (legacyItems.length) {
+    rows += groupHeader('Weitere Profile');
+    rows += legacyItems.map(rowFor).join('');
+  }
+  if (!rows) rows = items.map(rowFor).join('');
+
   var selectAll = '<input type="checkbox" class="sync-select-all" data-sync-select-all="catalog" title="Alle Profile auswählen">';
   return '<div class="sync-table-wrap"><table class="sync-table">' + syncColgroup(envKeys) + syncHeaderRow(selectAll, 'Profil', envKeys) + '<tbody>' + rows + '</tbody>' + syncActionsFooter('catalog', envKeys) + '</table></div>';
 }
@@ -13053,31 +13180,34 @@ function formatSyncUser(value) {
 function getSyncNewerSide(left, right, dateKey, revKey) {
   if (!left || !right) return null;
 
-  // Revision ist die autoritative Inhaltsversion → zuerst vergleichen.
-  // Bei gleicher Revision gelten beide Seiten als identisch (kein Marker),
-  // auch wenn der Schreib-Zeitstempel durch DB-Trigger abweicht.
-  var leftRev = left[revKey] != null ? Number(left[revKey]) : null;
-  var rightRev = right[revKey] != null ? Number(right[revKey]) : null;
-  var haveRevs = leftRev != null && rightRev != null && !isNaN(leftRev) && !isNaN(rightRev);
-  if (haveRevs) {
-    if (leftRev === rightRev) return null;
-    return leftRev > rightRev ? 'dev' : 'prod';
-  }
-
-  // Fallback nur ohne Revisionen (z.B. Bundles): Zeitstempel vergleichen.
-  var leftDate = left[dateKey] ? new Date(left[dateKey]) : null;
-  var rightDate = right[dateKey] ? new Date(right[dateKey]) : null;
+  // WICHTIG: DEV (mapplusconf_dev) und PROD (mapplusconf) haben UNABHAENGIGE
+  // Revisionszaehler → Revisionsnummern sind NICHT umgebungsuebergreifend
+  // vergleichbar. Massgeblich ist der INHALTS-Zeitstempel (configUpdatedAt/
+  // importedAt), der mit dem Inhalt mitwandert (Sync-Kopien setzen nur
+  // syncUpdatedAt). Deshalb: Zeitstempel ZUERST.
+  var leftDate = left[dateKey] ? new Date(left[dateKey]) : (left.updatedAt ? new Date(left.updatedAt) : null);
+  var rightDate = right[dateKey] ? new Date(right[dateKey]) : (right.updatedAt ? new Date(right.updatedAt) : null);
   var leftValid = leftDate && !isNaN(leftDate.getTime());
   var rightValid = rightDate && !isNaN(rightDate.getTime());
   if (leftValid && rightValid && leftDate.getTime() !== rightDate.getTime()) {
     return leftDate.getTime() > rightDate.getTime() ? 'dev' : 'prod';
   }
 
+  // Tiebreaker nur bei gleichem/fehlendem Zeitstempel: Revision innerhalb
+  // gleicher Lineage. Bei abweichender Revision ohne Zeitstempel-Differenz
+  // keine sichere Aussage → kein Marker (Status-Spalte zeigt Unterschied).
+  var leftRev = left[revKey] != null ? Number(left[revKey]) : null;
+  var rightRev = right[revKey] != null ? Number(right[revKey]) : null;
+  if (leftRev != null && rightRev != null && !isNaN(leftRev) && !isNaN(rightRev)) {
+    if (leftRev === rightRev) return null;
+    return null;
+  }
+
   return null;
 }
 
 function renderSyncNewBadge(side) {
-  return side ? '<span class="sync-new-badge ' + esc(side) + '" title="Diese Seite ist aktueller (höhere Revision)">▲ aktueller</span>' : '';
+  return side ? '<span class="sync-new-badge ' + esc(side) + '" title="Diese Seite ist aktueller (neuerer Inhalts-Zeitstempel)">▲ aktueller</span>' : '';
 }
 
 function wireSyncControls(content) {
@@ -13121,6 +13251,13 @@ function wireSyncControls(content) {
       var env    = btn.dataset.syncDeleteEnv;
       var keys   = collectSyncKeys(content, domain);
       executeSyncDelete(domain, env, keys);
+    });
+  });
+
+  content.querySelectorAll('button[data-sync-v2set]').forEach(function(btn) {
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      selectV2SyncSet();
     });
   });
 }

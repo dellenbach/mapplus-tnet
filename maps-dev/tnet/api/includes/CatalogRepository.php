@@ -125,7 +125,7 @@ class CatalogRepository {
         try {
             // Aktuellen Stand sperren (FOR UPDATE serialisiert konkurrierende Saves)
             $stmt = $pdo->prepare(
-                "SELECT revision FROM mapplusconf.catalog_document
+                "SELECT revision, payload FROM mapplusconf.catalog_document
                  WHERE profile = :profile FOR UPDATE"
             );
             $stmt->execute(['profile' => $profile]);
@@ -143,6 +143,23 @@ class CatalogRepository {
                     'revision'   => $currentRevision,
                     'serverData' => $server['data'],
                 ];
+            }
+
+            // Idempotenz: Bei inhaltlich identischem Payload KEINE neue Revision
+            // und kein config_revision_at-Update. Loose '==' vergleicht
+            // assoziative Arrays schluesselreihenfolge-UNabhaengig (JSON-Objekte),
+            // Listen aber reihenfolge-abhaengig — exakt die JSON-Inhaltssemantik.
+            if ($exists) {
+                $storedData = self::decodePayload($row['payload']);
+                if (is_array($storedData) && $storedData == $data) {
+                    $pdo->commit(); // nur Lock freigeben, kein Schreibvorgang
+                    return [
+                        'success'   => true,
+                        'conflict'  => false,
+                        'revision'  => $currentRevision,
+                        'unchanged' => true,
+                    ];
+                }
             }
 
             $newRevision = $currentRevision + 1;

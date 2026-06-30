@@ -19,6 +19,16 @@
         return window.__TNET_APP_ROOT || '/maps';
     }
 
+    function getLayerApiSource() {
+        var src = 'db';
+        try {
+            if (window.TnetGlobalConfig && typeof window.TnetGlobalConfig.get === 'function') {
+                src = window.TnetGlobalConfig.get('layerManager.apiSource', 'db') || 'db';
+            }
+        } catch (eCfg) { /* ignore */ }
+        return (src === 'file') ? 'file' : 'db';
+    }
+
     var PROXY_URL    = getAppRoot() + '/tnet/api/search-proxy.php';
     var MAPSERVER_URL = 'https://api3.geo.admin.ch/rest/services/api/MapServer/';
     var debounceTimer = null;
@@ -149,7 +159,7 @@
     function loadLayerIndex() {
         if (_layerIndexReady || _layerIndexLoading) return;
         _layerIndexLoading = true;
-        var apiUrl = getAppRoot() + '/tnet/api/v1/layers.php?flat=true&details=false';
+        var apiUrl = getAppRoot() + '/tnet/api/v1/layers.php?flat=true&details=false&source=' + encodeURIComponent(getLayerApiSource());
         fetch(apiUrl)
             .then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); })
             .then(function (json) {

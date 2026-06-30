@@ -3855,6 +3855,7 @@ function renderLyrmgrBlock(container, lmKey, profile) {
       if (item.legend) badges += '<span class="grp-badge" title="legend: ' + esc(item.legend) + '">📊</span>';
       if (item.selectAll) badges += '<span class="grp-badge" title="selectAll">☑</span>';
       if (item.drawtype) badges += '<span class="grp-badge" title="drawtype: ' + esc(item.drawtype) + '">◉</span>';
+      if (item.hideHeader) badges += '<span class="grp-badge" title="Kopf ausgeblendet – Einzel-Element flach als Layer" style="background:#e8423f;color:#fff">⊘</span>';
       var _cat = (profile.categories || [])[ci];
       var grpClosedKey = lmKey + '/' + (_cat ? (_cat.key || _cat.name) : '') + '/closed:' + path.join('.');
       var grpIsOpen = !_expandState[grpClosedKey];
@@ -3885,6 +3886,7 @@ function renderLyrmgrBlock(container, lmKey, profile) {
     var catDisplay = catNls || catLabel;
     var catMeta = getNodeEditMeta('cat', catKey, lmKey);
     var iconInfo = cat.iconClass ? ' <span style="font-size:9px;color:rgba(255,255,255,.5)">' + esc(cat.iconClass) + '</span>' : '';
+    var hideInfo = cat.hideHeader ? ' <span title="Kopf ausgeblendet – nur Untergruppen sichtbar" style="font-size:9px;color:#fff;background:#e8423f;border-radius:3px;padding:0 4px">⊘ Kopf aus</span>' : '';
     html += '<div class="tb-tree-cat" data-cat-idx="' + ci + '" draggable="true">';
     html += '<div class="tb-tree-cat-head">';
     var catStateKey = lmKey + '/' + (cat.key || cat.name || ('cat' + ci));
@@ -3893,6 +3895,7 @@ function renderLyrmgrBlock(container, lmKey, profile) {
     html += '<input class="cname' + (!catNls ? ' no-nls' : '') + '" value="' + esc(catDisplay) + '" title="' + esc(catKey) + (catNls ? '' : ' (kein NLS)') + (catMeta && (catMeta.updatedBy || catMeta.updatedAt) ? ' | zuletzt: ' + esc(catMeta.updatedBy || '?') + (catMeta.updatedAt ? ' @ ' + esc(formatSwissDateTime(catMeta.updatedAt)) : '') : '') + '" data-cat-idx="' + ci + '">';
     if (catNls) html += '<span class="cat-id" title="' + esc(catKey) + '">' + esc(catKey) + '</span>';
     html += iconInfo;
+    html += hideInfo;
     html += '<button class="cedit" data-action="edit-cat" data-cat-idx="' + ci + '" title="Eigenschaften">✎</button>';
     html += '<button class="cdel" data-action="del-cat" data-cat-idx="' + ci + '">×</button>';
     html += '</div>';
@@ -4727,7 +4730,8 @@ function openPropsDialog(type, ref) {
       { key: '_alias', label: 'Alias (NLS)', value: _catAlias, type: 'text', hint: 'Anzeigename im Layer-Manager' },
       { key: 'iconClass', label: 'Icon-Klasse', value: ref.iconClass || '', type: 'text', hint: 'z.B. njsCategoryIcon7' },
       { key: 'iconClassActive', label: 'Icon-Klasse (aktiv)', value: ref.iconClassActive || '', type: 'text', hint: 'z.B. njsCategoryIcon7_active' },
-      { key: 'open', label: 'Offen', value: ref.open, type: 'bool', hint: 'Kategorie standardmässig aufgeklappt' }
+      { key: 'open', label: 'Offen', value: ref.open, type: 'bool', hint: 'Kategorie standardmässig aufgeklappt' },
+      { key: 'hideHeader', label: 'Kopf ausblenden', value: ref.hideHeader, type: 'bool', hint: 'Kategorie-Titel nicht anzeigen, nur Untergruppen direkt zeigen' }
     ];
     var _catMeta = getNodeEditMeta('cat', _catKey);
     if (_catMeta) {
@@ -4750,6 +4754,7 @@ function openPropsDialog(type, ref) {
       { key: '_alias', label: 'Alias (NLS)', value: _grpAlias, type: 'text', hint: 'Anzeigename im Layer-Manager' },
       { key: 'open', label: 'Offen', value: ref.open, type: 'bool', hint: 'Standardmässig aufgeklappt' },
       { key: 'selectAll', label: 'selectAll', value: ref.selectAll, type: 'bool', hint: 'Alle Layer gleichzeitig schalten' },
+      { key: 'hideHeader', label: 'Kopf ausblenden', value: ref.hideHeader, type: 'bool', hint: 'Einzel-Element-Gruppe ohne Kopf direkt als Layer zeigen' },
       { key: 'legend', label: 'Legende', value: ref.legend || '', type: 'text', hint: 'Legenden-Key (z.B. "gastro", "schweizmobil")' },
       { key: 'drawtype', label: 'drawtype', value: ref.drawtype || '', type: 'text', hint: 'z.B. "radio" für Exklusiv-Auswahl' },
       { key: 'icon', label: 'Icon-URL', value: ref.icon || '', type: 'text', hint: 'z.B. ../core/symbolsets/mapplus/layers.png' },

@@ -1,4 +1,11 @@
-﻿## 2026-06-26 - File-Sync: Direkter PHP-copy() scheitert — Schreiben muss ueber FastAPI /deploy-staged-conf (SFTP)
+﻿## 2026-06-30 - Bookmark: Gesperrte Layer dupliziert nach Login beim Einschalten
+
+- Symptom: Gesperrter (locked) Bookmark-Layer erschien nach Login beim Sichtbar-Schalten doppelt im Karteninhalt (zwei Eintraege, abweichende Deckkraft).
+- Root-Cause: Gesperrte Layer bleiben jetzt als locked-Platzhalter in `bookmark.layers` (damit Bookmark nach Login wieder funktioniert). Beim Aktivieren materialisiert das Framework einen zweiten Live-Layer mit gleicher ID; `mergeBookmarkLayers()` hatte keine finale ID-Dedup.
+- Fix: In `mergeBookmarkLayers()` (tnet-lm-active.js) finale Dedup nach `id`; bei Konflikt gewinnt der nicht gesperrte Eintrag (locked-Platzhalter wird durch echten Live-Layer ersetzt).
+- Guardrail: Locked-Platzhalter im Karteninhalt behalten (nicht entfernen) — aber Render-Pipeline muss pro ID deduplizieren, da Bookmark-State + Live-Map-Layer beide denselben Layer fuehren koennen.
+
+## 2026-06-26 - File-Sync: Direkter PHP-copy() scheitert — Schreiben muss ueber FastAPI /deploy-staged-conf (SFTP)
 
 - Symptom: Datei-Sync (DEV↔PROD) per `copy()` in PHP schrieb nichts; das Ziel unter /www blieb unveraendert.
 - Root-Cause: Der PHP-/Web-User darf NICHT direkt nach /www schreiben. Saemtliche Datei-Writes laufen ueber den FastAPI-Endpoint `/deploy-staged-conf` (ags2mapplus), der die Datei via SFTP ans Ziel schreibt. PHP kann nur lesen (auch cross-tree) und in den TMP-Staging-Bereich schreiben.
