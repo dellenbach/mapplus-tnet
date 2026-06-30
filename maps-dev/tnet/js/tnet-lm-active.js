@@ -17,6 +17,18 @@
     return window.__TNET_APP_ROOT || '/maps';
   }
 
+  // Schlichtes Schloss-Symbol (SVG in Textfarbe) fuer gesperrte Layer.
+  function getLockIconSvg() {
+    return '<svg width="11" height="13" viewBox="0 0 11 13" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">'
+      + '<rect x="1" y="5.5" width="9" height="6.5" rx="1" stroke="currentColor" stroke-width="1.2"/>'
+      + '<path d="M3 5.5V3.5a2.5 2.5 0 0 1 5 0v2" stroke="currentColor" stroke-width="1.2"/>'
+      + '</svg>';
+  }
+
+  function _isActiveLayerLocked(l) {
+    return !!(l && (l.locked === true || l.accessDenied === true || l.secured === true));
+  }
+
   var LOG = '[LM-Active]';
   var _container = null;
   var _unlisteners = [];
@@ -1238,6 +1250,31 @@
       }
     }
 
+    // Finale Deduplizierung nach ID: Wird ein zuvor gesperrter (locked) Bookmark-
+    // Layer nach einem Login aktiviert, koennen sowohl der locked-Platzhalter als
+    // auch der frisch materialisierte Live-Layer mit derselben ID in der Liste
+    // landen (Duplikat mit abweichender Deckkraft). Pro ID nur einen Eintrag
+    // behalten; ein nicht gesperrter Eintrag gewinnt gegen den locked-Platzhalter.
+    var dedupById = {};
+    var deduped = [];
+    merged.forEach(function(entry) {
+      if (!entry || !entry.id) { deduped.push(entry); return; }
+      var existing = dedupById[entry.id];
+      if (!existing) {
+        dedupById[entry.id] = entry;
+        deduped.push(entry);
+        return;
+      }
+      // Konflikt: gesperrten Platzhalter durch den echten (entsperrten) Eintrag ersetzen.
+      if (_isActiveLayerLocked(existing) && !_isActiveLayerLocked(entry)) {
+        var idx = deduped.indexOf(existing);
+        if (idx !== -1) deduped[idx] = entry;
+        dedupById[entry.id] = entry;
+      }
+      // sonst: Duplikat verwerfen
+    });
+    merged = deduped;
+
     return merged;
   }
 
@@ -1257,7 +1294,11 @@
     if (!store || typeof store.isRenderableLayerId !== 'function') return bookmarkLayers.slice();
 
     filtered = bookmarkLayers.filter(function(layer) {
-      return layer && layer.id && store.isRenderableLayerId(layer.id);
+      if (!layer || !layer.id) return false;
+      // Gesperrte Layer immer im Karteninhalt anzeigen (Schloss), auch wenn
+      // sie nicht renderbar sind (url:"secured").
+      if (_isActiveLayerLocked(layer)) return true;
+      return store.isRenderableLayerId(layer.id);
     });
     // Manche Bookmark-Layer sind im Legacy-Framework nicht belastbar über den
     // Katalog aufloesbar, sollen im Karteninhalt aber trotzdem erscheinen.
@@ -1902,6 +1943,19 @@
      * Rendert einen einzelnen Standalone-Layer (identisch zum bisherigen Verhalten).
      */
     _renderStandalone: function (l) {
+      // Gesperrter Layer (kein Zugriff): Schloss statt Auge, ausgegraut,
+      // kein Toggle und kein Opacity-Slider. Bleibt im Karteninhalt, damit
+      // nach einem Login mit Zugriff dasselbe Bookmark wieder funktioniert.
+      if (_isActiveLayerLocked(l)) {
+        var lockedHtml = '<li class="lm-active-item lm-layer-locked" data-layer-id="' + esc(l.id) + '" data-locked="1">';
+        lockedHtml += '<div class="lm-active-row">';
+        lockedHtml += '<span class="lm-eye lm-cb-locked" title="Kein Zugriff – berechtigtes Login nötig" style="display:inline-flex;align-items:center;justify-content:center;opacity:.6">' + getLockIconSvg() + '</span>';
+        lockedHtml += '<span class="lm-active-name" style="opacity:.6">' + esc(l.name) + '</span>';
+        lockedHtml += '<button class="lm-btn-remove" data-action="remove" title="Layer entfernen" aria-label="Layer entfernen">&#10005;</button>';
+        lockedHtml += '</div>';
+        lockedHtml += '</li>';
+        return lockedHtml;
+      }
       var eyeIcon = l.visible ? ICON.eyeOn : ICON.eyeOff;
       var eyeCls = l.visible ? 'lm-eye' : 'lm-eye lm-eye-off';
       var itemCls = 'lm-active-item';
@@ -2034,6 +2088,15 @@
      * Nur Auge-Toggle + Name (kein Drag, kein eigener Opacity-Slider).
      */
     _renderGroupChild: function (l) {
+      // Gesperrtes Kind-Layer: Schloss statt Auge, kein Toggle.
+      if (_isActiveLayerLocked(l)) {
+        var lockedHtml = '<li class="lm-active-group-child lm-layer-locked" data-layer-id="' + esc(l.id) + '" data-locked="1">';
+        lockedHtml += '<span class="lm-eye lm-cb-locked" title="Kein Zugriff – berechtigtes Login nötig" style="display:inline-flex;align-items:center;justify-content:center;opacity:.6">' + getLockIconSvg() + '</span>';
+        lockedHtml += '<span class="lm-active-name" style="opacity:.6">' + esc(l.name) + '</span>';
+        lockedHtml += '<button class="lm-btn-remove" data-action="child-remove" title="Layer entfernen" aria-label="Layer entfernen">&#10005;</button>';
+        lockedHtml += '</li>';
+        return lockedHtml;
+      }
       var eyeIcon = l.visible ? ICON.eyeOn : ICON.eyeOff;
       var eyeCls = l.visible ? 'lm-eye' : 'lm-eye lm-eye-off';
       var childCls = 'lm-active-group-child';

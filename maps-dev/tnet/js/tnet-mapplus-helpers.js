@@ -986,6 +986,28 @@ function _ensureBookmarkUrlSyncInstalled() {
 }
 
 /**
+ * Prueft, ob ein Layer fuer das aktuelle Profil gesperrt ist (kein Zugriff).
+ * Gesperrte Layer liefern in layers.php url:"secured" und tragen die Flags
+ * locked / accessDenied / secured. Solche Layer duerfen nie geladen werden.
+ * @param {Object} store - TnetLMStore
+ * @param {string} layerId
+ * @returns {boolean}
+ */
+function _isBookmarkLayerLocked(store, layerId) {
+  if (!store || typeof store.findLayer !== 'function' || !layerId) return false;
+  var catalogLayer;
+  try {
+    catalogLayer = store.findLayer(layerId);
+  } catch (eLockCheck) {
+    catalogLayer = null;
+  }
+  if (!catalogLayer) return false;
+  return catalogLayer.locked === true
+    || catalogLayer.accessDenied === true
+    || catalogLayer.secured === true;
+}
+
+/**
  * Berechnet die Soll-Sichtbarkeit aller Layer:
  *  Default = cfg.layers[i].visible (oder true bei v1-Strings)
  *  Übersteuert von activeView.layerStates[id].visible (falls vorhanden)
@@ -1063,6 +1085,11 @@ function _computeBookmarkVisibility(cfg, activeView, options) {
     }
     if (explicitVisibleMap) {
       visible = !!explicitVisibleMap[id];
+    }
+    // Gesperrte Layer (kein Zugriff fuer dieses Profil) nie aktivieren —
+    // auch nicht ueber Bookmark, View-Wechsel oder URL-Override (layers=).
+    if (visible && _isBookmarkLayerLocked(storeRef, id)) {
+      visible = false;
     }
     result[id] = visible;
   });
@@ -1179,6 +1206,14 @@ function _buildBookmarkRuntimeLayers(cfg, activeView, options) {
     runtimeLayer.visible = Object.prototype.hasOwnProperty.call(visibilityMap, layerId)
       ? !!visibilityMap[layerId]
       : (runtimeLayer.visible !== false);
+    // Gesperrte Layer (kein Zugriff) bleiben als gesperrter Eintrag im Karten-
+    // inhalt sichtbar (Schloss), werden aber nie gerendert (siehe _buildBookmarkParams).
+    // So bleibt die Bookmark-Referenz erhalten und nach einem Login mit Zugriff
+    // zeigt dasselbe Bookmark den Layer korrekt an.
+    if (_isBookmarkLayerLocked(store, layerId)) {
+      runtimeLayer.locked = true;
+      runtimeLayer.visible = false;
+    }
     if (Object.prototype.hasOwnProperty.call(explicitOpacity, layerId)) {
       runtimeLayer.opacity = explicitOpacity[layerId];
     } else if (bookmarkOpacity !== null) {
@@ -1203,6 +1238,7 @@ function _buildBookmarkRuntimeLayers(cfg, activeView, options) {
 
   explicitIds.forEach(function(layerId) {
     var catalogLayer, previousLayer, runtimeLayer, configOpacity;
+    var lockedLayer = _isBookmarkLayerLocked(store, layerId);
     if (runtimeById[layerId]) return;
     catalogLayer = (store && typeof store.findLayer === 'function') ? store.findLayer(layerId) : null;
     configOpacity = _getLayerConfigOpacity(store, layerId);
@@ -1212,7 +1248,10 @@ function _buildBookmarkRuntimeLayers(cfg, activeView, options) {
     _copyOwnProps(runtimeLayer, previousLayer || {});
     runtimeLayer.id = layerId;
     runtimeLayer.name = runtimeLayer.name || layerId.split('/').pop() || layerId;
-    runtimeLayer.visible = true;
+    // Gesperrte Layer bleiben als gesperrter Eintrag (Schloss) sichtbar,
+    // werden aber nicht gerendert.
+    runtimeLayer.visible = !lockedLayer;
+    if (lockedLayer) runtimeLayer.locked = true;
     if (Object.prototype.hasOwnProperty.call(explicitOpacity, layerId)) runtimeLayer.opacity = explicitOpacity[layerId];
     else if (configOpacity !== null) runtimeLayer.opacity = configOpacity;
     if (runtimeLayer.opacity == null || !isFinite(runtimeLayer.opacity)) runtimeLayer.opacity = 1;
@@ -1231,6 +1270,8 @@ function _buildBookmarkRuntimeLayers(cfg, activeView, options) {
       layerId = entry.id;
       entryVisible = ('visible' in entry) ? !!entry.visible : false;
       if (!layerId || !entryVisible || !runtimeById[layerId]) return;
+      // Gesperrte Layer auch im Safety-Net nie reaktivieren.
+      if (_isBookmarkLayerLocked(store, layerId)) return;
       runtimeById[layerId].visible = true;
     });
   }
@@ -1635,6 +1676,11 @@ function _buildBookmarkParams(cfg, visibilityMap, options) {
       });
     }
   });
+
+  // Gesperrte Layer (kein Zugriff fuer dieses Profil) zentral aus der Framework-
+  // Layerliste entfernen — so werden sie weder ueber Bookmark, View-Wechsel noch
+  // URL-Override (layers=) geladen. Greift auch vor Safety-Net/Fallbacks.
+  entries = entries.filter(function (e) { return !_isBookmarkLayerLocked(store, e.id); });
 
   // BRIDGE: Nur SICHTBARE Layer an das Framework geben. Das Framework kennt im
   // 'layers='-Parameter nur den Zustand "einschalten" (switchLayer(id, true)) —

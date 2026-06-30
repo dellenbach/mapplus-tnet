@@ -209,7 +209,7 @@
       html += '<div class="lm-subcat-header lm-depth-' + normalizedDepth + '" data-action="toggle-group" data-lm-depth="' + normalizedDepth + '">';
       html += '<span class="lm-arrow">▶</span>';
       if (subLocked) {
-        html += '<span class="lm-cb lm-cb-locked" title="Kein Zugriff – für dieses Profil gesperrt" style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;opacity:.6">' + getLockIconSvg() + '</span>';
+        html += '<span class="lm-cb lm-cb-locked" title="Kein Zugriff – berechtigtes Login nötig" style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;opacity:.6">' + getLockIconSvg() + '</span>';
       }
       html += '<span class="lm-subcat-name"' + (subLocked ? ' style="opacity:.6"' : '') + '>' + esc(sub.name) + '</span>';
       html += '<span class="lm-count">' + count + '</span>';
@@ -243,7 +243,7 @@
       html += '<div class="lm-group-header lm-depth-' + normalizedDepth + '" data-action="toggle-group" data-lm-depth="' + normalizedDepth + '">';
       html += '<span class="lm-arrow">▶</span>';
       if (groupLocked) {
-        html += '<span class="lm-cb lm-cb-locked" title="Kein Zugriff – für dieses Profil gesperrt" style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;opacity:.6">' + getLockIconSvg() + '</span>';
+        html += '<span class="lm-cb lm-cb-locked" title="Kein Zugriff – berechtigtes Login nötig" style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;opacity:.6">' + getLockIconSvg() + '</span>';
       } else if (hasSelectAll) {
         html += '<input type="checkbox" class="lm-group-cb" data-action="select-all" data-group-id="' + esc(group.id) + '" title="Alle Layer ein-/ausschalten">';
       }
@@ -280,7 +280,7 @@
         html += '<div class="lm-nested-header lm-depth-' + normalizedDepth + '" data-action="toggle-group" data-lm-depth="' + normalizedDepth + '">';
         html += '<span class="lm-arrow">▶</span>';
         if (nestedLocked) {
-          html += '<span class="lm-cb lm-cb-locked" title="Kein Zugriff – für dieses Profil gesperrt" style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;opacity:.6">' + getLockIconSvg() + '</span>';
+          html += '<span class="lm-cb lm-cb-locked" title="Kein Zugriff – berechtigtes Login nötig" style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;opacity:.6">' + getLockIconSvg() + '</span>';
         } else if (hasSelectAll) {
           html += '<input type="checkbox" class="lm-group-cb" data-action="select-all" data-group-id="' + esc(item.id) + '" title="Alle Layer ein-/ausschalten">';
         }
@@ -323,7 +323,7 @@
       html += '<span class="lm-cb-wrap">';
       if (isLocked) {
         // Gesperrter Layer: kein Schalter, nur schlichtes Schloss-Symbol (SVG in Textfarbe, kein Zugriff)
-        html += '<span class="lm-cb lm-cb-locked" title="Kein Zugriff – für dieses Profil gesperrt" style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;opacity:.6">'
+        html += '<span class="lm-cb lm-cb-locked" title="Kein Zugriff – berechtigtes Login nötig" style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;opacity:.6">'
               + getLockIconSvg() + '</span>';
       } else {
         html += '<input type="checkbox" class="lm-cb"' + checked + ' data-action="toggle-layer">';
