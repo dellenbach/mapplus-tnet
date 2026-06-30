@@ -654,7 +654,7 @@ body {
 .scd-head { display: flex; align-items: center; gap: 8px; padding: 10px 14px; background: #20323d; color: #fff; }
 .scd-head .scd-title { font-weight: 800; font-size: 13px; flex: 1; }
 .scd-close { cursor: pointer; background: transparent; border: 0; color: #cfe6f5; font-size: 20px; line-height: 1; }
-.scd-body { padding: 12px 14px; overflow-y: auto; font-size: 12px; }
+.scd-body { padding: 12px 14px; overflow-y: auto; font-size: 12px; flex: 1; min-height: 0; }
 .scd-summary { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
 .scd-chip { padding: 2px 9px; border-radius: 999px; font-weight: 700; font-size: 11px; }
 .scd-chip.dev  { background: #fdf1e5; color: #a85400; }
@@ -11996,6 +11996,18 @@ function openFileContentDiff(domain, relpath) {
   var els = _ensureCdiffOverlay();
   els.title.textContent = 'Datei-Vergleich — ' + relpath + ' (DEV ↔ PROD)';
   els.body.innerHTML = '<div class="scd-loading">⏳ Lade Datei-Inhalte …</div>';
+  // Footer: direkte Sync-Buttons (analog zu openSyncContentDiff)
+  els.foot.innerHTML = '<span style="font-size:11px;color:#667;margin-right:auto">Direkt übertragen:</span>'
+    + '<button class="sync-btn push" type="button" id="scd-sync-push" title="Diese Datei von DEV nach PROD kopieren — PROD wird überschrieben"><span class="b-dev">DEV</span><span class="b-arrow">→</span><span class="b-prod">PROD</span></button>'
+    + '<button class="sync-btn pull" type="button" id="scd-sync-pull" title="Diese Datei von PROD nach DEV kopieren — DEV wird überschrieben"><span class="b-dev">DEV</span><span class="b-arrow">←</span><span class="b-prod">PROD</span></button>';
+  els.foot.querySelector('#scd-sync-push').onclick = function() {
+    _closeSyncContentDiff();
+    executeFileSyncOp(domain, 'dev-to-prod', [relpath]);
+  };
+  els.foot.querySelector('#scd-sync-pull').onclick = function() {
+    _closeSyncContentDiff();
+    executeFileSyncOp(domain, 'prod-to-dev', [relpath]);
+  };
   els.overlay.classList.add('open');
   var url = API_URL + '?action=file-sync-content-diff&domain=' + encodeURIComponent(domain) + '&relpath=' + encodeURIComponent(relpath);
   fetch(url)
