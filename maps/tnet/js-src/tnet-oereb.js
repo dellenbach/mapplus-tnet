@@ -155,6 +155,75 @@ function detectType(nummer, realestate_type) {
     return 'Liegenschaft';
 }
 
+/** Aktiven OEREB-Highlight-Style aus Runtime-MapTips lesen (API/Legacy-überlagert). */
+function getActiveOerebMaptipStyleConfig() {
+    try {
+        var am = window.njs && njs.AppManager;
+        if (!am) return null;
+
+        // Bevorzugt aktive, dispatchbare MapTips.
+        var list = [];
+        if (am.wmsActiveLyrs && typeof am.wmsActiveLyrs.getArray === 'function') {
+            list = am.wmsActiveLyrs.getArray() || [];
+        }
+
+        function pickStyle(mt) {
+            if (!mt || !mt.active) return null;
+            var linked = mt.linked_layer_id || mt.linked_layer || '';
+            if (String(linked).indexOf('gis_oereb/') !== 0) return null;
+            var hs = (mt.highlight_style && typeof mt.highlight_style === 'object') ? mt.highlight_style : null;
+            var hls = (mt.highLightstyle && typeof mt.highLightstyle === 'object') ? mt.highLightstyle : null;
+            return hs || hls || null;
+        }
+
+        for (var i = 0; i < list.length; i++) {
+            var st = pickStyle(list[i]);
+            if (st) return st;
+        }
+
+        // Fallback: gesamter MapTip-Store.
+        var all = am.MapTips || {};
+        for (var key in all) {
+            if (!all.hasOwnProperty(key)) continue;
+            var st2 = pickStyle(all[key]);
+            if (st2) return st2;
+        }
+    } catch (e) {
+        TnetLog.warn('[OEREB] getActiveOerebMaptipStyleConfig Fehler:', e.message);
+    }
+    return null;
+}
+
+/** Baut eine OL-Style-Instanz für OEREB-Highlights, bevorzugt aus aktivem MapTip-Style. */
+function buildOerebOlStyle(geomType, mapObj) {
+    var styleCfg = getActiveOerebMaptipStyleConfig() || {
+        fillColor: 'rgba(255, 200, 0, 0.3)',
+        strokeColor: '#e8423f',
+        strokeWidth: 3
+    };
+
+    // Wenn verfügbar: Framework-Konverter verwenden (einheitliche Style-Semantik).
+    try {
+        if (mapObj && typeof mapObj.getNewOLStyle === 'function') {
+            var converted = mapObj.getNewOLStyle(styleCfg, geomType || 'Polygon');
+            if (converted) return converted;
+        }
+    } catch (e) {
+        TnetLog.warn('[OEREB] buildOerebOlStyle/getNewOLStyle Fehler:', e.message);
+    }
+
+    // Fallback ohne Framework-Konverter.
+    return new ol.style.Style({
+        fill: new ol.style.Fill({ color: styleCfg.fillColor || 'rgba(255, 200, 0, 0.3)' }),
+        stroke: new ol.style.Stroke({ color: styleCfg.strokeColor || '#e8423f', width: styleCfg.strokeWidth || 3 }),
+        image: new ol.style.Circle({
+            radius: styleCfg.pointRadius || 8,
+            fill: new ol.style.Fill({ color: styleCfg.fillColor || 'rgba(255, 200, 0, 0.3)' }),
+            stroke: new ol.style.Stroke({ color: styleCfg.strokeColor || '#e8423f', width: styleCfg.strokeWidth || 3 })
+        })
+    });
+}
+
 // ===== ÖREB MODUS TOGGLE =====
 window.toggleOerebMode = function() {
     if (oerebActive) {
@@ -585,6 +654,7 @@ function registerMobileGraphicsLayer() {
             if (!catalog || !Array.isArray(catalog.layers)) return null;
 
             var lowerToken = String(token).toLowerCase();
+            var fuzzyMatches = [];
             for (var i = 0; i < catalog.layers.length; i++) {
                 var layer = catalog.layers[i];
                 if (!layer || layer.type === 'group') continue;
@@ -595,12 +665,25 @@ function registerMobileGraphicsLayer() {
                     id.toLowerCase() === lowerToken
                     || name.toLowerCase() === lowerToken
                     || title.toLowerCase() === lowerToken
-                    || id.toLowerCase().indexOf(lowerToken) !== -1
-                    || name.toLowerCase().indexOf(lowerToken) !== -1
-                    || title.toLowerCase().indexOf(lowerToken) !== -1
                 ) {
                     return layer.id;
                 }
+
+                if (
+                    id.toLowerCase().indexOf(lowerToken) !== -1
+                    || name.toLowerCase().indexOf(lowerToken) !== -1
+                    || title.toLowerCase().indexOf(lowerToken) !== -1
+                ) {
+                    fuzzyMatches.push(layer.id);
+                }
+            }
+
+            if (fuzzyMatches.length === 1) {
+                return fuzzyMatches[0];
+            }
+
+            if (fuzzyMatches.length > 1) {
+                TnetLog.warn('[OEREB-Mobile] Mehrdeutige Layer-Zuordnung für Token:', token, '→', fuzzyMatches.join(', '));
             }
 
             return null;
@@ -697,18 +780,18 @@ function registerMobileGraphicsLayer() {
                 });
 
                 if (!this.displayLayer) {
+                    var mapObjRef = mapResult && mapResult.mapplus_obj && mapResult.mapplus_obj.AppManager
+                        ? mapResult.mapplus_obj.AppManager.Maps['main']
+                        : null;
+                    mapObjRef = mapObjRef ? mapObjRef : null;
                     this.displayLayer = new ol.layer.Vector({
                         source: new ol.source.Vector(),
                         zIndex: 999,
-                        style: new ol.style.Style({
-                            stroke: new ol.style.Stroke({ color: 'rgba(0, 255, 0, 0.8)', width: 6 }),
-                            fill: new ol.style.Fill({ color: 'rgba(0,255,0,0.3)' }),
-                            image: new ol.style.Circle({
-                                radius: 12,
-                                fill: new ol.style.Fill({ color: 'rgba(0, 255, 0, 0.2)' }),
-                                stroke: new ol.style.Stroke({ color: 'rgba(0, 255, 0, 0.8)', width: 6 })
-                            })
-                        })
+                        style: function(feature) {
+                            var gt = null;
+                            try { gt = feature && feature.getGeometry ? feature.getGeometry().getType() : 'Polygon'; } catch (e) {}
+                            return buildOerebOlStyle(gt || 'Polygon', mapObjRef);
+                        }
                     });
                     this.displayLayer.set('id', 'OerebGraphics');
                     map.addLayer(this.displayLayer);
@@ -1036,10 +1119,13 @@ function highlightOerebParcel(geojsonGeom, map) {
                 source: new ol.source.Vector(),
                 zIndex: 998,
                 properties: { isOereb: true },
-                style: new ol.style.Style({
-                    fill: new ol.style.Fill({ color: 'rgba(255, 200, 0, 0.3)' }),
-                    stroke: new ol.style.Stroke({ color: '#e8423f', width: 3 })
-                })
+                style: function(feature) {
+                    var gt = null;
+                    try { gt = feature && feature.getGeometry ? feature.getGeometry().getType() : 'Polygon'; } catch (e) {}
+                    var am = window.njs && njs.AppManager;
+                    var mapObjRef = am && am.Maps && am.Maps['main'] ? am.Maps['main'] : null;
+                    return buildOerebOlStyle(gt || 'Polygon', mapObjRef);
+                }
             });
             map.addLayer(oerebHighlightLayer);
             TnetLog.log('[OEREB] Highlight-Layer erstellt und zur Karte hinzugefügt');
@@ -1280,6 +1366,35 @@ function setOerebSelection(html) {
 }
 
 // ===== DOCK / UNDOCK (identisch mit toggleInfoPaneDock) =====
+function getOerebDockLayoutMetrics(mapContainer) {
+    var centerPane = document.getElementById('centerPaneLayout');
+    var streetviewContainer = document.getElementById('streetviewContainer');
+    var footerBar = document.getElementById('map-footer-bar');
+
+    var streetviewWidth = 0;
+    if (streetviewContainer && streetviewContainer.offsetWidth > 0 && streetviewContainer.style.display !== 'none') {
+        streetviewWidth = streetviewContainer.offsetWidth;
+    }
+
+    var fallbackRect = mapContainer
+        ? mapContainer.getBoundingClientRect()
+        : { top: 69, bottom: window.innerHeight };
+    var centerRect = centerPane ? centerPane.getBoundingClientRect() : fallbackRect;
+    var baseBottomOffset = Math.max(0, window.innerHeight - centerRect.bottom);
+
+    var footerHeight = 32;
+    if (footerBar && footerBar.offsetHeight > 0 && window.getComputedStyle(footerBar).display !== 'none') {
+        footerHeight = footerBar.offsetHeight;
+    }
+
+    return {
+        centerPaneWidth: centerPane ? centerPane.offsetWidth : window.innerWidth,
+        centerRect: centerRect,
+        streetviewWidth: streetviewWidth,
+        bottomOffset: Math.max(baseBottomOffset, footerHeight)
+    };
+}
+
 function dockOerebPanel() {
     var panel = document.getElementById('oereb-dock-panel');
     var dockBtn = document.getElementById('oereb-dock-btn');
@@ -1293,23 +1408,17 @@ function dockOerebPanel() {
 
     if (mapContainer) {
         var panelWidth = _savedOerebDockedWidth || 440;
-        var centerPane = document.getElementById('centerPaneLayout');
-        var streetviewContainer = document.getElementById('streetviewContainer');
-        var streetviewWidth = 0;
-        if (streetviewContainer && streetviewContainer.offsetWidth > 0 && streetviewContainer.style.display !== 'none') {
-            streetviewWidth = streetviewContainer.offsetWidth;
-        }
-        var centerRect = centerPane ? centerPane.getBoundingClientRect() : mapContainer.getBoundingClientRect();
+        var dockMetrics = getOerebDockLayoutMetrics(mapContainer);
+
         panel.style.setProperty('position', 'fixed', 'important');
-        panel.style.setProperty('top', centerRect.top + 'px', 'important');
-        panel.style.setProperty('right', streetviewWidth + 'px', 'important');
-        panel.style.setProperty('bottom', (window.innerHeight - centerRect.bottom) + 'px', 'important');
+        panel.style.setProperty('top', dockMetrics.centerRect.top + 'px', 'important');
+        panel.style.setProperty('right', dockMetrics.streetviewWidth + 'px', 'important');
+        panel.style.setProperty('bottom', dockMetrics.bottomOffset + 'px', 'important');
         panel.style.setProperty('left', 'auto', 'important');
         panel.style.setProperty('width', panelWidth + 'px', 'important');
         panel.style.setProperty('height', 'auto', 'important');
 
-        var centerPaneWidth = centerPane ? centerPane.offsetWidth : window.innerWidth;
-        var mapWidth = centerPaneWidth - streetviewWidth - panelWidth;
+        var mapWidth = dockMetrics.centerPaneWidth - dockMetrics.streetviewWidth - panelWidth;
         mapContainer.style.setProperty('width', mapWidth + 'px', 'important');
         triggerMapUpdate();
     }
@@ -1426,24 +1535,17 @@ function updateDockedOerebPosition() {
     if (!window.isOerebPanelDocked) return;
     var panel = document.getElementById('oereb-dock-panel');
     var mapContainer = document.getElementById('mapContainer');
-    var centerPane = document.getElementById('centerPaneLayout');
-    var streetviewContainer = document.getElementById('streetviewContainer');
     if (!panel || !mapContainer || panel.classList.contains('hidden')) return;
 
     var panelWidth = _savedOerebDockedWidth || panel.offsetWidth || 440;
-    var streetviewWidth = 0;
-    if (streetviewContainer && streetviewContainer.offsetWidth > 0 && streetviewContainer.style.display !== 'none') {
-        streetviewWidth = streetviewContainer.offsetWidth;
-    }
+    var dockMetrics = getOerebDockLayoutMetrics(mapContainer);
 
-    var centerRect = centerPane ? centerPane.getBoundingClientRect() : { top: 69, bottom: window.innerHeight - 32 };
-    panel.style.setProperty('top', centerRect.top + 'px', 'important');
-    panel.style.setProperty('right', streetviewWidth + 'px', 'important');
-    panel.style.setProperty('bottom', (window.innerHeight - centerRect.bottom) + 'px', 'important');
+    panel.style.setProperty('top', dockMetrics.centerRect.top + 'px', 'important');
+    panel.style.setProperty('right', dockMetrics.streetviewWidth + 'px', 'important');
+    panel.style.setProperty('bottom', dockMetrics.bottomOffset + 'px', 'important');
     panel.style.setProperty('width', panelWidth + 'px', 'important');
 
-    var centerPaneWidth = centerPane ? centerPane.offsetWidth : window.innerWidth;
-    var mapWidth = centerPaneWidth - streetviewWidth - panelWidth;
+    var mapWidth = dockMetrics.centerPaneWidth - dockMetrics.streetviewWidth - panelWidth;
     mapContainer.style.setProperty('width', mapWidth + 'px', 'important');
     triggerMapUpdate();
 }

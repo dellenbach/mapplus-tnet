@@ -600,31 +600,43 @@ function initInfoPaneEnhancements() {
         console.log('[ScrollToCatalog] Aufgerufen mit:', linkedLayerId);
         if (!linkedLayerId) return;
 
-        // 1. Layer-DOM-Element finden
-        var layerEl = findLayerElementInCatalog(linkedLayerId);
-        if (!layerEl) return;
-
-        // 2. Prüfen ob Element im neuen LM-Tree oder im Legacy-Baum liegt
-        var treeContainer = document.getElementById('lm-tree-container');
-        var isNewTree = treeContainer && treeContainer.contains(layerEl);
-        console.log('[ScrollToCatalog] Modus:', isNewTree ? 'Neuer Tree' : 'Legacy');
-
-        // 3. Themenkatalog-Pane öffnen (tp_overview_menu) — gilt für beide Modi
+        // Themenkatalog-Panel öffnen
         var overviewEl = document.getElementById('tp_overview_menu');
         if (overviewEl && !overviewEl.open) {
             overviewEl.open = true;
             console.log('[ScrollToCatalog] tp_overview_menu geöffnet');
         }
 
-        if (isNewTree) {
-            // ===== NEUER TREE: Tab aktivieren + Gruppen aufklappen =====
-            _scrollInNewTree(layerEl, treeContainer);
-        } else {
-            // ===== LEGACY BAUM: Tab aktivieren + TitlePanes öffnen =====
-            _scrollInLegacyTree(layerEl);
+        // Neuer Tree: TnetLMTree.navigateToLayer() delegieren — diese Funktion
+        // behandelt Lazy-Rendering, Tab-Wechsel, Eltern-Expand und Scroll/Highlight.
+        var treeContainer = document.getElementById('lm-tree-container');
+        if (treeContainer && window.TnetLMTree && typeof window.TnetLMTree.navigateToLayer === 'function') {
+            var started = window.TnetLMTree.navigateToLayer(linkedLayerId);
+            if (started) {
+                console.log('[ScrollToCatalog] Delegiert an TnetLMTree.navigateToLayer:', linkedLayerId);
+                return;
+            }
         }
 
-        // 4. Scroll & Highlight (verzögert)
+        // Fallback: Legacy-Baum
+        var layerEl = findLayerElementInCatalog(linkedLayerId);
+        if (!layerEl) {
+            console.warn('[ScrollToCatalog] Layer nicht gefunden (Legacy-Fallback):', linkedLayerId);
+            return;
+        }
+        _scrollToCatalogTarget(layerEl);
+    }
+
+    function _scrollToCatalogTarget(layerEl) {
+        var treeContainer = document.getElementById('lm-tree-container');
+        var isNewTree = treeContainer && treeContainer.contains(layerEl);
+        console.log('[ScrollToCatalog] Legacy-Modus:', isNewTree ? 'Neuer Tree' : 'Legacy');
+
+        if (isNewTree) {
+            _scrollInNewTree(layerEl, treeContainer);
+        } else {
+            _scrollInLegacyTree(layerEl);
+        }
         _scrollAndHighlight(layerEl, 0);
     }
 
@@ -1044,8 +1056,15 @@ function initInfoPaneEnhancements() {
         var dockBtn = document.createElement('button');
         dockBtn.className = 'info-pane-btn';
         dockBtn.id = 'info-pane-dock-btn';
-        dockBtn.title = 'Rechts andocken';
-        dockBtn.innerHTML = TnetIcons.get('dock');
+        // Button-Zustand am aktuellen Dock-Status ausrichten — das Auto-Dock kann
+        // bereits angedockt haben, bevor dieser Button existiert (sonst falsches Label).
+        if (infoPane.classList.contains('docked-right')) {
+            dockBtn.title = 'Floating';
+            dockBtn.innerHTML = TnetIcons.get('undock');
+        } else {
+            dockBtn.title = 'Rechts andocken';
+            dockBtn.innerHTML = TnetIcons.get('dock');
+        }
         dockBtn.onmousedown = function(e) { e.stopPropagation(); };
         dockBtn.onclick = function(e) {
             e.stopPropagation();
@@ -1063,17 +1082,21 @@ function initInfoPaneEnhancements() {
             if (isInfoPaneDocked) {
                 var mapContainer = document.getElementById('mapContainer');
                 if (mapContainer) {
+                    var closeAnchor = captureMapLeftAnchor();
                     mapContainer.style.setProperty('width', '100%', 'important');
-                    setTimeout(function() { triggerMapUpdate(); }, 100);
+                    applyMapResizeStatic(closeAnchor ? closeAnchor.coord : null, null, true);
                 }
                 stopMapContainerObserver();
                 isInfoPaneDocked = false;
                 infoPane.classList.remove('docked-right');
             }
             var widget = (typeof dijit !== 'undefined') ? dijit.byId('njs_info_pane') : null;
-            if (widget && widget.close) {
-                widget.close();
-            } else {
+            // Dojo widget.close() kann den Pane-Knoten komplett aus dem DOM entfernen.
+            // Danach laufen Folge-Abfragen instabil (erst nach Reload wieder ok).
+            // Deshalb hier bewusst nicht-destruktiv nur ausblenden.
+            if (widget && widget.domNode) {
+                widget.domNode.style.visibility = 'hidden';
+            } else if (infoPane) {
                 infoPane.style.visibility = 'hidden';
             }
         };
@@ -1098,6 +1121,54 @@ function initInfoPaneEnhancements() {
 
         return true;
     }
+
+    // Erzwingt fuer njs_info_pane ein nicht-destruktives Close-Verhalten.
+    // Mehrere Framework-/Tool-Pfade rufen widget.close() auf; Dojo kann dabei
+    // den DOM-Knoten entfernen, was Folge-Abfragen instabil macht.
+    function patchInfoPaneCloseBehavior() {
+        if (typeof dijit === 'undefined' || !dijit.byId) return;
+        var widget = dijit.byId('njs_info_pane');
+        if (!widget || widget._tnetClosePatched) return;
+
+        var originalClose = (typeof widget.close === 'function') ? widget.close : null;
+        widget.close = function() {
+            var node = widget.domNode || document.getElementById('njs_info_pane');
+            if (node) {
+                node.style.visibility = 'hidden';
+                return;
+            }
+            if (originalClose) {
+                return originalClose.apply(widget, arguments);
+            }
+        };
+        widget._tnetClosePatched = true;
+    }
+
+    function installDijitByIdClosePatch() {
+        if (typeof dijit === 'undefined' || !dijit.byId || dijit._tnetByIdClosePatchInstalled) return;
+        var originalById = dijit.byId;
+        dijit.byId = function(id) {
+            var widget = originalById.apply(this, arguments);
+            if (id === 'njs_info_pane' && widget && !widget._tnetClosePatched) {
+                var originalClose = (typeof widget.close === 'function') ? widget.close : null;
+                widget.close = function() {
+                    var node = widget.domNode || document.getElementById('njs_info_pane');
+                    if (node) {
+                        node.style.visibility = 'hidden';
+                        return;
+                    }
+                    if (originalClose) {
+                        return originalClose.apply(widget, arguments);
+                    }
+                };
+                widget._tnetClosePatched = true;
+            }
+            return widget;
+        };
+        dijit._tnetByIdClosePatchInstalled = true;
+    }
+
+    installDijitByIdClosePatch();
 
     // Initial versuchen
     enhanceInfoPane();
@@ -1188,6 +1259,7 @@ function initInfoPaneEnhancements() {
         var infoPane = document.getElementById('njs_info_pane');
         if (infoPane) {
             clearInterval(waitInterval);
+            patchInfoPaneCloseBehavior();
             attachPaneObserver(infoPane);
             onInfoPaneChange(infoPane);
         }
@@ -1198,6 +1270,7 @@ function initInfoPaneEnhancements() {
     setInterval(function() {
         var infoPane = document.getElementById('njs_info_pane');
         if (infoPane) {
+            patchInfoPaneCloseBehavior();
             attachPaneObserver(infoPane); // Observer setzen falls noch nicht aktiv
             if (isPaneVisible(infoPane)) {
                 enhanceInfoPane();
@@ -1295,6 +1368,8 @@ function initInfoPaneResize(pane) {
     var isResizing = false;
     var resizeDirection = '';
     var startX, startY, startWidth, startHeight, startLeft, startTop;
+    var dockDragAnchorCoord = null;   // linke Kartenkante als Anker waehrend des Docked-Drags
+    var dockDragRafPending = false;   // rAF-Drossel fuer Live-Re-Render
     
     function startResize(e, direction) {
         // Im angedockten Modus nur linken Rand erlauben
@@ -1310,6 +1385,14 @@ function initInfoPaneResize(pane) {
         startHeight = rect.height;
         startLeft = rect.left;
         startTop = rect.top;
+        
+        // Angedockt: linke Kartenkante einmalig als Anker erfassen (bleibt waehrend
+        // des horizontalen Resizes ortsfest) → Live-Re-Render ohne Stauchen/Springen.
+        dockDragAnchorCoord = null;
+        if (pane.classList.contains('docked-right')) {
+            var a = captureMapLeftAnchor();
+            dockDragAnchorCoord = a ? a.coord : null;
+        }
         
         document.body.style.userSelect = 'none';
         e.preventDefault();
@@ -1339,12 +1422,25 @@ function initInfoPaneResize(pane) {
             if (resizeDirection === 'left' || resizeDirection === 'tl' || resizeDirection === 'bl') {
                 newWidth = Math.max(300, Math.min(startWidth - dx, window.innerWidth - 100));
                 pane.style.setProperty('width', newWidth + 'px', 'important');
-                
+                pane.style.setProperty('--tnet-info-panel-docked-width', newWidth + 'px');
+                window._savedDockedPanelWidth = newWidth;
+
                 // mapContainer anpassen
                 var mapContainer = document.getElementById('mapContainer');
-                if (mapContainer && isInfoPaneDocked) {
+                if (mapContainer) {
+                    var dockMetrics = getDockLayoutMetrics(mapContainer);
                     var actualPanelWidth = pane.offsetWidth;
-                    mapContainer.style.setProperty('width', 'calc(100% - ' + actualPanelWidth + 'px)', 'important');
+                    var mapWidth = dockMetrics.centerPaneWidth - dockMetrics.streetviewWidth - actualPanelWidth;
+                    mapContainer.style.setProperty('width', mapWidth + 'px', 'important');
+                    // Live verankertes Re-Render (rAF-gedrosselt) → Karte rendert pro
+                    // Frame scharf nach, kein Stauchen/Flackern; linke Kante bleibt fix.
+                    if (!dockDragRafPending) {
+                        dockDragRafPending = true;
+                        requestAnimationFrame(function() {
+                            dockDragRafPending = false;
+                            applyMapResizeStatic(dockDragAnchorCoord, null, false);
+                        });
+                    }
                 }
             }
             e.preventDefault();
@@ -1405,12 +1501,13 @@ function initInfoPaneResize(pane) {
     
     var mouseUpHandler = function() {
         if (isResizing) {
-            // Nach Resize Map aktualisieren falls angedockt
+            // Nach Resize Map final verankert aktualisieren falls angedockt
             if (pane.classList.contains('docked-right')) {
-                triggerMapUpdate();
+                applyMapResizeStatic(dockDragAnchorCoord, null, true);
             }
             isResizing = false;
             resizeDirection = '';
+            dockDragAnchorCoord = null;
             document.body.style.cursor = '';
             document.body.style.userSelect = '';
         }
@@ -1515,22 +1612,163 @@ function showCopyNotification(message) {
 // Info-Panel andocken/abdocken
 var isInfoPaneDocked = false;
 var savedInfoPanePosition = null;
+window._savedDockedPanelWidth = window._savedDockedPanelWidth || 400;
 
-// Hilfsfunktion um Map-Update zu triggern
-function triggerMapUpdate() {
+// Hilfsfunktion um Map-Update zu triggern.
+// anchor (optional): { coord } — linke Kartenkante, die nach dem Resize stationaer
+//   gehalten wird, damit der Karteninhalt (samt Pin) beim An-/Abdocken nicht ruckt.
+// pinCoord (optional): geklickte Pin-Koordinate. Nur falls der Pin nach dem
+//   Andocken verdeckt/aus der schmaleren Karte gefallen ist, wird sanft nachzentriert.
+function triggerMapUpdate(anchor, pinCoord) {
     setTimeout(function() {
-        // Neapolis/OpenLayers Map
-        if (window.njs && njs.AppManager && njs.AppManager.Maps && njs.AppManager.Maps['main']) {
-            var mapObj = njs.AppManager.Maps['main'].mapObj;
-            if (mapObj && mapObj.updateSize) {
-                mapObj.updateSize();
-            }
+        var mapObj = (window.njs && njs.AppManager && njs.AppManager.Maps && njs.AppManager.Maps['main'])
+            ? njs.AppManager.Maps['main'].mapObj
+            : null;
+        if (mapObj && mapObj.updateSize) {
+            mapObj.updateSize();
         }
         // Dijit Layout Container neu berechnen
         if (typeof dijit !== 'undefined' && dijit.byId('NeapolisContainer')) {
             dijit.byId('NeapolisContainer').resize();
         }
+        if (!mapObj || !mapObj.getView) return;
+
+        // 1) Anker zuletzt anwenden: linke Kartenkante bleibt stationaer
+        //    (OpenLayers haelt sonst den geografischen Mittelpunkt fix → Versatz).
+        if (anchor && anchor.coord) {
+            try {
+                var s = mapObj.getSize();
+                if (s) {
+                    mapObj.getView().centerOn(anchor.coord, s, [0, s[1] / 2]);
+                }
+            } catch (e) { /* defensiv */ }
+        }
+
+        // 2) Nur wenn der Pin nach dem Andocken nicht sichtbar ist (vom Panel
+        //    verdeckt / rechts aus der schmaleren Karte gefallen): sanft nachzentrieren.
+        if (pinCoord && mapObj.getPixelFromCoordinate) {
+            try {
+                var size = mapObj.getSize();
+                var px = mapObj.getPixelFromCoordinate(pinCoord);
+                var hidden = !px || px[0] < 0 || px[1] < 0 ||
+                    (size && (px[0] > size[0] || px[1] > size[1]));
+                if (hidden) {
+                    mapObj.getView().animate({ center: pinCoord, duration: 300 });
+                }
+            } catch (e) { /* defensiv */ }
+        }
     }, 350);
+}
+
+// Erfasst die geografische Koordinate an der linken Kartenkante (Mitte) im aktuellen
+// (noch nicht geaenderten) Kartenzustand. Wird vor einer Breitenaenderung des
+// mapContainer aufgerufen und spaeter in triggerMapUpdate als Anker verwendet.
+function captureMapLeftAnchor() {
+    try {
+        if (!(window.njs && njs.AppManager && njs.AppManager.Maps && njs.AppManager.Maps['main'])) {
+            return null;
+        }
+        var mapObj = njs.AppManager.Maps['main'].mapObj;
+        if (!mapObj || !mapObj.getSize || !mapObj.getCoordinateFromPixel) return null;
+        var size = mapObj.getSize();
+        if (!size) return null;
+        return { coord: mapObj.getCoordinateFromPixel([0, size[1] / 2]) };
+    } catch (e) {
+        return null;
+    }
+}
+
+// Liefert die zuletzt geklickte Info-Pin-Koordinate, sofern der Klick frisch ist
+// (vom Info-Bridge-Klickhandler gesetzt). Aelter als 5s → ignorieren.
+function getRecentInfoPinCoord() {
+    try {
+        if (!window.__tnetLastInfoClickCoord) return null;
+        if (window.__tnetLastInfoClickAt && (Date.now() - window.__tnetLastInfoClickAt) > 5000) return null;
+        return window.__tnetLastInfoClickCoord;
+    } catch (e) {
+        return null;
+    }
+}
+
+// Synchroner, statischer Karten-Resize (kein setTimeout, kein Stauchen, kein Springen).
+// Muss im SELBEN Task wie die mapContainer-Breitenaenderung laufen: dann rendert OL
+// genau einmal scharf (rAF vor dem Paint), statt erst das gestauchte width:100%-Canvas
+// zu zeigen und danach zu korrigieren.
+// Ablauf: 1) Zielzentrum VOR updateSize setzen (linke Kante stationaer), 2) updateSize,
+//         3) optional dijit-Resize, 4) optional Pin-Recenter falls verdeckt.
+function applyMapResizeStatic(anchorCoord, pinCoord, withDijit) {
+    var mapObj = (window.njs && njs.AppManager && njs.AppManager.Maps && njs.AppManager.Maps['main'])
+        ? njs.AppManager.Maps['main'].mapObj
+        : null;
+    if (!mapObj || !mapObj.getView) return;
+    var view = mapObj.getView();
+
+    // Neue Zielgroesse aus dem bereits angepassten Container lesen (ein Reflow, kein Paint).
+    var mc = document.getElementById('mapContainer');
+    var newSize = mc ? [mc.offsetWidth, mc.offsetHeight] : (mapObj.getSize ? mapObj.getSize() : null);
+
+    // 1) Center so setzen, dass die linke Kartenkante stationaer bleibt — VOR updateSize,
+    //    damit OL nicht erst den geografischen Mittelpunkt haelt (Sprung) und dann korrigiert.
+    //    ABER: laeuft bereits eine View-Animation (z.B. Pin-Recenter beim Andocken), NICHT
+    //    re-verankern — sonst wuerde der Observer-Trigger die laufende Pan-Animation abbrechen.
+    var isAnimating = !!(view.getAnimating && view.getAnimating());
+    if (anchorCoord && newSize && view.centerOn && !isAnimating) {
+        try { view.centerOn(anchorCoord, newSize, [0, newSize[1] / 2]); } catch (e) { /* defensiv */ }
+    }
+
+    // 2) Groesse uebernehmen → ein einziges scharfes Re-Render.
+    if (mapObj.updateSize) mapObj.updateSize();
+
+    // 3) Dijit-Layout nur bei abgeschlossenen Aktionen (nicht im Live-Drag, zu schwer).
+    if (withDijit && typeof dijit !== 'undefined' && dijit.byId('NeapolisContainer')) {
+        try { dijit.byId('NeapolisContainer').resize(); } catch (e) { /* defensiv */ }
+    }
+
+    // 4) Pin verdeckt vom Panel, sehr nah am Panel-Rand ODER aus der Karte gefallen?
+    //    → sanft nachfuehren (smooth pan). Der Komfortabstand (marginRight) sorgt
+    //    dafuer, dass der Pin nicht direkt am Panel klebt.
+    if (pinCoord && mapObj.getPixelFromCoordinate) {
+        try {
+            var size = mapObj.getSize();
+            var px = mapObj.getPixelFromCoordinate(pinCoord);
+            var marginRight = 120; // Komfortabstand zum angedockten Panel (rechts)
+            var nearPanel = !!(px && size && px[0] > (size[0] - marginRight));
+            var offscreen = !px || px[0] < 0 || px[1] < 0 ||
+                (size && (px[0] > size[0] || px[1] > size[1]));
+            if (nearPanel || offscreen) {
+                view.animate({ center: pinCoord, duration: 300 });
+            }
+        } catch (e) { /* defensiv */ }
+    }
+}
+
+function getDockLayoutMetrics(mapContainer) {
+    var centerPane = document.getElementById('centerPaneLayout');
+    var streetviewContainer = document.getElementById('streetviewContainer');
+    var footerBar = document.getElementById('map-footer-bar');
+
+    var streetviewWidth = 0;
+    if (streetviewContainer && streetviewContainer.offsetWidth > 0 && streetviewContainer.style.display !== 'none') {
+        streetviewWidth = streetviewContainer.offsetWidth;
+    }
+
+    var fallbackRect = mapContainer
+        ? mapContainer.getBoundingClientRect()
+        : { top: 69, bottom: window.innerHeight };
+    var centerRect = centerPane ? centerPane.getBoundingClientRect() : fallbackRect;
+    var baseBottomOffset = Math.max(0, window.innerHeight - centerRect.bottom);
+
+    var footerHeight = 32;
+    if (footerBar && footerBar.offsetHeight > 0 && window.getComputedStyle(footerBar).display !== 'none') {
+        footerHeight = footerBar.offsetHeight;
+    }
+
+    return {
+        centerPaneWidth: centerPane ? centerPane.offsetWidth : window.innerWidth,
+        centerRect: centerRect,
+        streetviewWidth: streetviewWidth,
+        bottomOffset: Math.max(baseBottomOffset, footerHeight)
+    };
 }
 
 window.toggleInfoPaneDock = function() {
@@ -1546,12 +1784,11 @@ window.toggleInfoPaneDock = function() {
         // Observer stoppen
         stopMapContainerObserver();
         
-        // mapContainer wieder auf volle Breite
+        // mapContainer wieder auf volle Breite — synchron + verankert (statisch)
         if (mapContainer) {
+            var leftAnchorUndock = captureMapLeftAnchor();
             mapContainer.style.setProperty('width', '100%', 'important');
-            setTimeout(function() {
-                triggerMapUpdate();
-            }, 100);
+            applyMapResizeStatic(leftAnchorUndock ? leftAnchorUndock.coord : null, null, true);
         }
         
         if (savedInfoPanePosition) {
@@ -1590,30 +1827,27 @@ window.toggleInfoPaneDock = function() {
         if (mapContainer) {
             // Gespeicherte Breite verwenden falls vorhanden, sonst 350px
             var panelWidth = window._savedDockedPanelWidth || 350;
-            var centerPane = document.getElementById('centerPaneLayout');
-            var streetviewContainer = document.getElementById('streetviewContainer');
-            
-            // Berechne den rechten Offset (falls StreetView offen)
-            var streetviewWidth = 0;
-            if (streetviewContainer && streetviewContainer.offsetWidth > 0 && streetviewContainer.style.display !== 'none') {
-                streetviewWidth = streetviewContainer.offsetWidth;
-            }
-            
+            var dockMetrics = getDockLayoutMetrics(mapContainer);
+
             // Panel am rechten Rand positionieren (neben StreetView falls offen)
-            var centerRect = centerPane ? centerPane.getBoundingClientRect() : mapContainer.getBoundingClientRect();
             infoPane.style.setProperty('position', 'fixed', 'important');
-            infoPane.style.setProperty('top', centerRect.top + 'px', 'important');
-            infoPane.style.setProperty('right', streetviewWidth + 'px', 'important');
-            infoPane.style.setProperty('bottom', (window.innerHeight - centerRect.bottom) + 'px', 'important');
+            infoPane.style.setProperty('top', dockMetrics.centerRect.top + 'px', 'important');
+            infoPane.style.setProperty('right', dockMetrics.streetviewWidth + 'px', 'important');
+            infoPane.style.setProperty('bottom', dockMetrics.bottomOffset + 'px', 'important');
             infoPane.style.setProperty('left', 'auto', 'important');
             infoPane.style.setProperty('width', panelWidth + 'px', 'important');
+            infoPane.style.setProperty('--tnet-info-panel-docked-width', panelWidth + 'px');
             infoPane.style.setProperty('height', 'auto', 'important');
-            
-            // mapContainer verkleinern: Absolute Berechnung
-            var centerPaneWidth = centerPane ? centerPane.offsetWidth : window.innerWidth;
-            var mapWidth = centerPaneWidth - streetviewWidth - panelWidth;
+
+            // mapContainer verkleinern: Absolute Berechnung.
+            // Anker VOR der Breitenaenderung erfassen, danach synchron (kein setTimeout)
+            // Center setzen + updateSize → ein scharfes Re-Render, kein Stauchen/Springen.
+            var leftAnchor = captureMapLeftAnchor();
+            var pinCoord = getRecentInfoPinCoord();
+            var mapWidth = dockMetrics.centerPaneWidth - dockMetrics.streetviewWidth - panelWidth;
             mapContainer.style.setProperty('width', mapWidth + 'px', 'important');
-            triggerMapUpdate();
+            window._savedDockedPanelWidth = panelWidth;
+            applyMapResizeStatic(leftAnchor ? leftAnchor.coord : null, pinCoord, true);
         }
         
         // Observer für Layout-Änderungen starten (passt Panel an wenn StreetView etc. geöffnet wird)
@@ -1680,32 +1914,29 @@ function updateDockedInfoPanePosition() {
     if (!isInfoPaneDocked) return;
     var mapContainer = document.getElementById('mapContainer');
     var infoPane = document.getElementById('njs_info_pane');
-    var centerPane = document.getElementById('centerPaneLayout');
-    var streetviewContainer = document.getElementById('streetviewContainer');
     if (!mapContainer || !infoPane) return;
-    
+
+    var dockMetrics = getDockLayoutMetrics(mapContainer);
     var panelWidth = window._savedDockedPanelWidth || infoPane.offsetWidth || 350;
-    
-    // Berechne den rechten Offset (falls StreetView offen)
-    var streetviewWidth = 0;
-    if (streetviewContainer && streetviewContainer.offsetWidth > 0 && streetviewContainer.style.display !== 'none') {
-        streetviewWidth = streetviewContainer.offsetWidth;
-    }
-    
+
+    // Anker VOR der Breitenaenderung erfassen → linke Kante bleibt auch bei
+    // StreetView-/Fenster-Resize stationaer (kein verzoegerter Geo-Recenter).
+    var leftAnchorPos = captureMapLeftAnchor();
+
     // Panel-Position aktualisieren - rechts neben StreetView
-    var centerRect = centerPane ? centerPane.getBoundingClientRect() : { top: 69, bottom: window.innerHeight - 32 };
-    infoPane.style.setProperty('top', centerRect.top + 'px', 'important');
-    infoPane.style.setProperty('right', streetviewWidth + 'px', 'important');
-    infoPane.style.setProperty('bottom', (window.innerHeight - centerRect.bottom) + 'px', 'important');
+    infoPane.style.setProperty('top', dockMetrics.centerRect.top + 'px', 'important');
+    infoPane.style.setProperty('right', dockMetrics.streetviewWidth + 'px', 'important');
+    infoPane.style.setProperty('bottom', dockMetrics.bottomOffset + 'px', 'important');
     infoPane.style.setProperty('width', panelWidth + 'px', 'important');
-    
+    infoPane.style.setProperty('--tnet-info-panel-docked-width', panelWidth + 'px');
+    window._savedDockedPanelWidth = panelWidth;
+
     // mapContainer-Breite: Absolute Berechnung
     // Verfügbare Breite = centerPaneLayout.width - streetviewWidth - panelWidth
-    var centerPaneWidth = centerPane ? centerPane.offsetWidth : window.innerWidth;
-    var mapWidth = centerPaneWidth - streetviewWidth - panelWidth;
+    var mapWidth = dockMetrics.centerPaneWidth - dockMetrics.streetviewWidth - panelWidth;
     mapContainer.style.setProperty('width', mapWidth + 'px', 'important');
-    
-    triggerMapUpdate();
+
+    applyMapResizeStatic(leftAnchorPos ? leftAnchorPos.coord : null, null, true);
 }
 
 // Funktion um Panel-Position bei Resize zu aktualisieren (ohne Container zu ändern)

@@ -45,6 +45,9 @@
   var _currentJobId = null;  // Job-ID des aktuellen Jobs
   var _jobIdCounter = 0;  // Für Job-ID-Generierung
   var _queueWorkerScheduled = false;  // Flag für setTimeout
+  var _filenameCounter = {};  // {basisname: anzahl} – für _1/_2-Nummerierung bei Duplikaten
+  // Kurzer zufälliger Session-Token (4 Hex-Zeichen) – verhindert Konflikte bei gleichzeitigen Druckjobs mehrerer User
+  var _sessionToken = Math.floor(Math.random() * 0x10000).toString(16).padStart(4, '0');
   // Fallback Scales (werden aus tnet-global-config.json5 überschrieben)
   var _scales = [100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 75000, 100000, 250000, 500000, 1000000];
   // Dock-State
@@ -53,6 +56,9 @@
   var _inlineMode = false;          // true = Panel im Sidebar-Akkordeon (tp_tnet_print_menu)
   var _printResizeObserver = null;
   var _printCenter = null;           // Druckrahmen-Mittelpunkt in Kartenkoordinaten (unabhängig vom View-Center)
+  // Inline-PDF-Unterstützung des Browsers (navigator.pdfViewerEnabled: Chrome/Edge 94+, Firefox 98+)
+  var _pdfInlineSupported = !!navigator.pdfViewerEnabled;
+  var _previewHideTimer = null;  // Timer für verzögertes Ausblenden der Hover-Vorschau
   var _frameRotation = 0;            // Rahmen-Rotation in Radiant (unabhängig von Kartenrotation)
   var _savedInteractions = [];       // Deaktivierte OL-Interaktionen (nach Schliessen wiederhergestellt)
   var _savedPickingStates = {};      // Gespeicherter Picking-Zustand pro Map-ID
@@ -1515,8 +1521,16 @@
 
       onSuccess: function (result) {
         job.blob = result.blob;
-        job.filename = result.filename;
-        job.title = result.filename;  // Titel = tatsächlicher Dateiname
+        // Nummerierungs-Suffix bestimmen
+        var origName = result.filename;  // z.B. "Plan_1937.pdf"
+        var ext = origName.lastIndexOf('.') >= 0 ? origName.slice(origName.lastIndexOf('.')) : '';
+        var base = ext ? origName.slice(0, origName.lastIndexOf('.')) : origName;
+        _filenameCounter[base] = (_filenameCounter[base] || 0) + 1;
+        var n = _filenameCounter[base];
+        // Session-Token + Zähler → eindeutig pro User-Session und pro Druckjob
+        var numberedName = base + '_' + _sessionToken + '_' + n + ext;  // z.B. "Plan_1937_a3f2_1.pdf"
+        job.filename = numberedName;
+        job.title    = numberedName;
         job.status = 'completed';
         job.progress = 100;
         
@@ -1587,27 +1601,6 @@
     var sorted = _printQueue.slice().reverse();
     sorted.forEach(function (job) {
       var statusClass = 'pj-' + job.status;
-      var statusLabel = {
-        pending: '\u23f3 In Warteschlange',
-        processing: '\u2699 Wird verarbeitet',
-        completed: '\u2713 Fertig',
-        failed: '\u2715 Fehler'
-      }[job.status] || job.status;
-
-      html +=
-        '<div class="print-job ' + statusClass + '">' +
-          '<div class="pj-header">' +
-            '<span class="pj-title">' + job.title + '</span>' +
-            '<span class="pj-status">' + statusLabel + '</span>' +
-          '</div>';
-
-      if (job.status === 'processing') {
-        html +=
-          '<div class="pj-progress">' +
-            '<div class="pj-progress-bar"><div class="pj-progress-fill" style="width:' + job.progress + '%"></div></div>' +
-            '<span class="pj-progress-text">' + job.progress + '%</span>' +
-          '</div>';
-      }
 
       if (job.status === 'completed' && job.blobUrl) {
         var time = '';
@@ -1619,24 +1612,41 @@
         var meta = [];
         if (time) meta.push(time);
         if (sizeStr) meta.push(sizeStr);
-        html +=
-          '<div class="pj-meta">' + meta.join(' \u00b7 ') + '</div>' +
-          '<div class="pj-actions">' +
-            '<a class="pj-btn pj-btn-dl" href="' + job.blobUrl + '" download="' + job.filename + '" title="Herunterladen">\u2B07 Download</a>';
-        if (!_isMobile) {
-          html += '<button class="pj-btn pj-btn-preview" onclick="previewJob(' + job.id + ')" title="Vorschau">\uD83D\uDD0D</button>';
+        html += '<div class="print-job ' + statusClass + '">' +
+          '<a class="pj-title pj-dl" href="' + job.blobUrl + '" download="' + job.filename + '" title="Herunterladen">' + job.title + '</a>' +
+          '<span class="pj-meta">' + meta.join(' \u00b7 ') + '</span>' +
+          '<a class="pj-icon pj-icon-dl" href="' + job.blobUrl + '" download="' + job.filename + '" title="Herunterladen">\u2B07</a>';
+        if (!_isMobile && _pdfInlineSupported) {
+          html += '<button class="pj-icon pj-icon-preview" onmouseenter="previewJob(' + job.id + ')" onmouseleave="schedulePdfPreviewHide()" title="Vorschau">\uD83D\uDD0D</button>';
         }
-        html +=
-            '<button class="pj-btn pj-btn-remove" onclick="removeJob(' + job.id + ')" title="Entfernen">&times;</button>' +
+        html += '<button class="pj-icon pj-icon-remove" onclick="removeJob(' + job.id + ')" title="Entfernen">&times;</button>' +
           '</div>';
-      }
 
-      if (job.status === 'failed') {
-        html +=
-          '<div class="pj-error">' + job.error + '</div>';
-      }
+      } else if (job.status === 'processing') {
+        html += '<div class="print-job ' + statusClass + '">' +
+          '<div class="pj-proc-row">' +
+            '<span class="pj-title">' + job.title + '</span>' +
+          '</div>' +
+          '<div class="pj-progress">' +
+            '<div class="pj-progress-bar"><div class="pj-progress-fill" style="width:' + job.progress + '%"></div></div>' +
+            '<span class="pj-progress-text">' + job.progress + '%</span>' +
+          '</div>' +
+        '</div>';
 
-      html += '</div>';
+      } else if (job.status === 'failed') {
+        html += '<div class="print-job ' + statusClass + '">' +
+          '<span class="pj-title">' + job.title + '</span>' +
+          '<span class="pj-meta">' + job.error + '</span>' +
+          '<button class="pj-icon pj-icon-remove" onclick="removeJob(' + job.id + ')" title="Entfernen">&times;</button>' +
+        '</div>';
+
+      } else {
+        // pending
+        html += '<div class="print-job ' + statusClass + '">' +
+          '<span class="pj-title">' + job.title + '</span>' +
+          '<span class="pj-meta">\u23F3</span>' +
+        '</div>';
+      }
     });
 
     jobsList.innerHTML = html;
@@ -1687,10 +1697,8 @@
     // Jobs-Liste aktualisieren
     renderJobs();
 
-    // Vorschau nur auf Desktop anzeigen
-    if (!_isMobile) {
-      showPdfPreview(blobUrl);
-    } else {
+    // Vorschau nicht automatisch anzeigen – Benutzer kann via Lupe-Hover aufrufen
+    if (_isMobile) {
       // Mobile: Auto-Download triggern
       var link = document.createElement('a');
       link.href = blobUrl;
@@ -1734,22 +1742,39 @@
   }
 
   // ================================================================
-  //  PDF-Vorschau (iframe, nur Desktop)
+  //  PDF-Vorschau (iframe, nur Desktop, nur wenn Browser PDF inline
+  //  unterstützt – navigator.pdfViewerEnabled)
   // ================================================================
   function showPdfPreview(url) {
-    if (_isMobile) return;  // Kein iframe-Preview auf Mobile
+    if (_isMobile || !_pdfInlineSupported) return;
+    // Laufenden Hide-Timer abbrechen
+    if (_previewHideTimer) { clearTimeout(_previewHideTimer); _previewHideTimer = null; }
     var iframe = document.getElementById('print-preview-frame');
     if (!iframe) return;
-    iframe.src = url;
+    if (iframe.getAttribute('data-src') !== url) {
+      iframe.src = url;
+      iframe.setAttribute('data-src', url);
+    }
     iframe.style.display = '';
-    // Zum Vorschau-Bereich scrollen
-    iframe.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    // Hover-Listener am iframe: Vorschau offen halten solange Maus drüber ist
+    iframe.onmouseenter = function () {
+      if (_previewHideTimer) { clearTimeout(_previewHideTimer); _previewHideTimer = null; }
+    };
+    iframe.onmouseleave = schedulePdfPreviewHide;
   }
 
+  function schedulePdfPreviewHide() {
+    if (_previewHideTimer) clearTimeout(_previewHideTimer);
+    _previewHideTimer = setTimeout(closePrintPreview, 300);
+  }
+  window.schedulePdfPreviewHide = schedulePdfPreviewHide;
+
   function closePrintPreview() {
+    _previewHideTimer = null;
     var iframe = document.getElementById('print-preview-frame');
     if (iframe) {
       iframe.src = 'about:blank';
+      iframe.removeAttribute('data-src');
       iframe.style.display = 'none';
     }
   }
@@ -1795,6 +1820,35 @@
     }, 350);
   }
 
+  function getPrintDockLayoutMetrics(mapContainer) {
+    var centerPane = document.getElementById('centerPaneLayout');
+    var streetviewContainer = document.getElementById('streetviewContainer');
+    var footerBar = document.getElementById('map-footer-bar');
+
+    var streetviewWidth = 0;
+    if (streetviewContainer && streetviewContainer.offsetWidth > 0 && streetviewContainer.style.display !== 'none') {
+      streetviewWidth = streetviewContainer.offsetWidth;
+    }
+
+    var fallbackRect = mapContainer
+      ? mapContainer.getBoundingClientRect()
+      : { top: 69, bottom: window.innerHeight };
+    var centerRect = centerPane ? centerPane.getBoundingClientRect() : fallbackRect;
+    var baseBottomOffset = Math.max(0, window.innerHeight - centerRect.bottom);
+
+    var footerHeight = 32;
+    if (footerBar && footerBar.offsetHeight > 0 && window.getComputedStyle(footerBar).display !== 'none') {
+      footerHeight = footerBar.offsetHeight;
+    }
+
+    return {
+      centerPaneWidth: centerPane ? centerPane.offsetWidth : window.innerWidth,
+      centerRect: centerRect,
+      streetviewWidth: streetviewWidth,
+      bottomOffset: Math.max(baseBottomOffset, footerHeight)
+    };
+  }
+
   function dockPrintPanel() {
     if (_inlineMode) return; // Kein Docking im Inline-Modus
     var panel = document.getElementById('print-panel');
@@ -1809,22 +1863,15 @@
     // Mobile: Panel ist Bottom-Sheet (CSS steuert Layout) — keine Breitenanpassung!
     if (!_isMobile && mapContainer) {
       var panelWidth = _savedPrintDockedWidth || 380;
-      var centerPane = document.getElementById('centerPaneLayout');
-      var streetviewContainer = document.getElementById('streetviewContainer');
-      var streetviewWidth = 0;
-      if (streetviewContainer && streetviewContainer.offsetWidth > 0 && streetviewContainer.style.display !== 'none') {
-        streetviewWidth = streetviewContainer.offsetWidth;
-      }
-      var centerRect = centerPane ? centerPane.getBoundingClientRect() : mapContainer.getBoundingClientRect();
-      panel.style.setProperty('top', centerRect.top + 'px', 'important');
-      panel.style.setProperty('right', streetviewWidth + 'px', 'important');
-      panel.style.setProperty('bottom', (window.innerHeight - centerRect.bottom) + 'px', 'important');
+      var dockMetrics = getPrintDockLayoutMetrics(mapContainer);
+      panel.style.setProperty('top', dockMetrics.centerRect.top + 'px', 'important');
+      panel.style.setProperty('right', dockMetrics.streetviewWidth + 'px', 'important');
+      panel.style.setProperty('bottom', dockMetrics.bottomOffset + 'px', 'important');
       panel.style.setProperty('left', 'auto', 'important');
       panel.style.setProperty('width', panelWidth + 'px', 'important');
       panel.style.setProperty('height', 'auto', 'important');
 
-      var centerPaneWidth = centerPane ? centerPane.offsetWidth : window.innerWidth;
-      var mapWidth = centerPaneWidth - streetviewWidth - panelWidth;
+      var mapWidth = dockMetrics.centerPaneWidth - dockMetrics.streetviewWidth - panelWidth;
       mapContainer.style.setProperty('width', mapWidth + 'px', 'important');
     }
     triggerPrintMapUpdate();
@@ -1904,25 +1951,16 @@
   function updateDockedPrintPosition() {
     var panel = document.getElementById('print-panel');
     var mapContainer = document.getElementById('mapContainer');
-    if (!panel || !_isPrintPanelDocked) return;
+    if (!panel || !_isPrintPanelDocked || !mapContainer) return;
 
     var panelWidth = panel.offsetWidth || _savedPrintDockedWidth;
-    var centerPane = document.getElementById('centerPaneLayout');
-    var streetviewContainer = document.getElementById('streetviewContainer');
-    var streetviewWidth = 0;
-    if (streetviewContainer && streetviewContainer.offsetWidth > 0 && streetviewContainer.style.display !== 'none') {
-      streetviewWidth = streetviewContainer.offsetWidth;
-    }
-    var centerRect = centerPane ? centerPane.getBoundingClientRect() : (mapContainer ? mapContainer.getBoundingClientRect() : { top: 60, bottom: window.innerHeight });
-    panel.style.setProperty('top', centerRect.top + 'px', 'important');
-    panel.style.setProperty('right', streetviewWidth + 'px', 'important');
-    panel.style.setProperty('bottom', (window.innerHeight - centerRect.bottom) + 'px', 'important');
+    var dockMetrics = getPrintDockLayoutMetrics(mapContainer);
+    panel.style.setProperty('top', dockMetrics.centerRect.top + 'px', 'important');
+    panel.style.setProperty('right', dockMetrics.streetviewWidth + 'px', 'important');
+    panel.style.setProperty('bottom', dockMetrics.bottomOffset + 'px', 'important');
 
-    if (mapContainer) {
-      var centerPaneWidth = centerPane ? centerPane.offsetWidth : window.innerWidth;
-      var mapWidth = centerPaneWidth - streetviewWidth - panelWidth;
-      mapContainer.style.setProperty('width', mapWidth + 'px', 'important');
-    }
+    var mapWidth = dockMetrics.centerPaneWidth - dockMetrics.streetviewWidth - panelWidth;
+    mapContainer.style.setProperty('width', mapWidth + 'px', 'important');
   }
 
   // ── Resize-Handle (links) im angedockten Modus ──
@@ -1955,7 +1993,9 @@
 
       var mapContainer = document.getElementById('mapContainer');
       if (mapContainer) {
-        mapContainer.style.setProperty('width', 'calc(100% - ' + newWidth + 'px)', 'important');
+        var dockMetrics = getPrintDockLayoutMetrics(mapContainer);
+        var mapWidth = dockMetrics.centerPaneWidth - dockMetrics.streetviewWidth - newWidth;
+        mapContainer.style.setProperty('width', mapWidth + 'px', 'important');
       }
       e.preventDefault();
     });
