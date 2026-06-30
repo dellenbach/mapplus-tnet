@@ -5516,47 +5516,9 @@ function v2DeriveTenantTree($nodes, $permissions, $tenant) {
     return $out;
 }
 
-/**
- * Sammelt die Deny-Map (nicht berechtigte Layer) je Mandant fuer das
- * Runtime-Artefakt layer_permissions.json.
- * @return array{ tenant: { layerId: false } }
- */
-function v2CollectDenyMap($permissions) {
-    $deny = [];
-    foreach (v2Tenants() as $tenant) {
-        if (isset($permissions[$tenant]) && is_array($permissions[$tenant])) {
-            foreach ($permissions[$tenant] as $layerId => $allowed) {
-                if ($allowed === false) {
-                    $deny[$tenant][$layerId] = false;
-                }
-            }
-        }
-    }
-    return $deny;
-}
-
-/**
- * Schreibt das Runtime-Berechtigungsartefakt nach core/config/layer_permissions.json.
- * layers.php liest diese Datei, um URLs unberechtigter Layer serverseitig zu strippen.
- */
-function v2WriteRuntimePermissions($permissions) {
-    $deny = v2CollectDenyMap($permissions);
-    $doc = [
-        '_meta'   => ['generatedAt' => date('Y-m-d H:i:s'), 'by' => 'tree-builder-v2'],
-        'deny'    => $deny,
-    ];
-    $json = json_encode($doc, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-    $targets = [];
-    foreach ([CORE_CONFIG_DIR, APP_CORE_CONFIG_DIR] as $dir) {
-        if ($dir && is_dir($dir) && is_writable($dir)) {
-            $path = $dir . '/layer_permissions.json';
-            if (@file_put_contents($path, $json) !== false) {
-                $targets[] = $path;
-            }
-        }
-    }
-    return $targets;
-}
+// v2CollectDenyMap() und v2WriteRuntimePermissions() entfernt (2026-06-30):
+// Sperren sind jetzt als `secured`-Property direkt im publizierten lyrmgr-Knoten
+// kodiert. layers.php liest kein separates layer_permissions.json mehr.
 
 // ── Matrix-Store (Sichtbarkeit/Berechtigung je Layer, getrennt vom Baum) ──
 
@@ -6182,45 +6144,10 @@ switch ($action) {
         break;
 
     case 'shared-write-permissions':
-        // Speichert die Deny-Map (gesperrte Layer je Profil) DB-first + Datei-Spiegel.
-        // Body: { deny: { tenant: { layerId: true } } }
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('POST required', 405);
-        $body = json_decode(file_get_contents('php://input'), true);
-        if (!is_array($body) || !isset($body['deny']) || !is_array($body['deny'])) {
-            jsonError('Feld deny erforderlich', 400);
-        }
-        $editor = getEditorName();
-        $deny = $body['deny'];
-
-        // 1) DB: catalog_document['__permissions__']
-        $savedDb = false;
-        require_once __DIR__ . '/../includes/ConfigSource.php';
-        if (ConfigSource::useDb('catalog')) {
-            require_once __DIR__ . '/../includes/CatalogRepository.php';
-            try {
-                $rev = CatalogRepository::getRevision('__permissions__');
-                $res = CatalogRepository::saveProfile('__permissions__', ['deny' => $deny], $rev, $editor, 'publish', null);
-                $savedDb = empty($res['conflict']);
-            } catch (\Throwable $e) {
-                if (!ConfigSource::fallbackEnabled()) jsonError('Deny-DB-Schreiben fehlgeschlagen: ' . $e->getMessage(), 500);
-                error_log('shared-write-permissions: DB-Schreiben fehlgeschlagen: ' . $e->getMessage());
-            }
-        }
-
-        // 2) Datei-Spiegel (Runtime-Cache fuer layers.php)
-        $doc = [
-            '_meta' => ['generatedAt' => date('Y-m-d H:i:s'), 'by' => 'tree-builder-v2'],
-            'deny'  => $deny,
-        ];
-        $json = json_encode($doc, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-        $targets = [];
-        foreach ([CORE_CONFIG_DIR, APP_CORE_CONFIG_DIR] as $dir) {
-            if ($dir && is_dir($dir) && is_writable($dir)) {
-                $path = rtrim($dir, '/') . '/layer_permissions.json';
-                if (@file_put_contents($path, $json) !== false) $targets[] = $path;
-            }
-        }
-        jsonResponse(['success' => ($savedDb || !empty($targets)), 'db' => $savedDb, 'written' => array_map('toSftpPath', $targets)]);
+        // OBSOLET (2026-06-30): Sperren sind jetzt als `secured`-Property direkt
+        // im publizierten lyrmgr-Knoten kodiert. __permissions__-Dokument wird nicht
+        // mehr geschrieben. Route antwortet mit no-op fuer Rueckwaertskompatibilitaet.
+        jsonResponse(['success' => true, 'noop' => true, 'info' => 'Obsolet: secured-Property im Katalog-Knoten ersetzt __permissions__']);
         break;
 
     case 'shared-lock-status':

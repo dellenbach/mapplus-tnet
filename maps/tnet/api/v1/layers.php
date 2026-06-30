@@ -995,8 +995,8 @@ if ($debug) {
 $elapsed = round((microtime(true) - $startTime) * 1000);
 $meta['responseTime'] = $elapsed . 'ms';
 $meta['cache'] = $bypassJsonCache ? 'bypass' : 'miss';
-// Mandanten-Berechtigung: Anzahl gesperrter Layer (Deny-Map) fuer dieses Profil
-$meta['permDeny'] = count(loadTenantDenyMap($group));
+// Hinweis: permDeny entfernt — Sperren sind jetzt als `secured`-Property
+// direkt im publizierten lyrmgr-Knoten kodiert (kein separates __permissions__).
 
 // In Cache speichern
 if (!$bypassJsonCache) {
