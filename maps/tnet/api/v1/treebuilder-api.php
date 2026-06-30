@@ -6132,6 +6132,7 @@ switch ($action) {
 
         require_once __DIR__ . '/../includes/ConfigSource.php';
         $written = ['db' => false, 'file' => false];
+        $unchanged = false;
         // 1) DB: ganzes Profil-Dokument ersetzen
         if (ConfigSource::useDb('catalog')) {
             require_once __DIR__ . '/../includes/CatalogRepository.php';
@@ -6139,6 +6140,7 @@ switch ($action) {
                 $rev = CatalogRepository::getRevision($tenant);
                 $res = CatalogRepository::saveProfile($tenant, $payload, $rev, $editor, 'publish', null);
                 $written['db'] = empty($res['conflict']);
+                $unchanged = !empty($res['unchanged']);
             } catch (\Throwable $e) {
                 if (!ConfigSource::fallbackEnabled()) jsonError('DB-Schreiben fehlgeschlagen: ' . $e->getMessage(), 500);
             }
@@ -6149,7 +6151,7 @@ switch ($action) {
         if (@file_put_contents($path, json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) !== false) {
             $written['file'] = true;
         }
-        jsonResponse(['success' => ($written['db'] || $written['file']), 'profile' => $tenant, 'written' => $written, 'path' => toSftpPath($path), 'blocks' => count($payload)]);
+        jsonResponse(['success' => ($written['db'] || $written['file']), 'profile' => $tenant, 'written' => $written, 'unchanged' => $unchanged, 'path' => toSftpPath($path), 'blocks' => count($payload)]);
         break;
 
     case 'shared-unlock':

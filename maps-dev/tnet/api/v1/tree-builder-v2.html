@@ -1158,9 +1158,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
   </select>
   <span class="sep"></span>
   <span class="brand">🔧 Tree-Builder <span style="background:#a0539a;color:#fff;padding:1px 6px;border-radius:3px;font-size:10px;font-weight:700">V2</span></span>
-  <select id="tb-shared-source" class="tb-profile-select" title="Quell-Profil für Initialisierung" style="display:none"></select>
-  <button class="tb-toggle" id="tb-shared-init" title="Gemeinsamen Baum aus gewähltem Profil initialisieren" style="display:none">⤓ Initialisieren</button>
-  <button class="tb-toggle" id="tbv2-publish-shared" title="Ableiten und DIREKT LIVE publishen" style="display:none;background:#2e7d32;color:#fff;font-weight:700">⇪ Publishen (live)</button>
+  <button class="tb-toggle" id="tb-shared-init" title="Gemeinsamen Baum erstmalig aus einem Quell-Profil aufbauen (nur sichtbar, solange noch keiner existiert)" style="display:none">⚓ Gemeinsamen Baum anlegen</button>
   <span class="sep"></span>
   <button class="tb-toggle active" id="tb-toggle-layers" title="Layer-Katalog ein/aus">🗂 Layer</button>
   <button class="tb-toggle" id="tb-toggle-clipboard" title="Zwischenablage ein/aus">📋 Ablage</button>
@@ -1343,9 +1341,10 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
     <!-- Tab: LyrMgr-Vorschau -->
     <div id="tb-lm-preview-wrapper">
       <div id="tb-lm-preview-toolbar">
-        <label>Profil:</label>
-        <select id="tbv2-preview-tenant" title="Vorschau-Profil"></select>
-        <label style="margin-left:8px">Panel:</label>
+        <!-- Vorschau-Mandant wird durch die Profil-Auswahl oben gesteuert (kein redundanter Selektor).
+             Element bleibt versteckt als State-Halter für die Vorschau-URL. -->
+        <select id="tbv2-preview-tenant" title="Vorschau-Profil (gesteuert über die Profil-Auswahl oben)" style="display:none"></select>
+        <label>Panel:</label>
         <select id="tb-lm-panel-select">
           <option value="tree">Themenkatalog</option>
           <option value="both" selected>Beide</option>
@@ -3710,7 +3709,10 @@ function toggleAllChildren(container, show) {
 }
 
 // ===== HELPER: JSON-Editor synchronisieren =====
-// Zeigt immer das saubere lyrmgr.conf-Format (ohne interne IDs/groupRefs etc.)
+// Zeigt:
+//  - bei „✏️ Gemeinsamen Baum bearbeiten" (__shared__) den MASTER-Baum (bearbeitbar),
+//  - bei „↳ Mandant (Vorschau)" das ABGELEITETE JSON dieses Mandanten (mit secured, schreibgeschützt).
+// Damit ist direkt sichtbar, was pro Mandant effektiv publiziert wird.
 function syncJsonEditor() {
   var textarea = document.getElementById('tb-json-textarea');
   if (!textarea) return;
@@ -3719,15 +3721,30 @@ function syncJsonEditor() {
   var p = state.profiles[state.activeProfile];
   if (!p) { textarea.value = '{}'; return; }
   try {
+    var sel = document.getElementById('tb-profile-select');
+    var selVal = sel ? sel.value : '';
+    var derived = (typeof isSharedTree === 'function' && isSharedTree()) && selVal && selVal !== SHARED_PROFILE;
+    var tenant = derived ? selVal : null;
     var confOutput = {};
     if (p.lyrmgrs) {
       Object.keys(p.lyrmgrs).forEach(function(key) {
-        confOutput[key] = generateLyrmgrConfBlock(p.lyrmgrs[key]);
+        confOutput[key] = derived
+          ? generateLyrmgrConfBlock(deriveTreeForTenant(p.lyrmgrs[key], tenant))
+          : generateLyrmgrConfBlock(p.lyrmgrs[key]);
       });
     }
     textarea.value = JSON.stringify(confOutput, null, 4);
+    textarea.readOnly = !!derived;
     var statusEl = document.getElementById('tb-json-status');
-    if (statusEl) { statusEl.textContent = ''; statusEl.className = 'tb-json-status'; }
+    if (statusEl) {
+      if (derived) {
+        var n = (textarea.value.match(/"secured":\s*true/g) || []).length;
+        statusEl.textContent = '🔒 Abgeleitet für „' + tenant + '“ — exakt das, was publiziert wird (schreibgeschützt' + (n ? ', ' + n + '× secured' : '') + ')';
+      } else {
+        statusEl.textContent = '📝 Master-Baum (bearbeitbar) — wird beim Publish pro Mandant abgeleitet';
+      }
+      statusEl.className = 'tb-json-status';
+    }
   } catch(e) { textarea.value = '// Fehler: ' + e.message; }
 }
 
@@ -9731,6 +9748,7 @@ document.getElementById('tb-json-format').addEventListener('click', function() {
 
 // JSON-Editor: Apply-Button (lyrmgr.conf-Format → internes Format → State)
 document.getElementById('tb-json-apply').addEventListener('click', function() {
+  if (document.getElementById('tb-json-textarea').readOnly) { alert('🔒 Abgeleitete Ansicht ist schreibgeschützt.\nWähle „✏️ Gemeinsamen Baum bearbeiten", um den Master-Baum zu bearbeiten.'); return; }
   var textarea = document.getElementById('tb-json-textarea');
   var statusEl = document.getElementById('tb-json-status');
   try {
@@ -9816,20 +9834,20 @@ function sharedAvailableProfiles(cb) {
   fetch(API_URL + '?action=list-lyrmgr-profiles')
     .then(function(r) { return r.json(); })
     .then(function(j) {
-      var list = [];
+      var list = []; var sharedExists = false;
       if (j && j.success && j.data) {
         j.data.forEach(function(p) {
           var name = p.profile;
-          if (name === SHARED_PROFILE) return;
+          if (name === SHARED_PROFILE) { sharedExists = true; return; }
           if (/-stage$/.test(name)) return;
           list.push(name);
         });
       }
       // Bekannte Mandanten sicherstellen (auch wenn noch keine Datei existiert)
       TENANTS.forEach(function(t) { if (list.indexOf(t) === -1) list.push(t); });
-      cb(list);
+      cb(list, sharedExists);
     })
-    .catch(function() { cb(TENANTS.slice()); });
+    .catch(function() { cb(TENANTS.slice(), false); });
 }
 
 // __shared__ als Option im Hauptdropdown sicherstellen
@@ -9846,25 +9864,14 @@ function ensureSharedOption() {
 
 function initSharedMode() {
   var initBtn = document.getElementById('tb-shared-init');
-  var srcSel = document.getElementById('tb-shared-source');
   var bundleBar = document.getElementById('tbv2-bundle-bar');
-  if (initBtn) { initBtn.style.display = ''; initBtn.addEventListener('click', function() { sharedInit(false); }); }
-  if (srcSel) srcSel.style.display = '';
+  if (initBtn) initBtn.addEventListener('click', function() { promptSharedInit(); });
 
-  var pubBtn = document.getElementById('tbv2-publish-shared');
-  if (pubBtn) { pubBtn.style.display = ''; pubBtn.addEventListener('click', publishShared); }
-
-  sharedAvailableProfiles(function(list) {
-    // Quell-Dropdown füllen
-    if (srcSel) {
-      srcSel.innerHTML = '';
-      list.forEach(function(name) {
-        var o = document.createElement('option');
-        o.value = name; o.textContent = name;
-        if (name === 'public') o.selected = true;
-        srcSel.appendChild(o);
-      });
-    }
+  sharedAvailableProfiles(function(list, sharedExists) {
+    // „Gemeinsamen Baum anlegen“-Button NUR zeigen, wenn noch KEIN __shared__ existiert.
+    if (initBtn) initBtn.style.display = sharedExists ? 'none' : '';
+    // Verfügbare Quell-Profile fuer den Anlegen-Dialog merken
+    _sharedSourceProfiles = list.slice();
     // Standard-Bündelung = alle bekannten Mandanten, die existieren
     var saved = [];
     try { saved = JSON.parse(localStorage.getItem('tbv2_bundle') || '[]'); } catch (e) {}
@@ -9955,6 +9962,7 @@ function updateModeUi() {
   fillPreviewTenants();
   if (shared) acquireSharedLocks();
   if (typeof renderTree === 'function') renderTree();
+  if (typeof syncJsonEditor === 'function') syncJsonEditor();
 }
 
 // Hauptdropdown gruppieren: Einzelprofile oben, gebündelte Profile unter „Shared"
@@ -10005,10 +10013,34 @@ function rebuildProfileDropdown() {
 }
 
 // Robuster Init mit 409-Retry (force)
-function sharedInit(force) {
-  var srcSel = document.getElementById('tb-shared-source');
-  var source = (srcSel && srcSel.value) || 'public';
-  if (!force && !confirm('Gemeinsamen Baum __shared__ aus Profil „' + source + '“ aufbauen?')) return;
+var _sharedSourceProfiles = [];
+
+// Dialog: Quell-Profil wählen, dann gemeinsamen Baum aufbauen (ersetzt die Toolbar-Liste).
+function promptSharedInit() {
+  var profs = (_sharedSourceProfiles && _sharedSourceProfiles.length) ? _sharedSourceProfiles : ['public'];
+  var overlay = document.createElement('div');
+  overlay.className = 'tb-confirm-overlay';
+  var optsHtml = profs.map(function(p){
+    var v = String(p).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+    return '<option value="' + v + '"' + (p === 'public' ? ' selected' : '') + '>' + v + '</option>';
+  }).join('');
+  overlay.innerHTML = '<div class="tb-confirm-box" style="max-width:420px">'
+    + '<h3>⚓ Gemeinsamen Baum initialisieren</h3>'
+    + '<p style="font-size:12px;color:#555;margin:0 0 8px 0">Quell-Profil, aus dem der gemeinsame Baum __shared__ aufgebaut wird:</p>'
+    + '<select id="_tb_init_src" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:4px;box-sizing:border-box">' + optsHtml + '</select>'
+    + '<div class="tb-confirm-btns" style="gap:6px">'
+    + '<button class="cancel" style="background:#fff;color:#555;border:1px solid #ccc">Abbrechen</button>'
+    + '<button class="primary" style="background:#4B7B81;color:#fff;border:1px solid #3a6166;font-weight:600">⚓ Aufbauen</button>'
+    + '</div></div>';
+  document.body.appendChild(overlay);
+  function cleanup(){ overlay.remove(); }
+  overlay.querySelector('.cancel').onclick = cleanup;
+  overlay.querySelector('.primary').onclick = function(){ var src = overlay.querySelector('#_tb_init_src').value; cleanup(); sharedInit(false, src); };
+  overlay.addEventListener('click', function(e){ if (e.target === overlay) cleanup(); });
+}
+
+function sharedInit(force, source) {
+  source = source || 'public';
   fetch(API_URL + '?action=shared-init-from-public' + (_editorName ? '&editor=' + encodeURIComponent(_editorName) : ''), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-Editor-Name': _editorName || '' },
@@ -10019,12 +10051,14 @@ function sharedInit(force) {
     var j = res.j;
     if (res.status === 409 || (j && j.error && /existiert bereits/.test(j.error))) {
       if (confirm('Gemeinsamer Baum __shared__ existiert bereits.\nMit Profil „' + source + '“ ÜBERSCHREIBEN?')) {
-        sharedInit(true);
+        sharedInit(true, source);
       }
       return;
     }
     if (!j || !j.success) { alert('Initialisierung fehlgeschlagen: ' + ((j && j.error) || 'unbekannt')); return; }
-    // Erfolgreich: __shared__ laden
+    // Erfolgreich: __shared__ existiert jetzt → Anlegen-Button ausblenden
+    var ib = document.getElementById('tb-shared-init');
+    if (ib) ib.style.display = 'none';
     state.activeLyrmgr = null;
     ensureSharedOption();
     var sel = document.getElementById('tb-profile-select');
@@ -10264,24 +10298,29 @@ function acquireSharedLocks() {
     .catch(function() {});
 }
 
-// Items pro Mandant filtern (nur sichtbare Knoten behalten)
-// Ableitung pro Profil: 'on' + 'lock' bleiben im File (🔒 = Platzhalter, URL via Deny-Map gestrippt),
-// 'off' (unsichtbar) wird entfernt. Nur Vorfahre 'off' entfernt den ganzen Teilbaum;
-// 'lock' behält die Kinder (sie werden über die Deny-Map gesperrt).
-function deriveItems(items, tenant, ancOk) {
+// Items pro Mandant filtern.
+// 'on'  → Layer/Gruppe normal übernehmen.
+// 'lock'→ als gesperrt markieren: Layer wird zu { name, secured:true }, Gruppe erhält secured:true
+//         und ALLE Nachfahren werden ebenfalls secured (forceSecured).
+// 'off' → entfernen.
+// Der secured-Flag steckt direkt im publizierten lyrmgr-Knoten (kein separates __permissions__).
+function deriveItems(items, tenant, ancOk, forceSecured) {
   var out = [];
   (items || []).forEach(function(it) {
     if (typeof it === 'string') {
-      if (ancOk && mtxState(it, tenant) !== 'off') out.push(it);
+      var st = mtxState(it, tenant);
+      if (!ancOk || st === 'off') return;
+      if (forceSecured || st === 'lock') out.push({ name: it, secured: true });
+      else out.push(it);
     } else if (it && typeof it === 'object') {
       var k = 'grp:' + (it.key || it.name || '');
       var st = mtxState(k, tenant);
-      if (ancOk && st !== 'off') {
-        var copy = deepCopy(it);
-        // Kinder nur weglassen, wenn die Gruppe 'off' ist; bei 'lock' bleiben sie (gesperrt)
-        copy.items = deriveItems(it.items, tenant, st !== 'off');
-        out.push(copy);
-      }
+      if (!ancOk || st === 'off') return;
+      var copy = deepCopy(it);
+      var childForce = forceSecured || (st === 'lock');
+      copy.items = deriveItems(it.items, tenant, st !== 'off', childForce);
+      if (childForce) copy.secured = true;
+      out.push(copy);
     }
   });
   return out;
@@ -10293,46 +10332,12 @@ function deriveTreeForTenant(tree, tenant) {
     var st = mtxState(k, tenant);
     if (st === 'off') return null;
     var nc = deepCopy(cat);
-    nc.items = deriveItems(cat.items, tenant, st !== 'off');
+    var force = (st === 'lock');
+    nc.items = deriveItems(cat.items, tenant, st !== 'off', force);
+    if (force) nc.secured = true;
     return nc;
   }).filter(Boolean);
   return t;
-}
-
-// Deny-Map je Mandant sammeln: Layer mit Status 'lock' (kein Zugriff) -> URL-Strip im Runtime
-function collectTenantDeny(tenant) {
-  var deny = {};
-  var p = state.profiles[SHARED_PROFILE] || state.profiles[state.activeProfile];
-  if (!p || !p.lyrmgrs) return deny;
-  function walk(items, ancOn) {
-    (items || []).forEach(function(it) {
-      if (typeof it === 'string') {
-        if (mtxState(it, tenant) === 'lock') deny[it] = true;
-      } else if (it && typeof it === 'object') {
-        var gk = 'grp:' + (it.key || it.name || '');
-        var gs = mtxState(gk, tenant);
-        if (gs === 'lock') { /* ganze Gruppe gesperrt: enthaltene Layer-IDs sperren */ collectLayerIds(it.items).forEach(function(id){ deny[id] = true; }); }
-        else walk(it.items, ancOn && gs === 'on');
-      }
-    });
-  }
-  Object.keys(p.lyrmgrs).forEach(function(k) {
-    (p.lyrmgrs[k].categories || []).forEach(function(cat) {
-      var ck = 'cat:' + (cat.key || cat.name || '');
-      var cs = mtxState(ck, tenant);
-      if (cs === 'lock') collectLayerIds(cat.items).forEach(function(id){ deny[id] = true; });
-      else walk(cat.items, cs === 'on');
-    });
-  });
-  return deny;
-}
-function collectLayerIds(items) {
-  var ids = [];
-  (items || []).forEach(function(it) {
-    if (typeof it === 'string') ids.push(it);
-    else if (it && it.items) ids = ids.concat(collectLayerIds(it.items));
-  });
-  return ids;
 }
 
 // Pro Profil ableiten und DIREKT LIVE nach <profil> publishen.
@@ -10390,17 +10395,10 @@ function publishShared(mode) {
       var ok = res.filter(function(j){ return j && j.success; }).length;
       var changed = res.filter(function(j){ return j && j.success && !j.unchanged; }).length;
       saveMatrix();
-      // Deny-Map (Berechtigungen) schreiben
-      var deny = {};
-      profiles.forEach(function(tenant) { deny[tenant] = collectTenantDeny(tenant); });
-      return fetch(API_URL + '?action=shared-write-permissions' + (_editorName ? '&editor=' + encodeURIComponent(_editorName) : ''), {
-        method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Editor-Name': _editorName || '' },
-        body: JSON.stringify({ deny: deny })
-      }).then(function(r){ return r.json(); }).catch(function(){ return { success:false }; })
-        .then(function(pj) {
-          var denyCount = profiles.reduce(function(a, t){ return a + Object.keys(deny[t] || {}).length; }, 0);
-          var msg = 'Publish (LIVE, DB): ' + ok + '/' + dbJobs.length + ' Profile, davon ' + changed + ' inhaltlich geändert → ' + esc(profiles.join(', ')) + '.'
-            + '<br>Berechtigungen: ' + ((pj && pj.success) ? '✓ geschrieben' : '⚠ nicht geschrieben') + ' (' + denyCount + ' gesperrte Layer).';
+      // Hinweis: Sperren stecken jetzt als `secured`-Property direkt im Payload —
+      // kein separates __permissions__/Deny-Map-Schreiben mehr nötig.
+      return Promise.resolve().then(function() {
+          var msg = 'Publish (LIVE, DB): ' + ok + '/' + dbJobs.length + ' Profile, davon ' + changed + ' inhaltlich geändert → ' + esc(profiles.join(', ')) + '.';
           updateLmPreviewIframe();
 
           if (!withFiles) {
@@ -10410,6 +10408,7 @@ function publishShared(mode) {
 
           // 2) Datei-Publish pro MANDANT via FastAPI (SFTP-as-trigonet, darf nach /www schreiben)
           var filePaths = [];
+          var fileErrs = [];
           var fileJobs = profiles.map(function(tenant) {
             var url = GAPI_URL + '/publish-lyrmgr-full?target=' + _target;
             return fetch(url, {
@@ -10417,14 +10416,16 @@ function publishShared(mode) {
               body: JSON.stringify({ profile: tenant, data: tenantPayloads[tenant], editor: _editorName })
             }).then(function(r){ return r.json(); }).then(function(gj){
               var gd = gj && gj.data ? gj.data : gj;
-              if (gd && gd.path) filePaths.push(gd.path);
-              return gd;
-            }).catch(function(){ return { published:false }; });
+              if (gd && gd.published && gd.path) { filePaths.push(gd.path); return gd; }
+              fileErrs.push(tenant + ': ' + ((gd && (gd.error || gd.detail)) || (gj && gj.error) || 'unbekannt'));
+              return gd || { published:false };
+            }).catch(function(e){ fileErrs.push(tenant + ': ' + (e.message || String(e))); return { published:false }; });
           });
 
           return Promise.all(fileJobs).then(function(fres) {
             var fok = fres.filter(function(g){ return g && g.published; }).length;
             msg += '<br>Datei-Publish (' + _target.toUpperCase() + '): ' + fok + '/' + fileJobs.length + ' Dateien.';
+            if (fileErrs.length) msg += '<br><span style="color:#c0392b">⚠ ' + esc(fileErrs.slice(0, 4).join(' · ')) + '</span>';
 
             // 3) Git-Commit/Push der echten Dateipfade
             if (doGit && filePaths.length) {

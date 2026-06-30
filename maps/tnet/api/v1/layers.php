@@ -108,55 +108,11 @@ $filterMissing = !isset($_GET['filterMissing']) || $_GET['filterMissing'] !== '0
  * @return array<string,bool> { layerId: true }
  */
 function loadTenantDenyMap($group) {
-    static $cache = [];
-    if (array_key_exists($group, $cache)) return $cache[$group];
-
-    $deny = [];
-
-    // 1) DB-first: catalog_document['__permissions__'].deny[group] (Quelle der Wahrheit)
-    try {
-        if (class_exists('Database')) {
-            $st = Database::isAvailable();
-            if (!empty($st['available'])) {
-                if (!class_exists('CatalogRepository')) {
-                    @require_once __DIR__ . '/../includes/CatalogRepository.php';
-                }
-                if (class_exists('CatalogRepository')) {
-                    $doc = CatalogRepository::loadProfile('__permissions__');
-                    if (!empty($doc['exists']) && isset($doc['data']['deny'][$group]) && is_array($doc['data']['deny'][$group])) {
-                        foreach ($doc['data']['deny'][$group] as $layerId => $_v) {
-                            $deny[(string)$layerId] = true;
-                        }
-                    }
-                }
-            }
-        }
-    } catch (\Throwable $e) {
-        // DB nicht verfuegbar -> Datei-Fallback unten
-    }
-
-    // 2) Datei-Fallback/-Cache, falls DB nichts lieferte
-    if (empty($deny)) {
-        $paths = [];
-        if (class_exists('TnetCorePaths')) {
-            $cfg = TnetCorePaths::getConfigPath();
-            if ($cfg) $paths[] = rtrim($cfg, '/') . '/layer_permissions.json';
-        }
-        // App-lokale Ueberladung: /www/maps(-dev)/core/config/layer_permissions.json
-        $appCfg = realpath(__DIR__ . '/../../../core/config');
-        if ($appCfg) $paths[] = $appCfg . '/layer_permissions.json';
-        foreach ($paths as $p) {
-            if (!is_file($p)) continue;
-            $docF = json_decode((string)@file_get_contents($p), true);
-            if (!is_array($docF) || !isset($docF['deny'][$group]) || !is_array($docF['deny'][$group])) continue;
-            foreach ($docF['deny'][$group] as $layerId => $_v) {
-                $deny[(string)$layerId] = true;
-            }
-        }
-    }
-
-    $cache[$group] = $deny;
-    return $deny;
+    // DEAKTIVIERT: Sperren werden jetzt direkt als `secured`-Property im
+    // publizierten lyrmgr-Knoten gefuehrt (kein separates __permissions__ mehr).
+    // Funktion bleibt als No-Op, damit bestehende filterResultForTenant-Aufrufe
+    // unveraendert funktionieren (liefern leere Deny-Map → kein Eingriff).
+    return [];
 }
 
 /** Strippt einen einzelnen gesperrten Layer-Knoten (URL/Quellen entfernen). */
@@ -1194,6 +1150,18 @@ function processLayerItems($items, &$layerDefinitions, $details = true, $filterM
                 if ($filterMissing && empty($layerData['layers'])) continue;
             }
 
+            // Gesperrter Knoten (secured-Property direkt im lyrmgr): URL strippen (Blatt)
+            // bzw. nur Sperr-Flags setzen (Gruppe → Renderer zeigt Schloss).
+            if (!empty($item['secured'])) {
+                if (isset($item['items'])) {
+                    $layerData['locked'] = true;
+                    $layerData['accessDenied'] = true;
+                    $layerData['secured'] = true;
+                } else {
+                    _stripDeniedNode($layerData);
+                }
+            }
+
             $layers[] = $layerData;
 
         } elseif (is_array($item) && is_string($key) && !is_numeric($key)) {
@@ -1225,6 +1193,12 @@ function processLayerItems($items, &$layerDefinitions, $details = true, $filterM
                 $layerData['layers'] = processLayerItems($item['items'], $layerDefinitions, $details, $filterMissing);
                 // Leere Gruppe (nach Missing-Filter) ausblenden
                 if ($filterMissing && empty($layerData['layers'])) continue;
+            }
+
+            if (!empty($item['secured'])) {
+                $layerData['locked'] = true;
+                $layerData['accessDenied'] = true;
+                $layerData['secured'] = true;
             }
 
             $layers[] = $layerData;

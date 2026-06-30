@@ -11573,12 +11573,9 @@ function loadV2ProfileSet(cb) {
     .then(function(r){ return r.json(); })
     .then(function(j){
       var d = (j && j.data) ? j.data : {};
+      // NUR die tatsaechlich gebuendelten Profile zaehlen zum V2-Set.
+      // (visibleFor kann veraltete Profile wie `av` enthalten -> nicht verwenden.)
       (Array.isArray(d.bundle) ? d.bundle : []).forEach(function(p){ if (p) base[p] = true; });
-      var vf = d.visibleFor || {};
-      Object.keys(vf).forEach(function(node){
-        var m = vf[node];
-        if (m && typeof m === 'object') Object.keys(m).forEach(function(prof){ if (prof) base[prof] = true; });
-      });
       _v2ProfileSet = base;
     })
     .catch(function(){ _v2ProfileSet = base; })
@@ -12811,14 +12808,8 @@ function selectV2SyncSet() {
     .then(function(j){
       var d = (j && j.data) ? j.data : {};
       var tenants = {};
-      // 1) explizit gebündelte Profile
+      // NUR die gebündelten Profile (visibleFor kann veraltete wie `av` enthalten).
       (Array.isArray(d.bundle) ? d.bundle : []).forEach(function(p){ if (p) tenants[p] = true; });
-      // 2) alle in der Matrix referenzierten Profile (robust, falls bundle leer)
-      var vf = d.visibleFor || {};
-      Object.keys(vf).forEach(function(node){
-        var m = vf[node];
-        if (m && typeof m === 'object') Object.keys(m).forEach(function(prof){ if (prof) tenants[prof] = true; });
-      });
       applyV2SyncSelection(content, specials.concat(Object.keys(tenants)));
     })
     .catch(function(){ applyV2SyncSelection(content, specials.slice()); });
