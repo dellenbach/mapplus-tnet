@@ -3645,7 +3645,7 @@ function renderTreeTabs() {
       // V2 Shared-Modus: V1-Publish auf den korrekten Shared-Publish (save __shared__ + live ableiten) umleiten
       if (_sharedMode && typeof isSharedTree === 'function' && isSharedTree()
           && (action === 'lyrmgr-publish-db' || action === 'lyrmgr-publish-file')) {
-        publishShared();
+        publishShared(action === 'lyrmgr-publish-file' ? 'file' : 'db');
         return;
       }
       if (action === 'lyrmgr-import-profile') importLyrmgrFromProfile();
@@ -10335,16 +10335,21 @@ function collectLayerIds(items) {
   return ids;
 }
 
-// Pro Profil ableiten und DIREKT LIVE nach <profil> publishen
-function publishShared() {
+// Pro Profil ableiten und DIREKT LIVE nach <profil> publishen.
+// mode = 'db'  → nur Datenbank (Live-Quelle, source=db)
+// mode = 'file'→ zusätzlich .conf-Dateien via FastAPI (SFTP) + Git-Commit
+function publishShared(mode) {
+  mode = mode || 'db';
+  var withFiles = (mode === 'file');
   var profiles = matrixProfiles().slice();
   if (!profiles.length) { _tbAlert('Publish', 'Kein Profil ausgewählt.', 'error'); return; }
   var p = state.profiles[state.activeProfile];
   if (!p || !p.lyrmgrs) { _tbAlert('Publish', 'Kein Baum geladen.', 'error'); return; }
 
   var _envLabel = (location.pathname.indexOf('/maps-dev/') === 0) ? 'DEV' : 'PROD';
+  var _target = (_envLabel === 'DEV') ? 'dev' : 'prod';
   var _editorLabel = String((_editorName || 'anonym')).trim() || 'anonym';
-  var defaultMsg = _envLabel + ' Shared-Publish (LIVE): ' + profiles.join(', ')
+  var defaultMsg = _envLabel + ' Shared-Publish (' + (withFiles ? 'DB+Datei' : 'DB') + '): ' + profiles.join(', ')
     + ' · User: ' + _editorLabel
     + '\n\nZiel-Profile (vollständig ersetzt): ' + profiles.join(', ')
     + (isSharedTree() ? '\n+ gemeinsamer Baum __shared__' : '');
@@ -10356,32 +10361,36 @@ function publishShared() {
     var gitMsg = dlg.message || '';
 
     var keys = getSortedLyrmgrKeys(p.lyrmgrs);
-    var jobs = [];
-    var writtenPaths = [];
-    // 0) Gemeinsamen Baum __shared__ persistieren (Voll-Payload)
-    if (isSharedTree()) {
-      var sharedPayload = {};
-      keys.forEach(function(key) { sharedPayload[key] = generateLyrmgrConfBlock(p.lyrmgrs[key]); });
-      jobs.push(fetch(API_URL + '?action=shared-publish-tenant' + (_editorName ? '&editor=' + encodeURIComponent(_editorName) : ''), {
-        method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Editor-Name': _editorName || '' },
-        body: JSON.stringify({ profile: SHARED_PROFILE, payload: sharedPayload })
-      }).then(function(r){ return r.json(); }).then(function(j){ if (j && j.path) writtenPaths.push(j.path); return j; }).catch(function(){ return { success:false }; }));
-    }
-    // 1) Pro Mandant ableiten und das KOMPLETTE Profil ersetzen (kein Merge)
+    // Payloads EINMAL bauen (für DB + Datei wiederverwenden)
+    var tenantPayloads = {};
     profiles.forEach(function(tenant) {
       var payload = {};
-      keys.forEach(function(key) {
-        payload[key] = generateLyrmgrConfBlock(deriveTreeForTenant(p.lyrmgrs[key], tenant));
-      });
-      jobs.push(fetch(API_URL + '?action=shared-publish-tenant' + (_editorName ? '&editor=' + encodeURIComponent(_editorName) : ''), {
-        method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Editor-Name': _editorName || '' },
-        body: JSON.stringify({ profile: tenant, payload: payload })
-      }).then(function(r){ return r.json(); }).then(function(j){ if (j && j.path) writtenPaths.push(j.path); return j; }).catch(function(){ return { success:false }; }));
+      keys.forEach(function(key) { payload[key] = generateLyrmgrConfBlock(deriveTreeForTenant(p.lyrmgrs[key], tenant)); });
+      tenantPayloads[tenant] = payload;
     });
-    Promise.all(jobs).then(function(res) {
+    var sharedPayload = null;
+    if (isSharedTree()) {
+      sharedPayload = {};
+      keys.forEach(function(key) { sharedPayload[key] = generateLyrmgrConfBlock(p.lyrmgrs[key]); });
+    }
+
+    function postPublish(prof, payload) {
+      return fetch(API_URL + '?action=shared-publish-tenant' + (_editorName ? '&editor=' + encodeURIComponent(_editorName) : ''), {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Editor-Name': _editorName || '' },
+        body: JSON.stringify({ profile: prof, payload: payload })
+      }).then(function(r){ return r.json(); }).catch(function(){ return { success:false }; });
+    }
+
+    // 1) DB-Publish (immer): __shared__ + Mandanten
+    var dbJobs = [];
+    if (sharedPayload) dbJobs.push(postPublish(SHARED_PROFILE, sharedPayload));
+    profiles.forEach(function(tenant) { dbJobs.push(postPublish(tenant, tenantPayloads[tenant])); });
+
+    Promise.all(dbJobs).then(function(res) {
       var ok = res.filter(function(j){ return j && j.success; }).length;
+      var changed = res.filter(function(j){ return j && j.success && !j.unchanged; }).length;
       saveMatrix();
-      // Deny-Map (Berechtigungen) fuer Runtime-URL-Strip schreiben
+      // Deny-Map (Berechtigungen) schreiben
       var deny = {};
       profiles.forEach(function(tenant) { deny[tenant] = collectTenantDeny(tenant); });
       return fetch(API_URL + '?action=shared-write-permissions' + (_editorName ? '&editor=' + encodeURIComponent(_editorName) : ''), {
@@ -10389,31 +10398,49 @@ function publishShared() {
         body: JSON.stringify({ deny: deny })
       }).then(function(r){ return r.json(); }).catch(function(){ return { success:false }; })
         .then(function(pj) {
-          if (pj && pj.written && pj.written.length) writtenPaths.push.apply(writtenPaths, pj.written);
           var denyCount = profiles.reduce(function(a, t){ return a + Object.keys(deny[t] || {}).length; }, 0);
-          var msg = 'Publish (LIVE): ' + ok + '/' + jobs.length + ' Blöcke nach ' + esc(profiles.join(', ')) + '.'
-            + '<br>Berechtigungsdatei: ' + ((pj && pj.success) ? '✓ geschrieben' : '⚠ nicht geschrieben')
-            + ' (' + denyCount + ' gesperrte Layer).';
+          var msg = 'Publish (LIVE, DB): ' + ok + '/' + dbJobs.length + ' Profile, davon ' + changed + ' inhaltlich geändert → ' + esc(profiles.join(', ')) + '.'
+            + '<br>Berechtigungen: ' + ((pj && pj.success) ? '✓ geschrieben' : '⚠ nicht geschrieben') + ' (' + denyCount + ' gesperrte Layer).';
           updateLmPreviewIframe();
 
-          // 2) Git-Commit/Push der geschriebenen Dateien (nur wenn nicht "Ohne Git")
-          if (doGit && writtenPaths.length) {
-            var uniquePaths = writtenPaths.filter(function(v, i, a){ return v && a.indexOf(v) === i; });
-            fetch(GAPI_URL + '/git-commit-batch', {
-              method: 'POST', headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ deployPaths: uniquePaths, source: 'tree-builder-v2', message: gitMsg })
-            }).then(function(r){ return r.json(); }).then(function(g){
-              if (g && g.committed) {
-                _tbAlert('Publiziert', msg + '<br>Git: ✓ committed & pushed (' + (g.changed || uniquePaths.length) + ' Dateien)', 'success');
-              } else {
-                _tbAlert('Publiziert', msg + '<br>Git: ⚠ ' + esc((g && (g.error || g.detail)) || 'nicht committed'), 'success');
-              }
-            }).catch(function(e){
-              _tbAlert('Publiziert', msg + '<br>Git: ⚠ ' + esc(e.message || String(e)), 'success');
-            });
-          } else {
-            _tbAlert('Publiziert', msg + (doGit ? '' : '<br>Git: übersprungen'), 'success');
+          if (!withFiles) {
+            _tbAlert('Publiziert', msg + '<br><span style="color:#888">Dateien/Git: nur über „🚀 Publish lyrmgr.conf“.</span>', 'success');
+            return;
           }
+
+          // 2) Datei-Publish pro MANDANT via FastAPI (SFTP-as-trigonet, darf nach /www schreiben)
+          var filePaths = [];
+          var fileJobs = profiles.map(function(tenant) {
+            var url = GAPI_URL + '/publish-lyrmgr-full?target=' + _target;
+            return fetch(url, {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ profile: tenant, data: tenantPayloads[tenant], editor: _editorName })
+            }).then(function(r){ return r.json(); }).then(function(gj){
+              var gd = gj && gj.data ? gj.data : gj;
+              if (gd && gd.path) filePaths.push(gd.path);
+              return gd;
+            }).catch(function(){ return { published:false }; });
+          });
+
+          return Promise.all(fileJobs).then(function(fres) {
+            var fok = fres.filter(function(g){ return g && g.published; }).length;
+            msg += '<br>Datei-Publish (' + _target.toUpperCase() + '): ' + fok + '/' + fileJobs.length + ' Dateien.';
+
+            // 3) Git-Commit/Push der echten Dateipfade
+            if (doGit && filePaths.length) {
+              var uniq = filePaths.filter(function(v, i, a){ return v && a.indexOf(v) === i; });
+              return fetch(GAPI_URL + '/git-commit-batch', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ deployPaths: uniq, source: 'tree-builder-v2', message: gitMsg })
+              }).then(function(r){ return r.json(); }).then(function(g){
+                _tbAlert('Publiziert', msg + '<br>Git: ' + ((g && g.committed)
+                  ? '✓ committed & pushed (' + (g.changed || uniq.length) + ' Dateien)'
+                  : '⚠ ' + esc((g && (g.error || g.detail)) || 'nichts zu committen')), 'success');
+              }).catch(function(e){ _tbAlert('Publiziert', msg + '<br>Git: ⚠ ' + esc(e.message || String(e)), 'success'); });
+            } else {
+              _tbAlert('Publiziert', msg + (doGit ? '<br>Git: keine Dateipfade' : '<br>Git: übersprungen'), 'success');
+            }
+          });
         });
     });
   });
