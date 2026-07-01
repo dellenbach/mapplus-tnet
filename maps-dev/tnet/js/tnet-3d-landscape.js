@@ -155,6 +155,9 @@
         frustumDragInteraction: null,
         lastCameraData: null,  // Last known 3D camera params (for frustum drag)
         _frustumDragActive: false,  // true während Frustum-Drag (verhindert Auto-Pan Sprünge)
+        _centeringFromAnchor: false, // true während centerFrustumAtAnchor läuft → change:center-Handler ignorieren
+        _userPanning: false,         // true während User-Drag auf der 2D-Karte → centerFrustumAtAnchor blockieren
+        _lastAnchorLV95: null,       // zuletzt verarbeitete Anker-Koordinate (postrender-Drosselung)
         _frustumFeatures: null,     // Recycelte Frustum-Features (kein GC-Druck)
         _dragRAF: null,             // requestAnimationFrame-Handle für Frustum-Drag
         layerSyncTimer: null,
@@ -514,9 +517,8 @@
                     case 'cameraChanged':
                         self.lastCameraData = data;
                         self.updateFrustum(data);
-                        // Kein sync3Dto2D → 2D-Karte folgt NICHT der 3D-Kamera
-                        // Nur Auto-Pan wenn Frustum ausserhalb der sichtbaren Karte
-                        self.ensureFrustumVisible(data);
+                        // Frustum-Mittelpunkt immer am Anker-Pixel zentrieren
+                        self.centerFrustumAtAnchor(data);
                         break;
                         
                     case 'syncToggled':
@@ -536,10 +538,9 @@
         /**
          * Setup 2D map -> 3D sync (listen to OL view changes)
          * 
-         * ENTKOPPELT: 2D-Pan hat KEINEN Einfluss auf 3D!
-         * Ausschliesslich das Frustum steuert die 3D-Kamera.
-         * 
-         * Zoom: 2D-Massstab → 3D-Kamerahöhe (Position bleibt beim Frustum)
+         * 2D-Pan → 3D-Kameraposition (geografische Position unter dem Anker-Pixel)
+         * 2D-Zoom → 3D-Kamerahöhe
+         * syncLock verhindert Feedback-Schleife wenn centerFrustumAtAnchor die Karte verschiebt.
          */
         setup2DSync: function() {
             var self = this;
@@ -554,12 +555,70 @@
             
             var view = map2D.getView();
             this.lastSyncedResolution = view.getResolution();
-            
-            // KEIN Center-Handler → 2D-Pan bewegt 3D NICHT
-            // (Frustum ist der einzige Weg, die 3D-Kamera zu positionieren)
-            
-            // Auf Resolution-Änderung (Zoom) reagieren
-            // → 3D-Kamerahöhe ändern, Position bleibt beim aktuellen Frustum
+
+            var delay = (window.Landscape3DConfig && window.Landscape3DConfig.synchronization)
+                ? window.Landscape3DConfig.synchronization.syncDelay || 100
+                : 100;
+
+            // 2D-Pan → 3D-Kameraposition (Frustrum-Apex pixel-fix am Anker)
+            //
+            // An den prerender des Frustrum-Layers gekoppelt statt an change:center:
+            // OL rendert Pan-Frames per Canvas-Transform, change:center-Updates werden
+            // im selben Frame nicht sichtbar → Frustrum würde mitwandern. prerender feuert
+            // in JEDEM Frame VOR dem Zeichnen des Layers → die neu berechnete Apex-Position
+            // wird ohne Verzögerung im selben Frame gerendert (pixel-fix am Anker).
+            // Epsilon-Drossel: nur bei spürbarer Änderung neu setzen → kein Overhead im Ruhezustand.
+            var panTimer = null;
+            var renderKey = this.viewFrustumLayer.on('prerender', function() {
+                if (self._centeringFromAnchor || self._frustumDragActive) return;
+                if (!self.syncEnabled || !self.iframeReady || !self.lastCameraData) return;
+
+                try {
+                    var anchor = self._getFrustumAnchorPixel(map2D);
+                    if (!anchor) return;
+                    var coordLV95 = map2D.getCoordinateFromPixel(anchor);
+                    if (!coordLV95) return;
+
+                    // Nur reagieren wenn sich die Anker-Koordinate spürbar geändert hat
+                    // (Epsilon = halbe Auflösung in Metern)
+                    var res = map2D.getView().getResolution() || 1;
+                    var eps = res * 0.5;
+                    if (self._lastAnchorLV95 &&
+                        Math.abs(coordLV95[0] - self._lastAnchorLV95[0]) < eps &&
+                        Math.abs(coordLV95[1] - self._lastAnchorLV95[1]) < eps) {
+                        return;
+                    }
+                    self._lastAnchorLV95 = coordLV95;
+
+                    var wgs84 = ol.proj.transform(coordLV95, 'EPSG:2056', 'EPSG:4326');
+
+                    // Sofort (im selben Frame): lastCameraData aktualisieren und Frustrum neu zeichnen
+                    self.lastCameraData = Object.assign({}, self.lastCameraData, {
+                        longitude: wgs84[0],
+                        latitude: wgs84[1]
+                    });
+                    self.updateFrustum(self.lastCameraData);
+
+                    // Debounced: 3D informieren (verhindert Message-Flut während Drag)
+                    if (panTimer) clearTimeout(panTimer);
+                    var captureLon = wgs84[0], captureLat = wgs84[1];
+                    panTimer = setTimeout(function() {
+                        if (!self.syncEnabled || !self.iframeReady) return;
+                        self.sendToIframe({
+                            type: 'syncCamera',
+                            longitude: captureLon,
+                            latitude: captureLat,
+                            heading: self.lastCameraData.heading || 0,
+                            tilt:    self.lastCameraData.tilt    || 60,
+                            altitude: self.lastCameraData.altitude || 800
+                        });
+                    }, delay);
+                } catch(e) {
+                    TnetLog.warn('[3DLandscape] Error in 2D-Pan → 3D sync:', e);
+                }
+            });
+
+            // 2D-Zoom → 3D-Kamerahöhe
             var resKey = view.on('change:resolution', function() {
                 if (self.syncLock || !self.syncEnabled || !self.iframeReady) return;
                 if (!self.lastCameraData) return;
@@ -574,7 +633,6 @@
                         
                         TnetLog.log('[3DLandscape] 2D→3D zoom: scale 1:' + Math.round(scaleDenom) + ' → altitude', Math.round(altitude), 'm');
                         
-                        // Zoom: Kamerahöhe ändern, Position bleibt wo 3D-Kamera ist
                         self.sendToIframe({
                             type: 'syncCamera',
                             longitude: self.lastCameraData.longitude,
@@ -587,14 +645,21 @@
                     TnetLog.warn('[3DLandscape] Error in 2D->3D zoom sync:', e);
                 }
                 
-                var delay = (window.Landscape3DConfig && window.Landscape3DConfig.synchronization)
-                    ? window.Landscape3DConfig.synchronization.syncDelay || 100
-                    : 100;
                 setTimeout(function() { self.syncLock = false; }, delay);
             });
             
-            this.sync2DHandle = [resKey];
-            TnetLog.log('[3DLandscape] 2D -> 3D sync active (nur Zoom→Altitude, Pan entkoppelt)');
+            this.sync2DHandle = [renderKey, resKey];
+
+            // Pointer-Status: während User-Drag darf centerFrustumAtAnchor (3D→2D)
+            // nicht feuern, sonst springt die Karte mitten im Pan. Das prerender
+            // hält das Frustrum ohnehin pixel-fix.
+            var vp = map2D.getViewport();
+            vp.addEventListener('pointerdown', function() { self._userPanning = true; });
+            var clearPan = function() { self._userPanning = false; };
+            vp.addEventListener('pointerup',     clearPan);
+            vp.addEventListener('pointercancel', clearPan);
+
+            TnetLog.log('[3DLandscape] 2D -> 3D sync active (prerender Pan→Position, Zoom→Altitude)');
         },
 
         /**
@@ -653,66 +718,64 @@
         },
 
         /**
-         * Auto-Pan der 2D-Karte wenn das Frustum ausserhalb des sichtbaren Bereichs liegt.
-         * 
-         * Wird bei jedem cameraChanged aufgerufen.
-         * Pankt die 2D-Karte NUR wenn der Kamera-Punkt (Scheitelpunkt) ausserhalb
-         * eines inneren Rands (margin) liegt → verschiebt gerade genug.
-         * Während Frustum-Drag (translate/rotate/tilt) KEIN Auto-Pan,
-         * da sonst Koordinaten-Sprünge entstehen.
+         * Berechnet den Anker-Pixel in der 2D-Karte, an dem der Frustum-Mittelpunkt
+         * fixiert wird. Horizontal: Mitte zwischen rechter Kante von #freepane (falls
+         * sichtbar) und rechtem Canvas-Rand. Vertikal: Canvas-Mitte.
          */
-        ensureFrustumVisible: function(camData) {
-            // Während Frustum-Drag kein Auto-Pan (Koordinaten würden springen)
+        _getFrustumAnchorPixel: function(map2D) {
+            var size = map2D.getSize();
+            if (!size || !size[0] || !size[1]) return null;
+
+            var viewport = map2D.getViewport();
+            var vpRect = viewport.getBoundingClientRect();
+
+            // #freepane ist position:absolute und überlagert die Karte von links
+            var panelOffsetPx = 0;
+            var panelEl = document.getElementById('freepane');
+            if (panelEl && panelEl.offsetParent !== null) {
+                var panelRect = panelEl.getBoundingClientRect();
+                if (panelRect.right > vpRect.left) {
+                    panelOffsetPx = Math.max(0, Math.min(size[0] * 0.8, panelRect.right - vpRect.left));
+                }
+            }
+
+            return [panelOffsetPx + (size[0] - panelOffsetPx) / 2, size[1] / 2];
+        },
+
+        /**
+         * Zentriert die 2D-Karte so, dass der Frustum-Mittelpunkt (Kameraposition)
+         * immer am berechneten Anker-Pixel bleibt. Ersetzt ensureFrustumVisible.
+         */
+        centerFrustumAtAnchor: function(camData) {
             if (this._frustumDragActive) return;
+            if (this._userPanning) return;  // User-Drag hat Vorrang – kein Kampf
             if (!camData || !camData.longitude || !camData.latitude) return;
-            
+
             var map2D = this.get2DMap();
             if (!map2D) return;
-            
+
             try {
                 this.ensureLV95Projection();
                 var camLV95 = ol.proj.transform(
                     [camData.longitude, camData.latitude],
                     'EPSG:4326', 'EPSG:2056'
                 );
-                
-                var view = map2D.getView();
+
                 var size = map2D.getSize();
                 if (!size || size[0] === 0 || size[1] === 0) return;
-                
-                var extent = view.calculateExtent(size);
-                
-                // Innerer Rand (15% Margin) — Auto-Pan startet bevor Punkt ganz am Rand ist
-                var margin = 0.15;
-                var dx = extent[2] - extent[0];
-                var dy = extent[3] - extent[1];
-                var inner = [
-                    extent[0] + dx * margin,
-                    extent[1] + dy * margin,
-                    extent[2] - dx * margin,
-                    extent[3] - dy * margin
-                ];
-                
-                // Prüfen ob Kamera-Punkt innerhalb des inneren Rands liegt
-                if (ol.extent.containsCoordinate(inner, camLV95)) return;
-                
-                // Kamera ist ausserhalb → 2D-Karte verschieben (gerade genug)
-                var center = view.getCenter();
-                var newCenter = [center[0], center[1]];
-                
-                if (camLV95[0] < inner[0]) newCenter[0] += (camLV95[0] - inner[0]);
-                if (camLV95[0] > inner[2]) newCenter[0] += (camLV95[0] - inner[2]);
-                if (camLV95[1] < inner[1]) newCenter[1] += (camLV95[1] - inner[1]);
-                if (camLV95[1] > inner[3]) newCenter[1] += (camLV95[1] - inner[3]);
-                
-                // syncLock setzen bevor view.setCenter, um circular sync zu verhindern
-                this.syncLock = true;
-                TnetLog.log('[3DLandscape] Auto-Pan: Frustum ausserhalb → 2D-Karte verschoben');
-                view.setCenter(newCenter);
-                var self2 = this;
-                setTimeout(function() { self2.syncLock = false; }, 120);
+
+                var anchor = this._getFrustumAnchorPixel(map2D);
+                if (!anchor) return;
+
+                this._centeringFromAnchor = true;
+                map2D.getView().centerOn(camLV95, size, anchor);
+                // Anker-Koordinate mitführen, damit der postrender-Handler dies nicht
+                // als User-Pan interpretiert und zurück an 3D sendet
+                this._lastAnchorLV95 = camLV95;
+                var self = this;
+                setTimeout(function() { self._centeringFromAnchor = false; }, 50);
             } catch(e) {
-                TnetLog.warn('[3DLandscape] Error in ensureFrustumVisible:', e);
+                TnetLog.warn('[3DLandscape] Error in centerFrustumAtAnchor:', e);
             }
         },
 
@@ -800,6 +863,10 @@
             
             this.viewFrustumLayer = new ol.layer.Vector({
                 source: this.viewFrustumSource,
+                // Layer während Pan/Zoom live neu zeichnen, sonst klebt das Frustrum
+                // am Boden und springt erst bei moveend an die richtige Position.
+                updateWhileInteracting: true,
+                updateWhileAnimating: true,
                 style: new ol.style.Style({
                     fill: new ol.style.Fill({
                         color: style.fillColor
@@ -838,13 +905,16 @@
                 ? window.Landscape3DConfig.frustum.geometry.hitTolerance || 12 : 12;
 
             // Hit-Detect: Frustum-Feature unter Pixel finden
+            // 'camera' ist bewusst nicht gelistet → Kamera-Punkt nicht draggbar,
+            // stattdessen arbeitet DragPan normal auf der Karte.
             function hitTest(pixel) {
                 var best = null;
                 var bestPrio = -1;
-                var PRIO = { camera: 5, corner: 4, sideline: 3 };
+                var PRIO = { corner: 4, sideline: 3 };
                 map2D.forEachFeatureAtPixel(pixel, function(feature) {
                     var role = feature.get('_frustumRole');
-                    var p = PRIO[role] || 0;
+                    if (!PRIO.hasOwnProperty(role)) return; // 'camera' und unbekannte Rollen ignorieren
+                    var p = PRIO[role];
                     if (p > bestPrio) { best = role; bestPrio = p; }
                 }, {
                     layerFilter: function(l) { return l === self.viewFrustumLayer; },
@@ -864,8 +934,6 @@
             // Interaction-State (closure)
             var mode = null;
             var rotateCamLV95 = null;
-            var translateStartCoord = null;
-            var translateStartCam = null;
 
             this._frustumInteraction = new ol.interaction.Pointer({
                 // preventDefault aufrufen wenn wir die Geste besitzen → verhindert nativen Browser-Drag (🚫-Cursor)
@@ -892,13 +960,9 @@
                             [self.lastCameraData.longitude, self.lastCameraData.latitude],
                             'EPSG:4326', 'EPSG:2056'
                         );
-                    } else if (role === 'camera') {
-                        mode = 'translate';
-                        translateStartCoord = evt.coordinate;
-                        translateStartCam = {
-                            lon: self.lastCameraData.longitude,
-                            lat: self.lastCameraData.latitude
-                        };
+                    } else {
+                        // Kamera-Punkt ist nicht mehr draggbar → DragPan soll arbeiten
+                        return false;
                     }
 
                     map2D.getViewport().style.cursor = 'grabbing';
@@ -919,7 +983,9 @@
                         var dy = coord[1] - rotateCamLV95[1];
                         var heading = (Math.atan2(dx, dy) * 180 / Math.PI + 360) % 360;
 
-                        self.updateFrustum(Object.assign({}, self.lastCameraData, { heading: heading }));
+                        // Heading sofort lokal persistieren, sonst dreht ein späterer Pan zurück
+                        self.lastCameraData.heading = heading;
+                        self.updateFrustum(self.lastCameraData);
                         self.sendToIframe({
                             type: 'syncCamera',
                             longitude: self.lastCameraData.longitude,
@@ -936,7 +1002,10 @@
                         var dist = Math.sqrt(dx2 * dx2 + dy2 * dy2);
                         var tilt = distanceToTilt(dist, self.lastCameraData.altitude);
 
-                        self.updateFrustum(Object.assign({}, self.lastCameraData, { heading: heading2, tilt: tilt }));
+                        // Heading + Tilt sofort lokal persistieren
+                        self.lastCameraData.heading = heading2;
+                        self.lastCameraData.tilt = tilt;
+                        self.updateFrustum(self.lastCameraData);
                         self.sendToIframe({
                             type: 'syncCamera',
                             longitude: self.lastCameraData.longitude,
@@ -946,41 +1015,18 @@
                         });
                     }
 
-                    if (mode === 'translate' && translateStartCoord && translateStartCam) {
-                        var ddx = coord[0] - translateStartCoord[0];
-                        var ddy = coord[1] - translateStartCoord[1];
-                        var origLV95 = ol.proj.transform(
-                            [translateStartCam.lon, translateStartCam.lat],
-                            'EPSG:4326', 'EPSG:2056'
-                        );
-                        var newLV95 = [origLV95[0] + ddx, origLV95[1] + ddy];
-                        var wgs84 = ol.proj.transform(newLV95, 'EPSG:2056', 'EPSG:4326');
-
-                        self.updateFrustum(Object.assign({}, self.lastCameraData, {
-                            longitude: wgs84[0], latitude: wgs84[1]
-                        }));
-                        self.sendToIframe({
-                            type: 'syncCamera',
-                            longitude: wgs84[0],
-                            latitude: wgs84[1],
-                            heading: self.lastCameraData.heading,
-                            tilt: self.lastCameraData.tilt
-                        });
-                    }
                     }); // end requestAnimationFrame
                 },
 
                 handleUpEvent: function() {
                     mode = null;
                     rotateCamLV95 = null;
-                    translateStartCoord = null;
-                    translateStartCam = null;
                     map2D.getViewport().style.cursor = '';
                     self._frustumDragActive = false;
                     setTimeout(function() { self.syncLock = false; }, 200);
-                    // Nach Drag-Ende: Auto-Pan prüfen falls Frustum ausserhalb
+                    // Nach Drag-Ende: Frustum am Anker neu zentrieren
                     if (self.lastCameraData) {
-                        setTimeout(function() { self.ensureFrustumVisible(self.lastCameraData); }, 250);
+                        setTimeout(function() { self.centerFrustumAtAnchor(self.lastCameraData); }, 250);
                     }
                     return false;
                 },
@@ -993,8 +1039,6 @@
                         viewport.style.cursor = 'nesw-resize';
                     } else if (role === 'sideline') {
                         viewport.style.cursor = 'grab';
-                    } else if (role === 'camera') {
-                        viewport.style.cursor = 'move';
                     } else if (viewport.style.cursor && viewport.style.cursor !== '') {
                         viewport.style.cursor = '';
                     }
