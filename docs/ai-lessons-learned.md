@@ -1,4 +1,18 @@
-﻿## 2026-06-30 - Bookmark: Gesperrte Layer dupliziert nach Login beim Einschalten
+﻿## 2026-07-02 - Loader: UMD-Script (JSON5) per globalem `define=undefined` zerstoert Dojo-AMD
+
+- Symptom: Nach Einbau von `tnet-loader.js` in Edit hunderte `Uncaught TypeError: define is not a function` (TabContainer, Button, Dialog ...); Karte lud nicht, nur Spinner.
+- Root-Cause: `loadScriptNoAmd()` setzte `window.define = undefined` waehrend des JSON5-Script-Loads. Dojo laedt seine ~50 Widget-Module ASYNCHRON per injiziertem Script-Tag — alle Module, die genau in diesem Zeitfenster ausgefuehrt wurden, riefen `define()` auf → Fehler; Framework-Start zerstoert.
+- Fix: JSON5 nicht mehr per Script-Tag mit define-Neutralisierung, sondern per `fetch` + `new Function('define','module','exports', code)` in isoliertem Scope ausfuehren. Globales `define` wird NIE angetastet; UMD faellt ueber lokale undefined-Parameter sauber auf `window.JSON5 = ...` zurueck.
+- Guardrail: Globale Loader-Zustaende (`window.define`, `window.require` etc.) NIEMALS waehrend asynchroner Fremd-Loads (Dojo AMD) veraendern. UMD/AMD-Bibliotheken isoliert via fetch+Function laden. Immer per Playwright verifizieren (define intakt, mapReady, 0 Console-Errors), bevor "funktioniert" gemeldet wird.
+
+## 2026-07-02 - Edit-Deploy: Einzeldatei-Upload scheiterte auf neuen Remote-Unterordnern
+
+- Symptom: `upload_active_file.py --env edit ...` brach mit `[Errno 2] No such file` ab, obwohl die Datei lokal korrekt vorhanden war.
+- Root-Cause: Der Einzeldatei-Upload rief `sftp.put(...)` direkt auf, ohne das Zielverzeichnis auf dem Remote rekursiv anzulegen.
+- Fix: In `upload_active_file.py` wurde `ensure_remote_dir(...)` ergänzt und vor `sftp.put(...)` aufgerufen.
+- Guardrail: Bei neuen Deploy-Zielbaeumen (`/www/edit`, `/www/<neu>`) im Einzeldatei-Flow immer zuerst Remote-Verzeichnisse erstellen, nicht nur beim Batch-Upload.
+
+## 2026-06-30 - Bookmark: Gesperrte Layer dupliziert nach Login beim Einschalten
 
 - Symptom: Gesperrter (locked) Bookmark-Layer erschien nach Login beim Sichtbar-Schalten doppelt im Karteninhalt (zwei Eintraege, abweichende Deckkraft).
 - Root-Cause: Gesperrte Layer bleiben jetzt als locked-Platzhalter in `bookmark.layers` (damit Bookmark nach Login wieder funktioniert). Beim Aktivieren materialisiert das Framework einen zweiten Live-Layer mit gleicher ID; `mergeBookmarkLayers()` hatte keine finale ID-Dedup.
