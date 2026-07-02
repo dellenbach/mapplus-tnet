@@ -21,11 +21,25 @@
 (function() {
     'use strict';
 
+    // =========================================================
+    // DEPENDENCY GUARDS — funktioniert standalone ODER via tnet-loader.js
+    // =========================================================
+
     function getAppRoot() {
         return window.__TNET_APP_ROOT || '/maps';
     }
 
     var LOG_PREFIX = '[Basemap]';
+
+    // TnetLog-Stub: nur wenn weder tnet-log.js noch tnet-loader.js geladen
+    if (typeof window.TnetLog === 'undefined') {
+        window.TnetLog = {
+            log:   function() { console.log.apply(console, arguments); },
+            warn:  function() { console.warn.apply(console, arguments); },
+            error: function() { console.error.apply(console, arguments); },
+            info:  function() { console.info.apply(console, arguments); }
+        };
+    }
 
     function syncActiveBookmarkBasemapState(basemapId, basemapColorMode, reason) {
         var bookmark = window.__tnetActiveBookmark;
@@ -132,26 +146,46 @@
         }
     };
 
+    // ── Fallback-Kacheln — werden verwendet wenn JSON5/Config nicht verfügbar ──
+    var FALLBACK_CARDS = [
+        { id: 'swissimage',               label: 'Orthofoto',         previewClass: 'orthofoto',   hasTimeBadge: true },
+        { id: 'av_sw',                    label: 'Basisplan',         previewClass: 'basisplan' },
+        { id: 'plan_fuer_grundbuch_bund', label: 'Plan f. Grundbuch', previewClass: 'grundbuch' },
+        { spacerLabel: 'Weitere' },
+        { id: 'pk_color',                 label: 'Landeskarte',       previewClass: 'landeskarte', hasTimeBadge: true },
+        { id: 'siegfried',                label: 'Siegfriedkarten',   previewClass: 'siegfried',   hasTimeBadge: true },
+        { id: 'dufour',                   label: 'Dufourkarte',       previewClass: 'dufour',      hasTimeBadge: true },
+        { id: 'swiss_tlm',                label: 'swissTLM',          previewClass: 'swisstlm' },
+        { id: 'osm_ch',                   label: 'OpenStreetMap',     previewClass: 'osm' },
+        { id: 'leer',                     label: 'Leer',              previewClass: 'keine' },
+    ];
+
     /**
-     * Lädt basemaps.cards aus tnet-global-config.json5 (async, gecached).
-     * Gibt Promise → Array von Kachel-Definitionen (oder null).
+     * Lädt basemaps.cards aus tnet-global-config.json5 (async).
+     * Fällt auf FALLBACK_CARDS zurück wenn JSON5/Config nicht verfügbar.
      */
     function loadCardsConfig() {
         if (window._basemapCardsConfig !== undefined) return Promise.resolve(window._basemapCardsConfig);
-        if (typeof JSON5 === 'undefined') return Promise.resolve(null);
+        if (typeof JSON5 === 'undefined') {
+            window._basemapCardsConfig = FALLBACK_CARDS;
+            return Promise.resolve(FALLBACK_CARDS);
+        }
         var paths = [
             getAppRoot() + '/tnet/config/tnet-global-config.json5',
             getAppRoot() + '/tnet/tnet-global-config.json5',
             '../tnet/config/tnet-global-config.json5'
         ];
         function tryPath(index) {
-            if (index >= paths.length) { window._basemapCardsConfig = null; return Promise.resolve(null); }
+            if (index >= paths.length) {
+                window._basemapCardsConfig = FALLBACK_CARDS;
+                return Promise.resolve(FALLBACK_CARDS);
+            }
             return fetch(paths[index])
                 .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
                 .then(function(text) {
                     var parsed = JSON5.parse(text);
                     window._basemapCardsConfig = (parsed && parsed.basemaps && Array.isArray(parsed.basemaps.cards))
-                        ? parsed.basemaps.cards : null;
+                        ? parsed.basemaps.cards : FALLBACK_CARDS;
                     return window._basemapCardsConfig;
                 })
                 .catch(function() { return tryPath(index + 1); });
@@ -1676,28 +1710,23 @@
     window.BasemapTimeManager = BasemapTimeManager;
 
     function initAll() {
-        // Cards-Config laden → DOM sicherstellen → dann UI-Init
-        loadCardsConfig().then(function(cards) {
-            ensureWidgetDOM(cards);
-
-            // Widget UI (Cards, Expand)
-            initBasemapCards();
-
-            // Basiskarten-Überlagerungen aus Config rendern, dann Defaults/Sync.
-            loadBasemapOverlaysConfig().then(function(cfg) {
+        // Cards aus Config (oder Fallback) → DOM → UI — flache Promise-Chain
+        loadCardsConfig()
+            .then(function(cards) {
+                ensureWidgetDOM(cards);
+                initBasemapCards();
+                return loadBasemapOverlaysConfig();
+            })
+            .then(function(cfg) {
                 applyBasemapOverlayConfig(cfg);
-                // Grundkarten-Layer Defaults (Buttons existieren jetzt)
                 initGrundkartenDefaults();
+                BasemapTimeManager.init();
+                applyBasemapFromUrl();
+                TnetLog.log(LOG_PREFIX, 'Modul vollständig initialisiert ✓');
+            })
+            .catch(function(err) {
+                TnetLog.error(LOG_PREFIX, 'Init-Fehler:', err);
             });
-
-            // Zeitreise
-            BasemapTimeManager.init();
-
-            // URL-Parameter ?basemap= auswerten
-            applyBasemapFromUrl();
-
-            TnetLog.log(LOG_PREFIX, 'Modul vollständig initialisiert ✓');
-        });
     }
 
     /**
