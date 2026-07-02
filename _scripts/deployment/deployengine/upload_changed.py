@@ -29,6 +29,7 @@ from deploy_env import add_env_argument, ensure_local_base_exists, resolve_deplo
 BUILD_SCRIPT = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "..", "build", "build_js.py"))
 LOCAL_BASE   = ""
 STATE_FILE   = ""
+CURRENT_ENV  = ""
 
 HOST         = "nwow.mapplus.ch"
 PORT         = 22
@@ -123,12 +124,22 @@ def has_file_changed(path, key, state):
     return hash_file(path) != entry.get("sha256")
 
 
-# tnet/config/ ist im DEV-Deploy explizit erlaubt (App-Configs gehören zum Deployment).
-# Nur in PROD bleibt tnet/config/ geschützt (Deploy dort über upload_config.py).
+# tnet/config/ ist in DEV/EDIT explizit erlaubt (App-Configs gehören zum Deployment).
+# In PROD bleibt tnet/config/ geschützt (Deploy dort über upload_config.py).
 DEV_ALLOWED_PREFIXES = (
     "tnet/config/",
 )
 TNET_CONFIG_PREFIX = "tnet/config/"
+
+EDIT_ALLOWED_PREFIXES = (
+    "tnet/",
+)
+EDIT_ALLOWED_FILES = {
+    "agsproxy.php",
+    "wmsproxy.php",
+    "public/index_de.htm",
+    "public/index_de_m.htm",
+}
 
 
 def is_tnet_config(rel_path):
@@ -139,14 +150,22 @@ def is_tnet_config(rel_path):
 
 def is_protected_config(rel_path, env=None):
     """Prueft, ob eine Datei unter geschuetzte Config-Pfade faellt.
-    Im DEV-Env sind tnet/config/-Dateien explizit erlaubt.
+    In DEV/EDIT sind tnet/config/-Dateien explizit erlaubt.
     """
     rel = rel_path.replace("\\", "/").lower()
     if not rel.endswith(PROTECTED_EXTENSIONS):
         return False
-    if env == "dev" and any(rel.startswith(p) for p in DEV_ALLOWED_PREFIXES):
+    if env in ("dev", "edit") and any(rel.startswith(p) for p in DEV_ALLOWED_PREFIXES):
         return False
     return any(rel.startswith(prefix) for prefix in PROTECTED_PREFIXES)
+
+
+def is_edit_deploy_allowed(rel_path):
+    """Erlaubte Pfade fuer das EDIT-Ziel: gesamter tnet-Ordner plus Proxy-Dateien."""
+    rel = rel_path.replace("\\", "/").lower()
+    if rel in EDIT_ALLOWED_FILES:
+        return True
+    return any(rel.startswith(prefix) for prefix in EDIT_ALLOWED_PREFIXES)
 
 
 def is_code_only_candidate(rel_path):
@@ -217,6 +236,23 @@ def merge_forced_files(changed, forced_files):
     return sorted(merged)
 
 
+def ensure_remote_dir(sftp, remote_dir):
+    """Erstellt ein Remote-Verzeichnis rekursiv falls noetig."""
+    parts = remote_dir.rstrip("/").split("/")
+    path = ""
+    for part in parts:
+        if not part:
+            continue
+        path = path + "/" + part
+        try:
+            sftp.stat(path)
+        except IOError:
+            try:
+                sftp.mkdir(path)
+            except IOError:
+                pass
+
+
 # ===== DATEIEN SAMMELN =====
 
 def collect_candidates():
@@ -249,9 +285,10 @@ def collect_candidates():
         os.path.normpath(os.path.join(LOCAL_BASE, "core")),
         os.path.normpath(os.path.join(LOCAL_BASE, "public", "config")),
         os.path.normpath(os.path.join(LOCAL_BASE, "public", "guis")),
-        os.path.normpath(os.path.join(LOCAL_BASE, "tnet", "docs")),
-        os.path.normpath(os.path.join(LOCAL_BASE, "tnet", "tests")),
     }
+    if CURRENT_ENV != "edit":
+        SKIP_DIRS.add(os.path.normpath(os.path.join(LOCAL_BASE, "tnet", "docs")))
+        SKIP_DIRS.add(os.path.normpath(os.path.join(LOCAL_BASE, "tnet", "tests")))
     SKIP_FILE_EXTENSIONS = {".drawio", ".md", ".pyc", ".xlsx"}
     candidates = []
     for root, dirs, files in os.walk(walk_base):
@@ -276,6 +313,8 @@ def get_changed_files(state):
     changed = []
     for path in collect_candidates():
         key = os.path.relpath(path, LOCAL_BASE).replace("\\", "/")
+        if CURRENT_ENV == "edit" and not is_edit_deploy_allowed(key):
+            continue
         if has_file_changed(path, key, state):
             changed.append(path)
     return sorted(changed)
@@ -284,7 +323,7 @@ def get_changed_files(state):
 # ===== UPLOAD =====
 
 def main():
-    global LOCAL_BASE, STATE_FILE, REMOTE_BASE
+    global LOCAL_BASE, STATE_FILE, REMOTE_BASE, CURRENT_ENV
 
     parser = argparse.ArgumentParser(description="Geaenderte Dateien per SFTP hochladen")
     add_env_argument(parser)
@@ -302,6 +341,7 @@ def main():
     STATE_FILE = os.path.normpath(deploy_config["state_file"])
     REMOTE_BASE = deploy_config["remote_base"]
     SCAN_SUBDIR = deploy_config.get("scan_subdir", "")
+    CURRENT_ENV = deploy_config["env"]
     ensure_local_base_exists(LOCAL_BASE)
 
     if args.allow_config and not args.reason.strip():
@@ -323,6 +363,8 @@ def main():
     source_name = os.path.basename(LOCAL_BASE)
 
     print(f"Suche geaenderte Dateien unter {source_name}/ (env={deploy_config['env']}) ...")
+    if deploy_config["env"] == "edit":
+        print("[INFO] EDIT-Scope aktiv: erlaubt sind nur tnet/** sowie agsproxy.php und wmsproxy.php.")
     changed = get_changed_files(state)
 
     if args.force_js:
@@ -458,7 +500,7 @@ def main():
 
             remote_file = f"{REMOTE_BASE}/{upload_rel}"
             try:
-                ensure_remote_dir(os.path.dirname(remote_file))
+                ensure_remote_dir(sftp, remote_file.rsplit("/", 1)[0])
                 sftp.put(upload_file, remote_file)
                 size = os.path.getsize(upload_file)
                 print(f"  {progress} [OK] {upload_rel} ({size:,} bytes)")
