@@ -1,0 +1,463 @@
+﻿/**
+ * tnet-info-panel.css
+ * Info-Panel (Objektinformation): FloatingPane-Layout, Header, Unified Design
+ *
+ * @version    1.0
+ * @date       2026-07-02
+ * @copyright  Trigonet AG
+ * @author     Marco Dellenbach
+ */
+
+/* ===== INFO PANE (Objektinformation) - Gleiches Styling wie Räumliche Abfrage ===== */
+#njs_info_pane {
+  width: 10cm !important;
+  min-width: 350px;
+  max-width: none !important; /* Freies Resizen erlauben */
+  min-height: 150px;
+  border-radius: 6px !important;
+  overflow: hidden !important;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.25) !important;
+  border: none !important;
+}
+
+/* Header wie Räumliche Abfrage - gleiche Höhe */
+#njs_info_pane .dojoxFloatingPaneTitle {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  padding: 8px 10px !important;
+  background: #4b7b81 !important;
+  color: white !important;
+  font-weight: 500 !important;
+  cursor: move !important;
+  user-select: none !important;
+  height: 36px !important;
+  min-height: 36px !important;
+  box-sizing: border-box !important;
+}
+
+/* Original Close-Button verstecken (wird durch custom ersetzt) */
+#njs_info_pane .dojoxFloatingCloseIcon {
+  display: none !important;
+}
+
+/* Titel-Text - zuerst, dann flex-grow */
+#njs_info_pane .dijitTitleNode {
+  flex: 1 !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  color: white !important;
+  order: 1 !important;
+  margin-left: 0 !important;
+}
+
+#njs_info_pane .dijitTitleNode table {
+  color: white !important;
+}
+
+/* Verstecke originale Dojo-Icons */
+#njs_info_pane .dojoxFloatingMaximizeIcon,
+#njs_info_pane .dojoxFloatingRestoreIcon,
+#njs_info_pane .dojoxFloatingMinimizeIcon {
+  display: none !important;
+}
+
+/* Custom Action Buttons - rechts */
+#njs_info_pane .info-pane-actions {
+  display: flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  margin-left: auto !important;
+  margin-right: 0 !important;
+  order: 2 !important;
+}
+
+#njs_info_pane .info-pane-btn {
+  background: rgba(255,255,255,0.15) !important;
+  border: none !important;
+  color: white !important;
+  width: 24px !important;
+  height: 24px !important;
+  border-radius: 4px !important;
+  cursor: pointer !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  transition: background 0.2s !important;
+}
+
+#njs_info_pane .info-pane-btn:hover {
+  background: rgba(255,255,255,0.3) !important;
+}
+
+#njs_info_pane .info-pane-btn svg {
+  width: 16px !important;
+  height: 16px !important;
+}
+
+/* Original Dojo Close-Button bleibt versteckt - Custom Button wird verwendet */
+
+/* Content-Bereich */
+#njs_info_pane .dojoxFloatingPaneCanvasInfo {
+  background: white !important;
+  flex: 1 !important;
+  overflow: hidden !important;
+  position: relative !important;
+}
+
+#njs_info_pane .dojoxFloatingPaneContentInfo {
+  overflow-y: auto !important;
+  overflow-x: auto !important;
+  height: 100% !important;
+  padding: 0 !important;
+}
+
+/* Resize Handle (Dojo original) - KOMPLETT VERSTECKT */
+#njs_info_pane .dojoxFloatingResizeHandle {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+#njs_info_pane .dojoxFloatingResizeHandle:hover {
+  display: none !important;
+}
+
+/* Resize Handles für Info Panel - alle Seiten */
+#njs_info_pane .info-pane-resize-top,
+#njs_info_pane .info-pane-resize-bottom,
+#njs_info_pane .info-pane-resize-left,
+#njs_info_pane .info-pane-resize-right {
+  position: absolute !important;
+  z-index: 100 !important;
+  transition: background 0.2s;
+}
+
+#njs_info_pane .info-pane-resize-top {
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  height: 6px !important;
+  cursor: ns-resize !important;
+}
+
+#njs_info_pane .info-pane-resize-bottom {
+  bottom: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  height: 6px !important;
+  cursor: ns-resize !important;
+}
+
+#njs_info_pane .info-pane-resize-left {
+  left: 0 !important;
+  top: 0 !important;
+  bottom: 0 !important;
+  width: 8px !important;
+  cursor: ew-resize !important;
+  background: linear-gradient(to right, rgba(75,123,129,0.15), transparent) !important;
+}
+
+#njs_info_pane .info-pane-resize-right {
+  right: 0 !important;
+  top: 0 !important;
+  bottom: 0 !important;
+  width: 8px !important;
+  cursor: ew-resize !important;
+  background: linear-gradient(to left, rgba(75,123,129,0.15), transparent) !important;
+}
+
+/* Hover-Effekte */
+#njs_info_pane .info-pane-resize-top:hover,
+#njs_info_pane .info-pane-resize-bottom:hover {
+  background: rgba(75,123,129,0.15) !important;
+}
+
+#njs_info_pane .info-pane-resize-left:hover {
+  background: linear-gradient(to right, rgba(75,123,129,0.3), transparent) !important;
+}
+
+#njs_info_pane .info-pane-resize-right:hover {
+  background: linear-gradient(to left, rgba(75,123,129,0.3), transparent) !important;
+}
+
+/* Ecken-Handles */
+#njs_info_pane .info-pane-resize-corner-tl,
+#njs_info_pane .info-pane-resize-corner-tr,
+#njs_info_pane .info-pane-resize-corner-bl,
+#njs_info_pane .info-pane-resize-corner-br {
+  position: absolute !important;
+  width: 12px !important;
+  height: 12px !important;
+  z-index: 101 !important;
+}
+
+#njs_info_pane .info-pane-resize-corner-tl {
+  top: 0 !important;
+  left: 0 !important;
+  cursor: nwse-resize !important;
+}
+
+#njs_info_pane .info-pane-resize-corner-tr {
+  top: 0 !important;
+  right: 0 !important;
+  cursor: nesw-resize !important;
+}
+
+#njs_info_pane .info-pane-resize-corner-bl {
+  bottom: 0 !important;
+  left: 0 !important;
+  cursor: nesw-resize !important;
+}
+
+#njs_info_pane .info-pane-resize-corner-br {
+  bottom: 0 !important;
+  right: 0 !important;
+  width: 20px !important;
+  height: 20px !important;
+  cursor: nwse-resize !important;
+  background: linear-gradient(135deg, transparent 50%, rgba(75,123,129,0.5) 50%) !important;
+}
+
+#njs_info_pane .info-pane-resize-corner-br:hover {
+  background: linear-gradient(135deg, transparent 50%, #4b7b81 50%) !important;
+}
+
+/* Angedockt rechts */
+#njs_info_pane.docked-right {
+  position: fixed !important;
+  top: 69px !important;
+  right: 0 !important;
+  left: auto !important;
+  bottom: 32px !important;
+  width: var(--tnet-info-panel-docked-width, 400px) !important;
+  height: auto !important;
+  max-height: none !important;
+  border-radius: 0 !important;
+  box-shadow: -4px 0 12px rgba(0,0,0,0.15) !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+/* Im angedockten Modus: nur linken Handle zeigen, alle anderen verstecken */
+#njs_info_pane.docked-right .dojoxFloatingResizeHandle,
+#njs_info_pane.docked-right .info-pane-resize-top,
+#njs_info_pane.docked-right .info-pane-resize-bottom,
+#njs_info_pane.docked-right .info-pane-resize-right,
+#njs_info_pane.docked-right .info-pane-resize-corner-tl,
+#njs_info_pane.docked-right .info-pane-resize-corner-tr,
+#njs_info_pane.docked-right .info-pane-resize-corner-bl,
+#njs_info_pane.docked-right .info-pane-resize-corner-br {
+  display: none !important;
+}
+
+#njs_info_pane.docked-right .info-pane-resize-left {
+  display: block !important;
+}
+
+/* Content im angedockten Modus flexibel */
+#njs_info_pane.docked-right .dojoxFloatingPaneCanvasInfo {
+  flex: 1 !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+}
+
+#njs_info_pane.docked-right .dojoxFloatingPaneContentInfo {
+  height: 100% !important;
+  max-height: none !important;
+}
+
+/* FloatingPane Title allgemein */
+.dojoxFloatingPane .dojoxFloatingPaneTitle {
+  position: relative;
+  z-index: 1000;
+}
+
+[type="checkbox"],
+[type="radio"] {
+  accent-color: #4b7b81 !important;
+}
+
+#btnZuruck,
+#solrsearchSearchInputCancel,
+.infoWindowIpadClose {
+  filter: grayscale(100%);
+}
+
+#infowin_wait {
+  filter: hue-rotate(210deg) brightness(1.3);
+}
+
+#second_lyrmgr .dijitTitlePaneTextNode,
+#layer_menu .dijitTitlePaneTextNode {
+  margin-left: 11px;
+  margin-top: 0;
+}
+
+
+/* ===== INFO-PANEL UNIFIED DESIGN ===== */
+
+/* ===== INFO-PANEL UNIFIED DESIGN ===== */
+/* Framework-Ergebnisse an WMS-GFI-Design angleichen (teal, 12px, Zebra-Stripes) */
+
+/* TitlePane-Header im Info-Panel: Unterlinie in Primärfarbe */
+#njs_info_pane_content .dijitTitlePaneTitle {
+  background: #fff !important;
+  color: #333 !important;
+  border-bottom: 2px solid #4B7B81 !important;
+  border-top: none !important;
+  border-left: none !important;
+  border-right: none !important;
+  font-size: 12px !important;
+  font-weight: 900 !important;
+  letter-spacing: 1px !important;
+  text-transform: uppercase !important;
+  min-height: 30px !important;
+  padding: 4px 6px !important;
+  flex-wrap: wrap !important;
+}
+
+#njs_info_pane_content .dijitTitlePaneTitle .tnet-maptip-breadcrumb {
+  display: block !important;
+  width: 100% !important;
+  flex-basis: 100% !important;
+  margin-top: 0 !important;
+  padding-top: 0 !important;
+  color: #8a8f96 !important;
+  font-size: 10px !important;
+  font-weight: 500 !important;
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+  line-height: 1.2 !important;
+  white-space: normal !important;
+  word-break: break-word !important;
+}
+
+/* Klickbarer Breadcrumb: Hover-Feedback */
+#njs_info_pane_content .dijitTitlePaneTitle .tnet-maptip-breadcrumb-clickable {
+  cursor: pointer !important;
+  transition: color 0.15s ease !important;
+}
+#njs_info_pane_content .dijitTitlePaneTitle .tnet-maptip-breadcrumb-clickable:hover {
+  color: #4B7B81 !important;
+  text-decoration: underline !important;
+}
+
+/* Highlight-Animation für Layer im Themenkatalog */
+@keyframes tnet-catalog-highlight-pulse {
+  0%   { background-color: rgba(75, 123, 129, 0.35); }
+  50%  { background-color: rgba(75, 123, 129, 0.12); }
+  100% { background-color: rgba(75, 123, 129, 0.35); }
+}
+.tnet-catalog-highlight {
+  animation: tnet-catalog-highlight-pulse 0.8s ease-in-out 3 !important;
+  border-radius: 3px !important;
+  outline: 2px solid rgba(75, 123, 129, 0.5) !important;
+  outline-offset: 1px !important;
+}
+
+/* Feldname-Spalte: teal, fett, 12px — analog .wms-gfi-key */
+#njs_info_pane_content .infoWindowItemName,
+#njs_info_pane_content .infoWindowFirstItemName {
+  font-weight: 600 !important;
+  white-space: nowrap !important;
+  padding: 3px 8px 3px 4px !important;
+  color: #4B7B81 !important;
+  vertical-align: top !important;
+  width: 35% !important;
+  font-size: 12px !important;
+  background-color: transparent !important;
+  border-top: none !important;
+}
+
+/* Wert-Spalte: 12px, Zeilenumbruch — analog .wms-gfi-val */
+#njs_info_pane_content .infoWindowItem,
+#njs_info_pane_content .infoWindowFirstItem {
+  padding: 3px 4px !important;
+  word-break: break-word !important;
+  font-size: 12px !important;
+  font-weight: normal !important;
+  color: #333 !important;
+  background-color: transparent !important;
+  border-top: none !important;
+}
+
+/* Zebra-Stripes für alle Tabellen im Info-Panel */
+#njs_info_pane_content table tr:nth-child(even) {
+  background: rgba(75, 123, 129, 0.06) !important;
+}
+
+/* Links im Info-Panel: Primärfarbe mit Unterstrich */
+#njs_info_pane_content .infoWindowItem a,
+#njs_info_pane_content .infoWindowItem a:visited,
+#njs_info_pane_content .infoWindowItem a:hover {
+  color: #4B7B81 !important;
+  text-decoration: underline !important;
+}
+
+/* Kategorie-Header (seltener Fall) */
+#njs_info_pane_content .infoWindowCat {
+  background-color: #4B7B81 !important;
+  border-color: #4B7B81 !important;
+  font-size: 11px !important;
+  padding: 4px 6px !important;
+}
+
+/* Footer-Zeile */
+#njs_info_pane_content .infoWindowFooter {
+  border-top: 1px solid rgba(75, 123, 129, 0.2) !important;
+  font-size: 12px !important;
+}
+
+/* Meldungs-Zeile */
+#njs_info_pane_content .infoWindowMsg {
+  font-size: 12px !important;
+  color: #666 !important;
+}
+
+.ol-overviewmap {
+  right: 1.5px;
+  bottom: 1.5px;
+  left: auto;
+}
+
+.ol-overviewmap .ol-overviewmap-map {
+  border: none;
+  outline: 2px solid red;
+  outline-offset: -2px;
+  height: 240px;
+  width: 100%;
+}
+
+.ol-overviewmap-box {
+  background-color: rgba(255, 255, 255, 0.6);  
+  border: 3px dotted red;
+}
+
+.compact_center {
+  margin-left: 0px !important;
+}
+
+.ol-control button {
+  background-color: #4b7b81;
+}
+
+.ol-control button:hover {
+	color: #FFF;
+	background-color: red;
+	outline: none !important;
+}
+
+.infolay_wait {
+  height: 60px;
+  width: 60px;
+  border: none;
+  font-size: 0px;
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
