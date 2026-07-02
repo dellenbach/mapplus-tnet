@@ -100,31 +100,29 @@
     }
 
     /**
-     * Laedt ein UMD-Script ohne AMD-Kollision.
-     * Neutralisiert temporaer define/define.amd damit das Script als
-     * globale Variable registriert wird (statt in Dojos AMD-Loader).
+     * Laedt ein UMD-Script per fetch + isolierter Function-Ausfuehrung.
+     * Wichtig: Das globale window.define wird NICHT angetastet — sonst
+     * kollidiert es mit Dojos asynchronem AMD-Modul-Loading.
+     * Das UMD-Script bekommt lokale (undefined) define/module/exports,
+     * faellt dadurch auf den globalen Branch (window.<Name> = ...) zurueck.
      */
-    function loadScriptNoAmd(url) {
-        return new Promise(function(resolve, reject) {
-            var origDefine = window.define;
-            window.define = undefined;
-            var s = document.createElement('script');
-            s.src = url;
-            s.onload = function() {
-                window.define = origDefine;
-                resolve(url);
-            };
-            s.onerror = function() {
-                window.define = origDefine;
-                reject(new Error('Failed: ' + url));
-            };
-            document.head.appendChild(s);
-        });
+    function loadUmdIsolated(url) {
+        return fetch(url)
+            .then(function(r) {
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                return r.text();
+            })
+            .then(function(code) {
+                // define/module/exports als lokale undefined-Parameter shadowen.
+                // 'this' = window → UMD setzt window.<GlobalName>.
+                var fn = new Function('define', 'module', 'exports', code);
+                fn.call(window, undefined, undefined, undefined);
+            });
     }
 
     function loadWithFallback(primaryUrl, fallbackUrl) {
-        return loadScriptNoAmd(primaryUrl).catch(function() {
-            if (fallbackUrl) return loadScriptNoAmd(fallbackUrl);
+        return loadUmdIsolated(primaryUrl).catch(function() {
+            if (fallbackUrl) return loadUmdIsolated(fallbackUrl);
             return Promise.reject(new Error('Beide URLs fehlgeschlagen'));
         });
     }
@@ -140,8 +138,8 @@
         if (typeof JSON5 === 'undefined') {
             tasks.push(
                 loadWithFallback(
-                    'https://cdn.jsdelivr.net/npm/json5@2/dist/index.min.js',
-                    appRoot + '/tnet/js/json5.min.js'
+                    appRoot + '/tnet/js/json5.min.js',
+                    'https://cdn.jsdelivr.net/npm/json5@2/dist/index.min.js'
                 ).catch(function() {
                     TnetLog.warn('[Loader]', 'JSON5 nicht verfuegbar — Config-Features eingeschraenkt');
                 })
