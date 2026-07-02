@@ -133,6 +133,134 @@
     };
 
     /**
+     * Lädt basemaps.cards aus tnet-global-config.json5 (async, gecached).
+     * Gibt Promise → Array von Kachel-Definitionen (oder null).
+     */
+    function loadCardsConfig() {
+        if (window._basemapCardsConfig !== undefined) return Promise.resolve(window._basemapCardsConfig);
+        if (typeof JSON5 === 'undefined') return Promise.resolve(null);
+        var paths = [
+            getAppRoot() + '/tnet/config/tnet-global-config.json5',
+            getAppRoot() + '/tnet/tnet-global-config.json5',
+            '../tnet/config/tnet-global-config.json5'
+        ];
+        function tryPath(index) {
+            if (index >= paths.length) { window._basemapCardsConfig = null; return Promise.resolve(null); }
+            return fetch(paths[index])
+                .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
+                .then(function(text) {
+                    var parsed = JSON5.parse(text);
+                    window._basemapCardsConfig = (parsed && parsed.basemaps && Array.isArray(parsed.basemaps.cards))
+                        ? parsed.basemaps.cards : null;
+                    return window._basemapCardsConfig;
+                })
+                .catch(function() { return tryPath(index + 1); });
+        }
+        return tryPath(0);
+    }
+
+    /**
+     * Erstellt #basemap_selector + #basemap_widget im DOM, falls noch nicht vorhanden.
+     * Ermöglicht Ein-Zeilen-Integration in neuen Umgebungen (Edit etc.):
+     * nur <script src="tnet/js/tnet-basemap.js"> nötig — kein statisches HTML erforderlich.
+     * @param {Array|null} cards  Kachel-Definitionen aus tnet-global-config.json5
+     */
+    function ensureWidgetDOM(cards) {
+        if (document.getElementById('basemap_selector')) return; // bereits vorhanden
+
+        var container = document.getElementById('mapContainer');
+        if (!container) {
+            TnetLog.warn(LOG_PREFIX, 'ensureWidgetDOM: #mapContainer nicht gefunden — Widget nicht injiziert');
+            return;
+        }
+
+        // ── Selector-Kachel ──
+        var selector = document.createElement('div');
+        selector.id = 'basemap_selector';
+        selector.title = 'Hintergrundkarte w\u00e4hlen';
+        selector.setAttribute('onclick', 'toggleBasemapWidget()');
+        selector.innerHTML = '<div class="basemap-preview"></div>'
+            + '<span class="basemap-label">Hintergrund</span>';
+        container.appendChild(selector);
+
+        // ── Cards-HTML aus Config aufbauen ──
+        var cardsHtml = '';
+        if (cards && cards.length) {
+            cards.forEach(function(card) {
+                if (card.spacerLabel) {
+                    cardsHtml += '<div class="basemap-cards-spacer">' + card.spacerLabel + '</div>';
+                } else if (card.id) {
+                    var badge = card.hasTimeBadge
+                        ? '<span class="basemap-card-time-badge">\u23f1</span>' : '';
+                    cardsHtml += '<div class="basemap-card" data-basemap="' + card.id + '">'
+                        + badge
+                        + '<div class="basemap-card-preview ' + card.previewClass + '"></div>'
+                        + '<span class="basemap-card-label">' + card.label + '</span>'
+                        + '</div>';
+                }
+            });
+        }
+
+        // ── Widget-HTML ──
+        var widget = document.createElement('div');
+        widget.id = 'basemap_widget';
+        widget.className = 'basemap-widget-hidden';
+        widget.innerHTML =
+            '<div class="basemap-widget-header">'
+                + '<span>GRUNDKARTE</span>'
+                + '<button class="basemap-widget-close" onclick="toggleBasemapWidget()">&times;</button>'
+            + '</div>'
+            + '<div class="basemap-widget-content">'
+                + '<div class="basemap-layer-section">'
+                    + '<div id="basemap-overlay-rows"></div>'
+                    + '<div class="basemap-layer-row">'
+                        + '<span class="layer-icon" id="basemap-colormode-icon">\u25e7</span>'
+                        + '<span class="layer-label">Farbig / Grau</span>'
+                        + '<div class="layer-toggle">'
+                            + '<button class="toggle-btn active" data-layer="farbmodus" data-value="color"'
+                                + ' onclick="njs.AppManager.toggleBaseLayerColor(\'main\',\'toggle_coltool1\',this);'
+                                + 'this.classList.add(\'active\');this.nextElementSibling.classList.remove(\'active\');">FARBE</button>'
+                            + '<button class="toggle-btn" data-layer="farbmodus" data-value="grey"'
+                                + ' onclick="njs.AppManager.toggleBaseLayerColor(\'main\',\'toggle_coltool1\',this);'
+                                + 'this.classList.add(\'active\');this.previousElementSibling.classList.remove(\'active\');">GRAU</button>'
+                        + '</div>'
+                    + '</div>'
+                    + '<div class="basemap-layer-row">'
+                        + '<span class="layer-label">Transparenz</span>'
+                        + '<input type="range" class="transparency-slider" min="0" max="100" value="0"'
+                            + ' oninput="njs.AppManager.setBaseLayerOpacity(\'main\',this.value);this.nextElementSibling.textContent=this.value;"'
+                            + ' onchange="njs.AppManager.setBaseLayerOpacity(\'main\',this.value);">'
+                        + '<span class="transparency-value">0</span>'
+                    + '</div>'
+                + '</div>'
+                + '<div id="basemap-time-container" class="basemap-time-container" style="display:none;">'
+                    + '<div class="basemap-time-header">'
+                        + '<span class="basemap-time-icon">\u23f1</span>'
+                        + '<span class="basemap-time-title">Zeitreise</span>'
+                        + '<span id="basemap-time-label" class="basemap-time-label">2024</span>'
+                        + '<button id="basemap-time-reset" class="basemap-time-reset" title="Aktuell">'
+                            + '<svg viewBox="0 0 16 16" width="14" height="14">'
+                            + '<path fill="currentColor" d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm0 12.5A5.5 5.5 0 1 1 13.5 8 5.51 5.51 0 0 1 8 13.5zM8.5 4v4.25l3.15 1.88-.75 1.23L7 9V4z"/>'
+                            + '</svg>'
+                        + '</button>'
+                    + '</div>'
+                    + '<input type="range" id="basemap-time-slider" class="basemap-time-slider" min="0" max="33" value="33" step="1">'
+                    + '<div class="basemap-time-range">'
+                        + '<span id="basemap-time-min">1926</span>'
+                        + '<span id="basemap-time-max">2024</span>'
+                    + '</div>'
+                + '</div>'
+                + '<div id="basemap-time-info" class="basemap-time-info" style="display:none;">'
+                    + '<span class="basemap-time-icon">\u23f1</span>'
+                    + '<span id="basemap-time-info-text"></span>'
+                + '</div>'
+                + '<div class="basemap-cards-scroll">' + cardsHtml + '</div>'
+            + '</div>';
+        container.appendChild(widget);
+        TnetLog.log(LOG_PREFIX, 'Widget-DOM auto-injiziert \u2714');
+    }
+
+    /**
      * Delegierter Click-Handler für alle Basemap-Cards.
      * Liest data-basemap aus und ruft changeBaseMap auf.
      * Setzt Active-Klasse auf die angeklickte Card.
@@ -1548,23 +1676,28 @@
     window.BasemapTimeManager = BasemapTimeManager;
 
     function initAll() {
-        // Widget UI (Cards, Expand)
-        initBasemapCards();
+        // Cards-Config laden → DOM sicherstellen → dann UI-Init
+        loadCardsConfig().then(function(cards) {
+            ensureWidgetDOM(cards);
 
-        // Basiskarten-Überlagerungen aus Config rendern, dann Defaults/Sync.
-        loadBasemapOverlaysConfig().then(function(cfg) {
-            applyBasemapOverlayConfig(cfg);
-            // Grundkarten-Layer Defaults (Buttons existieren jetzt)
-            initGrundkartenDefaults();
+            // Widget UI (Cards, Expand)
+            initBasemapCards();
+
+            // Basiskarten-Überlagerungen aus Config rendern, dann Defaults/Sync.
+            loadBasemapOverlaysConfig().then(function(cfg) {
+                applyBasemapOverlayConfig(cfg);
+                // Grundkarten-Layer Defaults (Buttons existieren jetzt)
+                initGrundkartenDefaults();
+            });
+
+            // Zeitreise
+            BasemapTimeManager.init();
+
+            // URL-Parameter ?basemap= auswerten
+            applyBasemapFromUrl();
+
+            TnetLog.log(LOG_PREFIX, 'Modul vollständig initialisiert ✓');
         });
-
-        // Zeitreise
-        BasemapTimeManager.init();
-
-        // URL-Parameter ?basemap= auswerten
-        applyBasemapFromUrl();
-
-        TnetLog.log(LOG_PREFIX, 'Modul vollständig initialisiert ✓');
     }
 
     /**
