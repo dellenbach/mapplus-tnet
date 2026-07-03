@@ -965,7 +965,7 @@
 
 
     <!-- TNET Spatial Query: Polygon-Zeichnen, WFS/ArcGIS/geo.admin.ch Abfragen, Ergebnis-Anzeige -->
-    <script type="module" src="tnet/js/tnet-spatial-query.js"></script>
+    <script type="module" src="tnet/js/tnet-spatial-query.js?v=20260703a"></script>
 
     <!-- TNET Split-Screen: Layer-Vergleich mit geteilter Karte -->
     <script src="tnet/js/tnet-splitscreen.js"></script>
@@ -1007,64 +1007,17 @@
     <script src="tnet/js/tnet-3d-landscape.js?v=20260211c"></script>
 
     <!-- TNET ÖREB: Grundstückabfrage, EGRID, Katasterauszug -->
-    <script type="module" src="tnet/js/tnet-oereb.js?v=20260710a"></script>
+    <script type="module" src="tnet/js/tnet-oereb.js?v=20260714a"></script>
 
-    <!-- Ergebnis-Panel für räumliche Abfrage (ausserhalb mapContainer für korrekte Pointer-Events) -->
-    <div id="spatial-query-panel" class="spatial-query-panel hidden">
-        <div class="spatial-query-resize-top" id="spatial-query-resize-top"></div>
-        <div class="spatial-query-resize-left" id="spatial-query-resize-left"></div>
-        <div class="spatial-query-resize-right" id="spatial-query-resize-right"></div>
-        <div class="spatial-query-resize-bottom" id="spatial-query-resize-bottom"></div>
-        <div class="spatial-query-resize-corner-tl" id="spatial-query-resize-corner-tl"></div>
-        <div class="spatial-query-resize-corner-tr" id="spatial-query-resize-corner-tr"></div>
-        <div class="spatial-query-resize-corner-bl" id="spatial-query-resize-corner-bl"></div>
-        <div class="spatial-query-resize-corner-br" id="spatial-query-resize-corner-br"></div>
-        <div class="spatial-query-header" id="spatial-query-header">
-            <span class="spatial-query-title">Räumliche Abfrage</span>
-            <div class="spatial-query-actions">
-                <button class="spatial-query-btn" onclick="exportQueryToExcel()" title="Als Excel exportieren">
-                    <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm4 18H6V4h7v5h5v11zm-5-7l-3 3.5L7 13h2.5V9h3v4H15z"/></svg>
-                </button>
-                <button class="spatial-query-btn" onclick="toggleDockPanel()" title="Unten andocken" id="dock-btn">
-                    <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5v-3h14v3zm0-5H5V5h14v9z"/></svg>
-                </button>
-                <button class="spatial-query-close" onclick="closeSpatialQueryPanel()">&times;</button>
-            </div>
-        </div>
-        <div class="spatial-query-status" id="spatial-query-status">Zeichnen Sie ein Polygon auf der Karte...</div>
-        <div class="spatial-query-results" id="spatial-query-results"></div>
-    </div>
+    <!-- Spatial-Query-Panel: DOM wird durch tnet-spatial-query.js injiziert (ensureSpatialQueryPanelDOM) -->
 
-    <!-- ÖREB Dock-Panel (ab-/andockbar rechts, mit iframe für ÖREB-Auszug) -->
-    <div id="oereb-dock-panel" class="oereb-dock-panel docked-right hidden">
-        <div class="oereb-resize-top" id="oereb-resize-top"></div>
-        <div class="oereb-resize-left" id="oereb-resize-left"></div>
-        <div class="oereb-resize-right" id="oereb-resize-right"></div>
-        <div class="oereb-resize-bottom" id="oereb-resize-bottom"></div>
-        <div class="oereb-resize-corner-tl" id="oereb-resize-corner-tl"></div>
-        <div class="oereb-resize-corner-tr" id="oereb-resize-corner-tr"></div>
-        <div class="oereb-resize-corner-bl" id="oereb-resize-corner-bl"></div>
-        <div class="oereb-resize-corner-br" id="oereb-resize-corner-br"></div>
-        <div class="oereb-dock-header" id="oereb-dock-header">
-            <span class="oereb-dock-title">ÖREB Grundstückabfrage</span>
-            <div class="oereb-dock-actions">
-                <button class="oereb-dock-btn" onclick="toggleOerebDock()" title="Floating" id="oereb-dock-btn">
-                    <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M19 11h-8v6h8v-6zm4 8V4.98C23 3.88 22.1 3 21 3H3c-1.1 0-2 .88-2 1.98V19c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2zm-2 .02H3V4.97h18v14.05z"/></svg>
-                </button>
-                <button class="oereb-dock-close" onclick="closeOerebPanel()">&times;</button>
-            </div>
-        </div>
-        <div id="oereb-selection" class="oereb-selection"></div>
-        <div class="oereb-iframe-container">
-            <iframe id="oereb-iframe" src="about:blank" style="border:none;width:100%;height:100%;display:block;"></iframe>
-        </div>
-    </div>
+    <!-- ÖREB Dock-Panel: DOM wird durch tnet-oereb.js injiziert (ensureOerebPanelDOM) -->
 
     <!-- TNET Panel Drag & Resize: Verschieben und Größe ändern des Spatial Query Panels -->
     <script type="module" src="tnet/js/tnet-panel-drag-resize.js"></script>
 
     <!-- WMS-Panel: DOM wird durch tnet-wms-panel.js injiziert (ensureWmsPanelDOM) -->
-    <script src="tnet/js/tnet-wms-panel.js?v=20260306"></script>
+    <script src="tnet/js/tnet-wms-panel.js?v=20260703a"></script>
 
     <!-- TNET Info-Bridge: Zentraler singleclick-Dispatcher für MapTips/GFI -->
     <script src="tnet/js/tnet-info-bridge.js?v=20260618l"></script>
