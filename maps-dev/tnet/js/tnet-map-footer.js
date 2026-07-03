@@ -19,6 +19,57 @@
 // console.log('Footer Bar Script gestartet');
 var currentCoordSystem = 'lv95';
 
+// ===== DOM-INJECTION =====
+// Baut die Map-Footer-Bar selbst auf, falls nicht im HTML vorhanden.
+// Ermoeglicht schlankes index.htm + Wiederverwendung (Mobile/Edit).
+function ensureMapFooterDOM() {
+    if (document.getElementById('map-footer-bar')) return;
+
+    var scales = [100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000, 200000, 500000, 1000000];
+    var scaleOpts = scales.map(function(s) {
+        var label = s.toLocaleString('de-CH').replace(/,/g, "'");
+        var sel = (s === 25000) ? ' selected' : '';
+        return '<option value="' + s + '"' + sel + '>1:' + label + '</option>';
+    }).join('');
+
+    var bar = document.createElement('div');
+    bar.id = 'map-footer-bar';
+    bar.innerHTML =
+        '<div class="map-footer-left">'
+      +   '<div class="map-footer-scale">'
+      +     '<select id="map-scale-select" onchange="setMapScale(this.value)" title="Ma\u00dfstab w\u00e4hlen">' + scaleOpts + '</select>'
+      +   '</div>'
+      +   '<div class="map-footer-scalebar"><div id="scale-line"></div></div>'
+      + '</div>'
+      + '<div class="map-footer-center">'
+      +   '<div class="map-footer-item map-coord-system">'
+      +     '<select id="map-coord-switch" onchange="switchCoordSystem(this.value)">'
+      +       '<option value="lv95">CH1903+ / LV95</option>'
+      +       '<option value="wgs84">WGS84</option>'
+      +     '</select>'
+      +   '</div>'
+      +   '<div class="map-footer-item">'
+      +     '<span class="map-footer-label">Koordinaten (m)</span>'
+      +     '<span id="map-coord-display" class="map-footer-value">--</span>'
+      +   '</div>'
+      +   '<div class="map-footer-item" title="H\u00f6he 1: Gel\u00e4ndeh\u00f6he&#10;H\u00f6he 2: Oberfl\u00e4chenh\u00f6he&#10;H\u00f6he 3: Objekth\u00f6he">'
+      +     '<span class="map-footer-label">H\u00f6he:</span>'
+      +     '<span id="map-coord-altitude" class="map-footer-value">--</span>'
+      +   '</div>'
+      +   '<div class="map-footer-item map-footer-picker" id="map-coord-picker-btn" onclick="toggleCoordPicker()" title="Koordinaten fixieren">'
+      +     '<svg viewBox="0 0 24 24" width="14" height="14"><path fill="currentColor" d="M16,12V4H17V2H7V4H8V12L6,14V16H11.2V22H12.8V16H18V14L16,12Z"/></svg>'
+      +   '</div>'
+      + '</div>'
+      + '<div class="map-footer-right"><span id="map-footer-copyright"></span></div>';
+
+    var container = document.getElementById('mapContainer') || document.body;
+    container.appendChild(bar);
+    if (window.TnetLog) TnetLog.log('[MapFooter] DOM auto-injiziert \u2714');
+}
+
+ensureMapFooterDOM();
+
+
 // Koordinaten-System umschalten
 window.switchCoordSystem = function(system) {
     currentCoordSystem = system;
