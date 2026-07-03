@@ -18,6 +18,46 @@ function getAppRoot() {
     return window.__TNET_APP_ROOT || '/maps';
 }
 
+// ===== DOM-INJECTION =====
+// Baut das Kontextmenue-DOM selbst auf, falls nicht im HTML vorhanden.
+// Ermoeglicht schlankes index.htm + Wiederverwendung (Mobile/Edit).
+function ensureContextMenuDOM() {
+    if (document.getElementById('map-context-menu')) return;
+
+    function item(handler, svgPath, label) {
+        return '<div class="context-menu-item" onclick="' + handler + '">'
+            + '<svg viewBox="0 0 24 24"><path d="' + svgPath + '"/></svg>'
+            + '<span>' + label + '</span></div>';
+    }
+    var divider = '<div class="context-menu-divider"></div>';
+
+    var menu = document.createElement('div');
+    menu.id = 'map-context-menu';
+    menu.className = 'context-menu';
+    menu.innerHTML =
+        '<div class="context-menu-header"><span id="ctx-coords-display">--</span></div>'
+      + item("ctxCopyCoords('lv95')", 'M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z', 'Koordinaten kopieren (LV95)')
+      + item("ctxCopyCoords('wgs84')", 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z', 'Koordinaten kopieren (WGS84)')
+      + divider
+      + item('ctxWhatIsHere()', 'M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z', 'Was ist hier?')
+      + item('ctxZoomHere()', 'M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14zm.5-7H9v2H7v1h2v2h1v-2h2V9h-2z', 'Hierher zoomen')
+      + divider
+      + item('ctxRouteFrom()', 'M2 12l5 5v-4h9v6l7-7-7-7v6H7V7z', 'Route von hier')
+      + item('ctxRouteTo()', 'M22 12l-5-5v4H8V5l-7 7 7 7v-6h9v4z', 'Route hierher')
+      + divider
+      + item('ctxOpenGoogleMaps()', 'M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z', 'In Google Maps \u00f6ffnen')
+      + item('ctxOpenStreetView()', 'M12.56 14.33c-.34.27-.56.7-.56 1.17V21h7c1.1 0 2-.9 2-2v-5.98c-.94-.33-1.95-.52-3-.52-2.03 0-3.93.7-5.44 1.83zM12 6c1.93 0 3.5 1.57 3.5 3.5S13.93 13 12 13s-3.5-1.57-3.5-3.5S10.07 6 12 6zM12 2C6.48 2 2 6.48 2 12s4.48 10 10 10h1v-6.5c0-.91.47-1.71 1.19-2.17C15.27 12.54 16.6 12 18 12c1.34 0 2.61.29 3.76.8.16-.59.24-1.21.24-1.8 0-5.52-4.48-10-10-10z', 'StreetView \u00f6ffnen')
+      + divider
+      + item('ctxCopyLink()', 'M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z', 'Link zu Position kopieren')
+      + item('ctxMailLink()', 'M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z', 'Link zu Position mailen');
+
+    var container = document.getElementById('mapContainer') || document.body;
+    container.appendChild(menu);
+    if (window.TnetLog) TnetLog.log('[ContextMenu] DOM auto-injiziert \u2714');
+}
+
+ensureContextMenuDOM();
+
 // ===== RECHTSKLICK-KONTEXTMENÜ =====
 var contextMenu = null;
 var ctxCoordsDisplay = null;
