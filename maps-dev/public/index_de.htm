@@ -957,46 +957,7 @@
     <!-- TNET Panel Drag & Resize: Verschieben und Größe ändern des Spatial Query Panels -->
     <script type="module" src="tnet/js/tnet-panel-drag-resize.js"></script>
 
-    <!-- WMS-Panel: Externe Kartendienste (Dojo-frei, eigenes Floating-Panel) -->
-    <div id="wms-panel" class="wms-panel hidden">
-        <div class="wms-resize-top" id="wms-resize-top"></div>
-        <div class="wms-resize-left" id="wms-resize-left"></div>
-        <div class="wms-resize-right" id="wms-resize-right"></div>
-        <div class="wms-resize-bottom" id="wms-resize-bottom"></div>
-        <div class="wms-resize-corner-tl" id="wms-resize-corner-tl"></div>
-        <div class="wms-resize-corner-tr" id="wms-resize-corner-tr"></div>
-        <div class="wms-resize-corner-bl" id="wms-resize-corner-bl"></div>
-        <div class="wms-resize-corner-br" id="wms-resize-corner-br"></div>
-        <div class="wms-header" id="wms-header">
-            <span class="wms-title">Externe Kartendienste (WMS)</span>
-            <div class="wms-actions">
-                <button class="wms-close" onclick="closeWmsPanel()">&times;</button>
-            </div>
-        </div>
-        <div class="wms-body">
-            <div class="wms-url-bar">
-                <label class="wms-label">WMS-Dienst wählen oder URL eingeben:</label>
-                <div class="wms-url-row">
-                    <select id="wms-preset-select" class="wms-select">
-                        <option value="">— Vordefinierter Dienst —</option>
-                    </select>
-                </div>
-                <div class="wms-url-row">
-                    <input type="text" id="wms-url-input" class="wms-input" placeholder="https://wms.example.com/service?" autocomplete="off">
-                    <button class="wms-load-btn" id="wms-load-btn" onclick="loadWmsCapabilities()">Laden</button>
-                </div>
-            </div>
-            <div class="wms-status" id="wms-status"></div>
-            <div class="wms-filter-row" id="wms-filter-row" style="display:none">
-                <input type="text" id="wms-layer-filter" class="wms-input wms-filter-input" placeholder="Layer filtern…" autocomplete="off">
-            </div>
-            <div class="wms-layer-list" id="wms-layer-list"></div>
-            <div class="wms-added-section" id="wms-added-section" style="display:none">
-                <div class="wms-added-header">Hinzugefügte Layer</div>
-                <div class="wms-added-list" id="wms-added-list"></div>
-            </div>
-        </div>
-    </div>
+    <!-- WMS-Panel: DOM wird durch tnet-wms-panel.js injiziert (ensureWmsPanelDOM) -->
     <script src="tnet/js/tnet-wms-panel.js?v=20260306"></script>
 
     <!-- TNET Info-Bridge: Zentraler singleclick-Dispatcher für MapTips/GFI -->
