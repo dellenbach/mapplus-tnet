@@ -2345,6 +2345,57 @@ function TnetLayerSwitch(layerId, mode) {
 
   var map = am.Maps['main'].mapObj;
 
+  // Ergaenzt eine Layer-ID im layers=-URL-Parameter (Framework kennt Direkt-Layer nicht).
+  function _appendLayerToUrlParam(id) {
+    try {
+      var href = window.location.href;
+      var m = href.match(/([?&])(layers=)([^&]*)/);
+      if (!m) return;
+      var cur = m[3] ? decodeURIComponent(m[3]) : '';
+      var ids = cur ? cur.split('|') : [];
+      if (ids.indexOf(id) !== -1) return;
+      ids.push(id);
+      var repl = m[1] + 'layers=' + ids.map(encodeURIComponent).join('|');
+      window.history.replaceState(null, '', href.replace(/([?&])layers=[^&]*/, repl));
+    } catch (e) { /* URL-Update fehlgeschlagen */ }
+  }
+
+  // Entfernt eine Layer-ID aus dem layers=-URL-Parameter (Gegenstueck zum Append).
+  function _removeLayerFromUrlParam(id) {
+    try {
+      var href = window.location.href;
+      var m = href.match(/([?&])(layers=)([^&]*)/);
+      if (!m) return;
+      var cur = m[3] ? decodeURIComponent(m[3]) : '';
+      var ids = cur ? cur.split('|') : [];
+      var idx = ids.indexOf(id);
+      if (idx === -1) return;
+      ids.splice(idx, 1);
+      var repl = m[1] + 'layers=' + ids.map(encodeURIComponent).join('|');
+      window.history.replaceState(null, '', href.replace(/([?&])layers=[^&]*/, repl));
+    } catch (e) { /* URL-Update fehlgeschlagen */ }
+  }
+
+  // Direktes Laden aus dem API-Katalog (unabhaengig vom Legacy-ClassicLayerMgr).
+  // Deckt WMS + arcgisRest ab. Gibt true zurueck, wenn der Layer erstellt+addiert wurde.
+  function attemptDirectCatalogLoad() {
+    var store = window.TnetLMStore;
+    if (!store || typeof store.buildOLLayerFromCatalog !== 'function') return false;
+    var olLyr = store.buildOLLayerFromCatalog(layerId);
+    if (!olLyr) return false;
+    // Framework-Event-Handler koennen bei unbekannten Layern crashen -> supprimieren
+    try { map.addLayer(olLyr); } catch (e) { /* Framework-Event-Fehler ignoriert */ }
+    // URL zuerst setzen (bevor Store-Sync updateMapStatusUrl triggert)
+    _appendLayerToUrlParam(layerId);
+    // Store manuell informieren (falls _onOLLayerAdd wegen Event-Fehler nicht lief)
+    try { if (typeof store._onOLLayerAdd === 'function') store._onOLLayerAdd(olLyr); } catch (e) { /* Store-Sync fehlgeschlagen */ }
+    // Falls updateMapStatusUrl die URL ueberschrieben hat, nochmals setzen
+    _appendLayerToUrlParam(layerId);
+    clearRetryState();
+    TnetLog.log('[TnetLayerSwitch] Layer direkt aus API-Katalog geladen:', layerId);
+    return true;
+  }
+
   // Layer im OL-Stack suchen (nach 'name'-Property = lyrmgr-ID)
   var found = null;
   var foundId = null;
@@ -2449,70 +2500,10 @@ function TnetLayerSwitch(layerId, mode) {
         TnetLog.log('[TnetLayerSwitch] Layer via LyrMgr.switchLayersProgr geladen:', targetLayerId || layerId);
       } else {
         // Fallback: Layer in keinem LyrMgr via getLayerById gefunden.
-        // Wenn der Store eine WMS/nicht-ArcGIS-Definition enthält,
-        // OL-Layer direkt erstellen (LyrMgr kennt nur lyrmgr.conf-Layer).
-        var _catLayerFb = window.TnetLMStore && typeof window.TnetLMStore.findLayer === 'function'
-          ? window.TnetLMStore.findLayer(layerId) : null;
-        if (_catLayerFb && _catLayerFb.url && _catLayerFb.layerType && _catLayerFb.layerType !== 'arcgisRest') {
-          try {
-            var _wmsParams = { LAYERS: layerId, TRANSPARENT: true, FORMAT: 'image/png' };
-            if (_catLayerFb.params) {
-              var _p = _catLayerFb.params;
-              if (_p.LAYERS || _p.layers) _wmsParams.LAYERS = _p.LAYERS || _p.layers;
-              if (_p.FORMAT || _p.format) _wmsParams.FORMAT = _p.FORMAT || _p.format;
-            }
-            var _directOpacity = _normalizeOpacityValue(_catLayerFb._configOpacity !== undefined ? _catLayerFb._configOpacity : _catLayerFb.opacity);
-            var _src = new ol.source.TileWMS({ url: _catLayerFb.url, params: _wmsParams });
-            var _olLyr = new ol.layer.Tile({
-              source: _src,
-              opacity: _directOpacity !== null ? _directOpacity : 1.0,
-              visible: true,
-              zIndex: 200
-            });
-            _olLyr.set('name', layerId);
-            // Framework-Event-Handler können bei unbekannten Layern crashen → supprimieren
-            try { map.addLayer(_olLyr); } catch(e) { /* Framework-Event-Fehler ignoriert */ }
-            // URL zuerst setzen (bevor Store-Sync updateMapStatusUrl triggert)
-            try {
-              var _href = window.location.href;
-              var _lm = _href.match(/([?&])(layers=)([^&]*)/);
-              if (_lm) {
-                var _cur = _lm[3] ? decodeURIComponent(_lm[3]) : '';
-                var _ids = _cur ? _cur.split('|') : [];
-                if (_ids.indexOf(layerId) === -1) {
-                  _ids.push(layerId);
-                  var _newLayers = _lm[1] + 'layers=' + _ids.map(encodeURIComponent).join('|');
-                  window.history.replaceState(null, '', _href.replace(/([?&])layers=[^&]*/, _newLayers));
-                }
-              }
-            } catch(e) { /* URL-Update fehlgeschlagen */ }
-            // Store manuell über den neuen Layer informieren (falls _onOLLayerAdd wegen
-            // Framework-Event-Fehler nicht aufgerufen wurde)
-            try {
-              if (window.TnetLMStore && typeof window.TnetLMStore._onOLLayerAdd === 'function') {
-                window.TnetLMStore._onOLLayerAdd(_olLyr);
-              }
-            } catch(e) { /* Store-Sync fehlgeschlagen */ }
-            // Falls updateMapStatusUrl die URL überschrieben hat, nochmals setzen
-            try {
-              var _href2 = window.location.href;
-              var _lm2 = _href2.match(/([?&])(layers=)([^&]*)/);
-              if (_lm2) {
-                var _cur2 = _lm2[3] ? decodeURIComponent(_lm2[3]) : '';
-                var _ids2 = _cur2 ? _cur2.split('|') : [];
-                if (_ids2.indexOf(layerId) === -1) {
-                  _ids2.push(layerId);
-                  var _newLayers2 = _lm2[1] + 'layers=' + _ids2.map(encodeURIComponent).join('|');
-                  window.history.replaceState(null, '', _href2.replace(/([?&])layers=[^&]*/, _newLayers2));
-                }
-              }
-            } catch(e) { /* URL-Update fehlgeschlagen */ }
-            clearRetryState();
-            TnetLog.log('[TnetLayerSwitch] WMS-Layer direkt geladen:', layerId);
-            return true;
-          } catch (wmsErr) {
-            TnetLog.warn('[TnetLayerSwitch] WMS direkt laden fehlgeschlagen:', wmsErr);
-          }
+        // Store erstellt den OL-Layer direkt aus den API-Katalog-Daten
+        // (WMS + arcgisRest), unabhaengig vom Legacy-ClassicLayerMgr.
+        if (attemptDirectCatalogLoad()) {
+          return true;
         }
 
         // Letzter Versuch: switchLayersProgr auf allen LyrMgrs
@@ -2530,35 +2521,9 @@ function TnetLayerSwitch(layerId, mode) {
           }
         }
         if (!anyMgr) {
-          // Kein LyrMgr kennt den Layer. Wenn der Store eine WMS/nicht-ArcGIS
-          // Definition enthält, OL-Layer direkt erstellen.
-          var _catLayer = window.TnetLMStore && typeof window.TnetLMStore.findLayer === 'function'
-            ? window.TnetLMStore.findLayer(layerId) : null;
-          if (_catLayer && _catLayer.url && _catLayer.layerType && _catLayer.layerType !== 'arcgisRest') {
-            try {
-              var _wmsParams = { LAYERS: layerId, TRANSPARENT: true, FORMAT: 'image/png' };
-              if (_catLayer.params) {
-                var _p = _catLayer.params;
-                if (_p.LAYERS || _p.layers) _wmsParams.LAYERS = _p.LAYERS || _p.layers;
-                if (_p.FORMAT || _p.format) _wmsParams.FORMAT = _p.FORMAT || _p.format;
-              }
-              var _directOpacity2 = _normalizeOpacityValue(_catLayer._configOpacity !== undefined ? _catLayer._configOpacity : _catLayer.opacity);
-              var _src = new ol.source.TileWMS({ url: _catLayer.url, params: _wmsParams });
-              var _olLyr = new ol.layer.Tile({
-                source: _src,
-                opacity: _directOpacity2 !== null ? _directOpacity2 : 1.0,
-                visible: true,
-                zIndex: 200
-              });
-              _olLyr.set('name', layerId);
-              // Framework-Event-Handler können bei unbekannten Layern crashen → supprimieren
-              try { map.addLayer(_olLyr); } catch(e) { /* Framework-Event-Fehler ignoriert */ }
-              clearRetryState();
-              TnetLog.log('[TnetLayerSwitch] WMS-Layer direkt geladen:', layerId);
-              return true;
-            } catch (wmsErr) {
-              TnetLog.warn('[TnetLayerSwitch] WMS direkt laden fehlgeschlagen:', wmsErr);
-            }
+          // Kein LyrMgr kennt den Layer -> direkt aus API-Katalog erstellen.
+          if (attemptDirectCatalogLoad()) {
+            return true;
           }
           TnetLog.warn('[TnetLayerSwitch] LyrMgr nicht verfügbar für:', layerId, 'Kandidaten:', layerIdCandidates.join(', '));
           scheduleOnRetry();
@@ -2570,6 +2535,19 @@ function TnetLayerSwitch(layerId, mode) {
     }
     return true;
   } else {
+    // Direkt aus dem API-Katalog geladener Layer (nicht im LyrMgr): sofort entfernen.
+    // Der LyrMgr-Pfad unten wuerde ins Leere laufen und den Layer auf der Karte lassen.
+    if (found && found.get('tnet_direct_catalog')) {
+      map.removeLayer(found);
+      _removeLayerFromUrlParam(foundId || layerId);
+      try {
+        if (window.TnetLMStore && typeof window.TnetLMStore.forceMapLayerState === 'function') {
+          window.TnetLMStore.forceMapLayerState(foundId || layerId, false, { source: 'direct-off' });
+        }
+      } catch (e) { /* Store-Sync fehlgeschlagen */ }
+      TnetLog.log('[TnetLayerSwitch] Direkt-Layer aus API-Katalog entfernt:', layerId);
+      return false;
+    }
     // Ausschalten: über ClassicLayerMgr.switchLayer auf ALLEN LayerManagern
     // (nw, ow, bund, divers etc. targeten alle 'main')
     var lyrMgrHandled = false;

@@ -662,6 +662,10 @@
         for (var s = 0; s < node.subcategories.length; s++) {
           this._normalizeLegacyTreeNode(node.subcategories[s], level + 1);
         }
+        // Direkt in der Kategorie liegende Layer (ohne Subcategory/Gruppe) landen als
+        // Blatt-Knoten in subcategories und wuerden sonst als leeres Accordion ohne
+        // Checkbox gerendert. Hier in eine unsichtbare Subcategory+Gruppe kapseln.
+        if (level === 0) this._wrapDirectCategoryLayers(node);
       }
       if (node.groups) {
         for (var g = 0; g < node.groups.length; g++) {
@@ -693,6 +697,44 @@
           }
           if (grp && grp.layers) this._cleanLayerNames(grp.layers);
         }
+      }
+    },
+
+    /**
+     * Kapselt direkt in einer Kategorie liegende Layer (Blatt-Knoten in
+     * node.subcategories) in eine synthetische Subcategory + Gruppe, beide mit
+     * hideHeader=true. Dadurch rendert der Tree-Renderer den Einzel-Layer flach
+     * mit Checkbox statt als leeres Accordion. Reale Subcategories/Gruppen bleiben
+     * unveraendert.
+     * @param {Object} node  Kategorie-Knoten (level 0) mit subcategories-Array
+     */
+    _wrapDirectCategoryLayers: function (node) {
+      if (!node || !node.subcategories) return;
+      for (var i = 0; i < node.subcategories.length; i++) {
+        var sub = node.subcategories[i];
+        if (!sub || typeof sub !== 'object') continue;
+        // Blatt-Layer erkennen: explizit type='layer' oder keine Kind-Container.
+        var hasChildren = (sub.subcategories && sub.subcategories.length) ||
+          (sub.groups && sub.groups.length) ||
+          (sub.layers && sub.layers.length) ||
+          (sub.children && sub.children.length);
+        var isLeafLayer = (sub.type === 'layer') || (!hasChildren && sub.type !== 'group');
+        if (!isLeafLayer) continue;
+
+        var baseId = sub.id ? String(sub.id) : ('layer' + i);
+        node.subcategories[i] = {
+          id: baseId + '_auto_sub',
+          name: sub.name || baseId,
+          type: 'subcategory',
+          hideHeader: true,
+          groups: [{
+            id: baseId + '_auto_group',
+            name: sub.name || baseId,
+            type: 'group',
+            hideHeader: true,
+            layers: [sub]
+          }]
+        };
       }
     },
 
@@ -3258,6 +3300,81 @@
      */
     isCoalesceSublayer: function (layerId) {
       return !!_layerToCoalesce[layerId];
+    },
+
+    /**
+     * Baut aus einer Katalog-Layer-Definition (API) einen OpenLayers-Layer.
+     *
+     * Deckt WMS (Image/Tile) und arcgisRest (Image/Tile) ab. Der Store nutzt dies,
+     * um Layer direkt aus den API-Daten zu schalten, wenn der Legacy-ClassicLayerMgr
+     * den Layer nicht kennt (z.B. neu ueber Tree-Builder/DB hinzugefuegte Layer).
+     * WMTS/typenlose Layer ohne url werden uebersprungen (Framework/Basemap zustaendig).
+     *
+     * Der zurueckgegebene Layer ist NOCH NICHT zur Karte hinzugefuegt.
+     *
+     * @param {string} layerId Katalog-Layer-ID
+     * @returns {Object|null} OL-Layer oder null, wenn nicht direkt baubar
+     */
+    buildOLLayerFromCatalog: function (layerId) {
+      if (!window.ol) return null;
+      var def = this.findLayer(layerId);
+      if (!def || def.type === 'group' || !def.layerType) return null;
+
+      var type = String(def.layerType).toLowerCase();
+      if (!def.url && type !== 'wms') return null; // ohne URL nur WMS moeglich
+
+      // Opacity robust auf 0..1 normalisieren
+      var op = (def._configOpacity !== undefined && def._configOpacity !== null)
+        ? def._configOpacity : def.opacity;
+      op = parseFloat(op);
+      if (isNaN(op) || op < 0 || op > 1) op = 1.0;
+
+      var options = def.options || {};
+      var source = null;
+      var olLayer = null;
+
+      try {
+        if (type === 'arcgisrest') {
+          var arcParams = Object.assign(
+            { LAYERS: 'show:0', FORMAT: 'PNG32', TRANSPARENT: true },
+            def.params || {}
+          );
+          // arcgisRest: standardmaessig singleTile (ImageArcGISRest), sofern nicht explizit deaktiviert
+          var arcSingle = options.singleTile !== false;
+          if (arcSingle && ol.source.ImageArcGISRest) {
+            source = new ol.source.ImageArcGISRest({ url: def.url, params: arcParams, ratio: 1, crossOrigin: 'anonymous' });
+            olLayer = new ol.layer.Image({ source: source, opacity: op, visible: true, zIndex: 200 });
+          } else {
+            source = new ol.source.TileArcGISRest({ url: def.url, params: arcParams, crossOrigin: 'anonymous' });
+            olLayer = new ol.layer.Tile({ source: source, opacity: op, visible: true, zIndex: 200 });
+          }
+        } else if (type === 'wms') {
+          var wmsParams = { LAYERS: layerId, TRANSPARENT: true, FORMAT: 'image/png' };
+          if (def.params) {
+            if (def.params.LAYERS || def.params.layers) wmsParams.LAYERS = def.params.LAYERS || def.params.layers;
+            if (def.params.FORMAT || def.params.format) wmsParams.FORMAT = def.params.FORMAT || def.params.format;
+          }
+          if (options.singleTile) {
+            source = new ol.source.ImageWMS({ url: def.url, params: wmsParams, serverType: 'mapserver', crossOrigin: 'anonymous' });
+            olLayer = new ol.layer.Image({ source: source, opacity: op, visible: true, zIndex: 200 });
+          } else {
+            source = new ol.source.TileWMS({ url: def.url, params: wmsParams, serverType: 'mapserver', crossOrigin: 'anonymous' });
+            olLayer = new ol.layer.Tile({ source: source, opacity: op, visible: true, zIndex: 200 });
+          }
+        } else {
+          // WMTS/Wikipedia/WCTravel: nicht direkt aus API-Daten baubar
+          return null;
+        }
+      } catch (e) {
+        TnetLog.warn(LOG, 'buildOLLayerFromCatalog fehlgeschlagen:', layerId, e && e.message);
+        return null;
+      }
+
+      if (!olLayer) return null;
+      olLayer.set('name', layerId);
+      if (def.name) olLayer.set('title', def.name);
+      olLayer.set('tnet_direct_catalog', true);
+      return olLayer;
     },
 
     // ============================================================
