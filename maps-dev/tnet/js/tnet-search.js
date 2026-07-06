@@ -741,6 +741,41 @@
 
     // -- Event-Binding --------------------------------------------------------
 
+    // DOM-Injection: baut #dt-search-bar selbst auf, falls nicht im HTML vorhanden.
+    // Ermoeglicht schlankes index.htm + Wiederverwendung (Mobile/Edit).
+    function ensureSearchBarDOM() {
+        if (document.getElementById('dt-search-bar')) return;
+
+        var bar = document.createElement('div');
+        bar.id = 'dt-search-bar';
+        bar.setAttribute('role', 'search');
+        bar.innerHTML =
+            '<svg class="dt-search-icon" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0016 9.5 6.5 6.5 0 109.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>'
+          + '<input type="search" id="dt-search-input" placeholder="Ort, Adresse, Thema suchen \u2026" autocomplete="off" spellcheck="false">'
+          + '<button id="dt-search-clear" style="display:none" title="L\u00f6schen">&times;</button>'
+          + '<button id="dt-search-filter-btn" title="Filter" type="button">'
+          +   '<svg viewBox="0 0 24 24"><path d="M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z"/></svg>'
+          + '</button>'
+          + '<div id="dt-search-filter-popup">'
+          +   '<div class="dt-filter-section">'
+          +     '<div class="dt-filter-title">Ortsauswahl</div>'
+          +     '<label class="dt-filter-radio"><input type="radio" name="dt-canton" value="" checked> Nidwalden + Obwalden</label>'
+          +     '<label class="dt-filter-radio"><input type="radio" name="dt-canton" value="NW"> Nidwalden</label>'
+          +     '<label class="dt-filter-radio"><input type="radio" name="dt-canton" value="OW"> Obwalden</label>'
+          +   '</div>'
+          +   '<hr class="dt-filter-hr">'
+          +   '<div class="dt-filter-section">'
+          +     '<div class="dt-filter-title">Inhalte</div>'
+          +     '<label class="dt-filter-check"><input type="checkbox" id="dt-filter-orte" checked> Orte, Strassen &amp; Gebiete</label>'
+          +     '<label class="dt-filter-check"><input type="checkbox" id="dt-filter-adressen" checked> Adressen</label>'
+          +     '<label class="dt-filter-check"><input type="checkbox" id="dt-filter-layers" checked> Themen</label>'
+          +   '</div>'
+          + '</div>'
+          + '<ul id="dt-search-results" role="listbox"></ul>';
+        document.body.appendChild(bar);
+        if (window.TnetLog) TnetLog.log('[DesktopSearch] Such-Bar DOM auto-injiziert \u2714');
+    }
+
     function init() {
         var input    = document.getElementById('dt-search-input');
         var list     = document.getElementById('dt-search-results');
@@ -749,7 +784,6 @@
         var popup    = document.getElementById('dt-search-filter-popup');
 
         if (!input || !list) return;
-
         // Filter-Button: Popup öffnen/schliessen
         if (filterBtn && popup) {
             filterBtn.addEventListener('click', function (e) {
@@ -899,6 +933,7 @@
     }
 
     function initWithConfig() {
+        ensureSearchBarDOM();
         init();
         loadSearchConfig().then(applySearchConfig);
         loadLayerIndex();
