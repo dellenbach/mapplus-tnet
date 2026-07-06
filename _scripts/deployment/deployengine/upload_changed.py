@@ -27,6 +27,7 @@ from deploy_env import add_env_argument, ensure_local_base_exists, resolve_deplo
 
 # ===== KONFIGURATION =====
 BUILD_SCRIPT = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "..", "build", "build_js.py"))
+CSS_BUILD_SCRIPT = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "..", "build", "build_css.py"))
 LOCAL_BASE   = ""
 STATE_FILE   = ""
 CURRENT_ENV  = ""
@@ -203,6 +204,37 @@ def run_js_stage_build(dry_run=False):
     result = subprocess.run(command)
     if result.returncode != 0:
         raise RuntimeError(f"JS-Stage-Build fehlgeschlagen mit Exit-Code {result.returncode}")
+
+    run_css_bundle_build(dry_run=dry_run)
+
+
+def run_css_bundle_build(dry_run=False):
+    """Buendelt die TNET-CSS aus maps-dev/tnet/css nach tnet/css/tnet.bundle.css."""
+    css_root = os.path.normpath(os.path.join(LOCAL_BASE, "tnet", "css"))
+    out_path = os.path.join(css_root, "tnet.bundle.css")
+
+    if not os.path.isdir(css_root):
+        print(f"[WARN] CSS-Verzeichnis nicht gefunden, Bundle uebersprungen: {css_root}")
+        return
+
+    command = [
+        sys.executable,
+        "-u",
+        CSS_BUILD_SCRIPT,
+        "--css-root",
+        css_root,
+        "--out",
+        out_path,
+    ]
+
+    print("\n=== CSS-Bundle bauen (maps-dev/tnet/css -> tnet.bundle.css) ===")
+    if dry_run:
+        print("[INFO] Dry-Run: CSS-Bundle wird nicht erzeugt.")
+        return
+
+    result = subprocess.run(command)
+    if result.returncode != 0:
+        raise RuntimeError(f"CSS-Bundle-Build fehlgeschlagen mit Exit-Code {result.returncode}")
 
 
 def collect_forced_js_files():
