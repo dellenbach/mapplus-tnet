@@ -1062,7 +1062,7 @@
 
     <!-- TNET WMS-Panel: ArcGIS/WMS GetFeatureInfo fuer Custom-Layer (Info-Abfrage).
          Muss VOR tnet-info-bridge.js geladen werden (liefert _queryCustomLayersForBridge). -->
-    <script src="tnet/js/tnet-wms-panel.js?v=20260306"></script>
+    <script src="tnet/js/tnet-wms-panel.js?v=20260703b"></script>
 
     <!-- TNET Info-Bridge: Zentraler singleclick-Dispatcher für MapTips/GFI -->
     <script src="tnet/js/tnet-info-bridge.js?v=20260618l"></script>
@@ -1073,15 +1073,17 @@
     <!-- TNET 3D Landscape -->
     <script src="tnet/js/tnet-3d-landscape.js?v=20260211c" defer></script>
 
-    <!-- TNET Spatial Query -->
-    <script type="module" src="tnet/js/tnet-spatial-query.js"></script>
-
+    <!-- Mobile-Einstieg-Flag: MUSS vor den tnet ES-Modulen gesetzt sein,
+         damit ensureXxxDOM() die mobile (vereinfachte) Panel-Variante baut -->
     <script>
         window.__TNET_MOBILE_ENTRY = true;
     </script>
 
+    <!-- TNET Spatial Query -->
+    <script type="module" src="tnet/js/tnet-spatial-query.js?v=20260703b"></script>
+
     <!-- TNET ÖREB -->
-    <script type="module" src="tnet/js/tnet-oereb.js?v=20260618b"></script>
+    <script type="module" src="tnet/js/tnet-oereb.js?v=20260703b"></script>
 
     <!-- TNET Drucken / PDF-Export -->
     <script src="tnet/js/tnet-print.js" defer></script>
@@ -1100,34 +1102,8 @@
          Panels (ausserhalb mapContainer)
          ============================================================ -->
 
-    <!-- ÖREB Dock-Panel (als Bottom-Sheet auf Mobile) -->
-    <div id="oereb-dock-panel" class="oereb-dock-panel docked-right hidden">
-        <div class="oereb-dock-header" id="oereb-dock-header">
-            <span class="oereb-dock-title">ÖREB Grundstückabfrage</span>
-            <div class="oereb-dock-actions">
-                <button class="oereb-dock-close" onclick="closeOerebPanel()">&times;</button>
-            </div>
-        </div>
-        <div id="oereb-selection" class="oereb-selection"></div>
-        <div class="oereb-iframe-container">
-            <iframe id="oereb-iframe" src="about:blank" style="border:none;width:100%;height:100%;display:block;"></iframe>
-        </div>
-    </div>
-
-    <!-- Spatial Query Panel (vereinfacht, Bottom-Sheet) -->
-    <div id="spatial-query-panel" class="spatial-query-panel hidden">
-        <div class="spatial-query-header" id="spatial-query-header">
-            <span class="spatial-query-title">Räumliche Abfrage</span>
-            <div class="spatial-query-actions">
-                <button class="spatial-query-btn" onclick="exportQueryToExcel()" title="Als Excel exportieren">
-                    <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm4 18H6V4h7v5h5v11zm-5-7l-3 3.5L7 13h2.5V9h3v4H15z"/></svg>
-                </button>
-                <button class="spatial-query-close" onclick="closeSpatialQueryPanel()">&times;</button>
-            </div>
-        </div>
-        <div class="spatial-query-status" id="spatial-query-status">Zeichnen Sie ein Polygon auf der Karte...</div>
-        <div class="spatial-query-results" id="spatial-query-results"></div>
-    </div>
+    <!-- ÖREB Dock-Panel: DOM wird durch tnet-oereb.js injiziert (mobile-Variante) -->
+    <!-- Spatial Query Panel: DOM wird durch tnet-spatial-query.js injiziert (mobile-Variante) -->
 
     <!-- Stub für TouchCursorMeasure.buildUI (erwartet #btnMeasure im DOM, auf Mobile nicht sichtbar) -->
     <div id="btnMeasure" style="display:none;"></div>

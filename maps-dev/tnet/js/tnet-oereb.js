@@ -21,13 +21,14 @@ import { isEmpty as extentIsEmpty } from 'https://cdn.jsdelivr.net/npm/ol@v10.8.
 // ===== DOM-INJECTION =====
 // Baut das ÖREB-Dock-Panel-DOM selbst auf, falls nicht im HTML vorhanden.
 // Ermoeglicht schlankes index.htm + Wiederverwendung (Mobile/Edit).
+// Mobile (__TNET_MOBILE_ENTRY): vereinfachte Bottom-Sheet-Variante ohne
+// Resize-Handles und ohne Dock-Toggle-Button.
 function ensureOerebPanelDOM() {
     if (document.getElementById('oereb-dock-panel')) return;
 
-    var panel = document.createElement('div');
-    panel.id = 'oereb-dock-panel';
-    panel.className = 'oereb-dock-panel docked-right hidden';
-    panel.innerHTML =
+    var isMobile = !!window.__TNET_MOBILE_ENTRY;
+
+    var resizeHandles = isMobile ? '' : (
         '<div class="oereb-resize-top" id="oereb-resize-top"></div>'
       + '<div class="oereb-resize-left" id="oereb-resize-left"></div>'
       + '<div class="oereb-resize-right" id="oereb-resize-right"></div>'
@@ -36,12 +37,23 @@ function ensureOerebPanelDOM() {
       + '<div class="oereb-resize-corner-tr" id="oereb-resize-corner-tr"></div>'
       + '<div class="oereb-resize-corner-bl" id="oereb-resize-corner-bl"></div>'
       + '<div class="oereb-resize-corner-br" id="oereb-resize-corner-br"></div>'
+    );
+
+    var dockBtn = isMobile ? '' : (
+        '<button class="oereb-dock-btn" onclick="toggleOerebDock()" title="Floating" id="oereb-dock-btn">'
+      +   '<svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M19 11h-8v6h8v-6zm4 8V4.98C23 3.88 22.1 3 21 3H3c-1.1 0-2 .88-2 1.98V19c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2zm-2 .02H3V4.97h18v14.05z"/></svg>'
+      + '</button>'
+    );
+
+    var panel = document.createElement('div');
+    panel.id = 'oereb-dock-panel';
+    panel.className = 'oereb-dock-panel docked-right hidden';
+    panel.innerHTML =
+        resizeHandles
       + '<div class="oereb-dock-header" id="oereb-dock-header">'
       +   '<span class="oereb-dock-title">\u00d6REB Grundst\u00fcckabfrage</span>'
       +   '<div class="oereb-dock-actions">'
-      +     '<button class="oereb-dock-btn" onclick="toggleOerebDock()" title="Floating" id="oereb-dock-btn">'
-      +       '<svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M19 11h-8v6h8v-6zm4 8V4.98C23 3.88 22.1 3 21 3H3c-1.1 0-2 .88-2 1.98V19c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2zm-2 .02H3V4.97h18v14.05z"/></svg>'
-      +     '</button>'
+      +     dockBtn
       +     '<button class="oereb-dock-close" onclick="closeOerebPanel()">&times;</button>'
       +   '</div>'
       + '</div>'
@@ -50,7 +62,7 @@ function ensureOerebPanelDOM() {
       +   '<iframe id="oereb-iframe" src="about:blank" style="border:none;width:100%;height:100%;display:block;"></iframe>'
       + '</div>';
     document.body.appendChild(panel);
-    if (window.TnetLog) TnetLog.log('[OEREB] Panel-DOM auto-injiziert \u2714');
+    if (window.TnetLog) TnetLog.log('[OEREB] Panel-DOM auto-injiziert \u2714 (mobile=' + isMobile + ')');
 }
 
 ensureOerebPanelDOM();

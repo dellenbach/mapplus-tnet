@@ -18,13 +18,14 @@ function getAppRoot() {
 // ===== DOM-INJECTION =====
 // Baut das Spatial-Query-Panel-DOM selbst auf, falls nicht im HTML vorhanden.
 // Ermoeglicht schlankes index.htm + Wiederverwendung (Mobile/Edit).
+// Mobile (__TNET_MOBILE_ENTRY): vereinfachte Bottom-Sheet-Variante ohne
+// Resize-Handles und ohne Dock-Button.
 function ensureSpatialQueryPanelDOM() {
     if (document.getElementById('spatial-query-panel')) return;
 
-    var panel = document.createElement('div');
-    panel.id = 'spatial-query-panel';
-    panel.className = 'spatial-query-panel hidden';
-    panel.innerHTML =
+    var isMobile = !!window.__TNET_MOBILE_ENTRY;
+
+    var resizeHandles = isMobile ? '' : (
         '<div class="spatial-query-resize-top" id="spatial-query-resize-top"></div>'
       + '<div class="spatial-query-resize-left" id="spatial-query-resize-left"></div>'
       + '<div class="spatial-query-resize-right" id="spatial-query-resize-right"></div>'
@@ -33,22 +34,33 @@ function ensureSpatialQueryPanelDOM() {
       + '<div class="spatial-query-resize-corner-tr" id="spatial-query-resize-corner-tr"></div>'
       + '<div class="spatial-query-resize-corner-bl" id="spatial-query-resize-corner-bl"></div>'
       + '<div class="spatial-query-resize-corner-br" id="spatial-query-resize-corner-br"></div>'
+    );
+
+    var dockBtn = isMobile ? '' : (
+        '<button class="spatial-query-btn" onclick="toggleDockPanel()" title="Unten andocken" id="dock-btn">'
+      +   '<svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5v-3h14v3zm0-5H5V5h14v9z"/></svg>'
+      + '</button>'
+    );
+
+    var panel = document.createElement('div');
+    panel.id = 'spatial-query-panel';
+    panel.className = 'spatial-query-panel hidden';
+    panel.innerHTML =
+        resizeHandles
       + '<div class="spatial-query-header" id="spatial-query-header">'
       +   '<span class="spatial-query-title">R\u00e4umliche Abfrage</span>'
       +   '<div class="spatial-query-actions">'
       +     '<button class="spatial-query-btn" onclick="exportQueryToExcel()" title="Als Excel exportieren">'
       +       '<svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm4 18H6V4h7v5h5v11zm-5-7l-3 3.5L7 13h2.5V9h3v4H15z"/></svg>'
       +     '</button>'
-      +     '<button class="spatial-query-btn" onclick="toggleDockPanel()" title="Unten andocken" id="dock-btn">'
-      +       '<svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5v-3h14v3zm0-5H5V5h14v9z"/></svg>'
-      +     '</button>'
+      +     dockBtn
       +     '<button class="spatial-query-close" onclick="closeSpatialQueryPanel()">&times;</button>'
       +   '</div>'
       + '</div>'
       + '<div class="spatial-query-status" id="spatial-query-status">Zeichnen Sie ein Polygon auf der Karte...</div>'
       + '<div class="spatial-query-results" id="spatial-query-results"></div>';
     document.body.appendChild(panel);
-    if (window.TnetLog) TnetLog.log('[SpatialQuery] Panel-DOM auto-injiziert \u2714');
+    if (window.TnetLog) TnetLog.log('[SpatialQuery] Panel-DOM auto-injiziert \u2714 (mobile=' + isMobile + ')');
 }
 
 ensureSpatialQueryPanelDOM();
