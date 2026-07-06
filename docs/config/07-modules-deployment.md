@@ -1,4 +1,4 @@
-# 7 — Module, Lade-Kette & Deployment
+﻿# 7 â€” Module, Lade-Kette & Deployment
 
 > **Dateien**: `modules.conf`, `modules_m.conf`, `modules.js`  
 > **Pfad**: `maps/public/config/` (+ Profil-Unterordner)  
@@ -8,28 +8,28 @@
 
 ## Inhaltsverzeichnis
 
-- [Überblick](#überblick)
+- [Ãœberblick](#Ã¼berblick)
 - [Lade-Kette](#lade-kette)
-- [modules.conf — Aufbau](#modulesconf--aufbau)
-- [MenuPane — Sidebar-Menü](#menupane--sidebar-menü)
-- [defmodules — Aktive Module](#defmodules--aktive-module)
-- [defbuttons — Toolbar-Buttons](#defbuttons--toolbar-buttons)
+- [modules.conf â€” Aufbau](#modulesconf--aufbau)
+- [MenuPane â€” Sidebar-MenÃ¼](#menupane--sidebar-menÃ¼)
+- [defmodules â€” Aktive Module](#defmodules--aktive-module)
+- [defbuttons â€” Toolbar-Buttons](#defbuttons--toolbar-buttons)
 - [Weitere Sektionen](#weitere-sektionen)
 - [Mobile (modules_m.conf)](#mobile-modules_mconf)
 - [Config-Vererbung (Profile & Gruppen)](#config-vererbung-profile--gruppen)
 - [Server-Architektur](#server-architektur)
-- [Import-Pipeline (ArcGIS → Core)](#import-pipeline-arcgis--core)
+- [Import-Pipeline (ArcGIS â†’ Core)](#import-pipeline-arcgis--core)
 - [Deployment-Workflow](#deployment-workflow)
 - [Upload-Skripte](#upload-skripte)
 
 ---
 
-## Überblick
+## Ãœberblick
 
 `modules.conf` ist die zentrale Steuerungsdatei, die bestimmt:
 - Welche **Module** geladen werden (MapTips, Layermanager, Legende, ...)
 - Welche **Toolbar-Buttons** angezeigt werden
-- Wie das **Sidebar-Menü** (MenuPane) aufgebaut ist
+- Wie das **Sidebar-MenÃ¼** (MenuPane) aufgebaut ist
 - Ob **Tracking/Logging** aktiv ist
 
 ---
@@ -37,46 +37,46 @@
 ## Lade-Kette
 
 ```
-Browser → index_de.htm
-  │
-  ├── <script src="/mapplus-lib/.../appmanager.js">    ← Framework
-  ├── <script src="/mapplus-lib/.../common.js">
-  ├── <script src="/mapplus-lib/.../layout.js">
-  ├── <script src="/mapplus-lib/.../layers.js">
-  ├── <script src="/mapplus-lib/.../maptips.js">
-  │   ...
-  └── <script src="config/modules.js">                 ← Einstieg
-        │
-        └── njs.AppManager.initApp()
-              │
-              ├── POST ./loader.php { f: "/config/modules.conf", p: <profil> }
-              │   └── loader.php löst Profil auf → JSON zurück
-              │
-              ├── Parst: defmodules, defbuttons, MenuPane, TrackBookmark
-              │
-              └── loadThemeMapOptions()
-                    ├── POST loader.php → basemaps_mgr.conf
-                    ├── POST loader.php → basemaps.conf
-                    └── loadThemeModules()
-                          ├── POST loader.php → lyrmgr.conf
-                          ├── POST loader.php → layers.conf (multiple)
-                          ├── POST loader.php → maptips.conf (multiple)
-                          ├── POST loader.php → legends.conf
-                          ├── POST loader.php → disclaimer.conf
-                          └── POST loader.php → NLS-Dateien (lyrmgr/maptips/legend/tools...)
+Browser â†’ index_de.htm
+  â”‚
+  â”œâ”€â”€ <script src="/mapplus-lib/.../appmanager.js">    â† Framework
+  â”œâ”€â”€ <script src="/mapplus-lib/.../common.js">
+  â”œâ”€â”€ <script src="/mapplus-lib/.../layout.js">
+  â”œâ”€â”€ <script src="/mapplus-lib/.../layers.js">
+  â”œâ”€â”€ <script src="/mapplus-lib/.../maptips.js">
+  â”‚   ...
+  â””â”€â”€ <script src="config/modules.js">                 â† Einstieg
+        â”‚
+        â””â”€â”€ njs.AppManager.initApp()
+              â”‚
+              â”œâ”€â”€ POST ./loader.php { f: "/config/modules.conf", p: <profil> }
+              â”‚   â””â”€â”€ loader.php lÃ¶st Profil auf â†’ JSON zurÃ¼ck
+              â”‚
+              â”œâ”€â”€ Parst: defmodules, defbuttons, MenuPane, TrackBookmark
+              â”‚
+              â””â”€â”€ loadThemeMapOptions()
+                    â”œâ”€â”€ POST loader.php â†’ basemaps_mgr.conf
+                    â”œâ”€â”€ POST loader.php â†’ basemaps.conf
+                    â””â”€â”€ loadThemeModules()
+                          â”œâ”€â”€ POST loader.php â†’ lyrmgr.conf
+                          â”œâ”€â”€ POST loader.php â†’ layers.conf (multiple)
+                          â”œâ”€â”€ POST loader.php â†’ maptips.conf (multiple)
+                          â”œâ”€â”€ POST loader.php â†’ legends.conf
+                          â”œâ”€â”€ POST loader.php â†’ disclaimer.conf
+                          â””â”€â”€ POST loader.php â†’ NLS-Dateien (lyrmgr/maptips/legend/tools...)
 ```
 
 ### loader.php
 
-Der `loader.php` liegt auf dem Server (`/mapplus-lib/mapplus-dojo/v4.0.0/`) und ist nicht lokal im Workspace vorhanden. Er löst Konfigurationsanfragen auf:
+Der `loader.php` liegt auf dem Server (`/mapplus-lib/mapplus-dojo/v4.0.0/`) und ist nicht lokal im Workspace vorhanden. Er lÃ¶st Konfigurationsanfragen auf:
 
-1. **Profil-Pfad** prüfen: `config/<uprofile>/<datei>` (z.B. `config/nwpro/modules.conf`)
+1. **Profil-Pfad** prÃ¼fen: `config/<uprofile>/<datei>` (z.B. `config/nwpro/modules.conf`)
 2. **Fallback**: `config/<datei>` (z.B. `config/modules.conf`)
-3. JSON-Inhalt zurückgeben
+3. JSON-Inhalt zurÃ¼ckgeben
 
 ---
 
-## modules.conf — Aufbau
+## modules.conf â€” Aufbau
 
 ### Hauptstruktur
 
@@ -92,9 +92,9 @@ Der `loader.php` liegt auf dem Server (`/mapplus-lib/mapplus-dojo/v4.0.0/`) und 
 
 ---
 
-## MenuPane — Sidebar-Menü
+## MenuPane â€” Sidebar-MenÃ¼
 
-Das MenuPane definiert die linke Seitenleiste mit ihren Akkordeon-Einträgen.
+Das MenuPane definiert die linke Seitenleiste mit ihren Akkordeon-EintrÃ¤gen.
 
 ```json
 "MenuPane": {
@@ -120,12 +120,12 @@ Das MenuPane definiert die linke Seitenleiste mit ihren Akkordeon-Einträgen.
 
 | Property | Typ | Beschreibung |
 |---|---|---|
-| `label` | string | Anzeigename des Menüpunkts |
+| `label` | string | Anzeigename des MenÃ¼punkts |
 | `icon` | string | Icon-Pfad |
 | `hideTitleArrow` | bool | Pfeil im Titel verstecken |
-| `trigger_event.id` | string | Framework-Event beim Öffnen/Schliessen auslösen |
+| `trigger_event.id` | string | Framework-Event beim Ã–ffnen/Schliessen auslÃ¶sen |
 
-### Typische Menüpunkte
+### Typische MenÃ¼punkte
 
 | Key | Beschreibung | Inhalt |
 |---|---|---|
@@ -137,13 +137,13 @@ Das MenuPane definiert die linke Seitenleiste mit ihren Akkordeon-Einträgen.
 | `sort_menu` | Dargestellte Themen | Reihenfolge aktiver Layer verwalten |
 | `tools_menu` | Werkzeuge | Messen, Zeichnen, etc. |
 | `print_menu` | Drucken | PDF-Export |
-| `ov_menu` | Übersichtskarte | Übersichtskarte ein/aus |
+| `ov_menu` | Ãœbersichtskarte | Ãœbersichtskarte ein/aus |
 
-> **TNET-Ergänzung**: Bei `useNewTree: true` lädt der TNET-Themenkatalog anstelle des Standard Dojo-Baums im `layer_menu`. Der Dojo-Baum bleibt im Hintergrund aktiv.
+> **TNET-ErgÃ¤nzung**: Bei `useNewTree: true` lÃ¤dt der TNET-Themenkatalog anstelle des Standard Dojo-Baums im `layer_menu`. Der Dojo-Baum bleibt im Hintergrund aktiv.
 
 ---
 
-## defmodules — Aktive Module
+## defmodules â€” Aktive Module
 
 Liste der Framework-Module, die beim Laden aktiviert werden:
 
@@ -179,7 +179,7 @@ Liste der Framework-Module, die beim Laden aktiviert werden:
 
 ---
 
-## defbuttons — Toolbar-Buttons
+## defbuttons â€” Toolbar-Buttons
 
 Definiert die Buttons in der Toolbar (typisch oben rechts/links).
 
@@ -209,7 +209,7 @@ Definiert die Buttons in der Toolbar (typisch oben rechts/links).
 |---|---|---|
 | Standard | `"btntool"` | Framework-interner Button (Verhalten vom Key abgeleitet) |
 | Command | `{ "command": "js-code" }` | Beliebiger JavaScript-Befehl |
-| TogglePane | `{ "togglePane": { "url": "...", "id": "..." } }` | Panel öffnen/schliessen |
+| TogglePane | `{ "togglePane": { "url": "...", "id": "..." } }` | Panel Ã¶ffnen/schliessen |
 
 ### Profilunterschiede
 
@@ -260,7 +260,7 @@ Mobile verwendet eine **stark reduzierte** Konfiguration:
 | Unterschied | Desktop | Mobile |
 |---|---|---|
 | MenuPane | `"freepane"` (Sidebar) | `"none"` |
-| defbuttons | Vollständige Toolbar | Leer (TNET fügt eigene Buttons ein) |
+| defbuttons | VollstÃ¤ndige Toolbar | Leer (TNET fÃ¼gt eigene Buttons ein) |
 | defmodules | 11 Module | 6 Module (kein editing, snap, selection, streetview, printoptions) |
 
 ---
@@ -271,41 +271,41 @@ Mobile verwendet eine **stark reduzierte** Konfiguration:
 
 ```
 maps/public/config/
-├── modules.conf              ← Standard (public, kein Login)
-├── modules_m.conf            ← Mobile-Variante
-├── basemaps_mgr.conf         ← Basiskarten
-├── lyrmgr.conf               ← Layer-Manager-Baum (Standard)
-├── layers.conf               ← Layer-Definitionen (Zusatz)
-│
-├── nwpro/                    ← Profil: Nidwalden Pro
-│   └── modules.conf
-│
-├── uwpro/                    ← Profil: Unterwalden Pro
-│   ├── modules.conf
-│   └── lyrmgr.conf           ← Eigener LyrMgr-Baum
-│
-├── owpro/                    ← Profil: Obwalden Pro
-│   └── modules.conf
-│
-├── marco/                    ← Profil: Admin/Dev
-│   ├── modules.conf
-│   ├── editing.conf
-│   └── maptips.confx          ← Deaktiviert (.confx)
-│
-└── nodi/                     ← Profil: Nodi
-    └── lyrmgr.conf
+â”œâ”€â”€ modules.conf              â† Standard (public, kein Login)
+â”œâ”€â”€ modules_m.conf            â† Mobile-Variante
+â”œâ”€â”€ basemaps_mgr.conf         â† Basiskarten
+â”œâ”€â”€ lyrmgr.conf               â† Layer-Manager-Baum (Standard)
+â”œâ”€â”€ layers.conf               â† Layer-Definitionen (Zusatz)
+â”‚
+â”œâ”€â”€ nwpro/                    â† Profil: Nidwalden Pro
+â”‚   â””â”€â”€ modules.conf
+â”‚
+â”œâ”€â”€ uwpro/                    â† Profil: Unterwalden Pro
+â”‚   â”œâ”€â”€ modules.conf
+â”‚   â””â”€â”€ lyrmgr.conf           â† Eigener LyrMgr-Baum
+â”‚
+â”œâ”€â”€ owpro/                    â† Profil: Obwalden Pro
+â”‚   â””â”€â”€ modules.conf
+â”‚
+â”œâ”€â”€ marco/                    â† Profil: Admin/Dev
+â”‚   â”œâ”€â”€ modules.conf
+â”‚   â”œâ”€â”€ editing.conf
+â”‚   â””â”€â”€ maptips.confx          â† Deaktiviert (.confx)
+â”‚
+â””â”€â”€ nodi/                     â† Profil: Nodi
+    â””â”€â”€ lyrmgr.conf
 ```
 
 ### Vererbungsprinzip
 
 ```
-loader.php empfängt: { f: "/config/modules.conf", p: "uwpro" }
+loader.php empfÃ¤ngt: { f: "/config/modules.conf", p: "uwpro" }
 
-1. Prüfe: config/uwpro/modules.conf → vorhanden? → zurückgeben
-2. Fallback: config/modules.conf → zurückgeben
+1. PrÃ¼fe: config/uwpro/modules.conf â†’ vorhanden? â†’ zurÃ¼ckgeben
+2. Fallback: config/modules.conf â†’ zurÃ¼ckgeben
 ```
 
-Datei-für-Datei: Jede Konfigurationsdatei (modules, lyrmgr, layers, maptips, basemaps_mgr, ...) kann pro Profil überschrieben werden. Nicht-überschriebene Dateien erben den Standard.
+Datei-fÃ¼r-Datei: Jede Konfigurationsdatei (modules, lyrmgr, layers, maptips, basemaps_mgr, ...) kann pro Profil Ã¼berschrieben werden. Nicht-Ã¼berschriebene Dateien erben den Standard.
 
 ### Deaktivierte Configs
 
@@ -319,18 +319,18 @@ Dateien mit Endung `.confx` werden vom Framework ignoriert. Sie dienen als Vorla
 
 | Pfad | Beschreibung |
 |---|---|
-| `/www/maps/` | Web-Dokumentroot (öffentlich) |
+| `/www/maps/` | Web-Dokumentroot (Ã¶ffentlich) |
 | `/www/maps/public/` | Projekt-spezifische Dateien (HTML, CSS, Config) |
 | `/www/maps/tnet/` | TNET-Erweiterungen (JS, PHP, CSS, Config) |
 | `/www/maps/core/` | Mandantenebene (Config, NLS, Templates, Legenden) |
-| `/www/core/` | Framework-Ebene (Config, NLS — wird von loader.php geladen) |
+| `/www/core/` | Framework-Ebene (Config, NLS â€” wird von loader.php geladen) |
 | `/www/mapplus-lib/` | MapPlus Framework (appmanager.js, common.js, ...) |
 | `/data/Client_Data/nwow/` | Daten ausserhalb DocumentRoot (Logs, raw-conf, tmp) |
 | `/data/Client_Data/nwow/raw-conf/` | Roh-Konfigurationen (ArcGIS-Import) |
 
 ### Framework-Dateien (mapplus-lib)
 
-Das Framework liegt unter `/www/mapplus-lib/mapplus-dojo/v4.0.0/` und wird **nicht** lokal geändert. Lokale Kopien finden sich zu Referenzzwecken in `_temp_framework/`:
+Das Framework liegt unter `/www/mapplus-lib/mapplus-dojo/v4.0.0/` und wird **nicht** lokal geÃ¤ndert. Lokale Kopien finden sich zu Referenzzwecken in `_temp_framework/`:
 
 | Datei | Beschreibung |
 |---|---|
@@ -354,39 +354,39 @@ define('API_PATH', "/var/www/html/mapplus-lib/mapplus-dojo/");
 
 ---
 
-## Import-Pipeline (ArcGIS → Core)
+## Import-Pipeline (ArcGIS â†’ Core)
 
 ### Ablauf
 
 ```
 1. ArcGIS Server REST API
-   ↓ Import-Script (Python)
-2. Roh-Dateien: /data/Client_Data/nwow/raw-conf/<kürzel>/
-   │
-   │  z.B. raw-conf/gis_basis/
-   │       ├── layers_TNET_gis_basis_GIS_Basisplan_v2.conf
-   │       ├── maptips_TNET_gis_basis_GIS_Basisplan_v2.conf
-   │       ├── lyrmgrResources_TNET_gis_basis_GIS_Basisplan_v2.json
-   │       └── maptipsResources_TNET_gis_basis_GIS_Basisplan_v2.json
-   │
-   ↓ Staging-Merge (mehrere Dienste → zusammengeführt)
-3. Staging: /data/Client_Data/nwow/raw-conf/ImportToCore/<kürzel>/
-   │
-   │  z.B. ImportToCore/gis_basis/
-   │       ├── layers_gis_basis.conf
-   │       ├── maptips_gis_basis.conf
-   │       ├── lyrmgrResources_gis_basis.json
-   │       └── maptipsResources_gis_basis.json
-   │
-   ↓ Deploy (mit Backup)
+   â†“ Import-Script (Python)
+2. Roh-Dateien: /data/Client_Data/nwow/raw-conf/<kÃ¼rzel>/
+   â”‚
+   â”‚  z.B. raw-conf/gis_basis/
+   â”‚       â”œâ”€â”€ layers_TNET_gis_basis_GIS_Basisplan_v2.conf
+   â”‚       â”œâ”€â”€ maptips_TNET_gis_basis_GIS_Basisplan_v2.conf
+   â”‚       â”œâ”€â”€ lyrmgrResources_TNET_gis_basis_GIS_Basisplan_v2.json
+   â”‚       â””â”€â”€ maptipsResources_TNET_gis_basis_GIS_Basisplan_v2.json
+   â”‚
+   â†“ Staging-Merge (mehrere Dienste â†’ zusammengefÃ¼hrt)
+3. Staging: /data/Client_Data/nwow/raw-conf/ImportToCore/<kÃ¼rzel>/
+   â”‚
+   â”‚  z.B. ImportToCore/gis_basis/
+   â”‚       â”œâ”€â”€ layers_gis_basis.conf
+   â”‚       â”œâ”€â”€ maptips_gis_basis.conf
+   â”‚       â”œâ”€â”€ lyrmgrResources_gis_basis.json
+   â”‚       â””â”€â”€ maptipsResources_gis_basis.json
+   â”‚
+   â†“ Deploy (mit Backup)
 4. Produktiv:
-   ├── /www/core/config/layers_gis_basis.conf
-   ├── /www/core/config/maptips_gis_basis.conf
-   ├── /www/core/nls/de/lyrmgrResources_gis_basis.json
-   └── /www/core/nls/de/maptipsResources_gis_basis.json
+   â”œâ”€â”€ /www/core/config/layers_gis_basis.conf
+   â”œâ”€â”€ /www/core/config/maptips_gis_basis.conf
+   â”œâ”€â”€ /www/core/nls/de/lyrmgrResources_gis_basis.json
+   â””â”€â”€ /www/core/nls/de/maptipsResources_gis_basis.json
 ```
 
-### Prefix → Zielverzeichnis (Routing)
+### Prefix â†’ Zielverzeichnis (Routing)
 
 | Prefix | Ziel |
 |---|---|
@@ -412,13 +412,13 @@ Der ImportToCore-Transfer wird nicht mehr ueber ein Root-Spezialskript ausgefueh
 | **Port** | `22` |
 | **User** | `trigonet` |
 | **Remote-Basispfad** | `/www/maps` |
-| **Lokaler Basispfad** | `c:\_Daten\mapplus-exp\maps` |
+| **Lokaler Basispfad** | `c:\_Daten\mapplus-tnet\maps` |
 | **Bibliothek** | `paramiko` (Python) |
 
 ### Typischer Workflow
 
 ```bash
-# 1. Geänderte Dateien nach DEV hochladen
+# 1. GeÃ¤nderte Dateien nach DEV hochladen
 py _scripts/deployment/deployengine/upload_changed.py --env dev
 
 # Alternative: aktive Einzeldatei hochladen
@@ -430,7 +430,7 @@ py _scripts/deployment/deployengine/upload_active_file.py --env dev <datei>
 ### Pfad-Mapping
 
 ```
-Lokal:  c:\_Daten\mapplus-exp\maps\tnet\js\tnet-basemap.js
+Lokal:  c:\_Daten\mapplus-tnet\maps\tnet\js\tnet-basemap.js
 Remote: /www/maps/tnet/js/tnet-basemap.js
 ```
 
@@ -442,7 +442,7 @@ Remote: /www/maps/tnet/js/tnet-basemap.js
 
 | Skript | Zweck |
 |---|---|
-| `_scripts/deployment/deployengine/upload_changed.py` | Geänderte Dateien fuer DEV oder PROD hochladen |
+| `_scripts/deployment/deployengine/upload_changed.py` | GeÃ¤nderte Dateien fuer DEV oder PROD hochladen |
 | `_scripts/deployment/deployengine/upload_active_file.py` | Einzelne aktive Datei fuer DEV oder PROD hochladen |
 | `_scripts/deployment/deployengine/promote_dev_to_prod.py` | DEV nach PROD promoten und optional deployen |
 | `_scripts/deployment/deployengine/deploy_env.py` | DEV/PROD-Pfade und Deploy-Konfiguration |
@@ -457,7 +457,7 @@ Direkte Spezial-Uploadskripte im `_scripts/`-Root sind entfernt. Fuer einzelne D
 
 ### Multi-Pfad-Mapping
 
-Manche Dateien müssen an mehrere Server-Pfade hochgeladen werden:
+Manche Dateien mÃ¼ssen an mehrere Server-Pfade hochgeladen werden:
 
 | Lokale Datei | Remote-Pfade |
 |---|---|
@@ -470,11 +470,12 @@ In `.vscode/tasks.json` sind folgende Aufgaben definiert:
 
 | Task | Beschreibung |
 |---|---|
-| `Deploy DEV: Upload Changed Files` | Führt `_scripts/deployment/deployengine/upload_changed.py --env dev` aus |
-| `Deploy PROD: Upload Changed Files` | Führt `_scripts/deployment/deployengine/upload_changed.py --env prod` aus |
-| `Deploy DEV: Upload Active File` | Führt `_scripts/deployment/deployengine/upload_active_file.py --env dev` aus |
-| `Release: Promote DEV to PROD` | Führt `_scripts/deployment/deployengine/promote_dev_to_prod.py` aus |
+| `Deploy DEV: Upload Changed Files` | FÃ¼hrt `_scripts/deployment/deployengine/upload_changed.py --env dev` aus |
+| `Deploy PROD: Upload Changed Files` | FÃ¼hrt `_scripts/deployment/deployengine/upload_changed.py --env prod` aus |
+| `Deploy DEV: Upload Active File` | FÃ¼hrt `_scripts/deployment/deployengine/upload_active_file.py --env dev` aus |
+| `Release: Promote DEV to PROD` | FÃ¼hrt `_scripts/deployment/deployengine/promote_dev_to_prod.py` aus |
 
 ### Nach Upload
 
-Immer **Hard-Reload** (`Ctrl+Shift+R`) im Browser durchführen, um den Cache zu aktualisieren.
+Immer **Hard-Reload** (`Ctrl+Shift+R`) im Browser durchfÃ¼hren, um den Cache zu aktualisieren.
+

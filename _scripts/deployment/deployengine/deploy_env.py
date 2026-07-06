@@ -28,6 +28,11 @@ DEPLOY_TARGETS = {
         "remote_base": "/www/maps-dev",
         "state_file": os.path.join(DEPLOY_DIR, "upload_state.dev.json"),
     },
+    "edit": {
+        "local_base": os.path.join(WORKSPACE_ROOT, "edit"),
+        "remote_base": "/www/edit",
+        "state_file": os.path.join(DEPLOY_DIR, "upload_state.edit.json"),
+    },
 }
 
 

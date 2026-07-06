@@ -1,10 +1,10 @@
-# TNET Test Suite
+﻿# TNET Test Suite
 
-Diese Tests nutzen `pytest` als Runner und können optional JUnit-XML für CI erzeugen.
+Diese Tests nutzen `pytest` als Runner und kÃ¶nnen optional JUnit-XML fÃ¼r CI erzeugen.
 
 ## Dependencies installieren
 
-Empfohlen aus dem Workspace-Root `mapplus-exp`:
+Empfohlen aus dem Workspace-Root `mapplus-tnet`:
 
 ```powershell
 & "C:/Program Files/Python313/python.exe" -m pip install --upgrade pip
@@ -21,7 +21,7 @@ Direktinstallation (Alternative):
 
 - `integration/http/`: Integrations-Tests gegen lokale PHP-Endpunkte
 - `integration/external/`: externe API-Tests (opt-in)
-- `smoke/`: schnelle Verfügbarkeitschecks zentraler Endpunkte
+- `smoke/`: schnelle VerfÃ¼gbarkeitschecks zentraler Endpunkte
 - `helpers/`: HTTP-Helper
 - `fixtures/`, `mocks/`: Testdaten/Mocks
 - `unit/js`, `unit/php`, `e2e`: vorbereitete Erweiterungspfade
@@ -35,17 +35,17 @@ Setze die Basis-URL zur lokalen Instanz:
 - PowerShell: `$env:TNET_BASE_URL = "https://localhost/maps/tnet/php"`
 - Alternativ in CI als Environment Variable.
 
-Beispiel für euren Remote-Host:
+Beispiel fÃ¼r euren Remote-Host:
 
 - PowerShell: `$env:TNET_BASE_URL = "https://www.gis-daten.ch/maps/tnet/php"`
 
 ### Externe Tests aktivieren
 
-Externe ÖREB-Tests laufen nur wenn gesetzt:
+Externe Ã–REB-Tests laufen nur wenn gesetzt:
 
 - PowerShell: `$env:TNET_RUN_EXTERNAL = "1"`
 
-## Ausführung
+## AusfÃ¼hrung
 
 Aus `maps/tnet/tests`:
 
@@ -67,6 +67,7 @@ Workflow: `.github/workflows/tnet-tests.yml`
 - Job `tests-external`: Lauf mit `TNET_RUN_EXTERNAL=1`, Report `test-results/junit-external.xml`
 
 Optional kann in GitHub unter **Repository Variables** `TNET_BASE_URL` gesetzt werden.
-Ohne Variable nutzt der Workflow standardmässig:
+Ohne Variable nutzt der Workflow standardmÃ¤ssig:
 
 - `https://www.gis-daten.ch/maps/tnet/php`
+

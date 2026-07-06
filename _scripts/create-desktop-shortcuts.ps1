@@ -12,14 +12,14 @@
     powershell -ExecutionPolicy Bypass -File _scripts\create-desktop-shortcuts.ps1
 #>
 
-$WorkspaceRoot = "C:\_Daten\mapplus-exp"
+$WorkspaceRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $WShell        = New-Object -ComObject WScript.Shell
 $Desktop       = $WShell.SpecialFolders("Desktop")
 
 $Shortcuts = @(
     @{
         Name    = "Deploy DEV"
-        Target  = "$WorkspaceRoot\_scripts\deployment\deploy-dev\deploy-dev.bat"
+        Target  = "$WorkspaceRoot\_scripts\deployment\deploy-dev\01_deploy-dev.bat"
         Icon    = "%SystemRoot%\System32\shell32.dll,23"
         Desc    = "Geaenderte Dateien aus maps-dev nach /www/maps-dev hochladen"
     },

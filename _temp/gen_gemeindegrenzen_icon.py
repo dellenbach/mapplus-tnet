@@ -1,4 +1,4 @@
-"""
+﻿"""
 Generiert overlay-gemeindegrenzen.svg aus der BFS-Gemeinde-GeoJSON,
 gefiltert auf die Kantone OW + NW. Einmalig ausfuehren.
 
@@ -10,7 +10,7 @@ import json, urllib.request, math
 
 URL = ('https://www.agvchapp.bfs.admin.ch/api/boundaries/divisions'
        '?division=Commune&resolution=K4&dissolve=true&date=01-01-2026')
-OUT = r'c:\_Daten\mapplus-exp\maps-dev\tnet\resources\icons\overlay-gemeindegrenzen.svg'
+OUT = r'c:\_Daten\mapplus-tnet\maps-dev\tnet\resources\icons\overlay-gemeindegrenzen.svg'
 
 # Strichfarbe je Kanton
 KANTON_COLORS = {'OW': '#4B7B81', 'NW': '#DD1633'}
@@ -83,3 +83,4 @@ with open(OUT, 'w', encoding='utf-8') as fh:
 
 print('OW rings:', len(rings_by_kt['OW']), '| NW rings:', len(rings_by_kt['NW']),
       '| wgs:', is_wgs, '| bytes:', len(svg))
+

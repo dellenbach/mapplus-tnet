@@ -36,6 +36,41 @@
 			"problemMatcher": [],
 			"presentation": { "reveal": "always", "panel": "shared" }
 		},
+
+		// ── EDIT ───────────────────────────────────────────────────────────────
+
+		{
+			"label": "EDIT: Sync maps-dev to edit",
+			"type": "shell",
+			"command": "_scripts/deployment/deploy-edit/01_sync-maps-dev2edit.bat",
+			"args": [],
+			"problemMatcher": [],
+			"presentation": { "reveal": "always", "panel": "shared" }
+		},
+		{
+			"label": "Deploy EDIT: Upload Changed Files",
+			"type": "shell",
+			"command": "_scripts/deployment/deploy-edit/02_deploy-edit.bat",
+			"args": [],
+			"problemMatcher": [],
+			"presentation": { "reveal": "always", "panel": "shared" }
+		},
+		{
+			"label": "Deploy EDIT: Dry-Run (Vorschau)",
+			"type": "shell",
+			"command": "_scripts/deployment/deploy-edit/deploy-edit-dryrun.bat",
+			"args": [],
+			"problemMatcher": [],
+			"presentation": { "reveal": "always", "panel": "shared" }
+		},
+		{
+			"label": "Deploy EDIT: Upload Active File",
+			"type": "shell",
+			"command": "_scripts/deployment/deploy-edit/deploy-active-file.bat",
+			"args": [ "${file}" ],
+			"problemMatcher": [],
+			"presentation": { "reveal": "always", "panel": "shared" }
+		},
 		// ── BUILD ──────────────────────────────────────────────────────────────
 
 		{

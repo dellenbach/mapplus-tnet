@@ -348,6 +348,7 @@ Siehe [05-basemaps.md → TNET: Zeitreise (TimeDimension)](05-basemaps.md#tnet-z
 
 ```json5
 print: {
+    provider: 'tnet',
     pdfRetentionDays: 1,
     autoAdjustZoom: true,
     targetFramePercent: 40,
@@ -366,6 +367,7 @@ print: {
 
 | Property | Typ | Default | Beschreibung |
 |---|---|---|---|
+| `provider` | string | `'tnet'` | Aktives Printing-System: `'tnet'`, `'mapplus'`, `'none'` |
 | `pdfRetentionDays` | number | `1` | Archivierte PDFs löschen nach X Tagen |
 | `autoAdjustZoom` | bool | `true` | Zoom automatisch anpassen beim Öffnen des Druckpanels |
 | `targetFramePercent` | number | `40` | Ziel: Frame soll X% des Viewports füllen |
@@ -379,6 +381,19 @@ print: {
 | `debugLogMetrics` | bool | `false` | Scale/Resolution/DPI/Pixel/Extent in Konsole |
 
 > **Empfehlung**: `serverDpi` auf 96 belassen, da die Mapserver-Styles für 96 DPI optimiert sind. Höhere Werte führen zu engeren Schraffuren.
+
+### Provider-Modi
+
+- `provider: 'tnet'`: Neues TNET-Printing aktiv, Legacy-Print ausgeblendet.
+- `provider: 'mapplus'`: Legacy-Mapplus-Printing aktiv, TNET-Printing deaktiviert.
+- `provider: 'none'`: Printing komplett deaktiviert.
+
+### Rückwärtskompatibilität
+
+Falls `provider` nicht gesetzt ist, wird als Fallback der ältere Schalter `print.enableLegacyPrint` ausgewertet:
+
+- `enableLegacyPrint: true` -> wirkt wie `provider: 'mapplus'`
+- `enableLegacyPrint: false` -> wirkt wie `provider: 'tnet'`
 
 ---
 

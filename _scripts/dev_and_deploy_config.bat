@@ -1,13 +1,24 @@
 @echo off
 
 :: Zentrale Entwicklungs- und Deploy-Konfiguration fuer Batch-Skripte.
-:: Bei Standortwechsel oder Python-Upgrade nur diese Werte anpassen.
+:: Workspace-Root wird standardmaessig relativ zu dieser Datei erkannt.
+:: Optional koennen MAPPLUS_WORKSPACE_ROOT und MAPPLUS_PYTHON_EXE von aussen gesetzt werden.
 if not defined MAPPLUS_WORKSPACE_ROOT (
-    set "MAPPLUS_WORKSPACE_ROOT=C:\_Daten\mapplus-exp"
+    for %%I in ("%~dp0..") do set "MAPPLUS_WORKSPACE_ROOT=%%~fI"
 )
 
 if not defined MAPPLUS_PYTHON_EXE (
-    set "MAPPLUS_PYTHON_EXE=C:\Program Files\Python313\python.exe"
+    set "MAPPLUS_PYTHON_EXE="
+    if not defined MAPPLUS_PYTHON_EXE (
+        if exist "C:\Program Files\Python313\python.exe" (
+            set "MAPPLUS_PYTHON_EXE=C:\Program Files\Python313\python.exe"
+        )
+    )
+    if not defined MAPPLUS_PYTHON_EXE (
+        for /f "delims=" %%P in ('where python.exe 2^>nul') do (
+            if not defined MAPPLUS_PYTHON_EXE set "MAPPLUS_PYTHON_EXE=%%P"
+        )
+    )
 )
 
 if not exist "%MAPPLUS_WORKSPACE_ROOT%\" (

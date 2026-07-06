@@ -55,6 +55,7 @@
   var _savedPrintDockedWidth = 380;
   var _inlineMode = false;          // true = Panel im Sidebar-Akkordeon (tp_tnet_print_menu)
   var _printResizeObserver = null;
+  var _printProvider = 'tnet';      // 'tnet' | 'mapplus' | 'none'
   var _printCenter = null;           // Druckrahmen-Mittelpunkt in Kartenkoordinaten (unabhängig vom View-Center)
   // Inline-PDF-Unterstützung des Browsers (navigator.pdfViewerEnabled: Chrome/Edge 94+, Firefox 98+)
   var _pdfInlineSupported = !!navigator.pdfViewerEnabled;
@@ -183,6 +184,150 @@
       if (s === 10000) opt.selected = true;
       select.appendChild(opt);
     });
+  }
+
+  // ================================================================
+  //  Printing-Provider (zentral via tnet-global-config.json5)
+  // ================================================================
+  function resolvePrintProvider() {
+    var printCfg = (_globalConfig && _globalConfig.print) ? _globalConfig.print : {};
+    var provider = (typeof printCfg.provider === 'string')
+      ? printCfg.provider.toLowerCase()
+      : '';
+
+    if (provider === 'tnet' || provider === 'mapplus' || provider === 'none') {
+      return provider;
+    }
+
+    // Rückwärtskompatibilität: älterer Legacy-Schalter
+    if (typeof printCfg.enableLegacyPrint === 'boolean') {
+      return printCfg.enableLegacyPrint ? 'mapplus' : 'tnet';
+    }
+
+    return 'tnet';
+  }
+
+  function setVisible(el, visible) {
+    if (!el) return;
+    el.style.display = visible ? '' : 'none';
+  }
+
+  function applyProviderUiVisibility(provider) {
+    var legacyMenu = document.getElementById('tp_print_menu');
+    var tnetMenu = document.getElementById('tp_tnet_print_menu');
+    var floatingPanel = document.getElementById('print-panel');
+    var mobilePrintItems = document.querySelectorAll('.m-menu-item[data-m-action="print"]');
+
+    if (provider === 'mapplus') {
+      setVisible(legacyMenu, true);
+      setVisible(tnetMenu, false);
+      setVisible(floatingPanel, false);
+      mobilePrintItems.forEach(function (el) { el.style.display = 'none'; });
+      return false;
+    }
+
+    if (provider === 'none') {
+      setVisible(legacyMenu, false);
+      setVisible(tnetMenu, false);
+      setVisible(floatingPanel, false);
+      mobilePrintItems.forEach(function (el) { el.style.display = 'none'; });
+      return false;
+    }
+
+    // provider === 'tnet'
+    setVisible(legacyMenu, false);
+    setVisible(tnetMenu, true);
+    mobilePrintItems.forEach(function (el) { el.style.display = ''; });
+    return true;
+  }
+
+  function activateLegacyPrintFrameWithRetry() {
+    var maxAttempts = 20;
+    var attempt = 0;
+
+    function tryActivate() {
+      attempt += 1;
+
+      var hasDijit = (typeof window.dijit !== 'undefined' && dijit.byId);
+      var tpWidget = hasDijit ? dijit.byId('tp_print_menu') : null;
+      var printWidget = hasDijit ? dijit.byId('print_menu') : null;
+      var tpDetails = document.getElementById('tp_print_menu');
+
+      if (tpWidget || printWidget || tpDetails) {
+        try {
+          if (tpWidget && !tpWidget.get('open')) tpWidget.set('open', true);
+          if (tpDetails && tpDetails.tagName === 'DETAILS' && !tpDetails.open) tpDetails.open = true;
+          if (printWidget && !printWidget.get('open')) printWidget.set('open', true);
+        } catch (openErr) {
+          TnetLog.warn('[Drucken] Legacy-Print Pane konnte nicht geöffnet werden:', openErr);
+        }
+
+        // Legacy-Druckrahmen über Massstabs-Widget anstossen
+        try {
+          if (window.njs_pdfscale_list && typeof window.njs_pdfscale_list.get === 'function' && typeof window.njs_pdfscale_list.set === 'function') {
+            var curVal = window.njs_pdfscale_list.get('value');
+            window.njs_pdfscale_list.set('value', curVal);
+          } else {
+            var legacyScaleEl = document.getElementById('njs_pdfscale_list');
+            if (legacyScaleEl) {
+              legacyScaleEl.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+          }
+        } catch (refreshErr) {
+          TnetLog.warn('[Drucken] Legacy-Print Refresh konnte nicht ausgelöst werden:', refreshErr);
+        }
+
+        TnetLog.log('[Drucken] Legacy-Print aktiviert (provider=mapplus)');
+        return;
+      }
+
+      if (attempt < maxAttempts) {
+        setTimeout(tryActivate, 150);
+      } else {
+        TnetLog.warn('[Drucken] Legacy-Print Widgets nicht gefunden (provider=mapplus)');
+      }
+    }
+
+    setTimeout(tryActivate, 50);
+  }
+
+  function installLegacyPrintCompatibilityPatch() {
+    if (window.__tnetLegacyPrintCompatPatched) return;
+
+    try {
+      if (!(window.njs && njs.Tools && njs.Tools.PrintScaledMap && njs.Tools.PrintScaledMap.prototype)) return;
+
+      var proto = njs.Tools.PrintScaledMap.prototype;
+      var originalSetPrintFrame = proto.setPrintFrame;
+      if (typeof originalSetPrintFrame !== 'function') return;
+
+      proto.setPrintFrame = function (scaleObj, layout, getScale, myScale) {
+        try {
+          return originalSetPrintFrame.apply(this, arguments);
+        } catch (err) {
+          var msg = String((err && err.message) || err || '');
+          var isProjectionCrash = (msg.indexOf('getCode') !== -1 || msg.indexOf('getProjection') !== -1);
+          if (!isProjectionCrash) {
+            throw err;
+          }
+
+          // Legacy-Fallback: Save-State-Zweig umgehen, damit der Rahmen trotzdem erzeugt wird.
+          var prevSaveState = this.save_state;
+          this.save_state = false;
+          try {
+            TnetLog.warn('[Drucken] Legacy PrintScaledMap Fallback aktiv (Projection-Guard)');
+            return originalSetPrintFrame.apply(this, arguments);
+          } finally {
+            this.save_state = prevSaveState;
+          }
+        }
+      };
+
+      window.__tnetLegacyPrintCompatPatched = true;
+      TnetLog.log('[Drucken] Legacy PrintScaledMap Kompatibilitäts-Patch aktiv');
+    } catch (patchErr) {
+      TnetLog.warn('[Drucken] Legacy PrintScaledMap Patch fehlgeschlagen:', patchErr);
+    }
   }
 
   // ================================================================
@@ -1284,6 +1429,11 @@
   //  Panel öffnen / schliessen
   // ================================================================
   window.openPdfPrinter = function () {
+    if (_printProvider !== 'tnet') {
+      TnetLog.warn('[Drucken] openPdfPrinter() ignoriert (provider=' + _printProvider + ')');
+      return;
+    }
+
     if (typeof toggleHeaderMenu === 'function') toggleHeaderMenu();
 
     // Inline-Modus: Akkordeon öffnen statt floating Panel
@@ -2017,6 +2167,18 @@
     // Config laden (Massstäbe aus tnet-global-config.json5)
     loadScalesFromConfig();
 
+    // Printing-Provider aus zentraler Config auflösen
+    _printProvider = resolvePrintProvider();
+    var shouldInitTnetPrint = applyProviderUiVisibility(_printProvider);
+    if (!shouldInitTnetPrint) {
+      if (_printProvider === 'mapplus') {
+        installLegacyPrintCompatibilityPatch();
+        activateLegacyPrintFrameWithRetry();
+      }
+      TnetLog.log('[Drucken] TNET-Printing deaktiviert (provider=' + _printProvider + ')');
+      return;
+    }
+
     // Panel-HTML einfügen: Inline in Sidebar-Akkordeon ODER an body anhängen
     var container = document.createElement('div');
     try {
@@ -2042,7 +2204,7 @@
 
       // Altes DRUCKEN sicherheitshalber ausblenden
       var legacyMenu = document.getElementById('tp_print_menu');
-      if (legacyMenu && _globalConfig.print && _globalConfig.print.enableLegacyPrint === false) {
+      if (legacyMenu) {
         legacyMenu.style.display = 'none';
       }
 

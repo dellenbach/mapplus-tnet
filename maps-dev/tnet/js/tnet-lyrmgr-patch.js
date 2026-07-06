@@ -28,6 +28,41 @@
   var _suppressGroupCheckboxClick = false;
   var _suppressLayerRefresh = false;
 
+  // ===== Struktur-Härtung für den Framework-Core =====
+  // Der Core (addCategoryRecursive) greift bei einem Array-Item-Objekt mit .name
+  // auf category.items[i].items[l] zu. Fehlt items, crasht der Baum-Aufbau
+  // ("Cannot read properties of undefined (reading 'undefined')") und KEIN Layer
+  // der Kategorie wird registriert. Wir stellen sicher, dass jedes solche Objekt
+  // ein items-Array besitzt (Fallback: [name]) -> der Layer wird als
+  // Ein-Layer-Gruppe registriert und ist via TnetLayerSwitch schaltbar.
+  function ensureFrameworkSafeItems(node) {
+    if (!node || typeof node !== 'object') return;
+    var items = node.items;
+    if (Array.isArray(items)) {
+      for (var i = 0; i < items.length; i++) {
+        var it = items[i];
+        if (it && typeof it === 'object' && it.name) {
+          if (!Array.isArray(it.items)) {
+            it.items = [it.name];
+          }
+          ensureFrameworkSafeItems(it);
+        }
+      }
+    } else if (items && typeof items === 'object') {
+      for (var k in items) {
+        if (items.hasOwnProperty(k)) ensureFrameworkSafeItems(items[k]);
+      }
+    }
+  }
+
+  function normalizeStructureForFramework(structure) {
+    if (!structure || typeof structure !== 'object') return;
+    for (var key in structure) {
+      if (!structure.hasOwnProperty(key)) continue;
+      ensureFrameworkSafeItems(structure[key]);
+    }
+  }
+
   function isLegacyNestedCssEnabled() {
     try {
       if (window.__tnetLMFlags && typeof window.__tnetLMFlags.useLegacyNestedHierarchyStyle === 'boolean') {
@@ -551,9 +586,22 @@
       }
     }
 
-    // --- 1. Init: "nested" Flag aus Config lesen ---
+    // --- 1. Init: "nested" Flag aus Config lesen + Struktur-Härtung ---
     var _origInit = proto.Init;
     proto.Init = function(options) {
+      // Struktur-Härtung: Der Framework-Core (addCategoryRecursive) crasht mit
+      // "Cannot read properties of undefined (reading 'undefined')", wenn ein
+      // Array-Item ein Objekt mit .name, aber ohne .items ist (Zugriff auf
+      // category.items[i].items[l]). Das passiert bei flach direkt unter einer
+      // Kategorie liegenden Layern (flat:true) ohne items. Wir stellen sicher,
+      // dass jedes Array-Item-Objekt mit .name ein items-Array besitzt
+      // (Fallback: [name]) — so wird der Layer als Ein-Layer-Gruppe registriert
+      // und ist via TnetLayerSwitch schaltbar.
+      try {
+        if (options && options.structure) normalizeStructureForFramework(options.structure);
+      } catch (eNorm) {
+        console.warn(LOG, 'Struktur-Härtung fehlgeschlagen:', eNorm);
+      }
       _origInit.call(this, options);
       if (options && options.nested) {
         this.nested = true;
