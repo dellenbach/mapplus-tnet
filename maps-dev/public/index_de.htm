@@ -694,32 +694,8 @@
     <!-- TNET helpers for bookmarks&Co. -->
     <script type="text/javascript" src="tnet/js/tnet-mapplus-helpers.js?v=20260618j" defer></script>
     
-    <!-- TNET Accordion/Tab-Konverter -->
-    <link rel="stylesheet" href="tnet/css/tnet_toc.css" />
-    <!-- TNET Komponenten: Kontextmenü, Footer, Kompass, Polygon-Tool, Spatial Query -->
-    <link rel="stylesheet" href="tnet/css/tnet-components.css" />
-    <!-- TNET Split-Screen CSS -->
-    <link rel="stylesheet" href="tnet/css/tnet-splitscreen.css" />
-    <!-- TNET 3D Landscape CSS -->
-    <link rel="stylesheet" href="tnet/css/tnet-3d-landscape.css" />
-    <!-- TNET MapControls: Zoom, GNSS, StreetView, 3D Buttons -->
-    <link rel="stylesheet" href="tnet/css/tnet-mapcontrols.css" />
-    <!-- TNET Basemap-Selektor: Widget, Kacheln, Zeitreise-Slider -->
-    <link rel="stylesheet" href="tnet/css/tnet-basemap-selector.css" />
-    <!-- TNET WMS-Panel: Sidebar-Eintraege, Inputs, Grid -->
-    <link rel="stylesheet" href="tnet/css/tnet-wms-panel.css" />
-    <!-- TNET Info-Panel: FloatingPane-Layout, Header, Unified Design -->
-    <link rel="stylesheet" href="tnet/css/tnet-info-panel.css" />
-    <!-- TNET Suche: Desktop-Suchbar, Filter-Popup, Resultatliste -->
-    <link rel="stylesheet" href="tnet/css/tnet-search.css" />
-    <!-- TNET Legende: FloatingPane, Header, Dock-Ansicht -->
-    <link rel="stylesheet" href="tnet/css/tnet-legend.css" />
-    <!-- TNET LM Legacy: Hierarchie-Einrueckung, Container, Dargestellte Themen -->
-    <link rel="stylesheet" href="tnet/css/tnet-lm-legacy.css" />
-    <!-- TNET Sidepanel Legacy: body:not(.tnet-sidepanel-v2) + TNET-Panel Accordions -->
-    <link rel="stylesheet" href="tnet/css/tnet-sidepanel-legacy.css" />
-    <!-- GIS Daten AG Splash Screen Cube -->
-    <link rel="stylesheet" href="tnet/css/gis-daten-splash.css" />
+    <!-- TNET Styles gebündelt (build_css.py → tnet.bundle.css, ersetzt 16 Einzel-Links) -->
+    <link rel="stylesheet" href="tnet/css/tnet.bundle.css?v=20260703c" />
     <script type="text/javascript" src="tnet/js/tnet_toc.js" defer></script>
 
     <!-- TNET App-Init: Panel-Schatten, Scroll-to-Top, Bookmark Auto-Start -->
@@ -761,8 +737,7 @@
     <script src="tnet/js/tnet-basemap.js"></script>
 
     <!-- TNET Layer-Manager: Themenkatalog + Dargestellte Themen (Store, Tree, Active-Panel, Init) -->
-    <link rel="stylesheet" href="tnet/css/tnet-lm.css?v=20260618c" />
-    <link rel="stylesheet" href="tnet/css/tnet-sidepanel.css" />
+    <!-- LM/Sidepanel CSS: jetzt in tnet.bundle.css -->
     <script src="tnet/js/tnet-coalesce-bridge.js?v=20260617e" defer></script>
     <script src="tnet/js/tnet-lm-store.js?v=20260619a" defer></script>
     <script src="tnet/js/tnet-lm-tree.js?v=20260618c" defer></script>
@@ -798,7 +773,7 @@
     <script src="tnet/js/tnet-info-bridge.js?v=20260618l"></script>
 
     <!-- Drucken / PDF-Export (Libraries werden dynamisch in tnet-print.js geladen) -->
-    <link rel="stylesheet" href="tnet/css/tnet-print.css">
+    <!-- tnet-print.css: jetzt in tnet.bundle.css -->
     <script src="tnet/js/tnet-print.js"></script>
 
     <!-- Desktop-Suche: search-proxy.php (Layer + Geocoder) -->
