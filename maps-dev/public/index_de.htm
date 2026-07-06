@@ -518,16 +518,14 @@
                 </div>
             </details>
 
-            <!-- DRUCKEN -->
+            <!-- DRUCKEN (Legacy Mapplus) -->
             <details id="tp_print_menu" class="tnet-panel" style="display:none">
                 <summary class="tnet-panel-title">Drucken</summary>
                 <div class="tnet-panel-content">
-                    <details id="print_menu" class="tnet-panel tnet-panel-nested" open>
-                        <summary class="tnet-panel-title tnet-panel-title-nested">Ausdruck massstäblich</summary>
-                        <div class="tnet-panel-content">
-                            <div id="njs_print_wrapper" style="width: 100%; height:100%; border:0"></div>
-                        </div>
-                    </details>
+                    <div id="print_menu" data-dojo-type="dijit/TitlePane"
+                        data-dojo-props="title: 'Ausdruck massstäblich', open:true">
+                        <div id="njs_print_wrapper" style="width: 100%; height:100%; border:0"></div>
+                    </div>
                 </div>
             </details>
 
@@ -692,7 +690,7 @@
     <script type="module" src="tnet/js/tnet-utils.js"></script>
 
     <!-- TNET helpers for bookmarks&Co. -->
-    <script type="text/javascript" src="tnet/js/tnet-mapplus-helpers.js?v=20260618j" defer></script>
+    <script type="text/javascript" src="tnet/js/tnet-mapplus-helpers.js?v=20260706a" defer></script>
     
     <!-- TNET Styles gebündelt (build_css.py → tnet.bundle.css, ersetzt 16 Einzel-Links) -->
     <link rel="stylesheet" href="tnet/css/tnet.bundle.css?v=20260703c" />
@@ -739,7 +737,7 @@
     <!-- TNET Layer-Manager: Themenkatalog + Dargestellte Themen (Store, Tree, Active-Panel, Init) -->
     <!-- LM/Sidepanel CSS: jetzt in tnet.bundle.css -->
     <script src="tnet/js/tnet-coalesce-bridge.js?v=20260617e" defer></script>
-    <script src="tnet/js/tnet-lm-store.js?v=20260619a" defer></script>
+    <script src="tnet/js/tnet-lm-store.js?v=20260706a" defer></script>
     <script src="tnet/js/tnet-lm-tree.js?v=20260618c" defer></script>
     <script src="tnet/js/tnet-lm-active.js?v=20260618i" defer></script>
     <script src="tnet/js/tnet-lm-init.js" defer></script>

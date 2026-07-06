@@ -1,4 +1,39 @@
-﻿## 2026-07-02 - Loader: UMD-Script (JSON5) per globalem `define=undefined` zerstoert Dojo-AMD
+﻿## 2026-07-06 - Themenkatalog autark: Store schaltet alle Layer selbst (inkl. arcgisRest)
+
+- Symptom: API-getriebener Themenkatalog zeigt Layer korrekt, aber neu (nur in DB) hinzugefuegte Layer liessen sich nicht auf die Karte schalten: `TnetLayerSwitch: LyrMgr nicht verfuegbar`. Betroffen v.a. arcgisRest.
+- Root-Cause: Katalog-Anzeige kommt aus layers.php (source=db, catalog-db) und liefert bereits ALLE Layer-Felder (url, layerType, params, opacity, options, maptips). Das SCHALTEN haengt aber am Legacy-ClassicLayerMgr (conf-basiert). Der Store-eigene Direktlade-Fallback im Helper deckte nur WMS ab (`layerType !== 'arcgisRest'`) — fuer arcgisRest gab es keinen Store-Pfad.
+- Fix: (1) tnet-lm-store.js: zentrale Factory `buildOLLayerFromCatalog(layerId)` aus findLayer-Daten (WMS Image/Tile, arcgisRest Image/Tile; WMTS/url=null uebersprungen -> Framework/Basemap). (2) tnet-mapplus-helpers.js: beide duplizierten WMS-Direktlade-Bloecke durch `attemptDirectCatalogLoad()` (nutzt Factory, deckt arcgisRest mit) ersetzt; off-Zweig entfernt Direkt-Layer (`tnet_direct_catalog`) via map.removeLayer + URL-Cleanup, bevor der LyrMgr-Pfad ins Leere laeuft.
+- Guardrail: API liefert bereits alles — vor Server-Aenderungen die Live-Response pruefen (details=true ist Default). Ein Layer kann bewusst in mehreren Kategorien/lyrmgr-Bloecken stehen (z.B. Nidwalden+Obwalden) = kein Duplikat-Bug. Store-Direktladen muss ALLE Typen abdecken, nicht nur WMS, sonst bleibt die ClassicLayerMgr-Abhaengigkeit fuer arcgisRest bestehen.
+
+## 2026-07-06 - Mapplus-Mode: Legacy-Print zeigte Formular, aber kein Druckrahmen
+
+- Symptom: Bei `print.provider='mapplus'` war das Legacy-Druckformular sichtbar, der mapplus Druckrahmen auf der Karte erschien aber nicht.
+- Root-Cause: In `maps-dev/public/index_de.htm` war der Legacy-Print-Container (`tp_print_menu`/`print_menu`) als HTML-`details` umgesetzt; der Legacy-Mapplus-Flow erwartet Dojo-`dijit/TitlePane`-Widgets und hängt dort seine Rahmen-Logik an.
+- Fix: Legacy-Print-Block in `maps-dev/public/index_de.htm` auf Dojo-`TitlePane` zurückgestellt (analog funktionierendem `index_de_ori.htm`), inkl. `njs_print_wrapper` unverändert. Zusätzlich in `maps-dev/tnet/js/tnet-print.js` bei `provider=mapplus` eine Legacy-Bridge ergänzt: Print-TitlePanes aktiv öffnen und Legacy-Massstabs-Refresh triggern, damit der Druckrahmen zuverlässig gezeichnet wird.
+- Guardrail: Legacy-Framework-Container mit impliziter Widget-Bindung nicht von Dojo-Widgets auf native HTML-Container umstellen, solange der Legacy-Flow (Watcher/Events) aktiv genutzt wird.
+
+## 2026-07-06 - Mapplus-Print: Legacy-Rahmen blieb leer wegen Projection-Crash
+
+- Symptom: Im `mapplus`-Mode war das Legacy-Druckformular sichtbar, aber der Druckrahmen blieb unsichtbar; Runtime-Fehler in `PrintScaledMap.setPrintFrame` (`Cannot read properties of null (reading 'getCode')`).
+- Root-Cause: Der Legacy-Save-State-Zweig in `setPrintFrame` setzt eine gültige View-Projektion voraus (`getProjection().getCode()`); bei Null-Projektion bricht die Rahmenerzeugung ab und der Extent-Layer bleibt ohne Features.
+- Fix: In `maps-dev/tnet/js/tnet-print.js` Runtime-Kompatibilitäts-Patch für `njs.Tools.PrintScaledMap.prototype.setPrintFrame` ergänzt: Bei Projection-Crash einmaliger Fallback mit `save_state=false`, damit der Rahmen trotzdem gezeichnet wird.
+- Guardrail: Bei Legacy-Tools auf externer Framework-Basis Fehlerpfade defensiv patchen (Prototype-Wrapper) statt fremde Library-Dateien direkt zu ändern; Fallback nur für klar erkennbare Fehlersignaturen aktivieren.
+
+## 2026-07-06 - Flat-Layer: njs-Framework crasht bei nacktem String auf Kategorie-Ebene
+
+- Symptom: Flacher Direkt-Layer wird im Katalog angezeigt (hat gueltige url/arcgisRest), laesst sich aber nicht auf die Karte schalten. Konsole: `TnetLayerSwitch: LyrMgr nicht verfuegbar` + `TypeError: Cannot read properties of undefined` in `ClassicLayerMgr.addCategoryRecursive` (loadSiteLyrMgr).
+- Root-Cause: TnetLMStore-Katalog liest aus layers.php (wrappt flat sauber), das njs-FRAMEWORK liest aber die ROHE lyrmgr.conf-Struktur. Ein nackter Layer-String direkt auf Kategorie-Ebene bringt addCategoryRecursive zum Absturz (erwartet dort Gruppen-Objekte) → Baum-Aufbau bricht ab, Layer wird nie im ClassicLayerMgr registriert → TnetLayerSwitch findet ihn nicht.
+- Fix: In generateLyrmgrConfBlock (tree-builder-v2.html) Direkt-Layer auf Kategorie-Ebene IMMER als Ein-Layer-Gruppe `{name, flat:true, items:[layerId]}` serialisieren (nie als String) — Array- UND Objekt-Format. Framework parst es als normale Ein-Layer-Gruppe (registriert Layer), layers.php+Editor rendern via flat weiterhin flach. Array-Format wird bei flat/direct erzwungen (verhindert Objekt-Key-Kollision).
+- Guardrail: Struktur-Elemente, die ein Legacy-Framework parst, nie in einer Form aendern, die dessen Parser nicht kennt. Neue UI (Store/layers.php) und Framework lesen ggf. UNTERSCHIEDLICHE Repraesentationen derselben Conf — beide Pfade pruefen. Direkt-Layer immer als Ein-Layer-Gruppe (mit flat-Marker) persistieren, nie als nackten String auf Kategorie-Ebene.
+
+## 2026-07-06 - Direkt-Layer in Kategorie: verschwindet nach Publish + fehlt im Themenkatalog
+
+- Symptom: Ein Layer direkt in einer Kategorie (nicht in einer Gruppe) verschwand im Tree-Builder nach "Publish DB" + Reload und wurde im Themenkatalog gar nicht dargestellt.
+- Root-Cause: (1) `layers.php` baute `$groupList` aus `categoryDef['items']` mit `if (!is_array($grpEntry)) continue;` → String-Items (Direkt-Layer) wurden serverseitig verworfen. (2) `generateLyrmgrConfBlock` serialisierte im Objekt-Format Direkt-Layer als Objekt-Key (`catObj.items[layerId] = {items:[layerId]}`); bei gleichnamiger leerer Gruppe → Key-Kollision → Layer überschrieben und beim Reload via `convertLyrmgrStructure` als Gruppe fehlinterpretiert.
+- Fix: (1) layers.php: String-Items und Objekte ohne `items` in synthetische Ein-Layer-Gruppe `{key, hideHeader:true, items:[layer]}` kapseln → flach gerendert. (2) tree-builder-v2.html: `usesArrayFormat` zusätzlich true wenn Kategorie Direkt-Layer-Strings enthält (`hasDirectLayer`) → keine Objekt-Key-Kollision. (3) tnet-lm-store.js: `_wrapDirectCategoryLayers` als Defense für raw-items-Pfad.
+- Guardrail: Direkt-Layer (Strings) in Kategorie/Subcategory NIE als Objekt-Key serialisieren (Kollision mit gleichnamiger Gruppe) und in Baum-Buildern NIE String-Items überspringen — immer in Ein-Layer-Gruppe (hideHeader) kapseln oder als Array-Eintrag behalten.
+
+## 2026-07-02 - Loader: UMD-Script (JSON5) per globalem `define=undefined` zerstoert Dojo-AMD
 
 - Symptom: Nach Einbau von `tnet-loader.js` in Edit hunderte `Uncaught TypeError: define is not a function` (TabContainer, Button, Dialog ...); Karte lud nicht, nur Spinner.
 - Root-Cause: `loadScriptNoAmd()` setzte `window.define = undefined` waehrend des JSON5-Script-Loads. Dojo laedt seine ~50 Widget-Module ASYNCHRON per injiziertem Script-Tag — alle Module, die genau in diesem Zeitfenster ausgefuehrt wurden, riefen `define()` auf → Fehler; Framework-Start zerstoert.
