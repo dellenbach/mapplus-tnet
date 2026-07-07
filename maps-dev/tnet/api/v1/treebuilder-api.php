@@ -751,6 +751,24 @@ function loadLyrmgrConf($profile, $forceFile = false) {
     ];
 }
 
+/**
+ * Leert den serverseitigen JSON-API-Cache (layers.php-Responses) nach einem
+ * Publish. Ohne diesen Clear liefert layers.php bei aktivem JSON-Cache bis zum
+ * TTL-Ablauf die alte Struktur/Reihenfolge -> Publishes greifen verzoegert.
+ *
+ * @return int Anzahl geloeschter Cache-Dateien
+ */
+function clearLayersApiCache() {
+    try {
+        require_once __DIR__ . '/../includes/JsonCache.php';
+        $cache = new JsonCache();
+        return (int)$cache->clear();
+    } catch (\Throwable $e) {
+        error_log('clearLayersApiCache: ' . $e->getMessage());
+        return 0;
+    }
+}
+
 function publishLyrmgrBlock($profile, $lyrmgrKey, $blockData, $editor) {
     require_once __DIR__ . '/../includes/ConfigSource.php';
 
@@ -838,6 +856,9 @@ function publishLyrmgrBlock($profile, $lyrmgrKey, $blockData, $editor) {
     } else {
         $result['source'] = 'file';
     }
+
+    // API-Cache leeren, damit die neue Struktur/Reihenfolge sofort greift.
+    $result['cacheCleared'] = clearLayersApiCache();
 
     return $result;
 }
@@ -6921,7 +6942,9 @@ switch ($action) {
         if (@file_put_contents($path, json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) !== false) {
             $written['file'] = true;
         }
-        jsonResponse(['success' => ($written['db'] || $written['file']), 'profile' => $tenant, 'written' => $written, 'unchanged' => $unchanged, 'path' => toSftpPath($path), 'blocks' => count($payload)]);
+        // API-Cache leeren, damit die neue Struktur/Reihenfolge sofort greift.
+        $cacheCleared = clearLayersApiCache();
+        jsonResponse(['success' => ($written['db'] || $written['file']), 'profile' => $tenant, 'written' => $written, 'unchanged' => $unchanged, 'path' => toSftpPath($path), 'blocks' => count($payload), 'cacheCleared' => $cacheCleared]);
         break;
 
     case 'shared-unlock':
