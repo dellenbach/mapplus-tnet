@@ -1,4 +1,32 @@
-﻿## 2026-07-06 - Themenkatalog autark: Store schaltet alle Layer selbst (inkl. arcgisRest)
+﻿## 2026-07-07 - Mapplus-Print: Originaldruck bricht, wenn der äussere Dojo-Container durch details ersetzt wird
+
+- Symptom: Im `mapplus`-Mode war zwar ein Rahmen sichtbar, aber nicht der originale verschieb-/drehbare Mapplus-Druckrahmen.
+- Root-Cause: In `maps-dev/public/index_de.htm` war `tp_print_menu` nicht mehr das originale Dojo-`TitlePane`, sondern ein natives `details`-Accordion. Der Legacy-Print hängt an der Dojo-Widget-Lifecycle-/Open-Logik; dadurch lief nur noch die Brücke/Fallback-Logik statt der unveränderte Originalpfad.
+- Fix: `tp_print_menu` wieder auf das originale `dijit/TitlePane` zurückgestellt und die Bridge auf das Öffnen des äusseren Legacy-Widgets gebunden.
+- Guardrail: Legacy-Mapplus-Tools, die Dojo-Widgets initial erwarten, nicht in native Accordion-Wrapper umbetten. Für `provider='mapplus'` den originalen Widgetbaum möglichst 1:1 beibehalten.
+
+## 2026-07-06 - Mapplus-Print: Rahmen zu klein und Fachlayer-Fallback zu kurzlebig
+
+- Symptom: Im `mapplus`-Mode war der Druckrahmen trotz erzeugtem `pdfExtent_printpdf1`-Feature praktisch nicht sichtbar; PDF-Print konnte weiterhin ohne Fachlayer laufen.
+- Root-Cause: Der Legacy-Print startete mit Massstab `100`, wodurch der Rahmen im aktuellen Kartenausschnitt winzig war. Der Fallback für `njs.AppManager.getVisibleLayersByMap(...)` war zudem nur während des direkten `getPDF`-Aufrufs aktiv, während der Mapplus-PDF-Code asynchron weiterarbeitet.
+- Fix: In `maps-dev/tnet/js/tnet-print-legacy-bridge.js` beim Öffnen des Mapplus-Prints einen sichtbaren Default-Massstab setzen und den TNET-Active-Layer-Fallback provider-gated dauerhaft installieren.
+- Guardrail: Bei Legacy-Print-Bridges nicht nur prüfen, ob ein Frame-Feature existiert, sondern auch dessen Extent/Massstab. Fallbacks für asynchronen Legacy-Code dürfen nicht nur synchron um einen Methodenaufruf herum leben.
+
+## 2026-07-07 - Tree-Builder: Gruppen-Reihenfolge in API/Themenkatalog abweichend (JSONB)
+
+- Symptom: Reihenfolge der Gruppen (items) im Themenkatalog/API wich von der verbindlichen Tree-Builder-Reihenfolge ab (z.B. unter ÖREB: BELASTETE STANDORTE, WALD, LÄRM, WASSER … statt RAUMPLANUNG, STRASSEN, …). Kategorie-Reihenfolge war korrekt.
+- Root-Cause: `generateLyrmgrConfBlock` serialisierte `structure` (Kategorien) als geordnetes Array, `items` (Gruppen) aber je nach `_rawBlock` teils als OBJEKT. PostgreSQL JSONB bewahrt Objekt-Key-Reihenfolge NICHT (Sortierung nach Key-Länge/bytewise) — exakt das beobachtete Muster (oereb_kbs(9) < oereb_wald(10) < oereb_laerm(11) …). structure blieb korrekt, weil bereits Array.
+- Fix: In `maps-dev/tnet/api/v1/tree-builder-v2.html` `usesArrayFormat` in `generateLyrmgrConfBlock` fest auf `true` — `items` werden immer als Array `[{name,…,items}]` serialisiert (wie structure). renderTree() und generateLyrmgrConfBlock() teilen dieselbe interne Struktur, daher entspricht die persistierte Reihenfolge der Anzeige. Danach einmal neu publizieren, damit die DB die items von Objekt auf Array umschreibt.
+- Guardrail: Alles, was reihenfolge-relevant in JSONB landet, MUSS als Array gespeichert werden — niemals als Objekt mit bedeutungstragender Key-Reihenfolge. Bei Reihenfolge-Bugs zuerst prüfen, ob eine Ebene als Objekt statt Array serialisiert wird.
+
+## 2026-07-06 - Tree-Builder JSON: Edit-Button sichtbar, aber in Shared-Vorschau nicht nutzbar
+
+- Symptom: Der neue `✏ Editieren`-Button war sichtbar, JSON blieb aber trotzdem schreibgeschützt (kein Tippen möglich).
+- Root-Cause: In Shared-Mode zeigte der Editor oft die abgeleitete Mandantenansicht (`tenant != __shared__`), die bewusst readOnly ist; der Button blockierte dort nur mit Hinweis statt den Bearbeitungs-Kontext zu wechseln.
+- Fix: In `maps-dev/tnet/api/v1/tree-builder-v2.html` den Button in der abgeleiteten Ansicht klickbar belassen und bei Klick automatisch auf `__shared__` (Master) umschalten, Editiermodus aktivieren und Fokus setzen.
+- Guardrail: Bei expliziten Edit-Buttons immer den Ziel-Kontext herstellen (hier: Master statt Derived-Preview) statt nur readOnly zu melden; sonst wirkt die UI defekt.
+
+## 2026-07-06 - Themenkatalog autark: Store schaltet alle Layer selbst (inkl. arcgisRest)
 
 - Symptom: API-getriebener Themenkatalog zeigt Layer korrekt, aber neu (nur in DB) hinzugefuegte Layer liessen sich nicht auf die Karte schalten: `TnetLayerSwitch: LyrMgr nicht verfuegbar`. Betroffen v.a. arcgisRest.
 - Root-Cause: Katalog-Anzeige kommt aus layers.php (source=db, catalog-db) und liefert bereits ALLE Layer-Felder (url, layerType, params, opacity, options, maptips). Das SCHALTEN haengt aber am Legacy-ClassicLayerMgr (conf-basiert). Der Store-eigene Direktlade-Fallback im Helper deckte nur WMS ab (`layerType !== 'arcgisRest'`) — fuer arcgisRest gab es keinen Store-Pfad.
@@ -18,6 +46,20 @@
 - Root-Cause: Der Legacy-Save-State-Zweig in `setPrintFrame` setzt eine gültige View-Projektion voraus (`getProjection().getCode()`); bei Null-Projektion bricht die Rahmenerzeugung ab und der Extent-Layer bleibt ohne Features.
 - Fix: In `maps-dev/tnet/js/tnet-print.js` Runtime-Kompatibilitäts-Patch für `njs.Tools.PrintScaledMap.prototype.setPrintFrame` ergänzt: Bei Projection-Crash einmaliger Fallback mit `save_state=false`, damit der Rahmen trotzdem gezeichnet wird.
 - Guardrail: Bei Legacy-Tools auf externer Framework-Basis Fehlerpfade defensiv patchen (Prototype-Wrapper) statt fremde Library-Dateien direkt zu ändern; Fallback nur für klar erkennbare Fehlersignaturen aktivieren.
+
+## 2026-07-06 - Mapplus-Print: Fachlayer fehlten im PDF + Print-Accordion öffnete beim Start
+
+- Symptom: Im `mapplus`-Mode wurden im Legacy-Print nur Baselayer gedruckt (keine Fachlayer), und das Druck-Accordion war beim App-Start bereits geöffnet.
+- Root-Cause: Legacy-Print baut die Layerliste über `njs.AppManager.getVisibleLayersByMap(...)`; diese war bei TNET-Store-aktiven Layern leer (`count=0`), obwohl `TnetLMStore.getActiveLayers()` Einträge hatte. Zusätzlich öffnete die Legacy-Bridge das Print-Panel beim Init automatisch.
+- Fix: In `maps-dev/tnet/js/tnet-print.js` `getPDF/getPredefinedPDF` per Wrapper mit Fallback auf TNET-Active-Layer ergänzt, falls Legacy-Layerliste leer ist. Legacy-Frame-Aktivierung auf Benutzerinteraktion umgestellt (`toggle/watch` auf Print-Panels) statt Auto-Open beim Start.
+- Guardrail: Legacy-Print-Pfade, die auf Framework-Layerlisten basieren, brauchen bei TNET-Store-Betrieb einen Fallback auf `TnetLMStore.getActiveLayers()`. UI-Bridges dürfen Panels beim Init nicht ungefragt öffnen; Aktivierung nur bei expliziter Benutzeraktion.
+
+## 2026-07-06 - Printing-Provider: Mapplus darf nicht das volle TNET-Printsystem laden
+
+- Symptom: `provider='mapplus'` wurde zuerst innerhalb von `tnet-print.js` behandelt; dadurch war weiterhin das volle TNET-Printsystem im Spiel, obwohl nur der originale Mapplus-Print gewünscht war.
+- Root-Cause: Die HTML-Seite lud `tnet-print.js` direkt, bevor der zentrale JSON5-Provider ausgewertet wurde. Dadurch konnte der Provider nicht entscheiden, welches Printsystem überhaupt geladen werden soll.
+- Fix: `tnet-print-loader.js` als provider-aware Loader eingeführt. Bei `provider='tnet'` lädt er `tnet-print.js`; bei `provider='mapplus'` nur `tnet-print-legacy-bridge.js`; bei `provider='none'` wird kein Printsystem geladen. Die Bridge patcht nur den originalen Mapplus-Print (Rahmen-Fallback + TNET-Fachlayerliste für PDF).
+- Guardrail: Bei Feature-Provider-Schaltern die Entscheidung vor dem Laden schwerer Module treffen. Legacy-Kompatibilität in kleine Bridges auslagern statt Legacy- und neue UI-Logik in einem grossen Modul zu vermischen.
 
 ## 2026-07-06 - Flat-Layer: njs-Framework crasht bei nacktem String auf Kategorie-Ebene
 
