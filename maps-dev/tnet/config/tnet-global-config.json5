@@ -568,7 +568,7 @@
     //   'tnet'    = neues TNET-Printing (Standard)
     //   'mapplus' = Legacy-Mapplus-Printing
     //   'none'    = Drucken komplett deaktivieren
-    provider: 'mapplus',
+    provider: 'tnet',
     // Anzahl Tage, nach denen archivierte PDFs gelöscht werden
     pdfRetentionDays: 1,
     // Automatisch Zoom anpassen beim Öffnen des Druckpanels
@@ -600,7 +600,7 @@
     // Bildformat für Kartenbild im PDF:
     //   'image/jpeg' = kleinere Datei (Standard)
     //   'image/png'  = verlustfrei, transparente Bereiche bleiben weiss
-    imageFormat: 'image/jpeg',
+    imageFormat: 'image/png',
     // ── Debug-Optionen ──
     // Erweiterte Konsolenausgaben (Massstab, DPI, Pixel, Extent etc.)
     debug: false,

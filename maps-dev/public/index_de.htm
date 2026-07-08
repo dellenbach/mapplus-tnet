@@ -267,7 +267,61 @@
     </script>
     <?php print $set_vars?>
 
+    <script>
+    (function prepareOriginalMapplusPrintModeBeforeInit() {
+        function applyOriginalPrintToolMode() {
+            var tool = window.njs && njs.config && njs.config.tools && njs.config.tools.main && njs.config.tools.main.PrintScaledMap;
+            if (!tool) return false;
+
+            tool.tool_button = true;
+            tool.tool_container = 'njs_main_print_wrapper';
+            tool.printHighlight = true;
+            tool.gridOption = true;
+            tool.angleOption = true;
+            tool.saveStateOption = true;
+            tool.dialog_opts = { left: '22', top: '105', width: '400', height: '150' };
+            return true;
+        }
+
+        if (window.__tnetDesiredPrintProvider === 'mapplus') {
+            applyOriginalPrintToolMode();
+
+            if (window.njs && njs.AppManager && typeof njs.AppManager.initApp === 'function' && !window.__tnetOriginalMapplusInitWrapped) {
+                var originalInitApp = njs.AppManager.initApp;
+                njs.AppManager.initApp = function () {
+                    applyOriginalPrintToolMode();
+                    return originalInitApp.apply(this, arguments);
+                };
+                window.__tnetOriginalMapplusInitWrapped = true;
+            }
+        }
+    })();
+    </script>
+
     <script type="text/javascript" src="tnet/js/tnet-elevation-guard.js?v=20260617b"></script>
+
+    <script>
+    (function installEarlyMapplusPrintMode() {
+        function detectPrintProvider() {
+            try {
+                var xhr = new XMLHttpRequest();
+                xhr.open('GET', 'tnet/config/tnet-global-config.json5?v=20260707a', false);
+                xhr.send(null);
+                if (xhr.status < 200 || xhr.status >= 300 || !xhr.responseText) return null;
+
+                var text = String(xhr.responseText)
+                    .replace(/\/\*[\s\S]*?\*\//g, '')
+                    .replace(/(^|[^:])\/\/.*$/gm, '$1');
+                var printMatch = text.match(/print\s*:\s*\{[\s\S]*?provider\s*:\s*['\"]([^'\"]+)['\"]/i);
+                return printMatch ? String(printMatch[1]).toLowerCase() : null;
+            } catch (e) {
+                return null;
+            }
+        }
+
+        window.__tnetDesiredPrintProvider = detectPrintProvider();
+    })();
+    </script>
 
 
     <!-- dojo modules and startup config-->
@@ -519,15 +573,13 @@
             </details>
 
             <!-- DRUCKEN (Legacy Mapplus) -->
-            <details id="tp_print_menu" class="tnet-panel" style="display:none">
-                <summary class="tnet-panel-title">Drucken</summary>
-                <div class="tnet-panel-content">
-                    <div id="print_menu" data-dojo-type="dijit/TitlePane"
-                        data-dojo-props="title: 'Ausdruck massstäblich', open:true">
-                        <div id="njs_print_wrapper" style="width: 100%; height:100%; border:0"></div>
-                    </div>
+            <div id="tp_print_menu" data-dojo-type="dijit/TitlePane"
+                data-dojo-props="title: 'Drucken', open:false" style="display:none">
+                <div id="print_menu" data-dojo-type="dijit/TitlePane"
+                    data-dojo-props="title: 'Ausdruck massstäblich', open:true">
+                    <div id="njs_print_wrapper" style="width: 100%; height:100%; border:0"></div>
                 </div>
-            </details>
+            </div>
 
             <!-- NEU: TNET Drucken / Export -->
             <details id="tp_tnet_print_menu" class="tnet-panel">
@@ -770,9 +822,9 @@
     <!-- TNET Info-Bridge: Zentraler singleclick-Dispatcher für MapTips/GFI -->
     <script src="tnet/js/tnet-info-bridge.js?v=20260618l"></script>
 
-    <!-- Drucken / PDF-Export (Libraries werden dynamisch in tnet-print.js geladen) -->
+    <!-- Drucken / PDF-Export (Provider-Auswahl via tnet-global-config.json5) -->
     <!-- tnet-print.css: jetzt in tnet.bundle.css -->
-    <script src="tnet/js/tnet-print.js"></script>
+    <script src="tnet/js/tnet-print-loader.js?v=20260707a"></script>
 
     <!-- Desktop-Suche: search-proxy.php (Layer + Geocoder) -->
     <script defer src="tnet/js/tnet-search.js?v=20260703a"></script>
