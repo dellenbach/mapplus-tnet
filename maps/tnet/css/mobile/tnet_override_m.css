@@ -1,6 +1,6 @@
-/*
+﻿/*
  * tnet_override_m.css
- * TNET Mobile Master-CSS für index_de_m.htm
+ * TNET Mobile Master-CSS fÃ¼r index_de_m.htm
  * Drawer-Navigation, Top-Bar, Touch-optimierte Basemaps, Bottom-Sheet
  *
  * @version    1.0
@@ -33,7 +33,7 @@
    Base / Reset
    ======================================== */
 
-/* Globales box-sizing für konsistente Breiten */
+/* Globales box-sizing fÃ¼r konsistente Breiten */
 *, *::before, *::after {
     box-sizing: border-box;
 }
@@ -117,7 +117,7 @@ body .ol-control {
     display: none !important;
 }
 
-/* body div[class^="btn"] aus style_m.css neutralisieren – 
+/* body div[class^="btn"] aus style_m.css neutralisieren â€“ 
    verhindert, dass Framework-Buttons wild auf der Karte erscheinen.
    Die btn*-Elemente sitzen in .mainButtonAll / #mainButtonBar (beide display:none),
    als Fallback trotzdem die Button-Styles resetten */
@@ -161,7 +161,7 @@ body .ol-control {
     display: block;
 }
 
-/* Suchfeld in Top-Bar – style_m.css & override.css komplett neutralisieren */
+/* Suchfeld in Top-Bar â€“ style_m.css & override.css komplett neutralisieren */
 #njs_search_wrapper,
 body div#njs_search_wrapper {
     position: static !important;
@@ -186,7 +186,7 @@ body div#njs_search_wrapper {
     align-items: center !important;
 }
 
-/* #search_container – vom MapPlus-Framework in #njs_search_wrapper gerendert */
+/* #search_container â€“ vom MapPlus-Framework in #njs_search_wrapper gerendert */
 #search_container,
 div#search_container,
 #njs_search_wrapper #search_container {
@@ -297,7 +297,7 @@ div#search_container:focus-within {
     border: none !important;
     background: transparent !important;
     border-radius: 50% !important;
-    /* Sauberes X-Icon (dünne Linien) */
+    /* Sauberes X-Icon (dÃ¼nne Linien) */
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round'%3E%3Cline x1='7' y1='7' x2='17' y2='17'/%3E%3Cline x1='17' y1='7' x2='7' y2='17'/%3E%3C/svg%3E") !important;
     background-size: 18px 18px !important;
     background-position: center !important;
@@ -327,7 +327,7 @@ div#search_container:focus-within {
     display: none !important;
 }
 
-/* Autocomplete Dropdown – Mobile-optimiert */
+/* Autocomplete Dropdown â€“ Mobile-optimiert */
 .dijitComboBoxMenu,
 .dijitPopup {
     max-width: calc(100vw - 16px) !important;
@@ -550,7 +550,7 @@ div#search_container:focus-within {
     font-size: 14px;
 }
 
-/* Standardmässig zeigen Browser ein X in <input type="search"> */
+/* StandardmÃ¤ssig zeigen Browser ein X in <input type="search"> */
 #m-search-input::-webkit-search-cancel-button,
 #m-search-input::-webkit-search-decoration {
     -webkit-appearance: none;
@@ -709,7 +709,7 @@ div#search_container:focus-within {
 }
 
 /* ========================================
-   Overlay (Backdrop für Drawer)
+   Overlay (Backdrop fÃ¼r Drawer)
    ======================================== */
 #m-drawer-overlay {
     position: fixed;
@@ -922,7 +922,7 @@ div#search_container:focus-within {
 /* ========================================
    Themenkatalog: #kantons_container im Drawer
    tnet_toc.css setzt height:100% + overflow:hidden
-   → im Scroll-Drawer bricht das Layout.
+   â†’ im Scroll-Drawer bricht das Layout.
    ======================================== */
 #m-drawer #kantons_container {
     height: auto !important;
@@ -958,7 +958,7 @@ div#search_container:focus-within {
     max-height: none !important;
 }
 
-/* TitlePane-Header in Tabs ausblenden (nötig auch im Drawer) */
+/* TitlePane-Header in Tabs ausblenden (nÃ¶tig auch im Drawer) */
 #m-drawer #kantons_container > .dijitTitlePane.active-tab > .dijitTitlePaneTitle {
     display: none !important;
 }
@@ -992,7 +992,7 @@ div#search_container:focus-within {
     padding: 8px !important;
 }
 
-/* TitlePanes im Drawer (Layerkatalog) – Accordion-ähnlich */
+/* TitlePanes im Drawer (Layerkatalog) â€“ Accordion-Ã¤hnlich */
 .m-sub-panel .dijitTitlePane {
     margin: 0 !important;
     border: none !important;
@@ -1036,7 +1036,7 @@ div#search_container:focus-within {
     padding: 4px 8px !important;
 }
 
-/* Layer-Manager innerhalb TitlePanes – Touch-optimiert */
+/* Layer-Manager innerhalb TitlePanes â€“ Touch-optimiert */
 .m-sub-panel .lyrmgr_group {
     padding: 4px 0 !important;
 }
@@ -1062,7 +1062,7 @@ div#search_container:focus-within {
     margin-right: 8px !important;
 }
 
-/* Tabs2Accordion Headers im Drawer – Touch-freundlich */
+/* Tabs2Accordion Headers im Drawer â€“ Touch-freundlich */
 #m-drawer .tabs2acc-header {
     min-height: var(--m-touch-target) !important;
     padding: 8px 12px !important;
@@ -1087,12 +1087,12 @@ div#search_container:focus-within {
     border: none !important;
 }
 
-/* Basemap im Drawer → jetzt via Bottom-Sheet */
+/* Basemap im Drawer â†’ jetzt via Bottom-Sheet */
 
 
 /* ========================================
-   BASEMAP — Selbstständige Basis-Stile
-   (aus override.css übernommen, unabhängig
+   BASEMAP â€” SelbststÃ¤ndige Basis-Stile
+   (aus override.css Ã¼bernommen, unabhÃ¤ngig
     von Desktop-CSS)
    ======================================== */
 
@@ -1125,7 +1125,7 @@ div#search_container:focus-within {
 #basemap_selector .basemap-preview {
     width: 100%;
     height: 100%;
-    background-image: url('/maps/tnet/resources/images/basemap-preview-grey.png');
+    background-image: url('../../resources/images/basemap-preview-grey.png');
     background-size: cover;
     background-position: center;
     background-color: #b6c6cb;
@@ -1192,11 +1192,11 @@ div#search_container:focus-within {
 /* --- Preview-Varianten (Hintergrundbilder) --- */
 .basemap-card-preview.orthofoto,
 .basemap-preview.orthofoto {
-    background: url('/maps/tnet/resources/preview-swissimage.png') center/cover no-repeat;
+    background: url('../../resources/preview-swissimage.png') center/cover no-repeat;
 }
 .basemap-card-preview.basisplan,
 .basemap-preview.basisplan {
-    background: #e8e8e8 url('/maps/tnet/resources/images/basemap-preview-grey.png') center/cover no-repeat;
+    background: #e8e8e8 url('../../resources/images/basemap-preview-grey.png') center/cover no-repeat;
 }
 .basemap-card-preview.grundbuch,
 .basemap-preview.grundbuch {
@@ -1204,15 +1204,15 @@ div#search_container:focus-within {
 }
 .basemap-card-preview.landeskarte,
 .basemap-preview.landeskarte {
-    background: url('/maps/tnet/resources/preview-landeskarte.png') center/cover no-repeat;
+    background: url('../../resources/preview-landeskarte.png') center/cover no-repeat;
 }
 .basemap-card-preview.siegfried,
 .basemap-preview.siegfried {
-    background: url('/maps/tnet/resources/preview-siegfried.png') center/cover no-repeat;
+    background: url('../../resources/preview-siegfried.png') center/cover no-repeat;
 }
 .basemap-card-preview.dufour,
 .basemap-preview.dufour {
-    background: url('/maps/tnet/resources/preview-dufour.png') center/cover no-repeat;
+    background: url('../../resources/preview-dufour.png') center/cover no-repeat;
 }
 .basemap-card-preview.transparent,
 .basemap-preview.transparent {
@@ -1225,11 +1225,11 @@ div#search_container:focus-within {
 }
 .basemap-card-preview.osm,
 .basemap-preview.osm {
-    background: url('/maps/tnet/resources/preview-osm.png') center/cover no-repeat;
+    background: url('../../resources/preview-osm.png') center/cover no-repeat;
 }
 .basemap-card-preview.swisstlm,
 .basemap-preview.swisstlm {
-    background: url('/maps/tnet/resources/preview-swisstlm.png') center/cover no-repeat;
+    background: url('../../resources/preview-swisstlm.png') center/cover no-repeat;
 }
 
 .basemap-card-label {
@@ -1277,7 +1277,7 @@ div#search_container:focus-within {
     margin-bottom: 2px;
 }
 
-/* --- Layer-Toggles (Höhenkurven, Projektebene, etc.) --- */
+/* --- Layer-Toggles (HÃ¶henkurven, Projektebene, etc.) --- */
 .basemap-layer-section {
     margin-bottom: 10px;
 }
@@ -1551,7 +1551,7 @@ div#search_container:focus-within {
     padding: 10px 0 6px;
     cursor: grab;
     flex-shrink: 0;
-    touch-action: none;  /* eigener Touch-Handler — kein pan hier */
+    touch-action: none;  /* eigener Touch-Handler â€” kein pan hier */
     user-select: none;
     -webkit-user-select: none;
 }
@@ -1637,7 +1637,7 @@ div#search_container:focus-within {
     min-height: 0 !important;
 }
 
-/* FALLBACK: Wenn noch kein active-tab gesetzt → NW-Pane (ersten) anzeigen */
+/* FALLBACK: Wenn noch kein active-tab gesetzt â†’ NW-Pane (ersten) anzeigen */
 #m-layers-sheet #kantons_container:not(:has(.active-tab)) > #tp_layer_menu {
     display: block !important;
 }
@@ -1760,7 +1760,7 @@ div#search_container:focus-within {
     display: none !important;
 }
 
-/* Print-Sheet Drag-Handle (eingefügt von tnet_modules_m.js) */
+/* Print-Sheet Drag-Handle (eingefÃ¼gt von tnet_modules_m.js) */
 #print-panel > .m-sheet-handle {
     position: relative !important;
     z-index: 10 !important;
@@ -2022,7 +2022,7 @@ div#search_container:focus-within {
     height: 0 !important;
 }
 
-/* style_m.css setzt #map auf 100dvh x 100dvw → überschreiben auf 100% */
+/* style_m.css setzt #map auf 100dvh x 100dvw â†’ Ã¼berschreiben auf 100% */
 #map {
     position: absolute !important;
     top: 0 !important;
@@ -2033,13 +2033,13 @@ div#search_container:focus-within {
     margin: 0 !important;
 }
 
-/* Center cross aus style_m.css: 100dvh/dvw → 100% */
+/* Center cross aus style_m.css: 100dvh/dvw â†’ 100% */
 #map::before {
     width: 100% !important;
     height: 100% !important;
 }
 
-/* OL Controls – Touch-Targets vergrössern */
+/* OL Controls â€“ Touch-Targets vergrÃ¶ssern */
 .ol-control button {
     width: var(--m-touch-target) !important;
     height: var(--m-touch-target) !important;
@@ -2055,7 +2055,7 @@ div#search_container:focus-within {
     font-size: 10px !important;
 }
 
-/* Koordinaten auf Karte (Mobile) – style_m.css top:2.6rem überschreiben */
+/* Koordinaten auf Karte (Mobile) â€“ style_m.css top:2.6rem Ã¼berschreiben */
 #njs_coordinates_wrapper {
     position: absolute !important;
     top: auto !important;
@@ -2080,7 +2080,7 @@ div#search_container:focus-within {
 }
 
 /* ========================================
-   ÖREB Button auf Karte
+   Ã–REB Button auf Karte
    ======================================== */
 #oereb-tool-btn {
     position: absolute !important;
@@ -2098,7 +2098,7 @@ div#search_container:focus-within {
 }
 
 /* ========================================
-   ÖREB Dock-Panel als Bottom-Sheet
+   Ã–REB Dock-Panel als Bottom-Sheet
    ======================================== */
 #oereb-dock-panel {
     position: fixed !important;
@@ -2132,7 +2132,7 @@ div#search_container:focus-within {
     display: none !important;
 }
 
-/* ÖREB-Sheet Handle */
+/* Ã–REB-Sheet Handle */
 #oereb-dock-panel > .oereb-sheet-handle {
     display: flex;
     justify-content: center;
@@ -2201,7 +2201,7 @@ div#search_container:focus-within {
     display: none !important;
 }
 
-/* iframe füllt den Rest */
+/* iframe fÃ¼llt den Rest */
 #oereb-dock-panel .oereb-iframe-container {
     flex: 1 !important;
     min-height: 0 !important;
@@ -2216,13 +2216,13 @@ div#search_container:focus-within {
     display: block !important;
 }
 
-/* Resize-Handles ausblenden (nicht nötig auf Mobile) */
+/* Resize-Handles ausblenden (nicht nÃ¶tig auf Mobile) */
 #oereb-dock-panel [class*="oereb-resize"] {
     display: none !important;
 }
 
 /* Kein Backdrop auf Mobile: Karte muss
-   im ÖREB-Modus klickbar bleiben */
+   im Ã–REB-Modus klickbar bleiben */
 
 /* ========================================
    custompaneContainer als Bottom-Sheet
@@ -2300,7 +2300,7 @@ div#search_container:focus-within {
     display: none !important;
 }
 
-/* Dojo FloatingPane Steuer-Icons (Minimize/Maximize/Restore/Close) ausblenden –
+/* Dojo FloatingPane Steuer-Icons (Minimize/Maximize/Restore/Close) ausblenden â€“
    auf Mobile nicht verwendbar; wir haben eigene Buttons im Titel-Bar */
 #njs_info_pane .dojoxFloatingPaneIconize,
 #njs_info_pane .dojoxFloatingPaneMaximize,
@@ -2315,9 +2315,9 @@ div#search_container:focus-within {
     order: 99 !important; /* Fallback: ans Ende des Flex-Containers schieben */
 }
 
-/* Dojo-Titelbar: Layout-Container für unseren Inhalt.
-   Wir leeren ihn per JS und befüllen ihn neu — so bleibt Dojos
-   offsetHeight-Berechnung für die contentInfo intakt. */
+/* Dojo-Titelbar: Layout-Container fÃ¼r unseren Inhalt.
+   Wir leeren ihn per JS und befÃ¼llen ihn neu â€” so bleibt Dojos
+   offsetHeight-Berechnung fÃ¼r die contentInfo intakt. */
 #njs_info_pane .dojoxFloatingPaneTitle {
     display: flex !important;
     align-items: center !important;
@@ -2390,7 +2390,7 @@ div#search_container:focus-within {
     margin-left: 2px !important;
 }
 
-/* Flex-Layout: Handle → Titel-Bar → scrollbarer Content */
+/* Flex-Layout: Handle â†’ Titel-Bar â†’ scrollbarer Content */
 #njs_info_pane {
     display: flex !important;
     flex-direction: column !important;
@@ -2451,7 +2451,7 @@ div#search_container:focus-within {
     border-left: 3px solid transparent !important;
 }
 
-/* Tabellen-Layout für Attributdaten – keine Schatten */
+/* Tabellen-Layout fÃ¼r Attributdaten â€“ keine Schatten */
 #njs_info_pane table {
     width: 100% !important;
     font-size: 14px !important;
@@ -2491,14 +2491,14 @@ div#search_container:focus-within {
     font-weight: 400 !important;
     padding-right: 16px !important;
 }
-/* Wrapper um Tabelle — kein overflow-Schatten */
+/* Wrapper um Tabelle â€” kein overflow-Schatten */
 #njs_info_pane .dojoxFloatingPaneContentInfo * {
     box-shadow: none !important;
     outline: none !important;
 }
 
 /* ========================================
-   Maps Info Dialog – Fullscreen auf Mobile
+   Maps Info Dialog â€“ Fullscreen auf Mobile
    ======================================== */
 #mapsInfoDialog {
     width: 100vw !important;
@@ -2522,7 +2522,7 @@ div#search_container:focus-within {
 }
 
 /* ========================================
-   3D Landscape – Vertikaler Split auf Mobile
+   3D Landscape â€“ Vertikaler Split auf Mobile
    ======================================== */
 .landscape-3d-container {
     width: 100vw !important;
@@ -2564,7 +2564,7 @@ div#search_container:focus-within {
 }
 
 /* ========================================
-   Print Dialog – Mobile-Anpassungen
+   Print Dialog â€“ Mobile-Anpassungen
    ======================================== */
 .tnet-print-dialog {
     width: 100vw !important;
@@ -2604,7 +2604,7 @@ div#search_container:focus-within {
     max-width: 320px;
     height: auto;
     aspect-ratio: 228.55 / 174.96;
-    background-image: url(/maps/tnet/resources/Logo-GIS-Daten-AG.svg);
+    background-image: url(../../resources/Logo-GIS-Daten-AG.svg);
     background-position: center;
     background-repeat: no-repeat;
     background-size: contain;
@@ -2615,9 +2615,9 @@ div#search_container:focus-within {
 /* Splash-Cube auf Mobile (0.8x)
    Positioniert auf dem "I" von GIS.
    I-Oberkante = 31.35% von Logo-Top.
-   Logo-Height = 68vw × 0.7655 ≈ 52vw (max ~245px bei max-width:320px).
-   margin-top = -(68.65% × logo-height + cube-size)
-   = -(35.8vw + 36px), clamp bei -200px für Tablets. */
+   Logo-Height = 68vw Ã— 0.7655 â‰ˆ 52vw (max ~245px bei max-width:320px).
+   margin-top = -(68.65% Ã— logo-height + cube-size)
+   = -(35.8vw + 36px), clamp bei -200px fÃ¼r Tablets. */
 #splash-cube-container {
     --cube-size: 36px;
     --cube-half: 18px;
@@ -2667,18 +2667,18 @@ div#search_container:focus-within {
     transform-origin: unset !important;
 }
 
-/* TitlePane Headers grösser für Touch */
+/* TitlePane Headers grÃ¶sser fÃ¼r Touch */
 .dijitTitlePaneTitle {
     min-height: var(--m-touch-target) !important;
     font-size: 14px !important;
 }
 
-/* Dialog (Dojo) – Mobile-freundlich */
+/* Dialog (Dojo) â€“ Mobile-freundlich */
 .dijitDialog {
     max-width: 95vw !important;
 }
 
-/* Scrollbar dünn auf Mobile */
+/* Scrollbar dÃ¼nn auf Mobile */
 .m-drawer-content::-webkit-scrollbar {
     width: 3px;
 }
@@ -2717,7 +2717,7 @@ div#search_container:focus-within {
 }
 
 /* ========================================
-   Safe-Area für Geräte mit Notch
+   Safe-Area fÃ¼r GerÃ¤te mit Notch
    ======================================== */
 @supports (padding-top: env(safe-area-inset-top)) {
     #m-topbar {
@@ -2766,7 +2766,7 @@ div#search_container:focus-within {
     cursor: pointer;
     pointer-events: auto;
     transition: opacity 0.25s ease;
-    /* Nicht-rotiert → dezent */
+    /* Nicht-rotiert â†’ dezent */
     opacity: 0.5;
 }
 #m-north-arrow.rotated {

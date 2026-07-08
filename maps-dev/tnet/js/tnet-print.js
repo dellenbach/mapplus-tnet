@@ -56,6 +56,7 @@
   var _inlineMode = false;          // true = Panel im Sidebar-Akkordeon (tp_tnet_print_menu)
   var _printResizeObserver = null;
   var _printProvider = 'tnet';      // 'tnet' | 'mapplus' | 'none'
+  var _legacyPrintHandlersBound = false;
   var _printCenter = null;           // Druckrahmen-Mittelpunkt in Kartenkoordinaten (unabhängig vom View-Center)
   // Inline-PDF-Unterstützung des Browsers (navigator.pdfViewerEnabled: Chrome/Edge 94+, Firefox 98+)
   var _pdfInlineSupported = !!navigator.pdfViewerEnabled;
@@ -291,6 +292,106 @@
     setTimeout(tryActivate, 50);
   }
 
+  function buildLegacyVisibleLayersFallback() {
+    var fallback = {};
+    if (!(window.TnetLMStore && typeof TnetLMStore.getActiveLayers === 'function')) return fallback;
+
+    var active = TnetLMStore.getActiveLayers() || [];
+    for (var i = 0; i < active.length; i++) {
+      var a = active[i] || {};
+      if (!a.id) continue;
+
+      var node = (typeof TnetLMStore.findLayer === 'function') ? TnetLMStore.findLayer(a.id) : null;
+      var nodeOpts = (node && node.options) ? node.options : {};
+      var opacity = (typeof a.opacity === 'number')
+        ? a.opacity
+        : ((typeof nodeOpts.opacity === 'number') ? nodeOpts.opacity : 1);
+
+      fallback['tnet_' + i] = {
+        id: a.id,
+        opacity: opacity,
+        widget: null,
+        _lyr: {
+          url: nodeOpts.url || a.url || ''
+        }
+      };
+    }
+
+    return fallback;
+  }
+
+  function withLegacyVisibleLayersFallback(fn) {
+    if (!(window.njs && njs.AppManager && typeof njs.AppManager.getVisibleLayersByMap === 'function')) {
+      return fn.apply(this, Array.prototype.slice.call(arguments, 1));
+    }
+
+    var args = Array.prototype.slice.call(arguments, 1);
+    var originalGetVisible = njs.AppManager.getVisibleLayersByMap;
+
+    njs.AppManager.getVisibleLayersByMap = function (idmap, excludeNotVisibleInZoom) {
+      var current = originalGetVisible.call(njs.AppManager, idmap, excludeNotVisibleInZoom);
+      if (current && Object.keys(current).length > 0) {
+        return current;
+      }
+      var fallback = buildLegacyVisibleLayersFallback();
+      if (Object.keys(fallback).length > 0) {
+        TnetLog.log('[Drucken] Legacy-Layerliste aus TNET-Active-Layers ergänzt (' + Object.keys(fallback).length + ')');
+        return fallback;
+      }
+      return current;
+    };
+
+    try {
+      return fn.apply(this, args);
+    } finally {
+      njs.AppManager.getVisibleLayersByMap = originalGetVisible;
+    }
+  }
+
+  function setupLegacyPrintActivationHandlers() {
+    if (_legacyPrintHandlersBound) return;
+    _legacyPrintHandlersBound = true;
+
+    var tpDetails = document.getElementById('tp_print_menu');
+    if (tpDetails && tpDetails.tagName === 'DETAILS') {
+      tpDetails.open = false;
+    }
+
+    try {
+      if (typeof window.dijit !== 'undefined' && dijit.byId) {
+        var printWidgetInit = dijit.byId('print_menu');
+        if (printWidgetInit && typeof printWidgetInit.set === 'function') {
+          printWidgetInit.set('open', false);
+        }
+      }
+    } catch (initCloseErr) {
+      TnetLog.warn('[Drucken] Legacy-Print Initialzustand konnte nicht geschlossen werden:', initCloseErr);
+    }
+
+    if (tpDetails && tpDetails.tagName === 'DETAILS') {
+      tpDetails.addEventListener('toggle', function () {
+        if (tpDetails.open) {
+          activateLegacyPrintFrameWithRetry();
+        }
+      });
+    }
+
+    try {
+      if (typeof window.dijit !== 'undefined' && dijit.byId) {
+        var printWidget = dijit.byId('print_menu');
+        if (printWidget && typeof printWidget.watch === 'function') {
+          printWidget.watch('open', function (name, oldVal, newVal) {
+            if (newVal) {
+              activateLegacyPrintFrameWithRetry();
+            }
+          });
+        }
+      }
+    } catch (watchErr) {
+      TnetLog.warn('[Drucken] Legacy-Print Watcher konnte nicht gebunden werden:', watchErr);
+    }
+  }
+
   function installLegacyPrintCompatibilityPatch() {
     if (window.__tnetLegacyPrintCompatPatched) return;
 
@@ -299,6 +400,8 @@
 
       var proto = njs.Tools.PrintScaledMap.prototype;
       var originalSetPrintFrame = proto.setPrintFrame;
+      var originalGetPDF = proto.getPDF;
+      var originalGetPredefinedPDF = proto.getPredefinedPDF;
       if (typeof originalSetPrintFrame !== 'function') return;
 
       proto.setPrintFrame = function (scaleObj, layout, getScale, myScale) {
@@ -322,6 +425,18 @@
           }
         }
       };
+
+      if (typeof originalGetPDF === 'function') {
+        proto.getPDF = function (scale, layout, pdfResolForm, pdfVars) {
+          return withLegacyVisibleLayersFallback.call(this, originalGetPDF, scale, layout, pdfResolForm, pdfVars);
+        };
+      }
+
+      if (typeof originalGetPredefinedPDF === 'function') {
+        proto.getPredefinedPDF = function (scale, layout, pdfResolForm, pdfVars) {
+          return withLegacyVisibleLayersFallback.call(this, originalGetPredefinedPDF, scale, layout, pdfResolForm, pdfVars);
+        };
+      }
 
       window.__tnetLegacyPrintCompatPatched = true;
       TnetLog.log('[Drucken] Legacy PrintScaledMap Kompatibilitäts-Patch aktiv');
@@ -2173,7 +2288,7 @@
     if (!shouldInitTnetPrint) {
       if (_printProvider === 'mapplus') {
         installLegacyPrintCompatibilityPatch();
-        activateLegacyPrintFrameWithRetry();
+        setupLegacyPrintActivationHandlers();
       }
       TnetLog.log('[Drucken] TNET-Printing deaktiviert (provider=' + _printProvider + ')');
       return;

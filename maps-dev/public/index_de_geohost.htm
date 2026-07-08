@@ -267,7 +267,61 @@
     </script>
     <?php print $set_vars?>
 
+    <script>
+    (function prepareOriginalMapplusPrintModeBeforeInit() {
+        function applyOriginalPrintToolMode() {
+            var tool = window.njs && njs.config && njs.config.tools && njs.config.tools.main && njs.config.tools.main.PrintScaledMap;
+            if (!tool) return false;
+
+            tool.tool_button = true;
+            tool.tool_container = 'njs_main_print_wrapper';
+            tool.printHighlight = true;
+            tool.gridOption = true;
+            tool.angleOption = true;
+            tool.saveStateOption = true;
+            tool.dialog_opts = { left: '22', top: '105', width: '400', height: '150' };
+            return true;
+        }
+
+        if (window.__tnetDesiredPrintProvider === 'mapplus') {
+            applyOriginalPrintToolMode();
+
+            if (window.njs && njs.AppManager && typeof njs.AppManager.initApp === 'function' && !window.__tnetOriginalMapplusInitWrapped) {
+                var originalInitApp = njs.AppManager.initApp;
+                njs.AppManager.initApp = function () {
+                    applyOriginalPrintToolMode();
+                    return originalInitApp.apply(this, arguments);
+                };
+                window.__tnetOriginalMapplusInitWrapped = true;
+            }
+        }
+    })();
+    </script>
+
     <script type="text/javascript" src="tnet/js/tnet-elevation-guard.js?v=20260617b"></script>
+
+    <script>
+    (function installEarlyMapplusPrintMode() {
+        function detectPrintProvider() {
+            try {
+                var xhr = new XMLHttpRequest();
+                xhr.open('GET', 'tnet/config/tnet-global-config.json5?v=20260707a', false);
+                xhr.send(null);
+                if (xhr.status < 200 || xhr.status >= 300 || !xhr.responseText) return null;
+
+                var text = String(xhr.responseText)
+                    .replace(/\/\*[\s\S]*?\*\//g, '')
+                    .replace(/(^|[^:])\/\/.*$/gm, '$1');
+                var printMatch = text.match(/print\s*:\s*\{[\s\S]*?provider\s*:\s*['\"]([^'\"]+)['\"]/i);
+                return printMatch ? String(printMatch[1]).toLowerCase() : null;
+            } catch (e) {
+                return null;
+            }
+        }
+
+        window.__tnetDesiredPrintProvider = detectPrintProvider();
+    })();
+    </script>
 
 
     <!-- dojo modules and startup config-->

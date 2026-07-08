@@ -1,0 +1,83 @@
+﻿/**
+ * tnet-wms-panel.css
+ * WMS-Panel Styles (Sidebar-Eintraege, Inputs, Grid)
+ *
+ * @version    1.0
+ * @date       2026-07-02
+ * @copyright  Trigonet AG
+ * @author     Marco Dellenbach
+ */
+
+/* ========================================
+   WMS Menu — Ausblendung wird jetzt per Config-Flag
+   layerManager.useNewWmsPanel in tnet-lm-init.js gesteuert.
+   ======================================== */
+/* #tp_wms_menu { display: none !important; } */
+
+/* Alte WMS-Sidebar-Styles (beibehalten für Kompatibilität) */
+#tp_wms_menu .dijitTitlePaneTextNode {
+  font-size: 13px !important;
+}
+
+#tp_wms_menu .wms-cont {
+  font-size: 12px;
+}
+
+#tp_wms_menu .dijitTextBox,
+#tp_wms_menu .dijitComboBox {
+  font-size: 12px !important;
+}
+
+#tp_wms_menu .dijitInputInner {
+  font-size: 12px !important;
+  padding: 4px 6px !important;
+}
+
+#tp_wms_menu .dijitPlaceHolder {
+  font-size: 11px !important;
+}
+
+#tp_wms_menu .dijitButton .dijitButtonText {
+  font-size: 12px !important;
+}
+
+#tp_wms_menu .dijitButtonNode {
+  padding: 2px 8px !important;
+}
+
+#tp_wms_menu .dojoxGridHeader th {
+  font-size: 12px !important;
+  padding: 4px !important;
+}
+
+#tp_wms_menu .dojoxGridCell {
+  font-size: 12px !important;
+}
+
+#tp_wms_menu .dijitDialogPaneContent {
+  font-size: 12px !important;
+  padding: 4px !important;
+}
+
+#tp_wms_menu .row {
+  margin: 4px 0 !important;
+}
+
+#tp_wms_menu #wmsimportGrid {
+  height: 120px !important;
+}
+
+#tp_wms_menu .dojoxGridMasterHeader {
+  height: auto !important;
+}
+
+#tp_wms_menu #wmsimport_abstract_wrapper {
+  height: 50px !important;
+  font-size: 11px !important;
+}
+
+/* #logoMapPlus {
+  height: 110px !important;
+  background: url(../img/gr_logo.svg) center no-repeat;
+  background-size: 260px;
+} */

@@ -330,10 +330,6 @@
 #polygon-tool-btn {
   display: none !important;
 }
-  justify-content: center;
-  z-index: 1000;
-  transition: all 0.2s ease;
-}
 
 #polygon-tool-btn:hover {
   background: #f0f0f0;

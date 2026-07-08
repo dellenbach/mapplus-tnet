@@ -14,11 +14,15 @@ echo ============================================
 echo  DRY-RUN PROD RELEASE (keine Aenderungen)
 echo ============================================
 echo.
-echo [1/2] Promotion Dry-Run (js -^> js-src, js-stage -^> js) ...
+echo [1/3] Promotion Dry-Run (js -^> js-src, js-stage -^> js) ...
 echo.
 "%MAPPLUS_PYTHON_EXE%" _scripts\deployment\deployengine\promote_dev_to_prod.py --dry-run
 echo.
-echo [2/2] Upload Dry-Run fuer geaenderten Code (maps -^> /www/maps) ...
+echo [2/3] Loglevel-Dry-Run (maps\tnet\config\tnet-global-config.json5 -^> warn) ...
+echo.
+"%MAPPLUS_PYTHON_EXE%" _scripts\deployment\deployengine\enforce_prod_loglevel.py --dry-run
+echo.
+echo [3/3] Upload Dry-Run fuer geaenderten Code (maps -^> /www/maps) ...
 echo.
 "%MAPPLUS_PYTHON_EXE%" _scripts\deployment\deployengine\upload_changed.py --env prod --code-only --force-js --dry-run
 echo.

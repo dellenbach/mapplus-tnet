@@ -1297,6 +1297,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
       <div class="tb-json-panel tb-hidden" id="tb-json-panel">
         <div class="tb-json-head">
           <span>JSON-Editor</span>
+          <button id="tb-json-edit" title="Editiermodus explizit starten">✏ Editieren</button>
           <button id="tb-json-format" title="JSON formatieren">✉ Format</button>
           <button id="tb-json-apply" title="JSON auf Baum anwenden">▶ Apply</button>
         </div>
@@ -3723,7 +3724,12 @@ function syncJsonEditor() {
   try {
     var sel = document.getElementById('tb-profile-select');
     var selVal = sel ? sel.value : '';
-    var derived = (typeof isSharedTree === 'function' && isSharedTree()) && selVal && selVal !== SHARED_PROFILE;
+    if (!(typeof isSharedTree === 'function' && isSharedTree())) {
+      _jsonForceMaster = false;
+    }
+    var derived = (typeof isSharedTree === 'function' && isSharedTree())
+      && selVal && selVal !== SHARED_PROFILE
+      && !_jsonForceMaster;
     var tenant = derived ? selVal : null;
     var confOutput = {};
     if (p.lyrmgrs) {
@@ -3734,14 +3740,29 @@ function syncJsonEditor() {
       });
     }
     textarea.value = JSON.stringify(confOutput, null, 4);
-    textarea.readOnly = !!derived;
+    // Editieren wird explizit über den Button gestartet (Default: Lesemodus).
+    textarea.readOnly = !!derived || !_jsonEditArmed;
+
+    var editBtn = document.getElementById('tb-json-edit');
+    if (editBtn) {
+      editBtn.disabled = false;
+      editBtn.textContent = derived
+        ? '✏ Master bearbeiten'
+        : (_jsonEditArmed ? '🔒 Sperren' : '✏ Editieren');
+      editBtn.title = derived
+        ? 'Wechselt auf __shared__ und startet den Editiermodus'
+        : (_jsonEditArmed ? 'Editiermodus beenden (zurück zu Lesemodus)' : 'Editiermodus explizit starten');
+    }
+
     var statusEl = document.getElementById('tb-json-status');
     if (statusEl) {
       if (derived) {
         var n = (textarea.value.match(/"secured":\s*true/g) || []).length;
         statusEl.textContent = '🔒 Abgeleitet für „' + tenant + '“ — exakt das, was publiziert wird (schreibgeschützt' + (n ? ', ' + n + '× secured' : '') + ')';
       } else {
-        statusEl.textContent = '📝 Master-Baum (bearbeitbar) — wird beim Publish pro Mandant abgeleitet';
+        statusEl.textContent = _jsonEditArmed
+          ? '📝 Master-Baum (Editiermodus aktiv) — Änderungen mit „▶ Apply“ übernehmen'
+          : '🔍 Master-Baum (Lesemodus) — mit „✏ Editieren“ Bearbeitung starten';
       }
       statusEl.className = 'tb-json-status';
     }
@@ -3925,6 +3946,34 @@ function renderLyrmgrBlock(container, lmKey, profile) {
         + '<button class="tidel" data-action="del-item" data-cat-idx="' + ci + '" data-item-path="' + path.join('.') + '">×</button>'
         + '</div>';
     }
+    // flat-Knoten: echter Direkt-Layer (kein Gruppen-Kopf) -> flach als Layer-Zeile.
+    if (item && typeof item === 'object' && item.flat === true) {
+      var lid = item.key || item.name || '';
+      var flNls = getNlsAlias(lid);
+      var flLayer = findLayerById(lid);
+      var flLayerName = flLayer ? (flLayer.name || '') : '';
+      var flItemName = flNls || flLayerName || lid;
+      var flNoNls = !flNls && !(flLayerName && flLayerName !== lid);
+      var flBadges = '';
+      if (flLayer) {
+        if (flLayer.legend) flBadges += '<span class="ti-badge b-leg" title="legend: ' + esc(flLayer.legend) + '">LEG</span>';
+        if (flLayer.visible === true || flLayer.visible === 'true') flBadges += '<span class="ti-badge b-vis" title="visible">VIS</span>';
+        if (flLayer.query_layers || flLayer.queryable) flBadges += '<span class="ti-badge b-tip" title="queryable">TIP</span>';
+      }
+      flBadges += '<span class="ti-badge" title="Flach – direkt unter Kategorie (kein Gruppen-Kopf)" style="background:#2a7;color:#fff">FLAT</span>';
+      var flBadgesHtml = '<span class="ti-badges">' + flBadges + '</span>';
+      var flHidden = flLayer && !(flLayer.visible === true || flLayer.visible === 'true' || flLayer.visible === 1 || flLayer.visible === '1');
+      return '<div class="tb-tree-item ti-flat' + (flHidden ? ' ti-hidden' : '') + (path.length > 1 ? ' tb-tree-item-nested' : '') + '" data-cat-idx="' + ci + '" data-item-path="' + path.join('.') + '"' + (_sharedMode ? ' data-mtx-key="' + esc(lid) + '"' : '') + ' draggable="true">'
+        + '<span class="ti-grip">⋮</span>'
+        + '<span class="tiname' + (flNoNls ? ' no-nls' : '') + '" data-editable data-layer-id="' + esc(lid) + '" title="' + esc(lid) + (flNls ? '' : ' (kein NLS)') + '">' + esc(flItemName) + '</span>'
+        + (flNls ? '<span class="ti-id" title="' + esc(lid) + '">' + esc(lid) + '</span>' : '')
+        + flBadgesHtml
+        + (_sharedMode ? buildMatrixCells(lid, ancAllowed) : '')
+        + (_sharedMode ? buildMatrixCells(lid, ancAllowed) : '')
+        + '<button class="grpedit" data-action="toggle-flat" data-cat-idx="' + ci + '" data-item-path="' + path.join('.') + '" title="In Gruppe umwandeln (Kopf anzeigen)">⊞</button>'
+        + '<button class="tidel" data-action="del-item" data-cat-idx="' + ci + '" data-item-path="' + path.join('.') + '">×</button>'
+        + '</div>';
+    }
     if (item && typeof item === 'object') {
       var grpKey = item.key || item.name || '(Gruppenlayer)';
       var grpNls = getNlsAlias(grpKey);
@@ -3946,6 +3995,8 @@ function renderLyrmgrBlock(container, lmKey, profile) {
       var _cat = (profile.categories || [])[ci];
       var grpClosedKey = lmKey + '/' + (_cat ? (_cat.key || _cat.name) : '') + '/closed:' + path.join('.');
       var grpIsOpen = !_expandState[grpClosedKey];
+      // Top-Level-Ein-Layer-Gruppe kann flach gemacht werden (ohne Gruppen-Kopf).
+      var canFlat = isTopLevel && grpItems.length === 1 && typeof grpItems[0] === 'string';
       // Gruppen-Key immer rechts anzeigen
       var grpIdHtml = '<span class="grp-id" title="' + esc(grpKey) + '">' + esc(grpKey) + '</span>';
       return '<div class="tb-tree-group' + (isTopLevel ? ' tb-tree-group-top' : '') + (grpIsOpen ? ' open' : '') + '" data-cat-idx="' + ci + '" data-item-path="' + path.join('.') + '" draggable="true">'
@@ -3958,6 +4009,7 @@ function renderLyrmgrBlock(container, lmKey, profile) {
         + '<span class="grpcount">' + grpItems.length + '</span>'
         + (_sharedMode ? buildMatrixCells(grpNodeKey, ancAllowed) : '')
         + '<button class="grpedit" data-action="edit-group" data-cat-idx="' + ci + '" data-item-path="' + path.join('.') + '" title="Eigenschaften">✎</button>'
+        + (canFlat ? '<button class="grpedit" data-action="toggle-flat" data-cat-idx="' + ci + '" data-item-path="' + path.join('.') + '" title="Flach anzeigen (Layer direkt unter Kategorie, ohne Gruppen-Kopf)">⊟</button>' : '')
         + '<button class="grpdel" data-action="del-item" data-cat-idx="' + ci + '" data-item-path="' + path.join('.') + '">×</button>'
         + '</div>'
         + '<div class="tb-tree-group-body" data-cat-idx="' + ci + '" data-item-path="' + path.join('.') + '">'
@@ -4154,7 +4206,9 @@ function renderLyrmgrBlock(container, lmKey, profile) {
         if (d.type === 'layer') {
           var layer = state.layers[d.idx];
           if (layer) {
-            cat.items.push(layer.id);
+            // Direkt in die Kategorie gezogener Layer => flach anlegen
+            // (echter Direkt-Layer, kein Gruppen-Kopf).
+            cat.items.push({ id: uid('lyr'), key: layer.id, name: layer.id, flat: true, items: [layer.id] });
             touchNodeEditMeta('layer', layer.id, lmKey);
             renderTree();
             scheduleDraftAutoSave('move:layer-into-category');
@@ -4306,6 +4360,35 @@ function renderLyrmgrBlock(container, lmKey, profile) {
       if (gcat) {
         var gref = getItemRefByPath(gcat.items, gpath);
         if (gref && typeof gref.item === 'object') openPropsDialog('group', gref.item);
+      }
+      return;
+    }
+    // Flach <-> Gruppe umschalten (Ein-Layer-Gruppe <-> Direkt-Layer).
+    if (btn.dataset.action === 'toggle-flat') {
+      var fci = parseInt(btn.dataset.catIdx);
+      var fpath = (btn.dataset.itemPath || '').split('.').filter(function(p) { return p !== ''; }).map(Number);
+      var fcat = profile.categories[fci];
+      var fnode = fcat ? getItemByPath(fcat.items, fpath) : null;
+      if (fnode && typeof fnode === 'object') {
+        if (fnode.flat === true) {
+          // Flach -> Gruppe: flat-Flag entfernen, Ein-Layer-Gruppe wiederherstellen.
+          var innerId = fnode.key || fnode.name || (Array.isArray(fnode.items) ? fnode.items[0] : '');
+          delete fnode.flat;
+          if (!Array.isArray(fnode.items) || !fnode.items.length) fnode.items = [innerId];
+          if (fnode.open === undefined) fnode.open = false;
+        } else {
+          // Gruppe -> Flach: nur bei Ein-Layer-Gruppe sinnvoll.
+          var leaf = (Array.isArray(fnode.items) && fnode.items.length === 1 && typeof fnode.items[0] === 'string')
+            ? fnode.items[0] : (fnode.key || fnode.name || '');
+          fnode.flat = true;
+          fnode.key = leaf;
+          fnode.name = leaf;
+          fnode.items = [leaf];
+        }
+        touchNodeEditMeta('layer', fnode.key || fnode.name || '', lmKey);
+        renderTree();
+        syncJsonEditor();
+        scheduleDraftAutoSave('toggle-flat');
       }
       return;
     }
@@ -7818,7 +7901,7 @@ function deriveGroupsFromLyrmgrs(lyrmgrs) {
 
   function walkItems(lyrmgrKey, catKey, items, prefix) {
     (items || []).forEach(function(item) {
-      if (item && typeof item === 'object' && Array.isArray(item.items)) {
+      if (item && typeof item === 'object' && !item.flat && Array.isArray(item.items)) {
         var nodeName = item.key || item.name || 'Gruppenlayer';
         var path = prefix ? (prefix + ' / ' + nodeName) : nodeName;
         var ids = [];
@@ -8360,13 +8443,27 @@ function generateLyrmgrConfBlock(treeData) {
       if (!skipCatKeys[k]) catObj[k] = cat[k];
     });
 
-    // Format aus _rawBlock ableiten: Array-Format beibehalten.
-    // Wenn kein Referenz-Block existiert, bewusst Array nutzen (stabile Reihenfolge).
-    var rawCat = getRawCategoryByKey(rawStructure, catKey);
-    var usesArrayFormat = !rawCat || Array.isArray(rawCat.items);
+    // Reihenfolge-Garantie: items IMMER als Array serialisieren.
+    // PostgreSQL JSONB bewahrt die Reihenfolge von Objekt-Keys NICHT (Sortierung
+    // nach Laenge/bytewise), wodurch API/Themenkatalog eine andere Gruppen-
+    // Reihenfolge zeigten als der Tree-Builder. Array-Format (wie bei structure)
+    // haelt die verbindliche Editor-Reihenfolge ueber DB, API und conf konsistent.
+    // Verhindert zusaetzlich die Objekt-Key-Kollision bei gleichnamigen Direkt-Layern/Gruppen.
+    var usesArrayFormat = true;
+
+    // Direkt in der Kategorie liegender Layer (String) IMMER als Ein-Layer-Gruppe
+    // mit flat:true schreiben, NIE als nackter String. Grund: das njs-Framework
+    // (ClassicLayerMgr.addCategoryRecursive) erwartet auf Kategorie-Ebene Gruppen-
+    // Objekte; ein nackter String bringt den Baum-Aufbau zum Absturz und der Layer
+    // wird nicht registriert (TnetLayerSwitch findet ihn nicht). flat:true sorgt
+    // dafuer, dass layers.php und der Editor ihn trotzdem flach rendern.
+    function catLevelFlatWrap(it) {
+      if (typeof it === 'string') return { name: it, flat: true, items: [it] };
+      return it;
+    }
 
     if (usesArrayFormat) {
-      catObj.items = serializeItems(cat.items || []);
+      catObj.items = serializeItems(cat.items || []).map(catLevelFlatWrap);
     } else {
       catObj.items = {};
       (cat.items || []).forEach(function(item) {
@@ -8380,7 +8477,8 @@ function generateLyrmgrConfBlock(treeData) {
           grpObj.items = serializeItems(item.items || []);
           catObj.items[grpKey] = grpObj;
         } else if (typeof item === 'string') {
-          catObj.items[item] = { items: [item] };
+          // Direkt-Layer als flache Ein-Layer-Gruppe (framework-kompatibel).
+          catObj.items[item] = { flat: true, items: [item] };
         }
       });
     }
@@ -9746,9 +9844,45 @@ document.getElementById('tb-json-format').addEventListener('click', function() {
   }
 });
 
+var _jsonEditArmed = false;
+var _jsonForceMaster = false;
+
+// JSON-Editor: expliziter Start/Stop des Editiermodus
+document.getElementById('tb-json-edit').addEventListener('click', function() {
+  var textarea = document.getElementById('tb-json-textarea');
+  if (!textarea) return;
+
+  var sel = document.getElementById('tb-profile-select');
+  var selVal = sel ? sel.value : '';
+  var derived = (typeof isSharedTree === 'function' && isSharedTree())
+    && selVal && selVal !== SHARED_PROFILE
+    && !_jsonForceMaster;
+  if (derived) {
+    _jsonEditArmed = true;
+    _jsonForceMaster = true;
+    syncJsonEditor();
+    try {
+      textarea.focus();
+      textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+    } catch (e) { /* defensiv */ }
+    return;
+  }
+
+  _jsonEditArmed = !_jsonEditArmed;
+  if (!_jsonEditArmed) _jsonForceMaster = false;
+  syncJsonEditor();
+
+  if (_jsonEditArmed) {
+    try {
+      textarea.focus();
+      textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+    } catch (e) { /* defensiv */ }
+  }
+});
+
 // JSON-Editor: Apply-Button (lyrmgr.conf-Format → internes Format → State)
 document.getElementById('tb-json-apply').addEventListener('click', function() {
-  if (document.getElementById('tb-json-textarea').readOnly) { alert('🔒 Abgeleitete Ansicht ist schreibgeschützt.\nWähle „✏️ Gemeinsamen Baum bearbeiten", um den Master-Baum zu bearbeiten.'); return; }
+  if (document.getElementById('tb-json-textarea').readOnly) { alert('🔒 JSON ist aktuell schreibgeschützt.\nKlicke auf „✏ Editieren“ (oder in Shared-Preview auf „✏ Master bearbeiten“).'); return; }
   var textarea = document.getElementById('tb-json-textarea');
   var statusEl = document.getElementById('tb-json-status');
   try {

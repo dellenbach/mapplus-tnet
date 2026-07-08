@@ -848,7 +848,42 @@ foreach ($mapping['categories'] as $topCategory) {
                 if (array_keys($categoryDef['items']) === range(0, count($categoryDef['items']) - 1)) {
                     // Array-Format (z.B. [{key,name,items}])
                     foreach ($categoryDef['items'] as $grpEntry) {
+                        // Direkt in der Kategorie liegender Layer (String oder Objekt
+                        // ohne 'items'): in eine unsichtbare Ein-Layer-Gruppe (hideHeader)
+                        // kapseln, damit er flach mit Checkbox gerendert wird statt
+                        // verworfen zu werden.
+                        if (is_string($grpEntry)) {
+                            $groupList['__direct__' . $grpEntry] = [
+                                'key'        => $grpEntry,
+                                'hideHeader' => true,
+                                'items'      => [$grpEntry]
+                            ];
+                            continue;
+                        }
                         if (!is_array($grpEntry)) continue;
+                        // flat-Flag: echter Direkt-Layer -> unsichtbare Ein-Layer-Gruppe.
+                        if (!empty($grpEntry['flat'])) {
+                            $directKey = $grpEntry['name'] ?? ($grpEntry['key'] ?? null);
+                            if (!$directKey) continue;
+                            $flatItems = (isset($grpEntry['items']) && !empty($grpEntry['items']))
+                                ? $grpEntry['items'] : [$directKey];
+                            $groupList['__direct__' . $directKey] = [
+                                'key'        => $directKey,
+                                'hideHeader' => true,
+                                'items'      => $flatItems
+                            ];
+                            continue;
+                        }
+                        if (!isset($grpEntry['items'])) {
+                            $directKey = $grpEntry['name'] ?? ($grpEntry['key'] ?? null);
+                            if (!$directKey) continue;
+                            $groupList['__direct__' . $directKey] = [
+                                'key'        => $directKey,
+                                'hideHeader' => true,
+                                'items'      => [$grpEntry]
+                            ];
+                            continue;
+                        }
                         $gid = $grpEntry['key'] ?? ($grpEntry['name'] ?? null);
                         if (!$gid) continue;
                         $groupList[$gid] = $grpEntry;
@@ -890,7 +925,19 @@ foreach ($mapping['categories'] as $topCategory) {
                         $groupData['hideHeader'] = true;
                     }
 
-                    if (isset($groupDef['items'])) {
+                    // flat-Flag: der Knoten ist ein echter Direkt-Layer (keine
+                    // Gruppe). Intern wie eine hideHeader-Ein-Layer-Gruppe rendern
+                    // (flach, ohne Kopf). Layer-ID = Gruppen-Key, falls keine items.
+                    $flatSource = null;
+                    if (!empty($groupDef['flat'])) {
+                        $groupData['hideHeader'] = true;
+                        $flatSource = (isset($groupDef['items']) && !empty($groupDef['items']))
+                            ? $groupDef['items'] : [$groupId];
+                    }
+
+                    if ($flatSource !== null) {
+                        $groupData['layers'] = processLayerItems($flatSource, $layerDefinitions, $details, $filterMissing);
+                    } elseif (isset($groupDef['items'])) {
                         $groupData['layers'] = processLayerItems($groupDef['items'], $layerDefinitions, $details, $filterMissing);
                     }
 
