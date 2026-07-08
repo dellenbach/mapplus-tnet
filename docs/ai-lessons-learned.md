@@ -5,7 +5,42 @@
 - Fix: Offiziellen Mobile-Einstieg über `/?t=m` verwenden; Mobile-HTML setzt den App-Base-Pfad auf `/maps-dev/`. Unterpanel-Listener werden nach dem Drawer-DOM gebunden; WMS öffnet das neue Panel als Bottom-Sheet.
 - Guardrail: Mobile immer über `index.php?t=m` testen, nie direkt über `public/index_de_m.htm`. UI-Listener für dynamische/untere DOM-Bereiche erst nach deren Markup binden.
 
-﻿## 2026-07-07 - Mapplus-Print: Originaldruck bricht, wenn der äussere Dojo-Container durch details ersetzt wird
+﻿## 2026-07-08 - Mapplus-Originalrahmen unsichtbar, weil Instanz-Layer nicht am aktiven Map-Stack hing
+
+- Symptom: `printpdf1` hatte `featureCount > 0`, aber der sichtbare Karten-Layer `pdfExtent_printpdf1` blieb leer (`featureCount = 0`), dadurch kein Rahmen sichtbar.
+- Root-Cause: Die aktive Print-Instanz verwendete ein `graphicLyr`-Objekt, das nicht (mehr) im aktuellen OL-Layerstack der Karte referenziert war; ein separater, leerer `pdfExtent_printpdf1`-Layer blieb sichtbar.
+- Fix: In der Legacy-Bridge `ensureGraphicLayerAttached()` ergänzt: wenn `inst.graphicLyr` nicht im Map-Stack ist, leeren alten `pdfExtent_printpdf1` entfernen und das Original-`graphicLyr` der Instanz an die aktive Karte anhängen.
+- Guardrail: Bei "Feature existiert, aber nichts sichtbar" immer Objektidentität prüfen (`inst.graphicLyr === mapLayer`) statt nur Name/Visibility. Layername-Gleichheit allein reicht nicht.
+
+## 2026-07-08 - Mapplus-Originalmodus: Keine Zusatzrahmen ueber Legacy-Print legen
+
+- Symptom: Ein zusaetzlicher Safety-Overlay-Rahmen machte den Frame sichtbar, entsprach aber nicht der erwarteten Originalfunktionalitaet (Rotation/Verschieben im Legacy-Tool).
+- Root-Cause: Der Overlay-Fix renderte einen zweiten, kuenstlichen Rahmen ausserhalb des originalen Mapplus-Interaktionspfads.
+- Fix: Emergency-Overlay/Style-Reassert/Fallback-Frame aus der Bridge entfernt und auf den originalen Legacy-Frame-Flow zurueckgestellt; Bridge bleibt nur fuer Initialisierung und Projection-Fehlerfallback aktiv.
+- Guardrail: Wenn "Originalmodus" gefordert ist, keine zusaetzlichen Render-Layer als Dauerloesung einsetzen. Nur minimale Kompatibilitaetspatches ohne eigenes UI-/Frame-Rendering verwenden.
+
+## 2026-07-08 - Mapplus-Print: Legacy-Rahmen kann trotz Feature intern unsichtbar bleiben
+
+- Symptom: Print-Panel und Frame-Feature waren vorhanden, auf der Karte blieb der rote Rahmen trotzdem unsichtbar.
+- Root-Cause: Der Legacy-`graphicLyr` konnte durch interne Framework-Updates erneut verdeckt/unsichtbar werden, obwohl die Geometrie korrekt erzeugt war.
+- Fix: In der Legacy-Bridge einen zusaetzlichen Emergency-Overlay-Layer eingefuehrt, der dieselbe Frame-Source mit rotem Style und hohem Z-Index rendert; bei jeder Frame-Aktualisierung wird dieser Layer erneut erzwungen.
+- Guardrail: Bei Legacy-OL-Overlays nicht nur Geometrie pruefen (`featureCount > 0`), sondern die tatsaechliche Sichtbarkeit absichern. Falls noetig redundanten Debug-/Safety-Layer mit hoher Prioritaet verwenden.
+
+## 2026-07-08 - Mapplus-Print: Vorschaurahmen-Feature vorhanden, aber auf Karte unsichtbar
+
+- Symptom: Print-Panel zeigte vollen Inhalt, aber der rote Vorschaurahmen war auf der Karte weiterhin nicht sichtbar.
+- Root-Cause: Der Legacy-Flow erzeugte zwar Features im Print-Layer, aber nachgelagerte Framework-Updates setzten Layer-Sichtbarkeit/Style/Z-Order erneut zurueck.
+- Fix: In `tnet-print-legacy-bridge.js` Frame-Reassert ergänzt: Sichtbarkeit, Opacity und hoher Z-Index werden mehrfach zeitversetzt wiederhergestellt; zusaetzlich wird ein robuster roter Polygon-Style direkt auf Layer und Features gesetzt.
+- Guardrail: Bei Legacy-OpenLayers-Overlays reicht ein einmaliges `setVisible(true)` oft nicht. Nach Frame-Neuberechnung immer auch Style/Z-Order erzwingen und asynchron (mehrere Delays) reasserten.
+
+## 2026-07-08 - Mapplus-Provider: Originaldruck scheitert, wenn PrintScaledMap serverseitig im eingebetteten no-button-Modus ausgeliefert wird
+
+- Symptom: Trotz `print.provider='mapplus'` verhielt sich der Druck auf DEV nicht wie der originale Tydac-Mapplus-Print; der Laufzeitpfad blieb `_nobuttonactivedialog` statt Toolbar-/Tool-Button-Modus.
+- Root-Cause: Der vom Framework ausgelieferte Tool-Config-Block für `PrintScaledMap` setzte weiterhin `tool_button:false` und `tool_container:'njs_main_print_wrapper'`. Dadurch startete die Instanz im eingebetteten Sidepanel-Modus, auch wenn der Provider bereits auf `mapplus` stand.
+- Fix: Provider auf `mapplus` aktiv gesetzt und die Legacy-Bridge so erweitert, dass sie `PrintScaledMap` bei Bedarf in eine Original-Instanz mit `tool_button:true` rekonstruiert und die fehlende Layer-/Dialog-Initialisierung nachzieht.
+- Guardrail: Ein Provider-Schalter reicht nicht, wenn das Legacy-Tool serverseitig schon im falschen Modus konfiguriert wird. Bei "Originalmodus" immer sowohl Provider ALS AUCH ausgelieferte Tool-Optionen (`tool_button`, Dialog-/Wrapper-Modus) prüfen.
+
+## 2026-07-07 - Mapplus-Print: Originaldruck bricht, wenn der äussere Dojo-Container durch details ersetzt wird
 
 - Symptom: Im `mapplus`-Mode war zwar ein Rahmen sichtbar, aber nicht der originale verschieb-/drehbare Mapplus-Druckrahmen.
 - Root-Cause: In `maps-dev/public/index_de.htm` war `tp_print_menu` nicht mehr das originale Dojo-`TitlePane`, sondern ein natives `details`-Accordion. Der Legacy-Print hängt an der Dojo-Widget-Lifecycle-/Open-Logik; dadurch lief nur noch die Brücke/Fallback-Logik statt der unveränderte Originalpfad.
