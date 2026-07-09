@@ -2,8 +2,10 @@
 
 :: Zentrale Entwicklungs- und Deploy-Konfiguration fuer Batch-Skripte.
 :: Bei Standortwechsel oder Python-Upgrade nur diese Werte anpassen.
+:: Workspace-Root wird robust relativ zum Skriptverzeichnis abgeleitet
+:: (dieses Skript liegt in <root>\_scripts\), damit Umbenennungen/Moves nicht brechen.
 if not defined MAPPLUS_WORKSPACE_ROOT (
-    set "MAPPLUS_WORKSPACE_ROOT=C:\_Daten\mapplus-exp"
+    for %%I in ("%~dp0..") do set "MAPPLUS_WORKSPACE_ROOT=%%~fI"
 )
 
 if not defined MAPPLUS_PYTHON_EXE (

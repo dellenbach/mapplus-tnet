@@ -403,6 +403,26 @@ def main():
 
         total_candidates = len(deploy_candidates)
 
+        # Cache bereits sichergestellter Remote-Verzeichnisse (spart stat/mkdir-Calls).
+        ensured_dirs = set()
+
+        def ensure_remote_dir(remote_dir):
+            # Legt remote_dir rekursiv an (idempotent). Verhindert '[Errno 2] No such file'
+            # bei neuen Zielbaeumen (z.B. tnet/resources/symbols/base).
+            if not remote_dir or remote_dir in ensured_dirs or remote_dir in ("/", ""):
+                return
+            parent = os.path.dirname(remote_dir)
+            if parent and parent not in ensured_dirs and parent not in ("/", ""):
+                ensure_remote_dir(parent)
+            try:
+                sftp.stat(remote_dir)
+            except IOError:
+                try:
+                    sftp.mkdir(remote_dir)
+                except IOError:
+                    pass
+            ensured_dirs.add(remote_dir)
+
         for index, local_file in enumerate(deploy_candidates, start=1):
             rel = os.path.relpath(local_file, LOCAL_BASE).replace("\\", "/")
             progress = f"[{index:03d}/{total_candidates:03d}]"
@@ -429,6 +449,7 @@ def main():
 
             remote_file = f"{REMOTE_BASE}/{upload_rel}"
             try:
+                ensure_remote_dir(os.path.dirname(remote_file))
                 sftp.put(upload_file, remote_file)
                 size = os.path.getsize(upload_file)
                 print(f"  {progress} [OK] {upload_rel} ({size:,} bytes)")
