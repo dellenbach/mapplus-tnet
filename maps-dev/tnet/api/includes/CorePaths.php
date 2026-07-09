@@ -18,28 +18,35 @@ class TnetCorePaths {
             return self::$appBasePath;
         }
 
+        // 1) Primaer (Multi-Site): Mount-Pfad VOR '/tnet/' aus der angefragten URL ableiten.
+        //    /geohost/tnet/api/v1/slm.php -> /geohost ; /maps/tnet/... -> /maps ; /maps-dev/... -> /maps-dev
+        //    SCRIPT_NAME spiegelt die tatsaechlich geroutete URL (wichtig beim geohost-Routing).
         $scriptName = str_replace('\\', '/', $_SERVER['SCRIPT_NAME'] ?? '');
-        if (preg_match('#^/(maps(?:-dev)?)(?:/|$)#', $scriptName, $matches)) {
-            self::$appBasePath = '/' . $matches[1];
+        if ($scriptName !== '' && preg_match('#^(/.+?)/tnet/#i', $scriptName, $matches)) {
+            self::$appBasePath = rtrim($matches[1], '/');
             return self::$appBasePath;
         }
 
+        // 2) Fallback ueber das Dateisystem: CorePaths.php liegt unter <appbase>/tnet/api/includes/.
+        //    Achtung: greift nur, wenn SCRIPT_NAME nicht ausgewertet werden konnte.
         $dir = str_replace('\\', '/', __DIR__);
+        if (preg_match('#/([^/]+)/tnet/api/includes/?$#i', $dir, $matches)) {
+            self::$appBasePath = '/' . $matches[1];
+            return self::$appBasePath;
+        }
         if (strpos($dir, '/maps-dev/') !== false) {
             self::$appBasePath = '/maps-dev';
             return self::$appBasePath;
         }
-        if (strpos($dir, '/maps/') !== false) {
-            self::$appBasePath = '/maps';
-            return self::$appBasePath;
-        }
 
+        // 3) Letzter Fallback (Rueckwaertskompatibilitaet).
         self::$appBasePath = '/maps';
         return self::$appBasePath;
     }
 
     public static function isDevApp() {
-        return self::getAppBasePath() === '/maps-dev';
+        // Generisch: jede Site mit '-dev'-Suffix gilt als DEV (maps-dev, kuenftig z.B. geohost-dev).
+        return substr(self::getAppBasePath(), -4) === '-dev';
     }
 
     public static function getCoreRoot() {

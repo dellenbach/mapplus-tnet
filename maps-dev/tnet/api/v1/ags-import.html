@@ -1519,7 +1519,12 @@ html[data-env="dev"] .ags-toolbar { border-bottom: 3px solid #e67e22; }
 // =====================================================================
 // KONFIGURATION
 // =====================================================================
-var API_URL  = '/maps-dev/tnet/api/v1/treebuilder-api.php';
+// Multi-Site: API-Basis dynamisch aus der aktuellen App-Root ableiten
+// (Segment vor '/tnet/'), z.B. /maps, /maps-dev, /geohost. Frueher hart auf /maps-dev.
+var API_URL  = (function() {
+  var m = location.pathname.match(/^(\/[^/]+?)\/tnet\//);
+  return (m ? m[1] : '/maps') + '/tnet/api/v1/treebuilder-api.php';
+})();
 var GAPI_URL = '/gapi/ags2mapplus';
 
 (function installDevFastApiTarget() {

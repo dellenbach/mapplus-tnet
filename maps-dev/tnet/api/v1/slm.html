@@ -2268,8 +2268,19 @@ Kein Einfluss auf Browser-Cache (dafuer: Ctrl+Shift+R)">🗑 Cache leeren</butto
 // =====================================================================
 var GAPI_URL = '/gapi/ags2mapplus';
 
+// ── Multi-Site: aktuelle App-Root aus URL ableiten (Segment vor '/tnet/') ─────
+// Beispiele: /maps/tnet/... -> /maps ; /maps-dev/tnet/... -> /maps-dev ; /geohost/tnet/... -> /geohost
+function _currentAppRoot() {
+  var m = location.pathname.match(/^(\/[^/]+?)\/tnet\//);
+  return m ? m[1] : '/maps';
+}
+// Site-Name ohne '-dev'-Suffix (maps, geohost, ...)
+function _siteName() {
+  return _currentAppRoot().replace(/^\//, '').replace(/-dev$/i, '') || 'maps';
+}
+
 // ── Software-Umgebung (unveränderlich, aus URL) ───────────────────────────────
-var _isDevEnv  = location.pathname.indexOf('/maps-dev/') === 0;
+var _isDevEnv  = /-dev$/i.test(_currentAppRoot());
 var _swEnv     = _isDevEnv ? 'dev' : 'prod';  // 'dev' | 'prod'
 
 // ── Konfig-Store-Umgebung (wählbar: Files + DB) ─────────────────────────────
@@ -2279,7 +2290,9 @@ var _storeEnv  = (function() {
 })();
 
 function _storeRoot() {
-  return _storeEnv === 'dev' ? '/maps-dev' : '/maps';
+  // Site-erhaltend: Mount = /<site>[-dev]. Fuer maps bleibt der DEV/PROD-Toggle unveraendert,
+  // fuer weitere Sites (z.B. geohost) zeigt der Store auf die Site-eigene API.
+  return '/' + _siteName() + (_storeEnv === 'dev' ? '-dev' : '');
 }
 function _storeDbSchema() {
   return _storeEnv === 'dev' ? 'mapplusconf_dev' : 'mapplusconf';
@@ -5856,7 +5869,7 @@ safeAddEventListener('ctdb-run', 'click', function() {
   statusEl.style.cssText = 'margin-top:10px;font-size:12px;color:#555;display:block';
   statusEl.textContent = '[' + _envShort + '] Scope: ' + _ctdbScope + ' → ' + _dbSchema + ' — Bitte warten…';
   resultEl.style.display = 'none';
-  var appRoot = window.location.pathname.indexOf('/maps-dev/') === 0 ? '/maps-dev' : '/maps';
+  var appRoot = _currentAppRoot();
   var schemaUrl = appRoot + '/tnet/api/v1/admin?action=schema';
   var url = appRoot + '/tnet/api/v1/admin?action=configToPG&scope=' + encodeURIComponent(_ctdbScope);
   var t0 = Date.now();

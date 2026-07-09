@@ -45,8 +45,9 @@ require_once __DIR__ . '/../includes/StagingImportRepository.php';
 // Config
 // =====================================================================
 $docRoot = rtrim($_SERVER['DOCUMENT_ROOT'] ?? '/var/www/html/nwow', '/');
-$scriptName = $_SERVER['SCRIPT_NAME'] ?? '';
-$appBasePath = rtrim(str_replace('\\', '/', dirname(dirname(dirname(dirname($scriptName))))), '/');
+// Multi-Site: App-Base zentral ueber CorePaths ableiten (Segment vor '/tnet/'),
+// robuster als die fruehere dirname()-Kette. Liefert /maps, /maps-dev, /geohost, ...
+$appBasePath = TnetCorePaths::getAppBasePath();
 if ($appBasePath === '' || $appBasePath === '.') {
     $appBasePath = '/maps';
 }

@@ -175,8 +175,10 @@
   function normalizeApiUrl(url) {
     var value = String(url || '');
     if (!value) return getAppRoot() + '/tnet/api/v1/layers.php';
-    if (/^\/maps(?:-dev)?\/tnet\/api\//i.test(value)) {
-      return getAppRoot() + value.replace(/^\/maps(?:-dev)?/i, '');
+    // Multi-Site: beliebiges Site-Praefix vor '/tnet/api/' auf die aktuelle App-Root umschreiben
+    // (z.B. /maps, /maps-dev, /geohost). Frueher nur /maps(?:-dev)?.
+    if (/^\/[^/]+\/tnet\/api\//i.test(value)) {
+      return getAppRoot() + value.replace(/^\/[^/]+/i, '');
     }
     return value;
   }
@@ -187,8 +189,9 @@
     var appRoot = getAppRoot();
 
     if (value.indexOf('http') === 0 || value.indexOf('//') === 0) return value;
-    if (/^\/maps(?:-dev)?\/tnet\//i.test(value) || /^\/maps(?:-dev)?\/agsproxy\.php/i.test(value)) {
-      return appRoot + value.replace(/^\/maps(?:-dev)?/i, '');
+    // Multi-Site: beliebiges Site-Praefix vor '/tnet/' bzw. '/agsproxy.php' auf App-Root umschreiben.
+    if (/^\/[^/]+\/tnet\//i.test(value) || /^\/[^/]+\/agsproxy\.php/i.test(value)) {
+      return appRoot + value.replace(/^\/[^/]+/i, '');
     }
     if (value.indexOf('/tnet/') === 0 || value.indexOf('/agsproxy.php') === 0) return appRoot + value;
     if (value.indexOf('tnet/') === 0 || value.indexOf('agsproxy.php') === 0) return appRoot + '/' + value;
