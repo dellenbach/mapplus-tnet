@@ -684,19 +684,34 @@ ON CONFLICT (scope) DO NOTHING;
 -- Render-/Query-Pfad); `catalog_document` ist die editierbare Quelle.
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS mapplusconf.catalog_document (
-    profile         TEXT PRIMARY KEY,                  -- Profilname (z.B. 'public' oder Unterprofil)
+    site            TEXT NOT NULL DEFAULT 'maps',      -- Multi-Site: Site-Kennung (z.B. 'maps', 'geohost')
+    profile         TEXT NOT NULL,                     -- Profilname (z.B. 'public' oder Unterprofil)
     payload         JSONB NOT NULL DEFAULT '{}'::jsonb, -- vollständige lyrmgr.conf als JSON-Objekt
-    revision        INTEGER NOT NULL DEFAULT 1,         -- Optimistic-Lock-Zähler (pro Profil)
+    revision        INTEGER NOT NULL DEFAULT 1,         -- Optimistic-Lock-Zähler (pro Site+Profil)
     updated_by      TEXT,                               -- letzter Bearbeiter
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (site, profile)
 );
 
-COMMENT ON TABLE  mapplusconf.catalog_document IS 'Themenkatalog (ersetzt lyrmgr.conf) pro Profil als JSONB-Dokument mit Optimistic Locking';
+COMMENT ON TABLE  mapplusconf.catalog_document IS 'Themenkatalog (ersetzt lyrmgr.conf) pro Site+Profil als JSONB-Dokument mit Optimistic Locking';
+COMMENT ON COLUMN mapplusconf.catalog_document.site IS 'Multi-Site-Kennung; DEV/PROD sind bereits ueber getrennte Schemas getrennt, site unterscheidet nur die Site';
 COMMENT ON COLUMN mapplusconf.catalog_document.payload IS 'Vollständige lyrmgr.conf als JSON-Objekt (Blöcke nach lyrmgrKey)';
-COMMENT ON COLUMN mapplusconf.catalog_document.revision IS 'Optimistic-Lock-Revision pro Profil; bei jeder Speicherung +1';
+COMMENT ON COLUMN mapplusconf.catalog_document.revision IS 'Optimistic-Lock-Revision pro Site+Profil; bei jeder Speicherung +1';
 
 CREATE INDEX IF NOT EXISTS idx_catalog_doc_payload ON mapplusconf.catalog_document USING GIN (payload);
+
+-- Migration Bestands-DB: Site-Dimension nachruesten (idempotent).
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                   WHERE table_schema='mapplusconf' AND table_name='catalog_document' AND column_name='site') THEN
+        ALTER TABLE mapplusconf.catalog_document ADD COLUMN site TEXT NOT NULL DEFAULT 'maps';
+        ALTER TABLE mapplusconf.catalog_document DROP CONSTRAINT IF EXISTS catalog_document_pkey;
+        ALTER TABLE mapplusconf.catalog_document ADD PRIMARY KEY (site, profile);
+    END IF;
+END
+$$;
 
 
 -- ============================================================================
@@ -706,6 +721,7 @@ CREATE INDEX IF NOT EXISTS idx_catalog_doc_payload ON mapplusconf.catalog_docume
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS mapplusconf.catalog_document_history (
     id              SERIAL PRIMARY KEY,
+    site            TEXT NOT NULL DEFAULT 'maps',  -- Multi-Site: Site-Kennung
     profile         TEXT NOT NULL,                 -- kein FK: Historie überlebt Hard-Delete
     revision        INTEGER NOT NULL,              -- Revisionsstand dieser Zeile
     action          TEXT NOT NULL CHECK (action IN ('create', 'update', 'publish', 'delete', 'restore', 'import')),
@@ -715,10 +731,20 @@ CREATE TABLE IF NOT EXISTS mapplusconf.catalog_document_history (
     changed_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-COMMENT ON TABLE  mapplusconf.catalog_document_history IS 'Änderungshistorie des Themenkatalogs pro Profil für Diff und Restore';
+COMMENT ON TABLE  mapplusconf.catalog_document_history IS 'Änderungshistorie des Themenkatalogs pro Site+Profil für Diff und Restore';
 COMMENT ON COLUMN mapplusconf.catalog_document_history.lyrmgr_key IS 'Betroffener lyrmgr-Block bei blockweisem Publish (sonst NULL = ganzes Dokument)';
 
-CREATE INDEX IF NOT EXISTS idx_catalog_doc_hist ON mapplusconf.catalog_document_history (profile, revision DESC);
+CREATE INDEX IF NOT EXISTS idx_catalog_doc_hist ON mapplusconf.catalog_document_history (site, profile, revision DESC);
+
+-- Migration Bestands-DB: Site-Spalte fuer Historie nachruesten (idempotent).
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                   WHERE table_schema='mapplusconf' AND table_name='catalog_document_history' AND column_name='site') THEN
+        ALTER TABLE mapplusconf.catalog_document_history ADD COLUMN site TEXT NOT NULL DEFAULT 'maps';
+    END IF;
+END
+$$;
 
 
 -- ============================================================================
@@ -726,13 +752,27 @@ CREATE INDEX IF NOT EXISTS idx_catalog_doc_hist ON mapplusconf.catalog_document_
 -- Soft-Lock (UI-Hinweis) pro Profil für kontrolliertes gleichzeitiges Arbeiten.
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS mapplusconf.catalog_lock (
-    profile         TEXT PRIMARY KEY,              -- Lock-Bereich = Profilname
+    site            TEXT NOT NULL DEFAULT 'maps',  -- Multi-Site: Site-Kennung
+    profile         TEXT NOT NULL,                 -- Lock-Bereich = Profilname
     locked_by       TEXT NOT NULL,
     locked_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
-    expires_at      TIMESTAMPTZ NOT NULL
+    expires_at      TIMESTAMPTZ NOT NULL,
+    PRIMARY KEY (site, profile)
 );
 
-COMMENT ON TABLE  mapplusconf.catalog_lock IS 'Soft-Lock (UI-Hinweis) für gleichzeitiges Bearbeiten des Themenkatalogs pro Profil';
+COMMENT ON TABLE  mapplusconf.catalog_lock IS 'Soft-Lock (UI-Hinweis) für gleichzeitiges Bearbeiten des Themenkatalogs pro Site+Profil';
+
+-- Migration Bestands-DB: Site-Dimension fuer Lock nachruesten (idempotent).
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                   WHERE table_schema='mapplusconf' AND table_name='catalog_lock' AND column_name='site') THEN
+        ALTER TABLE mapplusconf.catalog_lock ADD COLUMN site TEXT NOT NULL DEFAULT 'maps';
+        ALTER TABLE mapplusconf.catalog_lock DROP CONSTRAINT IF EXISTS catalog_lock_pkey;
+        ALTER TABLE mapplusconf.catalog_lock ADD PRIMARY KEY (site, profile);
+    END IF;
+END
+$$;
 
 -- updated_at-Trigger für catalog_document
 DROP TRIGGER IF EXISTS trg_catalog_document_updated ON mapplusconf.catalog_document;

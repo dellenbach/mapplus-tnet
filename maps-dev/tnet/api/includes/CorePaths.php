@@ -49,6 +49,18 @@ class TnetCorePaths {
         return substr(self::getAppBasePath(), -4) === '-dev';
     }
 
+    /**
+     * Liefert den reinen Site-Namen (ohne fuehrenden Slash und ohne '-dev'-Suffix).
+     * DEV/PROD sind bereits ueber getrennte DB-Schemas getrennt; die Site-Dimension
+     * unterscheidet nur die Site (z.B. 'maps', 'geohost'), unabhaengig vom Env.
+     *   /maps -> 'maps' ; /maps-dev -> 'maps' ; /geohost -> 'geohost' ; /geohost-dev -> 'geohost'
+     */
+    public static function getSiteName(): string {
+        $base = ltrim(self::getAppBasePath(), '/');
+        $base = preg_replace('/-dev$/i', '', $base);
+        return $base !== '' ? $base : 'maps';
+    }
+
     public static function getCoreRoot() {
         if (self::$coreRoot !== null) {
             return self::$coreRoot;

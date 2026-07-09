@@ -24,10 +24,27 @@ class CatalogRepository {
     /** @var int Soft-Lock-Dauer in Sekunden (15 Minuten) */
     const LOCK_TTL_SECONDS = 900;
 
+    /** @var string Aktuelle Site (Multi-Site-Kontext, request-scoped). Default 'maps'. */
+    private static $site = 'maps';
+
+    /**
+     * Setzt den Site-Kontext fuer alle Katalog-Operationen (einmalig pro Request am API-Bootstrap).
+     * DEV/PROD sind bereits ueber getrennte DB-Schemas getrennt; site unterscheidet nur die Site.
+     */
+    public static function setSite(?string $site): void {
+        $s = trim((string)$site);
+        self::$site = $s !== '' ? $s : 'maps';
+    }
+
+    /** Liefert die aktuell gesetzte Site. */
+    public static function getSite(): string {
+        return self::$site;
+    }
+
     // ===== LESEN =====
 
     /**
-     * Liest die komplette lyrmgr.conf eines Profils.
+     * Liest die komplette lyrmgr.conf eines Profils (der aktuellen Site).
      *
      * @param string $profile Profilname (z.B. 'public')
      * @return array{exists: bool, data: array, revision: int, updatedBy: ?string, updatedAt: ?string}
@@ -36,9 +53,9 @@ class CatalogRepository {
         $pdo = Database::getConnection();
         $stmt = $pdo->prepare(
             "SELECT payload, revision, updated_by, updated_at FROM mapplusconf.catalog_document
-             WHERE profile = :profile"
+             WHERE site = :site AND profile = :profile"
         );
-        $stmt->execute(['profile' => $profile]);
+        $stmt->execute(['site' => self::$site, 'profile' => $profile]);
         $row = $stmt->fetch();
 
         if (!$row) {
@@ -64,9 +81,9 @@ class CatalogRepository {
     public static function getRevision(string $profile): int {
         $pdo = Database::getConnection();
         $stmt = $pdo->prepare(
-            "SELECT revision FROM mapplusconf.catalog_document WHERE profile = :profile"
+            "SELECT revision FROM mapplusconf.catalog_document WHERE site = :site AND profile = :profile"
         );
-        $stmt->execute(['profile' => $profile]);
+        $stmt->execute(['site' => self::$site, 'profile' => $profile]);
         $row = $stmt->fetch();
         return $row ? (int)$row['revision'] : 0;
     }
@@ -78,12 +95,14 @@ class CatalogRepository {
      */
     public static function listProfiles(): array {
         $pdo = Database::getConnection();
-        $stmt = $pdo->query(
+        $stmt = $pdo->prepare(
             "SELECT profile, revision, updated_at,
                     (SELECT count(*) FROM jsonb_object_keys(payload)) AS key_count
              FROM mapplusconf.catalog_document
+             WHERE site = :site
              ORDER BY profile"
         );
+        $stmt->execute(['site' => self::$site]);
         $out = [];
         foreach ($stmt->fetchAll() as $row) {
             $out[] = [
@@ -126,9 +145,9 @@ class CatalogRepository {
             // Aktuellen Stand sperren (FOR UPDATE serialisiert konkurrierende Saves)
             $stmt = $pdo->prepare(
                 "SELECT revision, payload FROM mapplusconf.catalog_document
-                 WHERE profile = :profile FOR UPDATE"
+                 WHERE site = :site AND profile = :profile FOR UPDATE"
             );
-            $stmt->execute(['profile' => $profile]);
+            $stmt->execute(['site' => self::$site, 'profile' => $profile]);
             $row = $stmt->fetch();
             $exists = (bool)$row;
             $currentRevision = $exists ? (int)$row['revision'] : 0;
@@ -170,22 +189,24 @@ class CatalogRepository {
                     "UPDATE mapplusconf.catalog_document
                      SET payload = :payload::jsonb, revision = :revision, updated_by = :user,
                          config_revision_at = now(), config_revision_by = :cfguser
-                     WHERE profile = :profile"
+                     WHERE site = :site AND profile = :profile"
                 );
                 $upd->execute([
                     'payload'  => $payloadJson,
                     'revision' => $newRevision,
                     'user'     => $user,
                     'cfguser'  => $user,
+                    'site'     => self::$site,
                     'profile'  => $profile,
                 ]);
             } else {
                 $ins = $pdo->prepare(
                     "INSERT INTO mapplusconf.catalog_document
-                        (profile, payload, revision, updated_by, config_revision_at, config_revision_by)
-                     VALUES (:profile, :payload::jsonb, :revision, :user, now(), :cfguser)"
+                        (site, profile, payload, revision, updated_by, config_revision_at, config_revision_by)
+                     VALUES (:site, :profile, :payload::jsonb, :revision, :user, now(), :cfguser)"
                 );
                 $ins->execute([
+                    'site'     => self::$site,
                     'profile'  => $profile,
                     'payload'  => $payloadJson,
                     'revision' => $newRevision,
@@ -240,9 +261,9 @@ class CatalogRepository {
         // ON CONFLICT → Upsert, falls das Profil-Dokument noch nicht existiert.
         // Parallele Saves verschiedener User auf verschiedene Blöcke sind konfliktfrei.
         $stmt = $pdo->prepare("
-            INSERT INTO mapplusconf.catalog_document (profile, payload, revision, updated_by, updated_at, config_revision_at, config_revision_by)
-            VALUES (:profile, jsonb_build_object(:lyrmgr_key::text, :block::jsonb), 1, :user, now(), now(), :cfguser)
-            ON CONFLICT (profile) DO UPDATE
+            INSERT INTO mapplusconf.catalog_document (site, profile, payload, revision, updated_by, updated_at, config_revision_at, config_revision_by)
+            VALUES (:site, :profile, jsonb_build_object(:lyrmgr_key::text, :block::jsonb), 1, :user, now(), now(), :cfguser)
+            ON CONFLICT (site, profile) DO UPDATE
             SET payload    = mapplusconf.catalog_document.payload
                              || jsonb_build_object(:lyrmgr_key2::text, :block2::jsonb),
                 revision   = mapplusconf.catalog_document.revision + 1,
@@ -253,6 +274,7 @@ class CatalogRepository {
             RETURNING revision
         ");
         $stmt->execute([
+            'site'        => self::$site,
             'profile'     => $profile,
             'lyrmgr_key'  => $lyrmgrKey,
             'block'       => $blockJson,
@@ -302,22 +324,23 @@ class CatalogRepository {
         try {
             $stmt = $pdo->prepare(
                 "SELECT revision FROM mapplusconf.catalog_draft_profile
-                 WHERE profile = :profile FOR UPDATE"
+                 WHERE site = :site AND profile = :profile FOR UPDATE"
             );
-            $stmt->execute(['profile' => $profile]);
+            $stmt->execute(['site' => self::$site, 'profile' => $profile]);
             $row = $stmt->fetch();
             $currentRevision = $row ? (int)$row['revision'] : 0;
             $newRevision = $currentRevision + 1;
 
             $upProfile = $pdo->prepare(
-                "INSERT INTO mapplusconf.catalog_draft_profile (profile, revision, updated_by)
-                 VALUES (:profile, :revision, :user)
-                 ON CONFLICT (profile) DO UPDATE
+                "INSERT INTO mapplusconf.catalog_draft_profile (site, profile, revision, updated_by)
+                 VALUES (:site, :profile, :revision, :user)
+                 ON CONFLICT (site, profile) DO UPDATE
                     SET revision = EXCLUDED.revision,
                         updated_by = EXCLUDED.updated_by,
                         updated_at = now()"
             );
             $upProfile->execute([
+                'site'     => self::$site,
                 'profile'  => $profile,
                 'revision' => $newRevision,
                 'user'     => $user,
@@ -325,18 +348,18 @@ class CatalogRepository {
 
             $existingKeys = [];
             $listStmt = $pdo->prepare(
-                "SELECT lyrmgr_key FROM mapplusconf.catalog_draft_block WHERE profile = :profile"
+                "SELECT lyrmgr_key FROM mapplusconf.catalog_draft_block WHERE site = :site AND profile = :profile"
             );
-            $listStmt->execute(['profile' => $profile]);
+            $listStmt->execute(['site' => self::$site, 'profile' => $profile]);
             foreach ($listStmt->fetchAll() as $kRow) {
                 $existingKeys[(string)$kRow['lyrmgr_key']] = true;
             }
 
             $upBlock = $pdo->prepare(
                 "INSERT INTO mapplusconf.catalog_draft_block
-                    (profile, lyrmgr_key, payload, revision, updated_by)
-                 VALUES (:profile, :key, :payload::jsonb, :revision, :user)
-                 ON CONFLICT (profile, lyrmgr_key) DO UPDATE
+                    (site, profile, lyrmgr_key, payload, revision, updated_by)
+                 VALUES (:site, :profile, :key, :payload::jsonb, :revision, :user)
+                 ON CONFLICT (site, profile, lyrmgr_key) DO UPDATE
                     SET payload = EXCLUDED.payload,
                         revision = EXCLUDED.revision,
                         updated_by = EXCLUDED.updated_by,
@@ -344,13 +367,14 @@ class CatalogRepository {
             );
             $insEvent = $pdo->prepare(
                 "INSERT INTO mapplusconf.catalog_draft_event
-                    (profile, lyrmgr_key, action, revision, payload, changed_by)
-                 VALUES (:profile, :key, :action, :revision, :payload::jsonb, :user)"
+                    (site, profile, lyrmgr_key, action, revision, payload, changed_by)
+                 VALUES (:site, :profile, :key, :action, :revision, :payload::jsonb, :user)"
             );
 
             foreach ($data as $lyrmgrKey => $block) {
                 $payloadJson = json_encode($block, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
                 $upBlock->execute([
+                    'site'     => self::$site,
                     'profile'  => $profile,
                     'key'      => (string)$lyrmgrKey,
                     'payload'  => $payloadJson,
@@ -358,6 +382,7 @@ class CatalogRepository {
                     'user'     => $user,
                 ]);
                 $insEvent->execute([
+                    'site'     => self::$site,
                     'profile'  => $profile,
                     'key'      => (string)$lyrmgrKey,
                     'action'   => 'upsert',
@@ -371,20 +396,22 @@ class CatalogRepository {
             if (!empty($existingKeys)) {
                 $delBlock = $pdo->prepare(
                     "DELETE FROM mapplusconf.catalog_draft_block
-                     WHERE profile = :profile AND lyrmgr_key = :key"
+                     WHERE site = :site AND profile = :profile AND lyrmgr_key = :key"
                 );
                 $insDeleteEvent = $pdo->prepare(
                     "INSERT INTO mapplusconf.catalog_draft_event
-                        (profile, lyrmgr_key, action, revision, payload, changed_by)
-                     VALUES (:profile, :key, :action, :revision, :payload::jsonb, :user)"
+                        (site, profile, lyrmgr_key, action, revision, payload, changed_by)
+                     VALUES (:site, :profile, :key, :action, :revision, :payload::jsonb, :user)"
                 );
                 $emptyPayload = '{}';
                 foreach (array_keys($existingKeys) as $deletedKey) {
                     $delBlock->execute([
+                        'site'    => self::$site,
                         'profile' => $profile,
                         'key'     => $deletedKey,
                     ]);
                     $insDeleteEvent->execute([
+                        'site'     => self::$site,
                         'profile'  => $profile,
                         'key'      => $deletedKey,
                         'action'   => 'delete',
@@ -425,9 +452,9 @@ class CatalogRepository {
         $statusStmt = $pdo->prepare(
             "SELECT revision, updated_by, updated_at
              FROM mapplusconf.catalog_draft_profile
-             WHERE profile = :profile"
+             WHERE site = :site AND profile = :profile"
         );
-        $statusStmt->execute(['profile' => $profile]);
+        $statusStmt->execute(['site' => self::$site, 'profile' => $profile]);
         $status = $statusStmt->fetch();
 
         if (!$status) {
@@ -444,10 +471,10 @@ class CatalogRepository {
         $blocksStmt = $pdo->prepare(
             "SELECT lyrmgr_key, payload, revision, updated_by, updated_at
              FROM mapplusconf.catalog_draft_block
-             WHERE profile = :profile
+             WHERE site = :site AND profile = :profile
              ORDER BY lyrmgr_key"
         );
-        $blocksStmt->execute(['profile' => $profile]);
+        $blocksStmt->execute(['site' => self::$site, 'profile' => $profile]);
 
         $data = [];
         $meta = [];
@@ -485,9 +512,9 @@ class CatalogRepository {
         $stmt = $pdo->prepare(
             "SELECT revision, updated_by, updated_at
              FROM mapplusconf.catalog_draft_profile
-             WHERE profile = :profile"
+             WHERE site = :site AND profile = :profile"
         );
-        $stmt->execute(['profile' => $profile]);
+        $stmt->execute(['site' => self::$site, 'profile' => $profile]);
         $row = $stmt->fetch();
 
         if (!$row) {
@@ -536,14 +563,15 @@ class CatalogRepository {
             }
 
             $stmt = $pdo->prepare(
-                "INSERT INTO mapplusconf.catalog_lock (profile, locked_by, locked_at, expires_at)
-                 VALUES (:profile, :user, now(), :expires)
-                 ON CONFLICT (profile) DO UPDATE
+                "INSERT INTO mapplusconf.catalog_lock (site, profile, locked_by, locked_at, expires_at)
+                 VALUES (:site, :profile, :user, now(), :expires)
+                 ON CONFLICT (site, profile) DO UPDATE
                    SET locked_by = EXCLUDED.locked_by,
                        locked_at = now(),
                        expires_at = EXCLUDED.expires_at"
             );
             $stmt->execute([
+                'site'    => self::$site,
                 'profile' => $profile,
                 'user'    => $user,
                 'expires' => $expires->format(DateTimeInterface::ATOM),
@@ -576,9 +604,9 @@ class CatalogRepository {
         $pdo = Database::getConnection();
         $stmt = $pdo->prepare(
             "DELETE FROM mapplusconf.catalog_lock
-             WHERE profile = :profile AND locked_by = :user"
+             WHERE site = :site AND profile = :profile AND locked_by = :user"
         );
-        $stmt->execute(['profile' => $profile, 'user' => $user]);
+        $stmt->execute(['site' => self::$site, 'profile' => $profile, 'user' => $user]);
         return ['released' => $stmt->rowCount() > 0];
     }
 
@@ -616,12 +644,12 @@ class CatalogRepository {
      */
     private static function fetchLock($pdo, string $profile, bool $forUpdate): ?array {
         $sql = "SELECT profile, locked_by, locked_at, expires_at
-                FROM mapplusconf.catalog_lock WHERE profile = :profile";
+                FROM mapplusconf.catalog_lock WHERE site = :site AND profile = :profile";
         if ($forUpdate) {
             $sql .= ' FOR UPDATE';
         }
         $stmt = $pdo->prepare($sql);
-        $stmt->execute(['profile' => $profile]);
+        $stmt->execute(['site' => self::$site, 'profile' => $profile]);
         $row = $stmt->fetch();
         return $row ?: null;
     }
@@ -640,10 +668,11 @@ class CatalogRepository {
     private static function writeHistory($pdo, string $profile, int $revision, string $action, ?string $lyrmgrKey, ?string $payloadJson, ?string $user): void {
         $stmt = $pdo->prepare(
             "INSERT INTO mapplusconf.catalog_document_history
-                (profile, revision, action, lyrmgr_key, payload, changed_by)
-             VALUES (:profile, :revision, :action, :key, :payload::jsonb, :user)"
+                (site, profile, revision, action, lyrmgr_key, payload, changed_by)
+             VALUES (:site, :profile, :revision, :action, :key, :payload::jsonb, :user)"
         );
         $stmt->execute([
+            'site'     => self::$site,
             'profile'  => $profile,
             'revision' => $revision,
             'action'   => $action,
@@ -667,28 +696,32 @@ class CatalogRepository {
 
         $pdo->exec(
             "CREATE TABLE IF NOT EXISTS mapplusconf.catalog_draft_profile (
-                profile text PRIMARY KEY,
+                site text NOT NULL DEFAULT 'maps',
+                profile text NOT NULL,
                 revision integer NOT NULL DEFAULT 0,
                 updated_by text,
-                updated_at timestamptz NOT NULL DEFAULT now()
+                updated_at timestamptz NOT NULL DEFAULT now(),
+                PRIMARY KEY (site, profile)
             )"
         );
 
         $pdo->exec(
             "CREATE TABLE IF NOT EXISTS mapplusconf.catalog_draft_block (
+                site text NOT NULL DEFAULT 'maps',
                 profile text NOT NULL,
                 lyrmgr_key text NOT NULL,
                 payload jsonb NOT NULL,
                 revision integer NOT NULL DEFAULT 0,
                 updated_by text,
                 updated_at timestamptz NOT NULL DEFAULT now(),
-                PRIMARY KEY (profile, lyrmgr_key)
+                PRIMARY KEY (site, profile, lyrmgr_key)
             )"
         );
 
         $pdo->exec(
             "CREATE TABLE IF NOT EXISTS mapplusconf.catalog_draft_event (
                 id bigserial PRIMARY KEY,
+                site text NOT NULL DEFAULT 'maps',
                 profile text NOT NULL,
                 lyrmgr_key text NOT NULL,
                 action text NOT NULL,
@@ -699,9 +732,33 @@ class CatalogRepository {
             )"
         );
 
+        // Migration Bestands-DB: Site-Dimension fuer Draft-Tabellen nachruesten (idempotent).
+        $pdo->exec(
+            "DO \$\$
+            BEGIN
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                               WHERE table_schema='mapplusconf' AND table_name='catalog_draft_profile' AND column_name='site') THEN
+                    ALTER TABLE mapplusconf.catalog_draft_profile ADD COLUMN site text NOT NULL DEFAULT 'maps';
+                    ALTER TABLE mapplusconf.catalog_draft_profile DROP CONSTRAINT IF EXISTS catalog_draft_profile_pkey;
+                    ALTER TABLE mapplusconf.catalog_draft_profile ADD PRIMARY KEY (site, profile);
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                               WHERE table_schema='mapplusconf' AND table_name='catalog_draft_block' AND column_name='site') THEN
+                    ALTER TABLE mapplusconf.catalog_draft_block ADD COLUMN site text NOT NULL DEFAULT 'maps';
+                    ALTER TABLE mapplusconf.catalog_draft_block DROP CONSTRAINT IF EXISTS catalog_draft_block_pkey;
+                    ALTER TABLE mapplusconf.catalog_draft_block ADD PRIMARY KEY (site, profile, lyrmgr_key);
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                               WHERE table_schema='mapplusconf' AND table_name='catalog_draft_event' AND column_name='site') THEN
+                    ALTER TABLE mapplusconf.catalog_draft_event ADD COLUMN site text NOT NULL DEFAULT 'maps';
+                END IF;
+            END
+            \$\$;"
+        );
+
         $pdo->exec(
             "CREATE INDEX IF NOT EXISTS idx_catalog_draft_event_profile_changed_at
-             ON mapplusconf.catalog_draft_event (profile, changed_at DESC)"
+             ON mapplusconf.catalog_draft_event (site, profile, changed_at DESC)"
         );
 
         $ready = true;

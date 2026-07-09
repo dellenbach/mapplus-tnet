@@ -239,6 +239,8 @@ try {
         $scriptName  = $_SERVER['SCRIPT_NAME'] ?? '';
         $appBasePath = rtrim(str_replace('\\', '/', dirname(dirname(dirname(dirname($scriptName))))), '/');
         if ($appBasePath === '' || $appBasePath === '.') { $appBasePath = '/maps'; }
+        // Multi-Site: Site-Kontext fuer die Migration setzen (Profile pro Site).
+        CatalogRepository::setSite(preg_replace('/-dev$/i', '', ltrim($appBasePath, '/')) ?: 'maps');
         $webRoot    = rtrim($_SERVER['DOCUMENT_ROOT'] ?? '/var/www/html/nwow', '/') . $appBasePath;
         $configBase = $webRoot . '/public/config';
 

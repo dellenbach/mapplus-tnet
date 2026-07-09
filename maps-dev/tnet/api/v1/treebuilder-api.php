@@ -59,6 +59,10 @@ define('CLIENT_DATA_ROOT', $clientDataRoot);
 define('TNET_TMP_ROOT', '/data/Client_Data/nwow/tmp/' . (APP_BASE_PATH === '/maps-dev' ? 'maps-dev' : 'maps'));
 define('CORE_CONFIG_DIR', TnetCorePaths::getConfigPath());
 define('CORE_NLS_DIR', TnetCorePaths::getNlsPath('de'));
+
+// Multi-Site: Site-Kontext fuer alle Katalog-Operationen setzen (Profile pro Site).
+require_once __DIR__ . '/../includes/CatalogRepository.php';
+CatalogRepository::setSite(TnetCorePaths::getSiteName());
 define('APP_CORE_CONFIG_DIR', APP_WEB_ROOT . '/core/config');
 // App-lokale NLS-Überladungen: /www/maps(-dev)/core/nls/de/ — enthält z.B. Kategorie-Labels (desc_grundlagen etc.)
 define('APP_CORE_NLS_DIR', APP_WEB_ROOT . '/core/nls/de');
