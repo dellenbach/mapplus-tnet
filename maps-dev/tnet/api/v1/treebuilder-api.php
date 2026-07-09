@@ -5702,6 +5702,55 @@ function v2LoadPublicStructure() {
 }
 
 // =====================================================================
+// Icon-/Symbol-Management (Tydac-Editor, Workstream D)
+// Ablage klar getrennt fuer den Layercatalog:
+//   <tnet>/resources/symbols/base/       Basis-Set (mitgeliefert)
+//   <tnet>/resources/symbols/custom/<site>/  Site-spezifische Uploads
+// URL app-root-relativ: getAppRoot() + '/tnet/resources/symbols/...'
+// =====================================================================
+
+/** Physisches Basisverzeichnis der Katalog-Symbole (unabhaengig vom URL-Routing). */
+function tnetSymbolsBaseDir() {
+    // treebuilder-api.php liegt unter <tnet>/api/v1/ -> Symbols unter <tnet>/resources/symbols
+    $dir = realpath(__DIR__ . '/../../resources/symbols');
+    if ($dir) {
+        return str_replace('\\', '/', $dir);
+    }
+    // Falls noch nicht vorhanden: erwarteten Pfad zurueckgeben (wird beim Upload angelegt).
+    return str_replace('\\', '/', __DIR__ . '/../../resources/symbols');
+}
+
+/** App-root-relative URL-Basis fuer Katalog-Symbole (z.B. /maps/tnet/resources/symbols). */
+function tnetSymbolsUrlBase() {
+    return APP_BASE_PATH . '/tnet/resources/symbols';
+}
+
+/**
+ * Bereinigt einen SVG-String serverseitig (Schutz vor XSS via SVG).
+ * Entfernt <script>, <foreignObject>, on*-Eventhandler, javascript:-URLs sowie
+ * externe Referenzen (href/xlink:href auf http/data). Nur bereinigtes SVG speichern.
+ */
+function tnetSanitizeSvg($svg) {
+    $svg = (string)$svg;
+    // BOM entfernen
+    $svg = preg_replace('/^\xEF\xBB\xBF/', '', $svg);
+    // Gefaehrliche Elemente komplett entfernen
+    $svg = preg_replace('#<\s*script\b[^>]*>.*?<\s*/\s*script\s*>#is', '', $svg);
+    $svg = preg_replace('#<\s*script\b[^>]*/?>#is', '', $svg);
+    $svg = preg_replace('#<\s*foreignObject\b[^>]*>.*?<\s*/\s*foreignObject\s*>#is', '', $svg);
+    $svg = preg_replace('#<\s*(iframe|object|embed|use\s+[^>]*xlink:href\s*=\s*["\']https?:)[^>]*>#is', '', $svg);
+    // on*-Eventhandler-Attribute entfernen
+    $svg = preg_replace('#\s+on[a-z]+\s*=\s*"(?:[^"]*)"#is', '', $svg);
+    $svg = preg_replace("#\\s+on[a-z]+\\s*=\\s*'(?:[^']*)'#is", '', $svg);
+    $svg = preg_replace('#\s+on[a-z]+\s*=\s*[^\s>]+#is', '', $svg);
+    // javascript:-URLs neutralisieren
+    $svg = preg_replace('#(href|xlink:href)\s*=\s*(["\'])\s*javascript:[^"\']*\2#is', '$1=$2#$2', $svg);
+    // externe/eingebettete Referenzen in href auf http/data entfernen
+    $svg = preg_replace('#\s+(xlink:href|href)\s*=\s*(["\'])\s*(?:https?:|data:)[^"\']*\2#is', '', $svg);
+    return trim($svg);
+}
+
+// =====================================================================
 // Router
 // =====================================================================
 $action = $_GET['action'] ?? '';
@@ -5981,6 +6030,256 @@ switch ($action) {
             jsonError($result['error'], 500);
         }
         jsonResponse(['success' => true, 'data' => $result]);
+        break;
+
+    // =================================================================
+    // Treebuilder Tydac — originaler MAP+/TYDAC ClassicLayerMgr-Katalog
+    // Persistenz via catalog_document mit variant='tydac' (getrennt vom TNET-Baum).
+    // Site-Kontext ist am Bootstrap gesetzt; Variante wird je Handler auf 'tydac' gesetzt.
+    // =================================================================
+    case 'tydac-list-profiles':
+        require_once __DIR__ . '/../includes/CatalogRepository.php';
+        try {
+            CatalogRepository::setVariant('tydac');
+            jsonResponse(['success' => true, 'data' => CatalogRepository::listProfiles()]);
+        } catch (\Throwable $e) {
+            jsonError('Tydac-Profile konnten nicht geladen werden: ' . $e->getMessage(), 500);
+        }
+        break;
+
+    case 'tydac-load':
+        $profile = $_GET['profile'] ?? '';
+        if (!$profile) jsonError('Parameter profile= erforderlich', 400);
+        require_once __DIR__ . '/../includes/CatalogRepository.php';
+        try {
+            CatalogRepository::setVariant('tydac');
+            $doc = CatalogRepository::loadProfile($profile);
+            jsonResponse(['success' => true, 'data' => [
+                'exists'    => (bool)$doc['exists'],
+                'profile'   => $profile,
+                'variant'   => 'tydac',
+                'site'      => CatalogRepository::getSite(),
+                'lyrmgr'    => $doc['data'],
+                'revision'  => (int)$doc['revision'],
+                'updatedBy' => $doc['updatedBy'] ?? null,
+                'updatedAt' => $doc['updatedAt'] ?? null,
+            ]]);
+        } catch (\Throwable $e) {
+            jsonError('Tydac-Katalog konnte nicht geladen werden: ' . $e->getMessage(), 500);
+        }
+        break;
+
+    case 'tydac-save':
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('POST required', 405);
+        $body = json_decode(file_get_contents('php://input'), true);
+        if (!$body || !isset($body['profile']) || !isset($body['lyrmgr'])) {
+            jsonError('Felder profile, lyrmgr erforderlich', 400);
+        }
+        if (!is_array($body['lyrmgr'])) jsonError('Feld lyrmgr muss ein Objekt sein', 400);
+        require_once __DIR__ . '/../includes/CatalogRepository.php';
+        $editor = getEditorName();
+        try {
+            CatalogRepository::setVariant('tydac');
+            $expectedRevision = isset($body['expectedRevision']) ? (int)$body['expectedRevision'] : null;
+            $res = CatalogRepository::saveProfile($body['profile'], $body['lyrmgr'], $expectedRevision, $editor, 'update');
+            if (!empty($res['conflict'])) {
+                jsonResponse(['success' => false, 'conflict' => true, 'data' => $res], 409);
+            }
+            jsonResponse(['success' => true, 'data' => $res]);
+        } catch (\Throwable $e) {
+            jsonError('Tydac-Katalog konnte nicht gespeichert werden: ' . $e->getMessage(), 500);
+        }
+        break;
+
+    case 'tydac-publish-status':
+        $profile = $_GET['profile'] ?? '';
+        if (!$profile) jsonError('Parameter profile= erforderlich', 400);
+        require_once __DIR__ . '/../includes/CatalogRepository.php';
+        try {
+            CatalogRepository::setVariant('tydac');
+            $doc = CatalogRepository::loadProfile($profile);
+            jsonResponse(['success' => true, 'data' => [
+                'exists'    => (bool)$doc['exists'],
+                'revision'  => (int)$doc['revision'],
+                'updatedBy' => $doc['updatedBy'] ?? null,
+                'updatedAt' => $doc['updatedAt'] ?? null,
+            ]]);
+        } catch (\Throwable $e) {
+            jsonResponse(['success' => false, 'error' => $e->getMessage()]);
+        }
+        break;
+
+    case 'tydac-history':
+        $profile = $_GET['profile'] ?? '';
+        if (!$profile) jsonError('Parameter profile= erforderlich', 400);
+        require_once __DIR__ . '/../includes/CatalogRepository.php';
+        try {
+            CatalogRepository::setVariant('tydac');
+            $limit = isset($_GET['limit']) ? max(1, min(200, (int)$_GET['limit'])) : 50;
+            jsonResponse(['success' => true, 'data' => CatalogRepository::listHistory($profile, $limit)]);
+        } catch (\Throwable $e) {
+            jsonError('Tydac-Historie konnte nicht geladen werden: ' . $e->getMessage(), 500);
+        }
+        break;
+
+    case 'tydac-restore':
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('POST required', 405);
+        $body = json_decode(file_get_contents('php://input'), true);
+        if (!$body || !isset($body['profile']) || !isset($body['revision'])) {
+            jsonError('Felder profile, revision erforderlich', 400);
+        }
+        require_once __DIR__ . '/../includes/CatalogRepository.php';
+        $editor = getEditorName();
+        try {
+            CatalogRepository::setVariant('tydac');
+            $payload = CatalogRepository::getHistoryPayload($body['profile'], (int)$body['revision']);
+            if ($payload === null) jsonError('Revision nicht gefunden', 404);
+            $res = CatalogRepository::saveProfile($body['profile'], $payload, null, $editor, 'restore');
+            jsonResponse(['success' => true, 'data' => $res]);
+        } catch (\Throwable $e) {
+            jsonError('Tydac-Restore fehlgeschlagen: ' . $e->getMessage(), 500);
+        }
+        break;
+
+    case 'tydac-lock':
+        $profile = $_GET['profile'] ?? ($_POST['profile'] ?? '');
+        if (!$profile) jsonError('Parameter profile= erforderlich', 400);
+        require_once __DIR__ . '/../includes/CatalogRepository.php';
+        $editor = getEditorName();
+        try {
+            CatalogRepository::setVariant('tydac');
+            jsonResponse(['success' => true, 'data' => CatalogRepository::acquireLock($profile, $editor)]);
+        } catch (\Throwable $e) {
+            jsonError('Tydac-Lock fehlgeschlagen: ' . $e->getMessage(), 500);
+        }
+        break;
+
+    case 'tydac-unlock':
+        $profile = $_GET['profile'] ?? ($_POST['profile'] ?? '');
+        if (!$profile) jsonError('Parameter profile= erforderlich', 400);
+        require_once __DIR__ . '/../includes/CatalogRepository.php';
+        $editor = getEditorName();
+        try {
+            CatalogRepository::setVariant('tydac');
+            jsonResponse(['success' => true, 'data' => CatalogRepository::releaseLock($profile, $editor)]);
+        } catch (\Throwable $e) {
+            jsonError('Tydac-Unlock fehlgeschlagen: ' . $e->getMessage(), 500);
+        }
+        break;
+
+    case 'tydac-status':
+        $profile = $_GET['profile'] ?? '';
+        if (!$profile) jsonError('Parameter profile= erforderlich', 400);
+        require_once __DIR__ . '/../includes/CatalogRepository.php';
+        try {
+            CatalogRepository::setVariant('tydac');
+            $lock = CatalogRepository::lockStatus($profile);
+            jsonResponse(['success' => true, 'data' => ['locked' => $lock !== null, 'lock' => $lock]]);
+        } catch (\Throwable $e) {
+            jsonError('Tydac-Status fehlgeschlagen: ' . $e->getMessage(), 500);
+        }
+        break;
+
+    // =================================================================
+    // Icon-/Symbol-Management (Tydac-Editor, Workstream D)
+    // =================================================================
+    case 'list-symbolsets':
+        $baseDir = tnetSymbolsBaseDir();
+        $urlBase = tnetSymbolsUrlBase();
+        $site    = CatalogRepository::getSite();
+        $sets    = [];
+        if (is_dir($baseDir)) {
+            // Nur definierte Sets scannen: base/ + custom/<site>/ (klare Trennung).
+            $scanDirs = [
+                ['key' => 'base', 'fs' => $baseDir . '/base', 'url' => $urlBase . '/base'],
+                ['key' => 'custom', 'fs' => $baseDir . '/custom/' . $site, 'url' => $urlBase . '/custom/' . $site],
+            ];
+            foreach ($scanDirs as $sd) {
+                if (!is_dir($sd['fs'])) continue;
+                $items = [];
+                $rii = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($sd['fs'], FilesystemIterator::SKIP_DOTS));
+                foreach ($rii as $file) {
+                    if (!$file->isFile()) continue;
+                    $ext = strtolower($file->getExtension());
+                    if ($ext !== 'png' && $ext !== 'svg') continue;
+                    $rel = ltrim(str_replace('\\', '/', substr($file->getPathname(), strlen($sd['fs']))), '/');
+                    $items[] = [
+                        'name' => $file->getBasename('.' . $file->getExtension()),
+                        'type' => $ext,
+                        'url'  => $sd['url'] . '/' . $rel,
+                    ];
+                }
+                usort($items, function ($a, $b) { return strcasecmp($a['name'], $b['name']); });
+                $sets[] = ['key' => $sd['key'], 'label' => $sd['key'] === 'base' ? 'Basis' : ('Custom (' . $site . ')'), 'items' => $items];
+            }
+        }
+        jsonResponse(['success' => true, 'data' => ['urlBase' => $urlBase, 'site' => $site, 'sets' => $sets]]);
+        break;
+
+    case 'upload-icon':
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('POST required', 405);
+        if (empty($_FILES['icon']) || !isset($_FILES['icon']['tmp_name'])) {
+            jsonError('Kein Upload-Feld "icon" gefunden', 400);
+        }
+        $file = $_FILES['icon'];
+        if (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+            jsonError('Upload-Fehler (Code ' . (int)($file['error'] ?? -1) . ')', 400);
+        }
+        // Groessenlimit: 512 KB
+        if (($file['size'] ?? 0) > 512 * 1024) {
+            jsonError('Datei zu gross (max. 512 KB)', 413);
+        }
+        // Dateiname bereinigen (kein Path-Traversal), Endung pruefen
+        $origName = (string)($file['name'] ?? 'icon');
+        $ext = strtolower(pathinfo($origName, PATHINFO_EXTENSION));
+        if ($ext !== 'png' && $ext !== 'svg') {
+            jsonError('Nur PNG oder SVG erlaubt', 415);
+        }
+        $baseName = preg_replace('/[^a-z0-9_\-]+/i', '_', pathinfo($origName, PATHINFO_FILENAME));
+        $baseName = trim($baseName, '_');
+        if ($baseName === '') $baseName = 'icon_' . time();
+
+        // MIME-Pruefung (nicht nur Endung)
+        $tmp = $file['tmp_name'];
+        $content = file_get_contents($tmp);
+        if ($content === false) jsonError('Datei konnte nicht gelesen werden', 500);
+        if ($ext === 'png') {
+            // PNG-Signatur pruefen
+            if (substr($content, 0, 8) !== "\x89PNG\r\n\x1a\n") {
+                jsonError('Ungueltige PNG-Datei', 415);
+            }
+        } else { // svg
+            if (stripos($content, '<svg') === false) {
+                jsonError('Ungueltige SVG-Datei', 415);
+            }
+            // SVG serverseitig zwingend bereinigen
+            $content = tnetSanitizeSvg($content);
+            if (stripos($content, '<svg') === false) {
+                jsonError('SVG konnte nicht bereinigt werden', 422);
+            }
+        }
+
+        // Zielordner site-scoped: <tnet>/resources/symbols/custom/<site>/
+        $site = CatalogRepository::getSite();
+        $destDir = tnetSymbolsBaseDir() . '/custom/' . $site;
+        if (!is_dir($destDir) && !@mkdir($destDir, 0775, true) && !is_dir($destDir)) {
+            jsonError('Zielverzeichnis konnte nicht angelegt werden', 500);
+        }
+        $destName = $baseName . '.' . $ext;
+        $destPath = $destDir . '/' . $destName;
+        // Kollision vermeiden
+        if (file_exists($destPath)) {
+            $destName = $baseName . '_' . substr(sha1($content), 0, 6) . '.' . $ext;
+            $destPath = $destDir . '/' . $destName;
+        }
+        $ok = ($ext === 'svg')
+            ? (file_put_contents($destPath, $content) !== false)
+            : move_uploaded_file($tmp, $destPath);
+        if (!$ok) jsonError('Datei konnte nicht gespeichert werden', 500);
+        @chmod($destPath, 0644);
+
+        $url = tnetSymbolsUrlBase() . '/custom/' . $site . '/' . $destName;
+        jsonResponse(['success' => true, 'data' => ['url' => $url, 'name' => $baseName, 'type' => $ext, 'site' => $site]]);
         break;
 
     // =================================================================

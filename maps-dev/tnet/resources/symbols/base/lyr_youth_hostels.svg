@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="8.2710037mm"
+   height="8.2710037mm"
+   viewBox="0 0 8.2710037 8.2710037"
+   version="1.1"
+   id="svg1"
+   sodipodi:docname="lyr_youth_hostels.svg"
+   inkscape:version="1.4 (1:1.4+202410161351+e7c3feb100)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview1"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:document-units="mm"
+     showguides="false"
+     inkscape:zoom="48.303791"
+     inkscape:cx="15.630243"
+     inkscape:cy="15.630243"
+     inkscape:window-width="3200"
+     inkscape:window-height="1715"
+     inkscape:window-x="0"
+     inkscape:window-y="0"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="svg1" />
+  <defs
+     id="defs1" />
+  <circle
+     style="display:inline;fill:#ffffff;stroke-width:0.264583;stroke-linecap:round;stroke-linejoin:round;paint-order:markers fill stroke"
+     id="circle3"
+     cx="4.1355033"
+     cy="4.1354976"
+     r="4.1355019" />
+  <g
+     id="g1"
+     transform="matrix(0.93622602,0,0,0.93622602,-114.99938,-111.68291)"
+     style="fill:#006400">
+    <g
+       id="g2"
+       style="display:inline;fill:#006400"
+       transform="matrix(1.2157433,0,0,1.2157433,-11.319241,-12.250279)">
+      <path
+         style="fill:#006400;fill-opacity:1;fill-rule:nonzero;stroke:none;stroke-width:0.343692"
+         d="m 113.13578,111.11884 h -2.46354 l 1.23107,-1.96485 z m 0,0"
+         id="path15" />
+      <path
+         style="fill:#006400;fill-opacity:1;fill-rule:nonzero;stroke:none;stroke-width:0.343692"
+         d="m 111.73963,112.01431 h 0.32876 v 2.16585 h -0.32876 z m 0,0"
+         id="path16" />
+      <path
+         style="fill:#006400;fill-opacity:1;fill-rule:nonzero;stroke:none;stroke-width:0.343692"
+         d="m 113.47431,112.50906 h -3.14062 l 1.56962,-1.96485 z m 0,0"
+         id="path17" />
+    </g>
+    <g
+       id="g3"
+       transform="matrix(1.3134828,0,0,1.3202166,-22.813716,-24.207154)"
+       style="display:inline;fill:#006400">
+      <path
+         style="fill:#006400;fill-opacity:1;fill-rule:nonzero;stroke:none;stroke-width:0.350742"
+         d="m 114.09739,112.03855 h 2.99157 v 2.41057 h -2.99157 z m 0,0"
+         id="path13" />
+      <path
+         style="fill:#006400;fill-opacity:1;fill-rule:nonzero;stroke:none;stroke-width:0.350742"
+         d="m 117.60306,111.91927 h -4.01978 l 2.0106,-1.23084 z m 0,0"
+         id="path14" />
+      <path
+         style="fill:#006400;fill-opacity:1;fill-rule:nonzero;stroke:none;stroke-width:0.350742"
+         d="m 115.25879,113.57482 h 0.67163 v 0.87299 h -0.67307 z m -0.80339,-0.89004 h 0.5313 v 0.485 h -0.5313 z m 1.69699,0 h 0.52987 v 0.485 h -0.52987 z m 0,0"
+         id="path18" />
+    </g>
+  </g>
+</svg>

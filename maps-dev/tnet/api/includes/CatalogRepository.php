@@ -27,6 +27,9 @@ class CatalogRepository {
     /** @var string Aktuelle Site (Multi-Site-Kontext, request-scoped). Default 'maps'. */
     private static $site = 'maps';
 
+    /** @var string Aktuelle Katalog-Variante (tnet | tydac), request-scoped. Default 'tnet'. */
+    private static $variant = 'tnet';
+
     /**
      * Setzt den Site-Kontext fuer alle Katalog-Operationen (einmalig pro Request am API-Bootstrap).
      * DEV/PROD sind bereits ueber getrennte DB-Schemas getrennt; site unterscheidet nur die Site.
@@ -41,6 +44,20 @@ class CatalogRepository {
         return self::$site;
     }
 
+    /**
+     * Setzt die Katalog-Variante fuer alle Operationen: 'tnet' (eigener Renderer) oder
+     * 'tydac' (originales MAP+/TYDAC ClassicLayerMgr-Format). Default 'tnet'.
+     */
+    public static function setVariant(?string $variant): void {
+        $v = strtolower(trim((string)$variant));
+        self::$variant = ($v === 'tydac') ? 'tydac' : 'tnet';
+    }
+
+    /** Liefert die aktuell gesetzte Katalog-Variante. */
+    public static function getVariant(): string {
+        return self::$variant;
+    }
+
     // ===== LESEN =====
 
     /**
@@ -53,9 +70,9 @@ class CatalogRepository {
         $pdo = Database::getConnection();
         $stmt = $pdo->prepare(
             "SELECT payload, revision, updated_by, updated_at FROM mapplusconf.catalog_document
-             WHERE site = :site AND profile = :profile"
+             WHERE site = :site AND profile = :profile AND variant = :variant"
         );
-        $stmt->execute(['site' => self::$site, 'profile' => $profile]);
+        $stmt->execute(['site' => self::$site, 'profile' => $profile, 'variant' => self::$variant]);
         $row = $stmt->fetch();
 
         if (!$row) {
@@ -81,9 +98,9 @@ class CatalogRepository {
     public static function getRevision(string $profile): int {
         $pdo = Database::getConnection();
         $stmt = $pdo->prepare(
-            "SELECT revision FROM mapplusconf.catalog_document WHERE site = :site AND profile = :profile"
+            "SELECT revision FROM mapplusconf.catalog_document WHERE site = :site AND profile = :profile AND variant = :variant"
         );
-        $stmt->execute(['site' => self::$site, 'profile' => $profile]);
+        $stmt->execute(['site' => self::$site, 'profile' => $profile, 'variant' => self::$variant]);
         $row = $stmt->fetch();
         return $row ? (int)$row['revision'] : 0;
     }
@@ -99,10 +116,10 @@ class CatalogRepository {
             "SELECT profile, revision, updated_at,
                     (SELECT count(*) FROM jsonb_object_keys(payload)) AS key_count
              FROM mapplusconf.catalog_document
-             WHERE site = :site
+             WHERE site = :site AND variant = :variant
              ORDER BY profile"
         );
-        $stmt->execute(['site' => self::$site]);
+        $stmt->execute(['site' => self::$site, 'variant' => self::$variant]);
         $out = [];
         foreach ($stmt->fetchAll() as $row) {
             $out[] = [
@@ -145,9 +162,9 @@ class CatalogRepository {
             // Aktuellen Stand sperren (FOR UPDATE serialisiert konkurrierende Saves)
             $stmt = $pdo->prepare(
                 "SELECT revision, payload FROM mapplusconf.catalog_document
-                 WHERE site = :site AND profile = :profile FOR UPDATE"
+                 WHERE site = :site AND profile = :profile AND variant = :variant FOR UPDATE"
             );
-            $stmt->execute(['site' => self::$site, 'profile' => $profile]);
+            $stmt->execute(['site' => self::$site, 'profile' => $profile, 'variant' => self::$variant]);
             $row = $stmt->fetch();
             $exists = (bool)$row;
             $currentRevision = $exists ? (int)$row['revision'] : 0;
@@ -189,7 +206,7 @@ class CatalogRepository {
                     "UPDATE mapplusconf.catalog_document
                      SET payload = :payload::jsonb, revision = :revision, updated_by = :user,
                          config_revision_at = now(), config_revision_by = :cfguser
-                     WHERE site = :site AND profile = :profile"
+                     WHERE site = :site AND profile = :profile AND variant = :variant"
                 );
                 $upd->execute([
                     'payload'  => $payloadJson,
@@ -198,16 +215,18 @@ class CatalogRepository {
                     'cfguser'  => $user,
                     'site'     => self::$site,
                     'profile'  => $profile,
+                    'variant'  => self::$variant,
                 ]);
             } else {
                 $ins = $pdo->prepare(
                     "INSERT INTO mapplusconf.catalog_document
-                        (site, profile, payload, revision, updated_by, config_revision_at, config_revision_by)
-                     VALUES (:site, :profile, :payload::jsonb, :revision, :user, now(), :cfguser)"
+                        (site, profile, variant, payload, revision, updated_by, config_revision_at, config_revision_by)
+                     VALUES (:site, :profile, :variant, :payload::jsonb, :revision, :user, now(), :cfguser)"
                 );
                 $ins->execute([
                     'site'     => self::$site,
                     'profile'  => $profile,
+                    'variant'  => self::$variant,
                     'payload'  => $payloadJson,
                     'revision' => $newRevision,
                     'user'     => $user,
@@ -261,9 +280,9 @@ class CatalogRepository {
         // ON CONFLICT → Upsert, falls das Profil-Dokument noch nicht existiert.
         // Parallele Saves verschiedener User auf verschiedene Blöcke sind konfliktfrei.
         $stmt = $pdo->prepare("
-            INSERT INTO mapplusconf.catalog_document (site, profile, payload, revision, updated_by, updated_at, config_revision_at, config_revision_by)
-            VALUES (:site, :profile, jsonb_build_object(:lyrmgr_key::text, :block::jsonb), 1, :user, now(), now(), :cfguser)
-            ON CONFLICT (site, profile) DO UPDATE
+            INSERT INTO mapplusconf.catalog_document (site, profile, variant, payload, revision, updated_by, updated_at, config_revision_at, config_revision_by)
+            VALUES (:site, :profile, :variant, jsonb_build_object(:lyrmgr_key::text, :block::jsonb), 1, :user, now(), now(), :cfguser)
+            ON CONFLICT (site, profile, variant) DO UPDATE
             SET payload    = mapplusconf.catalog_document.payload
                              || jsonb_build_object(:lyrmgr_key2::text, :block2::jsonb),
                 revision   = mapplusconf.catalog_document.revision + 1,
@@ -276,6 +295,7 @@ class CatalogRepository {
         $stmt->execute([
             'site'        => self::$site,
             'profile'     => $profile,
+            'variant'     => self::$variant,
             'lyrmgr_key'  => $lyrmgrKey,
             'block'       => $blockJson,
             'user'        => $user ?? 'anonym',
@@ -304,6 +324,69 @@ class CatalogRepository {
             'published' => true,
             'lyrmgrKey' => $lyrmgrKey,
         ];
+    }
+
+    // ===== HISTORIE / VERSIONIERUNG =====
+
+    /**
+     * Liefert die Revisions-Historie (neueste zuerst) fuer aktuelle Site+Profil+Variante.
+     *
+     * @param string $profile
+     * @param int    $limit
+     * @return array<int, array{revision:int, action:string, lyrmgrKey:?string, changedBy:?string, changedAt:string}>
+     */
+    public static function listHistory(string $profile, int $limit = 50): array {
+        $pdo = Database::getConnection();
+        $stmt = $pdo->prepare(
+            "SELECT revision, action, lyrmgr_key, changed_by, changed_at
+             FROM mapplusconf.catalog_document_history
+             WHERE site = :site AND profile = :profile AND variant = :variant
+             ORDER BY revision DESC, id DESC
+             LIMIT :limit"
+        );
+        $stmt->bindValue(':site', self::$site);
+        $stmt->bindValue(':profile', $profile);
+        $stmt->bindValue(':variant', self::$variant);
+        $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+        $stmt->execute();
+        $out = [];
+        foreach ($stmt->fetchAll() as $row) {
+            $out[] = [
+                'revision'  => (int)$row['revision'],
+                'action'    => (string)$row['action'],
+                'lyrmgrKey' => isset($row['lyrmgr_key']) ? (string)$row['lyrmgr_key'] : null,
+                'changedBy' => isset($row['changed_by']) ? (string)$row['changed_by'] : null,
+                'changedAt' => (string)$row['changed_at'],
+            ];
+        }
+        return $out;
+    }
+
+    /**
+     * Liefert den Payload-Stand einer bestimmten Revision (fuer Diff/Restore).
+     *
+     * @param string $profile
+     * @param int    $revision
+     * @return array|null
+     */
+    public static function getHistoryPayload(string $profile, int $revision): ?array {
+        $pdo = Database::getConnection();
+        $stmt = $pdo->prepare(
+            "SELECT payload FROM mapplusconf.catalog_document_history
+             WHERE site = :site AND profile = :profile AND variant = :variant AND revision = :revision
+             ORDER BY id DESC LIMIT 1"
+        );
+        $stmt->execute([
+            'site'     => self::$site,
+            'profile'  => $profile,
+            'variant'  => self::$variant,
+            'revision' => $revision,
+        ]);
+        $row = $stmt->fetch();
+        if (!$row) {
+            return null;
+        }
+        return self::decodePayload($row['payload']);
     }
 
     // ===== DRAFT (GRANULAR, BLOCKWEISE) =====
@@ -563,9 +646,9 @@ class CatalogRepository {
             }
 
             $stmt = $pdo->prepare(
-                "INSERT INTO mapplusconf.catalog_lock (site, profile, locked_by, locked_at, expires_at)
-                 VALUES (:site, :profile, :user, now(), :expires)
-                 ON CONFLICT (site, profile) DO UPDATE
+                "INSERT INTO mapplusconf.catalog_lock (site, profile, variant, locked_by, locked_at, expires_at)
+                 VALUES (:site, :profile, :variant, :user, now(), :expires)
+                 ON CONFLICT (site, profile, variant) DO UPDATE
                    SET locked_by = EXCLUDED.locked_by,
                        locked_at = now(),
                        expires_at = EXCLUDED.expires_at"
@@ -573,6 +656,7 @@ class CatalogRepository {
             $stmt->execute([
                 'site'    => self::$site,
                 'profile' => $profile,
+                'variant' => self::$variant,
                 'user'    => $user,
                 'expires' => $expires->format(DateTimeInterface::ATOM),
             ]);
@@ -604,9 +688,9 @@ class CatalogRepository {
         $pdo = Database::getConnection();
         $stmt = $pdo->prepare(
             "DELETE FROM mapplusconf.catalog_lock
-             WHERE site = :site AND profile = :profile AND locked_by = :user"
+             WHERE site = :site AND profile = :profile AND variant = :variant AND locked_by = :user"
         );
-        $stmt->execute(['site' => self::$site, 'profile' => $profile, 'user' => $user]);
+        $stmt->execute(['site' => self::$site, 'profile' => $profile, 'variant' => self::$variant, 'user' => $user]);
         return ['released' => $stmt->rowCount() > 0];
     }
 
@@ -644,12 +728,12 @@ class CatalogRepository {
      */
     private static function fetchLock($pdo, string $profile, bool $forUpdate): ?array {
         $sql = "SELECT profile, locked_by, locked_at, expires_at
-                FROM mapplusconf.catalog_lock WHERE site = :site AND profile = :profile";
+                FROM mapplusconf.catalog_lock WHERE site = :site AND profile = :profile AND variant = :variant";
         if ($forUpdate) {
             $sql .= ' FOR UPDATE';
         }
         $stmt = $pdo->prepare($sql);
-        $stmt->execute(['site' => self::$site, 'profile' => $profile]);
+        $stmt->execute(['site' => self::$site, 'profile' => $profile, 'variant' => self::$variant]);
         $row = $stmt->fetch();
         return $row ?: null;
     }
@@ -668,12 +752,13 @@ class CatalogRepository {
     private static function writeHistory($pdo, string $profile, int $revision, string $action, ?string $lyrmgrKey, ?string $payloadJson, ?string $user): void {
         $stmt = $pdo->prepare(
             "INSERT INTO mapplusconf.catalog_document_history
-                (site, profile, revision, action, lyrmgr_key, payload, changed_by)
-             VALUES (:site, :profile, :revision, :action, :key, :payload::jsonb, :user)"
+                (site, profile, variant, revision, action, lyrmgr_key, payload, changed_by)
+             VALUES (:site, :profile, :variant, :revision, :action, :key, :payload::jsonb, :user)"
         );
         $stmt->execute([
             'site'     => self::$site,
             'profile'  => $profile,
+            'variant'  => self::$variant,
             'revision' => $revision,
             'action'   => $action,
             'key'      => $lyrmgrKey,

@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="8.2710037mm"
+   height="8.2710037mm"
+   viewBox="0 0 8.2710037 8.2710037"
+   version="1.1"
+   id="svg1"
+   sodipodi:docname="lyr_hospital.svg"
+   inkscape:version="1.4 (1:1.4+202410161351+e7c3feb100)"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <sodipodi:namedview
+     id="namedview1"
+     pagecolor="#ffffff"
+     bordercolor="#000000"
+     borderopacity="0.25"
+     inkscape:showpageshadow="2"
+     inkscape:pageopacity="0.0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#d1d1d1"
+     inkscape:document-units="mm"
+     inkscape:zoom="25.27152"
+     inkscape:cx="15.650028"
+     inkscape:cy="15.630243"
+     inkscape:window-width="1920"
+     inkscape:window-height="995"
+     inkscape:window-x="0"
+     inkscape:window-y="0"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="svg1" />
+  <defs
+     id="defs1" />
+  <path
+     d="M 1.0551164,1.5389919 V 0.99031167 H 3.3146417 V 1.5389919 L 2.6104302,1.6599608 v 2.173119 H 5.6605735 V 1.6599608 L 4.9563619,1.5389919 V 0.99031167 H 5.6605735 6.5116757 7.2158873 V 1.5389919 L 6.5116757,1.6599605 V 6.6153632 L 7.2158873,6.7363318 V 7.2806921 H 4.9563619 V 6.7363323 L 5.6605735,6.6153634 V 4.5027288 H 2.6104302 V 6.6153634 L 3.3146417,6.736332 V 7.2806921 H 1.0551164 V 6.7363323 L 1.759328,6.6153634 V 1.6599608 Z"
+     id="text1"
+     style="font-size:7.21541px;font-family:'Roboto Slab';-inkscape-font-specification:'Roboto Slab';fill:#00008b;stroke:#fd6e00;stroke-width:0"
+     aria-label="H" />
+</svg>
