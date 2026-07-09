@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Treebuilder Tydac — Original MAP+/TYDAC Katalog</title>
+<script>document.documentElement.setAttribute('data-env', location.pathname.indexOf('/maps-dev/') === 0 ? 'dev' : 'prod');</script>
+<style>
+  :root { --m-color-primary: #4B7B81; --border: #d8dee1; --bg: #f4f6f7; --muted: #6b7a80; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: "Segoe UI", system-ui, sans-serif; color: #22333b; background: var(--bg); }
+  header.tb-head {
+    background: var(--m-color-primary); color: #fff; padding: 10px 16px;
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  }
+  header.tb-head h1 { font-size: 16px; margin: 0; font-weight: 600; }
+  header.tb-head .env-badge {
+    font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 3px;
+    background: rgba(255,255,255,.2);
+  }
+  [data-env="dev"] header.tb-head .env-badge::after { content: "DEV"; }
+  [data-env="prod"] header.tb-head .env-badge::after { content: "PROD"; }
+  header.tb-head .spacer { flex: 1; }
+  header.tb-head .site-info { font-size: 12px; opacity: .9; }
+  .toolbar {
+    background: #fff; border-bottom: 1px solid var(--border); padding: 8px 16px;
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  }
+  .toolbar select, .toolbar input[type="text"], .toolbar button {
+    font-size: 13px; padding: 5px 9px; border: 1px solid var(--border); border-radius: 4px; background: #fff;
+  }
+  .toolbar button { cursor: pointer; }
+  .toolbar button.primary { background: var(--m-color-primary); color: #fff; border-color: var(--m-color-primary); }
+  .toolbar button.primary:hover { filter: brightness(1.08); }
+  .toolbar button:disabled { opacity: .5; cursor: not-allowed; }
+  .status { font-size: 12px; color: var(--muted); margin-left: 6px; }
+  .status.err { color: #c0392b; }
+  .status.ok { color: #27713a; }
+  .layout { display: flex; height: calc(100vh - 96px); }
+  .tree-pane { flex: 1; overflow: auto; padding: 12px 16px; }
+  .prop-pane { width: 360px; border-left: 1px solid var(--border); background: #fff; overflow: auto; padding: 14px; }
+  .lyrmgr-block { margin-bottom: 18px; }
+  .lyrmgr-block > h2 {
+    font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted);
+    margin: 0 0 6px; border-bottom: 1px solid var(--border); padding-bottom: 4px;
+  }
+  ul.tree, ul.tree ul { list-style: none; margin: 0; padding-left: 16px; }
+  ul.tree { padding-left: 0; }
+  li.node > .row {
+    display: flex; align-items: center; gap: 6px; padding: 3px 6px; border-radius: 4px; cursor: pointer;
+  }
+  li.node > .row:hover { background: #eef3f4; }
+  li.node > .row.selected { background: #dcebec; outline: 1px solid var(--m-color-primary); }
+  .twist { width: 14px; text-align: center; color: var(--muted); user-select: none; }
+  .node-icon { width: 18px; height: 18px; object-fit: contain; flex: none; }
+  .node-label { font-size: 13px; }
+  .node-type { font-size: 10px; color: #fff; background: var(--muted); border-radius: 3px; padding: 0 5px; margin-left: 4px; }
+  .node-type.cat { background: #8e6f3e; }
+  .node-type.grp { background: #4B7B81; }
+  .node-type.sub { background: #5a7f9a; }
+  .node-type.lyr { background: #93a1a6; }
+  .prop-pane h3 { margin: 0 0 10px; font-size: 14px; }
+  .field { margin-bottom: 10px; }
+  .field label { display: block; font-size: 11px; color: var(--muted); margin-bottom: 3px; text-transform: uppercase; letter-spacing: .03em; }
+  .field input[type="text"], .field select {
+    width: 100%; font-size: 13px; padding: 5px 7px; border: 1px solid var(--border); border-radius: 4px;
+  }
+  .field.row-inline { display: flex; gap: 10px; align-items: center; }
+  .field.row-inline label { margin: 0; }
+  .icon-preview {
+    display: flex; align-items: center; gap: 10px; padding: 8px; border: 1px dashed var(--border);
+    border-radius: 6px; margin-bottom: 8px; background: #fafcfc;
+  }
+  .icon-preview img { width: 32px; height: 32px; object-fit: contain; }
+  .icon-preview .none { color: var(--muted); font-size: 12px; }
+  .btn-sm { font-size: 12px; padding: 4px 8px; border: 1px solid var(--border); border-radius: 4px; background: #fff; cursor: pointer; }
+  .btn-sm:hover { background: #eef3f4; }
+  .hint { font-size: 11px; color: var(--muted); margin-top: 4px; line-height: 1.4; }
+  .warn { font-size: 11px; color: #a05a00; background: #fff6e6; border: 1px solid #f0d9a8; border-radius: 4px; padding: 6px 8px; margin-top: 8px; }
+  /* Modal */
+  .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.4); display: none; align-items: center; justify-content: center; z-index: 50; }
+  .modal-backdrop.open { display: flex; }
+  .modal { background: #fff; border-radius: 8px; width: min(720px, 92vw); max-height: 82vh; display: flex; flex-direction: column; overflow: hidden; }
+  .modal header { background: var(--m-color-primary); color: #fff; padding: 10px 14px; display: flex; align-items: center; }
+  .modal header h3 { margin: 0; font-size: 14px; flex: 1; }
+  .modal header button { background: transparent; border: none; color: #fff; font-size: 18px; cursor: pointer; }
+  .modal .body { padding: 12px 14px; overflow: auto; }
+  .modal .toolbar-row { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; flex-wrap: wrap; }
+  .icon-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(74px, 1fr)); gap: 8px; }
+  .icon-cell { border: 1px solid var(--border); border-radius: 6px; padding: 6px 4px; text-align: center; cursor: pointer; background: #fff; }
+  .icon-cell:hover { border-color: var(--m-color-primary); background: #eef3f4; }
+  .icon-cell img { width: 34px; height: 34px; object-fit: contain; }
+  .icon-cell .nm { font-size: 10px; color: var(--muted); margin-top: 3px; word-break: break-all; line-height: 1.2; }
+  .set-title { font-size: 12px; font-weight: 600; color: var(--muted); margin: 12px 0 6px; }
+  .empty { color: var(--muted); font-size: 13px; padding: 20px; text-align: center; }
+</style>
+</head>
+<body>
+<header class="tb-head">
+  <h1>Treebuilder Tydac</h1>
+  <span class="env-badge"></span>
+  <span class="spacer"></span>
+  <span class="site-info" id="siteInfo"></span>
+</header>
+
+<div class="toolbar">
+  <label style="font-size:12px;color:var(--muted)">Profil:</label>
+  <select id="profileSelect"><option value="">— laden —</option></select>
+  <input type="text" id="profileManual" placeholder="oder Profilname…" style="width:150px">
+  <button id="btnLoad">Laden</button>
+  <button id="btnSave" class="primary" disabled>Speichern</button>
+  <button id="btnHistory" disabled>Verlauf</button>
+  <span class="status" id="status">Bereit.</span>
+</div>
+
+<div class="layout">
+  <div class="tree-pane" id="treePane">
+    <div class="empty">Profil auswählen und „Laden“ klicken.</div>
+  </div>
+  <div class="prop-pane" id="propPane">
+    <div class="empty" style="padding:8px">Kein Element ausgewählt.</div>
+  </div>
+</div>
+
+<!-- Icon-Picker Modal -->
+<div class="modal-backdrop" id="iconModal">
+  <div class="modal">
+    <header>
+      <h3>Symbol wählen</h3>
+      <button id="iconModalClose">×</button>
+    </header>
+    <div class="body">
+      <div class="toolbar-row">
+        <input type="text" id="iconSearch" placeholder="Suchen…" style="flex:1;font-size:13px;padding:5px 8px;border:1px solid var(--border);border-radius:4px">
+        <label class="btn-sm" style="cursor:pointer">
+          ⬆ Hochladen (PNG/SVG)
+          <input type="file" id="iconUpload" accept=".png,.svg,image/png,image/svg+xml" style="display:none">
+        </label>
+      </div>
+      <div id="iconGrid"></div>
+    </div>
+  </div>
+</div>
+
+<!-- History Modal -->
+<div class="modal-backdrop" id="histModal">
+  <div class="modal">
+    <header><h3>Versionsverlauf</h3><button id="histModalClose">×</button></header>
+    <div class="body"><div id="histList" class="empty">…</div></div>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  // ── Multi-Site: App-Root aus URL (Segment vor '/tnet/') ──
+  function currentAppRoot() {
+    var m = location.pathname.match(/^(\/[^/]+?)\/tnet\//);
+    return m ? m[1] : '/maps';
+  }
+  var APP_ROOT = currentAppRoot();
+  var API_URL = APP_ROOT + '/tnet/api/v1/treebuilder-api.php';
+
+  // ── State ──
+  var _doc = null;          // geladenes Tydac-Dokument { main_lyrmgr:{...}, ... }
+  var _profile = '';
+  var _revision = 0;
+  var _selectedPath = null; // Pfad des ausgewählten Knotens
+  var _site = '';
+  var _iconTargetPath = null; // Pfad, für den der Icon-Picker geöffnet wurde
+  var _symbolSets = null;
+
+  var $ = function (id) { return document.getElementById(id); };
+  var statusEl = $('status');
+  function setStatus(msg, kind) {
+    statusEl.textContent = msg;
+    statusEl.className = 'status' + (kind ? ' ' + kind : '');
+  }
+  function esc(s) { var d = document.createElement('div'); d.textContent = String(s == null ? '' : s); return d.innerHTML; }
+
+  // ── API-Helfer (Cookie-Auth; bei 401 → Login) ──
+  function api(action, opts) {
+    opts = opts || {};
+    var url = API_URL + '?action=' + encodeURIComponent(action) + (opts.query ? '&' + opts.query : '');
+    var init = { method: opts.method || 'GET', credentials: 'same-origin', headers: {} };
+    if (opts.body) { init.headers['Content-Type'] = 'application/json'; init.body = JSON.stringify(opts.body); }
+    return fetch(url, init).then(function (r) {
+      if (r.status === 401 || r.status === 403) {
+        location.href = 'admin-login.php?redirect=' + encodeURIComponent(location.pathname + location.search);
+        throw new Error('nicht angemeldet');
+      }
+      return r.json().catch(function () { return { success: false, error: 'Ungültige Antwort' }; })
+        .then(function (j) { j.__status = r.status; return j; });
+    });
+  }
+
+  // ── Pfad-Navigation im Dokument ──
+  function getByPath(path) {
+    if (!_doc) return undefined;
+    var parts = path.split('|'); var cur = _doc;
+    for (var i = 0; i < parts.length; i++) {
+      if (cur == null) return undefined;
+      var k = parts[i];
+      cur = Array.isArray(cur) ? cur[parseInt(k, 10)] : cur[k];
+    }
+    return cur;
+  }
+  function parentAndKey(path) {
+    var parts = path.split('|');
+    var key = parts.pop();
+    var parent = parts.length ? getByPath(parts.join('|')) : _doc;
+    return { parent: parent, key: key, isIndex: !isNaN(parseInt(key, 10)) && Array.isArray(parent) };
+  }
+
+  // ── NLS-freier Anzeigename ──
+  function nodeDisplayName(node, key) {
+    if (typeof node === 'string') return node;
+    if (node && node.name) return node.name;
+    return key;
+  }
+
+  // =====================================================================
+  // TREE-RENDERING
+  // =====================================================================
+  function renderTree() {
+    var pane = $('treePane');
+    if (!_doc) { pane.innerHTML = '<div class="empty">Kein Katalog geladen.</div>'; return; }
+    var html = '';
+    Object.keys(_doc).forEach(function (lmKey) {
+      var lm = _doc[lmKey];
+      if (!lm || typeof lm !== 'object') return;
+      html += '<div class="lyrmgr-block"><h2>' + esc(lmKey) + '</h2>';
+      var structure = lm.structure || {};
+      html += '<ul class="tree">';
+      Object.keys(structure).forEach(function (catKey) {
+        html += renderCategory(structure[catKey], lmKey + '|structure|' + catKey, catKey);
+      });
+      html += '</ul></div>';
+    });
+    pane.innerHTML = html;
+    bindTreeEvents();
+  }
+
+  function renderCategory(cat, path, key) {
+    var open = cat.open !== false;
+    var h = '<li class="node" data-path="' + esc(path) + '">';
+    h += '<div class="row" data-path="' + esc(path) + '" data-kind="category">';
+    h += '<span class="twist">' + (open ? '▾' : '▸') + '</span>';
+    h += '<span class="node-label">' + esc(key) + '</span><span class="node-type cat">Kategorie</span>';
+    h += '</div>';
+    var items = cat.items || {};
+    h += '<ul class="tree"' + (open ? '' : ' style="display:none"') + '>';
+    Object.keys(items).forEach(function (grpKey) {
+      h += renderGroup(items[grpKey], path + '|items|' + grpKey, grpKey);
+    });
+    h += '</ul></li>';
+    return h;
+  }
+
+  function renderGroup(grp, path, key) {
+    var open = grp.open !== false;
+    var h = '<li class="node" data-path="' + esc(path) + '">';
+    h += '<div class="row" data-path="' + esc(path) + '" data-kind="group">';
+    h += '<span class="twist">' + (open ? '▾' : '▸') + '</span>';
+    h += '<span class="node-label">' + esc(nodeDisplayName(grp, key)) + '</span><span class="node-type grp">Gruppe</span>';
+    h += '</div>';
+    var items = grp.items || [];
+    h += '<ul class="tree"' + (open ? '' : ' style="display:none"') + '>';
+    items.forEach(function (item, idx) {
+      h += renderItem(item, path + '|items|' + idx, idx);
+    });
+    h += '</ul></li>';
+    return h;
+  }
+
+  function renderItem(item, path, idx) {
+    if (typeof item === 'string') {
+      var h = '<li class="node" data-path="' + esc(path) + '">';
+      h += '<div class="row" data-path="' + esc(path) + '" data-kind="layer">';
+      h += '<span class="twist"></span>';
+      h += '<span class="node-label">' + esc(item) + '</span><span class="node-type lyr">Layer</span>';
+      h += '</div></li>';
+      return h;
+    }
+    // Verschachtelte Gruppe (Objekt mit name/icon/items)
+    var open = item.open !== false;
+    var iconUrl = normalizeIconUrl(item.icon);
+    var h2 = '<li class="node" data-path="' + esc(path) + '">';
+    h2 += '<div class="row" data-path="' + esc(path) + '" data-kind="subgroup">';
+    h2 += '<span class="twist">' + (open ? '▾' : '▸') + '</span>';
+    if (iconUrl) h2 += '<img class="node-icon" src="' + esc(iconUrl) + '" alt="" onerror="this.style.visibility=\'hidden\'">';
+    h2 += '<span class="node-label">' + esc(nodeDisplayName(item, idx)) + '</span><span class="node-type sub">Untergruppe</span>';
+    h2 += '</div>';
+    var items = item.items || [];
+    h2 += '<ul class="tree"' + (open ? '' : ' style="display:none"') + '>';
+    items.forEach(function (sub, i) { h2 += renderItem(sub, path + '|items|' + i, i); });
+    h2 += '</ul></li>';
+    return h2;
+  }
+
+  // Icon-Pfad zu ladbarer URL (app-root-relativ machen)
+  function normalizeIconUrl(icon) {
+    if (!icon) return '';
+    var v = String(icon);
+    if (/^https?:/i.test(v) || v.indexOf('//') === 0) return v;
+    // '../core/...' oder '../tnet/...' relativ zur v1/ Seite auflösen: App-Root nutzen
+    if (v.indexOf('/tnet/') !== -1) {
+      var m = v.match(/\/tnet\/.*/);
+      return m ? APP_ROOT + m[0] : v;
+    }
+    if (v.indexOf('../core/') === 0) return APP_ROOT + '/core/' + v.slice('../core/'.length);
+    if (v.indexOf('../tnet/') === 0) return APP_ROOT + '/tnet/' + v.slice('../tnet/'.length);
+    if (v.indexOf('/') === 0) return v;
+    return v;
+  }
+
+  function bindTreeEvents() {
+    var rows = document.querySelectorAll('#treePane .row');
+    Array.prototype.forEach.call(rows, function (row) {
+      row.addEventListener('click', function (e) {
+        // Twist-Klick = auf/zu; sonst auswählen
+        var li = row.parentNode;
+        var childUl = li.querySelector(':scope > ul.tree');
+        if (e.target.classList.contains('twist') && childUl) {
+          var vis = childUl.style.display !== 'none';
+          childUl.style.display = vis ? 'none' : '';
+          e.target.textContent = vis ? '▸' : '▾';
+          return;
+        }
+        selectNode(row.getAttribute('data-path'), row.getAttribute('data-kind'));
+      });
+    });
+  }
+
+  function selectNode(path, kind) {
+    _selectedPath = path;
+    Array.prototype.forEach.call(document.querySelectorAll('#treePane .row.selected'), function (r) { r.classList.remove('selected'); });
+    var row = document.querySelector('#treePane .row[data-path="' + cssEscape(path) + '"]');
+    if (row) row.classList.add('selected');
+    renderProperties(path, kind);
+  }
+  function cssEscape(s) { return String(s).replace(/["\\]/g, '\\$&'); }
+
+  // =====================================================================
+  // PROPERTY-EDITOR
+  // =====================================================================
+  function renderProperties(path, kind) {
+    var node = getByPath(path);
+    var pane = $('propPane');
+    if (node === undefined) { pane.innerHTML = '<div class="empty" style="padding:8px">—</div>'; return; }
+
+    var h = '';
+    if (kind === 'layer') {
+      h += '<h3>Layer</h3>';
+      h += field('Layer-Key', 'text', node, path, '__self');
+      h += '<div class="hint">Verweis auf einen Layer-Schlüssel im Katalog.</div>';
+      pane.innerHTML = h;
+      bindPropEvents(path, kind);
+      return;
+    }
+
+    if (kind === 'category') {
+      h += '<h3>Kategorie</h3>';
+      h += checkbox('Offen (open)', node, path, 'open', true);
+      h += field('Icon-Klasse (iconClass)', 'text', node, path, 'iconClass');
+      h += field('Icon-Klasse aktiv (iconClassActive)', 'text', node, path, 'iconClassActive');
+      h += '<div class="hint">Kategorie-Icons werden im TNET-Renderer über CSS-Klassen (z.B. njsCategoryIcon1) dargestellt. Im Original-TYDAC-Renderer wirken sie als Sprite-Hintergrund.</div>';
+      pane.innerHTML = h;
+      bindPropEvents(path, kind);
+      return;
+    }
+
+    // Gruppe / Untergruppe
+    h += '<h3>' + (kind === 'subgroup' ? 'Untergruppe' : 'Gruppe') + '</h3>';
+    if ('name' in node || kind === 'subgroup') h += field('Name', 'text', node, path, 'name');
+    h += field('Legende (legend)', 'text', node, path, 'legend');
+    h += checkbox('Offen (open)', node, path, 'open', true);
+    h += checkbox('Alle wählbar (selectAll)', node, path, 'selectAll', false);
+
+    if (kind === 'subgroup') {
+      // Icon-Bereich (nur verschachtelte Gruppen tragen icon/icon_style im Original)
+      h += '<hr style="border:none;border-top:1px solid var(--border);margin:12px 0">';
+      var iconUrl = normalizeIconUrl(node.icon);
+      h += '<div class="icon-preview">';
+      h += iconUrl ? '<img src="' + esc(iconUrl) + '" alt="" onerror="this.style.visibility=\'hidden\'">' : '<span class="none">Kein Icon</span>';
+      h += '<div style="flex:1"><button class="btn-sm" id="btnPickIcon">Symbol wählen…</button> ';
+      if (node.icon) h += '<button class="btn-sm" id="btnClearIcon">Entfernen</button>';
+      h += '</div></div>';
+      h += field('Icon-Pfad (icon)', 'text', node, path, 'icon');
+      // Style-Editor
+      h += styleEditor(node, path);
+      h += field('Icon-Klasse (icon_class)', 'text', node, path, 'icon_class');
+      h += '<div class="warn">Icons/Styles wirken nur im Tydac-Renderer. Der eigene TNET-Renderer ignoriert <code>icon</code>, <code>icon_style</code> und <code>icon_class</code>.</div>';
+    }
+    pane.innerHTML = h;
+    bindPropEvents(path, kind);
+  }
+
+  function field(label, type, node, path, key) {
+    var val = key === '__self' ? node : (node[key] != null ? node[key] : '');
+    return '<div class="field"><label>' + esc(label) + '</label>' +
+      '<input type="' + type + '" data-key="' + esc(key) + '" value="' + esc(val) + '"></div>';
+  }
+  function checkbox(label, node, path, key, defTrue) {
+    var checked = key in node ? node[key] !== false : defTrue;
+    return '<div class="field row-inline"><input type="checkbox" data-key="' + esc(key) + '"' + (checked ? ' checked' : '') + '><label>' + esc(label) + '</label></div>';
+  }
+  function styleEditor(node, path) {
+    var st = node.icon_style || '';
+    var w = (st.match(/width:\s*(\d+)px/i) || [])[1] || '';
+    var hgt = (st.match(/height:\s*(\d+)px/i) || [])[1] || '';
+    var h = '<div class="field"><label>Icon-Grösse</label><div class="field row-inline">';
+    h += 'B <input type="text" id="styW" style="width:56px" value="' + esc(w) + '"> px ';
+    h += 'H <input type="text" id="styH" style="width:56px" value="' + esc(hgt) + '"> px';
+    h += '</div></div>';
+    h += '<div class="field row-inline" style="gap:6px;flex-wrap:wrap">';
+    ['16', '18', '24', '32'].forEach(function (p) {
+      h += '<button class="btn-sm sty-preset" data-px="' + p + '">' + p + 'px</button>';
+    });
+    h += '</div>';
+    h += field('Icon-Style (icon_style)', 'text', node, path, 'icon_style');
+    return h;
+  }
+
+  function bindPropEvents(path, kind) {
+    var node = getByPath(path);
+    var pane = $('propPane');
+    // Text-/Checkbox-Felder
+    Array.prototype.forEach.call(pane.querySelectorAll('input[data-key]'), function (inp) {
+      var evt = inp.type === 'checkbox' ? 'change' : 'input';
+      inp.addEventListener(evt, function () {
+        var key = inp.getAttribute('data-key');
+        if (key === '__self') { // Layer-Key (String-Item) ersetzen
+          var pk = parentAndKey(path);
+          pk.parent[parseInt(pk.key, 10)] = inp.value;
+          markDirty(); refreshLabels();
+          return;
+        }
+        if (inp.type === 'checkbox') node[key] = inp.checked;
+        else {
+          if (inp.value === '') delete node[key]; else node[key] = inp.value;
+        }
+        markDirty();
+        if (key === 'name' || key === 'icon') { refreshLabels(); }
+      });
+    });
+    // Style-Presets + Grösse
+    var styW = $('styW'), styH = $('styH');
+    function applyStyle() {
+      var w = (styW && styW.value || '').trim(), hh = (styH && styH.value || '').trim();
+      var parts = [];
+      if (w) parts.push('width:' + w + 'px');
+      if (hh) parts.push('height:' + hh + 'px');
+      var s = parts.join(';');
+      if (s) node.icon_style = s; else delete node.icon_style;
+      var box = pane.querySelector('input[data-key="icon_style"]');
+      if (box) box.value = s;
+      markDirty();
+    }
+    if (styW) styW.addEventListener('input', applyStyle);
+    if (styH) styH.addEventListener('input', applyStyle);
+    Array.prototype.forEach.call(pane.querySelectorAll('.sty-preset'), function (b) {
+      b.addEventListener('click', function () {
+        if (styW) styW.value = b.getAttribute('data-px');
+        if (styH) styH.value = b.getAttribute('data-px');
+        applyStyle();
+      });
+    });
+    // Icon-Picker
+    var btnPick = $('btnPickIcon');
+    if (btnPick) btnPick.addEventListener('click', function () { openIconPicker(path); });
+    var btnClear = $('btnClearIcon');
+    if (btnClear) btnClear.addEventListener('click', function () {
+      delete node.icon; markDirty(); renderProperties(path, kind); refreshLabels();
+    });
+  }
+
+  function refreshLabels() {
+    // Nur betroffene Zeile aktualisieren wäre optimal; für Einfachheit: Tree neu rendern & Auswahl halten.
+    var keep = _selectedPath;
+    renderTree();
+    if (keep) {
+      var row = document.querySelector('#treePane .row[data-path="' + cssEscape(keep) + '"]');
+      if (row) { row.classList.add('selected'); }
+    }
+  }
+
+  // =====================================================================
+  // ICON-PICKER
+  // =====================================================================
+  function openIconPicker(path) {
+    _iconTargetPath = path;
+    $('iconModal').classList.add('open');
+    if (_symbolSets) { renderIconGrid(); } else { loadSymbolSets(); }
+  }
+  function loadSymbolSets() {
+    $('iconGrid').innerHTML = '<div class="empty">Lade Symbole…</div>';
+    api('list-symbolsets').then(function (j) {
+      if (!j.success) { $('iconGrid').innerHTML = '<div class="empty">Fehler: ' + esc(j.error || '') + '</div>'; return; }
+      _symbolSets = j.data;
+      renderIconGrid();
+    }).catch(function (e) { $('iconGrid').innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; });
+  }
+  function renderIconGrid() {
+    var q = ($('iconSearch').value || '').toLowerCase();
+    var sets = (_symbolSets && _symbolSets.sets) || [];
+    var html = '';
+    var any = false;
+    sets.forEach(function (set) {
+      var items = set.items.filter(function (it) { return !q || it.name.toLowerCase().indexOf(q) !== -1; });
+      if (!items.length) return;
+      any = true;
+      html += '<div class="set-title">' + esc(set.label) + ' (' + items.length + ')</div><div class="icon-grid">';
+      items.forEach(function (it) {
+        html += '<div class="icon-cell" data-url="' + esc(it.url) + '" title="' + esc(it.name) + '">' +
+          '<img src="' + esc(it.url) + '" alt="" onerror="this.style.visibility=\'hidden\'">' +
+          '<div class="nm">' + esc(it.name) + '</div></div>';
+      });
+      html += '</div>';
+    });
+    $('iconGrid').innerHTML = any ? html : '<div class="empty">Keine Symbole gefunden.</div>';
+    Array.prototype.forEach.call($('iconGrid').querySelectorAll('.icon-cell'), function (c) {
+      c.addEventListener('click', function () { chooseIcon(c.getAttribute('data-url')); });
+    });
+  }
+  function chooseIcon(url) {
+    var node = getByPath(_iconTargetPath);
+    if (node) {
+      // Als app-root-relativen Pfad speichern (portabel). URL beginnt mit APP_ROOT.
+      node.icon = url.indexOf(APP_ROOT) === 0 ? url : url;
+      if (!node.icon_style) node.icon_style = 'width:18px;height:18px';
+      markDirty();
+    }
+    $('iconModal').classList.remove('open');
+    renderProperties(_iconTargetPath, 'subgroup');
+    refreshLabels();
+  }
+
+  function uploadIcon(fileInput) {
+    var f = fileInput.files && fileInput.files[0];
+    if (!f) return;
+    var fd = new FormData();
+    fd.append('icon', f);
+    setStatus('Lade Symbol hoch…');
+    fetch(API_URL + '?action=upload-icon', { method: 'POST', credentials: 'same-origin', body: fd })
+      .then(function (r) {
+        if (r.status === 401 || r.status === 403) { location.href = 'admin-login.php?redirect=' + encodeURIComponent(location.pathname); throw new Error('nicht angemeldet'); }
+        return r.json();
+      })
+      .then(function (j) {
+        if (!j.success) { setStatus('Upload-Fehler: ' + (j.error || ''), 'err'); return; }
+        setStatus('Symbol hochgeladen: ' + j.data.name, 'ok');
+        _symbolSets = null; // Cache invalidieren
+        loadSymbolSets();
+        // Direkt zuweisen
+        if (_iconTargetPath) chooseIcon(j.data.url);
+      })
+      .catch(function (e) { setStatus('Upload-Fehler: ' + e.message, 'err'); })
+      .finally(function () { fileInput.value = ''; });
+  }
+
+  // =====================================================================
+  // LADEN / SPEICHERN / LOCK / HISTORIE
+  // =====================================================================
+  function loadProfiles() {
+    api('tydac-list-profiles').then(function (j) {
+      var sel = $('profileSelect');
+      sel.innerHTML = '<option value="">— wählen —</option>';
+      if (j.success && Array.isArray(j.data)) {
+        j.data.forEach(function (p) {
+          var o = document.createElement('option');
+          o.value = p.profile; o.textContent = p.profile + ' (rev ' + p.revision + ')';
+          sel.appendChild(o);
+        });
+      }
+    });
+  }
+
+  function loadCatalog(profile) {
+    if (!profile) { setStatus('Bitte Profil angeben.', 'err'); return; }
+    setStatus('Lade Katalog…');
+    api('tydac-load', { query: 'profile=' + encodeURIComponent(profile) }).then(function (j) {
+      if (!j.success) { setStatus('Fehler: ' + (j.error || ''), 'err'); return; }
+      _profile = profile;
+      _doc = j.data.lyrmgr && Object.keys(j.data.lyrmgr).length ? j.data.lyrmgr : { main_lyrmgr: { type: 'ClassicLayerMgr', version: '3', structure: {} } };
+      _revision = j.data.revision || 0;
+      _site = j.data.site || '';
+      $('siteInfo').textContent = 'Site: ' + _site + ' · Variante: tydac' + (j.data.exists ? '' : ' · (neu)');
+      $('btnSave').disabled = false;
+      $('btnHistory').disabled = false;
+      _selectedPath = null;
+      renderTree();
+      $('propPane').innerHTML = '<div class="empty" style="padding:8px">Element im Baum wählen.</div>';
+      setStatus('Geladen (rev ' + _revision + ').', 'ok');
+      acquireLock(profile);
+    }).catch(function (e) { setStatus('Fehler: ' + e.message, 'err'); });
+  }
+
+  function saveCatalog() {
+    if (!_doc || !_profile) return;
+    setStatus('Speichere…');
+    api('tydac-save', { method: 'POST', body: { profile: _profile, lyrmgr: _doc, expectedRevision: _revision } })
+      .then(function (j) {
+        if (j.__status === 409 || (j.data && j.data.conflict)) {
+          setStatus('Konflikt: Katalog wurde zwischenzeitlich geändert. Bitte neu laden.', 'err');
+          return;
+        }
+        if (!j.success) { setStatus('Speicherfehler: ' + (j.error || ''), 'err'); return; }
+        _revision = j.data.revision || _revision;
+        _dirty = false;
+        setStatus('Gespeichert (rev ' + _revision + ').', 'ok');
+      }).catch(function (e) { setStatus('Speicherfehler: ' + e.message, 'err'); });
+  }
+
+  var _dirty = false;
+  function markDirty() { _dirty = true; setStatus('Ungespeicherte Änderungen…'); }
+
+  function acquireLock(profile) {
+    api('tydac-lock', { query: 'profile=' + encodeURIComponent(profile) }).then(function (j) {
+      if (j.success && j.data && j.data.locked === false && j.data.by) {
+        setStatus('Hinweis: gesperrt von ' + j.data.by, 'err');
+      }
+    });
+  }
+  function releaseLock() {
+    if (!_profile) return;
+    try {
+      navigator.sendBeacon && navigator.sendBeacon(API_URL + '?action=tydac-unlock&profile=' + encodeURIComponent(_profile));
+    } catch (e) {}
+  }
+
+  function openHistory() {
+    $('histModal').classList.add('open');
+    $('histList').innerHTML = '<div class="empty">Lade…</div>';
+    api('tydac-history', { query: 'profile=' + encodeURIComponent(_profile) }).then(function (j) {
+      if (!j.success || !j.data.length) { $('histList').innerHTML = '<div class="empty">Kein Verlauf.</div>'; return; }
+      var html = '<table style="width:100%;border-collapse:collapse;font-size:13px">';
+      html += '<tr style="text-align:left;color:var(--muted)"><th>Rev</th><th>Aktion</th><th>Von</th><th>Zeit</th><th></th></tr>';
+      j.data.forEach(function (h) {
+        html += '<tr style="border-top:1px solid var(--border)"><td>' + h.revision + '</td><td>' + esc(h.action) +
+          '</td><td>' + esc(h.changedBy || '') + '</td><td>' + esc(h.changedAt || '') +
+          '</td><td><button class="btn-sm" data-rev="' + h.revision + '">Wiederherstellen</button></td></tr>';
+      });
+      html += '</table>';
+      $('histList').innerHTML = html;
+      Array.prototype.forEach.call($('histList').querySelectorAll('button[data-rev]'), function (b) {
+        b.addEventListener('click', function () { restoreRevision(parseInt(b.getAttribute('data-rev'), 10)); });
+      });
+    });
+  }
+  function restoreRevision(rev) {
+    if (!confirm('Revision ' + rev + ' wiederherstellen? Der aktuelle Stand wird als neue Revision überschrieben.')) return;
+    api('tydac-restore', { method: 'POST', body: { profile: _profile, revision: rev } }).then(function (j) {
+      if (!j.success) { setStatus('Restore-Fehler: ' + (j.error || ''), 'err'); return; }
+      $('histModal').classList.remove('open');
+      loadCatalog(_profile);
+    });
+  }
+
+  // =====================================================================
+  // INIT
+  // =====================================================================
+  $('btnLoad').addEventListener('click', function () {
+    var p = $('profileManual').value.trim() || $('profileSelect').value;
+    loadCatalog(p);
+  });
+  $('btnSave').addEventListener('click', saveCatalog);
+  $('btnHistory').addEventListener('click', openHistory);
+  $('iconModalClose').addEventListener('click', function () { $('iconModal').classList.remove('open'); });
+  $('histModalClose').addEventListener('click', function () { $('histModal').classList.remove('open'); });
+  $('iconSearch').addEventListener('input', function () { if (_symbolSets) renderIconGrid(); });
+  $('iconUpload').addEventListener('change', function () { uploadIcon(this); });
+  window.addEventListener('beforeunload', function (e) {
+    releaseLock();
+    if (_dirty) { e.preventDefault(); e.returnValue = ''; }
+  });
+
+  loadProfiles();
+  setStatus('Bereit.');
+})();
+</script>
+</body>
+</html>
