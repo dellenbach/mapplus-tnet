@@ -28,6 +28,14 @@ DEPLOY_TARGETS = {
         "remote_base": "/www/maps-dev",
         "state_file": os.path.join(DEPLOY_DIR, "upload_state.dev.json"),
     },
+    # Multi-Site: geohost wird als eigenstaendige Site deployt. Die tnet-API/SLM-Inhalte
+    # werden serverseitig von maps nach /geohost geroutet; dieses Ziel liefert die
+    # geohost-eigenen Portaldateien (index.php, loader.php, common.php, ...).
+    "geohost": {
+        "local_base": os.path.join(WORKSPACE_ROOT, "geohost"),
+        "remote_base": "/www/geohost",
+        "state_file": os.path.join(DEPLOY_DIR, "upload_state.geohost.json"),
+    },
 }
 
 
