@@ -1610,6 +1610,18 @@ Guardrail: Wenn Change-Detection fÃ¼r KÃ¼rzel vorhanden ist, immer auch prÃ
 
 ---
 
+## 2026-07-09 — Multi-Site SLM/API: App-Root nur /maps(-dev), nicht generisch
+- **Symptom**: SLM/API-Seiten und Endpunkte funktionierten nur unter `/maps` und `/maps-dev`; unter einer neuen Site wie `/geohost/tnet/api/v1/slm.html` brach die App-Root-Ableitung (Fallback auf `/maps`), API-Calls und Cookie-Pfade zeigten auf die falsche Site.
+- **Root-Cause**: App-Root wurde an vielen Stellen binär abgeleitet (`location.pathname.indexOf('/maps-dev/')===0 ? '/maps-dev' : '/maps'`, Regex `^/(maps(?:-dev)?)`, `dirname()`-Ketten fester Tiefe). Kein generisches Site-Präfix.
+- **Fix**: Zentrale Ableitung „Segment vor `/tnet/`" (`^(/.+?)/tnet/`) in `CorePaths.getAppBasePath`, `AdminAuth`, `layers.php`, sowie im Frontend (`tnet-lm-store`, slm/tree-builder/ags-import/config-db-admin). `isDevApp`/`_swEnv` über `-dev`-Suffix; Store-Root site-erhaltend `/<site>[-dev]`.
+- **Guardrail**: App-Root nie binär maps/maps-dev ableiten. Immer generisch das Mount-Segment vor `/tnet/` nehmen; DEV/PROD über `-dev`-Suffix, Site separat. `admin-gate`-Rewrite für neue Admin-`.html` IMMER in der übergeordneten `tnet/api/.htaccess` (vor der Existenzprüfung) UND in `v1/.htaccess` UND in `admin-gate.php`-Whitelist ergänzen.
+
+## 2026-07-09 — Profile/Katalog pro Site + Tydac-Variante: PK-Änderung bricht ON CONFLICT
+- **Symptom**: Nach Ergänzen der `site`- (und `variant`-)Dimension in `catalog_document` schlugen `ON CONFLICT (profile)`-Upserts fehl (keine Unique-Constraint mehr auf `profile` allein).
+- **Root-Cause**: PK wurde auf `(site, profile[, variant])` erweitert; bestehende Upserts/WHERE-Klauseln filterten weiter nur nach `profile`.
+- **Fix**: Request-scoped Kontext `CatalogRepository::setSite()/setVariant()` (Default `maps`/`tnet` → bestehendes Verhalten unverändert); ALLE document/history/lock/draft-Queries + `ON CONFLICT` konsistent auf Site (+Variant) umgestellt. Idempotente DB-Migrationen (ADD COLUMN IF NOT EXISTS + PK-Rebuild in DO-Blöcken).
+- **Guardrail**: Beim Erweitern eines Primärschlüssels IMMER alle `ON CONFLICT`- und `WHERE`-Klauseln derselben Tabelle mitziehen; Ambient-Kontext mit sinnvollem Default hält Bestandscode kompatibel. Migrationen idempotent halten (Spalten- und Constraint-Existenz prüfen).
+
 ## 2026-03-22 â€” Resize-Handle: Panel wÃ¤chst nach oben statt nach unten
 - **Symptom**: Ziehen des unteren Resize-Handles (nach tp_sort_menu) nach unten vergrÃ¶ssert das Panel visuell nach oben statt nach unten.
 - **Root-Cause**: Beide Handles nutzten gekoppeltes Resize: Wenn tp_sort_menu wÃ¤chst, schrumpft tp_overview_menu darÃ¼ber â†’ alles verschiebt sich nach oben â†’ visuell wÃ¤chst das Panel nach oben.

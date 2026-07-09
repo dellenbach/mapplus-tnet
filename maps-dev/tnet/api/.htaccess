@@ -11,8 +11,8 @@ RewriteEngine On
 
 # Admin-HTML-Seiten IMMER durch admin-gate.php (Auth-Check) routen —
 # zwingend VOR der Existenzprüfung, damit die statische .html-Datei nicht
-# direkt ausgeliefert wird.
-RewriteRule ^v1/(slm|ags-import|tree-builder|dev-test|tree-test)\.html$ v1/admin-gate.php?page=$1 [L,QSA]
+# direkt ausgeliefert wird. Liste synchron zu v1/.htaccess + admin-gate.php halten.
+RewriteRule ^v1/(slm|ags-import|tree-builder-tydac|tree-builder|dev-test|tree-test|prod-sync|config-db-admin)\.html$ v1/admin-gate.php?page=$1 [L,QSA]
 
 # Wenn die angeforderte Datei/Ordner existiert → nichts tun
 RewriteCond %{REQUEST_FILENAME} -f [OR]
