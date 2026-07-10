@@ -1,0 +1,803 @@
+﻿/**
+ * tnet-sidepanel-legacy.css
+ * Sidepanel Legacy (body:not(.tnet-sidepanel-v2)) + TNET-Panel Vanilla Accordions
+ *
+ * @version    1.0
+ * @date       2026-07-02
+ * @copyright  Trigonet AG
+ * @author     Marco Dellenbach
+ */
+
+/* ========================================
+   Modal Dialog Styling für Maps-Katalog
+   ======================================== */
+
+div#search_container {
+  position: fixed;
+  left: 50%;
+  top: 0px;
+  transform: translateX(-50%);
+  width: 340px;
+  height: 38px;
+  box-sizing: border-box;
+}
+
+input#solrsearchFirstParamSelect {
+  border: 5px solid rgb(99, 41, 41);
+  box-sizing: border-box;
+}
+
+/* Header-Bereich – njs-Suche per Config ausgeblendet */
+div#njs_search_wrapper,
+body div#njs_search_wrapper {
+  display: none !important;
+}
+
+/* Search Container */
+div#search_container,
+body div#search_container,
+div#njs_search_wrapper div#search_container {
+  position: relative !important;
+  top: auto !important;
+  left: auto !important;
+  transform: none !important;
+  width: 330px !important;
+  height: 45px !important;
+  background: #e8f0f1 !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1) !important;
+  display: flex !important;
+  align-items: center !important;
+  padding: 0 10px !important;
+  box-sizing: border-box !important;
+}
+
+div#search_container #srch_free {
+  width: 100% !important;
+  display: flex !important;
+  align-items: center !important;
+}
+
+div#search_container #srch_free > div {
+  width: 100% !important;
+  align-items: center !important;
+}
+
+/* Lupe links */
+div#search_container .iconSearch {
+  flex-shrink: 0 !important;
+  width: 20px !important;
+  height: 20px !important;
+  margin-right: 10px !important;
+  opacity: 0.6;
+}
+
+/* Suchfeld-Input Styling */
+div#search_container .dijitTextBox {
+  flex: 1 !important;
+  height: 40px !important;
+  border: none !important;
+  background: transparent !important;
+  overflow: visible !important;
+}
+
+div#search_container .dijitInputInner {
+  width: 100% !important;
+  height: 40px !important;
+  border: none !important;
+  outline: none !important;
+  font-size: 14px !important;
+  background: transparent !important;
+  padding: 0 !important;
+  text-align: left !important;
+  margin-top: 2px !important;
+  overflow: visible !important;
+}
+
+div#search_container .dijitPlaceHolder {
+  text-align: left !important;
+  color: #888 !important;
+  font-size: 14px !important;
+  margin-top: 8px !important;
+  overflow: visible !important;
+}
+
+div#search_container .dijitInputContainer {
+  overflow: visible !important;
+}
+
+/* Kreuz rechts, feiner */
+div#search_container .clearSearch {
+  flex-shrink: 0 !important;
+  width: 18px !important;
+  height: 18px !important;
+  margin-left: 10px !important;
+  cursor: pointer !important;
+  opacity: 0.5 !important;
+}
+
+div#search_container .clearSearch:hover {
+  opacity: 1 !important;
+}
+
+/* Arrow Button verstecken */
+div#search_container .dijitArrowButton {
+  display: none !important;
+}
+
+/* Validation Icon verstecken */
+div#search_container .dijitValidationContainer {
+  display: none !important;
+}
+
+/* Disclaimer unterhalb Header */
+#disclaimer_pdf,
+body #disclaimer_pdf,
+div#disclaimer_pdf,
+#disclaimer_news,
+body #disclaimer_news,
+div#disclaimer_news {
+  top: 75px !important;
+  left: calc(var(--tnet-sidepanel-width, 340px) + 50px) !important;
+}
+
+/* Search Dropdown Popup - NUR für Suche, nicht global! */
+#widget_solrsearchFirstParamSelect_dropdown {
+  left: var(--tnet-sidepanel-width, 340px) !important;
+  top: 57px !important;
+}
+
+div#njs_search_wrapper .solrsearchSearchInputCancel:hover,
+div#njs_search_wrapper [class*="cancel"]:hover,
+div#njs_search_wrapper button:hover {
+  color: #dd1533 !important;
+}
+
+div#leftPaneHeader {
+  margin-left: 0;
+  box-sizing: border-box;
+  color: #700011 !important;
+  display: none; /* Ausgeblendet, Logo ist jetzt separat */
+}
+
+body:not(.tnet-sidepanel-v2) div#freepane {
+  left: 0 !important;
+  top: 69px !important;
+  width: 340px;
+  z-index: 50;
+  position: fixed !important;
+  bottom: 0 !important;
+  height: calc(100vh - 69px) !important;
+  overflow: hidden !important;
+  pointer-events: none !important; /* Container lässt Klicks durch */
+  max-height: calc(100vh - 69px) !important;
+}
+
+/* Spring Container - braucht pointer-events für Scrolling */
+body:not(.tnet-sidepanel-v2) #spring {
+  pointer-events: auto; /* Scroll muss funktionieren */
+  width: 340px !important; /* Begrenzt auf Panel-Breite */
+}
+
+/* Während Polygon-Zeichnen: Freepane komplett deaktivieren */
+body.drawing-mode #freepane {
+  pointer-events: none !important;
+}
+
+body.drawing-mode #freepane * {
+  pointer-events: none !important;
+}
+
+/* Spatial Query Panel bleibt IMMER bedienbar */
+.spatial-query-panel {
+  pointer-events: auto !important;
+}
+
+.spatial-query-panel * {
+  pointer-events: auto;
+}
+
+/* Nur echte interaktive Elemente bekommen pointer-events zurück */
+body:not(.tnet-sidepanel-v2) #freepane #leftPaneHeader,
+body:not(.tnet-sidepanel-v2) #freepane .dijitTitlePane,
+body:not(.tnet-sidepanel-v2) #freepane .close_switch,
+body:not(.tnet-sidepanel-v2) #freepane #scrollToTopBtn,
+body:not(.tnet-sidepanel-v2) #freepane .dijitTitlePaneTitle,
+body:not(.tnet-sidepanel-v2) #freepane .dijitTitlePaneContentOuter,
+body:not(.tnet-sidepanel-v2) #freepane .tnet-accordion-resize-handle {
+  pointer-events: auto;
+}
+
+/* Resize-Handle: sichtbar, mit Grip-Linie */
+body:not(.tnet-sidepanel-v2) #freepane #spring .tnet-accordion-resize-handle {
+  height: 5px !important;
+  min-height: 5px !important;
+  max-height: 5px !important;
+  background: #6e9aa0 !important;
+  border-top: 1px solid #5f8a90 !important;
+  border-bottom: 1px solid #5f8a90 !important;
+  cursor: ns-resize !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex-shrink: 0 !important;
+  overflow: visible !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  transition: background 0.15s ease !important;
+  pointer-events: auto !important;
+  position: relative !important;
+  z-index: 100 !important;
+}
+
+body:not(.tnet-sidepanel-v2) #freepane #spring .tnet-accordion-resize-handle:hover {
+  background: #5f8a90 !important;
+}
+
+body:not(.tnet-sidepanel-v2) #freepane #spring .tnet-accordion-resize-handle.active {
+  background: #557e83 !important;
+}
+
+body:not(.tnet-sidepanel-v2) #freepane #spring .tnet-accordion-resize-handle::before {
+  content: '' !important;
+  display: block !important;
+  width: 24px !important;
+  height: 0 !important;
+  border-top: 2px dotted #3f666b !important;
+}
+
+/* Spring Container - scrollbar immer dünn sichtbar, kein Inhalt-Shift */
+body:not(.tnet-sidepanel-v2) #spring {
+  height: calc(100vh - 79px) !important;
+  max-height: calc(100vh - 79px) !important;
+  overflow-y: hidden !important;
+  overflow-x: hidden !important;
+  padding-bottom: 16px !important;
+  box-sizing: border-box !important;
+  scrollbar-width: thin !important;
+  scrollbar-color: rgba(75, 123, 129, 0.2) transparent !important;
+}
+
+/* Keine Scrollbar-Pfeile, dünner transparenter Balken */
+body:not(.tnet-sidepanel-v2) #spring::-webkit-scrollbar-button {
+  display: none !important;
+  height: 0 !important;
+  width: 0 !important;
+}
+
+body:not(.tnet-sidepanel-v2) #spring::-webkit-scrollbar {
+  width: 6px !important;
+  background: transparent !important;
+}
+
+body:not(.tnet-sidepanel-v2) #spring::-webkit-scrollbar-track {
+  background: transparent !important;
+}
+
+body:not(.tnet-sidepanel-v2) #spring::-webkit-scrollbar-thumb {
+  background: rgba(75, 123, 129, 0.2) !important;
+  border-radius: 3px !important;
+}
+
+body:not(.tnet-sidepanel-v2) #spring::-webkit-scrollbar-thumb:hover {
+  background: rgba(75, 123, 129, 0.45) !important;
+}
+
+/* Scroll-to-Top Button - Kreis mit Chevron */
+body:not(.tnet-sidepanel-v2) #scrollToTopBtn {
+  position: fixed;
+  bottom: 24px;
+  left: 318px;
+  width: 44px;
+  height: 44px;
+  background: #e8423f;
+  color: white;
+  border: 4px solid #e8423f;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 0;
+  text-align: center;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.3s ease;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Chevron-Pfeil mit CSS - zentriert */
+body:not(.tnet-sidepanel-v2) #scrollToTopBtn::before {
+  content: '';
+  display: block;
+  width: 12px;
+  height: 12px;
+  border-left: 3px solid white;
+  border-top: 3px solid white;
+  transform: rotate(45deg) translateX(2px) translateY(2px);
+}
+
+body:not(.tnet-sidepanel-v2) #scrollToTopBtn.visible {
+  opacity: 1;
+  visibility: visible;
+}
+
+body:not(.tnet-sidepanel-v2) #scrollToTopBtn:hover {
+  background: #4b7b81;
+  border-color: #4b7b81;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+
+body:not(.tnet-sidepanel-v2) #scrollToTopBtn:active {
+  transform: translateY(0);
+}
+
+/* Panel Zusammenklappen Button */
+body:not(.tnet-sidepanel-v2) #freepane {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+}
+
+body:not(.tnet-sidepanel-v2) #spring {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  /* pointer-events wird oben bereits auf none gesetzt */
+}
+
+/* Panel-Schatten entfernt — war störend */
+body:not(.tnet-sidepanel-v2) #panelShadow {
+  display: none !important;
+}
+
+body:not(.tnet-sidepanel-v2) .close_switch {
+  position: relative;
+  width: 100%;
+  height: 10px;
+  background: #95b5be;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  flex-shrink: 0;
+  left: 0;
+}
+
+body:not(.tnet-sidepanel-v2) .close_switch:hover {
+  background: #4b7b81;
+}
+
+body:not(.tnet-sidepanel-v2) .close_switch::before {
+  content: '';
+  width: 40px;
+  height: 2px;
+  background: rgba(255,255,255,0.8);
+  border-radius: 1px;
+}
+
+body:not(.tnet-sidepanel-v2) .close_switch:hover::before {
+  background: rgba(255,255,255,1);
+}
+
+/* Panel geschlossen Status */
+body:not(.tnet-sidepanel-v2) #freepane {
+  max-height: 100vh;
+  overflow: visible;
+}
+
+/* Header + Spring: animierbar machen */
+body:not(.tnet-sidepanel-v2) #freepane #leftPaneHeader {
+  max-height: 50px;
+  opacity: 1;
+  overflow: hidden;
+  transition: max-height 0.4s ease, opacity 0.3s ease;
+}
+
+body:not(.tnet-sidepanel-v2) #freepane #spring > *:not(.close_switch):not(.tnet-accordion-resize-handle):not(.tnet-panel) {
+  max-height: 2000px;
+  opacity: 1;
+  overflow: hidden;
+  transition: max-height 0.4s ease, opacity 0.3s ease;
+}
+
+/* details-Panels: kein overflow:hidden (bricht native Toggle) */
+body:not(.tnet-sidepanel-v2) #freepane #spring > .tnet-panel {
+  opacity: 1;
+  transition: max-height 0.4s ease, opacity 0.3s ease;
+}
+
+body:not(.tnet-sidepanel-v2) #freepane #scrollToTopBtn {
+  transition: opacity 0.3s ease;
+}
+
+/* Geschlossen: Inhalt einklappen, Handle sichtbar/klickbar lassen */
+body:not(.tnet-sidepanel-v2) #freepane.close #leftPaneHeader {
+  max-height: 0 !important;
+  opacity: 0 !important;
+  overflow: hidden !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+body:not(.tnet-sidepanel-v2) #freepane.close #scrollToTopBtn {
+  opacity: 0 !important;
+  pointer-events: none !important;
+  max-height: 0 !important;
+}
+
+body:not(.tnet-sidepanel-v2) #freepane.close #spring > *:not(.close_switch) {
+  max-height: 0 !important;
+  height: 0 !important;
+  min-height: 0 !important;
+  opacity: 0 !important;
+  overflow: hidden !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+  pointer-events: none !important;
+}
+
+body:not(.tnet-sidepanel-v2) #freepane.close #spring {
+  position: relative !important;
+  height: 10px !important;
+  max-height: 10px !important;
+  min-height: 10px !important;
+  overflow: visible !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+/* close_switch bleibt immer sichtbar */
+body:not(.tnet-sidepanel-v2) #freepane.close .close_switch {
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  transform: none !important;
+  pointer-events: auto !important;
+}
+
+body:not(.tnet-sidepanel-v2) #freepane.close {
+  max-height: 20px !important;
+  min-height: 0 !important;
+  overflow: visible !important;
+}
+
+/* Schatten sanft ausblenden wenn Panel geschlossen */
+body:not(.tnet-sidepanel-v2) #panelShadow {
+  transition: opacity 0.4s ease;
+}
+
+body:not(.tnet-sidepanel-v2) #freepane.close + #panelShadow {
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* Freepane kürzen wenn Spatial Query Panel angedockt */
+body:not(.tnet-sidepanel-v2) #freepane.panel-docked {
+  /* bottom wird dynamisch per JS gesetzt */
+  transition: bottom 0.15s ease;
+}
+
+body:not(.tnet-sidepanel-v2) #freepane.close .close_switch {
+  width: 170px;
+  margin: 0 auto;
+  border-radius: 0 0 4px 4px;
+  height: 10px !important;
+  min-height: 10px !important;
+}
+
+/* Balken schrumpft nur beim Schließen */
+body:not(.tnet-sidepanel-v2) #freepane:not(.close) .close_switch {
+  transition: none;
+}
+
+body:not(.tnet-sidepanel-v2) #freepane.close .close_switch {
+  transition: width 0.5s ease, margin 0.5s ease;
+}
+
+body:not(.tnet-sidepanel-v2) #freepane.close .close_switch::before {
+  width: 30px;
+  height: 2px;
+}
+
+/* Haupt-Container unter Header positionieren */
+#NeapoljsContainer {
+  position: fixed !important;
+  top: 69px !important;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: auto !important;
+}
+
+/* GIS Logo Header links oben */
+#gis_logo_header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 69px;
+  background: #fcfcfc;
+  z-index: 999;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+/* Header Toolbar rechts oben */
+#header_toolbar {
+  position: fixed;
+  top: 18px;
+  right: 20px;
+  z-index: 1001;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+#header_toolbar .toolbar-item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  background: transparent;
+  border: none;
+  color: #666;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border-radius: 4px;
+}
+
+#header_toolbar .toolbar-item:hover {
+  color: #4b7b81;
+  background: rgba(75, 123, 129, 0.1);
+}
+
+#header_toolbar .toolbar-item svg {
+  width: 20px;
+  height: 20px;
+  fill: currentColor;
+}
+
+/* Hamburger Menü Dropdown */
+#header_menu {
+  position: relative;
+}
+
+.menu-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 8px;
+  min-width: 180px;
+  background: white;
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-10px);
+  transition: all 0.2s ease;
+  z-index: 9999;
+}
+
+#header_menu.open .menu-dropdown {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  color: #444;
+  font-family: 'Roboto Condensed', Arial, sans-serif;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.menu-item:first-child {
+  border-radius: 4px 4px 0 0;
+}
+
+.menu-item:last-child {
+  border-radius: 0 0 4px 4px;
+}
+
+.menu-item:only-child {
+  border-radius: 4px;
+}
+
+.menu-item:hover {
+  background: rgba(75, 123, 129, 0.1);
+  color: #4b7b81;
+}
+
+.menu-item svg {
+  width: 20px;
+  height: 20px;
+  fill: currentColor;
+}
+
+/* Anmelde-Button in Toolbar */
+#header_login {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: transparent;
+  border: none;
+  color: #4b7b81;
+  font-family: 'Roboto Condensed', Arial, sans-serif;
+  font-size: 14px;
+  font-weight: 400;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+#header_login:hover {
+  background: rgba(75, 123, 129, 0.1);
+}
+
+#header_login .login-text {
+  font-size: 14px;
+}
+
+#header_login .login-arrow {
+  width: 14px;
+  height: 14px;
+  fill: #4b7b81;
+}
+
+/* Abmelde-Bereich (angemeldet) */
+#header_logout {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: transparent;
+  border: none;
+  color: #444;
+  font-family: 'Roboto Condensed', Arial, sans-serif;
+  font-size: 14px;
+  font-weight: 400;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+#header_logout:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+#header_logout .user-icon {
+  width: 18px;
+  height: 18px;
+  fill: #666;
+}
+
+#header_logout .username-text {
+  color: #444;
+  font-weight: 500;
+}
+
+#header_logout .separator {
+  color: #999;
+  margin: 0 2px;
+}
+
+#header_logout .logout-text {
+  color: #666;
+}
+
+#header_logout .logout-arrow {
+  width: 14px;
+  height: 14px;
+  fill: #4b7b81;
+  transform: rotate(180deg);
+}
+
+
+/* ===== TNET PANEL - VANILLA ACCORDIONS ===== */
+
+/* ===== TNET PANEL — Vanilla Accordions (Ersatz für dijit/TitlePane) ===== */
+
+/* Haupt-Panel (details-Element) */
+body:not(.tnet-sidepanel-v2) .tnet-panel {
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+/* Summary (klickbarer Header) */
+body:not(.tnet-sidepanel-v2) .tnet-panel > summary.tnet-panel-title {
+  display: flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 5px 10px;
+  margin: 0;
+  background: #4b7b81;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  list-style: none;
+  outline: none;
+  border: none;
+}
+
+/* Standard-Marker in Safari/Chrome entfernen */
+body:not(.tnet-sidepanel-v2) .tnet-panel > summary.tnet-panel-title::-webkit-details-marker {
+  display: none;
+}
+
+/* Kein Pfeil rechts */
+
+/* Hover-Effekt */
+body:not(.tnet-sidepanel-v2) .tnet-panel > summary.tnet-panel-title:hover {
+  background: #3d6a70;
+}
+
+/* Gepunkteter Resize-Handle unter dem Header (wie bisher) */
+body:not(.tnet-sidepanel-v2) .tnet-panel > summary.tnet-panel-title::before {
+  content: '';
+}
+
+/* Content-Bereich */
+body:not(.tnet-sidepanel-v2) .tnet-panel > .tnet-panel-content {
+  padding: 0;
+  margin: 0;
+  background: #fff;
+}
+
+/* Nested Panels (Export PDF / Ausdruck massstäblich) */
+body:not(.tnet-sidepanel-v2) .tnet-panel-nested > summary.tnet-panel-title-nested {
+  background: #95b5be;
+  font-size: 11px;
+  font-weight: 600;
+  min-height: 26px;
+  padding: 4px 10px;
+  text-transform: none;
+}
+
+body:not(.tnet-sidepanel-v2) .tnet-panel-nested > summary.tnet-panel-title-nested:hover {
+  background: #7da3ac;
+}
+
+/* Themenkatalog: spezielle Höhensteuerung */
+body:not(.tnet-sidepanel-v2) #tp_overview_menu > .tnet-panel-content {
+  height: min(var(--tnet-catalog-height, 450px), calc(100vh - 340px));
+  overflow: hidden;
+}
+
+body:not(.tnet-sidepanel-v2) #tp_overview_menu > .tnet-panel-content > #kantons_container {
+  height: 100%;
+}
+
+/* Dargestellte Themen: Höhenbegrenzung */
+body:not(.tnet-sidepanel-v2) #tp_sort_menu > .tnet-panel-content {
+  max-height: min(var(--tnet-active-height, 300px), calc(100vh - 260px));
+  overflow-y: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+body:not(.tnet-sidepanel-v2) #tp_sort_menu > .tnet-panel-content::-webkit-scrollbar {
+  display: none;
+}
+
+/* Animation: übergangsloser Wechsel (kein Dojo-wipeIn nötig) */
+body:not(.tnet-sidepanel-v2) .tnet-panel:not([open]) > .tnet-panel-content {
+  display: none;
+}

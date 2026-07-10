@@ -1630,8 +1630,17 @@ var STORAGE_KEY_BASE = 'treebuilder_state';
 var STORAGE_KEY = STORAGE_KEY_BASE;
 var GAPI_URL = '/gapi/ags2mapplus';
 
+// ── Multi-Site: aktuelle App-Root aus URL (Segment vor '/tnet/') ──
+function _currentAppRoot() {
+  var m = location.pathname.match(/^(\/[^/]+?)\/tnet\//);
+  return m ? m[1] : '/maps';
+}
+function _siteName() {
+  return _currentAppRoot().replace(/^\//, '').replace(/-dev$/i, '') || 'maps';
+}
+
 // ── Software-Umgebung (URL-basiert, fix) ──
-var _swEnv = location.pathname.indexOf('/maps-dev/') === 0 ? 'dev' : 'prod';
+var _swEnv = /-dev$/i.test(_currentAppRoot()) ? 'dev' : 'prod';
 
 // ── Konfig-Store (aus localStorage, synchron mit SLM-Einstellung) ──
 var _storeEnv = (function() {
@@ -1658,8 +1667,8 @@ function ensureStateCacheVersion() {
   }
 }
 
-// API-URL zeigt auf den gewählten Store
-var API_URL = (_storeEnv === 'dev' ? '/maps-dev' : '/maps') + '/tnet/api/v1/treebuilder-api.php';
+// API-URL zeigt auf den gewählten Store (site-erhaltend: /<site>[-dev])
+var API_URL = '/' + _siteName() + (_storeEnv === 'dev' ? '-dev' : '') + '/tnet/api/v1/treebuilder-api.php';
 var _envLabel = _storeEnv === 'dev' ? '[DEV]' : '[PROD]';
 
 // DEV-Badge entfernt (Store-Badge wird jetzt im LyrMgr-Editor-Header gesetzt)

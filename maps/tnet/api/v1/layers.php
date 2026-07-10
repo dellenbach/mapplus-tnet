@@ -35,9 +35,17 @@ require_once __DIR__ . '/../includes/StagingImportRepository.php';
 ApiResponse::setHeaders();
 
 function resolveAppBasePath($scriptName, $requestUri) {
+    // Multi-Site: Mount-Pfad VOR '/tnet/' ableiten (maps, maps-dev, geohost, ...).
     foreach ([$scriptName, parse_url($requestUri, PHP_URL_PATH) ?: ''] as $candidatePath) {
         $normalizedPath = str_replace('\\', '/', (string)$candidatePath);
-        if (preg_match('#^/(maps(?:-dev)?)(?:/|$)#', $normalizedPath, $matches)) {
+        if (preg_match('#^(/.+?)/tnet/#i', $normalizedPath, $matches)) {
+            return rtrim($matches[1], '/');
+        }
+    }
+    // Fallback: erstes Pfadsegment (Rueckwaertskompatibilitaet).
+    foreach ([$scriptName, parse_url($requestUri, PHP_URL_PATH) ?: ''] as $candidatePath) {
+        $normalizedPath = str_replace('\\', '/', (string)$candidatePath);
+        if (preg_match('#^/([^/]+)(?:/|$)#', $normalizedPath, $matches)) {
             return '/' . $matches[1];
         }
     }
@@ -75,6 +83,9 @@ function normalizeAppProxyUrl($url) {
 }
 
 $appBasePath = resolveAppBasePath($_SERVER['SCRIPT_NAME'] ?? '', $_SERVER['REQUEST_URI'] ?? '');
+
+// Multi-Site: Site-Kontext fuer Katalog-Abfragen setzen (Profile pro Site).
+CatalogRepository::setSite(TnetCorePaths::getSiteName());
 
 // === Parameter lesen ===
 $group    = $_GET['group']    ?? 'public';

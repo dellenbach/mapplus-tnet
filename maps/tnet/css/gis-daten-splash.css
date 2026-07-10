@@ -129,3 +129,299 @@
     100% { transform: rotateX(-22deg) rotateY(-90deg) rotateZ(0deg); }
 }
 
+
+
+/* ===== SPLASH SCREEN LAYOUT (migriert aus override.css) ===== */
+/* ============================================================
+   SPLASH SCREEN
+   Cube-Styles → /maps/tnet/css/gis-daten-splash.css
+   ============================================================ */
+
+#splash-screen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, #4b7b81 0%, #3a6268 100%);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  z-index: 99999;
+  transition: opacity 1s ease, visibility 1s ease, transform 1s ease;
+}
+
+#splash-screen.hidden {
+  opacity: 0;
+  visibility: hidden;
+  transform: scale(1.05);
+}
+
+#splash-logo {
+  position: relative;
+  width: 15em;
+  height: 12em;
+  background-image: url(../resources/Logo-GIS-Daten-AG.svg);
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: 15em;
+  filter: brightness(0) invert(1);
+  margin-top: -30px;
+}
+
+#splash-loader {
+  width: 200px;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-top: calc(1.5em + 130px);
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.1);
+}
+
+#splash-loader-bar {
+  width: 30%;
+  height: 100%;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.3), white, rgba(255, 255, 255, 0.3));
+  border-radius: 4px;
+  animation: splashLoading 1.5s ease-in-out infinite;
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.5);
+}
+
+@keyframes splashLoading {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(400%); }
+}
+
+/* Kartenauswahl Button links oben */
+#header_maps_select {
+  position: fixed;
+  left: 200px;
+  top: 18px;
+  z-index: 1002;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-family: 'Inter Tight', Arial, sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  color: #4b7b81;
+  transition: all 0.2s ease;
+}
+
+#header_maps_select:hover {
+  color: #3a6268;
+}
+
+#header_maps_select .maps-icon {
+  display: flex;
+  align-items: center;
+}
+
+#header_maps_select .maps-icon img {
+  width: 30px;
+  height: 30px;
+}
+
+#header_maps_select:hover .maps-icon img {
+  transform: scale(1.05);
+  transition: transform 0.2s ease;
+}
+
+#gis_logo_container {
+  position: fixed;
+  top: 5px;
+  left: 12px;
+  z-index: 1001;
+  cursor: pointer;
+  display: block;
+  text-decoration: none;
+}
+
+#gis_logo_container .gis-logo-svg {
+  height: 58px;
+  width: auto;
+  display: block;
+}
+
+#gis_logo_container .gis-logo-cube {
+  position: absolute;
+  height: 16px;
+  width: auto;
+  top: 0px;
+  left: 30px;
+}
+
+#gis_logo_container:hover {
+  opacity: 0.85;
+}
+
+/* Hintergrund abdunkeln */
+.dijitDialogUnderlay {
+  background-color: rgba(0, 0, 0, 0.7) !important;
+  opacity: 1 !important;
+}
+
+/* Base Typography - Roboto als Hauptschrift */
+body,
+.tundra,
+.dijitContentPane,
+.dijitTitlePane,
+.dijitButton,
+.dijitTextBox,
+.dijitSelect,
+input,
+button,
+select,
+textarea {
+  font-family: 'Roboto', Arial, sans-serif !important;
+}
+
+body {
+  font-size: 14px;
+  line-height: 1.5;
+  color: #333;
+}
+
+h1, h2, h3 {
+  font-weight: 600;
+  color: #1d1d1b;
+}
+
+h2 {
+  font-size: 1.75rem;
+  margin-bottom: 1rem;
+}
+
+h3 {
+  font-size: 1.25rem;
+  margin-bottom: 0.75rem;
+}
+
+#mapsInfoDialog.dijitDialog {
+  width: 1300px !important;
+  height: calc(90vh - 69px) !important;
+  max-width: 1300px !important;
+  max-height: calc(90vh - 69px) !important;
+  border: none !important;
+  border-radius: 8px !important;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.5) !important;
+  overflow: hidden !important;
+  /* Vertikal zentrieren unterhalb des 69px App-Headers */
+  top: calc(69px + (100vh - 69px - (90vh - 69px)) / 2) !important;
+}
+
+@media (max-width: 1400px) {
+  #mapsInfoDialog.dijitDialog {
+    width: 90vw !important;
+  }
+}
+
+#mapsInfoDialog .dijitDialogTitleBar {
+  display: none !important;
+}
+
+#mapsInfoDialog .dijitDialogPaneContent {
+  padding: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  border: none !important;
+  overflow: hidden !important;
+}
+
+/* Nur X ohne runden Button */
+.customCloseBtn {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  z-index: 10000;
+  font-size: 40px;
+  font-weight: 300;
+  color: white;
+  line-height: 56px;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+  transition: all 0.2s ease;
+  padding: 0;
+  margin: 0;
+  width: 56px;
+  height: 56px;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.customCloseBtn:hover {
+  color: #ff4444;
+  transform: scale(1.2);
+  text-shadow: 0 2px 8px rgba(255,68,68,0.8);
+}
+
+/* Zurück-Button */
+.customBackBtn {
+  position: absolute;
+  top: 16px;
+  right: 72px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  z-index: 10000;
+  font-size: 40px;
+  font-weight: 300;
+  color: white;
+  line-height: 56px;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+  transition: all 0.2s ease;
+  padding: 0;
+  margin: 0;
+  width: 56px;
+  height: 56px;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.customBackBtn:hover {
+  color: #4CAF50;
+  transform: scale(1.2);
+  text-shadow: 0 2px 8px rgba(76,175,80,0.8);
+}
+
+/* Refresh-Button */
+.customRefreshBtn {
+  position: absolute;
+  top: 16px;
+  right: 136px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  z-index: 10000;
+  font-size: 40px;
+  font-weight: 300;
+  color: white;
+  line-height: 56px;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+  transition: all 0.2s ease;
+  padding: 0;
+  margin: 0;
+  width: 56px;
+  height: 56px;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+#mapsInfoDialog.dijitDialogVisible .customRefreshBtn {
+  display: flex;
+}
+

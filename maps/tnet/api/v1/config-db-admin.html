@@ -148,7 +148,9 @@ tr.selected { background: #f1f8fa; }
 
 <script>
 (function() {
-  var APP_ROOT = window.location.pathname.indexOf('/maps-dev/') === 0 ? '/maps-dev' : '/maps';
+  // Multi-Site: App-Root aus URL ableiten (Segment vor '/tnet/'), z.B. /maps, /maps-dev, /geohost.
+  var _m = window.location.pathname.match(/^(\/[^/]+?)\/tnet\//);
+  var APP_ROOT = _m ? _m[1] : '/maps';
   var ADMIN_API = APP_ROOT + '/tnet/api/v1/admin';
   var TREE_API = APP_ROOT + '/tnet/api/v1/treebuilder-api.php';
   var selectedScope = 'full';

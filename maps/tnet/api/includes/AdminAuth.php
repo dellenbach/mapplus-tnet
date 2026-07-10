@@ -29,9 +29,13 @@ class AdminAuth {
     // ===== PFAD-HELFER =====
 
     private static function getAppBasePath() {
-        $scriptName  = $_SERVER['SCRIPT_NAME'] ?? '';
-        $appBasePath = rtrim(str_replace('\\', '/', dirname(dirname(dirname(dirname($scriptName))))), '/');
-        return ($appBasePath === '' || $appBasePath === '.') ? '' : $appBasePath;
+        // Multi-Site + depth-unabhaengig: Mount-Pfad VOR '/tnet/' aus der URL ableiten
+        // (funktioniert fuer tnet/api/admin-gate.php UND tnet/api/v1/*.php; maps, maps-dev, geohost).
+        $scriptName = str_replace('\\', '/', $_SERVER['SCRIPT_NAME'] ?? '');
+        if ($scriptName !== '' && preg_match('#^(/.+?)/tnet/#i', $scriptName, $matches)) {
+            return rtrim($matches[1], '/');
+        }
+        return '';
     }
 
     public static function getClientDataRoot() { return '/data/Client_Data/nwow'; }
