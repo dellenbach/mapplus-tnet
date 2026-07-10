@@ -53,6 +53,49 @@ function isMobileEntry() {
     return window.__TNET_MOBILE_ENTRY === true;
 }
 
+/**
+ * Externes OEREB graphicsLayer.js erwartet bei layer toggles immer einen
+ * gueltigen LayerManager mit switchLayer(). In MAP+ kann
+ * AppManager.getLayerManagerByLayer(...) fuer bestimmte OEREB-Layer null
+ * liefern. Dieser Fallback mappt in dem Fall robust auf main_lyrmgr.
+ */
+function ensureOerebLayerManagerCompat() {
+    try {
+        var am = window.njs && njs.AppManager;
+        if (!am || typeof am.getLayerManagerByLayer !== 'function') return;
+        if (am.__tnetOerebLayerMgrCompatPatched) return;
+
+        var originalGetLayerManagerByLayer = am.getLayerManagerByLayer;
+        am.getLayerManagerByLayer = function(mapName, layerName) {
+            var manager = null;
+            try {
+                manager = originalGetLayerManagerByLayer.apply(this, arguments);
+            } catch (err) {
+                TnetLog.warn('[OEREB] getLayerManagerByLayer Fehler, nutze Fallback:', err.message);
+            }
+
+            if (manager && typeof manager.switchLayer === 'function') {
+                return manager;
+            }
+
+            var lyrMgr = this.LyrMgr || {};
+            var mapKey = (mapName ? String(mapName) : 'main') + '_lyrmgr';
+            var fallbackManager = lyrMgr[mapKey] || lyrMgr['main_lyrmgr'] || null;
+            if (fallbackManager && typeof fallbackManager.switchLayer === 'function') {
+                TnetLog.warn('[OEREB] Fallback-LayerManager aktiv für', layerName || '(unknown)');
+                return fallbackManager;
+            }
+
+            return manager;
+        };
+
+        am.__tnetOerebLayerMgrCompatPatched = true;
+        TnetLog.log('[OEREB] LayerManager-Kompatibilitäts-Fallback aktiviert');
+    } catch (e) {
+        TnetLog.warn('[OEREB] LayerManager-Kompatibilitäts-Fallback fehlgeschlagen:', e.message);
+    }
+}
+
 // ===== STATE =====
 var oerebActive = false;
 var oerebClickListener = null;
@@ -234,6 +277,8 @@ window.toggleOerebMode = function() {
 };
 
 function activateOereb() {
+    ensureOerebLayerManagerCompat();
+
     oerebActive = true;
     window.isOerebActive = true;
     var btn = document.getElementById('oereb-tool-btn');
@@ -515,12 +560,25 @@ function showOerebResultList(results, map) {
  * WebOffice-spezifische Methoden sind auf den lokalen Layer-Manager gebrückt.
  */
 function registerMobileGraphicsLayer() {
-    if (!isMobileEntry()) return;
     if (_mobileGraphicsLayerRegistered) return;
     if (typeof window.define !== 'function' || !window.define.amd) {
         TnetLog.warn('[OEREB] Dojo define() nicht verfügbar, Mobile-GraphicsLayer kann nicht registriert werden');
         return;
     }
+
+    // Bereits registriertes AMD-Modul nicht erneut definieren.
+    try {
+        if (typeof window.require === 'function'
+            && typeof window.require.defined === 'function'
+            && window.require.defined('app/oereb/graphicsLayer')) {
+            _mobileGraphicsLayerRegistered = true;
+            TnetLog.log('[OEREB] GraphicsLayer-Modul bereits vorhanden, Bridge-Registrierung übersprungen');
+            return;
+        }
+    } catch (e) {
+        TnetLog.warn('[OEREB] Modulstatus von app/oereb/graphicsLayer konnte nicht geprüft werden:', e.message);
+    }
+
     _mobileGraphicsLayerRegistered = true;
 
     window.define('app/oereb/graphicsLayer', [], function() {
@@ -989,7 +1047,7 @@ function registerMobileGraphicsLayer() {
         return MobileGraphicsLayer;
     });
 
-    TnetLog.log('[OEREB] Mobile-GraphicsLayer Modul registriert');
+    TnetLog.log('[OEREB] GraphicsLayer-Bridge Modul registriert');
 }
 
 // ===== IFRAME =====
@@ -1005,7 +1063,7 @@ function loadOerebIframe(egrid, typ, canton) {
 
     // graphicsLayer registrieren (OL-Drawing-Support statt WebOffice-API)
     // Das iframe ruft parent.require(["app/oereb/graphicsLayer"]) auf
-    if (isMobileEntry()) registerMobileGraphicsLayer();
+    registerMobileGraphicsLayer();
 
     iframe.src = src;
 }
@@ -1019,7 +1077,7 @@ function preloadOerebIframe() {
     var iframe = document.getElementById('oereb-iframe');
     if (!iframe) return;
     // Basis-URL ohne EGRID laden → zeigt ÖREB-Startseite
-    if (isMobileEntry()) registerMobileGraphicsLayer();
+    registerMobileGraphicsLayer();
     iframe.src = OEREB_IFRAME_BASE + '?' + OEREB_IFRAME_PARAMS;
 }
 

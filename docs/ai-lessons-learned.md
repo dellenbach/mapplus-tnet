@@ -2889,3 +2889,20 @@ Guardrail: Wenn Change-Detection fÃ¼r KÃ¼rzel vorhanden ist, immer auch prÃ
 - **Root-Cause**: In `tnet-oereb.js` nutzte der Mobile-`OerebGraphics`-Layer einen fixen grünen OL-Style, unabhängig vom aktiven Maptip.
 - **Fix**: OEREB-Highlight-Styles (Mobile + allgemeiner OEREB-Highlight-Layer) dynamisch aus aktivem OEREB-Maptip-Style aufgebaut, mit Framework-`getNewOLStyle()` und robustem Fallback.
 - **Guardrail**: Bei OEREB-Overlays keine hartcodierten Farben verwenden; Style immer über Runtime-Maptip/Config ableiten.
+
+## 2026-07-10 - ÖREB zeigt "Something went wrong!" trotz 200 bei extract/json
+
+- **Symptom**: In `maps-dev` zeigt das ÖREB-Panel "Something went wrong!", obwohl `/oereb/extract/json?...details=true...` mit HTTP 200 und gültigem `Extract` antwortet.
+- **Root-Cause**: Nicht der JSON-Request war defekt, sondern ein Laufzeitfehler im externen `graphicsLayer.js` (`Cannot read properties of null (reading 'switchLayer')`) beim Layer-Toggle im Parent-Kontext. Dadurch kippt der externe Viewer in sein generisches Error-Handling.
+- **Fix**: In `tnet-oereb.js` einen Kompatibilitäts-Fallback für `AppManager.getLayerManagerByLayer(...)` eingebaut: Wenn `null` zurückkommt, wird auf `main_lyrmgr` (bzw. `<map>_lyrmgr`) mit `switchLayer()` zurückgefallen. Aktivierung beim Start des ÖREB-Modus.
+- **Guardrail**: Bei ÖREB-Fehlern mit "Something went wrong!" zuerst Request/Response prüfen, dann zwingend Browser-Konsole auf Laufzeitfehler im externen Viewer kontrollieren. HTTP 200 allein bedeutet nicht, dass der Viewer-Endzustand gesund ist.
+
+## 2026-07-10 - AGS-Proxy: sporadische 498 (Invalid Token) beim Karten-Nachladen
+
+- **Symptom**: Beim Nachladen von Kacheln/Export über `agsproxy.php` kam gelegentlich `{"error":{"code":498,"message":"Invalid Token"}}` direkt im Browser an.
+- **Root-Cause**: Token-Refresh ohne Single-Flight. Sobald der Token ins Safety-Skew-Fenster kam, holten viele parallele Requests gleichzeitig ein neues Token (Thundering Herd). Da `client=requestip` gebundene Tokens ausgibt, entwertete das Token-Churn kurz zuvor gebaute Requests → 498. Der einmalige, ebenfalls ungelockte Retry lief ins gleiche Race und reichte den 498 durch.
+- **Fix**: In `maps-dev/agsproxy.php` und `maps/agsproxy.php` `getToken()` auf Single-Flight umgestellt (exklusiver `flock` auf `<cacheFile>.lock` + Double-Checked Read). 498-Retry auf Compare-and-Set + propagations-tolerante Backoff-Retries umgebaut (eine koordinierte Erneuerung, danach warten statt weiter generieren). Safety-Skew-Default von 60s auf 120s angehoben.
+- **Tiefere Root-Cause (Nachtrag)**: Es gibt MEHRERE unabhängige Token-Erzeuger mit denselben Credentials (`mapplus-imp`): `agsproxy.php` und `legend-proxy.php` je in `maps` UND `maps-dev` — jeder mit eigenem `_token_cache`. Der Token-Service hält pro User nur EIN aktives Token; jede Erneuerung durch einen Consumer entwertet die Tokens aller anderen → dauerhaftes Cross-Instance/Cross-Consumer-Churn, das ein Single-Flight PRO Instanz nicht lösen kann.
+- **Fix 2**: Gemeinsamer Token-Cache für ALLE Consumer mit gleichen Credentials: `agsproxy.php` und `legend-proxy.php` (maps + maps-dev) nutzen jetzt `/data/Client_Data/nwow/tmp/token_shared/arcgis_token_<md5(user|tokenUrl)>.json` mit gemeinsamem `.lock`. Dadurch existiert global genau EIN Token und EIN koordinierter Refresh. `legend-proxy.php` `agsGetToken()` ebenfalls auf Single-Flight (`agsFetchToken`) umgestellt.
+- **Fix 3 (Propagation)**: Ein frisch generiertes Token ist auf einzelnen Backend-Knoten kurz noch nicht aktiv. Der 498-Retry wartet daher nach einem Refresh 150ms und macht bis zu 6 Versuche mit gedeckeltem Backoff (250ms..1000ms). Verifiziert: 120 gemischte Parallel-Requests (DEV+PROD) → 0×498 (vorher 5/30).
+- **Guardrail**: Bei geteilten Backend-Credentials MÜSSEN alle Token-Consumer denselben Cache+Lock teilen (Cache-Pfad ausserhalb Docroot, Dateiname credential-abhängig). Single-Flight pro Instanz reicht nicht, wenn mehrere Instanzen/Skripte dieselben Credentials nutzen. Nach Token-Rotation immer propagations-tolerant retryen (kurz warten statt sofort neu generieren).

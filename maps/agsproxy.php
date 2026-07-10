@@ -141,16 +141,24 @@ $password           = getenv('GIS_TOKEN_PASS')  ?: "mapplus-imp6370";
 $client             = getenv('GIS_CLIENT')      ?: "requestip";
 $referer            = getenv('GIS_REFERER')     ?: "";
 $expirationMin      = intval(getenv('GIS_TOKEN_MIN')  ?: 60);
-$safetySkewSec      = intval(getenv('GIS_TOKEN_SKEW') ?: 60);
+$safetySkewSec      = intval(getenv('GIS_TOKEN_SKEW') ?: 120);
 $sslVerifyPeer      = (getenv('GIS_SSL_VERIFY') === "0") ? false : true;
 $retryOn498         = (getenv('GIS_RETRY_498')  === "0") ? false : true;
 $autoPrefixServices = (getenv('GIS_AUTOPREFIX') === "0") ? false : true;
 
 // --- 1.4 Token-Cache -------------------------------------------------------
-// Verzeichnis und Datei für das dateibasierte Token-Caching
+// Verzeichnis und Datei für das dateibasierte Token-Caching.
+//
+// WICHTIG: Der Cache liegt bewusst an einem GEMEINSAMEN Pfad ausserhalb des
+// Docroots, damit ALLE Proxy-Instanzen mit denselben Credentials (z.B. `maps`
+// und `maps-dev`) EIN Token teilen. Der ArcGIS-Token-Service hält pro User nur
+// ein aktives Token – ohne gemeinsamen Cache entwertet die Token-Erneuerung
+// einer Instanz das Token der anderen (sporadische 498 Invalid Token).
+// Der Dateiname enthält einen Hash aus User+Token-URL: gleiche Credentials
+// teilen sich Cache+Lock, unterschiedliche Credentials werden getrennt.
 $cacheDirEnv = getenv('GIS_PROXY_CACHE_DIR');
-$cacheDir    = $cacheDirEnv ? rtrim($cacheDirEnv, DIRECTORY_SEPARATOR) : __DIR__ . "/_token_cache";
-$cacheFile   = $cacheDir . DIRECTORY_SEPARATOR . "arcgis_token.json";
+$cacheDir    = $cacheDirEnv ? rtrim($cacheDirEnv, DIRECTORY_SEPARATOR) : '/data/Client_Data/nwow/tmp/token_shared';
+$cacheFile   = $cacheDir . DIRECTORY_SEPARATOR . 'arcgis_token_' . md5($username . '|' . $tokenUrl) . '.json';
 
 // --- 1.5 Layer-Aggregation -------------------------------------------------
 // Kombiniert gleichzeitige Requests zu einem einzigen Backend-Call.
@@ -779,22 +787,54 @@ if ($aggregationEnabled && isset($aggregationResult['save_png']) && $aggregation
 }
 
 // --- Retry bei 498 (Invalid Token) ---
-$shouldRetry = ($retryOn498 && intval($status) === 498);
-if (!$shouldRetry && $retryOn498 && intval($status) === 200) {
-    $maybe = json_decode($respBody, true);
-    if (is_array($maybe) && isset($maybe['error']['code']) && intval($maybe['error']['code']) === 498) {
-        $shouldRetry = true;
+// Prüft, ob eine Antwort ein Invalid-Token-Fehler ist (HTTP 498 oder
+// HTTP 200 mit ArcGIS-Fehlercode 498 im JSON-Body).
+$is498 = function ($status, $respBody) {
+    if (intval($status) === 498) return true;
+    if (intval($status) === 200) {
+        $maybe = json_decode($respBody, true);
+        if (is_array($maybe) && isset($maybe['error']['code']) && intval($maybe['error']['code']) === 498) {
+            return true;
+        }
     }
-}
-if ($shouldRetry) {
-    fileCacheDelete($cacheFile);
-    $tok = fetchAndCacheToken($tokenUrl, $username, $password, $client, $referer, $expirationMin, $safetySkewSec, $sslVerifyPeer, $cacheDir, $cacheFile);
+    return false;
+};
+
+if ($retryOn498 && $is498($status, $respBody)) {
+    // Genau EINE koordinierte Token-Erneuerung (Compare-and-Set). Danach
+    // geduldige Retries: ein frisch generiertes Token kann auf einzelnen
+    // Backend-Knoten kurz noch nicht gültig sein (Propagation). Wir generieren
+    // NICHT wiederholt (das erzeugte Token-Churn), sondern warten mit Backoff
+    // und übernehmen ein evtl. von anderer Seite rotiertes Token aus dem Cache.
+    $badToken = $token;
+    $tok = refreshTokenSingleFlight($badToken, $tokenUrl, $username, $password, $client, $referer, $expirationMin, $safetySkewSec, $sslVerifyPeer, $cacheDir, $cacheFile);
+    $refreshed = false;
     if ($tok && !empty($tok['token'])) {
+        $refreshed = ($tok['token'] !== $badToken);
         $token = $tok['token'];
+    }
+    $maxRetries = 6;
+    for ($attempt = 1; $attempt <= $maxRetries; $attempt++) {
+        // Ein FRISCH generiertes Token ist auf einzelnen Backend-Knoten kurz
+        // noch nicht aktiv (Propagation). Vor dem ersten Retry kurz warten.
+        if ($attempt === 1 && $refreshed) {
+            usleep(150000); // 150ms Propagations-Fenster
+        }
         list($forwardUrl, $forwardBody, $forwardHeaders) =
             buildForwardRequest($targetUrl, $queryParams, $rawInput, $contentType, $token, $method);
         list($status, $respHeaders, $respBody, $backendResponseTimeMs) =
             curlForward($forwardUrl, $method, $forwardBody, $forwardHeaders, $sslVerifyPeer);
+        if (!$is498($status, $respBody)) {
+            break;
+        }
+        // Backoff (gedeckelt), dann evtl. neueres Token aus dem Cache übernehmen
+        // (falls ein anderer Worker/eine andere Instanz rotiert hat) – aber
+        // selbst KEIN neues Token generieren.
+        usleep(min(250000 * $attempt, 1000000)); // 250ms..1000ms
+        $cur = fileCacheReadRaw($cacheFile);
+        if ($cur && !empty($cur['token']) && $cur['token'] !== $token) {
+            $token = $cur['token'];
+        }
     }
 }
 
@@ -1065,14 +1105,97 @@ function smartBeautifyFieldNames($arr) {
 /**
  * Token aus Datei-Cache lesen oder neu holen.
  *
+ * Single-Flight: Bei parallelen Requests (z.B. viele Kacheln beim Nachladen)
+ * erneuert nur EIN Worker das Token. Alle anderen warten kurz auf den
+ * exklusiven Lock und lesen danach das frische Token aus dem Cache. So wird
+ * der "Thundering Herd" verhindert, der sonst viele Tokens gleichzeitig
+ * generiert und dadurch sporadische 498-Fehler (Invalid Token) auslöst.
+ *
  * @return array|null  ['token' => string, 'expires' => int] oder null bei Fehler
  */
 function getToken($tokenUrl, $user, $pass, $client, $referer, $expirationMin, $skewSec, $sslVerifyPeer, $cacheDir, $cacheFile) {
+    // 1. Schneller Pfad: gültiges Token direkt aus dem Cache.
+    $fileTok = fileCacheRead($cacheFile, $skewSec);
+    if ($fileTok) {
+        return $fileTok;
+    }
+
+    // 2. Single-Flight: Refresh über exklusiven Lock serialisieren.
+    ensureCacheDir($cacheDir);
+    $lockFile = $cacheFile . '.lock';
+    $lockFp = @fopen($lockFile, 'c');
+    if ($lockFp === false) {
+        // Kein Lock möglich → Fallback ohne Serialisierung.
+        return fetchAndCacheToken($tokenUrl, $user, $pass, $client, $referer, $expirationMin, $skewSec, $sslVerifyPeer, $cacheDir, $cacheFile);
+    }
+
+    if (flock($lockFp, LOCK_EX)) {
+        // Lock erhalten: nochmals prüfen – evtl. hat ein anderer Worker das
+        // Token in der Zwischenzeit bereits erneuert (Double-Checked Locking).
+        $fileTok = fileCacheRead($cacheFile, $skewSec);
+        if ($fileTok) {
+            flock($lockFp, LOCK_UN);
+            fclose($lockFp);
+            return $fileTok;
+        }
+        $tok = fetchAndCacheToken($tokenUrl, $user, $pass, $client, $referer, $expirationMin, $skewSec, $sslVerifyPeer, $cacheDir, $cacheFile);
+        flock($lockFp, LOCK_UN);
+        fclose($lockFp);
+        return $tok;
+    }
+
+    // Konnte den Lock nicht erhalten → kurz warten und Cache erneut lesen.
+    fclose($lockFp);
     $fileTok = fileCacheRead($cacheFile, $skewSec);
     if ($fileTok) {
         return $fileTok;
     }
     return fetchAndCacheToken($tokenUrl, $user, $pass, $client, $referer, $expirationMin, $skewSec, $sslVerifyPeer, $cacheDir, $cacheFile);
+}
+
+/**
+ * Token nach einem 498 (Invalid Token) erneuern – Single-Flight mit
+ * Compare-and-Set. Verhindert den Token-Herd im Retry: Wenn ein anderer
+ * Worker in der Zwischenzeit bereits ein NEUES Token (≠ dem soeben
+ * fehlgeschlagenen) in den Cache geschrieben hat, wird dieses ohne erneute
+ * Generierung übernommen. Nur wenn im Cache weiterhin das schlechte Token
+ * (oder keines) liegt, wird genau EIN neues Token generiert.
+ *
+ * @param string $badToken  Das Token, das gerade den 498 verursacht hat.
+ * @return array|null  ['token' => string, 'expires' => int] oder null.
+ */
+function refreshTokenSingleFlight($badToken, $tokenUrl, $user, $pass, $client, $referer, $expirationMin, $skewSec, $sslVerifyPeer, $cacheDir, $cacheFile) {
+    ensureCacheDir($cacheDir);
+    $lockFile = $cacheFile . '.lock';
+    $lockFp = @fopen($lockFile, 'c');
+    if ($lockFp === false) {
+        return fetchAndCacheToken($tokenUrl, $user, $pass, $client, $referer, $expirationMin, $skewSec, $sslVerifyPeer, $cacheDir, $cacheFile);
+    }
+
+    if (!flock($lockFp, LOCK_EX)) {
+        fclose($lockFp);
+        // Kein Lock → kurz warten, dann evtl. frisches Token aus dem Cache.
+        usleep(50000);
+        $cur = fileCacheReadRaw($cacheFile);
+        if ($cur && !empty($cur['token']) && $cur['token'] !== $badToken) {
+            return $cur;
+        }
+        return fetchAndCacheToken($tokenUrl, $user, $pass, $client, $referer, $expirationMin, $skewSec, $sslVerifyPeer, $cacheDir, $cacheFile);
+    }
+
+    // Unter Lock: Hat bereits jemand auf ein anderes Token gewechselt?
+    $cur = fileCacheReadRaw($cacheFile);
+    if ($cur && !empty($cur['token']) && $cur['token'] !== $badToken) {
+        flock($lockFp, LOCK_UN);
+        fclose($lockFp);
+        return $cur;
+    }
+
+    // Weiterhin das schlechte (oder kein) Token → genau EINMAL neu generieren.
+    $tok = fetchAndCacheToken($tokenUrl, $user, $pass, $client, $referer, $expirationMin, $skewSec, $sslVerifyPeer, $cacheDir, $cacheFile);
+    flock($lockFp, LOCK_UN);
+    fclose($lockFp);
+    return $tok;
 }
 
 /**
@@ -1145,6 +1268,28 @@ function fileCacheRead(string $file, int $skewSec) {
             if (($data['expires'] - $skewMs) > $nowMs) {
                 $out = ['token' => $data['token'], 'expires' => (int)$data['expires']];
             }
+        }
+    }
+    fclose($fp);
+    return $out;
+}
+
+/**
+ * Token aus Datei-Cache lesen OHNE Ablauf-/Skew-Prüfung.
+ * Nur für Compare-and-Set im Retry: liefert das aktuell gespeicherte Token,
+ * damit erkannt werden kann, ob ein anderer Worker bereits rotiert hat.
+ */
+function fileCacheReadRaw(string $file) {
+    if (!is_file($file)) return null;
+    $fp = @fopen($file, 'r');
+    if (!$fp) return null;
+    $out = null;
+    if (flock($fp, LOCK_SH)) {
+        $json = stream_get_contents($fp);
+        flock($fp, LOCK_UN);
+        $data = @json_decode($json, true);
+        if (is_array($data) && isset($data['token'], $data['expires'])) {
+            $out = ['token' => $data['token'], 'expires' => (int)$data['expires']];
         }
     }
     fclose($fp);

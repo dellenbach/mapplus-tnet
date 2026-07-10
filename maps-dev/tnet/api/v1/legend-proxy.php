@@ -113,7 +113,7 @@ $AGS_TOKEN_URL   = getenv('GIS_TOKEN_URL')  ?: 'https://www.gis-daten.ch/svc/tok
 $AGS_TOKEN_USER  = getenv('GIS_TOKEN_USER') ?: 'mapplus-imp';
 $AGS_TOKEN_PASS  = getenv('GIS_TOKEN_PASS') ?: 'mapplus-imp6370';
 // Token-Cache 3 Ebenen nach oben: tnet/api/v1/ → maps/ (gleiche Datei wie agsproxy.php)
-$AGS_TOKEN_CACHE = dirname(__DIR__, 3) . '/_token_cache/arcgis_token.json';
+$AGS_TOKEN_CACHE = '/data/Client_Data/nwow/tmp/token_shared/arcgis_token_' . md5($AGS_TOKEN_USER . '|' . $AGS_TOKEN_URL) . '.json';
 $AGS_TOKEN_SKEW  = 60;  // Safety-Skew in Sekunden
 
 // Metadata-Injection-Mapping (gemeinsam mit legend-proxy-wms.php)
@@ -316,17 +316,49 @@ function errorResponse($msg, $code = 400, $format = 'html') {
  * Schreibt neuen Token in dieselbe Cache-Datei wie agsproxy.php.
  */
 function agsGetToken($tokenUrl, $user, $pass, $cacheFile, $skewSec) {
-    if (file_exists($cacheFile)) {
+    // Liest das (gemeinsame) Token aus dem Cache; nur gültig, wenn ausserhalb
+    // des Safety-Skew-Fensters.
+    $readValid = function () use ($cacheFile, $skewSec) {
+        if (!file_exists($cacheFile)) return '';
         $raw = @file_get_contents($cacheFile);
-        if ($raw !== false) {
-            $data  = json_decode($raw, true);
-            $nowMs = (int)(microtime(true) * 1000);
-            if (!empty($data['token']) && isset($data['expires']) && ($data['expires'] - $skewSec * 1000) > $nowMs) {
-                return $data['token'];
-            }
+        if ($raw === false) return '';
+        $data  = json_decode($raw, true);
+        $nowMs = (int)(microtime(true) * 1000);
+        if (!empty($data['token']) && isset($data['expires']) && ($data['expires'] - $skewSec * 1000) > $nowMs) {
+            return $data['token'];
         }
+        return '';
+    };
+
+    // Schneller Pfad.
+    $tok = $readValid();
+    if ($tok !== '') return $tok;
+
+    // Single-Flight: Token wird mit agsproxy.php GETEILT (gleicher Cache + Lock).
+    // Nur EIN Prozess generiert; alle anderen übernehmen das frische Token.
+    // Verhindert, dass legend-proxy ein eigenes Token generiert und damit das
+    // agsproxy-Token backendseitig entwertet (sporadische 498).
+    $dir = dirname($cacheFile);
+    if (!is_dir($dir)) @mkdir($dir, 0700, true);
+    $lockFp = @fopen($cacheFile . '.lock', 'c');
+    if ($lockFp && flock($lockFp, LOCK_EX)) {
+        $tok = $readValid();
+        if ($tok !== '') { flock($lockFp, LOCK_UN); fclose($lockFp); return $tok; }
+        $new = agsFetchToken($tokenUrl, $user, $pass, $cacheFile);
+        flock($lockFp, LOCK_UN);
+        fclose($lockFp);
+        return $new;
     }
-    // Neuen Token vom ArcGIS Token-Service holen
+    if ($lockFp) fclose($lockFp);
+    // Kein Lock erhalten → kurz warten, evtl. hat jemand anders erneuert.
+    usleep(50000);
+    $tok = $readValid();
+    if ($tok !== '') return $tok;
+    return agsFetchToken($tokenUrl, $user, $pass, $cacheFile);
+}
+
+/** Neues ArcGIS-Token holen und in den (gemeinsamen) Cache schreiben. */
+function agsFetchToken($tokenUrl, $user, $pass, $cacheFile) {
     $ch = curl_init();
     curl_setopt_array($ch, [
         CURLOPT_URL            => $tokenUrl,
