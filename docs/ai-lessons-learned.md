@@ -1,4 +1,109 @@
-﻿## 2026-06-30 - Bookmark: Gesperrte Layer dupliziert nach Login beim Einschalten
+﻿## 2026-07-10 - Tydac-Editor: Eigene Kategorie-Icons kleiner als 38px oben-links statt zentriert
+
+- Symptom: Kategorie-Icon mit eigener Grösse (≠38px, eigene Klasse `njsCatIcon_<site>_<key>`) klebte bei nicht-quadratischen/kleineren Icons oben-links statt zentriert.
+- Root-Cause: Die generierte override.css-Regel setzte `background-position: center` OHNE `!important`. Das Icon-Element trägt zusätzlich `dijitIcon`; `.tundra .dijitIcon { background-position: 0 0 }` (Spezifität 0,2,0) schlägt die eigene Klasse (0,1,0) → oben-links. Bei `contain` + nicht-quadratischem SVG entsteht Letterboxing, das dann oben-links sitzt.
+- Fix: `background-position: center center !important` (+ repeat/size/`vertical-align:middle` mit `!important`) in `buildCategoryIconsBlock`. Bestehende Overrides via erneutes Zuweisen/„übernehmen" neu schreiben lassen.
+- Guardrail: Bei override.css-Regeln, die Dojo-`dijitIcon`-Elemente treffen, IMMER `!important` auf background-position/size/repeat setzen — sonst gewinnen die spezifischeren `.tundra .dijitIcon`-Regeln.
+
+## 2026-07-10 - Tydac-Editor: Layer-Icon per CSS überschreiben (statt DB-Definition)
+
+- Symptom: Im Editor gewähltes Layer-Icon erschien im Dojo-ClassicLayerMgr nicht — dort blieb das Default `lyr_layers.svg`.
+- Root-Cause: Der Dojo-Renderer liest Layer-Definitionen (inkl. `icon`) über `loader.php` aus statischen `.conf`-Dateien; der Editor speicherte das Icon nur in die DB (`config_bundle_store`) ohne Datei-Deploy/Cache-Flush → Quellen-Mismatch. Layer-Icon lässt sich nicht „einfach" übersteuern, es steckt in der Layer-Definition.
+- Fix: Neuer, definitionsunabhängiger Weg — CSS-Override in `public/css/override.css` (eigener Marker-Block `TNET-LAYER-ICONS`). Der Runtime rendert `<div id="div_<layerId>"><img class="njsIcon legendIcon">`; per `#div_<layerId> img.njsIcon.legendIcon { content: url(...) !important; width/height }` wird das dargestellte Bild ersetzt (img ist replaced element → `content:url()` greift). Editor: Sektion „Layer-Icon per CSS überschreiben" (Bibliothek/Upload/URL + Grösse), Deploy sofort via FastAPI. Actions `layer-icons-load`/`layer-icons-save`.
+- Guardrail: `<img>`-Icons lassen sich per `content: url()` auf einen eindeutigen Container-Selektor (`#div_<layerId>`) sauber überschreiben — robuster als DB/Datei-Deploy, wenn der Runtime aus statischen Configs liest. override.css-Blöcke pro Feature getrennt markieren (CAT-ICONS vs. LAYER-ICONS), damit sich Speichervorgänge nicht gegenseitig überschreiben.
+
+## 2026-07-10 - Tydac-Editor: Kategorie-Icon-Klasse pro Kategorie eindeutig + Grösse/Zwei-Zustand
+
+- Symptom: Eigene Kategorie-Icons bekamen immer dieselbe Klasse (`njsCatIcon_geohost_cat`), Grösse liess sich nicht einstellen, kein grau/farbig-Zustand steuerbar.
+- Root-Cause: Klassenname wurde aus `node._key || node.name` abgeleitet — bei objekt-gekeyten ClassicLayerMgr-Kategorien ist `_key` leer → Fallback `cat` für ALLE. override.css-Regel hatte zudem keine variable Grösse/Opacity.
+- Fix: `catKeyForNode()` leitet den Key aus `_key`/`name` ODER dem Struktur-Segment des Pfads ab → eindeutige Klasse `njsCatIcon_<site>_<key>` (+ `_active`). Grössen-Input pro Kategorie; override.css-Regel schreibt `width/height` (Grösse) und `opacity` (normal 0.5 grau, aktiv 1 farbig). Presets in 38px nutzen weiter die Original-`njsCategoryIconN`; bei anderer Grösse/eigenem Bild eigene Regel mit Preset-SVG (`*_active.svg`) bzw. Bild. PHP-Builder/Parser unterstützen `url` (images/… oder /core/…), `size`, `opacity` mit Round-Trip.
+- Guardrail: Bei objekt-gekeyten Strukturen NIE nur `_key`/`name` für abgeleitete IDs nutzen — den Objekt-/Pfad-Key als Fallback heranziehen, sonst kollidieren alle Einträge auf einen Namen.
+
+## 2026-07-10 - Tydac-Editor: Kategorie-Icons besser über vordefinierte Framework-Klassen (njsCategoryIcon1..11)
+
+- Symptom: Eigene hochgeladene Kategorie-Icons erschienen in der Karten-App flächig/falsch dimensioniert; Grösse liess sich nicht einstellen; unklar, welcher Icon-Pfad der richtige ist.
+- Root-Cause: MAP+ hat 11 vordefinierte Kategorie-Icon-Klassen `njsCategoryIcon1..11` (+ `_active`) in `core/templates/nwow_floating/css/PoiManager.css` (shared, in JEDER App via index geladen, feste 38×38px, referenzieren die SVGs in `img/poi_manager/`). Eigene override.css-Regeln setzten keine `width/height` → das Dojo-Icon-Element rendert in Standardgrösse bzw. flächig.
+- Fix: Editor bietet primär die 11 Standard-Presets (Palette mit SVG-Vorschau aus `/core/.../poi_manager/`, setzt `iconClass=njsCategoryIconN` + `iconClassActive=njsCategoryIconN_active`) — sofort sichtbar, korrekte Grösse, kein Upload/Deploy nötig. Eigenes-Bild bleibt Option; `buildCategoryIconsBlock` schreibt jetzt `width/height:38px` in den override.css-Block.
+- Guardrail: Für Kategorie-Icons zuerst die vordefinierten `njsCategoryIconN`-Klassen nutzen (robust, shared, korrekt dimensioniert). Bei eigenen Bild-Klassen immer explizit `width/height` setzen, sonst rendert das Dojo-Icon flächig/falsch.
+
+## 2026-07-10 - Tydac-Editor: Kategorie-Icon in Kartenanwendung unsichtbar (iconclass vs. iconClass)
+
+- Symptom: Kategorie-Icon liess sich im Editor zuweisen, erschien aber nicht in der Dojo-Kartenanwendung; die Auswahl war zudem unkomfortabel (nur bereits zugewiesene Bilder wählbar).
+- Root-Cause: Der Tydac-Editor schrieb `iconclass`/`iconclassActive` (klein) in die Struktur. Laufzeit (`ClassicLayerMgr` liest `cat.iconClass`/`cat.iconClassActive`), `layers.php` und `lyrmgr-to-json.php` erwarten aber camelCase `iconClass` → Schlüssel nie gefunden. Zusätzlich listete `catImgGridHtml` nur `_catIconRules` (bereits zugewiesene), keine Bibliothek.
+- Fix: Editor durchgängig auf camelCase `iconClass`/`iconClassActive` umgestellt (Lesen tolerant für Alt-Daten); `loadCategoryIcons()` (PHP) listet zusätzlich alle Bilder aus `public/css/images/` (`images`), Grid zeigt Bibliothek + Auswahl-Markierung + Entfernen-Button.
+- Guardrail: Config-Schlüssel exakt an die Laufzeit anpassen — `ClassicLayerMgr` nutzt `iconClass`/`iconClassActive` (camelCase, njs-DOM-Klasse muss `Icon` oder `njsCategory` enthalten, damit `tnet_toc.js` sie beim Tab→Accordion-Umbau übernimmt).
+
+## 2026-07-10 - Tydac-Editor: Icon-Pfad falsch aufgelöst (core ist shared /core)
+
+- Symptom: Layer-Icons erschienen nicht im Editor-Baum; DevTools zeigte `src="/maps-dev/core/symbolsets/…"` (404), das `onerror` blendete das Bild aus.
+- Root-Cause: `normalizeIconUrl` löste `../core/…` mit `APP_ROOT + '/core/'` = `/maps-dev/core/…` auf. `core` ist aber SHARED unter `/core`, nicht pro App.
+- Fix: `normalizeIconUrl` mappt jeden `…/core/…`-Pfad auf `/core/…` (shared) und `…/tnet/…` auf den aktuellen Kontext (`_ctxRoot`). Regex `\/core\/.*` bzw. `\/tnet\/.*` extrahiert den Rest, unabhängig von relativ/absolut.
+- Guardrail: `core` immer absolut `/core` (shared, alle Apps); nur `tnet`/`public` sind app-/kontextspezifisch. Icon-/Asset-Pfade nie mit dem App-Root vor `core` prefixen.
+
+## 2026-07-10 - Layer-Icon ging beim Speichern verloren (DB-first vs. Datei)
+
+- Symptom: Layer-Icon im Tydac-Editor liess sich setzen, war nach dem Speichern/Neuladen aber weg.
+- Root-Cause: Die Layer-Definitionen sind DB-first (`config_bundle_store`, source `db:<scope>`). Der Layer-Icon-Editor schrieb via FastAPI `save-layer-props` in die `layers_*.conf`-DATEI — die Laufzeit liest aber die DB, daher wirkungslos.
+- Fix: Neue Action `save-layer-props-db` aktualisiert den Layer-Eintrag direkt im DB-Bundle über `StagingImportRepository::saveFileData($kuerzel, $fileName, $data, …)`. Frontend erkennt `source` mit Prefix `db:` und nutzt den DB-Weg; nur echte Datei-Layer gehen weiter über FastAPI.
+- Guardrail: Vor jedem Layer-Property-Write prüfen, ob die Quelle DB (`db:*`) oder Datei ist. Bei DB-first NIE die Datei schreiben (wird ignoriert) — immer `config_bundle_store` via `saveFileData` aktualisieren.
+
+## 2026-07-09 - Tydac-Editor: Icon-Management (Kategorie via override.css, Layer via save-layer-props)
+
+- Anforderung: Kategorie-Icons (Dojo-Renderer, CSS-Sprite) und Layer-Icons sollen im Editor wähl-/hochladbar sein; userspezifisch.
+- Fakten: (1) `njsCategoryIcon`-Sprites liegen im externen mapplus-dojo-Framework (nicht previewbar als Standalone). (2) `core` ist shared unter `/core` (nicht `/maps-dev/core`). (3) Per-Layer-Icons kommen aus der Layer-Definition (`layers_*.conf`, `icon`/`icon_style`), nicht aus lyrmgr.conf.
+- Umsetzung: Kategorie-Icons als BILD über site-spezifische `public/css/override.css` (eigener TNET-Marker-Block) + Bilder in `public/css/images/`; Upload/Write via FastAPI (`deploy-staged-conf`, Whitelist um `public/css/` erweitert). Layer-Icons via FastAPI `save-layer-props` (schreibt `layers_*.conf`). Editor lädt override.css live für Vorschau; eigene, kollisionsfreie Klassen `njsCatIcon_<site>_<key>`.
+- Guardrail: Neue Deploy-Zielpfade IMMER in FastAPI-Whitelist (TARGET_PATHS aller Ziele) UND ggf. PHP getFastApiTarget/TNET_TMP_ROOT synchron halten; Kategorie-Icon-CSS nur in einem markierten Block schreiben (restliches override.css unangetastet). `core` ist shared `/core`, nicht per-Env. FastAPI-Whitelist-Änderung braucht `nssm restart FastAPI_9030`.
+
+## 2026-07-09 - Tydac-Publish: FastAPI kannte kein geohost/edit + Objekt-Format/NLS im Editor
+
+- Symptom: (1) tydac-publish auf geohost scheiterte „deployPath ist fuer target=prod nicht erlaubt"; (2) Kategorien nicht aufklappbar, Layer unsichtbar; (3) NLS-Namen fehlten (Roh-Keys).
+- Root-Cause: (1) FastAPI `ags2mapplus_lyrmgr.py` TARGET_PATHS/_normalize_target kannten nur `prod`/`dev`; PHP `getFastApiTarget()`/`TNET_TMP_ROOT` nur maps/maps-dev. (2) Echtes ClassicLayerMgr-Format ist OBJEKT-gekeyt (`structure` = {catId:{items:{groupId:...}}}), der Editor erwartete Arrays. (3) Anzeigenamen kommen aus `desc_<key>` (lyrmgrResources), wurden nicht aufgelöst.
+- Fix: FastAPI um Targets `geohost`+`edit` erweitert (Whitelist + normalize); PHP `getFastApiTarget()`/`TNET_TMP_ROOT` env-abhängig (maps-dev|geohost|edit|maps). Editor rendert `structure`/`items` als Objekt ODER Array; `nlsName()` löst `desc_<key>` (Slash + Underscore-Variante) über die list-all-layers-Aliases auf; `itemsArrayOf()` überschreibt objekt-gekeyte items nicht mehr mit `[]`. WYSIWYG: LyrMgr-Vorschau-Tab lädt `dev-test.html?group=&source=file|db` (gerenderter Laufzeit-Baum), Auto-Reload nach Publish.
+- Guardrail: Neue Deploy-Umgebungen IMMER an drei Stellen synchron halten: FastAPI TARGET_PATHS/_normalize_target, PHP getFastApiTarget(), PHP TNET_TMP_ROOT. ClassicLayerMgr-`structure`/`items` können objekt-gekeyt sein — Renderer/Editor müssen beide Formen tragen und dürfen Objekte nie in Arrays zwangswandeln. FastAPI-Änderung braucht Dienst-Neustart (`nssm restart FastAPI_9030`).
+
+## 2026-07-09 - Tydac-Editor: Feature-Parität zu V2 (Vorschau, D&D, Editieren, Publish)
+
+- Symptom: Tydac-Editor zeigte nur eine leere `main_lyrmgr`-Sektion, kein D&D, keine Kartenvorschau, „Speichern" schrieb keine lyrmgr.conf.
+- Root-Cause: (1) `tydac-load` las nur den (leeren) DB-Stand statt der echten Datei; (2) Rendering erwartete `structure` als Objekt, das echte ClassicLayerMgr-Format ist ein Array mit `_key`/`items`; (3) Kartenvorschau/Editier-/D&D-Funktionen fehlten; (4) Kategorie-Properties nutzten `iconClass` statt real `iconclass`.
+- Fix: `tydac-load` seedet aus `getConfigPath()`-Datei; Rendering unterstützt Array-Struktur; OpenLayers-Vorschau rechts (LV95, wmts.geo.admin.ch, Klick auf Layer prüft ihn); Baum-D&D (Umsortieren + Layer aus Liste einfügen); Node-Aktionen (Löschen/+Gruppe/hoch-runter, `_key` editierbar); neue Action `tydac-publish` speichert Version (variant=tydac) UND publiziert konforme lyrmgr.conf via FastAPI `/deploy-staged-conf` mit vorherigem Backup.
+- Guardrail: Tydac-Editor niemals per PHP direkt nach /www schreiben — immer via FastAPI `/deploy-staged-conf` (stagedPath unter `stageConf/`, deployPath unter `public/config/`). ClassicLayerMgr-`structure` ist ein Array mit `_key`; Property-Feldnamen exakt am Originalformat (`iconclass`, nicht `iconClass`) ausrichten.
+
+## 2026-07-09 - Tydac-Katalog: catalog_document ohne site/variant-Spalte
+
+- Symptom: Tydac-Katalog laden schlug fehl mit `SQLSTATE[42703] column "site" does not exist`.
+- Root-Cause: `CatalogRepository` wurde auf Multi-Site (site+variant) umgestellt, aber nur die Draft-Tabellen bekamen die Migration; `catalog_document`, `catalog_document_history` und `catalog_lock` hatten weiterhin nur `PRIMARY KEY (profile)`.
+- Fix: Neue idempotente `ensureCatalogTables()` in `CatalogRepository` ergaenzt `site`/`variant` (Default `maps`/`tnet`) und re-keyt die PKs auf `(site, profile, variant)`; Aufruf in allen catalog_document/history/lock-Methoden.
+- Guardrail: Wird ein Repository um neue Schluessel-Dimensionen erweitert, muss die idempotente Migration ALLE betroffenen Tabellen abdecken, nicht nur eine Teilmenge.
+
+## 2026-07-09 - Tydac-Dropdown musste Ordnergruppen statt nur lyrmgr-Profile zeigen
+
+- Symptom: Auf maps-dev waren im Tydac-Dropdown die gewuenschten Gruppen aus `public/config` nicht sichtbar.
+- Root-Cause: Die Liste basierte auf `list-lyrmgr-profiles` und erfasste dadurch nur Profile mit `lyrmgr.conf`, nicht alle Config-Unterordner.
+- Fix: Neue API `list-config-groups` liefert `public` plus alle Unterordner unter `public/config`; Frontend merged diese Gruppen weiterhin mit Tydac-DB-Revisionen.
+- Guardrail: Wenn die Benutzeroberflaeche Ordnergruppen darstellen soll, niemals indirekt ueber dateispezifische Filter (`*lyrmgr.conf`) auflisten.
+
+## 2026-07-09 - Tydac-Profilauswahl zeigte keine Config-Gruppen
+
+- Symptom: Im Tydac-Editor blieb die Profilauswahl praktisch leer; `public` und Unterordner aus `public/config/` waren nicht direkt auswählbar.
+- Root-Cause: Das Dropdown bezog seine Liste nur aus `tydac-list-profiles` (DB-Katalog), nicht aus den realen Profil-/Gruppenverzeichnissen (`list-lyrmgr-profiles`).
+- Fix: Frontend-`loadProfiles()` kombiniert jetzt `list-lyrmgr-profiles` (Config-Gruppen) und `tydac-list-profiles` (Revisionen) zu einer gemeinsamen Auswahlliste; `public` wird priorisiert.
+- Guardrail: Auswahlfelder im Editor immer aus Datei-Quelle UND DB-Quelle aufbauen, wenn Profile sowohl als Ordnerstruktur als auch als Katalogdokumente existieren.
+
+## 2026-07-09 - Release-Kette brach nach Sync-Step ab (Robocopy Exit-Code)
+
+- Symptom: `release-dryrun.bat` fuer EDIT stoppte nach Schritt 1, obwohl der Sync fachlich erfolgreich war.
+- Root-Cause: `robocopy` liefert bei gefundenen Aenderungen oft Exit-Code `1` (Erfolg mit Kopierbedarf); der Caller behandelte `if errorlevel 1` als Fehler.
+- Fix: In den `01_sync-...` Skripten nur `>=8` als Fehler behandeln und bei erfolgreichem Abschluss explizit `exit /b 0` setzen.
+- Guardrail: Robocopy-Returncodes immer gemäss Robocopy-Semantik auswerten (0-7 ok, ab 8 Fehler), sonst brechen mehrstufige Batch-Release-Ketten falsch-negativ ab.
+
+## 2026-07-09 - API-Doku zeigte aktive TreeBuilder unvollständig
+
+- Symptom: In `/maps-dev/tnet/api/docs/` fehlten aktive TreeBuilder-Einstiege (V2/Tydac) in der Swagger-Doku.
+- Root-Cause: `openapi.yaml` enthielt nur den Classic-Builder im Tools-Überblick und keine eigenen HTML-Tool-Pfade für alle aktiven Builder-Seiten.
+- Fix: In `maps-dev/tnet/api/docs/openapi.yaml` Tools-Tabelle und Pfade für `tree-builder.html`, `tree-builder-v2.html` und `tree-builder-tydac.html` ergänzt; Cache-Buster in `maps-dev/tnet/api/docs/index.html` erhöht.
+- Guardrail: Bei neuen Admin-/Editor-HTML-Seiten immer parallel OpenAPI-Tools-Tabelle und `paths` aktualisieren, sonst wirkt die Doku funktional unvollständig.
+
+## 2026-06-30 - Bookmark: Gesperrte Layer dupliziert nach Login beim Einschalten
 
 - Symptom: Gesperrter (locked) Bookmark-Layer erschien nach Login beim Sichtbar-Schalten doppelt im Karteninhalt (zwei Eintraege, abweichende Deckkraft).
 - Root-Cause: Gesperrte Layer bleiben jetzt als locked-Platzhalter in `bookmark.layers` (damit Bookmark nach Login wieder funktioniert). Beim Aktivieren materialisiert das Framework einen zweiten Live-Layer mit gleicher ID; `mergeBookmarkLayers()` hatte keine finale ID-Dedup.

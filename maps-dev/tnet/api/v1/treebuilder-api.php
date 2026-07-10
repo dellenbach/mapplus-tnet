@@ -41,28 +41,57 @@ require_once __DIR__ . '/../includes/TmpPaths.php';
 require_once __DIR__ . '/../includes/Database.php';
 require_once __DIR__ . '/../includes/StagingImportRepository.php';
 
+function resolveRequestedAppBasePath(): string {
+    $requested = trim((string)($_GET['ctx_root'] ?? ''));
+    $allowed = ['/maps-dev', '/maps', '/geohost', '/edit'];
+    if ($requested !== '' && in_array($requested, $allowed, true)) {
+        return $requested;
+    }
+    $detected = TnetCorePaths::getAppBasePath();
+    if ($detected !== '' && in_array($detected, $allowed, true)) {
+        return $detected;
+    }
+    return '/maps';
+}
+
+function schemaForAppBasePath(string $basePath): string {
+    return substr($basePath, -4) === '-dev' ? 'mapplusconf_dev' : 'mapplusconf';
+}
+
+function siteForAppBasePath(string $basePath): string {
+    $base = ltrim($basePath, '/');
+    $base = preg_replace('/-dev$/i', '', $base);
+    return $base !== '' ? $base : 'maps';
+}
+
 // =====================================================================
 // Config
 // =====================================================================
 $docRoot = rtrim($_SERVER['DOCUMENT_ROOT'] ?? '/var/www/html/nwow', '/');
 // Multi-Site: App-Base zentral ueber CorePaths ableiten (Segment vor '/tnet/'),
 // robuster als die fruehere dirname()-Kette. Liefert /maps, /maps-dev, /geohost, ...
-$appBasePath = TnetCorePaths::getAppBasePath();
-if ($appBasePath === '' || $appBasePath === '.') {
-    $appBasePath = '/maps';
-}
+$appBasePath = resolveRequestedAppBasePath();
 $clientDataRoot = '/data/Client_Data/nwow'; // Kein nwow-dev: Server hat nur ein nwow-Verzeichnis
+
+// Kontextgesteuert: DB-Schema passend zum Zielpfad (maps-dev => mapplusconf_dev, sonst mapplusconf).
+Database::setSchemaOverride(schemaForAppBasePath($appBasePath));
 
 define('APP_BASE_PATH', $appBasePath);
 define('APP_WEB_ROOT', $docRoot . APP_BASE_PATH);
 define('CLIENT_DATA_ROOT', $clientDataRoot);
-define('TNET_TMP_ROOT', '/data/Client_Data/nwow/tmp/' . (APP_BASE_PATH === '/maps-dev' ? 'maps-dev' : 'maps'));
+// Tmp-Root pro Umgebung (maps-dev|geohost|edit|maps) — steuert den Staging-Pfad
+// fuer FastAPI /deploy-staged-conf (toSftpPath: /data/Client_Data/nwow/tmp -> /data/tmp).
+$tnetTmpEnv = 'maps';
+if (APP_BASE_PATH === '/maps-dev')      $tnetTmpEnv = 'maps-dev';
+elseif (APP_BASE_PATH === '/geohost')   $tnetTmpEnv = 'geohost';
+elseif (APP_BASE_PATH === '/edit')      $tnetTmpEnv = 'edit';
+define('TNET_TMP_ROOT', '/data/Client_Data/nwow/tmp/' . $tnetTmpEnv);
 define('CORE_CONFIG_DIR', TnetCorePaths::getConfigPath());
 define('CORE_NLS_DIR', TnetCorePaths::getNlsPath('de'));
 
 // Multi-Site: Site-Kontext fuer alle Katalog-Operationen setzen (Profile pro Site).
 require_once __DIR__ . '/../includes/CatalogRepository.php';
-CatalogRepository::setSite(TnetCorePaths::getSiteName());
+CatalogRepository::setSite(siteForAppBasePath($appBasePath));
 define('APP_CORE_CONFIG_DIR', APP_WEB_ROOT . '/core/config');
 // App-lokale NLS-Überladungen: /www/maps(-dev)/core/nls/de/ — enthält z.B. Kategorie-Labels (desc_grundlagen etc.)
 define('APP_CORE_NLS_DIR', APP_WEB_ROOT . '/core/nls/de');
@@ -849,6 +878,38 @@ function listLyrmgrProfiles() {
     return $result;
 }
 
+function listConfigGroups() {
+    $result = [];
+
+    if (!is_dir(CONFIG_BASE)) {
+        return $result;
+    }
+
+    $result[] = [
+        'group' => 'public',
+        'path' => CONFIG_BASE,
+        'hasLyrmgr' => file_exists(CONFIG_BASE . '/lyrmgr.conf')
+    ];
+
+    foreach (glob(CONFIG_BASE . '/*', GLOB_ONLYDIR) as $dir) {
+        $name = basename($dir);
+        if ($name === '' || $name === '.' || $name === '..') continue;
+        $result[] = [
+            'group' => $name,
+            'path' => $dir,
+            'hasLyrmgr' => file_exists($dir . '/lyrmgr.conf')
+        ];
+    }
+
+    usort($result, function ($a, $b) {
+        if (($a['group'] ?? '') === 'public') return -1;
+        if (($b['group'] ?? '') === 'public') return 1;
+        return strcasecmp((string)($a['group'] ?? ''), (string)($b['group'] ?? ''));
+    });
+
+    return $result;
+}
+
 /**
  * Alle Layer-Definitionen aus 3 Quellen laden und zusammenführen.
  * 1. /www/core/config/layers_*.conf (Basis)
@@ -1379,6 +1440,56 @@ function deployLyrmgr($stageProfile, $targetProfile, $editor) {
     ];
 }
 
+/**
+ * Tydac-Publish: Schreibt die komplette (konforme) lyrmgr.conf einer Group als Datei.
+ * Backup der bestehenden Datei, Staging in tmp, Deploy via FastAPI /deploy-staged-conf
+ * (kein direkter PHP-Write nach /www).
+ *
+ * @param string $profile Group/Profil (public -> Root, sonst Unterordner)
+ * @param array  $doc     Vollstaendiges lyrmgr-Dokument (alle Sektionen)
+ * @param string $editor  Bearbeiter
+ * @return array
+ */
+function tydacPublishConfFile($profile, $doc, $editor) {
+    $path = getConfigPath($profile);
+    $result = ['file' => false, 'path' => $path];
+
+    // Backup der bestehenden Datei (falls vorhanden + lesbar)
+    if (is_file($path)) {
+        ensureDirs();
+        $ts = date('Ymd_His');
+        $safeName = preg_replace('/[^a-zA-Z0-9_\-]/', '', $profile);
+        $backupPath = BACKUP_DIR . '/lyrmgr_' . ($safeName ?: 'public') . '_' . $ts . '.conf';
+        @copy($path, $backupPath);
+        cleanupBackups();
+        $result['backup'] = basename($backupPath);
+    }
+
+    $json = json_encode($doc, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    if ($json === false) {
+        return ['file' => false, 'error' => 'JSON-Encode fehlgeschlagen: ' . json_last_error_msg()];
+    }
+
+    // Staging in tmp (schreibbar), dann via FastAPI deployen.
+    $stagedDir = TNET_TMP_ROOT . '/stageConf/tydac';
+    if (!is_dir($stagedDir)) @mkdir($stagedDir, 0775, true);
+    $safeFile = (preg_replace('/[^a-zA-Z0-9_\-]/', '', $profile) ?: 'public') . '_lyrmgr.conf';
+    $stagedFile = $stagedDir . '/' . $safeFile;
+    if (@file_put_contents($stagedFile, $json) === false) {
+        return ['file' => false, 'error' => 'Staging-Datei konnte nicht geschrieben werden: ' . $stagedFile];
+    }
+
+    $deploy = deployStagedFileViaFastApi(toSftpPath($stagedFile), toSftpPath($path), getFastApiTarget());
+    if (empty($deploy['success'])) {
+        return ['file' => false, 'error' => 'FastAPI-Deploy fehlgeschlagen: ' . ($deploy['error'] ?? 'unbekannt'), 'deployPath' => toSftpPath($path)];
+    }
+
+    $result['file'] = true;
+    $result['bytes'] = strlen($json);
+    $result['deployPath'] = toSftpPath($path);
+    return $result;
+}
+
 // =====================================================================
 // AGS → MapPlus Roh-Konfiguration (ags2mapplus API)
 // =====================================================================
@@ -1389,7 +1500,12 @@ define('QMAP_DIR', CLIENT_DATA_ROOT . '/qmap');
 define('QMAP_BASE_URL', '/qmap');
 
 function getFastApiTarget() {
-    return APP_BASE_PATH === '/maps-dev' ? 'dev' : 'prod';
+    switch (APP_BASE_PATH) {
+        case '/maps-dev': return 'dev';
+        case '/geohost':  return 'geohost';
+        case '/edit':     return 'edit';
+        default:          return 'prod';
+    }
 }
 
 function agsApiUrl($path, $query = []) {
@@ -5751,6 +5867,218 @@ function tnetSanitizeSvg($svg) {
 }
 
 // =====================================================================
+// Kategorie-Icon-Override (Dojo-Renderer) via public/css/override.css
+//   Bilder:  <app>/public/css/images/<datei>   (relativ zu override.css)
+//   CSS:     <app>/public/css/override.css      (nur markierter TNET-Block)
+// =====================================================================
+define('OVERRIDE_CSS_PATH', APP_WEB_ROOT . '/public/css/override.css');
+define('OVERRIDE_CSS_IMAGES_DIR', APP_WEB_ROOT . '/public/css/images');
+define('CAT_ICONS_MARK_START', '/* TNET-CAT-ICONS:START (auto-generiert, nicht manuell editieren) */');
+define('CAT_ICONS_MARK_END', '/* TNET-CAT-ICONS:END */');
+define('LAYER_ICONS_MARK_START', '/* TNET-LAYER-ICONS:START (auto-generiert, nicht manuell editieren) */');
+define('LAYER_ICONS_MARK_END', '/* TNET-LAYER-ICONS:END */');
+
+/** App-root-relative URL-Basis fuer Kategorie-Icon-Bilder (public/css/images). */
+function categoryIconsImagesUrlBase() {
+    return APP_BASE_PATH . '/public/css/images';
+}
+
+/**
+ * Liest die vom Editor verwalteten Kategorie-Icon-Zuweisungen aus dem
+ * TNET-Markerblock in override.css (Klasse -> Bilddatei).
+ */
+function loadCategoryIcons() {
+    $rules = [];
+    $cssPath = OVERRIDE_CSS_PATH;
+    if (is_file($cssPath)) {
+        $css = @file_get_contents($cssPath);
+        if ($css !== false) {
+            $start = strpos($css, CAT_ICONS_MARK_START);
+            $end = strpos($css, CAT_ICONS_MARK_END);
+            if ($start !== false && $end !== false && $end > $start) {
+                $block = substr($css, $start, $end - $start);
+                // Blockweise parsen: .KLASSE { … url(<wert>) … width … opacity … }
+                if (preg_match_all('/\.([A-Za-z0-9_\-]+)\s*\{([^}]*)\}/i', $block, $m, PREG_SET_ORDER)) {
+                    foreach ($m as $row) {
+                        $cls = $row[1];
+                        $body = $row[2];
+                        if (!preg_match('/url\(\s*[\'"]?([^\'")]+?)[\'"]?\s*\)/i', $body, $um)) continue;
+                        $rawUrl = trim($um[1]);
+                        $size = preg_match('/width:\s*(\d+)px/i', $body, $wm) ? (int)$wm[1] : 38;
+                        $op = preg_match('/opacity:\s*([0-9.]+)/i', $body, $om) ? (float)$om[1] : 1.0;
+                        $file = '';
+                        if (preg_match('#^images/(.+)$#', $rawUrl, $fm)) $file = $fm[1];
+                        $rules[] = [
+                            'class'   => $cls,
+                            'file'    => $file,
+                            'url'     => $rawUrl,
+                            'size'    => $size,
+                            'opacity' => $op,
+                        ];
+                    }
+                }
+            }
+        }
+    }
+    // Verfuegbare Bilder im Bilder-Verzeichnis auflisten (komfortable Auswahl im Editor)
+    $images = [];
+    $imgDir = APP_WEB_ROOT . '/public/css/images';
+    if (is_dir($imgDir)) {
+        $entries = @scandir($imgDir) ?: [];
+        foreach ($entries as $entry) {
+            if ($entry === '.' || $entry === '..') continue;
+            if (!preg_match('/\.(png|svg|gif|jpe?g|webp)$/i', $entry)) continue;
+            if (!is_file($imgDir . '/' . $entry)) continue;
+            $images[] = ['file' => $entry, 'url' => categoryIconsImagesUrlBase() . '/' . $entry];
+        }
+        usort($images, function ($a, $b) { return strcasecmp($a['file'], $b['file']); });
+    }
+
+    return [
+        'cssUrl'   => APP_BASE_PATH . '/public/css/override.css',
+        'imageUrl' => categoryIconsImagesUrlBase(),
+        'rules'    => $rules,
+        'images'   => $images,
+        'exists'   => is_file($cssPath),
+    ];
+}
+
+/**
+ * Baut den TNET-Markerblock aus der Regel-Liste (class -> file).
+ */
+function buildCategoryIconsBlock($rules) {
+    $lines = [CAT_ICONS_MARK_START];
+    foreach ($rules as $r) {
+        $cls = preg_replace('/[^A-Za-z0-9_\-]/', '', (string)($r['class'] ?? ''));
+        if ($cls === '') continue;
+        // URL-Wert bestimmen: bevorzugt 'url' (CSS-Wert), sonst 'images/<file>'
+        $rawUrl = (string)($r['url'] ?? '');
+        if ($rawUrl === '' && !empty($r['file'])) {
+            $rawUrl = 'images/' . (string)$r['file'];
+        }
+        $rawUrl = str_replace(['"', "'", '..', ' '], '', $rawUrl);
+        // Nur images/<datei>, /core/... oder https:// erlauben (kein Directory-Traversal)
+        if (!preg_match('#^(images/[A-Za-z0-9._\-/]+|/core/[A-Za-z0-9._\-/]+|https?://[A-Za-z0-9._\-/:?=&%]+)$#', $rawUrl)) {
+            continue;
+        }
+        $size = (int)($r['size'] ?? 38);
+        if ($size < 8) $size = 8;
+        if ($size > 256) $size = 256;
+        $op = isset($r['opacity']) ? (float)$r['opacity'] : 1.0;
+        if ($op < 0) $op = 0.0;
+        if ($op > 1) $op = 1.0;
+        // Box konstant auf Tab-Norm (>=38px, wie Original njsCategoryIconN) halten, damit alle
+        // Kategorie-Tabs gleich hoch bleiben; die sichtbare Icon-Grösse steuert background-size.
+        // Zentrierung mit !important, sonst gewinnt .dijitIcon (background-position:0 0) -> Icon oben-links.
+        $box = max($size, 38);
+        $lines[] = '.' . $cls . ' { background-image: url(' . $rawUrl . ') !important; background-repeat: no-repeat !important; background-position: center center !important; background-size: ' . $size . 'px auto !important; width: ' . $box . 'px !important; height: ' . $box . 'px !important; display: inline-block !important; vertical-align: middle !important; opacity: ' . rtrim(rtrim(number_format($op, 2, '.', ''), '0'), '.') . '; }';
+    }
+    $lines[] = CAT_ICONS_MARK_END;
+    return implode("\n", $lines);
+}
+
+/**
+ * Schreibt die Kategorie-Icon-Regeln in override.css (nur TNET-Block ersetzen/anhaengen)
+ * und deployt via FastAPI (kein Direkt-Write nach /www).
+ */
+function saveCategoryIconsCss($rules) {
+    $block = buildCategoryIconsBlock(is_array($rules) ? $rules : []);
+    $new = replaceOrAppendCssBlock(readOverrideCss(), CAT_ICONS_MARK_START, CAT_ICONS_MARK_END, $block);
+    $res = deployOverrideCss($new);
+    if (!empty($res['saved'])) $res['ruleCount'] = count($rules);
+    return $res;
+}
+
+/** Aktuellen override.css-Inhalt lesen (leer, falls nicht vorhanden). */
+function readOverrideCss() {
+    $cssPath = OVERRIDE_CSS_PATH;
+    return is_file($cssPath) ? (@file_get_contents($cssPath) ?: '') : '';
+}
+
+/** Ersetzt den markierten Block in $existing oder haengt ihn an. */
+function replaceOrAppendCssBlock($existing, $markStart, $markEnd, $block) {
+    $start = strpos($existing, $markStart);
+    $end = strpos($existing, $markEnd);
+    if ($start !== false && $end !== false && $end > $start) {
+        $endFull = $end + strlen($markEnd);
+        return substr($existing, 0, $start) . $block . substr($existing, $endFull);
+    }
+    return rtrim($existing) . "\n\n" . $block . "\n";
+}
+
+/** override.css via Staging + FastAPI deployen (kein Direkt-Write nach /www). */
+function deployOverrideCss($new) {
+    $cssPath = OVERRIDE_CSS_PATH;
+    $stagedDir = TNET_TMP_ROOT . '/stageConf/css';
+    if (!is_dir($stagedDir)) @mkdir($stagedDir, 0775, true);
+    $stagedFile = $stagedDir . '/override.css';
+    if (@file_put_contents($stagedFile, $new) === false) {
+        return ['saved' => false, 'error' => 'Staging-Datei konnte nicht geschrieben werden: ' . $stagedFile];
+    }
+    $deploy = deployStagedFileViaFastApi(toSftpPath($stagedFile), toSftpPath($cssPath), getFastApiTarget());
+    if (empty($deploy['success'])) {
+        return ['saved' => false, 'error' => 'FastAPI-Deploy fehlgeschlagen: ' . ($deploy['error'] ?? 'unbekannt')];
+    }
+    return ['saved' => true, 'bytes' => strlen($new), 'deployPath' => toSftpPath($cssPath)];
+}
+
+// =====================================================================
+// Layer-Icon-Override (Dojo-Renderer) via override.css
+//   Selektor: #div_<layerId> img.njsIcon.legendIcon { content: url(...) }
+//   Ersetzt das gerenderte <img> unabhaengig von der Layer-Definition.
+// =====================================================================
+
+/** Liest die Layer-Icon-CSS-Overrides aus dem TNET-LAYER-ICONS-Block. */
+function loadLayerIcons() {
+    $rules = [];
+    $css = readOverrideCss();
+    if ($css === '') return $rules;
+    $start = strpos($css, LAYER_ICONS_MARK_START);
+    $end = strpos($css, LAYER_ICONS_MARK_END);
+    if ($start === false || $end === false || $end <= $start) return $rules;
+    $block = substr($css, $start, $end - $start);
+    if (preg_match_all('/#div_([A-Za-z0-9_\-]+)\s+img\.njsIcon\.legendIcon\s*\{([^}]*)\}/i', $block, $m, PREG_SET_ORDER)) {
+        foreach ($m as $row) {
+            $layerId = $row[1];
+            $body = $row[2];
+            if (!preg_match('/content:\s*url\(\s*[\'"]?([^\'")]+?)[\'"]?\s*\)/i', $body, $um)) continue;
+            $url = trim($um[1]);
+            $size = preg_match('/width:\s*(\d+)px/i', $body, $wm) ? (int)$wm[1] : 18;
+            $rules[] = ['layerId' => $layerId, 'url' => $url, 'size' => $size];
+        }
+    }
+    return $rules;
+}
+
+/** Baut den TNET-LAYER-ICONS-Block aus der Regel-Liste (layerId -> url/size). */
+function buildLayerIconsBlock($rules) {
+    $lines = [LAYER_ICONS_MARK_START];
+    foreach ($rules as $r) {
+        $layerId = preg_replace('/[^A-Za-z0-9_\-]/', '', (string)($r['layerId'] ?? ''));
+        if ($layerId === '') continue;
+        $rawUrl = str_replace(['"', "'", '..', ' '], '', (string)($r['url'] ?? ''));
+        if (!preg_match('#^(images/[A-Za-z0-9._\-/]+|/[A-Za-z0-9._\-/]+|https?://[A-Za-z0-9._\-/:?=&%]+)$#', $rawUrl)) {
+            continue;
+        }
+        $size = (int)($r['size'] ?? 18);
+        if ($size < 8) $size = 8;
+        if ($size > 128) $size = 128;
+        $lines[] = '#div_' . $layerId . ' img.njsIcon.legendIcon { content: url(' . $rawUrl . ') !important; width: ' . $size . 'px !important; height: ' . $size . 'px !important; object-fit: contain; }';
+    }
+    $lines[] = LAYER_ICONS_MARK_END;
+    return implode("\n", $lines);
+}
+
+/** Schreibt die Layer-Icon-Overrides in override.css (nur eigener Block) + FastAPI-Deploy. */
+function saveLayerIconsCss($rules) {
+    $block = buildLayerIconsBlock(is_array($rules) ? $rules : []);
+    $new = replaceOrAppendCssBlock(readOverrideCss(), LAYER_ICONS_MARK_START, LAYER_ICONS_MARK_END, $block);
+    $res = deployOverrideCss($new);
+    if (!empty($res['saved'])) $res['ruleCount'] = count($rules);
+    return $res;
+}
+
+// =====================================================================
 // Router
 // =====================================================================
 $action = $_GET['action'] ?? '';
@@ -6054,15 +6382,32 @@ switch ($action) {
         try {
             CatalogRepository::setVariant('tydac');
             $doc = CatalogRepository::loadProfile($profile);
+            $data = is_array($doc['data'] ?? null) ? $doc['data'] : [];
+            $seededFrom = null;
+            // Wenn noch kein Tydac-Stand existiert: aus der bestehenden lyrmgr.conf
+            // der Gruppe seeden (enthaelt i.d.R. mehrere lyrmgr-Sektionen).
+            if (empty($data)) {
+                $confPath = getConfigPath($profile);
+                if (is_file($confPath)) {
+                    $raw = json_decode(@file_get_contents($confPath), true);
+                    if (is_array($raw)) {
+                        foreach (array_keys($raw) as $k) {
+                            if (is_string($k) && $k !== '' && $k[0] === '_') unset($raw[$k]);
+                        }
+                        if (!empty($raw)) { $data = $raw; $seededFrom = 'file'; }
+                    }
+                }
+            }
             jsonResponse(['success' => true, 'data' => [
-                'exists'    => (bool)$doc['exists'],
-                'profile'   => $profile,
-                'variant'   => 'tydac',
-                'site'      => CatalogRepository::getSite(),
-                'lyrmgr'    => $doc['data'],
-                'revision'  => (int)$doc['revision'],
-                'updatedBy' => $doc['updatedBy'] ?? null,
-                'updatedAt' => $doc['updatedAt'] ?? null,
+                'exists'     => (bool)$doc['exists'],
+                'seededFrom' => $seededFrom,
+                'profile'    => $profile,
+                'variant'    => 'tydac',
+                'site'       => CatalogRepository::getSite(),
+                'lyrmgr'     => $data,
+                'revision'   => (int)$doc['revision'],
+                'updatedBy'  => $doc['updatedBy'] ?? null,
+                'updatedAt'  => $doc['updatedAt'] ?? null,
             ]]);
         } catch (\Throwable $e) {
             jsonError('Tydac-Katalog konnte nicht geladen werden: ' . $e->getMessage(), 500);
@@ -6088,6 +6433,33 @@ switch ($action) {
             jsonResponse(['success' => true, 'data' => $res]);
         } catch (\Throwable $e) {
             jsonError('Tydac-Katalog konnte nicht gespeichert werden: ' . $e->getMessage(), 500);
+        }
+        break;
+
+    case 'tydac-publish':
+        // Speichert Version (DB, variant=tydac) UND publiziert die konforme lyrmgr.conf via FastAPI.
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('POST required', 405);
+        $body = json_decode(file_get_contents('php://input'), true);
+        if (!$body || !isset($body['profile']) || !isset($body['lyrmgr'])) {
+            jsonError('Felder profile, lyrmgr erforderlich', 400);
+        }
+        if (!is_array($body['lyrmgr'])) jsonError('Feld lyrmgr muss ein Objekt sein', 400);
+        require_once __DIR__ . '/../includes/CatalogRepository.php';
+        $editor = getEditorName();
+        try {
+            CatalogRepository::setVariant('tydac');
+            $expectedRevision = isset($body['expectedRevision']) ? (int)$body['expectedRevision'] : null;
+            $save = CatalogRepository::saveProfile($body['profile'], $body['lyrmgr'], $expectedRevision, $editor, 'update');
+            if (!empty($save['conflict'])) {
+                jsonResponse(['success' => false, 'conflict' => true, 'data' => $save], 409);
+            }
+            $file = tydacPublishConfFile($body['profile'], $body['lyrmgr'], $editor);
+            jsonResponse(['success' => true, 'data' => [
+                'revision' => $save['revision'] ?? null,
+                'file'     => $file,
+            ]]);
+        } catch (\Throwable $e) {
+            jsonError('Tydac-Publish fehlgeschlagen: ' . $e->getMessage(), 500);
         }
         break;
 
@@ -6261,25 +6633,157 @@ switch ($action) {
 
         // Zielordner site-scoped: <tnet>/resources/symbols/custom/<site>/
         $site = CatalogRepository::getSite();
-        $destDir = tnetSymbolsBaseDir() . '/custom/' . $site;
-        if (!is_dir($destDir) && !@mkdir($destDir, 0775, true) && !is_dir($destDir)) {
-            jsonError('Zielverzeichnis konnte nicht angelegt werden', 500);
-        }
         $destName = $baseName . '.' . $ext;
-        $destPath = $destDir . '/' . $destName;
-        // Kollision vermeiden
-        if (file_exists($destPath)) {
+        // Kollision vermeiden (gegen bestehende Datei im Zielordner)
+        $destDirFs = tnetSymbolsBaseDir() . '/custom/' . $site;
+        if (is_dir($destDirFs) && file_exists($destDirFs . '/' . $destName)) {
             $destName = $baseName . '_' . substr(sha1($content), 0, 6) . '.' . $ext;
-            $destPath = $destDir . '/' . $destName;
         }
-        $ok = ($ext === 'svg')
-            ? (file_put_contents($destPath, $content) !== false)
-            : move_uploaded_file($tmp, $destPath);
-        if (!$ok) jsonError('Datei konnte nicht gespeichert werden', 500);
-        @chmod($destPath, 0644);
+        $destPathFs = $destDirFs . '/' . $destName;
+
+        // Kein Direkt-Write nach /www (www-data darf das nicht). Stattdessen:
+        // 1) sanitisierten Inhalt in tmp/stageConf/symbols stagen
+        // 2) via FastAPI /deploy-staged-conf ins Ziel deployen (SFTP als trigonet)
+        $stagedDir = TNET_TMP_ROOT . '/stageConf/symbols';
+        if (!is_dir($stagedDir)) @mkdir($stagedDir, 0775, true);
+        $stagedFile = $stagedDir . '/' . $destName;
+        if (@file_put_contents($stagedFile, $content) === false) {
+            jsonError('Staging-Datei konnte nicht geschrieben werden: ' . $stagedFile, 500);
+        }
+        $deploy = deployStagedFileViaFastApi(toSftpPath($stagedFile), toSftpPath($destPathFs), getFastApiTarget());
+        if (empty($deploy['success'])) {
+            jsonError('Icon-Upload via FastAPI fehlgeschlagen: ' . ($deploy['error'] ?? 'unbekannt'), 500);
+        }
 
         $url = tnetSymbolsUrlBase() . '/custom/' . $site . '/' . $destName;
         jsonResponse(['success' => true, 'data' => ['url' => $url, 'name' => $baseName, 'type' => $ext, 'site' => $site]]);
+        break;
+
+    // ── Kategorie-Icons (Dojo-Sprite via override.css) ──
+    case 'category-icons-load':
+        jsonResponse(['success' => true, 'data' => loadCategoryIcons()]);
+        break;
+
+    case 'category-icons-save':
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('POST required', 405);
+        $body = json_decode(file_get_contents('php://input'), true);
+        if (!is_array($body) || !isset($body['rules']) || !is_array($body['rules'])) {
+            jsonError('Feld rules (Array) erforderlich', 400);
+        }
+        $res = saveCategoryIconsCss($body['rules']);
+        if (empty($res['saved'])) jsonError($res['error'] ?? 'Speichern fehlgeschlagen', 500);
+        jsonResponse(['success' => true, 'data' => $res]);
+        break;
+
+    // ── Layer-Icons (CSS-Override via override.css) ──
+    case 'layer-icons-load':
+        $catData = loadCategoryIcons();
+        jsonResponse(['success' => true, 'data' => [
+            'rules'    => loadLayerIcons(),
+            'images'   => $catData['images'] ?? [],
+            'imageUrl' => $catData['imageUrl'] ?? categoryIconsImagesUrlBase(),
+        ]]);
+        break;
+
+    case 'layer-icons-save':
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('POST required', 405);
+        $body = json_decode(file_get_contents('php://input'), true);
+        if (!is_array($body) || !isset($body['rules']) || !is_array($body['rules'])) {
+            jsonError('Feld rules (Array) erforderlich', 400);
+        }
+        $res = saveLayerIconsCss($body['rules']);
+        if (empty($res['saved'])) jsonError($res['error'] ?? 'Speichern fehlgeschlagen', 500);
+        jsonResponse(['success' => true, 'data' => $res]);
+        break;
+
+    case 'upload-category-icon':
+        // Kategorie-Icon-Bild nach public/css/images/ (via FastAPI). PNG/SVG.
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('POST required', 405);
+        if (empty($_FILES['icon']) || !isset($_FILES['icon']['tmp_name'])) {
+            jsonError('Kein Upload-Feld "icon" gefunden', 400);
+        }
+        $cfile = $_FILES['icon'];
+        if (($cfile['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+            jsonError('Upload-Fehler (Code ' . (int)($cfile['error'] ?? -1) . ')', 400);
+        }
+        if (($cfile['size'] ?? 0) > 512 * 1024) jsonError('Datei zu gross (max. 512 KB)', 413);
+        $cOrig = (string)($cfile['name'] ?? 'icon');
+        $cExt = strtolower(pathinfo($cOrig, PATHINFO_EXTENSION));
+        if ($cExt !== 'png' && $cExt !== 'svg') jsonError('Nur PNG oder SVG erlaubt', 415);
+        $cBase = trim(preg_replace('/[^a-z0-9_\-]+/i', '_', pathinfo($cOrig, PATHINFO_FILENAME)), '_');
+        if ($cBase === '') $cBase = 'cat_' . time();
+        $cContent = file_get_contents($cfile['tmp_name']);
+        if ($cContent === false) jsonError('Datei konnte nicht gelesen werden', 500);
+        if ($cExt === 'png') {
+            if (substr($cContent, 0, 8) !== "\x89PNG\r\n\x1a\n") jsonError('Ungueltige PNG-Datei', 415);
+        } else {
+            if (stripos($cContent, '<svg') === false) jsonError('Ungueltige SVG-Datei', 415);
+            $cContent = tnetSanitizeSvg($cContent);
+            if (stripos($cContent, '<svg') === false) jsonError('SVG konnte nicht bereinigt werden', 422);
+        }
+        $cName = $cBase . '.' . $cExt;
+        $cDestFs = OVERRIDE_CSS_IMAGES_DIR . '/' . $cName;
+        if (is_dir(OVERRIDE_CSS_IMAGES_DIR) && file_exists($cDestFs)) {
+            $cName = $cBase . '_' . substr(sha1($cContent), 0, 6) . '.' . $cExt;
+            $cDestFs = OVERRIDE_CSS_IMAGES_DIR . '/' . $cName;
+        }
+        $cStagedDir = TNET_TMP_ROOT . '/stageConf/cssimg';
+        if (!is_dir($cStagedDir)) @mkdir($cStagedDir, 0775, true);
+        $cStaged = $cStagedDir . '/' . $cName;
+        if (@file_put_contents($cStaged, $cContent) === false) {
+            jsonError('Staging-Datei konnte nicht geschrieben werden: ' . $cStaged, 500);
+        }
+        $cDeploy = deployStagedFileViaFastApi(toSftpPath($cStaged), toSftpPath($cDestFs), getFastApiTarget());
+        if (empty($cDeploy['success'])) {
+            jsonError('Upload via FastAPI fehlgeschlagen: ' . ($cDeploy['error'] ?? 'unbekannt'), 500);
+        }
+        jsonResponse(['success' => true, 'data' => [
+            'file' => $cName,
+            'url'  => categoryIconsImagesUrlBase() . '/' . $cName,
+            'type' => $cExt,
+        ]]);
+        break;
+
+    // ── Layer-Props in der DB (config_bundle_store) aktualisieren (DB-first) ──
+    case 'save-layer-props-db':
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') jsonError('POST required', 405);
+        $body = json_decode(file_get_contents('php://input'), true);
+        if (!$body) jsonError('Ungültiger JSON-Body', 400);
+        $layerId  = $body['layerId'] ?? null;
+        $props    = $body['props'] ?? null;
+        $kuerzel  = $body['kuerzel'] ?? null;
+        $fileName = $body['fileName'] ?? null;
+        if (!$layerId || !$kuerzel || !$fileName) jsonError('layerId, kuerzel und fileName erforderlich', 400);
+        if (!is_array($props) || empty($props)) jsonError('props (Object) erforderlich', 400);
+        require_once __DIR__ . '/../includes/StagingImportRepository.php';
+        $bundle = StagingImportRepository::loadBundle($kuerzel);
+        if (!$bundle) jsonError('Bundle nicht gefunden: ' . $kuerzel, 404);
+        $targetFile = null;
+        foreach (($bundle['files'] ?? []) as $f) {
+            if (($f['name'] ?? '') === $fileName) { $targetFile = $f; break; }
+        }
+        if (!$targetFile) jsonError('Datei nicht im Bundle: ' . $fileName, 404);
+        $data = is_array($targetFile['data'] ?? null) ? $targetFile['data'] : [];
+        if (!isset($data[$layerId]) || !is_array($data[$layerId])) $data[$layerId] = [];
+        $allowedProps = ['visible', 'opacity', 'legend', 'maxResolution', 'minResolution',
+                         'rank', 'icon', 'icon_style', 'drawtype', 'singleTile'];
+        $changed = [];
+        foreach ($props as $k => $v) {
+            if (!in_array($k, $allowedProps, true)) continue;
+            if ($v === '' || $v === null) {
+                if (isset($data[$layerId][$k])) { unset($data[$layerId][$k]); $changed[] = $k; }
+            } else {
+                if (in_array($k, ['opacity', 'maxResolution', 'minResolution', 'rank'], true) && is_numeric($v)) $v = $v + 0;
+                $data[$layerId][$k] = $v;
+                $changed[] = $k;
+            }
+        }
+        if (empty($changed)) jsonError('Keine gültigen Properties', 400);
+        $res = StagingImportRepository::saveFileData($kuerzel, $fileName, $data, getEditorName(), [$layerId]);
+        if (empty($res['success'])) jsonError($res['error'] ?? 'DB-Speichern fehlgeschlagen', 500);
+        jsonResponse(['success' => true, 'data' => [
+            'layerId' => $layerId, 'kuerzel' => $kuerzel, 'file' => $fileName, 'changed' => $changed, 'source' => 'db',
+        ]]);
         break;
 
     // =================================================================
@@ -6514,6 +7018,11 @@ switch ($action) {
     case 'list-lyrmgr-profiles':
         $profiles = listLyrmgrProfiles();
         jsonResponse(['success' => true, 'data' => $profiles]);
+        break;
+
+    case 'list-config-groups':
+        $groups = listConfigGroups();
+        jsonResponse(['success' => true, 'data' => $groups]);
         break;
 
     // ── Alle Layer aus 3 Quellen ──
