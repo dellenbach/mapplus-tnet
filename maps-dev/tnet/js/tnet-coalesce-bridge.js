@@ -26,6 +26,46 @@
     return window.__TNET_APP_ROOT || '/maps';
   }
 
+  // ── Tile-Fade-Easing patchen ──────────────────────────────────────────────
+  // OpenLayers blendet Kacheln mit fester kubischer Kurve (t^3) ein: lange
+  // kaum sichtbar, dann schneller "Pop". Wir überschreiben getAlpha einmalig
+  // mit konfigurierbarem Ease-in-Exponenten (agsTileMode.fadeEasingExponent),
+  // damit das Einblenden gleichmässig/progressiv beschleunigt. Bei jedem
+  // Fehler wird auf die OL-Originalmethode zurückgefallen (render-sicher).
+  (function patchTileFadeEasing() {
+    try {
+      if (!window.ol) return;
+      var TileCtor = ol.ImageTile || ol.Tile;
+      if (!TileCtor || !TileCtor.prototype || TileCtor.prototype.__tnetFadePatched) return;
+      var proto = TileCtor.prototype;
+      if (typeof proto.getAlpha !== 'function') return;
+      var origGetAlpha = proto.getAlpha;
+      proto.__tnetFadePatched = true;
+      proto.getAlpha = function (id, time) {
+        try {
+          if (!this.transition_ || !this.transitionStarts_) {
+            return origGetAlpha.call(this, id, time);
+          }
+          var cfg = (window.TnetGlobalConfig && window.TnetGlobalConfig.agsTileMode) || {};
+          var exp = parseFloat(cfg.fadeEasingExponent);
+          if (isNaN(exp) || exp <= 0) return origGetAlpha.call(this, id, time);
+
+          var start = this.transitionStarts_[id];
+          if (!start) { start = time; this.transitionStarts_[id] = start; }
+          else if (start === -1) { return 1; }
+          var transition = this.transition_;
+          var delta = time - start + (1000 / 60);
+          if (delta >= transition) { return 1; }
+          var t = delta / transition;
+          if (t < 0) t = 0;
+          return Math.pow(t, exp);
+        } catch (e) {
+          return origGetAlpha.call(this, id, time);
+        }
+      };
+    } catch (ePatch) { /* still: OL-Default bleibt aktiv */ }
+  })();
+
   function normalizeServiceUrl(url) {
     if (!url) return url;
     var value = String(url);
