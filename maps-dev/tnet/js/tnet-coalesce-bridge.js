@@ -360,6 +360,53 @@
 
   // ===== OL-LAYER-ERSTELLUNG =====
 
+  // 1×1 transparentes PNG — Fallback für fehlgeschlagene/leere Kacheln,
+  // damit kein dunkles Artefakt stehen bleibt.
+  var _TRANSPARENT_TILE_PNG =
+    'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVQIW2NgAAIAAAUAAR4f7BQAAAAASUVORK5CYII=';
+
+  /**
+   * Erzeugt eine tileLoadFunction mit Retry. OpenLayers wiederholt
+   * fehlgeschlagene Kachel-Requests nicht automatisch → eine transiente
+   * Störung (Token-Propagation, Timeout) lässt eine Kachel "hängen" bis zum
+   * nächsten View-Wechsel. Diese Funktion lädt per fetch, wiederholt bei
+   * Fehler mit Backoff und setzt bei endgültigem Fehlschlag bzw. leerer
+   * Antwort (HTTP 204) ein transparentes PNG.
+   * @param {number} maxRetries
+   * @param {number} baseDelayMs
+   * @returns {function}
+   * @private
+   */
+  function _makeRetryTileLoadFunction(maxRetries, baseDelayMs) {
+    return function (tile, src) {
+      var image = tile.getImage();
+      var retries = 0;
+      function attempt() {
+        fetch(src, { credentials: 'same-origin' })
+          .then(function (resp) {
+            if (resp.status === 204) return null;      // leere Kachel
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            return resp.blob();
+          })
+          .then(function (blob) {
+            if (!blob || blob.size === 0) { image.src = _TRANSPARENT_TILE_PNG; return; }
+            var objUrl = URL.createObjectURL(blob);
+            image.onload = function () { URL.revokeObjectURL(objUrl); };
+            image.src = objUrl;
+          })
+          .catch(function () {
+            if (retries < maxRetries) {
+              retries++;
+              setTimeout(attempt, baseDelayMs * retries);
+            } else {
+              image.src = _TRANSPARENT_TILE_PNG; // aufgeben, kein dunkles Artefakt
+            }
+          });
+      }
+      attempt();
+    };
+  }
+
   /**
    * Hängt einen getFeatureInfoUrl-Shim an eine TileArcGISRest-Source.
    * Das MapPlus-Framework (queryconnector) erwartet diese Methode auf der
@@ -503,6 +550,9 @@
         TnetLog.warn(LOG, '_createRootOLLayer: Tile-Grid nicht erstellbar, OL-Default:', eTileGrid);
       }
       source = new ol.source.TileArcGISRest(tileSrcOpts);
+      // Retry bei Kachel-Ladefehlern (transiente Token/Timeout-Störungen),
+      // damit keine Kachel dauerhaft "hängen" bleibt.
+      source.setTileLoadFunction(_makeRetryTileLoadFunction(3, 400));
       // Identify-Kompatibilität: Das MapPlus-Framework (queryconnector) ruft
       // source.getFeatureInfoUrl() auf. TileArcGISRest besitzt diese Methode
       // nicht → Klick-Abfrage würde ausfallen. Shim baut die ArcGIS

@@ -4286,6 +4286,36 @@
             TnetLog.warn(LOG, 'Coalesce: Tile-Grid nicht erstellbar, OL-Default:', eTileGrid);
           }
           var source = new ol.source.TileArcGISRest(tileSrcOpts);
+          // Retry bei Kachel-Ladefehlern: OL wiederholt fehlgeschlagene Tiles
+          // nicht → eine transiente Störung liesse eine Kachel "hängen". Per
+          // fetch laden, bei Fehler mit Backoff wiederholen, bei endgültigem
+          // Fehlschlag / HTTP 204 ein transparentes PNG setzen.
+          (function (src) {
+            var TRANSPARENT = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVQIW2NgAAIAAAUAAR4f7BQAAAAASUVORK5CYII=';
+            src.setTileLoadFunction(function (tile, url) {
+              var image = tile.getImage();
+              var retries = 0;
+              function attempt() {
+                fetch(url, { credentials: 'same-origin' })
+                  .then(function (resp) {
+                    if (resp.status === 204) return null;
+                    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+                    return resp.blob();
+                  })
+                  .then(function (blob) {
+                    if (!blob || blob.size === 0) { image.src = TRANSPARENT; return; }
+                    var objUrl = URL.createObjectURL(blob);
+                    image.onload = function () { URL.revokeObjectURL(objUrl); };
+                    image.src = objUrl;
+                  })
+                  .catch(function () {
+                    if (retries < 3) { retries++; setTimeout(attempt, 400 * retries); }
+                    else { image.src = TRANSPARENT; }
+                  });
+              }
+              attempt();
+            });
+          })(source);
           // Identify-Kompatibilität: Framework-queryconnector ruft
           // source.getUrl() (Singular) — TileArcGISRest hat nur getUrls().
           // getUrl ergänzen + getFeatureInfoUrl-Shim.
