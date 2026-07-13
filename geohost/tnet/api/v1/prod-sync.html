@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>DEV Sync von PROD</title>
+<style>
+body { font-family: Segoe UI, Arial, sans-serif; margin: 20px; color: #1f2937; }
+.card { max-width: 900px; border: 1px solid #d1d5db; border-radius: 10px; padding: 16px; background: #f9fafb; }
+h1 { margin: 0 0 10px; font-size: 24px; }
+.desc { margin: 0 0 14px; color: #4b5563; }
+.group { margin: 8px 0; padding: 10px; border: 1px solid #e5e7eb; border-radius: 8px; background: #fff; }
+label { display: flex; gap: 8px; align-items: center; font-weight: 600; }
+.small { color: #6b7280; margin-top: 4px; font-size: 12px; }
+.actions { margin-top: 14px; display: flex; gap: 10px; align-items: center; }
+button { background: #4B7B81; color: #fff; border: 0; border-radius: 6px; padding: 9px 14px; cursor: pointer; font-weight: 600; }
+button:disabled { background: #94a3b8; cursor: not-allowed; }
+.status { font-size: 13px; color: #374151; }
+pre { margin-top: 14px; background: #0f172a; color: #e2e8f0; padding: 12px; border-radius: 8px; overflow: auto; max-height: 420px; }
+.warn { color: #b91c1c; font-weight: 600; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1>DEV Sync von PROD</h1>
+    <p class="desc">Kopiert ausgewählte Bereiche aus dem PROD-Schema <code>mapplusconf</code> nach DEV <code>mapplusconf_dev</code>.</p>
+    <p class="warn">Achtung: Ausgewählte DEV-Tabellen werden vor dem Kopieren geleert (TRUNCATE).</p>
+
+    <div class="group">
+      <label><input type="checkbox" id="g-layer" checked /> Layer-Basis</label>
+      <div class="small">profile, category_mapping, layer_definition, layer_maptip, nls_resource</div>
+    </div>
+
+    <div class="group">
+      <label><input type="checkbox" id="g-catalog" checked /> Themenkatalog</label>
+      <div class="small">catalog_node, catalog_document, catalog_document_history, catalog_lock</div>
+    </div>
+
+    <div class="group">
+      <label><input type="checkbox" id="g-imports" checked /> Import-/Audit-Tabellen</label>
+      <div class="small">import_log, ags_import_history</div>
+    </div>
+
+    <div class="group">
+      <label><input type="checkbox" id="g-bookmarks" /> Bookmarks (optional)</label>
+      <div class="small">bookmark, bookmark_history, bookmark_lock, bookmark_meta</div>
+    </div>
+
+    <div class="actions">
+      <button id="run">Sync starten</button>
+      <span class="status" id="status">Bereit</span>
+    </div>
+
+    <pre id="out">Noch kein Lauf.</pre>
+  </div>
+
+<script>
+(function() {
+  var runBtn = document.getElementById('run');
+  var statusEl = document.getElementById('status');
+  var outEl = document.getElementById('out');
+
+  function selectedGroups() {
+    var groups = [];
+    if (document.getElementById('g-layer').checked) groups.push('layer-base');
+    if (document.getElementById('g-catalog').checked) groups.push('catalog');
+    if (document.getElementById('g-imports').checked) groups.push('imports');
+    if (document.getElementById('g-bookmarks').checked) groups.push('bookmarks');
+    return groups;
+  }
+
+  runBtn.addEventListener('click', function() {
+    var groups = selectedGroups();
+    if (groups.length === 0) {
+      statusEl.textContent = 'Mindestens eine Gruppe auswählen.';
+      return;
+    }
+    if (!confirm('Ausgewählte DEV-Tabellen werden geleert und aus PROD neu kopiert. Fortfahren?')) {
+      return;
+    }
+
+    runBtn.disabled = true;
+    statusEl.textContent = 'Sync läuft...';
+    outEl.textContent = 'Bitte warten...';
+
+    fetch('migrate.php?action=prod-to-dev-sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ groups: groups })
+    })
+    .then(function(r) { return r.text(); })
+    .then(function(text) {
+      outEl.textContent = text;
+      try {
+        var j = JSON.parse(text);
+        statusEl.textContent = j.success ? 'Fertig' : 'Fehler';
+      } catch (e) {
+        statusEl.textContent = 'Antwort ungültig';
+      }
+    })
+    .catch(function(err) {
+      statusEl.textContent = 'Fehler';
+      outEl.textContent = String(err);
+    })
+    .finally(function() {
+      runBtn.disabled = false;
+    });
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,2396 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Treebuilder Tydac — Original MAP+/TYDAC Katalog</title>
+<script>document.documentElement.setAttribute('data-env', location.pathname.indexOf('/maps-dev/') === 0 ? 'dev' : 'prod');</script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@10.8.0/ol.css">
+<!-- Framework-CSS mit Kategorie-Icon-Sprites (njsCategoryIconN) für die Vorschau im Picker -->
+<link rel="stylesheet" href="../../../core/templates/nwow_floating/css/ClassicLayerMgr.css" onerror="this.dataset.failed='1'">
+<style>
+  :root {
+    --m-color-primary: #4B7B81; --border: #d8dee1; --bg: #f0f2f5; --muted: #6b7a80;
+    --c-dark: #1e3a4a; --c-panel-head: #f5f7f8;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; color: #22333b; background: var(--bg); font-size: 13px; }
+
+  /* ── V2-Style Toolbar (dunkel) ── */
+  .tb-toolbar {
+    background: var(--c-dark); color: #fff; min-height: 42px;
+    display: flex; align-items: center; padding: 0 12px; gap: 8px;
+    flex-wrap: wrap; z-index: 100;
+  }
+  .tb-toolbar .brand { font-weight: 700; font-size: 14px; margin-right: 6px; white-space: nowrap; }
+  .tb-toolbar .brand .brand-badge {
+    background: var(--m-color-primary); color: #fff; padding: 1px 6px; border-radius: 3px;
+    font-size: 10px; font-weight: 700; margin-left: 2px;
+  }
+  .tb-toolbar label { color: rgba(255,255,255,.6); font-size: 11px; }
+  .tb-toolbar select, .tb-toolbar input[type="text"] {
+    padding: 4px 7px; font-size: 12px; border: 1px solid rgba(255,255,255,.25);
+    border-radius: 3px; background: rgba(255,255,255,.1); color: #fff; outline: none;
+  }
+  .tb-toolbar select option { color: #333; background: #fff; }
+  .tb-toolbar input[type="text"]::placeholder { color: rgba(255,255,255,.5); }
+  .tb-toolbar .sep { width: 1px; height: 22px; background: rgba(255,255,255,.15); margin: 0 4px; }
+  .tb-toolbar .spacer { flex: 1; }
+  .tb-toolbar button {
+    padding: 4px 12px; font-size: 12px; border: 1px solid rgba(255,255,255,.3);
+    border-radius: 3px; background: rgba(255,255,255,.1); color: #fff; cursor: pointer;
+    font-weight: 500; transition: all .15s;
+  }
+  .tb-toolbar button:hover { background: rgba(255,255,255,.2); }
+  .tb-toolbar button.primary { background: var(--m-color-primary); border-color: var(--m-color-primary); }
+  .tb-toolbar button.primary:hover { filter: brightness(1.1); }
+  .tb-toolbar button:disabled { opacity: .35; cursor: default; }
+  .tb-toolbar .env-badge {
+    font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 3px;
+    background: rgba(255,255,255,.2);
+  }
+  [data-env="dev"] .tb-toolbar .env-badge::after { content: "DEV"; }
+  [data-env="prod"] .tb-toolbar .env-badge::after { content: "PROD"; }
+  .tb-toolbar .site-info { font-size: 11px; color: rgba(255,255,255,.7); }
+  .tb-toolbar .docs-link { color: rgba(255,255,255,.55); font-size: 11px; text-decoration: none; }
+  .status { font-size: 11px; color: rgba(255,255,255,.7); }
+  .status.err { color: #ff9a90; }
+  .status.ok { color: #8fe0a0; }
+
+  .layout { display: flex; height: calc(100vh - 42px); gap: 0; }
+  .avail-pane {
+    width: 300px; border-right: 1px solid var(--border); background: #fff;
+    display: flex; flex-direction: column; min-width: 200px;
+  }
+  .avail-head {
+    padding: 8px 12px; border-bottom: 1px solid var(--border); background: var(--c-panel-head);
+    display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700;
+  }
+  /* ── V2-Style Panel-Rahmen (Kern bleibt Tydac) ── */
+  .tree-panel {
+    flex: 1; display: flex; flex-direction: column; min-width: 250px;
+    background: #fff; border-right: 1px solid var(--border);
+  }
+  .prop-panel {
+    width: 360px; min-width: 240px; display: flex; flex-direction: column;
+    border-left: 1px solid var(--border); background: #fff;
+  }
+  .panel-head {
+    padding: 8px 12px; background: var(--c-panel-head); border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 8px; flex-shrink: 0;
+  }
+  .panel-head h2 { font-size: 13px; font-weight: 700; margin: 0; flex: 1; }
+  .panel-head .badge {
+    background: var(--m-color-primary); color: #fff; font-size: 10px; padding: 1px 6px;
+    border-radius: 8px; font-weight: 600;
+  }
+  .avail-tools {
+    padding: 8px 10px; border-bottom: 1px solid var(--border);
+    display: flex; gap: 6px; flex-direction: column;
+  }
+  .avail-tools input, .avail-tools select {
+    width: 100%; font-size: 12px; padding: 5px 7px; border: 1px solid var(--border); border-radius: 4px;
+  }
+  .layer-list { flex: 1; overflow: auto; padding: 0; }
+  .layer-item {
+    border: 1px solid #e6ecee; border-radius: 5px; padding: 6px 7px; margin-bottom: 6px;
+    cursor: pointer; background: #fff;
+  }
+  .layer-item:hover { background: #f4f8f9; border-color: #d4dee2; }
+  .layer-item.sel { border-color: var(--m-color-primary); background: #eaf3f4; }
+  .layer-top { display: flex; align-items: center; gap: 5px; }
+  .layer-name { font-size: 12px; font-weight: 600; color: #1f2f36; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .badge { font-size: 10px; border-radius: 3px; padding: 1px 5px; color: #fff; }
+  .badge.src-core { background: #577f94; }
+  .badge.src-override { background: #4B7B81; }
+  .badge.src-profile { background: #8e6f3e; }
+  .badge.src-unknown { background: #88989f; }
+  .badge.used { background: #27713a; }
+  .badge.unused { background: #96a6ad; }
+  .layer-id { font-size: 11px; color: #6b7a80; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tree-pane { flex: 1; overflow: auto; padding: 12px 16px; background: #dfe5e8; }
+  .prop-pane { flex: 1; overflow: auto; padding: 14px; }
+  .lyrmgr-block {
+    margin-bottom: 18px; border: 1px solid #1e3a4a; border-radius: 6px;
+    overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,.08); background: #21465a;
+  }
+  .lyrmgr-block > h2 {
+    font-size: 13px; letter-spacing: .03em; color: #fff;
+    margin: 0; padding: 8px 10px; background: #173647; border-bottom: 1px solid #0f2a38;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .lyrmgr-block > h2 .lm-title { font-weight: 700; }
+  .lyrmgr-block > h2 .lm-type {
+    font-size: 9px; text-transform: uppercase; letter-spacing: .04em;
+    color: #bcd3dc; background: rgba(255,255,255,.12); padding: 1px 6px; border-radius: 3px;
+  }
+  .lyrmgr-block > h2 .lm-actions { margin-left: auto; display: flex; gap: 6px; }
+  .lyrmgr-block > h2 .lm-btn {
+    font-size: 11px; padding: 2px 8px; border: 1px solid rgba(255,255,255,.3);
+    border-radius: 3px; background: rgba(255,255,255,.12); color: #fff; cursor: pointer;
+  }
+  .lyrmgr-block > h2 .lm-btn:hover { background: rgba(255,255,255,.24); }
+  .lyrmgr-block > h2 .lm-del:hover { background: #c0392b; border-color: #c0392b; }
+  ul.tree, ul.tree ul { list-style: none; margin: 0; padding-left: 14px; }
+  ul.tree { padding-left: 0; }
+  li.node > .row {
+    display: flex; align-items: center; gap: 6px; padding: 5px 8px; border-radius: 4px; cursor: pointer;
+  }
+  li.node > .row:hover { background: #eef3f4; }
+  li.node > .row.selected { background: #dcebec; outline: 1px solid var(--m-color-primary); }
+  .twist { width: 14px; text-align: center; color: #d4e1e6; user-select: none; font-size: 11px; }
+  .node-icon { width: 18px; height: 18px; object-fit: contain; flex: none; }
+  .node-label { font-size: 13px; }
+  .node-type { font-size: 10px; color: #fff; background: var(--muted); border-radius: 3px; padding: 0 5px; margin-left: 4px; }
+  .node-count { font-size: 10px; color: rgba(255,255,255,.7); margin-left: 4px; font-weight: 400; }
+  .node-type.cat { background: #8e6f3e; }
+  .node-type.grp { background: #4B7B81; }
+  .node-type.sub { background: #5a7f9a; }
+  .node-type.lyr { background: #93a1a6; }
+  .category-row {
+    margin: 6px 8px; border: 1px solid #94b1bb; border-radius: 4px;
+    background: linear-gradient(180deg, #7ea4b1 0%, #6f99a7 100%);
+  }
+  .category-row .node-label {
+    color: #fff; font-weight: 700; text-transform: uppercase; letter-spacing: .02em;
+  }
+  .group-row, .subgroup-row {
+    margin: 4px 8px; border: 1px solid #7ea1ad; border-radius: 4px;
+    background: linear-gradient(180deg, #6e93a3 0%, #638999 100%);
+  }
+  .group-row .node-label, .subgroup-row .node-label { color: #f7fbfd; }
+  .layer-row {
+    margin: 2px 8px; border: 1px solid #b9c9d0; border-radius: 4px;
+    background: #edf2f4;
+  }
+  .layer-row .twist { color: #8aa1ac; }
+  .layer-row .node-label { color: #25424f; }
+  .category-row.selected, .group-row.selected, .subgroup-row.selected, .layer-row.selected {
+    box-shadow: inset 0 0 0 1px #1e3a4a;
+    outline-color: #1e3a4a;
+  }
+  li.node > .row.dragging { opacity: .4; }
+  li.node > .row.drag-over { outline: 2px dashed #4B7B81; outline-offset: -2px; background: rgba(75,123,129,.12); }
+  .prop-pane h3 { margin: 0 0 10px; font-size: 14px; }
+  .field { margin-bottom: 10px; }
+  .field label { display: block; font-size: 11px; color: var(--muted); margin-bottom: 3px; text-transform: uppercase; letter-spacing: .03em; }
+  .field input[type="text"], .field select {
+    width: 100%; font-size: 13px; padding: 5px 7px; border: 1px solid var(--border); border-radius: 4px;
+  }
+  .field.row-inline { display: flex; gap: 10px; align-items: center; }
+  .field.row-inline label { margin: 0; }
+  .icon-preview {
+    display: flex; align-items: center; gap: 10px; padding: 8px; border: 1px dashed var(--border);
+    border-radius: 6px; margin-bottom: 8px; background: #fafcfc;
+  }
+  .icon-preview img { width: 32px; height: 32px; object-fit: contain; }
+  .icon-preview .none { color: var(--muted); font-size: 12px; }
+  .btn-sm { font-size: 12px; padding: 4px 8px; border: 1px solid var(--border); border-radius: 4px; background: #fff; cursor: pointer; }
+  .btn-sm:hover { background: #eef3f4; }
+  .hint { font-size: 11px; color: var(--muted); margin-top: 4px; line-height: 1.4; }
+  .warn { font-size: 11px; color: #a05a00; background: #fff6e6; border: 1px solid #f0d9a8; border-radius: 4px; padding: 6px 8px; margin-top: 8px; }
+  /* Modal */
+  .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.4); display: none; align-items: center; justify-content: center; z-index: 50; }
+  .modal-backdrop.open { display: flex; }
+  .modal { background: #fff; border-radius: 8px; width: min(720px, 92vw); max-height: 82vh; display: flex; flex-direction: column; overflow: hidden; }
+  .modal header { background: var(--m-color-primary); color: #fff; padding: 10px 14px; display: flex; align-items: center; }
+  .modal header h3 { margin: 0; font-size: 14px; flex: 1; }
+  .modal header button { background: transparent; border: none; color: #fff; font-size: 18px; cursor: pointer; }
+  .modal .body { padding: 12px 14px; overflow: auto; }
+  .modal .toolbar-row { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; flex-wrap: wrap; }
+  .icon-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(74px, 1fr)); gap: 8px; }
+  .icon-cell { border: 1px solid var(--border); border-radius: 6px; padding: 6px 4px; text-align: center; cursor: pointer; background: #fff; }
+  .icon-cell:hover { border-color: var(--m-color-primary); background: #eef3f4; }
+  .icon-cell img { width: 34px; height: 34px; object-fit: contain; }
+  .icon-cell .nm { font-size: 10px; color: var(--muted); margin-top: 3px; word-break: break-all; line-height: 1.2; }
+  .set-title { font-size: 12px; font-weight: 600; color: var(--muted); margin: 12px 0 6px; }
+  .empty { color: var(--muted); font-size: 13px; padding: 20px; text-align: center; }
+  .preview-tabs { display: flex; gap: 6px; margin-bottom: 8px; }
+  .preview-tabs button { font-size: 12px; padding: 5px 8px; border: 1px solid var(--border); background: #fff; border-radius: 4px; cursor: pointer; }
+  .preview-tabs button.active { background: var(--m-color-primary); color: #fff; border-color: var(--m-color-primary); }
+  .preview-json {
+    width: 100%; min-height: 340px; resize: vertical; border: 1px solid var(--border); border-radius: 4px;
+    font-family: Consolas, monospace; font-size: 12px; padding: 8px; background: #1e1e1e; color: #e6e6e6;
+  }
+  .kv { font-size: 12px; margin-bottom: 6px; }
+  .kv b { display: inline-block; width: 110px; color: var(--muted); font-weight: 600; }
+
+  /* ===== V2-identische Layer-Liste (Verfügbare Layer) ===== */
+  .avail-head button {
+    padding: 2px 8px; font-size: 11px; border: 1px solid var(--border);
+    border-radius: 3px; background: #fff; cursor: pointer; color: #22333b;
+  }
+  .avail-head button:hover { background: #eef3f4; }
+  .tb-layer-item {
+    display: flex; align-items: center; gap: 6px;
+    padding: 5px 10px; cursor: grab; border-bottom: 1px solid #f5f5f5;
+    transition: background .1s; user-select: none; font-size: 12px; background: #fff;
+  }
+  .tb-layer-item:hover { background: #f4f8f9; }
+  .tb-layer-item.sel { background: #eaf3f4; }
+  .tb-layer-item .grip { color: #ccc; font-size: 10px; flex-shrink: 0; }
+  .tb-layer-item .lname { flex: 1; word-break: break-word; }
+  .tb-layer-item .lyr-src {
+    font-size: 7px; padding: 1px 4px; border-radius: 2px; flex-shrink: 0;
+    font-weight: 700; line-height: 1.2; letter-spacing: .3px; text-transform: uppercase; color: #fff;
+  }
+  .tb-layer-item .lyr-src.src-core     { background: #66bb6a; }
+  .tb-layer-item .lyr-src.src-override { background: #ffa726; }
+  .tb-layer-item .lyr-src.src-profile  { background: #42a5f5; }
+  .tb-layer-item.dragging { opacity: .4; }
+  .tb-source-group { border-bottom: 1px solid #e8e8e8; }
+  .tb-source-head {
+    display: flex; align-items: center; gap: 6px;
+    padding: 6px 10px; background: #f0f3f5; cursor: pointer;
+    user-select: none; font-size: 11px; font-weight: 600; color: var(--c-dark);
+    border-bottom: 1px solid #e0e0e0; position: sticky; top: 0; z-index: 1;
+  }
+  .tb-source-head:hover { background: #e6ecef; }
+  .tb-source-head .src-arrow {
+    display: inline-block; transition: transform .15s; font-size: 9px; color: #999; width: 10px; text-align: center;
+  }
+  .tb-source-group.collapsed .src-arrow { transform: rotate(-90deg); }
+  .tb-source-head .src-label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tb-source-head .src-badge {
+    background: var(--m-color-primary); color: #fff; font-size: 9px; padding: 0 5px;
+    border-radius: 7px; font-weight: 600; min-width: 18px; text-align: center;
+  }
+  .tb-source-head .src-type {
+    font-size: 8px; color: #fff; background: #999; padding: 1px 4px;
+    border-radius: 2px; text-transform: uppercase; flex-shrink: 0;
+  }
+  .tb-source-head .src-type.arcgis { background: #d47b2e; }
+  .tb-source-head .src-type.wms { background: #2e8bd4; }
+  .tb-source-head .src-type.qgis { background: #4a8c50; }
+  .tb-source-head .src-type.wmts { background: #6b2ed4; }
+  .tb-source-head .src-type.tilewms { background: #2e8bd4; }
+  .tb-source-group.collapsed .tb-source-body { display: none; }
+  .tb-source-head .src-verify {
+    font-size: 9px; padding: 1px 5px; border: 1px solid #ccc; border-radius: 3px;
+    background: #fff; cursor: pointer; color: #666; flex-shrink: 0; line-height: 1.2;
+  }
+  .tb-source-head .src-verify:hover { background: #e8f4e8; border-color: #4a8c50; color: #4a8c50; }
+  .tb-source-head .src-verify.checking { color: #999; cursor: wait; }
+  .tb-source-head .src-verify-result {
+    font-size: 8px; padding: 1px 5px; border-radius: 3px; flex-shrink: 0; font-weight: 600;
+  }
+  .tb-source-head .src-verify-result.ok { background: #d4edda; color: #155724; }
+  .tb-source-head .src-verify-result.fail { background: #f8d7da; color: #721c24; }
+  .tb-source-head .src-verify-result.partial { background: #fff3cd; color: #856404; }
+  .tb-layer-item .verify-dot {
+    width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; margin-left: auto;
+  }
+  .tb-layer-item .verify-dot.ok { background: #28a745; }
+  .tb-layer-item .verify-dot.fail { background: #dc3545; }
+
+  /* ===== V2-identische Kartenvorschau (rechts) ===== */
+  .preview-panel {
+    width: 340px; min-width: 240px; display: flex; flex-direction: column;
+    border-left: 1px solid var(--border); background: #fff;
+  }
+  .preview-controls {
+    display: flex; align-items: center; gap: 6px; padding: 6px 10px;
+    border-bottom: 1px solid var(--border); flex-wrap: wrap; font-size: 11px; background: #f5f7f9;
+  }
+  .preview-controls label { color: var(--muted); white-space: nowrap; }
+  .preview-controls select { font-size: 11px; padding: 3px 5px; border: 1px solid var(--border); border-radius: 3px; }
+  .preview-controls input[type=range] { flex: 1; min-width: 60px; }
+  .preview-controls .opacity-val { min-width: 34px; text-align: right; color: var(--muted); }
+  .preview-tabbar { display: flex; border-bottom: 1px solid var(--border); background: #f5f7f9; flex-shrink: 0; }
+  .prev-tab { flex: 1; padding: 6px 8px; font-size: 11px; border: none; background: transparent; cursor: pointer; border-bottom: 2px solid transparent; color: var(--muted); }
+  .prev-tab:hover { color: var(--c-dark); }
+  .prev-tab.active { color: var(--m-color-primary); border-bottom-color: var(--m-color-primary); font-weight: 600; }
+  #previewMapEl { flex: 1; background: #e8ecef; min-height: 220px; position: relative; }
+  .preview-hint { padding: 20px; text-align: center; color: var(--muted); font-size: 12px; }
+  .preview-info { max-height: 42%; overflow: auto; padding: 8px 10px; border-top: 1px solid var(--border); font-size: 11px; }
+  .preview-info .pi-row { display: flex; gap: 6px; padding: 2px 0; }
+  .preview-info .pi-key { font-weight: 600; color: var(--c-dark); min-width: 52px; flex-shrink: 0; }
+  .preview-info .pi-val { word-break: break-all; }
+
+  /* Kategorie-Icon-Picker (Sprite-Vorschau via ClassicLayerMgr.css) */
+  .cat-icon-grid { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+  .cat-icon-tile {
+    width: 38px; height: 38px; border: 1px solid var(--border); border-radius: 6px;
+    background: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0;
+  }
+  .cat-icon-tile:hover { border-color: var(--m-color-primary); background: #eef3f4; }
+  .cat-icon-tile.sel { border-color: var(--m-color-primary); background: #eaf3f4; box-shadow: inset 0 0 0 1px var(--m-color-primary); }
+  .cat-icon-tile > span { display: inline-block; width: 24px; height: 24px; background-repeat: no-repeat; background-position: center; background-size: contain; }
+  .cat-icon-current { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+  .cat-icon-current > .cat-icon-sw { display: inline-block; width: 24px; height: 24px; background-repeat: no-repeat; background-position: center; background-size: contain; border: 1px solid var(--border); border-radius: 4px; }
+</style>
+</head>
+<body>
+<div class="tb-toolbar">
+  <span class="brand">🗂 Treebuilder <span class="brand-badge">TYDAC</span></span>
+  <span class="env-badge"></span>
+  <span class="sep"></span>
+  <label>Zielpfad:</label>
+  <select id="ctxRootSelect">
+    <option value="/maps-dev">maps-dev</option>
+    <option value="/maps">maps</option>
+    <option value="/geohost">geohost</option>
+    <option value="/edit">edit</option>
+  </select>
+  <label>Group:</label>
+  <select id="profileSelect"><option value="">— laden —</option></select>
+  <input type="text" id="profileManual" placeholder="oder Group-Name…" style="width:150px">
+  <button id="btnLoad">Laden</button>
+  <button id="btnSave" class="primary" disabled>Speichern</button>
+  <button id="btnHistory" disabled>Verlauf</button>
+  <button id="btnReloadLayers">Layer neu laden</button>
+  <button id="btnPreview" disabled>Vorschau</button>
+  <span class="sep"></span>
+  <span class="status" id="status">Bereit.</span>
+  <span class="spacer"></span>
+  <span class="site-info" id="siteInfo"></span>
+  <a href="../docs/" target="_blank" class="docs-link">Docs</a>
+</div>
+
+<div class="layout">
+  <div class="avail-pane">
+    <div class="avail-head">
+      <span>Verfügbare Layer</span>
+      <span id="layerCount" class="badge" style="margin-left:auto;background:var(--m-color-primary);color:#fff;border-radius:8px;padding:1px 7px;font-size:10px;font-weight:600">0</span>
+      <button id="btnVerifyAll" title="Alle Dienste auf Erreichbarkeit prüfen" style="background:#e8f4e8;border-color:#4a8c50;color:#4a8c50">✓ Verify</button>
+      <button id="btnVerifyFilter" title="Nur fehlgeschlagene Dienste anzeigen" style="display:none;background:#f8d7da;border-color:#dc3545;color:#721c24">✗ Fehler</button>
+    </div>
+    <div class="avail-tools">
+      <input type="text" id="layerSearch" placeholder="Layer suchen…">
+      <select id="layerTagFilter">
+        <option value="">Alle Tags</option>
+      </select>
+    </div>
+    <div id="layerList" class="layer-list"><div class="empty">Lade Layer…</div></div>
+  </div>
+  <div class="tree-panel">
+    <div class="panel-head">
+      <h2>LyrMgr-Editor (Tydac)</h2>
+      <button id="btnAddLyrmgr" title="Neue LyrMgr-Sektion hinzufügen" style="padding:2px 8px;font-size:11px;border:1px solid var(--border);border-radius:3px;background:#fff;cursor:pointer">+ LyrMgr</button>
+    </div>
+    <div class="tree-pane" id="treePane">
+      <div class="empty">Group auswählen und „Laden“ klicken.</div>
+    </div>
+  </div>
+  <div class="prop-panel">
+    <div class="panel-head"><h2>Eigenschaften</h2></div>
+    <div class="prop-pane" id="propPane">
+      <div class="empty" style="padding:8px">Kein Element ausgewählt.</div>
+    </div>
+  </div>
+  <div class="preview-panel" id="previewPanel">
+    <div class="panel-head">
+      <h2>Vorschau</h2>
+      <span class="badge" id="previewLayerType" style="background:var(--m-color-primary);color:#fff;border-radius:8px;padding:1px 7px;font-size:10px;font-weight:600"></span>
+    </div>
+    <div class="preview-tabbar">
+      <button class="prev-tab active" data-ptab="map">Karte</button>
+      <button class="prev-tab" data-ptab="lyrmgr">LyrMgr (WYSIWYG)</button>
+    </div>
+    <div id="prevTabMap" style="display:flex;flex-direction:column;flex:1;min-height:0">
+      <div class="preview-controls">
+        <label>Base:</label>
+        <select id="basemapSelect">
+          <option value="pk_grau" selected>Pixelkarte grau</option>
+          <option value="pk_farbe">Pixelkarte farbig</option>
+          <option value="swissimage">Swissimage</option>
+          <option value="leer">Leer (weiss)</option>
+        </select>
+        <label>Transp.:</label>
+        <input type="range" id="opacitySlider" min="0" max="100" value="50">
+        <span class="opacity-val" id="opacityVal">50%</span>
+      </div>
+      <div id="previewMapEl"><div class="preview-hint">Layer anklicken für Vorschau</div></div>
+      <div class="preview-info" id="previewInfo"></div>
+    </div>
+    <div id="prevTabLm" style="display:none;flex-direction:column;flex:1;min-height:0">
+      <div class="preview-controls">
+        <label>Quelle:</label>
+        <select id="lmPrevSource">
+          <option value="db" selected>DB (Editor-Stand)</option>
+          <option value="file">Datei (publiziert)</option>
+        </select>
+        <button class="btn-sm" id="lmPrevReload">↻ Neu laden</button>
+        <span class="hint" style="margin:0">zeigt den gerenderten Baum (Stand nach Publish)</span>
+      </div>
+      <iframe id="lmPrevIframe" src="about:blank" title="LyrMgr-Vorschau" style="flex:1;border:none;width:100%;min-height:0;background:#fff"></iframe>
+    </div>
+  </div>
+</div>
+
+<!-- Icon-Picker Modal -->
+<div class="modal-backdrop" id="iconModal">
+  <div class="modal">
+    <header>
+      <h3>Symbol wählen</h3>
+      <button id="iconModalClose">×</button>
+    </header>
+    <div class="body">
+      <div class="toolbar-row">
+        <input type="text" id="iconSearch" placeholder="Suchen…" style="flex:1;font-size:13px;padding:5px 8px;border:1px solid var(--border);border-radius:4px">
+        <label class="btn-sm" style="cursor:pointer">
+          ⬆ Hochladen (PNG/SVG)
+          <input type="file" id="iconUpload" accept=".png,.svg,image/png,image/svg+xml" style="display:none">
+        </label>
+      </div>
+      <div id="iconGrid"></div>
+    </div>
+  </div>
+</div>
+
+<!-- History Modal -->
+<div class="modal-backdrop" id="histModal">
+  <div class="modal">
+    <header><h3>Versionsverlauf</h3><button id="histModalClose">×</button></header>
+    <div class="body"><div id="histList" class="empty">…</div></div>
+  </div>
+</div>
+
+<!-- Preview Modal -->
+<div class="modal-backdrop" id="previewModal">
+  <div class="modal" style="width:min(980px,95vw)">
+    <header><h3>Vorschau</h3><button id="previewModalClose">×</button></header>
+    <div class="body">
+      <div class="preview-tabs">
+        <button data-preview-tab="wms" class="active">WMS/MAP</button>
+        <button data-preview-tab="json">JSON</button>
+        <button data-preview-tab="catalog">Katalog</button>
+      </div>
+      <div id="previewContent"></div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/ol@10.8.0/dist/ol.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.9.0/proj4.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  // ── Multi-Site: App-Root aus URL (Segment vor '/tnet/') ──
+  function currentAppRoot() {
+    var m = location.pathname.match(/^(\/[^/]+?)\/tnet\//);
+    return m ? m[1] : '/maps';
+  }
+  var APP_ROOT = currentAppRoot();
+  var _ctxRoot = APP_ROOT;
+
+  function getApiUrl() {
+    return APP_ROOT + '/tnet/api/v1/treebuilder-api.php';
+  }
+
+  // ── State ──
+  var _doc = null;          // geladenes Tydac-Dokument { main_lyrmgr:{...}, ... }
+  var _profile = '';
+  var _revision = 0;
+  var _selectedPath = null; // Pfad des ausgewählten Knotens
+  var _site = '';
+  var _iconTargetPath = null; // Pfad, für den der Icon-Picker geöffnet wurde
+  var _symbolSets = null;
+  var _availableLayers = [];
+  var _availableLayerMap = {};
+  var _nlsAliases = {};
+  var _catIconRules = [];      // Kategorie-Icon-Zuweisungen (class -> file/url) aus override.css
+  var _catIconImages = [];     // verfügbare Bilder in public/css/images (Bibliothek)
+  var _catIconBase = '';       // URL-Basis public/css/images
+  var _layerIconRules = [];    // Layer-Icon-CSS-Overrides (layerId -> url/size) aus override.css
+  // Original-MAP+-Kategorie-Icons (njsCategoryIcon1..11), definiert in core/.../css/PoiManager.css,
+  // in JEDER App geladen → robust, feste Grösse 38px, mit _active-Variante. Shared unter /core.
+  var CAT_ICON_PRESET_BASE = '/core/templates/nwow_floating/img/poi_manager/';
+  var CAT_ICON_PRESETS = [
+    { cls: 'njsCategoryIcon1', file: 'survey.svg', label: 'Vermessung' },
+    { cls: 'njsCategoryIcon2', file: 'planning.svg', label: 'Raumplanung' },
+    { cls: 'njsCategoryIcon3', file: 'environment.svg', label: 'Umwelt' },
+    { cls: 'njsCategoryIcon4', file: 'aerial.svg', label: 'Luftbild' },
+    { cls: 'njsCategoryIcon5', file: 'traffic_infra.svg', label: 'Verkehr' },
+    { cls: 'njsCategoryIcon6', file: 'services.svg', label: 'Ver-/Entsorgung' },
+    { cls: 'njsCategoryIcon7', file: 'poi.svg', label: 'POI' },
+    { cls: 'njsCategoryIcon8', file: 'wander.svg', label: 'Wandern' },
+    { cls: 'njsCategoryIcon9', file: 'climate.svg', label: 'Klima' },
+    { cls: 'njsCategoryIcon10', file: 'infrastructure.svg', label: 'Infrastruktur' },
+    { cls: 'njsCategoryIcon11', file: 'oereb.svg', label: 'ÖREB' }
+  ];
+  var _iconChoose = null;      // optionaler Callback für den Symbol-Picker (z.B. Layer-Icon)
+  var _selectedAvailableLayerId = '';
+  var _previewTab = 'wms';
+
+  // NLS-Anzeigename: desc_<key> (Slash-Original) oder desc_<key mit / -> _>, sonst null
+  function nlsName(key) {
+    if (key == null || key === '') return null;
+    var k = String(key);
+    var a = _nlsAliases || {};
+    return a['desc_' + k] || a['desc_' + k.replace(/\//g, '_')] || a[k] || null;
+  }
+
+  var $ = function (id) { return document.getElementById(id); };
+  var statusEl = $('status');
+  function setStatus(msg, kind) {
+    statusEl.textContent = msg;
+    statusEl.className = 'status' + (kind ? ' ' + kind : '');
+  }
+
+  function collectUsedLayerKeys() {
+    var used = {};
+    function walk(node) {
+      if (typeof node === 'string') {
+        used[node] = true;
+        return;
+      }
+      if (!node || typeof node !== 'object') return;
+      if (Array.isArray(node)) {
+        node.forEach(walk);
+        return;
+      }
+      Object.keys(node).forEach(function (k) { walk(node[k]); });
+    }
+    walk(_doc);
+    return used;
+  }
+  function esc(s) { var d = document.createElement('div'); d.textContent = String(s == null ? '' : s); return d.innerHTML; }
+
+  // ── API-Helfer (Cookie-Auth; bei 401 → Login) ──
+  function api(action, opts) {
+    opts = opts || {};
+    var q = 'action=' + encodeURIComponent(action) + '&ctx_root=' + encodeURIComponent(_ctxRoot);
+    if (opts.query) q += '&' + opts.query;
+    var url = getApiUrl() + '?' + q;
+    var init = { method: opts.method || 'GET', credentials: 'same-origin', headers: {} };
+    if (opts.body) { init.headers['Content-Type'] = 'application/json'; init.body = JSON.stringify(opts.body); }
+    return fetch(url, init).then(function (r) {
+      if (r.status === 401 || r.status === 403) {
+        location.href = 'admin-login.php?redirect=' + encodeURIComponent(location.pathname + location.search);
+        throw new Error('nicht angemeldet');
+      }
+      return r.json().catch(function () { return { success: false, error: 'Ungültige Antwort' }; })
+        .then(function (j) { j.__status = r.status; return j; });
+    });
+  }
+
+  // ── Pfad-Navigation im Dokument ──
+  function getByPath(path) {
+    if (!_doc) return undefined;
+    var parts = path.split('|'); var cur = _doc;
+    for (var i = 0; i < parts.length; i++) {
+      if (cur == null) return undefined;
+      var k = parts[i];
+      cur = Array.isArray(cur) ? cur[parseInt(k, 10)] : cur[k];
+    }
+    return cur;
+  }
+  function parentAndKey(path) {
+    var parts = path.split('|');
+    var key = parts.pop();
+    var parent = parts.length ? getByPath(parts.join('|')) : _doc;
+    return { parent: parent, key: key, isIndex: !isNaN(parseInt(key, 10)) && Array.isArray(parent) };
+  }
+
+  // ── NLS-Anzeigename (mit Fallback auf Roh-Key) ──
+  function nodeDisplayName(node, key) {
+    if (typeof node === 'string') return nlsName(node) || node;
+    if (node && node.name) return nlsName(node.name) || node.name;
+    return nlsName(key) || key;
+  }
+
+  // =====================================================================
+  // TREE-RENDERING
+  // =====================================================================
+  function renderTree() {
+    var pane = $('treePane');
+    if (!_doc) { pane.innerHTML = '<div class="empty">Kein Katalog geladen.</div>'; return; }
+
+    // Zustand sichern (nur ab 2. Render; beim 1. gilt _treeInitialCollapsed)
+    var snapshot = _treeInitialCollapsed ? null : saveTreeState();
+
+    var lmKeys = Object.keys(_doc).filter(function (k) {
+      var v = _doc[k];
+      return v && typeof v === 'object' && !Array.isArray(v);
+    });
+    if (!lmKeys.length) {
+      pane.innerHTML = '<div class="empty">Keine LyrMgr-Sektion. Mit „+ LyrMgr“ eine anlegen.</div>';
+      return;
+    }
+    var html = '';
+    lmKeys.forEach(function (lmKey) {
+      var lm = _doc[lmKey];
+      html += '<div class="lyrmgr-block" data-lm="' + esc(lmKey) + '">';
+      html += '<h2><span class="lm-title">' + esc(lmKey) + '</span>';
+      html += '<span class="lm-type">' + esc(lm.type || 'ClassicLayerMgr') + '</span>';
+      html += '<span class="lm-actions">';
+      html += '<button class="lm-btn lm-add-cat" data-lm="' + esc(lmKey) + '" title="Kategorie hinzufügen">+ Kategorie</button>';
+      html += '<button class="lm-btn lm-del" data-lm="' + esc(lmKey) + '" title="LyrMgr-Sektion löschen">✕</button>';
+      html += '</span></h2>';
+      var structure = lm.structure;
+      html += '<ul class="tree">';
+      if (Array.isArray(structure)) {
+        structure.forEach(function (cat, i) {
+          html += renderCategory(cat, lmKey + '|structure|' + i, (cat && (cat._key || cat.name)) || String(i));
+        });
+      } else if (structure && typeof structure === 'object') {
+        Object.keys(structure).forEach(function (catKey) {
+          html += renderCategory(structure[catKey], lmKey + '|structure|' + catKey, catKey);
+        });
+      } else {
+        html += '<li class="empty" style="padding:8px 12px">Keine Kategorien. „+ Kategorie“ klicken.</li>';
+      }
+      html += '</ul></div>';
+    });
+    pane.innerHTML = html;
+    bindTreeEvents();
+
+    // Nach erstem Render: initial-Flag deaktivieren + Zustand ggf. wiederherstellen
+    if (_treeInitialCollapsed) {
+      _treeInitialCollapsed = false;
+    } else if (snapshot) {
+      restoreTreeState(snapshot);
+    }
+  }
+
+  // Rekursiv Layer-Anzahl in einem Container zählen
+  function countLayersIn(items) {
+    if (!items) return 0;
+    if (Array.isArray(items)) {
+      var c = 0;
+      items.forEach(function (it) {
+        if (typeof it === 'string') c++;
+        else if (it && it.items) c += countLayersIn(it.items);
+        else c++;
+      });
+      return c;
+    }
+    if (typeof items === 'object') {
+      var c2 = 0;
+      Object.keys(items).forEach(function (k) {
+        var grp = items[k];
+        c2 += countLayersIn(grp && grp.items ? grp.items : []);
+      });
+      return c2;
+    }
+    return 0;
+  }
+
+  function renderCategory(cat, path, key) {
+    var open = _treeInitialCollapsed ? false : (cat && cat.open !== false);
+    var label = nlsName(key) || (cat && (cat.name)) || key;
+    var catCls = cat ? (cat.iconClass || cat.iconclass || '') : '';
+    var catIcon = catCls ? catImageUrlForClass(catCls) : '';
+    var h = '<li class="node" data-path="' + esc(path) + '">';
+    h += '<div class="row category-row" data-path="' + esc(path) + '" data-kind="category">';
+    h += '<span class="twist">' + (open ? '▾' : '▸') + '</span>';
+    if (catIcon) h += '<img class="node-icon" src="' + esc(catIcon) + '" alt="" onerror="this.style.visibility=\'hidden\'">';
+    h += '<span class="node-label">' + esc(label) + '</span><span class="node-type cat">Kategorie</span>';
+    var catCount = countLayersIn(cat && cat.items);
+    if (catCount > 0) h += '<span class="node-count">(' + catCount + ')</span>';
+    h += '</div>';
+    var items = cat && cat.items;
+    h += '<ul class="tree"' + (open ? '' : ' style="display:none"') + '>';
+    if (Array.isArray(items)) {
+      items.forEach(function (item, i) {
+        h += renderItem(item, path + '|items|' + i, i);
+      });
+    } else if (items && typeof items === 'object') {
+      // Objekt-gekeyte Gruppen (echtes ClassicLayerMgr-Format)
+      Object.keys(items).forEach(function (grpKey) {
+        h += renderGroup(items[grpKey], path + '|items|' + grpKey, grpKey);
+      });
+    }
+    h += '</ul></li>';
+    return h;
+  }
+
+  function renderGroup(grp, path, key) {
+    var open = _treeInitialCollapsed ? false : (grp && grp.open !== false);
+    var h = '<li class="node" data-path="' + esc(path) + '">';
+    h += '<div class="row group-row" data-path="' + esc(path) + '" data-kind="group">';
+    h += '<span class="twist">' + (open ? '▾' : '▸') + '</span>';
+    h += '<span class="node-label">' + esc(nodeDisplayName(grp, key)) + '</span><span class="node-type grp">Gruppe</span>';
+    var grpCount = countLayersIn(grp && grp.items);
+    if (grpCount > 0) h += '<span class="node-count">(' + grpCount + ')</span>';
+    h += '</div>';
+    var items = grp && grp.items;
+    h += '<ul class="tree"' + (open ? '' : ' style="display:none"') + '>';
+    if (Array.isArray(items)) {
+      items.forEach(function (item, idx) { h += renderItem(item, path + '|items|' + idx, idx); });
+    } else if (items && typeof items === 'object') {
+      Object.keys(items).forEach(function (gk) { h += renderGroup(items[gk], path + '|items|' + gk, gk); });
+    }
+    h += '</ul></li>';
+    return h;
+  }
+
+  function renderItem(item, path, idx) {
+    if (typeof item === 'string') {
+      var label = nlsName(item) || item;
+      var ldef = _availableLayerMap[item];
+      var licon = ldef ? normalizeIconUrl(ldef.icon) : '';
+      var h = '<li class="node" data-path="' + esc(path) + '">';
+      h += '<div class="row layer-row" data-path="' + esc(path) + '" data-kind="layer">';
+      h += '<span class="twist"></span>';
+      if (licon) h += '<img class="node-icon" src="' + esc(licon) + '" alt="" onerror="this.style.visibility=\'hidden\'">';
+      h += '<span class="node-label" title="' + esc(item) + '">' + esc(label) + '</span><span class="node-type lyr">Layer</span>';
+      h += '</div></li>';
+      return h;
+    }
+    // Verschachtelte Gruppe (Objekt mit name/icon/items)
+    var open = _treeInitialCollapsed ? false : (item.open !== false);
+    var iconUrl = normalizeIconUrl(item.icon);
+    var h2 = '<li class="node" data-path="' + esc(path) + '">';
+    h2 += '<div class="row subgroup-row" data-path="' + esc(path) + '" data-kind="subgroup">';
+    h2 += '<span class="twist">' + (open ? '▾' : '▸') + '</span>';
+    if (iconUrl) h2 += '<img class="node-icon" src="' + esc(iconUrl) + '" alt="" onerror="this.style.visibility=\'hidden\'">';
+    h2 += '<span class="node-label">' + esc(nodeDisplayName(item, idx)) + '</span><span class="node-type sub">Untergruppe</span>';
+    h2 += '</div>';
+    var items = item.items;
+    h2 += '<ul class="tree"' + (open ? '' : ' style="display:none"') + '>';
+    if (Array.isArray(items)) {
+      items.forEach(function (sub, i) { h2 += renderItem(sub, path + '|items|' + i, i); });
+    } else if (items && typeof items === 'object') {
+      Object.keys(items).forEach(function (k) { h2 += renderItem(items[k], path + '|items|' + k, k); });
+    }
+    h2 += '</ul></li>';
+    return h2;
+  }
+
+  // Icon-Pfad zu ladbarer URL machen.
+  //  - core ist SHARED unter /core (nicht /<app>/core)
+  //  - tnet ist pro App -> aktueller Kontext (_ctxRoot)
+  function normalizeIconUrl(icon) {
+    if (!icon) return '';
+    var v = String(icon);
+    if (/^https?:/i.test(v) || v.indexOf('//') === 0) return v;
+    var root = _ctxRoot || APP_ROOT;
+    var mc = v.match(/\/core\/.*/);      // '../core/...' oder '/maps-dev/core/...' -> '/core/...'
+    if (mc) return mc[0];
+    var mt = v.match(/\/tnet\/.*/);      // '../tnet/...' oder '/<app>/tnet/...' -> ctx-root
+    if (mt) return root + mt[0];
+    if (v.indexOf('/') === 0) return v;
+    return v;
+  }
+
+  function bindTreeEvents() {
+    var rows = document.querySelectorAll('#treePane .row');
+    Array.prototype.forEach.call(rows, function (row) {
+      row.addEventListener('click', function (e) {
+        // Twist-Klick = auf/zu; Ctrl+Klick = alle auf-/zuklappen
+        var li = row.parentNode;
+        var childUl = li.querySelector(':scope > ul.tree');
+        if (e.target.classList.contains('twist') && childUl) {
+          var vis = childUl.style.display !== 'none';
+          if (e.ctrlKey || e.metaKey) {
+            // Alle Knoten auf gleicher Ebene + darunter toggeln
+            var allTwists = document.querySelectorAll('#treePane .twist');
+            Array.prototype.forEach.call(allTwists, function (tw) {
+              var twLi = tw.closest('li');
+              var twUl = twLi ? twLi.querySelector(':scope > ul.tree') : null;
+              if (twUl) {
+                twUl.style.display = vis ? 'none' : '';
+                tw.textContent = vis ? '▸' : '▾';
+              }
+            });
+          } else {
+            childUl.style.display = vis ? 'none' : '';
+            e.target.textContent = vis ? '▸' : '▾';
+          }
+          return;
+        }
+        selectNode(row.getAttribute('data-path'), row.getAttribute('data-kind'));
+      });
+    });
+
+    // LyrMgr-Sektion löschen
+    Array.prototype.forEach.call(document.querySelectorAll('#treePane .lm-del'), function (btn) {
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        deleteLyrmgrSection(btn.getAttribute('data-lm'));
+      });
+    });
+    // Kategorie zur Sektion hinzufügen
+    Array.prototype.forEach.call(document.querySelectorAll('#treePane .lm-add-cat'), function (btn) {
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        addCategory(btn.getAttribute('data-lm'));
+      });
+    });
+
+    // ── Drag & Drop: Umsortieren + Layer aus linker Liste einfügen ──
+    Array.prototype.forEach.call(document.querySelectorAll('#treePane .row'), function (row) {
+      var kind = row.getAttribute('data-kind');
+      // Baum-Knoten (ausser Layer-Referenz) sind ziehbar zum Umsortieren
+      row.setAttribute('draggable', 'true');
+      row.addEventListener('dragstart', function (e) {
+        e.stopPropagation();
+        e.dataTransfer.setData('text/plain', JSON.stringify({ type: 'treenode', path: row.getAttribute('data-path'), kind: kind }));
+        row.classList.add('dragging');
+      });
+      row.addEventListener('dragend', function () { row.classList.remove('dragging'); });
+      row.addEventListener('dragover', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        row.classList.add('drag-over');
+      });
+      row.addEventListener('dragleave', function () { row.classList.remove('drag-over'); });
+      row.addEventListener('drop', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        row.classList.remove('drag-over');
+        var payload = null;
+        try { payload = JSON.parse(e.dataTransfer.getData('text/plain')); } catch (ex) { return; }
+        handleTreeDrop(row.getAttribute('data-path'), row.getAttribute('data-kind'), payload);
+      });
+    });
+  }
+
+  // Items-Array eines Container-Knotens (Kategorie/Gruppe/Untergruppe) holen
+  function itemsArrayOf(path) {
+    var node = getByPath(path);
+    if (!node || typeof node !== 'object' || Array.isArray(node)) return null;
+    // Objekt-gekeyte items (echtes ClassicLayerMgr-Format) NICHT in ein Array umwandeln
+    if (node.items && typeof node.items === 'object' && !Array.isArray(node.items)) return null;
+    if (!Array.isArray(node.items)) node.items = [];
+    return node.items;
+  }
+  // Knoten aus seinem Eltern-Array entfernen und in Ziel-Array an Index einfügen
+  function moveNodeTo(srcPath, destArr, destIndex) {
+    var pk = parentAndKey(srcPath);
+    if (!Array.isArray(pk.parent)) return false;
+    var srcIdx = parseInt(pk.key, 10);
+    if (isNaN(srcIdx)) return false;
+    var moved = pk.parent.splice(srcIdx, 1)[0];
+    if (moved === undefined) return false;
+    if (pk.parent === destArr && srcIdx < destIndex) destIndex--;
+    destArr.splice(destIndex, 0, moved);
+    return true;
+  }
+
+  function handleTreeDrop(targetPath, targetKind, payload) {
+    if (!payload) return;
+    // Kategorie-Reorder: Kategorie auf Kategorie fallen lassen
+    if (payload.type === 'treenode' && payload.kind === 'category' && targetKind === 'category') {
+      var tpk = parentAndKey(targetPath);
+      if (Array.isArray(tpk.parent)) {
+        moveNodeTo(payload.path, tpk.parent, parseInt(tpk.key, 10));
+        markDirty(); renderTree();
+      }
+      return;
+    }
+    // Auf Container (Kategorie/Gruppe/Untergruppe): am Ende anhängen
+    if (targetKind === 'category' || targetKind === 'group' || targetKind === 'subgroup') {
+      var arr = itemsArrayOf(targetPath);
+      if (!arr) return;
+      if (payload.type === 'layer' && payload.id) { arr.push(payload.id); markDirty(); renderTree(); return; }
+      if (payload.type === 'treenode') {
+        // nicht in sich selbst ablegen
+        if (targetPath.indexOf(payload.path) === 0) return;
+        moveNodeTo(payload.path, arr, arr.length); markDirty(); renderTree(); return;
+      }
+      return;
+    }
+    // Auf Layer-Zeile: vor diesem Element im Eltern-Array einfügen
+    if (targetKind === 'layer') {
+      var pk = parentAndKey(targetPath);
+      if (!Array.isArray(pk.parent)) return;
+      var idx = parseInt(pk.key, 10);
+      if (payload.type === 'layer' && payload.id) { pk.parent.splice(idx, 0, payload.id); markDirty(); renderTree(); return; }
+      if (payload.type === 'treenode') { moveNodeTo(payload.path, pk.parent, idx); markDirty(); renderTree(); return; }
+    }
+  }
+
+  // ── LyrMgr-Sektionen hinzufügen/löschen ──
+  function addLyrmgrSection() {
+    if (!_doc) { setStatus('Erst eine Group laden.', 'err'); return; }
+    var key = (prompt('Name der neuen LyrMgr-Sektion (z. B. second_lyrmgr):', '') || '').trim();
+    if (!key) return;
+    if (_doc[key]) { setStatus('Sektion existiert bereits: ' + key, 'err'); return; }
+    _doc[key] = { type: 'ClassicLayerMgr', version: '3', targetMap: ['main'], structure: [] };
+    markDirty();
+    renderTree();
+  }
+  function deleteLyrmgrSection(lmKey) {
+    if (!_doc || !_doc[lmKey]) return;
+    if (!confirm('LyrMgr-Sektion „' + lmKey + '“ wirklich löschen?')) return;
+    delete _doc[lmKey];
+    _selectedPath = null;
+    markDirty();
+    renderTree();
+    $('propPane').innerHTML = '<div class="empty" style="padding:8px">Kein Element ausgewählt.</div>';
+  }
+  function addCategory(lmKey) {
+    var lm = _doc && _doc[lmKey];
+    if (!lm) return;
+    if (!Array.isArray(lm.structure)) lm.structure = [];
+    var key = (prompt('Kategorie-Schlüssel (_key):', 'neue_kategorie') || '').trim();
+    if (!key) return;
+    lm.structure.push({ _key: key, iconClass: '', iconClassActive: '', open: false, items: [] });
+    markDirty();
+    renderTree();
+  }
+
+  function selectNode(path, kind) {
+    _selectedPath = path;
+    Array.prototype.forEach.call(document.querySelectorAll('#treePane .row.selected'), function (r) { r.classList.remove('selected'); });
+    var row = document.querySelector('#treePane .row[data-path="' + cssEscape(path) + '"]');
+    if (row) row.classList.add('selected');
+    renderProperties(path, kind);
+    // Layer-Knoten (String-Referenz) direkt in der Karte prüfen
+    if (kind === 'layer') {
+      var node = getByPath(path);
+      if (typeof node === 'string') previewLayerById(node);
+    }
+  }
+  function cssEscape(s) { return String(s).replace(/["\\]/g, '\\$&'); }
+
+  // =====================================================================
+  // PROPERTY-EDITOR
+  // =====================================================================
+  function renderProperties(path, kind) {
+    var node = getByPath(path);
+    var pane = $('propPane');
+    if (node === undefined) { pane.innerHTML = '<div class="empty" style="padding:8px">—</div>'; return; }
+
+    var h = '';
+    if (kind === 'layer') {
+      h += '<h3>Layer</h3>';
+      h += nodeActionsHtml(path, kind);
+      h += field('Layer-Key', 'text', node, path, '__self');
+      h += '<div class="hint">Verweis auf einen Layer-Schlüssel im Katalog.</div>';
+      // Layer-Icon: setzt einen CSS-Override in override.css (greift im Dojo-Renderer),
+      // Entfernen stellt das Original aus layers.conf wieder her.
+      var ld = _availableLayerMap[node] || null;
+      var layerId = String(node);
+      var lrule = layerIconRuleFor(layerId);
+      // Effektiver Icon-Pfad: Override falls vorhanden, sonst Definition
+      var effIconRaw = lrule ? lrule.url : (ld && ld.icon ? ld.icon : '');
+      var effPrev = lrule ? catRulePreviewUrl(lrule.url) : (ld ? normalizeIconUrl(ld.icon) : '');
+      var effSize = lrule ? lrule.size : (function () {
+        var m = (ld && ld.icon_style || '').match(/width:\s*(\d+)px/i);
+        return m ? parseInt(m[1], 10) : 18;
+      })();
+      h += '<hr style="border:none;border-top:1px solid var(--border);margin:12px 0">';
+      h += '<h3 style="font-size:13px">Layer-Icon</h3>';
+      h += '<div class="icon-preview">' + (effPrev ? '<img src="' + esc(effPrev) + '" alt="" onerror="this.style.visibility=\'hidden\'">' : '<span class="none">Kein Icon</span>') + '<div style="flex:1"><button class="btn-sm" id="btnPickLayerIcon">Symbol wählen…</button></div></div>';
+      h += '<div class="field"><label>Icon-Pfad (icon)</label><input type="text" id="ldIcon" value="' + esc(effIconRaw) + '" placeholder="/geohost/tnet/resources/symbols/base/symbol.svg"></div>';
+      h += '<div class="field row-inline" style="gap:6px;align-items:center"><label style="margin:0">Grösse</label><input type="number" id="layerIconSize" min="8" max="128" step="1" value="' + effSize + '" style="width:64px"> px';
+      ['16', '18', '24', '32'].forEach(function (p) { h += ' <button type="button" class="btn-sm layer-sty-preset" data-px="' + p + '">' + p + '</button>'; });
+      h += '</div>';
+      h += '<div class="field row-inline" style="gap:8px;margin-top:8px">';
+      h += '<button type="button" class="btn-sm" id="btnLayerIconApply" style="background:var(--m-color-primary);color:#fff;border-color:var(--m-color-primary)">Icon setzen</button>';
+      h += '<button type="button" class="btn-sm" id="btnLayerCssClear"' + (lrule ? '' : ' disabled') + '>Entfernen (Original)</button>';
+      h += '</div>';
+      h += '<div class="hint" style="margin-top:8px">Bibliothek (public/css/images):</div>';
+      h += '<div class="cat-icon-grid" id="layerImgGrid" style="margin-top:6px">' + layerImgGridHtml(effPrev) + '</div>';
+      h += '<label class="btn-sm" style="cursor:pointer;margin-top:8px;display:inline-block">⬆ Bild hochladen & setzen<input type="file" id="layerCssUpload" accept=".png,.svg,image/png,image/svg+xml" style="display:none"></label>';
+      h += '<div class="hint">„Icon setzen" schreibt einen CSS-Override auf <code>#div_' + esc(layerId) + ' img.njsIcon.legendIcon</code> in <code>public/css/override.css</code> (via <code>content: url()</code>) — sofort sichtbar, unabhängig von <code>layers.conf</code>. „Entfernen" löscht den Override, damit wieder das Original aus <code>layers.conf</code> greift. Wirkt nach Hard-Reload.</div>';
+      pane.innerHTML = h;
+      bindPropEvents(path, kind);
+      return;
+    }
+
+    if (kind === 'category') {
+      h += '<h3>Kategorie</h3>';
+      h += nodeActionsHtml(path, kind);
+      h += field('Schlüssel (_key)', 'text', node, path, '_key');
+      h += checkbox('Offen (open)', node, path, 'open', true);
+      var curCls = node.iconClass || node.iconclass || '';
+      var curUrl = catImageUrlForClass(curCls);
+      var curSize = currentCatSizeForNode(node);
+      h += '<div class="field"><label>Kategorie-Icon</label>';
+      h += '<div class="cat-icon-current">' + (curUrl ? '<span class="cat-icon-sw" style="background-image:url(' + esc(curUrl) + ')"></span>' : '<span style="width:24px;height:24px;display:inline-block;border:1px dashed var(--border);border-radius:4px"></span>') + '<span style="font-size:11px;color:var(--muted)">' + esc(curCls || 'kein Icon') + '</span>' + (curCls ? ' <button type="button" class="btn-sm" id="btnCatIconClear">Entfernen</button>' : '') + '</div>';
+      h += '<div class="field row-inline" style="gap:6px;align-items:center;margin-top:8px"><label style="margin:0">Grösse</label><input type="number" id="catIconSize" min="8" max="256" step="1" value="' + curSize + '" style="width:64px"> px <button type="button" class="btn-sm" id="btnCatIconApplySize">übernehmen</button></div>';
+      h += '<div class="hint" style="margin-top:8px"><b>Standard-Icons</b> (Original MAP+, grau/aktiv-farbig, in allen Apps geladen — empfohlen):</div>';
+      h += '<div class="cat-icon-grid" id="catPresetGrid" style="margin-top:6px">' + catPresetGridHtml(curCls) + '</div>';
+      h += '<div class="hint" style="margin-top:10px"><b>Eigenes Bild</b> (eigene Klasse pro Kategorie, wählbare Grösse):</div>';
+      h += '<div class="cat-icon-grid" id="catImgGrid" style="margin-top:6px">' + catImgGridHtml(curUrl) + '</div>';
+      h += '<label class="btn-sm" style="cursor:pointer;margin-top:8px;display:inline-block">⬆ Bild hochladen & zuweisen<input type="file" id="catIconUpload" accept=".png,.svg,image/png,image/svg+xml" style="display:none"></label>';
+      h += '</div>';
+      h += field('Icon-Klasse (iconClass)', 'text', node, path, 'iconClass');
+      h += field('Icon-Klasse aktiv (iconClassActive)', 'text', node, path, 'iconClassActive');
+      h += '<div class="hint">Jede Kategorie erhält eine <b>eigene</b> Icon-Klasse (<code>njsCatIcon_&lt;site&gt;_&lt;key&gt;</code>). Standard-Icons in Grösse 38px nutzen direkt die Original-Klassen <code>njsCategoryIcon1…11</code>; bei anderer Grösse oder eigenem Bild wird eine eigene Regel in <code>public/css/override.css</code> geschrieben (normal grau, aktiv farbig/volle Deckung). Wirkt in der Kartenanwendung erst nach <b>Speichern</b>.</div>';
+      pane.innerHTML = h;
+      bindPropEvents(path, kind);
+      return;
+    }
+
+    // Gruppe / Untergruppe
+    h += '<h3>' + (kind === 'subgroup' ? 'Untergruppe' : 'Gruppe') + '</h3>';
+    h += nodeActionsHtml(path, kind);
+    if ('name' in node || kind === 'subgroup' || kind === 'group') h += field('Name', 'text', node, path, 'name');
+    h += field('Legende (legend)', 'text', node, path, 'legend');
+    h += checkbox('Offen (open)', node, path, 'open', true);
+    h += checkbox('Alle wählbar (selectAll)', node, path, 'selectAll', false);
+
+    if (kind === 'subgroup') {
+      // Icon-Bereich (nur verschachtelte Gruppen tragen icon/icon_style im Original)
+      h += '<hr style="border:none;border-top:1px solid var(--border);margin:12px 0">';
+      var iconUrl = normalizeIconUrl(node.icon);
+      h += '<div class="icon-preview">';
+      h += iconUrl ? '<img src="' + esc(iconUrl) + '" alt="" onerror="this.style.visibility=\'hidden\'">' : '<span class="none">Kein Icon</span>';
+      h += '<div style="flex:1"><button class="btn-sm" id="btnPickIcon">Symbol wählen…</button> ';
+      if (node.icon) h += '<button class="btn-sm" id="btnClearIcon">Entfernen</button>';
+      h += '</div></div>';
+      h += field('Icon-Pfad (icon)', 'text', node, path, 'icon');
+      // Style-Editor
+      h += styleEditor(node, path);
+      h += field('Icon-Klasse (icon_class)', 'text', node, path, 'icon_class');
+      h += '<div class="warn">Icons/Styles wirken nur im Tydac-Renderer. Der eigene TNET-Renderer ignoriert <code>icon</code>, <code>icon_style</code> und <code>icon_class</code>.</div>';
+    }
+    pane.innerHTML = h;
+    bindPropEvents(path, kind);
+  }
+
+  function field(label, type, node, path, key) {
+    var val = key === '__self' ? node : (node[key] != null ? node[key] : '');
+    return '<div class="field"><label>' + esc(label) + '</label>' +
+      '<input type="' + type + '" data-key="' + esc(key) + '" value="' + esc(val) + '"></div>';
+  }
+
+  // Kategorie-Icons (Bild via override.css) — Zuweisungen laden + override.css für Vorschau einbinden
+  function loadCategoryIconsData() {
+    api('category-icons-load').then(function (j) {
+      if (j.success && j.data) {
+        _catIconRules = j.data.rules || [];
+        _catIconImages = j.data.images || [];
+        _catIconBase = j.data.imageUrl || '';
+        injectOverrideCss();
+      }
+    }).catch(function () {});
+  }
+  function injectOverrideCss() {
+    var id = 'overrideCssLink';
+    var l = document.getElementById(id);
+    if (!l) { l = document.createElement('link'); l.id = id; l.rel = 'stylesheet'; document.head.appendChild(l); }
+    l.href = _ctxRoot + '/public/css/override.css?_=' + Date.now();
+  }
+  // Eindeutiger Kategorie-Schlüssel: echter _key/name, sonst Struktur-Key aus dem Pfad
+  function catKeyForNode(path, node) {
+    var raw = (node && (node._key || node.name)) || '';
+    if (!raw) {
+      var parts = String(path || '').split('|');
+      var idx = parts.lastIndexOf('structure');
+      raw = (idx >= 0 && parts.length > idx + 1) ? parts[idx + 1] : parts[parts.length - 1];
+    }
+    return String(raw || 'cat').toLowerCase().replace(/[^a-z0-9_\-]/g, '_');
+  }
+  function catSiteSlug() { return String(_site || 'site').toLowerCase().replace(/[^a-z0-9_\-]/g, '_'); }
+  function catClassPairForNode(path, node) {
+    var cls = 'njsCatIcon_' + catSiteSlug() + '_' + catKeyForNode(path, node);
+    return { base: cls, active: cls + '_active' };
+  }
+  // CSS-url-Wert (images/… oder /core/…) → browsertaugliche Vorschau-URL
+  function catRulePreviewUrl(cssUrl) {
+    if (!cssUrl) return '';
+    if (/^https?:\/\//i.test(cssUrl) || cssUrl.charAt(0) === '/') return cssUrl;
+    if (cssUrl.indexOf('images/') === 0) return (_catIconBase || (_ctxRoot + '/public/css/images')) + '/' + cssUrl.substring(7);
+    return cssUrl;
+  }
+  function currentCatIconSize() {
+    var el = $('catIconSize');
+    var v = el ? parseInt(el.value, 10) : NaN;
+    if (isNaN(v) || v < 8) v = 38;
+    if (v > 256) v = 256;
+    return v;
+  }
+  function currentCatSizeForNode(node) {
+    var cls = node && (node.iconClass || node.iconclass);
+    if (cls) { for (var i = 0; i < _catIconRules.length; i++) { if (_catIconRules[i]['class'] === cls && _catIconRules[i].size) return _catIconRules[i].size; } }
+    return 38;
+  }
+  function catImageUrlForClass(cls) {
+    if (!cls) return '';
+    for (var p = 0; p < CAT_ICON_PRESETS.length; p++) {
+      if (CAT_ICON_PRESETS[p].cls === cls || CAT_ICON_PRESETS[p].cls + '_active' === cls) return CAT_ICON_PRESET_BASE + CAT_ICON_PRESETS[p].file;
+    }
+    for (var i = 0; i < _catIconRules.length; i++) { if (_catIconRules[i]['class'] === cls) return catRulePreviewUrl(_catIconRules[i].url); }
+    return '';
+  }
+  // Palette der Original-Kategorie-Icons (empfohlen)
+  function catPresetGridHtml(curCls) {
+    var h = '';
+    CAT_ICON_PRESETS.forEach(function (p) {
+      var sel = (curCls === p.cls || curCls === p.cls + '_active') ? ' sel' : '';
+      h += '<button type="button" class="cat-icon-tile cat-preset-tile' + sel + '" data-cls="' + esc(p.cls) + '" title="' + esc(p.label) + ' (' + esc(p.cls) + ')"><span style="background-image:url(' + CAT_ICON_PRESET_BASE + p.file + ')"></span></button>';
+    });
+    return h;
+  }
+  // ── gemeinsame Speicher-/Klassen-Helfer ──
+  function setCatIconClasses(node, base, active) {
+    node.iconClass = base;
+    node.iconClassActive = active;
+    if ('iconclass' in node) delete node.iconclass;
+    if ('iconclassActive' in node) delete node.iconclassActive;
+    markDirty();
+  }
+  function removeCatRulesForClasses(classes) {
+    _catIconRules = _catIconRules.filter(function (r) { return classes.indexOf(r['class']) === -1; });
+  }
+  function saveCatIconsAndRefresh(path, okMsg) {
+    setStatus('Speichere Kategorie-Icon…');
+    api('category-icons-save', { method: 'POST', body: { rules: _catIconRules } }).then(function (j) {
+      if (!j.success) { setStatus('Kategorie-Icon speichern fehlgeschlagen: ' + (j.error || ''), 'err'); return; }
+      setStatus(okMsg, 'ok');
+      injectOverrideCss();
+      refreshLabels();
+      renderProperties(path, 'category');
+      if ($('prevTabLm') && $('prevTabLm').style.display !== 'none') reloadLmPreview();
+    }).catch(function (e) { setStatus('Fehler: ' + e.message, 'err'); });
+  }
+  // Schreibt eine eigene Kategorie-Klasse (normal grau + aktiv farbig) mit Grösse in override.css
+  function writeCatIconRules(path, node, normalUrl, activeUrl, size) {
+    var pair = catClassPairForNode(path, node);
+    setCatIconClasses(node, pair.base, pair.active);
+    removeCatRulesForClasses([pair.base, pair.active]);
+    _catIconRules.push({ 'class': pair.base, url: normalUrl, size: size, opacity: 0.5 });
+    _catIconRules.push({ 'class': pair.active, url: activeUrl, size: size, opacity: 1 });
+    saveCatIconsAndRefresh(path, 'Kategorie-Icon gespeichert (' + size + 'px).');
+  }
+  function findCatPreset(cls) {
+    for (var i = 0; i < CAT_ICON_PRESETS.length; i++) { if (CAT_ICON_PRESETS[i].cls === cls) return CAT_ICON_PRESETS[i]; }
+    return null;
+  }
+  // Standard-Icon zuweisen: bei Grösse 38px die Original-Klasse (shared), sonst eigene Klasse mit Preset-SVGs
+  function assignCategoryPreset(path, node, presetCls) {
+    var preset = findCatPreset(presetCls);
+    if (!node || !preset) return;
+    var size = currentCatIconSize();
+    var pair = catClassPairForNode(path, node);
+    if (size === 38) {
+      setCatIconClasses(node, presetCls, presetCls + '_active');
+      removeCatRulesForClasses([pair.base, pair.active]);
+      saveCatIconsAndRefresh(path, 'Standard-Icon zugewiesen: ' + presetCls);
+    } else {
+      var base = CAT_ICON_PRESET_BASE + preset.file;
+      var active = CAT_ICON_PRESET_BASE + preset.file.replace(/\.svg$/i, '_active.svg');
+      writeCatIconRules(path, node, base, active, size);
+    }
+  }
+  function catImgGridHtml(curUrl) {
+    var seen = {}, h = '';
+    var list = [];
+    _catIconImages.forEach(function (im) { if (im && im.file) list.push({ file: im.file, disp: im.url }); });
+    _catIconRules.forEach(function (r) { if (r && r.file) list.push({ file: r.file, disp: catRulePreviewUrl(r.url) }); });
+    list.forEach(function (r) {
+      if (!r.file || seen[r.file]) return; seen[r.file] = 1;
+      var sel = (curUrl && r.disp === curUrl) ? ' sel' : '';
+      h += '<button type="button" class="cat-icon-tile cat-img-tile' + sel + '" data-file="' + esc(r.file) + '" title="' + esc(r.file) + '"><span style="background-image:url(' + esc(r.disp) + ')"></span></button>';
+    });
+    return h || '<span style="font-size:11px;color:var(--muted)">Noch keine Bilder — unten hochladen.</span>';
+  }
+  // Eigenes Bild zuweisen: eigene Kategorie-Klasse, normal grau + aktiv volle Deckung
+  function assignCategoryImage(path, node, file) {
+    if (!node || !file) return;
+    var size = currentCatIconSize();
+    var cssUrl = 'images/' + file;
+    writeCatIconRules(path, node, cssUrl, cssUrl, size);
+  }
+  // Grösse auf das aktuelle Icon anwenden (Preset oder eigenes Bild)
+  function reapplyCatIconSize(path) {
+    var node = getByPath(path);
+    if (!node) return;
+    var cls = node.iconClass || node.iconclass || '';
+    if (!cls) { setStatus('Kein Icon gewählt.', 'err'); return; }
+    if (findCatPreset(cls)) { assignCategoryPreset(path, node, cls); return; }
+    var pair = catClassPairForNode(path, node);
+    var normal = null, active = null;
+    for (var i = 0; i < _catIconRules.length; i++) {
+      if (_catIconRules[i]['class'] === pair.base) normal = _catIconRules[i];
+      if (_catIconRules[i]['class'] === pair.active) active = _catIconRules[i];
+    }
+    if (!normal) { setStatus('Icon-Regel nicht gefunden — bitte Icon neu wählen.', 'err'); return; }
+    writeCatIconRules(path, node, normal.url, (active ? active.url : normal.url), currentCatIconSize());
+  }
+  function clearCategoryIcon(path, node) {
+    if (!node) return;
+    var pair = catClassPairForNode(path, node);
+    removeCatRulesForClasses([pair.base, pair.active]);
+    delete node.iconClass;
+    delete node.iconClassActive;
+    if ('iconclass' in node) delete node.iconclass;
+    if ('iconclassActive' in node) delete node.iconclassActive;
+    markDirty();
+    saveCatIconsAndRefresh(path, 'Kategorie-Icon entfernt.');
+  }
+  function uploadCategoryIcon(fileInput, path) {
+    var f = fileInput.files && fileInput.files[0];
+    if (!f) return;
+    var fd = new FormData();
+    fd.append('icon', f);
+    setStatus('Lade Kategorie-Icon hoch…');
+    fetch(getApiUrl() + '?action=upload-category-icon&ctx_root=' + encodeURIComponent(_ctxRoot), { method: 'POST', credentials: 'same-origin', body: fd })
+      .then(function (r) {
+        if (r.status === 401 || r.status === 403) { location.href = 'admin-login.php?redirect=' + encodeURIComponent(location.pathname); throw new Error('nicht angemeldet'); }
+        return r.json();
+      })
+      .then(function (j) {
+        if (!j.success) { setStatus('Upload-Fehler: ' + (j.error || ''), 'err'); return; }
+        var node = getByPath(path);
+        if (node) assignCategoryImage(path, node, j.data.file);
+      })
+      .catch(function (e) { setStatus('Upload-Fehler: ' + e.message, 'err'); })
+      .finally(function () { fileInput.value = ''; });
+  }
+
+  // =====================================================================
+  // LAYER-ICON per CSS überschreiben (override.css, #div_<layerId> img.legendIcon)
+  // =====================================================================
+  function loadLayerIconsData() {
+    api('layer-icons-load').then(function (j) {
+      if (j.success && j.data) {
+        _layerIconRules = j.data.rules || [];
+        if (!_catIconImages.length && j.data.images) _catIconImages = j.data.images;
+        if (!_catIconBase && j.data.imageUrl) _catIconBase = j.data.imageUrl;
+        injectOverrideCss();
+      }
+    }).catch(function () {});
+  }
+  function layerIconRuleFor(layerId) {
+    for (var i = 0; i < _layerIconRules.length; i++) { if (_layerIconRules[i].layerId === layerId) return _layerIconRules[i]; }
+    return null;
+  }
+  function currentLayerIconSize() {
+    var el = $('layerIconSize');
+    var v = el ? parseInt(el.value, 10) : NaN;
+    if (isNaN(v) || v < 8) v = 18;
+    if (v > 128) v = 128;
+    return v;
+  }
+  function layerImgGridHtml(curUrl) {
+    var seen = {}, h = '';
+    var list = [];
+    _catIconImages.forEach(function (im) { if (im && im.file) list.push({ file: im.file, disp: im.url }); });
+    list.forEach(function (r) {
+      if (!r.file || seen[r.file]) return; seen[r.file] = 1;
+      var sel = (curUrl && r.disp === curUrl) ? ' sel' : '';
+      h += '<button type="button" class="cat-icon-tile layer-img-tile' + sel + '" data-file="' + esc(r.file) + '" title="' + esc(r.file) + '"><span style="background-image:url(' + esc(r.disp) + ')"></span></button>';
+    });
+    return h || '<span style="font-size:11px;color:var(--muted)">Noch keine Bilder — unten hochladen.</span>';
+  }
+  function saveLayerIconsAndRefresh(path, okMsg) {
+    setStatus('Speichere Layer-Icon (CSS)…');
+    api('layer-icons-save', { method: 'POST', body: { rules: _layerIconRules } }).then(function (j) {
+      if (!j.success) { setStatus('Layer-Icon (CSS) speichern fehlgeschlagen: ' + (j.error || ''), 'err'); return; }
+      setStatus(okMsg, 'ok');
+      injectOverrideCss();
+      renderProperties(path, 'layer');
+    }).catch(function (e) { setStatus('Fehler: ' + e.message, 'err'); });
+  }
+  function assignLayerCssIcon(path, layerId, cssUrl, size) {
+    if (!layerId || !cssUrl) return;
+    _layerIconRules = _layerIconRules.filter(function (r) { return r.layerId !== layerId; });
+    _layerIconRules.push({ layerId: layerId, url: cssUrl, size: size });
+    markDirty();
+    saveLayerIconsAndRefresh(path, 'Layer-Icon (CSS) gespeichert (' + size + 'px).');
+  }
+  function clearLayerCssIcon(path, layerId) {
+    if (!layerId) return;
+    _layerIconRules = _layerIconRules.filter(function (r) { return r.layerId !== layerId; });
+    markDirty();
+    saveLayerIconsAndRefresh(path, 'Layer-Icon-Override (CSS) entfernt.');
+  }
+  function uploadLayerCssIcon(fileInput, path, layerId) {
+    var f = fileInput.files && fileInput.files[0];
+    if (!f) return;
+    var fd = new FormData();
+    fd.append('icon', f);
+    setStatus('Lade Layer-Icon hoch…');
+    fetch(getApiUrl() + '?action=upload-category-icon&ctx_root=' + encodeURIComponent(_ctxRoot), { method: 'POST', credentials: 'same-origin', body: fd })
+      .then(function (r) {
+        if (r.status === 401 || r.status === 403) { location.href = 'admin-login.php?redirect=' + encodeURIComponent(location.pathname); throw new Error('nicht angemeldet'); }
+        return r.json();
+      })
+      .then(function (j) {
+        if (!j.success) { setStatus('Upload-Fehler: ' + (j.error || ''), 'err'); return; }
+        assignLayerCssIcon(path, layerId, 'images/' + j.data.file, currentLayerIconSize());
+      })
+      .catch(function (e) { setStatus('Upload-Fehler: ' + e.message, 'err'); })
+      .finally(function () { fileInput.value = ''; });
+  }
+  function fastApiTargetForCtx() {
+    if (_ctxRoot === '/maps-dev') return 'dev';
+    if (_ctxRoot === '/geohost') return 'geohost';
+    if (_ctxRoot === '/edit') return 'edit';
+    return 'prod';
+  }
+
+  // Layer-Icon in die Layer-Definition schreiben (DB-first: config_bundle_store; sonst FastAPI-Datei)
+  function saveLayerDefIcon(layerKey) {
+    var ld = _availableLayerMap[layerKey];
+    if (!ld) { setStatus('Layer nicht im Katalog.', 'err'); return; }
+    var icon = ($('ldIcon') && $('ldIcon').value || '').trim();
+    var style = ($('ldIconStyle') && $('ldIconStyle').value || '').trim();
+    var source = ld.source || 'core';
+    var isDb = source.indexOf('db:') === 0;
+
+    setStatus('Speichere Layer-Icon…');
+
+    function afterOk() {
+      ld.icon = icon || undefined;
+      ld.icon_style = style || undefined;
+      setStatus('Layer-Icon gespeichert (' + (ld.sourceFile || '') + ').', 'ok');
+      refreshLabels();
+      renderProperties(_selectedPath, 'layer');
+      if ($('prevTabLm') && $('prevTabLm').style.display !== 'none') reloadLmPreview();
+    }
+
+    if (isDb) {
+      // DB-first: config_bundle_store direkt aktualisieren (PHP darf DB schreiben)
+      var kuerzel = ld.kuerzel || '';
+      var fileName = (ld.sourceFile || '').split('/').pop();
+      if (!kuerzel || !fileName) { setStatus('Layer ohne Bundle/Datei — nicht speicherbar.', 'err'); return; }
+      api('save-layer-props-db', { method: 'POST', body: { layerId: layerKey, props: { icon: icon, icon_style: style }, kuerzel: kuerzel, fileName: fileName } })
+        .then(function (j) {
+          if (!j.success) { setStatus('Layer-Icon (DB) speichern fehlgeschlagen: ' + (j.error || ''), 'err'); return; }
+          afterOk();
+        }).catch(function (e) { setStatus('Fehler: ' + e.message, 'err'); });
+      return;
+    }
+
+    // Datei-basiert: FastAPI save-layer-props
+    if (!ld.sourceFile) { setStatus('Layer hat keine Quelldatei — Icon nicht speicherbar.', 'err'); return; }
+    var body = { layerId: layerKey, props: { icon: icon, icon_style: style }, sourceFile: ld.sourceFile, source: source };
+    if (source === 'profile') { body.target = 'profile'; body.profile = _profile; }
+    else { body.target = 'original'; }
+    fetch('/gapi/ags2mapplus/save-layer-props?target=' + encodeURIComponent(fastApiTargetForCtx()), {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        if (!j || j.success === false) { setStatus('Layer-Icon speichern fehlgeschlagen: ' + ((j && (j.detail || j.error)) || ''), 'err'); return; }
+        afterOk();
+      })
+      .catch(function (e) { setStatus('Fehler: ' + e.message, 'err'); });
+  }
+
+  // Knoten-Aktionen (Löschen / Gruppe hinzufügen / verschieben)
+  function nodeActionsHtml(path, kind) {
+    var h = '<div class="field row-inline" style="gap:6px;flex-wrap:wrap;margin-bottom:12px">';
+    h += '<button class="btn-sm na-up" title="Nach oben">▲</button>';
+    h += '<button class="btn-sm na-down" title="Nach unten">▼</button>';
+    if (kind === 'category' || kind === 'group' || kind === 'subgroup') {
+      h += '<button class="btn-sm na-add-group">+ Gruppe</button>';
+    }
+    h += '<button class="btn-sm na-del" style="color:#c0392b;border-color:#c0392b">Löschen</button>';
+    h += '</div>';
+    return h;
+  }
+
+  function moveNodeDir(path, dir) {
+    var pk = parentAndKey(path);
+    if (!Array.isArray(pk.parent)) return;
+    var i = parseInt(pk.key, 10); var j = i + dir;
+    if (isNaN(i) || j < 0 || j >= pk.parent.length) return;
+    var tmp = pk.parent[i]; pk.parent[i] = pk.parent[j]; pk.parent[j] = tmp;
+    markDirty(); renderTree();
+    var parts = path.split('|'); parts[parts.length - 1] = String(j);
+    var newPath = parts.join('|');
+    var row = document.querySelector('#treePane .row[data-path="' + cssEscape(newPath) + '"]');
+    if (row) selectNode(newPath, row.getAttribute('data-kind'));
+  }
+
+  function deleteNode(path) {
+    var pk = parentAndKey(path);
+    if (!Array.isArray(pk.parent)) return;
+    var node = getByPath(path);
+    var label = (typeof node === 'string') ? node : ((node && (node._key || node.name)) || 'Element');
+    if (!confirm('„' + label + '“ löschen?')) return;
+    pk.parent.splice(parseInt(pk.key, 10), 1);
+    _selectedPath = null; markDirty(); renderTree();
+    $('propPane').innerHTML = '<div class="empty" style="padding:8px">Kein Element ausgewählt.</div>';
+  }
+
+  function addGroupToNode(path) {
+    var arr = itemsArrayOf(path);
+    if (!arr) return;
+    var name = (prompt('Name der neuen Gruppe:', 'Neue Gruppe') || '').trim();
+    if (!name) return;
+    arr.push({ name: name, open: false, items: [] });
+    markDirty(); renderTree();
+  }
+  function checkbox(label, node, path, key, defTrue) {
+    var checked = key in node ? node[key] !== false : defTrue;
+    return '<div class="field row-inline"><input type="checkbox" data-key="' + esc(key) + '"' + (checked ? ' checked' : '') + '><label>' + esc(label) + '</label></div>';
+  }
+  function styleEditor(node, path) {
+    var st = node.icon_style || '';
+    var w = (st.match(/width:\s*(\d+)px/i) || [])[1] || '';
+    var hgt = (st.match(/height:\s*(\d+)px/i) || [])[1] || '';
+    var h = '<div class="field"><label>Icon-Grösse</label><div class="field row-inline">';
+    h += 'B <input type="text" id="styW" style="width:56px" value="' + esc(w) + '"> px ';
+    h += 'H <input type="text" id="styH" style="width:56px" value="' + esc(hgt) + '"> px';
+    h += '</div></div>';
+    h += '<div class="field row-inline" style="gap:6px;flex-wrap:wrap">';
+    ['16', '18', '24', '32'].forEach(function (p) {
+      h += '<button class="btn-sm sty-preset" data-px="' + p + '">' + p + 'px</button>';
+    });
+    h += '</div>';
+    h += field('Icon-Style (icon_style)', 'text', node, path, 'icon_style');
+    return h;
+  }
+
+  function bindPropEvents(path, kind) {
+    var node = getByPath(path);
+    var pane = $('propPane');
+    // Knoten-Aktionen
+    var naUp = pane.querySelector('.na-up'); if (naUp) naUp.addEventListener('click', function () { moveNodeDir(path, -1); });
+    var naDn = pane.querySelector('.na-down'); if (naDn) naDn.addEventListener('click', function () { moveNodeDir(path, 1); });
+    var naAg = pane.querySelector('.na-add-group'); if (naAg) naAg.addEventListener('click', function () { addGroupToNode(path); });
+    var naDel = pane.querySelector('.na-del'); if (naDel) naDel.addEventListener('click', function () { deleteNode(path); });
+    // Kategorie-Icon: Standard-Presets (njsCategoryIcon1..11)
+    Array.prototype.forEach.call(pane.querySelectorAll('.cat-preset-tile'), function (b) {
+      b.addEventListener('click', function () {
+        assignCategoryPreset(path, getByPath(path), b.getAttribute('data-cls'));
+      });
+    });
+    // Kategorie-Icon: Bild-Tiles (zuweisen) + Upload
+    Array.prototype.forEach.call(pane.querySelectorAll('.cat-img-tile'), function (b) {
+      b.addEventListener('click', function () {
+        assignCategoryImage(path, getByPath(path), b.getAttribute('data-file'));
+      });
+    });
+    var catUp = pane.querySelector('#catIconUpload');
+    if (catUp) catUp.addEventListener('change', function () { uploadCategoryIcon(this, path); });
+    var catClr = pane.querySelector('#btnCatIconClear');
+    if (catClr) catClr.addEventListener('click', function () { clearCategoryIcon(path, getByPath(path)); });
+    var catSize = pane.querySelector('#btnCatIconApplySize');
+    if (catSize) catSize.addEventListener('click', function () { reapplyCatIconSize(path); });
+    // Layer-Icon: Picker (setzt Icon-Pfad), Grössen-Presets, „Icon setzen" (CSS-Override), Entfernen
+    var btnPickLd = pane.querySelector('#btnPickLayerIcon');
+    if (btnPickLd) btnPickLd.addEventListener('click', function () {
+      _iconChoose = function (url) {
+        if ($('ldIcon')) $('ldIcon').value = url;
+        var prev = pane.querySelector('.icon-preview');
+        if (prev) {
+          var img = prev.querySelector('img');
+          var pu = normalizeIconUrl(url);
+          if (!img) { img = document.createElement('img'); prev.insertBefore(img, prev.firstChild); var none = prev.querySelector('.none'); if (none) none.remove(); }
+          img.src = pu; img.style.visibility = 'visible';
+        }
+        setStatus('Icon gewählt — „Icon setzen“ klicken.', 'ok');
+      };
+      openIconPicker(null);
+    });
+    if (kind === 'layer') {
+      var layerCssId = String(getByPath(path));
+      var lSize = pane.querySelector('#layerIconSize');
+      Array.prototype.forEach.call(pane.querySelectorAll('.layer-sty-preset'), function (b) {
+        b.addEventListener('click', function () { if (lSize) lSize.value = b.getAttribute('data-px'); });
+      });
+      var btnApply = pane.querySelector('#btnLayerIconApply');
+      if (btnApply) btnApply.addEventListener('click', function () {
+        var url = ($('ldIcon') && $('ldIcon').value || '').trim();
+        if (!url) { setStatus('Bitte Icon-Pfad angeben oder Symbol wählen.', 'err'); return; }
+        assignLayerCssIcon(path, layerCssId, url, currentLayerIconSize());
+      });
+      var lCssClear = pane.querySelector('#btnLayerCssClear');
+      if (lCssClear) lCssClear.addEventListener('click', function () { clearLayerCssIcon(path, layerCssId); });
+      var lCssUp = pane.querySelector('#layerCssUpload');
+      if (lCssUp) lCssUp.addEventListener('change', function () { uploadLayerCssIcon(this, path, layerCssId); });
+      Array.prototype.forEach.call(pane.querySelectorAll('.layer-img-tile'), function (b) {
+        b.addEventListener('click', function () {
+          assignLayerCssIcon(path, layerCssId, 'images/' + b.getAttribute('data-file'), currentLayerIconSize());
+        });
+      });
+    }
+    // Text-/Checkbox-Felder
+    Array.prototype.forEach.call(pane.querySelectorAll('input[data-key]'), function (inp) {
+      var evt = inp.type === 'checkbox' ? 'change' : 'input';
+      inp.addEventListener(evt, function () {
+        var key = inp.getAttribute('data-key');
+        if (key === '__self') { // Layer-Key (String-Item) ersetzen
+          var pk = parentAndKey(path);
+          pk.parent[parseInt(pk.key, 10)] = inp.value;
+          markDirty(); refreshLabels();
+          return;
+        }
+        if (inp.type === 'checkbox') node[key] = inp.checked;
+        else {
+          if (inp.value === '') delete node[key]; else node[key] = inp.value;
+        }
+        markDirty();
+        if (key === 'name' || key === 'icon' || key === '_key') { refreshLabels(); }
+      });
+    });
+    // Style-Presets + Grösse
+    var styW = $('styW'), styH = $('styH');
+    function applyStyle() {
+      var w = (styW && styW.value || '').trim(), hh = (styH && styH.value || '').trim();
+      var parts = [];
+      if (w) parts.push('width:' + w + 'px');
+      if (hh) parts.push('height:' + hh + 'px');
+      var s = parts.join(';');
+      if (s) node.icon_style = s; else delete node.icon_style;
+      var box = pane.querySelector('input[data-key="icon_style"]');
+      if (box) box.value = s;
+      markDirty();
+    }
+    if (styW) styW.addEventListener('input', applyStyle);
+    if (styH) styH.addEventListener('input', applyStyle);
+    Array.prototype.forEach.call(pane.querySelectorAll('.sty-preset'), function (b) {
+      b.addEventListener('click', function () {
+        if (styW) styW.value = b.getAttribute('data-px');
+        if (styH) styH.value = b.getAttribute('data-px');
+        applyStyle();
+      });
+    });
+    // Icon-Picker
+    var btnPick = $('btnPickIcon');
+    if (btnPick) btnPick.addEventListener('click', function () { openIconPicker(path); });
+    var btnClear = $('btnClearIcon');
+    if (btnClear) btnClear.addEventListener('click', function () {
+      delete node.icon; markDirty(); renderProperties(path, kind); refreshLabels();
+    });
+  }
+
+  function refreshLabels() {
+    // Nur betroffene Zeile aktualisieren wäre optimal; für Einfachheit: Tree neu rendern & Auswahl halten.
+    var keep = _selectedPath;
+    renderTree();
+    if (keep) {
+      var row = document.querySelector('#treePane .row[data-path="' + cssEscape(keep) + '"]');
+      if (row) { row.classList.add('selected'); }
+    }
+    renderLayerList();
+  }
+
+  // =====================================================================
+  // VERFUEGBARE LAYER
+  // =====================================================================
+  function loadAvailableLayers(profile) {
+    var q = profile ? ('profile=' + encodeURIComponent(profile)) : '';
+    $('layerList').innerHTML = '<div class="empty">Lade Layer…</div>';
+    $('layerCount').textContent = '…';
+    api('list-all-layers', { query: q }).then(function (j) {
+      if (!j.success) {
+        $('layerList').innerHTML = '<div class="empty">Fehler: ' + esc(j.error || '') + '</div>';
+        $('layerCount').textContent = '!';
+        return;
+      }
+      _availableLayers = (j.data && j.data.layers) ? j.data.layers : [];
+      _availableLayerMap = {};
+      _availableLayers.forEach(function (l) { _availableLayerMap[l.id] = l; });
+      _nlsAliases = (j.data && j.data.aliases) ? j.data.aliases : {};
+      updateTagFilter();
+      renderLayerList();
+      // NLS-Namen sind jetzt verfügbar → Baum neu beschriften
+      if (_doc) refreshLabels();
+    }).catch(function (e) {
+      $('layerList').innerHTML = '<div class="empty">Fehler: ' + esc(e.message) + '</div>';
+      $('layerCount').textContent = '!';
+    });
+  }
+
+  // Quell-Gruppierung — identisch zu Tree-Builder V2
+  function getLayerSourceKey(layer) {
+    var url = layer.url || '';
+    var type = (layer.layerType || layer.type || '').toLowerCase();
+
+    if (type === 'arcgisrest' || url.indexOf('agsproxy') !== -1) {
+      var pm = url.match(/agsproxy\/([^\/]+\/[^\/]+)/i);
+      if (pm) return { key: 'arcgis:' + pm[1], label: pm[1], typeTag: 'arcgis' };
+      var qm = url.match(/[?&]path=([^&]+)/i);
+      if (qm) {
+        var p = qm[1].replace(/\/MapServer.*/i, '').replace(/\/FeatureServer.*/i, '');
+        return { key: 'arcgis:' + p, label: p, typeTag: 'arcgis' };
+      }
+      return { key: 'arcgis:other', label: 'ArcGIS (andere)', typeTag: 'arcgis' };
+    }
+
+    if ((type === 'wms' || type === 'tilewms') && url.indexOf('/qmap/') !== -1) {
+      var qm2 = url.match(/\/qmap\/(.+?)(?:\?|$)/);
+      if (qm2) return { key: 'qgis:' + qm2[1], label: qm2[1], typeTag: 'qgis' };
+      return { key: 'qgis:other', label: 'QGIS (andere)', typeTag: 'qgis' };
+    }
+
+    if (type === 'wms' || type === 'tilewms') {
+      if (url) {
+        try {
+          var tTag = type === 'tilewms' ? 'tilewms' : 'wms';
+          var mapMatch = url.match(/[?&]map=([^&]+)/i);
+          if (mapMatch) {
+            var mapFile = mapMatch[1].replace(/\.map[&]?$/, '').replace(/\.map$/, '');
+            var sfLabel = 'MapServer: ' + mapFile.split('/').pop();
+            return { key: 'wms:' + sfLabel, label: sfLabel, typeTag: tTag };
+          }
+          if (url.charAt(0) === '/' && url.indexOf('//') !== 0) {
+            var pathLabel = layer.sourceFile ? layer.sourceFile.replace(/\.conf$/, '') : url.split('?')[0];
+            return { key: 'wms:' + pathLabel, label: pathLabel, typeTag: tTag };
+          }
+          var u = new URL(url, location.origin);
+          var label = u.hostname + u.pathname.replace(/\/+$/, '');
+          return { key: 'wms:' + label, label: label, typeTag: tTag };
+        } catch (e) {}
+      }
+      return { key: 'wms:other', label: 'WMS (andere)', typeTag: 'wms' };
+    }
+
+    if (type === 'wmts') {
+      if (url) {
+        try {
+          var u2 = new URL(url, location.origin);
+          return { key: 'wmts:' + u2.hostname, label: u2.hostname, typeTag: 'wmts' };
+        } catch (e) {}
+      }
+      return { key: 'wmts:other', label: 'WMTS (andere)', typeTag: 'wmts' };
+    }
+
+    if (type) return { key: type + ':' + type, label: type, typeTag: type.toLowerCase() };
+    return { key: 'other', label: 'Andere', typeTag: '' };
+  }
+
+  var _sourceGroupState = {};
+  var _treeInitialCollapsed = true; // Baum startet zugeklappt; Ctrl+Click zum Aufklappen
+  var _treeStateSnapshot = null;    // Gespeicherter Zustand vor Re-Render
+
+  // Collapse-Zustand aller Knoten sichern (path -> offen/zu)
+  function saveTreeState() {
+    var snapshot = {};
+    var pane = $('treePane');
+    if (!pane) return snapshot;
+    Array.prototype.forEach.call(pane.querySelectorAll('.row[data-path]'), function (row) {
+      var li = row.parentNode;
+      var childUl = li ? li.querySelector(':scope > ul.tree') : null;
+      if (childUl) {
+        snapshot[row.getAttribute('data-path')] = childUl.style.display !== 'none';
+      }
+    });
+    return snapshot;
+  }
+
+  // Collapse-Zustand nach Re-Render wiederherstellen
+  function restoreTreeState(snapshot) {
+    if (!snapshot) return;
+    var pane = $('treePane');
+    if (!pane) return;
+    Array.prototype.forEach.call(pane.querySelectorAll('.row[data-path]'), function (row) {
+      var path = row.getAttribute('data-path');
+      if (!(path in snapshot)) return;
+      var li = row.parentNode;
+      var childUl = li ? li.querySelector(':scope > ul.tree') : null;
+      var twist = row.querySelector('.twist');
+      if (!childUl) return;
+      var open = snapshot[path];
+      childUl.style.display = open ? '' : 'none';
+      if (twist) twist.textContent = open ? '▾' : '▸';
+    });
+  }
+
+  function updateTagFilter() {
+    var sel = $('layerTagFilter');
+    if (!sel) return;
+    var tagCounts = {};
+    _availableLayers.forEach(function (l) {
+      var tags = (l.tags && l.tags.length) ? l.tags : [];
+      tags.forEach(function (t) { tagCounts[t] = (tagCounts[t] || 0) + 1; });
+    });
+    var cur = sel.value;
+    sel.innerHTML = '<option value="">Alle Tags (' + _availableLayers.length + ')</option>';
+    Object.keys(tagCounts).sort().forEach(function (t) {
+      var opt = document.createElement('option');
+      opt.value = t; opt.textContent = t + ' (' + tagCounts[t] + ')';
+      sel.appendChild(opt);
+    });
+    if (cur) sel.value = cur;
+  }
+
+  function renderLayerList() {
+    var list = $('layerList');
+    var q = ($('layerSearch').value || '').toLowerCase();
+    var tagFilter = $('layerTagFilter') ? $('layerTagFilter').value : '';
+
+    var groups = {};
+    var order = [];
+    var totalCount = 0;
+
+    _availableLayers.forEach(function (l, idx) {
+      if (tagFilter) {
+        var tags = (l.tags && l.tags.length) ? l.tags : [];
+        if (tags.indexOf(tagFilter) === -1) return;
+      }
+      var name = l.name || l.id || '(unbenannt)';
+      if (q && name.toLowerCase().indexOf(q) === -1 && String(l.id || '').toLowerCase().indexOf(q) === -1) return;
+      totalCount++;
+      var src = getLayerSourceKey(l);
+      if (!groups[src.key]) { groups[src.key] = { info: src, items: [] }; order.push(src.key); }
+      groups[src.key].items.push({ layer: l, idx: idx });
+    });
+
+    $('layerCount').textContent = String(totalCount);
+
+    var html = '';
+    order.forEach(function (key) {
+      var grp = groups[key];
+      var collapsed = (q || _sourceGroupState[key] === false) ? '' : ' collapsed';
+      html += '<div class="tb-source-group' + collapsed + '" data-src-key="' + esc(key) + '">';
+      html += '<div class="tb-source-head">';
+      html += '<span class="src-arrow">▼</span>';
+      if (grp.info.typeTag) html += '<span class="src-type ' + esc(grp.info.typeTag) + '">' + esc(grp.info.typeTag) + '</span>';
+      html += '<span class="src-label" title="' + esc(grp.info.label) + '">' + esc(grp.info.label) + '</span>';
+      html += '<span class="src-badge">' + grp.items.length + '</span>';
+      html += '<button class="src-verify" data-src-key="' + esc(key) + '" title="Dienst-Verfügbarkeit prüfen">✓ Verify</button>';
+      html += '</div>';
+      html += '<div class="tb-source-body">';
+      grp.items.forEach(function (item) {
+        var l = item.layer;
+        var name = l.name || l.id || '(unbenannt)';
+        html += '<div class="tb-layer-item' + (_selectedAvailableLayerId === l.id ? ' sel' : '') + '" draggable="true" data-layer-idx="' + item.idx + '" data-layer-id="' + esc(l.id) + '">';
+        html += '<span class="grip">⠿</span>';
+        html += '<span class="lname" title="' + esc(l.id) + '">' + esc(name) + '</span>';
+        if (l.source) {
+          var srcLabel = l.source === 'core' ? 'core' : (l.source === 'override' ? 'ovr' : 'prof');
+          html += '<span class="lyr-src src-' + esc(l.source) + '" title="' + esc(l.sourceFilePath || l.sourceFile || l.source) + '">' + srcLabel + '</span>';
+        }
+        html += '</div>';
+      });
+      html += '</div></div>';
+    });
+
+    if (!html) html = '<div class="empty">Keine Layer gefunden.</div>';
+    list.innerHTML = html;
+
+    Array.prototype.forEach.call(list.querySelectorAll('.tb-source-head'), function (head) {
+      head.addEventListener('click', function (e) {
+        if (e.target.closest('.src-verify')) return;
+        var group = head.closest('.tb-source-group');
+        var key = group.getAttribute('data-src-key');
+        if (e.ctrlKey || e.metaKey) {
+          // Alle Source-Groups auf-/zuklappen
+          var shouldCollapse = !group.classList.contains('collapsed');
+          Array.prototype.forEach.call(list.querySelectorAll('.tb-source-group'), function (g) {
+            g.classList.toggle('collapsed', shouldCollapse);
+            _sourceGroupState[g.getAttribute('data-src-key')] = shouldCollapse;
+          });
+        } else {
+          group.classList.toggle('collapsed');
+          _sourceGroupState[key] = group.classList.contains('collapsed');
+        }
+      });
+    });
+
+    Array.prototype.forEach.call(list.querySelectorAll('.src-verify'), function (btn) {
+      btn.addEventListener('click', function (e) { e.stopPropagation(); verifySourceGroup(btn.getAttribute('data-src-key')); });
+    });
+
+    Array.prototype.forEach.call(list.querySelectorAll('.tb-layer-item'), function (el) {
+      el.addEventListener('click', function () {
+        var id = el.getAttribute('data-layer-id') || '';
+        _selectedAvailableLayerId = id;
+        Array.prototype.forEach.call(list.querySelectorAll('.tb-layer-item.sel'), function (x) { x.classList.remove('sel'); });
+        el.classList.add('sel');
+        var idx = parseInt(el.getAttribute('data-layer-idx'), 10);
+        if (!isNaN(idx) && _availableLayers[idx]) showLayerPreview(_availableLayers[idx]);
+      });
+      el.addEventListener('dragstart', function (e) {
+        e.dataTransfer.setData('text/plain', JSON.stringify({ type: 'layer', id: el.getAttribute('data-layer-id') }));
+        el.classList.add('dragging');
+      });
+      el.addEventListener('dragend', function () { el.classList.remove('dragging'); });
+    });
+  }
+
+  // Dienst-Verify — identisch zu Tree-Builder V2 (verify-services)
+  function verifySourceGroup(srcKey) {
+    var list = $('layerList');
+    var groupEl = list.querySelector('.tb-source-group[data-src-key="' + cssEscape(srcKey) + '"]');
+    if (!groupEl) return;
+    var btn = groupEl.querySelector('.src-verify');
+    if (btn && btn.classList.contains('checking')) return;
+
+    groupEl.classList.remove('collapsed');
+    _sourceGroupState[srcKey] = false;
+    if (btn) { btn.classList.add('checking'); btn.textContent = '⏳ …'; }
+
+    Array.prototype.forEach.call(groupEl.querySelectorAll('.src-verify-result'), function (el) { el.remove(); });
+    Array.prototype.forEach.call(groupEl.querySelectorAll('.verify-dot'), function (el) { el.remove(); });
+
+    var layerItems = groupEl.querySelectorAll('.tb-layer-item');
+    var urlMap = {};
+    Array.prototype.forEach.call(layerItems, function (el) {
+      var idx = parseInt(el.getAttribute('data-layer-idx'), 10);
+      var layer = _availableLayers[idx];
+      if (!layer || !layer.url) return;
+      var baseUrl = layer.url.split('?')[0];
+      if (!urlMap[baseUrl]) urlMap[baseUrl] = { url: layer.url, type: layer.layerType || layer.type || '', layerEls: [] };
+      urlMap[baseUrl].layerEls.push(el);
+    });
+
+    var urls = Object.keys(urlMap).map(function (k) { return { url: urlMap[k].url, type: urlMap[k].type }; });
+    if (urls.length === 0) {
+      if (btn) { btn.classList.remove('checking'); btn.textContent = '✓ Verify'; }
+      return;
+    }
+
+    fetch(getApiUrl() + '?action=verify-services&ctx_root=' + encodeURIComponent(_ctxRoot), {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ urls: urls })
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (resp) {
+        if (!resp.success || !resp.data) throw new Error(resp.error || 'Unbekannter Fehler');
+        var data = resp.data;
+        var head = groupEl.querySelector('.tb-source-head');
+        if (head) {
+          var badge = document.createElement('span');
+          badge.className = 'src-verify-result';
+          if (data.failed === 0) { badge.classList.add('ok'); badge.textContent = '✓ ' + data.ok + '/' + data.checked; }
+          else if (data.ok === 0) { badge.classList.add('fail'); badge.textContent = '✗ 0/' + data.checked; }
+          else { badge.classList.add('partial'); badge.textContent = '⚠ ' + data.ok + '/' + data.checked; }
+          head.insertBefore(badge, btn);
+        }
+        var resultByUrl = {};
+        (data.results || []).forEach(function (r) { resultByUrl[r.url.split('?')[0]] = r; });
+        Object.keys(urlMap).forEach(function (base) {
+          var r = resultByUrl[base];
+          if (!r) return;
+          urlMap[base].layerEls.forEach(function (el) {
+            var dot = document.createElement('span');
+            dot.className = 'verify-dot ' + (r.ok ? 'ok' : 'fail');
+            dot.title = r.ok ? ('OK (' + r.httpCode + ', ' + r.timeMs + 'ms)') : ('Fehler: ' + (r.error || 'HTTP ' + r.httpCode) + ' (' + r.timeMs + 'ms)');
+            el.appendChild(dot);
+          });
+        });
+        if (btn) { btn.classList.remove('checking'); btn.textContent = '✓ Verify'; }
+        var anyFails = list.querySelectorAll('.verify-dot.fail').length;
+        var filterBtn = $('btnVerifyFilter');
+        if (filterBtn && anyFails > 0) { filterBtn.style.display = ''; filterBtn.textContent = '✗ ' + anyFails + ' Fehler'; }
+      })
+      .catch(function (err) {
+        if (btn) { btn.classList.remove('checking'); btn.textContent = '✓ Verify'; }
+        setStatus('Verify fehlgeschlagen: ' + err.message, 'err');
+      });
+  }
+
+  function verifyAllSources() {
+    Array.prototype.forEach.call($('layerList').querySelectorAll('.tb-source-group'), function (g) {
+      verifySourceGroup(g.getAttribute('data-src-key'));
+    });
+  }
+
+  function toggleVerifyFilter() {
+    var list = $('layerList');
+    var showOnlyFails = $('btnVerifyFilter').getAttribute('data-active') !== '1';
+    Array.prototype.forEach.call(list.querySelectorAll('.tb-source-group'), function (g) {
+      var hasFail = g.querySelector('.verify-dot.fail');
+      g.style.display = (showOnlyFails && !hasFail) ? 'none' : '';
+    });
+    $('btnVerifyFilter').setAttribute('data-active', showOnlyFails ? '1' : '0');
+  }
+
+  // =====================================================================
+  // KARTENVORSCHAU (rechts, OpenLayers — analog Tree-Builder V2)
+  // =====================================================================
+  var _previewMap = null;
+  var _previewOverlay = null;
+  var _previewBaseLayers = {};
+  var _lv95Ready = false;
+  var _lv95Projection = null, _lv95Resolutions = null, _lv95TileGrid = null, _lv95Extent = null;
+  var _nwOwExtent = [2645000, 1170000, 2690000, 1210000];
+
+  function ensureLv95() {
+    if (_lv95Ready) return true;
+    if (typeof ol === 'undefined' || typeof proj4 === 'undefined') return false;
+    proj4.defs('EPSG:2056', '+proj=somerc +lat_0=46.95240555555556 +lon_0=7.439583333333333 +k_0=1 +x_0=2600000 +y_0=1200000 +ellps=bessel +towgs84=674.374,15.056,405.346,0,0,0,0 +units=m +no_defs');
+    ol.proj.proj4.register(proj4);
+    _lv95Extent = [2420000, 1030000, 2900000, 1360000];
+    _lv95Resolutions = [4000, 3750, 3500, 3250, 3000, 2750, 2500, 2250, 2000, 1750, 1500, 1250, 1000, 750, 650, 500, 250, 100, 50, 20, 10, 5, 2.5, 2, 1.5, 1, 0.5, 0.25, 0.1];
+    var matrixIds = _lv95Resolutions.map(function (r, i) { return String(i); });
+    _lv95Projection = ol.proj.get('EPSG:2056');
+    _lv95Projection.setExtent(_lv95Extent);
+    _lv95TileGrid = new ol.tilegrid.WMTS({ origin: [2420000, 1350000], resolutions: _lv95Resolutions, matrixIds: matrixIds });
+    _lv95Ready = true;
+    return true;
+  }
+
+  function wmtsBase(layerId) {
+    return new ol.source.WMTS({
+      url: 'https://wmts.geo.admin.ch/1.0.0/' + layerId + '/default/current/2056/{TileMatrix}/{TileCol}/{TileRow}.jpeg',
+      layer: layerId, matrixSet: '2056', format: 'image/jpeg',
+      projection: _lv95Projection, tileGrid: _lv95TileGrid,
+      style: 'default', requestEncoding: 'REST', crossOrigin: 'anonymous'
+    });
+  }
+
+  function initPreviewMap() {
+    if (_previewMap) return true;
+    if (!ensureLv95()) { setStatus('Kartenbibliothek (OpenLayers) noch nicht geladen.', 'err'); return false; }
+    var container = $('previewMapEl');
+    container.innerHTML = '';
+    var baseOpacity = parseInt($('opacitySlider').value, 10) / 100;
+    _previewBaseLayers.pk_grau = new ol.layer.Tile({ visible: true, opacity: baseOpacity, source: wmtsBase('ch.swisstopo.pixelkarte-grau') });
+    _previewBaseLayers.pk_farbe = new ol.layer.Tile({ visible: false, opacity: baseOpacity, source: wmtsBase('ch.swisstopo.pixelkarte-farbe') });
+    _previewBaseLayers.swissimage = new ol.layer.Tile({ visible: false, opacity: baseOpacity, source: wmtsBase('ch.swisstopo.swissimage') });
+    _previewBaseLayers.leer = new ol.layer.Tile({ visible: false });
+    _previewMap = new ol.Map({
+      target: container,
+      layers: [_previewBaseLayers.pk_grau, _previewBaseLayers.pk_farbe, _previewBaseLayers.swissimage, _previewBaseLayers.leer],
+      view: new ol.View({ projection: _lv95Projection, resolutions: _lv95Resolutions, extent: _lv95Extent }),
+      controls: ol.control.defaults.defaults({ attribution: false }).extend([new ol.control.ScaleLine()])
+    });
+    _previewMap.getView().fit(_nwOwExtent, { padding: [10, 10, 10, 10] });
+    // Basemap-Auswahl anwenden
+    var cur = $('basemapSelect').value;
+    Object.keys(_previewBaseLayers).forEach(function (k) { _previewBaseLayers[k].setVisible(k === cur); });
+    return true;
+  }
+
+  function clearPreviewOverlay() {
+    if (_previewOverlay && _previewMap) { _previewMap.removeLayer(_previewOverlay); _previewOverlay = null; }
+  }
+
+  function createOlLayer(layer) {
+    var url = layer.url || '';
+    var type = (layer.layerType || layer.type || '').toLowerCase();
+    var opacity = (layer.opacity != null) ? parseFloat(layer.opacity) : 1.0;
+    if (type === 'arcgisrest') {
+      var fullUrl = url;
+      if (url.indexOf('//') === -1) fullUrl = location.origin + url;
+      return new ol.layer.Tile({ opacity: opacity, source: new ol.source.TileArcGISRest({ url: fullUrl, params: layer.params || {}, projection: _lv95Projection }) });
+    } else if (type === 'wms' || type === 'tilewms') {
+      var wmsUrl = url.replace(/[?&]$/, '');
+      var layerName = (layer.params && layer.params.LAYERS) || layer.layerName || layer.id || '';
+      return new ol.layer.Tile({ opacity: opacity, source: new ol.source.TileWMS({ url: wmsUrl, params: Object.assign({ LAYERS: layerName, TRANSPARENT: true, SRS: 'EPSG:2056' }, layer.params || {}), projection: _lv95Projection }) });
+    }
+    return null;
+  }
+
+  function buildParamsHtml(obj, label) {
+    if (!obj || typeof obj !== 'object') return '';
+    var keys = Object.keys(obj);
+    if (!keys.length) return '';
+    var html = '<div class="pi-row" style="margin-top:4px"><span class="pi-key" style="font-weight:600;color:#4B7B81">' + esc(label) + '</span><span class="pi-val"></span></div>';
+    keys.forEach(function (k) {
+      var v = obj[k];
+      var val = (typeof v === 'object') ? JSON.stringify(v) : String(v);
+      html += '<div class="pi-row"><span class="pi-key" style="padding-left:8px;color:#8aa">' + esc(k) + '</span><span class="pi-val">' + esc(val) + '</span></div>';
+    });
+    return html;
+  }
+
+  function showLayerPreview(layer) {
+    if (!layer) return;
+    if (!initPreviewMap()) return;
+    clearPreviewOverlay();
+    var olLayer = createOlLayer(layer);
+    if (olLayer) { _previewMap.addLayer(olLayer); _previewOverlay = olLayer; }
+    var type = (layer.layerType || layer.type || '').toLowerCase();
+    var url = layer.url || '';
+    $('previewLayerType').textContent = (type || '?').replace('arcgisrest', 'ArcGIS').replace('tilewms', 'TileWMS').toUpperCase();
+    var shortUrl = url.length > 80 ? url.substring(0, 77) + '…' : url;
+    $('previewInfo').innerHTML =
+      '<div class="pi-row"><span class="pi-key">Name</span><span class="pi-val">' + esc(layer.name || layer.id) + '</span></div>'
+      + '<div class="pi-row"><span class="pi-key">ID</span><span class="pi-val">' + esc(layer.id || '') + '</span></div>'
+      + '<div class="pi-row"><span class="pi-key">Typ</span><span class="pi-val">' + esc(type) + '</span></div>'
+      + '<div class="pi-row"><span class="pi-key">URL</span><span class="pi-val" title="' + esc(url) + '">' + esc(shortUrl) + '</span></div>'
+      + (layer.opacity != null ? '<div class="pi-row"><span class="pi-key">Opazität</span><span class="pi-val">' + esc(layer.opacity) + '</span></div>' : '')
+      + buildParamsHtml(layer.params, 'params')
+      + buildParamsHtml(layer.options, 'options');
+  }
+
+  // Layer-Referenz (String im Baum) in der Karte prüfen
+  function previewLayerById(layerId) {
+    var l = _availableLayerMap[layerId];
+    if (l) { showLayerPreview(l); }
+    else {
+      $('previewLayerType').textContent = 'FEHLT';
+      $('previewInfo').innerHTML = '<div class="pi-row"><span class="pi-key">ID</span><span class="pi-val">' + esc(layerId) + '</span></div><div class="pi-row"><span class="pi-key">Status</span><span class="pi-val" style="color:#c0392b">nicht im Katalog gefunden</span></div>';
+    }
+  }
+
+  // ── WYSIWYG: LyrMgr-Vorschau (gerenderter Baum via dev-test.html) ──
+  function buildLmPreviewUrl() {
+    var group = _profile || 'public';
+    var src = ($('lmPrevSource') && $('lmPrevSource').value) || 'db';
+    return _ctxRoot + '/tnet/api/v1/dev-test.html?group=' + encodeURIComponent(group) + '&panel=both&source=' + src + '&embed=1';
+  }
+  function reloadLmPreview() {
+    var f = $('lmPrevIframe');
+    if (!f) return;
+    f.src = buildLmPreviewUrl() + '&_=' + Date.now();
+  }
+  function switchPreviewTab(which) {
+    Array.prototype.forEach.call(document.querySelectorAll('.prev-tab'), function (t) {
+      t.classList.toggle('active', t.getAttribute('data-ptab') === which);
+    });
+    $('prevTabMap').style.display = (which === 'map') ? 'flex' : 'none';
+    $('prevTabLm').style.display = (which === 'lyrmgr') ? 'flex' : 'none';
+    if (which === 'map' && _previewMap) { setTimeout(function () { _previewMap.updateSize(); }, 50); }
+    if (which === 'lyrmgr') {
+      var f = $('lmPrevIframe');
+      if (f && (f.src === 'about:blank' || f.src === '' || f.src === location.href)) reloadLmPreview();
+    }
+  }
+
+  // =====================================================================
+  // VORSCHAU (WMS/MAP, JSON, KATALOG)
+  // =====================================================================
+  function openPreview() {
+    $('previewModal').classList.add('open');
+    renderPreview();
+  }
+
+  function renderPreview() {
+    var host = $('previewContent');
+    if (_previewTab === 'json') {
+      var jsonText = _doc ? JSON.stringify(_doc, null, 2) : '{}';
+      host.innerHTML = '<textarea class="preview-json" readonly></textarea>';
+      host.querySelector('textarea').value = jsonText;
+      return;
+    }
+
+    if (_previewTab === 'catalog') {
+      var used = collectUsedLayerKeys();
+      var keys = Object.keys(used).sort();
+      if (!keys.length) {
+        host.innerHTML = '<div class="empty">Keine Layer-Referenzen im aktuellen Tydac-Baum.</div>';
+        return;
+      }
+      var h = '<div class="kv"><b>Layer im Baum:</b>' + keys.length + '</div>';
+      h += '<table style="width:100%;border-collapse:collapse;font-size:12px"><tr style="text-align:left;color:var(--muted)"><th>Layer</th><th>Status</th><th>Quelle</th></tr>';
+      keys.forEach(function (k) {
+        var l = _availableLayerMap[k];
+        var ok = !!l;
+        h += '<tr style="border-top:1px solid var(--border)"><td>' + esc(k) + '</td>';
+        h += '<td>' + (ok ? '<span style="color:#27713a">ok</span>' : '<span style="color:#c0392b">fehlt</span>') + '</td>';
+        h += '<td>' + esc(ok ? (l.source || '') : '—') + '</td></tr>';
+      });
+      h += '</table>';
+      host.innerHTML = h;
+      return;
+    }
+
+    // Default: WMS/MAP
+    var layer = _selectedAvailableLayerId ? _availableLayerMap[_selectedAvailableLayerId] : null;
+    if (!layer) {
+      host.innerHTML = '<div class="empty">Bitte links einen verfügbaren Layer auswählen, um WMS/MAP-Details zu sehen.</div>';
+      return;
+    }
+    var type = layer.type || layer.layerType || '—';
+    var url = layer.url || '—';
+    var serviceUrl = layer.serviceUrl || '';
+    var h2 = '';
+    h2 += '<div class="kv"><b>Name</b>' + esc(layer.name || layer.id || '') + '</div>';
+    h2 += '<div class="kv"><b>Layer-ID</b>' + esc(layer.id || '') + '</div>';
+    h2 += '<div class="kv"><b>Typ</b>' + esc(type) + '</div>';
+    h2 += '<div class="kv"><b>Quelle</b>' + esc(layer.source || '') + '</div>';
+    h2 += '<div class="kv"><b>URL</b>' + esc(url) + '</div>';
+    if (serviceUrl) h2 += '<div class="kv"><b>Service-URL</b>' + esc(serviceUrl) + '</div>';
+    h2 += '<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">';
+    h2 += '<button class="btn-sm" id="pvOpenService">Service öffnen</button>';
+    h2 += '<button class="btn-sm" id="pvOpenTreeTest">Tree-Test öffnen</button>';
+    h2 += '</div>';
+    host.innerHTML = h2;
+    $('pvOpenService').addEventListener('click', function () {
+      if (url && url !== '—') window.open(url, '_blank');
+    });
+    $('pvOpenTreeTest').addEventListener('click', function () {
+      var p = _profile ? ('?group=' + encodeURIComponent(_profile)) : '';
+      window.open(APP_ROOT + '/tnet/api/v1/tree-test.html' + p, '_blank');
+    });
+  }
+
+  // =====================================================================
+  // ICON-PICKER
+  // =====================================================================
+  function openIconPicker(path) {
+    _iconTargetPath = path;
+    $('iconModal').classList.add('open');
+    if (_symbolSets) { renderIconGrid(); } else { loadSymbolSets(); }
+  }
+  function loadSymbolSets() {
+    $('iconGrid').innerHTML = '<div class="empty">Lade Symbole…</div>';
+    api('list-symbolsets').then(function (j) {
+      if (!j.success) { $('iconGrid').innerHTML = '<div class="empty">Fehler: ' + esc(j.error || '') + '</div>'; return; }
+      _symbolSets = j.data;
+      renderIconGrid();
+    }).catch(function (e) { $('iconGrid').innerHTML = '<div class="empty">' + esc(e.message) + '</div>'; });
+  }
+  function renderIconGrid() {
+    var q = ($('iconSearch').value || '').toLowerCase();
+    var sets = (_symbolSets && _symbolSets.sets) || [];
+    var html = '';
+    var any = false;
+    sets.forEach(function (set) {
+      var items = set.items.filter(function (it) { return !q || it.name.toLowerCase().indexOf(q) !== -1; });
+      if (!items.length) return;
+      any = true;
+      html += '<div class="set-title">' + esc(set.label) + ' (' + items.length + ')</div><div class="icon-grid">';
+      items.forEach(function (it) {
+        html += '<div class="icon-cell" data-url="' + esc(it.url) + '" title="' + esc(it.name) + '">' +
+          '<img src="' + esc(it.url) + '" alt="" onerror="this.style.visibility=\'hidden\'">' +
+          '<div class="nm">' + esc(it.name) + '</div></div>';
+      });
+      html += '</div>';
+    });
+    $('iconGrid').innerHTML = any ? html : '<div class="empty">Keine Symbole gefunden.</div>';
+    Array.prototype.forEach.call($('iconGrid').querySelectorAll('.icon-cell'), function (c) {
+      c.addEventListener('click', function () { chooseIcon(c.getAttribute('data-url')); });
+    });
+  }
+  function chooseIcon(url) {
+    // Alternativer Ziel-Callback (z.B. Layer-Definition-Icon) hat Vorrang
+    if (typeof _iconChoose === 'function') {
+      var cb = _iconChoose; _iconChoose = null;
+      $('iconModal').classList.remove('open');
+      cb(url);
+      return;
+    }
+    var node = getByPath(_iconTargetPath);
+    if (node) {
+      // Als app-root-relativen Pfad speichern (portabel). URL beginnt mit APP_ROOT.
+      node.icon = url.indexOf(APP_ROOT) === 0 ? url : url;
+      if (!node.icon_style) node.icon_style = 'width:18px;height:18px';
+      markDirty();
+    }
+    $('iconModal').classList.remove('open');
+    renderProperties(_iconTargetPath, 'subgroup');
+    refreshLabels();
+  }
+
+  function uploadIcon(fileInput) {
+    var f = fileInput.files && fileInput.files[0];
+    if (!f) return;
+    var fd = new FormData();
+    fd.append('icon', f);
+    setStatus('Lade Symbol hoch…');
+    fetch(getApiUrl() + '?action=upload-icon&ctx_root=' + encodeURIComponent(_ctxRoot), { method: 'POST', credentials: 'same-origin', body: fd })
+      .then(function (r) {
+        if (r.status === 401 || r.status === 403) { location.href = 'admin-login.php?redirect=' + encodeURIComponent(location.pathname); throw new Error('nicht angemeldet'); }
+        return r.json();
+      })
+      .then(function (j) {
+        if (!j.success) { setStatus('Upload-Fehler: ' + (j.error || ''), 'err'); return; }
+        setStatus('Symbol hochgeladen: ' + j.data.name, 'ok');
+        _symbolSets = null; // Cache invalidieren
+        loadSymbolSets();
+        // Direkt zuweisen
+        if (_iconTargetPath) chooseIcon(j.data.url);
+      })
+      .catch(function (e) { setStatus('Upload-Fehler: ' + e.message, 'err'); })
+      .finally(function () { fileInput.value = ''; });
+  }
+
+  // =====================================================================
+  // LADEN / SPEICHERN / LOCK / HISTORIE
+  // =====================================================================
+  function loadProfiles() {
+    var sel = $('profileSelect');
+    sel.innerHTML = '<option value="">— wählen —</option>';
+
+    Promise.all([
+      api('list-config-groups').catch(function () { return { success: false, data: [] }; }),
+      api('tydac-list-profiles').catch(function () { return { success: false, data: [] }; })
+    ]).then(function (results) {
+      var fsProfiles = results[0];
+      var dbProfiles = results[1];
+      var merged = {};
+
+      if (fsProfiles.success && Array.isArray(fsProfiles.data)) {
+        fsProfiles.data.forEach(function (p) {
+          var name = p && (p.group || p.profile);
+          if (!name) return;
+          if (!merged[name]) merged[name] = { profile: name, source: 'config', revision: null };
+        });
+      }
+
+      if (dbProfiles.success && Array.isArray(dbProfiles.data)) {
+        dbProfiles.data.forEach(function (p) {
+          if (!p || !p.profile) return;
+          if (!merged[p.profile]) merged[p.profile] = { profile: p.profile, source: 'db', revision: null };
+          merged[p.profile].source = merged[p.profile].source === 'config' ? 'config+db' : 'db';
+          merged[p.profile].revision = typeof p.revision === 'number' ? p.revision : merged[p.profile].revision;
+        });
+      }
+
+      var names = Object.keys(merged).sort(function (a, b) {
+        if (a === 'public') return -1;
+        if (b === 'public') return 1;
+        return a.localeCompare(b);
+      });
+
+      names.forEach(function (name) {
+        var item = merged[name];
+        var o = document.createElement('option');
+        o.value = item.profile;
+        if (item.source === 'config+db') {
+          o.textContent = item.profile + ' (config + rev ' + (item.revision == null ? '0' : item.revision) + ')';
+        } else if (item.source === 'db') {
+          o.textContent = item.profile + ' (rev ' + (item.revision == null ? '0' : item.revision) + ')';
+        } else {
+          o.textContent = item.profile + ' (config)';
+        }
+        sel.appendChild(o);
+      });
+    }).catch(function () {
+      setStatus('Groups konnten nicht geladen werden.', 'err');
+    });
+  }
+
+  function loadCatalog(profile) {
+    if (!profile) { setStatus('Bitte Group angeben.', 'err'); return; }
+    setStatus('Lade Katalog…');
+    api('tydac-load', { query: 'profile=' + encodeURIComponent(profile) }).then(function (j) {
+      if (!j.success) { setStatus('Fehler: ' + (j.error || ''), 'err'); return; }
+      _profile = profile;
+      _doc = j.data.lyrmgr && Object.keys(j.data.lyrmgr).length ? j.data.lyrmgr : { main_lyrmgr: { type: 'ClassicLayerMgr', version: '3', structure: {} } };
+      _revision = j.data.revision || 0;
+      _site = j.data.site || '';
+      $('siteInfo').textContent = 'Ziel: ' + _ctxRoot + ' · Site: ' + _site + ' · Variante: tydac' + (j.data.exists ? '' : ' · (neu)');
+      $('btnSave').disabled = false;
+      $('btnHistory').disabled = false;
+      $('btnPreview').disabled = false;
+      _selectedPath = null;
+      renderTree();
+      loadAvailableLayers(profile);
+      $('propPane').innerHTML = '<div class="empty" style="padding:8px">Element im Baum wählen.</div>';
+      setStatus('Geladen (rev ' + _revision + ').', 'ok');
+      acquireLock(profile);
+    }).catch(function (e) { setStatus('Fehler: ' + e.message, 'err'); });
+  }
+
+  function saveCatalog() {
+    if (!_doc || !_profile) return;
+    setStatus('Speichere & publiziere…');
+    api('tydac-publish', { method: 'POST', body: { profile: _profile, lyrmgr: _doc, expectedRevision: _revision } })
+      .then(function (j) {
+        if (j.__status === 409 || (j.data && j.data.conflict)) {
+          setStatus('Konflikt: Katalog wurde zwischenzeitlich geändert. Bitte neu laden.', 'err');
+          return;
+        }
+        if (!j.success) { setStatus('Speicherfehler: ' + (j.error || ''), 'err'); return; }
+        var d = j.data || {};
+        _revision = (d.revision != null) ? d.revision : _revision;
+        _dirty = false;
+        var f = d.file || {};
+        if (f.file) {
+          setStatus('Gespeichert (rev ' + _revision + ') + lyrmgr.conf publiziert' + (f.backup ? ' (Backup: ' + f.backup + ')' : '') + '.', 'ok');
+          // WYSIWYG-Vorschau auf DB-Stand (Editor) aktualisieren
+          if ($('prevTabLm') && $('prevTabLm').style.display !== 'none') reloadLmPreview();
+        } else {
+          setStatus('Version gespeichert (rev ' + _revision + '), Datei-Publish fehlgeschlagen: ' + (f.error || 'unbekannt'), 'err');
+        }
+      }).catch(function (e) { setStatus('Speicherfehler: ' + e.message, 'err'); });
+  }
+
+  var _dirty = false;
+  function markDirty() { _dirty = true; setStatus('Ungespeicherte Änderungen…'); }
+
+  function acquireLock(profile) {
+    api('tydac-lock', { query: 'profile=' + encodeURIComponent(profile) }).then(function (j) {
+      if (j.success && j.data && j.data.locked === false && j.data.by) {
+        setStatus('Hinweis: gesperrt von ' + j.data.by, 'err');
+      }
+    });
+  }
+  function releaseLock() {
+    if (!_profile) return;
+    try {
+      navigator.sendBeacon && navigator.sendBeacon(getApiUrl() + '?action=tydac-unlock&ctx_root=' + encodeURIComponent(_ctxRoot) + '&profile=' + encodeURIComponent(_profile));
+    } catch (e) {}
+  }
+
+  function openHistory() {
+    $('histModal').classList.add('open');
+    $('histList').innerHTML = '<div class="empty">Lade…</div>';
+    api('tydac-history', { query: 'profile=' + encodeURIComponent(_profile) }).then(function (j) {
+      if (!j.success || !j.data.length) { $('histList').innerHTML = '<div class="empty">Kein Verlauf.</div>'; return; }
+      var html = '<table style="width:100%;border-collapse:collapse;font-size:13px">';
+      html += '<tr style="text-align:left;color:var(--muted)"><th>Rev</th><th>Aktion</th><th>Von</th><th>Zeit</th><th></th></tr>';
+      j.data.forEach(function (h) {
+        html += '<tr style="border-top:1px solid var(--border)"><td>' + h.revision + '</td><td>' + esc(h.action) +
+          '</td><td>' + esc(h.changedBy || '') + '</td><td>' + esc(h.changedAt || '') +
+          '</td><td><button class="btn-sm" data-rev="' + h.revision + '">Wiederherstellen</button></td></tr>';
+      });
+      html += '</table>';
+      $('histList').innerHTML = html;
+      Array.prototype.forEach.call($('histList').querySelectorAll('button[data-rev]'), function (b) {
+        b.addEventListener('click', function () { restoreRevision(parseInt(b.getAttribute('data-rev'), 10)); });
+      });
+    });
+  }
+  function restoreRevision(rev) {
+    if (!confirm('Revision ' + rev + ' wiederherstellen? Der aktuelle Stand wird als neue Revision überschrieben.')) return;
+    api('tydac-restore', { method: 'POST', body: { profile: _profile, revision: rev } }).then(function (j) {
+      if (!j.success) { setStatus('Restore-Fehler: ' + (j.error || ''), 'err'); return; }
+      $('histModal').classList.remove('open');
+      loadCatalog(_profile);
+    });
+  }
+
+  // =====================================================================
+  // INIT
+  // =====================================================================
+  $('btnLoad').addEventListener('click', function () {
+    var p = $('profileManual').value.trim() || $('profileSelect').value;
+    loadCatalog(p);
+  });
+  $('btnSave').addEventListener('click', saveCatalog);
+  $('btnHistory').addEventListener('click', openHistory);
+  $('ctxRootSelect').addEventListener('change', function () {
+    _ctxRoot = $('ctxRootSelect').value || APP_ROOT;
+    _doc = null;
+    _profile = '';
+    _revision = 0;
+    _selectedPath = null;
+    $('treePane').innerHTML = '<div class="empty">Group auswählen und „Laden“ klicken.</div>';
+    $('propPane').innerHTML = '<div class="empty" style="padding:8px">Kein Element ausgewählt.</div>';
+    $('profileManual').value = '';
+    $('btnSave').disabled = true;
+    $('btnHistory').disabled = true;
+    $('btnPreview').disabled = true;
+    setStatus('Kontext gewechselt: ' + _ctxRoot + '.');
+    loadProfiles();
+    loadAvailableLayers(null);
+    loadCategoryIconsData();
+    loadLayerIconsData();
+  });
+  $('btnReloadLayers').addEventListener('click', function () { loadAvailableLayers(_profile || null); });
+  $('btnAddLyrmgr').addEventListener('click', addLyrmgrSection);
+  $('basemapSelect').addEventListener('change', function () {
+    var val = this.value;
+    if (!_previewMap) return;
+    Object.keys(_previewBaseLayers).forEach(function (k) { _previewBaseLayers[k].setVisible(k === val); });
+  });
+  $('opacitySlider').addEventListener('input', function () {
+    $('opacityVal').textContent = this.value + '%';
+    var op = parseInt(this.value, 10) / 100;
+    Object.keys(_previewBaseLayers).forEach(function (k) { _previewBaseLayers[k].setOpacity(op); });
+  });
+  Array.prototype.forEach.call(document.querySelectorAll('.prev-tab'), function (t) {
+    t.addEventListener('click', function () { switchPreviewTab(t.getAttribute('data-ptab')); });
+  });
+  $('lmPrevReload').addEventListener('click', reloadLmPreview);
+  $('lmPrevSource').addEventListener('change', reloadLmPreview);
+  $('btnPreview').addEventListener('click', openPreview);
+  $('iconModalClose').addEventListener('click', function () { $('iconModal').classList.remove('open'); });
+  $('histModalClose').addEventListener('click', function () { $('histModal').classList.remove('open'); });
+  $('previewModalClose').addEventListener('click', function () { $('previewModal').classList.remove('open'); });
+  Array.prototype.forEach.call(document.querySelectorAll('[data-preview-tab]'), function (btn) {
+    btn.addEventListener('click', function () {
+      _previewTab = btn.getAttribute('data-preview-tab');
+      Array.prototype.forEach.call(document.querySelectorAll('[data-preview-tab]'), function (b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      renderPreview();
+    });
+  });
+  $('layerSearch').addEventListener('input', renderLayerList);
+  $('layerTagFilter').addEventListener('change', renderLayerList);
+  $('btnVerifyAll').addEventListener('click', verifyAllSources);
+  $('btnVerifyFilter').addEventListener('click', toggleVerifyFilter);
+  $('iconSearch').addEventListener('input', function () { if (_symbolSets) renderIconGrid(); });
+  $('iconUpload').addEventListener('change', function () { uploadIcon(this); });
+  window.addEventListener('beforeunload', function (e) {
+    releaseLock();
+    if (_dirty) { e.preventDefault(); e.returnValue = ''; }
+  });
+
+  $('ctxRootSelect').value = APP_ROOT;
+  _ctxRoot = $('ctxRootSelect').value || APP_ROOT;
+  loadProfiles();
+  loadAvailableLayers(null);
+  loadCategoryIconsData();
+  loadLayerIconsData();
+  setStatus('Bereit (' + _ctxRoot + ').');
+})();
+</script>
+</body>
+</html>

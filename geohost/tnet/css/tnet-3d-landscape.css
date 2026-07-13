@@ -1,0 +1,212 @@
+﻿/**
+ * tnet-3d-landscape.css
+ * Styles for 3D Landscape Model split-screen view
+ *
+ * @version    1.0
+ * @date       2026-02-12
+ * @copyright  Trigonet AG
+ * @author     Marco Dellenbach
+ */
+
+/* Split layout for 3D view */
+#split-wrapper-3d {
+    display: flex;
+    width: 100%;
+    height: 100%;
+    position: relative;
+    z-index: 1;
+}
+
+#split-panel-2d {
+    flex: 50;
+    position: relative;
+    overflow: hidden;
+    background: #f5f5f5;
+}
+
+#split-panel-3d {
+    flex: 50;
+    position: relative;
+    overflow: hidden;
+    background: #1a1a1a;
+}
+
+#split-divider-3d {
+    width: 4px;
+    background: linear-gradient(to bottom, #3a6268, #4b7b81);
+    cursor: col-resize;
+    position: relative;
+    z-index: 1000;
+    box-shadow: 0 0 8px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    transition: background-color 0.2s ease;
+    user-select: none;
+}
+
+#split-divider-3d:hover {
+    background: linear-gradient(to bottom, #4b7b81, #5a9098);
+    box-shadow: 0 0 12px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+}
+
+#split-divider-3d > div {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 20px;
+    height: 40px;
+    background: rgba(75, 123, 129, 0.8);
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 10px;
+    font-weight: bold;
+    letter-spacing: 1px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+#split-divider-3d:hover > div {
+    background: rgba(75, 123, 129, 0.9);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+}
+
+/* SceneView container */
+#sceneViewContainer {
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(135deg, #1a1a1a 0%, #2a2a2a 100%);
+}
+
+/* ESRI widgets styling adjustments for 3D view */
+#sceneViewContainer .esri-view {
+    background-color: #242424;
+}
+
+#sceneViewContainer .esri-widget {
+    background-color: rgba(255, 255, 255, 0.95);
+    color: #333;
+}
+
+#sceneViewContainer .esri-widget:focus {
+    outline: 2px solid #0079c1;
+    outline-offset: 2px;
+}
+
+/* Home widget */
+#sceneViewContainer .esri-home {
+    margin: 10px;
+}
+
+/* Compass widget */
+#sceneViewContainer .esri-compass {
+    margin: 10px;
+    margin-left: 50px;
+}
+
+/* ScaleBar widget */
+#sceneViewContainer .esri-scale-bar {
+    margin: 10px;
+}
+
+/* Sync toggle button */
+.landscape-sync-button {
+    transition: all 0.2s ease;
+}
+
+.landscape-sync-button:hover {
+    background-color: rgba(0, 121, 193, 0.1) !important;
+}
+
+.landscape-sync-button.active {
+    background-color: #0079c1 !important;
+    color: white !important;
+}
+
+.landscape-sync-button.active:hover {
+    background-color: #005a9e !important;
+}
+
+/* Error message styling */
+.landscape-3d-error {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: white;
+    padding: 20px;
+    border-radius: 4px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+    z-index: 10000;
+    font-family: 'Roboto Condensed', Arial, sans-serif;
+    max-width: 400px;
+    text-align: center;
+}
+
+.landscape-3d-error h3 {
+    color: #d32f2f;
+    margin-top: 0;
+    font-size: 16px;
+}
+
+.landscape-3d-error p {
+    color: #666;
+    margin: 10px 0 0 0;
+    line-height: 1.5;
+}
+
+/* Loading message for 3D view */
+.landscape-3d-loading {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 20px;
+    border-radius: 4px;
+    z-index: 100;
+    text-align: center;
+    font-family: 'Roboto Condensed', Arial, sans-serif;
+}
+
+.landscape-3d-loading::after {
+    content: '';
+    display: block;
+    width: 32px;
+    height: 32px;
+    border: 3px solid rgba(255, 255, 255, 0.3);
+    border-top: 3px solid white;
+    border-radius: 50%;
+    animation: landscape-3d-spin 1s linear infinite;
+    margin: 10px auto 0;
+}
+
+@keyframes landscape-3d-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    #split-divider-3d {
+        width: 3px;
+    }
+    
+    #split-divider-3d > div {
+        width: 15px;
+        height: 30px;
+        font-size: 8px;
+    }
+}
+
+/* Print styles */
+@media print {
+    #split-wrapper-3d,
+    #split-panel-2d,
+    #split-panel-3d,
+    #sceneViewContainer {
+        display: none !important;
+    }
+}

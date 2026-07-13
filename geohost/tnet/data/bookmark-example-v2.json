@@ -1,0 +1,66 @@
+{
+  "$comment": "Goldstandard-Beispiel fuer Bookmark-Schema v2. Migrierte Variante des bestehenden 'nw_nutzungsplanung' (siehe map-bookmarks.json) plus Demo-Kartenansichten. Validierung gegen bookmark.schema.json.",
+
+  "id": "nw_nutzungsplanung",
+  "name": "Nutzungsplanung",
+  "aliases": ["nw_nutzungsplanung_intern"],
+
+  "basemap": "av_sw",
+  "theme": "2",
+  "subtheme": "nupla",
+
+  "viewport": null,
+
+  "layers": [
+    { "id": "gis_oereb/nw_nutzungsplanung_def/vermassungslinie",                 "visible": true,  "opacity": null, "order": null, "filter": null },
+    { "id": "gis_oereb/nw_nutzungsplanung_def/hilfslinie",                       "visible": true,  "opacity": null, "order": null, "filter": null },
+    { "id": "gis_oereb/nw_nutzungsplanung_def/laermempfindlichkeitsaufstufung",  "visible": false, "opacity": null, "order": null, "filter": null },
+    { "id": "gis_oereb/nw_nutzungsplanung_def/objektbezogene_festlegung",        "visible": true,  "opacity": null, "order": null, "filter": null },
+    { "id": "gis_oereb/nw_nutzungsplanung_def/linienbezogene_festlegung",        "visible": true,  "opacity": null, "order": null, "filter": null },
+    { "id": "gis_oereb/nw_nutzungsplanung_def/gefahrenzone_text",                "visible": false, "opacity": null, "order": null, "filter": null },
+    { "id": "gis_oereb/nw_nutzungsplanung_def/gefahrenzone",                     "visible": false, "opacity": null, "order": null, "filter": null },
+    { "id": "gis_oereb/nw_nutzungsplanung_def/ueberlagernde_festlegung",         "visible": false, "opacity": 0.7,  "order": null, "filter": null },
+    { "id": "gis_oereb/nw_nutzungsplanung_def/grundnutzung",                     "visible": true,  "opacity": null, "order": null, "filter": null }
+  ],
+
+  "views": [
+    {
+      "id": "grundnutzung",
+      "name": "Grundnutzung",
+      "isDefault": true,
+      "layerStates": {
+        "gis_oereb/nw_nutzungsplanung_def/grundnutzung":             { "visible": true },
+        "gis_oereb/nw_nutzungsplanung_def/objektbezogene_festlegung": { "visible": true },
+        "gis_oereb/nw_nutzungsplanung_def/linienbezogene_festlegung": { "visible": true },
+        "gis_oereb/nw_nutzungsplanung_def/ueberlagernde_festlegung":  { "visible": false },
+        "gis_oereb/nw_nutzungsplanung_def/gefahrenzone":              { "visible": false },
+        "gis_oereb/nw_nutzungsplanung_def/gefahrenzone_text":         { "visible": false }
+      }
+    },
+    {
+      "id": "ueberlagerungen",
+      "name": "Ueberlagerungen",
+      "layerStates": {
+        "gis_oereb/nw_nutzungsplanung_def/grundnutzung":             { "visible": false },
+        "gis_oereb/nw_nutzungsplanung_def/ueberlagernde_festlegung":  { "visible": true },
+        "gis_oereb/nw_nutzungsplanung_def/laermempfindlichkeitsaufstufung": { "visible": true }
+      }
+    },
+    {
+      "id": "gefahren",
+      "name": "Gefahrenzonen",
+      "layerStates": {
+        "gis_oereb/nw_nutzungsplanung_def/grundnutzung":             { "visible": false },
+        "gis_oereb/nw_nutzungsplanung_def/ueberlagernde_festlegung":  { "visible": false },
+        "gis_oereb/nw_nutzungsplanung_def/gefahrenzone":              { "visible": true },
+        "gis_oereb/nw_nutzungsplanung_def/gefahrenzone_text":         { "visible": true }
+      }
+    }
+  ],
+
+  "meta": {
+    "description": "Nutzungsplanung Nidwalden - Default-Ansicht zeigt Grundnutzung. Alternative Ansichten fuer Ueberlagerungen und Gefahrenzonen.",
+    "tags": ["nupla", "oereb"],
+    "schemaVersion": 2
+  }
+}

@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Layer-Tree Test — TNET API</title>
+<link rel="stylesheet" href="../../css/tnet-lm.css?v=test">
+<style>
+* { box-sizing: border-box; }
+body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f0f2f5; }
+
+/* Header */
+.tt-header {
+  background: #648C96; color: #fff; padding: 10px 16px;
+  display: flex; align-items: center; gap: 12px;
+}
+.tt-header h1 { margin: 0; font-size: 16px; font-weight: 600; flex: 1; }
+.tt-header .tt-api-link {
+  font-size: 12px; color: rgba(255,255,255,.7); text-decoration: none;
+}
+.tt-header .tt-api-link:hover { color: #fff; }
+
+/* Group-Select */
+.tt-group-select {
+  padding: 5px 28px 5px 10px; font-size: 13px; font-weight: 500;
+  border: 1px solid rgba(255,255,255,.35); border-radius: 4px;
+  background: rgba(255,255,255,.15); color: #fff;
+  cursor: pointer; outline: none;
+  appearance: none; -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='white'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 8px center;
+}
+.tt-group-select:hover { background-color: rgba(255,255,255,.25); }
+.tt-group-select:focus { border-color: rgba(255,255,255,.6); }
+.tt-group-select option { color: #333; background: #fff; }
+
+/* Info-Bar */
+.tt-info {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 16px; background: #fff; border-bottom: 1px solid #eee;
+  font-size: 12px; color: #888;
+}
+.tt-info code {
+  background: #f5f5f5; padding: 2px 6px; border-radius: 3px;
+  font-size: 11px; color: #333;
+}
+.tt-info .tt-status {
+  margin-left: auto; padding: 2px 8px; border-radius: 10px;
+  font-size: 11px; font-weight: 600;
+}
+.tt-info .tt-status.loading { background: #fff3cd; color: #856404; }
+.tt-info .tt-status.ok { background: #d4edda; color: #155724; }
+.tt-info .tt-status.error { background: #f8d7da; color: #721c24; }
+
+/* Tree Container */
+#lm-tree-container {
+  max-width: 520px; margin: 0 auto; background: #fff;
+  min-height: 400px; box-shadow: 0 1px 4px rgba(0,0,0,.08);
+}
+
+/* Log */
+#test-log {
+  max-width: 520px; margin: 8px auto; background: #1a1a2e; color: #0f0;
+  border-radius: 6px; padding: 12px 16px; font-size: 12px;
+  font-family: 'Consolas', 'Monaco', monospace;
+  max-height: 180px; overflow-y: auto;
+  box-shadow: 0 1px 4px rgba(0,0,0,.12);
+}
+#test-log .err { color: #ff6b6b; }
+#test-log .warn { color: #ffd93d; }
+#test-log .info { color: #6bcfff; }
+#test-log div { padding: 1px 0; }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="tt-header">
+  <h1>Layer-Tree Vorschau</h1>
+  <select class="tt-group-select" id="tt-group-select">
+    <option value="" disabled>Laden…</option>
+  </select>
+  <a class="tt-api-link" href="info" target="_blank">API Info →</a>
+</div>
+
+<!-- Info -->
+<div class="tt-info">
+  <span>API:</span>
+  <code id="tt-api-url">layers.php</code>
+  <span class="tt-status loading" id="tt-status">Laden…</span>
+</div>
+
+<!-- Tree -->
+<div id="lm-tree-container" class="lm-container"></div>
+
+<!-- Log -->
+<div id="test-log"></div>
+
+<script>
+// === URL-Parameter lesen ===
+var params = new URLSearchParams(window.location.search);
+var currentGroup = params.get('group') || 'marco';
+var currentCategory = params.get('category') || '';
+
+// === Logger ===
+var logEl = document.getElementById('test-log');
+function log(msg, cls) {
+  var d = document.createElement('div');
+  d.className = cls || '';
+  d.textContent = '[' + new Date().toLocaleTimeString() + '] ' + msg;
+  logEl.appendChild(d);
+  logEl.scrollTop = logEl.scrollHeight;
+  console.log(msg);
+}
+
+function setStatus(text, cls) {
+  var el = document.getElementById('tt-status');
+  el.textContent = text;
+  el.className = 'tt-status ' + cls;
+}
+
+// === Group-Select: Gruppen von API laden ===
+(function initGroupSelect() {
+  var sel = document.getElementById('tt-group-select');
+  fetch('info')
+    .then(function(r) { return r.json(); })
+    .then(function(json) {
+      var groups = (json.data && json.data.server && json.data.server.groups) || [];
+      sel.innerHTML = '';
+      for (var i = 0; i < groups.length; i++) {
+        var opt = document.createElement('option');
+        opt.value = groups[i];
+        opt.textContent = groups[i];
+        if (groups[i] === currentGroup) opt.selected = true;
+        sel.appendChild(opt);
+      }
+      if (!sel.value) {
+        // currentGroup nicht in Liste → trotzdem hinzufügen
+        var opt = document.createElement('option');
+        opt.value = currentGroup;
+        opt.textContent = currentGroup + ' (custom)';
+        opt.selected = true;
+        sel.insertBefore(opt, sel.firstChild);
+      }
+      log('Gruppen: ' + groups.join(', '), 'info');
+    })
+    .catch(function() {
+      // Fallback: statische Liste
+      var fallback = ['public','nwpro','owpro','uwpro','marco'];
+      sel.innerHTML = '';
+      for (var i = 0; i < fallback.length; i++) {
+        var opt = document.createElement('option');
+        opt.value = fallback[i];
+        opt.textContent = fallback[i];
+        if (fallback[i] === currentGroup) opt.selected = true;
+        sel.appendChild(opt);
+      }
+    });
+  sel.addEventListener('change', function() {
+    var newUrl = window.location.pathname + '?group=' + this.value;
+    if (currentCategory) newUrl += '&category=' + currentCategory;
+    window.location.href = newUrl;
+  });
+})();
+
+// === API-URL anzeigen ===
+function buildApiUrl() {
+  var url = 'layers.php?group=' + encodeURIComponent(currentGroup);
+  if (currentCategory) url += '&category=' + encodeURIComponent(currentCategory);
+  return url;
+}
+document.getElementById('tt-api-url').textContent = buildApiUrl();
+
+// === MOCK: TnetLMStore (minimal, mit group-Parameter) ===
+window.TnetLMStore = (function() {
+  var _catalog = [];
+  var _listeners = {};
+  var _loaded = false;
+
+  function normalizeCategories(categories) {
+    for (var i = 0; i < categories.length; i++) {
+      var cat = categories[i];
+      if (cat.nodes && !cat.subcategories) {
+        log('  Norm: ' + cat.id + '.nodes → .subcategories (' + cat.nodes.length + ')', 'info');
+        cat.subcategories = cat.nodes;
+        delete cat.nodes;
+      }
+      var subs = cat.subcategories || [];
+      for (var s = 0; s < subs.length; s++) {
+        var sub = subs[s];
+        if (sub.layers && !sub.groups) {
+          sub.groups = sub.layers;
+          delete sub.layers;
+        }
+      }
+    }
+  }
+
+  function initDefaults(nodes) {
+    for (var i = 0; i < nodes.length; i++) {
+      var n = nodes[i];
+      if (n.subcategories) {
+        for (var s = 0; s < n.subcategories.length; s++) {
+          var sub = n.subcategories[s];
+          if (sub.expanded === undefined) sub.expanded = true;
+          if (sub.groups) {
+            for (var g = 0; g < sub.groups.length; g++) {
+              var group = sub.groups[g];
+              if (group.expanded === undefined) group.expanded = group.open || false;
+              if (group.layers) initLayerDefaults(group.layers);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  function initLayerDefaults(layers) {
+    for (var i = 0; i < layers.length; i++) {
+      var l = layers[i];
+      if (l.type === 'group' && l.layers) {
+        if (l.expanded === undefined) l.expanded = l.open || false;
+        initLayerDefaults(l.layers);
+      } else {
+        if (l.visible === undefined) l.visible = false;
+        if (l.opacity === undefined) l.opacity = 1.0;
+      }
+    }
+  }
+
+  return {
+    init: function() {
+      var apiUrl = buildApiUrl();
+      log('Store: Lade ' + apiUrl);
+      setStatus('Laden…', 'loading');
+
+      fetch(apiUrl)
+        .then(function(r) {
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          return r.json();
+        })
+        .then(function(json) {
+          var data = json.data || json;
+          var categories = data.categories || [];
+          log('Store: ' + categories.length + ' Kategorien (roh)');
+
+          // Debug-Info
+          for (var ci = 0; ci < categories.length; ci++) {
+            var c = categories[ci];
+            var nodes = c.nodes || c.subcategories || [];
+            var nodeKey = c.nodes ? 'nodes' : 'subcategories';
+            log('  [' + c.id + '] ' + nodeKey + ': ' + nodes.length, 'info');
+          }
+
+          normalizeCategories(categories);
+          initDefaults(categories);
+          _catalog = categories;
+          _loaded = true;
+
+          // Statistik
+          var totalLayers = 0;
+          for (var ci2 = 0; ci2 < categories.length; ci2++) {
+            var subs = categories[ci2].subcategories || [];
+            for (var si = 0; si < subs.length; si++) {
+              var groups = subs[si].groups || [];
+              for (var gi = 0; gi < groups.length; gi++) {
+                totalLayers += (groups[gi].layers || []).length;
+              }
+            }
+          }
+          log('Store: ' + categories.length + ' Kategorien, ~' + totalLayers + ' Layer');
+          setStatus(categories.length + ' Kat / ~' + totalLayers + ' Layer', 'ok');
+
+          (_listeners['catalog-loaded'] || []).forEach(function(cb) {
+            try { cb(_catalog); } catch(e) { log('Event-Fehler: ' + e.message, 'err'); }
+          });
+        })
+        .catch(function(err) {
+          log('FEHLER: ' + err.message, 'err');
+          setStatus('Fehler', 'error');
+        });
+    },
+    getCatalog: function() { return _catalog; },
+    isLoaded: function() { return _loaded; },
+    on: function(evt, cb) {
+      if (!_listeners[evt]) _listeners[evt] = [];
+      _listeners[evt].push(cb);
+      return function() {};
+    },
+    toggleLayer: function(id) { log('toggleLayer: ' + id, 'info'); },
+    findLayer: function() { return null; }
+  };
+})();
+
+log('=== Tree-Test [group=' + currentGroup + '] ===');
+</script>
+
+<!-- Abhängigkeiten (TnetLog, TnetIcons) -->
+<script src="../../js/tnet-log.js?v=test"></script>
+<script src="../../js/tnet-icons.js?v=test"></script>
+
+<!-- Echter Tree-Renderer -->
+<script src="../../js/tnet-lm-tree.js?v=test"></script>
+
+<script>
+TnetIcons.loadAll().then(function() {
+  if (window.TnetLMTree) {
+    log('Tree: init...');
+    window.TnetLMTree.init('lm-tree-container');
+    window.TnetLMStore.init();
+  } else {
+    log('FEHLER: TnetLMTree nicht geladen!', 'err');
+    setStatus('Fehler', 'error');
+  }
+});
+</script>
+</body>
+</html>

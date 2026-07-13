@@ -1,0 +1,65 @@
+<!-- ============================================================
+     QGIS-Template PDF-Export – Einbindung in bestehendes WebGIS
+     
+     Schnittstellendoku: siehe TEMPLATE_API.md
+     
+     Ordnerstruktur auf dem Server:
+       /maps/tnet/ol-pdf-printer/
+       ├── manifest.json
+       ├── qgis-templates/ ← QGIS-SVG-Templates
+       └── js/             ← Engine + Libs
+     ============================================================ -->
+
+<!-- VOR </body> – Reihenfolge wichtig! -->
+<script src="ol-pdf-printer/js/jspdf.umd.min.js"></script>
+<script src="ol-pdf-printer/js/svg2pdf.umd.min.js"></script>
+<script src="ol-pdf-printer/js/template-pdf-export.js"></script>
+<script>
+  window._pdfPrinterConfig = {
+    filename: 'tnet_Kartenexport',
+    templatesBasePath: 'ol-pdf-printer/qgis-templates'
+  };
+</script>
+<script src="ol-pdf-printer/js/pdf-printer-init.js"></script>
+
+<!-- ============================================================
+     In eurem Dojo-Code:  window._olMap = map;
+     
+     Euer "PDF erstellen" Button ruft auf:
+     ============================================================ -->
+<script>
+function pdfErstellen() {
+  var massstab        = parseInt(document.getElementById('massstab').value, 10);
+  var layout          = document.getElementById('layout').value;
+  var aufloesung      = document.querySelector('input[name="aufloesung"]:checked').value;
+  var rotation        = parseFloat(document.getElementById('rotation').value) || 0;
+  var kartentitel     = document.getElementById('kartentitel').value;
+  var koordinatennetz = document.getElementById('koordinatennetz').checked;
+  var netzfarbe       = document.querySelector('input[name="netzfarbe"]:checked');
+
+  templatePdfPrint({
+    massstab:        massstab,
+    layout:          layout,
+    aufloesung:      parseInt(aufloesung, 10),
+    rotation:        rotation,
+    kartentitel:     kartentitel,
+    koordinatennetz: koordinatennetz,
+    netzfarbe:       netzfarbe ? netzfarbe.value : 'schwarz',
+    onProgress: function(step, msg) { console.log('PDF: ' + msg + ' (' + step + '/7)'); },
+    onSuccess:  function() { alert('PDF erstellt!'); },
+    onError:    function(err) { alert('Fehler: ' + err.message); }
+  });
+}
+
+// Optional: Layout-Dropdown dynamisch befüllen
+// getAvailableLayouts().then(function(layouts) {
+//   var sel = document.getElementById('layout');
+//   sel.innerHTML = '';
+//   layouts.forEach(function(l) {
+//     var opt = document.createElement('option');
+//     opt.value = l.value;
+//     opt.textContent = l.title;  // ← QGIS-Layoutname
+//     sel.appendChild(opt);
+//   });
+// });
+</script>

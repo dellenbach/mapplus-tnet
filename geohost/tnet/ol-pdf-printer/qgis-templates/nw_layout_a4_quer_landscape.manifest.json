@@ -1,0 +1,120 @@
+{
+  "version": "1.4",
+  "generated": "2026-02-12T17:26:24",
+  "template": {
+    "name": "nw_layout_a4_quer_landscape",
+    "title": "NW Layout A4 quer",
+    "paper": "A4",
+    "orientation": "landscape",
+    "width_mm": 297.0,
+    "height_mm": 210.0,
+    "source": "qgis_project",
+    "files": {
+      "svg": "nw_layout_a4_quer_landscape.svg"
+    },
+    "mapFrame": {
+      "x_mm": 10.22,
+      "y_mm": 24.09,
+      "width_mm": 277.0,
+      "height_mm": 176.67
+    },
+    "elements": [
+      {
+        "id": "Wappen",
+        "type": "image",
+        "variable": "",
+        "x_mm": 10.13,
+        "y_mm": 9.4,
+        "width_mm": 13.33,
+        "height_mm": 13.33
+      },
+      {
+        "id": "Titel",
+        "type": "text",
+        "variable": "",
+        "placeholder": "",
+        "x_mm": 26.0,
+        "y_mm": 12.87,
+        "width_mm": 130.0,
+        "height_mm": 5.5,
+        "hAlign": "left",
+        "fontFamily": "Arial",
+        "fontSize_pt": 14,
+        "fontWeight": "bold"
+      },
+      {
+        "id": "Erstellungsdatum",
+        "type": "text",
+        "variable": "",
+        "placeholder": "",
+        "x_mm": 26.0,
+        "y_mm": 19.4,
+        "width_mm": 47.19,
+        "height_mm": 2.9,
+        "hAlign": "left",
+        "fontFamily": "Arial",
+        "fontSize_pt": 9,
+        "fontWeight": "normal"
+      },
+      {
+        "id": "Logo GIS Daten AG",
+        "type": "image",
+        "variable": "",
+        "x_mm": 269.44,
+        "y_mm": 9.04,
+        "width_mm": 17.86,
+        "height_mm": 13.69
+      },
+      {
+        "id": "Massstab",
+        "type": "scaleLabel",
+        "variable": "scaleLabel",
+        "x_mm": 10.53,
+        "y_mm": 194.38,
+        "width_mm": 22.09,
+        "height_mm": 5.52
+      },
+      {
+        "id": "Massstabsbalken",
+        "type": "scaleBar",
+        "variable": "scaleBar",
+        "x_mm": 33.16,
+        "y_mm": 195.47,
+        "width_mm": 61.59,
+        "height_mm": 3.48
+      },
+      {
+        "id": "Copyright",
+        "type": "text",
+        "variable": "",
+        "placeholder": "",
+        "x_mm": 10.2,
+        "y_mm": 202.38,
+        "width_mm": 192.86,
+        "height_mm": 2.9,
+        "hAlign": "left",
+        "fontFamily": "Arial",
+        "fontSize_pt": 6,
+        "fontWeight": "normal"
+      },
+      {
+        "id": "MAP_AREA",
+        "type": "map",
+        "variable": "map",
+        "x_mm": 10.22,
+        "y_mm": 24.09,
+        "width_mm": 277.0,
+        "height_mm": 176.67
+      },
+      {
+        "id": "NORTH_ARROW",
+        "type": "northArrow",
+        "variable": "northArrow",
+        "x_mm": 15.0,
+        "y_mm": 170.0,
+        "width_mm": 12.0,
+        "height_mm": 15.0
+      }
+    ]
+  }
+}

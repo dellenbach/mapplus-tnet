@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<!--
+  oauth-callback.html
+  Callback-Seite für OAuth-Popup nach WP-Login.
+  Wird als redirect_url an miniOrange übergeben.
+  Sendet postMessage an opener (tnet-header.js) und schliesst sich.
+
+  @version    1.0
+  @date       2026-03-10
+  @copyright  Trigonet AG
+  @author     Marco Dellenbach
+-->
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <title>Anmeldung…</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
+      background: #f4f6f7;
+      color: #333;
+    }
+    .msg {
+      text-align: center;
+      padding: 40px;
+    }
+    .msg h2 { color: #4B7B81; margin-bottom: 8px; }
+    .msg p { color: #666; }
+  </style>
+</head>
+<body>
+  <div class="msg">
+    <h2>&#10003; Anmeldung erfolgreich</h2>
+    <p>Dieses Fenster schliesst sich automatisch…</p>
+  </div>
+  <script>
+    // Nachricht an opener (Popup) ODER parent (versteckter iframe) senden
+    try {
+      if (window.opener) {
+        window.opener.postMessage({ type: 'tnet-oauth-done' }, '*');
+        console.log('[oauth-callback] postMessage an opener gesendet');
+      }
+      if (window.parent && window.parent !== window) {
+        window.parent.postMessage({ type: 'tnet-oauth-done' }, '*');
+        console.log('[oauth-callback] postMessage an parent gesendet');
+      }
+    } catch(e) {
+      console.warn('[oauth-callback] postMessage fehlgeschlagen:', e);
+    }
+    // Fenster nach kurzer Anzeige schliessen
+    setTimeout(function() {
+      window.close();
+    }, 1200);
+    // Falls window.close() blockiert wird (manche Browser):
+    setTimeout(function() {
+      document.querySelector('.msg p').textContent =
+        'Bitte dieses Fenster manuell schliessen.';
+    }, 2500);
+  </script>
+</body>
+</html>

@@ -5,7 +5,10 @@ if errorlevel 1 exit /b 1
 cd /d "%MAPPLUS_WORKSPACE_ROOT%"
 echo.
 echo ============================================
-echo  SYNC GEOHOST -- maps-dev/tnet/ -^> geohost/tnet/
+echo  SYNC GEOHOST -- lokal
+echo  maps-dev/tnet/      -^> geohost/tnet/
+echo  maps-dev/agsproxy.php -^> geohost/agsproxy.php
+echo  maps-dev/wmsproxy.php -^> geohost/wmsproxy.php
 echo  (Kein SFTP-Upload -- nur lokaler Abgleich)
 echo  Danach: 02_upload-geohost.bat
 echo ============================================

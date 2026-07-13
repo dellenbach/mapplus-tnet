@@ -1,0 +1,2139 @@
+<!DOCTYPE html>
+<!--
+  tnet-3d-viewer.html
+  3D Landschaftsmodell Viewer (ESRI ArcGIS JS API)
+
+  @version    1.1
+  @date       2026-02-12
+  @copyright  Trigonet AG
+  @author     Marco Dellenbach
+-->
+<html lang="de">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>3D Landschaftsmodell</title>
+    
+    <!-- ESRI ArcGIS Maps SDK for JavaScript 4.27 -->
+    <link rel="stylesheet" href="https://js.arcgis.com/4.27/esri/themes/light/main.css">
+    <script src="https://js.arcgis.com/4.27/"></script>
+    
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            font-family: 'Roboto', Arial, sans-serif;
+        }
+        #sceneViewDiv {
+            width: 100%;
+            height: 100%;
+        }
+        #loading-overlay {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            transition: opacity 0.5s ease;
+        }
+        #loading-overlay.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+        #loading-overlay h3 {
+            color: white;
+            margin: 0 0 8px 0;
+            font-weight: 300;
+            font-size: 18px;
+        }
+        #loading-overlay p {
+            color: rgba(255,255,255,0.6);
+            margin: 0;
+            font-size: 13px;
+        }
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid rgba(255,255,255,0.2);
+            border-top: 3px solid white;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 16px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        
+        #error-overlay {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(26, 26, 46, 0.95);
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 200;
+            color: white;
+            text-align: center;
+            padding: 20px;
+        }
+        #error-overlay h3 {
+            color: #ff6b6b;
+            margin: 0 0 8px 0;
+        }
+        #error-overlay p {
+            color: rgba(255,255,255,0.7);
+            max-width: 400px;
+            line-height: 1.5;
+        }
+        
+        /* Sync indicator */
+        #sync-indicator {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 50;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+            user-select: none;
+            transition: background 0.2s;
+        }
+        #sync-indicator:hover {
+            background: rgba(0, 0, 0, 0.85);
+        }
+        #sync-indicator .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #4caf50;
+        }
+        #sync-indicator.disabled .dot {
+            background: #ff5722;
+        }
+        
+        /* 3D Toolbar */
+        #toolbar-3d {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 50;
+            display: flex;
+            gap: 4px;
+            background: rgba(0,0,0,0.75);
+            border-radius: 8px;
+            padding: 4px 8px;
+            backdrop-filter: blur(8px);
+        }
+        .tb-btn {
+            background: transparent;
+            border: 1px solid rgba(255,255,255,0.2);
+            color: white;
+            padding: 6px 10px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 12px;
+            font-family: inherit;
+            white-space: nowrap;
+            transition: background 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .tb-btn:hover { background: rgba(255,255,255,0.15); }
+        .tb-btn.active { background: rgba(75, 123, 129, 0.8); border-color: rgba(75, 123, 129, 0.95); }
+        .tb-btn svg { width: 16px; height: 16px; fill: currentColor; }
+        
+        /* Widget panels */
+        #daylight-panel, #viewshed-panel {
+            position: absolute;
+            top: 46px;
+            left: 10px;
+            right: auto;
+            bottom: auto;
+            z-index: 60;
+            background: rgba(0,0,0,0.85);
+            border-radius: 8px;
+            padding: 12px;
+            color: white;
+            display: none;
+            min-width: 220px;
+            max-width: 280px;
+            max-height: 45vh;
+            overflow-y: auto;
+            backdrop-filter: blur(8px);
+        }
+        #daylight-panel h4, #viewshed-panel h4 {
+            margin: 0 0 8px 0;
+            font-size: 13px;
+            font-weight: 500;
+        }
+        #daylight-panel label, #viewshed-panel label {
+            font-size: 11px;
+            display: block;
+            margin: 6px 0 2px 0;
+            color: rgba(255,255,255,0.7);
+        }
+        #daylight-panel input[type=range], #daylight-panel input[type=date] {
+            width: 100%;
+        }
+        #viewshed-info {
+            font-size: 11px;
+            color: rgba(255,255,255,0.7);
+            line-height: 1.4;
+        }
+
+        /* Auf Mobile/kleinen Screens keine 3D-Werkzeuge anbieten */
+        body.tools-disabled #toolbar-3d,
+        body.tools-disabled #daylight-panel,
+        body.tools-disabled #viewshed-panel {
+            display: none !important;
+        }
+
+        @media (max-width: 509px) {
+            #toolbar-3d,
+            #daylight-panel,
+            #viewshed-panel {
+                display: none !important;
+            }
+        }
+
+        /* ESRI-Navigation/Layer-Controls rechts oben, visuell an Mapplus angenähert */
+        #sceneViewDiv .esri-ui-top-right {
+            right: 10px !important;
+            top: 44px !important;
+        }
+
+        /* Werkzeugeinstellungen rechts oben */
+        #sceneViewDiv .esri-ui-top-left {
+            left: auto !important;
+            right: 10px !important;
+            top: 52px !important;
+        }
+
+        #sceneViewDiv .esri-ui-top-left .esri-component,
+        #sceneViewDiv .esri-ui-top-right .esri-component {
+            margin: 6px 0 0 0 !important;
+        }
+
+        /* Analyse-Widgets unten rechts oberhalb der Toolbar halten */
+        #sceneViewDiv .esri-ui-bottom-right {
+            right: 10px !important;
+            bottom: 86px !important;
+        }
+
+        #sceneViewDiv .esri-widget,
+        #sceneViewDiv .esri-component {
+            border-radius: 6px !important;
+            overflow: hidden;
+            border: 1px solid rgba(55, 70, 75, 0.2) !important;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.18) !important;
+        }
+
+        #sceneViewDiv .esri-widget--button {
+            border-radius: 0 !important;
+        }
+
+        /* Home/Standardausdehnung explizit ausblenden */
+        #sceneViewDiv .esri-home,
+        #sceneViewDiv .esri-component.esri-home,
+        #sceneViewDiv .esri-home.esri-widget--button {
+            display: none !important;
+        }
+        
+        /* 3D Maptip Popup */
+        #maptip-popup {
+            position: absolute;
+            z-index: 80;
+            display: none;
+            background: white;
+            border-radius: 6px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.35);
+            min-width: 240px;
+            max-width: 520px;
+            max-height: 450px;
+            overflow: hidden;
+            font-size: 12px;
+            color: #333;
+            /* Resizable */
+            resize: both;
+            overflow: auto;
+        }
+        #maptip-popup .maptip-header {
+            background: #4b7b81;
+            color: white;
+            padding: 8px 12px;
+            font-weight: 600;
+            font-size: 13px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: grab;
+            user-select: none;
+        }
+        #maptip-popup .maptip-header:active { cursor: grabbing; }
+        #maptip-popup .maptip-close {
+            cursor: pointer;
+            font-size: 18px;
+            line-height: 1;
+            opacity: 0.8;
+            padding: 0 2px;
+        }
+        #maptip-popup .maptip-close:hover { opacity: 1; }
+        #maptip-popup .maptip-body {
+            padding: 0;
+            max-height: 290px;
+            overflow-y: auto;
+        }
+        #maptip-popup .maptip-layer {
+            border-bottom: 1px solid #eee;
+        }
+        #maptip-popup .maptip-layer:last-child { border-bottom: none; }
+        #maptip-popup .maptip-layer-header {
+            background: #f5f5f5;
+            padding: 6px 12px;
+            font-weight: 600;
+            font-size: 11px;
+            color: #555;
+            cursor: pointer;
+            user-select: none;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        #maptip-popup .maptip-layer-header:hover { background: #d5e8e9; }
+        #maptip-popup .maptip-layer-header.hl-active { background: #b8d8da; }
+        #maptip-popup .maptip-layer-content {
+            padding: 6px 12px 8px;
+        }
+        #maptip-popup .maptip-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        #maptip-popup .maptip-table td {
+            padding: 2px 6px 2px 0;
+            vertical-align: top;
+            font-size: 11px;
+            line-height: 1.4;
+        }
+        #maptip-popup .maptip-table td:first-child {
+            font-weight: 600;
+            color: #666;
+            white-space: nowrap;
+            width: 40%;
+        }
+        #maptip-popup .maptip-loading {
+            padding: 12px;
+            text-align: center;
+            color: #999;
+        }
+        #maptip-popup .maptip-empty {
+            padding: 12px;
+            text-align: center;
+            color: #aaa;
+            font-style: italic;
+        }
+        #maptip-pointer {
+            position: absolute;
+            z-index: 79;
+            width: 0;
+            height: 0;
+            border-left: 8px solid transparent;
+            border-right: 8px solid transparent;
+            border-top: 8px solid white;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="sceneViewDiv"></div>
+    
+    <div id="loading-overlay">
+        <div class="spinner"></div>
+        <h3>3D Landschaftsmodell</h3>
+        <p id="loading-status">Lade WebScene...</p>
+    </div>
+    
+    <div id="error-overlay">
+        <h3>⚠ Fehler</h3>
+        <p id="error-message"></p>
+    </div>
+    
+    <div id="sync-indicator" onclick="toggleSync()" title="Kamera-Synchronisierung Ein/Aus">
+        <span class="dot"></span>
+        <span id="sync-label">Sync aktiv</span>
+    </div>
+    
+    <!-- 3D Toolbar -->
+    <div id="toolbar-3d">
+        <button class="tb-btn" id="btn-measure-dist" onclick="activateTool('distance')" title="Distanz messen">
+            <svg viewBox="0 0 24 24"><path d="M1.39 18.36l3.16-3.16 1.42 1.42-3.17 3.16zM5.98 14.78l2.83-2.83 1.41 1.41-2.83 2.83zM10.56 10.2l2.83-2.83 1.41 1.41-2.83 2.83zM19.19 1.39l3.16 3.16-1.42 1.42-3.16-3.17z"/><path d="M17.32 7.03l-5.66 5.66 1.41 1.41 5.66-5.66z" opacity=".5"/></svg>
+            Distanz
+        </button>
+        <button class="tb-btn" id="btn-measure-area" onclick="activateTool('area')" title="Fläche messen">
+            <svg viewBox="0 0 24 24"><path d="M3 5v14h18V5H3zm16 12H5V7h14v10z"/></svg>
+            Fläche
+        </button>
+        <button class="tb-btn" id="btn-measure-elev" onclick="activateTool('elevation')" title="Höhenprofil">
+            <svg viewBox="0 0 24 24"><path d="M14 6l-3.75 5 2.85 3.8-1.6 1.2C9.81 13.75 7 10 7 10l-6 8h22L14 6z"/></svg>
+            Höhe
+        </button>
+        <button class="tb-btn" id="btn-daylight" onclick="activateTool('daylight')" title="Schattenwurf / Tageszeit">
+            <svg viewBox="0 0 24 24"><path d="M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5zM2 13h2c.55 0 1-.45 1-1s-.45-1-1-1H2c-.55 0-1 .45-1 1s.45 1 1 1zm18 0h2c.55 0 1-.45 1-1s-.45-1-1-1h-2c-.55 0-1 .45-1 1s.45 1 1 1zM11 2v2c0 .55.45 1 1 1s1-.45 1-1V2c0-.55-.45-1-1-1s-1 .45-1 1zm0 18v2c0 .55.45 1 1 1s1-.45 1-1v-2c0-.55-.45-1-1-1s-1 .45-1 1zM5.99 4.58a.996.996 0 00-1.41 0 .996.996 0 000 1.41l1.06 1.06c.39.39 1.03.39 1.41 0 .39-.39.39-1.03 0-1.41L5.99 4.58zm12.37 12.37a.996.996 0 00-1.41 0 .996.996 0 000 1.41l1.06 1.06c.39.39 1.03.39 1.41 0 .39-.39.39-1.03 0-1.41l-1.06-1.06zm1.06-10.96a.996.996 0 000-1.41.996.996 0 00-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41.39.39 1.03.39 1.41 0l1.06-1.06zM7.05 18.36a.996.996 0 000-1.41.996.996 0 00-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41.39.39 1.03.39 1.41 0l1.06-1.06z"/></svg>
+            Schatten
+        </button>
+        <button class="tb-btn" id="btn-viewshed" onclick="activateTool('viewshed')" title="Sichtanalyse">
+            <svg viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>
+            Sicht
+        </button>
+        <button class="tb-btn" id="btn-tlm-only" onclick="toggleTlmOnly()" title="Nur Geländemodell (Fachlayer ein/aus)">
+            <svg viewBox="0 0 24 24"><path d="M14 6l-3.75 5 2.85 3.8-1.6 1.2C9.81 13.75 7 10 7 10l-6 8h22L14 6z"/></svg>
+            nur TLM
+        </button>
+    </div>
+    
+    <!-- Daylight Panel -->
+    <div id="daylight-panel">
+        <h4 style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+            <span>☀ Schattenwurf / Tageszeit</span>
+            <button class="tb-btn" type="button" style="padding:2px 6px;line-height:1;" onclick="deactivateAllTools()" title="Schliessen">&times;</button>
+        </h4>
+        <label>Datum</label>
+        <input type="date" id="daylight-date" value="2026-06-21">
+        <label>Uhrzeit: <span id="daylight-time-label">12:00</span></label>
+        <input type="range" id="daylight-time" min="0" max="1440" value="720" step="5">
+        <label style="margin-top:8px">
+            <input type="checkbox" id="daylight-shadows" checked> Schatten anzeigen
+        </label>
+        <label>
+            <input type="checkbox" id="daylight-animation"> Animation (Tag-Ablauf)
+        </label>
+    </div>
+    
+    <!-- Maptip Popup -->
+    <div id="maptip-popup">
+        <div class="maptip-header">
+            <span id="maptip-title">Objektinformation</span>
+            <span class="maptip-close" onclick="closeMaptip()">&times;</span>
+        </div>
+        <div class="maptip-body" id="maptip-body"></div>
+    </div>
+    <div id="maptip-pointer"></div>
+    
+    <!-- Viewshed Panel -->
+    <div id="viewshed-panel">
+        <h4 style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+            <span>👁 Sichtanalyse</span>
+            <button class="tb-btn" type="button" style="padding:2px 6px;line-height:1;" onclick="deactivateAllTools()" title="Schliessen">&times;</button>
+        </h4>
+        <div id="viewshed-info">
+            Klicke auf einen Punkt in der 3D-Szene, um eine Sichtanalyse von diesem Standort durchzuführen.
+            <br><br>
+            <b>Grün</b> = sichtbare Bereiche<br>
+            <b>Rot</b> = verdeckte Bereiche
+        </div>
+        <label>Reichweite (m): <span id="viewshed-range-label">500</span></label>
+        <input type="range" id="viewshed-range" min="50" max="5000" value="500" step="50">
+        <button class="tb-btn" style="margin-top:8px;width:100%;justify-content:center" onclick="clearViewshed()">Analyse zurücksetzen</button>
+    </div>
+
+    <script>
+        // =============================================
+        // 3D Viewer - Isolated ESRI Environment
+        // =============================================
+
+        // =============================================
+        // Log Level System
+        // Über URL-Parameter 'loglevel' gesteuert (vom Parent übergeben)
+        // Stufen: 'none' (0) | 'error' (1) | 'warn' (2) | 'info' (3) | 'debug' (4)
+        // Da der Viewer in einem isolierten iframe läuft, können die
+        // globalen console-Methoden sicher überschrieben werden.
+        // =============================================
+        var _LOG_LEVELS = { none: 0, error: 1, warn: 2, info: 3, debug: 4 };
+        var _logLevel = _LOG_LEVELS.warn; // Standard: nur Warnungen und Fehler
+        (function() {
+            var p = new URLSearchParams(window.location.search);
+            var lvl = p.get('loglevel');
+            if (lvl && _LOG_LEVELS[lvl] !== undefined) _logLevel = _LOG_LEVELS[lvl];
+        })();
+        var _realConsole = {
+            log:   window.console.log.bind(window.console),
+            info:  (window.console.info  || window.console.log).bind(window.console),
+            warn:  window.console.warn.bind(window.console),
+            error: window.console.error.bind(window.console),
+            debug: (window.console.debug || window.console.log).bind(window.console)
+        };
+        window.console.log   = function() { if (_logLevel >= _LOG_LEVELS.debug) _realConsole.log.apply(null, arguments); };
+        window.console.info  = function() { if (_logLevel >= _LOG_LEVELS.info)  _realConsole.info.apply(null, arguments); };
+        window.console.warn  = function() { if (_logLevel >= _LOG_LEVELS.warn)  _realConsole.warn.apply(null, arguments); };
+        window.console.error = function() { if (_logLevel >= _LOG_LEVELS.error) _realConsole.error.apply(null, arguments); };
+        window.console.debug = function() { if (_logLevel >= _LOG_LEVELS.debug) _realConsole.debug.apply(null, arguments); };
+        if (_logLevel >= _LOG_LEVELS.info) {
+            _realConsole.info('[3DViewer] Log level:', Object.keys(_LOG_LEVELS).filter(function(k) { return _LOG_LEVELS[k] === _logLevel; })[0] || 'warn');
+        }
+        
+        var sceneView = null;
+        var syncEnabled = true;
+        var syncLock = false;
+        var webSceneId = null;
+        var overlayLayers = []; // Track added overlay layers
+        var basemapOverlayLayers = []; // Track basemap overlay layers
+        var activeTool = null;  // Current active tool name
+        var measureWidget = null;
+        var daylightWidget = null;
+        var viewshedAnalysis = null;
+        var viewshedGraphics = [];
+        var animationHandle = null;
+        var _daylightHandlersBound = false;
+        var _viewshedHandlersBound = false;
+        var _toolActivationToken = 0;
+        var maptipLayerDefs = [];   // aktuelle Layer-Definitionen für Maptip-Abfragen
+        var maptipAbortCtrl = null; // AbortController für laufende Maptip-Requests
+        var highlightGraphicsLayer = null; // GraphicsLayer für Maptip-Highlighting
+        var _maptipFeatures = [];     // Letzte Maptip-Ergebnisse (für Einzelhighlight pro Layer)
+        var tlmOnlyMode = false;     // true = nur TLM/Geländemodell sichtbar (Fachlayer aus)
+        var _tlmHiddenLayers = [];   // Gespeicherte Layer-Referenzen für Restore
+        var _highlightConfig = null; // Highlight-Styling aus Config (von Parent per postMessage)
+        var _nativeHighlightHandles = []; // ESRI-native Highlight-Handles (für SceneLayer)
+
+        function are3DToolsAvailable() {
+            var isSmallScreen = window.innerWidth < 510;
+            var isLikelyMobileUa = false;
+            var isMobileEntry = !!window.__TNET_MOBILE_ENTRY;
+            try {
+                isLikelyMobileUa = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || '');
+            } catch (e) {}
+            return !(isSmallScreen || isLikelyMobileUa || isMobileEntry);
+        }
+
+        function refresh3DToolAvailability() {
+            var available = are3DToolsAvailable();
+            document.body.classList.toggle('tools-disabled', !available);
+            if (!available && activeTool) {
+                deactivateAllTools();
+            }
+        }
+
+        window.addEventListener('resize', refresh3DToolAvailability);
+        window.addEventListener('orientationchange', refresh3DToolAvailability);
+        refresh3DToolAvailability();
+        
+        // Get WebScene ID from URL parameters
+        function getParams() {
+            var params = {};
+            var search = window.location.search.substring(1);
+            if (search) {
+                search.split('&').forEach(function(pair) {
+                    var parts = pair.split('=');
+                    params[decodeURIComponent(parts[0])] = decodeURIComponent(parts[1] || '');
+                });
+            }
+            return params;
+        }
+        
+        function setLoadingStatus(msg) {
+            var el = document.getElementById('loading-status');
+            if (el) el.textContent = msg;
+        }
+        
+        function showError(msg) {
+            var overlay = document.getElementById('error-overlay');
+            var msgEl = document.getElementById('error-message');
+            if (overlay && msgEl) {
+                msgEl.textContent = msg;
+                overlay.style.display = 'flex';
+            }
+            document.getElementById('loading-overlay').classList.add('hidden');
+        }
+        
+        function hideLoading() {
+            document.getElementById('loading-overlay').classList.add('hidden');
+        }
+        
+        function toggleSync() {
+            syncEnabled = !syncEnabled;
+            var indicator = document.getElementById('sync-indicator');
+            var label = document.getElementById('sync-label');
+            if (syncEnabled) {
+                indicator.classList.remove('disabled');
+                label.textContent = 'Sync aktiv';
+            } else {
+                indicator.classList.add('disabled');
+                label.textContent = 'Sync aus';
+            }
+            // Notify parent
+            sendToParent({ type: 'syncToggled', enabled: syncEnabled });
+        }
+        
+        // Communication with parent window
+        function sendToParent(msg) {
+            try {
+                if (window.parent && window.parent !== window) {
+                    window.parent.postMessage(msg, '*');
+                }
+            } catch(e) {
+                console.warn('[3DViewer] Cannot send to parent:', e);
+            }
+        }
+        
+        // Listen for messages from parent
+        window.addEventListener('message', function(event) {
+            var data = event.data;
+            if (!data || !data.type) return;
+            
+            switch (data.type) {
+                case 'syncCamera':
+                    // Parent sends new camera position (from 2D map)
+                    // - Pan: nur longitude/latitude (keine altitude) → Position ändern, Höhe beibehalten
+                    // - Zoom: longitude/latitude + altitude → Position UND Kamerahöhe ändern
+                    if (!syncEnabled || syncLock || !sceneView) return;
+                    syncLock = true;
+                    
+                    // Safety: Lock nach max 500ms freigeben, egal was passiert
+                    var _safetyTimer = setTimeout(function() { syncLock = false; }, 500);
+                    
+                    try {
+                        var currentCam = sceneView.camera;
+                        var goToOpts = {
+                            target: [data.longitude, data.latitude],
+                            heading: (data.heading !== undefined) ? data.heading : (currentCam ? currentCam.heading : 0),
+                            tilt: (data.tilt !== undefined) ? data.tilt : (currentCam ? currentCam.tilt : 60)
+                        };
+                        
+                        // Altitude wird nur gesetzt wenn explizit gesendet (= Zoom-Änderung)
+                        // Bei reinem Pan bleibt die aktuelle Kamerahöhe erhalten
+                        if (data.altitude !== undefined) {
+                            goToOpts.position = {
+                                longitude: data.longitude,
+                                latitude: data.latitude,
+                                z: data.altitude
+                            };
+                            delete goToOpts.target; // position und target sind gegenseitig exklusiv
+                        }
+                        
+                        sceneView.goTo(goToOpts, {
+                            animate: false,
+                            duration: 0
+                        }).catch(function() {}).then(function() {
+                            clearTimeout(_safetyTimer);
+                            setTimeout(function() { syncLock = false; }, 80);
+                        });
+                    } catch(e) {
+                        clearTimeout(_safetyTimer);
+                        syncLock = false;
+                    }
+                    break;
+                    
+                case 'toggleSync':
+                    toggleSync();
+                    break;
+                    
+                case 'setWebScene':
+                    if (data.webSceneId) {
+                        initScene(data.webSceneId);
+                    }
+                    break;
+                    
+                case 'setHighlightConfig':
+                    if (data.highlight) {
+                        _highlightConfig = data.highlight;
+                        // ESRI-native Highlight-Farbe aktualisieren (für SceneLayer)
+                        if (sceneView && data.highlight.fill) {
+                            var oc = data.highlight.fill.outlineColor || [0, 220, 0, 1];
+                            var fc = data.highlight.fill.color || [0, 255, 0, 0.55];
+                            sceneView.highlightOptions = {
+                                color: oc.slice(0, 3).concat([1]),
+                                haloColor: oc.slice(0, 3).concat([1]),
+                                haloOpacity: 0.9,
+                                fillOpacity: fc[3] || 0.35
+                            };
+                        }
+                        console.log('[3DViewer] Highlight config received:', JSON.stringify(_highlightConfig));
+                    }
+                    break;
+                    
+                case 'syncLayers':
+                    if (data.layers) {
+                        syncOverlayLayers(data.layers);
+                        maptipLayerDefs = data.layers || [];
+                    }
+                    break;
+                    
+                case 'syncBasemap':
+                    if (data.layers) {
+                        syncBasemapLayers(data.layers);
+                    }
+                    break;
+            }
+        });
+        
+        // Sync overlay layers from 2D map onto 3D scene
+        function syncOverlayLayers(layerDefs) {
+            if (!sceneView || !sceneView.map) {
+                console.warn('[3DViewer] Cannot sync layers: scene not ready');
+                return;
+            }
+            
+            require([
+                'esri/layers/WMSLayer',
+                'esri/layers/MapImageLayer',
+                'esri/layers/WMTSLayer'
+            ], function(WMSLayer, MapImageLayer, WMTSLayer) {
+                
+                // Remove existing overlay layers
+                overlayLayers.forEach(function(lyr) {
+                    try { sceneView.map.remove(lyr); } catch(e) {}
+                });
+                overlayLayers = [];
+                
+                if (!layerDefs || layerDefs.length === 0) {
+                    console.log('[3DViewer] All overlay layers removed');
+                    return;
+                }
+                
+                layerDefs.forEach(function(def) {
+                    try {
+                        var layer = null;
+                        
+                        if (def.type === 'wms') {
+                            // Split LAYERS param into sublayer array
+                            var subLayers = (def.layers || '').split(',').map(function(name) {
+                                return { name: name.trim() };
+                            });
+                            
+                            // Tile-Grösse: ausgewogener Kompromiss
+                            // SceneView LOD-System fordert automatisch nahe Tiles zuerst an
+                            // (höhere Screen-Space-Abdeckung → höhere Priorität).
+                            // Entfernte Tiles werden mit geringerer Auflösung nachgeladen.
+                            // 2048 ist der ESRI-Default — gross genug für gute Nahqualität,
+                            // klein genug für schnelles Laden.
+                            var wmsOpts = {
+                                url: def.url,
+                                sublayers: subLayers,
+                                opacity: def.opacity || 1,
+                                title: def.name || 'WMS Overlay',
+                                imageFormat: def.format || 'image/png',
+                                imageTransparency: def.transparent !== false,
+                                // Kein CRS-Override: ESRI verhandelt automatisch via GetCapabilities
+                                // SceneView braucht EPSG:4326 — Schweizer WMS-Dienste unterstützen das
+                                version: '1.3.0',
+                                // 2048 = ESRI-Default, ausgewogen für Nah- und Fernbereich
+                                imageMaxWidth: 2048,
+                                imageMaxHeight: 2048
+                            };
+                            
+                            // Für MapServer/QGIS: leicht erhöhte Render-DPI
+                            // 120 DPI = moderater Schärfe-Boost ohne übermässigen Overhead
+                            // (Standard: 96, vorher 144 — war zu gross/langsam)
+                            var urlLower = (def.url || '').toLowerCase();
+                            if (urlLower.indexOf('mapserv') > -1 || urlLower.indexOf('qgis') > -1 || urlLower.indexOf('cgi-bin') > -1) {
+                                wmsOpts.customParameters = { MAP_RESOLUTION: '120' };
+                            }
+                            
+                            layer = new WMSLayer(wmsOpts);
+                            console.log('[3DViewer] Adding WMS layer:', def.name, '→', def.url, 'LAYERS:', def.layers,
+                                'imageMax:', wmsOpts.imageMaxWidth, 'customParams:', JSON.stringify(wmsOpts.customParameters || {}));
+                            
+                        } else if (def.type === 'arcgis') {
+                            // Parse LAYERS param (e.g. "show:0,1,2" or just "0,1")
+                            var sublayerDefs = [];
+                            var layersParam = def.layers || '';
+                            if (layersParam) {
+                                // Remove "show:" prefix if present
+                                var layerIds = layersParam.replace(/^show:/i, '').split(',');
+                                sublayerDefs = layerIds.map(function(id) {
+                                    var trimmed = id.trim();
+                                    // If it's a number, use as sublayer id
+                                    var numId = parseInt(trimmed, 10);
+                                    if (!isNaN(numId)) {
+                                        return { id: numId, visible: true };
+                                    }
+                                    return null;
+                                }).filter(function(s) { return s !== null; });
+                            }
+                            
+                            var mapImgOpts = {
+                                url: def.url,
+                                opacity: def.opacity || 1,
+                                title: def.name || 'ArcGIS Overlay'
+                            };
+                            
+                            // Only set sublayers if we have valid numeric ids
+                            if (sublayerDefs.length > 0) {
+                                mapImgOpts.sublayers = sublayerDefs;
+                            }
+                            
+                            layer = new MapImageLayer(mapImgOpts);
+                            console.log('[3DViewer] Adding ArcGIS layer:', def.name, '→', def.url, 'sublayers:', JSON.stringify(sublayerDefs));
+                        }
+                        
+                        if (layer) {
+                            // Layer-Load-Events für Debug
+                            (function(layerRef, layerDef) {
+                                layerRef.when(function() {
+                                    console.log('[3DViewer] ✓ Layer loaded OK:', layerDef.name, '(' + layerDef.type + ')',
+                                        'fullExtent:', layerRef.fullExtent ? JSON.stringify({
+                                            xmin: Math.round(layerRef.fullExtent.xmin),
+                                            ymin: Math.round(layerRef.fullExtent.ymin),
+                                            xmax: Math.round(layerRef.fullExtent.xmax),
+                                            ymax: Math.round(layerRef.fullExtent.ymax),
+                                            wkid: layerRef.fullExtent.spatialReference && layerRef.fullExtent.spatialReference.wkid
+                                        }) : 'none');
+                                }, function(err) {
+                                    console.error('[3DViewer] ✗ Layer FAILED:', layerDef.name, '(' + layerDef.type + ')',
+                                        'url:', layerDef.url,
+                                        'error:', err && err.message,
+                                        'details:', err && err.details ? JSON.stringify(err.details) : '-');
+                                    
+                                    // MediaLayer-Fallback für WMS mit inkompatiblem CRS
+                                    if (layerDef.type === 'wms') {
+                                        console.log('[3DViewer] ⚠ Versuche MediaLayer-Fallback für:', layerDef.name);
+                                        try { sceneView.map.remove(layerRef); } catch(e2) {}
+                                        var idx = overlayLayers.indexOf(layerRef);
+                                        if (idx >= 0) overlayLayers.splice(idx, 1);
+                                        addWmsMediaLayerFallback(layerDef);
+                                    }
+                                });
+                            })(layer, def);
+                            sceneView.map.add(layer);
+                            overlayLayers.push(layer);
+                        }
+                    } catch(e) {
+                        console.warn('[3DViewer] Error adding layer:', def.name, e);
+                    }
+                });
+                
+                // TLM-Modus: neue Layer sofort ausblenden
+                if (tlmOnlyMode) {
+                    overlayLayers.forEach(function(lyr) { lyr.visible = false; });
+                }
+                
+                // Highlight-Layer immer zuoberst halten
+                if (highlightGraphicsLayer && sceneView.map.layers.includes(highlightGraphicsLayer)) {
+                    sceneView.map.reorder(highlightGraphicsLayer, sceneView.map.layers.length - 1);
+                }
+                
+                console.log('[3DViewer] Synced', overlayLayers.length, 'overlay layers', tlmOnlyMode ? '(TLM-mode: hidden)' : '');
+            });
+        }
+        
+        // MediaLayer-Fallback für WMS-Dienste die kein EPSG:4326/3857 unterstützen
+        // Holt das Bild via GetMap in EPSG:2056 und platziert es georeferenziert als ImageElement
+        function addWmsMediaLayerFallback(def) {
+            if (!sceneView || !sceneView.map) return;
+            
+            require([
+                'esri/layers/MediaLayer',
+                'esri/layers/support/ImageElement',
+                'esri/layers/support/ExtentAndRotationGeoreference',
+                'esri/geometry/Extent',
+                'esri/geometry/SpatialReference',
+                'esri/geometry/projection'
+            ], function(MediaLayer, ImageElement, ExtentAndRotationGeoreference, Extent, SpatialReference, projection) {
+                
+                projection.load().then(function() {
+                    var sr2056 = new SpatialReference({ wkid: 2056 });
+                    var refreshTimer = null;
+                    var alive = true;
+                    
+                    var mediaLayer = new MediaLayer({
+                        opacity: def.opacity || 1,
+                        title: (def.name || 'WMS') + ' (Fallback)'
+                    });
+                    
+                    function buildGetMapUrl(extent2056, width, height) {
+                        var bbox = extent2056.xmin + ',' + extent2056.ymin + ',' +
+                                   extent2056.xmax + ',' + extent2056.ymax;
+                        var baseUrl = def.url;
+                        var sep = (baseUrl.indexOf('?') >= 0) ? '&' : '?';
+                        return baseUrl + sep +
+                            'SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap' +
+                            '&LAYERS=' + encodeURIComponent(def.layers || '') +
+                            '&CRS=EPSG:2056' +
+                            '&BBOX=' + bbox +
+                            '&WIDTH=' + width + '&HEIGHT=' + height +
+                            '&FORMAT=' + encodeURIComponent(def.format || 'image/png') +
+                            '&TRANSPARENT=TRUE';
+                    }
+                    
+                    function refreshImage() {
+                        if (!alive || !sceneView || !sceneView.extent) return;
+                        // Prüfen ob Layer noch in der Karte ist
+                        if (!sceneView.map.layers.includes(mediaLayer)) {
+                            alive = false;
+                            if (watchHandle) { watchHandle.remove(); watchHandle = null; }
+                            return;
+                        }
+                        
+                        var viewExtent = sceneView.extent;
+                        var extent2056 = projection.project(viewExtent, sr2056);
+                        if (!extent2056) {
+                            console.warn('[3DViewer] MediaLayer: Projektion nach EPSG:2056 fehlgeschlagen');
+                            return;
+                        }
+                        
+                        // Ausgewogene Auflösung: 1.25× Viewport (scharf, aber nicht riesig)
+                        // SceneView LOD priorisiert nahe Bereiche automatisch
+                        var w = Math.min(Math.round(sceneView.width * 1.25) || 1280, 2560);
+                        var h = Math.min(Math.round(sceneView.height * 1.25) || 1280, 2560);
+                        var getMapUrl = buildGetMapUrl(extent2056, w, h);
+                        
+                        var imageElement = new ImageElement({
+                            image: getMapUrl,
+                            georeference: new ExtentAndRotationGeoreference({
+                                extent: new Extent({
+                                    xmin: viewExtent.xmin,
+                                    ymin: viewExtent.ymin,
+                                    xmax: viewExtent.xmax,
+                                    ymax: viewExtent.ymax,
+                                    spatialReference: viewExtent.spatialReference
+                                })
+                            })
+                        });
+                        
+                        mediaLayer.source.elements.removeAll();
+                        mediaLayer.source.elements.add(imageElement);
+                    }
+                    
+                    sceneView.map.add(mediaLayer);
+                    overlayLayers.push(mediaLayer);
+                    
+                    // Initiales Laden
+                    refreshImage();
+                    
+                    // Bei Kamerabewegung neu laden (500ms debounce)
+                    var watchHandle = sceneView.watch('camera', function() {
+                        if (!alive) {
+                            if (watchHandle) { watchHandle.remove(); watchHandle = null; }
+                            return;
+                        }
+                        if (refreshTimer) clearTimeout(refreshTimer);
+                        refreshTimer = setTimeout(refreshImage, 500);
+                    });
+                    
+                    console.log('[3DViewer] ⚠ WMS MediaLayer-Fallback aktiv:', def.name, '→', def.url);
+                }).catch(function(err) {
+                    console.error('[3DViewer] MediaLayer-Fallback fehlgeschlagen (Projection Engine):', err);
+                });
+            });
+        }
+        
+        // Sync basemap layers from 2D to 3D terrain scene
+        function syncBasemapLayers(layerDefs) {
+            if (!sceneView || !sceneView.map) return;
+            
+            require([
+                'esri/layers/WMSLayer',
+                'esri/layers/MapImageLayer'
+            ], function(WMSLayer, MapImageLayer) {
+                // Remove old basemap overlays
+                basemapOverlayLayers.forEach(function(lyr) {
+                    try { sceneView.map.remove(lyr); } catch(e) {}
+                });
+                basemapOverlayLayers = [];
+                
+                if (!layerDefs || layerDefs.length === 0) return;
+                
+                layerDefs.forEach(function(def) {
+                    try {
+                        var layer = null;
+                        if (def.type === 'wms') {
+                            var subLayers = (def.layers || '').split(',').map(function(n) {
+                                return { name: n.trim() };
+                            });
+                            layer = new WMSLayer({
+                                url: def.url,
+                                sublayers: subLayers,
+                                opacity: def.opacity || 1,
+                                title: def.name || 'Basemap',
+                                imageFormat: def.format || 'image/png'
+                            });
+                        } else if (def.type === 'arcgis') {
+                            var opts = {
+                                url: def.url,
+                                opacity: def.opacity || 1,
+                                title: def.name || 'Basemap'
+                            };
+                            var sublayerDefs = [];
+                            var lp = def.layers || '';
+                            if (lp) {
+                                var ids = lp.replace(/^show:/i, '').split(',');
+                                sublayerDefs = ids.map(function(id) {
+                                    var n = parseInt(id.trim(), 10);
+                                    return isNaN(n) ? null : { id: n, visible: true };
+                                }).filter(Boolean);
+                            }
+                            if (sublayerDefs.length > 0) opts.sublayers = sublayerDefs;
+                            layer = new MapImageLayer(opts);
+                        }
+                        if (layer) {
+                            // Insert below overlay layers (at bottom)
+                            sceneView.map.add(layer, 0);
+                            basemapOverlayLayers.push(layer);
+                        }
+                    } catch(e) {
+                        console.warn('[3DViewer] Error adding basemap layer:', e);
+                    }
+                });
+                // TLM-Modus: neue Basemap-Layer sofort ausblenden
+                if (tlmOnlyMode) {
+                    basemapOverlayLayers.forEach(function(lyr) { lyr.visible = false; });
+                }
+                
+                console.log('[3DViewer] Synced', basemapOverlayLayers.length, 'basemap layers to 3D', tlmOnlyMode ? '(TLM-mode: hidden)' : '');
+            });
+        }
+        
+        // =============================================
+        // 3D Tools: Measure, Daylight/Shadow, Viewshed
+        // =============================================
+        
+        function activateTool(toolName) {
+            if (!are3DToolsAvailable()) {
+                deactivateAllTools();
+                return;
+            }
+
+            var isSameTool = (activeTool === toolName);
+
+            // Deactivate current tool
+            deactivateAllTools();
+            
+            // Gleicher Button wirkt als Toggle (schliessen)
+            if (isSameTool) {
+                return;
+            }
+            activeTool = toolName;
+            _toolActivationToken += 1;
+            var activationToken = _toolActivationToken;
+            
+            // Highlight button
+            var btn = document.getElementById('btn-' + (toolName === 'distance' ? 'measure-dist' : 
+                                                         toolName === 'area' ? 'measure-area' :
+                                                         toolName === 'elevation' ? 'measure-elev' : toolName));
+            if (btn) btn.classList.add('active');
+            
+            switch(toolName) {
+                case 'distance': startMeasure('distance', activationToken); break;
+                case 'area': startMeasure('area', activationToken); break;
+                case 'elevation': startMeasure('elevation', activationToken); break;
+                case 'daylight': showDaylightPanel(); break;
+                case 'viewshed': showViewshedPanel(activationToken); break;
+            }
+        }
+        
+        function deactivateAllTools() {
+            _toolActivationToken += 1;
+
+            // Remove active class from all buttons
+            document.querySelectorAll('.tb-btn').forEach(function(b) { b.classList.remove('active'); });
+            
+            // Destroy active measure widget
+            if (measureWidget) {
+                try { measureWidget.destroy(); } catch(e) {}
+                measureWidget = null;
+            }
+
+            // Destroy active viewshed widget
+            if (viewshedAnalysis) {
+                try { viewshedAnalysis.destroy(); } catch(e) {}
+                viewshedAnalysis = null;
+            }
+            
+            // Hide panels
+            document.getElementById('daylight-panel').style.display = 'none';
+            document.getElementById('viewshed-panel').style.display = 'none';
+            
+            // Stop daylight animation
+            if (animationHandle) {
+                clearInterval(animationHandle);
+                animationHandle = null;
+            }
+            
+            activeTool = null;
+        }
+        
+        // --- Measurement Tools ---
+        function startMeasure(type, activationToken) {
+            if (!sceneView) return;
+            
+            var widgetType;
+            switch(type) {
+                case 'distance': widgetType = 'esri/widgets/DirectLineMeasurement3D'; break;
+                case 'area': widgetType = 'esri/widgets/AreaMeasurement3D'; break;
+                case 'elevation': widgetType = 'esri/widgets/ElevationProfile'; break;
+            }
+            
+            require([widgetType], function(Widget) {
+                if (activationToken !== _toolActivationToken || activeTool !== type) {
+                    return;
+                }
+
+                if (type === 'elevation') {
+                    measureWidget = new Widget({
+                        view: sceneView,
+                        profiles: [{
+                            type: 'ground',
+                            title: 'Geländeprofil'
+                        }, {
+                            type: 'view',
+                            title: 'Sichtlinie'
+                        }]
+                    });
+                } else {
+                    measureWidget = new Widget({ view: sceneView });
+                }
+                sceneView.ui.add(measureWidget, 'bottom-right');
+                console.log('[3DViewer] Measure tool activated:', type);
+            });
+        }
+        
+        // --- Daylight / Shadow Analysis ---
+        function showDaylightPanel() {
+            document.getElementById('daylight-panel').style.display = 'block';
+            
+            if (!sceneView) return;
+            
+            // Enable sun-based lighting with shadows
+            sceneView.environment.lighting = {
+                type: 'sun',
+                date: getSelectedDateTime(),
+                directShadowsEnabled: true,
+                ambientOcclusionEnabled: true
+            };
+            
+            // Setup event listeners
+            if (!_daylightHandlersBound) {
+                document.getElementById('daylight-date').addEventListener('change', updateDaylight);
+                document.getElementById('daylight-time').addEventListener('input', updateDaylight);
+                document.getElementById('daylight-shadows').addEventListener('change', function() {
+                    sceneView.environment.lighting.directShadowsEnabled = this.checked;
+                });
+                document.getElementById('daylight-animation').addEventListener('change', function() {
+                    if (this.checked) {
+                        startDaylightAnimation();
+                    } else {
+                        if (animationHandle) { clearInterval(animationHandle); animationHandle = null; }
+                    }
+                });
+                _daylightHandlersBound = true;
+            }
+            
+            updateDaylight();
+        }
+        
+        function getSelectedDateTime() {
+            var dateStr = document.getElementById('daylight-date').value;
+            var minutes = parseInt(document.getElementById('daylight-time').value);
+            var hours = Math.floor(minutes / 60);
+            var mins = minutes % 60;
+            var d = new Date(dateStr + 'T' + String(hours).padStart(2,'0') + ':' + String(mins).padStart(2,'0') + ':00');
+            return d;
+        }
+        
+        function updateDaylight() {
+            if (!sceneView) return;
+            var minutes = parseInt(document.getElementById('daylight-time').value);
+            var hours = Math.floor(minutes / 60);
+            var mins = minutes % 60;
+            document.getElementById('daylight-time-label').textContent = 
+                String(hours).padStart(2,'0') + ':' + String(mins).padStart(2,'0');
+            
+            sceneView.environment.lighting.date = getSelectedDateTime();
+        }
+        
+        function startDaylightAnimation() {
+            if (animationHandle) clearInterval(animationHandle);
+            var slider = document.getElementById('daylight-time');
+            animationHandle = setInterval(function() {
+                var val = parseInt(slider.value) + 5;
+                if (val > 1440) val = 0;
+                slider.value = val;
+                updateDaylight();
+            }, 100);
+        }
+        
+        // --- Viewshed (Line of Sight) Analysis ---
+        function showViewshedPanel(activationToken) {
+            document.getElementById('viewshed-panel').style.display = 'block';
+            if (!sceneView) return;
+
+            if (viewshedAnalysis) {
+                return;
+            }
+            
+            require([
+                'esri/widgets/LineOfSight',
+                'esri/geometry/Point'
+            ], function(LineOfSight, Point) {
+                if (activationToken !== _toolActivationToken || activeTool !== 'viewshed') {
+                    return;
+                }
+                viewshedAnalysis = new LineOfSight({ view: sceneView });
+                sceneView.ui.add(viewshedAnalysis, 'bottom-right');
+                console.log('[3DViewer] Line of Sight analysis activated');
+            });
+            
+            // Range slider
+            if (!_viewshedHandlersBound) {
+                document.getElementById('viewshed-range').addEventListener('input', function() {
+                    document.getElementById('viewshed-range-label').textContent = this.value;
+                });
+                _viewshedHandlersBound = true;
+            }
+        }
+        
+        function clearViewshed() {
+            if (viewshedAnalysis) {
+                try {
+                    viewshedAnalysis.destroy();
+                } catch(e) {}
+                viewshedAnalysis = null;
+            }
+            console.log('[3DViewer] Viewshed cleared');
+            // Restart if panel still open
+            if (activeTool === 'viewshed') {
+                showViewshedPanel();
+            }
+        }
+        
+        // =============================================
+        // 3D Maptips: Click-to-Identify für WMS + ArcGIS
+        // =============================================
+        
+        function closeMaptip() {
+            document.getElementById('maptip-popup').style.display = 'none';
+            document.getElementById('maptip-pointer').style.display = 'none';
+            clearHighlight();
+        }
+        
+        // Highlight-Geometrien entfernen
+        function clearHighlight() {
+            if (highlightGraphicsLayer) {
+                highlightGraphicsLayer.removeAll();
+            }
+            // ESRI-native Highlights (SceneLayer) entfernen
+            _nativeHighlightHandles.forEach(function(h) {
+                try { h.remove(); } catch(e) {}
+            });
+            _nativeHighlightHandles = [];
+        }
+        
+        // Popup verschiebbar machen (Drag via Header)
+        (function() {
+            var popup = document.getElementById('maptip-popup');
+            var header = popup.querySelector('.maptip-header');
+            var isDragging = false;
+            var dragOffX = 0, dragOffY = 0;
+            
+            header.addEventListener('mousedown', function(e) {
+                if (e.target.classList.contains('maptip-close')) return;
+                isDragging = true;
+                dragOffX = e.clientX - popup.offsetLeft;
+                dragOffY = e.clientY - popup.offsetTop;
+                e.preventDefault();
+            });
+            document.addEventListener('mousemove', function(e) {
+                if (!isDragging) return;
+                popup.style.left = (e.clientX - dragOffX) + 'px';
+                popup.style.top = (e.clientY - dragOffY) + 'px';
+                // Pointer ausblenden beim Drag
+                document.getElementById('maptip-pointer').style.display = 'none';
+            });
+            document.addEventListener('mouseup', function() {
+                isDragging = false;
+            });
+        })();
+        
+        function positionMaptip(screenPoint) {
+            var popup = document.getElementById('maptip-popup');
+            var pointer = document.getElementById('maptip-pointer');
+            var viewW = window.innerWidth;
+            var viewH = window.innerHeight;
+            
+            // Popup sichtbar machen (für Dimensionen)
+            popup.style.display = 'block';
+            popup.style.left = '0px';
+            popup.style.top = '0px';
+            var pw = popup.offsetWidth;
+            var ph = popup.offsetHeight;
+            
+            // Position: über dem Klickpunkt, zentriert
+            var left = Math.round(screenPoint.x - pw / 2);
+            var top = Math.round(screenPoint.y - ph - 14);
+            
+            // Korrekturen falls ausserhalb Viewport
+            if (left < 4) left = 4;
+            if (left + pw > viewW - 4) left = viewW - pw - 4;
+            if (top < 4) {
+                // Unter dem Punkt anzeigen
+                top = Math.round(screenPoint.y + 14);
+                pointer.style.borderTop = 'none';
+                pointer.style.borderBottom = '8px solid white';
+                pointer.style.top = (top - 8) + 'px';
+            } else {
+                pointer.style.borderBottom = 'none';
+                pointer.style.borderTop = '8px solid white';
+                pointer.style.top = (top + ph) + 'px';
+            }
+            
+            popup.style.left = left + 'px';
+            popup.style.top = top + 'px';
+            pointer.style.left = Math.round(screenPoint.x - 8) + 'px';
+            pointer.style.display = 'block';
+        }
+        
+        function setup3DMaptips() {
+            if (!sceneView) return;
+            
+            // GraphicsLayer für Highlighting erstellen
+            require(['esri/layers/GraphicsLayer'], function(GraphicsLayer) {
+                highlightGraphicsLayer = new GraphicsLayer({ title: 'Maptip Highlight', listMode: 'hide' });
+                sceneView.map.add(highlightGraphicsLayer);
+            });
+            
+            sceneView.on('click', function(evt) {
+                // Nicht abfragen wenn ein Tool aktiv ist
+                if (activeTool) return;
+                
+                // Laufende Requests abbrechen
+                if (maptipAbortCtrl) {
+                    try { maptipAbortCtrl.abort(); } catch(e) {}
+                }
+                maptipAbortCtrl = new AbortController();
+                var signal = maptipAbortCtrl.signal;
+                
+                var screenPoint = { x: evt.x, y: evt.y };
+                var mapPoint = evt.mapPoint;
+                if (!mapPoint) return;
+                
+                var lon = mapPoint.longitude;
+                var lat = mapPoint.latitude;
+                
+                console.log('[3DViewer] Maptip click:', lon.toFixed(6), lat.toFixed(6));
+                
+                // Loading anzeigen
+                var body = document.getElementById('maptip-body');
+                body.innerHTML = '<div class="maptip-loading">⏳ Abfrage läuft...</div>';
+                positionMaptip(screenPoint);
+                clearHighlight();
+                
+                // 1) Native 3D-Objekte via hitTest abfragen
+                var hitTestPromise = sceneView.hitTest(evt).then(function(response) {
+                    var hitFeatures = [];
+                    if (response.results && response.results.length > 0) {
+                        response.results.forEach(function(result) {
+                            // Nur Features mit Attributen (keine Ground-Hits)
+                            if (result.graphic && result.graphic.attributes &&
+                                Object.keys(result.graphic.attributes).length > 0) {
+                                var layerTitle = (result.graphic.layer && result.graphic.layer.title) || '3D Objekt';
+                                var featureData = {
+                                    properties: result.graphic.attributes,
+                                    geometry: result.graphic.geometry,
+                                    geometryFormat: 'esri',
+                                    // Für ESRI-native Highlight (SceneLayer ohne Geometrie)
+                                    _graphic: result.graphic,
+                                    _layer: result.graphic.layer
+                                };
+                                // Prüfen ob Layer schon in der Liste
+                                var existing = hitFeatures.find(function(f) { return f.layer === layerTitle; });
+                                if (existing) {
+                                    existing.data.push(featureData);
+                                } else {
+                                    hitFeatures.push({
+                                        layer: layerTitle,
+                                        data: [featureData]
+                                    });
+                                }
+                            }
+                        });
+                    }
+                    return hitFeatures;
+                }).catch(function(err) {
+                    console.warn('[3DViewer] hitTest error:', err);
+                    return [];
+                });
+                
+                // 2) Overlay-Layer via GetFeatureInfo / Identify abfragen
+                // Koordinaten nach EPSG:2056 transformieren (für WMS/ArcGIS in LV95)
+                require([
+                    'esri/geometry/SpatialReference',
+                    'esri/geometry/Point',
+                    'esri/geometry/projection'
+                ], function(SpatialReference, Point, projection) {
+                    
+                    projection.load().then(function() {
+                        var sr2056 = new SpatialReference({ wkid: 2056 });
+                        var pt4326 = new Point({ longitude: lon, latitude: lat, spatialReference: SpatialReference.WGS84 });
+                        var pt2056 = projection.project(pt4326, sr2056);
+                        
+                        if (!pt2056) {
+                            body.innerHTML = '<div class="maptip-empty">Koordinaten-Transformation fehlgeschlagen</div>';
+                            return;
+                        }
+                        
+                        var x2056 = pt2056.x;
+                        var y2056 = pt2056.y;
+                        console.log('[3DViewer] Maptip LV95:', x2056.toFixed(1), y2056.toFixed(1));
+                        
+                        // Overlay-Layer abfragen
+                        var requests = [];
+                        var features = [];
+                        
+                        maptipLayerDefs.forEach(function(def) {
+                            if (def.type === 'wms') {
+                                requests.push(queryWmsFeatureInfo(def, x2056, y2056, signal, features));
+                            } else if (def.type === 'arcgis') {
+                                requests.push(queryArcGISIdentify(def, x2056, y2056, signal, features));
+                            }
+                        });
+                        
+                        // Auf alle Requests + hitTest warten
+                        Promise.all([hitTestPromise].concat(requests)).then(function(results) {
+                            if (signal.aborted) return;
+                            // hitTest-Ergebnisse am Anfang einfügen
+                            var hitFeatures = results[0] || [];
+                            var allFeatures = hitFeatures.concat(features);
+                            
+                            if (allFeatures.length === 0) {
+                                body.innerHTML = '<div class="maptip-empty">Keine Objekte gefunden</div>';
+                                document.getElementById('maptip-title').textContent = 'Objektinformation';
+                                positionMaptip(screenPoint);
+                            } else {
+                                renderMaptipResults(allFeatures, screenPoint);
+                            }
+                        }).catch(function(err) {
+                            if (signal.aborted) return;
+                            console.warn('[3DViewer] Maptip error:', err);
+                            body.innerHTML = '<div class="maptip-empty">Abfrage fehlgeschlagen</div>';
+                        });
+                    });
+                });
+            });
+            
+            console.log('[3DViewer] 3D Maptips aktiviert (Click-to-Identify)');
+        }
+        
+        // WMS GetFeatureInfo abfragen
+        function queryWmsFeatureInfo(def, x2056, y2056, signal, features) {
+            // GetFeatureInfo-URL bauen — Abfrage in EPSG:2056
+            // BBOX = kleiner Bereich um den Klickpunkt (±100m), Bild 101×101, Pixel i=50/j=50
+            var tolerance = 100;  // Meter in LV95
+            var imgW = 101, imgH = 101;
+            var bbox = (x2056 - tolerance) + ',' + (y2056 - tolerance) + ',' +
+                       (x2056 + tolerance) + ',' + (y2056 + tolerance);
+            
+            var baseUrl = def.url;
+            var sep = (baseUrl.indexOf('?') >= 0) ? '&' : '?';
+            
+            // Formate der Reihe nach probieren
+            var formats = ['application/json', 'application/geojson', 'text/plain', 'text/html', 'application/vnd.ogc.gml'];
+            var layerName = def.name || def.layers || 'WMS';
+            
+            var tryFormat = function(fmtIdx) {
+                if (fmtIdx >= formats.length) return Promise.resolve();
+                if (signal.aborted) return Promise.resolve();
+                
+                var infoFormat = formats[fmtIdx];
+                var url = baseUrl + sep +
+                    'SERVICE=WMS&VERSION=1.3.0&REQUEST=GetFeatureInfo' +
+                    '&LAYERS=' + encodeURIComponent(def.layers || '') +
+                    '&QUERY_LAYERS=' + encodeURIComponent(def.layers || '') +
+                    '&CRS=EPSG:2056' +
+                    '&BBOX=' + bbox +
+                    '&WIDTH=' + imgW + '&HEIGHT=' + imgH +
+                    '&I=50&J=50' +
+                    '&INFO_FORMAT=' + encodeURIComponent(infoFormat) +
+                    '&FEATURE_COUNT=10';
+                
+                return fetch(url, { signal: signal })
+                    .then(function(resp) { return resp.text(); })
+                    .then(function(text) {
+                        if (signal.aborted) return;
+                        
+                        // ServiceException → nächstes Format
+                        if (text.indexOf('ServiceException') > -1) {
+                            return tryFormat(fmtIdx + 1);
+                        }
+                        
+                        // JSON parsen
+                        if (infoFormat.indexOf('json') > -1) {
+                            try {
+                                var data = JSON.parse(text);
+                                if (data.features && data.features.length > 0) {
+                                    features.push({
+                                        layer: layerName,
+                                        data: data.features.map(function(f) {
+                                            return {
+                                                properties: f.properties || f.attributes || {},
+                                                geometry: f.geometry || null,
+                                                geometryFormat: 'geojson',
+                                                geometrySr: 2056
+                                            };
+                                        })
+                                    });
+                                    return;
+                                }
+                            } catch(e) {}
+                        }
+                        
+                        // text/plain (key = value)
+                        if (infoFormat === 'text/plain' && text.length > 0 && text.indexOf('<?xml') !== 0) {
+                            var attrs = {};
+                            text.split('\n').forEach(function(line) {
+                                line = line.trim();
+                                if (line && line.indexOf('=') > -1 && !line.match(/^(Layer|Feature|GetFeatureInfo)/)) {
+                                    var parts = line.split('=');
+                                    var key = parts[0].trim();
+                                    var val = parts.slice(1).join('=').trim().replace(/^['"]|['"]$/g, '');
+                                    if (key && val) attrs[key] = val;
+                                }
+                            });
+                            if (Object.keys(attrs).length > 0) {
+                                features.push({ layer: layerName, data: [{ properties: attrs }] });
+                                return;
+                            }
+                        }
+                        
+                        // HTML mit Tabelle
+                        if (infoFormat.indexOf('html') > -1 && text.indexOf('<table') > -1) {
+                            var tmp = document.createElement('div');
+                            tmp.innerHTML = text;
+                            var tables = tmp.getElementsByTagName('table');
+                            if (tables.length > 0) {
+                                var attrs = {};
+                                var rows = tables[0].getElementsByTagName('tr');
+                                for (var i = 0; i < rows.length; i++) {
+                                    var cells = rows[i].getElementsByTagName('td');
+                                    if (cells.length >= 2) {
+                                        attrs[cells[0].textContent.trim()] = cells[1].textContent.trim();
+                                    }
+                                }
+                                if (Object.keys(attrs).length > 0) {
+                                    features.push({ layer: layerName, data: [{ properties: attrs }] });
+                                    return;
+                                }
+                            }
+                        }
+                        
+                        // GML/XML
+                        if (text.indexOf('<') === 0) {
+                            try {
+                                var parser = new DOMParser();
+                                var doc = parser.parseFromString(text, 'text/xml');
+                                var members = doc.getElementsByTagName('gml:featureMember');
+                                if (members.length === 0) members = doc.getElementsByTagNameNS('*', 'featureMember');
+                                var xmlFeats = [];
+                                for (var i = 0; i < members.length; i++) {
+                                    var attrs = {};
+                                    var fn = members[i].children[0];
+                                    if (fn) {
+                                        for (var j = 0; j < fn.children.length; j++) {
+                                            var ch = fn.children[j];
+                                            var tag = ch.localName || ch.tagName;
+                                            if (ch.textContent && tag !== 'boundedBy') {
+                                                attrs[tag] = ch.textContent;
+                                            }
+                                        }
+                                    }
+                                    if (Object.keys(attrs).length > 0) xmlFeats.push({ properties: attrs });
+                                }
+                                if (xmlFeats.length > 0) {
+                                    features.push({ layer: layerName, data: xmlFeats });
+                                    return;
+                                }
+                            } catch(e) {}
+                        }
+                        
+                        return tryFormat(fmtIdx + 1);
+                    })
+                    .catch(function(err) {
+                        if (!signal.aborted) return tryFormat(fmtIdx + 1);
+                    });
+            };
+            
+            return tryFormat(0);
+        }
+        
+        // ArcGIS REST Identify abfragen
+        function queryArcGISIdentify(def, x2056, y2056, signal, features) {
+            var url = def.url;
+            var layerName = def.name || 'ArcGIS';
+            
+            // Für agsproxy PATH_INFO: /identify wird von der URL angehängt
+            // def.url ist bereits im PATH_INFO-Format: agsproxy.php/services/.../MapServer
+            var identifyUrl = url + '/identify';
+            
+            var tolerance = 100; // Meter
+            var mapExtent = (x2056 - tolerance) + ',' + (y2056 - tolerance) + ',' +
+                            (x2056 + tolerance) + ',' + (y2056 + tolerance);
+            
+            var layerIds = (def.layers || '0').replace(/^show:/i, '');
+            
+            identifyUrl += '?f=json' +
+                '&geometry=' + x2056 + ',' + y2056 +
+                '&geometryType=esriGeometryPoint' +
+                '&sr=2056' +
+                '&layers=all:' + layerIds +
+                '&tolerance=5' +
+                '&mapExtent=' + mapExtent +
+                '&imageDisplay=101,101,96' +
+                '&returnGeometry=true';
+            
+            console.log('[3DViewer] ArcGIS identify:', identifyUrl);
+            
+            return fetch(identifyUrl, { signal: signal })
+                .then(function(resp) { return resp.json(); })
+                .then(function(data) {
+                    if (signal.aborted) return;
+                    if (data.results && data.results.length > 0) {
+                        features.push({
+                            layer: layerName,
+                            data: data.results.map(function(r) {
+                                return { properties: r.attributes || {}, geometry: r.geometry || null, geometrySr: 2056 };
+                            })
+                        });
+                    }
+                })
+                .catch(function(err) {
+                    if (!signal.aborted) {
+                        console.warn('[3DViewer] ArcGIS identify error:', layerName, err);
+                    }
+                });
+        }
+        
+        // Maptip-Ergebnisse rendern
+        function renderMaptipResults(features, screenPoint) {
+            var body = document.getElementById('maptip-body');
+            var title = document.getElementById('maptip-title');
+            
+            if (!features || features.length === 0) {
+                body.innerHTML = '<div class="maptip-empty">Keine Objekte gefunden</div>';
+                title.textContent = 'Objektinformation';
+                positionMaptip(screenPoint);
+                return;
+            }
+            
+            // Ergebnisse global speichern (für Einzelhighlight pro Layer)
+            _maptipFeatures = features;
+            
+            var totalFeatures = 0;
+            features.forEach(function(f) { totalFeatures += f.data.length; });
+            title.textContent = 'Objektinformation (' + totalFeatures + ')';
+            
+            var html = '';
+            features.forEach(function(item, idx) {
+                var contentId = 'maptip-lyr-' + idx;
+                var isFirst = idx === 0;
+                
+                html += '<div class="maptip-layer">';
+                html += '<div class="maptip-layer-header" data-layer-idx="' + idx + '">';
+                html += '<span>' + item.layer + ' (' + item.data.length + ')</span>';
+                html += '<span class="mi" style="font-size:10px;color:#4b7b81;">' + (isFirst ? '▼' : '►') + '</span>';
+                html += '</div>';
+                
+                html += '<div id="' + contentId + '" class="maptip-layer-content" style="display:' + (isFirst ? 'block' : 'none') + ';">';
+                
+                item.data.forEach(function(feat, fi) {
+                    if (fi > 0) html += '<hr style="margin:6px 0;border:none;border-top:1px solid #eee;">';
+                    var props = feat.properties || {};
+                    var keys = Object.keys(props).filter(function(k) {
+                        return k !== 'geometry' && k !== 'SHAPE' && k !== 'Shape' &&
+                               props[k] !== null && props[k] !== '' && props[k] !== 'Null';
+                    });
+                    
+                    if (keys.length === 0) {
+                        html += '<div style="color:#aaa;font-size:11px;">Keine Attribute</div>';
+                    } else {
+                        html += '<table class="maptip-table">';
+                        keys.forEach(function(k) {
+                            var v = String(props[k]);
+                            // URLs klickbar machen
+                            if (v.match(/^https?:\/\//)) {
+                                v = '<a href="' + v + '" target="_blank" style="color:#4b7b81;">' + v + '</a>';
+                            }
+                            html += '<tr><td>' + k + '</td><td>' + v + '</td></tr>';
+                        });
+                        html += '</table>';
+                    }
+                });
+                
+                html += '</div></div>';
+            });
+            
+            body.innerHTML = html;
+            
+            // Accordion-Header: Klick → Toggle + Highlight, Hover → Highlight
+            var headers = body.querySelectorAll('.maptip-layer-header');
+            headers.forEach(function(hdr) {
+                var layerIdx = parseInt(hdr.getAttribute('data-layer-idx'), 10);
+                var contentId = 'maptip-lyr-' + layerIdx;
+                
+                // Klick: Accordion toggle + Highlight
+                hdr.addEventListener('click', function() {
+                    var c = document.getElementById(contentId);
+                    var indicator = hdr.querySelector('.mi');
+                    if (c.style.display === 'none') {
+                        c.style.display = 'block';
+                        if (indicator) indicator.textContent = '▼';
+                    } else {
+                        c.style.display = 'none';
+                        if (indicator) indicator.textContent = '►';
+                    }
+                    highlightLayerFeatures(layerIdx);
+                });
+                
+                // Hover: Highlight
+                hdr.addEventListener('mouseenter', function() {
+                    highlightLayerFeatures(layerIdx);
+                    // Visuelles Feedback
+                    headers.forEach(function(h) { h.classList.remove('hl-active'); });
+                    hdr.classList.add('hl-active');
+                });
+                hdr.addEventListener('mouseleave', function() {
+                    hdr.classList.remove('hl-active');
+                });
+            });
+            
+            // Initiales Highlight: erster Layer
+            if (features.length > 0) {
+                highlightLayerFeatures(0);
+                if (headers.length > 0) headers[0].classList.add('hl-active');
+            }
+            
+            positionMaptip(screenPoint);
+        }
+        
+        // Einzelnen Layer highlighten (aus globalem _maptipFeatures)
+        function highlightLayerFeatures(layerIdx) {
+            if (!_maptipFeatures || layerIdx < 0 || layerIdx >= _maptipFeatures.length) return;
+            // Nur diesen einen Layer highlighten
+            showHighlightGraphics([_maptipFeatures[layerIdx]]);
+        }
+        
+        // Fachlayer ein/aus (nur TLM / Geländemodell)
+        function toggleTlmOnly() {
+            var btn = document.getElementById('btn-tlm-only');
+            tlmOnlyMode = !tlmOnlyMode;
+            
+            if (tlmOnlyMode) {
+                // Alle Overlay-Layer unsichtbar machen
+                overlayLayers.forEach(function(lyr) { lyr.visible = false; });
+                basemapOverlayLayers.forEach(function(lyr) { lyr.visible = false; });
+                if (btn) btn.classList.add('active');
+                console.log('[3DViewer] TLM-only mode ON: Fachlayer ausgeblendet');
+            } else {
+                // Alle Overlay-Layer wieder sichtbar
+                overlayLayers.forEach(function(lyr) { lyr.visible = true; });
+                basemapOverlayLayers.forEach(function(lyr) { lyr.visible = true; });
+                if (btn) btn.classList.remove('active');
+                console.log('[3DViewer] TLM-only mode OFF: Fachlayer eingeblendet');
+            }
+        }
+        
+        // Highlight-Geometrien auf der 3D-Szene anzeigen
+        function showHighlightGraphics(features) {
+            if (!highlightGraphicsLayer) return;
+            clearHighlight();
+            
+            require([
+                'esri/Graphic',
+                'esri/geometry/Point',
+                'esri/geometry/Polyline',
+                'esri/geometry/Polygon',
+                'esri/geometry/SpatialReference',
+                'esri/geometry/projection',
+                'esri/symbols/SimpleMarkerSymbol',
+                'esri/symbols/SimpleLineSymbol',
+                'esri/symbols/SimpleFillSymbol'
+            ], function(Graphic, Point, Polyline, Polygon, SpatialReference, projection, SimpleMarkerSymbol, SimpleLineSymbol, SimpleFillSymbol) {
+                
+                // Highlight-Styling: Config oder Defaults (kräftiges Grün)
+                var hl = _highlightConfig || {};
+                var hlLine = hl.line || {};
+                var hlFill = hl.fill || {};
+                var hlPoint = hl.point || {};
+                
+                var highlightLine = new SimpleLineSymbol({
+                    color: hlLine.color || [0, 200, 60, 0.95],
+                    width: hlLine.width || 5
+                });
+                var highlightFill = new SimpleFillSymbol({
+                    color: hlFill.color || [0, 200, 60, 0.30],
+                    outline: {
+                        color: hlFill.outlineColor || [0, 200, 60, 0.95],
+                        width: hlFill.outlineWidth || 5
+                    }
+                });
+                var highlightPoint = new SimpleMarkerSymbol({
+                    color: hlPoint.color || [0, 200, 60, 0.85],
+                    size: hlPoint.size || 16,
+                    outline: {
+                        color: hlPoint.outlineColor || [0, 140, 40, 1],
+                        width: hlPoint.outlineWidth || 3
+                    }
+                });
+                
+                // Projection Engine laden, dann Geometrien verarbeiten
+                projection.load().then(function() {
+                    var viewSR = sceneView.spatialReference || SpatialReference.WGS84;
+                    
+                    // CH1903+/LV95 (EPSG:2056) → WGS84 Näherungstransformation
+                    // Genauigkeit: ~1m, ausreichend für Highlight-Darstellung
+                    function lv95ToWgs84(east, north) {
+                        var y_aux = (east - 2600000) / 1000000;
+                        var x_aux = (north - 1200000) / 1000000;
+                        var lon = 2.6779094 + 4.728982 * y_aux + 0.791484 * y_aux * x_aux + 0.1306 * y_aux * x_aux * x_aux - 0.0436 * y_aux * y_aux * y_aux;
+                        var lat = 16.9023892 + 3.238272 * x_aux - 0.270978 * y_aux * y_aux - 0.002528 * x_aux * x_aux - 0.0447 * y_aux * y_aux * x_aux - 0.0140 * x_aux * x_aux * x_aux;
+                        return { lon: lon * 100 / 36, lat: lat * 100 / 36 };
+                    }
+                    
+                    function transformCoords2056ToWgs84(coords) {
+                        if (!coords || coords.length === 0) return coords;
+                        // Prüfe ob es geschachtelte Arrays sind (Ringe/Pfade)
+                        if (Array.isArray(coords[0]) && Array.isArray(coords[0][0])) {
+                            return coords.map(function(ring) { return transformCoords2056ToWgs84(ring); });
+                        }
+                        if (Array.isArray(coords[0])) {
+                            return coords.map(function(c) {
+                                var wgs = lv95ToWgs84(c[0], c[1]);
+                                return [wgs.lon, wgs.lat];
+                            });
+                        }
+                        // Einzelpunkt [x, y]
+                        var wgs = lv95ToWgs84(coords[0], coords[1]);
+                        return [wgs.lon, wgs.lat];
+                    }
+                    
+                    function projectToView(esriGeom) {
+                        // Geometrie in SceneView-SR projizieren falls nötig
+                        if (!esriGeom || !esriGeom.spatialReference) return esriGeom;
+                        if (esriGeom.spatialReference.wkid === viewSR.wkid) return esriGeom;
+                        try {
+                            var projected = projection.project(esriGeom, viewSR);
+                            if (projected) return projected;
+                        } catch(e) {
+                            // Fallback: manuelle Transformation
+                        }
+                        // Fallback für EPSG:2056 → WGS84
+                        if (esriGeom.spatialReference.wkid === 2056) {
+                            try {
+                                if (esriGeom.type === 'point') {
+                                    var wgs = lv95ToWgs84(esriGeom.x, esriGeom.y);
+                                    return new Point({ x: wgs.lon, y: wgs.lat, spatialReference: SpatialReference.WGS84 });
+                                } else if (esriGeom.type === 'polyline') {
+                                    var newPaths = esriGeom.paths.map(function(path) {
+                                        return path.map(function(c) { var w = lv95ToWgs84(c[0], c[1]); return [w.lon, w.lat]; });
+                                    });
+                                    return new Polyline({ paths: newPaths, spatialReference: SpatialReference.WGS84 });
+                                } else if (esriGeom.type === 'polygon') {
+                                    var newRings = esriGeom.rings.map(function(ring) {
+                                        return ring.map(function(c) { var w = lv95ToWgs84(c[0], c[1]); return [w.lon, w.lat]; });
+                                    });
+                                    return new Polygon({ rings: newRings, spatialReference: SpatialReference.WGS84 });
+                                }
+                            } catch(e2) {
+                                console.warn('[3DViewer] LV95→WGS84 fallback error:', e2);
+                            }
+                        }
+                        return esriGeom;
+                    }
+                    
+                    function addGraphic(esriGeom, symbol) {
+                        if (!esriGeom || !symbol) return;
+                        var projected = projectToView(esriGeom);
+                        highlightGraphicsLayer.add(new Graphic({ geometry: projected, symbol: symbol }));
+                    }
+                    
+                    features.forEach(function(item) {
+                        item.data.forEach(function(feat) {
+                            var geom = feat.geometry;
+                            var esriGeom = null;
+                            var symbol = null;
+                            
+                            // Keine Geometrie → ESRI-nativer Highlight (SceneLayer/BuildingSceneLayer)
+                            if (!geom && feat._graphic && feat._layer) {
+                                sceneView.whenLayerView(feat._layer).then(function(layerView) {
+                                    if (layerView && typeof layerView.highlight === 'function') {
+                                        var handle = layerView.highlight(feat._graphic);
+                                        _nativeHighlightHandles.push(handle);
+                                        console.log('[3DViewer] Native highlight on:', feat._layer.title);
+                                    }
+                                }).catch(function(e) {
+                                    console.warn('[3DViewer] Native highlight failed:', e);
+                                });
+                                return;
+                            }
+                            if (!geom) return;
+                            var esriGeom = null;
+                            var symbol = null;
+                            
+                            try {
+                                // ESRI-Geometrie-Objekt (von hitTest oder direkt)
+                                if (geom.type === 'polygon' || geom.type === 'polyline' ||
+                                    geom.type === 'point' || geom.type === 'multipoint') {
+                                    esriGeom = geom;
+                                    if (geom.type === 'polygon') symbol = highlightFill;
+                                    else if (geom.type === 'polyline') symbol = highlightLine;
+                                    else symbol = highlightPoint;
+                                }
+                                // GeoJSON-Format (von WMS GetFeatureInfo)
+                                else if (geom.type && geom.coordinates) {
+                                    var sr = feat.geometrySr ? new SpatialReference({ wkid: feat.geometrySr }) : SpatialReference.WGS84;
+                                    
+                                    if (geom.type === 'Point') {
+                                        esriGeom = new Point({ x: geom.coordinates[0], y: geom.coordinates[1], spatialReference: sr });
+                                        symbol = highlightPoint;
+                                    } else if (geom.type === 'MultiPoint') {
+                                        geom.coordinates.forEach(function(c) {
+                                            addGraphic(new Point({ x: c[0], y: c[1], spatialReference: sr }), highlightPoint);
+                                        });
+                                        return;
+                                    } else if (geom.type === 'LineString') {
+                                        esriGeom = new Polyline({ paths: [geom.coordinates], spatialReference: sr });
+                                        symbol = highlightLine;
+                                    } else if (geom.type === 'MultiLineString') {
+                                        esriGeom = new Polyline({ paths: geom.coordinates, spatialReference: sr });
+                                        symbol = highlightLine;
+                                    } else if (geom.type === 'Polygon') {
+                                        esriGeom = new Polygon({ rings: geom.coordinates, spatialReference: sr });
+                                        symbol = highlightFill;
+                                    } else if (geom.type === 'MultiPolygon') {
+                                        var allRings = [];
+                                        geom.coordinates.forEach(function(poly) {
+                                            poly.forEach(function(ring) { allRings.push(ring); });
+                                        });
+                                        esriGeom = new Polygon({ rings: allRings, spatialReference: sr });
+                                        symbol = highlightFill;
+                                    }
+                                }
+                                // ESRI JSON-Format (von ArcGIS Identify: rings/paths/x,y)
+                                else {
+                                    var sr2 = feat.geometrySr ? new SpatialReference({ wkid: feat.geometrySr }) : SpatialReference.WGS84;
+                                    if (geom.rings) {
+                                        esriGeom = new Polygon({ rings: geom.rings, spatialReference: sr2 });
+                                        symbol = highlightFill;
+                                    } else if (geom.paths) {
+                                        esriGeom = new Polyline({ paths: geom.paths, spatialReference: sr2 });
+                                        symbol = highlightLine;
+                                    } else if (geom.x !== undefined && geom.y !== undefined) {
+                                        esriGeom = new Point({ x: geom.x, y: geom.y, spatialReference: sr2 });
+                                        symbol = highlightPoint;
+                                    }
+                                }
+                                
+                                addGraphic(esriGeom, symbol);
+                            } catch(e) {
+                                console.warn('[3DViewer] Highlight error:', e);
+                            }
+                        });
+                    });
+                }).catch(function(err) {
+                    console.warn('[3DViewer] Highlight projection engine error:', err);
+                });
+            });
+        }
+        
+        // Initialize the 3D scene
+        function initScene(wsId) {
+            webSceneId = wsId;
+            console.log('[3DViewer] Initializing:', webSceneId);
+            setLoadingStatus('Lade ESRI Module...');
+            
+            // Destroy existing view if reinitializing
+            if (sceneView) {
+                deactivateAllTools();
+                try { sceneView.destroy(); } catch(e) {}
+                sceneView = null;
+            }
+            overlayLayers = [];
+            basemapOverlayLayers = [];
+            document.getElementById('loading-overlay').classList.remove('hidden');
+            document.getElementById('error-overlay').style.display = 'none';
+            
+            require([
+                'esri/WebScene',
+                'esri/Map',
+                'esri/views/SceneView',
+                'esri/widgets/NavigationToggle',
+                'esri/widgets/Zoom',
+                'esri/Basemap'
+            ], function(WebScene, Map, SceneView, NavigationToggle, Zoom, Basemap) {
+                
+                console.log('[3DViewer] ESRI modules loaded');
+                
+                try {
+                    var mapOrScene;
+                    
+                    if (webSceneId === '__terrain__') {
+                        // Simple terrain scene - basemap from 2D will be overlaid
+                        setLoadingStatus('Erstelle Terrain-Ansicht...');
+                        mapOrScene = new Map({
+                            basemap: 'satellite',  // Fallback if no 2D basemap synced
+                            ground: 'world-elevation'
+                        });
+                    } else {
+                        setLoadingStatus('Lade WebScene...');
+                        mapOrScene = new WebScene({
+                            portalItem: {
+                                id: webSceneId
+                            }
+                        });
+                    }
+                    
+                    // Parse initial position from URL params
+                    var params = getParams();
+                    var initLon = parseFloat(params.lon) || 8.36;
+                    var initLat = parseFloat(params.lat) || 46.95;
+                    var initZoom = parseFloat(params.zoom) || 14;
+                    var initAlt = parseFloat(params.altitude) || 800; // Fallback: ~600m Terrain + 200m
+                    var initHeading = parseFloat(params.heading) || 0;
+                    var initTilt = parseFloat(params.tilt) || 60;
+                    
+                    sceneView = new SceneView({
+                        container: 'sceneViewDiv',
+                        map: mapOrScene,
+                        qualityProfile: params.quality || 'high',
+                        camera: {
+                            position: {
+                                longitude: initLon,
+                                latitude: initLat,
+                                z: initAlt
+                            },
+                            heading: initHeading,
+                            tilt: initTilt
+                        },
+                        environment: {
+                            background: {
+                                type: 'color',
+                                color: [200, 220, 240, 1]
+                            },
+                            lighting: {
+                                type: 'virtual',
+                                directShadowsEnabled: true,
+                                ambientOcclusionEnabled: true
+                            },
+                            atmosphere: {
+                                quality: 'high'
+                            },
+                            starsEnabled: false
+                        },
+                        popup: {
+                            defaultPopupTemplateEnabled: true
+                        },
+                        highlightOptions: {
+                            color: [0, 255, 0, 1],
+                            haloColor: [0, 220, 0, 1],
+                            haloOpacity: 0.9,
+                            fillOpacity: 0.35
+                        }
+                    });
+                    
+                    sceneView.when(function() {
+                        console.log('[3DViewer] SceneView loaded successfully');
+                        console.log('[3DViewer] Camera:', sceneView.camera.position.longitude, sceneView.camera.position.latitude);
+                        
+                        setLoadingStatus('Bereit.');
+                        hideLoading();
+                        
+                        // Notify parent
+                        sendToParent({ type: 'ready' });
+                        
+                        // Setup 3D Maptips (click-to-identify)
+                        setup3DMaptips();
+                        
+                        // Watch camera changes and send to parent for sync
+                        // Throttled: max 20 Updates/sec statt 60 (ESRI feuert bei jedem Frame)
+                        var _camThrottleTimer = null;
+                        var _lastCamSend = 0;
+                        var CAM_THROTTLE_MS = 50;
+                        
+                        sceneView.watch('camera', function(cam) {
+                            if (syncLock || !syncEnabled) return;
+                            
+                            var now = Date.now();
+                            var camMsg = {
+                                type: 'cameraChanged',
+                                longitude: cam.position.longitude,
+                                latitude: cam.position.latitude,
+                                altitude: cam.position.z,
+                                heading: cam.heading,
+                                tilt: cam.tilt,
+                                fov: cam.fov || 55,
+                                zoom: sceneView.zoom
+                            };
+                            
+                            if (now - _lastCamSend < CAM_THROTTLE_MS) {
+                                // Debounce: letztes Update nachholen nach Throttle-Ende
+                                if (_camThrottleTimer) clearTimeout(_camThrottleTimer);
+                                _camThrottleTimer = setTimeout(function() {
+                                    _camThrottleTimer = null;
+                                    if (syncLock || !syncEnabled) return;
+                                    _lastCamSend = Date.now();
+                                    var c = sceneView.camera;
+                                    sendToParent({
+                                        type: 'cameraChanged',
+                                        longitude: c.position.longitude,
+                                        latitude: c.position.latitude,
+                                        altitude: c.position.z,
+                                        heading: c.heading,
+                                        tilt: c.tilt,
+                                        fov: c.fov || 55,
+                                        zoom: sceneView.zoom
+                                    });
+                                }, CAM_THROTTLE_MS);
+                                return;
+                            }
+                            
+                            _lastCamSend = now;
+                            sendToParent(camMsg);
+                        });
+                        
+                    }, function(err) {
+                        console.error('[3DViewer] SceneView error:', err);
+                        showError('3D-Ansicht konnte nicht geladen werden: ' + (err.message || err));
+                        sendToParent({ type: 'error', message: err.message || 'SceneView load error' });
+                    });
+                    
+                    // Also log webscene loading (only for WebScene, not for plain Map)
+                    if (mapOrScene.portalItem) {
+                        mapOrScene.when(function() {
+                            console.log('[3DViewer] WebScene loaded:', mapOrScene.portalItem.title);
+                            setLoadingStatus('WebScene geladen, rendere 3D...');
+                        }, function(err) {
+                            console.error('[3DViewer] WebScene error:', err);
+                            showError('WebScene konnte nicht geladen werden.\n\nWebScene ID: ' + webSceneId + '\n\n' + (err.message || err));
+                            sendToParent({ type: 'error', message: err.message || 'WebScene load error' });
+                        });
+                    }
+                    
+                } catch(err) {
+                    console.error('[3DViewer] Init error:', err);
+                    showError('Initialisierungsfehler: ' + err.message);
+                }
+            });
+        }
+        
+        // Start
+        var params = getParams();
+        var wsId = params.webscene || params.id;
+        
+        if (!wsId) {
+            showError('Keine WebScene ID angegeben. Bitte ?webscene=ID in der URL angeben.');
+        } else {
+            initScene(wsId);
+        }
+    </script>
+</body>
+</html>

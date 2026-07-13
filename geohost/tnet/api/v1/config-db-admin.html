@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Konfig-DB-Steuerung</title>
+<script>document.documentElement.setAttribute('data-env', location.pathname.indexOf('/maps-dev/') === 0 ? 'dev' : 'prod');</script>
+<style>
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #eef3f5; color: #24323a; }
+.toolbar { height: 46px; display: flex; align-items: center; gap: 10px; padding: 0 14px; background: #1f3b47; color: #fff; }
+.toolbar .brand { font-weight: 800; font-size: 14px; }
+.toolbar .sep { width: 1px; height: 20px; background: rgba(255,255,255,.16); }
+.toolbar .spacer { flex: 1; }
+.toolbar a { color: rgba(255,255,255,.9); text-decoration: none; border: 1px solid rgba(255,255,255,.18); border-radius: 4px; padding: 4px 10px; font-size: 11px; background: rgba(255,255,255,.06); }
+.toolbar a:hover { background: rgba(255,255,255,.14); }
+.toolbar .user { display: none; align-items: center; gap: 6px; }
+.page { max-width: 1320px; margin: 0 auto; padding: 18px; }
+.hero, .card { background: #fff; border: 1px solid #dce5e9; border-radius: 12px; box-shadow: 0 8px 20px rgba(24, 44, 54, .06); }
+.hero { padding: 16px 18px; margin-bottom: 14px; }
+.hero h1 { margin: 0 0 6px; font-size: 22px; }
+.hero p { margin: 6px 0; color: #5e6b73; line-height: 1.45; }
+.grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 14px; }
+.card { grid-column: span 12; overflow: hidden; }
+.split { grid-column: span 12; display: grid; grid-template-columns: 1.15fr .85fr; gap: 14px; }
+.card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 16px; background: #f7fbfc; border-bottom: 1px solid #e3ebee; }
+.card-head h2 { margin: 0; font-size: 15px; }
+.card-body { padding: 14px 16px; }
+.muted { color: #66737b; font-size: 12px; line-height: 1.45; }
+.warn, .ok { border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; font-size: 12px; }
+.warn { background: #fff8e8; border: 1px solid #efd89b; color: #6d5512; }
+.ok { background: #edf8f1; border: 1px solid #bfe3c9; color: #255e37; }
+.controls, .actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.scope-btn, .action-btn { border: 1px solid #cfd8dd; border-radius: 6px; background: #f7fafb; padding: 7px 12px; cursor: pointer; font-size: 12px; }
+.scope-btn.active { background: #557e89; border-color: #557e89; color: #fff; }
+.action-btn.primary { background: #557e89; border-color: #557e89; color: #fff; font-weight: 700; }
+.action-btn.danger { background: #8f3a36; border-color: #8f3a36; color: #fff; font-weight: 700; }
+.action-btn:disabled { opacity: .55; cursor: not-allowed; }
+.status { margin-top: 10px; font-size: 12px; color: #5b6770; }
+.status.error { color: #b43d33; }
+.status.success { color: #25784b; }
+.status pre { margin: 8px 0 0; background: #f5f7fa; border: 1px solid #dce4e8; border-radius: 8px; padding: 10px; max-height: 280px; overflow: auto; font-size: 11px; }
+.table-wrap { margin-top: 10px; max-height: 380px; overflow: auto; border: 1px solid #e3eaee; border-radius: 8px; }
+table { width: 100%; border-collapse: collapse; font-size: 12px; }
+th, td { padding: 8px; border-bottom: 1px solid #edf1f3; text-align: left; vertical-align: top; }
+thead th { background: #f8fbfc; position: sticky; top: 0; z-index: 1; }
+tr.selected { background: #f1f8fa; }
+.tiny { font-size: 11px; color: #69757e; }
+@media (max-width: 1100px) { .split { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="toolbar">
+  <span class="brand">🗄 Konfig-DB-Steuerung</span>
+  <span class="sep"></span>
+  <a href="slm.html">← SLM</a>
+  <a href="ags-import.html">AGS-Import</a>
+  <span class="spacer"></span>
+  <span id="user-badge" class="user">
+    <span id="user-name"></span>
+    <a href="admin-users.php" id="users-link" style="display:none">👥</a>
+    <a href="admin-logout.php">Abmelden</a>
+  </span>
+</div>
+
+<div class="page">
+  <div class="hero">
+    <h1>Konfig-DB steuern</h1>
+    <p>Diese Seite ist nur für Admins gedacht. Der Import ist nicht additiv: je Scope werden Datensätze per UPSERT aktualisiert und verwaiste Einträge gelöscht.</p>
+    <p>Dadurch lässt sich vermeiden, dass versehentlich aus SLM heraus direkt überschrieben wird. Import, Export und Löschen sind hier bewusst getrennt.</p>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <div class="card-head">
+        <h2>1. Import in die Konfig-DB</h2>
+        <span class="tiny">Config-Dateien → PostgreSQL</span>
+      </div>
+      <div class="card-body">
+        <div class="warn">Full-Sync führt UPSERT plus DELETE aus. Das bedeutet: fehlende Einträge in den Quelldateien werden in der DB entfernt.</div>
+        <div class="controls" id="import-scopes">
+          <button class="scope-btn active" data-scope="full">Full</button>
+          <button class="scope-btn" data-scope="layers">Layers</button>
+          <button class="scope-btn" data-scope="catalog">Catalog</button>
+          <button class="scope-btn" data-scope="maptips">Maptips</button>
+          <button class="scope-btn" data-scope="nls">NLS</button>
+          <label class="tiny"><input type="checkbox" id="confirm-full"> Full-Sync verstanden</label>
+        </div>
+        <div class="actions" style="margin-top:10px">
+          <button class="action-btn" id="schema-btn">Schema prüfen</button>
+          <button class="action-btn primary" id="import-btn">Import starten</button>
+        </div>
+        <div id="import-status" class="status"></div>
+      </div>
+    </div>
+
+    <div class="split">
+      <div class="card">
+        <div class="card-head">
+          <h2>2. Export aus der Konfig-Store DB</h2>
+          <span class="tiny">Ausgewählte Kürzel nach core exportieren</span>
+        </div>
+        <div class="card-body">
+          <div class="muted">Export schreibt die im DB-Bundle gespeicherten Konfigurationsdateien in core/config und core/nls/de und legt vorhandene Dateien als Backup ab.</div>
+          <div class="actions" style="margin-top:10px">
+            <button class="action-btn" id="reload-bundles-btn">Liste laden</button>
+            <button class="action-btn primary" id="export-btn">Ausgewählte exportieren</button>
+          </div>
+          <div id="bundle-status" class="status"></div>
+          <div class="table-wrap">
+            <table id="bundle-table">
+              <thead>
+                <tr>
+                  <th style="width:30px"><input type="checkbox" id="bundle-select-all"></th>
+                  <th>Kürzel</th>
+                  <th>Stufe</th>
+                  <th>Tags</th>
+                  <th>Letzter Import</th>
+                  <th>Bearbeiter</th>
+                  <th>Dateien</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td colspan="7" class="tiny">Lade Liste…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h2>3. DB-Bundles löschen</h2>
+          <span class="tiny">Nur ausgewählte Kürzel entfernen</span>
+        </div>
+        <div class="card-body">
+          <div class="warn">Löschen betrifft nur den Konfig-Store in der DB. Core-Dateien bleiben unverändert, bis ein Export ausgeführt wird.</div>
+          <div class="actions">
+            <button class="action-btn danger" id="delete-btn">Ausgewählte löschen</button>
+          </div>
+          <div id="delete-status" class="status"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  // Multi-Site: App-Root aus URL ableiten (Segment vor '/tnet/'), z.B. /maps, /maps-dev, /geohost.
+  var _m = window.location.pathname.match(/^(\/[^/]+?)\/tnet\//);
+  var APP_ROOT = _m ? _m[1] : '/maps';
+  var ADMIN_API = APP_ROOT + '/tnet/api/v1/admin';
+  var TREE_API = APP_ROOT + '/tnet/api/v1/treebuilder-api.php';
+  var selectedScope = 'full';
+
+  function fetchJson(url, options) {
+    var opts = options || {};
+    opts.headers = opts.headers || {};
+    opts.headers.Accept = 'application/json';
+    return fetch(url, opts).then(function(r) { return r.json(); });
+  }
+
+  function escapeHtml(value) {
+    return String(value).replace(/[&<>"']/g, function(ch) {
+      return {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+      }[ch];
+    });
+  }
+
+  function setStatus(el, text, type, details) {
+    el.className = 'status' + (type ? ' ' + type : '');
+    el.textContent = text;
+    if (details) {
+      var pre = document.createElement('pre');
+      pre.textContent = typeof details === 'string' ? details : JSON.stringify(details, null, 2);
+      el.appendChild(pre);
+    }
+  }
+
+  function getSelectedBundles() {
+    var selected = [];
+    document.querySelectorAll('#bundle-table tbody input[type="checkbox"]:checked').forEach(function(cb) {
+      selected.push(cb.dataset.kuerzel);
+    });
+    return selected;
+  }
+
+  function renderBundles(items) {
+    var tbody = document.querySelector('#bundle-table tbody');
+    if (!items.length) {
+      tbody.innerHTML = '<tr><td colspan="7" class="tiny">Keine DB-Bundles gefunden.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = items.map(function(bundle) {
+      var tags = Array.isArray(bundle.tags) ? bundle.tags.join(', ') : '';
+      var files = Array.isArray(bundle.files) ? bundle.files.length : 0;
+      var scope = bundle.scope || 'core';
+      var scopeLabel = scope + (bundle.profile ? ':' + bundle.profile : '');
+      return '<tr data-kuerzel="' + escapeHtml(bundle.kuerzel) + '">' +
+        '<td><input type="checkbox" data-kuerzel="' + escapeHtml(bundle.kuerzel) + '"></td>' +
+        '<td><strong>' + escapeHtml(bundle.kuerzel) + '</strong></td>' +
+        '<td>' + escapeHtml(scopeLabel) + '</td>' +
+        '<td>' + escapeHtml(tags) + '</td>' +
+        '<td>' + escapeHtml(bundle.lastImportedAt || '–') + '</td>' +
+        '<td>' + escapeHtml(bundle.lastImportedBy || '–') + '</td>' +
+        '<td>' + files + '</td>' +
+      '</tr>';
+    }).join('');
+
+    tbody.querySelectorAll('input[type="checkbox"]').forEach(function(cb) {
+      cb.addEventListener('change', function() {
+        var row = cb.closest('tr');
+        if (row) row.classList.toggle('selected', cb.checked);
+      });
+    });
+  }
+
+  function loadUser() {
+    fetchJson(APP_ROOT + '/tnet/api/v1/admin-users.php?action=current-user')
+      .then(function(j) {
+        if (!j || !j.success || !j.user) return;
+        var badge = document.getElementById('user-badge');
+        badge.style.display = 'flex';
+        document.getElementById('user-name').textContent = '👤 ' + j.user;
+        if (j.is_admin) document.getElementById('users-link').style.display = '';
+      })
+      .catch(function() {});
+  }
+
+  function loadBundles() {
+    setStatus(document.getElementById('bundle-status'), 'Lade DB-Bundles…');
+    fetchJson(TREE_API + '?action=staging-list-output')
+      .then(function(j) {
+        if (!j || j.success === false) throw new Error(j && (j.error || j.message) || 'Liste konnte nicht geladen werden');
+        var payload = j.data || {};
+        var items = Array.isArray(payload.kuerzel) ? payload.kuerzel : [];
+        renderBundles(items);
+        setStatus(document.getElementById('bundle-status'), items.length + ' Kürzel geladen.', 'success');
+      })
+      .catch(function(e) {
+        renderBundles([]);
+        setStatus(document.getElementById('bundle-status'), 'Liste konnte nicht geladen werden: ' + e.message, 'error');
+      });
+  }
+
+  function runSchema() {
+    setStatus(document.getElementById('import-status'), 'Schema prüfen…');
+    fetchJson(ADMIN_API + '?action=schema')
+      .then(function(j) {
+        if (j.success === false) throw new Error(j.error || j.message || 'Schema-Erstellung fehlgeschlagen');
+        setStatus(document.getElementById('import-status'), 'Schema ist bereit.', 'success', j.data || j);
+      })
+      .catch(function(e) {
+        setStatus(document.getElementById('import-status'), 'Schema fehlgeschlagen: ' + e.message, 'error');
+      });
+  }
+
+  function runImport() {
+    var statusEl = document.getElementById('import-status');
+    var importBtn = document.getElementById('import-btn');
+    if (selectedScope === 'full' && !document.getElementById('confirm-full').checked) {
+      setStatus(statusEl, 'Full-Sync bitte zuerst bestätigen.', 'error');
+      return;
+    }
+    importBtn.disabled = true;
+    setStatus(statusEl, 'Import läuft (' + selectedScope + ')…');
+    fetchJson(ADMIN_API + '?action=schema')
+      .then(function(j) {
+        if (j.success === false) throw new Error(j.error || j.message || 'Schema-Erstellung fehlgeschlagen');
+        return fetchJson(ADMIN_API + '?action=configToPG&scope=' + encodeURIComponent(selectedScope));
+      })
+      .then(function(j) {
+        if (j.success === false) throw new Error(j.error || j.message || 'Import fehlgeschlagen');
+        setStatus(statusEl, 'Import abgeschlossen.', 'success', j.data || j);
+      })
+      .catch(function(e) {
+        setStatus(statusEl, 'Import fehlgeschlagen: ' + e.message, 'error');
+      })
+      .finally(function() {
+        importBtn.disabled = false;
+      });
+  }
+
+  function exportSelected() {
+    var selected = getSelectedBundles();
+    var statusEl = document.getElementById('bundle-status');
+    if (!selected.length) {
+      setStatus(statusEl, 'Bitte mindestens ein Kürzel auswählen.', 'error');
+      return;
+    }
+    if (!confirm('Die ausgewählten Kürzel nach core exportieren?')) return;
+
+    var results = [];
+    setStatus(statusEl, 'Export läuft…');
+
+    function next(index) {
+      if (index >= selected.length) {
+        setStatus(statusEl, 'Export abgeschlossen.', 'success', results);
+        return;
+      }
+      fetchJson(TREE_API + '?action=config-export-to-core', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kuerzel: selected[index] })
+      })
+      .then(function(j) {
+        if (j.success === false) throw new Error(j.error || j.message || 'Export fehlgeschlagen');
+        results.push({ kuerzel: selected[index], result: j.data || j });
+        next(index + 1);
+      })
+      .catch(function(e) {
+        results.push({ kuerzel: selected[index], error: e.message });
+        next(index + 1);
+      });
+    }
+
+    next(0);
+  }
+
+  function deleteSelected() {
+    var selected = getSelectedBundles();
+    var statusEl = document.getElementById('delete-status');
+    if (!selected.length) {
+      setStatus(statusEl, 'Bitte mindestens ein Kürzel auswählen.', 'error');
+      return;
+    }
+    if (!confirm('Die ausgewählten Kürzel wirklich aus der Konfig-Store DB löschen?')) return;
+
+    setStatus(statusEl, 'Löschen läuft…');
+    fetchJson(TREE_API + '?action=staging-delete-output', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ kuerzel: selected })
+    })
+    .then(function(j) {
+      if (j.success === false) throw new Error(j.error || j.message || 'Löschen fehlgeschlagen');
+      setStatus(statusEl, 'Löschen abgeschlossen.', 'success', j.data || j);
+      loadBundles();
+    })
+    .catch(function(e) {
+      setStatus(statusEl, 'Löschen fehlgeschlagen: ' + e.message, 'error');
+    });
+  }
+
+  document.getElementById('import-scopes').addEventListener('click', function(e) {
+    var btn = e.target.closest('.scope-btn');
+    if (!btn) return;
+    selectedScope = btn.dataset.scope;
+    document.querySelectorAll('.scope-btn').forEach(function(node) { node.classList.remove('active'); });
+    btn.classList.add('active');
+  });
+
+  document.getElementById('schema-btn').addEventListener('click', runSchema);
+  document.getElementById('import-btn').addEventListener('click', runImport);
+  document.getElementById('reload-bundles-btn').addEventListener('click', loadBundles);
+  document.getElementById('export-btn').addEventListener('click', exportSelected);
+  document.getElementById('delete-btn').addEventListener('click', deleteSelected);
+  document.getElementById('bundle-select-all').addEventListener('change', function() {
+    document.querySelectorAll('#bundle-table tbody input[type="checkbox"]').forEach(function(cb) {
+      cb.checked = document.getElementById('bundle-select-all').checked;
+      var row = cb.closest('tr');
+      if (row) row.classList.toggle('selected', cb.checked);
+    });
+  });
+
+  loadUser();
+  loadBundles();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,154 @@
+﻿<!DOCTYPE html>
+<!--
+  inframe-maps.html
+  Karten-iFrame für TNET WebGIS
+
+  @version    1.0
+  @date       2026-02-12
+  @copyright  Trigonet AG
+  @author     Marco Dellenbach
+-->
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <title>Karten</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="../css/inframe-maps.css?v=20260122-reset">
+  <style>
+    html, body { height: 100%; margin: 0; padding: 0; overflow: hidden; }
+    #mapFrame {
+      width: 100%;
+      height: 100%;
+      border: none;
+      display: block;
+    }
+    #loadingMessage {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 18px;
+      color: #666;
+    }
+  </style>
+</head>
+<body>
+  <div id="loadingMessage">Wird geladen...</div>
+  
+  <!-- Sichtbares Karten-iframe -->
+  <iframe id="mapFrame" src="" style="visibility:hidden;"></iframe>
+  
+  <script>
+    // =============================================================
+    // KONFIGURATION - Version 20260122-v7
+    // Pre-Login passiert in index_de.htm - hier nur noch laden
+    // =============================================================
+    
+    function log(msg) {
+      console.log('[inframe] ' + msg);
+    }
+    
+    function getGroup() {
+      var url = '';
+      
+      try { 
+        url = window.top.location.href;
+      } catch(e) {
+        try { 
+          url = window.parent.location.href;
+        } catch(e2) {
+          url = window.location.href;
+        }
+      }
+      
+      var match = url.match(/[?&]group=([^&]+)/);
+      return match ? decodeURIComponent(match[1]) : 'none';
+    }
+    
+    function getMapType() {
+      var group = getGroup().toLowerCase();
+      if (group.indexOf('ow') === 0) return 'ow';
+      return 'nw';
+    }
+    
+    function showFrame() {
+      var f = document.getElementById('mapFrame');
+      var l = document.getElementById('loadingMessage');
+      if (f) { f.style.visibility = 'visible'; f.style.opacity = '1'; }
+      if (l) l.style.display = 'none';
+    }
+    
+    function buildIframeSrc(group) {
+      // PHP-Proxy lädt gis-daten.ch/?active-map={nw|ow} und injiziert CSS/JS
+      return '/maps/tnet/php/active-maps-proxy.php?group=' + encodeURIComponent(group);
+    }
+    
+    // =============================================================
+    // HAUPTLOGIK - MIT URL-MONITORING
+    // Überwacht Parent-URL auf group-Wechsel und lädt iframe neu
+    // =============================================================
+    var mapFrame = document.getElementById('mapFrame');
+    var group = getGroup();
+    var mapType = getMapType();
+    var lastGroup = group;
+    var lastMapType = mapType;
+    var reloadTimeout = null;
+    
+    log('=== INIT (Version 20260213-v4) ===');
+    log('Group: ' + group);
+    log('MapType: ' + mapType);
+    log('Pre-Login sollte bereits in index_de.htm gestartet sein');
+    
+    function reloadMapIfGroupChanged() {
+      var newGroup = getGroup();
+      var newMapType = getMapType();
+      
+      if (newGroup !== lastGroup || newMapType !== lastMapType) {
+        log('Group/MapType geändert: ' + lastGroup + ' -> ' + newGroup + ', MapType: ' + lastMapType + ' -> ' + newMapType);
+        lastGroup = newGroup;
+        lastMapType = newMapType;
+        group = newGroup;
+        mapType = newMapType;
+        
+        // Reload mit Cache-Busting
+        mapFrame.src = buildIframeSrc(group) + '&_t=' + Date.now();
+      }
+    }
+    
+    // Starte initiales Laden
+    mapFrame.src = buildIframeSrc(group);
+    mapFrame.onload = function() {
+      log('iframe geladen');
+      showFrame();
+    };
+    
+    // Hilfsfunktion: Update parent URL mit neuem group
+    function updateParentUrlGroup(newGroup) {
+      try {
+        var currentUrl = window.top.location.href;
+        var separator = currentUrl.indexOf('?') !== -1 ? '&' : '?';
+        
+        // Entferne existierenden group Parameter
+        var urlWithoutGroup = currentUrl.replace(/([?&]group=)[^&]*/g, '');
+        
+        // Füge neuen group Parameter hinzu
+        if (urlWithoutGroup.indexOf('?') !== -1) {
+          window.top.location.href = urlWithoutGroup + '&group=' + encodeURIComponent(newGroup);
+        } else {
+          window.top.location.href = urlWithoutGroup + '?group=' + encodeURIComponent(newGroup);
+        }
+      } catch(e) {
+        log('Fehler beim Update der Parent-URL: ' + e.message);
+      }
+    }
+    
+    // URL-Monitoring: Prüfe auf group-Wechsel alle 500ms
+    setInterval(reloadMapIfGroupChanged, 500);
+    
+    // DEBUG
+    window.reloadMap = function() {
+      mapFrame.src = buildIframeSrc(group) + '&_t=' + Date.now();
+    };
+  </script>
+</body>
+</html>

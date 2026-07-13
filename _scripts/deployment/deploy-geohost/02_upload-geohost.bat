@@ -5,8 +5,10 @@ if errorlevel 1 exit /b 1
 cd /d "%MAPPLUS_WORKSPACE_ROOT%"
 echo.
 echo ============================================
-echo  UPLOAD GEOHOST -- geohost/tnet/ -^> /www/geohost/tnet/
-echo  Geaenderte Dateien per SFTP hochladen
+echo  UPLOAD GEOHOST -- per SFTP
+echo  geohost/tnet/       -^> /www/geohost/tnet/
+echo  geohost/agsproxy.php -^> /www/geohost/agsproxy.php
+echo  geohost/wmsproxy.php -^> /www/geohost/wmsproxy.php
 echo ============================================
 echo.
 "%MAPPLUS_PYTHON_EXE%" _scripts\deployment\deployengine\upload_changed.py --env geohost

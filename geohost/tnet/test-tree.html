@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Layer-Manager Tree Test</title>
+<link rel="stylesheet" href="/maps/tnet/css/tnet-lm.css?v=test">
+<style>
+body { margin: 0; font-family: sans-serif; background: #f5f5f5; }
+#test-log { padding: 16px; font-size: 13px; font-family: monospace; background: #222; color: #0f0; max-height: 200px; overflow-y: auto; }
+#test-log .err { color: #f44; }
+#test-log .warn { color: #fa0; }
+#lm-tree-container { max-width: 480px; margin: 0 auto; background: #fff; min-height: 300px; }
+h2 { text-align: center; padding: 10px; margin: 0; background: #648C96; color: #fff; }
+</style>
+</head>
+<body>
+<div id="test-log"></div>
+<h2>Layer-Manager Tree — Standalone Test</h2>
+<div id="lm-tree-container" class="lm-container"></div>
+
+<script>
+// === Test-Logger ===
+var logEl = document.getElementById('test-log');
+function log(msg, cls) {
+  var d = document.createElement('div');
+  d.className = cls || '';
+  d.textContent = '[' + new Date().toLocaleTimeString() + '] ' + msg;
+  logEl.appendChild(d);
+  logEl.scrollTop = logEl.scrollHeight;
+  console.log(msg);
+}
+
+// === MOCK: TnetLMStore (minimal) ===
+window.TnetLMStore = (function() {
+  var _catalog = [];
+  var _listeners = {};
+  var _loaded = false;
+
+  function normalizeCategories(categories) {
+    for (var i = 0; i < categories.length; i++) {
+      var cat = categories[i];
+      if (cat.nodes && !cat.subcategories) {
+        log('  Normalisiere: ' + cat.id + '.nodes → .subcategories (' + cat.nodes.length + ')');
+        cat.subcategories = cat.nodes;
+        delete cat.nodes;
+      }
+      var subs = cat.subcategories || [];
+      for (var s = 0; s < subs.length; s++) {
+        var sub = subs[s];
+        if (sub.layers && !sub.groups) {
+          sub.groups = sub.layers;
+          delete sub.layers;
+        }
+      }
+    }
+  }
+
+  function initDefaults(nodes) {
+    for (var i = 0; i < nodes.length; i++) {
+      var n = nodes[i];
+      if (n.subcategories) {
+        for (var s = 0; s < n.subcategories.length; s++) {
+          var sub = n.subcategories[s];
+          if (sub.expanded === undefined) sub.expanded = true;
+          if (sub.groups) {
+            for (var g = 0; g < sub.groups.length; g++) {
+              var group = sub.groups[g];
+              if (group.expanded === undefined) group.expanded = group.open || false;
+              if (group.layers) initLayerDefaults(group.layers);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  function initLayerDefaults(layers) {
+    for (var i = 0; i < layers.length; i++) {
+      var l = layers[i];
+      if (l.type === 'group' && l.layers) {
+        if (l.expanded === undefined) l.expanded = l.open || false;
+        initLayerDefaults(l.layers);
+      } else {
+        if (l.visible === undefined) l.visible = false;
+        if (l.opacity === undefined) l.opacity = 1.0;
+      }
+    }
+  }
+
+  return {
+    init: function() {
+      log('Store: Lade API...');
+      var self = this;
+      fetch('/maps/tnet/api/v1/layers.php')
+        .then(function(r) {
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          return r.json();
+        })
+        .then(function(json) {
+          var data = json.data || json;
+          var categories = data.categories || [];
+          log('Store: API OK — ' + categories.length + ' Kategorien (roh)');
+
+          // Debug: Zeige Struktur VOR Normalisierung
+          for (var ci = 0; ci < categories.length; ci++) {
+            var c = categories[ci];
+            var keys = Object.keys(c).join(', ');
+            log('  [' + c.id + '] Keys: ' + keys);
+            var nodes = c.nodes || c.subcategories;
+            if (nodes) {
+              var nodeKey = c.nodes ? 'nodes' : 'subcategories';
+              log('    ' + nodeKey + ': ' + nodes.length);
+              if (nodes[0]) {
+                log('    Erster: type=' + nodes[0].type + ' keys=' + Object.keys(nodes[0]).join(','));
+                var gl = nodes[0].groups || nodes[0].layers;
+                if (gl) {
+                  var glKey = nodes[0].groups ? 'groups' : 'layers';
+                  log('    → ' + glKey + ': ' + gl.length + ' Einträge');
+                }
+              }
+            }
+          }
+
+          normalizeCategories(categories);
+          log('Store: Normalisiert');
+
+          // Debug: Zeige Struktur NACH Normalisierung
+          for (var ci2 = 0; ci2 < categories.length; ci2++) {
+            var c2 = categories[ci2];
+            var subs = c2.subcategories || [];
+            log('  [' + c2.id + '] subcategories: ' + subs.length);
+            if (subs[0]) {
+              var gps = subs[0].groups || [];
+              log('    Erste subcat "' + subs[0].name + '": ' + gps.length + ' groups');
+            }
+          }
+
+          initDefaults(categories);
+          _catalog = categories;
+          _loaded = true;
+
+          log('Store: Emit catalog-loaded');
+          (_listeners['catalog-loaded'] || []).forEach(function(cb) {
+            try { cb(_catalog); } catch(e) { log('Store: Event-Fehler: ' + e.message, 'err'); }
+          });
+        })
+        .catch(function(err) {
+          log('Store: FEHLER: ' + err.message, 'err');
+        });
+    },
+    getCatalog: function() { return _catalog; },
+    isLoaded: function() { return _loaded; },
+    on: function(evt, cb) {
+      if (!_listeners[evt]) _listeners[evt] = [];
+      _listeners[evt].push(cb);
+      return function() {};
+    },
+    toggleLayer: function(id) { log('Store: toggleLayer ' + id); },
+    findLayer: function() { return null; }
+  };
+})();
+
+log('=== Standalone Tree-Render Test ===');
+</script>
+
+<!-- Lade den ECHTEN Tree-Renderer vom Server -->
+<script src="/maps/tnet/js/tnet-lm-tree.js?v=test"></script>
+
+<script>
+// Starte den Test
+log('TnetLMTree vorhanden: ' + !!window.TnetLMTree);
+log('TnetLMStore vorhanden: ' + !!window.TnetLMStore);
+
+if (window.TnetLMTree) {
+  log('Tree: Init...');
+  window.TnetLMTree.init('lm-tree-container');
+
+  log('Store: Init (API laden)...');
+  window.TnetLMStore.init();
+} else {
+  log('FEHLER: TnetLMTree nicht geladen!', 'err');
+}
+</script>
+</body>
+</html>

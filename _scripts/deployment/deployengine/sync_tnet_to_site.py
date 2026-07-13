@@ -1,14 +1,20 @@
 #!/usr/bin/env python3
 """
 sync_tnet_to_site.py
-Lokaler Abgleich von maps-dev/tnet/ nach <site>/tnet/ (geohost, edit).
-Gleicher Ablauf wie sync_maps_dev2maps.py fuer PROD, aber beschraenkt auf tnet/.
+Lokaler Abgleich von maps-dev/ nach <site>/ (geohost, edit).
+Synchronisiert:
+  - maps-dev/tnet/    -> <site>/tnet/          (Anwendungscode)
+  - agsproxy.php, wmsproxy.php                 (geteilte Root-PHPs)
+    maps-dev/<datei>  -> <site>/<datei>
+
+Site-spezifische Root-Dateien (index.php, loader.php, .htaccess)
+bleiben unangetastet.
 
 Aufruf:
     python sync_tnet_to_site.py --site geohost              # Live-Sync
     python sync_tnet_to_site.py --site edit --dry-run       # Vorschau
 
-@version    1.0
+@version    1.1
 @date       2026-07-13
 @copyright  Trigonet AG
 @author     Marco Dellenbach
@@ -37,6 +43,13 @@ SKIP_SUBDIRS = {
     "docs",
     "tests",
 }
+
+# Geteilte Root-PHP-Dateien: technisch identisch auf allen Sites, werden mitsynchronisiert.
+# Site-spezifische Root-Dateien (index.php, loader.php, .htaccess) sind NICHT enthalten.
+ROOT_LEVEL_SYNC_FILES = [
+    "agsproxy.php",
+    "wmsproxy.php",
+]
 
 
 # ===== HILFSFUNKTIONEN =====
@@ -110,39 +123,66 @@ def main():
     dev_config = resolve_deploy_config("dev")
     site_config = resolve_deploy_config(args.site)
 
-    src_dir = os.path.normpath(os.path.join(dev_config["local_base"], "tnet"))
-    dst_dir = os.path.normpath(os.path.join(site_config["local_base"], "tnet"))
+    dev_base  = os.path.normpath(dev_config["local_base"])
+    site_base = os.path.normpath(site_config["local_base"])
+    src_tnet  = os.path.join(dev_base,  "tnet")
+    dst_tnet  = os.path.join(site_base, "tnet")
 
     mode_label = "DRY-RUN" if args.dry_run else "LIVE"
-    print(f"Sync maps-dev/tnet/ -> {args.site}/tnet/ [{mode_label}]")
-    print(f"  Quelle: {src_dir}")
-    print(f"  Ziel:   {dst_dir}")
+    print(f"Sync maps-dev -> {args.site} [{mode_label}]")
+    print(f"  Quelle: {dev_base}")
+    print(f"  Ziel:   {site_base}")
     print(f"  Typen:  {', '.join(sorted(SYNC_EXTENSIONS))}")
     print(f"  Skip:   {', '.join(sorted(SKIP_SUBDIRS))}")
     print()
 
-    if not os.path.isdir(src_dir):
-        print(f"[FEHLER] Quellverzeichnis existiert nicht: {src_dir}")
+    if not os.path.isdir(src_tnet):
+        print(f"[FEHLER] Quellverzeichnis existiert nicht: {src_tnet}")
         sys.exit(1)
 
-    candidates = collect_candidates(src_dir, dst_dir)
+    # ── 1. tnet/ synchronisieren ──────────────────────────────────────────────
+    print("=== tnet/ ===")
+    candidates = collect_candidates(src_tnet, dst_tnet)
 
     if not candidates:
-        print("Keine Aenderungen gefunden. Alles synchron.")
+        print("  Keine Aenderungen in tnet/.")
+    else:
+        for _, _, rel in candidates:
+            status = "NEU" if not os.path.exists(os.path.join(dst_tnet, rel.replace("/", os.sep))) else "UPD"
+            print(f"  [{status}] tnet/{rel}")
+
+    # ── 2. Geteilte Root-PHP-Dateien synchronisieren ──────────────────────────
+    root_candidates = []
+    print("\n=== Root-Dateien (geteilt) ===")
+    for fname in ROOT_LEVEL_SYNC_FILES:
+        src_abs = os.path.join(dev_base, fname)
+        dst_abs = os.path.join(site_base, fname)
+        if not os.path.exists(src_abs):
+            print(f"  [SKIP] {fname} (nicht in maps-dev/ vorhanden)")
+            continue
+        if not os.path.exists(dst_abs) or hash_file(src_abs) != hash_file(dst_abs):
+            status = "NEU" if not os.path.exists(dst_abs) else "UPD"
+            print(f"  [{status}] {fname}")
+            root_candidates.append((src_abs, dst_abs, fname))
+        else:
+            print(f"  [OK ] {fname} (unveraendert)")
+
+    total = len(candidates) + len(root_candidates)
+    if total == 0:
+        print("\nAlles synchron. Keine Aenderungen.")
         return
 
-    print(f"{len(candidates)} geaenderte/neue Datei(en):\n")
-    for _, _, rel in candidates:
-        status = "NEU" if not os.path.exists(os.path.join(dst_dir, rel.replace("/", os.sep))) else "UPD"
-        print(f"  [{status}] tnet/{rel}")
-
     if args.dry_run:
-        print(f"\n[DRY-RUN] {len(candidates)} Datei(en) wuerden kopiert.")
+        print(f"\n[DRY-RUN] {total} Datei(en) wuerden kopiert.")
         return
 
     # Dateien kopieren
     copied = 0
     for src_abs, dst_abs, rel in candidates:
+        os.makedirs(os.path.dirname(dst_abs), exist_ok=True)
+        shutil.copy2(src_abs, dst_abs)
+        copied += 1
+    for src_abs, dst_abs, fname in root_candidates:
         os.makedirs(os.path.dirname(dst_abs), exist_ok=True)
         shutil.copy2(src_abs, dst_abs)
         copied += 1

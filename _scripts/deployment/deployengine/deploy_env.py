@@ -28,20 +28,21 @@ DEPLOY_TARGETS = {
         "remote_base": "/www/maps-dev",
         "state_file": os.path.join(DEPLOY_DIR, "upload_state.dev.json"),
     },
-    # Multi-Site: geohost/edit deployen nur den tnet/-Ordner.
-    # Workflow wie PROD: lokaler Sync (maps-dev/tnet -> site/tnet), dann SFTP-Upload.
-    # PHP/HTML auf Root-Ebene werden manuell abgeglichen.
+    # Multi-Site: geohost/edit deployen tnet/ + geteilte Root-PHPs.
+    # Workflow wie PROD: 01_sync (maps-dev -> site, lokal), dann 02_upload (SFTP).
+    # Geteilte Root-PHPs (agsproxy.php, wmsproxy.php): via sync_tnet_to_site.py.
+    # Site-spezifische Root-Dateien (index.php, loader.php) bleiben manuell.
     "geohost": {
         "local_base": os.path.join(WORKSPACE_ROOT, "geohost"),
         "remote_base": "/www/geohost",
         "state_file": os.path.join(DEPLOY_DIR, "upload_state.geohost.json"),
-        "scan_subdir": "tnet",
+        # kein scan_subdir -> ganzes geohost/ (tnet/ + agsproxy.php + wmsproxy.php)
     },
     "edit": {
         "local_base": os.path.join(WORKSPACE_ROOT, "edit"),
         "remote_base": "/www/edit",
         "state_file": os.path.join(DEPLOY_DIR, "upload_state.edit.json"),
-        "scan_subdir": "tnet",
+        "scan_subdir": "tnet",  # edit hat eigene site-spezifische Root-PHPs
     },
 }
 

@@ -1,0 +1,862 @@
+﻿/**
+ * tnet-lm-legacy.css
+ * Layer-Manager Legacy-Styles: Hierarchie-Einrueckung, Container Desktop, Dargestellte Themen
+ *
+ * @version    1.0
+ * @date       2026-07-02
+ * @copyright  Trigonet AG
+ * @author     Marco Dellenbach
+ */
+
+/* ===== Layer Manager TitlePane vertikale Zentrierung ===== */
+/* TitlePaneTitle als Flex-Container für vertikale Zentrierung */
+.dijitTitlePaneTitle {
+  display: flex !important;
+  align-items: center !important;
+  min-height: 32px !important;
+}
+
+/* TitlePaneTitleFocus (enthält Arrow + Text + Buttons) */
+.dijitTitlePaneTitleFocus {
+  display: flex !important;
+  align-items: center !important;
+  flex: 1 !important;
+  min-height: 28px !important;
+}
+
+/* TextNode mit allen Kindelementen vertikal zentrieren */
+.dijitTitlePaneTextNode {
+  display: inline-flex !important;
+  align-items: center !important;
+  flex-wrap: nowrap !important;
+  gap: 4px !important;
+}
+
+/* Checkbox und andere inline-Elemente zentrieren */
+.dijitTitlePaneTextNode .dijitCheckBox,
+.dijitTitlePaneTextNode .dijitInline,
+.dijitTitlePaneTextNode img,
+.dijitTitlePaneTextNode a {
+  vertical-align: middle !important;
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+}
+
+/* Arrow-Icon vertikal zentrieren */
+.dijitArrowNode {
+  display: inline-flex !important;
+  align-items: center !important;
+  align-self: center !important;
+}
+
+/* Icons/Buttons rechts im TitlePane zentrieren */
+.dijitTitlePaneTextNode .imagelink,
+.dijitTitlePaneTextNode > a > img {
+  display: inline-flex !important;
+  align-items: center !important;
+  vertical-align: middle !important;
+}
+
+/* ===== LAYER MANAGER HIERARCHIE-EINRÜCKUNG ===== */
+/* Verschachtelte TitlePanes im Layer-Manager visuell einrücken.
+   data-lyrmgr-depth wird per JS-Patch gesetzt (1=erste Sub-Kat, aufsteigend).
+   Jede Ebene bekommt Einrückung, linke Farblinie und Farbverlauf dunkel→hell.
+   
+   Farbschema (dunkel → hell, Teal-Palette):
+     Tiefe 1: #3d6a70  (dunkelster Teal)  — Hauptkategorie
+     Tiefe 2: #5a8f98  (mittlerer Teal)   — Unterkategorie
+     Tiefe 3: #8db5bc  (heller Teal)      — Gruppe
+     Tiefe 4: #b0ced4  (sehr hell)        — Untergruppe
+     Tiefe 5: #cee0e4  (hellster)         — Blatt-Gruppe
+     Tiefe 6: #e2edef  (fast weiss)
+     Tiefe 7: #f0f5f6  (weiss-Teal)
+   
+   @version 2.0 — 2026-03-04 — solide Farben statt rgba, grössere Einrückung
+*/
+
+/* Alle sub-category TitlePanes: Basis-Styling */
+body.tnet-lm-legacy-nested #layer_menu .dijitTitlePane[data-lyrmgr-depth] {
+  border: 0 !important;
+  border-color: transparent !important;
+  border-left: 0 !important;
+  box-shadow: none !important;
+  margin-top: 1px;
+  margin-bottom: 1px;
+}
+body.tnet-lm-legacy-nested #layer_menu .dijitTitlePane[data-lyrmgr-depth] > .dijitTitlePaneContentOuter {
+  border: 0 !important;
+  border-left: 0 !important;
+  box-shadow: none !important;
+}
+
+/* Verschachtelte Panes: Sichtbarkeit NUR via CSS-Klasse 'lyrmgr-open' */
+/* GESCHLOSSEN: Content-Bereich komplett verstecken */
+body.tnet-lm-legacy-nested #layer_menu .dijitTitlePane[data-lyrmgr-depth]:not(.lyrmgr-open) > .dijitTitlePaneContentOuter {
+  display: none !important;
+  height: 0 !important;
+  overflow: hidden !important;
+}
+
+/* OFFEN: Content-Bereich komplett anzeigen */
+body.tnet-lm-legacy-nested #layer_menu .dijitTitlePane[data-lyrmgr-depth].lyrmgr-open > .dijitTitlePaneContentOuter {
+  display: block !important;
+  height: auto !important;
+  overflow: visible !important;
+}
+body.tnet-lm-legacy-nested #layer_menu .dijitTitlePane[data-lyrmgr-depth].lyrmgr-open > .dijitTitlePaneContentOuter > * {
+  display: block !important;
+  height: auto !important;
+  overflow: visible !important;
+}
+
+/* Pfeil-Indikator für verschachtelte TitlePanes */
+body.tnet-lm-legacy-nested #layer_menu .dijitTitlePane[data-lyrmgr-depth] > .dijitTitlePaneTitle {
+  cursor: pointer !important;
+  border-left-style: solid !important;
+  border-left-color: transparent !important;
+}
+body.tnet-lm-legacy-nested #layer_menu .dijitTitlePane[data-lyrmgr-depth].dijitClosed > .dijitTitlePaneTitle .dijitArrowNode::before {
+  content: '\25B6' !important; /* ▶ */
+  font-size: 9px !important;
+  display: inline-block !important;
+  margin-right: 4px !important;
+}
+body.tnet-lm-legacy-nested #layer_menu .dijitTitlePane[data-lyrmgr-depth]:not(.dijitClosed) > .dijitTitlePaneTitle .dijitArrowNode::before {
+  content: '\25BC' !important; /* ▼ */
+  font-size: 9px !important;
+  display: inline-block !important;
+  margin-right: 4px !important;
+}
+
+/* Ebene 1 (z.B. "Raumplanung") — dunkelster Teal */
+body.tnet-lm-legacy-nested #layer_menu .dijitTitlePane[data-lyrmgr-depth="1"] {
+  margin-left: 0 !important;
+}
+body.tnet-lm-legacy-nested #layer_menu .dijitTitlePane[data-lyrmgr-depth="1"] > .dijitTitlePaneTitle {
+  background: #3d6a70 !important;
+  border-left: 4px solid #2a4e53 !important;
+  padding-left: 10px !important;
+  color: #fff !important;
+}
+body.tnet-lm-legacy-nested #layer_menu .dijitTitlePane[data-lyrmgr-depth="1"] > .dijitTitlePaneTitle .appendtitle {
+  font-size: 12.5px !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.3px !important;
+  color: #fff !important;
+}
+body.tnet-lm-legacy-nested #layer_menu .dijitTitlePane[data-lyrmgr-depth="1"] > .dijitTitlePaneTitle .dijitArrowNode::before {
+  color: #fff !important;
+}
+
+/* Ebene 2 (z.B. "Rechtskräftig" / "Projektiert") — mittlerer Teal */
+body.tnet-lm-legacy-nested #layer_menu .dijitTitlePane[data-lyrmgr-depth="2"] {
+  margin-left: 0 !important;
+}
+body.tnet-lm-legacy-nested #layer_menu .dijitTitlePane[data-lyrmgr-depth="2"] > .dijitTitlePaneTitle {
+  background: #5a8f98 !important;
+  border-left: 4px solid #4b7b81 !important;
+  padding-left: 22px !important;
+  color: #fff !important;
+}
+body.tnet-lm-legacy-nested #layer_menu .dijitTitlePane[data-lyrmgr-depth="2"] > .dijitTitlePaneTitle .appendtitle {
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  color: #fff !important;
+}
+body.tnet-lm-legacy-nested #layer_menu .dijitTitlePane[data-lyrmgr-depth="2"] > .dijitTitlePaneTitle .dijitArrowNode::before {
+  color: rgba(255,255,255,0.8) !important;
+}
+
+/* Ebene 3 (z.B. "Nutzungsplanung") — heller Teal */
+body.tnet-lm-legacy-nested #layer_menu .dijitTitlePane[data-lyrmgr-depth="3"] {
+  margin-left: 0 !important;
+}
+body.tnet-lm-legacy-nested #layer_menu .dijitTitlePane[data-lyrmgr-depth="3"] > .dijitTitlePaneTitle {
+  background: #8db5bc !important;
+  border-left: 4px solid #5a8f98 !important;
+  padding-left: 34px !important;
+  color: #1a3e43 !important;
+}
+body.tnet-lm-legacy-nested #layer_menu .dijitTitlePane[data-lyrmgr-depth="3"] > .dijitTitlePaneTitle .appendtitle {
+  font-size: 11.5px !important;
+  font-weight: 600 !important;
+  color: #1a3e43 !important;
+}
+body.tnet-lm-legacy-nested #layer_menu .dijitTitlePane[data-lyrmgr-depth="3"] > .dijitTitlePaneTitle .dijitArrowNode::before {
+  color: #2a4e53 !important;
+}
+
+/* Ebene 4 (z.B. "Flächenbezogene Themen") — sehr hell */
+body.tnet-lm-legacy-nested #layer_menu .dijitTitlePane[data-lyrmgr-depth="4"] {
+  margin-left: 0 !important;
+}
+body.tnet-lm-legacy-nested #layer_menu .dijitTitlePane[data-lyrmgr-depth="4"] > .dijitTitlePaneTitle {
+  background: #b0ced4 !important;
+  border-left: 3px solid #8db5bc !important;
+  padding-left: 46px !important;
+  color: #2a4e53 !important;
+}
+body.tnet-lm-legacy-nested #layer_menu .dijitTitlePane[data-lyrmgr-depth="4"] > .dijitTitlePaneTitle .appendtitle {
+  font-size: 11px !important;
+  font-weight: 500 !important;
+  color: #2a4e53 !important;
+}
+
+/* Ebene 5 (z.B. "Nutzungszonen") — hellster Teal */
+body.tnet-lm-legacy-nested #layer_menu .dijitTitlePane[data-lyrmgr-depth="5"] {
+  margin-left: 0 !important;
+}
+body.tnet-lm-legacy-nested #layer_menu .dijitTitlePane[data-lyrmgr-depth="5"] > .dijitTitlePaneTitle {
+  background: #cee0e4 !important;
+  border-left: 3px solid #b0ced4 !important;
+  padding-left: 58px !important;
+  color: #345c61 !important;
+}
+body.tnet-lm-legacy-nested #layer_menu .dijitTitlePane[data-lyrmgr-depth="5"] > .dijitTitlePaneTitle .appendtitle {
+  font-size: 10.5px !important;
+  font-weight: 500 !important;
+  color: #345c61 !important;
+}
+
+/* Ebene 6 — fast weiss */
+body.tnet-lm-legacy-nested #layer_menu .dijitTitlePane[data-lyrmgr-depth="6"] {
+  margin-left: 0 !important;
+}
+body.tnet-lm-legacy-nested #layer_menu .dijitTitlePane[data-lyrmgr-depth="6"] > .dijitTitlePaneTitle {
+  background: #e2edef !important;
+  border-left: 2px solid #cee0e4 !important;
+  padding-left: 68px !important;
+  color: #345c61 !important;
+}
+
+/* Ebene 7 (tiefste) — weiss-Teal */
+body.tnet-lm-legacy-nested #layer_menu .dijitTitlePane[data-lyrmgr-depth="7"] {
+  margin-left: 0 !important;
+}
+body.tnet-lm-legacy-nested #layer_menu .dijitTitlePane[data-lyrmgr-depth="7"] > .dijitTitlePaneTitle {
+  background: #f0f5f6 !important;
+  border-left: 2px solid #e2edef !important;
+  padding-left: 78px !important;
+  color: #345c61 !important;
+}
+
+/* Leaf-Layer im Content ebenfalls depth-basiert einrücken
+   WICHTIG: via padding-left (nicht margin-left), damit Checkbox/Label zuverlässig
+   unter dem Parent-Titel erscheinen und nicht am linken Rand "kleben". */
+body.tnet-lm-legacy-nested #layer_menu .tnet-lm-nested-leaf {
+  margin-left: 0 !important;
+  box-sizing: border-box !important;
+}
+body.tnet-lm-legacy-nested #layer_menu .tnet-lm-nested-leaf[data-lyrmgr-parent-depth="1"] { padding-left: 24px !important; }
+body.tnet-lm-legacy-nested #layer_menu .tnet-lm-nested-leaf[data-lyrmgr-parent-depth="2"] { padding-left: 36px !important; }
+body.tnet-lm-legacy-nested #layer_menu .tnet-lm-nested-leaf[data-lyrmgr-parent-depth="3"] { padding-left: 48px !important; }
+body.tnet-lm-legacy-nested #layer_menu .tnet-lm-nested-leaf[data-lyrmgr-parent-depth="4"] { padding-left: 60px !important; }
+body.tnet-lm-legacy-nested #layer_menu .tnet-lm-nested-leaf[data-lyrmgr-parent-depth="5"] { padding-left: 72px !important; }
+body.tnet-lm-legacy-nested #layer_menu .tnet-lm-nested-leaf[data-lyrmgr-parent-depth="6"] { padding-left: 84px !important; }
+body.tnet-lm-legacy-nested #layer_menu .tnet-lm-nested-leaf[data-lyrmgr-parent-depth="7"] { padding-left: 96px !important; }
+
+body.tnet-lm-legacy-nested #layer_menu .tnet-lm-nested-leaf .lyrmgr_group,
+body.tnet-lm-legacy-nested #layer_menu .tnet-lm-nested-leaf [id^="div_"] {
+  margin-left: 0 !important;
+}
+body.tnet-lm-legacy-nested #layer_menu .dijitTitlePane[data-lyrmgr-depth="6"] > .dijitTitlePaneTitle .appendtitle {
+  font-size: 10px !important;
+  font-weight: 500 !important;
+  color: #345c61 !important;
+}
+body.tnet-lm-legacy-nested #layer_menu .dijitTitlePane[data-lyrmgr-depth="7"] > .dijitTitlePaneTitle .appendtitle {
+  font-size: 10px !important;
+  font-weight: 400 !important;
+  font-style: italic !important;
+  color: #345c61 !important;
+}
+
+
+/* ===== LAYER MANAGER CONTAINER DESKTOP ===== */
+
+/* ========================================
+   Layer Manager — Dezenter Scrollbar
+   Der Container (#lm-tree-container) scrollt als Ganzes.
+   Tab-Bar + Suchfeld bleiben per position:sticky oben fixiert.
+   ======================================== */
+
+/* Container: Flex-Column — Tab-Bar + Suche fest oben, nur Inhalt scrollt */
+body:not(.tnet-sidepanel-v2) #lm-tree-container.lm-container-desktop {
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+}
+
+/* Tab-Bar: fest oben, kein Sticky nötig */
+body:not(.tnet-sidepanel-v2) .lm-container-desktop .lm-tab-bar {
+  position: relative !important;
+  flex-shrink: 0 !important;
+  z-index: 6 !important;
+  background: var(--m-color-primary, #4B7B81) !important;
+}
+
+/* Suchfeld: nahtlos unter Tab-Bar, dezent modern */
+body:not(.tnet-sidepanel-v2) .lm-container-desktop .lm-search-wrap {
+  background: #52808a !important;
+  padding: 4px 10px 5px 10px !important;
+  border: none !important;
+}
+
+/* Suchfeld-Input: dezent, abgerundet, leichter Inset-Schatten */
+body:not(.tnet-sidepanel-v2) .lm-container-desktop .lm-search {
+  border: none !important;
+  border-radius: 6px !important;
+  background: rgba(255, 255, 255, 0.15) !important;
+  color: #fff !important;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.15) !important;
+  padding: 6px 30px 6px 10px !important;
+  font-size: 13px !important;
+}
+
+body:not(.tnet-sidepanel-v2) .lm-container-desktop .lm-search::placeholder {
+  color: rgba(255, 255, 255, 0.6) !important;
+  font-style: normal !important;
+}
+
+body:not(.tnet-sidepanel-v2) .lm-container-desktop .lm-search:focus {
+  background: rgba(255, 255, 255, 0.25) !important;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(255, 255, 255, 0.3) !important;
+  outline: none !important;
+}
+
+/* Kategorie-Inhalt: scrollt als einziges Element */
+body:not(.tnet-sidepanel-v2) .lm-container-desktop .lm-cat-content {
+  flex: 1 1 0 !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  min-height: 0 !important;
+  padding-bottom: 40px !important;
+}
+
+/* Dezenter Scrollbar — Firefox: unsichtbar, bei Hover dünn */
+body:not(.tnet-sidepanel-v2) .lm-container-desktop .lm-cat-content {
+  scrollbar-width: none;
+  scrollbar-color: transparent transparent;
+  transition: scrollbar-color 0.3s;
+}
+body:not(.tnet-sidepanel-v2) #lm-tree-container.lm-container-desktop:hover .lm-cat-content {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(75, 123, 129, 0.25) transparent;
+}
+
+/* Dezenter Scrollbar — Chrome / Safari / Edge: Auto-Hide bei Hover */
+body:not(.tnet-sidepanel-v2) .lm-container-desktop .lm-cat-content::-webkit-scrollbar {
+  width: 5px;
+}
+body:not(.tnet-sidepanel-v2) .lm-container-desktop .lm-cat-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+body:not(.tnet-sidepanel-v2) .lm-container-desktop .lm-cat-content::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 3px;
+  transition: background 0.3s;
+}
+/* Einblenden bei Hover über gesamten Tree-Container */
+body:not(.tnet-sidepanel-v2) #lm-tree-container.lm-container-desktop:hover .lm-cat-content::-webkit-scrollbar-thumb {
+  background: rgba(75, 123, 129, 0.2);
+}
+body:not(.tnet-sidepanel-v2) #lm-tree-container.lm-container-desktop:hover .lm-cat-content::-webkit-scrollbar-thumb:hover {
+  background: rgba(75, 123, 129, 0.45);
+}
+/* Keine Scrollbar-Pfeile */
+body:not(.tnet-sidepanel-v2) .lm-container-desktop .lm-cat-content::-webkit-scrollbar-button {
+  display: none;
+  height: 0;
+}
+
+/* ===== LAYER SEARCH HIGHLIGHT ===== */
+/* Rotes, smoothes Aufblinken (3x) wenn ein Layer via Breadcrumb-Klick oder Suche navigiert wird */
+.lm-highlight {
+  animation: lm-highlight-pulse 0.7s ease-in-out 3 !important;
+  border-radius: 3px !important;
+}
+@keyframes lm-highlight-pulse {
+  0%   { background-color: transparent; }
+  50%  { background-color: rgba(220, 53, 69, 0.55); }
+  100% { background-color: transparent; }
+}
+
+/* Dezenter Scrollbar auch für "Dargestellte Themen" Panel */
+body:not(.tnet-sidepanel-v2) #lm-active-container.lm-container-desktop {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(75, 123, 129, 0.3) transparent;
+}
+body:not(.tnet-sidepanel-v2) #lm-active-container.lm-container-desktop::-webkit-scrollbar {
+  width: 6px;
+}
+body:not(.tnet-sidepanel-v2) #lm-active-container.lm-container-desktop::-webkit-scrollbar-track {
+  background: transparent;
+}
+body:not(.tnet-sidepanel-v2) #lm-active-container.lm-container-desktop::-webkit-scrollbar-thumb {
+  background: rgba(75, 123, 129, 0.3);
+  border-radius: 3px;
+}
+body:not(.tnet-sidepanel-v2) #lm-active-container.lm-container-desktop::-webkit-scrollbar-thumb:hover {
+  background: rgba(75, 123, 129, 0.5);
+}
+
+/* ========================================
+   Themenkatalog - Layer Manager Styling
+   ======================================== */
+
+/* Fix TabContainer height for Bund and Weitere - set to same as Obwalden */
+#third_lyrmgr.dijitTabContainer,
+#forth_lyrmgr.dijitTabContainer {
+  height: 411px !important;
+  min-height: 411px !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+}
+
+/* Ensure content panes scroll within tab container */
+#third_lyrmgr .dijitTabPane,
+#forth_lyrmgr .dijitTabPane {
+  height: auto !important;
+  overflow-y: auto !important;
+}
+
+/* Fix für ContentPane Höhenrestriktionen */
+#layer_menu.dijitContentPane,
+#layer_menu2.dijitContentPane,
+#layer_menu3.dijitContentPane,
+#layer_menu4.dijitContentPane {
+  height: auto !important;
+  overflow: visible !important;
+}
+
+/* Direkter Fix der wrapper-divs wenn sie gehidden werden */
+#njs_main_lyrmgr_wrapper > *,
+#njs_second_lyrmgr_wrapper > *,
+#njs_third_lyrmgr_wrapper > *,
+#njs_forth_lyrmgr_wrapper > * {
+  width: 100% !important;
+  height: auto !important;
+  max-height: none !important;
+}
+
+/* Alle Kindelemente in den Wrappern */
+#njs_main_lyrmgr_wrapper > * > *,
+#njs_second_lyrmgr_wrapper > * > *,
+#njs_third_lyrmgr_wrapper > * > *,
+#njs_forth_lyrmgr_wrapper > * > * {
+  height: auto !important;
+  max-height: none !important;
+}
+
+/* Verhindere dass Dijit die TitlePane zu macht */
+.dijitTitlePane .dijitTitlePaneContentOuter {
+  overflow: visible !important;
+}
+
+#tp_layer_menu3 .dijitTitlePaneContentOuter,
+#tp_layer_menu4 .dijitTitlePaneContentOuter {
+  overflow: visible !important;
+  height: auto !important;
+}
+
+/* Layer Manager spezifische Container */
+.ClassicLayerMgr,
+.ClassicLayerMgr > div {
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+}
+
+
+/* ===== DARGESTELLTE THEMEN ===== */
+
+/* ===== DARGESTELLTE THEMEN - Active Panel im Desktop-TitlePane ===== */
+#sort_menu .lm-container-desktop {
+  padding: 0 !important;
+  min-height: 60px;
+}
+
+/* Layer-Items im Desktop-Kontext etwas kompakter */
+#sort_menu .lm-active-item {
+  padding: 3px 6px !important;
+  border-bottom: 1px solid #eee;
+  background: #fff;
+}
+
+#sort_menu .lm-active-item:last-child {
+  border-bottom: none;
+}
+
+#sort_menu .lm-active-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-height: 24px;
+}
+
+#sort_menu .lm-drag-handle {
+  cursor: grab;
+  width: 14px;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+#sort_menu .lm-active-item:hover .lm-drag-handle,
+#sort_menu .lm-active-item:focus-within .lm-drag-handle,
+#sort_menu .lm-active-group:hover .lm-drag-handle,
+#sort_menu .lm-active-group:focus-within .lm-drag-handle {
+  opacity: 0.85;
+}
+
+#sort_menu .lm-eye {
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: #4b7b81;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  padding: 2px;
+}
+
+#sort_menu .lm-eye:hover {
+  background: rgba(75,123,129,0.1);
+}
+
+#sort_menu .lm-eye-off {
+  color: #bbb;
+}
+
+#sort_menu .lm-active-name {
+  flex: 1;
+  font-size: 12px;
+  color: #333;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#sort_menu .lm-btn-remove {
+  display: none;
+}
+
+#sort_menu .lm-btn-remove:hover {
+  background: rgba(232,66,63,0.1);
+  color: #e8423f;
+}
+
+/* Legend-Button in Dargestellte Themen (nur WMS-Layer) */
+#sort_menu .lm-btn-legend {
+  width: 22px;
+  height: 22px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: #4b7b81;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  padding: 2px;
+}
+
+#sort_menu .lm-btn-legend:hover {
+  background: rgba(75,123,129,0.15);
+}
+
+#sort_menu .lm-btn-legend .lm-icon {
+  width: 16px;
+  height: 16px;
+}
+
+#sort_menu .lm-opacity-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 0 0 14px;
+}
+
+#sort_menu .lm-opacity-label {
+  font-size: 10px;
+  color: #999;
+  flex-shrink: 0;
+}
+
+#sort_menu .lm-opacity-slider {
+  flex: 1;
+  height: 4px;
+  accent-color: #4b7b81;
+}
+
+#sort_menu .lm-opacity-val {
+  font-size: 10px;
+  color: #999;
+  min-width: 30px;
+  text-align: right;
+}
+
+#sort_menu .lm-empty {
+  text-align: center;
+  padding: 16px 8px;
+  color: #999;
+  font-size: 12px;
+}
+
+#sort_menu .lm-active-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  padding: 4px 8px;
+  background: #f5f9fa;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+#sort_menu .lm-active-count {
+  font-size: 11px;
+  color: #888;
+  font-weight: 500;
+  margin-right: auto;
+}
+
+#sort_menu .lm-active-modified {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+#sort_menu .lm-btn-remove-all {
+  display: inline-flex;
+  align-items: center;
+  margin-left: auto;
+  padding: 3px 7px;
+  border: 1px solid #d2dde1;
+  border-radius: 4px;
+  background: #fff;
+  color: #5f7278;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+#sort_menu .lm-btn-remove-all:hover {
+  background: #f7fbfc;
+  border-color: #aebfc5;
+  color: #3f5359;
+}
+
+#sort_menu .lm-btn-remove-all .lm-icon {
+  width: 14px;
+  height: 14px;
+  fill: currentColor;
+}
+
+#sort_menu .lm-btn-bm-reset {
+  font-size: 11px;
+  padding: 2px 6px;
+}
+
+#sort_menu .lm-active-meta {
+  display: flex;
+  gap: 8px;
+  padding: 6px 8px 4px;
+  background: #f5f9fa;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+#sort_menu .lm-active-meta-block {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+#sort_menu .lm-active-meta-map {
+  flex: 1;
+}
+
+#sort_menu .lm-active-meta-view {
+  width: 138px;
+  flex-shrink: 0;
+}
+
+#sort_menu .lm-active-meta-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: #7f8e93;
+  text-transform: uppercase;
+}
+
+#sort_menu .lm-active-map-switch {
+  width: 100%;
+  border: 1px solid #d2dde1;
+  border-radius: 4px;
+  background: #fff;
+  color: #1e3a4a;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: left;
+  padding: 4px 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+#sort_menu .lm-active-view-select,
+#sort_menu .lm-active-view-fallback {
+  width: 100%;
+  font-size: 12px;
+}
+
+#sort_menu .lm-active-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+#sort_menu .lm-icon {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+}
+
+#sort_menu .lm-icon-drag {
+  width: 16px;
+  height: 16px;
+}
+
+/* Drag-Clone (schwebendes Element beim Verschieben) */
+#sort_menu .lm-drag-clone,
+.lm-drag-clone {
+  position: fixed;
+  z-index: 10000;
+  pointer-events: none;
+  opacity: 0.9;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  background: #fff;
+  border-radius: 4px;
+}
+
+#sort_menu .lm-drag-placeholder {
+  background: rgba(75,123,129,0.08);
+  border: 2px dashed rgba(75,123,129,0.3);
+  border-radius: 4px;
+}
+
+#sort_menu .lm-drag-hidden {
+  opacity: 0;
+  height: 0;
+  overflow: hidden;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: none !important;
+}
+
+/* Resize Handles für Legend Pane - alle Seiten */
+#njs_floatlegend_pane .legend-pane-resize-top,
+#njs_floatlegend_pane .legend-pane-resize-bottom,
+#njs_floatlegend_pane .legend-pane-resize-left,
+#njs_floatlegend_pane .legend-pane-resize-right {
+  position: absolute !important;
+  z-index: 1100 !important;
+  transition: background 0.2s;
+}
+
+#njs_floatlegend_pane .legend-pane-resize-top {
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  height: 6px !important;
+  cursor: ns-resize !important;
+}
+
+#njs_floatlegend_pane .legend-pane-resize-bottom {
+  bottom: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  height: 6px !important;
+  cursor: ns-resize !important;
+}
+
+#njs_floatlegend_pane .legend-pane-resize-left {
+  left: 0 !important;
+  top: 0 !important;
+  bottom: 0 !important;
+  width: 8px !important;
+  cursor: ew-resize !important;
+  background: linear-gradient(to right, rgba(75,123,129,0.15), transparent) !important;
+}
+
+#njs_floatlegend_pane .legend-pane-resize-right {
+  right: 0 !important;
+  top: 0 !important;
+  bottom: 0 !important;
+  width: 8px !important;
+  cursor: ew-resize !important;
+  background: linear-gradient(to left, rgba(75,123,129,0.15), transparent) !important;
+}
+
+/* Hover-Effekte */
+#njs_floatlegend_pane .legend-pane-resize-top:hover,
+#njs_floatlegend_pane .legend-pane-resize-bottom:hover {
+  background: rgba(75,123,129,0.15) !important;
+}
+
+#njs_floatlegend_pane .legend-pane-resize-left:hover {
+  background: linear-gradient(to right, rgba(75,123,129,0.3), transparent) !important;
+}
+
+#njs_floatlegend_pane .legend-pane-resize-right:hover {
+  background: linear-gradient(to left, rgba(75,123,129,0.3), transparent) !important;
+}
+
+/* Ecken-Handles */
+#njs_floatlegend_pane .legend-pane-resize-corner-tl,
+#njs_floatlegend_pane .legend-pane-resize-corner-tr,
+#njs_floatlegend_pane .legend-pane-resize-corner-bl,
+#njs_floatlegend_pane .legend-pane-resize-corner-br {
+  position: absolute !important;
+  width: 12px !important;
+  height: 12px !important;
+  z-index: 1101 !important;
+}
+
+#njs_floatlegend_pane .legend-pane-resize-corner-tl {
+  top: 0 !important;
+  left: 0 !important;
+  cursor: nwse-resize !important;
+}
+
+#njs_floatlegend_pane .legend-pane-resize-corner-tr {
+  top: 0 !important;
+  right: 0 !important;
+  cursor: nesw-resize !important;
+}
+
+#njs_floatlegend_pane .legend-pane-resize-corner-bl {
+  bottom: 0 !important;
+  left: 0 !important;
+  cursor: nesw-resize !important;
+}
+
+#njs_floatlegend_pane .legend-pane-resize-corner-br {
+  bottom: 0 !important;
+  right: 0 !important;
+  width: 20px !important;
+  height: 20px !important;
+  cursor: nwse-resize !important;
+  background: transparent !important;
+}
+
+#njs_floatlegend_pane .legend-pane-resize-corner-br:hover {
+  background: transparent !important;
+}
+

@@ -1,0 +1,32 @@
+[
+  {
+    "map-bookmark": "nw_nutzungsplanung",
+    "aliases": ["nw_nutzungsplanung_intern"],
+    "basemap": "av_sw",
+    "layers": [
+      "gis_oereb/nw_nutzungsplanung_def/vermassungslinie",
+      "gis_oereb/nw_nutzungsplanung_def/hilfslinie",
+      "gis_oereb/nw_nutzungsplanung_def/laermempfindlichkeitsaufstufung",
+      "gis_oereb/nw_nutzungsplanung_def/objektbezogene_festlegung",
+      "gis_oereb/nw_nutzungsplanung_def/linienbezogene_festlegung",
+      "gis_oereb/nw_nutzungsplanung_def/gefahrenzone_text",
+      "gis_oereb/nw_nutzungsplanung_def/gefahrenzone",
+      "gis_oereb/nw_nutzungsplanung_def/ueberlagernde_festlegung",
+      "gis_oereb/nw_nutzungsplanung_def/grundnutzung"
+    ],
+    "theme": "2",
+    "subtheme": "nupla"
+  },
+  {
+    "map-bookmark": "nw_kbs",
+    "aliases": ["nw_kbs_public"],
+    "basemap": "swissimage",
+    "layers": [
+      "gis_oereb/nw_kbs_def/belastete_standorte_punkte_allgemein",
+      "gis_oereb/nw_kbs_def/belastete_standorte_flaechen",
+      "ch.bazl.kataster-belasteter-standorte-zivilflugplaetze_v2_0.oereb",
+      "ch.vbs.kataster-belasteter-standorte-militaer_v2_0.oereb",
+      "ch.bav.kataster-belasteter-standorte-oev_v2_0.oereb"
+    ]
+  }
+]
