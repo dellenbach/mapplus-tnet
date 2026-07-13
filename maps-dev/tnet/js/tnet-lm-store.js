@@ -4240,8 +4240,23 @@
         var arcParams = { LAYERS: layersVal, FORMAT: 'PNG32', TRANSPARENT: true };
         if (layer.params && layer.params.DPI) arcParams.DPI = layer.params.DPI;
 
-        // singleTile prüfen (aus options)
-        var useSingleTile = (layer.options && layer.options.singleTile !== false) || true;
+        // ── Tile-Modus bestimmen ──
+        // Per-Layer options.singleTile (true/false) hat Vorrang; sonst
+        // globaler agsTileMode aus tnet-global-config.json5.
+        //   agsTileMode.enabled = true  → gekachelt (TileArcGISRest)
+        //   agsTileMode.enabled = false → Single-Image (ImageArcGISRest)
+        var globalCfg = window.TnetGlobalConfig || {};
+        var tileModeCfg = globalCfg.agsTileMode || {};
+        var tileModeEnabled = tileModeCfg.enabled === true;
+        var tileSize = (parseInt(tileModeCfg.tileSize, 10) === 512) ? 512 : 256;
+
+        var useSingleTile;
+        if (layer.options && typeof layer.options.singleTile === 'boolean') {
+          useSingleTile = layer.options.singleTile; // Per-Layer-Override
+        } else {
+          useSingleTile = !tileModeEnabled;         // Globaler agsTileMode
+        }
+
         var olLayer;
         if (useSingleTile && ol.source.ImageArcGISRest) {
           var source = new ol.source.ImageArcGISRest({
@@ -4256,10 +4271,21 @@
             zIndex: 200
           });
         } else {
-          var source = new ol.source.TileArcGISRest({
-            url: serviceUrl,
-            params: arcParams
-          });
+          // Tile-Grid mit konfigurierter Kachelgrösse für die Karten-Projektion
+          // (z.B. EPSG:2056 / LV95). createForProjection leitet Auflösungen aus
+          // dem Projektions-Extent ab.
+          var tileSrcOpts = { url: serviceUrl, params: arcParams };
+          try {
+            var mapProj = map.getView().getProjection();
+            if (ol.tilegrid && ol.tilegrid.createForProjection) {
+              tileSrcOpts.tileGrid = ol.tilegrid.createForProjection(
+                mapProj, undefined, [tileSize, tileSize]
+              );
+            }
+          } catch (eTileGrid) {
+            TnetLog.warn(LOG, 'Coalesce: Tile-Grid nicht erstellbar, OL-Default:', eTileGrid);
+          }
+          var source = new ol.source.TileArcGISRest(tileSrcOpts);
           olLayer = new ol.layer.Tile({
             source: source,
             opacity: layer.opacity || 1.0,

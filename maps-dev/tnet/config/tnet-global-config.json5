@@ -624,4 +624,22 @@
       directory: '/data/Client_Data/nwow/tmp/maps-dev/proxy-cache',
     },
   },
+
+  // ============================================================
+  // AGS TILE-MODUS (ArcGIS-Dienste gekachelt statt Single-Image)
+  // ============================================================
+  // Steuert wie ArcGIS-REST-Dienste (type: "arcgisRest") in OpenLayers
+  // gerendert werden. Bei enabled:true wird TileArcGISRest mit festem
+  // Tile-Grid genutzt (viele kleine Kachel-Requests, cachebar im agsproxy).
+  // Bei enabled:false bleibt das bisherige Single-Image-Verhalten
+  // (ImageArcGISRest, ein grosses Bild pro Viewport).
+  // Per-Layer-Override: options.singleTile:true/false in layers.conf hat
+  // Vorrang vor dieser globalen Einstellung.
+  agsTileMode: {
+    // true = ArcGIS-Dienste standardmässig gekachelt rendern
+    // false = bisheriges Single-Image-Verhalten (Default-sicher)
+    enabled: true,
+    // Kachelgrösse in Pixel: nur 256 oder 512 zulässig (sonst Fallback 256)
+    tileSize: 512,
+  },
 }
