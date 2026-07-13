@@ -641,5 +641,9 @@
     enabled: true,
     // Kachelgrösse in Pixel: nur 256 oder 512 zulässig (sonst Fallback 256)
     tileSize: 512,
+    // Sanftes Einblenden neuer Kacheln (Opacity-Fade in ms). Reine
+    // GPU-/Canvas-Animation, praktisch ohne Performance-Kosten.
+    // 0 = hartes Einblenden (aus), 250 = OL-Default, 300–500 = smoother.
+    tileTransitionMs: 350,
   },
 }

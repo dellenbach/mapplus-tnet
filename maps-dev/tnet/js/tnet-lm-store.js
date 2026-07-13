@@ -4249,6 +4249,9 @@
         var tileModeCfg = globalCfg.agsTileMode || {};
         var tileModeEnabled = tileModeCfg.enabled === true;
         var tileSize = (parseInt(tileModeCfg.tileSize, 10) === 512) ? 512 : 256;
+        var tileTransition = (tileModeCfg.tileTransitionMs != null)
+          ? parseInt(tileModeCfg.tileTransitionMs, 10) : 250;
+        if (isNaN(tileTransition) || tileTransition < 0) tileTransition = 250;
 
         var useSingleTile;
         if (layer.options && typeof layer.options.singleTile === 'boolean') {
@@ -4274,7 +4277,7 @@
           // Tile-Grid mit konfigurierter Kachelgrösse für die Karten-Projektion
           // (z.B. EPSG:2056 / LV95). createForProjection leitet Auflösungen aus
           // dem Projektions-Extent ab.
-          var tileSrcOpts = { url: serviceUrl, params: arcParams };
+          var tileSrcOpts = { url: serviceUrl, params: arcParams, transition: tileTransition };
           try {
             var mapProj = map.getView().getProjection();
             if (ol.tilegrid && ol.tilegrid.createForProjection) {

@@ -521,6 +521,9 @@
     var tileModeCfg = globalCfg.agsTileMode || {};
     var tileModeEnabled = tileModeCfg.enabled === true;
     var tileSize = (parseInt(tileModeCfg.tileSize, 10) === 512) ? 512 : 256;
+    var tileTransition = (tileModeCfg.tileTransitionMs != null)
+      ? parseInt(tileModeCfg.tileTransitionMs, 10) : 250;
+    if (isNaN(tileTransition) || tileTransition < 0) tileTransition = 250;
     var isVisible = layersParam !== 'show:-1';
 
     var source, olLayer;
@@ -538,7 +541,7 @@
       });
     } else {
       // Tile-Grid mit konfigurierter Kachelgrösse für die Karten-Projektion (LV95)
-      var tileSrcOpts = { url: serviceUrl, params: arcParams };
+      var tileSrcOpts = { url: serviceUrl, params: arcParams, transition: tileTransition };
       try {
         var mapProj = map.getView().getProjection();
         if (ol.tilegrid && ol.tilegrid.createForProjection) {
