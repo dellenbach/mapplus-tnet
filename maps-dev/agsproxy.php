@@ -195,6 +195,9 @@ $tileCacheDir      = getenv('GIS_TILE_CACHE_DIR') ?: '/data/Client_Data/nwow/tmp
 $tileCacheTtlSec   = intval(getenv('GIS_TILE_CACHE_TTL')   ?: 3600);   // Cache-Lebensdauer
 $tileCacheMaxPx    = intval(getenv('GIS_TILE_CACHE_MAXPX') ?: 512);    // max Kachel-Kantenlaenge
 $tileCachePrintDpi = 100;   // Requests ab dieser DPI (Druck) werden nicht gecacht
+// Leere/fast-transparente Kacheln (voll transparentes PNG) sind sehr klein und
+// werden NICHT gecacht — sonst würden "Löcher" dauerhaft festgehalten.
+$tileCacheMinBytes = intval(getenv('GIS_TILE_CACHE_MINBYTES') ?: 700);
 
 
 
@@ -707,17 +710,6 @@ list($status, $respHeaders, $respBody, $backendResponseTimeMs) = curlForward($fo
 $printRequestEndMs = microtime(true) * 1000;
 $backendResponseSize = strlen($respBody);
 
-// --- Tile-Cache-Write (nach erfolgreichem Backend-Call) ---
-// Nur erfolgreiche Bild-Responses werden gecacht.
-if ($tileCacheable && $status === 200) {
-    $respCt = strtolower($respHeaders['content-type'] ?? '');
-    if (strpos($respCt, 'image/') === 0 && $backendResponseSize > 0) {
-        tileCachePut($tileCacheDir, $tileCacheKey, $respHeaders['content-type'], $respBody);
-        header('X-Tile-Cache: MISS');
-    }
-}
-
-
 // Log Backend Response für aggregierte Requests
 if ($aggregationEnabled && isset($aggregationResult['action']) && $aggregationResult['action'] === 'forward_aggregated' && $agsProxyLogFile) {
     $requestId = $aggregationResult['request_id'] ?? '';
@@ -893,6 +885,23 @@ if (isset($respHeaders['content-type']) && strpos($respHeaders['content-type'], 
        // $json = smartBeautifyFieldNames($json);
         $respBody = json_encode($json, JSON_UNESCAPED_UNICODE);
         $respHeaders['content-length'] = strlen($respBody);
+    }
+}
+
+// --- Tile-Cache-Write (nach 498-Retry, auf finaler Response) ---
+// Erst hier steht die endgültige Backend-Antwort fest (der 498-Retry ersetzt
+// eine anfängliche Invalid-Token-Antwort durch das echte Bild). Nur
+// erfolgreiche Bild-Responses werden gecacht; leere/fast-transparente Kacheln
+// (unter Mindestgrösse) werden übersprungen, damit keine Lücken entstehen.
+if ($tileCacheable && intval($status) === 200) {
+    $respCt = strtolower($respHeaders['content-type'] ?? '');
+    $finalSize = strlen($respBody);
+    if (strpos($respCt, 'image/') === 0 && $finalSize >= $tileCacheMinBytes) {
+        tileCachePut($tileCacheDir, $tileCacheKey, $respHeaders['content-type'], $respBody);
+        header('X-Tile-Cache: MISS');
+        tileCacheGc($tileCacheDir, $tileCacheTtlSec);
+    } else {
+        header('X-Tile-Cache: SKIP');
     }
 }
 
@@ -1462,6 +1471,33 @@ function tileCachePut(string $dir, string $key, string $contentType, string $bod
         @rename($tmpMeta, $metaFile);
         @chmod($metaFile, 0644);
     }
+}
+
+/**
+ * Probabilistische Garbage-Collection: löscht abgelaufene Kachel-Dateien.
+ * Wird nur mit geringer Wahrscheinlichkeit ausgeführt (kein Cron nötig),
+ * damit der Cache-Ordner nicht unbegrenzt wächst. Löscht .bin/.json-Paare
+ * deren mtime älter als TTL ist.
+ */
+function tileCacheGc(string $dir, int $ttlSec, int $probabilityPercent = 2): void {
+    if ($probabilityPercent <= 0) return;
+    if (mt_rand(1, 100) > $probabilityPercent) return;
+    if (!is_dir($dir)) return;
+
+    $now = time();
+    $handle = @opendir($dir);
+    if ($handle === false) return;
+    while (($entry = readdir($handle)) !== false) {
+        if ($entry === '.' || $entry === '..') continue;
+        if (substr($entry, -4) !== '.bin') continue;
+        $dataFile = $dir . DIRECTORY_SEPARATOR . $entry;
+        $mtime = @filemtime($dataFile);
+        if ($mtime !== false && ($now - $mtime) > $ttlSec) {
+            @unlink($dataFile);
+            @unlink(substr($dataFile, 0, -4) . '.json');
+        }
+    }
+    closedir($handle);
 }
 
 

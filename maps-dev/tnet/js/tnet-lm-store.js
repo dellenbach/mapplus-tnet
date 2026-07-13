@@ -4286,6 +4286,38 @@
             TnetLog.warn(LOG, 'Coalesce: Tile-Grid nicht erstellbar, OL-Default:', eTileGrid);
           }
           var source = new ol.source.TileArcGISRest(tileSrcOpts);
+          // Identify-Kompatibilität: Framework ruft source.getFeatureInfoUrl().
+          // TileArcGISRest hat sie nicht → ArcGIS /identify-URL selbst bauen.
+          if (typeof source.getFeatureInfoUrl !== 'function') {
+            (function (src, mapRef) {
+              src.getFeatureInfoUrl = function (coordinate, resolution, projection, options) {
+                try {
+                  var params = (typeof src.getParams === 'function') ? (src.getParams() || {}) : {};
+                  var layersP = params.LAYERS || params.layers || 'show:0';
+                  var layerIds = String(layersP).replace(/^show:/i, '');
+                  if (layerIds === '' || layerIds === '-1') return null;
+                  var srCode = (projection && projection.getCode)
+                    ? projection.getCode().split(':')[1] : '2056';
+                  var size = (mapRef.getSize && mapRef.getSize()) || [256, 256];
+                  var extent = mapRef.getView().calculateExtent(size);
+                  var base = (typeof src.getUrl === 'function') ? src.getUrl() : '';
+                  var identifyBase = base.replace(/\/export\/?$/i, '') + '/identify';
+                  return identifyBase +
+                    '?f=json' +
+                    '&geometry=' + coordinate[0] + ',' + coordinate[1] +
+                    '&geometryType=esriGeometryPoint' +
+                    '&sr=' + srCode +
+                    '&layers=all:' + layerIds +
+                    '&tolerance=5' +
+                    '&mapExtent=' + extent.join(',') +
+                    '&imageDisplay=' + size.join(',') + ',96' +
+                    '&returnGeometry=false';
+                } catch (e) {
+                  return null;
+                }
+              };
+            })(source, map);
+          }
           olLayer = new ol.layer.Tile({
             source: source,
             opacity: layer.opacity || 1.0,

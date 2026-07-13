@@ -361,6 +361,48 @@
   // ===== OL-LAYER-ERSTELLUNG =====
 
   /**
+   * Hängt einen getFeatureInfoUrl-Shim an eine TileArcGISRest-Source.
+   * Das MapPlus-Framework (queryconnector) erwartet diese Methode auf der
+   * Source, um die Klick-Abfrage (Identify) auszuführen. Nur ImageArcGISRest
+   * bringt sie mit — für den Tile-Modus bauen wir die ArcGIS /identify-URL
+   * selbst (Muster wie tnet-splitscreen.js). Nutzt die aktuellen LAYERS aus
+   * getParams(), damit Sublayer-Toggles berücksichtigt werden.
+   * @param {ol.source.TileArcGISRest} source
+   * @param {ol.Map} map
+   * @private
+   */
+  function _attachArcgisIdentifyShim(source, map) {
+    if (!source || typeof source.getFeatureInfoUrl === 'function') return;
+    source.getFeatureInfoUrl = function (coordinate, resolution, projection, options) {
+      try {
+        var params = (typeof source.getParams === 'function') ? (source.getParams() || {}) : {};
+        var layersP = params.LAYERS || params.layers || 'show:0';
+        var layerIds = String(layersP).replace(/^show:/i, '');
+        if (layerIds === '' || layerIds === '-1') return null;
+        var srCode = (projection && projection.getCode)
+          ? projection.getCode().split(':')[1] : '2056';
+        var size = (map.getSize && map.getSize()) || [256, 256];
+        var extent = map.getView().calculateExtent(size);
+        var base = (typeof source.getUrl === 'function') ? source.getUrl() : '';
+        // Basis-URL kann auf /export enden → auf /identify umbiegen
+        var identifyBase = base.replace(/\/export\/?$/i, '') + '/identify';
+        return identifyBase +
+          '?f=json' +
+          '&geometry=' + coordinate[0] + ',' + coordinate[1] +
+          '&geometryType=esriGeometryPoint' +
+          '&sr=' + srCode +
+          '&layers=all:' + layerIds +
+          '&tolerance=5' +
+          '&mapExtent=' + extent.join(',') +
+          '&imageDisplay=' + size.join(',') + ',96' +
+          '&returnGeometry=false';
+      } catch (e) {
+        return null;
+      }
+    };
+  }
+
+  /**
    * Erstellt einen OL-Layer für einen Root-Dienst direkt in der Bridge.
    * Wird verwendet wenn das Framework den Root-Key nicht kennt und
    * keinen eigenen OL-Layer erstellt.
@@ -410,17 +452,55 @@
     var layersParam = _buildLayersParam(entry.visibleSublayers);
 
     var arcParams = { LAYERS: layersParam, FORMAT: 'PNG32', TRANSPARENT: true, DPI: 96 };
-    var source = new ol.source.ImageArcGISRest({
-      url: serviceUrl,
-      params: arcParams,
-      ratio: 1
-    });
-    var olLayer = new ol.layer.Image({
-      source: source,
-      opacity: opacity,
-      visible: layersParam !== 'show:-1',
-      zIndex: 200
-    });
+
+    // ── Tile-Modus (analog tnet-lm-store.js) ──
+    // agsTileMode.enabled = true  → gekachelt (TileArcGISRest, cachebar im agsproxy)
+    // agsTileMode.enabled = false → Single-Image (ImageArcGISRest, bisheriges Verhalten)
+    var globalCfg = window.TnetGlobalConfig || {};
+    var tileModeCfg = globalCfg.agsTileMode || {};
+    var tileModeEnabled = tileModeCfg.enabled === true;
+    var tileSize = (parseInt(tileModeCfg.tileSize, 10) === 512) ? 512 : 256;
+    var isVisible = layersParam !== 'show:-1';
+
+    var source, olLayer;
+    if (!tileModeEnabled && ol.source.ImageArcGISRest) {
+      source = new ol.source.ImageArcGISRest({
+        url: serviceUrl,
+        params: arcParams,
+        ratio: 1
+      });
+      olLayer = new ol.layer.Image({
+        source: source,
+        opacity: opacity,
+        visible: isVisible,
+        zIndex: 200
+      });
+    } else {
+      // Tile-Grid mit konfigurierter Kachelgrösse für die Karten-Projektion (LV95)
+      var tileSrcOpts = { url: serviceUrl, params: arcParams };
+      try {
+        var mapProj = map.getView().getProjection();
+        if (ol.tilegrid && ol.tilegrid.createForProjection) {
+          tileSrcOpts.tileGrid = ol.tilegrid.createForProjection(
+            mapProj, undefined, [tileSize, tileSize]
+          );
+        }
+      } catch (eTileGrid) {
+        TnetLog.warn(LOG, '_createRootOLLayer: Tile-Grid nicht erstellbar, OL-Default:', eTileGrid);
+      }
+      source = new ol.source.TileArcGISRest(tileSrcOpts);
+      // Identify-Kompatibilität: Das MapPlus-Framework (queryconnector) ruft
+      // source.getFeatureInfoUrl() auf. TileArcGISRest besitzt diese Methode
+      // nicht → Klick-Abfrage würde ausfallen. Shim baut die ArcGIS
+      // /identify-URL (analog tnet-splitscreen.js) aus aktuellen LAYERS.
+      _attachArcgisIdentifyShim(source, map);
+      olLayer = new ol.layer.Tile({
+        source: source,
+        opacity: opacity,
+        visible: isVisible,
+        zIndex: 200
+      });
+    }
     olLayer.set('name', rootKey);
     olLayer.set('tnet_bridge_created', true);
 
