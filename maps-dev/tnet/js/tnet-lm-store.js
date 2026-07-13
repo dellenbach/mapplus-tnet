@@ -4286,10 +4286,20 @@
             TnetLog.warn(LOG, 'Coalesce: Tile-Grid nicht erstellbar, OL-Default:', eTileGrid);
           }
           var source = new ol.source.TileArcGISRest(tileSrcOpts);
-          // Identify-Kompatibilität: Framework ruft source.getFeatureInfoUrl().
-          // TileArcGISRest hat sie nicht → ArcGIS /identify-URL selbst bauen.
-          if (typeof source.getFeatureInfoUrl !== 'function') {
-            (function (src, mapRef) {
+          // Identify-Kompatibilität: Framework-queryconnector ruft
+          // source.getUrl() (Singular) — TileArcGISRest hat nur getUrls().
+          // getUrl ergänzen + getFeatureInfoUrl-Shim.
+          (function (src, mapRef) {
+            if (typeof src.getUrl !== 'function') {
+              src.getUrl = function () {
+                if (typeof src.getUrls === 'function') {
+                  var urls = src.getUrls();
+                  if (urls && urls.length) return urls[0];
+                }
+                return '';
+              };
+            }
+            if (typeof src.getFeatureInfoUrl !== 'function') {
               src.getFeatureInfoUrl = function (coordinate, resolution, projection, options) {
                 try {
                   var params = (typeof src.getParams === 'function') ? (src.getParams() || {}) : {};
@@ -4316,8 +4326,8 @@
                   return null;
                 }
               };
-            })(source, map);
-          }
+            }
+          })(source, map);
           olLayer = new ol.layer.Tile({
             source: source,
             opacity: layer.opacity || 1.0,

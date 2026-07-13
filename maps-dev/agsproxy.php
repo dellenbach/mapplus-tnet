@@ -1433,24 +1433,27 @@ function tileCacheKey(string $servicePath, array $params): string {
 
 /**
  * Liest eine gecachte Kachel. Gibt ['ct' => contentType, 'body' => bytes] oder null.
- * TTL-Prüfung anhand Datei-mtime.
+ * TTL-Prüfung anhand Datei-mtime. Content-Type wird aus den Magic-Bytes des
+ * Bildes abgeleitet (kein separates Meta-File nötig → weniger I/O).
  */
 function tileCacheGet(string $dir, string $key, int $ttlSec): ?array {
-    $metaFile = $dir . DIRECTORY_SEPARATOR . $key . '.json';
     $dataFile = $dir . DIRECTORY_SEPARATOR . $key . '.bin';
-    if (!is_file($dataFile) || !is_file($metaFile)) return null;
+    if (!is_file($dataFile)) return null;
 
-    $age = time() - @filemtime($dataFile);
-    if ($age === false || $age > $ttlSec) return null;
+    $mtime = @filemtime($dataFile);
+    if ($mtime === false || (time() - $mtime) > $ttlSec) return null;
 
-    $meta = @json_decode(@file_get_contents($metaFile), true);
     $body = @file_get_contents($dataFile);
-    if (!is_array($meta) || $body === false) return null;
+    if ($body === false || $body === '') return null;
 
-    return ['ct' => $meta['ct'] ?? 'image/png', 'body' => $body];
+    // Content-Type aus Magic-Bytes (PNG/JPEG/GIF), Default PNG
+    $ct = 'image/png';
+    if (strncmp($body, "\xFF\xD8\xFF", 3) === 0)      $ct = 'image/jpeg';
+    elseif (strncmp($body, "GIF8", 4) === 0)          $ct = 'image/gif';
+    return ['ct' => $ct, 'body' => $body];
 }
 
-/** Schreibt eine Kachel atomar in den Cache (data + meta). */
+/** Schreibt eine Kachel atomar in den Cache (nur .bin, kein Meta-File). */
 function tileCachePut(string $dir, string $key, string $contentType, string $body): void {
     if (!is_dir($dir)) {
         if (!@mkdir($dir, 0775, true) && !is_dir($dir)) return;
@@ -1458,26 +1461,18 @@ function tileCachePut(string $dir, string $key, string $contentType, string $bod
     if (!is_writable($dir)) return;
 
     $dataFile = $dir . DIRECTORY_SEPARATOR . $key . '.bin';
-    $metaFile = $dir . DIRECTORY_SEPARATOR . $key . '.json';
     $tmpData  = $dataFile . '.' . getmypid() . '.tmp';
-    $tmpMeta  = $metaFile . '.' . getmypid() . '.tmp';
-
     if (@file_put_contents($tmpData, $body, LOCK_EX) !== false) {
         @rename($tmpData, $dataFile);
         @chmod($dataFile, 0644);
-    }
-    $meta = json_encode(['ct' => $contentType, 'ts' => time()], JSON_UNESCAPED_SLASHES);
-    if (@file_put_contents($tmpMeta, $meta, LOCK_EX) !== false) {
-        @rename($tmpMeta, $metaFile);
-        @chmod($metaFile, 0644);
     }
 }
 
 /**
  * Probabilistische Garbage-Collection: löscht abgelaufene Kachel-Dateien.
- * Wird nur mit geringer Wahrscheinlichkeit ausgeführt (kein Cron nötig),
- * damit der Cache-Ordner nicht unbegrenzt wächst. Löscht .bin/.json-Paare
- * deren mtime älter als TTL ist.
+ * Läuft inline mit geringer Wahrscheinlichkeit (kein Cron nötig) und ist pro
+ * Lauf gedeckelt, damit kein Request spürbar blockiert. Räumt auch veraltete
+ * .json-Meta-Files aus früheren Versionen ab.
  */
 function tileCacheGc(string $dir, int $ttlSec, int $probabilityPercent = 2): void {
     if ($probabilityPercent <= 0) return;
@@ -1485,16 +1480,24 @@ function tileCacheGc(string $dir, int $ttlSec, int $probabilityPercent = 2): voi
     if (!is_dir($dir)) return;
 
     $now = time();
+    $maxDelete = 500;   // Obergrenze pro Lauf → keine langen Blockaden
+    $deleted = 0;
     $handle = @opendir($dir);
     if ($handle === false) return;
     while (($entry = readdir($handle)) !== false) {
-        if ($entry === '.' || $entry === '..') continue;
-        if (substr($entry, -4) !== '.bin') continue;
-        $dataFile = $dir . DIRECTORY_SEPARATOR . $entry;
-        $mtime = @filemtime($dataFile);
+        $ext = substr($entry, -4);
+        if ($ext !== '.bin' && $ext !== 'json') continue;
+        $file = $dir . DIRECTORY_SEPARATOR . $entry;
+        // Legacy-.json immer entfernen; .bin nur wenn abgelaufen
+        if ($ext === 'json') {
+            @unlink($file);
+            if (++$deleted >= $maxDelete) break;
+            continue;
+        }
+        $mtime = @filemtime($file);
         if ($mtime !== false && ($now - $mtime) > $ttlSec) {
-            @unlink($dataFile);
-            @unlink(substr($dataFile, 0, -4) . '.json');
+            @unlink($file);
+            if (++$deleted >= $maxDelete) break;
         }
     }
     closedir($handle);

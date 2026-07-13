@@ -372,7 +372,21 @@
    * @private
    */
   function _attachArcgisIdentifyShim(source, map) {
-    if (!source || typeof source.getFeatureInfoUrl === 'function') return;
+    if (!source) return;
+    // getUrl() (Singular) fehlt bei TileArcGISRest — nur getUrls() (Plural)
+    // ist vorhanden. Das Framework-queryconnector ruft aber
+    // getSource().getUrl() auf → ergänzen, sonst schlägt die Klick-Abfrage
+    // mit "getUrl is not a function" fehl.
+    if (typeof source.getUrl !== 'function') {
+      source.getUrl = function () {
+        if (typeof source.getUrls === 'function') {
+          var urls = source.getUrls();
+          if (urls && urls.length) return urls[0];
+        }
+        return '';
+      };
+    }
+    if (typeof source.getFeatureInfoUrl === 'function') return;
     source.getFeatureInfoUrl = function (coordinate, resolution, projection, options) {
       try {
         var params = (typeof source.getParams === 'function') ? (source.getParams() || {}) : {};
