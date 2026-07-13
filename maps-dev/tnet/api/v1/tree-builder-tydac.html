@@ -143,6 +143,7 @@
   .node-icon { width: 18px; height: 18px; object-fit: contain; flex: none; }
   .node-label { font-size: 13px; }
   .node-type { font-size: 10px; color: #fff; background: var(--muted); border-radius: 3px; padding: 0 5px; margin-left: 4px; }
+  .node-count { font-size: 10px; color: rgba(255,255,255,.7); margin-left: 4px; font-weight: 400; }
   .node-type.cat { background: #8e6f3e; }
   .node-type.grp { background: #4B7B81; }
   .node-type.sub { background: #5a7f9a; }
@@ -634,8 +635,31 @@
     bindTreeEvents();
   }
 
+  // Rekursiv Layer-Anzahl in einem Container zählen
+  function countLayersIn(items) {
+    if (!items) return 0;
+    if (Array.isArray(items)) {
+      var c = 0;
+      items.forEach(function (it) {
+        if (typeof it === 'string') c++;
+        else if (it && it.items) c += countLayersIn(it.items);
+        else c++;
+      });
+      return c;
+    }
+    if (typeof items === 'object') {
+      var c2 = 0;
+      Object.keys(items).forEach(function (k) {
+        var grp = items[k];
+        c2 += countLayersIn(grp && grp.items ? grp.items : []);
+      });
+      return c2;
+    }
+    return 0;
+  }
+
   function renderCategory(cat, path, key) {
-    var open = cat && cat.open !== false;
+    var open = _treeInitialCollapsed ? false : (cat && cat.open !== false);
     var label = nlsName(key) || (cat && (cat.name)) || key;
     var catCls = cat ? (cat.iconClass || cat.iconclass || '') : '';
     var catIcon = catCls ? catImageUrlForClass(catCls) : '';
@@ -644,6 +668,8 @@
     h += '<span class="twist">' + (open ? '▾' : '▸') + '</span>';
     if (catIcon) h += '<img class="node-icon" src="' + esc(catIcon) + '" alt="" onerror="this.style.visibility=\'hidden\'">';
     h += '<span class="node-label">' + esc(label) + '</span><span class="node-type cat">Kategorie</span>';
+    var catCount = countLayersIn(cat && cat.items);
+    if (catCount > 0) h += '<span class="node-count">(' + catCount + ')</span>';
     h += '</div>';
     var items = cat && cat.items;
     h += '<ul class="tree"' + (open ? '' : ' style="display:none"') + '>';
@@ -662,11 +688,13 @@
   }
 
   function renderGroup(grp, path, key) {
-    var open = grp && grp.open !== false;
+    var open = _treeInitialCollapsed ? false : (grp && grp.open !== false);
     var h = '<li class="node" data-path="' + esc(path) + '">';
     h += '<div class="row group-row" data-path="' + esc(path) + '" data-kind="group">';
     h += '<span class="twist">' + (open ? '▾' : '▸') + '</span>';
     h += '<span class="node-label">' + esc(nodeDisplayName(grp, key)) + '</span><span class="node-type grp">Gruppe</span>';
+    var grpCount = countLayersIn(grp && grp.items);
+    if (grpCount > 0) h += '<span class="node-count">(' + grpCount + ')</span>';
     h += '</div>';
     var items = grp && grp.items;
     h += '<ul class="tree"' + (open ? '' : ' style="display:none"') + '>';
@@ -693,7 +721,7 @@
       return h;
     }
     // Verschachtelte Gruppe (Objekt mit name/icon/items)
-    var open = item.open !== false;
+    var open = _treeInitialCollapsed ? false : (item.open !== false);
     var iconUrl = normalizeIconUrl(item.icon);
     var h2 = '<li class="node" data-path="' + esc(path) + '">';
     h2 += '<div class="row subgroup-row" data-path="' + esc(path) + '" data-kind="subgroup">';
@@ -732,13 +760,26 @@
     var rows = document.querySelectorAll('#treePane .row');
     Array.prototype.forEach.call(rows, function (row) {
       row.addEventListener('click', function (e) {
-        // Twist-Klick = auf/zu; sonst auswählen
+        // Twist-Klick = auf/zu; Ctrl+Klick = alle auf-/zuklappen
         var li = row.parentNode;
         var childUl = li.querySelector(':scope > ul.tree');
         if (e.target.classList.contains('twist') && childUl) {
           var vis = childUl.style.display !== 'none';
-          childUl.style.display = vis ? 'none' : '';
-          e.target.textContent = vis ? '▸' : '▾';
+          if (e.ctrlKey || e.metaKey) {
+            // Alle Knoten auf gleicher Ebene + darunter toggeln
+            var allTwists = document.querySelectorAll('#treePane .twist');
+            Array.prototype.forEach.call(allTwists, function (tw) {
+              var twLi = tw.closest('li');
+              var twUl = twLi ? twLi.querySelector(':scope > ul.tree') : null;
+              if (twUl) {
+                twUl.style.display = vis ? 'none' : '';
+                tw.textContent = vis ? '▸' : '▾';
+              }
+            });
+          } else {
+            childUl.style.display = vis ? 'none' : '';
+            e.target.textContent = vis ? '▸' : '▾';
+          }
           return;
         }
         selectNode(row.getAttribute('data-path'), row.getAttribute('data-kind'));
@@ -1586,6 +1627,7 @@
   }
 
   var _sourceGroupState = {};
+  var _treeInitialCollapsed = true; // Baum startet zugeklappt; Ctrl+Click zum Aufklappen
 
   function updateTagFilter() {
     var sel = $('layerTagFilter');
@@ -1665,8 +1707,17 @@
         if (e.target.closest('.src-verify')) return;
         var group = head.closest('.tb-source-group');
         var key = group.getAttribute('data-src-key');
-        group.classList.toggle('collapsed');
-        _sourceGroupState[key] = group.classList.contains('collapsed');
+        if (e.ctrlKey || e.metaKey) {
+          // Alle Source-Groups auf-/zuklappen
+          var shouldCollapse = !group.classList.contains('collapsed');
+          Array.prototype.forEach.call(list.querySelectorAll('.tb-source-group'), function (g) {
+            g.classList.toggle('collapsed', shouldCollapse);
+            _sourceGroupState[g.getAttribute('data-src-key')] = shouldCollapse;
+          });
+        } else {
+          group.classList.toggle('collapsed');
+          _sourceGroupState[key] = group.classList.contains('collapsed');
+        }
       });
     });
 

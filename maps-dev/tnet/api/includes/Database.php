@@ -133,6 +133,20 @@ class Database {
     }
 
     /**
+     * Setzt den Schema-Namen explizit (Override aus Applikationskontext).
+     * Muss VOR dem ersten getConnection()/getSchema()-Aufruf gesetzt werden.
+     *
+     * @param string $schema Schema-Name (z.B. 'mapplusconf_dev')
+     */
+    public static function setSchemaOverride(string $schema): void {
+        self::$schema = self::normalizeSchemaName($schema);
+        // Falls bereits eine Verbindung besteht, search_path aktualisieren
+        if (self::$pdo !== null) {
+            self::$pdo->exec("SET search_path TO " . self::quoteIdentifier(self::$schema) . ", public");
+        }
+    }
+
+    /**
      * Liefert den aktiven Schema-Namen.
      *
      * DEV nutzt standardmaessig mapplusconf_dev, PROD mapplusconf.

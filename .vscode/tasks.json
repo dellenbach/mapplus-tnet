@@ -213,6 +213,57 @@
 			"presentation": { "reveal": "always", "panel": "shared" }
 		},
 
+		// ── GEOHOST / EDIT ─────────────────────────────────────────────────────
+
+		{
+			"label": "Deploy GEOHOST: 01 Sync (maps-dev/tnet -> geohost/tnet)",
+			"type": "shell",
+			"command": "_scripts/deployment/deploy-geohost/01_sync-geohost.bat",
+			"args": [],
+			"problemMatcher": [],
+			"presentation": { "reveal": "always", "panel": "shared" }
+		},
+		{
+			"label": "Deploy GEOHOST: 02 Upload (SFTP)",
+			"type": "shell",
+			"command": "_scripts/deployment/deploy-geohost/02_upload-geohost.bat",
+			"args": [],
+			"problemMatcher": [],
+			"presentation": { "reveal": "always", "panel": "shared" }
+		},
+		{
+			"label": "Deploy GEOHOST: Dry-Run (Vorschau)",
+			"type": "shell",
+			"command": "_scripts/deployment/deploy-geohost/deploy-geohost-dryrun.bat",
+			"args": [],
+			"problemMatcher": [],
+			"presentation": { "reveal": "always", "panel": "shared" }
+		},
+		{
+			"label": "Deploy EDIT: 01 Sync (maps-dev/tnet -> edit/tnet)",
+			"type": "shell",
+			"command": "_scripts/deployment/deploy-edit/01_sync-edit.bat",
+			"args": [],
+			"problemMatcher": [],
+			"presentation": { "reveal": "always", "panel": "shared" }
+		},
+		{
+			"label": "Deploy EDIT: 02 Upload (SFTP)",
+			"type": "shell",
+			"command": "_scripts/deployment/deploy-edit/02_upload-edit.bat",
+			"args": [],
+			"problemMatcher": [],
+			"presentation": { "reveal": "always", "panel": "shared" }
+		},
+		{
+			"label": "Deploy EDIT: Dry-Run (Vorschau)",
+			"type": "shell",
+			"command": "_scripts/deployment/deploy-edit/deploy-edit-dryrun.bat",
+			"args": [],
+			"problemMatcher": [],
+			"presentation": { "reveal": "always", "panel": "shared" }
+		},
+
 		// ── SETUP ──────────────────────────────────────────────────────────────
 
 		{

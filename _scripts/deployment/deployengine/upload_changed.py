@@ -35,6 +35,7 @@ PORT         = 22
 USER         = "trigonet"
 PASSWORD     = "3Zs,k4%Un,<[W(Kx"
 REMOTE_BASE  = ""
+SCAN_SUBDIR  = ""  # Wenn gesetzt: nur dieses Unterverzeichnis scannen (z.B. "tnet")
 
 # Verzeichnisse die nie direkt hochgeladen werden duerfen
 BLOCKED_DIRS = [
@@ -224,13 +225,20 @@ def collect_candidates():
     DEV nutzt tnet/js als Quelle; PROD nutzt tnet/js als finale Runtime-Ausgabe.
     js-dev/ und js_ori/ werden als lokale Quell-/Backup-Ordner uebersprungen.
     Nicht fuer Code-Deploy gedachte Doku-/Test-/Cache-Artefakte werden uebersprungen.
+    Wenn SCAN_SUBDIR gesetzt ist, wird nur dieses Unterverzeichnis gescannt.
     """
+    # Bei scan_subdir: Startpunkt einschraenken
+    walk_base = LOCAL_BASE
+    if SCAN_SUBDIR:
+        walk_base = os.path.normpath(os.path.join(LOCAL_BASE, SCAN_SUBDIR))
+        if not os.path.isdir(walk_base):
+            print(f"[WARN] scan_subdir '{SCAN_SUBDIR}' existiert nicht unter {LOCAL_BASE}")
+            return []
+
     skip_js_dir = None
     if os.path.basename(LOCAL_BASE).lower() == "maps-dev":
-        # DEV laedt kuenftig die lesbaren Originale direkt aus tnet/js/.
         skip_js_dir = os.path.normpath(os.path.join(LOCAL_BASE, "tnet", "js-dev"))
     else:
-        # PROD laedt finale Build-Artefakte aus tnet/js/; Quellen/Backups bleiben lokal.
         skip_js_dir = os.path.normpath(os.path.join(LOCAL_BASE, "tnet", "js-dev"))
 
     SKIP_DIRS = {
@@ -246,7 +254,7 @@ def collect_candidates():
     }
     SKIP_FILE_EXTENSIONS = {".drawio", ".md", ".pyc", ".xlsx"}
     candidates = []
-    for root, dirs, files in os.walk(LOCAL_BASE):
+    for root, dirs, files in os.walk(walk_base):
         norm_root = os.path.normpath(root)
         if any(norm_root == sd or norm_root.startswith(sd + os.sep) for sd in SKIP_DIRS):
             dirs.clear()
@@ -293,6 +301,7 @@ def main():
     LOCAL_BASE = os.path.normpath(deploy_config["local_base"])
     STATE_FILE = os.path.normpath(deploy_config["state_file"])
     REMOTE_BASE = deploy_config["remote_base"]
+    SCAN_SUBDIR = deploy_config.get("scan_subdir", "")
     ensure_local_base_exists(LOCAL_BASE)
 
     if args.allow_config and not args.reason.strip():
