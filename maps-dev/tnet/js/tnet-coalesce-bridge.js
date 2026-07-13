@@ -381,27 +381,39 @@
     return function (tile, src) {
       var image = tile.getImage();
       var retries = 0;
+      function retryOrGiveUp() {
+        if (retries < maxRetries) {
+          retries++;
+          setTimeout(attempt, baseDelayMs * retries);
+        } else {
+          image.src = _TRANSPARENT_TILE_PNG; // aufgeben, kein Artefakt
+        }
+      }
       function attempt() {
         fetch(src, { credentials: 'same-origin' })
           .then(function (resp) {
-            if (resp.status === 204) return null;      // leere Kachel
+            if (resp.status === 204) return { empty: true };
             if (!resp.ok) throw new Error('HTTP ' + resp.status);
-            return resp.blob();
+            // ArcGIS liefert Token-/Render-Fehler oft als HTTP 200 + JSON.
+            // Nur echte Bilder akzeptieren, sonst Retry (Token propagiert evtl.).
+            var ct = resp.headers.get('Content-Type') || '';
+            if (ct.indexOf('image/') !== 0) throw new Error('non-image: ' + ct);
+            return resp.blob().then(function (blob) { return { blob: blob }; });
           })
-          .then(function (blob) {
-            if (!blob || blob.size === 0) { image.src = _TRANSPARENT_TILE_PNG; return; }
-            var objUrl = URL.createObjectURL(blob);
+          .then(function (res) {
+            if (res.empty || !res.blob || res.blob.size === 0) {
+              image.src = _TRANSPARENT_TILE_PNG;
+              return;
+            }
+            var objUrl = URL.createObjectURL(res.blob);
             image.onload = function () { URL.revokeObjectURL(objUrl); };
+            image.onerror = function () {
+              URL.revokeObjectURL(objUrl);
+              retryOrGiveUp(); // Decode-Fehler → erneut versuchen
+            };
             image.src = objUrl;
           })
-          .catch(function () {
-            if (retries < maxRetries) {
-              retries++;
-              setTimeout(attempt, baseDelayMs * retries);
-            } else {
-              image.src = _TRANSPARENT_TILE_PNG; // aufgeben, kein dunkles Artefakt
-            }
-          });
+          .catch(function () { retryOrGiveUp(); });
       }
       attempt();
     };
@@ -555,7 +567,7 @@
       source = new ol.source.TileArcGISRest(tileSrcOpts);
       // Retry bei Kachel-Ladefehlern (transiente Token/Timeout-Störungen),
       // damit keine Kachel dauerhaft "hängen" bleibt.
-      source.setTileLoadFunction(_makeRetryTileLoadFunction(3, 400));
+      source.setTileLoadFunction(_makeRetryTileLoadFunction(4, 500));
       // Identify-Kompatibilität: Das MapPlus-Framework (queryconnector) ruft
       // source.getFeatureInfoUrl() auf. TileArcGISRest besitzt diese Methode
       // nicht → Klick-Abfrage würde ausfallen. Shim baut die ArcGIS

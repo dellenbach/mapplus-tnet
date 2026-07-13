@@ -4298,23 +4298,27 @@
             src.setTileLoadFunction(function (tile, url) {
               var image = tile.getImage();
               var retries = 0;
+              function retryOrGiveUp() {
+                if (retries < 4) { retries++; setTimeout(attempt, 500 * retries); }
+                else { image.src = TRANSPARENT; }
+              }
               function attempt() {
                 fetch(url, { credentials: 'same-origin' })
                   .then(function (resp) {
-                    if (resp.status === 204) return null;
+                    if (resp.status === 204) return { empty: true };
                     if (!resp.ok) throw new Error('HTTP ' + resp.status);
-                    return resp.blob();
+                    var ct = resp.headers.get('Content-Type') || '';
+                    if (ct.indexOf('image/') !== 0) throw new Error('non-image');
+                    return resp.blob().then(function (blob) { return { blob: blob }; });
                   })
-                  .then(function (blob) {
-                    if (!blob || blob.size === 0) { image.src = TRANSPARENT; return; }
-                    var objUrl = URL.createObjectURL(blob);
+                  .then(function (res) {
+                    if (res.empty || !res.blob || res.blob.size === 0) { image.src = TRANSPARENT; return; }
+                    var objUrl = URL.createObjectURL(res.blob);
                     image.onload = function () { URL.revokeObjectURL(objUrl); };
+                    image.onerror = function () { URL.revokeObjectURL(objUrl); retryOrGiveUp(); };
                     image.src = objUrl;
                   })
-                  .catch(function () {
-                    if (retries < 3) { retries++; setTimeout(attempt, 400 * retries); }
-                    else { image.src = TRANSPARENT; }
-                  });
+                  .catch(function () { retryOrGiveUp(); });
               }
               attempt();
             });
