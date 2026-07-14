@@ -598,6 +598,10 @@
   function renderTree() {
     var pane = $('treePane');
     if (!_doc) { pane.innerHTML = '<div class="empty">Kein Katalog geladen.</div>'; return; }
+
+    // Zustand sichern (nur ab 2. Render; beim 1. gilt _treeInitialCollapsed)
+    var snapshot = _treeInitialCollapsed ? null : saveTreeState();
+
     var lmKeys = Object.keys(_doc).filter(function (k) {
       var v = _doc[k];
       return v && typeof v === 'object' && !Array.isArray(v);
@@ -633,6 +637,13 @@
     });
     pane.innerHTML = html;
     bindTreeEvents();
+
+    // Nach erstem Render: initial-Flag deaktivieren + Zustand ggf. wiederherstellen
+    if (_treeInitialCollapsed) {
+      _treeInitialCollapsed = false;
+    } else if (snapshot) {
+      restoreTreeState(snapshot);
+    }
   }
 
   // Rekursiv Layer-Anzahl in einem Container zählen
@@ -1628,6 +1639,40 @@
 
   var _sourceGroupState = {};
   var _treeInitialCollapsed = true; // Baum startet zugeklappt; Ctrl+Click zum Aufklappen
+  var _treeStateSnapshot = null;    // Gespeicherter Zustand vor Re-Render
+
+  // Collapse-Zustand aller Knoten sichern (path -> offen/zu)
+  function saveTreeState() {
+    var snapshot = {};
+    var pane = $('treePane');
+    if (!pane) return snapshot;
+    Array.prototype.forEach.call(pane.querySelectorAll('.row[data-path]'), function (row) {
+      var li = row.parentNode;
+      var childUl = li ? li.querySelector(':scope > ul.tree') : null;
+      if (childUl) {
+        snapshot[row.getAttribute('data-path')] = childUl.style.display !== 'none';
+      }
+    });
+    return snapshot;
+  }
+
+  // Collapse-Zustand nach Re-Render wiederherstellen
+  function restoreTreeState(snapshot) {
+    if (!snapshot) return;
+    var pane = $('treePane');
+    if (!pane) return;
+    Array.prototype.forEach.call(pane.querySelectorAll('.row[data-path]'), function (row) {
+      var path = row.getAttribute('data-path');
+      if (!(path in snapshot)) return;
+      var li = row.parentNode;
+      var childUl = li ? li.querySelector(':scope > ul.tree') : null;
+      var twist = row.querySelector('.twist');
+      if (!childUl) return;
+      var open = snapshot[path];
+      childUl.style.display = open ? '' : 'none';
+      if (twist) twist.textContent = open ? '▾' : '▸';
+    });
+  }
 
   function updateTagFilter() {
     var sel = $('layerTagFilter');
