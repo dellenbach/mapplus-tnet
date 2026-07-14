@@ -49,4 +49,5 @@ _scripts/tools/*.jar
 
 # Lokale Arbeits- und Cookie-Artefakte
 edit/
+geohost/
 redirect-cookies.txt
