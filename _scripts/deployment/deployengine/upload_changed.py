@@ -500,7 +500,7 @@ def main():
 
             remote_file = f"{REMOTE_BASE}/{upload_rel}"
             try:
-                ensure_remote_dir(sftp, remote_file.rsplit("/", 1)[0])
+                ensure_remote_dir(remote_file.rsplit("/", 1)[0])
                 sftp.put(upload_file, remote_file)
                 size = os.path.getsize(upload_file)
                 print(f"  {progress} [OK] {upload_rel} ({size:,} bytes)")
