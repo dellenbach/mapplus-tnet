@@ -42,9 +42,6 @@ function ensureContextMenuDOM() {
       + item('ctxWhatIsHere()', 'M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z', 'Was ist hier?')
       + item('ctxZoomHere()', 'M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14zm.5-7H9v2H7v1h2v2h1v-2h2V9h-2z', 'Hierher zoomen')
       + divider
-      + item('ctxRouteFrom()', 'M2 12l5 5v-4h9v6l7-7-7-7v6H7V7z', 'Route von hier')
-      + item('ctxRouteTo()', 'M22 12l-5-5v4H8V5l-7 7 7 7v-6h9v4z', 'Route hierher')
-      + divider
       + item('ctxOpenGoogleMaps()', 'M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z', 'In Google Maps \u00f6ffnen')
       + item('ctxOpenStreetView()', 'M12.56 14.33c-.34.27-.56.7-.56 1.17V21h7c1.1 0 2-.9 2-2v-5.98c-.94-.33-1.95-.52-3-.52-2.03 0-3.93.7-5.44 1.83zM12 6c1.93 0 3.5 1.57 3.5 3.5S13.93 13 12 13s-3.5-1.57-3.5-3.5S10.07 6 12 6zM12 2C6.48 2 2 6.48 2 12s4.48 10 10 10h1v-6.5c0-.91.47-1.71 1.19-2.17C15.27 12.54 16.6 12 18 12c1.34 0 2.61.29 3.76.8.16-.59.24-1.21.24-1.8 0-5.52-4.48-10-10-10z', 'StreetView \u00f6ffnen')
       + divider
@@ -481,9 +478,10 @@ var clickedCoords = null; // {lv95: [E, N], wgs84: [lon, lat], pixel: [x, y]}
             var map = njs.AppManager.Maps['main'].mapObj;
             if (map) {
                 var view = map.getView();
+                // Massstab ~1:1000 entspricht ca. Resolution 0.25 m/px (LV95)
                 view.animate({
                     center: clickedCoords.lv95,
-                    zoom: Math.max(view.getZoom() + 2, 15),
+                    resolution: 0.25,
                     duration: 500
                 });
             }
@@ -539,30 +537,11 @@ var clickedCoords = null; // {lv95: [E, N], wgs84: [lon, lat], pixel: [x, y]}
     window.ctxOpenStreetView = function() {
         if (!clickedCoords) return;
         hideContextMenu();
-        
-        // Nutze das bestehende StreetView-Tool von njs
-        if (njs && njs.AppManager && njs.AppManager.Tools && njs.AppManager.Tools.StreetView && njs.AppManager.Tools.StreetView['main']) {
-            var svTool = njs.AppManager.Tools.StreetView['main'];
-            var container = document.getElementById('streetviewContainer');
-            var isVisible = container && container.style.display !== 'none' && container.offsetWidth > 0;
-            
-            if (isVisible) {
-                // StreetView ist bereits offen - schliessen und mit neuer Position wieder öffnen
-                svTool.toggleView(false); // Schliessen
-                setTimeout(function() {
-                    svTool.toggleView(true); // Mit neuer Position öffnen
-                }, 100);
-            } else {
-                // StreetView ist geschlossen - normal öffnen
-                svTool.toggleView(true);
-            }
-        } else {
-            // Fallback: Google StreetView direkt öffnen
-            var lat = clickedCoords.wgs84[1].toFixed(6);
-            var lon = clickedCoords.wgs84[0].toFixed(6);
-            var url = 'https://www.google.com/maps?layer=c&cbll=' + lat + ',' + lon;
-            window.open(url, '_blank');
-        }
+        // Google StreetView direkt an geklickter Position oeffnen
+        var lat = clickedCoords.wgs84[1].toFixed(6);
+        var lon = clickedCoords.wgs84[0].toFixed(6);
+        var url = 'https://www.google.com/maps/@' + lat + ',' + lon + ',3a,75y,0h,90t/data=!3m6!1e1!3m4!1s!2e0!7i16384!8i8192';
+        window.open(url, '_blank');
     };
     
     window.ctxCopyLink = function() {
