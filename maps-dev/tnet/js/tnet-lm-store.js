@@ -1837,6 +1837,9 @@
       this._syncDuplicateVisible(layerId, targetVisible, layer);
 
       // ── Coalesce-Pfad: gemeinsamer OL-Layer pro Dienst ──
+      // Independent-Opacity-Overlays lazy als eigene Ein-Sublayer-Gruppe
+      // registrieren, damit sie im Tile-Modus getilet werden.
+      this._ensureIndependentOpacityCoalesce(layerId, layer);
       var coalGroupId = _layerToCoalesce[layerId];
       if (coalGroupId) {
         _suppressMapSync = true;
@@ -2230,6 +2233,46 @@
         if (idLc.indexOf(String(svcs[i]).toLowerCase() + '/') === 0) return true;
       }
       return false;
+    },
+
+    /**
+     * Registriert ein Independent-Opacity-Overlay lazy als EIGENE Ein-Sublayer-
+     * Coalesce-Gruppe. Dadurch rendert es über den Store-Tile-Pfad
+     * (_addToCoalesceOLLayer → TileArcGISRest inkl. Retry/Identify/Transition)
+     * statt als Framework-Single-Image. Jedes Overlay bekommt eine eigene
+     * groupId → eigener OL-Layer → eigene Opacity bleibt erhalten.
+     * Nur aktiv wenn agsTileMode.enabled = true (Tile-Modus).
+     * @param {string} layerId
+     * @param {Object} layer  Store-Layer-Objekt (mit url + params)
+     */
+    _ensureIndependentOpacityCoalesce: function (layerId, layer) {
+      var tileCfg = window.TnetGlobalConfig && window.TnetGlobalConfig.agsTileMode;
+      if (!tileCfg || tileCfg.enabled !== true) return;      // nur im Tile-Modus
+      if (!this._isIndependentOpacityLayer(layerId)) return;
+      if (_layerToCoalesce[layerId]) {
+        if (_config.debug) TnetLog.log(LOG, 'IndepOpacity: bereits im Coalesce-Index:', layerId, '→', _layerToCoalesce[layerId]);
+        return;                 // bereits registriert
+      }
+      if (!layer || !layer.url) {
+        if (_config.debug) TnetLog.log(LOG, 'IndepOpacity: keine url:', layerId);
+        return;
+      }
+      var subNum = this._extractSublayerNum(layer);
+      if (subNum === null) {
+        if (_config.debug) TnetLog.log(LOG, 'IndepOpacity: kein show:N (params=', layer.params, ') für', layerId);
+        return;                 // kein ArcGIS show:N
+      }
+
+      _coalesceIndex[layerId] = {
+        serviceUrl: layer.url,
+        coalesceGroup: layerId,     // eindeutige Gruppe pro Overlay
+        name: (layer.name || layerId),
+        childIds: [layerId]
+      };
+      _layerToCoalesce[layerId] = layerId;
+      if (_config.debug) {
+        TnetLog.log(LOG, 'IndepOpacity → eigene Tile-Coalesce-Gruppe registriert:', layerId, '(show:' + subNum + ')');
+      }
     },
 
     /**
@@ -4258,6 +4301,12 @@
           useSingleTile = layer.options.singleTile; // Per-Layer-Override
         } else {
           useSingleTile = !tileModeEnabled;         // Globaler agsTileMode
+        }
+        // Independent-Opacity-Overlays: im Tile-Modus IMMER tilen (altes
+        // options.singleTile:true aus der Config wird hier bewusst ignoriert,
+        // sonst blieben diese Overlays trotz agsTileMode Single-Image).
+        if (tileModeEnabled && this._isIndependentOpacityLayer(layerId)) {
+          useSingleTile = false;
         }
 
         var olLayer;
