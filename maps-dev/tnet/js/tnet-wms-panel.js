@@ -754,6 +754,22 @@
     TnetLog.log('[WMS-Panel] _updateLayerListCheckbox:', layerName, '→', checked, '| gefunden:', found);
   }
 
+  function _syncAddedLayerOpacity(layerName, opacity) {
+    var normalizedOpacity = Math.max(0, Math.min(1, Number(opacity)));
+    var updated = false;
+
+    _addedLayers.forEach(function(entry) {
+      if (entry.name !== layerName) return;
+      entry.opacity = normalizedOpacity;
+      if (entry.olLayer && typeof entry.olLayer.setOpacity === 'function') {
+        entry.olLayer.setOpacity(normalizedOpacity);
+      }
+      updated = true;
+    });
+
+    if (updated) _renderAddedLayers();
+  }
+
   // ===== HINZUGEFÜGTE LAYER RENDERN =====
 
   function _renderAddedLayers() {
@@ -788,7 +804,11 @@
       slider.oninput = function() {
         var val = parseInt(slider.value) / 100;
         entry.opacity = val;
-        entry.olLayer.setOpacity(val);
+        if (window.TnetLMStore && typeof window.TnetLMStore.setLayerOpacity === 'function') {
+          window.TnetLMStore.setLayerOpacity('wms:' + entry.name, val);
+        } else if (entry.olLayer && typeof entry.olLayer.setOpacity === 'function') {
+          entry.olLayer.setOpacity(val);
+        }
       };
 
       // Legende-Button
@@ -1585,6 +1605,12 @@
 
   function _init() {
     ensureWmsPanelDOM();
+    if (window.TnetLMStore && typeof window.TnetLMStore.on === 'function') {
+      window.TnetLMStore.on('layer-opacity', function(evt) {
+        if (!evt || !evt.id || evt.id.indexOf('wms:') !== 0) return;
+        _syncAddedLayerOpacity(evt.id.replace('wms:', ''), evt.opacity);
+      });
+    }
     _loadWmsConfig().then(function() {
       _initPresets();
       _initFilter();
