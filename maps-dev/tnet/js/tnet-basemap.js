@@ -370,6 +370,14 @@
     // Global exportieren (für andere Module die darauf zugreifen)
     window.GRUNDKARTEN_LAYER_MAPPING = GRUNDKARTEN_LAYER_MAPPING;
 
+    // Synchroner Fallback: Damit die CoalesceBridge (_extractRootKey) Independent-
+    // Opacity-Overlays SOFORT erkennt — auch bei URL-Start mit layers=... bevor der
+    // async Config-Load window.__tnetIndependentOpacityServices setzt. Wird spaeter
+    // von applyBasemapOverlayConfig mit dem Config-Wert ueberschrieben.
+    if (!Array.isArray(window.__tnetIndependentOpacityServices)) {
+        window.__tnetIndependentOpacityServices = ['gis_basis/nw_basisplan_gis_dynamisch'];
+    }
+
     /**
      * Lädt basemapOverlays aus tnet-global-config.json5 (async, gecached).
      */
@@ -443,8 +451,8 @@
                 +  iconHtml
                 +  '<span class="layer-label">' + label + '</span>'
                 +  '<div class="layer-toggle">'
-                +    '<button class="toggle-btn" data-layer="' + o.key + '" data-value="on">EIN</button>'
-                +    '<button class="toggle-btn active" data-layer="' + o.key + '" data-value="off">AUS</button>'
+                +    '<button class="toggle-btn" id="btn-' + o.key + '-ein" data-layer="' + o.key + '" data-value="on">EIN</button>'
+                +    '<button class="toggle-btn active" id="btn-' + o.key + '-aus" data-layer="' + o.key + '" data-value="off">AUS</button>'
                 +  '</div>'
                 +  '</div>';
         });
@@ -569,6 +577,68 @@
             layerState[GRUNDKARTEN_LAYER_MAPPING[key]] = false;
         });
 
+        // Initialen Button-Zustand mit tatsaechlicher Layer-Sichtbarkeit abgleichen.
+        // Notwendig wenn per URL-Parameter layers=... Overlays bereits aktiv sind.
+        function syncInitialButtonStates() {
+            var store = window.TnetLMStore;
+            Object.keys(GRUNDKARTEN_LAYER_MAPPING).forEach(function(key) {
+                var lid = GRUNDKARTEN_LAYER_MAPPING[key];
+                var isVisible = false;
+
+                // Store-Weg: prueft aktive Layer
+                if (store && typeof store.getActiveLayers === 'function') {
+                    var actives = store.getActiveLayers();
+                    for (var i = 0; i < actives.length; i++) {
+                        if (actives[i] && actives[i].id === lid) {
+                            isVisible = true;
+                            break;
+                        }
+                    }
+                }
+
+                // OL-Weg als Fallback: OL-Layer direkt pruefen
+                if (!isVisible && map) {
+                    map.getLayers().forEach(function(layer) {
+                        var n = layer.get('name') || '';
+                        if (n === lid && layer.getVisible()) isVisible = true;
+                    });
+                }
+
+                if (isVisible) {
+                    layerState[lid] = true;
+                    var btnEin = document.getElementById('btn-' + key + '-ein');
+                    var btnAus = document.getElementById('btn-' + key + '-aus');
+                    if (btnEin && btnAus) {
+                        btnEin.classList.add('active');
+                        btnAus.classList.remove('active');
+                    }
+
+                    // URL-/Bookmark-Start auf den selben Store-Tile-Pfad wie die
+                    // spaeteren EIN/AUS-Aktionen migrieren. Dabei uebernimmt der Store
+                    // den sichtbaren Framework-Start-Layer und ersetzt ihn durch genau
+                    // einen eigenen Tile-Layer pro Overlay.
+                    ensureOverlayRegistered(store, lid);
+                    if (typeof store.setLayerEye === 'function') {
+                        store.setLayerEye(lid, true);
+                    }
+                }
+            });
+        }
+
+        // Verzoegert ausfuehren, damit Store und OL-Layer bereit sind
+        setTimeout(syncInitialButtonStates, 1500);
+        setTimeout(syncInitialButtonStates, 4000);
+
+        // Registriert ein Overlay SYNCHRON als Independent-Opacity-Gruppe im Store,
+        // damit es einen EIGENEN OL-Layer bekommt (eigene Deckkraft + Reihenfolge).
+        // Muss vor setLayerEye laufen, damit der Bridge-LazyLoad-Pfad greift (der
+        // _layerToCoalesce[layerId] voraussetzt). Idempotent: mehrfacher Aufruf ok.
+        function ensureOverlayRegistered(store, layerName) {
+            if (!store || typeof store._ensureIndependentOpacityCoalesce !== 'function') return;
+            var layer = (typeof store.findLayer === 'function') ? store.findLayer(layerName) : null;
+            if (layer) store._ensureIndependentOpacityCoalesce(layerName, layer);
+        }
+
         function getNonGrundkartenLayers() {
             if (!map) return [];
             var visibleLayers = [];
@@ -597,20 +667,31 @@
                     var visible = (value === 'on');
                     layerState[layerName] = visible;
 
-                    // Bug-Fix: Toggle ueber den TNET-Store schalten → sauberer Sync
-                    // mit dem Karteninhalt (EIN UND AUS). Frueher lief das ueber das
-                    // Framework (setMapBookmark), wodurch AUS nicht aus dem
-                    // Karteninhalt entfernt wurde.
-                    if (window.TnetLMStore && typeof window.TnetLMStore.setLayerVisible === 'function') {
-                        window.TnetLMStore.setLayerVisible(layerName, visible);
+                    // Steuerung läuft über den Karteninhalt-Mechanismus (setLayerEye):
+                    // 1. ensureOverlayRegistered: Independent-Opacity SYNCHRON registrieren
+                    //    (setzt _layerToCoalesce → eigener OL-Layer pro Overlay)
+                    // 2. setLayerEye: identisch zum Augen-Toggle im Karteninhalt. Für
+                    //    Independent-Opacity-Overlays läuft das intern über den Coalesce-
+                    //    Pfad (_addToCoalesceOLLayer/_removeFromCoalesceOLLayer) → Auge aus
+                    //    entfernt den OL-Layer sauber von der Karte (kein Ghost), Layer
+                    //    bleibt aber im Karteninhalt gelistet. Karteninhalt = Single Source
+                    //    of Truth: Sichtbarkeit dort steuert die Karte.
+                    var store = window.TnetLMStore;
+                    if (store && typeof store.setLayerEye === 'function') {
+                        ensureOverlayRegistered(store, layerName);
+                        store.setLayerEye(layerName, visible);
                     } else {
-                        // Fallback: Framework-Pfad (Alt-Verhalten)
+                        // Fallback: Framework-Pfad
                         var allLayers = getNonGrundkartenLayers();
                         Object.keys(layerState).forEach(function(name) {
                             if (layerState[name]) allLayers.push(name);
                         });
                         var params = 'layers=' + allLayers.join('|');
-                        window.top.njs.AppManager.setMapBookmark(['main'], params);
+                        try {
+                            window.top.njs.AppManager.setMapBookmark(['main'], params);
+                        } catch(e2) {
+                            TnetLog.warn(LOG_PREFIX, 'setMapBookmark fehlgeschlagen:', e2);
+                        }
                     }
 
                     // Active-Klasse wechseln
@@ -624,6 +705,31 @@
         });
 
         TnetLog.log(LOG_PREFIX, 'GrundkartenSync:', buttons.length, 'Buttons registriert');
+
+        // Rueckkopplung: Store-Events → Basemap-Buttons synchronisieren
+        // Wenn ein Overlay-Layer im Karteninhalt entfernt/deaktiviert wird,
+        // soll der EIN/AUS-Schalter im Basemap-Widget nachziehen.
+        if (window.TnetLMStore && typeof window.TnetLMStore.on === 'function') {
+            window.TnetLMStore.on('layer-visibility', function(evt) {
+                if (!evt || !evt.id) return;
+                // Pruefen ob diese Layer-ID einem Overlay-Key entspricht
+                Object.keys(GRUNDKARTEN_LAYER_MAPPING).forEach(function(key) {
+                    if (GRUNDKARTEN_LAYER_MAPPING[key] !== evt.id) return;
+                    var btnEin = document.getElementById('btn-' + key + '-ein');
+                    var btnAus = document.getElementById('btn-' + key + '-aus');
+                    if (!btnEin || !btnAus) return;
+                    if (evt.visible) {
+                        btnEin.classList.add('active');
+                        btnAus.classList.remove('active');
+                    } else {
+                        btnEin.classList.remove('active');
+                        btnAus.classList.add('active');
+                    }
+                    layerState[GRUNDKARTEN_LAYER_MAPPING[key]] = !!evt.visible;
+                });
+            });
+            TnetLog.log(LOG_PREFIX, 'Store layer-visibility Listener registriert');
+        }
     }
 
     // Global exportieren (tnet-app.js referenziert es)

@@ -153,6 +153,22 @@
   function _extractRootKey(sublayerKey) {
     if (!sublayerKey || typeof sublayerKey !== 'string') return null;
 
+    // 0. Independent-Opacity-Overlays: IMMER eigener Root (= layerId).
+    //    Diese Overlays (z.B. hoehenlinien, gemeindegrenzen, projektebene) teilen
+    //    denselben MapServer-Dienst, sollen aber je einen EIGENEN OL-Layer haben
+    //    (eigene Deckkraft + Reihenfolge). Ohne diese Ausnahme wuerde der
+    //    Store-Lookup/Pfad-Parent unten alle drei auf den gemeinsamen Dienst-Root
+    //    konsolidieren → ein gemeinsamer Root-OL-Layer → gegenseitiges Ein/Ausschalten.
+    var svcs = window.__tnetIndependentOpacityServices;
+    if (Array.isArray(svcs) && svcs.length) {
+      var idLc = String(sublayerKey).toLowerCase();
+      for (var si = 0; si < svcs.length; si++) {
+        if (idLc.indexOf(String(svcs[si]).toLowerCase() + '/') === 0) {
+          return sublayerKey; // eigener Root pro Overlay
+        }
+      }
+    }
+
     // 1. Coalesce-Gruppe aus dem Store: konsolidiert alle Karten-Container
     //    desselben Dienstes auf einen gemeinsamen Root-Key.
     try {
