@@ -308,6 +308,21 @@
     } catch (e) { /* noop */ }
   }
 
+  function reassertGraphicLayerAttachment(inst) {
+    // PrintScaledMap erstellt/aktualisiert seinen leeren pdfExtent-Layer teils
+    // erst nach setPrintFrame(). Der sichtbare graphicLyr muss deshalb nach dem
+    // synchronen Frame-Aufbau nochmals kurz nachgezogen werden; sonst bleibt beim
+    // zweiten Öffnen nur der leere Layer auf der Karte und der Rahmen ist nicht
+    // mehr verschiebbar.
+    var delays = [0, 120, 400];
+    delays.forEach(function(delay) {
+      setTimeout(function() {
+        ensureGraphicLayerAttached(inst);
+        ensurePrintFrameVisible(inst);
+      }, delay);
+    });
+  }
+
   function buildVisibleLayersFallback() {
     var fallback = {};
     if (!(window.TnetLMStore && typeof TnetLMStore.getActiveLayers === 'function')) return fallback;
@@ -405,8 +420,7 @@
         if (args.length > 1) args[1] = normalizeLayoutArg(args[1]);
         try {
           var result = originalSetPrintFrame.apply(this, args);
-          ensureGraphicLayerAttached(this);
-          ensurePrintFrameVisible(this);
+          reassertGraphicLayerAttachment(this);
           return result;
         } catch (err) {
           var msg = String((err && err.message) || err || '');
@@ -416,8 +430,7 @@
           try {
             warn('[Drucken] Mapplus-Print Projection-Fallback aktiv');
             var retryResult = originalSetPrintFrame.apply(this, args);
-            ensureGraphicLayerAttached(this);
-            ensurePrintFrameVisible(this);
+            reassertGraphicLayerAttachment(this);
             return retryResult;
           } finally {
             this.save_state = prevSaveState;
@@ -431,8 +444,7 @@
         var args = Array.prototype.slice.call(arguments);
         if (args.length > 1) args[1] = normalizeLayoutArg(args[1]);
         var result = originalChangePrintFrame.apply(this, args);
-        ensureGraphicLayerAttached(this);
-        ensurePrintFrameVisible(this);
+        reassertGraphicLayerAttachment(this);
         return result;
       };
     }
@@ -480,8 +492,7 @@
       } else if (window.njs_pdfscale_list && typeof inst.setPrintFrame === 'function') {
         inst.setPrintFrame(window.njs_pdfscale_list, getLayoutValue(), false);
       }
-      ensureGraphicLayerAttached(inst);
-      ensurePrintFrameVisible(inst);
+      reassertGraphicLayerAttachment(inst);
     } catch (err) {
       warn('[Drucken] Mapplus-Print Rahmen-Trigger fehlgeschlagen:', err);
     }

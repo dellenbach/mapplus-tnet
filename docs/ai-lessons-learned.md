@@ -1,3 +1,10 @@
+## 2026-07-15 - Mapplus-Druckrahmen verlor beim zweiten Öffnen die Verschiebeinstanz
+
+- Symptom: Beim zweiten Öffnen war der Druckrahmen sichtbar und drehbar, liess sich aber nicht mehr verschieben.
+- Root-Cause: Der Framework-Flow legte nach `setPrintFrame()` erneut einen leeren Layer namens `pdfExtent_printpdf1` an. Die Move-Interaktion blieb auf `inst.graphicLyr` mit dem echten Feature registriert, dieser Layer hing aber nicht mehr im aktiven Kartenstack.
+- Fix: Die Legacy-Bridge zieht `inst.graphicLyr` nach Frame-Erzeugung/-Änderung zeitversetzt erneut an die Karte an und ersetzt den leeren gleichnamigen Layer.
+- Guardrail: Beim Legacy-Print nach jedem Öffnungszyklus Objektidentität prüfen: Der sichtbare `pdfExtent_printpdf1`-Layer muss identisch mit `inst.graphicLyr` sein und genau ein Feature enthalten.
+
 ## 2026-07-15 - Mapplus-PDF im öffentlichen DEV-Client wurde mit Session-403 abgewiesen
 
 - Symptom: Der originale Mapplus-Druckdialog und Rahmen erschienen, aber «PDF erstellen» startete keine PDF; die zentrale CGI antwortete mit `403 session expired`.
