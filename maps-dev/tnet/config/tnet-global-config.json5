@@ -568,7 +568,7 @@
     //   'tnet'    = neues TNET-Printing (Standard)
     //   'mapplus' = Legacy-Mapplus-Printing
     //   'none'    = Drucken komplett deaktivieren
-    provider: 'tnet',
+    provider: 'mapplus',
     // Anzahl Tage, nach denen archivierte PDFs gelöscht werden
     pdfRetentionDays: 1,
     // Automatisch Zoom anpassen beim Öffnen des Druckpanels
