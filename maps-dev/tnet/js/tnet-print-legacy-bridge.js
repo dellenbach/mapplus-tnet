@@ -376,6 +376,24 @@
     return fn.apply(context, args);
   }
 
+  function withPublicDevPrintSession(fn, context, args) {
+    var isPublicDev = window.njs && njs.AppManager
+      && njs.AppManager.Site === 'maps-dev'
+      && njs.AppManager.ugroup === 'public';
+    if (!isPublicDev || typeof window.fetch !== 'function') return fn.apply(context, args);
+
+    var appRoot = njs.AppManager.appBasePath || '/maps-dev';
+    return fetch(appRoot + '/tnet/php/keepalive-local.php', {
+      credentials: 'same-origin',
+      cache: 'no-store'
+    }).catch(function() {
+      // Der PDF-Aufruf bleibt auch bei einem Keepalive-Netzwerkfehler möglich.
+      return null;
+    }).then(function() {
+      return fn.apply(context, args);
+    });
+  }
+
   function installVisibleLayersFallback() {
     if (_visibleLayersFallbackPatched) return;
     if (!(window.njs && njs.AppManager && typeof njs.AppManager.getVisibleLayersByMap === 'function')) return;
@@ -451,7 +469,11 @@
 
     if (typeof originalGetPDF === 'function') {
       proto.getPDF = function () {
-        return withVisibleLayersFallback(originalGetPDF, this, arguments);
+        var context = this;
+        var args = arguments;
+        return withPublicDevPrintSession(function() {
+          return withVisibleLayersFallback(originalGetPDF, context, args);
+        }, context, args);
       };
     }
 

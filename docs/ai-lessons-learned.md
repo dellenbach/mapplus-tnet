@@ -9,8 +9,8 @@
 
 - Symptom: Der originale Mapplus-Druckdialog und Rahmen erschienen, aber «PDF erstellen» startete keine PDF; die zentrale CGI antwortete mit `403 session expired`.
 - Root-Cause: Der öffentliche Zweig in `maps-dev/index.php` setzte `app_group` und Credentials, aber nicht `$_SESSION['app_profile']`. Die zentrale `processPDFdocument.php` konnte den öffentlichen maps-dev-Sessionkontext deshalb nicht vollständig validieren.
-- Fix: Im öffentlichen Startzweig `$_SESSION['app_profile'] = 'public'` setzen.
-- Guardrail: Bei serverseitigen Session-403s nicht nur Cookie/Request-Parameter prüfen. Auch alle Sessionfelder setzen, die der zentrale CGI-Workflow zur Mandanten-/Profilvalidierung erwartet.
+- Fix: Im öffentlichen Startzweig `$_SESSION['app_profile'] = 'public'` setzen. Die Legacy-Bridge ruft zusätzlich vor `getPDF()` den lokalen Keepalive auf, der den öffentlichen Sessionkontext für ältere/parallel geöffnete Browser-Sessions erneut vollständig setzt.
+- Guardrail: Bei serverseitigen Session-403s nicht nur Cookie/Request-Parameter prüfen. Auch alle Sessionfelder setzen, die der zentrale CGI-Workflow zur Mandanten-/Profilvalidierung erwartet; bei langlebigen Legacy-Dialogs einen Session-Preflight direkt vor dem Server-Request ausführen.
 
 ## 2026-07-15 - Independent-Opacity-Overlays: Karteninhalt muss alleinige Sichtbarkeitsquelle sein
 
