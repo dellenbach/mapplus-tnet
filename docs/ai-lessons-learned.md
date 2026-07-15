@@ -1,3 +1,10 @@
+## 2026-07-15 - Independent-Opacity-Overlays: Karteninhalt muss alleinige Sichtbarkeitsquelle sein
+
+- Symptom: Höhenkurven, Projektebene und Gemeindegrenzen desselben MapServer-Dienstes beeinflussten sich beim Ein-/Ausschalten; teilweise blieben Ghost-Layer sichtbar.
+- Root-Cause: Store- und CoalesceBridge-Pfade erzeugten parallel OL-Layer für denselben Sublayer. Zusätzlich lief das Gruppen-Auge im Karteninhalt über eine generische Service-Prefix-Reconcile-Logik, die bei mehreren Overlays den falschen Layer treffen konnte.
+- Fix: Independent-Opacity-Overlays ausschliesslich über je einen Store-Tile-Layer verwalten. Der Gruppen-Auge-Pfad delegiert direkt auf den Einzel-Layer-Pfad; Bridge-Registrierung ist für diese Overlays ausgeschlossen.
+- Guardrail: Für Sublayer mit gleichem MapServer und unabhängiger Deckkraft/Reihenfolge darf genau ein OL-Layer pro Overlay existieren. Karteninhalt-Auge muss nach AUS `0` passende OL-Layer und nach EIN genau `1` gekachelten OL-Layer hinterlassen.
+
 ﻿## 2026-07-15 - Mobile: Karte fehlte, WMS-Menü öffnete kein Panel
 
 - Symptom: Im Mobile-Client entstand keine Karte; der Eintrag «Externe WMS» blieb ohne sichtbaren Inhalt.
