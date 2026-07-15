@@ -200,6 +200,7 @@ if ($_GET["group"]=="" && is_dir("./public") && !isset($_SESSION['OIDC_CLAIM_gro
     $app_group='public';
     $app_profile='public';
     $_SESSION["app_group"]='public';
+    $_SESSION["app_profile"]='public';
     $_SESSION["app_credentials"][$site]['public']='public';
 }else {
     if (!isset($_SESSION['OIDC_CLAIM_group'])){
