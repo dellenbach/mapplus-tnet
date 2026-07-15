@@ -28,6 +28,35 @@
   var _suppressGroupCheckboxClick = false;
   var _suppressLayerRefresh = false;
 
+  // Der Framework-Core erwartet bei Objekt-Einträgen in category.items ein
+  // eigenes items-Array. Flache Direkt-Layer aus API-/DB-Strukturen haben teils
+  // nur .name; ohne Normalisierung bricht addCategoryRecursive ab und die ganze
+  // Kategorie wird nicht im ClassicLayerMgr registriert.
+  function ensureFrameworkSafeItems(node) {
+    if (!node || typeof node !== 'object') return;
+    var items = node.items;
+    if (Array.isArray(items)) {
+      for (var index = 0; index < items.length; index++) {
+        var item = items[index];
+        if (item && typeof item === 'object' && item.name) {
+          if (!Array.isArray(item.items)) item.items = [item.name];
+          ensureFrameworkSafeItems(item);
+        }
+      }
+    } else if (items && typeof items === 'object') {
+      for (var key in items) {
+        if (Object.prototype.hasOwnProperty.call(items, key)) ensureFrameworkSafeItems(items[key]);
+      }
+    }
+  }
+
+  function normalizeStructureForFramework(structure) {
+    if (!structure || typeof structure !== 'object') return;
+    for (var key in structure) {
+      if (Object.prototype.hasOwnProperty.call(structure, key)) ensureFrameworkSafeItems(structure[key]);
+    }
+  }
+
   function isLegacyNestedCssEnabled() {
     try {
       if (window.__tnetLMFlags && typeof window.__tnetLMFlags.useLegacyNestedHierarchyStyle === 'boolean') {
@@ -551,9 +580,14 @@
       }
     }
 
-    // --- 1. Init: "nested" Flag aus Config lesen ---
+    // --- 1. Init: Struktur härten + "nested" Flag aus Config lesen ---
     var _origInit = proto.Init;
     proto.Init = function(options) {
+      try {
+        if (options && options.structure) normalizeStructureForFramework(options.structure);
+      } catch (normalizationError) {
+        console.warn(LOG, 'Struktur-Härtung fehlgeschlagen:', normalizationError);
+      }
       _origInit.call(this, options);
       if (options && options.nested) {
         this.nested = true;
