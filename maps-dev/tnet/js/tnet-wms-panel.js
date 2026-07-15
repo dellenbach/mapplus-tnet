@@ -46,8 +46,6 @@
   // in Mobile/Edit. Ist das Panel bereits vorhanden, passiert nichts.
   function ensureWmsPanelDOM() {
     if (document.getElementById('wms-panel')) return;
-    // Mobile nutzt eine eigene WMS-UI (#m-panel-wms) — kein Desktop-Panel injizieren.
-    if (window.__TNET_MOBILE_ENTRY) return;
 
     var panel = document.createElement('div');
     panel.id = 'wms-panel';

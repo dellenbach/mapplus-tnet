@@ -1,4 +1,11 @@
-﻿## 2026-07-02 - Loader: UMD-Script (JSON5) per globalem `define=undefined` zerstoert Dojo-AMD
+﻿## 2026-07-15 - Mobile: Karte fehlte, WMS-Menü öffnete kein Panel
+
+- Symptom: Im Mobile-Client entstand keine Karte; der Eintrag «Externe WMS» blieb ohne sichtbaren Inhalt.
+- Root-Cause: Der direkte Pfad `public/index_de_m.htm` hat keinen von `index.php` gesetzten Session-/Profilkontext. Zudem band `tnet_modules_m.js` die `[data-m-toggle]`-Elemente vor dem Drawer-DOM; der WMS-Listener fehlte danach. Der klassische WMS-Dialog ist bei `useNewWmsPanel=true` ausgeblendet.
+- Fix: Offiziellen Mobile-Einstieg über `/?t=m` verwenden; Mobile-HTML setzt den App-Base-Pfad auf `/maps-dev/`. Unterpanel-Listener werden nach dem Drawer-DOM gebunden; WMS öffnet das neue Panel als Bottom-Sheet.
+- Guardrail: Mobile immer über `index.php?t=m` testen, nie direkt über `public/index_de_m.htm`. UI-Listener für dynamische/untere DOM-Bereiche erst nach deren Markup binden.
+
+## 2026-07-02 - Loader: UMD-Script (JSON5) per globalem `define=undefined` zerstoert Dojo-AMD
 
 - Symptom: Nach Einbau von `tnet-loader.js` in Edit hunderte `Uncaught TypeError: define is not a function` (TabContainer, Button, Dialog ...); Karte lud nicht, nur Spinner.
 - Root-Cause: `loadScriptNoAmd()` setzte `window.define = undefined` waehrend des JSON5-Script-Loads. Dojo laedt seine ~50 Widget-Module ASYNCHRON per injiziertem Script-Tag — alle Module, die genau in diesem Zeitfenster ausgefuehrt wurden, riefen `define()` auf → Fehler; Framework-Start zerstoert.

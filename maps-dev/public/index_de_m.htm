@@ -17,6 +17,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <!-- Framework verwendet ./loader.php. Mobile-Datei liegt unter public/, die
+         App-Root-Dateien und Shared-Core-Pfade aber unter /maps-dev/ bzw. /core/. -->
+    <base href="/maps-dev/">
     <link rel="preconnect" href="https://www.gis-daten.ch" crossorigin>
     <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
     <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
@@ -191,7 +194,7 @@
     <!-- TNET Sidepanel Legacy: body:not(.tnet-sidepanel-v2) + TNET-Panel Accordions -->
     <link rel="stylesheet" href="tnet/css/tnet-sidepanel-legacy.css" />
     <!-- TNET Mobile Master-CSS (muss ZULETZT kommen) -->
-    <link rel="stylesheet" href="tnet/css/mobile/tnet_override_m.css?v=20260702a" />
+    <link rel="stylesheet" href="tnet/css/mobile/tnet_override_m.css?v=20260715a" />
 </head>
 
 <body class="tundra">
@@ -1107,6 +1110,49 @@
 
     <!-- Stub für TouchCursorMeasure.buildUI (erwartet #btnMeasure im DOM, auf Mobile nicht sichtbar) -->
     <div id="btnMeasure" style="display:none;"></div>
+
+    <script>
+    (function() {
+        function bindMobileSubPanelToggles() {
+            var toggles = document.querySelectorAll('[data-m-toggle]');
+            for (var index = 0; index < toggles.length; index++) {
+                var toggle = toggles[index];
+                if (toggle.__tnetMobileToggleBound) continue;
+                toggle.__tnetMobileToggleBound = true;
+                toggle.addEventListener('click', function() {
+                    var panelId = this.getAttribute('data-m-toggle');
+                    var panel = document.getElementById(panelId);
+
+                    // Der klassische Framework-WMS-Dialog wird bei aktiviertem
+                    // useNewWmsPanel ausgeblendet. Auf Mobile deshalb das neue
+                    // WMS-Panel als Bottom-Sheet verwenden.
+                    if (panelId === 'm-panel-wms' && typeof window.toggleWmsPanel === 'function') {
+                        if (typeof window.closeDrawer === 'function') window.closeDrawer();
+                        window.toggleWmsPanel();
+                        return;
+                    }
+                    if (!panel) return;
+
+                    var wasOpen = panel.classList.contains('open');
+                    var panels = document.querySelectorAll('.m-sub-panel');
+                    for (var panelIndex = 0; panelIndex < panels.length; panelIndex++) {
+                        panels[panelIndex].classList.remove('open');
+                    }
+                    var menuToggles = document.querySelectorAll('[data-m-toggle]');
+                    for (var toggleIndex = 0; toggleIndex < menuToggles.length; toggleIndex++) {
+                        menuToggles[toggleIndex].classList.remove('expanded');
+                    }
+                    if (!wasOpen) {
+                        panel.classList.add('open');
+                        this.classList.add('expanded');
+                    }
+                });
+            }
+        }
+
+        bindMobileSubPanelToggles();
+    })();
+    </script>
 
 </body>
 </html>
