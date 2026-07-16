@@ -130,6 +130,21 @@ if(PHP_VERSION_ID < 70300) {
 // here do the checks with the sso for getting group of user
 ini_set("session.use_cookies",'1');
 session_start();
+
+// Der originale Mapplus-PDF-CGI liegt unter /mapplus-lib/ und erhält deshalb
+// den auf /maps-dev/ begrenzten PHPSESSID-Cookie nicht. Für den öffentlichen
+// maps-dev-Kontext dieselbe Session zusätzlich nur auf dem CGI-Pfad verfügbar
+// machen; dadurch entstehen keine Cookie-Konflikte mit /maps oder /maps-dev/.
+if ($appBasePath === '/maps-dev' && empty($_SESSION['OIDC_CLAIM_group'])) {
+    setcookie(session_name(), session_id(), [
+        'expires'  => 0,
+        'path'     => '/mapplus-lib/',
+        'domain'   => '',
+        'secure'   => true,
+        'httponly' => false,
+        'samesite' => 'None',
+    ]);
+}
 $default_lang = "de";
 $accept_lang = array("de");	
 //$accept_lang = array("de","it","en","fr");	

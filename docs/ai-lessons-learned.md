@@ -8,9 +8,9 @@
 ## 2026-07-15 - Mapplus-PDF im öffentlichen DEV-Client wurde mit Session-403 abgewiesen
 
 - Symptom: Der originale Mapplus-Druckdialog und Rahmen erschienen, aber «PDF erstellen» startete keine PDF; die zentrale CGI antwortete mit `403 session expired`.
-- Root-Cause: Der öffentliche Zweig in `maps-dev/index.php` setzte `app_group` und Credentials, aber nicht `$_SESSION['app_profile']`. Die zentrale `processPDFdocument.php` konnte den öffentlichen maps-dev-Sessionkontext deshalb nicht vollständig validieren.
-- Fix: Im öffentlichen Startzweig `$_SESSION['app_profile'] = 'public'` setzen. Die Legacy-Bridge ruft zusätzlich vor `getPDF()` den lokalen Keepalive auf, der den öffentlichen Sessionkontext für ältere/parallel geöffnete Browser-Sessions erneut vollständig setzt.
-- Guardrail: Bei serverseitigen Session-403s nicht nur Cookie/Request-Parameter prüfen. Auch alle Sessionfelder setzen, die der zentrale CGI-Workflow zur Mandanten-/Profilvalidierung erwartet; bei langlebigen Legacy-Dialogs einen Session-Preflight direkt vor dem Server-Request ausführen.
+- Root-Cause: Der öffentliche Zweig in `maps-dev/index.php` setzte `app_group` und Credentials, aber nicht `$_SESSION['app_profile']`. Zusätzlich war der PHPSESSID-Cookie auf `/maps-dev/` begrenzt, während die zentrale `processPDFdocument.php` unter `/mapplus-lib/` läuft und diesen Cookie deshalb nicht erhielt.
+- Fix: Im öffentlichen Startzweig `$_SESSION['app_profile'] = 'public'` setzen und dieselbe Session-ID zusätzlich gezielt für den Pfad `/mapplus-lib/` ausgeben. Die Legacy-Bridge ruft zusätzlich vor `getPDF()` den lokalen Keepalive auf, der den öffentlichen Sessionkontext für ältere/parallel geöffnete Browser-Sessions erneut vollständig setzt.
+- Guardrail: Bei serverseitigen Session-403s Cookie-Pfad und alle vom CGI erwarteten Sessionfelder prüfen. Ein zentraler CGI ausserhalb des App-Pfads erhält den App-Cookie nur, wenn ein gezielter Cookie für seinen eigenen Pfad gesetzt wird.
 
 ## 2026-07-15 - Independent-Opacity-Overlays: Karteninhalt muss alleinige Sichtbarkeitsquelle sein
 
