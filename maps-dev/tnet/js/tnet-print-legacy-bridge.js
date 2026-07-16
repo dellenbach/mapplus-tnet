@@ -330,7 +330,10 @@
     var active = TnetLMStore.getActiveLayers() || [];
     for (var i = 0; i < active.length; i++) {
       var entry = active[i] || {};
-      if (!entry.id) continue;
+      // Im Karteninhalt ausgeblendete Layer bleiben bewusst in der Active-Liste,
+      // damit das Auge sie wieder einschalten kann. Für den PDF-Export dürfen sie
+      // aber nicht als sichtbare Fachlayer an die zentrale CGI weitergegeben werden.
+      if (!entry.id || entry.visible === false) continue;
 
       var node = (typeof TnetLMStore.findLayer === 'function') ? TnetLMStore.findLayer(entry.id) : null;
       var opts = (node && node.options) ? node.options : {};
@@ -354,9 +357,22 @@
     var merged = {};
     var seenById = {};
     var nextIndex = 0;
+    var hiddenStoreIds = {};
+
+    // Die Framework-Liste kann nach einem Auge-AUS noch stale Einträge enthalten.
+    // Der TNET-Store ist für die Sichtbarkeit autoritativ: Sichtbar=false darf
+    // deshalb weder aus der Framework- noch aus der Fallback-Liste in die PDF.
+    if (window.TnetLMStore && typeof TnetLMStore.getActiveLayers === 'function') {
+      var active = TnetLMStore.getActiveLayers() || [];
+      for (var activeIndex = 0; activeIndex < active.length; activeIndex++) {
+        if (active[activeIndex] && active[activeIndex].id && active[activeIndex].visible === false) {
+          hiddenStoreIds[active[activeIndex].id] = true;
+        }
+      }
+    }
 
     function pushEntry(entry) {
-      if (!entry || !entry.id || seenById[entry.id]) return;
+      if (!entry || !entry.id || hiddenStoreIds[entry.id] || seenById[entry.id]) return;
       merged['tnet_merge_' + nextIndex] = entry;
       seenById[entry.id] = true;
       nextIndex += 1;

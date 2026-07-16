@@ -1,3 +1,10 @@
+## 2026-07-16 - Mapplus-PDF übernahm ausgeschaltete Store-Layer aus dem Legacy-Cache
+
+- Symptom: Ein im Karteninhalt ausgeblendeter AGS-Layer erschien weiterhin im PDF-Request als `vl`-Parameter.
+- Root-Cause: Der Mapplus-PDF-Fallback mergte die Legacy-Framework-Layerliste vor der Store-Liste. Die Framework-Liste behielt ausgeblendete Store-Layer als stale Einträge.
+- Fix: Sichtbar=`false` aus `TnetLMStore.getActiveLayers()` ist im Print-Merge autoritativ und entfernt die entsprechende Layer-ID aus beiden Listen.
+- Guardrail: PDF-Layerliste nach Auge-AUS prüfen: Der CGI-Request muss für den Layer `vl=` statt der ausgeblendeten Layer-ID enthalten.
+
 ## 2026-07-15 - Mapplus-Druckrahmen verlor beim zweiten Öffnen die Verschiebeinstanz
 
 - Symptom: Beim zweiten Öffnen war der Druckrahmen sichtbar und drehbar, liess sich aber nicht mehr verschieben.

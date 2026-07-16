@@ -104,7 +104,7 @@
         applyInitialVisibility(provider);
 
         if (provider === 'mapplus') {
-          return loadScript(appRoot + '/tnet/js/tnet-print-legacy-bridge.js?v=20260715b');
+          return loadScript(appRoot + '/tnet/js/tnet-print-legacy-bridge.js?v=20260716b');
         }
         if (provider === 'tnet') {
           return loadScript(appRoot + '/tnet/js/tnet-print.js?v=20260706c');
