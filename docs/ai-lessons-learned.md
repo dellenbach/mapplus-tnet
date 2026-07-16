@@ -1,3 +1,10 @@
+## 2026-07-16 - CoalesceBridge retryte MapTip-Connector endlos
+
+- Symptom: Die Konsole zählte `_registerLookupCallbacks: _wms_connector nicht verfügbar` im Sekundentakt unbegrenzt hoch.
+- Root-Cause: Der Retry rief dieselbe Funktion ohne Zähler oder Abbruchbedingung erneut auf.
+- Fix: Retry-Zähler als Funktionsparameter ergänzt und nach 30 Versuchen abgebrochen.
+- Guardrail: Lifecycle-Recoveries immer mit begrenzter Versuchszahl und finaler Warnung implementieren; endlose Timer-Retries erzeugen Log-Spam und verdecken die eigentliche Initialisierungsstörung.
+
 ## 2026-07-16 - Mapplus-PDF übernahm ausgeschaltete Store-Layer aus dem Legacy-Cache
 
 - Symptom: Ein im Karteninhalt ausgeblendeter AGS-Layer erschien weiterhin im PDF-Request als `vl`-Parameter.
