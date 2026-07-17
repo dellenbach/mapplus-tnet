@@ -47,9 +47,19 @@ session_start();
 
 $_SESSION['tnet_keepalive_last'] = time();
 
+$isAuthenticated = !empty($_SESSION['OIDC_CLAIM_group']) || !empty($_SESSION['app_username']);
+
+// Der zentrale Mapplus-PDF-CGI validiert neben der Session-ID auch den
+// Mandanten-/Profilkontext. Aeltere öffentliche maps-dev-Sessions enthalten
+// diesen nach einem Deploy oder Browser-Restore nicht zwingend vollständig.
+if (!$isAuthenticated && $appBasePath === '/maps-dev') {
+    $_SESSION['app_group'] = 'public';
+    $_SESSION['app_profile'] = 'public';
+    $_SESSION['app_credentials']['maps-dev']['public'] = 'public';
+}
+
 header('Content-Type: text/plain; charset=utf-8');
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 header('Pragma: no-cache');
 
-$isAuthenticated = !empty($_SESSION['OIDC_CLAIM_group']) || !empty($_SESSION['app_username']);
 echo $isAuthenticated ? 'OK_AUTH' : 'OK_ANON';

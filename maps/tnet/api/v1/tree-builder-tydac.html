@@ -73,9 +73,19 @@
     background: #fff; border-right: 1px solid var(--border);
   }
   .prop-panel {
-    width: 360px; min-width: 240px; display: flex; flex-direction: column;
+    width: 360px; min-width: 240px; flex: 0 0 360px; display: flex; flex-direction: column;
     border-left: 1px solid var(--border); background: #fff;
   }
+  .panel-resizer {
+    width: 8px; flex: 0 0 8px; position: relative; cursor: col-resize; z-index: 5;
+    background: var(--bg); touch-action: none; outline: none;
+  }
+  .panel-resizer::after {
+    content: ''; position: absolute; top: 0; bottom: 0; left: 3px; width: 2px;
+    background: transparent; transition: background .15s;
+  }
+  .panel-resizer:hover::after, .panel-resizer:focus-visible::after, .panel-resizer.dragging::after { background: var(--m-color-primary); }
+  body.panel-resizing { cursor: col-resize; user-select: none; }
   .panel-head {
     padding: 8px 12px; background: var(--c-panel-head); border-bottom: 1px solid var(--border);
     display: flex; align-items: center; gap: 8px; flex-shrink: 0;
@@ -143,6 +153,7 @@
   .node-icon { width: 18px; height: 18px; object-fit: contain; flex: none; }
   .node-label { font-size: 13px; }
   .node-type { font-size: 10px; color: #fff; background: var(--muted); border-radius: 3px; padding: 0 5px; margin-left: 4px; }
+  .node-count { font-size: 10px; color: rgba(255,255,255,.7); margin-left: 4px; font-weight: 400; }
   .node-type.cat { background: #8e6f3e; }
   .node-type.grp { background: #4B7B81; }
   .node-type.sub { background: #5a7f9a; }
@@ -177,6 +188,8 @@
   .field input[type="text"], .field select {
     width: 100%; font-size: 13px; padding: 5px 7px; border: 1px solid var(--border); border-radius: 4px;
   }
+  .field input.invalid { border-color: #c0392b; background: #fff4f2; }
+  .field-error { color: #b42318; font-size: 11px; margin-top: 3px; }
   .field.row-inline { display: flex; gap: 10px; align-items: center; }
   .field.row-inline label { margin: 0; }
   .icon-preview {
@@ -285,7 +298,7 @@
 
   /* ===== V2-identische Kartenvorschau (rechts) ===== */
   .preview-panel {
-    width: 340px; min-width: 240px; display: flex; flex-direction: column;
+    width: 340px; min-width: 240px; flex: 0 0 340px; display: flex; flex-direction: column;
     border-left: 1px solid var(--border); background: #fff;
   }
   .preview-controls {
@@ -337,6 +350,7 @@
   <input type="text" id="profileManual" placeholder="oder Group-Name…" style="width:150px">
   <button id="btnLoad">Laden</button>
   <button id="btnSave" class="primary" disabled>Speichern</button>
+  <button id="btnValidate" disabled>Prüfen</button>
   <button id="btnHistory" disabled>Verlauf</button>
   <button id="btnReloadLayers">Layer neu laden</button>
   <button id="btnPreview" disabled>Vorschau</button>
@@ -348,7 +362,7 @@
 </div>
 
 <div class="layout">
-  <div class="avail-pane">
+  <div class="avail-pane" id="availPane">
     <div class="avail-head">
       <span>Verfügbare Layer</span>
       <span id="layerCount" class="badge" style="margin-left:auto;background:var(--m-color-primary);color:#fff;border-radius:8px;padding:1px 7px;font-size:10px;font-weight:600">0</span>
@@ -363,7 +377,7 @@
     </div>
     <div id="layerList" class="layer-list"><div class="empty">Lade Layer…</div></div>
   </div>
-  <div class="tree-panel">
+  <div class="tree-panel" id="treePanel">
     <div class="panel-head">
       <h2>LyrMgr-Editor (Tydac)</h2>
       <button id="btnAddLyrmgr" title="Neue LyrMgr-Sektion hinzufügen" style="padding:2px 8px;font-size:11px;border:1px solid var(--border);border-radius:3px;background:#fff;cursor:pointer">+ LyrMgr</button>
@@ -372,20 +386,18 @@
       <div class="empty">Group auswählen und „Laden“ klicken.</div>
     </div>
   </div>
-  <div class="prop-panel">
+  <div class="panel-resizer" id="treePropResizer" role="separator" aria-label="Breite des Eigenschaftenbereichs anpassen" aria-orientation="vertical" tabindex="0"></div>
+  <div class="prop-panel" id="propPanel">
     <div class="panel-head"><h2>Eigenschaften</h2></div>
     <div class="prop-pane" id="propPane">
       <div class="empty" style="padding:8px">Kein Element ausgewählt.</div>
     </div>
   </div>
+  <div class="panel-resizer" id="propPreviewResizer" role="separator" aria-label="Breite der Vorschau anpassen" aria-orientation="vertical" tabindex="0"></div>
   <div class="preview-panel" id="previewPanel">
     <div class="panel-head">
       <h2>Vorschau</h2>
       <span class="badge" id="previewLayerType" style="background:var(--m-color-primary);color:#fff;border-radius:8px;padding:1px 7px;font-size:10px;font-weight:600"></span>
-    </div>
-    <div class="preview-tabbar">
-      <button class="prev-tab active" data-ptab="map">Karte</button>
-      <button class="prev-tab" data-ptab="lyrmgr">LyrMgr (WYSIWYG)</button>
     </div>
     <div id="prevTabMap" style="display:flex;flex-direction:column;flex:1;min-height:0">
       <div class="preview-controls">
@@ -402,18 +414,6 @@
       </div>
       <div id="previewMapEl"><div class="preview-hint">Layer anklicken für Vorschau</div></div>
       <div class="preview-info" id="previewInfo"></div>
-    </div>
-    <div id="prevTabLm" style="display:none;flex-direction:column;flex:1;min-height:0">
-      <div class="preview-controls">
-        <label>Quelle:</label>
-        <select id="lmPrevSource">
-          <option value="db" selected>DB (Editor-Stand)</option>
-          <option value="file">Datei (publiziert)</option>
-        </select>
-        <button class="btn-sm" id="lmPrevReload">↻ Neu laden</button>
-        <span class="hint" style="margin:0">zeigt den gerenderten Baum (Stand nach Publish)</span>
-      </div>
-      <iframe id="lmPrevIframe" src="about:blank" title="LyrMgr-Vorschau" style="flex:1;border:none;width:100%;min-height:0;background:#fff"></iframe>
     </div>
   </div>
 </div>
@@ -597,6 +597,10 @@
   function renderTree() {
     var pane = $('treePane');
     if (!_doc) { pane.innerHTML = '<div class="empty">Kein Katalog geladen.</div>'; return; }
+
+    // Zustand sichern (nur ab 2. Render; beim 1. gilt _treeInitialCollapsed)
+    var snapshot = _treeInitialCollapsed ? null : saveTreeState();
+
     var lmKeys = Object.keys(_doc).filter(function (k) {
       var v = _doc[k];
       return v && typeof v === 'object' && !Array.isArray(v);
@@ -632,10 +636,40 @@
     });
     pane.innerHTML = html;
     bindTreeEvents();
+
+    // Nach erstem Render: initial-Flag deaktivieren + Zustand ggf. wiederherstellen
+    if (_treeInitialCollapsed) {
+      _treeInitialCollapsed = false;
+    } else if (snapshot) {
+      restoreTreeState(snapshot);
+    }
+  }
+
+  // Rekursiv Layer-Anzahl in einem Container zählen
+  function countLayersIn(items) {
+    if (!items) return 0;
+    if (Array.isArray(items)) {
+      var c = 0;
+      items.forEach(function (it) {
+        if (typeof it === 'string') c++;
+        else if (it && it.items) c += countLayersIn(it.items);
+        else c++;
+      });
+      return c;
+    }
+    if (typeof items === 'object') {
+      var c2 = 0;
+      Object.keys(items).forEach(function (k) {
+        var grp = items[k];
+        c2 += countLayersIn(grp && grp.items ? grp.items : []);
+      });
+      return c2;
+    }
+    return 0;
   }
 
   function renderCategory(cat, path, key) {
-    var open = cat && cat.open !== false;
+    var open = _treeInitialCollapsed ? false : (cat && cat.open !== false);
     var label = nlsName(key) || (cat && (cat.name)) || key;
     var catCls = cat ? (cat.iconClass || cat.iconclass || '') : '';
     var catIcon = catCls ? catImageUrlForClass(catCls) : '';
@@ -644,6 +678,8 @@
     h += '<span class="twist">' + (open ? '▾' : '▸') + '</span>';
     if (catIcon) h += '<img class="node-icon" src="' + esc(catIcon) + '" alt="" onerror="this.style.visibility=\'hidden\'">';
     h += '<span class="node-label">' + esc(label) + '</span><span class="node-type cat">Kategorie</span>';
+    var catCount = countLayersIn(cat && cat.items);
+    if (catCount > 0) h += '<span class="node-count">(' + catCount + ')</span>';
     h += '</div>';
     var items = cat && cat.items;
     h += '<ul class="tree"' + (open ? '' : ' style="display:none"') + '>';
@@ -662,11 +698,13 @@
   }
 
   function renderGroup(grp, path, key) {
-    var open = grp && grp.open !== false;
+    var open = _treeInitialCollapsed ? false : (grp && grp.open !== false);
     var h = '<li class="node" data-path="' + esc(path) + '">';
     h += '<div class="row group-row" data-path="' + esc(path) + '" data-kind="group">';
     h += '<span class="twist">' + (open ? '▾' : '▸') + '</span>';
     h += '<span class="node-label">' + esc(nodeDisplayName(grp, key)) + '</span><span class="node-type grp">Gruppe</span>';
+    var grpCount = countLayersIn(grp && grp.items);
+    if (grpCount > 0) h += '<span class="node-count">(' + grpCount + ')</span>';
     h += '</div>';
     var items = grp && grp.items;
     h += '<ul class="tree"' + (open ? '' : ' style="display:none"') + '>';
@@ -693,7 +731,7 @@
       return h;
     }
     // Verschachtelte Gruppe (Objekt mit name/icon/items)
-    var open = item.open !== false;
+    var open = _treeInitialCollapsed ? false : (item.open !== false);
     var iconUrl = normalizeIconUrl(item.icon);
     var h2 = '<li class="node" data-path="' + esc(path) + '">';
     h2 += '<div class="row subgroup-row" data-path="' + esc(path) + '" data-kind="subgroup">';
@@ -732,13 +770,26 @@
     var rows = document.querySelectorAll('#treePane .row');
     Array.prototype.forEach.call(rows, function (row) {
       row.addEventListener('click', function (e) {
-        // Twist-Klick = auf/zu; sonst auswählen
+        // Twist-Klick = auf/zu; Ctrl+Klick = alle auf-/zuklappen
         var li = row.parentNode;
         var childUl = li.querySelector(':scope > ul.tree');
         if (e.target.classList.contains('twist') && childUl) {
           var vis = childUl.style.display !== 'none';
-          childUl.style.display = vis ? 'none' : '';
-          e.target.textContent = vis ? '▸' : '▾';
+          if (e.ctrlKey || e.metaKey) {
+            // Alle Knoten auf gleicher Ebene + darunter toggeln
+            var allTwists = document.querySelectorAll('#treePane .twist');
+            Array.prototype.forEach.call(allTwists, function (tw) {
+              var twLi = tw.closest('li');
+              var twUl = twLi ? twLi.querySelector(':scope > ul.tree') : null;
+              if (twUl) {
+                twUl.style.display = vis ? 'none' : '';
+                tw.textContent = vis ? '▸' : '▾';
+              }
+            });
+          } else {
+            childUl.style.display = vis ? 'none' : '';
+            e.target.textContent = vis ? '▸' : '▾';
+          }
           return;
         }
         selectNode(row.getAttribute('data-path'), row.getAttribute('data-kind'));
@@ -865,10 +916,22 @@
   function addCategory(lmKey) {
     var lm = _doc && _doc[lmKey];
     if (!lm) return;
-    if (!Array.isArray(lm.structure)) lm.structure = [];
     var key = (prompt('Kategorie-Schlüssel (_key):', 'neue_kategorie') || '').trim();
     if (!key) return;
-    lm.structure.push({ _key: key, iconClass: '', iconClassActive: '', open: false, items: [] });
+    var category = { iconClass: '', iconClassActive: '', open: false, items: [] };
+    if (Array.isArray(lm.structure)) {
+      var duplicate = lm.structure.some(function (item) { return item && (item._key || item.name) === key; });
+      if (duplicate) { setStatus('Kategorie existiert bereits: ' + key, 'err'); return; }
+      category._key = key;
+      lm.structure.push(category);
+    } else if (lm.structure && typeof lm.structure === 'object') {
+      if (Object.prototype.hasOwnProperty.call(lm.structure, key)) { setStatus('Kategorie existiert bereits: ' + key, 'err'); return; }
+      category.items = {};
+      lm.structure[key] = category;
+    } else {
+      category._key = key;
+      lm.structure = [category];
+    }
     markDirty();
     renderTree();
   }
@@ -987,8 +1050,93 @@
 
   function field(label, type, node, path, key) {
     var val = key === '__self' ? node : (node[key] != null ? node[key] : '');
+    var required = key === '_key' || key === 'name';
+    var invalid = required && !String(val || '').trim();
     return '<div class="field"><label>' + esc(label) + '</label>' +
-      '<input type="' + type + '" data-key="' + esc(key) + '" value="' + esc(val) + '"></div>';
+      '<input type="' + type + '" data-key="' + esc(key) + '" value="' + esc(val) + '"' + (invalid ? ' class="invalid"' : '') + '>' +
+      (invalid ? '<div class="field-error">Dieses Feld ist erforderlich.</div>' : '') + '</div>';
+  }
+
+  function isValidNodeKey(value) {
+    return /^[a-zA-Z0-9_-]+$/.test(String(value || ''));
+  }
+
+  function validateCatalog() {
+    var issues = [];
+
+    function addIssue(path, message) {
+      issues.push({ path: path, message: message });
+    }
+
+    function validateItems(items, path) {
+      if (!items) return;
+      if (Array.isArray(items)) {
+        items.forEach(function (item, index) {
+          var itemPath = path + '|items|' + index;
+          if (typeof item === 'string') {
+            if (!item) addIssue(itemPath, 'Layer-Key darf nicht leer sein.');
+            else if (_availableLayers.length && !_availableLayerMap[item]) addIssue(itemPath, 'Layer-Key ist im geladenen Katalog nicht vorhanden: ' + item);
+            return;
+          }
+          validateGroup(item, itemPath, false);
+        });
+        return;
+      }
+      Object.keys(items).forEach(function (key) {
+        validateGroup(items[key], path + '|items|' + key, false, key);
+      });
+    }
+
+    function validateGroup(node, path, isCategory, fallbackKey) {
+      if (!node || typeof node !== 'object' || Array.isArray(node)) {
+        addIssue(path, 'Knoten hat kein gültiges Objektformat.');
+        return;
+      }
+      var key = isCategory ? (node._key || node.name || fallbackKey || '') : (node.name || fallbackKey || '');
+      if (!key) addIssue(path, (isCategory ? 'Kategorie-Schlüssel' : 'Gruppenname') + ' darf nicht leer sein.');
+      else if (isCategory && !isValidNodeKey(key)) addIssue(path, 'Kategorie-Schlüssel enthält ungültige Zeichen: ' + key);
+      validateItems(node.items, path);
+    }
+
+    Object.keys(_doc || {}).forEach(function (lmKey) {
+      var lyrmgr = _doc[lmKey];
+      if (!lyrmgr || typeof lyrmgr !== 'object' || Array.isArray(lyrmgr)) return;
+      if (!isValidNodeKey(lmKey)) addIssue(lmKey, 'LyrMgr-Schlüssel enthält ungültige Zeichen: ' + lmKey);
+      var structure = lyrmgr.structure;
+      if (Array.isArray(structure)) {
+        var categoryKeys = {};
+        structure.forEach(function (category, index) {
+          var path = lmKey + '|structure|' + index;
+          validateGroup(category, path, true);
+          var categoryKey = category && (category._key || category.name || '');
+          if (categoryKey) {
+            if (categoryKeys[categoryKey]) addIssue(path, 'Kategorie-Schlüssel ist doppelt: ' + categoryKey);
+            categoryKeys[categoryKey] = true;
+          }
+        });
+      } else if (structure && typeof structure === 'object') {
+        Object.keys(structure).forEach(function (categoryKey) {
+          validateGroup(structure[categoryKey], lmKey + '|structure|' + categoryKey, true, categoryKey);
+        });
+      } else {
+        addIssue(lmKey, 'LyrMgr-Sektion besitzt keine Kategorienstruktur.');
+      }
+    });
+    return issues;
+  }
+
+  function showValidationResult(issues) {
+    if (!issues.length) {
+      setStatus('Prüfung erfolgreich: keine lokalen Katalogfehler.', 'ok');
+      return true;
+    }
+    var first = issues[0];
+    setStatus('Prüfung fehlgeschlagen: ' + issues.length + ' Fehler. ' + first.message, 'err');
+    if (first.path.indexOf('|') !== -1) {
+      var row = document.querySelector('#treePane .row[data-path="' + cssEscape(first.path) + '"]');
+      if (row) selectNode(first.path, row.getAttribute('data-kind'));
+    }
+    return false;
   }
 
   // Kategorie-Icons (Bild via override.css) — Zuweisungen laden + override.css für Vorschau einbinden
@@ -1078,7 +1226,6 @@
       injectOverrideCss();
       refreshLabels();
       renderProperties(path, 'category');
-      if ($('prevTabLm') && $('prevTabLm').style.display !== 'none') reloadLmPreview();
     }).catch(function (e) { setStatus('Fehler: ' + e.message, 'err'); });
   }
   // Schreibt eine eigene Kategorie-Klasse (normal grau + aktiv farbig) mit Grösse in override.css
@@ -1275,7 +1422,6 @@
       setStatus('Layer-Icon gespeichert (' + (ld.sourceFile || '') + ').', 'ok');
       refreshLabels();
       renderProperties(_selectedPath, 'layer');
-      if ($('prevTabLm') && $('prevTabLm').style.display !== 'none') reloadLmPreview();
     }
 
     if (isDb) {
@@ -1337,11 +1483,18 @@
 
   function deleteNode(path) {
     var pk = parentAndKey(path);
-    if (!Array.isArray(pk.parent)) return;
     var node = getByPath(path);
-    var label = (typeof node === 'string') ? node : ((node && (node._key || node.name)) || 'Element');
+    var label = (typeof node === 'string') ? node : nodeDisplayName(node, pk.key);
     if (!confirm('„' + label + '“ löschen?')) return;
-    pk.parent.splice(parseInt(pk.key, 10), 1);
+    if (Array.isArray(pk.parent)) {
+      var index = parseInt(pk.key, 10);
+      if (isNaN(index) || index < 0 || index >= pk.parent.length) return;
+      pk.parent.splice(index, 1);
+    } else if (pk.parent && typeof pk.parent === 'object' && Object.prototype.hasOwnProperty.call(pk.parent, pk.key)) {
+      delete pk.parent[pk.key];
+    } else {
+      return;
+    }
     _selectedPath = null; markDirty(); renderTree();
     $('propPane').innerHTML = '<div class="empty" style="padding:8px">Kein Element ausgewählt.</div>';
   }
@@ -1454,6 +1607,8 @@
         else {
           if (inp.value === '') delete node[key]; else node[key] = inp.value;
         }
+        var requiresValue = key === '_key' || key === 'name';
+        inp.classList.toggle('invalid', requiresValue && !String(inp.value || '').trim());
         markDirty();
         if (key === 'name' || key === 'icon' || key === '_key') { refreshLabels(); }
       });
@@ -1586,6 +1741,41 @@
   }
 
   var _sourceGroupState = {};
+  var _treeInitialCollapsed = true; // Baum startet zugeklappt; Ctrl+Click zum Aufklappen
+  var _treeStateSnapshot = null;    // Gespeicherter Zustand vor Re-Render
+
+  // Collapse-Zustand aller Knoten sichern (path -> offen/zu)
+  function saveTreeState() {
+    var snapshot = {};
+    var pane = $('treePane');
+    if (!pane) return snapshot;
+    Array.prototype.forEach.call(pane.querySelectorAll('.row[data-path]'), function (row) {
+      var li = row.parentNode;
+      var childUl = li ? li.querySelector(':scope > ul.tree') : null;
+      if (childUl) {
+        snapshot[row.getAttribute('data-path')] = childUl.style.display !== 'none';
+      }
+    });
+    return snapshot;
+  }
+
+  // Collapse-Zustand nach Re-Render wiederherstellen
+  function restoreTreeState(snapshot) {
+    if (!snapshot) return;
+    var pane = $('treePane');
+    if (!pane) return;
+    Array.prototype.forEach.call(pane.querySelectorAll('.row[data-path]'), function (row) {
+      var path = row.getAttribute('data-path');
+      if (!(path in snapshot)) return;
+      var li = row.parentNode;
+      var childUl = li ? li.querySelector(':scope > ul.tree') : null;
+      var twist = row.querySelector('.twist');
+      if (!childUl) return;
+      var open = snapshot[path];
+      childUl.style.display = open ? '' : 'none';
+      if (twist) twist.textContent = open ? '▾' : '▸';
+    });
+  }
 
   function updateTagFilter() {
     var sel = $('layerTagFilter');
@@ -1665,8 +1855,17 @@
         if (e.target.closest('.src-verify')) return;
         var group = head.closest('.tb-source-group');
         var key = group.getAttribute('data-src-key');
-        group.classList.toggle('collapsed');
-        _sourceGroupState[key] = group.classList.contains('collapsed');
+        if (e.ctrlKey || e.metaKey) {
+          // Alle Source-Groups auf-/zuklappen
+          var shouldCollapse = !group.classList.contains('collapsed');
+          Array.prototype.forEach.call(list.querySelectorAll('.tb-source-group'), function (g) {
+            g.classList.toggle('collapsed', shouldCollapse);
+            _sourceGroupState[g.getAttribute('data-src-key')] = shouldCollapse;
+          });
+        } else {
+          group.classList.toggle('collapsed');
+          _sourceGroupState[key] = group.classList.contains('collapsed');
+        }
       });
     });
 
@@ -1900,30 +2099,6 @@
     }
   }
 
-  // ── WYSIWYG: LyrMgr-Vorschau (gerenderter Baum via dev-test.html) ──
-  function buildLmPreviewUrl() {
-    var group = _profile || 'public';
-    var src = ($('lmPrevSource') && $('lmPrevSource').value) || 'db';
-    return _ctxRoot + '/tnet/api/v1/dev-test.html?group=' + encodeURIComponent(group) + '&panel=both&source=' + src + '&embed=1';
-  }
-  function reloadLmPreview() {
-    var f = $('lmPrevIframe');
-    if (!f) return;
-    f.src = buildLmPreviewUrl() + '&_=' + Date.now();
-  }
-  function switchPreviewTab(which) {
-    Array.prototype.forEach.call(document.querySelectorAll('.prev-tab'), function (t) {
-      t.classList.toggle('active', t.getAttribute('data-ptab') === which);
-    });
-    $('prevTabMap').style.display = (which === 'map') ? 'flex' : 'none';
-    $('prevTabLm').style.display = (which === 'lyrmgr') ? 'flex' : 'none';
-    if (which === 'map' && _previewMap) { setTimeout(function () { _previewMap.updateSize(); }, 50); }
-    if (which === 'lyrmgr') {
-      var f = $('lmPrevIframe');
-      if (f && (f.src === 'about:blank' || f.src === '' || f.src === location.href)) reloadLmPreview();
-    }
-  }
-
   // =====================================================================
   // VORSCHAU (WMS/MAP, JSON, KATALOG)
   // =====================================================================
@@ -2140,6 +2315,7 @@
       _site = j.data.site || '';
       $('siteInfo').textContent = 'Ziel: ' + _ctxRoot + ' · Site: ' + _site + ' · Variante: tydac' + (j.data.exists ? '' : ' · (neu)');
       $('btnSave').disabled = false;
+      $('btnValidate').disabled = false;
       $('btnHistory').disabled = false;
       $('btnPreview').disabled = false;
       _selectedPath = null;
@@ -2153,6 +2329,7 @@
 
   function saveCatalog() {
     if (!_doc || !_profile) return;
+    if (!showValidationResult(validateCatalog())) return;
     setStatus('Speichere & publiziere…');
     api('tydac-publish', { method: 'POST', body: { profile: _profile, lyrmgr: _doc, expectedRevision: _revision } })
       .then(function (j) {
@@ -2167,8 +2344,6 @@
         var f = d.file || {};
         if (f.file) {
           setStatus('Gespeichert (rev ' + _revision + ') + lyrmgr.conf publiziert' + (f.backup ? ' (Backup: ' + f.backup + ')' : '') + '.', 'ok');
-          // WYSIWYG-Vorschau auf DB-Stand (Editor) aktualisieren
-          if ($('prevTabLm') && $('prevTabLm').style.display !== 'none') reloadLmPreview();
         } else {
           setStatus('Version gespeichert (rev ' + _revision + '), Datei-Publish fehlgeschlagen: ' + (f.error || 'unbekannt'), 'err');
         }
@@ -2190,6 +2365,110 @@
     try {
       navigator.sendBeacon && navigator.sendBeacon(getApiUrl() + '?action=tydac-unlock&ctx_root=' + encodeURIComponent(_ctxRoot) + '&profile=' + encodeURIComponent(_profile));
     } catch (e) {}
+  }
+
+  // =====================================================================
+  // SPALTENBREITEN
+  // =====================================================================
+  var PANEL_WIDTHS_STORAGE_KEY = 'tnet-tydac-panel-widths';
+  var MIN_TREE_WIDTH = 250;
+  var MIN_PROP_WIDTH = 240;
+  var MIN_PREVIEW_WIDTH = 240;
+
+  function setPanelWidth(panel, width) {
+    panel.style.width = width + 'px';
+    panel.style.flexBasis = width + 'px';
+  }
+
+  function updatePreviewMapSize() {
+    if (_previewMap) {
+      window.requestAnimationFrame(function () { _previewMap.updateSize(); });
+    }
+  }
+
+  function savePanelWidths() {
+    try {
+      localStorage.setItem(PANEL_WIDTHS_STORAGE_KEY, JSON.stringify({
+        properties: Math.round($('propPanel').getBoundingClientRect().width),
+        preview: Math.round($('previewPanel').getBoundingClientRect().width)
+      }));
+    } catch (e) {}
+  }
+
+  function restorePanelWidths() {
+    try {
+      var widths = JSON.parse(localStorage.getItem(PANEL_WIDTHS_STORAGE_KEY) || 'null');
+      if (!widths) return;
+      if (widths.properties >= MIN_PROP_WIDTH) setPanelWidth($('propPanel'), widths.properties);
+      if (widths.preview >= MIN_PREVIEW_WIDTH) setPanelWidth($('previewPanel'), widths.preview);
+    } catch (e) {}
+  }
+
+  function resizeTreeAndProperties(startPropWidth, delta) {
+    var layout = document.querySelector('.layout');
+    var availablePropWidth = layout.clientWidth - $('availPane').getBoundingClientRect().width -
+      $('previewPanel').getBoundingClientRect().width - $('treePropResizer').offsetWidth -
+      $('propPreviewResizer').offsetWidth - MIN_TREE_WIDTH;
+    var maxPropWidth = Math.max(720, availablePropWidth);
+    setPanelWidth($('propPanel'), Math.max(MIN_PROP_WIDTH, Math.min(maxPropWidth, startPropWidth - delta)));
+    updatePreviewMapSize();
+  }
+
+  function resizePropertiesAndPreview(startPropWidth, startPreviewWidth, delta) {
+    var minDelta = MIN_PROP_WIDTH - startPropWidth;
+    var maxDelta = startPreviewWidth - MIN_PREVIEW_WIDTH;
+    var boundedDelta = Math.max(minDelta, Math.min(maxDelta, delta));
+    setPanelWidth($('propPanel'), startPropWidth + boundedDelta);
+    setPanelWidth($('previewPanel'), startPreviewWidth - boundedDelta);
+    updatePreviewMapSize();
+  }
+
+  function bindPanelResizer(resizer, mode) {
+    function resizeFromKeyboard(delta) {
+      var propWidth = $('propPanel').getBoundingClientRect().width;
+      var previewWidth = $('previewPanel').getBoundingClientRect().width;
+      if (mode === 'tree-prop') resizeTreeAndProperties(propWidth, delta);
+      else resizePropertiesAndPreview(propWidth, previewWidth, delta);
+      savePanelWidths();
+    }
+
+    resizer.addEventListener('keydown', function (event) {
+      if (event.key === 'ArrowLeft') { event.preventDefault(); resizeFromKeyboard(-20); }
+      if (event.key === 'ArrowRight') { event.preventDefault(); resizeFromKeyboard(20); }
+    });
+    resizer.addEventListener('pointerdown', function (event) {
+      event.preventDefault();
+      var startX = event.clientX;
+      var startPropWidth = $('propPanel').getBoundingClientRect().width;
+      var startPreviewWidth = $('previewPanel').getBoundingClientRect().width;
+      resizer.classList.add('dragging');
+      document.body.classList.add('panel-resizing');
+      resizer.setPointerCapture(event.pointerId);
+
+      function onPointerMove(moveEvent) {
+        var delta = moveEvent.clientX - startX;
+        if (mode === 'tree-prop') resizeTreeAndProperties(startPropWidth, delta);
+        else resizePropertiesAndPreview(startPropWidth, startPreviewWidth, delta);
+      }
+      function finishResize() {
+        resizer.classList.remove('dragging');
+        document.body.classList.remove('panel-resizing');
+        savePanelWidths();
+        updatePreviewMapSize();
+        resizer.removeEventListener('pointermove', onPointerMove);
+        resizer.removeEventListener('pointerup', finishResize);
+        resizer.removeEventListener('pointercancel', finishResize);
+      }
+      resizer.addEventListener('pointermove', onPointerMove);
+      resizer.addEventListener('pointerup', finishResize);
+      resizer.addEventListener('pointercancel', finishResize);
+    });
+  }
+
+  function initPanelResizers() {
+    restorePanelWidths();
+    bindPanelResizer($('treePropResizer'), 'tree-prop');
+    bindPanelResizer($('propPreviewResizer'), 'prop-preview');
   }
 
   function openHistory() {
@@ -2228,6 +2507,7 @@
     loadCatalog(p);
   });
   $('btnSave').addEventListener('click', saveCatalog);
+  $('btnValidate').addEventListener('click', function () { showValidationResult(validateCatalog()); });
   $('btnHistory').addEventListener('click', openHistory);
   $('ctxRootSelect').addEventListener('change', function () {
     _ctxRoot = $('ctxRootSelect').value || APP_ROOT;
@@ -2239,6 +2519,7 @@
     $('propPane').innerHTML = '<div class="empty" style="padding:8px">Kein Element ausgewählt.</div>';
     $('profileManual').value = '';
     $('btnSave').disabled = true;
+    $('btnValidate').disabled = true;
     $('btnHistory').disabled = true;
     $('btnPreview').disabled = true;
     setStatus('Kontext gewechselt: ' + _ctxRoot + '.');
@@ -2259,11 +2540,6 @@
     var op = parseInt(this.value, 10) / 100;
     Object.keys(_previewBaseLayers).forEach(function (k) { _previewBaseLayers[k].setOpacity(op); });
   });
-  Array.prototype.forEach.call(document.querySelectorAll('.prev-tab'), function (t) {
-    t.addEventListener('click', function () { switchPreviewTab(t.getAttribute('data-ptab')); });
-  });
-  $('lmPrevReload').addEventListener('click', reloadLmPreview);
-  $('lmPrevSource').addEventListener('change', reloadLmPreview);
   $('btnPreview').addEventListener('click', openPreview);
   $('iconModalClose').addEventListener('click', function () { $('iconModal').classList.remove('open'); });
   $('histModalClose').addEventListener('click', function () { $('histModal').classList.remove('open'); });
@@ -2293,6 +2569,7 @@
   loadAvailableLayers(null);
   loadCategoryIconsData();
   loadLayerIconsData();
+  initPanelResizers();
   setStatus('Bereit (' + _ctxRoot + ').');
 })();
 </script>

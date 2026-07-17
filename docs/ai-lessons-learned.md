@@ -1,3 +1,31 @@
+## 2026-07-17 - Sammel-Dry-Run durfte bestehende Upload-Starter nicht mit `--dry-run` aufrufen
+
+- Symptom: Der erste Dry-Run des neuen Sammelstarters übertrug eine EDIT-Datei, obwohl die Sync-Schritte korrekt nur eine Vorschau ausgaben.
+- Root-Cause: Die normalen EDIT- und GEOHOST-Upload-Starter reichen keine Aufrufargumente an `upload_changed.py` weiter; ein angehängtes `--dry-run` blieb deshalb wirkungslos.
+- Fix: Der Sammelstarter ruft im Dry-Run die vorhandenen, separaten `deploy-*-dryrun.bat`-Skripte auf und verwendet für PROD den unterstützten `02_deploy-prod.bat --dry-run`-Pfad.
+- Guardrail: Einen Dry-Run nur über einen nachweislich nebenwirkungsfreien Starter ausführen; Argumentweitergabe von Batch-Wrappern nie voraussetzen.
+
+## 2026-07-17 - Neue Tydac-Kategorie löschte objektgekeyte Bestandskategorien
+
+- Symptom: Nach „+ Kategorie“ war nur noch die neue Kategorie sichtbar; die vorhandenen Kategorien und Gruppen verschwanden aus dem Editor.
+- Root-Cause: `addCategory()` ersetzte jede nicht als Array gespeicherte `structure` durch ein leeres Array. Originale ClassicLayerMgr-Kataloge verwenden dort häufig Schlüsselobjekte.
+- Fix: Die Kategorieanlage ergänzt bei Schlüsselobjekten ausschliesslich `structure[key]` mit einem neuen Knoten und behält bei Array-Strukturen weiterhin das bestehende Array-Format bei.
+- Guardrail: Bearbeitungsaktionen für ClassicLayerMgr-Strukturen dürfen nie zwischen Array- und Objektformat konvertieren, ohne die vorhandenen Knoten vollständig und absichtlich zu übernehmen.
+
+## 2026-07-17 - Tydac löschte keine objektgekeyten Kategorien und Gruppen
+
+- Symptom: Der Löschen-Button für Kategorien und Gruppen reagierte im ClassicLayerMgr-Katalog ohne sichtbare Änderung.
+- Root-Cause: `deleteNode()` unterstützte ausschliesslich Array-Eltern mittels `splice()`. Die originalen Tydac-Kataloge speichern Kategorien und Gruppen jedoch häufig als Schlüsselobjekte.
+- Fix: Der Löschpfad entfernt Array-Elemente weiterhin per `splice()` und löscht Knoten aus Schlüsselobjekten gezielt per `delete parent[key]`.
+- Guardrail: Baumoperationen müssen sowohl Array- als auch objektgekeyte ClassicLayerMgr-Strukturen unterstützen; vor Änderungen beide Persistenzformen im passenden Kontext testen.
+
+## 2026-07-17 - Tydac-Kataloge konnten ohne lokale Vorabprüfung publiziert werden
+
+- Symptom: Ungültige Kategorie- oder Layer-Schlüssel wurden erst beim Publish erkannt oder führten zu einem inkonsistenten ClassicLayerMgr-Katalog.
+- Root-Cause: Der Tydac-Editor schrieb Eigenschaften direkt ins Dokument und löste `tydac-publish` ohne clientseitige Struktur- und Referenzprüfung aus.
+- Fix: Ein expliziter Prüfen-Button und der Speichern-Pfad validieren LyrMgr- und Kategorie-Schlüssel, leere Pflichtwerte, doppelte Kategorien sowie bekannte Layer-Referenzen. Fehler fokussieren den ersten betroffenen Knoten; Gruppennamen dürfen weiterhin lesbare Leerzeichen enthalten.
+- Guardrail: Vor jeder Katalog-Publikation lokale Validierung ausführen; technische Schlüssel und frei lesbare Gruppenbezeichnungen dürfen nicht dieselben Zeichenvorgaben erhalten.
+
 ## 2026-07-17 - Gespeicherte View-ID wurde auf Anfangsbuchstaben verkürzt
 
 - Symptom: Nach dem Ändern, Speichern und Neuladen einer Kartenansicht bestand deren View-ID nur noch aus wenigen Anfangszeichen.

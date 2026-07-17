@@ -21,11 +21,25 @@
 (function() {
     'use strict';
 
+    // =========================================================
+    // DEPENDENCY GUARDS — funktioniert standalone ODER via tnet-loader.js
+    // =========================================================
+
     function getAppRoot() {
         return window.__TNET_APP_ROOT || '/maps';
     }
 
     var LOG_PREFIX = '[Basemap]';
+
+    // TnetLog-Stub: nur wenn weder tnet-log.js noch tnet-loader.js geladen
+    if (typeof window.TnetLog === 'undefined') {
+        window.TnetLog = {
+            log:   function() { console.log.apply(console, arguments); },
+            warn:  function() { console.warn.apply(console, arguments); },
+            error: function() { console.error.apply(console, arguments); },
+            info:  function() { console.info.apply(console, arguments); }
+        };
+    }
 
     function syncActiveBookmarkBasemapState(basemapId, basemapColorMode, reason) {
         var bookmark = window.__tnetActiveBookmark;
@@ -132,6 +146,154 @@
         }
     };
 
+    // ── Fallback-Kacheln — werden verwendet wenn JSON5/Config nicht verfügbar ──
+    var FALLBACK_CARDS = [
+        { id: 'swissimage',               label: 'Orthofoto',         previewClass: 'orthofoto',   hasTimeBadge: true },
+        { id: 'av_sw',                    label: 'Basisplan',         previewClass: 'basisplan' },
+        { id: 'plan_fuer_grundbuch_bund', label: 'Plan f. Grundbuch', previewClass: 'grundbuch' },
+        { spacerLabel: 'Weitere' },
+        { id: 'pk_color',                 label: 'Landeskarte',       previewClass: 'landeskarte', hasTimeBadge: true },
+        { id: 'siegfried',                label: 'Siegfriedkarten',   previewClass: 'siegfried',   hasTimeBadge: true },
+        { id: 'dufour',                   label: 'Dufourkarte',       previewClass: 'dufour',      hasTimeBadge: true },
+        { id: 'swiss_tlm',                label: 'swissTLM',          previewClass: 'swisstlm' },
+        { id: 'osm_ch',                   label: 'OpenStreetMap',     previewClass: 'osm' },
+        { id: 'leer',                     label: 'Leer',              previewClass: 'keine' },
+    ];
+
+    /**
+     * Lädt basemaps.cards aus tnet-global-config.json5 (async).
+     * Fällt auf FALLBACK_CARDS zurück wenn JSON5/Config nicht verfügbar.
+     */
+    function loadCardsConfig() {
+        if (window._basemapCardsConfig !== undefined) return Promise.resolve(window._basemapCardsConfig);
+        if (typeof JSON5 === 'undefined') {
+            window._basemapCardsConfig = FALLBACK_CARDS;
+            return Promise.resolve(FALLBACK_CARDS);
+        }
+        var paths = [
+            getAppRoot() + '/tnet/config/tnet-global-config.json5',
+            getAppRoot() + '/tnet/tnet-global-config.json5',
+            '../tnet/config/tnet-global-config.json5'
+        ];
+        function tryPath(index) {
+            if (index >= paths.length) {
+                window._basemapCardsConfig = FALLBACK_CARDS;
+                return Promise.resolve(FALLBACK_CARDS);
+            }
+            return fetch(paths[index])
+                .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
+                .then(function(text) {
+                    var parsed = JSON5.parse(text);
+                    window._basemapCardsConfig = (parsed && parsed.basemaps && Array.isArray(parsed.basemaps.cards))
+                        ? parsed.basemaps.cards : FALLBACK_CARDS;
+                    return window._basemapCardsConfig;
+                })
+                .catch(function() { return tryPath(index + 1); });
+        }
+        return tryPath(0);
+    }
+
+    /**
+     * Erstellt #basemap_selector + #basemap_widget im DOM, falls noch nicht vorhanden.
+     * Ermöglicht Ein-Zeilen-Integration in neuen Umgebungen (Edit etc.):
+     * nur <script src="tnet/js/tnet-basemap.js"> nötig — kein statisches HTML erforderlich.
+     * @param {Array|null} cards  Kachel-Definitionen aus tnet-global-config.json5
+     */
+    function ensureWidgetDOM(cards) {
+        if (document.getElementById('basemap_selector')) return; // bereits vorhanden
+
+        var container = document.getElementById('mapContainer');
+        if (!container) {
+            TnetLog.warn(LOG_PREFIX, 'ensureWidgetDOM: #mapContainer nicht gefunden — Widget nicht injiziert');
+            return;
+        }
+
+        // ── Selector-Kachel ──
+        var selector = document.createElement('div');
+        selector.id = 'basemap_selector';
+        selector.title = 'Hintergrundkarte w\u00e4hlen';
+        selector.setAttribute('onclick', 'toggleBasemapWidget()');
+        selector.innerHTML = '<div class="basemap-preview"></div>'
+            + '<span class="basemap-label">Hintergrund</span>';
+        container.appendChild(selector);
+
+        // ── Cards-HTML aus Config aufbauen ──
+        var cardsHtml = '';
+        if (cards && cards.length) {
+            cards.forEach(function(card) {
+                if (card.spacerLabel) {
+                    cardsHtml += '<div class="basemap-cards-spacer">' + card.spacerLabel + '</div>';
+                } else if (card.id) {
+                    var badge = card.hasTimeBadge
+                        ? '<span class="basemap-card-time-badge">\u23f1</span>' : '';
+                    cardsHtml += '<div class="basemap-card" data-basemap="' + card.id + '">'
+                        + badge
+                        + '<div class="basemap-card-preview ' + card.previewClass + '"></div>'
+                        + '<span class="basemap-card-label">' + card.label + '</span>'
+                        + '</div>';
+                }
+            });
+        }
+
+        // ── Widget-HTML ──
+        var widget = document.createElement('div');
+        widget.id = 'basemap_widget';
+        widget.className = 'basemap-widget-hidden';
+        widget.innerHTML =
+            '<div class="basemap-widget-header">'
+                + '<span>GRUNDKARTE</span>'
+                + '<button class="basemap-widget-close" onclick="toggleBasemapWidget()">&times;</button>'
+            + '</div>'
+            + '<div class="basemap-widget-content">'
+                + '<div class="basemap-layer-section">'
+                    + '<div id="basemap-overlay-rows"></div>'
+                    + '<div class="basemap-layer-row">'
+                        + '<span class="layer-icon" id="basemap-colormode-icon">\u25e7</span>'
+                        + '<span class="layer-label">Farbig / Grau</span>'
+                        + '<div class="layer-toggle">'
+                            + '<button class="toggle-btn active" data-layer="farbmodus" data-value="color"'
+                                + ' onclick="njs.AppManager.toggleBaseLayerColor(\'main\',\'toggle_coltool1\',this);'
+                                + 'this.classList.add(\'active\');this.nextElementSibling.classList.remove(\'active\');">FARBE</button>'
+                            + '<button class="toggle-btn" data-layer="farbmodus" data-value="grey"'
+                                + ' onclick="njs.AppManager.toggleBaseLayerColor(\'main\',\'toggle_coltool1\',this);'
+                                + 'this.classList.add(\'active\');this.previousElementSibling.classList.remove(\'active\');">GRAU</button>'
+                        + '</div>'
+                    + '</div>'
+                    + '<div class="basemap-layer-row">'
+                        + '<span class="layer-label">Transparenz</span>'
+                        + '<input type="range" class="transparency-slider" min="0" max="100" value="0"'
+                            + ' oninput="njs.AppManager.setBaseLayerOpacity(\'main\',this.value);this.nextElementSibling.textContent=this.value;"'
+                            + ' onchange="njs.AppManager.setBaseLayerOpacity(\'main\',this.value);">'
+                        + '<span class="transparency-value">0</span>'
+                    + '</div>'
+                + '</div>'
+                + '<div id="basemap-time-container" class="basemap-time-container" style="display:none;">'
+                    + '<div class="basemap-time-header">'
+                        + '<span class="basemap-time-icon">\u23f1</span>'
+                        + '<span class="basemap-time-title">Zeitreise</span>'
+                        + '<span id="basemap-time-label" class="basemap-time-label">2024</span>'
+                        + '<button id="basemap-time-reset" class="basemap-time-reset" title="Aktuell">'
+                            + '<svg viewBox="0 0 16 16" width="14" height="14">'
+                            + '<path fill="currentColor" d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm0 12.5A5.5 5.5 0 1 1 13.5 8 5.51 5.51 0 0 1 8 13.5zM8.5 4v4.25l3.15 1.88-.75 1.23L7 9V4z"/>'
+                            + '</svg>'
+                        + '</button>'
+                    + '</div>'
+                    + '<input type="range" id="basemap-time-slider" class="basemap-time-slider" min="0" max="33" value="33" step="1">'
+                    + '<div class="basemap-time-range">'
+                        + '<span id="basemap-time-min">1926</span>'
+                        + '<span id="basemap-time-max">2024</span>'
+                    + '</div>'
+                + '</div>'
+                + '<div id="basemap-time-info" class="basemap-time-info" style="display:none;">'
+                    + '<span class="basemap-time-icon">\u23f1</span>'
+                    + '<span id="basemap-time-info-text"></span>'
+                + '</div>'
+                + '<div class="basemap-cards-scroll">' + cardsHtml + '</div>'
+            + '</div>';
+        container.appendChild(widget);
+        TnetLog.log(LOG_PREFIX, 'Widget-DOM auto-injiziert \u2714');
+    }
+
     /**
      * Delegierter Click-Handler für alle Basemap-Cards.
      * Liest data-basemap aus und ruft changeBaseMap auf.
@@ -208,6 +370,14 @@
     // Global exportieren (für andere Module die darauf zugreifen)
     window.GRUNDKARTEN_LAYER_MAPPING = GRUNDKARTEN_LAYER_MAPPING;
 
+    // Synchroner Fallback: Damit die CoalesceBridge (_extractRootKey) Independent-
+    // Opacity-Overlays SOFORT erkennt — auch bei URL-Start mit layers=... bevor der
+    // async Config-Load window.__tnetIndependentOpacityServices setzt. Wird spaeter
+    // von applyBasemapOverlayConfig mit dem Config-Wert ueberschrieben.
+    if (!Array.isArray(window.__tnetIndependentOpacityServices)) {
+        window.__tnetIndependentOpacityServices = ['gis_basis/nw_basisplan_gis_dynamisch'];
+    }
+
     /**
      * Lädt basemapOverlays aus tnet-global-config.json5 (async, gecached).
      */
@@ -281,8 +451,8 @@
                 +  iconHtml
                 +  '<span class="layer-label">' + label + '</span>'
                 +  '<div class="layer-toggle">'
-                +    '<button class="toggle-btn" data-layer="' + o.key + '" data-value="on">EIN</button>'
-                +    '<button class="toggle-btn active" data-layer="' + o.key + '" data-value="off">AUS</button>'
+                +    '<button class="toggle-btn" id="btn-' + o.key + '-ein" data-layer="' + o.key + '" data-value="on">EIN</button>'
+                +    '<button class="toggle-btn active" id="btn-' + o.key + '-aus" data-layer="' + o.key + '" data-value="off">AUS</button>'
                 +  '</div>'
                 +  '</div>';
         });
@@ -407,6 +577,68 @@
             layerState[GRUNDKARTEN_LAYER_MAPPING[key]] = false;
         });
 
+        // Initialen Button-Zustand mit tatsaechlicher Layer-Sichtbarkeit abgleichen.
+        // Notwendig wenn per URL-Parameter layers=... Overlays bereits aktiv sind.
+        function syncInitialButtonStates() {
+            var store = window.TnetLMStore;
+            Object.keys(GRUNDKARTEN_LAYER_MAPPING).forEach(function(key) {
+                var lid = GRUNDKARTEN_LAYER_MAPPING[key];
+                var isVisible = false;
+
+                // Store-Weg: prueft aktive Layer
+                if (store && typeof store.getActiveLayers === 'function') {
+                    var actives = store.getActiveLayers();
+                    for (var i = 0; i < actives.length; i++) {
+                        if (actives[i] && actives[i].id === lid) {
+                            isVisible = true;
+                            break;
+                        }
+                    }
+                }
+
+                // OL-Weg als Fallback: OL-Layer direkt pruefen
+                if (!isVisible && map) {
+                    map.getLayers().forEach(function(layer) {
+                        var n = layer.get('name') || '';
+                        if (n === lid && layer.getVisible()) isVisible = true;
+                    });
+                }
+
+                if (isVisible) {
+                    layerState[lid] = true;
+                    var btnEin = document.getElementById('btn-' + key + '-ein');
+                    var btnAus = document.getElementById('btn-' + key + '-aus');
+                    if (btnEin && btnAus) {
+                        btnEin.classList.add('active');
+                        btnAus.classList.remove('active');
+                    }
+
+                    // URL-/Bookmark-Start auf den selben Store-Tile-Pfad wie die
+                    // spaeteren EIN/AUS-Aktionen migrieren. Dabei uebernimmt der Store
+                    // den sichtbaren Framework-Start-Layer und ersetzt ihn durch genau
+                    // einen eigenen Tile-Layer pro Overlay.
+                    ensureOverlayRegistered(store, lid);
+                    if (typeof store.setLayerEye === 'function') {
+                        store.setLayerEye(lid, true);
+                    }
+                }
+            });
+        }
+
+        // Verzoegert ausfuehren, damit Store und OL-Layer bereit sind
+        setTimeout(syncInitialButtonStates, 1500);
+        setTimeout(syncInitialButtonStates, 4000);
+
+        // Registriert ein Overlay SYNCHRON als Independent-Opacity-Gruppe im Store,
+        // damit es einen EIGENEN OL-Layer bekommt (eigene Deckkraft + Reihenfolge).
+        // Muss vor setLayerEye laufen, damit der Bridge-LazyLoad-Pfad greift (der
+        // _layerToCoalesce[layerId] voraussetzt). Idempotent: mehrfacher Aufruf ok.
+        function ensureOverlayRegistered(store, layerName) {
+            if (!store || typeof store._ensureIndependentOpacityCoalesce !== 'function') return;
+            var layer = (typeof store.findLayer === 'function') ? store.findLayer(layerName) : null;
+            if (layer) store._ensureIndependentOpacityCoalesce(layerName, layer);
+        }
+
         function getNonGrundkartenLayers() {
             if (!map) return [];
             var visibleLayers = [];
@@ -435,20 +667,31 @@
                     var visible = (value === 'on');
                     layerState[layerName] = visible;
 
-                    // Bug-Fix: Toggle ueber den TNET-Store schalten → sauberer Sync
-                    // mit dem Karteninhalt (EIN UND AUS). Frueher lief das ueber das
-                    // Framework (setMapBookmark), wodurch AUS nicht aus dem
-                    // Karteninhalt entfernt wurde.
-                    if (window.TnetLMStore && typeof window.TnetLMStore.setLayerVisible === 'function') {
-                        window.TnetLMStore.setLayerVisible(layerName, visible);
+                    // Steuerung läuft über den Karteninhalt-Mechanismus (setLayerEye):
+                    // 1. ensureOverlayRegistered: Independent-Opacity SYNCHRON registrieren
+                    //    (setzt _layerToCoalesce → eigener OL-Layer pro Overlay)
+                    // 2. setLayerEye: identisch zum Augen-Toggle im Karteninhalt. Für
+                    //    Independent-Opacity-Overlays läuft das intern über den Coalesce-
+                    //    Pfad (_addToCoalesceOLLayer/_removeFromCoalesceOLLayer) → Auge aus
+                    //    entfernt den OL-Layer sauber von der Karte (kein Ghost), Layer
+                    //    bleibt aber im Karteninhalt gelistet. Karteninhalt = Single Source
+                    //    of Truth: Sichtbarkeit dort steuert die Karte.
+                    var store = window.TnetLMStore;
+                    if (store && typeof store.setLayerEye === 'function') {
+                        ensureOverlayRegistered(store, layerName);
+                        store.setLayerEye(layerName, visible);
                     } else {
-                        // Fallback: Framework-Pfad (Alt-Verhalten)
+                        // Fallback: Framework-Pfad
                         var allLayers = getNonGrundkartenLayers();
                         Object.keys(layerState).forEach(function(name) {
                             if (layerState[name]) allLayers.push(name);
                         });
                         var params = 'layers=' + allLayers.join('|');
-                        window.top.njs.AppManager.setMapBookmark(['main'], params);
+                        try {
+                            window.top.njs.AppManager.setMapBookmark(['main'], params);
+                        } catch(e2) {
+                            TnetLog.warn(LOG_PREFIX, 'setMapBookmark fehlgeschlagen:', e2);
+                        }
                     }
 
                     // Active-Klasse wechseln
@@ -462,6 +705,31 @@
         });
 
         TnetLog.log(LOG_PREFIX, 'GrundkartenSync:', buttons.length, 'Buttons registriert');
+
+        // Rueckkopplung: Store-Events → Basemap-Buttons synchronisieren
+        // Wenn ein Overlay-Layer im Karteninhalt entfernt/deaktiviert wird,
+        // soll der EIN/AUS-Schalter im Basemap-Widget nachziehen.
+        if (window.TnetLMStore && typeof window.TnetLMStore.on === 'function') {
+            window.TnetLMStore.on('layer-visibility', function(evt) {
+                if (!evt || !evt.id) return;
+                // Pruefen ob diese Layer-ID einem Overlay-Key entspricht
+                Object.keys(GRUNDKARTEN_LAYER_MAPPING).forEach(function(key) {
+                    if (GRUNDKARTEN_LAYER_MAPPING[key] !== evt.id) return;
+                    var btnEin = document.getElementById('btn-' + key + '-ein');
+                    var btnAus = document.getElementById('btn-' + key + '-aus');
+                    if (!btnEin || !btnAus) return;
+                    if (evt.visible) {
+                        btnEin.classList.add('active');
+                        btnAus.classList.remove('active');
+                    } else {
+                        btnEin.classList.remove('active');
+                        btnAus.classList.add('active');
+                    }
+                    layerState[GRUNDKARTEN_LAYER_MAPPING[key]] = !!evt.visible;
+                });
+            });
+            TnetLog.log(LOG_PREFIX, 'Store layer-visibility Listener registriert');
+        }
     }
 
     // Global exportieren (tnet-app.js referenziert es)
@@ -1548,23 +1816,23 @@
     window.BasemapTimeManager = BasemapTimeManager;
 
     function initAll() {
-        // Widget UI (Cards, Expand)
-        initBasemapCards();
-
-        // Basiskarten-Überlagerungen aus Config rendern, dann Defaults/Sync.
-        loadBasemapOverlaysConfig().then(function(cfg) {
-            applyBasemapOverlayConfig(cfg);
-            // Grundkarten-Layer Defaults (Buttons existieren jetzt)
-            initGrundkartenDefaults();
-        });
-
-        // Zeitreise
-        BasemapTimeManager.init();
-
-        // URL-Parameter ?basemap= auswerten
-        applyBasemapFromUrl();
-
-        TnetLog.log(LOG_PREFIX, 'Modul vollständig initialisiert ✓');
+        // Cards aus Config (oder Fallback) → DOM → UI — flache Promise-Chain
+        loadCardsConfig()
+            .then(function(cards) {
+                ensureWidgetDOM(cards);
+                initBasemapCards();
+                return loadBasemapOverlaysConfig();
+            })
+            .then(function(cfg) {
+                applyBasemapOverlayConfig(cfg);
+                initGrundkartenDefaults();
+                BasemapTimeManager.init();
+                applyBasemapFromUrl();
+                TnetLog.log(LOG_PREFIX, 'Modul vollständig initialisiert ✓');
+            })
+            .catch(function(err) {
+                TnetLog.error(LOG_PREFIX, 'Init-Fehler:', err);
+            });
     }
 
     /**
