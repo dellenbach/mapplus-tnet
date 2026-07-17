@@ -1297,6 +1297,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
       <div class="tb-json-panel tb-hidden" id="tb-json-panel">
         <div class="tb-json-head">
           <span>JSON-Editor</span>
+          <button id="tb-json-edit" title="Editiermodus explizit starten">✏ Editieren</button>
           <button id="tb-json-format" title="JSON formatieren">✉ Format</button>
           <button id="tb-json-apply" title="JSON auf Baum anwenden">▶ Apply</button>
         </div>
@@ -3732,7 +3733,12 @@ function syncJsonEditor() {
   try {
     var sel = document.getElementById('tb-profile-select');
     var selVal = sel ? sel.value : '';
-    var derived = (typeof isSharedTree === 'function' && isSharedTree()) && selVal && selVal !== SHARED_PROFILE;
+    if (!(typeof isSharedTree === 'function' && isSharedTree())) {
+      _jsonForceMaster = false;
+    }
+    var derived = (typeof isSharedTree === 'function' && isSharedTree())
+      && selVal && selVal !== SHARED_PROFILE
+      && !_jsonForceMaster;
     var tenant = derived ? selVal : null;
     var confOutput = {};
     if (p.lyrmgrs) {
@@ -3743,14 +3749,29 @@ function syncJsonEditor() {
       });
     }
     textarea.value = JSON.stringify(confOutput, null, 4);
-    textarea.readOnly = !!derived;
+    // Editieren wird explizit über den Button gestartet (Default: Lesemodus).
+    textarea.readOnly = !!derived || !_jsonEditArmed;
+
+    var editBtn = document.getElementById('tb-json-edit');
+    if (editBtn) {
+      editBtn.disabled = false;
+      editBtn.textContent = derived
+        ? '✏ Master bearbeiten'
+        : (_jsonEditArmed ? '🔒 Sperren' : '✏ Editieren');
+      editBtn.title = derived
+        ? 'Wechselt auf __shared__ und startet den Editiermodus'
+        : (_jsonEditArmed ? 'Editiermodus beenden (zurück zu Lesemodus)' : 'Editiermodus explizit starten');
+    }
+
     var statusEl = document.getElementById('tb-json-status');
     if (statusEl) {
       if (derived) {
         var n = (textarea.value.match(/"secured":\s*true/g) || []).length;
         statusEl.textContent = '🔒 Abgeleitet für „' + tenant + '“ — exakt das, was publiziert wird (schreibgeschützt' + (n ? ', ' + n + '× secured' : '') + ')';
       } else {
-        statusEl.textContent = '📝 Master-Baum (bearbeitbar) — wird beim Publish pro Mandant abgeleitet';
+        statusEl.textContent = _jsonEditArmed
+          ? '📝 Master-Baum (Editiermodus aktiv) — Änderungen mit „▶ Apply“ übernehmen'
+          : '🔍 Master-Baum (Lesemodus) — mit „✏ Editieren“ Bearbeitung starten';
       }
       statusEl.className = 'tb-json-status';
     }
@@ -4315,6 +4336,35 @@ function renderLyrmgrBlock(container, lmKey, profile) {
       if (gcat) {
         var gref = getItemRefByPath(gcat.items, gpath);
         if (gref && typeof gref.item === 'object') openPropsDialog('group', gref.item);
+      }
+      return;
+    }
+    // Flach <-> Gruppe umschalten (Ein-Layer-Gruppe <-> Direkt-Layer).
+    if (btn.dataset.action === 'toggle-flat') {
+      var fci = parseInt(btn.dataset.catIdx);
+      var fpath = (btn.dataset.itemPath || '').split('.').filter(function(p) { return p !== ''; }).map(Number);
+      var fcat = profile.categories[fci];
+      var fnode = fcat ? getItemByPath(fcat.items, fpath) : null;
+      if (fnode && typeof fnode === 'object') {
+        if (fnode.flat === true) {
+          // Flach -> Gruppe: flat-Flag entfernen, Ein-Layer-Gruppe wiederherstellen.
+          var innerId = fnode.key || fnode.name || (Array.isArray(fnode.items) ? fnode.items[0] : '');
+          delete fnode.flat;
+          if (!Array.isArray(fnode.items) || !fnode.items.length) fnode.items = [innerId];
+          if (fnode.open === undefined) fnode.open = false;
+        } else {
+          // Gruppe -> Flach: nur bei Ein-Layer-Gruppe sinnvoll.
+          var leaf = (Array.isArray(fnode.items) && fnode.items.length === 1 && typeof fnode.items[0] === 'string')
+            ? fnode.items[0] : (fnode.key || fnode.name || '');
+          fnode.flat = true;
+          fnode.key = leaf;
+          fnode.name = leaf;
+          fnode.items = [leaf];
+        }
+        touchNodeEditMeta('layer', fnode.key || fnode.name || '', lmKey);
+        renderTree();
+        syncJsonEditor();
+        scheduleDraftAutoSave('toggle-flat');
       }
       return;
     }
@@ -8369,10 +8419,13 @@ function generateLyrmgrConfBlock(treeData) {
       if (!skipCatKeys[k]) catObj[k] = cat[k];
     });
 
-    // Format aus _rawBlock ableiten: Array-Format beibehalten.
-    // Wenn kein Referenz-Block existiert, bewusst Array nutzen (stabile Reihenfolge).
-    var rawCat = getRawCategoryByKey(rawStructure, catKey);
-    var usesArrayFormat = !rawCat || Array.isArray(rawCat.items);
+    // Reihenfolge-Garantie: items IMMER als Array serialisieren.
+    // PostgreSQL JSONB bewahrt die Reihenfolge von Objekt-Keys NICHT (Sortierung
+    // nach Laenge/bytewise), wodurch API/Themenkatalog eine andere Gruppen-
+    // Reihenfolge zeigten als der Tree-Builder. Array-Format (wie bei structure)
+    // haelt die verbindliche Editor-Reihenfolge ueber DB, API und conf konsistent.
+    // Verhindert zusaetzlich die Objekt-Key-Kollision bei gleichnamigen Direkt-Layern/Gruppen.
+    var usesArrayFormat = true;
 
     if (usesArrayFormat) {
       catObj.items = serializeItems(cat.items || []);
@@ -9755,9 +9808,45 @@ document.getElementById('tb-json-format').addEventListener('click', function() {
   }
 });
 
+var _jsonEditArmed = false;
+var _jsonForceMaster = false;
+
+// JSON-Editor: expliziter Start/Stop des Editiermodus
+document.getElementById('tb-json-edit').addEventListener('click', function() {
+  var textarea = document.getElementById('tb-json-textarea');
+  if (!textarea) return;
+
+  var sel = document.getElementById('tb-profile-select');
+  var selVal = sel ? sel.value : '';
+  var derived = (typeof isSharedTree === 'function' && isSharedTree())
+    && selVal && selVal !== SHARED_PROFILE
+    && !_jsonForceMaster;
+  if (derived) {
+    _jsonEditArmed = true;
+    _jsonForceMaster = true;
+    syncJsonEditor();
+    try {
+      textarea.focus();
+      textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+    } catch (e) { /* defensiv */ }
+    return;
+  }
+
+  _jsonEditArmed = !_jsonEditArmed;
+  if (!_jsonEditArmed) _jsonForceMaster = false;
+  syncJsonEditor();
+
+  if (_jsonEditArmed) {
+    try {
+      textarea.focus();
+      textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+    } catch (e) { /* defensiv */ }
+  }
+});
+
 // JSON-Editor: Apply-Button (lyrmgr.conf-Format → internes Format → State)
 document.getElementById('tb-json-apply').addEventListener('click', function() {
-  if (document.getElementById('tb-json-textarea').readOnly) { alert('🔒 Abgeleitete Ansicht ist schreibgeschützt.\nWähle „✏️ Gemeinsamen Baum bearbeiten", um den Master-Baum zu bearbeiten.'); return; }
+  if (document.getElementById('tb-json-textarea').readOnly) { alert('🔒 JSON ist aktuell schreibgeschützt.\nKlicke auf „✏ Editieren“ (oder in Shared-Preview auf „✏ Master bearbeiten“).'); return; }
   var textarea = document.getElementById('tb-json-textarea');
   var statusEl = document.getElementById('tb-json-status');
   try {

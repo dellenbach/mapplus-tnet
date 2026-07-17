@@ -40,6 +40,58 @@
 
   function $(id) { return document.getElementById(id); }
 
+  // ===== DOM-INJECTION =====
+  // Baut das WMS-Panel-DOM selbst auf, falls es nicht im HTML vorhanden ist.
+  // Ermoeglicht schlankes index.htm (kein Panel-Markup noetig) + Wiederverwendung
+  // in Mobile/Edit. Ist das Panel bereits vorhanden, passiert nichts.
+  function ensureWmsPanelDOM() {
+    if (document.getElementById('wms-panel')) return;
+
+    var panel = document.createElement('div');
+    panel.id = 'wms-panel';
+    panel.className = 'wms-panel hidden';
+    panel.innerHTML =
+        '<div class="wms-resize-top" id="wms-resize-top"></div>'
+      + '<div class="wms-resize-left" id="wms-resize-left"></div>'
+      + '<div class="wms-resize-right" id="wms-resize-right"></div>'
+      + '<div class="wms-resize-bottom" id="wms-resize-bottom"></div>'
+      + '<div class="wms-resize-corner-tl" id="wms-resize-corner-tl"></div>'
+      + '<div class="wms-resize-corner-tr" id="wms-resize-corner-tr"></div>'
+      + '<div class="wms-resize-corner-bl" id="wms-resize-corner-bl"></div>'
+      + '<div class="wms-resize-corner-br" id="wms-resize-corner-br"></div>'
+      + '<div class="wms-header" id="wms-header">'
+      +   '<span class="wms-title">Externe Kartendienste (WMS)</span>'
+      +   '<div class="wms-actions">'
+      +     '<button class="wms-close" onclick="closeWmsPanel()">&times;</button>'
+      +   '</div>'
+      + '</div>'
+      + '<div class="wms-body">'
+      +   '<div class="wms-url-bar">'
+      +     '<label class="wms-label">WMS-Dienst w\u00e4hlen oder URL eingeben:</label>'
+      +     '<div class="wms-url-row">'
+      +       '<select id="wms-preset-select" class="wms-select">'
+      +         '<option value="">\u2014 Vordefinierter Dienst \u2014</option>'
+      +       '</select>'
+      +     '</div>'
+      +     '<div class="wms-url-row">'
+      +       '<input type="text" id="wms-url-input" class="wms-input" placeholder="https://wms.example.com/service?" autocomplete="off">'
+      +       '<button class="wms-load-btn" id="wms-load-btn" onclick="loadWmsCapabilities()">Laden</button>'
+      +     '</div>'
+      +   '</div>'
+      +   '<div class="wms-status" id="wms-status"></div>'
+      +   '<div class="wms-filter-row" id="wms-filter-row" style="display:none">'
+      +     '<input type="text" id="wms-layer-filter" class="wms-input wms-filter-input" placeholder="Layer filtern\u2026" autocomplete="off">'
+      +   '</div>'
+      +   '<div class="wms-layer-list" id="wms-layer-list"></div>'
+      +   '<div class="wms-added-section" id="wms-added-section" style="display:none">'
+      +     '<div class="wms-added-header">Hinzugef\u00fcgte Layer</div>'
+      +     '<div class="wms-added-list" id="wms-added-list"></div>'
+      +   '</div>'
+      + '</div>';
+    document.body.appendChild(panel);
+    TnetLog.log('[WMS-Panel] DOM auto-injiziert \u2714');
+  }
+
   // ===== PANEL TOGGLE =====
 
   window.toggleWmsPanel = function() {
@@ -702,6 +754,22 @@
     TnetLog.log('[WMS-Panel] _updateLayerListCheckbox:', layerName, '→', checked, '| gefunden:', found);
   }
 
+  function _syncAddedLayerOpacity(layerName, opacity) {
+    var normalizedOpacity = Math.max(0, Math.min(1, Number(opacity)));
+    var updated = false;
+
+    _addedLayers.forEach(function(entry) {
+      if (entry.name !== layerName) return;
+      entry.opacity = normalizedOpacity;
+      if (entry.olLayer && typeof entry.olLayer.setOpacity === 'function') {
+        entry.olLayer.setOpacity(normalizedOpacity);
+      }
+      updated = true;
+    });
+
+    if (updated) _renderAddedLayers();
+  }
+
   // ===== HINZUGEFÜGTE LAYER RENDERN =====
 
   function _renderAddedLayers() {
@@ -736,7 +804,11 @@
       slider.oninput = function() {
         var val = parseInt(slider.value) / 100;
         entry.opacity = val;
-        entry.olLayer.setOpacity(val);
+        if (window.TnetLMStore && typeof window.TnetLMStore.setLayerOpacity === 'function') {
+          window.TnetLMStore.setLayerOpacity('wms:' + entry.name, val);
+        } else if (entry.olLayer && typeof entry.olLayer.setOpacity === 'function') {
+          entry.olLayer.setOpacity(val);
+        }
       };
 
       // Legende-Button
@@ -1532,6 +1604,13 @@
   // ===== INITIALISIERUNG =====
 
   function _init() {
+    ensureWmsPanelDOM();
+    if (window.TnetLMStore && typeof window.TnetLMStore.on === 'function') {
+      window.TnetLMStore.on('layer-opacity', function(evt) {
+        if (!evt || !evt.id || evt.id.indexOf('wms:') !== 0) return;
+        _syncAddedLayerOpacity(evt.id.replace('wms:', ''), evt.opacity);
+      });
+    }
     _loadWmsConfig().then(function() {
       _initPresets();
       _initFilter();

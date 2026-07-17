@@ -182,6 +182,24 @@ $aggregationPrintDpiThreshold     = 100;   // Ab dieser DPI gilt als Druck-Reque
 // Transparentes 1×1 PNG (RGBA) — wird als Response für aggregierte Zwischen-Requests verwendet
 $emptyPng = base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVQIW2NgAAIAAAUAAR4f7BQAAAAASUVORK5CYII=');
 
+// --- 1.8 Tile-Response-Cache ----------------------------------------------
+// Cacht Kachel-Responses (export?F=image) datei-basiert. Kacheln sind statisch:
+// gleicher BBOX + SIZE + LAYERS + DPI ergibt immer dasselbe Bild. Damit werden
+// wiederholte Anfragen (Pan/Zoom zurück, mehrere Nutzer) ohne Backend-Call
+// bedient. Nur GET-Export-Bilder bis zur konfigurierten Kantenlänge werden
+// gecacht; Druck-Requests (hohe DPI) sind ausgenommen.
+// Cache-Verzeichnis liegt ausserhalb des Docroots (analog Token-Cache) und
+// wird ueber ALLE Instanzen (maps, maps-dev, geohost, edit) geteilt.
+$tileCacheEnabled  = (getenv('GIS_TILE_CACHE') === '0') ? false : true;
+$tileCacheDir      = getenv('GIS_TILE_CACHE_DIR') ?: '/data/Client_Data/nwow/tmp/tile_cache';
+$tileCacheTtlSec   = intval(getenv('GIS_TILE_CACHE_TTL')   ?: 3600);   // Cache-Lebensdauer
+$tileCacheMaxPx    = intval(getenv('GIS_TILE_CACHE_MAXPX') ?: 512);    // max Kachel-Kantenlaenge
+$tileCachePrintDpi = 100;   // Requests ab dieser DPI (Druck) werden nicht gecacht
+// Leere/fast-transparente Kacheln (voll transparentes PNG) sind sehr klein und
+// werden NICHT gecacht — sonst würden "Löcher" dauerhaft festgehalten.
+$tileCacheMinBytes = intval(getenv('GIS_TILE_CACHE_MINBYTES') ?: 700);
+
+
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // ABSCHNITT 2: LOGGING-FUNKTION
@@ -654,6 +672,25 @@ if ($aggregationEnabled) {
     }
 }
 
+// --- Tile-Cache-Lookup (vor Token/Backend) ---
+// Cachebare Kachel-Requests werden ohne Backend-Call bedient, wenn ein
+// frischer Cache-Eintrag existiert. Spart Token-Handling und cURL komplett.
+$tileCacheable = $tileCacheEnabled
+    && isTileCacheable($method, $servicePath, $queryParams, $tileCacheMaxPx, $tileCachePrintDpi);
+$tileCacheKey  = $tileCacheable ? tileCacheKey($servicePath, $queryParams) : '';
+if ($tileCacheable) {
+    $cachedTile = tileCacheGet($tileCacheDir, $tileCacheKey, $tileCacheTtlSec);
+    if ($cachedTile !== null) {
+        header('Content-Type: ' . $cachedTile['ct']);
+        header('Content-Length: ' . strlen($cachedTile['body']));
+        header('X-Tile-Cache: HIT');
+        header('Cache-Control: public, max-age=' . $tileCacheTtlSec);
+        http_response_code(200);
+        echo $cachedTile['body'];
+        exit;
+    }
+}
+
 // --- Token aus Cache oder neu holen ---
 $tok = getToken($tokenUrl, $username, $password, $client, $referer, $expirationMin, $safetySkewSec, $sslVerifyPeer, $cacheDir, $cacheFile);
 if (!$tok || empty($tok['token'])) {
@@ -848,6 +885,23 @@ if (isset($respHeaders['content-type']) && strpos($respHeaders['content-type'], 
        // $json = smartBeautifyFieldNames($json);
         $respBody = json_encode($json, JSON_UNESCAPED_UNICODE);
         $respHeaders['content-length'] = strlen($respBody);
+    }
+}
+
+// --- Tile-Cache-Write (nach 498-Retry, auf finaler Response) ---
+// Erst hier steht die endgültige Backend-Antwort fest (der 498-Retry ersetzt
+// eine anfängliche Invalid-Token-Antwort durch das echte Bild). Nur
+// erfolgreiche Bild-Responses werden gecacht; leere/fast-transparente Kacheln
+// (unter Mindestgrösse) werden übersprungen, damit keine Lücken entstehen.
+if ($tileCacheable && intval($status) === 200) {
+    $respCt = strtolower($respHeaders['content-type'] ?? '');
+    $finalSize = strlen($respBody);
+    if (strpos($respCt, 'image/') === 0 && $finalSize >= $tileCacheMinBytes) {
+        tileCachePut($tileCacheDir, $tileCacheKey, $respHeaders['content-type'], $respBody);
+        header('X-Tile-Cache: MISS');
+        tileCacheGc($tileCacheDir, $tileCacheTtlSec);
+    } else {
+        header('X-Tile-Cache: SKIP');
     }
 }
 
@@ -1315,6 +1369,138 @@ function fileCacheWrite(string $file, string $token, int $expires): void {
 /** Token-Cache-Datei löschen */
 function fileCacheDelete(string $file): void {
     if (is_file($file)) @unlink($file);
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ABSCHNITT 7b: TILE-RESPONSE-CACHE
+// ═══════════════════════════════════════════════════════════════════════════════
+// Datei-basierter Cache für Kachel-Bilder (export?F=image). Kacheln sind statisch:
+// gleiche Parameter → gleiches Bild. Cache-Key = Hash über servicePath + relevante
+// Query-Parameter (BBOX, SIZE, LAYERS, DPI, FORMAT, ...). Token/Zeitstempel werden
+// bewusst NICHT in den Key aufgenommen.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Prüft ob ein Request kachelbar/cachebar ist:
+ *  - GET-Methode
+ *  - export-Endpunkt mit Bild-Ausgabe (F/f = image)
+ *  - BBOX und SIZE vorhanden, Kantenlänge ≤ Maximum
+ *  - kein Druck-Request (DPI < Schwelle)
+ */
+function isTileCacheable(string $method, string $servicePath, array $params, int $maxPx, int $printDpi): bool {
+    if (strtoupper($method) !== 'GET') return false;
+    if (!preg_match('#/export$#i', $servicePath)) return false;
+
+    // Format: F oder f muss 'image' sein (Bild-Ausgabe)
+    $fmt = strtolower((string)($params['F'] ?? $params['f'] ?? ''));
+    if ($fmt !== 'image') return false;
+
+    // BBOX erforderlich
+    $bbox = $params['BBOX'] ?? $params['bbox'] ?? '';
+    if ($bbox === '') return false;
+
+    // SIZE erforderlich + Kantenlänge begrenzen
+    $size = $params['SIZE'] ?? $params['size'] ?? '';
+    if ($size === '' || strpos($size, ',') === false) return false;
+    list($w, $h) = array_map('intval', explode(',', $size, 2));
+    if ($w <= 0 || $h <= 0 || $w > $maxPx || $h > $maxPx) return false;
+
+    // Druck-Requests (hohe DPI) nicht cachen
+    $dpi = (int)($params['DPI'] ?? $params['dpi'] ?? $params['MAP_RESOLUTION'] ?? 0);
+    if ($dpi >= $printDpi) return false;
+
+    return true;
+}
+
+/** Cache-Key aus servicePath + cache-relevanten Parametern bilden. */
+function tileCacheKey(string $servicePath, array $params): string {
+    // Nur render-relevante Parameter berücksichtigen (Token/Callback ignorieren).
+    $relevant = [
+        'BBOX', 'bbox', 'SIZE', 'size', 'LAYERS', 'layers', 'DPI', 'dpi',
+        'FORMAT', 'format', 'TRANSPARENT', 'transparent', 'BBOXSR', 'bboxSR',
+        'IMAGESR', 'imageSR', 'DYNAMICLAYERS', 'dynamicLayers', 'LAYERDEFS',
+        'layerDefs', 'TIME', 'time', 'MAP_RESOLUTION',
+    ];
+    $keyParts = ['path=' . $servicePath];
+    foreach ($relevant as $k) {
+        if (isset($params[$k]) && $params[$k] !== '') {
+            $keyParts[] = strtolower($k) . '=' . (string)$params[$k];
+        }
+    }
+    return hash('sha256', implode('|', $keyParts));
+}
+
+/**
+ * Liest eine gecachte Kachel. Gibt ['ct' => contentType, 'body' => bytes] oder null.
+ * TTL-Prüfung anhand Datei-mtime. Content-Type wird aus den Magic-Bytes des
+ * Bildes abgeleitet (kein separates Meta-File nötig → weniger I/O).
+ */
+function tileCacheGet(string $dir, string $key, int $ttlSec): ?array {
+    $dataFile = $dir . DIRECTORY_SEPARATOR . $key . '.bin';
+    if (!is_file($dataFile)) return null;
+
+    $mtime = @filemtime($dataFile);
+    if ($mtime === false || (time() - $mtime) > $ttlSec) return null;
+
+    $body = @file_get_contents($dataFile);
+    if ($body === false || $body === '') return null;
+
+    // Content-Type aus Magic-Bytes (PNG/JPEG/GIF), Default PNG
+    $ct = 'image/png';
+    if (strncmp($body, "\xFF\xD8\xFF", 3) === 0)      $ct = 'image/jpeg';
+    elseif (strncmp($body, "GIF8", 4) === 0)          $ct = 'image/gif';
+    return ['ct' => $ct, 'body' => $body];
+}
+
+/** Schreibt eine Kachel atomar in den Cache (nur .bin, kein Meta-File). */
+function tileCachePut(string $dir, string $key, string $contentType, string $body): void {
+    if (!is_dir($dir)) {
+        if (!@mkdir($dir, 0775, true) && !is_dir($dir)) return;
+    }
+    if (!is_writable($dir)) return;
+
+    $dataFile = $dir . DIRECTORY_SEPARATOR . $key . '.bin';
+    $tmpData  = $dataFile . '.' . getmypid() . '.tmp';
+    if (@file_put_contents($tmpData, $body, LOCK_EX) !== false) {
+        @rename($tmpData, $dataFile);
+        @chmod($dataFile, 0644);
+    }
+}
+
+/**
+ * Probabilistische Garbage-Collection: löscht abgelaufene Kachel-Dateien.
+ * Läuft inline mit geringer Wahrscheinlichkeit (kein Cron nötig) und ist pro
+ * Lauf gedeckelt, damit kein Request spürbar blockiert. Räumt auch veraltete
+ * .json-Meta-Files aus früheren Versionen ab.
+ */
+function tileCacheGc(string $dir, int $ttlSec, int $probabilityPercent = 2): void {
+    if ($probabilityPercent <= 0) return;
+    if (mt_rand(1, 100) > $probabilityPercent) return;
+    if (!is_dir($dir)) return;
+
+    $now = time();
+    $maxDelete = 500;   // Obergrenze pro Lauf → keine langen Blockaden
+    $deleted = 0;
+    $handle = @opendir($dir);
+    if ($handle === false) return;
+    while (($entry = readdir($handle)) !== false) {
+        $ext = substr($entry, -4);
+        if ($ext !== '.bin' && $ext !== 'json') continue;
+        $file = $dir . DIRECTORY_SEPARATOR . $entry;
+        // Legacy-.json immer entfernen; .bin nur wenn abgelaufen
+        if ($ext === 'json') {
+            @unlink($file);
+            if (++$deleted >= $maxDelete) break;
+            continue;
+        }
+        $mtime = @filemtime($file);
+        if ($mtime !== false && ($now - $mtime) > $ttlSec) {
+            @unlink($file);
+            if (++$deleted >= $maxDelete) break;
+        }
+    }
+    closedir($handle);
 }
 
 

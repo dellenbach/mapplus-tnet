@@ -50,6 +50,13 @@ body {
   color: rgba(255,255,255,.5); font-size: 11px; text-decoration: none;
 }
 .ags-toolbar a:hover { color: rgba(255,255,255,.8); }
+.ags-toolbar a.toolbar-link-btn {
+  display: inline-block; padding: 3px 10px; border: 1px solid rgba(255,255,255,.35);
+  border-radius: 4px; background: rgba(255,255,255,.08); color: #fff; font-size: 11px;
+  font-weight: 600; text-decoration: none; letter-spacing: .3px;
+}
+.ags-toolbar a.toolbar-link-btn:hover { background: rgba(255,255,255,.18); color: #fff; }
+.ags-toolbar a.toolbar-link-btn.tydac { background: rgba(75,123,129,.35); border-color: rgba(75,123,129,.6); }
 .ctdb-scope-btn { padding: 4px 12px; font-size: 12px; border: 1px solid #ccc; border-radius: 4px; background: #f5f7fa; cursor: pointer; color: #333; }
 .ctdb-scope-btn.active { background: var(--c-primary,#4b7b81); color: #fff; border-color: var(--c-primary,#4b7b81); }
 .ctdb-scope-btn:hover { background: #e8f0f2; }
@@ -1704,9 +1711,9 @@ Kein Einfluss auf Browser-Cache (dafuer: Ctrl+Shift+R)">🗑 Cache leeren</butto
   <button id="ags-btn-config-to-db" title="Konfigurationsdatenbank verwalten (Import / Export / Löschen)" style="display:none">🗄 Konfig-DB</button>
   <button id="slm-btn-backups" title="Server-Backups anzeigen, wiederherstellen und löschen" style="margin-left:6px">📁 Backups</button>
   <span class="spacer"></span>
-  <a href="tree-builder-v2.html">← Tree-Builder V2</a>
+  <a href="tree-builder-v2.html" class="toolbar-link-btn">← Tree-Builder V2</a>
   <span class="sep"></span>
-  <a href="tree-builder-tydac.html" title="Original MAP+/TYDAC Katalog (ClassicLayerMgr) mit Icons/Styles">Tydac-Editor</a>
+  <a href="tree-builder-tydac.html" class="toolbar-link-btn tydac" title="Original MAP+/TYDAC Katalog (ClassicLayerMgr) mit Icons/Styles">🌲 Tydac-Editor</a>
   <span class="sep"></span>
   <a href="../docs/" target="_blank">API Docs</a>
   <span class="sep"></span>
@@ -9911,9 +9918,17 @@ function bmMatrixHandleChange(e, detailRow) {
     if (isValid && newVal !== oldVid) {
       vItem.id = newVal;
       if (!vItem.name || vItem.name === oldVid) vItem.name = newVal;
-      // alle data-vid im Detail-Row vom alten auf den neuen Wert ziehen
+      // Der Detailinhalt kann in #bm-detail-content liegen. Deshalb nicht
+      // ausschliesslich auf detailRow suchen, sonst bleiben die Matrix-Buttons
+      // nach der ersten Eingabe auf der alten View-ID stehen.
+      var matrixRoot = detailRow._contentHost || detailRow;
       var sel = '[data-vid="' + oldVid.replace(/"/g, '\\"') + '"]';
-      detailRow.querySelectorAll(sel).forEach(function(el) { el.dataset.vid = newVal; });
+      matrixRoot.querySelectorAll(sel).forEach(function(el) { el.dataset.vid = newVal; });
+      var oldColumnKey = 'view:' + oldVid;
+      var newColumnKey = 'view:' + newVal;
+      matrixRoot.querySelectorAll('[data-col-key="' + oldColumnKey.replace(/"/g, '\\"') + '"]').forEach(function(el) {
+        el.dataset.colKey = newColumnKey;
+      });
       var th = t.closest('th.bm-mtx-vhead');
       if (th) th.dataset.vid = newVal;
       // Shift-Range Last-Click mitziehen

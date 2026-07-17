@@ -26,6 +26,46 @@
     return window.__TNET_APP_ROOT || '/maps';
   }
 
+  // ── Tile-Fade-Easing patchen ──────────────────────────────────────────────
+  // OpenLayers blendet Kacheln mit fester kubischer Kurve (t^3) ein: lange
+  // kaum sichtbar, dann schneller "Pop". Wir überschreiben getAlpha einmalig
+  // mit konfigurierbarem Ease-in-Exponenten (agsTileMode.fadeEasingExponent),
+  // damit das Einblenden gleichmässig/progressiv beschleunigt. Bei jedem
+  // Fehler wird auf die OL-Originalmethode zurückgefallen (render-sicher).
+  (function patchTileFadeEasing() {
+    try {
+      if (!window.ol) return;
+      var TileCtor = ol.ImageTile || ol.Tile;
+      if (!TileCtor || !TileCtor.prototype || TileCtor.prototype.__tnetFadePatched) return;
+      var proto = TileCtor.prototype;
+      if (typeof proto.getAlpha !== 'function') return;
+      var origGetAlpha = proto.getAlpha;
+      proto.__tnetFadePatched = true;
+      proto.getAlpha = function (id, time) {
+        try {
+          if (!this.transition_ || !this.transitionStarts_) {
+            return origGetAlpha.call(this, id, time);
+          }
+          var cfg = (window.TnetGlobalConfig && window.TnetGlobalConfig.agsTileMode) || {};
+          var exp = parseFloat(cfg.fadeEasingExponent);
+          if (isNaN(exp) || exp <= 0) return origGetAlpha.call(this, id, time);
+
+          var start = this.transitionStarts_[id];
+          if (!start) { start = time; this.transitionStarts_[id] = start; }
+          else if (start === -1) { return 1; }
+          var transition = this.transition_;
+          var delta = time - start + (1000 / 60);
+          if (delta >= transition) { return 1; }
+          var t = delta / transition;
+          if (t < 0) t = 0;
+          return Math.pow(t, exp);
+        } catch (e) {
+          return origGetAlpha.call(this, id, time);
+        }
+      };
+    } catch (ePatch) { /* still: OL-Default bleibt aktiv */ }
+  })();
+
   function normalizeServiceUrl(url) {
     if (!url) return url;
     var value = String(url);
@@ -68,6 +108,9 @@
 
   /** URL-Sync Timer */
   var _urlSyncTimer = null;
+
+  /** Maximale Wartezeit auf den Framework-MapTip-Connector (30 x 1s). */
+  var LOOKUP_CONNECTOR_MAX_RETRIES = 30;
 
   /**
    * Batch-Modus: Unterdrückt _syncDojoCheckbox und _scheduleUrlSync
@@ -112,6 +155,22 @@
    */
   function _extractRootKey(sublayerKey) {
     if (!sublayerKey || typeof sublayerKey !== 'string') return null;
+
+    // 0. Independent-Opacity-Overlays: IMMER eigener Root (= layerId).
+    //    Diese Overlays (z.B. hoehenlinien, gemeindegrenzen, projektebene) teilen
+    //    denselben MapServer-Dienst, sollen aber je einen EIGENEN OL-Layer haben
+    //    (eigene Deckkraft + Reihenfolge). Ohne diese Ausnahme wuerde der
+    //    Store-Lookup/Pfad-Parent unten alle drei auf den gemeinsamen Dienst-Root
+    //    konsolidieren → ein gemeinsamer Root-OL-Layer → gegenseitiges Ein/Ausschalten.
+    var svcs = window.__tnetIndependentOpacityServices;
+    if (Array.isArray(svcs) && svcs.length) {
+      var idLc = String(sublayerKey).toLowerCase();
+      for (var si = 0; si < svcs.length; si++) {
+        if (idLc.indexOf(String(svcs[si]).toLowerCase() + '/') === 0) {
+          return sublayerKey; // eigener Root pro Overlay
+        }
+      }
+    }
 
     // 1. Coalesce-Gruppe aus dem Store: konsolidiert alle Karten-Container
     //    desselben Dienstes auf einen gemeinsamen Root-Key.
@@ -360,6 +419,121 @@
 
   // ===== OL-LAYER-ERSTELLUNG =====
 
+  // 1×1 transparentes PNG — Fallback für fehlgeschlagene/leere Kacheln,
+  // damit kein dunkles Artefakt stehen bleibt.
+  var _TRANSPARENT_TILE_PNG =
+    'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVQIW2NgAAIAAAUAAR4f7BQAAAAASUVORK5CYII=';
+
+  /**
+   * Erzeugt eine tileLoadFunction mit Retry. OpenLayers wiederholt
+   * fehlgeschlagene Kachel-Requests nicht automatisch → eine transiente
+   * Störung (Token-Propagation, Timeout) lässt eine Kachel "hängen" bis zum
+   * nächsten View-Wechsel. Diese Funktion lädt per fetch, wiederholt bei
+   * Fehler mit Backoff und setzt bei endgültigem Fehlschlag bzw. leerer
+   * Antwort (HTTP 204) ein transparentes PNG.
+   * @param {number} maxRetries
+   * @param {number} baseDelayMs
+   * @returns {function}
+   * @private
+   */
+  function _makeRetryTileLoadFunction(maxRetries, baseDelayMs) {
+    return function (tile, src) {
+      var image = tile.getImage();
+      var retries = 0;
+      function retryOrGiveUp() {
+        if (retries < maxRetries) {
+          retries++;
+          setTimeout(attempt, baseDelayMs * retries);
+        } else {
+          image.src = _TRANSPARENT_TILE_PNG; // aufgeben, kein Artefakt
+        }
+      }
+      function attempt() {
+        fetch(src, { credentials: 'same-origin' })
+          .then(function (resp) {
+            if (resp.status === 204) return { empty: true };
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            // ArcGIS liefert Token-/Render-Fehler oft als HTTP 200 + JSON.
+            // Nur echte Bilder akzeptieren, sonst Retry (Token propagiert evtl.).
+            var ct = resp.headers.get('Content-Type') || '';
+            if (ct.indexOf('image/') !== 0) throw new Error('non-image: ' + ct);
+            return resp.blob().then(function (blob) { return { blob: blob }; });
+          })
+          .then(function (res) {
+            if (res.empty || !res.blob || res.blob.size === 0) {
+              image.src = _TRANSPARENT_TILE_PNG;
+              return;
+            }
+            var objUrl = URL.createObjectURL(res.blob);
+            image.onload = function () { URL.revokeObjectURL(objUrl); };
+            image.onerror = function () {
+              URL.revokeObjectURL(objUrl);
+              retryOrGiveUp(); // Decode-Fehler → erneut versuchen
+            };
+            image.src = objUrl;
+          })
+          .catch(function () { retryOrGiveUp(); });
+      }
+      attempt();
+    };
+  }
+
+  /**
+   * Hängt einen getFeatureInfoUrl-Shim an eine TileArcGISRest-Source.
+   * Das MapPlus-Framework (queryconnector) erwartet diese Methode auf der
+   * Source, um die Klick-Abfrage (Identify) auszuführen. Nur ImageArcGISRest
+   * bringt sie mit — für den Tile-Modus bauen wir die ArcGIS /identify-URL
+   * selbst (Muster wie tnet-splitscreen.js). Nutzt die aktuellen LAYERS aus
+   * getParams(), damit Sublayer-Toggles berücksichtigt werden.
+   * @param {ol.source.TileArcGISRest} source
+   * @param {ol.Map} map
+   * @private
+   */
+  function _attachArcgisIdentifyShim(source, map) {
+    if (!source) return;
+    // getUrl() (Singular) fehlt bei TileArcGISRest — nur getUrls() (Plural)
+    // ist vorhanden. Das Framework-queryconnector ruft aber
+    // getSource().getUrl() auf → ergänzen, sonst schlägt die Klick-Abfrage
+    // mit "getUrl is not a function" fehl.
+    if (typeof source.getUrl !== 'function') {
+      source.getUrl = function () {
+        if (typeof source.getUrls === 'function') {
+          var urls = source.getUrls();
+          if (urls && urls.length) return urls[0];
+        }
+        return '';
+      };
+    }
+    if (typeof source.getFeatureInfoUrl === 'function') return;
+    source.getFeatureInfoUrl = function (coordinate, resolution, projection, options) {
+      try {
+        var params = (typeof source.getParams === 'function') ? (source.getParams() || {}) : {};
+        var layersP = params.LAYERS || params.layers || 'show:0';
+        var layerIds = String(layersP).replace(/^show:/i, '');
+        if (layerIds === '' || layerIds === '-1') return null;
+        var srCode = (projection && projection.getCode)
+          ? projection.getCode().split(':')[1] : '2056';
+        var size = (map.getSize && map.getSize()) || [256, 256];
+        var extent = map.getView().calculateExtent(size);
+        var base = (typeof source.getUrl === 'function') ? source.getUrl() : '';
+        // Basis-URL kann auf /export enden → auf /identify umbiegen
+        var identifyBase = base.replace(/\/export\/?$/i, '') + '/identify';
+        return identifyBase +
+          '?f=json' +
+          '&geometry=' + coordinate[0] + ',' + coordinate[1] +
+          '&geometryType=esriGeometryPoint' +
+          '&sr=' + srCode +
+          '&layers=all:' + layerIds +
+          '&tolerance=5' +
+          '&mapExtent=' + extent.join(',') +
+          '&imageDisplay=' + size.join(',') + ',96' +
+          '&returnGeometry=false';
+      } catch (e) {
+        return null;
+      }
+    };
+  }
+
   /**
    * Erstellt einen OL-Layer für einen Root-Dienst direkt in der Bridge.
    * Wird verwendet wenn das Framework den Root-Key nicht kennt und
@@ -410,17 +584,61 @@
     var layersParam = _buildLayersParam(entry.visibleSublayers);
 
     var arcParams = { LAYERS: layersParam, FORMAT: 'PNG32', TRANSPARENT: true, DPI: 96 };
-    var source = new ol.source.ImageArcGISRest({
-      url: serviceUrl,
-      params: arcParams,
-      ratio: 1
-    });
-    var olLayer = new ol.layer.Image({
-      source: source,
-      opacity: opacity,
-      visible: layersParam !== 'show:-1',
-      zIndex: 200
-    });
+
+    // ── Tile-Modus (analog tnet-lm-store.js) ──
+    // agsTileMode.enabled = true  → gekachelt (TileArcGISRest, cachebar im agsproxy)
+    // agsTileMode.enabled = false → Single-Image (ImageArcGISRest, bisheriges Verhalten)
+    var globalCfg = window.TnetGlobalConfig || {};
+    var tileModeCfg = globalCfg.agsTileMode || {};
+    var tileModeEnabled = tileModeCfg.enabled === true;
+    var tileSize = (parseInt(tileModeCfg.tileSize, 10) === 512) ? 512 : 256;
+    var tileTransition = (tileModeCfg.tileTransitionMs != null)
+      ? parseInt(tileModeCfg.tileTransitionMs, 10) : 250;
+    if (isNaN(tileTransition) || tileTransition < 0) tileTransition = 250;
+    var isVisible = layersParam !== 'show:-1';
+
+    var source, olLayer;
+    if (!tileModeEnabled && ol.source.ImageArcGISRest) {
+      source = new ol.source.ImageArcGISRest({
+        url: serviceUrl,
+        params: arcParams,
+        ratio: 1
+      });
+      olLayer = new ol.layer.Image({
+        source: source,
+        opacity: opacity,
+        visible: isVisible,
+        zIndex: 200
+      });
+    } else {
+      // Tile-Grid mit konfigurierter Kachelgrösse für die Karten-Projektion (LV95)
+      var tileSrcOpts = { url: serviceUrl, params: arcParams, transition: tileTransition };
+      try {
+        var mapProj = map.getView().getProjection();
+        if (ol.tilegrid && ol.tilegrid.createForProjection) {
+          tileSrcOpts.tileGrid = ol.tilegrid.createForProjection(
+            mapProj, undefined, [tileSize, tileSize]
+          );
+        }
+      } catch (eTileGrid) {
+        TnetLog.warn(LOG, '_createRootOLLayer: Tile-Grid nicht erstellbar, OL-Default:', eTileGrid);
+      }
+      source = new ol.source.TileArcGISRest(tileSrcOpts);
+      // Retry bei Kachel-Ladefehlern (transiente Token/Timeout-Störungen),
+      // damit keine Kachel dauerhaft "hängen" bleibt.
+      source.setTileLoadFunction(_makeRetryTileLoadFunction(4, 500));
+      // Identify-Kompatibilität: Das MapPlus-Framework (queryconnector) ruft
+      // source.getFeatureInfoUrl() auf. TileArcGISRest besitzt diese Methode
+      // nicht → Klick-Abfrage würde ausfallen. Shim baut die ArcGIS
+      // /identify-URL (analog tnet-splitscreen.js) aus aktuellen LAYERS.
+      _attachArcgisIdentifyShim(source, map);
+      olLayer = new ol.layer.Tile({
+        source: source,
+        opacity: opacity,
+        visible: isVisible,
+        zIndex: 200
+      });
+    }
     olLayer.set('name', rootKey);
     olLayer.set('tnet_bridge_created', true);
 
@@ -563,12 +781,21 @@
    * @param {string} rootKey
    * @private
    */
-  function _registerLookupCallbacks(sublayerKey, rootKey) {
+  function _registerLookupCallbacks(sublayerKey, rootKey, retryCount) {
     try {
       var am = window.njs && window.njs.AppManager;
       if (!am || !am.MapTips || !am.MapTips._wms_connector) {
-        TnetLog.debug(LOG, '_registerLookupCallbacks: _wms_connector nicht verfügbar, Retry in 1s');
-        setTimeout(function () { _registerLookupCallbacks(sublayerKey, rootKey); }, 1000);
+        retryCount = Number(retryCount) || 0;
+        if (retryCount >= LOOKUP_CONNECTOR_MAX_RETRIES) {
+          TnetLog.warn(LOG, '_registerLookupCallbacks: _wms_connector nach '
+            + LOOKUP_CONNECTOR_MAX_RETRIES + 's nicht verfügbar, Registrierung abgebrochen:', sublayerKey);
+          return;
+        }
+        TnetLog.debug(LOG, '_registerLookupCallbacks: _wms_connector nicht verfügbar, Retry '
+          + (retryCount + 1) + '/' + LOOKUP_CONNECTOR_MAX_RETRIES + ' in 1s');
+        setTimeout(function () {
+          _registerLookupCallbacks(sublayerKey, rootKey, retryCount + 1);
+        }, 1000);
         return;
       }
 
