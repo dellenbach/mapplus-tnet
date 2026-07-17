@@ -176,7 +176,10 @@
           finish(null);
           return;
         }
-        finish(buildElevationInfo(info.terrain, info.terrain));
+        // geo.admin liefert hier nur die Geländehöhe. Oberfläche und
+        // Objekthöhe nicht aus dem Terrainwert ableiten, sonst erscheint
+        // fälschlich Oberfläche = Gelände und Objekt = 0.0 m.
+        finish(buildElevationInfo(info.terrain, null));
       };
       xhr.onerror = function () { finish(null); };
       xhr.ontimeout = function () { finish(null); };
@@ -192,10 +195,9 @@
 
   function formatElevationDisplay(info) {
     if (!info) return '';
-    if (!isFiniteNumber(info.surface) || !isFiniteNumber(info.objectHeight)) {
-      return formatHeight(info.terrain) + ' m';
-    }
-    return 'Gel\u00e4nde: ' + formatHeight(info.terrain) + ' | Oberfl\u00e4che: ' + formatHeight(info.surface) + ' | Objekt: ' + formatHeight(info.objectHeight) + ' m';
+    return 'Gel\u00e4nde: ' + formatHeight(info.terrain)
+      + ' | Oberfl\u00e4che: ' + formatHeight(info.surface)
+      + ' | Objekt: ' + formatHeight(info.objectHeight) + ' m';
   }
 
   function publishElevationDisplay(info) {

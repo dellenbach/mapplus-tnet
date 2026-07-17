@@ -1,3 +1,38 @@
+## 2026-07-17 - Gespeicherte View-ID wurde auf Anfangsbuchstaben verkürzt
+
+- Symptom: Nach dem Ändern, Speichern und Neuladen einer Kartenansicht bestand deren View-ID nur noch aus wenigen Anfangszeichen.
+- Root-Cause: Der Live-Handler übernahm das erste eingegebene Zeichen ins Modell, liess aber das `data-vid` des Eingabefelds unverändert. Nachfolgende Eingaben fanden die alte View nicht mehr und änderten das Modell nicht weiter.
+- Fix: Die View-ID-Synchronisierung aktualisiert das Eingabefeld und alle weiteren Matrix-Referenzen unmittelbar nach jeder gültigen Änderung im aktiven Detail-Host.
+- Guardrail: Bei Live-Editierung eines Schlüssels muss die Lookup-ID des Eingabeelements im selben Event aktualisiert werden; sonst verarbeitet nur die erste Eingabe den Datenbestand.
+
+## 2026-07-17 - Umbenannte Bookmark-View musste zweimal gelöscht werden
+
+- Symptom: Nach einer View-ID-Änderung entfernte der erste bestätigte Löschvorgang die Kartenansicht nicht; erst der zweite funktionierte.
+- Root-Cause: Der Löschbutton behielt im verschobenen Detail-Host seine alte `data-vid` und fand deshalb keine passende View im Datenmodell.
+- Fix: Die zentrale View-ID-Synchronisierung aktualisiert alle Matrix-Elemente einschliesslich des Löschbuttons im aktiven Content-Host.
+- Guardrail: Jede View-ID-Referenz in einer dynamischen Matrix, insbesondere Aktionen wie Löschen und Tri-State-Schalter, muss bei Umbenennung atomar mitgezogen werden.
+
+## 2026-07-17 - View-ID-Umbenennung sperrte die Bookmark-Layerauswahl
+
+- Symptom: Nach dem direkten Ändern der ID einer neu angelegten Kartenansicht waren deren Layer-Schalter nicht mehr bedienbar.
+- Root-Cause: Der selektierte Bookmark-Inhalt wird in `#bm-detail-content` verschoben. Der Rename-Handler suchte trotzdem nur unter der ursprünglichen Detailzeile und aktualisierte die `data-vid`-Attribute der Matrix nicht.
+- Fix: Der Handler verwendet den aktiven Content-Host und zieht neben den Button-IDs auch die Matrix-Spaltenschlüssel auf die neue View-ID um.
+- Guardrail: Bei per DOM-Portal verschobenen Editoren nie vom ursprünglichen Container ausgehen. Zustandsbezogene DOM-Updates immer gegen den aktiven Render-Host ausführen.
+
+## 2026-07-17 - SLM akzeptierte Speichern und Publish ohne Login
+
+- Symptom: Nicht angemeldete Benutzer konnten SLM-Speicher- und Publish-Aktionen anstossen; der Client erhielt keine eindeutige Login-Fehlermeldung.
+- Root-Cause: Die Endpoint-Policy konnte `treebuilder-api.php` als öffentlich behandeln. Der Router selbst hatte keine Schreibsperre und die Policy leitete API-Aufrufe in anderen Konfigurationen als HTML-Redirect um.
+- Fix: Der Treebuilder-Router verwendet eine Fail-Closed-Whitelist für reine Leseaktionen. Jede andere Action verlangt Login und antwortet vor der Endpoint-Policy mit JSON `401 Anmeldung erforderlich`.
+- Guardrail: API-Schreibpfade nie allein über konfigurierbare Endpoint-Policies schützen. Mutationen brauchen im Router eine serverseitige, fail-closed Auth-Prüfung mit maschinenlesbarer Fehlermeldung.
+
+## 2026-07-16 - Höhenanzeige behauptete fälschlich Oberfläche und Objekthöhe
+
+- Symptom: Der Footer zeigte bei einer reinen Geländehöhenabfrage `Oberfläche = Gelände` und `Objekt = 0.0 m`.
+- Root-Cause: Der geo.admin-Fallback liefert nur Terrain, wurde aber als Paar aus Terrain und Oberfläche an die Anzeige weitergegeben.
+- Fix: Für den Fallback werden Oberfläche und Objekthöhe als nicht verfügbar geführt und im Footer mit `--` ausgewiesen.
+- Guardrail: Unterschiedliche Höhendatensätze nur anzeigen, wenn die Antwort sie tatsächlich enthält; fehlende Oberflächenwerte nie aus der Geländehöhe ableiten.
+
 ## 2026-07-16 - CoalesceBridge retryte MapTip-Connector endlos
 
 - Symptom: Die Konsole zählte `_registerLookupCallbacks: _wms_connector nicht verfügbar` im Sekundentakt unbegrenzt hoch.
