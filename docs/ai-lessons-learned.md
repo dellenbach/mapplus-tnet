@@ -1,107 +1,205 @@
-﻿## 2026-07-10 - Tydac-Editor: Eigene Kategorie-Icons kleiner als 38px oben-links statt zentriert
+## 2026-07-17 - Gespeicherte View-ID wurde auf Anfangsbuchstaben verkürzt
 
-- Symptom: Kategorie-Icon mit eigener Grösse (≠38px, eigene Klasse `njsCatIcon_<site>_<key>`) klebte bei nicht-quadratischen/kleineren Icons oben-links statt zentriert.
-- Root-Cause: Die generierte override.css-Regel setzte `background-position: center` OHNE `!important`. Das Icon-Element trägt zusätzlich `dijitIcon`; `.tundra .dijitIcon { background-position: 0 0 }` (Spezifität 0,2,0) schlägt die eigene Klasse (0,1,0) → oben-links. Bei `contain` + nicht-quadratischem SVG entsteht Letterboxing, das dann oben-links sitzt.
-- Fix: `background-position: center center !important` (+ repeat/size/`vertical-align:middle` mit `!important`) in `buildCategoryIconsBlock`. Bestehende Overrides via erneutes Zuweisen/„übernehmen" neu schreiben lassen.
-- Guardrail: Bei override.css-Regeln, die Dojo-`dijitIcon`-Elemente treffen, IMMER `!important` auf background-position/size/repeat setzen — sonst gewinnen die spezifischeren `.tundra .dijitIcon`-Regeln.
+- Symptom: Nach dem Ändern, Speichern und Neuladen einer Kartenansicht bestand deren View-ID nur noch aus wenigen Anfangszeichen.
+- Root-Cause: Der Live-Handler übernahm das erste eingegebene Zeichen ins Modell, liess aber das `data-vid` des Eingabefelds unverändert. Nachfolgende Eingaben fanden die alte View nicht mehr und änderten das Modell nicht weiter.
+- Fix: Die View-ID-Synchronisierung aktualisiert das Eingabefeld und alle weiteren Matrix-Referenzen unmittelbar nach jeder gültigen Änderung im aktiven Detail-Host.
+- Guardrail: Bei Live-Editierung eines Schlüssels muss die Lookup-ID des Eingabeelements im selben Event aktualisiert werden; sonst verarbeitet nur die erste Eingabe den Datenbestand.
 
-## 2026-07-10 - Tydac-Editor: Layer-Icon per CSS überschreiben (statt DB-Definition)
+## 2026-07-17 - Umbenannte Bookmark-View musste zweimal gelöscht werden
 
-- Symptom: Im Editor gewähltes Layer-Icon erschien im Dojo-ClassicLayerMgr nicht — dort blieb das Default `lyr_layers.svg`.
-- Root-Cause: Der Dojo-Renderer liest Layer-Definitionen (inkl. `icon`) über `loader.php` aus statischen `.conf`-Dateien; der Editor speicherte das Icon nur in die DB (`config_bundle_store`) ohne Datei-Deploy/Cache-Flush → Quellen-Mismatch. Layer-Icon lässt sich nicht „einfach" übersteuern, es steckt in der Layer-Definition.
-- Fix: Neuer, definitionsunabhängiger Weg — CSS-Override in `public/css/override.css` (eigener Marker-Block `TNET-LAYER-ICONS`). Der Runtime rendert `<div id="div_<layerId>"><img class="njsIcon legendIcon">`; per `#div_<layerId> img.njsIcon.legendIcon { content: url(...) !important; width/height }` wird das dargestellte Bild ersetzt (img ist replaced element → `content:url()` greift). Editor: Sektion „Layer-Icon per CSS überschreiben" (Bibliothek/Upload/URL + Grösse), Deploy sofort via FastAPI. Actions `layer-icons-load`/`layer-icons-save`.
-- Guardrail: `<img>`-Icons lassen sich per `content: url()` auf einen eindeutigen Container-Selektor (`#div_<layerId>`) sauber überschreiben — robuster als DB/Datei-Deploy, wenn der Runtime aus statischen Configs liest. override.css-Blöcke pro Feature getrennt markieren (CAT-ICONS vs. LAYER-ICONS), damit sich Speichervorgänge nicht gegenseitig überschreiben.
+- Symptom: Nach einer View-ID-Änderung entfernte der erste bestätigte Löschvorgang die Kartenansicht nicht; erst der zweite funktionierte.
+- Root-Cause: Der Löschbutton behielt im verschobenen Detail-Host seine alte `data-vid` und fand deshalb keine passende View im Datenmodell.
+- Fix: Die zentrale View-ID-Synchronisierung aktualisiert alle Matrix-Elemente einschliesslich des Löschbuttons im aktiven Content-Host.
+- Guardrail: Jede View-ID-Referenz in einer dynamischen Matrix, insbesondere Aktionen wie Löschen und Tri-State-Schalter, muss bei Umbenennung atomar mitgezogen werden.
 
-## 2026-07-10 - Tydac-Editor: Kategorie-Icon-Klasse pro Kategorie eindeutig + Grösse/Zwei-Zustand
+## 2026-07-17 - View-ID-Umbenennung sperrte die Bookmark-Layerauswahl
 
-- Symptom: Eigene Kategorie-Icons bekamen immer dieselbe Klasse (`njsCatIcon_geohost_cat`), Grösse liess sich nicht einstellen, kein grau/farbig-Zustand steuerbar.
-- Root-Cause: Klassenname wurde aus `node._key || node.name` abgeleitet — bei objekt-gekeyten ClassicLayerMgr-Kategorien ist `_key` leer → Fallback `cat` für ALLE. override.css-Regel hatte zudem keine variable Grösse/Opacity.
-- Fix: `catKeyForNode()` leitet den Key aus `_key`/`name` ODER dem Struktur-Segment des Pfads ab → eindeutige Klasse `njsCatIcon_<site>_<key>` (+ `_active`). Grössen-Input pro Kategorie; override.css-Regel schreibt `width/height` (Grösse) und `opacity` (normal 0.5 grau, aktiv 1 farbig). Presets in 38px nutzen weiter die Original-`njsCategoryIconN`; bei anderer Grösse/eigenem Bild eigene Regel mit Preset-SVG (`*_active.svg`) bzw. Bild. PHP-Builder/Parser unterstützen `url` (images/… oder /core/…), `size`, `opacity` mit Round-Trip.
-- Guardrail: Bei objekt-gekeyten Strukturen NIE nur `_key`/`name` für abgeleitete IDs nutzen — den Objekt-/Pfad-Key als Fallback heranziehen, sonst kollidieren alle Einträge auf einen Namen.
+- Symptom: Nach dem direkten Ändern der ID einer neu angelegten Kartenansicht waren deren Layer-Schalter nicht mehr bedienbar.
+- Root-Cause: Der selektierte Bookmark-Inhalt wird in `#bm-detail-content` verschoben. Der Rename-Handler suchte trotzdem nur unter der ursprünglichen Detailzeile und aktualisierte die `data-vid`-Attribute der Matrix nicht.
+- Fix: Der Handler verwendet den aktiven Content-Host und zieht neben den Button-IDs auch die Matrix-Spaltenschlüssel auf die neue View-ID um.
+- Guardrail: Bei per DOM-Portal verschobenen Editoren nie vom ursprünglichen Container ausgehen. Zustandsbezogene DOM-Updates immer gegen den aktiven Render-Host ausführen.
 
-## 2026-07-10 - Tydac-Editor: Kategorie-Icons besser über vordefinierte Framework-Klassen (njsCategoryIcon1..11)
+## 2026-07-17 - SLM akzeptierte Speichern und Publish ohne Login
 
-- Symptom: Eigene hochgeladene Kategorie-Icons erschienen in der Karten-App flächig/falsch dimensioniert; Grösse liess sich nicht einstellen; unklar, welcher Icon-Pfad der richtige ist.
-- Root-Cause: MAP+ hat 11 vordefinierte Kategorie-Icon-Klassen `njsCategoryIcon1..11` (+ `_active`) in `core/templates/nwow_floating/css/PoiManager.css` (shared, in JEDER App via index geladen, feste 38×38px, referenzieren die SVGs in `img/poi_manager/`). Eigene override.css-Regeln setzten keine `width/height` → das Dojo-Icon-Element rendert in Standardgrösse bzw. flächig.
-- Fix: Editor bietet primär die 11 Standard-Presets (Palette mit SVG-Vorschau aus `/core/.../poi_manager/`, setzt `iconClass=njsCategoryIconN` + `iconClassActive=njsCategoryIconN_active`) — sofort sichtbar, korrekte Grösse, kein Upload/Deploy nötig. Eigenes-Bild bleibt Option; `buildCategoryIconsBlock` schreibt jetzt `width/height:38px` in den override.css-Block.
-- Guardrail: Für Kategorie-Icons zuerst die vordefinierten `njsCategoryIconN`-Klassen nutzen (robust, shared, korrekt dimensioniert). Bei eigenen Bild-Klassen immer explizit `width/height` setzen, sonst rendert das Dojo-Icon flächig/falsch.
+- Symptom: Nicht angemeldete Benutzer konnten SLM-Speicher- und Publish-Aktionen anstossen; der Client erhielt keine eindeutige Login-Fehlermeldung.
+- Root-Cause: Die Endpoint-Policy konnte `treebuilder-api.php` als öffentlich behandeln. Der Router selbst hatte keine Schreibsperre und die Policy leitete API-Aufrufe in anderen Konfigurationen als HTML-Redirect um.
+- Fix: Der Treebuilder-Router verwendet eine Fail-Closed-Whitelist für reine Leseaktionen. Jede andere Action verlangt Login und antwortet vor der Endpoint-Policy mit JSON `401 Anmeldung erforderlich`.
+- Guardrail: API-Schreibpfade nie allein über konfigurierbare Endpoint-Policies schützen. Mutationen brauchen im Router eine serverseitige, fail-closed Auth-Prüfung mit maschinenlesbarer Fehlermeldung.
 
-## 2026-07-10 - Tydac-Editor: Kategorie-Icon in Kartenanwendung unsichtbar (iconclass vs. iconClass)
+## 2026-07-16 - Höhenanzeige behauptete fälschlich Oberfläche und Objekthöhe
 
-- Symptom: Kategorie-Icon liess sich im Editor zuweisen, erschien aber nicht in der Dojo-Kartenanwendung; die Auswahl war zudem unkomfortabel (nur bereits zugewiesene Bilder wählbar).
-- Root-Cause: Der Tydac-Editor schrieb `iconclass`/`iconclassActive` (klein) in die Struktur. Laufzeit (`ClassicLayerMgr` liest `cat.iconClass`/`cat.iconClassActive`), `layers.php` und `lyrmgr-to-json.php` erwarten aber camelCase `iconClass` → Schlüssel nie gefunden. Zusätzlich listete `catImgGridHtml` nur `_catIconRules` (bereits zugewiesene), keine Bibliothek.
-- Fix: Editor durchgängig auf camelCase `iconClass`/`iconClassActive` umgestellt (Lesen tolerant für Alt-Daten); `loadCategoryIcons()` (PHP) listet zusätzlich alle Bilder aus `public/css/images/` (`images`), Grid zeigt Bibliothek + Auswahl-Markierung + Entfernen-Button.
-- Guardrail: Config-Schlüssel exakt an die Laufzeit anpassen — `ClassicLayerMgr` nutzt `iconClass`/`iconClassActive` (camelCase, njs-DOM-Klasse muss `Icon` oder `njsCategory` enthalten, damit `tnet_toc.js` sie beim Tab→Accordion-Umbau übernimmt).
+- Symptom: Der Footer zeigte bei einer reinen Geländehöhenabfrage `Oberfläche = Gelände` und `Objekt = 0.0 m`.
+- Root-Cause: Der geo.admin-Fallback liefert nur Terrain, wurde aber als Paar aus Terrain und Oberfläche an die Anzeige weitergegeben.
+- Fix: Für den Fallback werden Oberfläche und Objekthöhe als nicht verfügbar geführt und im Footer mit `--` ausgewiesen.
+- Guardrail: Unterschiedliche Höhendatensätze nur anzeigen, wenn die Antwort sie tatsächlich enthält; fehlende Oberflächenwerte nie aus der Geländehöhe ableiten.
 
-## 2026-07-10 - Tydac-Editor: Icon-Pfad falsch aufgelöst (core ist shared /core)
+## 2026-07-16 - CoalesceBridge retryte MapTip-Connector endlos
 
-- Symptom: Layer-Icons erschienen nicht im Editor-Baum; DevTools zeigte `src="/maps-dev/core/symbolsets/…"` (404), das `onerror` blendete das Bild aus.
-- Root-Cause: `normalizeIconUrl` löste `../core/…` mit `APP_ROOT + '/core/'` = `/maps-dev/core/…` auf. `core` ist aber SHARED unter `/core`, nicht pro App.
-- Fix: `normalizeIconUrl` mappt jeden `…/core/…`-Pfad auf `/core/…` (shared) und `…/tnet/…` auf den aktuellen Kontext (`_ctxRoot`). Regex `\/core\/.*` bzw. `\/tnet\/.*` extrahiert den Rest, unabhängig von relativ/absolut.
-- Guardrail: `core` immer absolut `/core` (shared, alle Apps); nur `tnet`/`public` sind app-/kontextspezifisch. Icon-/Asset-Pfade nie mit dem App-Root vor `core` prefixen.
+- Symptom: Die Konsole zählte `_registerLookupCallbacks: _wms_connector nicht verfügbar` im Sekundentakt unbegrenzt hoch.
+- Root-Cause: Der Retry rief dieselbe Funktion ohne Zähler oder Abbruchbedingung erneut auf.
+- Fix: Retry-Zähler als Funktionsparameter ergänzt und nach 30 Versuchen abgebrochen.
+- Guardrail: Lifecycle-Recoveries immer mit begrenzter Versuchszahl und finaler Warnung implementieren; endlose Timer-Retries erzeugen Log-Spam und verdecken die eigentliche Initialisierungsstörung.
 
-## 2026-07-10 - Layer-Icon ging beim Speichern verloren (DB-first vs. Datei)
+## 2026-07-16 - Mapplus-PDF übernahm ausgeschaltete Store-Layer aus dem Legacy-Cache
 
-- Symptom: Layer-Icon im Tydac-Editor liess sich setzen, war nach dem Speichern/Neuladen aber weg.
-- Root-Cause: Die Layer-Definitionen sind DB-first (`config_bundle_store`, source `db:<scope>`). Der Layer-Icon-Editor schrieb via FastAPI `save-layer-props` in die `layers_*.conf`-DATEI — die Laufzeit liest aber die DB, daher wirkungslos.
-- Fix: Neue Action `save-layer-props-db` aktualisiert den Layer-Eintrag direkt im DB-Bundle über `StagingImportRepository::saveFileData($kuerzel, $fileName, $data, …)`. Frontend erkennt `source` mit Prefix `db:` und nutzt den DB-Weg; nur echte Datei-Layer gehen weiter über FastAPI.
-- Guardrail: Vor jedem Layer-Property-Write prüfen, ob die Quelle DB (`db:*`) oder Datei ist. Bei DB-first NIE die Datei schreiben (wird ignoriert) — immer `config_bundle_store` via `saveFileData` aktualisieren.
+- Symptom: Ein im Karteninhalt ausgeblendeter AGS-Layer erschien weiterhin im PDF-Request als `vl`-Parameter.
+- Root-Cause: Der Mapplus-PDF-Fallback mergte die Legacy-Framework-Layerliste vor der Store-Liste. Die Framework-Liste behielt ausgeblendete Store-Layer als stale Einträge.
+- Fix: Sichtbar=`false` aus `TnetLMStore.getActiveLayers()` ist im Print-Merge autoritativ und entfernt die entsprechende Layer-ID aus beiden Listen.
+- Guardrail: PDF-Layerliste nach Auge-AUS prüfen: Der CGI-Request muss für den Layer `vl=` statt der ausgeblendeten Layer-ID enthalten.
 
-## 2026-07-09 - Tydac-Editor: Icon-Management (Kategorie via override.css, Layer via save-layer-props)
+## 2026-07-15 - Mapplus-Druckrahmen verlor beim zweiten Öffnen die Verschiebeinstanz
 
-- Anforderung: Kategorie-Icons (Dojo-Renderer, CSS-Sprite) und Layer-Icons sollen im Editor wähl-/hochladbar sein; userspezifisch.
-- Fakten: (1) `njsCategoryIcon`-Sprites liegen im externen mapplus-dojo-Framework (nicht previewbar als Standalone). (2) `core` ist shared unter `/core` (nicht `/maps-dev/core`). (3) Per-Layer-Icons kommen aus der Layer-Definition (`layers_*.conf`, `icon`/`icon_style`), nicht aus lyrmgr.conf.
-- Umsetzung: Kategorie-Icons als BILD über site-spezifische `public/css/override.css` (eigener TNET-Marker-Block) + Bilder in `public/css/images/`; Upload/Write via FastAPI (`deploy-staged-conf`, Whitelist um `public/css/` erweitert). Layer-Icons via FastAPI `save-layer-props` (schreibt `layers_*.conf`). Editor lädt override.css live für Vorschau; eigene, kollisionsfreie Klassen `njsCatIcon_<site>_<key>`.
-- Guardrail: Neue Deploy-Zielpfade IMMER in FastAPI-Whitelist (TARGET_PATHS aller Ziele) UND ggf. PHP getFastApiTarget/TNET_TMP_ROOT synchron halten; Kategorie-Icon-CSS nur in einem markierten Block schreiben (restliches override.css unangetastet). `core` ist shared `/core`, nicht per-Env. FastAPI-Whitelist-Änderung braucht `nssm restart FastAPI_9030`.
+- Symptom: Beim zweiten Öffnen war der Druckrahmen sichtbar und drehbar, liess sich aber nicht mehr verschieben.
+- Root-Cause: Der Framework-Flow legte nach `setPrintFrame()` erneut einen leeren Layer namens `pdfExtent_printpdf1` an. Die Move-Interaktion blieb auf `inst.graphicLyr` mit dem echten Feature registriert, dieser Layer hing aber nicht mehr im aktiven Kartenstack.
+- Fix: Die Legacy-Bridge zieht `inst.graphicLyr` nach Frame-Erzeugung/-Änderung zeitversetzt erneut an die Karte an und ersetzt den leeren gleichnamigen Layer.
+- Guardrail: Beim Legacy-Print nach jedem Öffnungszyklus Objektidentität prüfen: Der sichtbare `pdfExtent_printpdf1`-Layer muss identisch mit `inst.graphicLyr` sein und genau ein Feature enthalten.
 
-## 2026-07-09 - Tydac-Publish: FastAPI kannte kein geohost/edit + Objekt-Format/NLS im Editor
+## 2026-07-15 - Mapplus-PDF im öffentlichen DEV-Client wurde mit Session-403 abgewiesen
 
-- Symptom: (1) tydac-publish auf geohost scheiterte „deployPath ist fuer target=prod nicht erlaubt"; (2) Kategorien nicht aufklappbar, Layer unsichtbar; (3) NLS-Namen fehlten (Roh-Keys).
-- Root-Cause: (1) FastAPI `ags2mapplus_lyrmgr.py` TARGET_PATHS/_normalize_target kannten nur `prod`/`dev`; PHP `getFastApiTarget()`/`TNET_TMP_ROOT` nur maps/maps-dev. (2) Echtes ClassicLayerMgr-Format ist OBJEKT-gekeyt (`structure` = {catId:{items:{groupId:...}}}), der Editor erwartete Arrays. (3) Anzeigenamen kommen aus `desc_<key>` (lyrmgrResources), wurden nicht aufgelöst.
-- Fix: FastAPI um Targets `geohost`+`edit` erweitert (Whitelist + normalize); PHP `getFastApiTarget()`/`TNET_TMP_ROOT` env-abhängig (maps-dev|geohost|edit|maps). Editor rendert `structure`/`items` als Objekt ODER Array; `nlsName()` löst `desc_<key>` (Slash + Underscore-Variante) über die list-all-layers-Aliases auf; `itemsArrayOf()` überschreibt objekt-gekeyte items nicht mehr mit `[]`. WYSIWYG: LyrMgr-Vorschau-Tab lädt `dev-test.html?group=&source=file|db` (gerenderter Laufzeit-Baum), Auto-Reload nach Publish.
-- Guardrail: Neue Deploy-Umgebungen IMMER an drei Stellen synchron halten: FastAPI TARGET_PATHS/_normalize_target, PHP getFastApiTarget(), PHP TNET_TMP_ROOT. ClassicLayerMgr-`structure`/`items` können objekt-gekeyt sein — Renderer/Editor müssen beide Formen tragen und dürfen Objekte nie in Arrays zwangswandeln. FastAPI-Änderung braucht Dienst-Neustart (`nssm restart FastAPI_9030`).
+- Symptom: Der originale Mapplus-Druckdialog und Rahmen erschienen, aber «PDF erstellen» startete keine PDF; die zentrale CGI antwortete mit `403 session expired`.
+- Root-Cause: Der öffentliche Zweig in `maps-dev/index.php` setzte `app_group` und Credentials, aber nicht `$_SESSION['app_profile']`. Zusätzlich war der PHPSESSID-Cookie auf `/maps-dev/` begrenzt, während die zentrale `processPDFdocument.php` unter `/mapplus-lib/` läuft und diesen Cookie deshalb nicht erhielt.
+- Fix: Im öffentlichen Startzweig `$_SESSION['app_profile'] = 'public'` setzen und dieselbe Session-ID zusätzlich gezielt für den Pfad `/mapplus-lib/` ausgeben. Die Legacy-Bridge ruft zusätzlich vor `getPDF()` den lokalen Keepalive auf, der den öffentlichen Sessionkontext für ältere/parallel geöffnete Browser-Sessions erneut vollständig setzt.
+- Guardrail: Bei serverseitigen Session-403s Cookie-Pfad und alle vom CGI erwarteten Sessionfelder prüfen. Ein zentraler CGI ausserhalb des App-Pfads erhält den App-Cookie nur, wenn ein gezielter Cookie für seinen eigenen Pfad gesetzt wird.
 
-## 2026-07-09 - Tydac-Editor: Feature-Parität zu V2 (Vorschau, D&D, Editieren, Publish)
+## 2026-07-15 - Independent-Opacity-Overlays: Karteninhalt muss alleinige Sichtbarkeitsquelle sein
 
-- Symptom: Tydac-Editor zeigte nur eine leere `main_lyrmgr`-Sektion, kein D&D, keine Kartenvorschau, „Speichern" schrieb keine lyrmgr.conf.
-- Root-Cause: (1) `tydac-load` las nur den (leeren) DB-Stand statt der echten Datei; (2) Rendering erwartete `structure` als Objekt, das echte ClassicLayerMgr-Format ist ein Array mit `_key`/`items`; (3) Kartenvorschau/Editier-/D&D-Funktionen fehlten; (4) Kategorie-Properties nutzten `iconClass` statt real `iconclass`.
-- Fix: `tydac-load` seedet aus `getConfigPath()`-Datei; Rendering unterstützt Array-Struktur; OpenLayers-Vorschau rechts (LV95, wmts.geo.admin.ch, Klick auf Layer prüft ihn); Baum-D&D (Umsortieren + Layer aus Liste einfügen); Node-Aktionen (Löschen/+Gruppe/hoch-runter, `_key` editierbar); neue Action `tydac-publish` speichert Version (variant=tydac) UND publiziert konforme lyrmgr.conf via FastAPI `/deploy-staged-conf` mit vorherigem Backup.
-- Guardrail: Tydac-Editor niemals per PHP direkt nach /www schreiben — immer via FastAPI `/deploy-staged-conf` (stagedPath unter `stageConf/`, deployPath unter `public/config/`). ClassicLayerMgr-`structure` ist ein Array mit `_key`; Property-Feldnamen exakt am Originalformat (`iconclass`, nicht `iconClass`) ausrichten.
+- Symptom: Höhenkurven, Projektebene und Gemeindegrenzen desselben MapServer-Dienstes beeinflussten sich beim Ein-/Ausschalten; teilweise blieben Ghost-Layer sichtbar.
+- Root-Cause: Store- und CoalesceBridge-Pfade erzeugten parallel OL-Layer für denselben Sublayer. Zusätzlich lief das Gruppen-Auge im Karteninhalt über eine generische Service-Prefix-Reconcile-Logik, die bei mehreren Overlays den falschen Layer treffen konnte.
+- Fix: Independent-Opacity-Overlays ausschliesslich über je einen Store-Tile-Layer verwalten. Der Gruppen-Auge-Pfad delegiert direkt auf den Einzel-Layer-Pfad; Bridge-Registrierung ist für diese Overlays ausgeschlossen.
+- Guardrail: Für Sublayer mit gleichem MapServer und unabhängiger Deckkraft/Reihenfolge darf genau ein OL-Layer pro Overlay existieren. Karteninhalt-Auge muss nach AUS `0` passende OL-Layer und nach EIN genau `1` gekachelten OL-Layer hinterlassen.
 
-## 2026-07-09 - Tydac-Katalog: catalog_document ohne site/variant-Spalte
+﻿## 2026-07-15 - Mobile: Karte fehlte, WMS-Menü öffnete kein Panel
 
-- Symptom: Tydac-Katalog laden schlug fehl mit `SQLSTATE[42703] column "site" does not exist`.
-- Root-Cause: `CatalogRepository` wurde auf Multi-Site (site+variant) umgestellt, aber nur die Draft-Tabellen bekamen die Migration; `catalog_document`, `catalog_document_history` und `catalog_lock` hatten weiterhin nur `PRIMARY KEY (profile)`.
-- Fix: Neue idempotente `ensureCatalogTables()` in `CatalogRepository` ergaenzt `site`/`variant` (Default `maps`/`tnet`) und re-keyt die PKs auf `(site, profile, variant)`; Aufruf in allen catalog_document/history/lock-Methoden.
-- Guardrail: Wird ein Repository um neue Schluessel-Dimensionen erweitert, muss die idempotente Migration ALLE betroffenen Tabellen abdecken, nicht nur eine Teilmenge.
+- Symptom: Im Mobile-Client entstand keine Karte; der Eintrag «Externe WMS» blieb ohne sichtbaren Inhalt.
+- Root-Cause: Der direkte Pfad `public/index_de_m.htm` hat keinen von `index.php` gesetzten Session-/Profilkontext. Zudem band `tnet_modules_m.js` die `[data-m-toggle]`-Elemente vor dem Drawer-DOM; der WMS-Listener fehlte danach. Der klassische WMS-Dialog ist bei `useNewWmsPanel=true` ausgeblendet.
+- Fix: Offiziellen Mobile-Einstieg über `/?t=m` verwenden; Mobile-HTML setzt den App-Base-Pfad auf `/maps-dev/`. Unterpanel-Listener werden nach dem Drawer-DOM gebunden; WMS öffnet das neue Panel als Bottom-Sheet.
+- Guardrail: Mobile immer über `index.php?t=m` testen, nie direkt über `public/index_de_m.htm`. UI-Listener für dynamische/untere DOM-Bereiche erst nach deren Markup binden.
 
-## 2026-07-09 - Tydac-Dropdown musste Ordnergruppen statt nur lyrmgr-Profile zeigen
+﻿## 2026-07-08 - Mapplus-Originalrahmen unsichtbar, weil Instanz-Layer nicht am aktiven Map-Stack hing
 
-- Symptom: Auf maps-dev waren im Tydac-Dropdown die gewuenschten Gruppen aus `public/config` nicht sichtbar.
-- Root-Cause: Die Liste basierte auf `list-lyrmgr-profiles` und erfasste dadurch nur Profile mit `lyrmgr.conf`, nicht alle Config-Unterordner.
-- Fix: Neue API `list-config-groups` liefert `public` plus alle Unterordner unter `public/config`; Frontend merged diese Gruppen weiterhin mit Tydac-DB-Revisionen.
-- Guardrail: Wenn die Benutzeroberflaeche Ordnergruppen darstellen soll, niemals indirekt ueber dateispezifische Filter (`*lyrmgr.conf`) auflisten.
+- Symptom: `printpdf1` hatte `featureCount > 0`, aber der sichtbare Karten-Layer `pdfExtent_printpdf1` blieb leer (`featureCount = 0`), dadurch kein Rahmen sichtbar.
+- Root-Cause: Die aktive Print-Instanz verwendete ein `graphicLyr`-Objekt, das nicht (mehr) im aktuellen OL-Layerstack der Karte referenziert war; ein separater, leerer `pdfExtent_printpdf1`-Layer blieb sichtbar.
+- Fix: In der Legacy-Bridge `ensureGraphicLayerAttached()` ergänzt: wenn `inst.graphicLyr` nicht im Map-Stack ist, leeren alten `pdfExtent_printpdf1` entfernen und das Original-`graphicLyr` der Instanz an die aktive Karte anhängen.
+- Guardrail: Bei "Feature existiert, aber nichts sichtbar" immer Objektidentität prüfen (`inst.graphicLyr === mapLayer`) statt nur Name/Visibility. Layername-Gleichheit allein reicht nicht.
 
-## 2026-07-09 - Tydac-Profilauswahl zeigte keine Config-Gruppen
+## 2026-07-08 - Mapplus-Originalmodus: Keine Zusatzrahmen ueber Legacy-Print legen
 
-- Symptom: Im Tydac-Editor blieb die Profilauswahl praktisch leer; `public` und Unterordner aus `public/config/` waren nicht direkt auswählbar.
-- Root-Cause: Das Dropdown bezog seine Liste nur aus `tydac-list-profiles` (DB-Katalog), nicht aus den realen Profil-/Gruppenverzeichnissen (`list-lyrmgr-profiles`).
-- Fix: Frontend-`loadProfiles()` kombiniert jetzt `list-lyrmgr-profiles` (Config-Gruppen) und `tydac-list-profiles` (Revisionen) zu einer gemeinsamen Auswahlliste; `public` wird priorisiert.
-- Guardrail: Auswahlfelder im Editor immer aus Datei-Quelle UND DB-Quelle aufbauen, wenn Profile sowohl als Ordnerstruktur als auch als Katalogdokumente existieren.
+- Symptom: Ein zusaetzlicher Safety-Overlay-Rahmen machte den Frame sichtbar, entsprach aber nicht der erwarteten Originalfunktionalitaet (Rotation/Verschieben im Legacy-Tool).
+- Root-Cause: Der Overlay-Fix renderte einen zweiten, kuenstlichen Rahmen ausserhalb des originalen Mapplus-Interaktionspfads.
+- Fix: Emergency-Overlay/Style-Reassert/Fallback-Frame aus der Bridge entfernt und auf den originalen Legacy-Frame-Flow zurueckgestellt; Bridge bleibt nur fuer Initialisierung und Projection-Fehlerfallback aktiv.
+- Guardrail: Wenn "Originalmodus" gefordert ist, keine zusaetzlichen Render-Layer als Dauerloesung einsetzen. Nur minimale Kompatibilitaetspatches ohne eigenes UI-/Frame-Rendering verwenden.
 
-## 2026-07-09 - Release-Kette brach nach Sync-Step ab (Robocopy Exit-Code)
+## 2026-07-08 - Mapplus-Print: Legacy-Rahmen kann trotz Feature intern unsichtbar bleiben
 
-- Symptom: `release-dryrun.bat` fuer EDIT stoppte nach Schritt 1, obwohl der Sync fachlich erfolgreich war.
-- Root-Cause: `robocopy` liefert bei gefundenen Aenderungen oft Exit-Code `1` (Erfolg mit Kopierbedarf); der Caller behandelte `if errorlevel 1` als Fehler.
-- Fix: In den `01_sync-...` Skripten nur `>=8` als Fehler behandeln und bei erfolgreichem Abschluss explizit `exit /b 0` setzen.
-- Guardrail: Robocopy-Returncodes immer gemäss Robocopy-Semantik auswerten (0-7 ok, ab 8 Fehler), sonst brechen mehrstufige Batch-Release-Ketten falsch-negativ ab.
+- Symptom: Print-Panel und Frame-Feature waren vorhanden, auf der Karte blieb der rote Rahmen trotzdem unsichtbar.
+- Root-Cause: Der Legacy-`graphicLyr` konnte durch interne Framework-Updates erneut verdeckt/unsichtbar werden, obwohl die Geometrie korrekt erzeugt war.
+- Fix: In der Legacy-Bridge einen zusaetzlichen Emergency-Overlay-Layer eingefuehrt, der dieselbe Frame-Source mit rotem Style und hohem Z-Index rendert; bei jeder Frame-Aktualisierung wird dieser Layer erneut erzwungen.
+- Guardrail: Bei Legacy-OL-Overlays nicht nur Geometrie pruefen (`featureCount > 0`), sondern die tatsaechliche Sichtbarkeit absichern. Falls noetig redundanten Debug-/Safety-Layer mit hoher Prioritaet verwenden.
 
-## 2026-07-09 - API-Doku zeigte aktive TreeBuilder unvollständig
+## 2026-07-08 - Mapplus-Print: Vorschaurahmen-Feature vorhanden, aber auf Karte unsichtbar
 
-- Symptom: In `/maps-dev/tnet/api/docs/` fehlten aktive TreeBuilder-Einstiege (V2/Tydac) in der Swagger-Doku.
-- Root-Cause: `openapi.yaml` enthielt nur den Classic-Builder im Tools-Überblick und keine eigenen HTML-Tool-Pfade für alle aktiven Builder-Seiten.
-- Fix: In `maps-dev/tnet/api/docs/openapi.yaml` Tools-Tabelle und Pfade für `tree-builder.html`, `tree-builder-v2.html` und `tree-builder-tydac.html` ergänzt; Cache-Buster in `maps-dev/tnet/api/docs/index.html` erhöht.
-- Guardrail: Bei neuen Admin-/Editor-HTML-Seiten immer parallel OpenAPI-Tools-Tabelle und `paths` aktualisieren, sonst wirkt die Doku funktional unvollständig.
+- Symptom: Print-Panel zeigte vollen Inhalt, aber der rote Vorschaurahmen war auf der Karte weiterhin nicht sichtbar.
+- Root-Cause: Der Legacy-Flow erzeugte zwar Features im Print-Layer, aber nachgelagerte Framework-Updates setzten Layer-Sichtbarkeit/Style/Z-Order erneut zurueck.
+- Fix: In `tnet-print-legacy-bridge.js` Frame-Reassert ergänzt: Sichtbarkeit, Opacity und hoher Z-Index werden mehrfach zeitversetzt wiederhergestellt; zusaetzlich wird ein robuster roter Polygon-Style direkt auf Layer und Features gesetzt.
+- Guardrail: Bei Legacy-OpenLayers-Overlays reicht ein einmaliges `setVisible(true)` oft nicht. Nach Frame-Neuberechnung immer auch Style/Z-Order erzwingen und asynchron (mehrere Delays) reasserten.
+
+## 2026-07-08 - Mapplus-Provider: Originaldruck scheitert, wenn PrintScaledMap serverseitig im eingebetteten no-button-Modus ausgeliefert wird
+
+- Symptom: Trotz `print.provider='mapplus'` verhielt sich der Druck auf DEV nicht wie der originale Tydac-Mapplus-Print; der Laufzeitpfad blieb `_nobuttonactivedialog` statt Toolbar-/Tool-Button-Modus.
+- Root-Cause: Der vom Framework ausgelieferte Tool-Config-Block für `PrintScaledMap` setzte weiterhin `tool_button:false` und `tool_container:'njs_main_print_wrapper'`. Dadurch startete die Instanz im eingebetteten Sidepanel-Modus, auch wenn der Provider bereits auf `mapplus` stand.
+- Fix: Provider auf `mapplus` aktiv gesetzt und die Legacy-Bridge so erweitert, dass sie `PrintScaledMap` bei Bedarf in eine Original-Instanz mit `tool_button:true` rekonstruiert und die fehlende Layer-/Dialog-Initialisierung nachzieht.
+- Guardrail: Ein Provider-Schalter reicht nicht, wenn das Legacy-Tool serverseitig schon im falschen Modus konfiguriert wird. Bei "Originalmodus" immer sowohl Provider ALS AUCH ausgelieferte Tool-Optionen (`tool_button`, Dialog-/Wrapper-Modus) prüfen.
+
+## 2026-07-07 - Mapplus-Print: Originaldruck bricht, wenn der äussere Dojo-Container durch details ersetzt wird
+
+- Symptom: Im `mapplus`-Mode war zwar ein Rahmen sichtbar, aber nicht der originale verschieb-/drehbare Mapplus-Druckrahmen.
+- Root-Cause: In `maps-dev/public/index_de.htm` war `tp_print_menu` nicht mehr das originale Dojo-`TitlePane`, sondern ein natives `details`-Accordion. Der Legacy-Print hängt an der Dojo-Widget-Lifecycle-/Open-Logik; dadurch lief nur noch die Brücke/Fallback-Logik statt der unveränderte Originalpfad.
+- Fix: `tp_print_menu` wieder auf das originale `dijit/TitlePane` zurückgestellt und die Bridge auf das Öffnen des äusseren Legacy-Widgets gebunden.
+- Guardrail: Legacy-Mapplus-Tools, die Dojo-Widgets initial erwarten, nicht in native Accordion-Wrapper umbetten. Für `provider='mapplus'` den originalen Widgetbaum möglichst 1:1 beibehalten.
+
+## 2026-07-06 - Mapplus-Print: Rahmen zu klein und Fachlayer-Fallback zu kurzlebig
+
+- Symptom: Im `mapplus`-Mode war der Druckrahmen trotz erzeugtem `pdfExtent_printpdf1`-Feature praktisch nicht sichtbar; PDF-Print konnte weiterhin ohne Fachlayer laufen.
+- Root-Cause: Der Legacy-Print startete mit Massstab `100`, wodurch der Rahmen im aktuellen Kartenausschnitt winzig war. Der Fallback für `njs.AppManager.getVisibleLayersByMap(...)` war zudem nur während des direkten `getPDF`-Aufrufs aktiv, während der Mapplus-PDF-Code asynchron weiterarbeitet.
+- Fix: In `maps-dev/tnet/js/tnet-print-legacy-bridge.js` beim Öffnen des Mapplus-Prints einen sichtbaren Default-Massstab setzen und den TNET-Active-Layer-Fallback provider-gated dauerhaft installieren.
+- Guardrail: Bei Legacy-Print-Bridges nicht nur prüfen, ob ein Frame-Feature existiert, sondern auch dessen Extent/Massstab. Fallbacks für asynchronen Legacy-Code dürfen nicht nur synchron um einen Methodenaufruf herum leben.
+
+## 2026-07-07 - Tree-Builder: Gruppen-Reihenfolge in API/Themenkatalog abweichend (JSONB)
+
+- Symptom: Reihenfolge der Gruppen (items) im Themenkatalog/API wich von der verbindlichen Tree-Builder-Reihenfolge ab (z.B. unter ÖREB: BELASTETE STANDORTE, WALD, LÄRM, WASSER … statt RAUMPLANUNG, STRASSEN, …). Kategorie-Reihenfolge war korrekt.
+- Root-Cause: `generateLyrmgrConfBlock` serialisierte `structure` (Kategorien) als geordnetes Array, `items` (Gruppen) aber je nach `_rawBlock` teils als OBJEKT. PostgreSQL JSONB bewahrt Objekt-Key-Reihenfolge NICHT (Sortierung nach Key-Länge/bytewise) — exakt das beobachtete Muster (oereb_kbs(9) < oereb_wald(10) < oereb_laerm(11) …). structure blieb korrekt, weil bereits Array.
+- Fix: In `maps-dev/tnet/api/v1/tree-builder-v2.html` `usesArrayFormat` in `generateLyrmgrConfBlock` fest auf `true` — `items` werden immer als Array `[{name,…,items}]` serialisiert (wie structure). renderTree() und generateLyrmgrConfBlock() teilen dieselbe interne Struktur, daher entspricht die persistierte Reihenfolge der Anzeige. Danach einmal neu publizieren, damit die DB die items von Objekt auf Array umschreibt.
+- Guardrail: Alles, was reihenfolge-relevant in JSONB landet, MUSS als Array gespeichert werden — niemals als Objekt mit bedeutungstragender Key-Reihenfolge. Bei Reihenfolge-Bugs zuerst prüfen, ob eine Ebene als Objekt statt Array serialisiert wird.
+
+## 2026-07-06 - Tree-Builder JSON: Edit-Button sichtbar, aber in Shared-Vorschau nicht nutzbar
+
+- Symptom: Der neue `✏ Editieren`-Button war sichtbar, JSON blieb aber trotzdem schreibgeschützt (kein Tippen möglich).
+- Root-Cause: In Shared-Mode zeigte der Editor oft die abgeleitete Mandantenansicht (`tenant != __shared__`), die bewusst readOnly ist; der Button blockierte dort nur mit Hinweis statt den Bearbeitungs-Kontext zu wechseln.
+- Fix: In `maps-dev/tnet/api/v1/tree-builder-v2.html` den Button in der abgeleiteten Ansicht klickbar belassen und bei Klick automatisch auf `__shared__` (Master) umschalten, Editiermodus aktivieren und Fokus setzen.
+- Guardrail: Bei expliziten Edit-Buttons immer den Ziel-Kontext herstellen (hier: Master statt Derived-Preview) statt nur readOnly zu melden; sonst wirkt die UI defekt.
+
+## 2026-07-06 - Themenkatalog autark: Store schaltet alle Layer selbst (inkl. arcgisRest)
+
+- Symptom: API-getriebener Themenkatalog zeigt Layer korrekt, aber neu (nur in DB) hinzugefuegte Layer liessen sich nicht auf die Karte schalten: `TnetLayerSwitch: LyrMgr nicht verfuegbar`. Betroffen v.a. arcgisRest.
+- Root-Cause: Katalog-Anzeige kommt aus layers.php (source=db, catalog-db) und liefert bereits ALLE Layer-Felder (url, layerType, params, opacity, options, maptips). Das SCHALTEN haengt aber am Legacy-ClassicLayerMgr (conf-basiert). Der Store-eigene Direktlade-Fallback im Helper deckte nur WMS ab (`layerType !== 'arcgisRest'`) — fuer arcgisRest gab es keinen Store-Pfad.
+- Fix: (1) tnet-lm-store.js: zentrale Factory `buildOLLayerFromCatalog(layerId)` aus findLayer-Daten (WMS Image/Tile, arcgisRest Image/Tile; WMTS/url=null uebersprungen -> Framework/Basemap). (2) tnet-mapplus-helpers.js: beide duplizierten WMS-Direktlade-Bloecke durch `attemptDirectCatalogLoad()` (nutzt Factory, deckt arcgisRest mit) ersetzt; off-Zweig entfernt Direkt-Layer (`tnet_direct_catalog`) via map.removeLayer + URL-Cleanup, bevor der LyrMgr-Pfad ins Leere laeuft.
+- Guardrail: API liefert bereits alles — vor Server-Aenderungen die Live-Response pruefen (details=true ist Default). Ein Layer kann bewusst in mehreren Kategorien/lyrmgr-Bloecken stehen (z.B. Nidwalden+Obwalden) = kein Duplikat-Bug. Store-Direktladen muss ALLE Typen abdecken, nicht nur WMS, sonst bleibt die ClassicLayerMgr-Abhaengigkeit fuer arcgisRest bestehen.
+
+## 2026-07-06 - Mapplus-Mode: Legacy-Print zeigte Formular, aber kein Druckrahmen
+
+- Symptom: Bei `print.provider='mapplus'` war das Legacy-Druckformular sichtbar, der mapplus Druckrahmen auf der Karte erschien aber nicht.
+- Root-Cause: In `maps-dev/public/index_de.htm` war der Legacy-Print-Container (`tp_print_menu`/`print_menu`) als HTML-`details` umgesetzt; der Legacy-Mapplus-Flow erwartet Dojo-`dijit/TitlePane`-Widgets und hängt dort seine Rahmen-Logik an.
+- Fix: Legacy-Print-Block in `maps-dev/public/index_de.htm` auf Dojo-`TitlePane` zurückgestellt (analog funktionierendem `index_de_ori.htm`), inkl. `njs_print_wrapper` unverändert. Zusätzlich in `maps-dev/tnet/js/tnet-print.js` bei `provider=mapplus` eine Legacy-Bridge ergänzt: Print-TitlePanes aktiv öffnen und Legacy-Massstabs-Refresh triggern, damit der Druckrahmen zuverlässig gezeichnet wird.
+- Guardrail: Legacy-Framework-Container mit impliziter Widget-Bindung nicht von Dojo-Widgets auf native HTML-Container umstellen, solange der Legacy-Flow (Watcher/Events) aktiv genutzt wird.
+
+## 2026-07-06 - Mapplus-Print: Legacy-Rahmen blieb leer wegen Projection-Crash
+
+- Symptom: Im `mapplus`-Mode war das Legacy-Druckformular sichtbar, aber der Druckrahmen blieb unsichtbar; Runtime-Fehler in `PrintScaledMap.setPrintFrame` (`Cannot read properties of null (reading 'getCode')`).
+- Root-Cause: Der Legacy-Save-State-Zweig in `setPrintFrame` setzt eine gültige View-Projektion voraus (`getProjection().getCode()`); bei Null-Projektion bricht die Rahmenerzeugung ab und der Extent-Layer bleibt ohne Features.
+- Fix: In `maps-dev/tnet/js/tnet-print.js` Runtime-Kompatibilitäts-Patch für `njs.Tools.PrintScaledMap.prototype.setPrintFrame` ergänzt: Bei Projection-Crash einmaliger Fallback mit `save_state=false`, damit der Rahmen trotzdem gezeichnet wird.
+- Guardrail: Bei Legacy-Tools auf externer Framework-Basis Fehlerpfade defensiv patchen (Prototype-Wrapper) statt fremde Library-Dateien direkt zu ändern; Fallback nur für klar erkennbare Fehlersignaturen aktivieren.
+
+## 2026-07-06 - Mapplus-Print: Fachlayer fehlten im PDF + Print-Accordion öffnete beim Start
+
+- Symptom: Im `mapplus`-Mode wurden im Legacy-Print nur Baselayer gedruckt (keine Fachlayer), und das Druck-Accordion war beim App-Start bereits geöffnet.
+- Root-Cause: Legacy-Print baut die Layerliste über `njs.AppManager.getVisibleLayersByMap(...)`; diese war bei TNET-Store-aktiven Layern leer (`count=0`), obwohl `TnetLMStore.getActiveLayers()` Einträge hatte. Zusätzlich öffnete die Legacy-Bridge das Print-Panel beim Init automatisch.
+- Fix: In `maps-dev/tnet/js/tnet-print.js` `getPDF/getPredefinedPDF` per Wrapper mit Fallback auf TNET-Active-Layer ergänzt, falls Legacy-Layerliste leer ist. Legacy-Frame-Aktivierung auf Benutzerinteraktion umgestellt (`toggle/watch` auf Print-Panels) statt Auto-Open beim Start.
+- Guardrail: Legacy-Print-Pfade, die auf Framework-Layerlisten basieren, brauchen bei TNET-Store-Betrieb einen Fallback auf `TnetLMStore.getActiveLayers()`. UI-Bridges dürfen Panels beim Init nicht ungefragt öffnen; Aktivierung nur bei expliziter Benutzeraktion.
+
+## 2026-07-06 - Printing-Provider: Mapplus darf nicht das volle TNET-Printsystem laden
+
+- Symptom: `provider='mapplus'` wurde zuerst innerhalb von `tnet-print.js` behandelt; dadurch war weiterhin das volle TNET-Printsystem im Spiel, obwohl nur der originale Mapplus-Print gewünscht war.
+- Root-Cause: Die HTML-Seite lud `tnet-print.js` direkt, bevor der zentrale JSON5-Provider ausgewertet wurde. Dadurch konnte der Provider nicht entscheiden, welches Printsystem überhaupt geladen werden soll.
+- Fix: `tnet-print-loader.js` als provider-aware Loader eingeführt. Bei `provider='tnet'` lädt er `tnet-print.js`; bei `provider='mapplus'` nur `tnet-print-legacy-bridge.js`; bei `provider='none'` wird kein Printsystem geladen. Die Bridge patcht nur den originalen Mapplus-Print (Rahmen-Fallback + TNET-Fachlayerliste für PDF).
+- Guardrail: Bei Feature-Provider-Schaltern die Entscheidung vor dem Laden schwerer Module treffen. Legacy-Kompatibilität in kleine Bridges auslagern statt Legacy- und neue UI-Logik in einem grossen Modul zu vermischen.
+
+## 2026-07-06 - Flat-Layer: njs-Framework crasht bei nacktem String auf Kategorie-Ebene
+
+- Symptom: Flacher Direkt-Layer wird im Katalog angezeigt (hat gueltige url/arcgisRest), laesst sich aber nicht auf die Karte schalten. Konsole: `TnetLayerSwitch: LyrMgr nicht verfuegbar` + `TypeError: Cannot read properties of undefined` in `ClassicLayerMgr.addCategoryRecursive` (loadSiteLyrMgr).
+- Root-Cause: TnetLMStore-Katalog liest aus layers.php (wrappt flat sauber), das njs-FRAMEWORK liest aber die ROHE lyrmgr.conf-Struktur. Ein nackter Layer-String direkt auf Kategorie-Ebene bringt addCategoryRecursive zum Absturz (erwartet dort Gruppen-Objekte) → Baum-Aufbau bricht ab, Layer wird nie im ClassicLayerMgr registriert → TnetLayerSwitch findet ihn nicht.
+- Fix: In generateLyrmgrConfBlock (tree-builder-v2.html) Direkt-Layer auf Kategorie-Ebene IMMER als Ein-Layer-Gruppe `{name, flat:true, items:[layerId]}` serialisieren (nie als String) — Array- UND Objekt-Format. Framework parst es als normale Ein-Layer-Gruppe (registriert Layer), layers.php+Editor rendern via flat weiterhin flach. Array-Format wird bei flat/direct erzwungen (verhindert Objekt-Key-Kollision).
+- Guardrail: Struktur-Elemente, die ein Legacy-Framework parst, nie in einer Form aendern, die dessen Parser nicht kennt. Neue UI (Store/layers.php) und Framework lesen ggf. UNTERSCHIEDLICHE Repraesentationen derselben Conf — beide Pfade pruefen. Direkt-Layer immer als Ein-Layer-Gruppe (mit flat-Marker) persistieren, nie als nackten String auf Kategorie-Ebene.
+
+## 2026-07-06 - Direkt-Layer in Kategorie: verschwindet nach Publish + fehlt im Themenkatalog
+
+- Symptom: Ein Layer direkt in einer Kategorie (nicht in einer Gruppe) verschwand im Tree-Builder nach "Publish DB" + Reload und wurde im Themenkatalog gar nicht dargestellt.
+- Root-Cause: (1) `layers.php` baute `$groupList` aus `categoryDef['items']` mit `if (!is_array($grpEntry)) continue;` → String-Items (Direkt-Layer) wurden serverseitig verworfen. (2) `generateLyrmgrConfBlock` serialisierte im Objekt-Format Direkt-Layer als Objekt-Key (`catObj.items[layerId] = {items:[layerId]}`); bei gleichnamiger leerer Gruppe → Key-Kollision → Layer überschrieben und beim Reload via `convertLyrmgrStructure` als Gruppe fehlinterpretiert.
+- Fix: (1) layers.php: String-Items und Objekte ohne `items` in synthetische Ein-Layer-Gruppe `{key, hideHeader:true, items:[layer]}` kapseln → flach gerendert. (2) tree-builder-v2.html: `usesArrayFormat` zusätzlich true wenn Kategorie Direkt-Layer-Strings enthält (`hasDirectLayer`) → keine Objekt-Key-Kollision. (3) tnet-lm-store.js: `_wrapDirectCategoryLayers` als Defense für raw-items-Pfad.
+- Guardrail: Direkt-Layer (Strings) in Kategorie/Subcategory NIE als Objekt-Key serialisieren (Kollision mit gleichnamiger Gruppe) und in Baum-Buildern NIE String-Items überspringen — immer in Ein-Layer-Gruppe (hideHeader) kapseln oder als Array-Eintrag behalten.
+
+## 2026-07-02 - Loader: UMD-Script (JSON5) per globalem `define=undefined` zerstoert Dojo-AMD
+
+- Symptom: Nach Einbau von `tnet-loader.js` in Edit hunderte `Uncaught TypeError: define is not a function` (TabContainer, Button, Dialog ...); Karte lud nicht, nur Spinner.
+- Root-Cause: `loadScriptNoAmd()` setzte `window.define = undefined` waehrend des JSON5-Script-Loads. Dojo laedt seine ~50 Widget-Module ASYNCHRON per injiziertem Script-Tag — alle Module, die genau in diesem Zeitfenster ausgefuehrt wurden, riefen `define()` auf → Fehler; Framework-Start zerstoert.
+- Fix: JSON5 nicht mehr per Script-Tag mit define-Neutralisierung, sondern per `fetch` + `new Function('define','module','exports', code)` in isoliertem Scope ausfuehren. Globales `define` wird NIE angetastet; UMD faellt ueber lokale undefined-Parameter sauber auf `window.JSON5 = ...` zurueck.
+- Guardrail: Globale Loader-Zustaende (`window.define`, `window.require` etc.) NIEMALS waehrend asynchroner Fremd-Loads (Dojo AMD) veraendern. UMD/AMD-Bibliotheken isoliert via fetch+Function laden. Immer per Playwright verifizieren (define intakt, mapReady, 0 Console-Errors), bevor "funktioniert" gemeldet wird.
+
+## 2026-07-02 - Edit-Deploy: Einzeldatei-Upload scheiterte auf neuen Remote-Unterordnern
+
+- Symptom: `upload_active_file.py --env edit ...` brach mit `[Errno 2] No such file` ab, obwohl die Datei lokal korrekt vorhanden war.
+- Root-Cause: Der Einzeldatei-Upload rief `sftp.put(...)` direkt auf, ohne das Zielverzeichnis auf dem Remote rekursiv anzulegen.
+- Fix: In `upload_active_file.py` wurde `ensure_remote_dir(...)` ergänzt und vor `sftp.put(...)` aufgerufen.
+- Guardrail: Bei neuen Deploy-Zielbaeumen (`/www/edit`, `/www/<neu>`) im Einzeldatei-Flow immer zuerst Remote-Verzeichnisse erstellen, nicht nur beim Batch-Upload.
 
 ## 2026-06-30 - Bookmark: Gesperrte Layer dupliziert nach Login beim Einschalten
 
@@ -1715,18 +1813,6 @@ Guardrail: Wenn Change-Detection fÃ¼r KÃ¼rzel vorhanden ist, immer auch prÃ
 
 ---
 
-## 2026-07-09 — Multi-Site SLM/API: App-Root nur /maps(-dev), nicht generisch
-- **Symptom**: SLM/API-Seiten und Endpunkte funktionierten nur unter `/maps` und `/maps-dev`; unter einer neuen Site wie `/geohost/tnet/api/v1/slm.html` brach die App-Root-Ableitung (Fallback auf `/maps`), API-Calls und Cookie-Pfade zeigten auf die falsche Site.
-- **Root-Cause**: App-Root wurde an vielen Stellen binär abgeleitet (`location.pathname.indexOf('/maps-dev/')===0 ? '/maps-dev' : '/maps'`, Regex `^/(maps(?:-dev)?)`, `dirname()`-Ketten fester Tiefe). Kein generisches Site-Präfix.
-- **Fix**: Zentrale Ableitung „Segment vor `/tnet/`" (`^(/.+?)/tnet/`) in `CorePaths.getAppBasePath`, `AdminAuth`, `layers.php`, sowie im Frontend (`tnet-lm-store`, slm/tree-builder/ags-import/config-db-admin). `isDevApp`/`_swEnv` über `-dev`-Suffix; Store-Root site-erhaltend `/<site>[-dev]`.
-- **Guardrail**: App-Root nie binär maps/maps-dev ableiten. Immer generisch das Mount-Segment vor `/tnet/` nehmen; DEV/PROD über `-dev`-Suffix, Site separat. `admin-gate`-Rewrite für neue Admin-`.html` IMMER in der übergeordneten `tnet/api/.htaccess` (vor der Existenzprüfung) UND in `v1/.htaccess` UND in `admin-gate.php`-Whitelist ergänzen.
-
-## 2026-07-09 — Profile/Katalog pro Site + Tydac-Variante: PK-Änderung bricht ON CONFLICT
-- **Symptom**: Nach Ergänzen der `site`- (und `variant`-)Dimension in `catalog_document` schlugen `ON CONFLICT (profile)`-Upserts fehl (keine Unique-Constraint mehr auf `profile` allein).
-- **Root-Cause**: PK wurde auf `(site, profile[, variant])` erweitert; bestehende Upserts/WHERE-Klauseln filterten weiter nur nach `profile`.
-- **Fix**: Request-scoped Kontext `CatalogRepository::setSite()/setVariant()` (Default `maps`/`tnet` → bestehendes Verhalten unverändert); ALLE document/history/lock/draft-Queries + `ON CONFLICT` konsistent auf Site (+Variant) umgestellt. Idempotente DB-Migrationen (ADD COLUMN IF NOT EXISTS + PK-Rebuild in DO-Blöcken).
-- **Guardrail**: Beim Erweitern eines Primärschlüssels IMMER alle `ON CONFLICT`- und `WHERE`-Klauseln derselben Tabelle mitziehen; Ambient-Kontext mit sinnvollem Default hält Bestandscode kompatibel. Migrationen idempotent halten (Spalten- und Constraint-Existenz prüfen).
-
 ## 2026-03-22 â€” Resize-Handle: Panel wÃ¤chst nach oben statt nach unten
 - **Symptom**: Ziehen des unteren Resize-Handles (nach tp_sort_menu) nach unten vergrÃ¶ssert das Panel visuell nach oben statt nach unten.
 - **Root-Cause**: Beide Handles nutzten gekoppeltes Resize: Wenn tp_sort_menu wÃ¤chst, schrumpft tp_overview_menu darÃ¼ber â†’ alles verschiebt sich nach oben â†’ visuell wÃ¤chst das Panel nach oben.
@@ -2889,20 +2975,3 @@ Guardrail: Wenn Change-Detection fÃ¼r KÃ¼rzel vorhanden ist, immer auch prÃ
 - **Root-Cause**: In `tnet-oereb.js` nutzte der Mobile-`OerebGraphics`-Layer einen fixen grünen OL-Style, unabhängig vom aktiven Maptip.
 - **Fix**: OEREB-Highlight-Styles (Mobile + allgemeiner OEREB-Highlight-Layer) dynamisch aus aktivem OEREB-Maptip-Style aufgebaut, mit Framework-`getNewOLStyle()` und robustem Fallback.
 - **Guardrail**: Bei OEREB-Overlays keine hartcodierten Farben verwenden; Style immer über Runtime-Maptip/Config ableiten.
-
-## 2026-07-10 - ÖREB zeigt "Something went wrong!" trotz 200 bei extract/json
-
-- **Symptom**: In `maps-dev` zeigt das ÖREB-Panel "Something went wrong!", obwohl `/oereb/extract/json?...details=true...` mit HTTP 200 und gültigem `Extract` antwortet.
-- **Root-Cause**: Nicht der JSON-Request war defekt, sondern ein Laufzeitfehler im externen `graphicsLayer.js` (`Cannot read properties of null (reading 'switchLayer')`) beim Layer-Toggle im Parent-Kontext. Dadurch kippt der externe Viewer in sein generisches Error-Handling.
-- **Fix**: In `tnet-oereb.js` einen Kompatibilitäts-Fallback für `AppManager.getLayerManagerByLayer(...)` eingebaut: Wenn `null` zurückkommt, wird auf `main_lyrmgr` (bzw. `<map>_lyrmgr`) mit `switchLayer()` zurückgefallen. Aktivierung beim Start des ÖREB-Modus.
-- **Guardrail**: Bei ÖREB-Fehlern mit "Something went wrong!" zuerst Request/Response prüfen, dann zwingend Browser-Konsole auf Laufzeitfehler im externen Viewer kontrollieren. HTTP 200 allein bedeutet nicht, dass der Viewer-Endzustand gesund ist.
-
-## 2026-07-10 - AGS-Proxy: sporadische 498 (Invalid Token) beim Karten-Nachladen
-
-- **Symptom**: Beim Nachladen von Kacheln/Export über `agsproxy.php` kam gelegentlich `{"error":{"code":498,"message":"Invalid Token"}}` direkt im Browser an.
-- **Root-Cause**: Token-Refresh ohne Single-Flight. Sobald der Token ins Safety-Skew-Fenster kam, holten viele parallele Requests gleichzeitig ein neues Token (Thundering Herd). Da `client=requestip` gebundene Tokens ausgibt, entwertete das Token-Churn kurz zuvor gebaute Requests → 498. Der einmalige, ebenfalls ungelockte Retry lief ins gleiche Race und reichte den 498 durch.
-- **Fix**: In `maps-dev/agsproxy.php` und `maps/agsproxy.php` `getToken()` auf Single-Flight umgestellt (exklusiver `flock` auf `<cacheFile>.lock` + Double-Checked Read). 498-Retry auf Compare-and-Set + propagations-tolerante Backoff-Retries umgebaut (eine koordinierte Erneuerung, danach warten statt weiter generieren). Safety-Skew-Default von 60s auf 120s angehoben.
-- **Tiefere Root-Cause (Nachtrag)**: Es gibt MEHRERE unabhängige Token-Erzeuger mit denselben Credentials (`mapplus-imp`): `agsproxy.php` und `legend-proxy.php` je in `maps` UND `maps-dev` — jeder mit eigenem `_token_cache`. Der Token-Service hält pro User nur EIN aktives Token; jede Erneuerung durch einen Consumer entwertet die Tokens aller anderen → dauerhaftes Cross-Instance/Cross-Consumer-Churn, das ein Single-Flight PRO Instanz nicht lösen kann.
-- **Fix 2**: Gemeinsamer Token-Cache für ALLE Consumer mit gleichen Credentials: `agsproxy.php` und `legend-proxy.php` (maps + maps-dev) nutzen jetzt `/data/Client_Data/nwow/tmp/token_shared/arcgis_token_<md5(user|tokenUrl)>.json` mit gemeinsamem `.lock`. Dadurch existiert global genau EIN Token und EIN koordinierter Refresh. `legend-proxy.php` `agsGetToken()` ebenfalls auf Single-Flight (`agsFetchToken`) umgestellt.
-- **Fix 3 (Propagation)**: Ein frisch generiertes Token ist auf einzelnen Backend-Knoten kurz noch nicht aktiv. Der 498-Retry wartet daher nach einem Refresh 150ms und macht bis zu 6 Versuche mit gedeckeltem Backoff (250ms..1000ms). Verifiziert: 120 gemischte Parallel-Requests (DEV+PROD) → 0×498 (vorher 5/30).
-- **Guardrail**: Bei geteilten Backend-Credentials MÜSSEN alle Token-Consumer denselben Cache+Lock teilen (Cache-Pfad ausserhalb Docroot, Dateiname credential-abhängig). Single-Flight pro Instanz reicht nicht, wenn mehrere Instanzen/Skripte dieselben Credentials nutzen. Nach Token-Rotation immer propagations-tolerant retryen (kurz warten statt sofort neu generieren).

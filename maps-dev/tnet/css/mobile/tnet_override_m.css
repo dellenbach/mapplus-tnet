@@ -919,6 +919,31 @@ div#search_container:focus-within {
     display: block;
 }
 
+/* Neues WMS-Panel auf Mobile als Bottom-Sheet statt Desktop-Floating-Panel. */
+.wms-panel {
+    top: auto !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    height: 65vh !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
+    border-radius: 10px 10px 0 0 !important;
+    z-index: 10002 !important;
+}
+
+.wms-panel .wms-resize-top,
+.wms-panel .wms-resize-left,
+.wms-panel .wms-resize-right,
+.wms-panel .wms-resize-bottom,
+.wms-panel .wms-resize-corner-tl,
+.wms-panel .wms-resize-corner-tr,
+.wms-panel .wms-resize-corner-bl,
+.wms-panel .wms-resize-corner-br {
+    display: none !important;
+}
+
 /* ========================================
    Themenkatalog: #kantons_container im Drawer
    tnet_toc.css setzt height:100% + overflow:hidden

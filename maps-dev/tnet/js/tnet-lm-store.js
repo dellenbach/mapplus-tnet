@@ -662,6 +662,10 @@
         for (var s = 0; s < node.subcategories.length; s++) {
           this._normalizeLegacyTreeNode(node.subcategories[s], level + 1);
         }
+        // Direkt in der Kategorie liegende Layer (ohne Subcategory/Gruppe) landen als
+        // Blatt-Knoten in subcategories und wuerden sonst als leeres Accordion ohne
+        // Checkbox gerendert. Hier in eine unsichtbare Subcategory+Gruppe kapseln.
+        if (level === 0) this._wrapDirectCategoryLayers(node);
       }
       if (node.groups) {
         for (var g = 0; g < node.groups.length; g++) {
@@ -693,6 +697,44 @@
           }
           if (grp && grp.layers) this._cleanLayerNames(grp.layers);
         }
+      }
+    },
+
+    /**
+     * Kapselt direkt in einer Kategorie liegende Layer (Blatt-Knoten in
+     * node.subcategories) in eine synthetische Subcategory + Gruppe, beide mit
+     * hideHeader=true. Dadurch rendert der Tree-Renderer den Einzel-Layer flach
+     * mit Checkbox statt als leeres Accordion. Reale Subcategories/Gruppen bleiben
+     * unveraendert.
+     * @param {Object} node  Kategorie-Knoten (level 0) mit subcategories-Array
+     */
+    _wrapDirectCategoryLayers: function (node) {
+      if (!node || !node.subcategories) return;
+      for (var i = 0; i < node.subcategories.length; i++) {
+        var sub = node.subcategories[i];
+        if (!sub || typeof sub !== 'object') continue;
+        // Blatt-Layer erkennen: explizit type='layer' oder keine Kind-Container.
+        var hasChildren = (sub.subcategories && sub.subcategories.length) ||
+          (sub.groups && sub.groups.length) ||
+          (sub.layers && sub.layers.length) ||
+          (sub.children && sub.children.length);
+        var isLeafLayer = (sub.type === 'layer') || (!hasChildren && sub.type !== 'group');
+        if (!isLeafLayer) continue;
+
+        var baseId = sub.id ? String(sub.id) : ('layer' + i);
+        node.subcategories[i] = {
+          id: baseId + '_auto_sub',
+          name: sub.name || baseId,
+          type: 'subcategory',
+          hideHeader: true,
+          groups: [{
+            id: baseId + '_auto_group',
+            name: sub.name || baseId,
+            type: 'group',
+            hideHeader: true,
+            layers: [sub]
+          }]
+        };
       }
     },
 
@@ -1517,6 +1559,25 @@
       var info = _coalesceIndex[groupId];
       if (!info) return;
 
+      // Independent-Opacity-Gruppen bestehen aus genau einem Overlay-Layer, teilen
+      // aber den ArcGIS-Dienst mit anderen Overlays. Die generische Gruppenlogik
+      // unten sucht nach einem Layer mit gleichem Service-Prefix und kann dadurch
+      // einen anderen Overlay-Layer (z.B. Projektebene statt Höhenlinien) steuern.
+      // Diese Gruppen deshalb immer direkt über den bewährten Einzel-Layer-Pfad
+      // schalten: eigener Store-Tile-Layer, eigene Sichtbarkeit, eigene Reihenfolge.
+      if (info.childIds.length && this._isIndependentOpacityLayer(info.childIds[0])) {
+        var independentChildId = info.childIds[0];
+        var independentActive = this._findActiveLayer(independentChildId);
+        var independentLayer = this.findLayer(independentChildId);
+        var independentVisible = this._getRequestedLayerVisible(
+          independentChildId, independentLayer, independentActive
+        );
+        this.setLayerEye(independentChildId, !independentVisible);
+        TnetLog.log(LOG, 'toggleCoalesceGroupEye IndepOpacity:', independentChildId,
+          independentVisible ? 'AUS' : 'EIN');
+        return;
+      }
+
       // Aktuellen Sichtbarkeitszustand pro Kind-Layer ermitteln.
       var currentState = {};
       var anyVisible = false;
@@ -1582,6 +1643,12 @@
       var info = _coalesceIndex[groupId];
       if (!info || !info.childIds || !info.childIds.length) return;
 
+      // Independent-Opacity-Overlays werden durch setLayerEye/_addToCoalesceOLLayer
+      // direkt auf ihrem eigenen Store-Tile-Layer verwaltet. Der gemeinsame
+      // Service-Prefix-Reconcile unten darf sie nicht anfassen, sonst kann er einen
+      // anderen Overlay-Layer desselben MapServers auswählen.
+      if (this._isIndependentOpacityLayer(info.childIds[0])) return;
+
       var visiblePairs = [];
       var servicePrefix = null;
       for (var index = 0; index < info.childIds.length; index++) {
@@ -1600,10 +1667,15 @@
         if (subNum === null) continue;
         visiblePairs.push({ id: childId, num: subNum, order: index, layer: layer });
 
-        if (window.TnetCoalesceBridge && typeof window.TnetCoalesceBridge.registerSublayer === 'function') {
+        // Independent-Opacity-Overlays haben je einen eigenen Store-Tile-Layer.
+        // Sie duerfen nie in der Bridge registriert werden, sonst erzeugt diese
+        // zusaetzlich einen konkurrierenden Root-Layer fuer denselben MapServer.
+        if (!this._isIndependentOpacityLayer(childId)
+            && window.TnetCoalesceBridge && typeof window.TnetCoalesceBridge.registerSublayer === 'function') {
           try { window.TnetCoalesceBridge.registerSublayer(childId, subNum); } catch (eReg) { /* ignore */ }
         }
-        if (window.TnetCoalesceBridge && typeof window.TnetCoalesceBridge.showSublayer === 'function') {
+        if (!this._isIndependentOpacityLayer(childId)
+            && window.TnetCoalesceBridge && typeof window.TnetCoalesceBridge.showSublayer === 'function') {
           try { window.TnetCoalesceBridge.showSublayer(childId, subNum); } catch (eShow) { /* ignore */ }
         }
       }
@@ -1773,7 +1845,7 @@
      * Coalesce-Layer werden NICHT über TnetLayerSwitch (Dojo-LyrMgr) geschaltet,
      * sondern über einen gemeinsamen OL-Layer pro MapServer-Dienst.
      */
-    setLayerVisible: function (layerId, visible) {
+    setLayerVisible: function (layerId, visible, exactLeaf) {
       var layer = this.findLayer(layerId);
       if (!layer) return;
 
@@ -1792,7 +1864,14 @@
       // Container-Knoten (z.B. .../hoehenlinien mit Unterlayern wie /2m,/5m,/10m)
       // sind nicht direkt renderbar. In diesem Fall die Blatt-Layer unterhalb
       // des Prefixes synchron auf den Zielzustand schalten.
-      if (layer.type === 'group' || hasChildren) {
+      //
+      // AUSNAHME exactLeaf: Manche Container haben selbst eine eigene Sublayer-
+      // Nummer (params.LAYERS "show:N") und sind damit direkt renderbar
+      // (z.B. Basemap-Overlays: hoehenlinien=show:51). Mit exactLeaf=true wird
+      // der Container-Layer EXAKT geschaltet (ein OL-Layer), statt seine Kinder
+      // einzeln zu schalten (was mehrere OL-Layer erzeugt und nicht robust ist).
+      var canRenderExact = exactLeaf && this._extractSublayerNum(layer) !== null;
+      if (!canRenderExact && (layer.type === 'group' || hasChildren)) {
         this._setDescendantLeafLayersVisible(layerId, !!visible);
         return;
       }
@@ -2082,15 +2161,20 @@
               // initialen Register). Vor showSublayer deshalb immer registrieren,
               // damit _sublayerToRoot gesetzt ist und der Show-Call wirkt.
               try {
-                if (window.TnetCoalesceBridge && typeof window.TnetCoalesceBridge.registerSublayer === 'function') {
+                if (!this._isIndependentOpacityLayer(layerId)
+                    && window.TnetCoalesceBridge && typeof window.TnetCoalesceBridge.registerSublayer === 'function') {
                   window.TnetCoalesceBridge.registerSublayer(layerId, subNum);
                 }
               } catch (eRegShow) { /* ignore */ }
-              window.TnetCoalesceBridge.showSublayer(layerId, subNum);
+              if (!this._isIndependentOpacityLayer(layerId)) {
+                window.TnetCoalesceBridge.showSublayer(layerId, subNum);
+              }
             }
           } else {
             delete cEntry.activeSublayers[layerId];
-            window.TnetCoalesceBridge.hideSublayer(layerId);
+            if (!this._isIndependentOpacityLayer(layerId)) {
+              window.TnetCoalesceBridge.hideSublayer(layerId);
+            }
           }
         } else {
           // ── Eigener OL-Layer: direkt LAYERS-Param updaten ──
@@ -2437,6 +2521,37 @@
         layer.visible = true;
         _activeLayers.push(layer);
         activeEntry = layer;
+      }
+
+      // Independent-Opacity-Overlays (mehrere Sublayer desselben MapServer-Dienstes,
+      // je EIGENER OL-Layer für eigene Deckkraft/Reihenfolge) IMMER über den
+      // Coalesce-Pfad schalten. Grund: Der Standard-setLayerEye-Pfad
+      // (olLayer.setVisible) räumt den Bridge-/Coalesce-State beim AUS NICHT auf,
+      // sodass der OL-Layer als Ghost sichtbar blieb. _addToCoalesceOLLayer (EIN) /
+      // _removeFromCoalesceOLLayer (AUS) erstellen/entfernen den OL-Layer sauber und
+      // machen den Karteninhalt zur Single-Source-of-Truth (Auge aus → Layer weg von
+      // Karte). Der Layer BLEIBT dabei in _activeLayers (Auge-Konzept: nur Sichtbarkeit
+      // togglen, Eintrag in der Liste erhalten).
+      if (this._isIndependentOpacityLayer(layerId)) {
+        this._ensureIndependentOpacityCoalesce(layerId, layer);
+        var coalGrpEye = _layerToCoalesce[layerId];
+        if (coalGrpEye) {
+          _suppressMapSync = true;
+          if (visible) {
+            this._addToCoalesceOLLayer(coalGrpEye, layerId, layer);
+          } else {
+            this._removeFromCoalesceOLLayer(coalGrpEye, layerId);
+          }
+          setTimeout(function () { _suppressMapSync = false; }, 200);
+          if (layer) layer.visible = visible;
+          if (activeEntry) activeEntry.visible = visible;
+          if (visible) this._beginLayerLoading(layerId, null);
+          else this._endLayerLoading(layerId, false);
+          this._emit('layer-visibility', { id: layerId, visible: visible, source: 'set' });
+          this._emit('active-layers-changed', _activeLayers);
+          TnetLog.log(LOG, 'setLayerEye IndepOpacity-Coalesce:', layerId, visible ? 'EIN' : 'AUS', '(Gruppe:', coalGrpEye, ')');
+          return true;
+        }
       }
 
       // 0) Framework-Combined ArcGIS-Sublayer (Bookmark/URL-Load)
@@ -3185,6 +3300,81 @@
      */
     isCoalesceSublayer: function (layerId) {
       return !!_layerToCoalesce[layerId];
+    },
+
+    /**
+     * Baut aus einer Katalog-Layer-Definition (API) einen OpenLayers-Layer.
+     *
+     * Deckt WMS (Image/Tile) und arcgisRest (Image/Tile) ab. Der Store nutzt dies,
+     * um Layer direkt aus den API-Daten zu schalten, wenn der Legacy-ClassicLayerMgr
+     * den Layer nicht kennt (z.B. neu ueber Tree-Builder/DB hinzugefuegte Layer).
+     * WMTS/typenlose Layer ohne url werden uebersprungen (Framework/Basemap zustaendig).
+     *
+     * Der zurueckgegebene Layer ist NOCH NICHT zur Karte hinzugefuegt.
+     *
+     * @param {string} layerId Katalog-Layer-ID
+     * @returns {Object|null} OL-Layer oder null, wenn nicht direkt baubar
+     */
+    buildOLLayerFromCatalog: function (layerId) {
+      if (!window.ol) return null;
+      var def = this.findLayer(layerId);
+      if (!def || def.type === 'group' || !def.layerType) return null;
+
+      var type = String(def.layerType).toLowerCase();
+      if (!def.url && type !== 'wms') return null; // ohne URL nur WMS moeglich
+
+      // Opacity robust auf 0..1 normalisieren
+      var op = (def._configOpacity !== undefined && def._configOpacity !== null)
+        ? def._configOpacity : def.opacity;
+      op = parseFloat(op);
+      if (isNaN(op) || op < 0 || op > 1) op = 1.0;
+
+      var options = def.options || {};
+      var source = null;
+      var olLayer = null;
+
+      try {
+        if (type === 'arcgisrest') {
+          var arcParams = Object.assign(
+            { LAYERS: 'show:0', FORMAT: 'PNG32', TRANSPARENT: true },
+            def.params || {}
+          );
+          // arcgisRest: standardmaessig singleTile (ImageArcGISRest), sofern nicht explizit deaktiviert
+          var arcSingle = options.singleTile !== false;
+          if (arcSingle && ol.source.ImageArcGISRest) {
+            source = new ol.source.ImageArcGISRest({ url: def.url, params: arcParams, ratio: 1, crossOrigin: 'anonymous' });
+            olLayer = new ol.layer.Image({ source: source, opacity: op, visible: true, zIndex: 200 });
+          } else {
+            source = new ol.source.TileArcGISRest({ url: def.url, params: arcParams, crossOrigin: 'anonymous' });
+            olLayer = new ol.layer.Tile({ source: source, opacity: op, visible: true, zIndex: 200 });
+          }
+        } else if (type === 'wms') {
+          var wmsParams = { LAYERS: layerId, TRANSPARENT: true, FORMAT: 'image/png' };
+          if (def.params) {
+            if (def.params.LAYERS || def.params.layers) wmsParams.LAYERS = def.params.LAYERS || def.params.layers;
+            if (def.params.FORMAT || def.params.format) wmsParams.FORMAT = def.params.FORMAT || def.params.format;
+          }
+          if (options.singleTile) {
+            source = new ol.source.ImageWMS({ url: def.url, params: wmsParams, serverType: 'mapserver', crossOrigin: 'anonymous' });
+            olLayer = new ol.layer.Image({ source: source, opacity: op, visible: true, zIndex: 200 });
+          } else {
+            source = new ol.source.TileWMS({ url: def.url, params: wmsParams, serverType: 'mapserver', crossOrigin: 'anonymous' });
+            olLayer = new ol.layer.Tile({ source: source, opacity: op, visible: true, zIndex: 200 });
+          }
+        } else {
+          // WMTS/Wikipedia/WCTravel: nicht direkt aus API-Daten baubar
+          return null;
+        }
+      } catch (e) {
+        TnetLog.warn(LOG, 'buildOLLayerFromCatalog fehlgeschlagen:', layerId, e && e.message);
+        return null;
+      }
+
+      if (!olLayer) return null;
+      olLayer.set('name', layerId);
+      if (def.name) olLayer.set('title', def.name);
+      olLayer.set('tnet_direct_catalog', true);
+      return olLayer;
     },
 
     // ============================================================
@@ -4244,7 +4434,14 @@
       }
 
       // ── Bridge v2: Root-Dienst-Strategie mit Fallback ──
-      var _bridgeAvailable = window.TnetCoalesceBridge && window.TnetCoalesceBridge.canHandle(layerId);
+      // Independent-Opacity-Overlays werden bewusst NICHT von der Bridge verwaltet.
+      // Sie teilen zwar einen MapServer, brauchen aber je einen eigenen Tile-OL-Layer
+      // für unabhängige Sichtbarkeit, Deckkraft und Reihenfolge. Die Bridge konkurriert
+      // beim URL-Start mit dem individuellen Framework-Layer und kann so doppelte bzw.
+      // verwaiste Darstellungen erzeugen. Der Standard-Coalesce-Pfad ist hier der
+      // alleinige Owner und verwendet die eindeutige groupId (= layerId).
+      var _bridgeAvailable = !this._isIndependentOpacityLayer(layerId)
+        && window.TnetCoalesceBridge && window.TnetCoalesceBridge.canHandle(layerId);
       var _bridgeActivated = false;
 
       if (_bridgeAvailable) {
@@ -4428,6 +4625,21 @@
         olLayer.set('name', layerDisplayName);
         olLayer.set('tnet_coalesce_group', groupId);
 
+        // URL-/Bookmark-Start erstellt zunaechst einen individuellen Framework-Layer
+        // mit derselben Layer-ID. Vor dem eigenen Tile-Layer entfernen, damit das
+        // Overlay genau EINEN Owner hat und kein Image-/Tile-Doppelrender entsteht.
+        if (this._isIndependentOpacityLayer(layerId)) {
+          var existingLayers = map.getLayers().getArray().slice();
+          for (var ex = 0; ex < existingLayers.length; ex++) {
+            var existing = existingLayers[ex];
+            if (!existing || existing.get('tnet_coalesce_group')) continue;
+            if (existing.get('name') === layerId) {
+              try { map.removeLayer(existing); } catch (eRemoveDuplicate) { /* bereits entfernt */ }
+              TnetLog.log(LOG, 'IndepOpacity: Framework-Start-Layer uebernommen:', layerId);
+            }
+          }
+        }
+
         map.addLayer(olLayer);
 
         _coalesceOLLayers[groupId] = {
@@ -4482,6 +4694,23 @@
       var cEntry = _coalesceOLLayers[groupId];
       if (!cEntry) {
         // ── Kein Coalesce-OL-Layer vorhanden ──
+        // Bridge-bewusster Fallback zuerst: Beim URL-/Bookmark-Load registriert die
+        // Bridge den Sublayer, ohne dass _addToCoalesceOLLayer lief (das Framework
+        // lädt direkt). _coalesceOLLayers[groupId] ist dann nicht gesetzt. Wenn die
+        // Bridge den Layer verwaltet, über unregisterSublayer vollständig entfernen.
+        // WICHTIG: unregisterSublayer (nicht hideSublayer!) hat den eingebauten
+        // Ghost-Layer-Schutz — es entfernt den individuellen Framework-Startup-OL-Layer
+        // (name === sublayerKey) UND den Root-Layer. hideSublayer macht nur show:-1,
+        // sodass der parallele Framework-Layer als "dünnere" Ghost-Kurven sichtbar blieb.
+        var _bridge = window.TnetCoalesceBridge;
+        if (!this._isIndependentOpacityLayer(layerId)
+          && _bridge && typeof _bridge.isManagedSublayer === 'function'
+            && _bridge.isManagedSublayer(layerId)
+            && typeof _bridge.unregisterSublayer === 'function') {
+          _bridge.unregisterSublayer(layerId);
+          TnetLog.log(LOG, 'Coalesce Fallback: Bridge unregisterSublayer (Ghost-Cleanup):', layerId);
+          return;
+        }
         // Framework hat beim Startup eigene individuelle OL-Layer erstellt
         // (via ClassicLayerMgr.switchLayersProgr → lay.switchLayer(true)).
         // Diese existieren einzeln auf der Map mit name = sublayerKey.

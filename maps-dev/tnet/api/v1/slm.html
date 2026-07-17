@@ -9918,9 +9918,17 @@ function bmMatrixHandleChange(e, detailRow) {
     if (isValid && newVal !== oldVid) {
       vItem.id = newVal;
       if (!vItem.name || vItem.name === oldVid) vItem.name = newVal;
-      // alle data-vid im Detail-Row vom alten auf den neuen Wert ziehen
+      // Der Detailinhalt kann in #bm-detail-content liegen. Deshalb nicht
+      // ausschliesslich auf detailRow suchen, sonst bleiben die Matrix-Buttons
+      // nach der ersten Eingabe auf der alten View-ID stehen.
+      var matrixRoot = detailRow._contentHost || detailRow;
       var sel = '[data-vid="' + oldVid.replace(/"/g, '\\"') + '"]';
-      detailRow.querySelectorAll(sel).forEach(function(el) { el.dataset.vid = newVal; });
+      matrixRoot.querySelectorAll(sel).forEach(function(el) { el.dataset.vid = newVal; });
+      var oldColumnKey = 'view:' + oldVid;
+      var newColumnKey = 'view:' + newVal;
+      matrixRoot.querySelectorAll('[data-col-key="' + oldColumnKey.replace(/"/g, '\\"') + '"]').forEach(function(el) {
+        el.dataset.colKey = newColumnKey;
+      });
       var th = t.closest('th.bm-mtx-vhead');
       if (th) th.dataset.vid = newVal;
       // Shift-Range Last-Click mitziehen

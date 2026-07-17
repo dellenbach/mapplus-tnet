@@ -30,7 +30,6 @@ header('Content-Type: application/json; charset=utf-8');
 
 // Cookie-Auth erforderlich
 require_once __DIR__ . '/../includes/AdminAuth.php';
-AdminAuth::enforceEndpointPolicy('treebuilder-api', 'php');
 
 require_once __DIR__ . '/../includes/CorsHelper.php';
 CorsHelper::handlePreflight('GET, POST, OPTIONS', 'Content-Type, X-Editor-Name');
@@ -138,6 +137,39 @@ function requireAdminAction() {
 function requireLoggedIn() {
     if (!AdminAuth::isLoggedIn()) {
         jsonError('Anmeldung erforderlich', 401);
+    }
+}
+
+/**
+ * Leseaktionen bleiben fuer die SLM-Oberflaeche verfuegbar. Alle anderen
+ * Aktionen sind bewusst fail-closed und duerfen nur angemeldete Benutzer
+ * ausfuehren.
+ */
+function requireTreebuilderWriteAccess($action) {
+    static $readActions = [
+        'load', 'lock-status', 'history', 'list-backups', 'load-backup',
+        'load-groups', 'load-profile', 'list-profiles', 'load-lyrmgr',
+        'lyrmgr-draft-status', 'catalog-publish-status',
+        'tydac-list-profiles', 'tydac-load', 'tydac-publish-status',
+        'tydac-history', 'tydac-status', 'list-symbolsets',
+        'category-icons-load', 'layer-icons-load', 'shared-load',
+        'shared-matrix-load', 'shared-lock-status', 'list-lyrmgr-profiles',
+        'list-config-groups', 'list-all-layers', 'check-legend-keys',
+        'read-config-file', 'load-profile-nls', 'load-nls',
+        'load-profile-legend', 'ags-services', 'qgis-list-projects',
+        'qgis-capabilities', 'ags-import-meta', 'ags-list-raw',
+        'ags-read-raw', 'staging-list-output', 'staging-read-output',
+        'staging-layers-flat', 'config-editor-load', 'debug-layer-source',
+        'debug-manifest', 'debug-rawconf', 'debug-paths', 'runtime-paths',
+        'sync-status', 'sync-content-diff', 'read-deployed-conf',
+        'list-deployed-conf', 'check-missing-nls', 'legend-tuner-load',
+        'bookmarks-load', 'sync-fullbackup-read', 'file-sync-status',
+        'file-sync-content-diff', 'db-publish-status', 'db-publish-diff',
+        'bookmarks-lock-status', 'verify-services'
+    ];
+
+    if (!in_array($action, $readActions, true)) {
+        requireLoggedIn();
     }
 }
 
@@ -751,6 +783,24 @@ function loadLyrmgrConf($profile, $forceFile = false) {
     ];
 }
 
+/**
+ * Leert den serverseitigen JSON-API-Cache (layers.php-Responses) nach einem
+ * Publish. Ohne diesen Clear liefert layers.php bei aktivem JSON-Cache bis zum
+ * TTL-Ablauf die alte Struktur/Reihenfolge -> Publishes greifen verzoegert.
+ *
+ * @return int Anzahl geloeschter Cache-Dateien
+ */
+function clearLayersApiCache() {
+    try {
+        require_once __DIR__ . '/../includes/JsonCache.php';
+        $cache = new JsonCache();
+        return (int)$cache->clear();
+    } catch (\Throwable $e) {
+        error_log('clearLayersApiCache: ' . $e->getMessage());
+        return 0;
+    }
+}
+
 function publishLyrmgrBlock($profile, $lyrmgrKey, $blockData, $editor) {
     require_once __DIR__ . '/../includes/ConfigSource.php';
 
@@ -838,6 +888,9 @@ function publishLyrmgrBlock($profile, $lyrmgrKey, $blockData, $editor) {
     } else {
         $result['source'] = 'file';
     }
+
+    // API-Cache leeren, damit die neue Struktur/Reihenfolge sofort greift.
+    $result['cacheCleared'] = clearLayersApiCache();
 
     return $result;
 }
@@ -6081,7 +6134,9 @@ function saveLayerIconsCss($rules) {
 // =====================================================================
 // Router
 // =====================================================================
-$action = $_GET['action'] ?? '';
+$action = strtolower(trim((string)($_GET['action'] ?? '')));
+requireTreebuilderWriteAccess($action);
+AdminAuth::enforceEndpointPolicy('treebuilder-api', 'php');
 
 switch ($action) {
 
@@ -6921,7 +6976,9 @@ switch ($action) {
         if (@file_put_contents($path, json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)) !== false) {
             $written['file'] = true;
         }
-        jsonResponse(['success' => ($written['db'] || $written['file']), 'profile' => $tenant, 'written' => $written, 'unchanged' => $unchanged, 'path' => toSftpPath($path), 'blocks' => count($payload)]);
+        // API-Cache leeren, damit die neue Struktur/Reihenfolge sofort greift.
+        $cacheCleared = clearLayersApiCache();
+        jsonResponse(['success' => ($written['db'] || $written['file']), 'profile' => $tenant, 'written' => $written, 'unchanged' => $unchanged, 'path' => toSftpPath($path), 'blocks' => count($payload), 'cacheCleared' => $cacheCleared]);
         break;
 
     case 'shared-unlock':

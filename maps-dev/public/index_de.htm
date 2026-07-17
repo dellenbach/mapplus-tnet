@@ -267,7 +267,61 @@
     </script>
     <?php print $set_vars?>
 
-    <script type="text/javascript" src="tnet/js/tnet-elevation-guard.js?v=20260617b"></script>
+    <script>
+    (function prepareOriginalMapplusPrintModeBeforeInit() {
+        function applyOriginalPrintToolMode() {
+            var tool = window.njs && njs.config && njs.config.tools && njs.config.tools.main && njs.config.tools.main.PrintScaledMap;
+            if (!tool) return false;
+
+            tool.tool_button = true;
+            tool.tool_container = 'njs_main_print_wrapper';
+            tool.printHighlight = true;
+            tool.gridOption = true;
+            tool.angleOption = true;
+            tool.saveStateOption = true;
+            tool.dialog_opts = { left: '22', top: '105', width: '400', height: '150' };
+            return true;
+        }
+
+        if (window.__tnetDesiredPrintProvider === 'mapplus') {
+            applyOriginalPrintToolMode();
+
+            if (window.njs && njs.AppManager && typeof njs.AppManager.initApp === 'function' && !window.__tnetOriginalMapplusInitWrapped) {
+                var originalInitApp = njs.AppManager.initApp;
+                njs.AppManager.initApp = function () {
+                    applyOriginalPrintToolMode();
+                    return originalInitApp.apply(this, arguments);
+                };
+                window.__tnetOriginalMapplusInitWrapped = true;
+            }
+        }
+    })();
+    </script>
+
+    <script type="text/javascript" src="tnet/js/tnet-elevation-guard.js?v=20260716a"></script>
+
+    <script>
+    (function installEarlyMapplusPrintMode() {
+        function detectPrintProvider() {
+            try {
+                var xhr = new XMLHttpRequest();
+                xhr.open('GET', 'tnet/config/tnet-global-config.json5?v=20260707a', false);
+                xhr.send(null);
+                if (xhr.status < 200 || xhr.status >= 300 || !xhr.responseText) return null;
+
+                var text = String(xhr.responseText)
+                    .replace(/\/\*[\s\S]*?\*\//g, '')
+                    .replace(/(^|[^:])\/\/.*$/gm, '$1');
+                var printMatch = text.match(/print\s*:\s*\{[\s\S]*?provider\s*:\s*['\"]([^'\"]+)['\"]/i);
+                return printMatch ? String(printMatch[1]).toLowerCase() : null;
+            } catch (e) {
+                return null;
+            }
+        }
+
+        window.__tnetDesiredPrintProvider = detectPrintProvider();
+    })();
+    </script>
 
 
     <!-- dojo modules and startup config-->
@@ -423,31 +477,7 @@
     <!-- Suchfeld im Header (fixed positioniert) -->
     <div id="njs_search_wrapper"></div>
 
-    <!-- Zweites Suchfeld v1.5: search-proxy.php (Lupe links, Filter-Popup rechts) -->
-    <div id="dt-search-bar" role="search">
-        <svg class="dt-search-icon" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0016 9.5 6.5 6.5 0 109.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
-        <input type="search" id="dt-search-input" placeholder="Ort, Adresse, Thema suchen …" autocomplete="off" spellcheck="false">
-        <button id="dt-search-clear" style="display:none" title="Löschen">&times;</button>
-        <button id="dt-search-filter-btn" title="Filter" type="button">
-            <svg viewBox="0 0 24 24"><path d="M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z"/></svg>
-        </button>
-        <div id="dt-search-filter-popup">
-            <div class="dt-filter-section">
-                <div class="dt-filter-title">Ortsauswahl</div>
-                <label class="dt-filter-radio"><input type="radio" name="dt-canton" value="" checked> Nidwalden + Obwalden</label>
-                <label class="dt-filter-radio"><input type="radio" name="dt-canton" value="NW"> Nidwalden</label>
-                <label class="dt-filter-radio"><input type="radio" name="dt-canton" value="OW"> Obwalden</label>
-            </div>
-            <hr class="dt-filter-hr">
-            <div class="dt-filter-section">
-                <div class="dt-filter-title">Inhalte</div>
-                <label class="dt-filter-check"><input type="checkbox" id="dt-filter-orte" checked> Orte, Strassen &amp; Gebiete</label>
-                <label class="dt-filter-check"><input type="checkbox" id="dt-filter-adressen" checked> Adressen</label>
-                <label class="dt-filter-check"><input type="checkbox" id="dt-filter-layers" checked> Themen</label>
-            </div>
-        </div>
-        <ul id="dt-search-results" role="listbox"></ul>
-    </div>
+    <!-- TNET-Suchbar (dt-search-bar): DOM wird durch tnet-search.js injiziert (ensureSearchBarDOM) -->
     
     <!-- GIS Logo links oben (SVG + drehender Würfel) -->
     <a id="gis_logo_container" href="https://www.gis-daten.ch" target="_blank" title="GIS Daten AG - Nidwalden Obwalden">
@@ -542,18 +572,14 @@
                 </div>
             </details>
 
-            <!-- DRUCKEN -->
-            <details id="tp_print_menu" class="tnet-panel" style="display:none">
-                <summary class="tnet-panel-title">Drucken</summary>
-                <div class="tnet-panel-content">
-                    <details id="print_menu" class="tnet-panel tnet-panel-nested" open>
-                        <summary class="tnet-panel-title tnet-panel-title-nested">Ausdruck massstäblich</summary>
-                        <div class="tnet-panel-content">
-                            <div id="njs_print_wrapper" style="width: 100%; height:100%; border:0"></div>
-                        </div>
-                    </details>
+            <!-- DRUCKEN (Legacy Mapplus) -->
+            <div id="tp_print_menu" data-dojo-type="dijit/TitlePane"
+                data-dojo-props="title: 'Drucken', open:false" style="display:none">
+                <div id="print_menu" data-dojo-type="dijit/TitlePane"
+                    data-dojo-props="title: 'Ausdruck massstäblich', open:true">
+                    <div id="njs_print_wrapper" style="width: 100%; height:100%; border:0"></div>
                 </div>
-            </details>
+            </div>
 
             <!-- NEU: TNET Drucken / Export -->
             <details id="tp_tnet_print_menu" class="tnet-panel">
@@ -643,106 +669,11 @@
                         </svg>
                     </div>
 
-                    <!-- Rechtsklick-Kontextmenü -->
-                    <div id="map-context-menu" class="context-menu">
-                        <div class="context-menu-header">
-                            <span id="ctx-coords-display">--</span>
-                        </div>
-                        <div class="context-menu-item" onclick="ctxCopyCoords('lv95')">
-                            <svg viewBox="0 0 24 24"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>
-                            <span>Koordinaten kopieren (LV95)</span>
-                        </div>
-                        <div class="context-menu-item" onclick="ctxCopyCoords('wgs84')">
-                            <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
-                            <span>Koordinaten kopieren (WGS84)</span>
-                        </div>
-                        <div class="context-menu-divider"></div>
-                        <div class="context-menu-item" onclick="ctxWhatIsHere()">
-                            <svg viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
-                            <span>Was ist hier?</span>
-                        </div>
-                        <div class="context-menu-item" onclick="ctxZoomHere()">
-                            <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14zm.5-7H9v2H7v1h2v2h1v-2h2V9h-2z"/></svg>
-                            <span>Hierher zoomen</span>
-                        </div>
-                        <div class="context-menu-divider"></div>
-                        <div class="context-menu-item" onclick="ctxRouteFrom()">
-                            <svg viewBox="0 0 24 24"><path d="M2 12l5 5v-4h9v6l7-7-7-7v6H7V7z"/></svg>
-                            <span>Route von hier</span>
-                        </div>
-                        <div class="context-menu-item" onclick="ctxRouteTo()">
-                            <svg viewBox="0 0 24 24"><path d="M22 12l-5-5v4H8V5l-7 7 7 7v-6h9v4z"/></svg>
-                            <span>Route hierher</span>
-                        </div>
-                        <div class="context-menu-divider"></div>
-                        <div class="context-menu-item" onclick="ctxOpenGoogleMaps()">
-                            <svg viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
-                            <span>In Google Maps öffnen</span>
-                        </div>
-                        <div class="context-menu-item" onclick="ctxOpenStreetView()">
-                            <svg viewBox="0 0 24 24"><path d="M12.56 14.33c-.34.27-.56.7-.56 1.17V21h7c1.1 0 2-.9 2-2v-5.98c-.94-.33-1.95-.52-3-.52-2.03 0-3.93.7-5.44 1.83zM12 6c1.93 0 3.5 1.57 3.5 3.5S13.93 13 12 13s-3.5-1.57-3.5-3.5S10.07 6 12 6zM12 2C6.48 2 2 6.48 2 12s4.48 10 10 10h1v-6.5c0-.91.47-1.71 1.19-2.17C15.27 12.54 16.6 12 18 12c1.34 0 2.61.29 3.76.8.16-.59.24-1.21.24-1.8 0-5.52-4.48-10-10-10z"/></svg>
-                            <span>StreetView öffnen</span>
-                        </div>
-                        <div class="context-menu-divider"></div>
-                        <div class="context-menu-item" onclick="ctxCopyLink()">
-                            <svg viewBox="0 0 24 24"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"/></svg>
-                            <span>Link zu Position kopieren</span>
-                        </div>
-                        <div class="context-menu-item" onclick="ctxMailLink()">
-                            <svg viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
-                            <span>Link zu Position mailen</span>
-                        </div>
-                    </div>
+                    <!-- Rechtsklick-Kontextmenü: DOM wird durch tnet-context-menu.js injiziert (ensureContextMenuDOM) -->
                     
                     <div id="mainButtonBar"></div>
                     
-                    <!-- Map Footer Bar - Durchgehende Leiste unten -->
-                    <div id="map-footer-bar">
-                        <div class="map-footer-left">
-                            <div class="map-footer-scale">
-                                <select id="map-scale-select" onchange="setMapScale(this.value)" title="Maßstab wählen">
-                                    <option value="100">1:100</option>
-                                    <option value="250">1:250</option>
-                                    <option value="500">1:500</option>
-                                    <option value="1000">1:1'000</option>
-                                    <option value="2500">1:2'500</option>
-                                    <option value="5000">1:5'000</option>
-                                    <option value="10000">1:10'000</option>
-                                    <option value="25000" selected>1:25'000</option>
-                                    <option value="50000">1:50'000</option>
-                                    <option value="100000">1:100'000</option>
-                                    <option value="200000">1:200'000</option>
-                                    <option value="500000">1:500'000</option>
-                                    <option value="1000000">1:1'000'000</option>
-                                </select>
-                            </div>
-                            <div class="map-footer-scalebar">
-                                <div id="scale-line"></div>
-                            </div>
-                        </div>
-                        <div class="map-footer-center">
-                            <div class="map-footer-item map-coord-system">
-                                <select id="map-coord-switch" onchange="switchCoordSystem(this.value)">
-                                    <option value="lv95">CH1903+ / LV95</option>
-                                    <option value="wgs84">WGS84</option>
-                                </select>
-                            </div>
-                            <div class="map-footer-item">
-                                <span class="map-footer-label">Koordinaten (m)</span>
-                                <span id="map-coord-display" class="map-footer-value">--</span>
-                            </div>
-                            <div class="map-footer-item" title="Höhe 1: Geländehöhe&#10;Höhe 2: Oberflächenhöhe&#10;Höhe 3: Objekthöhe">
-                                <span class="map-footer-label">Höhe:</span>
-                                <span id="map-coord-altitude" class="map-footer-value">--</span>
-                            </div>
-                            <div class="map-footer-item map-footer-picker" id="map-coord-picker-btn" onclick="toggleCoordPicker()" title="Koordinaten fixieren">
-                                <svg viewBox="0 0 24 24" width="14" height="14"><path fill="currentColor" d="M16,12V4H17V2H7V4H8V12L6,14V16H11.2V22H12.8V16H18V14L16,12Z"/></svg>
-                            </div>
-                        </div>
-                        <div class="map-footer-right">
-                            <span id="map-footer-copyright"></span>
-                        </div>
-                    </div>
+                    <!-- Map Footer Bar: DOM wird durch tnet-map-footer.js injiziert (ensureMapFooterDOM) -->
                     
                     <div id='mapcontrols_div' style="z-index:99999;">
                         <div id='toggle_coltool1_div' style="visibility: hidden;">
@@ -767,112 +698,6 @@
                     <div id="paneSwitcher" class="edgePanel"
                         style="position: absolute;left: 0px;top: 0px;display: none"></div>
 
-                    <!-- Basemap Selector rechts unten -->
-                    <div id="basemap_selector" title="Hintergrundkarte wählen" onclick="toggleBasemapWidget()">
-                        <div class="basemap-preview"></div>
-                        <span class="basemap-label">Hintergrund</span>
-                    </div>
-
-                    <!-- Basemap Widget -->
-                    <div id="basemap_widget" class="basemap-widget-hidden">
-                        <div class="basemap-widget-header">
-                            <span>GRUNDKARTE</span>
-                            <button class="basemap-widget-close" onclick="toggleBasemapWidget()">&times;</button>
-                        </div>
-                        <div class="basemap-widget-content">
-                            <!-- Layer Toggles -->
-                            <div class="basemap-layer-section">
-                                <!-- Basiskarten-Überlagerungen: dynamisch aus tnet-global-config.json5
-                                     (basemapOverlays) generiert durch tnet-basemap.js -->
-                                <div id="basemap-overlay-rows"></div>
-                                <div class="basemap-layer-row">
-                                    <span class="layer-icon" id="basemap-colormode-icon">◧</span>
-                                    <span class="layer-label">Farbig / Grau</span>
-                                    <div class="layer-toggle">
-                                        <button class="toggle-btn active" data-layer="farbmodus" data-value="color" 
-                                            onclick="njs.AppManager.toggleBaseLayerColor('main','toggle_coltool1',this); this.classList.add('active'); this.nextElementSibling.classList.remove('active');">FARBE</button>
-                                        <button class="toggle-btn" data-layer="farbmodus" data-value="grey"
-                                            onclick="njs.AppManager.toggleBaseLayerColor('main','toggle_coltool1',this); this.classList.add('active'); this.previousElementSibling.classList.remove('active');">GRAU</button>
-                                    </div>
-                                </div>
-                                <div class="basemap-layer-row">
-                                    <span class="layer-label">Transparenz</span>
-                                    <input type="range" class="transparency-slider" min="0" max="100" value="0" 
-                                        oninput="njs.AppManager.setBaseLayerOpacity('main',this.value); this.nextElementSibling.textContent=this.value;" 
-                                        onchange="njs.AppManager.setBaseLayerOpacity('main',this.value);">
-                                    <span class="transparency-value">0</span>
-                                </div>
-                            </div>
-
-                            <!-- Zeitreise: Slider für zeitfähige Basemaps -->
-                            <div id="basemap-time-container" class="basemap-time-container" style="display:none;">
-                                <div class="basemap-time-header">
-                                    <span class="basemap-time-icon">⏱</span>
-                                    <span class="basemap-time-title">Zeitreise</span>
-                                    <span id="basemap-time-label" class="basemap-time-label">2024</span>
-                                    <button id="basemap-time-reset" class="basemap-time-reset" title="Aktuell">
-                                        <svg viewBox="0 0 16 16" width="14" height="14"><path fill="currentColor" d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm0 12.5A5.5 5.5 0 1 1 13.5 8 5.51 5.51 0 0 1 8 13.5zM8.5 4v4.25l3.15 1.88-.75 1.23L7 9V4z"/></svg>
-                                    </button>
-                                </div>
-                                <input type="range" id="basemap-time-slider" class="basemap-time-slider"
-                                    min="0" max="33" value="33" step="1">
-                                <div class="basemap-time-range">
-                                    <span id="basemap-time-min">1926</span>
-                                    <span id="basemap-time-max">2024</span>
-                                </div>
-                            </div>
-                            <!-- Zeitreise: Info-Label für historische Basemaps (z.B. Siegfried) -->
-                            <div id="basemap-time-info" class="basemap-time-info" style="display:none;">
-                                <span class="basemap-time-icon">⏱</span>
-                                <span id="basemap-time-info-text"></span>
-                            </div>
-
-                            <!-- Basemap Kacheln (scrollbar) -->
-                            <div class="basemap-cards-scroll">
-                                <div class="basemap-card active" data-basemap="swissimage">
-                                    <span class="basemap-card-time-badge">⏱</span>
-                                    <div class="basemap-card-preview orthofoto"></div>
-                                    <span class="basemap-card-label">Orthofoto</span>
-                                </div>
-                                <div class="basemap-card" data-basemap="av_sw">
-                                    <div class="basemap-card-preview basisplan"></div>
-                                    <span class="basemap-card-label">Basisplan</span>
-                                </div>
-                                <div class="basemap-card" data-basemap="plan_fuer_grundbuch_bund">
-                                    <div class="basemap-card-preview grundbuch"></div>
-                                    <span class="basemap-card-label">Plan f. Grundbuch</span>
-                                </div>
-                                <div class="basemap-cards-spacer">Weitere</div>
-                                <div class="basemap-card" data-basemap="pk_color">
-                                    <span class="basemap-card-time-badge">⏱</span>
-                                    <div class="basemap-card-preview landeskarte"></div>
-                                    <span class="basemap-card-label">Landeskarte</span>
-                                </div>
-                                <div class="basemap-card" data-basemap="siegfried">
-                                    <span class="basemap-card-time-badge">⏱</span>
-                                    <div class="basemap-card-preview siegfried"></div>
-                                    <span class="basemap-card-label">Siegfriedkarten</span>
-                                </div>
-                                <div class="basemap-card" data-basemap="dufour">
-                                    <span class="basemap-card-time-badge">⏱</span>
-                                    <div class="basemap-card-preview dufour"></div>
-                                    <span class="basemap-card-label">Dufourkarte</span>
-                                </div>
-                                <div class="basemap-card" data-basemap="swiss_tlm">
-                                    <div class="basemap-card-preview swisstlm"></div>
-                                    <span class="basemap-card-label">swissTLM</span>
-                                </div>
-                                <div class="basemap-card" data-basemap="osm_ch">
-                                    <div class="basemap-card-preview osm"></div>
-                                    <span class="basemap-card-label">OpenStreetMap</span>
-                                </div>
-                                <div class="basemap-card" data-basemap="leer">
-                                    <div class="basemap-card-preview keine"></div>
-                                    <span class="basemap-card-label">Leer</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
 
                 </div>
                 <!-- /map container -->
@@ -917,34 +742,10 @@
     <script type="module" src="tnet/js/tnet-utils.js"></script>
 
     <!-- TNET helpers for bookmarks&Co. -->
-    <script type="text/javascript" src="tnet/js/tnet-mapplus-helpers.js?v=20260618j" defer></script>
+    <script type="text/javascript" src="tnet/js/tnet-mapplus-helpers.js?v=20260706a" defer></script>
     
-    <!-- TNET Accordion/Tab-Konverter -->
-    <link rel="stylesheet" href="tnet/css/tnet_toc.css" />
-    <!-- TNET Komponenten: Kontextmenü, Footer, Kompass, Polygon-Tool, Spatial Query -->
-    <link rel="stylesheet" href="tnet/css/tnet-components.css" />
-    <!-- TNET Split-Screen CSS -->
-    <link rel="stylesheet" href="tnet/css/tnet-splitscreen.css" />
-    <!-- TNET 3D Landscape CSS -->
-    <link rel="stylesheet" href="tnet/css/tnet-3d-landscape.css" />
-    <!-- TNET MapControls: Zoom, GNSS, StreetView, 3D Buttons -->
-    <link rel="stylesheet" href="tnet/css/tnet-mapcontrols.css" />
-    <!-- TNET Basemap-Selektor: Widget, Kacheln, Zeitreise-Slider -->
-    <link rel="stylesheet" href="tnet/css/tnet-basemap-selector.css" />
-    <!-- TNET WMS-Panel: Sidebar-Eintraege, Inputs, Grid -->
-    <link rel="stylesheet" href="tnet/css/tnet-wms-panel.css" />
-    <!-- TNET Info-Panel: FloatingPane-Layout, Header, Unified Design -->
-    <link rel="stylesheet" href="tnet/css/tnet-info-panel.css" />
-    <!-- TNET Suche: Desktop-Suchbar, Filter-Popup, Resultatliste -->
-    <link rel="stylesheet" href="tnet/css/tnet-search.css" />
-    <!-- TNET Legende: FloatingPane, Header, Dock-Ansicht -->
-    <link rel="stylesheet" href="tnet/css/tnet-legend.css" />
-    <!-- TNET LM Legacy: Hierarchie-Einrueckung, Container, Dargestellte Themen -->
-    <link rel="stylesheet" href="tnet/css/tnet-lm-legacy.css" />
-    <!-- TNET Sidepanel Legacy: body:not(.tnet-sidepanel-v2) + TNET-Panel Accordions -->
-    <link rel="stylesheet" href="tnet/css/tnet-sidepanel-legacy.css" />
-    <!-- GIS Daten AG Splash Screen Cube -->
-    <link rel="stylesheet" href="tnet/css/gis-daten-splash.css" />
+    <!-- TNET Styles gebündelt (build_css.py → tnet.bundle.css, ersetzt 16 Einzel-Links) -->
+    <link rel="stylesheet" href="tnet/css/tnet.bundle.css?v=20260703c" />
     <script type="text/javascript" src="tnet/js/tnet_toc.js" defer></script>
 
     <!-- TNET App-Init: Panel-Schatten, Scroll-to-Top, Bookmark Auto-Start -->
@@ -954,10 +755,10 @@
     <script type="module" src="tnet/js/tnet-header.js"></script>
 
     <!-- TNET Kontextmenü: Rechtsklick, Marker, Koordinaten, Routing -->
-    <script type="module" src="tnet/js/tnet-context-menu.js?v=20260616b"></script>
+    <script type="module" src="tnet/js/tnet-context-menu.js?v=20260703a"></script>
 
     <!-- TNET Map Footer: Koordinaten, Maßstab, Copyright -->
-    <script type="module" src="tnet/js/tnet-map-footer.js"></script>
+    <script type="module" src="tnet/js/tnet-map-footer.js?v=20260703a"></script>
 
     <!-- TNET Info Panel: Buttons, Resize, Dock/Undock -->
     <script type="module" src="tnet/js/tnet-info-panel.js?v=20260616b"></script>
@@ -965,7 +766,7 @@
 
 
     <!-- TNET Spatial Query: Polygon-Zeichnen, WFS/ArcGIS/geo.admin.ch Abfragen, Ergebnis-Anzeige -->
-    <script type="module" src="tnet/js/tnet-spatial-query.js"></script>
+    <script type="module" src="tnet/js/tnet-spatial-query.js?v=20260703b"></script>
 
     <!-- TNET Split-Screen: Layer-Vergleich mit geteilter Karte -->
     <script src="tnet/js/tnet-splitscreen.js"></script>
@@ -986,10 +787,9 @@
     <script src="tnet/js/tnet-basemap.js"></script>
 
     <!-- TNET Layer-Manager: Themenkatalog + Dargestellte Themen (Store, Tree, Active-Panel, Init) -->
-    <link rel="stylesheet" href="tnet/css/tnet-lm.css?v=20260618c" />
-    <link rel="stylesheet" href="tnet/css/tnet-sidepanel.css" />
-    <script src="tnet/js/tnet-coalesce-bridge.js?v=20260617e" defer></script>
-    <script src="tnet/js/tnet-lm-store.js?v=20260619a" defer></script>
+    <!-- LM/Sidepanel CSS: jetzt in tnet.bundle.css -->
+    <script src="tnet/js/tnet-coalesce-bridge.js?v=20260716a" defer></script>
+    <script src="tnet/js/tnet-lm-store.js?v=20260706a" defer></script>
     <script src="tnet/js/tnet-lm-tree.js?v=20260618c" defer></script>
     <script src="tnet/js/tnet-lm-active.js?v=20260618i" defer></script>
     <script src="tnet/js/tnet-lm-init.js" defer></script>
@@ -1007,112 +807,26 @@
     <script src="tnet/js/tnet-3d-landscape.js?v=20260211c"></script>
 
     <!-- TNET ÖREB: Grundstückabfrage, EGRID, Katasterauszug -->
-    <script type="module" src="tnet/js/tnet-oereb.js?v=20260710a"></script>
+    <script type="module" src="tnet/js/tnet-oereb.js?v=20260714b"></script>
 
-    <!-- Ergebnis-Panel für räumliche Abfrage (ausserhalb mapContainer für korrekte Pointer-Events) -->
-    <div id="spatial-query-panel" class="spatial-query-panel hidden">
-        <div class="spatial-query-resize-top" id="spatial-query-resize-top"></div>
-        <div class="spatial-query-resize-left" id="spatial-query-resize-left"></div>
-        <div class="spatial-query-resize-right" id="spatial-query-resize-right"></div>
-        <div class="spatial-query-resize-bottom" id="spatial-query-resize-bottom"></div>
-        <div class="spatial-query-resize-corner-tl" id="spatial-query-resize-corner-tl"></div>
-        <div class="spatial-query-resize-corner-tr" id="spatial-query-resize-corner-tr"></div>
-        <div class="spatial-query-resize-corner-bl" id="spatial-query-resize-corner-bl"></div>
-        <div class="spatial-query-resize-corner-br" id="spatial-query-resize-corner-br"></div>
-        <div class="spatial-query-header" id="spatial-query-header">
-            <span class="spatial-query-title">Räumliche Abfrage</span>
-            <div class="spatial-query-actions">
-                <button class="spatial-query-btn" onclick="exportQueryToExcel()" title="Als Excel exportieren">
-                    <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm4 18H6V4h7v5h5v11zm-5-7l-3 3.5L7 13h2.5V9h3v4H15z"/></svg>
-                </button>
-                <button class="spatial-query-btn" onclick="toggleDockPanel()" title="Unten andocken" id="dock-btn">
-                    <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5v-3h14v3zm0-5H5V5h14v9z"/></svg>
-                </button>
-                <button class="spatial-query-close" onclick="closeSpatialQueryPanel()">&times;</button>
-            </div>
-        </div>
-        <div class="spatial-query-status" id="spatial-query-status">Zeichnen Sie ein Polygon auf der Karte...</div>
-        <div class="spatial-query-results" id="spatial-query-results"></div>
-    </div>
+    <!-- Spatial-Query-Panel: DOM wird durch tnet-spatial-query.js injiziert (ensureSpatialQueryPanelDOM) -->
 
-    <!-- ÖREB Dock-Panel (ab-/andockbar rechts, mit iframe für ÖREB-Auszug) -->
-    <div id="oereb-dock-panel" class="oereb-dock-panel docked-right hidden">
-        <div class="oereb-resize-top" id="oereb-resize-top"></div>
-        <div class="oereb-resize-left" id="oereb-resize-left"></div>
-        <div class="oereb-resize-right" id="oereb-resize-right"></div>
-        <div class="oereb-resize-bottom" id="oereb-resize-bottom"></div>
-        <div class="oereb-resize-corner-tl" id="oereb-resize-corner-tl"></div>
-        <div class="oereb-resize-corner-tr" id="oereb-resize-corner-tr"></div>
-        <div class="oereb-resize-corner-bl" id="oereb-resize-corner-bl"></div>
-        <div class="oereb-resize-corner-br" id="oereb-resize-corner-br"></div>
-        <div class="oereb-dock-header" id="oereb-dock-header">
-            <span class="oereb-dock-title">ÖREB Grundstückabfrage</span>
-            <div class="oereb-dock-actions">
-                <button class="oereb-dock-btn" onclick="toggleOerebDock()" title="Floating" id="oereb-dock-btn">
-                    <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M19 11h-8v6h8v-6zm4 8V4.98C23 3.88 22.1 3 21 3H3c-1.1 0-2 .88-2 1.98V19c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2zm-2 .02H3V4.97h18v14.05z"/></svg>
-                </button>
-                <button class="oereb-dock-close" onclick="closeOerebPanel()">&times;</button>
-            </div>
-        </div>
-        <div id="oereb-selection" class="oereb-selection"></div>
-        <div class="oereb-iframe-container">
-            <iframe id="oereb-iframe" src="about:blank" style="border:none;width:100%;height:100%;display:block;"></iframe>
-        </div>
-    </div>
+    <!-- ÖREB Dock-Panel: DOM wird durch tnet-oereb.js injiziert (ensureOerebPanelDOM) -->
 
     <!-- TNET Panel Drag & Resize: Verschieben und Größe ändern des Spatial Query Panels -->
     <script type="module" src="tnet/js/tnet-panel-drag-resize.js"></script>
 
-    <!-- WMS-Panel: Externe Kartendienste (Dojo-frei, eigenes Floating-Panel) -->
-    <div id="wms-panel" class="wms-panel hidden">
-        <div class="wms-resize-top" id="wms-resize-top"></div>
-        <div class="wms-resize-left" id="wms-resize-left"></div>
-        <div class="wms-resize-right" id="wms-resize-right"></div>
-        <div class="wms-resize-bottom" id="wms-resize-bottom"></div>
-        <div class="wms-resize-corner-tl" id="wms-resize-corner-tl"></div>
-        <div class="wms-resize-corner-tr" id="wms-resize-corner-tr"></div>
-        <div class="wms-resize-corner-bl" id="wms-resize-corner-bl"></div>
-        <div class="wms-resize-corner-br" id="wms-resize-corner-br"></div>
-        <div class="wms-header" id="wms-header">
-            <span class="wms-title">Externe Kartendienste (WMS)</span>
-            <div class="wms-actions">
-                <button class="wms-close" onclick="closeWmsPanel()">&times;</button>
-            </div>
-        </div>
-        <div class="wms-body">
-            <div class="wms-url-bar">
-                <label class="wms-label">WMS-Dienst wählen oder URL eingeben:</label>
-                <div class="wms-url-row">
-                    <select id="wms-preset-select" class="wms-select">
-                        <option value="">— Vordefinierter Dienst —</option>
-                    </select>
-                </div>
-                <div class="wms-url-row">
-                    <input type="text" id="wms-url-input" class="wms-input" placeholder="https://wms.example.com/service?" autocomplete="off">
-                    <button class="wms-load-btn" id="wms-load-btn" onclick="loadWmsCapabilities()">Laden</button>
-                </div>
-            </div>
-            <div class="wms-status" id="wms-status"></div>
-            <div class="wms-filter-row" id="wms-filter-row" style="display:none">
-                <input type="text" id="wms-layer-filter" class="wms-input wms-filter-input" placeholder="Layer filtern…" autocomplete="off">
-            </div>
-            <div class="wms-layer-list" id="wms-layer-list"></div>
-            <div class="wms-added-section" id="wms-added-section" style="display:none">
-                <div class="wms-added-header">Hinzugefügte Layer</div>
-                <div class="wms-added-list" id="wms-added-list"></div>
-            </div>
-        </div>
-    </div>
-    <script src="tnet/js/tnet-wms-panel.js?v=20260306"></script>
+    <!-- WMS-Panel: DOM wird durch tnet-wms-panel.js injiziert (ensureWmsPanelDOM) -->
+    <script src="tnet/js/tnet-wms-panel.js?v=20260703b"></script>
 
     <!-- TNET Info-Bridge: Zentraler singleclick-Dispatcher für MapTips/GFI -->
     <script src="tnet/js/tnet-info-bridge.js?v=20260618l"></script>
 
-    <!-- Drucken / PDF-Export (Libraries werden dynamisch in tnet-print.js geladen) -->
-    <link rel="stylesheet" href="tnet/css/tnet-print.css">
-    <script src="tnet/js/tnet-print.js"></script>
+    <!-- Drucken / PDF-Export (Provider-Auswahl via tnet-global-config.json5) -->
+    <!-- tnet-print.css: jetzt in tnet.bundle.css -->
+    <script src="tnet/js/tnet-print-loader.js?v=20260716b"></script>
 
     <!-- Desktop-Suche: search-proxy.php (Layer + Geocoder) -->
-    <script defer src="tnet/js/tnet-search.js?v=20260222b"></script>
+    <script defer src="tnet/js/tnet-search.js?v=20260703a"></script>
 
 </body>

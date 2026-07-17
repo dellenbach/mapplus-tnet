@@ -40,13 +40,33 @@ PROTECTED_PREFIXES = (
     "tnet/config/",
 )
 
+EDIT_ALLOWED_PREFIXES = (
+    "tnet/",
+)
+EDIT_ALLOWED_FILES = {
+    "agsproxy.php",
+    "wmsproxy.php",
+    "public/index_de.htm",
+    "public/index_de_m.htm",
+}
 
-def is_protected_config(rel_path):
+
+def is_protected_config(rel_path, env=None):
     """Prueft, ob eine Datei unter geschuetzte Config-Pfade faellt."""
     rel = rel_path.replace("\\", "/").lower()
     if not rel.endswith(PROTECTED_EXTENSIONS):
         return False
+    if env == "edit" and rel.startswith("tnet/config/"):
+        return False
     return any(rel.startswith(prefix) for prefix in PROTECTED_PREFIXES)
+
+
+def is_edit_scope_allowed(rel_path):
+    """Erlaubte Pfade fuer --env edit: gesamter tnet-Ordner plus Proxy-Dateien."""
+    rel = rel_path.replace("\\", "/").lower()
+    if rel in EDIT_ALLOWED_FILES:
+        return True
+    return any(rel.startswith(prefix) for prefix in EDIT_ALLOWED_PREFIXES)
 
 
 def is_within_tree(path, base_dir):
@@ -57,6 +77,23 @@ def is_within_tree(path, base_dir):
         return os.path.commonpath([norm_path, norm_base]) == norm_base
     except ValueError:
         return False
+
+
+def ensure_remote_dir(sftp, remote_dir):
+    """Erstellt ein Remote-Verzeichnis rekursiv falls noetig."""
+    parts = remote_dir.rstrip("/").split("/")
+    path = ""
+    for part in parts:
+        if not part:
+            continue
+        path = path + "/" + part
+        try:
+            sftp.stat(path)
+        except IOError:
+            try:
+                sftp.mkdir(path)
+            except IOError:
+                pass
 
 
 def build_dev_js_stage(dev_local_base, rel_from_dev_web):
@@ -120,7 +157,10 @@ def main():
         print(f"[ERR] Datei nicht gefunden: {filepath}")
         sys.exit(1)
 
-    # Sicherheitscheck: DEV erlaubt nur maps-dev/. PROD erlaubt maps/ oder maps-dev/ mit lokalem Sync.
+    # Sicherheitscheck:
+    # DEV erlaubt nur maps-dev/.
+    # PROD erlaubt maps/ oder maps-dev/ mit lokalem Sync.
+    # EDIT erlaubt edit/ oder maps-dev/ mit lokalem Sync.
     if is_within_tree(filepath, LOCAL_BASE):
         pass
     elif deploy_config["env"] == "prod" and is_within_tree(filepath, dev_local_base):
@@ -146,11 +186,26 @@ def main():
             shutil.copy2(filepath, promoted_path)
             print(f"[SYNC] maps-dev -> maps: {rel_from_dev_web} -> {os.path.relpath(promoted_path, LOCAL_BASE).replace(os.sep, '/')}")
             filepath = promoted_path
+    elif deploy_config["env"] == "edit" and is_within_tree(filepath, dev_local_base):
+        rel_from_dev = os.path.relpath(filepath, dev_local_base)
+        rel_from_dev_web = rel_from_dev.replace(os.sep, "/")
+
+        if not is_edit_scope_allowed(rel_from_dev_web):
+            print("[ERR] Abgelehnt: Datei liegt ausserhalb des EDIT-Scopes")
+            print(f"  Datei:  {rel_from_dev_web}")
+            print("  Erlaubt: tnet/**, agsproxy.php, wmsproxy.php")
+            sys.exit(3)
+
+        promoted_path = os.path.normpath(os.path.join(LOCAL_BASE, rel_from_dev))
+        os.makedirs(os.path.dirname(promoted_path), exist_ok=True)
+        shutil.copy2(filepath, promoted_path)
+        print(f"[SYNC] maps-dev -> edit: {rel_from_dev_web} -> {os.path.relpath(promoted_path, LOCAL_BASE).replace(os.sep, '/')}")
+        filepath = promoted_path
     else:
         print("[ERR] Abgelehnt: Datei liegt nicht unter dem erlaubten Source-Tree")
         print(f"  Pfad:        {filepath}")
         print(f"  Erlaubt:     {LOCAL_BASE}")
-        if deploy_config["env"] == "prod":
+        if deploy_config["env"] in ("prod", "edit"):
             print(f"  Zusaetzlich: {dev_local_base}")
         sys.exit(1)
 
@@ -194,13 +249,19 @@ def main():
     rel_path = os.path.relpath(filepath, LOCAL_BASE).replace("\\", "/")
 
     # Config-Guard
-    if is_protected_config(rel_path) and not args.allow_config:
+    if deploy_config["env"] == "edit" and not is_edit_scope_allowed(rel_path):
+        print("[ERR] Abgelehnt: Datei liegt ausserhalb des EDIT-Scopes")
+        print(f"  Datei:  {rel_path}")
+        print("  Erlaubt: tnet/**, agsproxy.php, wmsproxy.php")
+        sys.exit(3)
+
+    if is_protected_config(rel_path, env=deploy_config["env"]) and not args.allow_config:
         print("[ERR] Abgelehnt: Geschuetzte Config-Datei (API/Git-only)")
         print(f"  Datei:  {rel_path}")
         print("  Verwende fuer Notfaelle explizit: --allow-config --reason \"...\"")
         sys.exit(3)
 
-    if is_protected_config(rel_path) and args.allow_config:
+    if is_protected_config(rel_path, env=deploy_config["env"]) and args.allow_config:
         print("[WARN] Override aktiv: Geschuetzte Config-Datei wird hochgeladen")
         print(f"  Grund: {args.reason.strip()}")
 
@@ -217,6 +278,8 @@ def main():
     try:
         ssh.connect(HOST, PORT, USER, PASSWORD)
         sftp = ssh.open_sftp()
+        remote_dir = remote_path.rsplit("/", 1)[0]
+        ensure_remote_dir(sftp, remote_dir)
         sftp.put(filepath, remote_path)
         sftp.close()
         ssh.close()

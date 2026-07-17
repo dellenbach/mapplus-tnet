@@ -541,6 +541,22 @@
         years: ['current'],
       },
     },
+
+    // ── Kachel-Definitionen für das Basemap-Widget ──
+    // Wird durch ensureWidgetDOM() in tnet-basemap.js zur DOM-Erzeugung verwendet.
+    // Reihenfolge = Anzeigereihenfolge; spacerLabel erzeugt einen Trenner.
+    cards: [
+      { id: 'swissimage',               label: 'Orthofoto',         previewClass: 'orthofoto',   hasTimeBadge: true },
+      { id: 'av_sw',                    label: 'Basisplan',         previewClass: 'basisplan' },
+      { id: 'plan_fuer_grundbuch_bund', label: 'Plan f. Grundbuch', previewClass: 'grundbuch' },
+      { spacerLabel: 'Weitere' },
+      { id: 'pk_color',                 label: 'Landeskarte',       previewClass: 'landeskarte', hasTimeBadge: true },
+      { id: 'siegfried',                label: 'Siegfriedkarten',   previewClass: 'siegfried',   hasTimeBadge: true },
+      { id: 'dufour',                   label: 'Dufourkarte',       previewClass: 'dufour',      hasTimeBadge: true },
+      { id: 'swiss_tlm',                label: 'swissTLM',          previewClass: 'swisstlm' },
+      { id: 'osm_ch',                   label: 'OpenStreetMap',     previewClass: 'osm' },
+      { id: 'leer',                     label: 'Leer',              previewClass: 'keine' },
+    ],
   },
 
   // ============================================================
@@ -548,6 +564,11 @@
   // ============================================================
   print: {
     _description: "PDF-Druck Einstellungen",
+    // Aktives Printing-System:
+    //   'tnet'    = neues TNET-Printing (Standard)
+    //   'mapplus' = Legacy-Mapplus-Printing
+    //   'none'    = Drucken komplett deaktivieren
+    provider: 'mapplus',
     // Anzahl Tage, nach denen archivierte PDFs gelöscht werden
     pdfRetentionDays: 1,
     // Automatisch Zoom anpassen beim Öffnen des Druckpanels
@@ -579,7 +600,7 @@
     // Bildformat für Kartenbild im PDF:
     //   'image/jpeg' = kleinere Datei (Standard)
     //   'image/png'  = verlustfrei, transparente Bereiche bleiben weiss
-    imageFormat: 'image/jpeg',
+    imageFormat: 'image/png',
     // ── Debug-Optionen ──
     // Erweiterte Konsolenausgaben (Massstab, DPI, Pixel, Extent etc.)
     debug: false,

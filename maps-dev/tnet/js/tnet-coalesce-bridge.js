@@ -109,6 +109,9 @@
   /** URL-Sync Timer */
   var _urlSyncTimer = null;
 
+  /** Maximale Wartezeit auf den Framework-MapTip-Connector (30 x 1s). */
+  var LOOKUP_CONNECTOR_MAX_RETRIES = 30;
+
   /**
    * Batch-Modus: Unterdrückt _syncDojoCheckbox und _scheduleUrlSync
    * während setGroupAllVisible mehrere Layer auf einmal verarbeitet.
@@ -152,6 +155,22 @@
    */
   function _extractRootKey(sublayerKey) {
     if (!sublayerKey || typeof sublayerKey !== 'string') return null;
+
+    // 0. Independent-Opacity-Overlays: IMMER eigener Root (= layerId).
+    //    Diese Overlays (z.B. hoehenlinien, gemeindegrenzen, projektebene) teilen
+    //    denselben MapServer-Dienst, sollen aber je einen EIGENEN OL-Layer haben
+    //    (eigene Deckkraft + Reihenfolge). Ohne diese Ausnahme wuerde der
+    //    Store-Lookup/Pfad-Parent unten alle drei auf den gemeinsamen Dienst-Root
+    //    konsolidieren → ein gemeinsamer Root-OL-Layer → gegenseitiges Ein/Ausschalten.
+    var svcs = window.__tnetIndependentOpacityServices;
+    if (Array.isArray(svcs) && svcs.length) {
+      var idLc = String(sublayerKey).toLowerCase();
+      for (var si = 0; si < svcs.length; si++) {
+        if (idLc.indexOf(String(svcs[si]).toLowerCase() + '/') === 0) {
+          return sublayerKey; // eigener Root pro Overlay
+        }
+      }
+    }
 
     // 1. Coalesce-Gruppe aus dem Store: konsolidiert alle Karten-Container
     //    desselben Dienstes auf einen gemeinsamen Root-Key.
@@ -762,12 +781,21 @@
    * @param {string} rootKey
    * @private
    */
-  function _registerLookupCallbacks(sublayerKey, rootKey) {
+  function _registerLookupCallbacks(sublayerKey, rootKey, retryCount) {
     try {
       var am = window.njs && window.njs.AppManager;
       if (!am || !am.MapTips || !am.MapTips._wms_connector) {
-        TnetLog.debug(LOG, '_registerLookupCallbacks: _wms_connector nicht verfügbar, Retry in 1s');
-        setTimeout(function () { _registerLookupCallbacks(sublayerKey, rootKey); }, 1000);
+        retryCount = Number(retryCount) || 0;
+        if (retryCount >= LOOKUP_CONNECTOR_MAX_RETRIES) {
+          TnetLog.warn(LOG, '_registerLookupCallbacks: _wms_connector nach '
+            + LOOKUP_CONNECTOR_MAX_RETRIES + 's nicht verfügbar, Registrierung abgebrochen:', sublayerKey);
+          return;
+        }
+        TnetLog.debug(LOG, '_registerLookupCallbacks: _wms_connector nicht verfügbar, Retry '
+          + (retryCount + 1) + '/' + LOOKUP_CONNECTOR_MAX_RETRIES + ' in 1s');
+        setTimeout(function () {
+          _registerLookupCallbacks(sublayerKey, rootKey, retryCount + 1);
+        }, 1000);
         return;
       }
 
